@@ -61,9 +61,7 @@ void Node::addAccRequirement(
     accessor<dataT, dimensions, accessMode, accessTarget, isPlaceholder> &&Acc,
     int argIndex) {
   detail::buffer_impl<dataT, dimensions> *buf =
-      Acc.template accessor_base<dataT, dimensions, accessMode, accessTarget,
-                                 isPlaceholder>::__impl()
-          ->m_Buf;
+      Acc.__impl()->m_Buf;
   addBufRequirement<accessMode, accessTarget, dataT, dimensions>(*buf);
   addInteropArg(nullptr, buf->get_size(), argIndex,
                 getReqForBuffer(m_Bufs, *buf));
@@ -128,8 +126,7 @@ template <typename T, int Dimensions, access::mode mode, access::target tgt,
           access::placeholder isPlaceholder>
 void Node::addExplicitMemOp(
     accessor<T, Dimensions, mode, tgt, isPlaceholder> &Dest, T Src) {
-  auto *DestBase = Dest.template accessor_base<T, Dimensions, mode, tgt,
-                                               isPlaceholder>::__impl();
+  auto *DestBase = Dest.__impl();
   assert(DestBase != nullptr &&
          "Accessor should have an initialized accessor_base");
   detail::buffer_impl<T, Dimensions> *Buf = DestBase->m_Buf;
@@ -153,13 +150,10 @@ template <typename T_src, int dim_src, access::mode mode_src,
 void Node::addExplicitMemOp(
     accessor<T_src, dim_src, mode_src, tgt_src, isPlaceholder_src> Src,
     accessor<T_dest, dim_dest, mode_dest, tgt_dest, isPlaceholder_dest> Dest) {
-  auto *SrcBase = Src.template accessor_base<T_src, dim_src, mode_src, tgt_src,
-                                             isPlaceholder_src>::__impl();
+  auto *SrcBase = Src.__impl();
   assert(SrcBase != nullptr &&
          "Accessor should have an initialized accessor_base");
-  auto *DestBase =
-      Dest.template accessor_base<T_dest, dim_dest, mode_dest, tgt_dest,
-                                  isPlaceholder_dest>::__impl();
+  auto *DestBase = Dest.__impl();
   assert(DestBase != nullptr &&
          "Accessor should have an initialized accessor_base");
 
@@ -191,8 +185,8 @@ template <typename T, int Dimensions, access::mode mode, access::target tgt,
 void Scheduler::updateHost(
     accessor<T, Dimensions, mode, tgt, isPlaceholder> &Acc,
     cl::sycl::event &Event) {
-  auto *AccBase = Acc.template accessor_base<T, Dimensions, mode, tgt,
-                                             isPlaceholder>::__impl();
+  auto *AccBase = Acc.impl();
+
   assert(AccBase != nullptr &&
          "Accessor should have an initialized accessor_base");
   detail::buffer_impl<T, Dimensions> *Buf = AccBase->m_Buf;

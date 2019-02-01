@@ -355,6 +355,9 @@ SYCL_ACCESSOR_SUBCLASS(accessor_common, accessor_base, true /* always */) {
   template <int Dimensions = dimensions>
   typename std::enable_if<(Dimensions > 0), id<Dimensions>>::type
   get_offset() const { return this->__impl()->Offset; }
+
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 SYCL_ACCESSOR_SUBCLASS(accessor_opdata_w, accessor_common,
@@ -366,6 +369,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_opdata_w, accessor_common,
   operator dataT &() const {
     return this->__impl()->Data[0];
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 SYCL_ACCESSOR_SUBCLASS(accessor_subscript_wn, accessor_opdata_w,
@@ -387,6 +392,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_subscript_wn, accessor_opdata_w,
     return subscript_obj<dimensions, dataT, dimensions - 1, accessMode,
                          accessTarget, isPlaceholder>(*this, ids);
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 SYCL_ACCESSOR_SUBCLASS(accessor_subscript_w, accessor_subscript_wn,
@@ -408,6 +415,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_subscript_w, accessor_subscript_wn,
   dataT &operator[](size_t index) const {
     return this->__impl()->Data[index];
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 SYCL_ACCESSOR_SUBCLASS(accessor_opdata_r, accessor_subscript_w,
@@ -416,6 +425,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_opdata_r, accessor_subscript_w,
   operator PureType() const {
     return this->__impl()->Data[0];
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 SYCL_ACCESSOR_SUBCLASS(accessor_subscript_rn, accessor_opdata_r,
@@ -434,6 +445,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_subscript_rn, accessor_opdata_r,
     return subscript_obj<dimensions, dataT, dimensions - 1, accessMode,
                          accessTarget, isPlaceholder>(*this, ids);
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 SYCL_ACCESSOR_SUBCLASS(accessor_subscript_r, accessor_subscript_rn,
@@ -447,6 +460,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_subscript_r, accessor_subscript_rn,
   operator[](size_t index) const {
     return this->__impl()->Data[index];
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 template <access::target accessTarget> struct getAddressSpace {
@@ -469,6 +484,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_subscript_atomic_eq0, accessor_subscript_r,
     return atomic<PureType, addressSpace>(
         multi_ptr<PureType, addressSpace>(&(this->__impl()->Data[0])));
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 // Available when: accessMode == access::mode::atomic && dimensions > 0
@@ -483,6 +500,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_subscript_atomic_gt0,
         multi_ptr<PureType, addressSpace>(&(this->__impl()->Data[getOffsetForId(
             this->__impl()->Range, index, this->__impl()->Offset)])));
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 // Available only when: accessMode == access::mode::atomic && dimensions == 1
@@ -496,6 +515,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_subscript_atomic_eq1,
     return atomic<PureType, addressSpace>(
         multi_ptr<PureType, addressSpace>(&(this->__impl()->Data[index])));
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 // TODO:
@@ -535,6 +556,8 @@ SYCL_ACCESSOR_SUBCLASS(accessor_pointer, accessor_subscript_atomic_eq1, true) {
   get_pointer() const {
     return local_ptr<DataT>(this->__impl()->Data);
   }
+  friend class ::cl::sycl::simple_scheduler::Node;
+  friend class ::cl::sycl::simple_scheduler::Scheduler;
 };
 
 } // namespace detail
@@ -557,13 +580,13 @@ class accessor
   // Make sure Impl field is the first in the class, so that it is
   // safe to reinterpret a pointer to accessor as a pointer to the
   // implementation.
-  _ImplT __impl;
+  _ImplT __implx;
 
   void __init(_ValueType *Ptr, range<dimensions> Range,
       id<dimensions> Offset) {
-    __impl.Data = Ptr;
-    __impl.Range = Range;
-    __impl.Offset = Offset;
+    __implx.Data = Ptr;
+    __implx.Range = Range;
+    __implx.Offset = Offset;
   }
 
 public:
@@ -593,7 +616,7 @@ public:
                 AccessTarget == access::target::constant_buffer))) &&
             Dimensions == 0),
            buffer<DataT, 1>>::type &bufferRef)
-      : __impl(detail::getSyclObjImpl(bufferRef)->BufPtr) {
+      : __implx(detail::getSyclObjImpl(bufferRef)->BufPtr) {
     auto BufImpl = detail::getSyclObjImpl(bufferRef);
     if (AccessTarget == access::target::host_buffer) {
       if (BufImpl->OpenCLInterop) {
@@ -633,7 +656,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       ; // This ctor can't be used in device code, so no need to define it.
 #else // !__SYCL_DEVICE_ONLY__
-      : __impl(detail::getSyclObjImpl(bufferRef)->BufPtr,
+      : __implx(detail::getSyclObjImpl(bufferRef)->BufPtr,
                detail::getSyclObjImpl(bufferRef)->Range,
                &commandGroupHandlerRef) {
     auto BufImpl = detail::getSyclObjImpl(bufferRef);
@@ -643,7 +666,7 @@ public:
           "interoperability buffer");
     }
     commandGroupHandlerRef.AddBufDep<AccessMode, AccessTarget>(*BufImpl);
-    __impl.m_Buf = BufImpl.get();
+    __implx.m_Buf = BufImpl.get();
   }
 #endif // !__SYCL_DEVICE_ONLY__
 
@@ -669,7 +692,7 @@ public:
                AccessTarget == access::target::constant_buffer))) &&
             Dimensions > 0),
            buffer<DataT, Dimensions>>::type &bufferRef)
-      : __impl(detail::getSyclObjImpl(bufferRef)->BufPtr,
+      : __implx(detail::getSyclObjImpl(bufferRef)->BufPtr,
                detail::getSyclObjImpl(bufferRef)->Range) {
     auto BufImpl = detail::getSyclObjImpl(bufferRef);
     if (AccessTarget == access::target::host_buffer) {
@@ -710,7 +733,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       ; // This ctor can't be used in device code, so no need to define it.
 #else
-      : __impl(detail::getSyclObjImpl(bufferRef)->BufPtr,
+      : __implx(detail::getSyclObjImpl(bufferRef)->BufPtr,
                detail::getSyclObjImpl(bufferRef)->Range,
                &commandGroupHandlerRef) {
     auto BufImpl = detail::getSyclObjImpl(bufferRef);
@@ -720,7 +743,7 @@ public:
           "interoperability buffer");
     }
     commandGroupHandlerRef.AddBufDep<AccessMode, AccessTarget>(*BufImpl);
-    __impl.m_Buf = BufImpl.get();
+    __implx.m_Buf = BufImpl.get();
   }
 #endif
 
@@ -752,7 +775,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       ; // This ctor can't be used in device code, so no need to define it.
 #else // !__SYCL_DEVICE_ONLY__
-      : __impl(detail::getSyclObjImpl(bufferRef)->BufPtr, Range, Offset) {
+      : __implx(detail::getSyclObjImpl(bufferRef)->BufPtr, Range, Offset) {
     auto BufImpl = detail::getSyclObjImpl(bufferRef);
     if (AccessTarget == access::target::host_buffer) {
       if (BufImpl->OpenCLInterop) {
@@ -796,7 +819,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       ; // This ctor can't be used in device code, so no need to define it.
 #else // !__SYCL_DEVICE_ONLY__
-      : __impl(detail::getSyclObjImpl(bufferRef)->BufPtr, Range,
+      : __implx(detail::getSyclObjImpl(bufferRef)->BufPtr, Range,
                &commandGroupHandlerRef, Offset) {
     auto BufImpl = detail::getSyclObjImpl(bufferRef);
     if (BufImpl->OpenCLInterop && !BufImpl->isValidAccessToMem(accessMode)) {
@@ -805,7 +828,7 @@ public:
           "interoperability buffer");
     }
     commandGroupHandlerRef.AddBufDep<AccessMode, AccessTarget>(*BufImpl);
-    __impl.m_Buf = BufImpl.get();
+    __implx.m_Buf = BufImpl.get();
   }
 #endif // !__SYCL_DEVICE_ONLY__
 
@@ -835,7 +858,7 @@ public:
                                     Dimensions > 0),
                                    range<Dimensions>>::type allocationSize,
            handler &commandGroupHandlerRef)
-      : __impl(allocationSize, &commandGroupHandlerRef) {}
+      : __implx(allocationSize, &commandGroupHandlerRef) {}
 };
 
 } // namespace sycl

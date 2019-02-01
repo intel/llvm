@@ -636,15 +636,15 @@ static void buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
 
       CreateAndAddPrmDsc(Fld, PointerType);
 
-      FieldDecl *RangeFld = getFieldDeclByName(RecordDecl, {"__impl", "Range"});
+      FieldDecl *RangeFld = getFieldDeclByName(RecordDecl, {"__implx", "Range"});
       assert(RangeFld &&
              "The accessor must contain the Range from the __impl field");
       CreateAndAddPrmDsc(RangeFld, RangeFld->getType());
 
       FieldDecl *OffsetFld =
-          getFieldDeclByName(RecordDecl, {"__impl", "Offset"});
+          getFieldDeclByName(RecordDecl, {"__implx", "Offset"});
       assert(OffsetFld &&
-             "The accessor must contain the Offset from the __impl field");
+             "The accessor must contain the Offset from the __implx field");
       CreateAndAddPrmDsc(OffsetFld, OffsetFld->getType());
     } else if (Util::isSyclStreamType(ArgTy)) {
       // the parameter is a SYCL stream object
@@ -700,7 +700,7 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
                      getAccessTarget(AccTmplTy), Offset);
       // ... second descriptor (translated to range kernel parameter):
       FieldDecl *RngFld =
-          getFieldDeclByName(AccTy, {"__impl", "Range"}, &Offset);
+          getFieldDeclByName(AccTy, {"__implx", "Range"}, &Offset);
       uint64_t Sz = Ctx.getTypeSizeInChars(RngFld->getType()).getQuantity();
       H.addParamDesc(SYCLIntegrationHeader::kind_std_layout,
                      static_cast<unsigned>(Sz), static_cast<unsigned>(Offset));
@@ -708,7 +708,7 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
       // Get offset in bytes
       Offset = Layout.getFieldOffset(Fld->getFieldIndex()) / 8;
       FieldDecl *OffstFld =
-          getFieldDeclByName(AccTy, {"__impl", "Offset"}, &Offset);
+          getFieldDeclByName(AccTy, {"__implx", "Offset"}, &Offset);
       Sz = Ctx.getTypeSizeInChars(OffstFld->getType()).getQuantity();
       H.addParamDesc(SYCLIntegrationHeader::kind_std_layout,
                      static_cast<unsigned>(Sz), static_cast<unsigned>(Offset));
