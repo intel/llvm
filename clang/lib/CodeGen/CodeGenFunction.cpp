@@ -823,6 +823,11 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
         CGM.getCodeGenOpts().StackAlignment)
       Fn->addFnAttr("stackrealign");
 
+  if (getLangOpts().SYCLIsDevice)
+    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
+      if (FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>())
+        Fn->addFnAttr("referenced-indirectly");
+
   llvm::BasicBlock *EntryBB = createBasicBlock("entry", CurFn);
 
   // Create a marker to make it easy to insert allocas into the entryblock
