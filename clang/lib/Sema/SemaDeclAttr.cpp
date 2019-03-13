@@ -4414,6 +4414,27 @@ static void handleOptimizeNoneAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     D->addAttr(Optnone);
 }
 
+static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
+                                                   const ParsedAttr &AL) {
+  auto *FD = cast<FunctionDecl>(D);
+  if (!FD->isExternallyVisible()) {
+    S.Diag(AL.getLoc(),
+           diag::err_sycl_device_indirectly_callable_cannot_be_applied_here)
+        << 0 /* static function or anonymous namespace */;
+    return;
+  }
+  if (isa<CXXMethodDecl>(FD)) {
+    S.Diag(AL.getLoc(),
+           diag::err_sycl_device_indirectly_callable_cannot_be_applied_here)
+        << 1 /* class member function */;
+    return;
+  }
+
+  S.addSyclDeviceDecl(D);
+  D->addAttr(SYCLDeviceAttr::CreateImplicit(S.Context));
+  handleSimpleAttribute<SYCLDeviceIndirectlyCallableAttr>(S, D, AL);
+}
+
 static void handleConstantAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (checkAttrMutualExclusion<CUDASharedAttr>(S, D, AL))
     return;
@@ -7088,6 +7109,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLKernel:
     handleSimpleAttribute<SYCLKernelAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLDeviceIndirectlyCallable:
+    handleSYCLDeviceIndirectlyCallableAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Format:
     handleFormatAttr(S, D, AL);

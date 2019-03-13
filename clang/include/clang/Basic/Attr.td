@@ -1058,6 +1058,13 @@ def SYCLScope : Attr {
   let Documentation = [Undocumented];
 }
 
+def SYCLDeviceIndirectlyCallable : InheritableAttr {
+  let Spellings = [ CXX11<"intel", "device_indirectly_callable"> ];
+  let Subjects = SubjectList<[Function]>;
+  let LangOpts = [SYCLIsDevice];
+  let Documentation = [SYCLDeviceIndirectlyCallableDocs];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;

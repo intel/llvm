@@ -1825,6 +1825,26 @@ be applied multiple times to the same loop.
   }];
 }
 
+def SYCLDeviceIndirectlyCallableDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::device_indirectly_callable";
+  let Content = [{
+This attribute can only be applied to functions and indicates that the
+function must be treated as a device function and must be emitted even if it has
+no direct uses from other SYCL device functions. However, it cannot be applied
+to functions marked as 'static', functions declared within an anonymous
+namespace or class member functions.
+
+It also means that function should be available externally and
+cannot be optimized out due to reachability analysis or by any other
+optimization.
+
+This attribute allows to pass name and address of the function to a special
+``cl::sycl::intel::get_device_func_ptr`` API call which extracts the device
+function pointer for the specified function.
+  }];
+}
+
 def RISCVInterruptDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "interrupt (RISCV)";
