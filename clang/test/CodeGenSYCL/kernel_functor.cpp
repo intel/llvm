@@ -168,7 +168,7 @@ int main() {
   cl::sycl::detail::KernelInfo<Functor1>::getName();
   // CHECK: Functor1
   cl::sycl::detail::KernelInfo<ns::Functor2>::getName();
-  // CHECK: ::ns::Functor2
+  // CHECK: ns::Functor2
   cl::sycl::detail::KernelInfo<TmplFunctor<int>>::getName();
   // CHECK: TmplFunctor<int>
   cl::sycl::detail::KernelInfo<TmplConstFunctor<int>>::getName();

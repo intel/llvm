@@ -736,6 +736,20 @@ static std::string eraseAnonNamespace(std::string S) {
   return S;
 }
 
+// Removes all "class" and "struct" substrings from given string
+static std::string eraseClassAndStruct(std::string S) {
+  const char S1[] = "class ";
+  const char S2[] = "struct ";
+
+  for (auto Pos = S.find(S1); Pos != StringRef::npos; Pos = S.find(S1, Pos))
+    S.erase(Pos, sizeof(S1) - 1);
+
+  for (auto Pos = S.find(S2); Pos != StringRef::npos; Pos = S.find(S2, Pos))
+    S.erase(Pos, sizeof(S2) - 1);
+
+  return S;
+}
+
 // Creates a mangled kernel name for given kernel name type
 static std::string constructKernelName(QualType KernelNameType,
                                        ASTContext &AC) {
@@ -761,8 +775,7 @@ void Sema::ConstructSYCLKernel(FunctionDecl *KernelCallerFunc) {
   assert(TemplateArgs && "No template argument info");
   // The first template argument always describes the kernel name - whether
   // it is lambda or functor.
-  QualType KernelNameType = TypeName::getFullyQualifiedType(
-      TemplateArgs->get(0).getAsType(), getASTContext(), true);
+  QualType KernelNameType = TemplateArgs->get(0).getAsType();
   std::string Name = constructKernelName(KernelNameType, getASTContext());
   populateIntHeader(getSyclIntegrationHeader(), Name, KernelNameType, LE);
   FunctionDecl *SYCLKernel =
@@ -1025,7 +1038,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
     O << "template <> struct KernelInfo<"
-      << eraseAnonNamespace(K.NameType.getAsString()) << "> {\n";
+      << eraseClassAndStruct(eraseAnonNamespace(K.NameType.getAsString()))
+      << "> {\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
       << "\"; }\n";
     O << "  static constexpr unsigned getNumParams() { return " << N << "; }\n";

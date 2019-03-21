@@ -21,6 +21,8 @@ namespace nm1 {
 namespace nm2 {
 class C {};
 class KernelName0 : public C {};
+
+template <int X> class KernelName11 {};
 } // namespace nm2
 
 class KernelName1;
@@ -34,7 +36,11 @@ template <> class KernelName3<KernelName1>;
 template <> class KernelName4<nm1::nm2::KernelName0> {};
 template <> class KernelName4<KernelName1> {};
 
+template <typename... Ts> class KernelName10;
+
 } // namespace nm1
+
+template <typename... Ts> class KernelName12;
 
 static int NumTestCases = 0;
 
@@ -233,6 +239,19 @@ struct Wrapper {
       });
       ++NumTestCases;
 #endif
+
+      deviceQueue.submit([&](cl::sycl::handler &cgh) {
+        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+        cgh.single_task<nm1::KernelName10<nm1::nm2::KernelName11<10>>>([=]() { acc[0] += GOLD; });
+      });
+      ++NumTestCases;
+
+      deviceQueue.submit([&](cl::sycl::handler &cgh) {
+        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+        cgh.single_task<KernelName12<nm1::nm2::KernelName11<10>>>([=]() { acc[0] += GOLD; });
+      });
+      ++NumTestCases;
+
     }
     return arr[0];
   }
