@@ -1451,7 +1451,7 @@ void Driver::generateCompilationDiagnostics(
     return;
   }
 
-  const ArgStringList &TempFiles = C.getTempFiles();
+  const TempFileList &TempFiles = C.getTempFiles();
   if (TempFiles.empty()) {
     Diag(clang::diag::note_drv_command_failed_diag_msg)
         << "Error generating preprocessed source(s).";
@@ -1465,24 +1465,24 @@ void Driver::generateCompilationDiagnostics(
 
   SmallString<128> VFS;
   SmallString<128> ReproCrashFilename;
-  for (const char *TempFile : TempFiles) {
-    Diag(clang::diag::note_drv_command_failed_diag_msg) << TempFile;
+  for (auto &TempFile : TempFiles) {
+    Diag(clang::diag::note_drv_command_failed_diag_msg) << TempFile.first;
     if (Report)
-      Report->TemporaryFiles.push_back(TempFile);
+      Report->TemporaryFiles.push_back(TempFile.first);
     if (ReproCrashFilename.empty()) {
-      ReproCrashFilename = TempFile;
+      ReproCrashFilename = TempFile.first;
       llvm::sys::path::replace_extension(ReproCrashFilename, ".crash");
     }
-    if (StringRef(TempFile).endswith(".cache")) {
+    if (StringRef(TempFile.first).endswith(".cache")) {
       // In some cases (modules) we'll dump extra data to help with reproducing
       // the crash into a directory next to the output.
-      VFS = llvm::sys::path::filename(TempFile);
+      VFS = llvm::sys::path::filename(TempFile.first);
       llvm::sys::path::append(VFS, "vfs", "vfs.yaml");
     }
   }
 
   // Assume associated files are based off of the first temporary file.
-  CrashReportInfo CrashInfo(TempFiles[0], VFS);
+  CrashReportInfo CrashInfo(TempFiles[0].first, VFS);
 
   llvm::SmallString<128> Script(CrashInfo.Filename);
   llvm::sys::path::replace_extension(Script, "sh");
@@ -4618,7 +4618,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
            C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
                                           "txt");
         const char *TmpFile =
-                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName),
+                                      types::TY_Tempfilelist);
         CurI = InputInfo(types::TY_Tempfilelist, TmpFile, TmpFile);
       } else {
         std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(

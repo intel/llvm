@@ -25,6 +25,9 @@ namespace driver {
   /// ActionList - Type used for lists of actions.
   typedef SmallVector<Action*, 3> ActionList;
 
+  /// TempFileList - A list of temporary files and their types.
+  typedef SmallVector<std::pair<const char *, types::ID>, 16> TempFileList;
+
 } // end namespace driver
 } // end namespace clang
 
