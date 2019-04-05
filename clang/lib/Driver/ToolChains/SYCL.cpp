@@ -65,8 +65,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
-    // FIXME - properly add objects from list to be removed when compilation is
-    // complete.
     for (const auto &II : InputFiles) {
       if (II.getType() == types::TY_Tempfilelist) {
         // Pass the unbundled list with '@' to be processed.
@@ -75,8 +73,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
       } else
         CmdArgs.push_back(II.getFilename());
     }
-  }
-  else
+  } else
     for (const auto &II : InputFiles)
       CmdArgs.push_back(II.getFilename());
 
