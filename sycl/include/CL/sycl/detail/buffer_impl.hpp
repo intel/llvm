@@ -99,23 +99,52 @@ public:
     }
   }
 
+  template <typename Iterator> struct is_const_iterator {
+    using pointer = typename std::iterator_traits<Iterator>::pointer;
+    static constexpr bool value =
+        std::is_const<typename std::remove_pointer<pointer>::type>::value;
+  };
+
+  template <typename Iterator>
+  using EnableIfConstIterator =
+      typename std::enable_if<is_const_iterator<Iterator>::value,
+                              Iterator>::type;
+
+  template <typename Iterator>
+  using EnableIfNotConstIterator =
+      typename std::enable_if<!is_const_iterator<Iterator>::value,
+                              Iterator>::type;
+
   template <class InputIterator>
-  buffer_impl(InputIterator first, InputIterator last, const size_t sizeInBytes,
-              const property_list &propList,
+  buffer_impl(EnableIfNotConstIterator<InputIterator> first, InputIterator last,
+              const size_t sizeInBytes, const property_list &propList,
               AllocatorT allocator = AllocatorT())
       : SizeInBytes(sizeInBytes), Props(propList), MAllocator(allocator) {
-    if (Props.has_property<property::buffer::use_host_ptr>()) {
-      // TODO next line looks unsafe
-      BufPtr = &*first;
-    } else {
-      BufData.resize(get_size());
-      BufPtr = reinterpret_cast<void *>(BufData.data());
-      // We need cast BufPtr to pointer to the iteration type to get correct
-      // offset in std::copy when it will increment destination pointer.
-      auto *Ptr = reinterpret_cast<
-          typename std::iterator_traits<InputIterator>::pointer>(BufPtr);
-      std::copy(first, last, Ptr);
-    }
+    BufData.resize(get_size());
+    BufPtr = reinterpret_cast<void *>(BufData.data());
+    // We need cast BufPtr to pointer to the iteration type to get correct
+    // offset in std::copy when it will increment destination pointer.
+    auto *Ptr =
+        reinterpret_cast<typename std::iterator_traits<InputIterator>::pointer>(
+            BufPtr);
+    std::copy(first, last, Ptr);
+    // Data is written back if InputIterator is not a const iterator.
+    set_final_data(first);
+  }
+
+  template <class InputIterator>
+  buffer_impl(EnableIfConstIterator<InputIterator> first, InputIterator last,
+              const size_t sizeInBytes, const property_list &propList,
+              AllocatorT allocator = AllocatorT())
+      : SizeInBytes(sizeInBytes), Props(propList), MAllocator(allocator) {
+    BufData.resize(get_size());
+    BufPtr = reinterpret_cast<void *>(BufData.data());
+    // We need cast BufPtr to pointer to the iteration type to get correct
+    // offset in std::copy when it will increment destination pointer.
+    typedef typename std::iterator_traits<InputIterator>::value_type value;
+    auto *Ptr = reinterpret_cast<typename std::add_pointer<
+        typename std::remove_const<value>::type>::type>(BufPtr);
+    std::copy(first, last, Ptr);
   }
 
   buffer_impl(cl_mem MemObject, const context &SyclContext,
@@ -135,16 +164,16 @@ public:
           "Input context must be the same as the context of cl_mem");
     OCLState.Mem = MemObject;
     CHECK_OCL_CODE(clRetainMemObject(MemObject));
+
+    BufData.resize(get_size());
+    BufPtr = reinterpret_cast<void *>(BufData.data());
   }
 
   size_t get_size() const { return SizeInBytes; }
 
   ~buffer_impl() {
-    if (!OpenCLInterop)
-      // TODO. Use node instead?
-      simple_scheduler::Scheduler::getInstance()
-          .copyBack<access::mode::read_write, access::target::host_buffer>(
-              *this);
+    simple_scheduler::Scheduler::getInstance()
+        .copyBack<access::mode::read_write, access::target::host_buffer>(*this);
 
     if (uploadData != nullptr && NeedWriteBack) {
       uploadData();
@@ -160,9 +189,6 @@ public:
   void set_final_data(std::nullptr_t) { uploadData = nullptr; }
 
   template <typename T> void set_final_data(weak_ptr_class<T> final_data) {
-    if (OpenCLInterop)
-      throw cl::sycl::runtime_error(
-          "set_final_data could not be used with interoperability buffer");
     uploadData = [this, final_data]() {
       if (auto finalData = final_data.lock()) {
         T *Ptr = reinterpret_cast<T *>(BufPtr);
@@ -172,9 +198,6 @@ public:
   }
 
   template <typename Destination> void set_final_data(Destination final_data) {
-    if (OpenCLInterop)
-      throw cl::sycl::runtime_error(
-          "set_final_data could not be used with interoperability buffer");
     static_assert(!std::is_const<Destination>::value,
                   "Can not write in a constant Destination. Destination should "
                   "not be const.");
@@ -390,11 +413,6 @@ void buffer_impl<AllocatorT>::moveMemoryTo(
 
   ContextImplPtr Context = detail::getSyclObjImpl(Queue->get_context());
 
-  if (OpenCLInterop && (Context->getHandleRef() != OpenCLContext))
-    throw cl::sycl::runtime_error(
-        "Interoperability buffer could not be used in a context other than the "
-        "context associated with the OpenCL memory object.");
-
   // TODO: Move all implementation specific commands to separate file?
   // TODO: Make allocation in separate command?
 
@@ -522,11 +540,6 @@ void buffer_impl<AllocatorT>::allocate(QueueImplPtr Queue,
   detail::waitEvents(DepEvents);
 
   ContextImplPtr Context = detail::getSyclObjImpl(Queue->get_context());
-
-  if (OpenCLInterop && (Context->getHandleRef() != OpenCLContext))
-    throw cl::sycl::runtime_error(
-        "Interoperability buffer could not be used in a context other than the "
-        "context associated with the OpenCL memory object.");
 
   if (OpenCLInterop) {
     // For interoperability instance of the SYCL buffer class being constructed
