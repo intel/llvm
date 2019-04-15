@@ -184,15 +184,7 @@ define i32 @v32i8(<32 x i8> %a, <32 x i8> %b) {
 ; AVX512F-LABEL: v32i8:
 ; AVX512F:       # %bb.0:
 ; AVX512F-NEXT:    vpcmpgtb %ymm1, %ymm0, %ymm0
-; AVX512F-NEXT:    vpmovsxbd %xmm0, %zmm1
-; AVX512F-NEXT:    vptestmd %zmm1, %zmm1, %k0
-; AVX512F-NEXT:    kmovw %k0, %ecx
-; AVX512F-NEXT:    vextracti128 $1, %ymm0, %xmm0
-; AVX512F-NEXT:    vpmovsxbd %xmm0, %zmm0
-; AVX512F-NEXT:    vptestmd %zmm0, %zmm0, %k0
-; AVX512F-NEXT:    kmovw %k0, %eax
-; AVX512F-NEXT:    shll $16, %eax
-; AVX512F-NEXT:    orl %ecx, %eax
+; AVX512F-NEXT:    vpmovmskb %ymm0, %eax
 ; AVX512F-NEXT:    vzeroupper
 ; AVX512F-NEXT:    retq
 ;
@@ -322,11 +314,8 @@ define void @bitcast_32i8_store(i32* %p, <32 x i8> %a0) {
 ;
 ; AVX1-LABEL: bitcast_32i8_store:
 ; AVX1:       # %bb.0:
-; AVX1-NEXT:    vpxor %xmm1, %xmm1, %xmm1
-; AVX1-NEXT:    vpcmpgtb %xmm0, %xmm1, %xmm2
-; AVX1-NEXT:    vpmovmskb %xmm2, %eax
+; AVX1-NEXT:    vpmovmskb %xmm0, %eax
 ; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm0
-; AVX1-NEXT:    vpcmpgtb %xmm0, %xmm1, %xmm0
 ; AVX1-NEXT:    vpmovmskb %xmm0, %ecx
 ; AVX1-NEXT:    shll $16, %ecx
 ; AVX1-NEXT:    orl %eax, %ecx

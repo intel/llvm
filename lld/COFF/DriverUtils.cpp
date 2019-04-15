@@ -1,9 +1,8 @@
 //===- DriverUtils.cpp ----------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -248,6 +247,27 @@ void parseAligncomm(StringRef S) {
     return;
   }
   Config->AlignComm[Name] = std::max(Config->AlignComm[Name], 1 << V);
+}
+
+// Parses /functionpadmin option argument.
+void parseFunctionPadMin(llvm::opt::Arg *A, llvm::COFF::MachineTypes Machine) {
+  StringRef Arg = A->getNumValues() ? A->getValue() : "";
+  if (!Arg.empty()) {
+    // Optional padding in bytes is given.
+    if (Arg.getAsInteger(0, Config->FunctionPadMin))
+      error("/functionpadmin: invalid argument: " + Arg);
+    return;
+  }
+  // No optional argument given.
+  // Set default padding based on machine, similar to link.exe.
+  // There is no default padding for ARM platforms.
+  if (Machine == I386) {
+    Config->FunctionPadMin = 5;
+  } else if (Machine == AMD64) {
+    Config->FunctionPadMin = 6;
+  } else {
+    error("/functionpadmin: invalid argument for this machine: " + Arg);
+  }
 }
 
 // Parses a string in the form of "EMBED[,=<integer>]|NO".

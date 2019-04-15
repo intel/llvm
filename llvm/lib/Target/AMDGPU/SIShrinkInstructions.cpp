@@ -1,9 +1,8 @@
 //===-- SIShrinkInstructions.cpp - Shrink Instructions --------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 /// The pass tries to use the 32-bit encoding for instructions when possible.
 //===----------------------------------------------------------------------===//
@@ -277,7 +276,9 @@ static bool shrinkScalarLogicOp(const GCNSubtarget &ST,
         if (Opc == AMDGPU::S_BITSET0_B32 ||
             Opc == AMDGPU::S_BITSET1_B32) {
           Src0->ChangeToImmediate(NewImm);
-          MI.RemoveOperand(2);
+          // Remove the immediate and add the tied input.
+          MI.getOperand(2).ChangeToRegister(Dest->getReg(), false);
+          MI.tieOperands(0, 2);
         } else {
           SrcImm->setImm(NewImm);
         }

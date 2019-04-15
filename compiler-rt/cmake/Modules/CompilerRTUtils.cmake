@@ -58,14 +58,6 @@ macro(append_rtti_flag polarity list)
   endif()
 endmacro()
 
-macro(append_have_file_definition filename varname list)
-  check_include_file("${filename}" "${varname}")
-  if (NOT ${varname})
-    set("${varname}" 0)
-  endif()
-  list(APPEND ${list} "${varname}=${${varname}}")
-endmacro()
-
 macro(list_intersect output input1 input2)
   set(${output})
   foreach(it ${${input1}})
@@ -241,7 +233,8 @@ macro(load_llvm_config)
     execute_process(
       COMMAND ${LLVM_CONFIG_PATH} "--ldflags" "--libs" "xray"
       RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT)
+      OUTPUT_VARIABLE CONFIG_OUTPUT
+      ERROR_QUIET)
     if (HAD_ERROR)
       message(WARNING "llvm-config finding xray failed with status ${HAD_ERROR}")
       set(COMPILER_RT_HAS_LLVMXRAY FALSE)
@@ -258,7 +251,8 @@ macro(load_llvm_config)
     execute_process(
       COMMAND ${LLVM_CONFIG_PATH} "--ldflags" "--libs" "testingsupport"
       RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT)
+      OUTPUT_VARIABLE CONFIG_OUTPUT
+      ERROR_QUIET)
     if (HAD_ERROR)
       message(WARNING "llvm-config finding testingsupport failed with status ${HAD_ERROR}")
     else()

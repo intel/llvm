@@ -1,9 +1,8 @@
 //===- Target.cpp ---------------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -75,6 +74,8 @@ TargetInfo *elf::getTarget() {
     default:
       llvm_unreachable("unsupported MIPS target");
     }
+  case EM_MSP430:
+    return getMSP430TargetInfo();
   case EM_PPC:
     return getPPCTargetInfo();
   case EM_PPC64:
@@ -97,7 +98,7 @@ template <class ELFT> static ErrorPlace getErrPlace(const uint8_t *Loc) {
     if (!IS->getParent())
       continue;
 
-    uint8_t *ISLoc = IS->getParent()->Loc + IS->OutSecOff;
+    uint8_t *ISLoc = Out::BufferStart + IS->getParent()->Offset + IS->OutSecOff;
     if (ISLoc <= Loc && Loc < ISLoc + IS->getSize())
       return {IS, IS->template getLocation<ELFT>(Loc - ISLoc) + ": "};
   }

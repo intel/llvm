@@ -1,9 +1,8 @@
 //===-- asan_win.cc -------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -354,6 +353,19 @@ static void NTAPI asan_thread_init(void *module, DWORD reason, void *reserved) {
 __declspec(allocate(".CRT$XLAB")) void (NTAPI *__asan_tls_init)(void *,
     unsigned long, void *) = asan_thread_init;
 #endif
+
+static void NTAPI asan_thread_exit(void *module, DWORD reason, void *reserved) {
+  if (reason == DLL_THREAD_DETACH) {
+    // Unpoison the thread's stack because the memory may be re-used.
+    NT_TIB *tib = (NT_TIB *)NtCurrentTeb();
+    uptr stackSize = (uptr)tib->StackBase - (uptr)tib->StackLimit;
+    __asan_unpoison_memory_region(tib->StackLimit, stackSize);
+  }
+}
+
+#pragma section(".CRT$XLY", long, read)  // NOLINT
+__declspec(allocate(".CRT$XLY")) void (NTAPI *__asan_tls_exit)(void *,
+    unsigned long, void *) = asan_thread_exit;
 
 WIN_FORCE_LINK(__asan_dso_reg_hook)
 

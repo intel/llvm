@@ -1,9 +1,8 @@
 //===-- RISCVSubtarget.cpp - RISCV Subtarget Information ------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -41,8 +40,8 @@ RISCVSubtarget &RISCVSubtarget::initializeSubtargetDependencies(StringRef CPU,
   return *this;
 }
 
-RISCVSubtarget::RISCVSubtarget(const Triple &TT, const std::string &CPU,
-                               const std::string &FS, const TargetMachine &TM)
+RISCVSubtarget::RISCVSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
+                               const TargetMachine &TM)
     : RISCVGenSubtargetInfo(TT, CPU, FS),
       FrameLowering(initializeSubtargetDependencies(CPU, FS, TT.isArch64Bit())),
       InstrInfo(), RegInfo(getHwMode()), TLInfo(TM, *this) {}

@@ -1,15 +1,15 @@
 //===-- HighlighterTest.cpp -------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "gtest/gtest.h"
 
 #include "lldb/Core/Highlighter.h"
+#include "lldb/Host/FileSystem.h"
 
 #include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
 #include "Plugins/Language/ObjC/ObjCLanguage.h"
@@ -28,6 +28,7 @@ public:
 void HighlighterTest::SetUpTestCase() {
   // The HighlighterManager uses the language plugins under the hood, so we
   // have to initialize them here for our test process.
+  FileSystem::Initialize();
   CPlusPlusLanguage::Initialize();
   ObjCLanguage::Initialize();
   ObjCPlusPlusLanguage::Initialize();
@@ -37,6 +38,7 @@ void HighlighterTest::TearDownTestCase() {
   CPlusPlusLanguage::Terminate();
   ObjCLanguage::Terminate();
   ObjCPlusPlusLanguage::Terminate();
+  FileSystem::Terminate();
 }
 
 static std::string getName(lldb::LanguageType type) {

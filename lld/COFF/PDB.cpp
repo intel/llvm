@@ -1,9 +1,8 @@
 //===- PDB.cpp ------------------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,6 +15,7 @@
 #include "Writer.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Timer.h"
+#include "lld/Common/Threads.h"
 #include "llvm/DebugInfo/CodeView/DebugFrameDataSubsection.h"
 #include "llvm/DebugInfo/CodeView/DebugSubsectionRecord.h"
 #include "llvm/DebugInfo/CodeView/GlobalTypeTableBuilder.h"
@@ -213,7 +213,7 @@ private:
   std::vector<pdb::SecMapEntry> SectionMap;
 
   /// Type index mappings of type server PDBs that we've loaded so far.
-  std::map<GUID, CVIndexMap> TypeServerIndexMappings;
+  std::map<codeview::GUID, CVIndexMap> TypeServerIndexMappings;
 
   /// Type index mappings of precompiled objects type map that we've loaded so
   /// far.
@@ -221,7 +221,7 @@ private:
 
   /// List of TypeServer PDBs which cannot be loaded.
   /// Cached to prevent repeated load attempts.
-  std::map<GUID, std::string> MissingTypeServerPDBs;
+  std::map<codeview::GUID, std::string> MissingTypeServerPDBs;
 };
 
 class DebugSHandler {
@@ -287,43 +287,25 @@ static void pdbMakeAbsolute(SmallVectorImpl<char> &FileName) {
   // It's not absolute in any path syntax.  Relative paths necessarily refer to
   // the local file system, so we can make it native without ending up with a
   // nonsensical path.
-  sys::path::native(FileName);
   if (Config->PDBSourcePath.empty()) {
+    sys::path::native(FileName);
     sys::fs::make_absolute(FileName);
     return;
   }
-  // Only apply native and dot removal to the relative file path.  We want to
-  // leave the path the user specified untouched since we assume they specified
-  // it for a reason.
-  sys::path::remove_dots(FileName, /*remove_dot_dots=*/true);
 
+  // Try to guess whether /PDBSOURCEPATH is a unix path or a windows path.
+  // Since PDB's are more of a Windows thing, we make this conservative and only
+  // decide that it's a unix path if we're fairly certain.  Specifically, if
+  // it starts with a forward slash.
   SmallString<128> AbsoluteFileName = Config->PDBSourcePath;
-  sys::path::append(AbsoluteFileName, FileName);
+  sys::path::Style GuessedStyle = AbsoluteFileName.startswith("/")
+                                      ? sys::path::Style::posix
+                                      : sys::path::Style::windows;
+  sys::path::append(AbsoluteFileName, GuessedStyle, FileName);
+  sys::path::native(AbsoluteFileName, GuessedStyle);
+  sys::path::remove_dots(AbsoluteFileName, true, GuessedStyle);
+
   FileName = std::move(AbsoluteFileName);
-}
-
-static SectionChunk *findByName(ArrayRef<SectionChunk *> Sections,
-                                StringRef Name) {
-  for (SectionChunk *C : Sections)
-    if (C->getSectionName() == Name)
-      return C;
-  return nullptr;
-}
-
-static ArrayRef<uint8_t> consumeDebugMagic(ArrayRef<uint8_t> Data,
-                                           StringRef SecName) {
-  // First 4 bytes are section magic.
-  if (Data.size() < 4)
-    fatal(SecName + " too short");
-  if (support::endian::read32le(Data.data()) != COFF::DEBUG_SECTION_MAGIC)
-    fatal(SecName + " has an invalid magic");
-  return Data.slice(4);
-}
-
-static ArrayRef<uint8_t> getDebugSection(ObjFile *File, StringRef SecName) {
-  if (SectionChunk *Sec = findByName(File->getDebugChunks(), SecName))
-    return consumeDebugMagic(Sec->getContents(), SecName);
-  return {};
 }
 
 // A COFF .debug$H section is currently a clang extension.  This function checks
@@ -343,7 +325,8 @@ static bool canUseDebugH(ArrayRef<uint8_t> DebugH) {
 }
 
 static Optional<ArrayRef<uint8_t>> getDebugH(ObjFile *File) {
-  SectionChunk *Sec = findByName(File->getDebugChunks(), ".debug$H");
+  SectionChunk *Sec =
+      SectionChunk::findByName(File->getDebugChunks(), ".debug$H");
   if (!Sec)
     return llvm::None;
   ArrayRef<uint8_t> Contents = Sec->getContents();
@@ -375,51 +358,17 @@ static void addTypeInfo(pdb::TpiStreamBuilder &TpiBuilder,
   });
 }
 
-// OBJs usually start their symbol stream with a S_OBJNAME record. This record
-// also contains the signature/key of the current PCH session. The signature
-// must be same for all objects which depend on the precompiled object.
-// Recompiling the precompiled headers will generate a new PCH key and thus
-// invalidate all the dependent objects.
-static uint32_t extractPCHSignature(ObjFile *File) {
-  auto DbgIt = find_if(File->getDebugChunks(), [](SectionChunk *C) {
-    return C->getSectionName() == ".debug$S";
-  });
-  if (!DbgIt)
-    return 0;
-
-  ArrayRef<uint8_t> Contents =
-      consumeDebugMagic((*DbgIt)->getContents(), ".debug$S");
-  DebugSubsectionArray Subsections;
-  BinaryStreamReader Reader(Contents, support::little);
-  ExitOnErr(Reader.readArray(Subsections, Contents.size()));
-
-  for (const DebugSubsectionRecord &SS : Subsections) {
-    if (SS.kind() != DebugSubsectionKind::Symbols)
-      continue;
-
-    // If it's there, the S_OBJNAME record shall come first in the stream.
-    Expected<CVSymbol> Sym = readSymbolFromStream(SS.getRecordData(), 0);
-    if (!Sym) {
-      consumeError(Sym.takeError());
-      continue;
-    }
-    if (auto ObjName = SymbolDeserializer::deserializeAs<ObjNameSym>(Sym.get()))
-      return ObjName->Signature;
-  }
-  return 0;
-}
-
 Expected<const CVIndexMap &>
 PDBLinker::mergeDebugT(ObjFile *File, CVIndexMap *ObjectIndexMap) {
   ScopedTimer T(TypeMergingTimer);
 
   bool IsPrecompiledHeader = false;
 
-  ArrayRef<uint8_t> Data = getDebugSection(File, ".debug$T");
+  ArrayRef<uint8_t> Data = File->getDebugSection(".debug$T");
   if (Data.empty()) {
     // Try again, Microsoft precompiled headers use .debug$P instead of
     // .debug$T
-    Data = getDebugSection(File, ".debug$P");
+    Data = File->getDebugSection(".debug$P");
     IsPrecompiledHeader = true;
   }
   if (Data.empty())
@@ -428,7 +377,7 @@ PDBLinker::mergeDebugT(ObjFile *File, CVIndexMap *ObjectIndexMap) {
   // Precompiled headers objects need to save the index map for further
   // reference by other objects which use the precompiled headers.
   if (IsPrecompiledHeader) {
-    uint32_t PCHSignature = extractPCHSignature(File);
+    uint32_t PCHSignature = File->PCHSignature.getValueOr(0);
     if (PCHSignature == 0)
       fatal("No signature found for the precompiled headers OBJ (" +
             File->getName() + ")");
@@ -493,13 +442,13 @@ PDBLinker::mergeDebugT(ObjFile *File, CVIndexMap *ObjectIndexMap) {
 
     if (auto Err = mergeTypeAndIdRecords(GlobalIDTable, GlobalTypeTable,
                                          ObjectIndexMap->TPIMap, Types, Hashes,
-                                         File->EndPrecomp))
+                                         File->PCHSignature))
       fatal("codeview::mergeTypeAndIdRecords failed: " +
             toString(std::move(Err)));
   } else {
     if (auto Err =
             mergeTypeAndIdRecords(IDTable, TypeTable, ObjectIndexMap->TPIMap,
-                                  Types, File->EndPrecomp))
+                                  Types, File->PCHSignature))
       fatal("codeview::mergeTypeAndIdRecords failed: " +
             toString(std::move(Err)));
   }
@@ -507,7 +456,7 @@ PDBLinker::mergeDebugT(ObjFile *File, CVIndexMap *ObjectIndexMap) {
 }
 
 static Expected<std::unique_ptr<pdb::NativeSession>>
-tryToLoadPDB(const GUID &GuidFromObj, StringRef TSPath) {
+tryToLoadPDB(const codeview::GUID &GuidFromObj, StringRef TSPath) {
   // Ensure the file exists before anything else. We want to return ENOENT,
   // "file not found", even if the path points to a removable device (in which
   // case the return message would be EAGAIN, "resource unavailable try again")
@@ -550,7 +499,7 @@ PDBLinker::maybeMergeTypeServerPDB(ObjFile *File, const CVType &FirstType) {
           TypeDeserializer::deserializeAs(const_cast<CVType &>(FirstType), TS))
     fatal("error reading record: " + toString(std::move(EC)));
 
-  const GUID &TSId = TS.getGuid();
+  const codeview::GUID &TSId = TS.getGuid();
   StringRef TSPath = TS.getName();
 
   // First, check if the PDB has previously failed to load.
@@ -631,7 +580,7 @@ PDBLinker::maybeMergeTypeServerPDB(ObjFile *File, const CVType &FirstType) {
     auto IpiHashes =
         GloballyHashedType::hashIds(ExpectedIpi->typeArray(), TpiHashes);
 
-    Optional<EndPrecompRecord> EndPrecomp;
+    Optional<uint32_t> EndPrecomp;
     // Merge TPI first, because the IPI stream will reference type indices.
     if (auto Err = mergeTypeRecords(GlobalTypeTable, IndexMap.TPIMap,
                                     ExpectedTpi->typeArray(), TpiHashes, EndPrecomp))
@@ -743,10 +692,10 @@ PDBLinker::aquirePrecompObj(ObjFile *File, PrecompRecord Precomp) {
 
   addObjFile(PrecompFile, &IndexMap);
 
-  if (!PrecompFile->EndPrecomp)
+  if (!PrecompFile->PCHSignature)
     fatal(PrecompFile->getName() + " is not a precompiled headers object");
 
-  if (Precomp.getSignature() != PrecompFile->EndPrecomp->getSignature())
+  if (Precomp.getSignature() != PrecompFile->PCHSignature.getValueOr(0))
     return createFileError(
         Precomp.getPrecompFilePath().str(),
         make_error<pdb::PDBError>(pdb::pdb_error_code::signature_out_of_date));
@@ -1170,7 +1119,7 @@ translateStringTableIndex(uint32_t ObjIndex,
 void DebugSHandler::handleDebugS(lld::coff::SectionChunk &DebugS) {
   DebugSubsectionArray Subsections;
 
-  ArrayRef<uint8_t> RelocatedDebugContents = consumeDebugMagic(
+  ArrayRef<uint8_t> RelocatedDebugContents = SectionChunk::consumeDebugMagic(
       relocateDebugChunk(Linker.Alloc, DebugS), DebugS.getSectionName());
 
   BinaryStreamReader Reader(RelocatedDebugContents, support::little);
@@ -1300,8 +1249,12 @@ void PDBLinker::addObjFile(ObjFile *File, CVIndexMap *ExternIndexMap) {
 
   // If the .debug$T sections fail to merge, assume there is no debug info.
   if (!IndexMapResult) {
-    auto FileName = sys::path::filename(Path);
-    warn("Cannot use debug info for '" + FileName + "'\n" +
+    if (!Config->WarnDebugInfoUnusable) {
+      consumeError(IndexMapResult.takeError());
+      return;
+    }
+    StringRef FileName = sys::path::filename(Path);
+    warn("Cannot use debug info for '" + FileName + "' [LNK4099]\n" +
          ">>> failed to load reference " +
          StringRef(toString(IndexMapResult.takeError())));
     return;
@@ -1387,10 +1340,9 @@ void PDBLinker::addObjectsToPDB() {
 
   if (!Publics.empty()) {
     // Sort the public symbols and add them to the stream.
-    std::sort(Publics.begin(), Publics.end(),
-              [](const PublicSym32 &L, const PublicSym32 &R) {
-                return L.Name < R.Name;
-              });
+    parallelSort(Publics, [](const PublicSym32 &L, const PublicSym32 &R) {
+      return L.Name < R.Name;
+    });
     for (const PublicSym32 &Pub : Publics)
       GsiBuilder.addPublicSymbol(Pub);
   }
@@ -1666,7 +1618,7 @@ static bool findLineTable(const SectionChunk *C, uint32_t Addr,
     }
 
     ArrayRef<uint8_t> Contents =
-        consumeDebugMagic(DbgC->getContents(), ".debug$S");
+        SectionChunk::consumeDebugMagic(DbgC->getContents(), ".debug$S");
     DebugSubsectionArray Subsections;
     BinaryStreamReader Reader(Contents, support::little);
     ExitOnErr(Reader.readArray(Subsections, Contents.size()));
@@ -1735,20 +1687,26 @@ std::pair<StringRef, uint32_t> coff::getFileLine(const SectionChunk *C,
   if (!findLineTable(C, Addr, CVStrTab, Checksums, Lines, OffsetInLinetable))
     return {"", 0};
 
-  uint32_t NameIndex;
-  uint32_t LineNumber;
+  Optional<uint32_t> NameIndex;
+  Optional<uint32_t> LineNumber;
   for (LineColumnEntry &Entry : Lines) {
     for (const LineNumberEntry &LN : Entry.LineNumbers) {
-      if (LN.Offset > OffsetInLinetable) {
-        StringRef Filename =
-            ExitOnErr(getFileName(CVStrTab, Checksums, NameIndex));
-        return {Filename, LineNumber};
-      }
       LineInfo LI(LN.Flags);
+      if (LN.Offset > OffsetInLinetable) {
+        if (!NameIndex) {
+          NameIndex = Entry.NameIndex;
+          LineNumber = LI.getStartLine();
+        }
+        StringRef Filename =
+            ExitOnErr(getFileName(CVStrTab, Checksums, *NameIndex));
+        return {Filename, *LineNumber};
+      }
       NameIndex = Entry.NameIndex;
       LineNumber = LI.getStartLine();
     }
   }
-  StringRef Filename = ExitOnErr(getFileName(CVStrTab, Checksums, NameIndex));
-  return {Filename, LineNumber};
+  if (!NameIndex)
+    return {"", 0};
+  StringRef Filename = ExitOnErr(getFileName(CVStrTab, Checksums, *NameIndex));
+  return {Filename, *LineNumber};
 }

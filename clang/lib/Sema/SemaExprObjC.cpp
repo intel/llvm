@@ -1,9 +1,8 @@
 //===--- SemaExprObjC.cpp - Semantic Analysis for ObjC Expressions --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -2806,8 +2805,8 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
       } else {
         if (ObjCMethodDecl *CurMeth = getCurMethodDecl()) {
           if (ObjCInterfaceDecl *ClassDecl = CurMeth->getClassInterface()) {
-            // FIXME: Is this correct? Why are we assuming that a message to
-            // Class will call a method in the current interface?
+            // As a guess, try looking for the method in the current interface.
+            // This very well may not produce the "right" method.
 
             // First check the public methods in the class interface.
             Method = ClassDecl->lookupClassMethod(Sel);
@@ -2815,8 +2814,7 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
             if (!Method)
               Method = ClassDecl->lookupPrivateClassMethod(Sel);
 
-            if (Method && DiagnoseUseOfDecl(Method, SelectorSlotLocs, nullptr,
-                                            false, false, ClassDecl))
+            if (Method && DiagnoseUseOfDecl(Method, SelectorSlotLocs))
               return ExprError();
           }
         }
@@ -3161,7 +3159,7 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
           Prop->getPropertyAttributes() & ObjCPropertyDecl::OBJC_PR_weak;
         if (!IsWeak && Sel.isUnarySelector())
           IsWeak = ReturnType.getObjCLifetime() & Qualifiers::OCL_Weak;
-        if (IsWeak &&
+        if (IsWeak && !isUnevaluatedContext() &&
             !Diags.isIgnored(diag::warn_arc_repeated_use_of_weak, LBracLoc))
           getCurFunction()->recordUseOfWeak(Result, Prop);
       }
@@ -4333,23 +4331,22 @@ Expr *Sema::stripARCUnbridgedCast(Expr *e) {
     assert(!gse->isResultDependent());
 
     unsigned n = gse->getNumAssocs();
-    SmallVector<Expr*, 4> subExprs(n);
-    SmallVector<TypeSourceInfo*, 4> subTypes(n);
-    for (unsigned i = 0; i != n; ++i) {
-      subTypes[i] = gse->getAssocTypeSourceInfo(i);
-      Expr *sub = gse->getAssocExpr(i);
-      if (i == gse->getResultIndex())
+    SmallVector<Expr *, 4> subExprs;
+    SmallVector<TypeSourceInfo *, 4> subTypes;
+    subExprs.reserve(n);
+    subTypes.reserve(n);
+    for (const GenericSelectionExpr::Association &assoc : gse->associations()) {
+      subTypes.push_back(assoc.getTypeSourceInfo());
+      Expr *sub = assoc.getAssociationExpr();
+      if (assoc.isSelected())
         sub = stripARCUnbridgedCast(sub);
-      subExprs[i] = sub;
+      subExprs.push_back(sub);
     }
 
-    return new (Context) GenericSelectionExpr(Context, gse->getGenericLoc(),
-                                              gse->getControllingExpr(),
-                                              subTypes, subExprs,
-                                              gse->getDefaultLoc(),
-                                              gse->getRParenLoc(),
-                                       gse->containsUnexpandedParameterPack(),
-                                              gse->getResultIndex());
+    return GenericSelectionExpr::Create(
+        Context, gse->getGenericLoc(), gse->getControllingExpr(), subTypes,
+        subExprs, gse->getDefaultLoc(), gse->getRParenLoc(),
+        gse->containsUnexpandedParameterPack(), gse->getResultIndex());
   } else {
     assert(isa<ImplicitCastExpr>(e) && "bad form of unbridged cast!");
     return cast<ImplicitCastExpr>(e)->getSubExpr();

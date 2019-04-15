@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -214,7 +213,7 @@ void __ompt_thread_assign_wait_id(void *variable) {
   ti->th.ompt_thread_info.wait_id = (ompt_wait_id_t)variable;
 }
 
-ompt_state_t __ompt_get_state_internal(ompt_wait_id_t *omp_wait_id) {
+int __ompt_get_state_internal(ompt_wait_id_t *omp_wait_id) {
   kmp_info_t *ti = ompt_get_thread();
 
   if (ti) {
@@ -448,4 +447,26 @@ static uint64_t __ompt_get_unique_id_internal() {
     ID = new_thread << (sizeof(uint64_t) * 8 - OMPT_THREAD_ID_BITS);
   }
   return ++ID;
+}
+
+ompt_sync_region_t __ompt_get_barrier_kind(enum barrier_type bt,
+                                           kmp_info_t *thr) {
+  if (bt == bs_forkjoin_barrier)
+    return ompt_sync_region_barrier_implicit;
+
+  if (bt != bs_plain_barrier)
+    return ompt_sync_region_barrier_implementation;
+
+  if (!thr->th.th_ident)
+    return ompt_sync_region_barrier;
+
+  kmp_int32 flags = thr->th.th_ident->flags;
+
+  if ((flags & KMP_IDENT_BARRIER_EXPL) != 0)
+    return ompt_sync_region_barrier_explicit;
+
+  if ((flags & KMP_IDENT_BARRIER_IMPL) != 0)
+    return ompt_sync_region_barrier_implicit;
+
+  return ompt_sync_region_barrier_implementation;
 }

@@ -1,9 +1,8 @@
 //===- Unix/Threading.inc - Unix Threading Implementation ----- -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -201,6 +200,12 @@ void llvm::get_thread_name(SmallVectorImpl<char> &Name) {
   constexpr uint32_t len = get_max_thread_name_length_impl();
   char buf[len];
   ::pthread_getname_np(::pthread_self(), buf, len);
+
+  Name.append(buf, buf + strlen(buf));
+#elif defined(__OpenBSD__)
+  constexpr uint32_t len = get_max_thread_name_length_impl();
+  char buf[len];
+  ::pthread_get_name_np(::pthread_self(), buf, len);
 
   Name.append(buf, buf + strlen(buf));
 #elif defined(__linux__)

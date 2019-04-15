@@ -3,10 +3,10 @@
 # RUN: llvm-mc %s -triple=riscv32 \
 # RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-ALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -riscv-no-aliases -d - \
-# RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-INST %s
+# RUN:     | llvm-objdump -riscv-no-aliases -d -r - \
+# RUN:     | FileCheck -check-prefixes=CHECK-OBJ-NOALIAS,CHECK-EXPAND,CHECK-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -d - \
+# RUN:     | llvm-objdump -d -r - \
 # RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-ALIAS %s
 
 # The following check prefixes are used in this test:
@@ -69,6 +69,32 @@ li x12, 0x80000000
 # CHECK-EXPAND: addi a2, zero, -1
 li x12, 0xFFFFFFFF
 
+# CHECK-EXPAND: addi a0, zero, 1110
+li a0, %lo(0x123456)
+# CHECK-OBJ-NOALIAS: addi a0, zero, 0
+# CHECK-OBJ: R_RISCV_PCREL_LO12
+li a0, %pcrel_lo(0x123456)
+
+# CHECK-OBJ-NOALIAS: addi a0, zero, 0
+# CHECK-OBJ: R_RISCV_LO12
+li a0, %lo(foo)
+# CHECK-OBJ-NOALIAS: addi a0, zero, 0
+# CHECK-OBJ: R_RISCV_PCREL_LO12
+li a0, %pcrel_lo(foo)
+
+.equ CONST, 0x123456
+# CHECK-EXPAND: lui a0, 291
+# CHECK-EXPAND: addi a0, a0, 1110
+li a0, CONST
+# CHECK-EXPAND: lui a0, 291
+# CHECK-EXPAND: addi a0, a0, 1111
+li a0, CONST+1
+
+.equ CONST, 0x654321
+# CHECK-EXPAND: lui a0, 1620
+# CHECK-EXPAND: addi a0, a0, 801
+li a0, CONST
+
 # CHECK-INST: csrrs t4, instreth, zero
 # CHECK-ALIAS: rdinstreth t4
 rdinstreth x29
@@ -78,3 +104,21 @@ rdcycleh x27
 # CHECK-INST: csrrs t3, timeh, zero
 # CHECK-ALIAS: rdtimeh t3
 rdtimeh x28
+
+# CHECK-EXPAND: lb a0, 0(a1)
+lb x10, (x11)
+# CHECK-EXPAND: lh a0, 0(a1)
+lh x10, (x11)
+# CHECK-EXPAND: lw a0, 0(a1)
+lw x10, (x11)
+# CHECK-EXPAND: lbu a0, 0(a1)
+lbu x10, (x11)
+# CHECK-EXPAND: lhu a0, 0(a1)
+lhu x10, (x11)
+
+# CHECK-EXPAND: sb a0, 0(a1)
+sb x10, (x11)
+# CHECK-EXPAND: sh a0, 0(a1)
+sh x10, (x11)
+# CHECK-EXPAND: sw a0, 0(a1)
+sw x10, (x11)

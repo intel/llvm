@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -120,6 +119,10 @@ int KMP_EXPAND_NAME(KMP_API_NAME_GOMP_SINGLE_START)(void) {
   if (!TCR_4(__kmp_init_parallel))
     __kmp_parallel_initialize();
 
+#if OMP_50_ENABLED
+  __kmp_resume_if_soft_paused();
+#endif
+
   // 3rd parameter == FALSE prevents kmp_enter_single from pushing a
   // workshare when USE_CHECKS is defined.  We need to avoid the push,
   // as there is no corresponding GOMP_single_end() call.
@@ -167,6 +170,10 @@ void *KMP_EXPAND_NAME(KMP_API_NAME_GOMP_SINGLE_COPY_START)(void) {
 
   if (!TCR_4(__kmp_init_parallel))
     __kmp_parallel_initialize();
+
+#if OMP_50_ENABLED
+  __kmp_resume_if_soft_paused();
+#endif
 
   // If this is the first thread to enter, return NULL.  The generated code will
   // then call GOMP_single_copy_end() for this thread only, with the
@@ -400,7 +407,7 @@ static
       ompt_team_size = __kmp_team_from_gtid(gtid)->t.t_nproc;
       ompt_callbacks.ompt_callback(ompt_callback_implicit_task)(
           ompt_scope_begin, &(team_info->parallel_data),
-          &(task_info->task_data), ompt_team_size, __kmp_tid_from_gtid(gtid));
+          &(task_info->task_data), ompt_team_size, __kmp_tid_from_gtid(gtid), ompt_task_implicit); // TODO: Can this be ompt_task_initial?
       task_info->thread_num = __kmp_tid_from_gtid(gtid);
     }
     thr->th.ompt_thread_info.state = ompt_state_work_parallel;
@@ -1537,11 +1544,7 @@ void KMP_EXPAND_NAME(KMP_API_NAME_GOMP_TASKGROUP_END)(void) {
   return;
 }
 
-#ifndef KMP_DEBUG
-static
-#endif /* KMP_DEBUG */
-    kmp_int32
-    __kmp_gomp_to_omp_cancellation_kind(int gomp_kind) {
+static kmp_int32 __kmp_gomp_to_omp_cancellation_kind(int gomp_kind) {
   kmp_int32 cncl_kind = 0;
   switch (gomp_kind) {
   case 1:
@@ -1560,71 +1563,49 @@ static
   return cncl_kind;
 }
 
+// Return true if cancellation should take place, false otherwise
 bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_CANCELLATION_POINT)(int which) {
-  if (__kmp_omp_cancellation) {
-    KMP_FATAL(NoGompCancellation);
-  }
   int gtid = __kmp_get_gtid();
   MKLOC(loc, "GOMP_cancellation_point");
-  KA_TRACE(20, ("GOMP_cancellation_point: T#%d\n", gtid));
-
+  KA_TRACE(20, ("GOMP_cancellation_point: T#%d which:%d\n", gtid, which));
   kmp_int32 cncl_kind = __kmp_gomp_to_omp_cancellation_kind(which);
-
   return __kmpc_cancellationpoint(&loc, gtid, cncl_kind);
 }
 
-bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_BARRIER_CANCEL)(void) {
-  if (__kmp_omp_cancellation) {
-    KMP_FATAL(NoGompCancellation);
-  }
-  KMP_FATAL(NoGompCancellation);
-  int gtid = __kmp_get_gtid();
-  MKLOC(loc, "GOMP_barrier_cancel");
-  KA_TRACE(20, ("GOMP_barrier_cancel: T#%d\n", gtid));
-
-  return __kmpc_cancel_barrier(&loc, gtid);
-}
-
+// Return true if cancellation should take place, false otherwise
 bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_CANCEL)(int which, bool do_cancel) {
-  if (__kmp_omp_cancellation) {
-    KMP_FATAL(NoGompCancellation);
-  } else {
-    return FALSE;
-  }
-
   int gtid = __kmp_get_gtid();
   MKLOC(loc, "GOMP_cancel");
-  KA_TRACE(20, ("GOMP_cancel: T#%d\n", gtid));
-
+  KA_TRACE(20, ("GOMP_cancel: T#%d which:%d do_cancel:%d\n", gtid, which,
+                (int)do_cancel));
   kmp_int32 cncl_kind = __kmp_gomp_to_omp_cancellation_kind(which);
 
   if (do_cancel == FALSE) {
-    return KMP_EXPAND_NAME(KMP_API_NAME_GOMP_CANCELLATION_POINT)(which);
+    return __kmpc_cancellationpoint(&loc, gtid, cncl_kind);
   } else {
     return __kmpc_cancel(&loc, gtid, cncl_kind);
   }
 }
 
-bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_SECTIONS_END_CANCEL)(void) {
-  if (__kmp_omp_cancellation) {
-    KMP_FATAL(NoGompCancellation);
-  }
+// Return true if cancellation should take place, false otherwise
+bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_BARRIER_CANCEL)(void) {
   int gtid = __kmp_get_gtid();
-  MKLOC(loc, "GOMP_sections_end_cancel");
-  KA_TRACE(20, ("GOMP_sections_end_cancel: T#%d\n", gtid));
-
-  return __kmpc_cancel_barrier(&loc, gtid);
+  KA_TRACE(20, ("GOMP_barrier_cancel: T#%d\n", gtid));
+  return __kmp_barrier_gomp_cancel(gtid);
 }
 
-bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_END_CANCEL)(void) {
-  if (__kmp_omp_cancellation) {
-    KMP_FATAL(NoGompCancellation);
-  }
+// Return true if cancellation should take place, false otherwise
+bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_SECTIONS_END_CANCEL)(void) {
   int gtid = __kmp_get_gtid();
-  MKLOC(loc, "GOMP_loop_end_cancel");
-  KA_TRACE(20, ("GOMP_loop_end_cancel: T#%d\n", gtid));
+  KA_TRACE(20, ("GOMP_sections_end_cancel: T#%d\n", gtid));
+  return __kmp_barrier_gomp_cancel(gtid);
+}
 
-  return __kmpc_cancel_barrier(&loc, gtid);
+// Return true if cancellation should take place, false otherwise
+bool KMP_EXPAND_NAME(KMP_API_NAME_GOMP_LOOP_END_CANCEL)(void) {
+  int gtid = __kmp_get_gtid();
+  KA_TRACE(20, ("GOMP_loop_end_cancel: T#%d\n", gtid));
+  return __kmp_barrier_gomp_cancel(gtid);
 }
 
 // All target functions are empty as of 2014-05-29

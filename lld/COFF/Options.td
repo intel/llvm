@@ -32,6 +32,8 @@ def errorlimit : P<"errorlimit",
 def export  : P<"export", "Export a function">;
 // No help text because /failifmismatch is not intended to be used by the user.
 def failifmismatch : P<"failifmismatch", "">;
+def functionpadmin : F<"functionpadmin">;
+def functionpadmin_opt : P<"functionpadmin", "Prepares an image for hotpatching">;
 def guard   : P<"guard", "Control flow guard">;
 def heap    : P<"heap", "Size of the heap">;
 def ignore : P<"ignore", "Specify warning codes to ignore">;
@@ -66,13 +68,18 @@ def wholearchive_file : P<"wholearchive", "Include all object files from this ar
 
 def disallowlib : Joined<["/", "-", "-?"], "disallowlib:">, Alias<nodefaultlib>;
 
-def manifest : F<"manifest">;
-def manifest_colon : P<"manifest", "Create manifest file">;
+def manifest : F<"manifest">, HelpText<"Create .manifest file">;
+def manifest_colon : P<
+    "manifest",
+    "NO disables manifest output; EMBED[,ID=#] embeds manifest as resource in the image">;
 def manifestuac : P<"manifestuac", "User access control">;
-def manifestfile : P<"manifestfile", "Manifest file path">;
-def manifestdependency : P<"manifestdependency",
-                           "Attributes for <dependency> in manifest file">;
-def manifestinput : P<"manifestinput", "Specify manifest file">;
+def manifestfile : P<"manifestfile", "Manifest output path, with /manifest">;
+def manifestdependency : P<
+    "manifestdependency",
+    "Attributes for <dependency> element in manifest file; implies /manifest">;
+def manifestinput : P<
+    "manifestinput",
+    "Additional manifest inputs; only valid with /manifest:embed">;
 
 // We cannot use multiclass P because class name "incl" is different
 // from its command line option name. We do this because "include" is
@@ -89,10 +96,13 @@ def debug_opt : P<"debug", "Embed a symbol table in the image with option">;
 def debugtype : P<"debugtype", "Debug Info Options">;
 def dll : F<"dll">, HelpText<"Create a DLL">;
 def driver : P<"driver", "Generate a Windows NT Kernel Mode Driver">;
-def nodefaultlib_all : F<"nodefaultlib">;
-def noentry : F<"noentry">;
+def nodefaultlib_all : F<"nodefaultlib">,
+    HelpText<"Remove all default libraries">;
+def noentry : F<"noentry">,
+    HelpText<"Don't add reference to DllMainCRTStartup; only valid with /dll">;
 def profile : F<"profile">;
-def repro : F<"Brepro">, HelpText<"Use a hash of the executable as the PE header timestamp">;
+def repro : F<"Brepro">,
+    HelpText<"Use a hash of the executable as the PE header timestamp">;
 def swaprun_cd : F<"swaprun:cd">;
 def swaprun_net : F<"swaprun:net">;
 def verbose : F<"verbose">;
@@ -142,6 +152,7 @@ def help : F<"help">;
 def help_q : Flag<["/?", "-?"], "">, Alias<help>;
 
 // LLD extensions
+def exclude_all_symbols : F<"exclude-all-symbols">;
 def export_all_symbols : F<"export-all-symbols">;
 def kill_at : F<"kill-at">;
 def lldmingw : F<"lldmingw">;
@@ -152,6 +163,9 @@ def rsp_quoting : Joined<["--"], "rsp-quoting=">,
   HelpText<"Quoting style for response files, 'windows' (default) or 'posix'">;
 def dash_dash_version : Flag<["--"], "version">,
   HelpText<"Print version information">;
+defm threads: B<"threads",
+    "Run the linker multi-threaded (default)",
+    "Do not run the linker multi-threaded">;
 
 // Flags for debugging
 def lldmap : F<"lldmap">;
@@ -169,7 +183,6 @@ multiclass QB<string name> {
   def _no : F<name#":no">;
 }
 
-def functionpadmin : F<"functionpadmin">;
 def ignoreidl : F<"ignoreidl">;
 def nologo : F<"nologo">;
 def throwingnew : F<"throwingnew">;

@@ -1,9 +1,8 @@
 //===--- Gnu.cpp - Gnu Tool and ToolChain Implementations -------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -334,6 +333,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const bool isAndroid = ToolChain.getTriple().isAndroid();
   const bool IsIAMCU = ToolChain.getTriple().isOSIAMCU();
   const bool IsPIE = getPIE(Args, ToolChain);
+  const bool IsStaticPIE = Args.hasArg(options::OPT_static_pie);
   const bool HasCRTBeginEndFiles =
       ToolChain.getTriple().hasEnvironment() ||
       (ToolChain.getTriple().getVendor() != llvm::Triple::MipsTechnologies);
@@ -353,6 +353,12 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (IsPIE)
     CmdArgs.push_back("-pie");
+
+  if (IsStaticPIE) {
+    CmdArgs.push_back("-static");
+    CmdArgs.push_back("-pie");
+    CmdArgs.push_back("--no-dynamic-linker");
+  }
 
   if (Args.hasArg(options::OPT_rdynamic))
     CmdArgs.push_back("-export-dynamic");
@@ -403,7 +409,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_rdynamic))
       CmdArgs.push_back("-export-dynamic");
 
-    if (!Args.hasArg(options::OPT_shared)) {
+    if (!Args.hasArg(options::OPT_shared) && !IsStaticPIE) {
       const std::string Loader =
           D.DyldPrefix + ToolChain.getDynamicLinker(Args);
       CmdArgs.push_back("-dynamic-linker");
@@ -422,6 +428,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
           crt1 = "gcrt1.o";
         else if (IsPIE)
           crt1 = "Scrt1.o";
+        else if (IsStaticPIE)
+          crt1 = "rcrt1.o";
         else
           crt1 = "crt1.o";
       }
@@ -439,14 +447,14 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         crtbegin = isAndroid ? "crtbegin_static.o" : "crtbeginT.o";
       else if (Args.hasArg(options::OPT_shared))
         crtbegin = isAndroid ? "crtbegin_so.o" : "crtbeginS.o";
-      else if (IsPIE)
+      else if (IsPIE || IsStaticPIE)
         crtbegin = isAndroid ? "crtbegin_dynamic.o" : "crtbeginS.o";
       else
         crtbegin = isAndroid ? "crtbegin_dynamic.o" : "crtbegin.o";
 
       if (HasCRTBeginEndFiles)
         CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath(crtbegin)));
-    }
+	}
 
     // Add crtfastmath.o if available and fast math is enabled.
     ToolChain.AddFastMathRuntimeIfAvailable(Args, CmdArgs);
@@ -468,7 +476,33 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   bool NeedsSanitizerDeps = addSanitizerRuntimes(ToolChain, Args, CmdArgs);
   bool NeedsXRayDeps = addXRayRuntime(ToolChain, Args, CmdArgs);
-  AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
+  // When offloading, the input file(s) could be from unbundled partially
+  // linked archives.  The unbundled information is a list of files and not
+  // an actual object/archive.  Take that list and pass those to the linker
+  // instead of the original object.
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
+      Args.hasArg(options::OPT_foffload_static_lib_EQ)) {
+    InputInfoList UpdatedInputs;
+    // Go through the Inputs to the link.  When an object is encountered, we
+    // know it is an unbundled generated list.
+    // FIXME - properly add objects from list to be removed when compilation is
+    // complete.
+    for (const auto &II : Inputs) {
+      if (II.getType() == types::TY_Object) {
+        // Read each line of the generated unbundle file and add them to the
+        // link.
+        std::string FileName(II.getFilename());
+        const char * ArgFile = C.getArgs().MakeArgString("@" + FileName);
+        auto CurInput = InputInfo(types::TY_Object, ArgFile, ArgFile);
+        UpdatedInputs.push_back(CurInput);
+      } else
+        UpdatedInputs.push_back(II);
+    }
+    AddLinkerInputs(ToolChain, UpdatedInputs, Args, CmdArgs, JA);
+  }
+  else
+    AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
+
   // The profile runtime also needs access to system libraries.
   getToolChain().addProfileRTLibs(Args, CmdArgs);
 
@@ -490,7 +524,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (!Args.hasArg(options::OPT_nostdlib)) {
     if (!Args.hasArg(options::OPT_nodefaultlibs)) {
-      if (Args.hasArg(options::OPT_static))
+      if (Args.hasArg(options::OPT_static) || IsStaticPIE)
         CmdArgs.push_back("--start-group");
 
       if (NeedsSanitizerDeps)
@@ -513,19 +547,23 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
       AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
 
+      if (Args.hasArg(options::OPT_fsycl))
+        CmdArgs.push_back("-lsycl");
+
       if (WantPthread && !isAndroid)
         CmdArgs.push_back("-lpthread");
 
       if (Args.hasArg(options::OPT_fsplit_stack))
         CmdArgs.push_back("--wrap=pthread_create");
 
-      CmdArgs.push_back("-lc");
+      if (!Args.hasArg(options::OPT_nolibc))
+        CmdArgs.push_back("-lc");
 
       // Add IAMCU specific libs, if needed.
       if (IsIAMCU)
         CmdArgs.push_back("-lgloss");
 
-      if (Args.hasArg(options::OPT_static))
+      if (Args.hasArg(options::OPT_static) || IsStaticPIE)
         CmdArgs.push_back("--end-group");
       else
         AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
@@ -542,7 +580,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       const char *crtend;
       if (Args.hasArg(options::OPT_shared))
         crtend = isAndroid ? "crtend_so.o" : "crtendS.o";
-      else if (IsPIE)
+      else if (IsPIE || IsStaticPIE)
         crtend = isAndroid ? "crtend_android.o" : "crtendS.o";
       else
         crtend = isAndroid ? "crtend_android.o" : "crtend.o";
@@ -876,6 +914,10 @@ static bool isMicroMips(const ArgList &Args) {
 
 static bool isRISCV(llvm::Triple::ArchType Arch) {
   return Arch == llvm::Triple::riscv32 || Arch == llvm::Triple::riscv64;
+}
+
+static bool isMSP430(llvm::Triple::ArchType Arch) {
+  return Arch == llvm::Triple::msp430;
 }
 
 static Multilib makeMultilib(StringRef commonSuffix) {
@@ -1423,6 +1465,26 @@ static void findAndroidArmMultilibs(const Driver &D,
     Result.Multilibs = AndroidArmMultilibs;
 }
 
+static bool findMSP430Multilibs(const Driver &D,
+                                const llvm::Triple &TargetTriple,
+                                StringRef Path, const ArgList &Args,
+                                DetectedMultilibs &Result) {
+  FilterNonExistent NonExistent(Path, "/crtbegin.o", D.getVFS());
+  Multilib MSP430Multilib = makeMultilib("/430");
+  // FIXME: when clang starts to support msp430x ISA additional logic
+  // to select between multilib must be implemented
+  // Multilib MSP430xMultilib = makeMultilib("/large");
+
+  Result.Multilibs.push_back(MSP430Multilib);
+  Result.Multilibs.FilterOut(NonExistent);
+
+  Multilib::flags_list Flags;
+  if (Result.Multilibs.select(Flags, Result.SelectedMultilib))
+    return true;
+
+  return false;
+}
+
 static void findRISCVMultilibs(const Driver &D,
                                const llvm::Triple &TargetTriple, StringRef Path,
                                const ArgList &Args, DetectedMultilibs &Result) {
@@ -1911,6 +1973,9 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
   static const char *const MIPSN32ELTriples[] = {
       "mips64el-linux-gnuabin32", "mipsisa64r6el-linux-gnuabin32"};
 
+  static const char *const MSP430LibDirs[] = {"/lib"};
+  static const char *const MSP430Triples[] = {"msp430-elf"};
+
   static const char *const PPCLibDirs[] = {"/lib32", "/lib"};
   static const char *const PPCTriples[] = {
       "powerpc-linux-gnu", "powerpc-unknown-linux-gnu", "powerpc-linux-gnuspe",
@@ -2135,6 +2200,10 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
     BiarchTripleAliases.append(begin(MIPSN32ELTriples), end(MIPSN32ELTriples));
     BiarchTripleAliases.append(begin(MIPSTriples), end(MIPSTriples));
     break;
+  case llvm::Triple::msp430:
+    LibDirs.append(begin(MSP430LibDirs), end(MSP430LibDirs));
+    TripleAliases.append(begin(MSP430Triples), end(MSP430Triples));
+    break;
   case llvm::Triple::ppc:
     LibDirs.append(begin(PPCLibDirs), end(PPCLibDirs));
     TripleAliases.append(begin(PPCTriples), end(PPCTriples));
@@ -2206,6 +2275,8 @@ bool Generic_GCC::GCCInstallationDetector::ScanGCCForMultilibs(
       return false;
   } else if (isRISCV(TargetArch)) {
     findRISCVMultilibs(D, TargetTriple, Path, Args, Detected);
+  } else if (isMSP430(TargetArch)) {
+    findMSP430Multilibs(D, TargetTriple, Path, Args, Detected);
   } else if (!findBiarchMultilibs(D, TargetTriple, Path, Args,
                                   NeedsBiarchSuffix, Detected)) {
     return false;
@@ -2474,7 +2545,14 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   case llvm::Triple::mipsel:
   case llvm::Triple::mips64:
   case llvm::Triple::mips64el:
+  case llvm::Triple::msp430:
     return true;
+  case llvm::Triple::sparc:
+  case llvm::Triple::sparcel:
+  case llvm::Triple::sparcv9:
+    if (getTriple().isOSSolaris() || getTriple().isOSOpenBSD())
+      return true;
+    return false;
   default:
     return false;
   }

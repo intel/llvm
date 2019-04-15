@@ -1,9 +1,8 @@
 //===--- FileIndex.h - Index for files. ---------------------------- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -20,6 +19,8 @@
 #include "Index.h"
 #include "MemIndex.h"
 #include "Merge.h"
+#include "index/CanonicalIncludes.h"
+#include "index/Symbol.h"
 #include "clang/Lex/Preprocessor.h"
 #include <memory>
 
@@ -85,7 +86,8 @@ public:
   /// Update preamble symbols of file \p Path with all declarations in \p AST
   /// and macros in \p PP.
   void updatePreamble(PathRef Path, ASTContext &AST,
-                      std::shared_ptr<Preprocessor> PP);
+                      std::shared_ptr<Preprocessor> PP,
+                      const CanonicalIncludes &Includes);
 
   /// Update symbols and references from main file \p Path with
   /// `indexMainDecls`.
@@ -125,8 +127,8 @@ std::pair<SymbolSlab, RefSlab> indexMainDecls(ParsedAST &AST);
 
 /// Idex declarations from \p AST and macros from \p PP that are declared in
 /// included headers.
-SymbolSlab indexHeaderSymbols(ASTContext &AST,
-                              std::shared_ptr<Preprocessor> PP);
+SymbolSlab indexHeaderSymbols(ASTContext &AST, std::shared_ptr<Preprocessor> PP,
+                              const CanonicalIncludes &Includes);
 
 } // namespace clangd
 } // namespace clang

@@ -1,9 +1,8 @@
 //===-- IRDynamicChecks.cpp -------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -255,7 +254,7 @@ protected:
   /// @return
   ///     The function pointer, for use in a CallInst.
   //------------------------------------------------------------------
-  llvm::Value *BuildPointerValidatorFunc(lldb::addr_t start_address) {
+  llvm::FunctionCallee BuildPointerValidatorFunc(lldb::addr_t start_address) {
     llvm::Type *param_array[1];
 
     param_array[0] = const_cast<llvm::PointerType *>(GetI8PtrTy());
@@ -267,7 +266,7 @@ protected:
     PointerType *fun_ptr_ty = PointerType::getUnqual(fun_ty);
     Constant *fun_addr_int =
         ConstantInt::get(GetIntptrTy(), start_address, false);
-    return ConstantExpr::getIntToPtr(fun_addr_int, fun_ptr_ty);
+    return {fun_ty, ConstantExpr::getIntToPtr(fun_addr_int, fun_ptr_ty)};
   }
 
   //------------------------------------------------------------------
@@ -280,7 +279,7 @@ protected:
   /// @return
   ///     The function pointer, for use in a CallInst.
   //------------------------------------------------------------------
-  llvm::Value *BuildObjectCheckerFunc(lldb::addr_t start_address) {
+  llvm::FunctionCallee BuildObjectCheckerFunc(lldb::addr_t start_address) {
     llvm::Type *param_array[2];
 
     param_array[0] = const_cast<llvm::PointerType *>(GetI8PtrTy());
@@ -293,7 +292,7 @@ protected:
     PointerType *fun_ptr_ty = PointerType::getUnqual(fun_ty);
     Constant *fun_addr_int =
         ConstantInt::get(GetIntptrTy(), start_address, false);
-    return ConstantExpr::getIntToPtr(fun_addr_int, fun_ptr_ty);
+    return {fun_ty, ConstantExpr::getIntToPtr(fun_addr_int, fun_ptr_ty)};
   }
 
   PointerType *GetI8PtrTy() {
@@ -383,7 +382,7 @@ protected:
   }
 
 private:
-  llvm::Value *m_valid_pointer_check_func;
+  llvm::FunctionCallee m_valid_pointer_check_func;
 };
 
 class ObjcObjectChecker : public Instrumenter {
@@ -425,8 +424,15 @@ protected:
     switch (msgSend_types[inst]) {
     case eMsgSend:
     case eMsgSend_fpret:
-      target_object = call_inst->getArgOperand(0);
-      selector = call_inst->getArgOperand(1);
+      // On arm64, clang uses objc_msgSend for scalar and struct return
+      // calls.  The call instruction will record which was used.
+      if (call_inst->hasStructRetAttr()) {
+        target_object = call_inst->getArgOperand(1);
+        selector = call_inst->getArgOperand(2);
+      } else {
+        target_object = call_inst->getArgOperand(0);
+        selector = call_inst->getArgOperand(1);
+      }
       break;
     case eMsgSend_stret:
       target_object = call_inst->getArgOperand(1);
@@ -545,7 +551,7 @@ protected:
   }
 
 private:
-  llvm::Value *m_objc_object_check_func;
+  llvm::FunctionCallee m_objc_object_check_func;
 };
 
 IRDynamicChecks::IRDynamicChecks(DynamicCheckerFunctions &checker_functions,

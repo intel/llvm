@@ -1,9 +1,8 @@
 //===-- StackFrameRecognizer.cpp --------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -41,8 +40,14 @@ ScriptedStackFrameRecognizer::RecognizeFrame(lldb::StackFrameSP frame) {
 
   ValueObjectListSP args =
       m_interpreter->GetRecognizedArguments(m_python_object_sp, frame);
+  auto args_synthesized = ValueObjectListSP(new ValueObjectList());
+  for (const auto o : args->GetObjects()) {
+    args_synthesized->Append(ValueObjectRecognizerSynthesizedValue::Create(
+        *o, eValueTypeVariableArgument));
+  }
 
-  return RecognizedStackFrameSP(new ScriptedRecognizedStackFrame(args));
+  return RecognizedStackFrameSP(
+      new ScriptedRecognizedStackFrame(args_synthesized));
 }
 
 #endif

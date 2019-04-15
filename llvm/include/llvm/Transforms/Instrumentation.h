@@ -1,9 +1,8 @@
 //===- Transforms/Instrumentation.h - Instrumentation passes ----*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -88,10 +87,14 @@ struct GCOVOptions {
 ModulePass *createGCOVProfilerPass(const GCOVOptions &Options =
                                    GCOVOptions::getDefault());
 
-// PGO Instrumention
-ModulePass *createPGOInstrumentationGenLegacyPass();
+// PGO Instrumention. Parameter IsCS indicates if this is the context senstive
+// instrumentation.
+ModulePass *createPGOInstrumentationGenLegacyPass(bool IsCS = false);
 ModulePass *
-createPGOInstrumentationUseLegacyPass(StringRef Filename = StringRef(""));
+createPGOInstrumentationUseLegacyPass(StringRef Filename = StringRef(""),
+                                      bool IsCS = false);
+ModulePass *createPGOInstrumentationGenCreateVarLegacyPass(
+    StringRef CSInstrName = StringRef(""));
 ModulePass *createPGOIndirectCallPromotionLegacyPass(bool InLTO = false,
                                                      bool SamplePGO = false);
 FunctionPass *createPGOMemOPSizeOptLegacyPass();
@@ -133,35 +136,24 @@ struct InstrProfOptions {
   // Use atomic profile counter increments.
   bool Atomic = false;
 
+  // Use BFI to guide register promotion
+  bool UseBFIInPromotion = false;
+
   // Name of the profile file to use as output
   std::string InstrProfileOutput;
 
   InstrProfOptions() = default;
 };
 
-/// Insert frontend instrumentation based profiling.
+/// Insert frontend instrumentation based profiling. Parameter IsCS indicates if
+// this is the context senstive instrumentation.
 ModulePass *createInstrProfilingLegacyPass(
-    const InstrProfOptions &Options = InstrProfOptions());
+    const InstrProfOptions &Options = InstrProfOptions(), bool IsCS = false);
 
-// Insert AddressSanitizer (address sanity checking) instrumentation
-FunctionPass *createAddressSanitizerFunctionPass(bool CompileKernel = false,
-                                                 bool Recover = false,
-                                                 bool UseAfterScope = false);
-ModulePass *createAddressSanitizerModulePass(bool CompileKernel = false,
-                                             bool Recover = false,
-                                             bool UseGlobalsGC = true,
-                                             bool UseOdrIndicator = true);
-
-// Insert MemorySanitizer instrumentation (detection of uninitialized reads)
-FunctionPass *createMemorySanitizerPass(int TrackOrigins = 0,
-                                        bool Recover = false,
-                                        bool EnableKmsan = false);
+ModulePass *createInstrOrderFilePass();
 
 FunctionPass *createHWAddressSanitizerPass(bool CompileKernel = false,
                                            bool Recover = false);
-
-// Insert ThreadSanitizer (race detection) instrumentation
-FunctionPass *createThreadSanitizerPass();
 
 // Insert DataFlowSanitizer (dynamic data flow analysis) instrumentation
 ModulePass *createDataFlowSanitizerPass(
@@ -230,7 +222,6 @@ static inline uint32_t scaleBranchCount(uint64_t Count, uint64_t Scale) {
   assert(Scaled <= std::numeric_limits<uint32_t>::max() && "overflow 32-bits");
   return Scaled;
 }
-
 } // end namespace llvm
 
 #endif // LLVM_TRANSFORMS_INSTRUMENTATION_H

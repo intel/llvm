@@ -1,9 +1,8 @@
 //===- InstrProf.h - Instrumented profiling format support ------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -768,10 +767,20 @@ struct NamedInstrProfRecord : InstrProfRecord {
   StringRef Name;
   uint64_t Hash;
 
+  // We reserve this bit as the flag for context sensitive profile record.
+  static const int CS_FLAG_IN_FUNC_HASH = 60;
+
   NamedInstrProfRecord() = default;
   NamedInstrProfRecord(StringRef Name, uint64_t Hash,
                        std::vector<uint64_t> Counts)
       : InstrProfRecord(std::move(Counts)), Name(Name), Hash(Hash) {}
+
+  static bool hasCSFlagInHash(uint64_t FuncHash) {
+    return ((FuncHash >> CS_FLAG_IN_FUNC_HASH) & 1);
+  }
+  static void setCSFlagInHash(uint64_t &FuncHash) {
+    FuncHash |= ((uint64_t)1 << CS_FLAG_IN_FUNC_HASH);
+  }
 };
 
 uint32_t InstrProfRecord::getNumValueKinds() const {
@@ -1005,6 +1014,8 @@ namespace RawInstrProf {
 // from control data struct is changed from raw pointer to Name's MD5 value.
 // Version 4: ValueDataBegin and ValueDataSizes fields are removed from the
 // raw header.
+// Version 5: Bit 60 of FuncHash is reserved for the flag for the context
+// sensitive records.
 const uint64_t Version = INSTR_PROF_RAW_VERSION;
 
 template <class IntPtrT> inline uint64_t getMagic();
@@ -1040,6 +1051,13 @@ struct Header {
 // Parse MemOP Size range option.
 void getMemOPSizeRangeFromOption(StringRef Str, int64_t &RangeStart,
                                  int64_t &RangeLast);
+
+// Create a COMDAT variable INSTR_PROF_RAW_VERSION_VAR to make the runtime
+// aware this is an ir_level profile so it can set the version flag.
+void createIRLevelProfileFlagVar(Module &M, bool IsCS);
+
+// Create the variable for the profile file name.
+void createProfileFileNameVar(Module &M, StringRef InstrProfileOutput);
 
 } // end namespace llvm
 

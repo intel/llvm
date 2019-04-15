@@ -1,9 +1,8 @@
 //===--- FormatToken.h - Format C++ code ------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -490,8 +489,7 @@ struct FormatToken {
   bool opensBlockOrBlockTypeList(const FormatStyle &Style) const {
     if (is(TT_TemplateString) && opensScope())
       return true;
-    return is(TT_ArrayInitializerLSquare) ||
-           is(TT_ProtoExtensionLSquare) ||
+    return is(TT_ArrayInitializerLSquare) || is(TT_ProtoExtensionLSquare) ||
            (is(tok::l_brace) &&
             (BlockKind == BK_Block || is(TT_DictLiteral) ||
              (!Style.Cpp11BracedListStyle && NestingLevel == 0))) ||

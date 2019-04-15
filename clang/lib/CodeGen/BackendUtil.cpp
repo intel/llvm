@@ -1,9 +1,8 @@
 //===--- BackendUtil.cpp - LLVM Backend Utilities -------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -38,6 +37,7 @@
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -55,18 +55,21 @@
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Instrumentation.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/BoundsChecking.h"
 #include "llvm/Transforms/Instrumentation/GCOVProfiler.h"
+#include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
+#include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Utils.h"
+#include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include "llvm/SYCL/ASFixer.h"
 #include <memory>
 
-#include "LLVMSPIRVLib.h"
 namespace SPIRV {
   extern llvm::cl::opt<bool> SPIRVNoDerefAttr;
 }
@@ -249,15 +252,15 @@ static void addAddressSanitizerPasses(const PassManagerBuilder &Builder,
   bool UseGlobalsGC = asanUseGlobalsGC(T, CGOpts);
   PM.add(createAddressSanitizerFunctionPass(/*CompileKernel*/ false, Recover,
                                             UseAfterScope));
-  PM.add(createAddressSanitizerModulePass(/*CompileKernel*/ false, Recover,
-                                          UseGlobalsGC, UseOdrIndicator));
+  PM.add(createModuleAddressSanitizerLegacyPassPass(
+      /*CompileKernel*/ false, Recover, UseGlobalsGC, UseOdrIndicator));
 }
 
 static void addKernelAddressSanitizerPasses(const PassManagerBuilder &Builder,
                                             legacy::PassManagerBase &PM) {
   PM.add(createAddressSanitizerFunctionPass(
       /*CompileKernel*/ true, /*Recover*/ true, /*UseAfterScope*/ false));
-  PM.add(createAddressSanitizerModulePass(
+  PM.add(createModuleAddressSanitizerLegacyPassPass(
       /*CompileKernel*/ true, /*Recover*/ true, /*UseGlobalsGC*/ true,
       /*UseOdrIndicator*/ false));
 }
@@ -285,7 +288,8 @@ static void addGeneralOptsForMemorySanitizer(const PassManagerBuilder &Builder,
   const CodeGenOptions &CGOpts = BuilderWrapper.getCGOpts();
   int TrackOrigins = CGOpts.SanitizeMemoryTrackOrigins;
   bool Recover = CGOpts.SanitizeRecover.has(SanitizerKind::Memory);
-  PM.add(createMemorySanitizerPass(TrackOrigins, Recover, CompileKernel));
+  PM.add(createMemorySanitizerLegacyPassPass(
+      MemorySanitizerOptions{TrackOrigins, Recover, CompileKernel}));
 
   // MemorySanitizer inserts complex instrumentation that mostly follows
   // the logic of the original code, but operates on "shadow" values.
@@ -312,7 +316,7 @@ static void addKernelMemorySanitizerPass(const PassManagerBuilder &Builder,
 
 static void addThreadSanitizerPass(const PassManagerBuilder &Builder,
                                    legacy::PassManagerBase &PM) {
-  PM.add(createThreadSanitizerPass());
+  PM.add(createThreadSanitizerLegacyPassPass());
 }
 
 static void addDataFlowSanitizerPass(const PassManagerBuilder &Builder,
@@ -585,7 +589,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
                            addObjCARCOptPass);
   }
 
-  if (LangOpts.CoroutinesTS)
+  if (LangOpts.Coroutines)
     addCoroutinePassesToExtensionPoints(PMBuilder);
 
   if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds)) {
@@ -691,17 +695,33 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     // the driver level.
     Options.Atomic = LangOpts.Sanitize.has(SanitizerKind::Thread);
 
-    MPM.add(createInstrProfilingLegacyPass(Options));
+    MPM.add(createInstrProfilingLegacyPass(Options, false));
   }
+  bool hasIRInstr = false;
   if (CodeGenOpts.hasProfileIRInstr()) {
     PMBuilder.EnablePGOInstrGen = true;
+    hasIRInstr = true;
+  }
+  if (CodeGenOpts.hasProfileCSIRInstr()) {
+    assert(!CodeGenOpts.hasProfileCSIRUse() &&
+           "Cannot have both CSProfileUse pass and CSProfileGen pass at the "
+           "same time");
+    assert(!hasIRInstr &&
+           "Cannot have both ProfileGen pass and CSProfileGen pass at the "
+           "same time");
+    PMBuilder.EnablePGOCSInstrGen = true;
+    hasIRInstr = true;
+  }
+  if (hasIRInstr) {
     if (!CodeGenOpts.InstrProfileOutput.empty())
       PMBuilder.PGOInstrGen = CodeGenOpts.InstrProfileOutput;
     else
       PMBuilder.PGOInstrGen = DefaultProfileGenName;
   }
-  if (CodeGenOpts.hasProfileIRUse())
+  if (CodeGenOpts.hasProfileIRUse()) {
     PMBuilder.PGOInstrUse = CodeGenOpts.ProfileInstrumentUsePath;
+    PMBuilder.EnablePGOCSInstrUse = CodeGenOpts.hasProfileCSIRUse();
+  }
 
   if (!CodeGenOpts.SampleProfileFile.empty())
     PMBuilder.PGOSampleUse = CodeGenOpts.SampleProfileFile;
@@ -786,7 +806,6 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 
   bool UsesCodeGen = (Action != Backend_EmitNothing &&
                       Action != Backend_EmitBC &&
-                      Action != Backend_EmitSPIRV &&
                       Action != Backend_EmitLL);
   CreateTargetMachine(UsesCodeGen);
 
@@ -803,7 +822,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   PerFunctionPasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
 
-  if (LangOpts.SYCL) {
+  if (LangOpts.SYCLIsDevice) {
     PerModulePasses.add(createOclCxxBifNameReflowerPass());
   }
 
@@ -820,12 +839,18 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     break;
 
   case Backend_EmitBC:
+    if (LangOpts.SYCLIsDevice) {
+      PerModulePasses.add(createASFixerPass());
+      PerModulePasses.add(createDeadCodeEliminationPass());
+    }
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         ThinLinkOS = openOutputFile(CodeGenOpts.ThinLinkBitcodeFile);
         if (!ThinLinkOS)
           return;
       }
+      TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
+                               CodeGenOpts.EnableSplitLTOUnit);
       PerModulePasses.add(createWriteThinLTOBitcodePass(
           *OS, ThinLinkOS ? &ThinLinkOS->os() : nullptr));
     } else {
@@ -836,26 +861,16 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
            !CodeGenOpts.DisableLLVMPasses &&
            llvm::Triple(TheModule->getTargetTriple()).getVendor() !=
                llvm::Triple::Apple);
-      if (EmitLTOSummary && !TheModule->getModuleFlag("ThinLTO"))
-        TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
+      if (EmitLTOSummary) {
+        if (!TheModule->getModuleFlag("ThinLTO"))
+          TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
+        TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
+                                 CodeGenOpts.EnableSplitLTOUnit);
+      }
 
-      PerModulePasses.add(
-          createBitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists,
-                                  EmitLTOSummary));
+      PerModulePasses.add(createBitcodeWriterPass(
+          *OS, CodeGenOpts.EmitLLVMUseLists, EmitLTOSummary));
     }
-    break;
-
-  case Backend_EmitSPIRV:
-    if (LangOpts.SYCL) {
-      SPIRV::SPIRVNoDerefAttr = true;
-      // TODO: this pass added to work around missing linkonce_odr in SPIR-V
-      PerModulePasses.add(
-          createAlwaysInlinerLegacyPass(true /*InsertLifetimeIntrinsics*/));
-      PerModulePasses.add(createASFixerPass());
-      PerModulePasses.add(createDeadCodeEliminationPass());
-    }
-    PerModulePasses.add(createSPIRVWriterPass(*OS));
-
     break;
 
   case Backend_EmitLL:
@@ -935,6 +950,30 @@ static PassBuilder::OptimizationLevel mapToLevel(const CodeGenOptions &Opts) {
   }
 }
 
+void addSanitizersAtO0(ModulePassManager &MPM, const Triple &TargetTriple,
+                       const LangOptions &LangOpts,
+                       const CodeGenOptions &CodeGenOpts) {
+  if (LangOpts.Sanitize.has(SanitizerKind::Address)) {
+    MPM.addPass(RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
+    bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::Address);
+    MPM.addPass(createModuleToFunctionPassAdaptor(
+        AddressSanitizerPass(/*CompileKernel=*/false, Recover,
+                             CodeGenOpts.SanitizeAddressUseAfterScope)));
+    bool ModuleUseAfterScope = asanUseGlobalsGC(TargetTriple, CodeGenOpts);
+    MPM.addPass(ModuleAddressSanitizerPass(
+        /*CompileKernel=*/false, Recover, ModuleUseAfterScope,
+        CodeGenOpts.SanitizeAddressUseOdrIndicator));
+  }
+
+  if (LangOpts.Sanitize.has(SanitizerKind::Memory)) {
+    MPM.addPass(createModuleToFunctionPassAdaptor(MemorySanitizerPass({})));
+  }
+
+  if (LangOpts.Sanitize.has(SanitizerKind::Thread)) {
+    MPM.addPass(createModuleToFunctionPassAdaptor(ThreadSanitizerPass()));
+  }
+}
+
 /// A clean version of `EmitAssembly` that uses the new pass manager.
 ///
 /// Not all features are currently supported in this system, but where
@@ -963,23 +1002,61 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     PGOOpt = PGOOptions(CodeGenOpts.InstrProfileOutput.empty()
                             ? DefaultProfileGenName
                             : CodeGenOpts.InstrProfileOutput,
-                        "", "", "", true,
+                        "", "", PGOOptions::IRInstr, PGOOptions::NoCSAction,
                         CodeGenOpts.DebugInfoForProfiling);
-  else if (CodeGenOpts.hasProfileIRUse())
+  else if (CodeGenOpts.hasProfileIRUse()) {
     // -fprofile-use.
-    PGOOpt = PGOOptions("", CodeGenOpts.ProfileInstrumentUsePath, "",
-                        CodeGenOpts.ProfileRemappingFile, false,
-                        CodeGenOpts.DebugInfoForProfiling);
-  else if (!CodeGenOpts.SampleProfileFile.empty())
+    auto CSAction = CodeGenOpts.hasProfileCSIRUse() ? PGOOptions::CSIRUse
+                                                    : PGOOptions::NoCSAction;
+    PGOOpt = PGOOptions(CodeGenOpts.ProfileInstrumentUsePath, "",
+                        CodeGenOpts.ProfileRemappingFile, PGOOptions::IRUse,
+                        CSAction, CodeGenOpts.DebugInfoForProfiling);
+  } else if (!CodeGenOpts.SampleProfileFile.empty())
     // -fprofile-sample-use
-    PGOOpt = PGOOptions("", "", CodeGenOpts.SampleProfileFile,
-                        CodeGenOpts.ProfileRemappingFile, false,
-                        CodeGenOpts.DebugInfoForProfiling);
+    PGOOpt =
+        PGOOptions(CodeGenOpts.SampleProfileFile, "",
+                   CodeGenOpts.ProfileRemappingFile, PGOOptions::SampleUse,
+                   PGOOptions::NoCSAction, CodeGenOpts.DebugInfoForProfiling);
   else if (CodeGenOpts.DebugInfoForProfiling)
     // -fdebug-info-for-profiling
-    PGOOpt = PGOOptions("", "", "", "", false, true);
+    PGOOpt = PGOOptions("", "", "", PGOOptions::NoAction,
+                        PGOOptions::NoCSAction, true);
+
+  // Check to see if we want to generate a CS profile.
+  if (CodeGenOpts.hasProfileCSIRInstr()) {
+    assert(!CodeGenOpts.hasProfileCSIRUse() &&
+           "Cannot have both CSProfileUse pass and CSProfileGen pass at "
+           "the same time");
+    if (PGOOpt.hasValue()) {
+      assert(PGOOpt->Action != PGOOptions::IRInstr &&
+             PGOOpt->Action != PGOOptions::SampleUse &&
+             "Cannot run CSProfileGen pass with ProfileGen or SampleUse "
+             " pass");
+      PGOOpt->CSProfileGenFile = CodeGenOpts.InstrProfileOutput.empty()
+                                     ? DefaultProfileGenName
+                                     : CodeGenOpts.InstrProfileOutput;
+      PGOOpt->CSAction = PGOOptions::CSIRInstr;
+    } else
+      PGOOpt = PGOOptions("",
+                          CodeGenOpts.InstrProfileOutput.empty()
+                              ? DefaultProfileGenName
+                              : CodeGenOpts.InstrProfileOutput,
+                          "", PGOOptions::NoAction, PGOOptions::CSIRInstr,
+                          CodeGenOpts.DebugInfoForProfiling);
+  }
 
   PassBuilder PB(TM.get(), PGOOpt);
+
+  // Attempt to load pass plugins and register their callbacks with PB.
+  for (auto &PluginFN : CodeGenOpts.PassPlugins) {
+    auto PassPlugin = PassPlugin::Load(PluginFN);
+    if (PassPlugin) {
+      PassPlugin->registerPassBuilderCallbacks(PB);
+    } else {
+      Diags.Report(diag::err_fe_unable_to_load_plugin)
+          << PluginFN << toString(PassPlugin.takeError());
+    }
+  }
 
   LoopAnalysisManager LAM(CodeGenOpts.DebugPassManager);
   FunctionAnalysisManager FAM(CodeGenOpts.DebugPassManager);
@@ -1022,9 +1099,11 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
         MPM.addPass(createModuleToFunctionPassAdaptor(BoundsCheckingPass()));
 
-      // Lastly, add a semantically necessary pass for LTO.
-      if (IsLTO || IsThinLTO)
+      // Lastly, add semantically necessary passes for LTO.
+      if (IsLTO || IsThinLTO) {
+        MPM.addPass(CanonicalizeAliasesPass());
         MPM.addPass(NameAnonGlobalPass());
+      }
     } else {
       // Map our optimization levels into one of the distinct levels used to
       // configure the pipeline.
@@ -1032,11 +1111,45 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
 
       // Register callbacks to schedule sanitizer passes at the appropriate part of
       // the pipeline.
+      // FIXME: either handle asan/the remaining sanitizers or error out
       if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
         PB.registerScalarOptimizerLateEPCallback(
             [](FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
               FPM.addPass(BoundsCheckingPass());
             });
+      if (LangOpts.Sanitize.has(SanitizerKind::Memory))
+        PB.registerOptimizerLastEPCallback(
+            [](FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
+              FPM.addPass(MemorySanitizerPass({}));
+            });
+      if (LangOpts.Sanitize.has(SanitizerKind::Thread))
+        PB.registerOptimizerLastEPCallback(
+            [](FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
+              FPM.addPass(ThreadSanitizerPass());
+            });
+      if (LangOpts.Sanitize.has(SanitizerKind::Address)) {
+        PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM) {
+          MPM.addPass(
+              RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
+        });
+        bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::Address);
+        bool UseAfterScope = CodeGenOpts.SanitizeAddressUseAfterScope;
+        PB.registerOptimizerLastEPCallback(
+            [Recover, UseAfterScope](FunctionPassManager &FPM,
+                                     PassBuilder::OptimizationLevel Level) {
+              FPM.addPass(AddressSanitizerPass(
+                  /*CompileKernel=*/false, Recover, UseAfterScope));
+            });
+        bool ModuleUseAfterScope = asanUseGlobalsGC(TargetTriple, CodeGenOpts);
+        bool UseOdrIndicator = CodeGenOpts.SanitizeAddressUseOdrIndicator;
+        PB.registerPipelineStartEPCallback(
+            [Recover, ModuleUseAfterScope,
+             UseOdrIndicator](ModulePassManager &MPM) {
+              MPM.addPass(ModuleAddressSanitizerPass(
+                  /*CompileKernel=*/false, Recover, ModuleUseAfterScope,
+                  UseOdrIndicator));
+            });
+      }
       if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts))
         PB.registerPipelineStartEPCallback([Options](ModulePassManager &MPM) {
           MPM.addPass(GCOVProfilerPass(*Options));
@@ -1045,16 +1158,21 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       if (IsThinLTO) {
         MPM = PB.buildThinLTOPreLinkDefaultPipeline(
             Level, CodeGenOpts.DebugPassManager);
+        MPM.addPass(CanonicalizeAliasesPass());
         MPM.addPass(NameAnonGlobalPass());
       } else if (IsLTO) {
         MPM = PB.buildLTOPreLinkDefaultPipeline(Level,
                                                 CodeGenOpts.DebugPassManager);
+        MPM.addPass(CanonicalizeAliasesPass());
         MPM.addPass(NameAnonGlobalPass());
       } else {
         MPM = PB.buildPerModuleDefaultPipeline(Level,
                                                CodeGenOpts.DebugPassManager);
       }
     }
+
+    if (CodeGenOpts.OptimizationLevel == 0)
+      addSanitizersAtO0(MPM, TargetTriple, LangOpts, CodeGenOpts);
   }
 
   // FIXME: We still use the legacy pass manager to do code generation. We
@@ -1069,12 +1187,18 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     break;
 
   case Backend_EmitBC:
+    if (LangOpts.SYCLIsDevice) {
+      CodeGenPasses.add(createASFixerPass());
+      CodeGenPasses.add(createDeadCodeEliminationPass());
+    }
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         ThinLinkOS = openOutputFile(CodeGenOpts.ThinLinkBitcodeFile);
         if (!ThinLinkOS)
           return;
       }
+      TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
+                               CodeGenOpts.EnableSplitLTOUnit);
       MPM.addPass(ThinLTOBitcodeWriterPass(*OS, ThinLinkOS ? &ThinLinkOS->os()
                                                            : nullptr));
     } else {
@@ -1085,24 +1209,15 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
            !CodeGenOpts.DisableLLVMPasses &&
            llvm::Triple(TheModule->getTargetTriple()).getVendor() !=
                llvm::Triple::Apple);
-      if (EmitLTOSummary && !TheModule->getModuleFlag("ThinLTO"))
-        TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
-
-      MPM.addPass(BitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists,
-                                    EmitLTOSummary));
+      if (EmitLTOSummary) {
+        if (!TheModule->getModuleFlag("ThinLTO"))
+          TheModule->addModuleFlag(Module::Error, "ThinLTO", uint32_t(0));
+        TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
+                                 CodeGenOpts.EnableSplitLTOUnit);
+      }
+      MPM.addPass(
+          BitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists, EmitLTOSummary));
     }
-    break;
-
-  case Backend_EmitSPIRV:
-    if (LangOpts.SYCL) {
-      SPIRV::SPIRVNoDerefAttr = true;
-      // TODO: this pass added to work around missing linkonce_odr in SPIR-V
-      CodeGenPasses.add(
-          createAlwaysInlinerLegacyPass(true /*InsertLifetimeIntrinsics*/));
-      CodeGenPasses.add(createASFixerPass());
-      CodeGenPasses.add(createDeadCodeEliminationPass());
-    }
-    CodeGenPasses.add(createSPIRVWriterPass(*OS));
     break;
 
   case Backend_EmitLL:
@@ -1250,6 +1365,16 @@ static void runThinLTOBackend(ModuleSummaryIndex *CombinedIndex, Module *M,
   Conf.CGOptLevel = getCGOptLevel(CGOpts);
   initTargetOptions(Conf.Options, CGOpts, TOpts, LOpts, HeaderOpts);
   Conf.SampleProfile = std::move(SampleProfile);
+
+  // Context sensitive profile.
+  if (CGOpts.hasProfileCSIRInstr()) {
+    Conf.RunCSIRInstr = true;
+    Conf.CSIRProfile = std::move(CGOpts.InstrProfileOutput);
+  } else if (CGOpts.hasProfileCSIRUse()) {
+    Conf.RunCSIRInstr = false;
+    Conf.CSIRProfile = std::move(CGOpts.ProfileInstrumentUsePath);
+  }
+
   Conf.ProfileRemapping = std::move(ProfileRemapping);
   Conf.UseNewPM = CGOpts.ExperimentalNewPassManager;
   Conf.DebugPassManager = CGOpts.DebugPassManager;

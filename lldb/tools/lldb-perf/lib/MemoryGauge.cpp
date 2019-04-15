@@ -1,9 +1,8 @@
 //===-- MemoryGauge.cpp -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -71,11 +70,11 @@ MemoryStats MemoryStats::operator*(const MemoryStats &rhs) {
 
 Results::ResultSP MemoryStats::GetResult(const char *name,
                                          const char *description) const {
-  std::unique_ptr<Results::Dictionary> dict_ap(
+  std::unique_ptr<Results::Dictionary> dict_up(
       new Results::Dictionary(name, NULL));
-  dict_ap->AddUnsigned("resident", NULL, GetResidentSize());
-  dict_ap->AddUnsigned("max_resident", NULL, GetMaxResidentSize());
-  return Results::ResultSP(dict_ap.release());
+  dict_up->AddUnsigned("resident", NULL, GetResidentSize());
+  dict_up->AddUnsigned("max_resident", NULL, GetMaxResidentSize());
+  return Results::ResultSP(dict_up.release());
 }
 
 MemoryGauge::ValueType MemoryGauge::Now() {

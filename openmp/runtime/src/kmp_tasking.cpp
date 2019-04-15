@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -2706,8 +2705,7 @@ static inline int __kmp_execute_tasks_template(
       if (thread->th.th_task_team == NULL) {
         break;
       }
-      // Yield before executing next task
-      KMP_YIELD(__kmp_library == library_throughput);
+      KMP_YIELD(__kmp_library == library_throughput); // Yield before next task
       // If execution of a stolen task results in more tasks being placed on our
       // run queue, reset use_own_tasks
       if (!use_own_tasks && TCR_4(threads_data[tid].td.td_deque_ntasks) != 0) {
@@ -2839,7 +2837,7 @@ static void __kmp_enable_tasking(kmp_task_team_t *task_team,
   threads_data = (kmp_thread_data_t *)TCR_PTR(task_team->tt.tt_threads_data);
   KMP_DEBUG_ASSERT(threads_data != NULL);
 
-  if ((__kmp_tasking_mode == tskm_task_teams) &&
+  if (__kmp_tasking_mode == tskm_task_teams &&
       (__kmp_dflt_blocktime != KMP_MAX_BLOCKTIME)) {
     // Release any threads sleeping at the barrier, so that they can steal
     // tasks and execute them.  In extra barrier mode, tasks do not sleep
@@ -3243,10 +3241,8 @@ void __kmp_wait_to_unref_task_teams(void) {
       break;
     }
 
-    // If we are oversubscribed, or have waited a bit (and library mode is
-    // throughput), yield. Pause is in the following code.
-    KMP_YIELD(TCR_4(__kmp_nth) > __kmp_avail_proc);
-    KMP_YIELD_SPIN(spins); // Yields only if KMP_LIBRARY=throughput
+    // If oversubscribed or have waited a bit, yield.
+    KMP_YIELD_OVERSUB_ELSE_SPIN(spins);
   }
 }
 
@@ -3411,7 +3407,7 @@ void __kmp_tasking_barrier(kmp_team_t *team, kmp_info_t *thread, int gtid) {
         __kmp_abort_thread();
       break;
     }
-    KMP_YIELD(TRUE); // GH: We always yield here
+    KMP_YIELD(TRUE);
   }
 #if USE_ITT_BUILD
   KMP_FSYNC_SPIN_ACQUIRED(RCAST(void *, spin));
@@ -4132,7 +4128,7 @@ void __kmp_taskloop_recur(ident_t *loc, int gtid, kmp_task_t *task,
 @param lb        Pointer to loop lower bound in task structure
 @param ub        Pointer to loop upper bound in task structure
 @param st        Loop stride
-@param nogroup   Flag, 1 if nogroup clause specified, 0 otherwise
+@param nogroup   Flag, 1 if no taskgroup needs to be added, 0 otherwise
 @param sched     Schedule specified 0/1/2 for none/grainsize/num_tasks
 @param grainsize Schedule value if specified
 @param task_dup  Tasks duplication routine
@@ -4206,6 +4202,7 @@ void __kmpc_taskloop(ident_t *loc, int gtid, kmp_task_t *task, int if_val,
   case 0: // no schedule clause specified, we can choose the default
     // let's try to schedule (team_size*10) tasks
     grainsize = thread->th.th_team_nproc * 10;
+    KMP_FALLTHROUGH();
   case 2: // num_tasks provided
     if (grainsize > tc) {
       num_tasks = tc; // too big num_tasks requested, adjust values

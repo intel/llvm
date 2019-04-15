@@ -1,14 +1,14 @@
 //===-- AppleThreadPlanStepThroughObjCTrampoline.cpp
 //--------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "AppleThreadPlanStepThroughObjCTrampoline.h"
+
 #include "AppleObjCTrampolineHandler.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/FunctionCaller.h"
@@ -20,6 +20,8 @@
 #include "lldb/Target/ThreadPlanRunToAddress.h"
 #include "lldb/Target/ThreadPlanStepOut.h"
 #include "lldb/Utility/Log.h"
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -184,8 +186,8 @@ bool AppleThreadPlanStepThroughObjCTrampoline::ShouldStop(Event *event_ptr) {
 
     // Extract the target address from the value:
 
-    m_run_to_sp.reset(
-        new ThreadPlanRunToAddress(m_thread, target_so_addr, m_stop_others));
+    m_run_to_sp = std::make_shared<ThreadPlanRunToAddress>(
+        m_thread, target_so_addr, m_stop_others);
     m_thread.QueueThreadPlan(m_run_to_sp, false);
     m_run_to_sp->SetPrivate(true);
     return false;

@@ -1,9 +1,8 @@
 //===--- CC1Options.td - Options for clang -cc1 ---------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -163,6 +162,8 @@ let Flags = [CC1Option, CC1AsOption, NoDriverOption] in {
 def debug_info_kind_EQ : Joined<["-"], "debug-info-kind=">;
 def debug_info_macro : Flag<["-"], "debug-info-macro">,
   HelpText<"Emit macro debug information">;
+def default_function_attr : Separate<["-"], "default-function-attr">,
+  HelpText<"Apply given attribute to all functions">;
 def dwarf_version_EQ : Joined<["-"], "dwarf-version=">;
 def debugger_tuning_EQ : Joined<["-"], "debugger-tuning=">;
 def fdebug_compilation_dir : Separate<["-"], "fdebug-compilation-dir">,
@@ -703,6 +704,8 @@ def fvisibility : Separate<["-"], "fvisibility">,
   HelpText<"Default type and symbol visibility">;
 def ftype_visibility : Separate<["-"], "ftype-visibility">,
   HelpText<"Default type visibility">;
+def fapply_global_visibility_to_externs : Flag<["-"], "fapply-global-visibility-to-externs">,
+  HelpText<"Apply global symbol visibility to external declarations without an explicit visibility">;
 def ftemplate_depth : Separate<["-"], "ftemplate-depth">,
   HelpText<"Maximum depth of recursive template instantiation">;
 def foperator_arrow_depth : Separate<["-"], "foperator-arrow-depth">,
@@ -846,6 +849,9 @@ def fsycl_int_header : Separate<["-"], "fsycl-int-header">,
   HelpText<"Generate SYCL integration header into this file.">;
 def fsycl_int_header_EQ : Joined<["-"], "fsycl-int-header=">,
   Alias<fsycl_int_header>;
+def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
+  HelpText<"Allow function pointers in SYCL device.">;
+def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">;
 
 } // let Flags = [CC1Option]
 

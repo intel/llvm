@@ -1,9 +1,8 @@
 //===- LTO.cpp ------------------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,6 +12,7 @@
 #include "LinkerScript.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
+#include "lld/Common/Args.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/TargetOptionsCommandFlags.h"
 #include "llvm/ADT/STLExtras.h"
@@ -68,7 +68,7 @@ static lto::Config createConfig() {
   lto::Config C;
 
   // LLD supports the new relocations and address-significance tables.
-  C.Options = InitTargetOptionsFromCodeGenFlags();
+  C.Options = initTargetOptionsFromCodeGenFlags();
   C.Options.RelaxELFRelocations = true;
   C.Options.EmitAddrsig = true;
 
@@ -83,12 +83,13 @@ static lto::Config createConfig() {
   else
     C.RelocModel = Reloc::Static;
 
-  C.CodeModel = GetCodeModelFromCMModel();
+  C.CodeModel = getCodeModelFromCMModel();
   C.DisableVerify = Config->DisableVerify;
   C.DiagHandler = diagnosticHandler;
   C.OptLevel = Config->LTOO;
-  C.CPU = GetCPUStr();
-  C.MAttrs = GetMAttrs();
+  C.CPU = getCPUStr();
+  C.MAttrs = getMAttrs();
+  C.CGOptLevel = args::getCGOptLevel(Config->LTOO);
 
   // Set up a custom pipeline if we've been asked to.
   C.OptPipeline = Config->LTONewPmPasses;
@@ -275,19 +276,22 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
   if (!Config->ThinLTOCacheDir.empty())
     pruneCache(Config->ThinLTOCacheDir, Config->ThinLTOCachePolicy);
 
-  std::vector<InputFile *> Ret;
-  for (unsigned I = 0; I != MaxTasks; ++I) {
-    if (Buf[I].empty())
-      continue;
-    if (Config->SaveTemps) {
-      if (I == 0)
-        saveBuffer(Buf[I], Config->OutputFile + ".lto.o");
-      else
-        saveBuffer(Buf[I], Config->OutputFile + Twine(I) + ".lto.o");
-    }
-    InputFile *Obj = createObjectFile(MemoryBufferRef(Buf[I], "lto.tmp"));
-    Ret.push_back(Obj);
+  if (!Config->LTOObjPath.empty()) {
+    saveBuffer(Buf[0], Config->LTOObjPath);
+    for (unsigned I = 1; I != MaxTasks; ++I)
+      saveBuffer(Buf[I], Config->LTOObjPath + Twine(I));
   }
+
+  if (Config->SaveTemps) {
+    saveBuffer(Buf[0], Config->OutputFile + ".lto.o");
+    for (unsigned I = 1; I != MaxTasks; ++I)
+      saveBuffer(Buf[I], Config->OutputFile + Twine(I) + ".lto.o");
+  }
+
+  std::vector<InputFile *> Ret;
+  for (unsigned I = 0; I != MaxTasks; ++I)
+    if (!Buf[I].empty())
+      Ret.push_back(createObjectFile(MemoryBufferRef(Buf[I], "lto.tmp")));
 
   for (std::unique_ptr<MemoryBuffer> &File : Files)
     if (File)

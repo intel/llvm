@@ -1,9 +1,8 @@
 //===-- ObjectContainerUniversalMachO.cpp -----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -50,11 +49,11 @@ ObjectContainer *ObjectContainerUniversalMachO::CreateInstance(
     DataExtractor data;
     data.SetData(data_sp, data_offset, length);
     if (ObjectContainerUniversalMachO::MagicBytesMatch(data)) {
-      std::unique_ptr<ObjectContainerUniversalMachO> container_ap(
+      std::unique_ptr<ObjectContainerUniversalMachO> container_up(
           new ObjectContainerUniversalMachO(module_sp, data_sp, data_offset,
                                             file, file_offset, length));
-      if (container_ap->ParseHeader()) {
-        return container_ap.release();
+      if (container_up->ParseHeader()) {
+        return container_up.release();
       }
     }
   }

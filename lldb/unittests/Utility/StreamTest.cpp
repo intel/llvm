@@ -1,9 +1,8 @@
 //===-- StreamTest.cpp ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -122,16 +121,16 @@ TEST_F(StreamTest, PutCharNull) {
   EXPECT_EQ(std::string("a", 1), TakeValue());
 }
 
-TEST_F(StreamTest, PutCStringAsRawHex8) {
-  s.PutCStringAsRawHex8("");
+TEST_F(StreamTest, PutStringAsRawHex8) {
+  s.PutStringAsRawHex8("");
   EXPECT_EQ(0U, s.GetWrittenBytes());
   EXPECT_EQ("", TakeValue());
 
-  s.PutCStringAsRawHex8("foobar");
+  s.PutStringAsRawHex8("foobar");
   EXPECT_EQ(12U, s.GetWrittenBytes());
   EXPECT_EQ("666f6f626172", TakeValue());
 
-  s.PutCStringAsRawHex8(" ");
+  s.PutStringAsRawHex8(" ");
   EXPECT_EQ(2U, s.GetWrittenBytes());
   EXPECT_EQ("20", TakeValue());
 }

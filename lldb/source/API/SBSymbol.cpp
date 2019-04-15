@@ -1,13 +1,13 @@
 //===-- SBSymbol.cpp --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "lldb/API/SBSymbol.h"
+#include "SBReproducerPrivate.h"
 #include "lldb/API/SBStream.h"
 #include "lldb/Core/Disassembler.h"
 #include "lldb/Core/Module.h"
@@ -19,15 +19,21 @@
 using namespace lldb;
 using namespace lldb_private;
 
-SBSymbol::SBSymbol() : m_opaque_ptr(NULL) {}
+SBSymbol::SBSymbol() : m_opaque_ptr(NULL) {
+  LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBSymbol);
+}
 
 SBSymbol::SBSymbol(lldb_private::Symbol *lldb_object_ptr)
     : m_opaque_ptr(lldb_object_ptr) {}
 
-SBSymbol::SBSymbol(const lldb::SBSymbol &rhs)
-    : m_opaque_ptr(rhs.m_opaque_ptr) {}
+SBSymbol::SBSymbol(const lldb::SBSymbol &rhs) : m_opaque_ptr(rhs.m_opaque_ptr) {
+  LLDB_RECORD_CONSTRUCTOR(SBSymbol, (const lldb::SBSymbol &), rhs);
+}
 
 const SBSymbol &SBSymbol::operator=(const SBSymbol &rhs) {
+  LLDB_RECORD_METHOD(const lldb::SBSymbol &,
+                     SBSymbol, operator=,(const lldb::SBSymbol &), rhs);
+
   m_opaque_ptr = rhs.m_opaque_ptr;
   return *this;
 }
@@ -38,9 +44,15 @@ void SBSymbol::SetSymbol(lldb_private::Symbol *lldb_object_ptr) {
   m_opaque_ptr = lldb_object_ptr;
 }
 
-bool SBSymbol::IsValid() const { return m_opaque_ptr != NULL; }
+bool SBSymbol::IsValid() const {
+  LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBSymbol, IsValid);
+
+  return m_opaque_ptr != NULL;
+}
 
 const char *SBSymbol::GetName() const {
+  LLDB_RECORD_METHOD_CONST_NO_ARGS(const char *, SBSymbol, GetName);
+
   const char *name = NULL;
   if (m_opaque_ptr)
     name = m_opaque_ptr->GetName().AsCString();
@@ -53,6 +65,8 @@ const char *SBSymbol::GetName() const {
 }
 
 const char *SBSymbol::GetDisplayName() const {
+  LLDB_RECORD_METHOD_CONST_NO_ARGS(const char *, SBSymbol, GetDisplayName);
+
   const char *name = NULL;
   if (m_opaque_ptr)
     name = m_opaque_ptr->GetMangled()
@@ -67,6 +81,8 @@ const char *SBSymbol::GetDisplayName() const {
 }
 
 const char *SBSymbol::GetMangledName() const {
+  LLDB_RECORD_METHOD_CONST_NO_ARGS(const char *, SBSymbol, GetMangledName);
+
   const char *name = NULL;
   if (m_opaque_ptr)
     name = m_opaque_ptr->GetMangled().GetMangledName().AsCString();
@@ -79,14 +95,23 @@ const char *SBSymbol::GetMangledName() const {
 }
 
 bool SBSymbol::operator==(const SBSymbol &rhs) const {
+  LLDB_RECORD_METHOD_CONST(bool, SBSymbol, operator==,(const lldb::SBSymbol &),
+                           rhs);
+
   return m_opaque_ptr == rhs.m_opaque_ptr;
 }
 
 bool SBSymbol::operator!=(const SBSymbol &rhs) const {
+  LLDB_RECORD_METHOD_CONST(bool, SBSymbol, operator!=,(const lldb::SBSymbol &),
+                           rhs);
+
   return m_opaque_ptr != rhs.m_opaque_ptr;
 }
 
 bool SBSymbol::GetDescription(SBStream &description) {
+  LLDB_RECORD_METHOD(bool, SBSymbol, GetDescription, (lldb::SBStream &),
+                     description);
+
   Stream &strm = description.ref();
 
   if (m_opaque_ptr) {
@@ -98,11 +123,17 @@ bool SBSymbol::GetDescription(SBStream &description) {
 }
 
 SBInstructionList SBSymbol::GetInstructions(SBTarget target) {
-  return GetInstructions(target, NULL);
+  LLDB_RECORD_METHOD(lldb::SBInstructionList, SBSymbol, GetInstructions,
+                     (lldb::SBTarget), target);
+
+  return LLDB_RECORD_RESULT(GetInstructions(target, NULL));
 }
 
 SBInstructionList SBSymbol::GetInstructions(SBTarget target,
                                             const char *flavor_string) {
+  LLDB_RECORD_METHOD(lldb::SBInstructionList, SBSymbol, GetInstructions,
+                     (lldb::SBTarget, const char *), target, flavor_string);
+
   SBInstructionList sb_instructions;
   if (m_opaque_ptr) {
     ExecutionContext exe_ctx;
@@ -125,7 +156,7 @@ SBInstructionList SBSymbol::GetInstructions(SBTarget target,
       }
     }
   }
-  return sb_instructions;
+  return LLDB_RECORD_RESULT(sb_instructions);
 }
 
 lldb_private::Symbol *SBSymbol::get() { return m_opaque_ptr; }
@@ -133,14 +164,18 @@ lldb_private::Symbol *SBSymbol::get() { return m_opaque_ptr; }
 void SBSymbol::reset(lldb_private::Symbol *symbol) { m_opaque_ptr = symbol; }
 
 SBAddress SBSymbol::GetStartAddress() {
+  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBAddress, SBSymbol, GetStartAddress);
+
   SBAddress addr;
   if (m_opaque_ptr && m_opaque_ptr->ValueIsAddress()) {
     addr.SetAddress(&m_opaque_ptr->GetAddressRef());
   }
-  return addr;
+  return LLDB_RECORD_RESULT(addr);
 }
 
 SBAddress SBSymbol::GetEndAddress() {
+  LLDB_RECORD_METHOD_NO_ARGS(lldb::SBAddress, SBSymbol, GetEndAddress);
+
   SBAddress addr;
   if (m_opaque_ptr && m_opaque_ptr->ValueIsAddress()) {
     lldb::addr_t range_size = m_opaque_ptr->GetByteSize();
@@ -149,28 +184,36 @@ SBAddress SBSymbol::GetEndAddress() {
       addr->Slide(m_opaque_ptr->GetByteSize());
     }
   }
-  return addr;
+  return LLDB_RECORD_RESULT(addr);
 }
 
 uint32_t SBSymbol::GetPrologueByteSize() {
+  LLDB_RECORD_METHOD_NO_ARGS(uint32_t, SBSymbol, GetPrologueByteSize);
+
   if (m_opaque_ptr)
     return m_opaque_ptr->GetPrologueByteSize();
   return 0;
 }
 
 SymbolType SBSymbol::GetType() {
+  LLDB_RECORD_METHOD_NO_ARGS(lldb::SymbolType, SBSymbol, GetType);
+
   if (m_opaque_ptr)
     return m_opaque_ptr->GetType();
   return eSymbolTypeInvalid;
 }
 
 bool SBSymbol::IsExternal() {
+  LLDB_RECORD_METHOD_NO_ARGS(bool, SBSymbol, IsExternal);
+
   if (m_opaque_ptr)
     return m_opaque_ptr->IsExternal();
   return false;
 }
 
 bool SBSymbol::IsSynthetic() {
+  LLDB_RECORD_METHOD_NO_ARGS(bool, SBSymbol, IsSynthetic);
+
   if (m_opaque_ptr)
     return m_opaque_ptr->IsSynthetic();
   return false;

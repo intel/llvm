@@ -46,7 +46,7 @@ if(CLANG_TEST_USE_VG)
 endif ()
 
 list(APPEND CLANG_TEST_DEPS
-  clang clang-headers
+  clang clang-resource-headers
   clang-format
   c-index-test diagtool
   clang-tblgen
@@ -61,7 +61,7 @@ list(APPEND CLANG_TEST_DEPS
 if(CLANG_ENABLE_STATIC_ANALYZER)
   list(APPEND CLANG_TEST_DEPS
     clang-check
-    clang-func-mapping
+    clang-extdef-mapping
     )
 endif()
 
@@ -112,6 +112,7 @@ if( NOT CLANG_BUILT_STANDALONE )
     llvm-objdump
     llvm-profdata
     llvm-readobj
+    llvm-spirv
     llvm-symbolizer
     opt
     )

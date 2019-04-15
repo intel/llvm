@@ -1,9 +1,8 @@
 //===- ToolChain.h - Collections of tools for one platform ------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -131,6 +130,7 @@ private:
   mutable std::unique_ptr<Tool> Link;
   mutable std::unique_ptr<Tool> OffloadBundler;
   mutable std::unique_ptr<Tool> OffloadWrapper;
+  mutable std::unique_ptr<Tool> SPIRVTranslator;
 
   Tool *getClang() const;
   Tool *getAssemble() const;
@@ -138,6 +138,7 @@ private:
   Tool *getClangAs() const;
   Tool *getOffloadBundler() const;
   Tool *getOffloadWrapper() const;
+  Tool *getSPIRVTranslator() const;
 
   mutable std::unique_ptr<SanitizerArgs> SanitizerArguments;
   mutable std::unique_ptr<XRayArgs> XRayArguments;
@@ -276,7 +277,7 @@ public:
   }
 
   /// TranslateOffloadTargetArgs - Create a new derived argument list for
-  /// that contains the Offloat target specific flags passed via
+  /// that contains the Offload target specific flags passed via
   /// -Xopenmp-target -opt=val OR -Xopenmp-target=<triple> -opt=val
   /// Also handles -Xsycl-target OR -Xsycl-target=<triple>
   virtual llvm::opt::DerivedArgList *TranslateOffloadTargetArgs(
@@ -568,7 +569,9 @@ public:
   virtual SanitizerMask getSupportedSanitizers() const;
 
   /// Return sanitizers which are enabled by default.
-  virtual SanitizerMask getDefaultSanitizers() const { return 0; }
+  virtual SanitizerMask getDefaultSanitizers() const {
+    return SanitizerMask();
+  }
 };
 
 /// Set a ToolChain's effective triple. Reset it when the registration object

@@ -1,9 +1,8 @@
 //===--- Clang.h - Clang Tool and ToolChain Implementations ====-*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -153,6 +152,19 @@ class LLVM_LIBRARY_VISIBILITY OffloadWrapper final : public Tool {
 public:
   OffloadWrapper(const ToolChain &TC)
       : Tool("offload wrapper", "clang-offload-wrapper", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// SPIR-V translator tool.
+class LLVM_LIBRARY_VISIBILITY SPIRVTranslator final : public Tool {
+public:
+  SPIRVTranslator(const ToolChain &TC)
+      : Tool("SPIR-V translator", "llvm-spirv", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   void ConstructJob(Compilation &C, const JobAction &JA,

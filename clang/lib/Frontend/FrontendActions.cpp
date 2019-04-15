@@ -1,9 +1,8 @@
 //===--- FrontendActions.cpp ----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -287,7 +286,7 @@ bool GenerateHeaderModuleAction::BeginSourceFileAction(
     const DirectoryLookup *CurDir = nullptr;
     const FileEntry *FE = HS.LookupFile(
         Name, SourceLocation(), /*Angled*/ false, nullptr, CurDir,
-        None, nullptr, nullptr, nullptr, nullptr, nullptr);
+        None, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
     if (!FE) {
       CI.getDiagnostics().Report(diag::err_module_header_file_not_found)
         << Name;

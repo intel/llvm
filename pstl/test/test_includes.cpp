@@ -1,10 +1,9 @@
 // -*- C++ -*-
 //===-- test_includes.cpp -------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -77,8 +76,8 @@ test_includes(Compare compare)
         for (std::size_t m = 0; m < n_max; m = m <= 16 ? m + 1 : size_t(2.71828 * m))
         {
             //prepare the input ranges
-            Sequence<T1> in1(n, [n](std::size_t k) { return rand() % (2 * k + 1); });
-            Sequence<T2> in2(m, [m](std::size_t k) { return rand() % (k + 1); });
+            Sequence<T1> in1(n, [](std::size_t k) { return rand() % (2 * k + 1); });
+            Sequence<T2> in2(m, [](std::size_t k) { return rand() % (k + 1); });
 
             std::sort(in1.begin(), in1.end(), compare);
             std::sort(in2.begin(), in2.end(), compare);

@@ -94,7 +94,6 @@ macro(configure_out_of_tree_llvm)
   endif()
   if (LLVM_FOUND)
     include(AddLLVM OPTIONAL)
-    include(HandleLLVMOptions OPTIONAL)
   endif()
 
   # LLVM Options --------------------------------------------------------------
@@ -117,7 +116,7 @@ macro(configure_out_of_tree_llvm)
     # Required LIT Configuration ------------------------------------------------
     # Define the default arguments to use with 'lit', and an option for the user
     # to override.
-    set(LLVM_EXTERNAL_LIT "${LLVM_MAIN_SRC_DIR}/utils/lit/lit.py")
+    set(LLVM_DEFAULT_EXTERNAL_LIT "${LLVM_MAIN_SRC_DIR}/utils/lit/lit.py")
     set(LIT_ARGS_DEFAULT "-sv --show-xfail --show-unsupported")
     if (MSVC OR XCODE)
       set(LIT_ARGS_DEFAULT "${LIT_ARGS_DEFAULT} --no-progress-bar")

@@ -1,9 +1,8 @@
 //===-- WebAssemblyAsmPrinter.cpp - WebAssembly LLVM assembly writer ------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -22,6 +21,7 @@
 #include "WebAssemblyMCInstLower.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblyRegisterInfo.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/AsmPrinter.h"
@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineModuleInfoImpls.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCSectionWasm.h"
@@ -38,9 +39,12 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
+
 using namespace llvm;
 
 #define DEBUG_TYPE "asm-printer"
+
+extern cl::opt<bool> WasmKeepRegisters;
 
 //===----------------------------------------------------------------------===//
 // Helpers.
@@ -92,11 +96,11 @@ void WebAssemblyAsmPrinter::EmitEndOfAsmFile(Module &M) {
     if (F.isDeclarationForLinker() && !F.isIntrinsic()) {
       SmallVector<MVT, 4> Results;
       SmallVector<MVT, 4> Params;
-      ComputeSignatureVTs(F.getFunctionType(), F, TM, Params, Results);
+      computeSignatureVTs(F.getFunctionType(), F, TM, Params, Results);
       auto *Sym = cast<MCSymbolWasm>(getSymbol(&F));
       Sym->setType(wasm::WASM_SYMBOL_TYPE_FUNCTION);
       if (!Sym->getSignature()) {
-        auto Signature = SignatureFromMVTs(Results, Params);
+        auto Signature = signatureFromMVTs(Results, Params);
         Sym->setSignature(Signature.get());
         addSignature(std::move(Signature));
       }
@@ -111,8 +115,15 @@ void WebAssemblyAsmPrinter::EmitEndOfAsmFile(Module &M) {
           F.hasFnAttribute("wasm-import-module")) {
         StringRef Name =
             F.getFnAttribute("wasm-import-module").getValueAsString();
-        Sym->setModuleName(Name);
+        Sym->setImportModule(Name);
         getTargetStreamer()->emitImportModule(Sym, Name);
+      }
+      if (TM.getTargetTriple().isOSBinFormatWasm() &&
+          F.hasFnAttribute("wasm-import-name")) {
+        StringRef Name =
+            F.getFnAttribute("wasm-import-name").getValueAsString();
+        Sym->setImportName(Name);
+        getTargetStreamer()->emitImportName(Sym, Name);
       }
     }
   }
@@ -129,7 +140,7 @@ void WebAssemblyAsmPrinter::EmitEndOfAsmFile(Module &M) {
 
   if (const NamedMDNode *Named = M.getNamedMetadata("wasm.custom_sections")) {
     for (const Metadata *MD : Named->operands()) {
-      const MDTuple *Tuple = dyn_cast<MDTuple>(MD);
+      const auto *Tuple = dyn_cast<MDTuple>(MD);
       if (!Tuple || Tuple->getNumOperands() != 2)
         continue;
       const MDString *Name = dyn_cast<MDString>(Tuple->getOperand(0));
@@ -139,12 +150,65 @@ void WebAssemblyAsmPrinter::EmitEndOfAsmFile(Module &M) {
 
       OutStreamer->PushSection();
       std::string SectionName = (".custom_section." + Name->getString()).str();
-      MCSectionWasm *mySection =
+      MCSectionWasm *MySection =
           OutContext.getWasmSection(SectionName, SectionKind::getMetadata());
-      OutStreamer->SwitchSection(mySection);
+      OutStreamer->SwitchSection(MySection);
       OutStreamer->EmitBytes(Contents->getString());
       OutStreamer->PopSection();
     }
+  }
+
+  EmitProducerInfo(M);
+}
+
+void WebAssemblyAsmPrinter::EmitProducerInfo(Module &M) {
+  llvm::SmallVector<std::pair<std::string, std::string>, 4> Languages;
+  if (const NamedMDNode *Debug = M.getNamedMetadata("llvm.dbg.cu")) {
+    llvm::SmallSet<StringRef, 4> SeenLanguages;
+    for (size_t I = 0, E = Debug->getNumOperands(); I < E; ++I) {
+      const auto *CU = cast<DICompileUnit>(Debug->getOperand(I));
+      StringRef Language = dwarf::LanguageString(CU->getSourceLanguage());
+      Language.consume_front("DW_LANG_");
+      if (SeenLanguages.insert(Language).second)
+        Languages.emplace_back(Language.str(), "");
+    }
+  }
+
+  llvm::SmallVector<std::pair<std::string, std::string>, 4> Tools;
+  if (const NamedMDNode *Ident = M.getNamedMetadata("llvm.ident")) {
+    llvm::SmallSet<StringRef, 4> SeenTools;
+    for (size_t I = 0, E = Ident->getNumOperands(); I < E; ++I) {
+      const auto *S = cast<MDString>(Ident->getOperand(I)->getOperand(0));
+      std::pair<StringRef, StringRef> Field = S->getString().split("version");
+      StringRef Name = Field.first.trim();
+      StringRef Version = Field.second.trim();
+      if (SeenTools.insert(Name).second)
+        Tools.emplace_back(Name.str(), Version.str());
+    }
+  }
+
+  int FieldCount = int(!Languages.empty()) + int(!Tools.empty());
+  if (FieldCount != 0) {
+    MCSectionWasm *Producers = OutContext.getWasmSection(
+        ".custom_section.producers", SectionKind::getMetadata());
+    OutStreamer->PushSection();
+    OutStreamer->SwitchSection(Producers);
+    OutStreamer->EmitULEB128IntValue(FieldCount);
+    for (auto &Producers : {std::make_pair("language", &Languages),
+            std::make_pair("processed-by", &Tools)}) {
+      if (Producers.second->empty())
+        continue;
+      OutStreamer->EmitULEB128IntValue(strlen(Producers.first));
+      OutStreamer->EmitBytes(Producers.first);
+      OutStreamer->EmitULEB128IntValue(Producers.second->size());
+      for (auto &Producer : *Producers.second) {
+        OutStreamer->EmitULEB128IntValue(Producer.first.size());
+        OutStreamer->EmitBytes(Producer.first);
+        OutStreamer->EmitULEB128IntValue(Producer.second.size());
+        OutStreamer->EmitBytes(Producer.second);
+      }
+    }
+    OutStreamer->PopSection();
   }
 }
 
@@ -161,8 +225,8 @@ void WebAssemblyAsmPrinter::EmitFunctionBodyStart() {
   const Function &F = MF->getFunction();
   SmallVector<MVT, 1> ResultVTs;
   SmallVector<MVT, 4> ParamVTs;
-  ComputeSignatureVTs(F.getFunctionType(), F, TM, ParamVTs, ResultVTs);
-  auto Signature = SignatureFromMVTs(ResultVTs, ParamVTs);
+  computeSignatureVTs(F.getFunctionType(), F, TM, ParamVTs, ResultVTs);
+  auto Signature = signatureFromMVTs(ResultVTs, ParamVTs);
   auto *WasmSym = cast<MCSymbolWasm>(CurrentFnSym);
   WasmSym->setSignature(Signature.get());
   addSignature(std::move(Signature));
@@ -180,7 +244,7 @@ void WebAssemblyAsmPrinter::EmitFunctionBodyStart() {
   }
 
   SmallVector<wasm::ValType, 16> Locals;
-  ValTypesFromMVTs(MFI->getLocals(), Locals);
+  valTypesFromMVTs(MFI->getLocals(), Locals);
   getTargetStreamer()->emitLocal(Locals);
 
   AsmPrinter::EmitFunctionBodyStart();
@@ -250,23 +314,22 @@ void WebAssemblyAsmPrinter::EmitInstruction(const MachineInstr *MI) {
       OutStreamer->AddBlankLine();
     }
     break;
+  case WebAssembly::EXTRACT_EXCEPTION_I32:
+  case WebAssembly::EXTRACT_EXCEPTION_I32_S:
+    // These are pseudo instructions that simulates popping values from stack.
+    // We print these only when we have -wasm-keep-registers on for assembly
+    // readability.
+    if (!WasmKeepRegisters)
+      break;
+    LLVM_FALLTHROUGH;
   default: {
     WebAssemblyMCInstLower MCInstLowering(OutContext, *this);
     MCInst TmpInst;
-    MCInstLowering.Lower(MI, TmpInst);
+    MCInstLowering.lower(MI, TmpInst);
     EmitToStreamer(*OutStreamer, TmpInst);
     break;
   }
   }
-}
-
-const MCExpr *WebAssemblyAsmPrinter::lowerConstant(const Constant *CV) {
-  if (const GlobalValue *GV = dyn_cast<GlobalValue>(CV))
-    if (GV->getValueType()->isFunctionTy()) {
-      return MCSymbolRefExpr::create(
-          getSymbol(GV), MCSymbolRefExpr::VK_WebAssembly_FUNCTION, OutContext);
-    }
-  return AsmPrinter::lowerConstant(CV);
 }
 
 bool WebAssemblyAsmPrinter::PrintAsmOperand(const MachineInstr *MI,

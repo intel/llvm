@@ -1,9 +1,8 @@
 //===-- asan_rtl.cc -------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -383,6 +382,19 @@ void PrintAddressSpaceLayout() {
           kHighShadowBeg > kMidMemEnd);
 }
 
+#if defined(__thumb__) && defined(__linux__)
+#define START_BACKGROUND_THREAD_IN_ASAN_INTERNAL
+#endif
+
+#ifndef START_BACKGROUND_THREAD_IN_ASAN_INTERNAL
+static bool UNUSED __local_asan_dyninit = [] {
+  MaybeStartBackgroudThread();
+  SetSoftRssLimitExceededCallback(AsanSoftRssLimitExceededCallback);
+
+  return false;
+}();
+#endif
+
 static void AsanInitInternal() {
   if (LIKELY(asan_inited)) return;
   SanitizerToolName = "AddressSanitizer";
@@ -457,8 +469,10 @@ static void AsanInitInternal() {
   allocator_options.SetFrom(flags(), common_flags());
   InitializeAllocator(allocator_options);
 
+#ifdef START_BACKGROUND_THREAD_IN_ASAN_INTERNAL
   MaybeStartBackgroudThread();
   SetSoftRssLimitExceededCallback(AsanSoftRssLimitExceededCallback);
+#endif
 
   // On Linux AsanThread::ThreadStart() calls malloc() that's why asan_inited
   // should be set to 1 prior to initializing the threads.
@@ -581,6 +595,19 @@ void NOINLINE __asan_handle_no_return() {
   PoisonShadow(bottom, top - bottom, 0);
   if (curr_thread && curr_thread->has_fake_stack())
     curr_thread->fake_stack()->HandleNoReturn();
+}
+
+extern "C" void *__asan_extra_spill_area() {
+  AsanThread *t = GetCurrentThread();
+  CHECK(t);
+  return t->extra_spill_area();
+}
+
+void __asan_handle_vfork(void *sp) {
+  AsanThread *t = GetCurrentThread();
+  CHECK(t);
+  uptr bottom = t->stack_bottom();
+  PoisonShadow(bottom, (uptr)sp - bottom, 0);
 }
 
 void NOINLINE __asan_set_death_callback(void (*callback)(void)) {

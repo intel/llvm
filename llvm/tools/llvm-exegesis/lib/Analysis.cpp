@@ -1,9 +1,8 @@
 //===-- Analysis.cpp --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -150,7 +149,7 @@ void Analysis::printInstructionRowCsv(const size_t PointId,
   writeEscaped<kEscapeCsv>(OS, Point.Key.Config);
   OS << kCsvSep;
   assert(!Point.Key.Instructions.empty());
-  const llvm::MCInst &MCI = Point.Key.Instructions[0];
+  const llvm::MCInst &MCI = Point.keyInstruction();
   const unsigned SchedClassId = resolveSchedClassId(
       *SubtargetInfo_, InstrInfo_->get(MCI.getOpcode()).getSchedClass(), MCI);
 
@@ -169,13 +168,18 @@ void Analysis::printInstructionRowCsv(const size_t PointId,
 }
 
 Analysis::Analysis(const llvm::Target &Target,
-                   const InstructionBenchmarkClustering &Clustering)
-    : Clustering_(Clustering) {
+                   std::unique_ptr<llvm::MCInstrInfo> InstrInfo,
+                   const InstructionBenchmarkClustering &Clustering,
+                   double AnalysisInconsistencyEpsilon,
+                   bool AnalysisDisplayUnstableOpcodes)
+    : Clustering_(Clustering), InstrInfo_(std::move(InstrInfo)),
+      AnalysisInconsistencyEpsilonSquared_(AnalysisInconsistencyEpsilon *
+                                           AnalysisInconsistencyEpsilon),
+      AnalysisDisplayUnstableOpcodes_(AnalysisDisplayUnstableOpcodes) {
   if (Clustering.getPoints().empty())
     return;
 
   const InstructionBenchmark &FirstPoint = Clustering.getPoints().front();
-  InstrInfo_.reset(Target.createMCInstrInfo());
   RegInfo_.reset(Target.createMCRegInfo(FirstPoint.LLVMTriple));
   AsmInfo_.reset(Target.createMCAsmInfo(*RegInfo_, FirstPoint.LLVMTriple));
   SubtargetInfo_.reset(Target.createMCSubtargetInfo(FirstPoint.LLVMTriple,
@@ -234,7 +238,7 @@ Analysis::makePointsPerSchedClass() const {
     assert(!Point.Key.Instructions.empty());
     // FIXME: we should be using the tuple of classes for instructions in the
     // snippet as key.
-    const llvm::MCInst &MCI = Point.Key.Instructions[0];
+    const llvm::MCInst &MCI = Point.keyInstruction();
     unsigned SchedClassId = InstrInfo_->get(MCI.getOpcode()).getSchedClass();
     const bool WasVariant = SchedClassId && SubtargetInfo_->getSchedModel()
                                                 .getSchedClassDesc(SchedClassId)
@@ -300,7 +304,8 @@ void Analysis::printSchedClassClustersHtml(
   OS << "</tr>";
   for (const SchedClassCluster &Cluster : Clusters) {
     OS << "<tr class=\""
-       << (Cluster.measurementsMatch(*SubtargetInfo_, RSC, Clustering_)
+       << (Cluster.measurementsMatch(*SubtargetInfo_, RSC, Clustering_,
+                                     AnalysisInconsistencyEpsilonSquared_)
                ? "good-cluster"
                : "bad-cluster")
        << "\"><td>";
@@ -317,6 +322,7 @@ void Analysis::printSchedClassClustersHtml(
         writeLatencySnippetHtml(OS, Point.Key.Instructions, *InstrInfo_);
         break;
       case InstructionBenchmark::Uops:
+      case InstructionBenchmark::InverseThroughput:
         writeUopsSnippetHtml(OS, Point.Key.Instructions, *InstrInfo_);
         break;
       default:
@@ -459,7 +465,8 @@ static unsigned findProcResIdx(const llvm::MCSubtargetInfo &STI,
 
 bool Analysis::SchedClassCluster::measurementsMatch(
     const llvm::MCSubtargetInfo &STI, const ResolvedSchedClass &RSC,
-    const InstructionBenchmarkClustering &Clustering) const {
+    const InstructionBenchmarkClustering &Clustering,
+    const double AnalysisInconsistencyEpsilonSquared_) const {
   const size_t NumMeasurements = Representative.size();
   std::vector<BenchmarkMeasure> ClusterCenterPoint(NumMeasurements);
   std::vector<BenchmarkMeasure> SchedClassPoint(NumMeasurements);
@@ -508,21 +515,27 @@ bool Analysis::SchedClassCluster::measurementsMatch(
       }
       ClusterCenterPoint[I].PerInstructionValue = Representative[I].avg();
     }
+  } else if (Mode == InstructionBenchmark::InverseThroughput) {
+    for (int I = 0, E = Representative.size(); I < E; ++I) {
+      SchedClassPoint[I].PerInstructionValue =
+          MCSchedModel::getReciprocalThroughput(STI, *RSC.SCDesc);
+      ClusterCenterPoint[I].PerInstructionValue = Representative[I].min();
+    }
   } else {
-    llvm::errs() << "unimplemented measurement matching for mode " << Mode
-                 << "\n";
+    llvm_unreachable("unimplemented measurement matching mode");
     return false;
   }
-  return Clustering.isNeighbour(ClusterCenterPoint, SchedClassPoint);
+  return Clustering.isNeighbour(ClusterCenterPoint, SchedClassPoint,
+                                AnalysisInconsistencyEpsilonSquared_);
 }
 
 void Analysis::printSchedClassDescHtml(const ResolvedSchedClass &RSC,
                                        llvm::raw_ostream &OS) const {
   OS << "<table class=\"sched-class-desc\">";
   OS << "<tr><th>Valid</th><th>Variant</th><th>NumMicroOps</th><th>Latency</"
-        "th><th>WriteProcRes</th><th title=\"This is the idealized unit "
-        "resource (port) pressure assuming ideal distribution\">Idealized "
-        "Resource Pressure</th></tr>";
+        "th><th>RThroughput</th><th>WriteProcRes</th><th title=\"This is the "
+        "idealized unit resource (port) pressure assuming ideal "
+        "distribution\">Idealized Resource Pressure</th></tr>";
   if (RSC.SCDesc->isValid()) {
     const auto &SM = SubtargetInfo_->getSchedModel();
     OS << "<tr><td>&#10004;</td>";
@@ -541,6 +554,12 @@ void Analysis::printSchedClassDescHtml(const ResolvedSchedClass &RSC,
       OS << "</li>";
     }
     OS << "</ul></td>";
+    // inverse throughput.
+    OS << "<td>";
+    writeMeasurementValue<kEscapeHtml>(
+        OS,
+        MCSchedModel::getReciprocalThroughput(*SubtargetInfo_, *RSC.SCDesc));
+    OS << "</td>";
     // WriteProcRes.
     OS << "<td><ul>";
     for (const auto &WPR : RSC.NonRedundantWriteProcRes) {
@@ -657,6 +676,8 @@ llvm::Error Analysis::run<Analysis::PrintSchedClassInconsistencies>(
       const auto &ClusterId = Clustering_.getClusterIdForPoint(PointId);
       if (!ClusterId.isValid())
         continue; // Ignore noise and errors. FIXME: take noise into account ?
+      if (ClusterId.isUnstable() ^ AnalysisDisplayUnstableOpcodes_)
+        continue; // Either display stable or unstable clusters only.
       auto SchedClassClusterIt =
           std::find_if(SchedClassClusters.begin(), SchedClassClusters.end(),
                        [ClusterId](const SchedClassCluster &C) {
@@ -674,7 +695,8 @@ llvm::Error Analysis::run<Analysis::PrintSchedClassInconsistencies>(
     if (llvm::all_of(SchedClassClusters,
                      [this, &RSCAndPoints](const SchedClassCluster &C) {
                        return C.measurementsMatch(
-                           *SubtargetInfo_, RSCAndPoints.RSC, Clustering_);
+                           *SubtargetInfo_, RSCAndPoints.RSC, Clustering_,
+                           AnalysisInconsistencyEpsilonSquared_);
                      }))
       continue; // Nothing weird.
 

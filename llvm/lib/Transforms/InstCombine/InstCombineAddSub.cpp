@@ -1,9 +1,8 @@
 //===- InstCombineAddSub.cpp ------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -823,6 +822,47 @@ static Value *checkForNegativeOperand(BinaryOperator &I,
   return nullptr;
 }
 
+/// Wrapping flags may allow combining constants separated by an extend.
+static Instruction *foldNoWrapAdd(BinaryOperator &Add,
+                                  InstCombiner::BuilderTy &Builder) {
+  Value *Op0 = Add.getOperand(0), *Op1 = Add.getOperand(1);
+  Type *Ty = Add.getType();
+  Constant *Op1C;
+  if (!match(Op1, m_Constant(Op1C)))
+    return nullptr;
+
+  // Try this match first because it results in an add in the narrow type.
+  // (zext (X +nuw C2)) + C1 --> zext (X + (C2 + trunc(C1)))
+  Value *X;
+  const APInt *C1, *C2;
+  if (match(Op1, m_APInt(C1)) &&
+      match(Op0, m_OneUse(m_ZExt(m_NUWAdd(m_Value(X), m_APInt(C2))))) &&
+      C1->isNegative() && C1->sge(-C2->sext(C1->getBitWidth()))) {
+    Constant *NewC =
+        ConstantInt::get(X->getType(), *C2 + C1->trunc(C2->getBitWidth()));
+    return new ZExtInst(Builder.CreateNUWAdd(X, NewC), Ty);
+  }
+
+  // More general combining of constants in the wide type.
+  // (sext (X +nsw NarrowC)) + C --> (sext X) + (sext(NarrowC) + C)
+  Constant *NarrowC;
+  if (match(Op0, m_OneUse(m_SExt(m_NSWAdd(m_Value(X), m_Constant(NarrowC)))))) {
+    Constant *WideC = ConstantExpr::getSExt(NarrowC, Ty);
+    Constant *NewC = ConstantExpr::getAdd(WideC, Op1C);
+    Value *WideX = Builder.CreateSExt(X, Ty);
+    return BinaryOperator::CreateAdd(WideX, NewC);
+  }
+  // (zext (X +nuw NarrowC)) + C --> (zext X) + (zext(NarrowC) + C)
+  if (match(Op0, m_OneUse(m_ZExt(m_NUWAdd(m_Value(X), m_Constant(NarrowC)))))) {
+    Constant *WideC = ConstantExpr::getZExt(NarrowC, Ty);
+    Constant *NewC = ConstantExpr::getAdd(WideC, Op1C);
+    Value *WideX = Builder.CreateZExt(X, Ty);
+    return BinaryOperator::CreateAdd(WideX, NewC);
+  }
+
+  return nullptr;
+}
+
 Instruction *InstCombiner::foldAddWithConstant(BinaryOperator &Add) {
   Value *Op0 = Add.getOperand(0), *Op1 = Add.getOperand(1);
   Constant *Op1C;
@@ -870,14 +910,6 @@ Instruction *InstCombiner::foldAddWithConstant(BinaryOperator &Add) {
   if (match(Op0, m_ZExt(m_Xor(m_Value(X), m_APInt(C2)))) &&
       C2->isMinSignedValue() && C2->sext(Ty->getScalarSizeInBits()) == *C)
     return CastInst::Create(Instruction::SExt, X, Ty);
-
-  // (add (zext (add nuw X, C2)), C) --> (zext (add nuw X, C2 + C))
-  if (match(Op0, m_OneUse(m_ZExt(m_NUWAdd(m_Value(X), m_APInt(C2))))) &&
-      C->isNegative() && C->sge(-C2->sext(C->getBitWidth()))) {
-    Constant *NewC =
-        ConstantInt::get(X->getType(), *C2 + C->trunc(C2->getBitWidth()));
-    return new ZExtInst(Builder.CreateNUWAdd(X, NewC), Ty);
-  }
 
   if (C->isOneValue() && Op0->hasOneUse()) {
     // add (sext i1 X), 1 --> zext (not X)
@@ -1051,6 +1083,9 @@ Instruction *InstCombiner::visitAdd(BinaryOperator &I) {
   if (Instruction *X = foldAddWithConstant(I))
     return X;
 
+  if (Instruction *X = foldNoWrapAdd(I, Builder))
+    return X;
+
   // FIXME: This should be moved into the above helper function to allow these
   // transforms for general constant or constant splat vectors.
   Value *LHS = I.getOperand(0), *RHS = I.getOperand(1);
@@ -1118,6 +1153,12 @@ Instruction *InstCombiner::visitAdd(BinaryOperator &I) {
     // -A + B --> B - A
     return BinaryOperator::CreateSub(RHS, A);
   }
+
+  // Canonicalize sext to zext for better value tracking potential.
+  // add A, sext(B) --> sub A, zext(B)
+  if (match(&I, m_c_Add(m_Value(A), m_OneUse(m_SExt(m_Value(B))))) &&
+      B->getType()->isIntOrIntVectorTy(1))
+    return BinaryOperator::CreateSub(A, Builder.CreateZExt(B, Ty));
 
   // A + -B  -->  A - B
   if (match(RHS, m_Neg(m_Value(B))))
@@ -1649,15 +1690,14 @@ Instruction *InstCombiner::visitSub(BinaryOperator &I) {
     // X - A*-B -> X + A*B
     // X - -A*B -> X + A*B
     Value *A, *B;
-    Constant *CI;
     if (match(Op1, m_c_Mul(m_Value(A), m_Neg(m_Value(B)))))
       return BinaryOperator::CreateAdd(Op0, Builder.CreateMul(A, B));
 
-    // X - A*CI -> X + A*-CI
+    // X - A*C -> X + A*-C
     // No need to handle commuted multiply because multiply handling will
     // ensure constant will be move to the right hand side.
-    if (match(Op1, m_Mul(m_Value(A), m_Constant(CI)))) {
-      Value *NewMul = Builder.CreateMul(A, ConstantExpr::getNeg(CI));
+    if (match(Op1, m_Mul(m_Value(A), m_Constant(C))) && !isa<ConstantExpr>(C)) {
+      Value *NewMul = Builder.CreateMul(A, ConstantExpr::getNeg(C));
       return BinaryOperator::CreateAdd(Op0, NewMul);
     }
   }

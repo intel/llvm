@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -52,7 +51,7 @@ private:
   // FIXME Add tests here
 };
 
-int main()
+int main(int, char**)
 {
   using SetAlloc = test_allocator<int>;
   using MapAlloc = test_allocator<std::pair<const int, int>>;
@@ -67,4 +66,6 @@ int main()
     AssociativeContainerChecks<
         std::multimap<int, int, std::less<int>, MapAlloc>, CT_MultiMap>::run();
   }
+
+  return 0;
 }

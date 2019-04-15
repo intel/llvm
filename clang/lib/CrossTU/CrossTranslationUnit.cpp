@@ -1,9 +1,8 @@
 //===--- CrossTranslationUnit.cpp - -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -43,6 +42,7 @@ STATISTIC(NumGetCTUSuccess,
           "requested function's body");
 STATISTIC(NumTripleMismatch, "The # of triple mismatches");
 STATISTIC(NumLangMismatch, "The # of language mismatches");
+STATISTIC(NumLangDialectMismatch, "The # of language dialect mismatches");
 
 // Same as Triple's equality operator, but we check a field only if that is
 // known in both instances.
@@ -100,6 +100,8 @@ public:
       return "Triple mismatch";
     case index_error_code::lang_mismatch:
       return "Language mismatch";
+    case index_error_code::lang_dialect_mismatch:
+      return "Language dialect mismatch";
     }
     llvm_unreachable("Unrecognized index_error_code.");
   }
@@ -120,26 +122,26 @@ std::error_code IndexError::convertToErrorCode() const {
 
 llvm::Expected<llvm::StringMap<std::string>>
 parseCrossTUIndex(StringRef IndexPath, StringRef CrossTUDir) {
-  std::ifstream ExternalFnMapFile(IndexPath);
-  if (!ExternalFnMapFile)
+  std::ifstream ExternalMapFile(IndexPath);
+  if (!ExternalMapFile)
     return llvm::make_error<IndexError>(index_error_code::missing_index_file,
                                         IndexPath.str());
 
   llvm::StringMap<std::string> Result;
   std::string Line;
   unsigned LineNo = 1;
-  while (std::getline(ExternalFnMapFile, Line)) {
+  while (std::getline(ExternalMapFile, Line)) {
     const size_t Pos = Line.find(" ");
     if (Pos > 0 && Pos != std::string::npos) {
       StringRef LineRef{Line};
-      StringRef FunctionLookupName = LineRef.substr(0, Pos);
-      if (Result.count(FunctionLookupName))
+      StringRef LookupName = LineRef.substr(0, Pos);
+      if (Result.count(LookupName))
         return llvm::make_error<IndexError>(
             index_error_code::multiple_definitions, IndexPath.str(), LineNo);
       StringRef FileName = LineRef.substr(Pos + 1);
       SmallString<256> FilePath = CrossTUDir;
       llvm::sys::path::append(FilePath, FileName);
-      Result[FunctionLookupName] = FilePath.str().str();
+      Result[LookupName] = FilePath.str().str();
     } else
       return llvm::make_error<IndexError>(
           index_error_code::invalid_index_format, IndexPath.str(), LineNo);
@@ -208,9 +210,6 @@ CrossTranslationUnitContext::getCrossTUDefinition(const FunctionDecl *FD,
   if (!ASTUnitOrError)
     return ASTUnitOrError.takeError();
   ASTUnit *Unit = *ASTUnitOrError;
-  if (!Unit)
-    return llvm::make_error<IndexError>(
-        index_error_code::failed_to_get_external_ast);
   assert(&Unit->getFileManager() ==
          &Unit->getASTContext().getSourceManager().getFileManager());
 
@@ -232,11 +231,34 @@ CrossTranslationUnitContext::getCrossTUDefinition(const FunctionDecl *FD,
 
   const auto &LangTo = Context.getLangOpts();
   const auto &LangFrom = Unit->getASTContext().getLangOpts();
+
   // FIXME: Currenty we do not support CTU across C++ and C and across
   // different dialects of C++.
   if (LangTo.CPlusPlus != LangFrom.CPlusPlus) {
     ++NumLangMismatch;
     return llvm::make_error<IndexError>(index_error_code::lang_mismatch);
+  }
+
+  // If CPP dialects are different then return with error.
+  //
+  // Consider this STL code:
+  //   template<typename _Alloc>
+  //     struct __alloc_traits
+  //   #if __cplusplus >= 201103L
+  //     : std::allocator_traits<_Alloc>
+  //   #endif
+  //     { // ...
+  //     };
+  // This class template would create ODR errors during merging the two units,
+  // since in one translation unit the class template has a base class, however
+  // in the other unit it has none.
+  if (LangTo.CPlusPlus11 != LangFrom.CPlusPlus11 ||
+      LangTo.CPlusPlus14 != LangFrom.CPlusPlus14 ||
+      LangTo.CPlusPlus17 != LangFrom.CPlusPlus17 ||
+      LangTo.CPlusPlus2a != LangFrom.CPlusPlus2a) {
+    ++NumLangDialectMismatch;
+    return llvm::make_error<IndexError>(
+        index_error_code::lang_dialect_mismatch);
   }
 
   TranslationUnitDecl *TU = Unit->getASTContext().getTranslationUnitDecl();
@@ -253,7 +275,7 @@ void CrossTranslationUnitContext::emitCrossTUDiagnostics(const IndexError &IE) {
         << IE.getFileName();
     break;
   case index_error_code::invalid_index_format:
-    Context.getDiagnostics().Report(diag::err_fnmap_parsing)
+    Context.getDiagnostics().Report(diag::err_extdefmap_parsing)
         << IE.getFileName() << IE.getLineNum();
     break;
   case index_error_code::multiple_definitions:
@@ -324,6 +346,9 @@ llvm::Expected<ASTUnit *> CrossTranslationUnitContext::loadExternalAST(
   } else {
     Unit = FnUnitCacheEntry->second;
   }
+  if (!Unit)
+    return llvm::make_error<IndexError>(
+        index_error_code::failed_to_get_external_ast);
   return Unit;
 }
 

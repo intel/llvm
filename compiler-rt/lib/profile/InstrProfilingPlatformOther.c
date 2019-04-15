@@ -1,16 +1,17 @@
 /*===- InstrProfilingPlatformOther.c - Profile data default platform ------===*\
 |*
-|*                     The LLVM Compiler Infrastructure
-|*
-|* This file is distributed under the University of Illinois Open Source
-|* License. See LICENSE.TXT for details.
+|* Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+|* See https://llvm.org/LICENSE.txt for license information.
+|* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 |*
 \*===----------------------------------------------------------------------===*/
 
-#if !defined(__APPLE__) && !defined(__linux__) && !defined(__FreeBSD__) && \
-    !(defined(__sun__) && defined(__svr4__)) && !defined(__NetBSD__)
+#if !defined(__APPLE__) && !defined(__linux__) && !defined(__FreeBSD__) &&     \
+    !(defined(__sun__) && defined(__svr4__)) && !defined(__NetBSD__) &&        \
+    !defined(_WIN32)
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "InstrProfiling.h"
 

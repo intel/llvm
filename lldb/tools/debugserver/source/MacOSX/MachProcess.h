@@ -1,9 +1,8 @@
 //===-- MachProcess.h -------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -332,12 +331,11 @@ public:
     }
   }
 
-  bool ProcessUsingSpringBoard() const {
-    return (m_flags & eMachProcessFlagsUsingSBS) != 0;
-  }
-  bool ProcessUsingBackBoard() const {
-    return (m_flags & eMachProcessFlagsUsingBKS) != 0;
-  }
+  void CalculateBoardStatus();
+
+  bool ProcessUsingBackBoard();
+
+  bool ProcessUsingFrontBoard();
 
   Genealogy::ThreadActivitySP GetGenealogyInfoForThread(nub_thread_t tid,
                                                         bool &timed_out);
@@ -350,9 +348,9 @@ private:
   enum {
     eMachProcessFlagsNone = 0,
     eMachProcessFlagsAttached = (1 << 0),
-    eMachProcessFlagsUsingSBS = (1 << 1),
-    eMachProcessFlagsUsingBKS = (1 << 2),
-    eMachProcessFlagsUsingFBS = (1 << 3)
+    eMachProcessFlagsUsingBKS = (1 << 2), // only read via ProcessUsingBackBoard()
+    eMachProcessFlagsUsingFBS = (1 << 3), // only read via ProcessUsingFrontBoard()
+    eMachProcessFlagsBoardCalculated = (1 << 4)
   };
   void Clear(bool detaching = false);
   void ReplyToAllExceptions();

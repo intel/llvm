@@ -1,9 +1,8 @@
 //===-- AMDGPUInstPrinter.cpp - AMDGPU MC Inst -> ASM ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // \file
 //===----------------------------------------------------------------------===//
@@ -269,6 +268,9 @@ void AMDGPUInstPrinter::printRegOperand(unsigned RegNo, raw_ostream &O,
   case AMDGPU::XNACK_MASK:
     O << "xnack_mask";
     return;
+  case AMDGPU::LDS_DIRECT:
+    O << "src_lds_direct";
+    return;
   case AMDGPU::VCC_LO:
     O << "vcc_lo";
     return;
@@ -491,7 +493,7 @@ void AMDGPUInstPrinter::printImmediate64(uint64_t Imm,
     O << "-4.0";
   else if (Imm == 0x3fc45f306dc9c882 &&
            STI.getFeatureBits()[AMDGPU::FeatureInv2PiInlineImm])
-  O << "0.15915494";
+    O << "0.15915494309189532";
   else {
     assert(isUInt<32>(Imm) || Imm == 0x3fc45f306dc9c882);
 
@@ -932,23 +934,24 @@ void AMDGPUInstPrinter::printInterpAttrChan(const MCInst *MI, unsigned OpNum,
 void AMDGPUInstPrinter::printVGPRIndexMode(const MCInst *MI, unsigned OpNo,
                                            const MCSubtargetInfo &STI,
                                            raw_ostream &O) {
+  using namespace llvm::AMDGPU::VGPRIndexMode;
   unsigned Val = MI->getOperand(OpNo).getImm();
-  if (Val == 0) {
-    O << " 0";
-    return;
+
+  if ((Val & ~ENABLE_MASK) != 0) {
+    O << " " << formatHex(static_cast<uint64_t>(Val));
+  } else {
+    O << " gpr_idx(";
+    bool NeedComma = false;
+    for (unsigned ModeId = ID_MIN; ModeId <= ID_MAX; ++ModeId) {
+      if (Val & (1 << ModeId)) {
+        if (NeedComma)
+          O << ',';
+        O << IdSymbolic[ModeId];
+        NeedComma = true;
+      }
+    }
+    O << ')';
   }
-
-  if (Val & VGPRIndexMode::DST_ENABLE)
-    O << " dst";
-
-  if (Val & VGPRIndexMode::SRC0_ENABLE)
-    O << " src0";
-
-  if (Val & VGPRIndexMode::SRC1_ENABLE)
-    O << " src1";
-
-  if (Val & VGPRIndexMode::SRC2_ENABLE)
-    O << " src2";
 }
 
 void AMDGPUInstPrinter::printMemOperand(const MCInst *MI, unsigned OpNo,

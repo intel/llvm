@@ -1,9 +1,8 @@
 //===-- MICmdCmdMiscellanous.cpp --------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -340,7 +339,9 @@ bool CMICmdCmdListThreadGroups::Acknowledge() {
       const char *pDir = sbTrgt.GetExecutable().GetDirectory();
       const char *pFileName = sbTrgt.GetExecutable().GetFilename();
       const CMIUtilString strFile(
-          CMIUtilString::Format("%s/%s", pDir, pFileName));
+          CMIUtilString::Format("%s/%s",
+                                CMIUtilString::WithNullAsEmpty(pDir),
+                                CMIUtilString::WithNullAsEmpty(pFileName)));
       const CMICmnMIValueConst miValueConst4(strFile);
       const CMICmnMIValueResult miValueResult4("executable", miValueConst4);
       miTuple.Add(miValueResult4);

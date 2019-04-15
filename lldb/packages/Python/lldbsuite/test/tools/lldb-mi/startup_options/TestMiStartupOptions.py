@@ -144,6 +144,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
     @skipIfWindows  # llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD  # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux  # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
+    @expectedFailureNetBSD
     @skipIfDarwin
     def test_lldbmi_source_option_start_script(self):
         """Test that 'lldb-mi --interpreter' can execute user's commands after initial commands were executed."""
@@ -188,6 +189,7 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
     @skipIfWindows  # llvm.org/pr24452: Get lldb-mi tests working on Windows
     @skipIfFreeBSD  # llvm.org/pr22411: Failure presumably due to known thread races
     @skipIfLinux  # llvm.org/pr22841: lldb-mi tests fail on all Linux buildbots
+    @expectedFailureNetBSD
     @skipIfDarwin
     def test_lldbmi_source_option_start_script_exit(self):
         """Test that 'lldb-mi --interpreter' can execute a prepared file which passed via --source option."""
@@ -237,7 +239,11 @@ class MiStartupOptionsTestCase(lldbmi_testcase.MiTestCaseBase):
 
         # Prepared source file
         sourceFile = self.copyScript("start_script_error")
-        self.spawnLldbMi(args="--source %s" % sourceFile)
+        self.spawnLldbMi(args="--source %s" % sourceFile, preconfig=False)
+
+        # After 'settings set symbols.enable-external-lookup false'
+        self.expect("settings set symbols.enable-external-lookup false")
+        self.expect("\^done")
 
         # After '-file-exec-and-symbols a.out'
         self.expect("-file-exec-and-symbols %s" % self.myexe)

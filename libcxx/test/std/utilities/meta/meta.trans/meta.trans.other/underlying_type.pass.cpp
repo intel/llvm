@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,7 +27,7 @@ enum E { V = INT_MIN };
 enum F { W = UINT_MAX };
 #endif // TEST_UNSIGNED_UNDERLYING_TYPE
 
-int main()
+int main(int, char**)
 {
     static_assert((std::is_same<std::underlying_type<E>::type, int>::value),
                   "E has the wrong underlying type");
@@ -53,4 +52,6 @@ int main()
     static_assert((std::is_same<std::underlying_type_t<G>, char>::value), "");
 #endif // TEST_STD_VER > 11
 #endif // TEST_STD_VER >= 11
+
+  return 0;
 }

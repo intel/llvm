@@ -1,9 +1,8 @@
 //===----- CGOpenMPRuntimeNVPTX.h - Interface to OpenMP NVPTX Runtimes ----===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -18,7 +17,6 @@
 #include "CGOpenMPRuntime.h"
 #include "CodeGenFunction.h"
 #include "clang/AST/StmtOpenMP.h"
-#include "llvm/IR/CallSite.h"
 
 namespace clang {
 namespace CodeGen {
@@ -57,6 +55,9 @@ private:
   ExecutionMode getExecutionMode() const;
 
   bool requiresFullRuntime() const { return RequiresFullRuntime; }
+
+  /// Get barrier to synchronize all threads in a block.
+  void syncCTAThreads(CodeGenFunction &CGF);
 
   /// Emit the worker function for the current target region.
   void emitWorkerFunction(WorkerFunctionState &WST);
@@ -170,7 +171,7 @@ private:
   /// specified, nullptr otherwise.
   ///
   void emitSPMDParallelCall(CodeGenFunction &CGF, SourceLocation Loc,
-                            llvm::Value *OutlinedFn,
+                            llvm::Function *OutlinedFn,
                             ArrayRef<llvm::Value *> CapturedVars,
                             const Expr *IfCond);
 
@@ -227,7 +228,7 @@ public:
   /// \param InnermostKind Kind of innermost directive (for simple directives it
   /// is a directive itself, for combined - its innermost directive).
   /// \param CodeGen Code generation sequence for the \a D directive.
-  llvm::Value *
+  llvm::Function *
   emitParallelOutlinedFunction(const OMPExecutableDirective &D,
                                const VarDecl *ThreadIDVar,
                                OpenMPDirectiveKind InnermostKind,
@@ -242,7 +243,7 @@ public:
   /// \param InnermostKind Kind of innermost directive (for simple directives it
   /// is a directive itself, for combined - its innermost directive).
   /// \param CodeGen Code generation sequence for the \a D directive.
-  llvm::Value *
+  llvm::Function *
   emitTeamsOutlinedFunction(const OMPExecutableDirective &D,
                             const VarDecl *ThreadIDVar,
                             OpenMPDirectiveKind InnermostKind,
@@ -257,7 +258,7 @@ public:
   /// variables used in \a OutlinedFn function.
   ///
   void emitTeamsCall(CodeGenFunction &CGF, const OMPExecutableDirective &D,
-                     SourceLocation Loc, llvm::Value *OutlinedFn,
+                     SourceLocation Loc, llvm::Function *OutlinedFn,
                      ArrayRef<llvm::Value *> CapturedVars) override;
 
   /// Emits code for parallel or serial call of the \a OutlinedFn with
@@ -270,7 +271,7 @@ public:
   /// \param IfCond Condition in the associated 'if' clause, if it was
   /// specified, nullptr otherwise.
   void emitParallelCall(CodeGenFunction &CGF, SourceLocation Loc,
-                        llvm::Value *OutlinedFn,
+                        llvm::Function *OutlinedFn,
                         ArrayRef<llvm::Value *> CapturedVars,
                         const Expr *IfCond) override;
 
@@ -320,7 +321,7 @@ public:
   /// implementation.  Specialized for the NVPTX device.
   /// \param Function OpenMP runtime function.
   /// \return Specified function.
-  llvm::Constant *createNVPTXRuntimeFunction(unsigned Function);
+  llvm::FunctionCallee createNVPTXRuntimeFunction(unsigned Function);
 
   /// Translates the native parameter of outlined function if this is required
   /// for target.
@@ -339,7 +340,7 @@ public:
   /// Emits call of the outlined function with the provided arguments,
   /// translating these arguments to correct target-specific arguments.
   void emitOutlinedFunctionCall(
-      CodeGenFunction &CGF, SourceLocation Loc, llvm::Value *OutlinedFn,
+      CodeGenFunction &CGF, SourceLocation Loc, llvm::FunctionCallee OutlinedFn,
       ArrayRef<llvm::Value *> Args = llvm::None) const override;
 
   /// Emits OpenMP-specific function prolog.
@@ -384,6 +385,10 @@ public:
   /// supports unified addressing
   void checkArchForUnifiedAddressing(CodeGenModule &CGM,
                                      const OMPRequiresDecl *D) const override;
+
+  /// Returns default address space for the constant firstprivates, __constant__
+  /// address space by default.
+  unsigned getDefaultFirstprivateAddressSpace() const override;
 
 private:
   /// Track the execution mode when codegening directives within a target
@@ -460,6 +465,12 @@ private:
     unsigned RegionCounter = 0;
   };
   llvm::SmallVector<GlobalPtrSizeRecsTy, 8> GlobalizedRecords;
+  llvm::GlobalVariable *KernelTeamsReductionPtr = nullptr;
+  /// List of the records with the list of fields for the reductions across the
+  /// teams. Used to build the intermediate buffer for the fast teams
+  /// reductions.
+  /// All the records are gathered into a union `union.type` is created.
+  llvm::SmallVector<const RecordDecl *, 4> TeamsReductions;
   /// Shared pointer for the global memory in the global memory buffer used for
   /// the given kernel.
   llvm::GlobalVariable *KernelStaticGlobalized = nullptr;

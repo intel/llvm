@@ -1,9 +1,8 @@
 //===-- HexagonISelLowering.cpp - Hexagon DAG Lowering Implementation -----===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -579,7 +578,8 @@ HexagonTargetLowering::LowerINLINEASM(SDValue Op, SelectionDAG &DAG) const {
   const HexagonRegisterInfo &HRI = *Subtarget.getRegisterInfo();
   unsigned LR = HRI.getRARegister();
 
-  if (Op.getOpcode() != ISD::INLINEASM || HMFI.hasClobberLR())
+  if ((Op.getOpcode() != ISD::INLINEASM &&
+       Op.getOpcode() != ISD::INLINEASM_BR) || HMFI.hasClobberLR())
     return Op;
 
   unsigned NumOps = Op.getNumOperands();
@@ -1292,6 +1292,7 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BUILD_PAIR,           MVT::i64,   Expand);
   setOperationAction(ISD::SIGN_EXTEND_INREG,    MVT::i1,    Expand);
   setOperationAction(ISD::INLINEASM,            MVT::Other, Custom);
+  setOperationAction(ISD::INLINEASM_BR,         MVT::Other, Custom);
   setOperationAction(ISD::PREFETCH,             MVT::Other, Custom);
   setOperationAction(ISD::READCYCLECOUNTER,     MVT::i64,   Custom);
   setOperationAction(ISD::INTRINSIC_VOID,       MVT::Other, Custom);
@@ -1775,11 +1776,8 @@ bool HexagonTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     // The intrinsic function call is of the form { ElTy, i8* }
     // @llvm.hexagon.L2.loadXX.pbr(i8*, i32). The pointer and memory access type
     // should be derived from ElTy.
-    PointerType *PtrTy = I.getCalledFunction()
-                             ->getReturnType()
-                             ->getContainedType(0)
-                             ->getPointerTo();
-    Info.memVT = MVT::getVT(PtrTy->getElementType());
+    Type *ElTy = I.getCalledFunction()->getReturnType()->getStructElementType(0);
+    Info.memVT = MVT::getVT(ElTy);
     llvm::Value *BasePtrVal = I.getOperand(0);
     Info.ptrVal = getUnderLyingObjectForBrevLdIntr(BasePtrVal);
     // The offset value comes through Modifier register. For now, assume the
@@ -2744,7 +2742,7 @@ HexagonTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   unsigned Opc = Op.getOpcode();
 
   // Handle INLINEASM first.
-  if (Opc == ISD::INLINEASM)
+  if (Opc == ISD::INLINEASM || Opc == ISD::INLINEASM_BR)
     return LowerINLINEASM(Op, DAG);
 
   if (isHvxOperation(Op)) {
@@ -3114,13 +3112,21 @@ Value *HexagonTargetLowering::emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
       AtomicOrdering Ord) const {
   BasicBlock *BB = Builder.GetInsertBlock();
   Module *M = BB->getParent()->getParent();
-  Type *Ty = cast<PointerType>(Addr->getType())->getElementType();
+  auto PT = cast<PointerType>(Addr->getType());
+  Type *Ty = PT->getElementType();
   unsigned SZ = Ty->getPrimitiveSizeInBits();
   assert((SZ == 32 || SZ == 64) && "Only 32/64-bit atomic loads supported");
   Intrinsic::ID IntID = (SZ == 32) ? Intrinsic::hexagon_L2_loadw_locked
                                    : Intrinsic::hexagon_L4_loadd_locked;
-  Value *Fn = Intrinsic::getDeclaration(M, IntID);
-  return Builder.CreateCall(Fn, Addr, "larx");
+  Function *Fn = Intrinsic::getDeclaration(M, IntID);
+
+  PointerType *NewPtrTy
+    = Builder.getIntNTy(SZ)->getPointerTo(PT->getAddressSpace());
+  Addr = Builder.CreateBitCast(Addr, NewPtrTy);
+
+  Value *Call = Builder.CreateCall(Fn, Addr, "larx");
+
+  return Builder.CreateBitCast(Call, Ty);
 }
 
 /// Perform a store-conditional operation to Addr. Return the status of the
@@ -3131,10 +3137,17 @@ Value *HexagonTargetLowering::emitStoreConditional(IRBuilder<> &Builder,
   Module *M = BB->getParent()->getParent();
   Type *Ty = Val->getType();
   unsigned SZ = Ty->getPrimitiveSizeInBits();
+
+  Type *CastTy = Builder.getIntNTy(SZ);
   assert((SZ == 32 || SZ == 64) && "Only 32/64-bit atomic stores supported");
   Intrinsic::ID IntID = (SZ == 32) ? Intrinsic::hexagon_S2_storew_locked
                                    : Intrinsic::hexagon_S4_stored_locked;
-  Value *Fn = Intrinsic::getDeclaration(M, IntID);
+  Function *Fn = Intrinsic::getDeclaration(M, IntID);
+
+  unsigned AS = Addr->getType()->getPointerAddressSpace();
+  Addr = Builder.CreateBitCast(Addr, CastTy->getPointerTo(AS));
+  Val = Builder.CreateBitCast(Val, CastTy);
+
   Value *Call = Builder.CreateCall(Fn, {Addr, Val}, "stcx");
   Value *Cmp = Builder.CreateICmpEQ(Call, Builder.getInt32(0), "");
   Value *Ext = Builder.CreateZExt(Cmp, Type::getInt32Ty(M->getContext()));

@@ -1,9 +1,8 @@
 //===- Reproduce.cpp - Utilities for creating reproducers -----------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -46,12 +45,6 @@ std::string lld::relativeToRoot(StringRef Path) {
 std::string lld::quote(StringRef S) {
   if (S.contains(' '))
     return ("\"" + S + "\"").str();
-  return S;
-}
-
-std::string lld::rewritePath(StringRef S) {
-  if (fs::exists(S))
-    return relativeToRoot(S);
   return S;
 }
 

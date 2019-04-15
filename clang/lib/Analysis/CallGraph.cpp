@@ -1,9 +1,8 @@
 //===- CallGraph.cpp - AST-based Call graph -------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -78,6 +77,30 @@ public:
     if (Decl *D = getDeclFromCall(CE))
       addCalledDecl(D);
     VisitChildren(CE);
+  }
+
+  void VisitLambdaExpr(LambdaExpr *LE) {
+    if (CXXMethodDecl *MD = LE->getCallOperator())
+      G->VisitFunctionDecl(MD);
+  }
+
+  void VisitCXXNewExpr(CXXNewExpr *E) {
+    if (FunctionDecl *FD = E->getOperatorNew())
+      addCalledDecl(FD);
+    VisitChildren(E);
+  }
+
+  void VisitCXXConstructExpr(CXXConstructExpr *E) {
+    CXXConstructorDecl *Ctor = E->getConstructor();
+    if (FunctionDecl *Def = Ctor->getDefinition())
+      addCalledDecl(Def);
+    const auto *ConstructedType = Ctor->getParent();
+    if (ConstructedType->hasUserDeclaredDestructor()) {
+      CXXDestructorDecl *Dtor = ConstructedType->getDestructor();
+      if (FunctionDecl *Def = Dtor->getDefinition())
+        addCalledDecl(Def);
+    }
+    VisitChildren(E);
   }
 
   // Adds may-call edges for the ObjC message sends.

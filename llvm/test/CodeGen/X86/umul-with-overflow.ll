@@ -7,9 +7,8 @@ declare {i32, i1} @llvm.umul.with.overflow.i32(i32 %a, i32 %b)
 define zeroext i1 @a(i32 %x)  nounwind {
 ; X86-LABEL: a:
 ; X86:       # %bb.0:
-; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; X86-NEXT:    movl $3, %ecx
-; X86-NEXT:    mull %ecx
+; X86-NEXT:    movl $3, %eax
+; X86-NEXT:    mull {{[0-9]+}}(%esp)
 ; X86-NEXT:    seto %al
 ; X86-NEXT:    retl
 ;
@@ -68,4 +67,13 @@ entry:
 	%tmp1 = call { i32, i1 } @llvm.umul.with.overflow.i32(i32 %tmp0, i32 4)
 	%tmp2 = extractvalue { i32, i1 } %tmp1, 0
 	ret i32 %tmp2
+}
+
+; Check that shifts larger than the shift amount type are handled.
+; Intentionally not testing codegen here, only that this doesn't assert.
+declare {i300, i1} @llvm.umul.with.overflow.i300(i300 %a, i300 %b)
+define i300 @test4(i300 %a, i300 %b) nounwind {
+  %x = call {i300, i1} @llvm.umul.with.overflow.i300(i300 %a, i300 %b)
+  %y = extractvalue {i300, i1} %x, 0
+  ret i300 %y
 }

@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,7 +22,7 @@ void test_remove_pointer()
 #endif
 }
 
-int main()
+int main(int, char**)
 {
     test_remove_pointer<void, void>();
     test_remove_pointer<int, int>();
@@ -41,4 +40,6 @@ int main()
     test_remove_pointer<int(*)[3], int[3]>();
     test_remove_pointer<int*&, int*&>();
     test_remove_pointer<const int*&, const int*&>();
+
+  return 0;
 }

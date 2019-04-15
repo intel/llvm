@@ -1,17 +1,12 @@
 //===-- CommandObjectType.cpp -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "CommandObjectType.h"
-
-#include <algorithm>
-#include <cctype>
-#include <functional>
 
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/IOHandler.h"
@@ -39,6 +34,11 @@
 #include "lldb/Utility/StringList.h"
 
 #include "llvm/ADT/STLExtras.h"
+
+#include <algorithm>
+#include <cctype>
+#include <functional>
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -206,9 +206,9 @@ public:
                 // for every type in the list
 
                 TypeSummaryImplSP script_format;
-                script_format.reset(new ScriptSummaryFormat(
+                script_format = std::make_shared<ScriptSummaryFormat>(
                     options->m_flags, funct_name_str.c_str(),
-                    lines.CopyList("    ").c_str()));
+                    lines.CopyList("    ").c_str());
 
                 Status error;
 
@@ -450,12 +450,12 @@ protected:
                 // class
 
                 SyntheticChildrenSP synth_provider;
-                synth_provider.reset(new ScriptedSyntheticChildren(
+                synth_provider = std::make_shared<ScriptedSyntheticChildren>(
                     SyntheticChildren::Flags()
                         .SetCascades(options->m_cascade)
                         .SetSkipPointers(options->m_skip_pointers)
                         .SetSkipReferences(options->m_skip_references),
-                    class_name_str.c_str()));
+                    class_name_str.c_str());
 
                 lldb::TypeCategoryImplSP category;
                 DataVisualization::Categories::GetCategory(
@@ -700,18 +700,18 @@ protected:
     TypeFormatImplSP entry;
 
     if (m_command_options.m_custom_type_name.empty())
-      entry.reset(new TypeFormatImpl_Format(
+      entry = std::make_shared<TypeFormatImpl_Format>(
           format, TypeFormatImpl::Flags()
                       .SetCascades(m_command_options.m_cascade)
                       .SetSkipPointers(m_command_options.m_skip_pointers)
-                      .SetSkipReferences(m_command_options.m_skip_references)));
+                      .SetSkipReferences(m_command_options.m_skip_references));
     else
-      entry.reset(new TypeFormatImpl_EnumType(
+      entry = std::make_shared<TypeFormatImpl_EnumType>(
           ConstString(m_command_options.m_custom_type_name.c_str()),
           TypeFormatImpl::Flags()
               .SetCascades(m_command_options.m_cascade)
               .SetSkipPointers(m_command_options.m_skip_pointers)
-              .SetSkipReferences(m_command_options.m_skip_references)));
+              .SetSkipReferences(m_command_options.m_skip_references));
 
     // now I have a valid format, let's add it to every type
 
@@ -1353,8 +1353,8 @@ bool CommandObjectTypeSummaryAdd::Execute_ScriptSummary(
     std::string code =
         ("    " + m_options.m_python_function + "(valobj,internal_dict)");
 
-    script_format.reset(
-        new ScriptSummaryFormat(m_options.m_flags, funct_name, code.c_str()));
+    script_format = std::make_shared<ScriptSummaryFormat>(
+        m_options.m_flags, funct_name, code.c_str());
 
     ScriptInterpreter *interpreter = m_interpreter.GetScriptInterpreter();
 
@@ -1390,8 +1390,8 @@ bool CommandObjectTypeSummaryAdd::Execute_ScriptSummary(
 
     std::string code = "    " + m_options.m_python_script;
 
-    script_format.reset(new ScriptSummaryFormat(
-        m_options.m_flags, funct_name_str.c_str(), code.c_str()));
+    script_format = std::make_shared<ScriptSummaryFormat>(
+        m_options.m_flags, funct_name_str.c_str(), code.c_str());
   } else {
     // Use an IOHandler to grab Python code from the user
     ScriptAddOptions *options =
@@ -2907,7 +2907,7 @@ public:
     if (StackFrame *frame = m_exe_ctx.GetFramePtr()) {
       guessed_language = GuessLanguage(frame);
       if (guessed_language != eLanguageTypeUnknown) {
-        std::sort(
+        llvm::sort(
             languages.begin(), languages.end(),
             [guessed_language](Language *lang1, Language *lang2) -> bool {
               if (!lang1 || !lang2)

@@ -1,9 +1,8 @@
 //===-- MIDriverMgr.cpp -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -494,7 +493,8 @@ bool CMIDriverMgr::ParseArgs(const int argc, const char *argv[],
     bOk = bOk && m_pLog->Write(strArgs, CMICmnLog::eLogVerbosity_Log);
   } else {
     for (MIint i = 1; i < argc; i++) {
-      strArgs += CMIUtilString::Format("%d:'%s' ", i, argv[i]);
+      strArgs += CMIUtilString::Format("%d:'%s' ", i,
+                                       CMIUtilString::WithNullAsEmpty(argv[i]));
     }
     bOk = bOk && m_pLog->Write(strArgs, CMICmnLog::eLogVerbosity_Log);
   }

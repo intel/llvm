@@ -1,9 +1,8 @@
 //=== unittests/Sema/CodeCompleteTest.cpp - Code Complete tests ==============//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -174,12 +173,16 @@ TEST(SemaCodeCompleteTest, VisitedNSForValidQualifiedId) {
                                               "foo::(anonymous)"));
 }
 
-TEST(SemaCodeCompleteTest, VisitedNSForInvalideQualifiedId) {
+TEST(SemaCodeCompleteTest, VisitedNSForInvalidQualifiedId) {
   auto VisitedNS = runCodeCompleteOnCode(R"cpp(
-     namespace ns { foo::^ }
+     namespace na {}
+     namespace ns1 {
+     using namespace na;
+     foo::^
+     }
   )cpp")
                        .VisitedNamespaces;
-  EXPECT_TRUE(VisitedNS.empty());
+  EXPECT_THAT(VisitedNS, UnorderedElementsAre("ns1", "na"));
 }
 
 TEST(SemaCodeCompleteTest, VisitedNSWithoutQualifier) {
@@ -340,4 +343,140 @@ TEST(PreferredTypeTest, BinaryExpr) {
   EXPECT_THAT(collectPreferredTypes(Code), Each("NULL TYPE"));
 }
 
+TEST(PreferredTypeTest, Members) {
+  StringRef Code = R"cpp(
+    struct vector {
+      int *begin();
+      vector clone();
+    };
+
+    void test(int *a) {
+      a = ^vector().^clone().^begin();
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("int *"));
+}
+
+TEST(PreferredTypeTest, Conditions) {
+  StringRef Code = R"cpp(
+    struct vector {
+      bool empty();
+    };
+
+    void test() {
+      if (^vector().^empty()) {}
+      while (^vector().^empty()) {}
+      for (; ^vector().^empty();) {}
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("_Bool"));
+}
+
+TEST(PreferredTypeTest, InitAndAssignment) {
+  StringRef Code = R"cpp(
+    struct vector {
+      int* begin();
+    };
+
+    void test() {
+      const int* x = ^vector().^begin();
+      x = ^vector().^begin();
+
+      if (const int* y = ^vector().^begin()) {}
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("const int *"));
+}
+
+TEST(PreferredTypeTest, UnaryExprs) {
+  StringRef Code = R"cpp(
+    void test(long long a) {
+      a = +^a;
+      a = -^a
+      a = ++^a;
+      a = --^a;
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("long long"));
+
+  Code = R"cpp(
+    void test(int a, int *ptr) {
+      !^a;
+      !^ptr;
+      !!!^a;
+
+      a = !^a;
+      a = !^ptr;
+      a = !!!^a;
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("_Bool"));
+
+  Code = R"cpp(
+    void test(int a) {
+      const int* x = &^a;
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("const int"));
+
+  Code = R"cpp(
+    void test(int *a) {
+      int x = *^a;
+      int &r = *^a;
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("int *"));
+
+  Code = R"cpp(
+    void test(int a) {
+      *^a;
+      &^a;
+    }
+
+  )cpp";
+}
+
+TEST(PreferredTypeTest, ParenExpr) {
+  StringRef Code = R"cpp(
+    const int *i = ^(^(^(^10)));
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("const int *"));
+}
+
+TEST(PreferredTypeTest, FunctionArguments) {
+  StringRef Code = R"cpp(
+    void foo(const int*);
+
+    void bar(const int*);
+    void bar(const int*, int b);
+
+    struct vector {
+      const int *data();
+    };
+    void test() {
+      foo(^(^(^(^vec^tor^().^da^ta^()))));
+      bar(^(^(^(^vec^tor^().^da^ta^()))));
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("const int *"));
+
+  Code = R"cpp(
+    void bar(int, volatile double *);
+    void bar(int, volatile double *, int, int);
+
+    struct vector {
+      double *data();
+    };
+
+    struct class_members {
+      void bar(int, volatile double *);
+      void bar(int, volatile double *, int, int);
+    };
+    void test() {
+      bar(10, ^(^(^(^vec^tor^().^da^ta^()))));
+      class_members().bar(10, ^(^(^(^vec^tor^().^da^ta^()))));
+    }
+  )cpp";
+  EXPECT_THAT(collectPreferredTypes(Code), Each("volatile double *"));
+}
 } // namespace

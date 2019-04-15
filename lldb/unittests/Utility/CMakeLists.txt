@@ -10,6 +10,7 @@ add_lldb_unittest(UtilityTests
   DataExtractorTest.cpp
   EnvironmentTest.cpp
   EventTest.cpp
+  FileCollectorTest.cpp
   FileSpecTest.cpp
   FlagsTest.cpp
   JSONTest.cpp
@@ -17,8 +18,10 @@ add_lldb_unittest(UtilityTests
   LogTest.cpp
   NameMatchesTest.cpp
   PredicateTest.cpp
+  ProcessInfoTest.cpp
   RegisterValueTest.cpp
   ReproducerTest.cpp
+  ReproducerInstrumentationTest.cpp
   ScalarTest.cpp
   StateTest.cpp
   StatusTest.cpp
@@ -32,6 +35,7 @@ add_lldb_unittest(UtilityTests
   TimeoutTest.cpp
   TimerTest.cpp
   UriParserTest.cpp
+  UserIDResolverTest.cpp
   UUIDTest.cpp
   VASprintfTest.cpp
   VMRangeTest.cpp

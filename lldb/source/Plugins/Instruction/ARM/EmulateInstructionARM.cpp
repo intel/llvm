@@ -1,9 +1,8 @@
 //===-- EmulateInstructionARM.cpp -------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -740,17 +739,17 @@ EmulateInstructionARM::CreateInstance(const ArchSpec &arch,
   if (EmulateInstructionARM::SupportsEmulatingInstructionsOfTypeStatic(
           inst_type)) {
     if (arch.GetTriple().getArch() == llvm::Triple::arm) {
-      std::unique_ptr<EmulateInstructionARM> emulate_insn_ap(
+      std::unique_ptr<EmulateInstructionARM> emulate_insn_up(
           new EmulateInstructionARM(arch));
 
-      if (emulate_insn_ap.get())
-        return emulate_insn_ap.release();
+      if (emulate_insn_up)
+        return emulate_insn_up.release();
     } else if (arch.GetTriple().getArch() == llvm::Triple::thumb) {
-      std::unique_ptr<EmulateInstructionARM> emulate_insn_ap(
+      std::unique_ptr<EmulateInstructionARM> emulate_insn_up(
           new EmulateInstructionARM(arch));
 
-      if (emulate_insn_ap.get())
-        return emulate_insn_ap.release();
+      if (emulate_insn_up)
+        return emulate_insn_up.release();
     }
   }
 

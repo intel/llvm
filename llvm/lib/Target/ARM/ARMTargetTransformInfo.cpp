@@ -1,9 +1,8 @@
 //===- ARMTargetTransformInfo.cpp - ARM specific TTI ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -107,9 +106,13 @@ int ARMTTIImpl::getIntImmCost(unsigned Opcode, unsigned Idx, const APInt &Imm,
       Idx == 1)
     return 0;
 
-  if (Opcode == Instruction::And)
-      // Conversion to BIC is free, and means we can use ~Imm instead.
-      return std::min(getIntImmCost(Imm, Ty), getIntImmCost(~Imm, Ty));
+  if (Opcode == Instruction::And) {
+    // UXTB/UXTH
+    if (Imm == 255 || Imm == 65535)
+      return 0;
+    // Conversion to BIC is free, and means we can use ~Imm instead.
+    return std::min(getIntImmCost(Imm, Ty), getIntImmCost(~Imm, Ty));
+  }
 
   if (Opcode == Instruction::Add)
     // Conversion to SUB is free, and means we can use -Imm instead.

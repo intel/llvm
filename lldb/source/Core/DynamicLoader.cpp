@@ -1,9 +1,8 @@
 //===-- DynamicLoader.cpp ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -39,10 +38,10 @@ DynamicLoader *DynamicLoader::FindPlugin(Process *process,
         PluginManager::GetDynamicLoaderCreateCallbackForPluginName(
             const_plugin_name);
     if (create_callback) {
-      std::unique_ptr<DynamicLoader> instance_ap(
+      std::unique_ptr<DynamicLoader> instance_up(
           create_callback(process, true));
-      if (instance_ap)
-        return instance_ap.release();
+      if (instance_up)
+        return instance_up.release();
     }
   } else {
     for (uint32_t idx = 0;
@@ -50,10 +49,10 @@ DynamicLoader *DynamicLoader::FindPlugin(Process *process,
               PluginManager::GetDynamicLoaderCreateCallbackAtIndex(idx)) !=
          nullptr;
          ++idx) {
-      std::unique_ptr<DynamicLoader> instance_ap(
+      std::unique_ptr<DynamicLoader> instance_up(
           create_callback(process, false));
-      if (instance_ap)
-        return instance_ap.release();
+      if (instance_up)
+        return instance_up.release();
     }
   }
   return nullptr;

@@ -1,9 +1,8 @@
 //===- InstCombineInternal.h - InstCombine pass internals -------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -53,7 +52,6 @@ namespace llvm {
 
 class APInt;
 class AssumptionCache;
-class CallSite;
 class DataLayout;
 class DominatorTree;
 class GEPOperator;
@@ -394,6 +392,7 @@ public:
   Instruction *visitSelectInst(SelectInst &SI);
   Instruction *visitCallInst(CallInst &CI);
   Instruction *visitInvokeInst(InvokeInst &II);
+  Instruction *visitCallBrInst(CallBrInst &CBI);
 
   Instruction *SliceUpIllegalIntegerPHI(PHINode &PN);
   Instruction *visitPHINode(PHINode &PN);
@@ -403,6 +402,7 @@ public:
   Instruction *visitFree(CallInst &FI);
   Instruction *visitLoadInst(LoadInst &LI);
   Instruction *visitStoreInst(StoreInst &SI);
+  Instruction *visitAtomicRMWInst(AtomicRMWInst &SI);
   Instruction *visitBranchInst(BranchInst &BI);
   Instruction *visitFenceInst(FenceInst &FI);
   Instruction *visitSwitchInst(SwitchInst &SI);
@@ -468,11 +468,11 @@ private:
                              Instruction &CtxI, Value *&OperationResult,
                              Constant *&OverflowResult);
 
-  Instruction *visitCallSite(CallSite CS);
+  Instruction *visitCallBase(CallBase &Call);
   Instruction *tryOptimizeCall(CallInst *CI);
-  bool transformConstExprCastCall(CallSite CS);
-  Instruction *transformCallThroughTrampoline(CallSite CS,
-                                              IntrinsicInst *Tramp);
+  bool transformConstExprCastCall(CallBase &Call);
+  Instruction *transformCallThroughTrampoline(CallBase &Call,
+                                              IntrinsicInst &Tramp);
 
   /// Transform (zext icmp) to bitwise / integer operations in order to
   /// eliminate it.
@@ -867,8 +867,6 @@ private:
 
   Instruction *foldICmpSelectConstant(ICmpInst &Cmp, SelectInst *Select,
                                       ConstantInt *C);
-  Instruction *foldICmpBitCastConstant(ICmpInst &Cmp, BitCastInst *Bitcast,
-                                       const APInt &C);
   Instruction *foldICmpTruncConstant(ICmpInst &Cmp, TruncInst *Trunc,
                                      const APInt &C);
   Instruction *foldICmpAndConstant(ICmpInst &Cmp, BinaryOperator *And,
@@ -903,7 +901,10 @@ private:
   Instruction *foldICmpBinOpEqualityWithConstant(ICmpInst &Cmp,
                                                  BinaryOperator *BO,
                                                  const APInt &C);
-  Instruction *foldICmpIntrinsicWithConstant(ICmpInst &ICI, const APInt &C);
+  Instruction *foldICmpIntrinsicWithConstant(ICmpInst &ICI, IntrinsicInst *II,
+                                             const APInt &C);
+  Instruction *foldICmpEqIntrinsicWithConstant(ICmpInst &ICI, IntrinsicInst *II,
+                                               const APInt &C);
 
   // Helpers of visitSelectInst().
   Instruction *foldSelectExtConst(SelectInst &Sel);

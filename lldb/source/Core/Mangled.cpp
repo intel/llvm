@@ -1,9 +1,8 @@
 //===-- Mangled.cpp ---------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -491,13 +490,11 @@ size_t Mangled::MemorySize() const {
 lldb::LanguageType Mangled::GuessLanguage() const {
   ConstString mangled = GetMangledName();
   if (mangled) {
-    if (GetDemangledName(lldb::eLanguageTypeUnknown)) {
-      const char *mangled_name = mangled.GetCString();
-      if (CPlusPlusLanguage::IsCPPMangledName(mangled_name))
-        return lldb::eLanguageTypeC_plus_plus;
-      else if (ObjCLanguage::IsPossibleObjCMethodName(mangled_name))
-        return lldb::eLanguageTypeObjC;
-    }
+    const char *mangled_name = mangled.GetCString();
+    if (CPlusPlusLanguage::IsCPPMangledName(mangled_name))
+      return lldb::eLanguageTypeC_plus_plus;
+    else if (ObjCLanguage::IsPossibleObjCMethodName(mangled_name))
+      return lldb::eLanguageTypeObjC;
   } else {
     // ObjC names aren't really mangled, so they won't necessarily be in the
     // mangled name slot.

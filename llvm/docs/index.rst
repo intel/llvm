@@ -55,11 +55,10 @@ User Guides
 
 For those new to the LLVM system.
 
-NOTE: If you are a user who is only interested in using LLVM-based
-compilers, you should look into `Clang <http://clang.llvm.org>`_ or
-`DragonEgg <http://dragonegg.llvm.org>`_ instead. The documentation here is
-intended for users who have a need to work with the intermediate LLVM
-representation.
+NOTE: If you are a user who is only interested in using an LLVM-based compiler,
+you should look into `Clang <http://clang.llvm.org>`_ instead. The
+documentation here is intended for users who have a need to work with the
+intermediate LLVM representation.
 
 .. toctree::
    :hidden:
@@ -232,7 +231,7 @@ For developers of applications which use LLVM as a library.
 
 `Documentation for Go bindings <http://godoc.org/llvm.org/llvm/bindings/go/llvm>`_
 
-`ViewVC Repository Browser <http://llvm.org/viewvc/>`_
+`Github Source Repository Browser <http://github.com/llvm/llvm-project//>`_
    ..
 
 :doc:`CompilerWriterInfo`
@@ -554,7 +553,6 @@ This channel has several bots.
 
   * llvmbb - Bot for the main LLVM buildbot master.
     http://lab.llvm.org:8011/console
-  * bb-chapuni - An individually run buildbot master. http://bb.pgr.jp/console
   * smooshlab - Apple's internal buildbot master.
 
 * robot - Bugzilla linker. %bug <number>

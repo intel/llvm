@@ -1,18 +1,16 @@
 //===-- StructuredDataDarwinLog.cpp -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "StructuredDataDarwinLog.h"
 
-// C includes
 #include <string.h>
 
-// C++ includes
+#include <memory>
 #include <sstream>
 
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
@@ -145,7 +143,7 @@ public:
   }
 
   StructuredDataDarwinLogProperties() : Properties() {
-    m_collection_sp.reset(new OptionValueProperties(GetSettingName()));
+    m_collection_sp = std::make_shared<OptionValueProperties>(GetSettingName());
     m_collection_sp->Initialize(g_properties);
   }
 
@@ -172,7 +170,7 @@ using StructuredDataDarwinLogPropertiesSP =
 static const StructuredDataDarwinLogPropertiesSP &GetGlobalProperties() {
   static StructuredDataDarwinLogPropertiesSP g_settings_sp;
   if (!g_settings_sp)
-    g_settings_sp.reset(new StructuredDataDarwinLogProperties());
+    g_settings_sp = std::make_shared<StructuredDataDarwinLogProperties>();
   return g_settings_sp;
 }
 
@@ -858,7 +856,7 @@ protected:
       // that logging be enabled for a process before libtrace is initialized
       // results in a scenario where no errors occur, but no logging is
       // captured, either.  This step is to eliminate that possibility.
-      plugin.AddInitCompletionHook(*process_sp.get());
+      plugin.AddInitCompletionHook(*process_sp);
     }
 
     // Send configuration to the feature by way of the process. Construct the
@@ -1636,8 +1634,8 @@ bool StructuredDataDarwinLog::InitCompletionHookCallback(
   }
 
   // Queue the thread plan.
-  auto thread_plan_sp = ThreadPlanSP(
-      new ThreadPlanCallOnFunctionExit(*thread_sp.get(), callback));
+  auto thread_plan_sp =
+      ThreadPlanSP(new ThreadPlanCallOnFunctionExit(*thread_sp, callback));
   const bool abort_other_plans = false;
   thread_sp->QueueThreadPlan(thread_plan_sp, abort_other_plans);
   if (log)

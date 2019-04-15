@@ -1,9 +1,8 @@
 //===-- MICmnLLDBDebugger.cpp -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,10 +43,11 @@ static inline bool MI_char_summary_provider(lldb::SBValue value,
 
   lldb::BasicType type_code = value_type.GetBasicType();
   if (type_code == lldb::eBasicTypeSignedChar)
-    stream.Printf("%d %s", (int)value.GetValueAsSigned(), value.GetValue());
+    stream.Printf("%d %s", (int)value.GetValueAsSigned(),
+                  CMIUtilString::WithNullAsEmpty(value.GetValue()));
   else if (type_code == lldb::eBasicTypeUnsignedChar)
     stream.Printf("%u %s", (unsigned)value.GetValueAsUnsigned(),
-                  value.GetValue());
+                  CMIUtilString::WithNullAsEmpty(value.GetValue()));
   else
     return false;
 
@@ -558,7 +558,7 @@ bool CMICmnLLDBDebugger::UnregisterForEvent(
       ClientGetMaskForAllClients(vBroadcasterClass);
   MIuint newEventMask = 0;
   for (MIuint i = 0; i < 32; i++) {
-    const MIuint bit = 1 << i;
+    const MIuint bit = MIuint(1) << i;
     const MIuint clientBit = bit & clientsEventMask;
     const MIuint othersBit = bit & otherClientsEventMask;
     if ((clientBit != 0) && (othersBit == 0)) {

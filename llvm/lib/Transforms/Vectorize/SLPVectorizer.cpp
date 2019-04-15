@@ -1,9 +1,8 @@
 //===- SLPVectorizer.cpp - A bottom up SLP Vectorizer ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -438,8 +437,9 @@ static bool InTreeUserNeedToExtract(Value *Scalar, Instruction *UserInst,
   case Instruction::Call: {
     CallInst *CI = cast<CallInst>(UserInst);
     Intrinsic::ID ID = getVectorIntrinsicIDForCall(CI, TLI);
-    if (hasVectorInstrinsicScalarOpd(ID, 1)) {
-      return (CI->getArgOperand(1) == Scalar);
+    for (unsigned i = 0, e = CI->getNumArgOperands(); i != e; ++i) {
+      if (hasVectorInstrinsicScalarOpd(ID, i))
+        return (CI->getArgOperand(i) == Scalar);
     }
     LLVM_FALLTHROUGH;
   }
@@ -1468,8 +1468,9 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
 
   // If any of the scalars is marked as a value that needs to stay scalar, then
   // we need to gather the scalars.
+  // The reduction nodes (stored in UserIgnoreList) also should stay scalar.
   for (unsigned i = 0, e = VL.size(); i != e; ++i) {
-    if (MustGather.count(VL[i])) {
+    if (MustGather.count(VL[i]) || is_contained(UserIgnoreList, VL[i])) {
       LLVM_DEBUG(dbgs() << "SLP: Gathering due to gathered scalar.\n");
       newTreeEntry(VL, false, UserTreeIdx);
       return;
@@ -1860,9 +1861,11 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
         return;
       }
       Function *Int = CI->getCalledFunction();
-      Value *A1I = nullptr;
-      if (hasVectorInstrinsicScalarOpd(ID, 1))
-        A1I = CI->getArgOperand(1);
+      unsigned NumArgs = CI->getNumArgOperands();
+      SmallVector<Value*, 4> ScalarArgs(NumArgs, nullptr);
+      for (unsigned j = 0; j != NumArgs; ++j)
+        if (hasVectorInstrinsicScalarOpd(ID, j))
+          ScalarArgs[j] = CI->getArgOperand(j);
       for (unsigned i = 1, e = VL.size(); i != e; ++i) {
         CallInst *CI2 = dyn_cast<CallInst>(VL[i]);
         if (!CI2 || CI2->getCalledFunction() != Int ||
@@ -1874,16 +1877,19 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
                             << "\n");
           return;
         }
-        // ctlz,cttz and powi are special intrinsics whose second argument
-        // should be same in order for them to be vectorized.
-        if (hasVectorInstrinsicScalarOpd(ID, 1)) {
-          Value *A1J = CI2->getArgOperand(1);
-          if (A1I != A1J) {
-            BS.cancelScheduling(VL, VL0);
-            newTreeEntry(VL, false, UserTreeIdx, ReuseShuffleIndicies);
-            LLVM_DEBUG(dbgs() << "SLP: mismatched arguments in call:" << *CI
-                              << " argument " << A1I << "!=" << A1J << "\n");
-            return;
+        // Some intrinsics have scalar arguments and should be same in order for
+        // them to be vectorized.
+        for (unsigned j = 0; j != NumArgs; ++j) {
+          if (hasVectorInstrinsicScalarOpd(ID, j)) {
+            Value *A1J = CI2->getArgOperand(j);
+            if (ScalarArgs[j] != A1J) {
+              BS.cancelScheduling(VL, VL0);
+              newTreeEntry(VL, false, UserTreeIdx, ReuseShuffleIndicies);
+              LLVM_DEBUG(dbgs() << "SLP: mismatched arguments in call:" << *CI
+                                << " argument " << ScalarArgs[j] << "!=" << A1J
+                                << "\n");
+              return;
+            }
           }
         }
         // Verify that the bundle operands are identical between the two calls.
@@ -3136,7 +3142,7 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
         Builder.SetInsertPoint(LI);
         PointerType *PtrTy = PointerType::get(VecTy, LI->getPointerAddressSpace());
         Value *Ptr = Builder.CreateBitCast(LI->getOperand(0), PtrTy);
-        LoadInst *V = Builder.CreateAlignedLoad(Ptr, LI->getAlignment());
+        LoadInst *V = Builder.CreateAlignedLoad(VecTy, Ptr, LI->getAlignment());
         Value *NewV = propagateMetadata(V, E->Scalars);
         if (!E->ReorderIndices.empty()) {
           OrdersType Mask;
@@ -3341,7 +3347,7 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
         ExternalUses.push_back(ExternalUser(PO, cast<User>(VecPtr), 0));
 
       unsigned Alignment = LI->getAlignment();
-      LI = Builder.CreateLoad(VecPtr);
+      LI = Builder.CreateLoad(VecTy, VecPtr);
       if (!Alignment) {
         Alignment = DL->getABITypeAlignment(ScalarLoadTy);
       }
@@ -3443,9 +3449,9 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       std::vector<Value *> OpVecs;
       for (int j = 0, e = CI->getNumArgOperands(); j < e; ++j) {
         ValueList OpVL;
-        // ctlz,cttz and powi are special intrinsics whose second argument is
-        // a scalar. This argument should not be vectorized.
-        if (hasVectorInstrinsicScalarOpd(IID, 1) && j == 1) {
+        // Some intrinsics have scalar arguments. This argument should not be
+        // vectorized.
+        if (hasVectorInstrinsicScalarOpd(IID, j)) {
           CallInst *CEI = cast<CallInst>(VL0);
           ScalarArg = CEI->getArgOperand(j);
           OpVecs.push_back(CEI->getArgOperand(j));
@@ -4746,38 +4752,29 @@ bool SLPVectorizerPass::vectorizeStores(ArrayRef<StoreInst *> Stores,
   BoUpSLP::ValueSet VectorizedStores;
   bool Changed = false;
 
-  // Do a quadratic search on all of the given stores in reverse order and find
-  // all of the pairs of stores that follow each other.
-  SmallVector<unsigned, 16> IndexQueue;
-  unsigned E = Stores.size();
-  IndexQueue.resize(E - 1);
-  for (unsigned I = E; I > 0; --I) {
-    unsigned Idx = I - 1;
-    // If a store has multiple consecutive store candidates, search Stores
-    // array according to the sequence: Idx-1, Idx+1, Idx-2, Idx+2, ...
-    // This is because usually pairing with immediate succeeding or preceding
-    // candidate create the best chance to find slp vectorization opportunity.
-    unsigned Offset = 1;
-    unsigned Cnt = 0;
-    for (unsigned J = 0; J < E - 1; ++J, ++Offset) {
-      if (Idx >= Offset) {
-        IndexQueue[Cnt] = Idx - Offset;
-        ++Cnt;
-      }
-      if (Idx + Offset < E) {
-        IndexQueue[Cnt] = Idx + Offset;
-        ++Cnt;
-      }
-    }
+  auto &&FindConsecutiveAccess =
+      [this, &Stores, &Heads, &Tails, &ConsecutiveChain] (int K, int Idx) {
+        if (!isConsecutiveAccess(Stores[K], Stores[Idx], *DL, *SE))
+          return false;
 
-    for (auto K : IndexQueue) {
-      if (isConsecutiveAccess(Stores[K], Stores[Idx], *DL, *SE)) {
         Tails.insert(Stores[Idx]);
         Heads.insert(Stores[K]);
         ConsecutiveChain[Stores[K]] = Stores[Idx];
+        return true;
+      };
+
+  // Do a quadratic search on all of the given stores in reverse order and find
+  // all of the pairs of stores that follow each other.
+  int E = Stores.size();
+  for (int Idx = E - 1; Idx >= 0; --Idx) {
+    // If a store has multiple consecutive store candidates, search according
+    // to the sequence: Idx-1, Idx+1, Idx-2, Idx+2, ...
+    // This is because usually pairing with immediate succeeding or preceding
+    // candidate create the best chance to find slp vectorization opportunity.
+    for (int Offset = 1, F = std::max(E - Idx, Idx + 1); Offset < F; ++Offset)
+      if ((Idx >= Offset && FindConsecutiveAccess(Idx - Offset, Idx)) ||
+          (Idx + Offset < E && FindConsecutiveAccess(Idx + Offset, Idx)))
         break;
-      }
-    }
   }
 
   // For stores that start but don't end a link in the chain:

@@ -1,9 +1,8 @@
 //===------------------ llvm-opt-report/OptReport.cpp ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -14,6 +13,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "llvm-c/Remarks.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -28,7 +28,6 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm-c/OptRemarks.h"
 #include <cstdlib>
 #include <map>
 #include <set>
@@ -153,11 +152,11 @@ static bool readLocationInfo(LocationInfoTy &LocationInfo) {
   }
 
   StringRef Buffer = (*Buf)->getBuffer();
-  LLVMOptRemarkParserRef Parser =
-      LLVMOptRemarkParserCreate(Buffer.data(), Buffer.size());
+  LLVMRemarkParserRef Parser =
+      LLVMRemarkParserCreate(Buffer.data(), Buffer.size());
 
-  LLVMOptRemarkEntry *Remark = nullptr;
-  while ((Remark = LLVMOptRemarkParserGetNext(Parser))) {
+  LLVMRemarkEntry *Remark = nullptr;
+  while ((Remark = LLVMRemarkParserGetNext(Parser))) {
     bool Transformed =
         StringRef(Remark->RemarkType.Str, Remark->RemarkType.Len) == "!Passed";
     StringRef Pass(Remark->PassName.Str, Remark->PassName.Len);
@@ -166,13 +165,13 @@ static bool readLocationInfo(LocationInfoTy &LocationInfo) {
     StringRef Function(Remark->FunctionName.Str, Remark->FunctionName.Len);
     uint32_t Line = Remark->DebugLoc.SourceLineNumber;
     uint32_t Column = Remark->DebugLoc.SourceColumnNumber;
-    ArrayRef<LLVMOptRemarkArg> Args(Remark->Args, Remark->NumArgs);
+    ArrayRef<LLVMRemarkArg> Args(Remark->Args, Remark->NumArgs);
 
     int VectorizationFactor = 1;
     int InterleaveCount = 1;
     int UnrollCount = 1;
 
-    for (const LLVMOptRemarkArg &Arg : Args) {
+    for (const LLVMRemarkArg &Arg : Args) {
       StringRef ArgKeyName(Arg.Key.Str, Arg.Key.Len);
       StringRef ArgValue(Arg.Value.Str, Arg.Value.Len);
       if (ArgKeyName == "VectorizationFactor")
@@ -210,11 +209,11 @@ static bool readLocationInfo(LocationInfoTy &LocationInfo) {
     }
   }
 
-  bool HasError = LLVMOptRemarkParserHasError(Parser);
+  bool HasError = LLVMRemarkParserHasError(Parser);
   if (HasError)
-    WithColor::error() << LLVMOptRemarkParserGetErrorMessage(Parser) << "\n";
+    WithColor::error() << LLVMRemarkParserGetErrorMessage(Parser) << "\n";
 
-  LLVMOptRemarkParserDispose(Parser);
+  LLVMRemarkParserDispose(Parser);
   return !HasError;
 }
 
@@ -231,13 +230,8 @@ static bool writeReport(LocationInfoTy &LocationInfo) {
   bool FirstFile = true;
   for (auto &FI : LocationInfo) {
     SmallString<128> FileName(FI.first);
-    if (!InputRelDir.empty()) {
-      if (std::error_code EC = sys::fs::make_absolute(InputRelDir, FileName)) {
-        WithColor::error() << "Can't resolve file path to " << FileName << ": "
-                           << EC.message() << "\n";
-        return false;
-      }
-    }
+    if (!InputRelDir.empty())
+      sys::fs::make_absolute(InputRelDir, FileName);
 
     const auto &FileInfo = FI.second;
 

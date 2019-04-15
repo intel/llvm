@@ -1,17 +1,14 @@
 //===-- DSInstructions.td - DS Instruction Defintions ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 class DS_Pseudo <string opName, dag outs, dag ins, string asmOps, list<dag> pattern=[]> :
   InstSI <outs, ins, "", pattern>,
   SIMCInstr <opName, SIEncodingFamily.NONE> {
-
-  let SubtargetPredicate = isGCN;
 
   let LGKM_CNT = 1;
   let DS = 1;
@@ -21,6 +18,7 @@ class DS_Pseudo <string opName, dag outs, dag ins, string asmOps, list<dag> patt
   // Most instruction load and store data, so set this as the default.
   let mayLoad = 1;
   let mayStore = 1;
+  let maybeAtomic = 1;
 
   let hasSideEffects = 0;
   let SchedRW = [WriteLDS];
@@ -816,6 +814,11 @@ defm : DSAtomicRetPat_mc<DS_MIN_RTN_U64, i64, "atomic_load_umin_local">;
 defm : DSAtomicRetPat_mc<DS_MAX_RTN_U64, i64, "atomic_load_umax_local">;
 
 defm : DSAtomicCmpXChg_mc<DS_CMPST_RTN_B64, i64, "atomic_cmp_swap_local">;
+
+def : Pat <
+  (SIds_ordered_count i32:$value, i16:$offset),
+  (DS_ORDERED_COUNT $value, (as_i16imm $offset))
+>;
 
 //===----------------------------------------------------------------------===//
 // Real instructions

@@ -26,10 +26,6 @@
 ; RUN: opt -disable-verify -debug-pass-manager -new-pm-debug-info-for-profiling \
 ; RUN:     -passes='thinlto-pre-link<O2>,name-anon-globals' -S  %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefixes=CHECK-DIS,CHECK-O,CHECK-O2,CHECK-PRELINK-O,CHECK-PRELINK-O2
-; Enabling the hot-cold-split pass should not affect the ThinLTO pre-link
-; RUN: opt -disable-verify -debug-pass-manager \
-; RUN:     -passes='thinlto-pre-link<O2>,name-anon-globals' -hot-cold-split -S  %s 2>&1 \
-; RUN:     | FileCheck %s --check-prefixes=CHECK-O,CHECK-O2,CHECK-PRELINK-O,CHECK-PRELINK-O-NODIS,CHECK-PRELINK-O2
 ;
 ; Postlink pipelines:
 ; RUN: opt -disable-verify -debug-pass-manager \
@@ -59,13 +55,13 @@
 ; CHECK-EP-PIPELINE-START-NEXT: Running pass: NoOpModulePass
 ; CHECK-DIS-NEXT: Running pass: ModuleToFunctionPassAdaptor<{{.*}}AddDiscriminatorsPass{{.*}}>
 ; CHECK-DIS-NEXT: Running analysis: InnerAnalysisManagerProxy
+; CHECK-O-NEXT: Running pass: PassManager<{{.*}}Module{{.*}}>
+; CHECK-O-NEXT: Starting llvm::Module pass manager run.
 ; CHECK-POSTLINK-O-NEXT: Running pass: PGOIndirectCallPromotion
 ; CHECK-POSTLINK-O-NEXT: Running analysis: ProfileSummaryAnalysis
 ; CHECK-POSTLINK-O-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-POSTLINK-O-NEXT: Running analysis: OptimizationRemarkEmitterAnalysis
 ; CHECK-POSTLINK-O-NEXT: Running analysis: PassInstrumentationAnalysis
-; CHECK-O-NEXT: Running pass: PassManager<{{.*}}Module{{.*}}>
-; CHECK-O-NEXT: Starting llvm::Module pass manager run.
 ; CHECK-O-NEXT: Running pass: InferFunctionAttrsPass
 ; CHECK-O-NEXT: Running analysis: TargetLibraryAnalysis
 ; CHECK-O-NEXT: Running pass: ModuleToFunctionPassAdaptor<{{.*}}PassManager{{.*}}>

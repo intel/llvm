@@ -1,7 +1,7 @@
 """Module for supporting unit testing of the lldb-server debug monitor exe.
 """
 
-from __future__ import print_function
+from __future__ import division, print_function
 
 
 import os
@@ -221,7 +221,7 @@ def expect_lldb_gdbserver_replay(
                         packet_desc = send_packet
                     logger.info(
                         "sending packet to remote: {}".format(packet_desc))
-                sock.sendall(send_packet)
+                sock.sendall(send_packet.encode())
             else:
                 # This is an entry expecting to receive content from the remote
                 # debug monitor.
@@ -412,7 +412,7 @@ def pack_register_hex(endian, value, byte_size=None):
             value = value >> 8
         if byte_size:
             # Add zero-fill to the right/end (MSB side) of the value.
-            retval += "00" * (byte_size - len(retval) / 2)
+            retval += "00" * (byte_size - len(retval) // 2)
         return retval
 
     elif endian == 'big':
@@ -422,7 +422,7 @@ def pack_register_hex(endian, value, byte_size=None):
             value = value >> 8
         if byte_size:
             # Add zero-fill to the left/front (MSB side) of the value.
-            retval = ("00" * (byte_size - len(retval) / 2)) + retval
+            retval = ("00" * (byte_size - len(retval) // 2)) + retval
         return retval
 
     else:
@@ -921,7 +921,7 @@ def process_is_running(pid, unknown_value=True):
     elif platform.system() in ['Darwin', 'Linux', 'FreeBSD', 'NetBSD']:
         # Build the list of running process ids
         output = subprocess.check_output(
-            "ps ax | awk '{ print $1; }'", shell=True)
+            "ps ax | awk '{ print $1; }'", shell=True).decode("utf-8")
         text_process_ids = output.split('\n')[1:]
         # Convert text pids to ints
         process_ids = [int(text_pid)

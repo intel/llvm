@@ -1,9 +1,8 @@
 //===- DWARFVerifier.cpp --------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #include "llvm/DebugInfo/DWARF/DWARFVerifier.h"
@@ -503,7 +502,7 @@ unsigned DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
       bool Error = llvm::any_of(Expression, [](DWARFExpression::Operation &Op) {
         return Op.isError();
       });
-      if (Error)
+      if (Error || !Expression.verify(U))
         ReportError("DIE contains invalid DWARF expression:");
     };
     if (Optional<ArrayRef<uint8_t>> Expr = AttrValue.Value.getAsBlock()) {
@@ -773,7 +772,7 @@ void DWARFVerifier::verifyDebugLineRows() {
     uint32_t RowIndex = 0;
     for (const auto &Row : LineTable->Rows) {
       // Verify row address.
-      if (Row.Address < PrevAddress) {
+      if (Row.Address.Address < PrevAddress) {
         ++NumDebugLineErrors;
         error() << ".debug_line["
                 << format("0x%08" PRIx64,
@@ -803,7 +802,7 @@ void DWARFVerifier::verifyDebugLineRows() {
       if (Row.EndSequence)
         PrevAddress = 0;
       else
-        PrevAddress = Row.Address;
+        PrevAddress = Row.Address.Address;
       ++RowIndex;
     }
   }

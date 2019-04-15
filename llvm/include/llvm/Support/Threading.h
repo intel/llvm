@@ -1,9 +1,8 @@
 //===-- llvm/Support/Threading.h - Control multithreading mode --*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -32,6 +31,9 @@
 // std::call_once from libc++ is used on all Unix platforms. Other
 // implementations like libstdc++ are known to have problems on NetBSD,
 // OpenBSD and PowerPC.
+#define LLVM_THREADING_USE_STD_CALL_ONCE 1
+#elif defined(LLVM_ON_UNIX) &&                                                 \
+    ((defined(__ppc__) || defined(__PPC__)) && defined(__LITTLE_ENDIAN__))
 #define LLVM_THREADING_USE_STD_CALL_ONCE 1
 #else
 #define LLVM_THREADING_USE_STD_CALL_ONCE 0

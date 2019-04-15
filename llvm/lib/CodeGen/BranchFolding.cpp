@@ -1,9 +1,8 @@
 //===- BranchFolding.cpp - Fold machine code branch instructions ----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1180,29 +1179,6 @@ bool BranchFolder::TailMergeBlocks(MachineFunction &MF) {
             auto Next = ++PBB->getIterator();
             if (Next != MF.end())
               FBB = &*Next;
-          }
-        }
-
-        // Failing case: the only way IBB can be reached from PBB is via
-        // exception handling.  Happens for landing pads.  Would be nice to have
-        // a bit in the edge so we didn't have to do all this.
-        if (IBB->isEHPad()) {
-          MachineFunction::iterator IP = ++PBB->getIterator();
-          MachineBasicBlock *PredNextBB = nullptr;
-          if (IP != MF.end())
-            PredNextBB = &*IP;
-          if (!TBB) {
-            if (IBB != PredNextBB)      // fallthrough
-              continue;
-          } else if (FBB) {
-            if (TBB != IBB && FBB != IBB)   // cbr then ubr
-              continue;
-          } else if (Cond.empty()) {
-            if (TBB != IBB)               // ubr
-              continue;
-          } else {
-            if (TBB != IBB && IBB != PredNextBB)  // cbr
-              continue;
           }
         }
 

@@ -1,9 +1,8 @@
 //===-- llvm/ADT/Triple.h - Target triple helper class ----------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -60,7 +59,6 @@ public:
     mips64,         // MIPS64: mips64, mips64r6, mipsn32, mipsn32r6
     mips64el,       // MIPS64EL: mips64el, mips64r6el, mipsn32el, mipsn32r6el
     msp430,         // MSP430: msp430
-    nios2,          // NIOSII: nios2
     ppc,            // PPC: powerpc
     ppc64,          // PPC64: powerpc64, ppu
     ppc64le,        // PPC64LE: powerpc64le
@@ -187,7 +185,8 @@ public:
     AMDPAL,     // AMD PAL Runtime
     HermitCore, // HermitCore Unikernel/Multikernel
     Hurd,       // GNU/Hurd
-    LastOSType = Hurd
+    WASI,       // Experimental WebAssembly OS
+    LastOSType = WASI
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -416,7 +415,7 @@ public:
     if (LHS[1] != Minor)
       return LHS[1] < Minor;
     if (LHS[2] != Micro)
-      return LHS[1] < Micro;
+      return LHS[2] < Micro;
 
     return false;
   }
@@ -529,32 +528,36 @@ public:
     return getOS() == Triple::Haiku;
   }
 
-  /// Checks if the environment could be MSVC.
-  bool isWindowsMSVCEnvironment() const {
-    return getOS() == Triple::Win32 &&
-           (getEnvironment() == Triple::UnknownEnvironment ||
-            getEnvironment() == Triple::MSVC);
+  /// Tests whether the OS is Windows.
+  bool isOSWindows() const {
+    return getOS() == Triple::Win32;
   }
 
   /// Checks if the environment is MSVC.
   bool isKnownWindowsMSVCEnvironment() const {
-    return getOS() == Triple::Win32 && getEnvironment() == Triple::MSVC;
+    return isOSWindows() && getEnvironment() == Triple::MSVC;
+  }
+
+  /// Checks if the environment could be MSVC.
+  bool isWindowsMSVCEnvironment() const {
+    return isKnownWindowsMSVCEnvironment() ||
+           (isOSWindows() && getEnvironment() == Triple::UnknownEnvironment);
   }
 
   bool isWindowsCoreCLREnvironment() const {
-    return getOS() == Triple::Win32 && getEnvironment() == Triple::CoreCLR;
+    return isOSWindows() && getEnvironment() == Triple::CoreCLR;
   }
 
   bool isWindowsItaniumEnvironment() const {
-    return getOS() == Triple::Win32 && getEnvironment() == Triple::Itanium;
+    return isOSWindows() && getEnvironment() == Triple::Itanium;
   }
 
   bool isWindowsCygwinEnvironment() const {
-    return getOS() == Triple::Win32 && getEnvironment() == Triple::Cygnus;
+    return isOSWindows() && getEnvironment() == Triple::Cygnus;
   }
 
   bool isWindowsGNUEnvironment() const {
-    return getOS() == Triple::Win32 && getEnvironment() == Triple::GNU;
+    return isOSWindows() && getEnvironment() == Triple::GNU;
   }
 
   /// Tests for either Cygwin or MinGW OS
@@ -566,11 +569,6 @@ public:
   bool isOSMSVCRT() const {
     return isWindowsMSVCEnvironment() || isWindowsGNUEnvironment() ||
            isWindowsItaniumEnvironment();
-  }
-
-  /// Tests whether the OS is Windows.
-  bool isOSWindows() const {
-    return getOS() == Triple::Win32;
   }
 
   /// Tests whether the OS is NaCl (Native Client)
@@ -591,6 +589,11 @@ public:
   /// Tests whether the OS is Hurd.
   bool isOSHurd() const {
     return getOS() == Triple::Hurd;
+  }
+
+  /// Tests whether the OS is WASI.
+  bool isOSWASI() const {
+    return getOS() == Triple::WASI;
   }
 
   /// Tests whether the OS uses glibc.

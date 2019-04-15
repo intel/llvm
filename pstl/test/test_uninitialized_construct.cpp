@@ -1,15 +1,14 @@
 // -*- C++ -*-
 //===-- test_uninitialized_construct.cpp ----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-// Tests for uninitialized_default_consruct, uninitialized_default_consruct_n,
-//           uninitialized_value_consruct,   uninitialized_value_consruct_n
+// Tests for uninitialized_default_construct, uninitialized_default_construct_n,
+//           uninitialized_value_construct,   uninitialized_value_construct_n
 
 #include "pstl_test_config.h"
 

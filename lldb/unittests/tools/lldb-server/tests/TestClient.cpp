@@ -1,9 +1,8 @@
 //===-- TestClient.cpp ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,7 +10,6 @@
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/common/TCPSocket.h"
 #include "lldb/Host/posix/ConnectionFileDescriptorPosix.h"
-#include "lldb/Target/ProcessLaunchInfo.h"
 #include "lldb/Utility/Args.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Path.h"
@@ -82,7 +80,7 @@ Expected<std::unique_ptr<TestClient>> TestClient::launchCustom(StringRef Log, Ar
     return status.ToError();
 
   args.AppendArgument(
-      ("localhost:" + Twine(listen_socket.GetLocalPortNumber())).str());
+      ("127.0.0.1:" + Twine(listen_socket.GetLocalPortNumber())).str());
 
   for (StringRef arg : ServerArgs)
     args.AppendArgument(arg);

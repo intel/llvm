@@ -1,9 +1,8 @@
 //===- DebugInfoMetadata.cpp - Implement debug info metadata --------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -927,6 +926,24 @@ bool DIExpression::extractIfOffset(int64_t &Offset) const {
   }
 
   return false;
+}
+
+const DIExpression *DIExpression::extractAddressClass(const DIExpression *Expr,
+                                                      unsigned &AddrClass) {
+  const unsigned PatternSize = 4;
+  if (Expr->Elements.size() >= PatternSize &&
+      Expr->Elements[PatternSize - 4] == dwarf::DW_OP_constu &&
+      Expr->Elements[PatternSize - 2] == dwarf::DW_OP_swap &&
+      Expr->Elements[PatternSize - 1] == dwarf::DW_OP_xderef) {
+    AddrClass = Expr->Elements[PatternSize - 3];
+
+    if (Expr->Elements.size() == PatternSize)
+      return nullptr;
+    return DIExpression::get(Expr->getContext(),
+                             makeArrayRef(&*Expr->Elements.begin(),
+                                          Expr->Elements.size() - PatternSize));
+  }
+  return Expr;
 }
 
 DIExpression *DIExpression::prepend(const DIExpression *Expr, bool DerefBefore,

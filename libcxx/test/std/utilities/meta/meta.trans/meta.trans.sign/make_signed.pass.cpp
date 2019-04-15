@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -43,7 +42,7 @@ void test_make_signed()
 #endif
 }
 
-int main()
+int main(int, char**)
 {
     test_make_signed< signed char, signed char >();
     test_make_signed< unsigned char, signed char >();
@@ -67,4 +66,6 @@ int main()
     test_make_signed< HugeEnum, __int128_t >();
 # endif
 #endif
+
+  return 0;
 }

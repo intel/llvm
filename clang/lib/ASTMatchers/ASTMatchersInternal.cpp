@@ -1,9 +1,8 @@
 //===- ASTMatchersInternal.cpp - Structural query framework ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -728,6 +727,7 @@ const internal::VariadicDynCastAllOfMatcher<Stmt, CompoundLiteralExpr>
     compoundLiteralExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, CXXNullPtrLiteralExpr>
     cxxNullPtrLiteralExpr;
+const internal::VariadicDynCastAllOfMatcher<Stmt, ChooseExpr> chooseExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, GNUNullExpr> gnuNullExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, AtomicExpr> atomicExpr;
 const internal::VariadicDynCastAllOfMatcher<Stmt, StmtExpr> stmtExpr;

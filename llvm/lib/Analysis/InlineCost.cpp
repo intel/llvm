@@ -1,9 +1,8 @@
 //===- InlineCost.cpp - Cost analysis for inliner -------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -51,19 +50,19 @@ static cl::opt<int> InlineThreshold(
     cl::desc("Control the amount of inlining to perform (default = 225)"));
 
 static cl::opt<int> HintThreshold(
-    "inlinehint-threshold", cl::Hidden, cl::init(325),
+    "inlinehint-threshold", cl::Hidden, cl::init(325), cl::ZeroOrMore, 
     cl::desc("Threshold for inlining functions with inline hint"));
 
 static cl::opt<int>
     ColdCallSiteThreshold("inline-cold-callsite-threshold", cl::Hidden,
-                          cl::init(45),
+                          cl::init(45), cl::ZeroOrMore,
                           cl::desc("Threshold for inlining cold callsites"));
 
 // We introduce this threshold to help performance of instrumentation based
 // PGO before we actually hook up inliner with analysis passes such as BPI and
 // BFI.
 static cl::opt<int> ColdThreshold(
-    "inlinecold-threshold", cl::Hidden, cl::init(45),
+    "inlinecold-threshold", cl::Hidden, cl::init(45), cl::ZeroOrMore, 
     cl::desc("Threshold for inlining functions with cold attribute"));
 
 static cl::opt<int>
@@ -77,7 +76,7 @@ static cl::opt<int> LocallyHotCallSiteThreshold(
 
 static cl::opt<int> ColdCallSiteRelFreq(
     "cold-callsite-rel-freq", cl::Hidden, cl::init(2), cl::ZeroOrMore,
-    cl::desc("Maxmimum block frequency, expressed as a percentage of caller's "
+    cl::desc("Maximum block frequency, expressed as a percentage of caller's "
              "entry frequency, for a callsite to be cold in the absence of "
              "profile information."));
 
@@ -88,7 +87,7 @@ static cl::opt<int> HotCallSiteRelFreq(
              "profile information."));
 
 static cl::opt<bool> OptComputeFullInlineCost(
-    "inline-cost-full", cl::Hidden, cl::init(false),
+    "inline-cost-full", cl::Hidden, cl::init(false), cl::ZeroOrMore,
     cl::desc("Compute the full inline cost of a call site even when the cost "
              "exceeds the threshold."));
 
@@ -1178,7 +1177,7 @@ bool CallAnalyzer::simplifyCallSite(Function *F, CallSite CS) {
   // because we have to continually rebuild the argument list even when no
   // simplifications can be performed. Until that is fixed with remapping
   // inside of instsimplify, directly constant fold calls here.
-  if (!canConstantFoldCallTo(CS, F))
+  if (!canConstantFoldCallTo(cast<CallBase>(CS.getInstruction()), F))
     return false;
 
   // Try to re-map the arguments to constants.
@@ -1194,7 +1193,8 @@ bool CallAnalyzer::simplifyCallSite(Function *F, CallSite CS) {
 
     ConstantArgs.push_back(C);
   }
-  if (Constant *C = ConstantFoldCall(CS, F, ConstantArgs)) {
+  if (Constant *C = ConstantFoldCall(cast<CallBase>(CS.getInstruction()), F,
+                                     ConstantArgs)) {
     SimplifiedValues[CS.getInstruction()] = C;
     return true;
   }
@@ -1676,7 +1676,7 @@ ConstantInt *CallAnalyzer::stripAndComputeInBoundsConstantOffsets(Value *&V) {
 /// blocks to see if all their incoming edges are dead or not.
 void CallAnalyzer::findDeadBlocks(BasicBlock *CurrBB, BasicBlock *NextBB) {
   auto IsEdgeDead = [&](BasicBlock *Pred, BasicBlock *Succ) {
-    // A CFG edge is dead if the predecessor is dead or the predessor has a
+    // A CFG edge is dead if the predecessor is dead or the predecessor has a
     // known successor which is not the one under exam.
     return (DeadBlocks.count(Pred) ||
             (KnownSuccessors[Pred] && KnownSuccessors[Pred] != Succ));
@@ -1730,6 +1730,13 @@ InlineResult CallAnalyzer::analyzeCall(CallSite CS) {
 
   // Update the threshold based on callsite properties
   updateThreshold(CS, F);
+
+  // While Threshold depends on commandline options that can take negative
+  // values, we want to enforce the invariant that the computed threshold and
+  // bonuses are non-negative.
+  assert(Threshold >= 0);
+  assert(SingleBBBonus >= 0);
+  assert(VectorBonus >= 0);
 
   // Speculatively apply all possible bonuses to Threshold. If cost exceeds
   // this Threshold any time, and cost cannot decrease, we can stop processing
@@ -2016,9 +2023,10 @@ InlineCost llvm::getInlineCost(
   // Calls to functions with always-inline attributes should be inlined
   // whenever possible.
   if (CS.hasFnAttr(Attribute::AlwaysInline)) {
-    if (isInlineViable(*Callee))
+    auto IsViable = isInlineViable(*Callee);
+    if (IsViable)
       return llvm::InlineCost::getAlways("always inline attribute");
-    return llvm::InlineCost::getNever("inapplicable always inline attribute");
+    return llvm::InlineCost::getNever(IsViable.message);
   }
 
   // Never inline functions with conflicting attributes (unless callee has
@@ -2066,13 +2074,16 @@ InlineCost llvm::getInlineCost(
   return llvm::InlineCost::get(CA.getCost(), CA.getThreshold());
 }
 
-bool llvm::isInlineViable(Function &F) {
+InlineResult llvm::isInlineViable(Function &F) {
   bool ReturnsTwice = F.hasFnAttribute(Attribute::ReturnsTwice);
   for (Function::iterator BI = F.begin(), BE = F.end(); BI != BE; ++BI) {
     // Disallow inlining of functions which contain indirect branches or
     // blockaddresses.
-    if (isa<IndirectBrInst>(BI->getTerminator()) || BI->hasAddressTaken())
-      return false;
+    if (isa<IndirectBrInst>(BI->getTerminator()))
+      return "contains indirect branches";
+
+    if (BI->hasAddressTaken())
+      return "uses block address";
 
     for (auto &II : *BI) {
       CallSite CS(&II);
@@ -2081,13 +2092,13 @@ bool llvm::isInlineViable(Function &F) {
 
       // Disallow recursive calls.
       if (&F == CS.getCalledFunction())
-        return false;
+        return "recursive call";
 
       // Disallow calls which expose returns-twice to a function not previously
       // attributed as such.
       if (!ReturnsTwice && CS.isCall() &&
           cast<CallInst>(CS.getInstruction())->canReturnTwice())
-        return false;
+        return "exposes returns-twice attribute";
 
       if (CS.getCalledFunction())
         switch (CS.getCalledFunction()->getIntrinsicID()) {
@@ -2096,12 +2107,14 @@ bool llvm::isInlineViable(Function &F) {
         // Disallow inlining of @llvm.icall.branch.funnel because current
         // backend can't separate call targets from call arguments.
         case llvm::Intrinsic::icall_branch_funnel:
+          return "disallowed inlining of @llvm.icall.branch.funnel";
         // Disallow inlining functions that call @llvm.localescape. Doing this
         // correctly would require major changes to the inliner.
         case llvm::Intrinsic::localescape:
+          return "disallowed inlining of @llvm.localescape";
         // Disallow inlining of functions that initialize VarArgs with va_start.
         case llvm::Intrinsic::vastart:
-          return false;
+          return "contains VarArgs initialized with va_start";
         }
     }
   }

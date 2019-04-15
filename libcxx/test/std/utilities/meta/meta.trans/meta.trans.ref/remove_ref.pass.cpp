@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,7 +22,7 @@ void test_remove_reference()
 #endif
 }
 
-int main()
+int main(int, char**)
 {
     test_remove_reference<void, void>();
     test_remove_reference<int, int>();
@@ -44,4 +43,6 @@ int main()
     test_remove_reference<int*&&, int*>();
     test_remove_reference<const int*&&, const int*>();
 #endif
+
+  return 0;
 }

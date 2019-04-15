@@ -1,9 +1,8 @@
 //=- X86SchedSkylake.td - X86 Skylake Client Scheduling ------*- tablegen -*-=//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -80,6 +79,8 @@ def : ReadAdvance<ReadAfterLd, 5>;
 def : ReadAdvance<ReadAfterVecLd, 5>;
 def : ReadAdvance<ReadAfterVecXLd, 6>;
 def : ReadAdvance<ReadAfterVecYLd, 7>;
+
+def : ReadAdvance<ReadInt2Fpu, 0>;
 
 // Many SchedWrites are defined in pairs with and without a folded load.
 // Instructions with folded loads are usually micro-fused, so they only appear
@@ -735,9 +736,10 @@ def SKLWriteResGroup23 : SchedWriteRes<[SKLPort06,SKLPort0156]> {
 }
 def: InstRW<[SKLWriteResGroup23], (instrs CWD,
                                           JCXZ, JECXZ, JRCXZ,
-                                          ADC8i8, SBB8i8)>;
-def: InstRW<[SKLWriteResGroup23], (instregex "ADC8ri",
-                                             "SBB8ri")>;
+                                          ADC8i8, SBB8i8,
+                                          ADC16i16, SBB16i16,
+                                          ADC32i32, SBB32i32,
+                                          ADC64i32, SBB64i32)>;
 
 def SKLWriteResGroup25 : SchedWriteRes<[SKLPort4,SKLPort6,SKLPort237]> {
   let Latency = 2;

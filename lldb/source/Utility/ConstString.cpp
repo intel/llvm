@@ -1,9 +1,8 @@
 //===-- ConstString.cpp -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -144,7 +143,7 @@ public:
   const char *GetConstTrimmedCStringWithLength(const char *cstr,
                                                size_t cstr_len) {
     if (cstr != nullptr) {
-      const size_t trimmed_len = std::min<size_t>(strlen(cstr), cstr_len);
+      const size_t trimmed_len = strnlen(cstr, cstr_len);
       return GetConstCStringWithLength(cstr, trimmed_len);
     }
     return nullptr;

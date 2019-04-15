@@ -1,9 +1,8 @@
 //=== RecordLayoutBuilder.cpp - Helper class for building record layouts ---==//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -255,7 +254,7 @@ void EmptySubobjectMap::AddSubobjectAtOffset(const CXXRecordDecl *RD,
   // If we have empty structures inside a union, we can assign both
   // the same offset. Just avoid pushing them twice in the list.
   ClassVectorTy &Classes = EmptyClassOffsets[Offset];
-  if (std::find(Classes.begin(), Classes.end(), RD) != Classes.end())
+  if (llvm::is_contained(Classes, RD))
     return;
 
   Classes.push_back(RD);

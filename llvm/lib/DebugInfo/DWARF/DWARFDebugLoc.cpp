@@ -1,9 +1,8 @@
 //===- DWARFDebugLoc.cpp --------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,15 +30,16 @@ using namespace llvm;
 // non-LLVM tools.
 static void dumpExpression(raw_ostream &OS, ArrayRef<char> Data,
                            bool IsLittleEndian, unsigned AddressSize,
-                           const MCRegisterInfo *MRI) {
+                           const MCRegisterInfo *MRI, DWARFUnit *U) {
   DWARFDataExtractor Extractor(StringRef(Data.data(), Data.size()),
                                IsLittleEndian, AddressSize);
-  DWARFExpression(Extractor, dwarf::DWARF_VERSION, AddressSize).print(OS, MRI);
+  DWARFExpression(Extractor, dwarf::DWARF_VERSION, AddressSize).print(OS, MRI, U);
 }
 
 void DWARFDebugLoc::LocationList::dump(raw_ostream &OS, bool IsLittleEndian,
                                        unsigned AddressSize,
                                        const MCRegisterInfo *MRI,
+                                       DWARFUnit *U,
                                        uint64_t BaseAddress,
                                        unsigned Indent) const {
   for (const Entry &E : Entries) {
@@ -51,7 +51,7 @@ void DWARFDebugLoc::LocationList::dump(raw_ostream &OS, bool IsLittleEndian,
                  BaseAddress + E.End);
     OS << ": ";
 
-    dumpExpression(OS, E.Loc, IsLittleEndian, AddressSize, MRI);
+    dumpExpression(OS, E.Loc, IsLittleEndian, AddressSize, MRI, U);
   }
 }
 
@@ -69,7 +69,7 @@ void DWARFDebugLoc::dump(raw_ostream &OS, const MCRegisterInfo *MRI,
                          Optional<uint64_t> Offset) const {
   auto DumpLocationList = [&](const LocationList &L) {
     OS << format("0x%8.8x: ", L.Offset);
-    L.dump(OS, IsLittleEndian, AddressSize, MRI, 0, 12);
+    L.dump(OS, IsLittleEndian, AddressSize, MRI, nullptr, 0, 12);
     OS << "\n\n";
   };
 
@@ -184,7 +184,8 @@ DWARFDebugLoclists::parseOneLocationList(DataExtractor Data, unsigned *Offset,
     }
 
     if (Kind != dwarf::DW_LLE_base_address) {
-      unsigned Bytes = Data.getU16(Offset);
+      unsigned Bytes =
+          Version >= 5 ? Data.getULEB128(Offset) : Data.getU16(Offset);
       // A single location description describing the location of the object...
       StringRef str = Data.getData().substr(*Offset, Bytes);
       *Offset += Bytes;
@@ -253,7 +254,7 @@ void DWARFDebugLoclists::LocationList::dump(raw_ostream &OS, uint64_t BaseAddr,
       llvm_unreachable("unreachable locations list kind");
     }
 
-    dumpExpression(OS, E.Loc, IsLittleEndian, AddressSize, MRI);
+    dumpExpression(OS, E.Loc, IsLittleEndian, AddressSize, MRI, nullptr);
   }
 }
 

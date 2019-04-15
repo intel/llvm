@@ -1,9 +1,8 @@
 //===-- ObjCLanguageRuntime.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -152,7 +151,7 @@ public:
                                      const char *name, bool for_expression) = 0;
 
   protected:
-    std::unique_ptr<ClangASTContext> m_scratch_ast_ctx_ap;
+    std::unique_ptr<ClangASTContext> m_scratch_ast_ctx_up;
   };
 
   class ObjCExceptionPrecondition : public Breakpoint::BreakpointPrecondition {

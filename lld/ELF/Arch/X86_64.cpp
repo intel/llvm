@@ -1,9 +1,8 @@
 //===- X86_64.cpp ---------------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,6 +25,7 @@ namespace {
 template <class ELFT> class X86_64 : public TargetInfo {
 public:
   X86_64();
+  int getTlsGdRelaxSkip(RelType Type) const override;
   RelExpr getRelExpr(RelType Type, const Symbol &S,
                      const uint8_t *Loc) const override;
   RelType getDynRel(RelType Type) const override;
@@ -66,7 +66,6 @@ template <class ELFT> X86_64<ELFT>::X86_64() {
   GotPltEntrySize = 8;
   PltEntrySize = 16;
   PltHeaderSize = 16;
-  TlsGdRelaxSkip = 2;
   TrapInstr = {0xcc, 0xcc, 0xcc, 0xcc}; // 0xcc = INT3
 
   // Align to the large page size (known as a superpage or huge page).
@@ -75,8 +74,16 @@ template <class ELFT> X86_64<ELFT>::X86_64() {
 }
 
 template <class ELFT>
+int X86_64<ELFT>::getTlsGdRelaxSkip(RelType Type) const {
+  return 2;
+}
+
+template <class ELFT>
 RelExpr X86_64<ELFT>::getRelExpr(RelType Type, const Symbol &S,
                                  const uint8_t *Loc) const {
+  if (Type == R_X86_64_GOTTPOFF)
+    Config->HasStaticTlsModel = true;
+
   switch (Type) {
   case R_X86_64_8:
   case R_X86_64_16:
@@ -97,6 +104,8 @@ RelExpr X86_64<ELFT>::getRelExpr(RelType Type, const Symbol &S,
     return R_SIZE;
   case R_X86_64_PLT32:
     return R_PLT_PC;
+  case R_X86_64_PC8:
+  case R_X86_64_PC16:
   case R_X86_64_PC32:
   case R_X86_64_PC64:
     return R_PC;
@@ -116,7 +125,9 @@ RelExpr X86_64<ELFT>::getRelExpr(RelType Type, const Symbol &S,
   case R_X86_64_NONE:
     return R_NONE;
   default:
-    return R_INVALID;
+    error(getErrorLocation(Loc) + "unknown relocation (" + Twine(Type) +
+          ") against symbol " + toString(S));
+    return R_NONE;
   }
 }
 
@@ -264,15 +275,6 @@ void X86_64<ELFT>::relaxTlsIeToLe(uint8_t *Loc, RelType Type,
 template <class ELFT>
 void X86_64<ELFT>::relaxTlsLdToLe(uint8_t *Loc, RelType Type,
                                   uint64_t Val) const {
-  // Convert
-  //   leaq bar@tlsld(%rip), %rdi
-  //   callq __tls_get_addr@PLT
-  //   leaq bar@dtpoff(%rax), %rcx
-  // to
-  //   .word 0x6666
-  //   .byte 0x66
-  //   mov %fs:0,%rax
-  //   leaq bar@tpoff(%rax), %rcx
   if (Type == R_X86_64_DTPOFF64) {
     write64le(Loc, Val);
     return;
@@ -287,7 +289,37 @@ void X86_64<ELFT>::relaxTlsLdToLe(uint8_t *Loc, RelType Type,
       0x66,                                                 // .byte 0x66
       0x64, 0x48, 0x8b, 0x04, 0x25, 0x00, 0x00, 0x00, 0x00, // mov %fs:0,%rax
   };
-  memcpy(Loc - 3, Inst, sizeof(Inst));
+
+  if (Loc[4] == 0xe8) {
+    // Convert
+    //   leaq bar@tlsld(%rip), %rdi           # 48 8d 3d <Loc>
+    //   callq __tls_get_addr@PLT             # e8 <disp32>
+    //   leaq bar@dtpoff(%rax), %rcx
+    // to
+    //   .word 0x6666
+    //   .byte 0x66
+    //   mov %fs:0,%rax
+    //   leaq bar@tpoff(%rax), %rcx
+    memcpy(Loc - 3, Inst, sizeof(Inst));
+    return;
+  }
+
+  if (Loc[4] == 0xff && Loc[5] == 0x15) {
+    // Convert
+    //   leaq  x@tlsld(%rip),%rdi               # 48 8d 3d <Loc>
+    //   call *__tls_get_addr@GOTPCREL(%rip)    # ff 15 <disp32>
+    // to
+    //   .long  0x66666666
+    //   movq   %fs:0,%rax
+    // See "Table 11.9: LD -> LE Code Transition (LP64)" in
+    // https://raw.githubusercontent.com/wiki/hjl-tools/x86-psABI/x86-64-psABI-1.0.pdf
+    Loc[-3] = 0x66;
+    memcpy(Loc - 2, Inst, sizeof(Inst));
+    return;
+  }
+
+  error(getErrorLocation(Loc - 3) +
+        "expected R_X86_64_PLT32 or R_X86_64_GOTPCRELX after R_X86_64_TLSLD");
 }
 
 template <class ELFT>
@@ -297,8 +329,16 @@ void X86_64<ELFT>::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
     checkUInt(Loc, Val, 8, Type);
     *Loc = Val;
     break;
+  case R_X86_64_PC8:
+    checkInt(Loc, Val, 8, Type);
+    *Loc = Val;
+    break;
   case R_X86_64_16:
     checkUInt(Loc, Val, 16, Type);
+    write16le(Loc, Val);
+    break;
+  case R_X86_64_PC16:
+    checkInt(Loc, Val, 16, Type);
     write16le(Loc, Val);
     break;
   case R_X86_64_32:
@@ -333,7 +373,7 @@ void X86_64<ELFT>::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
     write64le(Loc, Val);
     break;
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + Twine(Type));
+    llvm_unreachable("unknown relocation");
   }
 }
 

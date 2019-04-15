@@ -1,9 +1,8 @@
 //===- ValueTracking.cpp - Walk computations to compute properties --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -618,9 +617,7 @@ static void computeKnownBitsFromAssume(const Value *V, KnownBits &Known,
       continue;
 
     Value *A, *B;
-    auto m_V = m_CombineOr(m_Specific(V),
-                           m_CombineOr(m_PtrToInt(m_Specific(V)),
-                           m_BitCast(m_Specific(V))));
+    auto m_V = m_CombineOr(m_Specific(V), m_PtrToInt(m_Specific(V)));
 
     CmpInst::Predicate Pred;
     uint64_t C;
@@ -1129,12 +1126,9 @@ static void computeKnownBitsFromOperator(const Operator *I, KnownBits &Known,
       Q.DL.getTypeSizeInBits(ScalarTy);
 
     assert(SrcBitWidth && "SrcBitWidth can't be zero");
-    Known = Known.zextOrTrunc(SrcBitWidth);
+    Known = Known.zextOrTrunc(SrcBitWidth, false);
     computeKnownBits(I->getOperand(0), Known, Depth + 1, Q);
-    Known = Known.zextOrTrunc(BitWidth);
-    // Any top bits are known to be zero.
-    if (BitWidth > SrcBitWidth)
-      Known.Zero.setBitsFrom(SrcBitWidth);
+    Known = Known.zextOrTrunc(BitWidth, true /* ExtendedBitsAreKnownZero */);
     break;
   }
   case Instruction::BitCast: {
@@ -1525,6 +1519,37 @@ static void computeKnownBitsFromOperator(const Operator *I, KnownBits &Known,
             Known2.Zero.shl(ShiftAmt) | Known3.Zero.lshr(BitWidth - ShiftAmt);
         Known.One =
             Known2.One.shl(ShiftAmt) | Known3.One.lshr(BitWidth - ShiftAmt);
+        break;
+      }
+      case Intrinsic::uadd_sat:
+      case Intrinsic::usub_sat: {
+        bool IsAdd = II->getIntrinsicID() == Intrinsic::uadd_sat;
+        computeKnownBits(I->getOperand(0), Known, Depth + 1, Q);
+        computeKnownBits(I->getOperand(1), Known2, Depth + 1, Q);
+
+        // Add: Leading ones of either operand are preserved.
+        // Sub: Leading zeros of LHS and leading ones of RHS are preserved
+        // as leading zeros in the result.
+        unsigned LeadingKnown;
+        if (IsAdd)
+          LeadingKnown = std::max(Known.countMinLeadingOnes(),
+                                  Known2.countMinLeadingOnes());
+        else
+          LeadingKnown = std::max(Known.countMinLeadingZeros(),
+                                  Known2.countMinLeadingOnes());
+
+        Known = KnownBits::computeForAddSub(
+            IsAdd, /* NSW */ false, Known, Known2);
+
+        // We select between the operation result and all-ones/zero
+        // respectively, so we can preserve known ones/zeros.
+        if (IsAdd) {
+          Known.One.setHighBits(LeadingKnown);
+          Known.Zero.clearAllBits();
+        } else {
+          Known.Zero.setHighBits(LeadingKnown);
+          Known.One.clearAllBits();
+        }
         break;
       }
       case Intrinsic::x86_sse42_crc32_64_64:
@@ -2023,10 +2048,10 @@ bool isKnownNonZero(const Value *V, unsigned Depth, const Query &Q) {
       if (Q.IIQ.getMetadata(LI, LLVMContext::MD_nonnull))
         return true;
 
-    if (auto CS = ImmutableCallSite(V)) {
-      if (CS.isReturnNonNull())
+    if (const auto *Call = dyn_cast<CallBase>(V)) {
+      if (Call->isReturnNonNull())
         return true;
-      if (const auto *RP = getArgumentAliasingToReturnedPointer(CS))
+      if (const auto *RP = getArgumentAliasingToReturnedPointer(Call))
         return isKnownNonZero(RP, Depth, Q);
     }
   }
@@ -2037,10 +2062,32 @@ bool isKnownNonZero(const Value *V, unsigned Depth, const Query &Q) {
     if (isKnownNonNullFromDominatingCondition(V, Q.CxtI, Q.DT))
       return true;
 
+    // Look through bitcast operations, GEPs, and int2ptr instructions as they
+    // do not alter the value, or at least not the nullness property of the
+    // value, e.g., int2ptr is allowed to zero/sign extend the value.
+    //
+    // Note that we have to take special care to avoid looking through
+    // truncating casts, e.g., int2ptr/ptr2int with appropriate sizes, as well
+    // as casts that can alter the value, e.g., AddrSpaceCasts.
     if (const GEPOperator *GEP = dyn_cast<GEPOperator>(V))
       if (isGEPKnownNonNull(GEP, Depth, Q))
         return true;
+
+    if (auto *BCO = dyn_cast<BitCastOperator>(V))
+      return isKnownNonZero(BCO->getOperand(0), Depth, Q);
+
+    if (auto *I2P = dyn_cast<IntToPtrInst>(V))
+      if (Q.DL.getTypeSizeInBits(I2P->getSrcTy()) <=
+          Q.DL.getTypeSizeInBits(I2P->getDestTy()))
+        return isKnownNonZero(I2P->getOperand(0), Depth, Q);
   }
+
+  // Similar to int2ptr above, we can look through ptr2int here if the cast
+  // is a no-op or an extend and not a truncate.
+  if (auto *P2I = dyn_cast<PtrToIntInst>(V))
+    if (Q.DL.getTypeSizeInBits(P2I->getSrcTy()) <=
+        Q.DL.getTypeSizeInBits(P2I->getDestTy()))
+      return isKnownNonZero(P2I->getOperand(0), Depth, Q);
 
   unsigned BitWidth = getBitWidth(V->getType()->getScalarType(), Q.DL);
 
@@ -3389,7 +3436,14 @@ Value *llvm::GetPointerBaseWithConstantOffset(Value *Ptr, int64_t &Offset,
       if (!GEP->accumulateConstantOffset(DL, GEPOffset))
         break;
 
-      ByteOffset += GEPOffset.getSExtValue();
+      APInt OrigByteOffset(ByteOffset);
+      ByteOffset += GEPOffset.sextOrTrunc(ByteOffset.getBitWidth());
+      if (ByteOffset.getMinSignedBits() > 64) {
+        // Stop traversal if the pointer offset wouldn't fit into int64_t
+        // (this should be removed if Offset is updated to an APInt)
+        ByteOffset = OrigByteOffset;
+        break;
+      }
 
       Ptr = GEP->getPointerOperand();
     } else if (Operator::getOpcode(Ptr) == Instruction::BitCast ||
@@ -3617,21 +3671,21 @@ uint64_t llvm::GetStringLength(const Value *V, unsigned CharSize) {
   return Len == ~0ULL ? 1 : Len;
 }
 
-const Value *llvm::getArgumentAliasingToReturnedPointer(ImmutableCallSite CS) {
-  assert(CS &&
-         "getArgumentAliasingToReturnedPointer only works on nonnull CallSite");
-  if (const Value *RV = CS.getReturnedArgOperand())
+const Value *llvm::getArgumentAliasingToReturnedPointer(const CallBase *Call) {
+  assert(Call &&
+         "getArgumentAliasingToReturnedPointer only works on nonnull calls");
+  if (const Value *RV = Call->getReturnedArgOperand())
     return RV;
   // This can be used only as a aliasing property.
-  if (isIntrinsicReturningPointerAliasingArgumentWithoutCapturing(CS))
-    return CS.getArgOperand(0);
+  if (isIntrinsicReturningPointerAliasingArgumentWithoutCapturing(Call))
+    return Call->getArgOperand(0);
   return nullptr;
 }
 
 bool llvm::isIntrinsicReturningPointerAliasingArgumentWithoutCapturing(
-    ImmutableCallSite CS) {
-  return CS.getIntrinsicID() == Intrinsic::launder_invariant_group ||
-         CS.getIntrinsicID() == Intrinsic::strip_invariant_group;
+    const CallBase *Call) {
+  return Call->getIntrinsicID() == Intrinsic::launder_invariant_group ||
+         Call->getIntrinsicID() == Intrinsic::strip_invariant_group;
 }
 
 /// \p PN defines a loop-variant pointer to an object.  Check if the
@@ -3679,7 +3733,7 @@ Value *llvm::GetUnderlyingObject(Value *V, const DataLayout &DL,
       // An alloca can't be further simplified.
       return V;
     } else {
-      if (auto CS = CallSite(V)) {
+      if (auto *Call = dyn_cast<CallBase>(V)) {
         // CaptureTracking can know about special capturing properties of some
         // intrinsics like launder.invariant.group, that can't be expressed with
         // the attributes, but have properties like returning aliasing pointer.
@@ -3689,7 +3743,7 @@ Value *llvm::GetUnderlyingObject(Value *V, const DataLayout &DL,
         // because it should be in sync with CaptureTracking. Not using it may
         // cause weird miscompilations where 2 aliasing pointers are assumed to
         // noalias.
-        if (auto *RP = getArgumentAliasingToReturnedPointer(CS)) {
+        if (auto *RP = getArgumentAliasingToReturnedPointer(Call)) {
           V = RP;
           continue;
         }
@@ -3894,6 +3948,7 @@ bool llvm::isSafeToSpeculativelyExecute(const Value *V,
   case Instruction::VAArg:
   case Instruction::Alloca:
   case Instruction::Invoke:
+  case Instruction::CallBr:
   case Instruction::PHI:
   case Instruction::Store:
   case Instruction::Ret:
@@ -4015,21 +4070,17 @@ OverflowResult llvm::computeOverflowForUnsignedAdd(
     bool UseInstrInfo) {
   KnownBits LHSKnown = computeKnownBits(LHS, DL, /*Depth=*/0, AC, CxtI, DT,
                                         nullptr, UseInstrInfo);
-  if (LHSKnown.isNonNegative() || LHSKnown.isNegative()) {
-    KnownBits RHSKnown = computeKnownBits(RHS, DL, /*Depth=*/0, AC, CxtI, DT,
-                                          nullptr, UseInstrInfo);
+  KnownBits RHSKnown = computeKnownBits(RHS, DL, /*Depth=*/0, AC, CxtI, DT,
+                                        nullptr, UseInstrInfo);
 
-    if (LHSKnown.isNegative() && RHSKnown.isNegative()) {
-      // The sign bit is set in both cases: this MUST overflow.
-      return OverflowResult::AlwaysOverflows;
-    }
-
-    if (LHSKnown.isNonNegative() && RHSKnown.isNonNegative()) {
-      // The sign bit is clear in both cases: this CANNOT overflow.
-      return OverflowResult::NeverOverflows;
-    }
-  }
-
+  // a + b overflows iff a > ~b. Determine whether this is never/always true
+  // based on the min/max values achievable under the known bits constraint.
+  APInt MinLHS = LHSKnown.One, MaxLHS = ~LHSKnown.Zero;
+  APInt MinInvRHS = RHSKnown.Zero, MaxInvRHS = ~RHSKnown.One;
+  if (MaxLHS.ule(MinInvRHS))
+    return OverflowResult::NeverOverflows;
+  if (MinLHS.ugt(MaxInvRHS))
+    return OverflowResult::AlwaysOverflows;
   return OverflowResult::MayOverflow;
 }
 
@@ -4143,18 +4194,16 @@ OverflowResult llvm::computeOverflowForUnsignedSub(const Value *LHS,
                                                    const Instruction *CxtI,
                                                    const DominatorTree *DT) {
   KnownBits LHSKnown = computeKnownBits(LHS, DL, /*Depth=*/0, AC, CxtI, DT);
-  if (LHSKnown.isNonNegative() || LHSKnown.isNegative()) {
-    KnownBits RHSKnown = computeKnownBits(RHS, DL, /*Depth=*/0, AC, CxtI, DT);
+  KnownBits RHSKnown = computeKnownBits(RHS, DL, /*Depth=*/0, AC, CxtI, DT);
 
-    // If the LHS is negative and the RHS is non-negative, no unsigned wrap.
-    if (LHSKnown.isNegative() && RHSKnown.isNonNegative())
-      return OverflowResult::NeverOverflows;
-
-    // If the LHS is non-negative and the RHS negative, we always wrap.
-    if (LHSKnown.isNonNegative() && RHSKnown.isNegative())
-      return OverflowResult::AlwaysOverflows;
-  }
-
+  // a - b overflows iff a < b. Determine whether this is never/always true
+  // based on the min/max values achievable under the known bits constraint.
+  APInt MinLHS = LHSKnown.One, MaxLHS = ~LHSKnown.Zero;
+  APInt MinRHS = RHSKnown.One, MaxRHS = ~RHSKnown.Zero;
+  if (MinLHS.uge(MaxRHS))
+    return OverflowResult::NeverOverflows;
+  if (MaxLHS.ult(MinRHS))
+    return OverflowResult::AlwaysOverflows;
   return OverflowResult::MayOverflow;
 }
 
@@ -4318,7 +4367,8 @@ bool llvm::isGuaranteedToTransferExecutionToSuccessor(const Instruction *I) {
     // is guaranteed to return.
     return CS.onlyReadsMemory() || CS.onlyAccessesArgMemory() ||
            match(I, m_Intrinsic<Intrinsic::assume>()) ||
-           match(I, m_Intrinsic<Intrinsic::sideeffect>());
+           match(I, m_Intrinsic<Intrinsic::sideeffect>()) ||
+           match(I, m_Intrinsic<Intrinsic::experimental_widenable_condition>());
   }
 
   // Other instructions return normally.
@@ -4326,7 +4376,7 @@ bool llvm::isGuaranteedToTransferExecutionToSuccessor(const Instruction *I) {
 }
 
 bool llvm::isGuaranteedToTransferExecutionToSuccessor(const BasicBlock *BB) {
-  // TODO: This is slightly consdervative for invoke instruction since exiting
+  // TODO: This is slightly conservative for invoke instruction since exiting
   // via an exception *is* normal control for them.
   for (auto I = BB->begin(), E = BB->end(); I != E; ++I)
     if (!isGuaranteedToTransferExecutionToSuccessor(&*I))

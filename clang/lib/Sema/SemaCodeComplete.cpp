@@ -1,9 +1,8 @@
 //===---------------- SemaCodeComplete.cpp - Code Completion ----*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -348,6 +347,202 @@ public:
 };
 } // namespace
 
+void PreferredTypeBuilder::enterReturn(Sema &S, SourceLocation Tok) {
+  if (isa<BlockDecl>(S.CurContext)) {
+    if (sema::BlockScopeInfo *BSI = S.getCurBlock()) {
+      ComputeType = nullptr;
+      Type = BSI->ReturnType;
+      ExpectedLoc = Tok;
+    }
+  } else if (const auto *Function = dyn_cast<FunctionDecl>(S.CurContext)) {
+    ComputeType = nullptr;
+    Type = Function->getReturnType();
+    ExpectedLoc = Tok;
+  } else if (const auto *Method = dyn_cast<ObjCMethodDecl>(S.CurContext)) {
+    ComputeType = nullptr;
+    Type = Method->getReturnType();
+    ExpectedLoc = Tok;
+  }
+}
+
+void PreferredTypeBuilder::enterVariableInit(SourceLocation Tok, Decl *D) {
+  auto *VD = llvm::dyn_cast_or_null<ValueDecl>(D);
+  ComputeType = nullptr;
+  Type = VD ? VD->getType() : QualType();
+  ExpectedLoc = Tok;
+}
+
+void PreferredTypeBuilder::enterFunctionArgument(
+    SourceLocation Tok, llvm::function_ref<QualType()> ComputeType) {
+  this->ComputeType = ComputeType;
+  Type = QualType();
+  ExpectedLoc = Tok;
+}
+
+void PreferredTypeBuilder::enterParenExpr(SourceLocation Tok,
+                                          SourceLocation LParLoc) {
+  // expected type for parenthesized expression does not change.
+  if (ExpectedLoc == LParLoc)
+    ExpectedLoc = Tok;
+}
+
+static QualType getPreferredTypeOfBinaryRHS(Sema &S, Expr *LHS,
+                                            tok::TokenKind Op) {
+  if (!LHS)
+    return QualType();
+
+  QualType LHSType = LHS->getType();
+  if (LHSType->isPointerType()) {
+    if (Op == tok::plus || Op == tok::plusequal || Op == tok::minusequal)
+      return S.getASTContext().getPointerDiffType();
+    // Pointer difference is more common than subtracting an int from a pointer.
+    if (Op == tok::minus)
+      return LHSType;
+  }
+
+  switch (Op) {
+  // No way to infer the type of RHS from LHS.
+  case tok::comma:
+    return QualType();
+  // Prefer the type of the left operand for all of these.
+  // Arithmetic operations.
+  case tok::plus:
+  case tok::plusequal:
+  case tok::minus:
+  case tok::minusequal:
+  case tok::percent:
+  case tok::percentequal:
+  case tok::slash:
+  case tok::slashequal:
+  case tok::star:
+  case tok::starequal:
+  // Assignment.
+  case tok::equal:
+  // Comparison operators.
+  case tok::equalequal:
+  case tok::exclaimequal:
+  case tok::less:
+  case tok::lessequal:
+  case tok::greater:
+  case tok::greaterequal:
+  case tok::spaceship:
+    return LHS->getType();
+  // Binary shifts are often overloaded, so don't try to guess those.
+  case tok::greatergreater:
+  case tok::greatergreaterequal:
+  case tok::lessless:
+  case tok::lesslessequal:
+    if (LHSType->isIntegralOrEnumerationType())
+      return S.getASTContext().IntTy;
+    return QualType();
+  // Logical operators, assume we want bool.
+  case tok::ampamp:
+  case tok::pipepipe:
+  case tok::caretcaret:
+    return S.getASTContext().BoolTy;
+  // Operators often used for bit manipulation are typically used with the type
+  // of the left argument.
+  case tok::pipe:
+  case tok::pipeequal:
+  case tok::caret:
+  case tok::caretequal:
+  case tok::amp:
+  case tok::ampequal:
+    if (LHSType->isIntegralOrEnumerationType())
+      return LHSType;
+    return QualType();
+  // RHS should be a pointer to a member of the 'LHS' type, but we can't give
+  // any particular type here.
+  case tok::periodstar:
+  case tok::arrowstar:
+    return QualType();
+  default:
+    // FIXME(ibiryukov): handle the missing op, re-add the assertion.
+    // assert(false && "unhandled binary op");
+    return QualType();
+  }
+}
+
+/// Get preferred type for an argument of an unary expression. \p ContextType is
+/// preferred type of the whole unary expression.
+static QualType getPreferredTypeOfUnaryArg(Sema &S, QualType ContextType,
+                                           tok::TokenKind Op) {
+  switch (Op) {
+  case tok::exclaim:
+    return S.getASTContext().BoolTy;
+  case tok::amp:
+    if (!ContextType.isNull() && ContextType->isPointerType())
+      return ContextType->getPointeeType();
+    return QualType();
+  case tok::star:
+    if (ContextType.isNull())
+      return QualType();
+    return S.getASTContext().getPointerType(ContextType.getNonReferenceType());
+  case tok::plus:
+  case tok::minus:
+  case tok::tilde:
+  case tok::minusminus:
+  case tok::plusplus:
+    if (ContextType.isNull())
+      return S.getASTContext().IntTy;
+    // leave as is, these operators typically return the same type.
+    return ContextType;
+  case tok::kw___real:
+  case tok::kw___imag:
+    return QualType();
+  default:
+    assert(false && "unhandled unary op");
+    return QualType();
+  }
+}
+
+void PreferredTypeBuilder::enterBinary(Sema &S, SourceLocation Tok, Expr *LHS,
+                                       tok::TokenKind Op) {
+  ComputeType = nullptr;
+  Type = getPreferredTypeOfBinaryRHS(S, LHS, Op);
+  ExpectedLoc = Tok;
+}
+
+void PreferredTypeBuilder::enterMemAccess(Sema &S, SourceLocation Tok,
+                                          Expr *Base) {
+  if (!Base)
+    return;
+  // Do we have expected type for Base?
+  if (ExpectedLoc != Base->getBeginLoc())
+    return;
+  // Keep the expected type, only update the location.
+  ExpectedLoc = Tok;
+  return;
+}
+
+void PreferredTypeBuilder::enterUnary(Sema &S, SourceLocation Tok,
+                                      tok::TokenKind OpKind,
+                                      SourceLocation OpLoc) {
+  ComputeType = nullptr;
+  Type = getPreferredTypeOfUnaryArg(S, this->get(OpLoc), OpKind);
+  ExpectedLoc = Tok;
+}
+
+void PreferredTypeBuilder::enterSubscript(Sema &S, SourceLocation Tok,
+                                          Expr *LHS) {
+  ComputeType = nullptr;
+  Type = S.getASTContext().IntTy;
+  ExpectedLoc = Tok;
+}
+
+void PreferredTypeBuilder::enterTypeCast(SourceLocation Tok,
+                                         QualType CastType) {
+  ComputeType = nullptr;
+  Type = !CastType.isNull() ? CastType.getCanonicalType() : QualType();
+  ExpectedLoc = Tok;
+}
+
+void PreferredTypeBuilder::enterCondition(Sema &S, SourceLocation Tok) {
+  ComputeType = nullptr;
+  Type = S.getASTContext().BoolTy;
+  ExpectedLoc = Tok;
+}
+
 class ResultBuilder::ShadowMapEntry::iterator {
   llvm::PointerUnion<const NamedDecl *, const DeclIndexPair *> DeclOrIterator;
   unsigned SingleDeclIndex;
@@ -681,7 +876,8 @@ QualType clang::getDeclUsageType(ASTContext &C, const NamedDecl *ND) {
     T = Property->getType();
   else if (const auto *Value = dyn_cast<ValueDecl>(ND))
     T = Value->getType();
-  else
+
+  if (T.isNull())
     return QualType();
 
   // Dig through references, function pointers, and block pointers to
@@ -792,8 +988,8 @@ void ResultBuilder::AdjustResultPriorityForDecl(Result &R) {
   }
 }
 
-DeclContext::lookup_result getConstructors(ASTContext &Context,
-                                           const CXXRecordDecl *Record) {
+static DeclContext::lookup_result getConstructors(ASTContext &Context,
+                                                  const CXXRecordDecl *Record) {
   QualType RecordTy = Context.getTypeDeclType(Record);
   DeclarationName ConstructorName =
       Context.DeclarationNames.getCXXConstructorName(
@@ -1028,7 +1224,7 @@ void ResultBuilder::AddResult(Result R, DeclContext *CurContext,
   if (HasObjectTypeQualifiers)
     if (const auto *Method = dyn_cast<CXXMethodDecl>(R.Declaration))
       if (Method->isInstance()) {
-        Qualifiers MethodQuals = Method->getTypeQualifiers();
+        Qualifiers MethodQuals = Method->getMethodQualifiers();
         if (ObjectTypeQualifiers == MethodQuals)
           R.Priority += CCD_ObjectQualifierMatch;
         else if (ObjectTypeQualifiers - MethodQuals) {
@@ -2736,23 +2932,23 @@ static void
 AddFunctionTypeQualsToCompletionString(CodeCompletionBuilder &Result,
                                        const FunctionDecl *Function) {
   const auto *Proto = Function->getType()->getAs<FunctionProtoType>();
-  if (!Proto || !Proto->getTypeQuals())
+  if (!Proto || !Proto->getMethodQuals())
     return;
 
   // FIXME: Add ref-qualifier!
 
   // Handle single qualifiers without copying
-  if (Proto->getTypeQuals().hasOnlyConst()) {
+  if (Proto->getMethodQuals().hasOnlyConst()) {
     Result.AddInformativeChunk(" const");
     return;
   }
 
-  if (Proto->getTypeQuals().hasOnlyVolatile()) {
+  if (Proto->getMethodQuals().hasOnlyVolatile()) {
     Result.AddInformativeChunk(" volatile");
     return;
   }
 
-  if (Proto->getTypeQuals().hasOnlyRestrict()) {
+  if (Proto->getMethodQuals().hasOnlyRestrict()) {
     Result.AddInformativeChunk(" restrict");
     return;
   }
@@ -3856,13 +4052,15 @@ void Sema::CodeCompleteDeclSpec(Scope *S, DeclSpec &DS,
 }
 
 struct Sema::CodeCompleteExpressionData {
-  CodeCompleteExpressionData(QualType PreferredType = QualType())
+  CodeCompleteExpressionData(QualType PreferredType = QualType(),
+                             bool IsParenthesized = false)
       : PreferredType(PreferredType), IntegralConstantExpression(false),
-        ObjCCollection(false) {}
+        ObjCCollection(false), IsParenthesized(IsParenthesized) {}
 
   QualType PreferredType;
   bool IntegralConstantExpression;
   bool ObjCCollection;
+  bool IsParenthesized;
   SmallVector<Decl *, 4> IgnoreDecls;
 };
 
@@ -3873,13 +4071,18 @@ void Sema::CodeCompleteExpression(Scope *S,
   ResultBuilder Results(
       *this, CodeCompleter->getAllocator(),
       CodeCompleter->getCodeCompletionTUInfo(),
-      CodeCompletionContext(CodeCompletionContext::CCC_Expression,
-                            Data.PreferredType));
+      CodeCompletionContext(
+          Data.IsParenthesized
+              ? CodeCompletionContext::CCC_ParenthesizedExpression
+              : CodeCompletionContext::CCC_Expression,
+          Data.PreferredType));
+  auto PCC =
+      Data.IsParenthesized ? PCC_ParenthesizedExpression : PCC_Expression;
   if (Data.ObjCCollection)
     Results.setFilter(&ResultBuilder::IsObjCCollection);
   else if (Data.IntegralConstantExpression)
     Results.setFilter(&ResultBuilder::IsIntegralConstantValue);
-  else if (WantTypesInContext(PCC_Expression, getLangOpts()))
+  else if (WantTypesInContext(PCC, getLangOpts()))
     Results.setFilter(&ResultBuilder::IsOrdinaryName);
   else
     Results.setFilter(&ResultBuilder::IsOrdinaryNonTypeName);
@@ -3897,7 +4100,7 @@ void Sema::CodeCompleteExpression(Scope *S,
                      CodeCompleter->loadExternal());
 
   Results.EnterNewScope();
-  AddOrdinaryNameResults(PCC_Expression, S, *this, Results);
+  AddOrdinaryNameResults(PCC, S, *this, Results);
   Results.ExitScope();
 
   bool PreferredTypeIsPointer = false;
@@ -3917,13 +4120,16 @@ void Sema::CodeCompleteExpression(Scope *S,
                             Results.data(), Results.size());
 }
 
-void Sema::CodeCompleteExpression(Scope *S, QualType PreferredType) {
-  return CodeCompleteExpression(S, CodeCompleteExpressionData(PreferredType));
+void Sema::CodeCompleteExpression(Scope *S, QualType PreferredType,
+                                  bool IsParenthesized) {
+  return CodeCompleteExpression(
+      S, CodeCompleteExpressionData(PreferredType, IsParenthesized));
 }
 
-void Sema::CodeCompletePostfixExpression(Scope *S, ExprResult E) {
+void Sema::CodeCompletePostfixExpression(Scope *S, ExprResult E,
+                                         QualType PreferredType) {
   if (E.isInvalid())
-    CodeCompleteOrdinaryName(S, PCC_RecoveryInFunction);
+    CodeCompleteExpression(S, PreferredType);
   else if (getLangOpts().ObjC)
     CodeCompleteObjCInstanceMessage(S, E.get(), None, false);
 }
@@ -4211,7 +4417,8 @@ AddRecordMembersCompletionResults(Sema &SemaRef, ResultBuilder &Results,
 void Sema::CodeCompleteMemberReferenceExpr(Scope *S, Expr *Base,
                                            Expr *OtherOpBase,
                                            SourceLocation OpLoc, bool IsArrow,
-                                           bool IsBaseExprStatement) {
+                                           bool IsBaseExprStatement,
+                                           QualType PreferredType) {
   if (!Base || !CodeCompleter)
     return;
 
@@ -4239,6 +4446,7 @@ void Sema::CodeCompleteMemberReferenceExpr(Scope *S, Expr *Base,
   }
 
   CodeCompletionContext CCContext(contextKind, ConvertedBaseType);
+  CCContext.setPreferredType(PreferredType);
   ResultBuilder Results(*this, CodeCompleter->getAllocator(),
                         CodeCompleter->getCodeCompletionTUInfo(), CCContext,
                         &ResultBuilder::IsMember);
@@ -4800,22 +5008,6 @@ void Sema::CodeCompleteInitializer(Scope *S, Decl *D) {
   CodeCompleteExpression(S, Data);
 }
 
-void Sema::CodeCompleteReturn(Scope *S) {
-  QualType ResultType;
-  if (isa<BlockDecl>(CurContext)) {
-    if (BlockScopeInfo *BSI = getCurBlock())
-      ResultType = BSI->ReturnType;
-  } else if (const auto *Function = dyn_cast<FunctionDecl>(CurContext))
-    ResultType = Function->getReturnType();
-  else if (const auto *Method = dyn_cast<ObjCMethodDecl>(CurContext))
-    ResultType = Method->getReturnType();
-
-  if (ResultType.isNull())
-    CodeCompleteOrdinaryName(S, PCC_Expression);
-  else
-    CodeCompleteExpression(S, ResultType);
-}
-
 void Sema::CodeCompleteAfterIf(Scope *S) {
   ResultBuilder Results(*this, CodeCompleter->getAllocator(),
                         CodeCompleter->getCodeCompletionTUInfo(),
@@ -4877,91 +5069,6 @@ void Sema::CodeCompleteAfterIf(Scope *S) {
                             Results.data(), Results.size());
 }
 
-static QualType getPreferredTypeOfBinaryRHS(Sema &S, Expr *LHS,
-                                            tok::TokenKind Op) {
-  if (!LHS)
-    return QualType();
-
-  QualType LHSType = LHS->getType();
-  if (LHSType->isPointerType()) {
-    if (Op == tok::plus || Op == tok::plusequal || Op == tok::minusequal)
-      return S.getASTContext().getPointerDiffType();
-    // Pointer difference is more common than subtracting an int from a pointer.
-    if (Op == tok::minus)
-      return LHSType;
-  }
-
-  switch (Op) {
-  // No way to infer the type of RHS from LHS.
-  case tok::comma:
-    return QualType();
-  // Prefer the type of the left operand for all of these.
-  // Arithmetic operations.
-  case tok::plus:
-  case tok::plusequal:
-  case tok::minus:
-  case tok::minusequal:
-  case tok::percent:
-  case tok::percentequal:
-  case tok::slash:
-  case tok::slashequal:
-  case tok::star:
-  case tok::starequal:
-  // Assignment.
-  case tok::equal:
-  // Comparison operators.
-  case tok::equalequal:
-  case tok::exclaimequal:
-  case tok::less:
-  case tok::lessequal:
-  case tok::greater:
-  case tok::greaterequal:
-  case tok::spaceship:
-    return LHS->getType();
-  // Binary shifts are often overloaded, so don't try to guess those.
-  case tok::greatergreater:
-  case tok::greatergreaterequal:
-  case tok::lessless:
-  case tok::lesslessequal:
-    if (LHSType->isIntegralOrEnumerationType())
-      return S.getASTContext().IntTy;
-    return QualType();
-  // Logical operators, assume we want bool.
-  case tok::ampamp:
-  case tok::pipepipe:
-  case tok::caretcaret:
-    return S.getASTContext().BoolTy;
-  // Operators often used for bit manipulation are typically used with the type
-  // of the left argument.
-  case tok::pipe:
-  case tok::pipeequal:
-  case tok::caret:
-  case tok::caretequal:
-  case tok::amp:
-  case tok::ampequal:
-    if (LHSType->isIntegralOrEnumerationType())
-      return LHSType;
-    return QualType();
-  // RHS should be a pointer to a member of the 'LHS' type, but we can't give
-  // any particular type here.
-  case tok::periodstar:
-  case tok::arrowstar:
-    return QualType();
-  default:
-    // FIXME(ibiryukov): handle the missing op, re-add the assertion.
-    // assert(false && "unhandled binary op");
-    return QualType();
-  }
-}
-
-void Sema::CodeCompleteBinaryRHS(Scope *S, Expr *LHS, tok::TokenKind Op) {
-  auto PreferredType = getPreferredTypeOfBinaryRHS(*this, LHS, Op);
-  if (!PreferredType.isNull())
-    CodeCompleteExpression(S, PreferredType);
-  else
-    CodeCompleteOrdinaryName(S, PCC_Expression);
-}
-
 void Sema::CodeCompleteQualifiedId(Scope *S, CXXScopeSpec &SS,
                                    bool EnteringContext, QualType BaseType) {
   if (SS.isEmpty() || !CodeCompleter)
@@ -4974,7 +5081,20 @@ void Sema::CodeCompleteQualifiedId(Scope *S, CXXScopeSpec &SS,
   if (SS.isInvalid()) {
     CodeCompletionContext CC(CodeCompletionContext::CCC_Symbol);
     CC.setCXXScopeSpecifier(SS);
-    HandleCodeCompleteResults(this, CodeCompleter, CC, nullptr, 0);
+    // As SS is invalid, we try to collect accessible contexts from the current
+    // scope with a dummy lookup so that the completion consumer can try to
+    // guess what the specified scope is.
+    ResultBuilder DummyResults(*this, CodeCompleter->getAllocator(),
+                               CodeCompleter->getCodeCompletionTUInfo(), CC);
+    if (S->getEntity()) {
+      CodeCompletionDeclConsumer Consumer(DummyResults, S->getEntity(),
+                                          BaseType);
+      LookupVisibleDecls(S, LookupOrdinaryName, Consumer,
+                         /*IncludeGlobalScope=*/false,
+                         /*LoadExternal=*/false);
+    }
+    HandleCodeCompleteResults(this, CodeCompleter,
+                              DummyResults.getCompletionContext(), nullptr, 0);
     return;
   }
   // Always pretend to enter a context to ensure that a dependent type
@@ -8284,10 +8404,23 @@ void Sema::CodeCompleteIncludedFile(llvm::StringRef Dir, bool Angled) {
   };
 
   // Helper: scans IncludeDir for nice files, and adds results for each.
-  auto AddFilesFromIncludeDir = [&](StringRef IncludeDir, bool IsSystem) {
+  auto AddFilesFromIncludeDir = [&](StringRef IncludeDir,
+                                    bool IsSystem,
+                                    DirectoryLookup::LookupType_t LookupType) {
     llvm::SmallString<128> Dir = IncludeDir;
-    if (!NativeRelDir.empty())
-      llvm::sys::path::append(Dir, NativeRelDir);
+    if (!NativeRelDir.empty()) {
+      if (LookupType == DirectoryLookup::LT_Framework) {
+        // For a framework dir, #include <Foo/Bar/> actually maps to
+        // a path of Foo.framework/Headers/Bar/.
+        auto Begin = llvm::sys::path::begin(NativeRelDir);
+        auto End = llvm::sys::path::end(NativeRelDir);
+
+        llvm::sys::path::append(Dir, *Begin + ".framework", "Headers");
+        llvm::sys::path::append(Dir, ++Begin, End);
+      } else {
+        llvm::sys::path::append(Dir, NativeRelDir);
+      }
+    }
 
     std::error_code EC;
     unsigned Count = 0;
@@ -8298,6 +8431,12 @@ void Sema::CodeCompleteIncludedFile(llvm::StringRef Dir, bool Angled) {
       StringRef Filename = llvm::sys::path::filename(It->path());
       switch (It->type()) {
       case llvm::sys::fs::file_type::directory_file:
+        // All entries in a framework directory must have a ".framework" suffix,
+        // but the suffix does not appear in the source code's include/import.
+        if (LookupType == DirectoryLookup::LT_Framework &&
+            NativeRelDir.empty() && !Filename.consume_back(".framework"))
+          break;
+
         AddCompletion(Filename, /*IsDirectory=*/true);
         break;
       case llvm::sys::fs::file_type::regular_file:
@@ -8326,10 +8465,12 @@ void Sema::CodeCompleteIncludedFile(llvm::StringRef Dir, bool Angled) {
       // header maps are not (currently) enumerable.
       break;
     case DirectoryLookup::LT_NormalDir:
-      AddFilesFromIncludeDir(IncludeDir.getDir()->getName(), IsSystem);
+      AddFilesFromIncludeDir(IncludeDir.getDir()->getName(), IsSystem,
+                             DirectoryLookup::LT_NormalDir);
       break;
     case DirectoryLookup::LT_Framework:
-      AddFilesFromIncludeDir(IncludeDir.getFrameworkDir()->getName(), IsSystem);
+      AddFilesFromIncludeDir(IncludeDir.getFrameworkDir()->getName(), IsSystem,
+                             DirectoryLookup::LT_Framework);
       break;
     }
   };
@@ -8343,7 +8484,8 @@ void Sema::CodeCompleteIncludedFile(llvm::StringRef Dir, bool Angled) {
     // The current directory is on the include path for "quoted" includes.
     auto *CurFile = PP.getCurrentFileLexer()->getFileEntry();
     if (CurFile && CurFile->getDir())
-      AddFilesFromIncludeDir(CurFile->getDir()->getName(), false);
+      AddFilesFromIncludeDir(CurFile->getDir()->getName(), false,
+                             DirectoryLookup::LT_NormalDir);
     for (const auto &D : make_range(S.quoted_dir_begin(), S.quoted_dir_end()))
       AddFilesFromDirLookup(D, false);
   }

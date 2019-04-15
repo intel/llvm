@@ -1,17 +1,19 @@
 //==-------- handler.hpp --- SYCL command group handler --------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
+#include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/os_util.hpp>
+#include <CL/sycl/detail/scheduler/scheduler.h>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/kernel.hpp>
@@ -20,20 +22,9 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <CL/sycl/detail/scheduler/scheduler.h>
-
 #include <functional>
 #include <memory>
 #include <type_traits>
-
-#ifdef __SYCL_DEVICE_ONLY__
-size_t get_global_size(uint dimindx);
-size_t get_local_size(uint dimindx);
-size_t get_global_id(uint dimindx);
-size_t get_local_id(uint dimindx);
-size_t get_global_offset(uint dimindx);
-size_t get_group_id(uint dimindx);
-#endif
 
 template <typename T_src, int dim_src, cl::sycl::access::mode mode_src,
           cl::sycl::access::target tgt_src, typename T_dest, int dim_dest,
@@ -54,6 +45,9 @@ class __fill;
 
 namespace cl {
 namespace sycl {
+
+namespace csd = cl::sycl::detail;
+
 // Forward declaration
 class queue;
 
@@ -62,13 +56,55 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor;
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
 namespace detail {
+
+#ifdef __SYCL_DEVICE_ONLY__
+
+#define DEFINE_INIT_SIZES(POSTFIX)                                             \
+                                                                               \
+  template <int Dim, class DstT> struct InitSizesST##POSTFIX;                  \
+                                                                               \
+  template <class DstT> struct InitSizesST##POSTFIX<1, DstT> {                 \
+    static void initSize(DstT &Dst) {                                          \
+      Dst[0] = cl::__spirv::get##POSTFIX<0>();                                 \
+    }                                                                          \
+  };                                                                           \
+                                                                               \
+  template <class DstT> struct InitSizesST##POSTFIX<2, DstT> {                 \
+    static void initSize(DstT &Dst) {                                          \
+      Dst[1] = cl::__spirv::get##POSTFIX<1>();                                 \
+      InitSizesST##POSTFIX<1, DstT>::initSize(Dst);                            \
+    }                                                                          \
+  };                                                                           \
+                                                                               \
+  template <class DstT> struct InitSizesST##POSTFIX<3, DstT> {                 \
+    static void initSize(DstT &Dst) {                                          \
+      Dst[2] = cl::__spirv::get##POSTFIX<2>();                                 \
+      InitSizesST##POSTFIX<2, DstT>::initSize(Dst);                            \
+    }                                                                          \
+  };                                                                           \
+                                                                               \
+  template <int Dims, class DstT> static void init##POSTFIX(DstT &Dst) {       \
+    InitSizesST##POSTFIX<Dims, DstT>::initSize(Dst);                           \
+  }
+
+DEFINE_INIT_SIZES(GlobalSize);
+DEFINE_INIT_SIZES(GlobalInvocationId)
+DEFINE_INIT_SIZES(WorkgroupSize)
+DEFINE_INIT_SIZES(LocalInvocationId)
+DEFINE_INIT_SIZES(WorkgroupId)
+DEFINE_INIT_SIZES(GlobalOffset)
+
+#undef DEFINE_INIT_SIZES
+
+#endif //__SYCL_DEVICE_ONLY__
+
 class queue_impl;
 template <typename dataT, int dimensions, access::mode accessMode,
           access::target accessTarget, access::placeholder isPlaceholder,
           typename voidT>
 class accessor_impl;
 
-template <typename T, int dimensions, typename AllocatorT> class buffer_impl;
+template <typename AllocatorT> class buffer_impl;
 // Type inference of first arg from a lambda
 // auto fun = [&](item a) { a; };
 // lambda_arg_type<decltype(fun)> value; # value type is item
@@ -112,8 +148,7 @@ class handler {
             typename voidT>
   friend class detail::accessor_impl;
 
-  template <typename T, int dimensions, typename AllocatorT>
-  friend class detail::buffer_impl;
+  template <typename AllocatorT> friend class detail::buffer_impl;
 
   friend class detail::queue_impl;
 
@@ -140,9 +175,8 @@ protected:
 
   bool is_host() { return isHost; }
 
-  template <access::mode mode, access::target target, typename T,
-            int dimensions, typename AllocatorT>
-  void AddBufDep(detail::buffer_impl<T, dimensions, AllocatorT> &Buf) {
+  template <access::mode mode, access::target target, typename AllocatorT>
+  void AddBufDep(detail::buffer_impl<AllocatorT> &Buf) {
     m_Node.addBufRequirement<mode, target>(Buf);
   }
 
@@ -243,7 +277,8 @@ public:
     kernel_single_task<KernelName>(kernelFunc);
 #else
     using KI = cl::sycl::detail::KernelInfo<KernelName>;
-    m_Node.addKernel(KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
+    m_Node.addKernel(csd::OSUtil::getOSModuleHandle(KI::getName()),
+                     KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
                      std::move(kernelFunc));
 #endif
   }
@@ -263,9 +298,9 @@ public:
                                   (dimensions > 0 && dimensions < 4),
                               KernelType>::type kernelFunc) {
     id<dimensions> global_id;
-    for (int i = 0; i < dimensions; ++i) {
-      global_id[i] = get_global_id(i);
-    }
+
+    detail::initGlobalInvocationId<dimensions>(global_id);
+
     kernelFunc(global_id);
   }
 
@@ -277,10 +312,10 @@ public:
                               KernelType>::type kernelFunc) {
     id<dimensions> global_id;
     range<dimensions> global_size;
-    for (int i = 0; i < dimensions; ++i) {
-      global_id[i] = get_global_id(i);
-      global_size[i] = get_global_size(i);
-    }
+
+    detail::initGlobalInvocationId<dimensions>(global_id);
+    detail::initGlobalSize<dimensions>(global_size);
+
     item<dimensions, false> Item =
         detail::Builder::createItem<dimensions, false>(global_size, global_id);
     kernelFunc(Item);
@@ -299,14 +334,12 @@ public:
     id<dimensions> local_id;
     id<dimensions> global_offset;
 
-    for (int i = 0; i < dimensions; ++i) {
-      global_size[i] = get_global_size(i);
-      local_size[i] = get_local_size(i);
-      group_id[i] = get_group_id(i);
-      global_id[i] = get_global_id(i);
-      local_id[i] = get_local_id(i);
-      global_offset[i] = get_global_offset(i);
-    }
+    detail::initGlobalSize<dimensions>(global_size);
+    detail::initWorkgroupSize<dimensions>(local_size);
+    detail::initWorkgroupId<dimensions>(group_id);
+    detail::initGlobalInvocationId<dimensions>(global_id);
+    detail::initLocalInvocationId<dimensions>(local_id);
+    detail::initGlobalOffset<dimensions>(global_offset);
 
     group<dimensions> Group = detail::Builder::createGroup<dimensions>(
         global_size, local_size, group_id);
@@ -330,8 +363,9 @@ public:
     using KI = cl::sycl::detail::KernelInfo<KernelName>;
     m_Node
         .addKernel<KernelType, dimensions, detail::lambda_arg_type<KernelType>>(
-            KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
-            std::move(kernelFunc), numWorkItems);
+            csd::OSUtil::getOSModuleHandle(KI::getName()), KI::getName(),
+            KI::getNumParams(), &KI::getParamDesc(0), std::move(kernelFunc),
+            numWorkItems);
 #endif
   }
 
@@ -351,8 +385,9 @@ public:
     using KI = cl::sycl::detail::KernelInfo<KernelName>;
     m_Node
         .addKernel<KernelType, dimensions, detail::lambda_arg_type<KernelType>>(
-            KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
-            std::move(kernelFunc), numWorkItems, workItemOffset);
+            csd::OSUtil::getOSModuleHandle(KI::getName()), KI::getName(),
+            KI::getNumParams(), &KI::getParamDesc(0), std::move(kernelFunc),
+            numWorkItems, workItemOffset);
 #endif
   }
 
@@ -364,8 +399,9 @@ public:
 #else
     using KI = cl::sycl::detail::KernelInfo<KernelName>;
     m_Node.addKernel<KernelType, dimensions>(
-        KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
-        std::move(kernelFunc), executionRange);
+        csd::OSUtil::getOSModuleHandle(KI::getName()), KI::getName(),
+        KI::getNumParams(), &KI::getParamDesc(0), std::move(kernelFunc),
+        executionRange);
 #endif
   }
 
@@ -397,7 +433,8 @@ public:
   void single_task(kernel syclKernel) {
     verifySyclKernelInvoc(syclKernel);
     std::function<void()> DummyLambda = []() {};
-    m_Node.addKernel(syclKernel.get_info<info::kernel::function_name>(), 0,
+    m_Node.addKernel(nullptr,
+                     syclKernel.get_info<info::kernel::function_name>(), 0,
                      nullptr, std::move(DummyLambda), syclKernel.get());
   }
 
@@ -405,7 +442,7 @@ public:
   void parallel_for(range<dimensions> numWorkItems, kernel syclKernel) {
     verifySyclKernelInvoc(syclKernel);
     m_Node.addKernel<DummyFunctor<dimensions>, dimensions, id<dimensions>>(
-        syclKernel.get_info<info::kernel::function_name>(), 0, nullptr,
+        nullptr, syclKernel.get_info<info::kernel::function_name>(), 0, nullptr,
         DummyFunctor<dimensions>(), numWorkItems, syclKernel.get());
   }
 
@@ -414,7 +451,7 @@ public:
                     id<dimensions> workItemOffset, kernel syclKernel) {
     verifySyclKernelInvoc(syclKernel);
     m_Node.addKernel<DummyFunctor<dimensions>, dimensions, id<dimensions>>(
-        syclKernel.get_info<info::kernel::function_name>(), 0, nullptr,
+        nullptr, syclKernel.get_info<info::kernel::function_name>(), 0, nullptr,
         DummyFunctor<dimensions>(), numWorkItems, workItemOffset,
         syclKernel.get());
   }
@@ -423,7 +460,7 @@ public:
   void parallel_for(nd_range<dimensions> ndRange, kernel syclKernel) {
     verifySyclKernelInvoc(syclKernel);
     m_Node.addKernel(
-        syclKernel.get_info<info::kernel::function_name>(), 0, nullptr,
+        nullptr, syclKernel.get_info<info::kernel::function_name>(), 0, nullptr,
         [](nd_item<dimensions>) {}, ndRange, syclKernel.get());
   }
 
@@ -441,7 +478,8 @@ public:
       clKernel = syclKernel.get();
     }
     using KI = cl::sycl::detail::KernelInfo<KernelName>;
-    m_Node.addKernel(KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
+    m_Node.addKernel(csd::OSUtil::getOSModuleHandle(KI::getName()),
+                     KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
                      std::move(kernelFunc), clKernel);
 #endif
   }
@@ -465,8 +503,9 @@ public:
     using KI = cl::sycl::detail::KernelInfo<KernelName>;
     m_Node
         .addKernel<KernelType, dimensions, detail::lambda_arg_type<KernelType>>(
-            KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
-            std::move(kernelFunc), numWorkItems, clKernel);
+            csd::OSUtil::getOSModuleHandle(KI::getName()), KI::getName(),
+            KI::getNumParams(), &KI::getParamDesc(0), std::move(kernelFunc),
+            numWorkItems, clKernel);
 #endif
   }
 
@@ -493,8 +532,9 @@ public:
     using KI = cl::sycl::detail::KernelInfo<KernelName>;
     m_Node
         .addKernel<KernelType, dimensions, detail::lambda_arg_type<KernelType>>(
-            KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
-            std::move(kernelFunc), numWorkItems, workItemOffset, clKernel);
+            csd::OSUtil::getOSModuleHandle(KI::getName()), KI::getName(),
+            KI::getNumParams(), &KI::getParamDesc(0), std::move(kernelFunc),
+            numWorkItems, workItemOffset, clKernel);
 #endif
   }
 
@@ -510,8 +550,9 @@ public:
     }
     using KI = cl::sycl::detail::KernelInfo<KernelName>;
     m_Node.addKernel<KernelType, dimensions>(
-        KI::getName(), KI::getNumParams(), &KI::getParamDesc(0),
-        std::move(kernelFunc), ndRange, clKernel);
+        csd::OSUtil::getOSModuleHandle(KI::getName()), KI::getName(),
+        KI::getNumParams(), &KI::getParamDesc(0), std::move(kernelFunc),
+        ndRange, clKernel);
 #endif
   }
 
@@ -547,7 +588,7 @@ public:
         getAccessorRangeHelper<T_src, dim, mode, tgt,
                                isPlaceholder>::getAccessorRange(src);
     // TODO use buffer_allocator when it is possible
-    buffer<T_src, dim, std::allocator<T_src>> Buffer(
+    buffer<T_src, dim, std::allocator<char>> Buffer(
         (shared_ptr_class<T_src>)dest, Range,
         {property::buffer::use_host_ptr()});
     accessor<T_src, dim, access::mode::write, access::target::global_buffer,
@@ -568,7 +609,7 @@ public:
         getAccessorRangeHelper<T_dest, dim, mode, tgt,
                                isPlaceholder>::getAccessorRange(dest);
     // TODO use buffer_allocator when it is possible
-    buffer<T_dest, dim, std::allocator<T_dest>> Buffer(
+    buffer<T_dest, dim, std::allocator<char>> Buffer(
         (shared_ptr_class<T_dest>)src, Range,
         {property::buffer::use_host_ptr()});
     accessor<T_dest, dim, access::mode::read, access::target::global_buffer,
@@ -588,7 +629,7 @@ public:
         getAccessorRangeHelper<T_src, dim, mode, tgt,
                                isPlaceholder>::getAccessorRange(src);
     // TODO use buffer_allocator when it is possible
-    buffer<T_src, dim, std::allocator<T_src>> Buffer(
+    buffer<T_src, dim, std::allocator<char>> Buffer(
         (T_src *)dest, Range, {property::buffer::use_host_ptr()});
     accessor<T_src, dim, access::mode::write, access::target::global_buffer,
              access::placeholder::false_t>
@@ -607,7 +648,7 @@ public:
         getAccessorRangeHelper<T_dest, dim, mode, tgt,
                                isPlaceholder>::getAccessorRange(dest);
     // TODO use buffer_allocator when it is possible
-    buffer<T_dest, dim, std::allocator<T_dest>> Buffer(
+    buffer<T_dest, dim, std::allocator<char>> Buffer(
         (T_dest *)src, Range, {property::buffer::use_host_ptr()});
     accessor<T_dest, dim, access::mode::read, access::target::global_buffer,
              access::placeholder::false_t>

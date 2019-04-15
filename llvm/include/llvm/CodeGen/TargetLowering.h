@@ -1,9 +1,8 @@
 //===- llvm/CodeGen/TargetLowering.h - Target Lowering Info -----*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -195,7 +194,11 @@ public:
           IsNest(false), IsByVal(false), IsInAlloca(false), IsReturned(false),
           IsSwiftSelf(false), IsSwiftError(false) {}
 
-    void setAttributes(ImmutableCallSite *CS, unsigned ArgIdx);
+    void setAttributes(const CallBase *Call, unsigned ArgIdx);
+
+    void setAttributes(ImmutableCallSite *CS, unsigned ArgIdx) {
+      return setAttributes(cast<CallBase>(CS->getInstruction()), ArgIdx);
+    }
   };
   using ArgListTy = std::vector<ArgListEntry>;
 
@@ -643,6 +646,13 @@ public:
     return RepRegClassCostForVT[VT.SimpleTy];
   }
 
+  /// Return true if SHIFT instructions should be expanded to SHIFT_PARTS
+  /// instructions, and false if a library call is preferred (e.g for code-size
+  /// reasons).
+  virtual bool shouldExpandShift(SelectionDAG &DAG, SDNode *N) const {
+    return true;
+  }
+
   /// Return true if the target has native support for the specified value type.
   /// This means that it has a register that directly holds it without
   /// promotions or expansions.
@@ -830,6 +840,7 @@ public:
     default:
       llvm_unreachable("Unexpected fixed point operation.");
     case ISD::SMULFIX:
+    case ISD::UMULFIX:
       Supported = isSupportedFixedPointOperation(Op, VT, Scale);
       break;
     }
@@ -1515,7 +1526,7 @@ public:
   /// performs validation and error handling, returns the function. Otherwise,
   /// returns nullptr. Must be previously inserted by insertSSPDeclarations.
   /// Should be used only when getIRStackGuard returns nullptr.
-  virtual Value *getSSPStackGuardCheck(const Module &M) const;
+  virtual Function *getSSPStackGuardCheck(const Module &M) const;
 
 protected:
   Value *getDefaultSafeStackPointerLocation(IRBuilder<> &IRB,
@@ -1716,8 +1727,9 @@ public:
 
   /// Returns how the IR-level AtomicExpand pass should expand the given
   /// AtomicRMW, if at all. Default is to never expand.
-  virtual AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *) const {
-    return AtomicExpansionKind::None;
+  virtual AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
+    return RMW->isFloatingPointOperation() ?
+      AtomicExpansionKind::CmpXChg : AtomicExpansionKind::None;
   }
 
   /// On some platforms, an AtomicRMW that never actually modifies the value
@@ -1761,6 +1773,8 @@ public:
     return Action != TypeExpandInteger && Action != TypeExpandFloat &&
       Action != TypeSplitVector;
   }
+
+  virtual bool isProfitableToCombineMinNumMaxNum(EVT VT) const { return true; }
 
   /// Return true if a select of constants (select Cond, C1, C2) should be
   /// transformed into simple math ops with the condition value. For example:
@@ -2155,6 +2169,8 @@ public:
     case ISD::UADDO:
     case ISD::ADDC:
     case ISD::ADDE:
+    case ISD::SADDSAT:
+    case ISD::UADDSAT:
     case ISD::FMINNUM:
     case ISD::FMAXNUM:
     case ISD::FMINIMUM:
@@ -2265,6 +2281,16 @@ public:
   /// Return true if sign-extension from FromTy to ToTy is cheaper than
   /// zero-extension.
   virtual bool isSExtCheaperThanZExt(EVT FromTy, EVT ToTy) const {
+    return false;
+  }
+
+  /// Return true if sinking I's operands to the same basic block as I is
+  /// profitable, e.g. because the operands can be folded into a target
+  /// instruction during instruction selection. After calling the function
+  /// \p Ops contains the Uses to sink ordered by dominance (dominating users
+  /// come first).
+  virtual bool shouldSinkOperands(Instruction *I,
+                                  SmallVectorImpl<Use *> &Ops) const {
     return false;
   }
 
@@ -2405,6 +2431,29 @@ public:
   virtual bool isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
                                        unsigned Index) const {
     return false;
+  }
+
+  /// Try to convert an extract element of a vector binary operation into an
+  /// extract element followed by a scalar operation.
+  virtual bool shouldScalarizeBinop(SDValue VecOp) const {
+    return false;
+  }
+
+  /// Try to convert math with an overflow comparison into the corresponding DAG
+  /// node operation. Targets may want to override this independently of whether
+  /// the operation is legal/custom for the given type because it may obscure
+  /// matching of other patterns.
+  virtual bool shouldFormOverflowOp(unsigned Opcode, EVT VT) const {
+    // TODO: The default logic is inherited from code in CodeGenPrepare.
+    // The opcode should not make a difference by default?
+    if (Opcode != ISD::UADDO)
+      return false;
+
+    // Allow the transform as long as we have an integer type that is not
+    // obviously illegal and unsupported.
+    if (VT.isVector())
+      return false;
+    return VT.isSimple() || !isOperationExpand(Opcode, VT);
   }
 
   // Return true if it is profitable to use a scalar input to a BUILD_VECTOR
@@ -2826,11 +2875,10 @@ public:
 
   /// Returns a pair of (return value, chain).
   /// It is an error to pass RTLIB::UNKNOWN_LIBCALL as \p LC.
-  std::pair<SDValue, SDValue> makeLibCall(SelectionDAG &DAG, RTLIB::Libcall LC,
-                                          EVT RetVT, ArrayRef<SDValue> Ops,
-                                          bool isSigned, const SDLoc &dl,
-                                          bool doesNotReturn = false,
-                                          bool isReturnValueUsed = true) const;
+  std::pair<SDValue, SDValue> makeLibCall(
+      SelectionDAG &DAG, RTLIB::Libcall LC, EVT RetVT, ArrayRef<SDValue> Ops,
+      bool isSigned, const SDLoc &dl, bool doesNotReturn = false,
+      bool isReturnValueUsed = true, bool isPostTypeLegalization = false) const;
 
   /// Check whether parameters to a call that are passed in callee saved
   /// registers are the same as from the calling function.  This needs to be
@@ -2888,16 +2936,6 @@ public:
   /// generalized for targets with other types of implicit widening casts.
   bool ShrinkDemandedOp(SDValue Op, unsigned BitWidth, const APInt &Demanded,
                         TargetLoweringOpt &TLO) const;
-
-  /// Helper for SimplifyDemandedBits that can simplify an operation with
-  /// multiple uses.  This function simplifies operand \p OpIdx of \p User and
-  /// then updates \p User with the simplified version. No other uses of
-  /// \p OpIdx are updated. If \p User is the only user of \p OpIdx, this
-  /// function behaves exactly like function SimplifyDemandedBits declared
-  /// below except that it also updates the DAG by calling
-  /// DCI.CommitTargetLoweringOpt.
-  bool SimplifyDemandedBits(SDNode *User, unsigned OpIdx, const APInt &Demanded,
-                            DAGCombinerInfo &DCI, TargetLoweringOpt &TLO) const;
 
   /// Look at Op.  At this point, we know that only the DemandedBits bits of the
   /// result of Op are ever used downstream.  If we can use this information to
@@ -3640,6 +3678,12 @@ public:
                                             std::vector<SDValue> &Ops,
                                             SelectionDAG &DAG) const;
 
+  // Lower custom output constraints. If invalid, return SDValue().
+  virtual SDValue LowerAsmOutputForConstraint(SDValue &Chain, SDValue &Flag,
+                                              SDLoc DL,
+                                              const AsmOperandInfo &OpInfo,
+                                              SelectionDAG &DAG) const;
+
   //===--------------------------------------------------------------------===//
   // Div utility functions
   //
@@ -3791,6 +3835,14 @@ public:
   /// \returns True, if the expansion was successful, false otherwise
   bool expandCTTZ(SDNode *N, SDValue &Result, SelectionDAG &DAG) const;
 
+  /// Expand ABS nodes. Expands vector/scalar ABS nodes,
+  /// vector nodes can only succeed if all operations are legal/custom.
+  /// (ABS x) -> (XOR (ADD x, (SRA x, type_size)), (SRA x, type_size))
+  /// \param N Node to expand
+  /// \param Result output after conversion
+  /// \returns True, if the expansion was successful, false otherwise
+  bool expandABS(SDNode *N, SDValue &Result, SelectionDAG &DAG) const;
+
   /// Turn load of vector type into a load of the individual elements.
   /// \param LD load to expand
   /// \returns MERGE_VALUEs of the scalar loads with their chains.
@@ -3830,13 +3882,16 @@ public:
 
   /// Method for building the DAG expansion of ISD::[US][ADD|SUB]SAT. This
   /// method accepts integers as its arguments.
-  SDValue getExpandedSaturationAdditionSubtraction(SDNode *Node,
-                                                   SelectionDAG &DAG) const;
+  SDValue expandAddSubSat(SDNode *Node, SelectionDAG &DAG) const;
 
   /// Method for building the DAG expansion of ISD::SMULFIX. This method accepts
   /// integers as its arguments.
-  SDValue getExpandedFixedPointMultiplication(SDNode *Node,
-                                              SelectionDAG &DAG) const;
+  SDValue expandFixedPointMul(SDNode *Node, SelectionDAG &DAG) const;
+
+  /// Method for building the DAG expansion of ISD::[US]MULO. Returns whether
+  /// expansion was successful and populates the Result and Overflow arguments.
+  bool expandMULO(SDNode *Node, SDValue &Result, SDValue &Overflow,
+                  SelectionDAG &DAG) const;
 
   //===--------------------------------------------------------------------===//
   // Instruction Emitting Hooks
@@ -3889,9 +3944,10 @@ public:
   SDValue lowerCmpEqZeroToCtlzSrl(SDValue Op, SelectionDAG &DAG) const;
 
 private:
-  SDValue simplifySetCCWithAnd(EVT VT, SDValue N0, SDValue N1,
-                               ISD::CondCode Cond, DAGCombinerInfo &DCI,
-                               const SDLoc &DL) const;
+  SDValue foldSetCCWithAnd(EVT VT, SDValue N0, SDValue N1, ISD::CondCode Cond,
+                           const SDLoc &DL, DAGCombinerInfo &DCI) const;
+  SDValue foldSetCCWithBinOp(EVT VT, SDValue N0, SDValue N1, ISD::CondCode Cond,
+                             const SDLoc &DL, DAGCombinerInfo &DCI) const;
 
   SDValue optimizeSetCCOfSignedTruncationCheck(EVT SCCVT, SDValue N0,
                                                SDValue N1, ISD::CondCode Cond,

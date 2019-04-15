@@ -1,9 +1,8 @@
 //===-- PythonDataObjects.h--------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -58,6 +57,7 @@ private:
 enum class PyObjectType {
   Unknown,
   None,
+  Boolean,
   Integer,
   Dictionary,
   List,
@@ -296,6 +296,29 @@ public:
   void SetInteger(int64_t value);
 
   StructuredData::IntegerSP CreateStructuredInteger() const;
+};
+
+class PythonBoolean : public PythonObject {
+public:
+  PythonBoolean() = default;
+  explicit PythonBoolean(bool value);
+  PythonBoolean(PyRefType type, PyObject *o);
+  PythonBoolean(const PythonBoolean &object);
+
+  ~PythonBoolean() override = default;
+
+  static bool Check(PyObject *py_obj);
+
+  // Bring in the no-argument base class version
+  using PythonObject::Reset;
+
+  void Reset(PyRefType type, PyObject *py_obj) override;
+
+  bool GetValue() const;
+
+  void SetValue(bool value);
+
+  StructuredData::BooleanSP CreateStructuredBoolean() const;
 };
 
 class PythonList : public PythonObject {

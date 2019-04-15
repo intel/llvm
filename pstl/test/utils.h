@@ -1,10 +1,9 @@
 // -*- C++ -*-
 //===-- utils.h -----------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -720,7 +719,7 @@ struct MakeIterator
 
 // Useful constant variables
 constexpr std::size_t GuardSize = 5;
-constexpr std::size_t sizeLimit = 1000;
+constexpr std::ptrdiff_t sizeLimit = 1000;
 
 template <typename Iter, typename Void = void> // local iterator_traits for non-iterators
 struct iterator_traits_

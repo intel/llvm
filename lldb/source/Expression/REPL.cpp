@@ -1,9 +1,8 @@
 //===-- REPL.cpp ------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,6 +18,8 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/AnsiTerminal.h"
+
+#include <memory>
 
 using namespace lldb_private;
 
@@ -72,15 +73,15 @@ std::string REPL::GetSourcePath() {
 lldb::IOHandlerSP REPL::GetIOHandler() {
   if (!m_io_handler_sp) {
     Debugger &debugger = m_target.GetDebugger();
-    m_io_handler_sp.reset(
-        new IOHandlerEditline(debugger, IOHandler::Type::REPL,
-                              "lldb-repl", // Name of input reader for history
-                              llvm::StringRef("> "), // prompt
-                              llvm::StringRef(". "), // Continuation prompt
-                              true,                  // Multi-line
-                              true, // The REPL prompt is always colored
-                              1,    // Line number
-                              *this));
+    m_io_handler_sp = std::make_shared<IOHandlerEditline>(
+        debugger, IOHandler::Type::REPL,
+        "lldb-repl",           // Name of input reader for history
+        llvm::StringRef("> "), // prompt
+        llvm::StringRef(". "), // Continuation prompt
+        true,                  // Multi-line
+        true,                  // The REPL prompt is always colored
+        1,                     // Line number
+        *this, nullptr);
 
     // Don't exit if CTRL+C is pressed
     static_cast<IOHandlerEditline *>(m_io_handler_sp.get())
@@ -306,7 +307,6 @@ void REPL::IOHandlerInputComplete(IOHandler &io_handler, std::string &code) {
       lldb::ExpressionResults execution_results =
           UserExpression::Evaluate(exe_ctx, expr_options, code.c_str(),
                                    expr_prefix, result_valobj_sp, error,
-                                   0,       // Line offset
                                    nullptr, // Fixed Expression
                                    &jit_module_sp);
 

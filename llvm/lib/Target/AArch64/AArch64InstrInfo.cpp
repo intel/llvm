@@ -1,9 +1,8 @@
 //===- AArch64InstrInfo.cpp - AArch64 Instruction Information -------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -965,6 +964,11 @@ bool AArch64InstrInfo::isSchedulingBoundary(const MachineInstr &MI,
   if (TargetInstrInfo::isSchedulingBoundary(MI, MBB, MF))
     return true;
   switch (MI.getOpcode()) {
+  case AArch64::HINT:
+    // CSDB hints are scheduling barriers.
+    if (MI.getOperand(0).getImm() == 0x14)
+      return true;
+    break;
   case AArch64::DSB:
   case AArch64::ISB:
     // DSB and ISB also are scheduling barriers.
@@ -2287,6 +2291,31 @@ void AArch64InstrInfo::copyPhysRegTuple(MachineBasicBlock &MBB,
   }
 }
 
+void AArch64InstrInfo::copyGPRRegTuple(MachineBasicBlock &MBB,
+                                       MachineBasicBlock::iterator I,
+                                       DebugLoc DL, unsigned DestReg,
+                                       unsigned SrcReg, bool KillSrc,
+                                       unsigned Opcode, unsigned ZeroReg,
+                                       llvm::ArrayRef<unsigned> Indices) const {
+  const TargetRegisterInfo *TRI = &getRegisterInfo();
+  unsigned NumRegs = Indices.size();
+
+#ifndef NDEBUG
+  uint16_t DestEncoding = TRI->getEncodingValue(DestReg);
+  uint16_t SrcEncoding = TRI->getEncodingValue(SrcReg);
+  assert(DestEncoding % NumRegs == 0 && SrcEncoding % NumRegs == 0 &&
+         "GPR reg sequences should not be able to overlap");
+#endif
+
+  for (unsigned SubReg = 0; SubReg != NumRegs; ++SubReg) {
+    const MachineInstrBuilder MIB = BuildMI(MBB, I, DL, get(Opcode));
+    AddSubReg(MIB, DestReg, Indices[SubReg], RegState::Define, TRI);
+    MIB.addReg(ZeroReg);
+    AddSubReg(MIB, SrcReg, Indices[SubReg], getKillRegState(KillSrc), TRI);
+    MIB.addImm(0);
+  }
+}
+
 void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator I,
                                    const DebugLoc &DL, unsigned DestReg,
@@ -2423,6 +2452,22 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     static const unsigned Indices[] = {AArch64::qsub0, AArch64::qsub1};
     copyPhysRegTuple(MBB, I, DL, DestReg, SrcReg, KillSrc, AArch64::ORRv16i8,
                      Indices);
+    return;
+  }
+
+  if (AArch64::XSeqPairsClassRegClass.contains(DestReg) &&
+      AArch64::XSeqPairsClassRegClass.contains(SrcReg)) {
+    static const unsigned Indices[] = {AArch64::sube64, AArch64::subo64};
+    copyGPRRegTuple(MBB, I, DL, DestReg, SrcReg, KillSrc, AArch64::ORRXrs,
+                    AArch64::XZR, Indices);
+    return;
+  }
+
+  if (AArch64::WSeqPairsClassRegClass.contains(DestReg) &&
+      AArch64::WSeqPairsClassRegClass.contains(SrcReg)) {
+    static const unsigned Indices[] = {AArch64::sube32, AArch64::subo32};
+    copyGPRRegTuple(MBB, I, DL, DestReg, SrcReg, KillSrc, AArch64::ORRWrs,
+                    AArch64::WZR, Indices);
     return;
   }
 
@@ -4746,7 +4791,8 @@ AArch64InstrInfo::getSerializableBitmaskMachineOperandTargetFlags() const {
   static const std::pair<unsigned, const char *> TargetFlags[] = {
       {MO_COFFSTUB, "aarch64-coffstub"},
       {MO_GOT, "aarch64-got"},   {MO_NC, "aarch64-nc"},
-      {MO_TLS, "aarch64-tls"},   {MO_DLLIMPORT, "aarch64-dllimport"}};
+      {MO_S, "aarch64-s"},       {MO_TLS, "aarch64-tls"},
+      {MO_DLLIMPORT, "aarch64-dllimport"}};
   return makeArrayRef(TargetFlags);
 }
 
@@ -5324,6 +5370,14 @@ AArch64InstrInfo::getOutliningType(MachineBasicBlock::iterator &MIT,
   if (MI.readsRegister(AArch64::W30, &getRegisterInfo()) ||
       MI.modifiesRegister(AArch64::W30, &getRegisterInfo()))
     return outliner::InstrType::Illegal;
+
+  // Don't outline BTI instructions, because that will prevent the outlining
+  // site from being indirectly callable.
+  if (MI.getOpcode() == AArch64::HINT) {
+    int64_t Imm = MI.getOperand(0).getImm();
+    if (Imm == 32 || Imm == 34 || Imm == 36 || Imm == 38)
+      return outliner::InstrType::Illegal;
+  }
 
   return outliner::InstrType::Legal;
 }

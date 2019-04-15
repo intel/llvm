@@ -1,11 +1,26 @@
 # RUN: yaml2obj %s > %t
 # RUN: llvm-objcopy \
 # RUN:     --localize-symbol Global \
+# RUN:     -L GlobalUndef \
 # RUN:     -L Local \
 # RUN:     -L Weak \
 # RUN:     -L GlobalCommon \
 # RUN:     %t %t2
-# RUN: llvm-readobj -symbols %t2 | FileCheck %s
+# RUN: llvm-readobj --symbols %t2 | FileCheck %s
+# RUN: llvm-objcopy --regex --localize-symbol='.*' %t %t3
+# RUN: cmp %t2 %t3
+# RUN: echo "  Global # comment  " > %t-list.txt
+# RUN: echo "GlobalUndef" >> %t-list.txt
+# RUN: echo "Local" >> %t-list.txt
+# RUN: echo "Weak" >> %t-list.txt
+# RUN: echo "GlobalCommon" >> %t-list.txt
+# RUN: echo " # comment " >> %t-list.txt
+# RUN: llvm-objcopy --localize-symbols %t-list.txt %t %t4
+# RUN: cmp %t2 %t4
+# RUN: echo "  .*al.* # Global + Local + GlobalCommon " > %t-list2.txt
+# RUN: echo "Weak" >> %t-list2.txt
+# RUN: llvm-objcopy --regex --localize-symbols %t-list2.txt %t %t5
+# RUN: cmp %t2 %t5
 
 !ELF
 FileHeader:
@@ -45,6 +60,8 @@ Symbols:
       Size:     8
       Section:  .text
       Value:    0x1010
+    - Name:     GlobalUndef
+      Type:     STT_FUNC
     - Name:     GlobalCommon
       Type:     STT_OBJECT
       Index:    SHN_COMMON
@@ -87,6 +104,15 @@ Symbols:
 #CHECK-NEXT:    Type: Function
 #CHECK-NEXT:    Other: 0
 #CHECK-NEXT:    Section: .text
+#CHECK-NEXT:  }
+#CHECK-NEXT:  Symbol {
+#CHECK-NEXT:    Name: GlobalUndef
+#CHECK-NEXT:    Value:
+#CHECK-NEXT:    Size:
+#CHECK-NEXT:    Binding: Global
+#CHECK-NEXT:    Type: Function
+#CHECK-NEXT:    Other:
+#CHECK-NEXT:    Section: Undefined
 #CHECK-NEXT:  }
 #CHECK-NEXT:  Symbol {
 #CHECK-NEXT:    Name: GlobalCommon

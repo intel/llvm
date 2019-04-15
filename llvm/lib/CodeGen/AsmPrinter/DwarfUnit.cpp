@@ -1,9 +1,8 @@
 //===-- llvm/CodeGen/DwarfUnit.cpp - Dwarf Type and Compile Units ---------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -619,6 +618,32 @@ DIE *DwarfTypeUnit::createTypeDIE(const DICompositeType *Ty) {
   return &TyDIE;
 }
 
+DIE *DwarfUnit::createTypeDIE(const DIScope *Context, DIE &ContextDIE,
+                              const DIType *Ty) {
+  // Create new type.
+  DIE &TyDIE = createAndAddDIE(Ty->getTag(), ContextDIE, Ty);
+
+  updateAcceleratorTables(Context, Ty, TyDIE);
+
+  if (auto *BT = dyn_cast<DIBasicType>(Ty))
+    constructTypeDIE(TyDIE, BT);
+  else if (auto *STy = dyn_cast<DISubroutineType>(Ty))
+    constructTypeDIE(TyDIE, STy);
+  else if (auto *CTy = dyn_cast<DICompositeType>(Ty)) {
+    if (DD->generateTypeUnits() && !Ty->isForwardDecl())
+      if (MDString *TypeId = CTy->getRawIdentifier()) {
+        DD->addDwarfTypeUnitType(getCU(), TypeId->getString(), TyDIE, CTy);
+        // Skip updating the accelerator tables since this is not the full type.
+        return &TyDIE;
+      }
+    constructTypeDIE(TyDIE, CTy);
+  } else {
+    constructTypeDIE(TyDIE, cast<DIDerivedType>(Ty));
+  }
+
+  return &TyDIE;
+}
+
 DIE *DwarfUnit::getOrCreateTypeDIE(const MDNode *TyNode) {
   if (!TyNode)
     return nullptr;
@@ -642,28 +667,8 @@ DIE *DwarfUnit::getOrCreateTypeDIE(const MDNode *TyNode) {
   if (DIE *TyDIE = getDIE(Ty))
     return TyDIE;
 
-  // Create new type.
-  DIE &TyDIE = createAndAddDIE(Ty->getTag(), *ContextDIE, Ty);
-
-  updateAcceleratorTables(Context, Ty, TyDIE);
-
-  if (auto *BT = dyn_cast<DIBasicType>(Ty))
-    constructTypeDIE(TyDIE, BT);
-  else if (auto *STy = dyn_cast<DISubroutineType>(Ty))
-    constructTypeDIE(TyDIE, STy);
-  else if (auto *CTy = dyn_cast<DICompositeType>(Ty)) {
-    if (DD->generateTypeUnits() && !Ty->isForwardDecl())
-      if (MDString *TypeId = CTy->getRawIdentifier()) {
-        DD->addDwarfTypeUnitType(getCU(), TypeId->getString(), TyDIE, CTy);
-        // Skip updating the accelerator tables since this is not the full type.
-        return &TyDIE;
-      }
-    constructTypeDIE(TyDIE, CTy);
-  } else {
-    constructTypeDIE(TyDIE, cast<DIDerivedType>(Ty));
-  }
-
-  return &TyDIE;
+  return static_cast<DwarfUnit *>(ContextDIE->getUnit())
+      ->createTypeDIE(Context, *ContextDIE, Ty);
 }
 
 void DwarfUnit::updateAcceleratorTables(const DIScope *Context,
@@ -1107,7 +1112,8 @@ DIE *DwarfUnit::getOrCreateSubprogramDIE(const DISubprogram *SP, bool Minimal) {
   if (SP->isDefinition())
     return &SPDie;
 
-  applySubprogramAttributes(SP, SPDie);
+  static_cast<DwarfUnit *>(SPDie.getUnit())
+      ->applySubprogramAttributes(SP, SPDie);
   return &SPDie;
 }
 
@@ -1361,7 +1367,7 @@ void DwarfUnit::constructEnumTypeDIE(DIE &Buffer, const DICompositeType *CTy) {
   if (DTy) {
     if (DD->getDwarfVersion() >= 3)
       addType(Buffer, DTy);
-    if (DD->getDwarfVersion() >= 4 && (CTy->getFlags() & DINode::FlagFixedEnum))
+    if (DD->getDwarfVersion() >= 4 && (CTy->getFlags() & DINode::FlagEnumClass))
       addFlag(Buffer, dwarf::DW_AT_enum_class);
   }
 

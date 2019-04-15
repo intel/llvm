@@ -1,9 +1,8 @@
 //===-- EditlineTest.cpp ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -63,7 +62,7 @@ public:
 
   void CloseInput();
 
-  bool IsValid() const { return _editline_sp.get() != nullptr; }
+  bool IsValid() const { return _editline_sp != nullptr; }
 
   lldb_private::Editline &GetEditline() { return *_editline_sp; }
 
@@ -258,8 +257,8 @@ public:
       return;
 
     // Dump output.
-    _sp_output_thread.reset(
-        new std::thread([&] { _el_adapter.ConsumeAllOutput(); }));
+    _sp_output_thread =
+        std::make_shared<std::thread>([&] { _el_adapter.ConsumeAllOutput(); });
   }
 
   void TearDown() {

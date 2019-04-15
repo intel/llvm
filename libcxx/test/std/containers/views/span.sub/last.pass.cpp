@@ -1,10 +1,9 @@
 // -*- C++ -*-
 //===------------------------------ span ---------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
 // UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
@@ -69,7 +68,7 @@ constexpr int carr1[] = {1,2,3,4};
           int   arr[] = {5,6,7};
 std::string   sarr [] = { "ABC", "DEF", "GHI", "JKL", "MNO"};
 
-int main ()
+int main(int, char**)
 {
     {
     using Sp = std::span<const int>;
@@ -133,4 +132,6 @@ int main ()
     testRuntimeSpan<Sp, 4>(Sp{sarr});
     testRuntimeSpan<Sp, 5>(Sp{sarr});
     }
+
+  return 0;
 }

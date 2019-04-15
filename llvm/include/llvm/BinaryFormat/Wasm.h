@@ -1,9 +1,8 @@
 //===- Wasm.h - Wasm object file format -------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -26,7 +25,7 @@ const char WasmMagic[] = {'\0', 'a', 's', 'm'};
 // Wasm binary format version
 const uint32_t WasmVersion = 0x1;
 // Wasm linking metadata version
-const uint32_t WasmMetadataVersion = 0x1;
+const uint32_t WasmMetadataVersion = 0x2;
 // Wasm uses a 64k page size
 const uint32_t WasmPageSize = 65536;
 
@@ -41,6 +40,12 @@ struct WasmDylinkInfo {
   uint32_t TableSize;  // Table size in elements
   uint32_t TableAlignment;  // P2 alignment of table
   std::vector<StringRef> Needed; // Shared library depenedencies
+};
+
+struct WasmProducerInfo {
+  std::vector<std::pair<std::string, std::string>> Languages;
+  std::vector<std::pair<std::string, std::string>> Tools;
+  std::vector<std::pair<std::string, std::string>> SDKs;
 };
 
 struct WasmExport {
@@ -126,12 +131,13 @@ struct WasmFunction {
 };
 
 struct WasmDataSegment {
-  uint32_t MemoryIndex;
-  WasmInitExpr Offset;
+  uint32_t InitFlags;
+  uint32_t MemoryIndex; // present if InitFlags & WASM_SEGMENT_HAS_MEMINDEX
+  WasmInitExpr Offset; // present if InitFlags & WASM_SEGMENT_IS_PASSIVE == 0
   ArrayRef<uint8_t> Content;
   StringRef Name; // from the "segment info" section
   uint32_t Alignment;
-  uint32_t Flags;
+  uint32_t LinkerFlags;
   uint32_t Comdat; // from the "comdat info" section
 };
 
@@ -165,7 +171,8 @@ struct WasmSymbolInfo {
   StringRef Name;
   uint8_t Kind;
   uint32_t Flags;
-  StringRef Module; // For undefined symbols the module name of the import
+  StringRef ImportModule; // For undefined symbols the module of the import
+  StringRef ImportName;   // For undefined symbols the name of the import
   union {
     // For function or global symbols, the index in function or global index
     // space.
@@ -211,7 +218,7 @@ enum : unsigned {
   WASM_TYPE_F32 = 0x7D,
   WASM_TYPE_F64 = 0x7C,
   WASM_TYPE_V128 = 0x7B,
-  WASM_TYPE_ANYFUNC = 0x70,
+  WASM_TYPE_FUNCREF = 0x70,
   WASM_TYPE_EXCEPT_REF = 0x68,
   WASM_TYPE_FUNC = 0x60,
   WASM_TYPE_NORESULT = 0x40, // for blocks with no result values
@@ -229,7 +236,7 @@ enum : unsigned {
 // Opcodes used in initializer expressions.
 enum : unsigned {
   WASM_OPCODE_END = 0x0b,
-  WASM_OPCODE_GET_GLOBAL = 0x23,
+  WASM_OPCODE_GLOBAL_GET = 0x23,
   WASM_OPCODE_I32_CONST = 0x41,
   WASM_OPCODE_I64_CONST = 0x42,
   WASM_OPCODE_F32_CONST = 0x43,
@@ -239,6 +246,11 @@ enum : unsigned {
 enum : unsigned {
   WASM_LIMITS_FLAG_HAS_MAX = 0x1,
   WASM_LIMITS_FLAG_IS_SHARED = 0x2,
+};
+
+enum : unsigned {
+  WASM_SEGMENT_IS_PASSIVE = 0x01,
+  WASM_SEGMENT_HAS_MEMINDEX = 0x02,
 };
 
 // Kind codes used in the custom "name" section
@@ -284,6 +296,8 @@ const unsigned WASM_SYMBOL_BINDING_LOCAL = 0x2;
 const unsigned WASM_SYMBOL_VISIBILITY_DEFAULT = 0x0;
 const unsigned WASM_SYMBOL_VISIBILITY_HIDDEN = 0x4;
 const unsigned WASM_SYMBOL_UNDEFINED = 0x10;
+const unsigned WASM_SYMBOL_EXPORTED = 0x20;
+const unsigned WASM_SYMBOL_EXPLICIT_NAME = 0x40;
 
 #define WASM_RELOC(name, value) name = value,
 
@@ -304,13 +318,13 @@ enum class ValType {
 };
 
 struct WasmSignature {
-  SmallVector<wasm::ValType, 1> Returns;
-  SmallVector<wasm::ValType, 4> Params;
+  SmallVector<ValType, 1> Returns;
+  SmallVector<ValType, 4> Params;
   // Support empty and tombstone instances, needed by DenseMap.
   enum { Plain, Empty, Tombstone } State = Plain;
 
-  WasmSignature(SmallVector<wasm::ValType, 1> &&InReturns,
-                SmallVector<wasm::ValType, 4> &&InParams)
+  WasmSignature(SmallVector<ValType, 1> &&InReturns,
+                SmallVector<ValType, 4> &&InParams)
       : Returns(InReturns), Params(InParams) {}
   WasmSignature() = default;
 };
@@ -333,7 +347,7 @@ inline bool operator!=(const WasmGlobalType &LHS, const WasmGlobalType &RHS) {
   return !(LHS == RHS);
 }
 
-std::string toString(wasm::WasmSymbolType type);
+std::string toString(WasmSymbolType type);
 std::string relocTypetoString(uint32_t type);
 
 } // end namespace wasm

@@ -1,17 +1,19 @@
 //===-- SBTrace.cpp ---------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
+#include "SBReproducerPrivate.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/Log.h"
 
 #include "lldb/API/SBTrace.h"
 #include "lldb/API/SBTraceOptions.h"
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -59,6 +61,9 @@ size_t SBTrace::GetMetaData(SBError &error, void *buf, size_t size,
 }
 
 void SBTrace::StopTrace(SBError &error, lldb::tid_t thread_id) {
+  LLDB_RECORD_METHOD(void, SBTrace, StopTrace, (lldb::SBError &, lldb::tid_t),
+                     error, thread_id);
+
   ProcessSP process_sp(GetSP());
   error.Clear();
 
@@ -70,6 +75,9 @@ void SBTrace::StopTrace(SBError &error, lldb::tid_t thread_id) {
 }
 
 void SBTrace::GetTraceConfig(SBTraceOptions &options, SBError &error) {
+  LLDB_RECORD_METHOD(void, SBTrace, GetTraceConfig,
+                     (lldb::SBTraceOptions &, lldb::SBError &), options, error);
+
   ProcessSP process_sp(GetSP());
   error.Clear();
 
@@ -82,6 +90,8 @@ void SBTrace::GetTraceConfig(SBTraceOptions &options, SBError &error) {
 }
 
 lldb::user_id_t SBTrace::GetTraceUID() {
+  LLDB_RECORD_METHOD_NO_ARGS(lldb::user_id_t, SBTrace, GetTraceUID);
+
   if (m_trace_impl_sp)
     return m_trace_impl_sp->uid;
   return LLDB_INVALID_UID;
@@ -93,7 +103,9 @@ void SBTrace::SetTraceUID(lldb::user_id_t uid) {
 }
 
 SBTrace::SBTrace() {
-  m_trace_impl_sp.reset(new TraceImpl);
+  LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBTrace);
+
+  m_trace_impl_sp = std::make_shared<TraceImpl>();
   if (m_trace_impl_sp)
     m_trace_impl_sp->uid = LLDB_INVALID_UID;
 }
@@ -101,6 +113,8 @@ SBTrace::SBTrace() {
 void SBTrace::SetSP(const ProcessSP &process_sp) { m_opaque_wp = process_sp; }
 
 bool SBTrace::IsValid() {
+  LLDB_RECORD_METHOD_NO_ARGS(bool, SBTrace, IsValid);
+
   if (!m_trace_impl_sp)
     return false;
   if (!GetSP())

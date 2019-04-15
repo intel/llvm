@@ -1,9 +1,8 @@
 //===-- ExpressionSourceCode.cpp --------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -179,7 +178,8 @@ static void AddLocalVariableDecls(const lldb::VariableListSP &var_list_sp,
 bool ExpressionSourceCode::GetText(std::string &text,
                                    lldb::LanguageType wrapping_language,
                                    bool static_method,
-                                   ExecutionContext &exe_ctx) const {
+                                   ExecutionContext &exe_ctx,
+                                   bool add_locals) const {
   const char *target_specific_defines = "typedef signed char BOOL;\n";
   std::string module_macros;
 
@@ -252,12 +252,13 @@ bool ExpressionSourceCode::GetText(std::string &text,
       }
     }
 
-    ConstString object_name;
-    if (Language::LanguageIsCPlusPlus(frame->GetLanguage())) {
-      if (target->GetInjectLocalVariables(&exe_ctx)) {
-        lldb::VariableListSP var_list_sp =
-            frame->GetInScopeVariableList(false, true);
-        AddLocalVariableDecls(var_list_sp, lldb_local_var_decls);
+    if (add_locals) {
+      if (Language::LanguageIsCPlusPlus(frame->GetLanguage())) {
+        if (target->GetInjectLocalVariables(&exe_ctx)) {
+          lldb::VariableListSP var_list_sp =
+              frame->GetInScopeVariableList(false, true);
+          AddLocalVariableDecls(var_list_sp, lldb_local_var_decls);
+        }
       }
     }
   }

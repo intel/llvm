@@ -2,6 +2,7 @@
 // RUN: %clang_analyze_cc1  -DFILE_IS_STRUCT -analyzer-checker=alpha.security.taint,core,alpha.security.ArrayBoundV2 -Wno-format-security -verify %s
 
 int scanf(const char *restrict format, ...);
+char *gets(char *str);
 int getchar(void);
 
 typedef struct _FILE FILE;
@@ -142,6 +143,12 @@ void testTaintSystemCall3() {
   system(buffern2); // expected-warning {{Untrusted data is passed to a system call}}
 }
 
+void testGets() {
+  char str[50];
+  gets(str);
+  system(str); // expected-warning {{Untrusted data is passed to a system call}}
+}
+
 void testTaintedBufferSize() {
   size_t ts;
   scanf("%zd", &ts);
@@ -231,6 +238,7 @@ void testUnion() {
 
   int sock = socket(AF_INET, SOCK_STREAM, 0);
   read(sock, &tainted.y, sizeof(tainted.y));
+  tainted.x = 0;
   // FIXME: overlapping regions aren't detected by isTainted yet
   __builtin_memcpy(buffer, tainted.y, tainted.x);
 }

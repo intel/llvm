@@ -1,9 +1,8 @@
 //===-- GDBRemoteCommunication.cpp ------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -42,8 +41,7 @@
 #define DEBUGSERVER_BASENAME "lldb-server"
 #endif
 
-#if defined(__APPLE__)
-#define HAVE_LIBCOMPRESSION
+#if defined(HAVE_LIBCOMPRESSION)
 #include <compression.h>
 #endif
 
@@ -68,9 +66,7 @@ GDBRemoteCommunication::GDBRemoteCommunication(const char *comm_name,
 #endif
       m_echo_number(0), m_supports_qEcho(eLazyBoolCalculate), m_history(512),
       m_send_acks(true), m_compression_type(CompressionType::None),
-      m_listen_url(), m_decompression_scratch_type(CompressionType::None),
-      m_decompression_scratch(nullptr)
-{ 
+      m_listen_url() {
 }
 
 //----------------------------------------------------------------------
@@ -81,8 +77,10 @@ GDBRemoteCommunication::~GDBRemoteCommunication() {
     Disconnect();
   }
 
+#if defined(HAVE_LIBCOMPRESSION)
   if (m_decompression_scratch)
     free (m_decompression_scratch);
+#endif
 
   // Stop the communications read thread which is used to parse all incoming
   // packets.  This function will block until the read thread returns.
@@ -125,14 +123,14 @@ size_t GDBRemoteCommunication::SendNack() {
 
 GDBRemoteCommunication::PacketResult
 GDBRemoteCommunication::SendPacketNoLock(llvm::StringRef payload) {
-    StreamString packet(0, 4, eByteOrderBig);
-    packet.PutChar('$');
-    packet.Write(payload.data(), payload.size());
-    packet.PutChar('#');
-    packet.PutHex8(CalculcateChecksum(payload));
-    std::string packet_str = packet.GetString();
+  StreamString packet(0, 4, eByteOrderBig);
+  packet.PutChar('$');
+  packet.Write(payload.data(), payload.size());
+  packet.PutChar('#');
+  packet.PutHex8(CalculcateChecksum(payload));
+  std::string packet_str = packet.GetString();
 
-    return SendRawPacketNoLock(packet_str);
+  return SendRawPacketNoLock(packet_str);
 }
 
 GDBRemoteCommunication::PacketResult
@@ -951,16 +949,18 @@ Status GDBRemoteCommunication::StartDebugserverProcess(
   char debugserver_path[PATH_MAX];
   FileSpec &debugserver_file_spec = launch_info.GetExecutableFile();
 
+  Environment host_env = Host::GetEnvironment();
+
   // Always check to see if we have an environment override for the path to the
   // debugserver to use and use it if we do.
-  const char *env_debugserver_path = getenv("LLDB_DEBUGSERVER_PATH");
-  if (env_debugserver_path) {
+  std::string env_debugserver_path = host_env.lookup("LLDB_DEBUGSERVER_PATH");
+  if (!env_debugserver_path.empty()) {
     debugserver_file_spec.SetFile(env_debugserver_path,
                                   FileSpec::Style::native);
     if (log)
       log->Printf("GDBRemoteCommunication::%s() gdb-remote stub exe path set "
                   "from environment variable: %s",
-                  __FUNCTION__, env_debugserver_path);
+                  __FUNCTION__, env_debugserver_path.c_str());
   } else
     debugserver_file_spec = g_debugserver_file_spec;
   bool debugserver_exists =
@@ -979,8 +979,11 @@ Status GDBRemoteCommunication::StartDebugserverProcess(
 
         g_debugserver_file_spec = debugserver_file_spec;
       } else {
-        debugserver_file_spec =
-            platform->LocateExecutable(DEBUGSERVER_BASENAME);
+        if (platform)
+          debugserver_file_spec =
+              platform->LocateExecutable(DEBUGSERVER_BASENAME);
+        else
+          debugserver_file_spec.Clear();
         if (debugserver_file_spec) {
           // Platform::LocateExecutable() wouldn't return a path if it doesn't
           // exist
@@ -1003,7 +1006,6 @@ Status GDBRemoteCommunication::StartDebugserverProcess(
 
     Args &debugserver_args = launch_info.GetArguments();
     debugserver_args.Clear();
-    char arg_cstr[PATH_MAX];
 
     // Start args with "debugserver /file/path -r --"
     debugserver_args.AppendArgument(llvm::StringRef(debugserver_path));
@@ -1073,9 +1075,9 @@ Status GDBRemoteCommunication::StartDebugserverProcess(
                         __FUNCTION__, error.AsCString());
           return error;
         }
-        int write_fd = socket_pipe.GetWriteFileDescriptor();
+        pipe_t write = socket_pipe.GetWritePipe();
         debugserver_args.AppendArgument(llvm::StringRef("--pipe"));
-        debugserver_args.AppendArgument(llvm::to_string(write_fd));
+        debugserver_args.AppendArgument(llvm::to_string(write));
         launch_info.AppendCloseFileAction(socket_pipe.GetReadFileDescriptor());
 #endif
       } else {
@@ -1113,29 +1115,27 @@ Status GDBRemoteCommunication::StartDebugserverProcess(
         }
       }
     }
-
-    const char *env_debugserver_log_file = getenv("LLDB_DEBUGSERVER_LOG_FILE");
-    if (env_debugserver_log_file) {
-      ::snprintf(arg_cstr, sizeof(arg_cstr), "--log-file=%s",
-                 env_debugserver_log_file);
-      debugserver_args.AppendArgument(llvm::StringRef(arg_cstr));
+    std::string env_debugserver_log_file =
+        host_env.lookup("LLDB_DEBUGSERVER_LOG_FILE");
+    if (!env_debugserver_log_file.empty()) {
+      debugserver_args.AppendArgument(
+          llvm::formatv("--log-file={0}", env_debugserver_log_file).str());
     }
 
 #if defined(__APPLE__)
     const char *env_debugserver_log_flags =
         getenv("LLDB_DEBUGSERVER_LOG_FLAGS");
     if (env_debugserver_log_flags) {
-      ::snprintf(arg_cstr, sizeof(arg_cstr), "--log-flags=%s",
-                 env_debugserver_log_flags);
-      debugserver_args.AppendArgument(llvm::StringRef(arg_cstr));
+      debugserver_args.AppendArgument(
+          llvm::formatv("--log-flags={0}", env_debugserver_log_flags).str());
     }
 #else
-    const char *env_debugserver_log_channels =
-        getenv("LLDB_SERVER_LOG_CHANNELS");
-    if (env_debugserver_log_channels) {
-      ::snprintf(arg_cstr, sizeof(arg_cstr), "--log-channels=%s",
-                 env_debugserver_log_channels);
-      debugserver_args.AppendArgument(llvm::StringRef(arg_cstr));
+    std::string env_debugserver_log_channels =
+        host_env.lookup("LLDB_SERVER_LOG_CHANNELS");
+    if (!env_debugserver_log_channels.empty()) {
+      debugserver_args.AppendArgument(
+          llvm::formatv("--log-channels={0}", env_debugserver_log_channels)
+              .str());
     }
 #endif
 
@@ -1147,15 +1147,15 @@ Status GDBRemoteCommunication::StartDebugserverProcess(
       char env_var_name[64];
       snprintf(env_var_name, sizeof(env_var_name),
                "LLDB_DEBUGSERVER_EXTRA_ARG_%" PRIu32, env_var_index++);
-      const char *extra_arg = getenv(env_var_name);
-      has_env_var = extra_arg != nullptr;
+      std::string extra_arg = host_env.lookup(env_var_name);
+      has_env_var = !extra_arg.empty();
 
       if (has_env_var) {
         debugserver_args.AppendArgument(llvm::StringRef(extra_arg));
         if (log)
           log->Printf("GDBRemoteCommunication::%s adding env var %s contents "
                       "to stub command line (%s)",
-                      __FUNCTION__, env_var_name, extra_arg);
+                      __FUNCTION__, env_var_name, extra_arg.c_str());
       }
     } while (has_env_var);
 
@@ -1165,7 +1165,7 @@ Status GDBRemoteCommunication::StartDebugserverProcess(
     }
 
     // Copy the current environment to the gdbserver/debugserver instance
-    launch_info.GetEnvironment() = Host::GetEnvironment();
+    launch_info.GetEnvironment() = host_env;
 
     // Close STDIN, STDOUT and STDERR.
     launch_info.AppendCloseFileAction(STDIN_FILENO);
@@ -1265,7 +1265,7 @@ void GDBRemoteCommunication::DumpHistory(Stream &strm) { m_history.Dump(strm); }
 
 void GDBRemoteCommunication::SetHistoryStream(llvm::raw_ostream *strm) {
   m_history.SetStream(strm);
-};
+}
 
 llvm::Error
 GDBRemoteCommunication::ConnectLocally(GDBRemoteCommunication &client,
@@ -1283,13 +1283,14 @@ GDBRemoteCommunication::ConnectLocally(GDBRemoteCommunication &client,
 
   llvm::SmallString<32> remote_addr;
   llvm::raw_svector_ostream(remote_addr)
-      << "connect://localhost:" << listen_socket.GetLocalPortNumber();
+      << "connect://127.0.0.1:" << listen_socket.GetLocalPortNumber();
 
   std::unique_ptr<ConnectionFileDescriptor> conn_up(
       new ConnectionFileDescriptor());
-  if (conn_up->Connect(remote_addr, nullptr) != lldb::eConnectionStatusSuccess)
-    return llvm::make_error<llvm::StringError>("Unable to connect",
-                                               llvm::inconvertibleErrorCode());
+  Status status;
+  if (conn_up->Connect(remote_addr, &status) != lldb::eConnectionStatusSuccess)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Unable to connect: %s", status.AsCString());
 
   client.SetConnection(conn_up.release());
   if (llvm::Error error = accept_status.get().ToError())
@@ -1301,14 +1302,14 @@ GDBRemoteCommunication::ConnectLocally(GDBRemoteCommunication &client,
 
 GDBRemoteCommunication::ScopedTimeout::ScopedTimeout(
     GDBRemoteCommunication &gdb_comm, std::chrono::seconds timeout)
-  : m_gdb_comm(gdb_comm), m_timeout_modified(false) {
-    auto curr_timeout = gdb_comm.GetPacketTimeout();
-    // Only update the timeout if the timeout is greater than the current
-    // timeout. If the current timeout is larger, then just use that.
-    if (curr_timeout < timeout) {
-      m_timeout_modified = true;
-      m_saved_timeout = m_gdb_comm.SetPacketTimeout(timeout);
-    }
+    : m_gdb_comm(gdb_comm), m_timeout_modified(false) {
+  auto curr_timeout = gdb_comm.GetPacketTimeout();
+  // Only update the timeout if the timeout is greater than the current
+  // timeout. If the current timeout is larger, then just use that.
+  if (curr_timeout < timeout) {
+    m_timeout_modified = true;
+    m_saved_timeout = m_gdb_comm.SetPacketTimeout(timeout);
+  }
 }
 
 GDBRemoteCommunication::ScopedTimeout::~ScopedTimeout() {

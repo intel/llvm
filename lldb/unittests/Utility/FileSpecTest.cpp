@@ -1,9 +1,8 @@
 //===-- FileSpecTest.cpp ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -188,6 +187,17 @@ TEST(FileSpecTest, EqualDotsPosixRoot) {
     FileSpec two(test.second, FileSpec::Style::posix);
     EXPECT_EQ(one, two);
   }
+}
+
+TEST(FileSpecTest, GuessPathStyle) {
+  EXPECT_EQ(FileSpec::Style::posix, FileSpec::GuessPathStyle("/foo/bar.txt"));
+  EXPECT_EQ(FileSpec::Style::posix, FileSpec::GuessPathStyle("//net/bar.txt"));
+  EXPECT_EQ(FileSpec::Style::windows,
+            FileSpec::GuessPathStyle(R"(C:\foo.txt)"));
+  EXPECT_EQ(FileSpec::Style::windows,
+            FileSpec::GuessPathStyle(R"(\\net\foo.txt)"));
+  EXPECT_EQ(llvm::None, FileSpec::GuessPathStyle("foo.txt"));
+  EXPECT_EQ(llvm::None, FileSpec::GuessPathStyle("foo/bar.txt"));
 }
 
 TEST(FileSpecTest, GetNormalizedPath) {

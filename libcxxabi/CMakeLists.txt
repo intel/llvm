@@ -17,11 +17,11 @@ set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
   )
 
-if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR LIBCXXABI_STANDALONE_BUILD)
   project(libcxxabi CXX C)
 
   set(PACKAGE_NAME libcxxabi)
-  set(PACKAGE_VERSION 8.0.0svn)
+  set(PACKAGE_VERSION 9.0.0svn)
   set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
   set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
 
@@ -155,6 +155,9 @@ endif()
 set(LIBCXXABI_LIBCXX_PATH "${LIBCXXABI_LIBCXX_PATH}" CACHE PATH
     "Specify path to libc++ source." FORCE)
 
+option(LIBCXXABI_HERMETIC_STATIC_LIBRARY
+  "Do not export any symbols from the static library." OFF)
+
 #===============================================================================
 # Configure System
 #===============================================================================
@@ -228,12 +231,22 @@ include(HandleLibcxxabiFlags)
 
 # Configure target flags
 add_target_flags_if(LIBCXXABI_BUILD_32_BITS "-m32")
-add_target_flags_if(LIBCXXABI_TARGET_TRIPLE
-          "--target=${LIBCXXABI_TARGET_TRIPLE}")
-add_target_flags_if(LIBCXXABI_GCC_TOOLCHAIN
-         "--gcc-toolchain=${LIBCXXABI_GCC_TOOLCHAIN}")
-add_target_flags_if(LIBCXXABI_SYSROOT
-          "--sysroot=${LIBCXXABI_SYSROOT}")
+
+if(LIBCXXABI_TARGET_TRIPLE)
+  add_target_flags("--target=${LIBCXXABI_TARGET_TRIPLE}")
+elseif(CMAKE_CXX_COMPILER_TARGET)
+  set(LIBCXXABI_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
+endif()
+if(LIBCXX_GCC_TOOLCHAIN)
+  add_target_flags("--gcc-toolchain=${LIBCXXABI_GCC_TOOLCHAIN}")
+elseif(CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN)
+  set(LIBCXXABI_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}")
+endif()
+if(LIBCXXABI_SYSROOT)
+  add_target_flags("--sysroot=${LIBCXXABI_SYSROOT}")
+elseif(CMAKE_SYSROOT)
+  set(LIBCXXABI_SYSROOT "${CMAKE_SYSROOT}")
+endif()
 
 if (LIBCXXABI_TARGET_TRIPLE)
   set(TARGET_TRIPLE "${LIBCXXABI_TARGET_TRIPLE}")
@@ -247,10 +260,6 @@ if (LIBCXXABI_HAS_NOSTDINCXX_FLAG)
   # Remove -stdlib flags to prevent them from causing an unused flag warning.
   string(REPLACE "-stdlib=libc++" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
   string(REPLACE "-stdlib=libstdc++" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-endif()
-
-if (LIBCXXABI_USE_COMPILER_RT)
-  list(APPEND LIBCXXABI_LINK_FLAGS "-rtlib=compiler-rt")
 endif()
 
 # Let the library headers know they are currently being used to build the

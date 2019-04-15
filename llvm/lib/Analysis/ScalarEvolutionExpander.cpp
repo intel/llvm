@@ -1,9 +1,8 @@
 //===- ScalarEvolutionExpander.cpp - Scalar Evolution Analysis ------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -2071,10 +2070,13 @@ bool SCEVExpander::isHighCostExpansionHelper(
 
   if (auto *UDivExpr = dyn_cast<SCEVUDivExpr>(S)) {
     // If the divisor is a power of two and the SCEV type fits in a native
-    // integer, consider the division cheap irrespective of whether it occurs in
-    // the user code since it can be lowered into a right shift.
+    // integer (and the LHS not expensive), consider the division cheap
+    // irrespective of whether it occurs in the user code since it can be
+    // lowered into a right shift.
     if (auto *SC = dyn_cast<SCEVConstant>(UDivExpr->getRHS()))
       if (SC->getAPInt().isPowerOf2()) {
+        if (isHighCostExpansionHelper(UDivExpr->getLHS(), L, At, Processed))
+          return true;
         const DataLayout &DL =
             L->getHeader()->getParent()->getParent()->getDataLayout();
         unsigned Width = cast<IntegerType>(UDivExpr->getType())->getBitWidth();

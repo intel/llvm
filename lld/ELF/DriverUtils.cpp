@@ -1,9 +1,8 @@
 //===- DriverUtils.cpp ----------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -150,6 +149,12 @@ void elf::printHelp() {
   // assume that the linker doesn't support very basic features such as
   // shared libraries. Therefore, we need to print out at least "elf".
   outs() << Config->ProgName << ": supported targets: elf\n";
+}
+
+static std::string rewritePath(StringRef S) {
+  if (fs::exists(S))
+    return relativeToRoot(S);
+  return S;
 }
 
 // Reconstructs command line arguments so that so that you can re-run

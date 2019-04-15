@@ -1,9 +1,8 @@
 //===-- X86FrameLowering.cpp - X86 Frame Information ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -185,7 +184,8 @@ static unsigned findDeadCallerSavedReg(MachineBasicBlock &MBB,
     }
 
     for (auto CS : AvailableRegs)
-      if (!Uses.count(CS) && CS != X86::RIP)
+      if (!Uses.count(CS) && CS != X86::RIP && CS != X86::RSP &&
+          CS != X86::ESP)
         return CS;
   }
   }
@@ -1772,6 +1772,15 @@ int X86FrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
   bool HasFP = hasFP(MF);
   bool IsWin64Prologue = MF.getTarget().getMCAsmInfo()->usesWindowsCFI();
   int64_t FPDelta = 0;
+
+  // In an x86 interrupt, remove the offset we added to account for the return
+  // address from any stack object allocated in the caller's frame. Interrupts
+  // do not have a standard return address. Fixed objects in the current frame,
+  // such as SSE register spills, should not get this treatment.
+  if (MF.getFunction().getCallingConv() == CallingConv::X86_INTR &&
+      Offset >= 0) {
+    Offset += getOffsetOfLocalArea();
+  }
 
   if (IsWin64Prologue) {
     assert(!MFI.hasCalls() || (StackSize % 16) == 8);

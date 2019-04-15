@@ -1,9 +1,8 @@
 //===-- MinidumpTypes.h -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -100,6 +99,18 @@ enum class MinidumpStreamType : uint32_t {
   LinuxProcStat = 0x4767000B,   /* /proc/$x/stat      */
   LinuxProcUptime = 0x4767000C, /* uptime             */
   LinuxProcFD = 0x4767000D,     /* /proc/$x/fb        */
+  FacebookAppCustomData = 0xFACECAFA,
+  FacebookBuildID = 0xFACECAFB,
+  FacebookAppVersionName = 0xFACECAFC,
+  FacebookJavaStack = 0xFACECAFD,
+  FacebookDalvikInfo = 0xFACECAFE,
+  FacebookUnwindSymbols = 0xFACECAFF,
+  FacebookDumpErrorLog = 0xFACECB00,
+  FacebookAppStateLog = 0xFACECCCC,
+  FacebookAbortReason = 0xFACEDEAD,
+  FacebookThreadName = 0xFACEE000,
+  FacebookLogcat = 0xFACE1CA7,
+
 };
 
 // for MinidumpSystemInfo.processor_arch

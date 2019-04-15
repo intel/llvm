@@ -1,9 +1,8 @@
 //===- MachineBlockPlacement.cpp - Basic Block Code Layout optimization ---===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -316,7 +315,7 @@ class MachineBlockPlacement : public MachineFunctionPass {
   /// A type for a block filter set.
   using BlockFilterSet = SmallSetVector<const MachineBasicBlock *, 16>;
 
-  /// Pair struct containing basic block and taildup profitiability
+  /// Pair struct containing basic block and taildup profitability
   struct BlockAndTailDupResult {
     MachineBasicBlock *BB;
     bool ShouldTailDup;
@@ -452,6 +451,10 @@ class MachineBlockPlacement : public MachineFunctionPass {
 
   void buildChain(const MachineBasicBlock *BB, BlockChain &Chain,
                   BlockFilterSet *BlockFilter = nullptr);
+  bool canMoveBottomBlockToTop(const MachineBasicBlock *BottomBlock,
+                               const MachineBasicBlock *OldTop);
+  bool hasViableTopFallthrough(const MachineBasicBlock *Top,
+                               const BlockFilterSet &LoopBlockSet);
   MachineBasicBlock *findBestLoopTop(
       const MachineLoop &L, const BlockFilterSet &LoopBlockSet);
   MachineBasicBlock *findBestLoopExit(
@@ -1757,6 +1760,39 @@ void MachineBlockPlacement::buildChain(
                     << getBlockName(*Chain.begin()) << "\n");
 }
 
+// If bottom of block BB has only one successor OldTop, in most cases it is
+// profitable to move it before OldTop, except the following case:
+//
+//     -->OldTop<-
+//     |    .    |
+//     |    .    |
+//     |    .    |
+//     ---Pred   |
+//          |    |
+//         BB-----
+//
+// If BB is moved before OldTop, Pred needs a taken branch to BB, and it can't
+// layout the other successor below it, so it can't reduce taken branch.
+// In this case we keep its original layout.
+bool
+MachineBlockPlacement::canMoveBottomBlockToTop(
+    const MachineBasicBlock *BottomBlock,
+    const MachineBasicBlock *OldTop) {
+  if (BottomBlock->pred_size() != 1)
+    return true;
+  MachineBasicBlock *Pred = *BottomBlock->pred_begin();
+  if (Pred->succ_size() != 2)
+    return true;
+
+  MachineBasicBlock *OtherBB = *Pred->succ_begin();
+  if (OtherBB == BottomBlock)
+    OtherBB = *Pred->succ_rbegin();
+  if (OtherBB == OldTop)
+    return false;
+
+  return true;
+}
+
 /// Find the best loop top block for layout.
 ///
 /// Look for a block which is strictly better than the loop header for laying
@@ -1799,6 +1835,9 @@ MachineBlockPlacement::findBestLoopTop(const MachineLoop &L,
                       << Pred->succ_size() << " successors, ";
                MBFI->printBlockFreq(dbgs(), Pred) << " freq\n");
     if (Pred->succ_size() > 1)
+      continue;
+
+    if (!canMoveBottomBlockToTop(Pred, L.getHeader()))
       continue;
 
     BlockFrequency PredFreq = MBFI->getBlockFreq(Pred);
@@ -1947,6 +1986,39 @@ MachineBlockPlacement::findBestLoopExit(const MachineLoop &L,
   return ExitingBB;
 }
 
+/// Check if there is a fallthrough to loop header Top.
+///
+///   1. Look for a Pred that can be layout before Top.
+///   2. Check if Top is the most possible successor of Pred.
+bool
+MachineBlockPlacement::hasViableTopFallthrough(
+    const MachineBasicBlock *Top,
+    const BlockFilterSet &LoopBlockSet) {
+  for (MachineBasicBlock *Pred : Top->predecessors()) {
+    BlockChain *PredChain = BlockToChain[Pred];
+    if (!LoopBlockSet.count(Pred) &&
+        (!PredChain || Pred == *std::prev(PredChain->end()))) {
+      // Found a Pred block can be placed before Top.
+      // Check if Top is the best successor of Pred.
+      auto TopProb = MBPI->getEdgeProbability(Pred, Top);
+      bool TopOK = true;
+      for (MachineBasicBlock *Succ : Pred->successors()) {
+        auto SuccProb = MBPI->getEdgeProbability(Pred, Succ);
+        BlockChain *SuccChain = BlockToChain[Succ];
+        // Check if Succ can be placed after Pred.
+        // Succ should not be in any chain, or it is the head of some chain.
+        if ((!SuccChain || Succ == *SuccChain->begin()) && SuccProb > TopProb) {
+          TopOK = false;
+          break;
+        }
+      }
+      if (TopOK)
+        return true;
+    }
+  }
+  return false;
+}
+
 /// Attempt to rotate an exiting block to the bottom of the loop.
 ///
 /// Once we have built a chain, try to rotate it to line up the hot exit block
@@ -1966,15 +2038,7 @@ void MachineBlockPlacement::rotateLoop(BlockChain &LoopChain,
   if (Bottom == ExitingBB)
     return;
 
-  bool ViableTopFallthrough = false;
-  for (MachineBasicBlock *Pred : Top->predecessors()) {
-    BlockChain *PredChain = BlockToChain[Pred];
-    if (!LoopBlockSet.count(Pred) &&
-        (!PredChain || Pred == *std::prev(PredChain->end()))) {
-      ViableTopFallthrough = true;
-      break;
-    }
-  }
+  bool ViableTopFallthrough = hasViableTopFallthrough(Top, LoopBlockSet);
 
   // If the header has viable fallthrough, check whether the current loop
   // bottom is a viable exiting block. If so, bail out as rotating will

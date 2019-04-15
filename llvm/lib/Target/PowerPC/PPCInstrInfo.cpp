@@ -1,9 +1,8 @@
 //===-- PPCInstrInfo.cpp - PowerPC Instruction Information ----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1066,6 +1065,10 @@ unsigned PPCInstrInfo::getStoreOpcodeForSpill(unsigned Reg,
       OpcodeIndex = SOK_Float8Spill;
     } else if (PPC::F4RCRegClass.contains(Reg)) {
       OpcodeIndex = SOK_Float4Spill;
+    } else if (PPC::SPERCRegClass.contains(Reg)) {
+      OpcodeIndex = SOK_SPESpill;
+    } else if (PPC::SPE4RCRegClass.contains(Reg)) {
+      OpcodeIndex = SOK_SPE4Spill;
     } else if (PPC::CRRCRegClass.contains(Reg)) {
       OpcodeIndex = SOK_CRSpill;
     } else if (PPC::CRBITRCRegClass.contains(Reg)) {
@@ -1152,6 +1155,10 @@ PPCInstrInfo::getLoadOpcodeForSpill(unsigned Reg,
       OpcodeIndex = SOK_Float8Spill;
     } else if (PPC::F4RCRegClass.contains(Reg)) {
       OpcodeIndex = SOK_Float4Spill;
+    } else if (PPC::SPERCRegClass.contains(Reg)) {
+      OpcodeIndex = SOK_SPESpill;
+    } else if (PPC::SPE4RCRegClass.contains(Reg)) {
+      OpcodeIndex = SOK_SPE4Spill;
     } else if (PPC::CRRCRegClass.contains(Reg)) {
       OpcodeIndex = SOK_CRSpill;
     } else if (PPC::CRBITRCRegClass.contains(Reg)) {
@@ -2248,6 +2255,35 @@ static unsigned selectReg(int64_t Imm1, int64_t Imm2, unsigned CompareOpc,
   return PPC::NoRegister;
 }
 
+void PPCInstrInfo::replaceInstrOperandWithImm(MachineInstr &MI,
+                                              unsigned OpNo,
+                                              int64_t Imm) const {
+  assert(MI.getOperand(OpNo).isReg() && "Operand must be a REG");
+  // Replace the REG with the Immediate.
+  unsigned InUseReg = MI.getOperand(OpNo).getReg();
+  MI.getOperand(OpNo).ChangeToImmediate(Imm);
+
+  if (empty(MI.implicit_operands()))
+    return;
+
+  // We need to make sure that the MI didn't have any implicit use
+  // of this REG any more.
+  const TargetRegisterInfo *TRI = &getRegisterInfo();
+  int UseOpIdx = MI.findRegisterUseOperandIdx(InUseReg, false, TRI);
+  if (UseOpIdx >= 0) {
+    MachineOperand &MO = MI.getOperand(UseOpIdx);
+    if (MO.isImplicit())
+      // The operands must always be in the following order:
+      // - explicit reg defs,
+      // - other explicit operands (reg uses, immediates, etc.),
+      // - implicit reg defs
+      // - implicit reg uses
+      // Therefore, removing the implicit operand won't change the explicit
+      // operands layout.
+      MI.RemoveOperand(UseOpIdx);
+  }
+}
+
 // Replace an instruction with one that materializes a constant (and sets
 // CR0 if the original instruction was a record-form instruction).
 void PPCInstrInfo::replaceInstrWithLI(MachineInstr &MI,
@@ -2329,13 +2365,6 @@ MachineInstr *PPCInstrInfo::getForwardingDefMI(
         MachineBasicBlock::reverse_iterator E = MI.getParent()->rend(), It = MI;
         It++;
         unsigned Reg = MI.getOperand(i).getReg();
-        // MachineInstr::readsRegister only returns true if the machine
-        // instruction reads the exact register or its super-register. It
-        // does not consider uses of sub-registers which seems like strange
-        // behaviour. Nonetheless, if we end up with a 64-bit register here,
-        // get the corresponding 32-bit register to check.
-        if (PPC::G8RCRegClass.contains(Reg))
-          Reg = Reg - PPC::X0 + PPC::R0;
 
         // Is this register defined by some form of add-immediate (including
         // load-immediate) within this basic block?
@@ -2395,6 +2424,83 @@ const unsigned *PPCInstrInfo::getLoadOpcodesForSpillArray() const {
   return OpcodesForSpill[(Subtarget.hasP9Vector()) ? 1 : 0];
 }
 
+void PPCInstrInfo::fixupIsDeadOrKill(MachineInstr &StartMI, MachineInstr &EndMI,
+                                     unsigned RegNo) const {
+  const MachineRegisterInfo &MRI =
+      StartMI.getParent()->getParent()->getRegInfo();
+  if (MRI.isSSA())
+    return;
+
+  // Instructions between [StartMI, EndMI] should be in same basic block.
+  assert((StartMI.getParent() == EndMI.getParent()) &&
+         "Instructions are not in same basic block");
+
+  bool IsKillSet = false;
+
+  auto clearOperandKillInfo = [=] (MachineInstr &MI, unsigned Index) {
+    MachineOperand &MO = MI.getOperand(Index);
+    if (MO.isReg() && MO.isUse() && MO.isKill() &&
+        getRegisterInfo().regsOverlap(MO.getReg(), RegNo))
+      MO.setIsKill(false);
+  };
+
+  // Set killed flag for EndMI.
+  // No need to do anything if EndMI defines RegNo.
+  int UseIndex =
+      EndMI.findRegisterUseOperandIdx(RegNo, false, &getRegisterInfo());
+  if (UseIndex != -1) {
+    EndMI.getOperand(UseIndex).setIsKill(true);
+    IsKillSet = true;
+    // Clear killed flag for other EndMI operands related to RegNo. In some
+    // upexpected cases, killed may be set multiple times for same register
+    // operand in same MI.
+    for (int i = 0, e = EndMI.getNumOperands(); i != e; ++i)
+      if (i != UseIndex)
+        clearOperandKillInfo(EndMI, i);
+  }
+
+  // Walking the inst in reverse order (EndMI -> StartMI].
+  MachineBasicBlock::reverse_iterator It = EndMI;
+  MachineBasicBlock::reverse_iterator E = EndMI.getParent()->rend();
+  // EndMI has been handled above, skip it here.
+  It++;
+  MachineOperand *MO = nullptr;
+  for (; It != E; ++It) {
+    // Skip insturctions which could not be a def/use of RegNo.
+    if (It->isDebugInstr() || It->isPosition())
+      continue;
+
+    // Clear killed flag for all It operands related to RegNo. In some
+    // upexpected cases, killed may be set multiple times for same register
+    // operand in same MI.
+    for (int i = 0, e = It->getNumOperands(); i != e; ++i)
+        clearOperandKillInfo(*It, i);
+
+    // If killed is not set, set killed for its last use or set dead for its def
+    // if no use found.
+    if (!IsKillSet) {
+      if ((MO = It->findRegisterUseOperand(RegNo, false, &getRegisterInfo()))) {
+        // Use found, set it killed.
+        IsKillSet = true;
+        MO->setIsKill(true);
+        continue;
+      } else if ((MO = It->findRegisterDefOperand(RegNo, false, true,
+                                                  &getRegisterInfo()))) {
+        // No use found, set dead for its def.
+        assert(&*It == &StartMI && "No new def between StartMI and EndMI.");
+        MO->setIsDead(true);
+        break;
+      }
+    }
+
+    if ((&*It) == &StartMI)
+      break;
+  }
+  // Ensure RegMo liveness is killed after EndMI.
+  assert((IsKillSet || (MO && MO->isDead())) &&
+         "RegNo should be killed or dead");
+}
+
 // If this instruction has an immediate form and one of its operands is a
 // result of a load-immediate or an add-immediate, convert it to
 // the immediate form if the constant is in range.
@@ -2411,8 +2517,9 @@ bool PPCInstrInfo::convertToImmediateForm(MachineInstr &MI,
     return false;
   assert(ForwardingOperand < MI.getNumOperands() &&
          "The forwarding operand needs to be valid at this point");
-  bool KillFwdDefMI = !SeenIntermediateUse &&
-    MI.getOperand(ForwardingOperand).isKill();
+  bool IsForwardingOperandKilled = MI.getOperand(ForwardingOperand).isKill();
+  bool KillFwdDefMI = !SeenIntermediateUse && IsForwardingOperandKilled;
+  unsigned ForwardingOperandReg = MI.getOperand(ForwardingOperand).getReg();
   if (KilledDef && KillFwdDefMI)
     *KilledDef = DefMI;
 
@@ -2421,8 +2528,9 @@ bool PPCInstrInfo::convertToImmediateForm(MachineInstr &MI,
   // If this is a reg+reg instruction that has a reg+imm form,
   // and one of the operands is produced by an add-immediate,
   // try to convert it.
-  if (HasImmForm && transformToImmFormFedByAdd(MI, III, ForwardingOperand,
-                                               *DefMI, KillFwdDefMI))
+  if (HasImmForm &&
+      transformToImmFormFedByAdd(MI, III, ForwardingOperand, *DefMI,
+                                 KillFwdDefMI))
     return true;
 
   if ((DefMI->getOpcode() != PPC::LI && DefMI->getOpcode() != PPC::LI8) ||
@@ -2437,7 +2545,7 @@ bool PPCInstrInfo::convertToImmediateForm(MachineInstr &MI,
   // If this is a reg+reg instruction that has a reg+imm form,
   // and one of the operands is produced by LI, convert it now.
   if (HasImmForm)
-    return transformToImmFormFedByLI(MI, III, ForwardingOperand, SExtImm);
+    return transformToImmFormFedByLI(MI, III, ForwardingOperand, *DefMI, SExtImm);
 
   bool ReplaceWithLI = false;
   bool Is64BitLI = false;
@@ -2457,6 +2565,8 @@ bool PPCInstrInfo::convertToImmediateForm(MachineInstr &MI,
   case PPC::CMPLDI: {
     // Doing this post-RA would require dataflow analysis to reliably find uses
     // of the CR register set by the compare.
+    // No need to fixup killed/dead flag since this transformation is only valid
+    // before RA.
     if (PostRA)
       return false;
     // If a compare-immediate is fed by an immediate and is itself an input of
@@ -2481,7 +2591,7 @@ bool PPCInstrInfo::convertToImmediateForm(MachineInstr &MI,
       // Can't use PPC::COPY to copy PPC::ZERO[8]. Convert it to LI[8] 0.
       if (RegToCopy == PPC::ZERO || RegToCopy == PPC::ZERO8) {
         CompareUseMI.setDesc(get(UseOpc == PPC::ISEL8 ? PPC::LI8 : PPC::LI));
-        CompareUseMI.getOperand(1).ChangeToImmediate(0);
+        replaceInstrOperandWithImm(CompareUseMI, 1, 0);
         CompareUseMI.RemoveOperand(3);
         CompareUseMI.RemoveOperand(2);
         continue;
@@ -2633,6 +2743,14 @@ bool PPCInstrInfo::convertToImmediateForm(MachineInstr &MI,
     if (KilledDef && SetCR)
       *KilledDef = nullptr;
     replaceInstrWithLI(MI, LII);
+
+    // Fixup killed/dead flag after transformation.
+    // Pattern:
+    // ForwardingOperandReg = LI imm1
+    // y = op2 imm2, ForwardingOperandReg(killed)
+    if (IsForwardingOperandKilled)
+      fixupIsDeadOrKill(*DefMI, MI, ForwardingOperandReg);
+
     LLVM_DEBUG(dbgs() << "With:\n");
     LLVM_DEBUG(MI.dump());
     return true;
@@ -3140,11 +3258,10 @@ bool PPCInstrInfo::isDefMIElgibleForForwarding(MachineInstr &DefMI,
   return isAnImmediateOperand(*ImmMO);
 }
 
-bool PPCInstrInfo::isRegElgibleForForwarding(const MachineOperand &RegMO,
-                                             const MachineInstr &DefMI,
-                                             const MachineInstr &MI,
-                                             bool KillDefMI
-                                             ) const {
+bool PPCInstrInfo::isRegElgibleForForwarding(
+    const MachineOperand &RegMO, const MachineInstr &DefMI,
+    const MachineInstr &MI, bool KillDefMI,
+    bool &IsFwdFeederRegKilled) const {
   // x = addi y, imm
   // ...
   // z = lfdx 0, x   -> z = lfd imm(y)
@@ -3155,14 +3272,7 @@ bool PPCInstrInfo::isRegElgibleForForwarding(const MachineOperand &RegMO,
   if (MRI.isSSA())
     return false;
 
-  // MachineInstr::readsRegister only returns true if the machine
-  // instruction reads the exact register or its super-register. It
-  // does not consider uses of sub-registers which seems like strange
-  // behaviour. Nonetheless, if we end up with a 64-bit register here,
-  // get the corresponding 32-bit register to check.
   unsigned Reg = RegMO.getReg();
-  if (PPC::G8RCRegClass.contains(Reg))
-    Reg = Reg - PPC::X0 + PPC::R0;
 
   // Walking the inst in reverse(MI-->DefMI) to get the last DEF of the Reg.
   MachineBasicBlock::const_reverse_iterator It = MI;
@@ -3171,15 +3281,17 @@ bool PPCInstrInfo::isRegElgibleForForwarding(const MachineOperand &RegMO,
   for (; It != E; ++It) {
     if (It->modifiesRegister(Reg, &getRegisterInfo()) && (&*It) != &DefMI)
       return false;
+    else if (It->killsRegister(Reg, &getRegisterInfo()) && (&*It) != &DefMI)
+      IsFwdFeederRegKilled = true;
     // Made it to DefMI without encountering a clobber.
     if ((&*It) == &DefMI)
       break;
   }
   assert((&*It) == &DefMI && "DefMI is missing");
 
-  // If DefMI also uses the register to be forwarded, we can only forward it
+  // If DefMI also defines the register to be forwarded, we can only forward it
   // if DefMI is being erased.
-  if (DefMI.readsRegister(Reg, &getRegisterInfo()))
+  if (DefMI.modifiesRegister(Reg, &getRegisterInfo()))
     return KillDefMI;
 
   return true;
@@ -3242,11 +3354,9 @@ bool PPCInstrInfo::isImmElgibleForForwarding(const MachineOperand &ImmMO,
 // is the literal zero, attempt to forward the source of the add-immediate to
 // the corresponding D-Form instruction with the displacement coming from
 // the immediate being added.
-bool PPCInstrInfo::transformToImmFormFedByAdd(MachineInstr &MI,
-                                              const ImmInstrInfo &III,
-                                              unsigned OpNoForForwarding,
-                                              MachineInstr &DefMI,
-                                              bool KillDefMI) const {
+bool PPCInstrInfo::transformToImmFormFedByAdd(
+    MachineInstr &MI, const ImmInstrInfo &III, unsigned OpNoForForwarding,
+    MachineInstr &DefMI, bool KillDefMI) const {
   //         RegMO ImmMO
   //           |    |
   // x = addi reg, imm  <----- DefMI
@@ -3271,9 +3381,18 @@ bool PPCInstrInfo::transformToImmFormFedByAdd(MachineInstr &MI,
   if (!isImmElgibleForForwarding(*ImmMO, DefMI, III, Imm))
     return false;
 
+  bool IsFwdFeederRegKilled = false;
   // Check if the RegMO can be forwarded to MI.
-  if (!isRegElgibleForForwarding(*RegMO, DefMI, MI, KillDefMI))
+  if (!isRegElgibleForForwarding(*RegMO, DefMI, MI, KillDefMI,
+                                 IsFwdFeederRegKilled))
     return false;
+
+  // Get killed info in case fixup needed after transformation.
+  unsigned ForwardKilledOperandReg = ~0U;
+  MachineRegisterInfo &MRI = MI.getParent()->getParent()->getRegInfo();
+  bool PostRA = !MRI.isSSA();
+  if (PostRA && MI.getOperand(OpNoForForwarding).isKill())
+    ForwardKilledOperandReg = MI.getOperand(OpNoForForwarding).getReg();
 
   // We know that, the MI and DefMI both meet the pattern, and
   // the Imm also meet the requirement with the new Imm-form.
@@ -3292,7 +3411,7 @@ bool PPCInstrInfo::transformToImmFormFedByAdd(MachineInstr &MI,
   if (ImmMO->isImm()) {
     // If the ImmMO is Imm, change the operand that has ZERO to that Imm
     // directly.
-    MI.getOperand(III.ZeroIsSpecialOrig).ChangeToImmediate(Imm);
+    replaceInstrOperandWithImm(MI, III.ZeroIsSpecialOrig, Imm);
   }
   else {
     // Otherwise, it is Constant Pool Index(CPI) or Global,
@@ -3325,6 +3444,22 @@ bool PPCInstrInfo::transformToImmFormFedByAdd(MachineInstr &MI,
   // Update the opcode.
   MI.setDesc(get(III.ImmOpcode));
 
+  // Fix up killed/dead flag after transformation.
+  // Pattern 1:
+  // x = ADD KilledFwdFeederReg, imm
+  // n = opn KilledFwdFeederReg(killed), regn
+  // y = XOP 0, x
+  // Pattern 2:
+  // x = ADD reg(killed), imm
+  // y = XOP 0, x
+  if (IsFwdFeederRegKilled || RegMO->isKill())
+    fixupIsDeadOrKill(DefMI, MI, RegMO->getReg());
+  // Pattern 3:
+  // ForwardKilledOperandReg = ADD reg, imm
+  // y = XOP 0, ForwardKilledOperandReg(killed)
+  if (ForwardKilledOperandReg != ~0U)
+    fixupIsDeadOrKill(DefMI, MI, ForwardKilledOperandReg);
+
   LLVM_DEBUG(dbgs() << "With:\n");
   LLVM_DEBUG(MI.dump());
 
@@ -3334,6 +3469,7 @@ bool PPCInstrInfo::transformToImmFormFedByAdd(MachineInstr &MI,
 bool PPCInstrInfo::transformToImmFormFedByLI(MachineInstr &MI,
                                              const ImmInstrInfo &III,
                                              unsigned ConstantOpNo,
+                                             MachineInstr &DefMI,
                                              int64_t Imm) const {
   MachineRegisterInfo &MRI = MI.getParent()->getParent()->getRegInfo();
   bool PostRA = !MRI.isSSA();
@@ -3371,6 +3507,11 @@ bool PPCInstrInfo::transformToImmFormFedByLI(MachineInstr &MI,
         ConstantOpNo != PosForOrigZero)
       return false;
   }
+
+  // Get killed info in case fixup needed after transformation.
+  unsigned ForwardKilledOperandReg = ~0U;
+  if (PostRA && MI.getOperand(ConstantOpNo).isKill())
+    ForwardKilledOperandReg = MI.getOperand(ConstantOpNo).getReg();
 
   unsigned Opc = MI.getOpcode();
   bool SpecialShift32 =
@@ -3411,24 +3552,24 @@ bool PPCInstrInfo::transformToImmFormFedByLI(MachineInstr &MI,
           uint64_t SH = RightShift ? 32 - ShAmt : ShAmt;
           uint64_t MB = RightShift ? ShAmt : 0;
           uint64_t ME = RightShift ? 31 : 31 - ShAmt;
-          MI.getOperand(III.OpNoForForwarding).ChangeToImmediate(SH);
+          replaceInstrOperandWithImm(MI, III.OpNoForForwarding, SH);
           MachineInstrBuilder(*MI.getParent()->getParent(), MI).addImm(MB)
             .addImm(ME);
         } else {
           // Left shifts use (N, 63-N), right shifts use (64-N, N).
           uint64_t SH = RightShift ? 64 - ShAmt : ShAmt;
           uint64_t ME = RightShift ? ShAmt : 63 - ShAmt;
-          MI.getOperand(III.OpNoForForwarding).ChangeToImmediate(SH);
+          replaceInstrOperandWithImm(MI, III.OpNoForForwarding, SH);
           MachineInstrBuilder(*MI.getParent()->getParent(), MI).addImm(ME);
         }
       }
     } else
-      MI.getOperand(ConstantOpNo).ChangeToImmediate(Imm);
+      replaceInstrOperandWithImm(MI, ConstantOpNo, Imm);
   }
   // Convert commutative instructions (switch the operands and convert the
   // desired one to an immediate.
   else if (III.IsCommutative) {
-    MI.getOperand(ConstantOpNo).ChangeToImmediate(Imm);
+    replaceInstrOperandWithImm(MI, ConstantOpNo, Imm);
     swapMIOperands(MI, ConstantOpNo, III.OpNoForForwarding);
   } else
     llvm_unreachable("Should have exited early!");
@@ -3438,17 +3579,29 @@ bool PPCInstrInfo::transformToImmFormFedByLI(MachineInstr &MI,
   if (III.OpNoForForwarding != III.ImmOpNo)
     swapMIOperands(MI, III.OpNoForForwarding, III.ImmOpNo);
 
-  // If the R0/X0 register is special for the original instruction and not for
-  // the new instruction (or vice versa), we need to fix up the register class.
+  // If the special R0/X0 register index are different for original instruction
+  // and new instruction, we need to fix up the register class in new
+  // instruction.
   if (!PostRA && III.ZeroIsSpecialOrig != III.ZeroIsSpecialNew) {
-    if (!III.ZeroIsSpecialOrig) {
+    if (III.ZeroIsSpecialNew) {
+      // If operand at III.ZeroIsSpecialNew is physical reg(eg: ZERO/ZERO8), no
+      // need to fix up register class.
       unsigned RegToModify = MI.getOperand(III.ZeroIsSpecialNew).getReg();
-      const TargetRegisterClass *NewRC =
-        MRI.getRegClass(RegToModify)->hasSuperClassEq(&PPC::GPRCRegClass) ?
-        &PPC::GPRC_and_GPRC_NOR0RegClass : &PPC::G8RC_and_G8RC_NOX0RegClass;
-      MRI.setRegClass(RegToModify, NewRC);
+      if (TargetRegisterInfo::isVirtualRegister(RegToModify)) {
+        const TargetRegisterClass *NewRC =
+          MRI.getRegClass(RegToModify)->hasSuperClassEq(&PPC::GPRCRegClass) ?
+          &PPC::GPRC_and_GPRC_NOR0RegClass : &PPC::G8RC_and_G8RC_NOX0RegClass;
+        MRI.setRegClass(RegToModify, NewRC);
+      }
     }
   }
+
+  // Fix up killed/dead flag after transformation.
+  // Pattern:
+  // ForwardKilledOperandReg = LI imm
+  // y = XOP reg, ForwardKilledOperandReg(killed)
+  if (ForwardKilledOperandReg != ~0U)
+    fixupIsDeadOrKill(DefMI, MI, ForwardKilledOperandReg);
   return true;
 }
 

@@ -1,9 +1,8 @@
 //===- SyntheticSections.cpp ----------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -15,7 +14,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "SyntheticSections.h"
-#include "Bits.h"
 #include "Config.h"
 #include "InputFiles.h"
 #include "LinkerScript.h"
@@ -58,6 +56,17 @@ using llvm::support::endian::write32le;
 using llvm::support::endian::write64le;
 
 constexpr size_t MergeNoTailSection::NumShards;
+
+static uint64_t readUint(uint8_t *Buf) {
+  return Config->Is64 ? read64(Buf) : read32(Buf);
+}
+
+static void writeUint(uint8_t *Buf, uint64_t Val) {
+  if (Config->Is64)
+    write64(Buf, Val);
+  else
+    write32(Buf, Val);
+}
 
 // Returns an LLD version string.
 static ArrayRef<uint8_t> getVersion() {
@@ -500,7 +509,7 @@ void EhFrameSection::finalizeContents() {
 // to get an FDE from an address to which FDE is applied. This function
 // returns a list of such pairs.
 std::vector<EhFrameSection::FdeData> EhFrameSection::getFdeData() const {
-  uint8_t *Buf = getParent()->Loc + OutSecOff;
+  uint8_t *Buf = Out::BufferStart + getParent()->Offset + OutSecOff;
   std::vector<FdeData> Ret;
 
   uint64_t VA = In.EhFrameHdr->getVA();
@@ -586,6 +595,9 @@ void EhFrameSection::writeTo(uint8_t *Buf) {
   // getOffset() takes care of discontiguous section pieces.
   for (EhInputSection *S : Sections)
     S->relocateAlloc(Buf, nullptr);
+
+  if (In.EhFrameHdr && In.EhFrameHdr->getParent())
+    In.EhFrameHdr->write();
 }
 
 GotSection::GotSection()
@@ -807,7 +819,7 @@ bool MipsGotSection::updateAllocSize() {
   return false;
 }
 
-template <class ELFT> void MipsGotSection::build() {
+void MipsGotSection::build() {
   if (Gots.empty())
     return;
 
@@ -1029,11 +1041,8 @@ void MipsGotSection::writeTo(uint8_t *Buf) {
   for (const FileGot &G : Gots) {
     auto Write = [&](size_t I, const Symbol *S, int64_t A) {
       uint64_t VA = A;
-      if (S) {
+      if (S)
         VA = S->getVA(A);
-        if (S->StOther & STO_MIPS_MICROMIPS)
-          VA |= 1;
-      }
       writeUint(Buf + I * Config->Wordsize, VA);
     };
     // Write 'page address' entries to the local part of the GOT.
@@ -1133,7 +1142,6 @@ IgotPltSection::IgotPltSection()
                        Target->GotPltEntrySize, getIgotPltName()) {}
 
 void IgotPltSection::addEntry(Symbol &Sym) {
-  Sym.IsInIgot = true;
   assert(Sym.PltIndex == Entries.size());
   Entries.push_back(&Sym);
 }
@@ -1296,6 +1304,8 @@ template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
   }
   if (!Config->ZText)
     DtFlags |= DF_TEXTREL;
+  if (Config->HasStaticTlsModel)
+    DtFlags |= DF_STATIC_TLS;
 
   if (DtFlags)
     addInt(DT_FLAGS, DtFlags);
@@ -1395,16 +1405,16 @@ template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
     if (B->isDefined())
       addSym(DT_FINI, B);
 
-  bool HasVerNeed = InX<ELFT>::VerNeed->getNeedNum() != 0;
+  bool HasVerNeed = In.VerNeed->getNeedNum() != 0;
   if (HasVerNeed || In.VerDef)
-    addInSec(DT_VERSYM, InX<ELFT>::VerSym);
+    addInSec(DT_VERSYM, In.VerSym);
   if (In.VerDef) {
     addInSec(DT_VERDEF, In.VerDef);
     addInt(DT_VERDEFNUM, getVerDefNum());
   }
   if (HasVerNeed) {
-    addInSec(DT_VERNEED, InX<ELFT>::VerNeed);
-    addInt(DT_VERNEEDNUM, InX<ELFT>::VerNeed->getNeedNum());
+    addInSec(DT_VERNEED, In.VerNeed);
+    addInt(DT_VERNEEDNUM, In.VerNeed->getNeedNum());
   }
 
   if (Config->EMachine == EM_MIPS) {
@@ -1507,14 +1517,15 @@ void RelocationBaseSection::finalizeContents() {
   // When linking glibc statically, .rel{,a}.plt contains R_*_IRELATIVE
   // relocations due to IFUNC (e.g. strcpy). sh_link will be set to 0 in that
   // case.
-  InputSection *SymTab = Config->Relocatable ? In.SymTab : In.DynSymTab;
-  if (SymTab && SymTab->getParent())
-    getParent()->Link = SymTab->getParent()->SectionIndex;
+  if (In.DynSymTab && In.DynSymTab->getParent())
+    getParent()->Link = In.DynSymTab->getParent()->SectionIndex;
   else
     getParent()->Link = 0;
 
-  if (In.RelaIplt == this || In.RelaPlt == this)
+  if (In.RelaPlt == this)
     getParent()->Info = In.GotPlt->getParent()->SectionIndex;
+  if (In.RelaIplt == this)
+    getParent()->Info = In.IgotPlt->getParent()->SectionIndex;
 }
 
 RelrBaseSection::RelrBaseSection()
@@ -1803,7 +1814,7 @@ template <class ELFT> bool RelrSection<ELFT>::updateAllocSize() {
   std::vector<uint64_t> Offsets;
   for (const RelativeReloc &Rel : Relocs)
     Offsets.push_back(Rel.getOffset());
-  llvm::sort(Offsets.begin(), Offsets.end());
+  llvm::sort(Offsets);
 
   // For each leading relocation, find following ones that can be folded
   // as a bitmap and fold them.
@@ -1999,6 +2010,11 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *Buf) {
       ESym->setVisibility(Sym->Visibility);
     }
 
+    // The 3 most significant bits of st_other are used by OpenPOWER ABI.
+    // See getPPC64GlobalEntryToLocalEntryOffset() for more details.
+    if (Config->EMachine == EM_PPC64)
+      ESym->st_other |= Sym->StOther & 0xe0;
+
     ESym->st_name = Ent.StrTabOffset;
     ESym->st_shndx = getSymSectionIndex(Ent.Sym);
 
@@ -2035,14 +2051,17 @@ template <class ELFT> void SymbolTableSection<ELFT>::writeTo(uint8_t *Buf) {
       if (Sym->isInPlt() && Sym->NeedsPltAddr)
         ESym->st_other |= STO_MIPS_PLT;
       if (isMicroMips()) {
-        // Set STO_MIPS_MICROMIPS flag and less-significant bit for
-        // a defined microMIPS symbol and symbol should point to its
-        // PLT entry (in case of microMIPS, PLT entries always contain
-        // microMIPS code).
+        // We already set the less-significant bit for symbols
+        // marked by the `STO_MIPS_MICROMIPS` flag and for microMIPS PLT
+        // records. That allows us to distinguish such symbols in
+        // the `MIPS<ELFT>::relocateOne()` routine. Now we should
+        // clear that bit for non-dynamic symbol table, so tools
+        // like `objdump` will be able to deal with a correct
+        // symbol position.
         if (Sym->isDefined() &&
             ((Sym->StOther & STO_MIPS_MICROMIPS) || Sym->NeedsPltAddr)) {
-          if (StrTabSec.isDynamic())
-            ESym->st_value |= 1;
+          if (!StrTabSec.isDynamic())
+            ESym->st_value &= ~1;
           ESym->st_other |= STO_MIPS_MICROMIPS;
         }
       }
@@ -2331,10 +2350,8 @@ void PltSection::writeTo(uint8_t *Buf) {
 template <class ELFT> void PltSection::addEntry(Symbol &Sym) {
   Sym.PltIndex = Entries.size();
   RelocationBaseSection *PltRelocSection = In.RelaPlt;
-  if (IsIplt) {
+  if (IsIplt)
     PltRelocSection = In.RelaIplt;
-    Sym.IsInIplt = true;
-  }
   unsigned RelOff =
       static_cast<RelocationSection<ELFT> *>(PltRelocSection)->getRelocOffset();
   Entries.push_back(std::make_pair(&Sym, RelOff));
@@ -2408,15 +2425,17 @@ static std::vector<GdbIndexSection::CuEntry> readCuList(DWARFContext &Dwarf) {
   return Ret;
 }
 
-static Expected<std::vector<GdbIndexSection::AddressEntry>>
+static std::vector<GdbIndexSection::AddressEntry>
 readAddressAreas(DWARFContext &Dwarf, InputSection *Sec) {
   std::vector<GdbIndexSection::AddressEntry> Ret;
 
   uint32_t CuIdx = 0;
   for (std::unique_ptr<DWARFUnit> &Cu : Dwarf.compile_units()) {
     Expected<DWARFAddressRangesVector> Ranges = Cu->collectAddressRanges();
-    if (!Ranges)
-      return Ranges.takeError();
+    if (!Ranges) {
+      error(toString(Sec) + ": " + toString(Ranges.takeError()));
+      return {};
+    }
 
     ArrayRef<InputSectionBase *> Sections = Sec->File->getSections();
     for (DWARFAddressRange &R : *Ranges) {
@@ -2433,7 +2452,7 @@ readAddressAreas(DWARFContext &Dwarf, InputSection *Sec) {
     ++CuIdx;
   }
 
-  return std::move(Ret);
+  return Ret;
 }
 
 template <class ELFT>
@@ -2565,17 +2584,7 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
 
     Chunks[I].Sec = Sections[I];
     Chunks[I].CompilationUnits = readCuList(Dwarf);
-    Expected<std::vector<GdbIndexSection::AddressEntry>> AddressAreas =
-        readAddressAreas(Dwarf, Sections[I]);
-    if (!AddressAreas) {
-      std::string Msg = File->getName();
-      Msg += ": ";
-      if (!File->ArchiveName.empty())
-        Msg += "in archive " + File->ArchiveName + ": ";
-      Msg += toString(AddressAreas.takeError());
-      fatal(Msg);
-    }
-    Chunks[I].AddressAreas = *AddressAreas;
+    Chunks[I].AddressAreas = readAddressAreas(Dwarf, Sections[I]);
     NameAttrs[I] = readPubNamesAndTypes<ELFT>(
         static_cast<const LLDDwarfObj<ELFT> &>(Dwarf.getDWARFObj()),
         Chunks[I].CompilationUnits);
@@ -2661,11 +2670,20 @@ bool GdbIndexSection::empty() const { return Chunks.empty(); }
 EhFrameHeader::EhFrameHeader()
     : SyntheticSection(SHF_ALLOC, SHT_PROGBITS, 4, ".eh_frame_hdr") {}
 
+void EhFrameHeader::writeTo(uint8_t *Buf) {
+  // Unlike most sections, the EhFrameHeader section is written while writing
+  // another section, namely EhFrameSection, which calls the write() function
+  // below from its writeTo() function. This is necessary because the contents
+  // of EhFrameHeader depend on the relocated contents of EhFrameSection and we
+  // don't know which order the sections will be written in.
+}
+
 // .eh_frame_hdr contains a binary search table of pointers to FDEs.
 // Each entry of the search table consists of two values,
 // the starting PC from where FDEs covers, and the FDE's address.
 // It is sorted by PC.
-void EhFrameHeader::writeTo(uint8_t *Buf) {
+void EhFrameHeader::write() {
+  uint8_t *Buf = Out::BufferStart + getParent()->Offset + OutSecOff;
   typedef EhFrameSection::FdeData FdeData;
 
   std::vector<FdeData> Fdes = In.EhFrame->getFdeData();
@@ -2751,24 +2769,23 @@ size_t VersionDefinitionSection::getSize() const {
 }
 
 // .gnu.version is a table where each entry is 2 byte long.
-template <class ELFT>
-VersionTableSection<ELFT>::VersionTableSection()
+VersionTableSection::VersionTableSection()
     : SyntheticSection(SHF_ALLOC, SHT_GNU_versym, sizeof(uint16_t),
                        ".gnu.version") {
   this->Entsize = 2;
 }
 
-template <class ELFT> void VersionTableSection<ELFT>::finalizeContents() {
+void VersionTableSection::finalizeContents() {
   // At the moment of june 2016 GNU docs does not mention that sh_link field
   // should be set, but Sun docs do. Also readelf relies on this field.
   getParent()->Link = In.DynSymTab->getParent()->SectionIndex;
 }
 
-template <class ELFT> size_t VersionTableSection<ELFT>::getSize() const {
+size_t VersionTableSection::getSize() const {
   return (In.DynSymTab->getSymbols().size() + 1) * 2;
 }
 
-template <class ELFT> void VersionTableSection<ELFT>::writeTo(uint8_t *Buf) {
+void VersionTableSection::writeTo(uint8_t *Buf) {
   Buf += 2;
   for (const SymbolTableEntry &S : In.DynSymTab->getSymbols()) {
     write16(Buf, S.Sym->VersionId);
@@ -2776,12 +2793,11 @@ template <class ELFT> void VersionTableSection<ELFT>::writeTo(uint8_t *Buf) {
   }
 }
 
-template <class ELFT> bool VersionTableSection<ELFT>::empty() const {
-  return !In.VerDef && InX<ELFT>::VerNeed->empty();
+bool VersionTableSection::empty() const {
+  return !In.VerDef && In.VerNeed->empty();
 }
 
-template <class ELFT>
-VersionNeedSection<ELFT>::VersionNeedSection()
+VersionNeedBaseSection::VersionNeedBaseSection()
     : SyntheticSection(SHF_ALLOC, SHT_GNU_verneed, sizeof(uint32_t),
                        ".gnu.version_r") {
   // Identifiers in verneed section start at 2 because 0 and 1 are reserved
@@ -3176,11 +3192,6 @@ template void PltSection::addEntry<ELF32BE>(Symbol &Sym);
 template void PltSection::addEntry<ELF64LE>(Symbol &Sym);
 template void PltSection::addEntry<ELF64BE>(Symbol &Sym);
 
-template void MipsGotSection::build<ELF32LE>();
-template void MipsGotSection::build<ELF32BE>();
-template void MipsGotSection::build<ELF64LE>();
-template void MipsGotSection::build<ELF64BE>();
-
 template class elf::MipsAbiFlagsSection<ELF32LE>;
 template class elf::MipsAbiFlagsSection<ELF32BE>;
 template class elf::MipsAbiFlagsSection<ELF64LE>;
@@ -3220,11 +3231,6 @@ template class elf::SymbolTableSection<ELF32LE>;
 template class elf::SymbolTableSection<ELF32BE>;
 template class elf::SymbolTableSection<ELF64LE>;
 template class elf::SymbolTableSection<ELF64BE>;
-
-template class elf::VersionTableSection<ELF32LE>;
-template class elf::VersionTableSection<ELF32BE>;
-template class elf::VersionTableSection<ELF64LE>;
-template class elf::VersionTableSection<ELF64BE>;
 
 template class elf::VersionNeedSection<ELF32LE>;
 template class elf::VersionNeedSection<ELF32BE>;

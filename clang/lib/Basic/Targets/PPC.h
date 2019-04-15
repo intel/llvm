@@ -1,9 +1,8 @@
 //===--- PPC.h - Declare PPC target feature support -------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -132,19 +131,18 @@ public:
                         ArchDefinePwr5 | ArchDefinePwr4 | ArchDefinePpcgr |
                         ArchDefinePpcsq)
               .Cases("power7", "pwr7",
-                    ArchDefinePwr7 | ArchDefinePwr6x | ArchDefinePwr6 |
-                        ArchDefinePwr5x | ArchDefinePwr5 | ArchDefinePwr4 |
-                        ArchDefinePpcgr | ArchDefinePpcsq)
+                     ArchDefinePwr7 | ArchDefinePwr6 | ArchDefinePwr5x |
+                         ArchDefinePwr5 | ArchDefinePwr4 | ArchDefinePpcgr |
+                         ArchDefinePpcsq)
               // powerpc64le automatically defaults to at least power8.
               .Cases("power8", "pwr8", "ppc64le",
-                    ArchDefinePwr8 | ArchDefinePwr7 | ArchDefinePwr6x |
-                        ArchDefinePwr6 | ArchDefinePwr5x | ArchDefinePwr5 |
-                        ArchDefinePwr4 | ArchDefinePpcgr | ArchDefinePpcsq)
+                     ArchDefinePwr8 | ArchDefinePwr7 | ArchDefinePwr6 |
+                         ArchDefinePwr5x | ArchDefinePwr5 | ArchDefinePwr4 |
+                         ArchDefinePpcgr | ArchDefinePpcsq)
               .Cases("power9", "pwr9",
-                    ArchDefinePwr9 | ArchDefinePwr8 | ArchDefinePwr7 |
-                        ArchDefinePwr6x | ArchDefinePwr6 | ArchDefinePwr5x |
-                        ArchDefinePwr5 | ArchDefinePwr4 | ArchDefinePpcgr |
-                        ArchDefinePpcsq)
+                     ArchDefinePwr9 | ArchDefinePwr8 | ArchDefinePwr7 |
+                         ArchDefinePwr6 | ArchDefinePwr5x | ArchDefinePwr5 |
+                         ArchDefinePwr4 | ArchDefinePpcgr | ArchDefinePpcsq)
               .Default(ArchDefineNone);
     }
     return CPUKnown;
@@ -331,9 +329,15 @@ public:
       break;
     }
 
-    if (getTriple().isOSFreeBSD()) {
+    switch (getTriple().getOS()) {
+    case llvm::Triple::FreeBSD:
+    case llvm::Triple::NetBSD:
+    case llvm::Triple::OpenBSD:
       LongDoubleWidth = LongDoubleAlign = 64;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
+      break;
+    default:
+      break;
     }
 
     // PPC32 supports atomics up to 4 bytes.

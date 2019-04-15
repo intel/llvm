@@ -1,9 +1,8 @@
 //===-- LoopUtils.cpp - Loop Utility functions -------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -15,10 +14,12 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
+#include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/MustExecute.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
@@ -27,7 +28,6 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DIBuilder.h"
-#include "llvm/IR/DomTreeUpdater.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -47,6 +47,7 @@ using namespace llvm::PatternMatch;
 static const char *LLVMLoopDisableNonforced = "llvm.loop.disable_nonforced";
 
 bool llvm::formDedicatedExitBlocks(Loop *L, DominatorTree *DT, LoopInfo *LI,
+                                   MemorySSAUpdater *MSSAU,
                                    bool PreserveLCSSA) {
   bool Changed = false;
 
@@ -66,6 +67,9 @@ bool llvm::formDedicatedExitBlocks(Loop *L, DominatorTree *DT, LoopInfo *LI,
         if (isa<IndirectBrInst>(PredBB->getTerminator()))
           // We cannot rewrite exiting edges from an indirectbr.
           return false;
+        if (isa<CallBrInst>(PredBB->getTerminator()))
+          // We cannot rewrite exiting edges from a callbr.
+          return false;
 
         InLoopPredecessors.push_back(PredBB);
       } else {
@@ -79,7 +83,7 @@ bool llvm::formDedicatedExitBlocks(Loop *L, DominatorTree *DT, LoopInfo *LI,
       return false;
 
     auto *NewExitBB = SplitBlockPredecessors(
-        BB, InLoopPredecessors, ".loopexit", DT, LI, nullptr, PreserveLCSSA);
+        BB, InLoopPredecessors, ".loopexit", DT, LI, MSSAU, PreserveLCSSA);
 
     if (!NewExitBB)
       LLVM_DEBUG(
@@ -217,7 +221,10 @@ static Optional<bool> getOptionalBoolLoopAttribute(const Loop *TheLoop,
     // When the value is absent it is interpreted as 'attribute set'.
     return true;
   case 2:
-    return mdconst::extract_or_null<ConstantInt>(MD->getOperand(1).get());
+    if (ConstantInt *IntMD =
+            mdconst::extract_or_null<ConstantInt>(MD->getOperand(1).get()))
+      return IntMD->getZExtValue();
+    return true;
   }
   llvm_unreachable("unexpected number of options");
 }
@@ -376,16 +383,16 @@ TransformationMode llvm::hasVectorizeTransformation(Loop *L) {
   Optional<int> InterleaveCount =
       getOptionalIntLoopAttribute(L, "llvm.loop.interleave.count");
 
-  if (Enable == true) {
-    // 'Forcing' vector width and interleave count to one effectively disables
-    // this tranformation.
-    if (VectorizeWidth == 1 && InterleaveCount == 1)
-      return TM_SuppressedByUser;
-    return TM_ForcedByUser;
-  }
+  // 'Forcing' vector width and interleave count to one effectively disables
+  // this tranformation.
+  if (Enable == true && VectorizeWidth == 1 && InterleaveCount == 1)
+    return TM_SuppressedByUser;
 
   if (getBooleanLoopAttribute(L, "llvm.loop.isvectorized"))
     return TM_Disable;
+
+  if (Enable == true)
+    return TM_ForcedByUser;
 
   if (VectorizeWidth == 1 && InterleaveCount == 1)
     return TM_Disable;
@@ -528,10 +535,9 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT = nullptr,
   DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Eager);
   if (DT) {
     // Update the dominator tree by informing it about the new edge from the
-    // preheader to the exit.
-    DTU.insertEdge(Preheader, ExitBlock);
-    // Inform the dominator tree about the removed edge.
-    DTU.deleteEdge(Preheader, L->getHeader());
+    // preheader to the exit and the removed edge.
+    DTU.applyUpdates({{DominatorTree::Insert, Preheader, ExitBlock},
+                      {DominatorTree::Delete, Preheader, L->getHeader()}});
   }
 
   // Use a map to unique and a vector to guarantee deterministic ordering.
@@ -927,4 +933,40 @@ void llvm::propagateIRFlags(Value *I, ArrayRef<Value *> VL, Value *OpValue) {
     if (OpValue == nullptr || Opcode == Instr->getOpcode())
       VecOp->andIRFlags(V);
   }
+}
+
+bool llvm::isKnownNegativeInLoop(const SCEV *S, const Loop *L,
+                                 ScalarEvolution &SE) {
+  const SCEV *Zero = SE.getZero(S->getType());
+  return SE.isAvailableAtLoopEntry(S, L) &&
+         SE.isLoopEntryGuardedByCond(L, ICmpInst::ICMP_SLT, S, Zero);
+}
+
+bool llvm::isKnownNonNegativeInLoop(const SCEV *S, const Loop *L,
+                                    ScalarEvolution &SE) {
+  const SCEV *Zero = SE.getZero(S->getType());
+  return SE.isAvailableAtLoopEntry(S, L) &&
+         SE.isLoopEntryGuardedByCond(L, ICmpInst::ICMP_SGE, S, Zero);
+}
+
+bool llvm::cannotBeMinInLoop(const SCEV *S, const Loop *L, ScalarEvolution &SE,
+                             bool Signed) {
+  unsigned BitWidth = cast<IntegerType>(S->getType())->getBitWidth();
+  APInt Min = Signed ? APInt::getSignedMinValue(BitWidth) :
+    APInt::getMinValue(BitWidth);
+  auto Predicate = Signed ? ICmpInst::ICMP_SGT : ICmpInst::ICMP_UGT;
+  return SE.isAvailableAtLoopEntry(S, L) &&
+         SE.isLoopEntryGuardedByCond(L, Predicate, S,
+                                     SE.getConstant(Min));
+}
+
+bool llvm::cannotBeMaxInLoop(const SCEV *S, const Loop *L, ScalarEvolution &SE,
+                             bool Signed) {
+  unsigned BitWidth = cast<IntegerType>(S->getType())->getBitWidth();
+  APInt Max = Signed ? APInt::getSignedMaxValue(BitWidth) :
+    APInt::getMaxValue(BitWidth);
+  auto Predicate = Signed ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_ULT;
+  return SE.isAvailableAtLoopEntry(S, L) &&
+         SE.isLoopEntryGuardedByCond(L, Predicate, S,
+                                     SE.getConstant(Max));
 }

@@ -51,7 +51,8 @@ struct id {
 
 template <int dim>
 struct _ImplT {
-    range<dim> Range;
+    range<dim> AccessRange;
+    range<dim> MemRange;
     id<dim> Offset;
 };
 
@@ -63,12 +64,10 @@ class accessor {
 public:
   void use(void) const {}
   void use(void*) const {}
-  void __init(__global dataT *Ptr, range<dimensions> Range,
-    id<dimensions> Offset) {
-  }
-
-
-  _ImplT<dimensions> __impl;
+  _ImplT<dimensions> impl;
+private:
+  void __init(__global dataT *Ptr, range<dimensions> AccessRange,
+              range<dimensions> MemRange, id<dimensions> Offset) {}
 };
 
 } // namespace sycl

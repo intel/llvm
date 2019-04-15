@@ -1,10 +1,11 @@
 @LIT_SITE_CFG_IN_HEADER@
 
-config.test_exec_root = "@LLVM_BINARY_DIR@"
+config.test_exec_root = "@LLDB_BINARY_DIR@"
 config.llvm_src_root = "@LLVM_SOURCE_DIR@"
 config.llvm_obj_root = "@LLVM_BINARY_DIR@"
 config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
 config.llvm_libs_dir = "@LLVM_LIBS_DIR@"
+config.llvm_shlib_dir = "@SHLIBDIR@"
 config.llvm_build_mode = "@LLVM_BUILD_MODE@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
 config.lldb_obj_root = "@LLDB_BINARY_DIR@"

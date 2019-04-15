@@ -1,9 +1,8 @@
 //===-- AArch64ISelLowering.cpp - AArch64 DAG Lowering Implementation  ----===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -55,9 +54,11 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/OperandTraits.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
@@ -87,6 +88,7 @@
 #include <vector>
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
 
 #define DEBUG_TYPE "aarch64-lower"
 
@@ -333,36 +335,38 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FCOPYSIGN, MVT::f16, Promote);
 
   setOperationAction(ISD::FREM,    MVT::f16,   Promote);
-  setOperationAction(ISD::FREM,    MVT::v4f16, Promote);
-  setOperationAction(ISD::FREM,    MVT::v8f16, Promote);
+  setOperationAction(ISD::FREM,    MVT::v4f16, Expand);
+  setOperationAction(ISD::FREM,    MVT::v8f16, Expand);
   setOperationAction(ISD::FPOW,    MVT::f16,   Promote);
-  setOperationAction(ISD::FPOW,    MVT::v4f16, Promote);
-  setOperationAction(ISD::FPOW,    MVT::v8f16, Promote);
+  setOperationAction(ISD::FPOW,    MVT::v4f16, Expand);
+  setOperationAction(ISD::FPOW,    MVT::v8f16, Expand);
   setOperationAction(ISD::FPOWI,   MVT::f16,   Promote);
+  setOperationAction(ISD::FPOWI,   MVT::v4f16, Expand);
+  setOperationAction(ISD::FPOWI,   MVT::v8f16, Expand);
   setOperationAction(ISD::FCOS,    MVT::f16,   Promote);
-  setOperationAction(ISD::FCOS,    MVT::v4f16, Promote);
-  setOperationAction(ISD::FCOS,    MVT::v8f16, Promote);
+  setOperationAction(ISD::FCOS,    MVT::v4f16, Expand);
+  setOperationAction(ISD::FCOS,    MVT::v8f16, Expand);
   setOperationAction(ISD::FSIN,    MVT::f16,   Promote);
-  setOperationAction(ISD::FSIN,    MVT::v4f16, Promote);
-  setOperationAction(ISD::FSIN,    MVT::v8f16, Promote);
+  setOperationAction(ISD::FSIN,    MVT::v4f16, Expand);
+  setOperationAction(ISD::FSIN,    MVT::v8f16, Expand);
   setOperationAction(ISD::FSINCOS, MVT::f16,   Promote);
-  setOperationAction(ISD::FSINCOS, MVT::v4f16, Promote);
-  setOperationAction(ISD::FSINCOS, MVT::v8f16, Promote);
+  setOperationAction(ISD::FSINCOS, MVT::v4f16, Expand);
+  setOperationAction(ISD::FSINCOS, MVT::v8f16, Expand);
   setOperationAction(ISD::FEXP,    MVT::f16,   Promote);
-  setOperationAction(ISD::FEXP,    MVT::v4f16, Promote);
-  setOperationAction(ISD::FEXP,    MVT::v8f16, Promote);
+  setOperationAction(ISD::FEXP,    MVT::v4f16, Expand);
+  setOperationAction(ISD::FEXP,    MVT::v8f16, Expand);
   setOperationAction(ISD::FEXP2,   MVT::f16,   Promote);
-  setOperationAction(ISD::FEXP2,   MVT::v4f16, Promote);
-  setOperationAction(ISD::FEXP2,   MVT::v8f16, Promote);
+  setOperationAction(ISD::FEXP2,   MVT::v4f16, Expand);
+  setOperationAction(ISD::FEXP2,   MVT::v8f16, Expand);
   setOperationAction(ISD::FLOG,    MVT::f16,   Promote);
-  setOperationAction(ISD::FLOG,    MVT::v4f16, Promote);
-  setOperationAction(ISD::FLOG,    MVT::v8f16, Promote);
+  setOperationAction(ISD::FLOG,    MVT::v4f16, Expand);
+  setOperationAction(ISD::FLOG,    MVT::v8f16, Expand);
   setOperationAction(ISD::FLOG2,   MVT::f16,   Promote);
-  setOperationAction(ISD::FLOG2,   MVT::v4f16, Promote);
-  setOperationAction(ISD::FLOG2,   MVT::v8f16, Promote);
+  setOperationAction(ISD::FLOG2,   MVT::v4f16, Expand);
+  setOperationAction(ISD::FLOG2,   MVT::v8f16, Expand);
   setOperationAction(ISD::FLOG10,  MVT::f16,   Promote);
-  setOperationAction(ISD::FLOG10,  MVT::v4f16, Promote);
-  setOperationAction(ISD::FLOG10,  MVT::v8f16, Promote);
+  setOperationAction(ISD::FLOG10,  MVT::v4f16, Expand);
+  setOperationAction(ISD::FLOG10,  MVT::v8f16, Expand);
 
   if (!Subtarget->hasFullFP16()) {
     setOperationAction(ISD::SELECT,      MVT::f16,  Promote);
@@ -656,14 +660,9 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
     // elements smaller than i32, so promote the input to i32 first.
     setOperationPromotedToType(ISD::UINT_TO_FP, MVT::v4i8, MVT::v4i32);
     setOperationPromotedToType(ISD::SINT_TO_FP, MVT::v4i8, MVT::v4i32);
-    setOperationPromotedToType(ISD::UINT_TO_FP, MVT::v4i16, MVT::v4i32);
-    setOperationPromotedToType(ISD::SINT_TO_FP, MVT::v4i16, MVT::v4i32);
-    // i8 and i16 vector elements also need promotion to i32 for v8i8 or v8i16
-    // -> v8f16 conversions.
+    // i8 vector elements also need promotion to i32 for v8i8
     setOperationPromotedToType(ISD::SINT_TO_FP, MVT::v8i8, MVT::v8i32);
     setOperationPromotedToType(ISD::UINT_TO_FP, MVT::v8i8, MVT::v8i32);
-    setOperationPromotedToType(ISD::SINT_TO_FP, MVT::v8i16, MVT::v8i32);
-    setOperationPromotedToType(ISD::UINT_TO_FP, MVT::v8i16, MVT::v8i32);
     // Similarly, there is no direct i32 -> f64 vector conversion instruction.
     setOperationAction(ISD::SINT_TO_FP, MVT::v2i32, Custom);
     setOperationAction(ISD::UINT_TO_FP, MVT::v2i32, Custom);
@@ -674,17 +673,22 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::SINT_TO_FP, MVT::v4i32, Custom);
     setOperationAction(ISD::UINT_TO_FP, MVT::v4i32, Custom);
 
+    if (Subtarget->hasFullFP16()) {
+      setOperationAction(ISD::SINT_TO_FP, MVT::v4i16, Custom);
+      setOperationAction(ISD::UINT_TO_FP, MVT::v4i16, Custom);
+      setOperationAction(ISD::SINT_TO_FP, MVT::v8i16, Custom);
+      setOperationAction(ISD::UINT_TO_FP, MVT::v8i16, Custom);
+    } else {
+      // when AArch64 doesn't have fullfp16 support, promote the input
+      // to i32 first.
+      setOperationPromotedToType(ISD::UINT_TO_FP, MVT::v4i16, MVT::v4i32);
+      setOperationPromotedToType(ISD::SINT_TO_FP, MVT::v4i16, MVT::v4i32);
+      setOperationPromotedToType(ISD::SINT_TO_FP, MVT::v8i16, MVT::v8i32);
+      setOperationPromotedToType(ISD::UINT_TO_FP, MVT::v8i16, MVT::v8i32);
+    }
+
     setOperationAction(ISD::CTLZ,       MVT::v1i64, Expand);
     setOperationAction(ISD::CTLZ,       MVT::v2i64, Expand);
-
-    setOperationAction(ISD::CTTZ,       MVT::v2i8,  Expand);
-    setOperationAction(ISD::CTTZ,       MVT::v4i16, Expand);
-    setOperationAction(ISD::CTTZ,       MVT::v2i32, Expand);
-    setOperationAction(ISD::CTTZ,       MVT::v1i64, Expand);
-    setOperationAction(ISD::CTTZ,       MVT::v16i8, Expand);
-    setOperationAction(ISD::CTTZ,       MVT::v8i16, Expand);
-    setOperationAction(ISD::CTTZ,       MVT::v4i32, Expand);
-    setOperationAction(ISD::CTTZ,       MVT::v2i64, Expand);
 
     // AArch64 doesn't have MUL.2d:
     setOperationAction(ISD::MUL, MVT::v2i64, Expand);
@@ -724,6 +728,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::UMUL_LOHI, VT, Expand);
 
       setOperationAction(ISD::BSWAP, VT, Expand);
+      setOperationAction(ISD::CTTZ, VT, Expand);
 
       for (MVT InnerVT : MVT::vector_valuetypes()) {
         setTruncStoreAction(VT, InnerVT, Expand);
@@ -2716,9 +2721,19 @@ SDValue AArch64TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     EVT PtrVT = getPointerTy(DAG.getDataLayout());
     return DAG.getNode(AArch64ISD::THREAD_POINTER, dl, PtrVT);
   }
-  case Intrinsic::aarch64_neon_abs:
-    return DAG.getNode(ISD::ABS, dl, Op.getValueType(),
-                       Op.getOperand(1));
+  case Intrinsic::aarch64_neon_abs: {
+    EVT Ty = Op.getValueType();
+    if (Ty == MVT::i64) {
+      SDValue Result = DAG.getNode(ISD::BITCAST, dl, MVT::v1i64,
+                                   Op.getOperand(1));
+      Result = DAG.getNode(ISD::ABS, dl, MVT::v1i64, Result);
+      return DAG.getNode(ISD::BITCAST, dl, MVT::i64, Result);
+    } else if (Ty.isVector() && Ty.isInteger() && isTypeLegal(Ty)) {
+      return DAG.getNode(ISD::ABS, dl, Ty, Op.getOperand(1));
+    } else {
+      report_fatal_error("Unexpected type for AArch64 NEON intrinic");
+    }
+  }
   case Intrinsic::aarch64_neon_smax:
     return DAG.getNode(ISD::SMAX, dl, Op.getValueType(),
                        Op.getOperand(1), Op.getOperand(2));
@@ -2731,6 +2746,28 @@ SDValue AArch64TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   case Intrinsic::aarch64_neon_umin:
     return DAG.getNode(ISD::UMIN, dl, Op.getValueType(),
                        Op.getOperand(1), Op.getOperand(2));
+
+  case Intrinsic::localaddress: {
+    const auto &MF = DAG.getMachineFunction();
+    const auto *RegInfo = Subtarget->getRegisterInfo();
+    unsigned Reg = RegInfo->getLocalAddressRegister(MF);
+    return DAG.getCopyFromReg(DAG.getEntryNode(), dl, Reg,
+                              Op.getSimpleValueType());
+  }
+
+  case Intrinsic::eh_recoverfp: {
+    // FIXME: This needs to be implemented to correctly handle highly aligned
+    // stack objects. For now we simply return the incoming FP. Refer D53541
+    // for more details.
+    SDValue FnOp = Op.getOperand(1);
+    SDValue IncomingFPOp = Op.getOperand(2);
+    GlobalAddressSDNode *GSD = dyn_cast<GlobalAddressSDNode>(FnOp);
+    auto *Fn = dyn_cast_or_null<Function>(GSD ? GSD->getGlobal() : nullptr);
+    if (!Fn)
+      report_fatal_error(
+          "llvm.eh.recoverfp must take a function as the first argument");
+    return IncomingFPOp;
+  }
   }
 }
 
@@ -2932,8 +2969,6 @@ SDValue AArch64TargetLowering::LowerOperation(SDValue Op,
 //===----------------------------------------------------------------------===//
 //                      Calling Convention Implementation
 //===----------------------------------------------------------------------===//
-
-#include "AArch64GenCallingConv.inc"
 
 /// Selects the correct CCAssignFn for a given CallingConvention value.
 CCAssignFn *AArch64TargetLowering::CCAssignFnForCall(CallingConv::ID CC,
@@ -5185,50 +5220,20 @@ SDValue AArch64TargetLowering::LowerSPONENTRY(SDValue Op,
   return DAG.getFrameIndex(FI, VT);
 }
 
+#define GET_REGISTER_MATCHER
+#include "AArch64GenAsmMatcher.inc"
+
 // FIXME? Maybe this could be a TableGen attribute on some registers and
 // this table could be generated automatically from RegInfo.
 unsigned AArch64TargetLowering::getRegisterByName(const char* RegName, EVT VT,
                                                   SelectionDAG &DAG) const {
-  unsigned Reg = StringSwitch<unsigned>(RegName)
-                       .Case("sp", AArch64::SP)
-                       .Case("x1", AArch64::X1)
-                       .Case("w1", AArch64::W1)
-                       .Case("x2", AArch64::X2)
-                       .Case("w2", AArch64::W2)
-                       .Case("x3", AArch64::X3)
-                       .Case("w3", AArch64::W3)
-                       .Case("x4", AArch64::X4)
-                       .Case("w4", AArch64::W4)
-                       .Case("x5", AArch64::X5)
-                       .Case("w5", AArch64::W5)
-                       .Case("x6", AArch64::X6)
-                       .Case("w6", AArch64::W6)
-                       .Case("x7", AArch64::X7)
-                       .Case("w7", AArch64::W7)
-                       .Case("x18", AArch64::X18)
-                       .Case("w18", AArch64::W18)
-                       .Case("x20", AArch64::X20)
-                       .Case("w20", AArch64::W20)
-                       .Default(0);
-  if (((Reg == AArch64::X1 || Reg == AArch64::W1) &&
-      !Subtarget->isXRegisterReserved(1)) ||
-      ((Reg == AArch64::X2 || Reg == AArch64::W2) &&
-      !Subtarget->isXRegisterReserved(2)) ||
-      ((Reg == AArch64::X3 || Reg == AArch64::W3) &&
-      !Subtarget->isXRegisterReserved(3)) ||
-      ((Reg == AArch64::X4 || Reg == AArch64::W4) &&
-      !Subtarget->isXRegisterReserved(4)) ||
-      ((Reg == AArch64::X5 || Reg == AArch64::W5) &&
-      !Subtarget->isXRegisterReserved(5)) ||
-      ((Reg == AArch64::X6 || Reg == AArch64::W6) &&
-      !Subtarget->isXRegisterReserved(6)) ||
-      ((Reg == AArch64::X7 || Reg == AArch64::W7) &&
-      !Subtarget->isXRegisterReserved(7)) ||
-      ((Reg == AArch64::X18 || Reg == AArch64::W18) &&
-      !Subtarget->isXRegisterReserved(18)) ||
-      ((Reg == AArch64::X20 || Reg == AArch64::W20) &&
-      !Subtarget->isXRegisterReserved(20)))
-    Reg = 0;
+  unsigned Reg = MatchRegisterName(RegName);
+  if (AArch64::X1 <= Reg && Reg <= AArch64::X28) {
+    const MCRegisterInfo *MRI = Subtarget->getRegisterInfo();
+    unsigned DwarfRegNum = MRI->getDwarfRegNum(Reg, false);
+    if (!Subtarget->isXRegisterReserved(DwarfRegNum))
+      Reg = 0;
+  }
   if (Reg)
     return Reg;
   report_fatal_error(Twine("Invalid register name \""
@@ -5387,34 +5392,30 @@ bool AArch64TargetLowering::isOffsetFoldingLegal(
 }
 
 bool AArch64TargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT) const {
-  // We can materialize #0.0 as fmov $Rd, XZR for 64-bit and 32-bit cases.
-  // FIXME: We should be able to handle f128 as well with a clever lowering.
-  if (Imm.isPosZero() && (VT == MVT::f64 || VT == MVT::f32 ||
-                          (VT == MVT::f16 && Subtarget->hasFullFP16()))) {
-    LLVM_DEBUG(dbgs() << "Legal " << VT.getEVTString() << " imm value: 0\n");
-    return true;
-  }
-
   bool IsLegal = false;
-  SmallString<128> ImmStrVal;
-  Imm.toString(ImmStrVal);
-
+  // We can materialize #0.0 as fmov $Rd, XZR for 64-bit, 32-bit cases, and
+  // 16-bit case when target has full fp16 support.
+  // FIXME: We should be able to handle f128 as well with a clever lowering.
+  const APInt ImmInt = Imm.bitcastToAPInt();
   if (VT == MVT::f64)
-    IsLegal = AArch64_AM::getFP64Imm(Imm) != -1;
+    IsLegal = AArch64_AM::getFP64Imm(ImmInt) != -1 || Imm.isPosZero();
   else if (VT == MVT::f32)
-    IsLegal = AArch64_AM::getFP32Imm(Imm) != -1;
+    IsLegal = AArch64_AM::getFP32Imm(ImmInt) != -1 || Imm.isPosZero();
   else if (VT == MVT::f16 && Subtarget->hasFullFP16())
-    IsLegal = AArch64_AM::getFP16Imm(Imm) != -1;
+    IsLegal = AArch64_AM::getFP16Imm(ImmInt) != -1 || Imm.isPosZero();
+  // TODO: fmov h0, w0 is also legal, however on't have an isel pattern to
+  //       generate that fmov.
 
-  if (IsLegal) {
-    LLVM_DEBUG(dbgs() << "Legal " << VT.getEVTString()
-                      << " imm value: " << ImmStrVal << "\n");
-    return true;
-  }
+  // If we can not materialize in immediate field for fmov, check if the
+  // value can be encoded as the immediate operand of a logical instruction.
+  // The immediate value will be created with either MOVZ, MOVN, or ORR.
+  if (!IsLegal && (VT == MVT::f64 || VT == MVT::f32))
+    IsLegal = AArch64_AM::isAnyMOVWMovAlias(ImmInt.getZExtValue(),
+                                            VT.getSizeInBits());
 
-  LLVM_DEBUG(dbgs() << "Illegal " << VT.getEVTString()
-                    << " imm value: " << ImmStrVal << "\n");
-  return false;
+  LLVM_DEBUG(dbgs() << (IsLegal ? "Legal " : "Illegal ") << VT.getEVTString()
+                    << " imm value: "; Imm.dump(););
+  return IsLegal;
 }
 
 //===----------------------------------------------------------------------===//
@@ -7787,8 +7788,8 @@ SDValue AArch64TargetLowering::LowerVSETCC(SDValue Op,
 
   // Make v4f16 (only) fcmp operations utilise vector instructions
   // v8f16 support will be a litle more complicated
-  if (LHS.getValueType().getVectorElementType() == MVT::f16) {
-    if (!FullFP16 && LHS.getValueType().getVectorNumElements() == 4) {
+  if (!FullFP16 && LHS.getValueType().getVectorElementType() == MVT::f16) {
+    if (LHS.getValueType().getVectorNumElements() == 4) {
       LHS = DAG.getNode(ISD::FP_EXTEND, dl, MVT::v4f32, LHS);
       RHS = DAG.getNode(ISD::FP_EXTEND, dl, MVT::v4f32, RHS);
       SDValue NewSetcc = DAG.getSetCC(dl, MVT::v4i16, LHS, RHS, CC);
@@ -7798,8 +7799,8 @@ SDValue AArch64TargetLowering::LowerVSETCC(SDValue Op,
       return SDValue();
   }
 
-  assert(LHS.getValueType().getVectorElementType() == MVT::f32 ||
-         LHS.getValueType().getVectorElementType() == MVT::f64);
+  assert((!FullFP16 && LHS.getValueType().getVectorElementType() != MVT::f16) ||
+          LHS.getValueType().getVectorElementType() != MVT::f128);
 
   // Unfortunately, the mapping of LLVM FP CC's onto AArch64 CC's isn't totally
   // clean.  Some of them require two branches to implement.
@@ -8243,6 +8244,110 @@ bool AArch64TargetLowering::isExtFreeImpl(const Instruction *Ext) const {
   return true;
 }
 
+/// Check if both Op1 and Op2 are shufflevector extracts of either the lower
+/// or upper half of the vector elements.
+static bool areExtractShuffleVectors(Value *Op1, Value *Op2) {
+  auto areTypesHalfed = [](Value *FullV, Value *HalfV) {
+    auto *FullVT = cast<VectorType>(FullV->getType());
+    auto *HalfVT = cast<VectorType>(HalfV->getType());
+    return FullVT->getBitWidth() == 2 * HalfVT->getBitWidth();
+  };
+
+  auto extractHalf = [](Value *FullV, Value *HalfV) {
+    auto *FullVT = cast<VectorType>(FullV->getType());
+    auto *HalfVT = cast<VectorType>(HalfV->getType());
+    return FullVT->getNumElements() == 2 * HalfVT->getNumElements();
+  };
+
+  Constant *M1, *M2;
+  Value *S1Op1, *S2Op1;
+  if (!match(Op1, m_ShuffleVector(m_Value(S1Op1), m_Undef(), m_Constant(M1))) ||
+      !match(Op2, m_ShuffleVector(m_Value(S2Op1), m_Undef(), m_Constant(M2))))
+    return false;
+
+  // Check that the operands are half as wide as the result and we extract
+  // half of the elements of the input vectors.
+  if (!areTypesHalfed(S1Op1, Op1) || !areTypesHalfed(S2Op1, Op2) ||
+      !extractHalf(S1Op1, Op1) || !extractHalf(S2Op1, Op2))
+    return false;
+
+  // Check the mask extracts either the lower or upper half of vector
+  // elements.
+  int M1Start = -1;
+  int M2Start = -1;
+  int NumElements = cast<VectorType>(Op1->getType())->getNumElements() * 2;
+  if (!ShuffleVectorInst::isExtractSubvectorMask(M1, NumElements, M1Start) ||
+      !ShuffleVectorInst::isExtractSubvectorMask(M2, NumElements, M2Start) ||
+      M1Start != M2Start || (M1Start != 0 && M2Start != (NumElements / 2)))
+    return false;
+
+  return true;
+}
+
+/// Check if Ext1 and Ext2 are extends of the same type, doubling the bitwidth
+/// of the vector elements.
+static bool areExtractExts(Value *Ext1, Value *Ext2) {
+  auto areExtDoubled = [](Instruction *Ext) {
+    return Ext->getType()->getScalarSizeInBits() ==
+           2 * Ext->getOperand(0)->getType()->getScalarSizeInBits();
+  };
+
+  if (!match(Ext1, m_ZExtOrSExt(m_Value())) ||
+      !match(Ext2, m_ZExtOrSExt(m_Value())) ||
+      !areExtDoubled(cast<Instruction>(Ext1)) ||
+      !areExtDoubled(cast<Instruction>(Ext2)))
+    return false;
+
+  return true;
+}
+
+/// Check if sinking \p I's operands to I's basic block is profitable, because
+/// the operands can be folded into a target instruction, e.g.
+/// shufflevectors extracts and/or sext/zext can be folded into (u,s)subl(2).
+bool AArch64TargetLowering::shouldSinkOperands(
+    Instruction *I, SmallVectorImpl<Use *> &Ops) const {
+  if (!I->getType()->isVectorTy())
+    return false;
+
+  if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
+    switch (II->getIntrinsicID()) {
+    case Intrinsic::aarch64_neon_umull:
+      if (!areExtractShuffleVectors(II->getOperand(0), II->getOperand(1)))
+        return false;
+      Ops.push_back(&II->getOperandUse(0));
+      Ops.push_back(&II->getOperandUse(1));
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  switch (I->getOpcode()) {
+  case Instruction::Sub:
+  case Instruction::Add: {
+    if (!areExtractExts(I->getOperand(0), I->getOperand(1)))
+      return false;
+
+    // If the exts' operands extract either the lower or upper elements, we
+    // can sink them too.
+    auto Ext1 = cast<Instruction>(I->getOperand(0));
+    auto Ext2 = cast<Instruction>(I->getOperand(1));
+    if (areExtractShuffleVectors(Ext1, Ext2)) {
+      Ops.push_back(&Ext1->getOperandUse(0));
+      Ops.push_back(&Ext2->getOperandUse(0));
+    }
+
+    Ops.push_back(&I->getOperandUse(0));
+    Ops.push_back(&I->getOperandUse(1));
+
+    return true;
+  }
+  default:
+    return false;
+  }
+  return false;
+}
+
 bool AArch64TargetLowering::hasPairedLoad(EVT LoadedType,
                                           unsigned &RequiredAligment) const {
   if (!LoadedType.isSimple() ||
@@ -8365,8 +8470,9 @@ bool AArch64TargetLowering::lowerInterleavedLoad(
     // If we're generating more than one load, compute the base address of
     // subsequent loads as an offset from the previous.
     if (LoadCount > 0)
-      BaseAddr = Builder.CreateConstGEP1_32(
-          BaseAddr, VecTy->getVectorNumElements() * Factor);
+      BaseAddr =
+          Builder.CreateConstGEP1_32(VecTy->getVectorElementType(), BaseAddr,
+                                     VecTy->getVectorNumElements() * Factor);
 
     CallInst *LdN = Builder.CreateCall(
         LdNFunc, Builder.CreateBitCast(BaseAddr, PtrTy), "ldN");
@@ -8528,7 +8634,8 @@ bool AArch64TargetLowering::lowerInterleavedStore(StoreInst *SI,
     // If we generating more than one store, we compute the base address of
     // subsequent stores as an offset from the previous.
     if (StoreCount > 0)
-      BaseAddr = Builder.CreateConstGEP1_32(BaseAddr, LaneLen * Factor);
+      BaseAddr = Builder.CreateConstGEP1_32(SubVecTy->getVectorElementType(),
+                                            BaseAddr, LaneLen * Factor);
 
     Ops.push_back(Builder.CreateBitCast(BaseAddr, PtrTy));
     Builder.CreateCall(StNFunc, Ops);
@@ -9586,12 +9693,13 @@ static SDValue tryExtendDUPToExtractHigh(SDValue N, SelectionDAG &DAG) {
                      DAG.getConstant(NumElems, dl, MVT::i64));
 }
 
-static bool isEssentiallyExtractSubvector(SDValue N) {
-  if (N.getOpcode() == ISD::EXTRACT_SUBVECTOR)
-    return true;
-
-  return N.getOpcode() == ISD::BITCAST &&
-         N.getOperand(0).getOpcode() == ISD::EXTRACT_SUBVECTOR;
+static bool isEssentiallyExtractHighSubvector(SDValue N) {
+  if (N.getOpcode() == ISD::BITCAST)
+    N = N.getOperand(0);
+  if (N.getOpcode() != ISD::EXTRACT_SUBVECTOR)
+    return false;
+  return cast<ConstantSDNode>(N.getOperand(1))->getAPIntValue() ==
+         N.getOperand(0).getValueType().getVectorNumElements() / 2;
 }
 
 /// Helper structure to keep track of ISD::SET_CC operands.
@@ -9758,13 +9866,13 @@ static SDValue performAddSubLongCombine(SDNode *N,
 
   // It's not worth doing if at least one of the inputs isn't already an
   // extract, but we don't know which it'll be so we have to try both.
-  if (isEssentiallyExtractSubvector(LHS.getOperand(0))) {
+  if (isEssentiallyExtractHighSubvector(LHS.getOperand(0))) {
     RHS = tryExtendDUPToExtractHigh(RHS.getOperand(0), DAG);
     if (!RHS.getNode())
       return SDValue();
 
     RHS = DAG.getNode(ExtType, SDLoc(N), VT, RHS);
-  } else if (isEssentiallyExtractSubvector(RHS.getOperand(0))) {
+  } else if (isEssentiallyExtractHighSubvector(RHS.getOperand(0))) {
     LHS = tryExtendDUPToExtractHigh(LHS.getOperand(0), DAG);
     if (!LHS.getNode())
       return SDValue();
@@ -9797,11 +9905,11 @@ static SDValue tryCombineLongOpWithDup(unsigned IID, SDNode *N,
   // Either node could be a DUP, but it's not worth doing both of them (you'd
   // just as well use the non-high version) so look for a corresponding extract
   // operation on the other "wing".
-  if (isEssentiallyExtractSubvector(LHS)) {
+  if (isEssentiallyExtractHighSubvector(LHS)) {
     RHS = tryExtendDUPToExtractHigh(RHS, DAG);
     if (!RHS.getNode())
       return SDValue();
-  } else if (isEssentiallyExtractSubvector(RHS)) {
+  } else if (isEssentiallyExtractHighSubvector(RHS)) {
     LHS = tryExtendDUPToExtractHigh(LHS, DAG);
     if (!LHS.getNode())
       return SDValue();
@@ -10053,6 +10161,7 @@ static SDValue performExtendCombine(SDNode *N,
 
 static SDValue splitStoreSplat(SelectionDAG &DAG, StoreSDNode &St,
                                SDValue SplatVal, unsigned NumVecElts) {
+  assert(!St.isTruncatingStore() && "cannot split truncating vector store");
   unsigned OrigAlignment = St.getAlignment();
   unsigned EltOffset = SplatVal.getValueType().getSizeInBits() / 8;
 
@@ -10127,6 +10236,11 @@ static SDValue replaceZeroVectorStore(SelectionDAG &DAG, StoreSDNode &St) {
   if (!StVal.hasOneUse())
     return SDValue();
 
+  // If the store is truncating then it's going down to i16 or smaller, which
+  // means it can be implemented in a single store anyway.
+  if (St.isTruncatingStore())
+    return SDValue();
+
   // If the immediate offset of the address operand is too large for the stp
   // instruction, then bail out.
   if (DAG.isBaseWithConstantOffset(St.getBasePtr())) {
@@ -10175,6 +10289,11 @@ static SDValue replaceSplatVectorStore(SelectionDAG &DAG, StoreSDNode &St) {
   // We can express a splat as store pair(s) for 2 or 4 elements.
   unsigned NumVecElts = VT.getVectorNumElements();
   if (NumVecElts != 4 && NumVecElts != 2)
+    return SDValue();
+
+  // If the store is truncating then it's going down to i16 or smaller, which
+  // means it can be implemented in a single store anyway.
+  if (St.isTruncatingStore())
     return SDValue();
 
   // Check that this is a splat.
@@ -11550,6 +11669,9 @@ AArch64TargetLowering::shouldExpandAtomicLoadInIR(LoadInst *LI) const {
 // For the real atomic operations, we have ldxr/stxr up to 128 bits,
 TargetLowering::AtomicExpansionKind
 AArch64TargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
+  if (AI->isFloatingPointOperation())
+    return AtomicExpansionKind::CmpXChg;
+
   unsigned Size = AI->getType()->getPrimitiveSizeInBits();
   if (Size > 128) return AtomicExpansionKind::None;
   // Nand not supported in LSE.
@@ -11604,9 +11726,13 @@ Value *AArch64TargetLowering::emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
       IsAcquire ? Intrinsic::aarch64_ldaxr : Intrinsic::aarch64_ldxr;
   Function *Ldxr = Intrinsic::getDeclaration(M, Int, Tys);
 
-  return Builder.CreateTruncOrBitCast(
-      Builder.CreateCall(Ldxr, Addr),
-      cast<PointerType>(Addr->getType())->getElementType());
+  Type *EltTy = cast<PointerType>(Addr->getType())->getElementType();
+
+  const DataLayout &DL = M->getDataLayout();
+  IntegerType *IntEltTy = Builder.getIntNTy(DL.getTypeSizeInBits(EltTy));
+  Value *Trunc = Builder.CreateTrunc(Builder.CreateCall(Ldxr, Addr), IntEltTy);
+
+  return Builder.CreateBitCast(Trunc, EltTy);
 }
 
 void AArch64TargetLowering::emitAtomicCmpXchgNoStoreLLBalance(
@@ -11641,6 +11767,10 @@ Value *AArch64TargetLowering::emitStoreConditional(IRBuilder<> &Builder,
   Type *Tys[] = { Addr->getType() };
   Function *Stxr = Intrinsic::getDeclaration(M, Int, Tys);
 
+  const DataLayout &DL = M->getDataLayout();
+  IntegerType *IntValTy = Builder.getIntNTy(DL.getTypeSizeInBits(Val->getType()));
+  Val = Builder.CreateBitCast(Val, IntValTy);
+
   return Builder.CreateCall(Stxr,
                             {Builder.CreateZExtOrBitCast(
                                  Val, Stxr->getFunctionType()->getParamType(0)),
@@ -11662,8 +11792,9 @@ static Value *UseTlsOffset(IRBuilder<> &IRB, unsigned Offset) {
   Function *ThreadPointerFunc =
       Intrinsic::getDeclaration(M, Intrinsic::thread_pointer);
   return IRB.CreatePointerCast(
-      IRB.CreateConstGEP1_32(IRB.CreateCall(ThreadPointerFunc), Offset),
-      Type::getInt8PtrTy(IRB.getContext())->getPointerTo(0));
+      IRB.CreateConstGEP1_32(IRB.getInt8Ty(), IRB.CreateCall(ThreadPointerFunc),
+                             Offset),
+      IRB.getInt8PtrTy()->getPointerTo(0));
 }
 
 Value *AArch64TargetLowering::getIRStackGuard(IRBuilder<> &IRB) const {
@@ -11689,12 +11820,13 @@ void AArch64TargetLowering::insertSSPDeclarations(Module &M) const {
                         Type::getInt8PtrTy(M.getContext()));
 
     // MSVC CRT has a function to validate security cookie.
-    auto *SecurityCheckCookie = cast<Function>(
-        M.getOrInsertFunction("__security_check_cookie",
-                              Type::getVoidTy(M.getContext()),
-                              Type::getInt8PtrTy(M.getContext())));
-    SecurityCheckCookie->setCallingConv(CallingConv::Win64);
-    SecurityCheckCookie->addAttribute(1, Attribute::AttrKind::InReg);
+    FunctionCallee SecurityCheckCookie = M.getOrInsertFunction(
+        "__security_check_cookie", Type::getVoidTy(M.getContext()),
+        Type::getInt8PtrTy(M.getContext()));
+    if (Function *F = dyn_cast<Function>(SecurityCheckCookie.getCallee())) {
+      F->setCallingConv(CallingConv::Win64);
+      F->addAttribute(1, Attribute::AttrKind::InReg);
+    }
     return;
   }
   TargetLowering::insertSSPDeclarations(M);
@@ -11707,7 +11839,7 @@ Value *AArch64TargetLowering::getSDagStackGuard(const Module &M) const {
   return TargetLowering::getSDagStackGuard(M);
 }
 
-Value *AArch64TargetLowering::getSSPStackGuardCheck(const Module &M) const {
+Function *AArch64TargetLowering::getSSPStackGuardCheck(const Module &M) const {
   // MSVC CRT has a function to validate security cookie.
   if (Subtarget->getTargetTriple().isWindowsMSVCEnvironment())
     return M.getFunction("__security_check_cookie");

@@ -1,9 +1,8 @@
 //===-- IntelJITEventListener.cpp - Tell Intel profiler about JITed code --===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -148,7 +147,9 @@ void IntelJITEventListener::notifyObjectLoaded(
     // Build the function loaded notification message
     iJIT_Method_Load FunctionMessage =
       FunctionDescToIntelJITFormat(*Wrapper, Name->data(), Addr, Size);
-    DILineInfoTable Lines = Context->getLineInfoForAddressRange(Addr, Size);
+    // TODO: it is neccessary to set proper SectionIndex here.
+    // object::SectionedAddress::UndefSection works for only absolute addresses.
+    DILineInfoTable Lines = Context->getLineInfoForAddressRange({Addr, object::SectionedAddress::UndefSection}, Size);
     DILineInfoTable::iterator Begin = Lines.begin();
     DILineInfoTable::iterator End = Lines.end();
     for (DILineInfoTable::iterator It = Begin; It != End; ++It) {

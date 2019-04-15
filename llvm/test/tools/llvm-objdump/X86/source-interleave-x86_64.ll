@@ -1,8 +1,16 @@
 ;  REQUIRES: shell
 ;  RUN: sed -e "s,SRC_COMPDIR,%p/Inputs,g" %s > %t.ll
 ;  RUN: llc  -o %t.o -filetype=obj -mtriple=x86_64-pc-linux  %t.ll
-;  RUN: llvm-objdump -d -l %t.o | FileCheck --check-prefix="LINES" %t.ll
-;  RUN: llvm-objdump -d -S %t.o | FileCheck --check-prefix="SOURCE" %t.ll
+;  RUN: llvm-objdump -d -l %t.o >%t0
+;  RUN: llvm-objdump -dl %t.o >%t1
+;  RUN: llvm-objdump -d -S %t.o >%t2
+;  RUN: llvm-objdump -dS %t.o >%t3
+;  RUN: cmp %t0 %t1
+;  RUN: cmp %t2 %t3
+;  RUN: FileCheck --input-file %t0 --check-prefix="LINES" %t.ll
+;  RUN: FileCheck --input-file %t1 --check-prefix="LINES" %t.ll
+;  RUN: FileCheck --input-file %t2 --check-prefix="SOURCE" %t.ll
+;  RUN: FileCheck --input-file %t3 --check-prefix="SOURCE" %t.ll
 ; ModuleID = 'source-interleave-x86_64.bc'
 source_filename = "source-interleave-x86_64.c"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -42,7 +50,7 @@ attributes #1 = { nounwind readnone }
 !llvm.module.flags = !{!6, !7}
 !llvm.ident = !{!8}
 
-!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 4.0.0 (http://llvm.org/git/clang d19a95e94dc57c5a72fd25d64f26134aa7d25fa0) (http://llvm.org/git/llvm.git 313924e6ff8a332063f61d3fda03812c220762f6)", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, globals: !3)
+!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 4.0.0", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, globals: !3)
 !1 = !DIFile(filename: "source-interleave-x86_64.c", directory: "SRC_COMPDIR")
 !2 = !{}
 !3 = !{!4}
@@ -50,7 +58,7 @@ attributes #1 = { nounwind readnone }
 !5 = !DIBasicType(name: "int", size: 32, align: 32, encoding: DW_ATE_signed)
 !6 = !{i32 2, !"Dwarf Version", i32 4}
 !7 = !{i32 2, !"Debug Info Version", i32 3}
-!8 = !{!"clang version 4.0.0 (http://llvm.org/git/clang d19a95e94dc57c5a72fd25d64f26134aa7d25fa0) (http://llvm.org/git/llvm.git 313924e6ff8a332063f61d3fda03812c220762f6)"}
+!8 = !{!"clang version 4.0.0"}
 !9 = distinct !DISubprogram(name: "foo", scope: !1, file: !1, line: 2, type: !10, isLocal: false, isDefinition: true, scopeLine: 2, isOptimized: false, unit: !0, retainedNodes: !2)
 !10 = !DISubroutineType(types: !11)
 !11 = !{!5}

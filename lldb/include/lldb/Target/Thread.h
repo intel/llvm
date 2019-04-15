@@ -1,9 +1,8 @@
 //===-- Thread.h ------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -1348,7 +1347,7 @@ protected:
                                             ///thread plan logic for the current
                                             ///resume.
   /// It gets set in Thread::ShouldResume.
-  std::unique_ptr<lldb_private::Unwind> m_unwinder_ap;
+  std::unique_ptr<lldb_private::Unwind> m_unwinder_up;
   bool m_destroy_called; // This is used internally to make sure derived Thread
                          // classes call DestroyThread.
   LazyBool m_override_should_notify;

@@ -1,13 +1,10 @@
 //===-- RenderScriptRuntime.cpp ---------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#include "llvm/ADT/StringSwitch.h"
 
 #include "RenderScriptRuntime.h"
 #include "RenderScriptScriptGroup.h"
@@ -40,6 +37,10 @@
 #include "lldb/Utility/RegisterValue.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Status.h"
+
+#include "llvm/ADT/StringSwitch.h"
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -1212,7 +1213,7 @@ void RenderScriptRuntime::CaptureDebugHintScriptGroup2(
       }
     }
     if (!group) {
-      group.reset(new RSScriptGroupDescriptor);
+      group = std::make_shared<RSScriptGroupDescriptor>();
       group->m_name = group_name;
       m_scriptGroups.push_back(group);
     } else {
@@ -1501,9 +1502,9 @@ void RenderScriptRuntime::CaptureAllocationDestroy(RuntimeHook *hook,
                 uint64_t(args[eRsContext]), uint64_t(args[eRsAlloc]));
 
   for (auto iter = m_allocations.begin(); iter != m_allocations.end(); ++iter) {
-    auto &allocation_ap = *iter; // get the unique pointer
-    if (allocation_ap->address.isValid() &&
-        *allocation_ap->address.get() == addr_t(args[eRsAlloc])) {
+    auto &allocation_up = *iter; // get the unique pointer
+    if (allocation_up->address.isValid() &&
+        *allocation_up->address.get() == addr_t(args[eRsAlloc])) {
       m_allocations.erase(iter);
       if (log)
         log->Printf("%s - deleted allocation entry.", __FUNCTION__);
@@ -2855,7 +2856,7 @@ bool RenderScriptRuntime::LoadModule(const lldb::ModuleSP &module_sp) {
     switch (GetModuleKind(module_sp)) {
     case eModuleKindKernelObj: {
       RSModuleDescriptorSP module_desc;
-      module_desc.reset(new RSModuleDescriptor(module_sp));
+      module_desc = std::make_shared<RSModuleDescriptor>(module_sp);
       if (module_desc->ParseRSInfo()) {
         m_rsmodules.push_back(module_desc);
         module_desc->WarnIfVersionMismatch(GetProcess()

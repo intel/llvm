@@ -1,9 +1,8 @@
 //===-- FileSpec.cpp --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -366,6 +365,17 @@ bool FileSpec::Equal(const FileSpec &a, const FileSpec &b, bool full) {
   return a == b;
 }
 
+llvm::Optional<FileSpec::Style> FileSpec::GuessPathStyle(llvm::StringRef absolute_path) {
+  if (absolute_path.startswith("/"))
+    return Style::posix;
+  if (absolute_path.startswith(R"(\\)"))
+    return Style::windows;
+  if (absolute_path.size() > 3 && llvm::isAlpha(absolute_path[0]) &&
+      absolute_path.substr(1, 2) == R"(:\)")
+    return Style::windows;
+  return llvm::None;
+}
+
 //------------------------------------------------------------------
 // Dump the object to the supplied stream. If the object contains a valid
 // directory name, it will be displayed followed by a directory delimiter, and
@@ -555,6 +565,11 @@ bool FileSpec::IsAbsolute() const {
     return true;
 
   return llvm::sys::path::is_absolute(current_path, m_style);
+}
+
+void FileSpec::MakeAbsolute(const FileSpec &dir) {
+  if (IsRelative())
+    PrependPathComponent(dir);
 }
 
 void llvm::format_provider<FileSpec>::format(const FileSpec &F,

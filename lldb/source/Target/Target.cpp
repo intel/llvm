@@ -1,9 +1,8 @@
 //===-- Target.cpp ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -58,6 +57,8 @@
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Timer.h"
+
+#include <memory>
 #include <mutex>
 
 using namespace lldb;
@@ -90,7 +91,7 @@ Target::Target(Debugger &debugger, const ArchSpec &target_arch,
       m_breakpoint_list(false), m_internal_breakpoint_list(true),
       m_watchpoint_list(), m_process_sp(), m_search_filter_sp(),
       m_image_search_paths(ImageSearchPathsChanged, this), m_ast_importer_sp(),
-      m_source_manager_ap(), m_stop_hooks(), m_stop_hook_next_id(0),
+      m_source_manager_up(), m_stop_hooks(), m_stop_hook_next_id(0),
       m_valid(true), m_suppress_stop_hooks(false),
       m_is_dummy_target(is_dummy_target),
       m_stats_storage(static_cast<int>(StatisticKind::StatisticMax))
@@ -194,6 +195,8 @@ void Target::DeleteCurrentProcess() {
 const lldb::ProcessSP &Target::CreateProcess(ListenerSP listener_sp,
                                              llvm::StringRef plugin_name,
                                              const FileSpec *crash_file) {
+  if (!listener_sp)
+    listener_sp = GetDebugger().GetListener();
   DeleteCurrentProcess();
   m_process_sp = Process::FindPlugin(shared_from_this(), plugin_name,
                                      listener_sp, crash_file);
@@ -496,12 +499,13 @@ Target::GetSearchFilterForModule(const FileSpec *containingModule) {
   if (containingModule != nullptr) {
     // TODO: We should look into sharing module based search filters
     // across many breakpoints like we do for the simple target based one
-    filter_sp.reset(
-        new SearchFilterByModule(shared_from_this(), *containingModule));
+    filter_sp = std::make_shared<SearchFilterByModule>(shared_from_this(),
+                                                       *containingModule);
   } else {
     if (!m_search_filter_sp)
-      m_search_filter_sp.reset(
-          new SearchFilterForUnconstrainedSearches(shared_from_this()));
+      m_search_filter_sp =
+          std::make_shared<SearchFilterForUnconstrainedSearches>(
+              shared_from_this());
     filter_sp = m_search_filter_sp;
   }
   return filter_sp;
@@ -513,12 +517,13 @@ Target::GetSearchFilterForModuleList(const FileSpecList *containingModules) {
   if (containingModules && containingModules->GetSize() != 0) {
     // TODO: We should look into sharing module based search filters
     // across many breakpoints like we do for the simple target based one
-    filter_sp.reset(
-        new SearchFilterByModuleList(shared_from_this(), *containingModules));
+    filter_sp = std::make_shared<SearchFilterByModuleList>(shared_from_this(),
+                                                           *containingModules);
   } else {
     if (!m_search_filter_sp)
-      m_search_filter_sp.reset(
-          new SearchFilterForUnconstrainedSearches(shared_from_this()));
+      m_search_filter_sp =
+          std::make_shared<SearchFilterForUnconstrainedSearches>(
+              shared_from_this());
     filter_sp = m_search_filter_sp;
   }
   return filter_sp;
@@ -535,11 +540,11 @@ SearchFilterSP Target::GetSearchFilterForModuleAndCUList(
     // We could make a special "CU List only SearchFilter".  Better yet was if
     // these could be composable, but that will take a little reworking.
 
-    filter_sp.reset(new SearchFilterByModuleListAndCU(
-        shared_from_this(), FileSpecList(), *containingSourceFiles));
+    filter_sp = std::make_shared<SearchFilterByModuleListAndCU>(
+        shared_from_this(), FileSpecList(), *containingSourceFiles);
   } else {
-    filter_sp.reset(new SearchFilterByModuleListAndCU(
-        shared_from_this(), *containingModules, *containingSourceFiles));
+    filter_sp = std::make_shared<SearchFilterByModuleListAndCU>(
+        shared_from_this(), *containingModules, *containingSourceFiles);
   }
   return filter_sp;
 }
@@ -603,7 +608,8 @@ Target::CreateScriptedBreakpoint(const llvm::StringRef class_name,
   } else if (has_modules) {
     filter_sp = GetSearchFilterForModuleList(containingModules);
   } else {
-    filter_sp.reset(new SearchFilterForUnconstrainedSearches(shared_from_this()));
+    filter_sp = std::make_shared<SearchFilterForUnconstrainedSearches>(
+        shared_from_this());
   }
   
   StructuredDataImpl *extra_args_impl = new StructuredDataImpl();
@@ -762,7 +768,7 @@ void Target::GetBreakpointNames(std::vector<std::string> &names)
   for (auto bp_name : m_breakpoint_names) {
     names.push_back(bp_name.first.AsCString());
   }
-  std::sort(names.begin(), names.end());
+  llvm::sort(names.begin(), names.end());
 }
 
 bool Target::ProcessIsValid() {
@@ -846,7 +852,7 @@ WatchpointSP Target::CreateWatchpoint(lldb::addr_t addr, size_t size,
   }
 
   if (!wp_sp) {
-    wp_sp.reset(new Watchpoint(*this, addr, size, type));
+    wp_sp = std::make_shared<Watchpoint>(*this, addr, size, type);
     wp_sp->SetWatchpointType(kind, notify);
     m_watchpoint_list.Add(wp_sp, true);
   }
@@ -1023,7 +1029,7 @@ Status Target::SerializeBreakpointsToFile(const FileSpec &file,
   }
 
   if (!break_store_ptr) {
-    break_store_sp.reset(new StructuredData::Array());
+    break_store_sp = std::make_shared<StructuredData::Array>();
     break_store_ptr = break_store_sp.get();
   }
 
@@ -2198,7 +2204,8 @@ Target::GetPersistentExpressionStateForLanguage(lldb::LanguageType language) {
 UserExpression *Target::GetUserExpressionForLanguage(
     llvm::StringRef expr, llvm::StringRef prefix, lldb::LanguageType language,
     Expression::ResultType desired_type,
-    const EvaluateExpressionOptions &options, Status &error) {
+    const EvaluateExpressionOptions &options,
+    ValueObject *ctx_obj, Status &error) {
   Status type_system_error;
 
   TypeSystem *type_system =
@@ -2214,7 +2221,7 @@ UserExpression *Target::GetUserExpressionForLanguage(
   }
 
   user_expr = type_system->GetUserExpression(expr, prefix, language,
-                                             desired_type, options);
+                                             desired_type, options, ctx_obj);
   if (!user_expr)
     error.SetErrorStringWithFormat(
         "Could not create an expression for language %s",
@@ -2288,7 +2295,7 @@ ClangASTContext *Target::GetScratchClangASTContext(bool create_on_demand) {
 ClangASTImporterSP Target::GetClangASTImporter() {
   if (m_valid) {
     if (!m_ast_importer_sp) {
-      m_ast_importer_sp.reset(new ClangASTImporter());
+      m_ast_importer_sp = std::make_shared<ClangASTImporter>();
     }
     return m_ast_importer_sp;
   }
@@ -2355,7 +2362,8 @@ Target *Target::GetTargetFromContexts(const ExecutionContext *exe_ctx_ptr,
 ExpressionResults Target::EvaluateExpression(
     llvm::StringRef expr, ExecutionContextScope *exe_scope,
     lldb::ValueObjectSP &result_valobj_sp,
-    const EvaluateExpressionOptions &options, std::string *fixed_expression) {
+    const EvaluateExpressionOptions &options, std::string *fixed_expression,
+    ValueObject *ctx_obj) {
   result_valobj_sp.reset();
 
   ExpressionResults execution_results = eExpressionSetupError;
@@ -2393,10 +2401,11 @@ ExpressionResults Target::EvaluateExpression(
   } else {
     llvm::StringRef prefix = GetExpressionPrefixContents();
     Status error;
-    execution_results = UserExpression::Evaluate(exe_ctx, options, expr, prefix,
-                                                 result_valobj_sp, error,
-                                                 0, // Line Number
-                                                 fixed_expression);
+    execution_results =
+        UserExpression::Evaluate(exe_ctx, options, expr, prefix,
+                                 result_valobj_sp, error, fixed_expression,
+                                 nullptr, // Module
+                                 ctx_obj);
   }
 
   m_suppress_stop_hooks = old_suppress_value;
@@ -2458,9 +2467,9 @@ lldb::addr_t Target::GetBreakableLoadAddress(lldb::addr_t addr) {
 }
 
 SourceManager &Target::GetSourceManager() {
-  if (!m_source_manager_ap)
-    m_source_manager_ap.reset(new SourceManager(shared_from_this()));
-  return *m_source_manager_ap;
+  if (!m_source_manager_up)
+    m_source_manager_up.reset(new SourceManager(shared_from_this()));
+  return *m_source_manager_up;
 }
 
 ClangModulesDeclVendor *Target::GetClangModulesDeclVendor() {
@@ -2471,13 +2480,13 @@ ClangModulesDeclVendor *Target::GetClangModulesDeclVendor() {
   {
     std::lock_guard<std::mutex> guard(s_clang_modules_decl_vendor_mutex);
 
-    if (!m_clang_modules_decl_vendor_ap) {
-      m_clang_modules_decl_vendor_ap.reset(
+    if (!m_clang_modules_decl_vendor_up) {
+      m_clang_modules_decl_vendor_up.reset(
           ClangModulesDeclVendor::Create(*this));
     }
   }
 
-  return m_clang_modules_decl_vendor_ap.get();
+  return m_clang_modules_decl_vendor_up.get();
 }
 
 Target::StopHookSP Target::CreateStopHook() {
@@ -2544,12 +2553,14 @@ void Target::RunStopHooks() {
 
   StopHookCollection::iterator pos, end = m_stop_hooks.end();
 
-  // If there aren't any active stop hooks, don't bother either:
+  // If there aren't any active stop hooks, don't bother either.
+  // Also see if any of the active hooks want to auto-continue.
   bool any_active_hooks = false;
-  for (pos = m_stop_hooks.begin(); pos != end; pos++) {
-    if ((*pos).second->IsActive()) {
+  bool auto_continue = false;
+  for (auto hook : m_stop_hooks) {
+    if (hook.second->IsActive()) {
       any_active_hooks = true;
-      break;
+      auto_continue |= hook.second->GetAutoContinue();
     }
   }
   if (!any_active_hooks)
@@ -2585,6 +2596,7 @@ void Target::RunStopHooks() {
   bool hooks_ran = false;
   bool print_hook_header = (m_stop_hooks.size() != 1);
   bool print_thread_header = (num_exe_ctx != 1);
+  bool did_restart = false;
 
   for (pos = m_stop_hooks.begin(); keep_going && pos != end; pos++) {
     // result.Clear();
@@ -2629,10 +2641,13 @@ void Target::RunStopHooks() {
         options.SetPrintResults(true);
         options.SetAddToHistory(false);
 
+        // Force Async:
+        bool old_async = GetDebugger().GetAsyncExecution();
+        GetDebugger().SetAsyncExecution(true);
         GetDebugger().GetCommandInterpreter().HandleCommands(
             cur_hook_sp->GetCommands(), &exc_ctx_with_reasons[i], options,
             result);
-
+        GetDebugger().SetAsyncExecution(old_async);
         // If the command started the target going again, we should bag out of
         // running the stop hooks.
         if ((result.GetStatus() == eReturnStatusSuccessContinuingNoResult) ||
@@ -2641,13 +2656,19 @@ void Target::RunStopHooks() {
           StopHookCollection::iterator tmp = pos;
           if (++tmp != end)
             result.AppendMessageWithFormat("\nAborting stop hooks, hook %" PRIu64
-                                           " set the program running.\n",
+                                           " set the program running.\n"
+                                           "  Consider using '-G true' to make "
+                                           "stop hooks auto-continue.\n",
                                            cur_hook_sp->GetID());
           keep_going = false;
+          did_restart = true;
         }
       }
     }
   }
+  // Finally, if auto-continue was requested, do it now:
+  if (!did_restart && auto_continue)
+    m_process_sp->PrivateResume();
 
   result.GetImmediateOutputStream()->Flush();
   result.GetImmediateErrorStream()->Flush();
@@ -2832,18 +2853,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
 
   PlatformSP platform_sp(GetPlatform());
 
-  // Finalize the file actions, and if none were given, default to opening up a
-  // pseudo terminal
-  const bool default_to_use_pty = platform_sp ? platform_sp->IsHost() : false;
-  if (log)
-    log->Printf("Target::%s have platform=%s, platform_sp->IsHost()=%s, "
-                "default_to_use_pty=%s",
-                __FUNCTION__, platform_sp ? "true" : "false",
-                platform_sp ? (platform_sp->IsHost() ? "true" : "false")
-                            : "n/a",
-                default_to_use_pty ? "true" : "false");
-
-  launch_info.FinalizeFileActions(this, default_to_use_pty);
+  FinalizeFileActions(launch_info);
 
   if (state == eStateConnected) {
     if (launch_info.GetFlags().Test(eLaunchFlagLaunchInTTY)) {
@@ -2884,8 +2894,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
     } else {
       // Use a Process plugin to construct the process.
       const char *plugin_name = launch_info.GetProcessPluginName();
-      CreateProcess(launch_info.GetListenerForProcess(debugger), plugin_name,
-                    nullptr);
+      CreateProcess(launch_info.GetListener(), plugin_name, nullptr);
     }
 
     // Since we didn't have a platform launch the process, launch it here.
@@ -2916,17 +2925,11 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
       if (state == eStateStopped) {
         if (!launch_info.GetFlags().Test(eLaunchFlagStopAtEntry)) {
           if (synchronous_execution) {
-            error = m_process_sp->PrivateResume();
-            if (error.Success()) {
-              state = m_process_sp->WaitForProcessToStop(
-                  llvm::None, nullptr, true, hijack_listener_sp, stream);
-              const bool must_be_alive =
-                  false; // eStateExited is ok, so this must be false
-              if (!StateIsStoppedState(state, must_be_alive)) {
-                error.SetErrorStringWithFormat("process isn't stopped: %s",
-                                               StateAsCString(state));
-              }
-            }
+            // Now we have handled the stop-from-attach, and we are just switching
+            // to a synchronous resume.  So we should switch to the SyncResume
+            // hijacker.
+            m_process_sp->RestoreProcessEvents();
+            m_process_sp->ResumeSynchronous(stream);
           } else {
             m_process_sp->RestoreProcessEvents();
             error = m_process_sp->PrivateResume();
@@ -3060,19 +3063,100 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
   return error;
 }
 
+void Target::FinalizeFileActions(ProcessLaunchInfo &info) {
+  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS));
+
+  // Finalize the file actions, and if none were given, default to opening up a
+  // pseudo terminal
+  PlatformSP platform_sp = GetPlatform();
+  const bool default_to_use_pty =
+      m_platform_sp ? m_platform_sp->IsHost() : false;
+  LLDB_LOG(
+      log,
+      "have platform={0}, platform_sp->IsHost()={1}, default_to_use_pty={2}",
+      bool(platform_sp),
+      platform_sp ? (platform_sp->IsHost() ? "true" : "false") : "n/a",
+      default_to_use_pty);
+
+  // If nothing for stdin or stdout or stderr was specified, then check the
+  // process for any default settings that were set with "settings set"
+  if (info.GetFileActionForFD(STDIN_FILENO) == nullptr ||
+      info.GetFileActionForFD(STDOUT_FILENO) == nullptr ||
+      info.GetFileActionForFD(STDERR_FILENO) == nullptr) {
+    LLDB_LOG(log, "at least one of stdin/stdout/stderr was not set, evaluating "
+                  "default handling");
+
+    if (info.GetFlags().Test(eLaunchFlagLaunchInTTY)) {
+      // Do nothing, if we are launching in a remote terminal no file actions
+      // should be done at all.
+      return;
+    }
+
+    if (info.GetFlags().Test(eLaunchFlagDisableSTDIO)) {
+      LLDB_LOG(log, "eLaunchFlagDisableSTDIO set, adding suppression action "
+                    "for stdin, stdout and stderr");
+      info.AppendSuppressFileAction(STDIN_FILENO, true, false);
+      info.AppendSuppressFileAction(STDOUT_FILENO, false, true);
+      info.AppendSuppressFileAction(STDERR_FILENO, false, true);
+    } else {
+      // Check for any values that might have gotten set with any of: (lldb)
+      // settings set target.input-path (lldb) settings set target.output-path
+      // (lldb) settings set target.error-path
+      FileSpec in_file_spec;
+      FileSpec out_file_spec;
+      FileSpec err_file_spec;
+      // Only override with the target settings if we don't already have an
+      // action for in, out or error
+      if (info.GetFileActionForFD(STDIN_FILENO) == nullptr)
+        in_file_spec = GetStandardInputPath();
+      if (info.GetFileActionForFD(STDOUT_FILENO) == nullptr)
+        out_file_spec = GetStandardOutputPath();
+      if (info.GetFileActionForFD(STDERR_FILENO) == nullptr)
+        err_file_spec = GetStandardErrorPath();
+
+      LLDB_LOG(log, "target stdin='{0}', target stdout='{1}', stderr='{1}'",
+               in_file_spec, out_file_spec, err_file_spec);
+
+      if (in_file_spec) {
+        info.AppendOpenFileAction(STDIN_FILENO, in_file_spec, true, false);
+        LLDB_LOG(log, "appended stdin open file action for {0}", in_file_spec);
+      }
+
+      if (out_file_spec) {
+        info.AppendOpenFileAction(STDOUT_FILENO, out_file_spec, false, true);
+        LLDB_LOG(log, "appended stdout open file action for {0}",
+                 out_file_spec);
+      }
+
+      if (err_file_spec) {
+        info.AppendOpenFileAction(STDERR_FILENO, err_file_spec, false, true);
+        LLDB_LOG(log, "appended stderr open file action for {0}",
+                 err_file_spec);
+      }
+
+      if (default_to_use_pty &&
+          (!in_file_spec || !out_file_spec || !err_file_spec)) {
+        llvm::Error Err = info.SetUpPtyRedirection();
+        LLDB_LOG_ERROR(log, std::move(Err), "SetUpPtyRedirection failed: {0}");
+      }
+    }
+  }
+}
+
 //--------------------------------------------------------------
 // Target::StopHook
 //--------------------------------------------------------------
 Target::StopHook::StopHook(lldb::TargetSP target_sp, lldb::user_id_t uid)
     : UserID(uid), m_target_sp(target_sp), m_commands(), m_specifier_sp(),
-      m_thread_spec_ap(), m_active(true) {}
+      m_thread_spec_up() {}
 
 Target::StopHook::StopHook(const StopHook &rhs)
     : UserID(rhs.GetID()), m_target_sp(rhs.m_target_sp),
       m_commands(rhs.m_commands), m_specifier_sp(rhs.m_specifier_sp),
-      m_thread_spec_ap(), m_active(rhs.m_active) {
-  if (rhs.m_thread_spec_ap)
-    m_thread_spec_ap.reset(new ThreadSpec(*rhs.m_thread_spec_ap.get()));
+      m_thread_spec_up(), m_active(rhs.m_active),
+      m_auto_continue(rhs.m_auto_continue) {
+  if (rhs.m_thread_spec_up)
+    m_thread_spec_up.reset(new ThreadSpec(*rhs.m_thread_spec_up));
 }
 
 Target::StopHook::~StopHook() = default;
@@ -3082,7 +3166,7 @@ void Target::StopHook::SetSpecifier(SymbolContextSpecifier *specifier) {
 }
 
 void Target::StopHook::SetThreadSpecifier(ThreadSpec *specifier) {
-  m_thread_spec_ap.reset(specifier);
+  m_thread_spec_up.reset(specifier);
 }
 
 void Target::StopHook::GetDescription(Stream *s,
@@ -3097,6 +3181,9 @@ void Target::StopHook::GetDescription(Stream *s,
   else
     s->Indent("State: disabled\n");
 
+  if (m_auto_continue)
+    s->Indent("AutoContinue on\n");
+
   if (m_specifier_sp) {
     s->Indent();
     s->PutCString("Specifier:\n");
@@ -3105,10 +3192,10 @@ void Target::StopHook::GetDescription(Stream *s,
     s->SetIndentLevel(indent_level + 2);
   }
 
-  if (m_thread_spec_ap) {
+  if (m_thread_spec_up) {
     StreamString tmp;
     s->Indent("Thread:\n");
-    m_thread_spec_ap->GetDescription(&tmp, level);
+    m_thread_spec_up->GetDescription(&tmp, level);
     s->SetIndentLevel(indent_level + 4);
     s->Indent(tmp.GetString());
     s->PutCString("\n");
@@ -3232,7 +3319,8 @@ static constexpr PropertyDefinition g_properties[] = {
          "whose paths don't match the local file system."},
     {"debug-file-search-paths", OptionValue::eTypeFileSpecList, false, 0,
      nullptr, {},
-     "List of directories to be searched when locating debug symbol files."},
+     "List of directories to be searched when locating debug symbol files. "
+     "See also symbols.enable-external-lookup."},
     {"clang-module-search-paths", OptionValue::eTypeFileSpecList, false, 0,
      nullptr, {},
      "List of directories to be searched when locating modules for Clang."},
@@ -3517,8 +3605,8 @@ TargetExperimentalProperties::TargetExperimentalProperties()
 TargetProperties::TargetProperties(Target *target)
     : Properties(), m_launch_info() {
   if (target) {
-    m_collection_sp.reset(
-        new TargetOptionValueProperties(target, Target::GetGlobalProperties()));
+    m_collection_sp = std::make_shared<TargetOptionValueProperties>(
+        target, Target::GetGlobalProperties());
 
     // Set callbacks to update launch_info whenever "settins set" updated any
     // of these properties
@@ -3566,8 +3654,8 @@ TargetProperties::TargetProperties(Target *target)
     DisableASLRValueChangedCallback(this, nullptr);
     DisableSTDIOValueChangedCallback(this, nullptr);
   } else {
-    m_collection_sp.reset(
-        new TargetOptionValueProperties(ConstString("target")));
+    m_collection_sp =
+        std::make_shared<TargetOptionValueProperties>(ConstString("target"));
     m_collection_sp->Initialize(g_properties);
     m_experimental_properties_up.reset(new TargetExperimentalProperties());
     m_collection_sp->AppendProperty(

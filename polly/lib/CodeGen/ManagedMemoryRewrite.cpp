@@ -1,9 +1,8 @@
 //===---- ManagedMemoryRewrite.cpp - Rewrite global & malloc'd memory -----===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -311,7 +310,8 @@ static void rewriteAllocaAsManagedMemory(AllocaInst *Alloca,
   PollyIRBuilder Builder(M->getContext());
   Builder.SetInsertPoint(Alloca);
 
-  Value *MallocManagedFn = getOrCreatePollyMallocManaged(*Alloca->getModule());
+  Function *MallocManagedFn =
+      getOrCreatePollyMallocManaged(*Alloca->getModule());
   const uint64_t Size =
       DL.getTypeAllocSize(Alloca->getType()->getElementType());
   Value *SizeVal = Builder.getInt64(Size);
@@ -331,7 +331,7 @@ static void rewriteAllocaAsManagedMemory(AllocaInst *Alloca,
       continue;
     Builder.SetInsertPoint(Return);
 
-    Value *FreeManagedFn = getOrCreatePollyFreeManaged(*M);
+    Function *FreeManagedFn = getOrCreatePollyFreeManaged(*M);
     Builder.CreateCall(FreeManagedFn, {RawManagedMem});
   }
 }

@@ -1,9 +1,8 @@
 //===-- CompileUnit.cpp -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,7 +22,7 @@ CompileUnit::CompileUnit(const lldb::ModuleSP &module_sp, void *user_data,
                          lldb_private::LazyBool is_optimized)
     : ModuleChild(module_sp), FileSpec(pathname), UserID(cu_sym_id),
       m_user_data(user_data), m_language(language), m_flags(0),
-      m_support_files(), m_line_table_ap(), m_variables(),
+      m_support_files(), m_line_table_up(), m_variables(),
       m_is_optimized(is_optimized) {
   if (language != eLanguageTypeUnknown)
     m_flags.Set(flagsParsedLanguage);
@@ -36,7 +35,7 @@ CompileUnit::CompileUnit(const lldb::ModuleSP &module_sp, void *user_data,
                          lldb_private::LazyBool is_optimized)
     : ModuleChild(module_sp), FileSpec(fspec), UserID(cu_sym_id),
       m_user_data(user_data), m_language(language), m_flags(0),
-      m_support_files(), m_line_table_ap(), m_variables(),
+      m_support_files(), m_line_table_up(), m_variables(),
       m_is_optimized(is_optimized) {
   if (language != eLanguageTypeUnknown)
     m_flags.Set(flagsParsedLanguage);
@@ -72,10 +71,10 @@ void CompileUnit::ForeachFunction(
   sorted_functions.reserve(m_functions_by_uid.size());
   for (auto &p : m_functions_by_uid)
     sorted_functions.push_back(p.second);
-  std::sort(sorted_functions.begin(), sorted_functions.end(),
-            [](const lldb::FunctionSP &a, const lldb::FunctionSP &b) {
-              return a->GetID() < b->GetID();
-            });
+  llvm::sort(sorted_functions.begin(), sorted_functions.end(),
+             [](const lldb::FunctionSP &a, const lldb::FunctionSP &b) {
+               return a->GetID() < b->GetID();
+             });
 
   for (auto &f : sorted_functions)
     if (lambda(f))
@@ -182,9 +181,7 @@ lldb::LanguageType CompileUnit::GetLanguage() {
       m_flags.Set(flagsParsedLanguage);
       SymbolVendor *symbol_vendor = GetModule()->GetSymbolVendor();
       if (symbol_vendor) {
-        SymbolContext sc;
-        CalculateSymbolContext(&sc);
-        m_language = symbol_vendor->ParseCompileUnitLanguage(sc);
+        m_language = symbol_vendor->ParseLanguage(*this);
       }
     }
   }
@@ -192,18 +189,15 @@ lldb::LanguageType CompileUnit::GetLanguage() {
 }
 
 LineTable *CompileUnit::GetLineTable() {
-  if (m_line_table_ap.get() == nullptr) {
+  if (m_line_table_up == nullptr) {
     if (m_flags.IsClear(flagsParsedLineTable)) {
       m_flags.Set(flagsParsedLineTable);
       SymbolVendor *symbol_vendor = GetModule()->GetSymbolVendor();
-      if (symbol_vendor) {
-        SymbolContext sc;
-        CalculateSymbolContext(&sc);
-        symbol_vendor->ParseCompileUnitLineTable(sc);
-      }
+      if (symbol_vendor)
+        symbol_vendor->ParseLineTable(*this);
     }
   }
-  return m_line_table_ap.get();
+  return m_line_table_up.get();
 }
 
 void CompileUnit::SetLineTable(LineTable *line_table) {
@@ -211,7 +205,7 @@ void CompileUnit::SetLineTable(LineTable *line_table) {
     m_flags.Clear(flagsParsedLineTable);
   else
     m_flags.Set(flagsParsedLineTable);
-  m_line_table_ap.reset(line_table);
+  m_line_table_up.reset(line_table);
 }
 
 DebugMacros *CompileUnit::GetDebugMacros() {
@@ -220,9 +214,7 @@ DebugMacros *CompileUnit::GetDebugMacros() {
       m_flags.Set(flagsParsedDebugMacros);
       SymbolVendor *symbol_vendor = GetModule()->GetSymbolVendor();
       if (symbol_vendor) {
-        SymbolContext sc;
-        CalculateSymbolContext(&sc);
-        symbol_vendor->ParseCompileUnitDebugMacros(sc);
+        symbol_vendor->ParseDebugMacros(*this);
       }
     }
   }
@@ -387,9 +379,7 @@ bool CompileUnit::GetIsOptimized() {
   if (m_is_optimized == eLazyBoolCalculate) {
     m_is_optimized = eLazyBoolNo;
     if (SymbolVendor *symbol_vendor = GetModule()->GetSymbolVendor()) {
-      SymbolContext sc;
-      CalculateSymbolContext(&sc);
-      if (symbol_vendor->ParseCompileUnitIsOptimized(sc))
+      if (symbol_vendor->ParseIsOptimized(*this))
         m_is_optimized = eLazyBoolYes;
     }
   }
@@ -400,7 +390,7 @@ void CompileUnit::SetVariableList(VariableListSP &variables) {
   m_variables = variables;
 }
 
-const std::vector<ConstString> &CompileUnit::GetImportedModules() {
+const std::vector<SourceModule> &CompileUnit::GetImportedModules() {
   if (m_imported_modules.empty() &&
       m_flags.IsClear(flagsParsedImportedModules)) {
     m_flags.Set(flagsParsedImportedModules);
@@ -419,9 +409,7 @@ FileSpecList &CompileUnit::GetSupportFiles() {
       m_flags.Set(flagsParsedSupportFiles);
       SymbolVendor *symbol_vendor = GetModule()->GetSymbolVendor();
       if (symbol_vendor) {
-        SymbolContext sc;
-        CalculateSymbolContext(&sc);
-        symbol_vendor->ParseCompileUnitSupportFiles(sc, m_support_files);
+        symbol_vendor->ParseSupportFiles(*this, m_support_files);
       }
     }
   }

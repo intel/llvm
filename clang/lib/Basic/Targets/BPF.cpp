@@ -1,9 +1,8 @@
 //===--- BPF.cpp - Implement BPF target feature support -------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -26,7 +25,7 @@ void BPFTargetInfo::getTargetDefines(const LangOptions &Opts,
 }
 
 static constexpr llvm::StringLiteral ValidCPUNames[] = {"generic", "v1", "v2",
-                                                        "probe"};
+                                                        "v3", "probe"};
 
 bool BPFTargetInfo::isValidCPUName(StringRef Name) const {
   return llvm::find(ValidCPUNames, Name) != std::end(ValidCPUNames);

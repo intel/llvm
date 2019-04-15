@@ -1,9 +1,8 @@
 //===- InferAddressSpace.cpp - --------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -218,13 +217,17 @@ static bool isAddressExpression(const Value &V) {
   if (!isa<Operator>(V))
     return false;
 
-  switch (cast<Operator>(V).getOpcode()) {
+  const Operator &Op = cast<Operator>(V);
+  switch (Op.getOpcode()) {
   case Instruction::PHI:
+    assert(Op.getType()->isPointerTy());
+    return true;
   case Instruction::BitCast:
   case Instruction::AddrSpaceCast:
   case Instruction::GetElementPtr:
-  case Instruction::Select:
     return true;
+  case Instruction::Select:
+    return Op.getType()->isPointerTy();
   default:
     return false;
   }

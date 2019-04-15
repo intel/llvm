@@ -1,9 +1,8 @@
 //===- TargetTransformInfo.h ------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -487,6 +486,10 @@ public:
   /// addressing mode expressions.
   bool shouldFavorPostInc() const;
 
+  /// Return true if LSR should make efforts to generate indexed addressing
+  /// modes that operate across loop iterations.
+  bool shouldFavorBackedgeIndex(const Loop *L) const;
+
   /// Return true if the target supports masked load/store
   /// AVX2 and AVX-512 targets allow masks for consecutive load and store
   bool isLegalMaskedStore(Type *DataType) const;
@@ -934,6 +937,14 @@ public:
   bool areInlineCompatible(const Function *Caller,
                            const Function *Callee) const;
 
+  /// \returns True if the caller and callee agree on how \p Args will be passed
+  /// to the callee.
+  /// \param[out] Args The list of compatible arguments.  The implementation may
+  /// filter out any incompatible args from this list.
+  bool areFunctionArgsABICompatible(const Function *Caller,
+                                    const Function *Callee,
+                                    SmallPtrSetImpl<Argument *> &Args) const;
+
   /// The type of load/store indexing.
   enum MemIndexedMode {
     MIM_Unindexed,  ///< No indexing.
@@ -1058,6 +1069,7 @@ public:
                              TargetTransformInfo::LSRCost &C2) = 0;
   virtual bool canMacroFuseCmp() = 0;
   virtual bool shouldFavorPostInc() const = 0;
+  virtual bool shouldFavorBackedgeIndex(const Loop *L) const = 0;
   virtual bool isLegalMaskedStore(Type *DataType) = 0;
   virtual bool isLegalMaskedLoad(Type *DataType) = 0;
   virtual bool isLegalMaskedScatter(Type *DataType) = 0;
@@ -1179,6 +1191,9 @@ public:
       unsigned RemainingBytes, unsigned SrcAlign, unsigned DestAlign) const = 0;
   virtual bool areInlineCompatible(const Function *Caller,
                                    const Function *Callee) const = 0;
+  virtual bool
+  areFunctionArgsABICompatible(const Function *Caller, const Function *Callee,
+                               SmallPtrSetImpl<Argument *> &Args) const = 0;
   virtual bool isIndexedLoadLegal(MemIndexedMode Mode, Type *Ty) const = 0;
   virtual bool isIndexedStoreLegal(MemIndexedMode Mode,Type *Ty) const = 0;
   virtual unsigned getLoadStoreVecRegBitWidth(unsigned AddrSpace) const = 0;
@@ -1290,6 +1305,9 @@ public:
   }
   bool shouldFavorPostInc() const override {
     return Impl.shouldFavorPostInc();
+  }
+  bool shouldFavorBackedgeIndex(const Loop *L) const override {
+    return Impl.shouldFavorBackedgeIndex(L);
   }
   bool isLegalMaskedStore(Type *DataType) override {
     return Impl.isLegalMaskedStore(DataType);
@@ -1556,6 +1574,11 @@ public:
   bool areInlineCompatible(const Function *Caller,
                            const Function *Callee) const override {
     return Impl.areInlineCompatible(Caller, Callee);
+  }
+  bool areFunctionArgsABICompatible(
+      const Function *Caller, const Function *Callee,
+      SmallPtrSetImpl<Argument *> &Args) const override {
+    return Impl.areFunctionArgsABICompatible(Caller, Callee, Args);
   }
   bool isIndexedLoadLegal(MemIndexedMode Mode, Type *Ty) const override {
     return Impl.isIndexedLoadLegal(Mode, Ty, getDataLayout());

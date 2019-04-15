@@ -1,9 +1,8 @@
 //===- HexagonInstrInfo.cpp - Hexagon Instruction Information -------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1314,6 +1313,38 @@ bool HexagonInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       return true;
     }
 
+    case Hexagon::PS_crash: {
+      // Generate a misaligned load that is guaranteed to cause a crash.
+      class CrashPseudoSourceValue : public PseudoSourceValue {
+      public:
+        CrashPseudoSourceValue(const TargetInstrInfo &TII)
+          : PseudoSourceValue(TargetCustom, TII) {}
+
+        bool isConstant(const MachineFrameInfo *) const override {
+          return false;
+        }
+        bool isAliased(const MachineFrameInfo *) const override {
+          return false;
+        }
+        bool mayAlias(const MachineFrameInfo *) const override {
+          return false;
+        }
+        void printCustom(raw_ostream &OS) const override {
+          OS << "MisalignedCrash";
+        }
+      };
+
+      static const CrashPseudoSourceValue CrashPSV(*this);
+      MachineMemOperand *MMO = MF.getMachineMemOperand(
+          MachinePointerInfo(&CrashPSV),
+          MachineMemOperand::MOLoad | MachineMemOperand::MOVolatile, 8, 1);
+      BuildMI(MBB, MI, DL, get(Hexagon::PS_loadrdabs), Hexagon::D13)
+        .addImm(0xBADC0FEE)  // Misaligned load.
+        .addMemOperand(MMO);
+      MBB.erase(MI);
+      return true;
+    }
+
     case Hexagon::PS_tailcall_i:
       MI.setDesc(get(Hexagon::J2_jump));
       return true;
@@ -2425,7 +2456,7 @@ bool HexagonInstrInfo::isPredicated(unsigned Opcode) const {
 
 bool HexagonInstrInfo::isPredicateLate(unsigned Opcode) const {
   const uint64_t F = get(Opcode).TSFlags;
-  return ~(F >> HexagonII::PredicateLatePos) & HexagonII::PredicateLateMask;
+  return (F >> HexagonII::PredicateLatePos) & HexagonII::PredicateLateMask;
 }
 
 bool HexagonInstrInfo::isPredictedTaken(unsigned Opcode) const {

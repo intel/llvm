@@ -1,9 +1,8 @@
 // MoveChecker.cpp - Check use of moved-from objects. - C++ ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -502,9 +501,9 @@ bool MoveChecker::isStateResetMethod(const CXXMethodDecl *MethodDec) const {
     std::string MethodName = MethodDec->getName().lower();
     // TODO: Some of these methods (eg., resize) are not always resetting
     // the state, so we should consider looking at the arguments.
-    if (MethodName == "reset" || MethodName == "clear" ||
-        MethodName == "destroy" || MethodName == "resize" ||
-        MethodName == "shrink")
+    if (MethodName == "assign" || MethodName == "clear" ||
+        MethodName == "destroy" || MethodName == "reset" ||
+        MethodName == "resize" || MethodName == "shrink")
       return true;
   }
   return false;
@@ -736,5 +735,9 @@ void MoveChecker::printState(raw_ostream &Out, ProgramStateRef State,
 void ento::registerMoveChecker(CheckerManager &mgr) {
   MoveChecker *chk = mgr.registerChecker<MoveChecker>();
   chk->setAggressiveness(
-      mgr.getAnalyzerOptions().getCheckerStringOption("WarnOn", "", chk));
+      mgr.getAnalyzerOptions().getCheckerStringOption(chk, "WarnOn", ""));
+}
+
+bool ento::shouldRegisterMoveChecker(const LangOptions &LO) {
+  return true;
 }

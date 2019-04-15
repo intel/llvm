@@ -1,9 +1,8 @@
 //===-- sancov.cpp --------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // This file is a command-line tool for reading and analyzing sanitizer
@@ -622,10 +621,17 @@ getCoveragePoints(const std::string &ObjectFile,
   std::set<std::string> CoveredFiles;
   if (ClSkipDeadFiles) {
     for (auto Addr : CoveredAddrs) {
-      auto LineInfo = Symbolizer->symbolizeCode(ObjectFile, Addr);
+      // TODO: it would be neccessary to set proper section index here.
+      // object::SectionedAddress::UndefSection works for only absolute
+      // addresses.
+      object::SectionedAddress ModuleAddress = {
+          Addr, object::SectionedAddress::UndefSection};
+
+      auto LineInfo = Symbolizer->symbolizeCode(ObjectFile, ModuleAddress);
       failIfError(LineInfo);
       CoveredFiles.insert(LineInfo->FileName);
-      auto InliningInfo = Symbolizer->symbolizeInlinedCode(ObjectFile, Addr);
+      auto InliningInfo =
+          Symbolizer->symbolizeInlinedCode(ObjectFile, ModuleAddress);
       failIfError(InliningInfo);
       for (uint32_t I = 0; I < InliningInfo->getNumberOfFrames(); ++I) {
         auto FrameInfo = InliningInfo->getFrame(I);
@@ -637,7 +643,12 @@ getCoveragePoints(const std::string &ObjectFile,
   for (auto Addr : Addrs) {
     std::set<DILineInfo> Infos; // deduplicate debug info.
 
-    auto LineInfo = Symbolizer->symbolizeCode(ObjectFile, Addr);
+    // TODO: it would be neccessary to set proper section index here.
+    // object::SectionedAddress::UndefSection works for only absolute addresses.
+    object::SectionedAddress ModuleAddress = {
+        Addr, object::SectionedAddress::UndefSection};
+
+    auto LineInfo = Symbolizer->symbolizeCode(ObjectFile, ModuleAddress);
     failIfError(LineInfo);
     if (ClSkipDeadFiles &&
         CoveredFiles.find(LineInfo->FileName) == CoveredFiles.end())
@@ -651,7 +662,8 @@ getCoveragePoints(const std::string &ObjectFile,
     Infos.insert(*LineInfo);
     Point.Locs.push_back(*LineInfo);
 
-    auto InliningInfo = Symbolizer->symbolizeInlinedCode(ObjectFile, Addr);
+    auto InliningInfo =
+        Symbolizer->symbolizeInlinedCode(ObjectFile, ModuleAddress);
     failIfError(InliningInfo);
     for (uint32_t I = 0; I < InliningInfo->getNumberOfFrames(); ++I) {
       auto FrameInfo = InliningInfo->getFrame(I);
@@ -958,7 +970,10 @@ symbolize(const RawCoverage &Data, const std::string ObjectFile) {
   auto Symbolizer(createSymbolizer());
 
   for (uint64_t Addr : *Data.Addrs) {
-    auto LineInfo = Symbolizer->symbolizeCode(ObjectFile, Addr);
+    // TODO: it would be neccessary to set proper section index here.
+    // object::SectionedAddress::UndefSection works for only absolute addresses.
+    auto LineInfo = Symbolizer->symbolizeCode(
+        ObjectFile, {Addr, object::SectionedAddress::UndefSection});
     failIfError(LineInfo);
     if (B.isBlacklisted(*LineInfo))
       continue;

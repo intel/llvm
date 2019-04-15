@@ -1,9 +1,8 @@
 //===-- File.h --------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,6 +14,7 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-private.h"
 
+#include <mutex>
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -421,6 +421,7 @@ protected:
   LazyBool m_is_interactive;
   LazyBool m_is_real_terminal;
   LazyBool m_supports_colors;
+  std::mutex offset_access_mutex;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(File);

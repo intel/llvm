@@ -1,14 +1,12 @@
 //===-- SymbolFileDWARFDebugMap.cpp -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "SymbolFileDWARFDebugMap.h"
-
 #include "DWARFDebugAranges.h"
 
 #include "lldb/Core/Module.h"
@@ -35,6 +33,8 @@
 
 #include "LogChannelDWARF.h"
 #include "SymbolFileDWARF.h"
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -179,8 +179,8 @@ public:
   GetSymbolVendor(bool can_create = true,
                   lldb_private::Stream *feedback_strm = NULL) override {
     // Scope for locker
-    if (m_symfile_ap.get() || !can_create)
-      return m_symfile_ap.get();
+    if (m_symfile_up.get() || !can_create)
+      return m_symfile_up.get();
 
     ModuleSP exe_module_sp(m_exe_module_wp.lock());
     if (exe_module_sp) {
@@ -412,7 +412,7 @@ Module *SymbolFileDWARFDebugMap::GetModuleByCompUnitInfo(
       comp_unit_info->oso_sp = pos->second;
     } else {
       ObjectFile *obj_file = GetObjectFile();
-      comp_unit_info->oso_sp.reset(new OSOInfo());
+      comp_unit_info->oso_sp = std::make_shared<OSOInfo>();
       m_oso_map[{comp_unit_info->oso_path, comp_unit_info->oso_mod_time}] =
           comp_unit_info->oso_sp;
       const char *oso_path = comp_unit_info->oso_path.GetCString();
@@ -456,11 +456,10 @@ Module *SymbolFileDWARFDebugMap::GetModuleByCompUnitInfo(
                              .getArchName()
                              .str()
                              .c_str());
-      comp_unit_info->oso_sp->module_sp.reset(new DebugMapModule(
+      comp_unit_info->oso_sp->module_sp = std::make_shared<DebugMapModule>(
           obj_file->GetModule(), GetCompUnitInfoIndex(comp_unit_info), oso_file,
-          oso_arch, oso_object ? &oso_object : NULL, 0,
-          oso_object ? comp_unit_info->oso_mod_time
-                     : llvm::sys::TimePoint<>()));
+          oso_arch, oso_object ? &oso_object : nullptr, 0,
+          oso_object ? comp_unit_info->oso_mod_time : llvm::sys::TimePoint<>());
     }
   }
   if (comp_unit_info->oso_sp)
@@ -488,7 +487,12 @@ ObjectFile *SymbolFileDWARFDebugMap::GetObjectFileByOSOIndex(uint32_t oso_idx) {
 
 SymbolFileDWARF *
 SymbolFileDWARFDebugMap::GetSymbolFile(const SymbolContext &sc) {
-  CompileUnitInfo *comp_unit_info = GetCompUnitInfo(sc);
+  return GetSymbolFile(*sc.comp_unit);
+}
+
+SymbolFileDWARF *
+SymbolFileDWARFDebugMap::GetSymbolFile(const CompileUnit &comp_unit) {
+  CompileUnitInfo *comp_unit_info = GetCompUnitInfo(comp_unit);
   if (comp_unit_info)
     return GetSymbolFileByCompUnitInfo(comp_unit_info);
   return NULL;
@@ -577,9 +581,10 @@ CompUnitSP SymbolFileDWARFDebugMap::ParseCompileUnitAtIndex(uint32_t cu_idx) {
         // User zero as the ID to match the compile unit at offset zero in each
         // .o file since each .o file can only have one compile unit for now.
         lldb::user_id_t cu_id = 0;
-        m_compile_unit_infos[cu_idx].compile_unit_sp.reset(
-            new CompileUnit(m_obj_file->GetModule(), NULL, so_file_spec, cu_id,
-                            eLanguageTypeUnknown, eLazyBoolCalculate));
+        m_compile_unit_infos[cu_idx].compile_unit_sp =
+            std::make_shared<CompileUnit>(
+                m_obj_file->GetModule(), nullptr, so_file_spec, cu_id,
+                eLanguageTypeUnknown, eLazyBoolCalculate);
 
         if (m_compile_unit_infos[cu_idx].compile_unit_sp) {
           // Let our symbol vendor know about this compile unit
@@ -596,9 +601,14 @@ CompUnitSP SymbolFileDWARFDebugMap::ParseCompileUnitAtIndex(uint32_t cu_idx) {
 
 SymbolFileDWARFDebugMap::CompileUnitInfo *
 SymbolFileDWARFDebugMap::GetCompUnitInfo(const SymbolContext &sc) {
+  return GetCompUnitInfo(*sc.comp_unit);
+}
+
+SymbolFileDWARFDebugMap::CompileUnitInfo *
+SymbolFileDWARFDebugMap::GetCompUnitInfo(const CompileUnit &comp_unit) {
   const uint32_t cu_count = GetNumCompileUnits();
   for (uint32_t i = 0; i < cu_count; ++i) {
-    if (sc.comp_unit == m_compile_unit_infos[i].compile_unit_sp.get())
+    if (comp_unit == m_compile_unit_infos[i].compile_unit_sp.get())
       return &m_compile_unit_infos[i];
   }
   return NULL;
@@ -616,72 +626,72 @@ size_t SymbolFileDWARFDebugMap::GetCompUnitInfosForModule(
 }
 
 lldb::LanguageType
-SymbolFileDWARFDebugMap::ParseCompileUnitLanguage(const SymbolContext &sc) {
-  SymbolFileDWARF *oso_dwarf = GetSymbolFile(sc);
+SymbolFileDWARFDebugMap::ParseLanguage(CompileUnit &comp_unit) {
+  SymbolFileDWARF *oso_dwarf = GetSymbolFile(comp_unit);
   if (oso_dwarf)
-    return oso_dwarf->ParseCompileUnitLanguage(sc);
+    return oso_dwarf->ParseLanguage(comp_unit);
   return eLanguageTypeUnknown;
 }
 
-size_t
-SymbolFileDWARFDebugMap::ParseCompileUnitFunctions(const SymbolContext &sc) {
-  SymbolFileDWARF *oso_dwarf = GetSymbolFile(sc);
+size_t SymbolFileDWARFDebugMap::ParseFunctions(CompileUnit &comp_unit) {
+  SymbolFileDWARF *oso_dwarf = GetSymbolFile(comp_unit);
   if (oso_dwarf)
-    return oso_dwarf->ParseCompileUnitFunctions(sc);
+    return oso_dwarf->ParseFunctions(comp_unit);
   return 0;
 }
 
-bool SymbolFileDWARFDebugMap::ParseCompileUnitLineTable(
-    const SymbolContext &sc) {
-  SymbolFileDWARF *oso_dwarf = GetSymbolFile(sc);
+bool SymbolFileDWARFDebugMap::ParseLineTable(CompileUnit &comp_unit) {
+  SymbolFileDWARF *oso_dwarf = GetSymbolFile(comp_unit);
   if (oso_dwarf)
-    return oso_dwarf->ParseCompileUnitLineTable(sc);
+    return oso_dwarf->ParseLineTable(comp_unit);
   return false;
 }
 
-bool SymbolFileDWARFDebugMap::ParseCompileUnitDebugMacros(
-    const SymbolContext &sc) {
-  SymbolFileDWARF *oso_dwarf = GetSymbolFile(sc);
+bool SymbolFileDWARFDebugMap::ParseDebugMacros(CompileUnit &comp_unit) {
+  SymbolFileDWARF *oso_dwarf = GetSymbolFile(comp_unit);
   if (oso_dwarf)
-    return oso_dwarf->ParseCompileUnitDebugMacros(sc);
+    return oso_dwarf->ParseDebugMacros(comp_unit);
   return false;
 }
 
-bool SymbolFileDWARFDebugMap::ParseCompileUnitSupportFiles(
-    const SymbolContext &sc, FileSpecList &support_files) {
-  SymbolFileDWARF *oso_dwarf = GetSymbolFile(sc);
+bool SymbolFileDWARFDebugMap::ParseSupportFiles(CompileUnit &comp_unit,
+                                                FileSpecList &support_files) {
+  SymbolFileDWARF *oso_dwarf = GetSymbolFile(comp_unit);
   if (oso_dwarf)
-    return oso_dwarf->ParseCompileUnitSupportFiles(sc, support_files);
+    return oso_dwarf->ParseSupportFiles(comp_unit, support_files);
   return false;
 }
 
-bool SymbolFileDWARFDebugMap::ParseCompileUnitIsOptimized(
-    const lldb_private::SymbolContext &sc) {
-  SymbolFileDWARF *oso_dwarf = GetSymbolFile(sc);
+bool SymbolFileDWARFDebugMap::ParseIsOptimized(CompileUnit &comp_unit) {
+  SymbolFileDWARF *oso_dwarf = GetSymbolFile(comp_unit);
   if (oso_dwarf)
-    return oso_dwarf->ParseCompileUnitIsOptimized(sc);
+    return oso_dwarf->ParseIsOptimized(comp_unit);
   return false;
 }
 
 bool SymbolFileDWARFDebugMap::ParseImportedModules(
-    const SymbolContext &sc, std::vector<ConstString> &imported_modules) {
+    const SymbolContext &sc, std::vector<SourceModule> &imported_modules) {
   SymbolFileDWARF *oso_dwarf = GetSymbolFile(sc);
   if (oso_dwarf)
     return oso_dwarf->ParseImportedModules(sc, imported_modules);
   return false;
 }
 
-size_t SymbolFileDWARFDebugMap::ParseFunctionBlocks(const SymbolContext &sc) {
-  SymbolFileDWARF *oso_dwarf = GetSymbolFile(sc);
+size_t SymbolFileDWARFDebugMap::ParseBlocksRecursive(Function &func) {
+  CompileUnit *comp_unit = func.GetCompileUnit();
+  if (!comp_unit)
+    return 0;
+
+  SymbolFileDWARF *oso_dwarf = GetSymbolFile(*comp_unit);
   if (oso_dwarf)
-    return oso_dwarf->ParseFunctionBlocks(sc);
+    return oso_dwarf->ParseBlocksRecursive(func);
   return 0;
 }
 
-size_t SymbolFileDWARFDebugMap::ParseTypes(const SymbolContext &sc) {
-  SymbolFileDWARF *oso_dwarf = GetSymbolFile(sc);
+size_t SymbolFileDWARFDebugMap::ParseTypes(CompileUnit &comp_unit) {
+  SymbolFileDWARF *oso_dwarf = GetSymbolFile(comp_unit);
   if (oso_dwarf)
-    return oso_dwarf->ParseTypes(sc);
+    return oso_dwarf->ParseTypes(comp_unit);
   return 0;
 }
 
@@ -1170,29 +1180,20 @@ TypeSP SymbolFileDWARFDebugMap::FindCompleteObjCDefinitionTypeForDIE(
 }
 
 uint32_t SymbolFileDWARFDebugMap::FindTypes(
-    const SymbolContext &sc, const ConstString &name,
-    const CompilerDeclContext *parent_decl_ctx, bool append,
-    uint32_t max_matches,
+    const ConstString &name, const CompilerDeclContext *parent_decl_ctx,
+    bool append, uint32_t max_matches,
     llvm::DenseSet<lldb_private::SymbolFile *> &searched_symbol_files,
     TypeMap &types) {
   if (!append)
     types.Clear();
 
   const uint32_t initial_types_size = types.GetSize();
-  SymbolFileDWARF *oso_dwarf;
 
-  if (sc.comp_unit) {
-    oso_dwarf = GetSymbolFile(sc);
-    if (oso_dwarf)
-      return oso_dwarf->FindTypes(sc, name, parent_decl_ctx, append,
-                                  max_matches, searched_symbol_files, types);
-  } else {
-    ForEachSymbolFile([&](SymbolFileDWARF *oso_dwarf) -> bool {
-      oso_dwarf->FindTypes(sc, name, parent_decl_ctx, append, max_matches,
-                           searched_symbol_files, types);
-      return types.GetSize() >= max_matches;
-    });
-  }
+  ForEachSymbolFile([&](SymbolFileDWARF *oso_dwarf) -> bool {
+    oso_dwarf->FindTypes(name, parent_decl_ctx, append, max_matches,
+                         searched_symbol_files, types);
+    return types.GetSize() >= max_matches;
+  });
 
   return types.GetSize() - initial_types_size;
 }
@@ -1211,23 +1212,15 @@ uint32_t SymbolFileDWARFDebugMap::FindTypes(
 //}
 
 CompilerDeclContext SymbolFileDWARFDebugMap::FindNamespace(
-    const lldb_private::SymbolContext &sc,
     const lldb_private::ConstString &name,
     const CompilerDeclContext *parent_decl_ctx) {
   CompilerDeclContext matching_namespace;
-  SymbolFileDWARF *oso_dwarf;
 
-  if (sc.comp_unit) {
-    oso_dwarf = GetSymbolFile(sc);
-    if (oso_dwarf)
-      matching_namespace = oso_dwarf->FindNamespace(sc, name, parent_decl_ctx);
-  } else {
-    ForEachSymbolFile([&](SymbolFileDWARF *oso_dwarf) -> bool {
-      matching_namespace = oso_dwarf->FindNamespace(sc, name, parent_decl_ctx);
+  ForEachSymbolFile([&](SymbolFileDWARF *oso_dwarf) -> bool {
+    matching_namespace = oso_dwarf->FindNamespace(name, parent_decl_ctx);
 
-      return (bool)matching_namespace;
-    });
-  }
+    return (bool)matching_namespace;
+  });
 
   return matching_namespace;
 }

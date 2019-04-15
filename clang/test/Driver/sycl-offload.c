@@ -69,9 +69,12 @@
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
 /// action.  The same graph should be generated when no -fsycl-targets is used
+/// The same phase graph will be used with -fsycl-use-bitcode
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
-// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl %s 2>&1 \
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-use-bitcode %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-PHASES %s
+// RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-use-bitcode %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASES %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c, (host-sycl)
 // CHK-PHASES: 1: preprocessor, {0}, cpp-output, (host-sycl)
@@ -214,10 +217,20 @@
 /// ###########################################################################
 
 /// Check -fsycl-is-device is passed when compiling for the device.
+/// also check for SPIR-V binary creation
 // RUN:   %clang -### -no-canonical-prefixes -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE %s
 
-// CHK-FSYCL-IS-DEVICE: clang{{.*}} "-fsycl-is-device" {{.*}}.c
+// CHK-FSYCL-IS-DEVICE: clang{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc" {{.*}}.c
+
+/// ###########################################################################
+
+/// Check -fsycl-is-device and emitting to .spv when compiling for the device
+/// when using -fno-sycl-use-bitcode
+// RUN:   %clang -### -fno-sycl-use-bitcode -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE-NO-BITCODE %s
+
+// CHK-FSYCL-IS-DEVICE-NO-BITCODE: clang{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc" {{.*}}.c
 
 /// ###########################################################################
 
@@ -257,3 +270,22 @@
 // CHK-ADD-TARGETS-UB: 3: input, "dummy.spv", sycl-fatbin, (device-sycl)
 // CHK-ADD-TARGETS-UB: 4: clang-offload-wrapper, {3}, object, (device-sycl)
 // CHK-ADD-TARGETS-UB: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-linux-sycldevice)" {4}, image
+
+/// ###########################################################################
+
+/// Check for default linking of -lsycl with -fsycl usage
+// RUN: %clang -fsycl -target x86_64-unknown-linux-gnu %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LD-SYCL %s
+// CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
+// CHECK-LD-SYCL: "-lsycl"
+
+/// ###########################################################################
+
+/// test behaviors of -foffload-static-lib=<lib>
+// RUN: touch %t.a
+// RUN: touch %t.o
+// RUN: %clang -fsycl -foffload-static-lib=%t.a -### %t.o 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
+// FOFFLOAD_STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.o]]"
+// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{.*}} "-type=oo"
+// FOFFLOAD_STATIC_LIB: llvm-link{{.*}} "@{{.*}}"
+

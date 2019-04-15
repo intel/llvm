@@ -1,9 +1,8 @@
 //===-- ObjectFilePECOFF.h --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -110,13 +109,15 @@ public:
 
   void Dump(lldb_private::Stream *s) override;
 
-  bool GetArchitecture(lldb_private::ArchSpec &arch) override;
+  lldb_private::ArchSpec GetArchitecture() override;
 
-  bool GetUUID(lldb_private::UUID *uuid) override;
+  lldb_private::UUID GetUUID() override;
 
   uint32_t GetDependentModules(lldb_private::FileSpecList &files) override;
 
   virtual lldb_private::Address GetEntryPointAddress() override;
+
+  lldb_private::Address GetBaseAddress() override;
 
   ObjectFile::Type CalculateType() override;
 
@@ -270,7 +271,7 @@ protected:
   void DumpSectionHeader(lldb_private::Stream *s, const section_header_t &sh);
   void DumpDependentModules(lldb_private::Stream *s);
 
-  bool GetSectionName(std::string &sect_name, const section_header_t &sect);
+  llvm::StringRef GetSectionName(const section_header_t &sect);
 
   typedef std::vector<section_header_t> SectionHeaderColl;
   typedef SectionHeaderColl::iterator SectionHeaderCollIter;

@@ -1,9 +1,8 @@
 //===-- ObjectFileELF.h --------------------------------------- -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -121,9 +120,9 @@ public:
 
   void Dump(lldb_private::Stream *s) override;
 
-  bool GetArchitecture(lldb_private::ArchSpec &arch) override;
+  lldb_private::ArchSpec GetArchitecture() override;
 
-  bool GetUUID(lldb_private::UUID *uuid) override;
+  lldb_private::UUID GetUUID() override;
 
   lldb_private::FileSpecList GetDebugSymbolFilePaths() override;
 
@@ -133,6 +132,8 @@ public:
   GetImageInfoAddress(lldb_private::Target *target) override;
 
   lldb_private::Address GetEntryPointAddress() override;
+
+  lldb_private::Address GetBaseAddress() override;
 
   ObjectFile::Type CalculateType() override;
 
@@ -209,7 +210,7 @@ private:
 
   /// List of file specifications corresponding to the modules (shared
   /// libraries) on which this object file depends.
-  mutable std::unique_ptr<lldb_private::FileSpecList> m_filespec_ap;
+  mutable std::unique_ptr<lldb_private::FileSpecList> m_filespec_up;
 
   /// Cached value of the entry point for this module.
   lldb_private::Address m_entry_point_address;
@@ -263,7 +264,7 @@ private:
                                      lldb_private::ArchSpec &arch_spec);
 
   /// Scans the dynamic section and locates all dependent modules (shared
-  /// libraries) populating m_filespec_ap.  This method will compute the
+  /// libraries) populating m_filespec_up.  This method will compute the
   /// dependent module list only once.  Returns the number of dependent
   /// modules parsed.
   size_t ParseDependentModules();
@@ -273,7 +274,7 @@ private:
   /// number of dynamic symbols parsed.
   size_t ParseDynamicSymbols();
 
-  /// Populates m_symtab_ap will all non-dynamic linker symbols.  This method
+  /// Populates m_symtab_up will all non-dynamic linker symbols.  This method
   /// will parse the symbols only once.  Returns the number of symbols parsed.
   unsigned ParseSymbolTable(lldb_private::Symtab *symbol_table,
                             lldb::user_id_t start_id,

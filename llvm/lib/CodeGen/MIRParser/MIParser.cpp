@@ -1,9 +1,8 @@
 //===- MIParser.cpp - Machine instructions parser implementation ----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1341,6 +1340,19 @@ bool MIParser::parseIRConstant(StringRef::iterator Loc, const Constant *&C) {
   return false;
 }
 
+// See LLT implemntation for bit size limits.
+static bool verifyScalarSize(uint64_t Size) {
+  return Size != 0 && isUInt<16>(Size);
+}
+
+static bool verifyVectorElementCount(uint64_t NumElts) {
+  return NumElts != 0 && isUInt<16>(NumElts);
+}
+
+static bool verifyAddrSpace(uint64_t AddrSpace) {
+  return isUInt<24>(AddrSpace);
+}
+
 bool MIParser::parseLowLevelType(StringRef::iterator Loc, LLT &Ty) {
   if (Token.range().front() == 's' || Token.range().front() == 'p') {
     StringRef SizeStr = Token.range().drop_front();
@@ -1349,12 +1361,19 @@ bool MIParser::parseLowLevelType(StringRef::iterator Loc, LLT &Ty) {
   }
 
   if (Token.range().front() == 's') {
-    Ty = LLT::scalar(APSInt(Token.range().drop_front()).getZExtValue());
+    auto ScalarSize = APSInt(Token.range().drop_front()).getZExtValue();
+    if (!verifyScalarSize(ScalarSize))
+      return error("invalid size for scalar type");
+
+    Ty = LLT::scalar(ScalarSize);
     lex();
     return false;
   } else if (Token.range().front() == 'p') {
     const DataLayout &DL = MF.getDataLayout();
-    unsigned AS = APSInt(Token.range().drop_front()).getZExtValue();
+    uint64_t AS = APSInt(Token.range().drop_front()).getZExtValue();
+    if (!verifyAddrSpace(AS))
+      return error("invalid address space number");
+
     Ty = LLT::pointer(AS, DL.getPointerSizeInBits(AS));
     lex();
     return false;
@@ -1369,6 +1388,9 @@ bool MIParser::parseLowLevelType(StringRef::iterator Loc, LLT &Ty) {
   if (Token.isNot(MIToken::IntegerLiteral))
     return error(Loc, "expected <M x sN> or <M x pA> for vector type");
   uint64_t NumElements = Token.integerValue().getZExtValue();
+  if (!verifyVectorElementCount(NumElements))
+    return error("invalid number of vector elements");
+
   lex();
 
   if (Token.isNot(MIToken::Identifier) || Token.stringValue() != "x")
@@ -1381,11 +1403,17 @@ bool MIParser::parseLowLevelType(StringRef::iterator Loc, LLT &Ty) {
   if (SizeStr.size() == 0 || !llvm::all_of(SizeStr, isdigit))
     return error("expected integers after 's'/'p' type character");
 
-  if (Token.range().front() == 's')
-    Ty = LLT::scalar(APSInt(Token.range().drop_front()).getZExtValue());
-  else if (Token.range().front() == 'p') {
+  if (Token.range().front() == 's') {
+    auto ScalarSize = APSInt(Token.range().drop_front()).getZExtValue();
+    if (!verifyScalarSize(ScalarSize))
+      return error("invalid size for scalar type");
+    Ty = LLT::scalar(ScalarSize);
+  } else if (Token.range().front() == 'p') {
     const DataLayout &DL = MF.getDataLayout();
-    unsigned AS = APSInt(Token.range().drop_front()).getZExtValue();
+    uint64_t AS = APSInt(Token.range().drop_front()).getZExtValue();
+    if (!verifyAddrSpace(AS))
+      return error("invalid address space number");
+
     Ty = LLT::pointer(AS, DL.getPointerSizeInBits(AS));
   } else
     return error(Loc, "expected <M x sN> or <M x pA> for vector type");
@@ -2325,6 +2353,10 @@ bool MIParser::parseAlignment(unsigned &Alignment) {
   if (getUnsigned(Alignment))
     return true;
   lex();
+
+  if (!isPowerOf2_32(Alignment))
+    return error("expected a power-of-2 literal after 'align'");
+
   return false;
 }
 

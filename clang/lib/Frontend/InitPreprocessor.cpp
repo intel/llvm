@@ -1,9 +1,8 @@
 //===--- InitPreprocessor.cpp - PP initialization code. ---------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -543,11 +542,12 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   // C++20 features.
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "201811L");
+  Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
 
   // TS features.
   if (LangOpts.ConceptsTS)
     Builder.defineMacro("__cpp_experimental_concepts", "1L");
-  if (LangOpts.CoroutinesTS)
+  if (LangOpts.Coroutines)
     Builder.defineMacro("__cpp_coroutines", "201703L");
 }
 
@@ -830,7 +830,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   DefineFmt("__UINTPTR", TI.getUIntPtrType(), TI, Builder);
   DefineTypeWidth("__UINTPTR_WIDTH__", TI.getUIntPtrType(), TI, Builder);
 
-  DefineFloatMacros(Builder, "FLT16", &TI.getHalfFormat(), "F16");
+  if (TI.hasFloat16Type())
+    DefineFloatMacros(Builder, "FLT16", &TI.getHalfFormat(), "F16");
   DefineFloatMacros(Builder, "FLT", &TI.getFloatFormat(), "F");
   DefineFloatMacros(Builder, "DBL", &TI.getDoubleFormat(), "");
   DefineFloatMacros(Builder, "LDBL", &TI.getLongDoubleFormat(), "L");
@@ -1056,16 +1057,17 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__CLANG_CUDA_APPROX_TRANSCENDENTALS__");
   }
 
-  if (LangOpts.SYCL) {
-    Builder.defineMacro("__SYCL_DEVICE_ONLY__");
+  // Define a macro indicating that the source file is being compiled with a
+  // SYCL device compiler which doesn't produce host binary.
+  if (LangOpts.SYCLIsDevice) {
+    Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
   }
 
   // OpenCL definitions.
   if (LangOpts.OpenCL) {
-#define OPENCLEXT(Ext) \
-    if (TI.getSupportedOpenCLOpts().isSupported(#Ext, \
-        LangOpts.OpenCLVersion)) \
-      Builder.defineMacro(#Ext);
+#define OPENCLEXT(Ext)                                                         \
+  if (TI.getSupportedOpenCLOpts().isSupported(#Ext, LangOpts))                 \
+    Builder.defineMacro(#Ext);
 #include "clang/Basic/OpenCLExtensions.def"
 
     auto Arch = TI.getTriple().getArch();
@@ -1108,7 +1110,7 @@ void clang::InitializePreprocessor(
   if (InitOpts.UsePredefines) {
     // FIXME: This will create multiple definitions for most of the predefined
     // macros. This is not the right way to handle this.
-    if ((LangOpts.CUDA || LangOpts.OpenMPIsDevice || LangOpts.SYCL) &&
+    if ((LangOpts.CUDA || LangOpts.OpenMPIsDevice || LangOpts.SYCLIsDevice) &&
         PP.getAuxTargetInfo())
       InitializePredefinedMacros(*PP.getAuxTargetInfo(), LangOpts, FEOpts,
                                  Builder);

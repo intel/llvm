@@ -1,9 +1,8 @@
 //==----------- scheduler.cpp ----------------------------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,6 +12,7 @@
 #include <CL/sycl/detail/scheduler/scheduler.h>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/nd_range.hpp>
+#include <CL/sycl/queue.hpp>
 
 #include <cassert>
 #include <fstream>
@@ -35,27 +35,75 @@ Scheduler::Scheduler() {
   }
 }
 
-void Node::addInteropArg(shared_ptr_class<void> Ptr, size_t Size,
-                         int ArgIndex, BufferReqPtr BufReq) {
+void Node::addInteropArg(shared_ptr_class<void> Ptr, size_t Size, int ArgIndex,
+                         BufferReqPtr BufReq) {
   m_InteropArgs.emplace_back(Ptr, Size, ArgIndex, BufReq);
+}
+
+CommandPtr Scheduler::getCmdForEvent(EventImplPtr Event) {
+  // TODO: Currently, this method searches for the command in
+  // m_BuffersEvolution, which seems expensive, especially
+  // taking into account that this operation may be called
+  // from another loop. Need to optimize this method, for example,
+  // by adding a direct link from 'event' to the 'command' it
+  // is associated with.
+  for (auto &BufEvolution : m_BuffersEvolution) {
+    for (auto &Cmd : BufEvolution.second) {
+      if (detail::getSyclObjImpl(Cmd->getEvent()) == Event) {
+        return Cmd;
+      }
+    }
+  }
+  return nullptr;
 }
 
 // Waits for the event passed.
 void Scheduler::waitForEvent(EventImplPtr Event) {
-  for (auto &BufEvolution : m_BuffersEvolution) {
-    for (auto &Cmd : BufEvolution.second) {
-      if (detail::getSyclObjImpl(Cmd->getEvent()) == Event) {
-        enqueueAndWaitForCommand(Cmd);
-        return;
-      }
-    }
+  auto Cmd = getCmdForEvent(Event);
+  if (Cmd) {
+    enqueueAndWaitForCommand(Cmd);
+    return;
   }
+
   for (auto &Evnt : m_EventsWithoutRequirements) {
     if (Evnt == Event) {
       Evnt->waitInternal();
       return;
     }
   }
+}
+
+// Calls async handler for the given event Event and those other
+// events that Event immediaately depends on.
+void Scheduler::throwForEvent(EventImplPtr Event) {
+  auto Cmd = getCmdForEvent(std::move(Event));
+  if (!Cmd) {
+    return;
+  }
+  Cmd->getQueue()->throw_asynchronous();
+
+  // Call async handler for immediate dependencies.
+  std::vector<std::pair<std::shared_ptr<Command>, BufferReqPtr>> Deps =
+      Cmd->getDependencies();
+  for (auto D : Deps) {
+    D.first->getQueue()->throw_asynchronous();
+  }
+}
+
+vector_class<event> Scheduler::getDepEvents(EventImplPtr Event) {
+  vector_class<event> DepEventsVec;
+  auto Cmd = getCmdForEvent(Event);
+  if (!Cmd) {
+    return DepEventsVec;
+  }
+
+  std::vector<std::pair<std::shared_ptr<Command>, BufferReqPtr>> Deps =
+      Cmd->getDependencies();
+  for (auto D : Deps) {
+    auto DepEvent = D.first->getEvent();
+    DepEventsVec.push_back(std::move(DepEvent));
+  }
+  return DepEventsVec;
 }
 
 void Scheduler::print(std::ostream &Stream) const {
@@ -181,6 +229,26 @@ void Scheduler::printGraphForCommand(CommandPtr Cmd,
     printGraphForCommand(Dep.first, Stream);
   }
   Cmd->printDot(Stream);
+}
+
+Scheduler &Scheduler::getInstance() {
+  static Scheduler Instance;
+  return Instance;
+}
+
+CommandPtr Scheduler::insertUpdateHostCmd(const BufferReqPtr &BufStor) {
+  // TODO: Find a better way to say that we need copy to HOST, just nullptr?
+  cl::sycl::device HostDevice;
+  CommandPtr UpdateHostCmd = std::make_shared<MemMoveCommand>(
+      BufStor, m_BuffersEvolution[BufStor].back()->getQueue(),
+      detail::getSyclObjImpl(cl::sycl::queue(HostDevice)),
+      cl::sycl::access::mode::read_write);
+
+  // Add dependency if there was operations with the buffer already.
+  UpdateHostCmd->addDep(m_BuffersEvolution[BufStor].back(), BufStor);
+
+  m_BuffersEvolution[BufStor].push_back(UpdateHostCmd);
+  return UpdateHostCmd;
 }
 
 } // namespace simple_scheduler

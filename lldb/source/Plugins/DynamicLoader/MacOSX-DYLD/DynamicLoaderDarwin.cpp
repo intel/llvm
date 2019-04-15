@@ -1,9 +1,8 @@
 //===-- DynamicLoaderDarwin.cpp -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -46,6 +45,8 @@
 #else
 #include <uuid/uuid.h>
 #endif
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -256,15 +257,7 @@ bool DynamicLoaderDarwin::UpdateImageLoadAddress(Module *module,
 
               changed = m_process->GetTarget().SetSectionLoadAddress(
                   section_sp, new_section_load_addr, warn_multiple);
-            } else {
-              Host::SystemLog(
-                  Host::eSystemLogWarning,
-                  "warning: unable to find and load segment named '%s' at "
-                  "0x%" PRIx64 " in '%s' in macosx dynamic loader plug-in.\n",
-                  info.segments[i].name.AsCString("<invalid>"),
-                  (uint64_t)new_section_load_addr,
-                  image_object_file->GetFileSpec().GetPath().c_str());
-            }
+            } 
           }
         }
 
@@ -477,7 +470,7 @@ bool DynamicLoaderDarwin::JSONImageInformationIntoImageInfo(
       image_infos[i].segments.push_back(segment);
     }
 
-    image_infos[i].uuid.SetFromStringRef(
+    image_infos[i].uuid.SetFromOptionalStringRef(
         image->GetValueForKey("uuid")->GetAsString()->GetValue());
 
     // All sections listed in the dyld image info structure will all either be
@@ -948,8 +941,8 @@ DynamicLoaderDarwin::GetStepThroughTrampolinePlan(Thread &thread,
           load_addrs.push_back(address.GetLoadAddress(target_sp.get()));
         }
       }
-      thread_plan_sp.reset(
-          new ThreadPlanRunToAddress(thread, load_addrs, stop_others));
+      thread_plan_sp = std::make_shared<ThreadPlanRunToAddress>(
+          thread, load_addrs, stop_others);
     }
   } else {
     if (log)

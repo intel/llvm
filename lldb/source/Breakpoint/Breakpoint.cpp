@@ -1,9 +1,8 @@
 //===-- Breakpoint.cpp ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,6 +28,8 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -58,7 +59,7 @@ Breakpoint::Breakpoint(Target &target, SearchFilterSP &filter_sp,
 Breakpoint::Breakpoint(Target &new_target, Breakpoint &source_bp)
     : m_being_created(true), m_hardware(source_bp.m_hardware),
       m_target(new_target), m_name_list(source_bp.m_name_list),
-      m_options_up(new BreakpointOptions(*source_bp.m_options_up.get())),
+      m_options_up(new BreakpointOptions(*source_bp.m_options_up)),
       m_locations(*this),
       m_resolve_indirect_symbols(source_bp.m_resolve_indirect_symbols),
       m_hit_count(0) {
@@ -159,8 +160,8 @@ lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
       SearchFilter::GetSerializationKey(), filter_dict);
   SearchFilterSP filter_sp;
   if (!success)
-    filter_sp.reset(
-        new SearchFilterForUnconstrainedSearches(target.shared_from_this()));
+    filter_sp = std::make_shared<SearchFilterForUnconstrainedSearches>(
+        target.shared_from_this());
   else {
     filter_sp = SearchFilter::CreateFromStructuredData(target, *filter_dict,
                                                        create_error);

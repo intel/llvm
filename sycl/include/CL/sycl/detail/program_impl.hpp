@@ -1,19 +1,17 @@
 //==----- program_impl.hpp --- SYCL program implementation -----------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #pragma once
 
-#include <CL/sycl/detail/program_manager/program_manager.hpp>
+#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/common_info.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/program_manager/program_manager.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/stl.hpp>
@@ -27,6 +25,11 @@ namespace sycl {
 enum class program_state { none, compiled, linked };
 
 namespace detail {
+
+// Used to identify the module the user code, which included this header,
+// belongs to. Incurs some marginal inefficiency - there will be one copy
+// per '#include "program_impl.hpp"'
+static void *AddressInThisModule = &AddressInThisModule;
 
 class program_impl {
 public:
@@ -66,10 +69,10 @@ public:
         ClPrograms.push_back(Prg->ClProgram);
       }
       cl_int Err;
-      ClProgram =
-          clLinkProgram(Context.get(), ClDevices.size(), ClDevices.data(),
-                        LinkOptions.c_str(), ProgramList.size(),
-                        ClPrograms.data(), nullptr, nullptr, &Err);
+      ClProgram = clLinkProgram(detail::getSyclObjImpl(Context)->getHandleRef(),
+                                ClDevices.size(), ClDevices.data(),
+                                LinkOptions.c_str(), ProgramList.size(),
+                                ClPrograms.data(), nullptr, nullptr, &Err);
       CHECK_OCL_CODE_THROW(Err, compile_program_error);
     }
   }
@@ -135,7 +138,8 @@ public:
     throw_if_state_is_not(program_state::none);
     // TODO Check for existence of kernel
     if (!is_host()) {
-      create_cl_program_with_il();
+      OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
+      create_cl_program_with_il(M);
       compile(CompileOptions);
     }
     State = program_state::compiled;
@@ -157,7 +161,8 @@ public:
     throw_if_state_is_not(program_state::none);
     // TODO Check for existence of kernel
     if (!is_host()) {
-      create_cl_program_with_il();
+      OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
+      create_cl_program_with_il(M);
       build(BuildOptions);
     }
     State = program_state::linked;
@@ -179,9 +184,10 @@ public:
     if (!is_host()) {
       vector_class<cl_device_id> ClDevices(get_cl_devices());
       cl_int Err;
-      ClProgram = clLinkProgram(Context.get(), ClDevices.size(),
-                                ClDevices.data(), LinkOptions.c_str(), 1,
-                                &ClProgram, nullptr, nullptr, &Err);
+      ClProgram =
+          clLinkProgram(detail::getSyclObjImpl(Context)->getHandleRef(),
+                        ClDevices.size(), ClDevices.data(), LinkOptions.c_str(),
+                        1, &ClProgram, nullptr, nullptr, &Err);
       CHECK_OCL_CODE_THROW(Err, compile_program_error);
       LinkOptions = LinkOptions;
     }
@@ -242,20 +248,22 @@ public:
 
   vector_class<vector_class<char>> get_binaries() const {
     throw_if_state_is(program_state::none);
-    vector_class<size_t> BinarySizes(Devices.size());
-    CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_BINARY_SIZES,
-                                    sizeof(size_t) * BinarySizes.size(),
-                                    BinarySizes.data(), nullptr));
-
     vector_class<vector_class<char>> Result;
-    vector_class<char *> Pointers;
-    for (size_t I = 0; I < BinarySizes.size(); ++I) {
-      Result.emplace_back(BinarySizes[I]);
-      Pointers.push_back(Result[I].data());
+    if (!is_host()) {
+      vector_class<size_t> BinarySizes(Devices.size());
+      CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_BINARY_SIZES,
+                                      sizeof(size_t) * BinarySizes.size(),
+                                      BinarySizes.data(), nullptr));
+
+      vector_class<char *> Pointers;
+      for (size_t I = 0; I < BinarySizes.size(); ++I) {
+        Result.emplace_back(BinarySizes[I]);
+        Pointers.push_back(Result[I].data());
+      }
+      CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_BINARIES,
+                                      sizeof(char *) * Pointers.size(),
+                                      Pointers.data(), nullptr));
     }
-    CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_BINARIES,
-                                    sizeof(char *) * Pointers.size(),
-                                    Pointers.data(), nullptr));
     return Result;
   }
 
@@ -272,9 +280,9 @@ public:
   program_state get_state() const { return State; }
 
 private:
-  void create_cl_program_with_il() {
+  void create_cl_program_with_il(OSModuleHandle M) {
     assert(!ClProgram && "This program already has an encapsulated cl_program");
-    ClProgram = ProgramManager::getInstance().getBuiltOpenCLProgram(Context);
+    ClProgram = ProgramManager::getInstance().createOpenCLProgram(M, Context);
   }
 
   void create_cl_program_with_source(const string_class &Source) {
@@ -282,7 +290,8 @@ private:
     cl_int Err;
     const char *Src = Source.c_str();
     size_t Size = Source.size();
-    ClProgram = clCreateProgramWithSource(Context.get(), 1, &Src, &Size, &Err);
+    ClProgram = clCreateProgramWithSource(
+        detail::getSyclObjImpl(Context)->getHandleRef(), 1, &Src, &Size, &Err);
     CHECK_OCL_CODE(Err);
   }
 

@@ -42,7 +42,7 @@ declare void @func_external()
 ; CHECK-NEXT:         Field:           __indirect_function_table
 ; CHECK-NEXT:         Kind:            TABLE
 ; CHECK-NEXT:         Table:
-; CHECK-NEXT:           ElemType:        ANYFUNC
+; CHECK-NEXT:           ElemType:        FUNCREF
 ; CHECK-NEXT:           Limits:
 ; CHECK-NEXT:             Initial:         0x00000002
 ; CHECK-NEXT:       - Module:          env
@@ -66,17 +66,17 @@ declare void @func_external()
 ; CHECK:        - Type:            ELEM
 ; CHECK-NEXT:     Segments:
 ; CHECK-NEXT:       - Offset:
-; CHECK-NEXT:           Opcode:          GET_GLOBAL
+; CHECK-NEXT:           Opcode:          GLOBAL_GET
 ; CHECK-NEXT:           Index:           2
-; CHECK-NEXT:         Functions:       [ 2, 0 ]
+; CHECK-NEXT:         Functions:       [ 1, 0 ]
 
 ; check the data segment initialized with __memory_base global as offset
 
 ; CHECK:        - Type:            DATA
 ; CHECK-NEXT:     Segments:
 ; CHECK-NEXT:       - SectionOffset:   6
-; CHECK-NEXT:         MemoryIndex:     0
+; CHECK-NEXT:         InitFlags:       0
 ; CHECK-NEXT:         Offset:
-; CHECK-NEXT:           Opcode:          GET_GLOBAL
+; CHECK-NEXT:           Opcode:          GLOBAL_GET
 ; CHECK-NEXT:           Index:           1
 ; CHECK-NEXT:         Content:         '0000000001000000'

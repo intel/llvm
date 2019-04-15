@@ -1,9 +1,8 @@
 //===- AMDGPU.cpp ---------------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -75,7 +74,7 @@ void AMDGPU::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
     write32le(Loc, Val >> 32);
     break;
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + Twine(Type));
+    llvm_unreachable("unknown relocation");
   }
 }
 
@@ -95,7 +94,9 @@ RelExpr AMDGPU::getRelExpr(RelType Type, const Symbol &S,
   case R_AMDGPU_GOTPCREL32_HI:
     return R_GOT_PC;
   default:
-    return R_INVALID;
+    error(getErrorLocation(Loc) + "unknown relocation (" + Twine(Type) +
+          ") against symbol " + toString(S));
+    return R_NONE;
   }
 }
 

@@ -1,9 +1,8 @@
 //===--- CodeGenAction.cpp - LLVM Code Generation Frontend Action ---------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -837,8 +836,6 @@ GetOutputStream(CompilerInstance &CI, StringRef InFile, BackendAction Action) {
     return CI.createDefaultOutputFile(false, InFile, "ll");
   case Backend_EmitBC:
     return CI.createDefaultOutputFile(true, InFile, "bc");
-  case Backend_EmitSPIRV:
-    return CI.createDefaultOutputFile(true, InFile, "spv");
   case Backend_EmitNothing:
     return nullptr;
   case Backend_EmitMCNull:
@@ -1059,10 +1056,6 @@ EmitAssemblyAction::EmitAssemblyAction(llvm::LLVMContext *_VMContext)
 void EmitBCAction::anchor() { }
 EmitBCAction::EmitBCAction(llvm::LLVMContext *_VMContext)
   : CodeGenAction(Backend_EmitBC, _VMContext) {}
-
-void EmitSPIRVAction::anchor() { }
-EmitSPIRVAction::EmitSPIRVAction(llvm::LLVMContext *_VMContext)
-  : CodeGenAction(Backend_EmitSPIRV, _VMContext) {}
 
 void EmitLLVMAction::anchor() { }
 EmitLLVMAction::EmitLLVMAction(llvm::LLVMContext *_VMContext)

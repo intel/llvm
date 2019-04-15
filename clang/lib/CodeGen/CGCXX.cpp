@@ -1,9 +1,8 @@
 //===--- CGCXX.cpp - Emit LLVM Code for declarations ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -228,10 +227,11 @@ llvm::Function *CodeGenModule::codegenCXXStructor(const CXXMethodDecl *MD,
   return Fn;
 }
 
-llvm::Constant *CodeGenModule::getAddrOfCXXStructor(
+llvm::FunctionCallee CodeGenModule::getAddrAndTypeOfCXXStructor(
     const CXXMethodDecl *MD, StructorType Type, const CGFunctionInfo *FnInfo,
     llvm::FunctionType *FnType, bool DontDefer,
     ForDefinition_t IsForDefinition) {
+
   GlobalDecl GD;
   if (auto *CD = dyn_cast<CXXConstructorDecl>(MD)) {
     GD = GlobalDecl(CD, toCXXCtorType(Type));
@@ -250,9 +250,10 @@ llvm::Constant *CodeGenModule::getAddrOfCXXStructor(
     FnType = getTypes().GetFunctionType(*FnInfo);
   }
 
-  return GetOrCreateLLVMFunction(
+  llvm::Constant *Ptr = GetOrCreateLLVMFunction(
       getMangledName(GD), FnType, GD, /*ForVTable=*/false, DontDefer,
       /*isThunk=*/false, /*ExtraAttrs=*/llvm::AttributeList(), IsForDefinition);
+  return {FnType, Ptr};
 }
 
 static CGCallee BuildAppleKextVirtualCall(CodeGenFunction &CGF,

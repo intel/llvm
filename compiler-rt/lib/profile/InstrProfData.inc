@@ -1,9 +1,8 @@
 /*===-- InstrProfData.inc - instr profiling runtime structures -*- C++ -*-=== *\
 |*
-|*                     The LLVM Compiler Infrastructure
-|*
-|* This file is distributed under the University of Illinois Open Source
-|* License. See LICENSE.TXT for details.
+|* Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+|* See https://llvm.org/LICENSE.txt for license information.
+|* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 |*
 \*===----------------------------------------------------------------------===*/
 /*
@@ -250,22 +249,22 @@ COVMAP_HEADER(uint32_t, Int32Ty, Version, \
 #define INSTR_PROF_DATA_DEFINED
 INSTR_PROF_SECT_ENTRY(IPSK_data, \
                       INSTR_PROF_QUOTE(INSTR_PROF_DATA_COMMON), \
-                      INSTR_PROF_QUOTE(INSTR_PROF_DATA_COFF), "__DATA,")
+                      INSTR_PROF_DATA_COFF, "__DATA,")
 INSTR_PROF_SECT_ENTRY(IPSK_cnts, \
                       INSTR_PROF_QUOTE(INSTR_PROF_CNTS_COMMON), \
-                      INSTR_PROF_QUOTE(INSTR_PROF_CNTS_COFF), "__DATA,")
+                      INSTR_PROF_CNTS_COFF, "__DATA,")
 INSTR_PROF_SECT_ENTRY(IPSK_name, \
                       INSTR_PROF_QUOTE(INSTR_PROF_NAME_COMMON), \
-                      INSTR_PROF_QUOTE(INSTR_PROF_NAME_COFF), "__DATA,")
+                      INSTR_PROF_NAME_COFF, "__DATA,")
 INSTR_PROF_SECT_ENTRY(IPSK_vals, \
                       INSTR_PROF_QUOTE(INSTR_PROF_VALS_COMMON), \
-                      INSTR_PROF_QUOTE(INSTR_PROF_VALS_COFF), "__DATA,")
+                      INSTR_PROF_VALS_COFF, "__DATA,")
 INSTR_PROF_SECT_ENTRY(IPSK_vnodes, \
                       INSTR_PROF_QUOTE(INSTR_PROF_VNODES_COMMON), \
-                      INSTR_PROF_QUOTE(INSTR_PROF_VNODES_COFF), "__DATA,")
+                      INSTR_PROF_VNODES_COFF, "__DATA,")
 INSTR_PROF_SECT_ENTRY(IPSK_covmap, \
                       INSTR_PROF_QUOTE(INSTR_PROF_COVMAP_COMMON), \
-                      INSTR_PROF_QUOTE(INSTR_PROF_COVMAP_COFF), "__LLVM_COV,")
+                      INSTR_PROF_COVMAP_COFF, "__LLVM_COV,")
 
 #undef INSTR_PROF_SECT_ENTRY
 #endif
@@ -308,14 +307,14 @@ typedef struct ValueProfRecord {
 
 #ifdef __cplusplus
   /*!
-   * \brief Return the number of value sites.
+   * Return the number of value sites.
    */
   uint32_t getNumValueSites() const { return NumValueSites; }
   /*!
-   * \brief Read data from this record and save it to Record.
+   * Read data from this record and save it to Record.
    */
   void deserializeTo(InstrProfRecord &Record,
-                     InstrProfRecord::ValueMapType *VMap);
+                     InstrProfSymtab *SymTab);
   /*
    * In-place byte swap:
    * Do byte swap for this instance. \c Old is the original order before
@@ -393,7 +392,7 @@ typedef struct ValueProfData {
    * Read data from this data and save it to \c Record.
    */
   void deserializeTo(InstrProfRecord &Record,
-                     InstrProfRecord::ValueMapType *VMap);
+                     InstrProfSymtab *SymTab);
   void operator delete(void *ptr) { ::operator delete(ptr); }
 #endif
 } ValueProfData;
@@ -458,7 +457,7 @@ getValueProfRecordHeaderSize(uint32_t NumValueSites);
 #endif
 
 /*!
- * \brief Return the \c ValueProfRecord header size including the
+ * Return the \c ValueProfRecord header size including the
  * padding bytes.
  */
 INSTR_PROF_VISIBILITY INSTR_PROF_INLINE
@@ -471,7 +470,7 @@ uint32_t getValueProfRecordHeaderSize(uint32_t NumValueSites) {
 }
 
 /*!
- * \brief Return the total size of the value profile record including the
+ * Return the total size of the value profile record including the
  * header and the value data.
  */
 INSTR_PROF_VISIBILITY INSTR_PROF_INLINE
@@ -482,7 +481,7 @@ uint32_t getValueProfRecordSize(uint32_t NumValueSites,
 }
 
 /*!
- * \brief Return the pointer to the start of value data array.
+ * Return the pointer to the start of value data array.
  */
 INSTR_PROF_VISIBILITY INSTR_PROF_INLINE
 InstrProfValueData *getValueProfRecordValueData(ValueProfRecord *This) {
@@ -491,7 +490,7 @@ InstrProfValueData *getValueProfRecordValueData(ValueProfRecord *This) {
 }
 
 /*!
- * \brief Return the total number of value data for \c This record.
+ * Return the total number of value data for \c This record.
  */
 INSTR_PROF_VISIBILITY INSTR_PROF_INLINE
 uint32_t getValueProfRecordNumValueData(ValueProfRecord *This) {
@@ -503,7 +502,7 @@ uint32_t getValueProfRecordNumValueData(ValueProfRecord *This) {
 }
 
 /*!
- * \brief Use this method to advance to the next \c This \c ValueProfRecord.
+ * Use this method to advance to the next \c This \c ValueProfRecord.
  */
 INSTR_PROF_VISIBILITY INSTR_PROF_INLINE
 ValueProfRecord *getValueProfRecordNext(ValueProfRecord *This) {
@@ -514,7 +513,7 @@ ValueProfRecord *getValueProfRecordNext(ValueProfRecord *This) {
 }
 
 /*!
- * \brief Return the first \c ValueProfRecord instance.
+ * Return the first \c ValueProfRecord instance.
  */
 INSTR_PROF_VISIBILITY INSTR_PROF_INLINE
 ValueProfRecord *getFirstValueProfRecord(ValueProfData *This) {
@@ -636,10 +635,12 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
  * version for other variants of profile. We set the lowest bit of the upper 8
  * bits (i.e. bit 56) to 1 to indicate if this is an IR-level instrumentaiton
  * generated profile, and 0 if this is a Clang FE generated profile.
+ * 1 in bit 57 indicates there are context-sensitive records in the profile.
  */
 #define VARIANT_MASKS_ALL 0xff00000000000000ULL
 #define GET_VERSION(V) ((V) & ~VARIANT_MASKS_ALL)
 #define VARIANT_MASK_IR_PROF (0x1ULL << 56)
+#define VARIANT_MASK_CSIR_PROF (0x1ULL << 57)
 #define INSTR_PROF_RAW_VERSION_VAR __llvm_profile_raw_version
 #define INSTR_PROF_PROFILE_RUNTIME_VAR __llvm_profile_runtime
 
@@ -655,13 +656,15 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 #define INSTR_PROF_VALS_COMMON __llvm_prf_vals
 #define INSTR_PROF_VNODES_COMMON __llvm_prf_vnds
 #define INSTR_PROF_COVMAP_COMMON __llvm_covmap
-/* Win32 */
-#define INSTR_PROF_DATA_COFF .lprfd
-#define INSTR_PROF_NAME_COFF .lprfn
-#define INSTR_PROF_CNTS_COFF .lprfc
-#define INSTR_PROF_VALS_COFF .lprfv
-#define INSTR_PROF_VNODES_COFF .lprfnd
-#define INSTR_PROF_COVMAP_COFF .lcovmap
+/* Windows section names. Because these section names contain dollar characters,
+ * they must be quoted.
+ */
+#define INSTR_PROF_DATA_COFF ".lprfd$M"
+#define INSTR_PROF_NAME_COFF ".lprfn$M"
+#define INSTR_PROF_CNTS_COFF ".lprfc$M"
+#define INSTR_PROF_VALS_COFF ".lprfv$M"
+#define INSTR_PROF_VNODES_COFF ".lprfnd$M"
+#define INSTR_PROF_COVMAP_COFF ".lcovmap$M"
 
 #ifdef _WIN32
 /* Runtime section names and name strings.  */
@@ -677,30 +680,17 @@ serializeValueProfDataFrom(ValueProfRecordClosure *Closure,
 #define INSTR_PROF_COVMAP_SECT_NAME INSTR_PROF_COVMAP_COFF
 #else
 /* Runtime section names and name strings.  */
-#define INSTR_PROF_DATA_SECT_NAME INSTR_PROF_DATA_COMMON
-#define INSTR_PROF_NAME_SECT_NAME INSTR_PROF_NAME_COMMON
-#define INSTR_PROF_CNTS_SECT_NAME INSTR_PROF_CNTS_COMMON
+#define INSTR_PROF_DATA_SECT_NAME INSTR_PROF_QUOTE(INSTR_PROF_DATA_COMMON)
+#define INSTR_PROF_NAME_SECT_NAME INSTR_PROF_QUOTE(INSTR_PROF_NAME_COMMON)
+#define INSTR_PROF_CNTS_SECT_NAME INSTR_PROF_QUOTE(INSTR_PROF_CNTS_COMMON)
 /* Array of pointers. Each pointer points to a list
  * of value nodes associated with one value site.
  */
-#define INSTR_PROF_VALS_SECT_NAME INSTR_PROF_VALS_COMMON
+#define INSTR_PROF_VALS_SECT_NAME INSTR_PROF_QUOTE(INSTR_PROF_VALS_COMMON)
 /* Value profile nodes section. */
-#define INSTR_PROF_VNODES_SECT_NAME INSTR_PROF_VNODES_COMMON
-#define INSTR_PROF_COVMAP_SECT_NAME INSTR_PROF_COVMAP_COMMON
+#define INSTR_PROF_VNODES_SECT_NAME INSTR_PROF_QUOTE(INSTR_PROF_VNODES_COMMON)
+#define INSTR_PROF_COVMAP_SECT_NAME INSTR_PROF_QUOTE(INSTR_PROF_COVMAP_COMMON)
 #endif
-
-#define INSTR_PROF_DATA_SECT_NAME_STR                                          \
-  INSTR_PROF_QUOTE(INSTR_PROF_DATA_SECT_NAME)
-#define INSTR_PROF_NAME_SECT_NAME_STR                                          \
-  INSTR_PROF_QUOTE(INSTR_PROF_NAME_SECT_NAME)
-#define INSTR_PROF_CNTS_SECT_NAME_STR                                          \
-  INSTR_PROF_QUOTE(INSTR_PROF_CNTS_SECT_NAME)
-#define INSTR_PROF_COVMAP_SECT_NAME_STR                                        \
-  INSTR_PROF_QUOTE(INSTR_PROF_COVMAP_SECT_NAME)
-#define INSTR_PROF_VALS_SECT_NAME_STR                                          \
-  INSTR_PROF_QUOTE(INSTR_PROF_VALS_SECT_NAME)
-#define INSTR_PROF_VNODES_SECT_NAME_STR                                        \
-  INSTR_PROF_QUOTE(INSTR_PROF_VNODES_SECT_NAME)
 
 /* Macros to define start/stop section symbol for a given
  * section on Linux. For instance

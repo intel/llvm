@@ -8,7 +8,7 @@
 #endif
 #include <inttypes.h>
 #include <omp.h>
-#include <ompt.h>
+#include <omp-tools.h>
 #include "ompt-signal.h"
 
 // Used to detect architecture
@@ -23,10 +23,13 @@ static const char* ompt_thread_t_values[] = {
 
 static const char* ompt_task_status_t_values[] = {
   NULL,
-  "ompt_task_complete",
-  "ompt_task_yield",
-  "ompt_task_cancel",
-  "ompt_task_others"
+  "ompt_task_complete",       // 1
+  "ompt_task_yield",          // 2
+  "ompt_task_cancel",         // 3
+  "ompt_task_detach",         // 4
+  "ompt_task_early_fulfill",  // 5
+  "ompt_task_late_fulfill",   // 6
+  "ompt_task_switch"          // 7
 };
 static const char* ompt_cancel_flag_t_values[] = {
   "ompt_cancel_parallel",
@@ -151,11 +154,12 @@ ompt_label_##id:
          ompt_get_thread_data()->value, ((char *)addr) - 1, ((char *)addr) - 4)
 #elif KMP_ARCH_PPC64
 // On Power the NOP instruction is 4 bytes long. In addition, the compiler
-// inserts an LD instruction which accounts for another 4 bytes. In contrast to
-// X86 this instruction is always there, even for void runtime functions.
+// inserts a second NOP instruction (another 4 bytes). For non-void runtime
+// functions Clang inserts a STW instruction (but only if compiling under
+// -fno-PIC which will be the default with Clang 8.0, another 4 bytes).
 #define print_possible_return_addresses(addr) \
-  printf("%" PRIu64 ": current_address=%p\n", ompt_get_thread_data()->value, \
-         ((char *)addr) - 8)
+  printf("%" PRIu64 ": current_address=%p or %p\n", ompt_get_thread_data()->value, \
+         ((char *)addr) - 8, ((char *)addr) - 12)
 #elif KMP_ARCH_AARCH64
 // On AArch64 the NOP instruction is 4 bytes long, can be followed by inserted
 // store instruction (another 4 bytes long).
@@ -439,7 +443,8 @@ on_ompt_callback_implicit_task(
     ompt_data_t *parallel_data,
     ompt_data_t *task_data,
     unsigned int team_size,
-    unsigned int thread_num)
+    unsigned int thread_num,
+    int flags)
 {
   switch(endpoint)
   {
@@ -651,9 +656,9 @@ on_ompt_callback_task_schedule(
 }
 
 static void
-on_ompt_callback_task_dependences(
+on_ompt_callback_dependences(
   ompt_data_t *task_data,
-  const ompt_task_dependence_t *deps,
+  const ompt_dependence_t *deps,
   int ndeps)
 {
   printf("%" PRIu64 ": ompt_event_task_dependences: task_id=%" PRIu64 ", deps=%p, ndeps=%d\n", ompt_get_thread_data()->value, task_data->value, (void *)deps, ndeps);
@@ -710,6 +715,7 @@ do{                                                           \
 
 int ompt_initialize(
   ompt_function_lookup_t lookup,
+  int initial_device_num,
   ompt_data_t *tool_data)
 {
   ompt_set_callback = (ompt_set_callback_t) lookup("ompt_set_callback");
@@ -747,7 +753,7 @@ int ompt_initialize(
   register_callback(ompt_callback_parallel_end);
   register_callback(ompt_callback_task_create);
   register_callback(ompt_callback_task_schedule);
-  register_callback(ompt_callback_task_dependences);
+  register_callback(ompt_callback_dependences);
   register_callback(ompt_callback_task_dependence);
   register_callback(ompt_callback_thread_begin);
   register_callback(ompt_callback_thread_end);
@@ -760,6 +766,9 @@ void ompt_finalize(ompt_data_t *tool_data)
   printf("0: ompt_event_runtime_shutdown\n");
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 ompt_start_tool_result_t* ompt_start_tool(
   unsigned int omp_version,
   const char *runtime_version)
@@ -767,3 +776,6 @@ ompt_start_tool_result_t* ompt_start_tool(
   static ompt_start_tool_result_t ompt_start_tool_result = {&ompt_initialize,&ompt_finalize, 0};
   return &ompt_start_tool_result;
 }
+#ifdef __cplusplus
+}
+#endif

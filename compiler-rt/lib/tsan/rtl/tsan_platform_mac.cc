@@ -1,9 +1,8 @@
 //===-- tsan_platform_mac.cc ----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -213,7 +212,7 @@ static void my_pthread_introspection_hook(unsigned int event, pthread_t thread,
       ThreadState *parent_thread_state = nullptr;  // No parent.
       int tid = ThreadCreate(parent_thread_state, 0, (uptr)thread, true);
       CHECK_NE(tid, 0);
-      ThreadStart(thr, tid, GetTid(), /*workerthread*/ true);
+      ThreadStart(thr, tid, GetTid(), ThreadType::Worker);
     }
   } else if (event == PTHREAD_INTROSPECTION_THREAD_TERMINATE) {
     if (thread == pthread_self()) {

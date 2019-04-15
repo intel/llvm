@@ -1,9 +1,8 @@
 //===-- MICmnLLDBDebugSessionInfo.cpp ---------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -376,11 +375,9 @@ bool CMICmnLLDBDebugSessionInfo::MIResponseFormThreadInfo(
 
   // Add "target-id"
   const char *pThreadName = rThread.GetName();
-  const MIuint len =
-      (pThreadName != nullptr) ? CMIUtilString(pThreadName).length() : 0;
-  const bool bHaveName = ((pThreadName != nullptr) && (len > 0) && (len < 32) &&
-                          CMIUtilString::IsAllValidAlphaAndNumeric(
-                              pThreadName)); // 32 is arbitrary number
+  const MIuint len = CMIUtilString(pThreadName).length();
+  const bool bHaveName = (len > 0) && (len < 32) && // 32 is arbitrary number
+                         CMIUtilString::IsAllValidAlphaAndNumeric(pThreadName);
   const char *pThrdFmt = bHaveName ? "%s" : "Thread %d";
   CMIUtilString strThread;
   if (bHaveName)

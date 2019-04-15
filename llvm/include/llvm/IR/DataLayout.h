@@ -1,9 +1,8 @@
 //===- llvm/DataLayout.h - Data size & alignment info -----------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -334,6 +333,9 @@ public:
   /// the backends/clients are updated.
   unsigned getPointerSize(unsigned AS = 0) const;
 
+  /// Returns the maximum pointer size over all address spaces.
+  unsigned getMaxPointerSize() const;
+
   // Index size used for address calculation.
   unsigned getIndexSize(unsigned AS) const;
 
@@ -343,10 +345,13 @@ public:
     return NonIntegralAddressSpaces;
   }
 
-  bool isNonIntegralPointerType(PointerType *PT) const {
+  bool isNonIntegralAddressSpace(unsigned AddrSpace) const {
     ArrayRef<unsigned> NonIntegralSpaces = getNonIntegralAddressSpaces();
-    return find(NonIntegralSpaces, PT->getAddressSpace()) !=
-           NonIntegralSpaces.end();
+    return find(NonIntegralSpaces, AddrSpace) != NonIntegralSpaces.end();
+  }
+
+  bool isNonIntegralPointerType(PointerType *PT) const {
+    return isNonIntegralAddressSpace(PT->getAddressSpace());
   }
 
   bool isNonIntegralPointerType(Type *Ty) const {
@@ -359,6 +364,11 @@ public:
   /// the backends/clients are updated.
   unsigned getPointerSizeInBits(unsigned AS = 0) const {
     return getPointerSize(AS) * 8;
+  }
+
+  /// Returns the maximum pointer size over all address spaces.
+  unsigned getMaxPointerSizeInBits() const {
+    return getMaxPointerSize() * 8;
   }
 
   /// Size in bits of index used for address calculation in getelementptr.

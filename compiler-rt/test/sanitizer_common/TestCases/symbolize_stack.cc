@@ -2,6 +2,9 @@
 
 // Test that symbolizer does not crash on frame with large function name.
 
+// On Darwin LSan reports a false positive
+// XFAIL: darwin && lsan
+
 #include <sanitizer/common_interface_defs.h>
 #include <vector>
 

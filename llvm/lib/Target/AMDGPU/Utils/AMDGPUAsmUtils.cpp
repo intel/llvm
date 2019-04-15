@@ -1,9 +1,8 @@
 //===-- AMDGPUAsmUtils.cpp - AsmParser/InstPrinter common -----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #include "AMDGPUAsmUtils.h"
@@ -86,5 +85,18 @@ const char* const IdSymbolic[] = {
 };
 
 } // namespace Swizzle
+
+namespace VGPRIndexMode {
+
+// This must be in sync with llvm::AMDGPU::VGPRIndexMode::Id enum members, see SIDefines.h.
+const char* const IdSymbolic[] = {
+  "SRC0",
+  "SRC1",
+  "SRC2",
+  "DST",
+};
+
+} // namespace VGPRIndexMode
+
 } // namespace AMDGPU
 } // namespace llvm

@@ -1,9 +1,8 @@
 //===-- Watchpoint.h --------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -214,7 +213,7 @@ private:
                  // the callback machinery.
   bool m_being_created;
 
-  std::unique_ptr<UserExpression> m_condition_ap; // The condition to test.
+  std::unique_ptr<UserExpression> m_condition_up; // The condition to test.
 
   void SetID(lldb::watch_id_t id) { m_loc_id = id; }
 

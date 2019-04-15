@@ -1,9 +1,8 @@
 //===-- Instrumentation.cpp - TransformUtils Infrastructure ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -101,8 +100,8 @@ Comdat *llvm::GetOrCreateFunctionComdat(Function &F, Triple &T,
 /// initializeInstrumentation - Initialize all passes in the TransformUtils
 /// library.
 void llvm::initializeInstrumentation(PassRegistry &Registry) {
-  initializeAddressSanitizerPass(Registry);
-  initializeAddressSanitizerModulePass(Registry);
+  initializeAddressSanitizerLegacyPassPass(Registry);
+  initializeModuleAddressSanitizerLegacyPassPass(Registry);
   initializeBoundsCheckingLegacyPassPass(Registry);
   initializeControlHeightReductionLegacyPassPass(Registry);
   initializeGCOVProfilerLegacyPassPass(Registry);
@@ -110,10 +109,11 @@ void llvm::initializeInstrumentation(PassRegistry &Registry) {
   initializePGOInstrumentationUseLegacyPassPass(Registry);
   initializePGOIndirectCallPromotionLegacyPassPass(Registry);
   initializePGOMemOPSizeOptLegacyPassPass(Registry);
+  initializeInstrOrderFileLegacyPassPass(Registry);
   initializeInstrProfilingLegacyPassPass(Registry);
-  initializeMemorySanitizerPass(Registry);
+  initializeMemorySanitizerLegacyPassPass(Registry);
   initializeHWAddressSanitizerPass(Registry);
-  initializeThreadSanitizerPass(Registry);
+  initializeThreadSanitizerLegacyPassPass(Registry);
   initializeSanitizerCoverageModulePass(Registry);
   initializeDataFlowSanitizerPass(Registry);
   initializeEfficiencySanitizerPass(Registry);

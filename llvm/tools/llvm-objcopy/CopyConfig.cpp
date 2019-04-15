@@ -1,9 +1,8 @@
 //===- CopyConfig.cpp -----------------------------------------------------===//
 //
-//                      The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,14 +13,14 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Object/ELFTypes.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compression.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/StringSaver.h"
 #include <memory>
-#include <string>
 
 namespace llvm {
 namespace objcopy {
@@ -129,9 +128,39 @@ static SectionFlag parseSectionRenameFlag(StringRef SectionName) {
       .Default(SectionFlag::SecNone);
 }
 
-static SectionRename parseRenameSectionValue(StringRef FlagValue) {
+static Expected<uint64_t>
+parseSectionFlagSet(ArrayRef<StringRef> SectionFlags) {
+  SectionFlag ParsedFlags = SectionFlag::SecNone;
+  for (StringRef Flag : SectionFlags) {
+    SectionFlag ParsedFlag = parseSectionRenameFlag(Flag);
+    if (ParsedFlag == SectionFlag::SecNone)
+      return createStringError(
+          errc::invalid_argument,
+          "Unrecognized section flag '%s'. Flags supported for GNU "
+          "compatibility: alloc, load, noload, readonly, debug, code, data, "
+          "rom, share, contents, merge, strings",
+          Flag.str().c_str());
+    ParsedFlags |= ParsedFlag;
+  }
+
+  uint64_t NewFlags = 0;
+  if (ParsedFlags & SectionFlag::SecAlloc)
+    NewFlags |= ELF::SHF_ALLOC;
+  if (!(ParsedFlags & SectionFlag::SecReadonly))
+    NewFlags |= ELF::SHF_WRITE;
+  if (ParsedFlags & SectionFlag::SecCode)
+    NewFlags |= ELF::SHF_EXECINSTR;
+  if (ParsedFlags & SectionFlag::SecMerge)
+    NewFlags |= ELF::SHF_MERGE;
+  if (ParsedFlags & SectionFlag::SecStrings)
+    NewFlags |= ELF::SHF_STRINGS;
+  return NewFlags;
+}
+
+static Expected<SectionRename> parseRenameSectionValue(StringRef FlagValue) {
   if (!FlagValue.contains('='))
-    error("Bad format for --rename-section: missing '='");
+    return createStringError(errc::invalid_argument,
+                             "Bad format for --rename-section: missing '='");
 
   // Initial split: ".foo" = ".bar,f1,f2,..."
   auto Old2New = FlagValue.split('=');
@@ -144,31 +173,106 @@ static SectionRename parseRenameSectionValue(StringRef FlagValue) {
   SR.NewName = NameAndFlags[0];
 
   if (NameAndFlags.size() > 1) {
-    SectionFlag Flags = SectionFlag::SecNone;
-    for (size_t I = 1, Size = NameAndFlags.size(); I < Size; ++I) {
-      SectionFlag Flag = parseSectionRenameFlag(NameAndFlags[I]);
-      if (Flag == SectionFlag::SecNone)
-        error("Unrecognized section flag '" + NameAndFlags[I] +
-              "'. Flags supported for GNU compatibility: alloc, load, noload, "
-              "readonly, debug, code, data, rom, share, contents, merge, "
-              "strings.");
-      Flags |= Flag;
-    }
-
-    SR.NewFlags = 0;
-    if (Flags & SectionFlag::SecAlloc)
-      *SR.NewFlags |= ELF::SHF_ALLOC;
-    if (!(Flags & SectionFlag::SecReadonly))
-      *SR.NewFlags |= ELF::SHF_WRITE;
-    if (Flags & SectionFlag::SecCode)
-      *SR.NewFlags |= ELF::SHF_EXECINSTR;
-    if (Flags & SectionFlag::SecMerge)
-      *SR.NewFlags |= ELF::SHF_MERGE;
-    if (Flags & SectionFlag::SecStrings)
-      *SR.NewFlags |= ELF::SHF_STRINGS;
+    Expected<uint64_t> ParsedFlagSet =
+        parseSectionFlagSet(makeArrayRef(NameAndFlags).drop_front());
+    if (!ParsedFlagSet)
+      return ParsedFlagSet.takeError();
+    SR.NewFlags = *ParsedFlagSet;
   }
 
   return SR;
+}
+
+static Expected<SectionFlagsUpdate>
+parseSetSectionFlagValue(StringRef FlagValue) {
+  if (!StringRef(FlagValue).contains('='))
+    return createStringError(errc::invalid_argument,
+                             "Bad format for --set-section-flags: missing '='");
+
+  // Initial split: ".foo" = "f1,f2,..."
+  auto Section2Flags = StringRef(FlagValue).split('=');
+  SectionFlagsUpdate SFU;
+  SFU.Name = Section2Flags.first;
+
+  // Flags split: "f1" "f2" ...
+  SmallVector<StringRef, 6> SectionFlags;
+  Section2Flags.second.split(SectionFlags, ',');
+  Expected<uint64_t> ParsedFlagSet = parseSectionFlagSet(SectionFlags);
+  if (!ParsedFlagSet)
+    return ParsedFlagSet.takeError();
+  SFU.NewFlags = *ParsedFlagSet;
+
+  return SFU;
+}
+
+static NewSymbolInfo parseNewSymbolInfo(StringRef FlagValue) {
+  // Parse value given with --add-symbol option and create the
+  // new symbol if possible. The value format for --add-symbol is:
+  //
+  // <name>=[<section>:]<value>[,<flags>]
+  //
+  // where:
+  // <name> - symbol name, can be empty string
+  // <section> - optional section name. If not given ABS symbol is created
+  // <value> - symbol value, can be decimal or hexadecimal number prefixed
+  //           with 0x.
+  // <flags> - optional flags affecting symbol type, binding or visibility:
+  //           The following are currently supported:
+  //
+  //           global, local, weak, default, hidden, file, section, object,
+  //           indirect-function.
+  //
+  //           The following flags are ignored and provided for GNU
+  //           compatibility only:
+  //
+  //           warning, debug, constructor, indirect, synthetic,
+  //           unique-object, before=<symbol>.
+  NewSymbolInfo SI;
+  StringRef Value;
+  std::tie(SI.SymbolName, Value) = FlagValue.split('=');
+  if (Value.empty())
+    error("bad format for --add-symbol, missing '=' after '" + SI.SymbolName +
+          "'");
+
+  if (Value.contains(':')) {
+    std::tie(SI.SectionName, Value) = Value.split(':');
+    if (SI.SectionName.empty() || Value.empty())
+      error(
+          "bad format for --add-symbol, missing section name or symbol value");
+  }
+
+  SmallVector<StringRef, 6> Flags;
+  Value.split(Flags, ',');
+  if (Flags[0].getAsInteger(0, SI.Value))
+    error("bad symbol value: '" + Flags[0] + "'");
+
+  typedef std::function<void(void)> Functor;
+  size_t NumFlags = Flags.size();
+  for (size_t I = 1; I < NumFlags; ++I)
+    static_cast<Functor>(
+        StringSwitch<Functor>(Flags[I])
+            .CaseLower("global", [&SI] { SI.Bind = ELF::STB_GLOBAL; })
+            .CaseLower("local", [&SI] { SI.Bind = ELF::STB_LOCAL; })
+            .CaseLower("weak", [&SI] { SI.Bind = ELF::STB_WEAK; })
+            .CaseLower("default", [&SI] { SI.Visibility = ELF::STV_DEFAULT; })
+            .CaseLower("hidden", [&SI] { SI.Visibility = ELF::STV_HIDDEN; })
+            .CaseLower("file", [&SI] { SI.Type = ELF::STT_FILE; })
+            .CaseLower("section", [&SI] { SI.Type = ELF::STT_SECTION; })
+            .CaseLower("object", [&SI] { SI.Type = ELF::STT_OBJECT; })
+            .CaseLower("function", [&SI] { SI.Type = ELF::STT_FUNC; })
+            .CaseLower("indirect-function",
+                       [&SI] { SI.Type = ELF::STT_GNU_IFUNC; })
+            .CaseLower("debug", [] {})
+            .CaseLower("constructor", [] {})
+            .CaseLower("warning", [] {})
+            .CaseLower("indirect", [] {})
+            .CaseLower("synthetic", [] {})
+            .CaseLower("unique-object", [] {})
+            .StartsWithLower("before", [] {})
+            .Default([&] {
+              error("unsupported flag '" + Flags[I] + "' for --add-symbol");
+            }))();
+  return SI;
 }
 
 static const StringMap<MachineInfo> ArchMap{
@@ -182,19 +286,41 @@ static const StringMap<MachineInfo> ArchMap{
     {"x86-64", {ELF::EM_X86_64, true, true}},
 };
 
-static const MachineInfo &getMachineInfo(StringRef Arch) {
+static Expected<const MachineInfo &> getMachineInfo(StringRef Arch) {
   auto Iter = ArchMap.find(Arch);
   if (Iter == std::end(ArchMap))
-    error("Invalid architecture: '" + Arch + "'");
+    return createStringError(errc::invalid_argument,
+                             "Invalid architecture: '%s'", Arch.str().c_str());
   return Iter->getValue();
 }
 
-static void addGlobalSymbolsFromFile(std::vector<std::string> &Symbols,
-                                     StringRef Filename) {
+static const StringMap<MachineInfo> OutputFormatMap{
+    // Name, {EMachine, 64bit, LittleEndian}
+    {"elf32-i386", {ELF::EM_386, false, true}},
+    {"elf32-powerpcle", {ELF::EM_PPC, false, true}},
+    {"elf32-x86-64", {ELF::EM_X86_64, false, true}},
+    {"elf64-powerpcle", {ELF::EM_PPC64, true, true}},
+    {"elf64-x86-64", {ELF::EM_X86_64, true, true}},
+};
+
+static Expected<const MachineInfo &>
+getOutputFormatMachineInfo(StringRef Format) {
+  auto Iter = OutputFormatMap.find(Format);
+  if (Iter == std::end(OutputFormatMap))
+    return createStringError(errc::invalid_argument,
+                             "Invalid output format: '%s'",
+                             Format.str().c_str());
+  return Iter->getValue();
+}
+
+static Error addSymbolsFromFile(std::vector<NameOrRegex> &Symbols,
+                                BumpPtrAllocator &Alloc, StringRef Filename,
+                                bool UseRegex) {
+  StringSaver Saver(Alloc);
   SmallVector<StringRef, 16> Lines;
   auto BufOrErr = MemoryBuffer::getFile(Filename);
   if (!BufOrErr)
-    reportError(Filename, BufOrErr.getError());
+    return createFileError(Filename, BufOrErr.getError());
 
   BufOrErr.get()->getBuffer().split(Lines, '\n');
   for (StringRef Line : Lines) {
@@ -202,14 +328,62 @@ static void addGlobalSymbolsFromFile(std::vector<std::string> &Symbols,
     // it's not empty.
     auto TrimmedLine = Line.split('#').first.trim();
     if (!TrimmedLine.empty())
-      Symbols.push_back(TrimmedLine.str());
+      Symbols.emplace_back(Saver.save(TrimmedLine), UseRegex);
   }
+
+  return Error::success();
+}
+
+NameOrRegex::NameOrRegex(StringRef Pattern, bool IsRegex) {
+  if (!IsRegex) {
+    Name = Pattern;
+    return;
+  }
+
+  SmallVector<char, 32> Data;
+  R = std::make_shared<Regex>(
+      ("^" + Pattern.ltrim('^').rtrim('$') + "$").toStringRef(Data));
+}
+
+static Error addSymbolsToRenameFromFile(StringMap<StringRef> &SymbolsToRename,
+                                        BumpPtrAllocator &Alloc,
+                                        StringRef Filename) {
+  StringSaver Saver(Alloc);
+  SmallVector<StringRef, 16> Lines;
+  auto BufOrErr = MemoryBuffer::getFile(Filename);
+  if (!BufOrErr)
+    return createFileError(Filename, BufOrErr.getError());
+
+  BufOrErr.get()->getBuffer().split(Lines, '\n');
+  size_t NumLines = Lines.size();
+  for (size_t LineNo = 0; LineNo < NumLines; ++LineNo) {
+    StringRef TrimmedLine = Lines[LineNo].split('#').first.trim();
+    if (TrimmedLine.empty())
+      continue;
+
+    std::pair<StringRef, StringRef> Pair = Saver.save(TrimmedLine).split(' ');
+    StringRef NewName = Pair.second.trim();
+    if (NewName.empty())
+      return createStringError(errc::invalid_argument,
+                               "%s:%zu: missing new symbol name",
+                               Filename.str().c_str(), LineNo + 1);
+    SymbolsToRename.insert({Pair.first, NewName});
+  }
+  return Error::success();
+}
+
+template <class T> static ErrorOr<T> getAsInteger(StringRef Val) {
+  T Result;
+  if (Val.getAsInteger(0, Result))
+    return errc::invalid_argument;
+  return Result;
 }
 
 // ParseObjcopyOptions returns the config and sets the input arguments. If a
 // help flag is set then ParseObjcopyOptions will print the help messege and
 // exit.
-DriverConfig parseObjcopyOptions(ArrayRef<const char *> ArgsArr) {
+Expected<DriverConfig> parseObjcopyOptions(ArrayRef<const char *> ArgsArr) {
+  DriverConfig DC;
   ObjcopyOptTable T;
   unsigned MissingArgumentIndex, MissingArgumentCount;
   llvm::opt::InputArgList InputArgs =
@@ -234,16 +408,18 @@ DriverConfig parseObjcopyOptions(ArrayRef<const char *> ArgsArr) {
   SmallVector<const char *, 2> Positional;
 
   for (auto Arg : InputArgs.filtered(OBJCOPY_UNKNOWN))
-    error("unknown argument '" + Arg->getAsString(InputArgs) + "'");
+    return createStringError(errc::invalid_argument, "unknown argument '%s'",
+                             Arg->getAsString(InputArgs).c_str());
 
   for (auto Arg : InputArgs.filtered(OBJCOPY_INPUT))
     Positional.push_back(Arg->getValue());
 
   if (Positional.empty())
-    error("No input file specified");
+    return createStringError(errc::invalid_argument, "No input file specified");
 
   if (Positional.size() > 2)
-    error("Too many positional arguments");
+    return createStringError(errc::invalid_argument,
+                             "Too many positional arguments");
 
   CopyConfig Config;
   Config.InputFilename = Positional[0];
@@ -251,8 +427,11 @@ DriverConfig parseObjcopyOptions(ArrayRef<const char *> ArgsArr) {
   if (InputArgs.hasArg(OBJCOPY_target) &&
       (InputArgs.hasArg(OBJCOPY_input_target) ||
        InputArgs.hasArg(OBJCOPY_output_target)))
-    error("--target cannot be used with --input-target or --output-target");
+    return createStringError(
+        errc::invalid_argument,
+        "--target cannot be used with --input-target or --output-target");
 
+  bool UseRegex = InputArgs.hasArg(OBJCOPY_regex);
   if (InputArgs.hasArg(OBJCOPY_target)) {
     Config.InputFormat = InputArgs.getLastArgValue(OBJCOPY_target);
     Config.OutputFormat = InputArgs.getLastArgValue(OBJCOPY_target);
@@ -263,8 +442,20 @@ DriverConfig parseObjcopyOptions(ArrayRef<const char *> ArgsArr) {
   if (Config.InputFormat == "binary") {
     auto BinaryArch = InputArgs.getLastArgValue(OBJCOPY_binary_architecture);
     if (BinaryArch.empty())
-      error("Specified binary input without specifiying an architecture");
-    Config.BinaryArch = getMachineInfo(BinaryArch);
+      return createStringError(
+          errc::invalid_argument,
+          "Specified binary input without specifiying an architecture");
+    Expected<const MachineInfo &> MI = getMachineInfo(BinaryArch);
+    if (!MI)
+      return MI.takeError();
+    Config.BinaryArch = *MI;
+  }
+  if (!Config.OutputFormat.empty() && Config.OutputFormat != "binary") {
+    Expected<const MachineInfo &> MI =
+        getOutputFormatMachineInfo(Config.OutputFormat);
+    if (!MI)
+      return MI.takeError();
+    Config.OutputArch = *MI;
   }
 
   if (auto Arg = InputArgs.getLastArg(OBJCOPY_compress_debug_sections,
@@ -279,11 +470,17 @@ DriverConfig parseObjcopyOptions(ArrayRef<const char *> ArgsArr) {
               .Case("zlib", DebugCompressionType::Z)
               .Default(DebugCompressionType::None);
       if (Config.CompressionType == DebugCompressionType::None)
-        error("Invalid or unsupported --compress-debug-sections format: " +
-              InputArgs.getLastArgValue(OBJCOPY_compress_debug_sections_eq));
-      if (!zlib::isAvailable())
-        error("LLVM was not compiled with LLVM_ENABLE_ZLIB: can not compress.");
+        return createStringError(
+            errc::invalid_argument,
+            "Invalid or unsupported --compress-debug-sections format: %s",
+            InputArgs.getLastArgValue(OBJCOPY_compress_debug_sections_eq)
+                .str()
+                .c_str());
     }
+    if (!zlib::isAvailable())
+      return createStringError(
+          errc::invalid_argument,
+          "LLVM was not compiled with LLVM_ENABLE_ZLIB: can not compress");
   }
 
   Config.AddGnuDebugLink = InputArgs.getLastArgValue(OBJCOPY_add_gnu_debuglink);
@@ -299,24 +496,65 @@ DriverConfig parseObjcopyOptions(ArrayRef<const char *> ArgsArr) {
 
   for (auto Arg : InputArgs.filtered(OBJCOPY_redefine_symbol)) {
     if (!StringRef(Arg->getValue()).contains('='))
-      error("Bad format for --redefine-sym");
+      return createStringError(errc::invalid_argument,
+                               "Bad format for --redefine-sym");
     auto Old2New = StringRef(Arg->getValue()).split('=');
     if (!Config.SymbolsToRename.insert(Old2New).second)
-      error("Multiple redefinition of symbol " + Old2New.first);
+      return createStringError(errc::invalid_argument,
+                               "Multiple redefinition of symbol %s",
+                               Old2New.first.str().c_str());
   }
 
+  for (auto Arg : InputArgs.filtered(OBJCOPY_redefine_symbols))
+    if (Error E = addSymbolsToRenameFromFile(Config.SymbolsToRename, DC.Alloc,
+                                             Arg->getValue()))
+      return std::move(E);
+
   for (auto Arg : InputArgs.filtered(OBJCOPY_rename_section)) {
-    SectionRename SR = parseRenameSectionValue(StringRef(Arg->getValue()));
-    if (!Config.SectionsToRename.try_emplace(SR.OriginalName, SR).second)
-      error("Multiple renames of section " + SR.OriginalName);
+    Expected<SectionRename> SR =
+        parseRenameSectionValue(StringRef(Arg->getValue()));
+    if (!SR)
+      return SR.takeError();
+    if (!Config.SectionsToRename.try_emplace(SR->OriginalName, *SR).second)
+      return createStringError(errc::invalid_argument,
+                               "Multiple renames of section %s",
+                               SR->OriginalName.str().c_str());
+  }
+  for (auto Arg : InputArgs.filtered(OBJCOPY_set_section_flags)) {
+    Expected<SectionFlagsUpdate> SFU =
+        parseSetSectionFlagValue(Arg->getValue());
+    if (!SFU)
+      return SFU.takeError();
+    if (!Config.SetSectionFlags.try_emplace(SFU->Name, *SFU).second)
+      return createStringError(
+          errc::invalid_argument,
+          "--set-section-flags set multiple times for section %s",
+          SFU->Name.str().c_str());
+  }
+  // Prohibit combinations of --set-section-flags when the section name is used
+  // by --rename-section, either as a source or a destination.
+  for (const auto &E : Config.SectionsToRename) {
+    const SectionRename &SR = E.second;
+    if (Config.SetSectionFlags.count(SR.OriginalName))
+      return createStringError(
+          errc::invalid_argument,
+          "--set-section-flags=%s conflicts with --rename-section=%s=%s",
+          SR.OriginalName.str().c_str(), SR.OriginalName.str().c_str(),
+          SR.NewName.str().c_str());
+    if (Config.SetSectionFlags.count(SR.NewName))
+      return createStringError(
+          errc::invalid_argument,
+          "--set-section-flags=%s conflicts with --rename-section=%s=%s",
+          SR.NewName.str().c_str(), SR.OriginalName.str().c_str(),
+          SR.NewName.str().c_str());
   }
 
   for (auto Arg : InputArgs.filtered(OBJCOPY_remove_section))
-    Config.ToRemove.push_back(Arg->getValue());
+    Config.ToRemove.emplace_back(Arg->getValue(), UseRegex);
   for (auto Arg : InputArgs.filtered(OBJCOPY_keep_section))
-    Config.KeepSection.push_back(Arg->getValue());
+    Config.KeepSection.emplace_back(Arg->getValue(), UseRegex);
   for (auto Arg : InputArgs.filtered(OBJCOPY_only_section))
-    Config.OnlySection.push_back(Arg->getValue());
+    Config.OnlySection.emplace_back(Arg->getValue(), UseRegex);
   for (auto Arg : InputArgs.filtered(OBJCOPY_add_section))
     Config.AddSection.push_back(Arg->getValue());
   for (auto Arg : InputArgs.filtered(OBJCOPY_dump_section))
@@ -331,25 +569,55 @@ DriverConfig parseObjcopyOptions(ArrayRef<const char *> ArgsArr) {
   Config.ExtractDWO = InputArgs.hasArg(OBJCOPY_extract_dwo);
   Config.LocalizeHidden = InputArgs.hasArg(OBJCOPY_localize_hidden);
   Config.Weaken = InputArgs.hasArg(OBJCOPY_weaken);
-  Config.DiscardAll = InputArgs.hasArg(OBJCOPY_discard_all);
+  if (InputArgs.hasArg(OBJCOPY_discard_all, OBJCOPY_discard_locals))
+    Config.DiscardMode =
+        InputArgs.hasFlag(OBJCOPY_discard_all, OBJCOPY_discard_locals)
+            ? DiscardType::All
+            : DiscardType::Locals;
   Config.OnlyKeepDebug = InputArgs.hasArg(OBJCOPY_only_keep_debug);
   Config.KeepFileSymbols = InputArgs.hasArg(OBJCOPY_keep_file_symbols);
   Config.DecompressDebugSections =
       InputArgs.hasArg(OBJCOPY_decompress_debug_sections);
   for (auto Arg : InputArgs.filtered(OBJCOPY_localize_symbol))
-    Config.SymbolsToLocalize.push_back(Arg->getValue());
+    Config.SymbolsToLocalize.emplace_back(Arg->getValue(), UseRegex);
+  for (auto Arg : InputArgs.filtered(OBJCOPY_localize_symbols))
+    if (Error E = addSymbolsFromFile(Config.SymbolsToLocalize, DC.Alloc,
+                                     Arg->getValue(), UseRegex))
+      return std::move(E);
   for (auto Arg : InputArgs.filtered(OBJCOPY_keep_global_symbol))
-    Config.SymbolsToKeepGlobal.push_back(Arg->getValue());
+    Config.SymbolsToKeepGlobal.emplace_back(Arg->getValue(), UseRegex);
   for (auto Arg : InputArgs.filtered(OBJCOPY_keep_global_symbols))
-    addGlobalSymbolsFromFile(Config.SymbolsToKeepGlobal, Arg->getValue());
+    if (Error E = addSymbolsFromFile(Config.SymbolsToKeepGlobal, DC.Alloc,
+                                     Arg->getValue(), UseRegex))
+      return std::move(E);
   for (auto Arg : InputArgs.filtered(OBJCOPY_globalize_symbol))
-    Config.SymbolsToGlobalize.push_back(Arg->getValue());
+    Config.SymbolsToGlobalize.emplace_back(Arg->getValue(), UseRegex);
+  for (auto Arg : InputArgs.filtered(OBJCOPY_globalize_symbols))
+    if (Error E = addSymbolsFromFile(Config.SymbolsToGlobalize, DC.Alloc,
+                                     Arg->getValue(), UseRegex))
+      return std::move(E);
   for (auto Arg : InputArgs.filtered(OBJCOPY_weaken_symbol))
-    Config.SymbolsToWeaken.push_back(Arg->getValue());
+    Config.SymbolsToWeaken.emplace_back(Arg->getValue(), UseRegex);
+  for (auto Arg : InputArgs.filtered(OBJCOPY_weaken_symbols))
+    if (Error E = addSymbolsFromFile(Config.SymbolsToWeaken, DC.Alloc,
+                                     Arg->getValue(), UseRegex))
+      return std::move(E);
   for (auto Arg : InputArgs.filtered(OBJCOPY_strip_symbol))
-    Config.SymbolsToRemove.push_back(Arg->getValue());
+    Config.SymbolsToRemove.emplace_back(Arg->getValue(), UseRegex);
+  for (auto Arg : InputArgs.filtered(OBJCOPY_strip_symbols))
+    if (Error E = addSymbolsFromFile(Config.SymbolsToRemove, DC.Alloc,
+                                     Arg->getValue(), UseRegex))
+      return std::move(E);
+  for (auto Arg : InputArgs.filtered(OBJCOPY_strip_unneeded_symbol))
+    Config.UnneededSymbolsToRemove.emplace_back(Arg->getValue(), UseRegex);
+  for (auto Arg : InputArgs.filtered(OBJCOPY_strip_unneeded_symbols))
+    if (Error E = addSymbolsFromFile(Config.UnneededSymbolsToRemove, DC.Alloc,
+                                     Arg->getValue(), UseRegex))
+      return std::move(E);
   for (auto Arg : InputArgs.filtered(OBJCOPY_keep_symbol))
-    Config.SymbolsToKeep.push_back(Arg->getValue());
+    Config.SymbolsToKeep.emplace_back(Arg->getValue(), UseRegex);
+  for (auto Arg : InputArgs.filtered(OBJCOPY_add_symbol))
+    Config.SymbolsToAdd.push_back(parseNewSymbolInfo(Arg->getValue()));
 
   Config.DeterministicArchives = InputArgs.hasFlag(
       OBJCOPY_enable_deterministic_archives,
@@ -357,24 +625,48 @@ DriverConfig parseObjcopyOptions(ArrayRef<const char *> ArgsArr) {
 
   Config.PreserveDates = InputArgs.hasArg(OBJCOPY_preserve_dates);
 
+  for (auto Arg : InputArgs)
+    if (Arg->getOption().matches(OBJCOPY_set_start)) {
+      auto EAddr = getAsInteger<uint64_t>(Arg->getValue());
+      if (!EAddr)
+        return createStringError(
+            EAddr.getError(), "bad entry point address: '%s'", Arg->getValue());
+
+      Config.EntryExpr = [EAddr](uint64_t) { return *EAddr; };
+    } else if (Arg->getOption().matches(OBJCOPY_change_start)) {
+      auto EIncr = getAsInteger<int64_t>(Arg->getValue());
+      if (!EIncr)
+        return createStringError(EIncr.getError(),
+                                 "bad entry point increment: '%s'",
+                                 Arg->getValue());
+      auto Expr = Config.EntryExpr ? std::move(Config.EntryExpr)
+                                   : [](uint64_t A) { return A; };
+      Config.EntryExpr = [Expr, EIncr](uint64_t EAddr) {
+        return Expr(EAddr) + *EIncr;
+      };
+    }
+
   if (Config.DecompressDebugSections &&
       Config.CompressionType != DebugCompressionType::None) {
-    error("Cannot specify --compress-debug-sections at the same time as "
-          "--decompress-debug-sections at the same time");
+    return createStringError(
+        errc::invalid_argument,
+        "Cannot specify --compress-debug-sections at the same time as "
+        "--decompress-debug-sections at the same time");
   }
 
   if (Config.DecompressDebugSections && !zlib::isAvailable())
-    error("LLVM was not compiled with LLVM_ENABLE_ZLIB: cannot decompress.");
+    return createStringError(
+        errc::invalid_argument,
+        "LLVM was not compiled with LLVM_ENABLE_ZLIB: cannot decompress");
 
-  DriverConfig DC;
   DC.CopyConfigs.push_back(std::move(Config));
-  return DC;
+  return std::move(DC);
 }
 
 // ParseStripOptions returns the config and sets the input arguments. If a
 // help flag is set then ParseStripOptions will print the help messege and
 // exit.
-DriverConfig parseStripOptions(ArrayRef<const char *> ArgsArr) {
+Expected<DriverConfig> parseStripOptions(ArrayRef<const char *> ArgsArr) {
   StripOptTable T;
   unsigned MissingArgumentIndex, MissingArgumentCount;
   llvm::opt::InputArgList InputArgs =
@@ -398,36 +690,48 @@ DriverConfig parseStripOptions(ArrayRef<const char *> ArgsArr) {
 
   SmallVector<const char *, 2> Positional;
   for (auto Arg : InputArgs.filtered(STRIP_UNKNOWN))
-    error("unknown argument '" + Arg->getAsString(InputArgs) + "'");
+    return createStringError(errc::invalid_argument, "unknown argument '%s'",
+                             Arg->getAsString(InputArgs).c_str());
   for (auto Arg : InputArgs.filtered(STRIP_INPUT))
     Positional.push_back(Arg->getValue());
 
   if (Positional.empty())
-    error("No input file specified");
+    return createStringError(errc::invalid_argument, "No input file specified");
 
   if (Positional.size() > 1 && InputArgs.hasArg(STRIP_output))
-    error("Multiple input files cannot be used in combination with -o");
+    return createStringError(
+        errc::invalid_argument,
+        "Multiple input files cannot be used in combination with -o");
 
   CopyConfig Config;
+  bool UseRegexp = InputArgs.hasArg(STRIP_regex);
   Config.StripDebug = InputArgs.hasArg(STRIP_strip_debug);
 
-  Config.DiscardAll = InputArgs.hasArg(STRIP_discard_all);
+  if (InputArgs.hasArg(STRIP_discard_all, STRIP_discard_locals))
+    Config.DiscardMode =
+        InputArgs.hasFlag(STRIP_discard_all, STRIP_discard_locals)
+            ? DiscardType::All
+            : DiscardType::Locals;
   Config.StripUnneeded = InputArgs.hasArg(STRIP_strip_unneeded);
   Config.StripAll = InputArgs.hasArg(STRIP_strip_all);
   Config.StripAllGNU = InputArgs.hasArg(STRIP_strip_all_gnu);
-
-  if (!Config.StripDebug && !Config.StripUnneeded && !Config.DiscardAll &&
-      !Config.StripAllGNU)
-    Config.StripAll = true;
+  Config.KeepFileSymbols = InputArgs.hasArg(STRIP_keep_file_symbols);
 
   for (auto Arg : InputArgs.filtered(STRIP_keep_section))
-    Config.KeepSection.push_back(Arg->getValue());
+    Config.KeepSection.emplace_back(Arg->getValue(), UseRegexp);
 
   for (auto Arg : InputArgs.filtered(STRIP_remove_section))
-    Config.ToRemove.push_back(Arg->getValue());
+    Config.ToRemove.emplace_back(Arg->getValue(), UseRegexp);
+
+  for (auto Arg : InputArgs.filtered(STRIP_strip_symbol))
+    Config.SymbolsToRemove.emplace_back(Arg->getValue(), UseRegexp);
 
   for (auto Arg : InputArgs.filtered(STRIP_keep_symbol))
-    Config.SymbolsToKeep.push_back(Arg->getValue());
+    Config.SymbolsToKeep.emplace_back(Arg->getValue(), UseRegexp);
+
+  if (!Config.StripDebug && !Config.StripUnneeded &&
+      Config.DiscardMode == DiscardType::None && !Config.StripAllGNU && Config.SymbolsToRemove.empty())
+    Config.StripAll = true;
 
   Config.DeterministicArchives =
       InputArgs.hasFlag(STRIP_enable_deterministic_archives,
@@ -449,7 +753,7 @@ DriverConfig parseStripOptions(ArrayRef<const char *> ArgsArr) {
     }
   }
 
-  return DC;
+  return std::move(DC);
 }
 
 } // namespace objcopy

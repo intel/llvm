@@ -684,9 +684,7 @@ define <2 x double> @uitofp_4i32_to_2f64(<4 x i32> %a) {
 ;
 ; AVX512VL-LABEL: uitofp_4i32_to_2f64:
 ; AVX512VL:       # %bb.0:
-; AVX512VL-NEXT:    vcvtudq2pd %xmm0, %ymm0
-; AVX512VL-NEXT:    # kill: def $xmm0 killed $xmm0 killed $ymm0
-; AVX512VL-NEXT:    vzeroupper
+; AVX512VL-NEXT:    vcvtudq2pd %xmm0, %xmm0
 ; AVX512VL-NEXT:    retq
 ;
 ; AVX512DQ-LABEL: uitofp_4i32_to_2f64:
@@ -699,9 +697,7 @@ define <2 x double> @uitofp_4i32_to_2f64(<4 x i32> %a) {
 ;
 ; AVX512VLDQ-LABEL: uitofp_4i32_to_2f64:
 ; AVX512VLDQ:       # %bb.0:
-; AVX512VLDQ-NEXT:    vcvtudq2pd %xmm0, %ymm0
-; AVX512VLDQ-NEXT:    # kill: def $xmm0 killed $xmm0 killed $ymm0
-; AVX512VLDQ-NEXT:    vzeroupper
+; AVX512VLDQ-NEXT:    vcvtudq2pd %xmm0, %xmm0
 ; AVX512VLDQ-NEXT:    retq
   %cvt = uitofp <4 x i32> %a to <4 x double>
   %shuf = shufflevector <4 x double> %cvt, <4 x double> undef, <2 x i32> <i32 0, i32 1>
@@ -4278,13 +4274,12 @@ define <8 x float> @sitofp_load_8i32_to_8f32(<8 x i32> *%a) {
 define <8 x float> @sitofp_load_8i16_to_8f32(<8 x i16> *%a) {
 ; SSE2-LABEL: sitofp_load_8i16_to_8f32:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    movq {{.*#+}} xmm0 = mem[0],zero
-; SSE2-NEXT:    punpcklwd {{.*#+}} xmm1 = xmm1[0],xmm0[0],xmm1[1],xmm0[1],xmm1[2],xmm0[2],xmm1[3],xmm0[3]
-; SSE2-NEXT:    psrad $16, %xmm1
-; SSE2-NEXT:    movq {{.*#+}} xmm0 = mem[0],zero
-; SSE2-NEXT:    punpcklwd {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3]
+; SSE2-NEXT:    movdqa (%rdi), %xmm1
+; SSE2-NEXT:    punpcklwd {{.*#+}} xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1],xmm0[2],xmm1[2],xmm0[3],xmm1[3]
 ; SSE2-NEXT:    psrad $16, %xmm0
 ; SSE2-NEXT:    cvtdq2ps %xmm0, %xmm0
+; SSE2-NEXT:    punpckhwd {{.*#+}} xmm1 = xmm1[4,4,5,5,6,6,7,7]
+; SSE2-NEXT:    psrad $16, %xmm1
 ; SSE2-NEXT:    cvtdq2ps %xmm1, %xmm1
 ; SSE2-NEXT:    retq
 ;
@@ -4323,15 +4318,13 @@ define <8 x float> @sitofp_load_8i16_to_8f32(<8 x i16> *%a) {
 define <8 x float> @sitofp_load_8i8_to_8f32(<8 x i8> *%a) {
 ; SSE2-LABEL: sitofp_load_8i8_to_8f32:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    movd {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; SSE2-NEXT:    punpcklbw {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
-; SSE2-NEXT:    punpcklwd {{.*#+}} xmm1 = xmm1[0],xmm0[0],xmm1[1],xmm0[1],xmm1[2],xmm0[2],xmm1[3],xmm0[3]
-; SSE2-NEXT:    psrad $24, %xmm1
-; SSE2-NEXT:    movd {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; SSE2-NEXT:    punpcklbw {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
-; SSE2-NEXT:    punpcklwd {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3]
+; SSE2-NEXT:    movq {{.*#+}} xmm1 = mem[0],zero
+; SSE2-NEXT:    punpcklbw {{.*#+}} xmm1 = xmm1[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
+; SSE2-NEXT:    punpcklwd {{.*#+}} xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1],xmm0[2],xmm1[2],xmm0[3],xmm1[3]
 ; SSE2-NEXT:    psrad $24, %xmm0
 ; SSE2-NEXT:    cvtdq2ps %xmm0, %xmm0
+; SSE2-NEXT:    punpckhwd {{.*#+}} xmm1 = xmm1[4,4,5,5,6,6,7,7]
+; SSE2-NEXT:    psrad $24, %xmm1
 ; SSE2-NEXT:    cvtdq2ps %xmm1, %xmm1
 ; SSE2-NEXT:    retq
 ;
@@ -4345,10 +4338,8 @@ define <8 x float> @sitofp_load_8i8_to_8f32(<8 x i8> *%a) {
 ;
 ; AVX1-LABEL: sitofp_load_8i8_to_8f32:
 ; AVX1:       # %bb.0:
-; AVX1-NEXT:    vpmovsxbw (%rdi), %xmm0
-; AVX1-NEXT:    vpmovsxwd %xmm0, %xmm1
-; AVX1-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[2,3,0,1]
-; AVX1-NEXT:    vpmovsxwd %xmm0, %xmm0
+; AVX1-NEXT:    vpmovsxbd 4(%rdi), %xmm0
+; AVX1-NEXT:    vpmovsxbd (%rdi), %xmm1
 ; AVX1-NEXT:    vinsertf128 $1, %xmm0, %ymm1, %ymm0
 ; AVX1-NEXT:    vcvtdq2ps %ymm0, %ymm0
 ; AVX1-NEXT:    retq
@@ -5555,3 +5546,325 @@ define <4 x float> @sitofp_i64_to_4f32(<4 x float> %a0, i64 %a1) nounwind {
   %res = insertelement <4 x float> %a0, float %cvt, i32 0
   ret <4 x float> %res
 }
+
+; Extract from int vector and convert to FP.
+
+define float @extract0_sitofp_v4i32_f32(<4 x i32> %x) nounwind {
+; SSE-LABEL: extract0_sitofp_v4i32_f32:
+; SSE:       # %bb.0:
+; SSE-NEXT:    cvtdq2ps %xmm0, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: extract0_sitofp_v4i32_f32:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vcvtdq2ps %xmm0, %xmm0
+; AVX-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 0
+  %r = sitofp i32 %e to float
+  ret float %r
+}
+
+define float @extract0_sitofp_v4i32_f32i_multiuse1(<4 x i32> %x) nounwind {
+; SSE-LABEL: extract0_sitofp_v4i32_f32i_multiuse1:
+; SSE:       # %bb.0:
+; SSE-NEXT:    movd %xmm0, %eax
+; SSE-NEXT:    cvtdq2ps %xmm0, %xmm0
+; SSE-NEXT:    incl %eax
+; SSE-NEXT:    cvtsi2ssl %eax, %xmm1
+; SSE-NEXT:    divss %xmm1, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: extract0_sitofp_v4i32_f32i_multiuse1:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vmovd %xmm0, %eax
+; AVX-NEXT:    vcvtdq2ps %xmm0, %xmm0
+; AVX-NEXT:    incl %eax
+; AVX-NEXT:    vcvtsi2ssl %eax, %xmm1, %xmm1
+; AVX-NEXT:    vdivss %xmm1, %xmm0, %xmm0
+; AVX-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 0
+  %f = sitofp i32 %e to float
+  %e1 = add i32 %e, 1
+  %f1 = sitofp i32 %e1 to float
+  %r = fdiv float %f, %f1
+  ret float %r
+}
+
+define float @extract0_sitofp_v4i32_f32_multiuse2(<4 x i32> %x, i32* %p) nounwind {
+; SSE-LABEL: extract0_sitofp_v4i32_f32_multiuse2:
+; SSE:       # %bb.0:
+; SSE-NEXT:    cvtdq2ps %xmm0, %xmm1
+; SSE-NEXT:    movss %xmm0, (%rdi)
+; SSE-NEXT:    movaps %xmm1, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: extract0_sitofp_v4i32_f32_multiuse2:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vcvtdq2ps %xmm0, %xmm1
+; AVX-NEXT:    vmovss %xmm0, (%rdi)
+; AVX-NEXT:    vmovaps %xmm1, %xmm0
+; AVX-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 0
+  %r = sitofp i32 %e to float
+  store i32 %e, i32* %p
+  ret float %r
+}
+
+define double @extract0_sitofp_v4i32_f64(<4 x i32> %x) nounwind {
+; SSE-LABEL: extract0_sitofp_v4i32_f64:
+; SSE:       # %bb.0:
+; SSE-NEXT:    movd %xmm0, %eax
+; SSE-NEXT:    xorps %xmm0, %xmm0
+; SSE-NEXT:    cvtsi2sdl %eax, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: extract0_sitofp_v4i32_f64:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vcvtdq2pd %xmm0, %xmm0
+; AVX-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 0
+  %r = sitofp i32 %e to double
+  ret double %r
+}
+
+define float @extract0_uitofp_v4i32_f32(<4 x i32> %x) nounwind {
+; SSE-LABEL: extract0_uitofp_v4i32_f32:
+; SSE:       # %bb.0:
+; SSE-NEXT:    movd %xmm0, %eax
+; SSE-NEXT:    xorps %xmm0, %xmm0
+; SSE-NEXT:    cvtsi2ssq %rax, %xmm0
+; SSE-NEXT:    retq
+;
+; VEX-LABEL: extract0_uitofp_v4i32_f32:
+; VEX:       # %bb.0:
+; VEX-NEXT:    vmovd %xmm0, %eax
+; VEX-NEXT:    vcvtsi2ssq %rax, %xmm1, %xmm0
+; VEX-NEXT:    retq
+;
+; AVX512F-LABEL: extract0_uitofp_v4i32_f32:
+; AVX512F:       # %bb.0:
+; AVX512F-NEXT:    # kill: def $xmm0 killed $xmm0 def $zmm0
+; AVX512F-NEXT:    vcvtudq2ps %zmm0, %zmm0
+; AVX512F-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512F-NEXT:    vzeroupper
+; AVX512F-NEXT:    retq
+;
+; AVX512VL-LABEL: extract0_uitofp_v4i32_f32:
+; AVX512VL:       # %bb.0:
+; AVX512VL-NEXT:    vcvtudq2ps %xmm0, %xmm0
+; AVX512VL-NEXT:    retq
+;
+; AVX512DQ-LABEL: extract0_uitofp_v4i32_f32:
+; AVX512DQ:       # %bb.0:
+; AVX512DQ-NEXT:    # kill: def $xmm0 killed $xmm0 def $zmm0
+; AVX512DQ-NEXT:    vcvtudq2ps %zmm0, %zmm0
+; AVX512DQ-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512DQ-NEXT:    vzeroupper
+; AVX512DQ-NEXT:    retq
+;
+; AVX512VLDQ-LABEL: extract0_uitofp_v4i32_f32:
+; AVX512VLDQ:       # %bb.0:
+; AVX512VLDQ-NEXT:    vcvtudq2ps %xmm0, %xmm0
+; AVX512VLDQ-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 0
+  %r = uitofp i32 %e to float
+  ret float %r
+}
+
+define double @extract0_uitofp_v4i32_f64(<4 x i32> %x) nounwind {
+; SSE-LABEL: extract0_uitofp_v4i32_f64:
+; SSE:       # %bb.0:
+; SSE-NEXT:    movd %xmm0, %eax
+; SSE-NEXT:    xorps %xmm0, %xmm0
+; SSE-NEXT:    cvtsi2sdq %rax, %xmm0
+; SSE-NEXT:    retq
+;
+; VEX-LABEL: extract0_uitofp_v4i32_f64:
+; VEX:       # %bb.0:
+; VEX-NEXT:    vmovd %xmm0, %eax
+; VEX-NEXT:    vcvtsi2sdq %rax, %xmm1, %xmm0
+; VEX-NEXT:    retq
+;
+; AVX512F-LABEL: extract0_uitofp_v4i32_f64:
+; AVX512F:       # %bb.0:
+; AVX512F-NEXT:    # kill: def $xmm0 killed $xmm0 def $ymm0
+; AVX512F-NEXT:    vcvtudq2pd %ymm0, %zmm0
+; AVX512F-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512F-NEXT:    vzeroupper
+; AVX512F-NEXT:    retq
+;
+; AVX512VL-LABEL: extract0_uitofp_v4i32_f64:
+; AVX512VL:       # %bb.0:
+; AVX512VL-NEXT:    vcvtudq2pd %xmm0, %xmm0
+; AVX512VL-NEXT:    retq
+;
+; AVX512DQ-LABEL: extract0_uitofp_v4i32_f64:
+; AVX512DQ:       # %bb.0:
+; AVX512DQ-NEXT:    # kill: def $xmm0 killed $xmm0 def $ymm0
+; AVX512DQ-NEXT:    vcvtudq2pd %ymm0, %zmm0
+; AVX512DQ-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512DQ-NEXT:    vzeroupper
+; AVX512DQ-NEXT:    retq
+;
+; AVX512VLDQ-LABEL: extract0_uitofp_v4i32_f64:
+; AVX512VLDQ:       # %bb.0:
+; AVX512VLDQ-NEXT:    vcvtudq2pd %xmm0, %xmm0
+; AVX512VLDQ-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 0
+  %r = uitofp i32 %e to double
+  ret double %r
+}
+
+; Extract non-zero element from int vector and convert to FP.
+
+define float @extract3_sitofp_v4i32_f32(<4 x i32> %x) nounwind {
+; SSE-LABEL: extract3_sitofp_v4i32_f32:
+; SSE:       # %bb.0:
+; SSE-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; SSE-NEXT:    cvtdq2ps %xmm0, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: extract3_sitofp_v4i32_f32:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX-NEXT:    vcvtdq2ps %xmm0, %xmm0
+; AVX-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 3
+  %r = sitofp i32 %e to float
+  ret float %r
+}
+
+define double @extract3_sitofp_v4i32_f64(<4 x i32> %x) nounwind {
+; SSE2-LABEL: extract3_sitofp_v4i32_f64:
+; SSE2:       # %bb.0:
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; SSE2-NEXT:    movd %xmm0, %eax
+; SSE2-NEXT:    xorps %xmm0, %xmm0
+; SSE2-NEXT:    cvtsi2sdl %eax, %xmm0
+; SSE2-NEXT:    retq
+;
+; SSE41-LABEL: extract3_sitofp_v4i32_f64:
+; SSE41:       # %bb.0:
+; SSE41-NEXT:    extractps $3, %xmm0, %eax
+; SSE41-NEXT:    xorps %xmm0, %xmm0
+; SSE41-NEXT:    cvtsi2sdl %eax, %xmm0
+; SSE41-NEXT:    retq
+;
+; AVX-LABEL: extract3_sitofp_v4i32_f64:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX-NEXT:    vcvtdq2pd %xmm0, %xmm0
+; AVX-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 3
+  %r = sitofp i32 %e to double
+  ret double %r
+}
+
+define float @extract3_uitofp_v4i32_f32(<4 x i32> %x) nounwind {
+; SSE2-LABEL: extract3_uitofp_v4i32_f32:
+; SSE2:       # %bb.0:
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; SSE2-NEXT:    movd %xmm0, %eax
+; SSE2-NEXT:    xorps %xmm0, %xmm0
+; SSE2-NEXT:    cvtsi2ssq %rax, %xmm0
+; SSE2-NEXT:    retq
+;
+; SSE41-LABEL: extract3_uitofp_v4i32_f32:
+; SSE41:       # %bb.0:
+; SSE41-NEXT:    extractps $3, %xmm0, %eax
+; SSE41-NEXT:    xorps %xmm0, %xmm0
+; SSE41-NEXT:    cvtsi2ssq %rax, %xmm0
+; SSE41-NEXT:    retq
+;
+; VEX-LABEL: extract3_uitofp_v4i32_f32:
+; VEX:       # %bb.0:
+; VEX-NEXT:    vextractps $3, %xmm0, %eax
+; VEX-NEXT:    vcvtsi2ssq %rax, %xmm1, %xmm0
+; VEX-NEXT:    retq
+;
+; AVX512F-LABEL: extract3_uitofp_v4i32_f32:
+; AVX512F:       # %bb.0:
+; AVX512F-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX512F-NEXT:    vcvtudq2ps %zmm0, %zmm0
+; AVX512F-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512F-NEXT:    vzeroupper
+; AVX512F-NEXT:    retq
+;
+; AVX512VL-LABEL: extract3_uitofp_v4i32_f32:
+; AVX512VL:       # %bb.0:
+; AVX512VL-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX512VL-NEXT:    vcvtudq2ps %xmm0, %xmm0
+; AVX512VL-NEXT:    retq
+;
+; AVX512DQ-LABEL: extract3_uitofp_v4i32_f32:
+; AVX512DQ:       # %bb.0:
+; AVX512DQ-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX512DQ-NEXT:    vcvtudq2ps %zmm0, %zmm0
+; AVX512DQ-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512DQ-NEXT:    vzeroupper
+; AVX512DQ-NEXT:    retq
+;
+; AVX512VLDQ-LABEL: extract3_uitofp_v4i32_f32:
+; AVX512VLDQ:       # %bb.0:
+; AVX512VLDQ-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX512VLDQ-NEXT:    vcvtudq2ps %xmm0, %xmm0
+; AVX512VLDQ-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 3
+  %r = uitofp i32 %e to float
+  ret float %r
+}
+
+define double @extract3_uitofp_v4i32_f64(<4 x i32> %x) nounwind {
+; SSE2-LABEL: extract3_uitofp_v4i32_f64:
+; SSE2:       # %bb.0:
+; SSE2-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; SSE2-NEXT:    movd %xmm0, %eax
+; SSE2-NEXT:    xorps %xmm0, %xmm0
+; SSE2-NEXT:    cvtsi2sdq %rax, %xmm0
+; SSE2-NEXT:    retq
+;
+; SSE41-LABEL: extract3_uitofp_v4i32_f64:
+; SSE41:       # %bb.0:
+; SSE41-NEXT:    extractps $3, %xmm0, %eax
+; SSE41-NEXT:    xorps %xmm0, %xmm0
+; SSE41-NEXT:    cvtsi2sdq %rax, %xmm0
+; SSE41-NEXT:    retq
+;
+; VEX-LABEL: extract3_uitofp_v4i32_f64:
+; VEX:       # %bb.0:
+; VEX-NEXT:    vextractps $3, %xmm0, %eax
+; VEX-NEXT:    vcvtsi2sdq %rax, %xmm1, %xmm0
+; VEX-NEXT:    retq
+;
+; AVX512F-LABEL: extract3_uitofp_v4i32_f64:
+; AVX512F:       # %bb.0:
+; AVX512F-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX512F-NEXT:    vcvtudq2pd %ymm0, %zmm0
+; AVX512F-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512F-NEXT:    vzeroupper
+; AVX512F-NEXT:    retq
+;
+; AVX512VL-LABEL: extract3_uitofp_v4i32_f64:
+; AVX512VL:       # %bb.0:
+; AVX512VL-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX512VL-NEXT:    vcvtudq2pd %xmm0, %xmm0
+; AVX512VL-NEXT:    retq
+;
+; AVX512DQ-LABEL: extract3_uitofp_v4i32_f64:
+; AVX512DQ:       # %bb.0:
+; AVX512DQ-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX512DQ-NEXT:    vcvtudq2pd %ymm0, %zmm0
+; AVX512DQ-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; AVX512DQ-NEXT:    vzeroupper
+; AVX512DQ-NEXT:    retq
+;
+; AVX512VLDQ-LABEL: extract3_uitofp_v4i32_f64:
+; AVX512VLDQ:       # %bb.0:
+; AVX512VLDQ-NEXT:    vpermilps {{.*#+}} xmm0 = xmm0[3,1,2,3]
+; AVX512VLDQ-NEXT:    vcvtudq2pd %xmm0, %xmm0
+; AVX512VLDQ-NEXT:    retq
+  %e = extractelement <4 x i32> %x, i32 3
+  %r = uitofp i32 %e to double
+  ret double %r
+}
+

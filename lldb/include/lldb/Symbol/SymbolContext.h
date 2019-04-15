@@ -1,9 +1,8 @@
 //===-- SymbolContext.h -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -228,7 +227,7 @@ public:
 
   bool GetAddressRangeFromHereToEndLine(uint32_t end_line, AddressRange &range,
                                         Status &error);
-  
+
   //------------------------------------------------------------------
   /// Find the best global data symbol visible from this context.
   ///
@@ -420,12 +419,12 @@ private:
   lldb::TargetSP m_target_sp;
   std::string m_module_spec;
   lldb::ModuleSP m_module_sp;
-  std::unique_ptr<FileSpec> m_file_spec_ap;
+  std::unique_ptr<FileSpec> m_file_spec_up;
   size_t m_start_line;
   size_t m_end_line;
   std::string m_function_spec;
   std::string m_class_name;
-  std::unique_ptr<AddressRange> m_address_range_ap;
+  std::unique_ptr<AddressRange> m_address_range_up;
   uint32_t m_type; // Or'ed bits from SpecificationType
 };
 
@@ -464,10 +463,6 @@ public:
   void Append(const SymbolContextList &sc_list);
 
   bool AppendIfUnique(const SymbolContext &sc, bool merge_symbol_into_function);
-
-  bool MergeSymbolContextIntoFunctionContext(const SymbolContext &symbol_sc,
-                                             uint32_t start_idx = 0,
-                                             uint32_t stop_idx = UINT32_MAX);
 
   uint32_t AppendIfUnique(const SymbolContextList &sc_list,
                           bool merge_symbol_into_function);
@@ -526,18 +521,6 @@ public:
   const SymbolContext &operator[](size_t idx) const {
     return m_symbol_contexts[idx];
   }
-
-  //------------------------------------------------------------------
-  /// Get accessor for the last symbol context in the list.
-  ///
-  /// @param[out] sc
-  ///     A reference to the symbol context to fill in.
-  ///
-  /// @return
-  ///     Returns \b true if \a sc was filled in, \b false if the
-  ///     list is empty.
-  //------------------------------------------------------------------
-  bool GetLastContext(SymbolContext &sc) const;
 
   bool RemoveContextAtIndex(size_t idx);
 

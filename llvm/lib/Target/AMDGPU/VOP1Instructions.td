@@ -1,9 +1,8 @@
 //===-- VOP1Instructions.td - Vector Instruction Defintions ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -48,7 +47,6 @@ class VOP1_Pseudo <string opName, VOPProfile P, list<dag> pattern=[], bit VOP1On
   let mayLoad = 0;
   let mayStore = 0;
   let hasSideEffects = 0;
-  let SubtargetPredicate = isGCN;
 
   let VOP1 = 1;
   let VALU = 1;
@@ -144,7 +142,7 @@ defm V_MOV_B32 : VOP1Inst <"v_mov_b32", VOP_I32_I32>;
 // TODO: Make profile for this, there is VOP3 encoding also
 def V_READFIRSTLANE_B32 :
   InstSI <(outs SReg_32:$vdst),
-    (ins VGPR_32:$src0),
+    (ins VRegOrLds_32:$src0),
     "v_readfirstlane_b32 $vdst, $src0",
     [(set i32:$vdst, (int_amdgcn_readfirstlane i32:$src0))]>,
   Enc32 {
@@ -156,7 +154,6 @@ def V_READFIRSTLANE_B32 :
   let mayLoad = 0;
   let mayStore = 0;
   let hasSideEffects = 0;
-  let SubtargetPredicate = isGCN;
 
   let VOP1 = 1;
   let VALU = 1;

@@ -1,10 +1,9 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -1229,8 +1228,6 @@ _LIBCPP_EXTERN_TEMPLATE2(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS codecvt_byname<c
 _LIBCPP_EXTERN_TEMPLATE2(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS codecvt_byname<wchar_t, char, mbstate_t>)
 _LIBCPP_EXTERN_TEMPLATE2(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS codecvt_byname<char16_t, char, mbstate_t>)
 _LIBCPP_EXTERN_TEMPLATE2(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS codecvt_byname<char32_t, char, mbstate_t>)
-
-_LIBCPP_NORETURN _LIBCPP_FUNC_VIS void __throw_runtime_error(const char*);
 
 template <size_t _Np>
 struct __narrow_to_utf8

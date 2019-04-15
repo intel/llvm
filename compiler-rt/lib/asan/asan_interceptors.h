@@ -1,9 +1,8 @@
 //===-- asan_interceptors.h -------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -104,6 +103,13 @@ void InitializePlatformInterceptors();
 # define ASAN_INTERCEPT___STRDUP 1
 #else
 # define ASAN_INTERCEPT___STRDUP 0
+#endif
+
+#if SANITIZER_LINUX && (defined(__arm__) || defined(__aarch64__) || \
+                        defined(__i386__) || defined(__x86_64__))
+# define ASAN_INTERCEPT_VFORK 1
+#else
+# define ASAN_INTERCEPT_VFORK 0
 #endif
 
 DECLARE_REAL(int, memcmp, const void *a1, const void *a2, uptr size)

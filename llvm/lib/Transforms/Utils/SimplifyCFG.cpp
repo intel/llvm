@@ -1,9 +1,8 @@
 //===- SimplifyCFG.cpp - Code to perform CFG simplification ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1266,8 +1265,10 @@ static bool HoistThenElseCodeToIf(BranchInst *BI,
     while (isa<DbgInfoIntrinsic>(I2))
       I2 = &*BB2_Itr++;
   }
+  // FIXME: Can we define a safety predicate for CallBr?
   if (isa<PHINode>(I1) || !I1->isIdenticalToWhenDefined(I2) ||
-      (isa<InvokeInst>(I1) && !isSafeToHoistInvoke(BB1, BB2, I1, I2)))
+      (isa<InvokeInst>(I1) && !isSafeToHoistInvoke(BB1, BB2, I1, I2)) ||
+      isa<CallBrInst>(I1))
     return false;
 
   BasicBlock *BIParent = BI->getParent();
@@ -1350,7 +1351,12 @@ static bool HoistThenElseCodeToIf(BranchInst *BI,
 
 HoistTerminator:
   // It may not be possible to hoist an invoke.
+  // FIXME: Can we define a safety predicate for CallBr?
   if (isa<InvokeInst>(I1) && !isSafeToHoistInvoke(BB1, BB2, I1, I2))
+    return Changed;
+
+  // TODO: callbr hoisting currently disabled pending further study.
+  if (isa<CallBrInst>(I1))
     return Changed;
 
   for (BasicBlock *Succ : successors(BB1)) {
@@ -1373,14 +1379,6 @@ HoistTerminator:
     }
   }
 
-  // As the parent basic block terminator is a branch instruction which is
-  // removed at the end of the current transformation, use its previous
-  // non-debug instruction, as the reference insertion point, which will
-  // provide the debug location for generated select instructions. For BBs
-  // with only debug instructions, use an empty debug location.
-  Instruction *InsertPt =
-      BIParent->getTerminator()->getPrevNonDebugInstruction();
-
   // Okay, it is safe to hoist the terminator.
   Instruction *NT = I1->clone();
   BIParent->getInstList().insert(BI->getIterator(), NT);
@@ -1394,11 +1392,8 @@ HoistTerminator:
   // it involves inlinable calls.
   NT->applyMergedLocation(I1->getDebugLoc(), I2->getDebugLoc());
 
+  // PHIs created below will adopt NT's merged DebugLoc.
   IRBuilder<NoFolder> Builder(NT);
-  // If an earlier instruction in this BB had a location, adopt it, otherwise
-  // clear debug locations.
-  Builder.SetCurrentDebugLocation(InsertPt ? InsertPt->getDebugLoc()
-                                           : DebugLoc());
 
   // Hoisting one of the terminators from our successor is a great thing.
   // Unfortunately, the successors of the if/else blocks may have PHI nodes in
@@ -1455,7 +1450,7 @@ static bool canSinkInstructions(
     // Conservatively return false if I is an inline-asm instruction. Sinking
     // and merging inline-asm instructions can potentially create arguments
     // that cannot satisfy the inline-asm constraints.
-    if (const auto *C = dyn_cast<CallInst>(I))
+    if (const auto *C = dyn_cast<CallBase>(I))
       if (C->isInlineAsm())
         return false;
 
@@ -1518,7 +1513,7 @@ static bool canSinkInstructions(
         // We can't create a PHI from this GEP.
         return false;
       // Don't create indirect calls! The called value is the final operand.
-      if ((isa<CallInst>(I0) || isa<InvokeInst>(I0)) && OI == OE - 1) {
+      if (isa<CallBase>(I0) && OI == OE - 1) {
         // FIXME: if the call was *already* indirect, we should do this.
         return false;
       }
@@ -3441,7 +3436,7 @@ static bool SimplifyTerminatorOnSelect(Instruction *OldTerm, Value *Cond,
       KeepEdge2 = nullptr;
     else
       Succ->removePredecessor(OldTerm->getParent(),
-                              /*DontDeleteUselessPHIs=*/true);
+                              /*KeepOneInputPHIs=*/true);
   }
 
   IRBuilder<> Builder(OldTerm);
@@ -5102,7 +5097,9 @@ Value *SwitchLookupTable::BuildLookup(Value *Index, IRBuilder<> &Builder) {
     Value *GEPIndices[] = {Builder.getInt32(0), Index};
     Value *GEP = Builder.CreateInBoundsGEP(Array->getValueType(), Array,
                                            GEPIndices, "switch.gep");
-    return Builder.CreateLoad(GEP, "switch.load");
+    return Builder.CreateLoad(
+        cast<ArrayType>(Array->getValueType())->getElementType(), GEP,
+        "switch.load");
   }
   }
   llvm_unreachable("Unknown lookup table kind!");
@@ -5436,7 +5433,7 @@ static bool SwitchToLookupTable(SwitchInst *SI, IRBuilder<> &Builder,
     // We cached PHINodes in PHIs. To avoid accessing deleted PHINodes later,
     // do not delete PHINodes here.
     SI->getDefaultDest()->removePredecessor(SI->getParent(),
-                                            /*DontDeleteUselessPHIs=*/true);
+                                            /*KeepOneInputPHIs=*/true);
   }
 
   bool ReturnedEarly = false;

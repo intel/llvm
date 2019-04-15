@@ -1,9 +1,8 @@
 //===-- ObjCLanguageRuntime.cpp ---------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #include "clang/AST/Type.h"
@@ -108,14 +107,13 @@ ObjCLanguageRuntime::LookupInCompleteClassCache(ConstString &name) {
     if (!module_sp)
       return TypeSP();
 
-    const SymbolContext null_sc;
     const bool exact_match = true;
     const uint32_t max_matches = UINT32_MAX;
     TypeList types;
 
     llvm::DenseSet<SymbolFile *> searched_symbol_files;
     const uint32_t num_types = module_sp->FindTypes(
-        null_sc, name, exact_match, max_matches, searched_symbol_files, types);
+        name, exact_match, max_matches, searched_symbol_files, types);
 
     if (num_types) {
       uint32_t i;
@@ -304,8 +302,8 @@ ObjCLanguageRuntime::GetNonKVOClassDescriptor(ObjCISA isa) {
 CompilerType
 ObjCLanguageRuntime::EncodingToType::RealizeType(const char *name,
                                                  bool for_expression) {
-  if (m_scratch_ast_ctx_ap)
-    return RealizeType(*m_scratch_ast_ctx_ap, name, for_expression);
+  if (m_scratch_ast_ctx_up)
+    return RealizeType(*m_scratch_ast_ctx_up, name, for_expression);
   return CompilerType();
 }
 

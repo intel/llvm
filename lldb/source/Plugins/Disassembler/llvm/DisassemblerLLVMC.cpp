@@ -1,9 +1,8 @@
 //===-- DisassemblerLLVMC.cpp -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -1197,7 +1196,7 @@ DisassemblerLLVMC::DisassemblerLLVMC(const ArchSpec &arch,
   if (triple.getArch() == llvm::Triple::aarch64)
     features_str += "+v8.2a";
 
-  // We use m_disasm_ap.get() to tell whether we are valid or not, so if this
+  // We use m_disasm_up.get() to tell whether we are valid or not, so if this
   // isn't good for some reason, we won't be valid and FindPlugin will fail and
   // we won't get used.
   m_disasm_up = MCDisasmInstance::Create(triple_str, cpu, features_str.c_str(),
@@ -1238,11 +1237,11 @@ DisassemblerLLVMC::~DisassemblerLLVMC() = default;
 Disassembler *DisassemblerLLVMC::CreateInstance(const ArchSpec &arch,
                                                 const char *flavor) {
   if (arch.GetTriple().getArch() != llvm::Triple::UnknownArch) {
-    std::unique_ptr<DisassemblerLLVMC> disasm_ap(
+    std::unique_ptr<DisassemblerLLVMC> disasm_up(
         new DisassemblerLLVMC(arch, flavor));
 
-    if (disasm_ap.get() && disasm_ap->IsValid())
-      return disasm_ap.release();
+    if (disasm_up.get() && disasm_up->IsValid())
+      return disasm_up.release();
   }
   return NULL;
 }

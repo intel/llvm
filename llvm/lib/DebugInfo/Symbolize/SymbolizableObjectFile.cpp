@@ -1,9 +1,8 @@
 //===- SymbolizableObjectFile.cpp -----------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -137,6 +136,11 @@ std::error_code SymbolizableObjectFile::addSymbol(const SymbolRef &Symbol,
                                                   uint64_t SymbolSize,
                                                   DataExtractor *OpdExtractor,
                                                   uint64_t OpdAddress) {
+  // Avoid adding symbols from an unknown/undefined section.
+  const ObjectFile *Obj = Symbol.getObject();
+  Expected<section_iterator> Sec = Symbol.getSection();
+  if (!Sec || (Obj && Obj->section_end() == *Sec))
+    return std::error_code();
   Expected<SymbolRef::Type> SymbolTypeOrErr = Symbol.getType();
   if (!SymbolTypeOrErr)
     return errorToErrorCode(SymbolTypeOrErr.takeError());
@@ -218,9 +222,10 @@ bool SymbolizableObjectFile::shouldOverrideWithSymbolTable(
          isa<DWARFContext>(DebugInfoContext.get());
 }
 
-DILineInfo SymbolizableObjectFile::symbolizeCode(uint64_t ModuleOffset,
-                                                 FunctionNameKind FNKind,
-                                                 bool UseSymbolTable) const {
+DILineInfo
+SymbolizableObjectFile::symbolizeCode(object::SectionedAddress ModuleOffset,
+                                      FunctionNameKind FNKind,
+                                      bool UseSymbolTable) const {
   DILineInfo LineInfo;
   if (DebugInfoContext) {
     LineInfo = DebugInfoContext->getLineInfoForAddress(
@@ -230,7 +235,7 @@ DILineInfo SymbolizableObjectFile::symbolizeCode(uint64_t ModuleOffset,
   if (shouldOverrideWithSymbolTable(FNKind, UseSymbolTable)) {
     std::string FunctionName;
     uint64_t Start, Size;
-    if (getNameFromSymbolTable(SymbolRef::ST_Function, ModuleOffset,
+    if (getNameFromSymbolTable(SymbolRef::ST_Function, ModuleOffset.Address,
                                FunctionName, Start, Size)) {
       LineInfo.FunctionName = FunctionName;
     }
@@ -239,7 +244,8 @@ DILineInfo SymbolizableObjectFile::symbolizeCode(uint64_t ModuleOffset,
 }
 
 DIInliningInfo SymbolizableObjectFile::symbolizeInlinedCode(
-    uint64_t ModuleOffset, FunctionNameKind FNKind, bool UseSymbolTable) const {
+    object::SectionedAddress ModuleOffset, FunctionNameKind FNKind,
+    bool UseSymbolTable) const {
   DIInliningInfo InlinedContext;
 
   if (DebugInfoContext)
@@ -253,7 +259,7 @@ DIInliningInfo SymbolizableObjectFile::symbolizeInlinedCode(
   if (shouldOverrideWithSymbolTable(FNKind, UseSymbolTable)) {
     std::string FunctionName;
     uint64_t Start, Size;
-    if (getNameFromSymbolTable(SymbolRef::ST_Function, ModuleOffset,
+    if (getNameFromSymbolTable(SymbolRef::ST_Function, ModuleOffset.Address,
                                FunctionName, Start, Size)) {
       InlinedContext.getMutableFrame(InlinedContext.getNumberOfFrames() - 1)
           ->FunctionName = FunctionName;
@@ -263,9 +269,10 @@ DIInliningInfo SymbolizableObjectFile::symbolizeInlinedCode(
   return InlinedContext;
 }
 
-DIGlobal SymbolizableObjectFile::symbolizeData(uint64_t ModuleOffset) const {
+DIGlobal SymbolizableObjectFile::symbolizeData(
+    object::SectionedAddress ModuleOffset) const {
   DIGlobal Res;
-  getNameFromSymbolTable(SymbolRef::ST_Data, ModuleOffset, Res.Name, Res.Start,
-                         Res.Size);
+  getNameFromSymbolTable(SymbolRef::ST_Data, ModuleOffset.Address, Res.Name,
+                         Res.Start, Res.Size);
   return Res;
 }

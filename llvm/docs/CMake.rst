@@ -281,6 +281,15 @@ LLVM-specific variables
 **LLVM_ENABLE_EXPENSIVE_CHECKS**:BOOL
   Enable additional time/memory expensive checking. Defaults to OFF.
 
+**LLVM_ENABLE_IDE**:BOOL
+  Tell the build system that an IDE is being used. This in turn disables the
+  creation of certain convenience build system targets, such as the various
+  ``install-*`` and ``check-*`` targets, since IDEs don't always deal well with
+  a large number of targets. This is usually autodetected, but it can be
+  configured manually to explicitly control the generation of those targets. One
+  scenario where a manual override may be desirable is when using Visual Studio
+  2017's CMake integration, which would not be detected as an IDE otherwise.
+
 **LLVM_ENABLE_PIC**:BOOL
   Add the ``-fPIC`` flag to the compiler command-line, if the compiler supports
   this flag. Some systems, like Windows, do not need this flag. Defaults to ON.
@@ -573,6 +582,18 @@ LLVM-specific variables
   options, which are passed to the CCACHE_MAXSIZE and CCACHE_DIR environment
   variables, respectively.
 
+**LLVM_FORCE_USE_OLD_TOOLCHAIN**:BOOL
+  If enabled, the compiler and standard library versions won't be checked. LLVM
+  may not compile at all, or might fail at runtime due to known bugs in these
+  toolchains.
+
+**LLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN**:BOOL
+  If enabled, the compiler version check will only warn when using a toolchain
+  which is about to be deprecated, instead of emitting an error.
+
+**LLVM_USE_NEWPM**:BOOL
+  If enabled, use the experimental new pass manager.
+
 CMake Caches
 ============
 
@@ -774,7 +795,7 @@ Contents of ``<project dir>/<pass name>/CMakeLists.txt``:
 
 Note if you intend for this pass to be merged into the LLVM source tree at some
 point in the future it might make more sense to use LLVM's internal
-``add_llvm_library`` function with he MODULE argument instead by...
+``add_llvm_library`` function with the MODULE argument instead by...
 
 
 Adding the following to ``<project dir>/CMakeLists.txt`` (after

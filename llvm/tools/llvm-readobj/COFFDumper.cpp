@@ -1,9 +1,8 @@
 //===-- COFFDumper.cpp - COFF-specific dumper -------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -49,8 +48,8 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/Win64EH.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -81,8 +80,6 @@ public:
   void printFileHeaders() override;
   void printSectionHeaders() override;
   void printRelocations() override;
-  void printSymbols() override;
-  void printDynamicSymbols() override;
   void printUnwindInfo() override;
 
   void printNeededLibraries() override;
@@ -95,12 +92,16 @@ public:
   void printCOFFResources() override;
   void printCOFFLoadConfig() override;
   void printCodeViewDebugInfo() override;
-  void
-  mergeCodeViewTypes(llvm::codeview::MergingTypeTableBuilder &CVIDs,
-                     llvm::codeview::MergingTypeTableBuilder &CVTypes) override;
+  void mergeCodeViewTypes(llvm::codeview::MergingTypeTableBuilder &CVIDs,
+                          llvm::codeview::MergingTypeTableBuilder &CVTypes,
+                          llvm::codeview::GlobalTypeTableBuilder &GlobalCVIDs,
+                          llvm::codeview::GlobalTypeTableBuilder &GlobalCVTypes,
+                          bool GHash) override;
   void printStackMap() const override;
   void printAddrsig() override;
 private:
+  void printSymbols() override;
+  void printDynamicSymbols() override;
   void printSymbol(const SymbolRef &Sym);
   void printRelocation(const SectionRef &Section, const RelocationRef &Reloc,
                        uint64_t Bias = 0);
@@ -1228,7 +1229,10 @@ void COFFDumper::printFileNameForOffset(StringRef Label, uint32_t FileOffset) {
 }
 
 void COFFDumper::mergeCodeViewTypes(MergingTypeTableBuilder &CVIDs,
-                                    MergingTypeTableBuilder &CVTypes) {
+                                    MergingTypeTableBuilder &CVTypes,
+                                    GlobalTypeTableBuilder &GlobalCVIDs,
+                                    GlobalTypeTableBuilder &GlobalCVTypes,
+                                    bool GHash) {
   for (const SectionRef &S : Obj->sections()) {
     StringRef SectionName;
     error(S.getName(SectionName));
@@ -1248,10 +1252,18 @@ void COFFDumper::mergeCodeViewTypes(MergingTypeTableBuilder &CVIDs,
         error(object_error::parse_failed);
       }
       SmallVector<TypeIndex, 128> SourceToDest;
-      Optional<EndPrecompRecord> EndPrecomp;
-      if (auto EC = mergeTypeAndIdRecords(CVIDs, CVTypes, SourceToDest, Types,
-                                          EndPrecomp))
-        return error(std::move(EC));
+      Optional<uint32_t> PCHSignature;
+      if (GHash) {
+        std::vector<GloballyHashedType> Hashes =
+            GloballyHashedType::hashTypes(Types);
+        if (auto EC = mergeTypeAndIdRecords(GlobalCVIDs, GlobalCVTypes, SourceToDest, Types,
+                                            Hashes, PCHSignature))
+          return error(std::move(EC));
+      } else {
+        if (auto EC = mergeTypeAndIdRecords(CVIDs, CVTypes, SourceToDest, Types,
+                                            PCHSignature))
+          return error(std::move(EC));
+      }
     }
   }
 }
@@ -1365,10 +1377,12 @@ void COFFDumper::printRelocation(const SectionRef &Section,
   StringRef SymbolName;
   Reloc.getTypeName(RelocName);
   symbol_iterator Symbol = Reloc.getSymbol();
+  int64_t SymbolIndex = -1;
   if (Symbol != Obj->symbol_end()) {
     Expected<StringRef> SymbolNameOrErr = Symbol->getName();
     error(errorToErrorCode(SymbolNameOrErr.takeError()));
     SymbolName = *SymbolNameOrErr;
+    SymbolIndex = Obj->getSymbolIndex(Obj->getCOFFSymbol(*Symbol));
   }
 
   if (opts::ExpandRelocs) {
@@ -1376,11 +1390,13 @@ void COFFDumper::printRelocation(const SectionRef &Section,
     W.printHex("Offset", Offset);
     W.printNumber("Type", RelocName, RelocType);
     W.printString("Symbol", SymbolName.empty() ? "-" : SymbolName);
+    W.printNumber("SymbolIndex", SymbolIndex);
   } else {
     raw_ostream& OS = W.startLine();
     OS << W.hex(Offset)
        << " " << RelocName
        << " " << (SymbolName.empty() ? "-" : SymbolName)
+       << " (" << SymbolIndex << ")"
        << "\n";
   }
 }
@@ -1901,16 +1917,10 @@ void COFFDumper::printAddrsig() {
   }
 }
 
-void llvm::dumpCodeViewMergedTypes(
-    ScopedPrinter &Writer, llvm::codeview::MergingTypeTableBuilder &IDTable,
-    llvm::codeview::MergingTypeTableBuilder &CVTypes) {
-  // Flatten it first, then run our dumper on it.
-  SmallString<0> TypeBuf;
-  CVTypes.ForEachRecord([&](TypeIndex TI, const CVType &Record) {
-    TypeBuf.append(Record.RecordData.begin(), Record.RecordData.end());
-  });
-
-  TypeTableCollection TpiTypes(CVTypes.records());
+void llvm::dumpCodeViewMergedTypes(ScopedPrinter &Writer,
+                                   ArrayRef<ArrayRef<uint8_t>> IpiRecords,
+                                   ArrayRef<ArrayRef<uint8_t>> TpiRecords) {
+  TypeTableCollection TpiTypes(TpiRecords);
   {
     ListScope S(Writer, "MergedTypeStream");
     TypeDumpVisitor TDV(TpiTypes, &Writer, opts::CodeViewSubsectionBytes);
@@ -1920,7 +1930,7 @@ void llvm::dumpCodeViewMergedTypes(
 
   // Flatten the id stream and print it next. The ID stream refers to names from
   // the type stream.
-  TypeTableCollection IpiTypes(IDTable.records());
+  TypeTableCollection IpiTypes(IpiRecords);
   {
     ListScope S(Writer, "MergedIDStream");
     TypeDumpVisitor TDV(TpiTypes, &Writer, opts::CodeViewSubsectionBytes);

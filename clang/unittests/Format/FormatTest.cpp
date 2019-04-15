@@ -1,9 +1,8 @@
 //===- unittest/Format/FormatTest.cpp - Formatting unit tests -------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -119,6 +118,15 @@ TEST_F(FormatTest, MessUp) {
   EXPECT_EQ("a\n//b\nc", test::messUp("a\n//b\nc"));
   EXPECT_EQ("a\n#b\nc", test::messUp("a\n#b\nc"));
   EXPECT_EQ("a\n#b c d\ne", test::messUp("a\n#b\\\nc\\\nd\ne"));
+}
+
+TEST_F(FormatTest, DefaultLLVMStyleIsCpp) {
+  EXPECT_EQ(FormatStyle::LK_Cpp, getLLVMStyle().Language);
+}
+
+TEST_F(FormatTest, LLVMStyleOverride) {
+  EXPECT_EQ(FormatStyle::LK_Proto,
+            getLLVMStyle(FormatStyle::LK_Proto).Language);
 }
 
 //===----------------------------------------------------------------------===//
@@ -4182,6 +4190,18 @@ TEST_F(FormatTest, BreaksFunctionDeclarations) {
   verifyFormat("void aaaaaaa(aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa*\n"
                "                 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) {}",
                Style);
+}
+
+TEST_F(FormatTest, DontBreakBeforeQualifiedOperator) {
+  // Regression test for https://bugs.llvm.org/show_bug.cgi?id=40516:
+  // Prefer keeping `::` followed by `operator` together.
+  EXPECT_EQ("const aaaa::bbbbbbb &\n"
+            "ccccccccc::operator++() {\n"
+            "  stuff();\n"
+            "}",
+            format("const aaaa::bbbbbbb\n"
+                   "&ccccccccc::operator++() { stuff(); }",
+                   getLLVMStyleWithColumns(40)));
 }
 
 TEST_F(FormatTest, TrailingReturnType) {
@@ -8740,6 +8760,9 @@ TEST_F(FormatTest, ConfigurableUseOfTab) {
                "\t\t    parameter2); \\\n"
                "\t}",
                Tab);
+  verifyFormat("int a;\t      // x\n"
+               "int bbbbbbbb; // x\n",
+               Tab);
 
   Tab.TabWidth = 4;
   Tab.IndentWidth = 8;
@@ -9224,6 +9247,7 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeParens) {
   verifyFormat("typedef void (*cb)(int);", NoSpace);
   verifyFormat("T A::operator()();", NoSpace);
   verifyFormat("X A::operator++(T);", NoSpace);
+  verifyFormat("auto lambda = []() { return 0; };", NoSpace);
 
   FormatStyle Space = getLLVMStyle();
   Space.SpaceBeforeParens = FormatStyle::SBPO_Always;
@@ -9271,6 +9295,7 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeParens) {
   verifyFormat("typedef void (*cb) (int);", Space);
   verifyFormat("T A::operator() ();", Space);
   verifyFormat("X A::operator++ (T);", Space);
+  verifyFormat("auto lambda = [] () { return 0; };", Space);
 }
 
 TEST_F(FormatTest, ConfigurableSpacesInParentheses) {
@@ -11726,6 +11751,8 @@ TEST_F(FormatTest, FormatsWithWebKitStyle) {
 
 TEST_F(FormatTest, FormatsLambdas) {
   verifyFormat("int c = [b]() mutable { return [&b] { return b++; }(); }();\n");
+  verifyFormat(
+      "int c = [b]() mutable noexcept { return [&b] { return b++; }(); }();\n");
   verifyFormat("int c = [&] { [=] { return b++; }(); }();\n");
   verifyFormat("int c = [&, &a, a] { [=, c, &d] { return b++; }(); }();\n");
   verifyFormat("int c = [&a, &a, a] { [=, a, b, &c] { return b++; }(); }();\n");
@@ -11819,6 +11846,111 @@ TEST_F(FormatTest, FormatsLambdas) {
   verifyGoogleFormat("auto a = [&b, c](D* d) -> D& {};");
   verifyGoogleFormat("auto a = [&b, c](D* d) -> const D* {};");
   verifyFormat("[a, a]() -> a<1> {};");
+  verifyFormat("[]() -> foo<5 + 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 - 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 / 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 * 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 % 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 << 2> { return {}; };");
+  verifyFormat("[]() -> foo<!5> { return {}; };");
+  verifyFormat("[]() -> foo<~5> { return {}; };");
+  verifyFormat("[]() -> foo<5 | 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 || 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 & 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 && 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 == 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 != 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 >= 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 <= 2> { return {}; };");
+  verifyFormat("[]() -> foo<5 < 2> { return {}; };");
+  verifyFormat("[]() -> foo<2 ? 1 : 0> { return {}; };");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 + 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 - 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 / 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 * 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 % 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 << 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<!5> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<~5> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 | 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 || 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 & 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 && 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 == 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 != 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 >= 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 <= 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<5 < 2> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("namespace bar {\n"
+              "// broken:\n"
+              "auto foo{[]() -> foo<2 ? 1 : 0> { return {}; }};\n"
+              "} // namespace bar");
+  verifyFormat("[]() -> a<1> {};");
+  verifyFormat("[]() -> a<1> { ; };");
+  verifyFormat("[]() -> a<1> { ; }();");
+  verifyFormat("[a, a]() -> a<true> {};");
+  verifyFormat("[]() -> a<true> {};");
+  verifyFormat("[]() -> a<true> { ; };");
+  verifyFormat("[]() -> a<true> { ; }();");
+  verifyFormat("[a, a]() -> a<false> {};");
+  verifyFormat("[]() -> a<false> {};");
+  verifyFormat("[]() -> a<false> { ; };");
+  verifyFormat("[]() -> a<false> { ; }();");
+  verifyFormat("auto foo{[]() -> foo<false> { ; }};");
+  verifyFormat("namespace bar {\n"
+               "auto foo{[]() -> foo<false> { ; }};\n"
+               "} // namespace bar");
   verifyFormat("auto aaaaaaaa = [](int i, // break for some reason\n"
                "                   int j) -> int {\n"
                "  return ffffffffffffffffffffffffffffffffffffffffffff(i * j);\n"

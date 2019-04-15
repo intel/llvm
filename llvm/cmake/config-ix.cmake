@@ -28,7 +28,6 @@ check_include_file(dlfcn.h HAVE_DLFCN_H)
 check_include_file(errno.h HAVE_ERRNO_H)
 check_include_file(fcntl.h HAVE_FCNTL_H)
 check_include_file(link.h HAVE_LINK_H)
-check_include_file(malloc.h HAVE_MALLOC_H)
 check_include_file(malloc/malloc.h HAVE_MALLOC_MALLOC_H)
 if( NOT PURE_WINDOWS )
   check_include_file(pthread.h HAVE_PTHREAD_H)
@@ -325,6 +324,15 @@ else()
   unset(HAVE_FFI_CALL CACHE)
 endif( LLVM_ENABLE_FFI )
 
+# Whether we can use std::is_trivially_copyable to verify llvm::is_trivially_copyable.
+CHECK_CXX_SOURCE_COMPILES("
+#include <type_traits>
+struct T { int val; };
+static_assert(std::is_trivially_copyable<T>::value, \"ok\");
+int main() { return 0;}
+" HAVE_STD_IS_TRIVIALLY_COPYABLE)
+
+
 # Define LLVM_HAS_ATOMICS if gcc or MSVC atomic builtins are supported.
 include(CheckAtomic)
 
@@ -392,6 +400,8 @@ elseif (LLVM_NATIVE_ARCH MATCHES "arm64")
   set(LLVM_NATIVE_ARCH AArch64)
 elseif (LLVM_NATIVE_ARCH MATCHES "arm")
   set(LLVM_NATIVE_ARCH ARM)
+elseif (LLVM_NATIVE_ARCH MATCHES "avr")
+  set(LLVM_NATIVE_ARCH AVR)
 elseif (LLVM_NATIVE_ARCH MATCHES "mips")
   set(LLVM_NATIVE_ARCH Mips)
 elseif (LLVM_NATIVE_ARCH MATCHES "xcore")

@@ -1,9 +1,8 @@
 //===- MCStreamer.h - High-level Streaming Machine Code Output --*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -953,9 +952,7 @@ public:
   virtual void EmitAddrsigSym(const MCSymbol *Sym) {}
 
   /// Emit the given \p Instruction into the current section.
-  /// PrintSchedInfo == true then schedul comment should be added to output
-  virtual void EmitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI,
-                               bool PrintSchedInfo = false);
+  virtual void EmitInstruction(const MCInst &Inst, const MCSubtargetInfo &STI);
 
   /// Set the bundle alignment mode from now on in the section.
   /// The argument is the power of 2 to which the alignment is set. The

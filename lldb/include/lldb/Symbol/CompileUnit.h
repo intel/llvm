@@ -1,9 +1,8 @@
 //===-- CompileUnit.h -------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,6 +13,7 @@
 #include "lldb/Core/ModuleChild.h"
 #include "lldb/Symbol/DebugMacros.h"
 #include "lldb/Symbol/Function.h"
+#include "lldb/Symbol/SourceModule.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/UserID.h"
 #include "lldb/lldb-enumerations.h"
@@ -267,7 +267,7 @@ public:
   /// @return
   ///     A list of imported module names.
   //------------------------------------------------------------------
-  const std::vector<ConstString> &GetImportedModules();
+  const std::vector<SourceModule> &GetImportedModules();
 
   //------------------------------------------------------------------
   /// Get the SymbolFile plug-in user data.
@@ -409,29 +409,35 @@ public:
   //------------------------------------------------------------------
   bool GetIsOptimized();
 
-protected:
-  void *m_user_data; ///< User data for the SymbolFile parser to store
-                     ///information into.
-  lldb::LanguageType
-      m_language; ///< The programming language enumeration value.
-  Flags m_flags;  ///< Compile unit flags that help with partial parsing.
+  //------------------------------------------------------------------
+  /// Returns the number of functions in this compile unit
+  //------------------------------------------------------------------
+  size_t GetNumFunctions() const { return m_functions_by_uid.size(); }
 
+protected:
+  /// User data for the SymbolFile parser to store information into.
+  void *m_user_data;
+  /// The programming language enumeration value.
+  lldb::LanguageType m_language;
+  /// Compile unit flags that help with partial parsing.
+  Flags m_flags;
   /// Maps UIDs to functions.
   llvm::DenseMap<lldb::user_id_t, lldb::FunctionSP> m_functions_by_uid;
-  std::vector<ConstString> m_imported_modules; ///< All modules, including the
-                                               ///current module, imported by
-                                               ///this
-                                               ///< compile unit.
-  FileSpecList m_support_files; ///< Files associated with this compile unit's
-                                ///line table and declarations.
-  std::unique_ptr<LineTable>
-      m_line_table_ap; ///< Line table that will get parsed on demand.
-  DebugMacrosSP
-      m_debug_macros_sp; ///< Debug macros that will get parsed on demand.
-  lldb::VariableListSP m_variables; ///< Global and static variable list that
-                                    ///will get parsed on demand.
-  lldb_private::LazyBool m_is_optimized; /// eLazyBoolYes if this compile unit
-                                         /// was compiled with optimization.
+  /// All modules, including the current module, imported by this
+  /// compile unit.
+  std::vector<SourceModule> m_imported_modules;
+  /// Files associated with this compile unit's line table and
+  /// declarations.
+  FileSpecList m_support_files;
+  /// Line table that will get parsed on demand.
+  std::unique_ptr<LineTable> m_line_table_up;
+  /// Debug macros that will get parsed on demand.
+  DebugMacrosSP m_debug_macros_sp;
+  /// Global and static variable list that will get parsed on demand.
+  lldb::VariableListSP m_variables;
+  /// eLazyBoolYes if this compile unit was compiled with
+  /// optimization.
+  lldb_private::LazyBool m_is_optimized;
 
 private:
   enum {

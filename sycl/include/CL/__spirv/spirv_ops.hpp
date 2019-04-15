@@ -1,9 +1,8 @@
 //==---------- spirv_ops.hpp --- SPIRV operations -------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -33,7 +32,7 @@ OpGroupAsyncCopy(int32_t Scope, __global dataT *Dest, __local dataT *Src,
 
 // Atomic SPIR-V builtins
 #define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
-  extern Type OpAtomicLoad(AS Type *P, Scope S, MemorySemantics O);
+  extern Type OpAtomicLoad(AS const Type *P, Scope S, MemorySemantics O);
 #define __SPIRV_ATOMIC_STORE(AS, Type)                                         \
   extern void OpAtomicStore(AS Type *P, Scope S, MemorySemantics O, Type V);
 #define __SPIRV_ATOMIC_EXCHANGE(AS, Type)                                      \
@@ -110,7 +109,58 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Min)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 
-#else
+extern bool OpGroupAll(int32_t Scope, bool Predicate) noexcept;
+
+extern bool OpGroupAny(int32_t Scope, bool Predicate) noexcept;
+
+template <typename dataT>
+extern dataT OpGroupBroadcast(int32_t Scope, dataT Value,
+                              uint32_t LocalId) noexcept;
+
+template <typename dataT>
+extern dataT OpGroupIAdd(int32_t Scope, int32_t Op, dataT Value) noexcept;
+template <typename dataT>
+extern dataT OpGroupFAdd(int32_t Scope, int32_t Op, dataT Value) noexcept;
+template <typename dataT>
+extern dataT OpGroupUMin(int32_t Scope, int32_t Op, dataT Value) noexcept;
+template <typename dataT>
+extern dataT OpGroupSMin(int32_t Scope, int32_t Op, dataT Value) noexcept;
+template <typename dataT>
+extern dataT OpGroupFMin(int32_t Scope, int32_t Op, dataT Value) noexcept;
+template <typename dataT>
+extern dataT OpGroupUMax(int32_t Scope, int32_t Op, dataT Value) noexcept;
+template <typename dataT>
+extern dataT OpGroupSMax(int32_t Scope, int32_t Op, dataT Value) noexcept;
+template <typename dataT>
+extern dataT OpGroupFMax(int32_t Scope, int32_t Op, dataT Value) noexcept;
+template <typename dataT>
+extern dataT OpSubgroupShuffleINTEL(dataT Data, uint32_t InvocationId) noexcept;
+template <typename dataT>
+extern dataT OpSubgroupShuffleDownINTEL(dataT Current, dataT Next,
+                                        uint32_t Delta) noexcept;
+template <typename dataT>
+extern dataT OpSubgroupShuffleUpINTEL(dataT Previous, dataT Current,
+                                      uint32_t Delta) noexcept;
+template <typename dataT>
+extern dataT OpSubgroupShuffleXorINTEL(dataT Data, uint32_t Value) noexcept;
+
+template <typename dataT>
+extern dataT OpSubgroupBlockReadINTEL(const __global uint16_t *Ptr) noexcept;
+
+template <typename dataT>
+extern void OpSubgroupBlockWriteINTEL(__global uint16_t *Ptr,
+                                      dataT Data) noexcept;
+
+template <typename dataT>
+extern dataT OpSubgroupBlockReadINTEL(const __global uint32_t *Ptr) noexcept;
+
+template <typename dataT>
+extern void OpSubgroupBlockWriteINTEL(__global uint32_t *Ptr,
+                                      dataT Data) noexcept;
+
+extern void prefetch(const __global char *Ptr, size_t NumBytes) noexcept;
+
+#else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
 extern OpTypeEvent *
@@ -136,7 +186,9 @@ OpGroupAsyncCopyLocalToGlobal(int32_t Scope, dataT *Dest, dataT *Src,
   return nullptr;
 }
 
-#endif // __SYCL_DEVICE_ONLY__
+extern void prefetch(const char *Ptr, size_t NumBytes) noexcept;
+
+#endif // !__SYCL_DEVICE_ONLY__
 
 extern void OpControlBarrier(Scope Execution, Scope Memory,
                              uint32_t Semantics) noexcept;

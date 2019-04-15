@@ -1,9 +1,8 @@
 //===-LTO.cpp - LLVM Link Time Optimizer ----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -21,6 +20,7 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/AutoUpgrade.h"
 #include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Metadata.h"
@@ -546,6 +546,15 @@ Error LTO::addModule(InputFile &Input, unsigned ModI,
   if (!LTOInfo)
     return LTOInfo.takeError();
 
+  if (EnableSplitLTOUnit.hasValue()) {
+    // If only some modules were split, flag this in the index so that
+    // we can skip or error on optimizations that need consistently split
+    // modules (whole program devirt and lower type tests).
+    if (EnableSplitLTOUnit.getValue() != LTOInfo->EnableSplitLTOUnit)
+      ThinLTO.CombinedIndex.setPartiallySplitLTOUnits();
+  } else
+    EnableSplitLTOUnit = LTOInfo->EnableSplitLTOUnit;
+
   BitcodeModule BM = Input.Mods[ModI];
   auto ModSyms = Input.module_symbols(ModI);
   addModuleToGlobalRes(ModSyms, {ResI, ResE},
@@ -800,6 +809,45 @@ unsigned LTO::getMaxTasks() const {
   return RegularLTO.ParallelCodeGenParallelismLevel + ThinLTO.ModuleMap.size();
 }
 
+// If only some of the modules were split, we cannot correctly handle
+// code that contains type tests or type checked loads.
+Error LTO::checkPartiallySplit() {
+  if (!ThinLTO.CombinedIndex.partiallySplitLTOUnits())
+    return Error::success();
+
+  Function *TypeTestFunc = RegularLTO.CombinedModule->getFunction(
+      Intrinsic::getName(Intrinsic::type_test));
+  Function *TypeCheckedLoadFunc = RegularLTO.CombinedModule->getFunction(
+      Intrinsic::getName(Intrinsic::type_checked_load));
+
+  // First check if there are type tests / type checked loads in the
+  // merged regular LTO module IR.
+  if ((TypeTestFunc && !TypeTestFunc->use_empty()) ||
+      (TypeCheckedLoadFunc && !TypeCheckedLoadFunc->use_empty()))
+    return make_error<StringError>(
+        "inconsistent LTO Unit splitting (recompile with -fsplit-lto-unit)",
+        inconvertibleErrorCode());
+
+  // Otherwise check if there are any recorded in the combined summary from the
+  // ThinLTO modules.
+  for (auto &P : ThinLTO.CombinedIndex) {
+    for (auto &S : P.second.SummaryList) {
+      auto *FS = dyn_cast<FunctionSummary>(S.get());
+      if (!FS)
+        continue;
+      if (!FS->type_test_assume_vcalls().empty() ||
+          !FS->type_checked_load_vcalls().empty() ||
+          !FS->type_test_assume_const_vcalls().empty() ||
+          !FS->type_checked_load_const_vcalls().empty() ||
+          !FS->type_tests().empty())
+        return make_error<StringError>(
+            "inconsistent LTO Unit splitting (recompile with -fsplit-lto-unit)",
+            inconvertibleErrorCode());
+    }
+  }
+  return Error::success();
+}
+
 Error LTO::run(AddStreamFn AddStream, NativeObjectCache Cache) {
   // Compute "dead" symbols, we don't want to import/export these!
   DenseSet<GlobalValue::GUID> GUIDPreservedSymbols;
@@ -842,6 +890,17 @@ Error LTO::run(AddStreamFn AddStream, NativeObjectCache Cache) {
     StatsFile->keep();
   }
 
+  // Finalize linking of regular LTO modules containing summaries now that
+  // we have computed liveness information.
+  for (auto &M : RegularLTO.ModsWithSummaries)
+    if (Error Err = linkRegularLTO(std::move(M),
+                                   /*LivenessFromIndex=*/true))
+      return Err;
+
+  // Ensure we don't have inconsistently split LTO units with type tests.
+  if (Error Err = checkPartiallySplit())
+    return Err;
+
   Error Result = runRegularLTO(AddStream);
   if (!Result)
     Result = runThinLTO(AddStream, Cache);
@@ -853,11 +912,6 @@ Error LTO::run(AddStreamFn AddStream, NativeObjectCache Cache) {
 }
 
 Error LTO::runRegularLTO(AddStreamFn AddStream) {
-  for (auto &M : RegularLTO.ModsWithSummaries)
-    if (Error Err = linkRegularLTO(std::move(M),
-                                   /*LivenessFromIndex=*/true))
-      return Err;
-
   // Make sure commons have the right size/alignment: we kept the largest from
   // all the prevailing when adding the inputs, and we apply it here.
   const DataLayout &DL = RegularLTO.CombinedModule->getDataLayout();

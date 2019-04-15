@@ -1,14 +1,14 @@
 //===-- ProcessElfCore.cpp --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include <stdlib.h>
 
+#include <memory>
 #include <mutex>
 
 #include "lldb/Core/Module.h"
@@ -66,8 +66,8 @@ lldb::ProcessSP ProcessElfCore::CreateInstance(lldb::TargetSP target_sp,
       lldb::offset_t data_offset = 0;
       if (elf_header.Parse(data, &data_offset)) {
         if (elf_header.e_type == llvm::ELF::ET_CORE)
-          process_sp.reset(
-              new ProcessElfCore(target_sp, listener_sp, *crash_file));
+          process_sp = std::make_shared<ProcessElfCore>(target_sp, listener_sp,
+                                                        *crash_file);
       }
     }
   }
@@ -254,10 +254,10 @@ Status ProcessElfCore::DoLoadCore() {
 }
 
 lldb_private::DynamicLoader *ProcessElfCore::GetDynamicLoader() {
-  if (m_dyld_ap.get() == NULL)
-    m_dyld_ap.reset(DynamicLoader::FindPlugin(
+  if (m_dyld_up.get() == NULL)
+    m_dyld_up.reset(DynamicLoader::FindPlugin(
         this, DynamicLoaderPOSIXDYLD::GetPluginNameStatic().GetCString()));
-  return m_dyld_ap.get();
+  return m_dyld_up.get();
 }
 
 bool ProcessElfCore::UpdateThreadList(ThreadList &old_thread_list,
@@ -736,8 +736,7 @@ uint32_t ProcessElfCore::GetNumThreadContexts() {
 }
 
 ArchSpec ProcessElfCore::GetArchitecture() {
-  ArchSpec arch;
-  m_core_module_sp->GetObjectFile()->GetArchitecture(arch);
+  ArchSpec arch = m_core_module_sp->GetObjectFile()->GetArchitecture();
 
   ArchSpec target_arch = GetTarget().GetArchitecture();
   arch.MergeFrom(target_arch);

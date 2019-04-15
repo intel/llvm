@@ -1,9 +1,8 @@
 //===----------- spirv_types.hpp --- SPIRV types -------------------------===//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,5 +43,6 @@ enum MemorySemantics {
 // Only in such cases the class is recognized as SPIRV type OpTypeEvent.
 class OpTypeEvent;
 
+enum GroupOperation { Reduce = 0, InclusiveScan = 1, ExclusiveScan = 2 };
 } // namespace __spirv
 } // namespace cl

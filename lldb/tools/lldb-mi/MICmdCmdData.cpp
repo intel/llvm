@@ -1,9 +1,8 @@
 //===-- MICmdCmdData.cpp ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -419,7 +418,7 @@ bool CMICmdCmdDataDisassemble::Execute() {
 
       // MI "src_and_asm_line={line=\"%u\",file=\"%s\",line_asm_insn=[ ]}"
       const CMICmnMIValueConst miValueConst(
-          CMIUtilString::Format("0x%u", nLine));
+          CMIUtilString::Format("%u", nLine));
       const CMICmnMIValueResult miValueResult("line", miValueConst);
       CMICmnMIValueTuple miValueTuple2(miValueResult);
       const CMICmnMIValueConst miValueConst2(pFileName);

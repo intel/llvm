@@ -1,9 +1,8 @@
 //===-- IRForTarget.cpp -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -310,12 +309,14 @@ bool IRForTarget::CreateResultVariable(llvm::Function &llvm_function) {
 
   lldb::TargetSP target_sp(m_execution_unit.GetTarget());
   lldb_private::ExecutionContext exe_ctx(target_sp, true);
-  if (m_result_type.GetBitSize(exe_ctx.GetBestExecutionContextScope()) == 0) {
+  llvm::Optional<uint64_t> bit_size =
+      m_result_type.GetBitSize(exe_ctx.GetBestExecutionContextScope());
+  if (!bit_size) {
     lldb_private::StreamString type_desc_stream;
     m_result_type.DumpTypeDescription(&type_desc_stream);
 
     if (log)
-      log->Printf("Result type has size 0");
+      log->Printf("Result type has unknown size");
 
     m_error_stream.Printf("Error [IRForTarget]: Size of result type '%s' "
                           "couldn't be determined\n",
@@ -334,7 +335,8 @@ bool IRForTarget::CreateResultVariable(llvm::Function &llvm_function) {
 
   if (log)
     log->Printf("Creating a new result global: \"%s\" with size 0x%" PRIx64,
-                m_result_name.GetCString(), m_result_type.GetByteSize(nullptr));
+                m_result_name.GetCString(),
+                m_result_type.GetByteSize(nullptr).getValueOr(0));
 
   // Construct a new result global and set up its metadata
 
@@ -475,15 +477,15 @@ bool IRForTarget::RewriteObjCConstString(llvm::GlobalVariable *ns_str,
 
     ArrayRef<Type *> CFSCWB_arg_types(arg_type_array, 5);
 
-    llvm::Type *CFSCWB_ty =
+    llvm::FunctionType *CFSCWB_ty =
         FunctionType::get(ns_str_ty, CFSCWB_arg_types, false);
 
     // Build the constant containing the pointer to the function
     PointerType *CFSCWB_ptr_ty = PointerType::getUnqual(CFSCWB_ty);
     Constant *CFSCWB_addr_int =
         ConstantInt::get(m_intptr_ty, CFStringCreateWithBytes_addr, false);
-    m_CFStringCreateWithBytes =
-        ConstantExpr::getIntToPtr(CFSCWB_addr_int, CFSCWB_ptr_ty);
+    m_CFStringCreateWithBytes = {
+        CFSCWB_ty, ConstantExpr::getIntToPtr(CFSCWB_addr_int, CFSCWB_ptr_ty)};
   }
 
   ConstantDataSequential *string_array = NULL;
@@ -878,14 +880,15 @@ bool IRForTarget::RewriteObjCSelector(Instruction *selector_load) {
 
     ArrayRef<Type *> srN_arg_types(type_array, 1);
 
-    llvm::Type *srN_type =
+    llvm::FunctionType *srN_type =
         FunctionType::get(sel_ptr_type, srN_arg_types, false);
 
     // Build the constant containing the pointer to the function
     PointerType *srN_ptr_ty = PointerType::getUnqual(srN_type);
     Constant *srN_addr_int =
         ConstantInt::get(m_intptr_ty, sel_registerName_addr, false);
-    m_sel_registerName = ConstantExpr::getIntToPtr(srN_addr_int, srN_ptr_ty);
+    m_sel_registerName = {srN_type,
+                          ConstantExpr::getIntToPtr(srN_addr_int, srN_ptr_ty)};
   }
 
   Value *argument_array[1];
@@ -1040,14 +1043,15 @@ bool IRForTarget::RewriteObjCClassReference(Instruction *class_load) {
 
     ArrayRef<Type *> ogC_arg_types(type_array, 1);
 
-    llvm::Type *ogC_type =
+    llvm::FunctionType *ogC_type =
         FunctionType::get(class_type, ogC_arg_types, false);
 
     // Build the constant containing the pointer to the function
     PointerType *ogC_ptr_ty = PointerType::getUnqual(ogC_type);
     Constant *ogC_addr_int =
         ConstantInt::get(m_intptr_ty, objc_getClass_addr, false);
-    m_objc_getClass = ConstantExpr::getIntToPtr(ogC_addr_int, ogC_ptr_ty);
+    m_objc_getClass = {ogC_type,
+                       ConstantExpr::getIntToPtr(ogC_addr_int, ogC_ptr_ty)};
   }
 
   Value *argument_array[1];
@@ -1367,7 +1371,9 @@ bool IRForTarget::MaybeHandleVariable(Value *llvm_value_ptr) {
       value_type = global_variable->getType();
     }
 
-    const uint64_t value_size = compiler_type.GetByteSize(nullptr);
+    llvm::Optional<uint64_t> value_size = compiler_type.GetByteSize(nullptr);
+    if (!value_size)
+      return false;
     lldb::offset_t value_alignment =
         (compiler_type.GetTypeBitAlign() + 7ull) / 8ull;
 
@@ -1378,13 +1384,13 @@ bool IRForTarget::MaybeHandleVariable(Value *llvm_value_ptr) {
                   lldb_private::ClangUtil::GetQualType(compiler_type)
                       .getAsString()
                       .c_str(),
-                  PrintType(value_type).c_str(), value_size, value_alignment);
+                  PrintType(value_type).c_str(), *value_size, value_alignment);
     }
 
     if (named_decl &&
         !m_decl_map->AddValueToStruct(
             named_decl, lldb_private::ConstString(name.c_str()), llvm_value_ptr,
-            value_size, value_alignment)) {
+            *value_size, value_alignment)) {
       if (!global_variable->hasExternalLinkage())
         return true;
       else

@@ -1,9 +1,8 @@
 //===-- SIRegisterInfo.td - SI Register defs ---------------*- tablegen -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -75,6 +74,8 @@ def SRC_SHARED_BASE : SIReg<"src_shared_base", 235>;
 def SRC_SHARED_LIMIT : SIReg<"src_shared_limit", 236>;
 def SRC_PRIVATE_BASE : SIReg<"src_private_base", 237>;
 def SRC_PRIVATE_LIMIT : SIReg<"src_private_limit", 238>;
+
+def LDS_DIRECT : SIReg <"lds_direct", 254>;
 
 def XNACK_MASK_LO : SIReg<"xnack_mask_lo", 104>;
 def XNACK_MASK_HI : SIReg<"xnack_mask_hi", 105>;
@@ -410,6 +411,12 @@ def Pseudo_SReg_128 : RegisterClass<"AMDGPU", [v4i32, v2i64, v2f64], 32,
   let CopyCost = -1;
 }
 
+def LDS_DIRECT_CLASS : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+  (add LDS_DIRECT)> {
+  let isAllocatable = 0;
+  let CopyCost = -1;
+}
+
 // Subset of SReg_32 without M0 for SMRD instructions and alike.
 // See comments in SIInstructions.td for more info.
 def SReg_32_XM0_XEXEC : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
@@ -433,6 +440,11 @@ def SReg_32_XM0 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32
 def SReg_32 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
   (add SReg_32_XM0, M0_CLASS, EXEC_LO, EXEC_HI, SReg_32_XEXEC_HI)> {
   let AllocationPriority = 7;
+}
+
+def SRegOrLds_32 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+  (add SReg_32_XM0, M0_CLASS, EXEC_LO, EXEC_HI, SReg_32_XEXEC_HI, LDS_DIRECT_CLASS)> {
+  let isAllocatable = 0;
 }
 
 def SGPR_64 : RegisterClass<"AMDGPU", [v2i32, i64, v2f32, f64, v4i16, v4f16], 32, (add SGPR_64Regs)> {
@@ -459,15 +471,15 @@ def SReg_64 : RegisterClass<"AMDGPU", [v2i32, i64, v2f32, f64, i1, v4i16, v4f16]
 // Requires 2 s_mov_b64 to copy
 let CopyCost = 2 in {
 
-def SGPR_128 : RegisterClass<"AMDGPU", [v4i32, v4f32, v16i8, v2i64], 32, (add SGPR_128Regs)> {
+def SGPR_128 : RegisterClass<"AMDGPU", [v4i32, v4f32, v2i64], 32, (add SGPR_128Regs)> {
   let AllocationPriority = 10;
 }
 
-def TTMP_128 : RegisterClass<"AMDGPU", [v4i32, v4f32, v16i8, v2i64], 32, (add TTMP_128Regs)> {
+def TTMP_128 : RegisterClass<"AMDGPU", [v4i32, v4f32, v2i64], 32, (add TTMP_128Regs)> {
   let isAllocatable = 0;
 }
 
-def SReg_128 : RegisterClass<"AMDGPU", [v4i32, v4f32, v16i8, v2i64, v2f64], 32,
+def SReg_128 : RegisterClass<"AMDGPU", [v4i32, v4f32, v2i64, v2f64], 32,
   (add SGPR_128, TTMP_128)> {
   let AllocationPriority = 10;
 }
@@ -502,6 +514,11 @@ def SReg_512 : RegisterClass<"AMDGPU", [v16i32, v16f32], 32,
   // Requires 8 s_mov_b64 to copy
   let CopyCost = 8;
   let AllocationPriority = 12;
+}
+
+def VRegOrLds_32 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+                                 (add VGPR_32, LDS_DIRECT_CLASS)> {
+  let isAllocatable = 0;
 }
 
 // Register class for all vector registers (VGPRs + Interploation Registers)
@@ -546,7 +563,7 @@ def VReg_1 : RegisterClass<"AMDGPU", [i1], 32, (add VGPR_32)> {
 }
 
 def VS_32 : RegisterClass<"AMDGPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
-                          (add VGPR_32, SReg_32)> {
+                          (add VGPR_32, SReg_32, LDS_DIRECT_CLASS)> {
   let isAllocatable = 0;
 }
 
@@ -623,6 +640,12 @@ multiclass RegInlineOperand <string rc, string MatchName>
 //===----------------------------------------------------------------------===//
 
 defm SSrc : RegImmOperand<"SReg", "SSrc">;
+
+def SSrcOrLds_b32 : RegisterOperand<SRegOrLds_32> {
+  let OperandNamespace = "AMDGPU";
+  let OperandType = "OPERAND_REG_IMM_INT32";
+  let ParserMatchClass = RegImmMatcher<"SSrcOrLdsB32">;
+}
 
 //===----------------------------------------------------------------------===//
 //  SCSrc_* Operands with an SGPR or a inline constant

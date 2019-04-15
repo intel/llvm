@@ -1,9 +1,8 @@
 //===--- Builtins.cpp - Builtin function implementation -------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -156,9 +155,61 @@ bool Builtin::Context::isScanfLike(unsigned ID, unsigned &FormatIdx,
   return isLike(ID, FormatIdx, HasVAListArg, "sS");
 }
 
+bool Builtin::Context::performsCallback(unsigned ID,
+                                        SmallVectorImpl<int> &Encoding) const {
+  const char *CalleePos = ::strchr(getRecord(ID).Attributes, 'C');
+  if (!CalleePos)
+    return false;
+
+  ++CalleePos;
+  assert(*CalleePos == '<' &&
+         "Callback callee specifier must be followed by a '<'");
+  ++CalleePos;
+
+  char *EndPos;
+  int CalleeIdx = ::strtol(CalleePos, &EndPos, 10);
+  assert(CalleeIdx >= 0 && "Callee index is supposed to be positive!");
+  Encoding.push_back(CalleeIdx);
+
+  while (*EndPos == ',') {
+    const char *PayloadPos = EndPos + 1;
+
+    int PayloadIdx = ::strtol(PayloadPos, &EndPos, 10);
+    Encoding.push_back(PayloadIdx);
+  }
+
+  assert(*EndPos == '>' && "Callback callee specifier must end with a '>'");
+  return true;
+}
+
 bool Builtin::Context::canBeRedeclared(unsigned ID) const {
   return ID == Builtin::NotBuiltin ||
          ID == Builtin::BI__va_start ||
          (!hasReferenceArgsOrResult(ID) &&
           !hasCustomTypechecking(ID));
+}
+
+unsigned Builtin::getFortifiedVariantFunction(unsigned BuiltinID) {
+  switch (BuiltinID) {
+  case Builtin::BImemcpy:    return Builtin::BI__builtin___memcpy_chk;
+  case Builtin::BImemmove:   return Builtin::BI__builtin___memmove_chk;
+  case Builtin::BImemset:    return Builtin::BI__builtin___memset_chk;
+  case Builtin::BIstpcpy:    return Builtin::BI__builtin___stpcpy_chk;
+  case Builtin::BIstrcat:    return Builtin::BI__builtin___strcat_chk;
+  case Builtin::BIstrcpy:    return Builtin::BI__builtin___strcpy_chk;
+  case Builtin::BIstrlcat:   return Builtin::BI__builtin___strlcat_chk;
+  case Builtin::BIstrlcpy:   return Builtin::BI__builtin___strlcpy_chk;
+  case Builtin::BIstrncat:   return Builtin::BI__builtin___strncat_chk;
+  case Builtin::BIstrncpy:   return Builtin::BI__builtin___strncpy_chk;
+  case Builtin::BIstpncpy:   return Builtin::BI__builtin___stpncpy_chk;
+  case Builtin::BIsnprintf:  return Builtin::BI__builtin___snprintf_chk;
+  case Builtin::BIvsnprintf: return Builtin::BI__builtin___vsnprintf_chk;
+  case Builtin::BIsprintf:   return Builtin::BI__builtin___sprintf_chk;
+  case Builtin::BIvsprintf:  return Builtin::BI__builtin___vsprintf_chk;
+  case Builtin::BIfprintf:   return Builtin::BI__builtin___fprintf_chk;
+  case Builtin::BIvfprintf:  return Builtin::BI__builtin___vfprintf_chk;
+  case Builtin::BIprintf:    return Builtin::BI__builtin___printf_chk;
+  case Builtin::BIvprintf:   return Builtin::BI__builtin___vprintf_chk;
+  default: return 0;
+  }
 }

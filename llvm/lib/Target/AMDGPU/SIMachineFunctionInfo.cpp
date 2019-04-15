@@ -1,9 +1,8 @@
 //===- SIMachineFunctionInfo.cpp - SI Machine Function Info ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -88,33 +87,23 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
     }
   }
 
-  if (ST.debuggerEmitPrologue()) {
-    // Enable everything.
+  if (F.hasFnAttribute("amdgpu-work-group-id-x"))
     WorkGroupIDX = true;
+
+  if (F.hasFnAttribute("amdgpu-work-group-id-y"))
     WorkGroupIDY = true;
+
+  if (F.hasFnAttribute("amdgpu-work-group-id-z"))
     WorkGroupIDZ = true;
+
+  if (F.hasFnAttribute("amdgpu-work-item-id-x"))
     WorkItemIDX = true;
+
+  if (F.hasFnAttribute("amdgpu-work-item-id-y"))
     WorkItemIDY = true;
+
+  if (F.hasFnAttribute("amdgpu-work-item-id-z"))
     WorkItemIDZ = true;
-  } else {
-    if (F.hasFnAttribute("amdgpu-work-group-id-x"))
-      WorkGroupIDX = true;
-
-    if (F.hasFnAttribute("amdgpu-work-group-id-y"))
-      WorkGroupIDY = true;
-
-    if (F.hasFnAttribute("amdgpu-work-group-id-z"))
-      WorkGroupIDZ = true;
-
-    if (F.hasFnAttribute("amdgpu-work-item-id-x"))
-      WorkItemIDX = true;
-
-    if (F.hasFnAttribute("amdgpu-work-item-id-y"))
-      WorkItemIDY = true;
-
-    if (F.hasFnAttribute("amdgpu-work-item-id-z"))
-      WorkItemIDZ = true;
-  }
 
   const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
   bool HasStackObjects = FrameInfo.hasStackObjects();

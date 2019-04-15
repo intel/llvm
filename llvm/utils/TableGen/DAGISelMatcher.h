@@ -1,9 +1,8 @@
 //===- DAGISelMatcher.h - Representation of DAG pattern matcher -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -67,6 +66,7 @@ public:
     CheckInteger,         // Fail if wrong val.
     CheckChildInteger,    // Fail if child is wrong val.
     CheckCondCode,        // Fail if not condcode.
+    CheckChild2CondCode,  // Fail if child is wrong condcode.
     CheckValueType,
     CheckComplexPat,
     CheckAndImm,
@@ -122,6 +122,7 @@ public:
     case CheckInteger:
     case CheckChildInteger:
     case CheckCondCode:
+    case CheckChild2CondCode:
     case CheckValueType:
     case CheckAndImm:
     case CheckOrImm:
@@ -623,6 +624,27 @@ private:
   void printImpl(raw_ostream &OS, unsigned indent) const override;
   bool isEqualImpl(const Matcher *M) const override {
     return cast<CheckCondCodeMatcher>(M)->CondCodeName == CondCodeName;
+  }
+};
+
+/// CheckChild2CondCodeMatcher - This checks to see if child 2 node is a
+/// CondCodeSDNode with the specified condition, if not it fails to match.
+class CheckChild2CondCodeMatcher : public Matcher {
+  StringRef CondCodeName;
+public:
+  CheckChild2CondCodeMatcher(StringRef condcodename)
+    : Matcher(CheckChild2CondCode), CondCodeName(condcodename) {}
+
+  StringRef getCondCodeName() const { return CondCodeName; }
+
+  static bool classof(const Matcher *N) {
+    return N->getKind() == CheckChild2CondCode;
+  }
+
+private:
+  void printImpl(raw_ostream &OS, unsigned indent) const override;
+  bool isEqualImpl(const Matcher *M) const override {
+    return cast<CheckChild2CondCodeMatcher>(M)->CondCodeName == CondCodeName;
   }
 };
 

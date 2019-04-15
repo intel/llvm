@@ -1,9 +1,8 @@
 //===-- PlatformRemoteGDBServer.cpp -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,6 +24,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/UriParser.h"
@@ -341,29 +341,20 @@ const char *PlatformRemoteGDBServer::GetHostname() {
   return m_name.c_str();
 }
 
-const char *PlatformRemoteGDBServer::GetUserName(uint32_t uid) {
-  // Try and get a cache user name first
-  const char *cached_user_name = Platform::GetUserName(uid);
-  if (cached_user_name)
-    return cached_user_name;
+llvm::Optional<std::string>
+PlatformRemoteGDBServer::DoGetUserName(UserIDResolver::id_t uid) {
   std::string name;
   if (m_gdb_client.GetUserName(uid, name))
-    return SetCachedUserName(uid, name.c_str(), name.size());
-
-  SetUserNameNotFound(uid); // Negative cache so we don't keep sending packets
-  return NULL;
+    return std::move(name);
+  return llvm::None;
 }
 
-const char *PlatformRemoteGDBServer::GetGroupName(uint32_t gid) {
-  const char *cached_group_name = Platform::GetGroupName(gid);
-  if (cached_group_name)
-    return cached_group_name;
+llvm::Optional<std::string>
+PlatformRemoteGDBServer::DoGetGroupName(UserIDResolver::id_t gid) {
   std::string name;
   if (m_gdb_client.GetGroupName(gid, name))
-    return SetCachedGroupName(gid, name.c_str(), name.size());
-
-  SetGroupNameNotFound(gid); // Negative cache so we don't keep sending packets
-  return NULL;
+    return std::move(name);
+  return llvm::None;
 }
 
 uint32_t PlatformRemoteGDBServer::FindProcesses(
@@ -496,8 +487,8 @@ lldb::ProcessSP PlatformRemoteGDBServer::DebugProcess(
 
           // The darwin always currently uses the GDB remote debugger plug-in
           // so even when debugging locally we are debugging remotely!
-          process_sp = target->CreateProcess(
-              launch_info.GetListenerForProcess(debugger), "gdb-remote", NULL);
+          process_sp = target->CreateProcess(launch_info.GetListener(),
+                                             "gdb-remote", NULL);
 
           if (process_sp) {
             error = process_sp->ConnectRemote(nullptr, connect_url.c_str());

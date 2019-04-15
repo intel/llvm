@@ -1,9 +1,8 @@
 //===- SILoadStoreOptimizer.cpp -------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -160,7 +159,7 @@ private:
   bool OptimizeAgain;
 
   static bool offsetsCanBeCombined(CombineInfo &CI);
-  static bool widthsFit(const CombineInfo &CI);
+  static bool widthsFit(const GCNSubtarget &STM, const CombineInfo &CI);
   static unsigned getNewOpcode(const CombineInfo &CI);
   static std::pair<unsigned, unsigned> getSubRegIdxs(const CombineInfo &CI);
   const TargetRegisterClass *getTargetRegisterClass(const CombineInfo &CI);
@@ -257,13 +256,11 @@ static void addDefsUsesToList(const MachineInstr &MI,
 
 static bool memAccessesCanBeReordered(MachineBasicBlock::iterator A,
                                       MachineBasicBlock::iterator B,
-                                      const SIInstrInfo *TII,
                                       AliasAnalysis *AA) {
   // RAW or WAR - cannot reorder
   // WAW - cannot reorder
   // RAR - safe to reorder
-  return !(A->mayStore() || B->mayStore()) ||
-         TII->areMemAccessesTriviallyDisjoint(*A, *B, AA);
+  return !(A->mayStore() || B->mayStore()) || !A->mayAlias(AA, *B, true);
 }
 
 // Add MI and its defs to the lists if MI reads one of the defs that are
@@ -295,13 +292,13 @@ static bool addToListsIfDependent(MachineInstr &MI, DenseSet<unsigned> &RegDefs,
 
 static bool canMoveInstsAcrossMemOp(MachineInstr &MemOp,
                                     ArrayRef<MachineInstr *> InstsToMove,
-                                    const SIInstrInfo *TII, AliasAnalysis *AA) {
+                                    AliasAnalysis *AA) {
   assert(MemOp.mayLoadOrStore());
 
   for (MachineInstr *InstToMove : InstsToMove) {
     if (!InstToMove->mayLoadOrStore())
       continue;
-    if (!memAccessesCanBeReordered(MemOp, *InstToMove, TII, AA))
+    if (!memAccessesCanBeReordered(MemOp, *InstToMove, AA))
       return false;
   }
   return true;
@@ -367,11 +364,12 @@ bool SILoadStoreOptimizer::offsetsCanBeCombined(CombineInfo &CI) {
   return false;
 }
 
-bool SILoadStoreOptimizer::widthsFit(const CombineInfo &CI) {
+bool SILoadStoreOptimizer::widthsFit(const GCNSubtarget &STM,
+                                     const CombineInfo &CI) {
   const unsigned Width = (CI.Width0 + CI.Width1);
   switch (CI.InstClass) {
   default:
-    return Width <= 4;
+    return (Width <= 4) && (STM.hasDwordx3LoadStores() || (Width != 3));
   case S_BUFFER_LOAD_IMM:
     switch (Width) {
     default:
@@ -566,8 +564,8 @@ bool SILoadStoreOptimizer::findMatchingInst(CombineInfo &CI) {
       }
 
       if (MBBI->mayLoadOrStore() &&
-          (!memAccessesCanBeReordered(*CI.I, *MBBI, TII, AA) ||
-           !canMoveInstsAcrossMemOp(*MBBI, CI.InstsToMove, TII, AA))) {
+          (!memAccessesCanBeReordered(*CI.I, *MBBI, AA) ||
+           !canMoveInstsAcrossMemOp(*MBBI, CI.InstsToMove, AA))) {
         // We fail condition #1, but we may still be able to satisfy condition
         // #2.  Add this instruction to the move list and then we will check
         // if condition #2 holds once we have selected the matching instruction.
@@ -645,8 +643,8 @@ bool SILoadStoreOptimizer::findMatchingInst(CombineInfo &CI) {
       // We also need to go through the list of instructions that we plan to
       // move and make sure they are all safe to move down past the merged
       // instruction.
-      if (widthsFit(CI) && offsetsCanBeCombined(CI))
-        if (canMoveInstsAcrossMemOp(*MBBI, CI.InstsToMove, TII, AA))
+      if (widthsFit(*STM, CI) && offsetsCanBeCombined(CI))
+        if (canMoveInstsAcrossMemOp(*MBBI, CI.InstsToMove, AA))
           return true;
     }
 
@@ -655,8 +653,8 @@ bool SILoadStoreOptimizer::findMatchingInst(CombineInfo &CI) {
     // it was safe to move I and also all the instruction in InstsToMove
     // down past this instruction.
     // check if we can move I across MBBI and if we can move all I's users
-    if (!memAccessesCanBeReordered(*CI.I, *MBBI, TII, AA) ||
-        !canMoveInstsAcrossMemOp(*MBBI, CI.InstsToMove, TII, AA))
+    if (!memAccessesCanBeReordered(*CI.I, *MBBI, AA) ||
+        !canMoveInstsAcrossMemOp(*MBBI, CI.InstsToMove, AA))
       break;
   }
   return false;

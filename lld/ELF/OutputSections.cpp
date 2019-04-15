@@ -1,9 +1,8 @@
 //===- OutputSections.cpp -------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,6 +30,7 @@ using namespace llvm::ELF;
 using namespace lld;
 using namespace lld::elf;
 
+uint8_t *Out::BufferStart;
 uint8_t Out::First;
 PhdrEntry *Out::TlsPhdr;
 OutputSection *Out::ElfHeader;
@@ -223,8 +223,6 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *Buf) {
   if (Type == SHT_NOBITS)
     return;
 
-  Loc = Buf;
-
   // If -compress-debug-section is specified and if this is a debug seciton,
   // we've already compressed section contents. If that's the case,
   // just write it down.
@@ -265,7 +263,6 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *Buf) {
       writeInt(Buf + Data->Offset, Data->Expression().getValue(), Data->Size);
 }
 
-template <class ELFT>
 static void finalizeShtGroup(OutputSection *OS,
                              InputSection *Section) {
   assert(Config->Relocatable);
@@ -276,12 +273,11 @@ static void finalizeShtGroup(OutputSection *OS,
 
   // sh_info then contain index of an entry in symbol table section which
   // provides signature of the section group.
-  ObjFile<ELFT> *Obj = Section->getFile<ELFT>();
-  ArrayRef<Symbol *> Symbols = Obj->getSymbols();
+  ArrayRef<Symbol *> Symbols = Section->File->getSymbols();
   OS->Info = In.SymTab->getSymbolIndex(Symbols[Section->Info]);
 }
 
-template <class ELFT> void OutputSection::finalize() {
+void OutputSection::finalize() {
   if (Type == SHT_NOBITS)
     for (BaseCommand *Base : SectionCommands)
       if (isa<ByteCommand>(Base))
@@ -300,7 +296,7 @@ template <class ELFT> void OutputSection::finalize() {
   }
 
   if (Type == SHT_GROUP) {
-    finalizeShtGroup<ELFT>(this, First);
+    finalizeShtGroup(this, First);
     return;
   }
 
@@ -430,8 +426,3 @@ template void OutputSection::maybeCompress<ELF32LE>();
 template void OutputSection::maybeCompress<ELF32BE>();
 template void OutputSection::maybeCompress<ELF64LE>();
 template void OutputSection::maybeCompress<ELF64BE>();
-
-template void OutputSection::finalize<ELF32LE>();
-template void OutputSection::finalize<ELF32BE>();
-template void OutputSection::finalize<ELF64LE>();
-template void OutputSection::finalize<ELF64BE>();

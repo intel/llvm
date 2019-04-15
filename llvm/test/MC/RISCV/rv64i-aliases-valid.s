@@ -4,7 +4,7 @@
 # RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-ALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 < %s \
 # RUN:     | llvm-objdump -riscv-no-aliases -d - \
-# RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-INST %s
+# RUN:     | FileCheck -check-prefixes=CHECK-OBJ-NOALIAS,CHECK-EXPAND,CHECK-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 < %s \
 # RUN:     | llvm-objdump -d - \
 # RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-ALIAS %s
@@ -105,6 +105,29 @@ li t4, 0x123456789abcdef0
 # CHECK-EXPAND: addi t5, zero, -1
 li t5, 0xFFFFFFFFFFFFFFFF
 
+# CHECK-EXPAND: addi a0, zero, 1110
+li a0, %lo(0x123456)
+# CHECK-OBJ-NOALIAS: addi a0, zero, 0
+# CHECK-OBJ: R_RISCV_PCREL_LO12
+li a0, %pcrel_lo(0x123456)
+
+# CHECK-OBJ-NOALIAS: addi a0, zero, 0
+# CHECK-OBJ: R_RISCV_LO12
+li a0, %lo(foo)
+# CHECK-OBJ-NOALIAS: addi a0, zero, 0
+# CHECK-OBJ: R_RISCV_PCREL_LO12
+li a0, %pcrel_lo(foo)
+
+.equ CONST, 0x123456
+# CHECK-EXPAND: lui a0, 291
+# CHECK-EXPAND: addiw a0, a0, 1110
+li a0, CONST
+
+.equ CONST, 0x654321
+# CHECK-EXPAND: lui a0, 1620
+# CHECK-EXPAND: addiw a0, a0, 801
+li a0, CONST
+
 # CHECK-INST: subw t6, zero, ra
 # CHECK-ALIAS: negw t6, ra
 negw x31, x1
@@ -129,3 +152,10 @@ srlw a2,a3,4
 # CHECK-INST: sraiw a2, a3, 4
 # CHECK-ALIAS: sraiw a2, a3, 4
 sraw a2,a3,4
+
+# CHECK-EXPAND: lwu a0, 0(a1)
+lwu x10, (x11)
+# CHECK-EXPAND: ld a0, 0(a1)
+ld x10, (x11)
+# CHECK-EXPAND: sd a0, 0(a1)
+sd x10, (x11)

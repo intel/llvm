@@ -1,9 +1,8 @@
 //===--- CGAtomic.cpp - Emit LLVM IR for atomic operations ----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -202,7 +201,7 @@ namespace {
       assert(LVal.isSimple());
       Address addr = getAtomicAddress();
       if (hasPadding())
-        addr = CGF.Builder.CreateStructGEP(addr, 0, CharUnits());
+        addr = CGF.Builder.CreateStructGEP(addr, 0);
 
       return LValue::MakeAddr(addr, getValueType(), CGF.getContext(),
                               LVal.getBaseInfo(), LVal.getTBAAInfo());
@@ -308,7 +307,7 @@ static RValue emitAtomicLibcall(CodeGenFunction &CGF,
   const CGFunctionInfo &fnInfo =
     CGF.CGM.getTypes().arrangeBuiltinFunctionCall(resultType, args);
   llvm::FunctionType *fnTy = CGF.CGM.getTypes().GetFunctionType(fnInfo);
-  llvm::Constant *fn = CGF.CGM.CreateRuntimeFunction(fnTy, fnName);
+  llvm::FunctionCallee fn = CGF.CGM.CreateRuntimeFunction(fnTy, fnName);
   auto callee = CGCallee::forDirect(fn);
   return CGF.EmitCall(fnInfo, callee, ReturnValueSlot(), args);
 }
@@ -1357,7 +1356,7 @@ RValue AtomicInfo::convertAtomicTempToRValue(Address addr,
 
     // Drill into the padding structure if we have one.
     if (hasPadding())
-      addr = CGF.Builder.CreateStructGEP(addr, 0, CharUnits());
+      addr = CGF.Builder.CreateStructGEP(addr, 0);
 
     // Otherwise, just convert the temporary to an r-value using the
     // normal conversion routine.

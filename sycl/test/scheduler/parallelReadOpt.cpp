@@ -20,10 +20,9 @@
 
 //==---- parallelReadOpt.cpp - SYCL scheduler parallel read test -----------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -41,6 +40,7 @@ static constexpr const detail::kernel_param_desc_t kernel_signatures[] = {
     {detail::kernel_param_kind_t::kind_accessor, 2014, 192}};
 
 int main() {
+  auto M = detail::OSUtil::ExeModuleHandle;
 
   queue Queue;
   auto QueueImpl = detail::getSyclObjImpl(Queue);
@@ -55,7 +55,7 @@ int main() {
     InitNode.template addBufRequirement<access::mode::write,
                                         access::target::global_buffer>(
         *detail::getSyclObjImpl(A));
-    InitNode.addKernel("init_kernel", 1, kernel_signatures, []() {});
+    InitNode.addKernel(M, "init_kernel", 1, kernel_signatures, []() {});
     simple_scheduler::Scheduler::getInstance().addNode(std::move(InitNode));
   }
 
@@ -67,7 +67,7 @@ int main() {
     ReadNode1.template addBufRequirement<access::mode::write,
                                          access::target::global_buffer>(
         *detail::getSyclObjImpl(B));
-    ReadNode1.addKernel("read1", 2, kernel_signatures + 2, []() {});
+    ReadNode1.addKernel(M, "read1", 2, kernel_signatures + 2, []() {});
     simple_scheduler::Scheduler::getInstance().addNode(std::move(ReadNode1));
   }
 
@@ -79,7 +79,7 @@ int main() {
     ReadNode2.template addBufRequirement<access::mode::write,
                                          access::target::global_buffer>(
         *detail::getSyclObjImpl(C));
-    ReadNode2.addKernel("read2", 2, kernel_signatures + 2, []() {});
+    ReadNode2.addKernel(M, "read2", 2, kernel_signatures + 2, []() {});
     simple_scheduler::Scheduler::getInstance().addNode(std::move(ReadNode2));
   }
 

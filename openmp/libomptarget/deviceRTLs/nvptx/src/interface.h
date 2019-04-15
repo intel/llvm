@@ -1,9 +1,8 @@
 //===------- interface.h - NVPTX OpenMP interface definitions ---- CUDA -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -201,6 +200,7 @@ typedef void (*kmp_CopyToScratchpadFctPtr)(void *reduceData, void *scratchpad,
 typedef void (*kmp_LoadReduceFctPtr)(void *reduceData, void *scratchpad,
                                      int32_t index, int32_t width,
                                      int32_t reduce);
+typedef void (*kmp_ListGlobalFctPtr)(void *buffer, int idx, void *reduce_data);
 
 // task defs
 typedef struct kmp_TaskDescr kmp_TaskDescr;
@@ -395,9 +395,13 @@ EXTERN void __kmpc_reduce_conditional_lastprivate(kmp_Ident *loc,
 // reduction
 EXTERN void __kmpc_nvptx_end_reduce(int32_t global_tid);
 EXTERN void __kmpc_nvptx_end_reduce_nowait(int32_t global_tid);
-EXTERN int32_t __kmpc_nvptx_parallel_reduce_nowait(
+EXTERN __attribute__((deprecated)) int32_t __kmpc_nvptx_parallel_reduce_nowait(
     int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
     kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct);
+EXTERN int32_t __kmpc_nvptx_parallel_reduce_nowait_v2(
+    kmp_Ident *loc, int32_t global_tid, int32_t num_vars, size_t reduce_size,
+    void *reduce_data, kmp_ShuffleReductFctPtr shflFct,
+    kmp_InterWarpCopyFctPtr cpyFct);
 EXTERN int32_t __kmpc_nvptx_parallel_reduce_nowait_simple_spmd(
     int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
     kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct);
@@ -407,6 +411,12 @@ EXTERN int32_t __kmpc_nvptx_parallel_reduce_nowait_simple_generic(
 EXTERN int32_t __kmpc_nvptx_simd_reduce_nowait(
     int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
     kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct);
+EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
+    kmp_Ident *loc, int32_t global_tid, void *global_buffer,
+    int32_t num_of_records, void *reduce_data, kmp_ShuffleReductFctPtr shflFct,
+    kmp_InterWarpCopyFctPtr cpyFct, kmp_ListGlobalFctPtr lgcpyFct,
+    kmp_ListGlobalFctPtr lgredFct, kmp_ListGlobalFctPtr glcpyFct,
+    kmp_ListGlobalFctPtr glredFct);
 EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait(
     int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
     kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct,
@@ -550,9 +560,11 @@ __kmpc_get_data_sharing_environment_frame(int32_t SourceThreadID,
 // SPMD execution mode interrogation function.
 EXTERN int8_t __kmpc_is_spmd_exec_mode();
 
-EXTERN void __kmpc_get_team_static_memory(const void *buf, size_t size,
+EXTERN void __kmpc_get_team_static_memory(int16_t isSPMDExecutionMode,
+                                          const void *buf, size_t size,
                                           int16_t is_shared, const void **res);
 
-EXTERN void __kmpc_restore_team_static_memory(int16_t is_shared);
+EXTERN void __kmpc_restore_team_static_memory(int16_t isSPMDExecutionMode,
+                                              int16_t is_shared);
 
 #endif

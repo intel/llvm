@@ -1,9 +1,8 @@
 //===-- MainLoopTest.cpp ----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -109,7 +108,11 @@ TEST_F(MainLoopTest, TerminatesImmediately) {
 }
 
 #ifdef LLVM_ON_UNIX
+// NetBSD currently does not report slave pty EOF via kevent
+// causing this test to hang forever.
+#ifndef __NetBSD__
 TEST_F(MainLoopTest, DetectsEOF) {
+
   PseudoTerminal term;
   ASSERT_TRUE(term.OpenFirstAvailableMaster(O_RDWR, nullptr, 0));
   ASSERT_TRUE(term.OpenSlave(O_RDWR | O_NOCTTY, nullptr, 0));
@@ -126,6 +129,7 @@ TEST_F(MainLoopTest, DetectsEOF) {
   ASSERT_TRUE(loop.Run().Success());
   ASSERT_EQ(1u, callback_count);
 }
+#endif
 
 TEST_F(MainLoopTest, Signal) {
   MainLoop loop;
@@ -135,6 +139,30 @@ TEST_F(MainLoopTest, Signal) {
   ASSERT_TRUE(error.Success());
   kill(getpid(), SIGUSR1);
   ASSERT_TRUE(loop.Run().Success());
+  ASSERT_EQ(1u, callback_count);
+}
+
+// Test that a signal which is not monitored by the MainLoop does not
+// cause a premature exit.
+TEST_F(MainLoopTest, UnmonitoredSignal) {
+  MainLoop loop;
+  Status error;
+  struct sigaction sa;
+  sa.sa_sigaction = [](int, siginfo_t *, void *) { };
+  sa.sa_flags = SA_SIGINFO; // important: no SA_RESTART
+  sigemptyset(&sa.sa_mask);
+  ASSERT_EQ(0, sigaction(SIGUSR2, &sa, nullptr));
+
+  auto handle = loop.RegisterSignal(SIGUSR1, make_callback(), error);
+  ASSERT_TRUE(error.Success());
+  std::thread killer([]() {
+    sleep(1);
+    kill(getpid(), SIGUSR2);
+    sleep(1);
+    kill(getpid(), SIGUSR1);
+  });
+  ASSERT_TRUE(loop.Run().Success());
+  killer.join();
   ASSERT_EQ(1u, callback_count);
 }
 #endif

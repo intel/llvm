@@ -1,9 +1,8 @@
 //===-- SIRegisterInfo.cpp - SI Register Information ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -163,6 +162,9 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   // Reserve xnack_mask registers - support is not implemented in Codegen.
   reserveRegisterTuples(Reserved, AMDGPU::XNACK_MASK);
+
+  // Reserve lds_direct register - support is not implemented in Codegen.
+  reserveRegisterTuples(Reserved, AMDGPU::LDS_DIRECT);
 
   // Reserve Trap Handler registers - support is not implemented in Codegen.
   reserveRegisterTuples(Reserved, AMDGPU::TBA);
@@ -1585,6 +1587,7 @@ SIRegisterInfo::getConstrainedRegClassForOperand(const MachineOperand &MO,
   if (!RB)
     return nullptr;
 
+  Size = PowerOf2Ceil(Size);
   switch (Size) {
   case 32:
     return RB->getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VGPR_32RegClass :
@@ -1598,6 +1601,12 @@ SIRegisterInfo::getConstrainedRegClassForOperand(const MachineOperand &MO,
   case 128:
     return RB->getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_128RegClass :
                                                   &AMDGPU::SReg_128RegClass;
+  case 256:
+    return RB->getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_256RegClass :
+                                                  &AMDGPU::SReg_256RegClass;
+  case 512:
+    return RB->getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_512RegClass :
+                                                  &AMDGPU::SReg_512RegClass;
   default:
     llvm_unreachable("not implemented");
   }

@@ -1,9 +1,8 @@
 //===-- NativeRegisterContextLinux_mips64.cpp ---------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -941,25 +940,25 @@ NativeRegisterContextLinux_mips64::GetWatchpointHitAddress(uint32_t wp_index) {
 
   lldb_private::ArchSpec arch;
   arch = GetRegisterInfoInterface().GetTargetArchitecture();
-  std::unique_ptr<EmulateInstruction> emulator_ap(
+  std::unique_ptr<EmulateInstruction> emulator_up(
       EmulateInstruction::FindPlugin(arch, lldb_private::eInstructionTypeAny,
                                      nullptr));
 
-  if (emulator_ap == nullptr)
+  if (emulator_up == nullptr)
     return LLDB_INVALID_ADDRESS;
 
   EmulatorBaton baton(
       static_cast<NativeProcessLinux *>(&m_thread.GetProcess()), this);
-  emulator_ap->SetBaton(&baton);
-  emulator_ap->SetReadMemCallback(&ReadMemoryCallback);
-  emulator_ap->SetReadRegCallback(&ReadRegisterCallback);
-  emulator_ap->SetWriteMemCallback(&WriteMemoryCallback);
-  emulator_ap->SetWriteRegCallback(&WriteRegisterCallback);
+  emulator_up->SetBaton(&baton);
+  emulator_up->SetReadMemCallback(&ReadMemoryCallback);
+  emulator_up->SetReadRegCallback(&ReadRegisterCallback);
+  emulator_up->SetWriteMemCallback(&WriteMemoryCallback);
+  emulator_up->SetWriteRegCallback(&WriteRegisterCallback);
 
-  if (!emulator_ap->ReadInstruction())
+  if (!emulator_up->ReadInstruction())
     return LLDB_INVALID_ADDRESS;
 
-  if (emulator_ap->EvaluateInstruction(lldb::eEmulateInstructionOptionNone))
+  if (emulator_up->EvaluateInstruction(lldb::eEmulateInstructionOptionNone))
     return baton.m_watch_hit_addr;
 
   return LLDB_INVALID_ADDRESS;

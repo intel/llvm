@@ -1,9 +1,8 @@
 //===- Driver.cpp ---------------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -287,44 +286,6 @@ static StringRef getEntry(opt::InputArgList &Args, StringRef Default) {
   return Arg->getValue();
 }
 
-static const uint8_t UnreachableFn[] = {
-    0x03 /* ULEB length */, 0x00 /* ULEB num locals */,
-    0x00 /* opcode unreachable */, 0x0b /* opcode end */
-};
-
-// For weak undefined functions, there may be "call" instructions that reference
-// the symbol. In this case, we need to synthesise a dummy/stub function that
-// will abort at runtime, so that relocations can still provided an operand to
-// the call instruction that passes Wasm validation.
-static void handleWeakUndefines() {
-  for (Symbol *Sym : Symtab->getSymbols()) {
-    if (!Sym->isUndefined() || !Sym->isWeak())
-      continue;
-    auto *FuncSym = dyn_cast<FunctionSymbol>(Sym);
-    if (!FuncSym)
-      continue;
-
-    // It is possible for undefined functions not to have a signature (eg. if
-    // added via "--undefined"), but weak undefined ones do have a signature.
-    assert(FuncSym->Signature);
-    const WasmSignature &Sig = *FuncSym->Signature;
-
-    // Add a synthetic dummy for weak undefined functions.  These dummies will
-    // be GC'd if not used as the target of any "call" instructions.
-    std::string SymName = toString(*Sym);
-    StringRef DebugName = Saver.save("undefined function " + SymName);
-    auto *Func = make<SyntheticFunction>(Sig, Sym->getName(), DebugName);
-    Func->setBody(UnreachableFn);
-    // Ensure it compares equal to the null pointer, and so that table relocs
-    // don't pull in the stub body (only call-operand relocs should do that).
-    Func->setTableIndex(0);
-    Symtab->SyntheticFunctions.emplace_back(Func);
-    // Hide our dummy to prevent export.
-    uint32_t Flags = WASM_SYMBOL_VISIBILITY_HIDDEN;
-    replaceSymbol<DefinedFunction>(Sym, Sym->getName(), Flags, nullptr, Func);
-  }
-}
-
 // Some Config members do not directly correspond to any particular
 // command line options, but computed based on other Config values.
 // This function initialize such members. See Config.h for the details
@@ -363,6 +324,7 @@ static void setConfigs(opt::InputArgList &Args) {
   Config->StripAll = Args.hasArg(OPT_strip_all);
   Config->StripDebug = Args.hasArg(OPT_strip_debug);
   Config->StackFirst = Args.hasArg(OPT_stack_first);
+  Config->Trace = Args.hasArg(OPT_trace);
   Config->ThinLTOCacheDir = Args.getLastArgValue(OPT_thinlto_cache_dir);
   Config->ThinLTOCachePolicy = CHECK(
       parseCachePruningPolicy(Args.getLastArgValue(OPT_thinlto_cache_policy)),
@@ -434,7 +396,9 @@ static Symbol *handleUndefined(StringRef Name) {
 static UndefinedGlobal *
 createUndefinedGlobal(StringRef Name, llvm::wasm::WasmGlobalType *Type) {
   auto *Sym =
-      cast<UndefinedGlobal>(Symtab->addUndefinedGlobal(Name, 0, nullptr, Type));
+      cast<UndefinedGlobal>(Symtab->addUndefinedGlobal(Name, Name,
+                                                       DefaultModule, 0,
+                                                       nullptr, Type));
   Config->AllowUndefinedSymbols.insert(Sym->getName());
   Sym->IsUsedInRegularObj = true;
   return Sym;
@@ -548,6 +512,10 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
     Config->AllowUndefined = true;
   }
 
+  // Handle --trace-symbol.
+  for (auto *Arg : Args.filtered(OPT_trace_symbol))
+    Symtab->trace(Arg->getValue());
+
   if (!Config->Relocatable)
     createSyntheticSymbols();
 
@@ -566,22 +534,8 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
   for (auto *Arg : Args.filtered(OPT_undefined))
     handleUndefined(Arg->getValue());
 
-  // Handle the `--export <sym>` options
-  // This works like --undefined but also exports the symbol if its found
-  for (auto *Arg : Args.filtered(OPT_export)) {
-    Symbol *Sym = handleUndefined(Arg->getValue());
-    if (Sym && Sym->isDefined())
-      Sym->ForceExport = true;
-    else if (!Config->AllowUndefined)
-      error(Twine("symbol exported via --export not found: ") +
-            Arg->getValue());
-  }
-
   Symbol *EntrySym = nullptr;
   if (!Config->Relocatable) {
-    // Add synthetic dummies for weak undefined functions.
-    handleWeakUndefines();
-
     if (!Config->Shared && !Config->Entry.empty()) {
       EntrySym = handleUndefined(Config->Entry);
       if (EntrySym && EntrySym->isDefined())
@@ -590,20 +544,46 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
         error("entry symbol not defined (pass --no-entry to supress): " +
               Config->Entry);
     }
-
-    // Make sure we have resolved all symbols.
-    if (!Config->AllowUndefined)
-      Symtab->reportRemainingUndefines();
   }
 
   if (errorCount())
     return;
+
+  // Handle the `--export <sym>` options
+  // This works like --undefined but also exports the symbol if its found
+  for (auto *Arg : Args.filtered(OPT_export))
+    handleUndefined(Arg->getValue());
 
   // Do link-time optimization if given files are LLVM bitcode files.
   // This compiles bitcode files into real object files.
   Symtab->addCombinedLTOObject();
   if (errorCount())
     return;
+
+  // Resolve any variant symbols that were created due to signature
+  // mismatchs.
+  Symtab->handleSymbolVariants();
+  if (errorCount())
+    return;
+
+  for (auto *Arg : Args.filtered(OPT_export)) {
+    Symbol *Sym = Symtab->find(Arg->getValue());
+    if (Sym && Sym->isDefined())
+      Sym->ForceExport = true;
+    else if (!Config->AllowUndefined)
+      error(Twine("symbol exported via --export not found: ") +
+            Arg->getValue());
+  }
+
+  if (!Config->Relocatable) {
+    // Add synthetic dummies for weak undefined functions.  Must happen
+    // after LTO otherwise functions may not yet have signatures.
+    Symtab->handleWeakUndefines();
+
+    // Make sure we have resolved all symbols.
+    if (!Config->AllowUndefined)
+      Symtab->reportRemainingUndefines();
+  }
 
   if (EntrySym)
     EntrySym->setHidden(false);

@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -159,6 +158,10 @@ void __kmp_win32_mutex_lock(kmp_win32_mutex_t *mx) {
   EnterCriticalSection(&mx->cs);
 }
 
+int __kmp_win32_mutex_trylock(kmp_win32_mutex_t *mx) {
+  return TryEnterCriticalSection(&mx->cs);
+}
+
 void __kmp_win32_mutex_unlock(kmp_win32_mutex_t *mx) {
   LeaveCriticalSection(&mx->cs);
 }
@@ -300,6 +303,18 @@ void __kmp_suspend_uninitialize_thread(kmp_info_t *th) {
   }
 }
 
+int __kmp_try_suspend_mx(kmp_info_t *th) {
+  return __kmp_win32_mutex_trylock(&th->th.th_suspend_mx);
+}
+
+void __kmp_lock_suspend_mx(kmp_info_t *th) {
+  __kmp_win32_mutex_lock(&th->th.th_suspend_mx);
+}
+
+void __kmp_unlock_suspend_mx(kmp_info_t *th) {
+  __kmp_win32_mutex_unlock(&th->th.th_suspend_mx);
+}
+
 /* This routine puts the calling thread to sleep after setting the
    sleep bit for the indicated flag variable to true. */
 template <class C>
@@ -321,6 +336,14 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
   /* TODO: shouldn't this use release semantics to ensure that
      __kmp_suspend_initialize_thread gets called first? */
   old_spin = flag->set_sleeping();
+#if OMP_50_ENABLED
+  if (__kmp_dflt_blocktime == KMP_MAX_BLOCKTIME &&
+      __kmp_pause_status != kmp_soft_paused) {
+    flag->unset_sleeping();
+    __kmp_win32_mutex_unlock(&th->th.th_suspend_mx);
+    return;
+  }
+#endif
 
   KF_TRACE(5, ("__kmp_suspend_template: T#%d set sleep bit for flag's"
                " loc(%p)==%d\n",
@@ -460,10 +483,7 @@ void __kmp_resume_oncore(int target_gtid, kmp_flag_oncore *flag) {
   __kmp_resume_template(target_gtid, flag);
 }
 
-void __kmp_yield(int cond) {
-  if (cond)
-    Sleep(0);
-}
+void __kmp_yield() { Sleep(0); }
 
 void __kmp_gtid_set_specific(int gtid) {
   if (__kmp_init_gtid) {
@@ -1222,8 +1242,8 @@ static void __kmp_reap_common(kmp_info_t *th) {
      Right solution seems to be waiting for *either* thread termination *or*
      ds_alive resetting. */
   {
-    // TODO: This code is very similar to KMP_WAIT_YIELD. Need to generalize
-    // KMP_WAIT_YIELD to cover this usage also.
+    // TODO: This code is very similar to KMP_WAIT. Need to generalize
+    // KMP_WAIT to cover this usage also.
     void *obj = NULL;
     kmp_uint32 spins;
 #if USE_ITT_BUILD
@@ -1235,8 +1255,7 @@ static void __kmp_reap_common(kmp_info_t *th) {
       KMP_FSYNC_SPIN_PREPARE(obj);
 #endif /* USE_ITT_BUILD */
       __kmp_is_thread_alive(th, &exit_val);
-      KMP_YIELD(TCR_4(__kmp_nth) > __kmp_avail_proc);
-      KMP_YIELD_SPIN(spins);
+      KMP_YIELD_OVERSUB_ELSE_SPIN(spins);
     } while (exit_val == STILL_ACTIVE && TCR_4(th->th.th_info.ds.ds_alive));
 #if USE_ITT_BUILD
     if (exit_val == STILL_ACTIVE) {

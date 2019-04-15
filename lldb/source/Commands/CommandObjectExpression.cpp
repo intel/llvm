@@ -1,9 +1,8 @@
 //===-- CommandObjectExpression.cpp -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -235,7 +234,7 @@ Single and multi-line expressions:
 with no newlines.  To evaluate a multi-line expression, \
 hit a return after an empty expression, and lldb will enter the multi-line expression editor. \
 Hit return on an empty line to end the multi-line expression."
-      
+
       R"(
 
 Timeouts:
@@ -364,7 +363,7 @@ int CommandObjectExpression::HandleCompletion(CompletionRequest &request) {
   Status error;
   lldb::UserExpressionSP expr(target->GetUserExpressionForLanguage(
       code, llvm::StringRef(), language, UserExpression::eResultTypeAny,
-      options, error));
+      options, nullptr, error));
   if (error.Fail())
     return 0;
 
@@ -561,7 +560,7 @@ void CommandObjectExpression::GetMultilineExpression() {
                             llvm::StringRef(), // Continuation prompt
                             multiple_lines, color_prompt,
                             1, // Show line numbers starting at 1
-                            *this));
+                            *this, nullptr));
 
   StreamFileSP output_sp(io_handler_sp->GetOutputStreamFile());
   if (output_sp) {

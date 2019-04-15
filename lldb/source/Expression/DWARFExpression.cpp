@@ -1,9 +1,8 @@
 //===-- DWARFExpression.cpp -------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -996,12 +995,12 @@ bool DWARFExpression::Update_DW_OP_addr(lldb::addr_t file_addr) {
       // for this expression
 
       // So first we copy the data into a heap buffer
-      std::unique_ptr<DataBufferHeap> head_data_ap(
+      std::unique_ptr<DataBufferHeap> head_data_up(
           new DataBufferHeap(m_data.GetDataStart(), m_data.GetByteSize()));
 
       // Make en encoder so we can write the address into the buffer using the
       // correct byte order (endianness)
-      DataEncoder encoder(head_data_ap->GetBytes(), head_data_ap->GetByteSize(),
+      DataEncoder encoder(head_data_up->GetBytes(), head_data_up->GetByteSize(),
                           m_data.GetByteOrder(), addr_byte_size);
 
       // Replace the address in the new buffer
@@ -1010,7 +1009,7 @@ bool DWARFExpression::Update_DW_OP_addr(lldb::addr_t file_addr) {
 
       // All went well, so now we can reset the data using a shared pointer to
       // the heap data so "m_data" will now correctly manage the heap data.
-      m_data.SetData(DataBufferSP(head_data_ap.release()));
+      m_data.SetData(DataBufferSP(head_data_up.release()));
       return true;
     } else {
       const offset_t op_arg_size = GetOpcodeDataSize(m_data, offset, op);
@@ -3204,7 +3203,7 @@ static bool print_dwarf_exp_op(Stream &s, const DataExtractor &data,
     break;
   default:
     s.Printf("UNKNOWN ONE-OPERAND OPCODE, #%u", opcode);
-    return true;
+    return false;
   }
 
   switch (size) {
@@ -3250,7 +3249,7 @@ static bool print_dwarf_exp_op(Stream &s, const DataExtractor &data,
     break;
   }
 
-  return false;
+  return true;
 }
 
 bool DWARFExpression::PrintDWARFExpression(Stream &s, const DataExtractor &data,

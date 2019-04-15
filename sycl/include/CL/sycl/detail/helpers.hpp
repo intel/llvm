@@ -1,15 +1,16 @@
 //==---------------- helpers.hpp - SYCL helpers ----------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+
+#include <memory>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -24,12 +25,12 @@ template <int dimensions> class range;
 template <int dimensions> class id;
 template <int dimensions> class nd_item;
 namespace detail {
-
+class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
 std::vector<cl_event>
 getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
-                cl::sycl::context Context);
+                std::shared_ptr<cl::sycl::detail::context_impl> Context);
 
 void waitEvents(std::vector<cl::sycl::event> DepEvents);
 

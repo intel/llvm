@@ -1,9 +1,8 @@
 //==----------- commands.h -------------------------------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,6 +16,7 @@
 
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/scheduler/requirements.h>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
@@ -169,11 +169,12 @@ template <typename KernelType, int Dimensions, typename RangeType,
 class ExecuteKernelCommand : public Command {
 public:
   ExecuteKernelCommand(KernelType &HostKernel, const std::string KernelName,
+                       csd::OSModuleHandle OSModule,
                        const unsigned int KernelArgsNum,
                        const detail::kernel_param_desc_t *KernelArgs,
                        RangeType workItemsRange, QueueImplPtr Queue,
                        cl_kernel ClKernel, id<Dimensions> workItemOffset = {})
-      : Command(Command::RUN_KERNEL, std::move(Queue)),
+      : Command(Command::RUN_KERNEL, std::move(Queue)), m_OSModule(OSModule),
         m_KernelName(KernelName), m_KernelArgsNum(KernelArgsNum),
         m_KernelArgs(KernelArgs), m_WorkItemsRange(workItemsRange),
         m_WorkItemsOffset(workItemOffset), m_HostKernel(HostKernel),
@@ -324,6 +325,8 @@ private:
   runEnqueueNDRangeKernel(cl_command_queue &EnvQueue, cl_kernel &Kernel,
                           std::vector<cl_event> CLEvents);
 
+  /// A module to be used for kernel resolution
+  csd::OSModuleHandle m_OSModule;
   std::string m_KernelName;
   const unsigned int m_KernelArgsNum;
   const detail::kernel_param_desc_t *m_KernelArgs;
@@ -362,13 +365,14 @@ template <int DimSrc, int DimDest> class CopyCommand : public Command {
 public:
   CopyCommand(BufferReqPtr BufSrc, BufferReqPtr BufDest, QueueImplPtr Queue,
               range<DimSrc> SrcRange, id<DimSrc> SrcOffset,
-              id<DimDest> DestOffset, size_t SizeTySrc, size_t SizeSrc,
-              range<DimSrc> BuffSrcRange)
+              id<DimDest> DestOffset, size_t SizeTySrc, size_t SizeTyDest,
+              size_t SizeSrc, range<DimSrc> BuffSrcRange,
+              range<DimDest> BuffDestRange)
       : Command(Command::COPY, std::move(Queue)), m_BufSrc(std::move(BufSrc)),
         m_BufDest(std::move(BufDest)), m_SrcRange(std::move(SrcRange)),
         m_SrcOffset(std::move(SrcOffset)), m_DestOffset(std::move(DestOffset)),
-        m_SizeTySrc(SizeTySrc), m_SizeSrc(SizeSrc),
-        m_BuffSrcRange(BuffSrcRange) {}
+        m_SizeTySrc(SizeTySrc), m_SizeTyDest(SizeTyDest), m_SizeSrc(SizeSrc),
+        m_BuffSrcRange(BuffSrcRange), m_BuffDestRange(BuffDestRange) {}
 
   access::mode getAccessModeType() const {
     return m_BufDest->getAccessModeType();
@@ -382,8 +386,9 @@ private:
     assert(nullptr != m_BufSrc && "m_BufSrc is nullptr");
     assert(nullptr != m_BufDest && "m_BufDest is nullptr");
     m_BufDest->copy(m_Queue, std::move(DepEvents), std::move(Event), m_BufSrc,
-                    DimSrc, &m_SrcRange[0], &m_SrcOffset[0], &m_DestOffset[0],
-                    m_SizeTySrc, m_SizeSrc, &m_BuffSrcRange[0]);
+                    DimSrc, DimDest, &m_SrcRange[0], &m_SrcOffset[0],
+                    &m_DestOffset[0], m_SizeTySrc, m_SizeTyDest, m_SizeSrc,
+                    &m_BuffSrcRange[0], &m_BuffDestRange[0]);
   }
   BufferReqPtr m_BufSrc = nullptr;
   BufferReqPtr m_BufDest = nullptr;
@@ -391,9 +396,23 @@ private:
   id<DimSrc> m_SrcOffset;
   id<DimDest> m_DestOffset;
   size_t m_SizeTySrc;
+  size_t m_SizeTyDest;
   size_t m_SizeSrc;
   range<DimSrc> m_BuffSrcRange;
+  range<DimDest> m_BuffDestRange;
 };
+
+// The next two functions pass global/local accessor as a parameter
+// to the kernel. The paramter 'I' defines the current argument index
+// being passed to the kernel. 'LambdaOffset' gives the offset of the passed
+// accessor in lambda function. 'ClKernel' is the kernel. 'HostKernel'
+// is the pointer to the lambda function.
+template <int AccessDimensions, typename KernelType>
+uint passGlobalAccessorAsArg(uint I, int LambdaOffset, cl_kernel ClKernel,
+                             const KernelType &HostKernel);
+template <int AccessDimensions, typename KernelType>
+uint passLocalAccessorAsArg(uint I, int LambdaOffset, cl_kernel ClKernel,
+                            const KernelType &HostKernel);
 
 } // namespace simple_scheduler
 } // namespace sycl

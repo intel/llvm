@@ -1758,8 +1758,8 @@ void constEscape(const void *ptr);
 void testConstEscapeThroughAnotherField() {
   struct IntAndPtr s;
   s.p = malloc(sizeof(int));
-  constEscape(&(s.x)); // could free s->p!
-} // no-warning
+  constEscape(&(s.x));
+} // expected-warning {{Potential leak of memory pointed to by 's.p'}}
 
 // PR15623
 int testNoCheckerDataPropogationFromLogicalOpOperandToOpResult(void) {
@@ -1793,6 +1793,24 @@ void testNoCrashOnOffendingParameter() {
   void* ptr;
   allocateSomeMemory(offendingParameter, &ptr);
 } // expected-warning {{Potential leak of memory pointed to by 'ptr'}}
+
+
+// Test a false positive caused by a bug in liveness analysis.
+struct A {
+  int *buf;
+};
+struct B {
+  struct A *a;
+};
+void livenessBugRealloc(struct A *a) {
+  a->buf = realloc(a->buf, sizeof(int)); // no-warning
+}
+void testLivenessBug(struct B *in_b) {
+  struct B *b = in_b;
+  livenessBugRealloc(b->a);
+ ((void) 0); // An attempt to trick liveness analysis.
+  livenessBugRealloc(b->a);
+}
 
 // ----------------------------------------------------------------------------
 // False negatives.

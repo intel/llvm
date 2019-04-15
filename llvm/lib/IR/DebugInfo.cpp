@@ -1,9 +1,8 @@
 //===- DebugInfo.cpp - Debug Information Helper Classes -------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -898,6 +897,14 @@ unsigned LLVMDILocationGetColumn(LLVMMetadataRef Location) {
 
 LLVMMetadataRef LLVMDILocationGetScope(LLVMMetadataRef Location) {
   return wrap(unwrapDI<DILocation>(Location)->getScope());
+}
+
+LLVMMetadataRef LLVMDIBuilderCreateEnumerator(LLVMDIBuilderRef Builder,
+                                              const char *Name, size_t NameLen,
+                                              int64_t Value,
+                                              LLVMBool IsUnsigned) {
+  return wrap(unwrap(Builder)->createEnumerator({Name, NameLen}, Value,
+                                                IsUnsigned != 0));
 }
 
 LLVMMetadataRef LLVMDIBuilderCreateEnumerationType(

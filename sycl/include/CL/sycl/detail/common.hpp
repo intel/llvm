@@ -1,9 +1,8 @@
 //==---------- common.hpp ----- Common declarations ------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,6 +15,8 @@
 #include <CL/cl_ext.h>
 #include <CL/cl_ext_intel.h>
 #include <string>
+
+#include <type_traits>
 
 const char *stringifyErrorCode(cl_int error);
 
@@ -74,16 +75,6 @@ const char *stringifyErrorCode(cl_int error);
 #define ALWAYS_INLINE
 #endif
 
-// TODO this macro is introduced to workaround SPIRV translator problem with
-// dropping linkonce_odr attribute leading to duplicated symbol errors in
-// the bitcode linker for functions defined in the headers. Remove once fixed.
-#ifdef __SYCL_DEVICE_ONLY__
-#define INLINE_IF_DEVICE ALWAYS_INLINE
-#else
-#define INLINE_IF_DEVICE
-#endif // __SYCL_DEVICE_ONLY__
-
-
 namespace cl {
 namespace sycl {
 namespace detail {
@@ -93,6 +84,15 @@ namespace detail {
 // should be accessible from this function.
 template <class T> decltype(T::impl) getSyclObjImpl(const T &SyclObject) {
   return SyclObject.impl;
+}
+
+// Returns the raw pointer to the impl object of given face object. The caller
+// must make sure the returned pointer is not captured in a field or otherwise
+// stored - i.e. must live only as on-stack value.
+template <class T>
+typename std::add_pointer<typename decltype(T::impl)::element_type>::type
+getRawSyclObjImpl(const T &SyclObject) {
+  return SyclObject.impl.get();
 }
 
 // Helper function for creation SYCL interface objects from implementations.

@@ -1,9 +1,8 @@
 //===------------- spirv_ops.cpp - SPIRV operations -----------------------===//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -33,6 +32,17 @@ void OpMemoryBarrier(Scope Memory, uint32_t Semantics) noexcept {
   // 2. The 'Semantics' parameter is ignored because there is no need
   //    to distinguish the classes of memory (workgroup/cross-workgroup/etc).
   atomic_thread_fence(std::memory_order_seq_cst);
+}
+
+void prefetch(const char *Ptr, size_t NumBytes) noexcept {
+  // TODO: the cache line size may be different.
+  const size_t CacheLineSize = 64;
+  size_t NumCacheLines =
+      (NumBytes / CacheLineSize) + ((NumBytes % CacheLineSize) ? 1 : 0);
+  for (; NumCacheLines != 0; NumCacheLines--) {
+    __builtin_prefetch(reinterpret_cast<const void *>(Ptr));
+    Ptr += 64;
+  }
 }
 
 } // namespace __spirv

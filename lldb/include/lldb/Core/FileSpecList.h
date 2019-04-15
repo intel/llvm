@@ -1,9 +1,8 @@
 //===-- FileSpecList.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -38,15 +37,14 @@ public:
   //------------------------------------------------------------------
   FileSpecList();
 
-  //------------------------------------------------------------------
   /// Copy constructor.
-  ///
-  /// Initialize this object with a copy of the file list from \a rhs.
-  ///
-  /// @param[in] rhs
-  ///     A const reference to another file list object.
-  //------------------------------------------------------------------
-  FileSpecList(const FileSpecList &rhs);
+  FileSpecList(const FileSpecList &rhs) = default;
+
+  /// Move constructor
+  FileSpecList(FileSpecList &&rhs) = default;
+
+  /// Initialize this object from a vector of FileSpecs
+  FileSpecList(std::vector<FileSpec> &&rhs) : m_files(std::move(rhs)) {}
 
   //------------------------------------------------------------------
   /// Destructor.
@@ -64,7 +62,10 @@ public:
   /// @return
   ///     A const reference to this object.
   //------------------------------------------------------------------
-  const FileSpecList &operator=(const FileSpecList &rhs);
+  FileSpecList &operator=(const FileSpecList &rhs) = default;
+
+  /// Move-assignment operator.
+  FileSpecList &operator=(FileSpecList &&rhs) = default;
 
   //------------------------------------------------------------------
   /// Append a FileSpec object to the list.

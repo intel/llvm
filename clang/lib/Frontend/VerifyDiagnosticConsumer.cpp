@@ -1,9 +1,8 @@
 //===- VerifyDiagnosticConsumer.cpp - Verifying Diagnostic Client ---------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -481,7 +480,7 @@ static bool ParseDirective(StringRef S, ExpectedData *ED, SourceManager &SM,
         const DirectoryLookup *CurDir;
         const FileEntry *FE =
             PP->LookupFile(Pos, Filename, false, nullptr, nullptr, CurDir,
-                           nullptr, nullptr, nullptr, nullptr);
+                           nullptr, nullptr, nullptr, nullptr, nullptr);
         if (!FE) {
           Diags.Report(Pos.getLocWithOffset(PH.C-PH.Begin),
                        diag::err_verify_missing_file) << Filename << KindStr;

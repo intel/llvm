@@ -1,9 +1,8 @@
 //===--- IndexSymbol.cpp - Types and functions for indexing symbols -------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -54,9 +53,6 @@ bool index::isFunctionLocalSymbol(const Decl *D) {
   assert(D);
 
   if (isa<ParmVarDecl>(D))
-    return true;
-
-  if (isa<TemplateTemplateParmDecl>(D))
     return true;
 
   if (isa<ObjCTypeParamDecl>(D))
@@ -320,9 +316,21 @@ SymbolInfo index::getSymbolInfo(const Decl *D) {
       Info.Lang = SymbolLanguage::CXX;
       Info.Properties |= (SymbolPropertySet)SymbolProperty::Generic;
       break;
+    case Decl::Using:
+      Info.Kind = SymbolKind::Using;
+      Info.Lang = SymbolLanguage::CXX;
+      break;
     case Decl::Binding:
       Info.Kind = SymbolKind::Variable;
       Info.Lang = SymbolLanguage::CXX;
+      break;
+    case Decl::MSProperty:
+      Info.Kind = SymbolKind::InstanceProperty;
+      if (const CXXRecordDecl *CXXRec =
+              dyn_cast<CXXRecordDecl>(D->getDeclContext())) {
+        if (!CXXRec->isCLike())
+          Info.Lang = SymbolLanguage::CXX;
+      }
       break;
     default:
       break;

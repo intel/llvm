@@ -1,9 +1,8 @@
 //===--- raw_ostream.h - Raw output stream ----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -346,7 +345,7 @@ public:
   explicit raw_pwrite_stream(bool Unbuffered = false)
       : raw_ostream(Unbuffered) {}
   void pwrite(const char *Ptr, size_t Size, uint64_t Offset) {
-#ifndef NDBEBUG
+#ifndef NDEBUG
     uint64_t Pos = tell();
     // /dev/null always reports a pos of 0, so we cannot perform this check
     // in that case.
@@ -553,6 +552,8 @@ public:
 class buffer_ostream : public raw_svector_ostream {
   raw_ostream &OS;
   SmallVector<char, 0> Buffer;
+
+  virtual void anchor() override;
 
 public:
   buffer_ostream(raw_ostream &OS) : raw_svector_ostream(Buffer), OS(OS) {}

@@ -1,9 +1,8 @@
 //===- LoopLoadElimination.cpp - Loop Load Elimination Pass ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -34,6 +33,7 @@
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
@@ -428,9 +428,9 @@ public:
     auto *PH = L->getLoopPreheader();
     Value *InitialPtr = SEE.expandCodeFor(PtrSCEV->getStart(), Ptr->getType(),
                                           PH->getTerminator());
-    Value *Initial =
-        new LoadInst(InitialPtr, "load_initial", /* isVolatile */ false,
-                     Cand.Load->getAlignment(), PH->getTerminator());
+    Value *Initial = new LoadInst(
+        Cand.Load->getType(), InitialPtr, "load_initial",
+        /* isVolatile */ false, Cand.Load->getAlignment(), PH->getTerminator());
 
     PHINode *PHI = PHINode::Create(Initial->getType(), 2, "store_forwarded",
                                    &L->getHeader()->front());
@@ -668,12 +668,14 @@ PreservedAnalyses LoopLoadEliminationPass::run(Function &F,
   auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
   auto &AA = AM.getResult<AAManager>(F);
   auto &AC = AM.getResult<AssumptionAnalysis>(F);
+  MemorySSA *MSSA = EnableMSSALoopDependency
+                        ? &AM.getResult<MemorySSAAnalysis>(F).getMSSA()
+                        : nullptr;
 
   auto &LAM = AM.getResult<LoopAnalysisManagerFunctionProxy>(F).getManager();
   bool Changed = eliminateLoadsAcrossLoops(
       F, LI, DT, [&](Loop &L) -> const LoopAccessInfo & {
-        LoopStandardAnalysisResults AR = {AA, AC,  DT,  LI,
-                                          SE, TLI, TTI, nullptr};
+        LoopStandardAnalysisResults AR = {AA, AC, DT, LI, SE, TLI, TTI, MSSA};
         return LAM.getResult<LoopAccessAnalysis>(L, AR);
       });
 

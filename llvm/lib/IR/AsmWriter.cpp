@@ -1,9 +1,8 @@
 //===- AsmWriter.cpp - Printing LLVM as an assembly file ------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -36,7 +35,6 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Comdat.h"
 #include "llvm/IR/Constant.h"
@@ -998,9 +996,9 @@ void SlotTracker::processFunction() {
 
       // We allow direct calls to any llvm.foo function here, because the
       // target may not be linked into the optimizer.
-      if (auto CS = ImmutableCallSite(&I)) {
+      if (const auto *Call = dyn_cast<CallBase>(&I)) {
         // Add all the call attributes to the table.
-        AttributeSet Attrs = CS.getAttributes().getFnAttributes();
+        AttributeSet Attrs = Call->getAttributes().getFnAttributes();
         if (Attrs.hasAttributes())
           CreateAttributeSetSlot(Attrs);
       }
@@ -2359,7 +2357,7 @@ public:
 
   void writeOperand(const Value *Op, bool PrintType);
   void writeParamOperand(const Value *Operand, AttributeSet Attrs);
-  void writeOperandBundles(ImmutableCallSite CS);
+  void writeOperandBundles(const CallBase *Call);
   void writeSyncScope(const LLVMContext &Context,
                       SyncScope::ID SSID);
   void writeAtomic(const LLVMContext &Context,
@@ -2510,15 +2508,15 @@ void AssemblyWriter::writeParamOperand(const Value *Operand,
   WriteAsOperandInternal(Out, Operand, &TypePrinter, &Machine, TheModule);
 }
 
-void AssemblyWriter::writeOperandBundles(ImmutableCallSite CS) {
-  if (!CS.hasOperandBundles())
+void AssemblyWriter::writeOperandBundles(const CallBase *Call) {
+  if (!Call->hasOperandBundles())
     return;
 
   Out << " [ ";
 
   bool FirstBundle = true;
-  for (unsigned i = 0, e = CS.getNumOperandBundles(); i != e; ++i) {
-    OperandBundleUse BU = CS.getOperandBundleAt(i);
+  for (unsigned i = 0, e = Call->getNumOperandBundles(); i != e; ++i) {
+    OperandBundleUse BU = Call->getOperandBundleAt(i);
 
     if (!FirstBundle)
       Out << ", ";
@@ -3838,6 +3836,51 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     writeOperand(II->getNormalDest(), true);
     Out << " unwind ";
     writeOperand(II->getUnwindDest(), true);
+  } else if (const CallBrInst *CBI = dyn_cast<CallBrInst>(&I)) {
+    Operand = CBI->getCalledValue();
+    FunctionType *FTy = CBI->getFunctionType();
+    Type *RetTy = FTy->getReturnType();
+    const AttributeList &PAL = CBI->getAttributes();
+
+    // Print the calling convention being used.
+    if (CBI->getCallingConv() != CallingConv::C) {
+      Out << " ";
+      PrintCallingConv(CBI->getCallingConv(), Out);
+    }
+
+    if (PAL.hasAttributes(AttributeList::ReturnIndex))
+      Out << ' ' << PAL.getAsString(AttributeList::ReturnIndex);
+
+    // If possible, print out the short form of the callbr instruction. We can
+    // only do this if the first argument is a pointer to a nonvararg function,
+    // and if the return type is not a pointer to a function.
+    //
+    Out << ' ';
+    TypePrinter.print(FTy->isVarArg() ? FTy : RetTy, Out);
+    Out << ' ';
+    writeOperand(Operand, false);
+    Out << '(';
+    for (unsigned op = 0, Eop = CBI->getNumArgOperands(); op < Eop; ++op) {
+      if (op)
+        Out << ", ";
+      writeParamOperand(CBI->getArgOperand(op), PAL.getParamAttributes(op));
+    }
+
+    Out << ')';
+    if (PAL.hasAttributes(AttributeList::FunctionIndex))
+      Out << " #" << Machine.getAttributeGroupSlot(PAL.getFnAttributes());
+
+    writeOperandBundles(CBI);
+
+    Out << "\n          to ";
+    writeOperand(CBI->getDefaultDest(), true);
+    Out << " [";
+    for (unsigned i = 0, e = CBI->getNumIndirectDests(); i != e; ++i) {
+      if (i != 0)
+        Out << ", ";
+      writeOperand(CBI->getIndirectDest(i), true);
+    }
+    Out << ']';
   } else if (const AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
     Out << ' ';
     if (AI->isUsedWithInAlloca())

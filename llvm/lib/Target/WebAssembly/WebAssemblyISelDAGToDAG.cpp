@@ -1,9 +1,8 @@
 //- WebAssemblyISelDAGToDAG.cpp - A dag to dag inst selector for WebAssembly -//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -25,8 +24,6 @@ using namespace llvm;
 
 #define DEBUG_TYPE "wasm-isel"
 
-extern cl::opt<bool> EnableUnimplementedWasmSIMDInstrs;
-
 //===--------------------------------------------------------------------===//
 /// WebAssembly-specific code to select WebAssembly machine instructions for
 /// SelectionDAG operations.
@@ -40,9 +37,9 @@ class WebAssemblyDAGToDAGISel final : public SelectionDAGISel {
   bool ForCodeSize;
 
 public:
-  WebAssemblyDAGToDAGISel(WebAssemblyTargetMachine &tm,
+  WebAssemblyDAGToDAGISel(WebAssemblyTargetMachine &TM,
                           CodeGenOpt::Level OptLevel)
-      : SelectionDAGISel(tm, OptLevel), Subtarget(nullptr), ForCodeSize(false) {
+      : SelectionDAGISel(TM, OptLevel), Subtarget(nullptr), ForCodeSize(false) {
   }
 
   StringRef getPassName() const override {
@@ -50,6 +47,10 @@ public:
   }
 
   bool runOnMachineFunction(MachineFunction &MF) override {
+    LLVM_DEBUG(dbgs() << "********** ISelDAGToDAG **********\n"
+                         "********** Function: "
+                      << MF.getName() << '\n');
+
     ForCodeSize = MF.getFunction().hasFnAttribute(Attribute::OptimizeForSize) ||
                   MF.getFunction().hasFnAttribute(Attribute::MinSize);
     Subtarget = &MF.getSubtarget<WebAssemblySubtarget>();

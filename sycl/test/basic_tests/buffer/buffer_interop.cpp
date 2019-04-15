@@ -4,10 +4,9 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //==------------------- buffer.cpp - SYCL buffer basic test ----------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
@@ -17,10 +16,14 @@
 using namespace cl::sycl;
 
 int main() {
+  bool Failed = false;
   {
     const size_t Size = 32;
     int Init[Size] = {5};
     cl_int Error = CL_SUCCESS;
+    cl::sycl::range<1> InteropRange;
+    InteropRange[0] = Size;
+    size_t InteropSize = Size * sizeof(int);
 
     queue MyQueue;
 
@@ -29,6 +32,19 @@ int main() {
         Size * sizeof(int), Init, &Error);
     CHECK_OCL_CODE(Error);
     buffer<int, 1> Buffer(OpenCLBuffer, MyQueue.get_context());
+
+    if (Buffer.get_range() != InteropRange) {
+          assert(false);
+          Failed = true;
+    }
+    if (Buffer.get_size() != InteropSize) {
+          assert(false);
+          Failed = true;
+    }
+    if (Buffer.get_count() != Size) {
+          assert(false);
+          Failed = true;
+    }
 
     MyQueue.submit([&](handler &CGH) {
       auto B = Buffer.get_access<access::mode::write>(CGH);
@@ -41,11 +57,10 @@ int main() {
     {
       buffer<int, 1> BufferData(Data, range<1>(Size),
                                 {property::buffer::use_host_ptr()});
-      buffer<int, 1> BufferCL(OpenCLBuffer, MyQueue.get_context());
       BufferData.set_final_data(Result.begin());
       MyQueue.submit([&](handler &CGH) {
         auto Data = BufferData.get_access<access::mode::write>(CGH);
-        auto CLData = BufferCL.get_access<access::mode::read>(CGH);
+        auto CLData = Buffer.get_access<access::mode::read>(CGH);
         CGH.parallel_for<class UseMemContent>(range<1>{Size}, [=](id<1> Index) {
           Data[Index] = 2 * CLData[Index];
         });
@@ -60,8 +75,9 @@ int main() {
         std::cout << " array[" << i << "] is " << Result[i] << " expected "
                   << 20 << std::endl;
         assert(false);
+        Failed = true;
       }
     }
   }
-  return 0;
+  return Failed;
 }

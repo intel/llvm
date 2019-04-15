@@ -1,16 +1,17 @@
 //===-- CPPLanguageRuntime.cpp
 //-------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Target/CPPLanguageRuntime.h"
 
 #include <string.h>
+
+#include <memory>
 
 #include "llvm/ADT/StringRef.h"
 
@@ -328,16 +329,16 @@ CPPLanguageRuntime::GetStepThroughTrampolinePlan(Thread &thread,
         value_sp->GetValueIsValid()) {
       // We found the std::function wrapped callable and we have its address.
       // We now create a ThreadPlan to run to the callable.
-      ret_plan_sp.reset(new ThreadPlanRunToAddress(
-          thread, callable_info.callable_address, stop_others));
+      ret_plan_sp = std::make_shared<ThreadPlanRunToAddress>(
+          thread, callable_info.callable_address, stop_others);
       return ret_plan_sp;
     } else {
       // We are in std::function but we could not obtain the callable.
       // We create a ThreadPlan to keep stepping through using the address range
       // of the current function.
-      ret_plan_sp.reset(new ThreadPlanStepInRange(thread, range_of_curr_func,
-                                                  sc, eOnlyThisThread,
-                                                  eLazyBoolYes, eLazyBoolYes));
+      ret_plan_sp = std::make_shared<ThreadPlanStepInRange>(
+          thread, range_of_curr_func, sc, eOnlyThisThread, eLazyBoolYes,
+          eLazyBoolYes);
       return ret_plan_sp;
     }
   }

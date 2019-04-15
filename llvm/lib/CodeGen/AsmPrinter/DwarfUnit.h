@@ -1,9 +1,8 @@
 //===-- llvm/CodeGen/DwarfUnit.h - Dwarf Compile Unit ---*- C++ -*--===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -236,6 +235,9 @@ public:
 
   void applySubprogramAttributes(const DISubprogram *SP, DIE &SPDie,
                                  bool SkipSPAttributes = false);
+
+  /// Creates type DIE with specific context.
+  DIE *createTypeDIE(const DIScope *Context, DIE &ContextDIE, const DIType *Ty);
 
   /// Find existing DIE or create new DIE for the given type.
   DIE *getOrCreateTypeDIE(const MDNode *TyNode);

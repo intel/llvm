@@ -1,9 +1,8 @@
 //===--- CloneChecker.cpp - Clone detection checker -------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -64,17 +63,17 @@ void CloneChecker::checkEndOfTranslationUnit(const TranslationUnitDecl *TU,
   // the CloneDetector. The only thing left to do is to report the found clones.
 
   int MinComplexity = Mgr.getAnalyzerOptions().getCheckerIntegerOption(
-      "MinimumCloneComplexity", 50, this);
+      this, "MinimumCloneComplexity", 50);
   assert(MinComplexity >= 0);
 
   bool ReportSuspiciousClones = Mgr.getAnalyzerOptions()
-    .getCheckerBooleanOption("ReportSuspiciousClones", true, this);
+    .getCheckerBooleanOption(this, "ReportSuspiciousClones", true);
 
   bool ReportNormalClones = Mgr.getAnalyzerOptions().getCheckerBooleanOption(
-      "ReportNormalClones", true, this);
+      this, "ReportNormalClones", true);
 
   StringRef IgnoredFilesPattern = Mgr.getAnalyzerOptions()
-    .getCheckerStringOption("IgnoredFilesPattern", "", this);
+    .getCheckerStringOption(this, "IgnoredFilesPattern", "");
 
   // Let the CloneDetector create a list of clones from all the analyzed
   // statements. We don't filter for matching variable patterns at this point
@@ -201,4 +200,8 @@ void CloneChecker::reportSuspiciousClones(
 
 void ento::registerCloneChecker(CheckerManager &Mgr) {
   Mgr.registerChecker<CloneChecker>();
+}
+
+bool ento::shouldRegisterCloneChecker(const LangOptions &LO) {
+  return true;
 }

@@ -1,9 +1,8 @@
 //==- HexagonPatterns.td - Target Description for Hexagon -*- tablegen -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -3082,7 +3081,7 @@ def: Pat<(HexagonALLOCA I32:$Rs, (i32 imm:$A)),
 def HexagonBARRIER: SDNode<"HexagonISD::BARRIER", SDTNone, [SDNPHasChain]>;
 def: Pat<(HexagonBARRIER), (Y2_barrier)>;
 
-def: Pat<(trap), (J2_trap0 (i32 0))>;
+def: Pat<(trap), (PS_crash)>;
 
 // Read cycle counter.
 def SDTInt64Leaf: SDTypeProfile<1, 0, [SDTCisVT<0, i64>]>;

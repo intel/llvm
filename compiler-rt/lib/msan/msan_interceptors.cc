@@ -1,9 +1,8 @@
 //===-- msan_interceptors.cc ----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1119,8 +1118,12 @@ void MSanAtExitWrapper() {
 void MSanCxaAtExitWrapper(void *arg) {
   UnpoisonParam(1);
   MSanAtExitRecord *r = (MSanAtExitRecord *)arg;
+  // libc before 2.27 had race which caused occasional double handler execution
+  // https://sourceware.org/ml/libc-alpha/2017-08/msg01204.html
+  if (!r->func)
+    return;
   r->func(r->arg);
-  InternalFree(r);
+  r->func = nullptr;
 }
 
 static int setup_at_exit_wrapper(void(*f)(), void *arg, void *dso);

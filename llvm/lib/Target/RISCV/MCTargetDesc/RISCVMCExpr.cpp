@@ -1,9 +1,8 @@
 //===-- RISCVMCExpr.cpp - RISCV specific MC expression classes ------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -63,6 +62,7 @@ const MCFixup *RISCVMCExpr::getPCRelHiFixup() const {
     switch ((unsigned)F.getKind()) {
     default:
       continue;
+    case RISCV::fixup_riscv_got_hi20:
     case RISCV::fixup_riscv_pcrel_hi20:
       return &F;
     }
@@ -137,6 +137,7 @@ bool RISCVMCExpr::evaluateAsRelocatableImpl(MCValue &Res,
     case VK_RISCV_HI:
     case VK_RISCV_PCREL_LO:
     case VK_RISCV_PCREL_HI:
+    case VK_RISCV_GOT_HI:
       return false;
     }
   }
@@ -154,6 +155,7 @@ RISCVMCExpr::VariantKind RISCVMCExpr::getVariantKindForName(StringRef name) {
       .Case("hi", VK_RISCV_HI)
       .Case("pcrel_lo", VK_RISCV_PCREL_LO)
       .Case("pcrel_hi", VK_RISCV_PCREL_HI)
+      .Case("got_pcrel_hi", VK_RISCV_GOT_HI)
       .Default(VK_RISCV_Invalid);
 }
 
@@ -169,6 +171,8 @@ StringRef RISCVMCExpr::getVariantKindName(VariantKind Kind) {
     return "pcrel_lo";
   case VK_RISCV_PCREL_HI:
     return "pcrel_hi";
+  case VK_RISCV_GOT_HI:
+    return "got_pcrel_hi";
   }
 }
 
@@ -176,7 +180,7 @@ bool RISCVMCExpr::evaluateAsConstant(int64_t &Res) const {
   MCValue Value;
 
   if (Kind == VK_RISCV_PCREL_HI || Kind == VK_RISCV_PCREL_LO ||
-      Kind == VK_RISCV_CALL)
+      Kind == VK_RISCV_GOT_HI || Kind == VK_RISCV_CALL)
     return false;
 
   if (!getSubExpr()->evaluateAsRelocatable(Value, nullptr, nullptr))

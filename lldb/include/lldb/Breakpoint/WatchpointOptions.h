@@ -1,9 +1,8 @@
 //===-- WatchpointOptions.h -------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -231,7 +230,7 @@ private:
   lldb::BatonSP m_callback_baton_sp; // This is the client data for the callback
   bool m_callback_is_synchronous;
   std::unique_ptr<ThreadSpec>
-      m_thread_spec_ap; // Thread for which this watchpoint will take
+      m_thread_spec_up; // Thread for which this watchpoint will take
 };
 
 } // namespace lldb_private

@@ -1,13 +1,35 @@
 //===-- SWIG Interface for SBModule -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 namespace lldb {
+
+%pythoncode%{
+# ==================================
+# Helper function for SBModule class
+# ==================================
+def in_range(symbol, section):
+    """Test whether a symbol is within the range of a section."""
+    symSA = symbol.GetStartAddress().GetFileAddress()
+    symEA = symbol.GetEndAddress().GetFileAddress()
+    secSA = section.GetFileAddress()
+    secEA = secSA + section.GetByteSize()
+
+    if symEA != LLDB_INVALID_ADDRESS:
+        if secSA <= symSA and symEA <= secEA:
+            return True
+        else:
+            return False
+    else:
+        if secSA <= symSA and symSA < secEA:
+            return True
+        else:
+            return False
+%}
 
 %feature("docstring",
 "Represents an executable image and its associated object and symbol files.

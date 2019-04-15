@@ -22,12 +22,59 @@ void test_selfinit() {
 
 // UNINIT-LABEL:  test_block(
 // ZERO-LABEL:    test_block(
-// ZERO: store i32 0, i32* %block, align 4
+// ZERO: store i32 0, i32* %block
 // PATTERN-LABEL: test_block(
-// PATTERN: store i32 -1431655766, i32* %block, align 4
+// PATTERN: store i32 -1431655766, i32* %block
 void test_block() {
   __block int block;
   used(block);
+}
+
+// Using the variable being initialized is typically UB in C, but for blocks we
+// can be nice: they imply extra book-keeping and we can do the auto-init before
+// any of said book-keeping.
+//
+// UNINIT-LABEL:  test_block_self_init(
+// ZERO-LABEL:    test_block_self_init(
+// ZERO:          %block = alloca <{ i8*, i32, i32, i8*, %struct.__block_descriptor*, i8* }>, align 8
+// ZERO:          %captured1 = getelementptr inbounds %struct.__block_byref_captured, %struct.__block_byref_captured* %captured, i32 0, i32 4
+// ZERO-NEXT:     store %struct.XYZ* null, %struct.XYZ** %captured1, align 8
+// ZERO:          %call = call %struct.XYZ* @create(
+// PATTERN-LABEL: test_block_self_init(
+// PATTERN:       %block = alloca <{ i8*, i32, i32, i8*, %struct.__block_descriptor*, i8* }>, align 8
+// PATTERN:       %captured1 = getelementptr inbounds %struct.__block_byref_captured, %struct.__block_byref_captured* %captured, i32 0, i32 4
+// PATTERN-NEXT:  store %struct.XYZ* inttoptr (i64 -6148914691236517206 to %struct.XYZ*), %struct.XYZ** %captured1, align 8
+// PATTERN:       %call = call %struct.XYZ* @create(
+using Block = void (^)();
+typedef struct XYZ {
+  Block block;
+} * xyz_t;
+void test_block_self_init() {
+  extern xyz_t create(Block block);
+  __block xyz_t captured = create(^() {
+    used(captured);
+  });
+}
+
+// Capturing with escape after initialization is also an edge case.
+//
+// UNINIT-LABEL:  test_block_captures_self_after_init(
+// ZERO-LABEL:    test_block_captures_self_after_init(
+// ZERO:          %block = alloca <{ i8*, i32, i32, i8*, %struct.__block_descriptor*, i8* }>, align 8
+// ZERO:          %captured1 = getelementptr inbounds %struct.__block_byref_captured.1, %struct.__block_byref_captured.1* %captured, i32 0, i32 4
+// ZERO-NEXT:     store %struct.XYZ* null, %struct.XYZ** %captured1, align 8
+// ZERO:          %call = call %struct.XYZ* @create(
+// PATTERN-LABEL: test_block_captures_self_after_init(
+// PATTERN:       %block = alloca <{ i8*, i32, i32, i8*, %struct.__block_descriptor*, i8* }>, align 8
+// PATTERN:       %captured1 = getelementptr inbounds %struct.__block_byref_captured.1, %struct.__block_byref_captured.1* %captured, i32 0, i32 4
+// PATTERN-NEXT:  store %struct.XYZ* inttoptr (i64 -6148914691236517206 to %struct.XYZ*), %struct.XYZ** %captured1, align 8
+// PATTERN:       %call = call %struct.XYZ* @create(
+void test_block_captures_self_after_init() {
+  extern xyz_t create(Block block);
+  __block xyz_t captured;
+  captured = create(^() {
+    used(captured);
+  });
 }
 
 // This type of code is currently not handled by zero / pattern initialization.

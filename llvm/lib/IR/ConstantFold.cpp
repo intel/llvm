@@ -1,9 +1,8 @@
 //===- ConstantFold.cpp - LLVM constant folder ----------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -27,7 +26,6 @@
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -1078,10 +1076,10 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
             isa<GlobalValue>(CE1->getOperand(0))) {
           GlobalValue *GV = cast<GlobalValue>(CE1->getOperand(0));
 
-          unsigned GVAlign =
-              GV->getParent()
-                  ? GV->getPointerAlignment(GV->getParent()->getDataLayout())
-                  : 0;
+          // Functions are at least 4-byte aligned.
+          unsigned GVAlign = GV->getAlignment();
+          if (isa<Function>(GV))
+            GVAlign = std::max(GVAlign, 4U);
 
           if (GVAlign > 1) {
             unsigned DstWidth = CI2->getType()->getBitWidth();
@@ -1361,8 +1359,9 @@ static FCmpInst::Predicate evaluateFCmpRelation(Constant *V1, Constant *V2) {
   assert(V1->getType() == V2->getType() &&
          "Cannot compare values of different types!");
 
-  // Handle degenerate case quickly
-  if (V1 == V2) return FCmpInst::FCMP_OEQ;
+  // We do not know if a constant expression will evaluate to a number or NaN.
+  // Therefore, we can only say that the relation is unordered or equal.
+  if (V1 == V2) return FCmpInst::FCMP_UEQ;
 
   if (!isa<ConstantExpr>(V1)) {
     if (!isa<ConstantExpr>(V2)) {
@@ -1857,7 +1856,6 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
     default: llvm_unreachable("Unknown relation!");
     case FCmpInst::FCMP_UNO:
     case FCmpInst::FCMP_ORD:
-    case FCmpInst::FCMP_UEQ:
     case FCmpInst::FCMP_UNE:
     case FCmpInst::FCMP_ULT:
     case FCmpInst::FCMP_UGT:
@@ -1901,6 +1899,13 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
       if (pred == FCmpInst::FCMP_OEQ || pred == FCmpInst::FCMP_UEQ)
         Result = 0;
       else if (pred == FCmpInst::FCMP_ONE || pred == FCmpInst::FCMP_UNE)
+        Result = 1;
+      break;
+    case FCmpInst::FCMP_UEQ: // We know that C1 == C2 || isUnordered(C1, C2).
+      // We can only partially decide this relation.
+      if (pred == FCmpInst::FCMP_ONE)
+        Result = 0;
+      else if (pred == FCmpInst::FCMP_UEQ)
         Result = 1;
       break;
     }
@@ -1982,11 +1987,13 @@ Constant *llvm::ConstantFoldCompareInstruction(unsigned short pred,
 
     // If the right hand side is a bitcast, try using its inverse to simplify
     // it by moving it to the left hand side.  We can't do this if it would turn
-    // a vector compare into a scalar compare or visa versa.
+    // a vector compare into a scalar compare or visa versa, or if it would turn
+    // the operands into FP values.
     if (ConstantExpr *CE2 = dyn_cast<ConstantExpr>(C2)) {
       Constant *CE2Op0 = CE2->getOperand(0);
       if (CE2->getOpcode() == Instruction::BitCast &&
-          CE2->getType()->isVectorTy() == CE2Op0->getType()->isVectorTy()) {
+          CE2->getType()->isVectorTy() == CE2Op0->getType()->isVectorTy() &&
+          !CE2Op0->getType()->isFPOrFPVectorTy()) {
         Constant *Inverse = ConstantExpr::getBitCast(C1, CE2Op0->getType());
         return ConstantExpr::getICmp(pred, Inverse, CE2Op0);
       }
@@ -2073,7 +2080,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
   if (Idxs.empty()) return C;
 
   Type *GEPTy = GetElementPtrInst::getGEPReturnType(
-      C, makeArrayRef((Value *const *)Idxs.data(), Idxs.size()));
+      PointeeTy, C, makeArrayRef((Value *const *)Idxs.data(), Idxs.size()));
 
   if (isa<UndefValue>(C))
     return UndefValue::get(GEPTy);

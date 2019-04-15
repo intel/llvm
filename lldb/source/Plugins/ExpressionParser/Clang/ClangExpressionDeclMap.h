@@ -1,9 +1,8 @@
 //===-- ClangExpressionDeclMap.h --------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -73,11 +72,16 @@ public:
   ///
   /// @param[in] exe_ctx
   ///     The execution context to use when parsing.
+  ///
+  /// @param[in] ctx_obj
+  ///     If not empty, then expression is evaluated in context of this object.
+  ///     See the comment to `UserExpression::Evaluate` for details.
   //------------------------------------------------------------------
   ClangExpressionDeclMap(
       bool keep_result_in_memory,
       Materializer::PersistentVariableDelegate *result_delegate,
-      ExecutionContext &exe_ctx);
+      ExecutionContext &exe_ctx,
+      ValueObject *ctx_obj);
 
   //------------------------------------------------------------------
   /// Destructor
@@ -344,6 +348,10 @@ private:
   Materializer::PersistentVariableDelegate
       *m_result_delegate; ///< If non-NULL, used to report expression results to
                           ///ClangUserExpression.
+  ValueObject *m_ctx_obj; ///< If not empty, then expression is
+                          ///evaluated in context of this object.
+                          ///For details see the comment to
+                          ///`UserExpression::Evaluate`.
 
   //----------------------------------------------------------------------
   /// The following values should not live beyond parsing
@@ -582,7 +590,7 @@ private:
   /// @param[in] type
   ///     The type that needs to be created.
   //------------------------------------------------------------------
-  void AddOneType(NameSearchContext &context, TypeFromUser &type,
+  void AddOneType(NameSearchContext &context, const TypeFromUser &type,
                   unsigned int current_id);
 
   //------------------------------------------------------------------
@@ -595,7 +603,7 @@ private:
   /// @param[in] type
   ///     The type for *this.
   //------------------------------------------------------------------
-  void AddThisType(NameSearchContext &context, TypeFromUser &type,
+  void AddThisType(NameSearchContext &context, const TypeFromUser &type,
                    unsigned int current_id);
 
   //------------------------------------------------------------------

@@ -1,9 +1,8 @@
 //===- ProfileSummaryInfo.cpp - Global profile summary information --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -80,7 +79,14 @@ static const ProfileSummaryEntry &getEntryForPercentile(SummaryEntryVector &DS,
 bool ProfileSummaryInfo::computeSummary() {
   if (Summary)
     return true;
-  auto *SummaryMD = M.getProfileSummary();
+  // First try to get context sensitive ProfileSummary.
+  auto *SummaryMD = M.getProfileSummary(/* IsCS */ true);
+  if (SummaryMD) {
+    Summary.reset(ProfileSummary::getFromMD(SummaryMD));
+    return true;
+  }
+  // This will actually return PSK_Instr or PSK_Sample summary.
+  SummaryMD = M.getProfileSummary(/* IsCS */ false);
   if (!SummaryMD)
     return false;
   Summary.reset(ProfileSummary::getFromMD(SummaryMD));

@@ -1,9 +1,8 @@
 //===-- LLParser.cpp - Parser Class ---------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -164,6 +163,14 @@ bool LLParser::ValidateEndOfModule() {
       AS = AS.addAttributes(Context, AttributeList::FunctionIndex,
                             AttributeSet::get(Context, FnAttrs));
       II->setAttributes(AS);
+    } else if (CallBrInst *CBI = dyn_cast<CallBrInst>(V)) {
+      AttributeList AS = CBI->getAttributes();
+      AttrBuilder FnAttrs(AS.getFnAttributes());
+      AS = AS.removeAttributes(Context, AttributeList::FunctionIndex);
+      FnAttrs.merge(B);
+      AS = AS.addAttributes(Context, AttributeList::FunctionIndex,
+                            AttributeSet::get(Context, FnAttrs));
+      CBI->setAttributes(AS);
     } else if (auto *GV = dyn_cast<GlobalVariable>(V)) {
       AttrBuilder Attrs(GV->getAttributes());
       Attrs.merge(B);
@@ -5567,6 +5574,7 @@ int LLParser::ParseInstruction(Instruction *&Inst, BasicBlock *BB,
   case lltok::kw_catchswitch: return ParseCatchSwitch(Inst, PFS);
   case lltok::kw_catchpad:    return ParseCatchPad(Inst, PFS);
   case lltok::kw_cleanuppad:  return ParseCleanupPad(Inst, PFS);
+  case lltok::kw_callbr:      return ParseCallBr(Inst, PFS);
   // Unary Operators.
   case lltok::kw_fneg: {
     FastMathFlags FMF = EatFastMathFlagsIfPresent();
@@ -6182,6 +6190,124 @@ bool LLParser::ParseUnaryOp(Instruction *&Inst, PerFunctionState &PFS,
     return Error(Loc, "invalid operand type for instruction");
 
   Inst = UnaryOperator::Create((Instruction::UnaryOps)Opc, LHS);
+  return false;
+}
+
+/// ParseCallBr
+///   ::= 'callbr' OptionalCallingConv OptionalAttrs Type Value ParamList
+///       OptionalAttrs OptionalOperandBundles 'to' TypeAndValue
+///       '[' LabelList ']'
+bool LLParser::ParseCallBr(Instruction *&Inst, PerFunctionState &PFS) {
+  LocTy CallLoc = Lex.getLoc();
+  AttrBuilder RetAttrs, FnAttrs;
+  std::vector<unsigned> FwdRefAttrGrps;
+  LocTy NoBuiltinLoc;
+  unsigned CC;
+  Type *RetType = nullptr;
+  LocTy RetTypeLoc;
+  ValID CalleeID;
+  SmallVector<ParamInfo, 16> ArgList;
+  SmallVector<OperandBundleDef, 2> BundleList;
+
+  BasicBlock *DefaultDest;
+  if (ParseOptionalCallingConv(CC) || ParseOptionalReturnAttrs(RetAttrs) ||
+      ParseType(RetType, RetTypeLoc, true /*void allowed*/) ||
+      ParseValID(CalleeID) || ParseParameterList(ArgList, PFS) ||
+      ParseFnAttributeValuePairs(FnAttrs, FwdRefAttrGrps, false,
+                                 NoBuiltinLoc) ||
+      ParseOptionalOperandBundles(BundleList, PFS) ||
+      ParseToken(lltok::kw_to, "expected 'to' in callbr") ||
+      ParseTypeAndBasicBlock(DefaultDest, PFS) ||
+      ParseToken(lltok::lsquare, "expected '[' in callbr"))
+    return true;
+
+  // Parse the destination list.
+  SmallVector<BasicBlock *, 16> IndirectDests;
+
+  if (Lex.getKind() != lltok::rsquare) {
+    BasicBlock *DestBB;
+    if (ParseTypeAndBasicBlock(DestBB, PFS))
+      return true;
+    IndirectDests.push_back(DestBB);
+
+    while (EatIfPresent(lltok::comma)) {
+      if (ParseTypeAndBasicBlock(DestBB, PFS))
+        return true;
+      IndirectDests.push_back(DestBB);
+    }
+  }
+
+  if (ParseToken(lltok::rsquare, "expected ']' at end of block list"))
+    return true;
+
+  // If RetType is a non-function pointer type, then this is the short syntax
+  // for the call, which means that RetType is just the return type.  Infer the
+  // rest of the function argument types from the arguments that are present.
+  FunctionType *Ty = dyn_cast<FunctionType>(RetType);
+  if (!Ty) {
+    // Pull out the types of all of the arguments...
+    std::vector<Type *> ParamTypes;
+    for (unsigned i = 0, e = ArgList.size(); i != e; ++i)
+      ParamTypes.push_back(ArgList[i].V->getType());
+
+    if (!FunctionType::isValidReturnType(RetType))
+      return Error(RetTypeLoc, "Invalid result type for LLVM function");
+
+    Ty = FunctionType::get(RetType, ParamTypes, false);
+  }
+
+  CalleeID.FTy = Ty;
+
+  // Look up the callee.
+  Value *Callee;
+  if (ConvertValIDToValue(PointerType::getUnqual(Ty), CalleeID, Callee, &PFS,
+                          /*IsCall=*/true))
+    return true;
+
+  if (isa<InlineAsm>(Callee) && !Ty->getReturnType()->isVoidTy())
+    return Error(RetTypeLoc, "asm-goto outputs not supported");
+
+  // Set up the Attribute for the function.
+  SmallVector<Value *, 8> Args;
+  SmallVector<AttributeSet, 8> ArgAttrs;
+
+  // Loop through FunctionType's arguments and ensure they are specified
+  // correctly.  Also, gather any parameter attributes.
+  FunctionType::param_iterator I = Ty->param_begin();
+  FunctionType::param_iterator E = Ty->param_end();
+  for (unsigned i = 0, e = ArgList.size(); i != e; ++i) {
+    Type *ExpectedTy = nullptr;
+    if (I != E) {
+      ExpectedTy = *I++;
+    } else if (!Ty->isVarArg()) {
+      return Error(ArgList[i].Loc, "too many arguments specified");
+    }
+
+    if (ExpectedTy && ExpectedTy != ArgList[i].V->getType())
+      return Error(ArgList[i].Loc, "argument is not of expected type '" +
+                                       getTypeString(ExpectedTy) + "'");
+    Args.push_back(ArgList[i].V);
+    ArgAttrs.push_back(ArgList[i].Attrs);
+  }
+
+  if (I != E)
+    return Error(CallLoc, "not enough parameters specified for call");
+
+  if (FnAttrs.hasAlignmentAttr())
+    return Error(CallLoc, "callbr instructions may not have an alignment");
+
+  // Finish off the Attribute and check them
+  AttributeList PAL =
+      AttributeList::get(Context, AttributeSet::get(Context, FnAttrs),
+                         AttributeSet::get(Context, RetAttrs), ArgAttrs);
+
+  CallBrInst *CBI =
+      CallBrInst::Create(Ty, Callee, DefaultDest, IndirectDests, Args,
+                         BundleList);
+  CBI->setCallingConv(CC);
+  CBI->setAttributes(PAL);
+  ForwardRefAttrGroups[CBI] = FwdRefAttrGrps;
+  Inst = CBI;
   return false;
 }
 
@@ -6816,6 +6942,7 @@ int LLParser::ParseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
   AtomicOrdering Ordering = AtomicOrdering::NotAtomic;
   SyncScope::ID SSID = SyncScope::System;
   bool isVolatile = false;
+  bool IsFP = false;
   AtomicRMWInst::BinOp Operation;
 
   if (EatIfPresent(lltok::kw_volatile))
@@ -6834,6 +6961,14 @@ int LLParser::ParseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
   case lltok::kw_min: Operation = AtomicRMWInst::Min; break;
   case lltok::kw_umax: Operation = AtomicRMWInst::UMax; break;
   case lltok::kw_umin: Operation = AtomicRMWInst::UMin; break;
+  case lltok::kw_fadd:
+    Operation = AtomicRMWInst::FAdd;
+    IsFP = true;
+    break;
+  case lltok::kw_fsub:
+    Operation = AtomicRMWInst::FSub;
+    IsFP = true;
+    break;
   }
   Lex.Lex();  // Eat the operation.
 
@@ -6850,10 +6985,25 @@ int LLParser::ParseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
   if (cast<PointerType>(Ptr->getType())->getElementType() != Val->getType())
     return Error(ValLoc, "atomicrmw value and pointer type do not match");
 
-  if (!Val->getType()->isIntegerTy()) {
-    return Error(ValLoc, "atomicrmw " +
-                 AtomicRMWInst::getOperationName(Operation) +
-                 " operand must be an integer");
+  if (Operation == AtomicRMWInst::Xchg) {
+    if (!Val->getType()->isIntegerTy() &&
+        !Val->getType()->isFloatingPointTy()) {
+      return Error(ValLoc, "atomicrmw " +
+                   AtomicRMWInst::getOperationName(Operation) +
+                   " operand must be an integer or floating point type");
+    }
+  } else if (IsFP) {
+    if (!Val->getType()->isFloatingPointTy()) {
+      return Error(ValLoc, "atomicrmw " +
+                   AtomicRMWInst::getOperationName(Operation) +
+                   " operand must be a floating point type");
+    }
+  } else {
+    if (!Val->getType()->isIntegerTy()) {
+      return Error(ValLoc, "atomicrmw " +
+                   AtomicRMWInst::getOperationName(Operation) +
+                   " operand must be an integer");
+    }
   }
 
   unsigned Size = Val->getType()->getPrimitiveSizeInBits();
@@ -7519,7 +7669,7 @@ bool LLParser::ParseArgs(std::vector<uint64_t> &Args) {
   return false;
 }
 
-auto FwdVIRef = (GlobalValueSummaryMapTy::value_type *)-8;
+static const auto FwdVIRef = (GlobalValueSummaryMapTy::value_type *)-8;
 
 static void resolveFwdRef(ValueInfo *Fwd, ValueInfo &Resolved) {
   bool ReadOnly = Fwd->isReadOnly();

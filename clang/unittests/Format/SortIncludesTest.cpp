@@ -1,9 +1,8 @@
 //===- unittest/Format/SortIncludesTest.cpp - Include sort unit tests -----===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -116,6 +115,43 @@ TEST_F(SortIncludesTest, SupportClangFormatOff) {
                  "#include <a>\n"
                  "#include <c>\n"
                  "// clang-format on\n"));
+}
+
+TEST_F(SortIncludesTest, SupportClangFormatOffCStyle) {
+  EXPECT_EQ("#include <a>\n"
+            "#include <b>\n"
+            "#include <c>\n"
+            "/* clang-format off */\n"
+            "#include <b>\n"
+            "#include <a>\n"
+            "#include <c>\n"
+            "/* clang-format on */\n",
+            sort("#include <b>\n"
+                 "#include <a>\n"
+                 "#include <c>\n"
+                 "/* clang-format off */\n"
+                 "#include <b>\n"
+                 "#include <a>\n"
+                 "#include <c>\n"
+                 "/* clang-format on */\n"));
+
+  // Not really turning it off
+  EXPECT_EQ("#include <a>\n"
+            "#include <b>\n"
+            "#include <c>\n"
+            "/* clang-format offically */\n"
+            "#include <a>\n"
+            "#include <b>\n"
+            "#include <c>\n"
+            "/* clang-format onwards */\n",
+            sort("#include <b>\n"
+                 "#include <a>\n"
+                 "#include <c>\n"
+                 "/* clang-format offically */\n"
+                 "#include <b>\n"
+                 "#include <a>\n"
+                 "#include <c>\n"
+                 "/* clang-format onwards */\n"));
 }
 
 TEST_F(SortIncludesTest, IncludeSortingCanBeDisabled) {

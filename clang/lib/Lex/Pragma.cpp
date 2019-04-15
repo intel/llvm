@@ -1,9 +1,8 @@
 //===- Pragma.cpp - Pragma registration and handling ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -507,7 +506,7 @@ void Preprocessor::HandlePragmaDependency(Token &DependencyTok) {
   const DirectoryLookup *CurDir;
   const FileEntry *File =
       LookupFile(FilenameTok.getLocation(), Filename, isAngled, nullptr,
-                 nullptr, CurDir, nullptr, nullptr, nullptr, nullptr);
+                 nullptr, CurDir, nullptr, nullptr, nullptr, nullptr, nullptr);
   if (!File) {
     if (!SuppressIncludeNotFoundError)
       Diag(FilenameTok, diag::err_pp_file_not_found) << Filename;

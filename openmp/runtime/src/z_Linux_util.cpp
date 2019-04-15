@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -438,7 +437,7 @@ void __kmp_terminate_thread(int gtid) {
                 __kmp_msg_null);
   }
 #endif
-  __kmp_yield(TRUE);
+  KMP_YIELD(TRUE);
 } //
 
 /* Set thread stack info according to values returned by pthread_getattr_np().
@@ -581,8 +580,6 @@ static void *__kmp_launch_monitor(void *thr) {
   sigset_t new_set;
 #endif /* KMP_BLOCK_SIGNALS */
   struct timespec interval;
-  int yield_count;
-  int yield_cycles = 0;
 
   KMP_MB(); /* Flush all pending memory write invalidates.  */
 
@@ -666,13 +663,6 @@ static void *__kmp_launch_monitor(void *thr) {
 
   KA_TRACE(10, ("__kmp_launch_monitor: #2 monitor\n"));
 
-  if (__kmp_yield_cycle) {
-    __kmp_yielding_on = 0; /* Start out with yielding shut off */
-    yield_count = __kmp_yield_off_count;
-  } else {
-    __kmp_yielding_on = 1; /* Yielding is on permanently */
-  }
-
   while (!TCR_4(__kmp_global.g.g_done)) {
     struct timespec now;
     struct timeval tval;
@@ -707,22 +697,6 @@ static void *__kmp_launch_monitor(void *thr) {
     }
     status = pthread_mutex_unlock(&__kmp_wait_mx.m_mutex);
     KMP_CHECK_SYSFAIL("pthread_mutex_unlock", status);
-
-    if (__kmp_yield_cycle) {
-      yield_cycles++;
-      if ((yield_cycles % yield_count) == 0) {
-        if (__kmp_yielding_on) {
-          __kmp_yielding_on = 0; /* Turn it off now */
-          yield_count = __kmp_yield_off_count;
-        } else {
-          __kmp_yielding_on = 1; /* Turn it on now */
-          yield_count = __kmp_yield_on_count;
-        }
-        yield_cycles = 0;
-      }
-    } else {
-      __kmp_yielding_on = 1;
-    }
 
     TCW_4(__kmp_global.g.g_time.dt.t_value,
           TCR_4(__kmp_global.g.g_time.dt.t_value) + 1);
@@ -1012,8 +986,8 @@ retry:
   // Wait for the monitor thread is really started and set its *priority*.
   KMP_DEBUG_ASSERT(sizeof(kmp_uint32) ==
                    sizeof(__kmp_global.g.g_time.dt.t_value));
-  __kmp_wait_yield_4((kmp_uint32 volatile *)&__kmp_global.g.g_time.dt.t_value,
-                     -1, &__kmp_neq_4, NULL);
+  __kmp_wait_4((kmp_uint32 volatile *)&__kmp_global.g.g_time.dt.t_value, -1,
+               &__kmp_neq_4, NULL);
 #endif // KMP_REAL_TIME_FIX
 
 #ifdef KMP_THREAD_ATTR
@@ -1414,6 +1388,21 @@ void __kmp_suspend_uninitialize_thread(kmp_info_t *th) {
   }
 }
 
+// return true if lock obtained, false otherwise
+int __kmp_try_suspend_mx(kmp_info_t *th) {
+  return (pthread_mutex_trylock(&th->th.th_suspend_mx.m_mutex) == 0);
+}
+
+void __kmp_lock_suspend_mx(kmp_info_t *th) {
+  int status = pthread_mutex_lock(&th->th.th_suspend_mx.m_mutex);
+  KMP_CHECK_SYSFAIL("pthread_mutex_lock", status);
+}
+
+void __kmp_unlock_suspend_mx(kmp_info_t *th) {
+  int status = pthread_mutex_unlock(&th->th.th_suspend_mx.m_mutex);
+  KMP_CHECK_SYSFAIL("pthread_mutex_unlock", status);
+}
+
 /* This routine puts the calling thread to sleep after setting the
    sleep bit for the indicated flag variable to true. */
 template <class C>
@@ -1437,7 +1426,15 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
   /* TODO: shouldn't this use release semantics to ensure that
      __kmp_suspend_initialize_thread gets called first? */
   old_spin = flag->set_sleeping();
-
+#if OMP_50_ENABLED
+  if (__kmp_dflt_blocktime == KMP_MAX_BLOCKTIME &&
+      __kmp_pause_status != kmp_soft_paused) {
+    flag->unset_sleeping();
+    status = pthread_mutex_unlock(&th->th.th_suspend_mx.m_mutex);
+    KMP_CHECK_SYSFAIL("pthread_mutex_unlock", status);
+    return;
+  }
+#endif
   KF_TRACE(5, ("__kmp_suspend_template: T#%d set sleep bit for spin(%p)==%x,"
                " was %x\n",
                th_gtid, flag->get(), flag->load(), old_spin));
@@ -1666,18 +1663,7 @@ void __kmp_resume_monitor() {
 }
 #endif // KMP_USE_MONITOR
 
-void __kmp_yield(int cond) {
-  if (!cond)
-    return;
-#if KMP_USE_MONITOR
-  if (!__kmp_yielding_on)
-    return;
-#else
-  if (__kmp_yield_cycle && !KMP_YIELD_NOW())
-    return;
-#endif
-  sched_yield();
-}
+void __kmp_yield() { sched_yield(); }
 
 void __kmp_gtid_set_specific(int gtid) {
   if (__kmp_init_gtid) {

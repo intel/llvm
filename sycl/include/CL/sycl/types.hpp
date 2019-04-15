@@ -1,20 +1,52 @@
 //==---------------- types.hpp --- SYCL types ------------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
+// Implements vec and __swizzled_vec__ classes.
+
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
+// Define __NO_EXT_VECTOR_TYPE_ON_HOST__ to avoid using ext_vector_type
+// extension even if the host compiler supports it. The same can be
+// accomplished by -D__NO_EXT_VECTOR_TYPE_ON_HOST__ command line option.
+#ifndef __NO_EXT_VECTOR_TYPE_ON_HOST__
+// #define __NO_EXT_VECTOR_TYPE_ON_HOST__
+#endif
 
-#ifndef __SYCL_DEVICE_ONLY__
-#include <algorithm>
-#include <functional>
-#endif // __SYCL_DEVICE_ONLY__
+// Check if Clang's ext_vector_type attribute is available. Host compiler
+// may not be Clang, and Clang may not be built with the extension.
+#ifdef __clang__
+#ifndef __has_extension
+#define __has_extension(x) 0
+#endif
+#ifdef __HAS_EXT_VECTOR_TYPE__
+#error "Undefine __HAS_EXT_VECTOR_TYPE__ macro"
+#endif
+#if __has_extension(attribute_ext_vector_type)
+#define __HAS_EXT_VECTOR_TYPE__
+#endif
+#endif // __clang__
+
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
+#error "Undefine __SYCL_USE_EXT_VECTOR_TYPE__ macro"
+#endif
+#ifdef __HAS_EXT_VECTOR_TYPE__
+#if defined(__SYCL_DEVICE_ONLY__) || !defined(__NO_EXT_VECTOR_TYPE_ON_HOST__)
+#define __SYCL_USE_EXT_VECTOR_TYPE__
+#endif
+#elif defined(__SYCL_DEVICE_ONLY__)
+// This is a soft error. We expect the device compiler to have ext_vector_type
+// support, but that should not be a hard requirement.
+#error "SYCL device compiler is built without ext_vector_type support"
+#endif // __HAS_EXT_VECTOR_TYPE__
+
+#include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/multi_ptr.hpp>
+
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
 
@@ -105,8 +137,9 @@ using rel_t = typename std::conditional<
 
 // Special type indicating that SwizzleOp should just read value from vector -
 // not trying to perform any operations. Should not be called.
-template <typename DataT> class GetOp {
+template <typename T> class GetOp {
 public:
+  using DataT = T;
   DataT getValue(size_t Index) const;
   DataT operator()(DataT LHS, DataT Rhs);
 };
@@ -114,8 +147,9 @@ public:
 // Special type for working SwizzleOp with scalars, stores a scalar and gives
 // the scalar at any index. Provides interface is compatible with SwizzleOp
 // operations
-template <typename DataT> class GetScalarOp {
+template <typename T> class GetScalarOp {
 public:
+  using DataT = T;
   GetScalarOp(DataT Data) : m_Data(Data) {}
   DataT getValue(size_t Index) const { return m_Data; }
 
@@ -183,9 +217,24 @@ template <typename T> struct LShift {
   }
 };
 
+template <typename T, typename convertT, rounding_mode roundingMode>
+T convertHelper(const T &Opnd) {
+  if (roundingMode == rounding_mode::automatic ||
+      roundingMode == rounding_mode::rtz) {
+    return static_cast<convertT>(Opnd);
+  }
+  if (roundingMode == rounding_mode::rtp) {
+    return static_cast<convertT>(ceil(Opnd));
+  }
+  // roundingMode == rounding_mode::rtn
+  return static_cast<convertT>(floor(Opnd));
+}
+
 } // namespace detail
 
-template <typename DataT, int NumElements> class vec {
+template <typename Type, int NumElements> class vec {
+  using DataT = Type;
+
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType =
@@ -301,14 +350,17 @@ public:
 
   vec() { m_Data = {0}; }
 
+  // TODO Remove this difference between host and device side after
+  // when root cause of API incompatibility will be fixed
+#ifdef __SYCL_DEVICE_ONLY__
+  vec(const vec &Rhs) = default;
+#else
   vec(const vec &Rhs) : m_Data(Rhs.m_Data) {}
+#endif
 
-  vec(vec &&Rhs) : m_Data(std::move(Rhs.m_Data)) {}
+  vec(vec &&Rhs) = default;
 
-  vec &operator=(const vec &Rhs) {
-    m_Data = Rhs.m_Data;
-    return *this;
-  }
+  vec &operator=(const vec &Rhs) = default;
 
   // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
   template <typename Ty = DataT>
@@ -320,11 +372,70 @@ public:
     return *this;
   }
 
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
+  explicit vec(const DataT &arg) {
+    m_Data = (DataType)arg;
+  }
+
+  template <typename Ty = DataT>
+  typename std::enable_if<std::is_fundamental<Ty>::value, vec &>::type
+  operator=(const DataT &Rhs) {
+    m_Data = (DataType)Rhs;
+    return *this;
+  }
+#else
   explicit vec(const DataT &arg) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, arg);
     }
   }
+
+  template <typename Ty = DataT>
+  typename std::enable_if<std::is_fundamental<Ty>::value, vec &>::type
+  operator=(const DataT &Rhs) {
+    for (int i = 0; i < NumElements; ++i) {
+      setValue(i, Rhs);
+    }
+    return *this;
+  }
+#endif
+
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
+  // Optimized naive constructors with NumElements of DataT values.
+  // We don't expect compilers to optimize vararg recursive functions well.
+
+  // Helper type to make specific constructors available only for specific
+  // number of elements.
+  template <int IdxNum, typename T = void>
+  using EnableIfMultipleElems =
+      typename std::enable_if<std::is_convertible<T, DataT>::value &&
+                                  NumElements == IdxNum,
+                              DataT>::type;
+  template <typename Ty = DataT>
+  vec(const EnableIfMultipleElems<2, Ty> Arg0, const DataT Arg1)
+      : m_Data{Arg0, Arg1} {}
+  template <typename Ty = DataT>
+  vec(const EnableIfMultipleElems<3, Ty> Arg0, const DataT Arg1,
+      const DataT Arg2)
+      : m_Data{Arg0, Arg1, Arg2} {}
+  template <typename Ty = DataT>
+  vec(const EnableIfMultipleElems<4, Ty> Arg0, const DataT Arg1,
+      const DataT Arg2, const Ty Arg3)
+      : m_Data{Arg0, Arg1, Arg2, Arg3} {}
+  template <typename Ty = DataT>
+  vec(const EnableIfMultipleElems<8, Ty> Arg0, const DataT Arg1,
+      const DataT Arg2, const DataT Arg3, const DataT Arg4, const DataT Arg5,
+      const DataT Arg6, const DataT Arg7)
+      : m_Data{Arg0, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7} {}
+  template <typename Ty = DataT>
+  vec(const EnableIfMultipleElems<16, Ty> Arg0, const DataT Arg1,
+      const DataT Arg2, const DataT Arg3, const DataT Arg4, const DataT Arg5,
+      const DataT Arg6, const DataT Arg7, const DataT Arg8, const DataT Arg9,
+      const DataT ArgA, const DataT ArgB, const DataT ArgC, const DataT ArgD,
+      const DataT ArgE, const DataT ArgF)
+      : m_Data{Arg0, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7,
+               Arg8, Arg9, ArgA, ArgB, ArgC, ArgD, ArgE, ArgF} {}
+#endif
 
   // Constructor from values of base type or vec of base type. Checks that
   // base types are match and that the NumElements == sum of lenghts of args.
@@ -338,7 +449,7 @@ public:
   void dump() {
 #ifndef __SYCL_DEVICE_ONLY__
     for (int I = 0; I < NumElements; ++I) {
-      std::cout << "  " << I << ": " << m_Data.s[I] << std::endl;
+      std::cout << "  " << I << ": " << getValue(I) << std::endl;
     }
     std::cout << std::endl;
 #endif // __SYCL_DEVICE_ONLY__
@@ -358,20 +469,42 @@ public:
   operator typename std::enable_if<N == 1, DataT>::type() const {
     return m_Data;
   }
-  size_t get_count() const { return NumElements; }
-  size_t get_size() const { return sizeof(m_Data); }
+  static constexpr size_t get_count() { return NumElements; }
+  static constexpr size_t get_size() { return sizeof(m_Data); }
 
-  // TODO: convert() for FP types. Also, check whether rounding mode handling
+  // TODO: convert() for FP to FP. Also, check whether rounding mode handling
   // is needed for integers to FP convert.
-  // template <typename convertT, rounding_mode roundingMode>
-  // vec<convertT, NumElements> convert() const;
+  //
+  // Convert to same type is no-op.
   template <typename convertT, rounding_mode roundingMode>
-  typename std::enable_if<std::is_integral<DataT>::value,
+  typename std::enable_if<std::is_same<DataT, convertT>::value,
+                          vec<convertT, NumElements>>::type
+  convert() const {
+    return *this;
+  }
+  // From Integer to Integer or FP
+  template <typename convertT, rounding_mode roundingMode>
+  typename std::enable_if<!std::is_same<DataT, convertT>::value &&
+                              std::is_integral<DataT>::value,
                           vec<convertT, NumElements>>::type
   convert() const {
     vec<convertT, NumElements> Result;
     for (size_t I = 0; I < NumElements; ++I) {
       Result.setValue(I, static_cast<convertT>(getValue(I)));
+    }
+    return Result;
+  }
+  // From FP to Integer
+  template <typename convertT, rounding_mode roundingMode>
+  typename std::enable_if<!std::is_same<DataT, convertT>::value &&
+                              std::is_integral<convertT>::value &&
+                              std::is_floating_point<DataT>::value,
+                          vec<convertT, NumElements>>::type
+  convert() const {
+    vec<convertT, NumElements> Result;
+    for (size_t I = 0; I < NumElements; ++I) {
+      Result.setValue(
+          I, detail::convertHelper<convertT, roundingMode>(getValue(I)));
     }
     return Result;
   }
@@ -415,12 +548,24 @@ public:
 #endif
 #define __SYCL_LOADSTORE(Space)                                                \
   void load(size_t Offset, multi_ptr<DataT, Space> Ptr) {                      \
-    m_Data = *multi_ptr<DataType, Space>(static_cast<DataType *>(              \
-        static_cast<void *>(Ptr + Offset * NumElements)));                     \
+    if (NumElements != 3) {                                                    \
+      m_Data = *multi_ptr<DataType, Space>(static_cast<DataType *>(            \
+          static_cast<void *>(Ptr + Offset * NumElements)));                   \
+      return;                                                                  \
+    }                                                                          \
+    for (int I = 0; I < NumElements; I++) {                                    \
+      setValue(I, *multi_ptr<DataT, Space>(Ptr + Offset * NumElements + I));   \
+    }                                                                          \
   }                                                                            \
   void store(size_t Offset, multi_ptr<DataT, Space> Ptr) const {               \
-    *multi_ptr<DataType, Space>(static_cast<DataType *>(                       \
-        static_cast<void *>(Ptr + Offset * NumElements))) = m_Data;            \
+    if (NumElements != 3) {                                                    \
+      *multi_ptr<DataType, Space>(static_cast<DataType *>(                     \
+          static_cast<void *>(Ptr + Offset * NumElements))) = m_Data;          \
+      return;                                                                  \
+    }                                                                          \
+    for (int I = 0; I < NumElements; I++) {                                    \
+      *multi_ptr<DataT, Space>(Ptr + Offset * NumElements + I) = getValue(I);  \
+    }                                                                          \
   }
 
   __SYCL_LOADSTORE(access::address_space::global_space)
@@ -433,7 +578,7 @@ public:
 #error "Undefine __SYCL_BINOP macro"
 #endif
 
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_BINOP(BINOP, OPASSIGN)                                          \
   vec operator BINOP(const vec &Rhs) const {                                   \
     vec Ret;                                                                   \
@@ -457,7 +602,7 @@ public:
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
   }
-#else // __SYCL_DEVICE_ONLY__
+#else // __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_BINOP(BINOP, OPASSIGN)                                          \
   vec operator BINOP(const vec &Rhs) const {                                   \
     vec Ret;                                                                   \
@@ -483,7 +628,7 @@ public:
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
   }
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
   __SYCL_BINOP(+, +=)
   __SYCL_BINOP(-, -=)
@@ -588,21 +733,21 @@ private:
   vec<DataT, NumElements>
   operatorHelper(const vec<DataT, NumElements> &Rhs) const {
     vec<DataT, NumElements> Result;
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
     Operation<DataType> Op;
     Result.m_Data = Op(m_Data, Rhs.m_Data);
-#else  // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_USE_EXT_VECTOR_TYPE__
     Operation<DataT> Op;
     for (size_t I = 0; I < NumElements; ++I) {
       Result.setValue(I, Op(Rhs.getValue(I), getValue(I)));
     }
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
     return Result;
   }
 
 // setValue and getValue should be able to operate on different underlying
 // types: enum cl_float#N , builtin vector float#N, builtin type float.
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements,
             typename = typename std::enable_if<1 != Num>::type>
   void setValue(int Index, const DataT &Value, int) {
@@ -614,7 +759,7 @@ private:
   DataT getValue(int Index, int) const {
     return m_Data[Index];
   }
-#else
+#else  // __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements,
             typename = typename std::enable_if<1 != Num>::type>
   void setValue(int Index, const DataT &Value, int) {
@@ -626,7 +771,7 @@ private:
   DataT getValue(int Index, int) const {
     return m_Data.s[Index];
   }
-#endif
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
   template <int Num = NumElements,
             typename = typename std::enable_if<1 == Num>::type>
@@ -727,6 +872,9 @@ template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp {
   using DataT = typename VecT::element_type;
+  using CommonDataT =
+      typename std::common_type<typename OperationLeftT::DataT,
+                                typename OperationRightT::DataT>::type;
   using rel_t = detail::rel_t<DataT>;
   static constexpr int getNumElements() { return sizeof...(Indexes); }
 
@@ -751,15 +899,13 @@ class SwizzleOp {
                                       OperationCurrentT, Indexes...>,
                             OperationCurrentT_, Idx_...>;
 
-  template <int IdxNum>
-  using EnableIfOneIndex =
-      typename std::enable_if<1 == IdxNum &&
-                              SwizzleOp::getNumElements() == IdxNum>::type;
+  template <int IdxNum, typename T = void>
+  using EnableIfOneIndex = typename std::enable_if<
+      1 == IdxNum && SwizzleOp::getNumElements() == IdxNum, T>::type;
 
-  template <int IdxNum>
-  using EnableIfMultipleIndexes =
-      typename std::enable_if<1 != IdxNum &&
-                              SwizzleOp::getNumElements() == IdxNum>::type;
+  template <int IdxNum, typename T = void>
+  using EnableIfMultipleIndexes = typename std::enable_if<
+      1 != IdxNum && SwizzleOp::getNumElements() == IdxNum, T>::type;
 
   template <typename T>
   using EnableIfScalarType =
@@ -1158,11 +1304,15 @@ public:
 
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
-  // Indexer used in the swizzles.def. C++14
-  static constexpr int Indexer(int index) {
-    const constexpr int IDXs[] = {Indexes...};
-    return IDXs[index >= getNumElements() ? 0 : index];
-  }
+  // Indexer used in the swizzles.def. C++11 way, a bit more verbose
+  // than C++14 way.
+  struct IndexerHelper {
+    static const constexpr int IDXs[] = {Indexes...};
+    static constexpr int get(int index) {
+      return IDXs[index >= getNumElements() ? 0 : index];
+    }
+  };
+  static constexpr int Indexer(int index) { return IndexerHelper::get(index); }
 
 public:
 #ifdef __SYCL_ACCESS_RETURN
@@ -1229,8 +1379,22 @@ private:
         m_RightOperation(std::move(Rhs.m_RightOperation)) {}
 
   // Either performing CurrentOperation on results of left and right operands
-  // or reading values from actual vector.
-  DataT getValue(size_t Index) const {
+  // or reading values from actual vector. Perform implicit type conversion when
+  // the number of elements == 1
+
+  template <int IdxNum = getNumElements()>
+  CommonDataT getValue(EnableIfOneIndex<IdxNum, size_t> Index) const {
+    if (std::is_same<OperationCurrentT<DataT>, GetOp<DataT>>::value) {
+      std::array<int, getNumElements()> Idxs{Indexes...};
+      return m_Vector->getValue(Idxs[Index]);
+    }
+    auto Op = OperationCurrentT<CommonDataT>();
+    return Op(m_LeftOperation.getValue(Index),
+              m_RightOperation.getValue(Index));
+  }
+
+  template <int IdxNum = getNumElements()>
+  DataT getValue(EnableIfMultipleIndexes<IdxNum, size_t> Index) const {
     if (std::is_same<OperationCurrentT<DataT>, GetOp<DataT>>::value) {
       std::array<int, getNumElements()> Idxs{Indexes...};
       return m_Vector->getValue(Idxs[Index]);
@@ -1275,7 +1439,7 @@ private:
   template <typename T, int Num>                                               \
   typename std::enable_if<std::is_fundamental<T>::value, vec<T, Num>>::type    \
   operator BINOP(const T &Lhs, const vec<T, Num> &Rhs) {                       \
-    return vec<T, Num>(static_cast<T>(Lhs)) BINOP Rhs;                         \
+    return vec<T, Num>(Lhs) BINOP Rhs;                                         \
   }                                                                            \
   template <typename VecT, typename OperationLeftT, typename OperationRightT,  \
             template <typename> class OperationCurrentT, int... Indexes,       \
@@ -1367,7 +1531,7 @@ __SYCL_RELLOGOP(||)
 } // namespace sycl
 } // namespace cl
 
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 typedef char __char_t;
 typedef char __char2_vec_t __attribute__((ext_vector_type(2)));
 typedef char __char3_vec_t __attribute__((ext_vector_type(3)));
@@ -1461,7 +1625,7 @@ typedef double __double16_vec_t __attribute__((ext_vector_type(16)));
 
 #define GET_CL_TYPE(target, num) __##target##num##_vec_t
 #define GET_SCALAR_CL_TYPE(target) target
-#else // __SYCL_DEVICE_ONLY__
+#else // __SYCL_USE_EXT_VECTOR_TYPE__
 // For signed char. OpenCL doesn't have any type about `signed char`, therefore
 // we use type alias of cl_char instead.
 using cl_schar = cl_char;
@@ -1473,7 +1637,7 @@ using cl_schar16 = cl_char16;
 
 #define GET_CL_TYPE(target, num) cl_##target##num
 #define GET_SCALAR_CL_TYPE(target) cl_##target
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
 namespace cl {
 namespace sycl {
@@ -1484,6 +1648,12 @@ namespace sycl {
     using DataType = GET_CL_TYPE(base, num);                                   \
   };
 
+#define DECLARE_LONGLONG_CONVERTER(base, num)                                  \
+  template <> class BaseCLTypeConverter<base##long, num> {                     \
+  public:                                                                      \
+    using DataType = ::GET_CL_TYPE(base, num);                                 \
+  };
+
 #define DECLARE_VECTOR_CONVERTERS(base)                                        \
   namespace detail {                                                           \
   DECLARE_CONVERTER(base, 2)                                                   \
@@ -1492,6 +1662,19 @@ namespace sycl {
   DECLARE_CONVERTER(base, 8)                                                   \
   DECLARE_CONVERTER(base, 16)                                                  \
   template <> class BaseCLTypeConverter<base, 1> {                             \
+  public:                                                                      \
+    using DataType = GET_SCALAR_CL_TYPE(base);                                 \
+  };                                                                           \
+  } // namespace detail
+
+#define DECLARE_VECTOR_LONGLONG_CONVERTERS(base)                               \
+  namespace detail {                                                           \
+  DECLARE_LONGLONG_CONVERTER(base, 2)                                          \
+  DECLARE_LONGLONG_CONVERTER(base, 3)                                          \
+  DECLARE_LONGLONG_CONVERTER(base, 4)                                          \
+  DECLARE_LONGLONG_CONVERTER(base, 8)                                          \
+  DECLARE_LONGLONG_CONVERTER(base, 16)                                         \
+  template <> class BaseCLTypeConverter<base##long, 1> {                       \
   public:                                                                      \
     using DataType = GET_SCALAR_CL_TYPE(base);                                 \
   };                                                                           \
@@ -1510,11 +1693,40 @@ namespace sycl {
   using base##3 = cl_##base##3;                                                \
   using base##2 = cl_##base##2;
 
+#define DECLARE_SYCL_VEC_CHAR_WO_CONVERTERS                                    \
+  using cl_char16 = vec<signed char, 16>;                                      \
+  using cl_char8 = vec<signed char, 8>;                                        \
+  using cl_char4 = vec<signed char, 4>;                                        \
+  using cl_char3 = vec<signed char, 3>;                                        \
+  using cl_char2 = vec<signed char, 2>;                                        \
+  using cl_char = signed char;                                                 \
+  using char16 = vec<char, 16>;                                                \
+  using char8 = vec<char, 8>;                                                  \
+  using char4 = vec<char, 4>;                                                  \
+  using char3 = vec<char, 3>;                                                  \
+  using char2 = vec<char, 2>;
+
+// cl_longlong/cl_ulonglong are not supported in SYCL
+#define DECLARE_SYCL_VEC_LONGLONG_WO_CONVERTERS(base)                          \
+  using base##long16 = vec<base##long, 16>;                                    \
+  using base##long8 = vec<base##long, 8>;                                      \
+  using base##long4 = vec<base##long, 4>;                                      \
+  using base##long3 = vec<base##long, 3>;                                      \
+  using base##long2 = vec<base##long, 2>;
+
 #define DECLARE_SYCL_VEC(base)                                                 \
   DECLARE_VECTOR_CONVERTERS(base)                                              \
   DECLARE_SYCL_VEC_WO_CONVERTERS(base)
 
-DECLARE_SYCL_VEC(char)
+#define DECLARE_SYCL_VEC_CHAR                                                  \
+  DECLARE_VECTOR_CONVERTERS(char)                                              \
+  DECLARE_SYCL_VEC_CHAR_WO_CONVERTERS
+
+#define DECLARE_SYCL_VEC_LONGLONG(base)                                        \
+  DECLARE_VECTOR_LONGLONG_CONVERTERS(base)                                     \
+  DECLARE_SYCL_VEC_LONGLONG_WO_CONVERTERS(base)
+
+DECLARE_SYCL_VEC_CHAR
 DECLARE_SYCL_VEC(schar)
 DECLARE_SYCL_VEC(uchar)
 DECLARE_SYCL_VEC(short)
@@ -1523,9 +1735,8 @@ DECLARE_SYCL_VEC(int)
 DECLARE_SYCL_VEC(uint)
 DECLARE_SYCL_VEC(long)
 DECLARE_SYCL_VEC(ulong)
-// TODO: Fix long long and unsigned long long.
-// DECLARE_SYCL_VEC(longlong)
-// DECLARE_SYCL_VEC(ulonglong)
+DECLARE_SYCL_VEC_LONGLONG(long)
+DECLARE_SYCL_VEC_LONGLONG(ulong)
 DECLARE_SYCL_VEC(float)
 DECLARE_SYCL_VEC(double)
 // TODO: Fix half.

@@ -1,9 +1,8 @@
 //===-- GDBRemoteCommunicationServerLLGS.cpp --------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,6 +20,7 @@
 #include "lldb/Host/ConnectionFileDescriptor.h"
 #include "lldb/Host/Debug.h"
 #include "lldb/Host/File.h"
+#include "lldb/Host/FileAction.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
@@ -28,7 +28,6 @@
 #include "lldb/Host/common/NativeProcessProtocol.h"
 #include "lldb/Host/common/NativeRegisterContext.h"
 #include "lldb/Host/common/NativeThreadProtocol.h"
-#include "lldb/Target/FileAction.h"
 #include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/DataBuffer.h"
@@ -218,8 +217,10 @@ Status GDBRemoteCommunicationServerLLGS::LaunchProcess() {
   m_process_launch_info.SetLaunchInSeparateProcessGroup(true);
   m_process_launch_info.GetFlags().Set(eLaunchFlagDebug);
 
-  const bool default_to_use_pty = true;
-  m_process_launch_info.FinalizeFileActions(nullptr, default_to_use_pty);
+  if (should_forward_stdio) {
+    if (llvm::Error Err = m_process_launch_info.SetUpPtyRedirection())
+      return Status(std::move(Err));
+  }
 
   {
     std::lock_guard<std::recursive_mutex> guard(m_debugged_process_mutex);
@@ -621,7 +622,7 @@ GDBRemoteCommunicationServerLLGS::SendStopReplyPacketForThread(
     } else {
       // The thread name contains special chars, send as hex bytes.
       response.PutCString("hexname:");
-      response.PutCStringAsRawHex8(thread_name.c_str());
+      response.PutStringAsRawHex8(thread_name);
     }
     response.PutChar(';');
   }
@@ -661,7 +662,7 @@ GDBRemoteCommunicationServerLLGS::SendStopReplyPacketForThread(
         response.PutCString("jstopinfo:");
         StreamString unescaped_response;
         threads_info_sp->Write(unescaped_response);
-        response.PutCStringAsRawHex8(unescaped_response.GetData());
+        response.PutStringAsRawHex8(unescaped_response.GetData());
         response.PutChar(';');
       } else
         LLDB_LOG(log, "failed to prepare a jstopinfo field for pid {0}",
@@ -762,7 +763,7 @@ GDBRemoteCommunicationServerLLGS::SendStopReplyPacketForThread(
   if (!description.empty()) {
     // Description may contains special chars, send as hex bytes.
     response.PutCString("description:");
-    response.PutCStringAsRawHex8(description.c_str());
+    response.PutStringAsRawHex8(description);
     response.PutChar(';');
   } else if ((tid_stop_info.reason == eStopReasonException) &&
              tid_stop_info.details.exception.type) {
@@ -1339,7 +1340,7 @@ GDBRemoteCommunicationServerLLGS::Handle_qGetWorkingDir(
   FileSpec working_dir{m_process_launch_info.GetWorkingDirectory()};
   if (working_dir) {
     StreamString response;
-    response.PutCStringAsRawHex8(working_dir.GetCString());
+    response.PutStringAsRawHex8(working_dir.GetCString());
     return SendPacketNoLock(response.GetString());
   }
 
@@ -2424,7 +2425,7 @@ GDBRemoteCommunicationServerLLGS::Handle_qMemoryRegionInfo(
     // Return the error message.
 
     response.PutCString("error:");
-    response.PutCStringAsRawHex8(error.AsCString());
+    response.PutStringAsRawHex8(error.AsCString());
     response.PutChar(';');
   } else {
     // Range start and size.
@@ -2452,7 +2453,7 @@ GDBRemoteCommunicationServerLLGS::Handle_qMemoryRegionInfo(
     ConstString name = region_info.GetName();
     if (name) {
       response.PutCString("name:");
-      response.PutCStringAsRawHex8(name.AsCString());
+      response.PutStringAsRawHex8(name.AsCString());
       response.PutChar(';');
     }
   }

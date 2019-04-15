@@ -1,9 +1,8 @@
 //===-- asan_errors.cc ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -36,7 +35,7 @@ static void OnStackUnwind(const SignalContext &sig,
   // corresponding code in the sanitizer_common and we use this callback to
   // print it.
   static_cast<const ScarinessScoreBase *>(callback_context)->Print();
-  GetStackTrace(stack, kStackTraceMax, sig.pc, sig.bp, sig.context, fast);
+  stack->Unwind(sig.pc, sig.bp, sig.context, fast);
 }
 
 void ErrorDeadlySignal::Print() {
@@ -125,9 +124,8 @@ void ErrorAllocTypeMismatch::Print() {
   Decorator d;
   Printf("%s", d.Error());
   Report("ERROR: AddressSanitizer: %s (%s vs %s) on %p\n",
-         scariness.GetDescription(),
-         alloc_names[alloc_type], dealloc_names[dealloc_type],
-         addr_description.addr);
+         scariness.GetDescription(), alloc_names[alloc_type],
+         dealloc_names[dealloc_type], addr_description.Address());
   Printf("%s", d.Default());
   CHECK_GT(dealloc_stack->size, 0);
   scariness.Print();

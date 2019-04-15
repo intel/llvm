@@ -1,9 +1,8 @@
 #===----------------------------------------------------------------------===//
 #
-#                     The LLVM Compiler Infrastructure
-#
-# This file is dual licensed under the MIT and the University of Illinois Open
-# Source Licenses. See LICENSE.TXT for details.
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 #===----------------------------------------------------------------------===//
 
@@ -252,8 +251,10 @@ class LinuxLocalTI(DefaultTargetInfo):
             flags += ['-lunwind', '-ldl']
         else:
             flags += ['-lgcc_s']
-        compiler_rt = self.full_config.get_lit_bool('compiler_rt', False)
-        if not compiler_rt:
+        builtins_lib = self.full_config.get_lit_conf('builtins_library')
+        if builtins_lib:
+            flags += [builtins_lib]
+        else:
             flags += ['-lgcc']
         use_libatomic = self.full_config.get_lit_bool('use_libatomic', False)
         if use_libatomic:

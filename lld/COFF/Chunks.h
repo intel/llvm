@@ -1,9 +1,8 @@
 //===- Chunks.h -------------------------------------------------*- C++ -*-===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -109,6 +108,8 @@ public:
   // The alignment of this chunk. The writer uses the value.
   uint32_t Alignment = 1;
 
+  virtual bool isHotPatchable() const { return false; }
+
 protected:
   Chunk(Kind K = OtherKind) : ChunkKind(K) {}
   const Kind ChunkKind;
@@ -206,6 +207,16 @@ public:
   // The section ID this chunk belongs to in its Obj.
   uint32_t getSectionNumber() const;
 
+  ArrayRef<uint8_t> consumeDebugMagic();
+
+  static ArrayRef<uint8_t> consumeDebugMagic(ArrayRef<uint8_t> Data,
+                                             StringRef SectionName);
+
+  static SectionChunk *findByName(ArrayRef<SectionChunk *> Sections,
+                                  StringRef Name);
+
+  bool isHotPatchable() const override { return File->HotPatchable; }
+
   // A pointer pointing to a replacement for this chunk.
   // Initially it points to "this" object. If this chunk is merged
   // with other chunk by ICF, it points to another chunk,
@@ -223,6 +234,9 @@ public:
 
   // The COMDAT leader symbol if this is a COMDAT chunk.
   DefinedRegular *Sym = nullptr;
+
+  // The COMDAT selection if this is a COMDAT chunk.
+  llvm::COFF::COMDATType Selection = (llvm::COFF::COMDATType)0;
 
   ArrayRef<coff_relocation> Relocs;
 
@@ -311,13 +325,15 @@ static const uint8_t ImportThunkARM64[] = {
 };
 
 // Windows-specific.
-// A chunk for DLL import jump table entry. In a final output, it's
+// A chunk for DLL import jump table entry. In a final output, its
 // contents will be a JMP instruction to some __imp_ symbol.
 class ImportThunkChunkX64 : public Chunk {
 public:
   explicit ImportThunkChunkX64(Defined *S);
   size_t getSize() const override { return sizeof(ImportThunkX86); }
   void writeTo(uint8_t *Buf) const override;
+
+  bool isHotPatchable() const override { return true; }
 
 private:
   Defined *ImpSymbol;
@@ -330,6 +346,8 @@ public:
   void getBaserels(std::vector<Baserel> *Res) override;
   void writeTo(uint8_t *Buf) const override;
 
+  bool isHotPatchable() const override { return true; }
+
 private:
   Defined *ImpSymbol;
 };
@@ -341,6 +359,8 @@ public:
   void getBaserels(std::vector<Baserel> *Res) override;
   void writeTo(uint8_t *Buf) const override;
 
+  bool isHotPatchable() const override { return true; }
+
 private:
   Defined *ImpSymbol;
 };
@@ -351,13 +371,24 @@ public:
   size_t getSize() const override { return sizeof(ImportThunkARM64); }
   void writeTo(uint8_t *Buf) const override;
 
+  bool isHotPatchable() const override { return true; }
+
 private:
   Defined *ImpSymbol;
 };
 
-class RangeExtensionThunk : public Chunk {
+class RangeExtensionThunkARM : public Chunk {
 public:
-  explicit RangeExtensionThunk(Defined *T) : Target(T) {}
+  explicit RangeExtensionThunkARM(Defined *T) : Target(T) {}
+  size_t getSize() const override;
+  void writeTo(uint8_t *Buf) const override;
+
+  Defined *Target;
+};
+
+class RangeExtensionThunkARM64 : public Chunk {
+public:
+  explicit RangeExtensionThunkARM64(Defined *T) : Target(T) {}
   size_t getSize() const override;
   void writeTo(uint8_t *Buf) const override;
 

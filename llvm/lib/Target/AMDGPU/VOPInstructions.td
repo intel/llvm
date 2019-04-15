@@ -1,9 +1,8 @@
 //===-- VOPInstructions.td - Vector Instruction Defintions ----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -100,7 +99,6 @@ class VOP3_Pseudo <string opName, VOPProfile P, list<dag> pattern = [],
   let mayLoad = 0;
   let mayStore = 0;
   let hasSideEffects = 0;
-  let SubtargetPredicate = isGCN;
 
   // Because SGPRs may be allowed if there are multiple operands, we
   // need a post-isel hook to insert copies in order to avoid

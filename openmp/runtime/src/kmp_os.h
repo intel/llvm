@@ -4,10 +4,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -38,6 +37,14 @@
 
 #ifndef KMP_MEM_CONS_MODEL
 #define KMP_MEM_CONS_MODEL KMP_MEM_CONS_VOLATILE
+#endif
+
+#ifndef __has_cpp_attribute
+#define __has_cpp_attribute(x) 0
+#endif
+
+#ifndef __has_attribute
+#define __has_attribute(x) 0
 #endif
 
 /* ------------------------- Compiler recognition ---------------------- */
@@ -296,6 +303,20 @@ extern "C" {
 #endif /* CACHE_LINE */
 
 #define KMP_CACHE_PREFETCH(ADDR) /* nothing */
+
+// Define attribute that indicates that the fall through from the previous
+// case label is intentional and should not be diagnosed by a compiler
+//   Code from libcxx/include/__config
+// Use a function like macro to imply that it must be followed by a semicolon
+#if __cplusplus > 201402L && __has_cpp_attribute(fallthrough)
+#  define KMP_FALLTHROUGH() [[fallthrough]]
+#elif __has_cpp_attribute(clang::fallthrough)
+#  define KMP_FALLTHROUGH() [[clang::fallthrough]]
+#elif __has_attribute(fallthough) || __GNUC__ >= 7
+#  define KMP_FALLTHROUGH() __attribute__((__fallthrough__))
+#else
+#  define KMP_FALLTHROUGH() ((void)0)
+#endif
 
 // Define attribute that indicates a function does not return
 #if __cplusplus >= 201103L
@@ -861,8 +882,8 @@ typedef void (*microtask_t)(int *gtid, int *npr, ...);
 #define VOLATILE_CAST(x) (x)
 #endif
 
-#define KMP_WAIT_YIELD __kmp_wait_yield_4
-#define KMP_WAIT_YIELD_PTR __kmp_wait_yield_4_ptr
+#define KMP_WAIT __kmp_wait_4
+#define KMP_WAIT_PTR __kmp_wait_4_ptr
 #define KMP_EQ __kmp_eq_4
 #define KMP_NEQ __kmp_neq_4
 #define KMP_LT __kmp_lt_4

@@ -1,9 +1,8 @@
 //===- AsmMatcherEmitter.cpp - Generate an assembly matcher ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1160,8 +1159,9 @@ AsmMatcherInfo::getOperandClass(Record *Rec, int SubOpIdx) {
     // use it, else just fall back to the underlying register class.
     const RecordVal *R = Rec->getValue("ParserMatchClass");
     if (!R || !R->getValue())
-      PrintFatalError("Record `" + Rec->getName() +
-        "' does not have a ParserMatchClass!\n");
+      PrintFatalError(Rec->getLoc(),
+                      "Record `" + Rec->getName() +
+                          "' does not have a ParserMatchClass!\n");
 
     if (DefInit *DI= dyn_cast<DefInit>(R->getValue())) {
       Record *MatchClass = DI->getDef();

@@ -1,9 +1,8 @@
 //===- LoopSimplify.cpp - Loop Canonicalization Pass ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -27,6 +26,9 @@
 // contains or is entered by an indirectbr instruction, it may not be possible
 // to transform the loop and make these guarantees. Client code should check
 // that these conditions are true before relying on them.
+//
+// Similar complications arise from callbr instructions, particularly in
+// asm-goto where blockaddress expressions are used.
 //
 // Note that the simplifycfg pass will clean up blocks which are split out but
 // end up being unnecessary, so usage of this pass should not pessimize
@@ -124,10 +126,11 @@ BasicBlock *llvm::InsertPreheaderForLoop(Loop *L, DominatorTree *DT,
        PI != PE; ++PI) {
     BasicBlock *P = *PI;
     if (!L->contains(P)) {         // Coming in from outside the loop?
-      // If the loop is branched to from an indirect branch, we won't
+      // If the loop is branched to from an indirect terminator, we won't
       // be able to fully transform the loop, because it prohibits
       // edge splitting.
-      if (isa<IndirectBrInst>(P->getTerminator())) return nullptr;
+      if (P->getTerminator()->isIndirectTerminator())
+        return nullptr;
 
       // Keep track of it.
       OutsideBlocks.push_back(P);
@@ -236,8 +239,8 @@ static Loop *separateNestedLoop(Loop *L, BasicBlock *Preheader,
   for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
     if (PN->getIncomingValue(i) != PN ||
         !L->contains(PN->getIncomingBlock(i))) {
-      // We can't split indirectbr edges.
-      if (isa<IndirectBrInst>(PN->getIncomingBlock(i)->getTerminator()))
+      // We can't split indirect control flow edges.
+      if (PN->getIncomingBlock(i)->getTerminator()->isIndirectTerminator())
         return nullptr;
       OuterLoopPreds.push_back(PN->getIncomingBlock(i));
     }
@@ -314,7 +317,7 @@ static Loop *separateNestedLoop(Loop *L, BasicBlock *Preheader,
 
   // Split edges to exit blocks from the inner loop, if they emerged in the
   // process of separating the outer one.
-  formDedicatedExitBlocks(L, DT, LI, PreserveLCSSA);
+  formDedicatedExitBlocks(L, DT, LI, nullptr, PreserveLCSSA);
 
   if (PreserveLCSSA) {
     // Fix LCSSA form for L. Some values, which previously were only used inside
@@ -358,8 +361,8 @@ static BasicBlock *insertUniqueBackedgeBlock(Loop *L, BasicBlock *Preheader,
   for (pred_iterator I = pred_begin(Header), E = pred_end(Header); I != E; ++I){
     BasicBlock *P = *I;
 
-    // Indirectbr edges cannot be split, so we must fail if we find one.
-    if (isa<IndirectBrInst>(P->getTerminator()))
+    // Indirect edges cannot be split, so we must fail if we find one.
+    if (P->getTerminator()->isIndirectTerminator())
       return nullptr;
 
     if (P != Preheader) BackedgeBlocks.push_back(P);
@@ -527,7 +530,7 @@ ReprocessLoop:
   // predecessors that are inside of the loop.  This check guarantees that the
   // loop preheader/header will dominate the exit blocks.  If the exit block has
   // predecessors from outside of the loop, split the edge now.
-  if (formDedicatedExitBlocks(L, DT, LI, PreserveLCSSA))
+  if (formDedicatedExitBlocks(L, DT, LI, nullptr, PreserveLCSSA))
     Changed = true;
 
   // If the header has more than two predecessors at this point (from the
@@ -659,9 +662,9 @@ ReprocessLoop:
       DT->eraseNode(ExitingBlock);
 
       BI->getSuccessor(0)->removePredecessor(
-          ExitingBlock, /* DontDeleteUselessPHIs */ PreserveLCSSA);
+          ExitingBlock, /* KeepOneInputPHIs */ PreserveLCSSA);
       BI->getSuccessor(1)->removePredecessor(
-          ExitingBlock, /* DontDeleteUselessPHIs */ PreserveLCSSA);
+          ExitingBlock, /* KeepOneInputPHIs */ PreserveLCSSA);
       ExitingBlock->eraseFromParent();
     }
   }

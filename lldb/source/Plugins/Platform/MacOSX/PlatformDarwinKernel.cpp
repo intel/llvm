@@ -1,10 +1,9 @@
 //===-- PlatformDarwinKernel.cpp -----------------------------------*- C++
 //-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -35,6 +34,8 @@
 #include "llvm/Support/FileSystem.h"
 
 #include <CoreFoundation/CoreFoundation.h>
+
+#include <memory>
 
 #include "Host/macosx/cfcpp/CFCBundle.h"
 
@@ -111,7 +112,7 @@ PlatformSP PlatformDarwinKernel::CreateInstance(bool force,
 
     // Only accept "unknown" for vendor if the host is Apple and it "unknown"
     // wasn't specified (it was just returned because it was NOT specified)
-    case llvm::Triple::UnknownArch:
+    case llvm::Triple::UnknownVendor:
       create = !arch->TripleVendorWasSpecified();
       break;
     default:
@@ -201,7 +202,7 @@ public:
   }
 
   PlatformDarwinKernelProperties() : Properties() {
-    m_collection_sp.reset(new OptionValueProperties(GetSettingName()));
+    m_collection_sp = std::make_shared<OptionValueProperties>(GetSettingName());
     m_collection_sp->Initialize(g_properties);
   }
 
@@ -229,7 +230,7 @@ typedef std::shared_ptr<PlatformDarwinKernelProperties>
 static const PlatformDarwinKernelPropertiesSP &GetGlobalProperties() {
   static PlatformDarwinKernelPropertiesSP g_settings_sp;
   if (!g_settings_sp)
-    g_settings_sp.reset(new PlatformDarwinKernelProperties());
+    g_settings_sp = std::make_shared<PlatformDarwinKernelProperties>();
   return g_settings_sp;
 }
 

@@ -1,9 +1,8 @@
 //===-- CommandObjectTarget.cpp ---------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,7 +17,6 @@
 #include "lldb/DataFormatters/ValueObjectPrinter.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Host/StringConvert.h"
-#include "lldb/Host/Symbols.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
@@ -36,6 +34,7 @@
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/FuncUnwinders.h"
 #include "lldb/Symbol/LineTable.h"
+#include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/SymbolVendor.h"
@@ -1348,7 +1347,7 @@ static void DumpModuleUUID(Stream &strm, Module *module) {
 static uint32_t DumpCompileUnitLineTable(CommandInterpreter &interpreter,
                                          Stream &strm, Module *module,
                                          const FileSpec &file_spec,
-                                         bool load_addresses) {
+                                         lldb::DescriptionLevel desc_level) {
   uint32_t num_matches = 0;
   if (module) {
     SymbolContextList sc_list;
@@ -1367,7 +1366,7 @@ static uint32_t DumpCompileUnitLineTable(CommandInterpreter &interpreter,
         if (line_table)
           line_table->GetDescription(
               &strm, interpreter.GetExecutionContext().GetTargetPtr(),
-              lldb::eDescriptionLevelBrief);
+              desc_level);
         else
           strm << "No line table";
       }
@@ -1672,12 +1671,11 @@ static size_t LookupTypeInModule(CommandInterpreter &interpreter, Stream &strm,
     const uint32_t max_num_matches = UINT32_MAX;
     size_t num_matches = 0;
     bool name_is_fully_qualified = false;
-    SymbolContext sc;
 
     ConstString name(name_cstr);
     llvm::DenseSet<lldb_private::SymbolFile *> searched_symbol_files;
     num_matches =
-        module->FindTypes(sc, name, name_is_fully_qualified, max_num_matches,
+        module->FindTypes(name, name_is_fully_qualified, max_num_matches,
                           searched_symbol_files, type_list);
 
     if (num_matches) {
@@ -1715,11 +1713,8 @@ static size_t LookupTypeInModule(CommandInterpreter &interpreter, Stream &strm,
 }
 
 static size_t LookupTypeHere(CommandInterpreter &interpreter, Stream &strm,
-                             const SymbolContext &sym_ctx,
-                             const char *name_cstr, bool name_is_regex) {
-  if (!sym_ctx.module_sp)
-    return 0;
-
+                             Module &module, const char *name_cstr,
+                             bool name_is_regex) {
   TypeList type_list;
   const uint32_t max_num_matches = UINT32_MAX;
   size_t num_matches = 1;
@@ -1727,14 +1722,13 @@ static size_t LookupTypeHere(CommandInterpreter &interpreter, Stream &strm,
 
   ConstString name(name_cstr);
   llvm::DenseSet<SymbolFile *> searched_symbol_files;
-  num_matches = sym_ctx.module_sp->FindTypes(
-      sym_ctx, name, name_is_fully_qualified, max_num_matches,
-      searched_symbol_files, type_list);
+  num_matches = module.FindTypes(name, name_is_fully_qualified, max_num_matches,
+                                 searched_symbol_files, type_list);
 
   if (num_matches) {
     strm.Indent();
     strm.PutCString("Best match found in ");
-    DumpFullpath(strm, &sym_ctx.module_sp->GetFileSpec(), 0);
+    DumpFullpath(strm, &module.GetFileSpec(), 0);
     strm.PutCString(":\n");
 
     TypeSP type_sp(type_list.GetTypeAtIndex(0));
@@ -2411,6 +2405,8 @@ public:
 
   ~CommandObjectTargetModulesDumpLineTable() override = default;
 
+  Options *GetOptions() override { return &m_options; }
+
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target *target = m_exe_ctx.GetTargetPtr();
@@ -2443,8 +2439,9 @@ protected:
             if (DumpCompileUnitLineTable(
                     m_interpreter, result.GetOutputStream(),
                     target_modules.GetModulePointerAtIndexUnlocked(i),
-                    file_spec, m_exe_ctx.GetProcessPtr() &&
-                                   m_exe_ctx.GetProcessRef().IsAlive()))
+                    file_spec,
+                    m_options.m_verbose ? eDescriptionLevelFull
+                                        : eDescriptionLevelBrief))
               num_dumped++;
           }
           if (num_dumped == 0)
@@ -2464,6 +2461,43 @@ protected:
     }
     return result.Succeeded();
   }
+
+  class CommandOptions : public Options {
+  public:
+    CommandOptions() : Options() { OptionParsingStarting(nullptr); }
+
+    Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
+                          ExecutionContext *execution_context) override {
+      assert(option_idx == 0 && "We only have one option.");
+      m_verbose = true;
+
+      return Status();
+    }
+
+    void OptionParsingStarting(ExecutionContext *execution_context) override {
+      m_verbose = false;
+    }
+
+    llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
+      static constexpr OptionDefinition g_options[] = {
+          {LLDB_OPT_SET_ALL,
+           false,
+           "verbose",
+           'v',
+           OptionParser::eNoArgument,
+           nullptr,
+           {},
+           0,
+           eArgTypeNone,
+           "Enable verbose dump."},
+      };
+      return llvm::makeArrayRef(g_options);
+    }
+
+    bool m_verbose;
+  };
+
+  CommandOptions m_options;
 };
 
 #pragma mark CommandObjectTargetModulesDump
@@ -3499,8 +3533,7 @@ protected:
         start_addr = abi->FixCodeAddress(start_addr);
 
       FuncUnwindersSP func_unwinders_sp(
-          sc.module_sp->GetObjectFile()
-              ->GetUnwindTable()
+          sc.module_sp->GetUnwindTable()
               .GetUncachedFuncUnwindersContainingAddress(start_addr, sc));
       if (!func_unwinders_sp)
         continue;
@@ -3832,8 +3865,9 @@ public:
       return false;
     case eLookupTypeType:
       if (!m_options.m_str.empty()) {
-        if (LookupTypeHere(m_interpreter, result.GetOutputStream(), sym_ctx,
-                           m_options.m_str.c_str(), m_options.m_use_regex)) {
+        if (LookupTypeHere(m_interpreter, result.GetOutputStream(),
+                           *sym_ctx.module_sp, m_options.m_str.c_str(),
+                           m_options.m_use_regex)) {
           result.SetStatus(eReturnStatusSuccessFinishResult);
           return true;
         }
@@ -4521,7 +4555,7 @@ private:
 
 static constexpr OptionDefinition g_target_stop_hook_add_options[] = {
     // clang-format off
-  { LLDB_OPT_SET_ALL, false, "one-liner",    'o', OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeOneLiner,                                         "Specify a one-line breakpoint command inline. Be sure to surround it with quotes." },
+  { LLDB_OPT_SET_ALL, false, "one-liner",    'o', OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeOneLiner,                                         "Add a command for the stop hook.  Can be specified more than once, and commands will be run in the order they appear." },
   { LLDB_OPT_SET_ALL, false, "shlib",        's', OptionParser::eRequiredArgument, nullptr, {}, CommandCompletions::eModuleCompletion, eArgTypeShlibName,    "Set the module within which the stop-hook is to be run." },
   { LLDB_OPT_SET_ALL, false, "thread-index", 'x', OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeThreadIndex,                                      "The stop hook is run only for the thread whose index matches this argument." },
   { LLDB_OPT_SET_ALL, false, "thread-id",    't', OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeThreadID,                                         "The stop hook is run only for the thread whose TID matches this argument." },
@@ -4532,6 +4566,7 @@ static constexpr OptionDefinition g_target_stop_hook_add_options[] = {
   { LLDB_OPT_SET_1,   false, "end-line",     'e', OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeLineNum,                                          "Set the end of the line range for which the stop-hook is to be run." },
   { LLDB_OPT_SET_2,   false, "classname",    'c', OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeClassName,                                        "Specify the class within which the stop-hook is to be run." },
   { LLDB_OPT_SET_3,   false, "name",         'n', OptionParser::eRequiredArgument, nullptr, {}, CommandCompletions::eSymbolCompletion, eArgTypeFunctionName, "Set the function name within which the stop hook will be run." },
+  { LLDB_OPT_SET_ALL, false, "auto-continue",'G', OptionParser::eRequiredArgument, nullptr, {}, 0, eArgTypeBoolean,     "The breakpoint will auto-continue after running its commands." },
     // clang-format on
 };
 
@@ -4572,6 +4607,17 @@ public:
         m_sym_ctx_specified = true;
         break;
 
+      case 'G': {
+        bool value, success;
+        value = OptionArgParser::ToBoolean(option_arg, false, &success);
+        if (success) {
+          m_auto_continue = value;
+        } else
+          error.SetErrorStringWithFormat(
+              "invalid boolean value '%s' passed for -G option",
+              option_arg.str().c_str());
+      }
+      break;
       case 'l':
         if (option_arg.getAsInteger(0, m_line_start)) {
           error.SetErrorStringWithFormat("invalid start line number: \"%s\"",
@@ -4627,7 +4673,7 @@ public:
 
       case 'o':
         m_use_one_liner = true;
-        m_one_liner = option_arg;
+        m_one_liner.push_back(option_arg);
         break;
 
       default:
@@ -4656,6 +4702,7 @@ public:
 
       m_use_one_liner = false;
       m_one_liner.clear();
+      m_auto_continue = false;
     }
 
     std::string m_class_name;
@@ -4674,7 +4721,8 @@ public:
     bool m_thread_specified;
     // Instance variables to hold the values for one_liner options.
     bool m_use_one_liner;
-    std::string m_one_liner;
+    std::vector<std::string> m_one_liner;
+    bool m_auto_continue;
   };
 
   CommandObjectTargetStopHookAdd(CommandInterpreter &interpreter)
@@ -4735,49 +4783,49 @@ protected:
       Target::StopHookSP new_hook_sp = target->CreateStopHook();
 
       //  First step, make the specifier.
-      std::unique_ptr<SymbolContextSpecifier> specifier_ap;
+      std::unique_ptr<SymbolContextSpecifier> specifier_up;
       if (m_options.m_sym_ctx_specified) {
-        specifier_ap.reset(new SymbolContextSpecifier(
+        specifier_up.reset(new SymbolContextSpecifier(
             m_interpreter.GetDebugger().GetSelectedTarget()));
 
         if (!m_options.m_module_name.empty()) {
-          specifier_ap->AddSpecification(
+          specifier_up->AddSpecification(
               m_options.m_module_name.c_str(),
               SymbolContextSpecifier::eModuleSpecified);
         }
 
         if (!m_options.m_class_name.empty()) {
-          specifier_ap->AddSpecification(
+          specifier_up->AddSpecification(
               m_options.m_class_name.c_str(),
               SymbolContextSpecifier::eClassOrNamespaceSpecified);
         }
 
         if (!m_options.m_file_name.empty()) {
-          specifier_ap->AddSpecification(
+          specifier_up->AddSpecification(
               m_options.m_file_name.c_str(),
               SymbolContextSpecifier::eFileSpecified);
         }
 
         if (m_options.m_line_start != 0) {
-          specifier_ap->AddLineSpecification(
+          specifier_up->AddLineSpecification(
               m_options.m_line_start,
               SymbolContextSpecifier::eLineStartSpecified);
         }
 
         if (m_options.m_line_end != UINT_MAX) {
-          specifier_ap->AddLineSpecification(
+          specifier_up->AddLineSpecification(
               m_options.m_line_end, SymbolContextSpecifier::eLineEndSpecified);
         }
 
         if (!m_options.m_function_name.empty()) {
-          specifier_ap->AddSpecification(
+          specifier_up->AddSpecification(
               m_options.m_function_name.c_str(),
               SymbolContextSpecifier::eFunctionSpecified);
         }
       }
 
-      if (specifier_ap)
-        new_hook_sp->SetSpecifier(specifier_ap.release());
+      if (specifier_up)
+        new_hook_sp->SetSpecifier(specifier_up.release());
 
       // Next see if any of the thread options have been entered:
 
@@ -4799,10 +4847,13 @@ protected:
 
         new_hook_sp->SetThreadSpecifier(thread_spec);
       }
+      
+      new_hook_sp->SetAutoContinue(m_options.m_auto_continue);
       if (m_options.m_use_one_liner) {
-        // Use one-liner.
-        new_hook_sp->GetCommandPointer()->AppendString(
-            m_options.m_one_liner.c_str());
+        // Use one-liners.
+        for (auto cmd : m_options.m_one_liner)
+          new_hook_sp->GetCommandPointer()->AppendString(
+            cmd.c_str());
         result.AppendMessageWithFormat("Stop hook #%" PRIu64 " added.\n",
                                        new_hook_sp->GetID());
       } else {

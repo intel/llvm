@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -11,6 +10,11 @@
 
 // long double stold(const string& str, size_t *idx = 0);
 // long double stold(const wstring& str, size_t *idx = 0);
+
+// When back-deploying to macosx10.7, the RTTI for exception classes
+// incorrectly provided by libc++.dylib is mixed with the one in
+// libc++abi.dylib and exceptions are not caught properly.
+// XFAIL: with_system_cxx_lib=macosx10.7
 
 #include <iostream>
 
@@ -20,7 +24,7 @@
 
 #include "test_macros.h"
 
-int main()
+int main(int, char**)
 {
     assert(std::stold("0") == 0);
     assert(std::stold(L"0") == 0);
@@ -189,4 +193,6 @@ int main()
         assert(idx == 0);
     }
 #endif
+
+  return 0;
 }

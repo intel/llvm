@@ -1,9 +1,8 @@
 //===-- X86AsmInstrumentation.cpp - Instrument X86 inline assembly --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -195,8 +194,7 @@ public:
   // X86AsmInstrumentation implementation:
   void InstrumentAndEmitInstruction(const MCInst &Inst, OperandVector &Operands,
                                     MCContext &Ctx, const MCInstrInfo &MII,
-                                    MCStreamer &Out,
-                                    /* unused */ bool) override {
+                                    MCStreamer &Out) override {
     InstrumentMOVS(Inst, Operands, Ctx, MII, Out);
     if (RepPrefix)
       EmitInstruction(Out, MCInstBuilder(X86::REP_PREFIX));
@@ -1044,13 +1042,13 @@ X86AsmInstrumentation::~X86AsmInstrumentation() = default;
 
 void X86AsmInstrumentation::InstrumentAndEmitInstruction(
     const MCInst &Inst, OperandVector &Operands, MCContext &Ctx,
-    const MCInstrInfo &MII, MCStreamer &Out, bool PrintSchedInfoEnabled) {
-  EmitInstruction(Out, Inst, PrintSchedInfoEnabled);
+    const MCInstrInfo &MII, MCStreamer &Out) {
+  EmitInstruction(Out, Inst);
 }
 
-void X86AsmInstrumentation::EmitInstruction(MCStreamer &Out, const MCInst &Inst,
-                                            bool PrintSchedInfoEnabled) {
-  Out.EmitInstruction(Inst, *STI, PrintSchedInfoEnabled);
+void X86AsmInstrumentation::EmitInstruction(MCStreamer &Out,
+                                            const MCInst &Inst) {
+  Out.EmitInstruction(Inst, *STI);
 }
 
 unsigned X86AsmInstrumentation::GetFrameRegGeneric(const MCContext &Ctx,

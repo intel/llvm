@@ -1,9 +1,8 @@
 //===- Symbols.h ------------------------------------------------*- C++ -*-===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -64,11 +63,20 @@ public:
   bool isWeak() const;
   bool isHidden() const;
 
+  // True if this is an undefined weak symbol. This only works once
+  // all input files have been added.
+  bool isUndefWeak() const {
+    // See comment on lazy symbols for details.
+    return isWeak() && (isUndefined() || isLazy());
+  }
+
   // Returns the symbol name.
   StringRef getName() const { return Name; }
 
   // Returns the file from which this symbol was created.
   InputFile *getFile() const { return File; }
+
+  uint32_t getFlags() const { return Flags; }
 
   InputChunk *getChunk() const;
 
@@ -94,10 +102,16 @@ public:
   unsigned IsUsedInRegularObj : 1;
   unsigned ForceExport : 1;
 
+  // True if this symbol is specified by --trace-symbol option.
+  unsigned Traced : 1;
+
+  const WasmSignature* getSignature() const;
+
 protected:
   Symbol(StringRef Name, Kind K, uint32_t Flags, InputFile *F)
-      : IsUsedInRegularObj(false), ForceExport(false), Name(Name),
-        SymbolKind(K), Flags(Flags), File(F), Referenced(!Config->GcSections) {}
+      : IsUsedInRegularObj(false), ForceExport(false), Traced(false),
+        Name(Name), SymbolKind(K), Flags(Flags), File(F),
+        Referenced(!Config->GcSections) {}
 
   StringRef Name;
   Kind SymbolKind;
@@ -149,13 +163,19 @@ public:
 
 class UndefinedFunction : public FunctionSymbol {
 public:
-  UndefinedFunction(StringRef Name, uint32_t Flags, InputFile *File = nullptr,
+  UndefinedFunction(StringRef Name, StringRef ImportName,
+                    StringRef ImportModule, uint32_t Flags,
+                    InputFile *File = nullptr,
                     const WasmSignature *Type = nullptr)
-      : FunctionSymbol(Name, UndefinedFunctionKind, Flags, File, Type) {}
+      : FunctionSymbol(Name, UndefinedFunctionKind, Flags, File, Type),
+        ImportName(ImportName), ImportModule(ImportModule) {}
 
   static bool classof(const Symbol *S) {
     return S->kind() == UndefinedFunctionKind;
   }
+
+  StringRef ImportName;
+  StringRef ImportModule;
 };
 
 class SectionSymbol : public Symbol {
@@ -261,13 +281,18 @@ public:
 
 class UndefinedGlobal : public GlobalSymbol {
 public:
-  UndefinedGlobal(StringRef Name, uint32_t Flags, InputFile *File = nullptr,
+  UndefinedGlobal(StringRef Name, StringRef ImportName, StringRef ImportModule,
+                  uint32_t Flags, InputFile *File = nullptr,
                   const WasmGlobalType *Type = nullptr)
-      : GlobalSymbol(Name, UndefinedGlobalKind, Flags, File, Type) {}
+      : GlobalSymbol(Name, UndefinedGlobalKind, Flags, File, Type),
+        ImportName(ImportName), ImportModule(ImportModule) {}
 
   static bool classof(const Symbol *S) {
     return S->kind() == UndefinedGlobalKind;
   }
+
+  StringRef ImportName;
+  StringRef ImportModule;
 };
 
 // Wasm events are features that suspend the current execution and transfer the
@@ -314,14 +339,30 @@ public:
   InputEvent *Event;
 };
 
+// LazySymbol represents a symbol that is not yet in the link, but we know where
+// to find it if needed. If the resolver finds both Undefined and Lazy for the
+// same name, it will ask the Lazy to load a file.
+//
+// A special complication is the handling of weak undefined symbols. They should
+// not load a file, but we have to remember we have seen both the weak undefined
+// and the lazy. We represent that with a lazy symbol with a weak binding. This
+// means that code looking for undefined symbols normally also has to take lazy
+// symbols into consideration.
 class LazySymbol : public Symbol {
 public:
-  LazySymbol(StringRef Name, InputFile *File,
+  LazySymbol(StringRef Name, uint32_t Flags, InputFile *File,
              const llvm::object::Archive::Symbol &Sym)
-      : Symbol(Name, LazyKind, 0, File), ArchiveSymbol(Sym) {}
+      : Symbol(Name, LazyKind, Flags, File), ArchiveSymbol(Sym) {}
 
   static bool classof(const Symbol *S) { return S->kind() == LazyKind; }
   void fetch();
+
+  // Lazy symbols can have a signature because they can replace an
+  // UndefinedFunction which which case we need to be able to preserve the
+  // signture.
+  // TODO(sbc): This repetition of the signature field is inelegant.  Revisit
+  // the use of class hierarchy to represent symbol taxonomy.
+  const WasmSignature *Signature = nullptr;
 
 private:
   llvm::object::Archive::Symbol ArchiveSymbol;
@@ -376,6 +417,8 @@ union SymbolUnion {
   alignas(SectionSymbol) char I[sizeof(SectionSymbol)];
 };
 
+void printTraceSymbol(Symbol *Sym);
+
 template <typename T, typename... ArgT>
 T *replaceSymbol(Symbol *S, ArgT &&... Arg) {
   static_assert(std::is_trivially_destructible<T>(),
@@ -391,6 +434,13 @@ T *replaceSymbol(Symbol *S, ArgT &&... Arg) {
   T *S2 = new (S) T(std::forward<ArgT>(Arg)...);
   S2->IsUsedInRegularObj = SymCopy.IsUsedInRegularObj;
   S2->ForceExport = SymCopy.ForceExport;
+  S2->Traced = SymCopy.Traced;
+
+  // Print out a log message if --trace-symbol was specified.
+  // This is for debugging.
+  if (S2->Traced)
+    printTraceSymbol(S2);
+
   return S2;
 }
 

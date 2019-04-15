@@ -1,9 +1,8 @@
 //===- ScheduleDAGRRList.cpp - Reg pressure reduction list scheduler ------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -709,6 +708,7 @@ void ScheduleDAGRRList::EmitNode(SUnit *SU) {
     // removed.
     return;
   case ISD::INLINEASM:
+  case ISD::INLINEASM_BR:
     // For inline asm, clear the pipeline state.
     HazardRec->Reset();
     return;
@@ -1348,7 +1348,8 @@ DelayForLiveRegsBottomUp(SUnit *SU, SmallVectorImpl<unsigned> &LRegs) {
   }
 
   for (SDNode *Node = SU->getNode(); Node; Node = Node->getGluedNode()) {
-    if (Node->getOpcode() == ISD::INLINEASM) {
+    if (Node->getOpcode() == ISD::INLINEASM ||
+        Node->getOpcode() == ISD::INLINEASM_BR) {
       // Inline asm can clobber physical defs.
       unsigned NumOps = Node->getNumOperands();
       if (Node->getOperand(NumOps-1).getValueType() == MVT::Glue)
@@ -2938,6 +2939,29 @@ void RegReductionPQBase::PrescheduleNodesWithMultipleUses() {
           TargetRegisterInfo::isVirtualRegister
             (cast<RegisterSDNode>(N->getOperand(1))->getReg()))
         continue;
+
+    SDNode *PredFrameSetup = nullptr;
+    for (const SDep &Pred : SU.Preds)
+      if (Pred.isCtrl() && Pred.getSUnit()) {
+        // Find the predecessor which is not data dependence.
+        SDNode *PredND = Pred.getSUnit()->getNode();
+
+        // If PredND is FrameSetup, we should not pre-scheduled the node,
+        // or else, when bottom up scheduling, ADJCALLSTACKDOWN and
+        // ADJCALLSTACKUP may hold CallResource too long and make other
+        // calls can't be scheduled. If there's no other available node
+        // to schedule, the schedular will try to rename the register by
+        // creating copy to avoid the conflict which will fail because
+        // CallResource is not a real physical register.
+        if (PredND && PredND->isMachineOpcode() &&
+            (PredND->getMachineOpcode() == TII->getCallFrameSetupOpcode())) {
+          PredFrameSetup = PredND;
+          break;
+        }
+      }
+    // Skip the node has FrameSetup parent.
+    if (PredFrameSetup != nullptr)
+      continue;
 
     // Locate the single data predecessor.
     SUnit *PredSU = nullptr;

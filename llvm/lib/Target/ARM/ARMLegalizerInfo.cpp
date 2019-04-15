@@ -1,9 +1,8 @@
 //===- ARMLegalizerInfo.cpp --------------------------------------*- C++ -*-==//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -89,35 +88,13 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
       .legalFor({s32})
       .minScalar(0, s32);
 
-  getActionDefinitionsBuilder(G_INTTOPTR).legalFor({{p0, s32}});
-  getActionDefinitionsBuilder(G_PTRTOINT).legalFor({{s32, p0}});
+  getActionDefinitionsBuilder({G_ASHR, G_LSHR, G_SHL})
+    .legalFor({{s32, s32}})
+    .clampScalar(1, s32, s32);
 
-  getActionDefinitionsBuilder(G_CONSTANT)
-      .legalFor({s32, p0})
-      .clampScalar(0, s32, s32);
-
-  // We're keeping these builders around because we'll want to add support for
-  // floating point to them.
-  auto &LoadStoreBuilder =
-      getActionDefinitionsBuilder({G_LOAD, G_STORE})
-          .legalForTypesWithMemSize({
-              {s1, p0, 8},
-              {s8, p0, 8},
-              {s16, p0, 16},
-              {s32, p0, 32},
-              {p0, p0, 32}});
-
-  if (ST.isThumb()) {
-    // FIXME: merge with the code for non-Thumb.
-    computeTables();
-    verify(*ST.getInstrInfo());
-    return;
-  }
-
-  getActionDefinitionsBuilder(G_GLOBAL_VALUE).legalFor({p0});
-  getActionDefinitionsBuilder(G_FRAME_INDEX).legalFor({p0});
-
-  if (ST.hasDivideInARMMode())
+  bool HasHWDivide = (!ST.isThumb() && ST.hasDivideInARMMode()) ||
+                     (ST.isThumb() && ST.hasDivideInThumbMode());
+  if (HasHWDivide)
     getActionDefinitionsBuilder({G_SDIV, G_UDIV})
         .legalFor({s32})
         .clampScalar(0, s32, s32);
@@ -128,7 +105,7 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
 
   for (unsigned Op : {G_SREM, G_UREM}) {
     setLegalizeScalarToDifferentSizeStrategy(Op, 0, widen_8_16);
-    if (ST.hasDivideInARMMode())
+    if (HasHWDivide)
       setAction({Op, s32}, Lower);
     else if (AEABI(ST))
       setAction({Op, s32}, Custom);
@@ -136,39 +113,42 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
       setAction({Op, s32}, Libcall);
   }
 
-  getActionDefinitionsBuilder({G_ASHR, G_LSHR, G_SHL}).legalFor({s32});
+  getActionDefinitionsBuilder(G_INTTOPTR).legalFor({{p0, s32}});
+  getActionDefinitionsBuilder(G_PTRTOINT).legalFor({{s32, p0}});
 
-  if (ST.hasV5TOps()) {
-    getActionDefinitionsBuilder(G_CTLZ)
-        .legalFor({s32})
-        .clampScalar(0, s32, s32);
-    getActionDefinitionsBuilder(G_CTLZ_ZERO_UNDEF)
-        .lowerFor({s32})
-        .clampScalar(0, s32, s32);
-  } else {
-    getActionDefinitionsBuilder(G_CTLZ_ZERO_UNDEF)
-        .libcallFor({s32})
-        .clampScalar(0, s32, s32);
-    getActionDefinitionsBuilder(G_CTLZ)
-        .lowerFor({s32})
-        .clampScalar(0, s32, s32);
-  }
-
-  getActionDefinitionsBuilder(G_GEP).legalFor({{p0, s32}});
-
-  getActionDefinitionsBuilder(G_SELECT).legalForCartesianProduct({s32, p0},
-                                                                 {s1});
-
-  getActionDefinitionsBuilder(G_BRCOND).legalFor({s1});
+  getActionDefinitionsBuilder(G_CONSTANT)
+      .legalFor({s32, p0})
+      .clampScalar(0, s32, s32);
 
   getActionDefinitionsBuilder(G_ICMP)
       .legalForCartesianProduct({s1}, {s32, p0})
       .minScalar(1, s32);
 
+  getActionDefinitionsBuilder(G_SELECT).legalForCartesianProduct({s32, p0},
+                                                                 {s1});
+
   // We're keeping these builders around because we'll want to add support for
   // floating point to them.
+  auto &LoadStoreBuilder =
+      getActionDefinitionsBuilder({G_LOAD, G_STORE})
+          .legalForTypesWithMemDesc({
+              {s1, p0, 8, 8},
+              {s8, p0, 8, 8},
+              {s16, p0, 16, 8},
+              {s32, p0, 32, 8},
+              {p0, p0, 32, 8}});
+
+  getActionDefinitionsBuilder(G_FRAME_INDEX).legalFor({p0});
+  getActionDefinitionsBuilder(G_GLOBAL_VALUE).legalFor({p0});
+
   auto &PhiBuilder =
-      getActionDefinitionsBuilder(G_PHI).legalFor({s32, p0}).minScalar(0, s32);
+      getActionDefinitionsBuilder(G_PHI)
+          .legalFor({s32, p0})
+          .minScalar(0, s32);
+
+  getActionDefinitionsBuilder(G_GEP).legalFor({{p0, s32}});
+
+  getActionDefinitionsBuilder(G_BRCOND).legalFor({s1});
 
   if (!ST.useSoftFloat() && ST.hasVFP2()) {
     getActionDefinitionsBuilder(
@@ -225,6 +205,26 @@ ARMLegalizerInfo::ARMLegalizerInfo(const ARMSubtarget &ST) {
     getActionDefinitionsBuilder(G_FMA).libcallFor({s32, s64});
 
   getActionDefinitionsBuilder({G_FREM, G_FPOW}).libcallFor({s32, s64});
+
+  if (ST.hasV5TOps()) {
+    getActionDefinitionsBuilder(G_CTLZ)
+        .legalFor({s32, s32})
+        .clampScalar(1, s32, s32)
+        .clampScalar(0, s32, s32);
+    getActionDefinitionsBuilder(G_CTLZ_ZERO_UNDEF)
+        .lowerFor({s32, s32})
+        .clampScalar(1, s32, s32)
+        .clampScalar(0, s32, s32);
+  } else {
+    getActionDefinitionsBuilder(G_CTLZ_ZERO_UNDEF)
+        .libcallFor({s32, s32})
+        .clampScalar(1, s32, s32)
+        .clampScalar(0, s32, s32);
+    getActionDefinitionsBuilder(G_CTLZ)
+        .lowerFor({s32, s32})
+        .clampScalar(1, s32, s32)
+        .clampScalar(0, s32, s32);
+  }
 
   computeTables();
   verify(*ST.getInstrInfo());

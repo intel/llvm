@@ -1,9 +1,8 @@
 //===- llvm-readobj.cpp - Dump contents of an Object File -----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -23,6 +22,7 @@
 #include "Error.h"
 #include "ObjDumper.h"
 #include "WindowsResourceDumper.h"
+#include "llvm/DebugInfo/CodeView/GlobalTypeTableBuilder.h"
 #include "llvm/DebugInfo/CodeView/MergingTypeTableBuilder.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/COFFImportFile.h"
@@ -92,26 +92,25 @@ namespace opts {
                                 cl::desc("Alias for --section-headers"),
                                 cl::aliasopt(SectionHeaders), cl::NotHidden);
 
-  // -section-relocations, -sr
+  // -section-relocations
+  // Also -sr in llvm-readobj mode.
   cl::opt<bool> SectionRelocations("section-relocations",
     cl::desc("Display relocations for each section shown."));
-  cl::alias SectionRelocationsShort("sr",
-    cl::desc("Alias for --section-relocations"),
-    cl::aliasopt(SectionRelocations));
 
-  // -section-symbols, -st
+  // -section-symbols
+  // Also -st in llvm-readobj mode.
   cl::opt<bool> SectionSymbols("section-symbols",
     cl::desc("Display symbols for each section shown."));
-  cl::alias SectionSymbolsShort("st",
-    cl::desc("Alias for --section-symbols"),
-    cl::aliasopt(SectionSymbols));
 
-  // -section-data, -sd
+  // -section-data
+  // Also -sd in llvm-readobj mode.
   cl::opt<bool> SectionData("section-data",
     cl::desc("Display section data for each section shown."));
-  cl::alias SectionDataShort("sd",
-    cl::desc("Alias for --section-data"),
-    cl::aliasopt(SectionData));
+
+  // -section-mapping
+  cl::opt<cl::boolOrDefault>
+      SectionMapping("section-mapping",
+                     cl::desc("Display the section to segment mapping."));
 
   // -relocations, -relocs, -r
   cl::opt<bool> Relocations("relocations",
@@ -131,19 +130,24 @@ namespace opts {
 
   // -symbols
   // Also -s in llvm-readelf mode, or -t in llvm-readobj mode.
-  cl::opt<bool> Symbols("symbols",
-    cl::desc("Display the symbol table"));
+  cl::opt<bool>
+      Symbols("symbols",
+              cl::desc("Display the symbol table. Also display the dynamic "
+                       "symbol table when using GNU output style for ELF"));
   cl::alias SymbolsGNU("syms", cl::desc("Alias for --symbols"),
                        cl::aliasopt(Symbols));
 
-  // -dyn-symbols, -dyn-syms, -dt
+  // -dyn-symbols, -dyn-syms
+  // Also -dt in llvm-readobj mode.
   cl::opt<bool> DynamicSymbols("dyn-symbols",
     cl::desc("Display the dynamic symbol table"));
-  cl::alias DynamicSymbolsShort("dt",
-    cl::desc("Alias for --dyn-symbols"),
-    cl::aliasopt(DynamicSymbols));
   cl::alias DynSymsGNU("dyn-syms", cl::desc("Alias for --dyn-symbols"),
                        cl::aliasopt(DynamicSymbols));
+
+  // -hash-symbols
+  cl::opt<bool> HashSymbols(
+      "hash-symbols",
+      cl::desc("Display the dynamic symbols derived from the hash section"));
 
   // -unwind, -u
   cl::opt<bool> UnwindInfo("unwind",
@@ -184,6 +188,12 @@ namespace opts {
   cl::alias HexDumpShort("x", cl::desc("Alias for --hex-dump"),
                          cl::aliasopt(HexDump));
 
+  // -demangle, -C
+  cl::opt<bool> Demangle("demangle",
+                         cl::desc("Demangle symbol names in output"));
+  cl::alias DemangleShort("C", cl::desc("Alias for --demangle"),
+                          cl::aliasopt(Demangle), cl::NotHidden);
+
   // -hash-table
   cl::opt<bool> HashTable("hash-table",
     cl::desc("Display ELF hash table"));
@@ -208,6 +218,12 @@ namespace opts {
   cl::opt<bool>
       CodeViewMergedTypes("codeview-merged-types",
                           cl::desc("Display the merged CodeView type stream"));
+
+  // -codeview-ghash
+  cl::opt<bool> CodeViewEnableGHash(
+      "codeview-ghash",
+      cl::desc(
+          "Enable global hashing for CodeView type stream de-duplication"));
 
   // -codeview-subsection-bytes
   cl::opt<bool> CodeViewSubsectionBytes(
@@ -407,13 +423,17 @@ static bool isMipsArch(unsigned Arch) {
 namespace {
 struct ReadObjTypeTableBuilder {
   ReadObjTypeTableBuilder()
-      : Allocator(), IDTable(Allocator), TypeTable(Allocator) {}
+      : Allocator(), IDTable(Allocator), TypeTable(Allocator),
+        GlobalIDTable(Allocator), GlobalTypeTable(Allocator) {}
 
   llvm::BumpPtrAllocator Allocator;
   llvm::codeview::MergingTypeTableBuilder IDTable;
   llvm::codeview::MergingTypeTableBuilder TypeTable;
+  llvm::codeview::GlobalTypeTableBuilder GlobalIDTable;
+  llvm::codeview::GlobalTypeTableBuilder GlobalTypeTable;
+  std::vector<OwningBinary<Binary>> Binaries;
 };
-}
+} // namespace
 static ReadObjTypeTableBuilder CVTypes;
 
 /// Creates an format-specific object file dumper.
@@ -460,18 +480,18 @@ static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer) {
     Dumper->printRelocations();
   if (opts::DynRelocs)
     Dumper->printDynamicRelocations();
-  if (opts::Symbols)
-    Dumper->printSymbols();
-  if (opts::DynamicSymbols)
-    Dumper->printDynamicSymbols();
+  if (opts::Symbols || opts::DynamicSymbols)
+    Dumper->printSymbols(opts::Symbols, opts::DynamicSymbols);
+  if (opts::HashSymbols)
+    Dumper->printHashSymbols();
   if (opts::UnwindInfo)
     Dumper->printUnwindInfo();
   if (opts::DynamicTable)
     Dumper->printDynamicTable();
   if (opts::NeededLibraries)
     Dumper->printNeededLibraries();
-  if (opts::ProgramHeaders)
-    Dumper->printProgramHeaders();
+  if (opts::ProgramHeaders || opts::SectionMapping == cl::BOU_TRUE)
+    Dumper->printProgramHeaders(opts::ProgramHeaders, opts::SectionMapping);
   if (!opts::StringDump.empty())
     llvm::for_each(opts::StringDump, [&Dumper, Obj](StringRef SectionName) {
       Dumper->printSectionAsString(Obj, SectionName);
@@ -533,7 +553,9 @@ static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer) {
     if (opts::CodeView)
       Dumper->printCodeViewDebugInfo();
     if (opts::CodeViewMergedTypes)
-      Dumper->mergeCodeViewTypes(CVTypes.IDTable, CVTypes.TypeTable);
+      Dumper->mergeCodeViewTypes(CVTypes.IDTable, CVTypes.TypeTable,
+                                 CVTypes.GlobalIDTable, CVTypes.GlobalTypeTable,
+                                 opts::CodeViewEnableGHash);
   }
   if (Obj->isMachO()) {
     if (opts::MachODataInCode)
@@ -560,7 +582,7 @@ static void dumpArchive(const Archive *Arc, ScopedPrinter &Writer) {
     Expected<std::unique_ptr<Binary>> ChildOrErr = Child.getAsBinary();
     if (!ChildOrErr) {
       if (auto E = isNotObjectErrorInvalidFileType(ChildOrErr.takeError())) {
-        reportError(Arc->getFileName(), ChildOrErr.takeError());
+        reportError(Arc->getFileName(), std::move(E));
       }
       continue;
     }
@@ -622,6 +644,8 @@ static void dumpInput(StringRef File) {
     dumpWindowsResourceFile(WinRes);
   else
     reportError(File, readobj_error::unrecognized_file_format);
+
+  CVTypes.Binaries.push_back(std::move(*BinaryOrErr));
 }
 
 /// Registers aliases that should only be allowed by readobj.
@@ -636,13 +660,36 @@ static void registerReadobjAliases() {
   // --section-details (not implemented yet).
   static cl::alias SymbolsShort("t", cl::desc("Alias for --symbols"),
                                 cl::aliasopt(opts::Symbols), cl::NotHidden);
+
+  // The following two-letter aliases are only provided for readobj, as readelf
+  // allows single-letter args to be grouped together.
+  static cl::alias SectionRelocationsShort(
+      "sr", cl::desc("Alias for --section-relocations"),
+      cl::aliasopt(opts::SectionRelocations));
+  static cl::alias SectionDataShort("sd", cl::desc("Alias for --section-data"),
+                                    cl::aliasopt(opts::SectionData));
+  static cl::alias SectionSymbolsShort("st",
+                                       cl::desc("Alias for --section-symbols"),
+                                       cl::aliasopt(opts::SectionSymbols));
+  static cl::alias DynamicSymbolsShort("dt",
+                                       cl::desc("Alias for --dyn-symbols"),
+                                       cl::aliasopt(opts::DynamicSymbols));
 }
 
 /// Registers aliases that should only be allowed by readelf.
 static void registerReadelfAliases() {
   // -s is here because for readobj it means --sections.
   static cl::alias SymbolsShort("s", cl::desc("Alias for --symbols"),
-                                cl::aliasopt(opts::Symbols), cl::NotHidden);
+                                cl::aliasopt(opts::Symbols), cl::NotHidden,
+                                cl::Grouping);
+
+  // Allow all single letter flags to be grouped together.
+  for (auto &OptEntry : cl::getRegisteredOptions()) {
+    StringRef ArgName = OptEntry.getKey();
+    cl::Option *Option = OptEntry.getValue();
+    if (ArgName.size() == 1)
+      apply(Option, cl::Grouping);
+  }
 }
 
 int main(int argc, const char *argv[]) {
@@ -688,7 +735,12 @@ int main(int argc, const char *argv[]) {
 
   if (opts::CodeViewMergedTypes) {
     ScopedPrinter W(outs());
-    dumpCodeViewMergedTypes(W, CVTypes.IDTable, CVTypes.TypeTable);
+    if (opts::CodeViewEnableGHash)
+      dumpCodeViewMergedTypes(W, CVTypes.GlobalIDTable.records(),
+                              CVTypes.GlobalTypeTable.records());
+    else
+      dumpCodeViewMergedTypes(W, CVTypes.IDTable.records(),
+                              CVTypes.TypeTable.records());
   }
 
   return 0;

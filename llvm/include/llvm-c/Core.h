@@ -1,9 +1,9 @@
 /*===-- llvm-c/Core.h - Core Library C Interface ------------------*- C -*-===*\
 |*                                                                            *|
-|*                     The LLVM Compiler Infrastructure                       *|
-|*                                                                            *|
-|* This file is distributed under the University of Illinois Open Source      *|
-|* License. See LICENSE.TXT for details.                                      *|
+|* Part of the LLVM Project, under the Apache License v2.0 with LLVM          *|
+|* Exceptions.                                                                *|
+|* See https://llvm.org/LICENSE.txt for license information.                  *|
+|* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception                    *|
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
@@ -65,6 +65,7 @@ typedef enum {
   LLVMInvoke         = 5,
   /* removed 6 due to API changes */
   LLVMUnreachable    = 7,
+  LLVMCallBr         = 67,
 
   /* Standard Unary Operators */
   LLVMFNeg           = 66,
@@ -519,6 +520,23 @@ void *LLVMContextGetDiagnosticContext(LLVMContextRef C);
  */
 void LLVMContextSetYieldCallback(LLVMContextRef C, LLVMYieldCallback Callback,
                                  void *OpaqueHandle);
+
+/**
+ * Retrieve whether the given context is set to discard all value names.
+ *
+ * @see LLVMContext::shouldDiscardValueNames()
+ */
+LLVMBool LLVMContextShouldDiscardValueNames(LLVMContextRef C);
+
+/**
+ * Set whether the given context discards all value names.
+ *
+ * If true, only the names of GlobalValue objects will be available in the IR.
+ * This can be used to save memory and runtime, especially in release mode.
+ *
+ * @see LLVMContext::setDiscardValueNames()
+ */
+void LLVMContextSetDiscardValueNames(LLVMContextRef C, LLVMBool Discard);
 
 /**
  * Destroy a context instance.
@@ -2068,9 +2086,14 @@ LLVMValueRef LLVMConstLShr(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstAShr(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant);
 LLVMValueRef LLVMConstGEP(LLVMValueRef ConstantVal,
                           LLVMValueRef *ConstantIndices, unsigned NumIndices);
+LLVMValueRef LLVMConstGEP2(LLVMTypeRef Ty, LLVMValueRef ConstantVal,
+                           LLVMValueRef *ConstantIndices, unsigned NumIndices);
 LLVMValueRef LLVMConstInBoundsGEP(LLVMValueRef ConstantVal,
                                   LLVMValueRef *ConstantIndices,
                                   unsigned NumIndices);
+LLVMValueRef LLVMConstInBoundsGEP2(LLVMTypeRef Ty, LLVMValueRef ConstantVal,
+                                   LLVMValueRef *ConstantIndices,
+                                   unsigned NumIndices);
 LLVMValueRef LLVMConstTrunc(LLVMValueRef ConstantVal, LLVMTypeRef ToType);
 LLVMValueRef LLVMConstSExt(LLVMValueRef ConstantVal, LLVMTypeRef ToType);
 LLVMValueRef LLVMConstZExt(LLVMValueRef ConstantVal, LLVMTypeRef ToType);
@@ -2590,6 +2613,103 @@ void LLVMSetParamAlignment(LLVMValueRef Arg, unsigned Align);
  */
 
 /**
+ * @defgroup LLVMCCoreValueGlobalIFunc IFuncs
+ *
+ * Functions in this group relate to indirect functions.
+ *
+ * Functions in this group expect LLVMValueRef instances that correspond
+ * to llvm::GlobalIFunc instances.
+ *
+ * @{
+ */
+
+/**
+ * Add a global indirect function to a module under a specified name.
+ *
+ * @see llvm::GlobalIFunc::create()
+ */
+LLVMValueRef LLVMAddGlobalIFunc(LLVMModuleRef M,
+                                const char *Name, size_t NameLen,
+                                LLVMTypeRef Ty, unsigned AddrSpace,
+                                LLVMValueRef Resolver);
+
+/**
+ * Obtain a GlobalIFunc value from a Module by its name.
+ *
+ * The returned value corresponds to a llvm::GlobalIFunc value.
+ *
+ * @see llvm::Module::getNamedIFunc()
+ */
+LLVMValueRef LLVMGetNamedGlobalIFunc(LLVMModuleRef M,
+                                     const char *Name, size_t NameLen);
+
+/**
+ * Obtain an iterator to the first GlobalIFunc in a Module.
+ *
+ * @see llvm::Module::ifunc_begin()
+ */
+LLVMValueRef LLVMGetFirstGlobalIFunc(LLVMModuleRef M);
+
+/**
+ * Obtain an iterator to the last GlobalIFunc in a Module.
+ *
+ * @see llvm::Module::ifunc_end()
+ */
+LLVMValueRef LLVMGetLastGlobalIFunc(LLVMModuleRef M);
+
+/**
+ * Advance a GlobalIFunc iterator to the next GlobalIFunc.
+ *
+ * Returns NULL if the iterator was already at the end and there are no more
+ * global aliases.
+ */
+LLVMValueRef LLVMGetNextGlobalIFunc(LLVMValueRef IFunc);
+
+/**
+ * Decrement a GlobalIFunc iterator to the previous GlobalIFunc.
+ *
+ * Returns NULL if the iterator was already at the beginning and there are
+ * no previous global aliases.
+ */
+LLVMValueRef LLVMGetPreviousGlobalIFunc(LLVMValueRef IFunc);
+  
+/**
+ * Retrieves the resolver function associated with this indirect function, or
+ * NULL if it doesn't not exist.
+ *
+ * @see llvm::GlobalIFunc::getResolver()
+ */
+LLVMValueRef LLVMGetGlobalIFuncResolver(LLVMValueRef IFunc);
+
+/**
+ * Sets the resolver function associated with this indirect function.
+ *
+ * @see llvm::GlobalIFunc::setResolver()
+ */
+void LLVMSetGlobalIFuncResolver(LLVMValueRef IFunc, LLVMValueRef Resolver);
+
+/**
+ * Remove a global indirect function from its parent module and delete it.
+ *
+ * @see llvm::GlobalIFunc::eraseFromParent()
+ */
+void LLVMEraseGlobalIFunc(LLVMValueRef IFunc);
+
+/**
+ * Remove a global indirect function from its parent module.
+ *
+ * This unlinks the global indirect function from its containing module but
+ * keeps it alive.
+ *
+ * @see llvm::GlobalIFunc::removeFromParent()
+ */
+void LLVMRemoveGlobalIFunc(LLVMValueRef IFunc);
+
+/**
+ * @}
+ */
+
+/**
  * @}
  */
 
@@ -2788,6 +2908,14 @@ LLVMBasicBlockRef LLVMGetPreviousBasicBlock(LLVMBasicBlockRef BB);
  * @see llvm::Function::getEntryBlock()
  */
 LLVMBasicBlockRef LLVMGetEntryBasicBlock(LLVMValueRef Fn);
+
+/**
+ * Create a new basic block without inserting it into a function.
+ *
+ * @see llvm::BasicBlock::Create()
+ */
+LLVMBasicBlockRef LLVMCreateBasicBlockInContext(LLVMContextRef C,
+                                                const char *Name);
 
 /**
  * Append a basic block to the end of a function.
@@ -3073,6 +3201,13 @@ void LLVMRemoveCallSiteEnumAttribute(LLVMValueRef C, LLVMAttributeIndex Idx,
                                      unsigned KindID);
 void LLVMRemoveCallSiteStringAttribute(LLVMValueRef C, LLVMAttributeIndex Idx,
                                        const char *K, unsigned KLen);
+
+/**
+ * Obtain the function type called by this instruction.
+ *
+ * @see llvm::CallBase::getFunctionType()
+ */
+LLVMTypeRef LLVMGetCalledFunctionType(LLVMValueRef C);
 
 /**
  * Obtain the pointer to the function invoked by this instruction.
@@ -3366,10 +3501,16 @@ LLVMValueRef LLVMBuildSwitch(LLVMBuilderRef, LLVMValueRef V,
                              LLVMBasicBlockRef Else, unsigned NumCases);
 LLVMValueRef LLVMBuildIndirectBr(LLVMBuilderRef B, LLVMValueRef Addr,
                                  unsigned NumDests);
+// LLVMBuildInvoke is deprecated in favor of LLVMBuildInvoke2, in preparation
+// for opaque pointer types.
 LLVMValueRef LLVMBuildInvoke(LLVMBuilderRef, LLVMValueRef Fn,
                              LLVMValueRef *Args, unsigned NumArgs,
                              LLVMBasicBlockRef Then, LLVMBasicBlockRef Catch,
                              const char *Name);
+LLVMValueRef LLVMBuildInvoke2(LLVMBuilderRef, LLVMTypeRef Ty, LLVMValueRef Fn,
+                              LLVMValueRef *Args, unsigned NumArgs,
+                              LLVMBasicBlockRef Then, LLVMBasicBlockRef Catch,
+                              const char *Name);
 LLVMValueRef LLVMBuildUnreachable(LLVMBuilderRef);
 
 /* Exception Handling */
@@ -3559,9 +3700,15 @@ LLVMValueRef LLVMBuildAlloca(LLVMBuilderRef, LLVMTypeRef Ty, const char *Name);
 LLVMValueRef LLVMBuildArrayAlloca(LLVMBuilderRef, LLVMTypeRef Ty,
                                   LLVMValueRef Val, const char *Name);
 LLVMValueRef LLVMBuildFree(LLVMBuilderRef, LLVMValueRef PointerVal);
+// LLVMBuildLoad is deprecated in favor of LLVMBuildLoad2, in preparation for
+// opaque pointer types.
 LLVMValueRef LLVMBuildLoad(LLVMBuilderRef, LLVMValueRef PointerVal,
                            const char *Name);
+LLVMValueRef LLVMBuildLoad2(LLVMBuilderRef, LLVMTypeRef Ty,
+                            LLVMValueRef PointerVal, const char *Name);
 LLVMValueRef LLVMBuildStore(LLVMBuilderRef, LLVMValueRef Val, LLVMValueRef Ptr);
+// LLVMBuildGEP, LLVMBuildInBoundsGEP, and LLVMBuildStructGEP are deprecated in
+// favor of LLVMBuild*GEP2, in preparation for opaque pointer types.
 LLVMValueRef LLVMBuildGEP(LLVMBuilderRef B, LLVMValueRef Pointer,
                           LLVMValueRef *Indices, unsigned NumIndices,
                           const char *Name);
@@ -3570,6 +3717,15 @@ LLVMValueRef LLVMBuildInBoundsGEP(LLVMBuilderRef B, LLVMValueRef Pointer,
                                   const char *Name);
 LLVMValueRef LLVMBuildStructGEP(LLVMBuilderRef B, LLVMValueRef Pointer,
                                 unsigned Idx, const char *Name);
+LLVMValueRef LLVMBuildGEP2(LLVMBuilderRef B, LLVMTypeRef Ty,
+                           LLVMValueRef Pointer, LLVMValueRef *Indices,
+                           unsigned NumIndices, const char *Name);
+LLVMValueRef LLVMBuildInBoundsGEP2(LLVMBuilderRef B, LLVMTypeRef Ty,
+                                   LLVMValueRef Pointer, LLVMValueRef *Indices,
+                                   unsigned NumIndices, const char *Name);
+LLVMValueRef LLVMBuildStructGEP2(LLVMBuilderRef B, LLVMTypeRef Ty,
+                                 LLVMValueRef Pointer, unsigned Idx,
+                                 const char *Name);
 LLVMValueRef LLVMBuildGlobalString(LLVMBuilderRef B, const char *Str,
                                    const char *Name);
 LLVMValueRef LLVMBuildGlobalStringPtr(LLVMBuilderRef B, const char *Str,
@@ -3616,10 +3772,15 @@ LLVMValueRef LLVMBuildCast(LLVMBuilderRef B, LLVMOpcode Op, LLVMValueRef Val,
                            LLVMTypeRef DestTy, const char *Name);
 LLVMValueRef LLVMBuildPointerCast(LLVMBuilderRef, LLVMValueRef Val,
                                   LLVMTypeRef DestTy, const char *Name);
-LLVMValueRef LLVMBuildIntCast(LLVMBuilderRef, LLVMValueRef Val, /*Signed cast!*/
-                              LLVMTypeRef DestTy, const char *Name);
+LLVMValueRef LLVMBuildIntCast2(LLVMBuilderRef, LLVMValueRef Val,
+                               LLVMTypeRef DestTy, LLVMBool IsSigned,
+                               const char *Name);
 LLVMValueRef LLVMBuildFPCast(LLVMBuilderRef, LLVMValueRef Val,
                              LLVMTypeRef DestTy, const char *Name);
+
+/** Deprecated: This cast is always signed. Use LLVMBuildIntCast2 instead. */
+LLVMValueRef LLVMBuildIntCast(LLVMBuilderRef, LLVMValueRef Val, /*Signed cast!*/
+                              LLVMTypeRef DestTy, const char *Name);
 
 /* Comparisons */
 LLVMValueRef LLVMBuildICmp(LLVMBuilderRef, LLVMIntPredicate Op,
@@ -3631,9 +3792,14 @@ LLVMValueRef LLVMBuildFCmp(LLVMBuilderRef, LLVMRealPredicate Op,
 
 /* Miscellaneous instructions */
 LLVMValueRef LLVMBuildPhi(LLVMBuilderRef, LLVMTypeRef Ty, const char *Name);
+// LLVMBuildCall is deprecated in favor of LLVMBuildCall2, in preparation for
+// opaque pointer types.
 LLVMValueRef LLVMBuildCall(LLVMBuilderRef, LLVMValueRef Fn,
                            LLVMValueRef *Args, unsigned NumArgs,
                            const char *Name);
+LLVMValueRef LLVMBuildCall2(LLVMBuilderRef, LLVMTypeRef, LLVMValueRef Fn,
+                            LLVMValueRef *Args, unsigned NumArgs,
+                            const char *Name);
 LLVMValueRef LLVMBuildSelect(LLVMBuilderRef, LLVMValueRef If,
                              LLVMValueRef Then, LLVMValueRef Else,
                              const char *Name);

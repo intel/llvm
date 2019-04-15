@@ -1,9 +1,8 @@
 //===--- CGDebugInfo.cpp - Emit Debug Information for a Module ------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -451,8 +450,8 @@ CGDebugInfo::createFile(StringRef FileName,
     for (; CurDirIt != CurDirE && *CurDirIt == *FileIt; ++CurDirIt, ++FileIt)
       llvm::sys::path::append(DirBuf, *CurDirIt);
     if (std::distance(llvm::sys::path::begin(CurDir), CurDirIt) == 1) {
-      // The common prefix only the root; stripping it would cause
-      // LLVM diagnostic locations to be more confusing.
+      // Don't strip the common prefix if it is only the root "/"
+      // since that would make LLVM diagnostic locations confusing.
       Dir = {};
       File = RemappedFile;
     } else {
@@ -1428,8 +1427,7 @@ CGDebugInfo::getOrCreateMethodType(const CXXMethodDecl *Method,
   if (Method->isStatic())
     return cast_or_null<llvm::DISubroutineType>(
         getOrCreateType(QualType(Func, 0), Unit));
-  return getOrCreateInstanceMethodType(Method->getThisType(CGM.getContext()),
-                                       Func, Unit);
+  return getOrCreateInstanceMethodType(Method->getThisType(), Func, Unit);
 }
 
 llvm::DISubroutineType *CGDebugInfo::getOrCreateInstanceMethodType(
@@ -2298,7 +2296,14 @@ CGDebugInfo::getOrCreateModuleRef(ExternalASTSource::ASTSourceDescriptor Mod,
   }
 
   bool IsRootModule = M ? !M->Parent : true;
-  if (CreateSkeletonCU && IsRootModule) {
+  // When a module name is specified as -fmodule-name, that module gets a
+  // clang::Module object, but it won't actually be built or imported; it will
+  // be textual.
+  if (CreateSkeletonCU && IsRootModule && Mod.getASTFile().empty() && M)
+    assert(StringRef(M->Name).startswith(CGM.getLangOpts().ModuleName) &&
+           "clang module without ASTFile must be specified by -fmodule-name");
+
+  if (CreateSkeletonCU && IsRootModule && !Mod.getASTFile().empty()) {
     // PCH files don't have a signature field in the control block,
     // but LLVM detects skeleton CUs by looking for a non-zero DWO id.
     // We use the lower 64 bits for debug info.
@@ -2315,6 +2320,7 @@ CGDebugInfo::getOrCreateModuleRef(ExternalASTSource::ASTSourceDescriptor Mod,
                           Signature);
     DIB.finalize();
   }
+
   llvm::DIModule *Parent =
       IsRootModule ? nullptr
                    : getOrCreateModuleRef(
@@ -2711,7 +2717,7 @@ llvm::DIType *CGDebugInfo::CreateTypeDefinition(const EnumType *Ty) {
   llvm::DIType *ClassTy = getOrCreateType(ED->getIntegerType(), DefUnit);
   return DBuilder.createEnumerationType(EnumContext, ED->getName(), DefUnit,
                                         Line, Size, Align, EltArray, ClassTy,
-                                        Identifier, ED->isFixed());
+                                        Identifier, ED->isScoped());
 }
 
 llvm::DIMacro *CGDebugInfo::CreateMacro(llvm::DIMacroFile *Parent,
@@ -3025,6 +3031,8 @@ llvm::DICompositeType *CGDebugInfo::CreateLimitedType(const RecordType *Ty) {
     // Record if a C++ record is trivial type.
     if (CXXRD->isTrivial())
       Flags |= llvm::DINode::FlagTrivial;
+    else
+      Flags |= llvm::DINode::FlagNonTrivial;
   }
 
   llvm::DICompositeType *RealDecl = DBuilder.createReplaceableCompositeType(
@@ -3864,6 +3872,32 @@ CGDebugInfo::EmitDeclareOfAutoVariable(const VarDecl *VD, llvm::Value *Storage,
   return EmitDeclare(VD, Storage, llvm::None, Builder);
 }
 
+void CGDebugInfo::EmitLabel(const LabelDecl *D, CGBuilderTy &Builder) {
+  assert(DebugKind >= codegenoptions::LimitedDebugInfo);
+  assert(!LexicalBlockStack.empty() && "Region stack mismatch, stack empty!");
+
+  if (D->hasAttr<NoDebugAttr>())
+    return;
+
+  auto *Scope = cast<llvm::DIScope>(LexicalBlockStack.back());
+  llvm::DIFile *Unit = getOrCreateFile(D->getLocation());
+
+  // Get location information.
+  unsigned Line = getLineNumber(D->getLocation());
+  unsigned Column = getColumnNumber(D->getLocation());
+
+  StringRef Name = D->getName();
+
+  // Create the descriptor for the label.
+  auto *L =
+      DBuilder.createLabel(Scope, Name, Unit, Line, CGM.getLangOpts().Optimize);
+
+  // Insert an llvm.dbg.label into the current block.
+  DBuilder.insertLabel(L,
+                       llvm::DebugLoc::get(Line, Column, Scope, CurInlinedAt),
+                       Builder.GetInsertBlock());
+}
+
 llvm::DIType *CGDebugInfo::CreateSelfType(const QualType &QualTy,
                                           llvm::DIType *Ty) {
   llvm::DIType *CachedTy = getTypeOrNull(QualTy);
@@ -4064,7 +4098,7 @@ void CGDebugInfo::EmitDeclareOfBlockLiteralArgVariable(const CGBlockInfo &block,
       QualType type;
       if (auto *Method =
               cast_or_null<CXXMethodDecl>(blockDecl->getNonClosureContext()))
-        type = Method->getThisType(C);
+        type = Method->getThisType();
       else if (auto *RDecl = dyn_cast<CXXRecordDecl>(blockDecl->getParent()))
         type = QualType(RDecl->getTypeForDecl(), 0);
       else
@@ -4208,6 +4242,14 @@ void CGDebugInfo::EmitGlobalVariable(llvm::GlobalVariable *Var,
     SmallVector<int64_t, 4> Expr;
     unsigned AddressSpace =
         CGM.getContext().getTargetAddressSpace(D->getType());
+    if (CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) {
+      if (D->hasAttr<CUDASharedAttr>())
+        AddressSpace =
+            CGM.getContext().getTargetAddressSpace(LangAS::cuda_shared);
+      else if (D->hasAttr<CUDAConstantAttr>())
+        AddressSpace =
+            CGM.getContext().getTargetAddressSpace(LangAS::cuda_constant);
+    }
     AppendAddressSpaceXDeref(AddressSpace, Expr);
 
     GVE = DBuilder.createGlobalVariableExpression(

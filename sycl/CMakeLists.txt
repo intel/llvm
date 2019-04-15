@@ -32,7 +32,13 @@ set ( LLVM_INST_INC_DIRECTORY "lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/i
 find_package(OpenCL REQUIRED)
 
 include_directories(${OpenCL_INCLUDE_DIRS})
-link_libraries(OpenCL)
+link_libraries(${OpenCL_LIBRARY})
+
+# Configure SYCL version macro
+set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include/CL)
+string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
+set(version_header "${sycl_inc_dir}/sycl/version.hpp")
+configure_file("${version_header}.in" "${version_header}")
 
 # Copy SYCL headers
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include/CL)
@@ -67,7 +73,10 @@ set(OPENCL_INCLUDE "${OpenCL_INCLUDE_DIRS}")
 
 add_library("${SYCLLibrary}" SHARED
   "${includeRootPath}/CL/sycl.hpp"
+  "${sourceRootPath}/detail/builtins.cpp"
+  "${sourceRootPath}/detail/cnri.cpp"
   "${sourceRootPath}/detail/common.cpp"
+  "${sourceRootPath}/detail/context_impl.cpp"
   "${sourceRootPath}/detail/device_info.cpp"
   "${sourceRootPath}/detail/event_impl.cpp"
   "${sourceRootPath}/detail/force_device.cpp"
@@ -80,9 +89,11 @@ add_library("${SYCLLibrary}" SHARED
   "${sourceRootPath}/detail/program_impl.cpp"
   "${sourceRootPath}/detail/program_manager/program_manager.cpp"
   "${sourceRootPath}/detail/queue_impl.cpp"
+  "${sourceRootPath}/detail/os_util.cpp"
   "${sourceRootPath}/detail/scheduler/commands.cpp"
   "${sourceRootPath}/detail/scheduler/printers.cpp"
   "${sourceRootPath}/detail/scheduler/scheduler.cpp"
+  "${sourceRootPath}/detail/util.cpp"
   "${sourceRootPath}/context.cpp"
   "${sourceRootPath}/device.cpp"
   "${sourceRootPath}/device_selector.cpp"
@@ -96,7 +107,6 @@ add_library("${SYCLLibrary}" SHARED
 
 include_directories("${SYCLLibrary}" "${includeRootPath}")
 
-target_link_libraries("${SYCLLibrary}" "${OpenCL_LIBRARIES}")
 set_target_properties("${SYCLLibrary}" PROPERTIES LINKER_LANGUAGE CXX)
 
 # Workaround for bug in GCC version 5.

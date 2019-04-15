@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -48,7 +47,7 @@ make(int size, int start = 0 )
     return c;
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::deque<int> c = make<std::deque<int> >(10);
@@ -88,4 +87,6 @@ int main()
         assert(c.back() == 9);
     }
 #endif
+
+  return 0;
 }

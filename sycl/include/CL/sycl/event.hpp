@@ -1,9 +1,8 @@
 //==---------------- event.hpp --- SYCL event ------------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -41,15 +40,15 @@ public:
 
   bool is_host() const;
 
-  void wait() const;
+  vector_class<event> get_wait_list();
 
-  // vector_class<event> get_wait_list();
+  void wait();
 
-  // static void wait(const vector_class<event> &eventList);
+  static void wait(const vector_class<event> &EventList);
 
-  // void wait_and_throw();
+  void wait_and_throw();
 
-  // static void wait_and_throw(const vector_class<event> &eventList);
+  static void wait_and_throw(const vector_class<event> &EventList);
 
   template <info::event param>
   typename info::param_traits<info::event, param>::return_type get_info() const;

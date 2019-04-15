@@ -128,11 +128,8 @@ define i16 @v16i8(<16 x i8> %a, <16 x i8> %b) {
 ; AVX512F-LABEL: v16i8:
 ; AVX512F:       # %bb.0:
 ; AVX512F-NEXT:    vpcmpgtb %xmm1, %xmm0, %xmm0
-; AVX512F-NEXT:    vpmovsxbd %xmm0, %zmm0
-; AVX512F-NEXT:    vptestmd %zmm0, %zmm0, %k0
-; AVX512F-NEXT:    kmovw %k0, %eax
+; AVX512F-NEXT:    vpmovmskb %xmm0, %eax
 ; AVX512F-NEXT:    # kill: def $ax killed $ax killed $eax
-; AVX512F-NEXT:    vzeroupper
 ; AVX512F-NEXT:    retq
 ;
 ; AVX512BW-LABEL: v16i8:
@@ -686,9 +683,6 @@ define i64 @v16i8_widened_with_ones(<16 x i8> %a, <16 x i8> %b) {
 ; AVX1:       # %bb.0: # %entry
 ; AVX1-NEXT:    vpcmpeqb %xmm1, %xmm0, %xmm0
 ; AVX1-NEXT:    vpsllw $7, %xmm0, %xmm0
-; AVX1-NEXT:    vpand {{.*}}(%rip), %xmm0, %xmm0
-; AVX1-NEXT:    vpxor %xmm1, %xmm1, %xmm1
-; AVX1-NEXT:    vpcmpgtb %xmm0, %xmm1, %xmm0
 ; AVX1-NEXT:    vpmovmskb %xmm0, %ecx
 ; AVX1-NEXT:    orl $-65536, %ecx # imm = 0xFFFF0000
 ; AVX1-NEXT:    movabsq $-4294967296, %rax # imm = 0xFFFFFFFF00000000

@@ -1,10 +1,18 @@
+//===--- IndexAction.cpp -----------------------------------------*- C++-*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include "IndexAction.h"
+#include "index/SymbolOrigin.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Index/IndexDataConsumer.h"
 #include "clang/Index/IndexingAction.h"
 #include "clang/Tooling/Tooling.h"
 
-using namespace llvm;
 namespace clang {
 namespace clangd {
 namespace {
@@ -63,10 +71,10 @@ public:
 
   // Add edges from including files to includes.
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
-                          StringRef FileName, bool IsAngled,
+                          llvm::StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange, const FileEntry *File,
-                          StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
+                          llvm::StringRef SearchPath,
+                          llvm::StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override {
     auto IncludeURI = toURI(File);
     if (!IncludeURI)
@@ -116,8 +124,8 @@ public:
         Includes(std::move(Includes)),
         PragmaHandler(collectIWYUHeaderMaps(this->Includes.get())) {}
 
-  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
-                                                 StringRef InFile) override {
+  std::unique_ptr<ASTConsumer>
+  CreateASTConsumer(CompilerInstance &CI, llvm::StringRef InFile) override {
     CI.getPreprocessor().addCommentHandler(PragmaHandler.get());
     if (IncludeGraphCallback != nullptr)
       CI.getPreprocessor().addPPCallbacks(
@@ -137,7 +145,7 @@ public:
     const auto &CI = getCompilerInstance();
     if (CI.hasDiagnostics() &&
         CI.getDiagnostics().hasUncompilableErrorOccurred()) {
-      errs() << "Skipping TU due to uncompilable errors\n";
+      llvm::errs() << "Skipping TU due to uncompilable errors\n";
       return;
     }
     SymbolsCallback(Collector->takeSymbols());
@@ -176,6 +184,7 @@ std::unique_ptr<FrontendAction> createStaticIndexingAction(
   Opts.CollectIncludePath = true;
   Opts.CountReferences = true;
   Opts.Origin = SymbolOrigin::Static;
+  Opts.StoreAllDocumentation = false;
   if (RefsCallback != nullptr) {
     Opts.RefFilter = RefKind::All;
     Opts.RefsInHeaders = true;

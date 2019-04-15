@@ -1,9 +1,8 @@
 //==------------------ queue_impl.cpp - SYCL queue -------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,8 +15,10 @@ namespace sycl {
 namespace detail {
 template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
   cl_uint result = 0;
-  CHECK_OCL_CODE(clGetCommandQueueInfo(m_CommandQueue, CL_QUEUE_REFERENCE_COUNT,
-                                       sizeof(result), &result, nullptr));
+  if (!is_host())
+    CHECK_OCL_CODE(clGetCommandQueueInfo(m_CommandQueue,
+                                         CL_QUEUE_REFERENCE_COUNT,
+                                         sizeof(result), &result, nullptr));
   return result;
 }
 

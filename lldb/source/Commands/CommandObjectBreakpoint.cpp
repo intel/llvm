@@ -1,13 +1,10 @@
 //===-- CommandObjectBreakpoint.cpp -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#include <vector>
 
 #include "CommandObjectBreakpoint.h"
 #include "CommandObjectBreakpointCommand.h"
@@ -30,6 +27,9 @@
 #include "lldb/Target/ThreadSpec.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/StreamString.h"
+
+#include <memory>
+#include <vector>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -616,7 +616,7 @@ public:
       m_move_to_nearest_code = eLazyBoolCalculate;
       m_source_regex_func_names.clear();
       m_python_class.clear();
-      m_extra_args_sp.reset(new StructuredData::Dictionary());
+      m_extra_args_sp = std::make_shared<StructuredData::Dictionary>();
       m_current_key.clear();
     }
 

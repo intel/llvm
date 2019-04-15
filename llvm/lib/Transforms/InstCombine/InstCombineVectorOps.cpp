@@ -1,9 +1,8 @@
 //===- InstCombineVectorOps.cpp -------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -1497,6 +1496,11 @@ static Instruction *foldIdentityExtractShuffle(ShuffleVectorInst &Shuf) {
   Value *X, *Y;
   Constant *Mask;
   if (!match(Op0, m_ShuffleVector(m_Value(X), m_Value(Y), m_Constant(Mask))))
+    return nullptr;
+
+  // Be conservative with shuffle transforms. If we can't kill the 1st shuffle,
+  // then combining may result in worse codegen.
+  if (!Op0->hasOneUse())
     return nullptr;
 
   // We are extracting a subvector from a shuffle. Remove excess elements from

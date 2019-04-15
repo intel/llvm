@@ -29,10 +29,10 @@ entry:
 ; CHECK-NEXT:         ReturnType:      I32
 ; CHECK-NEXT:         ParamTypes:
 ; CHECK-NEXT:   - Type:            FUNCTION
-; CHECK-NEXT:     FunctionTypes:   [ 0, 0, 1, 1, 1, 1, 1 ]
+; CHECK-NEXT:     FunctionTypes:   [ 0, 1, 1, 1, 1, 1 ]
 ; CHECK-NEXT:   - Type:            TABLE
 ; CHECK-NEXT:     Tables:
-; CHECK-NEXT:       - ElemType:        ANYFUNC
+; CHECK-NEXT:       - ElemType:        FUNCREF
 ; CHECK-NEXT:         Limits:
 ; CHECK-NEXT:           Flags:           [ HAS_MAX ]
 ; CHECK-NEXT:           Initial:         0x00000002
@@ -73,74 +73,69 @@ entry:
 ; CHECK-NEXT:         Index:           2
 ; CHECK-NEXT:       - Name:            _start
 ; CHECK-NEXT:         Kind:            FUNCTION
-; CHECK-NEXT:         Index:           1
+; CHECK-NEXT:         Index:           0
 ; CHECK-NEXT:       - Name:            alias_fn
 ; CHECK-NEXT:         Kind:            FUNCTION
-; CHECK-NEXT:         Index:           2
+; CHECK-NEXT:         Index:           1
 ; CHECK-NEXT:       - Name:            direct_fn
 ; CHECK-NEXT:         Kind:            FUNCTION
-; CHECK-NEXT:         Index:           2
+; CHECK-NEXT:         Index:           1
 ; CHECK-NEXT:       - Name:            call_direct
 ; CHECK-NEXT:         Kind:            FUNCTION
-; CHECK-NEXT:         Index:           3
+; CHECK-NEXT:         Index:           2
 ; CHECK-NEXT:       - Name:            call_alias
 ; CHECK-NEXT:         Kind:            FUNCTION
-; CHECK-NEXT:         Index:           4
+; CHECK-NEXT:         Index:           3
 ; CHECK-NEXT:       - Name:            call_alias_ptr
 ; CHECK-NEXT:         Kind:            FUNCTION
-; CHECK-NEXT:         Index:           5
+; CHECK-NEXT:         Index:           4
 ; CHECK-NEXT:       - Name:            call_direct_ptr
 ; CHECK-NEXT:         Kind:            FUNCTION
-; CHECK-NEXT:         Index:           6
+; CHECK-NEXT:         Index:           5
 ; CHECK-NEXT:   - Type:            ELEM
 ; CHECK-NEXT:     Segments:
 ; CHECK-NEXT:       - Offset:
 ; CHECK-NEXT:           Opcode:          I32_CONST
 ; CHECK-NEXT:           Value:           1
-; CHECK-NEXT:         Functions:       [ 2 ]
+; CHECK-NEXT:         Functions:       [ 1 ]
 ; CHECK-NEXT:   - Type:            CODE
 ; CHECK-NEXT:     Functions:
 ; CHECK-NEXT:       - Index:           0
 ; CHECK-NEXT:         Locals:
-; CHECK-NEXT:         Body:            0B
+; CHECK-NEXT:         Body:            1081808080001A0B
 ; CHECK-NEXT:       - Index:           1
 ; CHECK-NEXT:         Locals:
-; CHECK-NEXT:         Body:            1082808080001A0B
+; CHECK-NEXT:         Body:            41000B
 ; CHECK-NEXT:       - Index:           2
 ; CHECK-NEXT:         Locals:
-; CHECK-NEXT:         Body:            41000B
+; CHECK-NEXT:         Body:            1081808080000B
 ; CHECK-NEXT:       - Index:           3
 ; CHECK-NEXT:         Locals:
-; CHECK-NEXT:         Body:            1082808080000B
+; CHECK-NEXT:         Body:            1081808080000B
 ; CHECK-NEXT:       - Index:           4
 ; CHECK-NEXT:         Locals:
-; CHECK-NEXT:         Body:            1082808080000B
+; CHECK-NEXT:           - Type:            I32
+; CHECK-NEXT:             Count:           2
+; CHECK-NEXT:         Body:            23808080800041106B220024808080800020004181808080003602081081808080002101200041106A24808080800020010B
 ; CHECK-NEXT:       - Index:           5
 ; CHECK-NEXT:         Locals:
 ; CHECK-NEXT:           - Type:            I32
 ; CHECK-NEXT:             Count:           2
-; CHECK-NEXT:         Body:            23808080800041106B220024808080800020004181808080003602081082808080002101200041106A24808080800020010B
-; CHECK-NEXT:       - Index:           6
-; CHECK-NEXT:         Locals:
-; CHECK-NEXT:           - Type:            I32
-; CHECK-NEXT:             Count:           2
-; CHECK-NEXT:         Body:            23808080800041106B220024808080800020004181808080003602081082808080002101200041106A24808080800020010B
+; CHECK-NEXT:         Body:            23808080800041106B220024808080800020004181808080003602081081808080002101200041106A24808080800020010B
 ; CHECK-NEXT:   - Type:            CUSTOM
 ; CHECK-NEXT:     Name:            name
 ; CHECK-NEXT:     FunctionNames:
 ; CHECK-NEXT:       - Index:           0
-; CHECK-NEXT:         Name:            __wasm_call_ctors
-; CHECK-NEXT:       - Index:           1
 ; CHECK-NEXT:         Name:            _start
-; CHECK-NEXT:       - Index:           2
+; CHECK-NEXT:       - Index:           1
 ; CHECK-NEXT:         Name:            direct_fn
-; CHECK-NEXT:       - Index:           3
+; CHECK-NEXT:       - Index:           2
 ; CHECK-NEXT:         Name:            call_direct
-; CHECK-NEXT:       - Index:           4
+; CHECK-NEXT:       - Index:           3
 ; CHECK-NEXT:         Name:            call_alias
-; CHECK-NEXT:       - Index:           5
+; CHECK-NEXT:       - Index:           4
 ; CHECK-NEXT:         Name:            call_alias_ptr
-; CHECK-NEXT:       - Index:           6
+; CHECK-NEXT:       - Index:           5
 ; CHECK-NEXT:         Name:            call_direct_ptr
 ; CHECK-NEXT: ...
 
@@ -170,7 +165,7 @@ entry:
 ; RELOC-NEXT:     FunctionTypes:   [ 0, 1, 1, 1, 1, 1 ]
 ; RELOC-NEXT:   - Type:            TABLE
 ; RELOC-NEXT:     Tables:
-; RELOC-NEXT:       - ElemType:        ANYFUNC
+; RELOC-NEXT:       - ElemType:        FUNCREF
 ; RELOC-NEXT:         Limits:
 ; RELOC-NEXT:           Flags:           [ HAS_MAX ]
 ; RELOC-NEXT:           Initial:         0x00000002
@@ -186,43 +181,43 @@ entry:
 ; RELOC-NEXT:         Functions:       [ 1 ]
 ; RELOC-NEXT:   - Type:            CODE
 ; RELOC-NEXT:     Relocations:
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_FUNCTION_INDEX_LEB
-; RELOC-NEXT:         Index:           4
-; RELOC-NEXT:         Offset:          0x00000004
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_FUNCTION_INDEX_LEB
+; RELOC-NEXT:       - Type:            R_WASM_FUNCTION_INDEX_LEB
 ; RELOC-NEXT:         Index:           1
+; RELOC-NEXT:         Offset:          0x00000004
+; RELOC-NEXT:       - Type:            R_WASM_FUNCTION_INDEX_LEB
+; RELOC-NEXT:         Index:           2
 ; RELOC-NEXT:         Offset:          0x00000013
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_FUNCTION_INDEX_LEB
-; RELOC-NEXT:         Index:           4
+; RELOC-NEXT:       - Type:            R_WASM_FUNCTION_INDEX_LEB
+; RELOC-NEXT:         Index:           1
 ; RELOC-NEXT:         Offset:          0x0000001C
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_GLOBAL_INDEX_LEB
+; RELOC-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 ; RELOC-NEXT:         Index:           6
 ; RELOC-NEXT:         Offset:          0x00000027
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_GLOBAL_INDEX_LEB
+; RELOC-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 ; RELOC-NEXT:         Index:           6
 ; RELOC-NEXT:         Offset:          0x00000032
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_TABLE_INDEX_SLEB
-; RELOC-NEXT:         Index:           4
+; RELOC-NEXT:       - Type:            R_WASM_TABLE_INDEX_SLEB
+; RELOC-NEXT:         Index:           1
 ; RELOC-NEXT:         Offset:          0x0000003A
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_FUNCTION_INDEX_LEB
-; RELOC-NEXT:         Index:           4
+; RELOC-NEXT:       - Type:            R_WASM_FUNCTION_INDEX_LEB
+; RELOC-NEXT:         Index:           1
 ; RELOC-NEXT:         Offset:          0x00000043
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_GLOBAL_INDEX_LEB
+; RELOC-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 ; RELOC-NEXT:         Index:           6
 ; RELOC-NEXT:         Offset:          0x00000050
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_GLOBAL_INDEX_LEB
+; RELOC-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 ; RELOC-NEXT:         Index:           6
 ; RELOC-NEXT:         Offset:          0x0000005D
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_GLOBAL_INDEX_LEB
+; RELOC-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 ; RELOC-NEXT:         Index:           6
 ; RELOC-NEXT:         Offset:          0x00000068
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_TABLE_INDEX_SLEB
-; RELOC-NEXT:         Index:           1
+; RELOC-NEXT:       - Type:            R_WASM_TABLE_INDEX_SLEB
+; RELOC-NEXT:         Index:           2
 ; RELOC-NEXT:         Offset:          0x00000070
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_FUNCTION_INDEX_LEB
-; RELOC-NEXT:         Index:           1
+; RELOC-NEXT:       - Type:            R_WASM_FUNCTION_INDEX_LEB
+; RELOC-NEXT:         Index:           2
 ; RELOC-NEXT:         Offset:          0x00000079
-; RELOC-NEXT:       - Type:            R_WEBASSEMBLY_GLOBAL_INDEX_LEB
+; RELOC-NEXT:       - Type:            R_WASM_GLOBAL_INDEX_LEB
 ; RELOC-NEXT:         Index:           6
 ; RELOC-NEXT:         Offset:          0x00000086
 ; RELOC-NEXT:     Functions:
@@ -250,7 +245,7 @@ entry:
 ; RELOC-NEXT:         Body:            23808080800041106B220024808080800020004181808080003602081081808080002101200041106A24808080800020010B
 ; RELOC-NEXT:   - Type:            CUSTOM
 ; RELOC-NEXT:     Name:            linking
-; RELOC-NEXT:     Version:         1
+; RELOC-NEXT:     Version:         2
 ; RELOC-NEXT:     SymbolTable:
 ; RELOC-NEXT:       - Index:           0
 ; RELOC-NEXT:         Kind:            FUNCTION
@@ -259,24 +254,24 @@ entry:
 ; RELOC-NEXT:         Function:        0
 ; RELOC-NEXT:       - Index:           1
 ; RELOC-NEXT:         Kind:            FUNCTION
+; RELOC-NEXT:         Name:            alias_fn
+; RELOC-NEXT:         Flags:           [ BINDING_WEAK ]
+; RELOC-NEXT:         Function:        1
+; RELOC-NEXT:       - Index:           2
+; RELOC-NEXT:         Kind:            FUNCTION
 ; RELOC-NEXT:         Name:            direct_fn
 ; RELOC-NEXT:         Flags:           [  ]
 ; RELOC-NEXT:         Function:        1
-; RELOC-NEXT:       - Index:           2
+; RELOC-NEXT:       - Index:           3
 ; RELOC-NEXT:         Kind:            FUNCTION
 ; RELOC-NEXT:         Name:            call_direct
 ; RELOC-NEXT:         Flags:           [  ]
 ; RELOC-NEXT:         Function:        2
-; RELOC-NEXT:       - Index:           3
+; RELOC-NEXT:       - Index:           4
 ; RELOC-NEXT:         Kind:            FUNCTION
 ; RELOC-NEXT:         Name:            call_alias
 ; RELOC-NEXT:         Flags:           [  ]
 ; RELOC-NEXT:         Function:        3
-; RELOC-NEXT:       - Index:           4
-; RELOC-NEXT:         Kind:            FUNCTION
-; RELOC-NEXT:         Name:            alias_fn
-; RELOC-NEXT:         Flags:           [ BINDING_WEAK ]
-; RELOC-NEXT:         Function:        1
 ; RELOC-NEXT:       - Index:           5
 ; RELOC-NEXT:         Kind:            FUNCTION
 ; RELOC-NEXT:         Name:            call_alias_ptr

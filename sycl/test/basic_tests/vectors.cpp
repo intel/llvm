@@ -3,10 +3,9 @@
 // RUN: %t.out
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -50,6 +49,14 @@ int main() {
   // explicit conversion
   int64_t(vec_2.x());
   cl::sycl::int4(vec_2.x());
+
+  // Check broadcasting operator=
+  cl::sycl::vec<float, 4> b_vec(1.0);
+  b_vec = 0.5;
+  assert(static_cast<float>(b_vec.x()) == static_cast<float>(0.5));
+  assert(static_cast<float>(b_vec.y()) == static_cast<float>(0.5));
+  assert(static_cast<float>(b_vec.z()) == static_cast<float>(0.5));
+  assert(static_cast<float>(b_vec.w()) == static_cast<float>(0.5));
 
   return 0;
 }

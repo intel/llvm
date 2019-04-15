@@ -1,9 +1,8 @@
 //===- X86MacroFusion.cpp - X86 Macro Fusion ------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -141,8 +140,10 @@ static bool shouldScheduleAdjacent(const TargetInstrInfo &TII,
   case X86::ADD64rr:
   case X86::ADD64rr_DB:
   case X86::ADD8ri:
+  case X86::ADD8ri_DB:
   case X86::ADD8rm:
   case X86::ADD8rr:
+  case X86::ADD8rr_DB:
   case X86::SUB16ri:
   case X86::SUB16ri8:
   case X86::SUB16rm:

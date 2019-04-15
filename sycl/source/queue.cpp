@@ -1,9 +1,8 @@
 //==-------------- queue.cpp -----------------------------------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -20,8 +19,9 @@ queue::queue(const context &syclContext, const device_selector &deviceSelector,
     return deviceSelector(d1) < deviceSelector(d2);
   };
 
-  *this = queue(*std::max_element(Devs.begin(), Devs.end(), Comp), asyncHandler,
-                propList);
+  const device &syclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
+  impl = std::make_shared<detail::queue_impl>(syclDevice, syclContext,
+                                              asyncHandler, propList);
 }
 
 queue::queue(const device &syclDevice, const async_handler &asyncHandler,

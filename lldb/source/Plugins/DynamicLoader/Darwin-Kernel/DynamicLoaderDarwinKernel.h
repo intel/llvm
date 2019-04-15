@@ -1,9 +1,8 @@
 //===-- DynamicLoaderDarwinKernel.h -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -284,11 +283,13 @@ protected:
   SearchForKernelViaExhaustiveSearch(lldb_private::Process *process);
 
   static bool
-  ReadMachHeader(lldb::addr_t addr, lldb_private::Process *process, llvm::MachO::mach_header &mh);
+  ReadMachHeader(lldb::addr_t addr, lldb_private::Process *process, llvm::MachO::mach_header &mh,
+                 bool *read_error = nullptr);
 
   static lldb_private::UUID
   CheckForKernelImageAtAddress(lldb::addr_t addr,
-                               lldb_private::Process *process);
+                               lldb_private::Process *process,
+                               bool *read_error = nullptr);
 
   lldb::addr_t m_kernel_load_address;
   KextImageInfo m_kernel; // Info about the current kernel image being used

@@ -23,18 +23,50 @@ define amdgpu_ps float @add3(i32 %a, i32 %b, i32 %c) {
   ret float %bc
 }
 
+; V_MAD_U32_U24 is given higher priority.
+define amdgpu_ps float @mad_no_add3(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e) {
+; VI-LABEL: mad_no_add3:
+; VI:       ; %bb.0:
+; VI-NEXT:    v_mad_u32_u24 v0, v0, v1, v4
+; VI-NEXT:    v_mad_u32_u24 v0, v2, v3, v0
+; VI-NEXT:    ; return to shader part epilog
+;
+; GFX9-LABEL: mad_no_add3:
+; GFX9:       ; %bb.0:
+; GFX9-NEXT:    v_mad_u32_u24 v0, v0, v1, v4
+; GFX9-NEXT:    v_mad_u32_u24 v0, v2, v3, v0
+; GFX9-NEXT:    ; return to shader part epilog
+  %a0 = shl i32 %a, 8
+  %a1 = lshr i32 %a0, 8
+  %b0 = shl i32 %b, 8
+  %b1 = lshr i32 %b0, 8
+  %mul1 = mul i32 %a1, %b1
+
+  %c0 = shl i32 %c, 8
+  %c1 = lshr i32 %c0, 8
+  %d0 = shl i32 %d, 8
+  %d1 = lshr i32 %d0, 8
+  %mul2 = mul i32 %c1, %d1
+
+  %add0 = add i32 %e, %mul1
+  %add1 = add i32 %mul2, %add0
+
+  %bc = bitcast i32 %add1 to float
+  ret float %bc
+}
+
 ; ThreeOp instruction variant not used due to Constant Bus Limitations
 ; TODO: with reassociation it is possible to replace a v_add_u32_e32 with a s_add_i32
 define amdgpu_ps float @add3_vgpr_b(i32 inreg %a, i32 %b, i32 inreg %c) {
 ; VI-LABEL: add3_vgpr_b:
 ; VI:       ; %bb.0:
-; VI-NEXT:    v_add_u32_e32 v0, vcc, s2, v0
+; VI-NEXT:    s_add_i32 s3, s3, s2
 ; VI-NEXT:    v_add_u32_e32 v0, vcc, s3, v0
 ; VI-NEXT:    ; return to shader part epilog
 ;
 ; GFX9-LABEL: add3_vgpr_b:
 ; GFX9:       ; %bb.0:
-; GFX9-NEXT:    v_add_u32_e32 v0, s2, v0
+; GFX9-NEXT:    s_add_i32 s3, s3, s2
 ; GFX9-NEXT:    v_add_u32_e32 v0, s3, v0
 ; GFX9-NEXT:    ; return to shader part epilog
   %x = add i32 %a, %b

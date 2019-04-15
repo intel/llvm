@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -56,7 +55,7 @@ void test_result_of_imp()
 #endif
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef char F::*PMD;
@@ -169,4 +168,6 @@ int main()
     test_result_of_imp<int (F::* (std::unique_ptr<const F> ))       () const, int>();
     }
     test_result_of_imp<decltype(&wat::foo)(wat), void>();
+
+  return 0;
 }

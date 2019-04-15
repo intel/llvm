@@ -1,9 +1,8 @@
 //===-- ClangASTSource.cpp ---------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -27,6 +26,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecordLayout.h"
 
+#include <memory>
 #include <vector>
 
 using namespace clang;
@@ -332,11 +332,9 @@ void ClangASTSource::CompleteType(TagDecl *tag_decl) {
 
         TypeList types;
 
-        SymbolContext null_sc;
         ConstString name(tag_decl->getName().str().c_str());
 
-        i->first->FindTypesInNamespace(null_sc, name, &i->second, UINT32_MAX,
-                                       types);
+        i->first->FindTypesInNamespace(name, &i->second, UINT32_MAX, types);
 
         for (uint32_t ti = 0, te = types.GetSize(); ti != te && !found; ++ti) {
           lldb::TypeSP type = types.GetTypeAtIndex(ti);
@@ -366,7 +364,6 @@ void ClangASTSource::CompleteType(TagDecl *tag_decl) {
     } else {
       TypeList types;
 
-      SymbolContext null_sc;
       ConstString name(tag_decl->getName().str().c_str());
       CompilerDeclContext namespace_decl;
 
@@ -374,7 +371,7 @@ void ClangASTSource::CompleteType(TagDecl *tag_decl) {
 
       bool exact_match = false;
       llvm::DenseSet<SymbolFile *> searched_symbol_files;
-      module_list.FindTypes(null_sc, name, exact_match, UINT32_MAX,
+      module_list.FindTypes(nullptr, name, exact_match, UINT32_MAX,
                             searched_symbol_files, types);
 
       for (uint32_t ti = 0, te = types.GetSize(); ti != te && !found; ++ti) {
@@ -711,7 +708,7 @@ void ClangASTSource::FindExternalVisibleDecls(NameSearchContext &context) {
     return; // otherwise we may need to fall back
   }
 
-  context.m_namespace_map.reset(new ClangASTImporter::NamespaceMap);
+  context.m_namespace_map = std::make_shared<ClangASTImporter::NamespaceMap>();
 
   if (const NamespaceDecl *namespace_context =
           dyn_cast<NamespaceDecl>(context.m_decl_context)) {
@@ -802,10 +799,8 @@ void ClangASTSource::FindExternalVisibleDecls(
     SymbolVendor *symbol_vendor = module_sp->GetSymbolVendor();
 
     if (symbol_vendor) {
-      SymbolContext null_sc;
-
       found_namespace_decl =
-          symbol_vendor->FindNamespace(null_sc, name, &namespace_decl);
+          symbol_vendor->FindNamespace(name, &namespace_decl);
 
       if (found_namespace_decl) {
         context.m_namespace_map->push_back(
@@ -835,10 +830,8 @@ void ClangASTSource::FindExternalVisibleDecls(
       if (!symbol_vendor)
         continue;
 
-      SymbolContext null_sc;
-
       found_namespace_decl =
-          symbol_vendor->FindNamespace(null_sc, name, &namespace_decl);
+          symbol_vendor->FindNamespace(name, &namespace_decl);
 
       if (found_namespace_decl) {
         context.m_namespace_map->push_back(
@@ -858,15 +851,12 @@ void ClangASTSource::FindExternalVisibleDecls(
       break;
 
     TypeList types;
-    SymbolContext null_sc;
     const bool exact_match = true;
     llvm::DenseSet<lldb_private::SymbolFile *> searched_symbol_files;
     if (module_sp && namespace_decl)
-      module_sp->FindTypesInNamespace(null_sc, name, &namespace_decl, 1, types);
+      module_sp->FindTypesInNamespace(name, &namespace_decl, 1, types);
     else {
-      SymbolContext sc;
-      sc.module_sp = module_sp;
-      m_target->GetImages().FindTypes(sc, name, exact_match, 1,
+      m_target->GetImages().FindTypes(module_sp.get(), name, exact_match, 1,
                                       searched_symbol_files, types);
     }
 
@@ -1653,10 +1643,10 @@ static bool ImportOffsetMap(llvm::DenseMap<const D *, O> &destination_map,
   std::vector<PairType> sorted_items;
   sorted_items.reserve(source_map.size());
   sorted_items.assign(source_map.begin(), source_map.end());
-  std::sort(sorted_items.begin(), sorted_items.end(),
-            [](const PairType &lhs, const PairType &rhs) {
-              return lhs.second < rhs.second;
-            });
+  llvm::sort(sorted_items.begin(), sorted_items.end(),
+             [](const PairType &lhs, const PairType &rhs) {
+               return lhs.second < rhs.second;
+             });
 
   for (const auto &item : sorted_items) {
     DeclFromUser<D> user_decl(const_cast<D *>(item.first));
@@ -1881,10 +1871,8 @@ void ClangASTSource::CompleteNamespaceMap(
       if (!symbol_vendor)
         continue;
 
-      SymbolContext null_sc;
-
-      found_namespace_decl = symbol_vendor->FindNamespace(
-          null_sc, name, &module_parent_namespace_decl);
+      found_namespace_decl =
+          symbol_vendor->FindNamespace(name, &module_parent_namespace_decl);
 
       if (!found_namespace_decl)
         continue;
@@ -1916,10 +1904,8 @@ void ClangASTSource::CompleteNamespaceMap(
       if (!symbol_vendor)
         continue;
 
-      SymbolContext null_sc;
-
       found_namespace_decl =
-          symbol_vendor->FindNamespace(null_sc, name, &null_namespace_decl);
+          symbol_vendor->FindNamespace(name, &null_namespace_decl);
 
       if (!found_namespace_decl)
         continue;

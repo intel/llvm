@@ -1,9 +1,8 @@
 //===-- ClangUtilityFunction.cpp ---------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -157,5 +156,6 @@ bool ClangUtilityFunction::Install(DiagnosticManager &diagnostic_manager,
 void ClangUtilityFunction::ClangUtilityFunctionHelper::ResetDeclMap(
     ExecutionContext &exe_ctx, bool keep_result_in_memory) {
   m_expr_decl_map_up.reset(
-      new ClangExpressionDeclMap(keep_result_in_memory, nullptr, exe_ctx));
+      new ClangExpressionDeclMap(keep_result_in_memory, nullptr, exe_ctx,
+                                 nullptr));
 }

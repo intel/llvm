@@ -1,9 +1,8 @@
 //===- ScalarEvolution.cpp - Scalar Evolution Analysis --------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -212,6 +211,11 @@ static cl::opt<unsigned>
                   cl::desc("Max coefficients in AddRec during evolving"),
                   cl::init(8));
 
+static cl::opt<unsigned>
+    HugeExprThreshold("scalar-evolution-huge-expr-threshold", cl::Hidden,
+                  cl::desc("Size of the expression which is considered huge"),
+                  cl::init(4096));
+
 //===----------------------------------------------------------------------===//
 //                           SCEV class definitions
 //===----------------------------------------------------------------------===//
@@ -393,7 +397,7 @@ bool SCEV::isNonConstantNegative() const {
 }
 
 SCEVCouldNotCompute::SCEVCouldNotCompute() :
-  SCEV(FoldingSetNodeIDRef(), scCouldNotCompute) {}
+  SCEV(FoldingSetNodeIDRef(), scCouldNotCompute, 0) {}
 
 bool SCEVCouldNotCompute::classof(const SCEV *S) {
   return S->getSCEVType() == scCouldNotCompute;
@@ -422,7 +426,7 @@ ScalarEvolution::getConstant(Type *Ty, uint64_t V, bool isSigned) {
 
 SCEVCastExpr::SCEVCastExpr(const FoldingSetNodeIDRef ID,
                            unsigned SCEVTy, const SCEV *op, Type *ty)
-  : SCEV(ID, SCEVTy), Op(op), Ty(ty) {}
+  : SCEV(ID, SCEVTy, computeExpressionSize(op)), Op(op), Ty(ty) {}
 
 SCEVTruncateExpr::SCEVTruncateExpr(const FoldingSetNodeIDRef ID,
                                    const SCEV *op, Type *ty)
@@ -844,6 +848,17 @@ static inline int sizeOfSCEV(const SCEV *S) {
   SCEVTraversal<FindSCEVSize> ST(F);
   ST.visitAll(S);
   return F.Size;
+}
+
+/// Returns true if the subtree of \p S contains at least HugeExprThreshold
+/// nodes.
+static bool isHugeExpression(const SCEV *S) {
+  return S->getExpressionSize() >= HugeExprThreshold;
+}
+
+/// Returns true of \p Ops contains a huge SCEV (see definition above).
+static bool hasHugeExpression(ArrayRef<const SCEV *> Ops) {
+  return any_of(Ops, isHugeExpression);
 }
 
 namespace {
@@ -2295,7 +2310,7 @@ CollectAddOperandsWithScales(DenseMap<const SCEV *, APInt> &M,
 // can't-overflow flags for the operation if possible.
 static SCEV::NoWrapFlags
 StrengthenNoWrapFlags(ScalarEvolution *SE, SCEVTypes Type,
-                      const SmallVectorImpl<const SCEV *> &Ops,
+                      const ArrayRef<const SCEV *> Ops,
                       SCEV::NoWrapFlags Flags) {
   using namespace std::placeholders;
 
@@ -2405,7 +2420,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
   }
 
   // Limit recursion calls depth.
-  if (Depth > MaxArithDepth)
+  if (Depth > MaxArithDepth || hasHugeExpression(Ops))
     return getOrCreateAddExpr(Ops, Flags);
 
   // Okay, check to see if the same value occurs in the operand list more than
@@ -2743,7 +2758,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
 }
 
 const SCEV *
-ScalarEvolution::getOrCreateAddExpr(SmallVectorImpl<const SCEV *> &Ops,
+ScalarEvolution::getOrCreateAddExpr(ArrayRef<const SCEV *> Ops,
                                     SCEV::NoWrapFlags Flags) {
   FoldingSetNodeID ID;
   ID.AddInteger(scAddExpr);
@@ -2765,7 +2780,7 @@ ScalarEvolution::getOrCreateAddExpr(SmallVectorImpl<const SCEV *> &Ops,
 }
 
 const SCEV *
-ScalarEvolution::getOrCreateAddRecExpr(SmallVectorImpl<const SCEV *> &Ops,
+ScalarEvolution::getOrCreateAddRecExpr(ArrayRef<const SCEV *> Ops,
                                        const Loop *L, SCEV::NoWrapFlags Flags) {
   FoldingSetNodeID ID;
   ID.AddInteger(scAddRecExpr);
@@ -2788,7 +2803,7 @@ ScalarEvolution::getOrCreateAddRecExpr(SmallVectorImpl<const SCEV *> &Ops,
 }
 
 const SCEV *
-ScalarEvolution::getOrCreateMulExpr(SmallVectorImpl<const SCEV *> &Ops,
+ScalarEvolution::getOrCreateMulExpr(ArrayRef<const SCEV *> Ops,
                                     SCEV::NoWrapFlags Flags) {
   FoldingSetNodeID ID;
   ID.AddInteger(scMulExpr);
@@ -2884,7 +2899,7 @@ const SCEV *ScalarEvolution::getMulExpr(SmallVectorImpl<const SCEV *> &Ops,
   Flags = StrengthenNoWrapFlags(this, scMulExpr, Ops, Flags);
 
   // Limit recursion calls depth.
-  if (Depth > MaxArithDepth)
+  if (Depth > MaxArithDepth || hasHugeExpression(Ops))
     return getOrCreateMulExpr(Ops, Flags);
 
   // If there are any constants, fold them together.
@@ -3057,7 +3072,8 @@ const SCEV *ScalarEvolution::getMulExpr(SmallVectorImpl<const SCEV *> &Ops,
       // Limit max number of arguments to avoid creation of unreasonably big
       // SCEVAddRecs with very complex operands.
       if (AddRec->getNumOperands() + OtherAddRec->getNumOperands() - 1 >
-          MaxAddRecSize)
+          MaxAddRecSize || isHugeExpression(AddRec) ||
+          isHugeExpression(OtherAddRec))
         continue;
 
       bool Overflow = false;
@@ -3090,7 +3106,7 @@ const SCEV *ScalarEvolution::getMulExpr(SmallVectorImpl<const SCEV *> &Ops,
         AddRecOps.push_back(getAddExpr(SumOps, SCEV::FlagAnyWrap, Depth + 1));
       }
       if (!Overflow) {
-        const SCEV *NewAddRec = getAddRecExpr(AddRecOps, AddRec->getLoop(),
+        const SCEV *NewAddRec = getAddRecExpr(AddRecOps, AddRecLoop,
                                               SCEV::FlagAnyWrap);
         if (Ops.size() == 2) return NewAddRec;
         Ops[Idx] = NewAddRec;
@@ -3892,7 +3908,7 @@ void ScalarEvolution::eraseValueFromMap(Value *V) {
 }
 
 /// Check whether value has nuw/nsw/exact set but SCEV does not.
-/// TODO: In reality it is better to check the poison recursevely
+/// TODO: In reality it is better to check the poison recursively
 /// but this is better than nothing.
 static bool SCEVLostPoisonFlags(const SCEV *S, const Value *V) {
   if (auto *I = dyn_cast<Instruction>(V)) {
@@ -6128,7 +6144,7 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
     // to obey basic rules for definitions dominating uses which this
     // analysis depends on.
     if (!DT.isReachableFromEntry(I->getParent()))
-      return getUnknown(V);
+      return getUnknown(UndefValue::get(V->getType()));
   } else if (ConstantInt *CI = dyn_cast<ConstantInt>(V))
     return getConstant(CI);
   else if (isa<ConstantPointerNull>(V))
@@ -6972,8 +6988,8 @@ ScalarEvolution::ExitLimit::ExitLimit(const SCEV *E, const SCEV *M,
 /// Allocate memory for BackedgeTakenInfo and copy the not-taken count of each
 /// computable exit into a persistent ExitNotTakenInfo array.
 ScalarEvolution::BackedgeTakenInfo::BackedgeTakenInfo(
-    SmallVectorImpl<ScalarEvolution::BackedgeTakenInfo::EdgeExitInfo>
-        &&ExitCounts,
+    ArrayRef<ScalarEvolution::BackedgeTakenInfo::EdgeExitInfo>
+        ExitCounts,
     bool Complete, const SCEV *MaxCount, bool MaxOrZero)
     : MaxAndComplete(MaxCount, Complete), MaxOrZero(MaxOrZero) {
   using EdgeExitInfo = ScalarEvolution::BackedgeTakenInfo::EdgeExitInfo;
@@ -7256,6 +7272,14 @@ ScalarEvolution::ExitLimit ScalarEvolution::computeExitLimitFromCondImpl(
         if (EL0.ExactNotTaken == EL1.ExactNotTaken)
           BECount = EL0.ExactNotTaken;
       }
+      // There are cases (e.g. PR26207) where computeExitLimitFromCond is able
+      // to be more aggressive when computing BECount than when computing
+      // MaxBECount.  In these cases it is possible for EL0.ExactNotTaken and
+      // EL1.ExactNotTaken to match, but for EL0.MaxNotTaken and EL1.MaxNotTaken
+      // to not.
+      if (isa<SCEVCouldNotCompute>(MaxBECount) &&
+          !isa<SCEVCouldNotCompute>(BECount))
+        MaxBECount = getConstant(getUnsignedRangeMax(BECount));
 
       return ExitLimit(BECount, MaxBECount, false,
                        {&EL0.Predicates, &EL1.Predicates});
@@ -8087,44 +8111,46 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
   // exit value from the loop without using SCEVs.
   if (const SCEVUnknown *SU = dyn_cast<SCEVUnknown>(V)) {
     if (Instruction *I = dyn_cast<Instruction>(SU->getValue())) {
-      const Loop *LI = this->LI[I->getParent()];
-      if (LI && LI->getParentLoop() == L)  // Looking for loop exit value.
-        if (PHINode *PN = dyn_cast<PHINode>(I))
-          if (PN->getParent() == LI->getHeader()) {
-            // Okay, there is no closed form solution for the PHI node.  Check
-            // to see if the loop that contains it has a known backedge-taken
-            // count.  If so, we may be able to force computation of the exit
-            // value.
-            const SCEV *BackedgeTakenCount = getBackedgeTakenCount(LI);
-            if (const SCEVConstant *BTCC =
-                  dyn_cast<SCEVConstant>(BackedgeTakenCount)) {
+      if (PHINode *PN = dyn_cast<PHINode>(I)) {
+        const Loop *LI = this->LI[I->getParent()];
+        // Looking for loop exit value.
+        if (LI && LI->getParentLoop() == L &&
+            PN->getParent() == LI->getHeader()) {
+          // Okay, there is no closed form solution for the PHI node.  Check
+          // to see if the loop that contains it has a known backedge-taken
+          // count.  If so, we may be able to force computation of the exit
+          // value.
+          const SCEV *BackedgeTakenCount = getBackedgeTakenCount(LI);
+          if (const SCEVConstant *BTCC =
+                dyn_cast<SCEVConstant>(BackedgeTakenCount)) {
 
-              // This trivial case can show up in some degenerate cases where
-              // the incoming IR has not yet been fully simplified.
-              if (BTCC->getValue()->isZero()) {
-                Value *InitValue = nullptr;
-                bool MultipleInitValues = false;
-                for (unsigned i = 0; i < PN->getNumIncomingValues(); i++) {
-                  if (!LI->contains(PN->getIncomingBlock(i))) {
-                    if (!InitValue)
-                      InitValue = PN->getIncomingValue(i);
-                    else if (InitValue != PN->getIncomingValue(i)) {
-                      MultipleInitValues = true;
-                      break;
-                    }
+            // This trivial case can show up in some degenerate cases where
+            // the incoming IR has not yet been fully simplified.
+            if (BTCC->getValue()->isZero()) {
+              Value *InitValue = nullptr;
+              bool MultipleInitValues = false;
+              for (unsigned i = 0; i < PN->getNumIncomingValues(); i++) {
+                if (!LI->contains(PN->getIncomingBlock(i))) {
+                  if (!InitValue)
+                    InitValue = PN->getIncomingValue(i);
+                  else if (InitValue != PN->getIncomingValue(i)) {
+                    MultipleInitValues = true;
+                    break;
                   }
-                  if (!MultipleInitValues && InitValue)
-                    return getSCEV(InitValue);
                 }
+                if (!MultipleInitValues && InitValue)
+                  return getSCEV(InitValue);
               }
-              // Okay, we know how many times the containing loop executes.  If
-              // this is a constant evolving PHI node, get the final value at
-              // the specified iteration number.
-              Constant *RV =
-                  getConstantEvolutionLoopExitValue(PN, BTCC->getAPInt(), LI);
-              if (RV) return getSCEV(RV);
             }
+            // Okay, we know how many times the containing loop executes.  If
+            // this is a constant evolving PHI node, get the final value at
+            // the specified iteration number.
+            Constant *RV =
+                getConstantEvolutionLoopExitValue(PN, BTCC->getAPInt(), LI);
+            if (RV) return getSCEV(RV);
           }
+        }
+      }
 
       // Okay, this is an expression that we cannot symbolically evaluate
       // into a SCEV.  Check to see if it's possible to symbolically evaluate
@@ -10806,8 +10832,6 @@ static inline bool containsUndefs(const SCEV *S) {
   return SCEVExprContains(S, [](const SCEV *S) {
     if (const auto *SU = dyn_cast<SCEVUnknown>(S))
       return isa<UndefValue>(SU->getValue());
-    else if (const auto *SC = dyn_cast<SCEVConstant>(S))
-      return isa<UndefValue>(SC->getValue());
     return false;
   });
 }

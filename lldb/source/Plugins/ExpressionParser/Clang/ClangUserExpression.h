@@ -1,9 +1,8 @@
 //===-- ClangUserExpression.h -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -62,7 +61,8 @@ public:
 
     void ResetDeclMap(ExecutionContext &exe_ctx,
                       Materializer::PersistentVariableDelegate &result_delegate,
-                      bool keep_result_in_memory);
+                      bool keep_result_in_memory,
+                      ValueObject *ctx_obj);
 
     //------------------------------------------------------------------
     /// Return the object that the parser should allow to access ASTs. May be
@@ -106,11 +106,17 @@ public:
   /// @param[in] desired_type
   ///     If not eResultTypeAny, the type to use for the expression
   ///     result.
+  ///
+  /// @param[in] ctx_obj
+  ///     The object (if any) in which context the expression
+  ///     must be evaluated. For details see the comment to
+  ///     `UserExpression::Evaluate`.
   //------------------------------------------------------------------
   ClangUserExpression(ExecutionContextScope &exe_scope, llvm::StringRef expr,
                       llvm::StringRef prefix, lldb::LanguageType language,
                       ResultType desired_type,
-                      const EvaluateExpressionOptions &options);
+                      const EvaluateExpressionOptions &options,
+                      ValueObject *ctx_obj);
 
   ~ClangUserExpression() override;
 
@@ -154,7 +160,8 @@ public:
                     Materializer::PersistentVariableDelegate &result_delegate,
                     bool keep_result_in_memory) {
     m_type_system_helper.ResetDeclMap(exe_ctx, result_delegate,
-                                      keep_result_in_memory);
+                                      keep_result_in_memory,
+                                      m_ctx_obj);
   }
 
   lldb::ExpressionVariableSP
@@ -205,6 +212,10 @@ private:
   /// were not able to calculate this position.
   llvm::Optional<size_t> m_user_expression_start_pos;
   ResultDelegate m_result_delegate;
+
+  /// The object (if any) in which context the expression is evaluated.
+  /// See the comment to `UserExpression::Evaluate` for details.
+  ValueObject *m_ctx_obj;
 };
 
 } // namespace lldb_private

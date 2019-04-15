@@ -73,6 +73,8 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   endif()
 
   if (EXISTS ${LLVM_CMAKE_PATH})
+    # Enable warnings, otherwise -w gets added to the cflags by HandleLLVMOptions.
+    set(LLVM_ENABLE_WARNINGS ON)
     list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_PATH}")
     include("${LLVM_CMAKE_PATH}/AddLLVM.cmake")
     include("${LLVM_CMAKE_PATH}/HandleLLVMOptions.cmake")
@@ -81,7 +83,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   endif()
 
   set(PACKAGE_NAME libunwind)
-  set(PACKAGE_VERSION 8.0.0svn)
+  set(PACKAGE_VERSION 9.0.0svn)
   set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
   set(PACKAGE_BUGREPORT "llvm-bugs@lists.llvm.org")
 
@@ -113,7 +115,6 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX})
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX})
 else()
-  set(LLVM_MAIN_SRC_DIR "${CMAKE_SOURCE_DIR}" CACHE PATH "Path to LLVM source tree")
   set(LLVM_LIT "${CMAKE_SOURCE_DIR}/utils/lit/lit.py")
 endif()
 
@@ -166,6 +167,9 @@ elseif(LIBUNWIND_BUILD_32_BITS)
   message(FATAL_ERROR "LIBUNWIND_BUILD_32_BITS=ON is not supported on this platform.")
 endif()
 
+option(LIBUNWIND_HERMETIC_STATIC_LIBRARY
+  "Do not export any symbols from the static library." OFF)
+
 #===============================================================================
 # Configure System
 #===============================================================================
@@ -210,22 +214,38 @@ macro(unwind_append_if list condition var)
   endif()
 endmacro()
 
-macro(add_target_flags_if condition var)
+macro(add_target_flags)
+  foreach(value ${ARGN})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${value}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${value}")
+    list(APPEND LIBUNWIND_COMPILE_FLAGS ${value})
+    list(APPEND LIBUNWIND_LINK_FLAGS ${value})
+  endforeach()
+endmacro()
+
+macro(add_target_flags_if condition)
   if (${condition})
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${var}")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${var}")
-    list(APPEND LIBUNWIND_COMPILE_FLAGS ${var})
-    list(APPEND LIBUNWIND_LINK_FLAGS ${var})
+    add_target_flags(${ARGN})
   endif()
 endmacro()
 
 add_target_flags_if(LIBUNWIND_BUILD_32_BITS "-m32")
-add_target_flags_if(LIBUNWIND_TARGET_TRIPLE
-          "--target=${LIBUNWIND_TARGET_TRIPLE}")
-add_target_flags_if(LIBUNWIND_GCC_TOOLCHAIN
-          "--gcc-toolchain=${LIBUNWIND_GCC_TOOLCHAIN}")
-add_target_flags_if(LIBUNWIND_SYSROOT
-          "--sysroot=${LIBUNWIND_SYSROOT}")
+
+if(LIBUNWIND_TARGET_TRIPLE)
+  add_target_flags("--target=${LIBUNWIND_TARGET_TRIPLE}")
+elseif(CMAKE_CXX_COMPILER_TARGET)
+  set(LIBUNWIND_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
+endif()
+if(LIBUNWIND_GCC_TOOLCHAIN)
+  add_target_flags("--gcc-toolchain=${LIBUNWIND_GCC_TOOLCHAIN}")
+elseif(CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN)
+  set(LIBUNWIND_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}")
+endif()
+if(LIBUNWIND_SYSROOT)
+  add_target_flags("--sysroot=${LIBUNWIND_SYSROOT}")
+elseif(CMAKE_SYSROOT)
+  set(LIBUNWIND_SYSROOT "${CMAKE_SYSROOT}")
+endif()
 
 if (LIBUNWIND_TARGET_TRIPLE)
   set(TARGET_TRIPLE "${LIBUNWIND_TARGET_TRIPLE}")
@@ -285,6 +305,9 @@ unwind_append_if(LIBUNWIND_CXX_FLAGS LIBUNWIND_HAS_EHSC_FLAG -EHsc)
 
 unwind_append_if(LIBUNWIND_C_FLAGS LIBUNWIND_HAS_FUNWIND_TABLES -funwind-tables)
 
+# Ensure that we don't depend on C++ standard library.
+unwind_append_if(LIBUNWIND_CXX_FLAGS LIBUNWIND_HAS_NOSTDINCXX_FLAG -nostdinc++)
+
 # Assert
 string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
 if (LIBUNWIND_ENABLE_ASSERTIONS)
@@ -338,28 +361,6 @@ endif()
 #===============================================================================
 
 include_directories(include)
-
-find_path(
-  LIBUNWIND_LIBCXX_INCLUDES_INTERNAL
-  __libcpp_version
-  PATHS ${LLVM_MAIN_SRC_DIR}/projects/libcxx/include
-        ${LLVM_MAIN_SRC_DIR}/runtimes/libcxx/include
-        ${LLVM_MAIN_SRC_DIR}/../libcxx/include
-  NO_DEFAULT_PATH
-  NO_CMAKE_FIND_ROOT_PATH
-  )
-if ((NOT LIBUNWIND_STANDALONE_BUILD OR HAVE_LIBCXX) AND
-    IS_DIRECTORY "${LIBUNWIND_LIBCXX_INCLUDES_INTERNAL}")
-  set(LIBUNWIND_CXX_INCLUDE_PATHS_DEFAULT "${LIBUNWIND_LIBCXX_INCLUDES_INTERNAL}")
-endif()
-
-set(LIBUNWIND_CXX_INCLUDE_PATHS "${LIBUNWIND_CXX_INCLUDE_PATHS_DEFAULT}" CACHE PATH
-    "Paths to C++ header directories separated by ';'.")
-
-if (NOT LIBUNWIND_CXX_INCLUDE_PATHS STREQUAL "")
-  list(APPEND LIBUNWIND_CXX_FLAGS -nostdinc++)
-  include_directories("${LIBUNWIND_CXX_INCLUDE_PATHS}")
-endif()
 
 add_subdirectory(src)
 

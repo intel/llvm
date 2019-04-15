@@ -5,14 +5,14 @@
 
 //==--- program_manager.cpp - SYCL program manager test --------------------==//
 //
-// The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+#include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/program_manager/program_manager.hpp>
 
 #include <cassert>
@@ -24,21 +24,26 @@ int main() {
   context ContextSecond;
 
   auto &PM = detail::ProgramManager::getInstance();
+  auto M = detail::OSUtil::ExeModuleHandle;
 
-  const cl_program ClProgramFirst = PM.getBuiltOpenCLProgram(ContextFirst);
-  const cl_program ClProgramSecond = PM.getBuiltOpenCLProgram(ContextSecond);
+  const cl_program ClProgramFirst = PM.getBuiltOpenCLProgram(M, ContextFirst);
+  const cl_program ClProgramSecond = PM.getBuiltOpenCLProgram(M, ContextSecond);
   // The check what getBuiltOpenCLProgram returns unique cl_program for unique
   // context
   assert(ClProgramFirst != ClProgramSecond);
   for (size_t i = 0; i < 10; ++i) {
-    const cl_program ClProgramFirstNew = PM.getBuiltOpenCLProgram(ContextFirst);
+    const cl_program ClProgramFirstNew =
+        PM.getBuiltOpenCLProgram(M, ContextFirst);
     const cl_program ClProgramSecondNew =
-        PM.getBuiltOpenCLProgram(ContextSecond);
+        PM.getBuiltOpenCLProgram(M, ContextSecond);
     // The check what getBuiltOpenCLProgram returns the same program for the
     // same context each time
     assert(ClProgramFirst == ClProgramFirstNew);
     assert(ClProgramSecond == ClProgramSecondNew);
   }
+
+  queue q;
+  q.submit([&](handler &cgh) { cgh.single_task<class foo>([]() {}); });
 
   return 0;
 }

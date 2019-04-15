@@ -1,9 +1,8 @@
 //===---------------------------- Context.cpp -------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 /// \file
@@ -43,7 +42,8 @@ Context::createDefaultPipeline(const PipelineOptions &Opts, InstrBuilder &IB,
   auto Fetch = llvm::make_unique<EntryStage>(SrcMgr);
   auto Dispatch = llvm::make_unique<DispatchStage>(STI, MRI, Opts.DispatchWidth,
                                                    *RCU, *PRF);
-  auto Execute = llvm::make_unique<ExecuteStage>(*HWS);
+  auto Execute =
+      llvm::make_unique<ExecuteStage>(*HWS, Opts.EnableBottleneckAnalysis);
   auto Retire = llvm::make_unique<RetireStage>(*RCU, *PRF);
 
   // Pass the ownership of all the hardware units to this Context.

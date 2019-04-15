@@ -1,9 +1,8 @@
 //===- GraphBuilder.cpp -----------------------------------------*- C++ -*-===//
 //
-//                      The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -94,17 +93,19 @@ void GraphResult::printToDOT(const FileAnalysis &Analysis,
 }
 
 GraphResult GraphBuilder::buildFlowGraph(const FileAnalysis &Analysis,
-                                         uint64_t Address) {
+                                         object::SectionedAddress Address) {
   GraphResult Result;
-  Result.BaseAddress = Address;
+  Result.BaseAddress = Address.Address;
   DenseSet<uint64_t> OpenedNodes;
 
   const auto &IndirectInstructions = Analysis.getIndirectInstructions();
 
-  if (IndirectInstructions.find(Address) == IndirectInstructions.end())
+  // check that IndirectInstructions contains specified Address
+  if (IndirectInstructions.find(Address) == IndirectInstructions.end()) {
     return Result;
+  }
 
-  buildFlowGraphImpl(Analysis, OpenedNodes, Result, Address, 0);
+  buildFlowGraphImpl(Analysis, OpenedNodes, Result, Address.Address, 0);
   return Result;
 }
 

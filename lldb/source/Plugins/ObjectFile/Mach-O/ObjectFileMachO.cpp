@@ -1,9 +1,8 @@
 //===-- ObjectFileMachO.cpp -------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -59,6 +58,8 @@
 #else
 #include <uuid/uuid.h>
 #endif
+
+#include <memory>
 
 #define THUMB_ADDRESS_BIT_MASK 0xfffffffffffffffeull
 using namespace lldb;
@@ -871,22 +872,22 @@ ObjectFile *ObjectFileMachO::CreateInstance(const lldb::ModuleSP &module_sp,
       return nullptr;
     data_offset = 0;
   }
-  auto objfile_ap = llvm::make_unique<ObjectFileMachO>(
+  auto objfile_up = llvm::make_unique<ObjectFileMachO>(
       module_sp, data_sp, data_offset, file, file_offset, length);
-  if (!objfile_ap || !objfile_ap->ParseHeader())
+  if (!objfile_up || !objfile_up->ParseHeader())
     return nullptr;
 
-  return objfile_ap.release();
+  return objfile_up.release();
 }
 
 ObjectFile *ObjectFileMachO::CreateMemoryInstance(
     const lldb::ModuleSP &module_sp, DataBufferSP &data_sp,
     const ProcessSP &process_sp, lldb::addr_t header_addr) {
   if (ObjectFileMachO::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
-    std::unique_ptr<ObjectFile> objfile_ap(
+    std::unique_ptr<ObjectFile> objfile_up(
         new ObjectFileMachO(module_sp, data_sp, process_sp, header_addr));
-    if (objfile_ap.get() && objfile_ap->ParseHeader())
-      return objfile_ap.release();
+    if (objfile_up.get() && objfile_up->ParseHeader())
+      return objfile_up.release();
   }
   return NULL;
 }
@@ -915,12 +916,10 @@ size_t ObjectFileMachO::GetModuleSpecifications(
         spec.SetObjectOffset(file_offset);
         spec.SetObjectSize(length);
 
-        if (GetArchitecture(header, data, data_offset,
-                            spec.GetArchitecture())) {
-          if (spec.GetArchitecture().IsValid()) {
-            GetUUID(header, data, data_offset, spec.GetUUID());
-            specs.Append(spec);
-          }
+        spec.GetArchitecture() = GetArchitecture(header, data, data_offset);
+        if (spec.GetArchitecture().IsValid()) {
+          spec.GetUUID() = GetUUID(header, data, data_offset);
+          specs.Append(spec);
         }
       }
     }
@@ -1103,9 +1102,7 @@ bool ObjectFileMachO::ParseHeader() {
     if (can_parse) {
       m_data.GetU32(&offset, &m_header.cputype, 6);
 
-      ArchSpec mach_arch;
-
-      if (GetArchitecture(mach_arch)) {
+      if (ArchSpec mach_arch = GetArchitecture()) {
         // Check if the module has a required architecture
         const ArchSpec &module_arch = module_sp->GetArchitecture();
         if (module_arch.IsValid() && !module_arch.IsCompatibleMatch(mach_arch))
@@ -1315,15 +1312,15 @@ Symtab *ObjectFileMachO::GetSymtab() {
   ModuleSP module_sp(GetModule());
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
-    if (m_symtab_ap.get() == NULL) {
-      m_symtab_ap.reset(new Symtab(this));
+    if (m_symtab_up == NULL) {
+      m_symtab_up.reset(new Symtab(this));
       std::lock_guard<std::recursive_mutex> symtab_guard(
-          m_symtab_ap->GetMutex());
+          m_symtab_up->GetMutex());
       ParseSymtab();
-      m_symtab_ap->Finalize();
+      m_symtab_up->Finalize();
     }
   }
-  return m_symtab_ap.get();
+  return m_symtab_up.get();
 }
 
 bool ObjectFileMachO::IsStripped() {
@@ -1614,8 +1611,7 @@ void ObjectFileMachO::ProcessSegmentCommand(const load_command &load_cmd_,
   bool add_section = true;
   bool add_to_unified = true;
   ConstString const_segname(
-      load_cmd.segname,
-      std::min<size_t>(strlen(load_cmd.segname), sizeof(load_cmd.segname)));
+      load_cmd.segname, strnlen(load_cmd.segname, sizeof(load_cmd.segname)));
 
   SectionSP unified_section_sp(
       context.UnifiedList.FindSectionByName(const_segname));
@@ -1651,7 +1647,7 @@ void ObjectFileMachO::ProcessSegmentCommand(const load_command &load_cmd_,
   // conflict with any of the sections.
   SectionSP segment_sp;
   if (add_section && (const_segname || is_core)) {
-    segment_sp.reset(new Section(
+    segment_sp = std::make_shared<Section>(
         module_sp, // Module to which this section belongs
         this,      // Object file to which this sections belongs
         ++context.NextSegmentIdx
@@ -1669,10 +1665,10 @@ void ObjectFileMachO::ProcessSegmentCommand(const load_command &load_cmd_,
         load_cmd.filesize, // Size in bytes of this section as found
         // in the file
         0,                // Segments have no alignment information
-        load_cmd.flags)); // Flags for this section
+        load_cmd.flags); // Flags for this section
 
     segment_sp->SetIsEncrypted(segment_is_encrypted);
-    m_sections_ap->AddSection(segment_sp);
+    m_sections_up->AddSection(segment_sp);
     segment_sp->SetPermissions(segment_permissions);
     if (add_to_unified)
       context.UnifiedList.AddSection(segment_sp);
@@ -1701,7 +1697,7 @@ void ObjectFileMachO::ProcessSegmentCommand(const load_command &load_cmd_,
         context.FileAddressesChanged = true;
       }
     }
-    m_sections_ap->AddSection(unified_section_sp);
+    m_sections_up->AddSection(unified_section_sp);
   }
 
   struct section_64 sect64;
@@ -1734,8 +1730,7 @@ void ObjectFileMachO::ProcessSegmentCommand(const load_command &load_cmd_,
 
     if (add_section) {
       ConstString section_name(
-          sect64.sectname,
-          std::min<size_t>(strlen(sect64.sectname), sizeof(sect64.sectname)));
+          sect64.sectname, strnlen(sect64.sectname, sizeof(sect64.sectname)));
       if (!const_segname) {
         // We have a segment with no name so we need to conjure up segments
         // that correspond to the section's segname if there isn't already such
@@ -1791,7 +1786,7 @@ void ObjectFileMachO::ProcessSegmentCommand(const load_command &load_cmd_,
           }
         } else {
           // Create a fake section for the section's named segment
-          segment_sp.reset(new Section(
+          segment_sp = std::make_shared<Section>(
               segment_sp, // Parent section
               module_sp,  // Module to which this section belongs
               this,       // Object file to which this section belongs
@@ -1812,10 +1807,10 @@ void ObjectFileMachO::ProcessSegmentCommand(const load_command &load_cmd_,
               // this section as
               // found in the file
               sect64.align,
-              load_cmd.flags)); // Flags for this section
+              load_cmd.flags); // Flags for this section
           segment_sp->SetIsFake(true);
           segment_sp->SetPermissions(segment_permissions);
-          m_sections_ap->AddSection(segment_sp);
+          m_sections_up->AddSection(segment_sp);
           if (add_to_unified)
             context.UnifiedList.AddSection(segment_sp);
           segment_sp->SetIsEncrypted(segment_is_encrypted);
@@ -1882,10 +1877,10 @@ void ObjectFileMachO::ProcessDysymtabCommand(const load_command &load_cmd,
 }
 
 void ObjectFileMachO::CreateSections(SectionList &unified_section_list) {
-  if (m_sections_ap)
+  if (m_sections_up)
     return;
 
-  m_sections_ap.reset(new SectionList());
+  m_sections_up.reset(new SectionList());
 
   lldb::offset_t offset = MachHeaderSizeFromMagic(m_header.magic);
   // bool dump_sections = false;
@@ -2218,7 +2213,7 @@ size_t ObjectFileMachO::ParseSymtab() {
   }
 
   if (symtab_load_command.cmd) {
-    Symtab *symtab = m_symtab_ap.get();
+    Symtab *symtab = m_symtab_up.get();
     SectionList *section_list = GetSectionList();
     if (section_list == NULL)
       return 0;
@@ -4838,8 +4833,7 @@ void ObjectFileMachO::Dump(Stream *s) {
     else
       s->PutCString("ObjectFileMachO32");
 
-    ArchSpec header_arch;
-    GetArchitecture(header_arch);
+    ArchSpec header_arch = GetArchitecture();
 
     *s << ", file = '" << m_file
        << "', triple = " << header_arch.GetTriple().getTriple() << "\n";
@@ -4848,15 +4842,14 @@ void ObjectFileMachO::Dump(Stream *s) {
     if (sections)
       sections->Dump(s, NULL, true, UINT32_MAX);
 
-    if (m_symtab_ap.get())
-      m_symtab_ap->Dump(s, NULL, eSortOrderNone);
+    if (m_symtab_up)
+      m_symtab_up->Dump(s, NULL, eSortOrderNone);
   }
 }
 
-bool ObjectFileMachO::GetUUID(const llvm::MachO::mach_header &header,
+UUID ObjectFileMachO::GetUUID(const llvm::MachO::mach_header &header,
                               const lldb_private::DataExtractor &data,
-                              lldb::offset_t lc_offset,
-                              lldb_private::UUID &uuid) {
+                              lldb::offset_t lc_offset) {
   uint32_t i;
   struct uuid_command load_cmd;
 
@@ -4878,16 +4871,15 @@ bool ObjectFileMachO::GetUUID(const llvm::MachO::mach_header &header,
                                        0xbb, 0x14, 0xf0, 0x0d};
 
         if (!memcmp(uuid_bytes, opencl_uuid, 16))
-          return false;
+          return UUID();
 
-        uuid = UUID::fromOptionalData(uuid_bytes, 16);
-        return true;
+        return UUID::fromOptionalData(uuid_bytes, 16);
       }
-      return false;
+      return UUID();
     }
     offset = cmd_offset + load_cmd.cmdsize;
   }
-  return false;
+  return UUID();
 }
 
 static llvm::StringRef GetOSName(uint32_t cmd) {
@@ -4962,10 +4954,11 @@ namespace {
   };
 } // namespace
 
-bool ObjectFileMachO::GetArchitecture(const llvm::MachO::mach_header &header,
-                                      const lldb_private::DataExtractor &data,
-                                      lldb::offset_t lc_offset,
-                                      ArchSpec &arch) {
+ArchSpec
+ObjectFileMachO::GetArchitecture(const llvm::MachO::mach_header &header,
+                                 const lldb_private::DataExtractor &data,
+                                 lldb::offset_t lc_offset) {
+  ArchSpec arch;
   arch.SetArchitecture(eArchTypeMachO, header.cputype, header.cpusubtype);
 
   if (arch.IsValid()) {
@@ -4990,7 +4983,7 @@ bool ObjectFileMachO::GetArchitecture(const llvm::MachO::mach_header &header,
         triple.setVendor(llvm::Triple::UnknownVendor);
         triple.setVendorName(llvm::StringRef());
       }
-      return true;
+      return arch;
     } else {
       struct load_command load_cmd;
       llvm::SmallString<16> os_name;
@@ -5019,7 +5012,7 @@ bool ObjectFileMachO::GetArchitecture(const llvm::MachO::mach_header &header,
           os << GetOSName(load_cmd.cmd) << min_os.major_version << '.'
              << min_os.minor_version << '.' << min_os.patch_version;
           triple.setOSName(os.str());
-          return true;
+          return arch;
         }
         default:
           break;
@@ -5055,7 +5048,7 @@ bool ObjectFileMachO::GetArchitecture(const llvm::MachO::mach_header &header,
             triple.setOSName(os.str());
             if (!os_env.environment.empty())
               triple.setEnvironmentName(os_env.environment);
-            return true;
+            return arch;
           }
         } while (0);
         offset = cmd_offset + load_cmd.cmdsize;
@@ -5070,17 +5063,17 @@ bool ObjectFileMachO::GetArchitecture(const llvm::MachO::mach_header &header,
       }
     }
   }
-  return arch.IsValid();
+  return arch;
 }
 
-bool ObjectFileMachO::GetUUID(lldb_private::UUID *uuid) {
+UUID ObjectFileMachO::GetUUID() {
   ModuleSP module_sp(GetModule());
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
     lldb::offset_t offset = MachHeaderSizeFromMagic(m_header.magic);
-    return GetUUID(m_header, m_data, offset, *uuid);
+    return GetUUID(m_header, m_data, offset);
   }
-  return false;
+  return UUID();
 }
 
 uint32_t ObjectFileMachO::GetDependentModules(FileSpecList &files) {
@@ -5534,19 +5527,23 @@ ObjectFileMachO::GetThreadContextAtIndex(uint32_t idx,
 
       switch (m_header.cputype) {
       case llvm::MachO::CPU_TYPE_ARM64:
-        reg_ctx_sp.reset(new RegisterContextDarwin_arm64_Mach(thread, data));
+        reg_ctx_sp =
+            std::make_shared<RegisterContextDarwin_arm64_Mach>(thread, data);
         break;
 
       case llvm::MachO::CPU_TYPE_ARM:
-        reg_ctx_sp.reset(new RegisterContextDarwin_arm_Mach(thread, data));
+        reg_ctx_sp =
+            std::make_shared<RegisterContextDarwin_arm_Mach>(thread, data);
         break;
 
       case llvm::MachO::CPU_TYPE_I386:
-        reg_ctx_sp.reset(new RegisterContextDarwin_i386_Mach(thread, data));
+        reg_ctx_sp =
+            std::make_shared<RegisterContextDarwin_i386_Mach>(thread, data);
         break;
 
       case llvm::MachO::CPU_TYPE_X86_64:
-        reg_ctx_sp.reset(new RegisterContextDarwin_x86_64_Mach(thread, data));
+        reg_ctx_sp =
+            std::make_shared<RegisterContextDarwin_x86_64_Mach>(thread, data);
         break;
       }
     }
@@ -5560,8 +5557,7 @@ ObjectFile::Type ObjectFileMachO::CalculateType() {
     if (GetAddressByteSize() == 4) {
       // 32 bit kexts are just object files, but they do have a valid
       // UUID load command.
-      UUID uuid;
-      if (GetUUID(&uuid)) {
+      if (GetUUID()) {
         // this checking for the UUID load command is not enough we could
         // eventually look for the symbol named "OSKextGetCurrentIdentifier" as
         // this is required of kexts
@@ -5604,8 +5600,7 @@ ObjectFile::Strata ObjectFileMachO::CalculateStrata() {
   {
     // 32 bit kexts are just object files, but they do have a valid
     // UUID load command.
-    UUID uuid;
-    if (GetUUID(&uuid)) {
+    if (GetUUID()) {
       // this checking for the UUID load command is not enough we could
       // eventually look for the symbol named "OSKextGetCurrentIdentifier" as
       // this is required of kexts
@@ -5692,14 +5687,16 @@ llvm::VersionTuple ObjectFileMachO::GetVersion() {
   return llvm::VersionTuple();
 }
 
-bool ObjectFileMachO::GetArchitecture(ArchSpec &arch) {
+ArchSpec ObjectFileMachO::GetArchitecture() {
   ModuleSP module_sp(GetModule());
+  ArchSpec arch;
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
+
     return GetArchitecture(m_header, m_data,
-                           MachHeaderSizeFromMagic(m_header.magic), arch);
+                           MachHeaderSizeFromMagic(m_header.magic));
   }
-  return false;
+  return arch;
 }
 
 void ObjectFileMachO::GetProcessSharedCacheUUID(Process *process, addr_t &base_addr, UUID &uuid) {

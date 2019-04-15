@@ -1,10 +1,8 @@
 //===- ASFixer.cpp - Address spaces fixer pass implementation -------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
-//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception//
 //===----------------------------------------------------------------------===//
 //
 // This implements the address spaces fixer pass.
@@ -554,7 +552,7 @@ struct ASFixer : public ModulePass {
     // into structure so we need to check structures with
     // pointers and replace it if needed.
     // As described in SYCL spec structures with pointers
-    // can't be passes as kernel argument so we check
+    // can't be passed as kernel argument so we check
     // allocas of structures with pointers.
     std::vector<std::pair<Value *, Value *>> BadAllocas;
     TypeToTypeMap TMap;

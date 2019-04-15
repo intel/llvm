@@ -1,9 +1,8 @@
 //=- WebAssemblySetP2AlignOperands.cpp - Set alignments on loads and stores -=//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -54,7 +53,7 @@ FunctionPass *llvm::createWebAssemblySetP2AlignOperands() {
   return new WebAssemblySetP2AlignOperands();
 }
 
-static void RewriteP2Align(MachineInstr &MI, unsigned OperandNo) {
+static void rewriteP2Align(MachineInstr &MI, unsigned OperandNo) {
   assert(MI.getOperand(OperandNo).getImm() == 0 &&
          "ISel should set p2align operands to 0");
   assert(MI.hasOneMemOperand() &&
@@ -164,7 +163,7 @@ bool WebAssemblySetP2AlignOperands::runOnMachineFunction(MachineFunction &MF) {
       case WebAssembly::ATOMIC_NOTIFY:
       case WebAssembly::ATOMIC_WAIT_I32:
       case WebAssembly::ATOMIC_WAIT_I64:
-        RewriteP2Align(MI, WebAssembly::LoadP2AlignOperandNo);
+        rewriteP2Align(MI, WebAssembly::LoadP2AlignOperandNo);
         break;
       case WebAssembly::STORE_I32:
       case WebAssembly::STORE_I64:
@@ -188,7 +187,7 @@ bool WebAssemblySetP2AlignOperands::runOnMachineFunction(MachineFunction &MF) {
       case WebAssembly::ATOMIC_STORE8_I64:
       case WebAssembly::ATOMIC_STORE16_I64:
       case WebAssembly::ATOMIC_STORE32_I64:
-        RewriteP2Align(MI, WebAssembly::StoreP2AlignOperandNo);
+        rewriteP2Align(MI, WebAssembly::StoreP2AlignOperandNo);
         break;
       default:
         break;

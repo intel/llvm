@@ -1,10 +1,9 @@
 //===-- IRForTarget.h ---------------------------------------------*- C++
 //-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,6 +16,7 @@
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/lldb-public.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/Pass.h"
 
 #include <functional>
@@ -31,11 +31,9 @@ class Function;
 class GlobalValue;
 class GlobalVariable;
 class Instruction;
-class IntegerType;
 class Module;
 class StoreInst;
 class DataLayout;
-class Type;
 class Value;
 }
 
@@ -557,18 +555,16 @@ private:
                                                    ///module.
   lldb_private::ClangExpressionDeclMap
       *m_decl_map; ///< The DeclMap containing the Decls
-  llvm::Constant *m_CFStringCreateWithBytes; ///< The address of the function
-                                             ///CFStringCreateWithBytes, cast to
-                                             ///the
-  /// appropriate function pointer type
-  llvm::Constant *m_sel_registerName; ///< The address of the function
-                                      ///sel_registerName, cast to the
-                                      ///appropriate
-                                      /// function pointer type
-  llvm::Constant *m_objc_getClass; ///< The address of the function
-                                   ///objc_getClass, cast to the
-                                   ///appropriate
-                                   /// function pointer type
+  llvm::FunctionCallee
+      m_CFStringCreateWithBytes; ///< The address of the function
+                                 /// CFStringCreateWithBytes, cast to the
+                                 /// appropriate function pointer type
+  llvm::FunctionCallee m_sel_registerName; ///< The address of the function
+                                           /// sel_registerName, cast to the
+                                           /// appropriate function pointer type
+  llvm::FunctionCallee m_objc_getClass; ///< The address of the function
+                                        /// objc_getClass, cast to the
+                                        /// appropriate function pointer type
   llvm::IntegerType
       *m_intptr_ty; ///< The type of an integer large enough to hold a pointer.
   lldb_private::Stream

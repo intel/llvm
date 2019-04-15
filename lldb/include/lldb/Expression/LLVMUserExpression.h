@@ -1,9 +1,8 @@
 //===-- LLVMUserExpression.h ------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -98,9 +97,9 @@ protected:
 
   std::shared_ptr<IRExecutionUnit>
       m_execution_unit_sp; ///< The execution unit the expression is stored in.
-  std::unique_ptr<Materializer> m_materializer_ap; ///< The materializer to use
-                                                   ///when running the
-                                                   ///expression.
+  std::unique_ptr<Materializer> m_materializer_up; ///< The materializer to use
+                                                   /// when running the
+                                                   /// expression.
   lldb::ModuleWP m_jit_module_wp;
   bool m_enforce_valid_object; ///< True if the expression parser should enforce
                                ///the presence of a valid class pointer

@@ -1,9 +1,8 @@
 //===- HeaderSearch.cpp - Resolve Header File Locations -------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -335,6 +334,7 @@ const FileEntry *DirectoryLookup::LookupFile(
     Module *RequestingModule,
     ModuleMap::KnownHeader *SuggestedModule,
     bool &InUserSpecifiedSystemFramework,
+    bool &IsFrameworkFound,
     bool &HasBeenMapped,
     SmallVectorImpl<char> &MappedName) const {
   InUserSpecifiedSystemFramework = false;
@@ -363,7 +363,7 @@ const FileEntry *DirectoryLookup::LookupFile(
   if (isFramework())
     return DoFrameworkLookup(Filename, HS, SearchPath, RelativePath,
                              RequestingModule, SuggestedModule,
-                             InUserSpecifiedSystemFramework);
+                             InUserSpecifiedSystemFramework, IsFrameworkFound);
 
   assert(isHeaderMap() && "Unknown directory lookup");
   const HeaderMap *HM = getHeaderMap();
@@ -463,7 +463,7 @@ const FileEntry *DirectoryLookup::DoFrameworkLookup(
     StringRef Filename, HeaderSearch &HS, SmallVectorImpl<char> *SearchPath,
     SmallVectorImpl<char> *RelativePath, Module *RequestingModule,
     ModuleMap::KnownHeader *SuggestedModule,
-    bool &InUserSpecifiedSystemFramework) const {
+    bool &InUserSpecifiedSystemFramework, bool &IsFrameworkFound) const {
   FileManager &FileMgr = HS.getFileMgr();
 
   // Framework names must have a '/' in the filename.
@@ -472,7 +472,7 @@ const FileEntry *DirectoryLookup::DoFrameworkLookup(
 
   // Find out if this is the home for the specified framework, by checking
   // HeaderSearch.  Possible answers are yes/no and unknown.
-  HeaderSearch::FrameworkCacheEntry &CacheEntry =
+  FrameworkCacheEntry &CacheEntry =
     HS.LookupFrameworkCache(Filename.substr(0, SlashPos));
 
   // If it is known and in some other directory, fail.
@@ -517,8 +517,9 @@ const FileEntry *DirectoryLookup::DoFrameworkLookup(
     }
   }
 
-  // Set the 'user-specified system framework' flag.
+  // Set out flags.
   InUserSpecifiedSystemFramework = CacheEntry.IsUserSpecifiedSystemFramework;
+  IsFrameworkFound = CacheEntry.Directory;
 
   if (RelativePath) {
     RelativePath->clear();
@@ -697,9 +698,13 @@ const FileEntry *HeaderSearch::LookupFile(
     ArrayRef<std::pair<const FileEntry *, const DirectoryEntry *>> Includers,
     SmallVectorImpl<char> *SearchPath, SmallVectorImpl<char> *RelativePath,
     Module *RequestingModule, ModuleMap::KnownHeader *SuggestedModule,
-    bool *IsMapped, bool SkipCache, bool BuildSystemModule) {
+    bool *IsMapped, bool *IsFrameworkFound, bool SkipCache,
+    bool BuildSystemModule) {
   if (IsMapped)
     *IsMapped = false;
+
+  if (IsFrameworkFound)
+    *IsFrameworkFound = false;
 
   if (SuggestedModule)
     *SuggestedModule = ModuleMap::KnownHeader();
@@ -852,16 +857,19 @@ const FileEntry *HeaderSearch::LookupFile(
   for (; i != SearchDirs.size(); ++i) {
     bool InUserSpecifiedSystemFramework = false;
     bool HasBeenMapped = false;
+    bool IsFrameworkFoundInDir = false;
     const FileEntry *FE = SearchDirs[i].LookupFile(
         Filename, *this, IncludeLoc, SearchPath, RelativePath, RequestingModule,
-        SuggestedModule, InUserSpecifiedSystemFramework, HasBeenMapped,
-        MappedName);
+        SuggestedModule, InUserSpecifiedSystemFramework, IsFrameworkFoundInDir,
+        HasBeenMapped, MappedName);
     if (HasBeenMapped) {
       CacheLookup.MappedName =
           copyString(Filename, LookupFileCache.getAllocator());
       if (IsMapped)
         *IsMapped = true;
     }
+    if (IsFrameworkFound)
+      *IsFrameworkFound |= IsFrameworkFoundInDir;
     if (!FE) continue;
 
     CurDir = &SearchDirs[i];
@@ -927,10 +935,10 @@ const FileEntry *HeaderSearch::LookupFile(
       ScratchFilename += '/';
       ScratchFilename += Filename;
 
-      const FileEntry *FE =
-          LookupFile(ScratchFilename, IncludeLoc, /*isAngled=*/true, FromDir,
-                     CurDir, Includers.front(), SearchPath, RelativePath,
-                     RequestingModule, SuggestedModule, IsMapped);
+      const FileEntry *FE = LookupFile(
+          ScratchFilename, IncludeLoc, /*isAngled=*/true, FromDir, CurDir,
+          Includers.front(), SearchPath, RelativePath, RequestingModule,
+          SuggestedModule, IsMapped, /*IsFrameworkFound=*/nullptr);
 
       if (checkMSVCHeaderSearch(Diags, MSFE, FE, IncludeLoc)) {
         if (SuggestedModule)
@@ -1678,9 +1686,8 @@ std::string HeaderSearch::suggestPathToFileForDiagnostics(
     StringRef Dir = SearchDirs[I].getDir()->getName();
     llvm::SmallString<32> DirPath(Dir.begin(), Dir.end());
     if (!WorkingDir.empty() && !path::is_absolute(Dir)) {
-      auto err = fs::make_absolute(WorkingDir, DirPath);
-      if (!err)
-        path::remove_dots(DirPath, /*remove_dot_dot=*/true);
+      fs::make_absolute(WorkingDir, DirPath);
+      path::remove_dots(DirPath, /*remove_dot_dot=*/true);
       Dir = DirPath;
     }
     for (auto NI = path::begin(File), NE = path::end(File),

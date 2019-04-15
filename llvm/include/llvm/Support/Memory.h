@@ -1,9 +1,8 @@
 //===- llvm/Support/Memory.h - Memory Support -------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -36,6 +35,7 @@ namespace sys {
   private:
     void *Address;    ///< Address of first byte of memory area
     size_t Size;      ///< Size, in bytes of the memory area
+    unsigned Flags = 0;
     friend class Memory;
   };
 
@@ -46,9 +46,11 @@ namespace sys {
   class Memory {
   public:
     enum ProtectionFlags {
-      MF_READ  = 0x1000000,
+      MF_READ = 0x1000000,
       MF_WRITE = 0x2000000,
-      MF_EXEC  = 0x4000000
+      MF_EXEC = 0x4000000,
+      MF_RWE_MASK = 0x7000000,
+      MF_HUGE_HINT = 0x0000001
     };
 
     /// This method allocates a block of memory that is suitable for loading

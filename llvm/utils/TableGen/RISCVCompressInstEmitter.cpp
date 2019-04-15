@@ -1,9 +1,8 @@
 //===- RISCVCompressInstEmitter.cpp - Generator for RISCV Compression -===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // RISCVCompressInstEmitter implements a tablegen-driven CompressPat based
 // RISCV Instruction Compression mechanism.
@@ -253,12 +252,14 @@ static bool verifyDagOpCount(CodeGenInstruction &Inst, DagInit *Dag,
   // Source instructions are non compressed instructions and don't have tied
   // operands.
   if (IsSource)
-    PrintFatalError("Input operands for Inst '" + Inst.TheDef->getName() +
-                    "' and input Dag operand count mismatch");
+    PrintFatalError(Inst.TheDef->getLoc(),
+                    "Input operands for Inst '" + Inst.TheDef->getName() +
+                        "' and input Dag operand count mismatch");
   // The Dag can't have more arguments than the Instruction.
   if (Dag->getNumArgs() > Inst.Operands.size())
-    PrintFatalError("Inst '" + Inst.TheDef->getName() +
-                    "' and Dag operand count mismatch");
+    PrintFatalError(Inst.TheDef->getLoc(),
+                    "Inst '" + Inst.TheDef->getName() +
+                        "' and Dag operand count mismatch");
 
   // The Instruction might have tied operands so the Dag might have
   //  a fewer operand count.
@@ -268,8 +269,9 @@ static bool verifyDagOpCount(CodeGenInstruction &Inst, DagInit *Dag,
       --RealCount;
 
   if (Dag->getNumArgs() != RealCount)
-    PrintFatalError("Inst '" + Inst.TheDef->getName() +
-                    "' and Dag operand count mismatch");
+    PrintFatalError(Inst.TheDef->getLoc(),
+                    "Inst '" + Inst.TheDef->getName() +
+                        "' and Dag operand count mismatch");
   return true;
 }
 
@@ -530,7 +532,8 @@ void RISCVCompressInstEmitter::emitCompressInstEmitter(raw_ostream &o,
                                                        bool Compress) {
   Record *AsmWriter = Target.getAsmWriter();
   if (!AsmWriter->getValueAsInt("PassSubtarget"))
-    PrintFatalError("'PassSubtarget' is false. SubTargetInfo object is needed "
+    PrintFatalError(AsmWriter->getLoc(),
+                    "'PassSubtarget' is false. SubTargetInfo object is needed "
                     "for target features.\n");
 
   std::string Namespace = Target.getName();

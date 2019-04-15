@@ -1,9 +1,8 @@
 //===--- ParseDecl.cpp - Declaration Parsing --------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -223,6 +222,15 @@ static bool attributeHasVariadicIdentifierArg(const IdentifierInfo &II) {
 #undef CLANG_ATTR_VARIADIC_IDENTIFIER_ARG_LIST
 }
 
+/// Determine whether the given attribute treats kw_this as an identifier.
+static bool attributeTreatsKeywordThisAsIdentifier(const IdentifierInfo &II) {
+#define CLANG_ATTR_THIS_ISA_IDENTIFIER_ARG_LIST
+  return llvm::StringSwitch<bool>(normalizeAttrName(II.getName()))
+#include "clang/Parse/AttrParserStringSwitches.inc"
+           .Default(false);
+#undef CLANG_ATTR_THIS_ISA_IDENTIFIER_ARG_LIST
+}
+
 /// Determine whether the given attribute parses a type argument.
 static bool attributeIsTypeArgAttr(const IdentifierInfo &II) {
 #define CLANG_ATTR_TYPE_ARG_LIST
@@ -287,6 +295,12 @@ unsigned Parser::ParseAttributeArgsCommon(
   // Ignore the left paren location for now.
   ConsumeParen();
 
+  bool ChangeKWThisToIdent = attributeTreatsKeywordThisAsIdentifier(*AttrName);
+
+  // Interpret "kw_this" as an identifier if the attributed requests it.
+  if (ChangeKWThisToIdent && Tok.is(tok::kw_this))
+    Tok.setKind(tok::identifier);
+
   ArgsVector ArgExprs;
   if (Tok.is(tok::identifier)) {
     // If this attribute wants an 'identifier' argument, make it so.
@@ -314,6 +328,10 @@ unsigned Parser::ParseAttributeArgsCommon(
 
     // Parse the non-empty comma-separated list of expressions.
     do {
+      // Interpret "kw_this" as an identifier if the attributed requests it.
+      if (ChangeKWThisToIdent && Tok.is(tok::kw_this))
+        Tok.setKind(tok::identifier);
+
       ExprResult ArgExpr;
       if (Tok.is(tok::identifier) &&
           attributeHasVariadicIdentifierArg(*AttrName)) {
@@ -2275,7 +2293,8 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         return nullptr;
       }
 
-      ExprResult Init(ParseInitializer());
+      PreferredType.enterVariableInit(Tok.getLocation(), ThisDecl);
+      ExprResult Init = ParseInitializer();
 
       // If this is the only decl in (possibly) range based for statement,
       // our best guess is that the user meant ':' instead of '='.
@@ -2313,25 +2332,27 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 
     InitializerScopeRAII InitScope(*this, D, ThisDecl);
 
-    llvm::function_ref<void()> ExprListCompleter;
     auto ThisVarDecl = dyn_cast_or_null<VarDecl>(ThisDecl);
-    auto ConstructorCompleter = [&, ThisVarDecl] {
+    auto RunSignatureHelp = [&]() {
       QualType PreferredType = Actions.ProduceConstructorSignatureHelp(
           getCurScope(), ThisVarDecl->getType()->getCanonicalTypeInternal(),
           ThisDecl->getLocation(), Exprs, T.getOpenLocation());
       CalledSignatureHelp = true;
-      Actions.CodeCompleteExpression(getCurScope(), PreferredType);
+      return PreferredType;
     };
+    auto SetPreferredType = [&] {
+      PreferredType.enterFunctionArgument(Tok.getLocation(), RunSignatureHelp);
+    };
+
+    llvm::function_ref<void()> ExpressionStarts;
     if (ThisVarDecl) {
       // ParseExpressionList can sometimes succeed even when ThisDecl is not
       // VarDecl. This is an error and it is reported in a call to
       // Actions.ActOnInitializerError(). However, we call
-      // ProduceConstructorSignatureHelp only on VarDecls, falling back to
-      // default completer in other cases.
-      ExprListCompleter = ConstructorCompleter;
+      // ProduceConstructorSignatureHelp only on VarDecls.
+      ExpressionStarts = SetPreferredType;
     }
-
-    if (ParseExpressionList(Exprs, CommaLocs, ExprListCompleter)) {
+    if (ParseExpressionList(Exprs, CommaLocs, ExpressionStarts)) {
       if (ThisVarDecl && PP.isCodeCompletionReached() && !CalledSignatureHelp) {
         Actions.ProduceConstructorSignatureHelp(
             getCurScope(), ThisVarDecl->getType()->getCanonicalTypeInternal(),
@@ -3790,19 +3811,6 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                  getLangOpts());
       break;
 
-    // OpenCL access qualifiers:
-    case tok::kw___read_only:
-    case tok::kw___write_only:
-    case tok::kw___read_write:
-      // OpenCL C++ 1.0 s2.2: access qualifiers are reserved keywords.
-      if (Actions.getLangOpts().OpenCLCPlusPlus) {
-        DiagID = diag::err_openclcxx_reserved;
-        PrevSpec = Tok.getIdentifierInfo()->getNameStart();
-        isInvalid = true;
-      }
-      ParseOpenCLQualifiers(DS.getAttributes());
-      break;
-
     // OpenCL address space qualifiers:
     case tok::kw___generic:
       // generic address space is introduced only in OpenCL v2.0
@@ -3819,6 +3827,10 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw___global:
     case tok::kw___local:
     case tok::kw___constant:
+    // OpenCL access qualifiers:
+    case tok::kw___read_only:
+    case tok::kw___write_only:
+    case tok::kw___read_write:
       ParseOpenCLQualifiers(DS.getAttributes());
       break;
 
@@ -6072,9 +6084,6 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   DeclSpec DS(AttrFactory);
   bool RefQualifierIsLValueRef = true;
   SourceLocation RefQualifierLoc;
-  SourceLocation ConstQualifierLoc;
-  SourceLocation VolatileQualifierLoc;
-  SourceLocation RestrictQualifierLoc;
   ExceptionSpecificationType ESpecType = EST_None;
   SourceRange ESpecRange;
   SmallVector<ParsedType, 2> DynamicExceptions;
@@ -6137,9 +6146,6 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
                                 }));
       if (!DS.getSourceRange().getEnd().isInvalid()) {
         EndLoc = DS.getSourceRange().getEnd();
-        ConstQualifierLoc = DS.getConstSpecLoc();
-        VolatileQualifierLoc = DS.getVolatileSpecLoc();
-        RestrictQualifierLoc = DS.getRestrictSpecLoc();
       }
 
       // Parse ref-qualifier[opt].
@@ -6165,6 +6171,20 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
       Qualifiers Q = Qualifiers::fromCVRUMask(DS.getTypeQualifiers());
       if (D.getDeclSpec().isConstexprSpecified() && !getLangOpts().CPlusPlus14)
         Q.addConst();
+      // FIXME: Collect C++ address spaces.
+      // If there are multiple different address spaces, the source is invalid.
+      // Carry on using the first addr space for the qualifiers of 'this'.
+      // The diagnostic will be given later while creating the function
+      // prototype for the method.
+      if (getLangOpts().OpenCLCPlusPlus) {
+        for (ParsedAttr &attr : DS.getAttributes()) {
+          LangAS ASIdx = attr.asOpenCLLangAS();
+          if (ASIdx != LangAS::Default) {
+            Q.addAddressSpace(ASIdx);
+            break;
+          }
+        }
+      }
 
       Sema::CXXThisScopeRAII ThisScope(
           Actions, dyn_cast<CXXRecordDecl>(Actions.CurContext), Q,
@@ -6239,15 +6259,13 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   D.AddTypeInfo(DeclaratorChunk::getFunction(
                     HasProto, IsAmbiguous, LParenLoc, ParamInfo.data(),
                     ParamInfo.size(), EllipsisLoc, RParenLoc,
-                    DS.getTypeQualifiers(), RefQualifierIsLValueRef,
-                    RefQualifierLoc, ConstQualifierLoc, VolatileQualifierLoc,
-                    RestrictQualifierLoc,
-                    /*MutableLoc=*/SourceLocation(), ESpecType, ESpecRange,
-                    DynamicExceptions.data(), DynamicExceptionRanges.data(),
-                    DynamicExceptions.size(),
+                    RefQualifierIsLValueRef, RefQualifierLoc,
+                    /*MutableLoc=*/SourceLocation(),
+                    ESpecType, ESpecRange, DynamicExceptions.data(),
+                    DynamicExceptionRanges.data(), DynamicExceptions.size(),
                     NoexceptExpr.isUsable() ? NoexceptExpr.get() : nullptr,
                     ExceptionSpecTokens, DeclsInPrototype, StartLoc,
-                    LocalEndLoc, D, TrailingReturnType),
+                    LocalEndLoc, D, TrailingReturnType, &DS),
                 std::move(FnAttrs), EndLoc);
 }
 

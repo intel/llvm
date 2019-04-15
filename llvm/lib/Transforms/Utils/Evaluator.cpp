@@ -1,9 +1,8 @@
 //===- Evaluator.cpp - LLVM IR evaluator ----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -344,18 +343,18 @@ bool Evaluator::EvaluateBlock(BasicBlock::iterator CurInst,
             // into a pointer to its first member.
             // FIXME: This could be extended to support arrays as well.
             if (StructType *STy = dyn_cast<StructType>(NewTy)) {
-              NewTy = STy->getTypeAtIndex(0U);
 
               IntegerType *IdxTy = IntegerType::get(NewTy->getContext(), 32);
               Constant *IdxZero = ConstantInt::get(IdxTy, 0, false);
               Constant * const IdxList[] = {IdxZero, IdxZero};
 
-              Ptr = ConstantExpr::getGetElementPtr(nullptr, Ptr, IdxList);
+              Ptr = ConstantExpr::getGetElementPtr(NewTy, Ptr, IdxList);
               if (auto *FoldedPtr = ConstantFoldConstant(Ptr, DL, TLI))
                 Ptr = FoldedPtr;
+              NewTy = STy->getTypeAtIndex(0U);
 
-            // If we can't improve the situation by introspecting NewTy,
-            // we have to give up.
+              // If we can't improve the situation by introspecting NewTy,
+              // we have to give up.
             } else {
               LLVM_DEBUG(dbgs() << "Failed to bitcast constant ptr, can not "
                                    "evaluate.\n");
@@ -541,7 +540,8 @@ bool Evaluator::EvaluateBlock(BasicBlock::iterator CurInst,
 
       if (Callee->isDeclaration()) {
         // If this is a function we can constant fold, do it.
-        if (Constant *C = ConstantFoldCall(CS, Callee, Formals, TLI)) {
+        if (Constant *C = ConstantFoldCall(cast<CallBase>(CS.getInstruction()),
+                                           Callee, Formals, TLI)) {
           InstResult = castCallResultIfNeeded(CS.getCalledValue(), C);
           if (!InstResult)
             return false;

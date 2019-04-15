@@ -1,9 +1,8 @@
 //===- Action.h - Abstract compilation steps --------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -73,9 +72,10 @@ public:
     OffloadBundlingJobClass,
     OffloadUnbundlingJobClass,
     OffloadWrappingJobClass,
+    SPIRVTranslatorJobClass,
 
     JobClassFirst = PreprocessJobClass,
-    JobClassLast = OffloadWrappingJobClass
+    JobClassLast = SPIRVTranslatorJobClass
   };
 
   // The offloading kind determines if this action is binded to a particular
@@ -624,6 +624,17 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadWrappingJobClass;
+  }
+};
+
+class SPIRVTranslatorJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  SPIRVTranslatorJobAction(Action *Input, types::ID OutputType);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == SPIRVTranslatorJobClass;
   }
 };
 

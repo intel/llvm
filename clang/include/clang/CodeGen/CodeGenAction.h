@@ -1,9 +1,8 @@
 //===--- CodeGenAction.h - LLVM Code Generation Frontend Action -*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -91,12 +90,6 @@ class EmitBCAction : public CodeGenAction {
   virtual void anchor();
 public:
   EmitBCAction(llvm::LLVMContext *_VMContext = nullptr);
-};
-
-class EmitSPIRVAction : public CodeGenAction {
-  virtual void anchor();
-public:
-  EmitSPIRVAction(llvm::LLVMContext *_VMContext = nullptr);
 };
 
 class EmitLLVMAction : public CodeGenAction {

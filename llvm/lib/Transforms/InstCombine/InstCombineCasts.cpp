@@ -1,9 +1,8 @@
 //===- InstCombineCasts.cpp -----------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -492,7 +491,7 @@ static Instruction *foldVecTruncToExtElt(TruncInst &Trunc, InstCombiner &IC) {
 }
 
 /// Rotate left/right may occur in a wider type than necessary because of type
-/// promotion rules. Try to narrow all of the component instructions.
+/// promotion rules. Try to narrow the inputs and convert to funnel shift.
 Instruction *InstCombiner::narrowRotate(TruncInst &Trunc) {
   assert((isa<VectorType>(Trunc.getSrcTy()) ||
           shouldChangeType(Trunc.getSrcTy(), Trunc.getType())) &&
@@ -563,23 +562,15 @@ Instruction *InstCombiner::narrowRotate(TruncInst &Trunc) {
 
   // We have an unnecessarily wide rotate!
   // trunc (or (lshr ShVal, ShAmt), (shl ShVal, BitWidth - ShAmt))
-  // Narrow it down to eliminate the zext/trunc:
-  // or (lshr trunc(ShVal), ShAmt0'), (shl trunc(ShVal), ShAmt1')
+  // Narrow the inputs and convert to funnel shift intrinsic:
+  // llvm.fshl.i8(trunc(ShVal), trunc(ShVal), trunc(ShAmt))
   Value *NarrowShAmt = Builder.CreateTrunc(ShAmt, DestTy);
-  Value *NegShAmt = Builder.CreateNeg(NarrowShAmt);
-
-  // Mask both shift amounts to ensure there's no UB from oversized shifts.
-  Constant *MaskC = ConstantInt::get(DestTy, NarrowWidth - 1);
-  Value *MaskedShAmt = Builder.CreateAnd(NarrowShAmt, MaskC);
-  Value *MaskedNegShAmt = Builder.CreateAnd(NegShAmt, MaskC);
-
-  // Truncate the original value and use narrow ops.
   Value *X = Builder.CreateTrunc(ShVal, DestTy);
-  Value *NarrowShAmt0 = SubIsOnLHS ? MaskedNegShAmt : MaskedShAmt;
-  Value *NarrowShAmt1 = SubIsOnLHS ? MaskedShAmt : MaskedNegShAmt;
-  Value *NarrowSh0 = Builder.CreateBinOp(ShiftOpcode0, X, NarrowShAmt0);
-  Value *NarrowSh1 = Builder.CreateBinOp(ShiftOpcode1, X, NarrowShAmt1);
-  return BinaryOperator::CreateOr(NarrowSh0, NarrowSh1);
+  bool IsFshl = (!SubIsOnLHS && ShiftOpcode0 == BinaryOperator::Shl) ||
+                (SubIsOnLHS && ShiftOpcode1 == BinaryOperator::Shl);
+  Intrinsic::ID IID = IsFshl ? Intrinsic::fshl : Intrinsic::fshr;
+  Function *F = Intrinsic::getDeclaration(Trunc.getModule(), IID, DestTy);
+  return IntrinsicInst::Create(F, { X, X, NarrowShAmt });
 }
 
 /// Try to narrow the width of math or bitwise logic instructions by pulling a
@@ -1665,8 +1656,8 @@ Instruction *InstCombiner::visitFPTrunc(FPTruncInst &FPT) {
                                                      II->getIntrinsicID(), Ty);
       SmallVector<OperandBundleDef, 1> OpBundles;
       II->getOperandBundlesAsDefs(OpBundles);
-      CallInst *NewCI = CallInst::Create(Overload, { InnerTrunc }, OpBundles,
-                                         II->getName());
+      CallInst *NewCI =
+          CallInst::Create(Overload, {InnerTrunc}, OpBundles, II->getName());
       NewCI->copyFastMathFlags(II);
       return NewCI;
     }
@@ -2175,7 +2166,7 @@ Instruction *InstCombiner::optimizeBitCastFromPhi(CastInst &CI, PHINode *PN) {
   SmallSetVector<PHINode *, 4> OldPhiNodes;
 
   // Find all of the A->B casts and PHI nodes.
-  // We need to inpect all related PHI nodes, but PHIs can be cyclic, so
+  // We need to inspect all related PHI nodes, but PHIs can be cyclic, so
   // OldPhiNodes is used to track all known PHI nodes, before adding a new
   // PHI to PhiWorklist, it is checked against and added to OldPhiNodes first.
   PhiWorklist.push_back(PN);
@@ -2250,20 +2241,43 @@ Instruction *InstCombiner::optimizeBitCastFromPhi(CastInst &CI, PHINode *PN) {
     }
   }
 
+  // Traverse all accumulated PHI nodes and process its users,
+  // which are Stores and BitcCasts. Without this processing
+  // NewPHI nodes could be replicated and could lead to extra
+  // moves generated after DeSSA.
   // If there is a store with type B, change it to type A.
-  for (User *U : PN->users()) {
-    auto *SI = dyn_cast<StoreInst>(U);
-    if (SI && SI->isSimple() && SI->getOperand(0) == PN) {
-      Builder.SetInsertPoint(SI);
-      auto *NewBC =
-          cast<BitCastInst>(Builder.CreateBitCast(NewPNodes[PN], SrcTy));
-      SI->setOperand(0, NewBC);
-      Worklist.Add(SI);
-      assert(hasStoreUsersOnly(*NewBC));
+
+
+  // Replace users of BitCast B->A with NewPHI. These will help
+  // later to get rid off a closure formed by OldPHI nodes.
+  Instruction *RetVal = nullptr;
+  for (auto *OldPN : OldPhiNodes) {
+    PHINode *NewPN = NewPNodes[OldPN];
+    for (User *V : OldPN->users()) {
+      if (auto *SI = dyn_cast<StoreInst>(V)) {
+        if (SI->isSimple() && SI->getOperand(0) == OldPN) {
+          Builder.SetInsertPoint(SI);
+          auto *NewBC =
+            cast<BitCastInst>(Builder.CreateBitCast(NewPN, SrcTy));
+          SI->setOperand(0, NewBC);
+          Worklist.Add(SI);
+          assert(hasStoreUsersOnly(*NewBC));
+        }
+      }
+      else if (auto *BCI = dyn_cast<BitCastInst>(V)) {
+        // Verify it's a B->A cast.
+        Type *TyB = BCI->getOperand(0)->getType();
+        Type *TyA = BCI->getType();
+        if (TyA == DestTy && TyB == SrcTy) {
+          Instruction *I = replaceInstUsesWith(*BCI, NewPN);
+          if (BCI == &CI)
+            RetVal = I;
+        }
+      }
     }
   }
 
-  return replaceInstUsesWith(CI, NewPNodes[PN]);
+  return RetVal;
 }
 
 Instruction *InstCombiner::visitBitCast(BitCastInst &CI) {
@@ -2318,7 +2332,8 @@ Instruction *InstCombiner::visitBitCast(BitCastInst &CI) {
     // If we found a path from the src to dest, create the getelementptr now.
     if (SrcElTy == DstElTy) {
       SmallVector<Value *, 8> Idxs(NumZeros + 1, Builder.getInt32(0));
-      return GetElementPtrInst::CreateInBounds(Src, Idxs);
+      return GetElementPtrInst::CreateInBounds(SrcPTy->getElementType(), Src,
+                                               Idxs);
     }
   }
 
