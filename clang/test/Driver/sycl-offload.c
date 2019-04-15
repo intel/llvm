@@ -285,7 +285,20 @@
 // RUN: touch %t.o
 // RUN: %clang -fsycl -foffload-static-lib=%t.a -### %t.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB
-// FOFFLOAD_STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.o]]"
+// FOFFLOAD_STATIC_LIB: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.o]]" "[[INPUT:.+\.a]]"
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{.*}} "-type=oo"
 // FOFFLOAD_STATIC_LIB: llvm-link{{.*}} "@{{.*}}"
+
+/// ###########################################################################
+
+/// test behaviors of -foffload-static-lib=<lib> with multiple objects
+// RUN: touch %t.a
+// RUN: touch %t-1.o
+// RUN: touch %t-2.o
+// RUN: touch %t-3.o
+// RUN: %clang -fsycl -foffload-static-lib=%t.a -### %t-1.o %t-2.o %t-3.o 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_MULTI_O
+// FOFFLOAD_STATIC_LIB_MULTI_O: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\-1.o]]" "[[INPUT:.+\-2.o]]" "[[INPUT:.+\-3.o]]" "[[INPUT:.+\.a]]"
+// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{.*}} "-type=oo"
+// FOFFLOAD_STATIC_LIB_MULTI_O: llvm-link{{.*}} "@{{.*}}"
 

@@ -3399,7 +3399,8 @@ public:
   /// results will be kept in this action builder. Return true if an error was
   /// found.
   bool addHostDependenceToDeviceActions(Action *&HostAction,
-                                        const Arg *InputArg) {
+                                        const Arg *InputArg,
+                                        DerivedArgList &Args) {
     if (!IsValid)
       return true;
 
@@ -3412,12 +3413,25 @@ public:
     if (CanUseBundler && isa<InputAction>(HostAction) &&
         InputArg->getOption().getKind() == llvm::opt::Option::InputClass &&
         !types::isSrcFile(HostAction->getType())) {
-      auto UnbundlingHostAction =
-          C.MakeAction<OffloadUnbundlingJobAction>(HostAction);
-      UnbundlingHostAction->registerDependentActionInfo(
-          C.getSingleOffloadToolChain<Action::OFK_Host>(),
-          /*BoundArch=*/StringRef(), Action::OFK_Host);
-      HostAction = UnbundlingHostAction;
+      const char * InputName = InputArg->getValue();
+      // Do not create an unbundling action for an object when we know a fat
+      // static library is being used.  A separate unbundling action is created
+      // for all objects and the fat static library.
+      if (!(HostAction->getType() == types::TY_Object &&
+            llvm::sys::path::has_extension(InputName) &&
+            types::lookupTypeForExtension(
+              llvm::sys::path::extension(InputName).drop_front()) ==
+              types::TY_Object &&
+            Args.hasArg(options::OPT_foffload_static_lib_EQ))) {
+        ActionList HostActionList;
+        HostActionList.push_back(HostAction);
+        auto UnbundlingHostAction =
+            C.MakeAction<OffloadUnbundlingJobAction>(HostActionList);
+        UnbundlingHostAction->registerDependentActionInfo(
+            C.getSingleOffloadToolChain<Action::OFK_Host>(),
+            /*BoundArch=*/StringRef(), Action::OFK_Host);
+        HostAction = UnbundlingHostAction;
+      }
     }
 
     assert(HostAction && "Invalid host action!");
@@ -3446,6 +3460,41 @@ public:
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
         HostAction = UA->getInputs().back();
 
+    return false;
+  }
+
+  bool addHostDependenceToUnbundlingAction(Action *&HostAction,
+                                           ActionList &InputActionList,
+                                           const Arg *InputArg) {
+    if (!IsValid)
+      return true;
+
+    auto *DeviceUnbundlingAction =
+              C.MakeAction<OffloadUnbundlingJobAction>(InputActionList);
+    DeviceUnbundlingAction->registerDependentActionInfo(
+          C.getSingleOffloadToolChain<Action::OFK_Host>(),
+          /*BoundArch=*/StringRef(), Action::OFK_Host);
+    if (DeviceUnbundlingAction)
+      HostAction = DeviceUnbundlingAction;
+
+    // Register the offload kinds that are used.
+    auto &OffloadKind = InputArgToOffloadKindMap[InputArg];
+    for (auto *SB : SpecializedBuilders) {
+      if (!SB->isValid())
+        continue;
+
+      auto RetCode = SB->addDeviceDepences(DeviceUnbundlingAction);
+
+      // Host dependences for device actions are not compatible with that same
+      // action being ignored.
+      assert(RetCode != DeviceActionBuilder::ABRT_Ignore_Host &&
+             "Host dependence not expected to be ignored.!");
+
+      // Unless the builder was inactive for this action, we have to record the
+      // offload kind because the host will have to use it.
+      if (RetCode != DeviceActionBuilder::ABRT_Inactive)
+        OffloadKind |= SB->getAssociatedOffloadKind();
+    }
     return false;
   }
 
@@ -3684,7 +3733,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
     // Use the current host action in any of the offloading actions, if
     // required.
-    if (OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg))
+    if (OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg,
+                                                        Args))
       break;
 
     for (SmallVectorImpl<phases::ID>::iterator i = PL.begin(), e = PL.end();
@@ -3704,7 +3754,18 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // Queue linker inputs.
       if (Phase == phases::Link) {
         assert((i + 1) == e && "linking must be final compilation step.");
-        LinkerInputs.push_back(Current);
+        // Using a fat static library triggers a special unbundling
+        // pass.  We need to use the host objects as created from the
+        // special unbundling step as they contain the information from
+        // the static library as well.
+        const char * InputName = InputArg->getValue();
+        if (!(Args.hasArg(options::OPT_foffload_static_lib_EQ) &&
+              InputType == types::TY_Object &&
+              llvm::sys::path::has_extension(InputName) &&
+              types::lookupTypeForExtension(
+                llvm::sys::path::extension(InputName).drop_front()) ==
+                types::TY_Object))
+          LinkerInputs.push_back(Current);
         Current = nullptr;
         break;
       }
@@ -3736,7 +3797,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
       // Use the current host action in any of the offloading actions, if
       // required.
-      if (OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg))
+      if (OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg,
+                                                          Args))
         break;
 
       if (Current->getType() == types::TY_Nothing)
@@ -3749,6 +3811,39 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
     // Add any top level actions generated for offloading.
     OffloadBuilder.appendTopLevelActions(Actions, Current, InputArg);
+  }
+
+  // When a static fat archive is provided, create a new unbundling step
+  // for all of the objects.
+  if (Args.hasArg(options::OPT_foffload_static_lib_EQ)) {
+    InputList ObjectInputList;
+    for (auto &I : Inputs) {
+      types::ID InputType = I.first;
+      const Arg *InputArg = I.second;
+      const char * InputName = InputArg->getValue();
+      if (InputType == types::TY_Object &&
+          llvm::sys::path::has_extension(InputName) &&
+          types::lookupTypeForExtension(
+            llvm::sys::path::extension(InputName).drop_front()) ==
+            types::TY_Object) {
+        ObjectInputList.push_back(I);
+      }
+    }
+    // Take all of the objects and create a new unbundling action.  This action
+    // is placed before the device link.
+    ActionList AddInputs;
+    for (auto OIA : ObjectInputList) {
+      types::ID InputType = OIA.first;
+      const Arg *InputArg = OIA.second;
+      Action *ActionAdd = C.MakeAction<InputAction>(*InputArg, InputType);
+      AddInputs.push_back(ActionAdd);
+    }
+    Action *Current;
+    OffloadBuilder.addHostDependenceToUnbundlingAction(Current, AddInputs,
+                                                   ObjectInputList[0].second);
+    Current = OffloadBuilder.addDeviceDependencesToHostAction(
+             Current, ObjectInputList[1].second, phases::Link, FinalPhase, PL);
+    LinkerInputs.push_back(Current);
   }
 
   // Add a link action if necessary.
@@ -4503,11 +4598,22 @@ InputInfo Driver::BuildJobsForActionNoCache(
       // offloading prefix, we also do that for the host file because the
       // unbundling action does not change the type of the output which can
       // cause a overwrite.
-      std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
+      InputInfo CurI;
+      if (C.getInputArgs().hasArg(options::OPT_foffload_static_lib_EQ) &&
+          UI.DependentOffloadKind != Action::OFK_Host &&
+          JA->getType() == types::TY_Object) {
+        std::string TmpFileName =
+           C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
+                                          "txt");
+        const char *TmpFile =
+                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+        CurI = InputInfo(types::TY_Tempfilelist, TmpFile, TmpFile);
+      } else { 
+        std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
           UI.DependentOffloadKind,
           UI.DependentToolChain->getTriple().normalize(),
           /*CreatePrefixForHost=*/true);
-      auto CurI = InputInfo(
+        CurI = InputInfo(
           UA,
           GetNamedOutputPath(C, *UA, BaseInput, UI.DependentBoundArch,
                              /*AtTopLevel=*/false,
@@ -4515,6 +4621,7 @@ InputInfo Driver::BuildJobsForActionNoCache(
                                  UI.DependentOffloadKind == Action::OFK_HIP,
                              OffloadingPrefix),
           BaseInput);
+      }
       // Save the unbundling result.
       UnbundlingResults.push_back(CurI);
 

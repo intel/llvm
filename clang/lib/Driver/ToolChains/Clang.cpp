@@ -6305,8 +6305,6 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   //   -unbundle
 
   ArgStringList CmdArgs;
-
-  assert(Inputs.size() == 1 && "Expecting to unbundle a single file!");
   InputInfo Input = Inputs.front();
   const char *TypeArg = types::getTypeTempSuffix(Input.getType());
   const char *InputFileName = Input.getFilename();
@@ -6326,8 +6324,9 @@ void OffloadBundler::ConstructJobMultipleOutputs(
           llvm::sys::path::stem(Input.getFilename()).str() + "-prelink", "o");
     InputFileName = C.addTempFile(C.getArgs().MakeArgString(TmpName));
     LinkArgs.push_back(InputFileName);
-    // Input files consist of fat libraries and the object to be unbundled.
-    LinkArgs.push_back(Input.getFilename());
+    // Input files consist of fat libraries and the object(s) to be unbundled.
+    for (auto I : Inputs)
+      LinkArgs.push_back(I.getFilename());
     for (const auto& A :
             TCArgs.getAllArgValues(options::OPT_foffload_static_lib_EQ))
       LinkArgs.push_back(TCArgs.MakeArgString(A));
