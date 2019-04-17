@@ -573,6 +573,8 @@ def emit_llvm_bc : Flag<["-"], "emit-llvm-bc">,
   HelpText<"Build ASTs then convert to LLVM, emit .bc file">;
 def emit_llvm_only : Flag<["-"], "emit-llvm-only">,
   HelpText<"Build ASTs and convert to LLVM, discarding output">;
+def emit_spirv : Flag<["-"], "emit-spirv">,
+  HelpText<"Build ASTs then convert to LLVM then convert to SPIR-V, emit .spv file">;
 def emit_codegen_only : Flag<["-"], "emit-codegen-only">,
   HelpText<"Generate machine code, but discard output">;
 def emit_obj : Flag<["-"], "emit-obj">,
@@ -844,6 +846,14 @@ def fopenmp_host_ir_file_path : Separate<["-"], "fopenmp-host-ir-file-path">,
 
 def fsycl_is_device : Flag<["-"], "fsycl-is-device">,
   HelpText<"Generate code for SYCL device.">;
+
+def fsycl_int_header : Separate<["-"], "fsycl-int-header">,
+  HelpText<"Generate SYCL integration header into this file.">;
+def fsycl_int_header_EQ : Joined<["-"], "fsycl-int-header=">,
+  Alias<fsycl_int_header>;
+def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
+  HelpText<"Allow function pointers in SYCL device.">;
+def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">;
 
 } // let Flags = [CC1Option]
 

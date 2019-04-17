@@ -516,6 +516,9 @@ void DeclPrinter::VisitEnumDecl(EnumDecl *D) {
 
   Out << ' ' << *D;
 
+  if (Policy.SuppressDefinition)
+    return;
+
   if (D->isFixed() && D->getASTContext().getLangOpts().CPlusPlus11)
     Out << " : " << D->getIntegerType().stream(Policy);
 
@@ -535,6 +538,9 @@ void DeclPrinter::VisitRecordDecl(RecordDecl *D) {
 
   if (D->getIdentifier())
     Out << ' ' << *D;
+
+  if (Policy.SuppressDefinition)
+    return;
 
   if (D->isCompleteDefinition()) {
     Out << " {\n";
@@ -717,7 +723,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     Out << " = delete";
   else if (D->isExplicitlyDefaulted())
     Out << " = default";
-  else if (D->doesThisDeclarationHaveABody()) {
+  else if (D->doesThisDeclarationHaveABody() && !Policy.SuppressDefinition) {
     if (!Policy.TerseOutput) {
       if (!D->hasPrototype() && D->getNumParams()) {
         // This is a K&R function definition, so we need to print the
@@ -933,7 +939,7 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
       printTemplateArguments(S->getTemplateArgs());
   }
 
-  if (D->isCompleteDefinition()) {
+  if (D->isCompleteDefinition() && !Policy.SuppressDefinition) {
     // Print the base classes
     if (D->getNumBases()) {
       Out << " : ";
@@ -1010,7 +1016,8 @@ void DeclPrinter::printTemplateParameters(const TemplateParameterList *Params) {
 
       Out << *TTP;
 
-      if (TTP->hasDefaultArgument()) {
+      if (TTP->hasDefaultArgument()
+          && !Policy.SuppressDefaultTemplateArguments ) {
         Out << " = ";
         Out << TTP->getDefaultArgument().getAsString(Policy);
       };
@@ -1020,7 +1027,8 @@ void DeclPrinter::printTemplateParameters(const TemplateParameterList *Params) {
         Name = II->getName();
       printDeclType(NTTP->getType(), Name, NTTP->isParameterPack());
 
-      if (NTTP->hasDefaultArgument()) {
+      if (NTTP->hasDefaultArgument()
+          && !Policy.SuppressDefaultTemplateArguments ) {
         Out << " = ";
         NTTP->getDefaultArgument()->printPretty(Out, nullptr, Policy,
                                                 Indentation);

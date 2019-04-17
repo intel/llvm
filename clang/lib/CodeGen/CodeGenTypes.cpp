@@ -54,6 +54,20 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
   llvm::raw_svector_ostream OS(TypeName);
   OS << RD->getKindName() << '.';
 
+  // NOTE: The following block of code is copied from CLANG-3.6 with
+  // support of OpenCLCPlusPlus. It is rather the temporary solution
+  // that is going to be used until the general solution is ported/developed
+  // in the latest llvm trunk.
+  //
+  // For SYCL, the mangled type name is attached, so it can be
+  // reflown to proper name later.
+  if (getContext().getLangOpts().SYCLIsDevice) {
+    std::unique_ptr<MangleContext> MC(getContext().createMangleContext());
+    auto RDT = getContext().getRecordType(RD);
+    MC->mangleCXXRTTIName(RDT, OS);
+    OS << ".";
+  }
+
   // Name the codegen type after the typedef name
   // if there is no tag type name available
   if (RD->getIdentifier()) {
@@ -718,6 +732,10 @@ llvm::StructType *CodeGenTypes::ConvertRecordDeclType(const RecordDecl *RD) {
     DeferredRecords.push_back(RD);
     return Ty;
   }
+
+  assert((!Context.getLangOpts().SYCLIsDevice || !isa<CXXRecordDecl>(RD) ||
+          !dyn_cast<CXXRecordDecl>(RD)->isPolymorphic()) &&
+         "Types with virtual functions not allowed in SYCL");
 
   // Okay, this is a definition of a type.  Compile the implementation now.
   bool InsertResult = RecordsBeingLaidOut.insert(Key).second;

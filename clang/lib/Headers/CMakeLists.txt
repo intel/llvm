@@ -122,6 +122,12 @@ set(cuda_wrapper_files
   cuda_wrappers/new
 )
 
+set(sycl_wrapper_files
+  sycl_wrappers/algorithm
+  sycl_wrappers/random
+  sycl_wrappers/__config
+)
+
 set(output_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/include)
 set(out_files)
 
@@ -168,6 +174,12 @@ install(
   DIRECTORY ${output_dir}
   DESTINATION ${header_install_dir}
   COMPONENT clang-resource-headers)
+
+install(
+  FILES ${sycl_wrapper_files}
+  COMPONENT clang-headers
+  PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
+  DESTINATION lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/include/sycl_wrappers)
 
 if (NOT LLVM_ENABLE_IDE)
   add_llvm_install_targets(install-clang-resource-headers

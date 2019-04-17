@@ -11,6 +11,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/TargetOptions.h"
+#include "clang/CodeGen/OclCxxRewrite/BifNameReflower.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Lex/HeaderSearchOptions.h"
@@ -39,6 +40,7 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/TargetRegistry.h"
@@ -65,7 +67,13 @@
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
+#include "llvm/SYCL/ASFixer.h"
 #include <memory>
+
+namespace SPIRV {
+  extern llvm::cl::opt<bool> SPIRVNoDerefAttr;
+}
+
 using namespace clang;
 using namespace llvm;
 
@@ -794,6 +802,10 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   PerFunctionPasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
 
+  if (LangOpts.SYCLIsDevice) {
+    PerModulePasses.add(createOclCxxBifNameReflowerPass());
+  }
+
   CreatePasses(PerModulePasses, PerFunctionPasses);
 
   legacy::PassManager CodeGenPasses;
@@ -807,6 +819,10 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     break;
 
   case Backend_EmitBC:
+    if (LangOpts.SYCLIsDevice) {
+      PerModulePasses.add(createASFixerPass());
+      PerModulePasses.add(createDeadCodeEliminationPass());
+    }
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         ThinLinkOS = openOutputFile(CodeGenOpts.ThinLinkBitcodeFile);
@@ -1151,6 +1167,10 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     break;
 
   case Backend_EmitBC:
+    if (LangOpts.SYCLIsDevice) {
+      CodeGenPasses.add(createASFixerPass());
+      CodeGenPasses.add(createDeadCodeEliminationPass());
+    }
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
       if (!CodeGenOpts.ThinLinkBitcodeFile.empty()) {
         ThinLinkOS = openOutputFile(CodeGenOpts.ThinLinkBitcodeFile);

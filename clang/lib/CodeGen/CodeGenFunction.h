@@ -4005,6 +4005,10 @@ public:
   /// annotation result.
   Address EmitFieldAnnotations(const FieldDecl *D, Address V);
 
+  /// Emit Intel FPGA field annotations for the given field and value. Returns
+  /// the annotation result.
+  Address EmitIntelFPGAFieldAnnotations(const FieldDecl *D, Address V,
+                                        StringRef AnnotStr);
   //===--------------------------------------------------------------------===//
   //                             Internal Helpers
   //===--------------------------------------------------------------------===//

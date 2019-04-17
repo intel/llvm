@@ -1,0 +1,52 @@
+add_llvm_library(LLVMSPIRVLib
+  LLVMToSPIRVDbgTran.cpp
+  Mangler/FunctionDescriptor.cpp
+  Mangler/Mangler.cpp
+  Mangler/ManglingUtils.cpp
+  Mangler/ParameterType.cpp
+  OCL20To12.cpp
+  OCL20ToSPIRV.cpp
+  OCL21ToSPIRV.cpp
+  OCLTypeToSPIRV.cpp
+  OCLUtil.cpp
+  SPIRVLowerBool.cpp
+  SPIRVLowerConstExpr.cpp
+  SPIRVLowerMemmove.cpp
+  SPIRVLowerOCLBlocks.cpp
+  SPIRVLowerSPIRBlocks.cpp
+  SPIRVReader.cpp
+  SPIRVRegularizeLLVM.cpp
+  SPIRVToLLVMDbgTran.cpp
+  SPIRVToOCL20.cpp
+  SPIRVUtil.cpp
+  SPIRVWriter.cpp
+  SPIRVWriterPass.cpp
+  TransOCLMD.cpp
+  libSPIRV/SPIRVBasicBlock.cpp
+  libSPIRV/SPIRVDebug.cpp
+  libSPIRV/SPIRVDecorate.cpp
+  libSPIRV/SPIRVEntry.cpp
+  libSPIRV/SPIRVFunction.cpp
+  libSPIRV/SPIRVInstruction.cpp
+  libSPIRV/SPIRVModule.cpp
+  libSPIRV/SPIRVStream.cpp
+  libSPIRV/SPIRVType.cpp
+  libSPIRV/SPIRVValue.cpp
+  LINK_COMPONENTS
+    Analysis
+    BitWriter
+    Core
+    Support
+    TransformUtils
+  DEPENDS
+    intrinsics_gen
+)
+
+target_include_directories(LLVMSPIRVLib
+  PRIVATE
+    ${LLVM_INCLUDE_DIR}
+    ${LLVM_SPIRV_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/libSPIRV
+    ${CMAKE_CURRENT_SOURCE_DIR}/Mangler
+)

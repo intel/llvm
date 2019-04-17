@@ -1,3 +1,5 @@
+add_subdirectory(OclCxxRewrite)
+
 set(LLVM_LINK_COMPONENTS
   Analysis
   BitReader
@@ -21,6 +23,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   Target
   TransformUtils
+  ASFixer
   )
 
 # In a standard Clang+LLVM build, we need to generate intrinsics before
@@ -103,4 +106,5 @@ add_clang_library(clangCodeGen
   clangFrontend
   clangLex
   clangSerialization
+  clangOclCxxRewrite
   )

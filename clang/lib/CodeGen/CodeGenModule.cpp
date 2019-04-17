@@ -554,6 +554,25 @@ void CodeGenModule::Release() {
     }
   }
 
+  // Emit SYCL specific module metadata: OpenCL/SPIR version, OpenCL language.
+  if (LangOpts.SYCLIsDevice) {
+    llvm::LLVMContext &Ctx = TheModule.getContext();
+    llvm::Metadata *SPIRVerElts[] = {
+        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 1)),
+        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 2))};
+    llvm::NamedMDNode *SPIRVerMD =
+        TheModule.getOrInsertNamedMetadata("opencl.spir.version");
+    SPIRVerMD->addOperand(llvm::MDNode::get(Ctx, SPIRVerElts));
+    // We are trying to look like OpenCL C++ for SPIR-V translator.
+    // 4 - OpenCL_CPP, 100000 - OpenCL C++ version 1.0
+    llvm::Metadata *SPIRVSourceElts[] = {
+        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 4)),
+        llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 100000))};
+    llvm::NamedMDNode *SPIRVSourceMD =
+        TheModule.getOrInsertNamedMetadata("spirv.Source");
+    SPIRVSourceMD->addOperand(llvm::MDNode::get(Ctx, SPIRVSourceElts));
+  }
+
   if (uint32_t PLevel = Context.getLangOpts().PICLevel) {
     assert(PLevel < 3 && "Invalid PIC Level");
     getModule().setPICLevel(static_cast<llvm::PICLevel::Level>(PLevel));
@@ -2166,6 +2185,11 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   if (Global->hasAttr<IFuncAttr>())
     return emitIFuncDefinition(GD);
 
+  if (LangOpts.SYCLIsDevice) {
+    if (!Global->hasAttr<SYCLDeviceAttr>())
+      return;
+  }
+
   // If this is a cpu_dispatch multiversion function, emit the resolver.
   if (Global->hasAttr<CPUDispatchAttr>())
     return emitCPUDispatchDefinition(GD);
@@ -3488,6 +3512,55 @@ void CodeGenModule::maybeSetTrivialComdat(const Decl &D,
   GO.setComdat(TheModule.getOrInsertComdat(GO.getName()));
 }
 
+void CodeGenModule::generateIntelFPGAAnnotation(
+    const Decl *D, llvm::SmallString<256> &AnnotStr) {
+  llvm::raw_svector_ostream Out(AnnotStr);
+  if (D->hasAttr<IntelFPGARegisterAttr>())
+    Out << "{register:1}";
+  if (auto const *MA = D->getAttr<IntelFPGAMemoryAttr>()) {
+    IntelFPGAMemoryAttr::MemoryKind Kind = MA->getKind();
+    Out << "{memory:";
+    switch (Kind) {
+    case IntelFPGAMemoryAttr::MLAB:
+    case IntelFPGAMemoryAttr::BlockRAM:
+      Out << IntelFPGAMemoryAttr::ConvertMemoryKindToStr(Kind);
+      break;
+    case IntelFPGAMemoryAttr::Default:
+      Out << "DEFAULT";
+      break;
+    }
+    Out << '}';
+  }
+  if (const auto *BWA = D->getAttr<IntelFPGABankWidthAttr>()) {
+    llvm::APSInt BWAInt = BWA->getValue()->EvaluateKnownConstInt(getContext());
+    Out << '{' << BWA->getSpelling() << ':' << BWAInt << '}';
+  }
+  if (const auto *NBA = D->getAttr<IntelFPGANumBanksAttr>()) {
+    llvm::APSInt BWAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());
+    Out << '{' << NBA->getSpelling() << ':' << BWAInt << '}';
+  }
+}
+
+void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
+                                                 llvm::GlobalValue *GV) {
+  SmallString<256> AnnotStr;
+  generateIntelFPGAAnnotation(VD, AnnotStr);
+  if (!AnnotStr.empty()) {
+    // Get the globals for file name, annotation, and the line number.
+    llvm::Constant *AnnoGV = EmitAnnotationString(AnnotStr),
+                   *UnitGV = EmitAnnotationUnit(VD->getLocation()),
+                   *LineNoCst = EmitAnnotationLineNo(VD->getLocation());
+
+    llvm::Constant *C =
+        llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, Int8PtrTy);
+    // Create the ConstantStruct for the global annotation.
+    llvm::Constant *Fields[4] = {
+        C, llvm::ConstantExpr::getBitCast(AnnoGV, Int8PtrTy),
+        llvm::ConstantExpr::getBitCast(UnitGV, Int8PtrTy), LineNoCst};
+    Annotations.push_back(llvm::ConstantStruct::getAnon(Fields));
+  }
+}
+
 /// Pass IsTentative as true if you want to create a tentative definition.
 void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
                                             bool IsTentative) {
@@ -3613,6 +3686,21 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
 
   if (D->hasAttr<AnnotateAttr>())
     AddGlobalAnnotations(D, GV);
+
+  // Emit Intel FPGA attribute annotation for a file-scope static variable.
+  if (getLangOpts().SYCLIsDevice)
+    addGlobalIntelFPGAAnnotation(D, GV);
+
+  if (D->getType().isRestrictQualified()) {
+    llvm::LLVMContext &Context = getLLVMContext();
+
+    // Common metadata nodes.
+    llvm::NamedMDNode *GlobalsRestrict =
+        getModule().getOrInsertNamedMetadata("globals.restrict");
+    llvm::Metadata *Args[] = {llvm::ValueAsMetadata::get(GV)};
+    llvm::MDNode *Node = llvm::MDNode::get(Context, Args);
+    GlobalsRestrict->addOperand(Node);
+  }
 
   // Set the llvm linkage type as appropriate.
   llvm::GlobalValue::LinkageTypes Linkage =

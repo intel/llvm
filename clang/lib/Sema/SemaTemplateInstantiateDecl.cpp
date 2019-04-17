@@ -5465,14 +5465,30 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
             Function, [this, Inst, DefinitionRequired](FunctionDecl *CurFD) {
               InstantiateFunctionDefinition(/*FIXME:*/ Inst.second, CurFD, true,
                                             DefinitionRequired, true);
-              if (CurFD->isDefined())
+              if (CurFD->isDefined()) {
+                // Because all SYCL kernel functions are template functions - they
+                // have deferred instantination. We need bodies of these functions
+                // so we are checking for SYCL kernel attribute after instantination.
+                if (getLangOpts().SYCLIsDevice &&
+                        CurFD->hasAttr<SYCLKernelAttr>()) {
+                  ConstructSYCLKernel(CurFD);
+                }
                 CurFD->setInstantiationIsPending(false);
+              }
             });
       } else {
         InstantiateFunctionDefinition(/*FIXME:*/ Inst.second, Function, true,
                                       DefinitionRequired, true);
-        if (Function->isDefined())
+        if (Function->isDefined()) {
+          // Because all SYCL kernel functions are template functions - they
+          // have deferred instantination. We need bodies of these functions
+          // so we are checking for SYCL kernel attribute after instantination.
+          if (getLangOpts().SYCLIsDevice &&
+                  Function->hasAttr<SYCLKernelAttr>()) {
+              ConstructSYCLKernel(Function);
+          }
           Function->setInstantiationIsPending(false);
+        }
       }
       continue;
     }

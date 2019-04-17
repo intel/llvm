@@ -746,7 +746,12 @@ static const LangASMap *getAddressSpaceMap(const TargetInfo &T,
       4, // opencl_generic
       5, // cuda_device
       6, // cuda_constant
-      7  // cuda_shared
+      7, // cuda_shared
+      1, // sycl_global
+      3, // sycl_local
+      2, // sycl_constant
+      0, // sycl_private
+      4, // sycl_generic
     };
     return &FakeAddrSpaceMap;
   } else {
@@ -9947,7 +9952,7 @@ void ASTContext::forEachMultiversionedFunctionVersion(
 CallingConv ASTContext::getDefaultCallingConvention(bool IsVariadic,
                                                     bool IsCXXMethod) const {
   // Pass through to the C++ ABI object
-  if (IsCXXMethod)
+  if (IsCXXMethod && !LangOpts.SYCLIsDevice)
     return ABI->getDefaultMethodCallConv(IsVariadic);
 
   switch (LangOpts.getDefaultCallingConv()) {

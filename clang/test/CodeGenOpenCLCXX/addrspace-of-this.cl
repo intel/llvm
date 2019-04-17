@@ -2,6 +2,7 @@
 // RUN: %clang_cc1 %s -triple spir-unknown-unknown -cl-std=c++ -emit-llvm -pedantic -verify -O0 -o - -DDECL -DUSE_DEFLT | FileCheck %s --check-prefixes="COMMON,IMPL"
 // RUN: %clang_cc1 %s -triple spir-unknown-unknown -cl-std=c++ -emit-llvm -pedantic -verify -O0 -o - | FileCheck %s --check-prefixes="COMMON,IMPL"
 // expected-no-diagnostics
+// XFAIL: *
 
 // Test that the 'this' pointer is in the __generic address space.
 

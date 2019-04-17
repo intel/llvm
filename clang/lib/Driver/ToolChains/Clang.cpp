@@ -144,6 +144,13 @@ forAllAssociatedToolChains(Compilation &C, const JobAction &JA,
   } else if (JA.isDeviceOffloading(Action::OFK_OpenMP))
     Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());
 
+  if (JA.isHostOffloading(Action::OFK_SYCL)) {
+    auto TCs = C.getOffloadToolChains<Action::OFK_SYCL>();
+    for (auto II = TCs.first, IE = TCs.second; II != IE; ++II)
+      Work(*II->second);
+  } else if (JA.isDeviceOffloading(Action::OFK_SYCL))
+    Work(*C.getSingleOffloadToolChain<Action::OFK_Host>());
+
   //
   // TODO: Add support for other offloading programming models here.
   //
@@ -1137,6 +1144,16 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   // /usr/local/include.
   if (JA.isOffloading(Action::OFK_Cuda))
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
+
+  // Add include directories for SYCL
+  if (!Args.hasArg(options::OPT_nobuiltininc) &&
+      getToolChain().getTriple().isSYCLDeviceEnvironment()) {
+    SmallString<128> P(D.ResourceDir);
+    llvm::sys::path::append(P, "include");
+    llvm::sys::path::append(P, "sycl_wrappers");
+    CmdArgs.push_back("-internal-isystem");
+    CmdArgs.push_back(Args.MakeArgString(P));
+  }
 
   // Add -i* options, and automatically translate to
   // -include-pch/-include-pth for transparent PCH support. It's
@@ -3401,14 +3418,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Check number of inputs for sanity. We need at least one input.
   assert(Inputs.size() >= 1 && "Must have at least one input.");
   // CUDA/HIP compilation may have multiple inputs (source file + results of
-  // device-side compilations). OpenMP device jobs also take the host IR as a
-  // second input. Module precompilation accepts a list of header files to
+  // device-side compilations). OpenMP and SYCL device jobs also take the host
+  // IR as a second input. All other jobs are expected to have exactly one
   // include as part of the module. All other jobs are expected to have exactly
   // one input.
   bool IsCuda = JA.isOffloading(Action::OFK_Cuda);
   bool IsHIP = JA.isOffloading(Action::OFK_HIP);
   bool IsOpenMPDevice = JA.isDeviceOffloading(Action::OFK_OpenMP);
+  bool IsSYCLOffloadDevice = JA.isDeviceOffloading(Action::OFK_SYCL);
+  bool IsSYCL = JA.isOffloading(Action::OFK_SYCL);
   bool IsHeaderModulePrecompile = isa<HeaderModulePrecompileJobAction>(JA);
+  assert((IsCuda || IsHIP || (IsOpenMPDevice && Inputs.size() == 2) ||
+         IsSYCL || Inputs.size() == 1) && "Unable to handle multiple inputs.");
 
   // A header module compilation doesn't have a main input file, so invent a
   // fake one as a placeholder.
@@ -3424,6 +3445,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   InputInfoList ModuleHeaderInputs;
   const InputInfo *CudaDeviceInput = nullptr;
   const InputInfo *OpenMPDeviceInput = nullptr;
+  const InputInfo *SYCLDeviceInput = nullptr;
   for (const InputInfo &I : Inputs) {
     if (&I == &Input) {
       // This is the primary input.
@@ -3440,6 +3462,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CudaDeviceInput = &I;
     } else if (IsOpenMPDevice && !OpenMPDeviceInput) {
       OpenMPDeviceInput = &I;
+    } else if (IsSYCL && !SYCLDeviceInput) {
+      SYCLDeviceInput = &I;
     } else {
       llvm_unreachable("unexpectedly given multiple inputs");
     }
@@ -3450,6 +3474,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsWindowsCygnus = RawTriple.isWindowsCygwinEnvironment();
   bool IsWindowsMSVC = RawTriple.isWindowsMSVCEnvironment();
   bool IsIAMCU = RawTriple.isOSIAMCU();
+  bool IsSYCLDevice = (RawTriple.getEnvironment() == llvm::Triple::SYCLDevice);
 
   // Adjust IsWindowsXYZ for CUDA/HIP compilations.  Even when compiling in
   // device mode (i.e., getToolchain().getTriple() is NVPTX/AMDGCN, not
@@ -3510,6 +3535,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
   }
 
+  if (IsSYCLDevice) {
+    // We want to compile sycl kernels.
+    if (types::isCXX(Input.getType()))
+      CmdArgs.push_back("-std=c++11");
+    CmdArgs.push_back("-fsycl-is-device");
+    // Pass the triple of host when doing SYCL
+    std::string NormalizedTriple =
+        llvm::Triple(llvm::sys::getProcessTriple()).normalize();
+    CmdArgs.push_back("-aux-triple");
+    CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
+    CmdArgs.push_back("-disable-llvm-passes");
+    if (Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
+                     options::OPT_fno_sycl_allow_func_ptr, false)) {
+      CmdArgs.push_back("-fsycl-allow-func-ptr");
+    }
+  }
+
   if (IsOpenMPDevice) {
     // We have to pass the triple of the host if compiling for an OpenMP device.
     std::string NormalizedTriple =
@@ -3553,9 +3595,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-P");
     }
   } else if (isa<AssembleJobAction>(JA)) {
-    CmdArgs.push_back("-emit-obj");
-
-    CollectArgsForIntegratedAssembler(C, Args, CmdArgs, D);
+    if (IsSYCLOffloadDevice && IsSYCLDevice) {
+      CmdArgs.push_back("-emit-llvm-bc");
+    } else {
+      CmdArgs.push_back("-emit-obj");
+      CollectArgsForIntegratedAssembler(C, Args, CmdArgs, D);
+    }
 
     // Also ignore explicit -force_cpusubtype_ALL option.
     (void)Args.hasArg(options::OPT_force__cpusubtype__ALL);
@@ -3573,7 +3618,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   } else {
     assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) &&
            "Invalid action for clang tool.");
-    if (JA.getType() == types::TY_Nothing) {
+    if (JA.getType() == types::TY_Nothing ||
+        JA.getType() == types::TY_SYCL_Header) {
       CmdArgs.push_back("-fsyntax-only");
     } else if (JA.getType() == types::TY_LLVM_IR ||
                JA.getType() == types::TY_LTO_IR) {
@@ -5260,6 +5306,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fcuda-short-ptr");
   }
 
+  if (IsSYCL) {
+    // Host-side SYCL compilation receives the integration header file as
+    // Inputs[1].  Include the header with -include
+    if (!IsSYCLOffloadDevice && SYCLDeviceInput) {
+      CmdArgs.push_back("-include");
+      CmdArgs.push_back(SYCLDeviceInput->getFilename());
+    }
+    if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
+      // Generating a SYCL Header
+      SmallString<128> HeaderOpt("-fsycl-int-header=");
+      HeaderOpt += Output.getFilename();
+      CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
+    }
+  }
+
   // OpenMP offloading device jobs take the argument -fopenmp-host-ir-file-path
   // to specify the result of the compile phase on the host, so the meaningful
   // device declarations can be identified. Also, -fopenmp-is-device is passed
@@ -5281,6 +5342,25 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Arg *Tgts = Args.getLastArg(options::OPT_fopenmp_targets_EQ);
     assert(Tgts && Tgts->getNumValues() &&
            "OpenMP offloading has to have targets specified.");
+    for (unsigned i = 0; i < Tgts->getNumValues(); ++i) {
+      if (i)
+        TargetInfo += ',';
+      // We need to get the string from the triple because it may be not exactly
+      // the same as the one we get directly from the arguments.
+      llvm::Triple T(Tgts->getValue(i));
+      TargetInfo += T.getTriple();
+    }
+    CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
+  }
+
+  // For all the host SYCL offloading compile jobs we need to pass the targets
+  // information using -fsycl-targets= option.
+  if (isa<CompileJobAction>(JA) && JA.isHostOffloading(Action::OFK_SYCL)) {
+    SmallString<128> TargetInfo("-fsycl-targets=");
+
+    Arg *Tgts = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+    assert(Tgts && Tgts->getNumValues() &&
+           "SYCL offloading has to have targets specified.");
     for (unsigned i = 0; i < Tgts->getNumValues(); ++i) {
       if (i)
         TargetInfo += ',';
@@ -6283,3 +6363,101 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       CmdArgs, None));
 }
+
+// Begin OffloadWrapper
+
+void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
+                                  const InputInfo &Output,
+                                  const InputInfoList &Inputs,
+                                  const llvm::opt::ArgList &TCArgs,
+                                  const char *LinkingOutput) const {
+  // Construct offload-wrapper command.  Also calls llc to generate the
+  // object that is fed to the linker from the wrapper generated bc file
+  assert(isa<OffloadWrappingJobAction>(JA) && "Expecting wrapping job!");
+
+  // The wrapper command looks like this:
+  // clang-offload-wrapper
+  //   -o=<outputfile>.bc
+  //   -host=x86_64-pc-linux-gnu -kind=sycl
+  //   -format=spirv <inputfile1>.spv <manifest1>(optional)
+  //   -format=spirv <inputfile2>.spv <manifest2>(optional)
+  //  ...
+  ArgStringList WrapperArgs;
+
+  std::string OutTmpName = C.getDriver().GetTemporaryPath("wrapper", "bc");
+  const char * WrapperFileName =
+      C.addTempFile(C.getArgs().MakeArgString(OutTmpName));
+  SmallString<128> OutOpt("-o=");
+  OutOpt += WrapperFileName;
+  WrapperArgs.push_back(C.getArgs().MakeArgString(OutOpt));
+
+  SmallString<128> HostTripleOpt("-host=");
+  HostTripleOpt += getToolChain().getAuxTriple()->str();
+  WrapperArgs.push_back(C.getArgs().MakeArgString(HostTripleOpt));
+
+  // TODO forcing offload kind is a simplification which assumes wrapper used
+  // only with SYCL. Device binary format (-format=xxx) option should also come
+  // from the command line and/or the native compiler. Should be fixed together
+  // with supporting AOT in the driver.
+  // If format is not set, the default is "none" which means runtime must try
+  // to determine it automatically.
+  StringRef Kind = Action::GetOffloadKindName(JA.getOffloadingDeviceKind());
+  WrapperArgs.push_back(
+      C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
+
+  for (auto I : Inputs) {
+    WrapperArgs.push_back(I.getFilename());
+  }
+
+  C.addCommand(llvm::make_unique<Command>(JA, *this,
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      WrapperArgs, None));
+
+  // Construct llc command.
+  // The output is an object file
+  ArgStringList LlcArgs{"-filetype=obj", "-o",  Output.getFilename(),
+                        WrapperFileName};
+  llvm::Reloc::Model RelocationModel;
+  unsigned PICLevel;
+  bool IsPIE;
+  std::tie(RelocationModel, PICLevel, IsPIE) =
+      ParsePICArgs(getToolChain(), TCArgs);
+  if (PICLevel > 0) {
+      LlcArgs.push_back("-relocation-model=pic");
+  }
+  if (IsPIE) {
+      LlcArgs.push_back("-enable-pie");
+  }
+  SmallString<128> LlcPath(C.getDriver().Dir);
+  llvm::sys::path::append(LlcPath, "llc");
+  const char *Llc = C.getArgs().MakeArgString(LlcPath);
+  C.addCommand(llvm::make_unique<Command>(JA, *this, Llc, LlcArgs, None));
+}
+
+// Begin SPIRVTranslator
+
+void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
+                                  const InputInfo &Output,
+                                  const InputInfoList &Inputs,
+                                  const llvm::opt::ArgList &TCArgs,
+                                  const char *LinkingOutput) const {
+  // Construct llvm-spirv command.
+  assert(isa<SPIRVTranslatorJobAction>(JA) && "Expecting Translator job!");
+
+  // The translator command looks like this:
+  // llvm-spirv -o <file>.spv <file>.bc
+  ArgStringList TranslatorArgs;
+
+  TranslatorArgs.push_back("-o");
+  TranslatorArgs.push_back(Output.getFilename());
+  if (getToolChain().getTriple().isSYCLDeviceEnvironment())
+    TranslatorArgs.push_back("-spirv-no-deref-attr");
+  for (auto I : Inputs) {
+    TranslatorArgs.push_back(I.getFilename());
+  }
+
+  C.addCommand(llvm::make_unique<Command>(JA, *this,
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      TranslatorArgs, None));
+}
+

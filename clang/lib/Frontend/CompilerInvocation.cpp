@@ -122,7 +122,8 @@ CompilerInvocationBase::~CompilerInvocationBase() = default;
 static unsigned getOptimizationLevel(ArgList &Args, InputKind IK,
                                      DiagnosticsEngine &Diags) {
   unsigned DefaultOpt = llvm::CodeGenOpt::None;
-  if (IK.getLanguage() == InputKind::OpenCL && !Args.hasArg(OPT_cl_opt_disable))
+  if ((IK.getLanguage() == InputKind::OpenCL &&
+      !Args.hasArg(OPT_cl_opt_disable)) || Args.hasArg(OPT_fsycl_is_device))
     DefaultOpt = llvm::CodeGenOpt::Default;
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
@@ -2395,6 +2396,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.GPURelocatableDeviceCode = Args.hasArg(OPT_fgpu_rdc);
 
+  Opts.SYCLIntHeader = Args.getLastArgValue(OPT_fsycl_int_header);
+
   if (Opts.ObjC) {
     if (Arg *arg = Args.getLastArg(OPT_fobjc_runtime_EQ)) {
       StringRef value = arg->getValue();
@@ -2888,7 +2891,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
           << Opts.OMPHostIRFile;
   }
 
-  Opts.SYCLIsDevice = Args.hasArg(options::OPT_fsycl_is_device);
+  Opts.SYCLIsDevice   = Args.hasArg(options::OPT_fsycl_is_device);
+  Opts.SYCLAllowFuncPtr = Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
+                                  options::OPT_fno_sycl_allow_func_ptr, false);
 
   // Set CUDA mode for OpenMP target NVPTX if specified in options
   Opts.OpenMPCUDAMode = Opts.OpenMPIsDevice && T.isNVPTX() &&

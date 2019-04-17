@@ -283,6 +283,10 @@ namespace {
       if (Diags.hasErrorOccurred())
         return;
 
+      // No VTable usage is legal in SYCL, so don't bother marking them used.
+      if (Ctx->getLangOpts().SYCLIsDevice)
+        return;
+
       Builder->EmitVTable(RD);
     }
   };
