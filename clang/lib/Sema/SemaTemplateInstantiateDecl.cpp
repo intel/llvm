@@ -5444,7 +5444,7 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
                 // have deferred instantination. We need bodies of these functions
                 // so we are checking for SYCL kernel attribute after instantination.
                 if (getLangOpts().SYCLIsDevice &&
-                        CurFD->hasAttr<SYCLKernelAttr>()) {
+                        CurFD->hasAttr<OpenCLKernelAttr>()) {
                   ConstructSYCLKernel(CurFD);
                 }
                 CurFD->setInstantiationIsPending(false);
@@ -5458,7 +5458,7 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
           // have deferred instantination. We need bodies of these functions
           // so we are checking for SYCL kernel attribute after instantination.
           if (getLangOpts().SYCLIsDevice &&
-                  Function->hasAttr<SYCLKernelAttr>()) {
+                  Function->hasAttr<OpenCLKernelAttr>()) {
               ConstructSYCLKernel(Function);
           }
           Function->setInstantiationIsPending(false);

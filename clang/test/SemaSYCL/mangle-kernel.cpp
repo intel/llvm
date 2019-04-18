@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__kernel void kernel(Func kernelFunc) {
   kernelFunc();
 }
 

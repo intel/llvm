@@ -46,7 +46,7 @@
 #include "sycl.hpp"
 
 template <typename KernelName, typename KernelType>
-__attribute__((sycl_kernel)) void kernel_single_task(KernelType kernelFunc) {
+__kernel void kernel_single_task(KernelType kernelFunc) {
   kernelFunc();
 }
 struct x {};

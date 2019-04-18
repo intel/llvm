@@ -74,7 +74,7 @@ bool isa_B(A *a) {
   return dynamic_cast<B *>(a) != 0;
 }
 
-__attribute__((sycl_kernel)) void kernel1(void) {
+__kernel void kernel1(void) {
   // expected-note@+1{{used here}}
   A *a;
   // expected-note@+1 3{{used here}}
@@ -175,7 +175,7 @@ int addInt(int n, int m) {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__kernel void kernel_single_task(Func kernelFunc) {
   kernelFunc();
   a_type ab;
   a_type *p;

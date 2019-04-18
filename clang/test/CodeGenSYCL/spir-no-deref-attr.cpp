@@ -4,7 +4,7 @@
 // RUN: FileCheck < %t.txt %s --check-prefix=CHECK
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__kernel void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
 struct foo {

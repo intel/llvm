@@ -25,7 +25,7 @@ int addInt(int n, int m) {
 
 template <typename name, typename Func>
   // expected-note@+1 2{{function implemented using recursion declared here}}
-__attribute__((sycl_kernel)) void kernel_single_task2(Func kernelFunc) {
+__kernel void kernel_single_task2(Func kernelFunc) {
   kernelFunc();
   // expected-error@+1 2{{SYCL kernel cannot allocate storage}}
   int *ip = new int;

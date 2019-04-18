@@ -27,7 +27,7 @@ int addInt(int n, int m) {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__kernel void kernel_single_task(Func kernelFunc) {
   // expected-error@+1 {{SYCL kernel cannot allocate storage}}
   int *ip = new int;
   kernelFunc();

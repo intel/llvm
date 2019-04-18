@@ -150,7 +150,7 @@ void usages2() {
 // CHECK-DAG: define spir_func void @new.[[RAW_PTR2]](i32 addrspace(4)*
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__kernel void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
 int main() {

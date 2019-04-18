@@ -56,15 +56,15 @@ bool isa_B(void) {
   return 0;
 }
 
-__attribute__((sycl_kernel)) void kernel1(void) {
+__kernel void kernel1(void) {
   isa_B();
 }
   // expected-note@+1 2{{function implemented using recursion declared here}}
-__attribute__((sycl_kernel)) void kernel2(void) {
+__kernel void kernel2(void) {
   // expected-error@+1 {{SYCL kernel cannot call a recursive function}}
   kernel2();
 }
-__attribute__((sycl_kernel)) void kernel3(void) {
+__kernel void kernel3(void) {
   ;
 }
 
@@ -86,13 +86,13 @@ int addInt(int n, int m) {
 }
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
+__kernel void kernel_single_task(Func kernelFunc) {
   kernelFunc();
 }
 
 template <typename name, typename Func>
   // expected-note@+1 2{{function implemented using recursion declared here}}
-__attribute__((sycl_kernel)) void kernel_single_task2(Func kernelFunc) {
+__kernel void kernel_single_task2(Func kernelFunc) {
   kernelFunc();
   // expected-error@+1 2{{SYCL kernel cannot call a recursive function}}
   kernel_single_task2<name, Func>(kernelFunc);

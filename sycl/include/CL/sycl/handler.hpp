@@ -266,7 +266,7 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename KernelName, typename KernelType>
-  __attribute__((sycl_kernel)) void kernel_single_task(KernelType kernelFunc) {
+  __kernel void kernel_single_task(KernelType kernelFunc) {
     kernelFunc();
   }
 #endif
@@ -294,7 +294,7 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
+  __kernel void kernel_parallel_for(
       typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
                                            id<dimensions>>::value &&
                                   (dimensions > 0 && dimensions < 4),
@@ -307,7 +307,7 @@ public:
   }
 
   template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
+  __kernel void kernel_parallel_for(
       typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
                                            item<dimensions>>::value &&
                                   (dimensions > 0 && dimensions < 4),
@@ -324,7 +324,7 @@ public:
   }
 
   template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
+  __kernel void kernel_parallel_for(
       typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
                                            nd_item<dimensions>>::value &&
                                   (dimensions > 0 && dimensions < 4),

@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice  -std=c++11 -fsycl-is-device -disable-llvm-passes -emit-llvm -x c++ %s -o - | opt -asfix -S -o - | FileCheck %s
 
 template <typename name, typename Func>
-__attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
+__kernel void kernel(Func kernelFunc) {
   kernelFunc();
 }
 using bool1 = bool;
