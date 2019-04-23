@@ -1127,16 +1127,26 @@ parseAnnotations(StringRef AnnotatedCode) {
     StringRef AnnotatedDecoration = AnnotatedCode.substr(From + 1, To - 1);
     std::pair<StringRef, StringRef> D = AnnotatedDecoration.split(':');
 
-    StringRef F = D.first;
-    Decoration Dec =
-        llvm::StringSwitch<Decoration>(F)
-            .Case("memory", DecorationMemoryINTEL)
-            .Case("register", DecorationRegisterINTEL)
-            .Case("numbanks", DecorationNumbanksINTEL)
-            .Case("bankwidth", DecorationBankwidthINTEL)
-            .Case("max_concurrency", DecorationMaxconcurrencyINTEL);
+    StringRef F = D.first, S = D.second;
+    StringRef Value;
+    Decoration Dec;
+    if (F == "pump") {
+      Dec = llvm::StringSwitch<Decoration>(S)
+              .Case("1", DecorationSinglepumpINTEL)
+              .Case("2", DecorationDoublepumpINTEL);
+      Value = "1";
+    }
+    else {
+      Dec = llvm::StringSwitch<Decoration>(F)
+              .Case("memory", DecorationMemoryINTEL)
+              .Case("register", DecorationRegisterINTEL)
+              .Case("numbanks", DecorationNumbanksINTEL)
+              .Case("bankwidth", DecorationBankwidthINTEL)
+              .Case("max_concurrency", DecorationMaxconcurrencyINTEL);
+      Value = S;
+    }
 
-    Decorates.push_back({Dec, D.second});
+    Decorates.push_back({Dec, Value});
     AnnotatedCode = AnnotatedCode.drop_front(To + 1);
   }
   return Decorates;
