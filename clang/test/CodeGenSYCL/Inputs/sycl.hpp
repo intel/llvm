@@ -4,7 +4,7 @@
 #define __global
 #endif
 
-#define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
+#define ATTR_SYCL_KERNEL __kernel
 
 // Dummy runtime classes to model SYCL API.
 namespace cl {
