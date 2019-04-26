@@ -167,11 +167,11 @@ operator()(const std::pair<context, OSModuleHandle> &LHS,
          reinterpret_cast<intptr_t>(RHS.second);
 }
 
-void ProgramManager::addImages(cnri_bin_desc *DeviceImages) {
+void ProgramManager::addImages(pi_bin_desc *DeviceImages) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
   for (int I = 0; I < DeviceImages->NumDeviceImages; I++) {
-    cnri_device_image *Img = &(DeviceImages->DeviceImages[I]);
+    pi_device_image *Img = &(DeviceImages->DeviceImages[I]);
     OSModuleHandle M = OSUtil::getOSModuleHandle(Img);
     auto &Imgs = m_DeviceImages[M];
 
@@ -211,7 +211,7 @@ struct ImageDeleter {
   }
 };
 
-cnri_program ProgramManager::loadProgram(OSModuleHandle M,
+pi_program ProgramManager::loadProgram(OSModuleHandle M,
                                          const context &Context,
                                          DeviceImage **I) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
@@ -248,10 +248,10 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
                           std::string(" failed"));
     }
     Img = new DeviceImage();
-    Img->Version = CNRI_DEVICE_IMAGE_STRUCT_VERSION;
+    Img->Version = PI_DEVICE_IMAGE_STRUCT_VERSION;
     Img->Kind = SYCL_OFFLOAD_KIND;
-    Img->Format = CNRI_IMG_NONE;
-    Img->DeviceTargetSpec = CNRI_TGT_STR_UNKNOWN;
+    Img->Format = PI_IMG_NONE;
+    Img->DeviceTargetSpec = PI_TGT_STR_UNKNOWN;
     Img->BuildOptions = "";
     Img->ManifestStart = nullptr;
     Img->ManifestEnd = nullptr;
@@ -275,11 +275,11 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
       throw runtime_error("No device program image found");
     }
     std::vector<DeviceImage *> *Imgs = (ImgIt->second).get();
-    const cnri_context &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
+    const pi_context &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
 
-    if (cnriSelectDeviceImage(Ctx, Imgs->data(), (cl_uint)Imgs->size(), &Img) !=
-        CNRI_SUCCESS) {
-      throw device_error("cnriSelectDeviceImage failed");
+    if (piSelectDeviceImage(Ctx, Imgs->data(), (cl_uint)Imgs->size(), &Img) !=
+        PI_SUCCESS) {
+      throw device_error("piSelectDeviceImage failed");
     }
     if (DbgProgMgr > 0) {
       std::cerr << "available device images:\n";
@@ -296,16 +296,16 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
     throw runtime_error("Invalid device program image: size is zero");
   }
   size_t ImgSize = static_cast<size_t>(Img->ImageEnd - Img->ImageStart);
-  cnri_device_image_format Format =
-      static_cast<cnri_device_image_format>(Img->Format);
+  pi_device_image_format Format =
+      static_cast<pi_device_image_format>(Img->Format);
 
   // Determine the format of the image if not set already
-  if (Format == CNRI_IMG_NONE) {
+  if (Format == PI_IMG_NONE) {
     struct {
-      cnri_device_image_format Fmt;
+      pi_device_image_format Fmt;
       const uint32_t Magic;
-    } Fmts[] = {{CNRI_IMG_SPIRV, 0x07230203},
-                {CNRI_IMG_LLVMIR_BITCODE, 0xDEC04342}};
+    } Fmts[] = {{PI_IMG_SPIRV, 0x07230203},
+                {PI_IMG_LLVMIR_BITCODE, 0xDEC04342}};
     if (ImgSize >= sizeof(Fmts[0].Magic)) {
       std::remove_const<decltype(Fmts[0].Magic)>::type Hdr = 0;
       std::copy(Img->ImageStart, Img->ImageStart + sizeof(Hdr),
@@ -341,9 +341,9 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
     Fname += Img->DeviceTargetSpec;
     std::string Ext;
 
-    if (Format == CNRI_IMG_SPIRV) {
+    if (Format == PI_IMG_SPIRV) {
       Ext = ".spv";
-    } else if (Format == CNRI_IMG_LLVMIR_BITCODE) {
+    } else if (Format == PI_IMG_LLVMIR_BITCODE) {
       Ext = ".bc";
     } else {
       Ext = ".bin";
@@ -359,9 +359,9 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
     F.close();
   }
   // Load the selected image
-  const cnri_context &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
-  cnri_program Res = nullptr;
-  Res = Format == CNRI_IMG_SPIRV
+  const pi_context &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
+  pi_program Res = nullptr;
+  Res = Format == PI_IMG_SPIRV
             ? createSpirvProgram(Ctx, Img->ImageStart, ImgSize)
             : createBinaryProgram(Ctx, Img->ImageStart, ImgSize);
 
@@ -376,11 +376,11 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
 } // namespace sycl
 } // namespace cl
 
-extern "C" void __tgt_register_lib(cnri_bin_desc *desc) {
+extern "C" void __tgt_register_lib(pi_bin_desc *desc) {
   cl::sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization
-extern "C" void __tgt_unregister_lib(cnri_bin_desc *desc) {
+extern "C" void __tgt_unregister_lib(pi_bin_desc *desc) {
   // TODO implement the function
 }

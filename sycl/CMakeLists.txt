@@ -123,7 +123,7 @@ set(LLVM_TOOLS_DIR "${LLVM_BINARY_DIR}/bin/")
 add_library("${SYCLLibrary}" SHARED
   "${includeRootPath}/CL/sycl.hpp"
   "${sourceRootPath}/detail/builtins.cpp"
-  "${sourceRootPath}/detail/cnri.cpp"
+  "${sourceRootPath}/detail/pi.cpp"
   "${sourceRootPath}/detail/common.cpp"
   "${sourceRootPath}/detail/context_impl.cpp"
   "${sourceRootPath}/detail/device_info.cpp"
