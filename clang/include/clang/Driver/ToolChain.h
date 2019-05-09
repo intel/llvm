@@ -139,6 +139,7 @@ private:
   mutable std::unique_ptr<Tool> OffloadBundler;
   mutable std::unique_ptr<Tool> OffloadWrapper;
   mutable std::unique_ptr<Tool> SPIRVTranslator;
+  mutable std::unique_ptr<Tool> BackendCompiler;
 
   Tool *getClang() const;
   Tool *getAssemble() const;
@@ -147,6 +148,7 @@ private:
   Tool *getOffloadBundler() const;
   Tool *getOffloadWrapper() const;
   Tool *getSPIRVTranslator() const;
+  Tool *getBackendCompiler() const;
 
   mutable std::unique_ptr<SanitizerArgs> SanitizerArguments;
   mutable std::unique_ptr<XRayArgs> XRayArguments;
@@ -170,6 +172,7 @@ protected:
 
   virtual Tool *buildAssembler() const;
   virtual Tool *buildLinker() const;
+  virtual Tool *buildBackendCompiler() const;
   virtual Tool *getTool(Action::ActionClass AC) const;
 
   /// \name Utilities for implementing subclasses.

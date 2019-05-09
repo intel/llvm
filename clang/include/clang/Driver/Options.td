@@ -472,10 +472,20 @@ def Xopenmp_target : Separate<["-"], "Xopenmp-target">,
 def Xopenmp_target_EQ : JoinedAndSeparate<["-"], "Xopenmp-target=">,
   HelpText<"Pass <arg> to the target offloading toolchain identified by <triple>.">,
   MetaVarName<"<triple> <arg>">;
-def Xsycl_target : Separate<["-"], "Xsycl-target">,
-  HelpText<"Pass <arg> to the SYCL based target offloading toolchain.">, MetaVarName<"<arg>">;
-def Xsycl_target_EQ : JoinedAndSeparate<["-"], "Xsycl-target=">,
-  HelpText<"Pass <arg> to the SYCL based target offloading toolchain identified by <triple>.">,
+def Xsycl_backend : Separate<["-"], "Xsycl-target-backend">,
+  HelpText<"Pass <arg> to the SYCL based target backend.">, MetaVarName<"<arg>">;
+def Xsycl_backend_EQ : JoinedAndSeparate<["-"], "Xsycl-target-backend=">,
+  HelpText<"Pass <arg> to the SYCL based backend identified by <triple>.">,
+  MetaVarName<"<triple> <arg>">;
+def Xsycl_frontend : Separate<["-"], "Xsycl-target-frontend">,
+  HelpText<"Pass <arg> to the SYCL based target frontend.">, MetaVarName<"<arg>">;
+def Xsycl_frontend_EQ : JoinedAndSeparate<["-"], "Xsycl-target-frontend=">,
+  HelpText<"Pass <arg> to the SYCL based target frontend identified by <triple>.">,
+  MetaVarName<"<triple> <arg>">;
+def Xsycl_linker : Separate<["-"], "Xsycl-target-linker">,
+  HelpText<"Pass <arg> to the SYCL based target linker.">, MetaVarName<"<arg>">;
+def Xsycl_linker_EQ : JoinedAndSeparate<["-"], "Xsycl-target-linker=">,
+  HelpText<"Pass <arg> to the SYCL based target linker identified by <triple>.">,
   MetaVarName<"<triple> <arg>">;
 def z : Separate<["-"], "z">, Flags<[LinkerInput, RenderAsInput]>,
   HelpText<"Pass -z <arg> to the linker">, MetaVarName<"<arg>">,
