@@ -69,7 +69,7 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
     SmallVector<Arg *, 4> AllocatedArgs;
     DerivedArgList *OffloadArgs = nullptr;
     // Translate offload toolchain arguments provided via the -Xopenmp-target
-    // or -Xsycl-target flags.
+    // or -Xsycl-target-frontend flags.
     if (DeviceOffloadKind == Action::OFK_OpenMP ||
         DeviceOffloadKind == Action::OFK_SYCL) {
       const ToolChain *HostTC = getSingleOffloadToolChain<Action::OFK_Host>();

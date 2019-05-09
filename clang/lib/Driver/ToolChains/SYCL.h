@@ -17,6 +17,15 @@ namespace driver {
 
 namespace tools {
 namespace SYCL {
+
+// Gather command line arguments for backend compilation call
+void TranslateSYCLTargetArgs(Compilation &C,
+              const llvm::opt::ArgList &Args, const ToolChain &TC, llvm::opt::ArgStringList &CmdArgs);
+
+// Gather command line arguments for device specific link
+void TranslateSYCLLinkerArgs(Compilation &C,
+              const llvm::opt::ArgList &Args, const ToolChain &TC, llvm::opt::ArgStringList &CmdArgs);
+
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
 // offloading information. Finally compiles to object using llc
@@ -39,14 +48,50 @@ private:
                                        bool isBc, const char *InputFile) const;
   /// \return llvm-link output file name.
   const char *constructLLVMLinkCommand(Compilation &C, const JobAction &JA,
+                             const InputInfo &Output,
                              const llvm::opt::ArgList &Args,
                              llvm::StringRef SubArchName,
-                             llvm::StringRef OutputFilePrefix,
+                             llvm::StringRef OutputFilePrefix, bool isBc,
                              const InputInfoList &InputFiles) const;
   void constructLlcCommand(Compilation &C, const JobAction &JA,
                            const InputInfo &Output,
                            const char *InputFile) const;
 };
+
+/// Directly call FPGA Compiler and Linker
+namespace fpga {
+
+class LLVM_LIBRARY_VISIBILITY BackendCompiler : public Tool {
+public:
+  BackendCompiler(const ToolChain &TC)
+      : Tool("fpga::BackendCompiler", "fpga compiler", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+} // end namespace fpga
+
+namespace gen {
+
+class LLVM_LIBRARY_VISIBILITY BackendCompiler : public Tool {
+public:
+  BackendCompiler(const ToolChain &TC)
+      : Tool("gen::BackendCompiler", "gen compiler", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+}
 
 } // end namespace SYCL
 } // end namespace tools
@@ -82,9 +127,11 @@ public:
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
 
+
   const ToolChain &HostTC;
 
 protected:
+  Tool *buildBackendCompiler() const override;
   Tool *buildLinker() const override;
 };
 

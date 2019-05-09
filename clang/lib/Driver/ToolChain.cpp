@@ -272,6 +272,10 @@ Tool *ToolChain::buildLinker() const {
   llvm_unreachable("Linking is not supported by this toolchain");
 }
 
+Tool *ToolChain::buildBackendCompiler() const {
+  llvm_unreachable("Backend Compilation is not supported by this toolchain");
+}
+
 Tool *ToolChain::getAssemble() const {
   if (!Assemble)
     Assemble.reset(buildAssembler());
@@ -306,6 +310,12 @@ Tool *ToolChain::getSPIRVTranslator() const {
   if (!SPIRVTranslator)
     SPIRVTranslator.reset(new tools::SPIRVTranslator(*this));
   return SPIRVTranslator.get();
+}
+
+Tool *ToolChain::getBackendCompiler() const {
+  if (!BackendCompiler)
+    BackendCompiler.reset(buildBackendCompiler());
+  return BackendCompiler.get();
 }
 
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
@@ -343,6 +353,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::SPIRVTranslatorJobClass:
     return getSPIRVTranslator();
+
+  case Action::BackendCompileJobClass:
+    return getBackendCompiler();
   }
 
   llvm_unreachable("Invalid tool kind.");
@@ -979,7 +992,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
   const OptTable &Opts = getDriver().getOpts();
   bool Modified = false;
 
-  // Handle -Xopenmp-target and -Xsycl-target flags
+  // Handle -Xopenmp-target and -Xsycl-target-frontend flags
   for (auto *A : Args) {
     // Exclude flags which may only apply to the host toolchain.
     // Do not exclude flags when the host triple (AuxTriple)
@@ -1023,15 +1036,15 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       }
     } else if (DeviceOffloadKind == Action::OFK_SYCL) {
       XOffloadTargetNoTriple =
-        A->getOption().matches(options::OPT_Xsycl_target);
-      if (A->getOption().matches(options::OPT_Xsycl_target_EQ)) {
-        // Passing device args: -Xsycl-target=<triple> -opt=val.
+        A->getOption().matches(options::OPT_Xsycl_frontend);
+      if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
+        // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
         if (A->getValue(0) == getTripleString())
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;
       } else if (XOffloadTargetNoTriple) {
-        // Passing device args: -Xsycl-target -opt=val.
+        // Passing device args: -Xsycl-target-frontend -opt=val.
         Index = Args.getBaseArgs().MakeIndex(A->getValue(0));
       } else {
         DAL->append(A);
@@ -1047,7 +1060,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         getDriver().Diag(diag::err_drv_invalid_Xopenmp_target_with_args)
             << A->getAsString(Args);
       } else {
-        getDriver().Diag(diag::err_drv_invalid_Xsycl_target_with_args)
+        getDriver().Diag(diag::err_drv_invalid_Xsycl_frontend_with_args)
             << A->getAsString(Args);
       }
       continue;
@@ -1060,8 +1073,9 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
       } else if (DeviceOffloadKind == Action::OFK_SYCL &&
-          Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
-        getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple);
+          Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() > 1) {
+        getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
+            << A->getSpelling();
         continue;
       }
     }
