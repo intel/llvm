@@ -1042,9 +1042,9 @@ def OpenCLUnrollHint : InheritableAttr {
 }
 
 def OpenCLIntelReqdSubGroupSize: InheritableAttr {
-  let Spellings = [GNU<"intel_reqd_sub_group_size">];
+  let Spellings = [GNU<"intel_reqd_sub_group_size">, CXX11<"cl", "intel_reqd_sub_group_size">];
   let Args = [UnsignedArgument<"SubGroupSize">];
-  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [OpenCLIntelReqdSubGroupSizeDocs];
 }
 
