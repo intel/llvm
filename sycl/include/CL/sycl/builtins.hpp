@@ -392,12 +392,10 @@ modf(T x, T2 iptr) __NOEXC {
 // genfloath nan (ugenshort nancode)
 // genfloatf nan (ugenint nancode)
 // genfloatd nan (ugenlonginteger nancode)
-template <typename T, typename = typename std::enable_if<
-                          detail::is_nan_type<T>::value, T>::type>
-typename detail::unsign_integral_to_float_point<T>::type
+template <typename T>
+detail::enable_if_t<detail::is_nan_type<T>::value, detail::nan_ret_t<T>>
 nan(T nancode) __NOEXC {
-  return __sycl_std::__invoke_nan<
-      typename detail::unsign_integral_to_float_point<T>::type>(nancode);
+  return __sycl_std::__invoke_nan<detail::nan_ret_t<T>>(nancode);
 }
 
 // genfloat nextafter (genfloat x, genfloat y)

@@ -19,6 +19,7 @@ using d_t = double;
 struct v {};
 
 int main() {
+  using std::is_same;
   // is_floatn
   static_assert(d::is_floatn<s::cl_float4>::value == true, "");
   static_assert(d::is_floatn<s::cl_float16>::value == true, "");
@@ -143,6 +144,16 @@ int main() {
   static_assert(d::is_nan_type<unsigned long long int>::value == true, "");
   static_assert(d::is_nan_type<s::longlong>::value == false, "");
   static_assert(d::is_nan_type<s::ulonglong>::value == true, "");
+  // nan_ret_t
+  static_assert(is_same<d::nan_ret_t<s::cl_int>, s::cl_float>::value, "");
+  static_assert(is_same<d::nan_ret_t<s::cl_short>, s::cl_half>::value, "");
+  static_assert(is_same<d::nan_ret_t<s::cl_long>, s::cl_double>::value, "");
+  static_assert(is_same<d::nan_ret_t<s::longlong>, s::cl_double>::value, "");
+
+  static_assert(is_same<d::nan_ret_t<s::cl_int2>, s::cl_float2>::value, "");
+  static_assert(is_same<d::nan_ret_t<s::cl_short3>, s::cl_half3>::value, "");
+  static_assert(is_same<d::nan_ret_t<s::cl_long4>, s::cl_double4>::value, "");
+  static_assert(is_same<d::nan_ret_t<s::longlong8>, s::cl_double8>::value, "");
   /*
   float_point_to_sign_integeral
 

@@ -6,23 +6,22 @@
 
 #include <CL/sycl.hpp>
 
-#include <array>
 #include <cassert>
+#include <cmath>
 
 namespace s = cl::sycl;
 
 int main() {
   // fmin
   {
-    s::cl_float2 r{ 0 };
+    s::cl_float2 r{0};
     {
       s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class fminF2F2>([=]() {
-          AccR[0] =
-              s::fmin(s::cl_float2{ 0.5f, 3.4f }, s::cl_float2{ 2.3f, 0.4f });
+          AccR[0] = s::fmin(s::cl_float2{0.5f, 3.4f}, s::cl_float2{2.3f, 0.4f});
         });
       });
     }
@@ -34,14 +33,14 @@ int main() {
 
   // fabs
   {
-    s::cl_float2 r{ 0 };
+    s::cl_float2 r{0};
     {
       s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class fabsF2>([=]() {
-          AccR[0] = s::fabs(s::cl_float2{ -1.0f, 2.0f });
+          AccR[0] = s::fabs(s::cl_float2{-1.0f, 2.0f});
         });
       });
     }
@@ -53,14 +52,14 @@ int main() {
 
   // floor
   {
-    s::cl_float2 r{ 0 };
+    s::cl_float2 r{0};
     {
       s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class floorF2>([=]() {
-          AccR[0] = s::floor(s::cl_float2{ 1.4f, 2.8f });
+          AccR[0] = s::floor(s::cl_float2{1.4f, 2.8f});
         });
       });
     }
@@ -72,14 +71,14 @@ int main() {
 
   // ceil
   {
-    s::cl_float2 r{ 0 };
+    s::cl_float2 r{0};
     {
       s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class ceilF2>([=]() {
-          AccR[0] = s::ceil(s::cl_float2{ 1.4f, 2.8f });
+          AccR[0] = s::ceil(s::cl_float2{1.4f, 2.8f});
         });
       });
     }
@@ -91,8 +90,8 @@ int main() {
 
   // fract with global memory
   {
-    s::cl_float2 r{ 0, 0 };
-    s::cl_float2 i{ 0, 0 };
+    s::cl_float2 r{0, 0};
+    s::cl_float2 i{0, 0};
     {
       s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
       s::buffer<s::cl_float2, 1> BufI(&i, s::range<1>(1));
@@ -103,7 +102,7 @@ int main() {
         auto AccI = BufI.get_access<s::access::mode::read_write>(cgh);
         cgh.single_task<class fractF2GF2>([=]() {
           s::global_ptr<s::cl_float2> Iptr(AccI);
-          AccR[0] = s::fract(s::cl_float2{ 1.5f, 2.5f }, Iptr);
+          AccR[0] = s::fract(s::cl_float2{1.5f, 2.5f}, Iptr);
         });
       });
     }
@@ -121,8 +120,8 @@ int main() {
 
   // fract with private memory
   {
-    s::cl_float2 r{ 0, 0 };
-    s::cl_float2 i{ 0, 0 };
+    s::cl_float2 r{0, 0};
+    s::cl_float2 i{0, 0};
     {
       s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
       s::buffer<s::cl_float2, 1> BufI(&i, s::range<1>(1));
@@ -133,7 +132,7 @@ int main() {
         cgh.single_task<class fractF2PF2>([=]() {
           s::cl_float2 temp(0.0);
           s::private_ptr<s::cl_float2> Iptr(&temp);
-          AccR[0] = s::fract(s::cl_float2{ 1.5f, 2.5f }, Iptr);
+          AccR[0] = s::fract(s::cl_float2{1.5f, 2.5f}, Iptr);
           AccI[0] = *Iptr;
         });
       });
@@ -152,14 +151,14 @@ int main() {
 
   // lgamma with private memory
   {
-    s::cl_float2 r{ 0, 0 };
+    s::cl_float2 r{0, 0};
     {
       s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::read_write>(cgh);
         cgh.single_task<class lgamma_rF2>([=]() {
-          AccR[0] = s::lgamma(s::cl_float2{ 10.f, -2.4f });
+          AccR[0] = s::lgamma(s::cl_float2{10.f, -2.4f});
         });
       });
     }
@@ -173,8 +172,8 @@ int main() {
 
   // lgamma_r with private memory
   {
-    s::cl_float2 r{ 0, 0 };
-    s::cl_int2 i{ 0, 0 };
+    s::cl_float2 r{0, 0};
+    s::cl_int2 i{0, 0};
     {
       s::buffer<s::cl_float2, 1> BufR(&r, s::range<1>(1));
       s::buffer<s::cl_int2, 1> BufI(&i, s::range<1>(1));
@@ -185,7 +184,7 @@ int main() {
         cgh.single_task<class lgamma_rF2PF2>([=]() {
           s::cl_int2 temp(0.0);
           s::private_ptr<s::cl_int2> Iptr(&temp);
-          AccR[0] = s::lgamma_r(s::cl_float2{ 10.f, -2.4f }, Iptr);
+          AccR[0] = s::lgamma_r(s::cl_float2{10.f, -2.4f}, Iptr);
           AccI[0] = *Iptr;
         });
       });
@@ -200,6 +199,25 @@ int main() {
     assert(r2 > 0.1024f && r2 < 0.1026f);   // ~0.102583
     assert(i1 == 1);                        // tgamma of 10 is ~362880.0
     assert(i2 == -1); // tgamma of -2.4 is ~-1.1080299470333461
+  }
+
+  // nan
+  {
+    s::cl_double2 r{0, 0};
+    {
+      s::buffer<s::cl_double2, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class nanULL2>([=]() {
+          AccR[0] = s::nan(s::ulonglong2{1LLU, 2LLU});
+        });
+      });
+    }
+    s::cl_double r1 = r.x();
+    s::cl_double r2 = r.y();
+    assert(std::isnan(r1));
+    assert(std::isnan(r2));
   }
 
   return 0;

@@ -6,7 +6,6 @@
 
 #include <CL/sycl.hpp>
 
-#include <array>
 #include <cassert>
 #include <cmath>
 

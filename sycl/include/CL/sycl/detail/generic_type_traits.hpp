@@ -356,15 +356,26 @@ template <typename T>
 using is_gentype = std::integral_constant<bool, is_genfloat<T>::value ||
                                                     is_geninteger<T>::value>;
 
-// forward declarations
-template <typename T> class TryToGetElementType;
+// gentype: vgenfloat, vgeninteger
+template <typename T>
+using is_vgentype = std::integral_constant<bool, is_vgenfloat<T>::value ||
+                                                     is_vgeninteger<T>::value>;
 
+// gentype: sgenfloat, sgeninteger
+template <typename T>
+using is_sgentype = std::integral_constant<bool, is_sgenfloat<T>::value ||
+                                                     is_sgeninteger<T>::value>;
+
+// Returns the same type for scalar or the element type for vector types.
+template <typename T, typename Enable = void> class gen_type_element_type;
+
+template <typename T>
+using gen_type_element_t = typename gen_type_element_type<T>::type;
 // genintegerNbit All types within geninteger whose base type are N bits in
 // size, where N = 8, 16, 32, 64
 template <typename T, int N>
 using is_igenintegerNbit = typename std::integral_constant<
-    bool, is_igeninteger<T>::value &&
-              (sizeof(typename TryToGetElementType<T>::type) == N)>;
+    bool, is_igeninteger<T>::value && (sizeof(gen_type_element_t<T>) == N)>;
 
 // igeninteger8bit All types within igeninteger whose base type are 8 bits in
 // size
@@ -386,8 +397,7 @@ template <typename T> using is_igeninteger64bit = is_igenintegerNbit<T, 8>;
 // size, where N = 8, 16, 32, 64.
 template <typename T, int N>
 using is_ugenintegerNbit = typename std::integral_constant<
-    bool, is_ugeninteger<T>::value &&
-              (sizeof(typename TryToGetElementType<T>::type) == N)>;
+    bool, is_ugeninteger<T>::value && (sizeof(gen_type_element_t<T>) == N)>;
 
 // ugeninteger8bit All types within ugeninteger whose base type are 8 bits in
 // size
@@ -409,8 +419,7 @@ template <typename T> using is_ugeninteger64bit = is_ugenintegerNbit<T, 8>;
 // size, where N = 8, 16, 32, 64.
 template <typename T, int N>
 using is_genintegerNbit = typename std::integral_constant<
-    bool, is_geninteger<T>::value &&
-              (sizeof(typename TryToGetElementType<T>::type) == N)>;
+    bool, is_geninteger<T>::value && (sizeof(gen_type_element_t<T>) == N)>;
 
 // geninteger8bit All types within geninteger whose base type are 8 bits in size
 template <typename T> using is_geninteger8bit = is_genintegerNbit<T, 1>;
@@ -427,8 +436,13 @@ template <typename T> using is_geninteger32bit = is_genintegerNbit<T, 4>;
 // size
 template <typename T> using is_geninteger64bit = is_genintegerNbit<T, 8>;
 
+template <typename> struct is_multi_ptr : std::false_type {};
+
+template <typename T, access::address_space Space>
+struct is_multi_ptr<multi_ptr<T, Space>> : std::true_type {};
+
 template <class P, typename T>
-using is_MultiPtrOfGLR =
+using is_MultiPtrOfGLP =
     std::integral_constant<bool, std::is_same<P, global_ptr<T>>::value ||
                                      std::is_same<P, local_ptr<T>>::value ||
                                      std::is_same<P, private_ptr<T>>::value>;
@@ -439,12 +453,12 @@ using is_MultiPtrOfGLR =
 // access::address_space::private_space
 template <class P>
 using is_genintptr =
-    std::integral_constant<bool, is_MultiPtrOfGLR<P, cl_int>::value ||
-                                     is_MultiPtrOfGLR<P, cl_int2>::value ||
-                                     is_MultiPtrOfGLR<P, cl_int3>::value ||
-                                     is_MultiPtrOfGLR<P, cl_int4>::value ||
-                                     is_MultiPtrOfGLR<P, cl_int8>::value ||
-                                     is_MultiPtrOfGLR<P, cl_int16>::value>;
+    std::integral_constant<bool, is_MultiPtrOfGLP<P, cl_int>::value ||
+                                     is_MultiPtrOfGLP<P, cl_int2>::value ||
+                                     is_MultiPtrOfGLP<P, cl_int3>::value ||
+                                     is_MultiPtrOfGLP<P, cl_int4>::value ||
+                                     is_MultiPtrOfGLP<P, cl_int8>::value ||
+                                     is_MultiPtrOfGLP<P, cl_int16>::value>;
 
 // genfloatptr All permutations of multi_ptr<dataT, addressSpace> where dataT is
 // all types within genfloat and addressSpace is
@@ -452,102 +466,70 @@ using is_genintptr =
 // access::address_space::private_space
 template <class P>
 using is_genfloatptr =
-    std::integral_constant<bool, is_MultiPtrOfGLR<P, cl_float>::value ||
-                                     is_MultiPtrOfGLR<P, cl_float2>::value ||
-                                     is_MultiPtrOfGLR<P, cl_float3>::value ||
-                                     is_MultiPtrOfGLR<P, cl_float4>::value ||
-                                     is_MultiPtrOfGLR<P, cl_float8>::value ||
-                                     is_MultiPtrOfGLR<P, cl_float16>::value ||
-                                     is_MultiPtrOfGLR<P, cl_half>::value ||
-                                     is_MultiPtrOfGLR<P, cl_half2>::value ||
-                                     is_MultiPtrOfGLR<P, cl_half3>::value ||
-                                     is_MultiPtrOfGLR<P, cl_half4>::value ||
-                                     is_MultiPtrOfGLR<P, cl_half8>::value ||
-                                     is_MultiPtrOfGLR<P, cl_half16>::value ||
-                                     is_MultiPtrOfGLR<P, cl_double>::value ||
-                                     is_MultiPtrOfGLR<P, cl_double2>::value ||
-                                     is_MultiPtrOfGLR<P, cl_double3>::value ||
-                                     is_MultiPtrOfGLR<P, cl_double4>::value ||
-                                     is_MultiPtrOfGLR<P, cl_double8>::value ||
-                                     is_MultiPtrOfGLR<P, cl_double16>::value>;
+    std::integral_constant<bool, is_MultiPtrOfGLP<P, cl_float>::value ||
+                                     is_MultiPtrOfGLP<P, cl_float2>::value ||
+                                     is_MultiPtrOfGLP<P, cl_float3>::value ||
+                                     is_MultiPtrOfGLP<P, cl_float4>::value ||
+                                     is_MultiPtrOfGLP<P, cl_float8>::value ||
+                                     is_MultiPtrOfGLP<P, cl_float16>::value ||
+                                     is_MultiPtrOfGLP<P, cl_half>::value ||
+                                     is_MultiPtrOfGLP<P, cl_half2>::value ||
+                                     is_MultiPtrOfGLP<P, cl_half3>::value ||
+                                     is_MultiPtrOfGLP<P, cl_half4>::value ||
+                                     is_MultiPtrOfGLP<P, cl_half8>::value ||
+                                     is_MultiPtrOfGLP<P, cl_half16>::value ||
+                                     is_MultiPtrOfGLP<P, cl_double>::value ||
+                                     is_MultiPtrOfGLP<P, cl_double2>::value ||
+                                     is_MultiPtrOfGLP<P, cl_double3>::value ||
+                                     is_MultiPtrOfGLP<P, cl_double4>::value ||
+                                     is_MultiPtrOfGLP<P, cl_double8>::value ||
+                                     is_MultiPtrOfGLP<P, cl_double16>::value>;
+
+template <bool B, typename T = void>
+using enable_if_t = typename std::enable_if<B, T>::type;
 
 // Used for nan built-in
-template <typename T> struct unsign_integral_to_float_point;
-template <> struct unsign_integral_to_float_point<cl_uint> {
-  using type = cl_float;
-};
-template <> struct unsign_integral_to_float_point<cl_uint2> {
-  using type = cl_float2;
-};
-template <> struct unsign_integral_to_float_point<cl_uint3> {
-  using type = cl_float3;
-};
-template <> struct unsign_integral_to_float_point<cl_uint4> {
-  using type = cl_float4;
-};
-template <> struct unsign_integral_to_float_point<cl_uint8> {
-  using type = cl_float8;
-};
-template <> struct unsign_integral_to_float_point<cl_uint16> {
-  using type = cl_float16;
-};
+template <typename T, typename Enable = void> struct fitting_float_type;
 
-template <> struct unsign_integral_to_float_point<cl_ushort> {
+template <typename T>
+struct fitting_float_type<T, enable_if_t<sizeof(T) <= sizeof(cl_half), T>> {
   using type = cl_half;
 };
-template <> struct unsign_integral_to_float_point<cl_ushort2> {
-  using type = cl_half2;
-};
-template <> struct unsign_integral_to_float_point<cl_ushort3> {
-  using type = cl_half3;
-};
-template <> struct unsign_integral_to_float_point<cl_ushort4> {
-  using type = cl_half4;
-};
-template <> struct unsign_integral_to_float_point<cl_ushort8> {
-  using type = cl_half8;
-};
-template <> struct unsign_integral_to_float_point<cl_ushort16> {
-  using type = cl_half16;
+
+template <typename T>
+struct fitting_float_type<T, enable_if_t<sizeof(T) == sizeof(cl_float), T>> {
+  using type = cl_float;
 };
 
-template <> struct unsign_integral_to_float_point<cl_ulong> {
+template <typename T>
+struct fitting_float_type<T, enable_if_t<sizeof(T) >= sizeof(cl_double), T>> {
   using type = cl_double;
-};
-template <> struct unsign_integral_to_float_point<cl_ulong2> {
-  using type = cl_double2;
-};
-template <> struct unsign_integral_to_float_point<cl_ulong3> {
-  using type = cl_double3;
-};
-template <> struct unsign_integral_to_float_point<cl_ulong4> {
-  using type = cl_double4;
-};
-template <> struct unsign_integral_to_float_point<cl_ulong8> {
-  using type = cl_double8;
-};
-template <> struct unsign_integral_to_float_point<cl_ulong16> {
-  using type = cl_double16;
 };
 
-template <> struct unsign_integral_to_float_point<ulonglong> {
-  using type = cl_double;
+template <typename T>
+using fitting_float_t = typename fitting_float_type<T, T>::type;
+
+// Returns 1 for scalar or number of elements for vector types.
+template <typename T, typename Enable = void> class gen_type_number_of_elements;
+
+template <typename T> struct fitting_float_vector_type {
+  using element_type = gen_type_element_t<T>;
+  using fitting_type = fitting_float_t<element_type>;
+  using type = vec<fitting_type, gen_type_number_of_elements<T>::value>;
 };
-template <> struct unsign_integral_to_float_point<ulonglong2> {
-  using type = cl_double2;
+
+template <typename T>
+using fitting_float_vec_t = typename fitting_float_vector_type<T>::type;
+
+template <bool B, typename T, typename F>
+using conditional_t = typename std::conditional<B, T, F>::type;
+
+template <typename T> struct nan_ret_type {
+  using type = conditional_t<is_vgentype<T>::value, fitting_float_vec_t<T>,
+                             fitting_float_t<T>>;
 };
-template <> struct unsign_integral_to_float_point<ulonglong3> {
-  using type = cl_double3;
-};
-template <> struct unsign_integral_to_float_point<ulonglong4> {
-  using type = cl_double4;
-};
-template <> struct unsign_integral_to_float_point<ulonglong8> {
-  using type = cl_double8;
-};
-template <> struct unsign_integral_to_float_point<ulonglong16> {
-  using type = cl_double16;
-};
+
+template <typename T> using nan_ret_t = typename nan_ret_type<T>::type;
 
 template <typename T>
 using is_nan_type =
@@ -782,14 +764,17 @@ public:
   static constexpr bool value = !std::is_same<T, type>::value;
 };
 
-// Try to get element_type, otherwise T
-template <typename T> class TryToGetElementType {
-  static T check(...);
-  template <typename A> static typename A::element_type check(const A &);
-
-public:
-  using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same<T, type>::value;
+template <typename T>
+struct gen_type_element_type<T, enable_if_t<is_vgentype<T>::value>> {
+  using type = typename T::element_type;
+};
+template <typename T>
+struct gen_type_element_type<T, enable_if_t<is_multi_ptr<T>::value>> {
+  using type = typename T::element_type;
+};
+template <typename T>
+struct gen_type_element_type<T, enable_if_t<is_sgentype<T>::value>> {
+  using type = T;
 };
 
 // Try to get vector_t, otherwise T
@@ -808,7 +793,7 @@ template <typename T> class TryToGetPointerVecT {
   static T check(...);
   template <typename A>
   static typename PtrValueType<
-      typename TryToGetVectorT<typename TryToGetElementType<A>::type>::type,
+      typename TryToGetVectorT<gen_type_element_t<A>>::type,
       A::address_space>::type *
   check(const A &);
 
@@ -853,24 +838,19 @@ using common_rel_ret_t = typename detail::float_point_to_sign_integral<T>::type;
 // forward declaration
 template <int N> struct Boolean;
 
-// Try to get vector element count or 1 otherwise
-template <typename T, typename Enable = void> class TryToGetNumElements;
-
 template <typename T>
-struct TryToGetNumElements<
-    T, typename std::enable_if<TryToGetVectorT<T>::value>::type> {
+struct gen_type_number_of_elements<T, enable_if_t<is_vgentype<T>::value>> {
   static constexpr int value = T::get_count();
 };
 template <typename T>
-struct TryToGetNumElements<
-    T, typename std::enable_if<!TryToGetVectorT<T>::value>::type> {
+struct gen_type_number_of_elements<T, enable_if_t<is_sgentype<T>::value>> {
   static constexpr int value = 1;
 };
 
 // Used for relational comparison built-in functions
 template <typename T> struct RelationalReturnType {
 #ifdef __SYCL_DEVICE_ONLY__
-  using type = Boolean<TryToGetNumElements<T>::value>;
+  using type = Boolean<gen_type_number_of_elements<T>::value>;
 #else
   using type = common_rel_ret_t<T>;
 #endif
@@ -879,7 +859,7 @@ template <typename T> struct RelationalReturnType {
 // Used for select built-in function
 template <typename T> struct SelectWrapperTypeArgC {
 #ifdef __SYCL_DEVICE_ONLY__
-  using type = Boolean<TryToGetNumElements<T>::value>;
+  using type = Boolean<gen_type_number_of_elements<T>::value>;
 #else
   using type = T;
 #endif
@@ -894,7 +874,7 @@ template <typename T> using rel_ret_t = typename RelationalReturnType<T>::type;
 template <typename T> struct RelationalTestForSignBitType {
 #ifdef __SYCL_DEVICE_ONLY__
   using return_type = detail::Boolean<1>;
-  using argument_type = detail::Boolean<TryToGetNumElements<T>::value>;
+  using argument_type = detail::Boolean<gen_type_number_of_elements<T>::value>;
 #else
   using return_type = cl::sycl::cl_int;
   using argument_type = T;
@@ -912,9 +892,8 @@ using rel_sign_bit_test_arg_t =
 template <typename T, typename Enable = void> struct RelConverter;
 
 template <typename T>
-struct RelConverter<
-    T, typename std::enable_if<TryToGetElementType<T>::value>::type> {
-  static const int N = T::get_count();
+struct RelConverter<T, enable_if_t<is_vgentype<T>::value>> {
+  static constexpr int N = gen_type_number_of_elements<T>::value;
 #ifdef __SYCL_DEVICE_ONLY__
   using bool_t = typename Boolean<N>::vector_t;
   using ret_t = common_rel_ret_t<T>;
@@ -937,8 +916,7 @@ struct RelConverter<
 };
 
 template <typename T>
-struct RelConverter<
-    T, typename std::enable_if<!TryToGetElementType<T>::value>::type> {
+struct RelConverter<T, enable_if_t<is_sgentype<T>::value>> {
   using R = rel_ret_t<T>;
 #ifdef __SYCL_DEVICE_ONLY__
   using value_t = bool;
