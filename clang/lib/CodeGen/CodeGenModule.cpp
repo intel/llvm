@@ -3396,6 +3396,13 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     return AddrSpace;
   }
 
+  if (LangOpts.SYCLIsDevice) {
+    if (D && D->getType().isConstQualified())
+      return LangAS::opencl_constant;
+
+    return LangAS::opencl_global;
+  }
+
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
     if (D && D->hasAttr<CUDAConstantAttr>())
       return LangAS::cuda_constant;
