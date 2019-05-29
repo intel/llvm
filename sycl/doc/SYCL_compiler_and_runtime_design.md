@@ -44,14 +44,14 @@ mode.
 
 ### SYCL support in clang frontend
 
-SYCL support in clang frontend can be splitted into the following components:
+SYCL support in clang frontend can be split into the following components:
 
 - Device code outlining. Since SYCL is a single source programming model
-compiler should be able to separate host code from device code.
+compiler should be able to separate device code from host code.
 
 - Lowering of lambda function objects and named function objects ("SYCL kernel
-functions"). To execute "SYCL kernel functions" on the OpenCL devices some
-transfromations are required.
+functions"). To execute "SYCL kernel functions" on OpenCL devices some
+transformations are required.
 
 - Device code diagnostics.
 
@@ -59,7 +59,7 @@ transfromations are required.
 
 #### Device code outlining
 
-Here is code example of the SYCL program demonstrates complier outlining
+Here is a code example of a SYCL program that demonstrates compiler outlining
 work:
 
 ```C++
@@ -78,28 +78,28 @@ Q.submit([&](handler& cgh) {
 ...
 ```
 
-SYCL compiler needs to compile lambda function passed to
+SYCL compiler needs to compile lambda exression passed to
 `cl::sycl::handler::parallel_for` method and function `foo` called from this
-lambda function. Compiler also must ignore bar function when we "device" part
+lambda function. Compiler also must ignore bar function when we compile the "device" part
 of the single source code.
 
-Current approach is to use attribute SYCL kernel in SYCL runtime to mark code
+Current approach is to use the SYCL kernel atttribute in SYCL runtime to mark code
 passed to `cl::sycl::handler::parallel_for` as "kernel functions".
 Obviously runtime library can't mark foo as "device" code - this is a compiler
 job: to traverse all symbols accessible from kernel functions and add them to
-the "device part" of the code marking them with new attribute SYCL device.
+the "device part" of the code marking them with the new SYCL device attribute.
 
 #### Lowering of lambda function objects and named function objects
 
-In SYCL all shared between host and device memory objects (buffers/images,
-these objects map to OpenCL buffers and images) can be accessed through special
-`accessor` classes. Obviosly these classes contain pointers inside. There is no
+All SYCL memory objects shared between host and device (buffers/images,
+these objects map to OpenCL buffers and images) must be accessed through special
+`accessor` classes. The "device" side implementation of these classes contain pointers to the device memory. There is no
 way in OpenCL to pass structures with pointers inside as kernel arguments.
 SYCL also has special mechanism for passing kernel arguments from host to
 device, if in OpenCL you need to call `clSetKernelArg`, in SYCL all
 kernel arguments are captures/fields of lambda/functor which is passed to
 `parallel_for` (in code snippet above one kernel argument - `accessor A`).
-To map to OpenCL setting kernel arguments mechanism we added generation of
+To map to OpenCL kernel arguments setting mechanism we added generation of
 "kernel wrapper" function inside the compiler. "Kernel wrapper" function
 contains body of SYCL kernel function, receives OpenCL like parameters and
 additionally does some manipulation to initialize captured lambda/functor
@@ -115,7 +115,7 @@ __attribute__((sycl_kernel)) someSYCLKernel(lambda) {
 // Kernel wrapper
 __kernel wrapper(global int* a) {
   lambda; // Actually lambda declaration doesn't have a name in AST
-  // Let lambda has one captured field - accessor A. We need to init it with
+  // Let the lambda have one captured field - accessor A. We need to init it with
   // global pointer from arguments:
   lambda.A.__init(a);
   // Body of SYCL kernel from SYCL headers:
