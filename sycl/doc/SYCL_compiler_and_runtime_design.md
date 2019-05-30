@@ -42,20 +42,21 @@ back-end. Today middle-end transformations include just a couple of passes:
 - **Back-end** - produces native "device" code in ahead-of-time compilation
 mode.
 
-### SYCL support in clang frontend
+### SYCL support in Clang front-end
 
-SYCL support in clang frontend can be split into the following components:
+SYCL support in Clang front-end can be split into the following components:
 
-- Device code outlining. Since SYCL is a single source programming model
-compiler should be able to separate device code from host code.
+- Device code outlining. This component is responsible for identifying and
+outlining "device code" in the single source.
 
-- Lowering of lambda function objects and named function objects ("SYCL kernel
-functions"). To execute "SYCL kernel functions" on OpenCL devices some
-transformations are required.
+- SYCL kernel function object (functor or lambda) lowering. This component
+creates an OpenCL kernel function interface for SYCL kernels.
 
-- Device code diagnostics.
+- Device code diagnostics. This component enforces language restrictions on
+device code.
 
-- Integration header generation.
+- Integration header generation. This component emits information required for
+binding host and device parts of the SYCL code via OpenCL API.
 
 #### Device code outlining
 
@@ -64,11 +65,11 @@ work:
 
 ```C++
 int foo(int x) { return ++x; }
-int bar(int x) { throw std::exception("CPU code only!"); }
+int bar(int x) { throw std::exception{"CPU code only!"}; }
 ...
 using namespace cl::sycl;
 queue Q;
-buffer<int, 1> a(range<1>{1024});
+buffer<int, 1> a{range<1>{1024}};
 Q.submit([&](handler& cgh) {
       auto A = a.get_access<access::mode::write>(cgh);
       cgh.parallel_for<init_a>(range<1>{1024}, [=](id<1> index) {
@@ -78,14 +79,18 @@ Q.submit([&](handler& cgh) {
 ...
 ```
 
-SYCL compiler needs to compile lambda exression passed to
-`cl::sycl::handler::parallel_for` method and function `foo` called from this
-lambda function. Compiler also must ignore bar function when we compile the "device" part
-of the single source code.
+In this example, the SYCL compiler needs to compile the lambda expression passed
+to the `cl::sycl::handler::parallel_for` method, as well as the function `foo`
+called from the lambda expression for the device.
+The compiler must also ignore the `bar` function when we compile the
+"device" part of the single source code, as it's unused inside the device
+portion of the source code (the contents of the lambda expression passed to the
+`cl::sycl::handler::parallel_for` and any function called from this lambda
+expression).
 
-Current approach is to use the SYCL kernel atttribute in SYCL runtime to mark code
-passed to `cl::sycl::handler::parallel_for` as "kernel functions".
-Obviously runtime library can't mark foo as "device" code - this is a compiler
+The current approach is to use the SYCL kernel attribute in the SYCL runtime to
+mark code passed to `cl::sycl::handler::parallel_for` as "kernel functions".
+The SYCL runtime library can't mark foo as "device" code - this is a compiler
 job: to traverse all symbols accessible from kernel functions and add them to
 the "device part" of the code marking them with the new SYCL device attribute.
 
@@ -93,36 +98,46 @@ the "device part" of the code marking them with the new SYCL device attribute.
 
 All SYCL memory objects shared between host and device (buffers/images,
 these objects map to OpenCL buffers and images) must be accessed through special
-`accessor` classes. The "device" side implementation of these classes contain pointers to the device memory. There is no
-way in OpenCL to pass structures with pointers inside as kernel arguments.
-SYCL also has special mechanism for passing kernel arguments from host to
-device, if in OpenCL you need to call `clSetKernelArg`, in SYCL all
-kernel arguments are captures/fields of lambda/functor which is passed to
-`parallel_for` (in code snippet above one kernel argument - `accessor A`).
-To map to OpenCL kernel arguments setting mechanism we added generation of
-"kernel wrapper" function inside the compiler. "Kernel wrapper" function
-contains body of SYCL kernel function, receives OpenCL like parameters and
-additionally does some manipulation to initialize captured lambda/functor
-fields with these parameters. In some pseudo code "kernel wrapper" looks like
-this:
+`accessor` classes. The "device" side implementation of these classes contain
+pointers to the device memory. As there is no way in OpenCL to pass structures
+with pointers inside as kernel arguments all memory objects shared between host
+and device must be passed to the kernel as raw pointers.
+SYCL also has a special mechanism for passing kernel arguments from host to
+the device. In OpenCL you need to call `clSetKernelArg`, in SYCL all the
+kernel arguments are captures/fields of lambda/functor SYCL functions for
+invoking kernels (such as `parallel_for`). For example, in the previous code
+snippet above `accessor` `A` is one such captured kernel argument.
+
+To facilitate the mapping of the captures/fields of lambdas/functors to OpenCL
+kernel and overcome OpenCL limitations we added the generation of a "kernel
+wrapper" function inside the compiler. A "kernel wrapper" function contains the
+body of the SYCL kernel function, receives OpenCL like parameters and
+additionally does some manipulation to initialize captured lambda/functor fields
+with these parameters. In some pseudo code the "kernel wrapper" for the previous
+code snippet above looks like this:
 
 ```C++
-// SYCL kernel is defined in SYCL headers
-__attribute__((sycl_kernel)) someSYCLKernel(lambda) {
+
+// Let the lambda expression passed to the parallel_for declare unnamed
+// function object with "Lambda" type.
+
+// SYCL kernel is defined in SYCL headers:
+__attribute__((sycl_kernel)) someSYCLKernel(Lambda lambda) {
   lambda();
 }
 
 // Kernel wrapper
 __kernel wrapper(global int* a) {
-  lambda; // Actually lambda declaration doesn't have a name in AST
-  // Let the lambda have one captured field - accessor A. We need to init it with
-  // global pointer from arguments:
+  Lambda lambda; // Actually lambda declaration doesn't have a name in AST
+  // Let the lambda have one captured field - accessor A. We need to init it
+  // with global pointer from arguments:
   lambda.A.__init(a);
   // Body of SYCL kernel from SYCL headers:
   {
     lambda();
   }
 }
+
 ```
 
 "Kernel wrapper" is generated by the compiler inside the Sema using AST nodes.
