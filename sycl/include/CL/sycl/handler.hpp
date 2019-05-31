@@ -67,47 +67,6 @@ namespace csd = cl::sycl::detail;
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
 namespace detail {
 
-#ifdef __SYCL_DEVICE_ONLY__
-
-#define DEFINE_INIT_SIZES(POSTFIX)                                             \
-                                                                               \
-  template <int Dim, class DstT> struct InitSizesST##POSTFIX;                  \
-                                                                               \
-  template <class DstT> struct InitSizesST##POSTFIX<1, DstT> {                 \
-    static void initSize(DstT &Dst) {                                          \
-      Dst[0] = get##POSTFIX<0>();                                 \
-    }                                                                          \
-  };                                                                           \
-                                                                               \
-  template <class DstT> struct InitSizesST##POSTFIX<2, DstT> {                 \
-    static void initSize(DstT &Dst) {                                          \
-      Dst[1] = get##POSTFIX<1>();                                 \
-      InitSizesST##POSTFIX<1, DstT>::initSize(Dst);                            \
-    }                                                                          \
-  };                                                                           \
-                                                                               \
-  template <class DstT> struct InitSizesST##POSTFIX<3, DstT> {                 \
-    static void initSize(DstT &Dst) {                                          \
-      Dst[2] = get##POSTFIX<2>();                                 \
-      InitSizesST##POSTFIX<2, DstT>::initSize(Dst);                            \
-    }                                                                          \
-  };                                                                           \
-                                                                               \
-  template <int Dims, class DstT> static void init##POSTFIX(DstT &Dst) {       \
-    InitSizesST##POSTFIX<Dims, DstT>::initSize(Dst);                           \
-  }
-
-DEFINE_INIT_SIZES(GlobalSize);
-DEFINE_INIT_SIZES(GlobalInvocationId)
-DEFINE_INIT_SIZES(WorkgroupSize)
-DEFINE_INIT_SIZES(LocalInvocationId)
-DEFINE_INIT_SIZES(WorkgroupId)
-DEFINE_INIT_SIZES(GlobalOffset)
-
-#undef DEFINE_INIT_SIZES
-
-#endif //__SYCL_DEVICE_ONLY__
-
 class queue_impl;
 class stream_impl;
 template <typename RetType, typename Func, typename Arg>
@@ -548,7 +507,7 @@ public:
                               KernelType>::type KernelFunc) {
     id<dimensions> global_id;
 
-    detail::initGlobalInvocationId<dimensions>(global_id);
+    __spirv::initGlobalInvocationId<dimensions>(global_id);
 
     KernelFunc(global_id);
   }
@@ -562,8 +521,8 @@ public:
     id<dimensions> global_id;
     range<dimensions> global_size;
 
-    detail::initGlobalInvocationId<dimensions>(global_id);
-    detail::initGlobalSize<dimensions>(global_size);
+    __spirv::initGlobalInvocationId<dimensions>(global_id);
+    __spirv::initGlobalSize<dimensions>(global_size);
 
     item<dimensions, false> Item =
         detail::Builder::createItem<dimensions, false>(global_size, global_id);
@@ -583,12 +542,12 @@ public:
     id<dimensions> local_id;
     id<dimensions> global_offset;
 
-    detail::initGlobalSize<dimensions>(global_size);
-    detail::initWorkgroupSize<dimensions>(local_size);
-    detail::initWorkgroupId<dimensions>(group_id);
-    detail::initGlobalInvocationId<dimensions>(global_id);
-    detail::initLocalInvocationId<dimensions>(local_id);
-    detail::initGlobalOffset<dimensions>(global_offset);
+    __spirv::initGlobalSize<dimensions>(global_size);
+    __spirv::initWorkgroupSize<dimensions>(local_size);
+    __spirv::initWorkgroupId<dimensions>(group_id);
+    __spirv::initGlobalInvocationId<dimensions>(global_id);
+    __spirv::initLocalInvocationId<dimensions>(local_id);
+    __spirv::initGlobalOffset<dimensions>(global_offset);
 
     group<dimensions> Group = detail::Builder::createGroup<dimensions>(
         global_size, local_size, group_id);
