@@ -67,6 +67,10 @@ namespace csd = cl::sycl::detail;
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
 namespace detail {
 
+/// This class is the default KernelName template parameter type for kernel
+/// invocation APIs such as single_task.
+class auto_name {};
+
 class queue_impl;
 class stream_impl;
 template <typename RetType, typename Func, typename Arg>
@@ -88,6 +92,19 @@ decltype(member_ptr_helper(&F::operator())) argument_helper(F);
 
 template <typename T>
 using lambda_arg_type = decltype(argument_helper(std::declval<T>()));
+
+/// Helper struct to get a kernel name type based on given \c Name and \c Type
+/// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
+/// the \c Name.
+template <typename Name, typename Type> struct get_kernel_name_t {
+  using name = Name;
+};
+
+/// Specialization for the case when \c Name is undefined.
+template <typename Type> struct get_kernel_name_t<csd::auto_name, Type> {
+  using name = Type;
+};
+
 } // namespace detail
 
 // Objects of the handler class collect information about command group, such as
@@ -590,81 +607,60 @@ public:
   }
 
   // single_task version with a kernel represented as a lambda.
-  template <typename KernelName, typename KernelType>
+  template <typename KernelName = csd::auto_name, typename KernelType>
   void single_task(KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_single_task<KernelName>(KernelFunc);
+    kernel_single_task<NameT>(KernelFunc);
 #else
     MNDRDesc.set(range<1>{1});
 
-    StoreLambda<KernelName, KernelType, /*Dims*/ 0, void>(KernelFunc);
+    StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
     MCGType = detail::CG::KERNEL;
 #endif
-  }
-
-  // single_task version with a kernel represented as a functor. Simply redirect
-  // to the lambda-based form of invocation, setting kernel name type to the
-  // functor type.
-  template <typename KernelFunctorType>
-  void single_task(KernelFunctorType KernelFunctor) {
-    single_task<KernelFunctorType, KernelFunctorType>(KernelFunctor);
   }
 
   // parallel_for version with a kernel represented as a lambda + range that
   // specifies global size only.
-  template <typename KernelName, typename KernelType, int Dims>
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
   void parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for<KernelName, KernelType, Dims>(KernelFunc);
+    kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NumWorkItems));
-    StoreLambda<KernelName, KernelType, Dims>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif
   }
 
-  // parallel_for version with a kernel represented as a functor + range that
-  // specifies global size only. Simply redirect to the lambda-based form of
-  // invocation, setting kernel name type to the functor type.
-  template <typename KernelType, int Dims>
-  void parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
-    parallel_for<KernelType, KernelType, Dims>(NumWorkItems, KernelFunc);
-  }
-
   // parallel_for version with a kernel represented as a lambda + range and
   // offset that specify global size and global offset correspondingly.
-  template <typename KernelName, typename KernelType, int Dims>
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for<KernelName, KernelType, Dims>(KernelFunc);
+    kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    StoreLambda<KernelName, KernelType, Dims>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif
   }
 
   // parallel_for version with a kernel represented as a lambda + nd_range that
   // specifies global, local sizes and offset.
-  template <typename KernelName, typename KernelType, int Dims>
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
   void parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for<KernelName, KernelType, Dims>(KernelFunc);
+    kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(ExecutionRange));
-    StoreLambda<KernelName, KernelType, Dims>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif
-  }
-
-  // parallel_for version with a kernel represented as a functor + nd_range that
-  // specifies global, local sizes and offset. Simply redirect to the
-  // lambda-based form of invocation, setting kernel name type to the functor
-  // type.
-  template <typename KernelType, int Dims>
-  void parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc) {
-    parallel_for<KernelType, KernelType, Dims>(ExecutionRange, KernelFunc);
   }
 
   // template <typename KernelName, typename WorkgroupFunctionType, int
@@ -732,109 +728,80 @@ public:
   // single_task version which takes two "kernels". One is a lambda which is
   // used if device, queue is bound to, is host device. Second is a sycl::kernel
   // which is used otherwise.
-  template <typename KernelName, typename KernelType>
+  template <typename KernelName = csd::auto_name, typename KernelType>
   void single_task(kernel SyclKernel, KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_single_task<KernelName>(KernelFunc);
+    kernel_single_task<NameT>(KernelFunc);
 #else
     MNDRDesc.set(range<1>{1});
     MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<KernelName>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
     else
-      StoreLambda<KernelName, KernelType, /*Dims*/ 0, void>(
-          std::move(KernelFunc));
+      StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
 #endif
-  }
-
-  // single_task version which takes two "kernels". One is a functor which is
-  // used if device, queue is bound to, is host device. Second is a sycl::kernel
-  // which is used otherwise. Simply redirect to the lambda-based form of
-  // invocation, setting kernel name type to the functor type.
-  template <typename KernelType>
-  void single_task(kernel SyclKernel, KernelType KernelFunc) {
-    single_task<KernelType, KernelType>(SyclKernel, KernelFunc);
   }
 
   // parallel_for version which takes two "kernels". One is a lambda which is
   // used if device, queue is bound to, is host device. Second is a sycl::kernel
   // which is used otherwise. range argument specifies global size.
-  template <typename KernelName, typename KernelType, int Dims>
-  void parallel_for(range<Dims> NumWorkItems, kernel SyclKernel,
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for(kernel SyclKernel, range<Dims> NumWorkItems,
                     KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for<KernelName, KernelType, Dims>(KernelFunc);
+    kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NumWorkItems));
     MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<KernelName>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
     else
-      StoreLambda<KernelName, KernelType, Dims>(std::move(KernelFunc));
+      StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
 #endif
-  }
-
-  // parallel_for version which takes two "kernels". One is a functor which is
-  // used if device, queue is bound to, is host device. Second is a sycl::kernel
-  // which is used otherwise. range argument specifies global size. Simply
-  // redirect to the lambda-based form of invocation, setting kernel name type
-  // to the functor type.
-  template <typename KernelType, int Dims>
-  void parallel_for(range<Dims> NumWorkItems, kernel SyclKernel,
-                    KernelType KernelFunc) {
-    parallel_for<KernelType, KernelType, Dims>(NumWorkItems, SyclKernel,
-                                               KernelFunc);
   }
 
   // parallel_for version which takes two "kernels". One is a lambda which is
   // used if device, queue is bound to, is host device. Second is a sycl::kernel
   // which is used otherwise. range and id specify global size and offset.
-  template <typename KernelName, typename KernelType, int Dims>
-  void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    kernel SyclKernel, KernelType KernelFunc) {
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for(kernel SyclKernel, range<Dims> NumWorkItems,
+                    id<Dims> WorkItemOffset, KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for<KernelName, KernelType, Dims>(KernelFunc);
+    kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<KernelName>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
     else
-      StoreLambda<KernelName, KernelType, Dims>(std::move(KernelFunc));
+      StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
 #endif
   }
 
   // parallel_for version which takes two "kernels". One is a lambda which is
   // used if device, queue is bound to, is host device. Second is a sycl::kernel
   // which is used otherwise. nd_range specifies global, local size and offset.
-  template <typename KernelName, typename KernelType, int Dims>
-  void parallel_for(nd_range<Dims> NDRange, kernel SyclKernel,
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for(kernel SyclKernel, nd_range<Dims> NDRange,
                     KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
 #ifdef __SYCL_DEVICE_ONLY__
-    kernel_parallel_for<KernelName, KernelType, Dims>(KernelFunc);
+    kernel_parallel_for<NameT, KernelType, Dims>(KernelFunc);
 #else
     MNDRDesc.set(std::move(NDRange));
     MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
     MCGType = detail::CG::KERNEL;
-    if (!MIsHost && !lambdaAndKernelHaveEqualName<KernelName>())
+    if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>())
       extractArgsAndReqs();
     else
-      StoreLambda<KernelName, KernelType, Dims>(std::move(KernelFunc));
+      StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
 #endif
-  }
-
-  // parallel_for version which takes two "kernels". One is a functor which is
-  // used if device, queue is bound to, is host device. Second is a sycl::kernel
-  // which is used otherwise. nd_range specifies global, local size and offset.
-  // Simply redirects to the lambda-based form of invocation, setting kernel
-  // name type to the functor type.
-  template <typename KernelType, int Dims>
-  void parallel_for(nd_range<Dims> NDRange, kernel SyclKernel,
-                    KernelType KernelFunc) {
-    parallel_for<KernelType, KernelType, Dims>(NDRange, SyclKernel, KernelFunc);
   }
 
   // template <typename KernelName, typename WorkgroupFunctionType, int
