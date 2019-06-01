@@ -20,6 +20,8 @@ struct Builder;
 }
 template <int dimensions> struct id;
 template <int dimensions> class range;
+template <int dimensions> class h_item;
+
 template <int dimensions = 1, bool with_offset = true> struct item {
 
   item() = delete;
@@ -86,6 +88,7 @@ protected:
   // For call constructor inside conversion operator
   friend struct item<dimensions, false>;
   friend struct item<dimensions, true>;
+  friend struct h_item<dimensions>;
   friend struct detail::Builder;
 
   template <size_t W = with_offset>
@@ -97,6 +100,8 @@ protected:
   item(typename std::enable_if<(W == false), const range<dimensions>>::type &R,
        const id<dimensions> &I)
       : extent(R), index(I), offset() {}
+
+  void setID(const id<dimensions> &ID) { index = ID; }
 
 private:
   range<dimensions> extent;

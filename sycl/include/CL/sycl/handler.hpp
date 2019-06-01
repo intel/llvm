@@ -681,16 +681,51 @@ public:
 #endif
   }
 
-  // template <typename KernelName, typename WorkgroupFunctionType, int
-  // dimensions>
-  // void parallel_for_work_group(range<dimensions> numWorkGroups,
-  //                              WorkgroupFunctionType KernelFunc);
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(range<Dims> NumWorkGroups,
+                               KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
+#else
+    MNDRDesc.setNumWorkGroups(NumWorkGroups);
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
+    MCGType = detail::CG::KERNEL;
+#endif // __SYCL_DEVICE_ONLY__
+  }
 
-  // template <typename KernelName, typename WorkgroupFunctionType, int
-  // dimensions>
-  // void parallel_for_work_group(range<dimensions> numWorkGroups,
-  //                              range<dimensions> workGroupSize,
-  //                              WorkgroupFunctionType KernelFunc);
+#ifdef __SYCL_DEVICE_ONLY__
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) void
+  kernel_parallel_for_work_group(KernelType KernelFunc) {
+
+    range<Dims> GlobalSize;
+    range<Dims> LocalSize;
+    id<Dims> GroupId;
+
+    __spirv::initGlobalSize<Dims>(GlobalSize);
+    __spirv::initWorkgroupSize<Dims>(LocalSize);
+    __spirv::initWorkgroupId<Dims>(GroupId);
+
+    group<Dims> G =
+        detail::Builder::createGroup<Dims>(GlobalSize, LocalSize, GroupId);
+    KernelFunc(G);
+  }
+#endif // __SYCL_DEVICE_ONLY__
+
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(range<Dims> NumWorkGroups,
+                               range<Dims> WorkGroupSize,
+                               KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
+#else
+    MNDRDesc.set(nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize));
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
+    MCGType = detail::CG::KERNEL;
+#endif // __SYCL_DEVICE_ONLY__
+  }
 
   // single_task version with a kernel represented as a sycl::kernel.
   // The kernel invocation method has no functors and cannot be called on host.
@@ -822,16 +857,42 @@ public:
 #endif
   }
 
-  // template <typename KernelName, typename WorkgroupFunctionType, int
-  // dimensions>
-  // void parallel_for_work_group(range<dimensions> num_work_groups, kernel
-  // SyclKernel, WorkgroupFunctionType KernelFunc);
+  /// This version of \c parallel_for_work_group takes two parameters
+  /// representing the same kernel. The first one - \c syclKernel - is a
+  /// compiled form of the second one - \c kernelFunc, which is the source form
+  /// of the kernel. The same source kernel can be compiled multiple times
+  /// yielding multiple kernel class objects accessible via the \c program class
+  /// interface.
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
+                               KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
+#else
+    MNDRDesc.setNumWorkGroups(NumWorkGroups);
+    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
+    MCGType = detail::CG::KERNEL;
+#endif // __SYCL_DEVICE_ONLY__
+  }
 
-  // template <typename KernelName, typename WorkgroupFunctionType, int
-  // dimensions>
-  // void parallel_for_work_group(range<dimensions> num_work_groups,
-  // range<dimensions> work_group_size, kernel SyclKernel, WorkgroupFunctionType
-  // KernelFunc);
+  /// Two-kernel version of the \c parallel_for_work_group with group and local
+  /// range.
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
+                               range<Dims> WorkGroupSize,
+                               KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
+#else
+    MNDRDesc.set(nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize));
+    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
+    MCGType = detail::CG::KERNEL;
+#endif // __SYCL_DEVICE_ONLY__
+  }
 
   // Explicit copy operations API
 

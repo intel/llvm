@@ -11,7 +11,6 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
-
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -27,6 +26,8 @@ template <int dimensions> class range;
 template <int dimensions> struct id;
 template <int dimensions> class nd_item;
 enum class memory_order;
+template <int dimensions> class h_item;
+
 namespace detail {
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
@@ -68,6 +69,21 @@ struct Builder {
                const cl::sycl::item<dimensions, false> &L,
                const cl::sycl::group<dimensions> &GR) {
     return cl::sycl::nd_item<dimensions>(GL, L, GR);
+  }
+
+  template <int dimensions>
+  static h_item<dimensions>
+  createHItem(const cl::sycl::item<dimensions, false> &GlobalItem,
+              const cl::sycl::item<dimensions, false> &LocalItem) {
+    return cl::sycl::h_item<dimensions>(GlobalItem, LocalItem);
+  }
+
+  template <int dimensions>
+  static h_item<dimensions>
+  createHItem(const cl::sycl::item<dimensions, false> &GlobalItem,
+              const cl::sycl::item<dimensions, false> &LocalItem,
+              const cl::sycl::range<dimensions> &FlexRange) {
+    return cl::sycl::h_item<dimensions>(GlobalItem, LocalItem, FlexRange);
   }
 };
 

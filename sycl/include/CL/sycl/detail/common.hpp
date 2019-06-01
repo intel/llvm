@@ -126,6 +126,104 @@ template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
   return T(ImplObj);
 }
 
+// Produces N-dimensional object of type T whose all components are initialized
+// to given integer value.
+template <int N, template <int> class T> struct InitializedVal {
+  template <int Val> static T<N> &&get();
+};
+
+// Specialization for a one-dimensional type.
+template <template <int> class T> struct InitializedVal<1, T> {
+  template <int Val> static T<1> &&get() { return T<1>{Val}; }
+};
+
+// Specialization for a two-dimensional type.
+template <template <int> class T> struct InitializedVal<2, T> {
+  template <int Val> static T<2> &&get() { return T<2>{Val, Val}; }
+};
+
+// Specialization for a three-dimensional type.
+template <template <int> class T> struct InitializedVal<3, T> {
+  template <int Val> static T<3> &&get() { return T<3>{Val, Val, Val}; }
+};
+
+// Fills the lack of enable_if_t in C++11.
+template <bool Cond, typename T = void>
+using enable_if_t = typename std::enable_if<Cond, T>::type;
+
+/// Helper class for the \c NDLoop.
+template <int NDIMS, int DIM, template <int> class LoopBoundTy, typename FuncTy,
+          template <int> class LoopIndexTy>
+struct NDLoopIterateImpl {
+  NDLoopIterateImpl(const LoopIndexTy<NDIMS> &LowerBound,
+                    const LoopBoundTy<NDIMS> &Stride,
+                    const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDIMS> &Index) {
+
+    for (Index[DIM] = LowerBound[DIM]; Index[DIM] < UpperBound[DIM];
+         Index[DIM] += Stride[DIM]) {
+
+      NDLoopIterateImpl<NDIMS, DIM - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+          LowerBound, Stride, UpperBound, f, Index};
+    }
+  }
+};
+
+// spcialization for DIM=0 to terminate recursion
+template <int NDIMS, template <int> class LoopBoundTy, typename FuncTy,
+          template <int> class LoopIndexTy>
+struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
+  NDLoopIterateImpl(const LoopIndexTy<NDIMS> &LowerBound,
+                    const LoopBoundTy<NDIMS> &Stride,
+                    const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDIMS> &Index) {
+
+    for (Index[0] = LowerBound[0]; Index[0] < UpperBound[0];
+         Index[0] += Stride[0]) {
+
+      f(Index);
+    }
+  }
+};
+
+/// Generates an NDIMS-dimensional perfect loop nest. The purpose of this class
+/// is to better support handling of situations where there must be a loop nest
+/// over a multi-dimensional space - it allows to avoid generating unnecessary
+/// outer loops like 'for (int z=0; z<1; z++)' in case of 1D and 2D iteration
+/// spaces or writing specializations of the algorithms for 1D, 2D and 3D cases.
+template <int NDIMS> struct NDLoop {
+  /// Generates ND loop nest with {0,..0} .. \c UpperBound bounds with unit
+  /// stride. Applies \c f at each iteration, passing current index of
+  /// \c LoopIndexTy<NDIMS> type as the parameter.
+  template <template <int> class LoopBoundTy, typename FuncTy,
+            template <int> class LoopIndexTy = LoopBoundTy>
+  static ALWAYS_INLINE void iterate(const LoopBoundTy<NDIMS> &UpperBound,
+                                    FuncTy f) {
+    const LoopIndexTy<NDIMS> LowerBound =
+        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
+    const LoopBoundTy<NDIMS> Stride =
+        InitializedVal<NDIMS, LoopBoundTy>::template get<1>();
+    LoopIndexTy<NDIMS> Index; // initialized down the call stack
+
+    NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+        LowerBound, Stride, UpperBound, f, Index};
+  }
+
+  /// Generates ND loop nest with \c LowerBound .. \c UpperBound bounds and
+  /// stride \c Stride. Applies \c f at each iteration, passing current index of
+  /// \c LoopIndexTy<NDIMS> type as the parameter.
+  template <template <int> class LoopBoundTy, typename FuncTy,
+            template <int> class LoopIndexTy = LoopBoundTy>
+  static ALWAYS_INLINE void iterate(const LoopIndexTy<NDIMS> &LowerBound,
+                                    const LoopBoundTy<NDIMS> &Stride,
+                                    const LoopBoundTy<NDIMS> &UpperBound,
+                                    FuncTy f) {
+    LoopIndexTy<NDIMS> Index; // initialized down the call stack
+    NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+        LowerBound, Stride, UpperBound, f, Index};
+  }
+};
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl
