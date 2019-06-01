@@ -9,8 +9,12 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
+#include <CL/__spirv/spirv_types.hpp>
+#include <CL/__spirv/spirv_vars.hpp>
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/device_event.hpp>
+#include <CL/sycl/h_item.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/range.hpp>
@@ -21,6 +25,19 @@ namespace cl {
 namespace sycl {
 namespace detail {
 struct Builder;
+
+// Implements a barrier accross work items within a work group.
+static inline void workGroupBarrier() {
+#ifdef __SYCL_DEVICE_ONLY__
+  uint32_t flags =
+      static_cast<uint32_t>(
+          __spv::MemorySemanticsMask::SequentiallyConsistent) |
+      static_cast<uint32_t>(__spv::MemorySemanticsMask::WorkgroupMemory);
+  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+                         flags);
+#endif // __SYCL_DEVICE_ONLY__
+}
+
 } // namespace detail
 
 template <int dimensions = 1> class group {
@@ -66,12 +83,113 @@ public:
            index[0];
   }
 
-  // template<typename workItemFunctionT>
-  // void parallel_for_work_item(workItemFunctionT func) const;
+  template <typename WorkItemFunctionT>
+  void parallel_for_work_item(WorkItemFunctionT Func) const {
+    // need barriers to enforce SYCL semantics for the work item loop -
+    // compilers are expected to optimize when possible
+    detail::workGroupBarrier();
+#ifdef __SYCL_DEVICE_ONLY__
+    range<dimensions> GlobalSize;
+    range<dimensions> LocalSize;
+    id<dimensions> GlobalId;
+    id<dimensions> LocalId;
 
-  // template<typename workItemFunctionT>
-  // void parallel_for_work_item(range<dimensions> flexibleRange,
-  // workItemFunctionT func) const;
+    __spirv::initGlobalSize<dimensions>(GlobalSize);
+    __spirv::initWorkgroupSize<dimensions>(LocalSize);
+    __spirv::initGlobalInvocationId<dimensions>(GlobalId);
+    __spirv::initLocalInvocationId<dimensions>(LocalId);
+
+    // no 'iterate' in the device code variant, because
+    // (1) this code is already invoked by each work item as a part of the
+    //     enclosing parallel_for_work_group kernel
+    // (2) the range this pfwi iterates over matches work group size exactly
+    item<dimensions, false> GlobalItem =
+        detail::Builder::createItem<dimensions, false>(GlobalSize, GlobalId);
+    item<dimensions, false> LocalItem =
+        detail::Builder::createItem<dimensions, false>(LocalSize, LocalId);
+    h_item<dimensions> HItem =
+        detail::Builder::createHItem<dimensions>(GlobalItem, LocalItem);
+
+    Func(HItem);
+#else
+    id<dimensions> GroupStartID = index * localRange;
+
+    // ... host variant needs explicit 'iterate' because it is serial
+    detail::NDLoop<dimensions>::iterate(
+        localRange, [&](const id<dimensions> &LocalID) {
+          item<dimensions, false> GlobalItem =
+              detail::Builder::createItem<dimensions, false>(
+                  globalRange, GroupStartID + LocalID);
+          item<dimensions, false> LocalItem =
+              detail::Builder::createItem<dimensions, false>(localRange,
+                                                             LocalID);
+          h_item<dimensions> HItem =
+              detail::Builder::createHItem<dimensions>(GlobalItem, LocalItem);
+          Func(HItem);
+        });
+#endif // __SYCL_DEVICE_ONLY__
+    // Need both barriers here - before and after the parallel_for_work_item
+    // (PFWI). There can be work group scope code after the PFWI which reads
+    // work group local data written within this PFWI. Back Ends are expected to
+    // optimize away unneeded barriers (e.g. two barriers in a row).
+    detail::workGroupBarrier();
+  }
+
+  template <typename WorkItemFunctionT>
+  void parallel_for_work_item(range<dimensions> flexibleRange,
+                              WorkItemFunctionT Func) const {
+    detail::workGroupBarrier();
+#ifdef __SYCL_DEVICE_ONLY__
+    range<dimensions> GlobalSize;
+    range<dimensions> LocalSize;
+    id<dimensions> GlobalId;
+    id<dimensions> LocalId;
+
+    __spirv::initGlobalSize<dimensions>(GlobalSize);
+    __spirv::initWorkgroupSize<dimensions>(LocalSize);
+    __spirv::initGlobalInvocationId<dimensions>(GlobalId);
+    __spirv::initLocalInvocationId<dimensions>(LocalId);
+
+    item<dimensions, false> GlobalItem =
+        detail::Builder::createItem<dimensions, false>(GlobalSize, GlobalId);
+    item<dimensions, false> LocalItem =
+        detail::Builder::createItem<dimensions, false>(LocalSize, LocalId);
+    h_item<dimensions> HItem =
+        detail::Builder::createHItem<dimensions>(GlobalItem, LocalItem);
+
+    // iterate over flexible range with work group size stride; each item
+    // performs flexibleRange/LocalSize iterations (if the former is divisible
+    // by the latter)
+    detail::NDLoop<dimensions>::iterate(
+        LocalId, LocalSize, flexibleRange,
+        [&](const id<dimensions> &LogicalLocalID) {
+          HItem.setLogicalLocalID(LogicalLocalID);
+          Func(HItem);
+        });
+#else
+    id<dimensions> GroupStartID = index * localRange;
+
+    detail::NDLoop<dimensions>::iterate(
+        localRange, [&](const id<dimensions> &LocalID) {
+          item<dimensions, false> GlobalItem =
+              detail::Builder::createItem<dimensions, false>(
+                  globalRange, GroupStartID + LocalID);
+          item<dimensions, false> LocalItem =
+              detail::Builder::createItem<dimensions, false>(localRange,
+                                                             LocalID);
+          h_item<dimensions> HItem =
+              detail::Builder::createHItem<dimensions>(GlobalItem, LocalItem);
+
+          detail::NDLoop<dimensions>::iterate(
+              LocalID, localRange, flexibleRange,
+              [&](const id<dimensions> &LogicalLocalID) {
+                HItem.setLogicalLocalID(LogicalLocalID);
+                Func(HItem);
+              });
+        });
+#endif // __SYCL_DEVICE_ONLY__
+    detail::workGroupBarrier();
+  }
 
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.

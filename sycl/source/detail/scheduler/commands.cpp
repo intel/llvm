@@ -10,6 +10,7 @@
 #include <CL/cl.h>
 #include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/kernel_info.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/program_manager/program_manager.hpp>
 #include <CL/sycl/detail/queue_impl.hpp>
@@ -254,6 +255,44 @@ cl_int MemCpyCommandHost::enqueueImp() {
   return CL_SUCCESS;
 }
 
+// SYCL has a parallel_for_work_group variant where the only NDRange
+// characteristics set by a user is the number of work groups. This does not map
+// to the OpenCL clEnqueueNDRangeAPI, which requires global work size to be set
+// as well. This function determines local work size based on the device
+// characteristics and the number of work groups requested by the user, then
+// calculates the global work size.
+// SYCL specification (from 4.8.5.3):
+// The member function handler::parallel_for_work_group is parameterized by the
+// number of work - groups, such that the size of each group is chosen by the
+// runtime, or by the number of work - groups and number of work - items for
+// users who need more control.
+static void adjustNDRangePerKernel(NDRDescT &NDR, cl_kernel Kernel,
+                                   cl_device_id Device) {
+  if (NDR.GlobalSize[0] != 0)
+    return; // GlobalSize is set - no need to adjust
+  // check the prerequisites:
+  assert(NDR.NumWorkGroups[0] != 0 && NDR.LocalSize[0] == 0);
+  // TODO might be good to cache this info together with the kernel info to
+  // avoid get_kernel_work_group_info_cl on every kernel run
+  range<3> WGSize = get_kernel_work_group_info_cl<
+      range<3>,
+      cl::sycl::info::kernel_work_group::compile_work_group_size>::_(Kernel,
+                                                                     Device);
+
+  if (WGSize[0] == 0) {
+    // kernel does not request specific workgroup shape - set one
+    // TODO maximum work group size as the local size might not be the best
+    //      choice for CPU or FPGA devices
+    size_t WGSize1D = get_kernel_work_group_info_cl<
+        size_t, cl::sycl::info::kernel_work_group::work_group_size>::_(Kernel,
+                                                                       Device);
+    assert(WGSize1D != 0);
+    // TODO implement better default for 2D/3D case:
+    WGSize = {WGSize1D, 1, 1};
+  }
+  NDR.set(NDR.Dims, nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize));
+}
+
 cl_int ExecCGCommand::enqueueImp() {
   std::vector<cl_event> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
@@ -383,7 +422,7 @@ cl_int ExecCGCommand::enqueueImp() {
         assert(!"Unhandled");
       }
     }
-
+    adjustNDRangePerKernel(NDRDesc, Kernel, MQueue->get_device().get());
     cl_int Error = CL_SUCCESS;
     Error = clEnqueueNDRangeKernel(
         MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],

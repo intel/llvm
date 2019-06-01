@@ -9,63 +9,61 @@
 #pragma once
 
 #include <CL/sycl/detail/array.hpp>
-#include <CL/sycl/item.hpp>
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/range.hpp>
 
 namespace cl {
 namespace sycl {
 template <int dimensions> class range;
+template <int dimensions, bool with_offset> class item;
 template <int dimensions = 1> struct id : public detail::array<dimensions> {
 private:
   using base = detail::array<dimensions>;
   static_assert(dimensions >= 1 && dimensions <= 3,
                 "id can only be 1, 2, or 3 dimentional.");
+  template <int N, int val, typename T>
+  using ParamTy = detail::enable_if_t<(N == val), T>;
+
 public:
   id() = default;
 
   /* The following constructor is only available in the id struct
    * specialization where: dimensions==1 */
-  template <int N = dimensions>
-  id(typename std::enable_if<(N == 1), size_t>::type dim0) : base(dim0) {}
+  template <int N = dimensions> id(ParamTy<N, 1, size_t> dim0) : base(dim0) {}
 
   template <int N = dimensions>
-  id(typename std::enable_if<(N == 1), const range<dimensions> &>::type
-         range_size)
+  id(ParamTy<N, 1, const range<dimensions>> &range_size)
       : base(range_size.get(0)) {}
 
-  template <int N = dimensions>
-  id(typename std::enable_if<(N == 1), const item<dimensions> &>::type item)
+  template <int N = dimensions, bool with_offset = true>
+  id(ParamTy<N, 1, const item<dimensions, with_offset>> &item)
       : base(item.get_id(0)) {}
 
   /* The following constructor is only available in the id struct
    * specialization where: dimensions==2 */
   template <int N = dimensions>
-  id(typename std::enable_if<(N == 2), size_t>::type dim0, size_t dim1)
-      : base(dim0, dim1) {}
+  id(ParamTy<N, 2, size_t> dim0, size_t dim1) : base(dim0, dim1) {}
 
   template <int N = dimensions>
-  id(typename std::enable_if<(N == 2), const range<dimensions> &>::type
-         range_size)
+  id(ParamTy<N, 2, const range<dimensions>> &range_size)
       : base(range_size.get(0), range_size.get(1)) {}
 
-  template <int N = dimensions>
-  id(typename std::enable_if<(N == 2), const item<dimensions> &>::type item)
+  template <int N = dimensions, bool with_offset = true>
+  id(ParamTy<N, 2, const item<dimensions, with_offset>> &item)
       : base(item.get_id(0), item.get_id(1)) {}
 
   /* The following constructor is only available in the id struct
    * specialization where: dimensions==3 */
   template <int N = dimensions>
-  id(typename std::enable_if<(N == 3), size_t>::type dim0, size_t dim1,
-     size_t dim2)
+  id(ParamTy<N, 3, size_t> dim0, size_t dim1, size_t dim2)
       : base(dim0, dim1, dim2) {}
 
   template <int N = dimensions>
-  id(typename std::enable_if<(N == 3), const range<dimensions> &>::type
-         range_size)
+  id(ParamTy<N, 3, const range<dimensions>> &range_size)
       : base(range_size.get(0), range_size.get(1), range_size.get(2)) {}
 
-  template <int N = dimensions>
-  id(typename std::enable_if<(N == 3), const item<dimensions> &>::type item)
+  template <int N = dimensions, bool with_offset = true>
+  id(ParamTy<N, 3, const item<dimensions, with_offset>> &item)
       : base(item.get_id(0), item.get_id(1), item.get_id(2)) {}
 
   explicit operator range<dimensions>() const {
