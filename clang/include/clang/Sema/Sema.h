@@ -317,7 +317,8 @@ public:
 
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
-  void startKernel(StringRef KernelName, QualType KernelNameType);
+  void startKernel(StringRef KernelName, QualType KernelNameType,
+                   StringRef KernelStableName);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -351,6 +352,9 @@ private:
 
     /// Kernel name type.
     QualType NameType;
+
+    /// Kernel name with stable lamba name mangling
+    std::string StableName;
 
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;

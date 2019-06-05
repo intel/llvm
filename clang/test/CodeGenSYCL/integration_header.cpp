@@ -47,7 +47,6 @@
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 //
-// CHECK: template <class KernelNameType> struct KernelInfo;
 // CHECK: template <> struct KernelInfo<class first_kernel> {
 // CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char>> {
 // CHECK: template <> struct KernelInfo<::third_kernel<1, int, ::point<X> >> {
