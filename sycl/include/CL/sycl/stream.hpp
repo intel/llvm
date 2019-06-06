@@ -59,6 +59,9 @@ class __precision_manipulator__ {
 
 public:
   __precision_manipulator__(int Precision) : Precision_(Precision) {}
+
+  int precision() const { return Precision_; }
+
   friend const stream &operator<<(const stream &,
                                   const __precision_manipulator__ &);
 };
@@ -68,6 +71,9 @@ class __width_manipulator__ {
 
 public:
   __width_manipulator__(int Width) : Width_(Width) {}
+
+  int width() const { return Width_; }
+
   friend const stream &operator<<(const stream &,
                                   const __width_manipulator__ &);
 };
@@ -90,6 +96,8 @@ public:
 
   size_t get_precision() const { return Precision; }
 
+  size_t get_width() const { return Width; }
+
   stream_manipulator get_stream_mode() const { return Manipulator; }
 
   bool operator==(const stream &RHS) const;
@@ -106,11 +114,11 @@ private:
 #endif
 
   // Accessor to stream buffer
-  detail::stream_impl::AccessorType Acc;
+  mutable detail::stream_impl::AccessorType Acc;
 
   // Atomic accessor to the offset variable. It represents an offset in the
   // stream buffer.
-  detail::stream_impl::OffsetAccessorType OffsetAcc;
+  mutable detail::stream_impl::OffsetAccessorType OffsetAcc;
   mutable stream_manipulator Manipulator = defaultfloat;
 
   // Fields and methods to work with manipulators
@@ -118,33 +126,15 @@ private:
   // Type used for format flags
   using FmtFlags = unsigned int;
 
-  mutable int Precision;
-  mutable int Width;
-  mutable FmtFlags Flags;
-
-  // Mapping from stream_manipulator to FmtFlags. Each manipulator corresponds
-  // to the bit in FmtFlags.
-  static constexpr FmtFlags Dec = 0x0001;
-  static constexpr FmtFlags Hex = 0x0002;
-  static constexpr FmtFlags Oct = 0x0004;
-  static constexpr FmtFlags ShowBase = 0x0008;
-  static constexpr FmtFlags ShowPos = 0x0010;
-  static constexpr FmtFlags Fixed = 0x0020;
-  static constexpr FmtFlags Scientific = 0x0040;
-
-  // Bitmask made of the combination of the base flags. Base flags are mutually
-  // exclusive, this mask is used to clean base field before setting the new
-  // base flag.
-  static constexpr FmtFlags BaseField = Dec | Hex | Oct;
-
-  // Bitmask made of the combination of the floating point value format flags.
-  // Thease flags are mutually exclusive, this mask is used to clean float field
-  // before setting the new float flag.
-  static constexpr FmtFlags FloatField = Scientific | Fixed;
+  mutable int Precision = -1;
+  mutable int Width = -1;
+  mutable FmtFlags Flags = 0x0;
 
   void set_flag(FmtFlags FormatFlag) const { Flags |= FormatFlag; }
 
   void unset_flag(FmtFlags FormatFlag) const { Flags &= ~FormatFlag; }
+
+  FmtFlags get_flags() const { return Flags; }
 
   // This method is used to set the flag for base and float manipulators. These
   // flags are mutually exclusive and base/float field needs to be cleared
@@ -158,37 +148,37 @@ private:
   void set_manipulator(const stream_manipulator &SM) const {
     switch (SM) {
     case stream_manipulator::dec:
-      set_flag(Dec, BaseField);
+      set_flag(detail::Dec, detail::BaseField);
       break;
     case stream_manipulator::hex:
-      set_flag(Hex, BaseField);
+      set_flag(detail::Hex, detail::BaseField);
       break;
     case stream_manipulator::oct:
-      set_flag(Oct, BaseField);
+      set_flag(detail::Oct, detail::BaseField);
       break;
     case stream_manipulator::noshowbase:
-      unset_flag(ShowBase);
+      unset_flag(detail::ShowBase);
       break;
     case stream_manipulator::showbase:
-      set_flag(ShowBase);
+      set_flag(detail::ShowBase);
       break;
     case stream_manipulator::noshowpos:
-      unset_flag(ShowPos);
+      unset_flag(detail::ShowPos);
       break;
     case stream_manipulator::showpos:
-      set_flag(ShowPos);
+      set_flag(detail::ShowPos);
       break;
     case stream_manipulator::fixed:
-      set_flag(Fixed, FloatField);
+      set_flag(detail::Fixed, detail::FloatField);
       break;
     case stream_manipulator::scientific:
-      set_flag(Scientific, FloatField);
+      set_flag(detail::Scientific, detail::FloatField);
       break;
     case stream_manipulator::hexfloat:
-      set_flag(Fixed | Scientific, FloatField);
+      set_flag(detail::Fixed | detail::Scientific, detail::FloatField);
       break;
     case stream_manipulator::defaultfloat:
-      unset_flag(FloatField);
+      unset_flag(detail::FloatField);
       break;
     default:
       // Unknown manipulator
@@ -202,28 +192,48 @@ private:
   friend typename std::enable_if<std::is_integral<ValueType>::value,
                                  const stream &>::type
   operator<<(const stream &, const ValueType &);
+  friend const stream &operator<<(const stream &, const float &);
+  friend const stream &operator<<(const stream &, const double &);
+  friend const stream &operator<<(const stream &, const half &);
   friend const stream &operator<<(const stream &, const stream_manipulator &);
+  friend const stream &operator<<(const stream &Out,
+                                  const __precision_manipulator__ &RHS);
 
-  // Helper method to update offset atomically according to the provided
-  // operand size of the output operator. Return true if offset is updated and
-  // false in case of overflow.
-  bool update_offset(unsigned Size, unsigned &Cur) const {
-    unsigned New;
-    do {
-      Cur = OffsetAcc[0].load();
-      if (Acc.get_count() - Cur < Size)
-        // Overflow
-        return false;
-      New = Cur + Size;
-    } while (!OffsetAcc[0].compare_exchange_strong(Cur, New));
-    return true;
-  }
+  friend const stream &operator<<(const stream &Out,
+                                  const __width_manipulator__ &RHS);
+  template <typename T, int Dimensions>
+  friend const stream &operator<<(const stream &Out,
+                                  const vec<T, Dimensions> &RHS);
+  template <typename T>
+  friend const stream &operator<<(const stream &Out, const T *RHS);
+  template <int Dimensions>
+  friend const stream &operator<<(const stream &Out, const id<Dimensions> &RHS);
+
+  template <int Dimensions>
+  friend const stream &operator<<(const stream &Out,
+                                  const range<Dimensions> &RHS);
+
+  template <int Dimensions>
+  friend const stream &operator<<(const stream &Out,
+                                  const item<Dimensions> &RHS);
+
+  template <int Dimensions>
+  friend const stream &operator<<(const stream &Out,
+                                  const nd_range<Dimensions> &RHS);
+
+  template <int Dimensions>
+  friend const stream &operator<<(const stream &Out,
+                                  const nd_item<Dimensions> &RHS);
+
+  template <int Dimensions>
+  friend const stream &operator<<(const stream &Out,
+                                  const group<Dimensions> &RHS);
 };
 
 // Character
 inline const stream &operator<<(const stream &Out, const char C) {
   unsigned Cur;
-  if (!Out.update_offset(1, Cur))
+  if (!detail::updateOffset(Out.OffsetAcc, Out.Acc, 1, Cur))
     return Out;
   Out.Acc[Cur] = C;
   return Out;
@@ -235,13 +245,7 @@ inline const stream &operator<<(const stream &Out, const char *Str) {
   for (Len = 0; Str[Len] != '\0'; Len++)
     ;
 
-  unsigned Cur;
-  if (!Out.update_offset(Len, Cur))
-    return Out;
-
-  for (size_t i = 0; i < Len; i++) {
-    Out.Acc[i + Cur] = Str[i];
-  }
+  detail::write(Out.OffsetAcc, Out.Acc, Len, Str);
   return Out;
 }
 
@@ -253,27 +257,31 @@ inline const stream &operator<<(const stream &Out, const bool &RHS) {
 
 // Integral
 template <typename ValueType>
-typename std::enable_if<std::is_integral<ValueType>::value,
-                        const stream &>::type
+inline typename std::enable_if<std::is_integral<ValueType>::value,
+                               const stream &>::type
 operator<<(const stream &Out, const ValueType &RHS) {
-  // TODO
+  detail::writeIntegral(Out.OffsetAcc, Out.Acc, Out.get_flags(),
+                        Out.get_width(), RHS);
   return Out;
 }
 
 // Floating points
 
 inline const stream &operator<<(const stream &Out, const float &RHS) {
-  // TODO
+  detail::writeFloatingPoint<float>(Out.OffsetAcc, Out.Acc, Out.get_flags(),
+                                    Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
 
 inline const stream &operator<<(const stream &Out, const double &RHS) {
-  // TODO
+  detail::writeFloatingPoint<double>(Out.OffsetAcc, Out.Acc, Out.get_flags(),
+                                     Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
 
 inline const stream &operator<<(const stream &Out, const half &RHS) {
-  // TODO
+  detail::writeFloatingPoint<half>(Out.OffsetAcc, Out.Acc, Out.get_flags(),
+                                   Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
 
@@ -282,13 +290,17 @@ inline const stream &operator<<(const stream &Out, const half &RHS) {
 template <typename ElementType, access::address_space Space>
 inline const stream &operator<<(const stream &Out,
                                 const multi_ptr<ElementType, Space> &RHS) {
-  // TODO
+  Out << RHS.get();
   return Out;
 }
 
 template <typename T>
 const stream &operator<<(const stream &Out, const T *RHS) {
-  // TODO
+  detail::FmtFlags Flags = Out.get_flags();
+  Flags &= ~detail::BaseField;
+  Flags |= detail::Hex | detail::ShowBase;
+  detail::writeIntegral(Out.OffsetAcc, Out.Acc, Flags, Out.get_width(),
+                        reinterpret_cast<size_t>(RHS));
   return Out;
 }
 
@@ -296,13 +308,13 @@ const stream &operator<<(const stream &Out, const T *RHS) {
 
 inline const stream &operator<<(const stream &Out,
                                 const __precision_manipulator__ &RHS) {
-  // TODO
+  Out.Width = RHS.precision();
   return Out;
 }
 
 inline const stream &operator<<(const stream &Out,
                                 const __width_manipulator__ &RHS) {
-  // TODO
+  Out.Precision = RHS.width();
   return Out;
 }
 
@@ -314,15 +326,17 @@ inline const stream &operator<<(const stream &Out,
     break;
   default:
     Out.set_manipulator(RHS);
+    break;
   }
   return Out;
 }
 
 // Vec
 
-template <typename T, int Dimensions>
-const stream &operator<<(const stream &Out, const vec<T, Dimensions> &RHS) {
-  // TODO
+template <typename T, int VectorLength>
+const stream &operator<<(const stream &Out, const vec<T, VectorLength> &RHS) {
+  detail::writeVec<T, VectorLength>(Out.OffsetAcc, Out.Acc, Out.get_flags(),
+                                    Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
 
@@ -330,42 +344,49 @@ const stream &operator<<(const stream &Out, const vec<T, Dimensions> &RHS) {
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out, const id<Dimensions> &RHS) {
-  // TODO
+  detail::writeArray<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const range<Dimensions> &RHS) {
-  // TODO
+  detail::writeArray<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const item<Dimensions> &RHS) {
-  // TODO
+  detail::writeItem<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const nd_range<Dimensions> &RHS) {
-  // TODO
+  detail::writeNDRange<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const nd_item<Dimensions> &RHS) {
-  // TODO
+  detail::writeNDItem<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const group<Dimensions> &RHS) {
-  // TODO
+  detail::writeGroup<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
+  return Out;
+}
+
+template <typename T, typename RT = detail::EnableIfSwizzleVec<T>>
+inline const stream &operator<<(const stream &Out, const T &RHS) {
+  RT V = RHS;
+  Out << V;
   return Out;
 }
 
