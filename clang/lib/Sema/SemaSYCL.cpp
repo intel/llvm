@@ -26,8 +26,6 @@
 
 using namespace clang;
 
-typedef llvm::DenseMap<DeclaratorDecl *, DeclaratorDecl *> DeclMap;
-
 using KernelParamKind = SYCLIntegrationHeader::kernel_param_kind_t;
 
 enum target {
@@ -376,27 +374,25 @@ private:
 
 class KernelBodyTransform : public TreeTransform<KernelBodyTransform> {
 public:
-  KernelBodyTransform(llvm::DenseMap<DeclaratorDecl *, DeclaratorDecl *> &Map,
+  KernelBodyTransform(std::pair<DeclaratorDecl *, DeclaratorDecl *> &MPair,
                       Sema &S)
-      : TreeTransform<KernelBodyTransform>(S), DMap(Map), SemaRef(S) {}
+      : TreeTransform<KernelBodyTransform>(S), MappingPair(MPair), SemaRef(S) {}
   bool AlwaysRebuild() { return true; }
 
   ExprResult TransformDeclRefExpr(DeclRefExpr *DRE) {
     auto Ref = dyn_cast<DeclaratorDecl>(DRE->getDecl());
-    if (Ref) {
-      auto NewDecl = DMap[Ref];
-      if (NewDecl) {
-        return DeclRefExpr::Create(
-            SemaRef.getASTContext(), DRE->getQualifierLoc(),
-            DRE->getTemplateKeywordLoc(), NewDecl, false, DRE->getNameInfo(),
-            NewDecl->getType(), DRE->getValueKind());
-      }
+    if (Ref && Ref == MappingPair.first) {
+      auto NewDecl = MappingPair.second;
+      return DeclRefExpr::Create(
+          SemaRef.getASTContext(), DRE->getQualifierLoc(),
+          DRE->getTemplateKeywordLoc(), NewDecl, false, DRE->getNameInfo(),
+          NewDecl->getType(), DRE->getValueKind());
     }
     return DRE;
   }
 
 private:
-  DeclMap DMap;
+  std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPair;
   Sema &SemaRef;
 };
 
@@ -618,21 +614,23 @@ CreateSYCLKernelBody(Sema &S, FunctionDecl *KernelCallerFunc, DeclContext *Kerne
       KernelFuncParam++;
     }
   }
-  // In function from headers lambda is function parameter, we need
-  // to replace all refs to this lambda with our vardecl.
-  // I used TreeTransform here, but I'm not sure that it is good solution
-  // Also I used map and I'm not sure about it too.
-  // TODO SYCL review the above design concerns
+
+  // In kernel caller function lambda/functior is function parameter, we need
+  // to replace all refs to this lambda/functor with our kernel object clone
+  // declared inside kernel body.
   Stmt *FunctionBody = KernelCallerFunc->getBody();
-  DeclMap DMap;
   ParmVarDecl *KernelObjParam = *(KernelCallerFunc->param_begin());
+
   // DeclRefExpr with valid source location but with decl which is not marked
   // as used is invalid.
   KernelObjClone->setIsUsed();
-  DMap[KernelObjParam] = KernelObjClone;
-  // Without PushFunctionScope I had segfault. Maybe we also need to do pop.
+  std::pair<DeclaratorDecl *, DeclaratorDecl *> MappingPair;
+  MappingPair.first = KernelObjParam;
+  MappingPair.second = KernelObjClone;
+
+  // Function scope might be empty, so we do push
   S.PushFunctionScope();
-  KernelBodyTransform KBT(DMap, S);
+  KernelBodyTransform KBT(MappingPair, S);
   Stmt *NewBody = KBT.TransformStmt(FunctionBody).get();
   BodyStmts.push_back(NewBody);
   return CompoundStmt::Create(S.Context, BodyStmts, SourceLocation(),
