@@ -35,6 +35,8 @@ using namespace lldb_private;
 
 static ConstString g_this = ConstString("this");
 
+char CPPLanguageRuntime::ID = 0;
+
 // Destructor
 CPPLanguageRuntime::~CPPLanguageRuntime() {}
 
@@ -214,7 +216,7 @@ CPPLanguageRuntime::FindLibCppStdFunctionCallableInfo(
       return llvm::Regex::escape(first_template_parameter.str()) +
              R"(::operator\(\)\(.*\))";
 
-    if (symbol != NULL &&
+    if (symbol != nullptr &&
         symbol->GetName().GetStringRef().contains("__invoke")) {
 
       llvm::StringRef symbol_name = symbol->GetName().GetStringRef();

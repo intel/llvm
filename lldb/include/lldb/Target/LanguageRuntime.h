@@ -136,12 +136,19 @@ public:
   virtual lldb::BreakpointResolverSP
   CreateExceptionResolver(Breakpoint *bkpt, bool catch_bp, bool throw_bp) = 0;
 
-  virtual lldb::SearchFilterSP CreateExceptionSearchFilter();
+  virtual lldb::SearchFilterSP CreateExceptionSearchFilter() {
+    return m_process->GetTarget().GetSearchFilterForModule(nullptr);
+  }
 
   virtual bool GetTypeBitSize(const CompilerType &compiler_type,
                               uint64_t &size) {
     return false;
   }
+
+  virtual void SymbolsDidLoad(const ModuleList &module_list) { return; }
+
+  virtual lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
+                                                          bool stop_others) = 0;
 
   /// Identify whether a value is a language implementation detaul
   /// that should be hidden from the user interface by default.
@@ -162,6 +169,16 @@ public:
   virtual bool GetIRPasses(LLVMUserExpression::IRPasses &custom_passes) {
     return false;
   }
+
+  // Given the name of a runtime symbol (e.g. in Objective-C, an ivar offset
+  // symbol), try to determine from the runtime what the value of that symbol
+  // would be. Useful when the underlying binary is stripped.
+  virtual lldb::addr_t LookupRuntimeSymbol(ConstString name) {
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  virtual bool isA(const void *ClassID) const { return ClassID == &ID; }
+  static char ID;
 
 protected:
   // Classes that inherit from LanguageRuntime can see and modify these

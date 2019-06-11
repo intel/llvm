@@ -3477,20 +3477,19 @@ static Value *SimplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
   if (match(RHS, m_AnyZeroFP())) {
     switch (Pred) {
     case FCmpInst::FCMP_OGE:
-      if (FMF.noNaNs() && CannotBeOrderedLessThanZero(LHS, Q.TLI))
-        return getTrue(RetTy);
+    case FCmpInst::FCMP_ULT:
+      // Positive or zero X >= 0.0 --> true
+      // Positive or zero X <  0.0 --> false
+      if ((FMF.noNaNs() || isKnownNeverNaN(LHS, Q.TLI)) &&
+          CannotBeOrderedLessThanZero(LHS, Q.TLI))
+        return Pred == FCmpInst::FCMP_OGE ? getTrue(RetTy) : getFalse(RetTy);
       break;
     case FCmpInst::FCMP_UGE:
-      if (CannotBeOrderedLessThanZero(LHS, Q.TLI))
-        return getTrue(RetTy);
-      break;
-    case FCmpInst::FCMP_ULT:
-      if (FMF.noNaNs() && CannotBeOrderedLessThanZero(LHS, Q.TLI))
-        return getFalse(RetTy);
-      break;
     case FCmpInst::FCMP_OLT:
+      // Positive or zero or nan X >= 0.0 --> true
+      // Positive or zero or nan X <  0.0 --> false
       if (CannotBeOrderedLessThanZero(LHS, Q.TLI))
-        return getFalse(RetTy);
+        return Pred == FCmpInst::FCMP_UGE ? getTrue(RetTy) : getFalse(RetTy);
       break;
     default:
       break;
@@ -4010,6 +4009,17 @@ Value *llvm::SimplifyInsertElementInst(Value *Vec, Value *Val, Value *Idx,
   // If index is undef, it might be out of bounds (see above case)
   if (isa<UndefValue>(Idx))
     return UndefValue::get(Vec->getType());
+
+  // Inserting an undef scalar? Assume it is the same value as the existing
+  // vector element.
+  if (isa<UndefValue>(Val))
+    return Vec;
+
+  // If we are extracting a value from a vector, then inserting it into the same
+  // place, that's the input vector:
+  // insertelt Vec, (extractelt Vec, Idx), Idx --> Vec
+  if (match(Val, m_ExtractElement(m_Specific(Vec), m_Specific(Idx))))
+    return Vec;
 
   return nullptr;
 }
@@ -4576,6 +4586,10 @@ static Value *simplifyFPUnOp(unsigned Opcode, Value *Op,
   default:
     return simplifyUnOp(Opcode, Op, Q, MaxRecurse);
   }
+}
+
+Value *llvm::SimplifyUnOp(unsigned Opcode, Value *Op, const SimplifyQuery &Q) {
+  return ::simplifyUnOp(Opcode, Op, Q, RecursionLimit);
 }
 
 Value *llvm::SimplifyFPUnOp(unsigned Opcode, Value *Op, FastMathFlags FMF,

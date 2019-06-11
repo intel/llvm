@@ -734,6 +734,8 @@ FunctionProtoType::printExceptionSpecification(raw_ostream &OS,
         OS << getExceptionType(I).stream(Policy);
       }
     OS << ')';
+  } else if (EST_NoThrow == getExceptionSpecType()) {
+    OS << " __attribute__((nothrow))";
   } else if (isNoexceptExceptionSpec(getExceptionSpecType())) {
     OS << " noexcept";
     // FIXME:Is it useful to print out the expression for a non-dependent
@@ -1803,17 +1805,19 @@ void Qualifiers::print(raw_ostream &OS, const PrintingPolicy& Policy,
       case LangAS::opencl_private:
         break;
       case LangAS::opencl_constant:
-      case LangAS::cuda_constant:
         OS << "__constant";
         break;
       case LangAS::opencl_generic:
         OS << "__generic";
         break;
       case LangAS::cuda_device:
-        OS << "__device";
+        OS << "__device__";
+        break;
+      case LangAS::cuda_constant:
+        OS << "__constant__";
         break;
       case LangAS::cuda_shared:
-        OS << "__shared";
+        OS << "__shared__";
         break;
       default:
         OS << "__attribute__((address_space(";

@@ -524,7 +524,8 @@ static MachineInstr *foldPatchpoint(MachineFunction &MF, MachineInstr &MI,
 
 MachineInstr *TargetInstrInfo::foldMemoryOperand(MachineInstr &MI,
                                                  ArrayRef<unsigned> Ops, int FI,
-                                                 LiveIntervals *LIS) const {
+                                                 LiveIntervals *LIS,
+                                                 VirtRegMap *VRM) const {
   auto Flags = MachineMemOperand::MONone;
   for (unsigned OpIdx : Ops)
     Flags |= MI.getOperand(OpIdx).isDef() ? MachineMemOperand::MOStore
@@ -570,7 +571,7 @@ MachineInstr *TargetInstrInfo::foldMemoryOperand(MachineInstr &MI,
       MBB->insert(MI, NewMI);
   } else {
     // Ask the target to do the actual folding.
-    NewMI = foldMemoryOperandImpl(MF, MI, Ops, MI, FI, LIS);
+    NewMI = foldMemoryOperandImpl(MF, MI, Ops, MI, FI, LIS, VRM);
   }
 
   if (NewMI) {
@@ -899,7 +900,8 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
     return true;
 
   // Avoid instructions obviously unsafe for remat.
-  if (MI.isNotDuplicable() || MI.mayStore() || MI.hasUnmodeledSideEffects())
+  if (MI.isNotDuplicable() || MI.mayStore() || MI.mayRaiseFPException() ||
+      MI.hasUnmodeledSideEffects())
     return false;
 
   // Don't remat inline asm. We have no idea how expensive it is

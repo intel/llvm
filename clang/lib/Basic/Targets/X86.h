@@ -78,6 +78,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasAVX512VBMI = false;
   bool HasAVX512VBMI2 = false;
   bool HasAVX512IFMA = false;
+  bool HasAVX512VP2INTERSECT = false;
   bool HasSHA = false;
   bool HasMPX = false;
   bool HasSHSTK = false;
@@ -107,6 +108,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasMOVDIR64B = false;
   bool HasPTWRITE = false;
   bool HasINVPCID = false;
+  bool HasENQCMD = false;
 
 protected:
   /// Enumeration of all of the X86 CPUs supported by Clang.

@@ -102,8 +102,10 @@ public:
                                         // no unsigned wrap.
     NoSWrap      = 1 << 12,             // Instruction supports binary operator
                                         // no signed wrap.
-    IsExact      = 1 << 13              // Instruction supports division is
+    IsExact      = 1 << 13,             // Instruction supports division is
                                         // known to be exact.
+    FPExcept     = 1 << 14,             // Instruction may raise floating-point
+                                        // exceptions.
   };
 
 private:
@@ -830,6 +832,17 @@ public:
     return mayLoad(Type) || mayStore(Type);
   }
 
+  /// Return true if this instruction could possibly raise a floating-point
+  /// exception.  This is the case if the instruction is a floating-point
+  /// instruction that can in principle raise an exception, as indicated
+  /// by the MCID::MayRaiseFPException property, *and* at the same time,
+  /// the instruction is used in a context where we expect floating-point
+  /// exceptions might be enabled, as indicated by the FPExcept MI flag.
+  bool mayRaiseFPException() const {
+    return hasProperty(MCID::MayRaiseFPException) &&
+           getFlag(MachineInstr::MIFlag::FPExcept);
+  }
+
   //===--------------------------------------------------------------------===//
   // Flags that indicate whether an instruction can be modified by a method.
   //===--------------------------------------------------------------------===//
@@ -1003,6 +1016,12 @@ public:
     return isDebugValue()
       && getOperand(0).isReg()
       && getOperand(1).isImm();
+  }
+
+  /// Return true if the instruction is a debug value which describes a part of
+  /// a variable as unavailable.
+  bool isUndefDebugValue() const {
+    return isDebugValue() && getOperand(0).isReg() && !getOperand(0).getReg();
   }
 
   bool isPHI() const {

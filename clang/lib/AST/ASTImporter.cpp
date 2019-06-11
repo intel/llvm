@@ -2256,7 +2256,8 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
           if (!FromUT->isIncompleteType() && !FoundUT->isIncompleteType())
             return Importer.MapImported(D, FoundTypedef);
         }
-        // FIXME Handle redecl chain.
+        // FIXME Handle redecl chain. When you do that make consistent changes
+        // in ASTImporterLookupTable too.
         break;
       }
 
@@ -2559,6 +2560,9 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
           if (!IsStructuralMatch(D, FoundRecord, false))
             continue;
 
+        if (!hasSameVisibilityContext(FoundRecord, D))
+          continue;
+
         if (IsStructuralMatch(D, FoundRecord)) {
           RecordDecl *FoundDef = FoundRecord->getDefinition();
           if (D->isThisDeclarationADefinition() && FoundDef) {
@@ -2585,7 +2589,7 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
     } // for
 
     if (!ConflictingDecls.empty() && SearchName) {
-      Name = Importer.HandleNameConflict(Name, DC, IDNS,
+      Name = Importer.HandleNameConflict(SearchName, DC, IDNS,
                                          ConflictingDecls.data(),
                                          ConflictingDecls.size());
       if (!Name)
@@ -5589,12 +5593,17 @@ ExpectedStmt ASTNodeImporter::VisitGCCAsmStmt(GCCAsmStmt *S) {
       return InputOrErr.takeError();
   }
 
-  SmallVector<Expr *, 4> Exprs(S->getNumOutputs() + S->getNumInputs());
+  SmallVector<Expr *, 4> Exprs(S->getNumOutputs() + S->getNumInputs() +
+                               S->getNumLabels());
   if (Error Err = ImportContainerChecked(S->outputs(), Exprs))
     return std::move(Err);
 
+  if (Error Err =
+          ImportArrayChecked(S->inputs(), Exprs.begin() + S->getNumOutputs()))
+    return std::move(Err);
+
   if (Error Err = ImportArrayChecked(
-      S->inputs(), Exprs.begin() + S->getNumOutputs()))
+          S->labels(), Exprs.begin() + S->getNumOutputs() + S->getNumInputs()))
     return std::move(Err);
 
   ExpectedSLoc AsmLocOrErr = import(S->getAsmLoc());
@@ -5620,6 +5629,7 @@ ExpectedStmt ASTNodeImporter::VisitGCCAsmStmt(GCCAsmStmt *S) {
       *AsmStrOrErr,
       S->getNumClobbers(),
       Clobbers.data(),
+      S->getNumLabels(),
       *RParenLocOrErr);
 }
 
@@ -6179,7 +6189,7 @@ ExpectedStmt ASTNodeImporter::VisitDeclRefExpr(DeclRefExpr *E) {
   auto *ToE = DeclRefExpr::Create(
       Importer.getToContext(), ToQualifierLoc, ToTemplateKeywordLoc, ToDecl,
       E->refersToEnclosingVariableOrCapture(), ToLocation, ToType,
-      E->getValueKind(), ToFoundD, ToResInfo);
+      E->getValueKind(), ToFoundD, ToResInfo, E->isNonOdrUse());
   if (E->hadMultipleCandidates())
     ToE->setHadMultipleCandidates(true);
   return ToE;
@@ -7103,10 +7113,11 @@ ExpectedStmt ASTNodeImporter::VisitMemberExpr(MemberExpr *E) {
     ResInfo = &ToTAInfo;
   }
 
-  return MemberExpr::Create(
-      Importer.getToContext(), ToBase, E->isArrow(), ToOperatorLoc,
-      ToQualifierLoc, ToTemplateKeywordLoc, ToMemberDecl, ToFoundDecl,
-      ToMemberNameInfo, ResInfo, ToType, E->getValueKind(), E->getObjectKind());
+  return MemberExpr::Create(Importer.getToContext(), ToBase, E->isArrow(),
+                            ToOperatorLoc, ToQualifierLoc, ToTemplateKeywordLoc,
+                            ToMemberDecl, ToFoundDecl, ToMemberNameInfo,
+                            ResInfo, ToType, E->getValueKind(),
+                            E->getObjectKind(), E->isNonOdrUse());
 }
 
 ExpectedStmt

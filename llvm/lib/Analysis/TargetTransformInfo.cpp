@@ -130,6 +130,12 @@ bool TargetTransformInfo::isLoweredToCall(const Function *F) const {
   return TTIImpl->isLoweredToCall(F);
 }
 
+bool TargetTransformInfo::isHardwareLoopProfitable(
+  Loop *L, ScalarEvolution &SE, AssumptionCache &AC,
+  TargetLibraryInfo *LibInfo, HardwareLoopInfo &HWLoopInfo) const {
+  return TTIImpl->isHardwareLoopProfitable(L, SE, AC, LibInfo, HWLoopInfo);
+}
+
 void TargetTransformInfo::getUnrollingPreferences(
     Loop *L, ScalarEvolution &SE, UnrollingPreferences &UP) const {
   return TTIImpl->getUnrollingPreferences(L, SE, UP);
@@ -1039,6 +1045,16 @@ int TargetTransformInfo::getInstructionThroughput(const Instruction *I) const {
     TargetTransformInfo::OperandValueProperties Op1VP, Op2VP;
     Op1VK = getOperandInfo(I->getOperand(0), Op1VP);
     Op2VK = getOperandInfo(I->getOperand(1), Op2VP);
+    SmallVector<const Value *, 2> Operands(I->operand_values());
+    return getArithmeticInstrCost(I->getOpcode(), I->getType(), Op1VK, Op2VK,
+                                  Op1VP, Op2VP, Operands);
+  }
+  case Instruction::FNeg: {
+    TargetTransformInfo::OperandValueKind Op1VK, Op2VK;
+    TargetTransformInfo::OperandValueProperties Op1VP, Op2VP;
+    Op1VK = getOperandInfo(I->getOperand(0), Op1VP);
+    Op2VK = OK_AnyValue;
+    Op2VP = OP_None;
     SmallVector<const Value *, 2> Operands(I->operand_values());
     return getArithmeticInstrCost(I->getOpcode(), I->getType(), Op1VK, Op2VK,
                                   Op1VP, Op2VP, Operands);

@@ -790,28 +790,100 @@ void X86DAGToDAGISel::PreprocessISelDAG() {
       continue;
     }
 
-    // Replace vector shifts with their X86 specific equivalent so we don't
-    // need 2 sets of patterns.
     switch (N->getOpcode()) {
     case ISD::SHL:
     case ISD::SRA:
-    case ISD::SRL:
-      if (N->getValueType(0).isVector()) {
-        unsigned NewOpc;
+    case ISD::SRL: {
+      // Replace vector shifts with their X86 specific equivalent so we don't
+      // need 2 sets of patterns.
+      if (!N->getValueType(0).isVector())
+        break;
+
+      unsigned NewOpc;
+      switch (N->getOpcode()) {
+      default: llvm_unreachable("Unexpected opcode!");
+      case ISD::SHL: NewOpc = X86ISD::VSHLV; break;
+      case ISD::SRA: NewOpc = X86ISD::VSRAV; break;
+      case ISD::SRL: NewOpc = X86ISD::VSRLV; break;
+      }
+      SDValue Res = CurDAG->getNode(NewOpc, SDLoc(N), N->getValueType(0),
+                                    N->getOperand(0), N->getOperand(1));
+      --I;
+      CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Res);
+      ++I;
+      CurDAG->DeleteNode(N);
+      continue;
+    }
+    case ISD::FCEIL:
+    case ISD::FFLOOR:
+    case ISD::FTRUNC:
+    case ISD::FNEARBYINT:
+    case ISD::FRINT: {
+      // Replace fp rounding with their X86 specific equivalent so we don't
+      // need 2 sets of patterns.
+      unsigned Imm;
+      switch (N->getOpcode()) {
+      default: llvm_unreachable("Unexpected opcode!");
+      case ISD::FCEIL:      Imm = 0xA; break;
+      case ISD::FFLOOR:     Imm = 0x9; break;
+      case ISD::FTRUNC:     Imm = 0xB; break;
+      case ISD::FNEARBYINT: Imm = 0xC; break;
+      case ISD::FRINT:      Imm = 0x4; break;
+      }
+      SDLoc dl(N);
+      SDValue Res = CurDAG->getNode(X86ISD::VRNDSCALE, dl,
+                                    N->getValueType(0),
+                                    N->getOperand(0),
+                                    CurDAG->getConstant(Imm, dl, MVT::i8));
+      --I;
+      CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Res);
+      ++I;
+      CurDAG->DeleteNode(N);
+      continue;
+    }
+    case X86ISD::FANDN:
+    case X86ISD::FAND:
+    case X86ISD::FOR:
+    case X86ISD::FXOR: {
+      // Widen scalar fp logic ops to vector to reduce isel patterns.
+      // FIXME: Can we do this during lowering/combine.
+      MVT VT = N->getSimpleValueType(0);
+      if (VT.isVector() || VT == MVT::f128)
+        break;
+
+      MVT VecVT = VT == MVT::f64 ? MVT::v2f64 : MVT::v4f32;
+      SDLoc dl(N);
+      SDValue Op0 = CurDAG->getNode(ISD::SCALAR_TO_VECTOR, dl, VecVT,
+                                    N->getOperand(0));
+      SDValue Op1 = CurDAG->getNode(ISD::SCALAR_TO_VECTOR, dl, VecVT,
+                                    N->getOperand(1));
+
+      SDValue Res;
+      if (Subtarget->hasSSE2()) {
+        EVT IntVT = EVT(VecVT).changeVectorElementTypeToInteger();
+        Op0 = CurDAG->getNode(ISD::BITCAST, dl, IntVT, Op0);
+        Op1 = CurDAG->getNode(ISD::BITCAST, dl, IntVT, Op1);
+        unsigned Opc;
         switch (N->getOpcode()) {
         default: llvm_unreachable("Unexpected opcode!");
-        case ISD::SHL: NewOpc = X86ISD::VSHLV; break;
-        case ISD::SRA: NewOpc = X86ISD::VSRAV; break;
-        case ISD::SRL: NewOpc = X86ISD::VSRLV; break;
+        case X86ISD::FANDN: Opc = X86ISD::ANDNP; break;
+        case X86ISD::FAND:  Opc = ISD::AND;      break;
+        case X86ISD::FOR:   Opc = ISD::OR;       break;
+        case X86ISD::FXOR:  Opc = ISD::XOR;      break;
         }
-        SDValue Res = CurDAG->getNode(NewOpc, SDLoc(N), N->getValueType(0),
-                                      N->getOperand(0), N->getOperand(1));
-        --I;
-        CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Res);
-        ++I;
-        CurDAG->DeleteNode(N);
-        continue;
+        Res = CurDAG->getNode(Opc, dl, IntVT, Op0, Op1);
+        Res = CurDAG->getNode(ISD::BITCAST, dl, VecVT, Res);
+      } else {
+        Res = CurDAG->getNode(N->getOpcode(), dl, VecVT, Op0, Op1);
       }
+      Res = CurDAG->getNode(ISD::EXTRACT_VECTOR_ELT, dl, VT, Res,
+                            CurDAG->getIntPtrConstant(0, dl));
+      --I;
+      CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), Res);
+      ++I;
+      CurDAG->DeleteNode(N);
+      continue;
+    }
     }
 
     if (OptLevel != CodeGenOpt::None &&
@@ -2071,6 +2143,8 @@ bool X86DAGToDAGISel::selectAddr(SDNode *Parent, SDValue N, SDValue &Base,
       Parent->getOpcode() != ISD::INTRINSIC_W_CHAIN && // unaligned loads, fixme
       Parent->getOpcode() != ISD::INTRINSIC_VOID && // nontemporal stores
       Parent->getOpcode() != X86ISD::TLSCALL && // Fixme
+      Parent->getOpcode() != X86ISD::ENQCMD && // Fixme
+      Parent->getOpcode() != X86ISD::ENQCMDS && // Fixme
       Parent->getOpcode() != X86ISD::EH_SJLJ_SETJMP && // setjmp
       Parent->getOpcode() != X86ISD::EH_SJLJ_LONGJMP) { // longjmp
     unsigned AddrSpace =
@@ -4670,6 +4744,35 @@ void X86DAGToDAGISel::Select(SDNode *Node) {
     if (foldLoadStoreIntoMemOperand(Node))
       return;
     break;
+  case ISD::FCEIL:
+  case ISD::FFLOOR:
+  case ISD::FTRUNC:
+  case ISD::FNEARBYINT:
+  case ISD::FRINT: {
+    // Replace fp rounding with their X86 specific equivalent so we don't
+    // need 2 sets of patterns.
+    // FIXME: This can only happen when the nodes started as STRICT_* and have
+    // been mutated into their non-STRICT equivalents. Eventually this
+    // mutation will be removed and we should switch the STRICT_ nodes to a
+    // strict version of RNDSCALE in PreProcessISelDAG.
+    unsigned Imm;
+    switch (Node->getOpcode()) {
+    default: llvm_unreachable("Unexpected opcode!");
+    case ISD::FCEIL:      Imm = 0xA; break;
+    case ISD::FFLOOR:     Imm = 0x9; break;
+    case ISD::FTRUNC:     Imm = 0xB; break;
+    case ISD::FNEARBYINT: Imm = 0xC; break;
+    case ISD::FRINT:      Imm = 0x4; break;
+    }
+    SDLoc dl(Node);
+    SDValue Res = CurDAG->getNode(X86ISD::VRNDSCALE, dl,
+                                  Node->getValueType(0),
+                                  Node->getOperand(0),
+                                  CurDAG->getConstant(Imm, dl, MVT::i8));
+    ReplaceNode(Node, Res.getNode());
+    SelectCode(Res.getNode());
+    return;
+  }
   }
 
   SelectCode(Node);

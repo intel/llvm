@@ -50,6 +50,8 @@ enum ArchExtKind : unsigned {
   AEK_SVE2SM4 =     1 << 21,
   AEK_SVE2SHA3 =    1 << 22,
   AEK_BITPERM =     1 << 23,
+  AEK_FP_DP   =     1 << 24,
+  AEK_LOB     =     1 << 25,
   // Unsupported extensions.
   AEK_OS = 0x8000000,
   AEK_IWMMXT = 0x10000000,
@@ -131,7 +133,8 @@ enum class FPUVersion {
   VFPV3,
   VFPV3_FP16,
   VFPV4,
-  VFPV5
+  VFPV5,
+  VFPV5_FULLFP16,
 };
 
 // An FPU name restricts the FPU in one of three ways:
@@ -238,6 +241,8 @@ StringRef getCPUAttr(ArchKind AK);
 StringRef getSubArch(ArchKind AK);
 StringRef getArchExtName(unsigned ArchExtKind);
 StringRef getArchExtFeature(StringRef ArchExt);
+bool appendArchExtFeatures(StringRef CPU, ARM::ArchKind AK, StringRef ArchExt,
+                           std::vector<StringRef> &Features);
 StringRef getHWDivName(unsigned HWDivKind);
 
 // Information by Name

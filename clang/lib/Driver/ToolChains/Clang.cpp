@@ -616,11 +616,11 @@ static bool shouldUseLeafFramePointer(const ArgList &Args,
 }
 
 /// Add a CC1 option to specify the debug compilation directory.
-static void addDebugCompDirArg(const ArgList &Args, ArgStringList &CmdArgs) {
-  SmallString<128> cwd;
-  if (!llvm::sys::fs::current_path(cwd)) {
+static void addDebugCompDirArg(const ArgList &Args, ArgStringList &CmdArgs,
+                               const llvm::vfs::FileSystem &VFS) {
+  if (llvm::ErrorOr<std::string> CWD = VFS.getCurrentWorkingDirectory()) {
     CmdArgs.push_back("-fdebug-compilation-dir");
-    CmdArgs.push_back(Args.MakeArgString(cwd));
+    CmdArgs.push_back(Args.MakeArgString(*CWD));
   }
 }
 
@@ -885,13 +885,8 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
       else
         OutputFilename = llvm::sys::path::filename(Output.getBaseInput());
       SmallString<128> CoverageFilename = OutputFilename;
-      if (llvm::sys::path::is_relative(CoverageFilename)) {
-        SmallString<128> Pwd;
-        if (!llvm::sys::fs::current_path(Pwd)) {
-          llvm::sys::path::append(Pwd, CoverageFilename);
-          CoverageFilename.swap(Pwd);
-        }
-      }
+      if (llvm::sys::path::is_relative(CoverageFilename))
+        (void)D.getVFS().makeAbsolute(CoverageFilename);
       llvm::sys::path::replace_extension(CoverageFilename, "gcno");
       CmdArgs.push_back(Args.MakeArgString(CoverageFilename));
 
@@ -3671,6 +3666,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Disable all llvm IR level optimizations.
     CmdArgs.push_back("-disable-llvm-passes");
 
+    // Render target options such as -fuse-init-array on modern ELF platforms.
+    TC.addClangTargetOptions(Args, CmdArgs, JA.getOffloadingDeviceKind());
+
     // reject options that shouldn't be supported in bitcode
     // also reject kernel/kext
     static const constexpr unsigned kBitcodeOptionBlacklist[] = {
@@ -4354,7 +4352,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fno-autolink");
 
   // Add in -fdebug-compilation-dir if necessary.
-  addDebugCompDirArg(Args, CmdArgs);
+  addDebugCompDirArg(Args, CmdArgs, D.getVFS());
 
   addDebugPrefixMapArg(D, Args, CmdArgs);
 
@@ -5215,30 +5213,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       isa<CompileJobAction>(JA))
     CmdArgs.push_back("-disable-llvm-passes");
 
-  if (Output.getType() == types::TY_Dependencies) {
-    // Handled with other dependency code.
-  } else if (Output.isFilename()) {
-    CmdArgs.push_back("-o");
-    CmdArgs.push_back(Output.getFilename());
-  } else {
-    assert(Output.isNothing() && "Invalid output.");
-  }
-
-  addDashXForInput(Args, Input, CmdArgs);
-
-  ArrayRef<InputInfo> FrontendInputs = Input;
-  if (IsHeaderModulePrecompile)
-    FrontendInputs = ModuleHeaderInputs;
-  else if (Input.isNothing())
-    FrontendInputs = {};
-
-  for (const InputInfo &Input : FrontendInputs) {
-    if (Input.isFilename())
-      CmdArgs.push_back(Input.getFilename());
-    else
-      Input.getInputArg().renderAsInput(Args, CmdArgs);
-  }
-
   Args.AddAllArgs(CmdArgs, options::OPT_undef);
 
   const char *Exec = D.getClangProgramPath();
@@ -5435,6 +5409,40 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       !TC.getTriple().isAndroid() &&
                        TC.useIntegratedAs()))
     CmdArgs.push_back("-faddrsig");
+
+  if (Arg *A = Args.getLastArg(options::OPT_fsymbol_partition_EQ)) {
+    std::string Str = A->getAsString(Args);
+    if (!TC.getTriple().isOSBinFormatELF())
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << Str << TC.getTripleString();
+    CmdArgs.push_back(Args.MakeArgString(Str));
+  }
+
+  // Add the "-o out -x type src.c" flags last. This is done primarily to make
+  // the -cc1 command easier to edit when reproducing compiler crashes.
+  if (Output.getType() == types::TY_Dependencies) {
+    // Handled with other dependency code.
+  } else if (Output.isFilename()) {
+    CmdArgs.push_back("-o");
+    CmdArgs.push_back(Output.getFilename());
+  } else {
+    assert(Output.isNothing() && "Invalid output.");
+  }
+
+  addDashXForInput(Args, Input, CmdArgs);
+
+  ArrayRef<InputInfo> FrontendInputs = Input;
+  if (IsHeaderModulePrecompile)
+    FrontendInputs = ModuleHeaderInputs;
+  else if (Input.isNothing())
+    FrontendInputs = {};
+
+  for (const InputInfo &Input : FrontendInputs) {
+    if (Input.isFilename())
+      CmdArgs.push_back(Input.getFilename());
+    else
+      Input.getInputArg().renderAsInput(Args, CmdArgs);
+  }
 
   // Finally add the compile command to the compilation.
   if (Args.hasArg(options::OPT__SLASH_fallback) &&
@@ -6063,7 +6071,7 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
     DebugInfoKind = (WantDebug ? codegenoptions::LimitedDebugInfo
                                : codegenoptions::NoDebugInfo);
     // Add the -fdebug-compilation-dir flag if needed.
-    addDebugCompDirArg(Args, CmdArgs);
+    addDebugCompDirArg(Args, CmdArgs, C.getDriver().getVFS());
 
     addDebugPrefixMapArg(getToolChain().getDriver(), Args, CmdArgs);
 

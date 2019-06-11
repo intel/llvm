@@ -125,14 +125,16 @@ struct RewriteRule {
 
 /// Convenience function for constructing a simple \c RewriteRule.
 RewriteRule makeRule(ast_matchers::internal::DynTypedMatcher M,
-                     SmallVector<ASTEdit, 1> Edits);
+                     SmallVector<ASTEdit, 1> Edits,
+                     TextGenerator Explanation = nullptr);
 
 /// Convenience overload of \c makeRule for common case of only one edit.
 inline RewriteRule makeRule(ast_matchers::internal::DynTypedMatcher M,
-                            ASTEdit Edit) {
+                            ASTEdit Edit,
+                            TextGenerator Explanation = nullptr) {
   SmallVector<ASTEdit, 1> Edits;
   Edits.emplace_back(std::move(Edit));
-  return makeRule(std::move(M), std::move(Edits));
+  return makeRule(std::move(M), std::move(Edits), std::move(Explanation));
 }
 
 /// Applies the first rule whose pattern matches; other rules are ignored.
@@ -189,6 +191,23 @@ ASTEdit change(RangeSelector Target, TextGenerator Replacement);
 /// \endcode
 inline ASTEdit change(TextGenerator Replacement) {
   return change(node(RewriteRule::RootID), std::move(Replacement));
+}
+
+/// Inserts \p Replacement before \p S, leaving the source selected by \S
+/// unchanged.
+inline ASTEdit insertBefore(RangeSelector S, TextGenerator Replacement) {
+  return change(before(std::move(S)), std::move(Replacement));
+}
+
+/// Inserts \p Replacement after \p S, leaving the source selected by \S
+/// unchanged.
+inline ASTEdit insertAfter(RangeSelector S, TextGenerator Replacement) {
+  return change(after(std::move(S)), std::move(Replacement));
+}
+
+/// Removes the source selected by \p S.
+inline ASTEdit remove(RangeSelector S) {
+  return change(std::move(S), text(""));
 }
 
 /// The following three functions are a low-level part of the RewriteRule

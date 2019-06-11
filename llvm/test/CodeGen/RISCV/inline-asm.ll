@@ -6,7 +6,7 @@
 
 @gi = external global i32
 
-define i32 @constraint_r(i32 %a) {
+define i32 @constraint_r(i32 %a) nounwind {
 ; RV32I-LABEL: constraint_r:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    lui a1, %hi(gi)
@@ -29,7 +29,7 @@ define i32 @constraint_r(i32 %a) {
   ret i32 %2
 }
 
-define i32 @constraint_i(i32 %a) {
+define i32 @constraint_i(i32 %a) nounwind {
 ; RV32I-LABEL: constraint_i:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    #APP
@@ -48,7 +48,7 @@ define i32 @constraint_i(i32 %a) {
   ret i32 %2
 }
 
-define void @constraint_m(i32* %a) {
+define void @constraint_m(i32* %a) nounwind {
 ; RV32I-LABEL: constraint_m:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    #APP
@@ -64,7 +64,7 @@ define void @constraint_m(i32* %a) {
   ret void
 }
 
-define i32 @constraint_m2(i32* %a) {
+define i32 @constraint_m2(i32* %a) nounwind {
 ; RV32I-LABEL: constraint_m2:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    #APP
@@ -80,6 +80,74 @@ define i32 @constraint_m2(i32* %a) {
 ; RV64I-NEXT:    ret
   %1 = tail call i32 asm "lw $0, $1", "=r,*m"(i32* %a) nounwind
   ret i32 %1
+}
+
+define void @constraint_I() {
+; RV32I-LABEL: constraint_I:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    #APP
+; RV32I-NEXT:    addi a0, a0, 2047
+; RV32I-NEXT:    #NO_APP
+; RV32I-NEXT:    #APP
+; RV32I-NEXT:    addi a0, a0, -2048
+; RV32I-NEXT:    #NO_APP
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: constraint_I:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    #APP
+; RV64I-NEXT:    addi a0, a0, 2047
+; RV64I-NEXT:    #NO_APP
+; RV64I-NEXT:    #APP
+; RV64I-NEXT:    addi a0, a0, -2048
+; RV64I-NEXT:    #NO_APP
+; RV64I-NEXT:    ret
+  tail call void asm sideeffect "addi a0, a0, $0", "I"(i32 2047)
+  tail call void asm sideeffect "addi a0, a0, $0", "I"(i32 -2048)
+  ret void
+}
+
+define void @constraint_J() {
+; RV32I-LABEL: constraint_J:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    #APP
+; RV32I-NEXT:    addi a0, a0, 0
+; RV32I-NEXT:    #NO_APP
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: constraint_J:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    #APP
+; RV64I-NEXT:    addi a0, a0, 0
+; RV64I-NEXT:    #NO_APP
+; RV64I-NEXT:    ret
+  tail call void asm sideeffect "addi a0, a0, $0", "J"(i32 0)
+  ret void
+}
+
+define void @constraint_K() {
+; RV32I-LABEL: constraint_K:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    #APP
+; RV32I-NEXT:    csrwi mstatus, 31
+; RV32I-NEXT:    #NO_APP
+; RV32I-NEXT:    #APP
+; RV32I-NEXT:    csrwi mstatus, 0
+; RV32I-NEXT:    #NO_APP
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: constraint_K:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    #APP
+; RV64I-NEXT:    csrwi mstatus, 31
+; RV64I-NEXT:    #NO_APP
+; RV64I-NEXT:    #APP
+; RV64I-NEXT:    csrwi mstatus, 0
+; RV64I-NEXT:    #NO_APP
+; RV64I-NEXT:    ret
+  tail call void asm sideeffect "csrwi mstatus, $0", "K"(i32 31)
+  tail call void asm sideeffect "csrwi mstatus, $0", "K"(i32 0)
+  ret void
 }
 
 ; TODO: expend tests for more complex constraints, out of range immediates etc

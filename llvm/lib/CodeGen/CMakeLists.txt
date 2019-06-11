@@ -33,6 +33,7 @@ add_llvm_library(LLVMCodeGen
   GCRootLowering.cpp
   GCStrategy.cpp
   GlobalMerge.cpp
+  HardwareLoops.cpp
   IfConversion.cpp
   ImplicitNullChecks.cpp
   IndirectBrExpandPass.cpp
@@ -143,6 +144,8 @@ add_llvm_library(LLVMCodeGen
   StackMaps.cpp
   StackProtector.cpp
   StackSlotColoring.cpp
+  SwiftErrorValueTracking.cpp
+  SwitchLoweringUtils.cpp
   TailDuplication.cpp
   TailDuplicator.cpp
   TargetFrameLoweringImpl.cpp

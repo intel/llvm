@@ -528,6 +528,7 @@ int main(int argc, char **argv) {
   initializeExpandReductionsPass(Registry);
   initializeWasmEHPreparePass(Registry);
   initializeWriteBitcodePassPass(Registry);
+  initializeHardwareLoopsPass(Registry);
 
 #ifdef LINK_POLLY_INTO_TOOLS
   polly::initializePollyPasses(Registry);
@@ -563,7 +564,8 @@ int main(int argc, char **argv) {
       return 1;
     }
     Context.setRemarkStreamer(llvm::make_unique<RemarkStreamer>(
-        RemarksFilename, OptRemarkFile->os()));
+        RemarksFilename,
+        llvm::make_unique<remarks::YAMLSerializer>(OptRemarkFile->os())));
 
     if (!RemarksPasses.empty())
       if (Error E = Context.getRemarkStreamer()->setFilter(RemarksPasses)) {

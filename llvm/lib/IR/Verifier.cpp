@@ -1629,6 +1629,11 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
          "'noinline and alwaysinline' are incompatible!",
          V);
 
+  if (Attrs.hasAttribute(Attribute::ByVal) && Attrs.getByValType()) {
+    Assert(Attrs.getByValType() == cast<PointerType>(Ty)->getElementType(),
+           "Attribute 'byval' type does not match parameter!");
+  }
+
   AttrBuilder IncompatibleAttrs = AttributeFuncs::typeIncompatible(Ty);
   Assert(!AttrBuilder(Attrs).overlaps(IncompatibleAttrs),
          "Wrong types for attribute: " +
@@ -4622,7 +4627,9 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     break;
   }
   case Intrinsic::lround:
-  case Intrinsic::llround: {
+  case Intrinsic::llround:
+  case Intrinsic::lrint:
+  case Intrinsic::llrint: {
     Type *ValTy = Call.getArgOperand(0)->getType();
     Type *ResultTy = Call.getType();
     Assert(!ValTy->isVectorTy() && !ResultTy->isVectorTy(),

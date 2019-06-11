@@ -36,7 +36,7 @@ AppleThreadPlanStepThroughObjCTrampoline::
                  eVoteNoOpinion),
       m_trampoline_handler(trampoline_handler),
       m_args_addr(LLDB_INVALID_ADDRESS), m_input_values(input_values),
-      m_isa_addr(isa_addr), m_sel_addr(sel_addr), m_impl_function(NULL),
+      m_isa_addr(isa_addr), m_sel_addr(sel_addr), m_impl_function(nullptr),
       m_stop_others(stop_others) {}
 
 // Destructor
@@ -171,8 +171,8 @@ bool AppleThreadPlanStepThroughObjCTrampoline::ShouldStop(Event *event_ptr) {
                   target_addr);
 
     ObjCLanguageRuntime *objc_runtime =
-        GetThread().GetProcess()->GetObjCLanguageRuntime();
-    assert(objc_runtime != NULL);
+        ObjCLanguageRuntime::Get(*GetThread().GetProcess());
+    assert(objc_runtime != nullptr);
     objc_runtime->AddToMethodCache(m_isa_addr, m_sel_addr, target_addr);
     if (log)
       log->Printf("Adding {isa-addr=0x%" PRIx64 ", sel-addr=0x%" PRIx64

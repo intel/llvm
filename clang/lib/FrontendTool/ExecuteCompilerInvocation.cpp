@@ -116,6 +116,8 @@ CreateFrontendBaseAction(CompilerInstance &CI) {
   case RunAnalysis:            Action = "RunAnalysis"; break;
 #endif
   case RunPreprocessorOnly:    return llvm::make_unique<PreprocessOnlyAction>();
+  case PrintDependencyDirectivesSourceMinimizerOutput:
+    return llvm::make_unique<PrintDependencyDirectivesSourceMinimizerAction>();
   }
 
 #if !CLANG_ENABLE_ARCMT || !CLANG_ENABLE_STATIC_ANALYZER \
@@ -238,12 +240,24 @@ bool ExecuteCompilerInvocation(CompilerInstance *Clang) {
 
   AnalyzerOptions &AnOpts = *Clang->getAnalyzerOpts();
   // Honor -analyzer-checker-help and -analyzer-checker-help-hidden.
-  if (AnOpts.ShowCheckerHelp || AnOpts.ShowCheckerHelpHidden) {
+  if (AnOpts.ShowCheckerHelp || AnOpts.ShowCheckerHelpAlpha ||
+      AnOpts.ShowCheckerHelpDeveloper) {
     ento::printCheckerHelp(llvm::outs(),
                            Clang->getFrontendOpts().Plugins,
                            AnOpts,
                            Clang->getDiagnostics(),
                            Clang->getLangOpts());
+    return true;
+  }
+
+  // Honor -analyzer-checker-option-help.
+  if (AnOpts.ShowCheckerOptionList || AnOpts.ShowCheckerOptionAlphaList ||
+      AnOpts.ShowCheckerOptionDeveloperList) {
+    ento::printCheckerConfigList(llvm::outs(),
+                                 Clang->getFrontendOpts().Plugins,
+                                 *Clang->getAnalyzerOpts(),
+                                 Clang->getDiagnostics(),
+                                 Clang->getLangOpts());
     return true;
   }
 

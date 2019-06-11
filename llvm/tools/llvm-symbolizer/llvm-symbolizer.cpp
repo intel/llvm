@@ -224,8 +224,7 @@ static void symbolizeInput(StringRef InputString, LLVMSymbolizer &Symbolizer,
     Printer << (error(ResOrErr) ? DIGlobal() : ResOrErr.get());
   } else if (ClPrintInlining) {
     auto ResOrErr = Symbolizer.symbolizeInlinedCode(
-        ModuleName, {Offset, object::SectionedAddress::UndefSection},
-        ClDwpName);
+        ModuleName, {Offset, object::SectionedAddress::UndefSection});
     Printer << (error(ResOrErr) ? DIInliningInfo() : ResOrErr.get());
   } else if (ClOutputStyle == DIPrinter::OutputStyle::GNU) {
     // With ClPrintFunctions == FunctionNameKind::LinkageName (default)
@@ -235,18 +234,15 @@ static void symbolizeInput(StringRef InputString, LLVMSymbolizer &Symbolizer,
     // behavior of addr2line. Symbolizer.symbolizeInlinedCode() overrides only
     // the topmost function, which suits our needs better.
     auto ResOrErr = Symbolizer.symbolizeInlinedCode(
-        ModuleName, {Offset, object::SectionedAddress::UndefSection},
-        ClDwpName);
+        ModuleName, {Offset, object::SectionedAddress::UndefSection});
     Printer << (error(ResOrErr) ? DILineInfo() : ResOrErr.get().getFrame(0));
   } else {
     auto ResOrErr = Symbolizer.symbolizeCode(
-        ModuleName, {Offset, object::SectionedAddress::UndefSection},
-        ClDwpName);
+        ModuleName, {Offset, object::SectionedAddress::UndefSection});
     Printer << (error(ResOrErr) ? DILineInfo() : ResOrErr.get());
   }
   if (ClOutputStyle == DIPrinter::OutputStyle::LLVM)
     outs() << "\n";
-  outs().flush();
 }
 
 int main(int argc, char **argv) {
@@ -269,9 +265,14 @@ int main(int argc, char **argv) {
   if (ClNoDemangle.getPosition() > ClDemangle.getPosition())
     ClDemangle = !ClNoDemangle;
 
-  LLVMSymbolizer::Options Opts(ClPrintFunctions, ClUseSymbolTable, ClDemangle,
-                               ClUseRelativeAddress, ClDefaultArch,
-                               ClFallbackDebugPath);
+  LLVMSymbolizer::Options Opts;
+  Opts.PrintFunctions = ClPrintFunctions;
+  Opts.UseSymbolTable = ClUseSymbolTable;
+  Opts.Demangle = ClDemangle;
+  Opts.RelativeAddresses = ClUseRelativeAddress;
+  Opts.DefaultArch = ClDefaultArch;
+  Opts.FallbackDebugPath = ClFallbackDebugPath;
+  Opts.DWPName = ClDwpName;
 
   for (const auto &hint : ClDsymHint) {
     if (sys::path::extension(hint) == ".dSYM") {
@@ -291,8 +292,10 @@ int main(int argc, char **argv) {
     const int kMaxInputStringLength = 1024;
     char InputString[kMaxInputStringLength];
 
-    while (fgets(InputString, sizeof(InputString), stdin))
+    while (fgets(InputString, sizeof(InputString), stdin)) {
       symbolizeInput(InputString, Symbolizer, Printer);
+      outs().flush();
+    }
   } else {
     for (StringRef Address : ClInputAddresses)
       symbolizeInput(Address, Symbolizer, Printer);

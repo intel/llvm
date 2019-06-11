@@ -193,6 +193,9 @@ public:
   /// for preRA scheduling with the source level scheduler.
   virtual bool enableMachineSchedDefaultSched() const { return true; }
 
+  /// True if the subtarget should run MachinePipeliner
+  virtual bool enableMachinePipeliner() const { return true; };
+
   /// True if the subtarget should enable joining global copies.
   ///
   /// By default this is enabled if the machine scheduler is enabled, but
@@ -245,6 +248,10 @@ public:
   virtual void getSMSMutations(
       std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations) const {
   }
+
+  /// Default to DFA for resource management, return false when target will use
+  /// ProcResource in InstrSchedModel instead.
+  virtual bool useDFAforSMS() const { return true; }
 
   // For use with PostRAScheduling: get the minimum optimization level needed
   // to enable post-RA scheduling.

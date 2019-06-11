@@ -14,6 +14,7 @@
 #include "ClangdUnit.h"
 #include "CodeComplete.h"
 #include "FSProvider.h"
+#include "FormattedString.h"
 #include "Function.h"
 #include "GlobalCompilationDatabase.h"
 #include "Protocol.h"
@@ -87,8 +88,7 @@ public:
     /// opened files and uses the index to augment code completion results.
     bool BuildDynamicSymbolIndex = false;
     /// Use a heavier and faster in-memory index implementation.
-    /// FIXME: we should make this true if it isn't too slow to build!.
-    bool HeavyweightDynamicSymbolIndex = false;
+    bool HeavyweightDynamicSymbolIndex = true;
     /// If true, ClangdServer automatically indexes files in the current project
     /// on background threads. The index is stored in the project root.
     bool BackgroundIndex = false;
@@ -186,7 +186,7 @@ public:
 
   /// Get code hover for a given position.
   void findHover(PathRef File, Position Pos,
-                 Callback<llvm::Optional<Hover>> CB);
+                 Callback<llvm::Optional<HoverInfo>> CB);
 
   /// Get information about type hierarchy for a given position.
   void typeHierarchy(PathRef File, Position Pos, int Resolve,
@@ -213,10 +213,11 @@ public:
   llvm::Expected<tooling::Replacements> formatFile(StringRef Code,
                                                    PathRef File);
 
-  /// Run formatting after a character was typed at \p Pos in \p File with
+  /// Run formatting after \p TriggerText was typed at \p Pos in \p File with
   /// content \p Code.
-  llvm::Expected<tooling::Replacements>
-  formatOnType(StringRef Code, PathRef File, Position Pos);
+  llvm::Expected<std::vector<TextEdit>> formatOnType(StringRef Code,
+                                                     PathRef File, Position Pos,
+                                                     StringRef TriggerText);
 
   /// Rename all occurrences of the symbol at the \p Pos in \p File to
   /// \p NewName.

@@ -288,9 +288,8 @@ PPC64::PPC64() {
   PltRel = R_PPC64_JMP_SLOT;
   RelativeRel = R_PPC64_RELATIVE;
   IRelativeRel = R_PPC64_IRELATIVE;
-  GotEntrySize = 8;
+  SymbolicRel = R_PPC64_ADDR64;
   PltEntrySize = 4;
-  GotPltEntrySize = 8;
   GotBaseSymInGotPlt = false;
   GotHeaderEntriesNum = 1;
   GotPltHeaderEntriesNum = 2;
@@ -447,10 +446,6 @@ void PPC64::relaxTlsLdToLe(uint8_t *Loc, RelType Type, uint64_t Val) const {
   case R_PPC64_DTPREL16_DS:
   case R_PPC64_DTPREL16_LO:
   case R_PPC64_DTPREL16_LO_DS:
-  case R_PPC64_GOT_DTPREL16_HA:
-  case R_PPC64_GOT_DTPREL16_LO_DS:
-  case R_PPC64_GOT_DTPREL16_DS:
-  case R_PPC64_GOT_DTPREL16_HI:
     relocateOne(Loc, Type, Val);
     break;
   default:
@@ -458,7 +453,7 @@ void PPC64::relaxTlsLdToLe(uint8_t *Loc, RelType Type, uint64_t Val) const {
   }
 }
 
-static unsigned getDFormOp(unsigned SecondaryOp) {
+unsigned elf::getPPCDFormOp(unsigned SecondaryOp) {
   switch (SecondaryOp) {
   case LBZX:
     return LBZ;
@@ -479,7 +474,6 @@ static unsigned getDFormOp(unsigned SecondaryOp) {
   case ADD:
     return ADDI;
   default:
-    error("unrecognized instruction for IE to LE R_PPC64_TLS");
     return 0;
   }
 }
@@ -521,7 +515,9 @@ void PPC64::relaxTlsIeToLe(uint8_t *Loc, RelType Type, uint64_t Val) const {
     if (PrimaryOp != 31)
       error("unrecognized instruction for IE to LE R_PPC64_TLS");
     uint32_t SecondaryOp = (read32(Loc) & 0x000007FE) >> 1; // bits 21-30
-    uint32_t DFormOp = getDFormOp(SecondaryOp);
+    uint32_t DFormOp = getPPCDFormOp(SecondaryOp);
+    if (DFormOp == 0)
+      error("unrecognized instruction for IE to LE R_PPC64_TLS");
     write32(Loc, ((DFormOp << 26) | (read32(Loc) & 0x03FFFFFF)));
     relocateOne(Loc + Offset, R_PPC64_TPREL16_LO, Val);
     break;
@@ -551,10 +547,10 @@ RelExpr PPC64::getRelExpr(RelType Type, const Symbol &S,
   case R_PPC64_TOC16_LO_DS:
     return Config->TocOptimize ? R_PPC64_RELAX_TOC : R_GOTREL;
   case R_PPC64_TOC:
-    return R_PPC_TOC;
+    return R_PPC64_TOCBASE;
   case R_PPC64_REL14:
   case R_PPC64_REL24:
-    return R_PPC_CALL_PLT;
+    return R_PPC64_CALL_PLT;
   case R_PPC64_REL16_LO:
   case R_PPC64_REL16_HA:
   case R_PPC64_REL32:
@@ -860,7 +856,7 @@ void PPC64::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
     write64(Loc, Val - DynamicThreadPointerOffset);
     break;
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + Twine(Type));
+    error(getErrorLocation(Loc) + "unrecognized relocation " + toString(Type));
   }
 }
 

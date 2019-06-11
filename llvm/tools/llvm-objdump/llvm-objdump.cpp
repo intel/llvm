@@ -18,6 +18,7 @@
 #include "llvm-objdump.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
@@ -375,6 +376,10 @@ void warn(StringRef Message) {
   errs().flush();
 }
 
+void warn(Twine Message) {
+  WithColor::warning(errs(), ToolName) << Message << "\n";
+}
+
 LLVM_ATTRIBUTE_NORETURN void report_error(StringRef File, Twine Message) {
   WithColor::error(errs(), ToolName)
       << "'" << File << "': " << Message << ".\n";
@@ -524,9 +529,10 @@ private:
 public:
   SourcePrinter() = default;
   SourcePrinter(const ObjectFile *Obj, StringRef DefaultArch) : Obj(Obj) {
-    symbolize::LLVMSymbolizer::Options SymbolizerOpts(
-        DILineInfoSpecifier::FunctionNameKind::None, true, false, false,
-        DefaultArch);
+    symbolize::LLVMSymbolizer::Options SymbolizerOpts;
+    SymbolizerOpts.PrintFunctions = DILineInfoSpecifier::FunctionNameKind::None;
+    SymbolizerOpts.Demangle = false;
+    SymbolizerOpts.DefaultArch = DefaultArch;
     Symbolizer.reset(new symbolize::LLVMSymbolizer(SymbolizerOpts));
   }
   virtual ~SourcePrinter() = default;
@@ -574,8 +580,9 @@ void SourcePrinter::printSourceLine(raw_ostream &OS,
   else
     LineInfo = *ExpectedLineInfo;
 
-  if ((LineInfo.FileName == "<invalid>") || OldLineInfo.Line == LineInfo.Line ||
-      LineInfo.Line == 0)
+  if ((LineInfo.FileName == "<invalid>") || LineInfo.Line == 0 ||
+      ((OldLineInfo.Line == LineInfo.Line) &&
+       (OldLineInfo.FileName == LineInfo.FileName)))
     return;
 
   if (PrintLines)
@@ -1090,12 +1097,14 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
 
   // Sort all the symbols, this allows us to use a simple binary search to find
   // a symbol near an address.
+  StringSet<> FoundDisasmFuncsSet;
   for (std::pair<const SectionRef, SectionSymbolsTy> &SecSyms : AllSymbols)
     array_pod_sort(SecSyms.second.begin(), SecSyms.second.end());
   array_pod_sort(AbsoluteSymbols.begin(), AbsoluteSymbols.end());
 
   for (const SectionRef &Section : ToolSectionFilter(*Obj)) {
-    if (!DisassembleAll && (!Section.isText() || Section.isVirtual()))
+    if (FilterSections.empty() && !DisassembleAll &&
+        (!Section.isText() || Section.isVirtual()))
       continue;
 
     uint64_t SectionAddr = Section.getAddress();
@@ -1180,6 +1189,8 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       uint64_t Start = std::get<0>(Symbols[SI]);
       if (Start < SectionAddr || StopAddress <= Start)
         continue;
+      else
+        FoundDisasmFuncsSet.insert(std::get<1>(Symbols[SI]));
 
       // The end is the section end, the beginning of the next symbol, or
       // --stop-address.
@@ -1400,11 +1411,15 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       }
     }
   }
+  StringSet<> MissingDisasmFuncsSet =
+      set_difference(DisasmFuncsSet, FoundDisasmFuncsSet);
+  for (StringRef MissingDisasmFunc : MissingDisasmFuncsSet.keys())
+    warn("failed to disassemble missing function " + MissingDisasmFunc);
 }
 
 static void disassembleObject(const ObjectFile *Obj, bool InlineRelocs) {
-  if (StartAddress > StopAddress)
-    error("Start address should be less than stop address");
+  if (StartAddress >= StopAddress)
+    error("start address should be less than stop address");
 
   const Target *TheTarget = getTarget(Obj);
 
@@ -1643,11 +1658,6 @@ void printSymbolTable(const ObjectFile *O, StringRef ArchiveName,
 
   const StringRef FileName = O->getFileName();
   for (auto I = O->symbol_begin(), E = O->symbol_end(); I != E; ++I) {
-    // Skip printing the special zero symbol when dumping an ELF file.
-    // This makes the output consistent with the GNU objdump.
-    if (I == O->symbol_begin() && isa<ELFObjectFileBase>(O))
-      continue;
-
     const SymbolRef &Symbol = *I;
     uint64_t Address = unwrapOrError(Symbol.getAddress(), ArchiveName, FileName,
                                      ArchitectureName);

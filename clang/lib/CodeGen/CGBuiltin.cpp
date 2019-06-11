@@ -1134,9 +1134,10 @@ llvm::Function *CodeGenFunction::generateBuiltinOSLogHelperFunction(
     return F;
 
   llvm::SmallVector<QualType, 4> ArgTys;
-  llvm::SmallVector<ImplicitParamDecl, 4> Params;
-  Params.emplace_back(Ctx, nullptr, SourceLocation(), &Ctx.Idents.get("buffer"),
-                      Ctx.VoidPtrTy, ImplicitParamDecl::Other);
+  FunctionArgList Args;
+  Args.push_back(ImplicitParamDecl::Create(
+      Ctx, nullptr, SourceLocation(), &Ctx.Idents.get("buffer"), Ctx.VoidPtrTy,
+      ImplicitParamDecl::Other));
   ArgTys.emplace_back(Ctx.VoidPtrTy);
 
   for (unsigned int I = 0, E = Layout.Items.size(); I < E; ++I) {
@@ -1145,16 +1146,12 @@ llvm::Function *CodeGenFunction::generateBuiltinOSLogHelperFunction(
       continue;
 
     QualType ArgTy = getOSLogArgType(Ctx, Size);
-    Params.emplace_back(
+    Args.push_back(ImplicitParamDecl::Create(
         Ctx, nullptr, SourceLocation(),
         &Ctx.Idents.get(std::string("arg") + llvm::to_string(I)), ArgTy,
-        ImplicitParamDecl::Other);
+        ImplicitParamDecl::Other));
     ArgTys.emplace_back(ArgTy);
   }
-
-  FunctionArgList Args;
-  for (auto &P : Params)
-    Args.push_back(&P);
 
   QualType ReturnTy = Ctx.VoidTy;
   QualType FuncionTy = Ctx.getFunctionType(ReturnTy, ArgTys, {});
@@ -1188,7 +1185,7 @@ llvm::Function *CodeGenFunction::generateBuiltinOSLogHelperFunction(
   auto AL = ApplyDebugLocation::CreateArtificial(*this);
 
   CharUnits Offset;
-  Address BufAddr(Builder.CreateLoad(GetAddrOfLocalVar(&Params[0]), "buf"),
+  Address BufAddr(Builder.CreateLoad(GetAddrOfLocalVar(Args[0]), "buf"),
                   BufferAlignment);
   Builder.CreateStore(Builder.getInt8(Layout.getSummaryByte()),
                       Builder.CreateConstByteGEP(BufAddr, Offset++, "summary"));
@@ -1208,7 +1205,7 @@ llvm::Function *CodeGenFunction::generateBuiltinOSLogHelperFunction(
     if (!Size.getQuantity())
       continue;
 
-    Address Arg = GetAddrOfLocalVar(&Params[I]);
+    Address Arg = GetAddrOfLocalVar(Args[I]);
     Address Addr = Builder.CreateConstByteGEP(BufAddr, Offset, "argData");
     Addr = Builder.CreateBitCast(Addr, Arg.getPointer()->getType(),
                                  "argDataCast");
@@ -1743,6 +1740,22 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     case Builtin::BI__builtin_llroundf:
     case Builtin::BI__builtin_llroundl:
       return RValue::get(emitFPToIntRoundBuiltin(*this, E, Intrinsic::llround));
+
+    case Builtin::BIlrint:
+    case Builtin::BIlrintf:
+    case Builtin::BIlrintl:
+    case Builtin::BI__builtin_lrint:
+    case Builtin::BI__builtin_lrintf:
+    case Builtin::BI__builtin_lrintl:
+      return RValue::get(emitFPToIntRoundBuiltin(*this, E, Intrinsic::lrint));
+
+    case Builtin::BIllrint:
+    case Builtin::BIllrintf:
+    case Builtin::BIllrintl:
+    case Builtin::BI__builtin_llrint:
+    case Builtin::BI__builtin_llrintf:
+    case Builtin::BI__builtin_llrintl:
+      return RValue::get(emitFPToIntRoundBuiltin(*this, E, Intrinsic::llrint));
 
     default:
       break;
@@ -3717,7 +3730,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
           Builder.CreatePointerCast(Info.BlockArg, GenericVoidPtrTy);
 
       AttrBuilder B;
-      B.addAttribute(Attribute::ByVal);
+      B.addByValAttr(NDRangeL.getAddress().getElementType());
       llvm::AttributeList ByValAttrSet =
           llvm::AttributeList::get(CGM.getModule().getContext(), 3U, B);
 
@@ -9782,6 +9795,18 @@ Value *CodeGenFunction::EmitX86CpuIs(const CallExpr *E) {
   return EmitX86CpuIs(CPUStr);
 }
 
+// Convert a BF16 to a float.
+static Value *EmitX86CvtBF16ToFloatExpr(CodeGenFunction &CGF,
+                                        const CallExpr *E,
+                                        ArrayRef<Value *> Ops) {
+  llvm::Type *Int32Ty = CGF.Builder.getInt32Ty();
+  Value *ZeroExt = CGF.Builder.CreateZExt(Ops[0], Int32Ty);
+  Value *Shl = CGF.Builder.CreateShl(ZeroExt, 16);
+  llvm::Type *ResultType = CGF.ConvertType(E->getType());
+  Value *BitCast = CGF.Builder.CreateBitCast(Shl, ResultType);
+  return BitCast;
+}
+
 Value *CodeGenFunction::EmitX86CpuIs(StringRef CPUStr) {
 
   llvm::Type *Int32Ty = Builder.getInt32Ty();
@@ -11697,6 +11722,48 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     return EmitX86MaskedCompareResult(*this, Fpclass, NumElts, MaskIn);
   }
 
+  case X86::BI__builtin_ia32_vp2intersect_q_512:
+  case X86::BI__builtin_ia32_vp2intersect_q_256:
+  case X86::BI__builtin_ia32_vp2intersect_q_128:
+  case X86::BI__builtin_ia32_vp2intersect_d_512:
+  case X86::BI__builtin_ia32_vp2intersect_d_256:
+  case X86::BI__builtin_ia32_vp2intersect_d_128: {
+    unsigned NumElts = Ops[0]->getType()->getVectorNumElements();
+    Intrinsic::ID ID;
+
+    switch (BuiltinID) {
+    default: llvm_unreachable("Unsupported intrinsic!");
+    case X86::BI__builtin_ia32_vp2intersect_q_512:
+      ID = Intrinsic::x86_avx512_vp2intersect_q_512;
+      break;
+    case X86::BI__builtin_ia32_vp2intersect_q_256:
+      ID = Intrinsic::x86_avx512_vp2intersect_q_256;
+      break;
+    case X86::BI__builtin_ia32_vp2intersect_q_128:
+      ID = Intrinsic::x86_avx512_vp2intersect_q_128;
+      break;
+    case X86::BI__builtin_ia32_vp2intersect_d_512:
+      ID = Intrinsic::x86_avx512_vp2intersect_d_512;
+      break;
+    case X86::BI__builtin_ia32_vp2intersect_d_256:
+      ID = Intrinsic::x86_avx512_vp2intersect_d_256;
+      break;
+    case X86::BI__builtin_ia32_vp2intersect_d_128:
+      ID = Intrinsic::x86_avx512_vp2intersect_d_128;
+      break;
+    }
+
+    Value *Call = Builder.CreateCall(CGM.getIntrinsic(ID), {Ops[0], Ops[1]});
+    Value *Result = Builder.CreateExtractValue(Call, 0);
+    Result = EmitX86MaskedCompareResult(*this, Result, NumElts, nullptr);
+    Value *Store = Builder.CreateDefaultAlignedStore(Result, Ops[2]);
+
+    Result = Builder.CreateExtractValue(Call, 1);
+    Result = EmitX86MaskedCompareResult(*this, Result, NumElts, nullptr);
+    Store = Builder.CreateDefaultAlignedStore(Result, Ops[3]);
+    return Store;
+  }
+
   case X86::BI__builtin_ia32_vpmultishiftqb128:
   case X86::BI__builtin_ia32_vpmultishiftqb256:
   case X86::BI__builtin_ia32_vpmultishiftqb512: {
@@ -11886,6 +11953,8 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     Intrinsic::ID IID = Intrinsic::x86_avx512bf16_mask_cvtneps2bf16_128;
     return Builder.CreateCall(CGM.getIntrinsic(IID), Ops);
   }
+  case X86::BI__builtin_ia32_cvtsbf162ss_32:
+    return EmitX86CvtBF16ToFloatExpr(*this, E, Ops);
 
   case X86::BI__builtin_ia32_cvtneps2bf16_256_mask:
   case X86::BI__builtin_ia32_cvtneps2bf16_512_mask: {

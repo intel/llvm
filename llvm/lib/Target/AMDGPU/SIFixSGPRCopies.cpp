@@ -678,6 +678,7 @@ bool SIFixSGPRCopies::runOnMachineFunction(MachineFunction &MF) {
           LLVM_DEBUG(dbgs() << "Fixing PHI: " << MI);
           TII->moveToVALU(MI, MDT);
         }
+
         break;
       }
       case AMDGPU::REG_SEQUENCE:

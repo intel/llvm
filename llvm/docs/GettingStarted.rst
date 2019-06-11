@@ -128,8 +128,8 @@ FreeBSD            x86\ :sup:`1`         GCC, Clang
 FreeBSD            amd64                 GCC, Clang
 NetBSD             x86\ :sup:`1`         GCC, Clang
 NetBSD             amd64                 GCC, Clang
-MacOS X\ :sup:`2`  PowerPC               GCC
-MacOS X            x86                   GCC, Clang
+macOS\ :sup:`2`    PowerPC               GCC
+macOS              x86                   GCC, Clang
 Cygwin/Win32       x86\ :sup:`1, 3`      GCC
 Windows            x86\ :sup:`1`         Visual Studio
 Windows x64        x86-64                Visual Studio
@@ -272,7 +272,7 @@ newer version of Gold.
 Getting a Modern Host C++ Toolchain
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This section mostly applies to Linux and older BSDs. On Mac OS X, you should
+This section mostly applies to Linux and older BSDs. On macOS, you should
 have a sufficiently modern Xcode, or you will likely need to upgrade until you
 do. Windows does not have a "system compiler", so you must install either Visual
 Studio 2015 or a recent version of mingw64. FreeBSD 10.0 and newer have a modern
@@ -525,6 +525,26 @@ through all the steps of committing _without_ actually doing the commit, and
 tell you what it would have done. That can be useful if you're unsure whether
 the right thing will happen.
 
+Reverting a change when using Git
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you're using Git and need to revert a patch, Git needs to be supplied a
+commit hash, not an svn revision. To make things easier, you can use
+``git llvm revert`` to revert with either an SVN revision or a Git hash instead.
+
+Additionally, you can first run with ``git llvm revert -n`` to print which Git
+commands will run, without doing anything.
+
+Running ``git llvm revert`` will only revert things in your local repository. To
+push the revert upstream, you still need to run ``git llvm push`` as described
+earlier.
+
+.. code-block:: console
+
+  % git llvm revert rNNNNNN       # Revert by SVN id
+  % git llvm revert abcdef123456  # Revert by Git commit hash
+  % git llvm revert -n rNNNNNN    # Print the commands without doing anything
+
 Checkout via SVN (deprecated)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -711,7 +731,7 @@ define compiler flags and variables used during the CMake test operations.
 
 The result of such a build is executables that are not runnable on the build
 host but can be executed on the target. As an example the following CMake
-invocation can generate build files targeting iOS. This will work on Mac OS X
+invocation can generate build files targeting iOS. This will work on macOS
 with the latest Xcode:
 
 .. code-block:: console

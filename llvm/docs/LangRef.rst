@@ -1014,7 +1014,7 @@ Currently, only the following parameter attributes are defined:
     opposed to memory, though some targets use it to distinguish between
     two different kinds of registers). Use of this attribute is
     target-specific.
-``byval``
+``byval`` or ``byval(<ty>)``
     This indicates that the pointer parameter should really be passed by
     value to the function. The attribute implies that a hidden copy of
     the pointee is made between the caller and the callee, so the callee
@@ -1025,6 +1025,9 @@ Currently, only the following parameter attributes are defined:
     callee (for example, ``readonly`` functions should not write to
     ``byval`` parameters). This is not a valid attribute for return
     values.
+
+    The byval attribute also supports an optional type argument, which must be
+    the same as the pointee type of the argument.
 
     The byval attribute also supports specifying an alignment with the
     align attribute. It indicates the alignment of the stack slot to
@@ -10006,12 +10009,16 @@ This instruction requires several arguments:
       recursive cycle in the call graph.
    #. Arguments with the :ref:`inalloca <attr_inalloca>` attribute are
       forwarded in place.
+   #. If the musttail call appears in a function with the ``"thunk"`` attribute
+      and the caller and callee both have varargs, than any unprototyped
+      arguments in register or memory are forwarded to the callee. Similarly,
+      the return value of the callee is returned the the caller's caller, even
+      if a void return type is in use.
 
    Both markers imply that the callee does not access allocas from the caller.
    The ``tail`` marker additionally implies that the callee does not access
-   varargs from the caller, while ``musttail`` implies that varargs from the
-   caller are passed to the callee. Calls marked ``musttail`` must obey the
-   following additional  rules:
+   varargs from the caller. Calls marked ``musttail`` must obey the following
+   additional  rules:
 
    - The call must immediately precede a :ref:`ret <i_ret>` instruction,
      or a pointer bitcast followed by a ret instruction.
@@ -12445,6 +12452,80 @@ Semantics:
 This function returns the same values as the libm ``llround``
 functions would, but without setting errno.
 
+'``llvm.lrint.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.lrint`` on any
+floating-point type. Not all targets support all types however.
+
+::
+
+      declare i32 @llvm.lrint.i32.f32(float %Val)
+      declare i32 @llvm.lrint.i32.f64(double %Val)
+      declare i32 @llvm.lrint.i32.f80(float %Val)
+      declare i32 @llvm.lrint.i32.f128(double %Val)
+      declare i32 @llvm.lrint.i32.ppcf128(double %Val)
+
+      declare i64 @llvm.lrint.i64.f32(float %Val)
+      declare i64 @llvm.lrint.i64.f64(double %Val)
+      declare i64 @llvm.lrint.i64.f80(float %Val)
+      declare i64 @llvm.lrint.i64.f128(double %Val)
+      declare i64 @llvm.lrint.i64.ppcf128(double %Val)
+
+Overview:
+"""""""""
+
+The '``llvm.lrint.*``' intrinsics returns the operand rounded to the
+nearest integer.
+
+Arguments:
+""""""""""
+
+The argument is a floating-point number and return is an integer type.
+
+Semantics:
+""""""""""
+
+This function returns the same values as the libm ``lrint``
+functions would, but without setting errno.
+
+'``llvm.llrint.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.llrint`` on any
+floating-point type. Not all targets support all types however.
+
+::
+
+      declare i64 @llvm.llrint.i64.f32(float %Val)
+      declare i64 @llvm.llrint.i64.f64(double %Val)
+      declare i64 @llvm.llrint.i64.f80(float %Val)
+      declare i64 @llvm.llrint.i64.f128(double %Val)
+      declare i64 @llvm.llrint.i64.ppcf128(double %Val)
+
+Overview:
+"""""""""
+
+The '``llvm.llrint.*``' intrinsics returns the operand rounded to the
+nearest integer.
+
+Arguments:
+""""""""""
+
+The argument is a floating-point number and return is an integer type.
+
+Semantics:
+""""""""""
+
+This function returns the same values as the libm ``llrint``
+functions would, but without setting errno.
+
 Bit Manipulation Intrinsics
 ---------------------------
 
@@ -13652,46 +13733,43 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.fadd.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.experimental.vector.reduce.v2.fadd.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare float @llvm.experimental.vector.reduce.fadd.f32.v4f32(float %acc, <4 x float> %a)
-      declare double @llvm.experimental.vector.reduce.fadd.f64.v2f64(double %acc, <2 x double> %a)
+      declare float @llvm.experimental.vector.reduce.v2.fadd.f32.v4f32(float %start_value, <4 x float> %a)
+      declare double @llvm.experimental.vector.reduce.v2.fadd.f64.v2f64(double %start_value, <2 x double> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.fadd.*``' intrinsics do a floating-point
+The '``llvm.experimental.vector.reduce.v2.fadd.*``' intrinsics do a floating-point
 ``ADD`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
-If the intrinsic call has fast-math flags, then the reduction will not preserve
-the associativity of an equivalent scalarized counterpart. If it does not have
-fast-math flags, then the reduction will be *ordered*, implying that the
-operation respects the associativity of a scalarized reduction.
+If the intrinsic call has the 'reassoc' or 'fast' flags set, then the
+reduction will not preserve the associativity of an equivalent scalarized
+counterpart. Otherwise the reduction will be *ordered*, thus implying that
+the operation respects the associativity of a scalarized reduction.
 
 
 Arguments:
 """"""""""
-The first argument to this intrinsic is a scalar accumulator value, which is
-only used when there are no fast-math flags attached. This argument may be undef
-when fast-math flags are used. The type of the accumulator matches the
-element-type of the vector input.
-
+The first argument to this intrinsic is a scalar start value for the reduction.
+The type of the start value matches the element-type of the vector input.
 The second argument must be a vector of floating-point values.
 
 Examples:
 """""""""
 
-.. code-block:: llvm
+::
 
-      %fast = call fast float @llvm.experimental.vector.reduce.fadd.f32.v4f32(float undef, <4 x float> %input) ; fast reduction
-      %ord = call float @llvm.experimental.vector.reduce.fadd.f32.v4f32(float %acc, <4 x float> %input) ; ordered reduction
+      %unord = call reassoc float @llvm.experimental.vector.reduce.v2.fadd.f32.v4f32(float 0.0, <4 x float> %input) ; unordered reduction
+      %ord = call float @llvm.experimental.vector.reduce.v2.fadd.f32.v4f32(float %start_value, <4 x float> %input) ; ordered reduction
 
 
 '``llvm.experimental.vector.reduce.mul.*``' Intrinsic
@@ -13716,46 +13794,43 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of integer values.
 
-'``llvm.experimental.vector.reduce.fmul.*``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.experimental.vector.reduce.v2.fmul.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare float @llvm.experimental.vector.reduce.fmul.f32.v4f32(float %acc, <4 x float> %a)
-      declare double @llvm.experimental.vector.reduce.fmul.f64.v2f64(double %acc, <2 x double> %a)
+      declare float @llvm.experimental.vector.reduce.v2.fmul.f32.v4f32(float %start_value, <4 x float> %a)
+      declare double @llvm.experimental.vector.reduce.v2.fmul.f64.v2f64(double %start_value, <2 x double> %a)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.reduce.fmul.*``' intrinsics do a floating-point
+The '``llvm.experimental.vector.reduce.v2.fmul.*``' intrinsics do a floating-point
 ``MUL`` reduction of a vector, returning the result as a scalar. The return type
 matches the element-type of the vector input.
 
-If the intrinsic call has fast-math flags, then the reduction will not preserve
-the associativity of an equivalent scalarized counterpart. If it does not have
-fast-math flags, then the reduction will be *ordered*, implying that the
-operation respects the associativity of a scalarized reduction.
+If the intrinsic call has the 'reassoc' or 'fast' flags set, then the
+reduction will not preserve the associativity of an equivalent scalarized
+counterpart. Otherwise the reduction will be *ordered*, thus implying that
+the operation respects the associativity of a scalarized reduction.
 
 
 Arguments:
 """"""""""
-The first argument to this intrinsic is a scalar accumulator value, which is
-only used when there are no fast-math flags attached. This argument may be undef
-when fast-math flags are used. The type of the accumulator matches the
-element-type of the vector input.
-
+The first argument to this intrinsic is a scalar start value for the reduction.
+The type of the start value matches the element-type of the vector input.
 The second argument must be a vector of floating-point values.
 
 Examples:
 """""""""
 
-.. code-block:: llvm
+::
 
-      %fast = call fast float @llvm.experimental.vector.reduce.fmul.f32.v4f32(float undef, <4 x float> %input) ; fast reduction
-      %ord = call float @llvm.experimental.vector.reduce.fmul.f32.v4f32(float %acc, <4 x float> %input) ; ordered reduction
+      %unord = call reassoc float @llvm.experimental.vector.reduce.v2.fmul.f32.v4f32(float 1.0, <4 x float> %input) ; unordered reduction
+      %ord = call float @llvm.experimental.vector.reduce.v2.fmul.f32.v4f32(float %start_value, <4 x float> %input) ; ordered reduction
 
 '``llvm.experimental.vector.reduce.and.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

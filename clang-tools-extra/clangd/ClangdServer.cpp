@@ -10,11 +10,14 @@
 #include "ClangdUnit.h"
 #include "CodeComplete.h"
 #include "FindSymbols.h"
+#include "Format.h"
+#include "FormattedString.h"
 #include "Headers.h"
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "TUScheduler.h"
 #include "Trace.h"
+#include "XRefs.h"
 #include "index/CanonicalIncludes.h"
 #include "index/FileIndex.h"
 #include "index/Merge.h"
@@ -248,20 +251,23 @@ ClangdServer::formatFile(llvm::StringRef Code, PathRef File) {
   return formatCode(Code, File, {tooling::Range(0, Code.size())});
 }
 
-llvm::Expected<tooling::Replacements>
-ClangdServer::formatOnType(llvm::StringRef Code, PathRef File, Position Pos) {
-  // Look for the previous opening brace from the character position and
-  // format starting from there.
+llvm::Expected<std::vector<TextEdit>>
+ClangdServer::formatOnType(llvm::StringRef Code, PathRef File, Position Pos,
+                           StringRef TriggerText) {
   llvm::Expected<size_t> CursorPos = positionToOffset(Code, Pos);
   if (!CursorPos)
     return CursorPos.takeError();
-  size_t PreviousLBracePos =
-      llvm::StringRef(Code).find_last_of('{', *CursorPos);
-  if (PreviousLBracePos == llvm::StringRef::npos)
-    PreviousLBracePos = *CursorPos;
-  size_t Len = *CursorPos - PreviousLBracePos;
+  auto FS = FSProvider.getFileSystem();
+  auto Style = format::getStyle(format::DefaultFormatStyle, File,
+                                format::DefaultFallbackStyle, Code, FS.get());
+  if (!Style)
+    return Style.takeError();
 
-  return formatCode(Code, File, {tooling::Range(PreviousLBracePos, Len)});
+  std::vector<TextEdit> Result;
+  for (const tooling::Replacement &R :
+       formatIncremental(Code, *CursorPos, TriggerText, *Style))
+    Result.push_back(replacementToEdit(Code, R));
+  return Result;
 }
 
 void ClangdServer::rename(PathRef File, Position Pos, llvm::StringRef NewName,
@@ -461,15 +467,18 @@ void ClangdServer::findDocumentHighlights(
 }
 
 void ClangdServer::findHover(PathRef File, Position Pos,
-                             Callback<llvm::Optional<Hover>> CB) {
-  auto Action = [Pos](Callback<llvm::Optional<Hover>> CB,
+                             Callback<llvm::Optional<HoverInfo>> CB) {
+  auto Action = [Pos](decltype(CB) CB, Path File,
                       llvm::Expected<InputsAndAST> InpAST) {
     if (!InpAST)
       return CB(InpAST.takeError());
-    CB(clangd::getHover(InpAST->AST, Pos));
+    format::FormatStyle Style = getFormatStyleForFile(
+        File, InpAST->Inputs.Contents, InpAST->Inputs.FS.get());
+    CB(clangd::getHover(InpAST->AST, Pos, std::move(Style)));
   };
 
-  WorkScheduler.runWithAST("Hover", File, Bind(Action, std::move(CB)));
+  WorkScheduler.runWithAST("Hover", File,
+                           Bind(Action, std::move(CB), File.str()));
 }
 
 void ClangdServer::typeHierarchy(PathRef File, Position Pos, int Resolve,

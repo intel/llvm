@@ -1372,6 +1372,48 @@ public:
     return Insert(BinaryOperator::CreateNot(V), Name);
   }
 
+  /// Copy fast-math-flags from an instruction rather than using the builder's
+  /// default FMF.
+  Value *CreateFNegFMF(Value *V, Instruction *FMFSource,
+                       const Twine &Name = "") {
+   if (auto *VC = dyn_cast<Constant>(V))
+     return Insert(Folder.CreateFNeg(VC), Name);
+   // TODO: This should return UnaryOperator::CreateFNeg(...) once we are
+   // confident that they are optimized sufficiently.
+   return Insert(setFPAttrs(BinaryOperator::CreateFNeg(V), nullptr,
+                            FMFSource->getFastMathFlags()),
+                 Name);
+  }
+
+  Value *CreateUnOp(Instruction::UnaryOps Opc,
+                    Value *V, const Twine &Name = "",
+                    MDNode *FPMathTag = nullptr) {
+    if (auto *VC = dyn_cast<Constant>(V))
+      return Insert(Folder.CreateUnOp(Opc, VC), Name);
+    Instruction *UnOp = UnaryOperator::Create(Opc, V);
+    if (isa<FPMathOperator>(UnOp))
+      UnOp = setFPAttrs(UnOp, FPMathTag, FMF);
+    return Insert(UnOp, Name);
+  }
+
+  /// Create either a UnaryOperator or BinaryOperator depending on \p Opc.
+  /// Correct number of operands must be passed accordingly.
+  Value *CreateNAryOp(unsigned Opc, ArrayRef<Value *> Ops,
+                      const Twine &Name = "",
+                      MDNode *FPMathTag = nullptr) {
+    if (Instruction::isBinaryOp(Opc)) {
+      assert(Ops.size() == 2 && "Invalid number of operands!");
+      return CreateBinOp(static_cast<Instruction::BinaryOps>(Opc),
+                         Ops[0], Ops[1], Name, FPMathTag);
+    }
+    if (Instruction::isUnaryOp(Opc)) {
+      assert(Ops.size() == 1 && "Invalid number of operands!");
+      return CreateUnOp(static_cast<Instruction::UnaryOps>(Opc),
+                        Ops[0], Name, FPMathTag);
+    }
+    llvm_unreachable("Unexpected opcode!");
+  }
+
   //===--------------------------------------------------------------------===//
   // Instruction creation methods: Memory Instructions
   //===--------------------------------------------------------------------===//

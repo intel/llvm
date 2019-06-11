@@ -93,12 +93,6 @@ static cl::opt<bool> EnableVGPRIndexMode(
   cl::desc("Use GPR indexing mode instead of movrel for vector indexing"),
   cl::init(false));
 
-static cl::opt<unsigned> AssumeFrameIndexHighZeroBits(
-  "amdgpu-frame-index-zero-bits",
-  cl::desc("High bits of frame index assumed to be zero"),
-  cl::init(5),
-  cl::ReallyHidden);
-
 static cl::opt<bool> DisableLoopAlignment(
   "amdgpu-disable-loop-alignment",
   cl::desc("Do not align and prefetch loops"),
@@ -1267,8 +1261,8 @@ bool SITargetLowering::isMemOpHasNoClobberedMemOperand(const SDNode *N) const {
   return I && I->getMetadata("amdgpu.noclobber");
 }
 
-bool SITargetLowering::isCheapAddrSpaceCast(unsigned SrcAS,
-                                            unsigned DestAS) const {
+bool SITargetLowering::isFreeAddrSpaceCast(unsigned SrcAS,
+                                           unsigned DestAS) const {
   // Flat -> private/local is a simple truncate.
   // Flat -> global is no-op
   if (SrcAS == AMDGPUAS::FLAT_ADDRESS)
@@ -1776,6 +1770,7 @@ static void reservePrivateMemoryRegs(const TargetMachine &TM,
   // should reserve the arguments and use them directly.
   MachineFrameInfo &MFI = MF.getFrameInfo();
   bool HasStackObjects = MFI.hasStackObjects();
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
 
   // Record that we know we have non-spill stack objects so we don't need to
   // check all stack objects later.
@@ -1791,65 +1786,85 @@ static void reservePrivateMemoryRegs(const TargetMachine &TM,
   // the scratch registers to pass in.
   bool RequiresStackAccess = HasStackObjects || MFI.hasCalls();
 
-  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
-  if (ST.isAmdHsaOrMesa(MF.getFunction())) {
-    if (RequiresStackAccess) {
-      // If we have stack objects, we unquestionably need the private buffer
-      // resource. For the Code Object V2 ABI, this will be the first 4 user
-      // SGPR inputs. We can reserve those and use them directly.
+  if (RequiresStackAccess && ST.isAmdHsaOrMesa(MF.getFunction())) {
+    // If we have stack objects, we unquestionably need the private buffer
+    // resource. For the Code Object V2 ABI, this will be the first 4 user
+    // SGPR inputs. We can reserve those and use them directly.
 
-      unsigned PrivateSegmentBufferReg = Info.getPreloadedReg(
-        AMDGPUFunctionArgInfo::PRIVATE_SEGMENT_BUFFER);
-      Info.setScratchRSrcReg(PrivateSegmentBufferReg);
-
-      if (MFI.hasCalls()) {
-        // If we have calls, we need to keep the frame register in a register
-        // that won't be clobbered by a call, so ensure it is copied somewhere.
-
-        // This is not a problem for the scratch wave offset, because the same
-        // registers are reserved in all functions.
-
-        // FIXME: Nothing is really ensuring this is a call preserved register,
-        // it's just selected from the end so it happens to be.
-        unsigned ReservedOffsetReg
-          = TRI.reservedPrivateSegmentWaveByteOffsetReg(MF);
-        Info.setScratchWaveOffsetReg(ReservedOffsetReg);
-      } else {
-        unsigned PrivateSegmentWaveByteOffsetReg = Info.getPreloadedReg(
-          AMDGPUFunctionArgInfo::PRIVATE_SEGMENT_WAVE_BYTE_OFFSET);
-        Info.setScratchWaveOffsetReg(PrivateSegmentWaveByteOffsetReg);
-      }
-    } else {
-      unsigned ReservedBufferReg
-        = TRI.reservedPrivateSegmentBufferReg(MF);
-      unsigned ReservedOffsetReg
-        = TRI.reservedPrivateSegmentWaveByteOffsetReg(MF);
-
-      // We tentatively reserve the last registers (skipping the last two
-      // which may contain VCC). After register allocation, we'll replace
-      // these with the ones immediately after those which were really
-      // allocated. In the prologue copies will be inserted from the argument
-      // to these reserved registers.
-      Info.setScratchRSrcReg(ReservedBufferReg);
-      Info.setScratchWaveOffsetReg(ReservedOffsetReg);
-    }
+    unsigned PrivateSegmentBufferReg =
+        Info.getPreloadedReg(AMDGPUFunctionArgInfo::PRIVATE_SEGMENT_BUFFER);
+    Info.setScratchRSrcReg(PrivateSegmentBufferReg);
   } else {
     unsigned ReservedBufferReg = TRI.reservedPrivateSegmentBufferReg(MF);
+    // We tentatively reserve the last registers (skipping the last registers
+    // which may contain VCC, FLAT_SCR, and XNACK). After register allocation,
+    // we'll replace these with the ones immediately after those which were
+    // really allocated. In the prologue copies will be inserted from the
+    // argument to these reserved registers.
 
     // Without HSA, relocations are used for the scratch pointer and the
     // buffer resource setup is always inserted in the prologue. Scratch wave
     // offset is still in an input SGPR.
     Info.setScratchRSrcReg(ReservedBufferReg);
+  }
 
-    if (HasStackObjects && !MFI.hasCalls()) {
-      unsigned ScratchWaveOffsetReg = Info.getPreloadedReg(
-        AMDGPUFunctionArgInfo::PRIVATE_SEGMENT_WAVE_BYTE_OFFSET);
-      Info.setScratchWaveOffsetReg(ScratchWaveOffsetReg);
+  // This should be accurate for kernels even before the frame is finalized.
+  const bool HasFP = ST.getFrameLowering()->hasFP(MF);
+  if (HasFP) {
+    unsigned ReservedOffsetReg =
+        TRI.reservedPrivateSegmentWaveByteOffsetReg(MF);
+    MachineRegisterInfo &MRI = MF.getRegInfo();
+
+    // Try to use s32 as the SP, but move it if it would interfere with input
+    // arguments. This won't work with calls though.
+    //
+    // FIXME: Move SP to avoid any possible inputs, or find a way to spill input
+    // registers.
+    if (!MRI.isLiveIn(AMDGPU::SGPR32)) {
+      Info.setStackPtrOffsetReg(AMDGPU::SGPR32);
     } else {
-      unsigned ReservedOffsetReg
-        = TRI.reservedPrivateSegmentWaveByteOffsetReg(MF);
-      Info.setScratchWaveOffsetReg(ReservedOffsetReg);
+      assert(AMDGPU::isShader(MF.getFunction().getCallingConv()));
+
+      if (MFI.hasCalls())
+        report_fatal_error("call in graphics shader with too many input SGPRs");
+
+      for (unsigned Reg : AMDGPU::SGPR_32RegClass) {
+        if (!MRI.isLiveIn(Reg)) {
+          Info.setStackPtrOffsetReg(Reg);
+          break;
+        }
+      }
+
+      if (Info.getStackPtrOffsetReg() == AMDGPU::SP_REG)
+        report_fatal_error("failed to find register for SP");
     }
+
+    Info.setScratchWaveOffsetReg(ReservedOffsetReg);
+    Info.setFrameOffsetReg(ReservedOffsetReg);
+  } else if (RequiresStackAccess) {
+    assert(!MFI.hasCalls());
+    // We know there are accesses and they will be done relative to SP, so just
+    // pin it to the input.
+    //
+    // FIXME: Should not do this if inline asm is reading/writing these
+    // registers.
+    unsigned PreloadedSP = Info.getPreloadedReg(
+        AMDGPUFunctionArgInfo::PRIVATE_SEGMENT_WAVE_BYTE_OFFSET);
+
+    Info.setStackPtrOffsetReg(PreloadedSP);
+    Info.setScratchWaveOffsetReg(PreloadedSP);
+    Info.setFrameOffsetReg(PreloadedSP);
+  } else {
+    assert(!MFI.hasCalls());
+
+    // There may not be stack access at all. There may still be spills, or
+    // access of a constant pointer (in which cases an extra copy will be
+    // emitted in the prolog).
+    unsigned ReservedOffsetReg
+      = TRI.reservedPrivateSegmentWaveByteOffsetReg(MF);
+    Info.setStackPtrOffsetReg(ReservedOffsetReg);
+    Info.setScratchWaveOffsetReg(ReservedOffsetReg);
+    Info.setFrameOffsetReg(ReservedOffsetReg);
   }
 }
 
@@ -1924,12 +1939,6 @@ SDValue SITargetLowering::LowerFormalArguments(
   bool IsShader = AMDGPU::isShader(CallConv);
   bool IsKernel = AMDGPU::isKernel(CallConv);
   bool IsEntryFunc = AMDGPU::isEntryFunctionCC(CallConv);
-
-  if (!IsEntryFunc) {
-    // 4 bytes are reserved at offset 0 for the emergency stack slot. Skip over
-    // this when allocating argument fixed offsets.
-    CCInfo.AllocateStack(4, 4);
-  }
 
   if (IsShader) {
     processShaderInputArgs(Splits, CallConv, Ins, Skipped, FType, Info);
@@ -2059,13 +2068,14 @@ SDValue SITargetLowering::LowerFormalArguments(
     Reg = MF.addLiveIn(Reg, RC);
     SDValue Val = DAG.getCopyFromReg(Chain, DL, Reg, VT);
 
-    if (Arg.Flags.isSRet() && !getSubtarget()->enableHugePrivateBuffer()) {
+    if (Arg.Flags.isSRet()) {
       // The return object should be reasonably addressable.
 
       // FIXME: This helps when the return is a real sret. If it is a
       // automatically inserted sret (i.e. CanLowerReturn returns false), an
       // extra copy is inserted in SelectionDAGBuilder which obscures this.
-      unsigned NumBits = 32 - AssumeFrameIndexHighZeroBits;
+      unsigned NumBits
+        = 32 - getSubtarget()->getKnownHighZeroBitsForFrameIndex();
       Val = DAG.getNode(ISD::AssertZext, DL, VT, Val,
         DAG.getValueType(EVT::getIntegerVT(*DAG.getContext(), NumBits)));
     }
@@ -2535,7 +2545,6 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
                           "unsupported call from graphics shader of function ");
   }
 
-  // The first 4 bytes are reserved for the callee's emergency stack slot.
   if (IsTailCall) {
     IsTailCall = isEligibleForTailCallOptimization(
       Callee, CallConv, IsVarArg, Outs, OutVals, Ins, DAG);
@@ -2561,9 +2570,6 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
   CCAssignFn *AssignFn = CCAssignFnForCall(CallConv, IsVarArg);
-
-  // The first 4 bytes are reserved for the callee's emergency stack slot.
-  CCInfo.AllocateStack(4, 4);
 
   CCInfo.AnalyzeCallOperands(Outs, AssignFn);
 
@@ -3700,6 +3706,7 @@ SDValue SITargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
   default: return AMDGPUTargetLowering::LowerOperation(Op, DAG);
   case ISD::BRCOND: return LowerBRCOND(Op, DAG);
+  case ISD::RETURNADDR: return LowerRETURNADDR(Op, DAG);
   case ISD::LOAD: {
     SDValue Result = LowerLOAD(Op, DAG);
     assert((!Result.getNode() ||
@@ -4156,6 +4163,31 @@ SDValue SITargetLowering::LowerBRCOND(SDValue BRCOND,
     Intr->getOperand(0));
 
   return Chain;
+}
+
+SDValue SITargetLowering::LowerRETURNADDR(SDValue Op,
+                                          SelectionDAG &DAG) const {
+  MVT VT = Op.getSimpleValueType();
+  SDLoc DL(Op);
+  // Checking the depth
+  if (cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue() != 0)
+    return DAG.getConstant(0, DL, VT);
+
+  MachineFunction &MF = DAG.getMachineFunction();
+  const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
+  // Check for kernel and shader functions
+  if (Info->isEntryFunction())
+    return DAG.getConstant(0, DL, VT);
+
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  // There is a call to @llvm.returnaddress in this function
+  MFI.setReturnAddressIsTaken(true);
+
+  const SIRegisterInfo *TRI = getSubtarget()->getRegisterInfo();
+  // Get the return address reg and mark it as an implicit live-in
+  unsigned Reg = MF.addLiveIn(TRI->getReturnAddressReg(MF), getRegClassFor(VT, Op.getNode()->isDivergent()));
+
+  return DAG.getCopyFromReg(DAG.getEntryNode(), DL, Reg, VT);
 }
 
 SDValue SITargetLowering::getFPExtOrFPTrunc(SelectionDAG &DAG,
@@ -4831,6 +4863,8 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
   const AMDGPU::MIMGDimInfo *DimInfo = AMDGPU::getMIMGDimInfo(Intr->Dim);
   const AMDGPU::MIMGLZMappingInfo *LZMappingInfo =
       AMDGPU::getMIMGLZMappingInfo(Intr->BaseOpcode);
+  const AMDGPU::MIMGMIPMappingInfo *MIPMappingInfo =
+      AMDGPU::getMIMGMIPMappingInfo(Intr->BaseOpcode);
   unsigned IntrOpcode = Intr->BaseOpcode;
   bool IsGFX10 = Subtarget->getGeneration() >= AMDGPUSubtarget::GFX10;
 
@@ -4929,6 +4963,17 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
          dyn_cast<ConstantFPSDNode>(Op.getOperand(AddrIdx+NumVAddrs-1))) {
       if (ConstantLod->isZero() || ConstantLod->isNegative()) {
         IntrOpcode = LZMappingInfo->LZ;  // set new opcode to _lz variant of _l
+        NumMIVAddrs--;               // remove 'lod'
+      }
+    }
+  }
+
+  // Optimize _mip away, when 'lod' is zero
+  if (MIPMappingInfo) {
+    if (auto ConstantLod =
+         dyn_cast<ConstantSDNode>(Op.getOperand(AddrIdx+NumVAddrs-1))) {
+      if (ConstantLod->isNullValue()) {
+        IntrOpcode = MIPMappingInfo->NONMIP;  // set new opcode to variant without _mip
         NumMIVAddrs--;               // remove 'lod'
       }
     }
@@ -6724,14 +6769,15 @@ SDValue SITargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   assert(Op.getValueType().getVectorElementType() == MVT::i32 &&
          "Custom lowering for non-i32 vectors hasn't been implemented.");
 
-  unsigned Alignment = Load->getAlignment();
-  unsigned AS = Load->getAddressSpace();
   if (!allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), MemVT,
-                          AS, Alignment)) {
+                          *Load->getMemOperand())) {
     SDValue Ops[2];
     std::tie(Ops[0], Ops[1]) = expandUnalignedLoad(Load, DAG);
     return DAG.getMergeValues(Ops, DL);
   }
+
+  unsigned Alignment = Load->getAlignment();
+  unsigned AS = Load->getAddressSpace();
   if (Subtarget->hasLDSMisalignedBug() &&
       AS == AMDGPUAS::FLAT_ADDRESS &&
       Alignment < MemVT.getStoreSize() && MemVT.getSizeInBits() > 32) {
@@ -7192,12 +7238,12 @@ SDValue SITargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
   assert(VT.isVector() &&
          Store->getValue().getValueType().getScalarType() == MVT::i32);
 
-  unsigned AS = Store->getAddressSpace();
   if (!allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), VT,
-                          AS, Store->getAlignment())) {
+                          *Store->getMemOperand())) {
     return expandUnalignedStore(Store, DAG);
   }
 
+  unsigned AS = Store->getAddressSpace();
   if (Subtarget->hasLDSMisalignedBug() &&
       AS == AMDGPUAS::FLAT_ADDRESS &&
       Store->getAlignment() < VT.getStoreSize() && VT.getSizeInBits() > 32) {
@@ -9642,7 +9688,8 @@ SDNode *SITargetLowering::PostISelFolding(MachineSDNode *Node,
       break;
 
     MVT VT = Src0.getValueType().getSimpleVT();
-    const TargetRegisterClass *RC = getRegClassFor(VT);
+    const TargetRegisterClass *RC =
+        getRegClassFor(VT, Src0.getNode()->isDivergent());
 
     MachineRegisterInfo &MRI = DAG.getMachineFunction().getRegInfo();
     SDValue UndefReg = DAG.getRegister(MRI.createVirtualRegister(RC), VT);
@@ -9917,7 +9964,6 @@ SITargetLowering::getConstraintType(StringRef Constraint) const {
 void SITargetLowering::finalizeLowering(MachineFunction &MF) const {
   MachineRegisterInfo &MRI = MF.getRegInfo();
   SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
   const SIRegisterInfo *TRI = Subtarget->getRegisterInfo();
 
   if (Info->isEntryFunction()) {
@@ -9925,24 +9971,10 @@ void SITargetLowering::finalizeLowering(MachineFunction &MF) const {
     reservePrivateMemoryRegs(getTargetMachine(), MF, *TRI, *Info);
   }
 
-  // We have to assume the SP is needed in case there are calls in the function
-  // during lowering. Calls are only detected after the function is
-  // lowered. We're about to reserve registers, so don't bother using it if we
-  // aren't really going to use it.
-  bool NeedSP = !Info->isEntryFunction() ||
-    MFI.hasVarSizedObjects() ||
-    MFI.hasCalls();
-
-  if (NeedSP) {
-    unsigned ReservedStackPtrOffsetReg = TRI->reservedStackPtrOffsetReg(MF);
-    Info->setStackPtrOffsetReg(ReservedStackPtrOffsetReg);
-
-    assert(Info->getStackPtrOffsetReg() != Info->getFrameOffsetReg());
-    assert(!TRI->isSubRegister(Info->getScratchRSrcReg(),
-                               Info->getStackPtrOffsetReg()));
-    if (Info->getStackPtrOffsetReg() != AMDGPU::SP_REG)
-      MRI.replaceRegWith(AMDGPU::SP_REG, Info->getStackPtrOffsetReg());
-  }
+  assert(!TRI->isSubRegister(Info->getScratchRSrcReg(),
+                             Info->getStackPtrOffsetReg()));
+  if (Info->getStackPtrOffsetReg() != AMDGPU::SP_REG)
+    MRI.replaceRegWith(AMDGPU::SP_REG, Info->getStackPtrOffsetReg());
 
   // We need to worry about replacing the default register with itself in case
   // of MIR testcases missing the MFI.
@@ -9970,14 +10002,10 @@ void SITargetLowering::computeKnownBitsForFrameIndex(const SDValue Op,
   TargetLowering::computeKnownBitsForFrameIndex(Op, Known, DemandedElts,
                                                 DAG, Depth);
 
-  if (getSubtarget()->enableHugePrivateBuffer())
-    return;
-
-  // Technically it may be possible to have a dispatch with a single workitem
-  // that uses the full private memory size, but that's not really useful. We
-  // can't use vaddr in MUBUF instructions if we don't know the address
+  // Set the high bits to zero based on the maximum allowed scratch size per
+  // wave. We can't use vaddr in MUBUF instructions if we don't know the address
   // calculation won't overflow, so assume the sign bit is never set.
-  Known.Zero.setHighBits(AssumeFrameIndexHighZeroBits);
+  Known.Zero.setHighBits(getSubtarget()->getKnownHighZeroBitsForFrameIndex());
 }
 
 unsigned SITargetLowering::getPrefLoopAlignment(MachineLoop *ML) const {

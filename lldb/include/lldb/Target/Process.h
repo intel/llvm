@@ -670,8 +670,8 @@ public:
   // The default action is to return an empty data buffer.
   //
   // \return
-  //    A data buffer containing the contents of the AUXV data.
-  virtual const lldb::DataBufferSP GetAuxvData();
+  //    A data extractor containing the contents of the AUXV data.
+  virtual DataExtractor GetAuxvData();
 
   /// Sometimes processes know how to retrieve and load shared libraries. This
   /// is normally done by DynamicLoader plug-ins, but sometimes the connection
@@ -2178,13 +2178,11 @@ public:
 
   OperatingSystem *GetOperatingSystem() { return m_os_up.get(); }
 
-  virtual LanguageRuntime *GetLanguageRuntime(lldb::LanguageType language,
-                                              bool retry_if_null = true);
+  std::vector<LanguageRuntime *>
+  GetLanguageRuntimes(bool retry_if_null = true);
 
-  virtual CPPLanguageRuntime *GetCPPLanguageRuntime(bool retry_if_null = true);
-
-  virtual ObjCLanguageRuntime *
-  GetObjCLanguageRuntime(bool retry_if_null = true);
+  LanguageRuntime *GetLanguageRuntime(lldb::LanguageType language,
+                                      bool retry_if_null = true);
 
   bool IsPossibleDynamicValue(ValueObject &in_value);
 

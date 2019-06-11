@@ -82,7 +82,7 @@ protected:
   MainLoop::ReadHandleUP m_stdio_handle_up;
 
   lldb::StateType m_inferior_prev_state = lldb::StateType::eStateInvalid;
-  std::unique_ptr<llvm::MemoryBuffer> m_active_auxv_buffer_up;
+  llvm::StringMap<std::unique_ptr<llvm::MemoryBuffer>> m_xfer_buffer_map;
   std::mutex m_saved_registers_mutex;
   std::unordered_map<uint32_t, lldb::DataBufferSP> m_saved_registers_map;
   uint32_t m_next_saved_registers_id = 1;
@@ -150,7 +150,7 @@ protected:
 
   PacketResult Handle_s(StringExtractorGDBRemote &packet);
 
-  PacketResult Handle_qXfer_auxv_read(StringExtractorGDBRemote &packet);
+  PacketResult Handle_qXfer(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_QSaveRegisterState(StringExtractorGDBRemote &packet);
 
@@ -178,6 +178,8 @@ protected:
 
   PacketResult Handle_QPassSignals(StringExtractorGDBRemote &packet);
 
+  PacketResult Handle_g(StringExtractorGDBRemote &packet);
+
   void SetCurrentThreadID(lldb::tid_t tid);
 
   lldb::tid_t GetCurrentThreadID() const;
@@ -190,6 +192,9 @@ protected:
 
   FileSpec FindModuleFile(const std::string &module_path,
                           const ArchSpec &arch) override;
+
+  llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
+  ReadXferObject(llvm::StringRef object, llvm::StringRef annex);
 
 private:
   void HandleInferiorState_Exited(NativeProcessProtocol *process);

@@ -512,15 +512,15 @@ ClangExpressionParser::ClangExpressionParser(
   }
 
   if (process_sp && lang_opts.ObjC) {
-    if (process_sp->GetObjCLanguageRuntime()) {
-      if (process_sp->GetObjCLanguageRuntime()->GetRuntimeVersion() ==
+    if (auto *runtime = ObjCLanguageRuntime::Get(*process_sp)) {
+      if (runtime->GetRuntimeVersion() ==
           ObjCLanguageRuntime::ObjCRuntimeVersions::eAppleObjC_V2)
         lang_opts.ObjCRuntime.set(ObjCRuntime::MacOSX, VersionTuple(10, 7));
       else
         lang_opts.ObjCRuntime.set(ObjCRuntime::FragileMacOSX,
                                   VersionTuple(10, 7));
 
-      if (process_sp->GetObjCLanguageRuntime()->HasNewLiteralsAndIndexing())
+      if (runtime->HasNewLiteralsAndIndexing())
         lang_opts.DebuggerObjCLiteral = true;
     }
   }
@@ -1229,7 +1229,7 @@ lldb_private::Status ClangExpressionParser::PrepareForExecution(
       type_system_helper->DeclMap(); // result can be NULL
 
   if (decl_map) {
-    Stream *error_stream = NULL;
+    Stream *error_stream = nullptr;
     Target *target = exe_ctx.GetTargetPtr();
     error_stream = target->GetDebugger().GetErrorFile().get();
 

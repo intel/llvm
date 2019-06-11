@@ -2395,7 +2395,8 @@ public:
 
   /// Retrieves the default calling convention for the current target.
   CallingConv getDefaultCallingConvention(bool IsVariadic,
-                                          bool IsCXXMethod) const;
+                                          bool IsCXXMethod,
+                                          bool IsBuiltin = false) const;
 
   /// Retrieves the "canonical" template name that refers to a
   /// given template.
@@ -2896,7 +2897,6 @@ private:
   V(IsStructField, 4)                                                          \
   V(EncodeBlockParameters, 5)                                                  \
   V(EncodeClassNames, 6)                                                       \
-  V(EncodePointerToObjCTypedef, 7)
 
 #define V(N,I) ObjCEncOptions& set##N() { Bits |= 1 << I; return *this; }
 OPT_LIST(V)
@@ -2915,8 +2915,7 @@ OPT_LIST(V)
     LLVM_NODISCARD ObjCEncOptions forComponentType() const {
       ObjCEncOptions Mask = ObjCEncOptions()
                                 .setIsOutermostType()
-                                .setIsStructField()
-                                .setEncodePointerToObjCTypedef();
+                                .setIsStructField();
       return Bits & ~Mask.Bits;
     }
   };

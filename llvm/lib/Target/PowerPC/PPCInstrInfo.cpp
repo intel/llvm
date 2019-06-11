@@ -341,6 +341,8 @@ bool PPCInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
   case PPC::V_SETALLONESB:
   case PPC::V_SETALLONESH:
   case PPC::V_SETALLONES:
+  case PPC::CRSET:
+  case PPC::CRUNSET:
     return true;
   }
   return false;
@@ -1651,6 +1653,7 @@ bool PPCInstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, unsigned SrcReg,
   if (OpC == PPC::FCMPUS || OpC == PPC::FCMPUD)
     return false;
 
+  const TargetRegisterInfo *TRI = &getRegisterInfo();
   // The record forms set the condition register based on a signed comparison
   // with zero (so says the ISA manual). This is not as straightforward as it
   // seems, however, because this is always a 64-bit comparison on PPC64, even
@@ -1663,6 +1666,11 @@ bool PPCInstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, unsigned SrcReg,
   bool is32BitSignedCompare   = OpC ==  PPC::CMPWI || OpC == PPC::CMPW;
   bool is32BitUnsignedCompare = OpC == PPC::CMPLWI || OpC == PPC::CMPLW;
   bool is64BitUnsignedCompare = OpC == PPC::CMPLDI || OpC == PPC::CMPLD;
+
+  // Look through copies unless that gets us to a physical register.
+  unsigned ActualSrc = TRI->lookThruCopyLike(SrcReg, MRI);
+  if (TargetRegisterInfo::isVirtualRegister(ActualSrc))
+    SrcReg = ActualSrc;
 
   // Get the unique definition of SrcReg.
   MachineInstr *MI = MRI->getUniqueVRegDef(SrcReg);
@@ -1792,7 +1800,6 @@ bool PPCInstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, unsigned SrcReg,
   }
 
   // Search for Sub.
-  const TargetRegisterInfo *TRI = &getRegisterInfo();
   --I;
 
   // Get ready to iterate backward from CmpInstr.
@@ -2011,7 +2018,7 @@ bool PPCInstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, unsigned SrcReg,
 unsigned PPCInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   unsigned Opcode = MI.getOpcode();
 
-  if (Opcode == PPC::INLINEASM) {
+  if (Opcode == PPC::INLINEASM || Opcode == PPC::INLINEASM_BR) {
     const MachineFunction *MF = MI.getParent()->getParent();
     const char *AsmStr = MI.getOperand(0).getSymbolName();
     return getInlineAsmLength(AsmStr, *MF->getTarget().getMCAsmInfo());
@@ -3915,3 +3922,77 @@ PPCInstrInfo::isSignOrZeroExtended(const MachineInstr &MI, bool SignExt,
   }
   return false;
 }
+
+bool PPCInstrInfo::isBDNZ(unsigned Opcode) const {
+  return (Opcode == (Subtarget.isPPC64() ? PPC::BDNZ8 : PPC::BDNZ));
+}
+
+bool PPCInstrInfo::analyzeLoop(MachineLoop &L, MachineInstr *&IndVarInst,
+                               MachineInstr *&CmpInst) const {
+  MachineBasicBlock *LoopEnd = L.getBottomBlock();
+  MachineBasicBlock::iterator I = LoopEnd->getFirstTerminator();
+  // We really "analyze" only CTR loops right now.
+  if (I != LoopEnd->end() && isBDNZ(I->getOpcode())) {
+    IndVarInst = nullptr;
+    CmpInst = &*I;
+    return false;
+  }
+  return true;
+}
+
+MachineInstr *
+PPCInstrInfo::findLoopInstr(MachineBasicBlock &PreHeader) const {
+
+  unsigned LOOPi = (Subtarget.isPPC64() ? PPC::MTCTR8loop : PPC::MTCTRloop);
+
+  // The loop set-up instruction should be in preheader
+  for (auto &I : PreHeader.instrs())
+    if (I.getOpcode() == LOOPi)
+      return &I;
+  return nullptr;
+}
+
+unsigned PPCInstrInfo::reduceLoopCount(
+    MachineBasicBlock &MBB, MachineBasicBlock &PreHeader, MachineInstr *IndVar,
+    MachineInstr &Cmp, SmallVectorImpl<MachineOperand> &Cond,
+    SmallVectorImpl<MachineInstr *> &PrevInsts, unsigned Iter,
+    unsigned MaxIter) const {
+  // We expect a hardware loop currently. This means that IndVar is set
+  // to null, and the compare is the ENDLOOP instruction.
+  assert((!IndVar) && isBDNZ(Cmp.getOpcode()) && "Expecting a CTR loop");
+  MachineFunction *MF = MBB.getParent();
+  DebugLoc DL = Cmp.getDebugLoc();
+  MachineInstr *Loop = findLoopInstr(PreHeader);
+  if (!Loop)
+    return 0;
+  unsigned LoopCountReg = Loop->getOperand(0).getReg();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  MachineInstr *LoopCount = MRI.getUniqueVRegDef(LoopCountReg);
+
+  if (!LoopCount)
+    return 0;
+  // If the loop trip count is a compile-time value, then just change the
+  // value.
+  if (LoopCount->getOpcode() == PPC::LI8 || LoopCount->getOpcode() == PPC::LI) {
+    int64_t Offset = LoopCount->getOperand(1).getImm();
+    if (Offset <= 1) {
+      LoopCount->eraseFromParent();
+      Loop->eraseFromParent();
+      return 0;
+    }
+    LoopCount->getOperand(1).setImm(Offset - 1);
+    return Offset - 1;
+  }
+
+  // The loop trip count is a run-time value.
+  // We need to subtract one from the trip count,
+  // and insert branch later to check if we're done with the loop.
+
+  // Since BDZ/BDZ8 that we will insert will also decrease the ctr by 1,
+  // so we don't need to generate any thing here.
+  Cond.push_back(MachineOperand::CreateImm(0));
+  Cond.push_back(MachineOperand::CreateReg(
+      Subtarget.isPPC64() ? PPC::CTR8 : PPC::CTR, true));
+  return LoopCountReg;
+}
+

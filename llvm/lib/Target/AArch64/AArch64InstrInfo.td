@@ -3083,6 +3083,14 @@ defm : FPToIntegerPats<fp_to_uint, ftrunc, "FCVTZU">;
 defm : FPToIntegerPats<fp_to_sint, fround, "FCVTAS">;
 defm : FPToIntegerPats<fp_to_uint, fround, "FCVTAU">;
 
+let Predicates = [HasFullFP16] in {
+  def : Pat<(i32 (lround f16:$Rn)),
+            (!cast<Instruction>(FCVTASUWHr) f16:$Rn)>;
+  def : Pat<(i64 (lround f16:$Rn)),
+            (!cast<Instruction>(FCVTASUXHr) f16:$Rn)>;
+  def : Pat<(i64 (llround f16:$Rn)),
+            (!cast<Instruction>(FCVTASUXHr) f16:$Rn)>;
+}
 def : Pat<(i32 (lround f32:$Rn)),
           (!cast<Instruction>(FCVTASUWSr) f32:$Rn)>;
 def : Pat<(i32 (lround f64:$Rn)),
@@ -3159,6 +3167,27 @@ let Predicates = [HasFRInt3264] in {
   defm FRINT32X : FRIntNNT<0b01, "frint32x">;
   defm FRINT64X : FRIntNNT<0b11, "frint64x">;
 } // HasFRInt3264
+
+let Predicates = [HasFullFP16] in {
+  def : Pat<(i32 (lrint f16:$Rn)),
+            (FCVTZSUWHr (!cast<Instruction>(FRINTXHr) f16:$Rn))>;
+  def : Pat<(i64 (lrint f16:$Rn)),
+            (FCVTZSUXHr (!cast<Instruction>(FRINTXHr) f16:$Rn))>;
+  def : Pat<(i64 (llrint f16:$Rn)),
+            (FCVTZSUXHr (!cast<Instruction>(FRINTXHr) f16:$Rn))>;
+}
+def : Pat<(i32 (lrint f32:$Rn)),
+          (FCVTZSUWSr (!cast<Instruction>(FRINTXSr) f32:$Rn))>;
+def : Pat<(i32 (lrint f64:$Rn)),
+          (FCVTZSUWDr (!cast<Instruction>(FRINTXDr) f64:$Rn))>;
+def : Pat<(i64 (lrint f32:$Rn)),
+          (FCVTZSUXSr (!cast<Instruction>(FRINTXSr) f32:$Rn))>;
+def : Pat<(i64 (lrint f64:$Rn)),
+          (FCVTZSUXDr (!cast<Instruction>(FRINTXDr) f64:$Rn))>;
+def : Pat<(i64 (llrint f32:$Rn)),
+          (FCVTZSUXSr (!cast<Instruction>(FRINTXSr) f32:$Rn))>;
+def : Pat<(i64 (llrint f64:$Rn)),
+          (FCVTZSUXDr (!cast<Instruction>(FRINTXDr) f64:$Rn))>;
 
 //===----------------------------------------------------------------------===//
 // Floating point two operand instructions.
@@ -6203,6 +6232,7 @@ def : Pat<(v4i16 (AArch64NvCast (v2f32 FPR64:$src))), (v4i16 FPR64:$src)>;
 def : Pat<(v2i32 (AArch64NvCast (v2f32 FPR64:$src))), (v2i32 FPR64:$src)>;
 def : Pat<(v2f32 (AArch64NvCast (v2f32 FPR64:$src))), (v2f32 FPR64:$src)>;
 def : Pat<(v1i64 (AArch64NvCast (v2f32 FPR64:$src))), (v1i64 FPR64:$src)>;
+def : Pat<(v1f64 (AArch64NvCast (v2f32 FPR64:$src))), (v1f64 FPR64:$src)>;
 
 // Natural vector casts (128 bit)
 def : Pat<(v16i8 (AArch64NvCast (v4i32 FPR128:$src))), (v16i8 FPR128:$src)>;

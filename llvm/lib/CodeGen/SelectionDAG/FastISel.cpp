@@ -1204,9 +1204,11 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
     if (Arg.IsByVal || Arg.IsInAlloca) {
       PointerType *Ty = cast<PointerType>(Arg.Ty);
       Type *ElementTy = Ty->getElementType();
-      unsigned FrameSize = DL.getTypeAllocSize(ElementTy);
-      // For ByVal, alignment should come from FE. BE will guess if this info is
-      // not there, but there are cases it cannot get right.
+      unsigned FrameSize =
+          DL.getTypeAllocSize(Arg.ByValType ? Arg.ByValType : ElementTy);
+
+      // For ByVal, alignment should come from FE. BE will guess if this info
+      // is not there, but there are cases it cannot get right.
       unsigned FrameAlign = Arg.Alignment;
       if (!FrameAlign)
         FrameAlign = TLI.getByValTypeAlignment(ElementTy, DL);
@@ -1875,6 +1877,13 @@ bool FastISel::selectOperator(const User *I, unsigned Opcode) {
     return false;
 
   case Instruction::Call:
+    // On AIX, call lowering uses the DAG-ISEL path currently so that the
+    // callee of the direct function call instruction will be mapped to the
+    // symbol for the function's entry point, which is distinct from the
+    // function descriptor symbol. The latter is the symbol whose XCOFF symbol
+    // name is the C-linkage name of the source level function.
+    if (TM.getTargetTriple().isOSAIX())
+      return false;
     return selectCall(I);
 
   case Instruction::BitCast:

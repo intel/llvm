@@ -95,12 +95,11 @@ public:
   RelType PltRel;
   RelType RelativeRel;
   RelType IRelativeRel;
+  RelType SymbolicRel;
   RelType TlsDescRel;
   RelType TlsGotRel;
   RelType TlsModuleIndexRel;
   RelType TlsOffsetRel;
-  unsigned GotEntrySize = 0;
-  unsigned GotPltEntrySize = 0;
   unsigned PltEntrySize;
   unsigned PltHeaderSize;
 
@@ -164,8 +163,11 @@ static inline std::string getErrorLocation(const uint8_t *Loc) {
   return getErrorPlace(Loc).Loc;
 }
 
+void writePPC32GlinkSection(uint8_t *Buf, size_t NumEntries);
+
 bool tryRelaxPPC64TocIndirection(RelType Type, const Relocation &Rel,
                                  uint8_t *BufLoc);
+unsigned getPPCDFormOp(unsigned SecondaryOp);
 
 // In the PowerPC64 Elf V2 abi a function can have 2 entry points.  The first
 // is a global entry point (GEP) which typically is used to initialize the TOC

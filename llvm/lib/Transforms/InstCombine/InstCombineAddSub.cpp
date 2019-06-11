@@ -872,7 +872,14 @@ Instruction *InstCombiner::foldAddWithConstant(BinaryOperator &Add) {
   if (Instruction *NV = foldBinOpIntoSelectOrPhi(Add))
     return NV;
 
-  Value *X, *Y;
+  Value *X;
+  Constant *Op00C;
+
+  // add (sub C1, X), C2 --> sub (add C1, C2), X
+  if (match(Op0, m_Sub(m_Constant(Op00C), m_Value(X))))
+    return BinaryOperator::CreateSub(ConstantExpr::getAdd(Op00C, Op1C), X);
+
+  Value *Y;
 
   // add (sub X, Y), -1 --> add (not Y), X
   if (match(Op0, m_OneUse(m_Sub(m_Value(X), m_Value(Y)))) &&
@@ -1602,8 +1609,13 @@ Instruction *InstCombiner::visitSub(BinaryOperator &I) {
       if (Instruction *R = foldOpIntoPhi(I, PN))
         return R;
 
-    // C-(X+C2) --> (C-C2)-X
     Constant *C2;
+
+    // C-(C2-X) --> X+(C-C2)
+    if (match(Op1, m_Sub(m_Constant(C2), m_Value(X))))
+      return BinaryOperator::CreateAdd(X, ConstantExpr::getSub(C, C2));
+
+    // C-(X+C2) --> (C-C2)-X
     if (match(Op1, m_Add(m_Value(X), m_Constant(C2))))
       return BinaryOperator::CreateSub(ConstantExpr::getSub(C, C2), X);
   }
@@ -1845,12 +1857,21 @@ static Instruction *foldFNegIntoConstant(Instruction &I) {
 }
 
 Instruction *InstCombiner::visitFNeg(UnaryOperator &I) {
-  if (Value *V = SimplifyFNegInst(I.getOperand(0), I.getFastMathFlags(),
+  Value *Op = I.getOperand(0);
+
+  if (Value *V = SimplifyFNegInst(Op, I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
   if (Instruction *X = foldFNegIntoConstant(I))
     return X;
+
+  Value *X, *Y;
+
+  // If we can ignore the sign of zeros: -(X - Y) --> (Y - X)
+  if (I.hasNoSignedZeros() &&
+      match(Op, m_OneUse(m_FSub(m_Value(X), m_Value(Y)))))
+    return BinaryOperator::CreateFSubFMF(Y, X, &I);
 
   return nullptr;
 }

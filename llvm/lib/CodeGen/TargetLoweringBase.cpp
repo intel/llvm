@@ -663,6 +663,34 @@ void TargetLoweringBase::initActions() {
       setOperationAction(ISD::ZERO_EXTEND_VECTOR_INREG, VT, Expand);
     }
 
+    // Constrained floating-point operations default to expand.
+    setOperationAction(ISD::STRICT_FADD, VT, Expand);
+    setOperationAction(ISD::STRICT_FSUB, VT, Expand);
+    setOperationAction(ISD::STRICT_FMUL, VT, Expand);
+    setOperationAction(ISD::STRICT_FDIV, VT, Expand);
+    setOperationAction(ISD::STRICT_FREM, VT, Expand);
+    setOperationAction(ISD::STRICT_FMA, VT, Expand);
+    setOperationAction(ISD::STRICT_FSQRT, VT, Expand);
+    setOperationAction(ISD::STRICT_FPOW, VT, Expand);
+    setOperationAction(ISD::STRICT_FPOWI, VT, Expand);
+    setOperationAction(ISD::STRICT_FSIN, VT, Expand);
+    setOperationAction(ISD::STRICT_FCOS, VT, Expand);
+    setOperationAction(ISD::STRICT_FEXP, VT, Expand);
+    setOperationAction(ISD::STRICT_FEXP2, VT, Expand);
+    setOperationAction(ISD::STRICT_FLOG, VT, Expand);
+    setOperationAction(ISD::STRICT_FLOG10, VT, Expand);
+    setOperationAction(ISD::STRICT_FLOG2, VT, Expand);
+    setOperationAction(ISD::STRICT_FRINT, VT, Expand);
+    setOperationAction(ISD::STRICT_FNEARBYINT, VT, Expand);
+    setOperationAction(ISD::STRICT_FCEIL, VT, Expand);
+    setOperationAction(ISD::STRICT_FFLOOR, VT, Expand);
+    setOperationAction(ISD::STRICT_FROUND, VT, Expand);
+    setOperationAction(ISD::STRICT_FTRUNC, VT, Expand);
+    setOperationAction(ISD::STRICT_FMAXNUM, VT, Expand);
+    setOperationAction(ISD::STRICT_FMINNUM, VT, Expand);
+    setOperationAction(ISD::STRICT_FP_ROUND, VT, Expand);
+    setOperationAction(ISD::STRICT_FP_EXTEND, VT, Expand);
+
     // For most targets @llvm.get.dynamic.area.offset just returns 0.
     setOperationAction(ISD::GET_DYNAMIC_AREA_OFFSET, VT, Expand);
 
@@ -713,6 +741,8 @@ void TargetLoweringBase::initActions() {
     setOperationAction(ISD::FROUND,     VT, Expand);
     setOperationAction(ISD::LROUND,     VT, Expand);
     setOperationAction(ISD::LLROUND,    VT, Expand);
+    setOperationAction(ISD::LRINT,      VT, Expand);
+    setOperationAction(ISD::LLRINT,     VT, Expand);
   }
 
   // Default ISD::TRAP to expand (which turns it into abort).
@@ -1450,6 +1480,14 @@ bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
 
   // This is a misaligned access.
   return allowsMisalignedMemoryAccesses(VT, AddrSpace, Alignment, Fast);
+}
+
+bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
+                                            const DataLayout &DL, EVT VT,
+                                            const MachineMemOperand &MMO,
+                                            bool *Fast) const {
+  return allowsMemoryAccess(Context, DL, VT, MMO.getAddrSpace(),
+                            MMO.getAlignment(), Fast);
 }
 
 BranchProbability TargetLoweringBase::getPredictableBranchThreshold() const {

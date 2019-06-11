@@ -179,8 +179,25 @@ static bool hasVisibleUpdate(const ExplodedNode *LeftNode, SVal LeftVal,
     RLCV->getStore() == RightNode->getState()->getStore();
 }
 
+static Optional<const llvm::APSInt *>
+getConcreteIntegerValue(const Expr *CondVarExpr, const ExplodedNode *N) {
+  ProgramStateRef State = N->getState();
+  const LocationContext *LCtx = N->getLocationContext();
+
+  // The declaration of the value may rely on a pointer so take its l-value.
+  if (const auto *DRE = dyn_cast_or_null<DeclRefExpr>(CondVarExpr)) {
+    if (const auto *VD = dyn_cast_or_null<VarDecl>(DRE->getDecl())) {
+      SVal DeclSVal = State->getSVal(State->getLValue(VD, LCtx));
+      if (auto DeclCI = DeclSVal.getAs<nonloc::ConcreteInt>())
+        return &DeclCI->getValue();
+    }
+  }
+
+  return {};
+}
+
 //===----------------------------------------------------------------------===//
-// Definitions for bug reporter visitors.
+// Implementation of BugReporterVisitor.
 //===----------------------------------------------------------------------===//
 
 std::shared_ptr<PathDiagnosticPiece>
@@ -677,6 +694,10 @@ private:
   }
 };
 
+} // end of anonymous namespace
+
+namespace {
+
 /// Suppress null-pointer-dereference bugs where dereferenced null was returned
 /// the macro.
 class MacroNullReturnSuppressionVisitor final : public BugReporterVisitor {
@@ -764,6 +785,10 @@ private:
     return None;
   }
 };
+
+} // end of anonymous namespace
+
+namespace {
 
 /// Emits an extra note at the return statement of an interesting stack frame.
 ///
@@ -1040,7 +1065,11 @@ public:
   }
 };
 
-} // namespace
+} // end of anonymous namespace
+
+//===----------------------------------------------------------------------===//
+// Implementation of FindLastStoreBRVisitor.
+//===----------------------------------------------------------------------===//
 
 void FindLastStoreBRVisitor::Profile(llvm::FoldingSetNodeID &ID) const {
   static int tag = 0;
@@ -1350,6 +1379,10 @@ FindLastStoreBRVisitor::VisitNode(const ExplodedNode *Succ,
   return std::make_shared<PathDiagnosticEventPiece>(L, os.str());
 }
 
+//===----------------------------------------------------------------------===//
+// Implementation of TrackConstraintBRVisitor.
+//===----------------------------------------------------------------------===//
+
 void TrackConstraintBRVisitor::Profile(llvm::FoldingSetNodeID &ID) const {
   static int tag = 0;
   ID.AddPointer(&tag);
@@ -1421,6 +1454,10 @@ TrackConstraintBRVisitor::VisitNode(const ExplodedNode *N,
 
   return nullptr;
 }
+
+//===----------------------------------------------------------------------===//
+// Implementation of SuppressInlineDefensiveChecksVisitor.
+//===----------------------------------------------------------------------===//
 
 SuppressInlineDefensiveChecksVisitor::
 SuppressInlineDefensiveChecksVisitor(DefinedSVal Value, const ExplodedNode *N)
@@ -1494,7 +1531,7 @@ SuppressInlineDefensiveChecksVisitor::VisitNode(const ExplodedNode *Succ,
         return nullptr;
 
       CFGStmtMap *Map = CurLC->getAnalysisDeclContext()->getCFGStmtMap();
-      CurTerminatorStmt = Map->getBlock(CurStmt)->getTerminator();
+      CurTerminatorStmt = Map->getBlock(CurStmt)->getTerminatorStmt();
     } else {
       return nullptr;
     }
@@ -1516,6 +1553,10 @@ SuppressInlineDefensiveChecksVisitor::VisitNode(const ExplodedNode *Succ,
   }
   return nullptr;
 }
+
+//===----------------------------------------------------------------------===//
+// Implementation of trackExpressionValue.
+//===----------------------------------------------------------------------===//
 
 static const MemRegion *getLocationRegionIfReference(const Expr *E,
                                                      const ExplodedNode *N) {
@@ -1566,7 +1607,7 @@ static const Expr *peelOffOuterExpr(const Expr *Ex,
       ProgramPoint ProgPoint = NI->getLocation();
       if (Optional<BlockEdge> BE = ProgPoint.getAs<BlockEdge>()) {
         const CFGBlock *srcBlk = BE->getSrc();
-        if (const Stmt *term = srcBlk->getTerminator()) {
+        if (const Stmt *term = srcBlk->getTerminatorStmt()) {
           if (term == CO) {
             bool TookTrueBranch = (*(srcBlk->succ_begin()) == BE->getDst());
             if (TookTrueBranch)
@@ -1736,6 +1777,10 @@ bool bugreporter::trackExpressionValue(const ExplodedNode *InputNode,
   return true;
 }
 
+//===----------------------------------------------------------------------===//
+// Implementation of NulReceiverBRVisitor.
+//===----------------------------------------------------------------------===//
+
 const Expr *NilReceiverBRVisitor::getNilReceiver(const Stmt *S,
                                                  const ExplodedNode *N) {
   const auto *ME = dyn_cast<ObjCMessageExpr>(S);
@@ -1785,6 +1830,10 @@ NilReceiverBRVisitor::VisitNode(const ExplodedNode *N,
                                      N->getLocationContext());
   return std::make_shared<PathDiagnosticEventPiece>(L, OS.str());
 }
+
+//===----------------------------------------------------------------------===//
+// Implementation of FindLastStoreBRVisitor.
+//===----------------------------------------------------------------------===//
 
 // Registers every VarDecl inside a Stmt with a last store visitor.
 void FindLastStoreBRVisitor::registerStatementVarDecls(BugReport &BR,
@@ -1846,30 +1895,36 @@ ConditionBRVisitor::VisitNode(const ExplodedNode *N,
 std::shared_ptr<PathDiagnosticPiece>
 ConditionBRVisitor::VisitNodeImpl(const ExplodedNode *N,
                                   BugReporterContext &BRC, BugReport &BR) {
-  ProgramPoint progPoint = N->getLocation();
+  ProgramPoint ProgPoint = N->getLocation();
+  const std::pair<const ProgramPointTag *, const ProgramPointTag *> &Tags =
+      ExprEngine::geteagerlyAssumeBinOpBifurcationTags();
 
   // If an assumption was made on a branch, it should be caught
   // here by looking at the state transition.
-  if (Optional<BlockEdge> BE = progPoint.getAs<BlockEdge>()) {
-    const CFGBlock *srcBlk = BE->getSrc();
-    if (const Stmt *term = srcBlk->getTerminator())
-      return VisitTerminator(term, N, srcBlk, BE->getDst(), BR, BRC);
+  if (Optional<BlockEdge> BE = ProgPoint.getAs<BlockEdge>()) {
+    const CFGBlock *SrcBlock = BE->getSrc();
+    if (const Stmt *Term = SrcBlock->getTerminatorStmt()) {
+      // If the tag of the previous node is 'Eagerly Assume...' the current
+      // 'BlockEdge' has the same constraint information. We do not want to
+      // report the value as it is just an assumption on the predecessor node
+      // which will be caught in the next VisitNode() iteration as a 'PostStmt'.
+      const ProgramPointTag *PreviousNodeTag =
+          N->getFirstPred()->getLocation().getTag();
+      if (PreviousNodeTag == Tags.first || PreviousNodeTag == Tags.second)
+        return nullptr;
+
+      return VisitTerminator(Term, N, SrcBlock, BE->getDst(), BR, BRC);
+    }
     return nullptr;
   }
 
-  if (Optional<PostStmt> PS = progPoint.getAs<PostStmt>()) {
-    const std::pair<const ProgramPointTag *, const ProgramPointTag *> &tags =
-        ExprEngine::geteagerlyAssumeBinOpBifurcationTags();
+  if (Optional<PostStmt> PS = ProgPoint.getAs<PostStmt>()) {
+    const ProgramPointTag *CurrentNodeTag = PS->getTag();
+    if (CurrentNodeTag != Tags.first && CurrentNodeTag != Tags.second)
+      return nullptr;
 
-    const ProgramPointTag *tag = PS->getTag();
-    if (tag == tags.first)
-      return VisitTrueTest(cast<Expr>(PS->getStmt()), true,
-                           BRC, BR, N);
-    if (tag == tags.second)
-      return VisitTrueTest(cast<Expr>(PS->getStmt()), false,
-                           BRC, BR, N);
-
-    return nullptr;
+    bool TookTrue = CurrentNodeTag == Tags.first;
+    return VisitTrueTest(cast<Expr>(PS->getStmt()), BRC, BR, N, TookTrue);
   }
 
   return nullptr;
@@ -1928,30 +1983,30 @@ std::shared_ptr<PathDiagnosticPiece> ConditionBRVisitor::VisitTerminator(
 
   assert(Cond);
   assert(srcBlk->succ_size() == 2);
-  const bool tookTrue = *(srcBlk->succ_begin()) == dstBlk;
-  return VisitTrueTest(Cond, tookTrue, BRC, R, N);
+  const bool TookTrue = *(srcBlk->succ_begin()) == dstBlk;
+  return VisitTrueTest(Cond, BRC, R, N, TookTrue);
 }
 
 std::shared_ptr<PathDiagnosticPiece>
-ConditionBRVisitor::VisitTrueTest(const Expr *Cond, bool tookTrue,
-                                  BugReporterContext &BRC, BugReport &R,
-                                  const ExplodedNode *N) {
+ConditionBRVisitor::VisitTrueTest(const Expr *Cond, BugReporterContext &BRC,
+                                  BugReport &R, const ExplodedNode *N,
+                                  bool TookTrue) {
   ProgramStateRef CurrentState = N->getState();
-  ProgramStateRef PreviousState = N->getFirstPred()->getState();
+  ProgramStateRef PrevState = N->getFirstPred()->getState();
   const LocationContext *LCtx = N->getLocationContext();
 
   // If the constraint information is changed between the current and the
   // previous program state we assuming the newly seen constraint information.
   // If we cannot evaluate the condition (and the constraints are the same)
   // the analyzer has no information about the value and just assuming it.
-  if (BRC.getStateManager().haveEqualConstraints(CurrentState, PreviousState) &&
-      CurrentState->getSVal(Cond, LCtx).isValid())
-    return nullptr;
+  bool IsAssuming =
+      !BRC.getStateManager().haveEqualConstraints(CurrentState, PrevState) ||
+      CurrentState->getSVal(Cond, LCtx).isUnknownOrUndef();
 
   // These will be modified in code below, but we need to preserve the original
   //  values in case we want to throw the generic message.
   const Expr *CondTmp = Cond;
-  bool tookTrueTmp = tookTrue;
+  bool TookTrueTmp = TookTrue;
 
   while (true) {
     CondTmp = CondTmp->IgnoreParenCasts();
@@ -1960,18 +2015,23 @@ ConditionBRVisitor::VisitTrueTest(const Expr *Cond, bool tookTrue,
         break;
       case Stmt::BinaryOperatorClass:
         if (auto P = VisitTrueTest(Cond, cast<BinaryOperator>(CondTmp),
-                                   tookTrueTmp, BRC, R, N))
+                                   BRC, R, N, TookTrueTmp, IsAssuming))
           return P;
         break;
       case Stmt::DeclRefExprClass:
         if (auto P = VisitTrueTest(Cond, cast<DeclRefExpr>(CondTmp),
-                                   tookTrueTmp, BRC, R, N))
+                                   BRC, R, N, TookTrueTmp, IsAssuming))
+          return P;
+        break;
+      case Stmt::MemberExprClass:
+        if (auto P = VisitTrueTest(Cond, cast<MemberExpr>(CondTmp),
+                                   BRC, R, N, TookTrueTmp, IsAssuming))
           return P;
         break;
       case Stmt::UnaryOperatorClass: {
         const auto *UO = cast<UnaryOperator>(CondTmp);
         if (UO->getOpcode() == UO_LNot) {
-          tookTrueTmp = !tookTrueTmp;
+          TookTrueTmp = !TookTrueTmp;
           CondTmp = UO->getSubExpr();
           continue;
         }
@@ -1983,12 +2043,17 @@ ConditionBRVisitor::VisitTrueTest(const Expr *Cond, bool tookTrue,
 
   // Condition too complex to explain? Just say something so that the user
   // knew we've made some path decision at this point.
+  // If it is too complex and we know the evaluation of the condition do not
+  // repeat the note from 'BugReporter.cpp'
+  if (!IsAssuming)
+    return nullptr;
+
   PathDiagnosticLocation Loc(Cond, BRC.getSourceManager(), LCtx);
   if (!Loc.isValid() || !Loc.asLocation().isValid())
     return nullptr;
 
   return std::make_shared<PathDiagnosticEventPiece>(
-      Loc, tookTrue ? GenericTrueMessage : GenericFalseMessage);
+      Loc, TookTrue ? GenericTrueMessage : GenericFalseMessage);
 }
 
 bool ConditionBRVisitor::patternMatch(const Expr *Ex,
@@ -1997,7 +2062,8 @@ bool ConditionBRVisitor::patternMatch(const Expr *Ex,
                                       BugReporterContext &BRC,
                                       BugReport &report,
                                       const ExplodedNode *N,
-                                      Optional<bool> &prunable) {
+                                      Optional<bool> &prunable,
+                                      bool IsSameFieldName) {
   const Expr *OriginalExpr = Ex;
   Ex = Ex->IgnoreParenCasts();
 
@@ -2063,23 +2129,43 @@ bool ConditionBRVisitor::patternMatch(const Expr *Ex,
     return false;
   }
 
+  if (const auto *ME = dyn_cast<MemberExpr>(Ex)) {
+    if (!IsSameFieldName)
+      Out << "field '" << ME->getMemberDecl()->getName() << '\'';
+    else
+      Out << '\''
+          << Lexer::getSourceText(
+                 CharSourceRange::getTokenRange(Ex->getSourceRange()),
+                 BRC.getSourceManager(), BRC.getASTContext().getLangOpts(), 0)
+          << '\'';
+  }
+
   return false;
 }
 
-std::shared_ptr<PathDiagnosticPiece>
-ConditionBRVisitor::VisitTrueTest(const Expr *Cond, const BinaryOperator *BExpr,
-                                  const bool tookTrue, BugReporterContext &BRC,
-                                  BugReport &R, const ExplodedNode *N) {
+std::shared_ptr<PathDiagnosticPiece> ConditionBRVisitor::VisitTrueTest(
+    const Expr *Cond, const BinaryOperator *BExpr, BugReporterContext &BRC,
+    BugReport &R, const ExplodedNode *N, bool TookTrue, bool IsAssuming) {
   bool shouldInvert = false;
   Optional<bool> shouldPrune;
+
+  // Check if the field name of the MemberExprs is ambiguous. Example:
+  // " 'a.d' is equal to 'h.d' " in 'test/Analysis/null-deref-path-notes.cpp'.
+  bool IsSameFieldName = false;
+  if (const auto *LhsME =
+          dyn_cast<MemberExpr>(BExpr->getLHS()->IgnoreParenCasts()))
+    if (const auto *RhsME =
+            dyn_cast<MemberExpr>(BExpr->getRHS()->IgnoreParenCasts()))
+      IsSameFieldName = LhsME->getMemberDecl()->getName() ==
+                        RhsME->getMemberDecl()->getName();
 
   SmallString<128> LhsString, RhsString;
   {
     llvm::raw_svector_ostream OutLHS(LhsString), OutRHS(RhsString);
-    const bool isVarLHS = patternMatch(BExpr->getLHS(), BExpr, OutLHS,
-                                       BRC, R, N, shouldPrune);
-    const bool isVarRHS = patternMatch(BExpr->getRHS(), BExpr, OutRHS,
-                                       BRC, R, N, shouldPrune);
+    const bool isVarLHS = patternMatch(BExpr->getLHS(), BExpr, OutLHS, BRC, R,
+                                       N, shouldPrune, IsSameFieldName);
+    const bool isVarRHS = patternMatch(BExpr->getRHS(), BExpr, OutRHS, BRC, R,
+                                       N, shouldPrune, IsSameFieldName);
 
     shouldInvert = !isVarLHS && isVarRHS;
   }
@@ -2089,8 +2175,8 @@ ConditionBRVisitor::VisitTrueTest(const Expr *Cond, const BinaryOperator *BExpr,
   if (BinaryOperator::isAssignmentOp(Op)) {
     // For assignment operators, all that we care about is that the LHS
     // evaluates to "true" or "false".
-    return VisitConditionVariable(LhsString, BExpr->getLHS(), tookTrue,
-                                  BRC, R, N);
+    return VisitConditionVariable(LhsString, BExpr->getLHS(), BRC, R, N,
+                                  TookTrue);
   }
 
   // For non-assignment operations, we require that we can understand
@@ -2102,7 +2188,8 @@ ConditionBRVisitor::VisitTrueTest(const Expr *Cond, const BinaryOperator *BExpr,
   // Should we invert the strings if the LHS is not a variable name?
   SmallString<256> buf;
   llvm::raw_svector_ostream Out(buf);
-  Out << "Assuming " << (shouldInvert ? RhsString : LhsString) << " is ";
+  Out << (IsAssuming ? "Assuming " : "")
+      << (shouldInvert ? RhsString : LhsString) << " is ";
 
   // Do we need to invert the opcode?
   if (shouldInvert)
@@ -2114,7 +2201,7 @@ ConditionBRVisitor::VisitTrueTest(const Expr *Cond, const BinaryOperator *BExpr,
       case BO_GE: Op = BO_LE; break;
     }
 
-  if (!tookTrue)
+  if (!TookTrue)
     switch (Op) {
       case BO_EQ: Op = BO_NE; break;
       case BO_NE: Op = BO_EQ; break;
@@ -2141,15 +2228,24 @@ ConditionBRVisitor::VisitTrueTest(const Expr *Cond, const BinaryOperator *BExpr,
   Out << (shouldInvert ? LhsString : RhsString);
   const LocationContext *LCtx = N->getLocationContext();
   PathDiagnosticLocation Loc(Cond, BRC.getSourceManager(), LCtx);
-  auto event = std::make_shared<PathDiagnosticEventPiece>(Loc, Out.str());
+
+  // Convert 'field ...' to 'Field ...' if it is a MemberExpr.
+  std::string Message = Out.str();
+  Message[0] = toupper(Message[0]);
+
+  // If we know the value create a pop-up note.
+  if (!IsAssuming)
+    return std::make_shared<PathDiagnosticPopUpPiece>(Loc, Message);
+
+  auto event = std::make_shared<PathDiagnosticEventPiece>(Loc, Message);
   if (shouldPrune.hasValue())
     event->setPrunable(shouldPrune.getValue());
   return event;
 }
 
 std::shared_ptr<PathDiagnosticPiece> ConditionBRVisitor::VisitConditionVariable(
-    StringRef LhsString, const Expr *CondVarExpr, const bool tookTrue,
-    BugReporterContext &BRC, BugReport &report, const ExplodedNode *N) {
+    StringRef LhsString, const Expr *CondVarExpr, BugReporterContext &BRC,
+    BugReport &report, const ExplodedNode *N, bool TookTrue) {
   // FIXME: If there's already a constraint tracker for this variable,
   // we shouldn't emit anything here (c.f. the double note in
   // test/Analysis/inlining/path-notes.c)
@@ -2157,17 +2253,7 @@ std::shared_ptr<PathDiagnosticPiece> ConditionBRVisitor::VisitConditionVariable(
   llvm::raw_svector_ostream Out(buf);
   Out << "Assuming " << LhsString << " is ";
 
-  QualType Ty = CondVarExpr->getType();
-
-  if (Ty->isPointerType())
-    Out << (tookTrue ? "not null" : "null");
-  else if (Ty->isObjCObjectPointerType())
-    Out << (tookTrue ? "not nil" : "nil");
-  else if (Ty->isBooleanType())
-    Out << (tookTrue ? "true" : "false");
-  else if (Ty->isIntegralOrEnumerationType())
-    Out << (tookTrue ? "non-zero" : "zero");
-  else
+  if (!printValue(CondVarExpr, Out, N, TookTrue, /*IsAssuming=*/true))
     return nullptr;
 
   const LocationContext *LCtx = N->getLocationContext();
@@ -2187,34 +2273,29 @@ std::shared_ptr<PathDiagnosticPiece> ConditionBRVisitor::VisitConditionVariable(
   return event;
 }
 
-std::shared_ptr<PathDiagnosticPiece>
-ConditionBRVisitor::VisitTrueTest(const Expr *Cond, const DeclRefExpr *DR,
-                                  const bool tookTrue, BugReporterContext &BRC,
-                                  BugReport &report, const ExplodedNode *N) {
-  const auto *VD = dyn_cast<VarDecl>(DR->getDecl());
+std::shared_ptr<PathDiagnosticPiece> ConditionBRVisitor::VisitTrueTest(
+    const Expr *Cond, const DeclRefExpr *DRE, BugReporterContext &BRC,
+    BugReport &report, const ExplodedNode *N, bool TookTrue, bool IsAssuming) {
+  const auto *VD = dyn_cast<VarDecl>(DRE->getDecl());
   if (!VD)
     return nullptr;
 
   SmallString<256> Buf;
   llvm::raw_svector_ostream Out(Buf);
 
-  Out << "Assuming '" << VD->getDeclName() << "' is ";
+  Out << (IsAssuming ? "Assuming '" : "'") << VD->getDeclName() << "' is ";
 
-  QualType VDTy = VD->getType();
-
-  if (VDTy->isPointerType())
-    Out << (tookTrue ? "non-null" : "null");
-  else if (VDTy->isObjCObjectPointerType())
-    Out << (tookTrue ? "non-nil" : "nil");
-  else if (VDTy->isScalarType())
-    Out << (tookTrue ? "not equal to 0" : "0");
-  else
+  if (!printValue(DRE, Out, N, TookTrue, IsAssuming))
     return nullptr;
 
   const LocationContext *LCtx = N->getLocationContext();
   PathDiagnosticLocation Loc(Cond, BRC.getSourceManager(), LCtx);
-  auto event = std::make_shared<PathDiagnosticEventPiece>(Loc, Out.str());
 
+  // If we know the value create a pop-up note.
+  if (!IsAssuming)
+    return std::make_shared<PathDiagnosticPopUpPiece>(Loc, Out.str());
+
+  auto event = std::make_shared<PathDiagnosticEventPiece>(Loc, Out.str());
   const ProgramState *state = N->getState().get();
   if (const MemRegion *R = state->getLValue(VD, LCtx).getAsRegion()) {
     if (report.isInteresting(R))
@@ -2228,6 +2309,67 @@ ConditionBRVisitor::VisitTrueTest(const Expr *Cond, const DeclRefExpr *DR,
   return std::move(event);
 }
 
+std::shared_ptr<PathDiagnosticPiece> ConditionBRVisitor::VisitTrueTest(
+    const Expr *Cond, const MemberExpr *ME, BugReporterContext &BRC,
+    BugReport &report, const ExplodedNode *N, bool TookTrue, bool IsAssuming) {
+  SmallString<256> Buf;
+  llvm::raw_svector_ostream Out(Buf);
+
+  Out << (IsAssuming ? "Assuming field '" : "Field '")
+      << ME->getMemberDecl()->getName() << "' is ";
+
+  if (!printValue(ME, Out, N, TookTrue, IsAssuming))
+    return nullptr;
+
+  const LocationContext *LCtx = N->getLocationContext();
+  PathDiagnosticLocation Loc(Cond, BRC.getSourceManager(), LCtx);
+  if (!Loc.isValid() || !Loc.asLocation().isValid())
+    return nullptr;
+
+  // If we know the value create a pop-up note.
+  if (!IsAssuming)
+    return std::make_shared<PathDiagnosticPopUpPiece>(Loc, Out.str());
+
+  return std::make_shared<PathDiagnosticEventPiece>(Loc, Out.str());
+}
+
+bool ConditionBRVisitor::printValue(const Expr *CondVarExpr, raw_ostream &Out,
+                                    const ExplodedNode *N, bool TookTrue,
+                                    bool IsAssuming) {
+  QualType Ty = CondVarExpr->getType();
+
+  if (Ty->isPointerType()) {
+    Out << (TookTrue ? "non-null" : "null");
+    return true;
+  }
+
+  if (Ty->isObjCObjectPointerType()) {
+    Out << (TookTrue ? "non-nil" : "nil");
+    return true;
+  }
+
+  if (!Ty->isIntegralOrEnumerationType())
+    return false;
+
+  Optional<const llvm::APSInt *> IntValue;
+  if (!IsAssuming)
+    IntValue = getConcreteIntegerValue(CondVarExpr, N);
+
+  if (IsAssuming || !IntValue.hasValue()) {
+    if (Ty->isBooleanType())
+      Out << (TookTrue ? "true" : "false");
+    else
+      Out << (TookTrue ? "not equal to 0" : "0");
+  } else {
+    if (Ty->isBooleanType())
+      Out << (IntValue.getValue()->getBoolValue() ? "true" : "false");
+    else
+      Out << *IntValue.getValue();
+  }
+
+  return true;
+}
+
 const char *const ConditionBRVisitor::GenericTrueMessage =
     "Assuming the condition is true";
 const char *const ConditionBRVisitor::GenericFalseMessage =
@@ -2238,6 +2380,10 @@ bool ConditionBRVisitor::isPieceMessageGeneric(
   return Piece->getString() == GenericTrueMessage ||
          Piece->getString() == GenericFalseMessage;
 }
+
+//===----------------------------------------------------------------------===//
+// Implementation of LikelyFalsePositiveSuppressionBRVisitor.
+//===----------------------------------------------------------------------===//
 
 void LikelyFalsePositiveSuppressionBRVisitor::finalizeVisitor(
     BugReporterContext &BRC, const ExplodedNode *N, BugReport &BR) {
@@ -2321,6 +2467,10 @@ void LikelyFalsePositiveSuppressionBRVisitor::finalizeVisitor(
   }
 }
 
+//===----------------------------------------------------------------------===//
+// Implementation of UndefOrNullArgVisitor.
+//===----------------------------------------------------------------------===//
+
 std::shared_ptr<PathDiagnosticPiece>
 UndefOrNullArgVisitor::VisitNode(const ExplodedNode *N,
                                  BugReporterContext &BRC, BugReport &BR) {
@@ -2371,58 +2521,9 @@ UndefOrNullArgVisitor::VisitNode(const ExplodedNode *N,
   return nullptr;
 }
 
-std::shared_ptr<PathDiagnosticPiece>
-CXXSelfAssignmentBRVisitor::VisitNode(const ExplodedNode *Succ,
-                                      BugReporterContext &BRC, BugReport &) {
-  if (Satisfied)
-    return nullptr;
-
-  const auto Edge = Succ->getLocation().getAs<BlockEdge>();
-  if (!Edge.hasValue())
-    return nullptr;
-
-  auto Tag = Edge->getTag();
-  if (!Tag)
-    return nullptr;
-
-  if (Tag->getTagDescription() != "cplusplus.SelfAssignment")
-    return nullptr;
-
-  Satisfied = true;
-
-  const auto *Met =
-      dyn_cast<CXXMethodDecl>(Succ->getCodeDecl().getAsFunction());
-  assert(Met && "Not a C++ method.");
-  assert((Met->isCopyAssignmentOperator() || Met->isMoveAssignmentOperator()) &&
-         "Not a copy/move assignment operator.");
-
-  const auto *LCtx = Edge->getLocationContext();
-
-  const auto &State = Succ->getState();
-  auto &SVB = State->getStateManager().getSValBuilder();
-
-  const auto Param =
-      State->getSVal(State->getRegion(Met->getParamDecl(0), LCtx));
-  const auto This =
-      State->getSVal(SVB.getCXXThis(Met, LCtx->getStackFrame()));
-
-  auto L = PathDiagnosticLocation::create(Met, BRC.getSourceManager());
-
-  if (!L.isValid() || !L.asLocation().isValid())
-    return nullptr;
-
-  SmallString<256> Buf;
-  llvm::raw_svector_ostream Out(Buf);
-
-  Out << "Assuming " << Met->getParamDecl(0)->getName() <<
-    ((Param == This) ? " == " : " != ") << "*this";
-
-  auto Piece = std::make_shared<PathDiagnosticEventPiece>(L, Out.str());
-  Piece->addRange(Met->getSourceRange());
-
-  return std::move(Piece);
-}
-
+//===----------------------------------------------------------------------===//
+// Implementation of FalsePositiveRefutationBRVisitor.
+//===----------------------------------------------------------------------===//
 
 FalsePositiveRefutationBRVisitor::FalsePositiveRefutationBRVisitor()
     : Constraints(ConstraintRangeTy::Factory().getEmptyMap()) {}
@@ -2483,6 +2584,16 @@ FalsePositiveRefutationBRVisitor::VisitNode(const ExplodedNode *N,
   return nullptr;
 }
 
+void FalsePositiveRefutationBRVisitor::Profile(
+    llvm::FoldingSetNodeID &ID) const {
+  static int Tag = 0;
+  ID.AddPointer(&Tag);
+}
+
+//===----------------------------------------------------------------------===//
+// Implementation of TagVisitor.
+//===----------------------------------------------------------------------===//
+
 int NoteTag::Kind = 0;
 
 void TagVisitor::Profile(llvm::FoldingSetNodeID &ID) const {
@@ -2501,14 +2612,10 @@ TagVisitor::VisitNode(const ExplodedNode *N, BugReporterContext &BRC,
   if (Optional<std::string> Msg = T->generateMessage(BRC, R)) {
     PathDiagnosticLocation Loc =
         PathDiagnosticLocation::create(PP, BRC.getSourceManager());
-    return std::make_shared<PathDiagnosticEventPiece>(Loc, *Msg);
+    auto Piece = std::make_shared<PathDiagnosticEventPiece>(Loc, *Msg);
+    Piece->setPrunable(T->isPrunable());
+    return Piece;
   }
 
   return nullptr;
-}
-
-void FalsePositiveRefutationBRVisitor::Profile(
-    llvm::FoldingSetNodeID &ID) const {
-  static int Tag = 0;
-  ID.AddPointer(&Tag);
 }

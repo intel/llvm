@@ -27,6 +27,8 @@ set(files
   avx512vlcdintrin.h
   avx512vldqintrin.h
   avx512vlintrin.h
+  avx512vp2intersectintrin.h
+  avx512vlvp2intersectintrin.h
   avx512vpopcntdqvlintrin.h
   avx512vnniintrin.h
   avx512vlvnniintrin.h
@@ -48,6 +50,7 @@ set(files
   clflushoptintrin.h
   clwbintrin.h
   emmintrin.h
+  enqcmdintrin.h
   f16cintrin.h
   float.h
   fma4intrin.h
@@ -126,6 +129,8 @@ set(cuda_wrapper_files
 
 set(ppc_wrapper_files
   ppc_wrappers/mmintrin.h
+  ppc_wrappers/xmmintrin.h
+  ppc_wrappers/mm_malloc.h
 )
 
 set(openmp_wrapper_files

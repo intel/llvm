@@ -35,7 +35,7 @@ AMDGPU::AMDGPU() {
   RelativeRel = R_AMDGPU_RELATIVE64;
   GotRel = R_AMDGPU_ABS64;
   NoneRel = R_AMDGPU_NONE;
-  GotEntrySize = 8;
+  SymbolicRel = R_AMDGPU_ABS64;
 }
 
 static uint32_t getEFlags(InputFile *File) {

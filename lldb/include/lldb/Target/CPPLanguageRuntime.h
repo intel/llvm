@@ -39,8 +39,23 @@ public:
 
   ~CPPLanguageRuntime() override;
 
+  static char ID;
+
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || LanguageRuntime::isA(ClassID);
+  }
+
+  static bool classof(const LanguageRuntime *runtime) {
+    return runtime->isA(&ID);
+  }
+
   lldb::LanguageType GetLanguageType() const override {
     return lldb::eLanguageTypeC_plus_plus;
+  }
+
+  static CPPLanguageRuntime *Get(Process &process) {
+    return llvm::cast_or_null<CPPLanguageRuntime>(
+        process.GetLanguageRuntime(lldb::eLanguageTypeC_plus_plus));
   }
 
   virtual bool IsVTableName(const char *name) = 0;
@@ -61,7 +76,7 @@ public:
   /// \return
   ///      A ThreadPlan Shared pointer
   lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
-                                                  bool stop_others);
+                                                  bool stop_others) override;
 
   bool IsRuntimeSupportValue(ValueObject &valobj) override;
 protected:

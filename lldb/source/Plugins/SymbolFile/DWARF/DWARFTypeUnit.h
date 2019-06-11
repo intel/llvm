@@ -14,7 +14,17 @@
 
 class DWARFTypeUnit : public DWARFUnit {
 public:
+  void BuildAddressRangeTable(DWARFDebugAranges *debug_aranges) override {}
+
   void Dump(lldb_private::Stream *s) const override;
+
+  uint64_t GetTypeHash() { return m_header.GetTypeHash(); }
+
+  dw_offset_t GetTypeOffset() { return GetOffset() + m_header.GetTypeOffset(); }
+
+  static bool classof(const DWARFUnit *unit) {
+    return unit->GetUnitType() == DW_UT_type;
+  }
 
 private:
   DWARFTypeUnit(SymbolFileDWARF *dwarf, lldb::user_id_t uid,

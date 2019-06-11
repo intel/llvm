@@ -308,6 +308,7 @@ int main(int argc, char **argv) {
   initializeVectorization(*Registry);
   initializeScalarizeMaskedMemIntrinPass(*Registry);
   initializeExpandReductionsPass(*Registry);
+  initializeHardwareLoopsPass(*Registry);
 
   // Initialize debugging passes.
   initializeScavengerTestPass(*Registry);
@@ -340,8 +341,9 @@ int main(int argc, char **argv) {
       WithColor::error(errs(), argv[0]) << EC.message() << '\n';
       return 1;
     }
-    Context.setRemarkStreamer(
-        llvm::make_unique<RemarkStreamer>(RemarksFilename, YamlFile->os()));
+    Context.setRemarkStreamer(llvm::make_unique<RemarkStreamer>(
+        RemarksFilename,
+        llvm::make_unique<remarks::YAMLSerializer>(YamlFile->os())));
 
     if (!RemarksPasses.empty())
       if (Error E = Context.getRemarkStreamer()->setFilter(RemarksPasses)) {

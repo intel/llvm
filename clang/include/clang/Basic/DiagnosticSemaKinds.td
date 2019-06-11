@@ -904,6 +904,12 @@ def err_objc_root_class_subclass : Error<
 def err_restricted_superclass_mismatch : Error<
   "cannot subclass a class that was declared with the "
   "'objc_subclassing_restricted' attribute">;
+def err_class_stub_subclassing_mismatch : Error<
+  "'objc_class_stub' attribute cannot be specified on a class that does not "
+  "have the 'objc_subclassing_restricted' attribute">;
+def err_implementation_of_class_stub : Error<
+  "cannot declare implementation of a class declared with the "
+  "'objc_class_stub' attribute">;
 def warn_objc_root_class_missing : Warning<
   "class %0 defined without specifying a base class">,
   InGroup<ObjCRootClass>;
@@ -1851,6 +1857,9 @@ def err_reference_bind_failed : Error<
   "reference %diff{to %select{type|incomplete type}1 $ could not bind to an "
   "%select{rvalue|lvalue}2 of type $|could not bind to %select{rvalue|lvalue}2 of "
   "incompatible type}0,3">;
+def err_reference_bind_temporary_addrspace : Error<
+  "reference of type %0 cannot bind to a temporary object because of "
+  "address space mismatch">;
 def err_reference_bind_init_list : Error<
   "reference to type %0 cannot bind to an initializer list">;
 def err_init_list_bad_dest_type : Error<
@@ -2786,6 +2795,9 @@ def warn_dllimport_dropped_from_inline_function : Warning<
   InGroup<IgnoredAttributes>;
 def warn_attribute_ignored : Warning<"%0 attribute ignored">,
   InGroup<IgnoredAttributes>;
+def warn_nothrow_attribute_ignored : Warning<"'nothrow' attribute conflicts with"
+  " exception specification; attribute ignored">,
+  InGroup<IgnoredAttributes>;
 def warn_attribute_ignored_on_inline :
   Warning<"%0 attribute ignored on inline function">,
   InGroup<IgnoredAttributes>;
@@ -2973,6 +2985,9 @@ def err_invalid_attribute_on_virtual_function : Error<
 def warn_declspec_allocator_nonpointer : Warning<
   "ignoring __declspec(allocator) because the function return type %0 is not "
   "a pointer or reference type">, InGroup<IgnoredAttributes>;
+def err_cconv_incomplete_param_type : Error<
+  "parameter %0 must have a complete type to use function %1 with the %2 "
+  "calling convention">;
 
 def ext_cannot_use_trivial_abi : ExtWarn<
   "'trivial_abi' cannot be applied to %0">, InGroup<IgnoredAttributes>;
@@ -5064,12 +5079,12 @@ def warn_cxx98_compat_switch_into_protected_scope : Warning<
 def err_indirect_goto_without_addrlabel : Error<
   "indirect goto in function with no address-of-label expressions">;
 def err_indirect_goto_in_protected_scope : Error<
-  "cannot jump from this indirect goto statement to one of its possible targets">;
+  "cannot jump from this %select{indirect|asm}0 goto statement to one of its possible targets">;
 def warn_cxx98_compat_indirect_goto_in_protected_scope : Warning<
-  "jump from this indirect goto statement to one of its possible targets "
+  "jump from this %select{indirect|asm}0 goto statement to one of its possible targets "
   "is incompatible with C++98">, InGroup<CXX98Compat>, DefaultIgnore;
 def note_indirect_goto_target : Note<
-  "possible target of indirect goto statement">;
+  "possible target of %select{indirect|asm}0 goto statement">;
 def note_protected_by_variable_init : Note<
   "jump bypasses variable initialization">;
 def note_protected_by_variable_nontriv_destructor : Note<
@@ -7497,6 +7512,10 @@ let CategoryName = "Inline Assembly Issue" in {
     "use constraint modifier \"%0\"">;
   def note_asm_input_duplicate_first : Note<
     "constraint '%0' is already present here">;
+ def error_duplicate_asm_operand_name : Error<
+    "duplicate use of asm operand name \"%0\"">;
+ def note_duplicate_asm_operand_name : Note<
+    "asm operand name \"%0\" first referenced here">;
 }
 
   def error_inoutput_conflict_with_clobber : Error<

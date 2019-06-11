@@ -79,6 +79,7 @@ const RegisterBank &MipsRegisterBankInfo::getRegBankFromRegClass(
   case Mips::GPRMM16MoveP_and_CPU16Regs_and_GPRMM16ZeroRegClassID:
   case Mips::GPRMM16MovePPairFirst_and_GPRMM16MovePPairSecondRegClassID:
   case Mips::SP32RegClassID:
+  case Mips::GP32RegClassID:
     return getRegBank(Mips::GPRBRegBankID);
   case Mips::FGRCCRegClassID:
   case Mips::FGR32RegClassID:
@@ -132,7 +133,9 @@ MipsRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case G_FADD:
   case G_FSUB:
   case G_FMUL:
-  case G_FDIV: {
+  case G_FDIV:
+  case G_FABS:
+  case G_FSQRT:{
     unsigned Size = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
     assert((Size == 32 || Size == 64) && "Unsupported floating point size");
     OperandsMapping = Size == 32 ? &Mips::ValueMappings[Mips::SPRIdx]
@@ -148,6 +151,25 @@ MipsRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     OperandsMapping = getOperandsMapping({FPRValueMapping, nullptr});
     break;
   }
+  case G_FCMP: {
+    unsigned Size = MRI.getType(MI.getOperand(2).getReg()).getSizeInBits();
+    assert((Size == 32 || Size == 64) && "Unsupported floating point size");
+    const RegisterBankInfo::ValueMapping *FPRValueMapping =
+        Size == 32 ? &Mips::ValueMappings[Mips::SPRIdx]
+                   : &Mips::ValueMappings[Mips::DPRIdx];
+    OperandsMapping =
+        getOperandsMapping({&Mips::ValueMappings[Mips::GPRIdx], nullptr,
+                            FPRValueMapping, FPRValueMapping});
+    break;
+  }
+  case G_FPEXT:
+    OperandsMapping = getOperandsMapping({&Mips::ValueMappings[Mips::DPRIdx],
+                                          &Mips::ValueMappings[Mips::SPRIdx]});
+    break;
+  case G_FPTRUNC:
+    OperandsMapping = getOperandsMapping({&Mips::ValueMappings[Mips::SPRIdx],
+                                          &Mips::ValueMappings[Mips::DPRIdx]});
+    break;
   case G_CONSTANT:
   case G_FRAME_INDEX:
   case G_GLOBAL_VALUE:

@@ -544,6 +544,12 @@ struct BBInfo {
   const std::string infoString() const {
     return (Twine("Index=") + Twine(Index)).str();
   }
+
+  // Empty function -- only applicable to UseBBInfo.
+  void addOutEdge(PGOEdge *E LLVM_ATTRIBUTE_UNUSED) {}
+
+  // Empty function -- only applicable to UseBBInfo.
+  void addInEdge(PGOEdge *E LLVM_ATTRIBUTE_UNUSED) {}
 };
 
 // This class implements the CFG edges. Note the CFG can be a multi-graph.
@@ -572,6 +578,10 @@ public:
 
   // The Minimum Spanning Tree of function CFG.
   CFGMST<Edge, BBInfo> MST;
+
+  // Collect all the BBs that will be instrumented, and store them in
+  // InstrumentBBs.
+  void getInstrumentBBs(std::vector<BasicBlock *> &InstrumentBBs);
 
   // Give an edge, find the BB that will be instrumented.
   // Return nullptr if there is no BB to be instrumented.
@@ -628,16 +638,6 @@ public:
 
     if (CreateGlobalVar)
       FuncNameVar = createPGOFuncNameVar(F, FuncName);
-  }
-
-  // Return the number of profile counters needed for the function.
-  unsigned getNumCounters() {
-    unsigned NumCounters = 0;
-    for (auto &E : this->MST.AllEdges) {
-      if (!E->InMST && !E->Removed)
-        NumCounters++;
-    }
-    return NumCounters + SIVisitor.getNumOfSelectInsts();
   }
 };
 
@@ -753,6 +753,36 @@ void FuncPGOInstrumentation<Edge, BBInfo>::renameComdatFunction() {
   }
 }
 
+// Collect all the BBs that will be instruments and return them in
+// InstrumentBBs and setup InEdges/OutEdge for UseBBInfo.
+template <class Edge, class BBInfo>
+void FuncPGOInstrumentation<Edge, BBInfo>::getInstrumentBBs(
+    std::vector<BasicBlock *> &InstrumentBBs) {
+  // Use a worklist as we will update the vector during the iteration.
+  std::vector<Edge *> EdgeList;
+  EdgeList.reserve(MST.AllEdges.size());
+  for (auto &E : MST.AllEdges)
+    EdgeList.push_back(E.get());
+
+  for (auto &E : EdgeList) {
+    BasicBlock *InstrBB = getInstrBB(E);
+    if (InstrBB)
+      InstrumentBBs.push_back(InstrBB);
+  }
+
+  // Set up InEdges/OutEdges for all BBs.
+  for (auto &E : MST.AllEdges) {
+    if (E->Removed)
+      continue;
+    const BasicBlock *SrcBB = E->SrcBB;
+    const BasicBlock *DestBB = E->DestBB;
+    BBInfo &SrcInfo = getBBInfo(SrcBB);
+    BBInfo &DestInfo = getBBInfo(DestBB);
+    SrcInfo.addOutEdge(E.get());
+    DestInfo.addInEdge(E.get());
+  }
+}
+
 // Given a CFG E to be instrumented, find which BB to place the instrumented
 // code. The function will split the critical edge if necessary.
 template <class Edge, class BBInfo>
@@ -768,25 +798,42 @@ BasicBlock *FuncPGOInstrumentation<Edge, BBInfo>::getInstrBB(Edge *E) {
   if (DestBB == nullptr)
     return SrcBB;
 
+  auto canInstrument = [](BasicBlock *BB) -> BasicBlock * {
+    // There are basic blocks (such as catchswitch) cannot be instrumented.
+    // If the returned first insertion point is the end of BB, skip this BB.
+    if (BB->getFirstInsertionPt() == BB->end())
+      return nullptr;
+    return BB;
+  };
+
   // Instrument the SrcBB if it has a single successor,
   // otherwise, the DestBB if this is not a critical edge.
   Instruction *TI = SrcBB->getTerminator();
   if (TI->getNumSuccessors() <= 1)
-    return SrcBB;
+    return canInstrument(SrcBB);
   if (!E->IsCritical)
-    return DestBB;
+    return canInstrument(DestBB);
 
+  unsigned SuccNum = GetSuccessorNumber(SrcBB, DestBB);
+  BasicBlock *InstrBB = SplitCriticalEdge(TI, SuccNum);
+  if (!InstrBB) {
+    LLVM_DEBUG(
+        dbgs() << "Fail to split critical edge: not instrument this edge.\n");
+    return nullptr;
+  }
   // For a critical edge, we have to split. Instrument the newly
   // created BB.
   IsCS ? NumOfCSPGOSplit++ : NumOfPGOSplit++;
   LLVM_DEBUG(dbgs() << "Split critical edge: " << getBBInfo(SrcBB).Index
                     << " --> " << getBBInfo(DestBB).Index << "\n");
-  unsigned SuccNum = GetSuccessorNumber(SrcBB, DestBB);
-  BasicBlock *InstrBB = SplitCriticalEdge(TI, SuccNum);
-  assert(InstrBB && "Critical edge is not split");
-
+  // Need to add two new edges. First one: Add new edge of SrcBB->InstrBB.
+  MST.addEdge(SrcBB, InstrBB, 0);
+  // Second one: Add new edge of InstrBB->DestBB.
+  Edge &NewEdge1 = MST.addEdge(InstrBB, DestBB, 0);
+  NewEdge1.InMST = true;
   E->Removed = true;
-  return InstrBB;
+
+  return canInstrument(InstrBB);
 }
 
 // Visit all edge and instrument the edges not in MST, and do value profiling.
@@ -801,15 +848,14 @@ static void instrumentOneFunc(
 
   FuncPGOInstrumentation<PGOEdge, BBInfo> FuncInfo(F, ComdatMembers, true, BPI,
                                                    BFI, IsCS);
-  unsigned NumCounters = FuncInfo.getNumCounters();
+  std::vector<BasicBlock *> InstrumentBBs;
+  FuncInfo.getInstrumentBBs(InstrumentBBs);
+  unsigned NumCounters =
+      InstrumentBBs.size() + FuncInfo.SIVisitor.getNumOfSelectInsts();
 
   uint32_t I = 0;
   Type *I8PtrTy = Type::getInt8PtrTy(M->getContext());
-  for (auto &E : FuncInfo.MST.AllEdges) {
-    BasicBlock *InstrBB = FuncInfo.getInstrBB(E.get());
-    if (!InstrBB)
-      continue;
-
+  for (auto *InstrBB : InstrumentBBs) {
     IRBuilder<> Builder(InstrBB, InstrBB->getFirstInsertionPt());
     assert(Builder.GetInsertPoint() != InstrBB->end() &&
            "Cannot get the Instrumentation point");
@@ -904,6 +950,18 @@ struct UseBBInfo : public BBInfo {
     if (!CountValid)
       return BBInfo::infoString();
     return (Twine(BBInfo::infoString()) + "  Count=" + Twine(CountValue)).str();
+  }
+
+  // Add an OutEdge and update the edge count.
+  void addOutEdge(PGOUseEdge *E) {
+    OutEdges.push_back(E);
+    UnknownCountOutEdge++;
+  }
+
+  // Add an InEdge and update the edge count.
+  void addInEdge(PGOUseEdge *E) {
+    InEdges.push_back(E);
+    UnknownCountInEdge++;
   }
 };
 
@@ -1039,42 +1097,60 @@ private:
 // edges and the BB. Return false on error.
 bool PGOUseFunc::setInstrumentedCounts(
     const std::vector<uint64_t> &CountFromProfile) {
+
+  std::vector<BasicBlock *> InstrumentBBs;
+  FuncInfo.getInstrumentBBs(InstrumentBBs);
+  unsigned NumCounters =
+      InstrumentBBs.size() + FuncInfo.SIVisitor.getNumOfSelectInsts();
   // The number of counters here should match the number of counters
   // in profile. Return if they mismatch.
-  if (FuncInfo.getNumCounters() != CountFromProfile.size()) {
+  if (NumCounters != CountFromProfile.size()) {
     return false;
   }
-  // Use a worklist as we will update the vector during the iteration.
-  std::vector<PGOUseEdge *> WorkList;
-  for (auto &E : FuncInfo.MST.AllEdges)
-    WorkList.push_back(E.get());
-
+  // Set the profile count to the Instrumented BBs.
   uint32_t I = 0;
-  for (auto &E : WorkList) {
-    BasicBlock *InstrBB = FuncInfo.getInstrBB(E);
-    if (!InstrBB)
-      continue;
+  for (BasicBlock *InstrBB : InstrumentBBs) {
     uint64_t CountValue = CountFromProfile[I++];
-    if (!E->Removed) {
-      getBBInfo(InstrBB).setBBInfoCount(CountValue);
-      E->setEdgeCount(CountValue);
-      continue;
-    }
-
-    // Need to add two new edges.
-    BasicBlock *SrcBB = const_cast<BasicBlock *>(E->SrcBB);
-    BasicBlock *DestBB = const_cast<BasicBlock *>(E->DestBB);
-    // Add new edge of SrcBB->InstrBB.
-    PGOUseEdge &NewEdge = FuncInfo.MST.addEdge(SrcBB, InstrBB, 0);
-    NewEdge.setEdgeCount(CountValue);
-    // Add new edge of InstrBB->DestBB.
-    PGOUseEdge &NewEdge1 = FuncInfo.MST.addEdge(InstrBB, DestBB, 0);
-    NewEdge1.setEdgeCount(CountValue);
-    NewEdge1.InMST = true;
-    getBBInfo(InstrBB).setBBInfoCount(CountValue);
+    UseBBInfo &Info = getBBInfo(InstrBB);
+    Info.setBBInfoCount(CountValue);
   }
   ProfileCountSize = CountFromProfile.size();
   CountPosition = I;
+
+  // Set the edge count and update the count of unknown edges for BBs.
+  auto setEdgeCount = [this](PGOUseEdge *E, uint64_t Value) -> void {
+    E->setEdgeCount(Value);
+    this->getBBInfo(E->SrcBB).UnknownCountOutEdge--;
+    this->getBBInfo(E->DestBB).UnknownCountInEdge--;
+  };
+
+  // Set the profile count the Instrumented edges. There are BBs that not in
+  // MST but not instrumented. Need to set the edge count value so that we can
+  // populate the profile counts later.
+  for (auto &E : FuncInfo.MST.AllEdges) {
+    if (E->Removed || E->InMST)
+      continue;
+    const BasicBlock *SrcBB = E->SrcBB;
+    UseBBInfo &SrcInfo = getBBInfo(SrcBB);
+
+    // If only one out-edge, the edge profile count should be the same as BB
+    // profile count.
+    if (SrcInfo.CountValid && SrcInfo.OutEdges.size() == 1)
+      setEdgeCount(E.get(), SrcInfo.CountValue);
+    else {
+      const BasicBlock *DestBB = E->DestBB;
+      UseBBInfo &DestInfo = getBBInfo(DestBB);
+      // If only one in-edge, the edge profile count should be the same as BB
+      // profile count.
+      if (DestInfo.CountValid && DestInfo.InEdges.size() == 1)
+        setEdgeCount(E.get(), DestInfo.CountValue);
+    }
+    if (E->CountValid)
+      continue;
+    // E's count should have been set from profile. If not, this meenas E skips
+    // the instrumentation. We set the count to 0.
+    setEdgeCount(E.get(), 0);
+  }
   return true;
 }
 
@@ -1168,26 +1244,6 @@ bool PGOUseFunc::readCounters(IndexedInstrProfReader *PGOReader, bool &AllZeros)
 // Populate the counters from instrumented BBs to all BBs.
 // In the end of this operation, all BBs should have a valid count value.
 void PGOUseFunc::populateCounters() {
-  // First set up Count variable for all BBs.
-  for (auto &E : FuncInfo.MST.AllEdges) {
-    if (E->Removed)
-      continue;
-
-    const BasicBlock *SrcBB = E->SrcBB;
-    const BasicBlock *DestBB = E->DestBB;
-    UseBBInfo &SrcInfo = getBBInfo(SrcBB);
-    UseBBInfo &DestInfo = getBBInfo(DestBB);
-    SrcInfo.OutEdges.push_back(E.get());
-    DestInfo.InEdges.push_back(E.get());
-    SrcInfo.UnknownCountOutEdge++;
-    DestInfo.UnknownCountInEdge++;
-
-    if (!E->CountValid)
-      continue;
-    DestInfo.UnknownCountInEdge--;
-    SrcInfo.UnknownCountOutEdge--;
-  }
-
   bool Changes = true;
   unsigned NumPasses = 0;
   while (Changes) {
