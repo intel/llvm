@@ -871,6 +871,7 @@ public:
                           void>::type
   copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
        T_Dst *Dst) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
       // manger.
@@ -886,6 +887,7 @@ public:
 
       return;
     }
+#endif
     MCGType = detail::CG::COPY_ACC_TO_PTR;
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Src;
@@ -909,6 +911,7 @@ public:
   copy(const T_Src *Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
 
+#ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
       // manger.
@@ -922,9 +925,9 @@ public:
 
         Dst[Index] = ((T_Dst *)Src)[LinearIndex];
       });
-
       return;
     }
+#endif
     MCGType = detail::CG::COPY_PTR_TO_ACC;
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
@@ -962,6 +965,7 @@ public:
                 IsPlaceholder_Dst>
            Dst) {
 
+#ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       range<Dims_Src> Range = Dst.get_range();
       parallel_for< class __copyAcc2Acc< T_Src, Dims_Src, AccessMode_Src,
@@ -975,6 +979,7 @@ public:
 
       return;
     }
+#endif
     MCGType = detail::CG::COPY_ACC_TO_ACC;
 
     detail::AccessorBaseHost *AccBaseSrc = (detail::AccessorBaseHost *)&Src;
