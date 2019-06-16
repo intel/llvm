@@ -94,4 +94,3 @@ PI_DISPATCH(piextDeviceSelectBinary)
 } // namespace detail
 } // namespace sycl
 } // namespace cl
-

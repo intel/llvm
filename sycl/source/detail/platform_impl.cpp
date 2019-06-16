@@ -32,7 +32,6 @@ platform_impl_pi::get_platforms() {
       platform plt =
         detail::createSyclObjFromImpl<platform>(
           std::make_shared<platform_impl_pi>(pi_platforms[i]));
-
       // Skip platforms which do not contain requested device types
       if (!plt.get_devices(forced_type).empty())
         platforms.push_back(plt);

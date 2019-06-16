@@ -70,6 +70,12 @@ template <info::device param> struct get_device_info<string_class, param> {
     return string_class(result.get());
   }
 };
+ 
+// Specialization for parent device
+template <typename T>
+struct get_device_info<T, info::device::parent_device> {
+  static T _(RT::pi_device dev);
+};
 
 // Specialization for parent device
 template <typename T>
