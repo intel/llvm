@@ -797,6 +797,15 @@ public:
     }
   };
 
+  /// Used to change context to isConstantEvaluated without pushing a heavy
+  /// ExpressionEvaluationContextRecord object.
+  bool isConstantEvaluatedOverride;
+
+  bool isConstantEvaluated() {
+    return ExprEvalContexts.back().isConstantEvaluated() ||
+           isConstantEvaluatedOverride;
+  }
+
   /// RAII object to handle the state changes required to synthesize
   /// a function body.
   class SynthesizedFunctionScope {
@@ -2083,7 +2092,9 @@ public:
                                       QualType NewT, QualType OldT);
   void CheckMain(FunctionDecl *FD, const DeclSpec &D);
   void CheckMSVCRTEntryPoint(FunctionDecl *FD);
-  Attr *getImplicitCodeSegOrSectionAttrForFunction(const FunctionDecl *FD, bool IsDefinition);
+  Attr *getImplicitCodeSegOrSectionAttrForFunction(const FunctionDecl *FD,
+                                                   bool IsDefinition);
+  void CheckFunctionOrTemplateParamDeclarator(Scope *S, Declarator &D);
   Decl *ActOnParamDeclarator(Scope *S, Declarator &D);
   ParmVarDecl *BuildParmVarDeclForTypedef(DeclContext *DC,
                                           SourceLocation Loc,
@@ -5746,7 +5757,7 @@ public:
   startLambdaDefinition(CXXRecordDecl *Class, SourceRange IntroducerRange,
                         TypeSourceInfo *MethodType, SourceLocation EndLoc,
                         ArrayRef<ParmVarDecl *> Params,
-                        bool IsConstexprSpecified,
+                        ConstexprSpecKind ConstexprKind,
                         Optional<std::pair<unsigned, Decl *>> Mangling = None);
 
   /// Endow the lambda scope info with the relevant properties.

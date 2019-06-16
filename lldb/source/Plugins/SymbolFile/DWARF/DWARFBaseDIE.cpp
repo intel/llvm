@@ -90,13 +90,6 @@ lldb::ModuleSP DWARFBaseDIE::GetModule() const {
     return lldb::ModuleSP();
 }
 
-lldb_private::CompileUnit *DWARFBaseDIE::GetLLDBCompileUnit() const {
-  if (IsValid())
-    return GetDWARF()->GetCompUnitForDWARFCompUnit(GetCU());
-  else
-    return nullptr;
-}
-
 dw_offset_t DWARFBaseDIE::GetOffset() const {
   if (IsValid())
     return m_die->GetOffset();
@@ -106,7 +99,7 @@ dw_offset_t DWARFBaseDIE::GetOffset() const {
 
 SymbolFileDWARF *DWARFBaseDIE::GetDWARF() const {
   if (m_cu)
-    return m_cu->GetSymbolFileDWARF();
+    return &m_cu->GetSymbolFileDWARF();
   else
     return nullptr;
 }

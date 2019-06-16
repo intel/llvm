@@ -40,7 +40,7 @@
 class DebugMapModule;
 class DWARFAbbreviationDeclaration;
 class DWARFAbbreviationDeclarationSet;
-class DWARFileUnit;
+class DWARFCompileUnit;
 class DWARFDebugAbbrev;
 class DWARFDebugAranges;
 class DWARFDebugInfo;
@@ -49,6 +49,7 @@ class DWARFDebugLine;
 class DWARFDebugRangesBase;
 class DWARFDeclContext;
 class DWARFFormValue;
+class DWARFTypeUnit;
 class SymbolFileDWARFDebugMap;
 class SymbolFileDWARFDwo;
 class SymbolFileDWARFDwp;
@@ -214,8 +215,6 @@ public:
 
   const lldb_private::DWARFDataExtractor &get_debug_loc_data();
   const lldb_private::DWARFDataExtractor &get_debug_loclists_data();
-  const lldb_private::DWARFDataExtractor &get_debug_ranges_data();
-  const lldb_private::DWARFDataExtractor &get_debug_rnglists_data();
 
   DWARFDebugAbbrev *DebugAbbrev();
 
@@ -238,7 +237,8 @@ public:
   bool
   HasForwardDeclForClangType(const lldb_private::CompilerType &compiler_type);
 
-  lldb_private::CompileUnit *GetCompUnitForDWARFCompUnit(DWARFUnit *dwarf_cu);
+  lldb_private::CompileUnit *
+  GetCompUnitForDWARFCompUnit(DWARFCompileUnit &dwarf_cu);
 
   virtual size_t GetObjCMethodDIEOffsets(lldb_private::ConstString class_name,
                                          DIEArray &method_die_offsets);
@@ -249,7 +249,7 @@ public:
 
   static DWARFDIE GetParentSymbolContextDIE(const DWARFDIE &die);
 
-  virtual lldb::CompUnitSP ParseCompileUnit(DWARFUnit *dwarf_cu);
+  virtual lldb::CompUnitSP ParseCompileUnit(DWARFCompileUnit &dwarf_cu);
 
   virtual lldb_private::DWARFExpression::LocationListFormat
   GetLocationListFormat() const;
@@ -284,7 +284,7 @@ public:
   // For regular SymbolFileDWARF instances the method returns nullptr,
   // for the instances of the subclass SymbolFileDWARFDwo
   // the method returns a pointer to the base compile unit.
-  virtual DWARFUnit *GetBaseCompileUnit();
+  virtual DWARFCompileUnit *GetBaseCompileUnit() { return nullptr; }
 
   static bool
   DIEInDeclContext(const lldb_private::CompilerDeclContext *parent_decl_ctx,
@@ -298,6 +298,8 @@ public:
   void DumpClangAST(lldb_private::Stream &s) override;
 
   lldb_private::DWARFContext &GetDWARFContext() { return m_context; }
+
+  lldb_private::FileSpec GetFile(DWARFUnit &unit, size_t file_idx);
 
 protected:
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb_private::Type *>
@@ -430,6 +432,9 @@ protected:
     return m_forward_decl_clang_type_to_die;
   }
 
+  void BuildCuTranslationTable();
+  llvm::Optional<uint32_t> GetDWARFUnitIndex(uint32_t cu_idx);
+
   struct DecodedUID {
     SymbolFileDWARF *dwarf;
     DIERef ref;
@@ -437,6 +442,8 @@ protected:
   DecodedUID DecodeUID(lldb::user_id_t uid);
 
   SymbolFileDWARFDwp *GetDwpSymbolFile();
+
+  const lldb_private::FileSpecList &GetTypeUnitSupportFiles(DWARFTypeUnit &tu);
 
   lldb::ModuleWP m_debug_map_module_wp;
   SymbolFileDWARFDebugMap *m_debug_map_symfile;
@@ -448,8 +455,6 @@ protected:
 
   DWARFDataSegment m_data_debug_loc;
   DWARFDataSegment m_data_debug_loclists;
-  DWARFDataSegment m_data_debug_ranges;
-  DWARFDataSegment m_data_debug_rnglists;
 
   // The unique pointer items below are generated on demand if and when someone
   // accesses them through a non const version of this class.
@@ -476,6 +481,9 @@ protected:
   DIEToVariableSP m_die_to_variable_sp;
   DIEToClangType m_forward_decl_die_to_clang_type;
   ClangTypeToDIE m_forward_decl_clang_type_to_die;
+  llvm::DenseMap<dw_offset_t, lldb_private::FileSpecList>
+      m_type_unit_support_files;
+  std::vector<uint32_t> m_lldb_cu_to_dwarf_unit;
 };
 
 #endif // SymbolFileDWARF_SymbolFileDWARF_h_

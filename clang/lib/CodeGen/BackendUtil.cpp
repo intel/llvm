@@ -60,6 +60,7 @@
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
+#include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
@@ -861,9 +862,9 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     break;
 
   default:
-    if (!CodeGenOpts.SplitDwarfFile.empty() &&
+    if (!CodeGenOpts.SplitDwarfOutput.empty() &&
         (CodeGenOpts.getSplitDwarfMode() == CodeGenOptions::SplitFileFission)) {
-      DwoOS = openOutputFile(CodeGenOpts.SplitDwarfFile);
+      DwoOS = openOutputFile(CodeGenOpts.SplitDwarfOutput);
       if (!DwoOS)
         return;
     }
@@ -1111,8 +1112,10 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         MPM.addPass(InstrProfiling(*Options, false));
 
       // Build a minimal pipeline based on the semantics required by Clang,
-      // which is just that always inlining occurs.
-      MPM.addPass(AlwaysInlinerPass());
+      // which is just that always inlining occurs. Further, disable generating
+      // lifetime intrinsics to avoid enabling further optimizations during
+      // code generation.
+      MPM.addPass(AlwaysInlinerPass(/*InsertLifetimeIntrinsics=*/false));
 
       // At -O0 we directly run necessary sanitizer passes.
       if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
@@ -1214,6 +1217,11 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
 
     if (CodeGenOpts.OptimizationLevel == 0)
       addSanitizersAtO0(MPM, TargetTriple, LangOpts, CodeGenOpts);
+
+    if (CodeGenOpts.hasProfileIRInstr()) {
+      // This file is stored as the ProfileFile.
+      MPM.addPass(PGOInstrumentationGenCreateVar(PGOOpt->ProfileFile));
+    }
   }
 
   // FIXME: We still use the legacy pass manager to do code generation. We
@@ -1267,8 +1275,9 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     NeedCodeGen = true;
     CodeGenPasses.add(
         createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
-    if (!CodeGenOpts.SplitDwarfFile.empty()) {
-      DwoOS = openOutputFile(CodeGenOpts.SplitDwarfFile);
+    if (!CodeGenOpts.SplitDwarfOutput.empty() &&
+        CodeGenOpts.getSplitDwarfMode() == CodeGenOptions::SplitFileFission) {
+      DwoOS = openOutputFile(CodeGenOpts.SplitDwarfOutput);
       if (!DwoOS)
         return;
     }
@@ -1419,7 +1428,8 @@ static void runThinLTOBackend(ModuleSummaryIndex *CombinedIndex, Module *M,
   Conf.RemarksWithHotness = CGOpts.DiagnosticsWithHotness;
   Conf.RemarksFilename = CGOpts.OptRecordFile;
   Conf.RemarksPasses = CGOpts.OptRecordPasses;
-  Conf.DwoPath = CGOpts.SplitDwarfFile;
+  Conf.SplitDwarfFile = CGOpts.SplitDwarfFile;
+  Conf.SplitDwarfOutput = CGOpts.SplitDwarfOutput;
   switch (Action) {
   case Backend_EmitNothing:
     Conf.PreCodeGenModuleHook = [](size_t Task, const Module &Mod) {

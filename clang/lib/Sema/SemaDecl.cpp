@@ -4292,14 +4292,18 @@ Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS, DeclSpec &DS,
     Diag(DS.getInlineSpecLoc(), diag::err_inline_non_function)
         << getLangOpts().CPlusPlus17;
 
-  if (DS.isConstexprSpecified()) {
+  if (DS.hasConstexprSpecifier()) {
     // C++0x [dcl.constexpr]p1: constexpr can only be applied to declarations
     // and definitions of functions and variables.
+    // C++2a [dcl.constexpr]p1: The consteval specifier shall be applied only to
+    // the declaration of a function or function template
+    bool IsConsteval = DS.getConstexprSpecifier() == CSK_consteval;
     if (Tag)
       Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_tag)
-          << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType());
+          << GetDiagnosticTypeSpecifierID(DS.getTypeSpecType()) << IsConsteval;
     else
-      Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_no_declarators);
+      Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_wrong_decl_kind)
+          << IsConsteval;
     // Don't emit warnings after this error.
     return TagD;
   }
@@ -5752,9 +5756,9 @@ Sema::ActOnTypedefDeclarator(Scope* S, Declarator& D, DeclContext* DC,
   if (D.getDeclSpec().isInlineSpecified())
     Diag(D.getDeclSpec().getInlineSpecLoc(), diag::err_inline_non_function)
         << getLangOpts().CPlusPlus17;
-  if (D.getDeclSpec().isConstexprSpecified())
+  if (D.getDeclSpec().hasConstexprSpecifier())
     Diag(D.getDeclSpec().getConstexprSpecLoc(), diag::err_invalid_constexpr)
-      << 1;
+        << 1 << (D.getDeclSpec().getConstexprSpecifier() == CSK_consteval);
 
   if (D.getName().Kind != UnqualifiedIdKind::IK_Identifier) {
     if (D.getName().Kind == UnqualifiedIdKind::IK_DeductionGuideName)
@@ -6648,13 +6652,17 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       NewVD->setTemplateParameterListsInfo(
           Context, TemplateParamLists.drop_back(VDTemplateParamLists));
 
-    if (D.getDeclSpec().isConstexprSpecified()) {
+    if (D.getDeclSpec().hasConstexprSpecifier()) {
       NewVD->setConstexpr(true);
       // C++1z [dcl.spec.constexpr]p1:
       //   A static data member declared with the constexpr specifier is
       //   implicitly an inline variable.
       if (NewVD->isStaticDataMember() && getLangOpts().CPlusPlus17)
         NewVD->setImplicitlyInline();
+      if (D.getDeclSpec().getConstexprSpecifier() == CSK_consteval)
+        Diag(D.getDeclSpec().getConstexprSpecLoc(),
+             diag::err_constexpr_wrong_decl_kind)
+            << /*consteval*/ 1;
     }
   }
 
@@ -7982,7 +7990,8 @@ static FunctionDecl* CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
       (!R->getAsAdjusted<FunctionType>() && R->isFunctionProtoType());
 
     NewFD = FunctionDecl::Create(SemaRef.Context, DC, D.getBeginLoc(), NameInfo,
-                                 R, TInfo, SC, isInline, HasPrototype, false);
+                                 R, TInfo, SC, isInline, HasPrototype,
+                                 CSK_unspecified);
     if (D.isInvalidType())
       NewFD->setInvalidDecl();
 
@@ -7990,8 +7999,7 @@ static FunctionDecl* CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
   }
 
   ExplicitSpecifier ExplicitSpecifier = D.getDeclSpec().getExplicitSpecifier();
-  bool isConstexpr = D.getDeclSpec().isConstexprSpecified();
-
+  ConstexprSpecKind ConstexprKind = D.getDeclSpec().getConstexprSpecifier();
   // Check that the return type is not an abstract class type.
   // For record types, this is done by the AbstractClassUsageDiagnoser once
   // the class has been completely parsed.
@@ -8010,7 +8018,7 @@ static FunctionDecl* CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     return CXXConstructorDecl::Create(
         SemaRef.Context, cast<CXXRecordDecl>(DC), D.getBeginLoc(), NameInfo, R,
         TInfo, ExplicitSpecifier, isInline,
-        /*isImplicitlyDeclared=*/false, isConstexpr);
+        /*isImplicitlyDeclared=*/false, ConstexprKind);
 
   } else if (Name.getNameKind() == DeclarationName::CXXDestructorName) {
     // This is a C++ destructor declaration.
@@ -8040,7 +8048,7 @@ static FunctionDecl* CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
       return FunctionDecl::Create(SemaRef.Context, DC, D.getBeginLoc(),
                                   D.getIdentifierLoc(), Name, R, TInfo, SC,
                                   isInline,
-                                  /*hasPrototype=*/true, isConstexpr);
+                                  /*hasPrototype=*/true, ConstexprKind);
     }
 
   } else if (Name.getNameKind() == DeclarationName::CXXConversionFunctionName) {
@@ -8054,7 +8062,7 @@ static FunctionDecl* CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     IsVirtualOkay = true;
     return CXXConversionDecl::Create(
         SemaRef.Context, cast<CXXRecordDecl>(DC), D.getBeginLoc(), NameInfo, R,
-        TInfo, isInline, ExplicitSpecifier, isConstexpr, SourceLocation());
+        TInfo, isInline, ExplicitSpecifier, ConstexprKind, SourceLocation());
 
   } else if (Name.getNameKind() == DeclarationName::CXXDeductionGuideName) {
     SemaRef.CheckDeductionGuideDeclarator(D, R, SC);
@@ -8078,7 +8086,7 @@ static FunctionDecl* CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     // This is a C++ method declaration.
     CXXMethodDecl *Ret = CXXMethodDecl::Create(
         SemaRef.Context, cast<CXXRecordDecl>(DC), D.getBeginLoc(), NameInfo, R,
-        TInfo, SC, isInline, isConstexpr, SourceLocation());
+        TInfo, SC, isInline, ConstexprKind, SourceLocation());
     IsVirtualOkay = !Ret->isStatic();
     return Ret;
   } else {
@@ -8092,7 +8100,7 @@ static FunctionDecl* CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     //   - we're in C++ (where every function has a prototype),
     return FunctionDecl::Create(SemaRef.Context, DC, D.getBeginLoc(), NameInfo,
                                 R, TInfo, SC, isInline, true /*HasPrototype*/,
-                                isConstexpr);
+                                ConstexprKind);
   }
 }
 
@@ -8422,7 +8430,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     bool isInline = D.getDeclSpec().isInlineSpecified();
     bool isVirtual = D.getDeclSpec().isVirtualSpecified();
     bool hasExplicit = D.getDeclSpec().hasExplicitSpecifier();
-    bool isConstexpr = D.getDeclSpec().isConstexprSpecified();
+    ConstexprSpecKind ConstexprKind = D.getDeclSpec().getConstexprSpecifier();
     isFriend = D.getDeclSpec().isFriendSpecified();
     if (isFriend && !isInline && D.isFunctionDefinition()) {
       // C++ [class.friend]p5
@@ -8621,7 +8629,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       }
     }
 
-    if (isConstexpr) {
+    if (ConstexprKind != CSK_unspecified) {
       // C++11 [dcl.constexpr]p2: constexpr functions and constexpr constructors
       // are implicitly inline.
       NewFD->setImplicitlyInline();
@@ -8630,7 +8638,8 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       // be either constructors or to return a literal type. Therefore,
       // destructors cannot be declared constexpr.
       if (isa<CXXDestructorDecl>(NewFD))
-        Diag(D.getDeclSpec().getConstexprSpecLoc(), diag::err_constexpr_dtor);
+        Diag(D.getDeclSpec().getConstexprSpecLoc(), diag::err_constexpr_dtor)
+            << (ConstexprKind == CSK_consteval);
     }
 
     // If __module_private__ was specified, mark the function accordingly.
@@ -9527,6 +9536,7 @@ static bool CheckMultiVersionAdditionalRules(Sema &S, const FunctionDecl *OldFD,
     DeletedFuncs = 5,
     DefaultedFuncs = 6,
     ConstexprFuncs = 7,
+    ConstevalFuncs = 8,
   };
   enum Different {
     CallingConv = 0,
@@ -9602,7 +9612,8 @@ static bool CheckMultiVersionAdditionalRules(Sema &S, const FunctionDecl *OldFD,
   if (NewFD->isConstexpr() && (MVType == MultiVersionKind::CPUDispatch ||
                                MVType == MultiVersionKind::CPUSpecific))
     return S.Diag(NewFD->getLocation(), diag::err_multiversion_doesnt_support)
-           << IsCPUSpecificCPUDispatchMVType << ConstexprFuncs;
+           << IsCPUSpecificCPUDispatchMVType
+           << (NewFD->isConsteval() ? ConstevalFuncs : ConstexprFuncs);
 
   QualType NewQType = S.getASTContext().getCanonicalType(NewFD->getType());
   const auto *NewType = cast<FunctionType>(NewQType);
@@ -9633,7 +9644,7 @@ static bool CheckMultiVersionAdditionalRules(Sema &S, const FunctionDecl *OldFD,
       return S.Diag(NewFD->getLocation(), diag::err_multiversion_diff)
              << ReturnType;
 
-    if (OldFD->isConstexpr() != NewFD->isConstexpr())
+    if (OldFD->getConstexprKind() != NewFD->getConstexprKind())
       return S.Diag(NewFD->getLocation(), diag::err_multiversion_diff)
              << ConstexprSpec;
 
@@ -10383,8 +10394,9 @@ void Sema::CheckMain(FunctionDecl* FD, const DeclSpec& DS) {
   }
   if (FD->isConstexpr()) {
     Diag(DS.getConstexprSpecLoc(), diag::err_constexpr_main)
-      << FixItHint::CreateRemoval(DS.getConstexprSpecLoc());
-    FD->setConstexpr(false);
+        << FD->isConsteval()
+        << FixItHint::CreateRemoval(DS.getConstexprSpecLoc());
+    FD->setConstexprKind(CSK_unspecified);
   }
 
   if (getLangOpts().OpenCL) {
@@ -12441,6 +12453,45 @@ void Sema::ActOnDocumentableDecls(ArrayRef<Decl *> Group) {
   }
 }
 
+/// Common checks for a parameter-declaration that should apply to both function
+/// parameters and non-type template parameters.
+void Sema::CheckFunctionOrTemplateParamDeclarator(Scope *S, Declarator &D) {
+  // Check that there are no default arguments inside the type of this
+  // parameter.
+  if (getLangOpts().CPlusPlus)
+    CheckExtraCXXDefaultArguments(D);
+
+  // Parameter declarators cannot be qualified (C++ [dcl.meaning]p1).
+  if (D.getCXXScopeSpec().isSet()) {
+    Diag(D.getIdentifierLoc(), diag::err_qualified_param_declarator)
+      << D.getCXXScopeSpec().getRange();
+  }
+
+  // [dcl.meaning]p1: An unqualified-id occurring in a declarator-id shall be a
+  // simple identifier except [...irrelevant cases...].
+  switch (D.getName().getKind()) {
+  case UnqualifiedIdKind::IK_Identifier:
+    break;
+
+  case UnqualifiedIdKind::IK_OperatorFunctionId:
+  case UnqualifiedIdKind::IK_ConversionFunctionId:
+  case UnqualifiedIdKind::IK_LiteralOperatorId:
+  case UnqualifiedIdKind::IK_ConstructorName:
+  case UnqualifiedIdKind::IK_DestructorName:
+  case UnqualifiedIdKind::IK_ImplicitSelfParam:
+  case UnqualifiedIdKind::IK_DeductionGuideName:
+    Diag(D.getIdentifierLoc(), diag::err_bad_parameter_name)
+      << GetNameForDeclarator(D).getName();
+    break;
+
+  case UnqualifiedIdKind::IK_TemplateId:
+  case UnqualifiedIdKind::IK_ConstructorTemplateId:
+    // GetNameForDeclarator would not produce a useful name in this case.
+    Diag(D.getIdentifierLoc(), diag::err_bad_parameter_name_template_id);
+    break;
+  }
+}
+
 /// ActOnParamDeclarator - Called from Parser::ParseFunctionDeclarator()
 /// to introduce parameters into function prototype scope.
 Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
@@ -12475,40 +12526,19 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
   if (DS.isInlineSpecified())
     Diag(DS.getInlineSpecLoc(), diag::err_inline_non_function)
         << getLangOpts().CPlusPlus17;
-  if (DS.isConstexprSpecified())
+  if (DS.hasConstexprSpecifier())
     Diag(DS.getConstexprSpecLoc(), diag::err_invalid_constexpr)
-      << 0;
+        << 0 << (D.getDeclSpec().getConstexprSpecifier() == CSK_consteval);
 
   DiagnoseFunctionSpecifiers(DS);
+
+  CheckFunctionOrTemplateParamDeclarator(S, D);
 
   TypeSourceInfo *TInfo = GetTypeForDeclarator(D, S);
   QualType parmDeclType = TInfo->getType();
 
-  if (getLangOpts().CPlusPlus) {
-    // Check that there are no default arguments inside the type of this
-    // parameter.
-    CheckExtraCXXDefaultArguments(D);
-
-    // Parameter declarators cannot be qualified (C++ [dcl.meaning]p1).
-    if (D.getCXXScopeSpec().isSet()) {
-      Diag(D.getIdentifierLoc(), diag::err_qualified_param_declarator)
-        << D.getCXXScopeSpec().getRange();
-      D.getCXXScopeSpec().clear();
-    }
-  }
-
-  // Ensure we have a valid name
-  IdentifierInfo *II = nullptr;
-  if (D.hasName()) {
-    II = D.getIdentifier();
-    if (!II) {
-      Diag(D.getIdentifierLoc(), diag::err_bad_parameter_name)
-        << GetNameForDeclarator(D).getName();
-      D.setInvalidType(true);
-    }
-  }
-
   // Check for redeclaration of parameters, e.g. int foo(int x, int x);
+  IdentifierInfo *II = D.getIdentifier();
   if (II) {
     LookupResult R(*this, II, D.getIdentifierLoc(), LookupOrdinaryName,
                    ForVisibleRedeclaration);
@@ -13128,7 +13158,7 @@ void Sema::computeNRVO(Stmt *Body, FunctionScopeInfo *Scope) {
 
 bool Sema::canDelayFunctionBody(const Declarator &D) {
   // We can't delay parsing the body of a constexpr function template (yet).
-  if (D.getDeclSpec().isConstexprSpecified())
+  if (D.getDeclSpec().hasConstexprSpecifier())
     return false;
 
   // We can't delay parsing the body of a function template with a deduced

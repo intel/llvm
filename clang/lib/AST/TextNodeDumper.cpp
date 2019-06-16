@@ -223,6 +223,7 @@ void TextNodeDumper::Visit(const Decl *D) {
     return;
   }
 
+  Context = &D->getASTContext();
   {
     ColorScope Color(OS, ShowColors, DeclKindNameColor);
     OS << D->getDeclKindName() << "Decl";
@@ -255,9 +256,12 @@ void TextNodeDumper::Visit(const Decl *D) {
 
   if (D->isInvalidDecl())
     OS << " invalid";
-  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
-    if (FD->isConstexpr())
+  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    if (FD->isConstexprSpecified())
       OS << " constexpr";
+    if (FD->isConsteval())
+      OS << " consteval";
+  }
 
   if (!isa<FunctionDecl>(*D)) {
     const auto *MD = dyn_cast<ObjCMethodDecl>(D);
@@ -684,6 +688,14 @@ void TextNodeDumper::VisitGotoStmt(const GotoStmt *Node) {
 void TextNodeDumper::VisitCaseStmt(const CaseStmt *Node) {
   if (Node->caseStmtIsGNURange())
     OS << " gnu_range";
+}
+
+void TextNodeDumper::VisitConstantExpr(const ConstantExpr *Node) {
+  if (Node->getResultAPValueKind() != APValue::None) {
+    ColorScope Color(OS, ShowColors, ValueColor);
+    OS << " ";
+    Node->getAPValueResult().printPretty(OS, *Context, Node->getType());
+  }
 }
 
 void TextNodeDumper::VisitCallExpr(const CallExpr *Node) {

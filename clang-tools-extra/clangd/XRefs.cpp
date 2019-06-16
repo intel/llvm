@@ -19,7 +19,9 @@
 #include "index/SymbolLocation.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
@@ -620,6 +622,23 @@ static llvm::Optional<Range> getTokenRange(SourceLocation Loc,
                          CharSourceRange::getCharRange(Loc, End));
 }
 
+static const FunctionDecl *getUnderlyingFunction(const Decl *D) {
+  // Extract lambda from variables.
+  if (const VarDecl *VD = llvm::dyn_cast<VarDecl>(D)) {
+    auto QT = VD->getType();
+    if (!QT.isNull()) {
+      while (!QT->getPointeeType().isNull())
+        QT = QT->getPointeeType();
+
+      if (const auto *CD = QT->getAsCXXRecordDecl())
+        return CD->getLambdaCallOperator();
+    }
+  }
+
+  // Non-lambda functions.
+  return D->getAsFunction();
+}
+
 /// Generate a \p Hover object given the declaration \p D.
 static HoverInfo getHoverContents(const Decl *D) {
   HoverInfo HI;
@@ -654,27 +673,21 @@ static HoverInfo getHoverContents(const Decl *D) {
   }
 
   // Fill in types and params.
-  if (const FunctionDecl *FD = D->getAsFunction()) {
+  if (const FunctionDecl *FD = getUnderlyingFunction(D)) {
     HI.ReturnType.emplace();
-    llvm::raw_string_ostream OS(*HI.ReturnType);
-    FD->getReturnType().print(OS, Policy);
-
-    HI.Type.emplace();
-    llvm::raw_string_ostream TypeOS(*HI.Type);
-    FD->getReturnType().print(TypeOS, Policy);
-    TypeOS << '(';
+    {
+      llvm::raw_string_ostream OS(*HI.ReturnType);
+      FD->getReturnType().print(OS, Policy);
+    }
 
     HI.Parameters.emplace();
     for (const ParmVarDecl *PVD : FD->parameters()) {
-      if (HI.Parameters->size())
-        TypeOS << ", ";
       HI.Parameters->emplace_back();
       auto &P = HI.Parameters->back();
       if (!PVD->getType().isNull()) {
         P.Type.emplace();
         llvm::raw_string_ostream OS(*P.Type);
         PVD->getType().print(OS, Policy);
-        PVD->getType().print(TypeOS, Policy);
       } else {
         std::string Param;
         llvm::raw_string_ostream OS(Param);
@@ -690,11 +703,17 @@ static HoverInfo getHoverContents(const Decl *D) {
         PVD->getDefaultArg()->printPretty(Out, nullptr, Policy);
       }
     }
-    TypeOS << ')';
+
+    HI.Type.emplace();
+    llvm::raw_string_ostream TypeOS(*HI.Type);
+    // Lambdas
+    if (const VarDecl *VD = llvm::dyn_cast<VarDecl>(D))
+      VD->getType().getDesugaredType(D->getASTContext()).print(TypeOS, Policy);
+    // Functions
+    else
+      FD->getType().print(TypeOS, Policy);
     // FIXME: handle variadics.
   } else if (const auto *VD = dyn_cast<ValueDecl>(D)) {
-    // FIXME: Currently lambdas are also handled as ValueDecls, they should be
-    // more similar to functions.
     HI.Type.emplace();
     llvm::raw_string_ostream OS(*HI.Type);
     VD->getType().print(OS, Policy);
@@ -1046,6 +1065,45 @@ declToTypeHierarchyItem(ASTContext &Ctx, const NamedDecl &ND) {
   return THI;
 }
 
+static Optional<TypeHierarchyItem>
+symbolToTypeHierarchyItem(const Symbol &S, const SymbolIndex *Index,
+                          PathRef TUPath) {
+  auto Loc = symbolToLocation(S, TUPath);
+  if (!Loc) {
+    log("Type hierarchy: {0}", Loc.takeError());
+    return llvm::None;
+  }
+  TypeHierarchyItem THI;
+  THI.name = S.Name;
+  THI.kind = indexSymbolKindToSymbolKind(S.SymInfo.Kind);
+  THI.deprecated = (S.Flags & Symbol::Deprecated);
+  THI.selectionRange = Loc->range;
+  // FIXME: Populate 'range' correctly
+  // (https://github.com/clangd/clangd/issues/59).
+  THI.range = THI.selectionRange;
+  THI.uri = Loc->uri;
+
+  return std::move(THI);
+}
+
+static void fillSubTypes(const SymbolID &ID,
+                         std::vector<TypeHierarchyItem> &SubTypes,
+                         const SymbolIndex *Index, int Levels, PathRef TUPath) {
+  RelationsRequest Req;
+  Req.Subjects.insert(ID);
+  Req.Predicate = index::SymbolRole::RelationBaseOf;
+  Index->relations(Req, [&](const SymbolID &Subject, const Symbol &Object) {
+    if (Optional<TypeHierarchyItem> ChildSym =
+            symbolToTypeHierarchyItem(Object, Index, TUPath)) {
+      if (Levels > 1) {
+        ChildSym->children.emplace();
+        fillSubTypes(Object.ID, *ChildSym->children, Index, Levels - 1, TUPath);
+      }
+      SubTypes.emplace_back(std::move(*ChildSym));
+    }
+  });
+}
+
 using RecursionProtectionSet = llvm::SmallSet<const CXXRecordDecl *, 4>;
 
 static Optional<TypeHierarchyItem>
@@ -1141,7 +1199,8 @@ std::vector<const CXXRecordDecl *> typeParents(const CXXRecordDecl *CXXRD) {
 
 llvm::Optional<TypeHierarchyItem>
 getTypeHierarchy(ParsedAST &AST, Position Pos, int ResolveLevels,
-                 TypeHierarchyDirection Direction) {
+                 TypeHierarchyDirection Direction, const SymbolIndex *Index,
+                 PathRef TUPath) {
   const CXXRecordDecl *CXXRD = findRecordTypeAt(AST, Pos);
   if (!CXXRD)
     return llvm::None;
@@ -1150,8 +1209,16 @@ getTypeHierarchy(ParsedAST &AST, Position Pos, int ResolveLevels,
   Optional<TypeHierarchyItem> Result =
       getTypeAncestors(*CXXRD, AST.getASTContext(), RPSet);
 
-  // FIXME(nridge): Resolve type descendants if direction is Children or Both,
-  // and ResolveLevels > 0.
+  if ((Direction == TypeHierarchyDirection::Children ||
+       Direction == TypeHierarchyDirection::Both) &&
+      ResolveLevels > 0) {
+    Result->children.emplace();
+
+    if (Index) {
+      if (Optional<SymbolID> ID = getSymbolID(CXXRD))
+        fillSubTypes(*ID, *Result->children, Index, ResolveLevels, TUPath);
+    }
+  }
 
   return Result;
 }

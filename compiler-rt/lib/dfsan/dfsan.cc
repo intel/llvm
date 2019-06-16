@@ -383,7 +383,7 @@ static void InitializeFlags() {
   FlagParser parser;
   RegisterCommonFlags(&parser);
   RegisterDfsanFlags(&parser, &flags());
-  parser.ParseString(GetEnv("DFSAN_OPTIONS"));
+  parser.ParseStringFromEnv("DFSAN_OPTIONS");
   InitializeCommonFlags();
   if (Verbosity()) ReportUnrecognizedFlags();
   if (common_flags()->help) parser.PrintFlagDescriptions();
@@ -419,6 +419,12 @@ static void dfsan_fini() {
     dfsan_dump_labels(fd);
     CloseFile(fd);
   }
+}
+
+extern "C" void dfsan_flush() {
+  UnmapOrDie((void*)ShadowAddr(), UnusedAddr() - ShadowAddr());
+  if (!MmapFixedNoReserve(ShadowAddr(), UnusedAddr() - ShadowAddr()))
+    Die();
 }
 
 static void dfsan_init(int argc, char **argv, char **envp) {

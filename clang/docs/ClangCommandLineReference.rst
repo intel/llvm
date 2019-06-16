@@ -610,6 +610,10 @@ C++ standard library to use
 
 Generate code for the given target
 
+.. option:: --print-supported-cpus
+
+Print supported cpu models for the given target
+
 .. option:: -time
 
 Time individual commands
@@ -2400,6 +2404,10 @@ AMDGPU
 
 CU wavefront execution mode is used if enabled and WGP wavefront execution mode
 is used if disabled (AMDGPU only)
+
+.. option:: -mwavefrontsize64, -mno-wavefrontsize64
+
+Wavefront size 64 is used if enabled and wavefront size 32 if disabled (AMDGPU only)
 
 .. option:: -mxnack, -mno-xnack
 

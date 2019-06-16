@@ -401,8 +401,9 @@ static bool isStaticLinkTimeConstant(RelExpr E, RelType Type, const Symbol &Sym,
             R_MIPS_GOT_OFF32, R_MIPS_GOT_GP_PC, R_MIPS_TLSGD,
             R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTONLY_PC, R_GOTPLTONLY_PC,
             R_PLT_PC, R_TLSGD_GOT, R_TLSGD_GOTPLT, R_TLSGD_PC, R_PPC32_PLTREL,
-            R_PPC64_CALL_PLT, R_PPC64_RELAX_TOC, R_TLSDESC_CALL, R_TLSDESC_PC,
-            R_AARCH64_TLSDESC_PAGE, R_HINT, R_TLSLD_HINT, R_TLSIE_HINT>(E))
+            R_PPC64_CALL_PLT, R_PPC64_RELAX_TOC, R_RISCV_ADD, R_TLSDESC_CALL,
+            R_TLSDESC_PC, R_AARCH64_TLSDESC_PAGE, R_HINT, R_TLSLD_HINT,
+            R_TLSIE_HINT>(E))
     return true;
 
   // These never do, except if the entire file is position dependent or if
@@ -672,8 +673,7 @@ static int64_t computeAddend(const RelTy &Rel, const RelTy *End,
 
 // Custom error message if Sym is defined in a discarded section.
 template <class ELFT>
-static std::string maybeReportDiscarded(Undefined &Sym, InputSectionBase &Sec,
-                                        uint64_t Offset) {
+static std::string maybeReportDiscarded(Undefined &Sym) {
   auto *File = dyn_cast_or_null<ObjFile<ELFT>>(Sym.File);
   if (!File || !Sym.DiscardedSecIdx ||
       File->getSections()[Sym.DiscardedSecIdx] != &InputSection::Discarded)
@@ -718,6 +718,15 @@ static bool maybeReportUndefined(Symbol &Sym, InputSectionBase &Sec,
   if (Config->UnresolvedSymbols == UnresolvedPolicy::Ignore && CanBeExternal)
     return false;
 
+  // clang (as of 2019-06-12) / gcc (as of 8.2.1) PPC64 may emit a .rela.toc
+  // which references a switch table in a discarded .rodata/.text section. The
+  // .toc and the .rela.toc are incorrectly not placed in the comdat. The ELF
+  // spec says references from outside the group to a STB_LOCAL symbol are not
+  // allowed. Work around the bug.
+  if (Config->EMachine == EM_PPC64 &&
+      cast<Undefined>(Sym).DiscardedSecIdx != 0 && Sec.Name == ".toc")
+    return false;
+
   auto Visibility = [&]() -> std::string {
     switch (Sym.Visibility) {
     case STV_INTERNAL:
@@ -731,8 +740,7 @@ static bool maybeReportUndefined(Symbol &Sym, InputSectionBase &Sec,
     }
   };
 
-  std::string Msg =
-      maybeReportDiscarded<ELFT>(cast<Undefined>(Sym), Sec, Offset);
+  std::string Msg = maybeReportDiscarded<ELFT>(cast<Undefined>(Sym));
   if (Msg.empty())
     Msg = "undefined " + Visibility() + "symbol: " + toString(Sym);
 
@@ -914,13 +922,28 @@ template <class ELFT, class RelTy>
 static void processRelocAux(InputSectionBase &Sec, RelExpr Expr, RelType Type,
                             uint64_t Offset, Symbol &Sym, const RelTy &Rel,
                             int64_t Addend) {
-  if (isStaticLinkTimeConstant(Expr, Type, Sym, Sec, Offset)) {
+  // If the relocation is known to be a link-time constant, we know no dynamic
+  // relocation will be created, pass the control to relocateAlloc() or
+  // relocateNonAlloc() to resolve it.
+  //
+  // The behavior of an undefined weak reference is implementation defined. If
+  // the relocation is to a weak undef, and we are producing an executable, let
+  // relocate{,Non}Alloc() resolve it.
+  if (isStaticLinkTimeConstant(Expr, Type, Sym, Sec, Offset) ||
+      (!Config->Shared && Sym.isUndefWeak())) {
     Sec.Relocations.push_back({Expr, Type, Offset, Addend, &Sym});
     return;
   }
+
   bool CanWrite = (Sec.Flags & SHF_WRITE) || !Config->ZText;
   if (CanWrite) {
-    if ((!Sym.IsPreemptible && Type == Target->SymbolicRel) || Expr == R_GOT) {
+    // FIXME Improve the way we handle absolute relocation types that will
+    // change to relative relocations. ARM has a relocation type R_ARM_TARGET1
+    // that is similar to SymbolicRel. PPC64 may have similar relocation types.
+    if ((!Sym.IsPreemptible &&
+         (Config->EMachine == EM_ARM || Config->EMachine == EM_PPC64 ||
+          Type == Target->SymbolicRel)) ||
+        Expr == R_GOT) {
       // If this is a symbolic relocation to a non-preemptable symbol, or an
       // R_GOT, its address is its link-time value plus load address. Represent
       // it with a relative relocation.
@@ -949,13 +972,6 @@ static void processRelocAux(InputSectionBase &Sec, RelExpr Expr, RelType Type,
         In.MipsGot->addEntry(*Sec.File, Sym, Addend, Expr);
       return;
     }
-  }
-
-  // If the relocation is to a weak undef, and we are producing
-  // executable, give up on it and produce a non preemptible 0.
-  if (!Config->Shared && Sym.isUndefWeak()) {
-    Sec.Relocations.push_back({Expr, Type, Offset, Addend, &Sym});
-    return;
   }
 
   if (!CanWrite && (Config->Pic && !isRelExpr(Expr))) {

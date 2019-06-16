@@ -331,11 +331,14 @@ protected:
   bool HasSDWAMac;
   bool HasSDWAOutModsVOPC;
   bool HasDPP;
+  bool HasDPP8;
   bool HasR128A16;
   bool HasNSAEncoding;
   bool HasDLInsts;
   bool HasDot1Insts;
   bool HasDot2Insts;
+  bool HasDot5Insts;
+  bool HasDot6Insts;
   bool EnableSRAMECC;
   bool DoesNotSupportSRAMECC;
   bool HasNoSdstCMPX;
@@ -704,6 +707,14 @@ public:
     return HasDot2Insts;
   }
 
+  bool hasDot5Insts() const {
+    return HasDot5Insts;
+  }
+
+  bool hasDot6Insts() const {
+    return HasDot6Insts;
+  }
+
   bool isSRAMECCEnabled() const {
     return EnableSRAMECC;
   }
@@ -834,6 +845,10 @@ public:
 
   bool hasDPP() const {
     return HasDPP;
+  }
+
+  bool hasDPP8() const {
+    return HasDPP8;
   }
 
   bool hasR128A16() const {
@@ -1022,6 +1037,10 @@ public:
   void getPostRAMutations(
       std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations)
       const override;
+
+  bool isWave32() const {
+    return WavefrontSize == 32;
+  }
 
   /// \returns Maximum number of work groups per compute unit supported by the
   /// subtarget and limited by given \p FlatWorkGroupSize.

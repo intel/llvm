@@ -187,6 +187,10 @@ def int_amdgcn_init_exec_from_input : Intrinsic<[],
    llvm_i32_ty],      // bit offset of the thread count
   [IntrConvergent]>;
 
+def int_amdgcn_wavefrontsize :
+  GCCBuiltin<"__builtin_amdgcn_wavefrontsize">,
+  Intrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>;
+
 
 //===----------------------------------------------------------------------===//
 // Instruction Intrinsics
@@ -413,7 +417,9 @@ class AMDGPUDSAppendConsumedIntrinsic : Intrinsic<
   [llvm_i32_ty],
   [llvm_anyptr_ty, // LDS or GDS ptr
    llvm_i1_ty], // isVolatile
-   [IntrConvergent, IntrArgMemOnly, NoCapture<0>, ImmArg<1>]
+   [IntrConvergent, IntrArgMemOnly, NoCapture<0>, ImmArg<1>],
+   "",
+   [SDNPMemOperand]
 >;
 
 def int_amdgcn_ds_ordered_add : AMDGPUDSOrderedIntrinsic;
@@ -1302,11 +1308,11 @@ def int_amdgcn_cvt_pk_u8_f32 :
 >;
 
 def int_amdgcn_icmp :
-  Intrinsic<[llvm_i64_ty], [llvm_anyint_ty, LLVMMatchType<0>, llvm_i32_ty],
+  Intrinsic<[llvm_anyint_ty], [llvm_anyint_ty, LLVMMatchType<1>, llvm_i32_ty],
             [IntrNoMem, IntrConvergent, ImmArg<2>]>;
 
 def int_amdgcn_fcmp :
-  Intrinsic<[llvm_i64_ty], [llvm_anyfloat_ty, LLVMMatchType<0>, llvm_i32_ty],
+  Intrinsic<[llvm_anyint_ty], [llvm_anyfloat_ty, LLVMMatchType<1>, llvm_i32_ty],
             [IntrNoMem, IntrConvergent, ImmArg<2>]>;
 
 def int_amdgcn_readfirstlane :
@@ -1437,6 +1443,26 @@ def int_amdgcn_ds_bpermute :
 // GFX10 Intrinsics
 //===----------------------------------------------------------------------===//
 
+// llvm.amdgcn.permlane16 <old> <src0> <src1> <src2> <fi> <bound_control>
+def int_amdgcn_permlane16 :
+  Intrinsic<[llvm_i32_ty],
+            [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i1_ty, llvm_i1_ty],
+            [IntrNoMem, IntrConvergent, ImmArg<4>, ImmArg<5>]>;
+
+// llvm.amdgcn.permlanex16 <old> <src0> <src1> <src2> <fi> <bound_control>
+def int_amdgcn_permlanex16 :
+  Intrinsic<[llvm_i32_ty],
+            [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i1_ty, llvm_i1_ty],
+            [IntrNoMem, IntrConvergent, ImmArg<4>, ImmArg<5>]>;
+
+// llvm.amdgcn.mov.dpp8.i32 <src> <sel>
+// <sel> is a 32-bit constant whose high 8 bits must be zero which selects
+// the lanes to read from.
+def int_amdgcn_mov_dpp8 :
+  Intrinsic<[llvm_anyint_ty],
+            [LLVMMatchType<0>, llvm_i32_ty],
+            [IntrNoMem, IntrConvergent, ImmArg<1>]>;
+
 def int_amdgcn_s_get_waveid_in_workgroup :
   GCCBuiltin<"__builtin_amdgcn_s_get_waveid_in_workgroup">,
   Intrinsic<[llvm_i32_ty], [], [IntrReadMem]>;
@@ -1556,23 +1582,23 @@ def int_amdgcn_udot8 :
 // Special Intrinsics for backend internal use only. No frontend
 // should emit calls to these.
 // ===----------------------------------------------------------------------===//
-def int_amdgcn_if : Intrinsic<[llvm_i1_ty, llvm_i64_ty],
+def int_amdgcn_if : Intrinsic<[llvm_i1_ty, llvm_anyint_ty],
   [llvm_i1_ty], [IntrConvergent]
 >;
 
-def int_amdgcn_else : Intrinsic<[llvm_i1_ty, llvm_i64_ty],
-  [llvm_i64_ty], [IntrConvergent]
+def int_amdgcn_else : Intrinsic<[llvm_i1_ty, llvm_anyint_ty],
+  [llvm_anyint_ty], [IntrConvergent]
 >;
 
-def int_amdgcn_if_break : Intrinsic<[llvm_i64_ty],
-  [llvm_i1_ty, llvm_i64_ty], [IntrNoMem, IntrConvergent]
+def int_amdgcn_if_break : Intrinsic<[llvm_anyint_ty],
+  [llvm_i1_ty, llvm_anyint_ty], [IntrNoMem, IntrConvergent]
 >;
 
 def int_amdgcn_loop : Intrinsic<[llvm_i1_ty],
-  [llvm_i64_ty], [IntrConvergent]
+  [llvm_anyint_ty], [IntrConvergent]
 >;
 
-def int_amdgcn_end_cf : Intrinsic<[], [llvm_i64_ty], [IntrConvergent]>;
+def int_amdgcn_end_cf : Intrinsic<[], [llvm_anyint_ty], [IntrConvergent]>;
 
 // Represent unreachable in a divergent region.
 def int_amdgcn_unreachable : Intrinsic<[], [], [IntrConvergent]>;
