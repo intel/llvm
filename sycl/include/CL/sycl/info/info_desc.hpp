@@ -18,16 +18,17 @@ class program;
 class device;
 class platform;
 
+// TODO: stop using OpenCL directly, use PI.
 namespace info {
 
 // Information descriptors
 // A.1 Platform information descriptors
-enum class platform : cl_platform_info {
-  profile = CL_PLATFORM_PROFILE,
-  version = CL_PLATFORM_VERSION,
-  name = CL_PLATFORM_NAME,
-  vendor = CL_PLATFORM_VENDOR,
-  extensions = CL_PLATFORM_EXTENSIONS
+enum class platform {
+  profile     = PI_PLATFORM_INFO_PROFILE,
+  version     = PI_PLATFORM_INFO_VERSION,
+  name        = PI_PLATFORM_INFO_NAME,
+  vendor      = PI_PLATFORM_INFO_VENDOR,
+  extensions  = PI_PLATFORM_INFO_EXTENSIONS,
 };
 
 // A.2 Context information desctiptors
@@ -122,14 +123,15 @@ enum class device : cl_device_info {
   partition_type_property
 };
 
-enum class device_type : cl_device_type {
-  cpu = CL_DEVICE_TYPE_CPU,
-  gpu = CL_DEVICE_TYPE_GPU,
-  accelerator = CL_DEVICE_TYPE_ACCELERATOR,
-  custom = CL_DEVICE_TYPE_CUSTOM,
+enum class device_type : pi_uint64 {
+  cpu         = PI_DEVICE_TYPE_CPU,
+  gpu         = PI_DEVICE_TYPE_GPU,
+  accelerator = PI_DEVICE_TYPE_ACC,
+  // TODO: figure out if we need all the below in PI
+  custom      = CL_DEVICE_TYPE_CUSTOM,
   automatic,
   host,
-  all = CL_DEVICE_TYPE_ALL
+  all         = CL_DEVICE_TYPE_ALL
 };
 
 enum class partition_property : cl_device_partition_property {
