@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/detail/sycl_mem_obj.hpp>
@@ -20,8 +21,15 @@
 namespace cl {
 namespace sycl {
 
+// forward declarations
 enum class image_channel_order : unsigned int;
 enum class image_channel_type : unsigned int;
+
+template <int Dimensions, typename AllocatorT> class image;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class accessor;
+class handler;
 
 namespace detail {
 
@@ -35,10 +43,13 @@ uint8_t getImageNumberChannels(image_channel_order Order);
 uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type);
 
 // validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
-// To be used in get_access method. Uncomment after get_access is implemented.
-// template <typename T>
-// using is_validImageDataT = typename detail::is_contained<
-//    T, type_list<cl_int4, cl_uint4, cl_float4, cl_half4>>::type;
+template <typename T>
+using is_validImageDataT = typename detail::is_contained<
+    T, type_list<cl_int4, cl_uint4, cl_float4, cl_half4>>::type;
+
+template <typename DataT>
+using EnableIfImgAccDataT =
+    typename std::enable_if<is_validImageDataT<DataT>::value, DataT>::type;
 
 template <int Dimensions, typename AllocatorT = image_allocator>
 class image_impl : public SYCLMemObjT {
@@ -136,7 +147,8 @@ public:
   image_impl(void *HData, image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange, AllocatorT Allocator,
              const property_list &PropList = {})
-      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
+      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange),
+        MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches();
@@ -156,7 +168,8 @@ public:
   image_impl(const void *HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
              AllocatorT Allocator, const property_list &PropList = {})
-      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
+      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange),
+        MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches();
@@ -179,7 +192,8 @@ public:
              const range<Dimensions> &ImageRange,
              const EnableIfPitchT<B> &Pitch, AllocatorT Allocator,
              const property_list &PropList = {})
-      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
+      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange),
+        MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches(Pitch);
@@ -199,7 +213,8 @@ public:
   image_impl(shared_ptr_class<void> &HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
              AllocatorT Allocator, const property_list &PropList = {})
-      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
+      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange),
+        MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches();
@@ -224,7 +239,8 @@ public:
              image_channel_type Type, const range<Dimensions> &ImageRange,
              const EnableIfPitchT<B> &Pitch, AllocatorT Allocator,
              const property_list &PropList = {})
-      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange), MOrder(Order), MType(Type),
+      : MAllocator(Allocator), MProps(PropList), MRange(ImageRange),
+        MOrder(Order), MType(Type),
         MNumChannels(getImageNumberChannels(MOrder)),
         MElementSize(getImageElementSize(MNumChannels, MType)) {
     setPitches(Pitch);
@@ -268,6 +284,31 @@ public:
     return MProps.get_property<propertyT>();
   }
 
+  // Returns a valid accessor to the image with the specified access mode and
+  // target. The only valid types for dataT are cl_int4, cl_uint4, cl_float4 and
+  // cl_half4.
+  template <typename DataT, access::mode AccessMode,
+            typename = EnableIfImgAccDataT<DataT>>
+  accessor<DataT, Dimensions, AccessMode, access::target::image,
+           access::placeholder::false_t>
+  get_access(image<Dimensions, AllocatorT> &Image,
+             handler &CommandGroupHandler) {
+    return accessor<DataT, Dimensions, AccessMode, access::target::image,
+                    access::placeholder::false_t>(Image, CommandGroupHandler);
+  }
+
+  // Returns a valid accessor to the image immediately on the host with the
+  // specified access mode and target. The only valid types for dataT are
+  // cl_int4, cl_uint4, cl_float4 and cl_half4.
+  template <typename DataT,
+            access::mode AccessMode> //, typename = EnableIfImgAccDataT<DataT>>
+  accessor<DataT, Dimensions, AccessMode, access::target::host_image,
+           access::placeholder::false_t>
+  get_access(image<Dimensions, AllocatorT> &Image) {
+    return accessor<DataT, Dimensions, AccessMode, access::target::host_image,
+                    access::placeholder::false_t>(Image);
+  }
+
   // TODO: Implement this function.
   void *allocateHostMem() override {
     if (true)
@@ -306,6 +347,11 @@ public:
     return;
     // Implementation of the pure virtual function.
   }
+
+  // This utility api is currently used by accessor to get the element size of
+  // the image. Element size is dependent on num of channels and channel type.
+  // This information is not accessible from the image using any public API.
+  uint8_t getElementSize() const { return MElementSize; };
 
 private:
   bool MHostPtrReadOnly = false;

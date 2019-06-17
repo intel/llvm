@@ -219,6 +219,21 @@ public:
   // Returns the allocator provided to the image
   AllocatorT get_allocator() const { return impl->get_allocator(); }
 
+  template <typename DataT, access::mode AccessMode>
+  accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
+           access::target::image, access::placeholder::false_t>
+  get_access(handler &commandGroupHandler) {
+    return impl->template get_access<DataT, AccessMode>(*this,
+                                                        commandGroupHandler);
+  }
+
+  template <typename DataT, access::mode AccessMode>
+  accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
+           access::target::host_image, access::placeholder::false_t>
+  get_access() {
+    return impl->template get_access<DataT, AccessMode>(*this);
+  }
+
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination FinalData = nullptr) {
     if (true)
@@ -234,6 +249,7 @@ public:
 
 private:
   shared_ptr_class<detail::image_impl<Dimensions, AllocatorT>> impl;
+
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 };
