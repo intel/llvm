@@ -17,6 +17,7 @@
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
@@ -301,6 +302,25 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R) {
       if (auto HierarchicalSupport =
               DocumentSymbol->getBoolean("hierarchicalDocumentSymbolSupport"))
         R.HierarchicalDocumentSymbol = *HierarchicalSupport;
+    }
+    if (auto *Hover = TextDocument->getObject("hover")) {
+      if (auto *ContentFormat = Hover->getArray("contentFormat")) {
+        for (const auto &Format : *ContentFormat) {
+          MarkupKind K = MarkupKind::PlainText;
+          if (fromJSON(Format, K)) {
+            R.HoverContentFormat = K;
+            break;
+          }
+        }
+      }
+    }
+    if (auto *Help = TextDocument->getObject("signatureHelp")) {
+      if (auto *Info = Help->getObject("signatureInformation")) {
+        if (auto *Parameter = Info->getObject("parameterInformation")) {
+          if (auto OffsetSupport = Parameter->getBoolean("labelOffsetSupport"))
+            R.OffsetsInSignatureHelp = *OffsetSupport;
+        }
+      }
     }
   }
   if (auto *Workspace = O->getObject("workspace")) {
@@ -683,6 +703,27 @@ static llvm::StringRef toTextKind(MarkupKind Kind) {
   llvm_unreachable("Invalid MarkupKind");
 }
 
+bool fromJSON(const llvm::json::Value &V, MarkupKind &K) {
+  auto Str = V.getAsString();
+  if (!Str) {
+    elog("Failed to parse markup kind: expected a string");
+    return false;
+  }
+  if (*Str == "plaintext")
+    K = MarkupKind::PlainText;
+  else if (*Str == "markdown")
+    K = MarkupKind::Markdown;
+  else {
+    elog("Unknown markup kind: {0}", *Str);
+    return false;
+  }
+  return true;
+}
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, MarkupKind K) {
+  return OS << toTextKind(K);
+}
+
 llvm::json::Value toJSON(const MarkupContent &MC) {
   if (MC.value.empty())
     return nullptr;
@@ -791,8 +832,14 @@ llvm::json::Value toJSON(const CompletionList &L) {
 }
 
 llvm::json::Value toJSON(const ParameterInformation &PI) {
-  assert(!PI.label.empty() && "parameter information label is required");
-  llvm::json::Object Result{{"label", PI.label}};
+  assert((PI.labelOffsets.hasValue() || !PI.labelString.empty()) &&
+         "parameter information label is required");
+  llvm::json::Object Result;
+  if (PI.labelOffsets)
+    Result["label"] =
+        llvm::json::Array({PI.labelOffsets->first, PI.labelOffsets->second});
+  else
+    Result["label"] = PI.labelString;
   if (!PI.documentation.empty())
     Result["documentation"] = PI.documentation;
   return std::move(Result);

@@ -2218,7 +2218,7 @@ Generate branches with extended addressability, usually via indirect jumps.
 
 .. option:: -mmacosx-version-min=<arg>, -mmacos-version-min=<arg>
 
-Set Mac OS X deployment target
+Set macOS deployment target
 
 .. option:: -mmcu=<arg>
 
@@ -2638,6 +2638,8 @@ X86
 .. option:: -mavx512vl, -mno-avx512vl
 
 .. option:: -mavx512vnni, -mno-avx512vnni
+
+.. option:: -mavx512vp2intersect, -mno-avx512vp2intersect
 
 .. option:: -mavx512vpopcntdq, -mno-avx512vpopcntdq
 

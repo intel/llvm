@@ -589,6 +589,12 @@ namespace llvm {
       // User level wait
       UMWAIT, TPAUSE,
 
+      // Enqueue Stores Instructions
+      ENQCMD, ENQCMDS,
+
+      // For avx512-vp2intersect
+      VP2INTERSECT,
+
       // Compare and swap.
       LCMPXCHG_DAG = ISD::FIRST_TARGET_MEMORY_OPCODE,
       LCMPXCHG8_DAG,
@@ -793,7 +799,11 @@ namespace llvm {
     /// This method returns the name of a target specific DAG node.
     const char *getTargetNodeName(unsigned Opcode) const override;
 
-    bool mergeStoresAfterLegalization() const override { return true; }
+    /// Do not merge vector stores after legalization because that may conflict
+    /// with x86-specific store splitting optimizations.
+    bool mergeStoresAfterLegalization(EVT MemVT) const override {
+      return !MemVT.isVector();
+    }
 
     bool canMergeStoresTo(unsigned AddressSpace, EVT MemVT,
                           const SelectionDAG &DAG) const override;
@@ -907,6 +917,8 @@ namespace llvm {
                                            KnownBits &Known,
                                            TargetLoweringOpt &TLO,
                                            unsigned Depth) const override;
+
+    const Constant *getTargetConstantFromLoad(LoadSDNode *LD) const override;
 
     SDValue unwrapAddress(SDValue N) const override;
 

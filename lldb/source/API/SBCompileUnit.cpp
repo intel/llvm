@@ -20,7 +20,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
-SBCompileUnit::SBCompileUnit() : m_opaque_ptr(NULL) {
+SBCompileUnit::SBCompileUnit() : m_opaque_ptr(nullptr) {
   LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBCompileUnit);
 }
 
@@ -41,7 +41,7 @@ const SBCompileUnit &SBCompileUnit::operator=(const SBCompileUnit &rhs) {
   return LLDB_RECORD_RESULT(*this);
 }
 
-SBCompileUnit::~SBCompileUnit() { m_opaque_ptr = NULL; }
+SBCompileUnit::~SBCompileUnit() { m_opaque_ptr = nullptr; }
 
 SBFileSpec SBCompileUnit::GetFileSpec() const {
   LLDB_RECORD_METHOD_CONST_NO_ARGS(lldb::SBFileSpec, SBCompileUnit,
@@ -108,8 +108,8 @@ uint32_t SBCompileUnit::FindLineEntryIndex(uint32_t start_idx, uint32_t line,
       file_spec = *m_opaque_ptr;
 
     index = m_opaque_ptr->FindLineEntry(
-        start_idx, line, inline_file_spec ? inline_file_spec->get() : NULL,
-        exact, NULL);
+        start_idx, line, inline_file_spec ? inline_file_spec->get() : nullptr,
+        exact, nullptr);
   }
 
   return index;
@@ -118,10 +118,9 @@ uint32_t SBCompileUnit::FindLineEntryIndex(uint32_t start_idx, uint32_t line,
 uint32_t SBCompileUnit::GetNumSupportFiles() const {
   LLDB_RECORD_METHOD_CONST_NO_ARGS(uint32_t, SBCompileUnit, GetNumSupportFiles);
 
-  if (m_opaque_ptr) {
-    FileSpecList &support_files = m_opaque_ptr->GetSupportFiles();
-    return support_files.GetSize();
-  }
+  if (m_opaque_ptr)
+    return m_opaque_ptr->GetSupportFiles().GetSize();
+
   return 0;
 }
 
@@ -155,9 +154,8 @@ SBFileSpec SBCompileUnit::GetSupportFileAtIndex(uint32_t idx) const {
 
   SBFileSpec sb_file_spec;
   if (m_opaque_ptr) {
-    FileSpecList &support_files = m_opaque_ptr->GetSupportFiles();
-    FileSpec file_spec = support_files.GetFileSpecAtIndex(idx);
-    sb_file_spec.SetFileSpec(file_spec);
+    FileSpec spec = m_opaque_ptr->GetSupportFiles().GetFileSpecAtIndex(idx);
+    sb_file_spec.SetFileSpec(spec);
   }
 
 
@@ -172,7 +170,7 @@ uint32_t SBCompileUnit::FindSupportFileIndex(uint32_t start_idx,
                      sb_file, full);
 
   if (m_opaque_ptr) {
-    FileSpecList &support_files = m_opaque_ptr->GetSupportFiles();
+    const FileSpecList &support_files = m_opaque_ptr->GetSupportFiles();
     return support_files.FindFileIndex(start_idx, sb_file.ref(), full);
   }
   return 0;
@@ -193,7 +191,7 @@ bool SBCompileUnit::IsValid() const {
 SBCompileUnit::operator bool() const {
   LLDB_RECORD_METHOD_CONST_NO_ARGS(bool, SBCompileUnit, operator bool);
 
-  return m_opaque_ptr != NULL;
+  return m_opaque_ptr != nullptr;
 }
 
 bool SBCompileUnit::operator==(const SBCompileUnit &rhs) const {

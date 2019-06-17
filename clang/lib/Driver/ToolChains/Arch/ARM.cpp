@@ -72,15 +72,13 @@ static void getARMFPUFeatures(const Driver &D, const Arg *A,
 
 // Decode ARM features from string like +[no]featureA+[no]featureB+...
 static bool DecodeARMFeatures(const Driver &D, StringRef text,
+                              StringRef CPU, llvm::ARM::ArchKind ArchKind,
                               std::vector<StringRef> &Features) {
   SmallVector<StringRef, 8> Split;
   text.split(Split, StringRef("+"), -1, false);
 
   for (StringRef Feature : Split) {
-    StringRef FeatureName = llvm::ARM::getArchExtFeature(Feature);
-    if (!FeatureName.empty())
-      Features.push_back(FeatureName);
-    else
+    if (!appendArchExtFeatures(CPU, ArchKind, Feature, Features))
       return false;
   }
   return true;
@@ -100,14 +98,16 @@ static void DecodeARMFeaturesFromCPU(const Driver &D, StringRef CPU,
 // getARMArch is used here instead of just checking the -march value in order
 // to handle -march=native correctly.
 static void checkARMArchName(const Driver &D, const Arg *A, const ArgList &Args,
-                             llvm::StringRef ArchName,
+                             llvm::StringRef ArchName, llvm::StringRef CPUName,
                              std::vector<StringRef> &Features,
                              const llvm::Triple &Triple) {
   std::pair<StringRef, StringRef> Split = ArchName.split("+");
 
   std::string MArch = arm::getARMArch(ArchName, Triple);
-  if (llvm::ARM::parseArch(MArch) == llvm::ARM::ArchKind::INVALID ||
-      (Split.second.size() && !DecodeARMFeatures(D, Split.second, Features)))
+  llvm::ARM::ArchKind ArchKind = llvm::ARM::parseArch(MArch);
+  if (ArchKind == llvm::ARM::ArchKind::INVALID ||
+      (Split.second.size() && !DecodeARMFeatures(
+        D, Split.second, CPUName, ArchKind, Features)))
     D.Diag(clang::diag::err_drv_clang_unsupported) << A->getAsString(Args);
 }
 
@@ -119,8 +119,11 @@ static void checkARMCPUName(const Driver &D, const Arg *A, const ArgList &Args,
   std::pair<StringRef, StringRef> Split = CPUName.split("+");
 
   std::string CPU = arm::getARMTargetCPU(CPUName, ArchName, Triple);
-  if (arm::getLLVMArchSuffixForARM(CPU, ArchName, Triple).empty() ||
-      (Split.second.size() && !DecodeARMFeatures(D, Split.second, Features)))
+  llvm::ARM::ArchKind ArchKind =
+    arm::getLLVMArchKindForARM(CPU, ArchName, Triple);
+  if (ArchKind == llvm::ARM::ArchKind::INVALID ||
+      (Split.second.size() && !DecodeARMFeatures(
+        D, Split.second, CPU, ArchKind, Features)))
     D.Diag(clang::diag::err_drv_clang_unsupported) << A->getAsString(Args);
 }
 
@@ -327,25 +330,12 @@ void arm::getARMTargetFeatures(const ToolChain &TC,
   if (ThreadPointer == arm::ReadTPMode::Cp15)
     Features.push_back("+read-tp-hard");
 
-  // Check -march. ClangAs gives preference to -Wa,-march=.
   const Arg *ArchArg = Args.getLastArg(options::OPT_march_EQ);
+  const Arg *CPUArg = Args.getLastArg(options::OPT_mcpu_EQ);
   StringRef ArchName;
-  if (WaArch) {
-    if (ArchArg)
-      D.Diag(clang::diag::warn_drv_unused_argument)
-          << ArchArg->getAsString(Args);
-    ArchName = StringRef(WaArch->getValue()).substr(7);
-    checkARMArchName(D, WaArch, Args, ArchName, Features, Triple);
-    // FIXME: Set Arch.
-    D.Diag(clang::diag::warn_drv_unused_argument) << WaArch->getAsString(Args);
-  } else if (ArchArg) {
-    ArchName = ArchArg->getValue();
-    checkARMArchName(D, ArchArg, Args, ArchName, Features, Triple);
-  }
+  StringRef CPUName;
 
   // Check -mcpu. ClangAs gives preference to -Wa,-mcpu=.
-  const Arg *CPUArg = Args.getLastArg(options::OPT_mcpu_EQ);
-  StringRef CPUName;
   if (WaCPU) {
     if (CPUArg)
       D.Diag(clang::diag::warn_drv_unused_argument)
@@ -354,6 +344,20 @@ void arm::getARMTargetFeatures(const ToolChain &TC,
     CPUArg = WaCPU;
   } else if (CPUArg)
     CPUName = CPUArg->getValue();
+
+  // Check -march. ClangAs gives preference to -Wa,-march=.
+  if (WaArch) {
+    if (ArchArg)
+      D.Diag(clang::diag::warn_drv_unused_argument)
+          << ArchArg->getAsString(Args);
+    ArchName = StringRef(WaArch->getValue()).substr(7);
+    checkARMArchName(D, WaArch, Args, ArchName, CPUName, Features, Triple);
+    // FIXME: Set Arch.
+    D.Diag(clang::diag::warn_drv_unused_argument) << WaArch->getAsString(Args);
+  } else if (ArchArg) {
+    ArchName = ArchArg->getValue();
+    checkARMArchName(D, ArchArg, Args, ArchName, CPUName, Features, Triple);
+  }
 
   // Add CPU features for generic CPUs
   if (CPUName == "native") {
@@ -430,8 +434,8 @@ fp16_fml_fallthrough:
     llvm::ARM::getFPUFeatures(llvm::ARM::FK_NONE, Features);
 
     // Disable hardware FP features which have been enabled.
-    // FIXME: Disabling vfp2 and neon should be enough as all the other
-    //        features are dependent on these 2 features in LLVM. However
+    // FIXME: Disabling fpregs should be enough all by itself, since all
+    //        the other FP features are dependent on it. However
     //        there is currently no easy way to test this in clang, so for
     //        now just be explicit and disable all known dependent features
     //        as well.
@@ -439,6 +443,11 @@ fp16_fml_fallthrough:
                                 "neon", "crypto", "dotprod", "fp16fml"})
       if (std::find(std::begin(Features), std::end(Features), "+" + Feature) != std::end(Features))
         Features.push_back(Args.MakeArgString("-" + Feature));
+
+    // Disable the base feature unconditionally, even if it was not
+    // explicitly in the features list (e.g. if we had +vfp3, which
+    // implies it).
+    Features.push_back("-fpregs");
   }
 
   // En/disable crc code generation.
@@ -620,11 +629,12 @@ std::string arm::getARMTargetCPU(StringRef CPU, StringRef Arch,
   return getARMCPUForMArch(Arch, Triple);
 }
 
-/// getLLVMArchSuffixForARM - Get the LLVM arch name to use for a particular
-/// CPU  (or Arch, if CPU is generic).
-// FIXME: This is redundant with -mcpu, why does LLVM use this.
-StringRef arm::getLLVMArchSuffixForARM(StringRef CPU, StringRef Arch,
-                                       const llvm::Triple &Triple) {
+/// getLLVMArchSuffixForARM - Get the LLVM ArchKind value to use for a
+/// particular CPU (or Arch, if CPU is generic). This is needed to
+/// pass to functions like llvm::ARM::getDefaultFPU which need an
+/// ArchKind as well as a CPU name.
+llvm::ARM::ArchKind arm::getLLVMArchKindForARM(StringRef CPU, StringRef Arch,
+                                               const llvm::Triple &Triple) {
   llvm::ARM::ArchKind ArchKind;
   if (CPU == "generic") {
     std::string ARMArch = tools::arm::getARMArch(Arch, Triple);
@@ -640,6 +650,15 @@ StringRef arm::getLLVMArchSuffixForARM(StringRef CPU, StringRef Arch,
                           ? llvm::ARM::ArchKind::ARMV7K
                           : llvm::ARM::parseCPUArch(CPU);
   }
+  return ArchKind;
+}
+
+/// getLLVMArchSuffixForARM - Get the LLVM arch name to use for a particular
+/// CPU  (or Arch, if CPU is generic).
+// FIXME: This is redundant with -mcpu, why does LLVM use this.
+StringRef arm::getLLVMArchSuffixForARM(StringRef CPU, StringRef Arch,
+                                       const llvm::Triple &Triple) {
+  llvm::ARM::ArchKind ArchKind = getLLVMArchKindForARM(CPU, Arch, Triple);
   if (ArchKind == llvm::ARM::ArchKind::INVALID)
     return "";
   return llvm::ARM::getSubArch(ArchKind);

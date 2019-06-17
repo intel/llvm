@@ -13,6 +13,7 @@
 #include "InstCombineInternal.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
@@ -1749,15 +1750,12 @@ static Instruction *canonicalizeConstantArg0ToArg1(CallInst &Call) {
 }
 
 Instruction *InstCombiner::foldIntrinsicWithOverflowCommon(IntrinsicInst *II) {
-  OverflowCheckFlavor OCF =
-      IntrinsicIDToOverflowCheckFlavor(II->getIntrinsicID());
-  assert(OCF != OCF_INVALID && "unexpected!");
-
+  WithOverflowInst *WO = cast<WithOverflowInst>(II);
   Value *OperationResult = nullptr;
   Constant *OverflowResult = nullptr;
-  if (OptimizeOverflowCheck(OCF, II->getArgOperand(0), II->getArgOperand(1),
-                            *II, OperationResult, OverflowResult))
-    return CreateOverflowTuple(II, OperationResult, OverflowResult);
+  if (OptimizeOverflowCheck(WO->getBinaryOp(), WO->isSigned(), WO->getLHS(),
+                            WO->getRHS(), *WO, OperationResult, OverflowResult))
+    return CreateOverflowTuple(WO, OperationResult, OverflowResult);
   return nullptr;
 }
 
@@ -2055,38 +2053,32 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     LLVM_FALLTHROUGH;
   case Intrinsic::usub_sat:
   case Intrinsic::ssub_sat: {
-    Value *Arg0 = II->getArgOperand(0);
-    Value *Arg1 = II->getArgOperand(1);
+    SaturatingInst *SI = cast<SaturatingInst>(II);
+    Type *Ty = SI->getType();
+    Value *Arg0 = SI->getLHS();
+    Value *Arg1 = SI->getRHS();
 
     // Make use of known overflow information.
-    OverflowResult OR;
-    switch (IID) {
-    default:
-      llvm_unreachable("Unexpected intrinsic!");
-    case Intrinsic::uadd_sat:
-      OR = computeOverflowForUnsignedAdd(Arg0, Arg1, II);
-      if (OR == OverflowResult::NeverOverflows)
-        return BinaryOperator::CreateNUWAdd(Arg0, Arg1);
-      if (OR == OverflowResult::AlwaysOverflows)
-        return replaceInstUsesWith(*II,
-                                   ConstantInt::getAllOnesValue(II->getType()));
-      break;
-    case Intrinsic::usub_sat:
-      OR = computeOverflowForUnsignedSub(Arg0, Arg1, II);
-      if (OR == OverflowResult::NeverOverflows)
-        return BinaryOperator::CreateNUWSub(Arg0, Arg1);
-      if (OR == OverflowResult::AlwaysOverflows)
-        return replaceInstUsesWith(*II,
-                                   ConstantInt::getNullValue(II->getType()));
-      break;
-    case Intrinsic::sadd_sat:
-      if (willNotOverflowSignedAdd(Arg0, Arg1, *II))
-        return BinaryOperator::CreateNSWAdd(Arg0, Arg1);
-      break;
-    case Intrinsic::ssub_sat:
-      if (willNotOverflowSignedSub(Arg0, Arg1, *II))
-        return BinaryOperator::CreateNSWSub(Arg0, Arg1);
-      break;
+    OverflowResult OR = computeOverflow(SI->getBinaryOp(), SI->isSigned(),
+                                        Arg0, Arg1, SI);
+    switch (OR) {
+      case OverflowResult::MayOverflow:
+        break;
+      case OverflowResult::NeverOverflows:
+        if (SI->isSigned())
+          return BinaryOperator::CreateNSW(SI->getBinaryOp(), Arg0, Arg1);
+        else
+          return BinaryOperator::CreateNUW(SI->getBinaryOp(), Arg0, Arg1);
+      case OverflowResult::AlwaysOverflowsLow: {
+        unsigned BitWidth = Ty->getScalarSizeInBits();
+        APInt Min = APSInt::getMinValue(BitWidth, !SI->isSigned());
+        return replaceInstUsesWith(*SI, ConstantInt::get(Ty, Min));
+      }
+      case OverflowResult::AlwaysOverflowsHigh: {
+        unsigned BitWidth = Ty->getScalarSizeInBits();
+        APInt Max = APSInt::getMaxValue(BitWidth, !SI->isSigned());
+        return replaceInstUsesWith(*SI, ConstantInt::get(Ty, Max));
+      }
     }
 
     // ssub.sat(X, C) -> sadd.sat(X, -C) if C != MIN
@@ -4023,7 +4015,9 @@ static bool isSafeToEliminateVarargsCast(const CallBase &Call,
 
   Type* SrcTy =
             cast<PointerType>(CI->getOperand(0)->getType())->getElementType();
-  Type* DstTy = cast<PointerType>(CI->getType())->getElementType();
+  Type *DstTy = Call.isByValArgument(ix)
+                    ? Call.getParamByValType(ix)
+                    : cast<PointerType>(CI->getType())->getElementType();
   if (!SrcTy->isSized() || !DstTy->isSized())
     return false;
   if (DL.getTypeAllocSize(SrcTy) != DL.getTypeAllocSize(DstTy))
@@ -4231,6 +4225,15 @@ Instruction *InstCombiner::visitCallBase(CallBase &Call) {
       CastInst *CI = dyn_cast<CastInst>(*I);
       if (CI && isSafeToEliminateVarargsCast(Call, DL, CI, ix)) {
         *I = CI->getOperand(0);
+
+        // Update the byval type to match the argument type.
+        if (Call.isByValArgument(ix)) {
+          Call.removeParamAttr(ix, Attribute::ByVal);
+          Call.addParamAttr(
+              ix, Attribute::getWithByValType(
+                      Call.getContext(),
+                      CI->getOperand(0)->getType()->getPointerElementType()));
+        }
         Changed = true;
       }
     }
@@ -4361,7 +4364,7 @@ bool InstCombiner::transformConstExprCastCall(CallBase &Call) {
       if (!ParamPTy || !ParamPTy->getElementType()->isSized())
         return false;
 
-      Type *CurElTy = ActTy->getPointerElementType();
+      Type *CurElTy = Call.getParamByValType(i);
       if (DL.getTypeAllocSize(CurElTy) !=
           DL.getTypeAllocSize(ParamPTy->getElementType()))
         return false;
@@ -4415,6 +4418,7 @@ bool InstCombiner::transformConstExprCastCall(CallBase &Call) {
   // with the existing attributes.  Wipe out any problematic attributes.
   RAttrs.remove(AttributeFuncs::typeIncompatible(NewRetTy));
 
+  LLVMContext &Ctx = Call.getContext();
   AI = Call.arg_begin();
   for (unsigned i = 0; i != NumCommonArgs; ++i, ++AI) {
     Type *ParamTy = FT->getParamType(i);
@@ -4425,7 +4429,12 @@ bool InstCombiner::transformConstExprCastCall(CallBase &Call) {
     Args.push_back(NewArg);
 
     // Add any parameter attributes.
-    ArgAttrs.push_back(CallerPAL.getParamAttributes(i));
+    if (CallerPAL.hasParamAttribute(i, Attribute::ByVal)) {
+      AttrBuilder AB(CallerPAL.getParamAttributes(i));
+      AB.addByValAttr(NewArg->getType()->getPointerElementType());
+      ArgAttrs.push_back(AttributeSet::get(Ctx, AB));
+    } else
+      ArgAttrs.push_back(CallerPAL.getParamAttributes(i));
   }
 
   // If the function takes more arguments than the call was taking, add them
@@ -4464,7 +4473,6 @@ bool InstCombiner::transformConstExprCastCall(CallBase &Call) {
 
   assert((ArgAttrs.size() == FT->getNumParams() || FT->isVarArg()) &&
          "missing argument attributes");
-  LLVMContext &Ctx = Callee->getContext();
   AttributeList NewCallerPAL = AttributeList::get(
       Ctx, FnAttrs, AttributeSet::get(Ctx, RAttrs), ArgAttrs);
 

@@ -8,6 +8,7 @@
 
 #include "ClangdLSPServer.h"
 #include "Diagnostics.h"
+#include "FormattedString.h"
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "Trace.h"
@@ -358,6 +359,8 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   SupportsHierarchicalDocumentSymbol =
       Params.capabilities.HierarchicalDocumentSymbol;
   SupportFileStatus = Params.initializationOptions.FileStatus;
+  HoverContentFormat = Params.capabilities.HoverContentFormat;
+  SupportsOffsetsInSignatureHelp = Params.capabilities.OffsetsInSignatureHelp;
   llvm::json::Object Result{
       {{"capabilities",
         llvm::json::Object{
@@ -759,7 +762,22 @@ void ClangdLSPServer::onCompletion(const CompletionParams &Params,
 void ClangdLSPServer::onSignatureHelp(const TextDocumentPositionParams &Params,
                                       Callback<SignatureHelp> Reply) {
   Server->signatureHelp(Params.textDocument.uri.file(), Params.position,
-                        std::move(Reply));
+                        Bind(
+                            [this](decltype(Reply) Reply,
+                                   llvm::Expected<SignatureHelp> Signature) {
+                              if (!Signature)
+                                return Reply(Signature.takeError());
+                              if (SupportsOffsetsInSignatureHelp)
+                                return Reply(std::move(*Signature));
+                              // Strip out the offsets from signature help for
+                              // clients that only support string labels.
+                              for (auto &SigInfo : Signature->signatures) {
+                                for (auto &Param : SigInfo.parameters)
+                                  Param.labelOffsets.reset();
+                              }
+                              return Reply(std::move(*Signature));
+                            },
+                            std::move(Reply)));
 }
 
 // Go to definition has a toggle function: if def and decl are distinct, then
@@ -842,7 +860,30 @@ void ClangdLSPServer::onDocumentHighlight(
 void ClangdLSPServer::onHover(const TextDocumentPositionParams &Params,
                               Callback<llvm::Optional<Hover>> Reply) {
   Server->findHover(Params.textDocument.uri.file(), Params.position,
-                    std::move(Reply));
+                    Bind(
+                        [this](decltype(Reply) Reply,
+                               llvm::Expected<llvm::Optional<HoverInfo>> H) {
+                          if (!H)
+                            return Reply(H.takeError());
+                          if (!*H)
+                            return Reply(llvm::None);
+
+                          Hover R;
+                          R.contents.kind = HoverContentFormat;
+                          R.range = (*H)->SymRange;
+                          switch (HoverContentFormat) {
+                          case MarkupKind::PlainText:
+                            R.contents.value =
+                                (*H)->present().renderAsPlainText();
+                            return Reply(std::move(R));
+                          case MarkupKind::Markdown:
+                            R.contents.value =
+                                (*H)->present().renderAsMarkdown();
+                            return Reply(std::move(R));
+                          };
+                          llvm_unreachable("unhandled MarkupKind");
+                        },
+                        std::move(Reply)));
 }
 
 void ClangdLSPServer::onTypeHierarchy(

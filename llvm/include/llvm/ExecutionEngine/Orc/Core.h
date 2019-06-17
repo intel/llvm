@@ -641,6 +641,63 @@ private:
     LLVM_MARK_AS_BITMASK_ENUM(NotifyFullyReady)
   };
 
+  enum class SymbolState : uint8_t {
+    Invalid,       // No symbol should be in this state.
+    NeverSearched, // Added to the symbol table, never queried.
+    Materializing, // Queried, materialization begun.
+    Resolved,      // Assigned address, still materializing.
+    Ready = 0x3f   // Ready and safe for clients to access.
+  };
+
+  class SymbolTableEntry {
+  public:
+    SymbolTableEntry() = default;
+    SymbolTableEntry(JITSymbolFlags Flags)
+        : Flags(Flags), State(static_cast<uint8_t>(SymbolState::NeverSearched)),
+          MaterializerAttached(false), PendingRemoval(false) {}
+
+    JITTargetAddress getAddress() const { return Addr; }
+    JITSymbolFlags getFlags() const { return Flags; }
+    SymbolState getState() const { return static_cast<SymbolState>(State); }
+
+    bool isInMaterializationPhase() const {
+      return getState() == SymbolState::Materializing ||
+             getState() == SymbolState::Resolved;
+    }
+
+    bool hasMaterializerAttached() const { return MaterializerAttached; }
+    bool isPendingRemoval() const { return PendingRemoval; }
+
+    void setAddress(JITTargetAddress Addr) { this->Addr = Addr; }
+    void setFlags(JITSymbolFlags Flags) { this->Flags = Flags; }
+    void setState(SymbolState State) {
+      assert(static_cast<uint8_t>(State) < (1 << 6) &&
+             "State does not fit in bitfield");
+      this->State = static_cast<uint8_t>(State);
+    }
+
+    void setMaterializerAttached(bool MaterializerAttached) {
+      this->MaterializerAttached = MaterializerAttached;
+    }
+
+    void setPendingRemoval(bool PendingRemoval) {
+      this->PendingRemoval = PendingRemoval;
+    }
+
+    JITEvaluatedSymbol getSymbol() const {
+      return JITEvaluatedSymbol(Addr, Flags);
+    }
+
+  private:
+    JITTargetAddress Addr = 0;
+    JITSymbolFlags Flags;
+    uint8_t State : 6;
+    uint8_t MaterializerAttached : 1;
+    uint8_t PendingRemoval : 1;
+  };
+
+  using SymbolTable = DenseMap<SymbolStringPtr, SymbolTableEntry>;
+
   JITDylib(ExecutionSession &ES, std::string Name);
 
   Error defineImpl(MaterializationUnit &MU);
@@ -685,7 +742,7 @@ private:
 
   ExecutionSession &ES;
   std::string JITDylibName;
-  SymbolMap Symbols;
+  SymbolTable Symbols;
   UnmaterializedInfosMap UnmaterializedInfos;
   MaterializingInfosMap MaterializingInfos;
   GeneratorFunction DefGenerator;

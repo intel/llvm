@@ -217,7 +217,8 @@ handleTlsRelocation(RelType Type, Symbol &Sym, InputSectionBase &C,
   if (Config->EMachine == EM_MIPS)
     return handleMipsTlsRelocation(Type, Sym, C, Offset, Addend, Expr);
 
-  if (oneof<R_TLSDESC, R_AARCH64_TLSDESC_PAGE, R_TLSDESC_CALL>(Expr) &&
+  if (oneof<R_AARCH64_TLSDESC_PAGE, R_TLSDESC, R_TLSDESC_CALL, R_TLSDESC_PC>(
+          Expr) &&
       Config->Shared) {
     if (In.Got->addDynTlsEntry(Sym)) {
       uint64_t Off = In.Got->getGlobalDynOffset(Sym);
@@ -256,13 +257,8 @@ handleTlsRelocation(RelType Type, Symbol &Sym, InputSectionBase &C,
   }
 
   // Local-Dynamic sequence where offset of tls variable relative to dynamic
-  // thread pointer is stored in the got.
+  // thread pointer is stored in the got. This cannot be relaxed to Local-Exec.
   if (Expr == R_TLSLD_GOT_OFF) {
-    // Local-Dynamic relocs can be relaxed to local-exec
-    if (!Config->Shared) {
-      C.Relocations.push_back({R_RELAX_TLS_LD_TO_LE, Type, Offset, Addend, &Sym});
-      return 1;
-    }
     if (!Sym.isInGot()) {
       In.Got->addEntry(Sym);
       uint64_t Off = Sym.getGotOffset();
@@ -273,8 +269,8 @@ handleTlsRelocation(RelType Type, Symbol &Sym, InputSectionBase &C,
     return 1;
   }
 
-  if (oneof<R_TLSDESC, R_AARCH64_TLSDESC_PAGE, R_TLSDESC_CALL, R_TLSGD_GOT,
-            R_TLSGD_GOTPLT, R_TLSGD_PC>(Expr)) {
+  if (oneof<R_AARCH64_TLSDESC_PAGE, R_TLSDESC, R_TLSDESC_CALL, R_TLSDESC_PC,
+            R_TLSGD_GOT, R_TLSGD_GOTPLT, R_TLSGD_PC>(Expr)) {
     if (Config->Shared) {
       if (In.Got->addDynTlsEntry(Sym)) {
         uint64_t Off = In.Got->getGlobalDynOffset(Sym);
@@ -367,7 +363,7 @@ static bool isAbsoluteValue(const Symbol &Sym) {
 
 // Returns true if Expr refers a PLT entry.
 static bool needsPlt(RelExpr Expr) {
-  return oneof<R_PLT_PC, R_PPC_CALL_PLT, R_PLT>(Expr);
+  return oneof<R_PLT_PC, R_PPC64_CALL_PLT, R_PLT>(Expr);
 }
 
 // Returns true if Expr refers a GOT entry. Note that this function
@@ -382,8 +378,9 @@ static bool needsGot(RelExpr Expr) {
 // True if this expression is of the form Sym - X, where X is a position in the
 // file (PC, or GOT for example).
 static bool isRelExpr(RelExpr Expr) {
-  return oneof<R_PC, R_GOTREL, R_GOTPLTREL, R_MIPS_GOTREL, R_PPC_CALL,
-               R_PPC64_RELAX_TOC, R_PPC_CALL_PLT, R_AARCH64_PAGE_PC, R_RELAX_GOT_PC>(Expr);
+  return oneof<R_PC, R_GOTREL, R_GOTPLTREL, R_MIPS_GOTREL, R_PPC64_CALL,
+               R_PPC64_CALL_PLT, R_PPC64_RELAX_TOC, R_AARCH64_PAGE_PC,
+               R_RELAX_GOT_PC>(Expr);
 }
 
 // Returns true if a given relocation can be computed at link-time.
@@ -402,9 +399,9 @@ static bool isStaticLinkTimeConstant(RelExpr E, RelType Type, const Symbol &Sym,
             R_MIPS_GOT_LOCAL_PAGE, R_MIPS_GOTREL, R_MIPS_GOT_OFF,
             R_MIPS_GOT_OFF32, R_MIPS_GOT_GP_PC, R_MIPS_TLSGD,
             R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTONLY_PC, R_GOTPLTONLY_PC,
-            R_PLT_PC, R_TLSGD_GOT, R_TLSGD_GOTPLT, R_TLSGD_PC, R_PPC_CALL_PLT,
-            R_PPC64_RELAX_TOC, R_TLSDESC_CALL, R_AARCH64_TLSDESC_PAGE, R_HINT, R_TLSLD_HINT,
-            R_TLSIE_HINT>(E))
+            R_PLT_PC, R_TLSGD_GOT, R_TLSGD_GOTPLT, R_TLSGD_PC, R_PPC64_CALL_PLT,
+            R_PPC64_RELAX_TOC, R_TLSDESC_CALL, R_TLSDESC_PC,
+            R_AARCH64_TLSDESC_PAGE, R_HINT, R_TLSLD_HINT, R_TLSIE_HINT>(E))
     return true;
 
   // These never do, except if the entire file is position dependent or if
@@ -456,8 +453,8 @@ static bool isStaticLinkTimeConstant(RelExpr E, RelType Type, const Symbol &Sym,
 
 static RelExpr toPlt(RelExpr Expr) {
   switch (Expr) {
-  case R_PPC_CALL:
-    return R_PPC_CALL_PLT;
+  case R_PPC64_CALL:
+    return R_PPC64_CALL_PLT;
   case R_PC:
     return R_PLT_PC;
   case R_ABS:
@@ -473,8 +470,8 @@ static RelExpr fromPlt(RelExpr Expr) {
   switch (Expr) {
   case R_PLT_PC:
     return R_PC;
-  case R_PPC_CALL_PLT:
-    return R_PPC_CALL;
+  case R_PPC64_CALL_PLT:
+    return R_PPC64_CALL;
   case R_PLT:
     return R_ABS;
   default:
@@ -681,9 +678,17 @@ static std::string maybeReportDiscarded(Undefined &Sym, InputSectionBase &Sec,
     return "";
   ArrayRef<Elf_Shdr_Impl<ELFT>> ObjSections =
       CHECK(File->getObj().sections(), File);
-  std::string Msg =
-      "relocation refers to a symbol in a discarded section: " + toString(Sym) +
-      "\n>>> defined in " + toString(File);
+
+  std::string Msg;
+  if (Sym.Type == ELF::STT_SECTION) {
+    Msg = "relocation refers to a discarded section: ";
+    Msg += CHECK(
+        File->getObj().getSectionName(&ObjSections[Sym.DiscardedSecIdx]), File);
+  } else {
+    Msg = "relocation refers to a symbol in a discarded section: " +
+          toString(Sym);
+  }
+  Msg += "\n>>> defined in " + toString(File);
 
   Elf_Shdr_Impl<ELFT> ELFSec = ObjSections[Sym.DiscardedSecIdx - 1];
   if (ELFSec.sh_type != SHT_GROUP)
@@ -1121,7 +1126,8 @@ static void scanReloc(InputSectionBase &Sec, OffsetGetter &GetOffset, RelTy *&I,
   // The 4 types that relative GOTPLT are all x86 and x86-64 specific.
   if (oneof<R_GOTPLTONLY_PC, R_GOTPLTREL, R_GOTPLT, R_TLSGD_GOTPLT>(Expr)) {
     In.GotPlt->HasGotPltOffRel = true;
-  } else if (oneof<R_GOTONLY_PC, R_GOTREL, R_PPC_TOC, R_PPC64_RELAX_TOC>(Expr)) {
+  } else if (oneof<R_GOTONLY_PC, R_GOTREL, R_PPC64_TOCBASE, R_PPC64_RELAX_TOC>(
+                 Expr)) {
     In.Got->HasGotOffRel = true;
   }
 
@@ -1598,12 +1604,22 @@ ThunkSection *ThunkCreator::addThunkSection(OutputSection *OS,
                                             InputSectionDescription *ISD,
                                             uint64_t Off) {
   auto *TS = make<ThunkSection>(OS, Off);
+  TS->Partition = OS->Partition;
   ISD->ThunkSections.push_back({TS, Pass});
   return TS;
 }
 
-std::pair<Thunk *, bool> ThunkCreator::getThunk(Symbol &Sym, RelType Type,
-                                                uint64_t Src) {
+static bool isThunkSectionCompatible(InputSection *Source,
+                                     SectionBase *Target) {
+  // We can't reuse thunks in different loadable partitions because they might
+  // not be loaded. But partition 1 (the main partition) will always be loaded.
+  if (Source->Partition != Target->Partition)
+    return Target->Partition == 1;
+  return true;
+}
+
+std::pair<Thunk *, bool> ThunkCreator::getThunk(InputSection *IS, Symbol &Sym,
+                                                RelType Type, uint64_t Src) {
   std::vector<Thunk *> *ThunkVec = nullptr;
 
   // We use (section, offset) pair to find the thunk position if possible so
@@ -1616,7 +1632,8 @@ std::pair<Thunk *, bool> ThunkCreator::getThunk(Symbol &Sym, RelType Type,
 
   // Check existing Thunks for Sym to see if they can be reused
   for (Thunk *T : *ThunkVec)
-    if (T->isCompatibleWith(Type) &&
+    if (isThunkSectionCompatible(IS, T->getThunkTargetSym()->Section) &&
+        T->isCompatibleWith(Type) &&
         Target->inBranchRange(Type, Src, T->getThunkTargetSym()->getVA()))
       return std::make_pair(T, false);
 
@@ -1700,7 +1717,7 @@ bool ThunkCreator::createThunks(ArrayRef<OutputSection *> OutputSections) {
 
             Thunk *T;
             bool IsNew;
-            std::tie(T, IsNew) = getThunk(*Rel.Sym, Rel.Type, Src);
+            std::tie(T, IsNew) = getThunk(IS, *Rel.Sym, Rel.Type, Src);
 
             if (IsNew) {
               // Find or create a ThunkSection for the new Thunk

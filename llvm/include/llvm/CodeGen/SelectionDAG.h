@@ -406,6 +406,7 @@ public:
   const TargetLowering &getTargetLoweringInfo() const { return *TLI; }
   const TargetLibraryInfo &getLibInfo() const { return *LibInfo; }
   const SelectionDAGTargetInfo &getSelectionDAGInfo() const { return *TSI; }
+  const LegacyDivergenceAnalysis *getDivergenceAnalysis() const { return DA; }
   LLVMContext *getContext() const {return Context; }
   OptimizationRemarkEmitter &getORE() const { return *ORE; }
 
@@ -1433,13 +1434,23 @@ public:
   SDValue FoldSetCC(EVT VT, SDValue N1, SDValue N2, ISD::CondCode Cond,
                     const SDLoc &dl);
 
-  /// See if the specified operand can be simplified with the knowledge that only
-  /// the bits specified by Mask are used.  If so, return the simpler operand,
-  /// otherwise return a null SDValue.
+  /// See if the specified operand can be simplified with the knowledge that
+  /// only the bits specified by DemandedBits are used.  If so, return the
+  /// simpler operand, otherwise return a null SDValue.
   ///
   /// (This exists alongside SimplifyDemandedBits because GetDemandedBits can
   /// simplify nodes with multiple uses more aggressively.)
-  SDValue GetDemandedBits(SDValue V, const APInt &Mask);
+  SDValue GetDemandedBits(SDValue V, const APInt &DemandedBits);
+
+  /// See if the specified operand can be simplified with the knowledge that
+  /// only the bits specified by DemandedBits are used in the elements specified
+  /// by DemandedElts.  If so, return the simpler operand, otherwise return a
+  /// null SDValue.
+  ///
+  /// (This exists alongside SimplifyDemandedBits because GetDemandedBits can
+  /// simplify nodes with multiple uses more aggressively.)
+  SDValue GetDemandedBits(SDValue V, const APInt &DemandedBits,
+                          const APInt &DemandedElts);
 
   /// Return true if the sign bit of Op is known to be zero.
   /// We use this predicate to simplify operations downstream.
@@ -1448,8 +1459,14 @@ public:
   /// Return true if 'Op & Mask' is known to be zero.  We
   /// use this predicate to simplify operations downstream.  Op and Mask are
   /// known to be the same type.
-  bool MaskedValueIsZero(SDValue Op, const APInt &Mask, unsigned Depth = 0)
-    const;
+  bool MaskedValueIsZero(SDValue Op, const APInt &Mask,
+                         unsigned Depth = 0) const;
+
+  /// Return true if 'Op & Mask' is known to be zero in DemandedElts.  We
+  /// use this predicate to simplify operations downstream.  Op and Mask are
+  /// known to be the same type.
+  bool MaskedValueIsZero(SDValue Op, const APInt &Mask,
+                         const APInt &DemandedElts, unsigned Depth = 0) const;
 
   /// Determine which bits of Op are known to be either zero or one and return
   /// them in Known. For vectors, the known bits are those that are shared by

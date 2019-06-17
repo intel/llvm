@@ -709,7 +709,7 @@ public:
   using MaybeODRUseExprSet = llvm::SmallPtrSet<Expr *, 2>;
   MaybeODRUseExprSet MaybeODRUseExprs;
 
-  std::unique_ptr<sema::FunctionScopeInfo> PreallocatedFunctionScope;
+  std::unique_ptr<sema::FunctionScopeInfo> CachedFunctionScope;
 
   /// Stack containing information about each of the nested
   /// function, block, and method scopes that are currently active.
@@ -1522,10 +1522,24 @@ public:
   void PushCapturedRegionScope(Scope *RegionScope, CapturedDecl *CD,
                                RecordDecl *RD,
                                CapturedRegionKind K);
-  void
+
+  /// Custom deleter to allow FunctionScopeInfos to be kept alive for a short
+  /// time after they've been popped.
+  class PoppedFunctionScopeDeleter {
+    Sema *Self;
+
+  public:
+    explicit PoppedFunctionScopeDeleter(Sema *Self) : Self(Self) {}
+    void operator()(sema::FunctionScopeInfo *Scope) const;
+  };
+
+  using PoppedFunctionScopePtr =
+      std::unique_ptr<sema::FunctionScopeInfo, PoppedFunctionScopeDeleter>;
+
+  PoppedFunctionScopePtr
   PopFunctionScopeInfo(const sema::AnalysisBasedWarnings::Policy *WP = nullptr,
                        const Decl *D = nullptr,
-                       const BlockExpr *blkExpr = nullptr);
+                       QualType BlockType = QualType());
 
   sema::FunctionScopeInfo *getCurFunction() const {
     return FunctionScopes.empty() ? nullptr : FunctionScopes.back();
@@ -1664,6 +1678,7 @@ public:
   bool CheckExceptionSpecSubset(const PartialDiagnostic &DiagID,
                                 const PartialDiagnostic &NestedDiagID,
                                 const PartialDiagnostic &NoteID,
+                                const PartialDiagnostic &NoThrowDiagID,
                                 const FunctionProtoType *Superset,
                                 SourceLocation SuperLoc,
                                 const FunctionProtoType *Subset,
@@ -4085,6 +4100,7 @@ public:
                              unsigned NumInputs, IdentifierInfo **Names,
                              MultiExprArg Constraints, MultiExprArg Exprs,
                              Expr *AsmString, MultiExprArg Clobbers,
+                             unsigned NumLabels,
                              SourceLocation RParenLoc);
 
   void FillInlineAsmIdentifierInfo(Expr *Res,
@@ -4279,6 +4295,9 @@ public:
   void MarkVariableReferenced(SourceLocation Loc, VarDecl *Var);
   void MarkDeclRefReferenced(DeclRefExpr *E, const Expr *Base = nullptr);
   void MarkMemberReferenced(MemberExpr *E);
+  void MarkFunctionParmPackReferenced(FunctionParmPackExpr *E);
+  void MarkCaptureUsedInEnclosingContext(VarDecl *Capture, SourceLocation Loc,
+                                         unsigned CapturingScopeIndex);
 
   void UpdateMarkingForLValueToRValue(Expr *E);
   void CleanupVarDeclMarking();
@@ -4400,16 +4419,24 @@ public:
                                         bool isAddressOfOperand,
                                 const TemplateArgumentListInfo *TemplateArgs);
 
-  ExprResult BuildDeclRefExpr(ValueDecl *D, QualType Ty,
-                              ExprValueKind VK,
-                              SourceLocation Loc,
-                              const CXXScopeSpec *SS = nullptr);
-  ExprResult
+  DeclRefExpr *BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
+                                SourceLocation Loc,
+                                const CXXScopeSpec *SS = nullptr);
+  DeclRefExpr *
   BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                    const DeclarationNameInfo &NameInfo,
                    const CXXScopeSpec *SS = nullptr,
                    NamedDecl *FoundD = nullptr,
+                   SourceLocation TemplateKWLoc = SourceLocation(),
                    const TemplateArgumentListInfo *TemplateArgs = nullptr);
+  DeclRefExpr *
+  BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
+                   const DeclarationNameInfo &NameInfo,
+                   NestedNameSpecifierLoc NNS,
+                   NamedDecl *FoundD = nullptr,
+                   SourceLocation TemplateKWLoc = SourceLocation(),
+                   const TemplateArgumentListInfo *TemplateArgs = nullptr);
+
   ExprResult
   BuildAnonymousStructUnionMemberReference(
       const CXXScopeSpec &SS,
@@ -5337,6 +5364,10 @@ public:
   //// ActOnCXXThis -  Parse 'this' pointer.
   ExprResult ActOnCXXThis(SourceLocation loc);
 
+  /// Build a CXXThisExpr and mark it referenced in the current context.
+  Expr *BuildCXXThisExpr(SourceLocation Loc, QualType Type, bool IsImplicit);
+  void MarkThisReferenced(CXXThisExpr *This);
+
   /// Try to retrieve the type of the 'this' pointer.
   ///
   /// \returns The type of 'this', if possible. Otherwise, returns a NULL type.
@@ -5804,12 +5835,12 @@ public:
                                          LambdaCaptureDefault CaptureDefault);
 
   /// Start the definition of a lambda expression.
-  CXXMethodDecl *startLambdaDefinition(CXXRecordDecl *Class,
-                                       SourceRange IntroducerRange,
-                                       TypeSourceInfo *MethodType,
-                                       SourceLocation EndLoc,
-                                       ArrayRef<ParmVarDecl *> Params,
-                                       bool IsConstexprSpecified);
+  CXXMethodDecl *
+  startLambdaDefinition(CXXRecordDecl *Class, SourceRange IntroducerRange,
+                        TypeSourceInfo *MethodType, SourceLocation EndLoc,
+                        ArrayRef<ParmVarDecl *> Params,
+                        bool IsConstexprSpecified,
+                        Optional<std::pair<unsigned, Decl *>> Mangling = None);
 
   /// Endow the lambda scope info with the relevant properties.
   void buildLambdaScope(sema::LambdaScopeInfo *LSI,
@@ -5847,8 +5878,8 @@ public:
                                           IdentifierInfo *Id,
                                           unsigned InitStyle, Expr *Init);
 
-  /// Build the implicit field for an init-capture.
-  FieldDecl *buildInitCaptureField(sema::LambdaScopeInfo *LSI, VarDecl *Var);
+  /// Add an init-capture to a lambda scope.
+  void addInitCapture(sema::LambdaScopeInfo *LSI, VarDecl *Var);
 
   /// Note that we have finished the explicit captures for the
   /// given lambda.
@@ -5893,6 +5924,14 @@ public:
   /// diagnostic is emitted.
   bool DiagnoseUnusedLambdaCapture(SourceRange CaptureRange,
                                    const sema::Capture &From);
+
+  /// Build a FieldDecl suitable to hold the given capture.
+  FieldDecl *BuildCaptureField(RecordDecl *RD, const sema::Capture &Capture);
+
+  /// Initialize the given capture with a suitable expression.
+  ExprResult BuildCaptureInit(const sema::Capture &Capture,
+                              SourceLocation ImplicitCaptureLoc,
+                              bool IsOpenMPMapping = false);
 
   /// Complete a lambda-expression having processed and attached the
   /// lambda body.
@@ -10766,8 +10805,8 @@ public:
   void CodeCompleteInitializer(Scope *S, Decl *D);
   void CodeCompleteAfterIf(Scope *S);
 
-  void CodeCompleteQualifiedId(Scope *S, CXXScopeSpec &SS,
-                               bool EnteringContext, QualType BaseType);
+  void CodeCompleteQualifiedId(Scope *S, CXXScopeSpec &SS, bool EnteringContext,
+                               QualType BaseType, QualType PreferredType);
   void CodeCompleteUsing(Scope *S);
   void CodeCompleteUsingDirective(Scope *S);
   void CodeCompleteNamespaceDecl(Scope *S);

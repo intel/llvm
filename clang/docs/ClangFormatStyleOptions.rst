@@ -1059,19 +1059,28 @@ the configuration (without a prefix: ``Auto``).
 
     .. code-block:: c++
 
-      try {
+      try
+      {
         foo();
       }
-      catch () {
+      catch ()
+      {
       }
       void foo() { bar(); }
-      class foo {
+      class foo
+      {
       };
-      if (foo()) {
+      if (foo())
+      {
       }
-      else {
+      else
+      {
       }
-      enum X : int { A, B };
+      enum X : int
+      {
+        A,
+        B
+      };
 
   * ``BS_GNU`` (in configuration: ``GNU``)
     Always break before braces and add an extra level of indentation to
@@ -1366,6 +1375,24 @@ the configuration (without a prefix: ``Auto``).
     ForEachMacros: ['RANGES_FOR', 'FOREACH']
 
   For example: BOOST_FOREACH.
+
+**TypenameMacros** (``std::vector<std::string>``)
+  A vector of macros that should be interpreted as type declarations
+  instead of as function calls.
+
+  These are expected to be macros of the form:
+
+  .. code-block: c++
+
+    STACK_OF(...)
+
+  In the .clang-format configuration file, this can be configured like:
+
+  .. code-block: yaml
+
+    TypenameMacros: ['STACK_OF', 'LIST']
+
+  For example: OpenSSL STACK_OF, BSD LIST_ENTRY.
 
 **IncludeBlocks** (``IncludeBlocksStyle``)
   Dependent on the value, multiple ``#include`` blocks can be sorted

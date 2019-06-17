@@ -111,7 +111,8 @@ unsigned AMDGPUInliner::getInlineThreshold(CallSite CS) const {
     Callee->hasFnAttribute(Attribute::InlineHint);
   if (InlineHint && Params.HintThreshold && Params.HintThreshold > Thres
       && !Caller->hasFnAttribute(Attribute::MinSize))
-    Thres = Params.HintThreshold.getValue();
+    Thres = Params.HintThreshold.getValue() *
+            TTIWP->getTTI(*Callee).getInliningThresholdMultiplier();
 
   const DataLayout &DL = Caller->getParent()->getDataLayout();
   if (!Callee)
@@ -123,10 +124,11 @@ unsigned AMDGPUInliner::getInlineThreshold(CallSite CS) const {
   uint64_t AllocaSize = 0;
   SmallPtrSet<const AllocaInst *, 8> AIVisited;
   for (Value *PtrArg : CS.args()) {
-    Type *Ty = PtrArg->getType();
-    if (!Ty->isPointerTy() ||
-        Ty->getPointerAddressSpace() != AMDGPUAS::PRIVATE_ADDRESS)
+    PointerType *Ty = dyn_cast<PointerType>(PtrArg->getType());
+    if (!Ty || (Ty->getAddressSpace() != AMDGPUAS::PRIVATE_ADDRESS &&
+                Ty->getAddressSpace() != AMDGPUAS::FLAT_ADDRESS))
       continue;
+
     PtrArg = GetUnderlyingObject(PtrArg, DL);
     if (const AllocaInst *AI = dyn_cast<AllocaInst>(PtrArg)) {
       if (!AI->isStaticAlloca() || !AIVisited.insert(AI).second)

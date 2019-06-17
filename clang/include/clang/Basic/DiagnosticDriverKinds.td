@@ -9,9 +9,11 @@
 let Component = "Driver" in {
 
 def err_drv_no_such_file : Error<"no such file or directory: '%0'">;
+def err_drv_no_such_file_with_suggestion : Error<
+  "no such file or directory: '%0'; did you mean '%1'?">;
 def err_drv_unsupported_opt : Error<"unsupported option '%0'">;
-def err_drv_unsupported_opt_with_suggestion
-  : Error<"unsupported option '%0', did you mean '%1'?">;
+def err_drv_unsupported_opt_with_suggestion : Error<
+  "unsupported option '%0'; did you mean '%1'?">;
 def err_drv_unsupported_opt_for_target : Error<
   "unsupported option '%0' for target '%1'">;
 def err_drv_unsupported_option_argument : Error<
@@ -89,6 +91,8 @@ def err_no_external_assembler : Error<
   "there is no external assembler that can be used on this platform">;
 def err_drv_unable_to_remove_file : Error<
   "unable to remove file: %0">;
+def err_drv_unable_to_set_working_directory : Error <
+  "unable to set working directory: %0">;
 def err_drv_command_failure : Error<
   "unable to execute command: %0">;
 def err_drv_invalid_darwin_version : Error<
@@ -170,13 +174,13 @@ def err_arch_unsupported_isa
 def err_drv_I_dash_not_supported : Error<
   "'%0' not supported, please use -iquote instead">;
 def err_drv_unknown_argument : Error<"unknown argument: '%0'">;
-def err_drv_unknown_argument_with_suggestion
-  : Error<"unknown argument '%0', did you mean '%1'?">;
+def err_drv_unknown_argument_with_suggestion : Error<
+  "unknown argument '%0'; did you mean '%1'?">;
 def warn_drv_unknown_argument_clang_cl : Warning<
   "unknown argument ignored in clang-cl: '%0'">,
   InGroup<UnknownArgument>;
 def warn_drv_unknown_argument_clang_cl_with_suggestion : Warning<
-  "unknown argument ignored in clang-cl '%0' (did you mean '%1'?)">,
+  "unknown argument ignored in clang-cl '%0'; did you mean '%1'?">,
   InGroup<UnknownArgument>;
 
 def warn_drv_ycyu_different_arg_clang_cl : Warning<

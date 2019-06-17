@@ -1003,6 +1003,8 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
   case ISD::EXTRACT_VECTOR_ELT:
   case ISD::LROUND:
   case ISD::LLROUND:
+  case ISD::LRINT:
+  case ISD::LLRINT:
     Action = TLI.getOperationAction(Node->getOpcode(),
                                     Node->getOperand(0).getValueType());
     break;
@@ -1415,6 +1417,7 @@ SDValue SelectionDAGLegalize::ExpandVectorBuildThroughStack(SDNode* Node) {
   // Emit a store of each element to the stack slot.
   SmallVector<SDValue, 8> Stores;
   unsigned TypeByteSize = EltVT.getSizeInBits() / 8;
+  assert(TypeByteSize > 0 && "Vector element type too small for stack store!");
   // Store (in the right endianness) the elements to memory.
   for (unsigned i = 0, e = Node->getNumOperands(); i != e; ++i) {
     // Ignore undef elements.
@@ -2918,6 +2921,18 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
                                          RTLIB::LLROUND_F128,
                                          RTLIB::LLROUND_PPCF128));
     break;
+  case ISD::LRINT:
+    Results.push_back(ExpandArgFPLibCall(Node, RTLIB::LRINT_F32,
+                                         RTLIB::LRINT_F64, RTLIB::LRINT_F80,
+                                         RTLIB::LRINT_F128,
+                                         RTLIB::LRINT_PPCF128));
+    break;
+  case ISD::LLRINT:
+    Results.push_back(ExpandArgFPLibCall(Node, RTLIB::LLRINT_F32,
+                                         RTLIB::LLRINT_F64, RTLIB::LLRINT_F80,
+                                         RTLIB::LLRINT_F128,
+                                         RTLIB::LLRINT_PPCF128));
+    break;
   case ISD::VAARG:
     Results.push_back(DAG.expandVAArg(Node));
     Results.push_back(Results[0].getValue(1));
@@ -3430,6 +3445,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
                              DAG.getConstant(0, dl, Tmp1.getValueType()),
                              Tmp2, Tmp3, ISD::SETNE);
     }
+    Tmp1->setFlags(Node->getFlags());
     Results.push_back(Tmp1);
     break;
   case ISD::BR_JT: {
@@ -3513,7 +3529,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
       // condition code, create a new SETCC node.
       if (Tmp3.getNode())
         Tmp1 = DAG.getNode(ISD::SETCC, dl, Node->getValueType(0),
-                           Tmp1, Tmp2, Tmp3);
+                           Tmp1, Tmp2, Tmp3, Node->getFlags());
 
       // If we expanded the SETCC by inverting the condition code, then wrap
       // the existing SETCC in a NOT to restore the intended condition.
@@ -3541,6 +3557,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
                        DAG.getConstant(TrueValue, dl, VT),
                        DAG.getConstant(0, dl, VT),
                        Tmp3);
+    Tmp1->setFlags(Node->getFlags());
     Results.push_back(Tmp1);
     break;
   }
@@ -3562,7 +3579,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
              "expanded.");
       EVT CCVT =
           TLI.getSetCCResultType(DAG.getDataLayout(), *DAG.getContext(), CmpVT);
-      SDValue Cond = DAG.getNode(ISD::SETCC, dl, CCVT, Tmp1, Tmp2, CC);
+      SDValue Cond = DAG.getNode(ISD::SETCC, dl, CCVT, Tmp1, Tmp2, CC, Node->getFlags());
       Results.push_back(DAG.getSelect(dl, VT, Cond, Tmp3, Tmp4));
       break;
     }
@@ -4231,6 +4248,7 @@ void SelectionDAGLegalize::PromoteNode(SDNode *Node) {
     Tmp3 = DAG.getNode(ExtOp, dl, NVT, Node->getOperand(2));
     // Perform the larger operation, then round down.
     Tmp1 = DAG.getSelect(dl, NVT, Tmp1, Tmp2, Tmp3);
+    Tmp1->setFlags(Node->getFlags());
     if (TruncOp != ISD::FP_ROUND)
       Tmp1 = DAG.getNode(TruncOp, dl, Node->getValueType(0), Tmp1);
     else
@@ -4261,8 +4279,8 @@ void SelectionDAGLegalize::PromoteNode(SDNode *Node) {
     }
     Tmp1 = DAG.getNode(ExtOp, dl, NVT, Node->getOperand(0));
     Tmp2 = DAG.getNode(ExtOp, dl, NVT, Node->getOperand(1));
-    Results.push_back(DAG.getNode(ISD::SETCC, dl, Node->getValueType(0),
-                                  Tmp1, Tmp2, Node->getOperand(2)));
+    Results.push_back(DAG.getNode(ISD::SETCC, dl, Node->getValueType(0), Tmp1,
+                                  Tmp2, Node->getOperand(2), Node->getFlags()));
     break;
   }
   case ISD::BR_CC: {

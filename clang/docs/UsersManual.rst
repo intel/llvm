@@ -1006,7 +1006,7 @@ on-disk cache that contains the vital information necessary to reduce
 some of the work needed to process a corresponding header file. While
 details of precompiled headers vary between compilers, precompiled
 headers have been shown to be highly effective at speeding up program
-compilation on systems with very large system headers (e.g., Mac OS X).
+compilation on systems with very large system headers (e.g., macOS).
 
 Generating a PCH File
 ^^^^^^^^^^^^^^^^^^^^^
@@ -2746,7 +2746,7 @@ X86
 ^^^
 
 The support for X86 (both 32-bit and 64-bit) is considered stable on
-Darwin (Mac OS X), Linux, FreeBSD, and Dragonfly BSD: it has been tested
+Darwin (macOS), Linux, FreeBSD, and Dragonfly BSD: it has been tested
 to correctly compile many large C, C++, Objective-C, and Objective-C++
 codebases.
 
@@ -2801,8 +2801,8 @@ backend.
 Operating System Features and Limitations
 -----------------------------------------
 
-Darwin (Mac OS X)
-^^^^^^^^^^^^^^^^^
+Darwin (macOS)
+^^^^^^^^^^^^^^
 
 Thread Sanitizer is not supported.
 
@@ -3051,6 +3051,8 @@ Execute ``clang-cl /?`` to see a list of supported options:
       /Yc<filename>           Generate a pch file for all code up to and including <filename>
       /Yu<filename>           Load a pch file and use it instead of all code up to and including <filename>
       /Z7                     Enable CodeView debug information in object files
+      /Zc:char8_t             Enable C++2a char8_t type
+      /Zc:char8_t-            Disable C++2a char8_t type
       /Zc:dllexportInlines-   Don't dllexport/dllimport inline member functions of dllexport/import classes
       /Zc:dllexportInlines    dllexport/dllimport inline member functions of dllexport/import classes (default)
       /Zc:sizedDealloc-       Disable C++14 sized global deallocation functions

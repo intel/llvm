@@ -197,6 +197,8 @@ StringRef ARMTargetInfo::getCPUAttr() const {
     return "8M_MAIN";
   case llvm::ARM::ArchKind::ARMV8R:
     return "8R";
+  case llvm::ARM::ArchKind::ARMV8_1MMainline:
+    return "8_1M_MAIN";
   }
 }
 
@@ -400,8 +402,7 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   HasFloat16 = true;
 
   // This does not diagnose illegal cases like having both
-  // "+vfpv2" and "+vfpv3" or having "+neon" and "+fp-only-sp".
-  uint32_t HW_FP_remove = 0;
+  // "+vfpv2" and "+vfpv3" or having "+neon" and "-fp64".
   for (const auto &Feature : Features) {
     if (Feature == "+soft-float") {
       SoftFloat = true;
@@ -409,19 +410,19 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       SoftFloatABI = true;
     } else if (Feature == "+vfp2") {
       FPU |= VFP2FPU;
-      HW_FP |= HW_FP_SP | HW_FP_DP;
+      HW_FP |= HW_FP_SP;
     } else if (Feature == "+vfp3") {
       FPU |= VFP3FPU;
-      HW_FP |= HW_FP_SP | HW_FP_DP;
+      HW_FP |= HW_FP_SP;
     } else if (Feature == "+vfp4") {
       FPU |= VFP4FPU;
-      HW_FP |= HW_FP_SP | HW_FP_DP | HW_FP_HP;
+      HW_FP |= HW_FP_SP | HW_FP_HP;
     } else if (Feature == "+fp-armv8") {
       FPU |= FPARMV8;
-      HW_FP |= HW_FP_SP | HW_FP_DP | HW_FP_HP;
+      HW_FP |= HW_FP_SP | HW_FP_HP;
     } else if (Feature == "+neon") {
       FPU |= NeonFPU;
-      HW_FP |= HW_FP_SP | HW_FP_DP;
+      HW_FP |= HW_FP_SP;
     } else if (Feature == "+hwdiv") {
       HWDiv |= HWDivThumb;
     } else if (Feature == "+hwdiv-arm") {
@@ -432,8 +433,8 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       Crypto = 1;
     } else if (Feature == "+dsp") {
       DSP = 1;
-    } else if (Feature == "+fp-only-sp") {
-      HW_FP_remove |= HW_FP_DP;
+    } else if (Feature == "+fp64") {
+      HW_FP |= HW_FP_DP;
     } else if (Feature == "+8msecext") {
       if (CPUProfile != "M" || ArchVersion != 8) {
         Diags.Report(diag::err_target_unsupported_mcmse) << CPU;
@@ -449,7 +450,6 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       DotProd = true;
     }
   }
-  HW_FP &= ~HW_FP_remove;
 
   switch (ArchVersion) {
   case 6:

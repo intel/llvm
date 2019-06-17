@@ -13864,17 +13864,10 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
       TemplateArgs = &TemplateArgsBuffer;
     }
 
-    DeclRefExpr *DRE = DeclRefExpr::Create(Context,
-                                           ULE->getQualifierLoc(),
-                                           ULE->getTemplateKeywordLoc(),
-                                           Fn,
-                                           /*enclosing*/ false, // FIXME?
-                                           ULE->getNameLoc(),
-                                           Fn->getType(),
-                                           VK_LValue,
-                                           Found.getDecl(),
-                                           TemplateArgs);
-    MarkDeclRefReferenced(DRE);
+    DeclRefExpr *DRE =
+        BuildDeclRefExpr(Fn, Fn->getType(), VK_LValue, ULE->getNameInfo(),
+                         ULE->getQualifierLoc(), Found.getDecl(),
+                         ULE->getTemplateKeywordLoc(), TemplateArgs);
     DRE->setHadMultipleCandidates(ULE->getNumDecls() > 1);
     return DRE;
   }
@@ -13893,27 +13886,18 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
     // implicit member access, rewrite to a simple decl ref.
     if (MemExpr->isImplicitAccess()) {
       if (cast<CXXMethodDecl>(Fn)->isStatic()) {
-        DeclRefExpr *DRE = DeclRefExpr::Create(Context,
-                                               MemExpr->getQualifierLoc(),
-                                               MemExpr->getTemplateKeywordLoc(),
-                                               Fn,
-                                               /*enclosing*/ false,
-                                               MemExpr->getMemberLoc(),
-                                               Fn->getType(),
-                                               VK_LValue,
-                                               Found.getDecl(),
-                                               TemplateArgs);
-        MarkDeclRefReferenced(DRE);
+        DeclRefExpr *DRE = BuildDeclRefExpr(
+            Fn, Fn->getType(), VK_LValue, MemExpr->getNameInfo(),
+            MemExpr->getQualifierLoc(), Found.getDecl(),
+            MemExpr->getTemplateKeywordLoc(), TemplateArgs);
         DRE->setHadMultipleCandidates(MemExpr->getNumDecls() > 1);
         return DRE;
       } else {
         SourceLocation Loc = MemExpr->getMemberLoc();
         if (MemExpr->getQualifier())
           Loc = MemExpr->getQualifierLoc().getBeginLoc();
-        CheckCXXThisCapture(Loc);
-        Base = new (Context) CXXThisExpr(Loc,
-                                         MemExpr->getBaseType(),
-                                         /*isImplicit=*/true);
+        Base =
+            BuildCXXThisExpr(Loc, MemExpr->getBaseType(), /*isImplicit=*/true);
       }
     } else
       Base = MemExpr->getBase();

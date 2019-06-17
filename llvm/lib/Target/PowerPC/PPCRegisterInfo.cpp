@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "PPCRegisterInfo.h"
-#include "PPC.h"
 #include "PPCFrameLowering.h"
 #include "PPCInstrBuilder.h"
 #include "PPCMachineFunctionInfo.h"
@@ -228,6 +227,10 @@ PPCRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                                                   : CSR_Darwin64_RegMask)
                         : (Subtarget.hasAltivec() ? CSR_Darwin32_Altivec_RegMask
                                                   : CSR_Darwin32_RegMask);
+  if (Subtarget.isAIXABI()) {
+    assert(!Subtarget.hasAltivec() && "Altivec is not implemented on AIX yet.");
+    return TM.isPPC64() ? CSR_AIX64_RegMask : CSR_AIX32_RegMask;
+  }
 
   if (CC == CallingConv::Cold) {
     return TM.isPPC64() ? (Subtarget.hasAltivec() ? CSR_SVR64_ColdCC_Altivec_RegMask

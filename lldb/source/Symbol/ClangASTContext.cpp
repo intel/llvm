@@ -2457,7 +2457,7 @@ bool ClangASTContext::DeclsAreEquivalent(clang::Decl *lhs_decl,
       clang::DeclContext *lhs_decl_ctx = lhs_decl->getDeclContext();
       clang::DeclContext *rhs_decl_ctx = rhs_decl->getDeclContext();
       if (lhs_decl_ctx && rhs_decl_ctx) {
-        while (1) {
+        while (true) {
           if (lhs_decl_ctx && rhs_decl_ctx) {
             const clang::Decl::Kind lhs_decl_ctx_kind =
                 lhs_decl_ctx->getDeclKind();
@@ -2495,7 +2495,7 @@ bool ClangASTContext::DeclsAreEquivalent(clang::Decl *lhs_decl,
         // make sure the names match as well
         lhs_decl_ctx = lhs_decl->getDeclContext();
         rhs_decl_ctx = rhs_decl->getDeclContext();
-        while (1) {
+        while (true) {
           switch (lhs_decl_ctx->getDeclKind()) {
           case clang::Decl::TranslationUnit:
             // We don't care about the translation unit names
@@ -3909,6 +3909,14 @@ bool ClangASTContext::IsVoidType(lldb::opaque_compiler_type_t type) {
   if (!type)
     return false;
   return GetCanonicalQualType(type)->isVoidType();
+}
+
+bool ClangASTContext::CanPassInRegisters(const CompilerType &type) {
+  if (auto *record_decl =
+      ClangASTContext::GetAsRecordDecl(type)) {
+    return record_decl->canPassInRegisters();
+  }
+  return false;
 }
 
 bool ClangASTContext::SupportsLanguage(lldb::LanguageType language) {
@@ -6894,7 +6902,7 @@ CompilerType ClangASTContext::GetChildCompilerTypeAtIndex(
       } else {
         child_is_deref_of_parent = true;
         const char *parent_name =
-            valobj ? valobj->GetName().GetCString() : NULL;
+            valobj ? valobj->GetName().GetCString() : nullptr;
         if (parent_name) {
           child_name.assign(1, '*');
           child_name += parent_name;
@@ -6975,7 +6983,7 @@ CompilerType ClangASTContext::GetChildCompilerTypeAtIndex(
       child_is_deref_of_parent = true;
 
       const char *parent_name =
-          valobj ? valobj->GetName().GetCString() : NULL;
+          valobj ? valobj->GetName().GetCString() : nullptr;
       if (parent_name) {
         child_name.assign(1, '*');
         child_name += parent_name;
@@ -7012,7 +7020,7 @@ CompilerType ClangASTContext::GetChildCompilerTypeAtIndex(
             language_flags);
       } else {
         const char *parent_name =
-            valobj ? valobj->GetName().GetCString() : NULL;
+            valobj ? valobj->GetName().GetCString() : nullptr;
         if (parent_name) {
           child_name.assign(1, '&');
           child_name += parent_name;
@@ -7842,7 +7850,7 @@ clang::EnumDecl *ClangASTContext::GetAsEnumDecl(const CompilerType &type) {
       llvm::dyn_cast<clang::EnumType>(ClangUtil::GetCanonicalQualType(type));
   if (enutype)
     return enutype->getDecl();
-  return NULL;
+  return nullptr;
 }
 
 clang::RecordDecl *ClangASTContext::GetAsRecordDecl(const CompilerType &type) {
@@ -8261,7 +8269,7 @@ clang::CXXMethodDecl *ClangASTContext::AddMethodToCXXRecordType(
   if (is_attr_used)
     cxx_method_decl->addAttr(clang::UsedAttr::CreateImplicit(*getASTContext()));
 
-  if (mangled_name != NULL) {
+  if (mangled_name != nullptr) {
     cxx_method_decl->addAttr(
         clang::AsmLabelAttr::CreateImplicit(*getASTContext(), mangled_name));
   }
@@ -9629,7 +9637,7 @@ bool ClangASTContext::DumpTypeValue(
       break;
     }
   }
-  return 0;
+  return false;
 }
 
 void ClangASTContext::DumpSummary(lldb::opaque_compiler_type_t type,
@@ -9868,7 +9876,7 @@ clang::ClassTemplateDecl *ClangASTContext::ParseClassTemplateDecl(
                                    template_basename.c_str(), tag_decl_kind,
                                    template_param_infos);
   }
-  return NULL;
+  return nullptr;
 }
 
 void ClangASTContext::CompleteTagDecl(void *baton, clang::TagDecl *decl) {

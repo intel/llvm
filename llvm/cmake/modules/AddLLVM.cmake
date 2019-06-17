@@ -390,7 +390,7 @@ endfunction(set_windows_version_resource_properties)
 function(llvm_add_library name)
   cmake_parse_arguments(ARG
     "MODULE;SHARED;STATIC;OBJECT;DISABLE_LLVM_LINK_LLVM_DYLIB;SONAME;NO_INSTALL_RPATH"
-    "OUTPUT_NAME;PLUGIN_TOOL;ENTITLEMENTS"
+    "OUTPUT_NAME;PLUGIN_TOOL;ENTITLEMENTS;BUNDLE_PATH"
     "ADDITIONAL_HEADERS;DEPENDS;LINK_COMPONENTS;LINK_LIBS;OBJLIBS"
     ${ARGN})
   list(APPEND LLVM_COMMON_DEPENDS ${ARG_DEPENDS})
@@ -594,7 +594,7 @@ function(llvm_add_library name)
 
   if(ARG_SHARED OR ARG_MODULE)
     llvm_externalize_debuginfo(${name})
-    llvm_codesign(${name} ENTITLEMENTS ${ARG_ENTITLEMENTS})
+    llvm_codesign(${name} ENTITLEMENTS ${ARG_ENTITLEMENTS} BUNDLE_PATH ${ARG_BUNDLE_PATH})
   endif()
   # clang and newer versions of ninja use high-resolutions timestamps,
   # but older versions of libtool on Darwin don't, so the archive will
@@ -716,7 +716,7 @@ endmacro(add_llvm_library name)
 macro(add_llvm_executable name)
   cmake_parse_arguments(ARG
     "DISABLE_LLVM_LINK_LLVM_DYLIB;IGNORE_EXTERNALIZE_DEBUGINFO;NO_INSTALL_RPATH"
-    "ENTITLEMENTS"
+    "ENTITLEMENTS;BUNDLE_PATH"
     "DEPENDS"
     ${ARGN})
 
@@ -798,7 +798,7 @@ macro(add_llvm_executable name)
     target_link_libraries(${name} PRIVATE ${LLVM_PTHREAD_LIB})
   endif()
 
-  llvm_codesign(${name} ENTITLEMENTS ${ARG_ENTITLEMENTS})
+  llvm_codesign(${name} ENTITLEMENTS ${ARG_ENTITLEMENTS} BUNDLE_PATH ${ARG_BUNDLE_PATH})
 endmacro(add_llvm_executable name)
 
 function(export_executable_symbols target)
@@ -878,6 +878,8 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     llvm-ar
     llvm-ranlib
     llvm-lib
+    llvm-nm
+    llvm-objcopy
     llvm-objdump
     llvm-rc
     llvm-profdata
@@ -1659,9 +1661,9 @@ function(llvm_externalize_debuginfo name)
   endif()
 endfunction()
 
-# Usage: llvm_codesign(name [ENTITLEMENTS file])
+# Usage: llvm_codesign(name [FORCE] [ENTITLEMENTS file] [BUNDLE_PATH path])
 function(llvm_codesign name)
-  cmake_parse_arguments(ARG "" "ENTITLEMENTS" "" ${ARGN})
+  cmake_parse_arguments(ARG "FORCE" "ENTITLEMENTS;BUNDLE_PATH" "" ${ARGN})
 
   if(NOT LLVM_CODESIGNING_IDENTITY)
     return()
@@ -1691,12 +1693,20 @@ function(llvm_codesign name)
       set(pass_entitlements --entitlements ${ARG_ENTITLEMENTS})
     endif()
 
+    if (NOT ARG_BUNDLE_PATH)
+      set(ARG_BUNDLE_PATH $<TARGET_FILE:${name}>)
+    endif()
+
+    if(ARG_FORCE)
+      set(force_flag "-f")
+    endif()
+
     add_custom_command(
       TARGET ${name} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E
               env CODESIGN_ALLOCATE=${CMAKE_CODESIGN_ALLOCATE}
               ${CMAKE_CODESIGN} -s ${LLVM_CODESIGNING_IDENTITY}
-              ${pass_entitlements} $<TARGET_FILE:${name}>
+              ${pass_entitlements} ${force_flag} ${ARG_BUNDLE_PATH}
     )
   endif()
 endfunction()

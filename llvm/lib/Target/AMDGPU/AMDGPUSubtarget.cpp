@@ -190,7 +190,6 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     EnableCuMode(false),
     TrapHandler(false),
 
-    EnableHugePrivateBuffer(false),
     EnableLoadStoreOpt(false),
     EnableUnsafeDSOffsetFolding(false),
     EnableSIScheduler(false),
@@ -341,12 +340,6 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getFlatWorkGroupSizes(
   std::pair<unsigned, unsigned> Default =
     getDefaultFlatWorkGroupSize(F.getCallingConv());
 
-  // TODO: Do not process "amdgpu-max-work-group-size" attribute once mesa
-  // starts using "amdgpu-flat-work-group-size" attribute.
-  Default.second = AMDGPU::getIntegerAttribute(
-    F, "amdgpu-max-work-group-size", Default.second);
-  Default.first = std::min(Default.first, Default.second);
-
   // Requested minimum/maximum flat work group sizes.
   std::pair<unsigned, unsigned> Requested = AMDGPU::getIntegerPairAttribute(
     F, "amdgpu-flat-work-group-size", Default);
@@ -380,10 +373,7 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getWavesPerEU(
     getMaxWavesPerEU(FlatWorkGroupSizes.second);
   bool RequestedFlatWorkGroupSize = false;
 
-  // TODO: Do not process "amdgpu-max-work-group-size" attribute once mesa
-  // starts using "amdgpu-flat-work-group-size" attribute.
-  if (F.hasFnAttribute("amdgpu-max-work-group-size") ||
-      F.hasFnAttribute("amdgpu-flat-work-group-size")) {
+  if (F.hasFnAttribute("amdgpu-flat-work-group-size")) {
     Default.first = MinImpliedByFlatWorkGroupSize;
     RequestedFlatWorkGroupSize = true;
   }

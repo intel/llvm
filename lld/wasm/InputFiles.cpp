@@ -271,14 +271,23 @@ void ObjFile::parse(bool IgnoreComdats) {
     }
   }
 
-  // Find the code and data sections.  Wasm objects can have at most one code
-  // and one data section.
   uint32_t SectionIndex = 0;
+
+  // Bool for each symbol, true if called directly.  This allows us to implement
+  // a weaker form of signature checking where undefined functions that are not
+  // called directly (i.e. only address taken) don't have to match the defined
+  // function's signature.  We cannot do this for directly called functions
+  // because those signatures are checked at validation times.
+  // See https://bugs.llvm.org/show_bug.cgi?id=40412
+  std::vector<bool> IsCalledDirectly(WasmObj->getNumberOfSymbols(), false);
   for (const SectionRef &Sec : WasmObj->sections()) {
     const WasmSection &Section = WasmObj->getWasmSection(Sec);
+    // Wasm objects can have at most one code and one data section.
     if (Section.Type == WASM_SEC_CODE) {
+      assert(!CodeSection);
       CodeSection = &Section;
     } else if (Section.Type == WASM_SEC_DATA) {
+      assert(!DataSection);
       DataSection = &Section;
     } else if (Section.Type == WASM_SEC_CUSTOM) {
       CustomSections.emplace_back(make<InputSection>(Section, this));
@@ -286,17 +295,21 @@ void ObjFile::parse(bool IgnoreComdats) {
       CustomSectionsByIndex[SectionIndex] = CustomSections.back();
     }
     SectionIndex++;
+    // Scans relocations to dermine determine if a function symbol is called
+    // directly
+    for (const WasmRelocation &Reloc : Section.Relocations)
+      if (Reloc.Type == R_WASM_FUNCTION_INDEX_LEB)
+        IsCalledDirectly[Reloc.Index] = true;
   }
 
   TypeMap.resize(getWasmObj()->types().size());
   TypeIsUsed.resize(getWasmObj()->types().size(), false);
 
   ArrayRef<StringRef> Comdats = WasmObj->linkingData().Comdats;
-  for (unsigned I = 0; I < Comdats.size(); ++I)
-    if (IgnoreComdats)
-      KeptComdats.push_back(true);
-    else
-      KeptComdats.push_back(Symtab->addComdat(Comdats[I]));
+  for (unsigned I = 0; I < Comdats.size(); ++I) {
+    bool IsNew = IgnoreComdats || Symtab->addComdat(Comdats[I]);
+    KeptComdats.push_back(IsNew);
+  }
 
   // Populate `Segments`.
   for (const WasmSegment &S : WasmObj->dataSegments())
@@ -326,10 +339,16 @@ void ObjFile::parse(bool IgnoreComdats) {
   Symbols.reserve(WasmObj->getNumberOfSymbols());
   for (const SymbolRef &Sym : WasmObj->symbols()) {
     const WasmSymbol &WasmSym = WasmObj->getWasmSymbol(Sym.getRawDataRefImpl());
-    if (Symbol *Sym = createDefined(WasmSym))
-      Symbols.push_back(Sym);
-    else
-      Symbols.push_back(createUndefined(WasmSym));
+    if (WasmSym.isDefined()) {
+      // createDefined may fail if the symbol is comdat excluded in which case
+      // we fall back to creating an undefined symbol
+      if (Symbol *D = createDefined(WasmSym)) {
+        Symbols.push_back(D);
+        continue;
+      }
+    }
+    size_t Idx = Symbols.size();
+    Symbols.push_back(createUndefined(WasmSym, IsCalledDirectly[Idx]));
   }
 }
 
@@ -361,9 +380,6 @@ DataSymbol *ObjFile::getDataSymbol(uint32_t Index) const {
 }
 
 Symbol *ObjFile::createDefined(const WasmSymbol &Sym) {
-  if (!Sym.isDefined())
-    return nullptr;
-
   StringRef Name = Sym.Info.Name;
   uint32_t Flags = Sym.Info.Flags;
 
@@ -417,7 +433,7 @@ Symbol *ObjFile::createDefined(const WasmSymbol &Sym) {
   llvm_unreachable("unknown symbol kind");
 }
 
-Symbol *ObjFile::createUndefined(const WasmSymbol &Sym) {
+Symbol *ObjFile::createUndefined(const WasmSymbol &Sym, bool IsCalledDirectly) {
   StringRef Name = Sym.Info.Name;
   uint32_t Flags = Sym.Info.Flags;
 
@@ -425,7 +441,7 @@ Symbol *ObjFile::createUndefined(const WasmSymbol &Sym) {
   case WASM_SYMBOL_TYPE_FUNCTION:
     return Symtab->addUndefinedFunction(Name, Sym.Info.ImportName,
                                         Sym.Info.ImportModule, Flags, this,
-                                        Sym.Signature);
+                                        Sym.Signature, IsCalledDirectly);
   case WASM_SYMBOL_TYPE_DATA:
     return Symtab->addUndefinedData(Name, Flags, this);
   case WASM_SYMBOL_TYPE_GLOBAL:
@@ -438,7 +454,7 @@ Symbol *ObjFile::createUndefined(const WasmSymbol &Sym) {
   llvm_unreachable("unknown symbol kind");
 }
 
-void ArchiveFile::parse(bool IgnoreComdats) {
+void ArchiveFile::parse() {
   // Parse a MemoryBufferRef as an archive file.
   LLVM_DEBUG(dbgs() << "Parsing library: " << toString(this) << "\n");
   File = CHECK(Archive::create(MB), toString(this));
@@ -499,7 +515,7 @@ static Symbol *createBitcodeSymbol(const std::vector<bool> &KeptComdats,
   if (ObjSym.isUndefined() || ExcludedByComdat) {
     if (ObjSym.isExecutable())
       return Symtab->addUndefinedFunction(Name, Name, DefaultModule, Flags, &F,
-                                          nullptr);
+                                          nullptr, true);
     return Symtab->addUndefinedData(Name, Flags, &F);
   }
 
@@ -508,7 +524,7 @@ static Symbol *createBitcodeSymbol(const std::vector<bool> &KeptComdats,
   return Symtab->addDefinedData(Name, Flags, &F, nullptr, 0, 0);
 }
 
-void BitcodeFile::parse(bool IgnoreComdats) {
+void BitcodeFile::parse() {
   Obj = check(lto::InputFile::create(MemoryBufferRef(
       MB.getBuffer(), Saver.save(ArchiveName + MB.getBufferIdentifier()))));
   Triple T(Obj->getTargetTriple());
@@ -518,10 +534,7 @@ void BitcodeFile::parse(bool IgnoreComdats) {
   }
   std::vector<bool> KeptComdats;
   for (StringRef S : Obj->getComdatTable())
-    if (IgnoreComdats)
-      KeptComdats.push_back(true);
-    else
-      KeptComdats.push_back(Symtab->addComdat(S));
+    KeptComdats.push_back(Symtab->addComdat(S));
 
   for (const lto::InputFile::Symbol &ObjSym : Obj->symbols())
     Symbols.push_back(createBitcodeSymbol(KeptComdats, ObjSym, *this));

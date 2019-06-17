@@ -188,6 +188,7 @@ public:
     bool IsSwiftSelf : 1;
     bool IsSwiftError : 1;
     uint16_t Alignment = 0;
+    Type *ByValType = nullptr;
 
     ArgListEntry()
         : IsSExt(false), IsZExt(false), IsInReg(false), IsSRet(false),
@@ -434,10 +435,12 @@ public:
     return false;
   }
 
-  /// Allow store merging after legalization in addition to before legalization.
-  /// This may catch stores that do not exist earlier (eg, stores created from
-  /// intrinsics).
-  virtual bool mergeStoresAfterLegalization() const { return true; }
+  /// Allow store merging for the specified type after legalization in addition
+  /// to before legalization. This may transform stores that do not exist
+  /// earlier (for example, stores created from intrinsics).
+  virtual bool mergeStoresAfterLegalization(EVT MemVT) const {
+    return true;
+  }
 
   /// Returns if it's reasonable to merge stores to MemVT size.
   virtual bool canMergeStoresTo(unsigned AS, EVT MemVT,
@@ -636,10 +639,19 @@ public:
 
   /// Return the register class that should be used for the specified value
   /// type.
-  virtual const TargetRegisterClass *getRegClassFor(MVT VT) const {
+  virtual const TargetRegisterClass *getRegClassFor(MVT VT, bool isDivergent = false) const {
+    (void)isDivergent;
     const TargetRegisterClass *RC = RegClassForVT[VT.SimpleTy];
     assert(RC && "This value type is not natively supported!");
     return RC;
+  }
+
+  /// Allows target to decide about the register class of the
+  /// specific value that is live outside the defining block.
+  /// Returns true if the value needs uniform register class.
+  virtual bool requiresUniformRegister(MachineFunction &MF,
+                                       const Value *) const {
+    return false;
   }
 
   /// Return the 'representative' register class for the specified value
@@ -1581,8 +1593,9 @@ public:
   }
 
   /// Returns true if a cast from SrcAS to DestAS is "cheap", such that e.g. we
-  /// are happy to sink it into basic blocks.
-  virtual bool isCheapAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
+  /// are happy to sink it into basic blocks. A cast may be free, but not
+  /// necessarily a no-op. e.g. a free truncate from a 64-bit to 32-bit pointer.
+  virtual bool isFreeAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
     return isNoopAddrSpaceCast(SrcAS, DestAS);
   }
 
@@ -2173,39 +2186,6 @@ public:
     return false;
   }
 
-  /// Return true if the node is a math/logic binary operator.
-  virtual bool isBinOp(unsigned Opcode) const {
-    switch (Opcode) {
-    case ISD::ADD:
-    case ISD::SUB:
-    case ISD::MUL:
-    case ISD::AND:
-    case ISD::OR:
-    case ISD::XOR:
-    case ISD::SHL:
-    case ISD::SRL:
-    case ISD::SRA:
-    case ISD::SDIV:
-    case ISD::UDIV:
-    case ISD::SREM:
-    case ISD::UREM:
-    case ISD::FADD:
-    case ISD::FSUB:
-    case ISD::FMUL:
-    case ISD::FDIV:
-    case ISD::FREM:
-    case ISD::FMINNUM:
-    case ISD::FMAXNUM:
-    case ISD::FMINNUM_IEEE:
-    case ISD::FMAXNUM_IEEE:
-    case ISD::FMAXIMUM:
-    case ISD::FMINIMUM:
-      return true;
-    default:
-      return false;
-    }
-  }
-
   /// Returns true if the opcode is a commutative binary operation.
   virtual bool isCommutativeBinOp(unsigned Opcode) const {
     // FIXME: This should get its info from the td file.
@@ -2233,10 +2213,36 @@ public:
     case ISD::UADDSAT:
     case ISD::FMINNUM:
     case ISD::FMAXNUM:
+    case ISD::FMINNUM_IEEE:
+    case ISD::FMAXNUM_IEEE:
     case ISD::FMINIMUM:
     case ISD::FMAXIMUM:
       return true;
     default: return false;
+    }
+  }
+
+  /// Return true if the node is a math/logic binary operator.
+  virtual bool isBinOp(unsigned Opcode) const {
+    // A commutative binop must be a binop.
+    if (isCommutativeBinOp(Opcode))
+      return true;
+    // These are non-commutative binops.
+    switch (Opcode) {
+    case ISD::SUB:
+    case ISD::SHL:
+    case ISD::SRL:
+    case ISD::SRA:
+    case ISD::SDIV:
+    case ISD::UDIV:
+    case ISD::SREM:
+    case ISD::UREM:
+    case ISD::FSUB:
+    case ISD::FDIV:
+    case ISD::FREM:
+      return true;
+    default:
+      return false;
     }
   }
 
@@ -3118,6 +3124,10 @@ public:
                                                  KnownBits &Known,
                                                  TargetLoweringOpt &TLO,
                                                  unsigned Depth = 0) const;
+
+  /// This method returns the constant pool value that will be loaded by LD.
+  /// NOTE: You must check for implicit extensions of the constant by LD.
+  virtual const Constant *getTargetConstantFromLoad(LoadSDNode *LD) const;
 
   /// If \p SNaN is false, \returns true if \p Op is known to never be any
   /// NaN. If \p sNaN is true, returns if \p Op is known to never be a signaling

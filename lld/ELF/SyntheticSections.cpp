@@ -107,7 +107,7 @@ MipsAbiFlagsSection<ELFT> *MipsAbiFlagsSection<ELFT>::create() {
   for (InputSectionBase *Sec : InputSections) {
     if (Sec->Type != SHT_MIPS_ABIFLAGS)
       continue;
-    Sec->Live = false;
+    Sec->markDead();
     Create = true;
 
     std::string Filename = toString(Sec->File);
@@ -180,7 +180,7 @@ MipsOptionsSection<ELFT> *MipsOptionsSection<ELFT>::create() {
 
   Elf_Mips_RegInfo Reginfo = {};
   for (InputSectionBase *Sec : Sections) {
-    Sec->Live = false;
+    Sec->markDead();
 
     std::string Filename = toString(Sec->File);
     ArrayRef<uint8_t> D = Sec->data();
@@ -237,7 +237,7 @@ MipsReginfoSection<ELFT> *MipsReginfoSection<ELFT>::create() {
 
   Elf_Mips_RegInfo Reginfo = {};
   for (InputSectionBase *Sec : Sections) {
-    Sec->Live = false;
+    Sec->markDead();
 
     if (Sec->data().size() != sizeof(Elf_Mips_RegInfo)) {
       error(toString(Sec->File) + ": invalid size of .reginfo section");
@@ -259,7 +259,7 @@ InputSection *elf::createInterpSection() {
 
   auto *Sec = make<InputSection>(nullptr, SHF_ALLOC, SHT_PROGBITS, 1, Contents,
                                  ".interp");
-  Sec->Live = true;
+  Sec->markLive();
   return Sec;
 }
 
@@ -287,6 +287,35 @@ static size_t getHashSize() {
     llvm_unreachable("unknown BuildIdKind");
   }
 }
+
+// This class represents a linker-synthesized .note.gnu.property section.
+//
+// In x86, object files may contain feature flags indicating the features that
+// they are using. The flags are stored in a .note.gnu.property section.
+//
+// lld reads the sections from input files and merges them by computing AND of
+// the flags. The result is written as a new .note.gnu.property section.
+//
+// If the flag is zero (which indicates that the intersection of the feature
+// sets is empty, or some input files didn't have .note.gnu.property sections),
+// we don't create this section.
+GnuPropertySection::GnuPropertySection()
+    : SyntheticSection(llvm::ELF::SHF_ALLOC, llvm::ELF::SHT_NOTE, 4,
+                       ".note.gnu.property") {}
+
+void GnuPropertySection::writeTo(uint8_t *Buf) {
+  write32(Buf, 4);                                   // Name size
+  write32(Buf + 4, Config->Is64 ? 16 : 12);          // Content size
+  write32(Buf + 8, NT_GNU_PROPERTY_TYPE_0);          // Type
+  memcpy(Buf + 12, "GNU", 4);                        // Name string
+  write32(Buf + 16, GNU_PROPERTY_X86_FEATURE_1_AND); // Feature type
+  write32(Buf + 20, 4);                              // Feature size
+  write32(Buf + 24, Config->AndFeatures);            // Feature flags
+  if (Config->Is64)
+    write32(Buf + 28, 0); // Padding
+}
+
+size_t GnuPropertySection::getSize() const { return Config->Is64 ? 32 : 28; }
 
 BuildIdSection::BuildIdSection()
     : SyntheticSection(SHF_ALLOC, SHT_NOTE, 4, ".note.gnu.build-id"),
@@ -358,7 +387,7 @@ bool EhFrameSection::isFdeLive(EhSectionPiece &Fde, ArrayRef<RelTy> Rels) {
   // FDEs for garbage-collected or merged-by-ICF sections are dead.
   if (auto *D = dyn_cast<Defined>(&B))
     if (SectionBase *Sec = D->Section)
-      return Sec->Live;
+      return Sec->isLive();
   return false;
 }
 
@@ -542,8 +571,8 @@ void EhFrameSection::writeTo(uint8_t *Buf) {
 }
 
 GotSection::GotSection()
-    : SyntheticSection(SHF_ALLOC | SHF_WRITE, SHT_PROGBITS,
-                       Target->GotEntrySize, ".got") {
+    : SyntheticSection(SHF_ALLOC | SHF_WRITE, SHT_PROGBITS, Config->Wordsize,
+                       ".got") {
   // PPC64 saves the ElfSym::GlobalOffsetTable .TOC. as the first entry in the
   // .got. If there are no references to .TOC. in the symbol table,
   // ElfSym::GlobalOffsetTable will not be defined and we won't need to save
@@ -1030,7 +1059,7 @@ void MipsGotSection::writeTo(uint8_t *Buf) {
 GotPltSection::GotPltSection()
     : SyntheticSection(SHF_ALLOC | SHF_WRITE,
                        Config->EMachine == EM_PPC64 ? SHT_NOBITS : SHT_PROGBITS,
-                       Target->GotPltEntrySize,
+                       Config->Wordsize,
                        Config->EMachine == EM_PPC64 ? ".plt" : ".got.plt") {}
 
 void GotPltSection::addEntry(Symbol &Sym) {
@@ -1039,13 +1068,12 @@ void GotPltSection::addEntry(Symbol &Sym) {
 }
 
 size_t GotPltSection::getSize() const {
-  return (Target->GotPltHeaderEntriesNum + Entries.size()) *
-         Target->GotPltEntrySize;
+  return (Target->GotPltHeaderEntriesNum + Entries.size()) * Config->Wordsize;
 }
 
 void GotPltSection::writeTo(uint8_t *Buf) {
   Target->writeGotPltHeader(Buf);
-  Buf += Target->GotPltHeaderEntriesNum * Target->GotPltEntrySize;
+  Buf += Target->GotPltHeaderEntriesNum * Config->Wordsize;
   for (const Symbol *B : Entries) {
     Target->writeGotPlt(Buf, *B);
     Buf += Config->Wordsize;
@@ -1076,7 +1104,7 @@ static StringRef getIgotPltName() {
 IgotPltSection::IgotPltSection()
     : SyntheticSection(SHF_ALLOC | SHF_WRITE,
                        Config->EMachine == EM_PPC64 ? SHT_NOBITS : SHT_PROGBITS,
-                       Target->GotPltEntrySize, getIgotPltName()) {}
+                       Config->Wordsize, getIgotPltName()) {}
 
 void IgotPltSection::addEntry(Symbol &Sym) {
   assert(Sym.PltIndex == Entries.size());
@@ -1084,7 +1112,7 @@ void IgotPltSection::addEntry(Symbol &Sym) {
 }
 
 size_t IgotPltSection::getSize() const {
-  return Entries.size() * Target->GotPltEntrySize;
+  return Entries.size() * Config->Wordsize;
 }
 
 void IgotPltSection::writeTo(uint8_t *Buf) {
@@ -1290,7 +1318,7 @@ template <class ELFT> void DynamicSection<ELFT>::finalizeContents() {
   // as RelaIplt have. And we still want to emit proper dynamic tags for that
   // case, so here we always use RelaPlt as marker for the begining of
   // .rel[a].plt section.
-  if (In.RelaPlt->getParent()->Live) {
+  if (In.RelaPlt->getParent()->isLive()) {
     addInSec(DT_JMPREL, In.RelaPlt);
     Entries.push_back({DT_PLTRELSZ, addPltRelSz});
     switch (Config->EMachine) {
@@ -2370,7 +2398,7 @@ readAddressAreas(DWARFContext &Dwarf, InputSection *Sec) {
       if (R.SectionIndex == -1ULL)
         continue;
       InputSectionBase *S = Sections[R.SectionIndex];
-      if (!S || S == &InputSection::Discarded || !S->Live)
+      if (!S || S == &InputSection::Discarded || !S->isLive())
         continue;
       // Range list with zero size has no effect.
       if (R.LowPC == R.HighPC)
@@ -2503,7 +2531,7 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
   // a .gdb_index. So we can remove them from the output.
   for (InputSectionBase *S : InputSections)
     if (S->Name == ".debug_gnu_pubnames" || S->Name == ".debug_gnu_pubtypes")
-      S->Live = false;
+      S->markDead();
 
   std::vector<GdbChunk> Chunks(Sections.size());
   std::vector<std::vector<NameAttrEntry>> NameAttrs(Sections.size());
@@ -2945,7 +2973,7 @@ void elf::mergeSections() {
 
     // We do not want to handle sections that are not alive, so just remove
     // them instead of trying to merge.
-    if (!MS->Live) {
+    if (!MS->isLive()) {
       S = nullptr;
       continue;
     }
@@ -3228,7 +3256,6 @@ size_t PPC64LongBranchTargetSection::getSize() const {
 }
 
 void PPC64LongBranchTargetSection::writeTo(uint8_t *Buf) {
-  assert(Target->GotPltEntrySize == 8);
   // If linking non-pic we have the final addresses of the targets and they get
   // written to the table directly. For pic the dynamic linker will allocate
   // the section and fill it it.
@@ -3241,7 +3268,7 @@ void PPC64LongBranchTargetSection::writeTo(uint8_t *Buf) {
     // must be a local-call.
     write64(Buf,
             Sym->getVA() + getPPC64GlobalEntryToLocalEntryOffset(Sym->StOther));
-    Buf += Target->GotPltEntrySize;
+    Buf += 8;
   }
 }
 
@@ -3256,6 +3283,8 @@ bool PPC64LongBranchTargetSection::isNeeded() const {
 }
 
 InStruct elf::In;
+
+std::vector<Partition> elf::Partitions;
 
 template GdbIndexSection *GdbIndexSection::create<ELF32LE>();
 template GdbIndexSection *GdbIndexSection::create<ELF32BE>();

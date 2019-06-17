@@ -160,6 +160,10 @@ $comdat.samesize = comdat samesize
 @g.section = global i32 0, section "_DATA"
 ; CHECK: @g.section = global i32 0, section "_DATA"
 
+; Global Variables -- partition
+@g.partition = global i32 0, partition "part"
+; CHECK: @g.partition = global i32 0, partition "part"
+
 ; Global Variables -- comdat
 @comdat.any = global i32 0, comdat
 ; CHECK: @comdat.any = global i32 0, comdat
@@ -251,6 +255,10 @@ declare void @g.f1()
 @a.local_unnamed_addr = local_unnamed_addr alias i32, i32* @g.local_unnamed_addr
 ; CHECK: @a.local_unnamed_addr = local_unnamed_addr alias i32, i32* @g.local_unnamed_addr
 
+; Aliases -- partition
+; CHECK: @alias.partition = alias i32, i32* @g.partition, partition "part"
+@alias.partition = alias i32, i32* @g.partition, partition "part"
+
 ;; IFunc
 ; Format @<Name> = [Linkage] [Visibility] ifunc <IFuncTy>,
 ;                  <ResolverTy>* @<Resolver>
@@ -270,6 +278,10 @@ declare void @g.f1()
 ; CHECK: @ifunc.hidden = hidden ifunc void (), i8* ()* @ifunc_resolver
 @ifunc.protected = protected ifunc void (), i8* ()* @ifunc_resolver
 ; CHECK: @ifunc.protected = protected ifunc void (), i8* ()* @ifunc_resolver
+
+; IFunc -- partition
+; CHECK: @ifunc.partition = ifunc void (), i8* ()* @ifunc_resolver, partition "part"
+@ifunc.partition = ifunc void (), i8* ()* @ifunc_resolver, partition "part"
 
 define i8* @ifunc_resolver() {
 entry:
@@ -517,7 +529,7 @@ declare void @f.param.signext(i8 signext)
 declare void @f.param.inreg(i8 inreg)
 ; CHECK: declare void @f.param.inreg(i8 inreg)
 declare void @f.param.byval({ i8, i8 }* byval)
-; CHECK: declare void @f.param.byval({ i8, i8 }* byval)
+; CHECK: declare void @f.param.byval({ i8, i8 }* byval({ i8, i8 }))
 declare void @f.param.inalloca(i8* inalloca)
 ; CHECK: declare void @f.param.inalloca(i8* inalloca)
 declare void @f.param.sret(i8* sret)
@@ -619,6 +631,12 @@ declare void @f.strictfp() #35
 ; Functions -- section
 declare void @f.section() section "80"
 ; CHECK: declare void @f.section() section "80"
+
+; Functions -- partition
+define void @f.partition() partition "part" {
+; CHECK: define void @f.partition() partition "part"
+  ret void
+}
 
 ; Functions -- comdat
 define void @f.comdat_any() comdat($comdat.any) {
@@ -899,6 +917,10 @@ define void @typesystem() {
   ; CHECK: %t7 = alloca x86_mmx
   %t8 = alloca %opaquety*
   ; CHECK: %t8 = alloca %opaquety*
+  %t9 = alloca <4 x i32>
+  ; CHECK: %t9 = alloca <4 x i32>
+  %t10 = alloca <vscale x 4 x i32>
+  ; CHECK: %t10 = alloca <vscale x 4 x i32>
 
   ret void
 }
@@ -1712,6 +1734,15 @@ define i8** @constexpr() {
 ; immarg attribute
 declare void @llvm.test.immarg.intrinsic(i32 immarg)
 ; CHECK: declare void @llvm.test.immarg.intrinsic(i32 immarg)
+
+; byval attribute with type
+%named_type = type [8 x i8]
+declare void @byval_type(i32* byval(i32) align 2)
+declare void @byval_type2({ i8, i8* }* byval({ i8, i8* }))
+declare void @byval_named_type(%named_type* byval(%named_type))
+; CHECK: declare void @byval_type(i32* byval(i32) align 2)
+; CHECK: declare void @byval_type2({ i8, i8* }* byval({ i8, i8* }))
+; CHECK: declare void @byval_named_type([8 x i8]* byval([8 x i8]))
 
 ; CHECK: attributes #0 = { alignstack=4 }
 ; CHECK: attributes #1 = { alignstack=8 }

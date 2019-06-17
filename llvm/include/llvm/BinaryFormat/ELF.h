@@ -842,6 +842,7 @@ enum : unsigned {
   SHT_LLVM_ADDRSIG = 0x6fff4c03,        // List of address-significant symbols
                                         // for safe ICF.
   SHT_LLVM_DEPENDENT_LIBRARIES = 0x6fff4c04, // LLVM Dependent Library Specifiers.
+  SHT_LLVM_SYMPART = 0x6fff4c05,        // Symbol partition specification.
   // Android's experimental support for SHT_RELR sections.
   // https://android.googlesource.com/platform/bionic/+/b7feec74547f84559a1467aca02708ff61346d2a/libc/include/elf.h#512
   SHT_ANDROID_RELR = 0x6fffff00,        // Relocation entries; only offsets.
@@ -1363,11 +1364,18 @@ enum {
 enum : unsigned {
   GNU_PROPERTY_STACK_SIZE = 1,
   GNU_PROPERTY_NO_COPY_ON_PROTECTED = 2,
+  GNU_PROPERTY_AARCH64_FEATURE_1_AND = 0xc0000000,
   GNU_PROPERTY_X86_FEATURE_1_AND = 0xc0000002,
   GNU_PROPERTY_X86_ISA_1_NEEDED = 0xc0008000,
   GNU_PROPERTY_X86_FEATURE_2_NEEDED = 0xc0008001,
   GNU_PROPERTY_X86_ISA_1_USED = 0xc0010000,
   GNU_PROPERTY_X86_FEATURE_2_USED = 0xc0010001,
+};
+
+// aarch64 processor feature bits.
+enum : unsigned {
+  GNU_PROPERTY_AARCH64_FEATURE_1_BTI = 1 << 0,
+  GNU_PROPERTY_AARCH64_FEATURE_1_PAC = 1 << 1,
 };
 
 // x86 processor feature bits.

@@ -4994,9 +4994,8 @@ static bool HandleUnionActiveMemberChange(EvalInfo &Info, const Expr *LHSExpr,
   llvm::SmallVector<std::pair<unsigned, const FieldDecl*>, 4> UnionPathLengths;
   // C++ [class.union]p5:
   //   define the set S(E) of subexpressions of E as follows:
-  const Expr *E = LHSExpr;
   unsigned PathLength = LHS.Designator.Entries.size();
-  while (E) {
+  for (const Expr *E = LHSExpr; E != nullptr;) {
     //   -- If E is of the form A.B, S(E) contains the elements of S(A)...
     if (auto *ME = dyn_cast<MemberExpr>(E)) {
       auto *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
@@ -5026,19 +5025,20 @@ static bool HandleUnionActiveMemberChange(EvalInfo &Info, const Expr *LHSExpr,
 
     } else if (auto *ICE = dyn_cast<ImplicitCastExpr>(E)) {
       // Step over a derived-to-base conversion.
+      E = ICE->getSubExpr();
       if (ICE->getCastKind() == CK_NoOp)
         continue;
       if (ICE->getCastKind() != CK_DerivedToBase &&
           ICE->getCastKind() != CK_UncheckedDerivedToBase)
         break;
-      for (const CXXBaseSpecifier *Elt : ICE->path()) {
+      // Walk path backwards as we walk up from the base to the derived class.
+      for (const CXXBaseSpecifier *Elt : llvm::reverse(ICE->path())) {
         --PathLength;
         (void)Elt;
         assert(declaresSameEntity(Elt->getType()->getAsCXXRecordDecl(),
                                   LHS.Designator.Entries[PathLength]
                                       .getAsBaseOrMember().getPointer()));
       }
-      E = ICE->getSubExpr();
 
     //   -- Otherwise, S(E) is empty.
     } else {
@@ -9454,10 +9454,8 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
       if (IsSigned && !AllSigned)
         ++MaxBits;
 
-      LHS = APSInt(IsSigned ? LHS.sextOrSelf(MaxBits) : LHS.zextOrSelf(MaxBits),
-                   !IsSigned);
-      RHS = APSInt(IsSigned ? RHS.sextOrSelf(MaxBits) : RHS.zextOrSelf(MaxBits),
-                   !IsSigned);
+      LHS = APSInt(LHS.extOrTrunc(MaxBits), !IsSigned);
+      RHS = APSInt(RHS.extOrTrunc(MaxBits), !IsSigned);
       Result = APSInt(MaxBits, !IsSigned);
     }
 

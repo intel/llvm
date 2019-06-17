@@ -61,8 +61,6 @@ AArch64::AArch64() {
   PltRel = R_AARCH64_JUMP_SLOT;
   TlsDescRel = R_AARCH64_TLSDESC;
   TlsGotRel = R_AARCH64_TLS_TPREL64;
-  GotEntrySize = 8;
-  GotPltEntrySize = 8;
   PltEntrySize = 16;
   PltHeaderSize = 32;
   DefaultMaxPageSize = 65536;
@@ -350,7 +348,7 @@ void AArch64::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
     or32AArch64Imm(Loc, Val);
     break;
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + Twine(Type));
+    error(getErrorLocation(Loc) + "unrecognized relocation " + toString(Type));
   }
 }
 

@@ -156,8 +156,6 @@ private:
   /// The flag, which specifies the mode of inlining for the engine.
   InliningModes HowToInline;
 
-  NoteTag::Factory NoteTags;
-
 public:
   ExprEngine(cross_tu::CrossTranslationUnitContext &CTU, AnalysisManager &mgr,
              SetOfConstDecls *VisitedCalleesIn,
@@ -378,10 +376,10 @@ public:
                        const LocationContext *LCtx,
                        const CallEvent *Call) override;
 
-  /// printState - Called by ProgramStateManager to print checker-specific data.
-  void printState(raw_ostream &Out, ProgramStateRef State, const char *NL,
-                  const char *Sep,
-                  const LocationContext *LCtx = nullptr) override;
+  /// printJson - Called by ProgramStateManager to print checker-specific data.
+  void printJson(raw_ostream &Out, ProgramStateRef State,
+                 const LocationContext *LCtx, const char *NL,
+                 unsigned int Space, bool IsDot) const override;
 
   ProgramStateManager &getStateManager() override { return StateMgr; }
 
@@ -399,7 +397,7 @@ public:
   SymbolManager &getSymbolManager() { return SymMgr; }
   MemRegionManager &getRegionManager() { return MRMgr; }
 
-  NoteTag::Factory &getNoteTags() { return NoteTags; }
+  NoteTag::Factory &getNoteTags() { return Engine.getNoteTags(); }
 
 
   // Functions for external checking of whether we have unfinished work

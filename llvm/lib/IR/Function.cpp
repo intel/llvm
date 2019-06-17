@@ -113,6 +113,11 @@ unsigned Argument::getParamAlignment() const {
   return getParent()->getParamAlignment(getArgNo());
 }
 
+Type *Argument::getParamByValType() const {
+  assert(getType()->isPointerTy() && "Only pointers have byval types");
+  return getParent()->getParamByValType(getArgNo());
+}
+
 uint64_t Argument::getDereferenceableBytes() const {
   assert(getType()->isPointerTy() &&
          "Only pointers have dereferenceable bytes");
@@ -187,6 +192,10 @@ void Argument::removeAttr(Attribute::AttrKind Kind) {
 
 bool Argument::hasAttribute(Attribute::AttrKind Kind) const {
   return getParent()->hasParamAttribute(getArgNo(), Kind);
+}
+
+Attribute Argument::getAttribute(Attribute::AttrKind Kind) const {
+  return getParent()->getParamAttribute(getArgNo(), Kind);
 }
 
 //===----------------------------------------------------------------------===//

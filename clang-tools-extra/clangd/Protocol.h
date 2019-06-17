@@ -353,6 +353,15 @@ llvm::json::Value toJSON(const OffsetEncoding &);
 bool fromJSON(const llvm::json::Value &, OffsetEncoding &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, OffsetEncoding);
 
+// Describes the content type that a client supports in various result literals
+// like `Hover`, `ParameterInfo` or `CompletionItem`.
+enum class MarkupKind {
+  PlainText,
+  Markdown,
+};
+bool fromJSON(const llvm::json::Value &, MarkupKind &);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, MarkupKind);
+
 // This struct doesn't mirror LSP!
 // The protocol defines deeply nested structures for client capabilities.
 // Instead of mapping them all, this just parses out the bits we care about.
@@ -381,6 +390,9 @@ struct ClientCapabilities {
   /// Client supports hierarchical document symbols.
   bool HierarchicalDocumentSymbol = false;
 
+  /// Client supports processing label offsets instead of a simple label string.
+  bool OffsetsInSignatureHelp = false;
+
   /// The supported set of CompletionItemKinds for textDocument/completion.
   /// textDocument.completion.completionItemKind.valueSet
   llvm::Optional<CompletionItemKindBitset> CompletionItemKinds;
@@ -391,6 +403,9 @@ struct ClientCapabilities {
 
   /// Supported encodings for LSP character offsets. (clangd extension).
   llvm::Optional<std::vector<OffsetEncoding>> offsetEncoding;
+
+  /// The content format that should be used for Hover requests.
+  MarkupKind HoverContentFormat = MarkupKind::PlainText;
 };
 bool fromJSON(const llvm::json::Value &, ClientCapabilities &);
 
@@ -861,11 +876,6 @@ struct CompletionParams : TextDocumentPositionParams {
 };
 bool fromJSON(const llvm::json::Value &, CompletionParams &);
 
-enum class MarkupKind {
-  PlainText,
-  Markdown,
-};
-
 struct MarkupContent {
   MarkupKind kind = MarkupKind::PlainText;
   std::string value;
@@ -972,8 +982,14 @@ llvm::json::Value toJSON(const CompletionList &);
 /// A single parameter of a particular signature.
 struct ParameterInformation {
 
-  /// The label of this parameter. Mandatory.
-  std::string label;
+  /// The label of this parameter. Ignored when labelOffsets is set.
+  std::string labelString;
+
+  /// Inclusive start and exclusive end offsets withing the containing signature
+  /// label.
+  /// Offsets are computed by lspLength(), which counts UTF-16 code units by
+  /// default but that can be overriden, see its documentation for details.
+  llvm::Optional<std::pair<unsigned, unsigned>> labelOffsets;
 
   /// The documentation of this parameter. Optional.
   std::string documentation;

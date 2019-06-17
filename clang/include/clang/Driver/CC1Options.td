@@ -130,9 +130,14 @@ def analyzer_disable_all_checks : Flag<["-"], "analyzer-disable-all-checks">,
 def analyzer_checker_help : Flag<["-"], "analyzer-checker-help">,
   HelpText<"Display the list of analyzer checkers that are available">;
 
-def analyzer_checker_help_hidden : Flag<["-"], "analyzer-checker-help-hidden">,
-  HelpText<"Display the list of analyzer checkers that are available, "
-           "including modeling checkers">;
+def analyzer_checker_help_alpha : Flag<["-"], "analyzer-checker-help-alpha">,
+  HelpText<"Display the list of in development analyzer checkers. These "
+           "are NOT considered safe, they are unstable and will emit incorrect "
+           "reports. Enable ONLY FOR DEVELOPMENT purposes">;
+
+def analyzer_checker_help_developer : Flag<["-"], "analyzer-checker-help-developer">,
+  HelpText<"Display the list of developer-only checkers such as modeling "
+           "and debug checkers">;
 
 def analyzer_config_help : Flag<["-"], "analyzer-config-help">,
   HelpText<"Display the list of -analyzer-config options">;
@@ -142,6 +147,18 @@ def analyzer_list_enabled_checkers : Flag<["-"], "analyzer-list-enabled-checkers
 
 def analyzer_config : Separate<["-"], "analyzer-config">,
   HelpText<"Choose analyzer options to enable">;
+
+def analyzer_checker_option_help : Flag<["-"], "analyzer-checker-option-help">,
+  HelpText<"Display the list of checker and package options">;
+
+def analyzer_checker_option_help_alpha : Flag<["-"], "analyzer-checker-option-help-alpha">,
+  HelpText<"Display the list of in development checker and package options. "
+           "These are NOT considered safe, they are unstable and will emit "
+           "incorrect reports. Enable ONLY FOR DEVELOPMENT purposes">;
+
+def analyzer_checker_option_help_developer : Flag<["-"], "analyzer-checker-option-help-developer">,
+  HelpText<"Display the list of checker and package options meant for "
+           "development purposes only">;
 
 def analyzer_config_compatibility_mode : Separate<["-"], "analyzer-config-compatibility-mode">,
   HelpText<"Don't emit errors on invalid analyzer-config inputs">;
@@ -599,6 +616,9 @@ def migrate : Flag<["-"], "migrate">,
   HelpText<"Migrate source code">;
 def compiler_options_dump : Flag<["-"], "compiler-options-dump">,
   HelpText<"Dump the compiler configuration options">;
+def print_dependency_directives_minimized_source : Flag<["-"],
+  "print-dependency-directives-minimized-source">,
+  HelpText<"Print the output of the dependency directives source minimizer">;
 }
 
 def emit_llvm_uselists : Flag<["-"], "emit-llvm-uselists">,
@@ -765,7 +785,9 @@ def fallow_half_arguments_and_returns : Flag<["-"], "fallow-half-arguments-and-r
 def fdefault_calling_conv_EQ : Joined<["-"], "fdefault-calling-conv=">,
   HelpText<"Set default calling convention">, Values<"cdecl,fastcall,stdcall,vectorcall,regcall">;
 def finclude_default_header : Flag<["-"], "finclude-default-header">,
-  HelpText<"Include the default header file for OpenCL">;
+  HelpText<"Include default header file for OpenCL">;
+def fdeclare_opencl_builtins : Flag<["-"], "fdeclare-opencl-builtins">,
+  HelpText<"Add OpenCL builtin function declarations (experimental)">;
 def fpreserve_vec3_type : Flag<["-"], "fpreserve-vec3-type">,
   HelpText<"Preserve 3-component vector type">;
 def fwchar_type_EQ : Joined<["-"], "fwchar-type=">,

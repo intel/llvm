@@ -254,6 +254,7 @@ StringRef llvm::object::getELFSectionTypeName(uint32_t Machine, unsigned Type) {
     STRINGIFY_ENUM_CASE(ELF, SHT_LLVM_CALL_GRAPH_PROFILE);
     STRINGIFY_ENUM_CASE(ELF, SHT_LLVM_ADDRSIG);
     STRINGIFY_ENUM_CASE(ELF, SHT_LLVM_DEPENDENT_LIBRARIES);
+    STRINGIFY_ENUM_CASE(ELF, SHT_LLVM_SYMPART);
     STRINGIFY_ENUM_CASE(ELF, SHT_GNU_ATTRIBUTES);
     STRINGIFY_ENUM_CASE(ELF, SHT_GNU_HASH);
     STRINGIFY_ENUM_CASE(ELF, SHT_GNU_verdef);
@@ -433,6 +434,14 @@ std::string ELFFile<ELFT>::getDynamicTagAsString(unsigned Arch,
 
 #define DYNAMIC_TAG(n, v)
   switch (Arch) {
+  case ELF::EM_AARCH64:
+    switch (Type) {
+#define AARCH64_DYNAMIC_TAG(name, value) DYNAMIC_STRINGIFY_ENUM(name, value)
+#include "llvm/BinaryFormat/DynamicTags.def"
+#undef AARCH64_DYNAMIC_TAG
+    }
+    break;
+
   case ELF::EM_HEXAGON:
     switch (Type) {
 #define HEXAGON_DYNAMIC_TAG(name, value) DYNAMIC_STRINGIFY_ENUM(name, value)
@@ -460,6 +469,7 @@ std::string ELFFile<ELFT>::getDynamicTagAsString(unsigned Arch,
 #undef DYNAMIC_TAG
   switch (Type) {
 // Now handle all dynamic tags except the architecture specific ones
+#define AARCH64_DYNAMIC_TAG(name, value)
 #define MIPS_DYNAMIC_TAG(name, value)
 #define HEXAGON_DYNAMIC_TAG(name, value)
 #define PPC64_DYNAMIC_TAG(name, value)
@@ -468,6 +478,7 @@ std::string ELFFile<ELFT>::getDynamicTagAsString(unsigned Arch,
 #define DYNAMIC_TAG(name, value) DYNAMIC_STRINGIFY_ENUM(name, value)
 #include "llvm/BinaryFormat/DynamicTags.def"
 #undef DYNAMIC_TAG
+#undef AARCH64_DYNAMIC_TAG
 #undef MIPS_DYNAMIC_TAG
 #undef HEXAGON_DYNAMIC_TAG
 #undef PPC64_DYNAMIC_TAG

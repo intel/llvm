@@ -460,21 +460,27 @@ public:
     Mask |= qs.Mask;
   }
 
-  /// Returns true if this address space is a superset of the other one.
+  /// Returns true if address space A is equal to or a superset of B.
   /// OpenCL v2.0 defines conversion rules (OpenCLC v2.0 s6.5.5) and notion of
   /// overlapping address spaces.
   /// CL1.1 or CL1.2:
   ///   every address space is a superset of itself.
   /// CL2.0 adds:
   ///   __generic is a superset of any address space except for __constant.
+  static bool isAddressSpaceSupersetOf(LangAS A, LangAS B) {
+    // Address spaces must match exactly.
+    return A == B ||
+           // Otherwise in OpenCLC v2.0 s6.5.5: every address space except
+           // for __constant can be used as __generic.
+           (A == LangAS::opencl_generic && B != LangAS::opencl_constant);
+  }
+
+  /// Returns true if the address space in these qualifiers is equal to or
+  /// a superset of the address space in the argument qualifiers.
   bool isAddressSpaceSupersetOf(Qualifiers other) const {
+
     return
-        // Address spaces must match exactly.
-        getAddressSpace() == other.getAddressSpace() ||
-        // Otherwise in OpenCLC v2.0 s6.5.5: every address space except
-        // for __constant can be used as __generic.
-        (getAddressSpace() == LangAS::opencl_generic &&
-         other.getAddressSpace() != LangAS::opencl_constant) ||
+        isAddressSpaceSupersetOf(getAddressSpace(), other.getAddressSpace()) ||
         (!hasAddressSpace() &&
          (other.getAddressSpace() == LangAS::sycl_private ||
           other.getAddressSpace() == LangAS::sycl_local ||
@@ -1968,6 +1974,7 @@ public:
   bool isLValueReferenceType() const;
   bool isRValueReferenceType() const;
   bool isFunctionPointerType() const;
+  bool isFunctionReferenceType() const;
   bool isMemberPointerType() const;
   bool isMemberFunctionPointerType() const;
   bool isMemberDataPointerType() const;
@@ -3861,6 +3868,7 @@ private:
     case EST_MSAny:
     case EST_BasicNoexcept:
     case EST_Unparsed:
+    case EST_NoThrow:
       return {0, 0, 0};
 
     case EST_Dynamic:
@@ -6374,6 +6382,13 @@ inline bool Type::isRValueReferenceType() const {
 
 inline bool Type::isFunctionPointerType() const {
   if (const auto *T = getAs<PointerType>())
+    return T->getPointeeType()->isFunctionType();
+  else
+    return false;
+}
+
+inline bool Type::isFunctionReferenceType() const {
+  if (const auto *T = getAs<ReferenceType>())
     return T->getPointeeType()->isFunctionType();
   else
     return false;
