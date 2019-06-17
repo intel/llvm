@@ -472,8 +472,7 @@ static CompoundStmt *CreateSYCLKernelBody(Sema &S,
                           KernelObjClone, false, DeclarationNameInfo(),
                           QualType(LC->getTypeForDecl(), 0), VK_LValue);
 
-  auto KernelFuncDecl = dyn_cast<FunctionDecl>(KernelDecl);
-  assert(KernelFuncDecl && "No kernel function declaration?");
+  auto KernelFuncDecl = cast<FunctionDecl>(KernelDecl);
   auto KernelFuncParam =
       KernelFuncDecl->param_begin(); // Iterator to ParamVarDecl (VarDecl)
   if (KernelFuncParam) {
@@ -510,7 +509,7 @@ static CompoundStmt *CreateSYCLKernelBody(Sema &S,
 
         DeclAccessPair FieldDAP = DeclAccessPair::make(Field, AS_none);
         // [kenrel_obj or wrapper object].special_obj
-        auto AccessorME = MemberExpr::Create(
+        auto SpecialObjME = MemberExpr::Create(
             S.Context, Base, false, SourceLocation(), NestedNameSpecifierLoc(),
             SourceLocation(), Field, FieldDAP,
             DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
@@ -519,7 +518,7 @@ static CompoundStmt *CreateSYCLKernelBody(Sema &S,
         // [kernel_obj or wrapper object].special_obj.__init
         DeclAccessPair MethodDAP = DeclAccessPair::make(InitMethod, AS_none);
         auto ME = MemberExpr::Create(
-            S.Context, AccessorME, false, SourceLocation(),
+            S.Context, SpecialObjME, false, SourceLocation(),
             NestedNameSpecifierLoc(), SourceLocation(), InitMethod, MethodDAP,
             InitMethod->getNameInfo(), nullptr, InitMethod->getType(),
             VK_LValue, OK_Ordinary);
@@ -597,9 +596,6 @@ static CompoundStmt *CreateSYCLKernelBody(Sema &S,
       if (Util::isSyclAccessorType(FieldType) ||
           Util::isSyclSamplerType(FieldType)) {
         getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef);
-      } else if (Util::isSyclStreamType(FieldType)) {
-        // TODO add support for streams
-        llvm_unreachable("Streams not supported yet");
       } else if (CRD || FieldType->isScalarType()) {
         // If field has built-in or a structure/class type just initialize
         // this field with corresponding kernel argument using '=' binary
