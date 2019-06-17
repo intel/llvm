@@ -26,7 +26,7 @@ unspecified reduction(accessor<T>& var, const T& identity, BinaryOperation combi
 
 The exact behavior of a reduction is specific to an implementation; the only interface exposed to the user is the pair of functions above, which construct an unspecified `reduction` object encapsulating the reduction variable, an optional operator identity and the reduction operator.  For user-defined binary operations, an implementation should issue a compile-time warning if an identity is not specified and this is known to negatively impact performance (e.g. as a result of the implementation choosing a different reduction algorithm).  For standard binary operations (e.g. `std::plus`) on arithmetic types, the implementation must determine the correct identity automatically in order to avoid performance penalties.
 
-Since SYCL 1.2.1 lacks a way to pass a single variable from the host into the `reduction` function, the reduction variable is specified using an accessor.  If the accessor represents a buffer containing more than a single value of type `T`, reduction semantics are provided for the first value in the buffer.  The access mode of the accessor determines whether the reduction variable's original value is included in the reduction (i.e. for `access::mode::read_write` it is included, and for `access::mode::discard_write` it is not).  Multiple reductions aliasing the same output results in undefined behavior.
+The dimensionality of the `accessor` passed to the `reduction` function specifies the dimensionality of the reduction variable: a 0-dimensional `accessor` represents a scalar reduction, and any other dimensionality represents an array reduction.  Specifying an array reduction of size N is functionally equivalent to specifying N independent scalar reductions.  The access mode of the accessor determines whether the reduction variable's original value is included in the reduction (i.e. for `access::mode::read_write` it is included, and for `access::mode::discard_write` it is not).  Multiple reductions aliasing the same output results in undefined behavior.
 
 `T` must be trivially copyable, permitting an implementation to (optionally) use atomic operations to implement the reduction.  This restriction is aligned with `std::atomic<T>` and `std::atomic_ref<T>`.
 
@@ -75,7 +75,7 @@ queue.submit([&](handler& cgh)
 {
     auto a = a_buf.get_access<access::mode::read>(cgh);
     auto b = b_buf.get_access<access::mode::read>(cgh);
-    auto sum = sum_buf.get_access<access::mode::write>(cgh);
+    auto sum = accessor<int,0,access::mode::write,access::target::global_buffer>(sum_buf, cgh);
     cgh.parallel_for<class dot_product>(nd_range<1>{N, M}, reduction(sum, 0, plus<int>()), [=](nd_item<1> it, auto& sum)
     {
         int i = it.get_global_id(0);
@@ -84,18 +84,17 @@ queue.submit([&](handler& cgh)
 });
 ```
 
-# Array Reductions
+# Reductions using USM Pointers
 
-SYCL buffers do not distinguish between scalars and arrays in the type system; a scalar in device memory must be represented as a buffer of size 1.  This proposal assumes that the majority of reductions are scalar, and that a buffer passed to a reduction should therefore always be interpreted as a reduction of a single element.  In order to support reductions of array types, we propose to treat them as a special-case: the user must explicitly request an array reduction by passing a `span` denoting the region of the buffer to include in the reduction.  The semantics of an array reduction of size N should be equivalent to N independent reductions.
+Unlike a buffer, a [USM pointer](https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions/usm) does not carry information describing the extent of the memory it points to; there is no way to distinguish between a scalar in device memory and an array.  This proposal assumes that the majority of reductions are scalar, and that a pointer passed to a reduction should therefore always be interpreted as a reduction of a single element.  The user must explicitly request an array reduction by passing a `span` denoting the memory region to include in the reduction.
 
 ## Example
 
 ```c++
-// Treat an input buffer as N independent reductions
+// Treat an input pointer as N independent reductions
+int* out = static_cast<int*>(sycl_malloc<alloc::shared>(4 * sizeof(int)));
 queue.submit([&](handler& cgh)
 {
-    auto in = in_buf.get_access<access::mode::read>(cgh);
-    auto out = out_buf.get_access<access::mode::write>(cgh);
     cgh.parallel_for<class sum>(nd_range<1>{N, M}, reduction(span(out, 4), 0, plus<int>()), [=](nd_item<1> it, auto& out)
     {
         int i = it.get_global_id(0);
