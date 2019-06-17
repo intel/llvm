@@ -448,9 +448,7 @@ public:
   void getUnrollingPreferences(Loop *L, ScalarEvolution &,
                                UnrollingPreferences &UP) const;
 
-  /// Attributes of a target dependent hardware loop. Here, the term 'element'
-  /// describes the work performed by an IR loop that has not been vectorized
-  /// by the compiler.
+  /// Attributes of a target dependent hardware loop.
   struct HardwareLoopInfo {
     HardwareLoopInfo()        = delete;
     HardwareLoopInfo(Loop *L) : L(L) { }
@@ -459,10 +457,10 @@ public:
     BranchInst *ExitBranch    = nullptr;
     const SCEV *ExitCount     = nullptr;
     IntegerType *CountType    = nullptr;
-    Value *LoopDecrement      = nullptr;  // The maximum number of elements
-                                          // processed in the loop body.
+    Value *LoopDecrement      = nullptr;  // Decrement the loop counter by this
+                                          // value in every iteration.
     bool IsNestingLegal       = false;    // Can a hardware loop be a parent to
-                                          // another hardware loop.
+                                          // another hardware loop?
     bool CounterInReg         = false;    // Should loop counter be updated in
                                           // the loop via a phi?
   };
@@ -532,6 +530,11 @@ public:
   bool isLegalMaskedStore(Type *DataType) const;
   /// Return true if the target supports masked store.
   bool isLegalMaskedLoad(Type *DataType) const;
+
+  /// Return true if the target supports nontemporal store.
+  bool isLegalNTStore(Type *DataType, unsigned Alignment) const;
+  /// Return true if the target supports nontemporal load.
+  bool isLegalNTLoad(Type *DataType, unsigned Alignment) const;
 
   /// Return true if the target supports masked scatter.
   bool isLegalMaskedScatter(Type *DataType) const;
@@ -1120,6 +1123,8 @@ public:
   virtual bool shouldFavorBackedgeIndex(const Loop *L) const = 0;
   virtual bool isLegalMaskedStore(Type *DataType) = 0;
   virtual bool isLegalMaskedLoad(Type *DataType) = 0;
+  virtual bool isLegalNTStore(Type *DataType, unsigned Alignment) = 0;
+  virtual bool isLegalNTLoad(Type *DataType, unsigned Alignment) = 0;
   virtual bool isLegalMaskedScatter(Type *DataType) = 0;
   virtual bool isLegalMaskedGather(Type *DataType) = 0;
   virtual bool isLegalMaskedCompressStore(Type *DataType) = 0;
@@ -1374,6 +1379,12 @@ public:
   }
   bool isLegalMaskedLoad(Type *DataType) override {
     return Impl.isLegalMaskedLoad(DataType);
+  }
+  bool isLegalNTStore(Type *DataType, unsigned Alignment) override {
+    return Impl.isLegalNTStore(DataType, Alignment);
+  }
+  bool isLegalNTLoad(Type *DataType, unsigned Alignment) override {
+    return Impl.isLegalNTLoad(DataType, Alignment);
   }
   bool isLegalMaskedScatter(Type *DataType) override {
     return Impl.isLegalMaskedScatter(DataType);
