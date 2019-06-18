@@ -397,7 +397,7 @@ private:
 };
 
 static FunctionDecl *
-CreateSYCLKernelDeclaration(ASTContext &Context, StringRef Name,
+CreateOpenCLKernelDeclaration(ASTContext &Context, StringRef Name,
                             ArrayRef<ParamDesc> ParamDescs) {
 
   DeclContext *DC = Context.getTranslationUnitDecl();
@@ -412,30 +412,30 @@ CreateSYCLKernelDeclaration(ASTContext &Context, StringRef Name,
   QualType FuncTy = Context.getFunctionType(RetTy, ArgTys, Info);
   DeclarationName DN = DeclarationName(&Context.Idents.get(Name));
 
-  FunctionDecl *SYCLKernel = FunctionDecl::Create(
+  FunctionDecl *OpenCLKernel = FunctionDecl::Create(
       Context, DC, SourceLocation(), SourceLocation(), DN, FuncTy,
       Context.getTrivialTypeSourceInfo(RetTy), SC_None);
 
   llvm::SmallVector<ParmVarDecl *, 16> Params;
   int i = 0;
   for (const auto &PD : ParamDescs) {
-    auto P = ParmVarDecl::Create(Context, SYCLKernel, SourceLocation(),
+    auto P = ParmVarDecl::Create(Context, OpenCLKernel, SourceLocation(),
                                  SourceLocation(), std::get<1>(PD),
                                  std::get<0>(PD), std::get<2>(PD), SC_None, 0);
     P->setScopeInfo(0, i++);
     P->setIsUsed();
     Params.push_back(P);
   }
-  SYCLKernel->setParams(Params);
+  OpenCLKernel->setParams(Params);
 
-  SYCLKernel->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
-  SYCLKernel->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
-  SYCLKernel->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
-  SYCLKernel->addAttr(ArtificialAttr::CreateImplicit(Context));
+  OpenCLKernel->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
+  OpenCLKernel->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
+  OpenCLKernel->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
+  OpenCLKernel->addAttr(ArtificialAttr::CreateImplicit(Context));
 
   // Add kernel to translation unit to see it in AST-dump
-  DC->addDecl(SYCLKernel);
-  return SYCLKernel;
+  DC->addDecl(OpenCLKernel);
+  return OpenCLKernel;
 }
 /// Return __init method
 static CXXMethodDecl *getInitMethod(const CXXRecordDecl *CRD) {
@@ -448,12 +448,12 @@ static CXXMethodDecl *getInitMethod(const CXXRecordDecl *CRD) {
   return InitMethod;
 }
 
-// Creates body for new SYCL kernel. This body contains initialization of kernel
-// object fields with kernel parameters and a little bit transformed body of the
-// kernel caller function.
-static CompoundStmt *CreateSYCLKernelBody(Sema &S,
-                                          FunctionDecl *KernelCallerFunc,
-                                          DeclContext *KernelDecl) {
+// Creates body for new OpenCL kernel. This body contains initialization of SYCL
+// kernel object fields with kernel parameters and a little bit transformed body
+// of the kernel caller function.
+static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
+                                            FunctionDecl *KernelCallerFunc,
+                                            DeclContext *KernelDecl) {
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   CXXRecordDecl *LC = getKernelObjectType(KernelCallerFunc);
   assert(LC && "Kernel object must be available");
@@ -882,13 +882,13 @@ static std::string constructKernelName(QualType KernelNameType,
   return Out.str();
 }
 
-// Generates the "kernel wrapper" using KernelCallerFunc (kernel caller
+// Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is SYCL headers.
-// A "kernel wrapper" function contains the body of the kernel caller function,
+// Generated OpenCL kernel contains the body of the kernel caller function,
 // receives OpenCL like parameters and additionally does some manipulation to
 // initialize captured lambda/functor fields with these parameters.
 // SYCL runtime marks kernel caller function with sycl_kernel attribute.
-// To be able to generate "kernel wrapper" from KernelCallerFunc we put
+// To be able to generate OpenCL kernel from KernelCallerFunc we put
 // the following requirements to the function which SYCL runtime can mark with
 // sycl_kernel attribute:
 //   - Must be template function with at least two template parameters.
@@ -903,9 +903,8 @@ static std::string constructKernelName(QualType KernelNameType,
 //     KernelFuncObj();
 //   }
 //
-//   In the code below we call "kernel wrapper" SYCLKernel.
 //
-void Sema::ConstructSYCLKernel(FunctionDecl *KernelCallerFunc) {
+void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc) {
   CXXRecordDecl *LE = getKernelObjectType(KernelCallerFunc);
   assert(LE && "invalid kernel caller");
 
@@ -924,16 +923,16 @@ void Sema::ConstructSYCLKernel(FunctionDecl *KernelCallerFunc) {
   // TODO Maybe don't emit integration header inside the Sema?
   populateIntHeader(getSyclIntegrationHeader(), Name, KernelNameType, LE);
 
-  FunctionDecl *SYCLKernel =
-      CreateSYCLKernelDeclaration(getASTContext(), Name, ParamDescs);
+  FunctionDecl *OpenCLKernel =
+      CreateOpenCLKernelDeclaration(getASTContext(), Name, ParamDescs);
 
   // Let's copy source location of a functor/lambda to emit nicer diagnostics
-  SYCLKernel->setLocation(LE->getLocation());
+  OpenCLKernel->setLocation(LE->getLocation());
 
-  CompoundStmt *SYCLKernelBody =
-      CreateSYCLKernelBody(*this, KernelCallerFunc, SYCLKernel);
-  SYCLKernel->setBody(SYCLKernelBody);
-  AddSyclKernel(SYCLKernel);
+  CompoundStmt *OpenCLKernelBody =
+      CreateOpenCLKernelBody(*this, KernelCallerFunc, OpenCLKernel);
+  OpenCLKernel->setBody(OpenCLKernelBody);
+  AddSyclKernel(OpenCLKernel);
 }
 
 void Sema::MarkDevice(void) {
