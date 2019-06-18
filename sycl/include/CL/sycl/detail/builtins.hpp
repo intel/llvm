@@ -29,41 +29,41 @@
 
 #define MAKE_CALL_ARG1(call, prefix)                                           \
   template <typename R, typename T1>                                           \
-  ALWAYS_INLINE                                                                \
-      typename cl::sycl::detail::ConvertToOpenCLType<R>::type __invoke_##call( \
-          T1 t1) __NOEXC {                                                     \
-    using Ret = typename cl::sycl::detail::ConvertToOpenCLType<R>::type;       \
-    using Arg1 = typename cl::sycl::detail::ConvertToOpenCLType<T1>::type;     \
+  ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {                             \
+    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
+    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     extern Ret PPCAT(prefix, call)(Arg1);                                      \
-    return PPCAT(prefix, call)(cl::sycl::detail::TryToGetPointer(t1));         \
+    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
+    Ret  ret  = PPCAT(prefix, call)(arg1);                                     \
+    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
 #define MAKE_CALL_ARG2(call, prefix)                                           \
   template <typename R, typename T1, typename T2>                              \
-  ALWAYS_INLINE                                                                \
-      typename cl::sycl::detail::ConvertToOpenCLType<R>::type __invoke_##call( \
-          T1 t1, T2 t2) __NOEXC {                                              \
-    using Ret = typename cl::sycl::detail::ConvertToOpenCLType<R>::type;       \
-    using Arg1 = typename cl::sycl::detail::ConvertToOpenCLType<T1>::type;     \
-    using Arg2 = typename cl::sycl::detail::ConvertToOpenCLType<T2>::type;     \
+  ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {                      \
+    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
+    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
+    using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
     extern Ret PPCAT(prefix, call)(Arg1, Arg2);                                \
-    return PPCAT(prefix, call)(cl::sycl::detail::TryToGetPointer(t1),          \
-                               cl::sycl::detail::TryToGetPointer(t2));         \
+    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
+    Arg2 arg2 = cl::sycl::detail::convertDataToType<T2, Arg2>(t2);             \
+    Ret  ret  = PPCAT(prefix, call)(arg1, arg2);                               \
+    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
 #define MAKE_CALL_ARG3(call, prefix)                                           \
   template <typename R, typename T1, typename T2, typename T3>                 \
-  ALWAYS_INLINE                                                                \
-      typename cl::sycl::detail::ConvertToOpenCLType<R>::type __invoke_##call( \
-          T1 t1, T2 t2, T3 t3) __NOEXC {                                       \
-    using Ret = typename cl::sycl::detail::ConvertToOpenCLType<R>::type;       \
-    using Arg1 = typename cl::sycl::detail::ConvertToOpenCLType<T1>::type;     \
-    using Arg2 = typename cl::sycl::detail::ConvertToOpenCLType<T2>::type;     \
-    using Arg3 = typename cl::sycl::detail::ConvertToOpenCLType<T3>::type;     \
+  ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2, T3 t3) __NOEXC {               \
+    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
+    using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
+    using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
+    using Arg3 = cl::sycl::detail::ConvertToOpenCLType_t<T3>;                  \
     extern Ret PPCAT(prefix, call)(Arg1, Arg2, Arg3);                          \
-    return PPCAT(prefix, call)(cl::sycl::detail::TryToGetPointer(t1),          \
-                               cl::sycl::detail::TryToGetPointer(t2),          \
-                               cl::sycl::detail::TryToGetPointer(t3));         \
+    Arg1 arg1 = cl::sycl::detail::convertDataToType<T1, Arg1>(t1);             \
+    Arg2 arg2 = cl::sycl::detail::convertDataToType<T2, Arg2>(t2);             \
+    Arg3 arg3 = cl::sycl::detail::convertDataToType<T3, Arg3>(t3);             \
+    Ret  ret  = PPCAT(prefix, call)(arg1, arg2, arg3);                         \
+    return cl::sycl::detail::convertDataToType<Ret, R>(ret);                   \
   }
 
 #ifndef __SYCL_DEVICE_ONLY__

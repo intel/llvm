@@ -1283,13 +1283,11 @@ MAKE_1V_2P(modf, s::cl_half, s::cl_half, s::cl_half)
 // nan
 cl_float nan(s::cl_uint nancode) __NOEXC { return d::quiet_NaN<float>(); }
 cl_double nan(s::cl_ulong nancode) __NOEXC { return d::quiet_NaN<double>(); }
-cl_double nan(s::ulonglong nancode) __NOEXC { return d::quiet_NaN<double>(); }
 cl_half nan(s::cl_ushort nancode) __NOEXC {
   return s::cl_half(d::quiet_NaN<float>());
 }
 MAKE_1V(nan, s::cl_float, s::cl_uint)
 MAKE_1V(nan, s::cl_double, s::cl_ulong)
-MAKE_1V(nan, s::cl_double, s::ulonglong)
 MAKE_1V(nan, s::cl_half, s::cl_ushort)
 
 // pow
@@ -1468,38 +1466,31 @@ cl_uchar u_abs(s::cl_uchar x) __NOEXC { return x; }
 cl_ushort u_abs(s::cl_ushort x) __NOEXC { return x; }
 cl_uint u_abs(s::cl_uint x) __NOEXC { return x; }
 cl_ulong u_abs(s::cl_ulong x) __NOEXC { return x; }
-s::ulonglong u_abs(s::ulonglong x) __NOEXC { return x; }
 MAKE_1V(u_abs, s::cl_uchar, s::cl_uchar)
 MAKE_1V(u_abs, s::cl_ushort, s::cl_ushort)
 MAKE_1V(u_abs, s::cl_uint, s::cl_uint)
 MAKE_1V(u_abs, s::cl_ulong, s::cl_ulong)
-MAKE_1V(u_abs, s::ulonglong, s::ulonglong)
 
 // s_abs
 cl_uchar s_abs(s::cl_char x) __NOEXC { return std::abs(x); }
 cl_ushort s_abs(s::cl_short x) __NOEXC { return std::abs(x); }
 cl_uint s_abs(s::cl_int x) __NOEXC { return std::abs(x); }
 cl_ulong s_abs(s::cl_long x) __NOEXC { return std::abs(x); }
-s::ulonglong s_abs(s::longlong x) __NOEXC { return std::abs(x); }
 MAKE_1V(s_abs, s::cl_uchar, s::cl_char)
 MAKE_1V(s_abs, s::cl_ushort, s::cl_short)
 MAKE_1V(s_abs, s::cl_uint, s::cl_int)
 MAKE_1V(s_abs, s::cl_ulong, s::cl_long)
-MAKE_1V(s_abs, s::ulonglong, s::longlong)
 
 // u_abs_diff
 cl_uchar u_abs_diff(s::cl_uchar x, s::cl_uchar y) __NOEXC { return x - y; }
 cl_ushort u_abs_diff(s::cl_ushort x, s::cl_ushort y) __NOEXC { return x - y; }
 cl_uint u_abs_diff(s::cl_uint x, s::cl_uint y) __NOEXC { return x - y; }
 cl_ulong u_abs_diff(s::cl_ulong x, s::cl_ulong y) __NOEXC { return x - y; }
-s::ulonglong u_abs_diff(s::ulonglong x, s::ulonglong y) __NOEXC {
-  return x - y;
-}
+
 MAKE_1V_2V(u_abs_diff, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(u_abs_diff, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V(u_abs_diff, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(u_abs_diff, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(u_abs_diff, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_abs_diff
 cl_uchar s_abs_diff(s::cl_char x, s::cl_char y) __NOEXC {
@@ -1514,14 +1505,10 @@ cl_uint s_abs_diff(s::cl_int x, s::cl_int y) __NOEXC {
 cl_ulong s_abs_diff(s::cl_long x, s::cl_long y) __NOEXC {
   return __abs_diff(x, y);
 }
-s::ulonglong s_abs_diff(s::longlong x, s::longlong y) __NOEXC {
-  return __abs_diff(x, y);
-}
 MAKE_1V_2V(s_abs_diff, s::cl_uchar, s::cl_char, s::cl_char)
 MAKE_1V_2V(s_abs_diff, s::cl_ushort, s::cl_short, s::cl_short)
 MAKE_1V_2V(s_abs_diff, s::cl_uint, s::cl_int, s::cl_int)
 MAKE_1V_2V(s_abs_diff, s::cl_ulong, s::cl_long, s::cl_long)
-MAKE_1V_2V(s_abs_diff, s::ulonglong, s::longlong, s::longlong)
 
 // u_add_sat
 cl_uchar u_add_sat(s::cl_uchar x, s::cl_uchar y) __NOEXC {
@@ -1536,14 +1523,10 @@ cl_uint u_add_sat(s::cl_uint x, s::cl_uint y) __NOEXC {
 cl_ulong u_add_sat(s::cl_ulong x, s::cl_ulong y) __NOEXC {
   return __u_add_sat(x, y);
 }
-s::ulonglong u_add_sat(s::ulonglong x, s::ulonglong y) __NOEXC {
-  return __u_add_sat(x, y);
-}
 MAKE_1V_2V(u_add_sat, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(u_add_sat, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V(u_add_sat, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(u_add_sat, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(u_add_sat, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_add_sat
 cl_char s_add_sat(s::cl_char x, s::cl_char y) __NOEXC {
@@ -1556,14 +1539,10 @@ cl_int s_add_sat(s::cl_int x, s::cl_int y) __NOEXC { return __s_add_sat(x, y); }
 cl_long s_add_sat(s::cl_long x, s::cl_long y) __NOEXC {
   return __s_add_sat(x, y);
 }
-s::longlong s_add_sat(s::longlong x, s::longlong y) __NOEXC {
-  return __s_add_sat(x, y);
-}
 MAKE_1V_2V(s_add_sat, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V(s_add_sat, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V(s_add_sat, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V(s_add_sat, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V(s_add_sat, s::longlong, s::longlong, s::longlong)
 
 // u_hadd
 cl_uchar u_hadd(s::cl_uchar x, s::cl_uchar y) __NOEXC { return __hadd(x, y); }
@@ -1572,28 +1551,20 @@ cl_ushort u_hadd(s::cl_ushort x, s::cl_ushort y) __NOEXC {
 }
 cl_uint u_hadd(s::cl_uint x, s::cl_uint y) __NOEXC { return __hadd(x, y); }
 cl_ulong u_hadd(s::cl_ulong x, s::cl_ulong y) __NOEXC { return __hadd(x, y); }
-s::ulonglong u_hadd(s::ulonglong x, s::ulonglong y) __NOEXC {
-  return __hadd(x, y);
-}
 MAKE_1V_2V(u_hadd, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(u_hadd, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V(u_hadd, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(u_hadd, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(u_hadd, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_hadd
 cl_char s_hadd(s::cl_char x, s::cl_char y) __NOEXC { return __hadd(x, y); }
 cl_short s_hadd(s::cl_short x, s::cl_short y) __NOEXC { return __hadd(x, y); }
 cl_int s_hadd(s::cl_int x, s::cl_int y) __NOEXC { return __hadd(x, y); }
 cl_long s_hadd(s::cl_long x, s::cl_long y) __NOEXC { return __hadd(x, y); }
-s::longlong s_hadd(s::longlong x, s::longlong y) __NOEXC {
-  return __hadd(x, y);
-}
 MAKE_1V_2V(s_hadd, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V(s_hadd, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V(s_hadd, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V(s_hadd, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V(s_hadd, s::longlong, s::longlong, s::longlong)
 
 // u_rhadd
 cl_uchar u_rhadd(s::cl_uchar x, s::cl_uchar y) __NOEXC { return __rhadd(x, y); }
@@ -1602,28 +1573,20 @@ cl_ushort u_rhadd(s::cl_ushort x, s::cl_ushort y) __NOEXC {
 }
 cl_uint u_rhadd(s::cl_uint x, s::cl_uint y) __NOEXC { return __rhadd(x, y); }
 cl_ulong u_rhadd(s::cl_ulong x, s::cl_ulong y) __NOEXC { return __rhadd(x, y); }
-s::ulonglong u_rhadd(s::ulonglong x, s::ulonglong y) __NOEXC {
-  return __rhadd(x, y);
-}
 MAKE_1V_2V(u_rhadd, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(u_rhadd, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V(u_rhadd, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(u_rhadd, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(u_rhadd, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_rhadd
 cl_char s_rhadd(s::cl_char x, s::cl_char y) __NOEXC { return __rhadd(x, y); }
 cl_short s_rhadd(s::cl_short x, s::cl_short y) __NOEXC { return __rhadd(x, y); }
 cl_int s_rhadd(s::cl_int x, s::cl_int y) __NOEXC { return __rhadd(x, y); }
 cl_long s_rhadd(s::cl_long x, s::cl_long y) __NOEXC { return __rhadd(x, y); }
-s::longlong s_rhadd(s::longlong x, s::longlong y) __NOEXC {
-  return __rhadd(x, y);
-}
 MAKE_1V_2V(s_rhadd, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V(s_rhadd, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V(s_rhadd, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V(s_rhadd, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V(s_rhadd, s::longlong, s::longlong, s::longlong)
 
 // u_clamp
 cl_uchar u_clamp(s::cl_uchar x, s::cl_uchar minval,
@@ -1641,20 +1604,14 @@ cl_ulong u_clamp(s::cl_ulong x, s::cl_ulong minval,
                  s::cl_ulong maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-s::ulonglong u_clamp(s::ulonglong x, s::ulonglong minval,
-                     s::ulonglong maxval) __NOEXC {
-  return __clamp(x, minval, maxval);
-}
 MAKE_1V_2V_3V(u_clamp, s::cl_uchar, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V_3V(u_clamp, s::cl_ushort, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V_3V(u_clamp, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V_3V(u_clamp, s::cl_ulong, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V_3V(u_clamp, s::ulonglong, s::ulonglong, s::ulonglong, s::ulonglong)
 MAKE_1V_2S_3S(u_clamp, s::cl_uchar, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2S_3S(u_clamp, s::cl_ushort, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2S_3S(u_clamp, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2S_3S(u_clamp, s::cl_ulong, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2S_3S(u_clamp, s::ulonglong, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_clamp
 cl_char s_clamp(s::cl_char x, s::cl_char minval, s::cl_char maxval) __NOEXC {
@@ -1670,20 +1627,14 @@ cl_int s_clamp(s::cl_int x, s::cl_int minval, s::cl_int maxval) __NOEXC {
 cl_long s_clamp(s::cl_long x, s::cl_long minval, s::cl_long maxval) __NOEXC {
   return __clamp(x, minval, maxval);
 }
-s::longlong s_clamp(s::longlong x, s::longlong minval,
-                    s::longlong maxval) __NOEXC {
-  return __clamp(x, minval, maxval);
-}
 MAKE_1V_2V_3V(s_clamp, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V_3V(s_clamp, s::cl_short, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V_3V(s_clamp, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V_3V(s_clamp, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V_3V(s_clamp, s::longlong, s::longlong, s::longlong, s::longlong)
 MAKE_1V_2S_3S(s_clamp, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2S_3S(s_clamp, s::cl_short, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2S_3S(s_clamp, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2S_3S(s_clamp, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2S_3S(s_clamp, s::longlong, s::longlong, s::longlong, s::longlong)
 
 // clz
 cl_uchar clz(s::cl_uchar x) __NOEXC { return __clz(x); }
@@ -1694,8 +1645,6 @@ cl_uint clz(s::cl_uint x) __NOEXC { return __clz(x); }
 cl_int clz(s::cl_int x) __NOEXC { return __clz(x); }
 cl_ulong clz(s::cl_ulong x) __NOEXC { return __clz(x); }
 cl_long clz(s::cl_long x) __NOEXC { return __clz(x); }
-s::ulonglong clz(s::ulonglong x) __NOEXC { return __clz(x); }
-s::longlong clz(s::longlong x) __NOEXC { return __clz(x); }
 MAKE_1V(clz, s::cl_uchar, s::cl_uchar)
 MAKE_1V(clz, s::cl_char, s::cl_char)
 MAKE_1V(clz, s::cl_ushort, s::cl_ushort)
@@ -1704,8 +1653,6 @@ MAKE_1V(clz, s::cl_uint, s::cl_uint)
 MAKE_1V(clz, s::cl_int, s::cl_int)
 MAKE_1V(clz, s::cl_ulong, s::cl_ulong)
 MAKE_1V(clz, s::cl_long, s::cl_long)
-MAKE_1V(clz, s::longlong, s::longlong)
-MAKE_1V(clz, s::ulonglong, s::ulonglong)
 
 // s_mul_hi
 cl_char s_mul_hi(cl_char a, cl_char b) { return __mul_hi(a, b); }
@@ -1714,14 +1661,10 @@ cl_int s_mul_hi(cl_int a, cl_int b) { return __mul_hi(a, b); }
 cl_long s_mul_hi(s::cl_long x, s::cl_long y) __NOEXC {
   return __long_mul_hi(x, y);
 }
-s::longlong s_mul_hi(s::longlong x, s::longlong y) __NOEXC {
-  return __long_mul_hi(x, y);
-}
 MAKE_1V_2V(s_mul_hi, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V(s_mul_hi, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V(s_mul_hi, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V(s_mul_hi, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V(s_mul_hi, s::longlong, s::longlong, s::longlong)
 
 // u_mul_hi
 cl_uchar u_mul_hi(cl_uchar a, cl_uchar b) { return __mul_hi(a, b); }
@@ -1730,14 +1673,10 @@ cl_uint u_mul_hi(cl_uint a, cl_uint b) { return __mul_hi(a, b); }
 cl_ulong u_mul_hi(s::cl_ulong x, s::cl_ulong y) __NOEXC {
   return __long_mul_hi(x, y);
 }
-s::ulonglong u_mul_hi(s::ulonglong x, s::ulonglong y) __NOEXC {
-  return __long_mul_hi(x, y);
-}
 MAKE_1V_2V(u_mul_hi, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(u_mul_hi, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V(u_mul_hi, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(u_mul_hi, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(u_mul_hi, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_mad_hi
 cl_char s_mad_hi(s::cl_char x, s::cl_char minval, s::cl_char maxval) __NOEXC {
@@ -1753,15 +1692,10 @@ cl_int s_mad_hi(s::cl_int x, s::cl_int minval, s::cl_int maxval) __NOEXC {
 cl_long s_mad_hi(s::cl_long x, s::cl_long minval, s::cl_long maxval) __NOEXC {
   return __long_mad_hi(x, minval, maxval);
 }
-s::longlong s_mad_hi(s::longlong x, s::longlong minval,
-                     s::longlong maxval) __NOEXC {
-  return __long_mad_hi(x, minval, maxval);
-}
 MAKE_1V_2V_3V(s_mad_hi, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V_3V(s_mad_hi, s::cl_short, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V_3V(s_mad_hi, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V_3V(s_mad_hi, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V_3V(s_mad_hi, s::longlong, s::longlong, s::longlong, s::longlong)
 
 // u_mad_hi
 cl_uchar u_mad_hi(s::cl_uchar x, s::cl_uchar minval,
@@ -1779,15 +1713,10 @@ cl_ulong u_mad_hi(s::cl_ulong x, s::cl_ulong minval,
                   s::cl_ulong maxval) __NOEXC {
   return __long_mad_hi(x, minval, maxval);
 }
-s::ulonglong u_mad_hi(s::ulonglong x, s::ulonglong minval,
-                      s::ulonglong maxval) __NOEXC {
-  return __long_mad_hi(x, minval, maxval);
-}
 MAKE_1V_2V_3V(u_mad_hi, s::cl_uchar, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V_3V(u_mad_hi, s::cl_ushort, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V_3V(u_mad_hi, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V_3V(u_mad_hi, s::cl_ulong, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V_3V(u_mad_hi, s::ulonglong, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_mad_sat
 cl_char s_mad_sat(s::cl_char a, s::cl_char b, s::cl_char c) __NOEXC {
@@ -1802,14 +1731,10 @@ cl_int s_mad_sat(s::cl_int a, s::cl_int b, s::cl_int c) __NOEXC {
 cl_long s_mad_sat(s::cl_long a, s::cl_long b, s::cl_long c) __NOEXC {
   return __s_long_mad_sat(a, b, c);
 }
-s::longlong s_mad_sat(s::longlong a, s::longlong b, s::longlong c) __NOEXC {
-  return __s_long_mad_sat(a, b, c);
-}
 MAKE_1V_2V_3V(s_mad_sat, s::cl_char, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V_3V(s_mad_sat, s::cl_short, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V_3V(s_mad_sat, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V_3V(s_mad_sat, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V_3V(s_mad_sat, s::longlong, s::longlong, s::longlong, s::longlong)
 
 // u_mad_sat
 cl_uchar u_mad_sat(s::cl_uchar a, s::cl_uchar b, s::cl_uchar c) __NOEXC {
@@ -1824,33 +1749,24 @@ cl_uint u_mad_sat(s::cl_uint a, s::cl_uint b, s::cl_uint c) __NOEXC {
 cl_ulong u_mad_sat(s::cl_ulong a, s::cl_ulong b, s::cl_ulong c) __NOEXC {
   return __u_long_mad_sat(a, b, c);
 }
-s::ulonglong u_mad_sat(s::ulonglong a, s::ulonglong b, s::ulonglong c) __NOEXC {
-  return __u_long_mad_sat(a, b, c);
-}
 MAKE_1V_2V_3V(u_mad_sat, s::cl_uchar, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V_3V(u_mad_sat, s::cl_ushort, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V_3V(u_mad_sat, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V_3V(u_mad_sat, s::cl_ulong, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V_3V(u_mad_sat, s::ulonglong, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_max
 cl_char s_max(s::cl_char x, s::cl_char y) __NOEXC { return std::max(x, y); }
 cl_short s_max(s::cl_short x, s::cl_short y) __NOEXC { return std::max(x, y); }
 cl_int s_max(s::cl_int x, s::cl_int y) __NOEXC { return std::max(x, y); }
 cl_long s_max(s::cl_long x, s::cl_long y) __NOEXC { return std::max(x, y); }
-s::longlong s_max(s::longlong x, s::longlong y) __NOEXC {
-  return std::max(x, y);
-}
 MAKE_1V_2V(s_max, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V(s_max, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V(s_max, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V(s_max, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V(s_max, s::longlong, s::longlong, s::longlong)
 MAKE_1V_2S(s_max, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2S(s_max, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2S(s_max, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2S(s_max, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2S(s_max, s::longlong, s::longlong, s::longlong)
 
 // u_max
 cl_uchar u_max(s::cl_uchar x, s::cl_uchar y) __NOEXC { return std::max(x, y); }
@@ -1859,38 +1775,28 @@ cl_ushort u_max(s::cl_ushort x, s::cl_ushort y) __NOEXC {
 }
 cl_uint u_max(s::cl_uint x, s::cl_uint y) __NOEXC { return std::max(x, y); }
 cl_ulong u_max(s::cl_ulong x, s::cl_ulong y) __NOEXC { return std::max(x, y); }
-s::ulonglong u_max(s::ulonglong x, s::ulonglong y) __NOEXC {
-  return std::max(x, y);
-}
 MAKE_1V_2V(u_max, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(u_max, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V(u_max, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(u_max, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(u_max, s::ulonglong, s::ulonglong, s::ulonglong)
 MAKE_1V_2S(u_max, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2S(u_max, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2S(u_max, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2S(u_max, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2S(u_max, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_min
 cl_char s_min(s::cl_char x, s::cl_char y) __NOEXC { return std::min(x, y); }
 cl_short s_min(s::cl_short x, s::cl_short y) __NOEXC { return std::min(x, y); }
 cl_int s_min(s::cl_int x, s::cl_int y) __NOEXC { return std::min(x, y); }
 cl_long s_min(s::cl_long x, s::cl_long y) __NOEXC { return std::min(x, y); }
-s::longlong s_min(s::longlong x, s::longlong y) __NOEXC {
-  return std::min(x, y);
-}
 MAKE_1V_2V(s_min, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V(s_min, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V(s_min, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V(s_min, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V(s_min, s::longlong, s::longlong, s::longlong)
 MAKE_1V_2S(s_min, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2S(s_min, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2S(s_min, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2S(s_min, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2S(s_min, s::longlong, s::longlong, s::longlong)
 
 // u_min
 cl_uchar u_min(s::cl_uchar x, s::cl_uchar y) __NOEXC { return std::min(x, y); }
@@ -1899,19 +1805,14 @@ cl_ushort u_min(s::cl_ushort x, s::cl_ushort y) __NOEXC {
 }
 cl_uint u_min(s::cl_uint x, s::cl_uint y) __NOEXC { return std::min(x, y); }
 cl_ulong u_min(s::cl_ulong x, s::cl_ulong y) __NOEXC { return std::min(x, y); }
-s::ulonglong u_min(s::ulonglong x, s::ulonglong y) __NOEXC {
-  return std::min(x, y);
-}
 MAKE_1V_2V(u_min, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(u_min, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V(u_min, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(u_min, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(u_min, s::ulonglong, s::ulonglong, s::ulonglong)
 MAKE_1V_2S(u_min, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2S(u_min, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2S(u_min, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2S(u_min, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2S(u_min, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // rotate
 cl_uchar rotate(s::cl_uchar x, s::cl_uchar y) __NOEXC { return __rotate(x, y); }
@@ -1920,26 +1821,18 @@ cl_ushort rotate(s::cl_ushort x, s::cl_ushort y) __NOEXC {
 }
 cl_uint rotate(s::cl_uint x, s::cl_uint y) __NOEXC { return __rotate(x, y); }
 cl_ulong rotate(s::cl_ulong x, s::cl_ulong y) __NOEXC { return __rotate(x, y); }
-s::ulonglong rotate(s::ulonglong x, s::ulonglong y) __NOEXC {
-  return __rotate(x, y);
-}
 cl_char rotate(s::cl_char x, s::cl_char y) __NOEXC { return __rotate(x, y); }
 cl_short rotate(s::cl_short x, s::cl_short y) __NOEXC { return __rotate(x, y); }
 cl_int rotate(s::cl_int x, s::cl_int y) __NOEXC { return __rotate(x, y); }
 cl_long rotate(s::cl_long x, s::cl_long y) __NOEXC { return __rotate(x, y); }
-s::longlong rotate(s::longlong x, s::longlong y) __NOEXC {
-  return __rotate(x, y);
-}
 MAKE_1V_2V(rotate, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(rotate, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V(rotate, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(rotate, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(rotate, s::ulonglong, s::ulonglong, s::ulonglong)
 MAKE_1V_2V(rotate, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V(rotate, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V(rotate, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V(rotate, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V(rotate, s::longlong, s::longlong, s::longlong)
 
 // u_sub_sat
 cl_uchar u_sub_sat(s::cl_uchar x, s::cl_uchar y) __NOEXC {
@@ -1954,14 +1847,10 @@ cl_uint u_sub_sat(s::cl_uint x, s::cl_uint y) __NOEXC {
 cl_ulong u_sub_sat(s::cl_ulong x, s::cl_ulong y) __NOEXC {
   return __u_sub_sat(x, y);
 }
-s::ulonglong u_sub_sat(s::ulonglong x, s::ulonglong y) __NOEXC {
-  return __u_sub_sat(x, y);
-}
 MAKE_1V_2V(u_sub_sat, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(u_sub_sat, s::cl_ushort, s::cl_ushort, s::cl_ushort)
 MAKE_1V_2V(u_sub_sat, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(u_sub_sat, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_1V_2V(u_sub_sat, s::ulonglong, s::ulonglong, s::ulonglong)
 
 // s_sub_sat
 cl_char s_sub_sat(s::cl_char x, s::cl_char y) __NOEXC {
@@ -1974,14 +1863,10 @@ cl_int s_sub_sat(s::cl_int x, s::cl_int y) __NOEXC { return __s_sub_sat(x, y); }
 cl_long s_sub_sat(s::cl_long x, s::cl_long y) __NOEXC {
   return __s_sub_sat(x, y);
 }
-s::longlong s_sub_sat(s::longlong x, s::longlong y) __NOEXC {
-  return __s_sub_sat(x, y);
-}
 MAKE_1V_2V(s_sub_sat, s::cl_char, s::cl_char, s::cl_char)
 MAKE_1V_2V(s_sub_sat, s::cl_short, s::cl_short, s::cl_short)
 MAKE_1V_2V(s_sub_sat, s::cl_int, s::cl_int, s::cl_int)
 MAKE_1V_2V(s_sub_sat, s::cl_long, s::cl_long, s::cl_long)
-MAKE_1V_2V(s_sub_sat, s::longlong, s::longlong, s::longlong)
 
 // u_upsample
 cl_ushort u_upsample(s::cl_uchar x, s::cl_uchar y) __NOEXC {
@@ -2021,23 +1906,19 @@ cl_uchar popcount(s::cl_uchar x) __NOEXC { return __popcount(x); }
 cl_ushort popcount(s::cl_ushort x) __NOEXC { return __popcount(x); }
 cl_uint popcount(s::cl_uint x) __NOEXC { return __popcount(x); }
 cl_ulong popcount(s::cl_ulong x) __NOEXC { return __popcount(x); }
-s::ulonglong popcount(s::ulonglong x) __NOEXC { return __popcount(x); }
 MAKE_1V(popcount, s::cl_uchar, s::cl_uchar)
 MAKE_1V(popcount, s::cl_ushort, s::cl_ushort)
 MAKE_1V(popcount, s::cl_uint, s::cl_uint)
 MAKE_1V(popcount, s::cl_ulong, s::cl_ulong)
-MAKE_1V(popcount, s::ulonglong, s::ulonglong)
 
 cl_char popcount(s::cl_char x) __NOEXC { return __popcount(x); }
 cl_short popcount(s::cl_short x) __NOEXC { return __popcount(x); }
 cl_int popcount(s::cl_int x) __NOEXC { return __popcount(x); }
 cl_long popcount(s::cl_long x) __NOEXC { return __popcount(x); }
-s::longlong popcount(s::longlong x) __NOEXC { return __popcount(x); }
 MAKE_1V(popcount, s::cl_char, s::cl_char)
 MAKE_1V(popcount, s::cl_short, s::cl_short)
 MAKE_1V(popcount, s::cl_int, s::cl_int)
 MAKE_1V(popcount, s::cl_long, s::cl_long)
-MAKE_1V(popcount, s::longlong, s::longlong)
 
 // u_mad24
 cl_uint u_mad24(s::cl_uint x, s::cl_uint y, s::cl_uint z) __NOEXC {
@@ -2528,14 +2409,12 @@ MAKE_SR_1V_OR(Any, __Any, s::cl_int, s::cl_char)
 MAKE_SR_1V_OR(Any, __Any, s::cl_int, s::cl_short)
 MAKE_SR_1V_OR(Any, __Any, s::cl_int, s::cl_int)
 MAKE_SR_1V_OR(Any, __Any, s::cl_int, s::cl_long)
-MAKE_SR_1V_OR(Any, __Any, s::cl_int, s::longlong)
 
 // (All)                  // all
 MAKE_SR_1V_AND(All, __All, s::cl_int, s::cl_char)
 MAKE_SR_1V_AND(All, __All, s::cl_int, s::cl_short)
 MAKE_SR_1V_AND(All, __All, s::cl_int, s::cl_int)
 MAKE_SR_1V_AND(All, __All, s::cl_int, s::cl_long)
-MAKE_SR_1V_AND(All, __All, s::cl_int, s::longlong)
 
 // (bitselect)
 // Instantiate functions for the scalar types and vector types.
@@ -2551,9 +2430,6 @@ MAKE_SC_1V_2V_3V(bitselect, s::cl_int, s::cl_int, s::cl_int, s::cl_int)
 MAKE_SC_1V_2V_3V(bitselect, s::cl_uint, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_SC_1V_2V_3V(bitselect, s::cl_long, s::cl_long, s::cl_long, s::cl_long)
 MAKE_SC_1V_2V_3V(bitselect, s::cl_ulong, s::cl_ulong, s::cl_ulong, s::cl_ulong)
-MAKE_SC_1V_2V_3V(bitselect, s::longlong, s::longlong, s::longlong, s::longlong)
-MAKE_SC_1V_2V_3V(bitselect, s::ulonglong, s::ulonglong, s::ulonglong,
-                 s::ulonglong)
 MAKE_SC_1V_2V_3V(bitselect, s::cl_half, s::cl_half, s::cl_half, s::cl_half)
 
 // (Select) // select
@@ -2566,10 +2442,6 @@ MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_float, s::cl_uint,
 MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_double, s::cl_long,
                         s::cl_double, s::cl_double)
 MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_double, s::cl_ulong,
-                        s::cl_double, s::cl_double)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_double, s::longlong,
-                        s::cl_double, s::cl_double)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_double, s::ulonglong,
                         s::cl_double, s::cl_double)
 MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_char, s::cl_char,
                         s::cl_char, s::cl_char)
@@ -2603,14 +2475,6 @@ MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_ulong, s::cl_long,
                         s::cl_ulong, s::cl_ulong)
 MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_ulong, s::cl_ulong,
                         s::cl_ulong, s::cl_ulong)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::longlong, s::longlong,
-                        s::longlong, s::longlong)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::longlong, s::ulonglong,
-                        s::longlong, s::longlong)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::ulonglong, s::ulonglong,
-                        s::ulonglong, s::ulonglong)
-MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::ulonglong, s::longlong,
-                        s::ulonglong, s::ulonglong)
 MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_half, s::cl_short,
                         s::cl_half, s::cl_half)
 MAKE_SC_FSC_1V_2V_3V_FV(Select, __vSelect, s::cl_half, s::cl_ushort,
