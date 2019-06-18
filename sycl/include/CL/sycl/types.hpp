@@ -380,7 +380,7 @@ public:
     *this = Rhs.template as<vec>();
     return *this;
   }
-
+  
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <typename T = void>
   using EnableIfNotHostHalf = typename std::enable_if<

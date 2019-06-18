@@ -60,6 +60,22 @@ int main() {
     assert(r == 2);
   }
 
+  // min (longlong)
+  {
+    s::longlong r{ 0 };
+    {
+      s::buffer<s::longlong, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class minSLL1SLL1>([=]() {
+          AccR[0] = s::min(s::longlong{ 5 }, s::longlong{ 2 });
+        });
+      });
+    }
+    assert(r == 2);
+  }
+
   // min
   {
     s::cl_uint r{ 0 };
@@ -76,6 +92,22 @@ int main() {
     assert(r == 2);
   }
 
+  // min (ulonglong)
+  {
+    s::ulonglong r{ 0 };
+    {
+      s::buffer<s::ulonglong, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class minULL1ULL1>([=]() {
+          AccR[0] = s::min(s::ulonglong{ 5 }, s::ulonglong{ 2 });
+        });
+      });
+    }
+    assert(r == 2);
+  }
+  
   // abs
   {
     s::cl_uint r{ 0 };
