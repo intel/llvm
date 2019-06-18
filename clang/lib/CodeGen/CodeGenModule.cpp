@@ -3631,7 +3631,7 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
   }
 
   if (LangOpts.SYCLIsDevice) {
-    if (getenv("ENABLE_INFER_AS")) {
+    if (!getenv("DISABLE_INFER_AS")) {
       if (!D || D->getType().getAddressSpace() == LangAS::Default) {
         return LangAS::opencl_global;
       }

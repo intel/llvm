@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -std=c++11 -fsycl-is-device -disable-llvm-passes -S -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: DISABLE_INFER_AS=1 %clang_cc1 -triple spir64-unknown-linux-sycldevice -std=c++11 -fsycl-is-device -disable-llvm-passes -S -emit-llvm -x c++ %s -o - | FileCheck %s --check-prefixes CHECK,CHECK-OLD
+// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -std=c++11 -fsycl-is-device -disable-llvm-passes -S -emit-llvm -x c++ %s -o - | FileCheck %s --check-prefixes CHECK,CHECK-NEW
 
 template <typename T>
 T bar(T arg);
@@ -22,6 +23,7 @@ int main() {
   return 0;
 }
 // CHECK: define spir_kernel void @_ZTSZ4mainE11fake_kernel()
-// CHECK: define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}.anon"* %this)
+// CHECK-OLD: define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}.anon"* %this)
+// CHECK-NEW: define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class.{{.*}}.anon" addrspace(4)* %this)
 // CHECK: define spir_func void @_Z3foov()
 // CHECK: define linkonce_odr spir_func i32 @_Z3barIiET_S0_(i32 %arg)
