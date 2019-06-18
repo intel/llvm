@@ -17,27 +17,13 @@
 #include <string>
 #include <type_traits>
 
-// Select underlying runtime interface in compile-time (OpenCL or PI).
-// Comment the define of the FORCE_SYCL_BE_OPENCL below to switch to PI.
-// As such only one path (OpenCL today) is being regularily tested.
-//
-// TODO: we can just remove this when switch to PI completely.
-//
-#define FORCE_SYCL_BE_OPENCL
-
-#ifdef FORCE_SYCL_BE_OPENCL
-#include <CL/sycl/detail/pi_opencl.hpp>
-#else
-#include <CL/sycl/detail/pi.hpp>
-#endif
+#define STRINGIFY_LINE_HELP(s) #s
+#define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
 const char *stringifyErrorCode(cl_int error);
 
 #define OCL_CODE_TO_STR(code)                                                  \
   std::string(std::to_string(code) + " (" + stringifyErrorCode(code) + ")")
-
-#define STRINGIFY_LINE_HELP(s) #s
-#define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
 #define OCL_ERROR_REPORT                                                       \
   "OpenCL API failed. " __FILE__                                               \
@@ -91,15 +77,6 @@ const char *stringifyErrorCode(cl_int error);
 namespace cl {
 namespace sycl {
 namespace detail {
-
-// Select underlying runtime interface (RT) in compile-time (OpenCL or PI).
-// As such only one path (OpenCL today) is being regularily tested.
-//
-#ifdef FORCE_SYCL_BE_OPENCL
-using RT = cl::sycl::detail::opencl;
-#else
-using RT = cl::sycl::detail::pi;
-#endif
 
 // Helper function for extracting implementation from SYCL's interface objects.
 // Note! This function relies on the fact that all SYCL interface classes

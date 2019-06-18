@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/event_info.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -51,7 +52,8 @@ public:
   void setComplete();
 
   // Warning. Returned reference will be invalid if event_impl was destroyed.
-  cl_event &getHandleRef();
+  RT::PiEvent &getHandleRef();
+  const RT::PiEvent &getHandleRef() const;
 
   const ContextImplPtr &getContextImpl();
 
@@ -64,7 +66,7 @@ public:
   void setCommand(void *Command) { m_Command = Command; }
 
 private:
-  cl_event m_Event = nullptr;
+  RT::PiEvent m_Event = nullptr;
   ContextImplPtr m_Context;
   bool m_OpenCLInterop = false;
   bool m_HostEvent = true;

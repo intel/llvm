@@ -36,14 +36,14 @@ public:
   // The following method releases memory allocation of memory object.
   // Depending on the context it releases memory on host or on device.
   static void release(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
-                      void *MemAllocation, std::vector<cl_event> DepEvents,
-                      cl_event &OutEvent);
+                      void *MemAllocation, std::vector<RT::PiEvent> DepEvents,
+                      RT::PiEvent &OutEvent);
 
   // The following method allocates memory allocation of memory object.
   // Depending on the context it allocates memory on host or on device.
   static void *allocate(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
-                        bool InitFromUserData, std::vector<cl_event> DepEvents,
-                        cl_event &OutEvent);
+                        bool InitFromUserData, std::vector<RT::PiEvent> DepEvents,
+                        RT::PiEvent &OutEvent);
 
   // Allocates buffer in specified context taking into account situations such
   // as host ptr or cl_mem provided by user. TargetContext should be device
@@ -53,7 +53,7 @@ public:
                                  bool HostPtrReadOnly, size_t Size,
                                  const EventImplPtr &InteropEvent,
                                  const ContextImplPtr &InteropContext,
-                                 cl_event &OutEventToWait);
+                                 RT::PiEvent &OutEventToWait);
 
   // Releases buffer. TargetContext should be device one(not host).
   static void releaseMemBuf(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
@@ -68,24 +68,24 @@ public:
                    QueueImplPtr TgtQueue, unsigned int DimDst,
                    sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
                    sycl::id<3> DstOffset, unsigned int DstElemSize,
-                   std::vector<cl_event> DepEvents, bool UseExclusiveQueue,
-                   cl_event &OutEvent);
+                   std::vector<RT::PiEvent> DepEvents, bool UseExclusiveQueue,
+                   RT::PiEvent &OutEvent);
 
   static void fill(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
-                   std::vector<cl_event> DepEvents, cl_event &OutEvent);
+                   std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
   static void *map(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    access::mode AccessMode, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
-                   std::vector<cl_event> DepEvents, cl_event &OutEvent);
+                   std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
   static void unmap(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                    void *MappedPtr, std::vector<cl_event> DepEvents,
-                    bool UseExclusiveQueue, cl_event &OutEvent);
+                    void *MappedPtr, std::vector<RT::PiEvent> DepEvents,
+                    bool UseExclusiveQueue, RT::PiEvent &OutEvent);
 };
 } // namespace detail
 } // namespace sycl

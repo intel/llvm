@@ -1,10 +1,11 @@
-//==---------- pi.cpp - Plugin Interface for SYCL RT -----------------------==//
+//===-- pi.cpp - PI utilities implementation -------------------*- C++ -*--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <cstdarg>
 #include <iostream>
@@ -17,46 +18,65 @@ namespace detail {
 // For selection of SYCL RT back-end, now manually through the "SYCL_BE"
 // environment variable.
 //
-enum pi_backend {
+enum PiBackend {
   SYCL_BE_PI_OPENCL,
   SYCL_BE_PI_OTHER
 };
 
 // Check for manually selected BE at run-time.
-bool pi_use_backend(pi_backend be) {
-  static const pi_backend use =
-    std::map<std::string, pi_backend>{
+bool piUseBackend(PiBackend Backend) {
+  static const char *GetEnv = std::getenv("SYCL_BE");
+  static const PiBackend Use =
+    std::map<std::string, PiBackend>{
       { "PI_OPENCL", SYCL_BE_PI_OPENCL },
       { "PI_OTHER",  SYCL_BE_PI_OTHER }
-      // Any other value would yield 0 -> PI_OPENCL (current default)
-    }[std::getenv("SYCL_BE")];
-  return be == use;
+      // Any other value would yield PI_OPENCL (current default)
+    }[ GetEnv ? GetEnv : "PI_OPENCL"];
+  return Backend == Use;
 }
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
 //       but for now it is useful to see every failure.
 //
-[[noreturn]] void pi_die(const char *message) {
-  std::cerr << "pi_die: " << message << std::endl;
+[[noreturn]] void piDie(const char *Message) {
+  std::cerr << "pi_die: " << Message << std::endl;
   std::terminate();
 }
 
-void pi_assert(bool condition, const char *message) {
-  if (!condition)
-    pi_die(message);
+void piAssert(bool Condition, const char *Message) {
+  if (!Condition)
+    piDie(Message);
 }
 
-// TODO: implement a more mature and controllable tracing of PI calls.
-void pi_trace(const char *format, ...) {
-  static bool do_trace = std::getenv("SYCL_BE_TRACE");
-  if (!do_trace)
-    return;
+bool PiCall::m_TraceEnabled = (std::getenv("SYCL_PI_TRACE") != nullptr);
 
-  va_list args;
-  va_start(args, format);
-  vprintf(format, args);
+// Emits trace before the start of PI call
+PiCall::PiCall(const char *Trace) {
+  if (m_TraceEnabled && Trace) {
+    std::cerr << "PI ---> " << Trace << std::endl;
+  }
 }
+// Emits trace after the end of PI call
+PiCall::~PiCall() {
+  if (m_TraceEnabled) {
+    std::cerr << "PI <--- " << m_Result << std::endl;
+  }
+}
+// Records and returns the result of PI call
+RT::PiResult PiCall::get(RT::PiResult Result) {
+  m_Result = Result;
+  return Result;
+}
+template<typename Exception>
+void PiCall::check(RT::PiResult Result) {
+  m_Result = Result;
+  // TODO: remove dependency on CHECK_OCL_CODE_THROW.
+  CHECK_OCL_CODE_THROW(Result, Exception);
+}
+
+template void PiCall::check<cl::sycl::runtime_error>(RT::PiResult);
+template void PiCall::check<cl::sycl::compile_program_error>(RT::PiResult);
 
 extern "C" {
 // TODO: change this pseudo-dispatch to plugins (ICD-like?)
@@ -66,28 +86,88 @@ extern "C" {
 // only OpenCL, other would just die).
 //
 void __resolve_die() {
-  pi_die("Unknown SYCL_BE");
+  piDie("Unknown SYCL_BE");
 }
 
-#define PI_DISPATCH(api)                                  \
+#define _PI_DISPATCH(api)                                 \
 decltype(api) ocl_##api;                                  \
 static void *__resolve_##api(void) {                      \
-  return (pi_use_backend(SYCL_BE_PI_OPENCL) ?             \
+  return (piUseBackend(SYCL_BE_PI_OPENCL) ?               \
     (void*)ocl_##api : (void*)__resolve_die);             \
 }                                                         \
 decltype(api) api __attribute__((ifunc ("__resolve_" #api)));
 
 // Platform
-PI_DISPATCH(piPlatformsGet)
-PI_DISPATCH(piPlatformGetInfo)
+_PI_DISPATCH(piPlatformsGet)
+_PI_DISPATCH(piPlatformGetInfo)
 // Device
-PI_DISPATCH(piDevicesGet)
-PI_DISPATCH(piDeviceRetain)
-PI_DISPATCH(piDeviceRelease)
-PI_DISPATCH(piDeviceGetInfo)
-PI_DISPATCH(piDevicePartition)
-// IR
-PI_DISPATCH(piextDeviceSelectBinary)
+_PI_DISPATCH(piDevicesGet)
+_PI_DISPATCH(piDeviceGetInfo)
+_PI_DISPATCH(piDevicePartition)
+_PI_DISPATCH(piDeviceRetain)
+_PI_DISPATCH(piDeviceRelease)
+_PI_DISPATCH(piextDeviceSelectBinary)
+  // Context
+_PI_DISPATCH(piContextCreate)
+_PI_DISPATCH(piContextGetInfo)
+_PI_DISPATCH(piContextRetain)
+_PI_DISPATCH(piContextRelease)
+// Queue
+_PI_DISPATCH(piQueueCreate)
+_PI_DISPATCH(piQueueGetInfo)
+_PI_DISPATCH(piQueueFinish)
+_PI_DISPATCH(piQueueRetain)
+_PI_DISPATCH(piQueueRelease)
+// Memory
+_PI_DISPATCH(piMemCreate)
+_PI_DISPATCH(piMemGetInfo)
+_PI_DISPATCH(piMemRetain)
+_PI_DISPATCH(piMemRelease)
+// Program
+_PI_DISPATCH(piProgramCreate)
+_PI_DISPATCH(piclProgramCreateWithSource)
+_PI_DISPATCH(piclProgramCreateWithBinary)
+_PI_DISPATCH(piProgramGetInfo)
+_PI_DISPATCH(piProgramCompile)
+_PI_DISPATCH(piProgramBuild)
+_PI_DISPATCH(piProgramLink)
+_PI_DISPATCH(piProgramGetBuildInfo)
+_PI_DISPATCH(piProgramRetain)
+_PI_DISPATCH(piProgramRelease)
+// Kernel
+_PI_DISPATCH(piKernelCreate)
+_PI_DISPATCH(piKernelSetArg)
+_PI_DISPATCH(piKernelGetInfo)
+_PI_DISPATCH(piKernelGetGroupInfo)
+_PI_DISPATCH(piKernelGetSubGroupInfo)
+_PI_DISPATCH(piKernelRetain)
+_PI_DISPATCH(piKernelRelease)
+// Event
+_PI_DISPATCH(piEventCreate)
+_PI_DISPATCH(piEventGetInfo)
+_PI_DISPATCH(piEventGetProfilingInfo)
+_PI_DISPATCH(piEventsWait)
+_PI_DISPATCH(piEventSetCallback)
+_PI_DISPATCH(piEventSetStatus)
+_PI_DISPATCH(piEventRetain)
+_PI_DISPATCH(piEventRelease)
+// Sampler
+_PI_DISPATCH(piSamplerCreate)
+_PI_DISPATCH(piSamplerGetInfo)
+_PI_DISPATCH(piSamplerRetain)
+_PI_DISPATCH(piSamplerRelease)
+// Queue commands
+_PI_DISPATCH(piEnqueueKernelLaunch)
+_PI_DISPATCH(piEnqueueEventsWait)
+_PI_DISPATCH(piEnqueueMemRead)
+_PI_DISPATCH(piEnqueueMemReadRect)
+_PI_DISPATCH(piEnqueueMemWrite)
+_PI_DISPATCH(piEnqueueMemWriteRect)
+_PI_DISPATCH(piEnqueueMemCopy)
+_PI_DISPATCH(piEnqueueMemCopyRect)
+_PI_DISPATCH(piEnqueueMemFill)
+_PI_DISPATCH(piEnqueueMemMap)
+_PI_DISPATCH(piEnqueueMemUnmap)
 
 } // extern "C"
 

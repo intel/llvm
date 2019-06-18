@@ -26,7 +26,7 @@ class queue_impl {
 public:
   queue_impl(const device &SyclDevice, async_handler AsyncHandler,
              const property_list &PropList)
-      : queue_impl(SyclDevice, context(SyclDevice), AsyncHandler, PropList){};
+      : queue_impl(SyclDevice, context(SyclDevice), AsyncHandler, PropList) {};
 
   queue_impl(const device &SyclDevice, const context &Context,
              async_handler AsyncHandler, const property_list &PropList)
@@ -41,28 +41,31 @@ public:
   queue_impl(cl_command_queue CLQueue, const context &SyclContext,
              const async_handler &AsyncHandler)
       : m_Context(SyclContext), m_AsyncHandler(AsyncHandler),
-        m_CommandQueue(CLQueue), m_OpenCLInterop(true), m_HostQueue(false) {
+        m_OpenCLInterop(true), m_HostQueue(false) {
 
-    cl_device_id CLDevice = nullptr;
+    m_CommandQueue = pi_cast<RT::PiQueue>(CLQueue);
+
+    RT::PiDevice Device = nullptr;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    CHECK_OCL_CODE(clGetCommandQueueInfo(m_CommandQueue, CL_QUEUE_DEVICE,
-                                         sizeof(CLDevice), &CLDevice, nullptr));
-    m_Device = device(CLDevice);
+    PI_CALL(RT::piQueueGetInfo(m_CommandQueue, PI_QUEUE_INFO_DEVICE,
+                               sizeof(Device), &Device, nullptr));
+    m_Device = createSyclObjFromImpl<device>(
+        std::make_shared<device_impl_pi>(Device));
+
     // TODO catch an exception and put it to list of asynchronous exceptions
-    CHECK_OCL_CODE(clRetainCommandQueue(m_CommandQueue));
+    PI_CALL(RT::piQueueRetain(m_CommandQueue));
   }
 
   ~queue_impl() {
     if (m_OpenCLInterop) {
-      CHECK_OCL_CODE_NO_EXC(clReleaseCommandQueue(m_CommandQueue));
+      PI_CALL(RT::piQueueRelease(m_CommandQueue));
     }
   }
 
   cl_command_queue get() {
     if (m_OpenCLInterop) {
-      cl_command_queue command_queue = getHandleRef();
-      CHECK_OCL_CODE(clRetainCommandQueue(command_queue));
-      return command_queue;
+      PI_CALL(RT::piQueueRetain(m_CommandQueue));
+      return pi_cast<cl_command_queue>(m_CommandQueue);
     }
     throw invalid_object_error(
         "This instance of queue doesn't support OpenCL interoperability");
@@ -121,7 +124,7 @@ public:
     m_Exceptions.clear();
   }
 
-  cl_command_queue createQueue() {
+  RT::PiQueue createQueue() {
     cl_command_queue_properties CreationFlags = 0;
 
     if (m_SupportOOO) {
@@ -132,18 +135,20 @@ public:
       CreationFlags |= CL_QUEUE_PROFILING_ENABLE;
     }
 
-    cl_int Error = CL_SUCCESS;
-    cl_command_queue Queue;
-    cl_context ClContext = detail::getSyclObjImpl(m_Context)->getHandleRef();
+    RT::PiResult Error = PI_SUCCESS;
+    RT::PiQueue Queue;
+    RT::PiContext Context = detail::getSyclObjImpl(m_Context)->getHandleRef();
+    RT::PiDevice Device = detail::getSyclObjImpl(m_Device)->getHandleRef();
 #ifdef CL_VERSION_2_0
     cl_queue_properties CreationFlagProperties[] = {
         CL_QUEUE_PROPERTIES, CreationFlags, 0};
-    Queue = clCreateCommandQueueWithProperties(
-        ClContext, m_Device.get(), CreationFlagProperties,
-        &Error);
+    PI_CALL((Queue = RT::piQueueCreate(
+        Context, Device, CreationFlagProperties, &Error), Error));
 #else
-    Queue = clCreateCommandQueue(ClContext, m_Device.get(),
-                                          CreationFlags, &Error);
+    // TODO: do we really need this old interface into PI and here?
+    Queue = clCreateCommandQueue(Context, m_Device.get(), CreationFlags, &Error);
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    PI_CHECK(Error);
 #endif
     // Tf creating out-of-order queue failed and this property is not
     // supported(for example, on FPGA), it will return
@@ -154,13 +159,11 @@ public:
     } else {
       CHECK_OCL_CODE(Error);
     }
-    // TODO catch an exception and put it to list of asynchronous exceptions
-
     return Queue;
   }
 
   // Warning. Returned reference will be invalid if queue_impl was destroyed.
-  cl_command_queue &getExclusiveQueueHandleRef() {
+  RT::PiQueue &getExclusiveQueueHandleRef() {
     // To achive parallelism for FPGA with in order execution model with
     // possibility of two kernels to share data with each other we shall
     // create a queue for every kernel enqueued.
@@ -174,11 +177,11 @@ public:
     m_QueueNumber %= MaxNumQueues;
     size_t FreeQueueNum = m_QueueNumber++;
 
-    CHECK_OCL_CODE(clFinish(m_Queues[FreeQueueNum]));
+    PI_CALL(RT::piQueueFinish(m_Queues[FreeQueueNum]));
     return m_Queues[FreeQueueNum];
   }
 
-  cl_command_queue &getHandleRef() {
+  RT::PiQueue &getHandleRef() {
     if (m_SupportOOO) {
       return m_CommandQueue;
     }
@@ -217,10 +220,10 @@ private:
   async_handler m_AsyncHandler;
   property_list m_PropList;
 
-  cl_command_queue m_CommandQueue = nullptr;
+  RT::PiQueue m_CommandQueue = nullptr;
 
-  // List of OpenCL queues created for FPGA device from a single SYCL queue.
-  vector_class<cl_command_queue> m_Queues;
+  // List of queues created for FPGA device from a single SYCL queue.
+  vector_class<RT::PiQueue> m_Queues;
   // Iterator through m_Queues.
   size_t m_QueueNumber = 0;
 

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/stl.hpp>
 #include <algorithm>
@@ -34,10 +35,8 @@ public:
   // It can also be safely passed to the underlying native runtime API.
   // Warning. Returned reference will be invalid if device_impl was destroyed.
   //
-  // TODO: change all uses of getHandleRef to get_handle, and remove the
-  //       getHandleRef after that.
-  virtual cl_device_id &getHandleRef() = 0;
-  virtual RT::pi_device get_handle() const = 0;
+  virtual RT::PiDevice &getHandleRef() = 0;
+  virtual const RT::PiDevice &getHandleRef() const = 0;
 
   virtual bool is_host() const = 0;
 
@@ -68,7 +67,7 @@ public:
     }
     return get_device_info<
         typename info::param_traits<info::device, param>::return_type,
-        param>::_(this->get_handle());
+        param>::_(this->getHandleRef());
   }
 
   bool is_partition_supported(info::partition_property Prop) const {
@@ -93,15 +92,15 @@ public:
 // TODO: Make code thread-safe
 class device_impl_pi : public device_impl {
 public:
-  explicit device_impl_pi(RT::pi_device a_device) : m_device(a_device) {
+  explicit device_impl_pi(RT::PiDevice a_device) : m_device(a_device) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piDeviceGetInfo(
-      m_device, PI_DEVICE_INFO_TYPE, sizeof(RT::pi_device_type), &m_type, 0));
+      m_device, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &m_type, 0));
 
-    RT::pi_device parent;
+    RT::PiDevice parent;
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piDeviceGetInfo(
-      m_device, PI_DEVICE_INFO_PARENT, sizeof(RT::pi_device), &parent, 0));
+      m_device, PI_DEVICE_INFO_PARENT, sizeof(RT::PiDevice), &parent, 0));
 
     m_isRootDevice = (nullptr == parent);
     if (!m_isRootDevice) {
@@ -126,14 +125,8 @@ public:
     return pi_cast<cl_device_id>(m_device);
   }
 
-  cl_device_id &getHandleRef() override {
-    // TODO: check that device is an OpenCL interop one before cast, or just
-    // remove when all the users are moved to get_handle.
-    return (cl_device_id&)(m_device);
-  }
-  RT::pi_device get_handle() const override {
-    return m_device;
-  }
+  RT::PiDevice &getHandleRef() override { return m_device; }
+  const RT::PiDevice &getHandleRef() const override { return m_device; }
 
   bool is_host() const override { return false; }
 
@@ -146,7 +139,7 @@ public:
   }
 
   platform get_platform() const override {
-    RT::pi_platform plt;
+    RT::PiPlatform plt;
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piDeviceGetInfo(
       m_device, PI_DEVICE_INFO_PLATFORM, sizeof(plt), &plt, 0));
@@ -178,8 +171,8 @@ public:
   create_sub_devices(info::partition_affinity_domain AffinityDomain) const override;
 
 private:
-  RT::pi_device m_device = 0;
-  RT::pi_device_type m_type;
+  RT::PiDevice m_device = 0;
+  RT::PiDeviceType m_type;
   bool m_isRootDevice = false;
 }; // class device_impl_pi
 
@@ -192,11 +185,11 @@ public:
   cl_device_id get() const override {
     throw invalid_object_error("This instance of device is a host instance");
   }
-  cl_device_id &getHandleRef() override {
+  RT::PiDevice &getHandleRef() override {
     throw invalid_object_error("This instance of device is a host instance");
   }
-  RT::pi_device get_handle() const override {
-    pi_die("This instance of device is a host instance");
+  const RT::PiDevice &getHandleRef() const override {
+    throw invalid_object_error("This instance of device is a host instance");
   }
 
   bool is_host() const override { return true; }

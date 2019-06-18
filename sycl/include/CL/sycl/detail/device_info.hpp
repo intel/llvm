@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/sycl/detail/common_info.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 
@@ -26,8 +27,8 @@ read_execution_bitfield(cl_device_exec_capabilities bits);
 // Mapping expected SYCL return types to those returned by PI calls
 template <typename T> struct sycl_to_pi { using type = T; };
 template <> struct sycl_to_pi<bool>     { using type = pi_bool; };
-template <> struct sycl_to_pi<device>   { using type = RT::pi_device; };
-template <> struct sycl_to_pi<platform> { using type = RT::pi_platform; };
+template <> struct sycl_to_pi<device>   { using type = RT::PiDevice; };
+template <> struct sycl_to_pi<platform> { using type = RT::PiPlatform; };
 
 // Mapping fp_config device info types to the values used to check fp support
 template <info::device param> struct check_fp_support {};
@@ -45,50 +46,56 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 // TODO: get rid of remaining uses of OpenCL directly
 //
 template <typename T, info::device param> struct get_device_info {
-  static T _(RT::pi_device dev) {
+  static T _(RT::PiDevice dev) {
     typename sycl_to_pi<T>::type result;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<pi_device_info>(param), sizeof(result), &result, NULL));
+      dev, pi_cast<RT::PiDeviceInfo>(param), sizeof(result), &result, NULL));
     return T(result);
+  }
+};
+
+// Specialization for platform
+template <info::device param>
+struct get_device_info<platform, param> {
+  static platform _(RT::PiDevice dev) {
+    typename sycl_to_pi<platform>::type result;
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::PiDeviceInfo>(param), sizeof(result), &result, NULL));
+    return createSyclObjFromImpl<platform>(
+        std::make_shared<platform_impl_pi>(result));
   }
 };
 
 // Specialization for string return type, variable return size
 template <info::device param> struct get_device_info<string_class, param> {
-  static string_class _(RT::pi_device dev) {
+  static string_class _(RT::PiDevice dev) {
     size_t resultSize;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(param), 0, NULL, &resultSize));
+      dev, pi_cast<RT::PiDeviceInfo>(param), 0, NULL, &resultSize));
     if (resultSize == 0) {
       return string_class();
     }
     unique_ptr_class<char[]> result(new char[resultSize]);
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(param),
+      dev, pi_cast<RT::PiDeviceInfo>(param),
       resultSize, result.get(), NULL));
 
     return string_class(result.get());
   }
 };
- 
-// Specialization for parent device
-template <typename T>
-struct get_device_info<T, info::device::parent_device> {
-  static T _(RT::pi_device dev);
-};
 
 // Specialization for parent device
 template <typename T>
 struct get_device_info<T, info::device::parent_device> {
-  static T _(RT::pi_device dev);
+  static T _(RT::PiDevice dev);
 };
 
 // Specialization for id return type
 template <info::device param> struct get_device_info<id<3>, param> {
-  static id<3> _(RT::pi_device dev) {
+  static id<3> _(RT::PiDevice dev) {
     size_t result[3];
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(param), sizeof(result), &result, NULL));
+      dev, pi_cast<RT::PiDeviceInfo>(param), sizeof(result), &result, NULL));
     return id<3>(result[0], result[1], result[2]);
   }
 };
@@ -96,7 +103,7 @@ template <info::device param> struct get_device_info<id<3>, param> {
 // Specialization for fp_config types, checks the corresponding fp type support
 template <info::device param>
 struct get_device_info<vector_class<info::fp_config>, param> {
-  static vector_class<info::fp_config> _(RT::pi_device dev) {
+  static vector_class<info::fp_config> _(RT::PiDevice dev) {
     // Check if fp type is supported
     if (!get_device_info<
             typename info::param_traits<
@@ -106,7 +113,7 @@ struct get_device_info<vector_class<info::fp_config>, param> {
     }
     cl_device_fp_config result;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(param), sizeof(result), &result, NULL));
+      dev, pi_cast<RT::PiDeviceInfo>(param), sizeof(result), &result, NULL));
     return read_fp_bitfield(result);
   }
 };
@@ -115,10 +122,10 @@ struct get_device_info<vector_class<info::fp_config>, param> {
 template <>
 struct get_device_info<vector_class<info::fp_config>,
                           info::device::single_fp_config> {
-  static vector_class<info::fp_config> _(RT::pi_device dev) {
+  static vector_class<info::fp_config> _(RT::PiDevice dev) {
     cl_device_fp_config result;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(info::device::single_fp_config),
+      dev, pi_cast<RT::PiDeviceInfo>(info::device::single_fp_config),
       sizeof(result), &result, NULL));
     return read_fp_bitfield(result);
   }
@@ -126,10 +133,10 @@ struct get_device_info<vector_class<info::fp_config>,
 
 // Specialization for queue_profiling, OpenCL returns a bitfield
 template <> struct get_device_info<bool, info::device::queue_profiling> {
-  static bool _(RT::pi_device dev) {
+  static bool _(RT::PiDevice dev) {
     cl_command_queue_properties result;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(info::device::queue_profiling),
+      dev, pi_cast<RT::PiDeviceInfo>(info::device::queue_profiling),
       sizeof(result), &result, NULL));
     return (result & CL_QUEUE_PROFILING_ENABLE);
   }
@@ -139,10 +146,10 @@ template <> struct get_device_info<bool, info::device::queue_profiling> {
 template <>
 struct get_device_info<vector_class<info::execution_capability>,
                        info::device::execution_capabilities> {
-  static vector_class<info::execution_capability> _(RT::pi_device dev) {
+  static vector_class<info::execution_capability> _(RT::PiDevice dev) {
     cl_device_exec_capabilities result;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(info::device::execution_capabilities),
+      dev, pi_cast<RT::PiDeviceInfo>(info::device::execution_capabilities),
       sizeof(result), &result, NULL));
     return read_execution_bitfield(result);
   }
@@ -152,7 +159,7 @@ struct get_device_info<vector_class<info::execution_capability>,
 template <>
 struct get_device_info<vector_class<string_class>,
                        info::device::built_in_kernels> {
-  static vector_class<string_class> _(RT::pi_device dev) {
+  static vector_class<string_class> _(RT::PiDevice dev) {
     string_class result =
         get_device_info<string_class, info::device::built_in_kernels>::_(dev);
     return split_string(result, ';');
@@ -163,7 +170,7 @@ struct get_device_info<vector_class<string_class>,
 template <>
 struct get_device_info<vector_class<string_class>,
                        info::device::extensions> {
-  static vector_class<string_class> _(RT::pi_device dev) {
+  static vector_class<string_class> _(RT::PiDevice dev) {
     string_class result =
         get_device_info<string_class, info::device::extensions>::_(dev);
     return split_string(result, ' ');
@@ -174,9 +181,9 @@ struct get_device_info<vector_class<string_class>,
 template <>
 struct get_device_info<vector_class<info::partition_property>,
                        info::device::partition_properties> {
-  static vector_class<info::partition_property> _(RT::pi_device dev) {
+  static vector_class<info::partition_property> _(RT::PiDevice dev) {
     auto info_partition =
-      pi_cast<RT::pi_device_info>(info::device::partition_properties);
+      pi_cast<RT::PiDeviceInfo>(info::device::partition_properties);
 
     size_t resultSize;
     PI_CALL(RT::piDeviceGetInfo(dev, info_partition, 0, NULL, &resultSize));
@@ -202,10 +209,10 @@ struct get_device_info<vector_class<info::partition_property>,
 template <>
 struct get_device_info<vector_class<info::partition_affinity_domain>,
                        info::device::partition_affinity_domains> {
-  static vector_class<info::partition_affinity_domain> _(RT::pi_device dev) {
+  static vector_class<info::partition_affinity_domain> _(RT::PiDevice dev) {
     cl_device_affinity_domain result;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(info::device::partition_affinity_domains),
+      dev, pi_cast<RT::PiDeviceInfo>(info::device::partition_affinity_domains),
       sizeof(result), &result, NULL));
     return read_domain_bitfield(result);
   }
@@ -216,10 +223,10 @@ struct get_device_info<vector_class<info::partition_affinity_domain>,
 template <>
 struct get_device_info<info::partition_affinity_domain,
                        info::device::partition_type_affinity_domain> {
-  static info::partition_affinity_domain _(RT::pi_device dev) {
+  static info::partition_affinity_domain _(RT::PiDevice dev) {
     size_t resultSize;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(
+      dev, pi_cast<RT::PiDeviceInfo>(
              info::device::partition_type_affinity_domain),
       0, NULL, &resultSize));
     if (resultSize != 1) {
@@ -227,7 +234,7 @@ struct get_device_info<info::partition_affinity_domain,
     }
     cl_device_partition_property result;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<RT::pi_device_info>(
+      dev, pi_cast<RT::PiDeviceInfo>(
              info::device::partition_type_affinity_domain),
       sizeof(result), &result, NULL));
     if (result == CL_DEVICE_AFFINITY_DOMAIN_NUMA ||
@@ -246,7 +253,7 @@ struct get_device_info<info::partition_affinity_domain,
 template <>
 struct get_device_info<info::partition_property,
                        info::device::partition_type_property> {
-  static info::partition_property _(RT::pi_device dev) {
+  static info::partition_property _(RT::PiDevice dev) {
     size_t resultSize;
     PI_CALL(RT::piDeviceGetInfo(
       dev, PI_DEVICE_INFO_PARTITION_TYPE, 0, NULL, &resultSize));
@@ -268,15 +275,15 @@ struct get_device_info<info::partition_property,
 template <>
 struct get_device_info<vector_class<size_t>,
                        info::device::sub_group_sizes> {
-  static vector_class<size_t> _(RT::pi_device dev) {
+  static vector_class<size_t> _(RT::PiDevice dev) {
     size_t resultSize = 0;
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<pi_device_info>(info::device::sub_group_sizes),
+      dev, pi_cast<RT::PiDeviceInfo>(info::device::sub_group_sizes),
       0, nullptr, &resultSize));
 
     vector_class<size_t> result(resultSize);
     PI_CALL(RT::piDeviceGetInfo(
-      dev, pi_cast<pi_device_info>(info::device::sub_group_sizes),
+      dev, pi_cast<RT::PiDeviceInfo>(info::device::sub_group_sizes),
       resultSize, result.data(), nullptr));
     return result;
   }

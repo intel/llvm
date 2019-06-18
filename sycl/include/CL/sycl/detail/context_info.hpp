@@ -15,15 +15,15 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-template <info::context param> struct get_context_info_cl {
+template <info::context param> struct get_context_info {
   using RetType =
       typename info::param_traits<info::context, param>::return_type;
 
-  static RetType _(cl_context ctx) {
+  static RetType _(RT::PiContext ctx) {
     RetType Result = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    CHECK_OCL_CODE(clGetContextInfo(ctx, cl_context_info(param), sizeof(Result),
-                                    &Result, nullptr));
+    PI_CALL(RT::piContextGetInfo(ctx, pi_cast<pi_context_info>(param),
+                                 sizeof(Result), &Result, nullptr));
     return Result;
   }
 };

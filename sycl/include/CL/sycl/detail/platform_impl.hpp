@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/force_device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/detail/platform_info.hpp>
@@ -42,12 +43,15 @@ public:
     }
     return get_platform_info<
         typename info::param_traits<info::platform, param>::return_type,
-        param>::_(this->get());
+        param>::_(this->getHandleRef());
   }
 
   virtual bool is_host() const = 0;
 
   virtual cl_platform_id get() const = 0;
+
+  // Returns underlying native platform object.
+  virtual const RT::PiPlatform &getHandleRef() const = 0;
 
   virtual ~platform_impl() = default;
 };
@@ -55,7 +59,7 @@ public:
 // TODO: merge platform_impl_pi, platform_impl_host and platform_impl?
 class platform_impl_pi : public platform_impl {
 public:
-  platform_impl_pi(RT::pi_platform a_platform) : m_platform(a_platform) {}
+  platform_impl_pi(RT::PiPlatform a_platform) : m_platform(a_platform) {}
 
   vector_class<device> get_devices(
       info::device_type deviceType = info::device_type::all) const override;
@@ -66,15 +70,16 @@ public:
     return (all_extension_names.find(extension_name) != std::string::npos);
   }
 
-  cl_platform_id get() const override {
-    return pi_cast<cl_platform_id>(m_platform); }
+  cl_platform_id get() const override { return pi_cast<cl_platform_id>(m_platform); }
+
+  const RT::PiPlatform &getHandleRef() const override { return m_platform; }
 
   bool is_host() const override { return false; }
 
   static vector_class<platform> get_platforms();
 
 private:
-  RT::pi_platform m_platform = 0;
+  RT::PiPlatform m_platform = 0;
 }; // class platform_opencl
 
 // TODO: implement extension management
@@ -90,6 +95,9 @@ public:
   }
 
   cl_platform_id get() const override {
+    throw invalid_object_error("This instance of platform is a host instance");
+  }
+  const RT::PiPlatform &getHandleRef() const override {
     throw invalid_object_error("This instance of platform is a host instance");
   }
 

@@ -74,7 +74,7 @@ void Scheduler::GraphBuilder::UpdateLeafs(
     Scheduler::GraphBuilder::MemObjRecord *Record, Requirement *Req) {
 
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
-  if(ReadOnlyReq)
+  if (ReadOnlyReq)
     return;
 
   for (const Command *Cmd : Cmds) {
@@ -200,10 +200,10 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   ContextImplPtr SrcContext = detail::getSyclObjImpl(SrcQueue->get_context());
   Req->BlockingEvent.reset(new detail::event_impl());
   Req->BlockingEvent->setContextImpl(SrcContext);
-  cl_event &CLEvent = Req->BlockingEvent->getHandleRef();
-  cl_int Error = CL_SUCCESS;
-  CLEvent = clCreateUserEvent(SrcContext->getHandleRef(), &Error);
-  CHECK_OCL_CODE(Error);
+  RT::PiEvent &Event = Req->BlockingEvent->getHandleRef();
+  RT::PiResult Error = PI_SUCCESS;
+  PI_CALL((Event = RT::piEventCreate(
+      SrcContext->getHandleRef(), &Error), Error));
 
   // In case of memory is 1 dimensional and located on OpenCL device we
   // can use map/unmap operation.

@@ -26,11 +26,11 @@ namespace detail {
 // Specialization for parent device
 template <>
 device get_device_info<device, info::device::parent_device>::_(
-  RT::pi_device dev) {
+  RT::PiDevice dev) {
 
   typename sycl_to_pi<device>::type result;
   PI_CALL(RT::piDeviceGetInfo(
-    dev, pi_cast<pi_device_info>(info::device::parent_device),
+    dev, pi_cast<RT::PiDeviceInfo>(info::device::parent_device),
     sizeof(result), &result, NULL));
   if (result == nullptr)
     throw invalid_object_error(

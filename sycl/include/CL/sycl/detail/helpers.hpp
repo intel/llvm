@@ -11,6 +11,8 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
+
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -32,7 +34,7 @@ namespace detail {
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
-std::vector<cl_event>
+std::vector<RT::PiEvent>
 getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
                 std::shared_ptr<cl::sycl::detail::context_impl> Context);
 
