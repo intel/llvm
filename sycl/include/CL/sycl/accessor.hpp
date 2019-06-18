@@ -212,21 +212,22 @@ protected:
       MIDs[0] = Index;
     }
 
-    template <int CurDims = SubDims, typename = enable_if_t<(CurDims > 1)>>
-    AccessorSubscript<CurDims - 1> operator[](size_t Index) {
+    template <int CurDims = SubDims>
+    typename std::enable_if<(CurDims > 1), AccessorSubscript<CurDims - 1>>::type
+    operator[](size_t Index) {
       MIDs[Dims - CurDims] = Index;
       return AccessorSubscript<CurDims - 1>(MAccessor, MIDs);
     }
 
     template <int CurDims = SubDims,
-              typename = enable_if_t<IsAccessAnyWrite && CurDims == 1>>
+              typename = enable_if_t<CurDims == 1 && IsAccessAnyWrite>>
     RefType operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
 
     template <int CurDims = SubDims,
-              typename = enable_if_t<IsAccessReadOnly && CurDims == 1>>
+              typename = enable_if_t<CurDims == 1 && IsAccessReadOnly>>
     DataT operator[](size_t Index) const {
       MIDs[Dims - SubDims] = Index;
       return MAccessor[MIDs];
@@ -336,9 +337,10 @@ public:
   using const_reference = const DataT &;
 
   template <int Dims = Dimensions>
-  accessor(enable_if_t<((!IsPlaceH && IsHostBuf) ||
-                        (IsPlaceH && (IsGlobalBuf || IsConstantBuf))) &&
-                       Dims == 0, buffer<DataT, 1> > &BufferRef)
+  accessor(
+      enable_if_t<Dims == 0 && ((!IsPlaceH && IsHostBuf) ||
+                                (IsPlaceH && (IsGlobalBuf || IsConstantBuf))),
+                  buffer<DataT, 1>> &BufferRef)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.MemRange) {
 #else
@@ -358,8 +360,8 @@ public:
   template <int Dims = Dimensions>
   accessor(
       buffer<DataT, 1> &BufferRef,
-      enable_if_t<(!IsPlaceH && (IsGlobalBuf || IsConstantBuf)) && Dims == 0,
-                   handler> &CommandGroupHandler)
+      enable_if_t<Dims == 0 && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf)),
+                  handler> &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.MemRange) {
   }
@@ -374,11 +376,10 @@ public:
   }
 #endif
 
-  template <
-      int Dims = Dimensions,
-      typename = enable_if_t<((!IsPlaceH && IsHostBuf) ||
-                              (IsPlaceH && (IsGlobalBuf || IsConstantBuf))) &&
-                             (Dims > 0)>>
+  template <int Dims = Dimensions,
+            typename = enable_if_t<
+                (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
+                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(buffer<DataT, Dimensions> &BufferRef)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.MemRange) {
@@ -399,7 +400,7 @@ public:
 
   template <int Dims = Dimensions,
             typename = enable_if_t<
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf)) && (Dims > 0)>>
+                (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
   accessor(buffer<DataT, Dimensions> &BufferRef, handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.MemRange) {
@@ -415,11 +416,10 @@ public:
   }
 #endif
 
-  template <
-      int Dims = Dimensions,
-      typename = enable_if_t<((!IsPlaceH && IsHostBuf) ||
-                              (IsPlaceH && (IsGlobalBuf || IsConstantBuf))) &&
-                             (Dims > 0)>>
+  template <int Dims = Dimensions,
+            typename = enable_if_t<
+                (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
+                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(buffer<DataT, Dimensions> &BufferRef, range<Dimensions> AccessRange,
            id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
@@ -427,10 +427,10 @@ public:
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
-                           detail::convertToArrayOfN<3, 1>(AccessRange),
-                           detail::convertToArrayOfN<3, 1>(BufferRef.MemRange),
-                           AccessMode, detail::getSyclObjImpl(BufferRef).get(),
-                           Dimensions, sizeof(DataT)) {
+                         detail::convertToArrayOfN<3, 1>(AccessRange),
+                         detail::convertToArrayOfN<3, 1>(BufferRef.MemRange),
+                         AccessMode, detail::getSyclObjImpl(BufferRef).get(),
+                         Dimensions, sizeof(DataT)) {
     detail::EventImplPtr Event =
         detail::Scheduler::getInstance().addHostAccessor(
             AccessorBaseHost::impl.get());
@@ -440,7 +440,7 @@ public:
 
   template <int Dims = Dimensions,
             typename = enable_if_t<
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf)) && (Dims > 0)>>
+                (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
   accessor(buffer<DataT, Dimensions> &BufferRef, handler &CommandGroupHandler,
            range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
@@ -448,10 +448,10 @@ public:
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
-                           detail::convertToArrayOfN<3, 1>(AccessRange),
-                           detail::convertToArrayOfN<3, 1>(BufferRef.MemRange),
-                           AccessMode, detail::getSyclObjImpl(BufferRef).get(),
-                           Dimensions, sizeof(DataT)) {
+                         detail::convertToArrayOfN<3, 1>(AccessRange),
+                         detail::convertToArrayOfN<3, 1>(BufferRef.MemRange),
+                         AccessMode, detail::getSyclObjImpl(BufferRef).get(),
+                         Dimensions, sizeof(DataT)) {
     CommandGroupHandler.associateWithHandler(*this);
   }
 #endif
@@ -473,50 +473,50 @@ public:
   }
 
   template <int Dims = Dimensions,
-            typename = enable_if_t<IsAccessAnyWrite && Dims == 0>>
+            typename = enable_if_t<Dims == 0 && IsAccessAnyWrite>>
   operator RefType() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return *(getQualifiedPtr() + LinearIndex);
   }
 
   template <int Dims = Dimensions,
-            typename = enable_if_t<IsAccessAnyWrite && (Dims > 0)>>
+            typename = enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
   RefType operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions,
-            typename = enable_if_t<IsAccessAnyWrite && Dims == 1>>
+            typename = enable_if_t<Dims == 1 && IsAccessAnyWrite>>
   RefType operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<Dimensions>(Index));
     return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions,
-            typename = enable_if_t<IsAccessReadOnly && Dims == 0>>
+            typename = enable_if_t<Dims == 0 && IsAccessReadOnly>>
   operator DataT() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return *(getQualifiedPtr() + LinearIndex);
   }
 
   template <int Dims = Dimensions,
-            typename = enable_if_t<IsAccessReadOnly && (Dims > 0)>>
+            typename = enable_if_t<(Dims > 0) && IsAccessReadOnly>>
   DataT operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions,
-            typename = enable_if_t<IsAccessReadOnly && Dims == 1>>
+            typename = enable_if_t<Dims == 1 && IsAccessReadOnly>>
   DataT operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<Dimensions>(Index));
     return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions>
-  operator typename std::enable_if<AccessMode == access::mode::atomic &&
-                                       Dims == 0,
+  operator typename std::enable_if<Dims == 0 &&
+                                       AccessMode == access::mode::atomic,
                                    atomic<DataT, AS>>::type() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(
@@ -524,7 +524,7 @@ public:
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if<AccessMode == access::mode::atomic && (Dims > 0),
+  typename std::enable_if<(Dims > 0) && AccessMode == access::mode::atomic,
                           atomic<DataT, AS>>::type
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
@@ -533,7 +533,7 @@ public:
   }
 
   template <int Dims = Dimensions>
-  typename enable_if_t<AccessMode == access::mode::atomic && Dims == 1,
+  typename enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
                        atomic<DataT, AS>>::type
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
@@ -672,34 +672,34 @@ public:
   size_t get_count() const { return getSize().size(); }
 
   template <int Dims = Dimensions,
-            typename = enable_if_t<IsAccessAnyWrite && Dims == 0>>
+            typename = enable_if_t<Dims == 0 && IsAccessAnyWrite>>
   operator RefType() const {
     return *getQualifiedPtr();
   }
 
   template <int Dims = Dimensions,
-            typename = enable_if_t<IsAccessAnyWrite && (Dims > 0)>>
+            typename = enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
   RefType operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions,
-            typename = enable_if_t<IsAccessAnyWrite && Dims == 1>>
+            typename = enable_if_t<Dims == 1 && IsAccessAnyWrite>>
   RefType operator[](size_t Index) const {
     return getQualifiedPtr()[Index];
   }
 
   template <
       int Dims = Dimensions,
-      typename = enable_if_t<AccessMode == access::mode::atomic && Dims == 0>>
+      typename = enable_if_t<Dims == 0 && AccessMode == access::mode::atomic>>
   operator atomic<DataT, AS>() const {
     return atomic<DataT, AS>(multi_ptr<DataT, AS>(getQualifiedPtr()));
   }
 
   template <
       int Dims = Dimensions,
-      typename = enable_if_t<AccessMode == access::mode::atomic && (Dims > 0)>>
+      typename = enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic>>
   atomic<DataT, AS> operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(
@@ -708,7 +708,7 @@ public:
 
   template <
       int Dims = Dimensions,
-      typename = enable_if_t<AccessMode == access::mode::atomic && Dims == 1>>
+      typename = enable_if_t<Dims == 1 && AccessMode == access::mode::atomic>>
   atomic<DataT, AS> operator[](size_t Index) const {
     return atomic<DataT, AS>(multi_ptr<DataT, AS>(getQualifiedPtr() + Index));
   }
