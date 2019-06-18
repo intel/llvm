@@ -258,10 +258,10 @@ StmtResult Sema::ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
   // Skip all the checks if we are compiling SYCL device code, but the function
   // is not marked to be used on device, this code won't be codegen'ed anyway.
   if (getLangOpts().SYCLIsDevice) {
-    GCCAsmStmt *NS = new (Context) GCCAsmStmt(
-        Context, AsmLoc, IsSimple, IsVolatile, NumOutputs, NumInputs, Names,
-        Constraints, Exprs.data(), AsmString, NumClobbers, Clobbers, RParenLoc);
-    return NS;
+    return new (Context)
+      GCCAsmStmt(Context, AsmLoc, IsSimple, IsVolatile, NumOutputs,
+                 NumInputs, Names, Constraints, Exprs.data(), AsmString,
+                 NumClobbers, Clobbers, NumLabels, RParenLoc);
   }
 
   for (unsigned i = 0; i != NumOutputs; i++) {
