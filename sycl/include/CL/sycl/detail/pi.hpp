@@ -27,30 +27,32 @@ public:
   using pi_program            = ::pi_program;
 
   // Convinience macro to have things look compact.
-  #define PI_API(pi_api) \
+  #define _PI_API(pi_api) \
     static constexpr decltype(::pi_api) * pi_api = &::pi_api;
 
   // Platform
-  PI_API(piPlatformsGet)
-  PI_API(piPlatformGetInfo)
+  _PI_API(piPlatformsGet)
+  _PI_API(piPlatformGetInfo)
   // Device
-  PI_API(piDevicesGet)
-  PI_API(piDeviceGetInfo)
-  PI_API(piDevicePartition)
-  PI_API(piDeviceRetain)
-  PI_API(piDeviceRelease)
+  _PI_API(piDevicesGet)
+  _PI_API(piDeviceGetInfo)
+  _PI_API(piDevicePartition)
+  _PI_API(piDeviceRetain)
+  _PI_API(piDeviceRelease)
   // IR
-  PI_API(piextDeviceSelectBinary)
+  _PI_API(piextDeviceSelectBinary)
+
+  #undef _PI_API
 };
 
 // Report error and no return (keeps compiler happy about no return statements).
 [[noreturn]] void pi_die(const char *message);
 void pi_assert(bool condition, const char *message = 0);
 
-#define STRINGIZE(x) STRINGIZE2(x)
-#define STRINGIZE2(x) #x
+#define _PI_STRINGIZE(x) _PI_STRINGIZE2(x)
+#define _PI_STRINGIZE2(x) #x
 #define PI_ASSERT(cond, msg) \
-  pi_assert(condition, "assert @ " __FILE__ ":" STRINGIZE(__LINE__) msg);
+  pi_assert(condition, "assert @ " __FILE__ ":" _PI_STRINGIZE(__LINE__) msg);
 
 // This does the call, the trace and the check for no errors.
 // TODO: remove dependency on CHECK_OCL_CODE.

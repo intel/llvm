@@ -125,7 +125,7 @@ struct pi_device_binary_struct {
   _pi_offload_entry EntriesBegin;
   _pi_offload_entry EntriesEnd;
 };
-typedef pi_device_binary_struct * pi_device_binary; 
+typedef pi_device_binary_struct * pi_device_binary;
 
 // Offload binaries descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARIES_VERSION = 1;
@@ -146,7 +146,7 @@ struct pi_device_binaries_struct {
   _pi_offload_entry *HostEntriesBegin;
   _pi_offload_entry *HostEntriesEnd;
 };
-typedef pi_device_binaries_struct *  pi_device_binaries; 
+typedef pi_device_binaries_struct *  pi_device_binaries;
 
 // Opaque types that make reading build log errors easier.
 class _pi_platform;
@@ -162,7 +162,7 @@ typedef cl_program        pi_program;
 //
 // Following section contains SYCL RT Plugin Interface (PI) methods
 // having direct analogy in OpenCL, and needed for the core SYCL
-// functionality. The convention is  to prefix such interfaces with "pi".
+// functionality. The convention is to prefix such interfaces with "pi".
 //
 // TODO: describe interfaces in Doxygen format
 //

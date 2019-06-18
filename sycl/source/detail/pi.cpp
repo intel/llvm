@@ -1,5 +1,6 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <cstdarg>
+#include <iostream>
 #include <map>
 
 namespace cl {
@@ -20,7 +21,7 @@ bool pi_use_backend(pi_backend be) {
     std::map<std::string, pi_backend>{
       { "PI_OPENCL", SYCL_BE_PI_OPENCL },
       { "PI_OTHER",  SYCL_BE_PI_OTHER }
-      // Any other value would yeild 0 -> PI_OPENCL (current default)
+      // Any other value would yield 0 -> PI_OPENCL (current default)
     }[std::getenv("SYCL_BE")];
   return be == use;
 }
@@ -30,7 +31,7 @@ bool pi_use_backend(pi_backend be) {
 //       but for now it is useful to see every failure.
 //
 [[noreturn]] void pi_die(const char *message) {
-  fprintf(stderr, "pi_die(%s)\n", message ? message : "");
+  std::cerr << "pi_die: " << message << std::endl;
   std::terminate();
 }
 
@@ -39,6 +40,7 @@ void pi_assert(bool condition, const char *message) {
     pi_die(message);
 }
 
+// TODO: implement a more mature and controllable tracing of PI calls.
 void pi_trace(const char *format, ...) {
   static bool do_trace = std::getenv("SYCL_BE_TRACE");
   if (!do_trace)

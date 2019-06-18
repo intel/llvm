@@ -42,7 +42,7 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 
 // Structs for emulating function template partial specialization
 // Default template for the general case
-// TODO: get rid of remainig uses of OpenCL directly
+// TODO: get rid of remaining uses of OpenCL directly
 //
 template <typename T, info::device param> struct get_device_info {
   static T _(RT::pi_device dev) {
@@ -70,7 +70,7 @@ template <info::device param> struct get_device_info<string_class, param> {
     return string_class(result.get());
   }
 };
- 
+
 // Specialization for parent device
 template <typename T>
 struct get_device_info<T, info::device::parent_device> {

@@ -20,17 +20,17 @@ platform_impl_pi::get_platforms() {
   pi_uint32 num_platforms = 0;
   PI_CALL(RT::piPlatformsGet(0, 0, &num_platforms));
   info::device_type forced_type = detail::get_forced_type();
-  
+
   if (num_platforms) {
     vector_class<RT::pi_platform> pi_platforms(num_platforms);
     PI_CALL(RT::piPlatformsGet(num_platforms, pi_platforms.data(), 0));
-  
+
     for (pi_uint32 i = 0; i < num_platforms; i++) {
 
       platform plt =
         detail::createSyclObjFromImpl<platform>(
           std::make_shared<platform_impl_pi>(pi_platforms[i]));
-  
+
       // Skip platforms which do not contain requested device types
       if (!plt.get_devices(forced_type).empty())
         platforms.push_back(plt);

@@ -181,7 +181,7 @@ private:
   RT::pi_device m_device = 0;
   RT::pi_device_type m_type;
   bool m_isRootDevice = false;
-}; // class device_impl_pi 
+}; // class device_impl_pi
 
 // TODO: 4.6.4 Partitioning into multiple SYCL devices
 // TODO: 4.6.4.2 Device information descriptors

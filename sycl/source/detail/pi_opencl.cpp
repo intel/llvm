@@ -77,7 +77,7 @@ pi_result OCL(piextDeviceSelectBinary)(
 //       wait until that one is completely removed.
 //
 #define PI_ALIAS(pi_api, ocl_api)           \
-static void *__resolve_##pi_api(void) {       \
+static void *__resolve_##pi_api(void) {     \
   return (void*) (ocl_api);                 \
 }                                           \
 decltype(ocl_api) OCL(pi_api) __attribute__((ifunc ("__resolve_" #pi_api)));
