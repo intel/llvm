@@ -398,7 +398,7 @@ private:
 
 static FunctionDecl *
 CreateOpenCLKernelDeclaration(ASTContext &Context, StringRef Name,
-                            ArrayRef<ParamDesc> ParamDescs) {
+                              ArrayRef<ParamDesc> ParamDescs) {
 
   DeclContext *DC = Context.getTranslationUnitDecl();
   QualType RetTy = Context.VoidTy;
