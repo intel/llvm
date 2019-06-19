@@ -2113,6 +2113,12 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
 Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(const FieldDecl *D,
                                                        Address Addr,
                                                        StringRef AnnotStr) {
+  return EmitIntelFPGAFieldAnnotations(D->getLocation(), Addr, AnnotStr);
+}
+
+Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
+                                                       Address Addr,
+                                                       StringRef AnnotStr) {
   llvm::Value *V = Addr.getPointer();
   llvm::Type *VTy = V->getType();
   llvm::Function *F =
@@ -2122,7 +2128,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(const FieldDecl *D,
   // itself.
   if (VTy != CGM.Int8PtrTy)
     V = Builder.CreateBitCast(V, CGM.Int8PtrTy);
-  V = EmitAnnotationCall(F, V, AnnotStr, D->getLocation());
+  V = EmitAnnotationCall(F, V, AnnotStr, Location);
   V = Builder.CreateBitCast(V, VTy);
   return Address(V, Addr.getAlignment());
 }

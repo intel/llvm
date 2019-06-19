@@ -3765,6 +3765,8 @@ public:
                                           const CallExpr *E);
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
 
+  RValue EmitIntelFPGARegBuiltin(const CallExpr *E, ReturnValueSlot ReturnValue);
+
 private:
   enum class MSVCIntrin;
 
@@ -4015,6 +4017,9 @@ public:
   /// Emit Intel FPGA field annotations for the given field and value. Returns
   /// the annotation result.
   Address EmitIntelFPGAFieldAnnotations(const FieldDecl *D, Address V,
+                                        StringRef AnnotStr);
+
+  Address EmitIntelFPGAFieldAnnotations(SourceLocation Location, Address V,
                                         StringRef AnnotStr);
   //===--------------------------------------------------------------------===//
   //                             Internal Helpers
