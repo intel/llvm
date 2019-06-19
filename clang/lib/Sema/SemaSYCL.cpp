@@ -508,7 +508,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
         std::advance(KernelFuncParam, NumParams - 1);
 
         DeclAccessPair FieldDAP = DeclAccessPair::make(Field, AS_none);
-        // [kenrel_obj or wrapper object].special_obj
+        // [kernel_obj or wrapper object].special_obj
         auto SpecialObjME = MemberExpr::Create(
             S.Context, Base, false, SourceLocation(), NestedNameSpecifierLoc(),
             SourceLocation(), Field, FieldDAP,
@@ -539,7 +539,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
           ParamStmts.push_back(getExprForKernelParameter(
               S, (*(ParamItr++))->getOriginalType(), ParamDREs[I]));
         }
-        // [kenrel_obj or wrapper object].accessor.__init(_ValueType*,
+        // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
         // range<int>, range<int>, id<int>)
         CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
             S.Context, ME, ParamStmts, ResultTy, VK, SourceLocation());
@@ -780,7 +780,7 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
   auto populateHeaderForAccessor = [&](const QualType &ArgTy, uint64_t Offset) {
     // The parameter is a SYCL accessor object.
     // The Info field of the parameter descriptor for accessor contains
-    // two template parameters packed into thid integer field:
+    // two template parameters packed into an integer field:
     //   - target (e.g. global_buffer, constant_buffer, local);
     //   - dimension of the accessor.
     const auto *AccTy = ArgTy->getAsCXXRecordDecl();
