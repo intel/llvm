@@ -132,6 +132,10 @@ def err_intel_fpga_loop_attr_duplication : Error<
   "duplicate Intel FPGA loop attribute '%0'">;
 def err_intel_fpga_merge_dir_invalid : Error<
   "merge direction must be 'depth' or 'width'">;
+def err_intel_fpga_reg_limitations : Error <
+  "Illegal %select{argument of type %1 |field in argument}0 to __builtin_intel_fpga_reg.">;
+def illegal_type_declared_here : Note<
+  "Field with illegal type declared here">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,

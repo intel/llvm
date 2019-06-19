@@ -1500,6 +1500,16 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (SemaBuiltinOSLogFormat(TheCall))
       return ExprError();
     break;
+  case Builtin::BI__builtin_intel_fpga_reg:
+    if (!Context.getLangOpts().SYCLIsDevice) {
+      Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
+          << "__builtin_intel_fpga_reg"
+          << "SYCL device";
+      return ExprError();
+    }
+    if (CheckIntelFPGABuiltinFunctionCall(BuiltinID, TheCall))
+      return ExprError();
+    break;
   }
 
   // Since the target specific builtins for each arch overlap, only check those
@@ -4000,6 +4010,66 @@ bool Sema::CheckX86BuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   // range values. These need to code generate, but don't need to necessarily
   // make any sense. We use a warning that defaults to an error.
   return SemaBuiltinConstantArgRange(TheCall, i, l, u, /*RangeIsError*/ false);
+}
+
+static bool checkIntelFPGARegArgument(Sema &S, QualType ArgType,
+                                      SourceLocation &Loc) {
+  if (ArgType.getTypePtr()->isArrayType())
+    return true;
+
+  // Non-POD classes are allowed. Each field is checked for illegal type.
+  if (CXXRecordDecl *Record = ArgType->getAsCXXRecordDecl()) {
+    for (auto *FD : Record->fields()) {
+      QualType T = FD->getType();
+      Loc = FD->getLocation();
+      if (const ArrayType *AT = T->getAsArrayTypeUnsafe())
+        T = AT->getElementType();
+      if (checkIntelFPGARegArgument(S, T, Loc))
+        return true;
+    }
+    return false;
+  }
+
+  QualType CTy = ArgType.getCanonicalType();
+
+  if (CTy->isFunctionPointerType() || CTy->isImageType() ||
+      CTy->isEventT() || CTy->isSamplerT() || CTy->isPipeType())
+    return true;
+
+  // Check to filter out unintended types. Records are handled above.
+  if (!CTy.isCXX98PODType(S.Context))
+    return true;
+
+  return false;
+}
+
+bool Sema::CheckIntelFPGABuiltinFunctionCall(unsigned BuiltinID,
+                                             CallExpr *TheCall) {
+  switch (BuiltinID) {
+  case Builtin::BI__builtin_intel_fpga_reg: {
+    if (checkArgCount(*this, TheCall, 1))
+      return true;
+
+    Expr *Arg = TheCall->getArg(0);
+    QualType ArgType = Arg->getType();
+    SourceLocation Loc;
+
+    if (checkIntelFPGARegArgument(*this, ArgType, Loc)) {
+      Diag(TheCall->getBeginLoc(), diag::err_intel_fpga_reg_limitations)
+          << (ArgType.getTypePtr()->isRecordType() ? 1 : 0) << ArgType
+          << TheCall->getSourceRange();
+      if (ArgType.getTypePtr()->isRecordType())
+        Diag(Loc, diag::illegal_type_declared_here);
+      return true;
+    }
+
+    TheCall->setType(ArgType);
+
+    return false;
+  }
+  default:
+    return true;
+  }
 }
 
 /// Given a FunctionDecl's FormatAttr, attempts to populate the FomatStringInfo
