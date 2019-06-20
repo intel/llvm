@@ -5360,6 +5360,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // header file.
       CmdArgs.push_back("-dependency-filter");
       CmdArgs.push_back(SYCLDeviceInput->getFilename());
+      // Let the FE know we are doing a SYCL offload compilation, but we are
+      // doing the host pass.
+      CmdArgs.push_back("-fsycl-is-host");
     }
     if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
       // Generating a SYCL Header

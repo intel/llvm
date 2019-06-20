@@ -5021,6 +5021,9 @@ static bool checkForDuplicateAttribute(Sema &S, Decl *D,
 template <typename AttrType, typename IncompatAttrType>
 static void handleIntelFPGAPumpAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
 
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
   checkForDuplicateAttribute<AttrType>(S, D, Attr);
   if (checkAttrMutualExclusion<IncompatAttrType>(S, D, Attr))
     return;
@@ -5039,6 +5042,9 @@ static void handleIntelFPGAPumpAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
 /// This is incompatible with the [[intelfpga::register]] attribute.
 static void handleIntelFPGAMemoryAttr(Sema &S, Decl *D,
                                       const ParsedAttr &Attr) {
+
+  if (S.LangOpts.SYCLIsHost)
+    return;
 
   checkForDuplicateAttribute<IntelFPGAMemoryAttr>(S, D, Attr);
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
@@ -5106,6 +5112,9 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
 static void handleIntelFPGARegisterAttr(Sema &S, Decl *D,
                                         const ParsedAttr &Attr) {
 
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
   checkForDuplicateAttribute<IntelFPGARegisterAttr>(S, D, Attr);
   if (checkIntelFPGARegisterAttrCompatibility(S, D, Attr))
     return;
@@ -5121,6 +5130,10 @@ static void handleIntelFPGARegisterAttr(Sema &S, Decl *D,
 template <typename AttrType>
 static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
                                                const ParsedAttr &Attr) {
+
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
   checkForDuplicateAttribute<AttrType>(S, D, Attr);
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
     return;
@@ -5132,6 +5145,9 @@ static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
 
 static void handleIntelFPGASimpleDualPortAttr(Sema &S, Decl *D,
                                               const ParsedAttr &Attr) {
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
   checkForDuplicateAttribute<IntelFPGASimpleDualPortAttr>(S, D, Attr);
 
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
@@ -5147,6 +5163,9 @@ static void handleIntelFPGASimpleDualPortAttr(Sema &S, Decl *D,
 
 static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
                                              const ParsedAttr &Attr) {
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
   checkForDuplicateAttribute<IntelFPGAMaxReplicatesAttr>(S, D, Attr);
 
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
@@ -5163,6 +5182,9 @@ static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
 /// This is incompatible with the register attribute.
 static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
   checkForDuplicateAttribute<IntelFPGAMergeAttr>(S, D, Attr);
+
+  if (S.LangOpts.SYCLIsHost)
+    return;
 
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
     return;
@@ -5191,6 +5213,10 @@ static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
 
 static void handleIntelFPGAMaxPrivateCopiesAttr(Sema &S, Decl *D,
                                               const ParsedAttr &Attr) {
+
+  if (S.LangOpts.SYCLIsHost)
+    return;
+
   checkForDuplicateAttribute<IntelFPGAMaxPrivateCopiesAttr>(S, D, Attr);
   if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
     return;

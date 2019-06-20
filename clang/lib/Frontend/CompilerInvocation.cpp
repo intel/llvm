@@ -2921,6 +2921,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   }
 
   Opts.SYCLIsDevice   = Args.hasArg(options::OPT_fsycl_is_device);
+  Opts.SYCLIsHost   = Args.hasArg(options::OPT_fsycl_is_host);
   Opts.SYCLAllowFuncPtr = Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
                                   options::OPT_fno_sycl_allow_func_ptr, false);
 

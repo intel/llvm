@@ -858,7 +858,8 @@ def fopenmp_host_ir_file_path : Separate<["-"], "fopenmp-host-ir-file-path">,
 
 def fsycl_is_device : Flag<["-"], "fsycl-is-device">,
   HelpText<"Generate code for SYCL device.">;
-
+def fsycl_is_host : Flag<["-"], "fsycl-is-host">,
+  HelpText<"SYCL host compilation">;
 def fsycl_int_header : Separate<["-"], "fsycl-int-header">,
   HelpText<"Generate SYCL integration header into this file.">;
 def fsycl_int_header_EQ : Joined<["-"], "fsycl-int-header=">,
