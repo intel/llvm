@@ -258,6 +258,17 @@ public:
   void VisitExprWithCleanups(const ExprWithCleanups *EWC);
   void VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *BTE);
   void VisitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *MTE);
+  void VisitCXXDependentScopeMemberExpr(const CXXDependentScopeMemberExpr *ME);
+
+  void VisitObjCEncodeExpr(const ObjCEncodeExpr *OEE);
+  void VisitObjCMessageExpr(const ObjCMessageExpr *OME);
+  void VisitObjCBoxedExpr(const ObjCBoxedExpr *OBE);
+  void VisitObjCSelectorExpr(const ObjCSelectorExpr *OSE);
+  void VisitObjCProtocolExpr(const ObjCProtocolExpr *OPE);
+  void VisitObjCPropertyRefExpr(const ObjCPropertyRefExpr *OPRE);
+  void VisitObjCSubscriptRefExpr(const ObjCSubscriptRefExpr *OSRE);
+  void VisitObjCIvarRefExpr(const ObjCIvarRefExpr *OIRE);
+  void VisitObjCBoolLiteralExpr(const ObjCBoolLiteralExpr *OBLE);
 
   void VisitIntegerLiteral(const IntegerLiteral *IL);
   void VisitCharacterLiteral(const CharacterLiteral *CL);
