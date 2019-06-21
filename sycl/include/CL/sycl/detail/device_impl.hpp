@@ -113,7 +113,7 @@ public:
   ~device_impl_pi() {
     if (!m_isRootDevice) {
       // TODO catch an exception and put it to list of asynchronous exceptions
-      PI_CALL(RT::piDeviceRelease(m_device));
+      CHECK_OCL_CODE_NO_EXC(RT::piDeviceRelease(m_device));
     }
   }
 
@@ -151,7 +151,7 @@ public:
     PI_CALL(RT::piDeviceGetInfo(
       m_device, PI_DEVICE_INFO_PLATFORM, sizeof(plt), &plt, 0));
 
-    // TODO: thisi possibly will violate common reference semantics,
+    // TODO: this possibly will violate common reference semantics,
     // particularly, equality comparison may fail for two consecutive
     // get_platform() on the same device, as it compares impl objects.
     return createSyclObjFromImpl<platform>(
@@ -169,13 +169,13 @@ public:
                      size_t SubDevicesCount) const;
 
   vector_class<device>
-  create_sub_devices(size_t ComputeUnits) const;
+  create_sub_devices(size_t ComputeUnits) const override;
 
   vector_class<device>
-  create_sub_devices(const vector_class<size_t> &Counts) const;
+  create_sub_devices(const vector_class<size_t> &Counts) const override;
 
   vector_class<device>
-  create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
+  create_sub_devices(info::partition_affinity_domain AffinityDomain) const override;
 
 private:
   RT::pi_device m_device = 0;
@@ -214,21 +214,21 @@ public:
     return false;
   }
 
-  vector_class<device> create_sub_devices(size_t nbSubDev) const {
+  vector_class<device> create_sub_devices(size_t nbSubDev) const override {
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet");
   }
 
   vector_class<device>
-  create_sub_devices(const vector_class<size_t> &counts) const {
+  create_sub_devices(const vector_class<size_t> &counts) const override {
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet");
   }
 
   vector_class<device>
-  create_sub_devices(info::partition_affinity_domain affinityDomain) const {
+  create_sub_devices(info::partition_affinity_domain affinityDomain) const override {
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet");

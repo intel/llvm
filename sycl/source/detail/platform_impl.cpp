@@ -1,4 +1,4 @@
-//==----------- platform_host.cpp -----------------------------------------------==//
+//==----------- platform_impl.cpp ------------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -59,9 +59,9 @@ platform_impl_pi::get_devices(info::device_type deviceType) const {
 
   // TODO: remove this check when switched to PI as it would just return
   // zero in num_devices.
-  if (err == CL_DEVICE_NOT_FOUND) {
+  if (err == CL_DEVICE_NOT_FOUND)
     return res;
-  }
+
   // TODO catch an exception and put it to list of asynchronous exceptions
   // TODO: remove dependency on CHECK_OCL_CODE
   CHECK_OCL_CODE(err);

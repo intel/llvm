@@ -15,6 +15,14 @@
 #ifndef _PI_H_
 #define _PI_H_
 
+// Every single change in PI API should be accamponied with the minor
+// version increase (+1). In the cases where backward compatibility is not
+// maintained there should be a (+1) change to the major version in
+// addition to the increase of the minor.
+//
+#define _PI_H_VERSION_MAJOR 1
+#define _PI_H_VERSION_MINOR 1
+
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
@@ -229,7 +237,7 @@ pi_program piclProgramCreateWithSource( // TODO:  change to return pi_result
 //
 // TODO: describe interfaces in Doxygen format
 
-/// Selects the most appropriate device ninary based on runtime information
+/// Selects the most appropriate device binary based on runtime information
 /// and the IR characteristics.
 ///
 pi_result piextDeviceSelectBinary(

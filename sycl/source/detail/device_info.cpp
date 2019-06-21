@@ -40,10 +40,6 @@ device get_device_info<device, info::device::parent_device>::_(
     std::make_shared<device_impl_pi>(result));
 }
 
-//template struct get_device_info<device, info::device::parent_device>;
-
-void get_device_info_BAD() {}
-
 vector_class<info::fp_config> read_fp_bitfield(cl_device_fp_config bits) {
   vector_class<info::fp_config> result;
   if (bits & CL_FP_DENORM)

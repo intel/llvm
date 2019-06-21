@@ -258,13 +258,6 @@ struct get_device_info<info::partition_property,
     return info::partition_property(arrayResult[0]);
   }
 };
-/*
-// Specialization for parent device
-template <>
-struct get_device_info<device, info::device::parent_device> {
-  static device _(RT::pi_device dev);
-};
-*/
 // Specialization for supported subgroup sizes
 template <>
 struct get_device_info<vector_class<size_t>,
