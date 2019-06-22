@@ -71,6 +71,7 @@ uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type) {
   }
   // OpenCL states that "The number of bits per element determined by the
   // image_channel_type and image_channel_order must be a power of two"
+  // Retval is in bytes. The formula remains the same for bytes or bits.
   assert(((Retval - 1) & Retval) == 0);
   return Retval;
 }
