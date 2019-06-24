@@ -49,9 +49,11 @@ public:
 
   // Allocate aligned (to Alignment) memory
   pointer allocate(size_t Size) {
-    Size += Alignment - Size % Alignment;
+    size_t NumBytes = Size * sizeof(value_type);
+    NumBytes = ((NumBytes - 1) | (Alignment - 1)) + 1;
+
     pointer Result = reinterpret_cast<pointer>(
-      detail::OSUtil::alignedAlloc(Alignment, Size * sizeof(value_type)));
+        detail::OSUtil::alignedAlloc(Alignment, NumBytes));
     if (!Result)
       throw std::bad_alloc();
     return Result;
