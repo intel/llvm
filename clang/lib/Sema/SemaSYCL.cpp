@@ -340,6 +340,12 @@ private:
       Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
 
     if (const auto *CRD = Ty->getAsCXXRecordDecl()) {
+      // If the class is a forward declaration - skip it, because otherwise we
+      // would query property of class with no definition, which results in
+      // clang crash.
+      if (!CRD->hasDefinition())
+        return true;
+
       if (CRD->isPolymorphic()) {
         SemaRef.Diag(CRD->getLocation(), diag::err_sycl_virtual_types);
         SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
