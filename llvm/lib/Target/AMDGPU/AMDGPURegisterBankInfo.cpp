@@ -375,7 +375,7 @@ AMDGPURegisterBankInfo::getInstrAlternativeMappings(
 
 void AMDGPURegisterBankInfo::split64BitValueForMapping(
   MachineIRBuilder &B,
-  SmallVector<unsigned, 2> &Regs,
+  SmallVector<Register, 2> &Regs,
   LLT HalfTy,
   unsigned Reg) const {
   assert(HalfTy.getSizeInBits() == 32);
@@ -396,7 +396,7 @@ void AMDGPURegisterBankInfo::split64BitValueForMapping(
 }
 
 /// Replace the current type each register in \p Regs has with \p NewTy
-static void setRegsToType(MachineRegisterInfo &MRI, ArrayRef<unsigned> Regs,
+static void setRegsToType(MachineRegisterInfo &MRI, ArrayRef<Register> Regs,
                           LLT NewTy) {
   for (unsigned Reg : Regs) {
     assert(MRI.getType(Reg).getSizeInBits() == NewTy.getSizeInBits());
@@ -445,7 +445,7 @@ void AMDGPURegisterBankInfo::executeInWaterfallLoop(
 
   // Use a set to avoid extra readfirstlanes in the case where multiple operands
   // are the same register.
-  SmallSet<unsigned, 4> SGPROperandRegs;
+  SmallSet<Register, 4> SGPROperandRegs;
   for (unsigned Op : OpIndices) {
     assert(MI.getOperand(Op).isUse());
     unsigned Reg = MI.getOperand(Op).getReg();
@@ -459,9 +459,9 @@ void AMDGPURegisterBankInfo::executeInWaterfallLoop(
     return;
 
   MachineIRBuilder B(MI);
-  SmallVector<unsigned, 4> ResultRegs;
-  SmallVector<unsigned, 4> InitResultRegs;
-  SmallVector<unsigned, 4> PhiRegs;
+  SmallVector<Register, 4> ResultRegs;
+  SmallVector<Register, 4> InitResultRegs;
+  SmallVector<Register, 4> PhiRegs;
   for (MachineOperand &Def : MI.defs()) {
     LLT ResTy = MRI.getType(Def.getReg());
     const RegisterBank *DefBank = getRegBank(Def.getReg(), MRI, *TRI);
@@ -575,7 +575,7 @@ void AMDGPURegisterBankInfo::executeInWaterfallLoop(
         }
       } else {
         LLT S32 = LLT::scalar(32);
-        SmallVector<unsigned, 8> ReadlanePieces;
+        SmallVector<Register, 8> ReadlanePieces;
 
         // The compares can be done as 64-bit, but the extract needs to be done
         // in 32-bit pieces.
@@ -732,10 +732,10 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
 
     LLT HalfTy = getHalfSizedType(DstTy);
 
-    SmallVector<unsigned, 2> DefRegs(OpdMapper.getVRegs(0));
-    SmallVector<unsigned, 1> Src0Regs(OpdMapper.getVRegs(1));
-    SmallVector<unsigned, 2> Src1Regs(OpdMapper.getVRegs(2));
-    SmallVector<unsigned, 2> Src2Regs(OpdMapper.getVRegs(3));
+    SmallVector<Register, 2> DefRegs(OpdMapper.getVRegs(0));
+    SmallVector<Register, 1> Src0Regs(OpdMapper.getVRegs(1));
+    SmallVector<Register, 2> Src1Regs(OpdMapper.getVRegs(2));
+    SmallVector<Register, 2> Src2Regs(OpdMapper.getVRegs(3));
 
     // All inputs are SGPRs, nothing special to do.
     if (DefRegs.empty()) {
@@ -781,9 +781,9 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
       break;
 
     LLT HalfTy = getHalfSizedType(DstTy);
-    SmallVector<unsigned, 2> DefRegs(OpdMapper.getVRegs(0));
-    SmallVector<unsigned, 2> Src0Regs(OpdMapper.getVRegs(1));
-    SmallVector<unsigned, 2> Src1Regs(OpdMapper.getVRegs(2));
+    SmallVector<Register, 2> DefRegs(OpdMapper.getVRegs(0));
+    SmallVector<Register, 2> Src0Regs(OpdMapper.getVRegs(1));
+    SmallVector<Register, 2> Src1Regs(OpdMapper.getVRegs(2));
 
     // All inputs are SGPRs, nothing special to do.
     if (DefRegs.empty()) {
@@ -828,21 +828,55 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
   }
   case AMDGPU::G_SEXT:
   case AMDGPU::G_ZEXT: {
-    unsigned SrcReg = MI.getOperand(1).getReg();
+    Register SrcReg = MI.getOperand(1).getReg();
     LLT SrcTy = MRI.getType(SrcReg);
+    bool Signed = Opc == AMDGPU::G_SEXT;
+
+    MachineIRBuilder B(MI);
+    const RegisterBank *SrcBank = getRegBank(SrcReg, MRI, *TRI);
+
+    Register DstReg = MI.getOperand(0).getReg();
+    LLT DstTy = MRI.getType(DstReg);
+    if (DstTy.isScalar() &&
+        SrcBank != &AMDGPU::SGPRRegBank &&
+        SrcBank != &AMDGPU::SCCRegBank &&
+        SrcBank != &AMDGPU::VCCRegBank &&
+        // FIXME: Should handle any type that round to s64 when irregular
+        // breakdowns supported.
+        DstTy.getSizeInBits() == 64 &&
+        SrcTy.getSizeInBits() <= 32) {
+      const LLT S32 = LLT::scalar(32);
+      SmallVector<Register, 2> DefRegs(OpdMapper.getVRegs(0));
+
+      // Extend to 32-bit, and then extend the low half.
+      if (Signed) {
+        // TODO: Should really be buildSExtOrCopy
+        B.buildSExtOrTrunc(DefRegs[0], SrcReg);
+
+        // Replicate sign bit from 32-bit extended part.
+        auto ShiftAmt = B.buildConstant(S32, 31);
+        MRI.setRegBank(ShiftAmt.getReg(0), *SrcBank);
+        B.buildAShr(DefRegs[1], DefRegs[0], ShiftAmt);
+      } else {
+        B.buildZExtOrTrunc(DefRegs[0], SrcReg);
+        B.buildConstant(DefRegs[1], 0);
+      }
+
+      MRI.setRegBank(DstReg, *SrcBank);
+      MI.eraseFromParent();
+      return;
+    }
+
     if (SrcTy != LLT::scalar(1))
       return;
 
-    MachineIRBuilder B(MI);
-    bool Signed = Opc == AMDGPU::G_SEXT;
-    unsigned DstReg = MI.getOperand(0).getReg();
-    LLT DstTy = MRI.getType(DstReg);
-    const RegisterBank *SrcBank = getRegBank(SrcReg, MRI, *TRI);
-    if (SrcBank->getID() == AMDGPU::SCCRegBankID ||
-        SrcBank->getID() == AMDGPU::VCCRegBankID) {
-      const RegisterBank *DstBank = getRegBank(DstReg, MRI, *TRI);
-      unsigned DstSize = DstTy.getSizeInBits();
+    if (SrcBank == &AMDGPU::SCCRegBank || SrcBank == &AMDGPU::VCCRegBank) {
+      SmallVector<Register, 2> DefRegs(OpdMapper.getVRegs(0));
 
+      const RegisterBank *DstBank = SrcBank == &AMDGPU::SCCRegBank ?
+        &AMDGPU::SGPRRegBank : &AMDGPU::VGPRRegBank;
+
+      unsigned DstSize = DstTy.getSizeInBits();
       // 64-bit select is SGPR only
       const bool UseSel64 = DstSize > 32 &&
         SrcBank->getID() == AMDGPU::SCCRegBankID;
@@ -854,10 +888,11 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
 
       MRI.setRegBank(True.getReg(0), *DstBank);
       MRI.setRegBank(False.getReg(0), *DstBank);
+      MRI.setRegBank(DstReg, *DstBank);
+
       if (DstSize > 32 && SrcBank->getID() != AMDGPU::SCCRegBankID) {
-        auto Sel = B.buildSelect(SelType, SrcReg, True, False);
-        MRI.setRegBank(Sel.getReg(0), *DstBank);
-        B.buildMerge(DstReg, { Sel.getReg(0), Sel.getReg(0) });
+        B.buildSelect(DefRegs[0], SrcReg, True, False);
+        B.buildCopy(DefRegs[1], DefRegs[0]);
       } else if (DstSize < 32) {
         auto Sel = B.buildSelect(SelType, SrcReg, True, False);
         MRI.setRegBank(Sel.getReg(0), *DstBank);
@@ -1313,8 +1348,17 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       break;
     }
 
-    OpdsMapping[0] = AMDGPU::getValueMapping(DstBank, DstSize);
-    OpdsMapping[1] = AMDGPU::getValueMapping(SrcBank->getID(), SrcSize);
+    // TODO: Should anyext be split into 32-bit part as well?
+    if (MI.getOpcode() == AMDGPU::G_ANYEXT) {
+      OpdsMapping[0] = AMDGPU::getValueMapping(DstBank, DstSize);
+      OpdsMapping[1] = AMDGPU::getValueMapping(SrcBank->getID(), SrcSize);
+    } else {
+      // Scalar extend can use 64-bit BFE, but VGPRs require extending to
+      // 32-bits, and then to 64.
+      OpdsMapping[0] = AMDGPU::getValueMappingSGPR64Only(DstBank, DstSize);
+      OpdsMapping[1] = AMDGPU::getValueMappingSGPR64Only(SrcBank->getID(),
+                                                         SrcSize);
+    }
     break;
   }
   case AMDGPU::G_FCMP: {
@@ -1456,6 +1500,15 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       OpdsMapping[4] = AMDGPU::getValueMapping(
         getRegBankID(MI.getOperand(4).getReg(), MRI, *TRI), SrcSize);
 
+      break;
+    }
+    case Intrinsic::amdgcn_class: {
+      unsigned SrcReg = MI.getOperand(2).getReg();
+      unsigned SrcSize = MRI.getType(SrcReg).getSizeInBits();
+      unsigned DstSize = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
+      OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::VCCRegBankID, DstSize);
+      OpdsMapping[2] = AMDGPU::getValueMapping(getRegBankID(SrcReg, MRI, *TRI),
+                                               SrcSize);
       break;
     }
     }
