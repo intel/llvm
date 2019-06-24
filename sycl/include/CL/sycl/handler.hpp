@@ -392,6 +392,19 @@ private:
         std::move(CommandGroup), std::move(MQueue));
 
     EventRet = detail::createSyclObjFromImpl<event>(Event);
+
+    // Waiting for copy command to complete here as SYCL specification says that
+    // the SYCL runtime must ensure that data is copied to the destination once
+    // the command group has completed execution.
+    switch (MCGType) {
+    case detail::CG::COPY_ACC_TO_PTR:
+    case detail::CG::COPY_PTR_TO_ACC:
+    case detail::CG::COPY_ACC_TO_ACC:
+      EventRet.wait();
+    default:
+      break;
+    }
+
     return EventRet;
   }
 
