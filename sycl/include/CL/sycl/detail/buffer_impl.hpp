@@ -90,20 +90,21 @@ public:
     set_final_data(weak_ptr_class<T>(HostData));
   }
 
-  template <typename Iterator> struct is_const_iterator {
-    using pointer = typename std::iterator_traits<Iterator>::pointer;
-    static constexpr bool value =
-        std::is_const<typename std::remove_pointer<pointer>::type>::value;
-  };
+  template <typename Iterator>
+  using GetTypeFromIterator = typename std::remove_pointer<
+      typename std::iterator_traits<Iterator>::pointer>;
+
+  template <typename Iterator>
+  using IsConstIterator =
+      typename std::is_const<typename GetTypeFromIterator<Iterator>::type>;
 
   template <typename Iterator>
   using EnableIfConstIterator =
-      typename std::enable_if<is_const_iterator<Iterator>::value,
-                              Iterator>::type;
+      typename std::enable_if<IsConstIterator<Iterator>::value, Iterator>::type;
 
   template <typename Iterator>
   using EnableIfNotConstIterator =
-      typename std::enable_if<!is_const_iterator<Iterator>::value,
+      typename std::enable_if<!IsConstIterator<Iterator>::value,
                               Iterator>::type;
 
   template <class InputIterator>
