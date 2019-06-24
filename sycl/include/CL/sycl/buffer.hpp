@@ -21,7 +21,7 @@ class queue;
 template <int dimensions> class range;
 
 template <typename T, int dimensions = 1,
-          typename AllocatorT = cl::sycl::buffer_allocator>
+          typename AllocatorT = cl::sycl::detail::aligned_allocator<T>>
 class buffer {
 public:
   using value_type = T;
