@@ -35,7 +35,7 @@ class accessor;
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
 class handler;
 
-using buffer_allocator = aligned_allocator<char, /*Alignment*/64>;
+using buffer_allocator = detail::aligned_allocator<char, /*Alignment*/ 64>;
 
 namespace detail {
 using EventImplPtr = std::shared_ptr<detail::event_impl>;

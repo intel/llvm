@@ -20,6 +20,7 @@
 
 namespace cl {
 namespace sycl {
+namespace detail {
 template <typename T, size_t Alignment>
 class aligned_allocator {
 public:
@@ -65,5 +66,6 @@ public:
   bool operator==(const aligned_allocator&) { return true; }
   bool operator!=(const aligned_allocator& rhs) { return false; }
 };
+} // namespace detail
 } // namespace sycl
 } // namespace cl
