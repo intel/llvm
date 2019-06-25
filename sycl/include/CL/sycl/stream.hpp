@@ -228,6 +228,10 @@ private:
   template <int Dimensions>
   friend const stream &operator<<(const stream &Out,
                                   const group<Dimensions> &RHS);
+
+  template <int Dimensions>
+  friend const stream &operator<<(const stream &Out,
+                                  const h_item<Dimensions> &RHS);
 };
 
 // Character
@@ -380,6 +384,13 @@ template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const group<Dimensions> &RHS) {
   detail::writeGroup<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
+  return Out;
+}
+
+template <int Dimensions>
+inline const stream &operator<<(const stream &Out,
+                                const h_item<Dimensions> &RHS) {
+  detail::writeHItem<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
   return Out;
 }
 

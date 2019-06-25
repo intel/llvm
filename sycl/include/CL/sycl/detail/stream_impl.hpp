@@ -568,6 +568,41 @@ inline void writeGroup(stream_impl::OffsetAccessorType &OffsetAcc,
   write(OffsetAcc, Acc, Len, Buf);
 }
 
+// Space for 2 arrays and additional place (20 symbols) for printing
+// the text
+constexpr size_t MAX_ITEM_SIZE = 2 * MAX_ARRAY_SIZE + 20;
+
+template <int Dimensions>
+inline unsigned ItemToStr(char *Buf, const item<Dimensions, false> &Item) {
+  unsigned Len = 0;
+  Len += append(Buf, "item(");
+  Len += append(Buf + Len, "range: ");
+  Len += ArrayToStr(Buf + Len, Item.get_range());
+  Len += append(Buf + Len, ", id: ");
+  Len += ArrayToStr(Buf + Len, Item.get_id());
+  Buf[Len++] = ')';
+  return Len;
+}
+
+template <int Dimensions>
+inline void writeHItem(stream_impl::OffsetAccessorType &OffsetAcc,
+                       stream_impl::AccessorType &Acc,
+                       const h_item<Dimensions> &HItem) {
+  // Reserve space for 3 items and additional place (60 symbols) for printing
+  // the text
+  char Buf[3 * MAX_ITEM_SIZE + 60] = {0};
+  unsigned Len = 0;
+  Len += append(Buf, "h_item(");
+  Len += append(Buf + Len, "\n  global ");
+  Len += ItemToStr(Buf + Len, HItem.get_global());
+  Len += append(Buf + Len, "\n  logical local ");
+  Len += ItemToStr(Buf + Len, HItem.get_logical_local());
+  Len += append(Buf + Len, "\n  physical local ");
+  Len += ItemToStr(Buf + Len, HItem.get_physical_local());
+  Len += append(Buf + Len, "\n)");
+  write(OffsetAcc, Acc, Len, Buf);
+}
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl
