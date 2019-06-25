@@ -103,6 +103,9 @@ template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
   return T(ImplObj);
 }
 
+// Returns the smallest power of two not less than Var
+size_t getNextPowerOfTwo(size_t Var);
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl

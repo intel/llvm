@@ -22,6 +22,7 @@
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <type_traits>
@@ -35,7 +36,7 @@ class accessor;
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
 class handler;
 
-using buffer_allocator = aligned_allocator<char, /*Alignment*/64>;
+using buffer_allocator = detail::aligned_allocator<char>;
 
 namespace detail {
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
@@ -59,7 +60,10 @@ public:
       return;
 
     set_final_data(reinterpret_cast<char *>(HostData));
-    if (MProps.has_property<property::buffer::use_host_ptr>()) {
+    size_t RequiredAlignment =
+        getNextPowerOfTwo(sizeof(typename AllocatorT::value_type));
+    if (reinterpret_cast<std::uintptr_t>(HostData) % RequiredAlignment == 0 ||
+        MProps.has_property<property::buffer::use_host_ptr>()) {
       MUserPtr = HostData;
       return;
     }
