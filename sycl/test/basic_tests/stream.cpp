@@ -222,6 +222,20 @@ int main() {
     Queue.wait();
 // CHECK-NEXT: nd_item(global_id: {1, 2, 3}, local_id: {1, 0, 1})
 
+    Queue.submit([&](handler &CGH) {
+      stream Out(1024, 80, CGH);
+      CGH.parallel_for_work_group<class stream_h_item>(
+          range<3>(1, 1, 1), range<3>(1, 1, 1), [=](group<3> Group) {
+            Group.parallel_for_work_item(
+                [&](h_item<3> Item) { Out << Item << sm::endl; });
+          });
+    });
+// CHECK-NEXT: h_item(
+// CHECK-NEXT:   global item(range: {1, 1, 1}, id: {0, 0, 0})
+// CHECK-NEXT:   logical local item(range: {1, 1, 1}, id: {0, 0, 0})
+// CHECK-NEXT:   physical local item(range: {1, 1, 1}, id: {0, 0, 0})
+// CHECK-NEXT: )
+
     // Multiple streams in command group
     Queue.submit([&](handler &CGH) {
       stream Out1(1024, 80, CGH);
