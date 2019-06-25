@@ -1745,7 +1745,7 @@ void CodeGenFunction::EmitStoreOfScalar(llvm::Value *Value, Address Addr,
     return;
   }
 
-  if (getenv("ENABLE_INFER_AS")) {
+  if (!getenv("DISABLE_INFER_AS")) {
     if (auto *PtrTy = dyn_cast<llvm::PointerType>(Value->getType())) {
       auto *ExpectedPtrType =
           cast<llvm::PointerType>(Addr.getType()->getElementType());

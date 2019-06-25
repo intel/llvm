@@ -1,4 +1,5 @@
-// RUN: %clang --sycl %s -S -emit-llvm -g -o - | FileCheck %s
+// RUN: DISABLE_INFER_AS=1 %clang --sycl %s -S -emit-llvm -g -o - | FileCheck %s --check-prefixes CHECK,CHECK-OLD
+// RUN: %clang --sycl %s -S -emit-llvm -g -o - | FileCheck %s --check-prefixes CHECK,CHECK-NEW
 //
 // Verify the SYCL kernel routine is marked artificial.
 //
@@ -21,7 +22,8 @@ int main() {
   return 0;
 }
 
-// CHECK: define{{.*}} spir_kernel {{.*}}void @_ZTSZ4mainE15kernel_function(i32*{{.*}}){{.*}} !dbg [[KERNEL:![0-9]+]] {{.*}}{
+// CHECK-OLD: define{{.*}} spir_kernel {{.*}}void @_ZTSZ4mainE15kernel_function(i32*{{.*}}){{.*}} !dbg [[KERNEL:![0-9]+]] {{.*}}{
+// CHECK-NEW: define{{.*}} spir_kernel {{.*}}void @_ZTSZ4mainE15kernel_function(i32 addrspace(4)*{{.*}}){{.*}} !dbg [[KERNEL:![0-9]+]] {{.*}}{
 // CHECK: [[FILE:![0-9]+]] = !DIFile(filename: "{{.*}}debug-info-srcpos-kernel.cpp"{{.*}})
 // CHECK: [[KERNEL]] = {{.*}}!DISubprogram(name: "_ZTSZ4mainE15kernel_function"
 // CHECK-SAME: scope: [[FILE]]

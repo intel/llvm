@@ -1063,6 +1063,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // SYCL device compiler which doesn't produce host binary.
   if (LangOpts.SYCLIsDevice) {
     Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
+    if (!getenv("DISABLE_INFER_AS"))
+      Builder.defineMacro("__SYCL_ENABLE_INFER_AS__", "1");
   }
 
   // OpenCL definitions.
