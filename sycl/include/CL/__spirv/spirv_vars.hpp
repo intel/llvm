@@ -24,12 +24,16 @@ extern "C" const __constant size_t_vec __spirv_BuiltInGlobalOffset;
   template <> size_t get##POSTFIX<1>() { return __spirv_BuiltIn##POSTFIX.y; }  \
   template <> size_t get##POSTFIX<2>() { return __spirv_BuiltIn##POSTFIX.z; }
 
+namespace __spirv {
+
 DEFINE_INT_ID_TO_XYZ_CONVERTER(GlobalSize);
 DEFINE_INT_ID_TO_XYZ_CONVERTER(GlobalInvocationId)
 DEFINE_INT_ID_TO_XYZ_CONVERTER(WorkgroupSize)
 DEFINE_INT_ID_TO_XYZ_CONVERTER(LocalInvocationId)
 DEFINE_INT_ID_TO_XYZ_CONVERTER(WorkgroupId)
 DEFINE_INT_ID_TO_XYZ_CONVERTER(GlobalOffset)
+
+} // namespace __spirv
 
 #undef DEFINE_INT_ID_TO_XYZ_CONVERTER
 
@@ -39,5 +43,46 @@ extern "C" const __constant uint32_t __spirv_BuiltInNumSubgroups;
 extern "C" const __constant uint32_t __spirv_BuiltInNumEnqueuedSubgroups;
 extern "C" const __constant uint32_t __spirv_BuiltInSubgroupId;
 extern "C" const __constant uint32_t __spirv_BuiltInSubgroupLocalInvocationId;
+
+#define DEFINE_INIT_SIZES(POSTFIX)                                             \
+                                                                               \
+  template <int Dim, class DstT> struct InitSizesST##POSTFIX;                  \
+                                                                               \
+  template <class DstT> struct InitSizesST##POSTFIX<1, DstT> {                 \
+    static void initSize(DstT &Dst) {                                          \
+      Dst[0] = get##POSTFIX<0>();                                              \
+    }                                                                          \
+  };                                                                           \
+                                                                               \
+  template <class DstT> struct InitSizesST##POSTFIX<2, DstT> {                 \
+    static void initSize(DstT &Dst) {                                          \
+      Dst[1] = get##POSTFIX<1>();                                              \
+      InitSizesST##POSTFIX<1, DstT>::initSize(Dst);                            \
+    }                                                                          \
+  };                                                                           \
+                                                                               \
+  template <class DstT> struct InitSizesST##POSTFIX<3, DstT> {                 \
+    static void initSize(DstT &Dst) {                                          \
+      Dst[2] = get##POSTFIX<2>();                                              \
+      InitSizesST##POSTFIX<2, DstT>::initSize(Dst);                            \
+    }                                                                          \
+  };                                                                           \
+                                                                               \
+  template <int Dims, class DstT> static void init##POSTFIX(DstT &Dst) {       \
+    InitSizesST##POSTFIX<Dims, DstT>::initSize(Dst);                           \
+  }
+
+namespace __spirv {
+
+DEFINE_INIT_SIZES(GlobalSize);
+DEFINE_INIT_SIZES(GlobalInvocationId)
+DEFINE_INIT_SIZES(WorkgroupSize)
+DEFINE_INIT_SIZES(LocalInvocationId)
+DEFINE_INIT_SIZES(WorkgroupId)
+DEFINE_INIT_SIZES(GlobalOffset)
+
+} // namespace __spirv
+
+#undef DEFINE_INIT_SIZES
 
 #endif // __SYCL_DEVICE_ONLY__
