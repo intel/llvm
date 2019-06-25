@@ -4,7 +4,7 @@ struct Base {
   virtual void f() const {}
 };
 
-// expected-error@+1{{No class with a vtable can be used in a SYCL kernel or any code included in the kernel}}
+// expected-error@+1{{SYCL kernel cannot have a class with a virtual function table}}
 struct Inherit : Base {
   virtual void f() const override {}
 };

@@ -1494,7 +1494,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       Result = Context.DoubleTy;
     break;
   case DeclSpec::TST_float128:
-    if (!S.Context.getTargetInfo().hasFloat128Type() &&
+    if (!S.Context.getTargetInfo().hasFloat128Type() && 
+        !S.getLangOpts().SYCLIsDevice &&
         !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
         << "__float128";
@@ -7013,6 +7014,11 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
                << (int)Sema::CallingConventionIgnoredReason::VariadicFunction;
 
       attr.setInvalid();
+      if (S.getLangOpts().SYCLIsDevice) {
+        S.SYCLDiagIfDeviceCode(attr.getLoc(), diag::err_cconv_varargs)
+          << FunctionType::getNameForCallConv(CC);
+        return true;
+      } else
       return S.Diag(attr.getLoc(), diag::err_cconv_varargs)
              << FunctionType::getNameForCallConv(CC);
     }

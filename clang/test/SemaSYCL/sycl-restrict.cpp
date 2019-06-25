@@ -19,8 +19,7 @@ public:
 };
 bool operator==(const Fraction& lhs, const Fraction& rhs)
 {
-    // expected-error@+1 {{SYCL kernel cannot allocate storage}}
-    new int;
+    new int; // expected-error {{SYCL kernel cannot allocate storage}}
     return lhs.num() == rhs.num() && lhs.den() == rhs.den();
 }}
 
@@ -36,7 +35,7 @@ void restriction(int p) {
 
 void* operator new (std::size_t size, void* ptr) throw() { return ptr; };
 namespace Check_RTTI_Restriction {
-// expected-error@+1 5{{No class with a vtable can be used in a SYCL kernel or any code included in the kernel}}
+// expected-error@+1 9{{SYCL kernel cannot have a class with a virtual function table}}
 struct A {
   virtual ~A(){};
 };
@@ -48,8 +47,8 @@ struct B : public A {
 struct OverloadedNewDelete {
   // This overload allocates storage, give diagnostic.
   void *operator new(std::size_t size) throw() {
-  // expected-error@+1 {{SYCL kernel cannot allocate storage}}
-    float *pt = new float;
+    // expected-error@+1 {{SYCL kernel cannot allocate storage}}
+    float *pt = new float; 
     return 0;}
   // This overload does not allocate: no diagnostic.
   void *operator new[](std::size_t size) throw() {return 0;}
@@ -70,18 +69,18 @@ bool isa_B(A *a) {
   // expected-error@+1 {{SYCL kernel cannot use rtti}}
   (void)typeid(int);
   // expected-error@+2 {{SYCL kernel cannot use rtti}}
-  // expected-note@+1{{used here}}
+  // expected-note@+1 {{used here}}
   return dynamic_cast<B *>(a) != 0;
 }
 
 __attribute__((sycl_kernel)) void kernel1(void) {
-  // expected-note@+1{{used here}}
+  // expected-note@+1 {{used here}}
   A *a;
   // expected-note@+1 3{{used here}}
   isa_B(a);
 }
 }
-// expected-error@+1 {{No class with a vtable can be used in a SYCL kernel or any code included in the kernel}}
+// expected-error@+1 {{SYCL kernel cannot have a class with a virtual function table}}
 typedef struct Base {
   virtual void f() const {}
 } b_type;
@@ -118,7 +117,6 @@ void eh_not_ok(void)
   // expected-error@+1 {{SYCL kernel cannot use exceptions}}
   try {
     ;
-  // expected-error@+1 {{SYCL kernel cannot use exceptions}}
   } catch (...) {
     ;
   }
@@ -136,10 +134,10 @@ void usage(  myFuncDef functionPtr ) {
   // expected-error@+2 {{SYCL kernel cannot call through a function pointer}}
 #endif
   if ((*functionPtr)(1,2))
-  // expected-note@+3{{used here}}
-  // expected-error@+2 {{SYCL kernel cannot use a global variable}}
-  // expected-error@+1 {{SYCL kernel cannot call a virtual function}}
-    b.f();
+  // expected-error@+3 {{SYCL kernel cannot use a global variable}}
+  // expected-error@+2 {{SYCL kernel cannot call a virtual function}}
+  // expected-note@+1 {{used here}}
+  b.f();
   Check_RTTI_Restriction::kernel1();
 }
 
@@ -151,6 +149,10 @@ extern "C++" {
   namespace AnotherNS {
     int moar_globals = 5;
    }
+}
+
+int addInt(int n, int m) {
+    return n+m;
 }
 
 int use2 ( a_type ab, a_type *abp ) {
@@ -168,10 +170,15 @@ int use2 ( a_type ab, a_type *abp ) {
   return ns::glob +
   // expected-error@+1 {{SYCL kernel cannot use a global variable}}
     AnotherNS::moar_globals;
-}
-
-int addInt(int n, int m) {
-    return n+m;
+  // expected-note@+1 {{called by 'use2'}}
+  eh_not_ok();
+  // expected-note@+1 {{used here}}
+  Check_RTTI_Restriction:: A *a;
+  // expected-note@+1 3{{used here}}
+  Check_RTTI_Restriction:: isa_B(a);
+  usage(&addInt);
+  Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
+  if (f1 == f2) return false;
 }
 
 template <typename name, typename Func>
@@ -179,6 +186,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
   a_type ab;
   a_type *p;
+  // expected-note@+1 {{called by 'kernel_single_task'}}
   use2(ab, p);
 }
 

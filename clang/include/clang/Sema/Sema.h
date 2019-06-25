@@ -11275,8 +11275,22 @@ public:
     return *SyclIntHeader.get();
   }
 
+  enum SYCLRestrictKind {
+    KernelGlobalVariable,
+    KernelRTTI,
+    KernelNonConstStaticDataVariable,
+    KernelCallVirtualFunction,
+    KernelUseExceptions,
+    KernelCallRecursiveFunction,
+    KernelCallFunctionPointer,
+    KernelAllocateStorage,
+    KernelUseAssembly,
+    KernelHavePolymorphicClass
+ };
+  DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc);
   void MarkDevice(void);
+  bool CheckSYCLCall(SourceLocation Loc, FunctionDecl *Callee);
 };
 
 /// RAII object that enters a new expression evaluation context.

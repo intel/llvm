@@ -13,9 +13,9 @@ void foo() {
 void bar() {
   int a;
 #ifdef LINUX_ASM
-  __asm__("int3");  // expected-error {{SYCL kernel cannot use inline assembly}}
+   __asm__("int3");  // expected-error {{SYCL kernel cannot use inline assembly}}
 #else
-  __asm int 3 // expected-error {{SYCL kernel cannot use inline assembly}}
+   __asm int 3 // expected-error {{SYCL kernel cannot use inline assembly}}
 #endif // LINUX_ASM
 }
 
