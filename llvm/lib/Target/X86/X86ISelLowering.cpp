@@ -4899,15 +4899,22 @@ bool X86TargetLowering::isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
 }
 
 bool X86TargetLowering::shouldScalarizeBinop(SDValue VecOp) const {
+  unsigned Opc = VecOp.getOpcode();
+
+  // Assume target opcodes can't be scalarized.
+  // TODO - do we have any exceptions?
+  if (Opc >= ISD::BUILTIN_OP_END)
+    return false;
+
   // If the vector op is not supported, try to convert to scalar.
   EVT VecVT = VecOp.getValueType();
-  if (!isOperationLegalOrCustomOrPromote(VecOp.getOpcode(), VecVT))
+  if (!isOperationLegalOrCustomOrPromote(Opc, VecVT))
     return true;
 
   // If the vector op is supported, but the scalar op is not, the transform may
   // not be worthwhile.
   EVT ScalarVT = VecVT.getScalarType();
-  return isOperationLegalOrCustomOrPromote(VecOp.getOpcode(), ScalarVT);
+  return isOperationLegalOrCustomOrPromote(Opc, ScalarVT);
 }
 
 bool X86TargetLowering::shouldFormOverflowOp(unsigned Opcode, EVT VT) const {
@@ -6669,6 +6676,40 @@ static bool getFauxShuffleMask(SDValue N, SmallVectorImpl<int> &Mask,
     return true;
   }
   case ISD::OR: {
+    // Inspect each operand at the byte level. We can merge these into a
+    // blend shuffle mask if for each byte at least one is masked out (zero).
+    KnownBits Known0 = DAG.computeKnownBits(N.getOperand(0));
+    KnownBits Known1 = DAG.computeKnownBits(N.getOperand(1));
+    if (Known0.One.isNullValue() && Known1.One.isNullValue()) {
+      bool IsByteMask = true;
+      unsigned NumSizeInBytes = NumSizeInBits / 8;
+      unsigned NumBytesPerElt = NumBitsPerElt / 8;
+      APInt ZeroMask = APInt::getNullValue(NumBytesPerElt);
+      APInt SelectMask = APInt::getNullValue(NumBytesPerElt);
+      for (unsigned i = 0; i != NumBytesPerElt && IsByteMask; ++i) {
+        unsigned LHS = Known0.Zero.extractBits(8, i * 8).getZExtValue();
+        unsigned RHS = Known1.Zero.extractBits(8, i * 8).getZExtValue();
+        if (LHS == 255 && RHS == 0)
+          SelectMask.setBit(i);
+        else if (LHS == 255 && RHS == 255)
+          ZeroMask.setBit(i);
+        else if (!(LHS == 0 && RHS == 255))
+          IsByteMask = false;
+      }
+      if (IsByteMask) {
+        for (unsigned i = 0; i != NumSizeInBytes; i += NumBytesPerElt) {
+          for (unsigned j = 0; j != NumBytesPerElt; ++j) {
+            unsigned Ofs = (SelectMask[j] ? NumSizeInBytes : 0);
+            int Idx = (ZeroMask[j] ? SM_SentinelZero : (i + j + Ofs));
+            Mask.push_back(Idx);
+          }
+        }
+        Ops.push_back(N.getOperand(0));
+        Ops.push_back(N.getOperand(1));
+        return true;
+      }
+    }
+
     // Handle OR(SHUFFLE,SHUFFLE) case where one source is zero and the other
     // is a valid shuffle index.
     SDValue N0 = peekThroughOneUseBitcasts(N.getOperand(0));
@@ -28566,6 +28607,7 @@ bool X86TargetLowering::isBinOp(unsigned Opcode) const {
   // These are non-commutative binops.
   // TODO: Add more X86ISD opcodes once we have test coverage.
   case X86ISD::ANDNP:
+  case X86ISD::PCMPGT:
   case X86ISD::FMAX:
   case X86ISD::FMIN:
   case X86ISD::FANDN:
@@ -28578,6 +28620,8 @@ bool X86TargetLowering::isBinOp(unsigned Opcode) const {
 bool X86TargetLowering::isCommutativeBinOp(unsigned Opcode) const {
   switch (Opcode) {
   // TODO: Add more X86ISD opcodes once we have test coverage.
+  case X86ISD::PCMPEQ:
+  case X86ISD::PMULDQ:
   case X86ISD::PMULUDQ:
   case X86ISD::FMAXC:
   case X86ISD::FMINC:
@@ -33998,9 +34042,6 @@ bool X86TargetLowering::SimplifyDemandedVectorEltsForTargetNode(
           insertSubVector(UndefVec, ExtOp, 0, TLO.DAG, DL, ExtSizeInBits);
       return TLO.CombineTo(Op, Insert);
     }
-      // Arithmetic Ops.
-    case X86ISD::PMULDQ:
-    case X86ISD::PMULUDQ:
       // Target Shuffles.
     case X86ISD::PSHUFB:
     case X86ISD::UNPCKL:
