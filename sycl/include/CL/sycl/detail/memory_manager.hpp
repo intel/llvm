@@ -55,8 +55,9 @@ public:
                                  const ContextImplPtr &InteropContext,
                                  RT::PiEvent &OutEventToWait);
 
-  // Releases buffer. TargetContext should be device one(not host).
-  static void releaseMemBuf(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
+  // Releases memory object(buffer or image). TargetContext should be device
+  // one(not host).
+  static void releaseMemObj(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation, void *UserPtr);
 
   // Copies memory between: host and device, host and host,

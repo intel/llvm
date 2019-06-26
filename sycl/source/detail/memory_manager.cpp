@@ -36,7 +36,7 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   MemObj->releaseMem(TargetContext, MemAllocation);
 }
 
-void MemoryManager::releaseMemBuf(ContextImplPtr TargetContext,
+void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
                                   SYCLMemObjI *MemObj, void *MemAllocation,
                                   void *UserPtr) {
   if (UserPtr == MemAllocation) {
