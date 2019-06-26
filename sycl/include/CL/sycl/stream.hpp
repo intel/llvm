@@ -28,29 +28,29 @@ enum class stream_manipulator {
   defaultfloat
 };
 
-const stream_manipulator dec = stream_manipulator::dec;
+constexpr stream_manipulator dec = stream_manipulator::dec;
 
-const stream_manipulator hex = stream_manipulator::hex;
+constexpr stream_manipulator hex = stream_manipulator::hex;
 
-const stream_manipulator oct = stream_manipulator::oct;
+constexpr stream_manipulator oct = stream_manipulator::oct;
 
-const stream_manipulator noshowbase = stream_manipulator::noshowbase;
+constexpr stream_manipulator noshowbase = stream_manipulator::noshowbase;
 
-const stream_manipulator showbase = stream_manipulator::showbase;
+constexpr stream_manipulator showbase = stream_manipulator::showbase;
 
-const stream_manipulator noshowpos = stream_manipulator::noshowpos;
+constexpr stream_manipulator noshowpos = stream_manipulator::noshowpos;
 
-const stream_manipulator showpos = stream_manipulator::showpos;
+constexpr stream_manipulator showpos = stream_manipulator::showpos;
 
-const stream_manipulator endl = stream_manipulator::endl;
+constexpr stream_manipulator endl = stream_manipulator::endl;
 
-const stream_manipulator fixed = stream_manipulator::fixed;
+constexpr stream_manipulator fixed = stream_manipulator::fixed;
 
-const stream_manipulator scientific = stream_manipulator::scientific;
+constexpr stream_manipulator scientific = stream_manipulator::scientific;
 
-const stream_manipulator hexfloat = stream_manipulator::hexfloat;
+constexpr stream_manipulator hexfloat = stream_manipulator::hexfloat;
 
-const stream_manipulator defaultfloat = stream_manipulator::defaultfloat;
+constexpr stream_manipulator defaultfloat = stream_manipulator::defaultfloat;
 
 class stream;
 
@@ -145,7 +145,7 @@ private:
   }
 
   // Set the flags which correspond to the input stream manipulator.
-  void set_manipulator(const stream_manipulator &SM) const {
+  void set_manipulator(const stream_manipulator SM) const {
     switch (SM) {
     case stream_manipulator::dec:
       set_flag(detail::Dec, detail::BaseField);
@@ -195,7 +195,7 @@ private:
   friend const stream &operator<<(const stream &, const float &);
   friend const stream &operator<<(const stream &, const double &);
   friend const stream &operator<<(const stream &, const half &);
-  friend const stream &operator<<(const stream &, const stream_manipulator &);
+  friend const stream &operator<<(const stream &, const stream_manipulator);
   friend const stream &operator<<(const stream &Out,
                                   const __precision_manipulator__ &RHS);
 
@@ -319,7 +319,7 @@ inline const stream &operator<<(const stream &Out,
 }
 
 inline const stream &operator<<(const stream &Out,
-                                const stream_manipulator &RHS) {
+                                const stream_manipulator RHS) {
   switch (RHS) {
   case stream_manipulator::endl:
     Out << '\n';

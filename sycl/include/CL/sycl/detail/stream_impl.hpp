@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
-#include <CL/sycl/builtins.hpp>
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/queue.hpp>
