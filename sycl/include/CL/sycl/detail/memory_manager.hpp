@@ -10,7 +10,7 @@
 
 #include <CL/cl.h>
 #include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/sycl_mem_obj.hpp>
+#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/range.hpp>
 
 #include <memory>
@@ -35,13 +35,13 @@ class MemoryManager {
 public:
   // The following method releases memory allocation of memory object.
   // Depending on the context it releases memory on host or on device.
-  static void release(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
+  static void release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                       void *MemAllocation, std::vector<RT::PiEvent> DepEvents,
                       RT::PiEvent &OutEvent);
 
   // The following method allocates memory allocation of memory object.
   // Depending on the context it allocates memory on host or on device.
-  static void *allocate(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
+  static void *allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                         bool InitFromUserData, std::vector<RT::PiEvent> DepEvents,
                         RT::PiEvent &OutEvent);
 
@@ -49,19 +49,19 @@ public:
   // as host ptr or cl_mem provided by user. TargetContext should be device
   // one(not host).
   static void *allocateMemBuffer(ContextImplPtr TargetContext,
-                                 SYCLMemObjT *MemObj, void *UserPtr,
+                                 SYCLMemObjI *MemObj, void *UserPtr,
                                  bool HostPtrReadOnly, size_t Size,
                                  const EventImplPtr &InteropEvent,
                                  const ContextImplPtr &InteropContext,
                                  RT::PiEvent &OutEventToWait);
 
   // Releases buffer. TargetContext should be device one(not host).
-  static void releaseMemBuf(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
+  static void releaseMemBuf(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation, void *UserPtr);
 
   // Copies memory between: host and device, host and host,
   // device and device if memory objects bound to the one context.
-  static void copy(SYCLMemObjT *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
+  static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
                    unsigned int DimSrc, sycl::range<3> SrcSize,
                    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
                    unsigned int SrcElemSize, void *DstMem,
@@ -71,19 +71,19 @@ public:
                    std::vector<RT::PiEvent> DepEvents, bool UseExclusiveQueue,
                    RT::PiEvent &OutEvent);
 
-  static void fill(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+  static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
-  static void *map(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+  static void *map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    access::mode AccessMode, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
-  static void unmap(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+  static void unmap(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                     void *MappedPtr, std::vector<RT::PiEvent> DepEvents,
                     bool UseExclusiveQueue, RT::PiEvent &OutEvent);
 };

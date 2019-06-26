@@ -25,7 +25,7 @@ static void waitForEvents(const std::vector<RT::PiEvent> &Events) {
     PI_CALL(RT::piEventsWait(Events.size(), &Events[0]));
 }
 
-void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
+void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation,
                             std::vector<RT::PiEvent> DepEvents,
                             RT::PiEvent &OutEvent) {
@@ -37,7 +37,7 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
 }
 
 void MemoryManager::releaseMemBuf(ContextImplPtr TargetContext,
-                                  SYCLMemObjT *MemObj, void *MemAllocation,
+                                  SYCLMemObjI *MemObj, void *MemAllocation,
                                   void *UserPtr) {
   if (UserPtr == MemAllocation) {
     // Do nothing as it's user provided memory.
@@ -52,7 +52,7 @@ void MemoryManager::releaseMemBuf(ContextImplPtr TargetContext,
   PI_CALL(RT::piMemRelease(pi::pi_cast<RT::PiMem>(MemAllocation)));
 }
 
-void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
+void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                               bool InitFromUserData,
                               std::vector<RT::PiEvent> DepEvents,
                               RT::PiEvent &OutEvent) {
@@ -65,7 +65,7 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
 }
 
 void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
-                                       SYCLMemObjT *MemObj, void *UserPtr,
+                                       SYCLMemObjI *MemObj, void *UserPtr,
                                        bool HostPtrReadOnly, size_t Size,
                                        const EventImplPtr &InteropEvent,
                                        const ContextImplPtr &InteropContext,
@@ -110,7 +110,7 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
   return NewMem;
 }
 
-void copyH2D(SYCLMemObjT *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
+void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
              unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr TgtQueue,
@@ -152,7 +152,7 @@ void copyH2D(SYCLMemObjT *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
   }
 }
 
-void copyD2H(SYCLMemObjT *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
+void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
              unsigned int SrcElemSize, char *DstMem, QueueImplPtr TgtQueue,
@@ -193,7 +193,7 @@ void copyD2H(SYCLMemObjT *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   }
 }
 
-void copyD2D(SYCLMemObjT *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
+void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
              unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr TgtQueue,
@@ -232,7 +232,7 @@ void copyD2D(SYCLMemObjT *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   }
 }
 
-static void copyH2H(SYCLMemObjT *SYCLMemObj, char *SrcMem,
+static void copyH2H(SYCLMemObjI *SYCLMemObj, char *SrcMem,
                     QueueImplPtr SrcQueue, unsigned int DimSrc,
                     sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
                     sycl::id<3> SrcOffset, unsigned int SrcElemSize,
@@ -259,7 +259,7 @@ static void copyH2H(SYCLMemObjT *SYCLMemObj, char *SrcMem,
 
 // Copies memory between: host and device, host and host,
 // device and device if memory objects bound to the one context.
-void MemoryManager::copy(SYCLMemObjT *SYCLMemObj, void *SrcMem,
+void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          QueueImplPtr SrcQueue, unsigned int DimSrc,
                          sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
                          sycl::id<3> SrcOffset, unsigned int SrcElemSize,
@@ -296,7 +296,7 @@ void MemoryManager::copy(SYCLMemObjT *SYCLMemObj, void *SrcMem,
   }
 }
 
-void MemoryManager::fill(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          size_t PatternSize, const char *Pattern,
                          unsigned int Dim, sycl::range<3> Size,
                          sycl::range<3> Range, sycl::id<3> Offset,
@@ -315,7 +315,7 @@ void MemoryManager::fill(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   throw runtime_error("Not supported configuration of fill requested");
 }
 
-void *MemoryManager::map(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          access::mode AccessMode, unsigned int Dim,
                          sycl::range<3> Size, sycl::range<3> AccessRange,
                          sycl::id<3> AccessOffset, unsigned int ElementSize,
@@ -356,7 +356,7 @@ void *MemoryManager::map(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   return MappedPtr;
 }
 
-void MemoryManager::unmap(SYCLMemObjT *SYCLMemObj, void *Mem,
+void MemoryManager::unmap(SYCLMemObjI *SYCLMemObj, void *Mem,
                           QueueImplPtr Queue, void *MappedPtr,
                           std::vector<RT::PiEvent> DepEvents,
                           bool UseExclusiveQueue, RT::PiEvent &OutEvent) {

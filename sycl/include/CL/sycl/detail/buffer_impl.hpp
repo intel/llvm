@@ -17,7 +17,7 @@
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
-#include <CL/sycl/detail/sycl_mem_obj.hpp>
+#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
@@ -43,11 +43,11 @@ namespace detail {
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
-using cl::sycl::detail::SYCLMemObjT;
+using cl::sycl::detail::SYCLMemObjI;
 
 using cl::sycl::detail::MemoryManager;
 
-template <typename AllocatorT> class buffer_impl : public SYCLMemObjT {
+template <typename AllocatorT> class buffer_impl : public SYCLMemObjI {
 public:
   buffer_impl(size_t SizeInBytes, size_t RequiredAlign,
               const property_list &PropList,

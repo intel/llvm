@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
-#include <CL/sycl/detail/sycl_mem_obj.hpp>
+#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
@@ -52,7 +52,7 @@ using EnableIfImgAccDataT =
     typename std::enable_if<is_validImageDataT<DataT>::value, DataT>::type;
 
 template <int Dimensions, typename AllocatorT = image_allocator>
-class image_impl : public SYCLMemObjT {
+class image_impl : public SYCLMemObjI {
 private:
   template <bool B>
   using EnableIfPitchT =
