@@ -201,8 +201,10 @@ private:
         // The first 11 bits of Size encodes the accessor target.
         const access::target AccTarget =
             static_cast<access::target>(Size & 0x7ff);
-        if (AccTarget == access::target::global_buffer ||
-            AccTarget == access::target::constant_buffer) {
+        if ((AccTarget == access::target::global_buffer ||
+             AccTarget == access::target::constant_buffer) ||
+            (AccTarget == access::target::image ||
+             AccTarget == access::target::image_array)) {
           detail::AccessorBaseHost *AccBase =
               static_cast<detail::AccessorBaseHost *>(Ptr);
           Ptr = detail::getSyclObjImpl(*AccBase).get();
@@ -301,9 +303,17 @@ private:
         break;
       }
       case access::target::image:
-      case access::target::host_buffer:
-      case access::target::host_image:
       case access::target::image_array: {
+        detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
+        MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
+        if (!IsKernelCreatedFromSource) {
+          // TODO Handle additional kernel arguments for image class
+          // if the compiler front-end adds them.
+        }
+        break;
+      }
+      case access::target::host_image:
+      case access::target::host_buffer: {
         throw cl::sycl::invalid_parameter_error(
             "Unsupported accessor target case.");
         break;
@@ -909,22 +919,19 @@ public:
   }
 
   // Explicit copy operations API
-  template <access::target AccessTarget>
-  constexpr static bool isConstOrGlobal() {
+  constexpr static bool isConstOrGlobal(access::target AccessTarget) {
     return AccessTarget == access::target::global_buffer ||
            AccessTarget == access::target::constant_buffer;
   }
 
-  template <access::target AccessTarget>
-  constexpr static bool isImageOrImageArray() {
+  constexpr static bool isImageOrImageArray(access::target AccessTarget) {
     return AccessTarget == access::target::image ||
            AccessTarget == access::target::image_array;
   }
 
-  template <access::target AccessTarget>
-  constexpr static bool isValidTargetForExplicitOp() {
-    return isConstOrGlobal<AccessTarget>() ||
-           isImageOrImageArray<AccessTarget>();
+  constexpr static bool
+  isValidTargetForExplicitOp(access::target AccessTarget) {
+    return isConstOrGlobal(AccessTarget) || isImageOrImageArray(AccessTarget);
   }
 
   // copy memory pointed by accessor to host memory pointed by shared_ptr
@@ -933,7 +940,7 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             shared_ptr_class<T_Dst> Dst) {
-    static_assert(isValidTargetForExplicitOp<AccessTarget>(),
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
@@ -949,7 +956,7 @@ public:
   void
   copy(shared_ptr_class<T_Src> Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
-    static_assert(isValidTargetForExplicitOp<AccessTarget>(),
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
@@ -964,7 +971,7 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
             T_Dst *Dst) {
-    static_assert(isValidTargetForExplicitOp<AccessTarget>(),
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
@@ -1003,7 +1010,7 @@ public:
   void
   copy(const T_Src *Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
-    static_assert(isValidTargetForExplicitOp<AccessTarget>(),
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
@@ -1048,9 +1055,9 @@ public:
             accessor<T_Dst, Dims_Dst, AccessMode_Dst, AccessTarget_Dst,
                      IsPlaceholder_Dst>
                 Dst) {
-    static_assert(isValidTargetForExplicitOp<AccessTarget_Src>(),
+    static_assert(isValidTargetForExplicitOp(AccessTarget_Src),
                   "Invalid source accessor target for the copy method.");
-    static_assert(isValidTargetForExplicitOp<AccessTarget_Dst>(),
+    static_assert(isValidTargetForExplicitOp(AccessTarget_Dst),
                   "Invalid destination accessor target for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
@@ -1090,7 +1097,7 @@ public:
             access::placeholder IsPlaceholder = access::placeholder::false_t>
   void
   update_host(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Acc) {
-    static_assert(isValidTargetForExplicitOp<AccessTarget>(),
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the update_host method.");
     MCGType = detail::CG::UPDATE_HOST;
 
@@ -1112,10 +1119,10 @@ public:
   void fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst,
             const T &Pattern) {
     // TODO add check:T must be an integral scalar value or a SYCL vector type
-    static_assert(isValidTargetForExplicitOp<AccessTarget>(),
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
-    if (!MIsHost && (((Dims == 1) && isConstOrGlobal<AccessTarget>()) ||
-                     isImageOrImageArray<AccessTarget>())) {
+    if (!MIsHost && (((Dims == 1) && isConstOrGlobal(AccessTarget)) ||
+                     isImageOrImageArray(AccessTarget))) {
       MCGType = detail::CG::FILL;
 
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
