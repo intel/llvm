@@ -336,7 +336,7 @@ public:
 
 private:
   template <typename T> void getImageInfo(RT::PiImageInfo Info, T &Dest) {
-    RT::PiMem Mem = pi_cast<RT::PiMem>(BaseT::MInteropMemObject);
+    RT::PiMem Mem = pi::pi_cast<RT::PiMem>(BaseT::MInteropMemObject);
     PI_CALL(RT::piMemImageGetInfo(Mem, Info, sizeof(T), &Dest, nullptr));
   }
 

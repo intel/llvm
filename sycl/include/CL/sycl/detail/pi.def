@@ -37,7 +37,9 @@ _PI_API(piQueueRetain)
 _PI_API(piQueueRelease)
 // Memory
 _PI_API(piMemBufferCreate)
+_PI_API(piMemImageCreate)
 _PI_API(piMemGetInfo)
+_PI_API(piMemImageGetInfo)
 _PI_API(piMemRetain)
 _PI_API(piMemRelease)
 // Program
