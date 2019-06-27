@@ -33,8 +33,7 @@ header" which provides information like kernel name, parameters order and data
 type for the runtime library.
 - **Middle-end** - transforms the initial LLVM IR* to get consumed by the
 back-end. Today middle-end transformations include just a couple of passes:
-  - OpenCL C++* to SPIR-V* built-in function names mapper
-  - Address space handling pass
+  - Optionally: Address space inference pass
   - TBD: potentially the middle-end optimizer can run any LLVM IR
   transformation with only one limitation: back-end compiler should be able to
   handle transformed LLVM IR.
