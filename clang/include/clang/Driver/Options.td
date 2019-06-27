@@ -3273,8 +3273,9 @@ defm stack_arrays : BooleanFFlag<"stack-arrays">, Group<gfortran_Group>;
 defm underscoring : BooleanFFlag<"underscoring">, Group<gfortran_Group>;
 defm whole_file : BooleanFFlag<"whole-file">, Group<gfortran_Group>;
 
-def sycl : Flag<["--"], "sycl">,
+def sycl_device_only : Flag<["-"], "fsycl-device-only">,
   HelpText<"Compile SYCL kernels for device">;
+def sycl : Flag<["--"], "sycl">, Alias<sycl_device_only>;
 
 def reuse_exe_EQ : Joined<["-"], "reuse-exe=">,
   HelpText<"Speed up FPGA aoc compile if the device code in <exe> is unchanged.">,
