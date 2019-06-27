@@ -1160,7 +1160,7 @@ bool IRTranslator::translateMemfunc(const CallInst &CI,
 
   return CLI->lowerCall(MIRBuilder, CI.getCallingConv(),
                         MachineOperand::CreateES(Callee),
-                        CallLowering::ArgInfo(0, CI.getType()), Args);
+                        CallLowering::ArgInfo({0}, CI.getType()), Args);
 }
 
 void IRTranslator::getStackGuard(Register DstReg,
@@ -1585,13 +1585,10 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
   }
 
   if (!F || !F->isIntrinsic() || ID == Intrinsic::not_intrinsic) {
-    bool IsSplitType = valueIsSplit(CI);
-    Register Res = IsSplitType ? MRI->createGenericVirtualRegister(
-                                     getLLTForType(*CI.getType(), *DL))
-                               : getOrCreateVReg(CI);
+    ArrayRef<Register> Res = getOrCreateVRegs(CI);
 
-    SmallVector<Register, 8> Args;
-    Register SwiftErrorVReg;
+    SmallVector<ArrayRef<Register>, 8> Args;
+    Register SwiftErrorVReg = 0;
     for (auto &Arg: CI.arg_operands()) {
       if (CLI->supportSwiftError() && isSwiftError(Arg)) {
         LLT Ty = getLLTForType(*Arg->getType(), *DL);
@@ -1603,16 +1600,13 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
             SwiftError.getOrCreateVRegDefAt(&CI, &MIRBuilder.getMBB(), Arg);
         continue;
       }
-      Args.push_back(packRegs(*Arg, MIRBuilder));
+      Args.push_back(getOrCreateVRegs(*Arg));
     }
 
     MF->getFrameInfo().setHasCalls(true);
     bool Success =
         CLI->lowerCall(MIRBuilder, &CI, Res, Args, SwiftErrorVReg,
                        [&]() { return getOrCreateVReg(*CI.getCalledValue()); });
-
-    if (IsSplitType)
-      unpackRegs(CI, Res, MIRBuilder);
 
     return Success;
   }
@@ -1687,11 +1681,11 @@ bool IRTranslator::translateInvoke(const User &U,
   MCSymbol *BeginSymbol = Context.createTempSymbol();
   MIRBuilder.buildInstr(TargetOpcode::EH_LABEL).addSym(BeginSymbol);
 
-  Register Res;
+  ArrayRef<Register> Res;
   if (!I.getType()->isVoidTy())
-    Res = MRI->createGenericVirtualRegister(getLLTForType(*I.getType(), *DL));
-  SmallVector<Register, 8> Args;
-  Register SwiftErrorVReg;
+    Res = getOrCreateVRegs(I);
+  SmallVector<ArrayRef<Register>, 8> Args;
+  Register SwiftErrorVReg = 0;
   for (auto &Arg : I.arg_operands()) {
     if (CLI->supportSwiftError() && isSwiftError(Arg)) {
       LLT Ty = getLLTForType(*Arg->getType(), *DL);
@@ -1704,14 +1698,12 @@ bool IRTranslator::translateInvoke(const User &U,
       continue;
     }
 
-    Args.push_back(packRegs(*Arg, MIRBuilder));
+    Args.push_back(getOrCreateVRegs(*Arg));
   }
 
   if (!CLI->lowerCall(MIRBuilder, &I, Res, Args, SwiftErrorVReg,
                       [&]() { return getOrCreateVReg(*I.getCalledValue()); }))
     return false;
-
-  unpackRegs(I, Res, MIRBuilder);
 
   MCSymbol *EndSymbol = Context.createTempSymbol();
   MIRBuilder.buildInstr(TargetOpcode::EH_LABEL).addSym(EndSymbol);
@@ -2274,16 +2266,17 @@ bool IRTranslator::runOnMachineFunction(MachineFunction &CurMF) {
   EntryBB->addSuccessor(&getMBB(F.front()));
 
   // Lower the actual args into this basic block.
-  SmallVector<Register, 8> VRegArgs;
+  SmallVector<ArrayRef<Register>, 8> VRegArgs;
   for (const Argument &Arg: F.args()) {
     if (DL->getTypeStoreSize(Arg.getType()) == 0)
       continue; // Don't handle zero sized types.
-    VRegArgs.push_back(
-        MRI->createGenericVirtualRegister(getLLTForType(*Arg.getType(), *DL)));
+    ArrayRef<Register> VRegs = getOrCreateVRegs(Arg);
+    VRegArgs.push_back(VRegs);
 
-    if (Arg.hasSwiftErrorAttr())
-      SwiftError.setCurrentVReg(EntryBB, SwiftError.getFunctionArg(),
-                                VRegArgs.back());
+    if (Arg.hasSwiftErrorAttr()) {
+      assert(VRegs.size() == 1 && "Too many vregs for Swift error");
+      SwiftError.setCurrentVReg(EntryBB, SwiftError.getFunctionArg(), VRegs[0]);
+    }
   }
 
   // We don't currently support translating swifterror or swiftself functions.
@@ -2304,20 +2297,6 @@ bool IRTranslator::runOnMachineFunction(MachineFunction &CurMF) {
     R << "unable to lower arguments: " << ore::NV("Prototype", F.getType());
     reportTranslationError(*MF, *TPC, *ORE, R);
     return false;
-  }
-
-  auto ArgIt = F.arg_begin();
-  for (auto &VArg : VRegArgs) {
-    // If the argument is an unsplit scalar then don't use unpackRegs to avoid
-    // creating redundant copies.
-    if (!valueIsSplit(*ArgIt, VMap.getOffsets(*ArgIt))) {
-      auto &VRegs = *VMap.getVRegs(cast<Value>(*ArgIt));
-      assert(VRegs.empty() && "VRegs already populated?");
-      VRegs.push_back(VArg);
-    } else {
-      unpackRegs(*ArgIt, VArg, *EntryBuilder.get());
-    }
-    ArgIt++;
   }
 
   // Need to visit defs before uses when translating instructions.
