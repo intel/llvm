@@ -11258,14 +11258,14 @@ public:
 private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
-  SmallVector<Decl*, 4> SyclKernel;
+  SmallVector<Decl*, 4> SyclDeviceDecls;
   // SYCL integration header instance for current compilation unit this Sema
   // is associated with.
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
 
 public:
-  void AddSyclKernel(Decl * d) { SyclKernel.push_back(d); }
-  SmallVector<Decl*, 4> &SyclKernels() { return SyclKernel; }
+  void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.push_back(d); }
+  SmallVectorImpl<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {

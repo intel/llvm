@@ -111,7 +111,7 @@ public:
       if (FunctionDecl *Def = Callee->getDefinition()) {
         if (!Def->hasAttr<SYCLDeviceAttr>()) {
           Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-          SemaRef.AddSyclKernel(Def);
+          SemaRef.addSyclDeviceDecl(Def);
         }
       }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr)
@@ -128,7 +128,7 @@ public:
 
     if (FunctionDecl *Def = Ctor->getDefinition()) {
       Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-      SemaRef.AddSyclKernel(Def);
+      SemaRef.addSyclDeviceDecl(Def);
     }
 
     const auto *ConstructedType = Ctor->getParent();
@@ -137,7 +137,7 @@ public:
 
       if (FunctionDecl *Def = Dtor->getDefinition()) {
         Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-        SemaRef.AddSyclKernel(Def);
+        SemaRef.addSyclDeviceDecl(Def);
       }
     }
     return true;
@@ -194,6 +194,10 @@ public:
           !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD))
         SemaRef.Diag(E->getLocation(), diag::err_sycl_restrict)
             << KernelGlobalVariable;
+      if (!VD->isLocalVarDecl()) {
+        VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
+        SemaRef.addSyclDeviceDecl(VD);
+      }
     }
     return true;
   }
@@ -213,7 +217,7 @@ public:
       } else if (FunctionDecl *Def = FD->getDefinition()) {
         if (!Def->hasAttr<SYCLDeviceAttr>()) {
           Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-          SemaRef.AddSyclKernel(Def);
+          SemaRef.addSyclDeviceDecl(Def);
         }
       }
     }
@@ -973,7 +977,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc) {
   CompoundStmt *OpenCLKernelBody =
       CreateOpenCLKernelBody(*this, KernelCallerFunc, OpenCLKernel);
   OpenCLKernel->setBody(OpenCLKernelBody);
-  AddSyclKernel(OpenCLKernel);
+  addSyclDeviceDecl(OpenCLKernel);
 }
 
 void Sema::MarkDevice(void) {
@@ -983,7 +987,7 @@ void Sema::MarkDevice(void) {
   // it is recursive.
   MarkDeviceFunction Marker(*this);
   Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
-  for (Decl *D : SyclKernels()) {
+  for (Decl *D : syclDeviceDecls()) {
     if (auto SYCLKernel = dyn_cast<FunctionDecl>(D)) {
       llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
       Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
@@ -1026,7 +1030,7 @@ void Sema::MarkDevice(void) {
     if (FunctionDecl *Def = elt->getDefinition()) {
       if (!Def->hasAttr<SYCLDeviceAttr>()) {
         Def->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
-        AddSyclKernel(Def);
+        addSyclDeviceDecl(Def);
       }
       Marker.TraverseStmt(Def->getBody());
     }
