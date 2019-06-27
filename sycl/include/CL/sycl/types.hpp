@@ -596,23 +596,12 @@ public:
 #endif
 #define __SYCL_LOADSTORE(Space)                                                \
   void load(size_t Offset, multi_ptr<const DataT, Space> Ptr) {                \
-    if (NumElements != 3) {                                                    \
-      m_Data =                                                                 \
-          *multi_ptr<const DataType, Space>(static_cast<const DataType *>(     \
-              static_cast<const void *>(Ptr + Offset * NumElements)));         \
-      return;                                                                  \
-    }                                                                          \
     for (int I = 0; I < NumElements; I++) {                                    \
       setValue(                                                                \
           I, *multi_ptr<const DataT, Space>(Ptr + Offset * NumElements + I));  \
     }                                                                          \
   }                                                                            \
   void store(size_t Offset, multi_ptr<DataT, Space> Ptr) const {               \
-    if (NumElements != 3) {                                                    \
-      *multi_ptr<DataType, Space>(static_cast<DataType *>(                     \
-          static_cast<void *>(Ptr + Offset * NumElements))) = m_Data;          \
-      return;                                                                  \
-    }                                                                          \
     for (int I = 0; I < NumElements; I++) {                                    \
       *multi_ptr<DataT, Space>(Ptr + Offset * NumElements + I) = getValue(I);  \
     }                                                                          \
