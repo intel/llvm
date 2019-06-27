@@ -120,6 +120,10 @@ set(CLANG_IN_BUILD "${LLVM_BINARY_DIR}/bin/clang")
 
 set(LLVM_TOOLS_DIR "${LLVM_BINARY_DIR}/bin/")
 
+if(MSVC)
+  set_source_files_properties("${sourceRootPath}/detail/builtins.cpp" PROPERTIES COMPILE_FLAGS /bigobj)
+endif()
+
 add_library("${SYCLLibrary}" SHARED
   "${includeRootPath}/CL/sycl.hpp"
   "${sourceRootPath}/detail/builtins.cpp"
