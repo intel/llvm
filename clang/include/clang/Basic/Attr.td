@@ -1567,7 +1567,7 @@ def IntelFPGAMerge : Attr {
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCL];
-  let Documentation = [Undocumented];
+  let Documentation = [IntelFPGAMergeAttrDocs];
 }
 
 def IntelFPGAMaxReplicates : Attr {
@@ -1576,7 +1576,7 @@ def IntelFPGAMaxReplicates : Attr {
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCL];
-  let Documentation = [Undocumented];
+  let Documentation = [IntelFPGAMaxReplicatesAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {
       return 1;
@@ -1592,7 +1592,7 @@ def IntelFPGASimpleDualPort : Attr {
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCL];
-  let Documentation = [Undocumented];
+  let Documentation = [IntelFPGASimpleDualPortAttrDocs];
 }
 
 def Naked : InheritableAttr {

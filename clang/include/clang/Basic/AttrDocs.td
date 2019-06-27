@@ -1714,6 +1714,40 @@ threads or loop iterations.
   }];
 }
 
+def IntelFPGAMergeAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "merge (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+instructs the backend to merge the memories used to implement any variable or
+struct members that are annotated with this attribute and the same first
+argument. The second argument indicates if the memories should be merged in a
+depth-wise or width-wise manner.
+  }];
+}
+
+def IntelFPGAMaxReplicatesAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "max_replicates (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+instructs the backend to replicate the memory generated for the variable or
+struct member no more than the specified maximum number of times to enable
+simultaneous accesses from different load/store sites in the program.
+  }];
+}
+
+def IntelFPGASimpleDualPortAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "simple_dual_port (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+instructs the backend to implement the variable or struct member in a memory
+with simple dual port configuration (no memory port services both stores and
+loads).
+  }];
+}
+
 def SYCLIntelFPGAIVDepAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "ivdep";
