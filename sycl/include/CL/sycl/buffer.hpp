@@ -40,28 +40,32 @@ public:
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        get_count() * sizeof(T), propList);
+        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList);
   }
 
   buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        get_count() * sizeof(T), propList, allocator);
+        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        allocator);
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList);
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
          AllocatorT allocator, const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList, allocator);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList, allocator);
   }
 
   template <typename _T = T>
@@ -70,7 +74,8 @@ public:
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList);
   }
 
   template <typename _T = T>
@@ -79,7 +84,8 @@ public:
          AllocatorT allocator, const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList, allocator);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList, allocator);
   }
 
   buffer(const shared_ptr_class<T> &hostData,
@@ -87,7 +93,8 @@ public:
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList, allocator);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList, allocator);
   }
 
   buffer(const shared_ptr_class<T> &hostData,
@@ -95,7 +102,8 @@ public:
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList);
   }
 
   template <class InputIterator, int N = dimensions,
@@ -105,7 +113,8 @@ public:
       : Range(range<1>(std::distance(first, last))),
         MemRange(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        first, last, get_count() * sizeof(T), propList, allocator);
+        first, last, get_count() * sizeof(T),
+        detail::getNextPowerOfTwo(sizeof(T)), propList, allocator);
   }
 
   template <class InputIterator, int N = dimensions,
@@ -115,7 +124,8 @@ public:
       : Range(range<1>(std::distance(first, last))),
         MemRange(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        first, last, get_count() * sizeof(T), propList);
+        first, last, get_count() * sizeof(T),
+        detail::getNextPowerOfTwo(sizeof(T)), propList);
   }
 
   buffer(buffer<T, dimensions, AllocatorT> &b, const id<dimensions> &baseIndex,

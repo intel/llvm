@@ -22,6 +22,7 @@
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <type_traits>
@@ -35,7 +36,7 @@ class accessor;
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
 class handler;
 
-using buffer_allocator = aligned_allocator<char, /*Alignment*/64>;
+using buffer_allocator = detail::aligned_allocator<char>;
 
 namespace detail {
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
@@ -47,41 +48,46 @@ using cl::sycl::detail::MemoryManager;
 
 template <typename AllocatorT> class buffer_impl : public SYCLMemObjT {
 public:
-  buffer_impl(size_t SizeInBytes, const property_list &PropList,
+  buffer_impl(size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &PropList,
               AllocatorT Allocator = AllocatorT())
-      : buffer_impl((void *)nullptr, SizeInBytes, PropList, Allocator) {}
+      : buffer_impl((void *)nullptr, SizeInBytes, RequiredAlign, PropList,
+                    Allocator) {}
 
-  buffer_impl(void *HostData, size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
+  buffer_impl(void *HostData, size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props, AllocatorT Allocator = AllocatorT())
       : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
 
     if (!HostData)
       return;
 
     set_final_data(reinterpret_cast<char *>(HostData));
-    if (MProps.has_property<property::buffer::use_host_ptr>()) {
+    if (reinterpret_cast<std::uintptr_t>(HostData) % RequiredAlign == 0 ||
+        MProps.has_property<property::buffer::use_host_ptr>()) {
       MUserPtr = HostData;
       return;
     }
 
-    // TODO: Reuse user's pointer if it has sufficient alignment.
+    setAlignIfDefaultAlloc(RequiredAlign);
     MShadowCopy = allocateHostMem();
     MUserPtr = MShadowCopy;
     std::memcpy(MUserPtr, HostData, SizeInBytes);
   }
 
-  buffer_impl(const void *HostData, size_t SizeInBytes,
+  buffer_impl(const void *HostData, size_t SizeInBytes, size_t RequiredAlign,
               const property_list &Props, AllocatorT Allocator = AllocatorT())
-      : buffer_impl(const_cast<void *>(HostData), SizeInBytes, Props,
-                    Allocator) {
+      : buffer_impl(const_cast<void *>(HostData), SizeInBytes, RequiredAlign,
+                    Props, Allocator) {
     MHostPtrReadOnly = true;
   }
 
   template <typename T>
   buffer_impl(const shared_ptr_class<T> &HostData, const size_t SizeInBytes,
-              const property_list &Props, AllocatorT Allocator = AllocatorT())
+              size_t RequiredAlign, const property_list &Props,
+              AllocatorT Allocator = AllocatorT())
       : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
     // HostData can be destructed by the user so need to make copy
+    setAlignIfDefaultAlloc(RequiredAlign);
     MUserPtr = MShadowCopy = allocateHostMem();
 
     std::copy(HostData.get(), HostData.get() + SizeInBytes / sizeof(T),
@@ -109,9 +115,10 @@ public:
 
   template <class InputIterator>
   buffer_impl(EnableIfNotConstIterator<InputIterator> First, InputIterator Last,
-              const size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
+              const size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props, AllocatorT Allocator = AllocatorT())
       : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
+    setAlignIfDefaultAlloc(RequiredAlign);
 
     // TODO: There is contradiction is the spec. It says SYCL RT must not
     // allocate additional memory on the host if use_host_ptr prop was passed.
@@ -143,9 +150,10 @@ public:
 
   template <class InputIterator>
   buffer_impl(EnableIfConstIterator<InputIterator> First, InputIterator Last,
-              const size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
+              const size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props, AllocatorT Allocator = AllocatorT())
       : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
+    setAlignIfDefaultAlloc(RequiredAlign);
 
     // TODO: There is contradiction is the spec. It says SYCL RT must not
     // allocate addtional memory on the host if use_host_ptr prop was passed. On
@@ -373,6 +381,16 @@ public:
   }
 
 private:
+  template <typename AllocT = AllocatorT>
+  typename std::enable_if<!std::is_same<AllocT, buffer_allocator>::value>::type
+  setAlignIfDefaultAlloc(size_t RequiredAlign) {}
+
+  template <typename AllocT = AllocatorT>
+  typename std::enable_if<std::is_same<AllocT, buffer_allocator>::value>::type
+  setAlignIfDefaultAlloc(size_t RequiredAlign) {
+    MAllocator.setAlignment(std::max<size_t>(RequiredAlign, 64));
+  }
+
   bool MOpenCLInterop = false;
   bool MHostPtrReadOnly = false;
 
