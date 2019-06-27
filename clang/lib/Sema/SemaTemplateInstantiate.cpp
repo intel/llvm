@@ -1193,7 +1193,9 @@ TemplateInstantiator::TransformPredefinedExpr(PredefinedExpr *E) {
       return E;
 
     return getSema().BuildUniqueStableName(E->getLocation(), SubExpr.get());
-  } else if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType) {
+  }
+
+  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType) {
     TypeSourceInfo *Info = getDerived().TransformType(E->getTypeSourceInfo());
     if (!Info)
       return ExprError();
