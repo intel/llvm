@@ -64,50 +64,99 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   return MemObj->allocateMem(TargetContext, InitFromUserData, OutEvent);
 }
 
+void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
+                                        bool HostPtrReadOnly, size_t Size) {
+  // Can return user pointer directly if it points to writable memory.
+  if (UserPtr && HostPtrReadOnly == false)
+    return UserPtr;
+
+  void *NewMem = MemObj->allocateHostMem();
+
+  // Need to initialize new memory if user provides pointer to read only
+  // memory.
+  if (UserPtr && HostPtrReadOnly == true)
+    std::memcpy((char *)NewMem, (char *)UserPtr, Size);
+  return NewMem;
+}
+
+void *MemoryManager::allocateInteropMemObject(
+    ContextImplPtr TargetContext, void *UserPtr,
+    const EventImplPtr &InteropEvent, const ContextImplPtr &InteropContext,
+    RT::PiEvent &OutEventToWait) {
+  // If memory object is created with interop c'tor.
+  // Return cl_mem as is if contexts match.
+  if (TargetContext == InteropContext) {
+    OutEventToWait = InteropEvent->getHandleRef();
+    return UserPtr;
+  }
+  // Allocate new cl_mem and initialize from user provided one.
+  assert(!"Not implemented");
+  return nullptr;
+}
+
+void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
+                                         void *UserPtr, bool HostPtrReadOnly,
+                                         const RT::PiImageDesc &Desc,
+                                         const RT::PiImageFormat &Format) {
+  // Create read_write mem object by default to handle arbitrary uses.
+  RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
+  if (UserPtr)
+    CreationFlags |=
+      HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY :
+      PI_MEM_FLAGS_HOST_PTR_USE;
+
+  RT::PiResult Error = PI_SUCCESS;
+  RT::PiMem NewMem;
+  PI_CALL(
+      (NewMem = RT::piImageCreate(TargetContext->getHandleRef(), CreationFlags,
+                                  &Format, &Desc, UserPtr, &Error),
+       Error));
+  return NewMem;
+}
+
+void *MemoryManager::allocateBufferObject(ContextImplPtr TargetContext,
+                                          void *UserPtr, bool HostPtrReadOnly,
+                                          const size_t Size) {
+  // Create read_write mem object by default to handle arbitrary uses.
+  RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
+  if (UserPtr)
+    CreationFlags |=
+      HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY :
+      PI_MEM_FLAGS_HOST_PTR_USE;
+
+  RT::PiResult Error = PI_SUCCESS;
+  RT::PiMem NewMem;
+  PI_CALL((NewMem = RT::piMemBufferCreate(
+      TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &Error), Error));
+  return NewMem;
+}
+
 void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
                                        SYCLMemObjI *MemObj, void *UserPtr,
                                        bool HostPtrReadOnly, size_t Size,
                                        const EventImplPtr &InteropEvent,
                                        const ContextImplPtr &InteropContext,
                                        RT::PiEvent &OutEventToWait) {
-  if (TargetContext->is_host()) {
-    // Can return user pointer directly if it points to writable memory.
-    if (UserPtr && HostPtrReadOnly == false)
-      return UserPtr;
+  if (TargetContext->is_host())
+    return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size);
+  if (UserPtr && InteropContext)
+    return allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
+                                    InteropContext, OutEventToWait);
+  return allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size);
+}
 
-    void *NewMem = MemObj->allocateHostMem();
-
-    // Need to initialize new memory if user provides pointer to read only
-    // memory.
-    if (UserPtr && HostPtrReadOnly == true)
-      std::memcpy((char *)NewMem, (char *)UserPtr, Size);
-    return NewMem;
-  }
-
-  // If memory object is created with interop c'tor.
-  if (UserPtr && InteropContext) {
-    // Return cl_mem as is if contexts match.
-    if (TargetContext == InteropContext) {
-      OutEventToWait = InteropEvent->getHandleRef();
-      return UserPtr;
-    }
-    // Allocate new cl_mem and initialize from user provided one.
-    assert(!"Not implemented");
-    return nullptr;
-  }
-
-  // Create read_write mem object by default to handle arbitrary uses.
-  RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
-
-  if (UserPtr)
-    CreationFlags |=
-        HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY :
-                          PI_MEM_FLAGS_HOST_PTR_USE;
-  RT::PiResult Error = PI_SUCCESS;
-  RT::PiMem NewMem;
-  PI_CALL((NewMem = RT::piMemBufferCreate(
-      TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &Error), Error));
-  return NewMem;
+void *MemoryManager::allocateMemImage(
+    ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
+    bool HostPtrReadOnly, size_t Size, const RT::PiImageDesc &Desc,
+    const RT::PiImageFormat &Format, const EventImplPtr &InteropEvent,
+    const ContextImplPtr &InteropContext, RT::PiEvent &OutEventToWait) {
+  if (TargetContext->is_host())
+    return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size);
+  if (UserPtr && InteropContext)
+    return allocateInteropMemObject(TargetContext, UserPtr, InteropEvent,
+                                    InteropContext, OutEventToWait);
+  return allocateImageObject(TargetContext, UserPtr, HostPtrReadOnly, Desc,
+                             Format);
 }
 
 void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,

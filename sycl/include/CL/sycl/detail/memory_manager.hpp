@@ -55,10 +55,36 @@ public:
                                  const ContextImplPtr &InteropContext,
                                  RT::PiEvent &OutEventToWait);
 
+  // Allocates images in specified context taking into account situations such
+  // as host ptr or cl_mem provided by user. TargetContext should be device
+  // one(not host).
+  static void *allocateMemImage(
+      ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
+      bool HostPtrReadOnly, size_t Size, const RT::PiImageDesc &Desc,
+      const RT::PiImageFormat &Format, const EventImplPtr &InteropEvent,
+      const ContextImplPtr &InteropContext, RT::PiEvent &OutEventToWait);
+
   // Releases memory object(buffer or image). TargetContext should be device
   // one(not host).
   static void releaseMemObj(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
                             void *MemAllocation, void *UserPtr);
+
+  static void *allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
+                                  bool HostPtrReadOnly, size_t Size);
+
+  static void *allocateInteropMemObject(ContextImplPtr TargetContext,
+                                        void *UserPtr,
+                                        const EventImplPtr &InteropEvent,
+                                        const ContextImplPtr &InteropContext,
+                                        RT::PiEvent &OutEventToWait);
+
+  static void *allocateImageObject(ContextImplPtr TargetContext, void *UserPtr,
+                                   bool HostPtrReadOnly,
+                                   const RT::PiImageDesc &Desc,
+                                   const RT::PiImageFormat &Format);
+
+  static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
+                                    bool HostPtrReadOnly, const size_t Size);
 
   // Copies memory between: host and device, host and host,
   // device and device if memory objects bound to the one context.
