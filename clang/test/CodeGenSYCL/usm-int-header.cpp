@@ -1,10 +1,11 @@
+// RUN: %clang_cc1 -std=c++11 -I %S/Inputs -fsycl-is-device -ast-dump %s | FileCheck %s
 // RUN: %clang -I %S/Inputs --sycl -Xclang -fsycl-int-header=%t.h %s -c -o kernel.spv
-// RUN: FileCheck -input-file=%t.h %s
+// RUN: FileCheck -input-file=%t.h %s --check-prefix=INT-HEADER
 
-// CHECK:{ kernel_param_kind_t::kind_pointer, 8, 0 },
-// CHECK:{ kernel_param_kind_t::kind_pointer, 8, 8 },
+// INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 0 },
+// INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 8 },
 
-//==-------------------usm-params.cpp - USM kernel param aspace test -------==//
+//==--usm-int-header.cpp - USM kernel param aspace and int header test -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -30,4 +31,4 @@ int main() {
     });
 }
 
-
+// CHECK: FunctionDecl {{.*}}usm_test 'void (__global int *, __global float *)'
