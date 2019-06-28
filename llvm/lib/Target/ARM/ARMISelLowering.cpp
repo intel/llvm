@@ -226,6 +226,13 @@ void ARMTargetLowering::setAllExpand(MVT VT) {
     setOperationAction(Opc, VT, Expand);
 }
 
+void ARMTargetLowering::addAllExtLoads(const MVT From, const MVT To,
+                                       LegalizeAction Action) {
+  setLoadExtAction(ISD::EXTLOAD,  From, To, Action);
+  setLoadExtAction(ISD::ZEXTLOAD, From, To, Action);
+  setLoadExtAction(ISD::SEXTLOAD, From, To, Action);
+}
+
 void ARMTargetLowering::addMVEVectorTypes(bool HasMVEFP) {
   const MVT IntTypes[] = { MVT::v16i8, MVT::v8i16, MVT::v4i32 };
 
@@ -263,6 +270,15 @@ void ARMTargetLowering::addMVEVectorTypes(bool HasMVEFP) {
       // No native support for these.
       setOperationAction(ISD::FDIV, VT, Expand);
       setOperationAction(ISD::FREM, VT, Expand);
+      setOperationAction(ISD::FSQRT, VT, Expand);
+      setOperationAction(ISD::FSIN, VT, Expand);
+      setOperationAction(ISD::FCOS, VT, Expand);
+      setOperationAction(ISD::FPOW, VT, Expand);
+      setOperationAction(ISD::FLOG, VT, Expand);
+      setOperationAction(ISD::FLOG2, VT, Expand);
+      setOperationAction(ISD::FLOG10, VT, Expand);
+      setOperationAction(ISD::FEXP, VT, Expand);
+      setOperationAction(ISD::FEXP2, VT, Expand);
     }
   }
 
@@ -277,6 +293,16 @@ void ARMTargetLowering::addMVEVectorTypes(bool HasMVEFP) {
     setOperationAction(ISD::LOAD, VT, Legal);
     setOperationAction(ISD::STORE, VT, Legal);
   }
+
+  // It is legal to extload from v4i8 to v4i16 or v4i32.
+  addAllExtLoads(MVT::v8i16, MVT::v8i8, Legal);
+  addAllExtLoads(MVT::v4i32, MVT::v4i16, Legal);
+  addAllExtLoads(MVT::v4i32, MVT::v4i8, Legal);
+
+  // Some truncating stores are legal too.
+  setTruncStoreAction(MVT::v4i32, MVT::v4i16, Legal);
+  setTruncStoreAction(MVT::v4i32, MVT::v4i8,  Legal);
+  setTruncStoreAction(MVT::v8i16, MVT::v8i8,  Legal);
 }
 
 ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
@@ -587,9 +613,7 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
   for (MVT VT : MVT::vector_valuetypes()) {
     for (MVT InnerVT : MVT::vector_valuetypes()) {
       setTruncStoreAction(VT, InnerVT, Expand);
-      setLoadExtAction(ISD::SEXTLOAD, VT, InnerVT, Expand);
-      setLoadExtAction(ISD::ZEXTLOAD, VT, InnerVT, Expand);
-      setLoadExtAction(ISD::EXTLOAD, VT, InnerVT, Expand);
+      addAllExtLoads(VT, InnerVT, Expand);
     }
 
     setOperationAction(ISD::MULHS, VT, Expand);
@@ -13197,7 +13221,9 @@ bool ARMTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned,
     return false;
   if (Ty != MVT::v16i8 && Ty != MVT::v8i16 && Ty != MVT::v8f16 &&
       Ty != MVT::v4i32 && Ty != MVT::v4f32 && Ty != MVT::v2i64 &&
-      Ty != MVT::v2f64)
+      Ty != MVT::v2f64 &&
+      // These are for truncated stores
+      Ty != MVT::v4i8 && Ty != MVT::v8i8 && Ty != MVT::v4i16)
     return false;
 
   if (Subtarget->isLittle()) {
