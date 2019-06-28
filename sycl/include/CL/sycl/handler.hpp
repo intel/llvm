@@ -256,7 +256,10 @@ private:
         detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
         MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
         if (!IsKernelCreatedFromSource) {
-          const size_t SizeAccField = sizeof(size_t) * AccImpl->MDims;
+          // Dimensionality of the buffer is 1 when dimensionality of the
+          // accessor is 0.
+          const size_t SizeAccField =
+              sizeof(size_t) * (AccImpl->MDims == 0 ? 1 : AccImpl->MDims);
           ++IndexShift;
           MArgs.emplace_back(kind_std_layout, &AccImpl->MAccessRange[0],
                              SizeAccField, Index + IndexShift);
