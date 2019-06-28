@@ -32,6 +32,7 @@ template <typename T> void test_fill(T Val);
 template <typename T> void test_copy_ptr_acc();
 template <typename T> void test_copy_acc_ptr();
 template <typename T> void test_copy_shared_ptr_acc();
+template <typename T> void test_copy_shared_ptr_const_acc();
 template <typename T> void test_copy_acc_shared_ptr();
 template <typename T> void test_copy_acc_acc();
 template <typename T> void test_update_host();
@@ -72,6 +73,14 @@ int main() {
     test_copy_shared_ptr_acc<point<int>>();
     test_copy_shared_ptr_acc<point<int>>();
     test_copy_shared_ptr_acc<point<float>>();
+  }
+  // handler.copy(const shared_ptr, acc)
+  {
+    test_copy_shared_ptr_const_acc<int>();
+    test_copy_shared_ptr_const_acc<int>();
+    test_copy_shared_ptr_const_acc<point<int>>();
+    test_copy_shared_ptr_const_acc<point<int>>();
+    test_copy_shared_ptr_const_acc<point<float>>();
   }
   // handler.copy(acc, shared_ptr)
   {
@@ -188,6 +197,24 @@ template <typename T> void test_copy_shared_ptr_acc() {
   for (size_t I = 0; I < Size; ++I) {
     Values.get()[I] = I;
   }
+  {
+    buffer<T, 1> Buffer(Data, range<1>(Size));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 1, access::mode::write, access::target::global_buffer>
+          Accessor(Buffer, Cgh, range<1>(Size));
+      Cgh.copy(Values, Accessor);
+    });
+  }
+  for (size_t I = 0; I < Size; ++I) {
+    assert(Data[I] == Values.get()[I]);
+  }
+}
+
+template <typename T> void test_copy_shared_ptr_const_acc() {
+  constexpr size_t Size = 10;
+  T Data[Size] = {0};
+  std::shared_ptr<const T> Values(new T[Size]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
   {
     buffer<T, 1> Buffer(Data, range<1>(Size));
     queue Queue;

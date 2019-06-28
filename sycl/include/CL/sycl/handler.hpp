@@ -141,7 +141,7 @@ class handler {
   std::vector<std::vector<char>> MArgsStorage;
   std::vector<detail::AccessorImplPtr> MAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-  std::vector<std::shared_ptr<void>> MSharedPtrStorage;
+  std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
   // The list of arguments for the kernel.
   std::vector<detail::ArgDesc> MArgs;
   // The list of associated accessors with this handler.
@@ -924,7 +924,7 @@ public:
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Src);
-    T_Dst *RawSrcPtr = Src.get();
+    T_Src *RawSrcPtr = Src.get();
     copy(RawSrcPtr, Dst);
   }
 
