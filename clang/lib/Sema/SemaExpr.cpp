@@ -3212,12 +3212,12 @@ ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
   if (Operand->getType()->isDependentType()) {
     ResultTy = Context.DependentTy;
   } else {
-    std::string Str = PredefinedExpr::ComputeName(Context,
-        PredefinedExpr::UniqueStableNameType, Operand->getType());
-    llvm::APInt Length(32, Str.length()  + 1);
+    std::string Str = PredefinedExpr::ComputeName(
+        Context, PredefinedExpr::UniqueStableNameType, Operand->getType());
+    llvm::APInt Length(32, Str.length() + 1);
     ResultTy = Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
     ResultTy = Context.getConstantArrayType(ResultTy, Length, ArrayType::Normal,
-                                           /*IndexTypeQuals*/ 0);
+                                            /*IndexTypeQuals*/ 0);
     SL = StringLiteral::Create(Context, Str, StringLiteral::Ascii,
                                /*Pascal*/ false, ResultTy, OpLoc);
   }
@@ -3226,6 +3226,7 @@ ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
                                 PredefinedExpr::UniqueStableNameType, SL,
                                 Operand);
 }
+
 ExprResult Sema::BuildUniqueStableName(SourceLocation OpLoc,
                                        Expr *E) {
   QualType ResultTy;

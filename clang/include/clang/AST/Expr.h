@@ -1844,6 +1844,7 @@ private:
            "TypeSourceInfo only valid for UniqueStableName of a Type");
     getTrailingObjects<PredefExprStorage>()->T = Info;
   }
+
   void setExpr(Expr *E) {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
            "Expr only valid for UniqueStableName of an Expression.");

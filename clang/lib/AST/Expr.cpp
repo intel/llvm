@@ -498,7 +498,8 @@ PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
   PredefinedExprBits.Kind = IK;
   assert((getIdentKind() == IK) &&
          "IdentKind do not fit in PredefinedExprBitfields!");
-  assert(IK == UniqueStableNameType && "Wrong Thing!");
+  assert(IK == UniqueStableNameType &&
+         "Constructor only valid with UniqueStableNameType");
   PredefinedExprBits.HasFunctionName = false;
   PredefinedExprBits.Loc = L;
   setTypeSourceInfo(Info);
@@ -513,7 +514,8 @@ PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
   PredefinedExprBits.Kind = IK;
   assert((getIdentKind() == IK) &&
          "IdentKind do not fit in PredefinedExprBitfields!");
-  assert(IK == UniqueStableNameExpr && "Wrong Thing!");
+  assert(IK == UniqueStableNameExpr &&
+         "Constructor only valid with UniqueStableNameExpr");
   PredefinedExprBits.HasFunctionName = false;
   PredefinedExprBits.Loc = L;
   setExpr(Info);

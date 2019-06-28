@@ -1704,6 +1704,10 @@ void CXXNameMangler::mangleTemplateParamDecl(const NamedDecl *Decl) {
   }
 }
 
+// Handles the __unique_stable_name feature for lambdas. Instead of the ordinal
+// of the lambda in its function, this does line/column to uniquely and reliably
+// identify the lambda.  Additionally, Macro expansions are expanded as well to
+// prevent macros causing duplicates.
 static void mangleUniqueNameLambda(CXXNameMangler &Mangler, SourceManager &SM,
                                    raw_ostream &Out,
                                    const CXXRecordDecl *Lambda) {
