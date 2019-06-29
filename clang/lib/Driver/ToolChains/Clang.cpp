@@ -6400,6 +6400,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // Input files consist of fat libraries and the object(s) to be unbundled.
     for (const auto &I : Inputs)
       LinkArgs.push_back(I.getFilename());
+    // Add -L<dir> search directories.
+    TCArgs.AddAllArgs(LinkArgs, options::OPT_L);
     for (const auto &A :
             TCArgs.getAllArgValues(options::OPT_foffload_static_lib_EQ))
       LinkArgs.push_back(TCArgs.MakeArgString(A));
