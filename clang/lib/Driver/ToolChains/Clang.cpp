@@ -3565,6 +3565,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  if (Arg *A = Args.getLastArg(options::OPT_sycl_std_EQ)) {
+    A->render(Args, CmdArgs);
+  } else if (IsSYCL) {
+    // Ensure the default version in SYCL mode is 1.2.1
+    CmdArgs.push_back("-sycl-std=1.2.1");
+  }
+
   if (IsOpenMPDevice) {
     // We have to pass the triple of the host if compiling for an OpenMP device.
     std::string NormalizedTriple =
@@ -4719,6 +4726,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Forward -cl options to -cc1
   RenderOpenCLOptions(Args, CmdArgs);
+
+  // Forward -sycl options to -cc1
+  Args.AddLastArg(CmdArgs, options::OPT_sycl_std_EQ);
 
   if (Arg *A = Args.getLastArg(options::OPT_fcf_protection_EQ)) {
     CmdArgs.push_back(
