@@ -162,6 +162,8 @@ add_library("${SYCLLibrary}" SHARED
   "${sourceRootPath}/sampler.cpp"
   "${sourceRootPath}/stream.cpp"
   "${sourceRootPath}/spirv_ops.cpp"
+  "${sourceRootPath}/detail/usm/opencl_shim.cpp"
+  "${sourceRootPath}/detail/usm/clusm.cpp"
 )
 
 add_dependencies("${SYCLLibrary}"
