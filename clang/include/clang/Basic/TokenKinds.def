@@ -437,7 +437,7 @@ TYPE_TRAIT_1(__is_interface_class, IsInterfaceClass, KEYMS)
 TYPE_TRAIT_1(__is_sealed, IsSealed, KEYMS)
 
 // Extensions for SYCL.
-KEYWORD(__unique_stable_name        , KEYSYCL)
+KEYWORD(__unique_stable_name        , KEYALL)
 
 // MSVC12.0 / VS2013 Type Traits
 TYPE_TRAIT_1(__is_destructible, IsDestructible, KEYMS)
