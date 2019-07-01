@@ -15,33 +15,33 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-// OpenCL platform information methods
-template <typename T, info::platform param> struct get_platform_info_cl {};
+// The platform information methods
+template <typename T, info::platform param> struct get_platform_info {};
 
 template <info::platform param>
-struct get_platform_info_cl<string_class, param> {
-  static string_class _(cl_platform_id plt) {
+struct get_platform_info<string_class, param> {
+  static string_class _(RT::pi_platform plt) {
     size_t resultSize;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    CHECK_OCL_CODE(
-        clGetPlatformInfo(plt, cl_platform_info(param), 0, NULL, &resultSize));
+    PI_CALL(RT::piPlatformGetInfo(
+      plt, pi_cast<pi_platform_info>(param), 0, 0, &resultSize));
     if (resultSize == 0) {
       return "";
     }
     unique_ptr_class<char[]> result(new char[resultSize]);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    CHECK_OCL_CODE(clGetPlatformInfo(plt, cl_platform_info(param), resultSize,
-                                     result.get(), NULL));
+    PI_CALL(RT::piPlatformGetInfo(
+      plt, pi_cast<pi_platform_info>(param), resultSize, result.get(), 0));
     return result.get();
   }
 };
 
 template <>
-struct get_platform_info_cl<vector_class<string_class>,
-                            info::platform::extensions> {
-  static vector_class<string_class> _(cl_platform_id plt) {
+struct get_platform_info<vector_class<string_class>,
+                         info::platform::extensions> {
+  static vector_class<string_class> _(RT::pi_platform plt) {
     string_class result =
-        get_platform_info_cl<string_class, info::platform::extensions>::_(plt);
+        get_platform_info<string_class, info::platform::extensions>::_(plt);
     return split_string(result, ' ');
   }
 };

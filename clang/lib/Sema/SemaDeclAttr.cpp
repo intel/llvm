@@ -5091,6 +5091,12 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
     if (!NBA->isImplicit() &&
         checkAttrMutualExclusion<IntelFPGANumBanksAttr>(S, D, Attr))
       InCompat = true;
+  if (checkAttrMutualExclusion<IntelFPGAMaxReplicatesAttr>(S, D, Attr))
+    InCompat = true;
+  if (checkAttrMutualExclusion<IntelFPGASimpleDualPortAttr>(S, D, Attr))
+    InCompat = true;
+  if (checkAttrMutualExclusion<IntelFPGAMergeAttr>(S, D, Attr))
+    InCompat = true;
 
   return InCompat;
 }
@@ -5122,6 +5128,65 @@ static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
   S.AddOneConstantPowerTwoValueAttr<AttrType>(
       Attr.getRange(), D, Attr.getArgAsExpr(0),
       Attr.getAttributeSpellingListIndex());
+}
+
+static void handleIntelFPGASimpleDualPortAttr(Sema &S, Decl *D,
+                                              const ParsedAttr &Attr) {
+  checkForDuplicateAttribute<IntelFPGASimpleDualPortAttr>(S, D, Attr);
+
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
+    return;
+
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        S.Context, IntelFPGAMemoryAttr::Default));
+
+  D->addAttr(::new (S.Context)
+                 IntelFPGASimpleDualPortAttr(Attr.getRange(), S.Context, 0));
+}
+
+static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
+                                             const ParsedAttr &Attr) {
+  checkForDuplicateAttribute<IntelFPGAMaxReplicatesAttr>(S, D, Attr);
+
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
+    return;
+
+  S.AddOneConstantValueAttr<IntelFPGAMaxReplicatesAttr>(
+      Attr.getRange(), D, Attr.getArgAsExpr(0),
+      Attr.getAttributeSpellingListIndex());
+}
+
+/// Handle the merge attribute.
+/// This requires two string arguments.  The first argument is a name, the
+/// second is a direction.  The direction must be "depth" or "width".
+/// This is incompatible with the register attribute.
+static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &Attr) {
+  checkForDuplicateAttribute<IntelFPGAMergeAttr>(S, D, Attr);
+
+  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, Attr))
+    return;
+
+  SmallVector<StringRef, 2> Results;
+  for (int I = 0; I < 2; I++) {
+    StringRef Str;
+    if (!S.checkStringLiteralArgumentAttr(Attr, I, Str))
+      return;
+
+    if (I == 1 && Str != "depth" && Str != "width") {
+      S.Diag(Attr.getLoc(), diag::err_intel_fpga_merge_dir_invalid) << Attr;
+      return;
+    }
+    Results.push_back(Str);
+  }
+
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        S.Context, IntelFPGAMemoryAttr::Default));
+
+  D->addAttr(::new (S.Context) IntelFPGAMergeAttr(
+      Attr.getRange(), S.Context, Results[0], Results[1],
+      Attr.getAttributeSpellingListIndex()));
 }
 
 static void handleIntelFPGAMaxPrivateCopiesAttr(Sema &S, Decl *D,
@@ -7508,6 +7573,15 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_IntelFPGAMaxPrivateCopies:
     handleIntelFPGAMaxPrivateCopiesAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_IntelFPGAMaxReplicates:
+    handleIntelFPGAMaxReplicatesAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_IntelFPGASimpleDualPort:
+    handleIntelFPGASimpleDualPortAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_IntelFPGAMerge:
+    handleIntelFPGAMergeAttr(S, D, AL);
     break;
 
   case ParsedAttr::AT_AnyX86NoCallerSavedRegisters:

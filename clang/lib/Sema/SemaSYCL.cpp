@@ -395,10 +395,21 @@ public:
       auto NewDecl = MappingPair.second;
       return DeclRefExpr::Create(
           SemaRef.getASTContext(), DRE->getQualifierLoc(),
-          DRE->getTemplateKeywordLoc(), NewDecl, false, DRE->getNameInfo(),
+          DRE->getTemplateKeywordLoc(), NewDecl, false,
+          DeclarationNameInfo(DRE->getNameInfo().getName(), SourceLocation(),
+                              DRE->getNameInfo().getInfo()),
           NewDecl->getType(), DRE->getValueKind());
     }
     return DRE;
+  }
+
+  StmtResult RebuildCompoundStmt(SourceLocation LBraceLoc,
+                                 MultiStmtArg Statements,
+                                 SourceLocation RBraceLoc,
+                                 bool IsStmtExpr) {
+    // Build a new compound statement but clear the source locations.
+    return getSema().ActOnCompoundStmt(SourceLocation(), SourceLocation(),
+                                       Statements, IsStmtExpr);
   }
 
 private:
@@ -530,8 +541,8 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
         auto ME = MemberExpr::Create(
             S.Context, SpecialObjME, false, SourceLocation(),
             NestedNameSpecifierLoc(), SourceLocation(), InitMethod, MethodDAP,
-            InitMethod->getNameInfo(), nullptr, InitMethod->getType(),
-            VK_LValue, OK_Ordinary);
+            DeclarationNameInfo(InitMethod->getDeclName(), SourceLocation()),
+            nullptr, InitMethod->getType(), VK_LValue, OK_Ordinary);
 
         // Not referenced -> not emitted
         S.MarkFunctionReferenced(SourceLocation(), InitMethod, true);

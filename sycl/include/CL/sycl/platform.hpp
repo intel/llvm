@@ -9,13 +9,13 @@
 #pragma once
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/platform_impl.hpp>
+#include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/stl.hpp>
 // 4.6.2 Platform class
 #include <memory>
 #include <utility>
 namespace cl {
 namespace sycl {
-
 // TODO: make code thread-safe
 
 // Forward declaration
@@ -63,8 +63,13 @@ public:
 
 private:
   std::shared_ptr<detail::platform_impl> impl;
-  template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  template <class T>
+  friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
+
 }; // class platform
 } // namespace sycl
 } // namespace cl

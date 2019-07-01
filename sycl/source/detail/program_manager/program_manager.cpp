@@ -167,11 +167,11 @@ operator()(const std::pair<context, OSModuleHandle> &LHS,
          reinterpret_cast<intptr_t>(RHS.second);
 }
 
-void ProgramManager::addImages(cnri_bin_desc *DeviceImages) {
+void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
-  for (int I = 0; I < DeviceImages->NumDeviceImages; I++) {
-    cnri_device_image *Img = &(DeviceImages->DeviceImages[I]);
+  for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
+    pi_device_binary Img = &(DeviceBinary->DeviceBinaries[I]);
     OSModuleHandle M = OSUtil::getOSModuleHandle(Img);
     auto &Imgs = m_DeviceImages[M];
 
@@ -192,7 +192,7 @@ void ProgramManager::debugDumpBinaryImage(const DeviceImage *Img) const {
   std::cerr << "    Options  : "
             << (Img->BuildOptions ? Img->BuildOptions : "NULL") << "\n";
   std::cerr << "    Bin size : "
-            << ((intptr_t)Img->ImageEnd - (intptr_t)Img->ImageStart) << "\n";
+            << ((intptr_t)Img->BinaryEnd - (intptr_t)Img->BinaryStart) << "\n";
 }
 
 void ProgramManager::debugDumpBinaryImages() const {
@@ -206,14 +206,14 @@ void ProgramManager::debugDumpBinaryImages() const {
 
 struct ImageDeleter {
   void operator()(DeviceImage *I) {
-    delete[] I->ImageStart;
+    delete[] I->BinaryStart;
     delete I;
   }
 };
 
-cnri_program ProgramManager::loadProgram(OSModuleHandle M,
-                                         const context &Context,
-                                         DeviceImage **I) {
+RT::pi_program ProgramManager::loadProgram(OSModuleHandle M,
+                                           const context &Context,
+                                           DeviceImage **I) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
   if (DbgProgMgr > 0) {
@@ -248,15 +248,15 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
                           std::string(" failed"));
     }
     Img = new DeviceImage();
-    Img->Version = CNRI_DEVICE_IMAGE_STRUCT_VERSION;
-    Img->Kind = SYCL_OFFLOAD_KIND;
-    Img->Format = CNRI_IMG_NONE;
-    Img->DeviceTargetSpec = CNRI_TGT_STR_UNKNOWN;
+    Img->Version          = PI_DEVICE_BINARY_VERSION;
+    Img->Kind             = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
+    Img->Format           = PI_DEVICE_BINARY_TYPE_NONE;
+    Img->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
     Img->BuildOptions = "";
     Img->ManifestStart = nullptr;
     Img->ManifestEnd = nullptr;
-    Img->ImageStart = Data;
-    Img->ImageEnd = Data + Size;
+    Img->BinaryStart = Data;
+    Img->BinaryEnd = Data + Size;
     Img->EntriesBegin = nullptr;
     Img->EntriesEnd = nullptr;
 
@@ -275,12 +275,10 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
       throw runtime_error("No device program image found");
     }
     std::vector<DeviceImage *> *Imgs = (ImgIt->second).get();
-    const cnri_context &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
 
-    if (cnriSelectDeviceImage(Ctx, Imgs->data(), (cl_uint)Imgs->size(), &Img) !=
-        CNRI_SUCCESS) {
-      throw device_error("cnriSelectDeviceImage failed");
-    }
+    PI_CALL(RT::piextDeviceSelectBinary(
+      0, Imgs->data(), (cl_uint)Imgs->size(), &Img));
+
     if (DbgProgMgr > 0) {
       std::cerr << "available device images:\n";
       debugDumpBinaryImages();
@@ -289,26 +287,25 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
     }
   }
   // perform minimal sanity checks on the device image and the descriptor
-  if (Img->ImageEnd < Img->ImageStart) {
+  if (Img->BinaryEnd < Img->BinaryStart) {
     throw runtime_error("Malformed device program image descriptor");
   }
-  if (Img->ImageEnd == Img->ImageStart) {
+  if (Img->BinaryEnd == Img->BinaryStart) {
     throw runtime_error("Invalid device program image: size is zero");
   }
-  size_t ImgSize = static_cast<size_t>(Img->ImageEnd - Img->ImageStart);
-  cnri_device_image_format Format =
-      static_cast<cnri_device_image_format>(Img->Format);
+  size_t ImgSize = static_cast<size_t>(Img->BinaryEnd - Img->BinaryStart);
+  auto Format = pi_cast<RT::pi_device_binary_type>(Img->Format);
 
   // Determine the format of the image if not set already
-  if (Format == CNRI_IMG_NONE) {
+  if (Format == PI_DEVICE_BINARY_TYPE_NONE) {
     struct {
-      cnri_device_image_format Fmt;
+      pi_device_binary_type Fmt;
       const uint32_t Magic;
-    } Fmts[] = {{CNRI_IMG_SPIRV, 0x07230203},
-                {CNRI_IMG_LLVMIR_BITCODE, 0xDEC04342}};
+    } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
+                {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
     if (ImgSize >= sizeof(Fmts[0].Magic)) {
       std::remove_const<decltype(Fmts[0].Magic)>::type Hdr = 0;
-      std::copy(Img->ImageStart, Img->ImageStart + sizeof(Hdr),
+      std::copy(Img->BinaryStart, Img->BinaryStart + sizeof(Hdr),
                 reinterpret_cast<char *>(&Hdr));
 
       for (const auto &Fmt : Fmts) {
@@ -341,9 +338,9 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
     Fname += Img->DeviceTargetSpec;
     std::string Ext;
 
-    if (Format == CNRI_IMG_SPIRV) {
+    if (Format == PI_DEVICE_BINARY_TYPE_SPIRV) {
       Ext = ".spv";
-    } else if (Format == CNRI_IMG_LLVMIR_BITCODE) {
+    } else if (Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE) {
       Ext = ".bc";
     } else {
       Ext = ".bin";
@@ -355,15 +352,15 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
     if (!F.is_open()) {
       throw runtime_error(std::string("Can not write ") + Fname);
     }
-    F.write(reinterpret_cast<const char *>(Img->ImageStart), ImgSize);
+    F.write(reinterpret_cast<const char *>(Img->BinaryStart), ImgSize);
     F.close();
   }
   // Load the selected image
-  const cnri_context &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
-  cnri_program Res = nullptr;
-  Res = Format == CNRI_IMG_SPIRV
-            ? createSpirvProgram(Ctx, Img->ImageStart, ImgSize)
-            : createBinaryProgram(Ctx, Img->ImageStart, ImgSize);
+  const cl_context &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
+  RT::pi_program Res = nullptr;
+  Res = Format == PI_DEVICE_BINARY_TYPE_SPIRV
+            ? createSpirvProgram(Ctx, Img->BinaryStart, ImgSize)
+            : createBinaryProgram(Ctx, Img->BinaryStart, ImgSize);
 
   if (I)
     *I = Img;
@@ -376,11 +373,11 @@ cnri_program ProgramManager::loadProgram(OSModuleHandle M,
 } // namespace sycl
 } // namespace cl
 
-extern "C" void __tgt_register_lib(cnri_bin_desc *desc) {
+extern "C" void __tgt_register_lib(pi_device_binaries desc) {
   cl::sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization
-extern "C" void __tgt_unregister_lib(cnri_bin_desc *desc) {
+extern "C" void __tgt_unregister_lib(pi_device_binaries desc) {
   // TODO implement the function
 }
