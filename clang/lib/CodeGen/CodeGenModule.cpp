@@ -3800,6 +3800,16 @@ void CodeGenModule::generateIntelFPGAAnnotation(
     llvm::APSInt BWAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << NBA->getSpelling() << ':' << BWAInt << '}';
   }
+  if (const auto *MRA = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
+    llvm::APSInt MRAInt = MRA->getValue()->EvaluateKnownConstInt(getContext());
+    Out << '{' << MRA->getSpelling() << ':' << MRAInt << '}';
+  }
+  if (const auto *MA = D->getAttr<IntelFPGAMergeAttr>()) {
+    Out << '{' << MA->getSpelling() << ':' << MA->getName() << ':'
+        << MA->getDirection() << '}';
+  }
+  if (D->hasAttr<IntelFPGASimpleDualPortAttr>())
+    Out << "{simple_dual_port:1}";
 }
 
 void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
