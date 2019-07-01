@@ -8,10 +8,12 @@
 
 #pragma once
 
+#include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/image_ocl_types.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/pointers.hpp>

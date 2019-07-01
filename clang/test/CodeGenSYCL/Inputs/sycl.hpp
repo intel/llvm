@@ -135,10 +135,85 @@ public:
   template <typename... T>
   void use(T... args) const {}
   _ImplT<dimensions> impl;
+
 private:
   void __init(__global dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
 };
+
+template <int dimensions, access::mode accessmode, access::target accesstarget>
+struct opencl_image_type;
+
+#define IMAGETY_DEFINE(dim, accessmode, amsuffix, Target, ifarray_) \
+  template <>                                                       \
+  struct opencl_image_type<dim, access::mode::accessmode,           \
+                           access::target::Target> {                \
+    using type = __ocl_image##dim##d_##ifarray_##amsuffix##_t;      \
+  };
+
+#define IMAGETY_READ_3_DIM_IMAGE       \
+  IMAGETY_DEFINE(1, read, ro, image, ) \
+  IMAGETY_DEFINE(2, read, ro, image, ) \
+  IMAGETY_DEFINE(3, read, ro, image, )
+
+#define IMAGETY_WRITE_3_DIM_IMAGE       \
+  IMAGETY_DEFINE(1, write, wo, image, ) \
+  IMAGETY_DEFINE(2, write, wo, image, ) \
+  IMAGETY_DEFINE(3, write, wo, image, )
+
+#define IMAGETY_READ_2_DIM_IARRAY                  \
+  IMAGETY_DEFINE(1, read, ro, image_array, array_) \
+  IMAGETY_DEFINE(2, read, ro, image_array, array_)
+
+#define IMAGETY_WRITE_2_DIM_IARRAY                  \
+  IMAGETY_DEFINE(1, write, wo, image_array, array_) \
+  IMAGETY_DEFINE(2, write, wo, image_array, array_)
+
+IMAGETY_READ_3_DIM_IMAGE
+IMAGETY_WRITE_3_DIM_IMAGE
+
+IMAGETY_READ_2_DIM_IARRAY
+IMAGETY_WRITE_2_DIM_IARRAY
+
+template <int dim, access::mode accessmode, access::target accesstarget>
+struct _ImageImplT {
+#ifdef __SYCL_DEVICE_ONLY__
+  typename opencl_image_type<dim, accessmode, accesstarget>::type MImageObj;
+#else
+  range<dim> AccessRange;
+  range<dim> MemRange;
+  id<dim> Offset;
+#endif
+};
+
+template <typename dataT, int dimensions, access::mode accessmode>
+class accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
+public:
+  void use(void) const {}
+  template <typename... T>
+  void use(T... args) {}
+  template <typename... T>
+  void use(T... args) const {}
+  _ImageImplT<dimensions, accessmode, access::target::image> impl;
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(typename opencl_image_type<dimensions, accessmode, access::target::image>::type ImageObj) { impl.MImageObj = ImageObj; }
+#endif
+};
+
+template <typename dataT, int dimensions, access::mode accessmode>
+class accessor<dataT, dimensions, accessmode, access::target::host_image, access::placeholder::false_t> {
+public:
+  void use(void) const {}
+  template <typename... T>
+  void use(T... args) {}
+  template <typename... T>
+  void use(T... args) const {}
+  _ImageImplT<dimensions, accessmode, access::target::host_image> impl;
+};
+
+// TODO: Add support for image_array accessor.
+// template <typename dataT, int dimensions, access::mode accessmode>
+//class accessor<dataT, dimensions, accessmode, access::target::image_array, access::placeholder::false_t>
 
 class kernel {};
 class context {};
@@ -241,12 +316,80 @@ public:
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t>
   get_access() {
-    accessor<T, dimensions, mode, access::target::host_buffer,
-             access::placeholder::false_t>{};
+    return accessor<T, dimensions, mode, access::target::host_buffer,
+                    access::placeholder::false_t>{};
   }
 
   template <typename Destination>
   void set_final_data(Destination finalData = nullptr) {}
+};
+
+enum class image_channel_order : unsigned int {
+  a,
+  r,
+  rx,
+  rg,
+  rgx,
+  ra,
+  rgb,
+  rgbx,
+  rgba,
+  argb,
+  bgra,
+  intensity,
+  luminance,
+  abgr
+};
+
+enum class image_channel_type : unsigned int {
+  snorm_int8,
+  snorm_int16,
+  unorm_int8,
+  unorm_int16,
+  unorm_short_565,
+  unorm_short_555,
+  unorm_int_101010,
+  signed_int8,
+  signed_int16,
+  signed_int32,
+  unsigned_int8,
+  unsigned_int16,
+  unsigned_int32,
+  fp16,
+  fp32
+};
+
+template <int dimensions = 1, typename AllocatorT = int>
+class image {
+public:
+  image(image_channel_order Order, image_channel_type Type,
+        const range<dimensions> &Range, const property_list &PropList = {}) {}
+
+  /* -- common interface members -- */
+
+  image(const image &rhs) = default;
+
+  image(image &&rhs) = default;
+
+  image &operator=(const image &rhs) = default;
+
+  image &operator=(image &&rhs) = default;
+
+  ~image() = default;
+
+  template <typename dataT, access::mode accessmode>
+  accessor<dataT, dimensions, accessmode,
+           access::target::image, access::placeholder::false_t>
+  get_access(handler &commandGroupHandler) {
+    return accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t>{};
+  }
+
+  template <typename dataT, access::mode accessmode>
+  accessor<dataT, dimensions, accessmode,
+           access::target::host_image, access::placeholder::false_t>
+  get_access() {
+    return accessor<dataT, dimensions, accessmode, access::target::host_image, access::placeholder::false_t>{};
+  }
 };
 
 } // namespace sycl
