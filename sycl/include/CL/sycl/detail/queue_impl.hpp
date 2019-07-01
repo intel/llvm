@@ -60,8 +60,9 @@ public:
 
   cl_command_queue get() {
     if (m_OpenCLInterop) {
-      CHECK_OCL_CODE(clRetainCommandQueue(m_CommandQueue));
-      return m_CommandQueue;
+      cl_command_queue command_queue = getHandleRef();
+      CHECK_OCL_CODE(clRetainCommandQueue(command_queue));
+      return command_queue;
     }
     throw invalid_object_error(
         "This instance of queue doesn't support OpenCL interoperability");
@@ -120,11 +121,10 @@ public:
     m_Exceptions.clear();
   }
 
-  cl_command_queue createQueue() const {
+  cl_command_queue createQueue() {
     cl_command_queue_properties CreationFlags = 0;
 
-    // FPGA RT can't handle out of order queue - create in order queue instead
-    if (!m_Device.is_accelerator()) {
+    if (m_SupportOOO) {
       CreationFlags = CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
 
@@ -145,7 +145,15 @@ public:
     Queue = clCreateCommandQueue(ClContext, m_Device.get(),
                                           CreationFlags, &Error);
 #endif
-    CHECK_OCL_CODE(Error);
+    // Tf creating out-of-order queue failed and this property is not
+    // supported(for example, on FPGA), it will return
+    // CL_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
+    if (m_SupportOOO && Error == CL_INVALID_QUEUE_PROPERTIES) {
+      m_SupportOOO = false;
+      Queue = createQueue();
+    } else {
+      CHECK_OCL_CODE(Error);
+    }
     // TODO catch an exception and put it to list of asynchronous exceptions
 
     return Queue;
@@ -171,7 +179,7 @@ public:
   }
 
   cl_command_queue &getHandleRef() {
-    if (!m_Device.is_accelerator()) {
+    if (m_SupportOOO) {
       return m_CommandQueue;
     }
 
@@ -218,6 +226,8 @@ private:
 
   bool m_OpenCLInterop = false;
   bool m_HostQueue = false;
+  // Assume OOO support by default.
+  bool m_SupportOOO = true;
 };
 
 } // namespace detail
