@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cnri.h>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/stl.hpp>
@@ -20,12 +20,12 @@
 
 /// Executed as a part of current module's (.exe, .dll) static initialization.
 /// Registers device executable images with the runtime.
-extern "C" void __tgt_register_lib(cnri_bin_desc *desc);
+extern "C" void __tgt_register_lib(pi_device_binaries desc);
 
 /// Executed as a part of current module's (.exe, .dll) static
 /// de-initialization.
 /// Unregisters device executable images with the runtime.
-extern "C" void __tgt_unregister_lib(cnri_bin_desc *desc);
+extern "C" void __tgt_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 
@@ -34,7 +34,7 @@ namespace sycl {
 class context;
 namespace detail {
 
-using DeviceImage = cnri_device_image;
+using DeviceImage = pi_device_binary_struct;
 
 // Custom deleter for the DeviceImage. Must only be called for "orphan" images
 // allocated by the runtime. Those Images which are part of binaries must not
@@ -57,13 +57,13 @@ public:
                               const string_class &KernelName);
   cl_program getClProgramFromClKernel(cl_kernel ClKernel);
 
-  void addImages(cnri_bin_desc *DeviceImages);
+  void addImages(pi_device_binaries DeviceImages);
   void debugDumpBinaryImages() const;
   void debugDumpBinaryImage(const DeviceImage *Img) const;
 
 private:
-  cnri_program loadProgram(OSModuleHandle M, const context &Context,
-                           DeviceImage **I = nullptr);
+  RT::pi_program loadProgram(OSModuleHandle M, const context &Context,
+                             DeviceImage **I = nullptr);
   void build(cl_program &ClProgram, const string_class &Options = "",
              std::vector<cl_device_id> ClDevices = std::vector<cl_device_id>());
 

@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/cl.h>
-#include <CL/sycl/detail/cnri.h>
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/range.hpp>
 
