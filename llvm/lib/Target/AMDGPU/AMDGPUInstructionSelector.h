@@ -65,8 +65,11 @@ private:
   /// tblgen-erated 'select' implementation.
   bool selectImpl(MachineInstr &I, CodeGenCoverage &CoverageInfo) const;
 
-  MachineOperand getSubOperand64(MachineOperand &MO, unsigned SubIdx) const;
+  MachineOperand getSubOperand64(MachineOperand &MO,
+                                 const TargetRegisterClass &SubRC,
+                                 unsigned SubIdx) const;
   bool selectCOPY(MachineInstr &I) const;
+  bool selectPHI(MachineInstr &I) const;
   bool selectG_TRUNC(MachineInstr &I) const;
   bool selectG_SZA_EXT(MachineInstr &I) const;
   bool selectG_CONSTANT(MachineInstr &I) const;
