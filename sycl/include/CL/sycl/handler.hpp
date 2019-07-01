@@ -239,9 +239,11 @@ private:
     const auto kind_std_layout = detail::kernel_param_kind_t::kind_std_layout;
     const auto kind_accessor = detail::kernel_param_kind_t::kind_accessor;
     const auto kind_sampler = detail::kernel_param_kind_t::kind_sampler;
+    const auto kind_pointer = detail::kernel_param_kind_t::kind_pointer;
 
     switch (Kind) {
-    case kind_std_layout: {
+    case kind_std_layout:
+    case kind_pointer: {
       MArgs.emplace_back(Kind, Ptr, Size, Index + IndexShift);
       break;
     }
