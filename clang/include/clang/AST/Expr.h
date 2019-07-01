@@ -1895,7 +1895,7 @@ public:
 
   const Expr *getExpr() const {
     assert(!hasFunctionName() && getIdentKind() == UniqueStableNameExpr &&
-           "TypeSourceInfo only valid for UniqueStableName of a Type");
+           "Expr only valid for UniqueStableName of an Expression.");
     return getTrailingObjects<PredefExprStorage>()->E;
   }
 

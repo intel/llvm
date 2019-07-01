@@ -1953,7 +1953,7 @@ and other similar allocation libraries, and are only available in C++.
 ``__unique_stable_name``
 ------------------------
 
-``__unique_stable_name()`` is a SYCL builtin that takes a type or expression and
+``__unique_stable_name()`` is a builtin that takes a type or expression and
 produces a string literal containing a unique name for the type (or type of the
 expression) that is stable across split compilations.
 
