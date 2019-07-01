@@ -1,4 +1,4 @@
-//===- llvm-extract.cpp - LLVM function extraction utility ----------------===//
+//===- llvm-no-spirv-kernel.cpp - Utility check spirv kernel entry point --===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This utility checks if the input module contains functions that is a spirv kernel.
-// Return 0 if no, return 1 if yes.
+// This utility checks if the input module contains functions that is a spirv
+// kernel. Return 0 if no, return 1 if yes.
 // Usage: llvm-no-spir-kernel input.bc/input.ll
 //
 //===----------------------------------------------------------------------===//
@@ -22,9 +22,10 @@
 using namespace llvm;
 
 // InputFilename - The filename to read from.
-static cl::opt<std::string>
-InputFilename(cl::Positional, cl::desc("<input bitcode file>"),
-              cl::init("-"), cl::value_desc("filename"));
+static cl::opt<std::string> InputFilename(cl::Positional,
+                                          cl::desc("<input bitcode file>"),
+                                          cl::init("-"),
+                                          cl::value_desc("filename"));
 
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
@@ -41,8 +42,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  for(auto & F : *M){
-    if(F.getCallingConv() == CallingConv::SPIR_KERNEL){
+  for (auto &F : *M) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
       return 1;
     }
   }

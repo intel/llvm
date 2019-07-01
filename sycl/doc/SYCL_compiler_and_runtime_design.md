@@ -348,6 +348,45 @@ requires that all the linked fat objects are compiled for the same set of
 targets. The described design uses OS-neutral offload-wrapper tool and does not
 impose restrictions on fat objects.*
 
+#### Device Link
+The -fsycl-link flag instructs the compiler to fully link device code without
+fully linking host code.  The result of such a compile is a fat object that
+contains a fully linked device binary.  The primary motivation for this flow
+is to allow users to save re-compile time when making changes that only affect
+their host code.  In the case where device image generation takes a long time
+(e.g. FPGA), this savings can be significant.
+
+For example, if the user separated source code into four files: dev_a.cpp, dev_b.cpp,
+host_a.cpp and host_b.cpp where only dev_a.cpp and dev_b.cpp contain device code,
+they can divide the compilation process into three steps:
+1.  Device link: dev_a.cpp dev_b.cpp -> dev_image.o (contain device image)
+2.  Host Compile (c): host_a.cpp -> host_a.o; host_b.cpp -> host_b.o
+3.  Linking: dev_image.o host_a.o host_b.o -> exectuable
+
+Step 1 can take hours for some targets.  But if the user wish to recompile after
+modifying only host_a.cpp and host_b.cpp, they can simply run steps 2 and 3 without
+rerunning the expensive step 1.  
+
+The compiler is responsible for verifying that the user provided all the relevant
+files to the device link step.  There are 2 cases that have to be checked:
+
+1.  Missing symbols referenced by the kernels present in the device link step
+(e.g. functions called by or global variables used by the known kernels).
+2.  Missing kernels.
+
+Case 1 can be identified in the device binary generation stage (step 1) by scanning
+the known kernels.  Case 2 must be verified by the driver by checking for newly
+introduced kernels in the final link stage (step 3).
+
+The llvm-no-spirv-kernel tool was introduced to facilitate checking for case 2 in
+the driver.  It detects if a module includes kernels and is invoked as follows:
+
+llvm-no-spirv-kernel host.bc
+
+It returns 0 if no kernels are present and 1 otherwise.
+
+
+
 ### Integration with SPIR-V format
 
 This section explains how to generate SPIR-V specific types and operations from
