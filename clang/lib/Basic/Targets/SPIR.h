@@ -74,6 +74,8 @@ public:
     // Define available target features
     // These must be defined in sorted order!
     NoAsmVariants = true;
+    if (Triple.isWindowsMSVCEnvironment() && Triple.isSYCLDeviceEnvironment())
+      WCharType = UnsignedShort;
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -103,12 +105,20 @@ public:
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::VoidPtrBuiltinVaList;
+    if (getTriple().isWindowsMSVCEnvironment() &&
+        getTriple().isSYCLDeviceEnvironment())
+      return TargetInfo::CharPtrBuiltinVaList;
+    else
+      return TargetInfo::VoidPtrBuiltinVaList;
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    if (CC == CC_X86VectorCall && getTriple().isWindowsMSVCEnvironment() &&
+        getTriple().isSYCLDeviceEnvironment())
+      // Permit CC_X86VectorCall which is used in Microsoft headers
+      return CCCR_OK;
     return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
-                                                            : CCCR_Warning;
+                                    : CCCR_Warning;
   }
 
   CallingConv getDefaultCallingConv(CallingConvMethodType MT) const override {

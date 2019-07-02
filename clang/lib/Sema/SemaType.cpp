@@ -7013,6 +7013,12 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
                << (int)Sema::CallingConventionIgnoredReason::VariadicFunction;
 
       attr.setInvalid();
+      llvm::Triple Triple = S.Context.getTargetInfo().getTriple();
+      if (S.getLangOpts().SYCLIsDevice &&
+          S.DelayedDiagnostics.shouldDelayDiagnostics())
+        // Don't issue diagnostic e.g. on Microsoft system headers and SPIR compilation
+        // FIXME: Will make this a delayed diagnostic
+        return false;
       return S.Diag(attr.getLoc(), diag::err_cconv_varargs)
              << FunctionType::getNameForCallConv(CC);
     }
