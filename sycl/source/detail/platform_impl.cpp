@@ -18,7 +18,9 @@ platform_impl_pi::get_platforms() {
   vector_class<platform> platforms;
 
   pi_uint32 num_platforms = 0;
-  PI_CALL(RT::piPlatformsGet(0, 0, &num_platforms));
+  // TODO this bypasses PI_CALL macro as a temporary fix for the case with 0
+  // OpenCL platforms
+  RT::piPlatformsGet(0, 0, &num_platforms);
   info::device_type forced_type = detail::get_forced_type();
 
   if (num_platforms) {
