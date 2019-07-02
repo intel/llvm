@@ -26,14 +26,12 @@ namespace detail {
 namespace usm {
 
 bool CLUSM::Create(CLUSM *&pCLUSM) {
-  bool success = false;
-
   pCLUSM = new CLUSM();
   if (pCLUSM) {
     return true;
   }
 
-  return success;
+  return false;
 }
 
 void CLUSM::Delete(CLUSM *&pCLUSM) {
@@ -194,27 +192,28 @@ cl_int CLUSM::getMemAllocInfoINTEL(cl_context context, const void *ptr,
 
   const SUSMAllocInfo &allocInfo = iter->second;
 
-  const void *startPtr = allocInfo.BaseAddress;
-  const void *endPtr = (const char *)allocInfo.BaseAddress + allocInfo.Size;
+  auto startPtr = allocInfo.BaseAddress;
+  auto endPtr = startPtr + allocInfo.Size;
 
   if (ptr < startPtr || ptr >= endPtr) {
     return CL_INVALID_MEM_OBJECT;
   }
 
+  
   switch (param_name) {
   case CL_MEM_ALLOC_TYPE_INTEL: {
-    cl_unified_shared_memory_type_intel *ptr =
-        (cl_unified_shared_memory_type_intel *)param_value;
+    auto ptr =
+      reinterpret_cast<cl_unified_shared_memory_type_intel *>(param_value);
     return writeParamToMemory(param_value_size, allocInfo.Type,
                               param_value_size_ret, ptr);
   }
   case CL_MEM_ALLOC_BASE_PTR_INTEL: {
-    const void **ptr = (const void **)param_value;
+    auto ptr = reinterpret_cast<const void **>(param_value);
     return writeParamToMemory(param_value_size, allocInfo.BaseAddress,
                               param_value_size_ret, ptr);
   }
   case CL_MEM_ALLOC_SIZE_INTEL: {
-    size_t *ptr = (size_t *)param_value;
+    auto ptr = reinterpret_cast<size_t *>(param_value);
     return writeParamToMemory(param_value_size, allocInfo.Size,
                               param_value_size_ret, ptr);
   }
@@ -237,7 +236,7 @@ cl_int CLUSM::setKernelExecInfo(cl_kernel kernel,
   case CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL:
     if (param_value_size == sizeof(cl_bool)) {
       SUSMKernelInfo &kernelInfo = mUSMKernelInfoMap[kernel];
-      const cl_bool *pBool = (const cl_bool *)param_value;
+      auto pBool = reinterpret_cast<const cl_bool *>(param_value);
 
       kernelInfo.IndirectHostAccess = (pBool[0] == CL_TRUE);
       retVal = CL_SUCCESS;
@@ -246,7 +245,7 @@ cl_int CLUSM::setKernelExecInfo(cl_kernel kernel,
   case CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL:
     if (param_value_size == sizeof(cl_bool)) {
       SUSMKernelInfo &kernelInfo = mUSMKernelInfoMap[kernel];
-      const cl_bool *pBool = (const cl_bool *)param_value;
+      auto pBool = reinterpret_cast<const cl_bool *>(param_value);
 
       kernelInfo.IndirectDeviceAccess = (pBool[0] == CL_TRUE);
       retVal = CL_SUCCESS;
@@ -255,7 +254,7 @@ cl_int CLUSM::setKernelExecInfo(cl_kernel kernel,
   case CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL:
     if (param_value_size == sizeof(cl_bool)) {
       SUSMKernelInfo &kernelInfo = mUSMKernelInfoMap[kernel];
-      const cl_bool *pBool = (const cl_bool *)param_value;
+      auto pBool = reinterpret_cast<const cl_bool *>(param_value);
 
       kernelInfo.IndirectSharedAccess = (pBool[0] == CL_TRUE);
       retVal = CL_SUCCESS;
@@ -263,7 +262,7 @@ cl_int CLUSM::setKernelExecInfo(cl_kernel kernel,
     break;
   case CL_KERNEL_EXEC_INFO_SVM_PTRS: {
     SUSMKernelInfo &kernelInfo = mUSMKernelInfoMap[kernel];
-    void **pPtrs = reinterpret_cast<void **>(
+    auto pPtrs = reinterpret_cast<void **>(
       const_cast<void*>(param_value));
     size_t numPtrs = param_value_size / sizeof(void *);
 
