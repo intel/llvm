@@ -131,6 +131,13 @@ void ProgramManager::build(RT::PiProgram &Program, const string_class &Options,
   }
   const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
 
+  for (const auto &device_id : Devices) {
+    if (!device(device_id).get_info<info::device::is_compiler_available>()) {
+      throw feature_not_supported(
+          "Online compilation is not supported by this device");
+    }
+  }
+
   if (!Opts)
     Opts = Options.c_str();
   if (PI_CALL_RESULT(RT::piProgramBuild(
