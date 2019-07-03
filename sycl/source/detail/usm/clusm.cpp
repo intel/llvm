@@ -6,6 +6,8 @@
 //
 // ===--------------------------------------------------------------------=== //
 
+#include <CL/sycl/detail/clusm.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <errno.h>
@@ -15,8 +17,6 @@
 #include <sstream>
 #include <stdarg.h>
 #include <time.h> // strdate
-
-#include <CL/sycl/detail/clusm.hpp>
 
 cl::sycl::detail::usm::CLUSM *gCLUSM = nullptr;
 
@@ -43,8 +43,9 @@ void CLUSM::initExtensions(cl_platform_id platform) {
   cliext::initializeExtensions(platform);
 }
 
-void *CLUSM::hostMemAlloc(cl_context context, cl_mem_properties_intel* properties,
-                          size_t size, cl_uint alignment, cl_int *errcode_ret) {
+void *CLUSM::hostMemAlloc(cl_context context,
+                          cl_mem_properties_intel *properties, size_t size,
+                          cl_uint alignment, cl_int *errcode_ret) {
   void *ptr =
       clSVMAlloc(context, CL_MEM_READ_WRITE | CL_MEM_SVM_FINE_GRAIN_BUFFER,
                  size, alignment);
@@ -72,7 +73,7 @@ void *CLUSM::hostMemAlloc(cl_context context, cl_mem_properties_intel* propertie
 }
 
 void *CLUSM::deviceMemAlloc(cl_context context, cl_device_id device,
-                            cl_mem_properties_intel* properties, size_t size,
+                            cl_mem_properties_intel *properties, size_t size,
                             cl_uint alignment, cl_int *errcode_ret) {
   // Unconditionally use coarse grain SVM for device allocations:
 
@@ -101,7 +102,7 @@ void *CLUSM::deviceMemAlloc(cl_context context, cl_device_id device,
 }
 
 void *CLUSM::sharedMemAlloc(cl_context context, cl_device_id device,
-                            cl_mem_properties_intel* properties, size_t size,
+                            cl_mem_properties_intel *properties, size_t size,
                             cl_uint alignment, cl_int *errcode_ret) {
   void *ptr =
       clSVMAlloc(context, CL_MEM_READ_WRITE | CL_MEM_SVM_FINE_GRAIN_BUFFER,
@@ -156,7 +157,7 @@ cl_int CLUSM::memFree(cl_context context, const void *ptr) {
 
     mUSMContextInfo.AllocMap.erase(ptr);
 
-    clSVMFree(context, const_cast<void*>(ptr));
+    clSVMFree(context, const_cast<void *>(ptr));
     ptr = nullptr;
 
     return CL_SUCCESS;
@@ -199,11 +200,10 @@ cl_int CLUSM::getMemAllocInfoINTEL(cl_context context, const void *ptr,
     return CL_INVALID_MEM_OBJECT;
   }
 
-  
   switch (param_name) {
   case CL_MEM_ALLOC_TYPE_INTEL: {
     auto ptr =
-      reinterpret_cast<cl_unified_shared_memory_type_intel *>(param_value);
+        reinterpret_cast<cl_unified_shared_memory_type_intel *>(param_value);
     return writeParamToMemory(param_value_size, allocInfo.Type,
                               param_value_size_ret, ptr);
   }
@@ -262,8 +262,7 @@ cl_int CLUSM::setKernelExecInfo(cl_kernel kernel,
     break;
   case CL_KERNEL_EXEC_INFO_SVM_PTRS: {
     SUSMKernelInfo &kernelInfo = mUSMKernelInfoMap[kernel];
-    auto pPtrs = reinterpret_cast<void **>(
-      const_cast<void*>(param_value));
+    auto pPtrs = reinterpret_cast<void **>(const_cast<void *>(param_value));
     size_t numPtrs = param_value_size / sizeof(void *);
 
     kernelInfo.SVMPtrs.clear();

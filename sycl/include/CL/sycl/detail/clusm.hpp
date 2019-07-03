@@ -8,32 +8,32 @@
 
 #pragma once
 
-#include <map>
-#include <vector>
-#include <mutex>
-
 #include <CL/cl.h>
 #include <CL/cl_usm_ext.h>
+
+#include <map>
+#include <mutex>
+#include <vector>
 
 namespace cl {
 namespace sycl {
 namespace detail {
 namespace usm {
-        
+
 class CLUSM {
 public:
   static bool Create(CLUSM *&pCLUSM);
   static void Delete(CLUSM *&pCLUSM);
 
   void initExtensions(cl_platform_id platform);
-  
-  void *hostMemAlloc(cl_context context, cl_mem_properties_intel* properties,
+
+  void *hostMemAlloc(cl_context context, cl_mem_properties_intel *properties,
                      size_t size, cl_uint alignment, cl_int *errcode_ret);
   void *deviceMemAlloc(cl_context context, cl_device_id device,
-                       cl_mem_properties_intel* properties, size_t size,
+                       cl_mem_properties_intel *properties, size_t size,
                        cl_uint alignment, cl_int *errcode_ret);
   void *sharedMemAlloc(cl_context context, cl_device_id device,
-                       cl_mem_properties_intel* properties, size_t size,
+                       cl_mem_properties_intel *properties, size_t size,
                        cl_uint alignment, cl_int *errcode_ret);
 
   cl_int memFree(cl_context context, const void *ptr);
@@ -55,23 +55,20 @@ public:
 private:
   std::mutex mLock;
 
-  CLUSM() {}
-  ~CLUSM() {}
+  CLUSM() = default;
+  ~CLUSM() = default;
 
   struct SUSMAllocInfo {
-    SUSMAllocInfo()
-        : Type(CL_MEM_TYPE_UNKNOWN_INTEL), BaseAddress(NULL), Size(0),
-          Alignment(0) {}
+    SUSMAllocInfo() = default;
 
-    cl_unified_shared_memory_type_intel Type;
-
-    const void *BaseAddress;
-    size_t Size;
-    size_t Alignment;
+    cl_unified_shared_memory_type_intel Type = CL_MEM_TYPE_UNKNOWN_INTEL;
+    const void *BaseAddress = nullptr;
+    size_t Size = 0;
+    size_t Alignment = 0;
   };
 
   using CUSMAllocMap = std::map<const void *, SUSMAllocInfo>;
-  using CUSMAllocVector = std::vector<const void*>;
+  using CUSMAllocVector = std::vector<const void *>;
 
   struct SUSMContextInfo {
     CUSMAllocMap AllocMap;
@@ -86,13 +83,11 @@ private:
   SUSMContextInfo mUSMContextInfo;
 
   struct SUSMKernelInfo {
-    SUSMKernelInfo()
-        : IndirectHostAccess(false), IndirectDeviceAccess(false),
-          IndirectSharedAccess(false) {}
+    SUSMKernelInfo() = default;
 
-    bool IndirectHostAccess;
-    bool IndirectDeviceAccess;
-    bool IndirectSharedAccess;
+    bool IndirectHostAccess = false;
+    bool IndirectDeviceAccess = false;
+    bool IndirectSharedAccess = false;
 
     std::vector<void *> SVMPtrs;
   };
@@ -105,13 +100,13 @@ private:
 } // namespace usm
 
 namespace cliext {
-  void initializeExtensions( cl_platform_id platform );
+void initializeExtensions(cl_platform_id platform);
 } // namespace cliext
 
 } // namespace detail
 } // namespace sycl
 } // namespace cl
-  
+
 extern cl::sycl::detail::usm::CLUSM *gCLUSM;
 inline cl::sycl::detail::usm::CLUSM *GetCLUSM() {
   if (gCLUSM == nullptr) {
