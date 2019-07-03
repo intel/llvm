@@ -13235,7 +13235,7 @@ static SDValue lowerV8I16GeneralSingleInputShuffle(
     // a half by taking the sum of the half with three inputs and subtracting
     // the sum of the actual three inputs. The difference is the remaining
     // slot.
-    int ADWord, BDWord;
+    int ADWord = 0, BDWord = 0;
     int &TripleDWord = ThreeAInputs ? ADWord : BDWord;
     int &OneInputDWord = ThreeAInputs ? BDWord : ADWord;
     int TripleInputOffset = ThreeAInputs ? AOffset : BOffset;
@@ -17094,7 +17094,8 @@ SDValue X86TargetLowering::LowerINSERT_VECTOR_ELT(SDValue Op,
   if (!isa<ConstantSDNode>(N2))
     return SDValue();
   auto *N2C = cast<ConstantSDNode>(N2);
-  unsigned IdxVal = N2C->getZExtValue();
+  assert(N2C->getAPIntValue().ult(NumElts) && "Out of range element index");
+  uint64_t IdxVal = N2C->getZExtValue();
 
   bool IsZeroElt = X86::isZeroNode(N1);
   bool IsAllOnesElt = VT.isInteger() && llvm::isAllOnesConstant(N1);
@@ -17831,7 +17832,7 @@ static SDValue LowerFunnelShift(SDValue Op, const X86Subtarget &Subtarget,
 
     APInt APIntShiftAmt;
     if (isConstantSplat(Amt, APIntShiftAmt)) {
-      uint64_t ShiftAmt = APIntShiftAmt.getZExtValue();
+      uint64_t ShiftAmt = APIntShiftAmt.urem(VT.getScalarSizeInBits());
       return DAG.getNode(IsFSHR ? X86ISD::VSHRD : X86ISD::VSHLD, DL, VT,
                          Op0, Op1, DAG.getConstant(ShiftAmt, DL, MVT::i8));
     }
@@ -18187,7 +18188,7 @@ static SDValue lowerUINT_TO_FP_v2i32(SDValue Op, SelectionDAG &DAG,
   SDValue HalfWordMask = DAG.getConstant(0x0000FFFF, DL, MVT::v4i32);
 
   // Two to the power of half-word-size.
-  SDValue TWOHW = DAG.getConstantFP(1 << 16, DL, MVT::v2f64);
+  SDValue TWOHW = DAG.getConstantFP((double)(1 << 16), DL, MVT::v2f64);
 
   // Clear upper part of LO, lower HI.
   SDValue HI = DAG.getNode(ISD::SRL, DL, MVT::v4i32, N0, HalfWord);
@@ -25016,6 +25017,8 @@ static SDValue LowerScalarImmediateShift(SDValue Op, SelectionDAG &DAG,
   APInt APIntShiftAmt;
   if (!isConstantSplat(Amt, APIntShiftAmt))
     return SDValue();
+  assert(APIntShiftAmt.ult(VT.getScalarSizeInBits()) &&
+         "Out of range shift amount");
   uint64_t ShiftAmt = APIntShiftAmt.getZExtValue();
 
   if (SupportedVectorShiftWithImm(VT, Subtarget, Op.getOpcode()))
@@ -25057,8 +25060,8 @@ static SDValue LowerScalarImmediateShift(SDValue Op, SelectionDAG &DAG,
                                                ShiftAmt, DAG);
       SHL = DAG.getBitcast(VT, SHL);
       // Zero out the rightmost bits.
-      return DAG.getNode(ISD::AND, dl, VT, SHL,
-                         DAG.getConstant(uint8_t(-1U << ShiftAmt), dl, VT));
+      APInt Mask = APInt::getHighBitsSet(8, 8 - ShiftAmt);
+      return DAG.getNode(ISD::AND, dl, VT, SHL, DAG.getConstant(Mask, dl, VT));
     }
     if (Op.getOpcode() == ISD::SRL) {
       // Make a large shift.
@@ -31943,6 +31946,7 @@ static SDValue combineX86ShuffleChain(ArrayRef<SDValue> Inputs, SDValue Root,
 
   // Which shuffle domains are permitted?
   // Permit domain crossing at higher combine depths.
+  // TODO: Should we indicate which domain is preferred if both are allowed?
   bool AllowFloatDomain = FloatDomain || (Depth > 3);
   bool AllowIntDomain = (!FloatDomain || (Depth > 3)) && Subtarget.hasSSE2() &&
                         (!MaskVT.is256BitVector() || Subtarget.hasAVX2());
@@ -32425,6 +32429,9 @@ static SDValue combineX86ShuffleChainWithExtract(
 
   if (WideInputs.size() > 2)
     return SDValue();
+
+  // Increase depth for every upper subvector we've peeked through.
+  Depth += count_if(Offsets, [](unsigned Offset) { return Offset > 0; });
 
   // Attempt to combine wider chain.
   // TODO: Can we use a better Root?
@@ -33048,6 +33055,21 @@ static SDValue combineTargetShuffle(SDValue N, SelectionDAG &DAG,
                             N1.getOperand(0),
                             DAG.getConstant(ScaleMask, DL, MVT::i8)));
       }
+    }
+    return SDValue();
+  }
+  case X86ISD::VPERMI: {
+    // vpermi(bitcast(x)) -> bitcast(vpermi(x)) for same number of elements.
+    // TODO: Remove when we have preferred domains in combineX86ShuffleChain.
+    SDValue N0 = N.getOperand(0);
+    SDValue N1 = N.getOperand(1);
+    unsigned EltSizeInBits = VT.getScalarSizeInBits();
+    if (N0.getOpcode() == ISD::BITCAST &&
+        N0.getOperand(0).getScalarValueSizeInBits() == EltSizeInBits) {
+      SDValue Src = N0.getOperand(0);
+      EVT SrcVT = Src.getValueType();
+      SDValue Res = DAG.getNode(X86ISD::VPERMI, DL, SrcVT, Src, N1);
+      return DAG.getBitcast(VT, Res);
     }
     return SDValue();
   }
