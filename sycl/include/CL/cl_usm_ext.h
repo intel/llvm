@@ -8,8 +8,6 @@
 
 #pragma once
 
-// Eventually, this file should include cl.h.
-// For now though, it assumes that a proper cl.h has already been included.
 #include <CL/cl.h>
 
 #ifdef __cplusplus
