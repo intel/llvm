@@ -1,89 +1,84 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/device.hpp>
 #include <CL/sycl/detail/usm_impl.hpp>
+#include <CL/sycl/device.hpp>
 
 #include <cstdlib>
 #include <memory>
 
 namespace cl {
 namespace sycl {
-  enum class alloc {
-    host,
-    device,
-    shared
+enum class alloc { host, device, shared };
+
+template <typename T, alloc AllocKind, size_t Alignment = 0>
+class usm_allocator {
+public:
+  using value_type = T;
+  using pointer = T *;
+  using const_pointer = const T *;
+  using reference = T &;
+  using const_reference = const T &;
+
+public:
+  template <typename U> struct rebind {
+    typedef usm_allocator<U, AllocKind> other;
   };
-  
-  template <typename T, alloc AllocKind, size_t Alignment = 0>
-  class usm_allocator {
-  public:
-    using value_type = T;
-    using pointer = T*;
-    using const_pointer = const T*;
-    using reference = T&;
-    using const_reference = const T&;
 
-  public:
-    template <typename U>
-    struct rebind {
-      typedef usm_allocator<U, AllocKind> other;
-    };
+  usm_allocator() : mContext(nullptr), mDevice(nullptr) {}
+  usm_allocator(const context *ctxt, const device *dev)
+      : mContext(ctxt), mDevice(dev) {}
+  usm_allocator(const usm_allocator &other)
+      : mContext(other.mContext), mDevice(other.mDevice) {}
 
-    usm_allocator() : mContext(nullptr), mDevice(nullptr) {}
-    usm_allocator(const context* ctxt, const device* dev) : mContext(ctxt), mDevice(dev) {}
-    usm_allocator(const usm_allocator& other) : mContext(other.mContext), mDevice(other.mDevice) {}
-    
-    // Construct an object
-    // Note: AllocKind == alloc::device is not allowed
-    void construct(pointer Ptr, const_reference Val);
+  // Construct an object
+  // Note: AllocKind == alloc::device is not allowed
+  void construct(pointer Ptr, const_reference Val);
 
-    // Destroy an object
-    // Note:: AllocKind == alloc::device is not allowed
-    void destroy(pointer Ptr);
+  // Destroy an object
+  // Note:: AllocKind == alloc::device is not allowed
+  void destroy(pointer Ptr);
 
-    // Note:: AllocKind == alloc::device is not allowed
-    pointer address(reference Val) const;
-    const_pointer address(const_reference Val) const;
+  // Note:: AllocKind == alloc::device is not allowed
+  pointer address(reference Val) const;
+  const_pointer address(const_reference Val) const;
 
-    // Allocate memory
-    pointer allocate(size_t Size) {
-      if (!mContext && !mDevice) {
-        throw std::bad_alloc();
-      }
-      auto Result = reinterpret_cast<pointer>(
-        detail::usm::alignedAlloc<AllocKind>(getAlignment(),
-                                             Size * sizeof(value_type),
-                                             mContext,
-                                             mDevice));
-      if (!Result) {
-        throw std::bad_alloc();
-      }
-      return Result;
+  // Allocate memory
+  pointer allocate(size_t Size) {
+    if (!mContext && !mDevice) {
+      throw std::bad_alloc();
     }
-
-    // Deallocate memory
-    void deallocate(pointer Ptr, size_t size) {
-      if (Ptr) {
-        detail::usm::free(Ptr, mContext);
-      }
+    auto Result =
+        reinterpret_cast<pointer>(detail::usm::alignedAlloc<AllocKind>(
+            getAlignment(), Size * sizeof(value_type), mContext, mDevice));
+    if (!Result) {
+      throw std::bad_alloc();
     }
+    return Result;
+  }
 
-  private:
-    constexpr size_t getAlignment() const {
-      /*
-        // This form might be preferable if the underlying implementation
-        // doesn't do the right thing when given 0 for alignment
-      return ((Alignment == 0)
-              ? alignof(value_type)
-              : Alignment);
-      */
-      return Alignment;
+  // Deallocate memory
+  void deallocate(pointer Ptr, size_t size) {
+    if (Ptr) {
+      detail::usm::free(Ptr, mContext);
     }
+  }
 
-    const context* mContext;
-    const device* mDevice;
-  };
-  
+private:
+  constexpr size_t getAlignment() const {
+    /*
+      // This form might be preferable if the underlying implementation
+      // doesn't do the right thing when given 0 for alignment
+    return ((Alignment == 0)
+            ? alignof(value_type)
+            : Alignment);
+    */
+    return Alignment;
+  }
+
+  const context *mContext;
+  const device *mDevice;
+};
+
 } // namespace sycl
 } // namespace cl

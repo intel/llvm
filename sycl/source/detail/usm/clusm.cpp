@@ -40,8 +40,8 @@ void CLUSM::Delete(CLUSM *&pCLUSM) {
 }
 
 void CLUSM::initExtensions(cl_platform_id platform) {
-  bool nativeUSM = cliext::initializeExtensions(platform);
-  mEnableCLUSM = !nativeUSM;
+  // If OpenCL supports the USM Extension, don't enable CLUSM.
+  mEnableCLUSM = !cliext::initializeExtensions(platform);
 }
 
 void *CLUSM::hostMemAlloc(cl_context context,

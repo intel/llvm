@@ -16,18 +16,12 @@ namespace detail {
 namespace usm {
 
 template <>
-void* alignedAlloc<alloc::host>(size_t alignment,
-                                size_t bytes,
-                                const context* ctxt,
-                                const device* dev) {
+void *alignedAlloc<alloc::host>(size_t alignment, size_t bytes,
+                                const context *ctxt, const device *dev) {
   cl_int error;
   cl_context c = detail::getSyclObjImpl(*ctxt)->getHandleRef();
-  
-  void* ret = clHostMemAllocINTEL(c,
-                                  nullptr,
-                                  size,
-                                  alignment,
-                                  &error);
+
+  void *ret = clHostMemAllocINTEL(c, nullptr, size, alignment, &error);
 
   CHECK_OCL_CODE_THROW(error, "SYCL host allocation error");
 
@@ -35,57 +29,41 @@ void* alignedAlloc<alloc::host>(size_t alignment,
 }
 
 template <>
-void* alignedAlloc<alloc::device>(size_t alignment,
-                                  size_t bytes,
-                                  const context* ctxt,
-                                  const device* dev) {
+void *alignedAlloc<alloc::device>(size_t alignment, size_t bytes,
+                                  const context *ctxt, const device *dev) {
   cl_device_id id = dev->get();
   cl_int error;
   cl_context c = detail::getSyclObjImpl(*ctxt)->getHandleRef();
-  
-  void* ret = clDeviceMemAllocINTEL(c,
-                                    id,
-                                    nullptr,
-                                    size,
-                                    alignment,
-                                    &error);
-  
+
+  void *ret = clDeviceMemAllocINTEL(c, id, nullptr, size, alignment, &error);
+
   CHECK_OCL_CODE_THROW(error, "SYCL device allocation error");
-  
+
   return ret;
 }
 
 template <>
-void* alignedAlloc<alloc::shared>(size_t alignment,
-                                  size_t bytes,
-                                  const context* ctxt,
-                                  const device* dev) {
+void *alignedAlloc<alloc::shared>(size_t alignment, size_t bytes,
+                                  const context *ctxt, const device *dev) {
   cl_device_id id = dev->get();
   cl_int error;
   cl_context c = detail::getSyclObjImpl(*ctxt)->getHandleRef();
-  
-  void* ret = clSharedMemAllocINTEL(c,
-                                    id,
-                                    nullptr,
-                                    size,
-                                    alignment,
-                                    &error);
+
+  void *ret = clSharedMemAllocINTEL(c, id, nullptr, size, alignment, &error);
 
   CHECK_OCL_CODE_THROW(error, "SYCL shared allocation error");
 
   return ret;
 }
-  
+
 template <alloc Kind>
-void* alignedAlloc(size_t alignment,
-                   size_t bytes,
-                   const context* ctxt,
-                   const device* dev) {
+void *alignedAlloc(size_t alignment, size_t bytes, const context *ctxt,
+                   const device *dev) {
   // Only use template specializations of this func
   return nullptr;
 }
 
-void free(void* ptr, const context* ctxt) {
+void free(void *ptr, const context *ctxt) {
   cl_int error;
   cl_context c = detail::getSyclObjImpl(*ctxt)->getHandleRef();
 
