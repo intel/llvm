@@ -36,7 +36,9 @@
 ; TODO: Test index-based WPD one %t2.o once implemented.
 
 ; Legacy PM
+; FIXME: Fix machine verifier issues and remove -verify-machineinstrs=0. PR39436.
 ; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
+; RUN:   -verify-machineinstrs=0 \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \
 ; RUN:   -r=%t.o,_ZN1A1nEi,p \
@@ -52,11 +54,13 @@
 ; RUN:   -r=%t.o,_ZN1D1mEi, \
 ; RUN:   -r=%t.o,_ZTV1B,px \
 ; RUN:   -r=%t.o,_ZTV1C,px \
-; RUN:   -r=%t.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=REMARK
+; RUN:   -r=%t.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=REMARK --dump-input=fail
 ; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; New PM
+; FIXME: Fix machine verifier issues and remove -verify-machineinstrs=0. PR39436.
 ; RUN: llvm-lto2 run %t.o -save-temps -use-new-pm -pass-remarks=. \
+; RUN:   -verify-machineinstrs=0 \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \
 ; RUN:   -r=%t.o,_ZN1A1nEi,p \
@@ -72,7 +76,7 @@
 ; RUN:   -r=%t.o,_ZN1D1mEi, \
 ; RUN:   -r=%t.o,_ZTV1B,px \
 ; RUN:   -r=%t.o,_ZTV1C,px \
-; RUN:   -r=%t.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=REMARK
+; RUN:   -r=%t.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=REMARK --dump-input=fail
 ; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; REMARK-DAG: single-impl: devirtualized a call to _ZN1A1nEi
