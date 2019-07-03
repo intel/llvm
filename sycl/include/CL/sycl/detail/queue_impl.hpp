@@ -202,6 +202,9 @@ public:
     return m_PropList.get_property<propertyT>();
   }
 
+  event memset(void* ptr, int value, size_t count);
+  event memcpy(void* dest, const void* src, size_t count);
+
 private:
   template <typename T>
   event submit_impl(T cgf, std::shared_ptr<queue_impl> self) {

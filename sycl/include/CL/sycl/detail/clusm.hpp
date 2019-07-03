@@ -53,6 +53,7 @@ public:
                             size_t *param_value_size_ret, T *pointer) const;
 
 private:
+  bool mEnableCLUSM = true;
   std::mutex mLock;
 
   CLUSM() = default;
@@ -100,7 +101,7 @@ private:
 } // namespace usm
 
 namespace cliext {
-void initializeExtensions(cl_platform_id platform);
+bool initializeExtensions(cl_platform_id platform);
 } // namespace cliext
 
 } // namespace detail

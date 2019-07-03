@@ -40,7 +40,8 @@ void CLUSM::Delete(CLUSM *&pCLUSM) {
 }
 
 void CLUSM::initExtensions(cl_platform_id platform) {
-  cliext::initializeExtensions(platform);
+  bool nativeUSM = cliext::initializeExtensions(platform);
+  mEnableCLUSM = !nativeUSM;
 }
 
 void *CLUSM::hostMemAlloc(cl_context context,

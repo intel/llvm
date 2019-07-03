@@ -216,21 +216,30 @@ namespace detail {
 namespace cliext {
 #endif
 
-#define GET_EXTENSION(_funcname)                                               \
-  pfn_##_funcname = (_funcname##_fn)clGetExtensionFunctionAddressForPlatform(  \
-      platform, #_funcname);
+#define GET_EXTENSION( _funcname )                                      \
+    pfn_ ## _funcname = ( _funcname ## _fn )                            \
+        clGetExtensionFunctionAddressForPlatform(platform, #_funcname);
 
-void initializeExtensions(cl_platform_id platform) {
-  GET_EXTENSION(clHostMemAllocINTEL);
-  GET_EXTENSION(clDeviceMemAllocINTEL);
-  GET_EXTENSION(clSharedMemAllocINTEL);
-  GET_EXTENSION(clMemFreeINTEL);
-  GET_EXTENSION(clGetMemAllocInfoINTEL);
-  GET_EXTENSION(clSetKernelArgMemPointerINTEL);
-  GET_EXTENSION(clEnqueueMemsetINTEL);
-  GET_EXTENSION(clEnqueueMemcpyINTEL);
-  GET_EXTENSION(clEnqueueMigrateMemINTEL);
-  GET_EXTENSION(clEnqueueMemAdviseINTEL);
+bool initializeExtensions( cl_platform_id platform )
+{
+  GET_EXTENSION( clHostMemAllocINTEL );
+  GET_EXTENSION( clDeviceMemAllocINTEL );
+  GET_EXTENSION( clSharedMemAllocINTEL );
+  GET_EXTENSION( clMemFreeINTEL );
+  GET_EXTENSION( clGetMemAllocInfoINTEL );
+  GET_EXTENSION( clSetKernelArgMemPointerINTEL );
+  GET_EXTENSION( clEnqueueMemsetINTEL );
+  GET_EXTENSION( clEnqueueMemcpyINTEL );
+  GET_EXTENSION( clEnqueueMigrateMemINTEL );
+  GET_EXTENSION( clEnqueueMemAdviseINTEL );
+
+  return (pfn_clHostMemAllocINTEL &&
+          pfn_clDeviceMemAllocINTEL &&
+          pfn_clSharedMemAllocINTEL &&
+          pfn_clMemFreeINTEL &&
+          pfn_clSetKernelArgMemPointerINTEL &&
+          pfn_clEnqueueMemsetINTEL &&
+          pfn_clEnqueueMemcpyINTEL);
 }
 
 #ifdef __cplusplus
