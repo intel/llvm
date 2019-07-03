@@ -72,8 +72,6 @@ private:
 
   using CUSMAllocMap = std::map<const void *, SUSMAllocInfo>;
   using CUSMAllocVector = std::vector<const void*>;
-//  typedef std::map<const void *, SUSMAllocInfo> CUSMAllocMap;
-//  typedef std::vector<const void *> CUSMAllocVector;
 
   struct SUSMContextInfo {
     CUSMAllocMap AllocMap;

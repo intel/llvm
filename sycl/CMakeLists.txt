@@ -149,6 +149,8 @@ add_library("${SYCLLibrary}" SHARED
   "${sourceRootPath}/detail/scheduler/scheduler.cpp"
   "${sourceRootPath}/detail/scheduler/graph_processor.cpp"
   "${sourceRootPath}/detail/scheduler/graph_builder.cpp"
+  "${sourceRootPath}/detail/usm/clusm.cpp"
+  "${sourceRootPath}/detail/usm/opencl_shim.cpp"    
   "${sourceRootPath}/detail/util.cpp"
   "${sourceRootPath}/context.cpp"
   "${sourceRootPath}/device.cpp"
@@ -162,8 +164,6 @@ add_library("${SYCLLibrary}" SHARED
   "${sourceRootPath}/sampler.cpp"
   "${sourceRootPath}/stream.cpp"
   "${sourceRootPath}/spirv_ops.cpp"
-  "${sourceRootPath}/detail/usm/opencl_shim.cpp"
-  "${sourceRootPath}/detail/usm/clusm.cpp"
 )
 
 add_dependencies("${SYCLLibrary}"
