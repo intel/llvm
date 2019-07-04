@@ -331,6 +331,11 @@ public:
 
 private:
   bool CheckSYCLType(QualType Ty, SourceRange Loc) {
+    llvm::DenseSet<QualType> visited;
+    return CheckSYCLType(Ty, Loc, visited);
+  }
+
+  bool CheckSYCLType(QualType Ty, SourceRange Loc, llvm::DenseSet<QualType> &Visited) {
     if (Ty->isVariableArrayType()) {
       SemaRef.Diag(Loc.getBegin(), diag::err_vla_unsupported);
       return false;
@@ -339,7 +344,18 @@ private:
     while (Ty->isAnyPointerType() || Ty->isArrayType())
       Ty = QualType{Ty->getPointeeOrArrayElementType(), 0};
 
+    // Pointers complicate recursion. Add this type to Visited.
+    // If already there, bail out.
+    if (!Visited.insert(Ty).second)
+      return true;
+    
     if (const auto *CRD = Ty->getAsCXXRecordDecl()) {
+      // If the class is a forward declaration - skip it, because otherwise we
+      // would query property of class with no definition, which results in
+      // clang crash.
+      if (!CRD->hasDefinition())
+        return true;
+
       if (CRD->isPolymorphic()) {
         SemaRef.Diag(CRD->getLocation(), diag::err_sycl_virtual_types);
         SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
@@ -347,25 +363,25 @@ private:
       }
 
       for (const auto &Field : CRD->fields()) {
-        if (!CheckSYCLType(Field->getType(), Field->getSourceRange())) {
+        if (!CheckSYCLType(Field->getType(), Field->getSourceRange(), Visited)) {
           SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
           return false;
         }
       }
     } else if (const auto *RD = Ty->getAsRecordDecl()) {
       for (const auto &Field : RD->fields()) {
-        if (!CheckSYCLType(Field->getType(), Field->getSourceRange())) {
+        if (!CheckSYCLType(Field->getType(), Field->getSourceRange(), Visited)) {
           SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
           return false;
         }
       }
     } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
       for (const auto &ParamTy : FPTy->param_types())
-        if (!CheckSYCLType(ParamTy, Loc))
+        if (!CheckSYCLType(ParamTy, Loc, Visited))
           return false;
-      return CheckSYCLType(FPTy->getReturnType(), Loc);
+      return CheckSYCLType(FPTy->getReturnType(), Loc, Visited);
     } else if (const auto *FTy = dyn_cast<FunctionType>(Ty)) {
-      return CheckSYCLType(FTy->getReturnType(), Loc);
+      return CheckSYCLType(FTy->getReturnType(), Loc, Visited);
     }
     return true;
   }
@@ -385,10 +401,21 @@ public:
       auto NewDecl = MappingPair.second;
       return DeclRefExpr::Create(
           SemaRef.getASTContext(), DRE->getQualifierLoc(),
-          DRE->getTemplateKeywordLoc(), NewDecl, false, DRE->getNameInfo(),
+          DRE->getTemplateKeywordLoc(), NewDecl, false,
+          DeclarationNameInfo(DRE->getNameInfo().getName(), SourceLocation(),
+                              DRE->getNameInfo().getInfo()),
           NewDecl->getType(), DRE->getValueKind());
     }
     return DRE;
+  }
+
+  StmtResult RebuildCompoundStmt(SourceLocation LBraceLoc,
+                                 MultiStmtArg Statements,
+                                 SourceLocation RBraceLoc,
+                                 bool IsStmtExpr) {
+    // Build a new compound statement but clear the source locations.
+    return getSema().ActOnCompoundStmt(SourceLocation(), SourceLocation(),
+                                       Statements, IsStmtExpr);
   }
 
 private:
@@ -520,8 +547,8 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
         auto ME = MemberExpr::Create(
             S.Context, SpecialObjME, false, SourceLocation(),
             NestedNameSpecifierLoc(), SourceLocation(), InitMethod, MethodDAP,
-            InitMethod->getNameInfo(), nullptr, InitMethod->getType(),
-            VK_LValue, OK_Ordinary);
+            DeclarationNameInfo(InitMethod->getDeclName(), SourceLocation()),
+            nullptr, InitMethod->getType(), VK_LValue, OK_Ordinary);
 
         // Not referenced -> not emitted
         S.MarkFunctionReferenced(SourceLocation(), InitMethod, true);
@@ -755,6 +782,16 @@ static void buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
 
       // Create descriptors for each accessor field in the class or struct
       createParamDescForWrappedAccessors(Fld, ArgTy);
+    } else if (ArgTy->isPointerType()) {
+      // Pointer Arguments need to be in the global address space
+      QualType PointeeTy = ArgTy->getPointeeType();
+      Qualifiers Quals = PointeeTy.getQualifiers();
+      Quals.setAddressSpace(LangAS::opencl_global);
+      PointeeTy = Context.getQualifiedType(PointeeTy.getUnqualifiedType(),
+                                           Quals);
+      QualType ModTy = Context.getPointerType(PointeeTy);
+      
+      CreateAndAddPrmDsc(Fld, ModTy);
     } else if (ArgTy->isScalarType()) {
       CreateAndAddPrmDsc(Fld, ArgTy);
     } else {
@@ -841,6 +878,10 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
       assert(SamplerArg && "sampler __init method must have sampler parameter");
       uint64_t Sz = Ctx.getTypeSizeInChars(SamplerArg->getType()).getQuantity();
       H.addParamDesc(SYCLIntegrationHeader::kind_sampler,
+                     static_cast<unsigned>(Sz), static_cast<unsigned>(Offset));
+    } else if (ArgTy->isPointerType()) {
+      uint64_t Sz = Ctx.getTypeSizeInChars(Fld->getType()).getQuantity();
+      H.addParamDesc(SYCLIntegrationHeader::kind_pointer,
                      static_cast<unsigned>(Sz), static_cast<unsigned>(Offset));
     } else if (ArgTy->isStructureOrClassType() || ArgTy->isScalarType()) {
       // the parameter is an object of standard layout type or scalar;
@@ -1006,6 +1047,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(accessor);
     CASE(std_layout);
     CASE(sampler);
+    CASE(pointer);
   default:
     return "<ERROR>";
   }

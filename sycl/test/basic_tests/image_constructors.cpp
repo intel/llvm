@@ -23,13 +23,13 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   cl::sycl::image_channel_order channelOrder =
       cl::sycl::image_channel_order::rgbx;
   cl::sycl::image_channel_type channelType =
-      cl::sycl::image_channel_type::signed_int32;
-  unsigned int elementSize = 12; // rgbx * i32
+      cl::sycl::image_channel_type::unorm_short_565;
+  unsigned int elementSize = 2; // 2 bytes
   int numElems = r.size();
   cl::sycl::property_list propList{}; // empty property list
 
   /* Constructor (void *, image_channel_order,
-   *              image_channel_type, const range<3>&,
+   *              image_channel_type, const range<Dims>&,
    *              const property_list& = {})
    */
   {
@@ -39,7 +39,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (void *, image_channel_order,
-   *              image_channel_type, const range<3>&, const property_list&)
+   *              image_channel_type, const range<Dims>&, const property_list&)
    */
   {
     cl::sycl::image<Dims> img = cl::sycl::image<Dims>(
@@ -48,7 +48,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (void *, image_channel_order,
-   *              image_channel_type, const range<3>&, allocator,
+   *              image_channel_type, const range<Dims>&, allocator,
    *              const property_list& = {})
    */
   {
@@ -59,7 +59,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (void *, image_channel_order,
-   *              image_channel_type, const range<3>&, allocator,
+   *              image_channel_type, const range<Dims>&, allocator,
    *              const property_list&)
    */
   {
@@ -69,7 +69,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
     assert(img.get_size() == (numElems * elementSize));
   }
   /* Constructor (const void*, image_channel_order,
-   *              image_channel_type, const range<3>&,
+   *              image_channel_type, const range<Dims>&,
    *              const property_list& = {})
    */
   {
@@ -80,7 +80,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (const void*, image_channel_order,
-   *              image_channel_type, const range<3>&, const property_list&)
+   *              image_channel_type, const range<Dims>&, const property_list&)
    */
   {
     const auto constHostPtr = imageHostPtr;
@@ -90,7 +90,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (const void*, image_channel_order,
-   *              image_channel_type, const range<3>&, allocator,
+   *              image_channel_type, const range<Dims>&, allocator,
    *              const property_list& = {})
    */
   {
@@ -102,7 +102,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (const void*, image_channel_order,
-   *              image_channel_type, const range<3>&, allocator,
+   *              image_channel_type, const range<Dims>&, allocator,
    *              const property_list&)
    */
   {
@@ -114,7 +114,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (shared_ptr_class<void>&, image_channel_order,
-   *              image_channel_type, const range<3>&,
+   *              image_channel_type, const range<Dims>&,
    *              const property_list& = {})
    */
   {
@@ -126,7 +126,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (shared_ptr_class<void>&, image_channel_order,
-   *              image_channel_type, const range<3>&, const property_list&)
+   *              image_channel_type, const range<Dims>&, const property_list&)
    */
   {
     auto hostPointer =
@@ -137,7 +137,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (shared_ptr_class<void>&, image_channel_order,
-   *              image_channel_type, const range<3>&, allocator,
+   *              image_channel_type, const range<Dims>&, allocator,
    *              const property_list& = {})
    */
   {
@@ -150,7 +150,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (shared_ptr_class<void>&, image_channel_order,
-   *              image_channel_type, const range<3>&, allocator,
+   *              image_channel_type, const range<Dims>&, allocator,
    *              const property_list&)
    */
   {
@@ -163,7 +163,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (image_channel_order, image_channel_type,
-   *              const range<3>&, const property_list& = {})
+   *              const range<Dims>&, const property_list& = {})
    */
   {
     cl::sycl::image<Dims> img =
@@ -172,7 +172,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (image_channel_order, image_channel_type,
-   *              const range<3>&, const property_list&)
+   *              const range<Dims>&, const property_list&)
    */
   {
     cl::sycl::image<Dims> img =
@@ -181,7 +181,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (image_channel_order, image_channel_type,
-   *              const range<3>&, allocator, const property_list& = {})
+   *              const range<Dims>&, allocator, const property_list& = {})
    */
   {
     cl::sycl::image_allocator imgAlloc;
@@ -191,7 +191,7 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
   }
 
   /* Constructor (image_channel_order, image_channel_type,
-   *              const range<3>&, allocator, const property_list&)
+   *              const range<Dims>&, allocator, const property_list&)
    */
   {
     cl::sycl::image_allocator imgAlloc;
@@ -207,15 +207,15 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   cl::sycl::image_channel_order channelOrder =
       cl::sycl::image_channel_order::rgbx;
   cl::sycl::image_channel_type channelType =
-      cl::sycl::image_channel_type::signed_int32;
-  unsigned int elementSize = 12; // rgbx * i32
+      cl::sycl::image_channel_type::unorm_short_565;
+  unsigned int elementSize = 2; // 2 bytes for short_565
   int numElems = r.size();
   cl::sycl::property_list propList{}; // empty property list
 
 
   /* Constructor (void *, image_channel_order,
-   *              image_channel_type, const range<3>&,
-   *              const range<3 - 1>&, const property_list& = {})
+   *              image_channel_type, const range<Dims>&,
+   *              const range<Dims - 1>&, const property_list& = {})
    */
   {
     cl::sycl::image<Dims> img = cl::sycl::image<Dims>(
@@ -224,8 +224,8 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (void *, image_channel_order,
-   *              image_channel_type, const range<3>&,
-   *              const range<3 - 1>&, const property_list&)
+   *              image_channel_type, const range<Dims>&,
+   *              const range<Dims - 1>&, const property_list&)
    */
   {
     cl::sycl::image<Dims> img = cl::sycl::image<Dims>(
@@ -234,8 +234,8 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (void *, image_channel_order,
-   *              image_channel_type, const range<3>&,
-   *              const range<3 - 1>&, allocator,
+   *              image_channel_type, const range<Dims>&,
+   *              const range<Dims - 1>&, allocator,
    *              const property_list& = {})
    */
   {
@@ -246,8 +246,8 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (void *, image_channel_order,
-   *              image_channel_type, const range<3>&,
-   *              const range<3 - 1>&, allocator, const property_list&)
+   *              image_channel_type, const range<Dims>&,
+   *              const range<Dims - 1>&, allocator, const property_list&)
    */
   {
     cl::sycl::image_allocator imgAlloc;
@@ -257,8 +257,8 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (shared_ptr_class<void>&, image_channel_order,
-   *              image_channel_type, const range<3>&,
-   *              const range<3 - 1>&, const property_list& = {})
+   *              image_channel_type, const range<Dims>&,
+   *              const range<Dims - 1>&, const property_list& = {})
    */
   {
     auto hostPointer =
@@ -269,8 +269,8 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (shared_ptr_class<void>&, image_channel_order,
-   *              image_channel_type, const range<3>&,
-   *              const range<3 - 1>&, const property_list&)
+   *              image_channel_type, const range<Dims>&,
+   *              const range<Dims - 1>&, const property_list&)
    */
   {
     auto hostPointer =
@@ -281,8 +281,8 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (shared_ptr_class<void>&, image_channel_order,
-   *              image_channel_type, const range<3>&,
-   *              const range<3 - 1>&, allocator,
+   *              image_channel_type, const range<Dims>&,
+   *              const range<Dims - 1>&, allocator,
    *              const property_list& = {})
    */
   {
@@ -295,8 +295,8 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (shared_ptr_class<void>&, image_channel_order,
-   *              image_channel_type, const range<3>&,
-   *              const range<3 - 1>&, allocator, const property_list&)
+   *              image_channel_type, const range<Dims>&,
+   *              const range<Dims - 1>&, allocator, const property_list&)
    */
   {
     cl::sycl::image_allocator imgAlloc;
@@ -308,7 +308,7 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (image_channel_order, image_channel_type,
-   *              const range<3>&, const range<3 - 1>&,
+   *              const range<Dims>&, const range<Dims - 1>&,
    *              const property_list& = {})
    */
   {
@@ -318,7 +318,7 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (image_channel_order, image_channel_type,
-   *              const range<3>&, const range<3 - 1>&,
+   *              const range<Dims>&, const range<Dims - 1>&,
    *              const property_list&)
    */
   {
@@ -328,7 +328,7 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (image_channel_order, image_channel_type,
-   *              const range<3>&, const range<3 - 1>&, allocator,
+   *              const range<Dims>&, const range<Dims - 1>&, allocator,
    *              const property_list& = {})
    */
   {
@@ -339,7 +339,7 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
   }
 
   /* Constructor (image_channel_order, image_channel_type,
-   *              const range<3>&, const range<3 - 1>&, allocator,
+   *              const range<Dims>&, const range<Dims - 1>&, allocator,
    *              const property_list&)
    */
   {
@@ -352,8 +352,8 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r, cl::sycl::range<Dims-
 
 int main() {
 
-  int imageHostPtr[144]; // 16*9
-  for (int i = 0; i < 144; i++)
+  int imageHostPtr[48]; // 3*2*4*(2 bytes per element) = 48
+  for (int i = 0; i < 48; i++)
     imageHostPtr[i] = i; // Maximum number of elements.
 
   // Ranges 
@@ -362,8 +362,8 @@ int main() {
   cl::sycl::range<3> r3(3, 2, 4);
   
   // Pitches
-  cl::sycl::range<1> pitch2(36); // range is 3; elementSize = 12.
-  cl::sycl::range<2> pitch3(36, 72); // range is 3,2; elementSize = 12.
+  cl::sycl::range<1> pitch2(6); // range is 3; elementSize = 2.
+  cl::sycl::range<2> pitch3(6, 12); // range is 3,2; elementSize = 2.
   
   // Constructors without Pitch
   test_constructors<1>(r1, imageHostPtr);

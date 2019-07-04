@@ -26,7 +26,7 @@ enum class image_channel_type : unsigned int;
 namespace detail {
 
 // utility functions and typedefs for image_impl
-using image_allocator = aligned_allocator<byte>;
+using image_allocator = aligned_allocator<byte, /*alignment*/ 64>;
 
 // utility function: Returns the Number of Channels for a given Order.
 uint8_t getImageNumberChannels(image_channel_order Order);
@@ -279,7 +279,7 @@ public:
 
   // TODO: Implement this function.
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    cnri_event &OutEventToWait) override {
+                    cl_event &OutEventToWait) override {
     if (true)
       throw cl::sycl::feature_not_supported(
           "MemoryAllocation Function Not Implemented for image class");

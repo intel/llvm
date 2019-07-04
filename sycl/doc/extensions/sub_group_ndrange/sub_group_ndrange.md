@@ -131,8 +131,8 @@ The vote / ballot sub-group functions communicate Boolean conditions between the
 
 |Member functions|Description|
 |----------------|-----------|
-| `bool any(bool predicate)` | Return `true` if `predicate` evaluates to `true` for any work-item in the sub-group. |
-| `bool all(bool predicate)` | Return `true` if `predicate` evaluates to `true` for all work-items in the sub-group. |
+| `bool any(bool predicate) const` | Return `true` if `predicate` evaluates to `true` for any work-item in the sub-group. |
+| `bool all(bool predicate) const` | Return `true` if `predicate` evaluates to `true` for all work-items in the sub-group. |
 
 ### Collectives
 
@@ -142,10 +142,10 @@ The `plus`, `minimum` and `maximum` functors in the `cl::sycl` namespace corresp
 
 |Member functions|Description|
 |----------------|-----------|
-| `template <typename T>T broadcast(T x, id<1> local_id)` | Broadcast the value of `x` from the work-item with the specified id to all work-items within the sub-group. The value of `local_id` must be the same for all work-items in the sub-group. |
-| `template <typename T, class BinaryOp>T reduce(T x, T init, BinaryOp binary_op)` | Combine the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. |
-| `template <typename T, class BinaryOp>T exclusive_scan(T x, T init, BinaryOp binary_op)` | Perform an exclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the exclusive scan of the first `i` work-items in the sub-group. |
-| `template <typename T, class BinaryOp>T inclusive_scan(T x, BinaryOp binary_op, T init)` | Perform an inclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the inclusive scan of the first `i` work-items in the sub-group. |
+| `template <typename T>T broadcast(T x, id<1> local_id) const` | Broadcast the value of `x` from the work-item with the specified id to all work-items within the sub-group. The value of `local_id` must be the same for all work-items in the sub-group. |
+| `template <typename T, class BinaryOp>T reduce(T x, T init, BinaryOp binary_op) const` | Combine the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. |
+| `template <typename T, class BinaryOp>T exclusive_scan(T x, T init, BinaryOp binary_op) const` | Perform an exclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the exclusive scan of the first `i` work-items in the sub-group. |
+| `template <typename T, class BinaryOp>T inclusive_scan(T x, BinaryOp binary_op, T init) const` | Perform an inclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the inclusive scan of the first `i` work-items in the sub-group. |
 
 ## Extended Functionality
 
@@ -155,10 +155,10 @@ The shuffle sub-group functions perform arbitrary communication between pairs of
 
 |Member functions|Description|
 |----------------|-----------|
-| `template <typename T>T shuffle(T x, id<1> local_id)` | Exchange values of `x` between work-items in the sub-group in an arbitrary pattern.  Returns the value of `x` from the work-item with the specified id.  The value of `local_id` must be between 0 and the sub-group size. |
-| `template <typename T>T shuffle_down(T x, uint32_t delta)` | Exchange values of `x` between work-items in the sub-group via a shift.  Returns the value of `x` from the work-item whose id is `delta` larger than the calling work-item. The value returned when the result of id + `delta` is greater than or equal to the sub-group size is undefined. |
-| `template <typename T>T shuffle_up(T x, uint32_t delta)` | Exchange values of `x` between work-items in the sub-group via a shift.  Returns the value of `x` from the work-item whose id is `delta` smaller than the calling work-item.  The value of returned when the result of id - `delta` is less than zero is undefined. |
-| `template <typename T>T shuffle_xor(T x, id<1> mask)` | Exchange pairs of values of `x` between work-items in the sub-group.  Returns the value of `x` from the work-item whose id is equal to the exclusive-or of the calling work-item's id and `mask`. `mask` must be a compile-time constant value that is the same for all work-items in the sub-group. |
+| `template <typename T>T shuffle(T x, id<1> local_id) const` | Exchange values of `x` between work-items in the sub-group in an arbitrary pattern.  Returns the value of `x` from the work-item with the specified id.  The value of `local_id` must be between 0 and the sub-group size. |
+| `template <typename T>T shuffle_down(T x, uint32_t delta) const` | Exchange values of `x` between work-items in the sub-group via a shift.  Returns the value of `x` from the work-item whose id is `delta` larger than the calling work-item. The value returned when the result of id + `delta` is greater than or equal to the sub-group size is undefined. |
+| `template <typename T>T shuffle_up(T x, uint32_t delta) const` | Exchange values of `x` between work-items in the sub-group via a shift.  Returns the value of `x` from the work-item whose id is `delta` smaller than the calling work-item.  The value of returned when the result of id - `delta` is less than zero is undefined. |
+| `template <typename T>T shuffle_xor(T x, id<1> mask) const` | Exchange pairs of values of `x` between work-items in the sub-group.  Returns the value of `x` from the work-item whose id is equal to the exclusive-or of the calling work-item's id and `mask`. `mask` must be a compile-time constant value that is the same for all work-items in the sub-group. |
 
 ### Two-Input Shuffles
 
@@ -166,9 +166,9 @@ This proposal makes a distinction between shuffles with one input per work-item 
 
 |Member functions|Description|
 |----------------|-----------|
-| `template <typename T>T shuffle(T x, T y, id<1> local_id)` | Exchange values of `x` and `y` between work-items in the sub-group in an arbitrary pattern.  If `local_id` is between 0 and the sub-group size, returns the value of `x` from the work-item with the specified id; if `local_id` is between the sub-group size and twice the sub-group size, returns the value of `y` from the work-item with the specified id (modulo the sub-group size).  The value of `local_id` must be between 0 and twice the sub-group size. |
-| `template <typename T>T shuffle_down(T x, T y, uint32_t delta)` | Exchange values of `x` and `y` between work-items in the sub-group via a shift.  If the calling work-item's id + `delta` is between 0 and the sub-group size, returns the value of `x` from the work-item whose id is `delta` larger than the calling work-item; if the calling work-item's id + `delta` is between the sub-group size and twice the sub-group size, returns the value of `y` from the work-item with the specified id (modulo the sub-group size).  The value of `delta` must be less than the sub-group size. |
-| `template <typename T>T shuffle_up(T x, T y, uint32_t delta)` | Exchange values of `x` and `y` between work-items in the sub-group via a shift.  If the calling work-item's id - `delta` is between 0 and the sub-group size, returns the value of `x` from the work-item whose id is `delta` smaller than the calling work-item; if the calling work-item's id - `delta` is between the sub-group size and twice the sub-group size, returns the value of `y` from the work-item with the specified id (modulo the sub-group size).  The value of `delta` must be less than the sub-group size. |
+| `template <typename T>T shuffle(T x, T y, id<1> local_id) const` | Exchange values of `x` and `y` between work-items in the sub-group in an arbitrary pattern.  If `local_id` is between 0 and the sub-group size, returns the value of `x` from the work-item with the specified id; if `local_id` is between the sub-group size and twice the sub-group size, returns the value of `y` from the work-item with the specified id (modulo the sub-group size).  The value of `local_id` must be between 0 and twice the sub-group size. |
+| `template <typename T>T shuffle_down(T x, T y, uint32_t delta) const` | Exchange values of `x` and `y` between work-items in the sub-group via a shift.  If the calling work-item's id + `delta` is between 0 and the sub-group size, returns the value of `x` from the work-item whose id is `delta` larger than the calling work-item; if the calling work-item's id + `delta` is between the sub-group size and twice the sub-group size, returns the value of `y` from the work-item with the specified id (modulo the sub-group size).  The value of `delta` must be less than the sub-group size. |
+| `template <typename T>T shuffle_up(T x, T y, uint32_t delta) const` | Exchange values of `x` and `y` between work-items in the sub-group via a shift.  If the calling work-item's id - `delta` is between 0 and the sub-group size, returns the value of `x` from the work-item whose id is `delta` smaller than the calling work-item; if the calling work-item's id - `delta` is between the sub-group size and twice the sub-group size, returns the value of `y` from the work-item with the specified id (modulo the sub-group size).  The value of `delta` must be less than the sub-group size. |
 
 ### Loads / Stores
 
@@ -176,10 +176,10 @@ The load and store sub-group functions enable developers to assert that all work
 
 |Member functions|Description|
 |----------------|-----------|
-| `template <typename T, access::address_space Space>T load(const multi_ptr<T,Space> src)` | Load contiguous data from `src`.  Returns one element per work-item, corresponding to the memory location at `src` + `get_local_id()`. The value of `src` must be the same for all work-items in the sub-group. |
-| `template <int N, typename T, access::address_space Space>vec<T,N> load(const multi_ptr<T,Space> src)` | Load contiguous data from `src`.  Returns `N` elements per work-item, corresponding to the `N` memory locations at `src` + `i` * `get_max_local_range()` + `get_local_id()` for `i` between 0 and `N`. The value of `src` must be the same for all work-items in the sub-group. |
-| `template <typename T, access::address_space Space>void store(multi_ptr<T,Space> dst, const T& x)` | Store contiguous data to `dst`.  The value of `x` from each work-item is written to the memory location at `dst` + `get_local_id()`. The value of `dst` must be the same for all work-items in the sub-group. |
-| `template <int N, typename T, access::address_space Space>void store(multi_ptr<T,Space> dst, const vec<T,N>& x)` | Store contiguous data to `dst`.  The `N` elements from each work-item are written to the memory locations at `dst` + `i` * `get_max_local_range()` + `get_local_id()` for `i` between 0 and `N`.  The value of `dst` must be the same for all work-items in the sub-group. |
+| `template <typename T, access::address_space Space>T load(const multi_ptr<T,Space> src) const` | Load contiguous data from `src`.  Returns one element per work-item, corresponding to the memory location at `src` + `get_local_id()`. The value of `src` must be the same for all work-items in the sub-group. |
+| `template <int N, typename T, access::address_space Space>vec<T,N> load(const multi_ptr<T,Space> src) const` | Load contiguous data from `src`.  Returns `N` elements per work-item, corresponding to the `N` memory locations at `src` + `i` * `get_max_local_range()` + `get_local_id()` for `i` between 0 and `N`. The value of `src` must be the same for all work-items in the sub-group. |
+| `template <typename T, access::address_space Space>void store(multi_ptr<T,Space> dst, const T& x) const` | Store contiguous data to `dst`.  The value of `x` from each work-item is written to the memory location at `dst` + `get_local_id()`. The value of `dst` must be the same for all work-items in the sub-group. |
+| `template <int N, typename T, access::address_space Space>void store(multi_ptr<T,Space> dst, const vec<T,N>& x) const` | Store contiguous data to `dst`.  The `N` elements from each work-item are written to the memory locations at `dst` + `i` * `get_max_local_range()` + `get_local_id()` for `i` between 0 and `N`.  The value of `dst` must be the same for all work-items in the sub-group. |
 
 # Sample Header
 
@@ -195,7 +195,7 @@ struct sub_group {
 
     range<1> get_local_range() const;
 
-    range<1> get_max_local_range();
+    range<1> get_max_local_range() const;
 
     id<1> get_group_id() const;
 
@@ -205,62 +205,62 @@ struct sub_group {
 
     /* --- vote/ballot functions --- */
 
-    bool any(bool predicate);
+    bool any(bool predicate) const;
 
-    bool all(bool predicate);
+    bool all(bool predicate) const;
 
     /* --- data-sharing --- */
 
     template <typename T>
-    T broadcast(T x, id<1> local_id);
+    T broadcast(T x, id<1> local_id) const;
 
     template <typename T, class BinaryOp>
-    T reduce(T x, T init, BinaryOp binary_op);
+    T reduce(T x, T init, BinaryOp binary_op) const;
 
     template <typename T, class BinaryOp>
-    T exclusive_scan(T x, T init, BinaryOp binary_op);
+    T exclusive_scan(T x, T init, BinaryOp binary_op) const;
 
     template <typename T, class BinaryOp>
-    T inclusive_scan(T x, BinaryOp binary_op, T init);
+    T inclusive_scan(T x, BinaryOp binary_op, T init) const;
 
     /* --- one-input shuffles --- */
 
     template <typename T>
-    T shuffle(T x, id<1> local_id);
+    T shuffle(T x, id<1> local_id) const;
 
     template <typename T>
-    T shuffle_down(T x, uint32_t delta);
+    T shuffle_down(T x, uint32_t delta) const;
 
     template <typename T>
-    T shuffle_up(T x, uint32_t delta);
+    T shuffle_up(T x, uint32_t delta) const;
 
     template <typename T>
-    T shuffle_xor(T x, id<1> value);
+    T shuffle_xor(T x, id<1> value) const;
 
     /* --- two-input shuffles --- */
 
     template <typename T>
-    T shuffle(T x, T y, id<1> local_id);
+    T shuffle(T x, T y, id<1> local_id) const;
 
     template <typename T>
-    T shuffle_down(T current, T next, uint32_t delta);
+    T shuffle_down(T current, T next, uint32_t delta) const;
 
     template <typename T>
-    T shuffle_up(T previous, T current, uint32_t delta);
+    T shuffle_up(T previous, T current, uint32_t delta) const;
 
     /* --- sub-group load/stores --- */
 
     template <typename T, access::address_space Space>
-    T load(const multi_ptr<T,Space> src);
+    T load(const multi_ptr<T,Space> src) const;
 
     template <typename T, int N, access::address_space Space>
-    vec<T,N> load(const multi_ptr<T,Space> src);
+    vec<T,N> load(const multi_ptr<T,Space> src) const;
 
     template <typename T, int N, access::address_space Space>
-    void store(multi_ptr<T,Space> dst, const T& x);
+    void store(multi_ptr<T,Space> dst, const T& x) const;
 
     template <typename T, int N, access::address_space Space>
-    void store(multi_ptr<T,Space> dst, const vec<T,N>& x);
+    void store(multi_ptr<T,Space> dst, const vec<T,N>& x) const;
 
 };
 } // intel

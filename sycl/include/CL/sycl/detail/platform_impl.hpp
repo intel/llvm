@@ -8,8 +8,9 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/platform_info.hpp>
+#include <CL/sycl/detail/force_device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/stl.hpp>
 
 // 4.6.2 Platform class
@@ -39,7 +40,7 @@ public:
     if (is_host()) {
       return get_platform_info_host<param>();
     }
-    return get_platform_info_cl<
+    return get_platform_info<
         typename info::param_traits<info::platform, param>::return_type,
         param>::_(this->get());
   }
@@ -49,7 +50,52 @@ public:
   virtual cl_platform_id get() const = 0;
 
   virtual ~platform_impl() = default;
-}; // class platform_impl
+};
+
+// TODO: merge platform_impl_pi, platform_impl_host and platform_impl?
+class platform_impl_pi : public platform_impl {
+public:
+  platform_impl_pi(RT::pi_platform a_platform) : m_platform(a_platform) {}
+
+  vector_class<device> get_devices(
+      info::device_type deviceType = info::device_type::all) const override;
+
+  bool has_extension(const string_class &extension_name) const override {
+    string_class all_extension_names =
+        get_platform_info<string_class, info::platform::extensions>::_(m_platform);
+    return (all_extension_names.find(extension_name) != std::string::npos);
+  }
+
+  cl_platform_id get() const override {
+    return pi_cast<cl_platform_id>(m_platform); }
+
+  bool is_host() const override { return false; }
+
+  static vector_class<platform> get_platforms();
+
+private:
+  RT::pi_platform m_platform = 0;
+}; // class platform_opencl
+
+// TODO: implement extension management
+// TODO: implement parameters treatment
+// TODO: merge platform_impl_pi, platform_impl_host and platform_impl?
+class platform_impl_host : public platform_impl {
+public:
+  vector_class<device> get_devices(
+      info::device_type dev_type = info::device_type::all) const override;
+
+  bool has_extension(const string_class &extension_name) const override {
+    return false;
+  }
+
+  cl_platform_id get() const override {
+    throw invalid_object_error("This instance of platform is a host instance");
+  }
+
+  bool is_host() const override { return true; }
+}; // class platform_host
+
 
 } // namespace detail
 } // namespace sycl

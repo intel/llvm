@@ -4256,7 +4256,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     deactivateArgCleanupsBeforeCall(*this, CallArgs);
 
   // Addrspace cast to generic if necessary
-  if (getenv("ENABLE_INFER_AS")) {
+  if (!getenv("DISABLE_INFER_AS")) {
     for (unsigned i = 0; i < IRFuncTy->getNumParams(); ++i) {
       if (auto *PtrTy = dyn_cast<llvm::PointerType>(IRCallArgs[i]->getType())) {
         auto *ExpectedPtrType =

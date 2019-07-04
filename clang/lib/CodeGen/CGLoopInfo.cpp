@@ -446,13 +446,12 @@ MDNode *LoopInfo::createMetadata(
 
 LoopAttributes::LoopAttributes(bool IsParallel)
     : IsParallel(IsParallel), VectorizeEnable(LoopAttributes::Unspecified),
-      SYCLIVDepEnable(false), SYCLIVDepSafelen(0), SYCLIInterval(0),
-      SYCLMaxConcurrencyNThreads(0),
       UnrollEnable(LoopAttributes::Unspecified),
       UnrollAndJamEnable(LoopAttributes::Unspecified), VectorizeWidth(0),
-      InterleaveCount(0), UnrollCount(0), UnrollAndJamCount(0),
-      DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
-      PipelineInitiationInterval(0) {}
+      InterleaveCount(0), SYCLIVDepEnable(false), SYCLIVDepSafelen(0),
+      SYCLIInterval(0), SYCLMaxConcurrencyNThreads(0), UnrollCount(0),
+      UnrollAndJamCount(0), DistributeEnable(LoopAttributes::Unspecified),
+      PipelineDisabled(false), PipelineInitiationInterval(0) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;

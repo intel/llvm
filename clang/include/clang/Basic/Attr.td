@@ -1565,6 +1565,41 @@ def IntelFPGAMaxPrivateCopies : InheritableAttr {
   }];
 }
 
+// Two string arguments.
+def IntelFPGAMerge : Attr {
+  let Spellings = [CXX11<"intelfpga","merge">];
+  let Args = [StringArgument<"Name">, StringArgument<"Direction">];
+  let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
+                              Field], ErrorDiag>;
+  let LangOpts = [SYCL];
+  let Documentation = [IntelFPGAMergeAttrDocs];
+}
+
+def IntelFPGAMaxReplicates : Attr {
+  let Spellings = [CXX11<"intelfpga","max_replicates">];
+  let Args = [ExprArgument<"Value">];
+  let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
+                              Field], ErrorDiag>;
+  let LangOpts = [SYCL];
+  let Documentation = [IntelFPGAMaxReplicatesAttrDocs];
+  let AdditionalMembers = [{
+    static unsigned getMinValue() {
+      return 1;
+    }
+    static unsigned getMaxValue() {
+      return 1024*1024;
+    }
+  }];
+}
+
+def IntelFPGASimpleDualPort : Attr {
+  let Spellings = [CXX11<"intelfpga","simple_dual_port">];
+  let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
+                              Field], ErrorDiag>;
+  let LangOpts = [SYCL];
+  let Documentation = [IntelFPGASimpleDualPortAttrDocs];
+}
+
 def Naked : InheritableAttr {
   let Spellings = [GCC<"naked">, Declspec<"naked">];
   let Subjects = SubjectList<[Function]>;

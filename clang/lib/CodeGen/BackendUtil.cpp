@@ -833,7 +833,7 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
 
   case Backend_EmitBC:
     if (LangOpts.SYCLIsDevice) {
-      if (!getenv("ENABLE_INFER_AS"))
+      if (getenv("DISABLE_INFER_AS"))
         PerModulePasses.add(createASFixerPass());
       PerModulePasses.add(createDeadCodeEliminationPass());
     }
@@ -1241,7 +1241,7 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
 
   case Backend_EmitBC:
     if (LangOpts.SYCLIsDevice) {
-      if (!getenv("ENABLE_INFER_AS"))
+      if (getenv("DISABLE_INFER_AS"))
         CodeGenPasses.add(createASFixerPass());
       CodeGenPasses.add(createDeadCodeEliminationPass());
     }

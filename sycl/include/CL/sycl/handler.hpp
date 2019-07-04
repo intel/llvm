@@ -239,9 +239,11 @@ private:
     const auto kind_std_layout = detail::kernel_param_kind_t::kind_std_layout;
     const auto kind_accessor = detail::kernel_param_kind_t::kind_accessor;
     const auto kind_sampler = detail::kernel_param_kind_t::kind_sampler;
+    const auto kind_pointer = detail::kernel_param_kind_t::kind_pointer;
 
     switch (Kind) {
-    case kind_std_layout: {
+    case kind_std_layout:
+    case kind_pointer: {
       MArgs.emplace_back(Kind, Ptr, Size, Index + IndexShift);
       break;
     }
@@ -256,7 +258,10 @@ private:
         detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
         MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
         if (!IsKernelCreatedFromSource) {
-          const size_t SizeAccField = sizeof(size_t) * AccImpl->MDims;
+          // Dimensionality of the buffer is 1 when dimensionality of the
+          // accessor is 0.
+          const size_t SizeAccField =
+              sizeof(size_t) * (AccImpl->MDims == 0 ? 1 : AccImpl->MDims);
           ++IndexShift;
           MArgs.emplace_back(kind_std_layout, &AccImpl->MAccessRange[0],
                              SizeAccField, Index + IndexShift);
@@ -368,6 +373,19 @@ private:
         std::move(CommandGroup), std::move(MQueue));
 
     EventRet = detail::createSyclObjFromImpl<event>(Event);
+
+    // Waiting for copy command to complete here as SYCL specification says that
+    // the SYCL runtime must ensure that data is copied to the destination once
+    // the command group has completed execution.
+    switch (MCGType) {
+    case detail::CG::COPY_ACC_TO_PTR:
+    case detail::CG::COPY_PTR_TO_ACC:
+    case detail::CG::COPY_ACC_TO_ACC:
+      EventRet.wait();
+    default:
+      break;
+    }
+
     return EventRet;
   }
 
@@ -663,16 +681,51 @@ public:
 #endif
   }
 
-  // template <typename KernelName, typename WorkgroupFunctionType, int
-  // dimensions>
-  // void parallel_for_work_group(range<dimensions> numWorkGroups,
-  //                              WorkgroupFunctionType KernelFunc);
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(range<Dims> NumWorkGroups,
+                               KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
+#else
+    MNDRDesc.setNumWorkGroups(NumWorkGroups);
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
+    MCGType = detail::CG::KERNEL;
+#endif // __SYCL_DEVICE_ONLY__
+  }
 
-  // template <typename KernelName, typename WorkgroupFunctionType, int
-  // dimensions>
-  // void parallel_for_work_group(range<dimensions> numWorkGroups,
-  //                              range<dimensions> workGroupSize,
-  //                              WorkgroupFunctionType KernelFunc);
+#ifdef __SYCL_DEVICE_ONLY__
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) void
+  kernel_parallel_for_work_group(KernelType KernelFunc) {
+
+    range<Dims> GlobalSize;
+    range<Dims> LocalSize;
+    id<Dims> GroupId;
+
+    __spirv::initGlobalSize<Dims>(GlobalSize);
+    __spirv::initWorkgroupSize<Dims>(LocalSize);
+    __spirv::initWorkgroupId<Dims>(GroupId);
+
+    group<Dims> G =
+        detail::Builder::createGroup<Dims>(GlobalSize, LocalSize, GroupId);
+    KernelFunc(G);
+  }
+#endif // __SYCL_DEVICE_ONLY__
+
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(range<Dims> NumWorkGroups,
+                               range<Dims> WorkGroupSize,
+                               KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
+#else
+    MNDRDesc.set(nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize));
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
+    MCGType = detail::CG::KERNEL;
+#endif // __SYCL_DEVICE_ONLY__
+  }
 
   // single_task version with a kernel represented as a sycl::kernel.
   // The kernel invocation method has no functors and cannot be called on host.
@@ -804,16 +857,42 @@ public:
 #endif
   }
 
-  // template <typename KernelName, typename WorkgroupFunctionType, int
-  // dimensions>
-  // void parallel_for_work_group(range<dimensions> num_work_groups, kernel
-  // SyclKernel, WorkgroupFunctionType KernelFunc);
+  /// This version of \c parallel_for_work_group takes two parameters
+  /// representing the same kernel. The first one - \c syclKernel - is a
+  /// compiled form of the second one - \c kernelFunc, which is the source form
+  /// of the kernel. The same source kernel can be compiled multiple times
+  /// yielding multiple kernel class objects accessible via the \c program class
+  /// interface.
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
+                               KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
+#else
+    MNDRDesc.setNumWorkGroups(NumWorkGroups);
+    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
+    MCGType = detail::CG::KERNEL;
+#endif // __SYCL_DEVICE_ONLY__
+  }
 
-  // template <typename KernelName, typename WorkgroupFunctionType, int
-  // dimensions>
-  // void parallel_for_work_group(range<dimensions> num_work_groups,
-  // range<dimensions> work_group_size, kernel SyclKernel, WorkgroupFunctionType
-  // KernelFunc);
+  /// Two-kernel version of the \c parallel_for_work_group with group and local
+  /// range.
+  template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
+  void parallel_for_work_group(kernel SyclKernel, range<Dims> NumWorkGroups,
+                               range<Dims> WorkGroupSize,
+                               KernelType KernelFunc) {
+    using NameT = typename csd::get_kernel_name_t<KernelName, KernelType>::name;
+#ifdef __SYCL_DEVICE_ONLY__
+    kernel_parallel_for_work_group<NameT, KernelType, Dims>(KernelFunc);
+#else
+    MNDRDesc.set(nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize));
+    MSyclKernel = detail::getSyclObjImpl(std::move(SyclKernel));
+    StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
+    MCGType = detail::CG::KERNEL;
+#endif // __SYCL_DEVICE_ONLY__
+  }
 
   // Explicit copy operations API
 
@@ -858,6 +937,7 @@ public:
                           void>::type
   copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
        T_Dst *Dst) {
+#ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
       // manger.
@@ -873,6 +953,7 @@ public:
 
       return;
     }
+#endif
     MCGType = detail::CG::COPY_ACC_TO_PTR;
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Src;
@@ -896,6 +977,7 @@ public:
   copy(const T_Src *Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
 
+#ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
       // manger.
@@ -909,9 +991,9 @@ public:
 
         Dst[Index] = ((T_Dst *)Src)[LinearIndex];
       });
-
       return;
     }
+#endif
     MCGType = detail::CG::COPY_PTR_TO_ACC;
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
@@ -949,6 +1031,7 @@ public:
                 IsPlaceholder_Dst>
            Dst) {
 
+#ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       range<Dims_Src> Range = Dst.get_range();
       parallel_for< class __copyAcc2Acc< T_Src, Dims_Src, AccessMode_Src,
@@ -962,6 +1045,7 @@ public:
 
       return;
     }
+#endif
     MCGType = detail::CG::COPY_ACC_TO_ACC;
 
     detail::AccessorBaseHost *AccBaseSrc = (detail::AccessorBaseHost *)&Src;

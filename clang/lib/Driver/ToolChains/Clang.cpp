@@ -5330,6 +5330,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (!IsSYCLOffloadDevice && SYCLDeviceInput) {
       CmdArgs.push_back("-include");
       CmdArgs.push_back(SYCLDeviceInput->getFilename());
+      // When creating dependency information, filter out the generated
+      // header file.
+      CmdArgs.push_back("-dependency-filter");
+      CmdArgs.push_back(SYCLDeviceInput->getFilename());
     }
     if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
       // Generating a SYCL Header

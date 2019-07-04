@@ -57,4 +57,16 @@ enum class GroupOperation : uint32_t {
 #ifndef __SYCL_DEVICE_ONLY__
 typedef void* __ocl_event_t;
 typedef void* __ocl_sampler_t;
+// Adding only the datatypes that can be currently used in SYCL,
+// as per SYCL spec 1.2.1
+typedef void *__ocl_image1d_ro_t;
+typedef void *__ocl_image2d_ro_t;
+typedef void *__ocl_image3d_ro_t;
+typedef void *__ocl_image1d_wo_t;
+typedef void *__ocl_image2d_wo_t;
+typedef void *__ocl_image3d_wo_t;
+typedef void *__ocl_image1d_array_ro_t;
+typedef void *__ocl_image2d_array_ro_t;
+typedef void *__ocl_image1d_array_wo_t;
+typedef void *__ocl_image2d_array_wo_t;
 #endif

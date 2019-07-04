@@ -2409,10 +2409,16 @@ MAKE_1V_2V_FUNC(LessOrGreater, __vLessOrGreater, s::cl_short, s::cl_half,
 // (IsFinite)             // isfinite
 cl_int IsFinite(s::cl_float x) __NOEXC { return std::isfinite(x); }
 cl_int IsFinite(s::cl_double x) __NOEXC { return std::isfinite(x); }
-cl_int __vIsFinite(s::cl_float x) __NOEXC { return -(std::isfinite(x)); }
-cl_long __vIsFinite(s::cl_double x) __NOEXC { return -(std::isfinite(x)); }
+cl_int __vIsFinite(s::cl_float x) __NOEXC {
+  return -static_cast<cl_int>(std::isfinite(x));
+}
+cl_long __vIsFinite(s::cl_double x) __NOEXC {
+  return -static_cast<cl_long>(std::isfinite(x));
+}
 cl_int IsFinite(s::cl_half x) __NOEXC { return std::isfinite(x); }
-cl_short __vIsFinite(s::cl_half x) __NOEXC { return -(std::isfinite(x)); }
+cl_short __vIsFinite(s::cl_half x) __NOEXC {
+  return -static_cast<cl_int>(std::isfinite(x));
+}
 MAKE_1V_FUNC(IsFinite, __vIsFinite, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(IsFinite, __vIsFinite, s::cl_long, s::cl_double)
 MAKE_1V_FUNC(IsFinite, __vIsFinite, s::cl_short, s::cl_half)
@@ -2420,10 +2426,16 @@ MAKE_1V_FUNC(IsFinite, __vIsFinite, s::cl_short, s::cl_half)
 // (IsInf)                // isinf
 cl_int IsInf(s::cl_float x) __NOEXC { return std::isinf(x); }
 cl_int IsInf(s::cl_double x) __NOEXC { return std::isinf(x); }
-cl_int __vIsInf(s::cl_float x) __NOEXC { return -(std::isinf(x)); }
-cl_long __vIsInf(s::cl_double x) __NOEXC { return -(std::isinf(x)); }
+cl_int __vIsInf(s::cl_float x) __NOEXC {
+  return -static_cast<cl_int>(std::isinf(x));
+}
+cl_long __vIsInf(s::cl_double x) __NOEXC {
+  return -static_cast<cl_long>(std::isinf(x));
+}
 cl_int IsInf(s::cl_half x) __NOEXC { return std::isinf(x); }
-cl_short __vIsInf(s::cl_half x) __NOEXC { return -(std::isinf(x)); }
+cl_short __vIsInf(s::cl_half x) __NOEXC {
+  return -static_cast<cl_short>(std::isinf(x));
+}
 MAKE_1V_FUNC(IsInf, __vIsInf, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(IsInf, __vIsInf, s::cl_long, s::cl_double)
 MAKE_1V_FUNC(IsInf, __vIsInf, s::cl_short, s::cl_half)
@@ -2431,11 +2443,17 @@ MAKE_1V_FUNC(IsInf, __vIsInf, s::cl_short, s::cl_half)
 // (IsNan)                // isnan
 cl_int IsNan(s::cl_float x) __NOEXC { return std::isnan(x); }
 cl_int IsNan(s::cl_double x) __NOEXC { return std::isnan(x); }
-cl_int __vIsNan(s::cl_float x) __NOEXC { return -(std::isnan(x)); }
-cl_long __vIsNan(s::cl_double x) __NOEXC { return -(std::isnan(x)); }
+cl_int __vIsNan(s::cl_float x) __NOEXC {
+  return -static_cast<cl_int>(std::isnan(x));
+}
+cl_long __vIsNan(s::cl_double x) __NOEXC {
+  return -static_cast<cl_long>(std::isnan(x));
+}
 
 cl_int IsNan(s::cl_half x) __NOEXC { return std::isnan(x); }
-cl_short __vIsNan(s::cl_half x) __NOEXC { return -(std::isnan(x)); }
+cl_short __vIsNan(s::cl_half x) __NOEXC {
+  return -static_cast<cl_short>(std::isnan(x));
+}
 MAKE_1V_FUNC(IsNan, __vIsNan, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(IsNan, __vIsNan, s::cl_long, s::cl_double)
 MAKE_1V_FUNC(IsNan, __vIsNan, s::cl_short, s::cl_half)
@@ -2443,10 +2461,16 @@ MAKE_1V_FUNC(IsNan, __vIsNan, s::cl_short, s::cl_half)
 // (IsNormal)             // isnormal
 cl_int IsNormal(s::cl_float x) __NOEXC { return std::isnormal(x); }
 cl_int IsNormal(s::cl_double x) __NOEXC { return std::isnormal(x); }
-cl_int __vIsNormal(s::cl_float x) __NOEXC { return -(std::isnormal(x)); }
-cl_long __vIsNormal(s::cl_double x) __NOEXC { return -(std::isnormal(x)); }
+cl_int __vIsNormal(s::cl_float x) __NOEXC {
+  return -static_cast<cl_int>(std::isnormal(x));
+}
+cl_long __vIsNormal(s::cl_double x) __NOEXC {
+  return -static_cast<cl_long>(std::isnormal(x));
+}
 cl_int IsNormal(s::cl_half x) __NOEXC { return std::isnormal(x); }
-cl_short __vIsNormal(s::cl_half x) __NOEXC { return -(std::isnormal(x)); }
+cl_short __vIsNormal(s::cl_half x) __NOEXC {
+  return -static_cast<cl_short>(std::isnormal(x));
+}
 MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_long, s::cl_double)
 MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_short, s::cl_half)
@@ -2485,10 +2509,16 @@ MAKE_1V_2V_FUNC(Unordered, __vUnordered, s::cl_short, s::cl_half,
 // (SignBitSet)           // signbit
 cl_int SignBitSet(s::cl_float x) __NOEXC { return std::signbit(x); }
 cl_int SignBitSet(s::cl_double x) __NOEXC { return std::signbit(x); }
-cl_int __vSignBitSet(s::cl_float x) __NOEXC { return -(std::signbit(x)); }
-cl_long __vSignBitSet(s::cl_double x) __NOEXC { return -(std::signbit(x)); }
+cl_int __vSignBitSet(s::cl_float x) __NOEXC {
+  return -static_cast<cl_int>(std::signbit(x));
+}
+cl_long __vSignBitSet(s::cl_double x) __NOEXC {
+  return -static_cast<cl_long>(std::signbit(x));
+}
 cl_int SignBitSet(s::cl_half x) __NOEXC { return std::signbit(x); }
-cl_short __vSignBitSet(s::cl_half x) __NOEXC { return -(std::signbit(x)); }
+cl_short __vSignBitSet(s::cl_half x) __NOEXC {
+  return -static_cast<cl_short>(std::signbit(x));
+}
 MAKE_1V_FUNC(SignBitSet, __vSignBitSet, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(SignBitSet, __vSignBitSet, s::cl_long, s::cl_double)
 MAKE_1V_FUNC(SignBitSet, __vSignBitSet, s::cl_short, s::cl_half)

@@ -130,6 +130,8 @@ def err_intel_fpga_memory_arg_invalid : Error<
   "%0 attribute requires either no argument or one of: %1">;
 def err_intel_fpga_loop_attr_duplication : Error<
   "duplicate Intel FPGA loop attribute '%0'">;
+def err_intel_fpga_merge_dir_invalid : Error<
+  "merge direction must be 'depth' or 'width'">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,

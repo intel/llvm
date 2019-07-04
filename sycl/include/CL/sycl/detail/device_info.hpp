@@ -23,14 +23,11 @@ read_domain_bitfield(cl_device_affinity_domain bits);
 vector_class<info::execution_capability>
 read_execution_bitfield(cl_device_exec_capabilities bits);
 
-// Mapping expected SYCL return types to those returned by OpenCL calls
-template <typename T> struct sycl_to_ocl { using type = T; };
-
-template <> struct sycl_to_ocl<bool> { using type = cl_bool; };
-
-template <> struct sycl_to_ocl<device> { using type = cl_device_id; };
-
-template <> struct sycl_to_ocl<platform> { using type = cl_platform_id; };
+// Mapping expected SYCL return types to those returned by PI calls
+template <typename T> struct sycl_to_pi { using type = T; };
+template <> struct sycl_to_pi<bool>     { using type = pi_bool; };
+template <> struct sycl_to_pi<device>   { using type = RT::pi_device; };
+template <> struct sycl_to_pi<platform> { using type = RT::pi_platform; };
 
 // Mapping fp_config device info types to the values used to check fp support
 template <info::device param> struct check_fp_support {};
@@ -45,137 +42,147 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 
 // Structs for emulating function template partial specialization
 // Default template for the general case
-template <typename T, info::device param> struct get_device_info_cl {
-  static T _(cl_device_id dev) {
-    typename sycl_to_ocl<T>::type result;
-    CHECK_OCL_CODE(clGetDeviceInfo(dev, (cl_device_info)param, sizeof(result),
-                                   &result, NULL));
+// TODO: get rid of remaining uses of OpenCL directly
+//
+template <typename T, info::device param> struct get_device_info {
+  static T _(RT::pi_device dev) {
+    typename sycl_to_pi<T>::type result;
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<pi_device_info>(param), sizeof(result), &result, NULL));
     return T(result);
   }
 };
 
-// Specialization for string return type, variable OpenCL return size
-template <info::device param> struct get_device_info_cl<string_class, param> {
-  static string_class _(cl_device_id dev) {
+// Specialization for string return type, variable return size
+template <info::device param> struct get_device_info<string_class, param> {
+  static string_class _(RT::pi_device dev) {
     size_t resultSize;
-    CHECK_OCL_CODE(
-        clGetDeviceInfo(dev, (cl_device_info)param, 0, NULL, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(param), 0, NULL, &resultSize));
     if (resultSize == 0) {
       return string_class();
     }
     unique_ptr_class<char[]> result(new char[resultSize]);
-    CHECK_OCL_CODE(clGetDeviceInfo(dev, (cl_device_info)param, resultSize,
-                                   result.get(), NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(param),
+      resultSize, result.get(), NULL));
+
     return string_class(result.get());
   }
 };
 
+// Specialization for parent device
+template <typename T>
+struct get_device_info<T, info::device::parent_device> {
+  static T _(RT::pi_device dev);
+};
+
 // Specialization for id return type
-template <info::device param> struct get_device_info_cl<id<3>, param> {
-  static id<3> _(cl_device_id dev) {
+template <info::device param> struct get_device_info<id<3>, param> {
+  static id<3> _(RT::pi_device dev) {
     size_t result[3];
-    CHECK_OCL_CODE(clGetDeviceInfo(dev, (cl_device_info)param, sizeof(result),
-                                   &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(param), sizeof(result), &result, NULL));
     return id<3>(result[0], result[1], result[2]);
   }
 };
 
 // Specialization for fp_config types, checks the corresponding fp type support
 template <info::device param>
-struct get_device_info_cl<vector_class<info::fp_config>, param> {
-  static vector_class<info::fp_config> _(cl_device_id dev) {
+struct get_device_info<vector_class<info::fp_config>, param> {
+  static vector_class<info::fp_config> _(RT::pi_device dev) {
     // Check if fp type is supported
-    if (!get_device_info_cl<
+    if (!get_device_info<
             typename info::param_traits<
                 info::device, check_fp_support<param>::value>::return_type,
             check_fp_support<param>::value>::_(dev)) {
       return {};
     }
     cl_device_fp_config result;
-    CHECK_OCL_CODE(clGetDeviceInfo(dev, (cl_device_info)param, sizeof(result),
-                                   &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(param), sizeof(result), &result, NULL));
     return read_fp_bitfield(result);
   }
 };
 
 // Specialization for single_fp_config, no type support check required
 template <>
-struct get_device_info_cl<vector_class<info::fp_config>,
+struct get_device_info<vector_class<info::fp_config>,
                           info::device::single_fp_config> {
-  static vector_class<info::fp_config> _(cl_device_id dev) {
+  static vector_class<info::fp_config> _(RT::pi_device dev) {
     cl_device_fp_config result;
-    CHECK_OCL_CODE(
-        clGetDeviceInfo(dev, (cl_device_info)info::device::single_fp_config,
-                        sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(info::device::single_fp_config),
+      sizeof(result), &result, NULL));
     return read_fp_bitfield(result);
   }
 };
 
 // Specialization for queue_profiling, OpenCL returns a bitfield
-template <> struct get_device_info_cl<bool, info::device::queue_profiling> {
-  static bool _(cl_device_id dev) {
+template <> struct get_device_info<bool, info::device::queue_profiling> {
+  static bool _(RT::pi_device dev) {
     cl_command_queue_properties result;
-    CHECK_OCL_CODE(
-        clGetDeviceInfo(dev, (cl_device_info)info::device::queue_profiling,
-                        sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(info::device::queue_profiling),
+      sizeof(result), &result, NULL));
     return (result & CL_QUEUE_PROFILING_ENABLE);
   }
 };
 
 // Specialization for exec_capabilities, OpenCL returns a bitfield
 template <>
-struct get_device_info_cl<vector_class<info::execution_capability>,
-                          info::device::execution_capabilities> {
-  static vector_class<info::execution_capability> _(cl_device_id dev) {
+struct get_device_info<vector_class<info::execution_capability>,
+                       info::device::execution_capabilities> {
+  static vector_class<info::execution_capability> _(RT::pi_device dev) {
     cl_device_exec_capabilities result;
-    CHECK_OCL_CODE(clGetDeviceInfo(
-        dev, (cl_device_info)info::device::execution_capabilities,
-        sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(info::device::execution_capabilities),
+      sizeof(result), &result, NULL));
     return read_execution_bitfield(result);
   }
 };
 
 // Specialization for built in kernels, splits the string returned by OpenCL
 template <>
-struct get_device_info_cl<vector_class<string_class>,
-                          info::device::built_in_kernels> {
-  static vector_class<string_class> _(cl_device_id dev) {
+struct get_device_info<vector_class<string_class>,
+                       info::device::built_in_kernels> {
+  static vector_class<string_class> _(RT::pi_device dev) {
     string_class result =
-        get_device_info_cl<string_class, info::device::built_in_kernels>::_(
-            dev);
+        get_device_info<string_class, info::device::built_in_kernels>::_(dev);
     return split_string(result, ';');
   }
 };
 
 // Specialization for extensions, splits the string returned by OpenCL
 template <>
-struct get_device_info_cl<vector_class<string_class>,
-                          info::device::extensions> {
-  static vector_class<string_class> _(cl_device_id dev) {
+struct get_device_info<vector_class<string_class>,
+                       info::device::extensions> {
+  static vector_class<string_class> _(RT::pi_device dev) {
     string_class result =
-        get_device_info_cl<string_class, info::device::extensions>::_(dev);
+        get_device_info<string_class, info::device::extensions>::_(dev);
     return split_string(result, ' ');
   }
 };
 
 // Specialization for partition properties, variable OpenCL return size
 template <>
-struct get_device_info_cl<vector_class<info::partition_property>,
-                          info::device::partition_properties> {
-  static vector_class<info::partition_property> _(cl_device_id dev) {
+struct get_device_info<vector_class<info::partition_property>,
+                       info::device::partition_properties> {
+  static vector_class<info::partition_property> _(RT::pi_device dev) {
+    auto info_partition =
+      pi_cast<RT::pi_device_info>(info::device::partition_properties);
+
     size_t resultSize;
-    CHECK_OCL_CODE(
-        clGetDeviceInfo(dev, (cl_device_info)info::device::partition_properties,
-                        0, NULL, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo(dev, info_partition, 0, NULL, &resultSize));
+
     size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
     if (arrayLength == 0) {
       return {};
     }
     unique_ptr_class<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
-    CHECK_OCL_CODE(
-        clGetDeviceInfo(dev, (cl_device_info)info::device::partition_properties,
-                        resultSize, arrayResult.get(), NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, info_partition, resultSize, arrayResult.get(), NULL));
 
     vector_class<info::partition_property> result;
     for (size_t i = 0; i < arrayLength - 1; ++i) {
@@ -187,13 +194,13 @@ struct get_device_info_cl<vector_class<info::partition_property>,
 
 // Specialization for partition affinity domains, OpenCL returns a bitfield
 template <>
-struct get_device_info_cl<vector_class<info::partition_affinity_domain>,
-                          info::device::partition_affinity_domains> {
-  static vector_class<info::partition_affinity_domain> _(cl_device_id dev) {
+struct get_device_info<vector_class<info::partition_affinity_domain>,
+                       info::device::partition_affinity_domains> {
+  static vector_class<info::partition_affinity_domain> _(RT::pi_device dev) {
     cl_device_affinity_domain result;
-    CHECK_OCL_CODE(clGetDeviceInfo(
-        dev, (cl_device_info)info::device::partition_affinity_domains,
-        sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(info::device::partition_affinity_domains),
+      sizeof(result), &result, NULL));
     return read_domain_bitfield(result);
   }
 };
@@ -201,20 +208,22 @@ struct get_device_info_cl<vector_class<info::partition_affinity_domain>,
 // Specialization for partition type affinity domain, OpenCL can return other
 // partition properties instead
 template <>
-struct get_device_info_cl<info::partition_affinity_domain,
-                          info::device::partition_type_affinity_domain> {
-  static info::partition_affinity_domain _(cl_device_id dev) {
+struct get_device_info<info::partition_affinity_domain,
+                       info::device::partition_type_affinity_domain> {
+  static info::partition_affinity_domain _(RT::pi_device dev) {
     size_t resultSize;
-    CHECK_OCL_CODE(clGetDeviceInfo(
-        dev, (cl_device_info)info::device::partition_type_affinity_domain, 0,
-        NULL, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(
+             info::device::partition_type_affinity_domain),
+      0, NULL, &resultSize));
     if (resultSize != 1) {
       return info::partition_affinity_domain::not_applicable;
     }
     cl_device_partition_property result;
-    CHECK_OCL_CODE(clGetDeviceInfo(
-        dev, (cl_device_info)info::device::partition_type_affinity_domain,
-        sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<RT::pi_device_info>(
+             info::device::partition_type_affinity_domain),
+      sizeof(result), &result, NULL));
     if (result == CL_DEVICE_AFFINITY_DOMAIN_NUMA ||
         result == CL_DEVICE_AFFINITY_DOMAIN_L4_CACHE ||
         result == CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE ||
@@ -229,12 +238,12 @@ struct get_device_info_cl<info::partition_affinity_domain,
 
 // Specialization for partition type
 template <>
-struct get_device_info_cl<info::partition_property,
-                          info::device::partition_type_property> {
-  static info::partition_property _(cl_device_id dev) {
+struct get_device_info<info::partition_property,
+                       info::device::partition_type_property> {
+  static info::partition_property _(RT::pi_device dev) {
     size_t resultSize;
-    CHECK_OCL_CODE(
-        clGetDeviceInfo(dev, CL_DEVICE_PARTITION_TYPE, 0, NULL, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, PI_DEVICE_INFO_PARTITION_TYPE, 0, NULL, &resultSize));
     if (!resultSize)
       return info::partition_property::no_partition;
 
@@ -242,42 +251,27 @@ struct get_device_info_cl<info::partition_property,
 
     unique_ptr_class<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
-    CHECK_OCL_CODE(clGetDeviceInfo(dev, CL_DEVICE_PARTITION_TYPE, resultSize,
-                                   arrayResult.get(), NULL));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, PI_DEVICE_INFO_PARTITION_TYPE, resultSize, arrayResult.get(), 0));
     if (!arrayResult[0])
       return info::partition_property::no_partition;
     return info::partition_property(arrayResult[0]);
   }
 };
-
-// Specialization for parent device
-template <typename T>
-struct get_device_info_cl<T, info::device::parent_device> {
-  static T _(cl_device_id dev) {
-    typename sycl_to_ocl<T>::type result;
-    CHECK_OCL_CODE(
-        clGetDeviceInfo(dev, (cl_device_info)info::device::parent_device,
-                        sizeof(result), &result, NULL));
-    if (result == nullptr)
-      throw invalid_object_error(
-          "No parent for device because it is not a subdevice");
-    return T(result);
-  }
-};
-
 // Specialization for supported subgroup sizes
 template <>
-struct get_device_info_cl<vector_class<size_t>,
-                          info::device::sub_group_sizes> {
-  static vector_class<size_t> _(cl_device_id dev) {
+struct get_device_info<vector_class<size_t>,
+                       info::device::sub_group_sizes> {
+  static vector_class<size_t> _(RT::pi_device dev) {
     size_t resultSize = 0;
-    CHECK_OCL_CODE(
-        clGetDeviceInfo(dev, (cl_device_info)info::device::sub_group_sizes,
-                        0, nullptr, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<pi_device_info>(info::device::sub_group_sizes),
+      0, nullptr, &resultSize));
+
     vector_class<size_t> result(resultSize);
-    CHECK_OCL_CODE(
-        clGetDeviceInfo(dev, (cl_device_info)info::device::sub_group_sizes,
-                        resultSize, result.data(), nullptr));
+    PI_CALL(RT::piDeviceGetInfo(
+      dev, pi_cast<pi_device_info>(info::device::sub_group_sizes),
+      resultSize, result.data(), nullptr));
     return result;
   }
 };

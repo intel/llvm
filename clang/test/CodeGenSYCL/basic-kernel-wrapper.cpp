@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -I %S/Inputs -triple spir64-unknown-linux-sycldevice -std=c++11 -fsycl-is-device -disable-llvm-passes -S -emit-llvm %s -o - | FileCheck %s
+// RUN: DISABLE_INFER_AS=1 %clang_cc1 -I %S/Inputs -triple spir64-unknown-linux-sycldevice -std=c++11 -fsycl-is-device -disable-llvm-passes -S -emit-llvm %s -o - | FileCheck %s --check-prefixes CHECK,CHECK-OLD
+// RUN: %clang_cc1 -I %S/Inputs -triple spir64-unknown-linux-sycldevice -std=c++11 -fsycl-is-device -disable-llvm-passes -S -emit-llvm %s -o - | FileCheck %s --check-prefixes CHECK,CHECK-NEW
 
 // This test checks that compiler generates correct kernel wrapper for basic
 // case.
@@ -37,7 +38,11 @@ int main() {
 // CHECK: [[MEM_LOAD:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[MEM_ARG]].addr
 
 // Check accessor __init method call
-// CHECK: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor"* [[ACCESSOR]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET]])
+// CHECK-OLD: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor"* [[ACCESSOR]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET]])
+// CHECK-NEW: [[ACCESSORCAST:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[ACCESSOR]] to %"class{{.*}}accessor" addrspace(4)*
+// CHECK-NEW: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACCESSORCAST]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET]])
 
 // Check lambda "()" operator call
-// CHECK: call spir_func void @{{.*}}(%"class.{{.*}}.anon"* [[ANON]])
+// CHECK-OLD: call spir_func void @{{.*}}(%"class.{{.*}}.anon"* [[ANON]])
+// CHECK-NEW: [[ANONCAST:%[0-9]+]] = addrspacecast %"class{{.*}}anon"* {{.*}} to %"class{{.*}}anon" addrspace(4)*
+// CHECK-NEW: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* [[ANONCAST]])

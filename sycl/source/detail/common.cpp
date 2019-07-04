@@ -237,17 +237,6 @@ vector_class<string_class> split_string(const string_class &str,
   return result;
 }
 
-size_t getNextPowerOfTwo(size_t Var) {
-  --Var;
-  Var |= Var >> 1;
-  Var |= Var >> 2;
-  Var |= Var >> 4;
-  Var |= Var >> 8;
-  Var |= Var >> 16;
-  Var |= Var >> 32;
-  return ++Var;
-}
-
 } // namespace detail
 } // namespace sycl
 } // namespace cl

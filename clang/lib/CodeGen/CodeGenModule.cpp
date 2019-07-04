@@ -3640,6 +3640,14 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     return AddrSpace;
   }
 
+  if (LangOpts.SYCLIsDevice) {
+    if (!getenv("DISABLE_INFER_AS")) {
+      if (!D || D->getType().getAddressSpace() == LangAS::Default) {
+        return LangAS::opencl_global;
+      }
+    }
+  }
+
   if (LangOpts.CUDA && LangOpts.CUDAIsDevice) {
     if (D && D->hasAttr<CUDAConstantAttr>())
       return LangAS::cuda_constant;
@@ -3665,6 +3673,14 @@ LangAS CodeGenModule::getStringLiteralAddressSpace() const {
   // OpenCL v1.2 s6.5.3: a string literal is in the constant address space.
   if (LangOpts.OpenCL)
     return LangAS::opencl_constant;
+  if (LangOpts.SYCLIsDevice && !getenv("DISABLE_INFER_AS"))
+    // If we keep a literal string in constant address space, the following code
+    // becomes illegal:
+    //
+    //   const char *getLiteral() n{
+    //     return "AB";
+    //   }
+    return LangAS::opencl_private;
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
   return LangAS::Default;
@@ -3794,6 +3810,16 @@ void CodeGenModule::generateIntelFPGAAnnotation(
     llvm::APSInt BWAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << NBA->getSpelling() << ':' << BWAInt << '}';
   }
+  if (const auto *MRA = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
+    llvm::APSInt MRAInt = MRA->getValue()->EvaluateKnownConstInt(getContext());
+    Out << '{' << MRA->getSpelling() << ':' << MRAInt << '}';
+  }
+  if (const auto *MA = D->getAttr<IntelFPGAMergeAttr>()) {
+    Out << '{' << MA->getSpelling() << ':' << MA->getName() << ':'
+        << MA->getDirection() << '}';
+  }
+  if (D->hasAttr<IntelFPGASimpleDualPortAttr>())
+    Out << "{simple_dual_port:1}";
 }
 
 void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,

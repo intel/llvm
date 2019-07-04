@@ -102,6 +102,16 @@
 
 /// ###########################################################################
 
+/// Check the compilation flow to verify that the integrated header is filtered
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -c %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
+// CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device" {{.*}} "-o" "[[OUTPUT1:.+\.o]]"
+// CHK-INT-HEADER: clang{{.*}} "-triple" "spir64-unknown-linux-sycldevice" {{.*}} "-fsycl-int-header=[[INPUT1:.+\.h]]"
+// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-o" "[[OUTPUT2:.+\.o]]" {{.*}} "-include" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]"
+// CHK-INT-HEADER: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-linux-sycldevice,host-x86_64-unknown-linux-gnu" {{.*}} "-inputs=[[OUTPUT1]],[[OUTPUT2]]"
+
+/// ###########################################################################
+
 /// Check the phases also add a library to make sure it is treated as input by
 /// the device.
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -lsomelib -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice %s 2>&1 \

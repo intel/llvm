@@ -214,8 +214,8 @@ public:
     Itanium,
     Cygnus,
     CoreCLR,
-    Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
     SYCLDevice,
+    Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
     LastEnvironmentType = Simulator
   };
   enum ObjectFormatType {

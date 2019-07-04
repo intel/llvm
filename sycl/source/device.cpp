@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_host.hpp>
-#include <CL/sycl/detail/device_opencl.hpp>
+#include <CL/sycl/detail/device_impl.hpp>
+#include <CL/sycl/detail/force_device.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
-#include "detail/force_device.hpp"
 
 namespace cl {
 namespace sycl {
@@ -27,7 +26,8 @@ void force_type(info::device_type &t, const info::device_type &ft) {
 device::device() : impl(std::make_shared<detail::device_host>()) {}
 
 device::device(cl_device_id deviceId)
-    : impl(std::make_shared<detail::device_opencl>(deviceId)) {}
+    : impl(std::make_shared<detail::device_impl_pi>(
+      detail::pi_cast<detail::RT::pi_device>(deviceId))) {}
 
 device::device(const device_selector &deviceSelector) {
   *this = deviceSelector.select_device();
