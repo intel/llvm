@@ -497,7 +497,6 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-
   template <typename vector_t_ = vector_t,
             typename = typename std::enable_if<
                 std::is_same<vector_t_, vector_t>::value &&
@@ -505,6 +504,7 @@ public:
   vec(vector_t openclVector) : m_Data(openclVector) {}
   operator vector_t() const { return m_Data; }
 #endif
+
   // Available only when: NumElements == 1
   template <int N = NumElements>
   operator typename std::enable_if<N == 1, DataT>::type() const {
@@ -529,11 +529,18 @@ public:
                               std::is_integral<DataT>::value,
                           vec<convertT, NumElements>>::type
   convert() const {
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec<convertT, NumElements>{
+        (typename vec<convertT, NumElements>::DataType)m_Data};
+#else
     vec<convertT, NumElements> Result;
     for (size_t I = 0; I < NumElements; ++I) {
       Result.setValue(I, static_cast<convertT>(getValue(I)));
     }
     return Result;
+#endif
   }
   // From FP to Integer
   template <typename convertT, rounding_mode roundingMode>
@@ -542,12 +549,20 @@ public:
                               std::is_floating_point<DataT>::value,
                           vec<convertT, NumElements>>::type
   convert() const {
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec<convertT, NumElements>{
+        detail::convertHelper<vec<convertT, NumElements>::DataType,
+                              roundingMode>(m_Data)};
+#else
     vec<convertT, NumElements> Result;
     for (size_t I = 0; I < NumElements; ++I) {
       Result.setValue(
           I, detail::convertHelper<convertT, roundingMode>(getValue(I)));
     }
     return Result;
+#endif
   }
 
   template <typename asT>
@@ -709,6 +724,20 @@ public:
 #ifdef __SYCL_RELLOGOP
 #error "Undefine __SYCL_RELLOGOP macro"
 #endif
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
+#define __SYCL_RELLOGOP(RELLOGOP)                                              \
+  vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
+    return vec<rel_t, NumElements>{m_Data RELLOGOP vector_t(Rhs)};             \
+  }                                                                            \
+  template <typename T>                                                        \
+  typename std::enable_if<std::is_convertible<T, DataT>::value &&              \
+                              (std::is_fundamental<T>::value ||                \
+                               std::is_same<T, half>::value),                  \
+                          vec<rel_t, NumElements>>::type                       \
+  operator RELLOGOP(const T &Rhs) const {                                      \
+    return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
+  }
+#else
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
     vec<rel_t, NumElements> Ret;                                               \
@@ -718,14 +747,14 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename std::enable_if<                                                     \
-      std::is_convertible<T, DataT>::value &&                                  \
-          (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const<T>::type, half>::value),    \
-      vec<rel_t, NumElements>>::type                                           \
+  typename std::enable_if<std::is_convertible<T, DataT>::value &&              \
+                              (std::is_fundamental<T>::value ||                \
+                               std::is_same<T, half>::value),                  \
+                          vec<rel_t, NumElements>>::type                       \
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
+#endif
 
   __SYCL_RELLOGOP(==)
   __SYCL_RELLOGOP(!=)
