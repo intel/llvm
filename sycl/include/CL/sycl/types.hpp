@@ -479,7 +479,7 @@ public:
 #endif
 
   // Constructor from values of base type or vec of base type. Checks that
-  // base types are match and that the NumElements == sum of lenghts of args.
+  // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
   vec(const argTN &... args) {
@@ -701,7 +701,7 @@ public:
   // Note: vec<>/SwizzleOp logical value is 0/-1 logic, as opposed to 0/1 logic.
   // As far as CTS validation is concerned, 0/-1 logic also applies when
   // NumElements is equal to one, which is somewhat inconsistent with being
-  // tranparent with scalar data.
+  // transparent with scalar data.
   //
   // TODO, at least for the device: Use direct comparison on aggregate data,
   // e.g., Ret.m_Data = m_Data RELLOGOP Rhs.m_Data, as opposed to looping
