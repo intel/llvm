@@ -872,19 +872,14 @@ private:
 
   // Special proxies as specialization is not allowed in class scope.
   void setValue(int Index, const DataT &Value) {
-    if (NumElements == 1) {
-      setValue(Index, Value, (int)0);
-    } else {
-      setValue(Index, Value, (float)0);
-    }
+    if (NumElements == 1)
+      setValue(Index, Value, 0);
+    else
+      setValue(Index, Value, 0.f);
   }
 
   DataT getValue(int Index) const {
-    if (NumElements == 1) {
-      return getValue(Index, (int)0);
-    } else {
-      return getValue(Index, (float)0);
-    }
+    return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
   }
 
   // Helpers for variadic template constructor of vec.
