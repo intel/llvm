@@ -357,7 +357,7 @@ public:
   using vector_t = DataType;
 #endif
 
-  vec() { m_Data = {0}; }
+  vec() = default;
 
   // TODO Remove this difference between host and device side after
   // when root cause of API incompatibility will be fixed
