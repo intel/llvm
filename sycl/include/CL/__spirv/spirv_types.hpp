@@ -48,6 +48,12 @@ enum class GroupOperation : uint32_t {
   ExclusiveScan = 2
 };
 
+inline constexpr MemorySemanticsMask operator|(MemorySemanticsMask a,
+                                               MemorySemanticsMask b) {
+  return static_cast<MemorySemanticsMask>(static_cast<uint32_t>(a) |
+                                          static_cast<uint32_t>(b));
+}
+
 } // namespace __spv
 
 // This class does not have definition, it is only predeclared here.
