@@ -41,36 +41,36 @@ int main() {
   kernel_single_task<class kernel>(
     []() {
       printf(__unique_stable_name(int));
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[INT_SIZE]], [[INT_SIZE]]* @[[INT]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[INT_SIZE]], [[INT_SIZE]]* @[[INT]]
 
       auto x = [](){};
       printf(__unique_stable_name(x));
       printf(__unique_stable_name(decltype(x)));
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[LAMBDA_X_SIZE]], [[LAMBDA_X_SIZE]]* @[[LAMBDA_X]]
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[LAMBDA_X_SIZE]], [[LAMBDA_X_SIZE]]* @[[LAMBDA_X]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[LAMBDA_X_SIZE]], [[LAMBDA_X_SIZE]]* @[[LAMBDA_X]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[LAMBDA_X_SIZE]], [[LAMBDA_X_SIZE]]* @[[LAMBDA_X]]
 
       DEF_IN_MACRO();
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[MACRO_SIZE]], [[MACRO_SIZE]]* @[[MACRO_X]]
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[MACRO_SIZE]], [[MACRO_SIZE]]* @[[MACRO_Y]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[MACRO_SIZE]], [[MACRO_SIZE]]* @[[MACRO_X]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[MACRO_SIZE]], [[MACRO_SIZE]]* @[[MACRO_Y]]
       MACRO_CALLS_MACRO();
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[MACRO_MACRO_SIZE]], [[MACRO_MACRO_SIZE]]* @[[MACRO_MACRO_X]]
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[MACRO_MACRO_SIZE]], [[MACRO_MACRO_SIZE]]* @[[MACRO_MACRO_Y]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[MACRO_MACRO_SIZE]], [[MACRO_MACRO_SIZE]]* @[[MACRO_MACRO_X]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[MACRO_MACRO_SIZE]], [[MACRO_MACRO_SIZE]]* @[[MACRO_MACRO_Y]]
 
       template_param<int>();
       // CHECK: define linkonce_odr spir_func void @_Z14template_paramIiEvv
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[INT_SIZE]], [[INT_SIZE]]* @[[INT]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[INT_SIZE]], [[INT_SIZE]]* @[[INT]]
 
       template_param<decltype(x)>();
       // CHECK: define internal spir_func void @"_Z14template_paramIZZ4mainENK3
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[LAMBDA_X_SIZE]], [[LAMBDA_X_SIZE]]* @[[LAMBDA_X]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[LAMBDA_X_SIZE]], [[LAMBDA_X_SIZE]]* @[[LAMBDA_X]]
 
       lambda_in_dependent_function<int>();
       // CHECK: define linkonce_odr spir_func void @_Z28lambda_in_dependent_functionIiEvv
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[DEP_INT_SIZE]], [[DEP_INT_SIZE]]* @[[LAMBDA_IN_DEP_INT]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[DEP_INT_SIZE]], [[DEP_INT_SIZE]]* @[[LAMBDA_IN_DEP_INT]]
 
       lambda_in_dependent_function<decltype(x)>();
       // CHECK: define internal spir_func void @"_Z28lambda_in_dependent_functionIZZ4mainENK3$_0clEvEUlvE_Evv
-      // CHECK: call spir_func void @printf(i8* getelementptr inbounds ([[DEP_LAMBDA_SIZE]], [[DEP_LAMBDA_SIZE]]* @[[LAMBDA_IN_DEP_X]]
+      // CHECK: call spir_func void @printf(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([[DEP_LAMBDA_SIZE]], [[DEP_LAMBDA_SIZE]]* @[[LAMBDA_IN_DEP_X]]
 
     });
 }
