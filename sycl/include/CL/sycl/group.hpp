@@ -40,6 +40,47 @@ static inline void workGroupBarrier() {
 
 } // namespace detail
 
+// SYCL 1.2.1rev5, section "4.8.5.3 Parallel For hierarchical invoke":
+// Quote:
+//   ... To guarantee use of private per-work-item memory, the private_memory
+//   class can be used to wrap the data. This class very simply constructs
+//   private data for a given group across the entire group.The id of the
+//   current work-item is passed to any access to grab the correct data.
+template <typename T, int Dimensions = 1> class private_memory {
+public:
+  // Construct based directly off the number of work-items
+  private_memory(const group<Dimensions> &G) {
+#ifndef __SYCL_DEVICE_ONLY__
+    // serial host => one instance per work-group - allocate space for each WI
+    // in the group:
+    Val.reset(new T[G.get_local_range().size()]);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+  // Access the instance for the current work-item
+  T &operator()(const h_item<Dimensions> &Id) {
+#ifndef __SYCL_DEVICE_ONLY__
+    // Calculate the linear index of current WI and return reference to the
+    // corresponding spot in the value array:
+    size_t Ind = Id.get_physical_local().get_linear_id();
+    return Val.get()[Ind];
+#else
+    return Val;
+#endif // __SYCL_DEVICE_ONLY__
+  }
+
+private:
+#ifdef __SYCL_DEVICE_ONLY__
+  // On SYCL device private_memory<T> instance is created per physical WI, so
+  // there is 1:1 correspondence betwen this class instances and per-WI memory.
+  T Val;
+#else
+  // On serial host there is one private_memory<T> instance per work group, so
+  // it must have space to hold separate value per WI in the group.
+  std::unique_ptr<T> Val;
+#endif // #ifdef __SYCL_DEVICE_ONLY__
+};
+
 template <int dimensions = 1> class group {
 public:
   group() = delete;

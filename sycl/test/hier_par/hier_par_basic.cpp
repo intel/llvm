@@ -41,6 +41,11 @@ bool verify(int testcase, int range_length, int *ptr, GoldFnTy get_gold) {
   return err_cnt == 0;
 }
 
+struct MyStruct {
+  int x;
+  int y;
+};
+
 int main() {
   constexpr int N_WG = 7;
   constexpr int WG_SIZE_PHYSICAL = 3;
@@ -172,6 +177,48 @@ int main() {
         gold *= N_ITER;
         return gold;
       });
+    }
+    {
+      // Testcase4
+      // - private_memory<int> private variable lives across two PFWI scopes -
+      //   initialized in the first one and used in the second one
+      const int WG_X_SIZE = 7;
+      const int WG_Y_SIZE = 3;
+      const int WG_LINEAR_SIZE = WG_X_SIZE * WG_Y_SIZE;
+      const int range_length = N_WG * WG_LINEAR_SIZE;
+
+      std::unique_ptr<int> data(new int[range_length]);
+      int *ptr = data.get();
+
+      std::memset(ptr, 0, range_length * sizeof(ptr[0]));
+      buffer<int, 1> buf(ptr, range<1>(range_length));
+      myQueue.submit([&](handler &cgh) {
+        auto dev_ptr = buf.get_access<access::mode::read_write>(cgh);
+
+        cgh.parallel_for_work_group<class hpar_priv_mem>(
+            range<2>(N_WG, 1), range<2>(WG_X_SIZE, WG_Y_SIZE), [=](group<2> g) {
+              private_memory<MyStruct, 2> priv(g);
+
+              for (int cnt = 0; cnt < N_ITER; cnt++) {
+                g.parallel_for_work_item(
+                    range<2>(WG_X_SIZE, WG_Y_SIZE), [&](h_item<2> i) {
+                      auto glob_id = i.get_global().get_linear_id();
+                      dev_ptr[glob_id]++;
+                      MyStruct &s = priv(i);
+                      s.x = glob_id;
+                      s.y = 5;
+                    });
+                g.parallel_for_work_item(
+                    range<2>(WG_X_SIZE, WG_Y_SIZE), [&](h_item<2> i) {
+                      const MyStruct &s = priv(i);
+                      dev_ptr[i.get_global().get_linear_id()] += (s.x + s.y);
+                    });
+              }
+            });
+      });
+      auto ptr1 = buf.get_access<access::mode::read>().get_pointer();
+      passed &= verify(3, range_length, ptr1,
+                       [&](int i) -> int { return N_ITER * (1 + i + 5); });
     }
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
