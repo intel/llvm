@@ -1041,7 +1041,7 @@ def SYCLScope : Attr {
   let Spellings = [GNU<"sycl_scope">];
   let Args = [EnumArgument<"level", "Level", ["work_group", "work_item"],
                                              ["WorkGroup", "WorkItem"]>];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[Function, Var]>;
   let LangOpts = [SYCLIsDevice];
 
   let AdditionalMembers = [{
