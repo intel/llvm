@@ -39,3 +39,14 @@ bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
   }
   return true;
 }
+
+void CGSYCLRuntime::emitWorkGroupLocalVarDecl(CodeGenFunction &CGF,
+                                              const VarDecl &D) {
+#ifndef NDEBUG
+  SYCLScopeAttr *Scope = D.getAttr<SYCLScopeAttr>();
+  assert(Scope && Scope->isWorkGroup() && "work group scope expected");
+#endif // NDEBUG
+  // generate global variable in the address space selected by the clang CodeGen
+  // (should be local)
+  return CGF.EmitStaticVarDecl(D, llvm::GlobalValue::InternalLinkage);
+}

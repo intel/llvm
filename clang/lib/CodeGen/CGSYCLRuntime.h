@@ -13,6 +13,8 @@
 #ifndef LLVM_CLANG_LIB_CODEGEN_CGSYCLRUNTIME_H
 #define LLVM_CLANG_LIB_CODEGEN_CGSYCLRUNTIME_H
 
+#include "CodeGenFunction.h"
+
 #include "clang/AST/Decl.h"
 #include "llvm/IR/Value.h"
 
@@ -29,6 +31,7 @@ public:
   CGSYCLRuntime(CodeGenModule &CGM) : CGM(CGM) {}
 
   bool actOnFunctionStart(const FunctionDecl &FD, llvm::Function &F);
+  void emitWorkGroupLocalVarDecl(CodeGenFunction &CGF, const VarDecl &D);
 };
 
 } // namespace CodeGen

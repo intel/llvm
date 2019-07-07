@@ -518,6 +518,30 @@ private:
   ASTContext &Ctx;
 };
 
+static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
+  return Util::isSyclType(VD->getType(), "private_memory", true /*Tmpl*/);
+}
+
+static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
+  for (Decl *D : F.decls()) {
+    VarDecl *VD = dyn_cast<VarDecl>(D);
+
+    if (!VD || isa<ParmVarDecl>(VD) ||
+        VD->getStorageDuration() != StorageDuration::SD_Automatic)
+      continue;
+    // Local variables of private_memory type in the WG scope still have WI
+    // scope, all the rest - WG scope. Simple logic
+    // "if no scope than it is WG scope" won't work, because compiler may add
+    // locals not declared in user code (lambda object parameter, byval
+    // arguments) which will result in alloca w/o any attribute, so need WI
+    // scope too.
+    SYCLScopeAttr::Level L = isSYCLPrivateMemoryVar(VD)
+                                 ? SYCLScopeAttr::Level::WorkItem
+                                 : SYCLScopeAttr::Level::WorkGroup;
+    VD->addAttr(SYCLScopeAttr::CreateImplicit(F.getASTContext(), L));
+  }
+}
+
 // Creates body for new OpenCL kernel. This body contains initialization of SYCL
 // kernel object fields with kernel parameters and a little bit transformed body
 // of the kernel caller function.
@@ -543,6 +567,9 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
     // Search and mark parallel_for_work_item calls:
     MarkPFWIVisitor MarkPFWI(S.getASTContext());
     MarkPFWI.TraverseDecl(WGLambdaF);
+    // Now mark local variables declared in the PFWG lambda with work group
+    // scope attribute
+    addScopeAttrToLocalVars(*WGLambdaF);
   }
 
   TypeSourceInfo *TSInfo = LC->isLambda() ? LC->getLambdaTypeInfo() : nullptr;
