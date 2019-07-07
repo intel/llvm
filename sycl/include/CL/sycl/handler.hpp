@@ -548,6 +548,8 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
+  // NOTE: the name of this function - "kernel_single_task" - is used by the
+  // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType>
   __attribute__((sycl_kernel)) void kernel_single_task(KernelType KernelFunc) {
     KernelFunc();
@@ -565,6 +567,8 @@ public:
     KernelFunc(global_id);
   }
 
+  // NOTE: the name of this function - "kernel_parallel_for" - is used by the
+  // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType, int dimensions>
   __attribute__((sycl_kernel)) void kernel_parallel_for(
       typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
@@ -713,6 +717,8 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
+  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
+  // used by the Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType, int Dims>
   __attribute__((sycl_kernel)) void
   kernel_parallel_for_work_group(KernelType KernelFunc) {
