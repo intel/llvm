@@ -32,6 +32,8 @@ public:
 
   bool actOnFunctionStart(const FunctionDecl &FD, llvm::Function &F);
   void emitWorkGroupLocalVarDecl(CodeGenFunction &CGF, const VarDecl &D);
+  bool actOnAutoVarEmit(CodeGenFunction &CGF, const VarDecl &D,
+                        llvm::Value *Addr);
 };
 
 } // namespace CodeGen

@@ -15,6 +15,8 @@
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CallGraph.h"
+#include "clang/Basic/Attributes.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -482,21 +484,40 @@ static CXXMethodDecl *getInitMethod(const CXXRecordDecl *CRD) {
   return InitMethod;
 }
 
-static CXXMethodDecl *getOperatorParenthesis(CXXRecordDecl *FuncObjType) {
-  const auto Methods = FuncObjType->methods();
-  const auto PredF = [=](const CXXMethodDecl *MI) -> bool {
-    return (MI->getOverloadedOperator() == OO_Call);
-  };
-  const auto Res = std::find_if(Methods.begin(), Methods.end(), PredF);
-  assert(((Res == Methods.end()) ||
-         std::find_if(std::next(Res), Methods.end(), PredF)) &&
-             "multiple operator()(...)");
-  return *Res;
-}
-
-class MarkPFWIVisitor : public RecursiveASTVisitor<MarkPFWIVisitor> {
+// Searches for a call to PFWG lambda function and captures it.
+class FindPFWGLambdaFnVisitor
+    : public RecursiveASTVisitor<FindPFWGLambdaFnVisitor> {
 public:
-  MarkPFWIVisitor(ASTContext &Ctx) : Ctx(Ctx) {}
+  // LambdaObjTy - lambda type of the PFWG lambda object
+  FindPFWGLambdaFnVisitor(const CXXRecordDecl *LambdaObjTy)
+      : LambdaFn(nullptr), LambdaObjTy(LambdaObjTy) {}
+
+  bool VisitCallExpr(CallExpr *Call) {
+    auto *M = dyn_cast<CXXMethodDecl>(Call->getDirectCallee());
+    if (!M || (M->getOverloadedOperator() != OO_Call))
+      return true;
+    const int NumPFWGLambdaArgs = 2; // group and lambda obj
+    if (Call->getNumArgs() != NumPFWGLambdaArgs)
+      return true;
+    if (!Util::isSyclType(Call->getArg(1)->getType(), "group", true /*tmpl*/))
+      return true;
+    if (Call->getArg(0)->getType()->getAsCXXRecordDecl() != LambdaObjTy)
+      return true;
+    LambdaFn = M; // call to PFWG lambda found - record the lambda
+    return false; // ... and stop searching
+  }
+
+  // Returns the captured lambda function or nullptr;
+  CXXMethodDecl *getLambdaFn() const { return LambdaFn; }
+
+private:
+  CXXMethodDecl *LambdaFn;
+  const CXXRecordDecl *LambdaObjTy;
+};
+
+class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
+public:
+  MarkWIScopeFnVisitor(ASTContext &Ctx) : Ctx(Ctx) {}
 
   bool VisitCXXMemberCallExpr(CXXMemberCallExpr *Call) {
     FunctionDecl *Callee = Call->getDirectCallee();
@@ -504,13 +525,18 @@ public:
       // not a direct call - continue search
       return true;
     QualType Ty = Ctx.getRecordType(Call->getRecordDecl());
-    if (!Util::isSyclType(Ty, "group"))
+    if (!Util::isSyclType(Ty, "group", true /*Tmpl*/))
       // not a member of cl::sycl::group - continue search
       return true;
-    // it is a call to cl::sycl::group::parallel_for_work_item - mark the callee
+    auto Name = Callee->getName();
+    if (((Name != "parallel_for_work_item") && (Name != "wait_for")) ||
+        Callee->hasAttr<SYCLScopeAttr>())
+      return true;
+    // it is a call to cl::sycl::group::parallel_for_work_item/wait_for -
+    // mark the callee
     Callee->addAttr(
         SYCLScopeAttr::CreateImplicit(Ctx, SYCLScopeAttr::Level::WorkItem));
-    // continue search as there can be other parallel_for_work_item calls
+    // continue search as there can be other PFWI or wait_for calls
     return true;
   }
 
@@ -553,7 +579,14 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
   assert(LC && "Kernel object must be available");
 
   if (getKernelInvocationKind(KernelCallerFunc) == InvokeParallelForWorkGroup) {
-    CXXMethodDecl *WGLambdaF = getOperatorParenthesis(LC);
+    CXXRecordDecl *LambdaObjTy =
+        KernelCallerFunc->getParamDecl(0)->getType()->getAsCXXRecordDecl();
+    assert(LambdaObjTy &&
+           "unexpected kernel_parallel_for_work_group parameter type");
+    FindPFWGLambdaFnVisitor V(LambdaObjTy);
+    V.TraverseStmt(KernelCallerFunc->getBody());
+    CXXMethodDecl *WGLambdaFn = V.getLambdaFn();
+    assert(WGLambdaFn && "PFWG lambda not found");
     // Mark the function that it "works" in a work group scope:
     // NOTE: In case of parallel_for_work_item the marker call itself is marked
     //       with work item scope attribute, here  the '()' operator of the
@@ -562,14 +595,16 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
     //       before calling the lambda - it is more efficient to have all of
     //       them in the private address space rather then sharing via the local
     //       AS. See parallel_for_work_group implementation in the SYCL headers.
-    WGLambdaF->addAttr(SYCLScopeAttr::CreateImplicit(
-        S.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
-    // Search and mark parallel_for_work_item calls:
-    MarkPFWIVisitor MarkPFWI(S.getASTContext());
-    MarkPFWI.TraverseDecl(WGLambdaF);
-    // Now mark local variables declared in the PFWG lambda with work group
-    // scope attribute
-    addScopeAttrToLocalVars(*WGLambdaF);
+    if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
+      WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
+          S.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+      // Search and mark parallel_for_work_item calls:
+      MarkWIScopeFnVisitor MarkWIScope(S.getASTContext());
+      MarkWIScope.TraverseDecl(WGLambdaFn);
+      // Now mark local variables declared in the PFWG lambda with work group
+      // scope attribute
+      addScopeAttrToLocalVars(*WGLambdaFn);
+    }
   }
 
   TypeSourceInfo *TSInfo = LC->isLambda() ? LC->getLambdaTypeInfo() : nullptr;

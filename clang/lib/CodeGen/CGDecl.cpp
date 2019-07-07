@@ -1308,6 +1308,9 @@ void CodeGenFunction::EmitAutoVarDecl(const VarDecl &D) {
   AutoVarEmission emission = EmitAutoVarAlloca(D);
   EmitAutoVarInit(emission);
   EmitAutoVarCleanups(emission);
+  if (CGM.getLangOpts().SYCLIsDevice)
+    CGM.getSYCLRuntime().actOnAutoVarEmit(
+        *this, D, emission.getOriginalAllocatedAddress().getPointer());
 }
 
 /// Emit a lifetime.begin marker if some criteria are satisfied.

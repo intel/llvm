@@ -1,3 +1,5 @@
+add_subdirectory(SYCLLowerIR)
+
 set(LLVM_LINK_COMPONENTS
   Analysis
   BitReader
@@ -108,4 +110,5 @@ add_clang_library(clangCodeGen
   clangFrontend
   clangLex
   clangSerialization
+  clangSYCLLowerIR
   )
