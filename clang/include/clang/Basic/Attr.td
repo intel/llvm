@@ -1038,7 +1038,8 @@ def SYCLKernel : InheritableAttr {
 }
 
 def SYCLScope : Attr {
-  let Spellings = [GNU<"sycl_scope">];
+  // No spelling, as this attribute can't be created in the source code.
+  let Spellings = [];
   let Args = [EnumArgument<"level", "Level", ["work_group", "work_item"],
                                              ["WorkGroup", "WorkItem"]>];
   let Subjects = SubjectList<[Function, Var]>;
