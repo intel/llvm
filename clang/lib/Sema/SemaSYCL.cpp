@@ -40,6 +40,13 @@ enum target {
 
 using ParamDesc = std::tuple<QualType, IdentifierInfo *, TypeSourceInfo *>;
 
+enum KernelInvocationKind {
+  InvokeUnknown,
+  InvokeSingleTask,
+  InvokeParallelFor,
+  InvokeParallelForWorkGroup
+};
+
 /// Various utilities.
 class Util {
 public:
@@ -52,6 +59,13 @@ public:
   /// Checks whether given clang type is a full specialization of the SYCL
   /// sampler class.
   static bool isSyclSamplerType(const QualType &Ty);
+
+  /// Checks whether given clang type is a standard SYCL API class with given
+  /// name.
+  /// \param Ty    the clang type being checked
+  /// \param Name  the class name checked against
+  /// \param Tmpl  whether the class is template instantiation or simple record
+  static bool isSyclType(const QualType &Ty, StringRef Name, bool Tmpl = false);
 
   /// Checks whether given clang type is declared in the given hierarchy of
   /// declaration contexts.
@@ -407,6 +421,15 @@ private:
   Sema &SemaRef;
 };
 
+static KernelInvocationKind
+getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
+  return llvm::StringSwitch<KernelInvocationKind>(KernelCallerFunc->getName())
+      .Case("kernel_single_task", InvokeSingleTask)
+      .Case("kernel_parallel_for", InvokeParallelFor)
+      .Case("kernel_parallel_for_work_group", InvokeParallelForWorkGroup)
+      .Default(InvokeUnknown);
+}
+
 static FunctionDecl *
 CreateOpenCLKernelDeclaration(ASTContext &Context, StringRef Name,
                               ArrayRef<ParamDesc> ParamDescs) {
@@ -459,6 +482,42 @@ static CXXMethodDecl *getInitMethod(const CXXRecordDecl *CRD) {
   return InitMethod;
 }
 
+static CXXMethodDecl *getOperatorParenthesis(CXXRecordDecl *FuncObjType) {
+  const auto Methods = FuncObjType->methods();
+  const auto PredF = [=](const CXXMethodDecl *MI) -> bool {
+    return (MI->getOverloadedOperator() == OO_Call);
+  };
+  const auto Res = std::find_if(Methods.begin(), Methods.end(), PredF);
+  assert(((Res == Methods.end()) ||
+         std::find_if(std::next(Res), Methods.end(), PredF)) &&
+             "multiple operator()(...)");
+  return *Res;
+}
+
+class MarkPFWIVisitor : public RecursiveASTVisitor<MarkPFWIVisitor> {
+public:
+  MarkPFWIVisitor(ASTContext &Ctx) : Ctx(Ctx) {}
+
+  bool VisitCXXMemberCallExpr(CXXMemberCallExpr *Call) {
+    FunctionDecl *Callee = Call->getDirectCallee();
+    if (!Callee)
+      // not a direct call - continue search
+      return true;
+    QualType Ty = Ctx.getRecordType(Call->getRecordDecl());
+    if (!Util::isSyclType(Ty, "group"))
+      // not a member of cl::sycl::group - continue search
+      return true;
+    // it is a call to cl::sycl::group::parallel_for_work_item - mark the callee
+    Callee->addAttr(
+        SYCLScopeAttr::CreateImplicit(Ctx, SYCLScopeAttr::Level::WorkItem));
+    // continue search as there can be other parallel_for_work_item calls
+    return true;
+  }
+
+private:
+  ASTContext &Ctx;
+};
+
 // Creates body for new OpenCL kernel. This body contains initialization of SYCL
 // kernel object fields with kernel parameters and a little bit transformed body
 // of the kernel caller function.
@@ -468,6 +527,24 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
   llvm::SmallVector<Stmt *, 16> BodyStmts;
   CXXRecordDecl *LC = getKernelObjectType(KernelCallerFunc);
   assert(LC && "Kernel object must be available");
+
+  if (getKernelInvocationKind(KernelCallerFunc) == InvokeParallelForWorkGroup) {
+    CXXMethodDecl *WGLambdaF = getOperatorParenthesis(LC);
+    // Mark the function that it "works" in a work group scope:
+    // NOTE: In case of parallel_for_work_item the marker call itself is marked
+    //       with work item scope attribute, here  the '()' operator of the
+    //       object passed as parameter is marked. This is an optimization -
+    //       there are a lot of locals created at parallel_for_work_group scope
+    //       before calling the lambda - it is more efficient to have all of
+    //       them in the private address space rather then sharing via the local
+    //       AS. See parallel_for_work_group implementation in the SYCL headers.
+    WGLambdaF->addAttr(SYCLScopeAttr::CreateImplicit(
+        S.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+    // Search and mark parallel_for_work_item calls:
+    MarkPFWIVisitor MarkPFWI(S.getASTContext());
+    MarkPFWI.TraverseDecl(WGLambdaF);
+  }
+
   TypeSourceInfo *TSInfo = LC->isLambda() ? LC->getLambdaTypeInfo() : nullptr;
 
   // Create a local kernel object (lambda or functor) assembled from the
@@ -1380,19 +1457,20 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag)
     : Diag(_Diag) {}
 
 bool Util::isSyclAccessorType(const QualType &Ty) {
-  static std::array<DeclContextDesc, 3> Scopes = {
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::ClassTemplateSpecialization,
-                            "accessor"}};
-  return matchQualifiedTypeName(Ty, Scopes);
+  return isSyclType(Ty, "accessor", true /*Tmpl*/);
 }
 
 bool Util::isSyclSamplerType(const QualType &Ty) {
-  static std::array<DeclContextDesc, 3> Scopes = {
+  return isSyclType(Ty, "sampler");
+}
+
+bool Util::isSyclType(const QualType &Ty, StringRef Name, bool Tmpl) {
+  Decl::Kind ClassDeclKind =
+      Tmpl ? Decl::Kind::ClassTemplateSpecialization : Decl::Kind::CXXRecord;
+  std::array<DeclContextDesc, 3> Scopes = {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{clang::Decl::Kind::CXXRecord, "sampler"}};
+      Util::DeclContextDesc{ClassDeclKind, Name}};
   return matchQualifiedTypeName(Ty, Scopes);
 }
 

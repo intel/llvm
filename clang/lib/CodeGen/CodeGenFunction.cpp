@@ -17,6 +17,7 @@
 #include "CGCXXABI.h"
 #include "CGDebugInfo.h"
 #include "CGOpenMPRuntime.h"
+#include "CGSYCLRuntime.h"
 #include "CodeGenModule.h"
 #include "CodeGenPGO.h"
 #include "TargetInfo.h"
@@ -764,8 +765,12 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
 
   if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
     // Add metadata for a kernel function.
-    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
+    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
       EmitOpenCLKernelMetadata(FD, Fn);
+
+      if (getLangOpts().SYCLIsDevice)
+        CGM.getSYCLRuntime().actOnFunctionStart(*FD, *Fn);
+    }
   }
 
   // If we are checking function types, emit a function type signature as

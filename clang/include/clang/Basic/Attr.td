@@ -1037,6 +1037,26 @@ def SYCLKernel : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def SYCLScope : Attr {
+  let Spellings = [GNU<"sycl_scope">];
+  let Args = [EnumArgument<"level", "Level", ["work_group", "work_item"],
+                                             ["WorkGroup", "WorkItem"]>];
+  let Subjects = SubjectList<[Function]>;
+  let LangOpts = [SYCLIsDevice];
+
+  let AdditionalMembers = [{
+    bool isWorkGroup() const {
+      return getLevel() == SYCLScopeAttr::WorkGroup;
+    }
+
+    bool isWorkItem() const {
+      return getLevel() == SYCLScopeAttr::WorkItem;
+    }
+  }];
+
+  let Documentation = [Undocumented];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
