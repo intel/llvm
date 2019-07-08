@@ -67,8 +67,8 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-  template <class T>
-  friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
 }; // class platform
 } // namespace sycl

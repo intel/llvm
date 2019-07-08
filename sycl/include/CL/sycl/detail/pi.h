@@ -28,6 +28,7 @@
 // done here, for efficiency and simplicity.
 //
 #include <CL/opencl.h>
+#include <cstdint>
 
 #ifdef __cplusplus
 extern "C" {
