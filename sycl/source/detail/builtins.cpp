@@ -767,7 +767,7 @@ template <typename T> inline T __sOrdered(T x, T y) {
 }
 
 template <typename T> inline T __vUnordered(T x, T y) {
-  return -(std::isunordered(x, y));
+  return -(static_cast<T>(std::isunordered(x, y)));
 }
 
 template <typename T> inline T __sUnordered(T x, T y) {

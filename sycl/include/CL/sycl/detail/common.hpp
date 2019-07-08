@@ -105,6 +105,14 @@ using RT = cl::sycl::detail::pi;
 // Note! This function relies on the fact that all SYCL interface classes
 // contain "impl" field that points to implementation object. "impl" field
 // should be accessible from this function.
+//
+// Note that due to a bug in MSVC compilers (including MSVC2019 v19.20), it
+// may not recognize the usage of this function in friend member declarations
+// if the template parameter name there is not equal to the name used here,
+// i.e. 'Obj'. For example, using 'Obj' here and 'T' in such declaration
+// would trigger that error in MSVC:
+//   template <class T>
+//   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
 template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
   return SyclObject.impl;
 }
