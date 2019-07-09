@@ -1,5 +1,4 @@
-//===-- ThreadLauncher.cpp ---------------------------------------*- C++
-//-*-===//
+//===-- ThreadLauncher.cpp --------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,6 +15,8 @@
 #if defined(_WIN32)
 #include "lldb/Host/windows/windows.h"
 #endif
+
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace lldb;
 using namespace lldb_private;
