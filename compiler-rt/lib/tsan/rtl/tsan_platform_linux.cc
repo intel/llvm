@@ -74,7 +74,7 @@ extern "C" __tsan::uptr _tsan_pointer_chk_guard;
 
 namespace __tsan {
 
-#if SANITIZER_LINUX && defined(__aarch64__)
+#if SANITIZER_LINUX && defined(__aarch64__) && !SANITIZER_GO
 static void InitializeLongjmpXorKey();
 static uptr longjmp_xor_key;
 #endif
@@ -254,7 +254,8 @@ void InitializePlatform() {
   // Go maps shadow memory lazily and works fine with limited address space.
   // Unlimited stack is not a problem as well, because the executable
   // is not compiled with -pie.
-  if (!SANITIZER_GO) {
+#if !SANITIZER_GO
+  {
     bool reexec = false;
     // TSan doesn't play well with unlimited stack size (as stack
     // overlaps with shadow memory). If we detect unlimited stack size,
@@ -314,10 +315,9 @@ void InitializePlatform() {
       ReExec();
   }
 
-#if !SANITIZER_GO
   CheckAndProtect();
   InitTlsSize();
-#endif
+#endif  // !SANITIZER_GO
 }
 
 #if !SANITIZER_GO
@@ -416,13 +416,15 @@ uptr ExtractLongJmpSp(uptr *env) {
 }
 
 #if SANITIZER_LINUX && defined(__aarch64__)
+#include "interception/interception.h"
+DECLARE_REAL(int, setjmp, void* env);
 // GLIBC mangles the function pointers in jmp_buf (used in {set,long}*jmp
 // functions) by XORing them with a random key.  For AArch64 it is a global
 // variable rather than a TCB one (as for x86_64/powerpc).  We obtain the key by
 // issuing a setjmp and XORing the SP pointer values to derive the key.
 static void InitializeLongjmpXorKey() {
   // 1. Call REAL(setjmp), which stores the mangled SP in env.
-  jump_buf env;
+  jmp_buf env;
   REAL(setjmp)(env);
 
   // 2. Retrieve mangled/vanilla SP.
@@ -461,7 +463,7 @@ int call_pthread_cancel_with_cleanup(int(*fn)(void *c, void *m,
   pthread_cleanup_pop(0);
   return res;
 }
-#endif
+#endif  // !SANITIZER_GO
 
 #if !SANITIZER_GO
 void ReplaceSystemMalloc() { }
