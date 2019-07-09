@@ -36,4 +36,5 @@
 #include <CL/sycl/sampler.hpp>
 #include <CL/sycl/stream.hpp>
 #include <CL/sycl/types.hpp>
+#include <CL/sycl/usm.hpp>
 #include <CL/sycl/version.hpp>

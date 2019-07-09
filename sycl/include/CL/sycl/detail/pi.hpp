@@ -115,6 +115,16 @@ namespace pi {
 
 namespace RT = cl::sycl::detail::pi;
 
+// For selection of SYCL RT back-end, now manually through the "SYCL_BE"
+// environment variable.
+//
+enum PiBackend {
+  SYCL_BE_PI_OPENCL,
+  SYCL_BE_PI_OTHER
+};
+  
+bool piUseBackend(PiBackend Backend);
+  
 // Report error and no return (keeps compiler happy about no return statements).
 [[noreturn]] void piDie(const char *Message);
 void piAssert(bool Condition, const char *Message = nullptr);

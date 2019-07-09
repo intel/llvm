@@ -1,15 +1,22 @@
+//==------ usm_allocator.hpp - SYCL USM Allocator ------*- C++ -*-----------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+// ===--------------------------------------------------------------------=== //
 #pragma once
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/usm_impl.hpp>
 #include <CL/sycl/device.hpp>
+#include <CL/sycl/usm/usm_enums.hpp>
 
 #include <cstdlib>
 #include <memory>
 
 namespace cl {
 namespace sycl {
-enum class alloc { host, device, shared };
 
 template <typename T, alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
@@ -48,9 +55,9 @@ public:
     if (!mContext && !mDevice) {
       throw std::bad_alloc();
     }
-    auto Result =
-        reinterpret_cast<pointer>(detail::usm::alignedAlloc<AllocKind>(
-            getAlignment(), Size * sizeof(value_type), mContext, mDevice));
+    auto Result = reinterpret_cast<pointer>(
+        detail::usm::alignedAlloc(getAlignment(), Size * sizeof(value_type),
+                                  mContext, mDevice, AllocKind));
     if (!Result) {
       throw std::bad_alloc();
     }

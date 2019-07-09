@@ -5,91 +5,45 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // ===--------------------------------------------------------------------=== //
+#pragma once
+
+#include <CL/sycl/detail/usm_impl.hpp>
+#include <CL/sycl/usm/usm_allocator.hpp>
+#include <CL/sycl/usm/usm_enums.hpp>
 
 #include <cstddef>
 
-#include <CL/sycl/detail/usm_impl.hpp>
-#include <CL/sycl/usm_allocator.hpp>
-
-#pragma once
-
 namespace cl {
 namespace sycl {
-
 ///
 // Explicit USM
 ///
-void *malloc_device(size_t size, const device &dev, const context &ctxt) {
-  return detail::usm::alignedAlloc<alloc::device>(0, size, &ctxt, &dev);
-}
+  void *malloc_device(size_t size, const device &dev, const context &ctxt); 
 
-void *aligned_alloc_device(size_t alignment, size_t size, const device &dev,
-                           const context &ctx) {
-  return detail::usm::alignedAlloc<alloc::device>(alignment, size, &ctxt, &dev);
-}
+  void *aligned_alloc_device(size_t alignment, size_t size, const device &dev,
+                             const context &ctxt);
 
-void free(void *ptr, const context &ctxt) {
-  return detail::usm::free(ptr, &ctxt);
-}
+  void free(void *ptr, const context &ctxt);
 
 ///
 // Restricted USM
 ///
-void *malloc_host(size_t size, const context &ctxt) {
-  return detail::usm::alignedAlloc<alloc::host>(0, size, &ctxt, nullptr);
-}
+  void *malloc_host(size_t size, const context &ctxt);
 
-void *malloc_shared(size_t size, const device &dev, const context &ctxt) {
-  return detail::usm::alignedAlloc<alloc::shared>(0, size, &ctxt, &dev);
-}
+  void *malloc_shared(size_t size, const device &dev, const context &ctxt);
 
-void *aligned_alloc_host(size_t alignment, size_t size, const context &ctxt) {
-  return detail::usm::alignedAlloc<alloc::host>(alignment, size, &ctxt,
-                                                nullptr);
-}
+  void *aligned_alloc_host(size_t alignment, size_t size, const context &ctxt);
 
-void *sycl_aligned_alloc(size_t alignment, size_t size, const device &dev,
-                         const context &ctxt) {
-  return detail::usm::alignedAlloc<alloc::shared>(alignment, size, &ctxt, &dev);
-}
+  void *aligned_alloc_shared(size_t alignment, size_t size, const device &dev,
+                             const context &ctxt);
 
 // single form
 
 void *malloc(size_t size, const device &dev, const context &ctxt,
-             cl::sycl::alloc Kind) {
-  switch (Kind) {
-  case cl::sycl::alloc::host: {
-    return sycl_malloc_host(size, ctxt);
-  }
-  case cl::sycl::alloc::device: {
-    return sycl_malloc_device(size, dev, ctxt);
-  }
-  case cl::sycl::alloc::shared: {
-    return sycl_malloc(size, dev, ctxt);
-  }
-  default: {
-    return nullptr;
-  }
-  }
-}
+             cl::sycl::alloc kind);
 
 void *aligned_alloc(size_t alignment, size_t size, const device &dev,
-                    const context &ctxt, cl::sycl::alloc Kind) {
-  switch (Kind) {
-  case cl::sycl::alloc::host: {
-    return aligned_alloc_host(alignment, size, ctxt);
-  }
-  case cl::sycl::alloc::device: {
-    return aligned_alloc_device(alignment, size, dev, ctxt);
-  }
-  case cl::sycl::alloc::shared: {
-    return aligned_alloc_shared(alignment, size, dev, ctxt);
-  }
-  default: {
-    return nullptr;
-  }
-  }
-}
+                    const context &ctxt, cl::sycl::alloc kind);
 
 } // namespace sycl
 } // namespace cl
