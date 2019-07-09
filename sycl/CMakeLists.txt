@@ -122,7 +122,11 @@ set(LLVM_TOOLS_DIR "${LLVM_BINARY_DIR}/bin/")
 
 add_library("${SYCLLibrary}" SHARED
   "${includeRootPath}/CL/sycl.hpp"
-  "${sourceRootPath}/detail/builtins.cpp"
+  "${sourceRootPath}/detail/builtins_common.cpp"
+  "${sourceRootPath}/detail/builtins_geometric.cpp"
+  "${sourceRootPath}/detail/builtins_integer.cpp"
+  "${sourceRootPath}/detail/builtins_math.cpp"
+  "${sourceRootPath}/detail/builtins_relational.cpp"
   "${sourceRootPath}/detail/pi.cpp"
   "${sourceRootPath}/detail/pi_opencl.cpp"
   "${sourceRootPath}/detail/common.cpp"
