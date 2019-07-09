@@ -1,0 +1,54 @@
+// RUN: %clang -std=c++11 -fsycl %s -o %t1.out -lstdc++ -lOpenCL -lsycl
+// RUN: %CPU_RUN_PLACEHOLDER %t1.out
+//==---- allocatorll.cpp - Device Memory Linked List Allocator test --------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+
+#include <CL/sycl.hpp>
+
+#include <vector>
+
+using namespace cl::sycl;
+
+const int N = 8;;
+
+class foo;
+int main() {
+  bool failed = false;
+  
+  queue q;
+  auto dev = q.get_device();
+  auto ctxt = q.get_context();
+
+  usm_allocator<int, alloc::host> alloc(&ctxt, &dev);
+  
+  std::vector<int, decltype(alloc)> vec(N, alloc);
+
+  for (int i = 0; i < N; i++) {
+    vec[i] = i;
+  }
+
+  int* res = &vec[0];
+  int* vals = &vec[0];
+  
+  auto e1 = q.submit([=](handler& cgh) {
+      cgh.single_task<class foo>([=]() {
+          for (int i = 1; i < N; i++) {
+            res[0] += vals[i];
+          }
+        });
+    });
+  
+  e1.wait();
+
+  int answer = (N*(N-1))/2;
+
+  if (vec[0] != answer) failed = true;
+  
+  return failed;
+}

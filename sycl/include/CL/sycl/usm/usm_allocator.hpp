@@ -40,15 +40,47 @@ public:
 
   // Construct an object
   // Note: AllocKind == alloc::device is not allowed
-  void construct(pointer Ptr, const_reference Val);
+  void construct(pointer Ptr, const_reference Val) {
+#ifndef __SYCL_DEVICE_ONLY__
+    if (AllocKind == alloc::device) {
+      throw
+        feature_not_supported("Device pointers not allowed with construct on host");
+    }
+#endif
+    new (Ptr) value_type(Val);
+  }
 
   // Destroy an object
   // Note:: AllocKind == alloc::device is not allowed
-  void destroy(pointer Ptr);
+  void destroy(pointer Ptr) {
+#ifndef __SYCL_DEVICE_ONLY__
+    if (AllocKind == alloc::device) {
+      throw
+        feature_not_supported("Device pointers not allowed with destroy on host");
+    }
+#endif
+    Ptr->~value_type();
+  }
 
   // Note:: AllocKind == alloc::device is not allowed
-  pointer address(reference Val) const;
-  const_pointer address(const_reference Val) const;
+  pointer address(reference Val) const {
+    #ifndef __SYCL_DEVICE_ONLY__
+    if (AllocKind == alloc::device) {
+      throw
+        feature_not_supported("Device pointers not allowed with addressy on host");
+    }
+#endif
+    return &Val;
+  }
+  const_pointer address(const_reference Val) const {
+     #ifndef __SYCL_DEVICE_ONLY__
+    if (AllocKind == alloc::device) {
+      throw
+        feature_not_supported("Device pointers not allowed with addressy on host");
+    }
+#endif
+    return &Val;
+  }
 
   // Allocate memory
   pointer allocate(size_t Size) {
