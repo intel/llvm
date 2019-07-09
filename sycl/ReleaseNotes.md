@@ -48,7 +48,7 @@ Release notes for commit 64c0262c0f0b9e1b7b2e2dcef57542a3fe3bdb97.
    SYCL specification.
  - Stubs for C++ standard headers were removed. This should fix compilation of
    <iostream> and <algorithm> with SYCL device compiler.
- - Unscoped emuns were removed from global namespace to avoid conflicts with
+ - Unscoped enums were removed from global namespace to avoid conflicts with
    user defined symbols.
  - Explicit copy API of the handler class is blocking i.e. data is
    copied once the command group has completed execution.
