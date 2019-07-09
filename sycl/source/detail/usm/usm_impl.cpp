@@ -23,7 +23,7 @@ void *alignedAlloc(size_t alignment, size_t size, const context *ctxt,
                    const device *dev, alloc kind) {
   cl_int error;
   cl_context c =
-      pi_cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
+      pi::pi_cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
   cl_device_id id;
 
   void *retVal = nullptr;
@@ -58,7 +58,7 @@ void *alignedAlloc(size_t alignment, size_t size, const context *ctxt,
 void free(void *ptr, const context *ctxt) {
   cl_int error;
   cl_context c =
-      pi_cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
+      pi::pi_cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
 
   error = clMemFreeINTEL(c, ptr);
 

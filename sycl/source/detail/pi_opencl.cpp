@@ -13,13 +13,10 @@
 namespace cl {
 namespace sycl {
 namespace detail {
-
-#ifdef __cplusplus
-extern "C" {
-#endif // __cplusplus
+namespace pi {
 
 // Convinience macro makes source code search easier
-#define OCL(pi_api) ocl_##pi_api
+#define OCL(pi_api) Ocl##pi_api
 
 // Example of a PI interface that does not map exactly to an OpenCL one.
 pi_result OCL(piPlatformsGet)(pi_uint32      num_entries,
@@ -34,7 +31,7 @@ pi_result OCL(piPlatformsGet)(pi_uint32      num_entries,
   if (result == CL_PLATFORM_NOT_FOUND_KHR) {
     piAssert(num_platforms != 0);
     *num_platforms = 0;
-    result = CL_SUCCESS;
+    result = PI_SUCCESS;
   }
   return pi_cast<pi_result>(result);
 }
@@ -57,7 +54,7 @@ pi_result OCL(piDevicesGet)(pi_platform      platform,
   if (result == CL_DEVICE_NOT_FOUND) {
     piAssert(num_devices != 0);
     *num_devices = 0;
-    result = CL_SUCCESS;
+    result = PI_SUCCESS;
   }
   return pi_cast<pi_result>(result);
 }
@@ -162,26 +159,21 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
   return pi_cast<pi_program>(resProgram);
 }
 
-// TODO: implement portable call forwarding (ifunc is a GNU extension).
-// TODO: reuse same PI -> OCL mapping in pi_opencl.hpp, or maybe just
-//       wait until that one is completely removed.
-//
-#define _PI_CL(pi_api, ocl_api)             \
-static void *__resolve_##pi_api(void) {     \
-  return (void*) (ocl_api);                 \
-}                                           \
-decltype(ocl_api) OCL(pi_api) __attribute__((ifunc ("__resolve_" #pi_api)));
+// Forward calls to OpenCL RT.
+#define _PI_CL(pi_api, ocl_api)                     \
+const decltype(::pi_api) * pi_api##OclPtr =         \
+    detail::pi::pi_cast<decltype(&::pi_api)>(&ocl_api);
 
 // Platform
-//_PI_CL(piPlatformsGet,       clGetPlatformIDs)
+_PI_CL(piPlatformsGet,       OCL(piPlatformsGet))
 _PI_CL(piPlatformGetInfo,    clGetPlatformInfo)
 // Device
-//_PI_CL(piDevicesGet,         clGetDeviceIDs)
+_PI_CL(piDevicesGet,         OCL(piDevicesGet))
 _PI_CL(piDeviceGetInfo,      clGetDeviceInfo)
 _PI_CL(piDevicePartition,    clCreateSubDevices)
 _PI_CL(piDeviceRetain,       clRetainDevice)
 _PI_CL(piDeviceRelease,      clReleaseDevice)
-//_PI_CL(piextDeviceSelectBinary,  ocl_piextDeviceSelectBinary)
+_PI_CL(piextDeviceSelectBinary, OCL(piextDeviceSelectBinary))
   // Context
 _PI_CL(piContextCreate,     clCreateContext)
 _PI_CL(piContextGetInfo,    clGetContextInfo)
@@ -199,6 +191,7 @@ _PI_CL(piMemGetInfo,        clGetMemObjectInfo)
 _PI_CL(piMemRetain,         clRetainMemObject)
 _PI_CL(piMemRelease,        clReleaseMemObject)
 // Program
+_PI_CL(piProgramCreate,             OCL(piProgramCreate))
 _PI_CL(piclProgramCreateWithSource, clCreateProgramWithSource)
 _PI_CL(piclProgramCreateWithBinary, clCreateProgramWithBinary)
 _PI_CL(piProgramGetInfo,            clGetProgramInfo)
@@ -238,17 +231,14 @@ _PI_CL(piEnqueueMemReadRect,      clEnqueueReadBufferRect)
 _PI_CL(piEnqueueMemWrite,         clEnqueueWriteBuffer)
 _PI_CL(piEnqueueMemWriteRect,     clEnqueueWriteBufferRect)
 _PI_CL(piEnqueueMemCopy,          clEnqueueCopyBuffer)
-_PI_CL(piEnqueueMemCopyRect,   clEnqueueCopyBufferRect)
+_PI_CL(piEnqueueMemCopyRect,      clEnqueueCopyBufferRect)
 _PI_CL(piEnqueueMemFill,          clEnqueueFillBuffer)
 _PI_CL(piEnqueueMemMap,           clEnqueueMapBuffer)
 _PI_CL(piEnqueueMemUnmap,         clEnqueueUnmapMemObject)
 
 #undef _PI_CL
 
-#ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
-
+} // namespace pi
 } // namespace detail
 } // namespace sycl
 } // namespace cl

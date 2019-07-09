@@ -49,7 +49,7 @@ context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
     : m_AsyncHandler(AsyncHandler), m_Devices(),
       m_Platform(), m_OpenCLInterop(true), m_HostContext(false) {
 
-  m_Context = pi_cast<RT::PiContext>(ClContext);
+  m_Context = pi::pi_cast<RT::PiContext>(ClContext);
   vector_class<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -76,7 +76,7 @@ cl_context context_impl::get() const {
   if (m_OpenCLInterop) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piContextRetain(m_Context));
-    return pi_cast<cl_context>(m_Context);
+    return pi::pi_cast<cl_context>(m_Context);
   }
   throw invalid_object_error(
       "This instance of event doesn't support OpenCL interoperability.");

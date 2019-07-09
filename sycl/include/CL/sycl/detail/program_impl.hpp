@@ -169,7 +169,7 @@ public:
       throw invalid_object_error("This instance of program is a host instance");
     }
     PI_CALL(RT::piProgramRetain(Program));
-    return pi_cast<cl_program>(Program);
+    return pi::pi_cast<cl_program>(Program);
   }
 
   bool is_host() const { return Context.is_host(); }

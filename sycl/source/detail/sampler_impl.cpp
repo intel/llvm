@@ -21,7 +21,7 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 
-  RT::PiSampler Sampler = pi_cast<RT::PiSampler>(clSampler);
+  RT::PiSampler Sampler = pi::pi_cast<RT::PiSampler>(clSampler);
   m_contextToSampler[syclContext] = Sampler;
   PI_CALL(RT::piSamplerRetain(Sampler));
   PI_CALL(RT::piSamplerGetInfo(Sampler, CL_SAMPLER_NORMALIZED_COORDS,
