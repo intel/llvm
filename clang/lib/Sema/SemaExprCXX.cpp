@@ -2229,7 +2229,7 @@ bool Sema::CheckAllocatedType(QualType AllocType, SourceLocation Loc,
     return Diag(Loc, diag::err_variably_modified_new_type)
              << AllocType;
   else if (AllocType.getAddressSpace() != LangAS::Default &&
-           !getLangOpts().OpenCLCPlusPlus)
+           !getLangOpts().OpenCLCPlusPlus && !getLangOpts().SYCLIsDevice)
     return Diag(Loc, diag::err_address_space_qualified_new)
       << AllocType.getUnqualifiedType()
       << AllocType.getQualifiers().getAddressSpaceAttributePrintValue();

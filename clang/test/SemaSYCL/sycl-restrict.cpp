@@ -57,6 +57,8 @@ struct OverloadedNewDelete {
   void operator delete[](void *){};
 };
 
+using ASInt = __attribute__((address_space(1))) int;
+
 bool isa_B(A *a) {
   Check_User_Operators::Fraction f1(3, 8), f2(1, 2), f3(10, 2);
   if (f1 == f2) return false;
@@ -65,6 +67,7 @@ bool isa_B(A *a) {
   // expected-error@+1 {{SYCL kernel cannot allocate storage}}
   int *ip = new int;
   int i; int *p3 = new(&i) int; // no error on placement new
+  ASInt* ASp1; ASInt* ASp2 = new(ASp1) ASInt; // no error on placement new w/ AS
   OverloadedNewDelete *x = new( struct OverloadedNewDelete );
   auto y = new struct OverloadedNewDelete [5];
   // expected-error@+1 {{SYCL kernel cannot use rtti}}
