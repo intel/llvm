@@ -300,13 +300,13 @@ def AMDGPUatomic_ld_glue : SDNode <"ISD::ATOMIC_LOAD", SDTAtomicLoad,
   [SDNPHasChain, SDNPMayLoad, SDNPMemOperand, SDNPInGlue]
 >;
 
-def unindexedload_glue : PatFrag <(ops node:$ptr), (AMDGPUld_glue node:$ptr), [{
-  return cast<LoadSDNode>(N)->getAddressingMode() == ISD::UNINDEXED;
-}]>;
+def unindexedload_glue : PatFrag <(ops node:$ptr), (AMDGPUld_glue node:$ptr)> {
+  let IsUnindexed = 1;
+}
 
-def load_glue : PatFrag <(ops node:$ptr), (unindexedload_glue node:$ptr), [{
-  return cast<LoadSDNode>(N)->getExtensionType() == ISD::NON_EXTLOAD;
-}]>;
+def load_glue : PatFrag <(ops node:$ptr), (unindexedload_glue node:$ptr)> {
+  let IsNonExtLoad = 1;
+}
 
 def atomic_load_32_glue : PatFrag<(ops node:$ptr),
   (AMDGPUatomic_ld_glue node:$ptr)> {
@@ -320,35 +320,49 @@ def atomic_load_64_glue : PatFrag<(ops node:$ptr),
   let MemoryVT = i64;
 }
 
-def extload_glue : PatFrag<(ops node:$ptr), (load_glue node:$ptr), [{
-  return cast<LoadSDNode>(N)->getExtensionType() == ISD::EXTLOAD;
-}]>;
+def extload_glue : PatFrag<(ops node:$ptr), (load_glue node:$ptr)> {
+  let IsLoad = 1;
+  let IsAnyExtLoad = 1;
+}
 
 def sextload_glue : PatFrag<(ops node:$ptr), (unindexedload_glue node:$ptr), [{
   return cast<LoadSDNode>(N)->getExtensionType() == ISD::SEXTLOAD;
 }]>;
 
-def zextload_glue : PatFrag<(ops node:$ptr), (unindexedload_glue node:$ptr), [{
-  return cast<LoadSDNode>(N)->getExtensionType() == ISD::ZEXTLOAD;
-}]>;
+def zextload_glue : PatFrag<(ops node:$ptr), (unindexedload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let IsZeroExtLoad = 1;
+}
 
-def az_extload_glue : AZExtLoadBase <unindexedload_glue>;
+def extloadi8_glue : PatFrag<(ops node:$ptr), (extload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i8;
+}
 
-def az_extloadi8_glue : PatFrag<(ops node:$ptr), (az_extload_glue node:$ptr), [{
-  return cast<LoadSDNode>(N)->getMemoryVT() == MVT::i8;
-}]>;
+def zextloadi8_glue : PatFrag<(ops node:$ptr), (zextload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i8;
+}
 
-def az_extloadi16_glue : PatFrag<(ops node:$ptr), (az_extload_glue node:$ptr), [{
-  return cast<LoadSDNode>(N)->getMemoryVT() == MVT::i16;
-}]>;
+def extloadi16_glue : PatFrag<(ops node:$ptr), (extload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i16;
+}
 
-def sextloadi8_glue : PatFrag<(ops node:$ptr), (sextload_glue node:$ptr), [{
-  return cast<LoadSDNode>(N)->getMemoryVT() == MVT::i8;
-}]>;
+def zextloadi16_glue : PatFrag<(ops node:$ptr), (zextload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i16;
+}
 
-def sextloadi16_glue : PatFrag<(ops node:$ptr), (sextload_glue node:$ptr), [{
-  return cast<LoadSDNode>(N)->getMemoryVT() == MVT::i16;
-}]>;
+def sextloadi8_glue : PatFrag<(ops node:$ptr), (sextload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i8;
+}
+
+def sextloadi16_glue : PatFrag<(ops node:$ptr), (sextload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i16;
+}
 
 def load_glue_align8 : Aligned8Bytes <
   (ops node:$ptr), (load_glue node:$ptr)
@@ -361,8 +375,10 @@ def load_glue_align16 : Aligned16Bytes <
 def load_local_m0 : LoadFrag<load_glue>, LocalAddress;
 def sextloadi8_local_m0 : LoadFrag<sextloadi8_glue>, LocalAddress;
 def sextloadi16_local_m0 : LoadFrag<sextloadi16_glue>, LocalAddress;
-def az_extloadi8_local_m0 : LoadFrag<az_extloadi8_glue>, LocalAddress;
-def az_extloadi16_local_m0 : LoadFrag<az_extloadi16_glue>, LocalAddress;
+def extloadi8_local_m0 : LoadFrag<extloadi8_glue>, LocalAddress;
+def zextloadi8_local_m0 : LoadFrag<zextloadi8_glue>, LocalAddress;
+def extloadi16_local_m0 : LoadFrag<extloadi16_glue>, LocalAddress;
+def zextloadi16_local_m0 : LoadFrag<zextloadi16_glue>, LocalAddress;
 def load_align8_local_m0 : LoadFrag <load_glue_align8>, LocalAddress;
 def load_align16_local_m0 : LoadFrag <load_glue_align16>, LocalAddress;
 def atomic_load_32_local_m0 : LoadFrag<atomic_load_32_glue>, LocalAddress;
@@ -745,6 +761,7 @@ def VReg32OrOffClass : AsmOperandClass {
 def WAIT_FLAG : Operand <i32> {
   let ParserMatchClass = SWaitMatchClass;
   let PrintMethod = "printWaitFlag";
+  let OperandType = "OPERAND_IMMEDIATE";
 }
 
 include "SIInstrFormats.td"
@@ -844,17 +861,7 @@ class NamedOperandU8<string Name, AsmOperandClass MatchClass> : Operand<i8> {
   let ParserMatchClass = MatchClass;
 }
 
-class NamedOperandU12<string Name, AsmOperandClass MatchClass> : Operand<i16> {
-  let PrintMethod = "print"#Name;
-  let ParserMatchClass = MatchClass;
-}
-
 class NamedOperandU16<string Name, AsmOperandClass MatchClass> : Operand<i16> {
-  let PrintMethod = "print"#Name;
-  let ParserMatchClass = MatchClass;
-}
-
-class NamedOperandS13<string Name, AsmOperandClass MatchClass> : Operand<i16> {
   let PrintMethod = "print"#Name;
   let ParserMatchClass = MatchClass;
 }
@@ -876,8 +883,7 @@ def offen : NamedOperandBit<"Offen", NamedMatchClass<"Offen">>;
 def idxen : NamedOperandBit<"Idxen", NamedMatchClass<"Idxen">>;
 def addr64 : NamedOperandBit<"Addr64", NamedMatchClass<"Addr64">>;
 
-def offset_u12 : NamedOperandU12<"Offset", NamedMatchClass<"OffsetU12">>;
-def offset_s13 : NamedOperandS13<"OffsetS13", NamedMatchClass<"OffsetS13">>;
+def flat_offset : NamedOperandU16<"FlatOffset", NamedMatchClass<"FlatOffset">>;
 def offset : NamedOperandU16<"Offset", NamedMatchClass<"Offset">>;
 def offset0 : NamedOperandU8<"Offset0", NamedMatchClass<"Offset0">>;
 def offset1 : NamedOperandU8<"Offset1", NamedMatchClass<"Offset1">>;
