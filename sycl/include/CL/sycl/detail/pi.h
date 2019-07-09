@@ -143,6 +143,10 @@ typedef enum {
   PI_FLOAT            = CL_FLOAT
 } _pi_image_channel_type;
 
+typedef enum {
+  PI_BUFFER_CREATE_TYPE_REGION = CL_BUFFER_CREATE_TYPE_REGION
+} _pi_buffer_create_type;
+
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate
@@ -164,6 +168,7 @@ typedef _pi_image_info              pi_image_info;
 typedef _pi_mem_type                pi_mem_type;
 typedef _pi_image_channel_order     pi_image_channel_order;
 typedef _pi_image_channel_type      pi_image_channel_type;
+typedef _pi_buffer_create_type      pi_buffer_create_type;
 
 // Opaque data type for compatibility with OpenMP.
 typedef void * _pi_offload_entry;
@@ -436,6 +441,10 @@ pi_result piMemRetain(
 pi_result piMemRelease(
   pi_mem mem);
 
+pi_mem piSubBufCreate( // TODO: change interface to return error code
+    pi_mem context, pi_mem_flags flags,
+    pi_buffer_create_type buffer_create_type, void *buffer_create_info,
+    pi_result *errcode_ret);
 //
 // Program
 //

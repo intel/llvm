@@ -90,6 +90,8 @@ public:
   void *MData = nullptr;
 
   EventImplPtr BlockingEvent;
+
+  bool MUsedFromSourceKernel = false;
 };
 
 using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;

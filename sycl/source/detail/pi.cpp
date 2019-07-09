@@ -94,7 +94,6 @@ void PiCall::check(RT::PiResult Result) {
 template void PiCall::check<cl::sycl::runtime_error>(RT::PiResult);
 template void PiCall::check<cl::sycl::compile_program_error>(RT::PiResult);
 
-
 } // namespace pi
 } // namespace detail
 } // namespace sycl

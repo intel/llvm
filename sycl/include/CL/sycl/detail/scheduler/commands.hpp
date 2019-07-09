@@ -29,11 +29,12 @@ using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
 class Command;
 class AllocaCommand;
+class AllocaCommandBase;
 class ReleaseCommand;
 
 // DepDesc represents dependency between two commands
 struct DepDesc {
-  DepDesc(Command *DepCommand, Requirement *Req, AllocaCommand *AllocaCmd)
+  DepDesc(Command *DepCommand, Requirement *Req, AllocaCommandBase *AllocaCmd)
       : MDepCommand(DepCommand), MReq(Req), MAllocaCmd(AllocaCmd) {}
 
   friend bool operator<(const DepDesc &Lhs, const DepDesc &Rhs) {
@@ -47,7 +48,7 @@ struct DepDesc {
   Requirement *MReq = nullptr;
   // Allocation command for the memory object we have requirement for.
   // Used to simplify searching for memory handle.
-  AllocaCommand *MAllocaCmd = nullptr;
+  AllocaCommandBase *MAllocaCmd = nullptr;
 };
 
 // The Command represents some action that needs to be performed on one or more
@@ -61,6 +62,7 @@ public:
     RUN_CG,
     COPY_MEMORY,
     ALLOCA,
+    ALLOCA_SUB_BUF,
     RELEASE,
     MAP_MEM_OBJ,
     UNMAP_MEM_OBJ
@@ -118,25 +120,21 @@ private:
 // underlying framework.
 class ReleaseCommand : public Command {
 public:
-  ReleaseCommand(QueueImplPtr Queue, AllocaCommand *AllocaCmd)
+  ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
       : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
   }
+
 private:
   cl_int enqueueImp() override;
 
-  AllocaCommand *MAllocaCmd = nullptr;
+  AllocaCommandBase *MAllocaCmd = nullptr;
 };
 
-// The command enqueues allocation of instance of memory object on Host or
-// underlying framework.
-class AllocaCommand : public Command {
+class AllocaCommandBase : public Command {
 public:
-  AllocaCommand(QueueImplPtr Queue, Requirement Req,
-                bool InitFromUserData = true)
-      : Command(CommandType::ALLOCA, Queue), MReleaseCmd(Queue, this),
-        MInitFromUserData(InitFromUserData), MReq(std::move(Req)) {
-    addDep(DepDesc(nullptr, &MReq, this));
-  }
+  AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req)
+      : Command(Type, Queue), MReleaseCmd(Queue, this), MReq(std::move(Req)) {}
+
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
 
   SYCLMemObjI *getSYCLMemObj() const { return MReq.MSYCLMemObj; }
@@ -145,22 +143,51 @@ public:
 
   Requirement *getAllocationReq() { return &MReq; }
 
-private:
-  cl_int enqueueImp() override;
-
+protected:
   ReleaseCommand MReleaseCmd;
-  void *MMemAllocation = nullptr;
-  bool MInitFromUserData = false;
   Requirement MReq;
+  void *MMemAllocation = nullptr;
+};
+
+// The command enqueues allocation of instance of memory object on Host or
+// underlying framework.
+class AllocaCommand : public AllocaCommandBase {
+public:
+  AllocaCommand(QueueImplPtr Queue, Requirement Req,
+                bool InitFromUserData = true)
+      : AllocaCommandBase(CommandType::ALLOCA, Queue, Req),
+        MInitFromUserData(InitFromUserData) {
+    addDep(DepDesc(nullptr, &MReq, this));
+  }
+
+private:
+  cl_int enqueueImp() override final;
+
+  bool MInitFromUserData = false;
+};
+
+class AllocaSubBufCommand : public AllocaCommandBase {
+public:
+  AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
+                      AllocaCommandBase *ParentAlloca)
+      : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, Queue, Req),
+        MParentAlloca(ParentAlloca) {
+    addDep(DepDesc(MParentAlloca, &MReq, MParentAlloca));
+  }
+
+private:
+  cl_int enqueueImp() override final;
+
+  AllocaCommandBase *MParentAlloca;
 };
 
 class MapMemObject : public Command {
 public:
-  MapMemObject(Requirement SrcReq, AllocaCommand *SrcAlloca,
+  MapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
                Requirement *DstAcc, QueueImplPtr Queue);
 
   Requirement MSrcReq;
-  AllocaCommand *MSrcAlloca = nullptr;
+  AllocaCommandBase *MSrcAlloca = nullptr;
   Requirement *MDstAcc = nullptr;
   Requirement MDstReq;
 
@@ -170,7 +197,7 @@ private:
 
 class UnMapMemObject : public Command {
 public:
-  UnMapMemObject(Requirement SrcReq, AllocaCommand *SrcAlloca,
+  UnMapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
                  Requirement *DstAcc, QueueImplPtr Queue,
                  bool UseExclusiveQueue = false);
 
@@ -178,23 +205,23 @@ private:
   cl_int enqueueImp() override;
 
   Requirement MSrcReq;
-  AllocaCommand *MSrcAlloca = nullptr;
+  AllocaCommandBase *MSrcAlloca = nullptr;
   Requirement *MDstAcc = nullptr;
 };
 
 // The command enqueues memory copy between two instances of memory object.
 class MemCpyCommand : public Command {
 public:
-  MemCpyCommand(Requirement SrcReq, AllocaCommand *SrcAlloca,
-                Requirement DstReq, AllocaCommand *DstAlloca,
+  MemCpyCommand(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
+                Requirement DstReq, AllocaCommandBase *DstAlloca,
                 QueueImplPtr SrcQueue, QueueImplPtr DstQueue,
                 bool UseExclusiveQueue = false);
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
-  AllocaCommand *MSrcAlloca = nullptr;
+  AllocaCommandBase *MSrcAlloca = nullptr;
   Requirement MDstReq;
-  AllocaCommand *MDstAlloca = nullptr;
+  AllocaCommandBase *MDstAlloca = nullptr;
   Requirement *MAccToUpdate = nullptr;
 
   void setAccessorToUpdate(Requirement *AccToUpdate) {
@@ -208,13 +235,13 @@ private:
 // The command enqueues memory copy between two instances of memory object.
 class MemCpyCommandHost : public Command {
 public:
-  MemCpyCommandHost(Requirement SrcReq, AllocaCommand *SrcAlloca,
+  MemCpyCommandHost(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
                     Requirement *DstAcc, QueueImplPtr SrcQueue,
                     QueueImplPtr DstQueue);
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
-  AllocaCommand *MSrcAlloca = nullptr;
+  AllocaCommandBase *MSrcAlloca = nullptr;
   Requirement MDstReq;
   Requirement *MDstAcc = nullptr;
 
@@ -235,7 +262,7 @@ private:
   // Implementation of enqueueing of ExecCGCommand.
   cl_int enqueueImp() override;
 
-  AllocaCommand *getAllocaForReq(Requirement *Req);
+  AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 };

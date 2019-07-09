@@ -192,6 +192,7 @@ _PI_CL(piMemGetInfo,        clGetMemObjectInfo)
 _PI_CL(piMemImageGetInfo,   clGetImageInfo)
 _PI_CL(piMemRetain,         clRetainMemObject)
 _PI_CL(piMemRelease,        clReleaseMemObject)
+_PI_CL(piSubBufCreate,      clCreateSubBuffer)
 // Program
 _PI_CL(piProgramCreate,             OCL(piProgramCreate))
 _PI_CL(piclProgramCreateWithSource, clCreateProgramWithSource)

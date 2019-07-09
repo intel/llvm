@@ -13,6 +13,8 @@
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/exception.hpp>
 
+#include <algorithm>
+#include <iterator>
 #include <memory>
 #include <set>
 #include <vector>
@@ -25,10 +27,12 @@ namespace detail {
 // information can be used to prove that executing two kernels that
 // work on different parts of the memory object in parallel is legal.
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
-  // TODO: Implement check for one dimensional case only. It will be
+  // Check for one dimensional case only. It will be
   // enough for most of the cases because 2d and 3d sub-buffers cannot
   // be mapped to OpenCL's ones.
-  return true;
+  return RHS->MDims != 1 || LHS->MDims != 1 ||
+           (LHS->MOffset[0] + LHS->MAccessRange[0] >= RHS->MOffset[0]) ||
+           (RHS->MOffset[0] + RHS->MAccessRange[0] >= LHS->MOffset[0]);
 }
 
 // Returns record for the memory objects passed, nullptr if doesn't exist.
@@ -42,27 +46,22 @@ Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
 }
 
 // Returns record for the memory object requirement refers to, if doesn't
-// exist, creates new one add populate it with initial alloca command.
+// exist, creates new one.
 Scheduler::GraphBuilder::MemObjRecord *
 Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                                  Requirement *Req) {
   SYCLMemObjI *MemObject = Req->MSYCLMemObj;
   Scheduler::GraphBuilder::MemObjRecord *Record = getMemObjRecord(MemObject);
+
   if (nullptr != Record)
     return Record;
 
-  // Construct requirement which describes full buffer because we allocate
-  // only full-sized memory objects.
-  Requirement AllocaReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
-                        Req->MMemoryRange, access::mode::discard_write,
-                        MemObject, Req->MDims, Req->MElemSize);
-
-  AllocaCommand *AllocaCmd = new AllocaCommand(Queue, std::move(AllocaReq));
-  MemObjRecord NewRecord{MemObject,
-                         /*WriteLeafs*/ {AllocaCmd},
-                         /*ReadLeafs*/ {},
-                         {AllocaCmd},
-                         false};
+  MemObjRecord NewRecord{
+    MemObject,
+    /*MWriteLeafs*/ {},
+    /*MReadLeafs*/ {},
+    /*MAllocaCommands*/ {},
+    /*MMemModified*/ false};
 
   MMemObjRecords.push_back(std::move(NewRecord));
   return &MMemObjRecords.back();
@@ -108,7 +107,7 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
 
   std::set<Command *> Deps = findDepsForReq(Record, &FullReq, Queue);
   QueueImplPtr SrcQueue = (*Deps.begin())->getQueue();
-  AllocaCommand *AllocaCmdDst = findAllocaForReq(Record, &FullReq, Queue);
+  AllocaCommandBase *AllocaCmdDst = findAllocaForReq(Record, &FullReq, Queue);
 
   if (!AllocaCmdDst) {
     std::unique_ptr<AllocaCommand> AllocaCmdUniquePtr(
@@ -122,7 +121,7 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
     Deps.insert(AllocaCmdDst);
   }
 
-  AllocaCommand *AllocaCmdSrc = findAllocaForReq(Record, Req, SrcQueue);
+  AllocaCommandBase *AllocaCmdSrc = findAllocaForReq(Record, Req, SrcQueue);
 
   MemCpyCommand *MemCpyCmd = new MemCpyCommand(
       *AllocaCmdSrc->getAllocationReq(), AllocaCmdSrc, *Req, AllocaCmdDst,
@@ -151,7 +150,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, HostQueue);
   QueueImplPtr SrcQueue = (*Deps.begin())->getQueue();
-  AllocaCommand *SrcAllocaCmd = findAllocaForReq(Record, Req, SrcQueue);
+  AllocaCommandBase *SrcAllocaCmd = findAllocaForReq(Record, Req, SrcQueue);
 
   std::unique_ptr<MemCpyCommandHost> MemCpyCmdUniquePtr(
       new MemCpyCommandHost(*SrcAllocaCmd->getAllocationReq(), SrcAllocaCmd,
@@ -180,12 +179,18 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
                                                   EventImplPtr &RetEvent) {
   QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
+  // FIXME The previous behavior of findAllocaForReq and getOrInsertMemObjRecord
+  // didn't match their names. This weird condition makes new functions
+  // act like before.
+  if (Record->MAllocaCommands.empty() &&
+      !(Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange))
+    getOrCreateAllocaForReq(Record, Req, HostQueue);
   markModifiedIfWrite(Record, Req);
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, HostQueue);
   QueueImplPtr SrcQueue = (*Deps.begin())->getQueue();
 
-  AllocaCommand *SrcAllocaCmd = findAllocaForReq(Record, Req, SrcQueue);
+  AllocaCommandBase *SrcAllocaCmd = findAllocaForReq(Record, Req, SrcQueue);
   Requirement *SrcReq = SrcAllocaCmd->getAllocationReq();
 
   if (SrcQueue->is_host()) {
@@ -406,13 +411,10 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
 
   std::vector<Command *> ToAnalyze;
 
-  if (ReadOnlyReq)
-    ToAnalyze = Record->MWriteLeafs;
-  else {
-    ToAnalyze = Record->MReadLeafs;
-    ToAnalyze.insert(ToAnalyze.end(), Record->MWriteLeafs.begin(),
-                     Record->MWriteLeafs.end());
-  }
+  ToAnalyze = Record->MWriteLeafs;
+  if (!ReadOnlyReq)
+    ToAnalyze.insert(ToAnalyze.begin(), Record->MReadLeafs.begin(),
+                     Record->MReadLeafs.end());
 
   while (!ToAnalyze.empty()) {
     Command *DepCmd = ToAnalyze.back();
@@ -453,15 +455,44 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
 }
 
 // The function searchs for the alloca command matching context and requirement.
-AllocaCommand *Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
-                                                         Requirement *Req,
-                                                         QueueImplPtr Queue) {
-  auto IsSuitableAlloca = [&Queue](const AllocaCommand *AllocaCmd) {
-    return AllocaCmd->getQueue()->get_context() == Queue->get_context();
+AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
+    MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
+  auto IsSuitableAlloca = [&Queue, Req](AllocaCommandBase *AllocaCmd) {
+    bool res = AllocaCmd->getQueue()->get_context() == Queue->get_context();
+    if (Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange)
+      res = res && AllocaCmd->getAllocationReq()->MOffset == Req->MOffset &&
+            AllocaCmd->getAllocationReq()->MAccessRange == Req->MAccessRange;
+    return res;
   };
   const auto It = std::find_if(Record->MAllocaCommands.begin(),
                                Record->MAllocaCommands.end(), IsSuitableAlloca);
   return (Record->MAllocaCommands.end() != It) ? *It : nullptr;
+}
+
+// The function searchs for the alloca command matching context and requirement.
+// If none exists, new command will be created.
+AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
+    MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
+  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Queue);
+  if (!AllocaCmd) {
+    AllocaCommandBase *AllocaCmd;
+    Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
+                        Req->MMemoryRange, access::mode::read_write,
+                        Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
+
+    if (Req->MAccessRange != Req->MMemoryRange && Req->MUsedFromSourceKernel) {
+      if (Req->MDims != 1)
+        throw runtime_error("OpenCL only supports 1D sub buffers");
+
+      auto *ParentAlloca = getOrCreateAllocaForReq(Record, &FullReq, Queue);
+      AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca);
+    } else
+      AllocaCmd = new AllocaCommand(Queue, FullReq);
+
+    Record->MAllocaCommands.push_back(AllocaCmd);
+    Record->MWriteLeafs.push_back(AllocaCmd);
+  }
+  return AllocaCmd;
 }
 
 // The function sets MemModified flag in record if requirement has write access.
@@ -491,6 +522,12 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
+    // FIXME The previous behavior of findAllocaForReq and
+    // getOrInsertMemObjRecord didn't match their names. This weird condition
+    // makes new functions act like before.
+    if (Record->MAllocaCommands.empty() ||
+        (Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange))
+      getOrCreateAllocaForReq(Record, Req, Queue);
     markModifiedIfWrite(Record, Req);
     std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
 
@@ -508,7 +545,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
         Deps = findDepsForReq(Record, Req, Queue);
         break;
       }
-    AllocaCommand *AllocaCmd = findAllocaForReq(Record, Req, Queue);
+
+    AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Queue);
 
     for (Command *Dep : Deps) {
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});

@@ -81,8 +81,7 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
   RT::PiProgram Program;
   PI_CALL((Program = pi::pi_cast<pi_program>(
                pi::piProgramCreate(pi::pi_cast<pi_context>(Context), Data, DataLen,
-                                   pi::pi_cast<pi_result *>(&Err))),
-           Err));
+                                   pi::pi_cast<pi_result *>(&Err))), Err));
   return Program;
 }
 

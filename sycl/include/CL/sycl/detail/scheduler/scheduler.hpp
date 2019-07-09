@@ -105,7 +105,7 @@ private:
       detail::SYCLMemObjI *MMemObj;
 
       // Contains all allocation commands for the memory object.
-      std::vector<AllocaCommand *> MAllocaCommands;
+      std::vector<AllocaCommandBase *> MAllocaCommands;
 
       // Contains latest read only commands working with memory object.
       std::vector<Command *> MReadLeafs;
@@ -146,8 +146,14 @@ private:
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                        QueueImplPtr Context);
 
-    AllocaCommand *findAllocaForReq(MemObjRecord *Record, Requirement *Req,
-                                    QueueImplPtr Queue);
+    // Searches for suitable alloca in memory record.
+    AllocaCommandBase *findAllocaForReq(MemObjRecord *Record, Requirement *Req,
+                                        QueueImplPtr Queue);
+    // Searches for suitable alloca in memory record.
+    // If none found, creates new one.
+    AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
+                                               Requirement *Req,
+                                               QueueImplPtr Queue);
 
     void markModifiedIfWrite(GraphBuilder::MemObjRecord *Record,
                              Requirement *Req);

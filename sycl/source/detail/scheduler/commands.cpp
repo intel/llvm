@@ -97,19 +97,37 @@ cl_int AllocaCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
+cl_int AllocaSubBufCommand::enqueueImp() {
+  std::vector<RT::PiEvent> RawEvents =
+      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  RT::PiEvent &Event = MEvent->getHandleRef();
+  MMemAllocation = MemoryManager::createSubBuffer(
+      pi::pi_cast<RT::PiMem>(MParentAlloca->getMemAllocation()), MReq.MElemSize,
+      MReq.MOffset, MReq.MAccessRange, std::move(RawEvents), Event);
+  return CL_SUCCESS;
+}
+
 cl_int ReleaseCommand::enqueueImp() {
   std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
   RT::PiEvent &Event = MEvent->getHandleRef();
-  MemoryManager::release(detail::getSyclObjImpl(MQueue->get_context()),
-                         MAllocaCmd->getSYCLMemObj(),
-                         MAllocaCmd->getMemAllocation(), std::move(RawEvents),
-                         Event);
+
+  // On host side we only allocate memory for full buffers.
+  // Thus, deallocating sub buffers leads to double memory freeing.
+  if (!(MQueue->is_host() && MAllocaCmd->getType() == ALLOCA_SUB_BUF))
+    MemoryManager::release(detail::getSyclObjImpl(MQueue->get_context()),
+                           MAllocaCmd->getSYCLMemObj(),
+                           MAllocaCmd->getMemAllocation(), std::move(RawEvents),
+                           Event);
+  else
+    PI_CALL(RT::piEnqueueEventsWait(MQueue->getHandleRef(), RawEvents.size(),
+                                    &RawEvents[0], &Event));
+
   return CL_SUCCESS;
 }
 
-MapMemObject::MapMemObject(Requirement SrcReq, AllocaCommand *SrcAlloca,
+MapMemObject::MapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
                            Requirement *DstAcc, QueueImplPtr Queue)
     : Command(CommandType::MAP_MEM_OBJ, std::move(Queue)),
       MSrcReq(std::move(SrcReq)), MSrcAlloca(SrcAlloca), MDstAcc(DstAcc),
@@ -130,7 +148,7 @@ cl_int MapMemObject::enqueueImp() {
   return CL_SUCCESS;
 }
 
-UnMapMemObject::UnMapMemObject(Requirement SrcReq, AllocaCommand *SrcAlloca,
+UnMapMemObject::UnMapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
                                Requirement *DstAcc, QueueImplPtr Queue,
                                bool UseExclusiveQueue)
     : Command(CommandType::UNMAP_MEM_OBJ, std::move(Queue), UseExclusiveQueue),
@@ -147,8 +165,8 @@ cl_int UnMapMemObject::enqueueImp() {
   return CL_SUCCESS;
 }
 
-MemCpyCommand::MemCpyCommand(Requirement SrcReq, AllocaCommand *SrcAlloca,
-                             Requirement DstReq, AllocaCommand *DstAlloca,
+MemCpyCommand::MemCpyCommand(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
+                             Requirement DstReq, AllocaCommandBase *DstAlloca,
                              QueueImplPtr SrcQueue, QueueImplPtr DstQueue,
                              bool UseExclusiveQueue)
     : Command(CommandType::COPY_MEMORY, std::move(DstQueue), UseExclusiveQueue),
@@ -196,7 +214,7 @@ cl_int MemCpyCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
-AllocaCommand *ExecCGCommand::getAllocaForReq(Requirement *Req) {
+AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
   for (const DepDesc &Dep : MDeps) {
     if (Dep.MReq == Req)
       return Dep.MAllocaCmd;
@@ -213,7 +231,7 @@ void ExecCGCommand::flushStreams() {
 }
 
 MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
-                                     AllocaCommand *SrcAlloca,
+                                     AllocaCommandBase *SrcAlloca,
                                      Requirement *DstAcc, QueueImplPtr SrcQueue,
                                      QueueImplPtr DstQueue)
     : Command(CommandType::COPY_MEMORY, std::move(DstQueue)),
@@ -308,7 +326,7 @@ cl_int ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::COPY_ACC_TO_PTR: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)Copy->getSrc();
-    AllocaCommand *AllocaCmd = getAllocaForReq(Req);
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
     MemoryManager::copy(
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
@@ -322,7 +340,7 @@ cl_int ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::COPY_PTR_TO_ACC: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Copy->getDst());
-    AllocaCommand *AllocaCmd = getAllocaForReq(Req);
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
     Scheduler::getInstance().getDefaultHostQueue();
 
@@ -341,8 +359,8 @@ cl_int ExecCGCommand::enqueueImp() {
     Requirement *ReqSrc = (Requirement *)(Copy->getSrc());
     Requirement *ReqDst = (Requirement *)(Copy->getDst());
 
-    AllocaCommand *AllocaCmdSrc = getAllocaForReq(ReqSrc);
-    AllocaCommand *AllocaCmdDst = getAllocaForReq(ReqDst);
+    AllocaCommandBase *AllocaCmdSrc = getAllocaForReq(ReqSrc);
+    AllocaCommandBase *AllocaCmdDst = getAllocaForReq(ReqDst);
 
     MemoryManager::copy(
         AllocaCmdSrc->getSYCLMemObj(), AllocaCmdSrc->getMemAllocation(), MQueue,
@@ -356,7 +374,7 @@ cl_int ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::FILL: {
     CGFill *Fill = (CGFill *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Fill->getReqToFill());
-    AllocaCommand *AllocaCmd = getAllocaForReq(Req);
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
     MemoryManager::fill(AllocaCmd->getSYCLMemObj(),
                         AllocaCmd->getMemAllocation(), MQueue,
@@ -375,7 +393,7 @@ cl_int ExecCGCommand::enqueueImp() {
       for (ArgDesc &Arg : ExecKernel->MArgs)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
-          AllocaCommand *AllocaCmd = getAllocaForReq(Req);
+          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
           Req->MData = AllocaCmd->getMemAllocation();
         }
       if (!RawEvents.empty())
@@ -400,7 +418,7 @@ cl_int ExecCGCommand::enqueueImp() {
       switch (Arg.MType) {
       case kernel_param_kind_t::kind_accessor: {
         Requirement *Req = (Requirement *)(Arg.MPtr);
-        AllocaCommand *AllocaCmd = getAllocaForReq(Req);
+        AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
         cl_mem MemArg = (cl_mem)AllocaCmd->getMemAllocation();
 
         PI_CALL(RT::piKernelSetArg(
