@@ -49,7 +49,7 @@ void MemoryManager::releaseMemBuf(ContextImplPtr TargetContext,
     return;
   }
 
-  PI_CALL(RT::piMemRelease(pi_cast<RT::PiMem>(MemAllocation)));
+  PI_CALL(RT::piMemRelease(pi::pi_cast<RT::PiMem>(MemAllocation)));
 }
 
 void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
@@ -279,18 +279,18 @@ void MemoryManager::copy(SYCLMemObjT *SYCLMemObj, void *SrcMem,
 
     else
       copyH2D(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
-              SrcAccessRange, SrcOffset, SrcElemSize, pi_cast<RT::PiMem>(DstMem),
+              SrcAccessRange, SrcOffset, SrcElemSize, pi::pi_cast<RT::PiMem>(DstMem),
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
               DstElemSize, std::move(DepEvents), UseExclusiveQueue, OutEvent);
   } else {
     if (TgtQueue->is_host())
-      copyD2H(SYCLMemObj, pi_cast<RT::PiMem>(SrcMem), std::move(SrcQueue), DimSrc,
+      copyD2H(SYCLMemObj, pi::pi_cast<RT::PiMem>(SrcMem), std::move(SrcQueue), DimSrc,
               SrcSize, SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem,
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
               DstElemSize, std::move(DepEvents), UseExclusiveQueue, OutEvent);
     else
-      copyD2D(SYCLMemObj, pi_cast<RT::PiMem>(SrcMem), std::move(SrcQueue), DimSrc,
-              SrcSize, SrcAccessRange, SrcOffset, SrcElemSize, pi_cast<RT::PiMem>(DstMem),
+      copyD2D(SYCLMemObj, pi::pi_cast<RT::PiMem>(SrcMem), std::move(SrcQueue), DimSrc,
+              SrcSize, SrcAccessRange, SrcOffset, SrcElemSize, pi::pi_cast<RT::PiMem>(DstMem),
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
               DstElemSize, std::move(DepEvents), UseExclusiveQueue, OutEvent);
   }
@@ -306,7 +306,7 @@ void MemoryManager::fill(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
 
   if (Dim == 1) {
     PI_CALL(RT::piEnqueueMemFill(
-        Queue->getHandleRef(), pi_cast<RT::PiMem>(Mem), Pattern, PatternSize, Offset[0],
+        Queue->getHandleRef(), pi::pi_cast<RT::PiMem>(Mem), Pattern, PatternSize, Offset[0],
         Range[0] * ElementSize, DepEvents.size(), &DepEvents[0], &OutEvent));
     return;
   }
@@ -350,7 +350,7 @@ void *MemoryManager::map(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   RT::PiResult Error = PI_SUCCESS;
   void *MappedPtr;
   PI_CALL((MappedPtr = RT::piEnqueueMemMap(
-      Queue->getHandleRef(), pi_cast<RT::PiMem>(Mem), CL_FALSE, Flags,
+      Queue->getHandleRef(), pi::pi_cast<RT::PiMem>(Mem), CL_FALSE, Flags,
       AccessOffset[0], AccessRange[0], DepEvents.size(),
       DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &Error), Error));
   return MappedPtr;
@@ -364,7 +364,7 @@ void MemoryManager::unmap(SYCLMemObjT *SYCLMemObj, void *Mem,
   PI_CALL(RT::piEnqueueMemUnmap(
       UseExclusiveQueue ? Queue->getExclusiveQueueHandleRef()
                         : Queue->getHandleRef(),
-      pi_cast<RT::PiMem>(Mem), MappedPtr, DepEvents.size(),
+      pi::pi_cast<RT::PiMem>(Mem), MappedPtr, DepEvents.size(),
       DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent));
 }
 

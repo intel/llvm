@@ -121,8 +121,8 @@ inline cl::sycl::detail::usm::CLUSM *GetCLUSM() {
   }
 
   cl::sycl::detail::usm::CLUSM *retVal = nullptr;
-  if (cl::sycl::detail::piUseBackend(
-          cl::sycl::detail::PiBackend::SYCL_BE_PI_OPENCL)) {
+  if (cl::sycl::detail::pi::piUseBackend(
+          cl::sycl::detail::pi::PiBackend::SYCL_BE_PI_OPENCL)) {
     retVal = gCLUSM;
   }
   return retVal;

@@ -28,7 +28,7 @@ namespace detail {
 
 void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
   // TODO: Handle return values. Store errors to async handler.
-  PI_CALL(RT::piEventSetStatus(pi_cast<RT::PiEvent>(data), CL_COMPLETE));
+  PI_CALL(RT::piEventSetStatus(pi::pi_cast<RT::PiEvent>(data), CL_COMPLETE));
 }
 
 // Method prepares PI event's from list sycl::event's
@@ -425,7 +425,7 @@ cl_int ExecCGCommand::enqueueImp() {
         usesUSM = true;
         auto PtrToPtr = reinterpret_cast<intptr_t*>(Arg.MPtr);
         auto DerefPtr = reinterpret_cast<void*>(*PtrToPtr);
-        auto theKernel = pi_cast<cl_kernel>(Kernel);
+        auto theKernel = pi::pi_cast<cl_kernel>(Kernel);
         CHECK_OCL_CODE(clSetKernelArgMemPointerINTEL(theKernel, Arg.MIndex, DerefPtr));
         break;
       }
@@ -442,7 +442,7 @@ cl_int ExecCGCommand::enqueueImp() {
     auto clusm = GetCLUSM();
     if (usesUSM && clusm) {
       cl_bool t = CL_TRUE;
-      auto theKernel = pi_cast<cl_kernel>(Kernel);
+      auto theKernel = pi::pi_cast<cl_kernel>(Kernel);
       // Enable USM Indirect Access for Kernels
       if (clusm->useCLUSM()) {
         CHECK_OCL_CODE(clusm->setKernelExecInfo(
@@ -457,7 +457,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
         // This passes all the allocations we've tracked as SVM Pointers
         CHECK_OCL_CODE(clusm->setKernelIndirectUSMExecInfo(
-            pi_cast<cl_command_queue>(MQueue->getHandleRef()), theKernel));
+            pi::pi_cast<cl_command_queue>(MQueue->getHandleRef()), theKernel));
       } else if (clusm->isInitialized()) {
         // Sanity check that nothing went wrong setting up clusm
         CHECK_OCL_CODE(clSetKernelExecInfo(

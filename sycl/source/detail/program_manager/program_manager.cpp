@@ -79,9 +79,9 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
                                         size_t DataLen) {
   RT::PiResult Err = PI_SUCCESS;
   RT::PiProgram Program;
-  PI_CALL((Program = pi_cast<pi_program>(
-               pi::piProgramCreate(pi_cast<pi_context>(Context), Data, DataLen,
-                                   pi_cast<pi_result *>(&Err))),
+  PI_CALL((Program = pi::pi_cast<pi_program>(
+               pi::piProgramCreate(pi::pi_cast<pi_context>(Context), Data, DataLen,
+                                   pi::pi_cast<pi_result *>(&Err))),
            Err));
   return Program;
 }
@@ -132,7 +132,8 @@ void ProgramManager::build(RT::PiProgram &Program, const string_class &Options,
   const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
 
   for (const auto &DeviceId : Devices) {
-    if (!device(pi_cast<cl_device_id>(DeviceId)).get_info<info::device::is_compiler_available>()) {
+    if (!createSyclObjFromImpl<device>(std::make_shared<device_impl_pi>(DeviceId)).
+            get_info<info::device::is_compiler_available>()) {
       throw feature_not_supported(
           "Online compilation is not supported by this device");
     }
@@ -306,7 +307,7 @@ RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
     throw runtime_error("Invalid device program image: size is zero");
   }
   size_t ImgSize = static_cast<size_t>(Img->BinaryEnd - Img->BinaryStart);
-  auto Format = pi_cast<RT::PiDeviceBinaryType>(Img->Format);
+  auto Format = pi::pi_cast<RT::PiDeviceBinaryType>(Img->Format);
 
   // Determine the format of the image if not set already
   if (Format == PI_DEVICE_BINARY_TYPE_NONE) {
