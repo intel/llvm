@@ -20,11 +20,11 @@ Release notes for commit 64c0262c0f0b9e1b7b2e2dcef57542a3fe3bdb97.
 
 ## Improvements
  - SYCL integration header is excluded from the dependency list.
- - Raw pointers capturing added the SYCL device front-end compiler. This
+ - Raw pointers capturing added to the SYCL device front-end compiler. This
    capability is required for Unified Shared Memory feature implementation.
  - SYCL device compiler enabled support for OpenCL types like event, sampler,
    images to simplify compilation of the SYCL code to SPIR-V format.
-   `CXXReflower` pass used to make "SPRI-V friendly LLVM IR" has been removed.
+   `CXXReflower` pass used to make "SPIR-V friendly LLVM IR" has been removed.
  - Intel FPGA loop attributes were renamed to avoid potential name conflicts.
  - Old scheduler has been removed.
  - `sampler` type support is added to the `set_arg` methods.
