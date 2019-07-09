@@ -194,7 +194,7 @@ public:
           !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD))
         SemaRef.Diag(E->getLocation(), diag::err_sycl_restrict)
             << KernelGlobalVariable;
-      if (!VD->isLocalVarDecl()) {
+      if (!VD->isLocalVarDeclOrParm() && VD->hasGlobalStorage()) {
         VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
         SemaRef.addSyclDeviceDecl(VD);
       }
