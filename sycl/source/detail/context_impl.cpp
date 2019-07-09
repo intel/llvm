@@ -44,14 +44,15 @@ context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
 
   m_Context = pi_cast<RT::PiContext>(ClContext);
   vector_class<RT::PiDevice> DeviceIds;
-  size_t DevicesBuffer = 0;
+  size_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
   PI_CALL(RT::piContextGetInfo(m_Context, PI_CONTEXT_INFO_NUM_DEVICES,
-                               0, nullptr, &DevicesBuffer));
-  DeviceIds.resize(DevicesBuffer / sizeof(RT::PiDevice));
+                               sizeof(DevicesNum), &DevicesNum, nullptr));
+  DeviceIds.resize(DevicesNum);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(RT::piContextGetInfo(m_Context, PI_CONTEXT_INFO_DEVICES,
-                               DevicesBuffer, &DeviceIds[0], nullptr));
+  PI_CALL(RT::piContextGetInfo(
+      m_Context, PI_CONTEXT_INFO_DEVICES,
+      sizeof(RT::PiDevice) * DevicesNum, &DeviceIds[0], nullptr));
 
   for (auto Dev : DeviceIds) {
     m_Devices.emplace_back(
