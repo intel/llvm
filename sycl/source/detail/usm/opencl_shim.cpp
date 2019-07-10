@@ -115,7 +115,7 @@ CL_API_ENTRY cl_int CL_API_CALL clSetKernelArgMemPointerINTEL(
   cl_int retVal = CL_INVALID_OPERATION;
 
   if (pfn_clSetKernelArgMemPointerINTEL) {
-    retVal = clSetKernelArgMemPointerINTEL(kernel, arg_index, arg_value);
+    retVal = pfn_clSetKernelArgMemPointerINTEL(kernel, arg_index, arg_value);
   } else if (GetCLUSM()) {
     retVal = clSetKernelArgSVMPointer(kernel, arg_index, arg_value);
   }
