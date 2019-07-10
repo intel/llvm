@@ -17,31 +17,27 @@
 #define __MAKE_1V(Fun, Call, N, Ret, Arg1)                                     \
   Ret##N Fun __NOEXC(Arg1##N x) {                                              \
     Ret##N r;                                                                  \
-    using base_t = typename Arg1##N::element_type;                             \
     detail::helper<N - 1>().run_1v(                                            \
-        r, [](base_t x) { return cl::__host_std::Call(x); }, x);               \
+      r, [](Arg1 x) {                                                          \
+        return cl::__host_std::Call(x); }, x);                                 \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2V(Fun, Call, N, Ret, Arg1, Arg2)                            \
   Ret##N Fun __NOEXC(Arg1##N x, Arg2##N y) {                                   \
     Ret##N r;                                                                  \
-    using base1_t = typename Arg1##N::element_type;                            \
-    using base2_t = typename Arg2##N::element_type;                            \
     detail::helper<N - 1>().run_1v_2v(                                         \
-        r, [](base1_t x, base2_t y) { return cl::__host_std::Call(x, y); }, x, \
-        y);                                                                    \
+        r, [](Arg1 x, Arg2 y) {                                                \
+          return cl::__host_std::Call(x, y); }, x, y);                         \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2V_RS(Fun, Call, N, Ret, Arg1, Arg2)                         \
   Ret Fun __NOEXC(Arg1##N x, Arg2##N y) {                                      \
     Ret r = Ret();                                                             \
-    using base1_t = typename Arg1##N::element_type;                            \
-    using base2_t = typename Arg2##N::element_type;                            \
     detail::helper<N - 1>().run_1v_2v_rs(                                      \
         r,                                                                     \
-        [](Ret &r, base1_t x, base2_t y) {                                     \
+        [](Ret &r, Arg1 x, Arg2 y) {                                           \
           return cl::__host_std::Call(r, x, y);                                \
         },                                                                     \
         x, y);                                                                 \
@@ -51,21 +47,18 @@
 #define __MAKE_1V_RS(Fun, Call, N, Ret, Arg1)                                  \
   Ret Fun __NOEXC(Arg1##N x) {                                                 \
     Ret r = Ret();                                                             \
-    using base1_t = typename Arg1##N::element_type;                            \
     detail::helper<N - 1>().run_1v_rs(                                         \
-        r, [](Ret &r, base1_t x) { return cl::__host_std::Call(r, x); }, x);   \
+      r, [](Ret &r, Arg1 x) {                                                  \
+        return cl::__host_std::Call(r, x); }, x);                              \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2V_3V(Fun, Call, N, Ret, Arg1, Arg2, Arg3)                   \
   Ret##N Fun __NOEXC(Arg1##N x, Arg2##N y, Arg3##N z) {                        \
     Ret##N r;                                                                  \
-    using base1_t = typename Arg1##N::element_type;                            \
-    using base2_t = typename Arg2##N::element_type;                            \
-    using base3_t = typename Arg3##N::element_type;                            \
     detail::helper<N - 1>().run_1v_2v_3v(                                      \
         r,                                                                     \
-        [](base1_t x, base2_t y, base3_t z) {                                  \
+        [](Arg1 x, Arg2 y, Arg3 z) {                                           \
           return cl::__host_std::Call(x, y, z);                                \
         },                                                                     \
         x, y, z);                                                              \
@@ -75,10 +68,9 @@
 #define __MAKE_1V_2S_3S(Fun, N, Ret, Arg1, Arg2, Arg3)                         \
   Ret##N Fun __NOEXC(Arg1##N x, Arg2 y, Arg3 z) {                              \
     Ret##N r;                                                                  \
-    using base1_t = typename Arg1##N::element_type;                            \
     detail::helper<N - 1>().run_1v_2s_3s(                                      \
         r,                                                                     \
-        [](base1_t x, Arg2 y, Arg3 z) {                                        \
+        [](Arg1 x, Arg2 y, Arg3 z) {                                           \
           return cl::__host_std::Fun(x, y, z);                                 \
         },                                                                     \
         x, y, z);                                                              \
@@ -88,50 +80,43 @@
 #define __MAKE_1V_2S(Fun, N, Ret, Arg1, Arg2)                                  \
   Ret##N Fun __NOEXC(Arg1##N x, Arg2 y) {                                      \
     Ret##N r;                                                                  \
-    using base1_t = typename Arg1##N::element_type;                            \
     detail::helper<N - 1>().run_1v_2s(                                         \
-        r, [](base1_t x, Arg2 y) { return cl::__host_std::Fun(x, y); }, x, y); \
+      r, [](Arg1 x, Arg2 y) { return cl::__host_std::Fun(x, y); },             \
+      x, y);                                                                   \
     return r;                                                                  \
   }
 
 #define __MAKE_SR_1V_AND(Fun, Call, N, Ret, Arg1)                              \
   Ret Fun __NOEXC(Arg1##N x) {                                                 \
     Ret r;                                                                     \
-    using base_t = typename Arg1##N::element_type;                             \
     detail::helper<N - 1>().run_1v_sr_and(                                     \
-        r, [](base_t x) { return cl::__host_std::Call(x); }, x);               \
+      r, [](Arg1 x) { return cl::__host_std::Call(x); }, x);                   \
     return r;                                                                  \
   }
 
 #define __MAKE_SR_1V_OR(Fun, Call, N, Ret, Arg1)                               \
   Ret Fun __NOEXC(Arg1##N x) {                                                 \
     Ret r;                                                                     \
-    using base_t = typename Arg1##N::element_type;                             \
     detail::helper<N - 1>().run_1v_sr_or(                                      \
-        r, [](base_t x) { return cl::__host_std::Call(x); }, x);               \
+      r, [](Arg1 x) { return cl::__host_std::Call(x); }, x);                   \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2P(Fun, N, Ret, Arg1, Arg2)                                  \
   Ret##N Fun __NOEXC(Arg1##N x, Arg2##N *y) {                                  \
     Ret##N r;                                                                  \
-    using base1_t = typename Arg1##N::element_type;                            \
-    using base2_t = typename Arg2##N::element_type;                            \
     detail::helper<N - 1>().run_1v_2p(                                         \
-        r, [](base1_t x, base2_t *y) { return cl::__host_std::Fun(x, y); }, x, \
-        y);                                                                    \
+      r, [](Arg1 x, Arg2 *y) {                                                 \
+        return cl::__host_std::Fun(x, y); }, x, y);                            \
     return r;                                                                  \
   }
 
 #define __MAKE_1V_2V_3P(Fun, N, Ret, Arg1, Arg2, Arg3)                         \
   Ret##N Fun __NOEXC(Arg1##N x, Arg2##N y, Arg3##N *z) {                       \
     Ret##N r;                                                                  \
-    using base1_t = typename Arg1##N::element_type;                            \
-    using base2_t = typename Arg2##N::element_type;                            \
-    using base3_t = typename Arg3##N::element_type;                            \
     detail::helper<N - 1>().run_1v_2v_3p(                                      \
         r,                                                                     \
-        [](base1_t x, base2_t y, base3_t *z) {                                 \
+        [](Arg1 x, Arg2 y, Arg3 *z) {                                          \
           return cl::__host_std::Fun(x, y, z);                                 \
         },                                                                     \
         x, y, z);                                                              \
