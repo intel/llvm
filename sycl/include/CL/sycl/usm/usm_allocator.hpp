@@ -18,7 +18,7 @@
 namespace cl {
 namespace sycl {
 
-template <typename T, alloc AllocKind, size_t Alignment = 0>
+template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
 public:
   using value_type = T;
@@ -42,9 +42,9 @@ public:
   // Note: AllocKind == alloc::device is not allowed
   void construct(pointer Ptr, const_reference Val) {
 #ifndef __SYCL_DEVICE_ONLY__
-    if (AllocKind == alloc::device) {
-      throw
-        feature_not_supported("Device pointers not allowed with construct on host");
+    if (AllocKind == usm::alloc::device) {
+      throw feature_not_supported(
+          "Device pointers not allowed with construct on host");
     }
 #endif
     new (Ptr) value_type(Val);
@@ -54,9 +54,9 @@ public:
   // Note:: AllocKind == alloc::device is not allowed
   void destroy(pointer Ptr) {
 #ifndef __SYCL_DEVICE_ONLY__
-    if (AllocKind == alloc::device) {
-      throw
-        feature_not_supported("Device pointers not allowed with destroy on host");
+    if (AllocKind == usm::alloc::device) {
+      throw feature_not_supported(
+          "Device pointers not allowed with destroy on host");
     }
 #endif
     Ptr->~value_type();
@@ -64,19 +64,19 @@ public:
 
   // Note:: AllocKind == alloc::device is not allowed
   pointer address(reference Val) const {
-    #ifndef __SYCL_DEVICE_ONLY__
-    if (AllocKind == alloc::device) {
-      throw
-        feature_not_supported("Device pointers not allowed with addressy on host");
+#ifndef __SYCL_DEVICE_ONLY__
+    if (AllocKind == usm::alloc::device) {
+      throw feature_not_supported(
+          "Device pointers not allowed with addressy on host");
     }
 #endif
     return &Val;
   }
   const_pointer address(const_reference Val) const {
-     #ifndef __SYCL_DEVICE_ONLY__
-    if (AllocKind == alloc::device) {
-      throw
-        feature_not_supported("Device pointers not allowed with addressy on host");
+#ifndef __SYCL_DEVICE_ONLY__
+    if (AllocKind == usm::alloc::device) {
+      throw feature_not_supported(
+          "Device pointers not allowed with addressy on host");
     }
 #endif
     return &Val;

@@ -17,7 +17,7 @@ namespace detail {
 namespace usm {
 
 void *alignedAlloc(size_t alignment, size_t bytes, const context *ctxt,
-                   const device *dev, alloc kind);
+                   const device *dev, cl::sycl::usm::alloc kind);
 
 void free(void *ptr, const context *ctxt);
 

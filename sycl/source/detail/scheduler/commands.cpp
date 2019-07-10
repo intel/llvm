@@ -440,43 +440,34 @@ cl_int ExecCGCommand::enqueueImp() {
     cl_bool t = CL_TRUE;
     // Enable USM Indirect Access for Kernels
     if (clusm && clusm->useCLUSM()) {
-      CHECK_OCL_CODE(
-        clusm->setKernelExecInfo(pi_cast<cl_kernel>(Kernel),
-                                 CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-                                 sizeof(cl_bool),
-                                 &t));
-      CHECK_OCL_CODE(
-        clusm->setKernelExecInfo(pi_cast<cl_kernel>(Kernel),
-                                 CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-                                 sizeof(cl_bool),
-                                 &t));
-      CHECK_OCL_CODE(
-        clusm->setKernelExecInfo(pi_cast<cl_kernel>(Kernel),
-                                 CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-                                 sizeof(cl_bool),
-                                 &t));
+      CHECK_OCL_CODE(clusm->setKernelExecInfo(
+          pi_cast<cl_kernel>(Kernel),
+          CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL, sizeof(cl_bool), &t));
+      CHECK_OCL_CODE(clusm->setKernelExecInfo(
+          pi_cast<cl_kernel>(Kernel),
+          CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL, sizeof(cl_bool),
+          &t));
+      CHECK_OCL_CODE(clusm->setKernelExecInfo(
+          pi_cast<cl_kernel>(Kernel),
+          CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL, sizeof(cl_bool),
+          &t));
 
       // This passes all the allocations we've tracked as SVM Pointers
       CHECK_OCL_CODE(clusm->setKernelIndirectUSMExecInfo(
           MQueue->getHandleRef(), pi_cast<cl_kernel>(Kernel)));
-    }
-    else if (clusm && clusm->isInitialized()) {
+    } else if (clusm && clusm->isInitialized()) {
       // Sanity check that nothing went wrong setting up clusm
+      CHECK_OCL_CODE(clSetKernelExecInfo(
+          pi_cast<cl_kernel>(Kernel),
+          CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL, sizeof(cl_bool), &t));
       CHECK_OCL_CODE(
-        clSetKernelExecInfo(pi_cast<cl_kernel>(Kernel),
-                            CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-                            sizeof(cl_bool),
-                            &t));
+          clSetKernelExecInfo(pi_cast<cl_kernel>(Kernel),
+                              CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+                              sizeof(cl_bool), &t));
       CHECK_OCL_CODE(
-        clSetKernelExecInfo(pi_cast<cl_kernel>(Kernel),
-                            CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-                            sizeof(cl_bool),
-                            &t));
-      CHECK_OCL_CODE(
-        clSetKernelExecInfo(pi_cast<cl_kernel>(Kernel),
-                            CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-                            sizeof(cl_bool),
-                            &t));
+          clSetKernelExecInfo(pi_cast<cl_kernel>(Kernel),
+                              CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+                              sizeof(cl_bool), &t));
     }
 
     PI_CALL(RT::piEnqueueKernelLaunch(

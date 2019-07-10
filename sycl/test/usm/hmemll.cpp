@@ -8,7 +8,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
@@ -16,26 +15,24 @@ using namespace cl::sycl;
 int numNodes = 4;
 
 struct Node {
-    Node() :
-        pNext( nullptr ),
-        Num( 0xDEADBEEF ) {}
+  Node() : pNext(nullptr), Num(0xDEADBEEF) {}
 
-    Node*   pNext;
-    uint32_t Num;
+  Node *pNext;
+  uint32_t Num;
 };
 
 class foo;
 int main() {
   bool failed = false;
-  
+
   queue q;
   auto ctxt = q.get_context();
-  Node* d_head = nullptr;
-  Node* d_cur = nullptr;
-  
+  Node *d_head = nullptr;
+  Node *d_cur = nullptr;
+
   for (int i = 0; i < numNodes; i++) {
     if (i == 0) {
-      d_head = (Node *) malloc_host(sizeof(Node), ctxt);
+      d_head = (Node *)malloc_host(sizeof(Node), ctxt);
       if (d_head == nullptr) {
         failed = true;
         break;
@@ -46,43 +43,42 @@ int main() {
     d_cur->Num = i * 2;
 
     if (i != (numNodes - 1)) {
-      d_cur->pNext = (Node *) malloc_host(sizeof(Node), ctxt);
+      d_cur->pNext = (Node *)malloc_host(sizeof(Node), ctxt);
       if (d_cur->pNext == nullptr) {
         failed = true;
         break;
       }
-    }
-    else {
+    } else {
       d_cur->pNext = nullptr;
     }
 
     d_cur = d_cur->pNext;
   }
-  
+
   if (!failed) {
-    auto e1 = q.submit([=](handler& cgh) {
-        cgh.single_task<class foo>([=]() {
-            Node* pHead = d_head;
-            while (pHead) {
-              pHead->Num = pHead->Num * 2 + 1;
-              pHead = pHead->pNext;
-            }
-          });
+    auto e1 = q.submit([=](handler &cgh) {
+      cgh.single_task<class foo>([=]() {
+        Node *pHead = d_head;
+        while (pHead) {
+          pHead->Num = pHead->Num * 2 + 1;
+          pHead = pHead->pNext;
+        }
       });
-    
+    });
+
     e1.wait();
-    
+
     d_cur = d_head;
     for (int i = 0; i < numNodes; i++) {
-      const int want = i*4 + 1;
+      const int want = i * 4 + 1;
       if (d_cur->Num != want) {
         failed = true;
       }
-      Node* old = d_cur;
+      Node *old = d_cur;
       d_cur = d_cur->pNext;
       free(old, ctxt);
     }
-  } 
+  }
 
   return failed;
 }

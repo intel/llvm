@@ -9,8 +9,10 @@
 
 namespace cl {
 namespace sycl {
+namespace usm {
 
-enum class alloc { host, device, shared };
+enum class alloc { host, device, shared, unknown };
 
+} // namespace usm
 } // namespace sycl
 } // namespace cl

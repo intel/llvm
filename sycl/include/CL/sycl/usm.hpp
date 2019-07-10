@@ -18,32 +18,32 @@ namespace sycl {
 ///
 // Explicit USM
 ///
-  void *malloc_device(size_t size, const device &dev, const context &ctxt); 
+void *malloc_device(size_t size, const device &dev, const context &ctxt);
 
-  void *aligned_alloc_device(size_t alignment, size_t size, const device &dev,
-                             const context &ctxt);
+void *aligned_alloc_device(size_t alignment, size_t size, const device &dev,
+                           const context &ctxt);
 
-  void free(void *ptr, const context &ctxt);
+void free(void *ptr, const context &ctxt);
 
 ///
 // Restricted USM
 ///
-  void *malloc_host(size_t size, const context &ctxt);
+void *malloc_host(size_t size, const context &ctxt);
 
-  void *malloc_shared(size_t size, const device &dev, const context &ctxt);
+void *malloc_shared(size_t size, const device &dev, const context &ctxt);
 
-  void *aligned_alloc_host(size_t alignment, size_t size, const context &ctxt);
+void *aligned_alloc_host(size_t alignment, size_t size, const context &ctxt);
 
-  void *aligned_alloc_shared(size_t alignment, size_t size, const device &dev,
-                             const context &ctxt);
+void *aligned_alloc_shared(size_t alignment, size_t size, const device &dev,
+                           const context &ctxt);
 
 // single form
 
 void *malloc(size_t size, const device &dev, const context &ctxt,
-             cl::sycl::alloc kind);
+             usm::alloc kind);
 
 void *aligned_alloc(size_t alignment, size_t size, const device &dev,
-                    const context &ctxt, cl::sycl::alloc kind);
+                    const context &ctxt, usm::alloc kind);
 
 } // namespace sycl
 } // namespace cl

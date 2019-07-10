@@ -12,6 +12,9 @@
 
 namespace cl {
 namespace sycl {
+
+using alloc = cl::sycl::usm::alloc;
+
 namespace detail {
 namespace usm {
 
@@ -36,6 +39,11 @@ void *alignedAlloc(size_t alignment, size_t size, const context *ctxt,
   case alloc::shared: {
     id = dev->get();
     retVal = clSharedMemAllocINTEL(c, id, nullptr, size, alignment, &error);
+    break;
+  }
+  case alloc::unknown: {
+    retVal = nullptr;
+    error = CL_MEM_OBJECT_ALLOCATION_FAILURE;
     break;
   }
   }
@@ -93,13 +101,12 @@ void *aligned_alloc_shared(size_t alignment, size_t size, const device &dev,
 
 // single form
 
-void *malloc(size_t size, const device &dev, const context &ctxt,
-             cl::sycl::alloc kind) {
+void *malloc(size_t size, const device &dev, const context &ctxt, alloc kind) {
   return detail::usm::alignedAlloc(0, size, &ctxt, &dev, kind);
 }
 
 void *aligned_alloc(size_t alignment, size_t size, const device &dev,
-                    const context &ctxt, cl::sycl::alloc kind) {
+                    const context &ctxt, alloc kind) {
   return detail::usm::alignedAlloc(alignment, size, &ctxt, &dev, kind);
 }
 
