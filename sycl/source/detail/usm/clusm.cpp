@@ -193,9 +193,8 @@ cl_int CLUSM::getMemAllocInfoINTEL(cl_context context, const void *ptr,
 
   const SUSMAllocInfo &allocInfo = iter->second;
 
-  auto startPtr = allocInfo.BaseAddress;
+  auto startPtr = static_cast<const char *>(allocInfo.BaseAddress);
   auto endPtr = startPtr + allocInfo.Size;
-
   if (ptr < startPtr || ptr >= endPtr) {
     return CL_INVALID_MEM_OBJECT;
   }
