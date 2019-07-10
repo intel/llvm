@@ -46,8 +46,8 @@ int main() {
           sarray[i] = MAGIC_NUM-1;
           harray[i] = 1;
         }
-        
-        auto e0 = q.memset(darray, 0, N);
+
+        auto e0 = q.memset(darray, 0, N * sizeof(int));
         e0.wait();
         
         if (!failed) {
