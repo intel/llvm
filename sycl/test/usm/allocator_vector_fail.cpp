@@ -1,6 +1,7 @@
 // RUN: %clang -std=c++11 -fsycl %s -o %t1.out -lstdc++ -lOpenCL -lsycl
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
-//==---- allocator_vector.cpp - Allocator Container test -------------------==//
+// XFAIL: *
+//==-- allocator_vector_fail.cpp - Device Memory Allocator fail test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,7 +26,7 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  usm_allocator<int, usm::alloc::host> alloc(&ctxt, &dev);
+  usm_allocator<int, usm::alloc::device> alloc(&ctxt, &dev);
 
   std::vector<int, decltype(alloc)> vec(N, alloc);
 
