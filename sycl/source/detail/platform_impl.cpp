@@ -18,15 +18,7 @@ platform_impl_pi::get_platforms() {
   vector_class<platform> platforms;
 
   pi_uint32 num_platforms = 0;
-  auto Err = PI_CALL_RESULT(RT::piPlatformsGet(0, 0, &num_platforms));
-
-  // TODO: remove this check when switch to PI, which will just return  0 in
-  // num_platforms.
-  //
-  if (Err == CL_PLATFORM_NOT_FOUND_KHR)
-    return platforms;
-
-  PI_CHECK(Err);
+  PI_CALL(RT::piPlatformsGet(0, 0, &num_platforms));
   info::device_type forced_type = detail::get_forced_type();
 
   if (num_platforms) {
@@ -61,19 +53,11 @@ platform_impl_pi::get_devices(info::device_type deviceType) const {
     return res;
 
   pi_uint32 num_devices;
-  auto err = PI_CALL_RESULT(RT::piDevicesGet(
-    m_platform, pi_cast<RT::PiDeviceType>(deviceType), 0, 0, &num_devices));
-
-  // TODO: remove this check when switched to PI as it would just return
-  // zero in num_devices.
-  if (err == CL_DEVICE_NOT_FOUND)
-    return res;
+  PI_CALL(RT::piDevicesGet(
+      m_platform, pi_cast<RT::PiDeviceType>(deviceType), 0, 0, &num_devices));
 
   if (num_devices == 0)
     return res;
-
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CHECK(err);
 
   vector_class<RT::PiDevice> pi_devices(num_devices);
   // TODO catch an exception and put it to list of asynchronous exceptions

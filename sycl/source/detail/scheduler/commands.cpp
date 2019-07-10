@@ -265,8 +265,8 @@ cl_int MemCpyCommandHost::enqueueImp() {
 // number of work - groups, such that the size of each group is chosen by the
 // runtime, or by the number of work - groups and number of work - items for
 // users who need more control.
-static void adjustNDRangePerKernel(NDRDescT &NDR, cl_kernel Kernel,
-                                   cl_device_id Device) {
+static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
+                                   RT::PiDevice Device) {
   if (NDR.GlobalSize[0] != 0)
     return; // GlobalSize is set - no need to adjust
   // check the prerequisites:
@@ -422,7 +422,10 @@ cl_int ExecCGCommand::enqueueImp() {
         assert(!"Unhandled");
       }
     }
-    adjustNDRangePerKernel(NDRDesc, Kernel, MQueue->get_device().get());
+    adjustNDRangePerKernel(NDRDesc, Kernel,
+                           detail::getSyclObjImpl(
+                               MQueue->get_device())->getHandleRef());
+
     PI_CALL(RT::piEnqueueKernelLaunch(
         MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0],
