@@ -149,8 +149,8 @@ using rel_t = typename std::conditional<
 template <typename T> class GetOp {
 public:
   using DataT = T;
-  DataT getValue(size_t Index) const;
-  DataT operator()(DataT LHS, DataT Rhs);
+  DataT getValue(size_t Index) const { return 0; }
+  DataT operator()(DataT LHS, DataT Rhs) { return 0; }
 };
 
 // Special type for working SwizzleOp with scalars, stores a scalar and gives
