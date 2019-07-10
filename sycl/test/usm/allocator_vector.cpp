@@ -15,7 +15,6 @@
 using namespace cl::sycl;
 
 const int N = 8;
-;
 
 class foo;
 int main() {

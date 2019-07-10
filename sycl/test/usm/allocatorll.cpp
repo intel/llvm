@@ -49,7 +49,6 @@ int main() {
 
     if (i != (numNodes - 1)) {
       h_cur.pNext = alloc.allocate(1);
-      ;
       if (h_cur.pNext == nullptr) {
         failed = true;
         break;
