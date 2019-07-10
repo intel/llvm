@@ -138,8 +138,10 @@ public:
          event AvailableEvent = {}) {
 
     size_t BufSize = 0;
-    CHECK_OCL_CODE(clGetMemObjectInfo(MemObject, CL_MEM_SIZE, sizeof(size_t),
-                                      &BufSize, nullptr));
+    PI_CALL(detail::RT::piMemGetInfo(
+        detail::pi_cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
+        sizeof(size_t), &BufSize, nullptr));
+
     Range[0] = BufSize / sizeof(T);
     MemRange[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(

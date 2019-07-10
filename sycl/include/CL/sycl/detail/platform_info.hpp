@@ -20,7 +20,7 @@ template <typename T, info::platform param> struct get_platform_info {};
 
 template <info::platform param>
 struct get_platform_info<string_class, param> {
-  static string_class _(RT::pi_platform plt) {
+  static string_class _(RT::PiPlatform plt) {
     size_t resultSize;
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piPlatformGetInfo(
@@ -39,7 +39,7 @@ struct get_platform_info<string_class, param> {
 template <>
 struct get_platform_info<vector_class<string_class>,
                          info::platform::extensions> {
-  static vector_class<string_class> _(RT::pi_platform plt) {
+  static vector_class<string_class> _(RT::PiPlatform plt) {
     string_class result =
         get_platform_info<string_class, info::platform::extensions>::_(plt);
     return split_string(result, ' ');

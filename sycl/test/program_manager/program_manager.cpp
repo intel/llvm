@@ -13,6 +13,7 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/os_util.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/program_manager/program_manager.hpp>
 
 #include <cassert>
@@ -26,15 +27,15 @@ int main() {
   auto &PM = detail::ProgramManager::getInstance();
   auto M = detail::OSUtil::ExeModuleHandle;
 
-  const cl_program ClProgramFirst = PM.getBuiltOpenCLProgram(M, ContextFirst);
-  const cl_program ClProgramSecond = PM.getBuiltOpenCLProgram(M, ContextSecond);
+  const detail::RT::PiProgram ClProgramFirst = PM.getBuiltOpenCLProgram(M, ContextFirst);
+  const detail::RT::PiProgram ClProgramSecond = PM.getBuiltOpenCLProgram(M, ContextSecond);
   // The check what getBuiltOpenCLProgram returns unique cl_program for unique
   // context
   assert(ClProgramFirst != ClProgramSecond);
   for (size_t i = 0; i < 10; ++i) {
-    const cl_program ClProgramFirstNew =
+    const detail::RT::PiProgram ClProgramFirstNew =
         PM.getBuiltOpenCLProgram(M, ContextFirst);
-    const cl_program ClProgramSecondNew =
+    const detail::RT::PiProgram ClProgramSecondNew =
         PM.getBuiltOpenCLProgram(M, ContextSecond);
     // The check what getBuiltOpenCLProgram returns the same program for the
     // same context each time

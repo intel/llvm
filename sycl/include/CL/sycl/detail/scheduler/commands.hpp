@@ -98,7 +98,7 @@ protected:
   QueueImplPtr MQueue;
   std::vector<EventImplPtr> MDepsEvents;
 
-  std::vector<cl_event> prepareEvents(ContextImplPtr Context);
+  std::vector<RT::PiEvent> prepareEvents(ContextImplPtr Context);
 
   bool MUseExclusiveQueue = false;
 

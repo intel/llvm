@@ -279,7 +279,7 @@ public:
 
   // TODO: Implement this function.
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    cl_event &OutEventToWait) override {
+                    RT::PiEvent &OutEventToWait) override {
     if (true)
       throw cl::sycl::feature_not_supported(
           "MemoryAllocation Function Not Implemented for image class");

@@ -18,13 +18,19 @@ platform_impl_pi::get_platforms() {
   vector_class<platform> platforms;
 
   pi_uint32 num_platforms = 0;
-  // TODO this bypasses PI_CALL macro as a temporary fix for the case with 0
-  // OpenCL platforms
-  RT::piPlatformsGet(0, 0, &num_platforms);
+  auto Err = PI_CALL_RESULT(RT::piPlatformsGet(0, 0, &num_platforms));
+
+  // TODO: remove this check when switch to PI, which will just return  0 in
+  // num_platforms.
+  //
+  if (Err == CL_PLATFORM_NOT_FOUND_KHR)
+    return platforms;
+
+  PI_CHECK(Err);
   info::device_type forced_type = detail::get_forced_type();
 
   if (num_platforms) {
-    vector_class<RT::pi_platform> pi_platforms(num_platforms);
+    vector_class<RT::PiPlatform> pi_platforms(num_platforms);
     PI_CALL(RT::piPlatformsGet(num_platforms, pi_platforms.data(), 0));
 
     for (pi_uint32 i = 0; i < num_platforms; i++) {
@@ -32,7 +38,6 @@ platform_impl_pi::get_platforms() {
       platform plt =
         detail::createSyclObjFromImpl<platform>(
           std::make_shared<platform_impl_pi>(pi_platforms[i]));
-
       // Skip platforms which do not contain requested device types
       if (!plt.get_devices(forced_type).empty())
         platforms.push_back(plt);
@@ -56,26 +61,28 @@ platform_impl_pi::get_devices(info::device_type deviceType) const {
     return res;
 
   pi_uint32 num_devices;
-  auto err = RT::piDevicesGet(
-    m_platform, pi_cast<pi_device_type>(deviceType), 0, 0, &num_devices);
+  auto err = PI_CALL_RESULT(RT::piDevicesGet(
+    m_platform, pi_cast<RT::PiDeviceType>(deviceType), 0, 0, &num_devices));
 
   // TODO: remove this check when switched to PI as it would just return
   // zero in num_devices.
   if (err == CL_DEVICE_NOT_FOUND)
     return res;
 
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  // TODO: remove dependency on CHECK_OCL_CODE
-  CHECK_OCL_CODE(err);
+  if (num_devices == 0)
+    return res;
 
-  vector_class<RT::pi_device> pi_devices(num_devices);
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  PI_CHECK(err);
+
+  vector_class<RT::PiDevice> pi_devices(num_devices);
   // TODO catch an exception and put it to list of asynchronous exceptions
   PI_CALL(RT::piDevicesGet(
-    m_platform, pi_cast<pi_device_type>(deviceType), num_devices,
+    m_platform, pi_cast<RT::PiDeviceType>(deviceType), num_devices,
     pi_devices.data(), 0));
 
   std::for_each(pi_devices.begin(), pi_devices.end(),
-                [&res](const RT::pi_device &a_pi_device) {
+                [&res](const RT::PiDevice &a_pi_device) {
     device sycl_device =
       detail::createSyclObjFromImpl<device>(
         std::make_shared<device_impl_pi>(a_pi_device));

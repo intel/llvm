@@ -27,7 +27,7 @@ device::device() : impl(std::make_shared<detail::device_host>()) {}
 
 device::device(cl_device_id deviceId)
     : impl(std::make_shared<detail::device_impl_pi>(
-      detail::pi_cast<detail::RT::pi_device>(deviceId))) {}
+      detail::pi_cast<detail::RT::PiDevice>(deviceId))) {}
 
 device::device(const device_selector &deviceSelector) {
   *this = deviceSelector.select_device();

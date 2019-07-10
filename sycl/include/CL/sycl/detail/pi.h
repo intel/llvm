@@ -34,6 +34,7 @@
 extern "C" {
 #endif // __cplusplus
 
+typedef  int32_t    pi_int32;
 typedef uint32_t    pi_uint32;
 typedef uint64_t    pi_uint64;
 typedef pi_uint32   pi_bool;
@@ -74,10 +75,35 @@ typedef enum {
   PI_DEVICE_INFO_PARTITION_TYPE = CL_DEVICE_PARTITION_TYPE
 } _pi_device_info;
 
+// TODO: populate
+typedef enum {
+  PI_CONTEXT_INFO_DEVICES     = CL_CONTEXT_DEVICES,
+  PI_CONTEXT_INFO_NUM_DEVICES = CL_CONTEXT_NUM_DEVICES
+} _pi_context_info;
+
+// TODO: populate
+typedef enum {
+  PI_QUEUE_INFO_DEVICE          = CL_QUEUE_DEVICE,
+  PI_QUEUE_INFO_REFERENCE_COUNT = CL_QUEUE_REFERENCE_COUNT
+} _pi_queue_info;
+
+// NOTE: this is made 64-bit to match the size of cl_mem_flags to
+// make the translation to OpenCL transparent.
+// TODO: populate
+//
+typedef pi_uint64 pi_mem_flags;
+// Access
+const pi_uint64 PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
+// Host pointer
+const pi_uint64 PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
+const pi_uint64 PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+
 typedef _pi_result                  pi_result;
 typedef _pi_platform_info           pi_platform_info;
 typedef _pi_device_type             pi_device_type;
 typedef _pi_device_info             pi_device_info;
+typedef _pi_context_info            pi_context_info;
+typedef _pi_queue_info              pi_queue_info;
 
 // Opaque data type for compatibility with OpenMP.
 typedef void * _pi_offload_entry;
@@ -158,25 +184,42 @@ struct pi_device_binaries_struct {
 typedef pi_device_binaries_struct *  pi_device_binaries;
 
 // Opaque types that make reading build log errors easier.
-class _pi_platform;
-class _pi_device;
-class _pi_context;
+struct _pi_platform;
+struct _pi_device;
+struct _pi_context;
+struct _pi_queue;
+struct _pi_mem;
+struct _pi_program;
+struct _pi_kernel;
+struct _pi_event;
+struct _pi_sampler;
 
 typedef _pi_platform *    pi_platform;
 typedef _pi_device *      pi_device;
 typedef _pi_context *     pi_context;
-// TODO: remove dependency on OpenCL
-typedef cl_program        pi_program;
+typedef _pi_queue *       pi_queue;
+typedef _pi_mem *         pi_mem;
+typedef _pi_program *     pi_program;
+typedef _pi_kernel *      pi_kernel;
+typedef _pi_event *       pi_event;
+typedef _pi_sampler *     pi_sampler;
 
 //
-// Following section contains SYCL RT Plugin Interface (PI) methods
-// having direct analogy in OpenCL, and needed for the core SYCL
-// functionality. The convention is to prefix such interfaces with "pi".
+// Following section contains SYCL RT Plugin Interface (PI) functions.
+// They are 3 distinict categories:
+//
+// 1) Ones having direct analogy in OpenCL and needed for the core SYCL
+//    functionality are started with just "pi" prefix in their names.
+// 2) Those having direct analogy in OpenCL but only needed for SYCL
+//    interoperability with OpenCL are started with "picl" prefix.
+// 3) Functions having no direct analogy in OpenCL, started with "piext".
 //
 // TODO: describe interfaces in Doxygen format
 //
 
+//
 // Platform
+//
 pi_result piPlatformsGet(
   pi_uint32      num_entries,
   pi_platform *  platforms,
@@ -189,7 +232,9 @@ pi_result piPlatformGetInfo(
   void *            param_value,
   size_t *          param_value_size_ret);
 
+//
 // Device
+//
 pi_result piDevicesGet(
   pi_platform      platform,
   pi_device_type   device_type,
@@ -210,33 +255,10 @@ pi_result piDeviceRelease(pi_device device);
 
 pi_result piDevicePartition(
   pi_device     device,
-  const cl_device_partition_property * properties,
+  const cl_device_partition_property * properties, // TODO: untie from OpenCL
   pi_uint32     num_devices,
   pi_device *   out_devices,
   pi_uint32 *   out_num_devices);
-
-//
-// The following section contains SYCL RT Plugin Interface (PI) methods
-// having direct analogy in OpenCL, but only needed for greater
-// interoperability with the OpenCL itself, and not to run core SYCL.
-// The convention is to prefix such interfaces with "picl".
-//
-// TODO: describe interfaces in Doxygen format
-
-pi_program piclProgramCreateWithSource( // TODO:  change to return pi_result
-  pi_context        context,
-  pi_uint32         count,
-  const char **     strings,
-  const size_t *    lengths,
-  pi_result *       errcode);
-
-
-//
-// The following section contains SYCL RT Plugin Interface (PI) methods
-// having *no* direct analogy in OpenCL standard. The convention is
-// to prefix such interfaces with "piext".
-//
-// TODO: describe interfaces in Doxygen format
 
 /// Selects the most appropriate device binary based on runtime information
 /// and the IR characteristics.
@@ -246,6 +268,384 @@ pi_result piextDeviceSelectBinary(
   pi_device_binary *  binaries,
   pi_uint32           num_binaries,
   pi_device_binary *  selected_binary);
+
+//
+// Context
+//
+pi_context piContextCreate( // TODO: change interface to return error code instead
+  const cl_context_properties * properties, // TODO: untie from OpenCL
+  pi_uint32         num_devices,
+  const pi_device * devices,
+  void (*           pfn_notify)(
+    const char * errinfo,
+    const void * private_info,
+    size_t       cb,
+    void *       user_data),
+  void *            user_data,
+  pi_result *       result);
+
+pi_result piContextGetInfo(
+  pi_context         context,
+  pi_context_info    param_name,
+  size_t             param_value_size,
+  void *             param_value,
+  size_t *           param_value_size_ret);
+
+pi_result piContextRetain(pi_context context);
+
+pi_result piContextRelease(pi_context context);
+
+//
+// Queue
+//
+pi_queue piQueueCreate( // TODO: change interface to return error code instead
+  pi_context              context,
+  pi_device               device,
+  const cl_queue_properties *    properties, // TODO: untie from OpenCL
+  pi_result *             result);
+
+pi_result piQueueGetInfo(
+  pi_queue            command_queue,
+  pi_queue_info       param_name,
+  size_t              param_value_size,
+  void *              param_value,
+  size_t *            param_value_size_ret);
+
+pi_result piQueueRetain(pi_queue command_queue);
+
+pi_result piQueueRelease(pi_queue command_queue);
+
+pi_result piQueueFinish(pi_queue command_queue);
+
+//
+// Memory
+//
+pi_mem piMemCreate( // TODO: change interface to return error code
+  pi_context   context,
+  pi_mem_flags flags,
+  size_t       size,
+  void *       host_ptr,
+  pi_result *  errcode_ret);
+
+pi_result piMemGetInfo(
+  pi_mem           mem,
+  cl_mem_info      param_name, // TODO: untie from OpenCL
+  size_t           param_value_size,
+  void *           param_value,
+  size_t *         param_value_size_ret);
+
+pi_result piMemRetain(pi_mem);
+
+pi_result piMemRelease(pi_mem);
+
+//
+// Program
+//
+pi_program piProgramCreate(  // TODO: change interface to return error code
+  pi_context    context,
+  const void *  il,
+  size_t        length,
+  pi_result *   errcode_ret);
+
+pi_program piclProgramCreateWithBinary( // TODO: change to return pi_result
+  pi_context                     context,
+  pi_uint32                      num_devices,
+  const pi_device *              device_list,
+  const size_t *                 lengths,
+  const unsigned char **         binaries,
+  pi_int32 *                     binary_status,
+  pi_result *                    errcode_ret);
+
+pi_program piclProgramCreateWithSource( // TODO:  change to return pi_result
+  pi_context        context,
+  pi_uint32         count,
+  const char **     strings,
+  const size_t *    lengths,
+  pi_result *       errcode);
+
+pi_result piProgramGetInfo(
+  pi_program          program,
+  cl_program_info     param_name, // TODO: untie from OpenCL
+  size_t              param_value_size,
+  void *              param_value,
+  size_t *            param_value_size_ret);
+
+pi_program piProgramLink( // TODO: change interface to return error code
+  pi_context          context,
+  pi_uint32           num_devices,
+  const pi_device *   device_list,
+  const char *        options,
+  pi_uint32           num_input_programs,
+  const pi_program *  input_programs,
+  void (*  pfn_notify)(pi_program program,
+                       void * user_data),
+  void *              user_data,
+  pi_result *         errcode_ret);
+
+pi_result piProgramCompile(
+  pi_program           program,
+  pi_uint32            num_devices,
+  const pi_device *    device_list,
+  const char *         options,
+  pi_uint32            num_input_headers,
+  const pi_program *   input_headers,
+  const char **        header_include_names,
+  void (*  pfn_notify)(pi_program program, void * user_data),
+  void *               user_data);
+
+pi_result piProgramBuild(
+  pi_program           program,
+  pi_uint32            num_devices,
+  const pi_device *    device_list,
+  const char *         options,
+  void (*  pfn_notify)(pi_program program, void * user_data),
+  void *               user_data);
+
+pi_result piProgramGetBuildInfo(
+  pi_program              program,
+  pi_device               device,
+  cl_program_build_info   param_name, // TODO: untie from OpenCL
+  size_t                  param_value_size,
+  void *                  param_value,
+  size_t *                param_value_size_ret);
+
+pi_result piProgramRetain(pi_program program);
+
+pi_result piProgramRelease(pi_program program);
+
+//
+// Kernel
+//
+pi_kernel piKernelCreate( // TODO: change interface to return error code
+  pi_program      program,
+  const char *    kernel_name,
+  pi_result *     errcode_ret);
+
+pi_result piKernelSetArg(
+  pi_kernel    kernel,
+  pi_uint32    arg_index,
+  size_t       arg_size,
+  const void * arg_value);
+
+pi_result piKernelGetInfo(
+  pi_kernel       kernel,
+  cl_kernel_info  param_name, // TODO: change to pi_kernel_info
+  size_t          param_value_size,
+  void *          param_value,
+  size_t *        param_value_size_ret);
+
+pi_result piKernelGetGroupInfo(
+  pi_kernel                  kernel,
+  pi_device                  device,
+  cl_kernel_work_group_info  param_name, // TODO: untie from OpenCL
+  size_t                     param_value_size,
+  void *                     param_value,
+  size_t *                   param_value_size_ret);
+
+pi_result piKernelGetSubGroupInfo(
+  pi_kernel                   kernel,
+  pi_device                   device,
+  cl_kernel_sub_group_info    param_name, // TODO: untie from OpenCL
+  size_t                      input_value_size,
+  const void*                 input_value,
+  size_t                      param_value_size,
+  void*                       param_value,
+  size_t*                     param_value_size_ret);
+
+pi_result piKernelRetain(pi_kernel    kernel);
+
+pi_result piKernelRelease(pi_kernel    kernel);
+
+//
+// Events
+//
+pi_event piEventCreate( // TODO: change to return pi_result
+  pi_context    context,
+  pi_result *   errcode_ret);
+
+pi_result piEventGetInfo(
+  pi_event         event,
+  cl_event_info    param_name, // TODO: untie from OpenCL
+  size_t           param_value_size,
+  void *           param_value,
+  size_t *         param_value_size_ret);
+
+pi_result piEventGetProfilingInfo(
+  pi_event            event,
+  cl_profiling_info   param_name, // TODO: untie from OpenCL
+  size_t              param_value_size,
+  void *              param_value,
+  size_t *            param_value_size_ret);
+
+pi_result piEventsWait(
+  pi_uint32           num_events,
+  const pi_event *    event_list);
+
+pi_result piEventSetCallback(
+  pi_event    event,
+  pi_int32    command_exec_callback_type,
+  void (*     pfn_notify)(pi_event event,
+                          pi_int32 event_command_status,
+                          void *   user_data),
+  void *      user_data);
+
+pi_result piEventSetStatus(
+  pi_event   event,
+  pi_int32   execution_status);
+
+pi_result piEventRetain(pi_event event);
+
+pi_result piEventRelease(pi_event event);
+
+//
+// Sampler
+//
+pi_sampler piSamplerCreate(
+  pi_context                     context,
+  const cl_sampler_properties *  sampler_properties, // TODO: untie from OpenCL
+  pi_result *                    errcode_ret);
+
+pi_result piSamplerGetInfo(
+  pi_sampler         sampler,
+  cl_sampler_info    param_name, // TODO: untie from OpenCL
+  size_t             param_value_size,
+  void *             param_value,
+  size_t *           param_value_size_ret);
+
+pi_result piSamplerRetain(pi_sampler sampler);
+
+pi_result piSamplerRelease(pi_sampler sampler);
+
+//
+// Queue Commands
+//
+pi_result piEnqueueKernelLaunch(
+  pi_queue          queue,
+  pi_kernel         kernel,
+  pi_uint32         work_dim,
+  const size_t *    global_work_offset,
+  const size_t *    global_work_size,
+  const size_t *    local_work_size,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+pi_result piEnqueueEventsWait(
+  pi_queue          command_queue,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+pi_result piEnqueueMemRead(
+  pi_queue            queue,
+  pi_mem              buffer,
+  pi_bool             blocking_read,
+  size_t              offset,
+  size_t              size,
+  void *              ptr,
+  pi_uint32           num_events_in_wait_list,
+  const pi_event *    event_wait_list,
+  pi_event *          event);
+
+pi_result piEnqueueMemReadRect(
+  pi_queue            command_queue,
+  pi_mem              buffer,
+  pi_bool             blocking_read,
+  const size_t *      buffer_offset,
+  const size_t *      host_offset,
+  const size_t *      region,
+  size_t              buffer_row_pitch,
+  size_t              buffer_slice_pitch,
+  size_t              host_row_pitch,
+  size_t              host_slice_pitch,
+  void *              ptr,
+  pi_uint32           num_events_in_wait_list,
+  const pi_event *    event_wait_list,
+  pi_event *          event);
+
+pi_result piEnqueueMemWrite(
+  pi_queue           command_queue,
+  pi_mem             buffer,
+  pi_bool            blocking_write,
+  size_t             offset,
+  size_t             size,
+  const void *       ptr,
+  pi_uint32          num_events_in_wait_list,
+  const pi_event *   event_wait_list,
+  pi_event *         event);
+
+pi_result piEnqueueMemWriteRect(
+  pi_queue            command_queue,
+  pi_mem              buffer,
+  pi_bool             blocking_write,
+  const size_t *      buffer_offset,
+  const size_t *      host_offset,
+  const size_t *      region,
+  size_t              buffer_row_pitch,
+  size_t              buffer_slice_pitch,
+  size_t              host_row_pitch,
+  size_t              host_slice_pitch,
+  const void *        ptr,
+  pi_uint32           num_events_in_wait_list,
+  const pi_event *    event_wait_list,
+  pi_event *          event);
+
+pi_result piEnqueueMemCopy(
+  pi_queue            command_queue,
+  pi_mem              src_buffer,
+  pi_mem              dst_buffer,
+  size_t              src_offset,
+  size_t              dst_offset,
+  size_t              size,
+  pi_uint32           num_events_in_wait_list,
+  const pi_event *    event_wait_list,
+  pi_event *          event);
+
+pi_result piEnqueueMemCopyRect(
+  pi_queue            command_queue,
+  pi_mem              src_buffer,
+  pi_mem              dst_buffer,
+  const size_t *      src_origin,
+  const size_t *      dst_origin,
+  const size_t *      region,
+  size_t              src_row_pitch,
+  size_t              src_slice_pitch,
+  size_t              dst_row_pitch,
+  size_t              dst_slice_pitch,
+  pi_uint32           num_events_in_wait_list,
+  const pi_event *    event_wait_list,
+  pi_event *          event);
+
+pi_result piEnqueueMemFill(
+  pi_queue           command_queue,
+  pi_mem             buffer,
+  const void *       pattern,
+  size_t             pattern_size,
+  size_t             offset,
+  size_t             size,
+  pi_uint32          num_events_in_wait_list,
+  const pi_event *   event_wait_list,
+  pi_event *         event);
+
+void * piEnqueueMemMap( // TODO: change to return pi_result
+  pi_queue          command_queue,
+  pi_mem            buffer,
+  pi_bool           blocking_map,
+  cl_map_flags      map_flags,  // TODO: untie from OpenCL
+  size_t            offset,
+  size_t            size,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event,
+  pi_result *       errcode_ret);
+
+pi_result piEnqueueMemUnmap(
+  pi_queue         command_queue,
+  pi_mem           memobj,
+  void *           mapped_ptr,
+  pi_uint32        num_events_in_wait_list,
+  const pi_event * event_wait_list,
+  pi_event *       event);
 
 #ifdef __cplusplus
 } // extern "C"

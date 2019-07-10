@@ -34,124 +34,127 @@ ProgramManager &ProgramManager::getInstance() {
   return Instance;
 }
 
-static cl_device_id getFirstDevice(cl_context Context) {
+static RT::PiDevice getFirstDevice(RT::PiContext Context) {
   cl_uint NumDevices = 0;
-  cl_int Err = clGetContextInfo(Context, CL_CONTEXT_NUM_DEVICES,
-                                sizeof(NumDevices), &NumDevices,
-                                /*param_value_size_ret=*/nullptr);
-  CHECK_OCL_CODE(Err);
+  PI_CALL(RT::piContextGetInfo(Context, PI_CONTEXT_INFO_NUM_DEVICES,
+                               sizeof(NumDevices), &NumDevices,
+                               /*param_value_size_ret=*/nullptr));
   assert(NumDevices > 0 && "Context without devices?");
 
-  vector_class<cl_device_id> Devices(NumDevices);
+  vector_class<RT::PiDevice> Devices(NumDevices);
   size_t ParamValueSize = 0;
-  Err = clGetContextInfo(Context, CL_CONTEXT_DEVICES,
-                         sizeof(cl_device_id) * NumDevices, &Devices[0],
-                         &ParamValueSize);
-  CHECK_OCL_CODE(Err);
+  PI_CALL(RT::piContextGetInfo(Context, PI_CONTEXT_INFO_DEVICES,
+                               sizeof(cl_device_id) * NumDevices, &Devices[0],
+                               &ParamValueSize));
   assert(ParamValueSize == sizeof(cl_device_id) * NumDevices &&
          "Number of CL_CONTEXT_DEVICES should match CL_CONTEXT_NUM_DEVICES.");
   return Devices[0];
 }
 
-static cl_program createBinaryProgram(const cl_context Context,
-                                      const unsigned char *Data,
-                                      size_t DataLen) {
+static RT::PiProgram createBinaryProgram(const RT::PiContext Context,
+                                         const unsigned char *Data,
+                                         size_t DataLen) {
   // FIXME: we don't yet support multiple devices with a single binary.
 #ifndef _NDEBUG
   cl_uint NumDevices = 0;
-  CHECK_OCL_CODE(clGetContextInfo(Context, CL_CONTEXT_NUM_DEVICES,
+  PI_CALL(RT::piContextGetInfo(Context, PI_CONTEXT_INFO_NUM_DEVICES,
                                   sizeof(NumDevices), &NumDevices,
                                   /*param_value_size_ret=*/nullptr));
   assert(NumDevices > 0 &&
          "Only a single device is supported for AOT compilation");
 #endif
 
-  cl_device_id Device = getFirstDevice(Context);
-  cl_int Err = CL_SUCCESS;
-  cl_int BinaryStatus = CL_SUCCESS;
-  cl_program Program = clCreateProgramWithBinary(
-      Context, 1 /*one binary*/, &Device, &DataLen, &Data, &BinaryStatus, &Err);
-  CHECK_OCL_CODE(Err);
-
+  RT::PiDevice Device = getFirstDevice(Context);
+  RT::PiResult Err = PI_SUCCESS;
+  pi_int32 BinaryStatus = CL_SUCCESS;
+  RT::PiProgram Program;
+  PI_CALL((Program = RT::piclProgramCreateWithBinary(
+      Context, 1 /*one binary*/, &Device,
+      &DataLen, &Data, &BinaryStatus, &Err), Err));
   return Program;
 }
 
-static cl_program createSpirvProgram(const cl_context Context,
-                                     const unsigned char *Data,
-                                     size_t DataLen) {
-  cl_int Err = CL_SUCCESS;
-  cl_program ClProgram = clCreateProgramWithIL(Context, Data, DataLen, &Err);
-  CHECK_OCL_CODE(Err);
-  return ClProgram;
+static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
+                                        const unsigned char *Data,
+                                        size_t DataLen) {
+  RT::PiResult Err = PI_SUCCESS;
+  RT::PiProgram Program;
+  PI_CALL((Program = RT::piProgramCreate(
+      Context, Data, DataLen, &Err), Err));
+  return Program;
 }
 
-cl_program ProgramManager::getBuiltOpenCLProgram(OSModuleHandle M,
-                                                 const context &Context) {
-  cl_program &ClProgram = m_CachedSpirvPrograms[std::make_pair(Context, M)];
-  if (!ClProgram) {
+RT::PiProgram ProgramManager::getBuiltOpenCLProgram(OSModuleHandle M,
+                                                    const context &Context) {
+  RT::PiProgram &Program = m_CachedSpirvPrograms[std::make_pair(Context, M)];
+  if (!Program) {
     DeviceImage *Img = nullptr;
-    ClProgram = loadProgram(M, Context, &Img);
-    build(ClProgram, Img->BuildOptions);
+    Program = loadProgram(M, Context, &Img);
+    build(Program, Img->BuildOptions);
   }
-  return ClProgram;
+  return Program;
 }
 
-cl_kernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
-                                            const context &Context,
-                                            const string_class &KernelName) {
+RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
+                                               const context &Context,
+                                               const string_class &KernelName) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
               << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
   }
-  cl_program Program = getBuiltOpenCLProgram(M, Context);
-  std::map<string_class, cl_kernel> &KernelsCache = m_CachedKernels[Program];
-  cl_kernel &Kernel = KernelsCache[KernelName];
+  RT::PiProgram Program = getBuiltOpenCLProgram(M, Context);
+  std::map<string_class, RT::PiKernel> &KernelsCache = m_CachedKernels[Program];
+  RT::PiKernel &Kernel = KernelsCache[KernelName];
   if (!Kernel) {
-    cl_int Err = CL_SUCCESS;
-    Kernel = clCreateKernel(Program, KernelName.c_str(), &Err);
-    CHECK_OCL_CODE(Err);
+    RT::PiResult Err = PI_SUCCESS;
+    PI_CALL((Kernel = RT::piKernelCreate(
+        Program, KernelName.c_str(), &Err), Err));
   }
   return Kernel;
 }
 
-cl_program ProgramManager::getClProgramFromClKernel(cl_kernel ClKernel) {
-  cl_program ClProgram;
-  CHECK_OCL_CODE(clGetKernelInfo(ClKernel, CL_KERNEL_PROGRAM,
-                                 sizeof(cl_program), &ClProgram, nullptr));
-  return ClProgram;
+RT::PiProgram ProgramManager::getClProgramFromClKernel(RT::PiKernel Kernel) {
+  RT::PiProgram Program;
+  PI_CALL(RT::piKernelGetInfo(
+      Kernel, CL_KERNEL_PROGRAM, sizeof(cl_program), &Program, nullptr));
+  return Program;
 }
 
-void ProgramManager::build(cl_program &ClProgram, const string_class &Options,
-                           std::vector<cl_device_id> ClDevices) {
+void ProgramManager::build(RT::PiProgram &Program, const string_class &Options,
+                           std::vector<RT::PiDevice> Devices) {
 
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::build(" << ClProgram << ", " << Options
-              << ", ... " << ClDevices.size() << ")\n";
+    std::cerr << ">>> ProgramManager::build(" << Program << ", " << Options
+              << ", ... " << Devices.size() << ")\n";
   }
   const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
 
   if (!Opts)
     Opts = Options.c_str();
-  if (clBuildProgram(ClProgram, ClDevices.size(), ClDevices.data(),
-                     Opts, nullptr, nullptr) == CL_SUCCESS)
+  if (PI_CALL_RESULT(RT::piProgramBuild(
+        Program, Devices.size(), Devices.data(),
+        Opts, nullptr, nullptr)) == PI_SUCCESS)
     return;
 
   // Get OpenCL build log and add it to the exception message.
   size_t Size = 0;
-  CHECK_OCL_CODE(
-      clGetProgramInfo(ClProgram, CL_PROGRAM_DEVICES, 0, nullptr, &Size));
+  PI_CALL(RT::piProgramGetInfo(
+      Program, CL_PROGRAM_DEVICES, 0, nullptr, &Size));
 
-  std::vector<cl_device_id> DevIds(Size / sizeof(cl_device_id));
-  CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_DEVICES, Size,
-                                  DevIds.data(), nullptr));
+  std::vector<RT::PiDevice> DevIds(Size / sizeof(RT::PiDevice));
+  PI_CALL(RT::piProgramGetInfo(
+      Program, CL_PROGRAM_DEVICES, Size, DevIds.data(), nullptr));
   std::string Log;
-  for (cl_device_id &DevId : DevIds) {
-    CHECK_OCL_CODE(clGetProgramBuildInfo(ClProgram, DevId, CL_PROGRAM_BUILD_LOG,
-                                         0, nullptr, &Size));
+  for (RT::PiDevice &DevId : DevIds) {
+    PI_CALL(RT::piProgramGetBuildInfo(
+        Program, DevId, CL_PROGRAM_BUILD_LOG, 0, nullptr, &Size));
     std::vector<char> BuildLog(Size);
-    CHECK_OCL_CODE(clGetProgramBuildInfo(ClProgram, DevId, CL_PROGRAM_BUILD_LOG,
-                                         Size, BuildLog.data(), nullptr));
-    device Dev(DevId);
+    PI_CALL(RT::piProgramGetBuildInfo(
+        Program, DevId, CL_PROGRAM_BUILD_LOG, Size,
+        BuildLog.data(), nullptr));
+
+    device Dev = createSyclObjFromImpl<device>(
+        std::make_shared<device_impl_pi>(DevId));
     Log += "\nBuild program fail log for '" +
            Dev.get_info<info::device::name>() + "':\n" + BuildLog.data();
   }
@@ -211,9 +214,9 @@ struct ImageDeleter {
   }
 };
 
-RT::pi_program ProgramManager::loadProgram(OSModuleHandle M,
-                                           const context &Context,
-                                           DeviceImage **I) {
+RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
+                                          const context &Context,
+                                          DeviceImage **I) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
   if (DbgProgMgr > 0) {
@@ -294,12 +297,12 @@ RT::pi_program ProgramManager::loadProgram(OSModuleHandle M,
     throw runtime_error("Invalid device program image: size is zero");
   }
   size_t ImgSize = static_cast<size_t>(Img->BinaryEnd - Img->BinaryStart);
-  auto Format = pi_cast<RT::pi_device_binary_type>(Img->Format);
+  auto Format = pi_cast<RT::PiDeviceBinaryType>(Img->Format);
 
   // Determine the format of the image if not set already
   if (Format == PI_DEVICE_BINARY_TYPE_NONE) {
     struct {
-      pi_device_binary_type Fmt;
+      RT::PiDeviceBinaryType Fmt;
       const uint32_t Magic;
     } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
                 {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
@@ -356,8 +359,8 @@ RT::pi_program ProgramManager::loadProgram(OSModuleHandle M,
     F.close();
   }
   // Load the selected image
-  const cl_context &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
-  RT::pi_program Res = nullptr;
+  const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
+  RT::PiProgram Res = nullptr;
   Res = Format == PI_DEVICE_BINARY_TYPE_SPIRV
             ? createSpirvProgram(Ctx, Img->BinaryStart, ImgSize)
             : createBinaryProgram(Ctx, Img->BinaryStart, ImgSize);

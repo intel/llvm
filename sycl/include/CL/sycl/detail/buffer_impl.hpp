@@ -13,6 +13,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
@@ -190,13 +191,15 @@ public:
           "Creation of interoperability buffer using host context is not "
           "allowed");
 
-    cl_context Context = nullptr;
-    CHECK_OCL_CODE(clGetMemObjectInfo(MInteropMemObject, CL_MEM_CONTEXT,
-                                      sizeof(Context), &Context, nullptr));
+    RT::PiMem Mem = pi_cast<RT::PiMem>(MInteropMemObject);
+    RT::PiContext Context = nullptr;
+    PI_CALL(RT::piMemGetInfo(
+        Mem, CL_MEM_CONTEXT, sizeof(Context), &Context, nullptr));
+
     if (MInteropContext->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(
           "Input context must be the same as the context of cl_mem");
-    CHECK_OCL_CODE(clRetainMemObject(MInteropMemObject));
+    PI_CALL(RT::piMemRetain(Mem));
   }
 
   size_t get_size() const { return MSizeInBytes; }
@@ -214,7 +217,7 @@ public:
     releaseHostMem(MShadowCopy);
 
     if (MOpenCLInterop)
-      CHECK_OCL_CODE_NO_EXC(clReleaseMemObject(MInteropMemObject));
+      PI_CALL(RT::piMemRelease(pi_cast<RT::PiMem>(MInteropMemObject)));
   }
 
   void set_final_data(std::nullptr_t) { MUploadDataFn = nullptr; }
@@ -251,7 +254,7 @@ public:
       typename std::enable_if<std::is_pointer<Destination>::value>::type * =
           0) {
     static_assert(!std::is_const<Destination>::value,
-                  "Сan not write in a constant Destination. Destination should "
+                  "Do not write in a constant Destination. Destination should "
                   "not be const.");
     MUploadDataFn = [this, FinalData]() mutable {
 
@@ -273,7 +276,7 @@ public:
       typename std::enable_if<!std::is_pointer<Destination>::value>::type * =
           0) {
     static_assert(!std::is_const<Destination>::value,
-                  "Сan not write in a constant Destination. Destination should "
+                  "Do not write in a constant Destination. Destination should "
                   "not be const.");
     MUploadDataFn = [this, FinalData]() mutable {
       using FinalDataType =
@@ -348,7 +351,7 @@ public:
   }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    cl_event &OutEventToWait) override {
+                    RT::PiEvent &OutEventToWait) override {
 
     void *UserPtr = InitFromUserData ? getUserPtr() : nullptr;
 

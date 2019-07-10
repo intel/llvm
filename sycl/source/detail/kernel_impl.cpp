@@ -16,9 +16,9 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-kernel_impl::kernel_impl(cl_kernel ClKernel, const context &SyclContext)
-    : kernel_impl(ClKernel, SyclContext,
-                  std::make_shared<program_impl>(SyclContext, ClKernel),
+kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext)
+    : kernel_impl(Kernel, SyclContext,
+                  std::make_shared<program_impl>(SyclContext, Kernel),
                   /*IsCreatedFromSource*/ true) {}
 
 program kernel_impl::get_program() const {
