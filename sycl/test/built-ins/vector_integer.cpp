@@ -221,6 +221,25 @@ int main() {
     assert(r2 == 2);
   }
 
+  // abs (longlong)
+  {
+    s::ulonglong2 r{ 0 };
+    {
+      s::buffer<s::ulonglong2, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class absSL2>([=]() {
+          AccR[0] = s::abs(s::longlong2{ -5, -2 });
+        });
+      });
+    }
+    s::ulonglong r1 = r.x();
+    s::ulonglong r2 = r.y();
+    assert(r1 == 5);
+    assert(r2 == 2);
+  }
+
   // abs_diff
   {
     s::cl_uint2 r{ 0 };
