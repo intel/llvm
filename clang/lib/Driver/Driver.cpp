@@ -3228,7 +3228,8 @@ class OffloadingActionBuilder final {
           auto TT = SYCLTripleList[I];
           bool SYCLAOTCompile = (TT.getSubArch() != llvm::Triple::NoSubArch &&
                          (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-                          TT.getSubArch() == llvm::Triple::SPIRSubArch_gen));
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64));
 
           // After the Link, wrap the files before the final host link
           if (SYCLAOTCompile) {
@@ -3317,9 +3318,6 @@ class OffloadingActionBuilder final {
       }
       // Gather information about the SYCL Ahead of Time targets.  The targets
       // are determined on the SubArch values passed along in the triple.
-      // The SubArch information for SYCL offload is not used during the
-      // compilation and is only used to determine additional compilation steps
-      // needed in the driver toolchain.
       Arg *SYCLTargets =
               C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(options::OPT_fsycl,

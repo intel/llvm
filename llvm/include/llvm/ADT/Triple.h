@@ -131,7 +131,8 @@ public:
     MipsSubArch_r6,
 
     SPIRSubArch_fpga,
-    SPIRSubArch_gen
+    SPIRSubArch_gen,
+    SPIRSubArch_x86_64
   };
   enum VendorType {
     UnknownVendor,
