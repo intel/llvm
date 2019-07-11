@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 #include "CL/opencl.h"
 #include <CL/sycl/detail/pi.hpp>
-#include <cstring>
 #include <cassert>
+#include <cstring>
 
 namespace cl {
 namespace sycl {
@@ -98,15 +98,16 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
     return pi_cast<pi_program>(resProgram);
   }
   size_t devVerSize;
-  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_VERSION, 0, NULL, &devVerSize);
+  ret_err =
+      clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_VERSION, 0, NULL, &devVerSize);
   std::string devVer(devVerSize, '\0');
   ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_VERSION, devVerSize,
-                  &devVer.front(), NULL);
+                            &devVer.front(), NULL);
 
   if (ret_err != CL_SUCCESS) {
-      if (err != nullptr)
-          *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
-      return pi_cast<pi_program>(resProgram);
+    if (err != nullptr)
+      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
+    return pi_cast<pi_program>(resProgram);
   }
 
   if (devVer.find("OpenCL 1.0") != std::string::npos ||
@@ -136,16 +137,18 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
       return pi_cast<pi_program>(resProgram);
     }
 
-    using apiFuncT = cl_program (CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
+    using apiFuncT =
+        cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
     apiFuncT funcPtr =
         reinterpret_cast<apiFuncT>(clGetExtensionFunctionAddressForPlatform(
             curPlatform, "clCreateProgramWithILKHR"));
 
     assert(funcPtr != nullptr);
-    resProgram = funcPtr(pi_cast<cl_context>(context), il, length, pi_cast<cl_int*>(err));
+    resProgram = funcPtr(pi_cast<cl_context>(context), il, length,
+                         pi_cast<cl_int *>(err));
   } else {
-    resProgram =
-        clCreateProgramWithIL(pi_cast<cl_context>(context), il, length, pi_cast<cl_int*>(err));
+    resProgram = clCreateProgramWithIL(pi_cast<cl_context>(context), il, length,
+                                       pi_cast<cl_int *>(err));
   }
 
   return pi_cast<pi_program>(resProgram);
@@ -188,7 +191,7 @@ _PI_CL(piMemGetInfo,        clGetMemObjectInfo)
 _PI_CL(piMemRetain,         clRetainMemObject)
 _PI_CL(piMemRelease,        clReleaseMemObject)
 // Program
-// _PI_CL(piProgramCreate,             ocl_piProgramCreate)
+//_PI_CL(piProgramCreate,             clCreateProgramWithIL)
 _PI_CL(piclProgramCreateWithSource, clCreateProgramWithSource)
 _PI_CL(piclProgramCreateWithBinary, clCreateProgramWithBinary)
 _PI_CL(piProgramGetInfo,            clGetProgramInfo)
