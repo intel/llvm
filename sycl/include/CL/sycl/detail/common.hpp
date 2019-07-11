@@ -26,8 +26,9 @@ const char *stringifyErrorCode(cl_int error);
   std::string(std::to_string(code) + " (" + stringifyErrorCode(code) + ")")
 
 #define OCL_ERROR_REPORT                                                       \
-  "OpenCL API failed. " __FILE__                                               \
-  ":" STRINGIFY_LINE(__LINE__) ": "                                            \
+  "OpenCL API failed. " /*__FILE__*/                                           \
+  /* TODO: replace __FILE__ to report only relative path*/                     \
+  /* ":" STRINGIFY_LINE(__LINE__) ": " */                                      \
                                "OpenCL API returns: "
 
 #ifndef SYCL_SUPPRESS_OCL_ERROR_REPORT
