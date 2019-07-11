@@ -724,7 +724,9 @@ public:
 #ifdef __SYCL_RELLOGOP
 #error "Undefine __SYCL_RELLOGOP macro"
 #endif
-#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
     return vec<rel_t, NumElements>{m_Data RELLOGOP vector_t(Rhs)};             \
