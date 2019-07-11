@@ -8,7 +8,7 @@
 #include "CL/opencl.h"
 #include <CL/sycl/detail/pi.hpp>
 #include <cstring>
-#include <iostream>
+#include <cassert>
 
 namespace cl {
 namespace sycl {
@@ -82,7 +82,7 @@ pi_result OCL(piextDeviceSelectBinary)(
 }
 
 pi_program OCL(piProgramCreate)(pi_context context, const void *il,
-                                size_t length, cl_int *err) {
+                                size_t length, pi_result *err) {
 
   cl_device_id devicesInCtx[10];
   size_t deviceCount;
@@ -94,14 +94,20 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
 
   if (ret_err != CL_SUCCESS || deviceCount < 1) {
     if (err != nullptr)
-      *err = CL_INVALID_CONTEXT;
+      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
     return pi_cast<pi_program>(resProgram);
   }
   size_t devVerSize;
-  clGetDeviceInfo(devicesInCtx[0], CL_DRIVER_VERSION, 0, NULL, &devVerSize);
+  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_VERSION, 0, NULL, &devVerSize);
   std::string devVer(devVerSize, '\0');
-  clGetDeviceInfo(devicesInCtx[0], CL_DRIVER_VERSION, devVerSize,
+  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_VERSION, devVerSize,
                   &devVer.front(), NULL);
+
+  if (ret_err != CL_SUCCESS) {
+      if (err != nullptr)
+          *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
+      return pi_cast<pi_program>(resProgram);
+  }
 
   if (devVer.find("OpenCL 1.0") != std::string::npos ||
       devVer.find("OpenCL 1.1") != std::string::npos ||
@@ -118,7 +124,7 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
     if (ret_err != CL_SUCCESS ||
         extStr.find("cl_khr_il_program") == std::string::npos) {
       if (err != nullptr)
-        *err = CL_INVALID_CONTEXT;
+        *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
       return pi_cast<pi_program>(resProgram);
     }
     cl_platform_id curPlatform;
@@ -126,19 +132,20 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
                               sizeof(cl_platform_id), &curPlatform, NULL);
     if (ret_err != CL_SUCCESS) {
       if (err != nullptr)
-        *err = CL_INVALID_CONTEXT;
+        *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
       return pi_cast<pi_program>(resProgram);
     }
 
-    using apiFuncT = cl_program (*)(cl_context, const void *, size_t, cl_int *);
+    using apiFuncT = cl_program (CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
     apiFuncT funcPtr =
         reinterpret_cast<apiFuncT>(clGetExtensionFunctionAddressForPlatform(
             curPlatform, "clCreateProgramWithILKHR"));
 
-    resProgram = funcPtr(pi_cast<cl_context>(context), il, length, err);
+    assert(funcPtr != nullptr);
+    resProgram = funcPtr(pi_cast<cl_context>(context), il, length, pi_cast<cl_int*>(err));
   } else {
     resProgram =
-        clCreateProgramWithIL(pi_cast<cl_context>(context), il, length, err);
+        clCreateProgramWithIL(pi_cast<cl_context>(context), il, length, pi_cast<cl_int*>(err));
   }
 
   return pi_cast<pi_program>(resProgram);
@@ -181,7 +188,7 @@ _PI_CL(piMemGetInfo,        clGetMemObjectInfo)
 _PI_CL(piMemRetain,         clRetainMemObject)
 _PI_CL(piMemRelease,        clReleaseMemObject)
 // Program
-//_PI_CL(piProgramCreate,             clCreateProgramWithIL)
+// _PI_CL(piProgramCreate,             ocl_piProgramCreate)
 _PI_CL(piclProgramCreateWithSource, clCreateProgramWithSource)
 _PI_CL(piclProgramCreateWithBinary, clCreateProgramWithBinary)
 _PI_CL(piProgramGetInfo,            clGetProgramInfo)
