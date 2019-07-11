@@ -280,6 +280,24 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
 }
 
+void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
+                                         const JobAction &JA,
+                                         const InputInfo &Output,
+                                         const InputInfoList &Inputs,
+                                         const ArgList &Args,
+                                         const char *LinkingOutput) const {
+  ArgStringList CmdArgs;
+  CmdArgs.push_back(Args.MakeArgString(Twine("-ir=") + Output.getFilename()));
+  CmdArgs.push_back("-device=cpu");
+  for (const auto &II : Inputs) {
+    CmdArgs.push_back(Args.MakeArgString(Twine("-binary=") + II.getFilename()));
+  }
+  TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
+  SmallString<128> ExecPath(getToolChain().GetProgramPath("ioc64"));
+  const char *Exec = C.getArgs().MakeArgString(ExecPath);
+  C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
+}
+
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC) {
@@ -321,8 +339,10 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
 Tool *SYCLToolChain::buildBackendCompiler() const {
   if (getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
     return new tools::SYCL::fpga::BackendCompiler(*this);
-  // fall through is GEN
-  return new tools::SYCL::gen::BackendCompiler(*this);
+  if (getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+    return new tools::SYCL::gen::BackendCompiler(*this);
+  // fall through is CPU.
+  return new tools::SYCL::x86_64::BackendCompiler(*this);
 }
 
 Tool *SYCLToolChain::buildLinker() const {
