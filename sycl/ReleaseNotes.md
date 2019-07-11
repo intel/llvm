@@ -1,3 +1,80 @@
+# July'19 release notes
+
+Release notes for commit 64c0262c0f0b9e1b7b2e2dcef57542a3fe3bdb97.
+
+## New features
+ - `cl::sycl::stream` class support has been added.
+ - New attributes for Intel FPGA device are added: `merge`, `max_replicates`
+   and `simple_dual_port`.
+ - Initial support for new Plugin Interface (PI) layer is added to SYCL runtime
+   library. This feature simplifies porting SYCL implementation to non-OpenCL
+   APIs.
+ - New address space handling rules are implemented in the SYCL device
+   compiler. Raw pointers are allocated in generic address space by default and
+   address space inference is supposed to be done by LLVM pass.  Old compiler
+   behavior can be recovered by enabling `DISABLE_INFER_AS` environment
+   variable.
+ - Add basic implementation of hierarchical parallelism API.
+ - Add new clang built-in function `__unique_stable_name`. SYCL compiler may
+   use this built-in function to auto-generate SYCL kernel name for lambdas.
+
+## Improvements
+ - SYCL integration header is excluded from the dependency list.
+ - Raw pointers capturing added to the SYCL device front-end compiler. This
+   capability is required for Unified Shared Memory feature implementation.
+ - SYCL device compiler enabled support for OpenCL types like event, sampler,
+   images to simplify compilation of the SYCL code to SPIR-V format.
+   `CXXReflower` pass used to make "SPIR-V friendly LLVM IR" has been removed.
+ - Intel FPGA loop attributes were renamed to avoid potential name conflicts.
+ - Old scheduler has been removed.
+ - `sampler` type support is added to the `set_arg` methods.
+ - Internal SYCL device compiler design documentation was improved and updated.
+   Development process documentation has been updated with more details.
+ - Initial support for `image` class (w/o accessor support).
+ - Static variables are allocated in global address space now.
+ - Made sub-group methods constant to enable more use cases.
+ - Added `-fsycl-link` option to generate fat object "linkable" as regular host
+   object.
+ - Enable `set_final_data` method with `shared_ptr` parameter.
+ - Enable using of the copy method with `shared_ptr` with `const T`.
+
+## Bug fixes
+ - Fixed argument size calculation for zero-dimensional accessor.
+ - Removed incorrect source correlation from kernel instructions leading to
+   incorrect profiling and debug information.
+ - A number of issues were fixed breaking build of the compiler on Windows
+ - Fixed unaligned access in load and store methods of the vector class.
+ - `global_mem_cache_type` values were aligned with the latest revision of the
+   SYCL specification.
+ - Stubs for C++ standard headers were removed. This should fix compilation of
+   <iostream> and <algorithm> with SYCL device compiler.
+ - Unscoped enums were removed from global namespace to avoid conflicts with
+   user defined symbols.
+ - Explicit copy API of the handler class is blocking i.e. data is
+   copied once the command group has completed execution.
+ - Renamed `cl::sycl::group::get_linear` to `cl::sycl::group::get_linear_id`.
+ - SYCL kernel constructor from OpenCL handle now retains OpenCL object during
+   SYCL object lifetime.
+ - Fixed forward declaration compilation inside a SYCL kernel.
+ - Fixed code generation for 3-element boolean vectors.
+
+## Prerequisites
+ - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL support is
+   available now and recommended OpenCL CPU RT prerequisite for the SYCL
+   compiler.
+ - The Intel(R) Graphics Compute Runtime for OpenCL(TM) version 19.25.13237 is
+   recommended OpenCL GPU RT prerequisite for the SYCL compiler.
+
+## Known issues
+ - New address space handling approach might degrade compilation time
+   (especially for GPU device).
+ - Some tests might fail on CPU device with the [first experimental CPU
+   runtime](https://github.com/intel/llvm/tree/expoclcpu-1.0.0) due to new
+   address space handling by the SYCL compiler. The workaround for this kind of
+   issues while we wait for CPU runtime update is to set `DISABLE_INFER_AS`
+   environment variable during compilation. See
+   https://github.com/intel/llvm/issues/277 for more details.
+
 # June'19 release notes
 
 The release notes contain information about changes that were done after

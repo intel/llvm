@@ -72,34 +72,36 @@ public:
     }
 
     if (!is_host()) {
-      vector_class<cl_device_id> ClDevices(get_cl_devices());
-      vector_class<cl_program> ClPrograms;
+      vector_class<RT::PiDevice> Devices(get_pi_devices());
+      vector_class<RT::PiProgram> Programs;
       bool NonInterOpToLink = false;
       for (const auto &Prg : ProgramList) {
         if (!Prg->IsLinkable && NonInterOpToLink)
           continue;
         NonInterOpToLink |= !Prg->IsLinkable;
-        ClPrograms.push_back(Prg->ClProgram);
+        Programs.push_back(Prg->Program);
       }
-      cl_int Err = CL_SUCCESS;
-      ClProgram = clLinkProgram(detail::getSyclObjImpl(Context)->getHandleRef(),
-                                ClDevices.size(), ClDevices.data(),
-                                LinkOptions.c_str(), ClPrograms.size(),
-                                ClPrograms.data(), nullptr, nullptr, &Err);
-      CHECK_OCL_CODE_THROW(Err, compile_program_error);
+      RT::PiResult Err = PI_SUCCESS;
+      PI_CALL_RESULT((Program = RT::piProgramLink(
+        detail::getSyclObjImpl(Context)->getHandleRef(),
+        Devices.size(), Devices.data(),
+        LinkOptions.c_str(), Programs.size(),
+        Programs.data(), nullptr, nullptr, &Err), Err));
+      PI_CHECK_THROW(Err, compile_program_error);
     }
   }
 
-  program_impl(const context &Context, cl_program ClProgram)
-      : ClProgram(ClProgram), Context(Context), IsLinkable(true) {
+  program_impl(const context &Context, RT::PiProgram Program)
+      : Program(Program), Context(Context), IsLinkable(true) {
+
     // TODO handle the case when cl_program build is in progress
     cl_uint NumDevices;
-    CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_NUM_DEVICES,
-                                    sizeof(cl_uint), &NumDevices, nullptr));
-    vector_class<cl_device_id> ClDevices(NumDevices);
-    CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_DEVICES,
-                                    sizeof(cl_device_id) * NumDevices,
-                                    ClDevices.data(), nullptr));
+    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_NUM_DEVICES,
+                                 sizeof(cl_uint), &NumDevices, nullptr));
+    vector_class<RT::PiDevice> PiDevices(NumDevices);
+    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_DEVICES,
+                                 sizeof(RT::PiDevice) * NumDevices,
+                                 PiDevices.data(), nullptr));
     vector_class<device> SyclContextDevices = Context.get_devices();
 
     // Keep only the subset of the devices (associated with context) that
@@ -107,26 +109,27 @@ public:
     // This is possible when clCreateProgramWithBinary is used.
     auto NewEnd = std::remove_if(
         SyclContextDevices.begin(), SyclContextDevices.end(),
-        [&ClDevices](const sycl::device &Dev) {
-          return ClDevices.end() ==
-                 std::find(ClDevices.begin(), ClDevices.end(),
+        [&PiDevices](const sycl::device &Dev) {
+          return PiDevices.end() ==
+                 std::find(PiDevices.begin(), PiDevices.end(),
                            detail::getSyclObjImpl(Dev)->getHandleRef());
         });
     SyclContextDevices.erase(NewEnd, SyclContextDevices.end());
     Devices = SyclContextDevices;
+    RT::PiDevice Device = getSyclObjImpl(Devices[0])->getHandleRef();
     // TODO check build for each device instead
     cl_program_binary_type BinaryType;
-    CHECK_OCL_CODE(clGetProgramBuildInfo(
-        ClProgram, Devices[0].get(), CL_PROGRAM_BINARY_TYPE,
+    PI_CALL(RT::piProgramGetBuildInfo(
+        Program, Device, CL_PROGRAM_BINARY_TYPE,
         sizeof(cl_program_binary_type), &BinaryType, nullptr));
     size_t Size = 0;
-    CHECK_OCL_CODE(clGetProgramBuildInfo(ClProgram, Devices[0].get(),
-                                         CL_PROGRAM_BUILD_OPTIONS, 0, nullptr,
-                                         &Size));
+    PI_CALL(RT::piProgramGetBuildInfo(
+        Program, Device, CL_PROGRAM_BUILD_OPTIONS,
+        0, nullptr, &Size));
     std::vector<char> OptionsVector(Size);
-    CHECK_OCL_CODE(clGetProgramBuildInfo(ClProgram, Devices[0].get(),
-                                         CL_PROGRAM_BUILD_OPTIONS, Size,
-                                         OptionsVector.data(), nullptr));
+    PI_CALL(RT::piProgramGetBuildInfo(
+        Program, Device, CL_PROGRAM_BUILD_OPTIONS,
+        Size, OptionsVector.data(), nullptr));
     string_class Options(OptionsVector.begin(), OptionsVector.end());
     switch (BinaryType) {
     case CL_PROGRAM_BINARY_TYPE_NONE:
@@ -143,19 +146,18 @@ public:
       LinkOptions = "";
       BuildOptions = Options;
     }
-    CHECK_OCL_CODE(clRetainProgram(ClProgram));
+    PI_CALL(RT::piProgramRetain(Program));
   }
 
-  program_impl(const context &Context, cl_kernel ClKernel)
+  program_impl(const context &Context, RT::PiKernel Kernel)
       : program_impl(
             Context,
-            ProgramManager::getInstance().getClProgramFromClKernel(ClKernel)) {}
+            ProgramManager::getInstance().getClProgramFromClKernel(Kernel)) {}
 
   ~program_impl() {
-    // TODO replace CHECK_OCL_CODE_NO_EXC to CHECK_OCL_CODE and
-    // catch an exception and put it to list of asynchronous exceptions
-    if (!is_host() && ClProgram != nullptr) {
-      CHECK_OCL_CODE_NO_EXC(clReleaseProgram(ClProgram));
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    if (!is_host() && Program != nullptr) {
+      PI_CALL(RT::piProgramRelease(Program));
     }
   }
 
@@ -164,8 +166,8 @@ public:
     if (is_host()) {
       throw invalid_object_error("This instance of program is a host instance");
     }
-    CHECK_OCL_CODE(clRetainProgram(ClProgram));
-    return ClProgram;
+    PI_CALL(RT::piProgramRetain(Program));
+    return pi_cast<cl_program>(Program);
   }
 
   bool is_host() const { return Context.is_host(); }
@@ -219,13 +221,13 @@ public:
   void link(string_class LinkOptions = "") {
     throw_if_state_is_not(program_state::compiled);
     if (!is_host()) {
-      vector_class<cl_device_id> ClDevices(get_cl_devices());
-      cl_int Err;
-      ClProgram =
-          clLinkProgram(detail::getSyclObjImpl(Context)->getHandleRef(),
-                        ClDevices.size(), ClDevices.data(), LinkOptions.c_str(),
-                        1, &ClProgram, nullptr, nullptr, &Err);
-      CHECK_OCL_CODE_THROW(Err, compile_program_error);
+      vector_class<RT::PiDevice> Devices(get_pi_devices());
+      RT::PiResult Err;
+      PI_CALL_RESULT((Program = RT::piProgramLink(
+          detail::getSyclObjImpl(Context)->getHandleRef(),
+          Devices.size(), Devices.data(), LinkOptions.c_str(),
+          1, &Program, nullptr, nullptr, &Err), Err));
+      PI_CHECK_THROW(Err, compile_program_error);
       this->LinkOptions = LinkOptions;
       BuildOptions = LinkOptions;
     }
@@ -266,7 +268,7 @@ public:
           std::make_shared<kernel_impl>(Context, PtrToSelf));
     }
     return createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
-        get_cl_kernel(KernelInfo<KernelT>::getName()), Context, PtrToSelf,
+        get_pi_kernel(KernelInfo<KernelT>::getName()), Context, PtrToSelf,
         /*IsCreatedFromSource*/ false));
   }
 #endif
@@ -278,7 +280,7 @@ public:
       throw invalid_object_error("This instance of program is a host instance");
     }
     return createSyclObjFromImpl<kernel>(
-        std::make_shared<kernel_impl>(get_cl_kernel(KernelName), Context,
+        std::make_shared<kernel_impl>(get_pi_kernel(KernelName), Context,
                                       PtrToSelf, /*IsCreatedFromSource*/ true));
   }
 
@@ -291,18 +293,18 @@ public:
     vector_class<vector_class<char>> Result;
     if (!is_host()) {
       vector_class<size_t> BinarySizes(Devices.size());
-      CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_BINARY_SIZES,
-                                      sizeof(size_t) * BinarySizes.size(),
-                                      BinarySizes.data(), nullptr));
+      PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_BINARY_SIZES,
+                                   sizeof(size_t) * BinarySizes.size(),
+                                   BinarySizes.data(), nullptr));
 
       vector_class<char *> Pointers;
       for (size_t I = 0; I < BinarySizes.size(); ++I) {
         Result.emplace_back(BinarySizes[I]);
         Pointers.push_back(Result[I].data());
       }
-      CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_BINARIES,
-                                      sizeof(char *) * Pointers.size(),
-                                      Pointers.data(), nullptr));
+      PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_BINARIES,
+                                   sizeof(char *) * Pointers.size(),
+                                   Pointers.data(), nullptr));
     }
     return Result;
   }
@@ -321,26 +323,28 @@ public:
 
 private:
   void create_cl_program_with_il(OSModuleHandle M) {
-    assert(!ClProgram && "This program already has an encapsulated cl_program");
-    ClProgram = ProgramManager::getInstance().createOpenCLProgram(M, Context);
+    assert(!Program && "This program already has an encapsulated PI program");
+    Program = ProgramManager::getInstance().createOpenCLProgram(M, Context);
   }
 
   void create_cl_program_with_source(const string_class &Source) {
-    assert(!ClProgram && "This program already has an encapsulated cl_program");
-    cl_int Err;
+    assert(!Program && "This program already has an encapsulated cl_program");
+    RT::PiResult Err;
     const char *Src = Source.c_str();
     size_t Size = Source.size();
-    ClProgram = clCreateProgramWithSource(
-        detail::getSyclObjImpl(Context)->getHandleRef(), 1, &Src, &Size, &Err);
-    CHECK_OCL_CODE(Err);
+    PI_CALL((Program = RT::piclProgramCreateWithSource(
+        detail::getSyclObjImpl(Context)->getHandleRef(),
+        1, &Src, &Size, &Err), Err));
   }
 
   void compile(const string_class &Options) {
-    vector_class<cl_device_id> ClDevices(get_cl_devices());
-    // TODO make the exception message more descriptive
-    if (clCompileProgram(ClProgram, ClDevices.size(), ClDevices.data(),
-                         Options.c_str(), 0, nullptr, nullptr, nullptr,
-                         nullptr) != CL_SUCCESS) {
+    vector_class<RT::PiDevice> Devices(get_pi_devices());
+    RT::PiResult Err = PI_CALL_RESULT(RT::piProgramCompile(
+        Program, Devices.size(), Devices.data(), Options.c_str(),
+        0, nullptr, nullptr, nullptr, nullptr));
+
+    if (Err != PI_SUCCESS) {
+      // TODO make the exception message more descriptive
       throw compile_program_error("Program compilation error");
     }
     CompileOptions = Options;
@@ -348,30 +352,33 @@ private:
   }
 
   void build(const string_class &Options) {
-    vector_class<cl_device_id> ClDevices(get_cl_devices());
-    // TODO make the exception message more descriptive
-    if (clBuildProgram(ClProgram, ClDevices.size(), ClDevices.data(),
-                       Options.c_str(), nullptr, nullptr) != CL_SUCCESS) {
+    vector_class<RT::PiDevice> Devices(get_pi_devices());
+    RT::PiResult Err = PI_CALL_RESULT(RT::piProgramBuild(
+        Program, Devices.size(), Devices.data(), Options.c_str(),
+        nullptr, nullptr));
+
+    if (Err != PI_SUCCESS) {
+      // TODO make the exception message more descriptive
       throw compile_program_error("Program build error");
     }
     BuildOptions = Options;
   }
 
-  vector_class<cl_device_id> get_cl_devices() const {
-    vector_class<cl_device_id> ClDevices;
+  vector_class<RT::PiDevice> get_pi_devices() const {
+    vector_class<RT::PiDevice> PiDevices;
     for (const auto &Device : Devices) {
-      ClDevices.push_back(Device.get());
+      PiDevices.push_back(getSyclObjImpl(Device)->getHandleRef());
     }
-    return ClDevices;
+    return PiDevices;
   }
 
   bool has_cl_kernel(const string_class &KernelName) const {
     size_t Size;
-    CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_KERNEL_NAMES, 0,
-                                    nullptr, &Size));
+    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_KERNEL_NAMES, 0,
+                                 nullptr, &Size));
     string_class ClResult(Size, ' ');
-    CHECK_OCL_CODE(clGetProgramInfo(ClProgram, CL_PROGRAM_KERNEL_NAMES,
-                                    ClResult.size(), &ClResult[0], nullptr));
+    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_KERNEL_NAMES,
+                                 ClResult.size(), &ClResult[0], nullptr));
     // Get rid of the null terminator
     ClResult.pop_back();
     vector_class<string_class> KernelNames(split_string(ClResult, ';'));
@@ -383,15 +390,17 @@ private:
     return false;
   }
 
-  cl_kernel get_cl_kernel(const string_class &KernelName) const {
-    cl_int Err;
-    cl_kernel ClKernel = clCreateKernel(ClProgram, KernelName.c_str(), &Err);
+  RT::PiKernel get_pi_kernel(const string_class &KernelName) const {
+    RT::PiKernel Kernel;
+    RT::PiResult Err;
+    Err = PI_CALL_RESULT((Kernel = RT::piKernelCreate(
+        Program, KernelName.c_str(), &Err), Err));
     if (Err == CL_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
           "This instance of program does not contain the kernel requested");
     }
-    CHECK_OCL_CODE(Err);
-    return ClKernel;
+    PI_CHECK(Err);
+    return Kernel;
   }
 
   std::vector<device>
@@ -416,7 +425,7 @@ private:
     }
   }
 
-  cl_program ClProgram = nullptr;
+  RT::PiProgram Program = nullptr;
   program_state State = program_state::none;
   context Context;
   bool IsLinkable = false;

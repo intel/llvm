@@ -10,6 +10,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/kernel_info.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -27,21 +28,22 @@ class program_impl;
 
 class kernel_impl {
 public:
-  kernel_impl(cl_kernel ClKernel, const context &SyclContext);
+  kernel_impl(RT::PiKernel Kernel, const context &SyclContext);
 
-  kernel_impl(cl_kernel ClKernel, const context &SyclContext,
+  kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
               std::shared_ptr<program_impl> ProgramImpl,
               bool IsCreatedFromSource)
-      : ClKernel(ClKernel), Context(SyclContext), ProgramImpl(ProgramImpl),
+      : Kernel(Kernel), Context(SyclContext), ProgramImpl(ProgramImpl),
         IsCreatedFromSource(IsCreatedFromSource) {
-    cl_context Context = nullptr;
-    CHECK_OCL_CODE(clGetKernelInfo(ClKernel, CL_KERNEL_CONTEXT, sizeof(Context),
-                                   &Context, nullptr));
+
+    RT::PiContext Context = nullptr;
+    PI_CALL(RT::piKernelGetInfo(
+        Kernel, CL_KERNEL_CONTEXT, sizeof(Context), &Context, nullptr));
     auto ContextImpl = detail::getSyclObjImpl(SyclContext);
     if (ContextImpl->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(
           "Input context must be the same as the context of cl_kernel");
-    CHECK_OCL_CODE(clRetainKernel(ClKernel));
+    PI_CALL(RT::piKernelRetain(Kernel));
   }
 
   // Host kernel constructor
@@ -50,10 +52,9 @@ public:
       : Context(SyclContext), ProgramImpl(ProgramImpl) {}
 
   ~kernel_impl() {
-    // TODO replace CHECK_OCL_CODE_NO_EXC to CHECK_OCL_CODE and
     // TODO catch an exception and put it to list of asynchronous exceptions
     if (!is_host()) {
-      CHECK_OCL_CODE_NO_EXC(clReleaseKernel(ClKernel));
+      PI_CALL(RT::piKernelRelease(Kernel));
     }
   }
 
@@ -61,8 +62,8 @@ public:
     if (is_host()) {
       throw invalid_object_error("This instance of kernel is a host instance");
     }
-    CHECK_OCL_CODE(clRetainKernel(ClKernel));
-    return ClKernel;
+    PI_CALL(RT::piKernelRetain(Kernel));
+    return pi_cast<cl_kernel>(Kernel);
   }
 
   bool is_host() const { return Context.is_host(); }
@@ -78,9 +79,9 @@ public:
       // TODO implement
       assert(0 && "Not implemented");
     }
-    return get_kernel_info_cl<
+    return get_kernel_info<
         typename info::param_traits<info::kernel, param>::return_type,
-        param>::_(this->get());
+        param>::_(this->getHandleRef());
   }
 
   template <info::kernel_work_group param>
@@ -89,10 +90,11 @@ public:
     if (is_host()) {
       return get_kernel_work_group_info_host<param>(Device);
     }
-    return get_kernel_work_group_info_cl<
+    return get_kernel_work_group_info<
         typename info::param_traits<info::kernel_work_group,
                                     param>::return_type,
-        param>::_(this->get(), Device.get());
+        param>::_(this->getHandleRef(),
+                  getSyclObjImpl(Device)->getHandleRef());
   }
 
   template <info::kernel_sub_group param>
@@ -101,9 +103,11 @@ public:
     if (is_host()) {
       throw runtime_error("Sub-group feature is not supported on HOST device.");
     }
-    return get_kernel_sub_group_info_cl<
-        typename info::param_traits<info::kernel_sub_group, param>::return_type,
-        param>::_(this->get(), Device.get());
+    return get_kernel_sub_group_info<
+        typename info::param_traits<info::kernel_sub_group,
+                                    param>::return_type, param>::_(
+            this->getHandleRef(),
+            getSyclObjImpl(Device)->getHandleRef());
   }
 
   template <info::kernel_sub_group param>
@@ -115,20 +119,21 @@ public:
     if (is_host()) {
       throw runtime_error("Sub-group feature is not supported on HOST device.");
     }
-    return get_kernel_sub_group_info_with_input_cl<
+    return get_kernel_sub_group_info_with_input<
         typename info::param_traits<info::kernel_sub_group, param>::return_type,
         param,
-        typename info::param_traits<info::kernel_sub_group,
-                                    param>::input_type>::_(this->get(),
-                                                           Device.get(), Value);
+        typename info::param_traits<info::kernel_sub_group, param>::input_type>::_(
+            this->getHandleRef(),
+            getSyclObjImpl(Device)->getHandleRef(), Value);
   }
 
-  cl_kernel &getHandleRef() { return ClKernel; }
+  RT::PiKernel &getHandleRef() { return Kernel; }
+  const RT::PiKernel &getHandleRef() const { return Kernel; }
 
   bool isCreatedFromSource() const;
 
 private:
-  cl_kernel ClKernel;
+  RT::PiKernel Kernel;
   context Context;
   std::shared_ptr<program_impl> ProgramImpl;
   bool IsCreatedFromSource = true;

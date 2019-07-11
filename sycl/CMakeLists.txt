@@ -122,7 +122,11 @@ set(LLVM_TOOLS_DIR "${LLVM_BINARY_DIR}/bin/")
 
 add_library("${SYCLLibrary}" SHARED
   "${includeRootPath}/CL/sycl.hpp"
-  "${sourceRootPath}/detail/builtins.cpp"
+  "${sourceRootPath}/detail/builtins_common.cpp"
+  "${sourceRootPath}/detail/builtins_geometric.cpp"
+  "${sourceRootPath}/detail/builtins_integer.cpp"
+  "${sourceRootPath}/detail/builtins_math.cpp"
+  "${sourceRootPath}/detail/builtins_relational.cpp"
   "${sourceRootPath}/detail/pi.cpp"
   "${sourceRootPath}/detail/pi_opencl.cpp"
   "${sourceRootPath}/detail/common.cpp"
@@ -149,6 +153,8 @@ add_library("${SYCLLibrary}" SHARED
   "${sourceRootPath}/detail/scheduler/scheduler.cpp"
   "${sourceRootPath}/detail/scheduler/graph_processor.cpp"
   "${sourceRootPath}/detail/scheduler/graph_builder.cpp"
+  "${sourceRootPath}/detail/usm/clusm.cpp"
+  "${sourceRootPath}/detail/usm/opencl_shim.cpp"    
   "${sourceRootPath}/detail/util.cpp"
   "${sourceRootPath}/context.cpp"
   "${sourceRootPath}/device.cpp"

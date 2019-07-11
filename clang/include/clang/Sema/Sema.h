@@ -4494,6 +4494,14 @@ public:
   ExprResult ActOnPredefinedExpr(SourceLocation Loc, tok::TokenKind Kind);
   ExprResult ActOnIntegerConstant(SourceLocation Loc, uint64_t Val);
 
+  ExprResult BuildUniqueStableName(SourceLocation OpLoc,
+                                   TypeSourceInfo *Operand);
+  ExprResult BuildUniqueStableName(SourceLocation OpLoc, Expr *E);
+  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc, SourceLocation L,
+                                       SourceLocation R, ParsedType Ty);
+  ExprResult ActOnUniqueStableNameExpr(SourceLocation OpLoc, SourceLocation L,
+                                       SourceLocation R, Expr *Operand);
+
   bool CheckLoopHintExpr(Expr *E, SourceLocation Loc);
 
   ExprResult ActOnNumericConstant(const Token &Tok, Scope *UDLScope = nullptr);
@@ -11289,14 +11297,14 @@ public:
 private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
-  SmallVector<Decl*, 4> SyclKernel;
+  SmallVector<Decl*, 4> SyclDeviceDecls;
   // SYCL integration header instance for current compilation unit this Sema
   // is associated with.
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
 
 public:
-  void AddSyclKernel(Decl * d) { SyclKernel.push_back(d); }
-  SmallVector<Decl*, 4> &SyclKernels() { return SyclKernel; }
+  void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.push_back(d); }
+  SmallVectorImpl<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {

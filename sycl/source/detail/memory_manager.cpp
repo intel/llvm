@@ -20,15 +20,15 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-static void waitForEvents(const std::vector<cl_event> &Events) {
+static void waitForEvents(const std::vector<RT::PiEvent> &Events) {
   if (!Events.empty())
-    CHECK_OCL_CODE(clWaitForEvents(Events.size(), &Events[0]));
+    PI_CALL(RT::piEventsWait(Events.size(), &Events[0]));
 }
 
 void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
                             void *MemAllocation,
-                            std::vector<cl_event> DepEvents,
-                            cl_event &OutEvent) {
+                            std::vector<RT::PiEvent> DepEvents,
+                            RT::PiEvent &OutEvent) {
   // There is no async API for memory releasing. Explicitly wait for all
   // dependency events and return empty event.
   waitForEvents(DepEvents);
@@ -49,13 +49,13 @@ void MemoryManager::releaseMemBuf(ContextImplPtr TargetContext,
     return;
   }
 
-  CHECK_OCL_CODE(clReleaseMemObject((cl_mem)MemAllocation));
+  PI_CALL(RT::piMemRelease(pi_cast<RT::PiMem>(MemAllocation)));
 }
 
 void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjT *MemObj,
                               bool InitFromUserData,
-                              std::vector<cl_event> DepEvents,
-                              cl_event &OutEvent) {
+                              std::vector<RT::PiEvent> DepEvents,
+                              RT::PiEvent &OutEvent) {
   // There is no async API for memory allocation. Explicitly wait for all
   // dependency events and return empty event.
   waitForEvents(DepEvents);
@@ -69,7 +69,7 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
                                        bool HostPtrReadOnly, size_t Size,
                                        const EventImplPtr &InteropEvent,
                                        const ContextImplPtr &InteropContext,
-                                       cl_event &OutEventToWait) {
+                                       RT::PiEvent &OutEventToWait) {
   if (TargetContext->is_host()) {
     // Can return user pointer directly if it points to writable memory.
     if (UserPtr && HostPtrReadOnly == false)
@@ -97,26 +97,27 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
   }
 
   // Create read_write mem object by default to handle arbitrary uses.
-  cl_mem_flags CreationFlags = CL_MEM_READ_WRITE;
+  RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
 
   if (UserPtr)
     CreationFlags |=
-        HostPtrReadOnly ? CL_MEM_COPY_HOST_PTR : CL_MEM_USE_HOST_PTR;
-  cl_int Error = CL_SUCCESS;
-  cl_mem NewMem = clCreateBuffer(TargetContext->getHandleRef(), CreationFlags,
-                                 Size, UserPtr, &Error);
-  CHECK_OCL_CODE(Error);
+        HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY :
+                          PI_MEM_FLAGS_HOST_PTR_USE;
+  RT::PiResult Error = PI_SUCCESS;
+  RT::PiMem NewMem;
+  PI_CALL((NewMem = RT::piMemCreate(
+      TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &Error), Error));
   return NewMem;
 }
 
 void copyH2D(SYCLMemObjT *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-             unsigned int SrcElemSize, cl_mem DstMem, QueueImplPtr TgtQueue,
+             unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr TgtQueue,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-             unsigned int DstElemSize, std::vector<cl_event> DepEvents,
-             bool UseExclusiveQueue, cl_event &OutEvent) {
+             unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
+             bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
   // TODO: Handle images.
 
   // Adjust first dimension of copy range and offset as OpenCL expects size in
@@ -128,13 +129,13 @@ void copyH2D(SYCLMemObjT *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
   SrcSize[0] *= SrcElemSize;
   DstSize[0] *= DstElemSize;
 
-  cl_command_queue CLQueue = UseExclusiveQueue
-                                 ? TgtQueue->getExclusiveQueueHandleRef()
-                                 : TgtQueue->getHandleRef();
+  RT::PiQueue Queue = UseExclusiveQueue ?
+      TgtQueue->getExclusiveQueueHandleRef() :
+      TgtQueue->getHandleRef();
 
   if (1 == DimDst && 1 == DimSrc) {
-    CHECK_OCL_CODE(clEnqueueWriteBuffer(
-        CLQueue, DstMem,
+    PI_CALL(RT::piEnqueueMemWrite(
+        Queue, DstMem,
         /*blocking_write=*/CL_FALSE, DstOffset[0], DstAccessRange[0],
         SrcMem + DstOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent));
   } else {
@@ -143,22 +144,22 @@ void copyH2D(SYCLMemObjT *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
 
     size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
     size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
-    CHECK_OCL_CODE(clEnqueueWriteBufferRect(
-        CLQueue, DstMem,
+    PI_CALL(RT::piEnqueueMemWriteRect(
+        Queue, DstMem,
         /*blocking_write=*/CL_FALSE, &DstOffset[0], &SrcOffset[0],
         &DstAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
         HostSlicePitch, SrcMem, DepEvents.size(), &DepEvents[0], &OutEvent));
   }
 }
 
-void copyD2H(SYCLMemObjT *SYCLMemObj, cl_mem SrcMem, QueueImplPtr SrcQueue,
+void copyD2H(SYCLMemObjT *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
              unsigned int SrcElemSize, char *DstMem, QueueImplPtr TgtQueue,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-             unsigned int DstElemSize, std::vector<cl_event> DepEvents,
-             bool UseExclusiveQueue, cl_event &OutEvent) {
+             unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
+             bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
   // TODO: Handle images.
 
   // Adjust sizes of 1 dimensions as OpenCL expects size in bytes.
@@ -169,13 +170,13 @@ void copyD2H(SYCLMemObjT *SYCLMemObj, cl_mem SrcMem, QueueImplPtr SrcQueue,
   SrcSize[0] *= SrcElemSize;
   DstSize[0] *= DstElemSize;
 
-  cl_command_queue CLQueue = UseExclusiveQueue
-                                 ? SrcQueue->getExclusiveQueueHandleRef()
-                                 : SrcQueue->getHandleRef();
+  RT::PiQueue Queue = UseExclusiveQueue ?
+      SrcQueue->getExclusiveQueueHandleRef() :
+      SrcQueue->getHandleRef();
 
   if (1 == DimDst && 1 == DimSrc) {
-    CHECK_OCL_CODE(clEnqueueReadBuffer(
-        CLQueue, SrcMem,
+    PI_CALL(RT::piEnqueueMemRead(
+        Queue, SrcMem,
         /*blocking_read=*/CL_FALSE, DstOffset[0], DstAccessRange[0],
         DstMem + DstOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent));
   } else {
@@ -184,22 +185,22 @@ void copyD2H(SYCLMemObjT *SYCLMemObj, cl_mem SrcMem, QueueImplPtr SrcQueue,
 
     size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
     size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
-    CHECK_OCL_CODE(clEnqueueReadBufferRect(
-        CLQueue, SrcMem,
+    PI_CALL(RT::piEnqueueMemReadRect(
+        Queue, SrcMem,
         /*blocking_read=*/CL_FALSE, &SrcOffset[0], &DstOffset[0],
         &SrcAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
         HostSlicePitch, DstMem, DepEvents.size(), &DepEvents[0], &OutEvent));
   }
 }
 
-void copyD2D(SYCLMemObjT *SYCLMemObj, cl_mem SrcMem, QueueImplPtr SrcQueue,
+void copyD2D(SYCLMemObjT *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-             unsigned int SrcElemSize, cl_mem DstMem, QueueImplPtr TgtQueue,
+             unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr TgtQueue,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-             unsigned int DstElemSize, std::vector<cl_event> DepEvents,
-             bool UseExclusiveQueue, cl_event &OutEvent) {
+             unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
+             bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
   // TODO: Handle images.
 
   // Adjust sizes of 1 dimensions as OpenCL expects size in bytes.
@@ -209,13 +210,13 @@ void copyD2D(SYCLMemObjT *SYCLMemObj, cl_mem SrcMem, QueueImplPtr SrcQueue,
   SrcSize[0] *= SrcElemSize;
   DstSize[0] *= DstElemSize;
 
-  cl_command_queue CLQueue = UseExclusiveQueue
-                                 ? SrcQueue->getExclusiveQueueHandleRef()
-                                 : SrcQueue->getHandleRef();
+  RT::PiQueue Queue = UseExclusiveQueue ?
+      SrcQueue->getExclusiveQueueHandleRef() :
+      SrcQueue->getHandleRef();
 
   if (1 == DimDst && 1 == DimSrc) {
-    CHECK_OCL_CODE(clEnqueueCopyBuffer(
-        CLQueue, SrcMem, DstMem, SrcOffset[0], DstOffset[0],
+    PI_CALL(RT::piEnqueueMemCopy(
+        Queue, SrcMem, DstMem, SrcOffset[0], DstOffset[0],
         SrcAccessRange[0], DepEvents.size(), &DepEvents[0], &OutEvent));
   } else {
     size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
@@ -224,8 +225,8 @@ void copyD2D(SYCLMemObjT *SYCLMemObj, cl_mem SrcMem, QueueImplPtr SrcQueue,
     size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
     size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
 
-    CHECK_OCL_CODE(clEnqueueCopyBufferRect(
-        CLQueue, SrcMem, DstMem, &SrcOffset[0], &DstOffset[0],
+    PI_CALL(RT::piEnqueueMemCopyRect(
+        Queue, SrcMem, DstMem, &SrcOffset[0], &DstOffset[0],
         &SrcAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
         HostSlicePitch, DepEvents.size(), &DepEvents[0], &OutEvent));
   }
@@ -238,8 +239,8 @@ static void copyH2H(SYCLMemObjT *SYCLMemObj, char *SrcMem,
                     char *DstMem, QueueImplPtr TgtQueue, unsigned int DimDst,
                     sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
                     sycl::id<3> DstOffset, unsigned int DstElemSize,
-                    std::vector<cl_event> DepEvents, bool UseExclusiveQueue,
-                    cl_event &OutEvent) {
+                    std::vector<RT::PiEvent> DepEvents, bool UseExclusiveQueue,
+                    RT::PiEvent &OutEvent) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -266,8 +267,8 @@ void MemoryManager::copy(SYCLMemObjT *SYCLMemObj, void *SrcMem,
                          unsigned int DimDst, sycl::range<3> DstSize,
                          sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
                          unsigned int DstElemSize,
-                         std::vector<cl_event> DepEvents,
-                         bool UseExclusiveQueue, cl_event &OutEvent) {
+                         std::vector<RT::PiEvent> DepEvents,
+                         bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
 
   if (SrcQueue->is_host()) {
     if (TgtQueue->is_host())
@@ -278,18 +279,18 @@ void MemoryManager::copy(SYCLMemObjT *SYCLMemObj, void *SrcMem,
 
     else
       copyH2D(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
-              SrcAccessRange, SrcOffset, SrcElemSize, (cl_mem)DstMem,
+              SrcAccessRange, SrcOffset, SrcElemSize, pi_cast<RT::PiMem>(DstMem),
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
               DstElemSize, std::move(DepEvents), UseExclusiveQueue, OutEvent);
   } else {
     if (TgtQueue->is_host())
-      copyD2H(SYCLMemObj, (cl_mem)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
-              SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem,
+      copyD2H(SYCLMemObj, pi_cast<RT::PiMem>(SrcMem), std::move(SrcQueue), DimSrc,
+              SrcSize, SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem,
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
               DstElemSize, std::move(DepEvents), UseExclusiveQueue, OutEvent);
     else
-      copyD2D(SYCLMemObj, (cl_mem)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
-              SrcAccessRange, SrcOffset, SrcElemSize, (cl_mem)DstMem,
+      copyD2D(SYCLMemObj, pi_cast<RT::PiMem>(SrcMem), std::move(SrcQueue), DimSrc,
+              SrcSize, SrcAccessRange, SrcOffset, SrcElemSize, pi_cast<RT::PiMem>(DstMem),
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
               DstElemSize, std::move(DepEvents), UseExclusiveQueue, OutEvent);
   }
@@ -300,12 +301,12 @@ void MemoryManager::fill(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          unsigned int Dim, sycl::range<3> Size,
                          sycl::range<3> Range, sycl::id<3> Offset,
                          unsigned int ElementSize,
-                         std::vector<cl_event> DepEvents, cl_event &OutEvent) {
+                         std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
   // TODO: Handle images.
 
   if (Dim == 1) {
-    CHECK_OCL_CODE(clEnqueueFillBuffer(
-        Queue->getHandleRef(), (cl_mem)Mem, Pattern, PatternSize, Offset[0],
+    PI_CALL(RT::piEnqueueMemFill(
+        Queue->getHandleRef(), pi_cast<RT::PiMem>(Mem), Pattern, PatternSize, Offset[0],
         Range[0] * ElementSize, DepEvents.size(), &DepEvents[0], &OutEvent));
     return;
   }
@@ -318,7 +319,7 @@ void *MemoryManager::map(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          access::mode AccessMode, unsigned int Dim,
                          sycl::range<3> Size, sycl::range<3> AccessRange,
                          sycl::id<3> AccessOffset, unsigned int ElementSize,
-                         std::vector<cl_event> DepEvents, cl_event &OutEvent) {
+                         std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
   if (Queue->is_host() || Dim != 1) {
     assert(!"Not supported configuration of map requested");
     throw runtime_error("Not supported configuration of map requested");
@@ -346,26 +347,25 @@ void *MemoryManager::map(SYCLMemObjT *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   AccessOffset[0] *= ElementSize;
   AccessRange[0] *= ElementSize;
 
-  cl_int Error = CL_SUCCESS;
-  void *MappedPtr = clEnqueueMapBuffer(
-      Queue->getHandleRef(), (cl_mem)Mem, CL_FALSE, Flags, AccessOffset[0],
-      AccessRange[0], DepEvents.size(),
-      DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &Error);
-  CHECK_OCL_CODE(Error);
+  RT::PiResult Error = PI_SUCCESS;
+  void *MappedPtr;
+  PI_CALL((MappedPtr = RT::piEnqueueMemMap(
+      Queue->getHandleRef(), pi_cast<RT::PiMem>(Mem), CL_FALSE, Flags,
+      AccessOffset[0], AccessRange[0], DepEvents.size(),
+      DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &Error), Error));
   return MappedPtr;
 }
 
 void MemoryManager::unmap(SYCLMemObjT *SYCLMemObj, void *Mem,
                           QueueImplPtr Queue, void *MappedPtr,
-                          std::vector<cl_event> DepEvents,
-                          bool UseExclusiveQueue, cl_event &OutEvent) {
-  cl_int Error = CL_SUCCESS;
-  Error = clEnqueueUnmapMemObject(
+                          std::vector<RT::PiEvent> DepEvents,
+                          bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
+
+  PI_CALL(RT::piEnqueueMemUnmap(
       UseExclusiveQueue ? Queue->getExclusiveQueueHandleRef()
                         : Queue->getHandleRef(),
-      (cl_mem)Mem, MappedPtr, DepEvents.size(),
-      DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent);
-  CHECK_OCL_CODE(Error);
+      pi_cast<RT::PiMem>(Mem), MappedPtr, DepEvents.size(),
+      DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent));
 }
 
 } // namespace detail

@@ -13,6 +13,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
@@ -22,6 +23,7 @@
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <type_traits>
@@ -35,7 +37,7 @@ class accessor;
 template <typename T, int Dimensions, typename AllocatorT> class buffer;
 class handler;
 
-using buffer_allocator = aligned_allocator<char, /*Alignment*/64>;
+using buffer_allocator = detail::aligned_allocator<char>;
 
 namespace detail {
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
@@ -47,41 +49,46 @@ using cl::sycl::detail::MemoryManager;
 
 template <typename AllocatorT> class buffer_impl : public SYCLMemObjT {
 public:
-  buffer_impl(size_t SizeInBytes, const property_list &PropList,
+  buffer_impl(size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &PropList,
               AllocatorT Allocator = AllocatorT())
-      : buffer_impl((void *)nullptr, SizeInBytes, PropList, Allocator) {}
+      : buffer_impl((void *)nullptr, SizeInBytes, RequiredAlign, PropList,
+                    Allocator) {}
 
-  buffer_impl(void *HostData, size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
+  buffer_impl(void *HostData, size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props, AllocatorT Allocator = AllocatorT())
       : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
 
     if (!HostData)
       return;
 
     set_final_data(reinterpret_cast<char *>(HostData));
-    if (MProps.has_property<property::buffer::use_host_ptr>()) {
+    if (reinterpret_cast<std::uintptr_t>(HostData) % RequiredAlign == 0 ||
+        MProps.has_property<property::buffer::use_host_ptr>()) {
       MUserPtr = HostData;
       return;
     }
 
-    // TODO: Reuse user's pointer if it has sufficient alignment.
+    setAlignIfDefaultAlloc(RequiredAlign);
     MShadowCopy = allocateHostMem();
     MUserPtr = MShadowCopy;
     std::memcpy(MUserPtr, HostData, SizeInBytes);
   }
 
-  buffer_impl(const void *HostData, size_t SizeInBytes,
+  buffer_impl(const void *HostData, size_t SizeInBytes, size_t RequiredAlign,
               const property_list &Props, AllocatorT Allocator = AllocatorT())
-      : buffer_impl(const_cast<void *>(HostData), SizeInBytes, Props,
-                    Allocator) {
+      : buffer_impl(const_cast<void *>(HostData), SizeInBytes, RequiredAlign,
+                    Props, Allocator) {
     MHostPtrReadOnly = true;
   }
 
   template <typename T>
   buffer_impl(const shared_ptr_class<T> &HostData, const size_t SizeInBytes,
-              const property_list &Props, AllocatorT Allocator = AllocatorT())
+              size_t RequiredAlign, const property_list &Props,
+              AllocatorT Allocator = AllocatorT())
       : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
     // HostData can be destructed by the user so need to make copy
+    setAlignIfDefaultAlloc(RequiredAlign);
     MUserPtr = MShadowCopy = allocateHostMem();
 
     std::copy(HostData.get(), HostData.get() + SizeInBytes / sizeof(T),
@@ -109,9 +116,10 @@ public:
 
   template <class InputIterator>
   buffer_impl(EnableIfNotConstIterator<InputIterator> First, InputIterator Last,
-              const size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
+              const size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props, AllocatorT Allocator = AllocatorT())
       : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
+    setAlignIfDefaultAlloc(RequiredAlign);
 
     // TODO: There is contradiction is the spec. It says SYCL RT must not
     // allocate additional memory on the host if use_host_ptr prop was passed.
@@ -143,9 +151,10 @@ public:
 
   template <class InputIterator>
   buffer_impl(EnableIfConstIterator<InputIterator> First, InputIterator Last,
-              const size_t SizeInBytes, const property_list &Props,
-              AllocatorT Allocator = AllocatorT())
+              const size_t SizeInBytes, size_t RequiredAlign,
+              const property_list &Props, AllocatorT Allocator = AllocatorT())
       : MSizeInBytes(SizeInBytes), MProps(Props), MAllocator(Allocator) {
+    setAlignIfDefaultAlloc(RequiredAlign);
 
     // TODO: There is contradiction is the spec. It says SYCL RT must not
     // allocate addtional memory on the host if use_host_ptr prop was passed. On
@@ -182,13 +191,15 @@ public:
           "Creation of interoperability buffer using host context is not "
           "allowed");
 
-    cl_context Context = nullptr;
-    CHECK_OCL_CODE(clGetMemObjectInfo(MInteropMemObject, CL_MEM_CONTEXT,
-                                      sizeof(Context), &Context, nullptr));
+    RT::PiMem Mem = pi_cast<RT::PiMem>(MInteropMemObject);
+    RT::PiContext Context = nullptr;
+    PI_CALL(RT::piMemGetInfo(
+        Mem, CL_MEM_CONTEXT, sizeof(Context), &Context, nullptr));
+
     if (MInteropContext->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(
           "Input context must be the same as the context of cl_mem");
-    CHECK_OCL_CODE(clRetainMemObject(MInteropMemObject));
+    PI_CALL(RT::piMemRetain(Mem));
   }
 
   size_t get_size() const { return MSizeInBytes; }
@@ -206,7 +217,7 @@ public:
     releaseHostMem(MShadowCopy);
 
     if (MOpenCLInterop)
-      CHECK_OCL_CODE_NO_EXC(clReleaseMemObject(MInteropMemObject));
+      PI_CALL(RT::piMemRelease(pi_cast<RT::PiMem>(MInteropMemObject)));
   }
 
   void set_final_data(std::nullptr_t) { MUploadDataFn = nullptr; }
@@ -243,7 +254,7 @@ public:
       typename std::enable_if<std::is_pointer<Destination>::value>::type * =
           0) {
     static_assert(!std::is_const<Destination>::value,
-                  "Сan not write in a constant Destination. Destination should "
+                  "Do not write in a constant Destination. Destination should "
                   "not be const.");
     MUploadDataFn = [this, FinalData]() mutable {
 
@@ -265,7 +276,7 @@ public:
       typename std::enable_if<!std::is_pointer<Destination>::value>::type * =
           0) {
     static_assert(!std::is_const<Destination>::value,
-                  "Сan not write in a constant Destination. Destination should "
+                  "Do not write in a constant Destination. Destination should "
                   "not be const.");
     MUploadDataFn = [this, FinalData]() mutable {
       using FinalDataType =
@@ -340,7 +351,7 @@ public:
   }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    cl_event &OutEventToWait) override {
+                    RT::PiEvent &OutEventToWait) override {
 
     void *UserPtr = InitFromUserData ? getUserPtr() : nullptr;
 
@@ -373,6 +384,16 @@ public:
   }
 
 private:
+  template <typename AllocT = AllocatorT>
+  typename std::enable_if<!std::is_same<AllocT, buffer_allocator>::value>::type
+  setAlignIfDefaultAlloc(size_t RequiredAlign) {}
+
+  template <typename AllocT = AllocatorT>
+  typename std::enable_if<std::is_same<AllocT, buffer_allocator>::value>::type
+  setAlignIfDefaultAlloc(size_t RequiredAlign) {
+    MAllocator.setAlignment(std::max<size_t>(RequiredAlign, 64));
+  }
+
   bool MOpenCLInterop = false;
   bool MHostPtrReadOnly = false;
 

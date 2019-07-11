@@ -17,8 +17,9 @@ cl_uint program_impl::get_info<info::program::reference_count>() const {
     throw invalid_object_error("This instance of program is a host instance");
   }
   cl_uint result;
-  clGetProgramInfo(ClProgram, CL_PROGRAM_REFERENCE_COUNT, sizeof(cl_uint),
-                   &result, nullptr);
+  PI_CALL(RT::piProgramGetInfo(
+      Program, CL_PROGRAM_REFERENCE_COUNT, sizeof(cl_uint),
+      &result, nullptr));
   return result;
 }
 

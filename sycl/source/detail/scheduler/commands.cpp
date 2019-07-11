@@ -25,14 +25,14 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-void EventCompletionClbk(cl_event, cl_int, void *data) {
+void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
   // TODO: Handle return values. Store errors to async handler.
-  clSetUserEventStatus((cl_event)data, CL_COMPLETE);
+  PI_CALL(RT::piEventSetStatus(pi_cast<RT::PiEvent>(data), CL_COMPLETE));
 }
 
-// Method prepares cl_event's from list sycl::event's
-std::vector<cl_event> Command::prepareEvents(ContextImplPtr Context) {
-  std::vector<cl_event> Result;
+// Method prepares PI event's from list sycl::event's
+std::vector<RT::PiEvent> Command::prepareEvents(ContextImplPtr Context) {
+  std::vector<RT::PiEvent> Result;
   std::vector<EventImplPtr> GlueEvents;
   for (EventImplPtr &Event : MDepsEvents) {
     // Async work is not supported for host device.
@@ -49,18 +49,17 @@ std::vector<cl_event> Command::prepareEvents(ContextImplPtr Context) {
 
     // If contexts don't match - connect them using user event
     if (EventContext != Context && !Context->is_host()) {
-      cl_int Error = CL_SUCCESS;
+      RT::PiResult Error = PI_SUCCESS;
 
       EventImplPtr GlueEvent(new detail::event_impl());
       GlueEvent->setContextImpl(Context);
 
-      cl_event &GlueEventHandle = GlueEvent->getHandleRef();
-      GlueEventHandle = clCreateUserEvent(Context->getHandleRef(), &Error);
-      CHECK_OCL_CODE(Error);
-
-      Error = clSetEventCallback(Event->getHandleRef(), CL_COMPLETE,
-                                 EventCompletionClbk, /*data=*/GlueEventHandle);
-      CHECK_OCL_CODE(Error);
+      RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
+      PI_CALL((GlueEventHandle = RT::piEventCreate(
+          Context->getHandleRef(), &Error), Error));
+      PI_CALL(RT::piEventSetCallback(
+          Event->getHandleRef(), CL_COMPLETE, EventCompletionClbk,
+          /*data=*/GlueEventHandle));
       GlueEvents.push_back(std::move(GlueEvent));
       Result.push_back(GlueEventHandle);
       continue;
@@ -87,10 +86,10 @@ cl_int Command::enqueue() {
 }
 
 cl_int AllocaCommand::enqueueImp() {
-  std::vector<cl_event> RawEvents =
+  std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
-  cl_event &Event = MEvent->getHandleRef();
+  RT::PiEvent &Event = MEvent->getHandleRef();
   MMemAllocation = MemoryManager::allocate(
       detail::getSyclObjImpl(MQueue->get_context()), getSYCLMemObj(),
       MInitFromUserData, std::move(RawEvents), Event);
@@ -98,10 +97,10 @@ cl_int AllocaCommand::enqueueImp() {
 }
 
 cl_int ReleaseCommand::enqueueImp() {
-  std::vector<cl_event> RawEvents =
+  std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
-  cl_event &Event = MEvent->getHandleRef();
+  RT::PiEvent &Event = MEvent->getHandleRef();
   MemoryManager::release(detail::getSyclObjImpl(MQueue->get_context()),
                          MAllocaCmd->getSYCLMemObj(),
                          MAllocaCmd->getMemAllocation(), std::move(RawEvents),
@@ -116,11 +115,11 @@ MapMemObject::MapMemObject(Requirement SrcReq, AllocaCommand *SrcAlloca,
       MDstReq(*DstAcc) {}
 
 cl_int MapMemObject::enqueueImp() {
-  std::vector<cl_event> RawEvents =
+  std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
   assert(MDstReq.MDims == 1);
 
-  cl_event &Event = MEvent->getHandleRef();
+  RT::PiEvent &Event = MEvent->getHandleRef();
   void *MappedPtr = MemoryManager::map(
       MSrcAlloca->getSYCLMemObj(), MSrcAlloca->getMemAllocation(), MQueue,
       MDstReq.MAccessMode, MDstReq.MDims, MDstReq.MMemoryRange,
@@ -137,10 +136,10 @@ UnMapMemObject::UnMapMemObject(Requirement SrcReq, AllocaCommand *SrcAlloca,
       MSrcReq(std::move(SrcReq)), MSrcAlloca(SrcAlloca), MDstAcc(DstAcc) {}
 
 cl_int UnMapMemObject::enqueueImp() {
-  std::vector<cl_event> RawEvents =
+  std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
-  cl_event &Event = MEvent->getHandleRef();
+  RT::PiEvent &Event = MEvent->getHandleRef();
   MemoryManager::unmap(MSrcAlloca->getSYCLMemObj(),
                        MSrcAlloca->getMemAllocation(), MQueue, MDstAcc->MData,
                        std::move(RawEvents), MUseExclusiveQueue, Event);
@@ -159,12 +158,12 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq, AllocaCommand *SrcAlloca,
 }
 
 cl_int MemCpyCommand::enqueueImp() {
-  std::vector<cl_event> RawEvents;
+  std::vector<RT::PiEvent> RawEvents;
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
   RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(Queue->get_context()));
 
-  cl_event &Event = MEvent->getHandleRef();
+  RT::PiEvent &Event = MEvent->getHandleRef();
 
   // Omit copying if mode is discard one.
   // TODO: Handle this at the graph building time by, for example, creating
@@ -175,9 +174,9 @@ cl_int MemCpyCommand::enqueueImp() {
 
     if (!RawEvents.empty()) {
       if (Queue->is_host()) {
-        CHECK_OCL_CODE(clWaitForEvents(RawEvents.size(), &RawEvents[0]));
+        PI_CALL(RT::piEventsWait(RawEvents.size(), &RawEvents[0]));
       } else {
-        CHECK_OCL_CODE(clEnqueueMarkerWithWaitList(
+        PI_CALL(RT::piEnqueueEventsWait(
             Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event));
       }
     }
@@ -225,10 +224,10 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
 
 cl_int MemCpyCommandHost::enqueueImp() {
   QueueImplPtr Queue = MQueue->is_host() ? MSrcQueue : MQueue;
-  std::vector<cl_event> RawEvents =
+  std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(Queue->get_context()));
 
-  cl_event &Event = MEvent->getHandleRef();
+  RT::PiEvent &Event = MEvent->getHandleRef();
   // Omit copying if mode is discard one.
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
@@ -237,9 +236,9 @@ cl_int MemCpyCommandHost::enqueueImp() {
 
     if (!RawEvents.empty()) {
       if (Queue->is_host()) {
-        CHECK_OCL_CODE(clWaitForEvents(RawEvents.size(), &RawEvents[0]));
+        PI_CALL(RT::piEventsWait(RawEvents.size(), &RawEvents[0]));
       } else {
-        CHECK_OCL_CODE(clEnqueueMarkerWithWaitList(
+        PI_CALL(RT::piEnqueueEventsWait(
             Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event));
       }
     }
@@ -273,8 +272,8 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, cl_kernel Kernel,
   // check the prerequisites:
   assert(NDR.NumWorkGroups[0] != 0 && NDR.LocalSize[0] == 0);
   // TODO might be good to cache this info together with the kernel info to
-  // avoid get_kernel_work_group_info_cl on every kernel run
-  range<3> WGSize = get_kernel_work_group_info_cl<
+  // avoid get_kernel_work_group_info on every kernel run
+  range<3> WGSize = get_kernel_work_group_info<
       range<3>,
       cl::sycl::info::kernel_work_group::compile_work_group_size>::_(Kernel,
                                                                      Device);
@@ -283,7 +282,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, cl_kernel Kernel,
     // kernel does not request specific workgroup shape - set one
     // TODO maximum work group size as the local size might not be the best
     //      choice for CPU or FPGA devices
-    size_t WGSize1D = get_kernel_work_group_info_cl<
+    size_t WGSize1D = get_kernel_work_group_info<
         size_t, cl::sycl::info::kernel_work_group::work_group_size>::_(Kernel,
                                                                        Device);
     assert(WGSize1D != 0);
@@ -294,10 +293,10 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, cl_kernel Kernel,
 }
 
 cl_int ExecCGCommand::enqueueImp() {
-  std::vector<cl_event> RawEvents =
+  std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
-  cl_event &Event = MEvent->getHandleRef();
+  RT::PiEvent &Event = MEvent->getHandleRef();
 
   switch (MCommandGroup->getType()) {
 
@@ -379,14 +378,14 @@ cl_int ExecCGCommand::enqueueImp() {
           Req->MData = AllocaCmd->getMemAllocation();
         }
       if (!RawEvents.empty())
-        CHECK_OCL_CODE(clWaitForEvents(RawEvents.size(), &RawEvents[0]));
+        PI_CALL(RT::piEventsWait(RawEvents.size(), &RawEvents[0]));
       ExecKernel->MHostKernel->call(NDRDesc);
       return CL_SUCCESS;
     }
 
     // Run OpenCL kernel
     sycl::context Context = MQueue->get_context();
-    cl_kernel Kernel = nullptr;
+    RT::PiKernel Kernel = nullptr;
 
     if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_context() == Context);
@@ -402,20 +401,21 @@ cl_int ExecCGCommand::enqueueImp() {
         AllocaCommand *AllocaCmd = getAllocaForReq(Req);
         cl_mem MemArg = (cl_mem)AllocaCmd->getMemAllocation();
 
-        CHECK_OCL_CODE(
-            clSetKernelArg(Kernel, Arg.MIndex, sizeof(cl_mem), &MemArg));
+        PI_CALL(RT::piKernelSetArg(
+            Kernel, Arg.MIndex, sizeof(cl_mem), &MemArg));
         break;
       }
       case kernel_param_kind_t::kind_std_layout: {
-        CHECK_OCL_CODE(clSetKernelArg(Kernel, Arg.MIndex, Arg.MSize, Arg.MPtr));
+        PI_CALL(RT::piKernelSetArg(
+            Kernel, Arg.MIndex, Arg.MSize, Arg.MPtr));
         break;
       }
       case kernel_param_kind_t::kind_sampler: {
         sampler *SamplerPtr = (sampler *)Arg.MPtr;
-        cl_sampler CLSampler =
+        RT::PiSampler Sampler =
             detail::getSyclObjImpl(*SamplerPtr)->getOrCreateSampler(Context);
-        CHECK_OCL_CODE(
-            clSetKernelArg(Kernel, Arg.MIndex, sizeof(cl_sampler), &CLSampler));
+        PI_CALL(RT::piKernelSetArg(
+            Kernel, Arg.MIndex, sizeof(cl_sampler), &Sampler));
         break;
       }
       default:
@@ -423,14 +423,14 @@ cl_int ExecCGCommand::enqueueImp() {
       }
     }
     adjustNDRangePerKernel(NDRDesc, Kernel, MQueue->get_device().get());
-    cl_int Error = CL_SUCCESS;
-    Error = clEnqueueNDRangeKernel(
+    PI_CALL(RT::piEnqueueKernelLaunch(
         MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0],
         NDRDesc.LocalSize[0] ? &NDRDesc.LocalSize[0] : nullptr,
-        RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
-    CHECK_OCL_CODE(Error);
-    return CL_SUCCESS;
+        RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0], &Event));
+
+    return PI_SUCCESS;
   }
   }
 

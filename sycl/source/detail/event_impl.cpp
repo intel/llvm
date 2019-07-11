@@ -21,8 +21,8 @@ bool event_impl::is_host() const { return m_HostEvent || !m_OpenCLInterop; }
 
 cl_event event_impl::get() const {
   if (m_OpenCLInterop) {
-    CHECK_OCL_CODE(clRetainEvent(m_Event));
-    return m_Event;
+    PI_CALL(RT::piEventRetain(m_Event));
+    return pi_cast<cl_event>(m_Event);
   }
   throw invalid_object_error(
       "This instance of event doesn't support OpenCL interoperability.");
@@ -30,23 +30,24 @@ cl_event event_impl::get() const {
 
 event_impl::~event_impl() {
   if (!m_HostEvent) {
-    CHECK_OCL_CODE_NO_EXC(clReleaseEvent(m_Event));
+    PI_CALL(RT::piEventRelease(m_Event));
   }
 }
 
 void event_impl::setComplete() {
-  CHECK_OCL_CODE(clSetUserEventStatus(m_Event, CL_COMPLETE));
+  PI_CALL(RT::piEventSetStatus(m_Event, CL_COMPLETE));
 }
 
 void event_impl::waitInternal() const {
   if (!m_HostEvent) {
-    CHECK_OCL_CODE(clWaitForEvents(1, &m_Event));
+    PI_CALL(RT::piEventsWait(1, &m_Event));
   }
   // Waiting of host events is NOP so far as all operations on host device
   // are blocking.
 }
 
-cl_event &event_impl::getHandleRef() { return m_Event; }
+const RT::PiEvent &event_impl::getHandleRef() const { return m_Event; }
+RT::PiEvent &event_impl::getHandleRef() { return m_Event; }
 
 const ContextImplPtr &event_impl::getContextImpl() { return m_Context; }
 
@@ -57,24 +58,27 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 }
 
 event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
-    : m_Event(CLEvent), m_Context(detail::getSyclObjImpl(SyclContext)),
+    : m_Context(detail::getSyclObjImpl(SyclContext)),
       m_OpenCLInterop(true), m_HostEvent(false) {
+
+  m_Event = pi_cast<RT::PiEvent>(CLEvent);
+
   if (m_Context->is_host()) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.");
   }
 
-  cl_context TempContext;
-  clGetEventInfo(CLEvent, CL_EVENT_CONTEXT, sizeof(cl_context), &TempContext,
-                 nullptr);
+  RT::PiContext TempContext;
+  PI_CALL(RT::piEventGetInfo(
+      m_Event, CL_EVENT_CONTEXT, sizeof(RT::PiContext), &TempContext, nullptr));
   if (m_Context->getHandleRef() != TempContext) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.");
   }
 
-  CHECK_OCL_CODE(clRetainEvent(m_Event));
+  PI_CALL(RT::piEventRetain(m_Event));
 }
 
 void event_impl::wait(
@@ -103,8 +107,8 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
   if (!m_HostEvent) {
-    return get_event_profiling_info_cl<
-        info::event_profiling::command_submit>::_(this->get());
+    return get_event_profiling_info<
+        info::event_profiling::command_submit>::_(this->getHandleRef());
   }
   assert(!"Not implemented for host device.");
   return (cl_ulong)0;
@@ -114,8 +118,8 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_start>() const {
   if (!m_HostEvent) {
-    return get_event_profiling_info_cl<info::event_profiling::command_start>::_(
-        this->get());
+    return get_event_profiling_info<info::event_profiling::command_start>::_(
+        this->getHandleRef());
   }
   assert(!"Not implemented for host device.");
   return (cl_ulong)0;
@@ -125,8 +129,8 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_end>() const {
   if (!m_HostEvent) {
-    return get_event_profiling_info_cl<info::event_profiling::command_end>::_(
-        this->get());
+    return get_event_profiling_info<info::event_profiling::command_end>::_(
+        this->getHandleRef());
   }
   assert(!"Not implemented for host device.");
   return (cl_ulong)0;
@@ -134,7 +138,8 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
 
 template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
   if (!m_HostEvent) {
-    return get_event_info_cl<info::event::reference_count>::_(this->get());
+    return get_event_info<info::event::reference_count>::_(
+        this->getHandleRef());
   }
   assert(!"Not implemented for host device.");
   return (cl_ulong)0;
@@ -144,8 +149,8 @@ template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
   if (!m_HostEvent) {
-    return get_event_info_cl<info::event::command_execution_status>::_(
-        this->get());
+    return get_event_info<info::event::command_execution_status>::_(
+        this->getHandleRef());
   }
   assert(!"Not implemented for host device.");
   return info::event_command_status::complete;

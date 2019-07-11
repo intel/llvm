@@ -325,7 +325,7 @@ public:
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
      std::vector<detail::AccessorImplPtr> AccStorage,
-     std::vector<std::shared_ptr<void>> SharedPtrStorage,
+     std::vector<std::shared_ptr<const void>> SharedPtrStorage,
      std::vector<Requirement *> Requirements)
       : MType(Type), MArgsStorage(std::move(ArgsStorage)),
         MAccStorage(std::move(AccStorage)),
@@ -347,7 +347,7 @@ private:
   // Storage for accessors.
   std::vector<detail::AccessorImplPtr> MAccStorage;
   // Storage for shared_ptrs.
-  std::vector<std::shared_ptr<void>> MSharedPtrStorage;
+  std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
   // List of requirements that specify which memory is needed for the command
   // group to be executed.
   std::vector<Requirement *> MRequirements;
@@ -368,7 +368,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::vector<std::vector<char>> ArgsStorage,
                std::vector<detail::AccessorImplPtr> AccStorage,
-               std::vector<std::shared_ptr<void>> SharedPtrStorage,
+               std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                std::vector<Requirement *> Requirements,
                std::vector<ArgDesc> Args, std::string KernelName,
                detail::OSModuleHandle OSModuleHandle,
@@ -396,7 +396,7 @@ public:
   CGCopy(CGTYPE CopyType, void *Src, void *Dst,
          std::vector<std::vector<char>> ArgsStorage,
          std::vector<detail::AccessorImplPtr> AccStorage,
-         std::vector<std::shared_ptr<void>> SharedPtrStorage,
+         std::vector<std::shared_ptr<const void>> SharedPtrStorage,
          std::vector<Requirement *> Requirements)
       : CG(CopyType, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements)),
@@ -414,7 +414,7 @@ public:
   CGFill(std::vector<char> Pattern, void *Ptr,
          std::vector<std::vector<char>> ArgsStorage,
          std::vector<detail::AccessorImplPtr> AccStorage,
-         std::vector<std::shared_ptr<void>> SharedPtrStorage,
+         std::vector<std::shared_ptr<const void>> SharedPtrStorage,
          std::vector<Requirement *> Requirements)
       : CG(FILL, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements)),
@@ -429,7 +429,7 @@ class CGUpdateHost : public CG {
 public:
   CGUpdateHost(void *Ptr, std::vector<std::vector<char>> ArgsStorage,
                std::vector<detail::AccessorImplPtr> AccStorage,
-               std::vector<std::shared_ptr<void>> SharedPtrStorage,
+               std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                std::vector<Requirement *> Requirements)
       : CG(UPDATE_HOST, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements)),
@@ -438,6 +438,6 @@ public:
   Requirement *getReqToUpdate() { return MPtr; }
 };
 
-} // namespace cl
-} // namespace sycl
 } // namespace detail
+} // namespace sycl
+} // namespace cl
