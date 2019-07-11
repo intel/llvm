@@ -110,46 +110,47 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
     return pi_cast<pi_program>(resProgram);
   }
 
-  if (devVer.find("OpenCL 1.0") != std::string::npos ||
-      devVer.find("OpenCL 1.1") != std::string::npos ||
-      devVer.find("OpenCL 1.2") != std::string::npos ||
-      devVer.find("OpenCL 2.0") != std::string::npos) {
-
-    size_t extSize;
-    ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_EXTENSIONS, 0, NULL,
-                              &extSize);
-    std::string extStr(extSize, '\0');
-    ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_EXTENSIONS, extSize,
-                              &extStr.front(), NULL);
-
-    if (ret_err != CL_SUCCESS ||
-        extStr.find("cl_khr_il_program") == std::string::npos) {
-      if (err != nullptr)
-        *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
-      return pi_cast<pi_program>(resProgram);
-    }
-    cl_platform_id curPlatform;
-    ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
-                              sizeof(cl_platform_id), &curPlatform, NULL);
-    if (ret_err != CL_SUCCESS) {
-      if (err != nullptr)
-        *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
-      return pi_cast<pi_program>(resProgram);
-    }
-
-    using apiFuncT =
-        cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
-    apiFuncT funcPtr =
-        reinterpret_cast<apiFuncT>(clGetExtensionFunctionAddressForPlatform(
-            curPlatform, "clCreateProgramWithILKHR"));
-
-    assert(funcPtr != nullptr);
-    resProgram = funcPtr(pi_cast<cl_context>(context), il, length,
-                         pi_cast<cl_int *>(err));
-  } else {
+  if (devVer.find("OpenCL 1.0") == std::string::npos &&
+      devVer.find("OpenCL 1.1") == std::string::npos &&
+      devVer.find("OpenCL 1.2") == std::string::npos &&
+      devVer.find("OpenCL 2.0") == std::string::npos) {
     resProgram = clCreateProgramWithIL(pi_cast<cl_context>(context), il, length,
                                        pi_cast<cl_int *>(err));
+    return pi_cast<pi_program>(resProgram);
   }
+
+  cl_platform_id curPlatform;
+  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
+                            sizeof(cl_platform_id), &curPlatform, NULL);
+  if (ret_err != CL_SUCCESS) {
+    if (err != nullptr)
+      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
+    return pi_cast<pi_program>(resProgram);
+  }
+
+  size_t extSize;
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, NULL,
+                                &extSize);
+  std::string extStr(extSize, '\0');
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS,
+                                extSize, &extStr.front(), NULL);
+
+  if (ret_err != CL_SUCCESS ||
+      extStr.find("cl_khr_il_program") == std::string::npos) {
+    if (err != nullptr)
+      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
+    return pi_cast<pi_program>(resProgram);
+  }
+
+  using apiFuncT =
+      cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
+  apiFuncT funcPtr =
+      reinterpret_cast<apiFuncT>(clGetExtensionFunctionAddressForPlatform(
+          curPlatform, "clCreateProgramWithILKHR"));
+
+  assert(funcPtr != nullptr);
+  resProgram = funcPtr(pi_cast<cl_context>(context), il, length,
+                         pi_cast<cl_int *>(err));
 
   return pi_cast<pi_program>(resProgram);
 }
