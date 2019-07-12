@@ -38,7 +38,7 @@
 // CK-HELP: {{.*}}-inputs=<string>  - [<input file>,...]
 // CK-HELP: {{.*}}-outputs=<string> - [<output file>,...]
 // CK-HELP: {{.*}}-targets=<string> - [<offload kind>-<target triple>,...]
-// CK-HELP: {{.*}}-type=<string>    - Type of the files to be bundled/unbundled.
+// CK-HELP: {{.*}}-type=<string>    - Type of the files to be bundled/unbundled/checked.
 // CK-HELP: {{.*}}Current supported types are:
 // CK-HELP: {{.*}}i {{.*}}- cpp-output
 // CK-HELP: {{.*}}ii {{.*}}- c++-cpp-output
@@ -48,6 +48,9 @@
 // CK-HELP: {{.*}}o {{.*}}- object
 // CK-HELP: {{.*}}gch {{.*}}- precompiled-header
 // CK-HELP: {{.*}}ast {{.*}}- clang AST file
+// CK-HELP: {{.*}}aoco {{.*}}- unlinked Intel FPGA object file
+// CK-HELP: {{.*}}aocr {{.*}}- linked Intel FPGA early image
+// CK-HELP: {{.*}}aocx {{.*}}- linked Intel FPGA image
 // CK-HELP: {{.*}}-unbundle {{.*}}- Unbundle bundled file into several output files.
 
 //
@@ -79,7 +82,6 @@
 // RUN: not clang-offload-bundler 2>&1 | FileCheck %s --check-prefix CK-ERR7
 // CK-ERR7-DAG: clang-offload-bundler: for the --type option: must be specified at least once!
 // CK-ERR7-DAG: clang-offload-bundler: for the --inputs option: must be specified at least once!
-// CK-ERR7-DAG: clang-offload-bundler: for the --outputs option: must be specified at least once!
 // CK-ERR7-DAG: clang-offload-bundler: for the --targets option: must be specified at least once!
 
 // RUN: not clang-offload-bundler -type=i -targets=hxst-powerpcxxle-ibm-linux-gnu,openxp-pxxerpc64le-ibm-linux-gnu,xpenmp-x86_xx-pc-linux-gnu -inputs=%t.i,%t.tgt1,%t.tgt2 -outputs=%t.bundle.i 2>&1 | FileCheck %s --check-prefix CK-ERR8
@@ -91,6 +93,18 @@
 // RUN: not clang-offload-bundler -type=i -targets=host-powerpc64le-ibm-linux-gnu,host-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -inputs=%t.i,%t.tgt1,%t.tgt2 -outputs=%t.bundle.i 2>&1 | FileCheck %s --check-prefix CK-ERR9B
 // CK-ERR9A: error: expecting exactly one host target but got 0.
 // CK-ERR9B: error: expecting exactly one host target but got 2.
+
+// RUN: not clang-offload-bundler -type=i -targets=host-powerpc64le-ibm-linux-gnu,openmp-powerpc64le-ibm-linux-gnu -outputs=%t.i,%t.tgt1,%t.tgt2 -inputs=%t.bundle.i -unbundle -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR10
+// CK-ERR10: error: -unbundle and -check-section are not compatible options.
+
+// RUN: not clang-offload-bundler -type=i -targets=host-powerpc64le-ibm-linux-gnu,openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle.i,%t.i  -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR11
+// CK-ERR11: error: only one input file supported in checking mode.
+
+// RUN: not clang-offload-bundler -type=i -targets=host-powerpc64le-ibm-linux-gnu,openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle.i  -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR12
+// CK-ERR12: error: only one target supported in checking mode.
+
+// RUN: not clang-offload-bundler -type=i -targets=openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle.i -outputs=%t.r  -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR13
+// CK-ERR13: error: no output file supported in checking mode.
 
 //
 // Check text bundle. This is a readable format, so we check for the format we expect to find.
@@ -255,6 +269,16 @@
 // RUN: diff %t.o %t.res.o
 // RUN: diff %t.empty %t.res.tgt1
 // RUN: diff %t.empty %t.res.tgt2
+
+//
+// Check target checking
+//
+// RUN: clang-offload-bundler -type=bc -targets=host-powerpc64le-ibm-linux-gnu -inputs=%t.bundle3.bc -check-section
+// RUN: clang-offload-bundler -type=bc -targets=openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle3.bc -check-section
+// RUN: clang-offload-bundler -type=bc -targets=openmp-x86_64-pc-linux-gnu -inputs=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocr-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aoco-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocx-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
 
 #ifdef EMULATE_FAT_OBJ
 #define BUNDLE_SECTION_PREFIX "__CLANG_OFFLOAD_BUNDLE__"
