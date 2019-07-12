@@ -32,13 +32,8 @@ int main() {
   Node *d_head = nullptr;
   Node *d_cur = nullptr;
   Node h_cur;
-
-  try {
-    d_head = alloc.allocate(1);
-  } catch (memory_allocation_error e) {
-    return -1;
-  };
-
+  
+  d_head = alloc.allocate(1);
   d_cur = d_head;
 
   for (int i = 0; i < numNodes; i++) {
@@ -46,9 +41,6 @@ int main() {
 
     if (i != (numNodes - 1)) {
       h_cur.pNext = alloc.allocate(1);
-      if (h_cur.pNext == nullptr) {
-        return -1;
-      }
     } else {
       h_cur.pNext = nullptr;
     }
