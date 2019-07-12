@@ -18,8 +18,6 @@ const int N = 8;
 
 class foo;
 int main() {
-  bool failed = false;
-
   queue q;
   auto dev = q.get_device();
   auto ctxt = q.get_context();
@@ -48,7 +46,7 @@ int main() {
   int answer = (N * (N - 1)) / 2;
 
   if (vec[0] != answer)
-    failed = true;
+    return -1;
 
-  return failed;
+  return 0;
 }

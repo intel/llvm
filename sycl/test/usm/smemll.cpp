@@ -23,64 +23,56 @@ struct Node {
 
 class foo;
 int main() {
-  bool failed = false;
-
   queue q;
   auto dev = q.get_device();
   auto ctxt = q.get_context();
-  Node *d_head = nullptr;
-  Node *d_cur = nullptr;
+  Node *s_head = nullptr;
+  Node *s_cur = nullptr;
+
+  s_head = (Node *)malloc_shared(sizeof(Node), dev, ctxt);
+  if (s_head == nullptr) {
+    return -1;
+  }
+  s_cur = s_head;
 
   for (int i = 0; i < numNodes; i++) {
-    if (i == 0) {
-      d_head = (Node *)malloc_shared(sizeof(Node), dev, ctxt);
-      if (d_head == nullptr) {
-        failed = true;
-        break;
-      }
-      d_cur = d_head;
-    }
-
-    d_cur->Num = i * 2;
+    s_cur->Num = i * 2;
 
     if (i != (numNodes - 1)) {
-      d_cur->pNext = (Node *)malloc_shared(sizeof(Node), dev, ctxt);
-      if (d_cur->pNext == nullptr) {
-        failed = true;
-        break;
+      s_cur->pNext = (Node *)malloc_shared(sizeof(Node), dev, ctxt);
+      if (s_cur->pNext == nullptr) {
+        return -1;
       }
     } else {
-      d_cur->pNext = nullptr;
+      s_cur->pNext = nullptr;
     }
 
-    d_cur = d_cur->pNext;
+    s_cur = s_cur->pNext;
   }
 
-  if (!failed) {
-    auto e1 = q.submit([=](handler &cgh) {
-      cgh.single_task<class foo>([=]() {
-        Node *pHead = d_head;
-        while (pHead) {
-          pHead->Num = pHead->Num * 2 + 1;
-          pHead = pHead->pNext;
-        }
-      });
-    });
-
-    e1.wait();
-
-    d_cur = d_head;
-    int mismatches = 0;
-    for (int i = 0; i < numNodes; i++) {
-      const int want = i * 4 + 1;
-      if (d_cur->Num != want) {
-        failed = true;
+  auto e1 = q.submit([=](handler &cgh) {
+    cgh.single_task<class foo>([=]() {
+      Node *pHead = s_head;
+      while (pHead) {
+        pHead->Num = pHead->Num * 2 + 1;
+        pHead = pHead->pNext;
       }
-      Node *old = d_cur;
-      d_cur = d_cur->pNext;
-      free(old, ctxt);
+    });
+  });
+
+  e1.wait();
+
+  s_cur = s_head;
+  int mismatches = 0;
+  for (int i = 0; i < numNodes; i++) {
+    const int want = i * 4 + 1;
+    if (s_cur->Num != want) {
+      return -1;
     }
+    Node *old = s_cur;
+    s_cur = s_cur->pNext;
+    free(old, ctxt);
   }
 
-  return failed;
+  return 0;
 }

@@ -10,6 +10,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/usm_impl.hpp>
 #include <CL/sycl/device.hpp>
+#include <CL/sycl/exception.hpp>
 #include <CL/sycl/usm/usm_enums.hpp>
 
 #include <cstdlib>
@@ -106,13 +107,13 @@ public:
   // Allocate memory
   pointer allocate(size_t Size) {
     if (!mContext && !mDevice) {
-      throw std::bad_alloc();
+      throw memory_allocation_error();
     }
     auto Result = reinterpret_cast<pointer>(
         detail::usm::alignedAlloc(getAlignment(), Size * sizeof(value_type),
                                   mContext, mDevice, AllocKind));
     if (!Result) {
-      throw std::bad_alloc();
+      throw memory_allocation_error();
     }
     return Result;
   }

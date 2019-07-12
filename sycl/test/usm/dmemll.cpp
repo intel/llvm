@@ -23,8 +23,6 @@ struct Node {
 
 class foo;
 int main() {
-  bool failed = false;
-
   queue q;
   auto dev = q.get_device();
   auto ctxt = q.get_context();
@@ -32,23 +30,19 @@ int main() {
   Node *d_cur = nullptr;
   Node h_cur;
 
-  for (int i = 0; i < numNodes; i++) {
-    if (i == 0) {
-      d_head = (Node *)malloc_device(sizeof(Node), dev, ctxt);
-      if (d_head == nullptr) {
-        failed = true;
-        break;
-      }
-      d_cur = d_head;
-    }
+  d_head = (Node *)malloc_device(sizeof(Node), dev, ctxt);
+  if (d_head == nullptr) {
+    return -1;
+  }
+  d_cur = d_head;
 
+  for (int i = 0; i < numNodes; i++) {
     h_cur.Num = i * 2;
 
     if (i != (numNodes - 1)) {
       h_cur.pNext = (Node *)malloc_device(sizeof(Node), dev, ctxt);
       if (h_cur.pNext == nullptr) {
-        failed = true;
-        break;
+        return -1;
       }
     } else {
       h_cur.pNext = nullptr;
@@ -60,32 +54,30 @@ int main() {
     d_cur = h_cur.pNext;
   }
 
-  if (!failed) {
-    auto e1 = q.submit([=](handler &cgh) {
-      cgh.single_task<class foo>([=]() {
-        Node *pHead = d_head;
-        while (pHead) {
-          pHead->Num = pHead->Num * 2 + 1;
-          pHead = pHead->pNext;
-        }
-      });
-    });
-
-    e1.wait();
-
-    d_cur = d_head;
-    for (int i = 0; i < numNodes; i++) {
-      event c = q.memcpy(&h_cur, d_cur, sizeof(Node));
-      c.wait();
-      free(d_cur, ctxt);
-
-      const int want = i * 4 + 1;
-      if (h_cur.Num != want) {
-        failed = true;
+  auto e1 = q.submit([=](handler &cgh) {
+    cgh.single_task<class foo>([=]() {
+      Node *pHead = d_head;
+      while (pHead) {
+        pHead->Num = pHead->Num * 2 + 1;
+        pHead = pHead->pNext;
       }
-      d_cur = h_cur.pNext;
+    });
+  });
+
+  e1.wait();
+
+  d_cur = d_head;
+  for (int i = 0; i < numNodes; i++) {
+    event c = q.memcpy(&h_cur, d_cur, sizeof(Node));
+    c.wait();
+    free(d_cur, ctxt);
+
+    const int want = i * 4 + 1;
+    if (h_cur.Num != want) {
+      return -1;
     }
+    d_cur = h_cur.pNext;
   }
 
-  return failed;
+  return 0;
 }

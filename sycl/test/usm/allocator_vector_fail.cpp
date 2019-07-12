@@ -1,6 +1,6 @@
 // RUN: %clang -std=c++11 -fsycl %s -o %t1.out -lstdc++ -lOpenCL -lsycl
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// XFAIL: *
+
 //==-- allocator_vector_fail.cpp - Device Memory Allocator fail test -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -19,37 +19,20 @@ const int N = 8;
 
 class foo;
 int main() {
-  bool failed = false;
+  try {
+    queue q;
+    auto dev = q.get_device();
+    auto ctxt = q.get_context();
 
-  queue q;
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
+    usm_allocator<int, usm::alloc::device> alloc(&ctxt, &dev);
+    std::vector<int, decltype(alloc)> vec(alloc);
 
-  usm_allocator<int, usm::alloc::device> alloc(&ctxt, &dev);
-
-  std::vector<int, decltype(alloc)> vec(N, alloc);
-
-  for (int i = 0; i < N; i++) {
-    vec[i] = i;
+    // This statement should throw an exception since
+    // device pointers may not be accessed on the host.
+    vec.assign(N, 42);
+  } catch (feature_not_supported) {
+    return 0;
   }
 
-  int *res = &vec[0];
-  int *vals = &vec[0];
-
-  auto e1 = q.submit([=](handler &cgh) {
-    cgh.single_task<class foo>([=]() {
-      for (int i = 1; i < N; i++) {
-        res[0] += vals[i];
-      }
-    });
-  });
-
-  e1.wait();
-
-  int answer = (N * (N - 1)) / 2;
-
-  if (vec[0] != answer)
-    failed = true;
-
-  return failed;
+  return -1;
 }

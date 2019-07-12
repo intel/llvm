@@ -32,6 +32,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
+// TODO: Update with PI interfaces
 event queue_impl::memset(void* ptr, int value, size_t count) {
   cl_event e;
   cl_int error;

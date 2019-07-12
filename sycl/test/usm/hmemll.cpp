@@ -23,62 +23,54 @@ struct Node {
 
 class foo;
 int main() {
-  bool failed = false;
-
   queue q;
   auto ctxt = q.get_context();
-  Node *d_head = nullptr;
-  Node *d_cur = nullptr;
+  Node *h_head = nullptr;
+  Node *h_cur = nullptr;
+
+  h_head = (Node *)malloc_host(sizeof(Node), ctxt);
+  if (h_head == nullptr) {
+    return -1;
+  }
+  h_cur = h_head;
 
   for (int i = 0; i < numNodes; i++) {
-    if (i == 0) {
-      d_head = (Node *)malloc_host(sizeof(Node), ctxt);
-      if (d_head == nullptr) {
-        failed = true;
-        break;
-      }
-      d_cur = d_head;
-    }
-
-    d_cur->Num = i * 2;
+    h_cur->Num = i * 2;
 
     if (i != (numNodes - 1)) {
-      d_cur->pNext = (Node *)malloc_host(sizeof(Node), ctxt);
-      if (d_cur->pNext == nullptr) {
-        failed = true;
-        break;
+      h_cur->pNext = (Node *)malloc_host(sizeof(Node), ctxt);
+      if (h_cur->pNext == nullptr) {
+        return -1;
       }
     } else {
-      d_cur->pNext = nullptr;
+      h_cur->pNext = nullptr;
     }
 
-    d_cur = d_cur->pNext;
+    h_cur = h_cur->pNext;
   }
 
-  if (!failed) {
-    auto e1 = q.submit([=](handler &cgh) {
-      cgh.single_task<class foo>([=]() {
-        Node *pHead = d_head;
-        while (pHead) {
-          pHead->Num = pHead->Num * 2 + 1;
-          pHead = pHead->pNext;
-        }
-      });
-    });
-
-    e1.wait();
-
-    d_cur = d_head;
-    for (int i = 0; i < numNodes; i++) {
-      const int want = i * 4 + 1;
-      if (d_cur->Num != want) {
-        failed = true;
+  auto e1 = q.submit([=](handler &cgh) {
+    cgh.single_task<class foo>([=]() {
+      Node *pHead = h_head;
+      while (pHead) {
+        pHead->Num = pHead->Num * 2 + 1;
+        pHead = pHead->pNext;
       }
-      Node *old = d_cur;
-      d_cur = d_cur->pNext;
-      free(old, ctxt);
+    });
+  });
+
+  e1.wait();
+
+  h_cur = h_head;
+  for (int i = 0; i < numNodes; i++) {
+    const int want = i * 4 + 1;
+    if (h_cur->Num != want) {
+      return -1;
     }
+    Node *old = h_cur;
+    h_cur = h_cur->pNext;
+    free(old, ctxt);
   }
 
-  return failed;
+  return 0;
 }
