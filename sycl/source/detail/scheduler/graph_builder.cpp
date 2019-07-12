@@ -584,6 +584,54 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   return NewCmd.release();
 }
 
+void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
+  std::vector<Command *> ToRemove(Record->MAllocaCommands.size());
+  std::copy(Record->MAllocaCommands.begin(), Record->MAllocaCommands.end(),
+            ToRemove.begin());
+  std::vector<Command *> ToRemoveNew;
+  std::set<Command *> Visited;
+
+  while (true) {
+    for (Command *Cmd : ToRemove) {
+      for (Command *&UserCmd : Cmd->MUsers) {
+        if (!UserCmd || !Visited.insert(UserCmd).second) {
+          continue;
+        }
+
+        auto NewEnd =
+            std::remove_if(UserCmd->MDeps.begin(), UserCmd->MDeps.end(),
+                           [Record](const DepDesc &Dep) {
+                             return Dep.MReq->MSYCLMemObj == Record->MMemObj;
+                           });
+
+        if (NewEnd == UserCmd->MDeps.end())
+          continue;
+
+        UserCmd->MDeps.erase(NewEnd, UserCmd->MDeps.end());
+
+        ToRemoveNew.push_back(UserCmd);
+
+        if (UserCmd->MDeps.empty())
+          UserCmd = nullptr;
+      }
+
+      if (Cmd->MDeps.empty()) {
+        delete Cmd;
+      }
+    }
+
+    if (ToRemoveNew.empty())
+      break;
+
+    ToRemove.swap(ToRemoveNew);
+    ToRemoveNew.clear();
+  }
+
+  for (Command *AllocaCmd : Record->MAllocaCommands) {
+    delete AllocaCmd;
+  }
+}
+
 void Scheduler::GraphBuilder::cleanupCommands(bool CleanupReleaseCommands) {
   // TODO: Implement.
 }

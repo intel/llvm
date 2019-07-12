@@ -124,7 +124,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     return;
   }
   waitForRecordToFinish(Record);
-  MGraphBuilder.cleanupCommands(/*CleanupReleaseCommands = */ true);
+  MGraphBuilder.cleanupCommandsForRecord(Record);
   MGraphBuilder.removeRecordForMemObj(MemObj);
 }
 
