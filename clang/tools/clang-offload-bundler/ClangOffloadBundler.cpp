@@ -996,7 +996,14 @@ static FileHandler *CreateFileHandler(MemoryBuffer &FirstInput) {
   if (FilesType == "s")
     return new TextFileHandler(/*Comment=*/"#");
   if (FilesType == "o" || FilesType == "oo")
+  {
+    // Since windows does not support incremental linking
+    // use BinaryFileHandler to bundle object files.
+    llvm::Triple T(getTriple(TargetNames[HostInputIndex]));
+    if (T.isOSWindows())
+      return new BinaryFileHandler();
     return CreateObjectFileHandler(FirstInput);
+  }
   if (FilesType == "gch")
     return new BinaryFileHandler();
   if (FilesType == "ast")
