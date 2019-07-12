@@ -38,12 +38,18 @@ struct DirectoryWatcherTestFixture {
 
   DirectoryWatcherTestFixture() {
     SmallString<128> pathBuf;
-    std::error_code UniqDirRes = createUniqueDirectory("dirwatcher", pathBuf);
+#ifndef NDEBUG
+    std::error_code UniqDirRes =
+#endif
+    createUniqueDirectory("dirwatcher", pathBuf);
     assert(!UniqDirRes);
     TestRootDir = pathBuf.str();
     path::append(pathBuf, "watch");
     TestWatchedDir = pathBuf.str();
-    std::error_code CreateDirRes = create_directory(TestWatchedDir, false);
+#ifndef NDEBUG
+    std::error_code CreateDirRes =
+#endif
+    create_directory(TestWatchedDir, false);
     assert(!CreateDirRes);
   }
 
@@ -91,7 +97,9 @@ std::string eventKindToString(const DirectoryWatcher::Event::EventKind K) {
 
 struct VerifyingConsumer {
   std::vector<DirectoryWatcher::Event> ExpectedInitial;
+  const std::vector<DirectoryWatcher::Event> ExpectedInitialCopy;
   std::vector<DirectoryWatcher::Event> ExpectedNonInitial;
+  const std::vector<DirectoryWatcher::Event> ExpectedNonInitialCopy;
   std::vector<DirectoryWatcher::Event> OptionalNonInitial;
   std::vector<DirectoryWatcher::Event> UnexpectedInitial;
   std::vector<DirectoryWatcher::Event> UnexpectedNonInitial;
@@ -102,8 +110,8 @@ struct VerifyingConsumer {
       const std::vector<DirectoryWatcher::Event> &ExpectedInitial,
       const std::vector<DirectoryWatcher::Event> &ExpectedNonInitial,
       const std::vector<DirectoryWatcher::Event> &OptionalNonInitial = {})
-      : ExpectedInitial(ExpectedInitial),
-        ExpectedNonInitial(ExpectedNonInitial),
+      : ExpectedInitial(ExpectedInitial), ExpectedInitialCopy(ExpectedInitial),
+        ExpectedNonInitial(ExpectedNonInitial), ExpectedNonInitialCopy(ExpectedNonInitial),
         OptionalNonInitial(OptionalNonInitial) {}
 
   // This method is used by DirectoryWatcher.
@@ -175,6 +183,26 @@ struct VerifyingConsumer {
   }
 
   void printUnmetExpectations(llvm::raw_ostream &OS) {
+    // If there was any issue, print the expected state
+    if (
+      !ExpectedInitial.empty()
+      ||
+      !ExpectedNonInitial.empty()
+      ||
+      !UnexpectedInitial.empty()
+      ||
+      !UnexpectedNonInitial.empty()
+    ) {
+      OS << "Expected initial events: \n";
+      for (const auto &E : ExpectedInitialCopy) {
+        OS << eventKindToString(E.Kind) << " " << E.Filename << "\n";
+      }
+      OS << "Expected non-initial events: \n";
+      for (const auto &E : ExpectedNonInitialCopy) {
+        OS << eventKindToString(E.Kind) << " " << E.Filename << "\n";
+      }
+    }
+
     if (!ExpectedInitial.empty()) {
       OS << "Expected but not seen initial events: \n";
       for (const auto &E : ExpectedInitial) {
@@ -212,6 +240,7 @@ void checkEventualResultWithTimeout(VerifyingConsumer &TestConsumer) {
   EXPECT_TRUE(WaitForExpectedStateResult.wait_for(std::chrono::seconds(3)) ==
               std::future_status::ready)
       << "The expected result state wasn't reached before the time-out.";
+  std::unique_lock<std::mutex> L(TestConsumer.Mtx);
   EXPECT_TRUE(TestConsumer.result().hasValue());
   if (TestConsumer.result().hasValue()) {
     EXPECT_TRUE(*TestConsumer.result());
@@ -415,8 +444,9 @@ TEST(DirectoryWatcherTest, ChangeMetadata) {
     const int FD = HopefullyTheFD.get();
     const TimePoint<> NewTimePt =
         std::chrono::system_clock::now() - std::chrono::minutes(1);
-
+#ifndef NDEBUG
     std::error_code setTimeRes =
+#endif
         llvm::sys::fs::setLastAccessAndModificationTime(FD, NewTimePt,
                                                         NewTimePt);
     assert(!setTimeRes);
