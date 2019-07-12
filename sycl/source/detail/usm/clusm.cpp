@@ -158,6 +158,7 @@ cl_int CLUSM::memFree(cl_context context, const void *ptr) {
       mUSMContextInfo.SharedAllocVector.erase(
           std::find(mUSMContextInfo.SharedAllocVector.begin(),
                     mUSMContextInfo.SharedAllocVector.end(), ptr));
+      break;
     default:
       assert(0 && "unsupported!");
       break;
