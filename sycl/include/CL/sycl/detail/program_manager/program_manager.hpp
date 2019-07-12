@@ -67,19 +67,10 @@ private:
   void build(RT::PiProgram &Program, const string_class &Options = "",
              std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());
 
-  struct ContextAndModuleLess {
-    bool operator()(const std::pair<context, OSModuleHandle> &LHS,
-                    const std::pair<context, OSModuleHandle> &RHS) const;
-  };
-
   ProgramManager() = default;
   ~ProgramManager() = default;
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
-
-  std::map<std::pair<context, OSModuleHandle>, RT::PiProgram, ContextAndModuleLess>
-      m_CachedSpirvPrograms;
-  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> m_CachedKernels;
 
   /// Keeps all available device executable images added via \ref addImages.
   /// Organizes the images as a map from a module handle (.exe .dll) to the

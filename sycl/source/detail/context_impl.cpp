@@ -92,6 +92,14 @@ context_impl::~context_impl() {
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piContextRelease(m_Context));
   }
+  // Release all programs and kernels created with this context
+  for (auto ProgIt : m_CachedPrograms) {
+    RT::PiProgram ToBeDeleted = ProgIt.second;
+    for (auto KernIt : m_CachedKernels[ToBeDeleted]) {
+      PI_CALL(RT::piKernelRelease(KernIt.second));
+    }
+    PI_CALL(RT::piProgramRelease(ToBeDeleted));
+  }
 }
 
 const async_handler &context_impl::get_async_handler() const {

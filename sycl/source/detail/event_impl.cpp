@@ -29,7 +29,7 @@ cl_event event_impl::get() const {
 }
 
 event_impl::~event_impl() {
-  if (!m_HostEvent) {
+  if (m_Event) {
     PI_CALL(RT::piEventRelease(m_Event));
   }
 }
