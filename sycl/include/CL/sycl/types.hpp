@@ -1784,11 +1784,24 @@ using cl_schar16 = cl_char16;
 #define GET_SCALAR_CL_TYPE(target) cl_##target
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
+// On the host side we cannot use OpenCL cl_half# types as an underlying type
+// for vec because they are actually defined as an integer type under the hood.
+// As a result half values will be converted to the integer and passed as a
+// kernel argument which is expected to be floating point number.
 #ifndef __SYCL_DEVICE_ONLY__
-#define GET_CL_HALF_TYPE(target, num) cl_##target##num
-#else
-#define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
+template <int NumElements, typename CLType> struct alignas(CLType) half_vec {
+  std::array<half, NumElements> s;
+};
+
+typedef half __half_t;
+typedef half_vec<2, cl_half2> __half2_vec_t;
+typedef half_vec<3, cl_half3> __half3_vec_t;
+typedef half_vec<4, cl_half4> __half4_vec_t;
+typedef half_vec<8, cl_half8> __half8_vec_t;
+typedef half_vec<16, cl_half16> __half16_vec_t;
 #endif
+
+#define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
 namespace cl {
 namespace sycl {

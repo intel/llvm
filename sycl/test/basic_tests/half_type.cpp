@@ -89,6 +89,20 @@ void verify_div(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
   assert_close(c.get_access<access::mode::read>(), ref);
 }
 
+void verify_vec(queue &q) {
+  half2 hvec(999);
+  int a = 0;
+  buffer<int, 1> e(&a, range<1>(1));
+  q.submit([&](cl::sycl::handler &cgh) {
+    auto E = e.get_access<access::mode::write>(cgh);
+    cgh.single_task<class vec_of_half>([=]() {
+      if (int(hvec.s0()) != 999 || int(hvec.s1()) != 999)
+        E[0] = 1;
+    });
+  });
+  assert(e.get_access<access::mode::read>()[0] == 0);
+}
+
 inline bool bitwise_comparison_fp16(const half val, const uint16_t exp) {
   return reinterpret_cast<const uint16_t&>(val) == exp;
 }
@@ -122,6 +136,7 @@ int main() {
   verify_min(q, a, b, r, 3.0);
   verify_mul(q, a, b, r, 10.0);
   verify_div(q, a, b, r, 2.5);
+  verify_vec(q);
 
   if (!dev.is_host()) {
     return 0;
