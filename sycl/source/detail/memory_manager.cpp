@@ -105,7 +105,7 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
                           PI_MEM_FLAGS_HOST_PTR_USE;
   RT::PiResult Error = PI_SUCCESS;
   RT::PiMem NewMem;
-  PI_CALL((NewMem = RT::piMemCreate(
+  PI_CALL((NewMem = RT::piMemBufferCreate(
       TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &Error), Error));
   return NewMem;
 }
@@ -134,7 +134,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
       TgtQueue->getHandleRef();
 
   if (1 == DimDst && 1 == DimSrc) {
-    PI_CALL(RT::piEnqueueMemWrite(
+    PI_CALL(RT::piEnqueueMemBufferWrite(
         Queue, DstMem,
         /*blocking_write=*/CL_FALSE, DstOffset[0], DstAccessRange[0],
         SrcMem + DstOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent));
@@ -144,7 +144,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
 
     size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
     size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
-    PI_CALL(RT::piEnqueueMemWriteRect(
+    PI_CALL(RT::piEnqueueMemBufferWriteRect(
         Queue, DstMem,
         /*blocking_write=*/CL_FALSE, &DstOffset[0], &SrcOffset[0],
         &DstAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
@@ -175,7 +175,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       SrcQueue->getHandleRef();
 
   if (1 == DimDst && 1 == DimSrc) {
-    PI_CALL(RT::piEnqueueMemRead(
+    PI_CALL(RT::piEnqueueMemBufferRead(
         Queue, SrcMem,
         /*blocking_read=*/CL_FALSE, DstOffset[0], DstAccessRange[0],
         DstMem + DstOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent));
@@ -185,7 +185,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 
     size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
     size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
-    PI_CALL(RT::piEnqueueMemReadRect(
+    PI_CALL(RT::piEnqueueMemBufferReadRect(
         Queue, SrcMem,
         /*blocking_read=*/CL_FALSE, &SrcOffset[0], &DstOffset[0],
         &SrcAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
@@ -215,7 +215,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       SrcQueue->getHandleRef();
 
   if (1 == DimDst && 1 == DimSrc) {
-    PI_CALL(RT::piEnqueueMemCopy(
+    PI_CALL(RT::piEnqueueMemBufferCopy(
         Queue, SrcMem, DstMem, SrcOffset[0], DstOffset[0],
         SrcAccessRange[0], DepEvents.size(), &DepEvents[0], &OutEvent));
   } else {
@@ -225,7 +225,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
     size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
     size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
 
-    PI_CALL(RT::piEnqueueMemCopyRect(
+    PI_CALL(RT::piEnqueueMemBufferCopyRect(
         Queue, SrcMem, DstMem, &SrcOffset[0], &DstOffset[0],
         &SrcAccessRange[0], BufferRowPitch, BufferSlicePitch, HostRowPitch,
         HostSlicePitch, DepEvents.size(), &DepEvents[0], &OutEvent));
@@ -305,7 +305,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   // TODO: Handle images.
 
   if (Dim == 1) {
-    PI_CALL(RT::piEnqueueMemFill(
+    PI_CALL(RT::piEnqueueMemBufferFill(
         Queue->getHandleRef(), pi::pi_cast<RT::PiMem>(Mem), Pattern, PatternSize, Offset[0],
         Range[0] * ElementSize, DepEvents.size(), &DepEvents[0], &OutEvent));
     return;
@@ -349,7 +349,7 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
 
   RT::PiResult Error = PI_SUCCESS;
   void *MappedPtr;
-  PI_CALL((MappedPtr = RT::piEnqueueMemMap(
+  PI_CALL((MappedPtr = RT::piEnqueueMemBufferMap(
       Queue->getHandleRef(), pi::pi_cast<RT::PiMem>(Mem), CL_FALSE, Flags,
       AccessOffset[0], AccessRange[0], DepEvents.size(),
       DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &Error), Error));

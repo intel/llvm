@@ -43,6 +43,12 @@ namespace pi {
   using PiMemFlags            = ::pi_mem_flags;
   using PiEvent               = ::pi_event;
   using PiSampler             = ::pi_sampler;
+  using PiImageFormat         = ::pi_image_format;
+  using PiImageDesc           = ::pi_image_desc;
+  using PiImageInfo           = ::pi_image_info;
+  using PiMemObjectType       = ::pi_mem_object_type;
+  using PiChannelOrder        = ::pi_channel_order;
+  using PiChannelType         = ::pi_channel_type;
 
   // Report error and no return (keeps compiler happy about no return statements).
   [[noreturn]] void piDie(const char *Message);
