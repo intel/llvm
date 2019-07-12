@@ -262,11 +262,18 @@ class image_accessor
   constexpr static bool IsImageArrayAcc =
       (AccessTarget == access::target::image_array);
 
-  constexpr static bool IsImageAccessAnyWrite =
+  constexpr static bool IsImageAccessWriteOnly =
       (AccessMode == access::mode::write ||
        AccessMode == access::mode::discard_write);
 
-  constexpr static bool IsImageAccessRead = (AccessMode == access::mode::read);
+  constexpr static bool IsImageAccessAnyWrite =
+      (IsImageAccessWriteOnly || AccessMode == access::mode::read_write);
+
+  constexpr static bool IsImageAccessReadOnly =
+      (AccessMode == access::mode::read);
+
+  constexpr static bool IsImageAccessAnyRead =
+      (IsImageAccessReadOnly || AccessMode == access::mode::read_write);
 
   static_assert(IsImageAcc || IsHostImageAcc || IsImageArrayAcc,
                 "Expected image type");
@@ -275,9 +282,12 @@ class image_accessor
                 "Expected false as Placeholder value for image accessor.");
 
   static_assert(
-      AccessMode == access::mode::read || AccessMode == access::mode::write ||
-          AccessMode == access::mode::discard_write,
-      "Access modes can be only read/write/discard_write for image accessor.");
+      ((IsImageAcc || IsImageArrayAcc) &&
+       (IsImageAccessWriteOnly || IsImageAccessReadOnly)) ||
+          (IsHostImageAcc && (IsImageAccessAnyWrite || IsImageAccessAnyRead)),
+      "Access modes can be only read/write/discard_write for image/image_array "
+      "target accessor, or they can be only "
+      "read/write/discard_write/read_write for host_image target accessor.");
 
   static_assert(Dimensions > 0 && Dimensions <= 3,
                 "Dimensions can be 1/2/3 for image accessor.");
@@ -381,39 +391,48 @@ public:
         T, detail::type_list<cl_int4, cl_float4>>::type::value;
   };
 
-  //  Available only when: (accessTarget == access::target::image ||
-  //  accessTarget == access::target::host_image) && accessMode ==
-  //  access::mode::read
+  // Available only when:
+  // (accessTarget == access::target::image && accessMode == access::mode::read)
+  // || (accessTarget == access::target::host_image && ( accessMode ==
+  // access::mode::read || accessMode == access::mode::read_write))
   template <typename CoordT, int Dims = Dimensions,
             typename = detail::enable_if_t<
                 (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
-                (IsImageAcc || IsHostImageAcc) && IsImageAccessRead>>
+                ((IsImageAcc && IsImageAccessReadOnly) ||
+                 (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords) const {
     // TODO: To be implemented.
     throw cl::sycl::feature_not_supported("Read API is not implemented.");
     return;
   };
 
-  // Available only when: (accessTarget == access::target::image || accessTarget
-  // == access::target::host_image) && accessMode == access::mode::read
+  // Available only when:
+  // (accessTarget == access::target::image && accessMode == access::mode::read)
+  // || (accessTarget == access::target::host_image && ( accessMode ==
+  // access::mode::read || accessMode == access::mode::read_write))
   template <typename CoordT, int Dims = Dimensions,
             typename = detail::enable_if_t<
                 (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
-                (IsImageAcc || IsHostImageAcc) && IsImageAccessRead>>
+                ((IsImageAcc && IsImageAccessReadOnly) ||
+                 (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
     // TODO: To be implemented.
     throw cl::sycl::feature_not_supported("Read API is not implemented.");
     return;
   };
 
-  // Available only when: (accessTarget == access::target::image || accessTarget
-  // == access::target::host_image) && accessMode == access::mode::write ||
-  // accessMode == access::mode::discard_write
+  // Available only when:
+  // (accessTarget == access::target::image && (accessMode ==
+  // access::mode::write || accessMode == access::mode::discard_write)) ||
+  // (accessTarget == access::target::host_image && (accessMode ==
+  // access::mode::write || accessMode == access::mode::discard_write ||
+  // accessMode == access::mode::read_write))
   template <typename CoordT, int Dims = Dimensions,
             typename = detail::enable_if_t<
                 (Dims > 0) && (detail::is_intn<CoordT>::value) &&
                 (IsValidCoordDataT<Dims, CoordT>::value) &&
-                (IsImageAcc || IsHostImageAcc) && IsImageAccessAnyWrite>>
+                ((IsImageAcc && IsImageAccessWriteOnly) ||
+                 (IsHostImageAcc && IsImageAccessAnyWrite))>>
   void write(const CoordT &Coords, const DataT &Color) const {
     // TODO: To be implemented.
     throw cl::sycl::feature_not_supported("Write API is not implemented.");
@@ -920,13 +939,13 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor<DataT, Dimensions, AccessMode, access::target::image,
                IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
-                            access::target::image, IsPlaceholder> {
+                                    access::target::image, IsPlaceholder> {
 public:
   template <typename AllocatorT>
   accessor(cl::sycl::image<Dimensions, AllocatorT> &Image,
            handler &CommandGroupHandler)
-      : detail::image_accessor<DataT, Dimensions, AccessMode, access::target::image,
-                       IsPlaceholder>(
+      : detail::image_accessor<DataT, Dimensions, AccessMode,
+                               access::target::image, IsPlaceholder>(
             Image, CommandGroupHandler,
             (detail::getSyclObjImpl(Image))->getElementSize()) {
     CommandGroupHandler.associateWithHandler(*this);
@@ -942,12 +961,12 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
-                            access::target::host_image, IsPlaceholder> {
+                                    access::target::host_image, IsPlaceholder> {
 public:
   template <typename AllocatorT>
   accessor(cl::sycl::image<Dimensions, AllocatorT> &Image)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
-                       access::target::host_image, IsPlaceholder>(
+                               access::target::host_image, IsPlaceholder>(
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
 };
 
@@ -960,7 +979,8 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor<DataT, Dimensions, AccessMode, access::target::image_array,
                IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
-                            access::target::image_array, IsPlaceholder> {
+                                    access::target::image_array,
+                                    IsPlaceholder> {
   // TODO: To be Implemented.
 };
 
