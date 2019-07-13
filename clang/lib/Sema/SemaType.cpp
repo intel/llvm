@@ -7075,11 +7075,6 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
                << (int)Sema::CallingConventionIgnoredReason::VariadicFunction;
 
       attr.setInvalid();
-      if (S.getLangOpts().SYCLIsDevice) {
-        S.SYCLDiagIfDeviceCode(attr.getLoc(), diag::err_cconv_varargs)
-          << FunctionType::getNameForCallConv(CC);
-        return true;
-      } else
       return S.Diag(attr.getLoc(), diag::err_cconv_varargs)
              << FunctionType::getNameForCallConv(CC);
     }

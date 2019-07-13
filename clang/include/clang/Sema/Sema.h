@@ -11326,7 +11326,8 @@ public:
     KernelCallFunctionPointer,
     KernelAllocateStorage,
     KernelUseAssembly,
-    KernelHavePolymorphicClass
+    KernelHavePolymorphicClass,
+    KernelCallVariadicFunction
  };
   DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc);
