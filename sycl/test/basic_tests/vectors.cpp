@@ -1,5 +1,4 @@
-// RUN: %clang --sycl %s -c -o %T/kernel.spv
-// RUN: %clang -std=c++11 -g %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
 // RUN: %t.out
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //
