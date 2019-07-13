@@ -317,6 +317,9 @@ private:
     if (!Visited.insert(Ty).second)
       return true;
     
+    if (const auto *ATy = dyn_cast<AttributedType>(Ty))
+      return CheckSYCLType(ATy->getModifiedType(), Loc, Visited);
+
     if (const auto *CRD = Ty->getAsCXXRecordDecl()) {
       // If the class is a forward declaration - skip it, because otherwise we
       // would query property of class with no definition, which results in
@@ -354,6 +357,9 @@ private:
         }
       }
     } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
+      if (FPTy->isVariadic() && SemaRef.getLangOpts().SYCLIsDevice)
+	SemaRef.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_sycl_restrict)
+            << Sema::KernelCallVariadicFunction;
       for (const auto &ParamTy : FPTy->param_types())
         if (!CheckSYCLType(ParamTy, Loc, Visited))
           return false;
