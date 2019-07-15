@@ -15,14 +15,6 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-// For selection of SYCL RT back-end, now manually through the "SYCL_BE"
-// environment variable.
-//
-enum PiBackend {
-  SYCL_BE_PI_OPENCL,
-  SYCL_BE_PI_OTHER
-};
-
 // Check for manually selected BE at run-time.
 bool piUseBackend(PiBackend Backend) {
   static const char *GetEnv = std::getenv("SYCL_BE");

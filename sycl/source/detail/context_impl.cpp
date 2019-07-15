@@ -9,6 +9,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/context_info.hpp>
+#include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -32,10 +33,16 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
   for (const auto &D : m_Devices) {
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
+
   RT::PiResult Err;
   PI_CALL((m_Context =
       RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &Err),
       Err));
+
+  if (usm::CLUSM* clusm = GetCLUSM()) {
+    cl_platform_id id = m_Platform.get();
+    clusm->initExtensions(id);
+  }
 }
 
 context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)

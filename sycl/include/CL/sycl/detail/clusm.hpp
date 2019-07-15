@@ -10,6 +10,7 @@
 
 #include <CL/cl.h>
 #include <CL/cl_usm_ext.h>
+#include <CL/sycl/detail/pi.hpp>
 
 #include <map>
 #include <mutex>
@@ -52,7 +53,13 @@ public:
   cl_int writeParamToMemory(size_t param_value_size, T param,
                             size_t *param_value_size_ret, T *pointer) const;
 
+  bool useCLUSM() { return mEnableCLUSM; }
+
+  bool isInitialized() { return mInitialized; }
+
 private:
+  bool mEnableCLUSM = true;
+  bool mInitialized = false;
   std::mutex mLock;
 
   CLUSM() = default;
@@ -100,7 +107,7 @@ private:
 } // namespace usm
 
 namespace cliext {
-void initializeExtensions(cl_platform_id platform);
+bool initializeExtensions(cl_platform_id platform);
 } // namespace cliext
 
 } // namespace detail
@@ -112,5 +119,11 @@ inline cl::sycl::detail::usm::CLUSM *GetCLUSM() {
   if (gCLUSM == nullptr) {
     cl::sycl::detail::usm::CLUSM::Create(gCLUSM);
   }
-  return gCLUSM;
+
+  cl::sycl::detail::usm::CLUSM *retVal = nullptr;
+  if (cl::sycl::detail::piUseBackend(
+          cl::sycl::detail::PiBackend::SYCL_BE_PI_OPENCL)) {
+    retVal = gCLUSM;
+  }
+  return retVal;
 }
