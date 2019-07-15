@@ -63,10 +63,10 @@ constexpr bool modeWritesNewData(access::mode m) {
 }
 
 #ifdef __SYCL_DEVICE_ONLY__
-#define SYCL_GLOBAL_AS __global
-#define SYCL_LOCAL_AS __local
-#define SYCL_CONSTANT_AS __constant
-#define SYCL_PRIVATE_AS __private
+#define SYCL_GLOBAL_AS __attribute__((ocl_global))
+#define SYCL_LOCAL_AS __attribute__((ocl_local))
+#define SYCL_CONSTANT_AS __attribute__((ocl_constant))
+#define SYCL_PRIVATE_AS __attribute__((ocl_private))
 #else
 #define SYCL_GLOBAL_AS
 #define SYCL_LOCAL_AS
