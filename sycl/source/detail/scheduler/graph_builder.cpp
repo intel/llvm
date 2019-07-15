@@ -124,8 +124,10 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
 
   AllocaCommand *AllocaCmdSrc = findAllocaForReq(Record, Req, SrcQueue);
 
+  // Full copy of buffer is needed to avoid loss of data that may be caused
+  // by copying specific range form host to device and backwards.
   MemCpyCommand *MemCpyCmd = new MemCpyCommand(
-      *AllocaCmdSrc->getAllocationReq(), AllocaCmdSrc, *Req, AllocaCmdDst,
+      *AllocaCmdSrc->getAllocationReq(), AllocaCmdSrc, FullReq, AllocaCmdDst,
       AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue(), UseExclusiveQueue);
 
   for (Command *Dep : Deps) {
