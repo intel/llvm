@@ -102,11 +102,22 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
       *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
     return pi_cast<pi_program>(resProgram);
   }
+
+  cl_platform_id curPlatform;
+  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
+                            sizeof(cl_platform_id), &curPlatform, NULL);
+
+  if (ret_err != CL_SUCCESS) {
+    if (err != nullptr)
+      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
+    return pi_cast<pi_program>(resProgram);
+  }
+
   size_t devVerSize;
   ret_err =
-      clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_VERSION, 0, NULL, &devVerSize);
+      clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, NULL, &devVerSize);
   std::string devVer(devVerSize, '\0');
-  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_VERSION, devVerSize,
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, devVerSize,
                             &devVer.front(), NULL);
 
   if (ret_err != CL_SUCCESS) {
@@ -121,15 +132,6 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
       devVer.find("OpenCL 2.0") == std::string::npos) {
     resProgram = clCreateProgramWithIL(pi_cast<cl_context>(context), il, length,
                                        pi_cast<cl_int *>(err));
-    return pi_cast<pi_program>(resProgram);
-  }
-
-  cl_platform_id curPlatform;
-  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
-                            sizeof(cl_platform_id), &curPlatform, NULL);
-  if (ret_err != CL_SUCCESS) {
-    if (err != nullptr)
-      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
     return pi_cast<pi_program>(resProgram);
   }
 
