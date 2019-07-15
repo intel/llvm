@@ -118,7 +118,7 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
       clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, NULL, &devVerSize);
   std::string devVer(devVerSize, '\0');
   ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, devVerSize,
-                            &devVer.front(), NULL);
+                              &devVer.front(), NULL);
 
   if (ret_err != CL_SUCCESS) {
     if (err != nullptr)
