@@ -259,11 +259,11 @@ struct sub_group {
   load(const multi_ptr<T, Space> src) const {
     if (sizeof(T) == sizeof(uint32_t)) {
       uint32_t t = __spirv_SubgroupBlockReadINTEL<uint32_t>(
-          (const __global uint32_t *)src.get());
+          (const __attribute__((ocl_global)) uint32_t *)src.get());
       return *((T *)(&t));
     }
     uint16_t t = __spirv_SubgroupBlockReadINTEL<uint16_t>(
-        (const __global uint16_t *)src.get());
+        (const __attribute__((ocl_global)) uint16_t *)src.get());
     return *((T *)(&t));
   }
 
@@ -281,13 +281,13 @@ struct sub_group {
       typedef uint32_t ocl_t __attribute__((ext_vector_type(N)));
 
       ocl_t t = __spirv_SubgroupBlockReadINTEL<ocl_t>(
-          (const __global uint32_t *)src.get());
+          (const __attribute__((ocl_global)) uint32_t *)src.get());
       return *((typename vec<T, N>::vector_t *)(&t));
     }
     typedef uint16_t ocl_t __attribute__((ext_vector_type(N)));
 
     ocl_t t = __spirv_SubgroupBlockReadINTEL<ocl_t>(
-        (const __global uint16_t *)src.get());
+        (const __attribute__((ocl_global)) uint16_t *)src.get());
     return *((typename vec<T, N>::vector_t *)(&t));
   }
 
@@ -300,10 +300,10 @@ struct sub_group {
             T>::type &x) const {
     if (sizeof(T) == sizeof(uint32_t)) {
       __spirv_SubgroupBlockWriteINTEL<uint32_t>(
-          (__global uint32_t *)dst.get(), *((uint32_t *)&x));
+          (__attribute__((ocl_global)) uint32_t *)dst.get(), *((uint32_t *)&x));
     } else {
       __spirv_SubgroupBlockWriteINTEL<uint16_t>(
-          (__global uint16_t *)dst.get(), *((uint16_t *)&x));
+          (__attribute__((ocl_global)) uint16_t *)dst.get(), *((uint16_t *)&x));
     }
   }
 
@@ -324,11 +324,11 @@ struct sub_group {
                 N> &x) const {
     if (sizeof(T) == sizeof(uint32_t)) {
       typedef uint32_t ocl_t __attribute__((ext_vector_type(N)));
-      __spirv_SubgroupBlockWriteINTEL((__global uint32_t *)dst.get(),
+      __spirv_SubgroupBlockWriteINTEL((__attribute__((ocl_global)) uint32_t *)dst.get(),
                                              *((ocl_t *)&x));
     } else {
       typedef uint16_t ocl_t __attribute__((ext_vector_type(N)));
-      __spirv_SubgroupBlockWriteINTEL((__global uint16_t *)dst.get(),
+      __spirv_SubgroupBlockWriteINTEL((__attribute__((ocl_global)) uint16_t *)dst.get(),
                                              *((ocl_t *)&x));
     }
   }
