@@ -199,7 +199,6 @@ _PI_CL(piMemGetInfo,        clGetMemObjectInfo)
 _PI_CL(piMemRetain,         clRetainMemObject)
 _PI_CL(piMemRelease,        clReleaseMemObject)
 // Program
-//_PI_CL(piProgramCreate,             clCreateProgramWithIL)
 _PI_CL(piclProgramCreateWithSource, clCreateProgramWithSource)
 _PI_CL(piclProgramCreateWithBinary, clCreateProgramWithBinary)
 _PI_CL(piProgramGetInfo,            clGetProgramInfo)
