@@ -183,9 +183,21 @@ template <typename dataT>
 extern void __spirv_SubgroupBlockWriteINTEL(__global uint32_t *Ptr,
                                             dataT Data) noexcept;
 
+template <typename dataT>
+extern int32_t __spirv_ReadPipe(RPipeTy<dataT> Pipe, dataT *Data,
+                                int32_t Size, int32_t Alignment) noexcept;
+template <typename dataT>
+extern int32_t __spirv_WritePipe(WPipeTy<dataT> Pipe, dataT *Data,
+                                 int32_t Size, int32_t Alignment) noexcept;
+template <typename dataT>
+extern RPipeTy<dataT> __spirv_CreatePipeFromPipeStorage_read(
+    const ConstantPipeStorage *Storage) noexcept;
+template <typename dataT>
+extern WPipeTy<dataT> __spirv_CreatePipeFromPipeStorage_write(
+    const ConstantPipeStorage *Storage) noexcept;
+
 extern void __spirv_ocl_prefetch(const __global char *Ptr,
                                  size_t NumBytes) noexcept;
-
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
