@@ -137,7 +137,8 @@ inline bool isGroupOpCode(Op OpCode) {
 
 inline bool isPipeOpCode(Op OpCode) {
   unsigned OC = OpCode;
-  return OpReadPipe <= OC && OC <= OpGroupCommitWritePipe;
+  return (OpReadPipe <= OC && OC <= OpGroupCommitWritePipe) ||
+         (OpReadPipeBlockingINTEL <= OC && OC <= OpWritePipeBlockingINTEL);
 }
 
 inline bool isSubgroupAvcINTELTypeOpCode(Op OpCode) {

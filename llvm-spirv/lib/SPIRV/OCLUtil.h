@@ -183,6 +183,7 @@ const static char NDRangePrefix[] = "ndrange_";
 const static char Pipe[] = "pipe";
 const static char ReadImage[] = "read_image";
 const static char ReadPipe[] = "read_pipe";
+const static char ReadPipeBlockingINTEL[] = "read_pipe_bl";
 const static char RoundingPrefix[] = "_r";
 const static char Sampled[] = "sampled_";
 const static char SampledReadImage[] = "sampled_read_image";
@@ -204,6 +205,7 @@ const static char WaitGroupEvent[] = "wait_group_events";
 const static char WriteImage[] = "write_image";
 const static char WorkGroupBarrier[] = "work_group_barrier";
 const static char WritePipe[] = "write_pipe";
+const static char WritePipeBlockingINTEL[] = "write_pipe_bl";
 const static char WorkGroupPrefix[] = "work_group_";
 const static char WorkGroupAll[] = "work_group_all";
 const static char WorkGroupAny[] = "work_group_any";
@@ -603,6 +605,8 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   // CL 2.0 pipe builtins
   _SPIRV_OP(read_pipe_2, ReadPipe)
   _SPIRV_OP(write_pipe_2, WritePipe)
+  _SPIRV_OP(read_pipe_bl_2, ReadPipeBlockingINTEL)
+  _SPIRV_OP(write_pipe_bl_2, WritePipeBlockingINTEL)
   _SPIRV_OP(read_pipe_4, ReservedReadPipe)
   _SPIRV_OP(write_pipe_4, ReservedWritePipe)
   _SPIRV_OP(reserve_read_pipe, ReserveReadPipePackets)
