@@ -28,6 +28,7 @@
 #include <CL/sycl/multi_ptr.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>
+#include <CL/sycl/pipes.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/program.hpp>
