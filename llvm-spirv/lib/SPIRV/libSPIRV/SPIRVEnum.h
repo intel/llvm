@@ -114,6 +114,7 @@ typedef spv::Dim SPIRVImageDimKind;
 typedef std::vector<SPIRVCapabilityKind> SPIRVCapVec;
 
 enum SPIRVExtensionKind {
+  SPV_INTEL_blocking_pipes,
   SPV_INTEL_device_side_avc_motion_estimation,
   SPV_KHR_no_integer_wrap_decoration
 };
@@ -121,6 +122,7 @@ enum SPIRVExtensionKind {
 typedef std::set<SPIRVExtensionKind> SPIRVExtSet;
 
 template <> inline void SPIRVMap<SPIRVExtensionKind, std::string>::init() {
+  add(SPV_INTEL_blocking_pipes, "SPV_INTEL_blocking_pipes");
   add(SPV_INTEL_device_side_avc_motion_estimation,
       "SPV_INTEL_device_side_avc_motion_estimation");
   add(SPV_KHR_no_integer_wrap_decoration, "SPV_KHR_no_integer_wrap_decoration");
@@ -156,6 +158,7 @@ template <> inline void SPIRVMap<SPIRVCapabilityKind, SPIRVCapVec>::init() {
   ADD_VEC_INIT(CapabilityImageReadWrite, {CapabilityImageBasic});
   ADD_VEC_INIT(CapabilityImageMipmap, {CapabilityImageBasic});
   ADD_VEC_INIT(CapabilityPipes, {CapabilityKernel});
+  ADD_VEC_INIT(CapabilityBlockingPipesINTEL, {CapabilityKernel});
   ADD_VEC_INIT(CapabilityDeviceEnqueue, {CapabilityKernel});
   ADD_VEC_INIT(CapabilityLiteralSampler, {CapabilityKernel});
   ADD_VEC_INIT(CapabilityAtomicStorage, {CapabilityShader});
