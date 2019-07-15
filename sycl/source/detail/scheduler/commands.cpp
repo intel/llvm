@@ -439,7 +439,8 @@ cl_int ExecCGCommand::enqueueImp() {
                                MQueue->get_device())->getHandleRef());
 
     // TODO: Replace CL with PI
-    if (usesUSM && (auto clusm = GetCLUSM())) {
+    auto clusm = GetCLUSM();
+    if (usesUSM && clusm) {
       cl_bool t = CL_TRUE;
       auto theKernel = pi_cast<cl_kernel>(Kernel);
       // Enable USM Indirect Access for Kernels
