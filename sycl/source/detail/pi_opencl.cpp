@@ -84,13 +84,18 @@ pi_result OCL(piextDeviceSelectBinary)(
 pi_program OCL(piProgramCreate)(pi_context context, const void *il,
                                 size_t length, pi_result *err) {
 
-  cl_device_id devicesInCtx[10];
   size_t deviceCount;
   cl_program resProgram;
 
-  cl_int ret_err = clGetContextInfo(
-      pi_cast<cl_context>(context), CL_CONTEXT_DEVICES,
-      10 * sizeof(cl_device_id), (void *)devicesInCtx, &deviceCount);
+  cl_int ret_err = clGetContextInfo(pi_cast<cl_context>(context),
+                                    CL_CONTEXT_DEVICES, 0, NULL, &deviceCount);
+
+  std::vector<cl_device_id> devicesInCtx;
+  devicesInCtx.reserve(deviceCount);
+
+  ret_err = clGetContextInfo(pi_cast<cl_context>(context), CL_CONTEXT_DEVICES,
+                             deviceCount * sizeof(cl_device_id),
+                             devicesInCtx.data(), NULL);
 
   if (ret_err != CL_SUCCESS || deviceCount < 1) {
     if (err != nullptr)
