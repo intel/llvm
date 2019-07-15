@@ -25,6 +25,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
+#include <fstream>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -69,7 +70,7 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
     SmallVector<Arg *, 4> AllocatedArgs;
     DerivedArgList *OffloadArgs = nullptr;
     // Translate offload toolchain arguments provided via the -Xopenmp-target
-    // or -Xsycl-target flags.
+    // or -Xsycl-target-frontend flags.
     if (DeviceOffloadKind == Action::OFK_OpenMP ||
         DeviceOffloadKind == Action::OFK_SYCL) {
       const ToolChain *HostTC = getSingleOffloadToolChain<Action::OFK_Host>();
@@ -128,11 +129,23 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   return true;
 }
 
-bool Compilation::CleanupFileList(const llvm::opt::ArgStringList &Files,
+bool Compilation::CleanupFileList(const TempFileList &Files,
                                   bool IssueErrors) const {
   bool Success = true;
-  for (const auto &File: Files)
-    Success &= CleanupFile(File, IssueErrors);
+  for (const auto &File: Files) {
+    // Temporary file lists contain files that need to be cleaned. The
+    // file containing the information is also removed
+    if (File.second == types::TY_Tempfilelist) {
+      std::ifstream ListFile(File.first);
+      if (ListFile) {
+        // These are temporary files and need to be removed.
+        std::string TmpFileName;
+        while(std::getline(ListFile, TmpFileName) && !TmpFileName.empty())
+          Success &= CleanupFile(TmpFileName.c_str(), IssueErrors);
+      }
+    }
+    Success &= CleanupFile(File.first, IssueErrors);
+  }
   return Success;
 }
 

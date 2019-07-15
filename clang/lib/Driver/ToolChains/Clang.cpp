@@ -5334,6 +5334,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // header file.
       CmdArgs.push_back("-dependency-filter");
       CmdArgs.push_back(SYCLDeviceInput->getFilename());
+      // Let the FE know we are doing a SYCL offload compilation, but we are
+      // doing the host pass.
+      CmdArgs.push_back("-fsycl-is-host");
     }
     if (IsSYCLOffloadDevice && JA.getType() == types::TY_SYCL_Header) {
       // Generating a SYCL Header
@@ -6397,6 +6400,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // Input files consist of fat libraries and the object(s) to be unbundled.
     for (const auto &I : Inputs)
       LinkArgs.push_back(I.getFilename());
+    // Add -L<dir> search directories.
+    TCArgs.AddAllArgs(LinkArgs, options::OPT_L);
     for (const auto &A :
             TCArgs.getAllArgValues(options::OPT_foffload_static_lib_EQ))
       LinkArgs.push_back(TCArgs.MakeArgString(A));

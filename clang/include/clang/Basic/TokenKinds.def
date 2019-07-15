@@ -554,8 +554,8 @@ ALIAS("generic", __generic          , KEYOPENCLC | KEYOPENCLCXX)
 KEYWORD(__kernel                    , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("kernel", __kernel            , KEYOPENCLC | KEYOPENCLCXX)
 // OpenCL access qualifiers
-KEYWORD(__read_only                 , KEYOPENCLC | KEYOPENCLCXX)
-KEYWORD(__write_only                , KEYOPENCLC | KEYOPENCLCXX)
+KEYWORD(__read_only                 , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
+KEYWORD(__write_only                , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
 KEYWORD(__read_write                , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("read_only", __read_only      , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("write_only", __write_only    , KEYOPENCLC | KEYOPENCLCXX)
@@ -570,6 +570,7 @@ KEYWORD(vec_step                    , KEYOPENCLC | KEYALTIVEC | KEYZVECTOR)
 KEYWORD(__builtin_omp_required_simd_align, KEYALL)
 
 KEYWORD(pipe                        , KEYOPENCLC | KEYOPENCLCXX)
+KEYWORD(__pipe                      , KEYSYCL)
 
 // Borland Extensions.
 KEYWORD(__pascal                    , KEYALL)

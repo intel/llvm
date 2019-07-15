@@ -77,6 +77,10 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
 
 template <typename FPGALoopAttrT>
 static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
+
+  if(S.LangOpts.SYCLIsHost)
+    return nullptr;
+
   unsigned NumArgs = A.getNumArgs();
   if (NumArgs > 1) {
     S.Diag(A.getLoc(), diag::err_attribute_too_many_arguments) << A << 1;

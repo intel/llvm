@@ -8,6 +8,7 @@
 
 #include "CL/sycl/access/access.hpp"
 #include <CL/cl.h>
+#include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/kernel_info.hpp>
@@ -265,8 +266,8 @@ cl_int MemCpyCommandHost::enqueueImp() {
 // number of work - groups, such that the size of each group is chosen by the
 // runtime, or by the number of work - groups and number of work - items for
 // users who need more control.
-static void adjustNDRangePerKernel(NDRDescT &NDR, cl_kernel Kernel,
-                                   cl_device_id Device) {
+static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
+                                   RT::PiDevice Device) {
   if (NDR.GlobalSize[0] != 0)
     return; // GlobalSize is set - no need to adjust
   // check the prerequisites:
@@ -394,6 +395,7 @@ cl_int ExecCGCommand::enqueueImp() {
       Kernel = detail::ProgramManager::getInstance().getOrCreateKernel(
           ExecKernel->MOSModuleHandle, Context, ExecKernel->MKernelName);
 
+    bool usesUSM = false;
     for (ArgDesc &Arg : ExecKernel->MArgs) {
       switch (Arg.MType) {
       case kernel_param_kind_t::kind_accessor: {
@@ -418,11 +420,58 @@ cl_int ExecCGCommand::enqueueImp() {
             Kernel, Arg.MIndex, sizeof(cl_sampler), &Sampler));
         break;
       }
+      case kernel_param_kind_t::kind_pointer:  {
+        // TODO: Change to PI
+        usesUSM = true;
+        auto PtrToPtr = reinterpret_cast<intptr_t*>(Arg.MPtr);
+        auto DerefPtr = reinterpret_cast<void*>(*PtrToPtr);
+        auto theKernel = pi_cast<cl_kernel>(Kernel);
+        CHECK_OCL_CODE(clSetKernelArgMemPointerINTEL(theKernel, Arg.MIndex, DerefPtr));
+        break;
+      }
       default:
         assert(!"Unhandled");
       }
     }
-    adjustNDRangePerKernel(NDRDesc, Kernel, MQueue->get_device().get());
+
+    adjustNDRangePerKernel(NDRDesc, Kernel,
+                           detail::getSyclObjImpl(
+                               MQueue->get_device())->getHandleRef());
+
+    // TODO: Replace CL with PI
+    auto clusm = GetCLUSM();
+    if (usesUSM && clusm) {
+      cl_bool t = CL_TRUE;
+      auto theKernel = pi_cast<cl_kernel>(Kernel);
+      // Enable USM Indirect Access for Kernels
+      if (clusm->useCLUSM()) {
+        CHECK_OCL_CODE(clusm->setKernelExecInfo(
+            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+            sizeof(cl_bool), &t));
+        CHECK_OCL_CODE(clusm->setKernelExecInfo(
+            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+            sizeof(cl_bool), &t));
+        CHECK_OCL_CODE(clusm->setKernelExecInfo(
+            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+            sizeof(cl_bool), &t));
+
+        // This passes all the allocations we've tracked as SVM Pointers
+        CHECK_OCL_CODE(clusm->setKernelIndirectUSMExecInfo(
+            pi_cast<cl_command_queue>(MQueue->getHandleRef()), theKernel));
+      } else if (clusm->isInitialized()) {
+        // Sanity check that nothing went wrong setting up clusm
+        CHECK_OCL_CODE(clSetKernelExecInfo(
+            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+            sizeof(cl_bool), &t));
+        CHECK_OCL_CODE(clSetKernelExecInfo(
+            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+            sizeof(cl_bool), &t));
+        CHECK_OCL_CODE(clSetKernelExecInfo(
+            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+            sizeof(cl_bool), &t));
+      }
+    }
+
     PI_CALL(RT::piEnqueueKernelLaunch(
         MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0],

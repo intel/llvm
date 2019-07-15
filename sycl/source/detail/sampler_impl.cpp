@@ -60,7 +60,7 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
       getSyclObjImpl(Context)->getHandleRef(), sprops, &errcode_ret),
       errcode_ret));
 #else
-  // TODO: do we reall need this old interface into PI and here?
+  // TODO: do we really need this old interface into PI and here?
   cl_int cl_errcode_ret;
   m_contextToSampler[Context] =
       clCreateSampler(getSyclObjImpl(Context)->getHandleRef(),

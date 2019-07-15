@@ -1456,7 +1456,7 @@ void Driver::generateCompilationDiagnostics(
     return;
   }
 
-  const ArgStringList &TempFiles = C.getTempFiles();
+  const TempFileList &TempFiles = C.getTempFiles();
   if (TempFiles.empty()) {
     Diag(clang::diag::note_drv_command_failed_diag_msg)
         << "Error generating preprocessed source(s).";
@@ -1470,24 +1470,24 @@ void Driver::generateCompilationDiagnostics(
 
   SmallString<128> VFS;
   SmallString<128> ReproCrashFilename;
-  for (const char *TempFile : TempFiles) {
-    Diag(clang::diag::note_drv_command_failed_diag_msg) << TempFile;
+  for (auto &TempFile : TempFiles) {
+    Diag(clang::diag::note_drv_command_failed_diag_msg) << TempFile.first;
     if (Report)
-      Report->TemporaryFiles.push_back(TempFile);
+      Report->TemporaryFiles.push_back(TempFile.first);
     if (ReproCrashFilename.empty()) {
-      ReproCrashFilename = TempFile;
+      ReproCrashFilename = TempFile.first;
       llvm::sys::path::replace_extension(ReproCrashFilename, ".crash");
     }
-    if (StringRef(TempFile).endswith(".cache")) {
+    if (StringRef(TempFile.first).endswith(".cache")) {
       // In some cases (modules) we'll dump extra data to help with reproducing
       // the crash into a directory next to the output.
-      VFS = llvm::sys::path::filename(TempFile);
+      VFS = llvm::sys::path::filename(TempFile.first);
       llvm::sys::path::append(VFS, "vfs", "vfs.yaml");
     }
   }
 
   // Assume associated files are based off of the first temporary file.
-  CrashReportInfo CrashInfo(TempFiles[0], VFS);
+  CrashReportInfo CrashInfo(TempFiles[0].first, VFS);
 
   llvm::SmallString<128> Script(CrashInfo.Filename);
   llvm::sys::path::replace_extension(Script, "sh");
@@ -3038,6 +3038,10 @@ class OffloadingActionBuilder final {
     /// The compiler inputs obtained for each toolchain
     Action * DeviceCompilerInput = nullptr;
 
+    /// List of offload device triples needed to track for different toolchain
+    /// construction
+    SmallVector<llvm::Triple, 4> SYCLTripleList;
+
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs)
@@ -3102,6 +3106,7 @@ class OffloadingActionBuilder final {
           // We avoid creating host action in device-only mode.
           return ABRT_Ignore_Host;
         }
+
         // We passed the device action as a host dependence, so we don't need to
         // do anything else with them.
         SYCLDeviceActions.clear();
@@ -3203,17 +3208,37 @@ class OffloadingActionBuilder final {
       if (SYCLAOTInputs.empty()) {
         // Append a new link action for each device.
         auto TC = ToolChains.begin();
+
+        unsigned I = 0;
         for (auto &LI : DeviceLinkerInputs) {
           auto *DeviceLinkAction =
-              C.MakeAction<LinkJobAction>(LI, types::TY_Image);
+              C.MakeAction<LinkJobAction>(LI, types::TY_SPIRV);
+          auto TT = SYCLTripleList[I];
+          bool SYCLAOTCompile = (TT.getSubArch() != llvm::Triple::NoSubArch &&
+                         (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_gen));
 
           // After the Link, wrap the files before the final host link
-          auto *DeviceWrappingAction =
+          if (SYCLAOTCompile) {
+            // Do the additional Ahead of Time compilation when the specific
+            // triple calls for it (provided a valid subarch).
+            auto *DeviceBECompileAction =
+                C.MakeAction<BackendCompileJobAction>(DeviceLinkAction,
+                                                      types::TY_Image);
+            auto *DeviceWrappingAction =
+              C.MakeAction<OffloadWrappingJobAction>(DeviceBECompileAction,
+                                                     types::TY_Object);
+            DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
+                   Action::OFK_SYCL);
+          } else {
+            auto *DeviceWrappingAction =
               C.MakeAction<OffloadWrappingJobAction>(DeviceLinkAction,
                                                      types::TY_Object);
-          DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
-                 Action::OFK_SYCL);
+            DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
+                   Action::OFK_SYCL);
+          }
           ++TC;
+          ++I;
         }
       } else {
         // Perform additional wraps against -fsycl-add-targets
@@ -3277,6 +3302,41 @@ class OffloadingActionBuilder final {
                  << SYCLAddTargets->getOption().getName() << Val;
           }
         }
+      }
+      // Gather information about the SYCL Ahead of Time targets.  The targets
+      // are determined on the SubArch values passed along in the triple.
+      // The SubArch information for SYCL offload is not used during the
+      // compilation and is only used to determine additional compilation steps
+      // needed in the driver toolchain.
+      Arg *SYCLTargets =
+              C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
+      bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(options::OPT_fsycl,
+                                              options::OPT_fno_sycl, false);
+      if (SYCLTargets) {
+        llvm::StringMap<const char *> FoundNormalizedTriples;
+        for (const char *Val : SYCLTargets->getValues()) {
+          llvm::Triple TT(Val);
+          std::string NormalizedName = TT.normalize();
+
+          // Make sure we don't have a duplicate triple.
+          auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
+          if (Duplicate != FoundNormalizedTriples.end())
+            continue;
+
+          // Store the current triple so that we can check for duplicates in
+          // the following iterations.
+          FoundNormalizedTriples[NormalizedName] = Val;
+
+          SYCLTripleList.push_back(TT);
+        }
+      } else if (HasValidSYCLRuntime) {
+        // Only -fsycl is provided without -fsycl-targets.
+        llvm::Triple TT;
+        TT.setArch(llvm::Triple::spir64);
+        TT.setVendor(llvm::Triple::UnknownVendor);
+        TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+        TT.setEnvironment(llvm::Triple::SYCLDevice);
+        SYCLTripleList.push_back(TT);
       }
 
       DeviceLinkerInputs.resize(ToolChains.size());
@@ -4633,7 +4693,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
            C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
                                           "txt");
         const char *TmpFile =
-                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName),
+                                      types::TY_Tempfilelist);
         CurI = InputInfo(types::TY_Tempfilelist, TmpFile, TmpFile);
       } else {
         std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(

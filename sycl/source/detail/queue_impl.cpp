@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/clusm.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/device.hpp>
 
@@ -28,6 +30,34 @@ template <> context queue_impl::get_info<info::queue::context>() const {
 
 template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
+}
+
+// TODO: Update with PI interfaces
+event queue_impl::memset(void* ptr, int value, size_t count) {
+  cl_event e;
+  cl_int error;
+  cl_command_queue q = pi_cast<cl_command_queue>(getHandleRef());
+
+  error = clEnqueueMemsetINTEL(q, ptr, value, count,
+                               /* sizeof waitlist */ 0, nullptr, &e);
+
+  CHECK_OCL_CODE_THROW(error, runtime_error);
+
+  return event(e, get_context());
+}
+
+event queue_impl::memcpy(void* dest, const void* src, size_t count) {
+  cl_event e;
+  cl_int error;
+  cl_command_queue q = pi_cast<cl_command_queue>(getHandleRef());
+
+  error = clEnqueueMemcpyINTEL(q,
+                               /* blocking */ false, dest, src, count,
+                               /* sizeof waitlist */ 0, nullptr, &e);
+
+  CHECK_OCL_CODE_THROW(error, runtime_error);
+
+  return event(e, get_context());
 }
 } // namespace detail
 } // namespace sycl

@@ -52,9 +52,9 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(Compilation &C,
   return OutputFileName;
 }
 
-const char *SYCL::Linker::constructLLVMLinkCommand(
-    Compilation &C, const JobAction &JA, const ArgList &Args,
-    StringRef SubArchName, StringRef OutputFilePrefix,
+const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
+    const JobAction &JA, const InputInfo &Output, const ArgList &Args,
+    StringRef SubArchName, StringRef OutputFilePrefix, bool ToBc,
     const InputInfoList &InputFiles) const {
   ArgStringList CmdArgs;
   // Add the input bc's created by compile step.
@@ -65,8 +65,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
-    // FIXME - properly add objects from list to be removed when compilation is
-    // complete.
     for (const auto &II : InputFiles) {
       if (II.getType() == types::TY_Tempfilelist) {
         // Pass the unbundled list with '@' to be processed.
@@ -75,18 +73,22 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       } else
         CmdArgs.push_back(II.getFilename());
     }
-  }
-  else
+  } else
     for (const auto &II : InputFiles)
       CmdArgs.push_back(II.getFilename());
 
+  // Add additional options from -Xsycl-target-linker
+  TranslateSYCLLinkerArgs(C, Args, getToolChain(), CmdArgs);
   // Add an intermediate output file.
   CmdArgs.push_back("-o");
-  SmallString<128> TmpName(C.getDriver().GetTemporaryPath(
-                           OutputFilePrefix.str() + "-linked", "bc"));
-  const char *OutputFileName =
-      C.addTempFile(C.getArgs().MakeArgString(TmpName));
-  CmdArgs.push_back(OutputFileName);
+  const char *OutputFileName = nullptr;
+  if (ToBc) {
+    SmallString<128> TmpName(C.getDriver().GetTemporaryPath(
+                             OutputFilePrefix.str() + "-linked", "bc"));
+    OutputFileName = C.addTempFile(C.getArgs().MakeArgString(TmpName));
+    CmdArgs.push_back(OutputFileName);
+  } else
+    CmdArgs.push_back(Output.getFilename());
   SmallString<128> ExecPath(C.getDriver().Dir);
   llvm::sys::path::append(ExecPath, "llvm-link");
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
@@ -143,9 +145,139 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                       LLVMSpirvOutputFile));
     }
   }
+
   const char *LLVMLinkOutputFile =
-      constructLLVMLinkCommand(C, JA, Args, SubArchName, Prefix, SpirvInputs);
+      constructLLVMLinkCommand(C, JA, Output, Args, SubArchName, Prefix, true,
+                               SpirvInputs);
   constructLLVMSpirvCommand(C, JA, Output, Prefix, false, LLVMLinkOutputFile);
+}
+
+void SYCL::TranslateSYCLTargetArgs(Compilation &C,
+   const llvm::opt::ArgList &Args, const ToolChain &TC,
+   llvm::opt::ArgStringList &CmdArgs) {
+
+  // Handle -Xsycl-target-backend flag.
+  for (auto *A : Args) {
+    bool XSYCLTargetNoTriple;
+    XSYCLTargetNoTriple = A->getOption().matches(options::OPT_Xsycl_backend);
+    if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+      // Passing device args: -Xsycl-target-backend=<triple> -opt=val.
+      if (A->getValue() != TC.getTripleString())
+        // Provided triple does not match current tool chain.
+        continue;
+    } else if (!XSYCLTargetNoTriple)
+      // Don't worry about any of the other args, we only want to pass what is
+      // passed in -Xsycl-target-backend.
+      continue;
+
+    // Add the argument from -Xsycl-target-backend.
+    StringRef ArgString;
+    if (XSYCLTargetNoTriple) {
+      // With multiple -fsycl-targets, a triple is required so we know where
+      // the options should go.
+      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
+        C.getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
+            << A->getSpelling();
+        continue;
+      }
+      // No triple, so just add the argument.
+      ArgString = A->getValue();
+    } else
+      // Triple found, add the next argument in line.
+      ArgString = A->getValue(1);
+    // Do a simple parse of the args to pass back
+    SmallVector<StringRef, 16> TargetArgs;
+    ArgString.split(TargetArgs, ' ', -1, false);
+    for (const auto &TA : TargetArgs)
+      CmdArgs.push_back(Args.MakeArgString(TA));
+    Args.ClaimAllArgs(options::OPT_Xsycl_backend_EQ);
+    Args.ClaimAllArgs(options::OPT_Xsycl_backend);
+  }
+}
+
+void SYCL::TranslateSYCLLinkerArgs(Compilation &C,
+   const llvm::opt::ArgList &Args, const ToolChain &TC,
+   llvm::opt::ArgStringList &CmdArgs) {
+
+  // Handle -Xsycl-target-linker flag.
+  for (auto *A : Args) {
+    bool XSYCLLinkerNoTriple;
+    XSYCLLinkerNoTriple = A->getOption().matches(options::OPT_Xsycl_linker);
+    if (A->getOption().matches(options::OPT_Xsycl_linker_EQ)) {
+      // Passing llvm-link args: -Xsycl-target-linker=<triple> -opt=val.
+      if (A->getValue() != TC.getTripleString())
+        // Provided triple does not match current tool chain.
+        continue;
+    } else if (!XSYCLLinkerNoTriple)
+      // Don't worry about any of the other args, we only want to pass what is
+      // passed in -Xsycl-target-linker.
+      continue;
+
+    // Add the argument from -Xsycl-target-linker.
+    StringRef ArgString;
+    if (XSYCLLinkerNoTriple) {
+      // With multiple -fsycl-targets, a triple is required so we know where
+      // the options should go.
+      if (Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
+        C.getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
+            << A->getSpelling();
+        continue;
+      }
+      // No triple, so just add the argument.
+      ArgString = A->getValue();
+    } else
+      // Triple found, add the next argument in line.
+      ArgString = A->getValue(1);
+    // Do a simple parse of the args to pass back
+    SmallVector<StringRef, 16> TargetArgs;
+    ArgString.split(TargetArgs, ' ', -1, false);
+    for (const auto &TA : TargetArgs)
+      CmdArgs.push_back(Args.MakeArgString(TA));
+    Args.ClaimAllArgs(options::OPT_Xsycl_linker_EQ);
+    Args.ClaimAllArgs(options::OPT_Xsycl_linker);
+  }
+}
+
+void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
+                                         const JobAction &JA,
+                                         const InputInfo &Output,
+                                         const InputInfoList &Inputs,
+                                         const ArgList &Args,
+                                         const char *LinkingOutput) const {
+  assert((getToolChain().getTriple().getArch() == llvm::Triple::spir ||
+          getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
+         "Unsupported target");
+  ArgStringList CmdArgs{"-o",  Output.getFilename()};
+  for (const auto &II : Inputs) {
+    CmdArgs.push_back(II.getFilename());
+  }
+  CmdArgs.push_back("-sycl");
+  TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
+
+  SmallString<128> ExecPath(getToolChain().GetProgramPath("aoc"));
+  const char *Exec = C.getArgs().MakeArgString(ExecPath);
+  C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
+}
+
+void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
+                                         const JobAction &JA,
+                                         const InputInfo &Output,
+                                         const InputInfoList &Inputs,
+                                         const ArgList &Args,
+                                         const char *LinkingOutput) const {
+  assert((getToolChain().getTriple().getArch() == llvm::Triple::spir ||
+          getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
+         "Unsupported target");
+  ArgStringList CmdArgs{"-output",  Output.getFilename()};
+  for (const auto &II : Inputs) {
+    CmdArgs.push_back("-file");
+    CmdArgs.push_back(II.getFilename());
+  }
+  CmdArgs.push_back("-spirv_input");
+  TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
+  SmallString<128> ExecPath(getToolChain().GetProgramPath("ocloc"));
+  const char *Exec = C.getArgs().MakeArgString(ExecPath);
+  C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
 }
 
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
@@ -187,6 +319,13 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
                       BoundArch);
   }
   return DAL;
+}
+
+Tool *SYCLToolChain::buildBackendCompiler() const {
+  if (getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+    return new tools::SYCL::fpga::BackendCompiler(*this);
+  // fall through is GEN
+  return new tools::SYCL::gen::BackendCompiler(*this);
 }
 
 Tool *SYCLToolChain::buildLinker() const {

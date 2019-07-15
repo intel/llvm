@@ -14,7 +14,7 @@ int main() {
   });
 #elif VIRTUAL
   kernel_single_task<class kernel_function_2>([]() {
-      // expected-error@+2{{No class with a vtable can be used in a SYCL kernel or any code included in the kernel}}
+      // expected-error@+2{{SYCL kernel cannot have a class with a virtual function table}}
       // expected-note@+1{{used here}}
       class Boo {
       public:

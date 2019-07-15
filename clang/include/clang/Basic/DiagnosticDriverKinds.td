@@ -108,9 +108,9 @@ def err_drv_Xopenmp_target_missing_triple : Error<
 def err_drv_invalid_Xopenmp_target_with_args : Error<
   "invalid -Xopenmp-target argument: '%0', options requiring arguments are unsupported">;
 def err_drv_Xsycl_target_missing_triple : Error<
-  "cannot deduce implicit triple value for -Xsycl-target, specify triple using -Xsycl-target=<triple>">;
-def err_drv_invalid_Xsycl_target_with_args : Error<
-  "invalid -Xsycl-target argument: '%0', options requiring arguments are unsupported">;
+  "cannot deduce implicit triple value for '%0', specify triple using '%0=<triple>'">;
+def err_drv_invalid_Xsycl_frontend_with_args : Error<
+  "invalid -Xsycl-target-frontend argument: '%0', options requiring arguments are unsupported">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
 def err_drv_argument_not_allowed_with : Error<

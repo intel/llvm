@@ -47,7 +47,8 @@ typedef pi_uint32   pi_bool;
 // TODO: populate PI enums.
 //
 typedef enum {
-  PI_SUCCESS = CL_SUCCESS
+  PI_SUCCESS = CL_SUCCESS,
+  PI_RESULT_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME
 } _pi_result;
 
 typedef enum {

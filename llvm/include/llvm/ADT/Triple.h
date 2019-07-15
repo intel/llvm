@@ -128,7 +128,10 @@ public:
     KalimbaSubArch_v4,
     KalimbaSubArch_v5,
 
-    MipsSubArch_r6
+    MipsSubArch_r6,
+
+    SPIRSubArch_fpga,
+    SPIRSubArch_gen
   };
   enum VendorType {
     UnknownVendor,

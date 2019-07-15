@@ -12,7 +12,6 @@
 
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi_opencl.hpp> // TODO: remove when switched to PI
 
 namespace cl {
 namespace sycl {
@@ -114,12 +113,18 @@ namespace pi {
   #undef _PI_API
 } // namespace pi
 
-// Select underlying runtime interface in compile-time (OpenCL or PI).
-// As such only one path (OpenCL today) is being regularily tested.
-// TODO: change to
-// namespace RT = cl::sycl::detail::pi;
-namespace RT = cl::sycl::detail::pi_opencl;
+namespace RT = cl::sycl::detail::pi;
 
+// For selection of SYCL RT back-end, now manually through the "SYCL_BE"
+// environment variable.
+//
+enum PiBackend {
+  SYCL_BE_PI_OPENCL,
+  SYCL_BE_PI_OTHER
+};
+  
+bool piUseBackend(PiBackend Backend);
+  
 // Report error and no return (keeps compiler happy about no return statements).
 [[noreturn]] void piDie(const char *Message);
 void piAssert(bool Condition, const char *Message = nullptr);

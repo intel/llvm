@@ -115,7 +115,7 @@ CL_API_ENTRY cl_int CL_API_CALL clSetKernelArgMemPointerINTEL(
   cl_int retVal = CL_INVALID_OPERATION;
 
   if (pfn_clSetKernelArgMemPointerINTEL) {
-    retVal = clSetKernelArgMemPointerINTEL(kernel, arg_index, arg_value);
+    retVal = pfn_clSetKernelArgMemPointerINTEL(kernel, arg_index, arg_value);
   } else if (GetCLUSM()) {
     retVal = clSetKernelArgSVMPointer(kernel, arg_index, arg_value);
   }
@@ -220,7 +220,7 @@ namespace cliext {
   pfn_##_funcname = (_funcname##_fn)clGetExtensionFunctionAddressForPlatform(  \
       platform, #_funcname);
 
-void initializeExtensions(cl_platform_id platform) {
+bool initializeExtensions(cl_platform_id platform) {
   GET_EXTENSION(clHostMemAllocINTEL);
   GET_EXTENSION(clDeviceMemAllocINTEL);
   GET_EXTENSION(clSharedMemAllocINTEL);
@@ -231,6 +231,11 @@ void initializeExtensions(cl_platform_id platform) {
   GET_EXTENSION(clEnqueueMemcpyINTEL);
   GET_EXTENSION(clEnqueueMigrateMemINTEL);
   GET_EXTENSION(clEnqueueMemAdviseINTEL);
+
+  return (pfn_clHostMemAllocINTEL && pfn_clDeviceMemAllocINTEL &&
+          pfn_clSharedMemAllocINTEL && pfn_clMemFreeINTEL &&
+          pfn_clSetKernelArgMemPointerINTEL && pfn_clEnqueueMemsetINTEL &&
+          pfn_clEnqueueMemcpyINTEL);
 }
 
 #ifdef __cplusplus

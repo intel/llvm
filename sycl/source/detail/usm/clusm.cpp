@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // ===--------------------------------------------------------------------=== //
-
 #include <CL/sycl/detail/clusm.hpp>
 
 #include <algorithm>
@@ -40,12 +39,19 @@ void CLUSM::Delete(CLUSM *&pCLUSM) {
 }
 
 void CLUSM::initExtensions(cl_platform_id platform) {
-  cliext::initializeExtensions(platform);
+  // If OpenCL supports the USM Extension, don't enable CLUSM.
+  std::lock_guard<std::mutex> guard(mLock);
+
+  if (!mInitialized) {
+    mEnableCLUSM = !cliext::initializeExtensions(platform);
+    mInitialized = true;
+  }
 }
 
 void *CLUSM::hostMemAlloc(cl_context context,
                           cl_mem_properties_intel *properties, size_t size,
                           cl_uint alignment, cl_int *errcode_ret) {
+  std::lock_guard<std::mutex> guard(mLock);
   void *ptr =
       clSVMAlloc(context, CL_MEM_READ_WRITE | CL_MEM_SVM_FINE_GRAIN_BUFFER,
                  size, alignment);
@@ -75,8 +81,7 @@ void *CLUSM::hostMemAlloc(cl_context context,
 void *CLUSM::deviceMemAlloc(cl_context context, cl_device_id device,
                             cl_mem_properties_intel *properties, size_t size,
                             cl_uint alignment, cl_int *errcode_ret) {
-  // Unconditionally use coarse grain SVM for device allocations:
-
+  std::lock_guard<std::mutex> guard(mLock);
   void *ptr = clSVMAlloc(context, CL_MEM_READ_WRITE, size, alignment);
 
   cl_int errorCode = CL_SUCCESS;
@@ -104,6 +109,7 @@ void *CLUSM::deviceMemAlloc(cl_context context, cl_device_id device,
 void *CLUSM::sharedMemAlloc(cl_context context, cl_device_id device,
                             cl_mem_properties_intel *properties, size_t size,
                             cl_uint alignment, cl_int *errcode_ret) {
+  std::lock_guard<std::mutex> guard(mLock);
   void *ptr =
       clSVMAlloc(context, CL_MEM_READ_WRITE | CL_MEM_SVM_FINE_GRAIN_BUFFER,
                  size, alignment);
@@ -131,6 +137,8 @@ void *CLUSM::sharedMemAlloc(cl_context context, cl_device_id device,
 }
 
 cl_int CLUSM::memFree(cl_context context, const void *ptr) {
+  std::lock_guard<std::mutex> guard(mLock);
+
   CUSMAllocMap::iterator iter = mUSMContextInfo.AllocMap.find(ptr);
   if (iter != mUSMContextInfo.AllocMap.end()) {
     const SUSMAllocInfo &allocInfo = iter->second;
@@ -150,6 +158,7 @@ cl_int CLUSM::memFree(cl_context context, const void *ptr) {
       mUSMContextInfo.SharedAllocVector.erase(
           std::find(mUSMContextInfo.SharedAllocVector.begin(),
                     mUSMContextInfo.SharedAllocVector.end(), ptr));
+      break;
     default:
       assert(0 && "unsupported!");
       break;
@@ -170,6 +179,7 @@ cl_int CLUSM::getMemAllocInfoINTEL(cl_context context, const void *ptr,
                                    cl_mem_info_intel param_name,
                                    size_t param_value_size, void *param_value,
                                    size_t *param_value_size_ret) {
+  std::lock_guard<std::mutex> guard(mLock);
   if (ptr == nullptr) {
     return CL_INVALID_VALUE;
   }
@@ -193,9 +203,8 @@ cl_int CLUSM::getMemAllocInfoINTEL(cl_context context, const void *ptr,
 
   const SUSMAllocInfo &allocInfo = iter->second;
 
-  auto startPtr = allocInfo.BaseAddress;
+  auto startPtr = static_cast<const char *>(allocInfo.BaseAddress);
   auto endPtr = startPtr + allocInfo.Size;
-
   if (ptr < startPtr || ptr >= endPtr) {
     return CL_INVALID_MEM_OBJECT;
   }
@@ -281,7 +290,6 @@ cl_int CLUSM::setKernelExecInfo(cl_kernel kernel,
 
 cl_int CLUSM::setKernelIndirectUSMExecInfo(cl_command_queue commandQueue,
                                            cl_kernel kernel) {
-  std::lock_guard<std::mutex> guard(mLock);
   const SUSMKernelInfo &usmKernelInfo = mUSMKernelInfoMap[kernel];
 
   cl_int errorCode = CL_SUCCESS;

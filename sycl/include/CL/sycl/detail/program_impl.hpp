@@ -395,7 +395,7 @@ private:
     RT::PiResult Err;
     Err = PI_CALL_RESULT((Kernel = RT::piKernelCreate(
         Program, KernelName.c_str(), &Err), Err));
-    if (Err == CL_INVALID_KERNEL_NAME) {
+    if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
           "This instance of program does not contain the kernel requested");
     }
