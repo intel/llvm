@@ -67,26 +67,26 @@ typedef cl_uint cl_unified_shared_memory_type_intel;
 typedef cl_uint cl_mem_advice_intel;
 
 /* cl_mem_advice_intel */
-#define CL_MEM_ADVICE_TBD0_INTEL 0x41A8 /* reserved for future */
-#define CL_MEM_ADVICE_TBD1_INTEL 0x41A9 /* reserved for future */
-#define CL_MEM_ADVICE_TBD2_INTEL 0x41AA /* reserved for future */
-#define CL_MEM_ADVICE_TBD3_INTEL 0x41AB /* reserved for future */
-#define CL_MEM_ADVICE_TBD4_INTEL 0x41AC /* reserved for future */
-#define CL_MEM_ADVICE_TBD5_INTEL 0x41AD /* reserved for future */
-#define CL_MEM_ADVICE_TBD6_INTEL 0x41AE /* reserved for future */
-#define CL_MEM_ADVICE_TBD7_INTEL 0x41AF /* reserved for future */
+#define CL_MEM_ADVICE_TBD0_INTEL 0x4208 /* reserved for future */
+#define CL_MEM_ADVICE_TBD1_INTEL 0x4209 /* reserved for future */
+#define CL_MEM_ADVICE_TBD2_INTEL 0x420A /* reserved for future */
+#define CL_MEM_ADVICE_TBD3_INTEL 0x420B /* reserved for future */
+#define CL_MEM_ADVICE_TBD4_INTEL 0x420C /* reserved for future */
+#define CL_MEM_ADVICE_TBD5_INTEL 0x420D /* reserved for future */
+#define CL_MEM_ADVICE_TBD6_INTEL 0x420E /* reserved for future */
+#define CL_MEM_ADVICE_TBD7_INTEL 0x420F /* reserved for future */
 
 /* cl_kernel_exec_info */
-#define CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL 0x41A0
-#define CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL 0x41A1
-#define CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL 0x41A2
-#define CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL 0x41A3
+#define CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL 0x4200
+#define CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL 0x4201
+#define CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL 0x4202
+#define CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL 0x4203
 
 /* cl_command_type */
-#define CL_COMMAND_MEMSET_INTEL 0x41A4
-#define CL_COMMAND_MEMCPY_INTEL 0x41A5
-#define CL_COMMAND_MIGRATEMEM_INTEL 0x41A6
-#define CL_COMMAND_MEMADVISE_INTEL 0x41A7
+#define CL_COMMAND_MEMSET_INTEL 0x4204
+#define CL_COMMAND_MEMCPY_INTEL 0x4205
+#define CL_COMMAND_MIGRATEMEM_INTEL 0x4206
+#define CL_COMMAND_MEMADVISE_INTEL 0x4207
 
 extern CL_API_ENTRY void *CL_API_CALL
 clHostMemAllocINTEL(cl_context context, cl_mem_properties_intel *properties,
