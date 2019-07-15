@@ -395,6 +395,7 @@ cl_int ExecCGCommand::enqueueImp() {
       Kernel = detail::ProgramManager::getInstance().getOrCreateKernel(
           ExecKernel->MOSModuleHandle, Context, ExecKernel->MKernelName);
 
+    bool usesUSM = false;
     for (ArgDesc &Arg : ExecKernel->MArgs) {
       switch (Arg.MType) {
       case kernel_param_kind_t::kind_accessor: {
@@ -421,6 +422,7 @@ cl_int ExecCGCommand::enqueueImp() {
       }
       case kernel_param_kind_t::kind_pointer:  {
         // TODO: Change to PI
+        usesUSM = true;
         auto PtrToPtr = reinterpret_cast<intptr_t*>(Arg.MPtr);
         auto DerefPtr = reinterpret_cast<void*>(*PtrToPtr);
         auto theKernel = pi_cast<cl_kernel>(Kernel);
@@ -437,7 +439,7 @@ cl_int ExecCGCommand::enqueueImp() {
                                MQueue->get_device())->getHandleRef());
 
     // TODO: Replace CL with PI
-    if (auto clusm = GetCLUSM()) {
+    if (usesUSM && (auto clusm = GetCLUSM())) {
       cl_bool t = CL_TRUE;
       auto theKernel = pi_cast<cl_kernel>(Kernel);
       // Enable USM Indirect Access for Kernels
