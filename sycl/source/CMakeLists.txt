@@ -3,6 +3,11 @@
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
+
+if(MSVC)
+  add_definitions(-D__SYCL_BUILD_SYCL_DLL)
+endif()
+
 add_library(sycl SHARED
   "${sycl_inc_dir}/CL/sycl.hpp"
   "detail/builtins_common.cpp"
