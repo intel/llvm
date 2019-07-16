@@ -87,7 +87,7 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-cl::opt<bool> SPIRVMemToReg("spirv-mem2reg", cl::init(true),
+cl::opt<bool> SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                             cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
 cl::opt<bool> SPIRVNoDerefAttr(
@@ -258,7 +258,7 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
 
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
-  // sampler or pipe type.
+  // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
     auto ET = T->getPointerElementType();
     assert(!ET->isFunctionTy() && "Function pointer type is not allowed");
