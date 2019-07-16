@@ -787,22 +787,38 @@ public:
   __SYCL_UOP(--, -=)
 #undef __SYCL_UOP
 
+  // Available only when: dataT != cl_float && dataT != cl_double
+  // && dataT != cl_half
   template <typename T = DataT>
   typename std::enable_if<std::is_integral<T>::value, vec>::type
   operator~() const {
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec{
+      (typename vec::DataType)~m_Data};
+#else
     vec Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, ~getValue(I));
     }
     return Ret;
+#endif
   }
 
   vec<rel_t, NumElements> operator!() const {
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec<rel_t, NumElements>{
+      (typename vec<rel_t, NumElements>::DataType)!m_Data};
+#else
     vec<rel_t, NumElements> Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, !getValue(I));
     }
     return Ret;
+#endif
   }
 
   // OP is: &&, ||
