@@ -31,12 +31,30 @@ public:
   std::vector<HighlightingToken> collectTokens() {
     Tokens.clear();
     TraverseAST(Ctx);
+    // Initializer lists can give duplicates of tokens, therefore all tokens
+    // must be deduplicated.
+    llvm::sort(Tokens,
+               [](const HighlightingToken &L, const HighlightingToken &R) {
+                 return std::tie(L.R, L.Kind) < std::tie(R.R, R.Kind);
+               });
+    auto Last = std::unique(Tokens.begin(), Tokens.end());
+    Tokens.erase(Last, Tokens.end());
     return Tokens;
   }
 
   bool VisitNamespaceAliasDecl(NamespaceAliasDecl *NAD) {
     // The target namespace of an alias can not be found in any other way.
     addToken(NAD->getTargetNameLoc(), HighlightingKind::Namespace);
+    return true;
+  }
+
+  bool VisitMemberExpr(MemberExpr *ME) {
+    const auto *MD = ME->getMemberDecl();
+    if (isa<CXXDestructorDecl>(MD))
+      // When calling the destructor manually like: AAA::~A(); The ~ is a
+      // MemberExpr. Other methods should still be highlighted though.
+      return true;
+    addToken(ME->getMemberLoc(), MD);
     return true;
   }
 
@@ -75,6 +93,12 @@ public:
     return true;
   }
 
+  bool VisitTypedefNameDecl(TypedefNameDecl *TD) {
+    if(const auto *TSI = TD->getTypeSourceInfo())
+      addTypeLoc(TD->getLocation(), TSI->getTypeLoc());
+    return true;
+  }
+
   bool VisitTypeLoc(TypeLoc &TL) {
     // This check is for not getting two entries when there are anonymous
     // structs. It also makes us not highlight certain namespace qualifiers
@@ -83,9 +107,7 @@ public:
     if (TL.getTypeLocClass() == TypeLoc::TypeLocClass::Elaborated)
       return true;
 
-    if (const Type *TP = TL.getTypePtr())
-      if (const TagDecl *TD = TP->getAsTagDecl())
-        addToken(TL.getBeginLoc(), TD);
+    addTypeLoc(TL.getBeginLoc(), TL);
     return true;
   }
 
@@ -100,6 +122,12 @@ public:
   }
 
 private:
+  void addTypeLoc(SourceLocation Loc, const TypeLoc &TL) {
+    if (const Type *TP = TL.getTypePtr())
+      if (const TagDecl *TD = TP->getAsTagDecl())
+        addToken(Loc, TD);
+  }
+
   void addToken(SourceLocation Loc, const NamedDecl *D) {
     if (D->getDeclName().isIdentifier() && D->getName().empty())
       // Don't add symbols that don't have any length.
@@ -115,8 +143,20 @@ private:
       addToken(Loc, HighlightingKind::Class);
       return;
     }
+    if (isa<CXXMethodDecl>(D)) {
+      addToken(Loc, HighlightingKind::Method);
+      return;
+    }
+    if (isa<FieldDecl>(D)) {
+      addToken(Loc, HighlightingKind::Field);
+      return;
+    }
     if (isa<EnumDecl>(D)) {
       addToken(Loc, HighlightingKind::Enum);
+      return;
+    }
+    if (isa<EnumConstantDecl>(D)) {
+      addToken(Loc, HighlightingKind::EnumConstant);
       return;
     }
     if (isa<VarDecl>(D)) {
@@ -243,12 +283,18 @@ llvm::StringRef toTextMateScope(HighlightingKind Kind) {
   switch (Kind) {
   case HighlightingKind::Function:
     return "entity.name.function.cpp";
+  case HighlightingKind::Method:
+    return "entity.name.function.method.cpp";
   case HighlightingKind::Variable:
-    return "variable.cpp";
+    return "variable.other.cpp";
+  case HighlightingKind::Field:
+    return "variable.other.field.cpp";
   case HighlightingKind::Class:
     return "entity.name.type.class.cpp";
   case HighlightingKind::Enum:
     return "entity.name.type.enum.cpp";
+  case HighlightingKind::EnumConstant:
+    return "variable.other.enummember.cpp";
   case HighlightingKind::Namespace:
     return "entity.name.namespace.cpp";
   case HighlightingKind::NumKinds:

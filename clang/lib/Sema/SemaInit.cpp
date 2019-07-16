@@ -3931,7 +3931,7 @@ static void TryConstructorInitialization(Sema &S,
       Result = ResolveConstructorOverload(S, Kind.getLocation(), Args,
                                           CandidateSet, DestType, Ctors, Best,
                                           CopyInitialization, AllowExplicit,
-                                          /*OnlyListConstructor=*/true,
+                                          /*OnlyListConstructors=*/true,
                                           IsListInit);
   }
 
@@ -4118,7 +4118,7 @@ static void TryReferenceListInitialization(Sema &S,
   if (Sequence) {
     if (DestType->isRValueReferenceType() ||
         (T1Quals.hasConst() && !T1Quals.hasVolatile()))
-      Sequence.AddReferenceBindingStep(cv1T1, /*bindingTemporary=*/true);
+      Sequence.AddReferenceBindingStep(cv1T1, /*BindingTemporary=*/true);
     else
       Sequence.SetFailed(
           InitializationSequence::FK_NonConstLValueReferenceBindingToTemporary);
@@ -4833,7 +4833,7 @@ static void TryReferenceInitializationCore(Sema &S,
     return;
   }
 
-  Sequence.AddReferenceBindingStep(cv1T1IgnoreAS, /*bindingTemporary=*/true);
+  Sequence.AddReferenceBindingStep(cv1T1IgnoreAS, /*BindingTemporary=*/true);
 
   if (T1Quals.hasAddressSpace()) {
     if (!Qualifiers::isAddressSpaceSupersetOf(T1Quals.getAddressSpace(),
@@ -5640,6 +5640,9 @@ void InitializationSequence::InitializeFrom(Sema &S,
   bool allowObjCWritebackConversion = S.getLangOpts().ObjCAutoRefCount &&
          Entity.isParameterKind();
 
+  if (TryOCLSamplerInitialization(S, *this, DestType, Initializer))
+    return;
+
   // We're at the end of the line for C: it's either a write-back conversion
   // or it's a C assignment. There's no need to check anything else.
   if (!S.getLangOpts().CPlusPlus) {
@@ -5648,9 +5651,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
         tryObjCWritebackConversion(S, *this, Entity, Initializer)) {
       return;
     }
-
-    if (TryOCLSamplerInitialization(S, *this, DestType, Initializer))
-      return;
 
     if (TryOCLZeroOpaqueTypeInitialization(S, *this, DestType, Initializer))
       return;

@@ -2931,8 +2931,8 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
 
     // Add the successors.  If we know that specific branches are
     // unreachable, inform addSuccessor() of that knowledge.
-    addSuccessor(Block, ThenBlock, /* isReachable = */ !KnownVal.isFalse());
-    addSuccessor(Block, ElseBlock, /* isReachable = */ !KnownVal.isTrue());
+    addSuccessor(Block, ThenBlock, /* IsReachable = */ !KnownVal.isFalse());
+    addSuccessor(Block, ElseBlock, /* IsReachable = */ !KnownVal.isTrue());
 
     // Add the condition as the last statement in the new block.  This may
     // create new blocks as the condition may contain control-flow.  Any newly
@@ -4746,8 +4746,9 @@ CFGBlock *CFGBuilder::VisitOMPExecutableDirective(OMPExecutableDirective *D,
 
   // Reverse the elements to process them in natural order. Iterators are not
   // bidirectional, so we need to create temp vector.
-  for (Stmt *S : llvm::reverse(llvm::to_vector<8>(
-           OMPExecutableDirective::used_clauses_children(D->clauses())))) {
+  SmallVector<Stmt *, 8> Used(
+      OMPExecutableDirective::used_clauses_children(D->clauses()));
+  for (Stmt *S : llvm::reverse(Used)) {
     assert(S && "Expected non-null used-in-clause child.");
     if (CFGBlock *R = Visit(S))
       B = R;

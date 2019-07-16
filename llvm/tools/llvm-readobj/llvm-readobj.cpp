@@ -371,9 +371,16 @@ namespace opts {
 namespace llvm {
 
 LLVM_ATTRIBUTE_NORETURN void reportError(Twine Msg) {
+  fouts().flush();
   errs() << "\n";
   WithColor::error(errs()) << Msg << "\n";
   exit(1);
+}
+
+void reportError(StringRef Input, Error Err) {
+  if (Input == "-")
+    Input = "<stdin>";
+  error(createFileError(Input, std::move(Err)));
 }
 
 void reportWarning(Twine Msg) {
@@ -402,12 +409,6 @@ void error(std::error_code EC) {
 }
 
 } // namespace llvm
-
-static void reportError(StringRef Input, Error Err) {
-  if (Input == "-")
-    Input = "<stdin>";
-  error(createFileError(Input, std::move(Err)));
-}
 
 static void reportError(StringRef Input, std::error_code EC) {
   reportError(Input, errorCodeToError(EC));
@@ -462,20 +463,27 @@ static std::error_code createDumper(const ObjectFile *Obj,
 }
 
 /// Dumps the specified object file.
-static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer) {
+static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer,
+                       const Archive *A = nullptr) {
+  std::string FileStr =
+          A ? Twine(A->getFileName() + "(" + Obj->getFileName() + ")").str()
+            : Obj->getFileName().str();
+
   std::unique_ptr<ObjDumper> Dumper;
   if (std::error_code EC = createDumper(Obj, Writer, Dumper))
-    reportError(Obj->getFileName(), EC);
+    reportError(FileStr, EC);
 
+  Writer.startLine() << "\n";
   if (opts::Output == opts::LLVM) {
-    Writer.startLine() << "\n";
-    Writer.printString("File", Obj->getFileName());
+    Writer.printString("File", FileStr);
     Writer.printString("Format", Obj->getFileFormatName());
     Writer.printString("Arch", Triple::getArchTypeName(
                                    (llvm::Triple::ArchType)Obj->getArch()));
     Writer.printString("AddressSize",
                        formatv("{0}bit", 8 * Obj->getBytesInAddress()));
     Dumper->printLoadName();
+  } else if (opts::Output == opts::GNU && A) {
+    Writer.printString("File", FileStr);
   }
 
   if (opts::FileHeaders)
@@ -589,7 +597,7 @@ static void dumpArchive(const Archive *Arc, ScopedPrinter &Writer) {
       continue;
     }
     if (ObjectFile *Obj = dyn_cast<ObjectFile>(&*ChildOrErr.get()))
-      dumpObject(Obj, Writer);
+      dumpObject(Obj, Writer, Arc);
     else if (COFFImportFile *Imp = dyn_cast<COFFImportFile>(&*ChildOrErr.get()))
       dumpCOFFImportFile(Imp, Writer);
     else

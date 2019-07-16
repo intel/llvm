@@ -355,21 +355,18 @@ ELFFile<ELFT>::getSection(const Elf_Sym *Sym, Elf_Sym_Range Symbols,
 }
 
 template <class ELFT>
-inline Expected<const typename ELFT::Sym *>
-getSymbol(typename ELFT::SymRange Symbols, uint32_t Index) {
-  if (Index >= Symbols.size())
-    // TODO: this error is untested.
-    return createError("invalid symbol index");
-  return &Symbols[Index];
-}
-
-template <class ELFT>
 Expected<const typename ELFT::Sym *>
 ELFFile<ELFT>::getSymbol(const Elf_Shdr *Sec, uint32_t Index) const {
-  auto SymtabOrErr = symbols(Sec);
-  if (!SymtabOrErr)
-    return SymtabOrErr.takeError();
-  return object::getSymbol<ELFT>(*SymtabOrErr, Index);
+  auto SymsOrErr = symbols(Sec);
+  if (!SymsOrErr)
+    return SymsOrErr.takeError();
+
+  Elf_Sym_Range Symbols = *SymsOrErr;
+  if (Index >= Symbols.size())
+    return createError("unable to get symbol from section " +
+                       getSecIndexForError(this, Sec) +
+                       ": invalid symbol index (" + Twine(Index) + ")");
+  return &Symbols[Index];
 }
 
 template <class ELFT>
@@ -469,9 +466,10 @@ ELFFile<ELFT>::getSectionStringTable(Elf_Shdr_Range Sections) const {
 
   if (!Index) // no section string table.
     return "";
+  // TODO: Test a case when the sh_link of the section with index 0 is broken.
   if (Index >= Sections.size())
-    // TODO: this error is untested.
-    return createError("invalid section index");
+    return createError("section header string table index " + Twine(Index) +
+                       " does not exist");
   return getStringTable(&Sections[Index]);
 }
 
