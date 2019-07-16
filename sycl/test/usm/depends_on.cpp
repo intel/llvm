@@ -1,6 +1,6 @@
 // RUN: %clang -std=c++11 -fsycl %s -o %t1.out -lstdc++ -lOpenCL -lsycl
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
-//==------------------- mixed.cpp - Mixed Memory test ---------------------==//
+//==----------------- depends_on.cpp - depends_on test ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
