@@ -79,7 +79,7 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
                                         size_t DataLen) {
   RT::PiResult Err = PI_SUCCESS;
   RT::PiProgram Program;
-  PI_CALL((Program = pi_cast<cl_program>(
+  PI_CALL((Program = pi_cast<pi_program>(
                pi::piProgramCreate(pi_cast<pi_context>(Context), Data, DataLen,
                                    pi_cast<pi_result *>(&Err))),
            Err));
@@ -131,8 +131,8 @@ void ProgramManager::build(RT::PiProgram &Program, const string_class &Options,
   }
   const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
 
-  for (const auto &device_id : Devices) {
-    if (!device(device_id).get_info<info::device::is_compiler_available>()) {
+  for (const auto &DeviceId : Devices) {
+    if (!device(pi_cast<cl_device_id>(DeviceId)).get_info<info::device::is_compiler_available>()) {
       throw feature_not_supported(
           "Online compilation is not supported by this device");
     }

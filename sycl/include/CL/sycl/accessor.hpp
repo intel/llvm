@@ -392,7 +392,7 @@ public:
     // TODO: To be implemented.
     throw cl::sycl::feature_not_supported("Read API is not implemented.");
     return;
-  };
+  }
 
   // Available only when: (accessTarget == access::target::image || accessTarget
   // == access::target::host_image) && accessMode == access::mode::read
@@ -404,7 +404,7 @@ public:
     // TODO: To be implemented.
     throw cl::sycl::feature_not_supported("Read API is not implemented.");
     return;
-  };
+  }
 
   // Available only when: (accessTarget == access::target::image || accessTarget
   // == access::target::host_image) && accessMode == access::mode::write ||
@@ -418,7 +418,7 @@ public:
     // TODO: To be implemented.
     throw cl::sycl::feature_not_supported("Write API is not implemented.");
     return;
-  };
+  }
 
   // Available only when: accessTarget == access::target::image_array &&
   // dimensions < 3
