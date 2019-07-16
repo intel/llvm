@@ -5,8 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl/detail/pi.hpp>
 #include "CL/opencl.h"
+#include <CL/sycl/detail/pi.hpp>
+#include <cassert>
+#include <cstring>
 
 namespace cl {
 namespace sycl {
@@ -79,6 +81,87 @@ pi_result OCL(piextDeviceSelectBinary)(
   return PI_SUCCESS;
 }
 
+pi_program OCL(piProgramCreate)(pi_context context, const void *il,
+                                size_t length, pi_result *err) {
+
+  size_t deviceCount;
+  cl_program resProgram;
+
+  cl_int ret_err = clGetContextInfo(pi_cast<cl_context>(context),
+                                    CL_CONTEXT_DEVICES, 0, NULL, &deviceCount);
+
+  std::vector<cl_device_id> devicesInCtx;
+  devicesInCtx.reserve(deviceCount);
+
+  ret_err = clGetContextInfo(pi_cast<cl_context>(context), CL_CONTEXT_DEVICES,
+                             deviceCount * sizeof(cl_device_id),
+                             devicesInCtx.data(), NULL);
+
+  if (ret_err != CL_SUCCESS || deviceCount < 1) {
+    if (err != nullptr)
+      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
+    return pi_cast<pi_program>(resProgram);
+  }
+
+  cl_platform_id curPlatform;
+  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
+                            sizeof(cl_platform_id), &curPlatform, NULL);
+
+  if (ret_err != CL_SUCCESS) {
+    if (err != nullptr)
+      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
+    return pi_cast<pi_program>(resProgram);
+  }
+
+  size_t devVerSize;
+  ret_err =
+      clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, NULL, &devVerSize);
+  std::string devVer(devVerSize, '\0');
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, devVerSize,
+                              &devVer.front(), NULL);
+
+  if (ret_err != CL_SUCCESS) {
+    if (err != nullptr)
+      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
+    return pi_cast<pi_program>(resProgram);
+  }
+
+  if (devVer.find("OpenCL 1.0") == std::string::npos &&
+      devVer.find("OpenCL 1.1") == std::string::npos &&
+      devVer.find("OpenCL 1.2") == std::string::npos &&
+      devVer.find("OpenCL 2.0") == std::string::npos) {
+    resProgram = clCreateProgramWithIL(pi_cast<cl_context>(context), il, length,
+                                       pi_cast<cl_int *>(err));
+    return pi_cast<pi_program>(resProgram);
+  }
+
+  size_t extSize;
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, NULL,
+                                &extSize);
+  std::string extStr(extSize, '\0');
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS,
+                                extSize, &extStr.front(), NULL);
+
+  if (ret_err != CL_SUCCESS ||
+      extStr.find("cl_khr_il_program") == std::string::npos) {
+    if (err != nullptr)
+      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
+    return pi_cast<pi_program>(resProgram);
+  }
+
+  using apiFuncT =
+      cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
+  apiFuncT funcPtr =
+      reinterpret_cast<apiFuncT>(clGetExtensionFunctionAddressForPlatform(
+          curPlatform, "clCreateProgramWithILKHR"));
+
+  assert(funcPtr != nullptr);
+  resProgram = funcPtr(pi_cast<cl_context>(context), il, length,
+                         pi_cast<cl_int *>(err));
+
+  return pi_cast<pi_program>(resProgram);
+}
+
 // TODO: implement portable call forwarding (ifunc is a GNU extension).
 // TODO: reuse same PI -> OCL mapping in pi_opencl.hpp, or maybe just
 //       wait until that one is completely removed.
@@ -116,7 +199,6 @@ _PI_CL(piMemGetInfo,        clGetMemObjectInfo)
 _PI_CL(piMemRetain,         clRetainMemObject)
 _PI_CL(piMemRelease,        clReleaseMemObject)
 // Program
-_PI_CL(piProgramCreate,             clCreateProgramWithIL)
 _PI_CL(piclProgramCreateWithSource, clCreateProgramWithSource)
 _PI_CL(piclProgramCreateWithBinary, clCreateProgramWithBinary)
 _PI_CL(piProgramGetInfo,            clGetProgramInfo)
