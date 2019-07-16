@@ -28,9 +28,23 @@
 #endif // _WIN32
 
 #if defined(SYCL_RT_OS_WINDOWS)
+
 #define DLL_LOCAL
+// If SYCL headers are included to build SYCL library then the macro is used
+// to set dllexport attribute for global variables/functions/classes.
+// Otherwise, the macro is used used to set dllimport for the same global
+// variables/functions/classes.
+#if defined(__SYCL_BUILD_SYCL_DLL)
+#define __SYCL_EXPORTED __declspec(dllexport)
+#else
+#define __SYCL_EXPORTED __declspec(dllimport)
+#endif
+
 #elif defined(SYCL_RT_OS_LINUX)
+
 #define DLL_LOCAL __attribute__((visibility("hidden")))
+#define __SYCL_EXPORTED
+
 #endif
 
 namespace cl {
