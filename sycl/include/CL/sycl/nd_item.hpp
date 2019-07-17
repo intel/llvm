@@ -24,10 +24,10 @@
 namespace cl {
 namespace sycl {
 namespace detail {
-struct Builder;
+class Builder;
 }
-template <int dimensions = 1> struct nd_item {
-
+template <int dimensions = 1> class nd_item {
+public:
   nd_item() = delete;
 
   id<dimensions> get_global_id() const { return globalItem.get_id(); }
@@ -154,7 +154,7 @@ template <int dimensions = 1> struct nd_item {
   }
 
 protected:
-  friend struct detail::Builder;
+  friend class detail::Builder;
   nd_item(const item<dimensions, true> &GL, const item<dimensions, false> &L,
           const group<dimensions> &GR)
       : globalItem(GL), localItem(L), Group(GR) {}

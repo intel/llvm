@@ -14,7 +14,7 @@
 
 namespace cl {
 namespace sycl {
-template <int dimensions> struct id;
+template <int dimensions> class id;
 template <int dimensions> class range;
 namespace detail {
 
