@@ -114,22 +114,22 @@ template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
 // Produces N-dimensional object of type T whose all components are initialized
 // to given integer value.
 template <int N, template <int> class T> struct InitializedVal {
-  template <int Val> static T<N> &&get();
+  template <int Val> static T<N> get();
 };
 
 // Specialization for a one-dimensional type.
 template <template <int> class T> struct InitializedVal<1, T> {
-  template <int Val> static T<1> &&get() { return T<1>{Val}; }
+  template <int Val> static T<1> get() { return T<1>{Val}; }
 };
 
 // Specialization for a two-dimensional type.
 template <template <int> class T> struct InitializedVal<2, T> {
-  template <int Val> static T<2> &&get() { return T<2>{Val, Val}; }
+  template <int Val> static T<2> get() { return T<2>{Val, Val}; }
 };
 
 // Specialization for a three-dimensional type.
 template <template <int> class T> struct InitializedVal<3, T> {
-  template <int Val> static T<3> &&get() { return T<3>{Val, Val, Val}; }
+  template <int Val> static T<3> get() { return T<3>{Val, Val, Val}; }
 };
 
 // Fills the lack of enable_if_t in C++11.
