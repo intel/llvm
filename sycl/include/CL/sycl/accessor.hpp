@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
+#include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
@@ -296,6 +297,12 @@ class image_accessor
   static_assert(Dimensions > 0 && Dimensions <= 3,
                 "Dimensions can be 1/2/3 for image accessor.");
 
+  template <info::device param>
+  void checkDeviceFeatureSupported(const device &Device) {
+    if (!Device.get_info<param>())
+      throw feature_not_supported("Images are not supported by this device.");
+  }
+
 public:
   using value_type = DataT;
   using reference = DataT &;
@@ -348,6 +355,8 @@ public:
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
         MImageSize(ImageRef.get_size()), MImageCount(ImageRef.get_count()) {
+    checkDeviceFeatureSupported<info::device::image_support>(
+        CommandGroupHandlerRef.MQueue->get_device());
   }
 #endif
 
@@ -367,6 +376,8 @@ public:
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
         MImageSize(ImageRef.get_size()), MImageCount(ImageRef.get_count()) {
+    checkDeviceFeatureSupported<info::device::image_support>(
+        CommandGroupHandlerRef.MQueue->get_device());
     // TODO: Implement this function.
   }
 #endif

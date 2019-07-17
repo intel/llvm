@@ -59,6 +59,9 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
   PI_CALL((m_contextToSampler[Context] = RT::piSamplerCreate(
       getSyclObjImpl(Context)->getHandleRef(), sprops, &errcode_ret),
       errcode_ret));
+
+  if (errcode_ret == PI_INVALID_OPERATION)
+      throw feature_not_supported("Images are not supported by this device.");
 #else
   // TODO: do we really need this old interface into PI and here?
   cl_int cl_errcode_ret;
@@ -67,6 +70,8 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
                       static_cast<cl_bool>(m_CoordNormMode),
                       static_cast<cl_addressing_mode>(m_AddrMode),
                       static_cast<cl_filter_mode>(m_FiltMode), &cl_errcode_ret);
+  if (cl_errcode_ret == CL_INVALID_OPERATION)
+      throw feature_not_supported("Images are not supported by this device.");
   PI_CHECK(cl_errcode_ret);
 #endif
   return m_contextToSampler[Context];
