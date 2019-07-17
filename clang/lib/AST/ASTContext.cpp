@@ -9710,6 +9710,10 @@ static GVALinkage adjustGVALinkageForAttributes(const ASTContext &Context,
     // visible externally so they can be launched from host.
     if (L == GVA_DiscardableODR || L == GVA_Internal)
       return GVA_StrongODR;
+  } else if (Context.getLangOpts().SYCLIsDevice &&
+             D->hasAttr<OpenCLKernelAttr>()) {
+    if (L == GVA_DiscardableODR)
+      return GVA_StrongODR;
   }
   return L;
 }
