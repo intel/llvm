@@ -248,16 +248,23 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class image_accessor
 #ifndef __SYCL_DEVICE_ONLY__
     : public detail::AccessorBaseHost {
-  size_t MImageSize;
   size_t MImageCount;
+  size_t MImageSize;
 #else
 {
-  /*
-  // TODO: Define the datatype here based on Dimensions, AccessMode and
-  AccessTarget.
-  __ocl_image[Dim]d[array/non_array]_[AM]_t MImage;
-  __init(__ocl_imagexx_t Image) { MImage = Image; }
-  */
+
+  using OCLImageTy = typename detail::opencl_image_type<Dimensions, AccessMode,
+                                                        AccessTarget>::type;
+  OCLImageTy MImageObj;
+  char MPadding[(sizeof(detail::AccessorBaseHost) +
+                 sizeof(size_t /*MImageSize*/) +
+                 sizeof(size_t /*MImageCount*/)) -
+                sizeof(OCLImageTy)];
+
+protected:
+  void imageAccessorInit(OCLImageTy Image) { MImageObj = Image; }
+
+private:
 #endif
   constexpr static bool IsHostImageAcc =
       (AccessTarget == access::target::host_image);
@@ -319,7 +326,8 @@ public:
   image_accessor(image<Dims, AllocatorT> &ImageRef, int ImageElementSize)
 #ifdef __SYCL_DEVICE_ONLY__
   {
-    // TODO: Implement this function.
+    // No implementation needed for device. The constructor is only called by
+    // host.
   }
 #else
       : AccessorBaseHost(id<3>(0, 0, 0) /* Offset,*/,
@@ -327,7 +335,8 @@ public:
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
-        MImageSize(ImageRef.get_size()), MImageCount(ImageRef.get_count()) {
+        MImageCount(ImageRef.get_count()),
+        MImageSize(MImageCount * ImageElementSize) {
     detail::EventImplPtr Event =
         detail::Scheduler::getInstance().addHostAccessor(
             AccessorBaseHost::impl.get());
@@ -346,7 +355,8 @@ public:
                  handler &CommandGroupHandlerRef, int ImageElementSize)
 #ifdef __SYCL_DEVICE_ONLY__
   {
-    // TODO: Implement this function.
+    // No implementation needed for device. The constructor is only called by
+    // host.
   }
 #else
       : AccessorBaseHost(id<3>(0, 0, 0) /* Offset,*/,
@@ -354,7 +364,8 @@ public:
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
-        MImageSize(ImageRef.get_size()), MImageCount(ImageRef.get_count()) {
+        MImageCount(ImageRef.get_count()),
+        MImageSize(MImageCount * ImageElementSize) {
     checkDeviceFeatureSupported<info::device::image_support>(
         CommandGroupHandlerRef.MQueue->get_device());
   }
@@ -367,7 +378,8 @@ public:
                  handler &CommandGroupHandlerRef, int ImageElementSize)
 #ifdef __SYCL_DEVICE_ONLY__
   {
-    // TODO: Implement this function.
+    // No implementation needed for device. The constructor is only called by
+    // host.
   }
 #else
       : AccessorBaseHost(id<3>(0, 0, 0) /* Offset,*/,
@@ -375,17 +387,56 @@ public:
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
-        MImageSize(ImageRef.get_size()), MImageCount(ImageRef.get_count()) {
+        MImageCount(ImageRef.get_count()),
+        MImageSize(MImageCount * ImageElementSize) {
     checkDeviceFeatureSupported<info::device::image_support>(
         CommandGroupHandlerRef.MQueue->get_device());
     // TODO: Implement this function.
   }
 #endif
 
-  /* TODO -- common interface members -- */
+  /* -- common interface members -- */
+
+  // operator == and != need to be defined only for host application as per the
+  // SYCL spec 1.2.1
+#ifndef __SYCL_DEVICE_ONLY__
+  bool operator==(const image_accessor &Rhs) const { return Rhs.impl == impl; }
+#else
+  // The operator with __SYCL_DEVICE_ONLY__ need to be declared for compilation
+  // of host application with device compiler.
+  // Usage of this operator inside the kernel code will give a runtime failure.
+  bool operator==(const image_accessor &Rhs) const;
+#endif
+
+  bool operator!=(const image_accessor &Rhs) const { return !(Rhs == *this); }
+
+  // get_count() method : Returns the number of elements of the SYCL image this
+  // SYCL accessor is accessing.
+  //
+  // get_size() method :  Returns the size in bytes of the SYCL image this SYCL
+  // accessor is accessing. Returns ElementSize*get_count().
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // TODO: Define the get_size(), get_count() methods.
+  size_t get_size() const {
+    int ChannelType = __invoke_ImageQueryFormat<int, OCLImageTy>(MImageObj);
+    int ChannelOrder = __invoke_ImageQueryOrder<int, OCLImageTy>(MImageObj);
+    int ElementSize = getSPIRVElementSize(ChannelType, ChannelOrder);
+    return (ElementSize * get_count());
+  }
+
+  template <int Dims = Dimensions> size_t get_count() const;
+
+  template <> size_t get_count<1>() const {
+    return __invoke_ImageQuerySize<int, OCLImageTy>(MImageObj);
+  }
+  template <> size_t get_count<2>() const {
+    cl_int2 Count = __invoke_ImageQuerySize<cl_int2, OCLImageTy>(MImageObj);
+    return (Count.x() * Count.y());
+  };
+  template <> size_t get_count<3>() const {
+    cl_int3 Count = __invoke_ImageQuerySize<cl_int3, OCLImageTy>(MImageObj);
+    return (Count.x() * Count.y() * Count.z());
+  };
 #else
   size_t get_size() const { return MImageSize; };
   size_t get_count() const { return MImageCount; };
@@ -956,7 +1007,7 @@ public:
 };
 
 // Image accessors
-// Available only when: accessTarget == access::target::host_image
+// Available only when: accessTarget == access::target::image
 // template <typename AllocatorT>
 // accessor(image<dimensions, AllocatorT> &imageRef);
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -975,9 +1026,19 @@ public:
             (detail::getSyclObjImpl(Image))->getElementSize()) {
     CommandGroupHandler.associateWithHandler(*this);
   }
+#ifdef __SYCL_DEVICE_ONLY__
+private:
+  using OCLImageTy =
+      typename detail::opencl_image_type<Dimensions, AccessMode,
+                                         access::target::image>::type;
+
+  // Front End requires this method to be defined in the accessor class.
+  // It does not call the base class's init method.
+  void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
+#endif
 };
 
-// Available only when: accessTarget == access::target::image
+// Available only when: accessTarget == access::target::host_image
 // template <typename AllocatorT>
 // accessor(image<dimensions, AllocatorT> &imageRef,
 // handler &commandGroupHandlerRef);
@@ -1006,7 +1067,17 @@ class accessor<DataT, Dimensions, AccessMode, access::target::image_array,
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::image_array,
                                     IsPlaceholder> {
-  // TODO: To be Implemented.
+  // TODO: Add Constructor.
+#ifdef __SYCL_DEVICE_ONLY__
+private:
+  using OCLImageTy =
+      typename detail::opencl_image_type<Dimensions, AccessMode,
+                                         access::target::image_array>::type;
+
+  // Front End requires this method to be defined in the accessor class.
+  // It does not call the base class's init method.
+  void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
+#endif
 };
 
 } // namespace sycl
