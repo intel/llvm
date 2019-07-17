@@ -948,6 +948,11 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc) {
   // Let's copy source location of a functor/lambda to emit nicer diagnostics
   OpenCLKernel->setLocation(LE->getLocation());
 
+  // If the source function is implicitly inline, the kernel should be marked
+  // such as well. This allows the kernel to be ODR'd if there are multiple uses
+  // in different translation units.
+  OpenCLKernel->setImplicitlyInline(KernelCallerFunc->isInlined());
+
   CompoundStmt *OpenCLKernelBody =
       CreateOpenCLKernelBody(*this, KernelCallerFunc, OpenCLKernel);
   OpenCLKernel->setBody(OpenCLKernelBody);
