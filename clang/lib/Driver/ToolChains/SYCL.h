@@ -9,6 +9,7 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 
+#include "InputInfo.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Tool.h"
 
@@ -56,6 +57,10 @@ private:
   void constructLlcCommand(Compilation &C, const JobAction &JA,
                            const InputInfo &Output,
                            const char *InputFile) const;
+  void constructPartialLinkCommand(Compilation &C, const JobAction &JA,
+                                   const InputInfo &Output,
+                                   const InputInfoList &InputFiles,
+                                   const llvm::opt::ArgList &Args) const;
 };
 
 /// Directly call FPGA Compiler and Linker

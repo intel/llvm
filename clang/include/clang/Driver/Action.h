@@ -73,6 +73,7 @@ public:
     OffloadUnbundlingJobClass,
     OffloadWrappingJobClass,
     SPIRVTranslatorJobClass,
+    SPIRCheckJobClass,
     BackendCompileJobClass,
 
     JobClassFirst = PreprocessJobClass,
@@ -636,6 +637,17 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == SPIRVTranslatorJobClass;
+  }
+};
+
+class SPIRCheckJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  SPIRCheckJobAction(Action *Input, types::ID OutputType);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == SPIRCheckJobClass;
   }
 };
 

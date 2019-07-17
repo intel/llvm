@@ -490,6 +490,8 @@ def Xsycl_linker : Separate<["-"], "Xsycl-target-linker">,
 def Xsycl_linker_EQ : JoinedAndSeparate<["-"], "Xsycl-target-linker=">,
   HelpText<"Pass <arg> to the SYCL based target linker identified by <triple>.">,
   MetaVarName<"<triple> <arg>">;
+def Xs : Joined<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler.">, MetaVarName<"<arg">;
+def Xs_separate : Separate<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler.">, MetaVarName<"<arg">;
 def z : Separate<["-"], "z">, Flags<[LinkerInput, RenderAsInput]>,
   HelpText<"Pass -z <arg> to the linker">, MetaVarName<"<arg>">,
   Group<Link_Group>;
@@ -1729,6 +1731,8 @@ def fstrict_vtable_pointers: Flag<["-"], "fstrict-vtable-pointers">,
   HelpText<"Enable optimizations based on the strict rules for overwriting "
              "polymorphic C++ objects">;
 def fstrict_overflow : Flag<["-"], "fstrict-overflow">, Group<f_Group>;
+def fintelfpga : Flag<["-"], "fintelfpga">, Group<f_Group>,
+  Flags<[CC1Option]>, HelpText<"Perform ahead of time compilation for FPGA">;
 def fsycl : Flag<["-"], "fsycl">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused]>,
   HelpText<"generate SYCL code.">;
 def fno_sycl : Flag<["-"], "fno-sycl">, Group<f_Group>, Flags<[NoArgumentUnused]>;
@@ -1742,8 +1746,11 @@ def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Flags<[CC1Option]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
   Flags<[CC1Option]>, HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects">;
-def fsycl_link : Flag<["-"], "fsycl-link">,
-  Flags<[CC1Option]>, HelpText<"Generate partially linked device object to be used with the host link">;
+def fsycl_link_EQ : Joined<["-"], "fsycl-link=">,
+  Flags<[CC1Option]>, HelpText<"Generate partially linked device and host object to be used at various stages of compilation">, Values<"image,early">;
+def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
+  AliasArgs<["early"]>, Flags<[CC1Option]>,
+  HelpText<"Generate partially linked device object to be used with the host link">;
 def fsycl_unnamed_lambda : Flag<["-"], "fsycl-unnamed-lambda">,
   Flags<[CC1Option]>, HelpText<"Allow unnamed SYCL lambda kernels">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,

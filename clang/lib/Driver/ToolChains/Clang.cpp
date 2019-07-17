@@ -6374,6 +6374,28 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       Triples += CurDep->getOffloadingArch();
     }
   }
+
+  // When bundling for FPGA with -fsycl-link a specific triple is formulated
+  // to match the FPGA binary.  We are also guaranteed only the single device
+  // and host object inputs
+  const ToolChain *TCCheck = &getToolChain();
+  if (TCArgs.hasArg(options::OPT_fsycl_link_EQ) &&
+      TCCheck->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    Triples = "-targets=";
+    llvm::Triple TT;
+    TT.setArchName(JA.getInputs()[0]->getType() == types::TY_AOCX ? "fpga_aocx"
+                                                                 : "fpga_aocr");
+    TT.setVendorName("intel");
+    TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+    TT.setEnvironment(llvm::Triple::SYCLDevice);
+    Triples += "fpga-";
+    Triples += TT.normalize();
+    Triples += ",";
+    Triples += Action::GetOffloadKindName(Action::OFK_Host);
+    Triples += "-";
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    Triples += HostTC->getTriple().normalize();
+  }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 
   // Get bundled file command.
@@ -6452,6 +6474,10 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       LinkArgs.push_back(TCArgs.MakeArgString(A));
     const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
     C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
+  } else if (Input.getType() == types::TY_AOCX ||
+             Input.getType() == types::TY_AOCR) {
+    // Override type with object type.
+    TypeArg = "o";
   }
   if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
       Input.getType() == types::TY_Archive)
@@ -6469,6 +6495,22 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       Triples += ',';
 
     auto &Dep = DepInfo[I];
+    // FPGA device triples are 'transformed' for the bundler when creating
+    // aocx or aocr type bundles.
+    if (Dep.DependentToolChain->getTriple().getSubArch() ==
+                                   llvm::Triple::SPIRSubArch_fpga &&
+        (Input.getType() == types::TY_AOCX ||
+         Input.getType() == types::TY_AOCR)) {
+      llvm::Triple TT;
+      TT.setArchName(Input.getType() == types::TY_AOCX ? "fpga_aocx"
+                                                       : "fpga_aocr");
+      TT.setVendorName("intel");
+      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+      TT.setEnvironment(llvm::Triple::SYCLDevice);
+      Triples += "fpga-";
+      Triples += TT.normalize();
+      continue;
+    }
     Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Triples += '-';
     Triples += Dep.DependentToolChain->getTriple().normalize();
@@ -6598,5 +6640,28 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(llvm::make_unique<Command>(JA, *this,
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       TranslatorArgs, None));
+}
+
+void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
+                             const InputInfo &Output,
+                             const InputInfoList &Inputs,
+                             const llvm::opt::ArgList &TCArgs,
+                             const char *LinkingOutput) const {
+  // Construct llvm-no-spir-kernel command.
+  assert(isa<SPIRCheckJobAction>(JA) && "Expecting SPIR Check job!");
+
+  // The translator command looks like this:
+  // llvm-no-spir-kernel <file>.bc
+  // Upon success, we just move ahead.  Error means a kernel was found and
+  // we need to exit.  The expected output is the input as this is just an
+  // intermediate check with no functional change
+  ArgStringList CheckArgs;
+  for (auto I : Inputs) {
+    CheckArgs.push_back(I.getFilename());
+  }
+
+  C.addCommand(llvm::make_unique<Command>(JA, *this,
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CheckArgs, None));
 }
 

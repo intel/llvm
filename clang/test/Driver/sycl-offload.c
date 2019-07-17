@@ -38,14 +38,21 @@
 /// Check error for -fsycl-add-targets -fsycl-link-targets conflict
 // RUN:   %clang -### -fsycl-link-targets=spir64-unknown-linux-sycldevice -fsycl-add-targets=spir64:dummy.spv -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-ADD-LINK %s
-// CHK-SYCL-ADD-LINK: error: The option -fsycl-link-targets conflicts with -fsycl-add-targets
+// CHK-SYCL-ADD-LINK: error: The option -fsycl-link-targets= conflicts with -fsycl-add-targets=
 
 /// ###########################################################################
 
 /// Check error for -fsycl-targets -fsycl-link-targets conflict
 // RUN:   %clang -### -fsycl-link-targets=spir64-unknown-linux-sycldevice -fsycl-targets=spir64-unknown-linux-sycldevice -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-LINK-CONFLICT %s
-// CHK-SYCL-LINK-CONFLICT: error: The option -fsycl-targets conflicts with -fsycl-link-targets
+// CHK-SYCL-LINK-CONFLICT: error: The option -fsycl-targets= conflicts with -fsycl-link-targets=
+
+/// ###########################################################################
+
+/// Check error for -fsycl-targets -fintelfpga conflict
+// RUN:   %clang -### -fsycl-targets=spir64-unknown-linux-sycldevice -fintelfpga -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
+// CHK-SYCL-FPGA-CONFLICT: error: The option -fsycl-targets= conflicts with -fintelfpga
 
 /// ###########################################################################
 
@@ -440,7 +447,8 @@
 // CHK-PHASES-AOT: 11: backend, {10}, assembler, (device-sycl)
 // CHK-PHASES-AOT: 12: assembler, {11}, object, (device-sycl)
 // CHK-PHASES-AOT: 13: linker, {12}, spirv, (device-sycl)
-// CHK-PHASES-AOT: 14: backend-compiler, {13}, image, (device-sycl)
+// CHK-PHASES-GEN: 14: backend-compiler, {13}, image, (device-sycl)
+// CHK-PHASES-FPGA: 14: backend-compiler, {13}, aocx, (device-sycl)
 // CHK-PHASES-AOT: 15: clang-offload-wrapper, {14}, object, (device-sycl)
 // CHK-PHASES-FPGA: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_fpga-unknown-linux-sycldevice)" {15}, image
 // CHK-PHASES-GEN: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_gen-unknown-linux-sycldevice)" {15}, image
@@ -451,6 +459,8 @@
 /// Ahead of Time compilation for fpga, gen, cpu - tool invocation
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-linux-sycldevice %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-linux-sycldevice %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-linux-sycldevice %s -### 2>&1 \
@@ -458,7 +468,7 @@
 // CHK-TOOLS-AOT: clang{{.*}} "-fsycl-is-device" {{.*}} "-o" "[[OUTPUT1:.+\.o]]"
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
 // CHK-TOOLS-AOT: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.spv]]" "[[OUTPUT2]]"
-// CHK-TOOLS-FPGA: aoc{{.*}} "-o" "[[OUTPUT4:.+\.out]]" "[[OUTPUT3]]"
+// CHK-TOOLS-FPGA: aoc{{.*}} "-o" "[[OUTPUT4:.+\.aocx]]" "[[OUTPUT3]]"
 // CHK-TOOLS-GEN: ocloc{{.*}} "-output" "[[OUTPUT4:.+\.out]]" {{.*}} "[[OUTPUT3]]"
 // CHK-TOOLS-CPU: ioc{{.*}} "-ir=[[OUTPUT4:.+\.out]]" {{.*}} "-binary=[[OUTPUT3]]"
 // CHK-TOOLS-AOT: clang-offload-wrapper{{.*}} "-o=[[OUTPUT5:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-kind=sycl" "[[OUTPUT4]]"
@@ -473,6 +483,11 @@
 
 /// Check -Xsycl-target-backend option passing
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-linux-sycldevice -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-FPGA-OPTS %s
+/// Check -Xs option passing
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -XsDFOO1 -XsDFOO2 %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-FPGA-OPTS %s
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xs "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-FPGA-OPTS %s
 // CHK-TOOLS-FPGA-OPTS: aoc{{.*}} "-o" {{.*}} "-DFOO1" "-DFOO2"
 
@@ -512,7 +527,7 @@
 // CHK-PHASE-MULTI-TARG: 20: backend, {19}, assembler, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 21: assembler, {20}, object, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 22: linker, {21}, spirv, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 23: backend-compiler, {22}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG: 23: backend-compiler, {22}, aocx, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 24: clang-offload-wrapper, {23}, object, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 25: compiler, {3}, ir, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 26: backend, {25}, assembler, (device-sycl)
