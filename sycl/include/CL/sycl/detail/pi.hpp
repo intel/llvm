@@ -55,6 +55,9 @@ namespace pi {
   #define _PI_API(api) extern decltype(::api) * api;
   #include <CL/sycl/detail/pi.def>
 
+  // Performs PI one-time initialization.
+  void piInitialize();
+
   // The PiCall helper structure facilitates performing a call to PI.
   // It holds utilities to do the tracing and to check the returned result.
   // TODO: implement a more mature and controllable tracing of PI calls.
@@ -77,8 +80,9 @@ namespace RT = cl::sycl::detail::pi;
   RT::piAssert((cond), "assert @ " __FILE__ ":" STRINGIFY_LINE(__LINE__) msg);
 
 // This does the call, the trace and the check for no errors.
-#define PI_CALL(pi) \
-    RT::PiCall(#pi).check<cl::sycl::runtime_error>( \
+#define PI_CALL(pi)                                   \
+    RT::piInitialize(),                               \
+    RT::PiCall(#pi).check<cl::sycl::runtime_error>(   \
         RT::pi_cast<detail::RT::PiResult>(pi))
 
 // This does the trace, the call, and returns the result

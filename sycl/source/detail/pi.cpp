@@ -35,7 +35,11 @@ bool piUseBackend(PiBackend Backend) {
 
 // TODO: implement real plugins (ICD-like?)
 // For now this has the effect of redirecting to built-in PI OpenCL plugin.
-bool piInitialize() {
+void piInitialize() {
+  static bool Initialized = false;
+  if (Initialized) {
+    return;
+  }
   if (!piUseBackend(SYCL_BE_PI_OPENCL)) {
     piDie("Unknown SYCL_BE");
   }
@@ -44,7 +48,7 @@ bool piInitialize() {
     api = api##OclPtr;
   #include <CL/sycl/detail/pi.def>
 
-  return true;
+  Initialized = true;
 }
 
 // Report error and no return (keeps compiler from printing warnings).
@@ -65,8 +69,6 @@ bool PiCall::m_TraceEnabled = (std::getenv("SYCL_PI_TRACE") != nullptr);
 
 // Emits trace before the start of PI call
 PiCall::PiCall(const char *Trace) {
-  static bool PiInitialized = piInitialize();
-
   if (m_TraceEnabled && Trace) {
     std::cerr << "PI ---> " << Trace << std::endl;
   }
