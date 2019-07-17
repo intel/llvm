@@ -54,8 +54,7 @@ public:
     RPipeTy<dataT> RPipe =
       __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
     dataT TempData;
-    // FIXME: this is workaround unless special SPIR-V decoration is implemented
-    while (!__spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
+    __spirv_ReadPipeBlockingINTEL(RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
     assert(!"Pipes are not supported on a host device!");
@@ -68,8 +67,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     WPipeTy<dataT> WPipe =
       __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
-    // FIXME: this is workaround unless special SPIR-V decoration is implemented
-    while (!__spirv_WritePipe(WPipe, &Data, m_Size, m_Alignment));
+    __spirv_WritePipeBlockingINTEL(WPipe, &Data, m_Size, m_Alignment);
 #else
     assert(!"Pipes are not supported on a host device!");
 #endif // __SYCL_DEVICE_ONLY__
