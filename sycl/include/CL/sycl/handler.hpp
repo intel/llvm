@@ -73,6 +73,9 @@ class auto_name {};
 
 class queue_impl;
 class stream_impl;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class image_accessor;
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
@@ -500,6 +503,10 @@ private:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   friend class accessor;
+
+  template <typename DataT, int Dimensions, access::mode AccessMode,
+            access::target AccessTarget, access::placeholder IsPlaceholder>
+  friend class detail::image_accessor;
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
 
