@@ -133,8 +133,6 @@ def HasBTI           : Predicate<"Subtarget->hasBTI()">,
                        AssemblerPredicate<"FeatureBranchTargetId", "bti">;
 def HasMTE           : Predicate<"Subtarget->hasMTE()">,
                        AssemblerPredicate<"FeatureMTE", "mte">;
-def HasTME           : Predicate<"Subtarget->hasTME()">,
-                       AssemblerPredicate<"FeatureTME", "tme">;
 def IsLE             : Predicate<"Subtarget->isLittleEndian()">;
 def IsBE             : Predicate<"!Subtarget->isLittleEndian()">;
 def IsWindows        : Predicate<"Subtarget->isTargetWindows()">;
@@ -410,6 +408,12 @@ def AArch64sminv    : SDNode<"AArch64ISD::SMINV", SDT_AArch64UnaryVec>;
 def AArch64uminv    : SDNode<"AArch64ISD::UMINV", SDT_AArch64UnaryVec>;
 def AArch64smaxv    : SDNode<"AArch64ISD::SMAXV", SDT_AArch64UnaryVec>;
 def AArch64umaxv    : SDNode<"AArch64ISD::UMAXV", SDT_AArch64UnaryVec>;
+
+def SDT_AArch64SETTAG : SDTypeProfile<0, 2, [SDTCisPtrTy<0>, SDTCisPtrTy<1>]>;
+def AArch64stg : SDNode<"AArch64ISD::STG", SDT_AArch64SETTAG, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+def AArch64stzg : SDNode<"AArch64ISD::STZG", SDT_AArch64SETTAG, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+def AArch64st2g : SDNode<"AArch64ISD::ST2G", SDT_AArch64SETTAG, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+def AArch64stz2g : SDNode<"AArch64ISD::STZ2G", SDT_AArch64SETTAG, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
 
 //===----------------------------------------------------------------------===//
 
@@ -800,21 +804,6 @@ def : InstAlias<"sys $op1, $Cn, $Cm, $op2",
                 (SYSxt imm0_7:$op1, sys_cr_op:$Cn,
                  sys_cr_op:$Cm, imm0_7:$op2, XZR)>;
 
-
-let Predicates = [HasTME] in {
-
-def TSTART : TMSystemI<0b0000, "tstart", [(set GPR64:$Rt, (int_aarch64_tstart))]>;
-
-def TCOMMIT : TMSystemINoOperand<0b0000, "tcommit", [(int_aarch64_tcommit)]>;
-
-let mayLoad = 0, mayStore = 0 in {
-def TTEST : TMSystemI<0b0001, "ttest", [(set GPR64:$Rt, (int_aarch64_ttest))]>;
-def TCANCEL : TMSystemException<0b011, "tcancel", [(int_aarch64_tcancel i64_imm0_65535:$imm)]> {
-  let isBarrier = 1;
-}
-}
-} // HasTME
-
 //===----------------------------------------------------------------------===//
 // Move immediate instructions.
 //===----------------------------------------------------------------------===//
@@ -826,12 +815,12 @@ let PostEncoderMethod = "fixMOVZ" in
 defm MOVZ : MoveImmediate<0b10, "movz">;
 
 // First group of aliases covers an implicit "lsl #0".
-def : InstAlias<"movk $dst, $imm", (MOVKWi GPR32:$dst, i32_imm0_65535:$imm, 0), 0>;
-def : InstAlias<"movk $dst, $imm", (MOVKXi GPR64:$dst, i32_imm0_65535:$imm, 0), 0>;
-def : InstAlias<"movn $dst, $imm", (MOVNWi GPR32:$dst, i32_imm0_65535:$imm, 0)>;
-def : InstAlias<"movn $dst, $imm", (MOVNXi GPR64:$dst, i32_imm0_65535:$imm, 0)>;
-def : InstAlias<"movz $dst, $imm", (MOVZWi GPR32:$dst, i32_imm0_65535:$imm, 0)>;
-def : InstAlias<"movz $dst, $imm", (MOVZXi GPR64:$dst, i32_imm0_65535:$imm, 0)>;
+def : InstAlias<"movk $dst, $imm", (MOVKWi GPR32:$dst, imm0_65535:$imm, 0), 0>;
+def : InstAlias<"movk $dst, $imm", (MOVKXi GPR64:$dst, imm0_65535:$imm, 0), 0>;
+def : InstAlias<"movn $dst, $imm", (MOVNWi GPR32:$dst, imm0_65535:$imm, 0)>;
+def : InstAlias<"movn $dst, $imm", (MOVNXi GPR64:$dst, imm0_65535:$imm, 0)>;
+def : InstAlias<"movz $dst, $imm", (MOVZWi GPR32:$dst, imm0_65535:$imm, 0)>;
+def : InstAlias<"movz $dst, $imm", (MOVZXi GPR64:$dst, imm0_65535:$imm, 0)>;
 
 // Next, we have various ELF relocations with the ":XYZ_g0:sym" syntax.
 def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movz_symbol_g3:$sym, 48)>;
@@ -1306,12 +1295,51 @@ defm STZG  : MemTagStore<0b01, "stzg">;
 defm ST2G  : MemTagStore<0b10, "st2g">;
 defm STZ2G : MemTagStore<0b11, "stz2g">;
 
+def : Pat<(AArch64stg GPR64sp:$Rn, (am_indexeds9s128 GPR64sp:$Rm, simm9s16:$imm)),
+          (STGOffset $Rn, $Rm, $imm)>;
+def : Pat<(AArch64stzg GPR64sp:$Rn, (am_indexeds9s128 GPR64sp:$Rm, simm9s16:$imm)),
+          (STZGOffset $Rn, $Rm, $imm)>;
+def : Pat<(AArch64st2g GPR64sp:$Rn, (am_indexeds9s128 GPR64sp:$Rm, simm9s16:$imm)),
+          (ST2GOffset $Rn, $Rm, $imm)>;
+def : Pat<(AArch64stz2g GPR64sp:$Rn, (am_indexeds9s128 GPR64sp:$Rm, simm9s16:$imm)),
+          (STZ2GOffset $Rn, $Rm, $imm)>;
+
 defm STGP     : StorePairOffset <0b01, 0, GPR64z, simm7s16, "stgp">;
 def  STGPpre  : StorePairPreIdx <0b01, 0, GPR64z, simm7s16, "stgp">;
 def  STGPpost : StorePairPostIdx<0b01, 0, GPR64z, simm7s16, "stgp">;
 
 def : Pat<(int_aarch64_stg GPR64:$Rt, (am_indexeds9s128 GPR64sp:$Rn, simm9s16:$offset)),
           (STGOffset GPR64:$Rt, GPR64sp:$Rn,  simm9s16:$offset)>;
+
+def : Pat<(int_aarch64_stgp (am_indexed7s128 GPR64sp:$Rn, simm7s16:$imm), GPR64:$Rt, GPR64:$Rt2),
+          (STGPi $Rt, $Rt2, $Rn, $imm)>;
+
+def IRGstack
+    : Pseudo<(outs GPR64sp:$Rd), (ins GPR64sp:$Rsp, GPR64:$Rm), []>,
+      Sched<[]>;
+def TAGPstack
+    : Pseudo<(outs GPR64sp:$Rd), (ins GPR64sp:$Rn, uimm6s16:$imm6, GPR64sp:$Rm, imm0_15:$imm4), []>,
+      Sched<[]>;
+
+// Explicit SP in the first operand prevents ShrinkWrap optimization
+// from leaving this instruction out of the stack frame. When IRGstack
+// is transformed into IRG, this operand is replaced with the actual
+// register / expression for the tagged base pointer of the current function.
+def : Pat<(int_aarch64_irg_sp i64:$Rm), (IRGstack SP, i64:$Rm)>;
+
+// Large STG to be expanded into a loop. $Rm is the size, $Rn is start address.
+// $Rn_wback is one past the end of the range.
+let isCodeGenOnly=1, mayStore=1 in {
+def STGloop
+    : Pseudo<(outs GPR64common:$Rm_wback, GPR64sp:$Rn_wback), (ins GPR64common:$Rm, GPR64sp:$Rn),
+             [], "$Rn = $Rn_wback,@earlyclobber $Rn_wback,$Rm = $Rm_wback,@earlyclobber $Rm_wback" >,
+      Sched<[WriteAdr, WriteST]>;
+
+def STZGloop
+    : Pseudo<(outs GPR64common:$Rm_wback, GPR64sp:$Rn_wback), (ins GPR64common:$Rm, GPR64sp:$Rn),
+             [], "$Rn = $Rn_wback,@earlyclobber $Rn_wback,$Rm = $Rm_wback,@earlyclobber $Rm_wback" >,
+      Sched<[WriteAdr, WriteST]>;
+}
 
 } // Predicates = [HasMTE]
 
