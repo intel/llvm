@@ -37,6 +37,12 @@ public:
   range(typename std::enable_if<(N == 3), size_t>::type dim0, size_t dim1,
         size_t dim2) : base(dim0, dim1, dim2) {}
 
+  // Default constructor added for compatibility with ComputeCPP and to pass
+  // SYCL conformance. Initializes range components to unit size.
+  range()
+      : base(detail::InitializedVal<dimensions,
+                                    detail::array>::template get<1>()) {}
+
   explicit operator id<dimensions>() const {
     id<dimensions> result;
     for (int i = 0; i < dimensions; ++i) {
@@ -57,7 +63,6 @@ public:
   range(range<dimensions> &&rhs) = default;
   range<dimensions> &operator=(const range<dimensions> &rhs) = default;
   range<dimensions> &operator=(range<dimensions> &&rhs) = default;
-  range() = default;
 
   // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
   #define __SYCL_GEN_OPT(op)                                                   \

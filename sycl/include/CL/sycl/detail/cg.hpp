@@ -58,7 +58,9 @@ class NDRDescT {
   }
 
 public:
-  NDRDescT() = default;
+  NDRDescT()
+      : GlobalSize(range<3>{0, 0, 0}), LocalSize(range<3>{0, 0, 0}),
+        NumWorkGroups(range<3>{0, 0, 0}){};
 
   template <int Dims_> void set(sycl::range<Dims_> NumWorkItems) {
     for (int I = 0; I < Dims_; ++I) {
