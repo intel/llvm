@@ -331,8 +331,7 @@ public:
       : MType(Type), MArgsStorage(std::move(ArgsStorage)),
         MAccStorage(std::move(AccStorage)),
         MSharedPtrStorage(std::move(SharedPtrStorage)),
-        MRequirements(std::move(Requirements)),
-        MEvents(std::move(Events)) {}
+        MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
 
   CG(CG &&CommandGroup) = default;
 
