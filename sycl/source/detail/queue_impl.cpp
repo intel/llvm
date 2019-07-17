@@ -36,7 +36,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 event queue_impl::memset(void* ptr, int value, size_t count) {
   cl_event e;
   cl_int error;
-  cl_command_queue q = pi_cast<cl_command_queue>(getHandleRef());
+  cl_command_queue q = pi::pi_cast<cl_command_queue>(getHandleRef());
 
   error = clEnqueueMemsetINTEL(q, ptr, value, count,
                                /* sizeof waitlist */ 0, nullptr, &e);
@@ -49,7 +49,7 @@ event queue_impl::memset(void* ptr, int value, size_t count) {
 event queue_impl::memcpy(void* dest, const void* src, size_t count) {
   cl_event e;
   cl_int error;
-  cl_command_queue q = pi_cast<cl_command_queue>(getHandleRef());
+  cl_command_queue q = pi::pi_cast<cl_command_queue>(getHandleRef());
 
   error = clEnqueueMemcpyINTEL(q,
                                /* blocking */ false, dest, src, count,

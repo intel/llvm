@@ -1538,6 +1538,9 @@ BUILTIN(__builtin_ms_va_start, "vc*&.", "nt")
 BUILTIN(__builtin_ms_va_end, "vc*&", "n")
 BUILTIN(__builtin_ms_va_copy, "vc*&c*&", "n")
 
+// Builtins for Intel FPGA
+BUILTIN(__builtin_intel_fpga_reg, "v.", "nt")
+
 #undef BUILTIN
 #undef LIBBUILTIN
 #undef LANGBUILTIN

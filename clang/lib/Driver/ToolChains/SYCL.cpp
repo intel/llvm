@@ -293,9 +293,6 @@ void SYCLToolChain::addClangTargetOptions(
     llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
-
-  assert(DeviceOffloadingKind == Action::OFK_SYCL &&
-         "Only SYCL offloading kinds are supported");
 }
 
 llvm::opt::DerivedArgList *

@@ -43,7 +43,7 @@ public:
       : m_Context(SyclContext), m_AsyncHandler(AsyncHandler),
         m_OpenCLInterop(true), m_HostQueue(false) {
 
-    m_CommandQueue = pi_cast<RT::PiQueue>(CLQueue);
+    m_CommandQueue = pi::pi_cast<RT::PiQueue>(CLQueue);
 
     RT::PiDevice Device = nullptr;
     // TODO catch an exception and put it to list of asynchronous exceptions
@@ -65,7 +65,7 @@ public:
   cl_command_queue get() {
     if (m_OpenCLInterop) {
       PI_CALL(RT::piQueueRetain(m_CommandQueue));
-      return pi_cast<cl_command_queue>(m_CommandQueue);
+      return pi::pi_cast<cl_command_queue>(m_CommandQueue);
     }
     throw invalid_object_error(
         "This instance of queue doesn't support OpenCL interoperability");

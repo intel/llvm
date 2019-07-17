@@ -55,6 +55,8 @@ public:
     if (!is_host()) {
       DevicesSorted = sort_devices_by_cl_device_id(Devices);
     }
+    check_device_feature_support<
+        info::device::is_linker_available>(Devices);
     for (const auto &Prg : ProgramList) {
       Prg->throw_if_state_is_not(program_state::compiled);
       if (Prg->Context != Context) {
@@ -167,7 +169,7 @@ public:
       throw invalid_object_error("This instance of program is a host instance");
     }
     PI_CALL(RT::piProgramRetain(Program));
-    return pi_cast<cl_program>(Program);
+    return pi::pi_cast<cl_program>(Program);
   }
 
   bool is_host() const { return Context.is_host(); }
@@ -221,6 +223,8 @@ public:
   void link(string_class LinkOptions = "") {
     throw_if_state_is_not(program_state::compiled);
     if (!is_host()) {
+      check_device_feature_support<
+          info::device::is_linker_available>(Devices);
       vector_class<RT::PiDevice> Devices(get_pi_devices());
       RT::PiResult Err;
       PI_CALL_RESULT((Program = RT::piProgramLink(
@@ -322,6 +326,17 @@ public:
   program_state get_state() const { return State; }
 
 private:
+  template <info::device param>
+  void check_device_feature_support(
+      const vector_class<device> &devices) {
+    for (const auto &device : devices) {
+      if (!device.get_info<param>()) {
+        throw feature_not_supported(
+            "Online compilation is not supported by this device");
+      }
+    }
+  }
+
   void create_cl_program_with_il(OSModuleHandle M) {
     assert(!Program && "This program already has an encapsulated PI program");
     Program = ProgramManager::getInstance().createOpenCLProgram(M, Context);
@@ -338,6 +353,8 @@ private:
   }
 
   void compile(const string_class &Options) {
+    check_device_feature_support<
+        info::device::is_compiler_available>(Devices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
     RT::PiResult Err = PI_CALL_RESULT(RT::piProgramCompile(
         Program, Devices.size(), Devices.data(), Options.c_str(),
@@ -352,6 +369,8 @@ private:
   }
 
   void build(const string_class &Options) {
+    check_device_feature_support<
+        info::device::is_compiler_available>(Devices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
     RT::PiResult Err = PI_CALL_RESULT(RT::piProgramBuild(
         Program, Devices.size(), Devices.data(), Options.c_str(),

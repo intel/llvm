@@ -4063,6 +4063,10 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     Value *ArgPtr = Builder.CreateLoad(SrcAddr, "ap.val");
     return RValue::get(Builder.CreateStore(ArgPtr, DestAddr));
   }
+
+  // SYCL
+  case Builtin::BI__builtin_intel_fpga_reg:
+    return EmitIntelFPGARegBuiltin(E, ReturnValue);
   }
 
   // If this is an alias for a lib function (e.g. __builtin_sin), emit
@@ -14286,4 +14290,44 @@ Value *CodeGenFunction::EmitHexagonBuiltinExpr(unsigned BuiltinID,
   } // switch
 
   return nullptr;
+}
+
+RValue CodeGenFunction::EmitIntelFPGARegBuiltin(const CallExpr *E,
+                                                ReturnValueSlot ReturnValue) {
+  const Expr *PtrArg = E->getArg(0);
+  QualType ArgType = PtrArg->getType();
+  llvm::Value *V = nullptr;
+  StringRef AnnotStr = "__builtin_intel_fpga_reg";
+
+  if (ArgType->isStructureOrClassType() || ArgType->isUnionType()) {
+    RValue RV = EmitAnyExpr(PtrArg);
+    Address A = EmitIntelFPGAFieldAnnotations(E->getExprLoc(),
+                                              RV.getAggregateAddress(),
+                                              AnnotStr);
+    llvm::Type *VTy = ReturnValue.getValue().getPointer()->getType();
+    uint64_t SizeVal = CGM.getDataLayout().getTypeAllocSize(VTy);
+    Builder.CreateMemCpy(ReturnValue.getValue(), A, SizeVal, false);
+    return RValue::getAggregate(A);
+  }
+
+  // if scalar type
+  V = EmitScalarExpr(PtrArg);
+
+  // llvm.annotation does not accept anything but integer types.
+  llvm::Type *OrigVType = V->getType();
+  if (!OrigVType->isIntegerTy()) {
+    IntegerType *IntTy =
+        Builder.getIntNTy(CGM.getDataLayout().getTypeSizeInBits(OrigVType));
+    V = Builder.CreateBitOrPointerCast(V, IntTy);
+  }
+  llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::annotation,
+                                       V->getType());
+  llvm::Value *AnnotatedV =
+      EmitAnnotationCall(F, V, AnnotStr, E->getExprLoc());
+
+  if (AnnotatedV->getType() != OrigVType) {
+    AnnotatedV = Builder.CreateBitOrPointerCast(AnnotatedV, OrigVType);
+  }
+
+  return RValue::get(AnnotatedV);
 }
