@@ -24,7 +24,7 @@
 namespace cl {
 namespace sycl {
 namespace detail {
-struct Builder;
+class Builder;
 
 // Implements a barrier accross work items within a work group.
 static inline void workGroupBarrier() {
@@ -290,7 +290,7 @@ private:
   }
 
 protected:
-  friend struct detail::Builder;
+  friend class detail::Builder;
   group(const range<dimensions> &G, const range<dimensions> &L,
         const id<dimensions> &I)
       : globalRange(G), localRange(L), index(I) {}
