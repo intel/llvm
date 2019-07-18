@@ -6,27 +6,27 @@
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; work_group_barrier with the default scope (memory_scope_work_group)
-; CHECK-LLVM: call spir_func void @_Z18work_group_barrierji(i32 2, i32 1) [[attr:#[0-9]+]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 1, i32 1) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 4, i32 1) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 3, i32 1) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 5, i32 1) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 7, i32 1) [[attr]]
+; CHECK-LLVM: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 1) [[attr:#[0-9]+]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 1) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 4, i32 1) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 3, i32 1) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 5, i32 1) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 7, i32 1) [[attr]]
 
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 2, i32 0) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 2, i32 1) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 2, i32 2) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 2, i32 3) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 0) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 1) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 2) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 3) [[attr]]
 
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 1, i32 0) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 1, i32 1) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 1, i32 2) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 1, i32 3) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 0) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 1) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 2) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 3) [[attr]]
 
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 4, i32 0) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 4, i32 1) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 4, i32 2) [[attr]]
-; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierji(i32 4, i32 3) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 4, i32 0) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 4, i32 1) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 4, i32 2) [[attr]]
+; CHECK-LLVM-NEXT: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 4, i32 3) [[attr]]
 
 ; CHECK-LLVM: attributes [[attr]] = { noduplicate nounwind }
 
@@ -83,26 +83,26 @@ entry:
   call spir_func void @_Z18work_group_barrierj(i32 5) ; local | image
   call spir_func void @_Z18work_group_barrierj(i32 7) ; global | local | image
 
-  call spir_func void @_Z18work_group_barrierji(i32 2, i32 0) ; global mem fence + memory_scope_work_item
-  call spir_func void @_Z18work_group_barrierji(i32 2, i32 1) ; global mem fence + memory_scope_work_group
-  call spir_func void @_Z18work_group_barrierji(i32 2, i32 2) ; global mem fence + memory_scope_device
-  call spir_func void @_Z18work_group_barrierji(i32 2, i32 3) ; global mem fence + memory_scope_all_svm_devices
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 0) ; global mem fence + memory_scope_work_item
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 1) ; global mem fence + memory_scope_work_group
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 2) ; global mem fence + memory_scope_device
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 3) ; global mem fence + memory_scope_all_svm_devices
 
-  call spir_func void @_Z18work_group_barrierji(i32 1, i32 0) ; local mem fence + memory_scope_work_item
-  call spir_func void @_Z18work_group_barrierji(i32 1, i32 1) ; local mem fence + memory_scope_work_group
-  call spir_func void @_Z18work_group_barrierji(i32 1, i32 2) ; local mem fence + memory_scope_device
-  call spir_func void @_Z18work_group_barrierji(i32 1, i32 3) ; local mem fence + memory_scope_all_svm_devices
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 0) ; local mem fence + memory_scope_work_item
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 1) ; local mem fence + memory_scope_work_group
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 2) ; local mem fence + memory_scope_device
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 3) ; local mem fence + memory_scope_all_svm_devices
 
-  call spir_func void @_Z18work_group_barrierji(i32 4, i32 0) ; image mem fence + memory_scope_work_item
-  call spir_func void @_Z18work_group_barrierji(i32 4, i32 1) ; image mem fence + memory_scope_work_group
-  call spir_func void @_Z18work_group_barrierji(i32 4, i32 2) ; image mem fence + memory_scope_device
-  call spir_func void @_Z18work_group_barrierji(i32 4, i32 3) ; image mem fence + memory_scope_all_svm_devices
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 4, i32 0) ; image mem fence + memory_scope_work_item
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 4, i32 1) ; image mem fence + memory_scope_work_group
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 4, i32 2) ; image mem fence + memory_scope_device
+  call spir_func void @_Z18work_group_barrierj12memory_scope(i32 4, i32 3) ; image mem fence + memory_scope_all_svm_devices
 
   ret void
 }
 
 declare spir_func void @_Z18work_group_barrierj(i32) #1
-declare spir_func void @_Z18work_group_barrierji(i32, i32) #1
+declare spir_func void @_Z18work_group_barrierj12memory_scope(i32, i32) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

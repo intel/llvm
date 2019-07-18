@@ -8,11 +8,8 @@ add_clang_subdirectory(clang-format-vs)
 add_clang_subdirectory(clang-fuzzer)
 add_clang_subdirectory(clang-import-test)
 add_clang_subdirectory(clang-offload-bundler)
-<<<<<<< HEAD
 add_clang_subdirectory(clang-offload-wrapper)
-=======
 add_clang_subdirectory(clang-scan-deps)
->>>>>>> intel
 
 add_clang_subdirectory(c-index-test)
 

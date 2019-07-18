@@ -69,12 +69,16 @@ namespace OCLUtil {
 #define SPIRV_EVENT_T_ADDR_SPACE SPIRV_OCL_SPECIAL_TYPES_DEFAULT_ADDR_SPACE
 #endif
 
+#ifndef SPIRV_AVC_INTEL_T_ADDR_SPACE
+#define SPIRV_AVC_INTEL_T_ADDR_SPACE SPIRV_OCL_SPECIAL_TYPES_DEFAULT_ADDR_SPACE
+#endif
+
 #ifndef SPIRV_CLK_EVENT_T_ADDR_SPACE
 #define SPIRV_CLK_EVENT_T_ADDR_SPACE SPIRV_OCL_SPECIAL_TYPES_DEFAULT_ADDR_SPACE
 #endif
 
 #ifndef SPIRV_SAMPLER_T_ADDR_SPACE
-#define SPIRV_SAMPLER_T_ADDR_SPACE SPIRV_OCL_SPECIAL_TYPES_DEFAULT_ADDR_SPACE
+#define SPIRV_SAMPLER_T_ADDR_SPACE SPIRAS_Constant
 #endif
 
 #ifndef SPIRV_RESERVE_ID_T_ADDR_SPACE
@@ -321,6 +325,8 @@ SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
   case OpTypeSampler:
     return SPIRV_SAMPLER_T_ADDR_SPACE;
   default:
+    if (isSubgroupAvcINTELTypeOpCode(OpCode))
+      return SPIRV_AVC_INTEL_T_ADDR_SPACE;
     assert(false && "No address space is determined for some OCL type");
     return SPIRV_OCL_SPECIAL_TYPES_DEFAULT_ADDR_SPACE;
   }
@@ -411,9 +417,18 @@ static FunctionType *getBlockInvokeTy(Function *F, unsigned BlockIdx) {
 class OCLBuiltinFuncMangleInfo : public SPIRV::BuiltinFuncMangleInfo {
 public:
   OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
+  OCLBuiltinFuncMangleInfo(ArrayRef<Type *> ArgTypes)
+      : ArgTypes(ArgTypes.vec()) {}
   void init(const std::string &UniqName) override {
     UnmangledName = UniqName;
     size_t Pos = std::string::npos;
+
+    auto EraseSubstring = [](std::string &Str, std::string ToErase) {
+      size_t Pos = Str.find(ToErase);
+      if (Pos != std::string::npos) {
+        Str.erase(Pos, ToErase.length());
+      }
+    };
 
     if (UnmangledName.find("async_work_group") == 0) {
       addUnsignedArg(-1);
@@ -453,10 +468,11 @@ public:
         setArgAttr(0, SPIR::ATTR_CONST);
         addVoidPtrArg(0);
       }
-    } else if (UnmangledName.find("barrier") == 0 ||
-               UnmangledName.find("work_group_barrier") == 0 ||
-               UnmangledName.find("sub_group_barrier") == 0) {
+    } else if (UnmangledName.find("barrier") != std::string::npos) {
       addUnsignedArg(0);
+      if (UnmangledName == "work_group_barrier" ||
+          UnmangledName == "sub_group_barrier")
+        setEnumArg(1, SPIR::PRIMITIVE_MEMORY_SCOPE);
     } else if (UnmangledName.find("atomic_work_item_fence") == 0) {
       addUnsignedArg(0);
       setEnumArg(1, SPIR::PRIMITIVE_MEMORY_ORDER);
@@ -531,15 +547,6 @@ public:
       addVoidPtrArg(1);
       addUnsignedArg(2);
       addUnsignedArg(3);
-      // OpenCL-like representation of blocking pipes
-    } else if (UnmangledName == "read_pipe_bl_2" ||
-               UnmangledName == "write_pipe_bl_2") {
-      // with 2 arguments (plus two i32 literals):
-      // int read_pipe_bl (read_only pipe gentype p, gentype *ptr)
-      // int write_pipe_bl (write_only pipe gentype p, const gentype *ptr)
-      addVoidPtrArg(1);
-      addUnsignedArg(2);
-      addUnsignedArg(3);
     } else if (UnmangledName == "read_pipe_4" ||
                UnmangledName == "write_pipe_4") {
       // with 4 arguments (plus two i32 literals):
@@ -581,16 +588,109 @@ public:
                (Pos = UnmangledName.find("umin")) != std::string::npos) {
       addUnsignedArg(-1);
       UnmangledName.erase(Pos, 1);
-    } else if (UnmangledName.find("broadcast") != std::string::npos)
+    } else if (UnmangledName.find("broadcast") != std::string::npos) {
       addUnsignedArg(-1);
-    else if (UnmangledName.find(kOCLBuiltinName::SampledReadImage) == 0) {
+    } else if (UnmangledName.find(kOCLBuiltinName::SampledReadImage) == 0) {
       UnmangledName.erase(0, strlen(kOCLBuiltinName::Sampled));
       addSamplerArg(1);
+    } else if (UnmangledName.find(kOCLSubgroupsAVCIntel::Prefix) !=
+               std::string::npos) {
+      if (UnmangledName.find("evaluate_with_single_reference") !=
+          std::string::npos)
+        addSamplerArg(2);
+      else if (UnmangledName.find("evaluate_with_multi_reference") !=
+               std::string::npos) {
+        addUnsignedArg(1);
+        std::string PostFix = "_interlaced";
+        if (UnmangledName.find(PostFix) != std::string::npos) {
+          addUnsignedArg(2);
+          addSamplerArg(3);
+          size_t Pos = UnmangledName.find(PostFix);
+          if (Pos != std::string::npos)
+            UnmangledName.erase(Pos, PostFix.length());
+        } else
+          addSamplerArg(2);
+      } else if (UnmangledName.find("evaluate_with_dual_reference") !=
+                 std::string::npos)
+        addSamplerArg(3);
+      else if (UnmangledName.find("fme_initialize") != std::string::npos)
+        addUnsignedArgs(0, 6);
+      else if (UnmangledName.find("bme_initialize") != std::string::npos)
+        addUnsignedArgs(0, 7);
+      else if (UnmangledName.find("set_inter_base_multi_reference_penalty") !=
+                   std::string::npos ||
+               UnmangledName.find("set_inter_shape_penalty") !=
+                   std::string::npos)
+        addUnsignedArg(0);
+      else if (UnmangledName.find("set_motion_vector_cost_function") !=
+               std::string::npos)
+        addUnsignedArgs(0, 2);
+      else if (UnmangledName.find(kOCLSubgroupsAVCIntel::MCEPrefix) !=
+               std::string::npos) {
+        if (UnmangledName.find("get_default") != std::string::npos)
+          addUnsignedArgs(0, 1);
+      } else if (UnmangledName.find(kOCLSubgroupsAVCIntel::IMEPrefix) !=
+                 std::string::npos) {
+        if (UnmangledName.find("initialize") != std::string::npos)
+          addUnsignedArgs(0, 2);
+        else if (UnmangledName.find("set_single_reference") !=
+                 std::string::npos)
+          addUnsignedArg(1);
+        else if (UnmangledName.find("adjust_ref_offset") != std::string::npos)
+          addUnsignedArgs(1, 3);
+        else if (UnmangledName.find("set_max_motion_vector_count") !=
+                     std::string::npos ||
+                 UnmangledName.find("get_border_reached") != std::string::npos)
+          addUnsignedArg(0);
+      } else if (UnmangledName.find(kOCLSubgroupsAVCIntel::SICPrefix) !=
+                 std::string::npos) {
+        if (UnmangledName.find("initialize") != std::string::npos)
+          addUnsignedArg(0);
+        else if (UnmangledName.find("configure_ipe") != std::string::npos) {
+          if (UnmangledName.find("_luma") != std::string::npos) {
+            addUnsignedArgs(0, 6);
+            EraseSubstring(UnmangledName, "_luma");
+          }
+          if (UnmangledName.find("_chroma") != std::string::npos) {
+            addUnsignedArgs(7, 9);
+            EraseSubstring(UnmangledName, "_chroma");
+          }
+        }
+      }
+    } else if (UnmangledName == "intel_sub_group_shuffle_down" ||
+               UnmangledName == "intel_sub_group_shuffle_up") {
+      addUnsignedArg(2);
+    } else if (UnmangledName == "intel_sub_group_shuffle" ||
+               UnmangledName == "intel_sub_group_shuffle_xor") {
+      addUnsignedArg(1);
+    } else if (UnmangledName.find("intel_sub_group_block_write") !=
+               std::string::npos) {
+      // distinguish write to image and other data types as position
+      // of uint argument is different though name is the same.
+      assert(ArgTypes.size() && "lack of necessary information");
+      if (ArgTypes[0]->isPointerTy() &&
+          ArgTypes[0]->getPointerElementType()->isIntegerTy()) {
+        addUnsignedArg(0);
+        addUnsignedArg(1);
+      } else {
+        addUnsignedArg(2);
+      }
+    } else if (UnmangledName.find("intel_sub_group_block_read") !=
+               std::string::npos) {
+      // distinguish read from image and other data types as position
+      // of uint argument is different though name is the same.
+      assert(ArgTypes.size() && "lack of necessary information");
+      if (ArgTypes[0]->isPointerTy() &&
+          ArgTypes[0]->getPointerElementType()->isIntegerTy()) {
+        setArgAttr(0, SPIR::ATTR_CONST);
+        addUnsignedArg(0);
+      }
     }
   }
-  // Auxiliarry information, it is expected what it is relevant at the moment
+  // Auxiliarry information, it is expected that it is relevant at the moment
   // the init method is called.
   Function *F; // SPIRV decorated function
+  std::vector<Type *> ArgTypes; // Arguments of OCL builtin
 };
 
 CallInst *mutateCallInstOCL(
@@ -729,6 +829,6 @@ void checkFpContract(BinaryOperator *B, SPIRVBasicBlock *BB) {
 void llvm::mangleOpenClBuiltin(const std::string &UniqName,
                                ArrayRef<Type *> ArgTypes,
                                std::string &MangledName) {
-  OCLUtil::OCLBuiltinFuncMangleInfo BtnInfo(nullptr);
+  OCLUtil::OCLBuiltinFuncMangleInfo BtnInfo(ArgTypes);
   MangledName = SPIRV::mangleBuiltin(UniqName, ArgTypes, &BtnInfo);
 }

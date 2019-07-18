@@ -139,6 +139,7 @@ private:
   void outputDependencyFile(DiagnosticsEngine &Diags);
 
   std::string OutputFile;
+  std::string DependencyFilter;
   std::vector<std::string> Targets;
   bool IncludeSystemHeaders;
   bool PhonyTarget;

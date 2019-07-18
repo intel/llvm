@@ -370,6 +370,10 @@ SPIRVWord mapDebugFlags(DINode::DIFlags DFlags) {
     Flags |= SPIRVDebug::FlagIsLValueReference;
   if (DFlags & DINode::FlagRValueReference)
     Flags |= SPIRVDebug::FlagIsRValueReference;
+  if (DFlags & DINode::FlagTypePassByValue)
+    Flags |= SPIRVDebug::FlagTypePassByValue;
+  if (DFlags & DINode::FlagTypePassByReference)
+    Flags |= SPIRVDebug::FlagTypePassByReference;
   return Flags;
 }
 

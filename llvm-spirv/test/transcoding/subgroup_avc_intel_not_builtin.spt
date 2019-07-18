@@ -1,0 +1,35 @@
+119734787 65536 393230 8 0 
+2 Capability Addresses 
+2 Capability Linkage 
+2 Capability Kernel 
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2 
+3 Source 3 200000 
+11 Name 4 "_Z31intel_sub_group_avc_mce_ime_boo"
+3 Name 5 "foo"
+4 Name 6 "entry"
+5 Decorate 5 LinkageAttributes "foo" Export 
+13 Decorate 4 LinkageAttributes "_Z31intel_sub_group_avc_mce_ime_boo" Import 
+2 TypeVoid 2 
+3 TypeFunction 3 2 
+
+
+5 Function 2 4 0 3 
+
+1 FunctionEnd 
+
+5 Function 2 5 2 3 
+
+2 Label 6 
+4 FunctionCall 2 7 4 
+1 Return 
+
+1 FunctionEnd
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: define spir_func void @foo()
+; CHECK-LLVM: call spir_func void @_Z31intel_sub_group_avc_mce_ime_boo()
+

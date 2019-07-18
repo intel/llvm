@@ -1517,11 +1517,12 @@ protected:
     case OpTypeVector:
       assert(getConstituents().size() > 1 &&
              "There must be at least two Constituent operands in vector");
+      break;
     case OpTypeArray:
     case OpTypeStruct:
       break;
     default:
-      static_assert("Invalid type", "");
+      assert(false && "Invalid type");
     }
   }
   std::vector<SPIRVId> Constituents;

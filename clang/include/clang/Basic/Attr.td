@@ -295,12 +295,9 @@ class LangOpt<string name, code customCode = [{}]> {
 def MicrosoftExt : LangOpt<"MicrosoftExt">;
 def Borland : LangOpt<"Borland">;
 def CUDA : LangOpt<"CUDA">;
-<<<<<<< HEAD
 def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
 def SYCLIsHost : LangOpt<"SYCLIsHost">;
-=======
 def HIP : LangOpt<"HIP">;
->>>>>>> intel
 def COnly : LangOpt<"COnly", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;

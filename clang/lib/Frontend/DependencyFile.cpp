@@ -177,38 +177,10 @@ void DependencyCollector::attachToASTReader(ASTReader &R) {
   R.addListener(llvm::make_unique<DepCollectorASTListener>(*this));
 }
 
-<<<<<<< HEAD
-namespace {
-/// Private implementation for DependencyFileGenerator
-class DFGImpl : public PPCallbacks {
-  std::vector<std::string> Files;
-  llvm::StringSet<> FilesSet;
-  const Preprocessor *PP;
-  std::string OutputFile;
-  std::string DependencyFilter;
-  std::vector<std::string> Targets;
-  bool IncludeSystemHeaders;
-  bool PhonyTarget;
-  bool AddMissingHeaderDeps;
-  bool SeenMissingHeader;
-  bool IncludeModuleFiles;
-  DependencyOutputFormat OutputFormat;
-  unsigned InputFileIndex;
-
-private:
-  bool FileMatchesDepCriteria(const char *Filename,
-                              SrcMgr::CharacteristicKind FileType);
-  void OutputDependencyFile();
-
-public:
-  DFGImpl(const Preprocessor *_PP, const DependencyOutputOptions &Opts)
-    : PP(_PP), OutputFile(Opts.OutputFile),
-      DependencyFilter(Opts.DependencyFilter), Targets(Opts.Targets),
-=======
 DependencyFileGenerator::DependencyFileGenerator(
     const DependencyOutputOptions &Opts)
-    : OutputFile(Opts.OutputFile), Targets(Opts.Targets),
->>>>>>> intel
+    : OutputFile(Opts.OutputFile),
+      DependencyFilter(Opts.DependencyFilter), Targets(Opts.Targets),
       IncludeSystemHeaders(Opts.IncludeSystemHeaders),
       PhonyTarget(Opts.UsePhonyTargets),
       AddMissingHeaderDeps(Opts.AddMissingHeaderDeps), SeenMissingHeader(false),
@@ -250,7 +222,7 @@ bool DependencyFileGenerator::sawDependency(StringRef Filename, bool FromModule,
     return false;
 
   if (DependencyFilter.size() &&
-      DependencyFilter.compare(0, DependencyFilter.size(), Filename,
+      DependencyFilter.compare(0, DependencyFilter.size(), Filename.data(),
                                DependencyFilter.size()) == 0)
     // Remove dependencies that are prefixed by the Filter string.
     return false;

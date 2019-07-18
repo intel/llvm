@@ -535,11 +535,8 @@ int main(int argc, char **argv) {
   initializeExpandReductionsPass(Registry);
   initializeWasmEHPreparePass(Registry);
   initializeWriteBitcodePassPass(Registry);
-<<<<<<< HEAD
   initializeASFixerPass(Registry);
-=======
   initializeHardwareLoopsPass(Registry);
->>>>>>> intel
 
 #ifdef LINK_POLLY_INTO_TOOLS
   polly::initializePollyPasses(Registry);

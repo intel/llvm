@@ -2221,7 +2221,6 @@ form of ``__builtin_operator_delete`` is currently available.
 These builtins are intended for use in the implementation of ``std::allocator``
 and other similar allocation libraries, and are only available in C++.
 
-<<<<<<< HEAD
 ``__unique_stable_name``
 ------------------------
 
@@ -2245,7 +2244,7 @@ Mangler to produce the unique name. The lambda ordinal is replaced with one or
 more line/column pairs in the format ``LINE->COL``, separated with a ``~``
 character. Typically, only one pair will be included, however in the case of
 macro expansions, the entire macro expansion stack is expressed.
-=======
+
 ``__builtin_preserve_access_index``
 -----------------------------------
 
@@ -2274,7 +2273,6 @@ with ``-g``) is needed, otherwise, the compiler will exit with an error.
   };
   struct t *v = ...;
   const void *pb =__builtin_preserve_access_index(&v->c[3].b);
->>>>>>> intel
 
 Multiprecision Arithmetic Builtins
 ----------------------------------

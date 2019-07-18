@@ -9765,7 +9765,6 @@ def err_builtin_launder_invalid_arg : Error<
   "%select{non-pointer|function pointer|void pointer}0 argument to "
   "'__builtin_launder' is not allowed">;
 
-<<<<<<< HEAD
 // SYCL-specific diagnostics
 def err_sycl_attribute_address_space_invalid : Error<
   "address space is outside the valid range of values">;
@@ -9792,10 +9791,9 @@ def err_sycl_non_std_layout_type : Error<
   "kernel parameter has non-standard layout class/struct type">;
 def err_conflicting_sycl_kernel_attributes : Error<
   "conflicting attributes applied to a SYCL kernel">;
-=======
+
 def err_bit_cast_non_trivially_copyable : Error<
   "__builtin_bit_cast %select{source|destination}0 type must be trivially copyable">;
 def err_bit_cast_type_size_mismatch : Error<
   "__builtin_bit_cast source size does not equal destination size (%0 vs %1)">;
->>>>>>> intel
 } // end of sema component.
