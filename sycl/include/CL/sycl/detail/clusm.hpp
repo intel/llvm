@@ -11,6 +11,7 @@
 #include <CL/cl.h>
 #include <CL/cl_usm_ext.h>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/os_util.hpp>
 
 #include <map>
 #include <mutex>
@@ -114,7 +115,7 @@ bool initializeExtensions(cl_platform_id platform);
 } // namespace sycl
 } // namespace cl
 
-extern cl::sycl::detail::usm::CLUSM *gCLUSM;
+__SYCL_EXPORTED extern cl::sycl::detail::usm::CLUSM *gCLUSM;
 inline cl::sycl::detail::usm::CLUSM *GetCLUSM() {
   if (gCLUSM == nullptr) {
     cl::sycl::detail::usm::CLUSM::Create(gCLUSM);
