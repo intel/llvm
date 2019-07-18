@@ -87,7 +87,7 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-cl::opt<bool> SPIRVMemToReg("spirv-mem2reg", cl::init(true),
+cl::opt<bool> SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                             cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
 cl::opt<bool> SPIRVNoDerefAttr(
@@ -258,7 +258,7 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
 
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
-  // sampler or pipe type.
+  // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
     auto ET = T->getPointerElementType();
     assert(!ET->isFunctionTy() && "Function pointer type is not allowed");
@@ -1322,6 +1322,22 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     return DbgTran->createDebugDeclarePlaceholder(cast<DbgDeclareInst>(II), BB);
   case Intrinsic::dbg_value:
     return DbgTran->createDebugValuePlaceholder(cast<DbgValueInst>(II), BB);
+  case Intrinsic::annotation: {
+    SPIRVType *Ty = transType(II->getType());
+
+    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
+    if (!GEP)
+      return nullptr;
+    Constant *C = cast<Constant>(GEP->getOperand(0));
+    // TODO: Refactor to use getConstantStringInfo()
+    StringRef AnnotationString =
+        cast<ConstantDataArray>(C->getOperand(0))->getAsCString();
+
+    if (AnnotationString == kOCLBuiltinName::FPGARegIntel)
+      return BM->addFPGARegINTELInst(Ty, transValue(II->getOperand(0), BB), BB);
+
+    return nullptr;
+  }
   case Intrinsic::var_annotation: {
     SPIRVValue *SV;
     if (auto *BI = dyn_cast<BitCastInst>(II->getArgOperand(0))) {
@@ -1332,6 +1348,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
 
     GetElementPtrInst *GEP = cast<GetElementPtrInst>(II->getArgOperand(1));
     Constant *C = cast<Constant>(GEP->getOperand(0));
+    // TODO: Refactor to use getConstantStringInfo()
     StringRef AnnotationString =
         cast<ConstantDataArray>(C->getOperand(0))->getAsString();
 
@@ -1352,28 +1369,34 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     } else {
       GI = dyn_cast<GetElementPtrInst>(II->getOperand(0));
     }
-    SPIRVType *Ty = transType(GI->getSourceElementType());
-
-    SPIRVWord MemberNumber =
-        dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
 
     GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
     Constant *C = dyn_cast<Constant>(GEP->getOperand(0));
+    // TODO: Refactor to use getConstantStringInfo()
     StringRef AnnotationString =
-        dyn_cast<ConstantDataArray>(C->getOperand(0))->getAsString();
+        dyn_cast<ConstantDataArray>(C->getOperand(0))->getAsCString();
 
-    std::vector<std::pair<Decoration, std::string>> Decorations =
-        parseAnnotations(AnnotationString);
+    if (GI) {
+      auto *Ty = transType(GI->getSourceElementType());
+      SPIRVWord MemberNumber =
+          dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
 
-    if (Decorations.empty()) {
-      Ty->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-          Ty, MemberNumber,
-          AnnotationString.substr(0, AnnotationString.size() - 1)));
+      std::vector<std::pair<Decoration, std::string>> Decorations =
+          parseAnnotations(AnnotationString);
+
+      if (Decorations.empty()) {
+        Ty->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
+            Ty, MemberNumber, AnnotationString));
+      } else {
+        addIntelFPGADecorationsForStructMember(Ty, MemberNumber, Decorations);
+      }
+      II->replaceAllUsesWith(II->getOperand(0));
     } else {
-      addIntelFPGADecorationsForStructMember(Ty, MemberNumber, Decorations);
+      auto *Ty = transType(II->getType());
+      auto *BI = dyn_cast<BitCastInst>(II->getOperand(0));
+      if (AnnotationString == kOCLBuiltinName::FPGARegIntel)
+        return BM->addFPGARegINTELInst(Ty, transValue(BI, BB), BB);
     }
-
-    II->replaceAllUsesWith(II->getOperand(0));
     return 0;
   }
   default:

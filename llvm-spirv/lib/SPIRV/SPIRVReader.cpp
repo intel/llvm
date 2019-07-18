@@ -1756,6 +1756,52 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpGetKernelNDrangeSubGroupCount:
     return mapValue(
         BV, transSGSizeQueryBI(static_cast<SPIRVInstruction *>(BV), BB));
+  case OpFPGARegINTEL: {
+    IRBuilder<> Builder(BB);
+
+    SPIRVFPGARegINTELInstBase *BC =
+        static_cast<SPIRVFPGARegINTELInstBase *>(BV);
+
+    PointerType *Int8PtrTyPrivate =
+        Type::getInt8PtrTy(*Context, SPIRAS_Private);
+    IntegerType *Int32Ty = Type::getInt32Ty(*Context);
+
+    Value *UndefInt8Ptr = UndefValue::get(Int8PtrTyPrivate);
+    Value *UndefInt32 = UndefValue::get(Int32Ty);
+
+    Constant *GS = Builder.CreateGlobalStringPtr(kOCLBuiltinName::FPGARegIntel);
+
+    Type *Ty = transType(BC->getType());
+    Value *Val = transValue(BC->getOperand(0), F, BB);
+
+    Value *ValAsArg = Val;
+    Type *RetTy = Ty;
+    auto IID = Intrinsic::annotation;
+    if (!isa<IntegerType>(Ty)) {
+      // All scalar types can be bitcasted to a same-sized integer
+      if (!isa<PointerType>(Ty) && !isa<StructType>(Ty)) {
+        RetTy = IntegerType::get(*Context, Ty->getPrimitiveSizeInBits());
+        ValAsArg = Builder.CreateBitCast(Val, RetTy);
+      }
+      // If pointer type or struct type
+      else {
+        IID = Intrinsic::ptr_annotation;
+        auto *PtrTy = dyn_cast<PointerType>(Ty);
+        if (PtrTy && isa<IntegerType>(PtrTy->getElementType()))
+          RetTy = PtrTy;
+        // Whether a struct or a pointer to some other type,
+        // bitcast to i8*
+        else {
+          RetTy = Int8PtrTyPrivate;
+          ValAsArg = Builder.CreateBitCast(Val, Int8PtrTyPrivate);
+        }
+      }
+    }
+
+    Value *Args[] = {ValAsArg, GS, UndefInt8Ptr, UndefInt32};
+    auto *IntrinsicCall = Builder.CreateIntrinsic(IID, RetTy, Args);
+    return mapValue(BV, IntrinsicCall);
+  }
   default: {
     auto OC = BV->getOpCode();
     if (isSPIRVCmpInstTransToLLVMInst(static_cast<SPIRVInstruction *>(BV))) {

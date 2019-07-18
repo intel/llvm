@@ -1002,6 +1002,7 @@ inline bool isValid(spv::Op V) {
   case OpSubgroupAvcSicGetPackedSkcLumaCountThresholdINTEL:
   case OpSubgroupAvcSicGetPackedSkcLumaSumThresholdINTEL:
   case OpSubgroupAvcSicGetInterRawSadsINTEL:
+  case OpFPGARegINTEL:
     return true;
   default:
     return false;

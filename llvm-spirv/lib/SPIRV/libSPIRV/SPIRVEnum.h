@@ -117,7 +117,8 @@ enum SPIRVExtensionKind {
   SPV_INTEL_blocking_pipes,
   SPV_INTEL_device_side_avc_motion_estimation,
   SPV_KHR_no_integer_wrap_decoration,
-  SPV_INTEL_fpga_memory_attributes
+  SPV_INTEL_fpga_memory_attributes,
+  SPV_INTEL_fpga_reg
 };
 
 typedef std::set<SPIRVExtensionKind> SPIRVExtSet;
@@ -128,6 +129,7 @@ template <> inline void SPIRVMap<SPIRVExtensionKind, std::string>::init() {
       "SPV_INTEL_device_side_avc_motion_estimation");
   add(SPV_KHR_no_integer_wrap_decoration, "SPV_KHR_no_integer_wrap_decoration");
   add(SPV_INTEL_fpga_memory_attributes, "SPV_INTEL_fpga_memory_attributes");
+  add(SPV_INTEL_fpga_reg, "SPV_INTEL_fpga_reg");
 }
 
 template <> inline void SPIRVMap<SPIRVExtInstSetKind, std::string>::init() {

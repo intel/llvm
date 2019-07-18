@@ -873,6 +873,29 @@ protected:
   std::vector<SPIRVId> Pairs;
 };
 
+class SPIRVFPGARegINTELInstBase : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityFPGARegINTEL);
+  }
+
+  SPIRVExtSet getRequiredExtensions() const override {
+    return getSet(SPV_INTEL_fpga_reg);
+  }
+
+protected:
+  void validate() const override {
+    SPIRVInstruction::validate();
+
+    assert(OpCode == OpFPGARegINTEL &&
+           "Invalid op code for FPGARegINTEL instruction");
+    assert(getType() == getValueType(Ops[0]) && "Inconsistent type");
+  }
+};
+
+typedef SPIRVInstTemplate<SPIRVFPGARegINTELInstBase, OpFPGARegINTEL, true, 4>
+    SPIRVFPGARegINTEL;
+
 class SPIRVCompare : public SPIRVInstTemplateBase {
 protected:
   void validate() const override {
