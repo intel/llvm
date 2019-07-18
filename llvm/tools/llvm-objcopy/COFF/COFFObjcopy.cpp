@@ -171,13 +171,42 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj) {
     return false;
   });
 
+  for (const auto &Flag : Config.AddSection) {
+    StringRef SecName, FileName;
+    std::tie(SecName, FileName) = Flag.split("=");
+
+    auto BufOrErr = MemoryBuffer::getFile(FileName);
+    if (!BufOrErr)
+      return createFileError(FileName, errorCodeToError(BufOrErr.getError()));
+    auto Buf = std::move(*BufOrErr);
+
+    Section Sec;
+    Sec.setOwnedContents(ArrayRef<uint8_t>(
+        reinterpret_cast<const uint8_t *>(Buf->getBufferStart()),
+        Buf->getBufferSize()));
+    Sec.Name = SecName;
+    // Size and address should be set to zero for objects.
+    Sec.Header.VirtualSize = 0;
+    Sec.Header.VirtualAddress = 0;
+    Sec.Header.SizeOfRawData = Sec.getContents().size();
+    // Sec.Header.PointerToRawData is filled in by the writer.
+    Sec.Header.PointerToRelocations = 0;
+    Sec.Header.PointerToLinenumbers = 0;
+    // Sec.Header.NumberOfRelocations is filled in by the writer.
+    Sec.Header.NumberOfLinenumbers = 0;
+    Sec.Header.Characteristics =
+        IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_ALIGN_1BYTES;
+
+    Obj.addSections(Sec);
+  }
+
   if (!Config.AddGnuDebugLink.empty())
     addGnuDebugLink(Obj, Config.AddGnuDebugLink);
 
   if (Config.AllowBrokenLinks || !Config.BuildIdLinkDir.empty() ||
       Config.BuildIdLinkInput || Config.BuildIdLinkOutput ||
       !Config.SplitDWO.empty() || !Config.SymbolsPrefix.empty() ||
-      !Config.AllocSectionsPrefix.empty() || !Config.AddSection.empty() ||
+      !Config.AllocSectionsPrefix.empty() ||
       !Config.DumpSection.empty() || !Config.KeepSection.empty() ||
       !Config.SymbolsToGlobalize.empty() || !Config.SymbolsToKeep.empty() ||
       !Config.SymbolsToLocalize.empty() || !Config.SymbolsToWeaken.empty() ||
