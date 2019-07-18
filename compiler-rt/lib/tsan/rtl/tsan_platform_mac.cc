@@ -238,8 +238,7 @@ void InitializePlatformEarly() {
 #endif
 }
 
-static const uptr kPthreadSetjmpXorKeySlot = 0x7;
-extern "C" uptr __tsan_darwin_setjmp_xor_key = 0;
+static uptr longjmp_xor_key = 0;
 
 void InitializePlatform() {
   DisableCoreDumperIfNecessary();
@@ -254,9 +253,23 @@ void InitializePlatform() {
 #endif
 
   if (GetMacosVersion() >= MACOS_VERSION_MOJAVE) {
-    __tsan_darwin_setjmp_xor_key =
-        (uptr)pthread_getspecific(kPthreadSetjmpXorKeySlot);
+    // Libsystem currently uses a process-global key; this might change.
+    const unsigned kTLSLongjmpXorKeySlot = 0x7;
+    longjmp_xor_key = (uptr)pthread_getspecific(kTLSLongjmpXorKeySlot);
   }
+}
+
+#ifdef __aarch64__
+# define LONG_JMP_SP_ENV_SLOT \
+    ((GetMacosVersion() >= MACOS_VERSION_MOJAVE) ? 12 : 13)
+#else
+# define LONG_JMP_SP_ENV_SLOT 2
+#endif
+
+uptr ExtractLongJmpSp(uptr *env) {
+  uptr mangled_sp = env[LONG_JMP_SP_ENV_SLOT];
+  uptr sp = mangled_sp ^ longjmp_xor_key;
+  return sp;
 }
 
 #if !SANITIZER_GO

@@ -188,6 +188,7 @@ public:
   void EmitValueImpl(const MCExpr *Value, unsigned Size,
                      SMLoc Loc = SMLoc()) override;
   void EmitIntValue(uint64_t Value, unsigned Size) override;
+  void EmitIntValueInHex(uint64_t Value, unsigned Size) override;
 
   void EmitULEB128Value(const MCExpr *Value) override;
 
@@ -541,6 +542,7 @@ static const char *getPlatformName(MachO::PlatformType Type) {
   case MachO::PLATFORM_TVOS:             return "tvos";
   case MachO::PLATFORM_WATCHOS:          return "watchos";
   case MachO::PLATFORM_BRIDGEOS:         return "bridgeos";
+  case MachO::PLATFORM_MACCATALYST:      return "macCatalyst";
   case MachO::PLATFORM_IOSSIMULATOR:     return "iossimulator";
   case MachO::PLATFORM_TVOSSIMULATOR:    return "tvossimulator";
   case MachO::PLATFORM_WATCHOSSIMULATOR: return "watchossimulator";
@@ -920,6 +922,10 @@ void MCAsmStreamer::EmitBinaryData(StringRef Data) {
 
 void MCAsmStreamer::EmitIntValue(uint64_t Value, unsigned Size) {
   EmitValue(MCConstantExpr::create(Value, getContext()), Size);
+}
+
+void MCAsmStreamer::EmitIntValueInHex(uint64_t Value, unsigned Size) {
+  EmitValue(MCConstantExpr::create(Value, getContext(), true), Size);
 }
 
 void MCAsmStreamer::EmitValueImpl(const MCExpr *Value, unsigned Size,

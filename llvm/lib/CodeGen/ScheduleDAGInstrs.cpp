@@ -743,6 +743,14 @@ void ScheduleDAGInstrs::buildSchedGraph(AliasAnalysis *AA,
   // done.
   Value2SUsMap NonAliasStores, NonAliasLoads(1 /*TrueMemOrderLatency*/);
 
+  // Track all instructions that may raise floating-point exceptions.
+  // These do not depend on one other (or normal loads or stores), but
+  // must not be rescheduled across global barriers.  Note that we don't
+  // really need a "map" here since we don't track those MIs by value;
+  // using the same Value2SUsMap data type here is simply a matter of
+  // convenience.
+  Value2SUsMap FPExceptions;
+
   // Remove any stale debug info; sometimes BuildSchedGraph is called again
   // without emitting the info from the previous call.
   DbgValues.clear();
@@ -870,8 +878,24 @@ void ScheduleDAGInstrs::buildSchedGraph(AliasAnalysis *AA,
       addBarrierChain(Loads);
       addBarrierChain(NonAliasStores);
       addBarrierChain(NonAliasLoads);
+      addBarrierChain(FPExceptions);
 
       continue;
+    }
+
+    // Instructions that may raise FP exceptions may not be moved
+    // across any global barriers.
+    if (MI.mayRaiseFPException()) {
+      if (BarrierChain)
+        BarrierChain->addPredBarrier(SU);
+
+      FPExceptions.insert(SU, UnknownValue);
+
+      if (FPExceptions.size() >= HugeRegion) {
+        LLVM_DEBUG(dbgs() << "Reducing FPExceptions map.\n";);
+        Value2SUsMap empty;
+        reduceHugeMemNodeMaps(FPExceptions, empty, getReductionSize());
+      }
     }
 
     // If it's not a store or a variant load, we're done.
@@ -1091,22 +1115,21 @@ void ScheduleDAGInstrs::fixupKills(MachineBasicBlock &MBB) {
     if (!MI.isBundled()) {
       toggleKills(MRI, LiveRegs, MI, true);
     } else {
-      MachineBasicBlock::instr_iterator First = MI.getIterator();
-      if (MI.isBundle()) {
+      MachineBasicBlock::instr_iterator Bundle = MI.getIterator();
+      if (MI.isBundle())
         toggleKills(MRI, LiveRegs, MI, false);
-        ++First;
-      }
+
       // Some targets make the (questionable) assumtion that the instructions
       // inside the bundle are ordered and consequently only the last use of
       // a register inside the bundle can kill it.
-      MachineBasicBlock::instr_iterator I = std::next(First);
+      MachineBasicBlock::instr_iterator I = std::next(Bundle);
       while (I->isBundledWithSucc())
         ++I;
       do {
         if (!I->isDebugInstr())
           toggleKills(MRI, LiveRegs, *I, true);
         --I;
-      } while(I != First);
+      } while (I != Bundle);
     }
   }
 }

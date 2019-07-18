@@ -521,9 +521,11 @@ private:
 //                                AtomicCmpXchgInst Class
 //===----------------------------------------------------------------------===//
 
-/// an instruction that atomically checks whether a
+/// An instruction that atomically checks whether a
 /// specified value is in a memory location, and, if it is, stores a new value
-/// there.  Returns the value that was loaded.
+/// there. The value returned by this instruction is a pair containing the
+/// original value as first element, and an i1 indicating success (true) or
+/// failure (false) as second element.
 ///
 class AtomicCmpXchgInst : public Instruction {
   void Init(Value *Ptr, Value *Cmp, Value *NewVal,
@@ -2674,7 +2676,7 @@ public:
   }
 
   /// Replace every incoming basic block \p Old to basic block \p New.
-  void replaceIncomingBlockWith(BasicBlock *Old, BasicBlock *New) {
+  void replaceIncomingBlockWith(const BasicBlock *Old, BasicBlock *New) {
     assert(New && Old && "PHI node got a null basic block!");
     for (unsigned Op = 0, NumOps = getNumOperands(); Op != NumOps; ++Op)
       if (getIncomingBlock(Op) == Old)
@@ -2722,6 +2724,19 @@ public:
     int Idx = getBasicBlockIndex(BB);
     assert(Idx >= 0 && "Invalid basic block argument!");
     return getIncomingValue(Idx);
+  }
+
+  /// Set every incoming value(s) for block \p BB to \p V.
+  void setIncomingValueForBlock(const BasicBlock *BB, Value *V) {
+    assert(BB && "PHI node got a null basic block!");
+    bool Found = false;
+    for (unsigned Op = 0, NumOps = getNumOperands(); Op != NumOps; ++Op)
+      if (getIncomingBlock(Op) == BB) {
+        Found = true;
+        setIncomingValue(Op, V);
+      }
+    (void)Found;
+    assert(Found && "Invalid basic block argument to set!");
   }
 
   /// If the specified PHI node always merges together the

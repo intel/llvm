@@ -1138,7 +1138,7 @@ void ItaniumCXXABI::emitRethrow(CodeGenFunction &CGF, bool isNoReturn) {
   // void __cxa_rethrow();
 
   llvm::FunctionType *FTy =
-    llvm::FunctionType::get(CGM.VoidTy, /*IsVarArgs=*/false);
+    llvm::FunctionType::get(CGM.VoidTy, /*isVarArg=*/false);
 
   llvm::FunctionCallee Fn = CGM.CreateRuntimeFunction(FTy, "__cxa_rethrow");
 
@@ -1152,7 +1152,7 @@ static llvm::FunctionCallee getAllocateExceptionFn(CodeGenModule &CGM) {
   // void *__cxa_allocate_exception(size_t thrown_size);
 
   llvm::FunctionType *FTy =
-    llvm::FunctionType::get(CGM.Int8PtrTy, CGM.SizeTy, /*IsVarArgs=*/false);
+    llvm::FunctionType::get(CGM.Int8PtrTy, CGM.SizeTy, /*isVarArg=*/false);
 
   return CGM.CreateRuntimeFunction(FTy, "__cxa_allocate_exception");
 }
@@ -1163,7 +1163,7 @@ static llvm::FunctionCallee getThrowFn(CodeGenModule &CGM) {
 
   llvm::Type *Args[3] = { CGM.Int8PtrTy, CGM.Int8PtrTy, CGM.Int8PtrTy };
   llvm::FunctionType *FTy =
-    llvm::FunctionType::get(CGM.VoidTy, Args, /*IsVarArgs=*/false);
+    llvm::FunctionType::get(CGM.VoidTy, Args, /*isVarArg=*/false);
 
   return CGM.CreateRuntimeFunction(FTy, "__cxa_throw");
 }
@@ -2270,6 +2270,8 @@ void ItaniumCXXABI::EmitGuardedInit(CodeGenFunction &CGF,
 static void emitGlobalDtorWithCXAAtExit(CodeGenFunction &CGF,
                                         llvm::FunctionCallee dtor,
                                         llvm::Constant *addr, bool TLS) {
+  assert((TLS || CGF.getTypes().getCodeGenOpts().CXAAtExit) &&
+         "__cxa_atexit is disabled");
   const char *Name = "__cxa_atexit";
   if (TLS) {
     const llvm::Triple &T = CGF.getTarget().getTriple();
@@ -2282,8 +2284,19 @@ static void emitGlobalDtorWithCXAAtExit(CodeGenFunction &CGF,
   llvm::Type *dtorTy =
     llvm::FunctionType::get(CGF.VoidTy, CGF.Int8PtrTy, false)->getPointerTo();
 
+  // Preserve address space of addr.
+  auto AddrAS = addr ? addr->getType()->getPointerAddressSpace() : 0;
+  auto AddrInt8PtrTy =
+      AddrAS ? CGF.Int8Ty->getPointerTo(AddrAS) : CGF.Int8PtrTy;
+
+  // Create a variable that binds the atexit to this shared object.
+  llvm::Constant *handle =
+      CGF.CGM.CreateRuntimeVariable(CGF.Int8Ty, "__dso_handle");
+  auto *GV = cast<llvm::GlobalValue>(handle->stripPointerCasts());
+  GV->setVisibility(llvm::GlobalValue::HiddenVisibility);
+
   // extern "C" int __cxa_atexit(void (*f)(void *), void *p, void *d);
-  llvm::Type *paramTys[] = { dtorTy, CGF.Int8PtrTy, CGF.Int8PtrTy };
+  llvm::Type *paramTys[] = {dtorTy, AddrInt8PtrTy, handle->getType()};
   llvm::FunctionType *atexitTy =
     llvm::FunctionType::get(CGF.IntTy, paramTys, false);
 
@@ -2291,12 +2304,6 @@ static void emitGlobalDtorWithCXAAtExit(CodeGenFunction &CGF,
   llvm::FunctionCallee atexit = CGF.CGM.CreateRuntimeFunction(atexitTy, Name);
   if (llvm::Function *fn = dyn_cast<llvm::Function>(atexit.getCallee()))
     fn->setDoesNotThrow();
-
-  // Create a variable that binds the atexit to this shared object.
-  llvm::Constant *handle =
-      CGF.CGM.CreateRuntimeVariable(CGF.Int8Ty, "__dso_handle");
-  auto *GV = cast<llvm::GlobalValue>(handle->stripPointerCasts());
-  GV->setVisibility(llvm::GlobalValue::HiddenVisibility);
 
   if (!addr)
     // addr is null when we are trying to register a dtor annotated with
@@ -2307,7 +2314,7 @@ static void emitGlobalDtorWithCXAAtExit(CodeGenFunction &CGF,
 
   llvm::Value *args[] = {llvm::ConstantExpr::getBitCast(
                              cast<llvm::Constant>(dtor.getCallee()), dtorTy),
-                         llvm::ConstantExpr::getBitCast(addr, CGF.Int8PtrTy),
+                         llvm::ConstantExpr::getBitCast(addr, AddrInt8PtrTy),
                          handle};
   CGF.EmitNounwindRuntimeCall(atexit, args);
 }
@@ -2363,12 +2370,12 @@ void ItaniumCXXABI::registerGlobalDtor(CodeGenFunction &CGF, const VarDecl &D,
   if (D.isNoDestroy(CGM.getContext()))
     return;
 
-  // Use __cxa_atexit if available.
-  if (CGM.getCodeGenOpts().CXAAtExit)
+  // emitGlobalDtorWithCXAAtExit will emit a call to either __cxa_thread_atexit
+  // or __cxa_atexit depending on whether this VarDecl is a thread-local storage
+  // or not. CXAAtExit controls only __cxa_atexit, so use it if it is enabled.
+  // We can always use __cxa_thread_atexit.
+  if (CGM.getCodeGenOpts().CXAAtExit || D.getTLSKind())
     return emitGlobalDtorWithCXAAtExit(CGF, dtor, addr, D.getTLSKind());
-
-  if (D.getTLSKind())
-    CGM.ErrorUnsupported(&D, "non-trivial TLS destruction");
 
   // In Apple kexts, we want to add a global destructor entry.
   // FIXME: shouldn't this be guarded by some variable?
@@ -2395,7 +2402,7 @@ static bool isThreadWrapperReplaceable(const VarDecl *VD,
 static llvm::GlobalValue::LinkageTypes
 getThreadLocalWrapperLinkage(const VarDecl *VD, CodeGen::CodeGenModule &CGM) {
   llvm::GlobalValue::LinkageTypes VarLinkage =
-      CGM.getLLVMLinkageVarDefinition(VD, /*isConstant=*/false);
+      CGM.getLLVMLinkageVarDefinition(VD, /*IsConstant=*/false);
 
   // For internal linkage variables, we don't need an external or weak wrapper.
   if (llvm::GlobalValue::isLocalLinkage(VarLinkage))
@@ -2773,7 +2780,7 @@ ItaniumRTTIBuilder::GetAddrOfExternalRTTIDescriptor(QualType Ty) {
     // RTTI, check if emitting vtables opportunistically need any adjustment.
 
     GV = new llvm::GlobalVariable(CGM.getModule(), CGM.Int8PtrTy,
-                                  /*Constant=*/true,
+                                  /*isConstant=*/true,
                                   llvm::GlobalValue::ExternalLinkage, nullptr,
                                   Name);
     const CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
@@ -3378,7 +3385,7 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
   llvm::GlobalVariable *OldGV = M.getNamedGlobal(Name);
   llvm::GlobalVariable *GV =
       new llvm::GlobalVariable(M, Init->getType(),
-                               /*Constant=*/true, Linkage, Init, Name);
+                               /*isConstant=*/true, Linkage, Init, Name);
 
   // If there's already an old global variable, replace it with the new one.
   if (OldGV) {
@@ -3419,6 +3426,9 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
 
   TypeName->setDLLStorageClass(DLLStorageClass);
   GV->setDLLStorageClass(DLLStorageClass);
+
+  TypeName->setPartition(CGM.getCodeGenOpts().SymbolPartition);
+  GV->setPartition(CGM.getCodeGenOpts().SymbolPartition);
 
   return llvm::ConstantExpr::getBitCast(GV, CGM.Int8PtrTy);
 }
@@ -3896,7 +3906,7 @@ void ItaniumCXXABI::emitCXXStructor(GlobalDecl GD) {
 static llvm::FunctionCallee getBeginCatchFn(CodeGenModule &CGM) {
   // void *__cxa_begin_catch(void*);
   llvm::FunctionType *FTy = llvm::FunctionType::get(
-      CGM.Int8PtrTy, CGM.Int8PtrTy, /*IsVarArgs=*/false);
+      CGM.Int8PtrTy, CGM.Int8PtrTy, /*isVarArg=*/false);
 
   return CGM.CreateRuntimeFunction(FTy, "__cxa_begin_catch");
 }
@@ -3904,7 +3914,7 @@ static llvm::FunctionCallee getBeginCatchFn(CodeGenModule &CGM) {
 static llvm::FunctionCallee getEndCatchFn(CodeGenModule &CGM) {
   // void __cxa_end_catch();
   llvm::FunctionType *FTy =
-      llvm::FunctionType::get(CGM.VoidTy, /*IsVarArgs=*/false);
+      llvm::FunctionType::get(CGM.VoidTy, /*isVarArg=*/false);
 
   return CGM.CreateRuntimeFunction(FTy, "__cxa_end_catch");
 }
@@ -3912,7 +3922,7 @@ static llvm::FunctionCallee getEndCatchFn(CodeGenModule &CGM) {
 static llvm::FunctionCallee getGetExceptionPtrFn(CodeGenModule &CGM) {
   // void *__cxa_get_exception_ptr(void*);
   llvm::FunctionType *FTy = llvm::FunctionType::get(
-      CGM.Int8PtrTy, CGM.Int8PtrTy, /*IsVarArgs=*/false);
+      CGM.Int8PtrTy, CGM.Int8PtrTy, /*isVarArg=*/false);
 
   return CGM.CreateRuntimeFunction(FTy, "__cxa_get_exception_ptr");
 }
@@ -4186,9 +4196,9 @@ void ItaniumCXXABI::emitBeginCatch(CodeGenFunction &CGF,
 /// This code is used only in C++.
 static llvm::FunctionCallee getClangCallTerminateFn(CodeGenModule &CGM) {
   llvm::FunctionType *fnTy =
-    llvm::FunctionType::get(CGM.VoidTy, CGM.Int8PtrTy, /*IsVarArgs=*/false);
+    llvm::FunctionType::get(CGM.VoidTy, CGM.Int8PtrTy, /*isVarArg=*/false);
   llvm::FunctionCallee fnRef = CGM.CreateRuntimeFunction(
-      fnTy, "__clang_call_terminate", llvm::AttributeList(), /*IsLocal=*/true);
+      fnTy, "__clang_call_terminate", llvm::AttributeList(), /*Local=*/true);
   llvm::Function *fn =
       cast<llvm::Function>(fnRef.getCallee()->stripPointerCasts());
   if (fn->empty()) {

@@ -54,7 +54,6 @@ class ELFObjectFileBase : public ObjectFile {
 protected:
   ELFObjectFileBase(unsigned int Type, MemoryBufferRef Source);
 
-  virtual uint16_t getEMachine() const = 0;
   virtual uint64_t getSymbolSize(DataRefImpl Symb) const = 0;
   virtual uint8_t getSymbolBinding(DataRefImpl Symb) const = 0;
   virtual uint8_t getSymbolOther(DataRefImpl Symb) const = 0;
@@ -90,6 +89,8 @@ public:
   void setARMSubArch(Triple &TheTriple) const override;
 
   virtual uint16_t getEType() const = 0;
+
+  virtual uint16_t getEMachine() const = 0;
 
   std::vector<std::pair<DataRefImpl, uint64_t>> getPltAddresses() const;
 };
@@ -776,7 +777,7 @@ ELFObjectFile<ELFT>::dynamic_relocation_sections() const {
     }
   }
   for (const Elf_Shdr &Sec : *SectionsOrErr) {
-    if (is_contained(Offsets, Sec.sh_offset))
+    if (is_contained(Offsets, Sec.sh_addr))
       Res.emplace_back(toDRI(&Sec), this);
   }
   return Res;

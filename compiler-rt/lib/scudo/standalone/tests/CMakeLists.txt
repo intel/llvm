@@ -10,7 +10,10 @@ set(SCUDO_UNITTEST_CFLAGS
   -I${COMPILER_RT_SOURCE_DIR}/include
   -I${COMPILER_RT_SOURCE_DIR}/lib
   -I${COMPILER_RT_SOURCE_DIR}/lib/scudo/standalone
-  -DGTEST_HAS_RTTI=0)
+  -DGTEST_HAS_RTTI=0
+  # Extra flags for the C++ tests
+  # TODO(kostyak): find a way to make -fsized-deallocation work
+  -Wno-mismatched-new-delete)
 
 set(SCUDO_TEST_ARCH ${SCUDO_STANDALONE_SUPPORTED_ARCH})
 
@@ -20,28 +23,33 @@ foreach(lib ${SANITIZER_TEST_CXX_LIBRARIES})
   list(APPEND LINK_FLAGS -l${lib})
 endforeach()
 list(APPEND LINK_FLAGS -pthread)
+# Linking against libatomic is required with some compilers
+list(APPEND LINK_FLAGS -latomic)
 
-set(TEST_HEADERS)
+set(SCUDO_TEST_HEADERS)
 foreach (header ${SCUDO_HEADERS})
-  list(APPEND TEST_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/../${header})
+  list(APPEND SCUDO_TEST_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/../${header})
 endforeach()
 
-# add_scudo_unittest(<name>
-#                   SOURCES <sources list>
-#                   HEADERS <extra headers list>)
 macro(add_scudo_unittest testname)
-  cmake_parse_arguments(TEST "" "" "SOURCES;HEADERS" ${ARGN})
+  cmake_parse_arguments(TEST "" "" "SOURCES;ADDITIONAL_RTOBJECTS" ${ARGN})
   if(COMPILER_RT_HAS_SCUDO_STANDALONE)
     foreach(arch ${SCUDO_TEST_ARCH})
+      # Additional runtime objects get added along RTScudoStandalone
+      set(SCUDO_TEST_RTOBJECTS $<TARGET_OBJECTS:RTScudoStandalone.${arch}>)
+      foreach(rtobject ${TEST_ADDITIONAL_RTOBJECTS})
+        list(APPEND SCUDO_TEST_RTOBJECTS $<TARGET_OBJECTS:${rtobject}.${arch}>)
+      endforeach()
+      # Add the static runtime library made of all the runtime objects
+      set(RUNTIME RT${testname}.${arch})
+      add_library(${RUNTIME} STATIC ${SCUDO_TEST_RTOBJECTS})
       set(ScudoUnitTestsObjects)
-      add_library("RTScudoStandalone.test.${arch}" STATIC
-        $<TARGET_OBJECTS:RTScudoStandalone.${arch}>)
       generate_compiler_rt_tests(ScudoUnitTestsObjects ScudoUnitTests
         "${testname}-${arch}-Test" ${arch}
         SOURCES ${TEST_SOURCES} ${COMPILER_RT_GTEST_SOURCE}
-        COMPILE_DEPS ${TEST_HEADERS}
+        COMPILE_DEPS ${SCUDO_TEST_HEADERS}
         DEPS gtest scudo_standalone
-        RUNTIME RTScudoStandalone.test.${arch}
+        RUNTIME ${RUNTIME}
         CFLAGS ${SCUDO_UNITTEST_CFLAGS}
         LINK_FLAGS ${LINK_FLAGS})
     endforeach()
@@ -53,6 +61,7 @@ set(SCUDO_UNIT_TEST_SOURCES
   bytemap_test.cc
   checksum_test.cc
   chunk_test.cc
+  combined_test.cc
   flags_test.cc
   list_test.cc
   map_test.cc
@@ -65,8 +74,25 @@ set(SCUDO_UNIT_TEST_SOURCES
   size_class_map_test.cc
   stats_test.cc
   strings_test.cc
+  tsd_test.cc
   vector_test.cc
   scudo_unit_test_main.cc)
 
 add_scudo_unittest(ScudoUnitTest
   SOURCES ${SCUDO_UNIT_TEST_SOURCES})
+
+set(SCUDO_C_UNIT_TEST_SOURCES
+  wrappers_c_test.cc
+  scudo_unit_test_main.cc)
+
+add_scudo_unittest(ScudoCUnitTest
+  SOURCES ${SCUDO_C_UNIT_TEST_SOURCES}
+  ADDITIONAL_RTOBJECTS RTScudoStandaloneCWrappers)
+
+set(SCUDO_CXX_UNIT_TEST_SOURCES
+  wrappers_cpp_test.cc
+  scudo_unit_test_main.cc)
+
+add_scudo_unittest(ScudoCxxUnitTest
+  SOURCES ${SCUDO_CXX_UNIT_TEST_SOURCES}
+  ADDITIONAL_RTOBJECTS RTScudoStandaloneCWrappers RTScudoStandaloneCxxWrappers)

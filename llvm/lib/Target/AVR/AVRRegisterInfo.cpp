@@ -233,9 +233,9 @@ void AVRRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
     // No need to set SREG as dead here otherwise if the next instruction is a
     // cond branch it will be using a dead register.
-    New = BuildMI(MBB, std::next(II), dl, TII.get(SubOpc), AVR::R29R28)
-              .addReg(AVR::R29R28, RegState::Kill)
-              .addImm(Offset - 63 + 1);
+    BuildMI(MBB, std::next(II), dl, TII.get(SubOpc), AVR::R29R28)
+        .addReg(AVR::R29R28, RegState::Kill)
+        .addImm(Offset - 63 + 1);
 
     Offset = 62;
   }
@@ -245,7 +245,7 @@ void AVRRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
 }
 
-unsigned AVRRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+Register AVRRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
   if (TFI->hasFP(MF)) {
     // The Y pointer register

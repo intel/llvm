@@ -626,6 +626,33 @@ TEST_F(SymbolCollectorTest, Refs) {
   EXPECT_THAT(Refs, Not(Contains(Pair(findSymbol(MainSymbols, "c").ID, _))));
 }
 
+
+TEST_F(SymbolCollectorTest, HeaderAsMainFile) {
+  CollectorOpts.RefFilter = RefKind::All;
+  Annotations Header(R"(
+  class $Foo[[Foo]] {};
+
+  void $Func[[Func]]() {
+    $Foo[[Foo]] fo;
+  }
+  )");
+  // The main file is normal .cpp file, we shouldn't collect any refs of symbols
+  // which are not declared in the preamble.
+  TestFileName = testPath("foo.cpp");
+  runSymbolCollector("", Header.code());
+  EXPECT_THAT(Refs, UnorderedElementsAre());
+
+  // Run the .h file as main file, we should collect the refs.
+  TestFileName = testPath("foo.h");
+  runSymbolCollector("", Header.code(),
+                     /*ExtraArgs=*/{"-xobjective-c++-header"});
+  EXPECT_THAT(Symbols, UnorderedElementsAre(QName("Foo"), QName("Func")));
+  EXPECT_THAT(Refs, UnorderedElementsAre(Pair(findSymbol(Symbols, "Foo").ID,
+                                  HaveRanges(Header.ranges("Foo"))),
+                             Pair(findSymbol(Symbols, "Func").ID,
+                                  HaveRanges(Header.ranges("Func")))));
+}
+
 TEST_F(SymbolCollectorTest, RefsInHeaders) {
   CollectorOpts.RefFilter = RefKind::All;
   CollectorOpts.RefsInHeaders = true;
@@ -945,7 +972,9 @@ TEST_F(SymbolCollectorTest, IncludeHeaderSameAsFileURI) {
 TEST_F(SymbolCollectorTest, CanonicalSTLHeader) {
   CollectorOpts.CollectIncludePath = true;
   CanonicalIncludes Includes;
-  addSystemHeadersMapping(&Includes);
+  auto Language = LangOptions();
+  Language.CPlusPlus = true;
+  addSystemHeadersMapping(&Includes, Language);
   CollectorOpts.Includes = &Includes;
   runSymbolCollector("namespace std { class string {}; }", /*Main=*/"");
   EXPECT_THAT(Symbols,

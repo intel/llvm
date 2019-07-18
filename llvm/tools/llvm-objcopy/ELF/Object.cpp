@@ -205,6 +205,98 @@ IHexLineData IHexRecord::getLine(uint8_t Type, uint16_t Addr,
   return Line;
 }
 
+static Error checkRecord(const IHexRecord &R) {
+  switch (R.Type) {
+  case IHexRecord::Data:
+    if (R.HexData.size() == 0)
+      return createStringError(
+          errc::invalid_argument,
+          "zero data length is not allowed for data records");
+    break;
+  case IHexRecord::EndOfFile:
+    break;
+  case IHexRecord::SegmentAddr:
+    // 20-bit segment address. Data length must be 2 bytes
+    // (4 bytes in hex)
+    if (R.HexData.size() != 4)
+      return createStringError(
+          errc::invalid_argument,
+          "segment address data should be 2 bytes in size");
+    break;
+  case IHexRecord::StartAddr80x86:
+  case IHexRecord::StartAddr:
+    if (R.HexData.size() != 8)
+      return createStringError(errc::invalid_argument,
+                               "start address data should be 4 bytes in size");
+    // According to Intel HEX specification '03' record
+    // only specifies the code address within the 20-bit
+    // segmented address space of the 8086/80186. This
+    // means 12 high order bits should be zeroes.
+    if (R.Type == IHexRecord::StartAddr80x86 &&
+        R.HexData.take_front(3) != "000")
+      return createStringError(errc::invalid_argument,
+                               "start address exceeds 20 bit for 80x86");
+    break;
+  case IHexRecord::ExtendedAddr:
+    // 16-31 bits of linear base address
+    if (R.HexData.size() != 4)
+      return createStringError(
+          errc::invalid_argument,
+          "extended address data should be 2 bytes in size");
+    break;
+  default:
+    // Unknown record type
+    return createStringError(errc::invalid_argument, "unknown record type: %u",
+                             static_cast<unsigned>(R.Type));
+  }
+  return Error::success();
+}
+
+// Checks that IHEX line contains valid characters.
+// This allows converting hexadecimal data to integers
+// without extra verification.
+static Error checkChars(StringRef Line) {
+  assert(!Line.empty());
+  if (Line[0] != ':')
+    return createStringError(errc::invalid_argument,
+                             "missing ':' in the beginning of line.");
+
+  for (size_t Pos = 1; Pos < Line.size(); ++Pos)
+    if (hexDigitValue(Line[Pos]) == -1U)
+      return createStringError(errc::invalid_argument,
+                               "invalid character at position %zu.", Pos + 1);
+  return Error::success();
+}
+
+Expected<IHexRecord> IHexRecord::parse(StringRef Line) {
+  assert(!Line.empty());
+
+  // ':' + Length + Address + Type + Checksum with empty data ':LLAAAATTCC'
+  if (Line.size() < 11)
+    return createStringError(errc::invalid_argument,
+                             "line is too short: %zu chars.", Line.size());
+
+  if (Error E = checkChars(Line))
+    return std::move(E);
+
+  IHexRecord Rec;
+  size_t DataLen = checkedGetHex<uint8_t>(Line.substr(1, 2));
+  if (Line.size() != getLength(DataLen))
+    return createStringError(errc::invalid_argument,
+                             "invalid line length %zu (should be %zu)",
+                             Line.size(), getLength(DataLen));
+
+  Rec.Addr = checkedGetHex<uint16_t>(Line.substr(3, 4));
+  Rec.Type = checkedGetHex<uint8_t>(Line.substr(7, 2));
+  Rec.HexData = Line.substr(9, DataLen * 2);
+
+  if (getChecksum(Line.drop_front(1)) != 0)
+    return createStringError(errc::invalid_argument, "incorrect checksum.");
+  if (Error E = checkRecord(Rec))
+    return std::move(E);
+  return Rec;
+}
+
 static uint64_t sectionPhysicalAddr(const SectionBase *Sec) {
   Segment *Seg = Sec->ParentSegment;
   if (Seg && Seg->Type != ELF::PT_LOAD)
@@ -505,6 +597,11 @@ static bool isValidReservedSectionIndex(uint16_t Index, uint16_t Machine) {
   case SHN_COMMON:
     return true;
   }
+
+  if (Machine == EM_AMDGPU) {
+    return Index == SHN_AMDGPU_LDS;
+  }
+
   if (Machine == EM_HEXAGON) {
     switch (Index) {
     case SHN_HEXAGON_SCOMMON:
@@ -526,21 +623,17 @@ uint16_t Symbol::getShndx() const {
       return SHN_XINDEX;
     return DefinedIn->Index;
   }
-  switch (ShndxType) {
-  // This means that we don't have a defined section but we do need to
-  // output a legitimate section index.
-  case SYMBOL_SIMPLE_INDEX:
+
+  if (ShndxType == SYMBOL_SIMPLE_INDEX) {
+    // This means that we don't have a defined section but we do need to
+    // output a legitimate section index.
     return SHN_UNDEF;
-  case SYMBOL_ABS:
-  case SYMBOL_COMMON:
-  case SYMBOL_HEXAGON_SCOMMON:
-  case SYMBOL_HEXAGON_SCOMMON_2:
-  case SYMBOL_HEXAGON_SCOMMON_4:
-  case SYMBOL_HEXAGON_SCOMMON_8:
-  case SYMBOL_XINDEX:
-    return static_cast<uint16_t>(ShndxType);
   }
-  llvm_unreachable("Symbol with invalid ShndxType encountered");
+
+  assert(ShndxType == SYMBOL_ABS || ShndxType == SYMBOL_COMMON ||
+         (ShndxType >= SYMBOL_LOPROC && ShndxType <= SYMBOL_HIPROC) ||
+         (ShndxType >= SYMBOL_LOOS && ShndxType <= SYMBOL_HIOS));
+  return static_cast<uint16_t>(ShndxType);
 }
 
 bool Symbol::isCommon() const { return getShndx() == SHN_COMMON; }
@@ -852,7 +945,8 @@ Error DynamicRelocationSection::removeSectionReferences(
   return Error::success();
 }
 
-Error Section::removeSectionReferences(bool AllowBrokenDependency,
+Error Section::removeSectionReferences(
+    bool AllowBrokenDependency,
     function_ref<bool(const SectionBase *)> ToRemove) {
   if (ToRemove(LinkSection)) {
     if (!AllowBrokenDependency)
@@ -1013,7 +1107,7 @@ static bool compareSegmentsByPAddr(const Segment *A, const Segment *B) {
   return A->Index < B->Index;
 }
 
-void BinaryELFBuilder::initFileHeader() {
+void BasicELFBuilder::initFileHeader() {
   Obj->Flags = 0x0;
   Obj->Type = ET_REL;
   Obj->OSABI = ELFOSABI_NONE;
@@ -1023,9 +1117,9 @@ void BinaryELFBuilder::initFileHeader() {
   Obj->Version = 1;
 }
 
-void BinaryELFBuilder::initHeaderSegment() { Obj->ElfHdrSegment.Index = 0; }
+void BasicELFBuilder::initHeaderSegment() { Obj->ElfHdrSegment.Index = 0; }
 
-StringTableSection *BinaryELFBuilder::addStrTab() {
+StringTableSection *BasicELFBuilder::addStrTab() {
   auto &StrTab = Obj->addSection<StringTableSection>();
   StrTab.Name = ".strtab";
 
@@ -1033,7 +1127,7 @@ StringTableSection *BinaryELFBuilder::addStrTab() {
   return &StrTab;
 }
 
-SymbolTableSection *BinaryELFBuilder::addSymTab(StringTableSection *StrTab) {
+SymbolTableSection *BasicELFBuilder::addSymTab(StringTableSection *StrTab) {
   auto &SymTab = Obj->addSection<SymbolTableSection>();
 
   SymTab.Name = ".symtab";
@@ -1044,6 +1138,11 @@ SymbolTableSection *BinaryELFBuilder::addSymTab(StringTableSection *StrTab) {
 
   Obj->SymbolTable = &SymTab;
   return &SymTab;
+}
+
+void BasicELFBuilder::initSections() {
+  for (auto &Section : Obj->sections())
+    Section.initialize(Obj->sections());
 }
 
 void BinaryELFBuilder::addData(SymbolTableSection *SymTab) {
@@ -1069,11 +1168,6 @@ void BinaryELFBuilder::addData(SymbolTableSection *SymTab) {
                     /*Value=*/DataSection.Size, STV_DEFAULT, SHN_ABS, 0);
 }
 
-void BinaryELFBuilder::initSections() {
-  for (SectionBase &Section : Obj->sections())
-    Section.initialize(Obj->sections());
-}
-
 std::unique_ptr<Object> BinaryELFBuilder::build() {
   initFileHeader();
   initHeaderSegment();
@@ -1081,6 +1175,62 @@ std::unique_ptr<Object> BinaryELFBuilder::build() {
   SymbolTableSection *SymTab = addSymTab(addStrTab());
   initSections();
   addData(SymTab);
+
+  return std::move(Obj);
+}
+
+// Adds sections from IHEX data file. Data should have been
+// fully validated by this time.
+void IHexELFBuilder::addDataSections() {
+  OwnedDataSection *Section = nullptr;
+  uint64_t SegmentAddr = 0, BaseAddr = 0;
+  uint32_t SecNo = 1;
+
+  for (const IHexRecord &R : Records) {
+    uint64_t RecAddr;
+    switch (R.Type) {
+    case IHexRecord::Data:
+      // Ignore empty data records
+      if (R.HexData.empty())
+        continue;
+      RecAddr = R.Addr + SegmentAddr + BaseAddr;
+      if (!Section || Section->Addr + Section->Size != RecAddr)
+        // OriginalOffset field is only used to sort section properly, so
+        // instead of keeping track of real offset in IHEX file, we use
+        // section number.
+        Section = &Obj->addSection<OwnedDataSection>(
+            ".sec" + std::to_string(SecNo++), RecAddr,
+            ELF::SHF_ALLOC | ELF::SHF_WRITE, SecNo);
+      Section->appendHexData(R.HexData);
+      break;
+    case IHexRecord::EndOfFile:
+      break;
+    case IHexRecord::SegmentAddr:
+      // 20-bit segment address.
+      SegmentAddr = checkedGetHex<uint16_t>(R.HexData) << 4;
+      break;
+    case IHexRecord::StartAddr80x86:
+    case IHexRecord::StartAddr:
+      Obj->Entry = checkedGetHex<uint32_t>(R.HexData);
+      assert(Obj->Entry <= 0xFFFFFU);
+      break;
+    case IHexRecord::ExtendedAddr:
+      // 16-31 bits of linear base address
+      BaseAddr = checkedGetHex<uint16_t>(R.HexData) << 16;
+      break;
+    default:
+      llvm_unreachable("unknown record type");
+    }
+  }
+}
+
+std::unique_ptr<Object> IHexELFBuilder::build() {
+  initFileHeader();
+  initHeaderSegment();
+  StringTableSection *StrTab = addStrTab();
+  addSymTab(StrTab);
+  initSections();
+  addDataSections();
 
   return std::move(Obj);
 }
@@ -1101,16 +1251,36 @@ template <class ELFT> void ELFBuilder<ELFT>::setParentSegment(Segment &Child) {
   }
 }
 
-template <class ELFT> void ELFBuilder<ELFT>::readProgramHeaders() {
+template <class ELFT> void ELFBuilder<ELFT>::findEhdrOffset() {
+  if (!ExtractPartition)
+    return;
+
+  for (const SectionBase &Section : Obj.sections()) {
+    if (Section.Type == SHT_LLVM_PART_EHDR &&
+        Section.Name == *ExtractPartition) {
+      EhdrOffset = Section.Offset;
+      return;
+    }
+  }
+  error("could not find partition named '" + *ExtractPartition + "'");
+}
+
+template <class ELFT>
+void ELFBuilder<ELFT>::readProgramHeaders(const ELFFile<ELFT> &HeadersFile) {
   uint32_t Index = 0;
-  for (const auto &Phdr : unwrapOrError(ElfFile.program_headers())) {
-    ArrayRef<uint8_t> Data{ElfFile.base() + Phdr.p_offset,
+  for (const auto &Phdr : unwrapOrError(HeadersFile.program_headers())) {
+    if (Phdr.p_offset + Phdr.p_filesz > HeadersFile.getBufSize())
+      error("program header with offset 0x" + Twine::utohexstr(Phdr.p_offset) +
+            " and file size 0x" + Twine::utohexstr(Phdr.p_filesz) +
+            " goes past the end of the file");
+
+    ArrayRef<uint8_t> Data{HeadersFile.base() + Phdr.p_offset,
                            (size_t)Phdr.p_filesz};
     Segment &Seg = Obj.addSegment(Data);
     Seg.Type = Phdr.p_type;
     Seg.Flags = Phdr.p_flags;
-    Seg.OriginalOffset = Phdr.p_offset;
-    Seg.Offset = Phdr.p_offset;
+    Seg.OriginalOffset = Phdr.p_offset + EhdrOffset;
+    Seg.Offset = Phdr.p_offset + EhdrOffset;
     Seg.VAddr = Phdr.p_vaddr;
     Seg.PAddr = Phdr.p_paddr;
     Seg.FileSize = Phdr.p_filesz;
@@ -1130,8 +1300,9 @@ template <class ELFT> void ELFBuilder<ELFT>::readProgramHeaders() {
 
   auto &ElfHdr = Obj.ElfHdrSegment;
   ElfHdr.Index = Index++;
+  ElfHdr.OriginalOffset = ElfHdr.Offset = EhdrOffset;
 
-  const auto &Ehdr = *ElfFile.getHeader();
+  const auto &Ehdr = *HeadersFile.getHeader();
   auto &PrHdr = Obj.ProgramHdrSegment;
   PrHdr.Type = PT_PHDR;
   PrHdr.Flags = 0;
@@ -1139,7 +1310,7 @@ template <class ELFT> void ELFBuilder<ELFT>::readProgramHeaders() {
   // Whereas this works automatically for ElfHdr, here OriginalOffset is
   // always non-zero and to ensure the equation we assign the same value to
   // VAddr as well.
-  PrHdr.OriginalOffset = PrHdr.Offset = PrHdr.VAddr = Ehdr.e_phoff;
+  PrHdr.OriginalOffset = PrHdr.Offset = PrHdr.VAddr = EhdrOffset + Ehdr.e_phoff;
   PrHdr.PAddr = 0;
   PrHdr.FileSize = PrHdr.MemSize = Ehdr.e_phentsize * Ehdr.e_phnum;
   // The spec requires us to naturally align all the fields.
@@ -1358,7 +1529,9 @@ template <class ELFT> void ELFBuilder<ELFT>::readSectionHeaders() {
         ArrayRef<uint8_t>(ElfFile.base() + Shdr.sh_offset,
                           (Shdr.sh_type == SHT_NOBITS) ? 0 : Shdr.sh_size);
   }
+}
 
+template <class ELFT> void ELFBuilder<ELFT>::readSections() {
   // If a section index table exists we'll need to initialize it before we
   // initialize the symbol table because the symbol table might need to
   // reference it.
@@ -1392,23 +1565,8 @@ template <class ELFT> void ELFBuilder<ELFT>::readSectionHeaders() {
       initGroupSection(GroupSec);
     }
   }
-}
 
-template <class ELFT> void ELFBuilder<ELFT>::build() {
-  const auto &Ehdr = *ElfFile.getHeader();
-
-  Obj.OSABI = Ehdr.e_ident[EI_OSABI];
-  Obj.ABIVersion = Ehdr.e_ident[EI_ABIVERSION];
-  Obj.Type = Ehdr.e_type;
-  Obj.Machine = Ehdr.e_machine;
-  Obj.Version = Ehdr.e_version;
-  Obj.Entry = Ehdr.e_entry;
-  Obj.Flags = Ehdr.e_flags;
-
-  readSectionHeaders();
-  readProgramHeaders();
-
-  uint32_t ShstrIndex = Ehdr.e_shstrndx;
+  uint32_t ShstrIndex = ElfFile.getHeader()->e_shstrndx;
   if (ShstrIndex == SHN_XINDEX)
     ShstrIndex = unwrapOrError(ElfFile.getSection(0))->sh_link;
 
@@ -1418,10 +1576,33 @@ template <class ELFT> void ELFBuilder<ELFT>::build() {
     Obj.SectionNames =
         Obj.sections().template getSectionOfType<StringTableSection>(
             ShstrIndex,
-            "e_shstrndx field value " + Twine(Ehdr.e_shstrndx) +
-                " in elf header is invalid",
-            "e_shstrndx field value " + Twine(Ehdr.e_shstrndx) +
-                " in elf header is not a string table");
+            "e_shstrndx field value " + Twine(ShstrIndex) + " in elf header " +
+                " is invalid",
+            "e_shstrndx field value " + Twine(ShstrIndex) + " in elf header " +
+                " is not a string table");
+}
+
+template <class ELFT> void ELFBuilder<ELFT>::build() {
+  readSectionHeaders();
+  findEhdrOffset();
+
+  // The ELFFile whose ELF headers and program headers are copied into the
+  // output file. Normally the same as ElfFile, but if we're extracting a
+  // loadable partition it will point to the partition's headers.
+  ELFFile<ELFT> HeadersFile = unwrapOrError(ELFFile<ELFT>::create(toStringRef(
+      {ElfFile.base() + EhdrOffset, ElfFile.getBufSize() - EhdrOffset})));
+
+  auto &Ehdr = *HeadersFile.getHeader();
+  Obj.OSABI = Ehdr.e_ident[EI_OSABI];
+  Obj.ABIVersion = Ehdr.e_ident[EI_ABIVERSION];
+  Obj.Type = Ehdr.e_type;
+  Obj.Machine = Ehdr.e_machine;
+  Obj.Version = Ehdr.e_version;
+  Obj.Entry = Ehdr.e_entry;
+  Obj.Flags = Ehdr.e_flags;
+
+  readSections();
+  readProgramHeaders(HeadersFile);
 }
 
 Writer::~Writer() {}
@@ -1432,22 +1613,53 @@ std::unique_ptr<Object> BinaryReader::create() const {
   return BinaryELFBuilder(MInfo.EMachine, MemBuf).build();
 }
 
+Expected<std::vector<IHexRecord>> IHexReader::parse() const {
+  SmallVector<StringRef, 16> Lines;
+  std::vector<IHexRecord> Records;
+  bool HasSections = false;
+
+  MemBuf->getBuffer().split(Lines, '\n');
+  Records.reserve(Lines.size());
+  for (size_t LineNo = 1; LineNo <= Lines.size(); ++LineNo) {
+    StringRef Line = Lines[LineNo - 1].trim();
+    if (Line.empty())
+      continue;
+
+    Expected<IHexRecord> R = IHexRecord::parse(Line);
+    if (!R)
+      return parseError(LineNo, R.takeError());
+    if (R->Type == IHexRecord::EndOfFile)
+      break;
+    HasSections |= (R->Type == IHexRecord::Data);
+    Records.push_back(*R);
+  }
+  if (!HasSections)
+    return parseError(-1U, "no sections");
+
+  return std::move(Records);
+}
+
+std::unique_ptr<Object> IHexReader::create() const {
+  std::vector<IHexRecord> Records = unwrapOrError(parse());
+  return IHexELFBuilder(Records).build();
+}
+
 std::unique_ptr<Object> ELFReader::create() const {
   auto Obj = llvm::make_unique<Object>();
   if (auto *O = dyn_cast<ELFObjectFile<ELF32LE>>(Bin)) {
-    ELFBuilder<ELF32LE> Builder(*O, *Obj);
+    ELFBuilder<ELF32LE> Builder(*O, *Obj, ExtractPartition);
     Builder.build();
     return Obj;
   } else if (auto *O = dyn_cast<ELFObjectFile<ELF64LE>>(Bin)) {
-    ELFBuilder<ELF64LE> Builder(*O, *Obj);
+    ELFBuilder<ELF64LE> Builder(*O, *Obj, ExtractPartition);
     Builder.build();
     return Obj;
   } else if (auto *O = dyn_cast<ELFObjectFile<ELF32BE>>(Bin)) {
-    ELFBuilder<ELF32BE> Builder(*O, *Obj);
+    ELFBuilder<ELF32BE> Builder(*O, *Obj, ExtractPartition);
     Builder.build();
     return Obj;
   } else if (auto *O = dyn_cast<ELFObjectFile<ELF64BE>>(Bin)) {
-    ELFBuilder<ELF64BE> Builder(*O, *Obj);
+    ELFBuilder<ELF64BE> Builder(*O, *Obj, ExtractPartition);
     Builder.build();
     return Obj;
   }
@@ -1637,9 +1849,15 @@ Error Object::removeSymbols(function_ref<bool(const Symbol &)> ToRemove) {
 }
 
 void Object::sortSections() {
-  // Put all sections in offset order. Maintain the ordering as closely as
-  // possible while meeting that demand however.
+  // Use stable_sort to maintain the original ordering as closely as possible.
   llvm::stable_sort(Sections, [](const SecPtr &A, const SecPtr &B) {
+    // Put SHT_GROUP sections first, since group section headers must come
+    // before the sections they contain. This also matches what GNU objcopy
+    // does.
+    if (A->Type != B->Type &&
+        (A->Type == ELF::SHT_GROUP || B->Type == ELF::SHT_GROUP))
+      return A->Type == ELF::SHT_GROUP;
+    // For all other sections, sort by offset order.
     return A->OriginalOffset < B->OriginalOffset;
   });
 }
@@ -1727,7 +1945,6 @@ template <class ELFT> void ELFWriter<ELFT>::initEhdrSegment() {
   Segment &ElfHdr = Obj.ElfHdrSegment;
   ElfHdr.Type = PT_PHDR;
   ElfHdr.Flags = 0;
-  ElfHdr.OriginalOffset = ElfHdr.Offset = 0;
   ElfHdr.VAddr = 0;
   ElfHdr.PAddr = 0;
   ElfHdr.FileSize = ElfHdr.MemSize = sizeof(Elf_Ehdr);

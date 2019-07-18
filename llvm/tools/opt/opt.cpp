@@ -251,19 +251,20 @@ static cl::opt<bool> Coroutines(
   cl::desc("Enable coroutine passes."),
   cl::init(false), cl::Hidden);
 
-static cl::opt<bool> PassRemarksWithHotness(
+static cl::opt<bool> RemarksWithHotness(
     "pass-remarks-with-hotness",
     cl::desc("With PGO, include profile count in optimization remarks"),
     cl::Hidden);
 
-static cl::opt<unsigned> PassRemarksHotnessThreshold(
-    "pass-remarks-hotness-threshold",
-    cl::desc("Minimum profile count required for an optimization remark to be output"),
-    cl::Hidden);
+static cl::opt<unsigned>
+    RemarksHotnessThreshold("pass-remarks-hotness-threshold",
+                            cl::desc("Minimum profile count required for "
+                                     "an optimization remark to be output"),
+                            cl::Hidden);
 
 static cl::opt<std::string>
     RemarksFilename("pass-remarks-output",
-                    cl::desc("YAML output filename for pass remarks"),
+                    cl::desc("Output filename for pass remarks"),
                     cl::value_desc("filename"));
 
 static cl::opt<std::string>
@@ -271,6 +272,11 @@ static cl::opt<std::string>
                   cl::desc("Only record optimization remarks from passes whose "
                            "names match the given regular expression"),
                   cl::value_desc("regex"));
+
+static cl::opt<std::string> RemarksFormat(
+    "pass-remarks-format",
+    cl::desc("The format used for serializing remarks (default: YAML)"),
+    cl::value_desc("format"), cl::init("yaml"));
 
 cl::opt<PGOKind>
     PGOKindFlag("pgo-kind", cl::init(NoPGO), cl::Hidden,
@@ -517,6 +523,7 @@ int main(int argc, char **argv) {
   initializeDwarfEHPreparePass(Registry);
   initializeSafeStackLegacyPassPass(Registry);
   initializeSjLjEHPreparePass(Registry);
+  initializeStackProtectorPass(Registry);
   initializePreISelIntrinsicLoweringLegacyPassPass(Registry);
   initializeGlobalMergePass(Registry);
   initializeIndirectBrExpandPassPass(Registry);
@@ -528,7 +535,11 @@ int main(int argc, char **argv) {
   initializeExpandReductionsPass(Registry);
   initializeWasmEHPreparePass(Registry);
   initializeWriteBitcodePassPass(Registry);
+<<<<<<< HEAD
   initializeASFixerPass(Registry);
+=======
+  initializeHardwareLoopsPass(Registry);
+>>>>>>> intel
 
 #ifdef LINK_POLLY_INTO_TOOLS
   polly::initializePollyPasses(Registry);
@@ -548,31 +559,15 @@ int main(int argc, char **argv) {
   if (!DisableDITypeMap)
     Context.enableDebugTypeODRUniquing();
 
-  if (PassRemarksWithHotness)
-    Context.setDiagnosticsHotnessRequested(true);
-
-  if (PassRemarksHotnessThreshold)
-    Context.setDiagnosticsHotnessThreshold(PassRemarksHotnessThreshold);
-
-  std::unique_ptr<ToolOutputFile> OptRemarkFile;
-  if (RemarksFilename != "") {
-    std::error_code EC;
-    OptRemarkFile =
-        llvm::make_unique<ToolOutputFile>(RemarksFilename, EC, sys::fs::F_None);
-    if (EC) {
-      errs() << EC.message() << '\n';
-      return 1;
-    }
-    Context.setRemarkStreamer(llvm::make_unique<RemarkStreamer>(
-        RemarksFilename,
-        llvm::make_unique<remarks::YAMLSerializer>(OptRemarkFile->os())));
-
-    if (!RemarksPasses.empty())
-      if (Error E = Context.getRemarkStreamer()->setFilter(RemarksPasses)) {
-        errs() << E << '\n';
-        return 1;
-      }
+  Expected<std::unique_ptr<ToolOutputFile>> RemarksFileOrErr =
+      setupOptimizationRemarks(Context, RemarksFilename, RemarksPasses,
+                               RemarksFormat, RemarksWithHotness,
+                               RemarksHotnessThreshold);
+  if (Error E = RemarksFileOrErr.takeError()) {
+    errs() << toString(std::move(E)) << '\n';
+    return 1;
   }
+  std::unique_ptr<ToolOutputFile> RemarksFile = std::move(*RemarksFileOrErr);
 
   // Load the input module...
   std::unique_ptr<Module> M =
@@ -686,7 +681,7 @@ int main(int argc, char **argv) {
     // string. Hand off the rest of the functionality to the new code for that
     // layer.
     return runPassPipeline(argv[0], *M, TM.get(), Out.get(), ThinLinkOut.get(),
-                           OptRemarkFile.get(), PassPipeline, OK, VK,
+                           RemarksFile.get(), PassPipeline, OK, VK,
                            PreserveAssemblyUseListOrder,
                            PreserveBitcodeUseListOrder, EmitSummaryIndex,
                            EmitModuleHash, EnableDebugify)
@@ -922,8 +917,8 @@ int main(int argc, char **argv) {
              "the compile-twice option\n";
       Out->os() << BOS->str();
       Out->keep();
-      if (OptRemarkFile)
-        OptRemarkFile->keep();
+      if (RemarksFile)
+        RemarksFile->keep();
       return 1;
     }
     Out->os() << BOS->str();
@@ -936,8 +931,8 @@ int main(int argc, char **argv) {
   if (!NoOutput || PrintBreakpoints)
     Out->keep();
 
-  if (OptRemarkFile)
-    OptRemarkFile->keep();
+  if (RemarksFile)
+    RemarksFile->keep();
 
   if (ThinLinkOut)
     ThinLinkOut->keep();

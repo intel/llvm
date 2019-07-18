@@ -578,6 +578,7 @@ TEST_F(FileSystemTest, TempFileKeepDiscard) {
   auto TempFileOrError = fs::TempFile::create(TestDirectory + "/test-%%%%");
   ASSERT_TRUE((bool)TempFileOrError);
   fs::TempFile File = std::move(*TempFileOrError);
+  ASSERT_EQ(-1, TempFileOrError->FD);
   ASSERT_FALSE((bool)File.keep(TestDirectory + "/keep"));
   ASSERT_FALSE((bool)File.discard());
   ASSERT_TRUE(fs::exists(TestDirectory + "/keep"));
@@ -589,6 +590,7 @@ TEST_F(FileSystemTest, TempFileDiscardDiscard) {
   auto TempFileOrError = fs::TempFile::create(TestDirectory + "/test-%%%%");
   ASSERT_TRUE((bool)TempFileOrError);
   fs::TempFile File = std::move(*TempFileOrError);
+  ASSERT_EQ(-1, TempFileOrError->FD);
   ASSERT_FALSE((bool)File.discard());
   ASSERT_FALSE((bool)File.discard());
   ASSERT_FALSE(fs::exists(TestDirectory + "/keep"));
@@ -1082,7 +1084,7 @@ TEST_F(FileSystemTest, FileMapping) {
   std::error_code EC;
   StringRef Val("hello there");
   {
-    fs::mapped_file_region mfr(FileDescriptor,
+    fs::mapped_file_region mfr(fs::convertFDToNativeFile(FileDescriptor),
                                fs::mapped_file_region::readwrite, Size, 0, EC);
     ASSERT_NO_ERROR(EC);
     std::copy(Val.begin(), Val.end(), mfr.data());
@@ -1097,14 +1099,16 @@ TEST_F(FileSystemTest, FileMapping) {
     int FD;
     EC = fs::openFileForRead(Twine(TempPath), FD);
     ASSERT_NO_ERROR(EC);
-    fs::mapped_file_region mfr(FD, fs::mapped_file_region::readonly, Size, 0, EC);
+    fs::mapped_file_region mfr(fs::convertFDToNativeFile(FD),
+                               fs::mapped_file_region::readonly, Size, 0, EC);
     ASSERT_NO_ERROR(EC);
 
     // Verify content
     EXPECT_EQ(StringRef(mfr.const_data()), Val);
 
     // Unmap temp file
-    fs::mapped_file_region m(FD, fs::mapped_file_region::readonly, Size, 0, EC);
+    fs::mapped_file_region m(fs::convertFDToNativeFile(FD),
+                             fs::mapped_file_region::readonly, Size, 0, EC);
     ASSERT_NO_ERROR(EC);
     ASSERT_EQ(close(FD), 0);
   }
@@ -1524,6 +1528,61 @@ TEST_F(FileSystemTest, is_local) {
   EXPECT_EQ(TestDirectoryIsLocal, TempFileIsLocal);
 }
 
+TEST_F(FileSystemTest, getUmask) {
+#ifdef _WIN32
+  EXPECT_EQ(fs::getUmask(), 0U) << "Should always be 0 on Windows.";
+#else
+  unsigned OldMask = ::umask(0022);
+  unsigned CurrentMask = fs::getUmask();
+  EXPECT_EQ(CurrentMask, 0022U)
+      << "getUmask() didn't return previously set umask()";
+  EXPECT_EQ(::umask(OldMask), 0022U) << "getUmask() may have changed umask()";
+#endif
+}
+
+TEST_F(FileSystemTest, RespectUmask) {
+#ifndef _WIN32
+  unsigned OldMask = ::umask(0022);
+
+  int FD;
+  SmallString<128> TempPath;
+  ASSERT_NO_ERROR(fs::createTemporaryFile("prefix", "temp", FD, TempPath));
+
+  fs::perms AllRWE = static_cast<fs::perms>(0777);
+
+  ASSERT_NO_ERROR(fs::setPermissions(TempPath, AllRWE));
+
+  ErrorOr<fs::perms> Perms = fs::getPermissions(TempPath);
+  ASSERT_TRUE(!!Perms);
+  EXPECT_EQ(Perms.get(), AllRWE) << "Should have ignored umask by default";
+
+  ASSERT_NO_ERROR(fs::setPermissions(TempPath, AllRWE));
+
+  Perms = fs::getPermissions(TempPath);
+  ASSERT_TRUE(!!Perms);
+  EXPECT_EQ(Perms.get(), AllRWE) << "Should have ignored umask";
+
+  ASSERT_NO_ERROR(
+      fs::setPermissions(FD, static_cast<fs::perms>(AllRWE & ~fs::getUmask())));
+  Perms = fs::getPermissions(TempPath);
+  ASSERT_TRUE(!!Perms);
+  EXPECT_EQ(Perms.get(), static_cast<fs::perms>(0755))
+      << "Did not respect umask";
+
+  (void)::umask(0057);
+
+  ASSERT_NO_ERROR(
+      fs::setPermissions(FD, static_cast<fs::perms>(AllRWE & ~fs::getUmask())));
+  Perms = fs::getPermissions(TempPath);
+  ASSERT_TRUE(!!Perms);
+  EXPECT_EQ(Perms.get(), static_cast<fs::perms>(0720))
+      << "Did not respect umask";
+
+  (void)::umask(OldMask);
+  (void)::close(FD);
+#endif
+}
+
 TEST_F(FileSystemTest, set_current_path) {
   SmallString<128> path;
 
@@ -1696,9 +1755,10 @@ TEST_F(FileSystemTest, permissions) {
   EXPECT_TRUE(CheckPermissions(fs::set_gid_on_exe));
 
   // Modern BSDs require root to set the sticky bit on files.
-  // AIX without root will mask off (i.e., lose) the sticky bit on files.
+  // AIX and Solaris without root will mask off (i.e., lose) the sticky bit
+  // on files.
 #if !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) &&  \
-    !defined(_AIX)
+    !defined(_AIX) && !(defined(__sun__) && defined(__svr4__))
   EXPECT_EQ(fs::setPermissions(TempPath, fs::sticky_bit), NoError);
   EXPECT_TRUE(CheckPermissions(fs::sticky_bit));
 

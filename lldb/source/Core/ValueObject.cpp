@@ -35,7 +35,6 @@
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Language.h"
 #include "lldb/Target/LanguageRuntime.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
@@ -280,51 +279,21 @@ CompilerType ValueObject::MaybeCalculateCompleteType() {
       return compiler_type;
   }
 
-  CompilerType class_type;
-  bool is_pointer_type = false;
-
-  if (ClangASTContext::IsObjCObjectPointerType(compiler_type, &class_type)) {
-    is_pointer_type = true;
-  } else if (ClangASTContext::IsObjCObjectOrInterfaceType(compiler_type)) {
-    class_type = compiler_type;
-  } else {
-    return compiler_type;
-  }
-
   m_did_calculate_complete_objc_class_type = true;
 
-  if (class_type) {
-    ConstString class_name(class_type.GetConstTypeName());
+  ProcessSP process_sp(
+      GetUpdatePoint().GetExecutionContextRef().GetProcessSP());
 
-    if (class_name) {
-      ProcessSP process_sp(
-          GetUpdatePoint().GetExecutionContextRef().GetProcessSP());
+  if (!process_sp)
+    return compiler_type;
 
-      if (process_sp) {
-        ObjCLanguageRuntime *objc_language_runtime(
-            process_sp->GetObjCLanguageRuntime());
-
-        if (objc_language_runtime) {
-          TypeSP complete_objc_class_type_sp =
-              objc_language_runtime->LookupInCompleteClassCache(class_name);
-
-          if (complete_objc_class_type_sp) {
-            CompilerType complete_class(
-                complete_objc_class_type_sp->GetFullCompilerType());
-
-            if (complete_class.GetCompleteType()) {
-              if (is_pointer_type) {
-                m_override_type = complete_class.GetPointerType();
-              } else {
-                m_override_type = complete_class;
-              }
-
-              if (m_override_type.IsValid())
-                return m_override_type;
-            }
-          }
-        }
-      }
+  if (auto *runtime =
+          process_sp->GetLanguageRuntime(GetObjectRuntimeLanguage())) {
+    if (llvm::Optional<CompilerType> complete_type =
+            runtime->GetRuntimeType(compiler_type)) {
+      m_override_type = complete_type.getValue();
+      if (m_override_type.IsValid())
+        return m_override_type;
     }
   }
   return compiler_type;
@@ -1695,18 +1664,28 @@ bool ValueObject::IsPossibleDynamicType() {
 
 bool ValueObject::IsRuntimeSupportValue() {
   Process *process(GetProcessSP().get());
-  if (process) {
-    LanguageRuntime *runtime =
-        process->GetLanguageRuntime(GetObjectRuntimeLanguage());
-    if (!runtime)
-      runtime = process->GetObjCLanguageRuntime();
-    if (runtime)
-      return runtime->IsRuntimeSupportValue(*this);
-    // If there is no language runtime, trust the compiler to mark all
-    // runtime support variables as artificial.
-    return GetVariable() && GetVariable()->IsArtificial();
+  if (!process)
+    return false;
+
+  // We trust the the compiler did the right thing and marked runtime support
+  // values as artificial.
+  if (!GetVariable() || !GetVariable()->IsArtificial())
+    return false;
+
+  LanguageType lang = eLanguageTypeUnknown;
+  if (auto *sym_ctx_scope = GetSymbolContextScope()) {
+    if (auto *func = sym_ctx_scope->CalculateSymbolContextFunction())
+      lang = func->GetLanguage();
+    else if (auto *comp_unit =
+                 sym_ctx_scope->CalculateSymbolContextCompileUnit())
+      lang = comp_unit->GetLanguage();
   }
-  return false;
+
+  if (auto *runtime = process->GetLanguageRuntime(lang))
+    if (runtime->IsWhitelistedRuntimeValue(GetName()))
+      return false;
+
+  return true;
 }
 
 bool ValueObject::IsNilReference() {
@@ -3399,4 +3378,3 @@ lldb::StackFrameSP ValueObjectManager::GetFrameSP() const {
     return m_root_valobj_sp->GetFrameSP();
   return lldb::StackFrameSP();
 }
-

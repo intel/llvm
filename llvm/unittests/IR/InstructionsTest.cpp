@@ -792,44 +792,6 @@ TEST(InstructionsTest, SwitchInstProfUpdateWrapper) {
     EXPECT_EQ(*SIW.getSuccessorWeight(1), 11u);
     EXPECT_EQ(*SIW.getSuccessorWeight(2), 22u);
   }
-
-  // Make prof data invalid by adding one extra weight.
-  SI->setMetadata(LLVMContext::MD_prof, MDBuilder(C).createBranchWeights(
-                                            { 99, 11, 22, 33 })); // extra
-  { // Invalid prof data makes wrapper act as if there were no prof data.
-    SwitchInstProfUpdateWrapper SIW(*SI);
-    ASSERT_FALSE(SIW.getSuccessorWeight(0).hasValue());
-    ASSERT_FALSE(SIW.getSuccessorWeight(1).hasValue());
-    ASSERT_FALSE(SIW.getSuccessorWeight(2).hasValue());
-    SIW.addCase(ConstantInt::get(Int32Ty, 3), BB3.get(), 39);
-    ASSERT_FALSE(SIW.getSuccessorWeight(3).hasValue()); // did not add weight 39
-  }
-
-  { // With added 3rd case the prof data become consistent with num of cases.
-    SwitchInstProfUpdateWrapper SIW(*SI);
-    EXPECT_EQ(*SIW.getSuccessorWeight(0), 99u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(1), 11u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(2), 22u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(3), 33u);
-  }
-
-  // Make prof data invalid by removing one extra weight.
-  SI->setMetadata(LLVMContext::MD_prof,
-                  MDBuilder(C).createBranchWeights({ 99, 11, 22 })); // shorter
-  { // Invalid prof data makes wrapper act as if there were no prof data.
-    SwitchInstProfUpdateWrapper SIW(*SI);
-    ASSERT_FALSE(SIW.getSuccessorWeight(0).hasValue());
-    ASSERT_FALSE(SIW.getSuccessorWeight(1).hasValue());
-    ASSERT_FALSE(SIW.getSuccessorWeight(2).hasValue());
-    SIW.removeCase(SwitchInst::CaseIt(SI, 2));
-  }
-
-  { // With removed 3rd case the prof data become consistent with num of cases.
-    SwitchInstProfUpdateWrapper SIW(*SI);
-    EXPECT_EQ(*SIW.getSuccessorWeight(0), 99u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(1), 11u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(2), 22u);
-  }
 }
 
 TEST(InstructionsTest, CommuteShuffleMask) {
@@ -1079,6 +1041,24 @@ TEST(InstructionsTest, PhiIsNotFPMathOperator) {
   Instruction *I = Builder.CreatePHI(Builder.getDoubleTy(), 0);
   EXPECT_FALSE(isa<FPMathOperator>(I));
   I->deleteValue();
+}
+
+TEST(InstructionsTest, FNegInstruction) {
+  LLVMContext Context;
+  Type *FltTy = Type::getFloatTy(Context);
+  Constant *One = ConstantFP::get(FltTy, 1.0);
+  BinaryOperator *FAdd = BinaryOperator::CreateFAdd(One, One);
+  FAdd->setHasNoNaNs(true);
+  UnaryOperator *FNeg = UnaryOperator::CreateFNegFMF(One, FAdd);
+  EXPECT_TRUE(FNeg->hasNoNaNs());
+  EXPECT_FALSE(FNeg->hasNoInfs());
+  EXPECT_FALSE(FNeg->hasNoSignedZeros());
+  EXPECT_FALSE(FNeg->hasAllowReciprocal());
+  EXPECT_FALSE(FNeg->hasAllowContract());
+  EXPECT_FALSE(FNeg->hasAllowReassoc());
+  EXPECT_FALSE(FNeg->hasApproxFunc());
+  FAdd->deleteValue();
+  FNeg->deleteValue();
 }
 
 } // end anonymous namespace

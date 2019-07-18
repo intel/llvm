@@ -97,7 +97,6 @@
 #ifndef LLVM_TRANSFORMS_IPO_ATTRIBUTOR_H
 #define LLVM_TRANSFORMS_IPO_ATTRIBUTOR_H
 
-#include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/PassManager.h"
@@ -180,9 +179,12 @@ struct Attributor {
     assert(AAType::ID != Attribute::None &&
            "Cannot lookup generic abstract attributes!");
 
-    // Determine the argument number automatically for llvm::Arguments.
-    if (auto *Arg = dyn_cast<Argument>(&V))
-      ArgNo = Arg->getArgNo();
+    // Determine the argument number automatically for llvm::Arguments if none
+    // is set. Do not override a given one as it could be a use of the argument
+    // in a call site.
+    if (ArgNo == -1)
+      if (auto *Arg = dyn_cast<Argument>(&V))
+        ArgNo = Arg->getArgNo();
 
     // If a function was given together with an argument number, perform the
     // lookup for the actual argument instead. Don't do it for variadic
@@ -197,8 +199,12 @@ struct Attributor {
     const auto &KindToAbstractAttributeMap = AAMap.lookup({&V, ArgNo});
     if (AAType *AA = static_cast<AAType *>(
             KindToAbstractAttributeMap.lookup(AAType::ID))) {
-      QueryMap[AA].insert(&QueryingAA);
-      return AA;
+      // Do not return an attribute with an invalid state. This minimizes checks
+      // at the calls sites and allows the fallback below to kick in.
+      if (AA->getState().isValidState()) {
+        QueryMap[AA].insert(&QueryingAA);
+        return AA;
+      }
     }
 
     // If no abstract attribute was found and we look for a call site argument,
@@ -226,10 +232,13 @@ struct Attributor {
                   "'AbstractAttribute'!");
 
     // Determine the anchor value and the argument number which are used to
-    // lookup the attribute together with AAType::ID.
+    // lookup the attribute together with AAType::ID. If passed an argument,
+    // use its argument number but do not override a given one as it could be a
+    // use of the argument at a call site.
     Value &AnchoredVal = AA.getAnchoredValue();
-    if (auto *Arg = dyn_cast<Argument>(&AnchoredVal))
-      ArgNo = Arg->getArgNo();
+    if (ArgNo == -1)
+      if (auto *Arg = dyn_cast<Argument>(&AnchoredVal))
+        ArgNo = Arg->getArgNo();
 
     // Put the attribute in the lookup map structure and the container we use to
     // keep track of all attributes.
@@ -253,6 +262,14 @@ struct Attributor {
   void identifyDefaultAbstractAttributes(
       Function &F, InformationCache &InfoCache,
       DenseSet</* Attribute::AttrKind */ unsigned> *Whitelist = nullptr);
+
+  /// Check \p Pred on all function call sites.
+  ///
+  /// This method will evaluate \p Pred on call sites and return
+  /// true if \p Pred holds in every call sites. However, this is only possible
+  /// all call sites are known, hence the function has internal linkage.
+  bool checkForAllCallSites(Function &F, std::function<bool(CallSite)> &Pred,
+                            bool RequireAllCallSites);
 
 private:
   /// The set of all abstract attributes.
@@ -367,6 +384,90 @@ struct AbstractState {
   virtual void indicatePessimisticFixpoint() = 0;
 };
 
+/// Simple state with integers encoding.
+///
+/// The interface ensures that the assumed bits are always a subset of the known
+/// bits. Users can only add known bits and, except through adding known bits,
+/// they can only remove assumed bits. This should guarantee monotoniticy and
+/// thereby the existence of a fixpoint (if used corretly). The fixpoint is
+/// reached when the assumed and known state/bits are equal. Users can
+/// force/inidicate a fixpoint. If an optimistic one is indicated, the known
+/// state will catch up with the assumed one, for a pessimistic fixpoint it is
+/// the other way around.
+struct IntegerState : public AbstractState {
+  /// Underlying integer type, we assume 32 bits to be enough.
+  using base_t = uint32_t;
+
+  /// Initialize the (best) state.
+  IntegerState(base_t BestState = ~0) : Assumed(BestState) {}
+
+  /// Return the worst possible representable state.
+  static constexpr base_t getWorstState() { return 0; }
+
+  /// See AbstractState::isValidState()
+  /// NOTE: For now we simply pretend that the worst possible state is invalid.
+  bool isValidState() const override { return Assumed != getWorstState(); }
+
+  /// See AbstractState::isAtFixpoint()
+  bool isAtFixpoint() const override { return Assumed == Known; }
+
+  /// See AbstractState::indicateOptimisticFixpoint(...)
+  void indicateOptimisticFixpoint() override { Known = Assumed; }
+
+  /// See AbstractState::indicatePessimisticFixpoint(...)
+  void indicatePessimisticFixpoint() override { Assumed = Known; }
+
+  /// Return the known state encoding
+  base_t getKnown() const { return Known; }
+
+  /// Return the assumed state encoding.
+  base_t getAssumed() const { return Assumed; }
+
+  /// Return true if the bits set in \p BitsEncoding are "known bits".
+  bool isKnown(base_t BitsEncoding) const {
+    return (Known & BitsEncoding) == BitsEncoding;
+  }
+
+  /// Return true if the bits set in \p BitsEncoding are "assumed bits".
+  bool isAssumed(base_t BitsEncoding) const {
+    return (Assumed & BitsEncoding) == BitsEncoding;
+  }
+
+  /// Add the bits in \p BitsEncoding to the "known bits".
+  IntegerState &addKnownBits(base_t Bits) {
+    // Make sure we never miss any "known bits".
+    Assumed |= Bits;
+    Known |= Bits;
+    return *this;
+  }
+
+  /// Remove the bits in \p BitsEncoding from the "assumed bits" if not known.
+  IntegerState &removeAssumedBits(base_t BitsEncoding) {
+    // Make sure we never loose any "known bits".
+    Assumed = (Assumed & ~BitsEncoding) | Known;
+    return *this;
+  }
+
+  /// Keep only "assumed bits" also set in \p BitsEncoding but all known ones.
+  IntegerState &intersectAssumedBits(base_t BitsEncoding) {
+    // Make sure we never loose any "known bits".
+    Assumed = (Assumed & BitsEncoding) | Known;
+    return *this;
+  }
+
+private:
+  /// The known state encoding in an integer of type base_t.
+  base_t Known = getWorstState();
+
+  /// The assumed state encoding in an integer of type base_t.
+  base_t Assumed;
+};
+
+/// Simple wrapper for a single bit (boolean) state.
+struct BooleanState : public IntegerState {
+  BooleanState() : IntegerState(1){};
+};
+
 /// Base struct for all "concrete attribute" deductions.
 ///
 /// The abstract attribute is a minimal interface that allows the Attributor to
@@ -399,8 +500,7 @@ struct AbstractState {
 /// NOTE: If the state obtained via getState() is INVALID, thus if
 ///       AbstractAttribute::getState().isValidState() returns false, no
 ///       information provided by the methods of this class should be used.
-/// NOTE: The Attributor currently runs as a call graph SCC pass. Partially to
-///       this *current* choice there are certain limitations to what we can do.
+/// NOTE: The Attributor currently has certain limitations to what we can do.
 ///       As a general rule of thumb, "concrete" abstract attributes should *for
 ///       now* only perform "backward" information propagation. That means
 ///       optimistic information obtained through abstract attributes should
@@ -560,6 +660,130 @@ Pass *createAttributorLegacyPass();
 ///                       Abstract Attribute Classes
 /// ----------------------------------------------------------------------------
 
+/// An abstract attribute for the returned values of a function.
+struct AAReturnedValues : public AbstractAttribute {
+  /// See AbstractAttribute::AbstractAttribute(...).
+  AAReturnedValues(Function &F, InformationCache &InfoCache)
+      : AbstractAttribute(F, InfoCache) {}
+
+  /// Check \p Pred on all returned values.
+  ///
+  /// This method will evaluate \p Pred on returned values and return
+  /// true if (1) all returned values are known, and (2) \p Pred returned true
+  /// for all returned values.
+  virtual bool
+  checkForallReturnedValues(std::function<bool(Value &)> &Pred) const = 0;
+
+  /// See AbstractAttribute::getAttrKind()
+  Attribute::AttrKind getAttrKind() const override { return ID; }
+
+  /// The identifier used by the Attributor for this class of attributes.
+  static constexpr Attribute::AttrKind ID = Attribute::Returned;
+};
+
+struct AANoUnwind : public AbstractAttribute {
+  /// An abstract interface for all nosync attributes.
+  AANoUnwind(Value &V, InformationCache &InfoCache)
+      : AbstractAttribute(V, InfoCache) {}
+
+  /// See AbstractAttribute::getAttrKind()/
+  Attribute::AttrKind getAttrKind() const override { return ID; }
+
+  static constexpr Attribute::AttrKind ID = Attribute::NoUnwind;
+
+  /// Returns true if nounwind is assumed.
+  virtual bool isAssumedNoUnwind() const = 0;
+
+  /// Returns true if nounwind is known.
+  virtual bool isKnownNoUnwind() const = 0;
+};
+
+struct AANoSync : public AbstractAttribute {
+  /// An abstract interface for all nosync attributes.
+  AANoSync(Value &V, InformationCache &InfoCache)
+      : AbstractAttribute(V, InfoCache) {}
+
+  /// See AbstractAttribute::getAttrKind().
+  Attribute::AttrKind getAttrKind() const override { return ID; }
+
+  static constexpr Attribute::AttrKind ID =
+      Attribute::AttrKind(Attribute::NoSync);
+
+  /// Returns true if "nosync" is assumed.
+  virtual bool isAssumedNoSync() const = 0;
+
+  /// Returns true if "nosync" is known.
+  virtual bool isKnownNoSync() const = 0;
+};
+
+/// An abstract interface for all nonnull attributes.
+struct AANonNull : public AbstractAttribute {
+
+  /// See AbstractAttribute::AbstractAttribute(...).
+  AANonNull(Value &V, InformationCache &InfoCache)
+      : AbstractAttribute(V, InfoCache) {}
+
+  /// See AbstractAttribute::AbstractAttribute(...).
+  AANonNull(Value *AssociatedVal, Value &AnchoredValue,
+            InformationCache &InfoCache)
+      : AbstractAttribute(AssociatedVal, AnchoredValue, InfoCache) {}
+
+  /// Return true if we assume that the underlying value is nonnull.
+  virtual bool isAssumedNonNull() const = 0;
+
+  /// Return true if we know that underlying value is nonnull.
+  virtual bool isKnownNonNull() const = 0;
+
+  /// See AbastractState::getAttrKind().
+  Attribute::AttrKind getAttrKind() const override { return ID; }
+
+  /// The identifier used by the Attributor for this class of attributes.
+  static constexpr Attribute::AttrKind ID = Attribute::NonNull;
+};
+
+/// An abstract attribute for norecurse.
+struct AANoRecurse : public AbstractAttribute {
+
+  /// See AbstractAttribute::AbstractAttribute(...).
+  AANoRecurse(Value &V, InformationCache &InfoCache)
+      : AbstractAttribute(V, InfoCache) {}
+
+  /// See AbstractAttribute::getAttrKind()
+  virtual Attribute::AttrKind getAttrKind() const override {
+    return Attribute::NoRecurse;
+  }
+
+  /// Return true if "norecurse" is known.
+  virtual bool isKnownNoRecurse() const = 0;
+
+  /// Return true if "norecurse" is assumed.
+  virtual bool isAssumedNoRecurse() const = 0;
+
+  /// The identifier used by the Attributor for this class of attributes.
+  static constexpr Attribute::AttrKind ID = Attribute::NoRecurse;
+};
+
+/// An abstract attribute for willreturn.
+struct AAWillReturn : public AbstractAttribute {
+
+  /// See AbstractAttribute::AbstractAttribute(...).
+  AAWillReturn(Value &V, InformationCache &InfoCache)
+      : AbstractAttribute(V, InfoCache) {}
+
+  /// See AbstractAttribute::getAttrKind()
+  virtual Attribute::AttrKind getAttrKind() const override {
+    return Attribute::WillReturn;
+  }
+
+  /// Return true if "willreturn" is known.
+  virtual bool isKnownWillReturn() const = 0;
+
+  /// Return true if "willreturn" is assumed.
+  virtual bool isAssumedWillReturn() const = 0;
+
+  /// The identifier used by the Attributor for this class of attributes.
+  static constexpr Attribute::AttrKind ID = Attribute::WillReturn;
+};
 } // end namespace llvm
 
 #endif // LLVM_TRANSFORMS_IPO_FUNCTIONATTRS_H

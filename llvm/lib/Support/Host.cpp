@@ -192,6 +192,8 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
             .Case("0xd07", "cortex-a57")
             .Case("0xd08", "cortex-a72")
             .Case("0xd09", "cortex-a73")
+            .Case("0xd0a", "cortex-a75")
+            .Case("0xd0b", "cortex-a76")
             .Default("generic");
   }
 
@@ -235,6 +237,10 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
             .Case("0x211", "kryo")
             .Case("0x800", "cortex-a73")
             .Case("0x801", "cortex-a73")
+            .Case("0x802", "cortex-a73")
+            .Case("0x803", "cortex-a73")
+            .Case("0x804", "cortex-a73")
+            .Case("0x805", "cortex-a73")
             .Case("0xc00", "falkor")
             .Case("0xc01", "saphira")
             .Default("generic");
@@ -309,6 +315,8 @@ StringRef sys::detail::getHostCPUNameForS390x(StringRef ProcCpuinfoContent) {
         Pos += sizeof("machine = ") - 1;
         unsigned int Id;
         if (!Lines[I].drop_front(Pos).getAsInteger(10, Id)) {
+          if (Id >= 8561 && HaveVectorSupport)
+            return "arch13";
           if (Id >= 3906 && HaveVectorSupport)
             return "z14";
           if (Id >= 2964 && HaveVectorSupport)
@@ -672,7 +680,9 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
     // Skylake Xeon:
     case 0x55:
       *Type = X86::INTEL_COREI7;
-      if (Features2 & (1 << (X86::FEATURE_AVX512VNNI - 32)))
+      if (Features3 & (1 << (X86::FEATURE_AVX512BF16 - 64)))
+        *Subtype = X86::INTEL_COREI7_COOPERLAKE; // "cooperlake"
+      else if (Features2 & (1 << (X86::FEATURE_AVX512VNNI - 32)))
         *Subtype = X86::INTEL_COREI7_CASCADELAKE; // "cascadelake"
       else
         *Subtype = X86::INTEL_COREI7_SKYLAKE_AVX512; // "skylake-avx512"
@@ -745,6 +755,12 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
       if (Features & (1 << X86::FEATURE_AVX512VBMI)) {
         *Type = X86::INTEL_COREI7;
         *Subtype = X86::INTEL_COREI7_CANNONLAKE;
+        break;
+      }
+
+      if (Features3 & (1 << (X86::FEATURE_AVX512BF16 - 64))) {
+        *Type = X86::INTEL_COREI7;
+        *Subtype = X86::INTEL_COREI7_COOPERLAKE;
         break;
       }
 

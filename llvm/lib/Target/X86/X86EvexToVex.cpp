@@ -12,9 +12,9 @@
 /// are encoded using the EVEX prefix and if possible replaces them by their
 /// corresponding VEX encoding which is usually shorter by 2 bytes.
 /// EVEX instructions may be encoded via the VEX prefix when the AVX-512
-/// instruction has a corresponding AVX/AVX2 opcode and when it does not
-/// use the xmm or the mask registers or xmm/ymm registers with indexes
-/// higher than 15.
+/// instruction has a corresponding AVX/AVX2 opcode, when vector length 
+/// accessed by instruction is less than 512 bits and when it does not use 
+//  the xmm or the mask registers or xmm/ymm registers with indexes higher than 15.
 /// The pass applies code reduction on the generated code for AVX-512 instrs.
 //
 //===----------------------------------------------------------------------===//
@@ -68,9 +68,7 @@ class EvexToVexInstPass : public MachineFunctionPass {
 public:
   static char ID;
 
-  EvexToVexInstPass() : MachineFunctionPass(ID) {
-    initializeEvexToVexInstPassPass(*PassRegistry::getPassRegistry());
-  }
+  EvexToVexInstPass() : MachineFunctionPass(ID) { }
 
   StringRef getPassName() const override { return EVEX2VEX_DESC; }
 
@@ -254,7 +252,7 @@ bool EvexToVexInstPass::CompressEvexToVexImpl(MachineInstr &MI) const {
     (Desc.TSFlags & X86II::VEX_L) ? makeArrayRef(X86EvexToVex256CompressTable)
                                   : makeArrayRef(X86EvexToVex128CompressTable);
 
-  auto I = std::lower_bound(Table.begin(), Table.end(), MI.getOpcode());
+  auto I = llvm::lower_bound(Table, MI.getOpcode());
   if (I == Table.end() || I->EvexOpcode != MI.getOpcode())
     return false;
 

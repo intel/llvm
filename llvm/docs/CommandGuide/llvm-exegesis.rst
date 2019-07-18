@@ -1,6 +1,8 @@
 llvm-exegesis - LLVM Machine Instruction Benchmark
 ==================================================
 
+.. program:: llvm-exegesis
+
 SYNOPSIS
 --------
 
@@ -163,7 +165,6 @@ example, `/tmp/inconsistencies.html` will contain messages like the following :
 Note that the scheduling class names will be resolved only when
 :program:`llvm-exegesis` is compiled in debug mode, else only the class id will
 be shown. This does not invalidate any of the analysis results though.
-
 
 OPTIONS
 -------

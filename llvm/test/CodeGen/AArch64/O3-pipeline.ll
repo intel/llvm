@@ -55,6 +55,7 @@
 ; CHECK-NEXT:       Interleaved Load Combine Pass
 ; CHECK-NEXT:       Dominator Tree Construction
 ; CHECK-NEXT:       Interleaved Access Pass
+; CHECK-NEXT:       AArch64 Stack Tagging
 ; CHECK-NEXT:       Natural Loop Information
 ; CHECK-NEXT:       CodeGen Prepare
 ; CHECK-NEXT:     Rewrite Symbols
@@ -76,7 +77,7 @@
 ; CHECK-NEXT:       AArch64 Instruction Selection
 ; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       AArch64 Local Dynamic TLS Access Clean-up
-; CHECK-NEXT:       Expand ISel Pseudo-instructions
+; CHECK-NEXT:       Finalize ISel and expand pseudo-instructions
 ; CHECK-NEXT:       Early Tail Duplication
 ; CHECK-NEXT:       Optimize machine instruction PHIs
 ; CHECK-NEXT:       Slot index numbering

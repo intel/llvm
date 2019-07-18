@@ -19,6 +19,7 @@
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/WithColor.h"
 
@@ -53,6 +54,8 @@ enum LipoID {
 #undef OPTION
 };
 
+// LipoInfoTable below references LIPO_##PREFIX. OptionGroup has prefix nullptr.
+const char *const *LIPO_nullptr = nullptr;
 #define PREFIX(NAME, VALUE) const char *const LIPO_##NAME[] = VALUE;
 #include "LipoOpts.inc"
 #undef PREFIX
@@ -73,12 +76,33 @@ public:
   LipoOptTable() : OptTable(LipoInfoTable) {}
 };
 
+enum class LipoAction {
+  PrintArchs,
+  VerifyArch,
+  ThinArch,
+};
+
 struct Config {
   SmallVector<std::string, 1> InputFiles;
   SmallVector<std::string, 1> VerifyArchList;
+  std::string ThinArchType;
+  std::string OutputFile;
+  LipoAction ActionToPerform;
 };
 
 } // end namespace
+
+static void validateArchitectureName(StringRef ArchitectureName) {
+  if (!MachOObjectFile::isValidArch(ArchitectureName)) {
+    std::string Buf;
+    raw_string_ostream OS(Buf);
+    OS << "Invalid architecture: " << ArchitectureName
+       << "\nValid architecture names are:";
+    for (auto arch : MachOObjectFile::getValidArchs())
+      OS << " " << arch;
+    reportError(OS.str());
+  }
+}
 
 static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
   Config C;
@@ -86,6 +110,11 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
   unsigned MissingArgumentIndex, MissingArgumentCount;
   llvm::opt::InputArgList InputArgs =
       T.ParseArgs(ArgsArr, MissingArgumentIndex, MissingArgumentCount);
+
+  if (MissingArgumentCount)
+    reportError("missing argument to " +
+                StringRef(InputArgs.getArgString(MissingArgumentIndex)) +
+                " option");
 
   if (InputArgs.size() == 0) {
     // PrintHelp does not accept Twine.
@@ -113,7 +142,23 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
   if (C.InputFiles.empty())
     reportError("at least one input file should be specified");
 
-  if (InputArgs.hasArg(LIPO_verify_arch)) {
+  if (InputArgs.hasArg(LIPO_output))
+    C.OutputFile = InputArgs.getLastArgValue(LIPO_output);
+
+  SmallVector<opt::Arg *, 1> ActionArgs(InputArgs.filtered(LIPO_action_group));
+  if (ActionArgs.empty())
+    reportError("at least one action should be specified");
+  if (ActionArgs.size() > 1) {
+    std::string Buf;
+    raw_string_ostream OS(Buf);
+    OS << "only one of the following actions can be specified:";
+    for (auto Arg : ActionArgs)
+      OS << " " << Arg->getSpelling();
+    reportError(OS.str());
+  }
+
+  switch (ActionArgs[0]->getOption().getID()) {
+  case LIPO_verify_arch:
     for (auto A : InputArgs.getAllArgValues(LIPO_verify_arch))
       C.VerifyArchList.push_back(A);
     if (C.VerifyArchList.empty())
@@ -121,8 +166,29 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
           "verify_arch requires at least one architecture to be specified");
     if (C.InputFiles.size() > 1)
       reportError("verify_arch expects a single input file");
+    C.ActionToPerform = LipoAction::VerifyArch;
+    return C;
+
+  case LIPO_archs:
+    if (C.InputFiles.size() > 1)
+      reportError("archs expects a single input file");
+    C.ActionToPerform = LipoAction::PrintArchs;
+    return C;
+
+  case LIPO_thin:
+    if (C.InputFiles.size() > 1)
+      reportError("thin expects a single input file");
+    C.ThinArchType = ActionArgs[0]->getValue();
+    validateArchitectureName(C.ThinArchType);
+    if (C.OutputFile.empty())
+      reportError("thin expects a single output file");
+
+    C.ActionToPerform = LipoAction::ThinArch;
+    return C;
+
+  default:
+    reportError("llvm-lipo action unspecified");
   }
-  return C;
 }
 
 static SmallVector<OwningBinary<Binary>, 1>
@@ -133,8 +199,12 @@ readInputBinaries(ArrayRef<std::string> InputFiles) {
         createBinary(InputFile);
     if (!BinaryOrErr)
       reportError(InputFile, BinaryOrErr.takeError());
-    if (!isa<MachOObjectFile>(BinaryOrErr->getBinary()) &&
-        !isa<MachOUniversalBinary>(BinaryOrErr->getBinary()))
+    // TODO: Add compatibility for archive files
+    if (BinaryOrErr->getBinary()->isArchive())
+      reportError("File " + InputFile +
+                  " is an archive file and is not yet supported.");
+    if (!BinaryOrErr->getBinary()->isMachO() &&
+        !BinaryOrErr->getBinary()->isMachOUniversalBinary())
       reportError("File " + InputFile + " has unsupported binary format");
     InputBinaries.push_back(std::move(*BinaryOrErr));
   }
@@ -144,15 +214,12 @@ readInputBinaries(ArrayRef<std::string> InputFiles) {
 LLVM_ATTRIBUTE_NORETURN
 static void verifyArch(ArrayRef<OwningBinary<Binary>> InputBinaries,
                        ArrayRef<std::string> VerifyArchList) {
-  assert(!InputBinaries.empty() &&
-         "The list of input binaries should be non-empty");
   assert(!VerifyArchList.empty() &&
          "The list of architectures should be non-empty");
   assert(InputBinaries.size() == 1 && "Incorrect number of input binaries");
 
   for (StringRef Arch : VerifyArchList)
-    if (Triple(Arch).getArch() == Triple::ArchType::UnknownArch)
-      reportError("Invalid architecture: " + Arch);
+    validateArchitectureName(Arch);
 
   if (auto UO =
           dyn_cast<MachOUniversalBinary>(InputBinaries.front().getBinary())) {
@@ -174,12 +241,95 @@ static void verifyArch(ArrayRef<OwningBinary<Binary>> InputBinaries,
   exit(EXIT_SUCCESS);
 }
 
+static void printArchOrUnknown(const MachOObjectFile *ObjectFile) {
+  // Prints trailing space and unknown in this format for compatibility with
+  // cctools lipo.
+  const std::string ObjectArch = ObjectFile->getArchTriple().getArchName();
+  if (ObjectArch.empty())
+    outs() << "unknown(" << ObjectFile->getHeader().cputype << ","
+           << ObjectFile->getHeader().cpusubtype << ") ";
+  else
+    outs() << ObjectArch + " ";
+}
+
+LLVM_ATTRIBUTE_NORETURN
+static void printArchs(ArrayRef<OwningBinary<Binary>> InputBinaries) {
+  assert(InputBinaries.size() == 1 && "Incorrect number of input binaries");
+  const Binary *InputBinary = InputBinaries.front().getBinary();
+  if (auto UO = dyn_cast<MachOUniversalBinary>(InputBinary)) {
+    for (MachOUniversalBinary::object_iterator I = UO->begin_objects(),
+                                               E = UO->end_objects();
+         I != E; ++I) {
+      Expected<std::unique_ptr<MachOObjectFile>> BinaryOrError =
+          I->getAsObjectFile();
+      if (!BinaryOrError)
+        reportError(InputBinary->getFileName(), BinaryOrError.takeError());
+      printArchOrUnknown(BinaryOrError.get().get());
+    }
+  } else if (auto O = dyn_cast<MachOObjectFile>(InputBinary)) {
+    printArchOrUnknown(O);
+  } else {
+    llvm_unreachable("Unexpected binary format");
+  }
+
+  outs() << "\n";
+  exit(EXIT_SUCCESS);
+}
+
+LLVM_ATTRIBUTE_NORETURN
+static void extractSlice(ArrayRef<OwningBinary<Binary>> InputBinaries,
+                         StringRef ThinArchType, StringRef OutputFileName) {
+  assert(!ThinArchType.empty() && "The architecture type should be non-empty");
+  assert(InputBinaries.size() == 1 && "Incorrect number of input binaries");
+  assert(!OutputFileName.empty() && "Thin expects a single output file");
+
+  if (InputBinaries.front().getBinary()->isMachO()) {
+    reportError("input file " +
+                InputBinaries.front().getBinary()->getFileName() +
+                " must be a fat file when the -thin option is specified");
+    exit(EXIT_FAILURE);
+  }
+
+  auto *UO = cast<MachOUniversalBinary>(InputBinaries.front().getBinary());
+  Expected<std::unique_ptr<MachOObjectFile>> Obj =
+      UO->getObjectForArch(ThinArchType);
+  if (!Obj)
+    reportError("fat input file " + UO->getFileName() +
+                " does not contain the specified architecture " + ThinArchType +
+                " to thin it to");
+
+  Expected<std::unique_ptr<FileOutputBuffer>> OutFileOrError =
+      FileOutputBuffer::create(OutputFileName,
+                               Obj.get()->getMemoryBufferRef().getBufferSize(),
+                               sys::fs::can_execute(UO->getFileName())
+                                   ? FileOutputBuffer::F_executable
+                                   : 0);
+  if (!OutFileOrError)
+    reportError(OutputFileName, OutFileOrError.takeError());
+  std::copy(Obj.get()->getMemoryBufferRef().getBufferStart(),
+            Obj.get()->getMemoryBufferRef().getBufferEnd(),
+            OutFileOrError.get()->getBufferStart());
+  if (Error E = OutFileOrError.get()->commit())
+    reportError(OutputFileName, std::move(E));
+  exit(EXIT_SUCCESS);
+}
+
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
   Config C = parseLipoOptions(makeArrayRef(argv + 1, argc));
   SmallVector<OwningBinary<Binary>, 1> InputBinaries =
       readInputBinaries(C.InputFiles);
-  if (!C.VerifyArchList.empty())
+
+  switch (C.ActionToPerform) {
+  case LipoAction::VerifyArch:
     verifyArch(InputBinaries, C.VerifyArchList);
+    break;
+  case LipoAction::PrintArchs:
+    printArchs(InputBinaries);
+    break;
+  case LipoAction::ThinArch:
+    extractSlice(InputBinaries, C.ThinArchType, C.OutputFile);
+    break;
+  }
   return EXIT_SUCCESS;
 }

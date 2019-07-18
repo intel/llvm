@@ -40,6 +40,12 @@ if ((CMAKE_GENERATOR MATCHES "Visual Studio") AND (CMAKE_GENERATOR_TOOLSET STREQ
                   "host compiler, pass -Thost=x64 on the CMake command line.")
 endif()
 
+if (CMAKE_GENERATOR STREQUAL "Xcode" AND NOT CMAKE_OSX_ARCHITECTURES)
+  # Some CMake features like object libraries get confused if you don't
+  # explicitly specify an architecture setting with the Xcode generator.
+  set(CMAKE_OSX_ARCHITECTURES "x86_64")
+endif()
+
 project(LLVM
   VERSION ${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}
   LANGUAGES C CXX ASM)
@@ -279,6 +285,7 @@ set(LLVM_ALL_TARGETS
   MSP430
   NVPTX
   PowerPC
+  RISCV
   Sparc
   SystemZ
   WebAssembly
@@ -635,10 +642,8 @@ option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default
 
 include(HandleLLVMOptions)
 
-# Verify that we can find a Python 2 interpreter.  Python 3 is unsupported.
-# FIXME: We should support systems with only Python 3, but that requires work
-# on LLDB.
-set(Python_ADDITIONAL_VERSIONS 2.7)
+# We support both Python 2 and 3.
+set(Python_ADDITIONAL_VERSIONS 3.7 3.6 3.5 2.7)
 include(FindPythonInterp)
 if( NOT PYTHONINTERP_FOUND )
   message(FATAL_ERROR
@@ -817,6 +822,13 @@ if(APPLE AND DARWIN_LTO_LIBRARY)
     "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-lto_library -Wl,${DARWIN_LTO_LIBRARY}")
   set(CMAKE_MODULE_LINKER_FLAGS
     "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-lto_library -Wl,${DARWIN_LTO_LIBRARY}")
+endif()
+
+# Build with _XOPEN_SOURCE on AIX, as stray macros in _ALL_SOURCE mode tend to
+# break things. In this case we need to enable the large-file API as well.
+if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+          add_definitions("-D_XOPEN_SOURCE=700")
+          add_definitions("-D_LARGE_FILE_API")
 endif()
 
 # Work around a broken bfd ld behavior. When linking a binary with a
@@ -1061,36 +1073,8 @@ endif()
 
 # This must be at the end of the LLVM root CMakeLists file because it must run
 # after all targets are created.
-if(LLVM_DISTRIBUTION_COMPONENTS)
-  if(LLVM_ENABLE_IDE)
-    message(FATAL_ERROR "LLVM_DISTRIBUTION_COMPONENTS cannot be specified with multi-configuration generators (i.e. Xcode or Visual Studio)")
-  endif()
-
-  add_custom_target(distribution)
-  add_custom_target(install-distribution)
-  add_custom_target(install-distribution-stripped)
-  foreach(target ${LLVM_DISTRIBUTION_COMPONENTS} ${LLVM_RUNTIME_DISTRIBUTION_COMPONENTS})
-    if(TARGET ${target})
-      add_dependencies(distribution ${target})
-    else()
-      message(SEND_ERROR "Specified distribution component '${target}' doesn't have a target")
-    endif()
-
-    if(TARGET install-${target})
-      add_dependencies(install-distribution install-${target})
-    else()
-      message(SEND_ERROR "Specified distribution component '${target}' doesn't have an install target")
-    endif()
-
-    if(TARGET install-${target}-stripped)
-      add_dependencies(install-distribution-stripped install-${target}-stripped)
-    else()
-      message(SEND_ERROR "Specified distribution component '${target}' doesn't have an install-stripped target."
-                         " Its installation target creation should be changed to use add_llvm_install_targets,"
-                         " or you should manually create the 'install-${target}-stripped' target.")
-    endif()
-  endforeach()
-endif()
+include(LLVMDistributionSupport)
+llvm_distribution_add_targets()
 
 # This allows us to deploy the Universal CRT DLLs by passing -DCMAKE_INSTALL_UCRT_LIBRARIES=ON to CMake
 if (MSVC AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_INSTALL_UCRT_LIBRARIES)

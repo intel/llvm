@@ -90,7 +90,7 @@ ParsedType Sema::getConstructorName(IdentifierInfo &II,
   // When naming a constructor as a member of a dependent context (eg, in a
   // friend declaration or an inherited constructor declaration), form an
   // unresolved "typename" type.
-  if (CurClass->isDependentContext() && !EnteringContext) {
+  if (CurClass->isDependentContext() && !EnteringContext && SS.getScopeRep()) {
     QualType T = Context.getDependentNameType(ETK_None, SS.getScopeRep(), &II);
     return ParsedType::make(T);
   }
@@ -1259,7 +1259,7 @@ ExprResult Sema::ActOnCXXThis(SourceLocation Loc) {
   QualType ThisTy = getCurrentThisType();
   if (ThisTy.isNull())
     return Diag(Loc, diag::err_invalid_this_use);
-  return BuildCXXThisExpr(Loc, ThisTy, /*isImplicit=*/false);
+  return BuildCXXThisExpr(Loc, ThisTy, /*IsImplicit=*/false);
 }
 
 Expr *Sema::BuildCXXThisExpr(SourceLocation Loc, QualType Type,
@@ -2423,7 +2423,11 @@ bool Sema::FindAllocationFunctions(SourceLocation StartLoc, SourceRange Range,
     }
 
     if (getLangOpts().OpenCLCPlusPlus && R.empty()) {
-      Diag(StartLoc, diag::err_openclcxx_not_supported) << "default new";
+      if (PlaceArgs.empty()) {
+        Diag(StartLoc, diag::err_openclcxx_not_supported) << "default new";
+      } else {
+        Diag(StartLoc, diag::err_openclcxx_placement_new);
+      }
       return true;
     }
 
@@ -4222,7 +4226,15 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
     break;
 
   case ICK_Block_Pointer_Conversion: {
-    From = ImpCastExprToType(From, ToType.getUnqualifiedType(), CK_BitCast,
+    LangAS AddrSpaceL =
+        ToType->castAs<BlockPointerType>()->getPointeeType().getAddressSpace();
+    LangAS AddrSpaceR =
+        FromType->castAs<BlockPointerType>()->getPointeeType().getAddressSpace();
+    assert(Qualifiers::isAddressSpaceSupersetOf(AddrSpaceL, AddrSpaceR) &&
+           "Invalid cast");
+    CastKind Kind =
+        AddrSpaceL != AddrSpaceR ? CK_AddressSpaceConversion : CK_BitCast;
+    From = ImpCastExprToType(From, ToType.getUnqualifiedType(), Kind,
                              VK_RValue, /*BasePath=*/nullptr, CCK).get();
     break;
   }
@@ -7199,12 +7211,12 @@ ExprResult Sema::BuildCXXMemberCallExpr(Expr *E, NamedDecl *FoundDecl,
     }
   }
 
-  MemberExpr *ME = new (Context) MemberExpr(
-      Exp.get(), /*IsArrow=*/false, SourceLocation(), Method, SourceLocation(),
-      Context.BoundMemberTy, VK_RValue, OK_Ordinary);
-  if (HadMultipleCandidates)
-    ME->setHadMultipleCandidates(true);
-  MarkMemberReferenced(ME);
+  MemberExpr *ME =
+      BuildMemberExpr(Exp.get(), /*IsArrow=*/false, SourceLocation(),
+                      NestedNameSpecifierLoc(), SourceLocation(), Method,
+                      DeclAccessPair::make(FoundDecl, FoundDecl->getAccess()),
+                      HadMultipleCandidates, DeclarationNameInfo(),
+                      Context.BoundMemberTy, VK_RValue, OK_Ordinary);
 
   QualType ResultType = Method->getReturnType();
   ExprValueKind VK = Expr::getValueKindForType(ResultType);
@@ -7405,7 +7417,7 @@ static inline bool VariableCanNeverBeAConstantExpression(VarDecl *Var,
     return false;
   }
 
-  return !IsVariableAConstantExpression(Var, Context);
+  return !Var->isUsableInConstantExpressions(Context);
 }
 
 /// Check if the current lambda has any potential captures

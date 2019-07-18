@@ -573,14 +573,12 @@ define <6 x i32> @saddo_v6i32(<6 x i32> %a0, <6 x i32> %a1, <6 x i32>* %p2) noun
 ; AVX1-NEXT:    vpcmpgtd %xmm2, %xmm3, %xmm6
 ; AVX1-NEXT:    vpxor %xmm5, %xmm6, %xmm6
 ; AVX1-NEXT:    vpcmpeqd %xmm6, %xmm7, %xmm6
-; AVX1-NEXT:    vpxor %xmm5, %xmm6, %xmm6
 ; AVX1-NEXT:    vpaddd %xmm1, %xmm0, %xmm1
 ; AVX1-NEXT:    vpcmpgtd %xmm1, %xmm3, %xmm0
 ; AVX1-NEXT:    vpxor %xmm5, %xmm0, %xmm0
 ; AVX1-NEXT:    vpcmpeqd %xmm0, %xmm4, %xmm0
-; AVX1-NEXT:    vpxor %xmm5, %xmm0, %xmm0
 ; AVX1-NEXT:    vinsertf128 $1, %xmm6, %ymm0, %ymm0
-; AVX1-NEXT:    vandps %ymm0, %ymm8, %ymm0
+; AVX1-NEXT:    vandnps %ymm8, %ymm0, %ymm0
 ; AVX1-NEXT:    vmovq %xmm2, 16(%rdi)
 ; AVX1-NEXT:    vmovdqa %xmm1, (%rdi)
 ; AVX1-NEXT:    retq
@@ -685,14 +683,12 @@ define <8 x i32> @saddo_v8i32(<8 x i32> %a0, <8 x i32> %a1, <8 x i32>* %p2) noun
 ; AVX1-NEXT:    vpcmpgtd %xmm2, %xmm3, %xmm6
 ; AVX1-NEXT:    vpxor %xmm5, %xmm6, %xmm6
 ; AVX1-NEXT:    vpcmpeqd %xmm6, %xmm7, %xmm6
-; AVX1-NEXT:    vpxor %xmm5, %xmm6, %xmm6
 ; AVX1-NEXT:    vpaddd %xmm1, %xmm0, %xmm1
 ; AVX1-NEXT:    vpcmpgtd %xmm1, %xmm3, %xmm0
 ; AVX1-NEXT:    vpxor %xmm5, %xmm0, %xmm0
 ; AVX1-NEXT:    vpcmpeqd %xmm0, %xmm4, %xmm0
-; AVX1-NEXT:    vpxor %xmm5, %xmm0, %xmm0
 ; AVX1-NEXT:    vinsertf128 $1, %xmm6, %ymm0, %ymm0
-; AVX1-NEXT:    vandps %ymm0, %ymm8, %ymm0
+; AVX1-NEXT:    vandnps %ymm8, %ymm0, %ymm0
 ; AVX1-NEXT:    vmovdqa %xmm2, 16(%rdi)
 ; AVX1-NEXT:    vmovdqa %xmm1, (%rdi)
 ; AVX1-NEXT:    retq

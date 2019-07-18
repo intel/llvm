@@ -36,7 +36,7 @@ DynamicTypeInfo getDynamicTypeInfo(ProgramStateRef State,
 
   // Otherwise, fall back to what we know about the region.
   if (const auto *TR = dyn_cast<TypedRegion>(Reg))
-    return DynamicTypeInfo(TR->getLocationType(), /*CanBeSubclass=*/false);
+    return DynamicTypeInfo(TR->getLocationType(), /*CanBeSub=*/false);
 
   if (const auto *SR = dyn_cast<SymbolicRegion>(Reg)) {
     SymbolRef Sym = SR->getSymbol();
@@ -72,12 +72,12 @@ void printDynamicTypeInfoJson(raw_ostream &Out, ProgramStateRef State,
     Out << "{ \"region\": \"" << MR << "\", \"dyn_type\": ";
     if (DTI.isValid()) {
       Out << '\"' << DTI.getType()->getPointeeType().getAsString()
-          << "\" \"sub_classable\": "
+          << "\", \"sub_classable\": "
           << (DTI.canBeASubClass() ? "true" : "false");
     } else {
       Out << "null"; // Invalid type info
     }
-    Out << "\" }";
+    Out << "}";
 
     if (std::next(I) != DTM.end())
       Out << ',';

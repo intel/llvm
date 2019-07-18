@@ -91,10 +91,16 @@ public:
     initLinkerInitialized(ReleaseToOsInterval);
   }
 
+  void unmapTestOnly() {
+    unmap(reinterpret_cast<void *>(PrimaryBase), PrimarySize, UNMAP_ALL, &Data);
+    unmap(reinterpret_cast<void *>(RegionInfoArray),
+          sizeof(RegionInfo) * NumClasses);
+  }
+
   TransferBatch *popBatch(CacheT *C, uptr ClassId) {
     DCHECK_LT(ClassId, NumClasses);
     RegionInfo *Region = getRegionInfo(ClassId);
-    BlockingMutexLock L(&Region->Mutex);
+    ScopedLock L(Region->Mutex);
     TransferBatch *B = Region->FreeList.front();
     if (B)
       Region->FreeList.pop_front();
@@ -111,7 +117,7 @@ public:
   void pushBatch(uptr ClassId, TransferBatch *B) {
     DCHECK_GT(B->getCount(), 0);
     RegionInfo *Region = getRegionInfo(ClassId);
-    BlockingMutexLock L(&Region->Mutex);
+    ScopedLock L(Region->Mutex);
     Region->FreeList.push_front(B);
     Region->Stats.PushedBlocks += B->getCount();
     if (Region->CanRelease)
@@ -160,9 +166,11 @@ public:
   }
 
   void releaseToOS() {
-    for (uptr I = 1; I < NumClasses; I++) {
+    for (uptr I = 0; I < NumClasses; I++) {
+      if (I == SizeClassMap::BatchClassId)
+        continue;
       RegionInfo *Region = getRegionInfo(I);
-      BlockingMutexLock L(&Region->Mutex);
+      ScopedLock L(Region->Mutex);
       releaseToOSMaybe(Region, I, /*Force=*/true);
     }
   }
@@ -188,7 +196,7 @@ private:
   };
 
   struct ALIGNED(SCUDO_CACHE_LINE_SIZE) RegionInfo {
-    BlockingMutex Mutex;
+    HybridMutex Mutex;
     IntrusiveList<TransferBatch> FreeList;
     RegionStats Stats;
     bool CanRelease;
@@ -243,7 +251,7 @@ private:
   NOINLINE TransferBatch *populateFreeList(CacheT *C, uptr ClassId,
                                            RegionInfo *Region) {
     const uptr Size = getSizeByClassId(ClassId);
-    const u32 MaxCount = TransferBatch::MaxCached(Size);
+    const u32 MaxCount = TransferBatch::getMaxCached(Size);
 
     const uptr RegionBeg = Region->RegionBeg;
     const uptr MappedUser = Region->MappedUser;

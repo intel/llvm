@@ -11,6 +11,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 
 using namespace lldb_private;
 using namespace llvm;
@@ -33,7 +34,8 @@ static bool IsCaseSensitivePath(StringRef path) {
   return true;
 }
 
-FileCollector::FileCollector(const FileSpec &root) : m_root(root) {
+FileCollector::FileCollector(const FileSpec &root, const FileSpec &overlay_root)
+    : m_root(root), m_overlay_root(overlay_root) {
   sys::fs::create_directories(m_root.GetPath(), true);
 }
 
@@ -103,6 +105,27 @@ void FileCollector::AddFileImpl(StringRef src_path) {
   AddFileToMapping(virtual_path, dst_path);
 }
 
+/// Set the access and modification time for the given file from the given
+/// status object.
+static std::error_code
+CopyAccessAndModificationTime(StringRef filename,
+                              const sys::fs::file_status &stat) {
+  int fd;
+
+  if (auto ec =
+          sys::fs::openFileForWrite(filename, fd, sys::fs::CD_OpenExisting))
+    return ec;
+
+  if (auto ec = sys::fs::setLastAccessAndModificationTime(
+          fd, stat.getLastAccessedTime(), stat.getLastModificationTime()))
+    return ec;
+
+  if (auto ec = sys::Process::SafelyCloseFileDescriptor(fd))
+    return ec;
+
+  return {};
+}
+
 std::error_code FileCollector::CopyFiles(bool stop_on_error) {
   for (auto &entry : m_vfs_writer.getMappings()) {
     // Create directory tree.
@@ -126,6 +149,15 @@ std::error_code FileCollector::CopyFiles(bool stop_on_error) {
           return ec;
       }
     }
+
+    // Copy over modification time.
+    sys::fs::file_status stat;
+    if (std::error_code ec = sys::fs::status(entry.VPath, stat)) {
+      if (stop_on_error)
+        return ec;
+      continue;
+    }
+    CopyAccessAndModificationTime(entry.RPath, stat);
   }
   return {};
 }
@@ -133,7 +165,9 @@ std::error_code FileCollector::CopyFiles(bool stop_on_error) {
 std::error_code FileCollector::WriteMapping(const FileSpec &mapping_file) {
   std::lock_guard<std::mutex> lock(m_mutex);
 
-  const std::string root = m_root.GetPath();
+  std::string root = m_overlay_root.GetPath();
+
+  m_vfs_writer.setOverlayDir(root);
   m_vfs_writer.setCaseSensitivity(IsCaseSensitivePath(root));
   m_vfs_writer.setUseExternalNames(false);
 

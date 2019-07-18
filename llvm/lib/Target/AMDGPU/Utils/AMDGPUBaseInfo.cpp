@@ -10,6 +10,7 @@
 #include "AMDGPUTargetTransformInfo.h"
 #include "AMDGPU.h"
 #include "SIDefines.h"
+#include "AMDGPUAsmUtils.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -104,6 +105,7 @@ namespace AMDGPU {
 #define GET_MIMGDimInfoTable_IMPL
 #define GET_MIMGInfoTable_IMPL
 #define GET_MIMGLZMappingTable_IMPL
+#define GET_MIMGMIPMappingTable_IMPL
 #include "AMDGPUGenSearchableTables.inc"
 
 int getMIMGOpcode(unsigned BaseOpcode, unsigned MIMGEncoding,
@@ -378,12 +380,17 @@ unsigned getNumSGPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs) {
   return NumSGPRs / getSGPREncodingGranule(STI) - 1;
 }
 
-unsigned getVGPRAllocGranule(const MCSubtargetInfo *STI) {
-  return 4;
+unsigned getVGPRAllocGranule(const MCSubtargetInfo *STI,
+                             Optional<bool> EnableWavefrontSize32) {
+  bool IsWave32 = EnableWavefrontSize32 ?
+      *EnableWavefrontSize32 :
+      STI->getFeatureBits().test(FeatureWavefrontSize32);
+  return IsWave32 ? 8 : 4;
 }
 
-unsigned getVGPREncodingGranule(const MCSubtargetInfo *STI) {
-  return getVGPRAllocGranule(STI);
+unsigned getVGPREncodingGranule(const MCSubtargetInfo *STI,
+                                Optional<bool> EnableWavefrontSize32) {
+  return getVGPRAllocGranule(STI, EnableWavefrontSize32);
 }
 
 unsigned getTotalNumVGPRs(const MCSubtargetInfo *STI) {
@@ -414,10 +421,12 @@ unsigned getMaxNumVGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU) {
   return std::min(MaxNumVGPRs, AddressableNumVGPRs);
 }
 
-unsigned getNumVGPRBlocks(const MCSubtargetInfo *STI, unsigned NumVGPRs) {
-  NumVGPRs = alignTo(std::max(1u, NumVGPRs), getVGPREncodingGranule(STI));
+unsigned getNumVGPRBlocks(const MCSubtargetInfo *STI, unsigned NumVGPRs,
+                          Optional<bool> EnableWavefrontSize32) {
+  NumVGPRs = alignTo(std::max(1u, NumVGPRs),
+                     getVGPREncodingGranule(STI, EnableWavefrontSize32));
   // VGPRBlocks is actual number of VGPR blocks minus 1.
-  return NumVGPRs / getVGPREncodingGranule(STI) - 1;
+  return NumVGPRs / getVGPREncodingGranule(STI, EnableWavefrontSize32) - 1;
 }
 
 } // end namespace IsaInfo
@@ -435,7 +444,6 @@ void initDefaultAMDKernelCodeT(amd_kernel_code_t &Header,
   Header.amd_machine_version_minor = Version.Minor;
   Header.amd_machine_version_stepping = Version.Stepping;
   Header.kernel_code_entry_byte_offset = sizeof(Header);
-  // wavefront_size is specified as a power of 2: 2^6 = 64 threads.
   Header.wavefront_size = 6;
 
   // If the code object does not support indirect functions, then the value must
@@ -449,6 +457,10 @@ void initDefaultAMDKernelCodeT(amd_kernel_code_t &Header,
   Header.private_segment_alignment = 4;
 
   if (Version.Major >= 10) {
+    if (STI->getFeatureBits().test(FeatureWavefrontSize32)) {
+      Header.wavefront_size = 5;
+      Header.code_properties |= AMD_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32;
+    }
     Header.compute_pgm_resource_registers |=
       S_00B848_WGP_MODE(STI->getFeatureBits().test(FeatureCuMode) ? 0 : 1) |
       S_00B848_MEM_ORDERED(1);
@@ -472,6 +484,9 @@ amdhsa::kernel_descriptor_t getDefaultAmdhsaKernelDescriptor(
   AMDHSA_BITS_SET(KD.compute_pgm_rsrc2,
                   amdhsa::COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_ID_X, 1);
   if (Version.Major >= 10) {
+    AMDHSA_BITS_SET(KD.kernel_code_properties,
+                    amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32,
+                    STI->getFeatureBits().test(FeatureWavefrontSize32) ? 1 : 0);
     AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
                     amdhsa::COMPUTE_PGM_RSRC1_WGP_MODE,
                     STI->getFeatureBits().test(FeatureCuMode) ? 0 : 1);
@@ -638,6 +653,181 @@ unsigned encodeWaitcnt(const IsaVersion &Version,
 unsigned encodeWaitcnt(const IsaVersion &Version, const Waitcnt &Decoded) {
   return encodeWaitcnt(Version, Decoded.VmCnt, Decoded.ExpCnt, Decoded.LgkmCnt);
 }
+
+//===----------------------------------------------------------------------===//
+// hwreg
+//===----------------------------------------------------------------------===//
+
+namespace Hwreg {
+
+int64_t getHwregId(const StringRef Name) {
+  for (int Id = ID_SYMBOLIC_FIRST_; Id < ID_SYMBOLIC_LAST_; ++Id) {
+    if (IdSymbolic[Id] && Name == IdSymbolic[Id])
+      return Id;
+  }
+  return ID_UNKNOWN_;
+}
+
+static unsigned getLastSymbolicHwreg(const MCSubtargetInfo &STI) {
+  if (isSI(STI) || isCI(STI) || isVI(STI))
+    return ID_SYMBOLIC_FIRST_GFX9_;
+  else if (isGFX9(STI))
+    return ID_SYMBOLIC_FIRST_GFX10_;
+  else
+    return ID_SYMBOLIC_LAST_;
+}
+
+bool isValidHwreg(int64_t Id, const MCSubtargetInfo &STI) {
+  return ID_SYMBOLIC_FIRST_ <= Id && Id < getLastSymbolicHwreg(STI) &&
+         IdSymbolic[Id];
+}
+
+bool isValidHwreg(int64_t Id) {
+  return 0 <= Id && isUInt<ID_WIDTH_>(Id);
+}
+
+bool isValidHwregOffset(int64_t Offset) {
+  return 0 <= Offset && isUInt<OFFSET_WIDTH_>(Offset);
+}
+
+bool isValidHwregWidth(int64_t Width) {
+  return 0 <= (Width - 1) && isUInt<WIDTH_M1_WIDTH_>(Width - 1);
+}
+
+uint64_t encodeHwreg(uint64_t Id, uint64_t Offset, uint64_t Width) {
+  return (Id << ID_SHIFT_) |
+         (Offset << OFFSET_SHIFT_) |
+         ((Width - 1) << WIDTH_M1_SHIFT_);
+}
+
+StringRef getHwreg(unsigned Id, const MCSubtargetInfo &STI) {
+  return isValidHwreg(Id, STI) ? IdSymbolic[Id] : "";
+}
+
+void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width) {
+  Id = (Val & ID_MASK_) >> ID_SHIFT_;
+  Offset = (Val & OFFSET_MASK_) >> OFFSET_SHIFT_;
+  Width = ((Val & WIDTH_M1_MASK_) >> WIDTH_M1_SHIFT_) + 1;
+}
+
+} // namespace Hwreg
+
+//===----------------------------------------------------------------------===//
+// SendMsg
+//===----------------------------------------------------------------------===//
+
+namespace SendMsg {
+
+int64_t getMsgId(const StringRef Name) {
+  for (int i = ID_GAPS_FIRST_; i < ID_GAPS_LAST_; ++i) {
+    if (IdSymbolic[i] && Name == IdSymbolic[i])
+      return i;
+  }
+  return ID_UNKNOWN_;
+}
+
+static bool isValidMsgId(int64_t MsgId) {
+  return (ID_GAPS_FIRST_ <= MsgId && MsgId < ID_GAPS_LAST_) && IdSymbolic[MsgId];
+}
+
+bool isValidMsgId(int64_t MsgId, const MCSubtargetInfo &STI, bool Strict) {
+  if (Strict) {
+    if (MsgId == ID_GS_ALLOC_REQ || MsgId == ID_GET_DOORBELL)
+      return isGFX9(STI) || isGFX10(STI);
+    else
+      return isValidMsgId(MsgId);
+  } else {
+    return 0 <= MsgId && isUInt<ID_WIDTH_>(MsgId);
+  }
+}
+
+StringRef getMsgName(int64_t MsgId) {
+  return isValidMsgId(MsgId)? IdSymbolic[MsgId] : "";
+}
+
+int64_t getMsgOpId(int64_t MsgId, const StringRef Name) {
+  const char* const *S = (MsgId == ID_SYSMSG) ? OpSysSymbolic : OpGsSymbolic;
+  const int F = (MsgId == ID_SYSMSG) ? OP_SYS_FIRST_ : OP_GS_FIRST_;
+  const int L = (MsgId == ID_SYSMSG) ? OP_SYS_LAST_ : OP_GS_LAST_;
+  for (int i = F; i < L; ++i) {
+    if (Name == S[i]) {
+      return i;
+    }
+  }
+  return OP_UNKNOWN_;
+}
+
+bool isValidMsgOp(int64_t MsgId, int64_t OpId, bool Strict) {
+
+  if (!Strict)
+    return 0 <= OpId && isUInt<OP_WIDTH_>(OpId);
+
+  switch(MsgId)
+  {
+  case ID_GS:
+    return (OP_GS_FIRST_ <= OpId && OpId < OP_GS_LAST_) && OpId != OP_GS_NOP;
+  case ID_GS_DONE:
+    return OP_GS_FIRST_ <= OpId && OpId < OP_GS_LAST_;
+  case ID_SYSMSG:
+    return OP_SYS_FIRST_ <= OpId && OpId < OP_SYS_LAST_;
+  default:
+    return OpId == OP_NONE_;
+  }
+}
+
+StringRef getMsgOpName(int64_t MsgId, int64_t OpId) {
+  assert(msgRequiresOp(MsgId));
+  return (MsgId == ID_SYSMSG)? OpSysSymbolic[OpId] : OpGsSymbolic[OpId];
+}
+
+bool isValidMsgStream(int64_t MsgId, int64_t OpId, int64_t StreamId, bool Strict) {
+
+  if (!Strict)
+    return 0 <= StreamId && isUInt<STREAM_ID_WIDTH_>(StreamId);
+
+  switch(MsgId)
+  {
+  case ID_GS:
+    return STREAM_ID_FIRST_ <= StreamId && StreamId < STREAM_ID_LAST_;
+  case ID_GS_DONE:
+    return (OpId == OP_GS_NOP)?
+           (StreamId == STREAM_ID_NONE_) :
+           (STREAM_ID_FIRST_ <= StreamId && StreamId < STREAM_ID_LAST_);
+  default:
+    return StreamId == STREAM_ID_NONE_;
+  }
+}
+
+bool msgRequiresOp(int64_t MsgId) {
+  return MsgId == ID_GS || MsgId == ID_GS_DONE || MsgId == ID_SYSMSG;
+}
+
+bool msgSupportsStream(int64_t MsgId, int64_t OpId) {
+  return (MsgId == ID_GS || MsgId == ID_GS_DONE) && OpId != OP_GS_NOP;
+}
+
+void decodeMsg(unsigned Val,
+               uint16_t &MsgId,
+               uint16_t &OpId,
+               uint16_t &StreamId) {
+  MsgId = Val & ID_MASK_;
+  OpId = (Val & OP_MASK_) >> OP_SHIFT_;
+  StreamId = (Val & STREAM_ID_MASK_) >> STREAM_ID_SHIFT_;
+}
+
+uint64_t encodeMsg(uint64_t MsgId,
+                   uint64_t OpId,
+                   uint64_t StreamId) {
+  return (MsgId << ID_SHIFT_) |
+         (OpId << OP_SHIFT_) |
+         (StreamId << STREAM_ID_SHIFT_);
+}
+
+} // namespace SendMsg
+
+//===----------------------------------------------------------------------===//
+//
+//===----------------------------------------------------------------------===//
 
 unsigned getInitialPSInputAddr(const Function &F) {
   return getIntegerAttribute(F, "InitialPSInputAddr", 0);
@@ -822,6 +1012,10 @@ bool isSISrcFPOperand(const MCInstrDesc &Desc, unsigned OpNo) {
   case AMDGPU::OPERAND_REG_INLINE_C_FP16:
   case AMDGPU::OPERAND_REG_INLINE_C_V2FP16:
   case AMDGPU::OPERAND_REG_INLINE_C_V2INT16:
+  case AMDGPU::OPERAND_REG_INLINE_AC_FP32:
+  case AMDGPU::OPERAND_REG_INLINE_AC_FP16:
+  case AMDGPU::OPERAND_REG_INLINE_AC_V2FP16:
+  case AMDGPU::OPERAND_REG_INLINE_AC_V2INT16:
     return true;
   default:
     return false;
@@ -842,15 +1036,19 @@ unsigned getRegBitWidth(unsigned RCID) {
   case AMDGPU::SGPR_32RegClassID:
   case AMDGPU::VGPR_32RegClassID:
   case AMDGPU::VRegOrLds_32RegClassID:
+  case AMDGPU::AGPR_32RegClassID:
   case AMDGPU::VS_32RegClassID:
+  case AMDGPU::AV_32RegClassID:
   case AMDGPU::SReg_32RegClassID:
   case AMDGPU::SReg_32_XM0RegClassID:
   case AMDGPU::SRegOrLds_32RegClassID:
     return 32;
   case AMDGPU::SGPR_64RegClassID:
   case AMDGPU::VS_64RegClassID:
+  case AMDGPU::AV_64RegClassID:
   case AMDGPU::SReg_64RegClassID:
   case AMDGPU::VReg_64RegClassID:
+  case AMDGPU::AReg_64RegClassID:
   case AMDGPU::SReg_64_XEXECRegClassID:
     return 64;
   case AMDGPU::SGPR_96RegClassID:
@@ -860,6 +1058,7 @@ unsigned getRegBitWidth(unsigned RCID) {
   case AMDGPU::SGPR_128RegClassID:
   case AMDGPU::SReg_128RegClassID:
   case AMDGPU::VReg_128RegClassID:
+  case AMDGPU::AReg_128RegClassID:
     return 128;
   case AMDGPU::SGPR_160RegClassID:
   case AMDGPU::SReg_160RegClassID:
@@ -870,7 +1069,12 @@ unsigned getRegBitWidth(unsigned RCID) {
     return 256;
   case AMDGPU::SReg_512RegClassID:
   case AMDGPU::VReg_512RegClassID:
+  case AMDGPU::AReg_512RegClassID:
     return 512;
+  case AMDGPU::SReg_1024RegClassID:
+  case AMDGPU::VReg_1024RegClassID:
+  case AMDGPU::AReg_1024RegClassID:
+    return 1024;
   default:
     llvm_unreachable("Unexpected register class");
   }

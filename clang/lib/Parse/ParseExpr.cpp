@@ -1223,6 +1223,9 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   case tok::kw_static_cast:
     Res = ParseCXXCasts();
     break;
+  case tok::kw___builtin_bit_cast:
+    Res = ParseBuiltinBitCast();
+    break;
   case tok::kw_typeid:
     Res = ParseCXXTypeid();
     break;
@@ -1770,7 +1773,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
       if (Tok.is(tok::code_completion)) {
         tok::TokenKind CorrectedOpKind =
             OpKind == tok::arrow ? tok::period : tok::arrow;
-        ExprResult CorrectedLHS(/*IsInvalid=*/true);
+        ExprResult CorrectedLHS(/*Invalid=*/true);
         if (getLangOpts().CPlusPlus && OrigLHS) {
           const bool DiagsAreSuppressed = Diags.getSuppressAllDiagnostics();
           Diags.setSuppressAllDiagnostics(true);
@@ -2094,7 +2097,7 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
   if (isCastExpr)
     return Actions.ActOnUnaryExprOrTypeTraitExpr(OpTok.getLocation(),
                                                  ExprKind,
-                                                 /*isType=*/true,
+                                                 /*IsType=*/true,
                                                  CastTy.getAsOpaquePtr(),
                                                  CastRange);
 
@@ -2105,7 +2108,7 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
   if (!Operand.isInvalid())
     Operand = Actions.ActOnUnaryExprOrTypeTraitExpr(OpTok.getLocation(),
                                                     ExprKind,
-                                                    /*isType=*/false,
+                                                    /*IsType=*/false,
                                                     Operand.get(),
                                                     CastRange);
   return Operand;
@@ -3097,7 +3100,7 @@ ExprResult Parser::ParseBlockLiteralExpression() {
                                      /*IsAmbiguous=*/false,
                                      /*RParenLoc=*/NoLoc,
                                      /*ArgInfo=*/nullptr,
-                                     /*NumArgs=*/0,
+                                     /*NumParams=*/0,
                                      /*EllipsisLoc=*/NoLoc,
                                      /*RParenLoc=*/NoLoc,
                                      /*RefQualifierIsLvalueRef=*/true,

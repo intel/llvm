@@ -33,6 +33,39 @@ if(ANDROID)
   append_list_if(COMPILER_RT_HAS_Z_GLOBAL -Wl,-z,global SCUDO_LINK_FLAGS)
 endif()
 
+set(SCUDO_HEADERS
+  allocator_config.h
+  atomic_helpers.h
+  bytemap.h
+  checksum.h
+  chunk.h
+  combined.h
+  flags.h
+  flags_parser.h
+  fuchsia.h
+  interface.h
+  internal_defs.h
+  linux.h
+  list.h
+  local_cache.h
+  mutex.h
+  platform.h
+  primary32.h
+  primary64.h
+  quarantine.h
+  release.h
+  report.h
+  secondary.h
+  size_class_map.h
+  stats.h
+  string_utils.h
+  tsd.h
+  tsd_exclusive.h
+  tsd_shared.h
+  vector.h
+  wrappers_c_checks.h
+  wrappers_c.h)
+
 set(SCUDO_SOURCES
   checksum.cc
   crc32_hw.cc
@@ -56,31 +89,11 @@ if (COMPILER_RT_HAS_MCRC_FLAG)
   set_source_files_properties(crc32_hw.cc PROPERTIES COMPILE_FLAGS -mcrc)
 endif()
 
-set(SCUDO_HEADERS
-  atomic_helpers.h
-  bytemap.h
-  checksum.h
-  chunk.h
-  flags.h
-  flags_parser.h
-  fuchsia.h
-  interface.h
-  internal_defs.h
-  linux.h
-  list.h
-  local_cache.h
-  mutex.h
-  platform.h
-  primary32.h
-  primary64.h
-  quarantine.h
-  release.h
-  report.h
-  secondary.h
-  size_class_map.h
-  stats.h
-  string_utils.h
-  vector.h)
+set(SCUDO_SOURCES_C_WRAPPERS
+  wrappers_c.cc)
+
+set(SCUDO_SOURCES_CXX_WRAPPERS
+  wrappers_cpp.cc)
 
 if(COMPILER_RT_HAS_SCUDO_STANDALONE)
   add_compiler_rt_object_libraries(RTScudoStandalone
@@ -88,11 +101,28 @@ if(COMPILER_RT_HAS_SCUDO_STANDALONE)
     SOURCES ${SCUDO_SOURCES}
     ADDITIONAL_HEADERS ${SCUDO_HEADERS}
     CFLAGS ${SCUDO_CFLAGS})
+  add_compiler_rt_object_libraries(RTScudoStandaloneCWrappers
+    ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
+    SOURCES ${SCUDO_SOURCES_C_WRAPPERS}
+    ADDITIONAL_HEADERS ${SCUDO_HEADERS}
+    CFLAGS ${SCUDO_CFLAGS})
+  add_compiler_rt_object_libraries(RTScudoStandaloneCxxWrappers
+    ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
+    SOURCES ${SCUDO_SOURCES_CXX_WRAPPERS}
+    ADDITIONAL_HEADERS ${SCUDO_HEADERS}
+    CFLAGS ${SCUDO_CFLAGS})
 
   add_compiler_rt_runtime(clang_rt.scudo_standalone
     STATIC
     ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
-    SOURCES ${SCUDO_SOURCES}
+    SOURCES ${SCUDO_SOURCES} ${SCUDO_SOURCES_C_WRAPPERS}
+    ADDITIONAL_HEADERS ${SCUDO_HEADERS}
+    CFLAGS ${SCUDO_CFLAGS}
+    PARENT_TARGET scudo_standalone)
+  add_compiler_rt_runtime(clang_rt.scudo_standalone_cxx
+    STATIC
+    ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
+    SOURCES ${SCUDO_SOURCES_CXX_WRAPPERS}
     ADDITIONAL_HEADERS ${SCUDO_HEADERS}
     CFLAGS ${SCUDO_CFLAGS}
     PARENT_TARGET scudo_standalone)

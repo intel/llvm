@@ -427,7 +427,7 @@ uint64_t Type::getArrayNumElements() const {
 class VectorType : public SequentialType {
   /// A fully specified VectorType is of the form <vscale x n x Ty>. 'n' is the
   /// minimum number of elements of type Ty contained within the vector, and
-  /// 'scalable' indicates that the total element count is an integer multiple
+  /// 'vscale x' indicates that the total element count is an integer multiple
   /// of 'n', where the multiple is either guaranteed to be one, or is
   /// statically unknown at compile time.
   ///

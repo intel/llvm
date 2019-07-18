@@ -60,6 +60,7 @@ private:
                              unsigned AS,
                              Instruction *I = nullptr) const override;
   bool allowsMisalignedMemoryAccesses(EVT, unsigned AddrSpace, unsigned Align,
+                                      MachineMemOperand::Flags Flags,
                                       bool *Fast) const override;
   bool isIntDivCheap(EVT VT, AttributeList Attr) const override;
 
@@ -87,6 +88,10 @@ private:
 
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
+
+  const char *getClearCacheBuiltinName() const override {
+    report_fatal_error("llvm.clear_cache is not supported on wasm");
+  }
 
   // Custom lowering hooks.
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;

@@ -58,7 +58,7 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     # Set the per-target builtins options.
     list(APPEND BUILTIN_TARGETS "${target}")
     set(BUILTINS_${target}_CMAKE_SYSTEM_NAME Linux CACHE STRING "")
-    set(BUILTINS_${target}_CMAKE_BUILD_TYPE Release CACHE STRING "")
+    set(BUILTINS_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_SYSROOT ${LINUX_${target}_SYSROOT} CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_SHARED_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_MODULE_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
@@ -67,7 +67,7 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     # Set the per-target runtimes options.
     list(APPEND RUNTIME_TARGETS "${target}")
     set(RUNTIMES_${target}_CMAKE_SYSTEM_NAME Linux CACHE STRING "")
-    set(RUNTIMES_${target}_CMAKE_BUILD_TYPE Release CACHE STRING "")
+    set(RUNTIMES_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_SYSROOT ${LINUX_${target}_SYSROOT} CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_SHARED_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_MODULE_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
@@ -107,7 +107,7 @@ if(FUCHSIA_SDK)
     # Set the per-target builtins options.
     list(APPEND BUILTIN_TARGETS "${target}-unknown-fuchsia")
     set(BUILTINS_${target}-unknown-fuchsia_CMAKE_SYSTEM_NAME Fuchsia CACHE STRING "")
-    set(BUILTINS_${target}-unknown-fuchsia_CMAKE_BUILD_TYPE Release CACHE STRING "")
+    set(BUILTINS_${target}-unknown-fuchsia_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
     set(BUILTINS_${target}-unknown-fuchsia_CMAKE_ASM_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(BUILTINS_${target}-unknown-fuchsia_CMAKE_C_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(BUILTINS_${target}-unknown-fuchsia_CMAKE_CXX_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
@@ -119,7 +119,7 @@ if(FUCHSIA_SDK)
     # Set the per-target runtimes options.
     list(APPEND RUNTIME_TARGETS "${target}-unknown-fuchsia")
     set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_SYSTEM_NAME Fuchsia CACHE STRING "")
-    set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_BUILD_TYPE Release CACHE STRING "")
+    set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
     set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_BUILD_WITH_INSTALL_RPATH ON CACHE BOOL "")
     set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_ASM_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_C_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
@@ -153,13 +153,21 @@ if(FUCHSIA_SDK)
     set(RUNTIMES_${target}-unknown-fuchsia+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
     set(RUNTIMES_${target}-unknown-fuchsia+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
 
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LLVM_USE_SANITIZER "Address" CACHE STRING "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
+
     # Use .build-id link.
     list(APPEND RUNTIME_BUILD_ID_LINK "${target}-unknown-fuchsia")
   endforeach()
 
-  set(LLVM_RUNTIME_MULTILIBS "asan;noexcept" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIBS "asan;noexcept;asan+noexcept" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_asan_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIB_asan+noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
 endif()
 
 set(LLVM_BUILTIN_TARGETS "${BUILTIN_TARGETS}" CACHE STRING "")

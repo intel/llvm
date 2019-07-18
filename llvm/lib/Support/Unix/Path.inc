@@ -222,20 +222,20 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
     // the program, and not the eventual binary file. Therefore, call realpath
     // so this behaves the same on all platforms.
 #if _POSIX_VERSION >= 200112 || defined(__GLIBC__)
-    char *real_path = realpath(exe_path, NULL);
-    std::string ret = std::string(real_path);
-    free(real_path);
-    return ret;
+    if (char *real_path = realpath(exe_path, NULL)) {
+      std::string ret = std::string(real_path);
+      free(real_path);
+      return ret;
+    }
 #else
     char real_path[MAXPATHLEN];
-    realpath(exe_path, real_path);
-    return std::string(real_path);
+    if (realpath(exe_path, real_path))
+      return std::string(real_path);
 #endif
-  } else {
-    // Fall back to the classical detection.
-    if (getprogpath(exe_path, argv0))
-      return exe_path;
   }
+  // Fall back to the classical detection.
+  if (getprogpath(exe_path, argv0))
+    return exe_path;
 #elif defined(HAVE_DLFCN_H) && defined(HAVE_DLADDR)
   // Use dladdr to get executable path if available.
   Dl_info DLInfo;
@@ -423,6 +423,9 @@ static bool is_local_impl(struct STATVFS &Vfs) {
   return false;
 #elif defined(__Fuchsia__)
   // Fuchsia doesn't yet support remote filesystem mounts.
+  return true;
+#elif defined(__EMSCRIPTEN__)
+  // Emscripten doesn't currently support remote filesystem mounts.
   return true;
 #elif defined(__HAIKU__)
   // Haiku doesn't expose this information.
@@ -691,11 +694,25 @@ std::error_code status(int FD, file_status &Result) {
   return fillStatus(StatRet, Status, Result);
 }
 
+unsigned getUmask() {
+  // Chose arbitary new mask and reset the umask to the old mask.
+  // umask(2) never fails so ignore the return of the second call.
+  unsigned Mask = ::umask(0);
+  (void) ::umask(Mask);
+  return Mask;
+}
+
 std::error_code setPermissions(const Twine &Path, perms Permissions) {
   SmallString<128> PathStorage;
   StringRef P = Path.toNullTerminatedStringRef(PathStorage);
 
   if (::chmod(P.begin(), Permissions))
+    return std::error_code(errno, std::generic_category());
+  return std::error_code();
+}
+
+std::error_code setPermissions(int FD, perms Permissions) {
+  if (::fchmod(FD, Permissions))
     return std::error_code(errno, std::generic_category());
   return std::error_code();
 }
@@ -975,9 +992,54 @@ Expected<file_t> openNativeFileForRead(const Twine &Name, OpenFlags Flags,
   return ResultFD;
 }
 
-void closeFile(file_t &F) {
-  ::close(F);
+file_t getStdinHandle() { return 0; }
+file_t getStdoutHandle() { return 1; }
+file_t getStderrHandle() { return 2; }
+
+std::error_code readNativeFile(file_t FD, MutableArrayRef<char> Buf,
+                               size_t *BytesRead) {
+  *BytesRead = sys::RetryAfterSignal(-1, ::read, FD, Buf.data(), Buf.size());
+  if (ssize_t(*BytesRead) == -1)
+    return std::error_code(errno, std::generic_category());
+  return std::error_code();
+}
+
+std::error_code readNativeFileSlice(file_t FD, MutableArrayRef<char> Buf,
+                                    size_t Offset) {
+  char *BufPtr = Buf.data();
+  size_t BytesLeft = Buf.size();
+
+#ifndef HAVE_PREAD
+  // If we don't have pread, seek to Offset.
+  if (lseek(FD, Offset, SEEK_SET) == -1)
+    return std::error_code(errno, std::generic_category());
+#endif
+
+  while (BytesLeft) {
+#ifdef HAVE_PREAD
+    ssize_t NumRead = sys::RetryAfterSignal(-1, ::pread, FD, BufPtr, BytesLeft,
+                                            Buf.size() - BytesLeft + Offset);
+#else
+    ssize_t NumRead = sys::RetryAfterSignal(-1, ::read, FD, BufPtr, BytesLeft);
+#endif
+    if (NumRead == -1) {
+      // Error while reading.
+      return std::error_code(errno, std::generic_category());
+    }
+    if (NumRead == 0) {
+      memset(BufPtr, 0, BytesLeft); // zero-initialize rest of the buffer.
+      break;
+    }
+    BytesLeft -= NumRead;
+    BufPtr += NumRead;
+  }
+  return std::error_code();
+}
+
+std::error_code closeFile(file_t &F) {
+  file_t TmpF = F;
   F = kInvalidFile;
+  return Process::SafelyCloseFileDescriptor(TmpF);
 }
 
 template <typename T>

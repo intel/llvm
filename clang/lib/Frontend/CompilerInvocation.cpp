@@ -310,6 +310,7 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
     Args.hasArg(OPT_analyzer_viz_egraph_graphviz);
   Opts.DumpExplodedGraphTo = Args.getLastArgValue(OPT_analyzer_dump_egraph);
   Opts.NoRetryExhausted = Args.hasArg(OPT_analyzer_disable_retry_exhausted);
+  Opts.AnalyzerWerror = Args.hasArg(OPT_analyzer_werror);
   Opts.AnalyzeAll = Args.hasArg(OPT_analyzer_opt_analyze_headers);
   Opts.AnalyzerDisplayProgress = Args.hasArg(OPT_analyzer_display_progress);
   Opts.AnalyzeNestedBlocks =
@@ -466,6 +467,10 @@ static void parseAnalyzerConfigs(AnalyzerOptions &AnOpts,
 
   if (!Diags)
     return;
+
+  if (AnOpts.ShouldTrackConditionsDebug && !AnOpts.ShouldTrackConditions)
+    Diags->Report(diag::err_analyzer_config_invalid_input)
+        << "track-conditions-debug" << "'track-conditions' to also be enabled";
 
   if (!AnOpts.CTUDir.empty() && !llvm::sys::fs::is_directory(AnOpts.CTUDir))
     Diags->Report(diag::err_analyzer_config_invalid_input) << "ctu-dir"
@@ -727,24 +732,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.WholeProgramVTables = Args.hasArg(OPT_fwhole_program_vtables);
   Opts.LTOVisibilityPublicStd = Args.hasArg(OPT_flto_visibility_public_std);
   Opts.SplitDwarfFile = Args.getLastArgValue(OPT_split_dwarf_file);
+  Opts.SplitDwarfOutput = Args.getLastArgValue(OPT_split_dwarf_output);
   Opts.SplitDwarfInlining = !Args.hasArg(OPT_fno_split_dwarf_inlining);
-
-  if (Arg *A =
-          Args.getLastArg(OPT_enable_split_dwarf, OPT_enable_split_dwarf_EQ)) {
-    if (A->getOption().matches(options::OPT_enable_split_dwarf)) {
-      Opts.setSplitDwarfMode(CodeGenOptions::SplitFileFission);
-    } else {
-      StringRef Name = A->getValue();
-      if (Name == "single")
-        Opts.setSplitDwarfMode(CodeGenOptions::SingleFileFission);
-      else if (Name == "split")
-        Opts.setSplitDwarfMode(CodeGenOptions::SplitFileFission);
-      else
-        Diags.Report(diag::err_drv_invalid_value)
-            << A->getAsString(Args) << Name;
-    }
-  }
-
   Opts.DebugTypeExtRefs = Args.hasArg(OPT_dwarf_ext_refs);
   Opts.DebugExplicitImport = Args.hasArg(OPT_dwarf_explicit_import);
   Opts.DebugFwdTemplateParams = Args.hasArg(OPT_debug_forward_template_params);
@@ -759,6 +748,13 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.DisableLLVMPasses = Args.hasArg(OPT_disable_llvm_passes);
   Opts.DisableLifetimeMarkers = Args.hasArg(OPT_disable_lifetimemarkers);
+
+  llvm::Triple T(TargetOpts.Triple);
+  llvm::Triple::ArchType Arch = T.getArch();
+  if (Opts.OptimizationLevel > 0 &&
+      (Arch == llvm::Triple::x86 || Arch == llvm::Triple::x86_64))
+    Opts.EnableDebugEntryValues = Args.hasArg(OPT_femit_debug_entry_values);
+
   Opts.DisableO0ImplyOptNone = Args.hasArg(OPT_disable_O0_optnone);
   Opts.DisableRedZone = Args.hasArg(OPT_disable_red_zone);
   Opts.IndirectTlsSegRefs = Args.hasArg(OPT_mno_tls_direct_seg_refs);
@@ -1236,6 +1232,11 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     NeedLocTracking = true;
   }
 
+  if (Arg *A = Args.getLastArg(OPT_opt_record_format)) {
+    Opts.OptRecordFormat = A->getValue();
+    NeedLocTracking = true;
+  }
+
   if (Arg *A = Args.getLastArg(OPT_Rpass_EQ)) {
     Opts.OptimizationRemarkPattern =
         GenerateOptimizationRemarkRegex(Diags, Args, A);
@@ -1345,6 +1346,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.DefaultFunctionAttrs = Args.getAllArgValues(OPT_default_function_attr);
 
   Opts.PassPlugins = Args.getAllArgValues(OPT_fpass_plugin_EQ);
+
+  Opts.SymbolPartition = Args.getLastArgValue(OPT_fsymbol_partition_EQ);
 
   return Success;
 }
@@ -1674,6 +1677,25 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       Opts.ProgramAction = frontend::GenerateHeaderModule; break;
     case OPT_emit_pch:
       Opts.ProgramAction = frontend::GeneratePCH; break;
+    case OPT_emit_iterface_stubs: {
+      llvm::Optional<frontend::ActionKind> ProgramAction =
+          llvm::StringSwitch<llvm::Optional<frontend::ActionKind>>(
+              Args.hasArg(OPT_iterface_stub_version_EQ)
+                  ? Args.getLastArgValue(OPT_iterface_stub_version_EQ)
+                  : "")
+              .Case("experimental-yaml-elf-v1",
+                    frontend::GenerateInterfaceYAMLExpV1)
+              .Case("experimental-tapi-elf-v1",
+                    frontend::GenerateInterfaceTBEExpV1)
+              .Default(llvm::None);
+      if (!ProgramAction)
+        Diags.Report(diag::err_drv_invalid_value)
+            << "Must specify a valid interface stub format type using "
+            << "-interface-stub-version=<experimental-tapi-elf-v1 | "
+               "experimental-yaml-elf-v1>";
+      Opts.ProgramAction = *ProgramAction;
+      break;
+    }
     case OPT_init_only:
       Opts.ProgramAction = frontend::InitOnly; break;
     case OPT_fsyntax_only:
@@ -1751,6 +1773,7 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
   Opts.ShowHelp = Args.hasArg(OPT_help);
   Opts.ShowStats = Args.hasArg(OPT_print_stats);
   Opts.ShowTimers = Args.hasArg(OPT_ftime_report);
+  Opts.PrintSupportedCPUs = Args.hasArg(OPT_print_supported_cpus);
   Opts.TimeTrace = Args.hasArg(OPT_ftime_trace);
   Opts.ShowVersion = Args.hasArg(OPT_version);
   Opts.ASTMergeFiles = Args.getAllArgValues(OPT_ast_merge);
@@ -2186,9 +2209,15 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
     Opts.NativeHalfType = 1;
     Opts.NativeHalfArgsAndReturns = 1;
     Opts.OpenCLCPlusPlus = Opts.CPlusPlus;
+
     // Include default header file for OpenCL.
-    if (Opts.IncludeDefaultHeader && !Opts.DeclareOpenCLBuiltins) {
-      PPOpts.Includes.push_back("opencl-c.h");
+    if (Opts.IncludeDefaultHeader) {
+      if (Opts.DeclareOpenCLBuiltins) {
+        // Only include base header file for builtin types and constants.
+        PPOpts.Includes.push_back("opencl-c-base.h");
+      } else {
+        PPOpts.Includes.push_back("opencl-c.h");
+      }
     }
   }
 
@@ -2717,6 +2746,10 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.PackStruct = getLastArgIntValue(Args, OPT_fpack_struct_EQ, 0, Diags);
   Opts.MaxTypeAlign = getLastArgIntValue(Args, OPT_fmax_type_align_EQ, 0, Diags);
   Opts.AlignDouble = Args.hasArg(OPT_malign_double);
+  Opts.LongDoubleSize = Args.hasArg(OPT_mlong_double_128)
+                            ? 128
+                            : Args.hasArg(OPT_mlong_double_64) ? 64 : 0;
+  Opts.PPCIEEELongDouble = Args.hasArg(OPT_mabi_EQ_ieeelongdouble);
   Opts.PICLevel = getLastArgIntValue(Args, OPT_pic_level, 0, Diags);
   Opts.ROPI = Args.hasArg(OPT_fropi);
   Opts.RWPI = Args.hasArg(OPT_frwpi);
@@ -3110,6 +3143,8 @@ static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
   case frontend::GenerateModuleInterface:
   case frontend::GenerateHeaderModule:
   case frontend::GeneratePCH:
+  case frontend::GenerateInterfaceYAMLExpV1:
+  case frontend::GenerateInterfaceTBEExpV1:
   case frontend::ParseSyntaxOnly:
   case frontend::ModuleFileInfo:
   case frontend::VerifyPCH:

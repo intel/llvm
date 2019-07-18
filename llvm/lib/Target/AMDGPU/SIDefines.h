@@ -93,7 +93,13 @@ enum : uint64_t {
   IsNonFlatSeg = UINT64_C(1) << 51,
 
   // Uses floating point double precision rounding mode
-  FPDPRounding = UINT64_C(1) << 52
+  FPDPRounding = UINT64_C(1) << 52,
+
+  // Instruction is FP atomic.
+  FPAtomic = UINT64_C(1) << 53,
+
+  // Is a MFMA instruction.
+  IsMAI = UINT64_C(1) << 54
 };
 
 // v_cmp_class_* etc. use a 10-bit mask for what operation is checked.
@@ -134,11 +140,22 @@ namespace AMDGPU {
     OPERAND_REG_INLINE_C_V2FP16,
     OPERAND_REG_INLINE_C_V2INT16,
 
+    /// Operands with an AccVGPR register or inline constant
+    OPERAND_REG_INLINE_AC_INT16,
+    OPERAND_REG_INLINE_AC_INT32,
+    OPERAND_REG_INLINE_AC_FP16,
+    OPERAND_REG_INLINE_AC_FP32,
+    OPERAND_REG_INLINE_AC_V2FP16,
+    OPERAND_REG_INLINE_AC_V2INT16,
+
     OPERAND_REG_IMM_FIRST = OPERAND_REG_IMM_INT32,
     OPERAND_REG_IMM_LAST = OPERAND_REG_IMM_V2INT16,
 
     OPERAND_REG_INLINE_C_FIRST = OPERAND_REG_INLINE_C_INT16,
-    OPERAND_REG_INLINE_C_LAST = OPERAND_REG_INLINE_C_V2INT16,
+    OPERAND_REG_INLINE_C_LAST = OPERAND_REG_INLINE_AC_V2INT16,
+
+    OPERAND_REG_INLINE_AC_FIRST = OPERAND_REG_INLINE_AC_INT16,
+    OPERAND_REG_INLINE_AC_LAST = OPERAND_REG_INLINE_AC_V2INT16,
 
     OPERAND_SRC_FIRST = OPERAND_REG_IMM_INT32,
     OPERAND_SRC_LAST = OPERAND_REG_INLINE_C_LAST,
@@ -153,13 +170,6 @@ namespace AMDGPU {
     OPERAND_KIMM32,
     OPERAND_KIMM16
   };
-}
-
-namespace SIStackID {
-enum StackTypes : uint8_t {
-  SCRATCH = 0,
-  SGPR_SPILL = 1
-};
 }
 
 // Input operand modifiers bit-masks
@@ -253,6 +263,7 @@ enum Id { // Message ID, width(4) [3:0].
   ID_GS,
   ID_GS_DONE,
   ID_GS_ALLOC_REQ = 9,
+  ID_GET_DOORBELL = 10,
   ID_SYSMSG = 15,
   ID_GAPS_LAST_, // Indicate that sequence has gaps.
   ID_GAPS_FIRST_ = ID_INTERRUPT,
@@ -264,27 +275,28 @@ enum Id { // Message ID, width(4) [3:0].
 enum Op { // Both GS and SYS operation IDs.
   OP_UNKNOWN_ = -1,
   OP_SHIFT_ = 4,
-  // width(2) [5:4]
+  OP_NONE_ = 0,
+  // Bits used for operation encoding
+  OP_WIDTH_ = 3,
+  OP_MASK_ = (((1 << OP_WIDTH_) - 1) << OP_SHIFT_),
+  // GS operations are encoded in bits 5:4
   OP_GS_NOP = 0,
   OP_GS_CUT,
   OP_GS_EMIT,
   OP_GS_EMIT_CUT,
   OP_GS_LAST_,
   OP_GS_FIRST_ = OP_GS_NOP,
-  OP_GS_WIDTH_ = 2,
-  OP_GS_MASK_ = (((1 << OP_GS_WIDTH_) - 1) << OP_SHIFT_),
-  // width(3) [6:4]
+  // SYS operations are encoded in bits 6:4
   OP_SYS_ECC_ERR_INTERRUPT = 1,
   OP_SYS_REG_RD,
   OP_SYS_HOST_TRAP_ACK,
   OP_SYS_TTRACE_PC,
   OP_SYS_LAST_,
   OP_SYS_FIRST_ = OP_SYS_ECC_ERR_INTERRUPT,
-  OP_SYS_WIDTH_ = 3,
-  OP_SYS_MASK_ = (((1 << OP_SYS_WIDTH_) - 1) << OP_SHIFT_)
 };
 
 enum StreamId : unsigned { // Stream ID, (2) [9:8].
+  STREAM_ID_NONE_ = 0,
   STREAM_ID_DEFAULT_ = 0,
   STREAM_ID_LAST_ = 4,
   STREAM_ID_FIRST_ = STREAM_ID_DEFAULT_,
@@ -330,6 +342,8 @@ enum Offset : unsigned { // Offset, (5) [10:6]
   OFFSET_WIDTH_ = 5,
   OFFSET_MASK_ = (((1 << OFFSET_WIDTH_) - 1) << OFFSET_SHIFT_),
 
+  OFFSET_MEM_VIOL = 8,
+
   OFFSET_SRC_SHARED_BASE = 16,
   OFFSET_SRC_PRIVATE_BASE = 0
 };
@@ -342,6 +356,11 @@ enum WidthMinusOne : unsigned { // WidthMinusOne, (5) [15:11]
 
   WIDTH_M1_SRC_SHARED_BASE = 15,
   WIDTH_M1_SRC_PRIVATE_BASE = 15
+};
+
+// Some values from WidthMinusOne mapped into Width domain.
+enum Width : unsigned {
+  WIDTH_DEFAULT_ = WIDTH_M1_DEFAULT_ + 1,
 };
 
 } // namespace Hwreg
@@ -454,7 +473,20 @@ enum DppCtrl : unsigned {
   ROW_HALF_MIRROR   = 0x141,
   BCAST15           = 0x142,
   BCAST31           = 0x143,
-  DPP_LAST          = BCAST31
+  DPP_UNUSED8_FIRST = 0x144,
+  DPP_UNUSED8_LAST  = 0x14F,
+  ROW_SHARE_FIRST   = 0x150,
+  ROW_SHARE_LAST    = 0x15F,
+  ROW_XMASK_FIRST   = 0x160,
+  ROW_XMASK_LAST    = 0x16F,
+  DPP_LAST          = ROW_XMASK_LAST
+};
+
+enum DppFiMode {
+  DPP_FI_0  = 0,
+  DPP_FI_1  = 1,
+  DPP8_FI_0 = 0xE9,
+  DPP8_FI_1 = 0xEA,
 };
 
 } // namespace DPP

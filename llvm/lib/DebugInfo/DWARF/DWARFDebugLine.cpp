@@ -66,6 +66,26 @@ void DWARFDebugLine::ContentTypeTracker::trackContentType(
 
 DWARFDebugLine::Prologue::Prologue() { clear(); }
 
+bool DWARFDebugLine::Prologue::hasFileAtIndex(uint64_t FileIndex) const {
+  uint16_t DwarfVersion = getVersion();
+  assert(DwarfVersion != 0 &&
+         "line table prologue has no dwarf version information");
+  if (DwarfVersion >= 5)
+    return FileIndex < FileNames.size();
+  return FileIndex != 0 && FileIndex <= FileNames.size();
+}
+
+const llvm::DWARFDebugLine::FileNameEntry &
+DWARFDebugLine::Prologue::getFileNameEntry(uint64_t Index) const {
+  uint16_t DwarfVersion = getVersion();
+  assert(DwarfVersion != 0 &&
+         "line table prologue has no dwarf version information");
+  // In DWARF v5 the file names are 0-indexed.
+  if (DwarfVersion >= 5)
+    return FileNames[Index];
+  return FileNames[Index - 1];
+}
+
 void DWARFDebugLine::Prologue::clear() {
   TotalLength = PrologueLength = 0;
   SegSelectorSize = 0;
@@ -280,11 +300,11 @@ Error DWARFDebugLine::Prologue::parse(const DWARFDataExtractor &DebugLineData,
   const uint64_t PrologueOffset = *OffsetPtr;
 
   clear();
-  TotalLength = DebugLineData.getU32(OffsetPtr);
+  TotalLength = DebugLineData.getRelocatedValue(4, OffsetPtr);
   if (TotalLength == UINT32_MAX) {
     FormParams.Format = dwarf::DWARF64;
     TotalLength = DebugLineData.getU64(OffsetPtr);
-  } else if (TotalLength >= 0xffffff00) {
+  } else if (TotalLength >= 0xfffffff0) {
     return createStringError(errc::invalid_argument,
         "parsing line table prologue at offset 0x%8.8" PRIx64
         " unsupported reserved unit length found of value 0x%8.8" PRIx64,
@@ -305,7 +325,8 @@ Error DWARFDebugLine::Prologue::parse(const DWARFDataExtractor &DebugLineData,
     SegSelectorSize = DebugLineData.getU8(OffsetPtr);
   }
 
-  PrologueLength = DebugLineData.getUnsigned(OffsetPtr, sizeofPrologueLength());
+  PrologueLength =
+      DebugLineData.getRelocatedValue(sizeofPrologueLength(), OffsetPtr);
   const uint64_t EndPrologueOffset = PrologueLength + *OffsetPtr;
   MinInstLength = DebugLineData.getU8(OffsetPtr);
   if (getVersion() >= 4)
@@ -734,11 +755,11 @@ Error DWARFDebugLine::LineTable::parse(
         // requires the use of DW_LNS_advance_pc. Such assemblers, however,
         // can use DW_LNS_fixed_advance_pc instead, sacrificing compression.
         {
-          uint16_t PCOffset = DebugLineData.getU16(OffsetPtr);
+          uint16_t PCOffset = DebugLineData.getRelocatedValue(2, OffsetPtr);
           State.Row.Address.Address += PCOffset;
           if (OS)
             *OS
-                << format(" (0x%16.16" PRIx64 ")", PCOffset);
+                << format(" (0x%4.4" PRIx16 ")", PCOffset);
         }
         break;
 
@@ -968,30 +989,11 @@ bool DWARFDebugLine::LineTable::lookupAddressRangeImpl(
   return true;
 }
 
-bool DWARFDebugLine::LineTable::hasFileAtIndex(uint64_t FileIndex) const {
-  uint16_t DwarfVersion = Prologue.getVersion();
-  assert(DwarfVersion != 0 && "LineTable has no dwarf version information");
-  if (DwarfVersion >= 5)
-    return FileIndex < Prologue.FileNames.size();
-  return FileIndex != 0 && FileIndex <= Prologue.FileNames.size();
-}
-
-const llvm::DWARFDebugLine::FileNameEntry &
-DWARFDebugLine::LineTable::getFileNameEntry(uint64_t Index) const {
-  uint16_t DwarfVersion = Prologue.getVersion();
-  assert(DwarfVersion != 0 && "LineTable has no dwarf version information");
-  // In DWARF v5 the file names are 0-indexed.
-  if (DwarfVersion >= 5)
-    return Prologue.FileNames[Index];
-  else
-    return Prologue.FileNames[Index - 1];
-}
-
 Optional<StringRef> DWARFDebugLine::LineTable::getSourceByIndex(uint64_t FileIndex,
                                                                 FileLineInfoKind Kind) const {
-  if (Kind == FileLineInfoKind::None || !hasFileAtIndex(FileIndex))
+  if (Kind == FileLineInfoKind::None || !Prologue.hasFileAtIndex(FileIndex))
     return None;
-  const FileNameEntry &Entry = getFileNameEntry(FileIndex);
+  const FileNameEntry &Entry = Prologue.getFileNameEntry(FileIndex);
   if (Optional<const char *> source = Entry.Source.getAsCString())
     return StringRef(*source);
   return None;
@@ -1005,10 +1007,10 @@ static bool isPathAbsoluteOnWindowsOrPosix(const Twine &Path) {
          sys::path::is_absolute(Path, sys::path::Style::windows);
 }
 
-bool DWARFDebugLine::LineTable::getFileNameByIndex(uint64_t FileIndex,
-                                                   const char *CompDir,
-                                                   FileLineInfoKind Kind,
-                                                   std::string &Result) const {
+bool DWARFDebugLine::Prologue::getFileNameByIndex(uint64_t FileIndex,
+                                                  StringRef CompDir,
+                                                  FileLineInfoKind Kind,
+                                                  std::string &Result) const {
   if (Kind == FileLineInfoKind::None || !hasFileAtIndex(FileIndex))
     return false;
   const FileNameEntry &Entry = getFileNameEntry(FileIndex);
@@ -1022,20 +1024,18 @@ bool DWARFDebugLine::LineTable::getFileNameByIndex(uint64_t FileIndex,
   SmallString<16> FilePath;
   StringRef IncludeDir;
   // Be defensive about the contents of Entry.
-  if (Prologue.getVersion() >= 5) {
-    if (Entry.DirIdx < Prologue.IncludeDirectories.size())
-      IncludeDir =
-          Prologue.IncludeDirectories[Entry.DirIdx].getAsCString().getValue();
+  if (getVersion() >= 5) {
+    if (Entry.DirIdx < IncludeDirectories.size())
+      IncludeDir = IncludeDirectories[Entry.DirIdx].getAsCString().getValue();
   } else {
-    if (0 < Entry.DirIdx && Entry.DirIdx <= Prologue.IncludeDirectories.size())
-      IncludeDir = Prologue.IncludeDirectories[Entry.DirIdx - 1]
-                       .getAsCString()
-                       .getValue();
+    if (0 < Entry.DirIdx && Entry.DirIdx <= IncludeDirectories.size())
+      IncludeDir =
+          IncludeDirectories[Entry.DirIdx - 1].getAsCString().getValue();
 
     // We may still need to append compilation directory of compile unit.
     // We know that FileName is not absolute, the only way to have an
     // absolute path at this point would be if IncludeDir is absolute.
-    if (CompDir && !isPathAbsoluteOnWindowsOrPosix(IncludeDir))
+    if (!CompDir.empty() && !isPathAbsoluteOnWindowsOrPosix(IncludeDir))
       sys::path::append(FilePath, CompDir);
   }
 
@@ -1092,7 +1092,7 @@ DWARFDebugLine::SectionParser::SectionParser(DWARFDataExtractor &Data,
 }
 
 bool DWARFDebugLine::Prologue::totalLengthIsValid() const {
-  return TotalLength == 0xffffffff || TotalLength < 0xffffff00;
+  return TotalLength == 0xffffffff || TotalLength < 0xfffffff0;
 }
 
 DWARFDebugLine::LineTable DWARFDebugLine::SectionParser::parseNext(

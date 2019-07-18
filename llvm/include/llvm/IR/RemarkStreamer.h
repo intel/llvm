@@ -17,6 +17,7 @@
 #include "llvm/Remarks/RemarkSerializer.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include <string>
 #include <vector>
@@ -31,15 +32,9 @@ class RemarkStreamer {
   /// The object used to serialize the remarks to a specific format.
   std::unique_ptr<remarks::Serializer> Serializer;
 
-  /// Temporary buffer for converting diagnostics into remark objects. This is
-  /// used for the remark arguments that are converted from a vector of
-  /// diagnostic arguments to a vector of remark arguments.
-  SmallVector<remarks::Argument, 8> TmpArgs;
-  /// Convert diagnostics into remark objects. The result uses \p TmpArgs as a
-  /// temporary buffer for the remark arguments, and relies on all the strings
-  /// to be kept in memory until the next call to `toRemark`.
-  /// The lifetime of the members of the result is bound to the lifetime of both
-  /// the remark streamer and the LLVM diagnostics.
+  /// Convert diagnostics into remark objects.
+  /// The lifetime of the members of the result is bound to the lifetime of
+  /// the LLVM diagnostics.
   remarks::Remark toRemark(const DiagnosticInfoOptimizationBase &Diag);
 
 public:
@@ -57,6 +52,45 @@ public:
   /// Emit a diagnostic through the streamer.
   void emit(const DiagnosticInfoOptimizationBase &Diag);
 };
+
+template <typename ThisError>
+struct RemarkSetupErrorInfo : public ErrorInfo<ThisError> {
+  std::string Msg;
+  std::error_code EC;
+
+  RemarkSetupErrorInfo(Error E) {
+    handleAllErrors(std::move(E), [&](const ErrorInfoBase &EIB) {
+      Msg = EIB.message();
+      EC = EIB.convertToErrorCode();
+    });
+  }
+
+  void log(raw_ostream &OS) const override { OS << Msg; }
+  std::error_code convertToErrorCode() const override { return EC; }
+};
+
+struct RemarkSetupFileError : RemarkSetupErrorInfo<RemarkSetupFileError> {
+  static char ID;
+  using RemarkSetupErrorInfo<RemarkSetupFileError>::RemarkSetupErrorInfo;
+};
+
+struct RemarkSetupPatternError : RemarkSetupErrorInfo<RemarkSetupPatternError> {
+  static char ID;
+  using RemarkSetupErrorInfo<RemarkSetupPatternError>::RemarkSetupErrorInfo;
+};
+
+struct RemarkSetupFormatError : RemarkSetupErrorInfo<RemarkSetupFormatError> {
+  static char ID;
+  using RemarkSetupErrorInfo<RemarkSetupFormatError>::RemarkSetupErrorInfo;
+};
+
+/// Setup optimization remarks.
+Expected<std::unique_ptr<ToolOutputFile>>
+setupOptimizationRemarks(LLVMContext &Context, StringRef RemarksFilename,
+                         StringRef RemarksPasses, StringRef RemarksFormat,
+                         bool RemarksWithHotness,
+                         unsigned RemarksHotnessThreshold = 0);
+
 } // end namespace llvm
 
 #endif // LLVM_IR_REMARKSTREAMER_H

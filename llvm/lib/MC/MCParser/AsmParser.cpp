@@ -3395,9 +3395,9 @@ bool AsmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
   } else {
     // In case there is a -g option as well as debug info from directive .file,
     // we turn off the -g option, directly use the existing debug info instead.
-    // Also reset any implicit ".file 0" for the assembler source.
+    // Throw away any implicit file table for the assembler source.
     if (Ctx.getGenDwarfForAssembly()) {
-      Ctx.getMCDwarfLineTable(0).resetRootFile();
+      Ctx.getMCDwarfLineTable(0).resetFileTable();
       Ctx.setGenDwarfForAssembly(false);
     }
 
@@ -3424,7 +3424,6 @@ bool AsmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
           FileNumber, Directory, Filename, CKMem, Source);
       if (!FileNumOrErr)
         return Error(DirectiveLoc, toString(FileNumOrErr.takeError()));
-      FileNumber = FileNumOrErr.get();
     }
     // Alert the user if there are some .file directives with MD5 and some not.
     // But only do that once.

@@ -91,8 +91,11 @@ StringRef AMDGPUTargetStreamer::getArchNameFromElfMach(unsigned ElfMach) {
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX902:  AK = GK_GFX902;  break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX904:  AK = GK_GFX904;  break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX906:  AK = GK_GFX906;  break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX908:  AK = GK_GFX908;  break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX909:  AK = GK_GFX909;  break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010: AK = GK_GFX1010; break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1011: AK = GK_GFX1011; break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1012: AK = GK_GFX1012; break;
   case ELF::EF_AMDGPU_MACH_NONE:           AK = GK_NONE;    break;
   }
 
@@ -139,8 +142,11 @@ unsigned AMDGPUTargetStreamer::getElfMach(StringRef GPU) {
   case GK_GFX902:  return ELF::EF_AMDGPU_MACH_AMDGCN_GFX902;
   case GK_GFX904:  return ELF::EF_AMDGPU_MACH_AMDGCN_GFX904;
   case GK_GFX906:  return ELF::EF_AMDGPU_MACH_AMDGCN_GFX906;
+  case GK_GFX908:  return ELF::EF_AMDGPU_MACH_AMDGCN_GFX908;
   case GK_GFX909:  return ELF::EF_AMDGPU_MACH_AMDGCN_GFX909;
   case GK_GFX1010: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010;
+  case GK_GFX1011: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1011;
+  case GK_GFX1012: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1012;
   case GK_NONE:    return ELF::EF_AMDGPU_MACH_NONE;
   }
 
@@ -200,6 +206,12 @@ void AMDGPUTargetAsmStreamer::EmitAMDGPUSymbolType(StringRef SymbolName,
       OS << "\t.amdgpu_hsa_kernel " << SymbolName << '\n' ;
       break;
   }
+}
+
+void AMDGPUTargetAsmStreamer::emitAMDGPULDS(MCSymbol *Symbol, unsigned Size,
+                                            unsigned Align) {
+  OS << "\t.amdgpu_lds " << Symbol->getName() << ", " << Size << ", " << Align
+     << '\n';
 }
 
 bool AMDGPUTargetAsmStreamer::EmitISAVersion(StringRef IsaVersionString) {
@@ -280,6 +292,10 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
   PRINT_FIELD(OS, ".amdhsa_user_sgpr_private_segment_size", KD,
               kernel_code_properties,
               amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_PRIVATE_SEGMENT_SIZE);
+  if (IVersion.Major >= 10)
+    PRINT_FIELD(OS, ".amdhsa_wavefront_size32", KD,
+                kernel_code_properties,
+                amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32);
   PRINT_FIELD(
       OS, ".amdhsa_system_sgpr_private_segment_wavefront_offset", KD,
       compute_pgm_rsrc2,
@@ -487,6 +503,27 @@ void AMDGPUTargetELFStreamer::EmitAMDGPUSymbolType(StringRef SymbolName,
   MCSymbolELF *Symbol = cast<MCSymbolELF>(
       getStreamer().getContext().getOrCreateSymbol(SymbolName));
   Symbol->setType(Type);
+}
+
+void AMDGPUTargetELFStreamer::emitAMDGPULDS(MCSymbol *Symbol, unsigned Size,
+                                            unsigned Align) {
+  assert(isPowerOf2_32(Align));
+
+  MCSymbolELF *SymbolELF = cast<MCSymbolELF>(Symbol);
+  SymbolELF->setType(ELF::STT_OBJECT);
+
+  if (!SymbolELF->isBindingSet()) {
+    SymbolELF->setBinding(ELF::STB_GLOBAL);
+    SymbolELF->setExternal(true);
+  }
+
+  if (SymbolELF->declareCommon(Size, Align, true)) {
+    report_fatal_error("Symbol: " + Symbol->getName() +
+                       " redeclared as different type");
+  }
+
+  SymbolELF->setIndex(ELF::SHN_AMDGPU_LDS);
+  SymbolELF->setSize(MCConstantExpr::create(Size, getContext()));
 }
 
 bool AMDGPUTargetELFStreamer::EmitISAVersion(StringRef IsaVersionString) {

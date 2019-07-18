@@ -148,6 +148,11 @@ static cl::opt<bool> SwpIgnoreRecMII("pipeliner-ignore-recmii",
                                      cl::ReallyHidden, cl::init(false),
                                      cl::ZeroOrMore, cl::desc("Ignore RecMII"));
 
+static cl::opt<bool> SwpShowResMask("pipeliner-show-mask", cl::Hidden,
+                                    cl::init(false));
+static cl::opt<bool> SwpDebugResource("pipeliner-dbg-res", cl::Hidden,
+                                      cl::init(false));
+
 namespace llvm {
 
 // A command line option to enable the CopyToPhi DAG mutation.
@@ -185,6 +190,9 @@ bool MachinePipeliner::runOnMachineFunction(MachineFunction &mf) {
   if (mf.getFunction().getAttributes().hasAttribute(
           AttributeList::FunctionIndex, Attribute::OptimizeForSize) &&
       !EnableSWPOptSize.getPosition())
+    return false;
+
+  if (!mf.getSubtarget().enableMachinePipeliner())
     return false;
 
   // Cannot pipeline loops without instruction itineraries if we are using
@@ -579,7 +587,8 @@ static bool isSuccOrder(SUnit *SUa, SUnit *SUb) {
 /// Return true if the instruction causes a chain between memory
 /// references before and after it.
 static bool isDependenceBarrier(MachineInstr &MI, AliasAnalysis *AA) {
-  return MI.isCall() || MI.hasUnmodeledSideEffects() ||
+  return MI.isCall() || MI.mayRaiseFPException() ||
+         MI.hasUnmodeledSideEffects() ||
          (MI.hasOrderedMemoryRef() &&
           (!MI.mayLoad() || !MI.isDereferenceableInvariantLoad(AA)));
 }
@@ -1003,23 +1012,20 @@ unsigned SwingSchedulerDAG::calculateResMII() {
     });
     for (unsigned C = 0; C < NumCycles; ++C)
       while (RI != RE) {
-        if ((*RI++)->canReserveResources(*MI)) {
+        if ((*RI)->canReserveResources(*MI)) {
+          (*RI)->reserveResources(*MI);
           ++ReservedCycles;
           break;
         }
+        RI++;
       }
-    // Start reserving resources using existing DFAs.
-    for (unsigned C = 0; C < ReservedCycles; ++C) {
-      --RI;
-      (*RI)->reserveResources(*MI);
-    }
-
     LLVM_DEBUG(dbgs() << "ReservedCycles:" << ReservedCycles
                       << ", NumCycles:" << NumCycles << "\n");
     // Add new DFAs, if needed, to reserve resources.
     for (unsigned C = ReservedCycles; C < NumCycles; ++C) {
-      LLVM_DEBUG(dbgs() << "NewResource created to reserve resources"
-                        << "\n");
+      LLVM_DEBUG(if (SwpDebugResource) dbgs()
+                 << "NewResource created to reserve resources"
+                 << "\n");
       ResourceManager *NewResource = new ResourceManager(&MF.getSubtarget());
       assert(NewResource->canReserveResources(*MI) && "Reserve error.");
       NewResource->reserveResources(*MI);
@@ -2025,6 +2031,10 @@ void SwingSchedulerDAG::generatePipelinedLoop(SMSchedule &Schedule) {
   InstrMapTy InstrMap;
 
   SmallVector<MachineBasicBlock *, 4> PrologBBs;
+
+  MachineBasicBlock *PreheaderBB = MLI->getLoopFor(BB)->getLoopPreheader();
+  assert(PreheaderBB != nullptr &&
+         "Need to add code to handle loops w/o preheader");
   // Generate the prolog instructions that set up the pipeline.
   generateProlog(Schedule, MaxStageCount, KernelBB, VRMap, PrologBBs);
   MF.insert(BB->getIterator(), KernelBB);
@@ -2081,7 +2091,7 @@ void SwingSchedulerDAG::generatePipelinedLoop(SMSchedule &Schedule) {
   removeDeadInstructions(KernelBB, EpilogBBs);
 
   // Add branches between prolog and epilog blocks.
-  addBranches(PrologBBs, KernelBB, EpilogBBs, Schedule, VRMap);
+  addBranches(*PreheaderBB, PrologBBs, KernelBB, EpilogBBs, Schedule, VRMap);
 
   // Remove the original loop since it's no longer referenced.
   for (auto &I : *BB)
@@ -2420,7 +2430,7 @@ void SwingSchedulerDAG::generateExistingPhis(
         // Use the value defined by the Phi, unless we're generating the first
         // epilog and the Phi refers to a Phi in a different stage.
         else if (VRMap[PrevStage - np].count(Def) &&
-                 (!LoopDefIsPhi || PrevStage != LastStageNum))
+                 (!LoopDefIsPhi || (PrevStage != LastStageNum) || (LoopValStage == StageScheduled)))
           PhiOp2 = VRMap[PrevStage - np][Def];
       }
 
@@ -2766,7 +2776,8 @@ static void removePhis(MachineBasicBlock *BB, MachineBasicBlock *Incoming) {
 /// Create branches from each prolog basic block to the appropriate epilog
 /// block.  These edges are needed if the loop ends before reaching the
 /// kernel.
-void SwingSchedulerDAG::addBranches(MBBVectorTy &PrologBBs,
+void SwingSchedulerDAG::addBranches(MachineBasicBlock &PreheaderBB,
+                                    MBBVectorTy &PrologBBs,
                                     MachineBasicBlock *KernelBB,
                                     MBBVectorTy &EpilogBBs,
                                     SMSchedule &Schedule, ValueMapTy *VRMap) {
@@ -2793,8 +2804,8 @@ void SwingSchedulerDAG::addBranches(MBBVectorTy &PrologBBs,
     // Check if the LOOP0 has already been removed. If so, then there is no need
     // to reduce the trip count.
     if (LC != 0)
-      LC = TII->reduceLoopCount(*Prolog, IndVar, *Cmp, Cond, PrevInsts, j,
-                                MaxIter);
+      LC = TII->reduceLoopCount(*Prolog, PreheaderBB, IndVar, *Cmp, Cond,
+                                PrevInsts, j, MaxIter);
 
     // Record the value of the first trip count, which is used to determine if
     // branches and blocks can be removed for constant trip counts.
@@ -3238,6 +3249,7 @@ bool SwingSchedulerDAG::isLoopCarriedDep(SUnit *Source, const SDep &Dep,
 
   // Assume ordered loads and stores may have a loop carried dependence.
   if (SI->hasUnmodeledSideEffects() || DI->hasUnmodeledSideEffects() ||
+      SI->mayRaiseFPException() || DI->mayRaiseFPException() ||
       SI->hasOrderedMemoryRef() || DI->hasOrderedMemoryRef())
     return true;
 
@@ -3547,6 +3559,14 @@ void SMSchedule::orderDependence(SwingSchedulerDAG *SSD, SUnit *SU,
         if (Pos < MoveUse)
           MoveUse = Pos;
       }
+      // We did not handle HW dependences in previous for loop,
+      // and we normally set Latency = 0 for Anti deps,
+      // so may have nodes in same cycle with Anti denpendent on HW regs.
+      else if (S.getKind() == SDep::Anti && stageScheduled(*I) == StageInst1) {
+        OrderBeforeUse = true;
+        if ((MoveUse == 0) || (Pos < MoveUse))
+          MoveUse = Pos;
+      }
     }
     for (auto &P : SU->Preds) {
       if (P.getSUnit() != *I)
@@ -3710,9 +3730,8 @@ void SwingSchedulerDAG::checkValidNodeOrder(const NodeSetType &Circuits) const {
 
     for (SDep &PredEdge : SU->Preds) {
       SUnit *PredSU = PredEdge.getSUnit();
-      unsigned PredIndex =
-          std::get<1>(*std::lower_bound(Indices.begin(), Indices.end(),
-                                        std::make_pair(PredSU, 0), CompareKey));
+      unsigned PredIndex = std::get<1>(
+          *llvm::lower_bound(Indices, std::make_pair(PredSU, 0), CompareKey));
       if (!PredSU->getInstr()->isPHI() && PredIndex < Index) {
         PredBefore = true;
         Pred = PredSU;
@@ -3722,9 +3741,13 @@ void SwingSchedulerDAG::checkValidNodeOrder(const NodeSetType &Circuits) const {
 
     for (SDep &SuccEdge : SU->Succs) {
       SUnit *SuccSU = SuccEdge.getSUnit();
-      unsigned SuccIndex =
-          std::get<1>(*std::lower_bound(Indices.begin(), Indices.end(),
-                                        std::make_pair(SuccSU, 0), CompareKey));
+      // Do not process a boundary node, it was not included in NodeOrder,
+      // hence not in Indices either, call to std::lower_bound() below will
+      // return Indices.end().
+      if (SuccSU->isBoundaryNode())
+        continue;
+      unsigned SuccIndex = std::get<1>(
+          *llvm::lower_bound(Indices, std::make_pair(SuccSU, 0), CompareKey));
       if (!SuccSU->getInstr()->isPHI() && SuccIndex < Index) {
         SuccBefore = true;
         Succ = SuccSU;
@@ -3735,9 +3758,8 @@ void SwingSchedulerDAG::checkValidNodeOrder(const NodeSetType &Circuits) const {
     if (PredBefore && SuccBefore && !SU->getInstr()->isPHI()) {
       // instructions in circuits are allowed to be scheduled
       // after both a successor and predecessor.
-      bool InCircuit = std::any_of(
-          Circuits.begin(), Circuits.end(),
-          [SU](const NodeSet &Circuit) { return Circuit.count(SU); });
+      bool InCircuit = llvm::any_of(
+          Circuits, [SU](const NodeSet &Circuit) { return Circuit.count(SU); });
       if (InCircuit)
         LLVM_DEBUG(dbgs() << "In a circuit, predecessor ";);
       else {
@@ -3956,19 +3978,25 @@ void ResourceManager::initProcResourceVectors(
     ProcResourceID++;
   }
   LLVM_DEBUG({
-    dbgs() << "ProcResourceDesc:\n";
-    for (unsigned I = 1, E = SM.getNumProcResourceKinds(); I < E; ++I) {
-      const MCProcResourceDesc *ProcResource = SM.getProcResource(I);
-      dbgs() << format(" %16s(%2d): Mask: 0x%08x, NumUnits:%2d\n",
-                       ProcResource->Name, I, Masks[I], ProcResource->NumUnits);
+    if (SwpShowResMask) {
+      dbgs() << "ProcResourceDesc:\n";
+      for (unsigned I = 1, E = SM.getNumProcResourceKinds(); I < E; ++I) {
+        const MCProcResourceDesc *ProcResource = SM.getProcResource(I);
+        dbgs() << format(" %16s(%2d): Mask: 0x%08x, NumUnits:%2d\n",
+                         ProcResource->Name, I, Masks[I],
+                         ProcResource->NumUnits);
+      }
+      dbgs() << " -----------------\n";
     }
-    dbgs() << " -----------------\n";
   });
 }
 
 bool ResourceManager::canReserveResources(const MCInstrDesc *MID) const {
 
-  LLVM_DEBUG({ dbgs() << "canReserveResources:\n"; });
+  LLVM_DEBUG({
+    if (SwpDebugResource)
+      dbgs() << "canReserveResources:\n";
+  });
   if (UseDFA)
     return DFAResources->canReserveResources(MID);
 
@@ -3991,20 +4019,24 @@ bool ResourceManager::canReserveResources(const MCInstrDesc *MID) const {
         SM.getProcResource(I->ProcResourceIdx);
     unsigned NumUnits = ProcResource->NumUnits;
     LLVM_DEBUG({
-      dbgs() << format(" %16s(%2d): Count: %2d, NumUnits:%2d, Cycles:%2d\n",
-                       ProcResource->Name, I->ProcResourceIdx,
-                       ProcResourceCount[I->ProcResourceIdx], NumUnits,
-                       I->Cycles);
+      if (SwpDebugResource)
+        dbgs() << format(" %16s(%2d): Count: %2d, NumUnits:%2d, Cycles:%2d\n",
+                         ProcResource->Name, I->ProcResourceIdx,
+                         ProcResourceCount[I->ProcResourceIdx], NumUnits,
+                         I->Cycles);
     });
     if (ProcResourceCount[I->ProcResourceIdx] >= NumUnits)
       return false;
   }
-  LLVM_DEBUG(dbgs() << "return true\n\n";);
+  LLVM_DEBUG(if (SwpDebugResource) dbgs() << "return true\n\n";);
   return true;
 }
 
 void ResourceManager::reserveResources(const MCInstrDesc *MID) {
-  LLVM_DEBUG({ dbgs() << "reserveResources:\n"; });
+  LLVM_DEBUG({
+    if (SwpDebugResource)
+      dbgs() << "reserveResources:\n";
+  });
   if (UseDFA)
     return DFAResources->reserveResources(MID);
 
@@ -4024,15 +4056,20 @@ void ResourceManager::reserveResources(const MCInstrDesc *MID) {
       continue;
     ++ProcResourceCount[PRE.ProcResourceIdx];
     LLVM_DEBUG({
-      const MCProcResourceDesc *ProcResource =
-          SM.getProcResource(PRE.ProcResourceIdx);
-      dbgs() << format(" %16s(%2d): Count: %2d, NumUnits:%2d, Cycles:%2d\n",
-                       ProcResource->Name, PRE.ProcResourceIdx,
-                       ProcResourceCount[PRE.ProcResourceIdx],
-                       ProcResource->NumUnits, PRE.Cycles);
+      if (SwpDebugResource) {
+        const MCProcResourceDesc *ProcResource =
+            SM.getProcResource(PRE.ProcResourceIdx);
+        dbgs() << format(" %16s(%2d): Count: %2d, NumUnits:%2d, Cycles:%2d\n",
+                         ProcResource->Name, PRE.ProcResourceIdx,
+                         ProcResourceCount[PRE.ProcResourceIdx],
+                         ProcResource->NumUnits, PRE.Cycles);
+      }
     });
   }
-  LLVM_DEBUG({ dbgs() << "reserveResources: done!\n\n"; });
+  LLVM_DEBUG({
+    if (SwpDebugResource)
+      dbgs() << "reserveResources: done!\n\n";
+  });
 }
 
 bool ResourceManager::canReserveResources(const MachineInstr &MI) const {

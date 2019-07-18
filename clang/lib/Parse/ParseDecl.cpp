@@ -164,10 +164,10 @@ void Parser::ParseGNUAttributes(ParsedAttributes &attrs,
       return;
     }
     // Parse the attribute-list. e.g. __attribute__(( weak, alias("__f") ))
-    while (true) {
-      // Allow empty/non-empty attributes. ((__vector_size__(16),,,,))
-      if (TryConsumeToken(tok::comma))
-        continue;
+    do {
+      // Eat preceeding commas to allow __attribute__((,,,foo))
+      while (TryConsumeToken(tok::comma))
+        ;
 
       // Expect an identifier or declaration specifier (const, int, etc.)
       if (Tok.isAnnotation())
@@ -212,7 +212,7 @@ void Parser::ParseGNUAttributes(ParsedAttributes &attrs,
       Eof.startToken();
       Eof.setLocation(Tok.getLocation());
       LA->Toks.push_back(Eof);
-    }
+    } while (Tok.is(tok::comma));
 
     if (ExpectAndConsume(tok::r_paren))
       SkipUntil(tok::r_paren, StopAtSemi);
@@ -2487,8 +2487,9 @@ void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
   }
 
   // Issue diagnostic and remove constexpr specifier if present.
-  if (DS.isConstexprSpecified() && DSC != DeclSpecContext::DSC_condition) {
-    Diag(DS.getConstexprSpecLoc(), diag::err_typename_invalid_constexpr);
+  if (DS.hasConstexprSpecifier() && DSC != DeclSpecContext::DSC_condition) {
+    Diag(DS.getConstexprSpecLoc(), diag::err_typename_invalid_constexpr)
+        << (DS.getConstexprSpecifier() == CSK_consteval);
     DS.ClearConstexprSpec();
   }
 }
@@ -3189,7 +3190,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
           Actions.getTypeName(*Next.getIdentifierInfo(), Next.getLocation(),
                               getCurScope(), &SS, false, false, nullptr,
                               /*IsCtorOrDtorName=*/false,
-                              /*WantNonTrivialSourceInfo=*/true,
+                              /*WantNontrivialTypeSourceInfo=*/true,
                               isClassTemplateDeductionContext(DSContext));
 
       // If the referenced identifier is not a type, then this declspec is
@@ -3627,7 +3628,12 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 
     // constexpr
     case tok::kw_constexpr:
-      isInvalid = DS.SetConstexprSpec(Loc, PrevSpec, DiagID);
+      isInvalid = DS.SetConstexprSpec(CSK_constexpr, Loc, PrevSpec, DiagID);
+      break;
+
+    // consteval
+    case tok::kw_consteval:
+      isInvalid = DS.SetConstexprSpec(CSK_consteval, Loc, PrevSpec, DiagID);
       break;
 
     // type-specifier
@@ -5038,6 +5044,9 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::annot_decltype:
   case tok::kw_constexpr:
 
+    // C++20 consteval.
+  case tok::kw_consteval:
+
     // C11 _Atomic
   case tok::kw__Atomic:
     return true;
@@ -6275,7 +6284,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
            Actions.CurContext->isRecord());
 
       Qualifiers Q = Qualifiers::fromCVRUMask(DS.getTypeQualifiers());
-      if (D.getDeclSpec().isConstexprSpecified() && !getLangOpts().CPlusPlus14)
+      if (D.getDeclSpec().hasConstexprSpecifier() && !getLangOpts().CPlusPlus14)
         Q.addConst();
       // FIXME: Collect C++ address spaces.
       // If there are multiple different address spaces, the source is invalid.

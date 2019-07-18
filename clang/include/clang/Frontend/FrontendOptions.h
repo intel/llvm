@@ -88,6 +88,10 @@ enum ActionKind {
   /// Generate pre-compiled header.
   GeneratePCH,
 
+  /// Generate Interface Stub Files.
+  GenerateInterfaceYAMLExpV1,
+  GenerateInterfaceTBEExpV1,
+
   /// Only execute frontend initialization.
   InitOnly,
 
@@ -259,6 +263,9 @@ public:
 
   /// Show timers for individual actions.
   unsigned ShowTimers : 1;
+
+  /// print the supported cpus for the current target
+  unsigned PrintSupportedCPUs : 1;
 
   /// Output time trace profile.
   unsigned TimeTrace : 1;

@@ -481,6 +481,9 @@ std::string ToolChain::getArchSpecificLibPath() const {
 }
 
 bool ToolChain::needsProfileRT(const ArgList &Args) {
+  if (Args.hasArg(options::OPT_noprofilelib))
+    return false;
+
   if (needsGCovInstrumentation(Args) ||
       Args.hasArg(options::OPT_fprofile_generate) ||
       Args.hasArg(options::OPT_fprofile_generate_EQ) ||
@@ -927,6 +930,7 @@ SanitizerMask ToolChain::getSupportedSanitizers() const {
                        ~SanitizerKind::Function) |
                       (SanitizerKind::CFI & ~SanitizerKind::CFIICall) |
                       SanitizerKind::CFICastStrict |
+                      SanitizerKind::FloatDivideByZero |
                       SanitizerKind::UnsignedIntegerOverflow |
                       SanitizerKind::ImplicitConversion |
                       SanitizerKind::Nullability | SanitizerKind::LocalBounds;

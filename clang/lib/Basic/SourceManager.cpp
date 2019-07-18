@@ -108,6 +108,32 @@ const llvm::MemoryBuffer *ContentCache::getBuffer(DiagnosticsEngine &Diag,
     return Buffer.getPointer();
   }
 
+  // Check that the file's size fits in an 'unsigned' (with room for a
+  // past-the-end value). This is deeply regrettable, but various parts of
+  // Clang (including elsewhere in this file!) use 'unsigned' to represent file
+  // offsets, line numbers, string literal lengths, and so on, and fail
+  // miserably on large source files.
+  if ((uint64_t)ContentsEntry->getSize() >=
+      std::numeric_limits<unsigned>::max()) {
+    // We can't make a memory buffer of the required size, so just make a small
+    // one. We should never hit a situation where we've already parsed to a
+    // later offset of the file, so it shouldn't matter that the buffer is
+    // smaller than the file.
+    Buffer.setPointer(
+        llvm::MemoryBuffer::getMemBuffer("", ContentsEntry->getName())
+            .release());
+    if (Diag.isDiagnosticInFlight())
+      Diag.SetDelayedDiagnostic(diag::err_file_too_large,
+                                ContentsEntry->getName());
+    else
+      Diag.Report(Loc, diag::err_file_too_large)
+        << ContentsEntry->getName();
+
+    Buffer.setInt(Buffer.getInt() | InvalidFlag);
+    if (Invalid) *Invalid = true;
+    return Buffer.getPointer();
+  }
+
   bool isVolatile = SM.userFilesAreVolatile() && !IsSystemFile;
   auto BufferOrError =
       SM.getFileManager().getBufferForFile(ContentsEntry, isVolatile);
@@ -252,9 +278,9 @@ const LineEntry *LineTableInfo::FindNearestLineEntry(FileID FID,
     return &Entries.back();
 
   // Do a binary search to find the maximal element that is still before Offset.
-  std::vector<LineEntry>::const_iterator I =
-    std::upper_bound(Entries.begin(), Entries.end(), Offset);
-  if (I == Entries.begin()) return nullptr;
+  std::vector<LineEntry>::const_iterator I = llvm::upper_bound(Entries, Offset);
+  if (I == Entries.begin())
+    return nullptr;
   return &*--I;
 }
 
@@ -303,7 +329,7 @@ void SourceManager::AddLineNote(SourceLocation Loc, unsigned LineNo,
 
 LineTableInfo &SourceManager::getLineTable() {
   if (!LineTable)
-    LineTable = new LineTableInfo();
+    LineTable.reset(new LineTableInfo());
   return *LineTable;
 }
 
@@ -319,8 +345,6 @@ SourceManager::SourceManager(DiagnosticsEngine &Diag, FileManager &FileMgr,
 }
 
 SourceManager::~SourceManager() {
-  delete LineTable;
-
   // Delete FileEntry objects corresponding to content caches.  Since the actual
   // content cache objects are bump pointer allocated, we just have to run the
   // dtors, but we call the deallocate method for completeness.

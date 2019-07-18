@@ -154,12 +154,14 @@ static std::unique_ptr<Writer> createELFWriter(const CopyConfig &Config,
 static std::unique_ptr<Writer> createWriter(const CopyConfig &Config,
                                             Object &Obj, Buffer &Buf,
                                             ElfType OutputElfType) {
-  using Functor = std::function<std::unique_ptr<Writer>()>;
-  return StringSwitch<Functor>(Config.OutputFormat)
-      .Case("binary", [&] { return llvm::make_unique<BinaryWriter>(Obj, Buf); })
-      .Case("ihex", [&] { return llvm::make_unique<IHexWriter>(Obj, Buf); })
-      .Default(
-          [&] { return createELFWriter(Config, Obj, Buf, OutputElfType); })();
+  switch (Config.OutputFormat) {
+  case FileFormat::Binary:
+    return llvm::make_unique<BinaryWriter>(Obj, Buf);
+  case FileFormat::IHex:
+    return llvm::make_unique<IHexWriter>(Obj, Buf);
+  default:
+    return createELFWriter(Config, Obj, Buf, OutputElfType);
+  }
 }
 
 template <class ELFT>
@@ -507,6 +509,16 @@ static Error replaceAndRemoveSections(const CopyConfig &Config, Object &Obj) {
       return (Sec.Flags & SHF_ALLOC) == 0;
     };
 
+  if (Config.ExtractPartition || Config.ExtractMainPartition) {
+    RemovePred = [RemovePred](const SectionBase &Sec) {
+      if (RemovePred(Sec))
+        return true;
+      if (Sec.Type == SHT_LLVM_PART_EHDR || Sec.Type == SHT_LLVM_PART_PHDR)
+        return true;
+      return (Sec.Flags & SHF_ALLOC) != 0 && !Sec.ParentSegment;
+    };
+  }
+
   // Explicit copies:
   if (!Config.OnlySection.empty()) {
     RemovePred = [&Config, RemovePred, &Obj](const SectionBase &Sec) {
@@ -731,6 +743,17 @@ static Error writeOutput(const CopyConfig &Config, Object &Obj, Buffer &Out,
   return Writer->write();
 }
 
+Error executeObjcopyOnIHex(const CopyConfig &Config, MemoryBuffer &In,
+                           Buffer &Out) {
+  IHexReader Reader(&In);
+  std::unique_ptr<Object> Obj = Reader.create();
+  const ElfType OutputElfType =
+      getOutputElfType(Config.OutputArch.getValueOr(Config.BinaryArch));
+  if (Error E = handleArgs(Config, *Obj, Reader, OutputElfType))
+    return E;
+  return writeOutput(Config, *Obj, Out, OutputElfType);
+}
+
 Error executeObjcopyOnRawBinary(const CopyConfig &Config, MemoryBuffer &In,
                                 Buffer &Out) {
   BinaryReader Reader(Config.BinaryArch, &In);
@@ -747,7 +770,7 @@ Error executeObjcopyOnRawBinary(const CopyConfig &Config, MemoryBuffer &In,
 
 Error executeObjcopyOnBinary(const CopyConfig &Config,
                              object::ELFObjectFileBase &In, Buffer &Out) {
-  ELFReader Reader(&In);
+  ELFReader Reader(&In, Config.ExtractPartition);
   std::unique_ptr<Object> Obj = Reader.create();
   // Prefer OutputArch (-O<format>) if set, otherwise infer it from the input.
   const ElfType OutputElfType =

@@ -66,7 +66,7 @@ STATISTIC(NumOverflows, "Number of overflow checks removed");
 STATISTIC(NumSaturating,
     "Number of saturating arithmetics converted to normal arithmetics");
 
-static cl::opt<bool> DontAddNoWrapFlags("cvp-dont-add-nowrap-flags", cl::init(true));
+static cl::opt<bool> DontAddNoWrapFlags("cvp-dont-add-nowrap-flags", cl::init(false));
 
 namespace {
 
@@ -541,7 +541,7 @@ static bool processUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
   // Find the smallest power of two bitwidth that's sufficient to hold Instr's
   // operands.
   auto OrigWidth = Instr->getType()->getIntegerBitWidth();
-  ConstantRange OperandRange(OrigWidth, /*isFullset=*/false);
+  ConstantRange OperandRange(OrigWidth, /*isFullSet=*/false);
   for (Value *Operand : Instr->operands()) {
     OperandRange = OperandRange.unionWith(
         LVI->getConstantRange(Operand, Instr->getParent()));

@@ -231,6 +231,13 @@ static bool isNonVolatileLoad(const Instruction *I) {
   return false;
 }
 
+static bool isNonVolatileStore(const Instruction *I) {
+  if (const auto *SI = dyn_cast<StoreInst>(I))
+    return !SI->isVolatile();
+
+  return false;
+}
+
 static void computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
                                    const Function &F, BlockFrequencyInfo *BFI,
                                    ProfileSummaryInfo *PSI, DominatorTree &DT,
@@ -245,7 +252,7 @@ static void computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
   // Map from callee ValueId to profile count. Used to accumulate profile
   // counts for all static calls to a given callee.
   MapVector<ValueInfo, CalleeInfo> CallGraphEdges;
-  SetVector<ValueInfo> RefEdges;
+  SetVector<ValueInfo> RefEdges, LoadRefEdges, StoreRefEdges;
   SetVector<GlobalValue::GUID> TypeTests;
   SetVector<FunctionSummary::VFuncId> TypeTestAssumeVCalls,
       TypeCheckedLoadVCalls;
@@ -258,6 +265,7 @@ static void computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
   // list.
   findRefEdges(Index, &F, RefEdges, Visited);
   std::vector<const Instruction *> NonVolatileLoads;
+  std::vector<const Instruction *> NonVolatileStores;
 
   bool HasInlineAsmMaybeReferencingInternal = false;
   for (const BasicBlock &BB : F)
@@ -265,12 +273,34 @@ static void computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
       if (isa<DbgInfoIntrinsic>(I))
         continue;
       ++NumInsts;
-      if (isNonVolatileLoad(&I)) {
-        // Postpone processing of non-volatile load instructions
-        // See comments below
-        Visited.insert(&I);
-        NonVolatileLoads.push_back(&I);
-        continue;
+      // Regular LTO module doesn't participate in ThinLTO import,
+      // so no reference from it can be read/writeonly, since this
+      // would require importing variable as local copy
+      if (IsThinLTO) {
+        if (isNonVolatileLoad(&I)) {
+          // Postpone processing of non-volatile load instructions
+          // See comments below
+          Visited.insert(&I);
+          NonVolatileLoads.push_back(&I);
+          continue;
+        } else if (isNonVolatileStore(&I)) {
+          Visited.insert(&I);
+          NonVolatileStores.push_back(&I);
+          // All references from second operand of store (destination address)
+          // can be considered write-only if they're not referenced by any
+          // non-store instruction. References from first operand of store
+          // (stored value) can't be treated either as read- or as write-only
+          // so we add them to RefEdges as we do with all other instructions
+          // except non-volatile load.
+          Value *Stored = I.getOperand(0);
+          if (auto *GV = dyn_cast<GlobalValue>(Stored))
+            // findRefEdges will try to examine GV operands, so instead
+            // of calling it we should add GV to RefEdges directly.
+            RefEdges.insert(Index.getOrInsertValueInfo(GV));
+          else if (auto *U = dyn_cast<User>(Stored))
+            findRefEdges(Index, U, RefEdges, Visited);
+          continue;
+        }
       }
       findRefEdges(Index, &I, RefEdges, Visited);
       auto CS = ImmutableCallSite(&I);
@@ -361,24 +391,61 @@ static void computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
       }
     }
 
-  // By now we processed all instructions in a function, except
-  // non-volatile loads. All new refs we add in a loop below
-  // are obviously constant. All constant refs are grouped in the
-  // end of RefEdges vector, so we can use a single integer value
-  // to identify them.
-  unsigned RefCnt = RefEdges.size();
-  for (const Instruction *I : NonVolatileLoads) {
-    Visited.erase(I);
-    findRefEdges(Index, I, RefEdges, Visited);
-  }
-  std::vector<ValueInfo> Refs = RefEdges.takeVector();
-  // Regular LTO module doesn't participate in ThinLTO import,
-  // so no reference from it can be readonly, since this would
-  // require importing variable as local copy
-  if (IsThinLTO)
-    for (; RefCnt < Refs.size(); ++RefCnt)
+  std::vector<ValueInfo> Refs;
+  if (IsThinLTO) {
+    auto AddRefEdges = [&](const std::vector<const Instruction *> &Instrs,
+                           SetVector<ValueInfo> &Edges,
+                           SmallPtrSet<const User *, 8> &Cache) {
+      for (const auto *I : Instrs) {
+        Cache.erase(I);
+        findRefEdges(Index, I, Edges, Cache);
+      }
+    };
+
+    // By now we processed all instructions in a function, except
+    // non-volatile loads and non-volatile value stores. Let's find
+    // ref edges for both of instruction sets
+    AddRefEdges(NonVolatileLoads, LoadRefEdges, Visited);
+    // We can add some values to the Visited set when processing load
+    // instructions which are also used by stores in NonVolatileStores.
+    // For example this can happen if we have following code:
+    //
+    // store %Derived* @foo, %Derived** bitcast (%Base** @bar to %Derived**)
+    // %42 = load %Derived*, %Derived** bitcast (%Base** @bar to %Derived**)
+    //
+    // After processing loads we'll add bitcast to the Visited set, and if
+    // we use the same set while processing stores, we'll never see store
+    // to @bar and @bar will be mistakenly treated as readonly.
+    SmallPtrSet<const llvm::User *, 8> StoreCache;
+    AddRefEdges(NonVolatileStores, StoreRefEdges, StoreCache);
+
+    // If both load and store instruction reference the same variable
+    // we won't be able to optimize it. Add all such reference edges
+    // to RefEdges set.
+    for (auto &VI : StoreRefEdges)
+      if (LoadRefEdges.remove(VI))
+        RefEdges.insert(VI);
+
+    unsigned RefCnt = RefEdges.size();
+    // All new reference edges inserted in two loops below are either
+    // read or write only. They will be grouped in the end of RefEdges
+    // vector, so we can use a single integer value to identify them.
+    for (auto &VI : LoadRefEdges)
+      RefEdges.insert(VI);
+
+    unsigned FirstWORef = RefEdges.size();
+    for (auto &VI : StoreRefEdges)
+      RefEdges.insert(VI);
+
+    Refs = RefEdges.takeVector();
+    for (; RefCnt < FirstWORef; ++RefCnt)
       Refs[RefCnt].setReadOnly();
 
+    for (; RefCnt < Refs.size(); ++RefCnt)
+      Refs[RefCnt].setWriteOnly();
+  } else {
+    Refs = RefEdges.takeVector();
+  }
   // Explicit add hot edges to enforce importing for designated GUIDs for
   // sample PGO, to enable the same inlines as the profiled optimized binary.
   for (auto &I : F.getImportGUIDs())
@@ -411,9 +478,98 @@ static void computeFunctionSummary(ModuleSummaryIndex &Index, const Module &M,
   Index.addGlobalValueSummary(F, std::move(FuncSummary));
 }
 
+/// Find function pointers referenced within the given vtable initializer
+/// (or subset of an initializer) \p I. The starting offset of \p I within
+/// the vtable initializer is \p StartingOffset. Any discovered function
+/// pointers are added to \p VTableFuncs along with their cumulative offset
+/// within the initializer.
+static void findFuncPointers(const Constant *I, uint64_t StartingOffset,
+                             const Module &M, ModuleSummaryIndex &Index,
+                             VTableFuncList &VTableFuncs) {
+  // First check if this is a function pointer.
+  if (I->getType()->isPointerTy()) {
+    auto Fn = dyn_cast<Function>(I->stripPointerCasts());
+    // We can disregard __cxa_pure_virtual as a possible call target, as
+    // calls to pure virtuals are UB.
+    if (Fn && Fn->getName() != "__cxa_pure_virtual")
+      VTableFuncs.push_back({Index.getOrInsertValueInfo(Fn), StartingOffset});
+    return;
+  }
+
+  // Walk through the elements in the constant struct or array and recursively
+  // look for virtual function pointers.
+  const DataLayout &DL = M.getDataLayout();
+  if (auto *C = dyn_cast<ConstantStruct>(I)) {
+    StructType *STy = dyn_cast<StructType>(C->getType());
+    assert(STy);
+    const StructLayout *SL = DL.getStructLayout(C->getType());
+
+    for (StructType::element_iterator EB = STy->element_begin(), EI = EB,
+                                      EE = STy->element_end();
+         EI != EE; ++EI) {
+      auto Offset = SL->getElementOffset(EI - EB);
+      unsigned Op = SL->getElementContainingOffset(Offset);
+      findFuncPointers(cast<Constant>(I->getOperand(Op)),
+                       StartingOffset + Offset, M, Index, VTableFuncs);
+    }
+  } else if (auto *C = dyn_cast<ConstantArray>(I)) {
+    ArrayType *ATy = C->getType();
+    Type *EltTy = ATy->getElementType();
+    uint64_t EltSize = DL.getTypeAllocSize(EltTy);
+    for (unsigned i = 0, e = ATy->getNumElements(); i != e; ++i) {
+      findFuncPointers(cast<Constant>(I->getOperand(i)),
+                       StartingOffset + i * EltSize, M, Index, VTableFuncs);
+    }
+  }
+}
+
+// Identify the function pointers referenced by vtable definition \p V.
+static void computeVTableFuncs(ModuleSummaryIndex &Index,
+                               const GlobalVariable &V, const Module &M,
+                               VTableFuncList &VTableFuncs) {
+  if (!V.isConstant())
+    return;
+
+  findFuncPointers(V.getInitializer(), /*StartingOffset=*/0, M, Index,
+                   VTableFuncs);
+
+#ifndef NDEBUG
+  // Validate that the VTableFuncs list is ordered by offset.
+  uint64_t PrevOffset = 0;
+  for (auto &P : VTableFuncs) {
+    // The findVFuncPointers traversal should have encountered the
+    // functions in offset order. We need to use ">=" since PrevOffset
+    // starts at 0.
+    assert(P.VTableOffset >= PrevOffset);
+    PrevOffset = P.VTableOffset;
+  }
+#endif
+}
+
+/// Record vtable definition \p V for each type metadata it references.
 static void
-computeVariableSummary(ModuleSummaryIndex &Index, const GlobalVariable &V,
-                       DenseSet<GlobalValue::GUID> &CantBePromoted) {
+recordTypeIdCompatibleVtableReferences(ModuleSummaryIndex &Index,
+                                       const GlobalVariable &V,
+                                       SmallVectorImpl<MDNode *> &Types) {
+  for (MDNode *Type : Types) {
+    auto TypeID = Type->getOperand(1).get();
+
+    uint64_t Offset =
+        cast<ConstantInt>(
+            cast<ConstantAsMetadata>(Type->getOperand(0))->getValue())
+            ->getZExtValue();
+
+    if (auto *TypeId = dyn_cast<MDString>(TypeID))
+      Index.getOrInsertTypeIdCompatibleVtableSummary(TypeId->getString())
+          .push_back({Offset, Index.getOrInsertValueInfo(&V)});
+  }
+}
+
+static void computeVariableSummary(ModuleSummaryIndex &Index,
+                                   const GlobalVariable &V,
+                                   DenseSet<GlobalValue::GUID> &CantBePromoted,
+                                   const Module &M,
+                                   SmallVectorImpl<MDNode *> &Types) {
   SetVector<ValueInfo> RefEdges;
   SmallPtrSet<const User *, 8> Visited;
   bool HasBlockAddress = findRefEdges(Index, &V, RefEdges, Visited);
@@ -422,16 +578,34 @@ computeVariableSummary(ModuleSummaryIndex &Index, const GlobalVariable &V,
                                     /* Live = */ false, V.isDSOLocal(),
                                     V.hasLinkOnceODRLinkage() && V.hasGlobalUnnamedAddr());
 
-  // Don't mark variables we won't be able to internalize as read-only.
-  GlobalVarSummary::GVarFlags VarFlags(
+  VTableFuncList VTableFuncs;
+  // If splitting is not enabled, then we compute the summary information
+  // necessary for index-based whole program devirtualization.
+  if (!Index.enableSplitLTOUnit()) {
+    Types.clear();
+    V.getMetadata(LLVMContext::MD_type, Types);
+    if (!Types.empty()) {
+      // Identify the function pointers referenced by this vtable definition.
+      computeVTableFuncs(Index, V, M, VTableFuncs);
+
+      // Record this vtable definition for each type metadata it references.
+      recordTypeIdCompatibleVtableReferences(Index, V, Types);
+    }
+  }
+
+  // Don't mark variables we won't be able to internalize as read/write-only.
+  bool CanBeInternalized =
       !V.hasComdat() && !V.hasAppendingLinkage() && !V.isInterposable() &&
-      !V.hasAvailableExternallyLinkage() && !V.hasDLLExportStorageClass());
+      !V.hasAvailableExternallyLinkage() && !V.hasDLLExportStorageClass();
+  GlobalVarSummary::GVarFlags VarFlags(CanBeInternalized, CanBeInternalized);
   auto GVarSummary = llvm::make_unique<GlobalVarSummary>(Flags, VarFlags,
                                                          RefEdges.takeVector());
   if (NonRenamableLocal)
     CantBePromoted.insert(V.getGUID());
   if (HasBlockAddress)
     GVarSummary->setNotEligibleToImport();
+  if (!VTableFuncs.empty())
+    GVarSummary->setVTableFuncs(VTableFuncs);
   Index.addGlobalValueSummary(V, std::move(GVarSummary));
 }
 
@@ -541,7 +715,7 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
           } else {
             std::unique_ptr<GlobalVarSummary> Summary =
                 llvm::make_unique<GlobalVarSummary>(
-                    GVFlags, GlobalVarSummary::GVarFlags(),
+                    GVFlags, GlobalVarSummary::GVarFlags(false, false),
                     ArrayRef<ValueInfo>{});
             Index.addGlobalValueSummary(*GV, std::move(Summary));
           }
@@ -578,10 +752,11 @@ ModuleSummaryIndex llvm::buildModuleSummaryIndex(
 
   // Compute summaries for all variables defined in module, and save in the
   // index.
+  SmallVector<MDNode *, 2> Types;
   for (const GlobalVariable &G : M.globals()) {
     if (G.isDeclaration())
       continue;
-    computeVariableSummary(Index, G, CantBePromoted);
+    computeVariableSummary(Index, G, CantBePromoted, M, Types);
   }
 
   // Compute summaries for all aliases defined in module, and save in the

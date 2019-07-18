@@ -589,6 +589,8 @@ private:
   CFGBlock *VisitStmt(Stmt *S, AddStmtChoice asc);
   CFGBlock *VisitChildren(Stmt *S);
   CFGBlock *VisitNoRecurse(Expr *E, AddStmtChoice asc);
+  CFGBlock *VisitOMPExecutableDirective(OMPExecutableDirective *D,
+                                        AddStmtChoice asc);
 
   void maybeAddScopeBeginForVarDecl(CFGBlock *B, const VarDecl *VD,
                                     const Stmt *S) {
@@ -2058,6 +2060,10 @@ CFGBlock *CFGBuilder::Visit(Stmt * S, AddStmtChoice asc) {
   if (Expr *E = dyn_cast<Expr>(S))
     S = E->IgnoreParens();
 
+  if (Context->getLangOpts().OpenMP)
+    if (auto *D = dyn_cast<OMPExecutableDirective>(S))
+      return VisitOMPExecutableDirective(D, asc);
+
   switch (S->getStmtClass()) {
     default:
       return VisitStmt(S, asc);
@@ -2925,8 +2931,8 @@ CFGBlock *CFGBuilder::VisitIfStmt(IfStmt *I) {
 
     // Add the successors.  If we know that specific branches are
     // unreachable, inform addSuccessor() of that knowledge.
-    addSuccessor(Block, ThenBlock, /* isReachable = */ !KnownVal.isFalse());
-    addSuccessor(Block, ElseBlock, /* isReachable = */ !KnownVal.isTrue());
+    addSuccessor(Block, ThenBlock, /* IsReachable = */ !KnownVal.isFalse());
+    addSuccessor(Block, ElseBlock, /* IsReachable = */ !KnownVal.isTrue());
 
     // Add the condition as the last statement in the new block.  This may
     // create new blocks as the condition may contain control-flow.  Any newly
@@ -4728,6 +4734,37 @@ CFGBlock *CFGBuilder::VisitConditionalOperatorForTemporaryDtors(
   return Block;
 }
 
+CFGBlock *CFGBuilder::VisitOMPExecutableDirective(OMPExecutableDirective *D,
+                                                  AddStmtChoice asc) {
+  if (asc.alwaysAdd(*this, D)) {
+    autoCreateBlock();
+    appendStmt(Block, D);
+  }
+
+  // Iterate over all used expression in clauses.
+  CFGBlock *B = Block;
+
+  // Reverse the elements to process them in natural order. Iterators are not
+  // bidirectional, so we need to create temp vector.
+  SmallVector<Stmt *, 8> Used(
+      OMPExecutableDirective::used_clauses_children(D->clauses()));
+  for (Stmt *S : llvm::reverse(Used)) {
+    assert(S && "Expected non-null used-in-clause child.");
+    if (CFGBlock *R = Visit(S))
+      B = R;
+  }
+  // Visit associated structured block if any.
+  if (!D->isStandaloneDirective())
+    if (Stmt *S = D->getStructuredBlock()) {
+      if (!isa<CompoundStmt>(S))
+        addLocalScopeAndDtors(S);
+      if (CFGBlock *R = addStmt(S))
+        B = R;
+    }
+
+  return B;
+}
+
 /// createBlock - Constructs and adds a new CFGBlock to the CFG.  The block has
 ///  no successors or predecessors.  If this is the first block created in the
 ///  CFG, it is automatically set to be the Entry and Exit of the CFG.
@@ -5613,6 +5650,30 @@ void CFGBlock::printTerminatorJson(raw_ostream &Out, const LangOptions &LO,
   printTerminator(TempOut, LO);
 
   Out << JsonFormat(TempOut.str(), AddQuotes);
+}
+
+const Expr *CFGBlock::getLastCondition() const {
+  // If the terminator is a temporary dtor or a virtual base, etc, we can't
+  // retrieve a meaningful condition, bail out.
+  if (Terminator.getKind() != CFGTerminator::StmtBranch)
+    return nullptr;
+
+  // Also, if this method was called on a block that doesn't have 2 successors,
+  // this block doesn't have retrievable condition.
+  if (succ_size() < 2)
+    return nullptr;
+
+  auto StmtElem = rbegin()->getAs<CFGStmt>();
+  if (!StmtElem)
+    return nullptr;
+
+  const Stmt *Cond = StmtElem->getStmt();
+  if (isa<ObjCForCollectionStmt>(Cond))
+    return nullptr;
+
+  // Only ObjCForCollectionStmt is known not to be a non-Expr terminator, hence
+  // the cast<>.
+  return cast<Expr>(Cond)->IgnoreParens();
 }
 
 Stmt *CFGBlock::getTerminatorCondition(bool StripParens) {

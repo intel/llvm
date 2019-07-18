@@ -47,6 +47,8 @@
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/FixedPoint.h"
 #include "clang/Basic/TargetInfo.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstring>
@@ -55,8 +57,10 @@
 #define DEBUG_TYPE "exprconstant"
 
 using namespace clang;
+using llvm::APInt;
 using llvm::APSInt;
 using llvm::APFloat;
+using llvm::Optional;
 
 static bool IsGlobalLValue(APValue::LValueBase B);
 
@@ -2208,10 +2212,8 @@ static bool HandleFloatToFloatCast(EvalInfo &Info, const Expr *E,
                                    APFloat &Result) {
   APFloat Value = Result;
   bool ignored;
-  if (Result.convert(Info.Ctx.getFloatTypeSemantics(DestType),
-                     APFloat::rmNearestTiesToEven, &ignored)
-      & APFloat::opOverflow)
-    return HandleOverflow(Info, E, Value, DestType);
+  Result.convert(Info.Ctx.getFloatTypeSemantics(DestType),
+                 APFloat::rmNearestTiesToEven, &ignored);
   return true;
 }
 
@@ -2232,10 +2234,8 @@ static bool HandleIntToFloatCast(EvalInfo &Info, const Expr *E,
                                  QualType SrcType, const APSInt &Value,
                                  QualType DestType, APFloat &Result) {
   Result = APFloat(Info.Ctx.getFloatTypeSemantics(DestType), 1);
-  if (Result.convertFromAPInt(Value, Value.isSigned(),
-                              APFloat::rmNearestTiesToEven)
-      & APFloat::opOverflow)
-    return HandleOverflow(Info, E, Value, DestType);
+  Result.convertFromAPInt(Value, Value.isSigned(),
+                          APFloat::rmNearestTiesToEven);
   return true;
 }
 
@@ -2387,9 +2387,11 @@ static bool handleIntIntBinOp(EvalInfo &Info, const Expr *E, const APSInt &LHS,
     if (SA != RHS) {
       Info.CCEDiag(E, diag::note_constexpr_large_shift)
         << RHS << E->getType() << LHS.getBitWidth();
-    } else if (LHS.isSigned()) {
+    } else if (LHS.isSigned() && !Info.getLangOpts().CPlusPlus2a) {
       // C++11 [expr.shift]p2: A signed left shift must have a non-negative
       // operand, and must not overflow the corresponding unsigned type.
+      // C++2a [expr.shift]p2: E1 << E2 is the unique value congruent to
+      // E1 x 2^E2 module 2^N.
       if (LHS.isNegative())
         Info.CCEDiag(E, diag::note_constexpr_lshift_of_negative) << LHS;
       else if (LHS.countLeadingZeros() < SA)
@@ -2451,11 +2453,19 @@ static bool handleFloatFloatBinOp(EvalInfo &Info, const Expr *E,
     LHS.subtract(RHS, APFloat::rmNearestTiesToEven);
     break;
   case BO_Div:
+    // [expr.mul]p4:
+    //   If the second operand of / or % is zero the behavior is undefined.
+    if (RHS.isZero())
+      Info.CCEDiag(E, diag::note_expr_divide_by_zero);
     LHS.divide(RHS, APFloat::rmNearestTiesToEven);
     break;
   }
 
-  if (LHS.isInfinity() || LHS.isNaN()) {
+  // [expr.pre]p4:
+  //   If during the evaluation of an expression, the result is not
+  //   mathematically defined [...], the behavior is undefined.
+  // FIXME: C++ rules require us to not conform to IEEE 754 here.
+  if (LHS.isNaN()) {
     Info.CCEDiag(E, diag::note_constexpr_float_arithmetic) << LHS.isNaN();
     return Info.noteUndefinedBehavior();
   }
@@ -2653,10 +2663,6 @@ static bool HandleLValueComplexElement(EvalInfo &Info, const Expr *E,
   LVal.addComplex(Info, E, EltTy, Imag);
   return true;
 }
-
-static bool handleLValueToRValueConversion(EvalInfo &Info, const Expr *Conv,
-                                           QualType Type, const LValue &LVal,
-                                           APValue &RVal);
 
 /// Try to evaluate the initializer for a variable declaration.
 ///
@@ -5091,14 +5097,37 @@ typedef SmallVector<APValue, 8> ArgVector;
 }
 
 /// EvaluateArgs - Evaluate the arguments to a function call.
-static bool EvaluateArgs(ArrayRef<const Expr*> Args, ArgVector &ArgValues,
-                         EvalInfo &Info) {
+static bool EvaluateArgs(ArrayRef<const Expr *> Args, ArgVector &ArgValues,
+                         EvalInfo &Info, const FunctionDecl *Callee) {
   bool Success = true;
+  llvm::SmallBitVector ForbiddenNullArgs;
+  if (Callee->hasAttr<NonNullAttr>()) {
+    ForbiddenNullArgs.resize(Args.size());
+    for (const auto *Attr : Callee->specific_attrs<NonNullAttr>()) {
+      if (!Attr->args_size()) {
+        ForbiddenNullArgs.set();
+        break;
+      } else
+        for (auto Idx : Attr->args()) {
+          unsigned ASTIdx = Idx.getASTIndex();
+          if (ASTIdx >= Args.size())
+            continue;
+          ForbiddenNullArgs[ASTIdx] = 1;
+        }
+    }
+  }
   for (ArrayRef<const Expr*>::iterator I = Args.begin(), E = Args.end();
        I != E; ++I) {
     if (!Evaluate(ArgValues[I - Args.begin()], Info, *I)) {
       // If we're checking for a potential constant expression, evaluate all
       // initializers even if some of them fail.
+      if (!Info.noteFailure())
+        return false;
+      Success = false;
+    } else if (!ForbiddenNullArgs.empty() &&
+               ForbiddenNullArgs[I - Args.begin()] &&
+               ArgValues[I - Args.begin()].isNullPointer()) {
+      Info.CCEDiag(*I, diag::note_non_null_attribute_failed);
       if (!Info.noteFailure())
         return false;
       Success = false;
@@ -5114,7 +5143,7 @@ static bool HandleFunctionCall(SourceLocation CallLoc,
                                EvalInfo &Info, APValue &Result,
                                const LValue *ResultSlot) {
   ArgVector ArgValues(Args.size());
-  if (!EvaluateArgs(Args, ArgValues, Info))
+  if (!EvaluateArgs(Args, ArgValues, Info, Callee))
     return false;
 
   if (!Info.CheckCallLimit(CallLoc))
@@ -5338,7 +5367,7 @@ static bool HandleConstructorCall(const Expr *E, const LValue &This,
                                   const CXXConstructorDecl *Definition,
                                   EvalInfo &Info, APValue &Result) {
   ArgVector ArgValues(Args.size());
-  if (!EvaluateArgs(Args, ArgValues, Info))
+  if (!EvaluateArgs(Args, ArgValues, Info, Definition))
     return false;
 
   return HandleConstructorCall(E, This, ArgValues.data(), Definition,
@@ -5349,6 +5378,491 @@ static bool HandleConstructorCall(const Expr *E, const LValue &This,
 // Generic Evaluation
 //===----------------------------------------------------------------------===//
 namespace {
+
+class BitCastBuffer {
+  // FIXME: We're going to need bit-level granularity when we support
+  // bit-fields.
+  // FIXME: Its possible under the C++ standard for 'char' to not be 8 bits, but
+  // we don't support a host or target where that is the case. Still, we should
+  // use a more generic type in case we ever do.
+  SmallVector<Optional<unsigned char>, 32> Bytes;
+
+  static_assert(std::numeric_limits<unsigned char>::digits >= 8,
+                "Need at least 8 bit unsigned char");
+
+  bool TargetIsLittleEndian;
+
+public:
+  BitCastBuffer(CharUnits Width, bool TargetIsLittleEndian)
+      : Bytes(Width.getQuantity()),
+        TargetIsLittleEndian(TargetIsLittleEndian) {}
+
+  LLVM_NODISCARD
+  bool readObject(CharUnits Offset, CharUnits Width,
+                  SmallVectorImpl<unsigned char> &Output) const {
+    for (CharUnits I = Offset, E = Offset + Width; I != E; ++I) {
+      // If a byte of an integer is uninitialized, then the whole integer is
+      // uninitalized.
+      if (!Bytes[I.getQuantity()])
+        return false;
+      Output.push_back(*Bytes[I.getQuantity()]);
+    }
+    if (llvm::sys::IsLittleEndianHost != TargetIsLittleEndian)
+      std::reverse(Output.begin(), Output.end());
+    return true;
+  }
+
+  void writeObject(CharUnits Offset, SmallVectorImpl<unsigned char> &Input) {
+    if (llvm::sys::IsLittleEndianHost != TargetIsLittleEndian)
+      std::reverse(Input.begin(), Input.end());
+
+    size_t Index = 0;
+    for (unsigned char Byte : Input) {
+      assert(!Bytes[Offset.getQuantity() + Index] && "overwriting a byte?");
+      Bytes[Offset.getQuantity() + Index] = Byte;
+      ++Index;
+    }
+  }
+
+  size_t size() { return Bytes.size(); }
+};
+
+/// Traverse an APValue to produce an BitCastBuffer, emulating how the current
+/// target would represent the value at runtime.
+class APValueToBufferConverter {
+  EvalInfo &Info;
+  BitCastBuffer Buffer;
+  const CastExpr *BCE;
+
+  APValueToBufferConverter(EvalInfo &Info, CharUnits ObjectWidth,
+                           const CastExpr *BCE)
+      : Info(Info),
+        Buffer(ObjectWidth, Info.Ctx.getTargetInfo().isLittleEndian()),
+        BCE(BCE) {}
+
+  bool visit(const APValue &Val, QualType Ty) {
+    return visit(Val, Ty, CharUnits::fromQuantity(0));
+  }
+
+  // Write out Val with type Ty into Buffer starting at Offset.
+  bool visit(const APValue &Val, QualType Ty, CharUnits Offset) {
+    assert((size_t)Offset.getQuantity() <= Buffer.size());
+
+    // As a special case, nullptr_t has an indeterminate value.
+    if (Ty->isNullPtrType())
+      return true;
+
+    // Dig through Src to find the byte at SrcOffset.
+    switch (Val.getKind()) {
+    case APValue::Indeterminate:
+    case APValue::None:
+      return true;
+
+    case APValue::Int:
+      return visitInt(Val.getInt(), Ty, Offset);
+    case APValue::Float:
+      return visitFloat(Val.getFloat(), Ty, Offset);
+    case APValue::Array:
+      return visitArray(Val, Ty, Offset);
+    case APValue::Struct:
+      return visitRecord(Val, Ty, Offset);
+
+    case APValue::ComplexInt:
+    case APValue::ComplexFloat:
+    case APValue::Vector:
+    case APValue::FixedPoint:
+      // FIXME: We should support these.
+
+    case APValue::Union:
+    case APValue::MemberPointer:
+    case APValue::AddrLabelDiff: {
+      Info.FFDiag(BCE->getBeginLoc(),
+                  diag::note_constexpr_bit_cast_unsupported_type)
+          << Ty;
+      return false;
+    }
+
+    case APValue::LValue:
+      llvm_unreachable("LValue subobject in bit_cast?");
+    }
+    llvm_unreachable("Unhandled APValue::ValueKind");
+  }
+
+  bool visitRecord(const APValue &Val, QualType Ty, CharUnits Offset) {
+    const RecordDecl *RD = Ty->getAsRecordDecl();
+    const ASTRecordLayout &Layout = Info.Ctx.getASTRecordLayout(RD);
+
+    // Visit the base classes.
+    if (auto *CXXRD = dyn_cast<CXXRecordDecl>(RD)) {
+      for (size_t I = 0, E = CXXRD->getNumBases(); I != E; ++I) {
+        const CXXBaseSpecifier &BS = CXXRD->bases_begin()[I];
+        CXXRecordDecl *BaseDecl = BS.getType()->getAsCXXRecordDecl();
+
+        if (!visitRecord(Val.getStructBase(I), BS.getType(),
+                         Layout.getBaseClassOffset(BaseDecl) + Offset))
+          return false;
+      }
+    }
+
+    // Visit the fields.
+    unsigned FieldIdx = 0;
+    for (FieldDecl *FD : RD->fields()) {
+      if (FD->isBitField()) {
+        Info.FFDiag(BCE->getBeginLoc(),
+                    diag::note_constexpr_bit_cast_unsupported_bitfield);
+        return false;
+      }
+
+      uint64_t FieldOffsetBits = Layout.getFieldOffset(FieldIdx);
+
+      assert(FieldOffsetBits % Info.Ctx.getCharWidth() == 0 &&
+             "only bit-fields can have sub-char alignment");
+      CharUnits FieldOffset =
+          Info.Ctx.toCharUnitsFromBits(FieldOffsetBits) + Offset;
+      QualType FieldTy = FD->getType();
+      if (!visit(Val.getStructField(FieldIdx), FieldTy, FieldOffset))
+        return false;
+      ++FieldIdx;
+    }
+
+    return true;
+  }
+
+  bool visitArray(const APValue &Val, QualType Ty, CharUnits Offset) {
+    const auto *CAT =
+        dyn_cast_or_null<ConstantArrayType>(Ty->getAsArrayTypeUnsafe());
+    if (!CAT)
+      return false;
+
+    CharUnits ElemWidth = Info.Ctx.getTypeSizeInChars(CAT->getElementType());
+    unsigned NumInitializedElts = Val.getArrayInitializedElts();
+    unsigned ArraySize = Val.getArraySize();
+    // First, initialize the initialized elements.
+    for (unsigned I = 0; I != NumInitializedElts; ++I) {
+      const APValue &SubObj = Val.getArrayInitializedElt(I);
+      if (!visit(SubObj, CAT->getElementType(), Offset + I * ElemWidth))
+        return false;
+    }
+
+    // Next, initialize the rest of the array using the filler.
+    if (Val.hasArrayFiller()) {
+      const APValue &Filler = Val.getArrayFiller();
+      for (unsigned I = NumInitializedElts; I != ArraySize; ++I) {
+        if (!visit(Filler, CAT->getElementType(), Offset + I * ElemWidth))
+          return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool visitInt(const APSInt &Val, QualType Ty, CharUnits Offset) {
+    CharUnits Width = Info.Ctx.getTypeSizeInChars(Ty);
+    SmallVector<unsigned char, 8> Bytes(Width.getQuantity());
+    llvm::StoreIntToMemory(Val, &*Bytes.begin(), Width.getQuantity());
+    Buffer.writeObject(Offset, Bytes);
+    return true;
+  }
+
+  bool visitFloat(const APFloat &Val, QualType Ty, CharUnits Offset) {
+    APSInt AsInt(Val.bitcastToAPInt());
+    return visitInt(AsInt, Ty, Offset);
+  }
+
+public:
+  static Optional<BitCastBuffer> convert(EvalInfo &Info, const APValue &Src,
+                                         const CastExpr *BCE) {
+    CharUnits DstSize = Info.Ctx.getTypeSizeInChars(BCE->getType());
+    APValueToBufferConverter Converter(Info, DstSize, BCE);
+    if (!Converter.visit(Src, BCE->getSubExpr()->getType()))
+      return None;
+    return Converter.Buffer;
+  }
+};
+
+/// Write an BitCastBuffer into an APValue.
+class BufferToAPValueConverter {
+  EvalInfo &Info;
+  const BitCastBuffer &Buffer;
+  const CastExpr *BCE;
+
+  BufferToAPValueConverter(EvalInfo &Info, const BitCastBuffer &Buffer,
+                           const CastExpr *BCE)
+      : Info(Info), Buffer(Buffer), BCE(BCE) {}
+
+  // Emit an unsupported bit_cast type error. Sema refuses to build a bit_cast
+  // with an invalid type, so anything left is a deficiency on our part (FIXME).
+  // Ideally this will be unreachable.
+  llvm::NoneType unsupportedType(QualType Ty) {
+    Info.FFDiag(BCE->getBeginLoc(),
+                diag::note_constexpr_bit_cast_unsupported_type)
+        << Ty;
+    return None;
+  }
+
+  Optional<APValue> visit(const BuiltinType *T, CharUnits Offset,
+                          const EnumType *EnumSugar = nullptr) {
+    if (T->isNullPtrType()) {
+      uint64_t NullValue = Info.Ctx.getTargetNullPointerValue(QualType(T, 0));
+      return APValue((Expr *)nullptr,
+                     /*Offset=*/CharUnits::fromQuantity(NullValue),
+                     APValue::NoLValuePath{}, /*IsNullPtr=*/true);
+    }
+
+    CharUnits SizeOf = Info.Ctx.getTypeSizeInChars(T);
+    SmallVector<uint8_t, 8> Bytes;
+    if (!Buffer.readObject(Offset, SizeOf, Bytes)) {
+      // If this is std::byte or unsigned char, then its okay to store an
+      // indeterminate value.
+      bool IsStdByte = EnumSugar && EnumSugar->isStdByteType();
+      bool IsUChar =
+          !EnumSugar && (T->isSpecificBuiltinType(BuiltinType::UChar) ||
+                         T->isSpecificBuiltinType(BuiltinType::Char_U));
+      if (!IsStdByte && !IsUChar) {
+        QualType DisplayType(EnumSugar ? (const Type *)EnumSugar : T, 0);
+        Info.FFDiag(BCE->getExprLoc(),
+                    diag::note_constexpr_bit_cast_indet_dest)
+            << DisplayType << Info.Ctx.getLangOpts().CharIsSigned;
+        return None;
+      }
+
+      return APValue::IndeterminateValue();
+    }
+
+    APSInt Val(SizeOf.getQuantity() * Info.Ctx.getCharWidth(), true);
+    llvm::LoadIntFromMemory(Val, &*Bytes.begin(), Bytes.size());
+
+    if (T->isIntegralOrEnumerationType()) {
+      Val.setIsSigned(T->isSignedIntegerOrEnumerationType());
+      return APValue(Val);
+    }
+
+    if (T->isRealFloatingType()) {
+      const llvm::fltSemantics &Semantics =
+          Info.Ctx.getFloatTypeSemantics(QualType(T, 0));
+      return APValue(APFloat(Semantics, Val));
+    }
+
+    return unsupportedType(QualType(T, 0));
+  }
+
+  Optional<APValue> visit(const RecordType *RTy, CharUnits Offset) {
+    const RecordDecl *RD = RTy->getAsRecordDecl();
+    const ASTRecordLayout &Layout = Info.Ctx.getASTRecordLayout(RD);
+
+    unsigned NumBases = 0;
+    if (auto *CXXRD = dyn_cast<CXXRecordDecl>(RD))
+      NumBases = CXXRD->getNumBases();
+
+    APValue ResultVal(APValue::UninitStruct(), NumBases,
+                      std::distance(RD->field_begin(), RD->field_end()));
+
+    // Visit the base classes.
+    if (auto *CXXRD = dyn_cast<CXXRecordDecl>(RD)) {
+      for (size_t I = 0, E = CXXRD->getNumBases(); I != E; ++I) {
+        const CXXBaseSpecifier &BS = CXXRD->bases_begin()[I];
+        CXXRecordDecl *BaseDecl = BS.getType()->getAsCXXRecordDecl();
+        if (BaseDecl->isEmpty() ||
+            Info.Ctx.getASTRecordLayout(BaseDecl).getNonVirtualSize().isZero())
+          continue;
+
+        Optional<APValue> SubObj = visitType(
+            BS.getType(), Layout.getBaseClassOffset(BaseDecl) + Offset);
+        if (!SubObj)
+          return None;
+        ResultVal.getStructBase(I) = *SubObj;
+      }
+    }
+
+    // Visit the fields.
+    unsigned FieldIdx = 0;
+    for (FieldDecl *FD : RD->fields()) {
+      // FIXME: We don't currently support bit-fields. A lot of the logic for
+      // this is in CodeGen, so we need to factor it around.
+      if (FD->isBitField()) {
+        Info.FFDiag(BCE->getBeginLoc(),
+                    diag::note_constexpr_bit_cast_unsupported_bitfield);
+        return None;
+      }
+
+      uint64_t FieldOffsetBits = Layout.getFieldOffset(FieldIdx);
+      assert(FieldOffsetBits % Info.Ctx.getCharWidth() == 0);
+
+      CharUnits FieldOffset =
+          CharUnits::fromQuantity(FieldOffsetBits / Info.Ctx.getCharWidth()) +
+          Offset;
+      QualType FieldTy = FD->getType();
+      Optional<APValue> SubObj = visitType(FieldTy, FieldOffset);
+      if (!SubObj)
+        return None;
+      ResultVal.getStructField(FieldIdx) = *SubObj;
+      ++FieldIdx;
+    }
+
+    return ResultVal;
+  }
+
+  Optional<APValue> visit(const EnumType *Ty, CharUnits Offset) {
+    QualType RepresentationType = Ty->getDecl()->getIntegerType();
+    assert(!RepresentationType.isNull() &&
+           "enum forward decl should be caught by Sema");
+    const BuiltinType *AsBuiltin =
+        RepresentationType.getCanonicalType()->getAs<BuiltinType>();
+    assert(AsBuiltin && "non-integral enum underlying type?");
+    // Recurse into the underlying type. Treat std::byte transparently as
+    // unsigned char.
+    return visit(AsBuiltin, Offset, /*EnumTy=*/Ty);
+  }
+
+  Optional<APValue> visit(const ConstantArrayType *Ty, CharUnits Offset) {
+    size_t Size = Ty->getSize().getLimitedValue();
+    CharUnits ElementWidth = Info.Ctx.getTypeSizeInChars(Ty->getElementType());
+
+    APValue ArrayValue(APValue::UninitArray(), Size, Size);
+    for (size_t I = 0; I != Size; ++I) {
+      Optional<APValue> ElementValue =
+          visitType(Ty->getElementType(), Offset + I * ElementWidth);
+      if (!ElementValue)
+        return None;
+      ArrayValue.getArrayInitializedElt(I) = std::move(*ElementValue);
+    }
+
+    return ArrayValue;
+  }
+
+  Optional<APValue> visit(const Type *Ty, CharUnits Offset) {
+    return unsupportedType(QualType(Ty, 0));
+  }
+
+  Optional<APValue> visitType(QualType Ty, CharUnits Offset) {
+    QualType Can = Ty.getCanonicalType();
+
+    switch (Can->getTypeClass()) {
+#define TYPE(Class, Base)                                                      \
+  case Type::Class:                                                            \
+    return visit(cast<Class##Type>(Can.getTypePtr()), Offset);
+#define ABSTRACT_TYPE(Class, Base)
+#define NON_CANONICAL_TYPE(Class, Base)                                        \
+  case Type::Class:                                                            \
+    llvm_unreachable("non-canonical type should be impossible!");
+#define DEPENDENT_TYPE(Class, Base)                                            \
+  case Type::Class:                                                            \
+    llvm_unreachable(                                                          \
+        "dependent types aren't supported in the constant evaluator!");
+#define NON_CANONICAL_UNLESS_DEPENDENT(Class, Base)                            \
+  case Type::Class:                                                            \
+    llvm_unreachable("either dependent or not canonical!");
+#include "clang/AST/TypeNodes.def"
+    }
+    llvm_unreachable("Unhandled Type::TypeClass");
+  }
+
+public:
+  // Pull out a full value of type DstType.
+  static Optional<APValue> convert(EvalInfo &Info, BitCastBuffer &Buffer,
+                                   const CastExpr *BCE) {
+    BufferToAPValueConverter Converter(Info, Buffer, BCE);
+    return Converter.visitType(BCE->getType(), CharUnits::fromQuantity(0));
+  }
+};
+
+static bool checkBitCastConstexprEligibilityType(SourceLocation Loc,
+                                                 QualType Ty, EvalInfo *Info,
+                                                 const ASTContext &Ctx,
+                                                 bool CheckingDest) {
+  Ty = Ty.getCanonicalType();
+
+  auto diag = [&](int Reason) {
+    if (Info)
+      Info->FFDiag(Loc, diag::note_constexpr_bit_cast_invalid_type)
+          << CheckingDest << (Reason == 4) << Reason;
+    return false;
+  };
+  auto note = [&](int Construct, QualType NoteTy, SourceLocation NoteLoc) {
+    if (Info)
+      Info->Note(NoteLoc, diag::note_constexpr_bit_cast_invalid_subtype)
+          << NoteTy << Construct << Ty;
+    return false;
+  };
+
+  if (Ty->isUnionType())
+    return diag(0);
+  if (Ty->isPointerType())
+    return diag(1);
+  if (Ty->isMemberPointerType())
+    return diag(2);
+  if (Ty.isVolatileQualified())
+    return diag(3);
+
+  if (RecordDecl *Record = Ty->getAsRecordDecl()) {
+    if (auto *CXXRD = dyn_cast<CXXRecordDecl>(Record)) {
+      for (CXXBaseSpecifier &BS : CXXRD->bases())
+        if (!checkBitCastConstexprEligibilityType(Loc, BS.getType(), Info, Ctx,
+                                                  CheckingDest))
+          return note(1, BS.getType(), BS.getBeginLoc());
+    }
+    for (FieldDecl *FD : Record->fields()) {
+      if (FD->getType()->isReferenceType())
+        return diag(4);
+      if (!checkBitCastConstexprEligibilityType(Loc, FD->getType(), Info, Ctx,
+                                                CheckingDest))
+        return note(0, FD->getType(), FD->getBeginLoc());
+    }
+  }
+
+  if (Ty->isArrayType() &&
+      !checkBitCastConstexprEligibilityType(Loc, Ctx.getBaseElementType(Ty),
+                                            Info, Ctx, CheckingDest))
+    return false;
+
+  return true;
+}
+
+static bool checkBitCastConstexprEligibility(EvalInfo *Info,
+                                             const ASTContext &Ctx,
+                                             const CastExpr *BCE) {
+  bool DestOK = checkBitCastConstexprEligibilityType(
+      BCE->getBeginLoc(), BCE->getType(), Info, Ctx, true);
+  bool SourceOK = DestOK && checkBitCastConstexprEligibilityType(
+                                BCE->getBeginLoc(),
+                                BCE->getSubExpr()->getType(), Info, Ctx, false);
+  return SourceOK;
+}
+
+static bool handleLValueToRValueBitCast(EvalInfo &Info, APValue &DestValue,
+                                        APValue &SourceValue,
+                                        const CastExpr *BCE) {
+  assert(CHAR_BIT == 8 && Info.Ctx.getTargetInfo().getCharWidth() == 8 &&
+         "no host or target supports non 8-bit chars");
+  assert(SourceValue.isLValue() &&
+         "LValueToRValueBitcast requires an lvalue operand!");
+
+  if (!checkBitCastConstexprEligibility(&Info, Info.Ctx, BCE))
+    return false;
+
+  LValue SourceLValue;
+  APValue SourceRValue;
+  SourceLValue.setFrom(Info.Ctx, SourceValue);
+  if (!handleLValueToRValueConversion(Info, BCE,
+                                      BCE->getSubExpr()->getType().withConst(),
+                                      SourceLValue, SourceRValue))
+    return false;
+
+  // Read out SourceValue into a char buffer.
+  Optional<BitCastBuffer> Buffer =
+      APValueToBufferConverter::convert(Info, SourceRValue, BCE);
+  if (!Buffer)
+    return false;
+
+  // Write out the buffer into a new APValue.
+  Optional<APValue> MaybeDestValue =
+      BufferToAPValueConverter::convert(Info, *Buffer, BCE);
+  if (!MaybeDestValue)
+    return false;
+
+  DestValue = std::move(*MaybeDestValue);
+  return true;
+}
 
 template <class Derived>
 class ExprEvaluatorBase
@@ -5482,6 +5996,9 @@ public:
   bool VisitCXXDynamicCastExpr(const CXXDynamicCastExpr *E) {
     if (!Info.Ctx.getLangOpts().CPlusPlus2a)
       CCEDiag(E, diag::note_constexpr_invalid_cast) << 1;
+    return static_cast<Derived*>(this)->VisitCastExpr(E);
+  }
+  bool VisitBuiltinBitCastExpr(const BuiltinBitCastExpr *E) {
     return static_cast<Derived*>(this)->VisitCastExpr(E);
   }
 
@@ -5775,6 +6292,14 @@ public:
                                           LVal, RVal))
         return false;
       return DerivedSuccess(RVal, E);
+    }
+    case CK_LValueToRValueBitCast: {
+      APValue DestValue, SourceValue;
+      if (!Evaluate(SourceValue, Info, E->getSubExpr()))
+        return false;
+      if (!handleLValueToRValueBitCast(Info, DestValue, SourceValue, E))
+        return false;
+      return DerivedSuccess(DestValue, E);
     }
     }
 
@@ -6625,7 +7150,6 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
   switch (E->getCastKind()) {
   default:
     break;
-
   case CK_BitCast:
   case CK_CPointerToObjCPointerCast:
   case CK_BlockPointerToObjCPointerCast:
@@ -8150,7 +8674,7 @@ public:
   }
 
   bool Success(const APValue &V, const Expr *E) {
-    if (V.isLValue() || V.isAddrLabelDiff()) {
+    if (V.isLValue() || V.isAddrLabelDiff() || V.isIndeterminate()) {
       Result = V;
       return true;
     }
@@ -8939,6 +9463,8 @@ static bool tryEvaluateBuiltinObjectSize(const Expr *E, unsigned Type,
 
 bool IntExprEvaluator::VisitConstantExpr(const ConstantExpr *E) {
   llvm::SaveAndRestore<bool> InConstantContext(Info.InConstantContext, true);
+  if (E->getResultAPValueKind() != APValue::None)
+    return Success(E->getAPValueResult(), E);
   return ExprEvaluatorBaseTy::VisitConstantExpr(E);
 }
 
@@ -10570,6 +11096,7 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_LValueToRValue:
   case CK_AtomicToNonAtomic:
   case CK_NoOp:
+  case CK_LValueToRValueBitCast:
     return ExprEvaluatorBaseTy::VisitCastExpr(E);
 
   case CK_MemberPointerToBoolean:
@@ -11182,6 +11709,7 @@ bool ComplexExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_LValueToRValue:
   case CK_AtomicToNonAtomic:
   case CK_NoOp:
+  case CK_LValueToRValueBitCast:
     return ExprEvaluatorBaseTy::VisitCastExpr(E);
 
   case CK_Dependent:
@@ -11855,33 +12383,38 @@ bool Expr::EvaluateAsRValue(EvalResult &Result, const ASTContext &Ctx,
   return ::EvaluateAsRValue(this, Result, Ctx, Info);
 }
 
-bool Expr::EvaluateAsBooleanCondition(bool &Result,
-                                      const ASTContext &Ctx) const {
+bool Expr::EvaluateAsBooleanCondition(bool &Result, const ASTContext &Ctx,
+                                      bool InConstantContext) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
   EvalResult Scratch;
-  return EvaluateAsRValue(Scratch, Ctx) &&
+  return EvaluateAsRValue(Scratch, Ctx, InConstantContext) &&
          HandleConversionToBool(Scratch.Val, Result);
 }
 
 bool Expr::EvaluateAsInt(EvalResult &Result, const ASTContext &Ctx,
-                         SideEffectsKind AllowSideEffects) const {
+                         SideEffectsKind AllowSideEffects,
+                         bool InConstantContext) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
   EvalInfo Info(Ctx, Result, EvalInfo::EM_IgnoreSideEffects);
+  Info.InConstantContext = InConstantContext;
   return ::EvaluateAsInt(this, Result, Ctx, AllowSideEffects, Info);
 }
 
 bool Expr::EvaluateAsFixedPoint(EvalResult &Result, const ASTContext &Ctx,
-                                SideEffectsKind AllowSideEffects) const {
+                                SideEffectsKind AllowSideEffects,
+                                bool InConstantContext) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
   EvalInfo Info(Ctx, Result, EvalInfo::EM_IgnoreSideEffects);
+  Info.InConstantContext = InConstantContext;
   return ::EvaluateAsFixedPoint(this, Result, Ctx, AllowSideEffects, Info);
 }
 
 bool Expr::EvaluateAsFloat(APFloat &Result, const ASTContext &Ctx,
-                           SideEffectsKind AllowSideEffects) const {
+                           SideEffectsKind AllowSideEffects,
+                           bool InConstantContext) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
@@ -11889,7 +12422,8 @@ bool Expr::EvaluateAsFloat(APFloat &Result, const ASTContext &Ctx,
     return false;
 
   EvalResult ExprResult;
-  if (!EvaluateAsRValue(ExprResult, Ctx) || !ExprResult.Val.isFloat() ||
+  if (!EvaluateAsRValue(ExprResult, Ctx, InConstantContext) ||
+      !ExprResult.Val.isFloat() ||
       hasUnacceptableSideEffect(ExprResult, AllowSideEffects))
     return false;
 
@@ -11897,12 +12431,13 @@ bool Expr::EvaluateAsFloat(APFloat &Result, const ASTContext &Ctx,
   return true;
 }
 
-bool Expr::EvaluateAsLValue(EvalResult &Result, const ASTContext &Ctx) const {
+bool Expr::EvaluateAsLValue(EvalResult &Result, const ASTContext &Ctx,
+                            bool InConstantContext) const {
   assert(!isValueDependent() &&
          "Expression evaluator can't be called on a dependent expression.");
 
   EvalInfo Info(Ctx, Result, EvalInfo::EM_ConstantFold);
-
+  Info.InConstantContext = InConstantContext;
   LValue LV;
   if (!EvaluateLValue(this, LV, Info) || Result.HasSideEffects ||
       !CheckLValueConstantExpression(Info, getExprLoc(),
@@ -12477,6 +13012,11 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ChooseExprClass: {
     return CheckICE(cast<ChooseExpr>(E)->getChosenSubExpr(), Ctx);
   }
+  case Expr::BuiltinBitCastExprClass: {
+    if (!checkBitCastConstexprEligibility(nullptr, Ctx, cast<CastExpr>(E)))
+      return ICEDiag(IK_NotICE, E->getBeginLoc());
+    return CheckICE(cast<CastExpr>(E)->getSubExpr(), Ctx);
+  }
   }
 
   llvm_unreachable("Invalid StmtClass!");
@@ -12685,7 +13225,7 @@ bool Expr::isPotentialConstantExprUnevaluated(Expr *E,
   // Fabricate a call stack frame to give the arguments a plausible cover story.
   ArrayRef<const Expr*> Args;
   ArgVector ArgValues(0);
-  bool Success = EvaluateArgs(Args, ArgValues, Info);
+  bool Success = EvaluateArgs(Args, ArgValues, Info, FD);
   (void)Success;
   assert(Success &&
          "Failed to set up arguments for potential constant evaluation");

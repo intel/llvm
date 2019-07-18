@@ -621,19 +621,27 @@ void llvm::deleteDeadLoop(Loop *L, DominatorTree *DT = nullptr,
 }
 
 Optional<unsigned> llvm::getLoopEstimatedTripCount(Loop *L) {
-  // Only support loops with a unique exiting block, and a latch.
-  if (!L->getExitingBlock())
-    return None;
+  // Support loops with an exiting latch and other existing exists only
+  // deoptimize.
 
   // Get the branch weights for the loop's backedge.
-  BranchInst *LatchBR =
-      dyn_cast<BranchInst>(L->getLoopLatch()->getTerminator());
-  if (!LatchBR || LatchBR->getNumSuccessors() != 2)
+  BasicBlock *Latch = L->getLoopLatch();
+  if (!Latch)
+    return None;
+  BranchInst *LatchBR = dyn_cast<BranchInst>(Latch->getTerminator());
+  if (!LatchBR || LatchBR->getNumSuccessors() != 2 || !L->isLoopExiting(Latch))
     return None;
 
   assert((LatchBR->getSuccessor(0) == L->getHeader() ||
           LatchBR->getSuccessor(1) == L->getHeader()) &&
          "At least one edge out of the latch must go to the header");
+
+  SmallVector<BasicBlock *, 4> ExitBlocks;
+  L->getUniqueNonLatchExitBlocks(ExitBlocks);
+  if (any_of(ExitBlocks, [](const BasicBlock *EB) {
+        return !EB->getTerminatingDeoptimizeCall();
+      }))
+    return None;
 
   // To estimate the number of times the loop body was executed, we want to
   // know the number of times the backedge was taken, vs. the number of times
@@ -801,13 +809,9 @@ Value *llvm::createSimpleTargetReduction(
     ArrayRef<Value *> RedOps) {
   assert(isa<VectorType>(Src->getType()) && "Type must be a vector");
 
-  Value *ScalarUdf = UndefValue::get(Src->getType()->getVectorElementType());
   std::function<Value *()> BuildFunc;
   using RD = RecurrenceDescriptor;
   RD::MinMaxRecurrenceKind MinMaxKind = RD::MRK_Invalid;
-  // TODO: Support creating ordered reductions.
-  FastMathFlags FMFFast;
-  FMFFast.setFast();
 
   switch (Opcode) {
   case Instruction::Add:
@@ -827,15 +831,15 @@ Value *llvm::createSimpleTargetReduction(
     break;
   case Instruction::FAdd:
     BuildFunc = [&]() {
-      auto Rdx = Builder.CreateFAddReduce(ScalarUdf, Src);
-      cast<CallInst>(Rdx)->setFastMathFlags(FMFFast);
+      auto Rdx = Builder.CreateFAddReduce(
+          Constant::getNullValue(Src->getType()->getVectorElementType()), Src);
       return Rdx;
     };
     break;
   case Instruction::FMul:
     BuildFunc = [&]() {
-      auto Rdx = Builder.CreateFMulReduce(ScalarUdf, Src);
-      cast<CallInst>(Rdx)->setFastMathFlags(FMFFast);
+      Type *Ty = Src->getType()->getVectorElementType();
+      auto Rdx = Builder.CreateFMulReduce(ConstantFP::get(Ty, 1.0), Src);
       return Rdx;
     };
     break;

@@ -8,6 +8,7 @@
 
 #include "WebAssembly.h"
 #include "CommonArgs.h"
+#include "clang/Config/config.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
@@ -140,7 +141,7 @@ void WebAssembly::addClangTargetOptions(const ArgList &DriverArgs,
                          options::OPT_fno_use_init_array, true))
     CC1Args.push_back("-fuse-init-array");
 
-  // '-pthread' implies '-target-feature +atomics'
+  // '-pthread' implies atomics, bulk-memory, and mutable-globals
   if (DriverArgs.hasFlag(options::OPT_pthread, options::OPT_no_pthread,
                          false)) {
     if (DriverArgs.hasFlag(options::OPT_mno_atomics, options::OPT_matomics,
@@ -148,8 +149,22 @@ void WebAssembly::addClangTargetOptions(const ArgList &DriverArgs,
       getDriver().Diag(diag::err_drv_argument_not_allowed_with)
           << "-pthread"
           << "-mno-atomics";
+    if (DriverArgs.hasFlag(options::OPT_mno_bulk_memory,
+                           options::OPT_mbulk_memory, false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-pthread"
+          << "-mno-bulk-memory";
+    if (DriverArgs.hasFlag(options::OPT_mno_mutable_globals,
+                           options::OPT_mmutable_globals, false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-pthread"
+          << "-mno-mutable-globals";
     CC1Args.push_back("-target-feature");
     CC1Args.push_back("+atomics");
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+bulk-memory");
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+mutable-globals");
   }
 }
 
@@ -170,14 +185,39 @@ WebAssembly::GetCXXStdlibType(const ArgList &Args) const {
 
 void WebAssembly::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                             ArgStringList &CC1Args) const {
-  if (!DriverArgs.hasArg(options::OPT_nostdinc)) {
-    if (getTriple().getOS() != llvm::Triple::UnknownOS) {
-      const std::string MultiarchTriple =
-          getMultiarchTriple(getDriver(), getTriple(), getDriver().SysRoot);
-      addSystemInclude(DriverArgs, CC1Args, getDriver().SysRoot + "/include/" + MultiarchTriple);
-    }
-    addSystemInclude(DriverArgs, CC1Args, getDriver().SysRoot + "/include");
+  if (DriverArgs.hasArg(clang::driver::options::OPT_nostdinc))
+    return;
+
+  const Driver &D = getDriver();
+
+  if (!DriverArgs.hasArg(options::OPT_nobuiltininc)) {
+    SmallString<128> P(D.ResourceDir);
+    llvm::sys::path::append(P, "include");
+    addSystemInclude(DriverArgs, CC1Args, P);
   }
+
+  if (DriverArgs.hasArg(options::OPT_nostdlibinc))
+    return;
+
+  // Check for configure-time C include directories.
+  StringRef CIncludeDirs(C_INCLUDE_DIRS);
+  if (CIncludeDirs != "") {
+    SmallVector<StringRef, 5> dirs;
+    CIncludeDirs.split(dirs, ":");
+    for (StringRef dir : dirs) {
+      StringRef Prefix =
+          llvm::sys::path::is_absolute(dir) ? StringRef(D.SysRoot) : "";
+      addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
+    }
+    return;
+  }
+
+  if (getTriple().getOS() != llvm::Triple::UnknownOS) {
+    const std::string MultiarchTriple =
+        getMultiarchTriple(D, getTriple(), D.SysRoot);
+    addSystemInclude(DriverArgs, CC1Args, D.SysRoot + "/include/" + MultiarchTriple);
+  }
+  addSystemInclude(DriverArgs, CC1Args, D.SysRoot + "/include");
 }
 
 void WebAssembly::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
@@ -188,7 +228,8 @@ void WebAssembly::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
       const std::string MultiarchTriple =
           getMultiarchTriple(getDriver(), getTriple(), getDriver().SysRoot);
       addSystemInclude(DriverArgs, CC1Args,
-                       getDriver().SysRoot + "/include/" + MultiarchTriple + "/c++/v1");
+                       getDriver().SysRoot + "/include/" + MultiarchTriple +
+                           "/c++/v1");
     }
     addSystemInclude(DriverArgs, CC1Args,
                      getDriver().SysRoot + "/include/c++/v1");
@@ -211,7 +252,7 @@ void WebAssembly::AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
 SanitizerMask WebAssembly::getSupportedSanitizers() const {
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
   if (getTriple().isOSEmscripten()) {
-    Res |= SanitizerKind::Vptr;
+    Res |= SanitizerKind::Vptr | SanitizerKind::Leak | SanitizerKind::Address;
   }
   return Res;
 }

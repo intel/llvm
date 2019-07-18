@@ -428,8 +428,8 @@ private:
   /// relevant updates to DT and LI.
   void deleteDeadLoopBlocks() {
     if (MSSAU) {
-      SmallPtrSet<BasicBlock *, 8> DeadLoopBlocksSet(DeadLoopBlocks.begin(),
-                                                     DeadLoopBlocks.end());
+      SmallSetVector<BasicBlock *, 8> DeadLoopBlocksSet(DeadLoopBlocks.begin(),
+                                                        DeadLoopBlocks.end());
       MSSAU->removeBlocks(DeadLoopBlocksSet);
     }
 
@@ -701,7 +701,10 @@ PreservedAnalyses LoopSimplifyCFGPass::run(Loop &L, LoopAnalysisManager &AM,
   if (DeleteCurrentLoop)
     LPMU.markLoopAsDeleted(L, "loop-simplifycfg");
 
-  return getLoopPassPreservedAnalyses();
+  auto PA = getLoopPassPreservedAnalyses();
+  if (EnableMSSALoopDependency)
+    PA.preserve<MemorySSAAnalysis>();
+  return PA;
 }
 
 namespace {

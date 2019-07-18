@@ -39,7 +39,10 @@ if(LLVM_BUILD_LLVM_DYLIB)
     add_custom_target(libLLVMExports DEPENDS ${LLVM_EXPORTED_SYMBOL_FILE})
   endif()
 
-  add_llvm_library(LLVM SHARED DISABLE_LLVM_LINK_LLVM_DYLIB SONAME ${SOURCES})
+  if (LLVM_LINK_LLVM_DYLIB)
+    set(INSTALL_WITH_TOOLCHAIN INSTALL_WITH_TOOLCHAIN)
+  endif()
+  add_llvm_library(LLVM SHARED DISABLE_LLVM_LINK_LLVM_DYLIB SONAME ${INSTALL_WITH_TOOLCHAIN} ${SOURCES})
 
   list(REMOVE_DUPLICATES LIB_NAMES)
   if(("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux") OR (MINGW) OR (HAIKU)
@@ -55,7 +58,7 @@ if(LLVM_BUILD_LLVM_DYLIB)
 
     # GNU ld doesn't resolve symbols in the version script.
     set(LIB_NAMES -Wl,--whole-archive ${LIB_NAMES} -Wl,--no-whole-archive)
-    if (NOT LLVM_LINKER_IS_SOLARISLD)
+    if (NOT LLVM_LINKER_IS_SOLARISLD AND NOT MINGW)
       # Solaris ld does not accept global: *; so there is no way to version *all* global symbols
       set(LIB_NAMES -Wl,--version-script,${LLVM_LIBRARY_DIR}/tools/llvm-shlib/simple_version_script.map ${LIB_NAMES})
     endif()
@@ -105,7 +108,7 @@ if(LLVM_BUILD_LLVM_C_DYLIB AND NOT MSVC)
 
   add_custom_target(libLLVMCExports DEPENDS ${LLVM_EXPORTED_SYMBOL_FILE})
 
-  add_llvm_library(LLVM-C SHARED ${SOURCES})
+  add_llvm_library(LLVM-C SHARED ${SOURCES} INSTALL_WITH_TOOLCHAIN)
   
   target_link_libraries(LLVM-C PUBLIC LLVM)
   add_dependencies(LLVM-C libLLVMCExports)

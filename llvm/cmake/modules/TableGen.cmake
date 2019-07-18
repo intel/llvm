@@ -125,7 +125,7 @@ macro(add_tablegen target project)
 
   if(LLVM_USE_HOST_TOOLS)
     if( ${${project}_TABLEGEN} STREQUAL "${target}" )
-      build_native_tool(${target} ${project}_TABLEGEN_EXE DEPENDS ${target})
+      build_native_tool(${target} ${project}_TABLEGEN_EXE)
       set(${project}_TABLEGEN_EXE ${${project}_TABLEGEN_EXE} PARENT_SCOPE)
 
       add_custom_target(${project}-tablegen-host DEPENDS ${${project}_TABLEGEN_EXE})
@@ -138,10 +138,16 @@ macro(add_tablegen target project)
           TARGET LLVM-tablegen-host)
         add_dependencies(${project}-tablegen-host LLVM-tablegen-host)
       endif()
+
+      # If we're using the host tablegen, and utils were not requested, we have no
+      # need to build this tablegen.
+      if ( NOT LLVM_BUILD_UTILS )
+        set_target_properties(${target} PROPERTIES EXCLUDE_FROM_ALL ON)
+      endif()
     endif()
   endif()
 
-  if (${project} STREQUAL LLVM AND NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+  if (${project} STREQUAL LLVM AND NOT LLVM_INSTALL_TOOLCHAIN_ONLY AND LLVM_BUILD_UTILS)
     set(export_to_llvmexports)
     if(${target} IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
         NOT LLVM_DISTRIBUTION_COMPONENTS)

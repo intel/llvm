@@ -290,9 +290,9 @@ unsigned RISCVInstrInfo::removeBranch(MachineBasicBlock &MBB,
     return 0;
 
   // Remove the branch.
-  I->eraseFromParent();
   if (BytesRemoved)
     *BytesRemoved += getInstSizeInBytes(*I);
+  I->eraseFromParent();
 
   I = MBB.end();
 
@@ -303,9 +303,9 @@ unsigned RISCVInstrInfo::removeBranch(MachineBasicBlock &MBB,
     return 1;
 
   // Remove the branch.
-  I->eraseFromParent();
   if (BytesRemoved)
     *BytesRemoved += getInstSizeInBytes(*I);
+  I->eraseFromParent();
   return 2;
 }
 
@@ -436,9 +436,13 @@ unsigned RISCVInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   case TargetOpcode::KILL:
   case TargetOpcode::DBG_VALUE:
     return 0;
+  case RISCV::PseudoCALLReg:
   case RISCV::PseudoCALL:
   case RISCV::PseudoTAIL:
   case RISCV::PseudoLLA:
+  case RISCV::PseudoLA:
+  case RISCV::PseudoLA_TLS_IE:
+  case RISCV::PseudoLA_TLS_GD:
     return 8;
   case TargetOpcode::INLINEASM:
   case TargetOpcode::INLINEASM_BR: {

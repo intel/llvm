@@ -32,6 +32,8 @@ Clang-Tidy Checks
    android-cloexec-inotify-init1
    android-cloexec-memfd-create
    android-cloexec-open
+   android-cloexec-pipe
+   android-cloexec-pipe2
    android-cloexec-socket
    android-comparison-in-temp-failure-retry
    boost-use-to-string
@@ -56,6 +58,7 @@ Clang-Tidy Checks
    bugprone-move-forwarding-reference
    bugprone-multiple-statement-macro
    bugprone-parent-virtual-call
+   bugprone-posix-return
    bugprone-sizeof-container
    bugprone-sizeof-expression
    bugprone-string-constructor
@@ -122,7 +125,8 @@ Clang-Tidy Checks
    cppcoreguidelines-pro-type-vararg
    cppcoreguidelines-slicing
    cppcoreguidelines-special-member-functions
-   fuchsia-default-arguments
+   fuchsia-default-arguments-calls
+   fuchsia-default-arguments-declarations
    fuchsia-header-anon-namespaces (redirects to google-build-namespaces) <fuchsia-header-anon-namespaces>
    fuchsia-multiple-inheritance
    fuchsia-overloaded-operator
@@ -253,6 +257,7 @@ Clang-Tidy Checks
    readability-braces-around-statements
    readability-const-return-type
    readability-container-size-empty
+   readability-convert-member-functions-to-static
    readability-delete-null-pointer
    readability-deleted-default
    readability-else-after-return

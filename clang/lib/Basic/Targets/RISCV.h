@@ -35,7 +35,6 @@ public:
   RISCVTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple), HasM(false), HasA(false), HasF(false),
         HasD(false), HasC(false) {
-    TLSSupported = false;
     LongDoubleWidth = 128;
     LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::IEEEquad();
@@ -58,12 +57,19 @@ public:
 
   ArrayRef<const char *> getGCCRegNames() const override;
 
+  int getEHDataRegisterNumber(unsigned RegNo) const override {
+    if (RegNo == 0)
+      return 10;
+    else if (RegNo == 1)
+      return 11;
+    else
+      return -1;
+  }
+
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override;
 
   bool validateAsmConstraint(const char *&Name,
-                             TargetInfo::ConstraintInfo &Info) const override {
-    return false;
-  }
+                             TargetInfo::ConstraintInfo &Info) const override;
 
   bool hasFeature(StringRef Feature) const override;
 

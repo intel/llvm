@@ -35,7 +35,7 @@ class MachineInstr;
 class MCInst;
 class PassRegistry;
 
-
+FunctionPass *createARMLowOverheadLoopsPass();
 Pass *createARMParallelDSPPass();
 FunctionPass *createARMISelDag(ARMBaseTargetMachine &TM,
                                CodeGenOpt::Level OptLevel);
@@ -46,6 +46,7 @@ FunctionPass *createARMCodeGenPreparePass();
 FunctionPass *createARMConstantIslandPass();
 FunctionPass *createMLxExpansionPass();
 FunctionPass *createThumb2ITBlockPass();
+FunctionPass *createMVEVPTBlockPass();
 FunctionPass *createARMOptimizeBarriersPass();
 FunctionPass *createThumb2SizeReductionPass(
     std::function<bool(const Function &)> Ftor = nullptr);
@@ -56,11 +57,6 @@ createARMInstructionSelector(const ARMBaseTargetMachine &TM, const ARMSubtarget 
 void LowerARMMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
                                   ARMAsmPrinter &AP);
 
-void computeBlockSize(MachineFunction *MF, MachineBasicBlock *MBB,
-                      BasicBlockInfo &BBI);
-std::vector<BasicBlockInfo> computeAllBlockSizes(MachineFunction *MF);
-
-
 void initializeARMParallelDSPPass(PassRegistry &);
 void initializeARMLoadStoreOptPass(PassRegistry &);
 void initializeARMPreAllocLoadStoreOptPass(PassRegistry &);
@@ -68,6 +64,9 @@ void initializeARMCodeGenPreparePass(PassRegistry &);
 void initializeARMConstantIslandsPass(PassRegistry &);
 void initializeARMExpandPseudoPass(PassRegistry &);
 void initializeThumb2SizeReducePass(PassRegistry &);
+void initializeThumb2ITBlockPass(PassRegistry &);
+void initializeMVEVPTBlockPass(PassRegistry &);
+void initializeARMLowOverheadLoopsPass(PassRegistry &);
 
 } // end namespace llvm
 

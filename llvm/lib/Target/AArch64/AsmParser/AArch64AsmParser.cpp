@@ -1081,8 +1081,7 @@ public:
     if (Kind != k_Register || Reg.Kind != RegKind::SVEPredicateVector)
       return DiagnosticPredicateTy::NoMatch;
 
-    if (isSVEVectorReg<Class>() &&
-           (ElementWidth == 0 || Reg.ElementWidth == ElementWidth))
+    if (isSVEVectorReg<Class>() && (Reg.ElementWidth == ElementWidth))
       return DiagnosticPredicateTy::Match;
 
     return DiagnosticPredicateTy::NearMatch;
@@ -2503,6 +2502,7 @@ AArch64AsmParser::tryParseAdrpLabel(OperandVector &Operands) {
     } else if (DarwinRefKind != MCSymbolRefExpr::VK_PAGE &&
                DarwinRefKind != MCSymbolRefExpr::VK_GOTPAGE &&
                DarwinRefKind != MCSymbolRefExpr::VK_TLVPPAGE &&
+               ELFRefKind != AArch64MCExpr::VK_ABS_PAGE_NC &&
                ELFRefKind != AArch64MCExpr::VK_GOT_PAGE &&
                ELFRefKind != AArch64MCExpr::VK_GOTTPREL_PAGE &&
                ELFRefKind != AArch64MCExpr::VK_TLSDESC_PAGE) {
@@ -3268,6 +3268,7 @@ bool AArch64AsmParser::parseSymbolicImmVal(const MCExpr *&ImmVal) {
                   .Case("dtprel_hi12", AArch64MCExpr::VK_DTPREL_HI12)
                   .Case("dtprel_lo12", AArch64MCExpr::VK_DTPREL_LO12)
                   .Case("dtprel_lo12_nc", AArch64MCExpr::VK_DTPREL_LO12_NC)
+                  .Case("pg_hi21_nc", AArch64MCExpr::VK_ABS_PAGE_NC)
                   .Case("tprel_g2", AArch64MCExpr::VK_TPREL_G2)
                   .Case("tprel_g1", AArch64MCExpr::VK_TPREL_G1)
                   .Case("tprel_g1_nc", AArch64MCExpr::VK_TPREL_G1_NC)
@@ -4470,11 +4471,15 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
   case Match_InvalidSVEPredicateDReg:
     return Error(Loc, "invalid predicate register.");
   case Match_InvalidSVEPredicate3bAnyReg:
+    return Error(Loc, "invalid restricted predicate register, expected p0..p7 (without element suffix)");
   case Match_InvalidSVEPredicate3bBReg:
+    return Error(Loc, "invalid restricted predicate register, expected p0.b..p7.b");
   case Match_InvalidSVEPredicate3bHReg:
+    return Error(Loc, "invalid restricted predicate register, expected p0.h..p7.h");
   case Match_InvalidSVEPredicate3bSReg:
+    return Error(Loc, "invalid restricted predicate register, expected p0.s..p7.s");
   case Match_InvalidSVEPredicate3bDReg:
-    return Error(Loc, "restricted predicate has range [0, 7].");
+    return Error(Loc, "invalid restricted predicate register, expected p0.d..p7.d");
   case Match_InvalidSVEExactFPImmOperandHalfOne:
     return Error(Loc, "Invalid floating point constant, expected 0.5 or 1.0.");
   case Match_InvalidSVEExactFPImmOperandHalfTwo:

@@ -9,6 +9,10 @@
 
 #include "GISelMITest.h"
 
+using namespace LegalizeActions;
+using namespace LegalizeMutations;
+using namespace LegalityPredicates;
+
 namespace {
 
 class DummyGISelObserver : public GISelChangeObserver {
@@ -725,6 +729,278 @@ TEST_F(GISelMITest, FewerElementsPhi) {
   CHECK: [[INSERT1:%[0-9]+]]:_(<5 x s32>) = G_INSERT [[INSERT0]]:_, [[PHI1]]:_(<2 x s32>), 64
   CHECK: [[INSERT2:%[0-9]+]]:_(<5 x s32>) = G_INSERT [[INSERT1]]:_, [[PHI2]]:_(s32), 128
   CHECK: [[USE_OP:%[0-9]+]]:_(<5 x s32>) = G_AND [[INSERT2]]:_, [[INSERT2]]:_
+  )";
+
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+// FNEG expansion in terms of FSUB
+TEST_F(GISelMITest, LowerFNEG) {
+  if (!TM)
+    return;
+
+  // Declare your legalization info
+  DefineLegalizerInfo(A, {
+    getActionDefinitionsBuilder(G_FSUB).legalFor({s64});
+  });
+
+  // Build Instr. Make sure FMF are preserved.
+  auto FAdd =
+    B.buildInstr(TargetOpcode::G_FADD, {LLT::scalar(64)}, {Copies[0], Copies[1]},
+                 MachineInstr::MIFlag::FmNsz);
+
+  // Should not propagate the flags of src instruction.
+  auto FNeg0 =
+    B.buildInstr(TargetOpcode::G_FNEG, {LLT::scalar(64)}, {FAdd.getReg(0)},
+                 {MachineInstr::MIFlag::FmArcp});
+
+  // Preserve the one flag.
+  auto FNeg1 =
+    B.buildInstr(TargetOpcode::G_FNEG, {LLT::scalar(64)}, {Copies[0]},
+                 MachineInstr::MIFlag::FmNoInfs);
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+  // Perform Legalization
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*FNeg0, 0, LLT::scalar(64)));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*FNeg1, 0, LLT::scalar(64)));
+
+  auto CheckStr = R"(
+  CHECK: [[FADD:%[0-9]+]]:_(s64) = nsz G_FADD %0:_, %1:_
+  CHECK: [[CONST0:%[0-9]+]]:_(s64) = G_FCONSTANT double -0.000000e+00
+  CHECK: [[FSUB0:%[0-9]+]]:_(s64) = arcp G_FSUB [[CONST0]]:_, [[FADD]]:_
+  CHECK: [[CONST1:%[0-9]+]]:_(s64) = G_FCONSTANT double -0.000000e+00
+  CHECK: [[FSUB1:%[0-9]+]]:_(s64) = ninf G_FSUB [[CONST1]]:_, %0:_
+  )";
+
+  // Check
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(GISelMITest, LowerMinMax) {
+  if (!TM)
+    return;
+
+  LLT s64 = LLT::scalar(64);
+  LLT v2s32 = LLT::vector(2, 32);
+
+  DefineLegalizerInfo(A, {
+    getActionDefinitionsBuilder({G_SMIN, G_SMAX, G_UMIN, G_UMAX})
+      .lowerFor({s64, LLT::vector(2, s32)});
+  });
+
+  auto SMin = B.buildSMin(s64, Copies[0], Copies[1]);
+  auto SMax = B.buildSMax(s64, Copies[0], Copies[1]);
+  auto UMin = B.buildUMin(s64, Copies[0], Copies[1]);
+  auto UMax = B.buildUMax(s64, Copies[0], Copies[1]);
+
+  auto VecVal0 = B.buildBitcast(v2s32, Copies[0]);
+  auto VecVal1 = B.buildBitcast(v2s32, Copies[1]);
+
+  auto SMinV = B.buildSMin(v2s32, VecVal0, VecVal1);
+  auto SMaxV = B.buildSMax(v2s32, VecVal0, VecVal1);
+  auto UMinV = B.buildUMin(v2s32, VecVal0, VecVal1);
+  auto UMaxV = B.buildUMax(v2s32, VecVal0, VecVal1);
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*SMin, 0, s64));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*SMax, 0, s64));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*UMin, 0, s64));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*UMax, 0, s64));
+
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*SMinV, 0, v2s32));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*SMaxV, 0, v2s32));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*UMinV, 0, v2s32));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.lower(*UMaxV, 0, v2s32));
+
+  auto CheckStr = R"(
+  CHECK: [[CMP0:%[0-9]+]]:_(s1) = G_ICMP intpred(slt), %0:_(s64), %1:_
+  CHECK: [[SMIN:%[0-9]+]]:_(s64) = G_SELECT [[CMP0]]:_(s1), %0:_, %1:_
+
+  CHECK: [[CMP1:%[0-9]+]]:_(s1) = G_ICMP intpred(sgt), %0:_(s64), %1:_
+  CHECK: [[SMAX:%[0-9]+]]:_(s64) = G_SELECT [[CMP1]]:_(s1), %0:_, %1:_
+
+  CHECK: [[CMP2:%[0-9]+]]:_(s1) = G_ICMP intpred(ult), %0:_(s64), %1:_
+  CHECK: [[UMIN:%[0-9]+]]:_(s64) = G_SELECT [[CMP2]]:_(s1), %0:_, %1:_
+
+  CHECK: [[CMP3:%[0-9]+]]:_(s1) = G_ICMP intpred(ugt), %0:_(s64), %1:_
+  CHECK: [[UMAX:%[0-9]+]]:_(s64) = G_SELECT [[CMP3]]:_(s1), %0:_, %1:_
+
+  CHECK: [[VEC0:%[0-9]+]]:_(<2 x s32>) = G_BITCAST %0:_(s64)
+  CHECK: [[VEC1:%[0-9]+]]:_(<2 x s32>) = G_BITCAST %1:_(s64)
+
+  CHECK: [[VCMP0:%[0-9]+]]:_(<2 x s1>) = G_ICMP intpred(slt), [[VEC0]]:_(<2 x s32>), [[VEC1]]:_
+  CHECK: [[SMINV:%[0-9]+]]:_(<2 x s32>) = G_SELECT [[VCMP0]]:_(<2 x s1>), [[VEC0]]:_, [[VEC1]]:_
+
+  CHECK: [[VCMP1:%[0-9]+]]:_(<2 x s1>) = G_ICMP intpred(sgt), [[VEC0]]:_(<2 x s32>), [[VEC1]]:_
+  CHECK: [[SMAXV:%[0-9]+]]:_(<2 x s32>) = G_SELECT [[VCMP1]]:_(<2 x s1>), [[VEC0]]:_, [[VEC1]]:_
+
+  CHECK: [[VCMP2:%[0-9]+]]:_(<2 x s1>) = G_ICMP intpred(ult), [[VEC0]]:_(<2 x s32>), [[VEC1]]:_
+  CHECK: [[UMINV:%[0-9]+]]:_(<2 x s32>) = G_SELECT [[VCMP2]]:_(<2 x s1>), [[VEC0]]:_, [[VEC1]]:_
+
+  CHECK: [[VCMP3:%[0-9]+]]:_(<2 x s1>) = G_ICMP intpred(ugt), [[VEC0]]:_(<2 x s32>), [[VEC1]]:_
+  CHECK: [[UMAXV:%[0-9]+]]:_(<2 x s32>) = G_SELECT [[VCMP3]]:_(<2 x s1>), [[VEC0]]:_, [[VEC1]]:_
+  )";
+
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(GISelMITest, WidenScalarBuildVector) {
+  if (!TM)
+    return;
+
+  LLT S32 = LLT::scalar(32);
+  LLT S16 = LLT::scalar(16);
+  LLT V2S16 = LLT::vector(2, S16);
+  LLT V2S32 = LLT::vector(2, S32);
+
+  DefineLegalizerInfo(A, {
+    getActionDefinitionsBuilder({G_SMIN, G_SMAX, G_UMIN, G_UMAX})
+      .lowerFor({s64, LLT::vector(2, s32)});
+  });
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+  B.setInsertPt(*EntryMBB, EntryMBB->end());
+
+  Register Constant0 = B.buildConstant(S16, 1).getReg(0);
+  Register Constant1 = B.buildConstant(S16, 2).getReg(0);
+  auto BV0 = B.buildBuildVector(V2S16, {Constant0, Constant1});
+  auto BV1 = B.buildBuildVector(V2S16, {Constant0, Constant1});
+
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.widenScalar(*BV0, 0, V2S32));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.widenScalar(*BV1, 1, S32));
+
+  auto CheckStr = R"(
+  CHECK: [[K0:%[0-9]+]]:_(s16) = G_CONSTANT i16 1
+  CHECK-NEXT: [[K1:%[0-9]+]]:_(s16) = G_CONSTANT i16 2
+  CHECK-NEXT: [[EXT_K0_0:%[0-9]+]]:_(s32) = G_ANYEXT [[K0]]
+  CHECK-NEXT: [[EXT_K1_0:%[0-9]+]]:_(s32) = G_ANYEXT [[K1]]
+  CHECK-NEXT: [[BV0:%[0-9]+]]:_(<2 x s32>) = G_BUILD_VECTOR [[EXT_K0_0]]:_(s32), [[EXT_K1_0]]:_(s32)
+  CHECK-NEXT: [[BV0_TRUNC:%[0-9]+]]:_(<2 x s16>) = G_TRUNC [[BV0]]
+
+  CHECK: [[EXT_K0_1:%[0-9]+]]:_(s32) = G_ANYEXT [[K0]]
+  CHECK-NEXT: [[EXT_K1_1:%[0-9]+]]:_(s32) = G_ANYEXT [[K1]]
+
+  CHECK-NEXT: [[BV1:%[0-9]+]]:_(<2 x s16>) = G_BUILD_VECTOR_TRUNC [[EXT_K0_1]]:_(s32), [[EXT_K1_1]]:_(s32)
+  )";
+
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(GISelMITest, LowerMergeValues) {
+  if (!TM)
+    return;
+
+  const LLT S32 = LLT::scalar(32);
+  const LLT S24 = LLT::scalar(24);
+  const LLT S21 = LLT::scalar(21);
+  const LLT S16 = LLT::scalar(16);
+  const LLT S9 = LLT::scalar(9);
+  const LLT S8 = LLT::scalar(8);
+  const LLT S3 = LLT::scalar(3);
+
+  DefineLegalizerInfo(A, {
+    getActionDefinitionsBuilder(G_UNMERGE_VALUES)
+      .widenScalarIf(typeIs(1, LLT::scalar(3)), changeTo(1, LLT::scalar(9)));
+  });
+
+  AInfo Info(MF->getSubtarget());
+  DummyGISelObserver Observer;
+  LegalizerHelper Helper(*MF, Info, Observer, B);
+  B.setInsertPt(*EntryMBB, EntryMBB->end());
+
+  // 24 = 3 3 3   3 3 3   3 3
+  //     => 9
+  //
+  // This can do 3 merges, but need an extra implicit_def.
+  SmallVector<Register, 8> Merge0Ops;
+  for (int I = 0; I != 8; ++I)
+    Merge0Ops.push_back(B.buildConstant(S3, I).getReg(0));
+
+  auto Merge0 = B.buildMerge(S24, Merge0Ops);
+
+  // 21 = 3 3 3   3 3 3   3
+  //     => 9, 2 extra implicit_def needed
+  //
+  SmallVector<Register, 8> Merge1Ops;
+  for (int I = 0; I != 7; ++I)
+    Merge1Ops.push_back(B.buildConstant(S3, I).getReg(0));
+
+  auto Merge1 = B.buildMerge(S21, Merge1Ops);
+
+  SmallVector<Register, 8> Merge2Ops;
+  for (int I = 0; I != 2; ++I)
+    Merge2Ops.push_back(B.buildConstant(S8, I).getReg(0));
+
+    auto Merge2 = B.buildMerge(S16, Merge2Ops);
+
+
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.widenScalar(*Merge0, 1, S9));
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.widenScalar(*Merge1, 1, S9));
+
+  // Request a source size greater than the original destination size.
+  EXPECT_EQ(LegalizerHelper::LegalizeResult::Legalized,
+            Helper.widenScalar(*Merge2, 1, S32));
+
+  auto CheckStr = R"(
+  CHECK: [[K0:%[0-9]+]]:_(s3) = G_CONSTANT i3 0
+  CHECK-NEXT: [[K1:%[0-9]+]]:_(s3) = G_CONSTANT i3 1
+  CHECK-NEXT: [[K2:%[0-9]+]]:_(s3) = G_CONSTANT i3 2
+  CHECK-NEXT: [[K3:%[0-9]+]]:_(s3) = G_CONSTANT i3 3
+  CHECK-NEXT: [[K4:%[0-9]+]]:_(s3) = G_CONSTANT i3 -4
+  CHECK-NEXT: [[K5:%[0-9]+]]:_(s3) = G_CONSTANT i3 -3
+  CHECK-NEXT: [[K6:%[0-9]+]]:_(s3) = G_CONSTANT i3 -2
+  CHECK-NEXT: [[K7:%[0-9]+]]:_(s3) = G_CONSTANT i3 -1
+  CHECK-NEXT: [[IMPDEF0:%[0-9]+]]:_(s3) = G_IMPLICIT_DEF
+  CHECK-NEXT: [[MERGE0:%[0-9]+]]:_(s9) = G_MERGE_VALUES [[K0]]:_(s3), [[K1]]:_(s3), [[K2]]:_(s3)
+  CHECK-NEXT: [[MERGE1:%[0-9]+]]:_(s9) = G_MERGE_VALUES [[K3]]:_(s3), [[K4]]:_(s3), [[K5]]:_(s3)
+  CHECK-NEXT: [[MERGE2:%[0-9]+]]:_(s9) = G_MERGE_VALUES [[K6]]:_(s3), [[K7]]:_(s3), [[IMPDEF0]]:_(s3)
+  CHECK-NEXT: [[MERGE3:%[0-9]+]]:_(s27) = G_MERGE_VALUES [[MERGE0]]:_(s9), [[MERGE1]]:_(s9), [[MERGE2]]:_(s9)
+  CHECK-NEXT: (s24) = G_TRUNC [[MERGE3]]:_(s27)
+
+
+  CHECK: [[K8:%[0-9]+]]:_(s3) = G_CONSTANT i3 0
+  CHECK-NEXT: [[K9:%[0-9]+]]:_(s3) = G_CONSTANT i3 1
+  CHECK-NEXT: [[K10:%[0-9]+]]:_(s3) = G_CONSTANT i3 2
+  CHECK-NEXT: [[K11:%[0-9]+]]:_(s3) = G_CONSTANT i3 3
+  CHECK-NEXT: [[K12:%[0-9]+]]:_(s3) = G_CONSTANT i3 -4
+  CHECK-NEXT: [[K13:%[0-9]+]]:_(s3) = G_CONSTANT i3 -3
+  CHECK-NEXT: [[K14:%[0-9]+]]:_(s3) = G_CONSTANT i3 -2
+  CHECK-NEXT: [[IMPDEF1:%[0-9]+]]:_(s3) = G_IMPLICIT_DEF
+  CHECK-NEXT: [[MERGE4:%[0-9]+]]:_(s9) = G_MERGE_VALUES [[K8]]:_(s3), [[K9]]:_(s3), [[K10]]:_(s3)
+  CHECK-NEXT: [[MERGE5:%[0-9]+]]:_(s9) = G_MERGE_VALUES [[K11]]:_(s3), [[K12]]:_(s3), [[K13]]:_(s3)
+  CHECK-NEXT: [[MERGE6:%[0-9]+]]:_(s9) = G_MERGE_VALUES [[K14]]:_(s3), [[IMPDEF1]]:_(s3), [[IMPDEF1]]:_(s3)
+  CHECK-NEXT: [[MERGE7:%[0-9]+]]:_(s27) = G_MERGE_VALUES [[MERGE4]]:_(s9), [[MERGE5]]:_(s9), [[MERGE6]]:_(s9)
+  CHECK-NEXT: (s21) = G_TRUNC [[MERGE7]]:_(s27)
+
+
+  CHECK: [[K15:%[0-9]+]]:_(s8) = G_CONSTANT i8 0
+  CHECK-NEXT: [[K16:%[0-9]+]]:_(s8) = G_CONSTANT i8 1
+  CHECK-NEXT: [[ZEXT_K15:[0-9]+]]:_(s32) = G_ZEXT [[K15]]:_(s8)
+  CHECK-NEXT: [[ZEXT_K16:[0-9]+]]:_(s32) = G_ZEXT [[K16]]:_(s8)
+  [[K16:%[0-9]+]]:_(s32) = G_CONSTANT i32 8
+  [[SHL:%[0-9]+]]:_(s32) = G_SHL [[ZEXT_K16]]:_, [[K16]]:_(s32)
+  [[OR:%[0-9]+]]:_(s32) = G_OR [[ZEXT_K16]]:_, [[SHL]]:_
+  (s16) = G_TRUNC [[OR]]:_(s32)
   )";
 
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;

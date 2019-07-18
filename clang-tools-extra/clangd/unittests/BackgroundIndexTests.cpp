@@ -1,10 +1,16 @@
+#include "Headers.h"
 #include "SyncAPI.h"
 #include "TestFS.h"
+#include "TestIndex.h"
+#include "TestTU.h"
 #include "index/Background.h"
+#include "index/BackgroundRebuild.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/Threading.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <deque>
 #include <thread>
 
 using ::testing::_;
@@ -29,9 +35,14 @@ RefsAre(std::vector<::testing::Matcher<Ref>> Matchers) {
 }
 // URI cannot be empty since it references keys in the IncludeGraph.
 MATCHER(EmptyIncludeNode, "") {
-  return !arg.IsTU && !arg.URI.empty() && arg.Digest == FileDigest{{0}} &&
-         arg.DirectIncludes.empty();
+  return arg.Flags == IncludeGraphNode::SourceFlag::None && !arg.URI.empty() &&
+         arg.Digest == FileDigest{{0}} && arg.DirectIncludes.empty();
 }
+
+MATCHER(HadErrors, "") {
+  return arg.Flags & IncludeGraphNode::SourceFlag::HadErrors;
+}
+
 MATCHER_P(NumReferences, N, "") { return arg.References == N; }
 
 class MemoryShardStorage : public BackgroundIndexStorage {
@@ -71,7 +82,7 @@ public:
 
 class BackgroundIndexTest : public ::testing::Test {
 protected:
-  BackgroundIndexTest() { BackgroundIndex::preventThreadStarvationInTests(); }
+  BackgroundIndexTest() { BackgroundQueue::preventThreadStarvationInTests(); }
 };
 
 TEST_F(BackgroundIndexTest, NoCrashOnErrorFile) {
@@ -170,8 +181,12 @@ TEST_F(BackgroundIndexTest, ShardStorageTest) {
       void f_b();
       class A_CC {};
       )cpp";
-  std::string A_CC = "#include \"A.h\"\nvoid g() { (void)common; }";
-  FS.Files[testPath("root/A.cc")] = A_CC;
+  std::string A_CC = "";
+  FS.Files[testPath("root/A.cc")] = R"cpp(
+      #include "A.h"
+      void g() { (void)common; }
+      class B_CC : public A_CC {};
+      )cpp";
 
   llvm::StringMap<std::string> Storage;
   size_t CacheHits = 0;
@@ -214,8 +229,21 @@ TEST_F(BackgroundIndexTest, ShardStorageTest) {
 
   auto ShardSource = MSS.loadShard(testPath("root/A.cc"));
   EXPECT_NE(ShardSource, nullptr);
-  EXPECT_THAT(*ShardSource->Symbols, UnorderedElementsAre(Named("g")));
-  EXPECT_THAT(*ShardSource->Refs, RefsAre({FileURI("unittest:///root/A.cc")}));
+  EXPECT_THAT(*ShardSource->Symbols,
+              UnorderedElementsAre(Named("g"), Named("B_CC")));
+  for (const auto &Ref : *ShardSource->Refs)
+    EXPECT_THAT(Ref.second,
+                UnorderedElementsAre(FileURI("unittest:///root/A.cc")));
+
+  // The BaseOf relationship between A_CC and B_CC is stored in the file
+  // containing the definition of the subject (A_CC)
+  SymbolID A = findSymbol(*ShardHeader->Symbols, "A_CC").ID;
+  SymbolID B = findSymbol(*ShardSource->Symbols, "B_CC").ID;
+  EXPECT_THAT(
+      *ShardHeader->Relations,
+      UnorderedElementsAre(Relation{A, index::SymbolRole::RelationBaseOf, B}));
+  // (and not in the file containing the definition of the object (B_CC)).
+  EXPECT_EQ(ShardSource->Relations->size(), 0u);
 }
 
 TEST_F(BackgroundIndexTest, DirectIncludesTest) {
@@ -267,42 +295,6 @@ TEST_F(BackgroundIndexTest, DirectIncludesTest) {
             FileDigest{{0}});
   EXPECT_THAT(ShardHeader->Sources->lookup("unittest:///root/B.h"),
               EmptyIncludeNode());
-}
-
-// FIXME: figure out the right timeouts or rewrite to not use the timeouts and
-// re-enable.
-TEST_F(BackgroundIndexTest, DISABLED_PeriodicalIndex) {
-  MockFSProvider FS;
-  llvm::StringMap<std::string> Storage;
-  size_t CacheHits = 0;
-  MemoryShardStorage MSS(Storage, CacheHits);
-  OverlayCDB CDB(/*Base=*/nullptr);
-  BackgroundIndex Idx(
-      Context::empty(), FS, CDB, [&](llvm::StringRef) { return &MSS; },
-      /*BuildIndexPeriodMs=*/500);
-
-  FS.Files[testPath("root/A.cc")] = "#include \"A.h\"";
-
-  tooling::CompileCommand Cmd;
-  FS.Files[testPath("root/A.h")] = "class X {};";
-  Cmd.Filename = testPath("root/A.cc");
-  Cmd.CommandLine = {"clang++", Cmd.Filename};
-  CDB.setCompileCommand(testPath("root/A.cc"), Cmd);
-
-  ASSERT_TRUE(Idx.blockUntilIdleForTest());
-  EXPECT_THAT(runFuzzyFind(Idx, ""), ElementsAre());
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  EXPECT_THAT(runFuzzyFind(Idx, ""), ElementsAre(Named("X")));
-
-  FS.Files[testPath("root/A.h")] = "class Y {};";
-  FS.Files[testPath("root/A.cc")] += " "; // Force reindex the file.
-  Cmd.CommandLine = {"clang++", "-DA=1", testPath("root/A.cc")};
-  CDB.setCompileCommand(testPath("root/A.cc"), Cmd);
-
-  ASSERT_TRUE(Idx.blockUntilIdleForTest());
-  EXPECT_THAT(runFuzzyFind(Idx, ""), ElementsAre(Named("X")));
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  EXPECT_THAT(runFuzzyFind(Idx, ""), ElementsAre(Named("Y")));
 }
 
 TEST_F(BackgroundIndexTest, ShardStorageLoad) {
@@ -470,6 +462,254 @@ TEST_F(BackgroundIndexTest, NoDotsInAbsPath) {
   for (llvm::StringRef AbsPath : MSS.AccessedPaths.keys()) {
     EXPECT_FALSE(AbsPath.contains("./")) << AbsPath;
     EXPECT_FALSE(AbsPath.contains("../")) << AbsPath;
+  }
+}
+
+TEST_F(BackgroundIndexTest, UncompilableFiles) {
+  MockFSProvider FS;
+  llvm::StringMap<std::string> Storage;
+  size_t CacheHits = 0;
+  MemoryShardStorage MSS(Storage, CacheHits);
+  OverlayCDB CDB(/*Base=*/nullptr);
+  BackgroundIndex Idx(Context::empty(), FS, CDB,
+                      [&](llvm::StringRef) { return &MSS; });
+
+  tooling::CompileCommand Cmd;
+  FS.Files[testPath("A.h")] = "void foo();";
+  FS.Files[testPath("B.h")] = "#include \"C.h\"\nasdf;";
+  FS.Files[testPath("C.h")] = "";
+  FS.Files[testPath("A.cc")] = R"cpp(
+  #include "A.h"
+  #include "B.h"
+  #include "not_found_header.h"
+
+  void foo() {}
+  )cpp";
+  Cmd.Filename = "../A.cc";
+  Cmd.Directory = testPath("build");
+  Cmd.CommandLine = {"clang++", "../A.cc"};
+  CDB.setCompileCommand(testPath("build/../A.cc"), Cmd);
+  ASSERT_TRUE(Idx.blockUntilIdleForTest());
+
+  EXPECT_THAT(Storage.keys(), ElementsAre(testPath("A.cc"), testPath("A.h"),
+                                          testPath("B.h"), testPath("C.h")));
+
+  {
+    auto Shard = MSS.loadShard(testPath("A.cc"));
+    EXPECT_THAT(*Shard->Symbols, UnorderedElementsAre(Named("foo")));
+    EXPECT_THAT(Shard->Sources->keys(),
+                UnorderedElementsAre("unittest:///A.cc", "unittest:///A.h",
+                                     "unittest:///B.h"));
+    EXPECT_THAT(Shard->Sources->lookup("unittest:///A.cc"), HadErrors());
+  }
+
+  {
+    auto Shard = MSS.loadShard(testPath("A.h"));
+    EXPECT_THAT(*Shard->Symbols, UnorderedElementsAre(Named("foo")));
+    EXPECT_THAT(Shard->Sources->keys(),
+                UnorderedElementsAre("unittest:///A.h"));
+    EXPECT_THAT(Shard->Sources->lookup("unittest:///A.h"), HadErrors());
+  }
+
+  {
+    auto Shard = MSS.loadShard(testPath("B.h"));
+    EXPECT_THAT(*Shard->Symbols, UnorderedElementsAre(Named("asdf")));
+    EXPECT_THAT(Shard->Sources->keys(),
+                UnorderedElementsAre("unittest:///B.h", "unittest:///C.h"));
+    EXPECT_THAT(Shard->Sources->lookup("unittest:///B.h"), HadErrors());
+  }
+
+  {
+    auto Shard = MSS.loadShard(testPath("C.h"));
+    EXPECT_THAT(*Shard->Symbols, UnorderedElementsAre());
+    EXPECT_THAT(Shard->Sources->keys(),
+                UnorderedElementsAre("unittest:///C.h"));
+    EXPECT_THAT(Shard->Sources->lookup("unittest:///C.h"), HadErrors());
+  }
+}
+
+TEST_F(BackgroundIndexTest, CmdLineHash) {
+  MockFSProvider FS;
+  llvm::StringMap<std::string> Storage;
+  size_t CacheHits = 0;
+  MemoryShardStorage MSS(Storage, CacheHits);
+  OverlayCDB CDB(/*Base=*/nullptr, /*FallbackFlags=*/{},
+                 /*ResourceDir=*/std::string(""));
+  BackgroundIndex Idx(Context::empty(), FS, CDB,
+                      [&](llvm::StringRef) { return &MSS; });
+
+  tooling::CompileCommand Cmd;
+  FS.Files[testPath("A.cc")] = "#include \"A.h\"";
+  FS.Files[testPath("A.h")] = "";
+  Cmd.Filename = "../A.cc";
+  Cmd.Directory = testPath("build");
+  Cmd.CommandLine = {"clang++", "../A.cc", "-fsyntax-only"};
+  CDB.setCompileCommand(testPath("build/../A.cc"), Cmd);
+  ASSERT_TRUE(Idx.blockUntilIdleForTest());
+
+  EXPECT_THAT(Storage.keys(), ElementsAre(testPath("A.cc"), testPath("A.h")));
+  // Make sure we only store the Cmd for main file.
+  EXPECT_FALSE(MSS.loadShard(testPath("A.h"))->Cmd);
+
+  {
+    tooling::CompileCommand CmdStored = *MSS.loadShard(testPath("A.cc"))->Cmd;
+    EXPECT_EQ(CmdStored.CommandLine, Cmd.CommandLine);
+    EXPECT_EQ(CmdStored.Directory, Cmd.Directory);
+  }
+
+  // FIXME: Changing compile commands should be enough to invalidate the cache.
+  FS.Files[testPath("A.cc")] = " ";
+  Cmd.CommandLine = {"clang++", "../A.cc", "-Dfoo", "-fsyntax-only"};
+  CDB.setCompileCommand(testPath("build/../A.cc"), Cmd);
+  ASSERT_TRUE(Idx.blockUntilIdleForTest());
+
+  EXPECT_FALSE(MSS.loadShard(testPath("A.h"))->Cmd);
+
+  {
+    tooling::CompileCommand CmdStored = *MSS.loadShard(testPath("A.cc"))->Cmd;
+    EXPECT_EQ(CmdStored.CommandLine, Cmd.CommandLine);
+    EXPECT_EQ(CmdStored.Directory, Cmd.Directory);
+  }
+}
+
+class BackgroundIndexRebuilderTest : public testing::Test {
+protected:
+  BackgroundIndexRebuilderTest()
+      : Target(llvm::make_unique<MemIndex>()),
+        Rebuilder(&Target, &Source, /*Threads=*/10) {
+    // Prepare FileSymbols with TestSymbol in it, for checkRebuild.
+    TestSymbol.ID = SymbolID("foo");
+  }
+
+  // Perform Action and determine whether it rebuilt the index or not.
+  bool checkRebuild(std::function<void()> Action) {
+    // Update name so we can tell if the index updates.
+    VersionStorage.push_back("Sym" + std::to_string(++VersionCounter));
+    TestSymbol.Name = VersionStorage.back();
+    SymbolSlab::Builder SB;
+    SB.insert(TestSymbol);
+    Source.update("", llvm::make_unique<SymbolSlab>(std::move(SB).build()),
+                  nullptr, nullptr, false);
+    // Now maybe update the index.
+    Action();
+    // Now query the index to get the name count.
+    std::string ReadName;
+    LookupRequest Req;
+    Req.IDs.insert(TestSymbol.ID);
+    Target.lookup(Req, [&](const Symbol &S) { ReadName = S.Name; });
+    // The index was rebuild if the name is up to date.
+    return ReadName == VersionStorage.back();
+  }
+
+  Symbol TestSymbol;
+  FileSymbols Source;
+  SwapIndex Target;
+  BackgroundIndexRebuilder Rebuilder;
+
+  unsigned VersionCounter = 0;
+  std::deque<std::string> VersionStorage;
+};
+
+TEST_F(BackgroundIndexRebuilderTest, IndexingTUs) {
+  for (unsigned I = 0; I < Rebuilder.TUsBeforeFirstBuild - 1; ++I)
+    EXPECT_FALSE(checkRebuild([&] { Rebuilder.indexedTU(); }));
+  EXPECT_TRUE(checkRebuild([&] { Rebuilder.indexedTU(); }));
+  for (unsigned I = 0; I < Rebuilder.TUsBeforeRebuild - 1; ++I)
+    EXPECT_FALSE(checkRebuild([&] { Rebuilder.indexedTU(); }));
+  EXPECT_TRUE(checkRebuild([&] { Rebuilder.indexedTU(); }));
+}
+
+TEST_F(BackgroundIndexRebuilderTest, LoadingShards) {
+  Rebuilder.startLoading();
+  Rebuilder.loadedTU();
+  Rebuilder.loadedTU();
+  EXPECT_TRUE(checkRebuild([&] { Rebuilder.doneLoading(); }));
+
+  // No rebuild for no shards.
+  Rebuilder.startLoading();
+  EXPECT_FALSE(checkRebuild([&] { Rebuilder.doneLoading(); }));
+
+  // Loads can overlap.
+  Rebuilder.startLoading();
+  Rebuilder.loadedTU();
+  Rebuilder.startLoading();
+  Rebuilder.loadedTU();
+  EXPECT_FALSE(checkRebuild([&] { Rebuilder.doneLoading(); }));
+  Rebuilder.loadedTU();
+  EXPECT_TRUE(checkRebuild([&] { Rebuilder.doneLoading(); }));
+
+  // No rebuilding for indexed files while loading.
+  Rebuilder.startLoading();
+  for (unsigned I = 0; I < 3 * Rebuilder.TUsBeforeRebuild; ++I)
+    EXPECT_FALSE(checkRebuild([&] { Rebuilder.indexedTU(); }));
+  // But they get indexed when we're done, even if no shards were loaded.
+  EXPECT_TRUE(checkRebuild([&] { Rebuilder.doneLoading(); }));
+}
+
+TEST(BackgroundQueueTest, Priority) {
+  // Create high and low priority tasks.
+  // Once a bunch of high priority tasks have run, the queue is stopped.
+  // So the low priority tasks should never run.
+  BackgroundQueue Q;
+  std::atomic<unsigned> HiRan(0), LoRan(0);
+  BackgroundQueue::Task Lo([&] { ++LoRan; });
+  BackgroundQueue::Task Hi([&] {
+    if (++HiRan >= 10)
+      Q.stop();
+  });
+  Hi.QueuePri = 100;
+
+  // Enqueuing the low-priority ones first shouldn't make them run first.
+  Q.append(std::vector<BackgroundQueue::Task>(30, Lo));
+  for (unsigned I = 0; I < 30; ++I)
+    Q.push(Hi);
+
+  AsyncTaskRunner ThreadPool;
+  for (unsigned I = 0; I < 5; ++I)
+    ThreadPool.runAsync("worker", [&] { Q.work(); });
+  // We should test enqueue with active workers, but it's hard to avoid races.
+  // Just make sure we don't crash.
+  Q.push(Lo);
+  Q.append(std::vector<BackgroundQueue::Task>(2, Hi));
+
+  // After finishing, check the tasks that ran.
+  ThreadPool.wait();
+  EXPECT_GE(HiRan, 10u);
+  EXPECT_EQ(LoRan, 0u);
+}
+
+TEST(BackgroundQueueTest, Boost) {
+  std::string Sequence;
+
+  BackgroundQueue::Task A([&] { Sequence.push_back('A'); });
+  A.Tag = "A";
+  A.QueuePri = 1;
+
+  BackgroundQueue::Task B([&] { Sequence.push_back('B'); });
+  B.QueuePri = 2;
+  B.Tag = "B";
+
+  {
+    BackgroundQueue Q;
+    Q.append({A, B});
+    Q.work([&] { Q.stop(); });
+    EXPECT_EQ("BA", Sequence) << "priority order";
+  }
+  Sequence.clear();
+  {
+    BackgroundQueue Q;
+    Q.boost("A", 3);
+    Q.append({A, B});
+    Q.work([&] { Q.stop(); });
+    EXPECT_EQ("AB", Sequence) << "A was boosted before enqueueing";
+  }
+  Sequence.clear();
+  {
+    BackgroundQueue Q;
+    Q.append({A, B});
+    Q.boost("A", 3);
+    Q.work([&] { Q.stop(); });
+    EXPECT_EQ("AB", Sequence) << "A was boosted after enqueueing";
   }
 }
 

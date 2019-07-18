@@ -934,7 +934,7 @@ static std::string stringOr(std::string Str, std::string IfEmpty) {
 
 static void dumpInjectedSources(LinePrinter &Printer, IPDBSession &Session) {
   auto Sources = Session.getInjectedSources();
-  if (0 == Sources->getChildCount()) {
+  if (!Sources || !Sources->getChildCount()) {
     Printer.printLine("There are no injected sources.");
     return;
   }
@@ -947,9 +947,6 @@ static void dumpInjectedSources(LinePrinter &Printer, IPDBSession &Session) {
     std::string VFName = stringOr(IS->getVirtualFileName(), "<null>");
     uint32_t CRC = IS->getCrc32();
 
-    std::string CompressionStr;
-    llvm::raw_string_ostream Stream(CompressionStr);
-    Stream << IS->getCompression();
     WithColor(Printer, PDB_ColorItem::Path).get() << File;
     Printer << " (";
     WithColor(Printer, PDB_ColorItem::LiteralValue).get() << Size;
@@ -968,7 +965,9 @@ static void dumpInjectedSources(LinePrinter &Printer, IPDBSession &Session) {
     Printer << ", ";
     WithColor(Printer, PDB_ColorItem::Keyword).get() << "compression";
     Printer << "=";
-    WithColor(Printer, PDB_ColorItem::LiteralValue).get() << Stream.str();
+    dumpPDBSourceCompression(
+        WithColor(Printer, PDB_ColorItem::LiteralValue).get(),
+        IS->getCompression());
 
     if (!opts::pretty::ShowInjectedSourceContent)
       continue;
@@ -977,7 +976,12 @@ static void dumpInjectedSources(LinePrinter &Printer, IPDBSession &Session) {
     int Indent = Printer.getIndentLevel();
     Printer.Unindent(Indent);
 
-    Printer.printLine(IS->getCode());
+    if (IS->getCompression() == PDB_SourceCompression::None)
+      Printer.printLine(IS->getCode());
+    else
+      Printer.formatBinary("Compressed data",
+                           arrayRefFromStringRef(IS->getCode()),
+                           /*StartOffset=*/0);
 
     // Re-indent back to the original level.
     Printer.Indent(Indent);
@@ -1279,12 +1283,7 @@ static void dumpPretty(StringRef Path) {
     WithColor(Printer, PDB_ColorItem::SectionHeader).get()
         << "---INJECTED SOURCES---";
     AutoIndent Indent1(Printer);
-
-    if (ReaderType == PDB_ReaderType::Native)
-      Printer.printLine(
-          "Injected sources are not supported with the native reader.");
-    else
-      dumpInjectedSources(Printer, *Session);
+    dumpInjectedSources(Printer, *Session);
   }
 
   Printer.NewLine();
@@ -1384,8 +1383,7 @@ static void exportStream() {
            << "' (index " << Index << ") to file " << OutFileName << ".\n";
   }
 
-  SourceStream = MappedBlockStream::createIndexedStream(
-      File.getMsfLayout(), File.getMsfBuffer(), Index, File.getAllocator());
+  SourceStream = File.createIndexedStream(Index);
   auto OutFile = ExitOnErr(
       FileOutputBuffer::create(OutFileName, SourceStream->getLength()));
   FileBufferByteStream DestStream(std::move(OutFile), llvm::support::little);

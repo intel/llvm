@@ -8,13 +8,16 @@
 // c: -c
 
 // RUN: %clang_cl /C -### -- %s 2>&1 | FileCheck -check-prefix=C %s
-// C: error: invalid argument '-C' only allowed with '/E, /P or /EP'
+// C: error: invalid argument '/C' only allowed with '/E, /P or /EP'
 
 // RUN: %clang_cl /C /P -### -- %s 2>&1 | FileCheck -check-prefix=C_P %s
 // C_P: "-E"
 // C_P: "-C"
 
-// RUN: %clang_cl /d1reportAllClassLayout -### -- %s 2>&1 | FileCheck -check-prefix=d1reportAllClassLayout %s
+// RUN: %clang_cl /d1reportAllClassLayout -### /c /WX -- %s 2>&1 | \
+// RUN:     FileCheck -check-prefix=d1reportAllClassLayout %s
+// d1reportAllClassLayout-NOT: warning:
+// d1reportAllClassLayout-NOT: error:
 // d1reportAllClassLayout: -fdump-record-layouts
 
 // RUN: %clang_cl /Dfoo=bar /D bar=baz /DMYDEF#value /DMYDEF2=foo#bar /DMYDEF3#a=b /DMYDEF4# \
@@ -158,28 +161,28 @@
 // RUN: %clang_cl /Os --target=i686-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Os %s
 // RUN: %clang_cl /Os --target=x86_64-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Os %s
 // Os-NOT: -mdisable-fp-elim
-// Os: -momit-leaf-frame-pointer
+// Os-NOT: -momit-leaf-frame-pointer
 // Os: -Os
 
 // RUN: %clang_cl /Ot --target=i686-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Ot %s
 // RUN: %clang_cl /Ot --target=x86_64-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Ot %s
 // Ot-NOT: -mdisable-fp-elim
-// Ot: -momit-leaf-frame-pointer
+// Ot-NOT: -momit-leaf-frame-pointer
 // Ot: -O2
 
 // RUN: %clang_cl /Ox --target=i686-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Ox %s
 // RUN: %clang_cl /Ox --target=x86_64-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Ox %s
 // Ox-NOT: -mdisable-fp-elim
-// Ox: -momit-leaf-frame-pointer
+// Ox-NOT: -momit-leaf-frame-pointer
 // Ox: -O2
 
 // RUN: %clang_cl --target=i686-pc-win32 /O2sy- -### -- %s 2>&1 | FileCheck -check-prefix=PR24003 %s
 // PR24003: -mdisable-fp-elim
-// PR24003: -momit-leaf-frame-pointer
+// PR24003-NOT: -momit-leaf-frame-pointer
 // PR24003: -Os
 
 // RUN: %clang_cl --target=i686-pc-win32 -Werror /Oy- /O2 -### -- %s 2>&1 | FileCheck -check-prefix=Oy_2 %s
-// Oy_2: -momit-leaf-frame-pointer
+// Oy_2-NOT: -momit-leaf-frame-pointer
 // Oy_2: -O2
 
 // RUN: %clang_cl --target=aarch64-pc-windows-msvc -Werror /Oy- /O2 -### -- %s 2>&1 | FileCheck -check-prefix=Oy_aarch64 %s
@@ -211,11 +214,11 @@
 
 // /source-charset: should warn on everything except UTF-8.
 // RUN: %clang_cl /source-charset:utf-16 -### -- %s 2>&1 | FileCheck -check-prefix=source-charset-utf-16 %s
-// source-charset-utf-16: invalid value 'utf-16'
+// source-charset-utf-16: invalid value 'utf-16' in '/source-charset:utf-16'
 
 // /execution-charset: should warn on everything except UTF-8.
 // RUN: %clang_cl /execution-charset:utf-16 -### -- %s 2>&1 | FileCheck -check-prefix=execution-charset-utf-16 %s
-// execution-charset-utf-16: invalid value 'utf-16'
+// execution-charset-utf-16: invalid value 'utf-16' in '/execution-charset:utf-16'
 //
 // RUN: %clang_cl /Umymacro -### -- %s 2>&1 | FileCheck -check-prefix=U %s
 // RUN: %clang_cl /U mymacro -### -- %s 2>&1 | FileCheck -check-prefix=U %s
@@ -619,6 +622,7 @@
 // RUN:     -fno-coverage-mapping \
 // RUN:     -fdiagnostics-color \
 // RUN:     -fno-diagnostics-color \
+// RUN:     -fdebug-compilation-dir . \
 // RUN:     -fdiagnostics-parseable-fixits \
 // RUN:     -fdiagnostics-absolute-paths \
 // RUN:     -ferror-limit=10 \

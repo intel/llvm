@@ -373,6 +373,17 @@ void TargetInfo::adjust(LangOptions &Opts) {
     LongDoubleFormat = &llvm::APFloat::IEEEquad();
   }
 
+  if (Opts.LongDoubleSize) {
+    if (Opts.LongDoubleSize == DoubleWidth) {
+      LongDoubleWidth = DoubleWidth;
+      LongDoubleAlign = DoubleAlign;
+      LongDoubleFormat = DoubleFormat;
+    } else if (Opts.LongDoubleSize == 128) {
+      LongDoubleWidth = LongDoubleAlign = 128;
+      LongDoubleFormat = &llvm::APFloat::IEEEquad();
+    }
+  }
+
   if (Opts.NewAlignOverride)
     NewAlign = Opts.NewAlignOverride * getCharWidth();
 

@@ -65,10 +65,14 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclObjC.h"
 
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
+
 #include <vector>
 
 using namespace lldb;
 using namespace lldb_private;
+
+char AppleObjCRuntimeV2::ID = 0;
 
 static const char *g_get_dynamic_class_info_name =
     "__lldb_apple_objc_v2_get_dynamic_class_info";
@@ -154,6 +158,16 @@ __lldb_apple_objc_v2_get_dynamic_class_info (void *gdb_objc_realized_classes_ptr
 
 )";
 
+// We'll substitute in class_getName or class_getNameRaw depending
+// on which is present.
+static const char *g_shared_cache_class_name_funcptr = R"(
+extern "C"
+{
+    const char *%s(void *objc_class);
+    const char *(*class_name_lookup_func)(void *) = %s;
+}
+)";
+
 static const char *g_get_shared_cache_class_info_name =
     "__lldb_apple_objc_v2_get_shared_cache_class_info";
 // Testing using the new C++11 raw string literals. If this breaks GCC then we
@@ -162,7 +176,6 @@ static const char *g_get_shared_cache_class_info_body = R"(
 
 extern "C"
 {
-    const char *class_getName(void *objc_class);
     size_t strlen(const char *);
     char *strncpy (char * s1, const char * s2, size_t n);
     int printf(const char * format, ...);
@@ -283,7 +296,7 @@ __lldb_apple_objc_v2_get_shared_cache_class_info (void *objc_opt_ro_ptr,
                 if (class_infos && idx < max_class_infos)
                 {
                     class_infos[idx].isa = (Class)((uint8_t *)clsopt + clsOffset);
-                    const char *name = class_getName (class_infos[idx].isa);
+                    const char *name = class_name_lookup_func (class_infos[idx].isa);
                     DEBUG_PRINTF ("[%u] isa = %8p %s\n", idx, class_infos[idx].isa, name);
                     // Hash the class name so we don't have to read it
                     const char *s = name;
@@ -326,7 +339,7 @@ __lldb_apple_objc_v2_get_shared_cache_class_info (void *objc_opt_ro_ptr,
                 if (class_infos && idx < max_class_infos)
                 {
                     class_infos[idx].isa = (Class)((uint8_t *)clsopt + clsOffset);
-                    const char *name = class_getName (class_infos[idx].isa);
+                    const char *name = class_name_lookup_func (class_infos[idx].isa);
                     DEBUG_PRINTF ("[%u] isa = %8p %s\n", idx, class_infos[idx].isa, name);
                     // Hash the class name so we don't have to read it
                     const char *s = name;
@@ -462,12 +475,10 @@ bool AppleObjCRuntimeV2::GetDynamicTypeAndAddress(
           class_type_or_name.SetTypeSP(type_sp);
         } else {
           // try to go for a CompilerType at least
-          DeclVendor *vendor = GetDeclVendor();
-          if (vendor) {
-            std::vector<clang::NamedDecl *> decls;
-            if (vendor->FindDecls(class_name, false, 1, decls) && decls.size())
-              class_type_or_name.SetCompilerType(
-                  ClangASTContext::GetTypeForDecl(decls[0]));
+          if (auto *vendor = GetDeclVendor()) {
+            auto types = vendor->FindTypes(class_name, /*max_matches*/ 1);
+            if (!types.empty())
+              class_type_or_name.SetCompilerType(types.front());
           }
         }
       }
@@ -589,7 +600,7 @@ protected:
     }
 
     Process *process = m_exe_ctx.GetProcessPtr();
-    ObjCLanguageRuntime *objc_runtime = process->GetObjCLanguageRuntime();
+    ObjCLanguageRuntime *objc_runtime = ObjCLanguageRuntime::Get(*process);
     if (objc_runtime) {
       auto iterators_pair = objc_runtime->GetDescriptorIteratorPair();
       auto iterator = iterators_pair.first;
@@ -691,7 +702,7 @@ protected:
 
     Process *process = m_exe_ctx.GetProcessPtr();
     ExecutionContext exe_ctx(process);
-    ObjCLanguageRuntime *objc_runtime = process->GetObjCLanguageRuntime();
+    ObjCLanguageRuntime *objc_runtime = ObjCLanguageRuntime::Get(*process);
     if (objc_runtime) {
       ObjCLanguageRuntime::TaggedPointerVendor *tagged_ptr_vendor =
           objc_runtime->GetTaggedPointerVendor();
@@ -794,7 +805,8 @@ void AppleObjCRuntimeV2::Initialize() {
       CreateInstance,
       [](CommandInterpreter &interpreter) -> lldb::CommandObjectSP {
         return CommandObjectSP(new CommandObjectMultiwordObjC(interpreter));
-      });
+      },
+      GetBreakpointExceptionPrecondition);
 }
 
 void AppleObjCRuntimeV2::Terminate() {
@@ -1586,9 +1598,52 @@ AppleObjCRuntimeV2::UpdateISAToDescriptorMapSharedCache() {
 
   if (!m_get_shared_cache_class_info_code) {
     Status error;
+
+    // If the inferior objc.dylib has the class_getNameRaw function,
+    // use that in our jitted expression.  Else fall back to the old
+    // class_getName.
+    static ConstString g_class_getName_symbol_name("class_getName");
+    static ConstString g_class_getNameRaw_symbol_name("class_getNameRaw");
+    ConstString class_name_getter_function_name = g_class_getName_symbol_name;
+
+    ObjCLanguageRuntime *objc_runtime = ObjCLanguageRuntime::Get(*process);
+    if (objc_runtime) {
+      const ModuleList &images = process->GetTarget().GetImages();
+      std::lock_guard<std::recursive_mutex> guard(images.GetMutex());
+      for (size_t i = 0; i < images.GetSize(); ++i) {
+        lldb::ModuleSP mod_sp = images.GetModuleAtIndexUnlocked(i);
+        if (objc_runtime->IsModuleObjCLibrary(mod_sp)) {
+          const Symbol *symbol =
+              mod_sp->FindFirstSymbolWithNameAndType(g_class_getNameRaw_symbol_name, 
+                                                lldb::eSymbolTypeCode);
+          if (symbol && 
+              (symbol->ValueIsAddress() || symbol->GetAddressRef().IsValid())) {
+            class_name_getter_function_name = g_class_getNameRaw_symbol_name;
+          }
+        }
+      }
+    }
+
+    // Substitute in the correct class_getName / class_getNameRaw function name,
+    // concatenate the two parts of our expression text.  The format string
+    // has two %s's, so provide the name twice.
+    int prefix_string_size = snprintf (nullptr, 0, 
+                               g_shared_cache_class_name_funcptr,
+                               class_name_getter_function_name.AsCString(),
+                               class_name_getter_function_name.AsCString());
+
+    char *class_name_func_ptr_expr = (char*) malloc (prefix_string_size + 1);
+    snprintf (class_name_func_ptr_expr, prefix_string_size + 1,
+              g_shared_cache_class_name_funcptr,
+              class_name_getter_function_name.AsCString(),
+              class_name_getter_function_name.AsCString());
+    std::string shared_class_expression = class_name_func_ptr_expr;
+    shared_class_expression += g_get_shared_cache_class_info_body;
+    free (class_name_func_ptr_expr);
+
     m_get_shared_cache_class_info_code.reset(
         GetTargetRef().GetUtilityFunctionForLanguage(
-            g_get_shared_cache_class_info_body, eLanguageTypeObjC,
+            shared_class_expression.c_str(), eLanguageTypeObjC,
             g_get_shared_cache_class_info_name, error));
     if (error.Fail()) {
       if (log)

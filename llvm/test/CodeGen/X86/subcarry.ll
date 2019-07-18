@@ -91,25 +91,25 @@ define %S @sub(%S* nocapture readonly %this, %S %arg.b) local_unnamed_addr {
 ; CHECK-LABEL: sub:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movq %rdi, %rax
-; CHECK-NEXT:    notq %rdx
-; CHECK-NEXT:    xorl %edi, %edi
-; CHECK-NEXT:    addq (%rsi), %rdx
-; CHECK-NEXT:    setb %dil
-; CHECK-NEXT:    addq $1, %rdx
-; CHECK-NEXT:    adcq 8(%rsi), %rdi
-; CHECK-NEXT:    setb %r10b
-; CHECK-NEXT:    movzbl %r10b, %r10d
+; CHECK-NEXT:    movq (%rsi), %r10
+; CHECK-NEXT:    movq 8(%rsi), %rdi
+; CHECK-NEXT:    subq %rdx, %r10
+; CHECK-NEXT:    setae %dl
+; CHECK-NEXT:    addb $-1, %dl
+; CHECK-NEXT:    adcq $0, %rdi
+; CHECK-NEXT:    setb %dl
+; CHECK-NEXT:    movzbl %dl, %r11d
 ; CHECK-NEXT:    notq %rcx
 ; CHECK-NEXT:    addq %rdi, %rcx
-; CHECK-NEXT:    adcq 16(%rsi), %r10
-; CHECK-NEXT:    setb %dil
-; CHECK-NEXT:    movzbl %dil, %edi
+; CHECK-NEXT:    adcq 16(%rsi), %r11
+; CHECK-NEXT:    setb %dl
+; CHECK-NEXT:    movzbl %dl, %edx
 ; CHECK-NEXT:    notq %r8
-; CHECK-NEXT:    addq %r10, %r8
-; CHECK-NEXT:    adcq 24(%rsi), %rdi
+; CHECK-NEXT:    addq %r11, %r8
+; CHECK-NEXT:    adcq 24(%rsi), %rdx
 ; CHECK-NEXT:    notq %r9
-; CHECK-NEXT:    addq %rdi, %r9
-; CHECK-NEXT:    movq %rdx, (%rax)
+; CHECK-NEXT:    addq %rdx, %r9
+; CHECK-NEXT:    movq %r10, (%rax)
 ; CHECK-NEXT:    movq %rcx, 8(%rax)
 ; CHECK-NEXT:    movq %r8, 16(%rax)
 ; CHECK-NEXT:    movq %r9, 24(%rax)

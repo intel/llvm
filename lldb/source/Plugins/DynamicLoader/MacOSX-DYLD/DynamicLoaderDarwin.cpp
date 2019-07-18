@@ -20,7 +20,6 @@
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/ABI.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
@@ -31,6 +30,8 @@
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/State.h"
+
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 
 //#define ENABLE_DEBUG_PRINTF // COMMENT THIS LINE OUT PRIOR TO CHECKIN
 #ifdef ENABLE_DEBUG_PRINTF
@@ -693,7 +694,7 @@ bool DynamicLoaderDarwin::AlwaysRelyOnEHUnwindInfo(SymbolContext &sym_ctx) {
   if (module_sp.get() == nullptr)
     return false;
 
-  ObjCLanguageRuntime *objc_runtime = m_process->GetObjCLanguageRuntime();
+  ObjCLanguageRuntime *objc_runtime = ObjCLanguageRuntime::Get(*m_process);
   return objc_runtime != nullptr &&
          objc_runtime->IsModuleObjCLibrary(module_sp);
 }

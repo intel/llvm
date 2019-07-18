@@ -78,6 +78,7 @@ OPTIONS:
   --plugin=<string>     - Ignored for compatibility
   --help                - Display available options
   --version             - Display the version of this program
+  @<file>               - read options from <file>
 
 OPERATIONS:
   d - delete [files] from the archive
@@ -952,7 +953,7 @@ static int performOperation(ArchiveOperation Operation,
 }
 
 static void runMRIScript() {
-  enum class MRICommand { AddLib, AddMod, Create, Delete, Save, End, Invalid };
+  enum class MRICommand { AddLib, AddMod, Create, CreateThin, Delete, Save, End, Invalid };
 
   ErrorOr<std::unique_ptr<MemoryBuffer>> Buf = MemoryBuffer::getSTDIN();
   failIfError(Buf.getError());
@@ -976,6 +977,7 @@ static void runMRIScript() {
                        .Case("addlib", MRICommand::AddLib)
                        .Case("addmod", MRICommand::AddMod)
                        .Case("create", MRICommand::Create)
+                       .Case("createthin", MRICommand::CreateThin)
                        .Case("delete", MRICommand::Delete)
                        .Case("save", MRICommand::Save)
                        .Case("end", MRICommand::End)
@@ -995,6 +997,9 @@ static void runMRIScript() {
     case MRICommand::AddMod:
       addMember(NewMembers, Rest);
       break;
+    case MRICommand::CreateThin:
+      Thin = true;
+      LLVM_FALLTHROUGH;
     case MRICommand::Create:
       Create = true;
       if (!ArchiveName.empty())

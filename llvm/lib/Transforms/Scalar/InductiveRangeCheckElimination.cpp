@@ -859,7 +859,7 @@ LoopStructure::parseLoopStructure(ScalarEvolution &SE,
 
   assert(!StepCI->isZero() && "Zero step?");
   bool IsIncreasing = !StepCI->isNegative();
-  bool IsSignedPredicate = ICmpInst::isSigned(Pred);
+  bool IsSignedPredicate;
   const SCEV *StartNext = IndVarBase->getStart();
   const SCEV *Addend = SE.getNegativeSCEV(IndVarBase->getStepRecurrence(SE));
   const SCEV *IndVarStart = SE.getAddExpr(StartNext, Addend);
@@ -1335,9 +1335,8 @@ void LoopConstrainer::rewriteIncomingValuesForPHIs(
     const LoopConstrainer::RewrittenRangeInfo &RRI) const {
   unsigned PHIIndex = 0;
   for (PHINode &PN : LS.Header->phis())
-    for (unsigned i = 0, e = PN.getNumIncomingValues(); i < e; ++i)
-      if (PN.getIncomingBlock(i) == ContinuationBlock)
-        PN.setIncomingValue(i, RRI.PHIValuesAtPseudoExit[PHIIndex++]);
+    PN.setIncomingValueForBlock(ContinuationBlock,
+                                RRI.PHIValuesAtPseudoExit[PHIIndex++]);
 
   LS.IndVarStart = RRI.IndVarEnd;
 }

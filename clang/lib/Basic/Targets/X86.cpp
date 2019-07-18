@@ -138,6 +138,25 @@ bool X86TargetInfo::initFeatureMap(
     setFeatureEnabledImpl(Features, "mmx", true);
     break;
 
+  case CK_Cooperlake:
+    // CPX inherits all CLX features plus AVX512BF16
+    setFeatureEnabledImpl(Features, "avx512bf16", true);
+    LLVM_FALLTHROUGH;
+  case CK_Cascadelake:
+    // CLX inherits all SKX features plus AVX512VNNI
+    setFeatureEnabledImpl(Features, "avx512vnni", true);
+    LLVM_FALLTHROUGH;
+  case CK_SkylakeServer:
+    setFeatureEnabledImpl(Features, "avx512f", true);
+    setFeatureEnabledImpl(Features, "avx512cd", true);
+    setFeatureEnabledImpl(Features, "avx512dq", true);
+    setFeatureEnabledImpl(Features, "avx512bw", true);
+    setFeatureEnabledImpl(Features, "avx512vl", true);
+    setFeatureEnabledImpl(Features, "clwb", true);
+    setFeatureEnabledImpl(Features, "pku", true);
+    // SkylakeServer cores inherits all SKL features, except SGX
+    goto SkylakeCommon;
+
   case CK_IcelakeServer:
     setFeatureEnabledImpl(Features, "pconfig", true);
     setFeatureEnabledImpl(Features, "wbnoinvd", true);
@@ -148,38 +167,29 @@ bool X86TargetInfo::initFeatureMap(
     setFeatureEnabledImpl(Features, "vpclmulqdq", true);
     setFeatureEnabledImpl(Features, "avx512bitalg", true);
     setFeatureEnabledImpl(Features, "avx512vbmi2", true);
+    setFeatureEnabledImpl(Features, "avx512vnni", true);
     setFeatureEnabledImpl(Features, "avx512vpopcntdq", true);
     setFeatureEnabledImpl(Features, "rdpid", true);
+    setFeatureEnabledImpl(Features, "clwb", true);
     LLVM_FALLTHROUGH;
   case CK_Cannonlake:
-    setFeatureEnabledImpl(Features, "avx512ifma", true);
-    setFeatureEnabledImpl(Features, "avx512vbmi", true);
-    setFeatureEnabledImpl(Features, "sha", true);
-    LLVM_FALLTHROUGH;
-  case CK_Cascadelake:
-    //Cannonlake has no VNNI feature inside while Icelake has
-    if (Kind != CK_Cannonlake)
-      // CLK inherits all SKX features plus AVX512_VNNI
-      setFeatureEnabledImpl(Features, "avx512vnni", true);
-    LLVM_FALLTHROUGH;
-  case CK_SkylakeServer:
     setFeatureEnabledImpl(Features, "avx512f", true);
     setFeatureEnabledImpl(Features, "avx512cd", true);
     setFeatureEnabledImpl(Features, "avx512dq", true);
     setFeatureEnabledImpl(Features, "avx512bw", true);
     setFeatureEnabledImpl(Features, "avx512vl", true);
+    setFeatureEnabledImpl(Features, "avx512ifma", true);
+    setFeatureEnabledImpl(Features, "avx512vbmi", true);
     setFeatureEnabledImpl(Features, "pku", true);
-    if (Kind != CK_Cannonlake) // CNL inherits all SKX features, except CLWB
-      setFeatureEnabledImpl(Features, "clwb", true);
+    setFeatureEnabledImpl(Features, "sha", true);
     LLVM_FALLTHROUGH;
   case CK_SkylakeClient:
+    setFeatureEnabledImpl(Features, "sgx", true);
+    // SkylakeServer cores inherits all SKL features, except SGX
+SkylakeCommon:
     setFeatureEnabledImpl(Features, "xsavec", true);
     setFeatureEnabledImpl(Features, "xsaves", true);
     setFeatureEnabledImpl(Features, "mpx", true);
-    if (Kind != CK_SkylakeServer
-        && Kind != CK_Cascadelake)
-      // SKX/CLX inherits all SKL features, except SGX
-      setFeatureEnabledImpl(Features, "sgx", true);
     setFeatureEnabledImpl(Features, "clflushopt", true);
     setFeatureEnabledImpl(Features, "aes", true);
     LLVM_FALLTHROUGH;
@@ -835,6 +845,8 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasPTWRITE = true;
     } else if (Feature == "+invpcid") {
       HasINVPCID = true;
+    } else if (Feature == "+enqcmd") {
+      HasENQCMD = true;
     }
 
     X86SSEEnum Level = llvm::StringSwitch<X86SSEEnum>(Feature)
@@ -904,6 +916,11 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   } else {
     DefineStd(Builder, "i386", Opts);
   }
+
+  Builder.defineMacro("__SEG_GS");
+  Builder.defineMacro("__SEG_FS");
+  Builder.defineMacro("__seg_gs", "__attribute__((address_space(256)))");
+  Builder.defineMacro("__seg_fs", "__attribute__((address_space(257)))");
 
   // Subtarget options.
   // FIXME: We are hard-coding the tune parameters based on the CPU, but they
@@ -979,6 +996,7 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
   case CK_SkylakeClient:
   case CK_SkylakeServer:
   case CK_Cascadelake:
+  case CK_Cooperlake:
   case CK_Cannonlake:
   case CK_IcelakeClient:
   case CK_IcelakeServer:
@@ -1218,6 +1236,8 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__PTWRITE__");
   if (HasINVPCID)
     Builder.defineMacro("__INVPCID__");
+  if (HasENQCMD)
+    Builder.defineMacro("__ENQCMD__");
 
   // Each case falls through to the previous one here.
   switch (SSELevel) {
@@ -1334,6 +1354,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("clwb", true)
       .Case("clzero", true)
       .Case("cx16", true)
+      .Case("enqcmd", true)
       .Case("f16c", true)
       .Case("fma", true)
       .Case("fma4", true)
@@ -1415,6 +1436,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("clzero", HasCLZERO)
       .Case("cx8", HasCX8)
       .Case("cx16", HasCX16)
+      .Case("enqcmd", HasENQCMD)
       .Case("f16c", HasF16C)
       .Case("fma", HasFMA)
       .Case("fma4", XOPLevel >= FMA4)

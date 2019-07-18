@@ -89,9 +89,8 @@ struct WebAssemblyOperand : public MCParsedAsmOperand {
   }
 
   bool isToken() const override { return Kind == Token; }
-  bool isImm() const override {
-    return Kind == Integer || Kind == Float || Kind == Symbol;
-  }
+  bool isImm() const override { return Kind == Integer || Kind == Symbol; }
+  bool isFPImm() const { return Kind == Float; }
   bool isMem() const override { return false; }
   bool isReg() const override { return false; }
   bool isBrList() const { return Kind == BrList; }
@@ -118,12 +117,18 @@ struct WebAssemblyOperand : public MCParsedAsmOperand {
     assert(N == 1 && "Invalid number of operands!");
     if (Kind == Integer)
       Inst.addOperand(MCOperand::createImm(Int.Val));
-    else if (Kind == Float)
-      Inst.addOperand(MCOperand::createFPImm(Flt.Val));
     else if (Kind == Symbol)
       Inst.addOperand(MCOperand::createExpr(Sym.Exp));
     else
-      llvm_unreachable("Should be immediate or symbol!");
+      llvm_unreachable("Should be integer immediate or symbol!");
+  }
+
+  void addFPImmOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    if (Kind == Float)
+      Inst.addOperand(MCOperand::createFPImm(Flt.Val));
+    else
+      llvm_unreachable("Should be float immediate!");
   }
 
   void addBrListOperands(MCInst &Inst, unsigned N) const {
@@ -303,8 +308,8 @@ public:
         Type == "i32x4" || Type == "i64x2" || Type == "f32x4" ||
         Type == "f64x2")
       return wasm::ValType::V128;
-    if (Type == "except_ref")
-      return wasm::ValType::EXCEPT_REF;
+    if (Type == "exnref")
+      return wasm::ValType::EXNREF;
     return Optional<wasm::ValType>();
   }
 
@@ -315,7 +320,7 @@ public:
         .Case("f32", WebAssembly::ExprType::F32)
         .Case("f64", WebAssembly::ExprType::F64)
         .Case("v128", WebAssembly::ExprType::V128)
-        .Case("except_ref", WebAssembly::ExprType::ExceptRef)
+        .Case("exnref", WebAssembly::ExprType::Exnref)
         .Case("void", WebAssembly::ExprType::Void)
         .Default(WebAssembly::ExprType::Invalid);
   }
@@ -344,26 +349,67 @@ public:
     Parser.Lex();
   }
 
-  bool parseOperandStartingWithInteger(bool IsNegative, OperandVector &Operands,
-                                       StringRef InstName) {
-    parseSingleInteger(IsNegative, Operands);
+  bool parseSingleFloat(bool IsNegative, OperandVector &Operands) {
+    auto &Flt = Lexer.getTok();
+    double Val;
+    if (Flt.getString().getAsDouble(Val, false))
+      return error("Cannot parse real: ", Flt);
+    if (IsNegative)
+      Val = -Val;
+    Operands.push_back(make_unique<WebAssemblyOperand>(
+        WebAssemblyOperand::Float, Flt.getLoc(), Flt.getEndLoc(),
+        WebAssemblyOperand::FltOp{Val}));
+    Parser.Lex();
+    return false;
+  }
+
+  bool parseSpecialFloatMaybe(bool IsNegative, OperandVector &Operands) {
+    if (Lexer.isNot(AsmToken::Identifier))
+      return true;
+    auto &Flt = Lexer.getTok();
+    auto S = Flt.getString();
+    double Val;
+    if (S.compare_lower("infinity") == 0) {
+      Val = std::numeric_limits<double>::infinity();
+    } else if (S.compare_lower("nan") == 0) {
+      Val = std::numeric_limits<double>::quiet_NaN();
+    } else {
+      return true;
+    }
+    if (IsNegative)
+      Val = -Val;
+    Operands.push_back(make_unique<WebAssemblyOperand>(
+        WebAssemblyOperand::Float, Flt.getLoc(), Flt.getEndLoc(),
+        WebAssemblyOperand::FltOp{Val}));
+    Parser.Lex();
+    return false;
+  }
+
+  bool checkForP2AlignIfLoadStore(OperandVector &Operands, StringRef InstName) {
     // FIXME: there is probably a cleaner way to do this.
-    auto IsLoadStore = InstName.startswith("load") ||
-                       InstName.startswith("store") ||
-                       InstName.startswith("atomic");
-    if (IsLoadStore) {
-      // Parse load/store operands of the form: offset align
-      auto &Offset = Lexer.getTok();
-      if (Offset.is(AsmToken::Integer)) {
+    auto IsLoadStore = InstName.find(".load") != StringRef::npos ||
+                       InstName.find(".store") != StringRef::npos;
+    auto IsAtomic = InstName.find("atomic.") != StringRef::npos;
+    if (IsLoadStore || IsAtomic) {
+      // Parse load/store operands of the form: offset:p2align=align
+      if (IsLoadStore && isNext(AsmToken::Colon)) {
+        auto Id = expectIdent();
+        if (Id != "p2align")
+          return error("Expected p2align, instead got: " + Id);
+        if (expect(AsmToken::Equal, "="))
+          return true;
+        if (!Lexer.is(AsmToken::Integer))
+          return error("Expected integer constant");
         parseSingleInteger(false, Operands);
       } else {
-        // Alignment not specified.
-        // FIXME: correctly derive a default from the instruction.
+        // Alignment not specified (or atomics, must use default alignment).
         // We can't just call WebAssembly::GetDefaultP2Align since we don't have
-        // an opcode until after the assembly matcher.
+        // an opcode until after the assembly matcher, so set a default to fix
+        // up later.
+        auto Tok = Lexer.getTok();
         Operands.push_back(make_unique<WebAssemblyOperand>(
-            WebAssemblyOperand::Integer, Offset.getLoc(), Offset.getEndLoc(),
-            WebAssemblyOperand::IntOp{0}));
+            WebAssemblyOperand::Integer, Tok.getLoc(), Tok.getEndLoc(),
+            WebAssemblyOperand::IntOp{-1}));
       }
     }
     return false;
@@ -406,52 +452,45 @@ public:
     Operands.push_back(make_unique<WebAssemblyOperand>(
         WebAssemblyOperand::Token, NameLoc, SMLoc::getFromPointer(Name.end()),
         WebAssemblyOperand::TokOp{Name}));
-    auto NamePair = Name.split('.');
-    // If no '.', there is no type prefix.
-    auto BaseName = NamePair.second.empty() ? NamePair.first : NamePair.second;
 
     // If this instruction is part of a control flow structure, ensure
     // proper nesting.
     bool ExpectBlockType = false;
-    if (BaseName == "block") {
+    if (Name == "block") {
       push(Block);
       ExpectBlockType = true;
-    } else if (BaseName == "loop") {
+    } else if (Name == "loop") {
       push(Loop);
       ExpectBlockType = true;
-    } else if (BaseName == "try") {
+    } else if (Name == "try") {
       push(Try);
       ExpectBlockType = true;
-    } else if (BaseName == "if") {
+    } else if (Name == "if") {
       push(If);
       ExpectBlockType = true;
-    } else if (BaseName == "else") {
-      if (pop(BaseName, If))
+    } else if (Name == "else") {
+      if (pop(Name, If))
         return true;
       push(Else);
-    } else if (BaseName == "catch") {
-      if (pop(BaseName, Try))
+    } else if (Name == "catch") {
+      if (pop(Name, Try))
         return true;
       push(Try);
-    } else if (BaseName == "catch_all") {
-      if (pop(BaseName, Try))
+    } else if (Name == "end_if") {
+      if (pop(Name, If, Else))
         return true;
-      push(Try);
-    } else if (BaseName == "end_if") {
-      if (pop(BaseName, If, Else))
+    } else if (Name == "end_try") {
+      if (pop(Name, Try))
         return true;
-    } else if (BaseName == "end_try") {
-      if (pop(BaseName, Try))
+    } else if (Name == "end_loop") {
+      if (pop(Name, Loop))
         return true;
-    } else if (BaseName == "end_loop") {
-      if (pop(BaseName, Loop))
+    } else if (Name == "end_block") {
+      if (pop(Name, Block))
         return true;
-    } else if (BaseName == "end_block") {
-      if (pop(BaseName, Block))
-        return true;
-    } else if (BaseName == "end_function") {
+    } else if (Name == "end_function") {
       CurrentState = EndFunction;
-      if (pop(BaseName, Function) || ensureEmptyNestingStack())
+      if (pop(Name, Function) || ensureEmptyNestingStack())
         return true;
     }
 
@@ -459,6 +498,8 @@ public:
       auto &Tok = Lexer.getTok();
       switch (Tok.getKind()) {
       case AsmToken::Identifier: {
+        if (!parseSpecialFloatMaybe(false, Operands))
+          break;
         auto &Id = Lexer.getTok();
         if (ExpectBlockType) {
           // Assume this identifier is a block_type.
@@ -471,33 +512,39 @@ public:
           // Assume this identifier is a label.
           const MCExpr *Val;
           SMLoc End;
-          if (Parser.parsePrimaryExpr(Val, End))
+          if (Parser.parseExpression(Val, End))
             return error("Cannot parse symbol: ", Lexer.getTok());
           Operands.push_back(make_unique<WebAssemblyOperand>(
               WebAssemblyOperand::Symbol, Id.getLoc(), Id.getEndLoc(),
               WebAssemblyOperand::SymOp{Val}));
+          if (checkForP2AlignIfLoadStore(Operands, Name))
+            return true;
         }
         break;
       }
       case AsmToken::Minus:
         Parser.Lex();
-        if (Lexer.isNot(AsmToken::Integer))
-          return error("Expected integer instead got: ", Lexer.getTok());
-        if (parseOperandStartingWithInteger(true, Operands, BaseName))
-          return true;
+        if (Lexer.is(AsmToken::Integer)) {
+          parseSingleInteger(true, Operands);
+          if (checkForP2AlignIfLoadStore(Operands, Name))
+            return true;
+        } else if(Lexer.is(AsmToken::Real)) {
+          if (parseSingleFloat(true, Operands))
+            return true;
+        } else if (!parseSpecialFloatMaybe(true, Operands)) {
+        } else {
+          return error("Expected numeric constant instead got: ",
+                       Lexer.getTok());
+        }
         break;
       case AsmToken::Integer:
-        if (parseOperandStartingWithInteger(false, Operands, BaseName))
+        parseSingleInteger(false, Operands);
+        if (checkForP2AlignIfLoadStore(Operands, Name))
           return true;
         break;
       case AsmToken::Real: {
-        double Val;
-        if (Tok.getString().getAsDouble(Val, false))
-          return error("Cannot parse real: ", Tok);
-        Operands.push_back(make_unique<WebAssemblyOperand>(
-            WebAssemblyOperand::Float, Tok.getLoc(), Tok.getEndLoc(),
-            WebAssemblyOperand::FltOp{Val}));
-        Parser.Lex();
+        if (parseSingleFloat(false, Operands))
+          return true;
         break;
       }
       case AsmToken::LCurly: {
@@ -663,13 +710,18 @@ public:
       return expect(AsmToken::EndOfStatement, "EOL");
     }
 
-    if (DirectiveID.getString() == ".int8") {
+    if (DirectiveID.getString() == ".int8" ||
+        DirectiveID.getString() == ".int16" ||
+        DirectiveID.getString() == ".int32" ||
+        DirectiveID.getString() == ".int64") {
       if (CheckDataSection()) return true;
-      int64_t V;
-      if (Parser.parseAbsoluteExpression(V))
-        return error("Cannot parse int8 constant: ", Lexer.getTok());
-      // TODO: error if value doesn't fit?
-      Out.EmitIntValue(static_cast<uint64_t>(V), 1);
+      const MCExpr *Val;
+      SMLoc End;
+      if (Parser.parseExpression(Val, End))
+        return error("Cannot parse .int expression: ", Lexer.getTok());
+      size_t NumBits = 0;
+      DirectiveID.getString().drop_front(4).getAsInteger(10, NumBits);
+      Out.EmitValue(Val, NumBits / 8, End);
       return expect(AsmToken::EndOfStatement, "EOL");
     }
 
@@ -702,6 +754,13 @@ public:
         auto &TOut = reinterpret_cast<WebAssemblyTargetStreamer &>(
             *Out.getTargetStreamer());
         TOut.emitLocal(SmallVector<wasm::ValType, 0>());
+      }
+      // Fix unknown p2align operands.
+      auto Align = WebAssembly::GetDefaultP2AlignAny(Inst.getOpcode());
+      if (Align != -1U) {
+        auto &Op0 = Inst.getOperand(0);
+        if (Op0.getImm() == -1)
+          Op0.setImm(Align);
       }
       Out.EmitInstruction(Inst, getSTI());
       if (CurrentState == EndFunction) {
@@ -741,6 +800,10 @@ public:
     auto SymName = Symbol->getName();
     if (SymName.startswith(".L"))
       return; // Local Symbol.
+    // Only create a new text section if we're already in one.
+    auto CWS = cast<MCSectionWasm>(getStreamer().getCurrentSection().first);
+    if (!CWS || !CWS->getKind().isText())
+      return;
     auto SecName = ".text." + SymName;
     auto WS = getContext().getWasmSection(SecName, SectionKind::getText());
     getStreamer().SwitchSection(WS);

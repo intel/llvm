@@ -434,7 +434,7 @@ void TailDuplicator::duplicateInstruction(
             if (NewRC == nullptr)
               NewRC = OrigRC;
             unsigned NewReg = MRI->createVirtualRegister(NewRC);
-            BuildMI(*PredBB, MI, MI->getDebugLoc(),
+            BuildMI(*PredBB, NewMI, NewMI.getDebugLoc(),
                     TII->get(TargetOpcode::COPY), NewReg)
                 .addReg(VI->second.Reg, 0, VI->second.SubReg);
             LocalVRMap.erase(VI);
@@ -855,11 +855,6 @@ bool TailDuplicator::tailDuplicate(bool IsSimple, MachineBasicBlock *TailBB,
       }
     }
     appendCopies(PredBB, CopyInfos, Copies);
-
-    // Simplify
-    MachineBasicBlock *PredTBB = nullptr, *PredFBB = nullptr;
-    SmallVector<MachineOperand, 4> PredCond;
-    TII->analyzeBranch(*PredBB, PredTBB, PredFBB, PredCond);
 
     NumTailDupAdded += TailBB->size() - 1; // subtract one for removed branch
 

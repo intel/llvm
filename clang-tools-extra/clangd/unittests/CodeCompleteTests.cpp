@@ -90,7 +90,7 @@ std::unique_ptr<SymbolIndex> memIndex(std::vector<Symbol> Symbols) {
   SymbolSlab::Builder Slab;
   for (const auto &Sym : Symbols)
     Slab.insert(Sym);
-  return MemIndex::build(std::move(Slab).build(), RefSlab());
+  return MemIndex::build(std::move(Slab).build(), RefSlab(), RelationSlab());
 }
 
 CodeCompleteResult completions(ClangdServer &Server, llvm::StringRef TestCode,
@@ -641,10 +641,10 @@ TEST(CompletionTest, IncludeInsertionPreprocessorIntegrationTests) {
   CodeCompleteOptions NoInsertion;
   NoInsertion.InsertIncludes = CodeCompleteOptions::NeverInsert;
   Results = completions(Server,
-                             R"cpp(
+                        R"cpp(
           int main() { ns::^ }
       )cpp",
-                             {Sym}, NoInsertion);
+                        {Sym}, NoInsertion);
   EXPECT_THAT(Results.Completions,
               ElementsAre(AllOf(Named("X"), Not(InsertInclude()))));
   // Duplicate based on inclusions in preamble.
@@ -762,11 +762,7 @@ TEST(CompletionTest, DynamicIndexIncludeInsertion) {
   // Wait for the dynamic index being built.
   ASSERT_TRUE(Server.blockUntilIdleForTest());
   EXPECT_THAT(completions(Server, "Foo^ foo;").Completions,
-              ElementsAre(AllOf(Named("Foo"),
-                                HasInclude('"' +
-                                           llvm::sys::path::convert_to_slash(
-                                               testPath("foo_header.h")) +
-                                           '"'),
+              ElementsAre(AllOf(Named("Foo"), HasInclude("\"foo_header.h\""),
                                 InsertInclude())));
 }
 
@@ -1107,6 +1103,10 @@ public:
 
   void refs(const RefsRequest &,
             llvm::function_ref<void(const Ref &)>) const override {}
+
+  void relations(const RelationsRequest &,
+                 llvm::function_ref<void(const SymbolID &, const Symbol &)>)
+      const override {}
 
   // This is incorrect, but IndexRequestCollector is not an actual index and it
   // isn't used in production code.
@@ -2026,19 +2026,19 @@ TEST(CompletionTest, OverridesNonIdentName) {
 
 TEST(GuessCompletionPrefix, Filters) {
   for (llvm::StringRef Case : {
-    "[[scope::]][[ident]]^",
-    "[[]][[]]^",
-    "\n[[]][[]]^",
-    "[[]][[ab]]^",
-    "x.[[]][[ab]]^",
-    "x.[[]][[]]^",
-    "[[x::]][[ab]]^",
-    "[[x::]][[]]^",
-    "[[::x::]][[ab]]^",
-    "some text [[scope::more::]][[identif]]^ier",
-    "some text [[scope::]][[mor]]^e::identifier",
-    "weird case foo::[[::bar::]][[baz]]^",
-  }) {
+           "[[scope::]][[ident]]^",
+           "[[]][[]]^",
+           "\n[[]][[]]^",
+           "[[]][[ab]]^",
+           "x.[[]][[ab]]^",
+           "x.[[]][[]]^",
+           "[[x::]][[ab]]^",
+           "[[x::]][[]]^",
+           "[[::x::]][[ab]]^",
+           "some text [[scope::more::]][[identif]]^ier",
+           "some text [[scope::]][[mor]]^e::identifier",
+           "weird case foo::[[::bar::]][[baz]]^",
+       }) {
     Annotations F(Case);
     auto Offset = cantFail(positionToOffset(F.code(), F.point()));
     auto ToStringRef = [&](Range R) {
@@ -2440,10 +2440,10 @@ TEST(CompletionTest, CursorInSnippets) {
       /*IndexSymbols=*/{}, Options);
 
   // Last placeholder in code patterns should be $0 to put the cursor there.
-  EXPECT_THAT(
-      Results.Completions,
-      Contains(AllOf(Named("while"),
-                     SnippetSuffix(" (${1:condition}) {\n${0:statements}\n}"))));
+  EXPECT_THAT(Results.Completions,
+              Contains(AllOf(
+                  Named("while"),
+                  SnippetSuffix(" (${1:condition}) {\n${0:statements}\n}"))));
   // However, snippets for functions must *not* end with $0.
   EXPECT_THAT(Results.Completions,
               Contains(AllOf(Named("while_foo"),

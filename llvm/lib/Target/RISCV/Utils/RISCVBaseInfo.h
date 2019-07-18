@@ -49,10 +49,17 @@ enum {
 enum {
   MO_None,
   MO_CALL,
+  MO_PLT,
   MO_LO,
   MO_HI,
   MO_PCREL_LO,
   MO_PCREL_HI,
+  MO_GOT_HI,
+  MO_TPREL_LO,
+  MO_TPREL_HI,
+  MO_TPREL_ADD,
+  MO_TLS_GOT_HI,
+  MO_TLS_GD_HI,
 };
 } // namespace RISCVII
 

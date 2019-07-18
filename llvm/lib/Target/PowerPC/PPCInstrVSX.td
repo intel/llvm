@@ -971,6 +971,10 @@ let AddedComplexity = 400 in { // Prefer VSX patterns over non-VSX patterns.
 
 def : Pat<(v4i32 (vnot_ppc v4i32:$A)),
           (v4i32 (XXLNOR $A, $A))>;
+def : Pat<(v4i32 (or (and (vnot_ppc v4i32:$C), v4i32:$A),
+                     (and v4i32:$B, v4i32:$C))),
+          (v4i32 (XXSEL $A, $B, $C))>;
+
 let Predicates = [IsBigEndian] in {
 def : Pat<(v2f64 (scalar_to_vector f64:$A)),
           (v2f64 (SUBREG_TO_REG (i64 1), $A, sub_64))>;
@@ -1188,6 +1192,15 @@ def : Pat<(vselect v4i32:$vA, v4f32:$vB, v4f32:$vC),
 def : Pat<(vselect v2i64:$vA, v2f64:$vB, v2f64:$vC),
           (XXSEL $vC, $vB, $vA)>;
 
+def : Pat<(v4f32 (fmaxnum v4f32:$src1, v4f32:$src2)),
+          (v4f32 (XVMAXSP $src1, $src2))>;
+def : Pat<(v4f32 (fminnum v4f32:$src1, v4f32:$src2)),
+          (v4f32 (XVMINSP $src1, $src2))>;
+def : Pat<(v2f64 (fmaxnum v2f64:$src1, v2f64:$src2)),
+          (v2f64 (XVMAXDP $src1, $src2))>;
+def : Pat<(v2f64 (fminnum v2f64:$src1, v2f64:$src2)),
+          (v2f64 (XVMINDP $src1, $src2))>;
+
 let Predicates = [IsLittleEndian] in {
 def : Pat<(f64 (PPCfcfid (PPCmtvsra (i64 (vector_extract v2i64:$S, 0))))),
           (f64 (XSCVSXDDP (COPY_TO_REGCLASS (XXPERMDI $S, $S, 2), VSFRC)))>;
@@ -1363,7 +1376,10 @@ let AddedComplexity = 400 in { // Prefer VSX patterns over non-VSX patterns.
                           "xsmulsp $XT, $XA, $XB", IIC_VecFP,
                           [(set f32:$XT, (fmul f32:$XA, f32:$XB))]>;
   } // isCommutable
-
+  def XSSUBSP : XX3Form<60, 8,
+                        (outs vssrc:$XT), (ins vssrc:$XA, vssrc:$XB),
+                        "xssubsp $XT, $XA, $XB", IIC_VecFP,
+                        [(set f32:$XT, (fsub f32:$XA, f32:$XB))]>;
   def XSDIVSP : XX3Form<60, 24,
                         (outs vssrc:$XT), (ins vssrc:$XA, vssrc:$XB),
                         "xsdivsp $XT, $XA, $XB", IIC_FPDivS,
@@ -1383,10 +1399,6 @@ let AddedComplexity = 400 in { // Prefer VSX patterns over non-VSX patterns.
                            (outs vssrc:$XT), (ins vssrc:$XB),
                            "xsrsqrtesp $XT, $XB", IIC_VecFP,
                            [(set f32:$XT, (PPCfrsqrte f32:$XB))]>;
-  def XSSUBSP : XX3Form<60, 8,
-                        (outs vssrc:$XT), (ins vssrc:$XA, vssrc:$XB),
-                        "xssubsp $XT, $XA, $XB", IIC_VecFP,
-                        [(set f32:$XT, (fsub f32:$XA, f32:$XB))]>;
 
   // FMA Instructions
   let BaseName = "XSMADDASP" in {
@@ -1522,6 +1534,18 @@ let AddedComplexity = 400 in { // Prefer VSX patterns over non-VSX patterns.
               (f64 (PPCcv_fp_to_uint_in_vsr f64:$src)), xoaddr:$dst, 4),
             (STIWX (XSCVDPUXWS f64:$src), xoaddr:$dst)>;
 
+  def : Pat<(v2i64 (smax v2i64:$src1, v2i64:$src2)),
+            (v2i64 (VMAXSD (COPY_TO_REGCLASS $src1, VRRC),
+                           (COPY_TO_REGCLASS $src2, VRRC)))>;
+  def : Pat<(v2i64 (umax v2i64:$src1, v2i64:$src2)),
+            (v2i64 (VMAXUD (COPY_TO_REGCLASS $src1, VRRC),
+                           (COPY_TO_REGCLASS $src2, VRRC)))>;
+  def : Pat<(v2i64 (smin v2i64:$src1, v2i64:$src2)),
+            (v2i64 (VMINSD (COPY_TO_REGCLASS $src1, VRRC),
+                           (COPY_TO_REGCLASS $src2, VRRC)))>;
+  def : Pat<(v2i64 (umin v2i64:$src1, v2i64:$src2)),
+            (v2i64 (VMINUD (COPY_TO_REGCLASS $src1, VRRC),
+                           (COPY_TO_REGCLASS $src2, VRRC)))>;
 } // AddedComplexity = 400
 } // HasP8Vector
 
@@ -2488,69 +2512,70 @@ let AddedComplexity = 400, Predicates = [HasP9Vector] in {
   let isCommutable = 1 in {
   def XSADDQP   : X_VT5_VA5_VB5   <63,   4, "xsaddqp",
                                    [(set f128:$vT, (fadd f128:$vA, f128:$vB))]>;
-  def XSADDQPO : X_VT5_VA5_VB5_Ro<63, 4, "xsaddqpo",
-                                  [(set f128:$vT,
-                                  (int_ppc_addf128_round_to_odd
-                                  f128:$vA, f128:$vB))]>;
   def XSMULQP   : X_VT5_VA5_VB5   <63,  36, "xsmulqp",
                                    [(set f128:$vT, (fmul f128:$vA, f128:$vB))]>;
-  def XSMULQPO : X_VT5_VA5_VB5_Ro<63, 36, "xsmulqpo",
-                                  [(set f128:$vT,
-                                  (int_ppc_mulf128_round_to_odd
-                                  f128:$vA, f128:$vB))]>;
   }
-
   def XSSUBQP   : X_VT5_VA5_VB5   <63, 516, "xssubqp" ,
                                    [(set f128:$vT, (fsub f128:$vA, f128:$vB))]>;
-  def XSSUBQPO : X_VT5_VA5_VB5_Ro<63, 516, "xssubqpo",
-                                  [(set f128:$vT,
-                                  (int_ppc_subf128_round_to_odd
-                                  f128:$vA, f128:$vB))]>;
   def XSDIVQP   : X_VT5_VA5_VB5   <63, 548, "xsdivqp",
                                    [(set f128:$vT, (fdiv f128:$vA, f128:$vB))]>;
-  def XSDIVQPO : X_VT5_VA5_VB5_Ro<63, 548, "xsdivqpo",
-                                  [(set f128:$vT,
-                                  (int_ppc_divf128_round_to_odd
-                                  f128:$vA, f128:$vB))]>;
-
   // Square-Root
   def XSSQRTQP  : X_VT5_XO5_VB5   <63, 27, 804, "xssqrtqp",
                                    [(set f128:$vT, (fsqrt f128:$vB))]>;
-  def XSSQRTQPO : X_VT5_XO5_VB5_Ro<63, 27, 804, "xssqrtqpo",
-                                  [(set f128:$vT,
-                                  (int_ppc_sqrtf128_round_to_odd f128:$vB))]>;
-
   // (Negative) Multiply-{Add/Subtract}
   def XSMADDQP : X_VT5_VA5_VB5_FMA <63, 388, "xsmaddqp",
                                     [(set f128:$vT,
                                           (fma f128:$vA, f128:$vB,
                                                f128:$vTi))]>;
+  def XSMSUBQP  : X_VT5_VA5_VB5_FMA   <63, 420, "xsmsubqp"  ,
+                                       [(set f128:$vT,
+                                             (fma f128:$vA, f128:$vB,
+                                                  (fneg f128:$vTi)))]>;
+  def XSNMADDQP : X_VT5_VA5_VB5_FMA <63, 452, "xsnmaddqp",
+                                     [(set f128:$vT,
+                                           (fneg (fma f128:$vA, f128:$vB,
+                                                      f128:$vTi)))]>;
+  def XSNMSUBQP : X_VT5_VA5_VB5_FMA <63, 484, "xsnmsubqp",
+                                     [(set f128:$vT,
+                                           (fneg (fma f128:$vA, f128:$vB,
+                                                      (fneg f128:$vTi))))]>;
+
+  let isCommutable = 1 in {
+  def XSADDQPO : X_VT5_VA5_VB5_Ro<63, 4, "xsaddqpo",
+                                  [(set f128:$vT,
+                                  (int_ppc_addf128_round_to_odd
+                                  f128:$vA, f128:$vB))]>;
+  def XSMULQPO : X_VT5_VA5_VB5_Ro<63, 36, "xsmulqpo",
+                                  [(set f128:$vT,
+                                  (int_ppc_mulf128_round_to_odd
+                                  f128:$vA, f128:$vB))]>;
+  }
+  def XSSUBQPO : X_VT5_VA5_VB5_Ro<63, 516, "xssubqpo",
+                                  [(set f128:$vT,
+                                  (int_ppc_subf128_round_to_odd
+                                  f128:$vA, f128:$vB))]>;
+  def XSDIVQPO : X_VT5_VA5_VB5_Ro<63, 548, "xsdivqpo",
+                                  [(set f128:$vT,
+                                  (int_ppc_divf128_round_to_odd
+                                  f128:$vA, f128:$vB))]>;
+  def XSSQRTQPO : X_VT5_XO5_VB5_Ro<63, 27, 804, "xssqrtqpo",
+                                  [(set f128:$vT,
+                                  (int_ppc_sqrtf128_round_to_odd f128:$vB))]>;
+
 
   def XSMADDQPO : X_VT5_VA5_VB5_FMA_Ro<63, 388, "xsmaddqpo",
                                       [(set f128:$vT,
                                       (int_ppc_fmaf128_round_to_odd
                                       f128:$vA,f128:$vB,f128:$vTi))]>;
 
-  def XSMSUBQP  : X_VT5_VA5_VB5_FMA   <63, 420, "xsmsubqp"  ,
-                                       [(set f128:$vT,
-                                             (fma f128:$vA, f128:$vB,
-                                                  (fneg f128:$vTi)))]>;
   def XSMSUBQPO : X_VT5_VA5_VB5_FMA_Ro<63, 420, "xsmsubqpo" ,
                                       [(set f128:$vT,
                                       (int_ppc_fmaf128_round_to_odd
                                       f128:$vA, f128:$vB, (fneg f128:$vTi)))]>;
-  def XSNMADDQP : X_VT5_VA5_VB5_FMA <63, 452, "xsnmaddqp",
-                                     [(set f128:$vT,
-                                           (fneg (fma f128:$vA, f128:$vB,
-                                                      f128:$vTi)))]>;
   def XSNMADDQPO: X_VT5_VA5_VB5_FMA_Ro<63, 452, "xsnmaddqpo",
                                       [(set f128:$vT,
                                       (fneg (int_ppc_fmaf128_round_to_odd
                                       f128:$vA, f128:$vB, f128:$vTi)))]>;
-  def XSNMSUBQP : X_VT5_VA5_VB5_FMA <63, 484, "xsnmsubqp",
-                                     [(set f128:$vT,
-                                           (fneg (fma f128:$vA, f128:$vB,
-                                                      (fneg f128:$vTi))))]>;
   def XSNMSUBQPO: X_VT5_VA5_VB5_FMA_Ro<63, 484, "xsnmsubqpo",
                                       [(set f128:$vT,
                                       (fneg (int_ppc_fmaf128_round_to_odd

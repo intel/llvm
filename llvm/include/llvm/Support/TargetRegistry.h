@@ -100,6 +100,11 @@ MCStreamer *createWasmStreamer(MCContext &Ctx,
                                std::unique_ptr<MCObjectWriter> &&OW,
                                std::unique_ptr<MCCodeEmitter> &&CE,
                                bool RelaxAll);
+MCStreamer *createXCOFFStreamer(MCContext &Ctx,
+                                std::unique_ptr<MCAsmBackend> &&TAB,
+                                std::unique_ptr<MCObjectWriter> &&OW,
+                                std::unique_ptr<MCCodeEmitter> &&CE,
+                                bool RelaxAll);
 
 MCRelocationInfo *createMCRelocationInfo(const Triple &TT, MCContext &Ctx);
 
@@ -470,7 +475,7 @@ public:
                                      bool DWARFMustBeAtTheEnd) const {
     MCStreamer *S;
     switch (T.getObjectFormat()) {
-    default:
+    case Triple::UnknownObjectFormat:
       llvm_unreachable("Unknown object format");
     case Triple::COFF:
       assert(T.isOSWindows() && "only Windows COFF is supported");
@@ -503,6 +508,10 @@ public:
       else
         S = createWasmStreamer(Ctx, std::move(TAB), std::move(OW),
                                std::move(Emitter), RelaxAll);
+      break;
+    case Triple::XCOFF:
+        S = createXCOFFStreamer(Ctx, std::move(TAB), std::move(OW),
+                                std::move(Emitter), RelaxAll);
       break;
     }
     if (ObjectTargetStreamerCtorFn)
