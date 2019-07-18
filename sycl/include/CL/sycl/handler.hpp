@@ -166,6 +166,8 @@ class handler {
   // Storage for a lambda or function object.
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   detail::OSModuleHandle MOSModuleHandle;
+  // The list of events that order this operation
+  std::vector<detail::EventImplPtr> MEvents;
 
   bool MIsHost = false;
 
@@ -343,8 +345,8 @@ private:
           std::move(MNDRDesc), std::move(MHostKernel), std::move(MSyclKernel),
           std::move(MArgsStorage), std::move(MAccStorage),
           std::move(MSharedPtrStorage), std::move(MRequirements),
-          std::move(MArgs), std::move(MKernelName), std::move(MOSModuleHandle),
-          std::move(MStreamStorage)));
+          std::move(MEvents), std::move(MArgs), std::move(MKernelName),
+          std::move(MOSModuleHandle), std::move(MStreamStorage)));
       break;
     case detail::CG::COPY_ACC_TO_PTR:
     case detail::CG::COPY_PTR_TO_ACC:
@@ -352,18 +354,19 @@ private:
       CommandGroup.reset(new detail::CGCopy(
           MCGType, MSrcPtr, MDstPtr, std::move(MArgsStorage),
           std::move(MAccStorage), std::move(MSharedPtrStorage),
-          std::move(MRequirements)));
+          std::move(MRequirements), std::move(MEvents)));
       break;
     case detail::CG::FILL:
       CommandGroup.reset(new detail::CGFill(
           std::move(MPattern), MDstPtr, std::move(MArgsStorage),
           std::move(MAccStorage), std::move(MSharedPtrStorage),
-          std::move(MRequirements)));
+          std::move(MRequirements), std::move(MEvents)));
       break;
     case detail::CG::UPDATE_HOST:
       CommandGroup.reset(new detail::CGUpdateHost(
           MDstPtr, std::move(MArgsStorage), std::move(MAccStorage),
-          std::move(MSharedPtrStorage), std::move(MRequirements)));
+          std::move(MSharedPtrStorage), std::move(MRequirements),
+          std::move(MEvents)));
       break;
     default:
       throw runtime_error("Unhandled type of command group");
@@ -515,6 +518,17 @@ public:
     MAssociatedAccesors.emplace_back(detail::kernel_param_kind_t::kind_accessor,
                                      Req, static_cast<int>(AccTarget),
                                      /*index*/ 0);
+  }
+
+  // This method registers event dependencies on this command group.
+  void depends_on(event e) {
+    MEvents.push_back(std::move(detail::getSyclObjImpl(e)));
+  }
+
+  void depends_on(std::vector<event> Events) {
+    for (event e : Events) {
+      depends_on(e);
+    }
   }
 
   // OpenCL interoperability interface

@@ -483,6 +483,7 @@ Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
   std::vector<Requirement *> Reqs = CommandGroup->getRequirements();
+  std::vector<detail::EventImplPtr> Events = CommandGroup->getEvents();
   std::unique_ptr<ExecCGCommand> NewCmd(
       new ExecCGCommand(std::move(CommandGroup), Queue));
   if (!NewCmd)
@@ -521,6 +522,11 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     UpdateLeafs({Dep.MDepCommand}, Record, Req);
     AddNodeToLeafs(Record, NewCmd.get(), Req);
+  }
+
+  // Register all the events as dependencies
+  for (detail::EventImplPtr e : Events) {
+    NewCmd->addDep(e);
   }
 
   return NewCmd.release();

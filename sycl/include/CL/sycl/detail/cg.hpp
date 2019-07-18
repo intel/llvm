@@ -326,15 +326,18 @@ public:
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
      std::vector<detail::AccessorImplPtr> AccStorage,
      std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-     std::vector<Requirement *> Requirements)
+     std::vector<Requirement *> Requirements,
+     std::vector<detail::EventImplPtr> Events)
       : MType(Type), MArgsStorage(std::move(ArgsStorage)),
         MAccStorage(std::move(AccStorage)),
         MSharedPtrStorage(std::move(SharedPtrStorage)),
-        MRequirements(std::move(Requirements)) {}
+        MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
 
   CG(CG &&CommandGroup) = default;
 
   std::vector<Requirement *> getRequirements() const { return MRequirements; }
+
+  std::vector<detail::EventImplPtr> getEvents() const { return MEvents; }
 
   CGTYPE getType() { return MType; }
 
@@ -351,6 +354,8 @@ private:
   // List of requirements that specify which memory is needed for the command
   // group to be executed.
   std::vector<Requirement *> MRequirements;
+  // List of events that order the execution of this CG
+  std::vector<detail::EventImplPtr> MEvents;
 };
 
 // The class which represents "execute kernel" command group.
@@ -370,11 +375,13 @@ public:
                std::vector<detail::AccessorImplPtr> AccStorage,
                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                std::vector<Requirement *> Requirements,
+               std::vector<detail::EventImplPtr> Events,
                std::vector<ArgDesc> Args, std::string KernelName,
                detail::OSModuleHandle OSModuleHandle,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams)
       : CG(KERNEL, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements)),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
@@ -397,9 +404,11 @@ public:
          std::vector<std::vector<char>> ArgsStorage,
          std::vector<detail::AccessorImplPtr> AccStorage,
          std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-         std::vector<Requirement *> Requirements)
+         std::vector<Requirement *> Requirements,
+         std::vector<detail::EventImplPtr> Events)
       : CG(CopyType, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements)),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
         MSrc(Src), MDst(Dst) {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
@@ -415,9 +424,11 @@ public:
          std::vector<std::vector<char>> ArgsStorage,
          std::vector<detail::AccessorImplPtr> AccStorage,
          std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-         std::vector<Requirement *> Requirements)
+         std::vector<Requirement *> Requirements,
+         std::vector<detail::EventImplPtr> Events)
       : CG(FILL, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements)),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
         MPattern(std::move(Pattern)), MPtr((Requirement *)Ptr) {}
   Requirement *getReqToFill() { return MPtr; }
 };
@@ -430,9 +441,11 @@ public:
   CGUpdateHost(void *Ptr, std::vector<std::vector<char>> ArgsStorage,
                std::vector<detail::AccessorImplPtr> AccStorage,
                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-               std::vector<Requirement *> Requirements)
+               std::vector<Requirement *> Requirements,
+               std::vector<detail::EventImplPtr> Events)
       : CG(UPDATE_HOST, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements)),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
         MPtr((Requirement *)Ptr) {}
 
   Requirement *getReqToUpdate() { return MPtr; }
