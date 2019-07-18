@@ -681,6 +681,7 @@ enum Capability {
   CapabilityFPGAMemoryAttributesINTEL = 5824,
   CapabilityFPGALoopControlsINTEL = 5888,
   CapabilityBlockingPipesINTEL = 5945,
+  CapabilityFPGARegINTEL = 5948,
   CapabilityMax = 0x7fffffff,
 };
 
@@ -1127,6 +1128,7 @@ enum Op {
   OpSubgroupAvcSicGetInterRawSadsINTEL = 5816,
   OpReadPipeBlockingINTEL = 5946,
   OpWritePipeBlockingINTEL = 5947,
+  OpFPGARegINTEL = 5949,
   OpMax = 0x7fffffff,
 };
 
