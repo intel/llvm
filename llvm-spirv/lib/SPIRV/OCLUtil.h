@@ -165,6 +165,7 @@ const static char Dot[] = "dot";
 const static char EnqueueKernel[] = "enqueue_kernel";
 const static char FMax[] = "fmax";
 const static char FMin[] = "fmin";
+const static char FPGARegIntel[] = "__builtin_intel_fpga_reg";
 const static char GetFence[] = "get_fence";
 const static char GetImageArraySize[] = "get_image_array_size";
 const static char GetImageChannelOrder[] = "get_image_channel_order";

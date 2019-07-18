@@ -363,6 +363,8 @@ public:
   SPIRVInstruction *addVectorInsertDynamicInst(SPIRVValue *, SPIRVValue *,
                                                SPIRVValue *,
                                                SPIRVBasicBlock *) override;
+  SPIRVInstruction *addFPGARegINTELInst(SPIRVType *, SPIRVValue *,
+                                        SPIRVBasicBlock *) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -1288,6 +1290,15 @@ SPIRVInstruction *SPIRVModuleImpl::addCopyMemorySizedInst(
   return addInstruction(new SPIRVCopyMemorySized(TheTarget, TheSource, TheSize,
                                                  TheMemoryAccess, BB),
                         BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addFPGARegINTELInst(SPIRVType *Type,
+                                                       SPIRVValue *V,
+                                                       SPIRVBasicBlock *BB) {
+  return addInstruction(
+      SPIRVInstTemplateBase::create(OpFPGARegINTEL, Type, getId(),
+                                    getVec(V->getId()), BB, this),
+      BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addVariable(
