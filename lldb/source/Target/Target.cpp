@@ -43,7 +43,6 @@
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/Language.h"
 #include "lldb/Target/LanguageRuntime.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/StackFrame.h"
@@ -1668,11 +1667,8 @@ void Target::ModulesDidLoad(ModuleList &module_list) {
 void Target::SymbolsDidLoad(ModuleList &module_list) {
   if (m_valid && module_list.GetSize()) {
     if (m_process_sp) {
-      LanguageRuntime *runtime =
-          m_process_sp->GetLanguageRuntime(lldb::eLanguageTypeObjC);
-      if (runtime) {
-        ObjCLanguageRuntime *objc_runtime = (ObjCLanguageRuntime *)runtime;
-        objc_runtime->SymbolsDidLoad(module_list);
+      for (LanguageRuntime *runtime : m_process_sp->GetLanguageRuntimes()) {
+        runtime->SymbolsDidLoad(module_list);
       }
     }
 
@@ -1856,7 +1852,7 @@ size_t Target::ReadCStringFromMemory(const Address &addr, std::string &out_str,
   out_str.clear();
   addr_t curr_addr = addr.GetLoadAddress(this);
   Address address(addr);
-  while (1) {
+  while (true) {
     size_t length = ReadCStringFromMemory(address, buf, sizeof(buf), error);
     if (length == 0)
       break;

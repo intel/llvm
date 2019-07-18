@@ -1,7 +1,6 @@
 set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   Support
-  TestingSupport
   )
 
 # By default MSVC has a 2^16 limit on the number of sections in an object file,
@@ -70,7 +69,8 @@ target_link_libraries(ToolingTests
   clangTooling
   clangToolingCore
   clangToolingInclusions
-  clangToolingRefactor
+  clangToolingRefactoring
+  LLVMTestingSupport
   )
 
 

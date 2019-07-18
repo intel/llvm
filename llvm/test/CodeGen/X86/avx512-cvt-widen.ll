@@ -120,21 +120,29 @@ define <2 x double> @slto2f64(<2 x i64> %a) {
 }
 
 define <2 x float> @sltof2f32(<2 x i64> %a) {
-; NODQ-LABEL: sltof2f32:
-; NODQ:       # %bb.0:
-; NODQ-NEXT:    vpextrq $1, %xmm0, %rax
-; NODQ-NEXT:    vcvtsi2ss %rax, %xmm1, %xmm1
-; NODQ-NEXT:    vmovq %xmm0, %rax
-; NODQ-NEXT:    vcvtsi2ss %rax, %xmm2, %xmm0
-; NODQ-NEXT:    vinsertps {{.*#+}} xmm0 = xmm0[0],xmm1[0],xmm0[2,3]
-; NODQ-NEXT:    vcvtsi2ss %rax, %xmm2, %xmm1
-; NODQ-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[0,1],xmm1[0,0]
-; NODQ-NEXT:    retq
+; NOVLDQ-LABEL: sltof2f32:
+; NOVLDQ:       # %bb.0:
+; NOVLDQ-NEXT:    vpextrq $1, %xmm0, %rax
+; NOVLDQ-NEXT:    vcvtsi2ss %rax, %xmm1, %xmm1
+; NOVLDQ-NEXT:    vmovq %xmm0, %rax
+; NOVLDQ-NEXT:    vcvtsi2ss %rax, %xmm2, %xmm0
+; NOVLDQ-NEXT:    vinsertps {{.*#+}} xmm0 = xmm0[0],xmm1[0],zero,zero
+; NOVLDQ-NEXT:    retq
 ;
 ; VLDQ-LABEL: sltof2f32:
 ; VLDQ:       # %bb.0:
 ; VLDQ-NEXT:    vcvtqq2ps %xmm0, %xmm0
 ; VLDQ-NEXT:    retq
+;
+; VLNODQ-LABEL: sltof2f32:
+; VLNODQ:       # %bb.0:
+; VLNODQ-NEXT:    vpextrq $1, %xmm0, %rax
+; VLNODQ-NEXT:    vcvtsi2ss %rax, %xmm1, %xmm1
+; VLNODQ-NEXT:    vmovq %xmm0, %rax
+; VLNODQ-NEXT:    vcvtsi2ss %rax, %xmm2, %xmm0
+; VLNODQ-NEXT:    vpunpckldq {{.*#+}} xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1]
+; VLNODQ-NEXT:    vmovq {{.*#+}} xmm0 = xmm0[0],zero
+; VLNODQ-NEXT:    retq
 ;
 ; DQNOVL-LABEL: sltof2f32:
 ; DQNOVL:       # %bb.0:
@@ -770,6 +778,29 @@ define <4 x double> @f32to4f64_mask(<4 x float> %b, <4 x double> %b1, <4 x doubl
 ; VL-NEXT:    vcmpltpd %ymm2, %ymm1, %k1
 ; VL-NEXT:    vcvtps2pd %xmm0, %ymm0 {%k1} {z}
 ; VL-NEXT:    retq
+  %a = fpext <4 x float> %b to <4 x double>
+  %mask = fcmp ogt <4 x double> %a1, %b1
+  %c = select <4 x i1> %mask, <4 x double> %a, <4 x double> zeroinitializer
+  ret <4 x double> %c
+}
+
+define <4 x double> @f32to4f64_mask_load(<4 x float>* %p, <4 x double> %b1, <4 x double> %a1) {
+; NOVL-LABEL: f32to4f64_mask_load:
+; NOVL:       # %bb.0:
+; NOVL-NEXT:    # kill: def $ymm1 killed $ymm1 def $zmm1
+; NOVL-NEXT:    # kill: def $ymm0 killed $ymm0 def $zmm0
+; NOVL-NEXT:    vcvtps2pd (%rdi), %ymm2
+; NOVL-NEXT:    vcmpltpd %zmm1, %zmm0, %k1
+; NOVL-NEXT:    vmovapd %zmm2, %zmm0 {%k1} {z}
+; NOVL-NEXT:    # kill: def $ymm0 killed $ymm0 killed $zmm0
+; NOVL-NEXT:    retq
+;
+; VL-LABEL: f32to4f64_mask_load:
+; VL:       # %bb.0:
+; VL-NEXT:    vcmpltpd %ymm1, %ymm0, %k1
+; VL-NEXT:    vcvtps2pd (%rdi), %ymm0 {%k1} {z}
+; VL-NEXT:    retq
+  %b = load <4 x float>, <4 x float>* %p
   %a = fpext <4 x float> %b to <4 x double>
   %mask = fcmp ogt <4 x double> %a1, %b1
   %c = select <4 x i1> %mask, <4 x double> %a, <4 x double> zeroinitializer
@@ -2509,4 +2540,106 @@ define <16 x i32> @test_16f32tosb(<16 x float> %a, <16 x i32> %passthru) {
   %mask = fptosi <16 x float> %a to <16 x i1>
   %select = select <16 x i1> %mask, <16 x i32> %passthru, <16 x i32> zeroinitializer
   ret <16 x i32> %select
+}
+
+define <2 x double> @test_sito2f64_mask_load(<2 x i32> *%a, <2 x i64> %c) {
+; SSE-LABEL: sitofp_load_2i32_to_2f64:
+; SSE:       # %bb.0:
+; SSE-NEXT:    cvtdq2pd (%rdi), %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: sitofp_load_2i32_to_2f64:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vcvtdq2pd (%rdi), %xmm0
+; AVX-NEXT:    retq
+; NOVLDQ-LABEL: test_sito2f64_mask_load:
+; NOVLDQ:       # %bb.0:
+; NOVLDQ-NEXT:    # kill: def $xmm0 killed $xmm0 def $zmm0
+; NOVLDQ-NEXT:    vpxor %xmm1, %xmm1, %xmm1
+; NOVLDQ-NEXT:    vpcmpgtq %zmm0, %zmm1, %k1
+; NOVLDQ-NEXT:    vcvtdq2pd (%rdi), %xmm0
+; NOVLDQ-NEXT:    vmovapd %zmm0, %zmm0 {%k1} {z}
+; NOVLDQ-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; NOVLDQ-NEXT:    vzeroupper
+; NOVLDQ-NEXT:    retq
+;
+; VLDQ-LABEL: test_sito2f64_mask_load:
+; VLDQ:       # %bb.0:
+; VLDQ-NEXT:    vpmovq2m %xmm0, %k1
+; VLDQ-NEXT:    vcvtdq2pd (%rdi), %xmm0 {%k1} {z}
+; VLDQ-NEXT:    retq
+;
+; VLNODQ-LABEL: test_sito2f64_mask_load:
+; VLNODQ:       # %bb.0:
+; VLNODQ-NEXT:    vpxor %xmm1, %xmm1, %xmm1
+; VLNODQ-NEXT:    vpcmpgtq %xmm0, %xmm1, %k1
+; VLNODQ-NEXT:    vcvtdq2pd (%rdi), %xmm0 {%k1} {z}
+; VLNODQ-NEXT:    retq
+;
+; DQNOVL-LABEL: test_sito2f64_mask_load:
+; DQNOVL:       # %bb.0:
+; DQNOVL-NEXT:    # kill: def $xmm0 killed $xmm0 def $zmm0
+; DQNOVL-NEXT:    vpmovq2m %zmm0, %k1
+; DQNOVL-NEXT:    vcvtdq2pd (%rdi), %xmm0
+; DQNOVL-NEXT:    vmovapd %zmm0, %zmm0 {%k1} {z}
+; DQNOVL-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; DQNOVL-NEXT:    vzeroupper
+; DQNOVL-NEXT:    retq
+  %mask = icmp slt <2 x i64> %c, zeroinitializer
+  %ld = load <2 x i32>, <2 x i32> *%a
+  %cvt = sitofp <2 x i32> %ld to <2 x double>
+  %sel = select <2 x i1> %mask, <2 x double> %cvt, <2 x double> zeroinitializer
+  ret <2 x double> %sel
+}
+
+define <2 x double> @test_uito2f64_mask_load(<2 x i32> *%a, <2 x i64> %c) {
+; SSE-LABEL: sitofp_load_2i32_to_2f64:
+; SSE:       # %bb.0:
+; SSE-NEXT:    cvtdq2pd (%rdi), %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: sitofp_load_2i32_to_2f64:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vcvtdq2pd (%rdi), %xmm0
+; AVX-NEXT:    retq
+; NOVLDQ-LABEL: test_uito2f64_mask_load:
+; NOVLDQ:       # %bb.0:
+; NOVLDQ-NEXT:    # kill: def $xmm0 killed $xmm0 def $zmm0
+; NOVLDQ-NEXT:    vpxor %xmm1, %xmm1, %xmm1
+; NOVLDQ-NEXT:    vpcmpgtq %zmm0, %zmm1, %k1
+; NOVLDQ-NEXT:    vmovsd {{.*#+}} xmm0 = mem[0],zero
+; NOVLDQ-NEXT:    vcvtudq2pd %ymm0, %zmm0
+; NOVLDQ-NEXT:    vmovapd %zmm0, %zmm0 {%k1} {z}
+; NOVLDQ-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; NOVLDQ-NEXT:    vzeroupper
+; NOVLDQ-NEXT:    retq
+;
+; VLDQ-LABEL: test_uito2f64_mask_load:
+; VLDQ:       # %bb.0:
+; VLDQ-NEXT:    vpmovq2m %xmm0, %k1
+; VLDQ-NEXT:    vcvtudq2pd (%rdi), %xmm0 {%k1} {z}
+; VLDQ-NEXT:    retq
+;
+; VLNODQ-LABEL: test_uito2f64_mask_load:
+; VLNODQ:       # %bb.0:
+; VLNODQ-NEXT:    vpxor %xmm1, %xmm1, %xmm1
+; VLNODQ-NEXT:    vpcmpgtq %xmm0, %xmm1, %k1
+; VLNODQ-NEXT:    vcvtudq2pd (%rdi), %xmm0 {%k1} {z}
+; VLNODQ-NEXT:    retq
+;
+; DQNOVL-LABEL: test_uito2f64_mask_load:
+; DQNOVL:       # %bb.0:
+; DQNOVL-NEXT:    # kill: def $xmm0 killed $xmm0 def $zmm0
+; DQNOVL-NEXT:    vpmovq2m %zmm0, %k1
+; DQNOVL-NEXT:    vmovsd {{.*#+}} xmm0 = mem[0],zero
+; DQNOVL-NEXT:    vcvtudq2pd %ymm0, %zmm0
+; DQNOVL-NEXT:    vmovapd %zmm0, %zmm0 {%k1} {z}
+; DQNOVL-NEXT:    # kill: def $xmm0 killed $xmm0 killed $zmm0
+; DQNOVL-NEXT:    vzeroupper
+; DQNOVL-NEXT:    retq
+  %mask = icmp slt <2 x i64> %c, zeroinitializer
+  %ld = load <2 x i32>, <2 x i32> *%a
+  %cvt = uitofp <2 x i32> %ld to <2 x double>
+  %sel = select <2 x i1> %mask, <2 x double> %cvt, <2 x double> zeroinitializer
+  ret <2 x double> %sel
 }

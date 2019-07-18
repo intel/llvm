@@ -7,11 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "TransformerClangTidyCheck.h"
+#include "llvm/ADT/STLExtras.h"
 
 namespace clang {
 namespace tidy {
 namespace utils {
 using tooling::RewriteRule;
+
+TransformerClangTidyCheck::TransformerClangTidyCheck(RewriteRule R,
+                                                     StringRef Name,
+                                                     ClangTidyContext *Context)
+    : ClangTidyCheck(Name, Context), Rule(std::move(R)) {
+  assert(llvm::all_of(Rule.Cases, [](const RewriteRule::Case &C) {
+                       return C.Explanation != nullptr;
+                     }) &&
+         "clang-tidy checks must have an explanation by default;"
+         " explicitly provide an empty explanation if none is desired");
+}
 
 void TransformerClangTidyCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
@@ -44,15 +56,13 @@ void TransformerClangTidyCheck::check(
   if (Transformations->empty())
     return;
 
-  StringRef Message = "no explanation";
-  if (Case.Explanation) {
-    if (Expected<std::string> E = Case.Explanation(Result))
-      Message = *E;
-    else
-      llvm::errs() << "Error in explanation: " << llvm::toString(E.takeError())
-                   << "\n";
+  Expected<std::string> Explanation = Case.Explanation(Result);
+  if (!Explanation) {
+    llvm::errs() << "Error in explanation: "
+                 << llvm::toString(Explanation.takeError()) << "\n";
+    return;
   }
-  DiagnosticBuilder Diag = diag(RootLoc, Message);
+  DiagnosticBuilder Diag = diag(RootLoc, *Explanation);
   for (const auto &T : *Transformations) {
     Diag << FixItHint::CreateReplacement(T.Range, T.Replacement);
   }

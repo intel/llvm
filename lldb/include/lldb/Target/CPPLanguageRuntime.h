@@ -43,6 +43,11 @@ public:
     return lldb::eLanguageTypeC_plus_plus;
   }
 
+  static CPPLanguageRuntime *GetCPPLanguageRuntime(Process &process) {
+    return static_cast<CPPLanguageRuntime *>(
+        process.GetLanguageRuntime(lldb::eLanguageTypeC_plus_plus));
+  }
+
   virtual bool IsVTableName(const char *name) = 0;
 
   bool GetObjectDescription(Stream &str, ValueObject &object) override;
@@ -61,7 +66,7 @@ public:
   /// \return
   ///      A ThreadPlan Shared pointer
   lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
-                                                  bool stop_others);
+                                                  bool stop_others) override;
 
   bool IsRuntimeSupportValue(ValueObject &valobj) override;
 protected:

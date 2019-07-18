@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "DebugTypes.h"
 #include "Driver.h"
 #include "Config.h"
 #include "ICF.h"
@@ -181,6 +182,9 @@ void LinkerDriver::addBuffer(std::unique_ptr<MemoryBuffer> MB,
   case file_magic::coff_import_library:
     Symtab->addFile(make<ObjFile>(MBRef));
     break;
+  case file_magic::pdb:
+    loadTypeServerSource(MBRef);
+    break;
   case file_magic::coff_cl_gl_object:
     error(Filename + ": is not a native COFF file. Recompile without /GL");
     break;
@@ -203,9 +207,20 @@ void LinkerDriver::enqueuePath(StringRef Path, bool WholeArchive) {
   std::string PathStr = Path;
   enqueueTask([=]() {
     auto MBOrErr = Future->get();
-    if (MBOrErr.second)
-      error("could not open " + PathStr + ": " + MBOrErr.second.message());
-    else
+    if (MBOrErr.second) {
+      std::string Error =
+          "could not open '" + PathStr + "': " + MBOrErr.second.message();
+      // Check if the filename is a typo for an option flag. OptTable thinks
+      // that all args that are not known options and that start with / are
+      // filenames, but e.g. `/nodefaultlibs` is more likely a typo for
+      // the option `/nodefaultlib` than a reference to a file in the root
+      // directory.
+      std::string Nearest;
+      if (COFFOptTable().findNearest(PathStr, Nearest) > 1)
+        error(Error);
+      else
+        error(Error + "; did you mean '" + Nearest + "'");
+    } else
       Driver->addBuffer(std::move(MBOrErr.first), WholeArchive);
   });
 }
@@ -847,7 +862,7 @@ static void parseOrderFile(StringRef Arg) {
 
 static void markAddrsig(Symbol *S) {
   if (auto *D = dyn_cast_or_null<Defined>(S))
-    if (Chunk *C = D->getChunk())
+    if (SectionChunk *C = dyn_cast_or_null<SectionChunk>(D->getChunk()))
       C->KeepUnique = true;
 }
 
@@ -1185,6 +1200,13 @@ void LinkerDriver::link(ArrayRef<const char *> ArgsArr) {
   // Handle /base
   if (auto *Arg = Args.getLastArg(OPT_base))
     parseNumbers(Arg->getValue(), &Config->ImageBase);
+
+  // Handle /filealign
+  if (auto *Arg = Args.getLastArg(OPT_filealign)) {
+    parseNumbers(Arg->getValue(), &Config->FileAlign);
+    if (!isPowerOf2_64(Config->FileAlign))
+      error("/filealign: not a power of two: " + Twine(Config->FileAlign));
+  }
 
   // Handle /stack
   if (auto *Arg = Args.getLastArg(OPT_stack))

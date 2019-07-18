@@ -2559,6 +2559,9 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
           if (!IsStructuralMatch(D, FoundRecord, false))
             continue;
 
+        if (!hasSameVisibilityContext(FoundRecord, D))
+          continue;
+
         if (IsStructuralMatch(D, FoundRecord)) {
           RecordDecl *FoundDef = FoundRecord->getDefinition();
           if (D->isThisDeclarationADefinition() && FoundDef) {
@@ -2585,7 +2588,7 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
     } // for
 
     if (!ConflictingDecls.empty() && SearchName) {
-      Name = Importer.HandleNameConflict(Name, DC, IDNS,
+      Name = Importer.HandleNameConflict(SearchName, DC, IDNS,
                                          ConflictingDecls.data(),
                                          ConflictingDecls.size());
       if (!Name)
@@ -5589,12 +5592,17 @@ ExpectedStmt ASTNodeImporter::VisitGCCAsmStmt(GCCAsmStmt *S) {
       return InputOrErr.takeError();
   }
 
-  SmallVector<Expr *, 4> Exprs(S->getNumOutputs() + S->getNumInputs());
+  SmallVector<Expr *, 4> Exprs(S->getNumOutputs() + S->getNumInputs() +
+                               S->getNumLabels());
   if (Error Err = ImportContainerChecked(S->outputs(), Exprs))
     return std::move(Err);
 
+  if (Error Err =
+          ImportArrayChecked(S->inputs(), Exprs.begin() + S->getNumOutputs()))
+    return std::move(Err);
+
   if (Error Err = ImportArrayChecked(
-      S->inputs(), Exprs.begin() + S->getNumOutputs()))
+          S->labels(), Exprs.begin() + S->getNumOutputs() + S->getNumInputs()))
     return std::move(Err);
 
   ExpectedSLoc AsmLocOrErr = import(S->getAsmLoc());
@@ -5620,6 +5628,7 @@ ExpectedStmt ASTNodeImporter::VisitGCCAsmStmt(GCCAsmStmt *S) {
       *AsmStrOrErr,
       S->getNumClobbers(),
       Clobbers.data(),
+      S->getNumLabels(),
       *RParenLocOrErr);
 }
 

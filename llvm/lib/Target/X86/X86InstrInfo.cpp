@@ -2877,6 +2877,14 @@ static unsigned getLoadStoreRegOpcode(unsigned Reg,
       assert(STI.hasBWI() && "KMOVD requires BWI");
       return load ? X86::KMOVDkm : X86::KMOVDmk;
     }
+    // All of these mask pair classes have the same spill size, the same kind
+    // of kmov instructions can be used with all of them.
+    if (X86::VK1PAIRRegClass.hasSubClassEq(RC) ||
+        X86::VK2PAIRRegClass.hasSubClassEq(RC) ||
+        X86::VK4PAIRRegClass.hasSubClassEq(RC) ||
+        X86::VK8PAIRRegClass.hasSubClassEq(RC) ||
+        X86::VK16PAIRRegClass.hasSubClassEq(RC))
+      return load ? X86::MASKPAIR16LOAD : X86::MASKPAIR16STORE;
     llvm_unreachable("Unknown 4-byte regclass");
   case 8:
     if (X86::GR64RegClass.hasSubClassEq(RC))
@@ -3931,6 +3939,12 @@ bool X86InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
                        get(HasVLX ? X86::VPXORDZ128rr : X86::VXORPSrr));
       MIB.addReg(SrcReg, RegState::ImplicitDefine);
       return true;
+    }
+    if (MI.getOpcode() == X86::AVX512_256_SET0) {
+      // No VLX so we must reference a zmm.
+      unsigned ZReg =
+        TRI->getMatchingSuperReg(SrcReg, X86::sub_ymm, &X86::VR512RegClass);
+      MIB->getOperand(0).setReg(ZReg);
     }
     return Expand2AddrUndef(MIB, get(X86::VPXORDZrr));
   }
@@ -6906,6 +6920,20 @@ bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst) const {
   case X86::PADDWrr:
   case X86::PADDDrr:
   case X86::PADDQrr:
+  case X86::PMULLWrr:
+  case X86::PMULLDrr:
+  case X86::PMAXSBrr:
+  case X86::PMAXSDrr:
+  case X86::PMAXSWrr:
+  case X86::PMAXUBrr:
+  case X86::PMAXUDrr:
+  case X86::PMAXUWrr:
+  case X86::PMINSBrr:
+  case X86::PMINSDrr:
+  case X86::PMINSWrr:
+  case X86::PMINUBrr:
+  case X86::PMINUDrr:
+  case X86::PMINUWrr:
   case X86::VPANDrr:
   case X86::VPANDYrr:
   case X86::VPANDDZ128rr:
@@ -7009,6 +7037,78 @@ bool X86InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst) const {
   case X86::VPMULLQZ128rr:
   case X86::VPMULLQZ256rr:
   case X86::VPMULLQZrr:
+  case X86::VPMAXSBrr:
+  case X86::VPMAXSBYrr:
+  case X86::VPMAXSBZ128rr:
+  case X86::VPMAXSBZ256rr:
+  case X86::VPMAXSBZrr:
+  case X86::VPMAXSDrr:
+  case X86::VPMAXSDYrr:
+  case X86::VPMAXSDZ128rr:
+  case X86::VPMAXSDZ256rr:
+  case X86::VPMAXSDZrr:
+  case X86::VPMAXSQZ128rr:
+  case X86::VPMAXSQZ256rr:
+  case X86::VPMAXSQZrr:
+  case X86::VPMAXSWrr:
+  case X86::VPMAXSWYrr:
+  case X86::VPMAXSWZ128rr:
+  case X86::VPMAXSWZ256rr:
+  case X86::VPMAXSWZrr:
+  case X86::VPMAXUBrr:
+  case X86::VPMAXUBYrr:
+  case X86::VPMAXUBZ128rr:
+  case X86::VPMAXUBZ256rr:
+  case X86::VPMAXUBZrr:
+  case X86::VPMAXUDrr:
+  case X86::VPMAXUDYrr:
+  case X86::VPMAXUDZ128rr:
+  case X86::VPMAXUDZ256rr:
+  case X86::VPMAXUDZrr:
+  case X86::VPMAXUQZ128rr:
+  case X86::VPMAXUQZ256rr:
+  case X86::VPMAXUQZrr:
+  case X86::VPMAXUWrr:
+  case X86::VPMAXUWYrr:
+  case X86::VPMAXUWZ128rr:
+  case X86::VPMAXUWZ256rr:
+  case X86::VPMAXUWZrr:
+  case X86::VPMINSBrr:
+  case X86::VPMINSBYrr:
+  case X86::VPMINSBZ128rr:
+  case X86::VPMINSBZ256rr:
+  case X86::VPMINSBZrr:
+  case X86::VPMINSDrr:
+  case X86::VPMINSDYrr:
+  case X86::VPMINSDZ128rr:
+  case X86::VPMINSDZ256rr:
+  case X86::VPMINSDZrr:
+  case X86::VPMINSQZ128rr:
+  case X86::VPMINSQZ256rr:
+  case X86::VPMINSQZrr:
+  case X86::VPMINSWrr:
+  case X86::VPMINSWYrr:
+  case X86::VPMINSWZ128rr:
+  case X86::VPMINSWZ256rr:
+  case X86::VPMINSWZrr:
+  case X86::VPMINUBrr:
+  case X86::VPMINUBYrr:
+  case X86::VPMINUBZ128rr:
+  case X86::VPMINUBZ256rr:
+  case X86::VPMINUBZrr:
+  case X86::VPMINUDrr:
+  case X86::VPMINUDYrr:
+  case X86::VPMINUDZ128rr:
+  case X86::VPMINUDZ256rr:
+  case X86::VPMINUDZrr:
+  case X86::VPMINUQZ128rr:
+  case X86::VPMINUQZ256rr:
+  case X86::VPMINUQZrr:
+  case X86::VPMINUWrr:
+  case X86::VPMINUWYrr:
+  case X86::VPMINUWZ128rr:
+  case X86::VPMINUWZ256rr:
+  case X86::VPMINUWZrr:
   // Normal min/max instructions are not commutative because of NaN and signed
   // zero semantics, but these are. Thus, there's no need to check for global
   // relaxed math; the instructions themselves have the properties we need.

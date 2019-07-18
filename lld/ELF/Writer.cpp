@@ -138,8 +138,7 @@ StringRef elf::getOutputSectionName(const InputSectionBase *S) {
 }
 
 static bool needsInterpSection() {
-  return !SharedFiles.empty() && !Config->DynamicLinker.empty() &&
-         Script->needsInterpSection();
+  return !Config->DynamicLinker.empty() && Script->needsInterpSection();
 }
 
 template <class ELFT> void elf::writeResult() { Writer<ELFT>().run(); }
@@ -157,7 +156,7 @@ template <class ELFT> void Writer<ELFT>::removeEmptyPTLoad() {
 
 template <class ELFT> static void combineEhSections() {
   for (InputSectionBase *&S : InputSections) {
-    if (!S->Live)
+    if (!S->isLive())
       continue;
 
     if (auto *ES = dyn_cast<EhInputSection>(S)) {
@@ -180,16 +179,14 @@ static Defined *addOptionalRegular(StringRef Name, SectionBase *Sec,
   if (!S || S->isDefined())
     return nullptr;
 
-  return cast<Defined>(Symtab->addSymbol(
-      Defined{/*File=*/nullptr, Name, Binding, StOther, STT_NOTYPE, Val,
-              /*Size=*/0, Sec}));
+  S->resolve(Defined{/*File=*/nullptr, Name, Binding, StOther, STT_NOTYPE, Val,
+                     /*Size=*/0, Sec});
+  return cast<Defined>(S);
 }
 
 static Defined *addAbsolute(StringRef Name) {
   Symbol *Sym = Symtab->addSymbol(Defined{nullptr, Name, STB_GLOBAL, STV_HIDDEN,
                                           STT_NOTYPE, 0, 0, nullptr});
-  if (!Sym->isDefined())
-    error("duplicate symbol: " + toString(*Sym));
   return cast<Defined>(Sym);
 }
 
@@ -239,9 +236,8 @@ void elf::addReservedSymbols() {
     if (Config->EMachine == EM_PPC || Config->EMachine == EM_PPC64)
       GotOff = 0x8000;
 
-    Symtab->addSymbol(Defined{/*File=*/nullptr, GotSymName, STB_GLOBAL,
-                              STV_HIDDEN, STT_NOTYPE, GotOff, /*Size=*/0,
-                              Out::ElfHeader});
+    S->resolve(Defined{/*File=*/nullptr, GotSymName, STB_GLOBAL, STV_HIDDEN,
+                       STT_NOTYPE, GotOff, /*Size=*/0, Out::ElfHeader});
     ElfSym::GlobalOffsetTable = cast<Defined>(S);
   }
 
@@ -437,6 +433,9 @@ template <class ELFT> static void createSyntheticSections() {
   In.Iplt = make<PltSection>(true);
   Add(In.Iplt);
 
+  if (Config->AndFeatures)
+    Add(make<GnuPropertySection>());
+
   // .note.GNU-stack is always added when we are creating a re-linkable
   // object file. Other linkers are using the presence of this marker
   // section to control the executable-ness of the stack area, but that
@@ -608,7 +607,7 @@ static bool includeInSymtab(const Symbol &B) {
     Sec = Sec->Repl;
 
     // Exclude symbols pointing to garbage-collected sections.
-    if (isa<InputSectionBase>(Sec) && !Sec->Live)
+    if (isa<InputSectionBase>(Sec) && !Sec->isLive())
       return false;
 
     if (auto *S = dyn_cast<MergeInputSection>(Sec))
@@ -762,8 +761,9 @@ static bool isRelroSection(const OutputSection *Sec) {
 // * It is easy to check if a give branch was taken.
 // * It is easy two see how similar two ranks are (see getRankProximity).
 enum RankFlags {
-  RF_NOT_ADDR_SET = 1 << 17,
-  RF_NOT_ALLOC = 1 << 16,
+  RF_NOT_ADDR_SET = 1 << 25,
+  RF_NOT_ALLOC = 1 << 24,
+  RF_PARTITION = 1 << 16, // Partition number (8 bits)
   RF_NOT_INTERP = 1 << 15,
   RF_NOT_NOTE = 1 << 14,
   RF_WRITE = 1 << 13,
@@ -783,7 +783,7 @@ enum RankFlags {
 };
 
 static unsigned getSectionRank(const OutputSection *Sec) {
-  unsigned Rank = 0;
+  unsigned Rank = Sec->Partition * RF_PARTITION;
 
   // We want to put section specified by -T option first, so we
   // can start assigning VA starting from them later.
@@ -954,11 +954,11 @@ void Writer<ELFT>::forEachRelSec(
   // Note that relocations for non-alloc sections are directly
   // processed by InputSection::relocateNonAlloc.
   for (InputSectionBase *IS : InputSections)
-    if (IS->Live && isa<InputSection>(IS) && (IS->Flags & SHF_ALLOC))
+    if (IS->isLive() && isa<InputSection>(IS) && (IS->Flags & SHF_ALLOC))
       Fn(*IS);
   for (EhInputSection *ES : In.EhFrame->Sections)
     Fn(*ES);
-  if (In.ARMExidx && In.ARMExidx->Live)
+  if (In.ARMExidx && In.ARMExidx->isLive())
     for (InputSection *Ex : In.ARMExidx->ExidxSections)
       Fn(*Ex);
 }
@@ -1055,7 +1055,7 @@ static int getRankProximityAux(OutputSection *A, OutputSection *B) {
 
 static int getRankProximity(OutputSection *A, BaseCommand *B) {
   auto *Sec = dyn_cast<OutputSection>(B);
-  return (Sec && Sec->Live) ? getRankProximityAux(A, Sec) : -1;
+  return (Sec && Sec->HasInputSections) ? getRankProximityAux(A, Sec) : -1;
 }
 
 // When placing orphan sections, we want to place them after symbol assignments
@@ -1097,19 +1097,20 @@ findOrphanPos(std::vector<BaseCommand *>::iterator B,
   int Proximity = getRankProximity(Sec, *I);
   for (; I != E; ++I) {
     auto *CurSec = dyn_cast<OutputSection>(*I);
-    if (!CurSec || !CurSec->Live)
+    if (!CurSec || !CurSec->HasInputSections)
       continue;
     if (getRankProximity(Sec, CurSec) != Proximity ||
         Sec->SortRank < CurSec->SortRank)
       break;
   }
 
-  auto IsLiveOutputSec = [](BaseCommand *Cmd) {
+  auto IsOutputSecWithInputSections = [](BaseCommand *Cmd) {
     auto *OS = dyn_cast<OutputSection>(Cmd);
-    return OS && OS->Live;
+    return OS && OS->HasInputSections;
   };
   auto J = std::find_if(llvm::make_reverse_iterator(I),
-                        llvm::make_reverse_iterator(B), IsLiveOutputSec);
+                        llvm::make_reverse_iterator(B),
+                        IsOutputSecWithInputSections);
   I = J.base();
 
   // As a special case, if the orphan section is the last section, put
@@ -1117,7 +1118,7 @@ findOrphanPos(std::vector<BaseCommand *>::iterator B,
   // This matches bfd's behavior and is convenient when the linker script fully
   // specifies the start of the file, but doesn't care about the end (the non
   // alloc sections for example).
-  auto NextSec = std::find_if(I, E, IsLiveOutputSec);
+  auto NextSec = std::find_if(I, E, IsOutputSecWithInputSections);
   if (NextSec == E)
     return E;
 
@@ -1169,9 +1170,11 @@ static DenseMap<const InputSectionBase *, int> buildSectionOrder() {
 
   // We want both global and local symbols. We get the global ones from the
   // symbol table and iterate the object files for the local ones.
-  for (Symbol *Sym : Symtab->getSymbols())
+  Symtab->forEachSymbol([&](Symbol *Sym) {
     if (!Sym->isLazy())
       AddSym(*Sym);
+  });
+
   for (InputFile *File : ObjectFiles)
     for (Symbol *Sym : File->getSymbols())
       if (Sym->isLocal())
@@ -1604,14 +1607,36 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     if (!dyn_cast_or_null<Defined>(Symtab->find("__global_pointer$")))
       addOptionalRegular("__global_pointer$", findSection(".sdata"), 0x800);
 
+  if (Config->EMachine == EM_X86_64) {
+    // On targets that support TLSDESC, _TLS_MODULE_BASE_ is defined in such a
+    // way that:
+    //
+    // 1) Without relaxation: it produces a dynamic TLSDESC relocation that
+    // computes 0.
+    // 2) With LD->LE relaxation: _TLS_MODULE_BASE_@tpoff = 0 (lowest address in
+    // the TLS block).
+    //
+    // 2) is special cased in @tpoff computation. To satisfy 1), we define it as
+    // an absolute symbol of zero. This is different from GNU linkers which
+    // define _TLS_MODULE_BASE_ relative to the first TLS section.
+    Symbol *S = Symtab->find("_TLS_MODULE_BASE_");
+    if (S && S->isUndefined()) {
+      S->resolve(Defined{/*File=*/nullptr, S->getName(), STB_GLOBAL, STV_HIDDEN,
+                         STT_TLS, /*Value=*/0, 0,
+                         /*Section=*/nullptr});
+      ElfSym::TlsModuleBase = cast<Defined>(S);
+    }
+  }
+
   // This responsible for splitting up .eh_frame section into
   // pieces. The relocation scan uses those pieces, so this has to be
   // earlier.
   finalizeSynthetic(In.EhFrame);
 
-  for (Symbol *S : Symtab->getSymbols())
+  Symtab->forEachSymbol([](Symbol *S) {
     if (!S->IsPreemptible)
       S->IsPreemptible = computeIsPreemptible(*S);
+  });
 
   // Scan relocations. This must be done after every symbol is declared so that
   // we can correctly decide if a dynamic relocation is needed.
@@ -1638,18 +1663,20 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
           llvm::all_of(File->DtNeeded, [&](StringRef Needed) {
             return Symtab->SoNames.count(Needed);
           });
-    for (Symbol *Sym : Symtab->getSymbols())
+
+    Symtab->forEachSymbol([](Symbol *Sym) {
       if (Sym->isUndefined() && !Sym->isWeak())
         if (auto *F = dyn_cast_or_null<SharedFile>(Sym->File))
           if (F->AllNeededIsKnown)
             error(toString(F) + ": undefined reference to " + toString(*Sym));
+    });
   }
 
   // Now that we have defined all possible global symbols including linker-
   // synthesized ones. Visit all symbols to give the finishing touches.
-  for (Symbol *Sym : Symtab->getSymbols()) {
+  Symtab->forEachSymbol([](Symbol *Sym) {
     if (!includeInSymtab(*Sym))
-      continue;
+      return;
     if (In.SymTab)
       In.SymTab->addSymbol(Sym);
 
@@ -1659,7 +1686,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
         if (File->IsNeeded && !Sym->isUndefined())
           addVerneed(Sym);
     }
-  }
+  });
 
   // Do not proceed if there was an undefined symbol.
   if (errorCount())

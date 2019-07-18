@@ -56,8 +56,6 @@ ARM::ARM() {
   TlsModuleIndexRel = R_ARM_TLS_DTPMOD32;
   TlsOffsetRel = R_ARM_TLS_DTPOFF32;
   GotBaseSymInGotPlt = false;
-  GotEntrySize = 4;
-  GotPltEntrySize = 4;
   PltEntrySize = 16;
   PltHeaderSize = 32;
   TrapInstr = {0xd4, 0xd4, 0xd4, 0xd4};
@@ -518,7 +516,7 @@ void ARM::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
                   (Val & 0x00ff));           // imm8
     break;
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + Twine(Type));
+    error(getErrorLocation(Loc) + "unrecognized relocation " + toString(Type));
   }
 }
 

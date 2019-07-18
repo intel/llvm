@@ -928,7 +928,7 @@ void SIInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
       .addFrameIndex(FrameIndex)               // addr
       .addMemOperand(MMO)
       .addReg(MFI->getScratchRSrcReg(), RegState::Implicit)
-      .addReg(MFI->getFrameOffsetReg(), RegState::Implicit);
+      .addReg(MFI->getStackPtrOffsetReg(), RegState::Implicit);
     // Add the scratch resource registers as implicit uses because we may end up
     // needing them, and need to ensure that the reserved registers are
     // correctly handled.
@@ -950,7 +950,7 @@ void SIInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     .addReg(SrcReg, getKillRegState(isKill)) // data
     .addFrameIndex(FrameIndex)               // addr
     .addReg(MFI->getScratchRSrcReg())        // scratch_rsrc
-    .addReg(MFI->getFrameOffsetReg())        // scratch_offset
+    .addReg(MFI->getStackPtrOffsetReg())     // scratch_offset
     .addImm(0)                               // offset
     .addMemOperand(MMO);
 }
@@ -1032,7 +1032,7 @@ void SIInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
       .addFrameIndex(FrameIndex) // addr
       .addMemOperand(MMO)
       .addReg(MFI->getScratchRSrcReg(), RegState::Implicit)
-      .addReg(MFI->getFrameOffsetReg(), RegState::Implicit);
+      .addReg(MFI->getStackPtrOffsetReg(), RegState::Implicit);
 
     if (ST.hasScalarStores()) {
       // m0 is used for offset to scalar stores if used to spill.
@@ -1046,10 +1046,10 @@ void SIInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
 
   unsigned Opcode = getVGPRSpillRestoreOpcode(SpillSize);
   BuildMI(MBB, MI, DL, get(Opcode), DestReg)
-    .addFrameIndex(FrameIndex)        // vaddr
-    .addReg(MFI->getScratchRSrcReg()) // scratch_rsrc
-    .addReg(MFI->getFrameOffsetReg()) // scratch_offset
-    .addImm(0)                        // offset
+    .addFrameIndex(FrameIndex)           // vaddr
+    .addReg(MFI->getScratchRSrcReg())    // scratch_rsrc
+    .addReg(MFI->getStackPtrOffsetReg()) // scratch_offset
+    .addImm(0)                           // offset
     .addMemOperand(MMO);
 }
 
@@ -1532,7 +1532,7 @@ unsigned SIInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
     BuildMI(MBB, I, DL, get(AMDGPU::S_ADD_U32))
       .addReg(PCReg, RegState::Define, AMDGPU::sub0)
       .addReg(PCReg, 0, AMDGPU::sub0)
-      .addMBB(&DestBB, AMDGPU::TF_LONG_BRANCH_FORWARD);
+      .addMBB(&DestBB, MO_LONG_BRANCH_FORWARD);
     BuildMI(MBB, I, DL, get(AMDGPU::S_ADDC_U32))
       .addReg(PCReg, RegState::Define, AMDGPU::sub1)
       .addReg(PCReg, 0, AMDGPU::sub1)
@@ -1542,7 +1542,7 @@ unsigned SIInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
     BuildMI(MBB, I, DL, get(AMDGPU::S_SUB_U32))
       .addReg(PCReg, RegState::Define, AMDGPU::sub0)
       .addReg(PCReg, 0, AMDGPU::sub0)
-      .addMBB(&DestBB, AMDGPU::TF_LONG_BRANCH_BACKWARD);
+      .addMBB(&DestBB, MO_LONG_BRANCH_BACKWARD);
     BuildMI(MBB, I, DL, get(AMDGPU::S_SUBB_U32))
       .addReg(PCReg, RegState::Define, AMDGPU::sub1)
       .addReg(PCReg, 0, AMDGPU::sub1)
@@ -2219,6 +2219,10 @@ bool SIInstrInfo::FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
       // These come before src2.
       removeModOperands(UseMI);
       UseMI.setDesc(get(NewOpc));
+      // It might happen that UseMI was commuted
+      // and we now have SGPR as SRC1. If so 2 inlined
+      // constant and SGPR are illegal.
+      legalizeOperands(UseMI);
 
       bool DeleteDef = MRI->hasOneNonDBGUse(Reg);
       if (DeleteDef)
@@ -2819,19 +2823,19 @@ bool SIInstrInfo::usesConstantBus(const MachineRegisterInfo &MRI,
   if (TargetRegisterInfo::isVirtualRegister(MO.getReg()))
     return RI.isSGPRClass(MRI.getRegClass(MO.getReg()));
 
-  // FLAT_SCR is just an SGPR pair.
-  if (!MO.isImplicit() && (MO.getReg() == AMDGPU::FLAT_SCR))
-    return true;
-
-  // EXEC register uses the constant bus.
-  if (!MO.isImplicit() && MO.getReg() == AMDGPU::EXEC)
-    return true;
+  // Null is free
+  if (MO.getReg() == AMDGPU::SGPR_NULL)
+    return false;
 
   // SGPRs use the constant bus
-  return (MO.getReg() == AMDGPU::VCC || MO.getReg() == AMDGPU::M0 ||
-          (!MO.isImplicit() &&
-           (AMDGPU::SGPR_32RegClass.contains(MO.getReg()) ||
-            AMDGPU::SGPR_64RegClass.contains(MO.getReg()))));
+  if (MO.isImplicit()) {
+    return MO.getReg() == AMDGPU::M0 ||
+           MO.getReg() == AMDGPU::VCC ||
+           MO.getReg() == AMDGPU::VCC_LO;
+  } else {
+    return AMDGPU::SReg_32RegClass.contains(MO.getReg()) ||
+           AMDGPU::SReg_64RegClass.contains(MO.getReg());
+  }
 }
 
 static unsigned findImplicitSGPRRead(const MachineInstr &MI) {
@@ -3913,7 +3917,7 @@ void SIInstrInfo::legalizeGenericOperand(MachineBasicBlock &InsertMBB,
     return;
 
   // Try to eliminate the copy if it is copying an immediate value.
-  if (Def->isMoveImmediate())
+  if (Def->isMoveImmediate() && DstRC != &AMDGPU::VReg_1RegClass)
     FoldImmediate(*Copy, *Def, OpReg, &MRI);
 }
 
@@ -4147,7 +4151,10 @@ void SIInstrInfo::legalizeOperands(MachineInstr &MI,
     if (VRC || !RI.isSGPRClass(getOpRegClass(MI, 0))) {
       if (!VRC) {
         assert(SRC);
-        VRC = RI.getEquivalentVGPRClass(SRC);
+       if (getOpRegClass(MI, 0) == &AMDGPU::VReg_1RegClass) {
+          VRC = &AMDGPU::VReg_1RegClass;
+        } else
+          VRC = RI.getEquivalentVGPRClass(SRC);
       }
       RC = VRC;
     } else {
@@ -5309,7 +5316,7 @@ const TargetRegisterClass *SIInstrInfo::getDestEquivalentVGPRClass(
   case AMDGPU::INSERT_SUBREG:
   case AMDGPU::WQM:
   case AMDGPU::WWM:
-    if (RI.hasVGPRs(NewDstRC))
+    if (RI.hasVGPRs(NewDstRC) || NewDstRC == &AMDGPU::VReg_1RegClass)
       return nullptr;
 
     NewDstRC = RI.getEquivalentVGPRClass(NewDstRC);

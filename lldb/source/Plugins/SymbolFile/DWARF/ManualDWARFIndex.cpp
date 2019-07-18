@@ -100,20 +100,18 @@ void ManualDWARFIndex::IndexUnit(DWARFUnit &unit, IndexSet &set) {
   }
 
   const LanguageType cu_language = unit.GetLanguageType();
-  DWARFFormValue::FixedFormSizes fixed_form_sizes = unit.GetFixedFormSizes();
 
-  IndexUnitImpl(unit, cu_language, fixed_form_sizes, unit.GetOffset(), set);
+  IndexUnitImpl(unit, cu_language, unit.GetOffset(), set);
 
   SymbolFileDWARFDwo *dwo_symbol_file = unit.GetDwoSymbolFile();
   if (dwo_symbol_file && dwo_symbol_file->GetCompileUnit()) {
     IndexUnitImpl(*dwo_symbol_file->GetCompileUnit(), cu_language,
-                  fixed_form_sizes, unit.GetOffset(), set);
+                  unit.GetOffset(), set);
   }
 }
 
 void ManualDWARFIndex::IndexUnitImpl(
     DWARFUnit &unit, const LanguageType cu_language,
-    const DWARFFormValue::FixedFormSizes &fixed_form_sizes,
     const dw_offset_t cu_offset, IndexSet &set) {
   for (const DWARFDebugInfoEntry &die : unit.dies()) {
     const dw_tag_t tag = die.Tag();
@@ -141,8 +139,8 @@ void ManualDWARFIndex::IndexUnitImpl(
     }
 
     DWARFAttributes attributes;
-    const char *name = NULL;
-    const char *mangled_cstr = NULL;
+    const char *name = nullptr;
+    const char *mangled_cstr = nullptr;
     bool is_declaration = false;
     // bool is_artificial = false;
     bool has_address = false;
@@ -150,8 +148,7 @@ void ManualDWARFIndex::IndexUnitImpl(
     bool is_global_or_static_variable = false;
 
     DWARFFormValue specification_die_form;
-    const size_t num_attributes =
-        die.GetAttributes(&unit, fixed_form_sizes, attributes);
+    const size_t num_attributes = die.GetAttributes(&unit, attributes);
     if (num_attributes > 0) {
       for (uint32_t i = 0; i < num_attributes; ++i) {
         dw_attr_t attr = attributes.AttributeAtIndex(i);
@@ -194,7 +191,7 @@ void ManualDWARFIndex::IndexUnitImpl(
           has_location_or_const_value = true;
           if (tag == DW_TAG_variable) {
             const DWARFDebugInfoEntry *parent_die = die.GetParent();
-            while (parent_die != NULL) {
+            while (parent_die != nullptr) {
               switch (parent_die->Tag()) {
               case DW_TAG_subprogram:
               case DW_TAG_lexical_block:
@@ -219,13 +216,13 @@ void ManualDWARFIndex::IndexUnitImpl(
                 //     }
                 //   }
                 // }
-                parent_die = NULL; // Terminate the while loop.
+                parent_die = nullptr; // Terminate the while loop.
                 break;
 
               case DW_TAG_compile_unit:
               case DW_TAG_partial_unit:
                 is_global_or_static_variable = true;
-                parent_die = NULL; // Terminate the while loop.
+                parent_die = nullptr; // Terminate the while loop.
                 break;
 
               default:

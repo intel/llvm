@@ -56,8 +56,6 @@ public:
   unsigned reservedPrivateSegmentWaveByteOffsetReg(
     const MachineFunction &MF) const;
 
-  unsigned reservedStackPtrOffsetReg(const MachineFunction &MF) const;
-
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
@@ -73,6 +71,7 @@ public:
 
   unsigned getFrameRegister(const MachineFunction &MF) const override;
 
+  bool canRealignStack(const MachineFunction &MF) const override;
   bool requiresRegisterScavenging(const MachineFunction &Fn) const override;
 
   bool requiresFrameIndexScavenging(const MachineFunction &MF) const override;
@@ -194,6 +193,11 @@ public:
   const TargetRegisterClass *getRegClassForReg(const MachineRegisterInfo &MRI,
                                                unsigned Reg) const;
   bool isVGPR(const MachineRegisterInfo &MRI, unsigned Reg) const;
+
+  virtual bool
+  isDivergentRegClass(const TargetRegisterClass *RC) const override {
+    return !isSGPRClass(RC);
+  }
 
   bool isSGPRPressureSet(unsigned SetID) const {
     return SGPRPressureSets.test(SetID) && !VGPRPressureSets.test(SetID);

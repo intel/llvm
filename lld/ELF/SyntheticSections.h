@@ -31,6 +31,7 @@
 namespace lld {
 namespace elf {
 class Defined;
+struct Partition;
 
 class SyntheticSection : public InputSection {
 public:
@@ -38,7 +39,7 @@ public:
                    StringRef Name)
       : InputSection(nullptr, Flags, Type, Alignment, {}, Name,
                      InputSectionBase::Synthetic) {
-    this->Live = true;
+    markLive();
   }
 
   virtual ~SyntheticSection() = default;
@@ -68,6 +69,10 @@ public:
   void finalizeContents() override;
   bool isNeeded() const override { return !Sections.empty(); }
   size_t getSize() const override { return Size; }
+
+  static bool classof(const SectionBase *D) {
+    return SyntheticSection::classof(D) && D->Name == ".eh_frame";
+  }
 
   template <class ELFT> void addSection(InputSectionBase *S);
 
@@ -140,6 +145,13 @@ public:
       : SyntheticSection(0, llvm::ELF::SHT_PROGBITS, 1, ".note.GNU-stack") {}
   void writeTo(uint8_t *Buf) override {}
   size_t getSize() const override { return 0; }
+};
+
+class GnuPropertySection : public SyntheticSection {
+public:
+  GnuPropertySection();
+  void writeTo(uint8_t *Buf) override;
+  size_t getSize() const override;
 };
 
 // .note.gnu.build-id section.
@@ -1057,6 +1069,14 @@ Defined *addSyntheticLocal(StringRef Name, uint8_t Type, uint64_t Value,
                            uint64_t Size, InputSectionBase &Section);
 
 void addVerneed(Symbol *SS);
+
+extern std::vector<Partition> Partitions;
+
+// Linker generated per-partition sections.
+struct Partition {
+  StringRef Name;
+  unsigned getNumber() const { return this - &Partitions[0] + 1; }
+};
 
 // Linker generated sections which can be used as inputs.
 struct InStruct {

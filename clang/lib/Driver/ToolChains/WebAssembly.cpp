@@ -22,9 +22,6 @@ using namespace clang::driver::toolchains;
 using namespace clang;
 using namespace llvm::opt;
 
-wasm::Linker::Linker(const ToolChain &TC)
-    : GnuTool("wasm::Linker", "lld", TC) {}
-
 /// Following the conventions in https://wiki.debian.org/Multiarch/Tuples,
 /// we remove the vendor field to form the multiarch triple.
 static std::string getMultiarchTriple(const Driver &D,
@@ -33,10 +30,6 @@ static std::string getMultiarchTriple(const Driver &D,
     return (TargetTriple.getArchName() + "-" +
             TargetTriple.getOSAndEnvironmentName()).str();
 }
-
-bool wasm::Linker::isLinkJob() const { return true; }
-
-bool wasm::Linker::hasIntegratedCPP() const { return false; }
 
 std::string wasm::Linker::getLinkerPath(const ArgList &Args) const {
   const ToolChain &ToolChain = getToolChain();
@@ -213,6 +206,14 @@ void WebAssembly::AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
   case ToolChain::CST_Libstdcxx:
     llvm_unreachable("invalid stdlib name");
   }
+}
+
+SanitizerMask WebAssembly::getSupportedSanitizers() const {
+  SanitizerMask Res = ToolChain::getSupportedSanitizers();
+  if (getTriple().isOSEmscripten()) {
+    Res |= SanitizerKind::Vptr;
+  }
+  return Res;
 }
 
 Tool *WebAssembly::buildLinker() const {

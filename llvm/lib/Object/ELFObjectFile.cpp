@@ -194,9 +194,9 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
     default:
       break;
     case ARMBuildAttrs::Not_Allowed:
-      Features.AddFeature("vfp2", false);
-      Features.AddFeature("vfp3", false);
-      Features.AddFeature("vfp4", false);
+      Features.AddFeature("vfp2d16sp", false);
+      Features.AddFeature("vfp3d16sp", false);
+      Features.AddFeature("vfp4d16sp", false);
       break;
     case ARMBuildAttrs::AllowFPv2:
       Features.AddFeature("vfp2");
@@ -226,6 +226,24 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
     case ARMBuildAttrs::AllowNeon2:
       Features.AddFeature("neon");
       Features.AddFeature("fp16");
+      break;
+    }
+  }
+
+  if (Attributes.hasAttribute(ARMBuildAttrs::MVE_arch)) {
+    switch(Attributes.getAttributeValue(ARMBuildAttrs::MVE_arch)) {
+    default:
+      break;
+    case ARMBuildAttrs::Not_Allowed:
+      Features.AddFeature("mve", false);
+      Features.AddFeature("mve.fp", false);
+      break;
+    case ARMBuildAttrs::AllowMVEInteger:
+      Features.AddFeature("mve.fp", false);
+      Features.AddFeature("mve");
+      break;
+    case ARMBuildAttrs::AllowMVEIntegerAndFloat:
+      Features.AddFeature("mve.fp");
       break;
     }
   }

@@ -2102,26 +2102,6 @@ void Scop::addUserContext() {
   Context = Context.intersect(UserContext);
 }
 
-void Scop::buildInvariantEquivalenceClasses() {
-  DenseMap<std::pair<const SCEV *, Type *>, LoadInst *> EquivClasses;
-
-  const InvariantLoadsSetTy &RIL = getRequiredInvariantLoads();
-  for (LoadInst *LInst : RIL) {
-    const SCEV *PointerSCEV = SE->getSCEV(LInst->getPointerOperand());
-
-    Type *Ty = LInst->getType();
-    LoadInst *&ClassRep = EquivClasses[std::make_pair(PointerSCEV, Ty)];
-    if (ClassRep) {
-      InvEquivClassVMap[LInst] = ClassRep;
-      continue;
-    }
-
-    ClassRep = LInst;
-    InvariantEquivClasses.emplace_back(
-        InvariantEquivClassTy{PointerSCEV, MemoryAccessList(), nullptr, Ty});
-  }
-}
-
 void Scop::buildContext() {
   isl::space Space = isl::space::params_alloc(getIslCtx(), 0);
   Context = isl::set::universe(Space);
@@ -3699,7 +3679,7 @@ void Scop::addInvariantLoads(ScopStmt &Stmt, InvariantAccessesTy &InvMAs) {
 
     // If we did not consolidate MA, thus did not find an equivalence class
     // for it, we create a new one.
-    InvariantEquivClasses.emplace_back(
+    addInvariantEquivClass(
         InvariantEquivClassTy{PointerSCEV, MemoryAccessList{MA}, MACtx, Ty});
   }
 }
@@ -3798,20 +3778,6 @@ isl::set Scop::getNonHoistableCtx(MemoryAccess *Access, isl::union_map Writes) {
   return WrittenCtx;
 }
 
-void Scop::verifyInvariantLoads() {
-  auto &RIL = getRequiredInvariantLoads();
-  for (LoadInst *LI : RIL) {
-    assert(LI && contains(LI));
-    // If there exists a statement in the scop which has a memory access for
-    // @p LI, then mark this scop as infeasible for optimization.
-    for (ScopStmt &Stmt : Stmts)
-      if (Stmt.getArrayAccessOrNULLFor(LI)) {
-        invalidate(INVARIANTLOAD, LI->getDebugLoc(), LI->getParent());
-        return;
-      }
-  }
-}
-
 void Scop::hoistInvariantLoads() {
   if (!PollyInvariantLoadHoisting)
     return;
@@ -3828,76 +3794,6 @@ void Scop::hoistInvariantLoads() {
     for (auto InvMA : InvariantAccesses)
       Stmt.removeMemoryAccess(InvMA.MA);
     addInvariantLoads(Stmt, InvariantAccesses);
-  }
-}
-
-/// Find the canonical scop array info object for a set of invariant load
-/// hoisted loads. The canonical array is the one that corresponds to the
-/// first load in the list of accesses which is used as base pointer of a
-/// scop array.
-static const ScopArrayInfo *findCanonicalArray(Scop *S,
-                                               MemoryAccessList &Accesses) {
-  for (MemoryAccess *Access : Accesses) {
-    const ScopArrayInfo *CanonicalArray = S->getScopArrayInfoOrNull(
-        Access->getAccessInstruction(), MemoryKind::Array);
-    if (CanonicalArray)
-      return CanonicalArray;
-  }
-  return nullptr;
-}
-
-/// Check if @p Array severs as base array in an invariant load.
-static bool isUsedForIndirectHoistedLoad(Scop *S, const ScopArrayInfo *Array) {
-  for (InvariantEquivClassTy &EqClass2 : S->getInvariantAccesses())
-    for (MemoryAccess *Access2 : EqClass2.InvariantAccesses)
-      if (Access2->getScopArrayInfo() == Array)
-        return true;
-  return false;
-}
-
-/// Replace the base pointer arrays in all memory accesses referencing @p Old,
-/// with a reference to @p New.
-static void replaceBasePtrArrays(Scop *S, const ScopArrayInfo *Old,
-                                 const ScopArrayInfo *New) {
-  for (ScopStmt &Stmt : *S)
-    for (MemoryAccess *Access : Stmt) {
-      if (Access->getLatestScopArrayInfo() != Old)
-        continue;
-
-      isl::id Id = New->getBasePtrId();
-      isl::map Map = Access->getAccessRelation();
-      Map = Map.set_tuple_id(isl::dim::out, Id);
-      Access->setAccessRelation(Map);
-    }
-}
-
-void Scop::canonicalizeDynamicBasePtrs() {
-  for (InvariantEquivClassTy &EqClass : InvariantEquivClasses) {
-    MemoryAccessList &BasePtrAccesses = EqClass.InvariantAccesses;
-
-    const ScopArrayInfo *CanonicalBasePtrSAI =
-        findCanonicalArray(this, BasePtrAccesses);
-
-    if (!CanonicalBasePtrSAI)
-      continue;
-
-    for (MemoryAccess *BasePtrAccess : BasePtrAccesses) {
-      const ScopArrayInfo *BasePtrSAI = getScopArrayInfoOrNull(
-          BasePtrAccess->getAccessInstruction(), MemoryKind::Array);
-      if (!BasePtrSAI || BasePtrSAI == CanonicalBasePtrSAI ||
-          !BasePtrSAI->isCompatibleWith(CanonicalBasePtrSAI))
-        continue;
-
-      // we currently do not canonicalize arrays where some accesses are
-      // hoisted as invariant loads. If we would, we need to update the access
-      // function of the invariant loads as well. However, as this is not a
-      // very common situation, we leave this for now to avoid further
-      // complexity increases.
-      if (isUsedForIndirectHoistedLoad(this, BasePtrSAI))
-        continue;
-
-      replaceBasePtrArrays(this, BasePtrSAI, CanonicalBasePtrSAI);
-    }
   }
 }
 
@@ -4422,26 +4318,8 @@ isl::union_map Scop::getAccesses(ScopArrayInfo *Array) {
       [Array](MemoryAccess &MA) { return MA.getScopArrayInfo() == Array; });
 }
 
-// Check whether @p Node is an extension node.
-//
-// @return true if @p Node is an extension node.
-isl_bool isNotExtNode(__isl_keep isl_schedule_node *Node, void *User) {
-  if (isl_schedule_node_get_type(Node) == isl_schedule_node_extension)
-    return isl_bool_error;
-  else
-    return isl_bool_true;
-}
-
-bool Scop::containsExtensionNode(isl::schedule Schedule) {
-  return isl_schedule_foreach_schedule_node_top_down(
-             Schedule.get(), isNotExtNode, nullptr) == isl_stat_error;
-}
-
 isl::union_map Scop::getSchedule() const {
   auto Tree = getScheduleTree();
-  if (containsExtensionNode(Tree))
-    return nullptr;
-
   return Tree.get_map();
 }
 

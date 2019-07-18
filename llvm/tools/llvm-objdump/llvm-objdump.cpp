@@ -1095,7 +1095,8 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
   array_pod_sort(AbsoluteSymbols.begin(), AbsoluteSymbols.end());
 
   for (const SectionRef &Section : ToolSectionFilter(*Obj)) {
-    if (!DisassembleAll && (!Section.isText() || Section.isVirtual()))
+    if (FilterSections.empty() && !DisassembleAll &&
+        (!Section.isText() || Section.isVirtual()))
       continue;
 
     uint64_t SectionAddr = Section.getAddress();
@@ -1643,11 +1644,6 @@ void printSymbolTable(const ObjectFile *O, StringRef ArchiveName,
 
   const StringRef FileName = O->getFileName();
   for (auto I = O->symbol_begin(), E = O->symbol_end(); I != E; ++I) {
-    // Skip printing the special zero symbol when dumping an ELF file.
-    // This makes the output consistent with the GNU objdump.
-    if (I == O->symbol_begin() && isa<ELFObjectFileBase>(O))
-      continue;
-
     const SymbolRef &Symbol = *I;
     uint64_t Address = unwrapOrError(Symbol.getAddress(), ArchiveName, FileName,
                                      ArchitectureName);

@@ -62,7 +62,7 @@ public:
           non_const_interface_decl->lookup(name);
 
       return (result.size() != 0);
-    } while (0);
+    } while (false);
 
     SetNoExternalVisibleDeclsForName(decl_ctx, name);
     return false;
@@ -173,7 +173,7 @@ AppleObjCDeclVendor::GetDeclForISA(ObjCLanguageRuntime::ObjCISA isa) {
       m_runtime.GetClassDescriptorFromISA(isa);
 
   if (!descriptor)
-    return NULL;
+    return nullptr;
 
   ConstString name(descriptor->GetClassName());
 
@@ -203,12 +203,12 @@ public:
   ObjCRuntimeMethodType(const char *types) : m_is_valid(false) {
     const char *cursor = types;
     enum ParserState { Start = 0, InType, InPos } state = Start;
-    const char *type = NULL;
+    const char *type = nullptr;
     int brace_depth = 0;
 
     uint32_t stepsLeft = 256;
 
-    while (1) {
+    while (true) {
       if (--stepsLeft == 0) {
         m_is_valid = false;
         return;
@@ -261,7 +261,7 @@ public:
               m_is_valid = false;
               return;
             }
-            type = NULL;
+            type = nullptr;
           } else {
             ++cursor;
           }
@@ -319,7 +319,7 @@ public:
               bool instance,
               ObjCLanguageRuntime::EncodingToTypeSP type_realizer_sp) {
     if (!m_is_valid || m_type_vector.size() < 3)
-      return NULL;
+      return nullptr;
 
     clang::ASTContext &ast_ctx(interface_decl->getASTContext());
 
@@ -354,7 +354,7 @@ public:
 
     clang::IdentifierInfo **identifier_infos = selector_components.data();
     if (!identifier_infos) {
-      return NULL;
+      return nullptr;
     }
 
     clang::Selector sel = ast_ctx.Selectors.getSelector(
@@ -367,12 +367,13 @@ public:
             for_expression));
 
     if (ret_type.isNull())
-      return NULL;
+      return nullptr;
 
     clang::ObjCMethodDecl *ret = clang::ObjCMethodDecl::Create(
         ast_ctx, clang::SourceLocation(), clang::SourceLocation(), sel,
-        ret_type, NULL, interface_decl, isInstance, isVariadic, isSynthesized,
-        isImplicitlyDeclared, isDefined, impControl, HasRelatedResultType);
+        ret_type, nullptr, interface_decl, isInstance, isVariadic,
+        isSynthesized, isImplicitlyDeclared, isDefined, impControl,
+        HasRelatedResultType);
 
     std::vector<clang::ParmVarDecl *> parm_vars;
 
@@ -383,12 +384,12 @@ public:
               ast_ctx, m_type_vector[ai].c_str(), for_expression));
 
       if (arg_type.isNull())
-        return NULL; // well, we just wasted a bunch of time.  Wish we could
-                     // delete the stuff we'd just made!
+        return nullptr; // well, we just wasted a bunch of time.  Wish we could
+                        // delete the stuff we'd just made!
 
       parm_vars.push_back(clang::ParmVarDecl::Create(
-          ast_ctx, ret, clang::SourceLocation(), clang::SourceLocation(), NULL,
-          arg_type, NULL, clang::SC_None, NULL));
+          ast_ctx, ret, clang::SourceLocation(), clang::SourceLocation(),
+          nullptr, arg_type, nullptr, clang::SC_None, nullptr));
     }
 
     ret->setMethodParams(ast_ctx,
@@ -512,7 +513,7 @@ bool AppleObjCDeclVendor::FinishDecl(clang::ObjCInterfaceDecl *interface_decl) {
           clang::SourceLocation(), &m_ast_ctx.getASTContext()->Idents.get(name),
           ClangUtil::GetQualType(ivar_type),
           type_source_info, // TypeSourceInfo *
-          clang::ObjCIvarDecl::Public, 0, is_synthesized);
+          clang::ObjCIvarDecl::Public, nullptr, is_synthesized);
 
       if (ivar_decl) {
         interface_decl->addDecl(ivar_decl);
@@ -646,7 +647,7 @@ AppleObjCDeclVendor::FindDecls(ConstString name, bool append,
     decls.push_back(iface_decl);
     ret++;
     break;
-  } while (0);
+  } while (false);
 
   return ret;
 }

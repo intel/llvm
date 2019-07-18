@@ -105,6 +105,26 @@ static cl::opt<GranularityChoice> StmtGranularity(
                           "Store-level granularity")),
     cl::init(GranularityChoice::ScalarIndependence), cl::cat(PollyCategory));
 
+void ScopBuilder::buildInvariantEquivalenceClasses() {
+  DenseMap<std::pair<const SCEV *, Type *>, LoadInst *> EquivClasses;
+
+  const InvariantLoadsSetTy &RIL = scop->getRequiredInvariantLoads();
+  for (LoadInst *LInst : RIL) {
+    const SCEV *PointerSCEV = SE.getSCEV(LInst->getPointerOperand());
+
+    Type *Ty = LInst->getType();
+    LoadInst *&ClassRep = EquivClasses[std::make_pair(PointerSCEV, Ty)];
+    if (ClassRep) {
+      scop->addInvariantLoadMapping(LInst, ClassRep);
+      continue;
+    }
+
+    ClassRep = LInst;
+    scop->addInvariantEquivClass(
+        InvariantEquivClassTy{PointerSCEV, MemoryAccessList(), nullptr, Ty});
+  }
+}
+
 void ScopBuilder::buildPHIAccesses(ScopStmt *PHIStmt, PHINode *PHI,
                                    Region *NonAffineSubRegion,
                                    bool IsExitBlock) {
@@ -1286,6 +1306,20 @@ void ScopBuilder::checkForReductions(ScopStmt &Stmt) {
   }
 }
 
+void ScopBuilder::verifyInvariantLoads() {
+  auto &RIL = scop->getRequiredInvariantLoads();
+  for (LoadInst *LI : RIL) {
+    assert(LI && scop->contains(LI));
+    // If there exists a statement in the scop which has a memory access for
+    // @p LI, then mark this scop as infeasible for optimization.
+    for (ScopStmt &Stmt : *scop)
+      if (Stmt.getArrayAccessOrNULLFor(LI)) {
+        scop->invalidate(INVARIANTLOAD, LI->getDebugLoc(), LI->getParent());
+        return;
+      }
+  }
+}
+
 void ScopBuilder::collectCandidateReductionLoads(
     MemoryAccess *StoreMA, SmallVectorImpl<MemoryAccess *> &Loads) {
   ScopStmt *Stmt = StoreMA->getStatement();
@@ -1330,6 +1364,76 @@ void ScopBuilder::collectCandidateReductionLoads(
   if (PossibleLoad1 && PossibleLoad1->getNumUses() == 1)
     if (PossibleLoad1->getParent() == Store->getParent())
       Loads.push_back(&Stmt->getArrayAccessFor(PossibleLoad1));
+}
+
+/// Find the canonical scop array info object for a set of invariant load
+/// hoisted loads. The canonical array is the one that corresponds to the
+/// first load in the list of accesses which is used as base pointer of a
+/// scop array.
+static const ScopArrayInfo *findCanonicalArray(Scop &S,
+                                               MemoryAccessList &Accesses) {
+  for (MemoryAccess *Access : Accesses) {
+    const ScopArrayInfo *CanonicalArray = S.getScopArrayInfoOrNull(
+        Access->getAccessInstruction(), MemoryKind::Array);
+    if (CanonicalArray)
+      return CanonicalArray;
+  }
+  return nullptr;
+}
+
+/// Check if @p Array severs as base array in an invariant load.
+static bool isUsedForIndirectHoistedLoad(Scop &S, const ScopArrayInfo *Array) {
+  for (InvariantEquivClassTy &EqClass2 : S.getInvariantAccesses())
+    for (MemoryAccess *Access2 : EqClass2.InvariantAccesses)
+      if (Access2->getScopArrayInfo() == Array)
+        return true;
+  return false;
+}
+
+/// Replace the base pointer arrays in all memory accesses referencing @p Old,
+/// with a reference to @p New.
+static void replaceBasePtrArrays(Scop &S, const ScopArrayInfo *Old,
+                                 const ScopArrayInfo *New) {
+  for (ScopStmt &Stmt : S)
+    for (MemoryAccess *Access : Stmt) {
+      if (Access->getLatestScopArrayInfo() != Old)
+        continue;
+
+      isl::id Id = New->getBasePtrId();
+      isl::map Map = Access->getAccessRelation();
+      Map = Map.set_tuple_id(isl::dim::out, Id);
+      Access->setAccessRelation(Map);
+    }
+}
+
+void ScopBuilder::canonicalizeDynamicBasePtrs() {
+  for (InvariantEquivClassTy &EqClass : scop->InvariantEquivClasses) {
+    MemoryAccessList &BasePtrAccesses = EqClass.InvariantAccesses;
+
+    const ScopArrayInfo *CanonicalBasePtrSAI =
+        findCanonicalArray(*scop, BasePtrAccesses);
+
+    if (!CanonicalBasePtrSAI)
+      continue;
+
+    for (MemoryAccess *BasePtrAccess : BasePtrAccesses) {
+      const ScopArrayInfo *BasePtrSAI = scop->getScopArrayInfoOrNull(
+          BasePtrAccess->getAccessInstruction(), MemoryKind::Array);
+      if (!BasePtrSAI || BasePtrSAI == CanonicalBasePtrSAI ||
+          !BasePtrSAI->isCompatibleWith(CanonicalBasePtrSAI))
+        continue;
+
+      // we currently do not canonicalize arrays where some accesses are
+      // hoisted as invariant loads. If we would, we need to update the access
+      // function of the invariant loads as well. However, as this is not a
+      // very common situation, we leave this for now to avoid further
+      // complexity increases.
+      if (isUsedForIndirectHoistedLoad(*scop, BasePtrSAI))
+        continue;
+
+      replaceBasePtrArrays(*scop, BasePtrSAI, CanonicalBasePtrSAI);
+    }
+  }
 }
 
 void ScopBuilder::buildAccessRelations(ScopStmt &Stmt) {
@@ -1492,7 +1596,7 @@ void ScopBuilder::buildScop(Region &R, AssumptionCache &AC,
                      BP, BP->getType(), false, {AF}, {nullptr}, GlobalRead);
   }
 
-  scop->buildInvariantEquivalenceClasses();
+  buildInvariantEquivalenceClasses();
 
   /// A map from basic blocks to their invalid domains.
   DenseMap<BasicBlock *, isl::set> InvalidDomainMap;
@@ -1567,8 +1671,8 @@ void ScopBuilder::buildScop(Region &R, AssumptionCache &AC,
   }
 
   scop->hoistInvariantLoads();
-  scop->canonicalizeDynamicBasePtrs();
-  scop->verifyInvariantLoads();
+  canonicalizeDynamicBasePtrs();
+  verifyInvariantLoads();
   scop->simplifySCoP(true);
 
   // Check late for a feasible runtime context because profitability did not
