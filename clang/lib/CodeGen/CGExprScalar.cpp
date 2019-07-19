@@ -1987,10 +1987,24 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     Value *Src = Visit(const_cast<Expr*>(E));
     llvm::Type *SrcTy = Src->getType();
     llvm::Type *DstTy = ConvertType(DestTy);
+    bool NeedAddrspaceCast = false;
     if (SrcTy->isPtrOrPtrVectorTy() && DstTy->isPtrOrPtrVectorTy() &&
         SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace()) {
-      llvm_unreachable("wrong cast for pointers in different address spaces"
-                       "(must be an address space cast)!");
+      // If we have the same address space in AST, which is then codegen'ed to
+      // different address spaces in IR, then an address space cast should be
+      // valid.
+      //
+      // This is the case for SYCL, where both types have Default address space
+      // in AST, but in IR one of them may be in opencl_private, and another in
+      // opencl_generic address space:
+      //
+      //   int arr[5]; // automatic variable, default AS in AST, private AS in
+      //   IR char* p = arr; // default AS in AST, generic AS in IR
+      //
+      if (E->getType().getAddressSpace() != DestTy.getAddressSpace())
+        llvm_unreachable("wrong cast for pointers in different address spaces"
+                         "(must be an address space cast)!");
+      NeedAddrspaceCast = true;
     }
 
     if (CGF.SanOpts.has(SanitizerKind::CFIUnrelatedCast)) {
@@ -2025,6 +2039,13 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
           CGF.getDebugInfo()->
               addHeapAllocSiteMetadata(CI, CE->getType(), CE->getExprLoc());
 
+    if (NeedAddrspaceCast) {
+      llvm::Type *SrcPointeeTy = Src->getType()->getPointerElementType();
+      llvm::Type *SrcNewAS = llvm::PointerType::get(
+          SrcPointeeTy, cast<llvm::PointerType>(DstTy)->getAddressSpace());
+
+      Src = Builder.CreateAddrSpaceCast(Src, SrcNewAS);
+    }
     return Builder.CreateBitCast(Src, DstTy);
   }
   case CK_AddressSpaceConversion: {
