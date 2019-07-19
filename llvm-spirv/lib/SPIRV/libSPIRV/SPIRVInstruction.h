@@ -2130,8 +2130,8 @@ protected:
 #define _SPIRV_OP(x, ...)                                                      \
   typedef SPIRVInstTemplate<SPIRVBlockingPipesIntelInst, Op##x, __VA_ARGS__>   \
       SPIRV##x;
-_SPIRV_OP(ReadPipeBlockingINTEL, true, 7)
-_SPIRV_OP(WritePipeBlockingINTEL, true, 7)
+_SPIRV_OP(ReadPipeBlockingINTEL, false, 5)
+_SPIRV_OP(WritePipeBlockingINTEL, false, 5)
 #undef _SPIRV_OP
 
 class SPIRVAtomicInstBase : public SPIRVInstTemplateBase {

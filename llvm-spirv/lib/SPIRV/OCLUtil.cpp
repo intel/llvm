@@ -547,6 +547,16 @@ public:
       addVoidPtrArg(1);
       addUnsignedArg(2);
       addUnsignedArg(3);
+      // OpenCL-like representation of blocking pipes
+    } else if (UnmangledName == "read_pipe_2_bl" ||
+               UnmangledName == "write_pipe_2_bl") {
+      // with 2 arguments (plus two i32 literals):
+      // int read_pipe_bl (read_only pipe gentype p, gentype *ptr)
+      // int write_pipe_bl (write_only pipe gentype p, const gentype *ptr)
+      addVoidPtrArg(1);
+      addUnsignedArg(2);
+      addUnsignedArg(3);
+
     } else if (UnmangledName == "read_pipe_4" ||
                UnmangledName == "write_pipe_4") {
       // with 4 arguments (plus two i32 literals):
@@ -764,7 +774,7 @@ bool isSamplerTy(Type *Ty) {
 
 bool isPipeBI(const StringRef MangledName) {
   return MangledName == "write_pipe_2" || MangledName == "read_pipe_2" ||
-         MangledName == "write_pipe_bl_2" || MangledName == "read_pipe_bl_2" ||
+         MangledName == "write_pipe_2_bl" || MangledName == "read_pipe_2_bl" ||
          MangledName == "write_pipe_4" || MangledName == "read_pipe_4" ||
          MangledName == "reserve_write_pipe" ||
          MangledName == "reserve_read_pipe" ||

@@ -15,16 +15,18 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-SPIRV: 2 Capability BlockingPipesINTEL
 ; CHECK-SPIRV: 8 Extension "SPV_INTEL_blocking_pipes"
-; CHECK-SPIRV: 3 TypePipe {{[0-9]+}} 0
-; CHECK-SPIRV: 3 TypePipe {{[0-9]+}} 1
-; CHECK-SPIRV: 7 ReadPipeBlockingINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
-; CHECK-SPIRV: 7 WritePipeBlockingINTEL {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 3 TypePipe [[PipeRTy:[0-9]+]] 0
+; CHECK-SPIRV: 3 TypePipe [[PipeWTy:[0-9]+]] 1
+; CHECK-SPIRV: 6 Load [[PipeRTy]] [[PipeR:[0-9]+]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 5 ReadPipeBlockingINTEL [[PipeR]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 6 Load [[PipeWTy]] [[PipeW:[0-9]+]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 5 WritePipeBlockingINTEL [[PipeW]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 
 ; CHECK-LLVM: %opencl.pipe_ro_t = type opaque
 ; CHECK-LLVM: %opencl.pipe_wo_t = type opaque
 
-; CHECK-LLVM: %{{[0-9]+}} = call spir_func i32 @__read_pipe_bl_2(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
-; CHECK-LLVM: %{{[0-9]+}} = call spir_func i32 @__write_pipe_bl_2(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
+; CHECK-LLVM: call spir_func void @__read_pipe_2_bl(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
+; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
 
 ; Function Attrs: convergent noinline nounwind optnone
 define spir_func void @foo(%opencl.pipe_ro_t addrspace(1)* %p, i32 addrspace(1)* %ptr) #0 {
@@ -36,12 +38,12 @@ entry:
   %0 = load %opencl.pipe_ro_t addrspace(1)*, %opencl.pipe_ro_t addrspace(1)** %p.addr, align 8
   %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
   %2 = addrspacecast i32 addrspace(1)* %1 to i8 addrspace(4)*
-  %3 = call spir_func i32 @_Z29__spirv_ReadPipeBlockingINTELIiEi8ocl_pipePT_ii(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %2, i32 4, i32 4)
+  call spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePT_ii(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %2, i32 4, i32 4)
   ret void
 }
 
-declare dso_local spir_func i32 @_Z29__spirv_ReadPipeBlockingINTELIiEi8ocl_pipePT_ii(%opencl.pipe_ro_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
-; CHECK-LLVM: declare spir_func i32 @__read_pipe_bl_2(%opencl.pipe_ro_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
+declare dso_local spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePT_ii(%opencl.pipe_ro_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
+; CHECK-LLVM: declare spir_func void @__read_pipe_2_bl(%opencl.pipe_ro_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
 
 ; Function Attrs: convergent noinline nounwind optnone
 define spir_func void @boo(%opencl.pipe_wo_t addrspace(1)* %p, i32 addrspace(1)* %ptr) #0 {
@@ -53,12 +55,11 @@ entry:
   %0 = load %opencl.pipe_wo_t addrspace(1)*, %opencl.pipe_wo_t addrspace(1)** %p.addr, align 8
   %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
   %2 = addrspacecast i32 addrspace(1)* %1 to i8 addrspace(4)*
-  %3 = call spir_func i32 @_Z30__spirv_WritePipeBlockingINTELIKiEi8ocl_pipePT_ii(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %2, i32 4, i32 4)
+  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePT_ii(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %2, i32 4, i32 4)
   ret void
 }
-
-declare dso_local spir_func i32 @_Z30__spirv_WritePipeBlockingINTELIKiEi8ocl_pipePT_ii(%opencl.pipe_wo_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
-; CHECK-LLVM: declare spir_func i32 @__write_pipe_bl_2(%opencl.pipe_wo_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
+declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePT_ii(%opencl.pipe_wo_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
+; CHECK-LLVM: declare spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
 
 attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
