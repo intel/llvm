@@ -4,12 +4,6 @@
 
 SPV_INTEL_function_pointers
 
-== Contact
-
-To report problems with this extension, please open a new issue at:
-
-https://github.com/KhronosGroup/SPIRV-Headers
-
 == Contributors
 
 - Alexey Sachkov, Intel
