@@ -449,7 +449,9 @@ llvm::Value *TargetCodeGenInfo::performAddrSpaceCast(
   // space, an address space conversion may end up as a bitcast.
   if (auto *C = dyn_cast<llvm::Constant>(Src))
     return performAddrSpaceCast(CGF.CGM, C, SrcAddr, DestAddr, DestTy);
-  return CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(Src, DestTy);
+  // Try to preserve the source's name to make IR more readable.
+  return CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
+      Src, DestTy, Src->hasName() ? Src->getName() + ".ascast" : "");
 }
 
 llvm::Constant *
@@ -831,7 +833,7 @@ ABIArgInfo WebAssemblyABIInfo::classifyReturnType(QualType RetTy) const {
 
 Address WebAssemblyABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
                                       QualType Ty) const {
-  return emitVoidPtrVAArg(CGF, VAListAddr, Ty, /*Indirect=*/ false,
+  return emitVoidPtrVAArg(CGF, VAListAddr, Ty, /*IsIndirect=*/ false,
                           getContext().getTypeInfoInChars(Ty),
                           CharUnits::fromQuantity(4),
                           /*AllowHigherAlign=*/ true);
@@ -2222,8 +2224,8 @@ public:
 /// WinX86_64ABIInfo - The Windows X86_64 ABI information.
 class WinX86_64ABIInfo : public SwiftABIInfo {
 public:
-  WinX86_64ABIInfo(CodeGen::CodeGenTypes &CGT)
-      : SwiftABIInfo(CGT),
+  WinX86_64ABIInfo(CodeGen::CodeGenTypes &CGT, X86AVXABILevel AVXLevel)
+      : SwiftABIInfo(CGT), AVXLevel(AVXLevel),
         IsMingw64(getTarget().getTriple().isWindowsGNUEnvironment()) {}
 
   void computeInfo(CGFunctionInfo &FI) const override;
@@ -2259,7 +2261,9 @@ private:
   void computeVectorCallArgs(CGFunctionInfo &FI, unsigned FreeSSERegs,
                              bool IsVectorCall, bool IsRegCall) const;
 
-    bool IsMingw64;
+  X86AVXABILevel AVXLevel;
+
+  bool IsMingw64;
 };
 
 class X86_64TargetCodeGenInfo : public TargetCodeGenInfo {
@@ -2409,7 +2413,7 @@ class WinX86_64TargetCodeGenInfo : public TargetCodeGenInfo {
 public:
   WinX86_64TargetCodeGenInfo(CodeGen::CodeGenTypes &CGT,
                              X86AVXABILevel AVXLevel)
-      : TargetCodeGenInfo(new WinX86_64ABIInfo(CGT)) {}
+      : TargetCodeGenInfo(new WinX86_64ABIInfo(CGT, AVXLevel)) {}
 
   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
                            CodeGen::CodeGenModule &CGM) const override;
@@ -3562,7 +3566,7 @@ void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
   // using __attribute__((ms_abi)). In such case to correctly emit Win64
   // compatible code delegate this call to WinX86_64ABIInfo::computeInfo.
   if (CallingConv == llvm::CallingConv::Win64) {
-    WinX86_64ABIInfo Win64ABIInfo(CGT);
+    WinX86_64ABIInfo Win64ABIInfo(CGT, AVXLevel);
     Win64ABIInfo.computeInfo(FI);
     return;
   }
@@ -4016,9 +4020,17 @@ void WinX86_64ABIInfo::computeVectorCallArgs(CGFunctionInfo &FI,
 }
 
 void WinX86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
-  bool IsVectorCall =
-      FI.getCallingConvention() == llvm::CallingConv::X86_VectorCall;
-  bool IsRegCall = FI.getCallingConvention() == llvm::CallingConv::X86_RegCall;
+  const unsigned CC = FI.getCallingConvention();
+  bool IsVectorCall = CC == llvm::CallingConv::X86_VectorCall;
+  bool IsRegCall = CC == llvm::CallingConv::X86_RegCall;
+
+  // If __attribute__((sysv_abi)) is in use, use the SysV argument
+  // classification rules.
+  if (CC == llvm::CallingConv::X86_64_SysV) {
+    X86_64ABIInfo SysVABIInfo(CGT, AVXLevel);
+    SysVABIInfo.computeInfo(FI);
+    return;
+  }
 
   unsigned FreeSSERegs = 0;
   if (IsVectorCall) {
@@ -5592,6 +5604,7 @@ private:
                                           uint64_t Members) const;
   ABIArgInfo coerceIllegalVector(QualType Ty) const;
   bool isIllegalVectorType(QualType Ty) const;
+  bool containsAnyFP16Vectors(QualType Ty) const;
 
   bool isHomogeneousAggregateBaseType(QualType Ty) const override;
   bool isHomogeneousAggregateSmallEnough(const Type *Ty,
@@ -5791,9 +5804,7 @@ ABIArgInfo ARMABIInfo::classifyHomogeneousAggregate(QualType Ty,
   // Base can be a floating-point or a vector.
   if (const VectorType *VT = Base->getAs<VectorType>()) {
     // FP16 vectors should be converted to integer vectors
-    if (!getTarget().hasLegalHalfType() &&
-        (VT->getElementType()->isFloat16Type() ||
-          VT->getElementType()->isHalfType())) {
+    if (!getTarget().hasLegalHalfType() && containsAnyFP16Vectors(Ty)) {
       uint64_t Size = getContext().getTypeSize(VT);
       llvm::Type *NewVecTy = llvm::VectorType::get(
           llvm::Type::getInt32Ty(getVMContext()), Size / 32);
@@ -6154,6 +6165,37 @@ bool ARMABIInfo::isIllegalVectorType(QualType Ty) const {
   return false;
 }
 
+/// Return true if a type contains any 16-bit floating point vectors
+bool ARMABIInfo::containsAnyFP16Vectors(QualType Ty) const {
+  if (const ConstantArrayType *AT = getContext().getAsConstantArrayType(Ty)) {
+    uint64_t NElements = AT->getSize().getZExtValue();
+    if (NElements == 0)
+      return false;
+    return containsAnyFP16Vectors(AT->getElementType());
+  } else if (const RecordType *RT = Ty->getAs<RecordType>()) {
+    const RecordDecl *RD = RT->getDecl();
+
+    // If this is a C++ record, check the bases first.
+    if (const CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(RD))
+      if (llvm::any_of(CXXRD->bases(), [this](const CXXBaseSpecifier &B) {
+            return containsAnyFP16Vectors(B.getType());
+          }))
+        return true;
+
+    if (llvm::any_of(RD->fields(), [this](FieldDecl *FD) {
+          return FD && containsAnyFP16Vectors(FD->getType());
+        }))
+      return true;
+
+    return false;
+  } else {
+    if (const VectorType *VT = Ty->getAs<VectorType>())
+      return (VT->getElementType()->isFloat16Type() ||
+              VT->getElementType()->isHalfType());
+    return false;
+  }
+}
+
 bool ARMABIInfo::isLegalVectorTypeForSwift(CharUnits vectorSize,
                                            llvm::Type *eltTy,
                                            unsigned numElts) const {
@@ -6285,7 +6327,9 @@ private:
 static bool isUnsupportedType(ASTContext &Context, QualType T) {
   if (!Context.getTargetInfo().hasFloat16Type() && T->isFloat16Type())
     return true;
-  if (!Context.getTargetInfo().hasFloat128Type() && T->isFloat128Type())
+  if (!Context.getTargetInfo().hasFloat128Type() &&
+      (T->isFloat128Type() ||
+       (T->isRealFloatingType() && Context.getTypeSize(T) == 128)))
     return true;
   if (!Context.getTargetInfo().hasInt128Type() && T->isIntegerType() &&
       Context.getTypeSize(T) > 64)
@@ -7832,12 +7876,24 @@ static bool requiresAMDGPUProtectedVisibility(const Decl *D,
   return D->hasAttr<OpenCLKernelAttr>() ||
          (isa<FunctionDecl>(D) && D->hasAttr<CUDAGlobalAttr>()) ||
          (isa<VarDecl>(D) &&
-          (D->hasAttr<CUDADeviceAttr>() || D->hasAttr<CUDAConstantAttr>()));
+          (D->hasAttr<CUDADeviceAttr>() || D->hasAttr<CUDAConstantAttr>() ||
+           D->hasAttr<HIPPinnedShadowAttr>()));
+}
+
+static bool requiresAMDGPUDefaultVisibility(const Decl *D,
+                                            llvm::GlobalValue *GV) {
+  if (GV->getVisibility() != llvm::GlobalValue::HiddenVisibility)
+    return false;
+
+  return isa<VarDecl>(D) && D->hasAttr<HIPPinnedShadowAttr>();
 }
 
 void AMDGPUTargetCodeGenInfo::setTargetAttributes(
     const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &M) const {
-  if (requiresAMDGPUProtectedVisibility(D, GV)) {
+  if (requiresAMDGPUDefaultVisibility(D, GV)) {
+    GV->setVisibility(llvm::GlobalValue::DefaultVisibility);
+    GV->setDSOLocal(false);
+  } else if (requiresAMDGPUProtectedVisibility(D, GV)) {
     GV->setVisibility(llvm::GlobalValue::ProtectedVisibility);
     GV->setDSOLocal(true);
   }
@@ -7853,9 +7909,10 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
   const auto *ReqdWGS = M.getLangOpts().OpenCL ?
     FD->getAttr<ReqdWorkGroupSizeAttr>() : nullptr;
 
-  if (M.getLangOpts().OpenCL && FD->hasAttr<OpenCLKernelAttr>() &&
+  if (((M.getLangOpts().OpenCL && FD->hasAttr<OpenCLKernelAttr>()) ||
+      (M.getLangOpts().HIP && FD->hasAttr<CUDAGlobalAttr>())) &&
       (M.getTriple().getOS() == llvm::Triple::AMDHSA))
-    F->addFnAttr("amdgpu-implicitarg-num-bytes", "48");
+    F->addFnAttr("amdgpu-implicitarg-num-bytes", "56");
 
   const auto *FlatWGS = FD->getAttr<AMDGPUFlatWorkGroupSizeAttr>();
   if (ReqdWGS || FlatWGS) {

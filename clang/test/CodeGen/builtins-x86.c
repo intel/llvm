@@ -341,8 +341,6 @@ void f0() {
 #endif
   tmp_V2i = __builtin_ia32_cvttps2pi(tmp_V4f);
   (void) __builtin_ia32_maskmovq(tmp_V8c, tmp_V8c, tmp_cp);
-  (void) __builtin_ia32_storehps(tmp_V2ip, tmp_V4f);
-  (void) __builtin_ia32_storelps(tmp_V2ip, tmp_V4f);
   tmp_i = __builtin_ia32_movmskps(tmp_V4f);
   tmp_i = __builtin_ia32_pmovmskb(tmp_V8c);
   (void) __builtin_ia32_movntq(tmp_V1LLip, tmp_V1LLi);
@@ -399,6 +397,17 @@ void f0() {
 #ifndef OPENCL
   (void) _mm_pause();
 #endif
+
+  tmp_V4s = __builtin_ia32_psllwi(tmp_V4s, imm_i_0_8);
+  tmp_V2i = __builtin_ia32_pslldi(tmp_V2i, imm_i_0_8);
+  tmp_V1LLi = __builtin_ia32_psllqi(tmp_V1LLi, imm_i_0_8);
+  tmp_V4s = __builtin_ia32_psrawi(tmp_V4s, imm_i_0_8);
+  tmp_V2i = __builtin_ia32_psradi(tmp_V2i, imm_i_0_8);
+  tmp_V4s = __builtin_ia32_psrlwi(tmp_V4s, imm_i_0_8);
+  tmp_V2i = __builtin_ia32_psrldi(tmp_V2i, imm_i_0_8);
+  tmp_V1LLi = __builtin_ia32_psrlqi(tmp_V1LLi, imm_i_0_8);
+
+  // Using non-immediate argument supported for gcc compatibility
   tmp_V4s = __builtin_ia32_psllwi(tmp_V4s, tmp_i);
   tmp_V2i = __builtin_ia32_pslldi(tmp_V2i, tmp_i);
   tmp_V1LLi = __builtin_ia32_psllqi(tmp_V1LLi, tmp_i);
@@ -407,6 +416,7 @@ void f0() {
   tmp_V4s = __builtin_ia32_psrlwi(tmp_V4s, tmp_i);
   tmp_V2i = __builtin_ia32_psrldi(tmp_V2i, tmp_i);
   tmp_V1LLi = __builtin_ia32_psrlqi(tmp_V1LLi, tmp_i);
+
   tmp_V1LLi = __builtin_ia32_pmuludq(tmp_V2i, tmp_V2i);
   tmp_V2LLi = __builtin_ia32_pmuludq128(tmp_V4i, tmp_V4i);
   tmp_V8s = __builtin_ia32_psraw128(tmp_V8s, tmp_V8s);
@@ -417,6 +427,17 @@ void f0() {
   tmp_V8s = __builtin_ia32_psllw128(tmp_V8s, tmp_V8s);
   tmp_V4i = __builtin_ia32_pslld128(tmp_V4i, tmp_V4i);
   tmp_V2LLi = __builtin_ia32_psllq128(tmp_V2LLi, tmp_V2LLi);
+
+  tmp_V8s = __builtin_ia32_psllwi128(tmp_V8s, imm_i_0_8);
+  tmp_V4i = __builtin_ia32_pslldi128(tmp_V4i, imm_i_0_8);
+  tmp_V2LLi = __builtin_ia32_psllqi128(tmp_V2LLi, imm_i_0_8);
+  tmp_V8s = __builtin_ia32_psrlwi128(tmp_V8s, imm_i_0_8);
+  tmp_V4i = __builtin_ia32_psrldi128(tmp_V4i, imm_i_0_8);
+  tmp_V2LLi = __builtin_ia32_psrlqi128(tmp_V2LLi, imm_i_0_8);
+  tmp_V8s = __builtin_ia32_psrawi128(tmp_V8s, imm_i_0_8);
+  tmp_V4i = __builtin_ia32_psradi128(tmp_V4i, imm_i_0_8);
+
+  // Using non-immediate argument supported for gcc compatibility
   tmp_V8s = __builtin_ia32_psllwi128(tmp_V8s, tmp_i);
   tmp_V4i = __builtin_ia32_pslldi128(tmp_V4i, tmp_i);
   tmp_V2LLi = __builtin_ia32_psllqi128(tmp_V2LLi, tmp_i);
@@ -425,6 +446,7 @@ void f0() {
   tmp_V2LLi = __builtin_ia32_psrlqi128(tmp_V2LLi, tmp_i);
   tmp_V8s = __builtin_ia32_psrawi128(tmp_V8s, tmp_i);
   tmp_V4i = __builtin_ia32_psradi128(tmp_V4i, tmp_i);
+
   tmp_V4i = __builtin_ia32_pmaddwd128(tmp_V8s, tmp_V8s);
   (void) __builtin_ia32_monitor(tmp_vp, tmp_Ui, tmp_Ui);
   (void) __builtin_ia32_mwait(tmp_Ui, tmp_Ui);

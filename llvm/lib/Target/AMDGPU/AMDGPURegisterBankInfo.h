@@ -13,6 +13,7 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUREGISTERBANKINFO_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUREGISTERBANKINFO_H
 
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 
 #define GET_REGBANK_DECLARATIONS
@@ -41,22 +42,28 @@ class AMDGPURegisterBankInfo : public AMDGPUGenRegisterBankInfo {
                               MachineRegisterInfo &MRI,
                               ArrayRef<unsigned> OpIndices) const;
 
+  void constrainOpWithReadfirstlane(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                    unsigned OpIdx) const;
+  bool applyMappingWideLoad(MachineInstr &MI,
+                            const AMDGPURegisterBankInfo::OperandsMapper &OpdMapper,
+                            MachineRegisterInfo &MRI) const;
+
   /// See RegisterBankInfo::applyMapping.
   void applyMappingImpl(const OperandsMapper &OpdMapper) const override;
 
   const RegisterBankInfo::InstructionMapping &
   getInstrMappingForLoad(const MachineInstr &MI) const;
 
-  unsigned getRegBankID(unsigned Reg, const MachineRegisterInfo &MRI,
+  unsigned getRegBankID(Register Reg, const MachineRegisterInfo &MRI,
                         const TargetRegisterInfo &TRI,
                         unsigned Default = AMDGPU::VGPRRegBankID) const;
 
   /// Split 64-bit value \p Reg into two 32-bit halves and populate them into \p
   /// Regs. This appropriately sets the regbank of the new registers.
   void split64BitValueForMapping(MachineIRBuilder &B,
-                                 SmallVector<unsigned, 2> &Regs,
+                                 SmallVector<Register, 2> &Regs,
                                  LLT HalfTy,
-                                 unsigned Reg) const;
+                                 Register Reg) const;
 
   template <unsigned NumOps>
   struct OpRegBankEntry {
@@ -69,6 +76,10 @@ class AMDGPURegisterBankInfo : public AMDGPUGenRegisterBankInfo {
   addMappingFromTable(const MachineInstr &MI, const MachineRegisterInfo &MRI,
                       const std::array<unsigned, NumOps> RegSrcOpIdx,
                       ArrayRef<OpRegBankEntry<NumOps>> Table) const;
+
+  RegisterBankInfo::InstructionMappings
+  getInstrAlternativeMappingsIntrinsic(
+      const MachineInstr &MI, const MachineRegisterInfo &MRI) const;
 
   RegisterBankInfo::InstructionMappings
   getInstrAlternativeMappingsIntrinsicWSideEffects(

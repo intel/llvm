@@ -48,12 +48,12 @@
 
 ; CHECK: define spir_func void @foo() #0 {
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: %agg1 = insertvalue %{{[0-9]*}} undef
+; CHECK-NEXT: %agg1 = insertvalue %{{[0-9a-z\.]*}} undef
 ; CHECK-NEXT: ret void
 ; CHECK-NEXT: }
 ; CHECK: define spir_func void @bar() #0 {
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: %agg2 = insertvalue %{{[0-9]*}} undef
+; CHECK-NEXT: %agg2 = insertvalue %{{[0-9a-z\.]*}} undef
 ; CHECK-NEXT: ret void
 ; CHECK-NEXT: }
 

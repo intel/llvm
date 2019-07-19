@@ -1138,6 +1138,17 @@ extern const internal::VariadicDynCastAllOfMatcher<Decl, CXXMethodDecl>
 extern const internal::VariadicDynCastAllOfMatcher<Decl, CXXConversionDecl>
     cxxConversionDecl;
 
+/// Matches user-defined and implicitly generated deduction guide.
+///
+/// Example matches the deduction guide.
+/// \code
+///   template<typename T>
+///   class X { X(int) };
+///   X(int) -> X<int>;
+/// \endcode
+extern const internal::VariadicDynCastAllOfMatcher<Decl, CXXDeductionGuideDecl>
+    cxxDeductionGuideDecl;
+
 /// Matches variable declarations.
 ///
 /// Note: this does not match declarations of member variables, which are
@@ -6154,27 +6165,61 @@ AST_MATCHER(CXXConstructorDecl, isDelegatingConstructor) {
   return Node.isDelegatingConstructor();
 }
 
-/// Matches constructor and conversion declarations that are marked with
-/// the explicit keyword.
+/// Matches constructor, conversion function, and deduction guide declarations
+/// that have an explicit specifier if this explicit specifier is resolved to
+/// true.
 ///
 /// Given
 /// \code
+///   template<bool b>
 ///   struct S {
 ///     S(int); // #1
 ///     explicit S(double); // #2
 ///     operator int(); // #3
 ///     explicit operator bool(); // #4
+///     explicit(false) S(bool) // # 7
+///     explicit(true) S(char) // # 8
+///     explicit(b) S(S) // # 9
 ///   };
+///   S(int) -> S<true> // #5
+///   explicit S(double) -> S<false> // #6
 /// \endcode
-/// cxxConstructorDecl(isExplicit()) will match #2, but not #1.
+/// cxxConstructorDecl(isExplicit()) will match #2 and #8, but not #1, #7 or #9.
 /// cxxConversionDecl(isExplicit()) will match #4, but not #3.
-AST_POLYMORPHIC_MATCHER(isExplicit,
-                        AST_POLYMORPHIC_SUPPORTED_TYPES(CXXConstructorDecl,
-                                                        CXXConversionDecl)) {
-  // FIXME : it's not clear whether this should match a dependent
-  //         explicit(....). this matcher should also be able to match
-  //         CXXDeductionGuideDecl with explicit specifier.
+/// cxxDeductionGuideDecl(isExplicit()) will match #6, but not #5.
+AST_POLYMORPHIC_MATCHER(isExplicit, AST_POLYMORPHIC_SUPPORTED_TYPES(
+                                        CXXConstructorDecl, CXXConversionDecl,
+                                        CXXDeductionGuideDecl)) {
   return Node.isExplicit();
+}
+
+/// Matches the expression in an explicit specifier if present in the given
+/// declaration.
+///
+/// Given
+/// \code
+///   template<bool b>
+///   struct S {
+///     S(int); // #1
+///     explicit S(double); // #2
+///     operator int(); // #3
+///     explicit operator bool(); // #4
+///     explicit(false) S(bool) // # 7
+///     explicit(true) S(char) // # 8
+///     explicit(b) S(S) // # 9
+///   };
+///   S(int) -> S<true> // #5
+///   explicit S(double) -> S<false> // #6
+/// \endcode
+/// cxxConstructorDecl(hasExplicitSpecifier(constantExpr())) will match #7, #8 and #9, but not #1 or #2.
+/// cxxConversionDecl(hasExplicitSpecifier(constantExpr())) will not match #3 or #4.
+/// cxxDeductionGuideDecl(hasExplicitSpecifier(constantExpr())) will not match #5 or #6.
+AST_MATCHER_P(FunctionDecl, hasExplicitSpecifier, internal::Matcher<Expr>,
+              InnerMatcher) {
+  ExplicitSpecifier ES = ExplicitSpecifier::getFromDecl(&Node);
+  if (!ES.getExpr())
+    return false;
+  return InnerMatcher.matches(*ES.getExpr(), Finder, Builder);
 }
 
 /// Matches function and namespace declarations that are marked with
@@ -6450,6 +6495,44 @@ AST_MATCHER(FunctionDecl, hasTrailingReturn) {
   if (const auto *F = Node.getType()->getAs<FunctionProtoType>())
     return F->hasTrailingReturn();
   return false;
+}
+
+/// Matches expressions that match InnerMatcher that are possibly wrapped in an
+/// elidable constructor.
+///
+/// In C++17 copy elidable constructors are no longer being
+/// generated in the AST as it is not permitted by the standard. They are
+/// however part of the AST in C++14 and earlier. Therefore, to write a matcher
+/// that works in all language modes, the matcher has to skip elidable
+/// constructor AST nodes if they appear in the AST. This matcher can be used to
+/// skip those elidable constructors.
+///
+/// Given
+///
+/// \code
+/// struct H {};
+/// H G();
+/// void f() {
+///   H D = G();
+/// }
+/// \endcode
+///
+/// ``varDecl(hasInitializer(any(
+///       ignoringElidableConstructorCall(callExpr()),
+///       exprWithCleanups(ignoringElidableConstructorCall(callExpr()))))``
+/// matches ``H D = G()``
+AST_MATCHER_P(Expr, ignoringElidableConstructorCall,
+              ast_matchers::internal::Matcher<Expr>, InnerMatcher) {
+  if (const auto *CtorExpr = dyn_cast<CXXConstructExpr>(&Node)) {
+    if (CtorExpr->isElidable()) {
+      if (const auto *MaterializeTemp =
+              dyn_cast<MaterializeTemporaryExpr>(CtorExpr->getArg(0))) {
+        return InnerMatcher.matches(*MaterializeTemp->GetTemporaryExpr(),
+                                    Finder, Builder);
+      }
+    }
+  }
+  return InnerMatcher.matches(Node, Finder, Builder);
 }
 
 //----------------------------------------------------------------------------//

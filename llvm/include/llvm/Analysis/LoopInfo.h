@@ -201,9 +201,10 @@ public:
   }
 
   /// True if terminator in the block can branch to another block that is
-  /// outside of the current loop.
+  /// outside of the current loop. \p BB must be inside the loop.
   bool isLoopExiting(const BlockT *BB) const {
     assert(!isInvalid() && "Loop not in a valid state!");
+    assert(contains(BB) && "Exiting block must be part of the loop");
     for (const auto &Succ : children<const BlockT *>(BB)) {
       if (!contains(Succ))
         return true;
@@ -269,16 +270,20 @@ public:
 
   /// Return all unique successor blocks of this loop.
   /// These are the blocks _outside of the current loop_ which are branched to.
-  /// This assumes that loop exits are in canonical form, i.e. all exits are
-  /// dedicated exits.
   void getUniqueExitBlocks(SmallVectorImpl<BlockT *> &ExitBlocks) const;
+
+  /// Return all unique successor blocks of this loop except successors from
+  /// Latch block are not considered. If the exit comes from Latch has also
+  /// non Latch predecessor in a loop it will be added to ExitBlocks.
+  /// These are the blocks _outside of the current loop_ which are branched to.
+  void getUniqueNonLatchExitBlocks(SmallVectorImpl<BlockT *> &ExitBlocks) const;
 
   /// If getUniqueExitBlocks would return exactly one block, return that block.
   /// Otherwise return null.
   BlockT *getUniqueExitBlock() const;
 
   /// Edge type.
-  typedef std::pair<const BlockT *, const BlockT *> Edge;
+  typedef std::pair<BlockT *, BlockT *> Edge;
 
   /// Return all pairs of (_inside_block_,_outside_block_).
   void getExitEdges(SmallVectorImpl<Edge> &ExitEdges) const;
@@ -309,6 +314,40 @@ public:
     for (const auto Pred : children<Inverse<BlockT *>>(H))
       if (contains(Pred))
         LoopLatches.push_back(Pred);
+  }
+
+  /// Return all inner loops in the loop nest rooted by the loop in preorder,
+  /// with siblings in forward program order.
+  template <class Type>
+  static void getInnerLoopsInPreorder(const LoopT &L,
+                                      SmallVectorImpl<Type> &PreOrderLoops) {
+    SmallVector<LoopT *, 4> PreOrderWorklist;
+    PreOrderWorklist.append(L.rbegin(), L.rend());
+
+    while (!PreOrderWorklist.empty()) {
+      LoopT *L = PreOrderWorklist.pop_back_val();
+      // Sub-loops are stored in forward program order, but will process the
+      // worklist backwards so append them in reverse order.
+      PreOrderWorklist.append(L->rbegin(), L->rend());
+      PreOrderLoops.push_back(L);
+    }
+  }
+
+  /// Return all loops in the loop nest rooted by the loop in preorder, with
+  /// siblings in forward program order.
+  SmallVector<const LoopT *, 4> getLoopsInPreorder() const {
+    SmallVector<const LoopT *, 4> PreOrderLoops;
+    const LoopT *CurLoop = static_cast<const LoopT *>(this);
+    PreOrderLoops.push_back(CurLoop);
+    getInnerLoopsInPreorder(*CurLoop, PreOrderLoops);
+    return PreOrderLoops;
+  }
+  SmallVector<LoopT *, 4> getLoopsInPreorder() {
+    SmallVector<LoopT *, 4> PreOrderLoops;
+    LoopT *CurLoop = static_cast<LoopT *>(this);
+    PreOrderLoops.push_back(CurLoop);
+    getInnerLoopsInPreorder(*CurLoop, PreOrderLoops);
+    return PreOrderLoops;
   }
 
   //===--------------------------------------------------------------------===//

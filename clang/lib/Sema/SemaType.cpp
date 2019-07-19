@@ -751,7 +751,7 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*IsAmbiguous=*/false,
       /*LParenLoc=*/NoLoc,
       /*ArgInfo=*/nullptr,
-      /*NumArgs=*/0,
+      /*NumParams=*/0,
       /*EllipsisLoc=*/NoLoc,
       /*RParenLoc=*/NoLoc,
       /*RefQualifierIsLvalueRef=*/true,
@@ -2459,6 +2459,11 @@ bool Sema::CheckFunctionReturnType(QualType T, SourceLocation Loc) {
         << 0 << T << FixItHint::CreateInsertion(Loc, "*");
     return true;
   }
+
+  if (T.hasNonTrivialToPrimitiveDestructCUnion() ||
+      T.hasNonTrivialToPrimitiveCopyCUnion())
+    checkNonTrivialCUnion(T, Loc, NTCUC_FunctionReturn,
+                          NTCUK_Destruct|NTCUK_Copy);
 
   return false;
 }
@@ -5161,7 +5166,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   // C++0x [dcl.constexpr]p9:
   //  A constexpr specifier used in an object declaration declares the object
   //  as const.
-  if (D.getDeclSpec().isConstexprSpecified() && T->isObjectType()) {
+  if (D.getDeclSpec().hasConstexprSpecifier() && T->isObjectType()) {
     T.addConst();
   }
 
@@ -7070,7 +7075,7 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
       // stdcall and fastcall are ignored with a warning for GCC and MS
       // compatibility.
       if (CC == CC_X86StdCall || CC == CC_X86FastCall)
-        return S.Diag(attr.getLoc(), diag::warn_cconv_ignored)
+        return S.Diag(attr.getLoc(), diag::warn_cconv_unsupported)
                << FunctionType::getNameForCallConv(CC)
                << (int)Sema::CallingConventionIgnoredReason::VariadicFunction;
 
@@ -7135,7 +7140,7 @@ void Sema::adjustMemberFunctionCC(QualType &T, bool IsStatic, bool IsCtorOrDtor,
     // Issue a warning on ignored calling convention -- except of __stdcall.
     // Again, this is what MS compiler does.
     if (CurCC != CC_X86StdCall)
-      Diag(Loc, diag::warn_cconv_ignored)
+      Diag(Loc, diag::warn_cconv_unsupported)
           << FunctionType::getNameForCallConv(CurCC)
           << (int)Sema::CallingConventionIgnoredReason::ConstructorDestructor;
   // Default adjustment.

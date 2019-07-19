@@ -182,10 +182,9 @@ define float @foo_loop(%swift_error** swifterror %error_ptr_ref, i32 %cc, float 
 ; CHECK-APPLE: mov r0, #16
 ; CHECK-APPLE: malloc
 ; CHECK-APPLE: strb r{{.*}}, [r0, #8]
-; CHECK-APPLE: ble
+; CHECK-APPLE: b
 
 ; CHECK-O0-LABEL: foo_loop:
-; CHECK-O0: mov r{{.*}}, r8
 ; CHECK-O0: cmp r{{.*}}, #0
 ; CHECK-O0: beq
 ; CHECK-O0: mov r0, #16

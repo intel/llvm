@@ -1,41 +1,52 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spt -spirv-text -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
+; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 1 RegisterINTEL
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "DEFAULT"
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 3 MemoryINTEL "DEFAULT"
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 2 MemoryINTEL "MLAB"
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 4
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 3 BankwidthINTEL 8
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 4 MaxconcurrencyINTEL 4
+; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 4 MaxPrivateCopiesINTEL 4
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 5 SinglepumpINTEL
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 6 DoublepumpINTEL
+; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 8 MaxReplicatesINTEL 4
+; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 9 SimpleDualPortINTEL
+; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 7 MergeINTEL "foobar" "width"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
 
 %class.anon = type { i8 }
-%struct.foo = type { i32, i32, i32, i32, i8, i32, i32 }
+%struct.foo = type { i32, i32, i32, i32, i8, i32, i32, i32, i32, i32 }
 
-; CHECK-LLVM: [[STR1:@[a-zA-Z0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:4}
-; CHECK-LLVM: [[STR2:@[a-zA-Z0-9_.]+]] = {{.*}}{register:1}
-; CHECK-LLVM: [[STR3:@[a-zA-Z0-9_.]+]] = {{.*}}{memory:MLAB}
-; CHECK-LLVM: [[STR4:@[a-zA-Z0-9_.]+]] = {{.*}}{memory:DEFAULT}{bankwidth:8}
-; CHECK-LLVM: [[STR5:@[a-zA-Z0-9_.]+]] = {{.*}}{memory:DEFAULT}{max_concurrency:4}
-; CHECK-LLVM: [[STR6:@[a-zA-Z0-9_.]+]] = {{.*}}{memory:DEFAULT}{pump:1}
-; CHECK-LLVM: [[STR7:@[a-zA-Z0-9_.]+]] = {{.*}}{memory:DEFAULT}{pump:2}
+; CHECK-LLVM: [[STR1:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:4}
+; CHECK-LLVM: [[STR2:@[0-9_.]+]] = {{.*}}{register:1}
+; CHECK-LLVM: [[STR3:@[0-9_.]+]] = {{.*}}{memory:MLAB}
+; CHECK-LLVM: [[STR4:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{bankwidth:8}
+; CHECK-LLVM: [[STR5:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{max_private_copies:4}
+; CHECK-LLVM: [[STR6:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{pump:1}
+; CHECK-LLVM: [[STR7:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{pump:2}
+; CHECK-LLVM: [[STR8:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{merge:foobar:width}
+; CHECK-LLVM: [[STR9:@[0-9_.]+]] = {{.*}}{max_replicates:4}
+; CHECK-LLVM: [[STR10:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{simple_dual_port:1}
 @.str = private unnamed_addr constant [29 x i8] c"{memory:DEFAULT}{numbanks:4}\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [16 x i8] c"test_struct.cpp\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [13 x i8] c"{register:1}\00", section "llvm.metadata"
 @.str.3 = private unnamed_addr constant [14 x i8] c"{memory:MLAB}\00", section "llvm.metadata"
 @.str.4 = private unnamed_addr constant [30 x i8] c"{memory:DEFAULT}{bankwidth:8}\00", section "llvm.metadata"
-@.str.5 = private unnamed_addr constant [36 x i8] c"{memory:DEFAULT}{max_concurrency:4}\00", section "llvm.metadata"
+@.str.5 = private unnamed_addr constant [39 x i8] c"{memory:DEFAULT}{max_private_copies:4}\00", section "llvm.metadata"
 @.str.6 = private unnamed_addr constant [25 x i8] c"{memory:DEFAULT}{pump:1}\00", section "llvm.metadata"
 @.str.7 = private unnamed_addr constant [25 x i8] c"{memory:DEFAULT}{pump:2}\00", section "llvm.metadata"
+@.str.8 = private unnamed_addr constant [37 x i8] c"{memory:DEFAULT}{merge:foobar:width}\00", section "llvm.metadata"
+@.str.9 = private unnamed_addr constant [19 x i8] c"{max_replicates:4}\00", section "llvm.metadata"
+@.str.10 = private unnamed_addr constant [37 x i8] c"{memory:DEFAULT}{simple_dual_port:1}\00", section "llvm.metadata"
 
 ; Function Attrs: nounwind
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -106,7 +117,7 @@ entry:
   ; CHECK-LLVM: %[[FIELD5:.*]] = getelementptr inbounds %struct.foo, %struct.foo* %{{[a-zA-Z0-9]+}}, i32 0, i32 4
   ; CHECK-LLVM: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[FIELD5]]{{.*}}[[STR5]]
   %f5 = getelementptr inbounds %struct.foo, %struct.foo* %s1, i32 0, i32 4
-  %13 = call i8* @llvm.ptr.annotation.p0i8(i8* %f5, i8* getelementptr inbounds ([36 x i8], [36 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.1, i32 0, i32 0), i32 6)
+  %13 = call i8* @llvm.ptr.annotation.p0i8(i8* %f5, i8* getelementptr inbounds ([39 x i8], [39 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.1, i32 0, i32 0), i32 6)
   store i8 0, i8* %13, align 4, !tbaa !15
   ; CHECK-LLVM: %[[FIELD6:.*]] = getelementptr inbounds %struct.foo, %struct.foo* %{{[a-zA-Z0-9]+}}, i32 0, i32 5
   ; CHECK-LLVM: %[[CAST6:.*]] = bitcast{{.*}}%[[FIELD6]]
@@ -124,8 +135,32 @@ entry:
   %18 = call i8* @llvm.ptr.annotation.p0i8(i8* %17, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.7, i32 0, i32 0), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.1, i32 0, i32 0), i32 8)
   %19 = bitcast i8* %18 to i32*
   store i32 0, i32* %19, align 4, !tbaa !17
-  %20 = bitcast %struct.foo* %s1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 28, i8* %20) #4
+  ; CHECK-LLVM: %[[FIELD8:.*]] = getelementptr inbounds %struct.foo, %struct.foo* %{{[a-zA-Z0-9]+}}, i32 0, i32 7
+  ; CHECK-LLVM: %[[CAST8:.*]] = bitcast{{.*}}%[[FIELD8]]
+  ; CHECK-LLVM: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST8]]{{.*}}[[STR8]]
+  %f8 = getelementptr inbounds %struct.foo, %struct.foo* %s1, i32 0, i32 7
+  %20 = bitcast i32* %f8 to i8*
+  %21 = call i8* @llvm.ptr.annotation.p0i8(i8* %20, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.8, i32 0, i32 0), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.1, i32 0, i32 0), i32 9)
+  %22 = bitcast i8* %21 to i32*
+  store i32 0, i32* %22, align 4, !tbaa !18
+  ; CHECK-LLVM: %[[FIELD9:.*]] = getelementptr inbounds %struct.foo, %struct.foo* %{{[a-zA-Z0-9]+}}, i32 0, i32 8
+  ; CHECK-LLVM: %[[CAST9:.*]] = bitcast{{.*}}%[[FIELD9]]
+  ; CHECK-LLVM: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST9]]{{.*}}[[STR9]]
+  %f9 = getelementptr inbounds %struct.foo, %struct.foo* %s1, i32 0, i32 8
+  %23 = bitcast i32* %f9 to i8*
+  %24 = call i8* @llvm.ptr.annotation.p0i8(i8* %23, i8* getelementptr inbounds ([19 x i8], [19 x i8]* @.str.9, i32 0, i32 0), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.1, i32 0, i32 0), i32 10)
+  %25 = bitcast i8* %24 to i32*
+  store i32 0, i32* %25, align 4, !tbaa !19
+  ; CHECK-LLVM: %[[FIELD10:.*]] = getelementptr inbounds %struct.foo, %struct.foo* %{{[a-zA-Z0-9]+}}, i32 0, i32 9
+  ; CHECK-LLVM: %[[CAST10:.*]] = bitcast{{.*}}%[[FIELD10]]
+  ; CHECK-LLVM: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST10]]{{.*}}[[STR10]]
+  %f10 = getelementptr inbounds %struct.foo, %struct.foo* %s1, i32 0, i32 9
+  %26 = bitcast i32* %f10 to i8*
+  %27 = call i8* @llvm.ptr.annotation.p0i8(i8* %26, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.10, i32 0, i32 0), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.1, i32 0, i32 0), i32 11)
+  %28 = bitcast i8* %27 to i32*
+  store i32 0, i32* %28, align 4, !tbaa !20
+  %29 = bitcast %struct.foo* %s1 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 40, i8* %29) #4
   ret void
 }
 
@@ -153,7 +188,7 @@ attributes #4 = { nounwind }
 !7 = !{!"omnipotent char", !8, i64 0}
 !8 = !{!"Simple C++ TBAA"}
 !9 = !{!10, !11, i64 0}
-!10 = !{!"_ZTS3foo", !11, i64 0, !11, i64 4, !11, i64 8, !11, i64 12, !11, i64 16, !11, i64 20, !11, i64 24}
+!10 = !{!"_ZTS3foo", !11, i64 0, !11, i64 4, !11, i64 8, !11, i64 12, !11, i64 16, !11, i64 20, !11, i64 24, !11, i64 28, !11, i64 32, !11, i64 36}
 !11 = !{!"int", !7, i64 0}
 !12 = !{!10, !11, i64 4}
 !13 = !{!10, !11, i64 8}
@@ -161,3 +196,7 @@ attributes #4 = { nounwind }
 !15 = !{!10, !11, i64 16}
 !16 = !{!10, !11, i64 20}
 !17 = !{!10, !11, i64 24}
+!18 = !{!10, !11, i64 28}
+!19 = !{!10, !11, i64 32}
+!20 = !{!10, !11, i64 36}
+

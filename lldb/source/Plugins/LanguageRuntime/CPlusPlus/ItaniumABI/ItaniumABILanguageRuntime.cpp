@@ -43,6 +43,8 @@ using namespace lldb_private;
 
 static const char *vtable_demangled_prefix = "vtable for ";
 
+char ItaniumABILanguageRuntime::ID = 0;
+
 bool ItaniumABILanguageRuntime::CouldHaveDynamicValue(ValueObject &in_value) {
   const bool check_cxx = true;
   const bool check_objc = false;
@@ -305,14 +307,6 @@ TypeAndOrName ItaniumABILanguageRuntime::FixUpDynamicType(
   return ret;
 }
 
-bool ItaniumABILanguageRuntime::IsVTableName(const char *name) {
-  if (name == nullptr)
-    return false;
-
-  // Can we maybe ask Clang about this?
-  return strstr(name, "_vptr$") == name;
-}
-
 // Static Functions
 LanguageRuntime *
 ItaniumABILanguageRuntime::CreateInstance(Process *process,
@@ -473,16 +467,14 @@ BreakpointResolverSP ItaniumABILanguageRuntime::CreateExceptionResolver(
 lldb::SearchFilterSP ItaniumABILanguageRuntime::CreateExceptionSearchFilter() {
   Target &target = m_process->GetTarget();
 
+  FileSpecList filter_modules;
   if (target.GetArchitecture().GetTriple().getVendor() == llvm::Triple::Apple) {
     // Limit the number of modules that are searched for these breakpoints for
     // Apple binaries.
-    FileSpecList filter_modules;
     filter_modules.Append(FileSpec("libc++abi.dylib"));
     filter_modules.Append(FileSpec("libSystem.B.dylib"));
-    return target.GetSearchFilterForModuleList(&filter_modules);
-  } else {
-    return LanguageRuntime::CreateExceptionSearchFilter();
   }
+  return target.GetSearchFilterForModuleList(&filter_modules);
 }
 
 lldb::BreakpointSP ItaniumABILanguageRuntime::CreateExceptionBreakpoint(

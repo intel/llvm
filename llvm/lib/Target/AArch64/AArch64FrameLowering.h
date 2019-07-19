@@ -40,8 +40,11 @@ public:
   int getFrameIndexReference(const MachineFunction &MF, int FI,
                              unsigned &FrameReg) const override;
   int resolveFrameIndexReference(const MachineFunction &MF, int FI,
-                                 unsigned &FrameReg,
-                                 bool PreferFP = false) const;
+                                 unsigned &FrameReg, bool PreferFP,
+                                 bool ForSimm) const;
+  int resolveFrameOffsetReference(const MachineFunction &MF, int ObjectOffset,
+                                  bool isFixed, unsigned &FrameReg,
+                                  bool PreferFP, bool ForSimm) const;
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
                                  const std::vector<CalleeSavedInfo> &CSI,

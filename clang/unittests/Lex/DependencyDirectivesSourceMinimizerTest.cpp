@@ -405,25 +405,27 @@ TEST(MinimizeSourceToDependencyDirectivesTest, RawStringLiteral) {
                "#endif\n",
                Out.data());
 
-  ASSERT_FALSE(minimizeSourceToDependencyDirectives(
+  bool RawStringLiteralResult = minimizeSourceToDependencyDirectives(
       "#ifndef GUARD\n"
       "#define GUARD\n"
       R"raw(static constexpr char bytes[] = R"(-?:\,[]{}#&*!|>'"%@`)";)raw"
       "\n"
       "#endif\n",
-      Out));
+      Out);
+  ASSERT_FALSE(RawStringLiteralResult);
   EXPECT_STREQ("#ifndef GUARD\n"
                "#define GUARD\n"
                "#endif\n",
                Out.data());
 
-  ASSERT_FALSE(minimizeSourceToDependencyDirectives(
+  bool RawStringLiteralResult2 = minimizeSourceToDependencyDirectives(
       "#ifndef GUARD\n"
       "#define GUARD\n"
       R"raw(static constexpr char bytes[] = R"abc(-?:\,[]{}#&*!|>'"%@`)abc";)raw"
       "\n"
       "#endif\n",
-      Out));
+      Out);
+  ASSERT_FALSE(RawStringLiteralResult2);
   EXPECT_STREQ("#ifndef GUARD\n"
                "#define GUARD\n"
                "#endif\n",
@@ -503,6 +505,43 @@ int c = 12 ' ';
 )";
   ASSERT_FALSE(minimizeSourceToDependencyDirectives(Source, Out));
   EXPECT_STREQ("#include <bob>\n#include <foo>\n", Out.data());
+}
+
+TEST(MinimizeSourceToDependencyDirectivesTest, CharacterLiteralPrefixL) {
+  SmallVector<char, 128> Out;
+
+  StringRef Source = R"(L'P'
+#if DEBUG
+// '
+#endif
+#include <test.h>
+)";
+  ASSERT_FALSE(minimizeSourceToDependencyDirectives(Source, Out));
+  EXPECT_STREQ("#include <test.h>\n", Out.data());
+}
+
+TEST(MinimizeSourceToDependencyDirectivesTest, CharacterLiteralPrefixU) {
+  SmallVector<char, 128> Out;
+
+  StringRef Source = R"(int x = U'P';
+#include <test.h>
+// '
+)";
+  ASSERT_FALSE(minimizeSourceToDependencyDirectives(Source, Out));
+  EXPECT_STREQ("#include <test.h>\n", Out.data());
+}
+
+TEST(MinimizeSourceToDependencyDirectivesTest, CharacterLiteralPrefixu) {
+  SmallVector<char, 128> Out;
+
+  StringRef Source = R"(int x = u'b';
+int y = u8'a';
+int z = 128'78;
+#include <test.h>
+// '
+)";
+  ASSERT_FALSE(minimizeSourceToDependencyDirectives(Source, Out));
+  EXPECT_STREQ("#include <test.h>\n", Out.data());
 }
 
 } // end anonymous namespace

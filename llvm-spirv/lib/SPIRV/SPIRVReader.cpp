@@ -266,11 +266,18 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
   std::vector<Instruction *> Deletes;
   std::vector<Instruction *> Uses;
   for (auto UI = GV->user_begin(), UE = GV->user_end(); UI != UE; ++UI) {
-    assert(isa<LoadInst>(*UI) && "Unsupported use");
-    auto LD = cast<LoadInst>(*UI);
+    LoadInst *LD = nullptr;
+    AddrSpaceCastInst *ASCast = dyn_cast<AddrSpaceCastInst>(*UI);
+    if (ASCast) {
+      LD = cast<LoadInst>(*ASCast->user_begin());
+    } else {
+      LD = cast<LoadInst>(*UI);
+    }
     if (!IsVec) {
       Uses.push_back(LD);
       Deletes.push_back(LD);
+      if (ASCast)
+        Deletes.push_back(ASCast);
       continue;
     }
     for (auto LDUI = LD->user_begin(), LDUE = LD->user_end(); LDUI != LDUE;
@@ -281,6 +288,8 @@ bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
       Deletes.push_back(EEI);
     }
     Deletes.push_back(LD);
+    if (ASCast)
+      Deletes.push_back(ASCast);
   }
   for (auto &I : Uses) {
     std::vector<Value *> Arg;
@@ -411,6 +420,8 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
     if (!Name.empty()) {
       if (auto OldST = M->getTypeByName(Name))
         OldST->setName("");
+    } else {
+      Name = "structtype";
     }
     auto *StructTy = StructType::create(*Context, Name);
     mapType(ST, StructTy);
@@ -434,12 +445,18 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
         T, getOrCreateOpaquePtrType(M, transOCLPipeStorageTypeName(PST),
                                     getOCLOpaqueTypeAddrSpace(T->getOpCode())));
   }
+  // OpenCL Compiler does not use this instruction
+  case OpTypeVmeImageINTEL:
+    return nullptr;
   default: {
     auto OC = T->getOpCode();
-    if (isOpaqueGenericTypeOpCode(OC))
+    if (isOpaqueGenericTypeOpCode(OC) || isSubgroupAvcINTELTypeOpCode(OC)) {
+      auto Name = isSubgroupAvcINTELTypeOpCode(OC)
+                      ? OCLSubgroupINTELTypeOpCodeMap::rmap(OC)
+                      : OCLOpaqueTypeOpCodeMap::rmap(OC);
       return mapType(
-          T, getOrCreateOpaquePtrType(M, OCLOpaqueTypeOpCodeMap::rmap(OC),
-                                      getOCLOpaqueTypeAddrSpace(OC)));
+          T, getOrCreateOpaquePtrType(M, Name, getOCLOpaqueTypeAddrSpace(OC)));
+    }
     llvm_unreachable("Not implemented");
   }
   }
@@ -1479,6 +1496,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
                                        BV->getName(), BB));
   }
 
+  case OpVmeImageINTEL:
   case OpLine:
   case OpSelectionMerge: // OpenCL Compiler does not use this instruction
   case OpLoopMerge: // Should be translated at OpBranch or OpBranchConditional
@@ -1662,10 +1680,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       llvm_unreachable("Unknown extended instruction set!");
     }
   }
-  case OpControlBarrier:
-  case OpMemoryBarrier:
-    return mapValue(
-        BV, transOCLBarrierFence(static_cast<SPIRVInstruction *>(BV), BB));
 
   case OpSNegate: {
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
@@ -1702,7 +1716,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
     auto Call = CallInst::Create(Func, Args, "copysign", BB);
     setCallingConv(Call);
-    addFnAttr(Context, Call, Attribute::NoUnwind);
+    addFnAttr(Call, Attribute::NoUnwind);
     return mapValue(BV, Call);
   }
   case OpFNegate: {
@@ -1747,6 +1761,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     if (isSPIRVCmpInstTransToLLVMInst(static_cast<SPIRVInstruction *>(BV))) {
       return mapValue(BV, transCmpInst(BV, BB, F));
     } else if ((OCLSPIRVBuiltinMap::rfind(OC, nullptr) ||
+                isSubgroupAvcINTELInstructionOpCode(OC) ||
                 isIntelSubgroupOpCode(OC)) &&
                !isAtomicOpCode(OC) && !isGroupOpCode(OC) && !isPipeOpCode(OC)) {
       return mapValue(
@@ -1871,6 +1886,54 @@ void SPIRVToLLVM::transOCLBuiltinFromInstPreproc(
   else if (OC == OpImageRead && Args.size() > 2) {
     // Drop "Image operands" argument
     Args.erase(Args.begin() + 2);
+  } else if (isSubgroupAvcINTELEvaluateOpcode(OC)) {
+    // There are three types of AVC Intel Evaluate opcodes:
+    // 1. With multi reference images - does not use OpVmeImageINTEL opcode for
+    // reference images
+    // 2. With dual reference images - uses two OpVmeImageINTEL opcodes for
+    // reference image
+    // 3. With single reference image - uses one OpVmeImageINTEL opcode for
+    // reference image
+    int NumImages =
+        std::count_if(Args.begin(), Args.end(), [](SPIRVValue *Arg) {
+          return static_cast<SPIRVInstruction *>(Arg)->getOpCode() ==
+                 OpVmeImageINTEL;
+        });
+    if (NumImages) {
+      SPIRVInstruction *SrcImage = static_cast<SPIRVInstruction *>(Args[0]);
+      assert(SrcImage &&
+             "Src image operand not found in avc evaluate instruction");
+      if (NumImages == 1) {
+        // Multi reference opcode - remove src image OpVmeImageINTEL opcode
+        // and replace it with corresponding OpImage and OpSampler arguments
+        bool IsInterlaced = (Args.size() == 4) ? true : false;
+        size_t SamplerPos = IsInterlaced ? 3 : 2;
+        Args.erase(Args.begin(), Args.begin() + 1);
+        Args.insert(Args.begin(), SrcImage->getOperands()[0]);
+        Args.insert(Args.begin() + SamplerPos, SrcImage->getOperands()[1]);
+      } else {
+        SPIRVInstruction *FwdRefImage =
+            static_cast<SPIRVInstruction *>(Args[1]);
+        SPIRVInstruction *BwdRefImage =
+            static_cast<SPIRVInstruction *>(Args[2]);
+        assert(FwdRefImage && "invalid avc evaluate instruction");
+        // Single reference opcode - remove src and ref image OpVmeImageINTEL
+        // opcodes and replace them with src and ref OpImage opcodes and
+        // OpSampler
+        Args.erase(Args.begin(), Args.begin() + NumImages);
+        // insert source OpImage and OpSampler
+        auto SrcOps = SrcImage->getOperands();
+        Args.insert(Args.begin(), SrcOps.begin(), SrcOps.end());
+        // insert reference OpImage
+        Args.insert(Args.begin() + 1, FwdRefImage->getOperands()[0]);
+        if (NumImages == 3) {
+          // Dual reference opcode - insert second reference OpImage argument
+          assert(BwdRefImage && "invalid avc evaluate instruction");
+          Args.insert(Args.begin() + 2, BwdRefImage->getOperands()[0]);
+        }
+      }
+    } else
+      llvm_unreachable("invalid avc instruction");
   }
 }
 
@@ -2144,6 +2207,9 @@ std::string SPIRVToLLVM::getOCLBuiltinName(SPIRVInstruction *BI) {
     }
     return Name.str();
   }
+  if (isSubgroupAvcINTELInstructionOpCode(OC))
+    return OCLSPIRVSubgroupAVCIntelBuiltinMap::rmap(OC);
+
   auto Name = OCLSPIRVBuiltinMap::rmap(OC);
 
   SPIRVType *T = nullptr;
@@ -2290,12 +2356,19 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
     Out << "{bankwidth:" << Result << '}';
   if (E->hasDecorate(DecorationNumbanksINTEL, 0, &Result))
     Out << "{numbanks:" << Result << '}';
-  if (E->hasDecorate(DecorationMaxconcurrencyINTEL, 0, &Result))
-    Out << "{max_concurrency:" << Result << '}';
+  if (E->hasDecorate(DecorationMaxPrivateCopiesINTEL, 0, &Result))
+    Out << "{max_private_copies:" << Result << '}';
   if (E->hasDecorate(DecorationSinglepumpINTEL))
     Out << "{pump:1}";
   if (E->hasDecorate(DecorationDoublepumpINTEL))
     Out << "{pump:2}";
+  if (E->hasDecorate(DecorationMaxReplicatesINTEL, 0, &Result))
+    Out << "{max_replicates:" << Result << '}';
+  if (E->hasDecorate(DecorationSimpleDualPortINTEL))
+    Out << "{simple_dual_port:1}";
+  if (E->hasDecorate(DecorationMergeINTEL))
+    Out << "{merge:" << E->getDecorationStringLiteral(DecorationMergeINTEL)
+        << '}';
   if (E->hasDecorate(DecorationUserSemantic))
     Out << E->getDecorationStringLiteral(DecorationUserSemantic);
 }
@@ -2317,13 +2390,23 @@ void generateIntelFPGAAnnotationForStructMember(
     Out << "{bankwidth:" << Result << '}';
   if (E->hasMemberDecorate(DecorationNumbanksINTEL, 0, MemberNumber, &Result))
     Out << "{numbanks:" << Result << '}';
-  if (E->hasMemberDecorate(DecorationMaxconcurrencyINTEL, 0, MemberNumber,
+  if (E->hasMemberDecorate(DecorationMaxPrivateCopiesINTEL, 0, MemberNumber,
                            &Result))
-    Out << "{max_concurrency:" << Result << '}';
+    Out << "{max_private_copies:" << Result << '}';
   if (E->hasMemberDecorate(DecorationSinglepumpINTEL, 0, MemberNumber))
     Out << "{pump:1}";
   if (E->hasMemberDecorate(DecorationDoublepumpINTEL, 0, MemberNumber))
     Out << "{pump:2}";
+  if (E->hasMemberDecorate(DecorationMaxReplicatesINTEL, 0, MemberNumber,
+                           &Result))
+    Out << "{max_replicates:" << Result << '}';
+  if (E->hasMemberDecorate(DecorationSimpleDualPortINTEL, 0, MemberNumber))
+    Out << "{simple_dual_port:1}";
+  if (E->hasMemberDecorate(DecorationMergeINTEL, 0, MemberNumber))
+    Out << "{merge:"
+        << E->getMemberDecorationStringLiteral(DecorationMergeINTEL,
+                                               MemberNumber)
+        << '}';
   if (E->hasMemberDecorate(DecorationUserSemantic, 0, MemberNumber))
     Out << E->getMemberDecorationStringLiteral(DecorationUserSemantic,
                                                MemberNumber);
@@ -2691,140 +2774,8 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
            dbgs() << '\n');
   CallInst *Call = CallInst::Create(F, Args, BC->getName(), BB);
   setCallingConv(Call);
-  addFnAttr(Context, Call, Attribute::NoUnwind);
+  addFnAttr(Call, Attribute::NoUnwind);
   return transOCLBuiltinPostproc(BC, Call, BB, UnmangledName);
-}
-
-CallInst *SPIRVToLLVM::transOCLBarrier(BasicBlock *BB, SPIRVWord ExecScope,
-                                       SPIRVWord MemSema, SPIRVWord MemScope) {
-  SPIRVWord Ver = 0;
-  BM->getSourceLanguage(&Ver);
-
-  Type *Int32Ty = Type::getInt32Ty(*Context);
-  Type *VoidTy = Type::getVoidTy(*Context);
-
-  std::string FuncName;
-  SmallVector<Type *, 2> ArgTy;
-  SmallVector<Value *, 2> Arg;
-
-  Constant *MemFenceFlags =
-      ConstantInt::get(Int32Ty, rmapBitMask<OCLMemFenceMap>(MemSema));
-
-  FuncName = (ExecScope == ScopeWorkgroup) ? kOCLBuiltinName::WorkGroupBarrier
-                                           : kOCLBuiltinName::SubGroupBarrier;
-
-  if (ExecScope == ScopeWorkgroup && Ver > 0 && Ver <= kOCLVer::CL12) {
-    FuncName = kOCLBuiltinName::Barrier;
-    ArgTy.push_back(Int32Ty);
-    Arg.push_back(MemFenceFlags);
-  } else {
-    Constant *Scope = ConstantInt::get(
-        Int32Ty, OCLMemScopeMap::rmap(static_cast<spv::Scope>(MemScope)));
-
-    ArgTy.append(2, Int32Ty);
-    Arg.push_back(MemFenceFlags);
-    Arg.push_back(Scope);
-  }
-
-  std::string MangledName;
-
-  mangleOpenClBuiltin(FuncName, ArgTy, MangledName);
-  Function *Func = M->getFunction(MangledName);
-  if (!Func) {
-    FunctionType *FT = FunctionType::get(VoidTy, ArgTy, false);
-    Func = Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
-    Func->setCallingConv(CallingConv::SPIR_FUNC);
-    if (isFuncNoUnwind())
-      Func->addFnAttr(Attribute::NoUnwind);
-    Func->addFnAttr(Attribute::NoDuplicate);
-  }
-
-  return CallInst::Create(Func, Arg, "", BB);
-}
-
-CallInst *SPIRVToLLVM::transOCLMemFence(BasicBlock *BB, SPIRVWord MemSema,
-                                        SPIRVWord MemScope) {
-  SPIRVWord Ver = 0;
-  BM->getSourceLanguage(&Ver);
-
-  Type *Int32Ty = Type::getInt32Ty(*Context);
-  Type *VoidTy = Type::getVoidTy(*Context);
-
-  std::string FuncName;
-  SmallVector<Type *, 3> ArgTy;
-  SmallVector<Value *, 3> Arg;
-
-  Constant *MemFenceFlags =
-      ConstantInt::get(Int32Ty, rmapBitMask<OCLMemFenceMap>(MemSema));
-
-  if (Ver > 0 && Ver <= kOCLVer::CL12) {
-    FuncName = kOCLBuiltinName::MemFence;
-    ArgTy.push_back(Int32Ty);
-    Arg.push_back(MemFenceFlags);
-  } else {
-    Constant *Order = ConstantInt::get(Int32Ty, mapSPIRVMemOrderToOCL(MemSema));
-
-    Constant *Scope = ConstantInt::get(
-        Int32Ty, OCLMemScopeMap::rmap(static_cast<spv::Scope>(MemScope)));
-
-    FuncName = kOCLBuiltinName::AtomicWorkItemFence;
-    ArgTy.append(3, Int32Ty);
-    Arg.push_back(MemFenceFlags);
-    Arg.push_back(Order);
-    Arg.push_back(Scope);
-  }
-
-  std::string MangledName;
-
-  mangleOpenClBuiltin(FuncName, ArgTy, MangledName);
-  Function *Func = M->getFunction(MangledName);
-  if (!Func) {
-    FunctionType *FT = FunctionType::get(VoidTy, ArgTy, false);
-    Func = Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
-    Func->setCallingConv(CallingConv::SPIR_FUNC);
-    if (isFuncNoUnwind())
-      Func->addFnAttr(Attribute::NoUnwind);
-  }
-
-  return CallInst::Create(Func, Arg, "", BB);
-}
-
-Instruction *SPIRVToLLVM::transOCLBarrierFence(SPIRVInstruction *MB,
-                                               BasicBlock *BB) {
-  assert(BB && "Invalid BB");
-  std::string FuncName;
-  auto GetIntVal = [](SPIRVValue *Value) {
-    return static_cast<SPIRVConstant *>(Value)->getZExtIntValue();
-  };
-
-  CallInst *Call = nullptr;
-
-  if (MB->getOpCode() == OpMemoryBarrier) {
-    auto MemB = static_cast<SPIRVMemoryBarrier *>(MB);
-
-    SPIRVWord MemScope = GetIntVal(MemB->getOpValue(0));
-    SPIRVWord MemSema = GetIntVal(MemB->getOpValue(1));
-
-    Call = transOCLMemFence(BB, MemSema, MemScope);
-  } else if (MB->getOpCode() == OpControlBarrier) {
-    auto CtlB = static_cast<SPIRVControlBarrier *>(MB);
-
-    SPIRVWord ExecScope = GetIntVal(CtlB->getExecScope());
-    SPIRVWord MemSema = GetIntVal(CtlB->getMemSemantic());
-    SPIRVWord MemScope = GetIntVal(CtlB->getMemScope());
-
-    Call = transOCLBarrier(BB, ExecScope, MemSema, MemScope);
-  } else {
-    llvm_unreachable("Invalid instruction");
-    return nullptr;
-  }
-
-  setName(Call, MB);
-  setAttrByCalledFunc(Call);
-  SPIRVDBG(spvdbgs() << "[transBarrier] " << *MB << " -> ";
-           dbgs() << *Call << '\n';)
-
-  return Call;
 }
 
 // SPIR-V only contains language version. Use OpenCL language version as
@@ -3024,8 +2975,7 @@ llvm::convertSpirvToLLVM(LLVMContext &C, SPIRVModule &BM, std::string &ErrMsg) {
   }
 
   llvm::legacy::PassManager PassMgr;
-  PassMgr.add(createSPIRVToOCL20());
-  PassMgr.add(createOCL20To12());
+  PassMgr.add(createSPIRVToOCL(*M));
   PassMgr.run(*M);
 
   return M;

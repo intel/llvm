@@ -1,6 +1,8 @@
 llvm-profdata - Profile data tool
 =================================
 
+.. program:: llvm-profdata
+
 SYNOPSIS
 --------
 
@@ -270,7 +272,6 @@ overlap.
 
 Here is an example, if *base profile file* has counts of {400, 600}, and
 *test profile file* has matched counts of {60000, 40000}. The *overlap* is 80%.
-
 
 OPTIONS
 ^^^^^^^

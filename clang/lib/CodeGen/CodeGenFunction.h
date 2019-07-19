@@ -114,7 +114,7 @@ enum TypeEvaluationKind {
   SANITIZER_CHECK(DivremOverflow, divrem_overflow, 0)                          \
   SANITIZER_CHECK(DynamicTypeCacheMiss, dynamic_type_cache_miss, 0)            \
   SANITIZER_CHECK(FloatCastOverflow, float_cast_overflow, 0)                   \
-  SANITIZER_CHECK(FunctionTypeMismatch, function_type_mismatch, 0)             \
+  SANITIZER_CHECK(FunctionTypeMismatch, function_type_mismatch, 1)             \
   SANITIZER_CHECK(ImplicitConversion, implicit_conversion, 0)                  \
   SANITIZER_CHECK(InvalidBuiltin, invalid_builtin, 0)                          \
   SANITIZER_CHECK(LoadInvalidValue, load_invalid_value, 0)                     \
@@ -327,6 +327,10 @@ public:
   /// value. This is invalid iff the function has no return value.
   Address ReturnValue = Address::invalid();
 
+  /// ReturnValuePointer - The temporary alloca to hold a pointer to sret.
+  /// This is invalid if sret is not in use.
+  Address ReturnValuePointer = Address::invalid();
+
   /// Return true if a label was seen in the current scope.
   bool hasLabelBeenSeenInCurrentScope() const {
     if (CurLexicalScope)
@@ -475,6 +479,10 @@ public:
   /// True if the current function is an outlined SEH helper. This can be a
   /// finally block or filter expression.
   bool IsOutlinedSEHHelper = false;
+
+  /// True if CodeGen currently emits code inside presereved access index
+  /// region.
+  bool IsInPreservedAIRegion = false;
 
   const CodeGen::CGBlockInfo *BlockInfo = nullptr;
   llvm::Value *BlockPointer = nullptr;
@@ -2310,7 +2318,7 @@ public:
   }
 
   /// Determine whether a return value slot may overlap some other object.
-  AggValueSlot::Overlap_t overlapForReturnValue() {
+  AggValueSlot::Overlap_t getOverlapForReturnValue() {
     // FIXME: Assuming no overlap here breaks guaranteed copy elision for base
     // class subobjects. These cases may need to be revisited depending on the
     // resolution of the relevant core issue.
@@ -2318,20 +2326,13 @@ public:
   }
 
   /// Determine whether a field initialization may overlap some other object.
-  AggValueSlot::Overlap_t overlapForFieldInit(const FieldDecl *FD) {
-    // FIXME: These cases can result in overlap as a result of P0840R0's
-    // [[no_unique_address]] attribute. We can still infer NoOverlap in the
-    // presence of that attribute if the field is within the nvsize of its
-    // containing class, because non-virtual subobjects are initialized in
-    // address order.
-    return AggValueSlot::DoesNotOverlap;
-  }
+  AggValueSlot::Overlap_t getOverlapForFieldInit(const FieldDecl *FD);
 
   /// Determine whether a base class initialization may overlap some other
   /// object.
-  AggValueSlot::Overlap_t overlapForBaseInit(const CXXRecordDecl *RD,
-                                             const CXXRecordDecl *BaseRD,
-                                             bool IsVirtual);
+  AggValueSlot::Overlap_t getOverlapForBaseInit(const CXXRecordDecl *RD,
+                                                const CXXRecordDecl *BaseRD,
+                                                bool IsVirtual);
 
   /// Emit an aggregate assignment.
   void EmitAggregateAssign(LValue Dest, LValue Src, QualType EltTy) {
@@ -2650,6 +2651,9 @@ public:
 
   /// Converts Location to a DebugLoc, if debug information is enabled.
   llvm::DebugLoc SourceLocToDebugLoc(SourceLocation Location);
+
+  /// Get the record field index as represented in debug info.
+  unsigned getDebugInfoFIndex(const RecordDecl *Rec, unsigned FieldIndex);
 
 
   //===--------------------------------------------------------------------===//
@@ -3608,6 +3612,7 @@ public:
   CGCallee EmitCallee(const Expr *E);
 
   void checkTargetFeatures(const CallExpr *E, const FunctionDecl *TargetDecl);
+  void checkTargetFeatures(SourceLocation Loc, const FunctionDecl *TargetDecl);
 
   llvm::CallInst *EmitRuntimeCall(llvm::FunctionCallee callee,
                                   const Twine &name = "");
@@ -4205,6 +4210,9 @@ private:
                                      llvm::IntegerType *ResType,
                                      llvm::Value *EmittedE,
                                      bool IsDynamic);
+
+  void emitZeroOrPatternForAutoVarInit(QualType type, const VarDecl &D,
+                                       Address Loc);
 
 public:
 #ifndef NDEBUG

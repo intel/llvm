@@ -162,16 +162,12 @@ bool RISCVAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
     return false;
 
   // The canonical nop on RISC-V is addi x0, x0, 0.
-  uint64_t Nop32Count = Count / 4;
-  for (uint64_t i = Nop32Count; i != 0; --i)
+  for (; Count >= 4; Count -= 4)
     OS.write("\x13\0\0\0", 4);
 
   // The canonical nop on RVC is c.nop.
-  if (HasStdExtC) {
-    uint64_t Nop16Count = (Count - Nop32Count * 4) / 2;
-    for (uint64_t i = Nop16Count; i != 0; --i)
-      OS.write("\x01\0", 2);
-  }
+  if (Count && HasStdExtC)
+    OS.write("\x01\0", 2);
 
   return true;
 }
@@ -317,8 +313,12 @@ bool RISCVAsmBackend::shouldInsertExtraNopBytesForCodeAlign(
   bool HasStdExtC = STI.getFeatureBits()[RISCV::FeatureStdExtC];
   unsigned MinNopLen = HasStdExtC ? 2 : 4;
 
-  Size = AF.getAlignment() - MinNopLen;
-  return true;
+  if (AF.getAlignment() <= MinNopLen) {
+    return false;
+  } else {
+    Size = AF.getAlignment() - MinNopLen;
+    return true;
+  }
 }
 
 // We need to insert R_RISCV_ALIGN relocation type to indicate the
@@ -333,11 +333,10 @@ bool RISCVAsmBackend::shouldInsertFixupForCodeAlign(MCAssembler &Asm,
   if (!STI.getFeatureBits()[RISCV::FeatureRelax])
     return false;
 
-  // Calculate total Nops we need to insert.
+  // Calculate total Nops we need to insert. If there are none to insert
+  // then simply return.
   unsigned Count;
-  shouldInsertExtraNopBytesForCodeAlign(AF, Count);
-  // No Nop need to insert, simply return.
-  if (Count == 0)
+  if (!shouldInsertExtraNopBytesForCodeAlign(AF, Count) || (Count == 0))
     return false;
 
   MCContext &Ctx = Asm.getContext();

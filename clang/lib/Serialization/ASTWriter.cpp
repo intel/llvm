@@ -83,8 +83,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Bitcode/BitCodes.h"
-#include "llvm/Bitcode/BitstreamWriter.h"
+#include "llvm/Bitstream/BitCodes.h"
+#include "llvm/Bitstream/BitstreamWriter.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/DJB.h"
@@ -1293,6 +1293,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(DECL_TEMPLATE_TYPE_PARM);
   RECORD(DECL_NON_TYPE_TEMPLATE_PARM);
   RECORD(DECL_TEMPLATE_TEMPLATE_PARM);
+  RECORD(DECL_CONCEPT);
   RECORD(DECL_TYPE_ALIAS_TEMPLATE);
   RECORD(DECL_STATIC_ASSERT);
   RECORD(DECL_CXX_BASE_SPECIFIERS);
@@ -1446,7 +1447,7 @@ ASTFileSignature ASTWriter::writeUnhashedControlBlock(Preprocessor &PP,
   Stream.EmitRecord(DIAGNOSTIC_OPTIONS, Record);
 
   // Write out the diagnostic/pragma mappings.
-  WritePragmaDiagnosticMappings(Diags, /* IsModule = */ WritingModule);
+  WritePragmaDiagnosticMappings(Diags, /* isModule = */ WritingModule);
 
   // Leave the options block.
   Stream.ExitBlock();
@@ -5399,6 +5400,61 @@ void ASTRecordWriter::AddAPFloat(const llvm::APFloat &Value) {
   AddAPInt(Value.bitcastToAPInt());
 }
 
+static void WriteFixedPointSemantics(ASTRecordWriter &Record,
+                                     FixedPointSemantics FPSema) {
+  Record.push_back(FPSema.getWidth());
+  Record.push_back(FPSema.getScale());
+  Record.push_back(FPSema.isSigned() | FPSema.isSaturated() << 1 |
+                   FPSema.hasUnsignedPadding() << 2);
+}
+
+void ASTRecordWriter::AddAPValue(const APValue &Value) {
+  APValue::ValueKind Kind = Value.getKind();
+  push_back(static_cast<uint64_t>(Kind));
+  switch (Kind) {
+  case APValue::None:
+  case APValue::Indeterminate:
+    return;
+  case APValue::Int:
+    AddAPSInt(Value.getInt());
+    return;
+  case APValue::Float:
+    push_back(static_cast<uint64_t>(
+        llvm::APFloatBase::SemanticsToEnum(Value.getFloat().getSemantics())));
+    AddAPFloat(Value.getFloat());
+    return;
+  case APValue::FixedPoint: {
+    WriteFixedPointSemantics(*this, Value.getFixedPoint().getSemantics());
+    AddAPSInt(Value.getFixedPoint().getValue());
+    return;
+  }
+  case APValue::ComplexInt: {
+    AddAPSInt(Value.getComplexIntReal());
+    AddAPSInt(Value.getComplexIntImag());
+    return;
+  }
+  case APValue::ComplexFloat: {
+    push_back(static_cast<uint64_t>(llvm::APFloatBase::SemanticsToEnum(
+        Value.getComplexFloatReal().getSemantics())));
+    AddAPFloat(Value.getComplexFloatReal());
+    push_back(static_cast<uint64_t>(llvm::APFloatBase::SemanticsToEnum(
+        Value.getComplexFloatImag().getSemantics())));
+    AddAPFloat(Value.getComplexFloatImag());
+    return;
+  }
+  case APValue::LValue:
+  case APValue::Vector:
+  case APValue::Array:
+  case APValue::Struct:
+  case APValue::Union:
+  case APValue::MemberPointer:
+  case APValue::AddrLabelDiff:
+    // TODO : Handle all these APValue::ValueKind.
+    return;
+  }
+  llvm_unreachable("Invalid APValue::ValueKind");
+}
+
 void ASTWriter::AddIdentifierRef(const IdentifierInfo *II, RecordDataImpl &Record) {
   Record.push_back(getIdentifierRef(II));
 }
@@ -5652,7 +5708,7 @@ void ASTWriter::associateDeclWithFile(const Decl *D, DeclID ID) {
   }
 
   LocDeclIDsTy::iterator I =
-      std::upper_bound(Decls.begin(), Decls.end(), LocDecl, llvm::less_first());
+      llvm::upper_bound(Decls, LocDecl, llvm::less_first());
 
   Decls.insert(I, LocDecl);
 }

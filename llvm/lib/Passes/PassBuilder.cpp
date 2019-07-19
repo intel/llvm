@@ -100,6 +100,7 @@
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
+#include "llvm/Transforms/Instrumentation/PoisonChecking.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/AlignmentFromAssumptions.h"
@@ -812,8 +813,10 @@ ModulePassManager PassBuilder::buildModuleOptimizationPipeline(
   // available externally globals. Eventually they will be suppressed during
   // codegen, but eliminating here enables more opportunity for GlobalDCE as it
   // may make globals referenced by available external functions dead and saves
-  // running remaining passes on the eliminated functions.
-  MPM.addPass(EliminateAvailableExternallyPass());
+  // running remaining passes on the eliminated functions. These should be
+  // preserved during prelinking for link-time inlining decisions.
+  if (!LTOPreLink)
+    MPM.addPass(EliminateAvailableExternallyPass());
 
   if (EnableOrderFileInstrumentation)
     MPM.addPass(InstrOrderFilePass());

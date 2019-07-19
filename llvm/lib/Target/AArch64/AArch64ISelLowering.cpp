@@ -551,6 +551,8 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
 
   // Trap.
   setOperationAction(ISD::TRAP, MVT::Other, Legal);
+  if (Subtarget->isTargetWindows())
+    setOperationAction(ISD::DEBUGTRAP, MVT::Other, Legal);
 
   // We combine OR nodes for bitfield operations.
   setTargetDAGCombine(ISD::OR);
@@ -1074,10 +1076,9 @@ MVT AArch64TargetLowering::getScalarShiftAmountTy(const DataLayout &DL,
   return MVT::i64;
 }
 
-bool AArch64TargetLowering::allowsMisalignedMemoryAccesses(EVT VT,
-                                                           unsigned AddrSpace,
-                                                           unsigned Align,
-                                                           bool *Fast) const {
+bool AArch64TargetLowering::allowsMisalignedMemoryAccesses(
+    EVT VT, unsigned AddrSpace, unsigned Align, MachineMemOperand::Flags Flags,
+    bool *Fast) const {
   if (Subtarget->requiresStrictAlign())
     return false;
 
@@ -1233,6 +1234,10 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case AArch64ISD::FRECPS:            return "AArch64ISD::FRECPS";
   case AArch64ISD::FRSQRTE:           return "AArch64ISD::FRSQRTE";
   case AArch64ISD::FRSQRTS:           return "AArch64ISD::FRSQRTS";
+  case AArch64ISD::STG:               return "AArch64ISD::STG";
+  case AArch64ISD::STZG:              return "AArch64ISD::STZG";
+  case AArch64ISD::ST2G:              return "AArch64ISD::ST2G";
+  case AArch64ISD::STZ2G:             return "AArch64ISD::STZ2G";
   }
   return nullptr;
 }
@@ -2843,7 +2848,8 @@ SDValue AArch64TargetLowering::LowerSTORE(SDValue Op,
   unsigned AS = StoreNode->getAddressSpace();
   unsigned Align = StoreNode->getAlignment();
   if (Align < MemVT.getStoreSize() &&
-      !allowsMisalignedMemoryAccesses(MemVT, AS, Align, nullptr)) {
+      !allowsMisalignedMemoryAccesses(
+          MemVT, AS, Align, StoreNode->getMemOperand()->getFlags(), nullptr)) {
     return scalarizeVectorStore(StoreNode, DAG);
   }
 
@@ -8716,7 +8722,9 @@ EVT AArch64TargetLowering::getOptimalMemOpType(
     if (memOpAlign(SrcAlign, DstAlign, AlignCheck))
       return true;
     bool Fast;
-    return allowsMisalignedMemoryAccesses(VT, 0, 1, &Fast) && Fast;
+    return allowsMisalignedMemoryAccesses(VT, 0, 1, MachineMemOperand::MONone,
+                                          &Fast) &&
+           Fast;
   };
 
   if (CanUseNEON && IsMemset && !IsSmallMemset &&
@@ -12033,6 +12041,11 @@ bool AArch64TargetLowering::isIntDivCheap(EVT VT, AttributeList Attr) const {
   bool OptSize =
       Attr.hasAttribute(AttributeList::FunctionIndex, Attribute::MinSize);
   return OptSize && !VT.isVector();
+}
+
+bool AArch64TargetLowering::preferIncOfAddToSubOfNot(EVT VT) const {
+  // We want inc-of-add for scalars and sub-of-not for vectors.
+  return VT.isScalarInteger();
 }
 
 bool AArch64TargetLowering::enableAggressiveFMAFusion(EVT VT) const {

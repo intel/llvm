@@ -86,7 +86,6 @@
 #include "lldb/Symbol/VerifyDecl.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Language.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataExtractor.h"
@@ -95,6 +94,7 @@
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Scalar.h"
 
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 #include "Plugins/SymbolFile/DWARF/DWARFASTParserClang.h"
 #include "Plugins/SymbolFile/PDB/PDBASTParser.h"
 
@@ -1615,10 +1615,11 @@ clang::FunctionTemplateDecl *ClangASTContext::CreateFunctionTemplateDecl(
 void ClangASTContext::CreateFunctionTemplateSpecializationInfo(
     FunctionDecl *func_decl, clang::FunctionTemplateDecl *func_tmpl_decl,
     const TemplateParameterInfos &infos) {
-  TemplateArgumentList template_args(TemplateArgumentList::OnStack, infos.args);
+  TemplateArgumentList *template_args_ptr =
+      TemplateArgumentList::CreateCopy(func_decl->getASTContext(), infos.args);
 
-  func_decl->setFunctionTemplateSpecialization(func_tmpl_decl, &template_args,
-                                               nullptr);
+  func_decl->setFunctionTemplateSpecialization(func_tmpl_decl,
+                                               template_args_ptr, nullptr);
 }
 
 ClassTemplateDecl *ClangASTContext::CreateClassTemplateDecl(
@@ -1954,7 +1955,8 @@ NamespaceDecl *ClangASTContext::GetUniqueNamespaceDeclaration(
         assert(namespace_decl ==
                parent_namespace_decl->getAnonymousNamespace());
       } else {
-        // BAD!!!
+        assert(false && "GetUniqueNamespaceDeclaration called with no name and "
+                        "no namespace as decl_ctx");
       }
     }
   }
@@ -2170,7 +2172,7 @@ FunctionDecl *ClangASTContext::CreateFunctionDeclaration(
       *ast, decl_ctx, SourceLocation(), SourceLocation(), declarationName,
       ClangUtil::GetQualType(function_clang_type), nullptr,
       (clang::StorageClass)storage, is_inline, hasWrittenPrototype,
-      isConstexprSpecified);
+      isConstexprSpecified ? CSK_constexpr : CSK_unspecified);
   if (func_decl)
     decl_ctx->addDecl(func_decl);
 
@@ -5035,7 +5037,7 @@ ClangASTContext::GetBitSize(lldb::opaque_compiler_type_t type,
       ExecutionContext exe_ctx(exe_scope);
       Process *process = exe_ctx.GetProcessPtr();
       if (process) {
-        ObjCLanguageRuntime *objc_runtime = process->GetObjCLanguageRuntime();
+        ObjCLanguageRuntime *objc_runtime = ObjCLanguageRuntime::Get(*process);
         if (objc_runtime) {
           uint64_t bit_size = 0;
           if (objc_runtime->GetTypeBitSize(
@@ -6842,7 +6844,7 @@ CompilerType ClangASTContext::GetChildCompilerTypeAtIndex(
                   process = exe_ctx->GetProcessPtr();
                 if (process) {
                   ObjCLanguageRuntime *objc_runtime =
-                      process->GetObjCLanguageRuntime();
+                      ObjCLanguageRuntime::Get(*process);
                   if (objc_runtime != nullptr) {
                     CompilerType parent_ast_type(getASTContext(),
                                                  parent_qual_type);
@@ -8210,7 +8212,7 @@ clang::CXXMethodDecl *ClangASTContext::AddMethodToCXXRecordType(
             clang::SourceLocation()),
         method_qual_type,
         nullptr, // TypeSourceInfo *
-        explicit_spec, is_inline, is_artificial, false /*is_constexpr*/);
+        explicit_spec, is_inline, is_artificial, CSK_unspecified);
     cxx_method_decl = cxx_ctor_decl;
   } else {
     clang::StorageClass SC = is_static ? clang::SC_Static : clang::SC_None;
@@ -8233,7 +8235,7 @@ clang::CXXMethodDecl *ClangASTContext::AddMethodToCXXRecordType(
                 clang::SourceLocation()),
             method_qual_type,
             nullptr, // TypeSourceInfo *
-            SC, is_inline, false /*is_constexpr*/, clang::SourceLocation());
+            SC, is_inline, CSK_unspecified, clang::SourceLocation());
       } else if (num_params == 0) {
         // Conversion operators don't take params...
         cxx_method_decl = clang::CXXConversionDecl::Create(
@@ -8245,7 +8247,7 @@ clang::CXXMethodDecl *ClangASTContext::AddMethodToCXXRecordType(
                 clang::SourceLocation()),
             method_qual_type,
             nullptr, // TypeSourceInfo *
-            is_inline, explicit_spec, false /*is_constexpr*/,
+            is_inline, explicit_spec, CSK_unspecified,
             clang::SourceLocation());
       }
     }
@@ -8256,7 +8258,7 @@ clang::CXXMethodDecl *ClangASTContext::AddMethodToCXXRecordType(
           clang::DeclarationNameInfo(decl_name, clang::SourceLocation()),
           method_qual_type,
           nullptr, // TypeSourceInfo *
-          SC, is_inline, false /*is_constexpr*/, clang::SourceLocation());
+          SC, is_inline, CSK_unspecified, clang::SourceLocation());
     }
   }
 

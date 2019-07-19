@@ -1226,10 +1226,15 @@ public:
 
   void setInit(Expr *I);
 
-  /// Determine whether this variable's value can be used in a
+  /// Determine whether this variable's value might be usable in a
   /// constant expression, according to the relevant language standard.
   /// This only checks properties of the declaration, and does not check
   /// whether the initializer is in fact a constant expression.
+  bool mightBeUsableInConstantExpressions(ASTContext &C) const;
+
+  /// Determine whether this variable's value can be used in a
+  /// constant expression, according to the relevant language standard,
+  /// including checking whether it was initialized by a constant expression.
   bool isUsableInConstantExpressions(ASTContext &C) const;
 
   EvaluatedStmt *ensureEvaluatedStmt() const;
@@ -1856,7 +1861,7 @@ protected:
   FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
                const DeclarationNameInfo &NameInfo, QualType T,
                TypeSourceInfo *TInfo, StorageClass S, bool isInlineSpecified,
-               bool isConstexprSpecified);
+               ConstexprSpecKind ConstexprKind);
 
   using redeclarable_base = Redeclarable<FunctionDecl>;
 
@@ -1886,29 +1891,24 @@ public:
   using redeclarable_base::getMostRecentDecl;
   using redeclarable_base::isFirstDecl;
 
-  static FunctionDecl *Create(ASTContext &C, DeclContext *DC,
-                              SourceLocation StartLoc, SourceLocation NLoc,
-                              DeclarationName N, QualType T,
-                              TypeSourceInfo *TInfo,
-                              StorageClass SC,
-                              bool isInlineSpecified = false,
-                              bool hasWrittenPrototype = true,
-                              bool isConstexprSpecified = false) {
+  static FunctionDecl *
+  Create(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
+         SourceLocation NLoc, DeclarationName N, QualType T,
+         TypeSourceInfo *TInfo, StorageClass SC, bool isInlineSpecified = false,
+         bool hasWrittenPrototype = true,
+         ConstexprSpecKind ConstexprKind = CSK_unspecified) {
     DeclarationNameInfo NameInfo(N, NLoc);
-    return FunctionDecl::Create(C, DC, StartLoc, NameInfo, T, TInfo,
-                                SC,
+    return FunctionDecl::Create(C, DC, StartLoc, NameInfo, T, TInfo, SC,
                                 isInlineSpecified, hasWrittenPrototype,
-                                isConstexprSpecified);
+                                ConstexprKind);
   }
 
   static FunctionDecl *Create(ASTContext &C, DeclContext *DC,
                               SourceLocation StartLoc,
-                              const DeclarationNameInfo &NameInfo,
-                              QualType T, TypeSourceInfo *TInfo,
-                              StorageClass SC,
-                              bool isInlineSpecified,
-                              bool hasWrittenPrototype,
-                              bool isConstexprSpecified = false);
+                              const DeclarationNameInfo &NameInfo, QualType T,
+                              TypeSourceInfo *TInfo, StorageClass SC,
+                              bool isInlineSpecified, bool hasWrittenPrototype,
+                              ConstexprSpecKind ConstexprKind);
 
   static FunctionDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
@@ -2105,8 +2105,21 @@ public:
   }
 
   /// Whether this is a (C++11) constexpr function or constexpr constructor.
-  bool isConstexpr() const { return FunctionDeclBits.IsConstexpr; }
-  void setConstexpr(bool IC) { FunctionDeclBits.IsConstexpr = IC; }
+  bool isConstexpr() const {
+    return FunctionDeclBits.ConstexprKind != CSK_unspecified;
+  }
+  void setConstexprKind(ConstexprSpecKind CSK) {
+    FunctionDeclBits.ConstexprKind = CSK;
+  }
+  ConstexprSpecKind getConstexprKind() const {
+    return static_cast<ConstexprSpecKind>(FunctionDeclBits.ConstexprKind);
+  }
+  bool isConstexprSpecified() const {
+    return FunctionDeclBits.ConstexprKind == CSK_constexpr;
+  }
+  bool isConsteval() const {
+    return FunctionDeclBits.ConstexprKind == CSK_consteval;
+  }
 
   /// Whether the instantiation of this function is pending.
   /// This bit is set when the decision to instantiate this function is made
@@ -2382,6 +2395,8 @@ public:
   bool isMSExternInline() const;
 
   bool doesDeclarationForceExternallyVisibleDefinition() const;
+
+  bool isStatic() const { return getStorageClass() == SC_Static; }
 
   /// Whether this function declaration represents an C++ overloaded
   /// operator, e.g., "operator+".
@@ -2715,6 +2730,11 @@ public:
   /// at all and instead act as a separator between contiguous runs of other
   /// bit-fields.
   bool isZeroLengthBitField(const ASTContext &Ctx) const;
+
+  /// Determine if this field is a subobject of zero size, that is, either a
+  /// zero-length bit-field or a field of empty class type with the
+  /// [[no_unique_address]] attribute.
+  bool isZeroSize(const ASTContext &Ctx) const;
 
   /// Get the kind of (C++11) default member initializer that this field has.
   InClassInitStyle getInClassInitStyle() const {
@@ -3724,6 +3744,30 @@ public:
 
   void setNonTrivialToPrimitiveDestroy(bool V) {
     RecordDeclBits.NonTrivialToPrimitiveDestroy = V;
+  }
+
+  bool hasNonTrivialToPrimitiveDefaultInitializeCUnion() const {
+    return RecordDeclBits.HasNonTrivialToPrimitiveDefaultInitializeCUnion;
+  }
+
+  void setHasNonTrivialToPrimitiveDefaultInitializeCUnion(bool V) {
+    RecordDeclBits.HasNonTrivialToPrimitiveDefaultInitializeCUnion = V;
+  }
+
+  bool hasNonTrivialToPrimitiveDestructCUnion() const {
+    return RecordDeclBits.HasNonTrivialToPrimitiveDestructCUnion;
+  }
+
+  void setHasNonTrivialToPrimitiveDestructCUnion(bool V) {
+    RecordDeclBits.HasNonTrivialToPrimitiveDestructCUnion = V;
+  }
+
+  bool hasNonTrivialToPrimitiveCopyCUnion() const {
+    return RecordDeclBits.HasNonTrivialToPrimitiveCopyCUnion;
+  }
+
+  void setHasNonTrivialToPrimitiveCopyCUnion(bool V) {
+    RecordDeclBits.HasNonTrivialToPrimitiveCopyCUnion = V;
   }
 
   /// Determine whether this class can be passed in registers. In C++ mode,

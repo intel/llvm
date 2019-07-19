@@ -148,6 +148,7 @@ static const llvm::IndexedMap<RecordIdDsc, RecordIdToIndexFunctor>
           {MEMBER_TYPE_ACCESS, {"Access", &IntAbbrev}},
           {NAMESPACE_USR, {"USR", &SymbolIDAbbrev}},
           {NAMESPACE_NAME, {"Name", &StringAbbrev}},
+          {NAMESPACE_PATH, {"Path", &StringAbbrev}},
           {ENUM_USR, {"USR", &SymbolIDAbbrev}},
           {ENUM_NAME, {"Name", &StringAbbrev}},
           {ENUM_DEFLOCATION, {"DefLocation", &LocationAbbrev}},
@@ -156,9 +157,11 @@ static const llvm::IndexedMap<RecordIdDsc, RecordIdToIndexFunctor>
           {ENUM_SCOPED, {"Scoped", &BoolAbbrev}},
           {RECORD_USR, {"USR", &SymbolIDAbbrev}},
           {RECORD_NAME, {"Name", &StringAbbrev}},
+          {RECORD_PATH, {"Path", &StringAbbrev}},
           {RECORD_DEFLOCATION, {"DefLocation", &LocationAbbrev}},
           {RECORD_LOCATION, {"Location", &LocationAbbrev}},
           {RECORD_TAG_TYPE, {"TagType", &IntAbbrev}},
+          {RECORD_IS_TYPE_DEF, {"IsTypeDef", &BoolAbbrev}},
           {FUNCTION_USR, {"USR", &SymbolIDAbbrev}},
           {FUNCTION_NAME, {"Name", &StringAbbrev}},
           {FUNCTION_DEFLOCATION, {"DefLocation", &LocationAbbrev}},
@@ -168,6 +171,7 @@ static const llvm::IndexedMap<RecordIdDsc, RecordIdToIndexFunctor>
           {REFERENCE_USR, {"USR", &SymbolIDAbbrev}},
           {REFERENCE_NAME, {"Name", &StringAbbrev}},
           {REFERENCE_TYPE, {"RefType", &IntAbbrev}},
+          {REFERENCE_PATH, {"Path", &StringAbbrev}},
           {REFERENCE_FIELD, {"Field", &IntAbbrev}}};
       assert(Inits.size() == RecordIdCount);
       for (const auto &Init : Inits) {
@@ -198,22 +202,24 @@ static const std::vector<std::pair<BlockId, std::vector<RecordId>>>
          {ENUM_USR, ENUM_NAME, ENUM_DEFLOCATION, ENUM_LOCATION, ENUM_MEMBER,
           ENUM_SCOPED}},
         // Namespace Block
-        {BI_NAMESPACE_BLOCK_ID, {NAMESPACE_USR, NAMESPACE_NAME}},
+        {BI_NAMESPACE_BLOCK_ID,
+         {NAMESPACE_USR, NAMESPACE_NAME, NAMESPACE_PATH}},
         // Record Block
         {BI_RECORD_BLOCK_ID,
-         {RECORD_USR, RECORD_NAME, RECORD_DEFLOCATION, RECORD_LOCATION,
-          RECORD_TAG_TYPE}},
+         {RECORD_USR, RECORD_NAME, RECORD_PATH, RECORD_DEFLOCATION,
+          RECORD_LOCATION, RECORD_TAG_TYPE, RECORD_IS_TYPE_DEF}},
         // Function Block
         {BI_FUNCTION_BLOCK_ID,
          {FUNCTION_USR, FUNCTION_NAME, FUNCTION_DEFLOCATION, FUNCTION_LOCATION,
           FUNCTION_ACCESS, FUNCTION_IS_METHOD}},
         // Reference Block
         {BI_REFERENCE_BLOCK_ID,
-         {REFERENCE_USR, REFERENCE_NAME, REFERENCE_TYPE, REFERENCE_FIELD}}};
+         {REFERENCE_USR, REFERENCE_NAME, REFERENCE_TYPE, REFERENCE_PATH,
+          REFERENCE_FIELD}}};
 
 // AbbreviationMap
 
-constexpr char BitCodeConstants::Signature[];
+constexpr unsigned char BitCodeConstants::Signature[];
 
 void ClangDocBitcodeWriter::AbbreviationMap::add(RecordId RID,
                                                  unsigned AbbrevID) {
@@ -380,6 +386,7 @@ void ClangDocBitcodeWriter::emitBlock(const Reference &R, FieldId Field) {
   emitRecord(R.USR, REFERENCE_USR);
   emitRecord(R.Name, REFERENCE_NAME);
   emitRecord((unsigned)R.RefType, REFERENCE_TYPE);
+  emitRecord(R.Path, REFERENCE_PATH);
   emitRecord((unsigned)Field, REFERENCE_FIELD);
 }
 
@@ -427,6 +434,7 @@ void ClangDocBitcodeWriter::emitBlock(const NamespaceInfo &I) {
   StreamSubBlockGuard Block(Stream, BI_NAMESPACE_BLOCK_ID);
   emitRecord(I.USR, NAMESPACE_USR);
   emitRecord(I.Name, NAMESPACE_NAME);
+  emitRecord(I.Path, NAMESPACE_PATH);
   for (const auto &N : I.Namespace)
     emitBlock(N, FieldId::F_namespace);
   for (const auto &CI : I.Description)
@@ -462,6 +470,7 @@ void ClangDocBitcodeWriter::emitBlock(const RecordInfo &I) {
   StreamSubBlockGuard Block(Stream, BI_RECORD_BLOCK_ID);
   emitRecord(I.USR, RECORD_USR);
   emitRecord(I.Name, RECORD_NAME);
+  emitRecord(I.Path, RECORD_PATH);
   for (const auto &N : I.Namespace)
     emitBlock(N, FieldId::F_namespace);
   for (const auto &CI : I.Description)
@@ -471,6 +480,7 @@ void ClangDocBitcodeWriter::emitBlock(const RecordInfo &I) {
   for (const auto &L : I.Loc)
     emitRecord(L, RECORD_LOCATION);
   emitRecord(I.TagType, RECORD_TAG_TYPE);
+  emitRecord(I.IsTypeDef, RECORD_IS_TYPE_DEF);
   for (const auto &N : I.Members)
     emitBlock(N);
   for (const auto &P : I.Parents)

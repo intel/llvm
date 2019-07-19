@@ -248,6 +248,10 @@ bool DwarfExpression::addMachineRegExpression(const TargetRegisterInfo &TRI,
         addReg(Reg.DwarfRegNo, Reg.Comment);
       addOpPiece(Reg.Size);
     }
+
+    if (isEntryValue() && DwarfVersion >= 4)
+      emitOp(dwarf::DW_OP_stack_value);
+
     DwarfRegs.clear();
     return true;
   }
@@ -294,6 +298,19 @@ bool DwarfExpression::addMachineRegExpression(const TargetRegisterInfo &TRI,
     addBReg(Reg.DwarfRegNo, SignedOffset);
   DwarfRegs.clear();
   return true;
+}
+
+void DwarfExpression::addEntryValueExpression(DIExpressionCursor &ExprCursor) {
+  auto Op = ExprCursor.take();
+  assert(Op && Op->getOp() == dwarf::DW_OP_entry_value);
+  assert(!isMemoryLocation() &&
+         "We don't support entry values of memory locations yet");
+
+  if (DwarfVersion >= 5)
+    emitOp(dwarf::DW_OP_entry_value);
+  else
+    emitOp(dwarf::DW_OP_GNU_entry_value);
+  emitUnsigned(Op->getArg(0));
 }
 
 /// Assuming a well-formed expression, match "DW_OP_deref* DW_OP_LLVM_fragment?".
@@ -437,6 +454,9 @@ void DwarfExpression::addExpression(DIExpressionCursor &&ExprCursor,
     case dwarf::DW_OP_deref_size:
       emitOp(dwarf::DW_OP_deref_size);
       emitData1(Op->getArg(0));
+      break;
+    case dwarf::DW_OP_LLVM_tag_offset:
+      TagOffset = Op->getArg(0);
       break;
     default:
       llvm_unreachable("unhandled opcode found in expression");

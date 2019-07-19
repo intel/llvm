@@ -25,6 +25,7 @@
 ; CHECK-NEXT:       Instrument function entry/exit with calls to e.g. mcount() (post inlining)
 ; CHECK-NEXT:       Scalarize Masked Memory Intrinsics
 ; CHECK-NEXT:       Expand reduction intrinsics
+; CHECK-NEXT:       AArch64 Stack Tagging
 ; CHECK-NEXT:     Rewrite Symbols
 ; CHECK-NEXT:     FunctionPass Manager
 ; CHECK-NEXT:       Dominator Tree Construction
@@ -42,7 +43,7 @@
 ; CHECK-NEXT:       InstructionSelect
 ; CHECK-NEXT:       ResetMachineFunction
 ; CHECK-NEXT:       AArch64 Instruction Selection
-; CHECK-NEXT:       Expand ISel Pseudo-instructions
+; CHECK-NEXT:       Finalize ISel and expand pseudo-instructions
 ; CHECK-NEXT:       Local Stack Slot Allocation
 ; CHECK-NEXT:       Eliminate PHI nodes for register allocation
 ; CHECK-NEXT:       Two-Address instruction pass

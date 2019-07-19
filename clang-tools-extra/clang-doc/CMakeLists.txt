@@ -1,7 +1,6 @@
 set(LLVM_LINK_COMPONENTS
   support
-  BitReader
-  BitWriter
+  BitstreamReader
   )
 
 add_clang_library(clangDoc
@@ -9,6 +8,7 @@ add_clang_library(clangDoc
   BitcodeWriter.cpp
   ClangDoc.cpp
   Generators.cpp
+  HTMLGenerator.cpp
   Mapper.cpp
   MDGenerator.cpp
   Representation.cpp

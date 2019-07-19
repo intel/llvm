@@ -52,7 +52,7 @@ public:
   }
 
   size_t blockToIndex(BasicBlock *BB) const {
-    auto *I = std::lower_bound(V.begin(), V.end(), BB);
+    auto *I = llvm::lower_bound(V, BB);
     assert(I != V.end() && *I == BB && "BasicBlockNumberng: Unknown block");
     return I - V.begin();
   }
@@ -378,7 +378,7 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
   StructType *FrameTy = StructType::create(C, Name);
   auto *FramePtrTy = FrameTy->getPointerTo();
   auto *FnTy = FunctionType::get(Type::getVoidTy(C), FramePtrTy,
-                                 /*IsVarArgs=*/false);
+                                 /*isVarArg=*/false);
   auto *FnPtrTy = FnTy->getPointerTo();
 
   // Figure out how wide should be an integer type storing the suspend index.

@@ -32,9 +32,7 @@
 #include "lldb/Symbol/TypeList.h"
 #include "lldb/Symbol/Variable.h"
 #include "lldb/Symbol/VariableList.h"
-#include "lldb/Target/CPPLanguageRuntime.h"
 #include "lldb/Target/ExecutionContext.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StackFrame.h"
@@ -53,6 +51,8 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 
 #include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
+#include "Plugins/LanguageRuntime/CPlusPlus/CPPLanguageRuntime.h"
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -698,7 +698,7 @@ addr_t ClangExpressionDeclMap::GetSymbolAddress(Target &target,
   }
 
   if (symbol_load_addr == LLDB_INVALID_ADDRESS && process) {
-    ObjCLanguageRuntime *runtime = process->GetObjCLanguageRuntime();
+    ObjCLanguageRuntime *runtime = ObjCLanguageRuntime::Get(*process);
 
     if (runtime) {
       symbol_load_addr = runtime->LookupRuntimeSymbol(name);

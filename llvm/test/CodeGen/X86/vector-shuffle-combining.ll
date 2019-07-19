@@ -1583,13 +1583,13 @@ define <8 x float> @combine_test22(<2 x float>* %a, <2 x float>* %b) {
 ; SSE-LABEL: combine_test22:
 ; SSE:       # %bb.0:
 ; SSE-NEXT:    movsd {{.*#+}} xmm0 = mem[0],zero
-; SSE-NEXT:    movhpd {{.*#+}} xmm0 = xmm0[0],mem[0]
+; SSE-NEXT:    movhps {{.*#+}} xmm0 = xmm0[0,1],mem[0,1]
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: combine_test22:
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    vmovsd {{.*#+}} xmm0 = mem[0],zero
-; AVX-NEXT:    vmovhpd {{.*#+}} xmm0 = xmm0[0],mem[0]
+; AVX-NEXT:    vmovhps {{.*#+}} xmm0 = xmm0[0,1],mem[0,1]
 ; AVX-NEXT:    retq
 ; Current AVX2 lowering of this is still awful, not adding a test case.
   %1 = load <2 x float>, <2 x float>* %a, align 8
@@ -2132,14 +2132,12 @@ define <4 x float> @combine_undef_input_test4(<4 x float> %a, <4 x float> %b) {
 define <4 x float> @combine_undef_input_test5(<4 x float> %a, <4 x float> %b) {
 ; SSE2-LABEL: combine_undef_input_test5:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    movsd {{.*#+}} xmm1 = xmm0[0],xmm1[1]
-; SSE2-NEXT:    movapd %xmm1, %xmm0
+; SSE2-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,3]
 ; SSE2-NEXT:    retq
 ;
 ; SSSE3-LABEL: combine_undef_input_test5:
 ; SSSE3:       # %bb.0:
-; SSSE3-NEXT:    movsd {{.*#+}} xmm1 = xmm0[0],xmm1[1]
-; SSSE3-NEXT:    movapd %xmm1, %xmm0
+; SSSE3-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,3]
 ; SSSE3-NEXT:    retq
 ;
 ; SSE41-LABEL: combine_undef_input_test5:
@@ -2316,14 +2314,12 @@ define <4 x float> @combine_undef_input_test14(<4 x float> %a, <4 x float> %b) {
 define <4 x float> @combine_undef_input_test15(<4 x float> %a, <4 x float> %b) {
 ; SSE2-LABEL: combine_undef_input_test15:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    movsd {{.*#+}} xmm1 = xmm0[0],xmm1[1]
-; SSE2-NEXT:    movapd %xmm1, %xmm0
+; SSE2-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,3]
 ; SSE2-NEXT:    retq
 ;
 ; SSSE3-LABEL: combine_undef_input_test15:
 ; SSSE3:       # %bb.0:
-; SSSE3-NEXT:    movsd {{.*#+}} xmm1 = xmm0[0],xmm1[1]
-; SSSE3-NEXT:    movapd %xmm1, %xmm0
+; SSSE3-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,3]
 ; SSSE3-NEXT:    retq
 ;
 ; SSE41-LABEL: combine_undef_input_test15:
@@ -2857,4 +2853,32 @@ define <8 x i16> @PR39549(<16 x i8> %x) {
   %c = shl <8 x i16> %b, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
   %d = ashr <8 x i16> %c, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
   ret <8 x i16> %d
+}
+
+define <4 x i32> @PR41545(<4 x i32> %a0, <16 x i8> %a1) {
+; SSE-LABEL: PR41545:
+; SSE:       # %bb.0:
+; SSE-NEXT:    paddd %xmm1, %xmm0
+; SSE-NEXT:    retq
+;
+; AVX-LABEL: PR41545:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
+; AVX-NEXT:    retq
+  %1  = shufflevector <16 x i8> %a1, <16 x i8> undef, <4 x i32> <i32 0, i32 4, i32 8, i32 12>
+  %2  = shufflevector <16 x i8> %a1, <16 x i8> undef, <4 x i32> <i32 1, i32 5, i32 9, i32 13>
+  %3  = shufflevector <16 x i8> %a1, <16 x i8> undef, <4 x i32> <i32 2, i32 6, i32 10, i32 14>
+  %4  = shufflevector <16 x i8> %a1, <16 x i8> undef, <4 x i32> <i32 3, i32 7, i32 11, i32 15>
+  %5  = zext <4 x i8> %1 to <4 x i32>
+  %6  = zext <4 x i8> %2 to <4 x i32>
+  %7  = zext <4 x i8> %3 to <4 x i32>
+  %8  = zext <4 x i8> %4 to <4 x i32>
+  %9  = shl <4 x i32> %6, <i32 8, i32 8, i32 8, i32 8>
+  %10 = shl <4 x i32> %7, <i32 16, i32 16, i32 16, i32 16>
+  %11 = shl <4 x i32> %8, <i32 24, i32 24, i32 24, i32 24>
+  %12 = or <4 x i32> %5, %9
+  %13 = or <4 x i32> %12, %10
+  %14 = or <4 x i32> %13, %11
+  %15 = add <4 x i32> %a0, %14
+  ret <4 x i32> %15
 }

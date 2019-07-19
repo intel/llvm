@@ -100,6 +100,7 @@ def LLVMAlpha : Package<"llvm">, ParentPackage<Alpha>;
 // intended for API modeling that is not controlled by the target triple.
 def APIModeling : Package<"apiModeling">, Hidden;
 def GoogleAPIModeling : Package<"google">, ParentPackage<APIModeling>, Hidden;
+def LLVMAPIModeling : Package<"llvm">, ParentPackage<APIModeling>, Hidden;
 
 def Debug : Package<"debug">, Hidden;
 
@@ -1105,6 +1106,18 @@ def LLVMConventionsChecker : Checker<"Conventions">,
 
 } // end "llvm"
 
+let ParentPackage = LLVMAPIModeling in {
+
+def CastValueChecker : Checker<"CastValue">,
+  HelpText<"Model implementation of custom RTTIs">,
+  Documentation<NotDocumented>;
+
+def ReturnValueChecker : Checker<"ReturnValue">,
+  HelpText<"Model the guaranteed boolean return value of function calls">,
+  Documentation<NotDocumented>;
+
+} // end "apiModeling.llvm"
+
 //===----------------------------------------------------------------------===//
 // Checkers modeling Google APIs.
 //===----------------------------------------------------------------------===//
@@ -1227,6 +1240,14 @@ def AnalysisOrderChecker : Checker<"AnalysisOrder">,
 
 def DominatorsTreeDumper : Checker<"DumpDominators">,
   HelpText<"Print the dominance tree for a given CFG">,
+  Documentation<NotDocumented>;
+
+def PostDominatorsTreeDumper : Checker<"DumpPostDominators">,
+  HelpText<"Print the post dominance tree for a given CFG">,
+  Documentation<NotDocumented>;
+
+def ControlDependencyTreeDumper : Checker<"DumpControlDependencies">,
+  HelpText<"Print the post control dependency tree for a given CFG">,
   Documentation<NotDocumented>;
 
 def LiveVariablesDumper : Checker<"DumpLiveVars">,

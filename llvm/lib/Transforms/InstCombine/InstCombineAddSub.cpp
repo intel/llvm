@@ -1202,7 +1202,10 @@ Instruction *InstCombiner::visitAdd(BinaryOperator &I) {
 
   // (A + 1) + ~B --> A - B
   // ~B + (A + 1) --> A - B
-  if (match(&I, m_c_BinOp(m_Add(m_Value(A), m_One()), m_Not(m_Value(B)))))
+  // (~B + A) + 1 --> A - B
+  // (A + ~B) + 1 --> A - B
+  if (match(&I, m_c_BinOp(m_Add(m_Value(A), m_One()), m_Not(m_Value(B)))) ||
+      match(&I, m_BinOp(m_c_Add(m_Not(m_Value(B)), m_Value(A)), m_One())))
     return BinaryOperator::CreateSub(A, B);
 
   // X % C0 + (( X / C0 ) % C1) * C0 => X % (C0 * C1)
@@ -1577,6 +1580,12 @@ Instruction *InstCombiner::visitSub(BinaryOperator &I) {
   if (match(Op1, m_OneUse(m_Add(m_Value(X), m_One()))))
     return BinaryOperator::CreateAdd(Builder.CreateNot(X), Op0);
 
+  // Y - ~X --> (X + 1) + Y
+  if (match(Op1, m_OneUse(m_Not(m_Value(X))))) {
+    return BinaryOperator::CreateAdd(
+        Builder.CreateAdd(Op0, ConstantInt::get(I.getType(), 1)), X);
+  }
+
   if (Constant *C = dyn_cast<Constant>(Op0)) {
     bool IsNegate = match(C, m_ZeroInt());
     Value *X;
@@ -1857,12 +1866,21 @@ static Instruction *foldFNegIntoConstant(Instruction &I) {
 }
 
 Instruction *InstCombiner::visitFNeg(UnaryOperator &I) {
-  if (Value *V = SimplifyFNegInst(I.getOperand(0), I.getFastMathFlags(),
+  Value *Op = I.getOperand(0);
+
+  if (Value *V = SimplifyFNegInst(Op, I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
   if (Instruction *X = foldFNegIntoConstant(I))
     return X;
+
+  Value *X, *Y;
+
+  // If we can ignore the sign of zeros: -(X - Y) --> (Y - X)
+  if (I.hasNoSignedZeros() &&
+      match(Op, m_OneUse(m_FSub(m_Value(X), m_Value(Y)))))
+    return BinaryOperator::CreateFSubFMF(Y, X, &I);
 
   return nullptr;
 }

@@ -37,6 +37,8 @@
 using namespace lldb;
 using namespace lldb_private;
 
+char AppleObjCRuntimeV1::ID = 0;
+
 AppleObjCRuntimeV1::AppleObjCRuntimeV1(Process *process)
     : AppleObjCRuntime(process), m_hash_signature(),
       m_isa_hash_table_ptr(LLDB_INVALID_ADDRESS) {}
@@ -83,7 +85,8 @@ AppleObjCRuntimeV1::CreateInstance(Process *process,
 void AppleObjCRuntimeV1::Initialize() {
   PluginManager::RegisterPlugin(
       GetPluginNameStatic(), "Apple Objective-C Language Runtime - Version 1",
-      CreateInstance);
+      CreateInstance,
+      /*command_callback = */ nullptr, GetBreakpointExceptionPrecondition);
 }
 
 void AppleObjCRuntimeV1::Terminate() {

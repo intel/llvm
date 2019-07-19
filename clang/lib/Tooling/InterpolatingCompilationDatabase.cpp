@@ -150,7 +150,8 @@ struct TransferableCommand {
     // spelling of each argument; re-rendering is lossy for aliased flags.
     // E.g. in CL mode, /W4 maps to -Wall.
     auto OptTable = clang::driver::createDriverOptTable();
-    Cmd.CommandLine.emplace_back(OldArgs.front());
+    if (!OldArgs.empty())
+      Cmd.CommandLine.emplace_back(OldArgs.front());
     for (unsigned Pos = 1; Pos < OldArgs.size();) {
       using namespace driver::options;
 
@@ -243,7 +244,8 @@ private:
     }
 
     // Otherwise just check the clang executable file name.
-    return llvm::sys::path::stem(CmdLine.front()).endswith_lower("cl");
+    return !CmdLine.empty() &&
+           llvm::sys::path::stem(CmdLine.front()).endswith_lower("cl");
   }
 
   // Map the language from the --std flag to that of the -x flag.
@@ -476,8 +478,7 @@ private:
                                  ArrayRef<SubstringAndIndex> Idx) const {
     assert(!Idx.empty());
     // Longest substring match will be adjacent to a direct lookup.
-    auto It =
-        std::lower_bound(Idx.begin(), Idx.end(), SubstringAndIndex{Key, 0});
+    auto It = llvm::lower_bound(Idx, SubstringAndIndex{Key, 0});
     if (It == Idx.begin())
       return *It;
     if (It == Idx.end())

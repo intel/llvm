@@ -433,7 +433,12 @@ function(llvm_add_library name)
       ${ALL_FILES}
       )
     llvm_update_compile_flags(${obj_name})
-    set(ALL_FILES "$<TARGET_OBJECTS:${obj_name}>")
+    if(CMAKE_GENERATOR STREQUAL "Xcode")
+      set(DUMMY_FILE ${CMAKE_CURRENT_BINARY_DIR}/Dummy.c)
+      file(WRITE ${DUMMY_FILE} "// This file intentionally empty\n")
+      set_property(SOURCE ${DUMMY_FILE} APPEND_STRING PROPERTY COMPILE_FLAGS "-Wno-empty-translation-unit")
+    endif()
+    set(ALL_FILES "$<TARGET_OBJECTS:${obj_name}>" ${DUMMY_FILE})
 
     # Do add_dependencies(obj) later due to CMake issue 14747.
     list(APPEND objlibs ${obj_name})
@@ -652,7 +657,7 @@ endfunction()
 
 macro(add_llvm_library name)
   cmake_parse_arguments(ARG
-    "SHARED;BUILDTREE_ONLY;MODULE"
+    "SHARED;BUILDTREE_ONLY;MODULE;INSTALL_WITH_TOOLCHAIN"
     ""
     ""
     ${ARGN})
@@ -680,9 +685,7 @@ macro(add_llvm_library name)
   elseif(ARG_BUILDTREE_ONLY)
     set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS_BUILDTREE_ONLY ${name})
   else()
-    if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY OR ${name} STREQUAL "LTO" OR
-        ${name} STREQUAL "Remarks" OR
-        (LLVM_LINK_LLVM_DYLIB AND ${name} STREQUAL "LLVM"))
+    if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY OR ARG_INSTALL_WITH_TOOLCHAIN)
 
       set(export_to_llvmexports)
       if(${name} IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
@@ -883,6 +886,7 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     llvm-objdump
     llvm-rc
     llvm-profdata
+    llvm-symbolizer
     )
 endif()
 

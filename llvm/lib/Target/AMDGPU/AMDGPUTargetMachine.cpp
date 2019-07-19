@@ -197,6 +197,7 @@ extern "C" void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUDAGToDAGISelPass(*PR);
   initializeGCNDPPCombinePass(*PR);
   initializeSILowerI1CopiesPass(*PR);
+  initializeSILowerSGPRSpillsPass(*PR);
   initializeSIFixSGPRCopiesPass(*PR);
   initializeSIFixVGPRCopiesPass(*PR);
   initializeSIFixupVectorISelPass(*PR);
@@ -217,6 +218,8 @@ extern "C" void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUOpenCLEnqueuedBlockLoweringPass(*PR);
   initializeAMDGPUPromoteAllocaPass(*PR);
   initializeAMDGPUCodeGenPreparePass(*PR);
+  initializeAMDGPUPropagateAttributesEarlyPass(*PR);
+  initializeAMDGPUPropagateAttributesLatePass(*PR);
   initializeAMDGPURewriteOutArgumentsPass(*PR);
   initializeAMDGPUUnifyMetadataPass(*PR);
   initializeSIAnnotateControlFlowPass(*PR);
@@ -402,13 +405,14 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
 
   Builder.addExtension(
     PassManagerBuilder::EP_ModuleOptimizerEarly,
-    [Internalize, EarlyInline, AMDGPUAA](const PassManagerBuilder &,
-                                         legacy::PassManagerBase &PM) {
+    [Internalize, EarlyInline, AMDGPUAA, this](const PassManagerBuilder &,
+                                               legacy::PassManagerBase &PM) {
       if (AMDGPUAA) {
         PM.add(createAMDGPUAAWrapperPass());
         PM.add(createAMDGPUExternalAAWrapperPass());
       }
       PM.add(createAMDGPUUnifyMetadataPass());
+      PM.add(createAMDGPUPropagateAttributesLatePass(this));
       if (Internalize) {
         PM.add(createInternalizePass(mustPreserveGV));
         PM.add(createGlobalDCEPass());
@@ -420,15 +424,16 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
   const auto &Opt = Options;
   Builder.addExtension(
     PassManagerBuilder::EP_EarlyAsPossible,
-    [AMDGPUAA, LibCallSimplify, &Opt](const PassManagerBuilder &,
-                                      legacy::PassManagerBase &PM) {
+    [AMDGPUAA, LibCallSimplify, &Opt, this](const PassManagerBuilder &,
+                                            legacy::PassManagerBase &PM) {
       if (AMDGPUAA) {
         PM.add(createAMDGPUAAWrapperPass());
         PM.add(createAMDGPUExternalAAWrapperPass());
       }
+      PM.add(llvm::createAMDGPUPropagateAttributesEarlyPass(this));
       PM.add(llvm::createAMDGPUUseNativeCallsPass());
       if (LibCallSimplify)
-        PM.add(llvm::createAMDGPUSimplifyLibCallsPass(Opt));
+        PM.add(llvm::createAMDGPUSimplifyLibCallsPass(Opt, this));
   });
 
   Builder.addExtension(
@@ -654,11 +659,15 @@ void AMDGPUPassConfig::addIRPasses() {
   disablePass(&FuncletLayoutID);
   disablePass(&PatchableFunctionID);
 
-  addPass(createAtomicExpandPass());
-
   // This must occur before inlining, as the inliner will not look through
   // bitcast calls.
   addPass(createAMDGPUFixFunctionBitcastsPass());
+
+  // A call to propagate attributes pass in the backend in case opt was not run.
+  addPass(createAMDGPUPropagateAttributesEarlyPass(&TM));
+
+  addPass(createAtomicExpandPass());
+
 
   addPass(createAMDGPULowerIntrinsicsPass());
 
@@ -731,6 +740,8 @@ void AMDGPUPassConfig::addCodeGenPrepare() {
       EnableLowerKernelArguments)
     addPass(createAMDGPULowerKernelArgumentsPass());
 
+  addPass(&AMDGPUPerfHintAnalysisID);
+
   TargetPassConfig::addCodeGenPrepare();
 
   if (EnableLoadStoreVectorizer)
@@ -744,7 +755,8 @@ bool AMDGPUPassConfig::addPreISel() {
 }
 
 bool AMDGPUPassConfig::addInstSelector() {
-  addPass(createAMDGPUISelDag(&getAMDGPUTargetMachine(), getOptLevel()));
+  // Defer the verifier until FinalizeISel.
+  addPass(createAMDGPUISelDag(&getAMDGPUTargetMachine(), getOptLevel()), false);
   return false;
 }
 
@@ -826,6 +838,7 @@ bool GCNPassConfig::addPreISel() {
   if (!LateCFGStructurize) {
     addPass(createSIAnnotateControlFlowPass());
   }
+  addPass(createLCSSAPass());
 
   return false;
 }
@@ -949,6 +962,9 @@ void GCNPassConfig::addPostRegAlloc() {
   if (getOptLevel() > CodeGenOpt::None)
     addPass(&SIOptimizeExecMaskingID);
   TargetPassConfig::addPostRegAlloc();
+
+  // Equivalent of PEI for SGPRs.
+  addPass(&SILowerSGPRSpillsID);
 }
 
 void GCNPassConfig::addPreSched2() {
@@ -1048,6 +1064,90 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
       !AMDGPU::SGPR_32RegClass.contains(MFI->StackPtrOffsetReg)) {
     return diagnoseRegisterClass(YamlMFI.StackPtrOffsetReg);
   }
+
+  auto parseAndCheckArgument = [&](const Optional<yaml::SIArgument> &A,
+                                   const TargetRegisterClass &RC,
+                                   ArgDescriptor &Arg, unsigned UserSGPRs,
+                                   unsigned SystemSGPRs) {
+    // Skip parsing if it's not present.
+    if (!A)
+      return false;
+
+    if (A->IsRegister) {
+      unsigned Reg;
+      if (parseNamedRegisterReference(PFS, Reg, A->RegisterName.Value, Error)) {
+        SourceRange = A->RegisterName.SourceRange;
+        return true;
+      }
+      if (!RC.contains(Reg))
+        return diagnoseRegisterClass(A->RegisterName);
+      Arg = ArgDescriptor::createRegister(Reg);
+    } else
+      Arg = ArgDescriptor::createStack(A->StackOffset);
+    // Check and apply the optional mask.
+    if (A->Mask)
+      Arg = ArgDescriptor::createArg(Arg, A->Mask.getValue());
+
+    MFI->NumUserSGPRs += UserSGPRs;
+    MFI->NumSystemSGPRs += SystemSGPRs;
+    return false;
+  };
+
+  if (YamlMFI.ArgInfo &&
+      (parseAndCheckArgument(YamlMFI.ArgInfo->PrivateSegmentBuffer,
+                             AMDGPU::SReg_128RegClass,
+                             MFI->ArgInfo.PrivateSegmentBuffer, 4, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->DispatchPtr,
+                             AMDGPU::SReg_64RegClass, MFI->ArgInfo.DispatchPtr,
+                             2, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->QueuePtr, AMDGPU::SReg_64RegClass,
+                             MFI->ArgInfo.QueuePtr, 2, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->KernargSegmentPtr,
+                             AMDGPU::SReg_64RegClass,
+                             MFI->ArgInfo.KernargSegmentPtr, 2, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->DispatchID,
+                             AMDGPU::SReg_64RegClass, MFI->ArgInfo.DispatchID,
+                             2, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->FlatScratchInit,
+                             AMDGPU::SReg_64RegClass,
+                             MFI->ArgInfo.FlatScratchInit, 2, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->PrivateSegmentSize,
+                             AMDGPU::SGPR_32RegClass,
+                             MFI->ArgInfo.PrivateSegmentSize, 0, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->WorkGroupIDX,
+                             AMDGPU::SGPR_32RegClass, MFI->ArgInfo.WorkGroupIDX,
+                             0, 1) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->WorkGroupIDY,
+                             AMDGPU::SGPR_32RegClass, MFI->ArgInfo.WorkGroupIDY,
+                             0, 1) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->WorkGroupIDZ,
+                             AMDGPU::SGPR_32RegClass, MFI->ArgInfo.WorkGroupIDZ,
+                             0, 1) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->WorkGroupInfo,
+                             AMDGPU::SGPR_32RegClass,
+                             MFI->ArgInfo.WorkGroupInfo, 0, 1) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->PrivateSegmentWaveByteOffset,
+                             AMDGPU::SGPR_32RegClass,
+                             MFI->ArgInfo.PrivateSegmentWaveByteOffset, 0, 1) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->ImplicitArgPtr,
+                             AMDGPU::SReg_64RegClass,
+                             MFI->ArgInfo.ImplicitArgPtr, 0, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->ImplicitBufferPtr,
+                             AMDGPU::SReg_64RegClass,
+                             MFI->ArgInfo.ImplicitBufferPtr, 2, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->WorkItemIDX,
+                             AMDGPU::VGPR_32RegClass,
+                             MFI->ArgInfo.WorkItemIDX, 0, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->WorkItemIDY,
+                             AMDGPU::VGPR_32RegClass,
+                             MFI->ArgInfo.WorkItemIDY, 0, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->WorkItemIDZ,
+                             AMDGPU::VGPR_32RegClass,
+                             MFI->ArgInfo.WorkItemIDZ, 0, 0)))
+    return true;
+
+  MFI->Mode.IEEE = YamlMFI.Mode.IEEE;
+  MFI->Mode.DX10Clamp = YamlMFI.Mode.DX10Clamp;
 
   return false;
 }

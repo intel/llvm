@@ -172,6 +172,9 @@ def ext_cxx11_longlong : Extension<
 def warn_cxx98_compat_longlong : Warning<
   "'long long' is incompatible with C++98">,
   InGroup<CXX98CompatPedantic>, DefaultIgnore;
+def warn_cxx20_compat_consteval : Warning<
+  "consteval is incompatible with C++ standards before C++20">,
+  InGroup<CXX2aCompat>, DefaultIgnore;
 def err_integer_literal_too_large : Error<
   "integer literal is too large to be represented in any %select{signed |}0"
   "integer type">;
@@ -265,6 +268,8 @@ def err_opt_not_valid_on_target : Error<
 def err_cannot_open_file : Error<"cannot open file '%0': %1">, DefaultFatal;
 def err_file_modified : Error<
   "file '%0' modified since it was first processed">, DefaultFatal;
+def err_file_too_large : Error<
+  "sorry, unsupported: file '%0' is too large for Clang to process">;
 def err_unsupported_bom : Error<"%0 byte order mark detected in '%1', but "
   "encoding is not supported">, DefaultFatal;
 def err_unable_to_rename_temp : Error<

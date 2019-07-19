@@ -638,6 +638,9 @@ def emit_ast : Flag<["-"], "emit-ast">,
   HelpText<"Emit Clang AST files for source inputs">;
 def emit_llvm : Flag<["-"], "emit-llvm">, Flags<[CC1Option]>, Group<Action_Group>,
   HelpText<"Use the LLVM representation for assembler and object files">;
+def emit_iterface_stubs : Flag<["-"], "emit-interface-stubs">, Flags<[CC1Option]>, Group<Action_Group>,
+  HelpText<"Generate Inteface Stub Files.">;
+def iterface_stub_version_EQ : JoinedOrSeparate<["-"], "interface-stub-version=">, Flags<[CC1Option]>;
 def exported__symbols__list : Separate<["-"], "exported_symbols_list">;
 def e : JoinedOrSeparate<["-"], "e">, Group<Link_Group>;
 def fPIC : Flag<["-"], "fPIC">, Group<f_Group>;
@@ -728,11 +731,14 @@ def fauto_profile_accurate : Flag<["-"], "fauto-profile-accurate">,
     Group<f_Group>, Alias<fprofile_sample_accurate>;
 def fno_auto_profile_accurate : Flag<["-"], "fno-auto-profile-accurate">,
     Group<f_Group>, Alias<fno_profile_sample_accurate>;
-def fdebug_info_for_profiling : Flag<["-"], "fdebug-info-for-profiling">, Group<f_Group>,
-    Flags<[CC1Option]>,
+def fdebug_compilation_dir : Separate<["-"], "fdebug-compilation-dir">,
+    Group<f_Group>, Flags<[CC1Option, CC1AsOption, CoreOption]>,
+    HelpText<"The compilation directory to embed in the debug info.">;
+def fdebug_info_for_profiling : Flag<["-"], "fdebug-info-for-profiling">,
+    Group<f_Group>, Flags<[CC1Option]>,
     HelpText<"Emit extra debug info to make sample profile more accurate.">;
-def fno_debug_info_for_profiling : Flag<["-"], "fno-debug-info-for-profiling">, Group<f_Group>,
-    Flags<[DriverOption]>,
+def fno_debug_info_for_profiling : Flag<["-"], "fno-debug-info-for-profiling">,
+    Group<f_Group>, Flags<[DriverOption]>,
     HelpText<"Do not emit extra debug info for sample profiler.">;
 def fprofile_instr_generate : Flag<["-"], "fprofile-instr-generate">,
     Group<f_Group>, Flags<[CoreOption]>,
@@ -950,6 +956,8 @@ def fno_cxx_static_destructors : Flag<["-"], "fno-c++-static-destructors">,
   Group<f_Group>,
   Flags<[CC1Option]>,
   HelpText<"Disable C++ static destructor registration">;
+def fsymbol_partition_EQ : Joined<["-"], "fsymbol-partition=">, Group<f_Group>,
+  Flags<[CC1Option]>;
 
 // Begin sanitizer flags. These should all be core options exposed in all driver
 // modes.
@@ -1277,7 +1285,7 @@ def flto_jobs_EQ : Joined<["-"], "flto-jobs=">,
            "of 0 means the number of threads will be derived from "
            "the number of CPUs detected)">;
 def fthinlto_index_EQ : Joined<["-"], "fthinlto-index=">,
-  Flags<[CC1Option]>, Group<f_Group>,
+  Flags<[CoreOption, CC1Option]>, Group<f_Group>,
   HelpText<"Perform ThinLTO importing using provided function summary index">;
 def fmacro_backtrace_limit_EQ : Joined<["-"], "fmacro-backtrace-limit=">,
                                 Group<f_Group>, Flags<[DriverOption, CoreOption]>;
@@ -1743,6 +1751,8 @@ def foperator_arrow_depth_EQ : Joined<["-"], "foperator-arrow-depth=">,
 
 def fsave_optimization_record : Flag<["-"], "fsave-optimization-record">,
   Group<f_Group>, HelpText<"Generate a YAML optimization record file">;
+def fsave_optimization_record_EQ : Joined<["-"], "fsave-optimization-record=">,
+  Group<f_Group>, HelpText<"Generate an optimization record file in a specific format (default: YAML)">;
 def fno_save_optimization_record : Flag<["-"], "fno-save-optimization-record">,
   Group<f_Group>, Flags<[NoArgumentUnused]>;
 def foptimization_record_file_EQ : Joined<["-"], "foptimization-record-file=">,
@@ -2044,6 +2054,10 @@ def malign_jumps_EQ : Joined<["-"], "malign-jumps=">, Group<clang_ignored_m_Grou
 def mfancy_math_387 : Flag<["-"], "mfancy-math-387">, Group<clang_ignored_m_Group>;
 def mlong_calls : Flag<["-"], "mlong-calls">, Group<m_Group>,
   HelpText<"Generate branches with extended addressability, usually via indirect jumps.">;
+def mlong_double_64 : Flag<["-"], "mlong-double-64">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Force long double to be 64 bits">;
+def mlong_double_128 : Flag<["-"], "mlong-double-128">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Force long double to be 128 bits">;
 def mno_long_calls : Flag<["-"], "mno-long-calls">, Group<m_Group>,
   HelpText<"Restore the default behaviour of not generating long calls">;
 def mexecute_only : Flag<["-"], "mexecute-only">, Group<m_arm_Features_Group>,
@@ -2151,6 +2165,10 @@ def mrelax : Flag<["-"], "mrelax">, Group<m_riscv_Features_Group>,
   HelpText<"Enable linker relaxation">;
 def mno_relax : Flag<["-"], "mno-relax">, Group<m_riscv_Features_Group>,
   HelpText<"Disable linker relaxation">;
+def msave_restore : Flag<["-"], "msave-restore">, Group<m_riscv_Features_Group>,
+  HelpText<"Enable using library calls for save and restore">;
+def mno_save_restore : Flag<["-"], "mno-save-restore">, Group<m_riscv_Features_Group>,
+  HelpText<"Disable using library calls for save and restore">;
 
 def munaligned_access : Flag<["-"], "munaligned-access">, Group<m_arm_Features_Group>,
   HelpText<"Allow memory accesses to be unaligned (AArch32/AArch64 only)">;
@@ -2244,6 +2262,11 @@ def mcumode : Flag<["-"], "mcumode">, Group<m_amdgpu_Features_Group>,
   HelpText<"CU wavefront execution mode is used (AMDGPU only)">;
 def mno_cumode : Flag<["-"], "mno-cumode">, Group<m_amdgpu_Features_Group>,
   HelpText<"WGP wavefront execution mode is used (AMDGPU only)">;
+
+def mwavefrontsize64 : Flag<["-"], "mwavefrontsize64">,
+  Group<m_Group>, HelpText<"Wavefront size 64 is used">;
+def mno_wavefrontsize64 : Flag<["-"], "mno-wavefrontsize64">,
+  Group<m_Group>, HelpText<"Wavefront size 32 is used">;
 
 def faltivec : Flag<["-"], "faltivec">, Group<f_Group>, Flags<[DriverOption]>;
 def fno_altivec : Flag<["-"], "fno-altivec">, Group<f_Group>, Flags<[DriverOption]>;
@@ -2522,6 +2545,7 @@ def nomultidefs : Flag<["-"], "nomultidefs">;
 def nopie : Flag<["-"], "nopie">;
 def no_pie : Flag<["-"], "no-pie">, Alias<nopie>;
 def noprebind : Flag<["-"], "noprebind">;
+def noprofilelib : Flag<["-"], "noprofilelib">;
 def noseglinkedit : Flag<["-"], "noseglinkedit">;
 def nostartfiles : Flag<["-"], "nostartfiles">;
 def nostdinc : Flag<["-"], "nostdinc">, Flags<[CoreOption]>;
@@ -2656,6 +2680,12 @@ def : Separate<["--"], "no-system-header-prefix">, Alias<no_system_header_prefix
 def s : Flag<["-"], "s">, Group<Link_Group>;
 def target : Joined<["--"], "target=">, Flags<[DriverOption, CoreOption]>,
   HelpText<"Generate code for the given target">;
+def print_supported_cpus : Flag<["-", "--"], "print-supported-cpus">,
+  Group<CompileOnly_Group>, Flags<[CC1Option, CoreOption]>,
+  HelpText<"Print supported cpu models for the given target (if target is not specified,"
+           " it will print the supported cpus for the default target)">;
+def mcpu_EQ_QUESTION : Flag<["-"], "mcpu=?">, Alias<print_supported_cpus>;
+def mtune_EQ_QUESTION : Flag<["-"], "mtune=?">, Alias<print_supported_cpus>;
 def gcc_toolchain : Joined<["--"], "gcc-toolchain=">, Flags<[DriverOption]>,
   HelpText<"Use the gcc toolchain at the given directory">;
 def time : Flag<["-"], "time">,
@@ -2947,6 +2977,8 @@ def mclzero : Flag<["-"], "mclzero">, Group<m_x86_Features_Group>;
 def mno_clzero : Flag<["-"], "mno-clzero">, Group<m_x86_Features_Group>;
 def mcx16 : Flag<["-"], "mcx16">, Group<m_x86_Features_Group>;
 def mno_cx16 : Flag<["-"], "mno-cx16">, Group<m_x86_Features_Group>;
+def menqcmd : Flag<["-"], "menqcmd">, Group<m_x86_Features_Group>;
+def mno_enqcmd : Flag<["-"], "mno-enqcmd">, Group<m_x86_Features_Group>;
 def mf16c : Flag<["-"], "mf16c">, Group<m_x86_Features_Group>;
 def mno_f16c : Flag<["-"], "mno-f16c">, Group<m_x86_Features_Group>;
 def mfma : Flag<["-"], "mfma">, Group<m_x86_Features_Group>;

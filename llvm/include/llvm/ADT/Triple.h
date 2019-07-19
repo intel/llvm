@@ -219,7 +219,8 @@ public:
     CoreCLR,
     SYCLDevice,
     Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
-    LastEnvironmentType = Simulator
+    MacABI, // Mac Catalyst variant of Apple's iOS deployment target.
+    LastEnvironmentType = MacABI
   };
   enum ObjectFormatType {
     UnknownObjectFormat,
@@ -493,6 +494,10 @@ public:
     return getEnvironment() == Triple::SYCLDevice;
   }
 
+  bool isMacCatalystEnvironment() const {
+    return getEnvironment() == Triple::MacABI;
+  }
+
   bool isOSNetBSD() const {
     return getOS() == Triple::NetBSD;
   }
@@ -726,6 +731,11 @@ public:
   /// Tests whether the target is 64-bit PowerPC (little and big endian).
   bool isPPC64() const {
     return getArch() == Triple::ppc64 || getArch() == Triple::ppc64le;
+  }
+
+  /// Tests whether the target is RISC-V (32- and 64-bit).
+  bool isRISCV() const {
+    return getArch() == Triple::riscv32 || getArch() == Triple::riscv64;
   }
 
   /// Tests whether the target supports comdat

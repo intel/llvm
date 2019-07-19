@@ -1157,7 +1157,7 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
       // that's not necessarily the same as "on the stack", so
       // we still potentially need objc_memmove_collectable.
       EmitAggregateCopy(/* Dest= */ MakeAddrLValue(ReturnValue, ivarType),
-                        /* Src= */ LV, ivarType, overlapForReturnValue());
+                        /* Src= */ LV, ivarType, getOverlapForReturnValue());
       return;
     }
     case TEK_Scalar: {
@@ -3735,7 +3735,7 @@ void CodeGenModule::emitAtAvailableLinkGuard() {
   llvm::FunctionType *CheckFTy = llvm::FunctionType::get(VoidTy, {}, false);
   llvm::FunctionCallee CFLinkCheckFuncRef = CreateRuntimeFunction(
       CheckFTy, "__clang_at_available_requires_core_foundation_framework",
-      llvm::AttributeList(), /*IsLocal=*/true);
+      llvm::AttributeList(), /*Local=*/true);
   llvm::Function *CFLinkCheckFunc =
       cast<llvm::Function>(CFLinkCheckFuncRef.getCallee()->stripPointerCasts());
   if (CFLinkCheckFunc->empty()) {

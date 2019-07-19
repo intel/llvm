@@ -50,6 +50,7 @@ set(files
   clflushoptintrin.h
   clwbintrin.h
   emmintrin.h
+  enqcmdintrin.h
   f16cintrin.h
   float.h
   fma4intrin.h
@@ -76,6 +77,7 @@ set(files
   mwaitxintrin.h
   nmmintrin.h
   opencl-c.h
+  opencl-c-base.h
   pkuintrin.h
   pmmintrin.h
   pconfigintrin.h
@@ -130,6 +132,7 @@ set(ppc_wrapper_files
   ppc_wrappers/mmintrin.h
   ppc_wrappers/xmmintrin.h
   ppc_wrappers/mm_malloc.h
+  ppc_wrappers/emmintrin.h
 )
 
 set(openmp_wrapper_files

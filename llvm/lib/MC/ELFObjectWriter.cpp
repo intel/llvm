@@ -463,7 +463,7 @@ void ELFWriter::writeHeader(const MCAssembler &Asm) {
 
 uint64_t ELFWriter::SymbolValue(const MCSymbol &Sym,
                                 const MCAsmLayout &Layout) {
-  if (Sym.isCommon() && Sym.isExternal())
+  if (Sym.isCommon() && (Sym.isTargetCommon() || Sym.isExternal()))
     return Sym.getCommonAlignment();
 
   uint64_t Res;
@@ -660,8 +660,12 @@ void ELFWriter::computeSymbolTable(
     if (Symbol.isAbsolute()) {
       MSD.SectionIndex = ELF::SHN_ABS;
     } else if (Symbol.isCommon()) {
-      assert(!Local);
-      MSD.SectionIndex = ELF::SHN_COMMON;
+      if (Symbol.isTargetCommon()) {
+        MSD.SectionIndex = Symbol.getIndex();
+      } else {
+        assert(!Local);
+        MSD.SectionIndex = ELF::SHN_COMMON;
+      }
     } else if (Symbol.isUndefined()) {
       if (isSignature && !Used) {
         MSD.SectionIndex = RevGroupMap.lookup(&Symbol);
@@ -1372,6 +1376,12 @@ bool ELFObjectWriter::shouldRelocateWithSymbol(const MCAssembler &Asm,
     // has to point to the symbol for a reason analogous to the STB_WEAK case.
     return true;
   }
+
+  // Keep symbol type for a local ifunc because it may result in an IRELATIVE
+  // reloc that the dynamic loader will use to resolve the address at startup
+  // time.
+  if (Sym->getType() == ELF::STT_GNU_IFUNC)
+    return true;
 
   // If a relocation points to a mergeable section, we have to be careful.
   // If the offset is zero, a relocation with the section will encode the

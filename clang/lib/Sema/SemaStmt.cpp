@@ -1041,9 +1041,8 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
 
         // Find the smallest value >= the lower bound.  If I is in the
         // case range, then we have overlap.
-        CaseValsTy::iterator I = std::lower_bound(CaseVals.begin(),
-                                                  CaseVals.end(), CRLo,
-                                                  CaseCompareFunctor());
+        CaseValsTy::iterator I =
+            llvm::lower_bound(CaseVals, CRLo, CaseCompareFunctor());
         if (I != CaseVals.end() && I->first < CRHi) {
           OverlapVal  = I->first;   // Found overlap with scalar.
           OverlapStmt = I->second;
@@ -2448,7 +2447,7 @@ StmtResult Sema::BuildCXXForRangeStmt(SourceLocation ForLoc,
 
         ExprResult SizeOfVLAExprR = ActOnUnaryExprOrTypeTraitExpr(
             EndVar->getLocation(), UETT_SizeOf,
-            /*isType=*/true,
+            /*IsType=*/true,
             CreateParsedType(VAT->desugar(), Context.getTrivialTypeSourceInfo(
                                                  VAT->desugar(), RangeLoc))
                 .getAsOpaquePtr(),
@@ -2458,7 +2457,7 @@ StmtResult Sema::BuildCXXForRangeStmt(SourceLocation ForLoc,
 
         ExprResult SizeOfEachElementExprR = ActOnUnaryExprOrTypeTraitExpr(
             EndVar->getLocation(), UETT_SizeOf,
-            /*isType=*/true,
+            /*IsType=*/true,
             CreateParsedType(VAT->desugar(),
                              Context.getTrivialTypeSourceInfo(
                                  VAT->getElementType(), RangeLoc))
@@ -3693,7 +3692,8 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
     }
 
     if (FD)
-      Diag(ReturnLoc, DiagID) << FD->getIdentifier() << 0/*fn*/;
+      Diag(ReturnLoc, DiagID)
+          << FD->getIdentifier() << 0 /*fn*/ << FD->isConsteval();
     else
       Diag(ReturnLoc, DiagID) << getCurMethodDecl()->getDeclName() << 1/*meth*/;
 

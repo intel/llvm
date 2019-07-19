@@ -14,8 +14,9 @@
 #include "AppleObjCTrampolineHandler.h"
 #include "AppleThreadPlanStepThroughObjCTrampoline.h"
 #include "lldb/Target/LanguageRuntime.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/lldb-private.h"
+
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 
 namespace lldb_private {
 
@@ -28,14 +29,14 @@ public:
   // because
   // you can't make an instance of this generic runtime.
 
-  static bool classof(const ObjCLanguageRuntime *runtime) {
-    switch (runtime->GetRuntimeVersion()) {
-    case ObjCRuntimeVersions::eAppleObjC_V1:
-    case ObjCRuntimeVersions::eAppleObjC_V2:
-      return true;
-    default:
-      return false;
-    }
+  static char ID;
+
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || ObjCLanguageRuntime::isA(ClassID);
+  }
+
+  static bool classof(const LanguageRuntime *runtime) {
+    return runtime->isA(&ID);
   }
 
   // These are generic runtime functions:

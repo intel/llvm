@@ -67,6 +67,7 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
+#include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include "llvm/SYCL/ASFixer.h"
@@ -476,9 +477,9 @@ static void initTargetOptions(llvm::TargetOptions &Options,
   Options.DebuggerTuning = CodeGenOpts.getDebuggerTuning();
   Options.EmitStackSizeSection = CodeGenOpts.StackSizeSection;
   Options.EmitAddrsig = CodeGenOpts.Addrsig;
+  Options.EnableDebugEntryValues = CodeGenOpts.EnableDebugEntryValues;
 
-  if (CodeGenOpts.getSplitDwarfMode() != CodeGenOptions::NoFission)
-    Options.MCOptions.SplitDwarfFile = CodeGenOpts.SplitDwarfFile;
+  Options.MCOptions.SplitDwarfFile = CodeGenOpts.SplitDwarfFile;
   Options.MCOptions.MCRelaxAll = CodeGenOpts.RelaxAll;
   Options.MCOptions.MCSaveTempLabels = CodeGenOpts.SaveTempLabels;
   Options.MCOptions.MCUseDwarfDirectory = !CodeGenOpts.NoDwarfDirectoryAsm;
@@ -873,9 +874,8 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
     break;
 
   default:
-    if (!CodeGenOpts.SplitDwarfFile.empty() &&
-        (CodeGenOpts.getSplitDwarfMode() == CodeGenOptions::SplitFileFission)) {
-      DwoOS = openOutputFile(CodeGenOpts.SplitDwarfFile);
+    if (!CodeGenOpts.SplitDwarfOutput.empty()) {
+      DwoOS = openOutputFile(CodeGenOpts.SplitDwarfOutput);
       if (!DwoOS)
         return;
     }
@@ -978,17 +978,6 @@ static void addSanitizersAtO0(ModulePassManager &MPM,
 
   if (LangOpts.Sanitize.has(SanitizerKind::Thread)) {
     MPM.addPass(createModuleToFunctionPassAdaptor(ThreadSanitizerPass()));
-  }
-
-  if (LangOpts.Sanitize.has(SanitizerKind::HWAddress)) {
-    bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::HWAddress);
-    MPM.addPass(createModuleToFunctionPassAdaptor(
-        HWAddressSanitizerPass(/*CompileKernel=*/false, Recover)));
-  }
-
-  if (LangOpts.Sanitize.has(SanitizerKind::KernelHWAddress)) {
-    MPM.addPass(createModuleToFunctionPassAdaptor(
-        HWAddressSanitizerPass(/*CompileKernel=*/true, /*Recover=*/true)));
   }
 }
 
@@ -1123,8 +1112,10 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         MPM.addPass(InstrProfiling(*Options, false));
 
       // Build a minimal pipeline based on the semantics required by Clang,
-      // which is just that always inlining occurs.
-      MPM.addPass(AlwaysInlinerPass());
+      // which is just that always inlining occurs. Further, disable generating
+      // lifetime intrinsics to avoid enabling further optimizations during
+      // code generation.
+      MPM.addPass(AlwaysInlinerPass(/*InsertLifetimeIntrinsics=*/false));
 
       // At -O0 we directly run necessary sanitizer passes.
       if (LangOpts.Sanitize.has(SanitizerKind::LocalBounds))
@@ -1139,6 +1130,11 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
       // Map our optimization levels into one of the distinct levels used to
       // configure the pipeline.
       PassBuilder::OptimizationLevel Level = mapToLevel(CodeGenOpts);
+
+      PB.registerPipelineStartEPCallback([](ModulePassManager &MPM) {
+        MPM.addPass(createModuleToFunctionPassAdaptor(
+            EntryExitInstrumenterPass(/*PostInlining=*/false)));
+      });
 
       // Register callbacks to schedule sanitizer passes at the appropriate part of
       // the pipeline.
@@ -1181,23 +1177,6 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
                   UseOdrIndicator));
             });
       }
-      if (LangOpts.Sanitize.has(SanitizerKind::HWAddress)) {
-        bool Recover =
-            CodeGenOpts.SanitizeRecover.has(SanitizerKind::HWAddress);
-        PB.registerOptimizerLastEPCallback(
-            [Recover](FunctionPassManager &FPM,
-                      PassBuilder::OptimizationLevel Level) {
-              FPM.addPass(HWAddressSanitizerPass(
-                  /*CompileKernel=*/false, Recover));
-            });
-      }
-      if (LangOpts.Sanitize.has(SanitizerKind::KernelHWAddress)) {
-        PB.registerOptimizerLastEPCallback(
-            [](FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
-              FPM.addPass(HWAddressSanitizerPass(
-                  /*CompileKernel=*/true, /*Recover=*/true));
-            });
-      }
       if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts))
         PB.registerPipelineStartEPCallback([Options](ModulePassManager &MPM) {
           MPM.addPass(GCOVProfilerPass(*Options));
@@ -1222,6 +1201,16 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         MPM = PB.buildPerModuleDefaultPipeline(Level,
                                                CodeGenOpts.DebugPassManager);
       }
+    }
+
+    if (LangOpts.Sanitize.has(SanitizerKind::HWAddress)) {
+      bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::HWAddress);
+      MPM.addPass(HWAddressSanitizerPass(
+          /*CompileKernel=*/false, Recover));
+    }
+    if (LangOpts.Sanitize.has(SanitizerKind::KernelHWAddress)) {
+      MPM.addPass(HWAddressSanitizerPass(
+          /*CompileKernel=*/true, /*Recover=*/true));
     }
 
     if (CodeGenOpts.OptimizationLevel == 0)
@@ -1284,8 +1273,8 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     NeedCodeGen = true;
     CodeGenPasses.add(
         createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
-    if (!CodeGenOpts.SplitDwarfFile.empty()) {
-      DwoOS = openOutputFile(CodeGenOpts.SplitDwarfFile);
+    if (!CodeGenOpts.SplitDwarfOutput.empty()) {
+      DwoOS = openOutputFile(CodeGenOpts.SplitDwarfOutput);
       if (!DwoOS)
         return;
     }
@@ -1436,7 +1425,9 @@ static void runThinLTOBackend(ModuleSummaryIndex *CombinedIndex, Module *M,
   Conf.RemarksWithHotness = CGOpts.DiagnosticsWithHotness;
   Conf.RemarksFilename = CGOpts.OptRecordFile;
   Conf.RemarksPasses = CGOpts.OptRecordPasses;
-  Conf.DwoPath = CGOpts.SplitDwarfFile;
+  Conf.RemarksFormat = CGOpts.OptRecordFormat;
+  Conf.SplitDwarfFile = CGOpts.SplitDwarfFile;
+  Conf.SplitDwarfOutput = CGOpts.SplitDwarfOutput;
   switch (Action) {
   case Backend_EmitNothing:
     Conf.PreCodeGenModuleHook = [](size_t Task, const Module &Mod) {

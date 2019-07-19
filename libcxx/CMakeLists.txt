@@ -147,6 +147,16 @@ set(LIBCXX_CXX_ABI "default" CACHE STRING
 set(CXXABIS none default libcxxabi libcxxrt libstdc++ libsupc++ vcruntime)
 set_property(CACHE LIBCXX_CXX_ABI PROPERTY STRINGS ;${CXXABIS})
 
+# FIXME: This is a temporary hack to get the buildbots working while D63883 is in flight.
+# Without this all the bots fail while building libc++
+if (DEFINED ENV{USER})
+  if (("$ENV{USER}" STREQUAL "buildbot") OR (("$ENV{USER}" STREQUAL "llvmbb") OR ("$ENV{USER}" STREQUAL "buildslave")))
+    if (LIBCXX_CXX_ABI STREQUAL "libcxxabi" AND NOT DEFINED LIBCXX_CXX_ABI_INCLUDE_PATHS)
+      message(WARNING "OVERRIDING BUILDBOT CONFIG")
+      set(LIBCXX_CXX_ABI "default" CACHE STRING "FIXME" FORCE)
+    endif()
+  endif()
+endif()
 # Setup the default options if LIBCXX_CXX_ABI is not specified.
 if (LIBCXX_CXX_ABI STREQUAL "default")
   find_path(
@@ -565,7 +575,9 @@ add_compile_flags_if_supported(
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     add_compile_flags_if_supported(
         -Wno-user-defined-literals
-        -Wno-covered-switch-default)
+        -Wno-covered-switch-default
+        -Wno-ignored-attributes # FIXME: Caused by _LIBCPP_NODEBUG_TYPE not being supported on older clangs
+        )
     if (LIBCXX_TARGETING_CLANG_CL)
       add_compile_flags_if_supported(
         -Wno-c++98-compat

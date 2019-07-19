@@ -524,7 +524,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
             S.Context, Base, false, SourceLocation(), NestedNameSpecifierLoc(),
             SourceLocation(), Field, FieldDAP,
             DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
-            nullptr, Field->getType(), VK_LValue, OK_Ordinary);
+            nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
 
         // [kernel_obj or wrapper object].special_obj.__init
         DeclAccessPair MethodDAP = DeclAccessPair::make(InitMethod, AS_none);
@@ -532,7 +532,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
             S.Context, SpecialObjME, false, SourceLocation(),
             NestedNameSpecifierLoc(), SourceLocation(), InitMethod, MethodDAP,
             DeclarationNameInfo(InitMethod->getDeclName(), SourceLocation()),
-            nullptr, InitMethod->getType(), VK_LValue, OK_Ordinary);
+            nullptr, InitMethod->getType(), VK_LValue, OK_Ordinary, NOUR_None);
 
         // Not referenced -> not emitted
         S.MarkFunctionReferenced(SourceLocation(), InitMethod, true);
@@ -585,7 +585,8 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                       WrapperFieldDAP,
                       DeclarationNameInfo(WrapperFld->getDeclName(),
                                           SourceLocation()),
-                      nullptr, WrapperFld->getType(), VK_LValue, OK_Ordinary);
+                      nullptr, WrapperFld->getType(), VK_LValue, OK_Ordinary,
+                      NOUR_None);
                   getExprForWrappedAccessorInit(WrapperFldCRD, NewBase);
                 }
               }
@@ -622,7 +623,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
             S.Context, KernelObjCloneRef, false, SourceLocation(),
             NestedNameSpecifierLoc(), SourceLocation(), Field, FieldDAP,
             DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
-            nullptr, Field->getType(), VK_LValue, OK_Ordinary);
+            nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
         auto Rhs = ImplicitCastExpr::Create(
             S.Context, ParamType, CK_LValueToRValue, DRE, nullptr, VK_RValue);
         // lambda.field = kernel_parameter

@@ -306,9 +306,9 @@ static const X86MemoryFoldTableEntry MemoryFoldTable0[] = {
   { X86::MOVDQArr,            X86::MOVDQAmr,            TB_FOLDED_STORE | TB_ALIGN_16 },
   { X86::MOVDQUrr,            X86::MOVDQUmr,            TB_FOLDED_STORE },
   { X86::MOVPDI2DIrr,         X86::MOVPDI2DImr,         TB_FOLDED_STORE },
-  { X86::MOVPQIto64rr,        X86::MOVPQI2QImr,         TB_FOLDED_STORE },
-  { X86::MOVSDto64rr,         X86::MOVSDto64mr,         TB_FOLDED_STORE },
-  { X86::MOVSS2DIrr,          X86::MOVSS2DImr,          TB_FOLDED_STORE },
+  { X86::MOVPQIto64rr,        X86::MOVPQI2QImr,         TB_FOLDED_STORE | TB_NO_REVERSE },
+  { X86::MOVSDto64rr,         X86::MOVSDmr,             TB_FOLDED_STORE | TB_NO_REVERSE },
+  { X86::MOVSS2DIrr,          X86::MOVSSmr,             TB_FOLDED_STORE },
   { X86::MOVUPDrr,            X86::MOVUPDmr,            TB_FOLDED_STORE },
   { X86::MOVUPSrr,            X86::MOVUPSmr,            TB_FOLDED_STORE },
   { X86::MUL16r,              X86::MUL16m,              TB_FOLDED_LOAD },
@@ -389,12 +389,12 @@ static const X86MemoryFoldTableEntry MemoryFoldTable0[] = {
   { X86::VMOVDQUrr,           X86::VMOVDQUmr,           TB_FOLDED_STORE },
   { X86::VMOVPDI2DIZrr,       X86::VMOVPDI2DIZmr,       TB_FOLDED_STORE },
   { X86::VMOVPDI2DIrr,        X86::VMOVPDI2DImr,        TB_FOLDED_STORE },
-  { X86::VMOVPQIto64Zrr,      X86::VMOVPQI2QIZmr,       TB_FOLDED_STORE },
-  { X86::VMOVPQIto64rr,       X86::VMOVPQI2QImr,        TB_FOLDED_STORE },
-  { X86::VMOVSDto64Zrr,       X86::VMOVSDto64Zmr,       TB_FOLDED_STORE },
-  { X86::VMOVSDto64rr,        X86::VMOVSDto64mr,        TB_FOLDED_STORE },
-  { X86::VMOVSS2DIZrr,        X86::VMOVSS2DIZmr,        TB_FOLDED_STORE },
-  { X86::VMOVSS2DIrr,         X86::VMOVSS2DImr,         TB_FOLDED_STORE },
+  { X86::VMOVPQIto64Zrr,      X86::VMOVPQI2QIZmr,       TB_FOLDED_STORE | TB_NO_REVERSE },
+  { X86::VMOVPQIto64rr,       X86::VMOVPQI2QImr,        TB_FOLDED_STORE | TB_NO_REVERSE },
+  { X86::VMOVSDto64Zrr,       X86::VMOVSDZmr,           TB_FOLDED_STORE | TB_NO_REVERSE },
+  { X86::VMOVSDto64rr,        X86::VMOVSDmr,            TB_FOLDED_STORE | TB_NO_REVERSE },
+  { X86::VMOVSS2DIZrr,        X86::VMOVSSZmr,           TB_FOLDED_STORE },
+  { X86::VMOVSS2DIrr,         X86::VMOVSSmr,            TB_FOLDED_STORE },
   { X86::VMOVUPDYrr,          X86::VMOVUPDYmr,          TB_FOLDED_STORE },
   { X86::VMOVUPDZ128rr,       X86::VMOVUPDZ128mr,       TB_FOLDED_STORE },
   { X86::VMOVUPDZ256rr,       X86::VMOVUPDZ256mr,       TB_FOLDED_STORE },
@@ -530,14 +530,14 @@ static const X86MemoryFoldTableEntry MemoryFoldTable1[] = {
   { X86::MOV16rr,              X86::MOV16rm,              0 },
   { X86::MOV32rr,              X86::MOV32rm,              0 },
   { X86::MOV64rr,              X86::MOV64rm,              0 },
-  { X86::MOV64toPQIrr,         X86::MOVQI2PQIrm,          0 },
-  { X86::MOV64toSDrr,          X86::MOV64toSDrm,          0 },
+  { X86::MOV64toPQIrr,         X86::MOVQI2PQIrm,          TB_NO_REVERSE },
+  { X86::MOV64toSDrr,          X86::MOVSDrm_alt,          TB_NO_REVERSE },
   { X86::MOV8rr,               X86::MOV8rm,               0 },
   { X86::MOVAPDrr,             X86::MOVAPDrm,             TB_ALIGN_16 },
   { X86::MOVAPSrr,             X86::MOVAPSrm,             TB_ALIGN_16 },
   { X86::MOVDDUPrr,            X86::MOVDDUPrm,            TB_NO_REVERSE },
   { X86::MOVDI2PDIrr,          X86::MOVDI2PDIrm,          0 },
-  { X86::MOVDI2SSrr,           X86::MOVDI2SSrm,           0 },
+  { X86::MOVDI2SSrr,           X86::MOVSSrm_alt,          0 },
   { X86::MOVDQArr,             X86::MOVDQArm,             TB_ALIGN_16 },
   { X86::MOVDQUrr,             X86::MOVDQUrm,             0 },
   { X86::MOVSHDUPrr,           X86::MOVSHDUPrm,           TB_ALIGN_16 },
@@ -818,10 +818,10 @@ static const X86MemoryFoldTableEntry MemoryFoldTable1[] = {
   { X86::VGETMANTPSZ128rri,    X86::VGETMANTPSZ128rmi,    0 },
   { X86::VGETMANTPSZ256rri,    X86::VGETMANTPSZ256rmi,    0 },
   { X86::VGETMANTPSZrri,       X86::VGETMANTPSZrmi,       0 },
-  { X86::VMOV64toPQIZrr,       X86::VMOVQI2PQIZrm,        0 },
-  { X86::VMOV64toPQIrr,        X86::VMOVQI2PQIrm,         0 },
-  { X86::VMOV64toSDZrr,        X86::VMOV64toSDZrm,        0 },
-  { X86::VMOV64toSDrr,         X86::VMOV64toSDrm,         0 },
+  { X86::VMOV64toPQIZrr,       X86::VMOVQI2PQIZrm,        TB_NO_REVERSE },
+  { X86::VMOV64toPQIrr,        X86::VMOVQI2PQIrm,         TB_NO_REVERSE },
+  { X86::VMOV64toSDZrr,        X86::VMOVSDZrm_alt,        TB_NO_REVERSE },
+  { X86::VMOV64toSDrr,         X86::VMOVSDrm_alt,         TB_NO_REVERSE },
   { X86::VMOVAPDYrr,           X86::VMOVAPDYrm,           TB_ALIGN_32 },
   { X86::VMOVAPDZ128rr,        X86::VMOVAPDZ128rm,        TB_ALIGN_16 },
   { X86::VMOVAPDZ256rr,        X86::VMOVAPDZ256rm,        TB_ALIGN_32 },
@@ -839,8 +839,8 @@ static const X86MemoryFoldTableEntry MemoryFoldTable1[] = {
   { X86::VMOVDDUPrr,           X86::VMOVDDUPrm,           TB_NO_REVERSE },
   { X86::VMOVDI2PDIZrr,        X86::VMOVDI2PDIZrm,        0 },
   { X86::VMOVDI2PDIrr,         X86::VMOVDI2PDIrm,         0 },
-  { X86::VMOVDI2SSZrr,         X86::VMOVDI2SSZrm,         0 },
-  { X86::VMOVDI2SSrr,          X86::VMOVDI2SSrm,          0 },
+  { X86::VMOVDI2SSZrr,         X86::VMOVSSZrm_alt,        0 },
+  { X86::VMOVDI2SSrr,          X86::VMOVSSrm_alt,         0 },
   { X86::VMOVDQA32Z128rr,      X86::VMOVDQA32Z128rm,      TB_ALIGN_16 },
   { X86::VMOVDQA32Z256rr,      X86::VMOVDQA32Z256rm,      TB_ALIGN_32 },
   { X86::VMOVDQA32Zrr,         X86::VMOVDQA32Zrm,         TB_ALIGN_64 },
@@ -1365,6 +1365,7 @@ static const X86MemoryFoldTableEntry MemoryFoldTable2[] = {
   { X86::MMX_PUNPCKLWDirr,         X86::MMX_PUNPCKLWDirm,         TB_NO_REVERSE },
   { X86::MMX_PXORirr,              X86::MMX_PXORirm,              0 },
   { X86::MOVLHPSrr,                X86::MOVHPSrm,                 TB_NO_REVERSE },
+  { X86::MOVSDrr,                  X86::MOVLPDrm,                 TB_NO_REVERSE },
   { X86::MPSADBWrri,               X86::MPSADBWrmi,               TB_ALIGN_16 },
   { X86::MULPDrr,                  X86::MULPDrm,                  TB_ALIGN_16 },
   { X86::MULPSrr,                  X86::MULPSrm,                  TB_ALIGN_16 },
@@ -1979,6 +1980,8 @@ static const X86MemoryFoldTableEntry MemoryFoldTable2[] = {
   { X86::VMOVDQU8Zrrkz,            X86::VMOVDQU8Zrmkz,            TB_NO_REVERSE },
   { X86::VMOVLHPSZrr,              X86::VMOVHPSZ128rm,            TB_NO_REVERSE },
   { X86::VMOVLHPSrr,               X86::VMOVHPSrm,                TB_NO_REVERSE },
+  { X86::VMOVSDZrr,                X86::VMOVLPDZ128rm,            TB_NO_REVERSE },
+  { X86::VMOVSDrr,                 X86::VMOVLPDrm,                TB_NO_REVERSE },
   { X86::VMOVSHDUPZ128rrkz,        X86::VMOVSHDUPZ128rmkz,        0 },
   { X86::VMOVSHDUPZ256rrkz,        X86::VMOVSHDUPZ256rmkz,        0 },
   { X86::VMOVSHDUPZrrkz,           X86::VMOVSHDUPZrmkz,           0 },
@@ -5288,9 +5291,7 @@ lookupFoldTableImpl(ArrayRef<X86MemoryFoldTableEntry> Table, unsigned RegOp) {
   }
 #endif
 
-  const X86MemoryFoldTableEntry *Data = std::lower_bound(Table.begin(),
-                                                         Table.end(),
-                                                         RegOp);
+  const X86MemoryFoldTableEntry *Data = llvm::lower_bound(Table, RegOp);
   if (Data != Table.end() && Data->KeyOp == RegOp &&
       !(Data->Flags & TB_NO_FORWARD))
     return Data;
@@ -5377,7 +5378,7 @@ static ManagedStatic<X86MemUnfoldTable> MemUnfoldTable;
 const X86MemoryFoldTableEntry *
 llvm::lookupUnfoldTable(unsigned MemOp) {
   auto &Table = MemUnfoldTable->Table;
-  auto I = std::lower_bound(Table.begin(), Table.end(), MemOp);
+  auto I = llvm::lower_bound(Table, MemOp);
   if (I != Table.end() && I->KeyOp == MemOp)
     return &*I;
   return nullptr;

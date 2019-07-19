@@ -38,7 +38,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV: Name [[BlockGlb3:[0-9]+]] "__block_literal_global.2"
 ; CHECK-SPIRV: Name [[BlockGlb4:[0-9]+]] "__block_literal_global.3"
 
-; CHECK-LLVM: [[BlockTy:%[0-9]+]] = type { i32, i32 }
+; CHECK-LLVM: [[BlockTy:%[0-9a-z\.]+]] = type { i32, i32 }
 %1 = type <{ i32, i32 }>
 
 ; CHECK-LLVM: @__block_literal_global = internal addrspace(1) constant [[BlockTy]] { i32 8, i32 4 }, align 4

@@ -10,6 +10,8 @@
 ; CHECK-LLVM: call spir_func i32 @_Z5isinff(
 ; CHECK-LLVM: call spir_func i32 @_Z8isnormalf(
 ; CHECK-LLVM: call spir_func i32 @_Z7signbitf(
+; CHECK-LLVM: call spir_func i32 @_Z9isorderedff(
+; CHECK-LLVM: call spir_func i32 @_Z11isunorderedff(
 
 ; CHECK-LLVM: call spir_func <2 x i32> @_Z8isfiniteDv2_f(
 ; CHECK-LLVM: call spir_func <2 x i32> @_Z5isnanDv2_f(
@@ -24,6 +26,8 @@
 ; CHECK-SPIRV: 4 IsInf [[BoolTypeID]]
 ; CHECK-SPIRV: 4 IsNormal [[BoolTypeID]]
 ; CHECK-SPIRV: 4 SignBitSet [[BoolTypeID]]
+; CHECK-SPIRV: 5 Ordered [[BoolTypeID]]
+; CHECK-SPIRV: 5 Unordered [[BoolTypeID]]
 
 ; CHECK-SPIRV: 4 IsFinite [[BoolVectorTypeID]]
 ; CHECK-SPIRV: 4 IsNan [[BoolVectorTypeID]]
@@ -45,7 +49,11 @@ entry:
   %add5 = add nsw i32 %add3, %call4
   %call6 = tail call spir_func i32 @_Z7signbitf(float %f) #2
   %add7 = add nsw i32 %add5, %call6
-  store i32 %add7, i32 addrspace(1)* %out, align 4
+  %call8 = tail call spir_func i32 @_Z9isorderedff(float %f, float %f) #2
+  %add9 = add nsw i32 %add7, %call8
+  %call10 = tail call spir_func i32 @_Z11isunorderedff(float %f, float %f) #2
+  %add11 = add nsw i32 %add9, %call10
+  store i32 %add11, i32 addrspace(1)* %out, align 4
   ret void
 }
 
@@ -56,6 +64,10 @@ declare spir_func i32 @_Z5isnanf(float) #1
 declare spir_func i32 @_Z5isinff(float) #1
 
 declare spir_func i32 @_Z8isnormalf(float) #1
+
+declare spir_func i32 @_Z9isorderedff(float, float) #1
+
+declare spir_func i32 @_Z11isunorderedff(float, float) #1
 
 declare spir_func i32 @_Z7signbitf(float) #1
 

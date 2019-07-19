@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/Dwarf.h"
+#include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/MC/MCAsmMacro.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -49,6 +50,7 @@ namespace llvm {
   class MCSectionELF;
   class MCSectionMachO;
   class MCSectionWasm;
+  class MCSectionXCOFF;
   class MCStreamer;
   class MCSymbol;
   class MCSymbolELF;
@@ -91,6 +93,7 @@ namespace llvm {
     SpecificBumpPtrAllocator<MCSectionELF> ELFAllocator;
     SpecificBumpPtrAllocator<MCSectionMachO> MachOAllocator;
     SpecificBumpPtrAllocator<MCSectionWasm> WasmAllocator;
+    SpecificBumpPtrAllocator<MCSectionXCOFF> XCOFFAllocator;
 
     /// Bindings of names to symbols.
     SymbolTable Symbols;
@@ -246,10 +249,25 @@ namespace llvm {
       }
     };
 
+    struct XCOFFSectionKey {
+      std::string SectionName;
+      XCOFF::StorageMappingClass MappingClass;
+
+      XCOFFSectionKey(StringRef SectionName,
+                      XCOFF::StorageMappingClass MappingClass)
+          : SectionName(SectionName), MappingClass(MappingClass) {}
+
+      bool operator<(const XCOFFSectionKey &Other) const {
+        return std::tie(SectionName, MappingClass) <
+               std::tie(Other.SectionName, Other.MappingClass);
+      }
+    };
+
     StringMap<MCSectionMachO *> MachOUniquingMap;
     std::map<ELFSectionKey, MCSectionELF *> ELFUniquingMap;
     std::map<COFFSectionKey, MCSectionCOFF *> COFFUniquingMap;
     std::map<WasmSectionKey, MCSectionWasm *> WasmUniquingMap;
+    std::map<XCOFFSectionKey, MCSectionXCOFF *> XCOFFUniquingMap;
     StringMap<bool> RelSecNames;
 
     SpecificBumpPtrAllocator<MCSubtargetInfo> MCSubtargetAllocator;
@@ -440,8 +458,6 @@ namespace llvm {
                                   SectionKind Kind,
                                   const char *BeginSymName = nullptr);
 
-    MCSectionCOFF *getCOFFSection(StringRef Section);
-
     /// Gets or creates a section equivalent to Sec that is associated with the
     /// section containing KeySym. For example, to create a debug info section
     /// associated with an inline function, pass the normal debug info section
@@ -472,6 +488,11 @@ namespace llvm {
                                   const MCSymbolWasm *Group, unsigned UniqueID,
                                   const char *BeginSymName);
 
+    MCSectionXCOFF *getXCOFFSection(StringRef Section,
+                                    XCOFF::StorageMappingClass MappingClass,
+                                    SectionKind K,
+                                    const char *BeginSymName = nullptr);
+
     // Create and save a copy of STI and return a reference to the copy.
     MCSubtargetInfo &getSubtargetCopy(const MCSubtargetInfo &STI);
 
@@ -487,12 +508,6 @@ namespace llvm {
 
     /// Set the compilation directory for DW_AT_comp_dir
     void setCompilationDir(StringRef S) { CompilationDir = S.str(); }
-
-    /// Get the debug prefix map.
-    const std::map<const std::string, const std::string> &
-    getDebugPrefixMap() const {
-      return DebugPrefixMap;
-    }
 
     /// Add an entry to the debug prefix map.
     void addDebugPrefixMapEntry(const std::string &From, const std::string &To);
@@ -536,13 +551,6 @@ namespace llvm {
 
     const SmallVectorImpl<std::string> &getMCDwarfDirs(unsigned CUID = 0) {
       return getMCDwarfLineTable(CUID).getMCDwarfDirs();
-    }
-
-    bool hasMCLineSections() const {
-      for (const auto &Table : MCDwarfLineTablesCUMap)
-        if (!Table.second.getMCDwarfFiles().empty() || Table.second.getLabel())
-          return true;
-      return false;
     }
 
     unsigned getDwarfCompileUnitID() { return DwarfCompileUnitID; }

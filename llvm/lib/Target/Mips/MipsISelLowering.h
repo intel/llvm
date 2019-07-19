@@ -653,9 +653,11 @@ class TargetRegisterClass;
 
     unsigned
     getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
+      if (ConstraintCode == "o")
+        return InlineAsm::Constraint_o;
       if (ConstraintCode == "R")
         return InlineAsm::Constraint_R;
-      else if (ConstraintCode == "ZC")
+      if (ConstraintCode == "ZC")
         return InlineAsm::Constraint_ZC;
       return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
     }

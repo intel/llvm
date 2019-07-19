@@ -386,7 +386,7 @@ static void SplitCriticalSideEffectEdges(Function &Fn, DominatorTree *DT,
 static void computeUsesMSVCFloatingPoint(const Triple &TT, const Function &F,
                                          MachineModuleInfo &MMI) {
   // Only needed for MSVC
-  if (!TT.isKnownWindowsMSVCEnvironment())
+  if (!TT.isWindowsMSVCEnvironment())
     return;
 
   // If it's already set, nothing to do.
@@ -503,6 +503,40 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
     Fn.getContext().diagnose(DiagFallback);
   }
 
+  // Replace forward-declared registers with the registers containing
+  // the desired value.
+  // Note: it is important that this happens **before** the call to
+  // EmitLiveInCopies, since implementations can skip copies of unused
+  // registers. If we don't apply the reg fixups before, some registers may
+  // appear as unused and will be skipped, resulting in bad MI.
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  for (DenseMap<unsigned, unsigned>::iterator I = FuncInfo->RegFixups.begin(),
+                                              E = FuncInfo->RegFixups.end();
+       I != E; ++I) {
+    unsigned From = I->first;
+    unsigned To = I->second;
+    // If To is also scheduled to be replaced, find what its ultimate
+    // replacement is.
+    while (true) {
+      DenseMap<unsigned, unsigned>::iterator J = FuncInfo->RegFixups.find(To);
+      if (J == E)
+        break;
+      To = J->second;
+    }
+    // Make sure the new register has a sufficiently constrained register class.
+    if (TargetRegisterInfo::isVirtualRegister(From) &&
+        TargetRegisterInfo::isVirtualRegister(To))
+      MRI.constrainRegClass(To, MRI.getRegClass(From));
+    // Replace it.
+
+    // Replacing one register with another won't touch the kill flags.
+    // We need to conservatively clear the kill flags as a kill on the old
+    // register might dominate existing uses of the new register.
+    if (!MRI.use_empty(To))
+      MRI.clearKillFlags(From);
+    MRI.replaceRegWith(From, To);
+  }
+
   // If the first basic block in the function has live ins that need to be
   // copied into vregs, emit the copies into the top of the block before
   // emitting the code for the block.
@@ -536,7 +570,7 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
   for (unsigned i = 0, e = FuncInfo->ArgDbgValues.size(); i != e; ++i) {
     MachineInstr *MI = FuncInfo->ArgDbgValues[e-i-1];
     bool hasFI = MI->getOperand(0).isFI();
-    unsigned Reg =
+    Register Reg =
         hasFI ? TRI.getFrameRegister(*MF) : MI->getOperand(0).getReg();
     if (TargetRegisterInfo::isPhysicalRegister(Reg))
       EntryMBB->insert(EntryMBB->begin(), MI);
@@ -624,7 +658,6 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
 
   // Replace forward-declared registers with the registers containing
   // the desired value.
-  MachineRegisterInfo &MRI = MF->getRegInfo();
   for (DenseMap<unsigned, unsigned>::iterator
        I = FuncInfo->RegFixups.begin(), E = FuncInfo->RegFixups.end();
        I != E; ++I) {
@@ -1122,16 +1155,14 @@ void SelectionDAGISel::DoInstructionSelection() {
 #endif
 
       // When we are using non-default rounding modes or FP exception behavior
-      // FP operations are represented by StrictFP pseudo-operations.  They
-      // need to be simplified here so that the target-specific instruction
-      // selectors know how to handle them.
-      //
-      // If the current node is a strict FP pseudo-op, the isStrictFPOp()
-      // function will provide the corresponding normal FP opcode to which the
-      // node should be mutated.
-      //
-      // FIXME: The backends need a way to handle FP constraints.
-      if (Node->isStrictFPOpcode())
+      // FP operations are represented by StrictFP pseudo-operations.  For
+      // targets that do not (yet) understand strict FP operations directly,
+      // we convert them to normal FP opcodes instead at this point.  This
+      // will allow them to be handled by existing target-specific instruction
+      // selectors.
+      if (Node->isStrictFPOpcode() &&
+          (TLI->getOperationAction(Node->getOpcode(), Node->getValueType(0))
+           != TargetLowering::Legal))
         Node = CurDAG->mutateStrictFPToFP(Node);
 
       LLVM_DEBUG(dbgs() << "\nISEL: Starting selection on root node: ";
@@ -1742,7 +1773,7 @@ SelectionDAGISel::FinishBasicBlock() {
   }
 
   // Lower each BitTestBlock.
-  for (auto &BTB : SDB->BitTestCases) {
+  for (auto &BTB : SDB->SL->BitTestCases) {
     // Lower header first, if it wasn't already lowered
     if (!BTB.Emitted) {
       // Set the current basic block to the mbb we wish to insert the code into
@@ -1823,30 +1854,30 @@ SelectionDAGISel::FinishBasicBlock() {
       }
     }
   }
-  SDB->BitTestCases.clear();
+  SDB->SL->BitTestCases.clear();
 
   // If the JumpTable record is filled in, then we need to emit a jump table.
   // Updating the PHI nodes is tricky in this case, since we need to determine
   // whether the PHI is a successor of the range check MBB or the jump table MBB
-  for (unsigned i = 0, e = SDB->JTCases.size(); i != e; ++i) {
+  for (unsigned i = 0, e = SDB->SL->JTCases.size(); i != e; ++i) {
     // Lower header first, if it wasn't already lowered
-    if (!SDB->JTCases[i].first.Emitted) {
+    if (!SDB->SL->JTCases[i].first.Emitted) {
       // Set the current basic block to the mbb we wish to insert the code into
-      FuncInfo->MBB = SDB->JTCases[i].first.HeaderBB;
+      FuncInfo->MBB = SDB->SL->JTCases[i].first.HeaderBB;
       FuncInfo->InsertPt = FuncInfo->MBB->end();
       // Emit the code
-      SDB->visitJumpTableHeader(SDB->JTCases[i].second, SDB->JTCases[i].first,
-                                FuncInfo->MBB);
+      SDB->visitJumpTableHeader(SDB->SL->JTCases[i].second,
+                                SDB->SL->JTCases[i].first, FuncInfo->MBB);
       CurDAG->setRoot(SDB->getRoot());
       SDB->clear();
       CodeGenAndEmitDAG();
     }
 
     // Set the current basic block to the mbb we wish to insert the code into
-    FuncInfo->MBB = SDB->JTCases[i].second.MBB;
+    FuncInfo->MBB = SDB->SL->JTCases[i].second.MBB;
     FuncInfo->InsertPt = FuncInfo->MBB->end();
     // Emit the code
-    SDB->visitJumpTable(SDB->JTCases[i].second);
+    SDB->visitJumpTable(SDB->SL->JTCases[i].second);
     CurDAG->setRoot(SDB->getRoot());
     SDB->clear();
     CodeGenAndEmitDAG();
@@ -1859,31 +1890,31 @@ SelectionDAGISel::FinishBasicBlock() {
       assert(PHI->isPHI() &&
              "This is not a machine PHI node that we are updating!");
       // "default" BB. We can go there only from header BB.
-      if (PHIBB == SDB->JTCases[i].second.Default)
+      if (PHIBB == SDB->SL->JTCases[i].second.Default)
         PHI.addReg(FuncInfo->PHINodesToUpdate[pi].second)
-           .addMBB(SDB->JTCases[i].first.HeaderBB);
+           .addMBB(SDB->SL->JTCases[i].first.HeaderBB);
       // JT BB. Just iterate over successors here
       if (FuncInfo->MBB->isSuccessor(PHIBB))
         PHI.addReg(FuncInfo->PHINodesToUpdate[pi].second).addMBB(FuncInfo->MBB);
     }
   }
-  SDB->JTCases.clear();
+  SDB->SL->JTCases.clear();
 
   // If we generated any switch lowering information, build and codegen any
   // additional DAGs necessary.
-  for (unsigned i = 0, e = SDB->SwitchCases.size(); i != e; ++i) {
+  for (unsigned i = 0, e = SDB->SL->SwitchCases.size(); i != e; ++i) {
     // Set the current basic block to the mbb we wish to insert the code into
-    FuncInfo->MBB = SDB->SwitchCases[i].ThisBB;
+    FuncInfo->MBB = SDB->SL->SwitchCases[i].ThisBB;
     FuncInfo->InsertPt = FuncInfo->MBB->end();
 
     // Determine the unique successors.
     SmallVector<MachineBasicBlock *, 2> Succs;
-    Succs.push_back(SDB->SwitchCases[i].TrueBB);
-    if (SDB->SwitchCases[i].TrueBB != SDB->SwitchCases[i].FalseBB)
-      Succs.push_back(SDB->SwitchCases[i].FalseBB);
+    Succs.push_back(SDB->SL->SwitchCases[i].TrueBB);
+    if (SDB->SL->SwitchCases[i].TrueBB != SDB->SL->SwitchCases[i].FalseBB)
+      Succs.push_back(SDB->SL->SwitchCases[i].FalseBB);
 
     // Emit the code. Note that this could result in FuncInfo->MBB being split.
-    SDB->visitSwitchCase(SDB->SwitchCases[i], FuncInfo->MBB);
+    SDB->visitSwitchCase(SDB->SL->SwitchCases[i], FuncInfo->MBB);
     CurDAG->setRoot(SDB->getRoot());
     SDB->clear();
     CodeGenAndEmitDAG();
@@ -1919,7 +1950,7 @@ SelectionDAGISel::FinishBasicBlock() {
       }
     }
   }
-  SDB->SwitchCases.clear();
+  SDB->SL->SwitchCases.clear();
 }
 
 /// Create the scheduler. If a specific scheduler was specified

@@ -127,7 +127,7 @@ const char *AMDGCN::Linker::constructLlcCommand(
     llvm::StringRef OutputFilePrefix, const char *InputFileName) const {
   // Construct llc command.
   ArgStringList LlcArgs{InputFileName, "-mtriple=amdgcn-amd-amdhsa",
-                        "-filetype=obj", "-mattr=-code-object-v3",
+                        "-filetype=obj",
                         Args.MakeArgString("-mcpu=" + SubArchName)};
 
   // Extract all the -m options
@@ -170,9 +170,8 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
                                           const char *InputFileName) const {
   // Construct lld command.
   // The output from ld.lld is an HSA code object file.
-  ArgStringList LldArgs{"-flavor",    "gnu", "--no-undefined",
-                        "-shared",    "-o",  Output.getFilename(),
-                        InputFileName};
+  ArgStringList LldArgs{
+      "-flavor", "gnu", "-shared", "-o", Output.getFilename(), InputFileName};
   SmallString<128> LldPath(C.getDriver().Dir);
   llvm::sys::path::append(LldPath, "lld");
   const char *Lld = Args.MakeArgString(LldPath);
@@ -316,15 +315,21 @@ void HIPToolChain::addClangTargetOptions(
     else
       FlushDenormalControlBC = "oclc_daz_opt_off.amdgcn.bc";
 
+    llvm::StringRef WaveFrontSizeBC;
+    if (stoi(GFXVersion) < 1000)
+      WaveFrontSizeBC = "oclc_wavefrontsize64_on.amdgcn.bc";
+    else
+      WaveFrontSizeBC = "oclc_wavefrontsize64_off.amdgcn.bc";
+
     BCLibs.append({"hip.amdgcn.bc", "opencl.amdgcn.bc", "ocml.amdgcn.bc",
                    "ockl.amdgcn.bc", "oclc_finite_only_off.amdgcn.bc",
                    FlushDenormalControlBC,
                    "oclc_correctly_rounded_sqrt_on.amdgcn.bc",
-                   "oclc_unsafe_math_off.amdgcn.bc", ISAVerBC});
+                   "oclc_unsafe_math_off.amdgcn.bc", ISAVerBC,
+                   WaveFrontSizeBC});
   }
   for (auto Lib : BCLibs)
     addBCLib(getDriver(), DriverArgs, CC1Args, LibraryPaths, Lib);
-
 }
 
 llvm::opt::DerivedArgList *

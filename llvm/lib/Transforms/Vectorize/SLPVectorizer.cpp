@@ -1252,7 +1252,7 @@ private:
     /// \return the single \p OpIdx operand.
     Value *getSingleOperand(unsigned OpIdx) const {
       assert(OpIdx < Operands.size() && "Off bounds");
-      assert(!Operands[OpIdx].empty() && "No operand availabe");
+      assert(!Operands[OpIdx].empty() && "No operand available");
       return Operands[OpIdx][0];
     }
 
@@ -2390,6 +2390,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       return;
     }
     case Instruction::Select:
+    case Instruction::FNeg:
     case Instruction::Add:
     case Instruction::FAdd:
     case Instruction::Sub:
@@ -2409,7 +2410,7 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
     case Instruction::Or:
     case Instruction::Xor: {
       auto *TE = newTreeEntry(VL, true, UserTreeIdx, ReuseShuffleIndicies);
-      LLVM_DEBUG(dbgs() << "SLP: added a vector of bin op.\n");
+      LLVM_DEBUG(dbgs() << "SLP: added a vector of un/bin op.\n");
 
       // Sort operands of the instructions so that each side is more likely to
       // have the same opcode.
@@ -2881,6 +2882,7 @@ int BoUpSLP::getEntryCost(TreeEntry *E) {
       int VecCost = TTI->getCmpSelInstrCost(S.getOpcode(), VecTy, MaskTy, VL0);
       return ReuseShuffleCost + VecCost - ScalarCost;
     }
+    case Instruction::FNeg:
     case Instruction::Add:
     case Instruction::FAdd:
     case Instruction::Sub:
@@ -2918,7 +2920,8 @@ int BoUpSLP::getEntryCost(TreeEntry *E) {
       ConstantInt *CInt0 = nullptr;
       for (unsigned i = 0, e = VL.size(); i < e; ++i) {
         const Instruction *I = cast<Instruction>(VL[i]);
-        ConstantInt *CInt = dyn_cast<ConstantInt>(I->getOperand(1));
+        unsigned OpIdx = isa<BinaryOperator>(I) ? 1 : 0;
+        ConstantInt *CInt = dyn_cast<ConstantInt>(I->getOperand(OpIdx));
         if (!CInt) {
           Op2VK = TargetTransformInfo::OK_AnyValue;
           Op2VP = TargetTransformInfo::OP_None;
@@ -3152,6 +3155,7 @@ int BoUpSLP::getSpillCost() const {
     });
 
     // Now find the sequence of instructions between PrevInst and Inst.
+    unsigned NumCalls = 0;
     BasicBlock::reverse_iterator InstIt = ++Inst->getIterator().getReverse(),
                                  PrevInstIt =
                                      PrevInst->getIterator().getReverse();
@@ -3164,14 +3168,17 @@ int BoUpSLP::getSpillCost() const {
       // Debug informations don't impact spill cost.
       if ((isa<CallInst>(&*PrevInstIt) &&
            !isa<DbgInfoIntrinsic>(&*PrevInstIt)) &&
-          &*PrevInstIt != PrevInst) {
-        SmallVector<Type*, 4> V;
-        for (auto *II : LiveValues)
-          V.push_back(VectorType::get(II->getType(), BundleWidth));
-        Cost += TTI->getCostOfKeepingLiveOverCall(V);
-      }
+          &*PrevInstIt != PrevInst)
+        NumCalls++;
 
       ++PrevInstIt;
+    }
+
+    if (NumCalls) {
+      SmallVector<Type*, 4> V;
+      for (auto *II : LiveValues)
+        V.push_back(VectorType::get(II->getType(), BundleWidth));
+      Cost += NumCalls * TTI->getCostOfKeepingLiveOverCall(V);
     }
 
     PrevInst = Inst;
@@ -3696,6 +3703,31 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       }
       E->VectorizedValue = V;
       ++NumVectorInstructions;
+      return V;
+    }
+    case Instruction::FNeg: {
+      setInsertPointAfterBundle(E->Scalars, S);
+
+      Value *Op = vectorizeTree(E->getOperand(0));
+
+      if (E->VectorizedValue) {
+        LLVM_DEBUG(dbgs() << "SLP: Diamond merged for " << *VL0 << ".\n");
+        return E->VectorizedValue;
+      }
+
+      Value *V = Builder.CreateUnOp(
+          static_cast<Instruction::UnaryOps>(S.getOpcode()), Op);
+      propagateIRFlags(V, E->Scalars, VL0);
+      if (auto *I = dyn_cast<Instruction>(V))
+        V = propagateMetadata(I, E->Scalars);
+
+      if (NeedToShuffleReuses) {
+        V = Builder.CreateShuffleVector(V, UndefValue::get(VecTy),
+                                        E->ReuseShuffleIndices, "shuffle");
+      }
+      E->VectorizedValue = V;
+      ++NumVectorInstructions;
+
       return V;
     }
     case Instruction::Add:

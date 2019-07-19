@@ -129,13 +129,10 @@ static void InitializeFlags() {
   ubsan_parser.ParseString(ubsan_default_options);
 #endif
 
-  const char *hwasan_options = GetEnv("HWASAN_OPTIONS");
-  parser.ParseString(hwasan_options);
+  parser.ParseStringFromEnv("HWASAN_OPTIONS");
 #if HWASAN_CONTAINS_UBSAN
-  ubsan_parser.ParseString(GetEnv("UBSAN_OPTIONS"));
+  ubsan_parser.ParseStringFromEnv("UBSAN_OPTIONS");
 #endif
-  VPrintf(1, "HWASAN_OPTIONS: %s\n",
-          hwasan_options ? hwasan_options : "<empty>");
 
   InitializeCommonFlags();
 
@@ -196,36 +193,6 @@ void UpdateMemoryUsage() {
 void UpdateMemoryUsage() {}
 #endif
 
-struct FrameDescription {
-  uptr PC;
-  const char *Descr;
-};
-
-struct FrameDescriptionArray {
-  FrameDescription *beg, *end;
-};
-
-static InternalMmapVectorNoCtor<FrameDescriptionArray> AllFrames;
-
-void InitFrameDescriptors(uptr b, uptr e) {
-  FrameDescription *beg = reinterpret_cast<FrameDescription *>(b);
-  FrameDescription *end = reinterpret_cast<FrameDescription *>(e);
-  if (beg == end)
-    return;
-  AllFrames.push_back({beg, end});
-  if (Verbosity())
-    for (FrameDescription *frame_descr = beg; frame_descr < end; frame_descr++)
-      Printf("Frame: %p %s\n", frame_descr->PC, frame_descr->Descr);
-}
-
-const char *GetStackFrameDescr(uptr pc) {
-  for (uptr i = 0, n = AllFrames.size(); i < n; i++)
-    for (auto p = AllFrames[i].beg; p < AllFrames[i].end; p++)
-      if (p->PC == pc)
-        return p->Descr;
-  return nullptr;
-}
-
 // Prepare to run instrumented code on the main thread.
 void InitInstrumentation() {
   if (hwasan_instrumentation_inited) return;
@@ -270,9 +237,9 @@ using namespace __hwasan;
 
 uptr __hwasan_shadow_memory_dynamic_address;  // Global interface symbol.
 
-void __hwasan_init_frames(uptr beg, uptr end) {
-  InitFrameDescriptors(beg, end);
-}
+// This function was used by the old frame descriptor mechanism. We keep it
+// around to avoid breaking ABI.
+void __hwasan_init_frames(uptr beg, uptr end) {}
 
 void __hwasan_init_static() {
   InitShadowGOT();

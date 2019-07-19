@@ -1,3 +1,7 @@
+lldb_tablegen(CommandOptions.inc -gen-lldb-option-defs
+  SOURCE Options.td
+  TARGET LLDBOptionsGen)
+
 add_lldb_library(lldbCommands
   CommandCompletions.cpp
   CommandObjectApropos.cpp
@@ -41,8 +45,9 @@ add_lldb_library(lldbCommands
     lldbSymbol
     lldbTarget
     lldbUtility
-    lldbPluginExpressionParserClang
 
   LINK_COMPONENTS
     Support
   )
+
+add_dependencies(lldbCommands LLDBOptionsGen)

@@ -21,6 +21,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/ModuleLoader.h"
@@ -46,7 +47,7 @@
 #include <utility>
 #include <vector>
 
-#include "clang/Basic/OpenCLBuiltins.inc"
+#include "OpenCLBuiltins.inc"
 
 using namespace clang;
 using namespace sema;
@@ -687,7 +688,7 @@ static void InsertOCLBuiltinDeclarations(Sema &S, LookupResult &LR,
                                          unsigned Len) {
 
   for (unsigned i = 0; i < Len; ++i) {
-    OpenCLBuiltinDecl &Decl = OpenCLBuiltins[Index - 1 + i];
+    const OpenCLBuiltinDecl &Decl = OpenCLBuiltins[Index - 1 + i];
     ASTContext &Context = S.Context;
 
     // Ignore this BIF if the version is incorrect.
@@ -5168,7 +5169,8 @@ static NamedDecl *getDefinitionToImport(NamedDecl *D) {
   if (ObjCProtocolDecl *PD = dyn_cast<ObjCProtocolDecl>(D))
     return PD->getDefinition();
   if (TemplateDecl *TD = dyn_cast<TemplateDecl>(D))
-    return getDefinitionToImport(TD->getTemplatedDecl());
+    if (NamedDecl *TTD = TD->getTemplatedDecl())
+      return getDefinitionToImport(TTD);
   return nullptr;
 }
 
@@ -5195,10 +5197,11 @@ void Sema::diagnoseMissingImport(SourceLocation Loc, NamedDecl *Decl,
 /// Get a "quoted.h" or <angled.h> include path to use in a diagnostic
 /// suggesting the addition of a #include of the specified file.
 static std::string getIncludeStringForHeader(Preprocessor &PP,
-                                             const FileEntry *E) {
-  bool IsSystem;
-  auto Path =
-      PP.getHeaderSearchInfo().suggestPathToFileForDiagnostics(E, &IsSystem);
+                                             const FileEntry *E,
+                                             llvm::StringRef IncludingFile) {
+  bool IsSystem = false;
+  auto Path = PP.getHeaderSearchInfo().suggestPathToFileForDiagnostics(
+      E, IncludingFile, &IsSystem);
   return (IsSystem ? '<' : '"') + Path + (IsSystem ? '>' : '"');
 }
 
@@ -5240,6 +5243,11 @@ void Sema::diagnoseMissingImport(SourceLocation UseLoc, NamedDecl *Decl,
       UniqueModules.push_back(M);
   }
 
+  llvm::StringRef IncludingFile;
+  if (const FileEntry *FE =
+          SourceMgr.getFileEntryForID(SourceMgr.getFileID(UseLoc)))
+    IncludingFile = FE->tryGetRealPathName();
+
   if (UniqueModules.empty()) {
     // All candidates were global module fragments. Try to suggest a #include.
     const FileEntry *E =
@@ -5248,7 +5256,7 @@ void Sema::diagnoseMissingImport(SourceLocation UseLoc, NamedDecl *Decl,
     // a FixItHint there.
     Diag(UseLoc, diag::err_module_unimported_use_global_module_fragment)
         << (int)MIK << Decl << !!E
-        << (E ? getIncludeStringForHeader(PP, E) : "");
+        << (E ? getIncludeStringForHeader(PP, E, IncludingFile) : "");
     // Produce a "previous" note if it will point to a header rather than some
     // random global module fragment.
     // FIXME: Suppress the note backtrace even under
@@ -5284,8 +5292,8 @@ void Sema::diagnoseMissingImport(SourceLocation UseLoc, NamedDecl *Decl,
     // FIXME: Find a smart place to suggest inserting a #include, and add
     // a FixItHint there.
     Diag(UseLoc, diag::err_module_unimported_use_header)
-      << (int)MIK << Decl << Modules[0]->getFullModuleName()
-      << getIncludeStringForHeader(PP, E);
+        << (int)MIK << Decl << Modules[0]->getFullModuleName()
+        << getIncludeStringForHeader(PP, E, IncludingFile);
   } else {
     // FIXME: Add a FixItHint that imports the corresponding module.
     Diag(UseLoc, diag::err_module_unimported_use)

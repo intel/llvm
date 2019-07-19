@@ -198,6 +198,42 @@ TEST_F(TransformerTest, Flag) {
   testRule(std::move(Rule), Input, Expected);
 }
 
+TEST_F(TransformerTest, AddIncludeQuoted) {
+  RewriteRule Rule = makeRule(callExpr(callee(functionDecl(hasName("f")))),
+                              change(text("other()")));
+  addInclude(Rule, "clang/OtherLib.h");
+
+  std::string Input = R"cc(
+    int f(int x);
+    int h(int x) { return f(x); }
+  )cc";
+  std::string Expected = R"cc(#include "clang/OtherLib.h"
+
+    int f(int x);
+    int h(int x) { return other(); }
+  )cc";
+
+  testRule(Rule, Input, Expected);
+}
+
+TEST_F(TransformerTest, AddIncludeAngled) {
+  RewriteRule Rule = makeRule(callExpr(callee(functionDecl(hasName("f")))),
+                              change(text("other()")));
+  addInclude(Rule, "clang/OtherLib.h", IncludeFormat::Angled);
+
+  std::string Input = R"cc(
+    int f(int x);
+    int h(int x) { return f(x); }
+  )cc";
+  std::string Expected = R"cc(#include <clang/OtherLib.h>
+
+    int f(int x);
+    int h(int x) { return other(); }
+  )cc";
+
+  testRule(Rule, Input, Expected);
+}
+
 TEST_F(TransformerTest, NodePartNameNamedDecl) {
   StringRef Fun = "fun";
   RewriteRule Rule = makeRule(functionDecl(hasName("bad")).bind(Fun),
@@ -347,6 +383,64 @@ TEST_F(TransformerTest, NodePartMemberMultiToken) {
   testRule(makeRule(memberExpr().bind(MemExpr),
                     change(member(MemExpr), text("good"))),
            Input, Expected);
+}
+
+TEST_F(TransformerTest, InsertBeforeEdit) {
+  std::string Input = R"cc(
+    int f() {
+      return 7;
+    }
+  )cc";
+  std::string Expected = R"cc(
+    int f() {
+      int y = 3;
+      return 7;
+    }
+  )cc";
+
+  StringRef Ret = "return";
+  testRule(makeRule(returnStmt().bind(Ret),
+                    insertBefore(statement(Ret), text("int y = 3;"))),
+           Input, Expected);
+}
+
+TEST_F(TransformerTest, InsertAfterEdit) {
+  std::string Input = R"cc(
+    int f() {
+      int x = 5;
+      return 7;
+    }
+  )cc";
+  std::string Expected = R"cc(
+    int f() {
+      int x = 5;
+      int y = 3;
+      return 7;
+    }
+  )cc";
+
+  StringRef Decl = "decl";
+  testRule(makeRule(declStmt().bind(Decl),
+                    insertAfter(statement(Decl), text("int y = 3;"))),
+           Input, Expected);
+}
+
+TEST_F(TransformerTest, RemoveEdit) {
+  std::string Input = R"cc(
+    int f() {
+      int x = 5;
+      return 7;
+    }
+  )cc";
+  std::string Expected = R"cc(
+    int f() {
+      return 7;
+    }
+  )cc";
+
+  StringRef Decl = "decl";
+  testRule(makeRule(declStmt().bind(Decl), remove(statement(Decl))), Input,
+           Expected);
 }
 
 TEST_F(TransformerTest, MultiChange) {

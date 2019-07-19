@@ -17,7 +17,9 @@
 #include "AMDGPUArgumentUsageInfo.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
+#include "llvm/IR/InstrTypes.h"
 
 namespace {
 #define GET_GLOBALISEL_PREDICATE_BITSET
@@ -58,26 +60,44 @@ private:
   };
 
   bool isInstrUniform(const MachineInstr &MI) const;
+  bool isVCC(Register Reg, const MachineRegisterInfo &MRI) const;
+
   /// tblgen-erated 'select' implementation.
   bool selectImpl(MachineInstr &I, CodeGenCoverage &CoverageInfo) const;
 
-  MachineOperand getSubOperand64(MachineOperand &MO, unsigned SubIdx) const;
+  MachineOperand getSubOperand64(MachineOperand &MO,
+                                 const TargetRegisterClass &SubRC,
+                                 unsigned SubIdx) const;
   bool selectCOPY(MachineInstr &I) const;
+  bool selectPHI(MachineInstr &I) const;
+  bool selectG_TRUNC(MachineInstr &I) const;
+  bool selectG_SZA_EXT(MachineInstr &I) const;
   bool selectG_CONSTANT(MachineInstr &I) const;
-  bool selectG_ADD(MachineInstr &I) const;
+  bool selectG_AND_OR_XOR(MachineInstr &I) const;
+  bool selectG_ADD_SUB(MachineInstr &I) const;
   bool selectG_EXTRACT(MachineInstr &I) const;
+  bool selectG_MERGE_VALUES(MachineInstr &I) const;
+  bool selectG_UNMERGE_VALUES(MachineInstr &I) const;
   bool selectG_GEP(MachineInstr &I) const;
   bool selectG_IMPLICIT_DEF(MachineInstr &I) const;
   bool selectG_INSERT(MachineInstr &I) const;
   bool selectG_INTRINSIC(MachineInstr &I, CodeGenCoverage &CoverageInfo) const;
   bool selectG_INTRINSIC_W_SIDE_EFFECTS(MachineInstr &I,
                                         CodeGenCoverage &CoverageInfo) const;
+  int getS_CMPOpcode(CmpInst::Predicate P, unsigned Size) const;
+  bool selectG_ICMP(MachineInstr &I) const;
   bool hasVgprParts(ArrayRef<GEPInfo> AddrInfo) const;
   void getAddrModeInfo(const MachineInstr &Load, const MachineRegisterInfo &MRI,
                        SmallVectorImpl<GEPInfo> &AddrInfo) const;
   bool selectSMRD(MachineInstr &I, ArrayRef<GEPInfo> AddrInfo) const;
   bool selectG_LOAD(MachineInstr &I) const;
+  bool selectG_SELECT(MachineInstr &I) const;
   bool selectG_STORE(MachineInstr &I) const;
+  bool selectG_BRCOND(MachineInstr &I) const;
+  bool selectG_FRAME_INDEX(MachineInstr &I) const;
+
+  std::pair<Register, unsigned>
+  selectVOP3ModsImpl(Register Src, const MachineRegisterInfo &MRI) const;
 
   InstructionSelector::ComplexRendererFns
   selectVCSRC(MachineOperand &Root) const;
@@ -98,6 +118,20 @@ private:
   selectSmrdImm32(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
   selectSmrdSgpr(MachineOperand &Root) const;
+
+  template <bool Signed>
+  InstructionSelector::ComplexRendererFns
+  selectFlatOffsetImpl(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectFlatOffset(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
+  selectFlatOffsetSigned(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
+  selectMUBUFScratchOffen(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectMUBUFScratchOffset(MachineOperand &Root) const;
 
   const SIInstrInfo &TII;
   const SIRegisterInfo &TRI;

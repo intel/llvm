@@ -2,7 +2,7 @@
 # the presence of DEBUG_VALUE machine instructions.
 #
 # RUN: llc %s -verify-machineinstrs -mtriple=s390x-linux-gnu -mcpu=z13 \
-# RUN:   -start-before=expand-isel-pseudos -o - 2>&1 | FileCheck %s
+# RUN:   -start-before=finalize-isel -o - 2>&1 | FileCheck %s
 #
 # CHECK-LABEL: %bb.1:
 # CHECK:       ldr
@@ -69,7 +69,7 @@ liveins:
 frameInfo:       
   maxAlignment:    8
 fixedStack:      
-  - { id: 0, size: 4, alignment: 8, stack-id: 0, isImmutable: true }
+  - { id: 0, size: 4, alignment: 8, stack-id: default, isImmutable: true }
 body:             |
   bb.0 (%ir-block.0):
     liveins: $r2l, $f0s, $f2s, $f4s, $f6s

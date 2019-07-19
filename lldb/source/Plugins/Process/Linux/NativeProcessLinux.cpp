@@ -288,7 +288,7 @@ NativeProcessLinux::NativeProcessLinux(::pid_t pid, int terminal_fd,
                                        NativeDelegate &delegate,
                                        const ArchSpec &arch, MainLoop &mainloop,
                                        llvm::ArrayRef<::pid_t> tids)
-    : NativeProcessProtocol(pid, terminal_fd, delegate), m_arch(arch) {
+    : NativeProcessELF(pid, terminal_fd, delegate), m_arch(arch) {
   if (m_terminal_fd != -1) {
     Status status = EnsureFDFlags(m_terminal_fd, O_NONBLOCK);
     assert(status.Success());
@@ -1387,11 +1387,6 @@ Status NativeProcessLinux::DeallocateMemory(lldb::addr_t addr) {
   // FIXME see comments in AllocateMemory - required lower-level
   // bits not in place yet (ThreadPlans)
   return Status("not implemented");
-}
-
-lldb::addr_t NativeProcessLinux::GetSharedLibraryInfoAddress() {
-  // punt on this for now
-  return LLDB_INVALID_ADDRESS;
 }
 
 size_t NativeProcessLinux::UpdateThreads() {

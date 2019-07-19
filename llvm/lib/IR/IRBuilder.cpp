@@ -313,7 +313,7 @@ static CallInst *getReductionIntrinsic(IRBuilderBase *Builder, Intrinsic::ID ID,
                                     Value *Src) {
   Module *M = Builder->GetInsertBlock()->getParent()->getParent();
   Value *Ops[] = {Src};
-  Type *Tys[] = { Src->getType()->getVectorElementType(), Src->getType() };
+  Type *Tys[] = { Src->getType() };
   auto Decl = Intrinsic::getDeclaration(M, ID, Tys);
   return createCallHelper(Decl, Ops, Builder);
 }
@@ -323,7 +323,7 @@ CallInst *IRBuilderBase::CreateFAddReduce(Value *Acc, Value *Src) {
   Value *Ops[] = {Acc, Src};
   Type *Tys[] = {Acc->getType(), Src->getType()};
   auto Decl = Intrinsic::getDeclaration(
-      M, Intrinsic::experimental_vector_reduce_fadd, Tys);
+      M, Intrinsic::experimental_vector_reduce_v2_fadd, Tys);
   return createCallHelper(Decl, Ops, this);
 }
 
@@ -332,7 +332,7 @@ CallInst *IRBuilderBase::CreateFMulReduce(Value *Acc, Value *Src) {
   Value *Ops[] = {Acc, Src};
   Type *Tys[] = {Acc->getType(), Src->getType()};
   auto Decl = Intrinsic::getDeclaration(
-      M, Intrinsic::experimental_vector_reduce_fmul, Tys);
+      M, Intrinsic::experimental_vector_reduce_v2_fmul, Tys);
   return createCallHelper(Decl, Ops, this);
 }
 

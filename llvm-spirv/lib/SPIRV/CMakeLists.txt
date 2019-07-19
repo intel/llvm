@@ -4,7 +4,6 @@ add_llvm_library(LLVMSPIRVLib
   Mangler/Mangler.cpp
   Mangler/ManglingUtils.cpp
   Mangler/ParameterType.cpp
-  OCL20To12.cpp
   OCL20ToSPIRV.cpp
   OCL21ToSPIRV.cpp
   OCLTypeToSPIRV.cpp
@@ -17,6 +16,8 @@ add_llvm_library(LLVMSPIRVLib
   SPIRVReader.cpp
   SPIRVRegularizeLLVM.cpp
   SPIRVToLLVMDbgTran.cpp
+  SPIRVToOCL.cpp
+  SPIRVToOCL12.cpp
   SPIRVToOCL20.cpp
   SPIRVUtil.cpp
   SPIRVWriter.cpp

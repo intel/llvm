@@ -159,6 +159,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       CurScope(nullptr), Ident_super(nullptr), Ident___float128(nullptr),
       SyclIntHeader(nullptr) {
   TUScope = nullptr;
+  isConstantEvaluatedOverride = false;
 
   LoadedExternalKnownNamespaces = false;
   for (unsigned I = 0; I != NSAPI::NumNSNumberLiteralMethods; ++I)
@@ -504,6 +505,7 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
     default:
       llvm_unreachable("can't implicitly cast lvalue to rvalue with this cast "
                        "kind");
+    case CK_Dependent:
     case CK_LValueToRValue:
     case CK_ArrayToPointerDecay:
     case CK_FunctionToPointerDecay:
@@ -512,7 +514,8 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
       break;
     }
   }
-  assert((VK == VK_RValue || !E->isRValue()) && "can't cast rvalue to lvalue");
+  assert((VK == VK_RValue || Kind == CK_Dependent || !E->isRValue()) &&
+         "can't cast rvalue to lvalue");
 #endif
 
   diagnoseNullableToNonnullConversion(Ty, E->getType(), E->getBeginLoc());
@@ -601,7 +604,7 @@ static bool ShouldRemoveFromUnused(Sema *SemaRef, const DeclaratorDecl *D) {
     // warn even if the variable isn't odr-used.  (isReferenced doesn't
     // precisely reflect that, but it's a decent approximation.)
     if (VD->isReferenced() &&
-        VD->isUsableInConstantExpressions(SemaRef->Context))
+        VD->mightBeUsableInConstantExpressions(SemaRef->Context))
       return true;
 
     if (VarTemplateDecl *Template = VD->getDescribedVarTemplate())
@@ -1676,12 +1679,24 @@ static void markEscapingByrefs(const FunctionScopeInfo &FSI, Sema &S) {
   // Set the EscapingByref flag of __block variables captured by
   // escaping blocks.
   for (const BlockDecl *BD : FSI.Blocks) {
-    if (BD->doesNotEscape())
-      continue;
     for (const BlockDecl::Capture &BC : BD->captures()) {
       VarDecl *VD = BC.getVariable();
-      if (VD->hasAttr<BlocksAttr>())
+      if (VD->hasAttr<BlocksAttr>()) {
+        // Nothing to do if this is a __block variable captured by a
+        // non-escaping block.
+        if (BD->doesNotEscape())
+          continue;
         VD->setEscapingByref();
+      }
+      // Check whether the captured variable is or contains an object of
+      // non-trivial C union type.
+      QualType CapType = BC.getVariable()->getType();
+      if (CapType.hasNonTrivialToPrimitiveDestructCUnion() ||
+          CapType.hasNonTrivialToPrimitiveCopyCUnion())
+        S.checkNonTrivialCUnion(BC.getVariable()->getType(),
+                                BD->getCaretLocation(),
+                                Sema::NTCUC_BlockCapture,
+                                Sema::NTCUK_Destruct|Sema::NTCUK_Copy);
     }
   }
 

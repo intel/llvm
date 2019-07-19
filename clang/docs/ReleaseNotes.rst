@@ -56,6 +56,12 @@ Improvements to Clang's diagnostics
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
+- The ``__VERSION__`` macro has been updated.
+  Previously this macro contained the string '4.2.1 Compatible' to achieve
+  compatibility with GCC 4.2.1, but that should no longer be necessary.
+  However, to retrieve Clang's version, please favor the one of the macro
+  defined in :ref:`clang namespaced version macros <languageextensions-builtin-macros>`.
+
 - ...
 
 
@@ -127,7 +133,7 @@ Objective-C Language Changes in Clang
 
 - Fixed encoding of ObjC pointer types that are pointers to typedefs.
 
-.. code-block:: c++
+.. code-block:: objc
 
       typedef NSArray<NSObject *> MyArray;
 
@@ -184,10 +190,12 @@ AST Matchers
 clang-format
 ------------
 
-- Add language support for clang-formatting C# files
-- Add Microsoft coding style to encapsulate default C# formatting style
+- Add language support for clang-formatting C# files.
+- Add Microsoft coding style to encapsulate default C# formatting style.
 - Added new option `PPDIS_BeforeHash` (in configuration: `BeforeHash`) to
   `IndentPPDirectives` which indents preprocessor directives before the hash.
+- Added new option `AlignConsecutiveMacros` to align the C/C++ preprocessor
+  macros of consecutive lines.
 
 libclang
 --------

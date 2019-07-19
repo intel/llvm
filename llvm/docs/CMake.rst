@@ -598,6 +598,9 @@ LLVM-specific variables
 **LLVM_USE_NEWPM**:BOOL
   If enabled, use the experimental new pass manager.
 
+**LLVM_ENABLE_BINDINGS**:BOOL
+  If disabled, do not try to build the OCaml and go bindings.
+
 CMake Caches
 ============
 
@@ -662,10 +665,10 @@ cross-compiling.
 Embedding LLVM in your project
 ==============================
 
-From LLVM 3.5 onwards both the CMake and autoconf/Makefile build systems export
-LLVM libraries as importable CMake targets. This means that clients of LLVM can
-now reliably use CMake to develop their own LLVM-based projects against an
-installed version of LLVM regardless of how it was built.
+From LLVM 3.5 onwards the CMake build system exports LLVM libraries as
+importable CMake targets. This means that clients of LLVM can now reliably use
+CMake to develop their own LLVM-based projects against an installed version of
+LLVM regardless of how it was built.
 
 Here is a simple example of a CMakeLists.txt file that imports the LLVM libraries
 and uses them to build a simple application ``simple-tool``.

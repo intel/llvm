@@ -137,7 +137,7 @@ CSRFirstTimeCost("regalloc-csr-first-time-cost",
               cl::init(0), cl::Hidden);
 
 static cl::opt<bool> ConsiderLocalIntervalCost(
-    "condsider-local-interval-cost", cl::Hidden,
+    "consider-local-interval-cost", cl::Hidden,
     cl::desc("Consider the cost of local intervals created by a split "
              "candidate when choosing the best split candidate."),
     cl::init(false));
@@ -2874,14 +2874,14 @@ void RAGreedy::collectHintInfo(unsigned Reg, HintsInfo &Out) {
     if (!Instr.isFullCopy())
       continue;
     // Look for the other end of the copy.
-    unsigned OtherReg = Instr.getOperand(0).getReg();
+    Register OtherReg = Instr.getOperand(0).getReg();
     if (OtherReg == Reg) {
       OtherReg = Instr.getOperand(1).getReg();
       if (OtherReg == Reg)
         continue;
     }
     // Get the current assignment.
-    unsigned OtherPhysReg = TargetRegisterInfo::isPhysicalRegister(OtherReg)
+    Register OtherPhysReg = TargetRegisterInfo::isPhysicalRegister(OtherReg)
                                 ? OtherReg
                                 : VRM->getPhys(OtherReg);
     // Push the collected information.

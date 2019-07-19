@@ -833,11 +833,11 @@ foldMemoryOperand(ArrayRef<std::pair<MachineInstr *, unsigned>> Ops,
   if (FoldOps.empty())
     return false;
 
-  MachineInstrSpan MIS(MI);
+  MachineInstrSpan MIS(MI, MI->getParent());
 
   MachineInstr *FoldMI =
       LoadMI ? TII.foldMemoryOperand(*MI, FoldOps, *LoadMI, &LIS)
-             : TII.foldMemoryOperand(*MI, FoldOps, StackSlot, &LIS);
+             : TII.foldMemoryOperand(*MI, FoldOps, StackSlot, &LIS, &VRM);
   if (!FoldMI)
     return false;
 
@@ -868,6 +868,8 @@ foldMemoryOperand(ArrayRef<std::pair<MachineInstr *, unsigned>> Ops,
       HSpiller.rmFromMergeableSpills(*MI, FI))
     --NumSpills;
   LIS.ReplaceMachineInstrInMaps(*MI, *FoldMI);
+  if (MI->isCall())
+    MI->getMF()->updateCallSiteInfo(MI, FoldMI);
   MI->eraseFromParent();
 
   // Insert any new instructions other than FoldMI into the LIS maps.
@@ -905,7 +907,7 @@ void InlineSpiller::insertReload(unsigned NewVReg,
                                  MachineBasicBlock::iterator MI) {
   MachineBasicBlock &MBB = *MI->getParent();
 
-  MachineInstrSpan MIS(MI);
+  MachineInstrSpan MIS(MI, &MBB);
   TII.loadRegFromStackSlot(MBB, MI, NewVReg, StackSlot,
                            MRI.getRegClass(NewVReg), &TRI);
 
@@ -935,7 +937,7 @@ void InlineSpiller::insertSpill(unsigned NewVReg, bool isKill,
                                  MachineBasicBlock::iterator MI) {
   MachineBasicBlock &MBB = *MI->getParent();
 
-  MachineInstrSpan MIS(MI);
+  MachineInstrSpan MIS(MI, &MBB);
   bool IsRealSpill = true;
   if (isFullUndefDef(*MI)) {
     // Don't spill undef value.

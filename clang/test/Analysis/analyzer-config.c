@@ -27,6 +27,7 @@
 // CHECK-NEXT: cplusplus.Move:WarnOn = KnownsAndLocals
 // CHECK-NEXT: crosscheck-with-z3 = false
 // CHECK-NEXT: ctu-dir = ""
+// CHECK-NEXT: ctu-import-threshold = 100
 // CHECK-NEXT: ctu-index-name = externalDefMap.txt
 // CHECK-NEXT: debug.AnalysisOrder:* = false
 // CHECK-NEXT: debug.AnalysisOrder:Bind = false
@@ -84,8 +85,10 @@
 // CHECK-NEXT: suppress-c++-stdlib = true
 // CHECK-NEXT: suppress-inlined-defensive-checks = true
 // CHECK-NEXT: suppress-null-return-paths = true
+// CHECK-NEXT: track-conditions = false
+// CHECK-NEXT: track-conditions-debug = false
 // CHECK-NEXT: unix.DynamicMemoryModeling:Optimistic = false
 // CHECK-NEXT: unroll-loops = false
 // CHECK-NEXT: widen-loops = false
 // CHECK-NEXT: [stats]
-// CHECK-NEXT: num-entries = 85
+// CHECK-NEXT: num-entries = 88

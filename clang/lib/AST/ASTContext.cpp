@@ -228,12 +228,11 @@ RawComment *ASTContext::getRawCommentForDeclNoCache(const Decl *D) const {
 
     if (Found) {
       Comment = MaybeBeforeDecl + 1;
-      assert(Comment == std::lower_bound(RawComments.begin(), RawComments.end(),
-                                         &CommentAtDeclLoc, Compare));
+      assert(Comment ==
+             llvm::lower_bound(RawComments, &CommentAtDeclLoc, Compare));
     } else {
       // Slow path.
-      Comment = std::lower_bound(RawComments.begin(), RawComments.end(),
-                                 &CommentAtDeclLoc, Compare);
+      Comment = llvm::lower_bound(RawComments, &CommentAtDeclLoc, Compare);
     }
   }
 
@@ -832,6 +831,9 @@ ASTContext::~ASTContext() {
 
   for (const auto &Value : ModuleInitializers)
     Value.second->~PerModuleInitializers();
+
+  for (APValue *Value : APValueCleanups)
+    Value->~APValue();
 }
 
 class ASTContext::ParentMap {
@@ -910,7 +912,7 @@ void ASTContext::setTraversalScope(const std::vector<Decl *> &TopLevelDecls) {
   Parents.reset();
 }
 
-void ASTContext::AddDeallocation(void (*Callback)(void*), void *Data) {
+void ASTContext::AddDeallocation(void (*Callback)(void *), void *Data) const {
   Deallocations.push_back({Callback, Data});
 }
 
@@ -1527,8 +1529,14 @@ const llvm::fltSemantics &ASTContext::getFloatTypeSemantics(QualType T) const {
     return Target->getHalfFormat();
   case BuiltinType::Float:      return Target->getFloatFormat();
   case BuiltinType::Double:     return Target->getDoubleFormat();
-  case BuiltinType::LongDouble: return Target->getLongDoubleFormat();
-  case BuiltinType::Float128:   return Target->getFloat128Format();
+  case BuiltinType::LongDouble:
+    if (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice)
+      return AuxTarget->getLongDoubleFormat();
+    return Target->getLongDoubleFormat();
+  case BuiltinType::Float128:
+    if (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice)
+      return AuxTarget->getFloat128Format();
+    return Target->getFloat128Format();
   }
 }
 
@@ -1917,8 +1925,15 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
       Align = Target->getDoubleAlign();
       break;
     case BuiltinType::LongDouble:
-      Width = Target->getLongDoubleWidth();
-      Align = Target->getLongDoubleAlign();
+      if (getLangOpts().OpenMP && getLangOpts().OpenMPIsDevice &&
+          (Target->getLongDoubleWidth() != AuxTarget->getLongDoubleWidth() ||
+           Target->getLongDoubleAlign() != AuxTarget->getLongDoubleAlign())) {
+        Width = AuxTarget->getLongDoubleWidth();
+        Align = AuxTarget->getLongDoubleAlign();
+      } else {
+        Width = Target->getLongDoubleWidth();
+        Align = Target->getLongDoubleAlign();
+      }
       break;
     case BuiltinType::Float128:
       if (Target->hasFloat128Type() || !getLangOpts().OpenMP ||

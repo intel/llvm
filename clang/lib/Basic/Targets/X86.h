@@ -108,6 +108,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasMOVDIR64B = false;
   bool HasPTWRITE = false;
   bool HasINVPCID = false;
+  bool HasENQCMD = false;
 
 protected:
   /// Enumeration of all of the X86 CPUs supported by Clang.
@@ -130,6 +131,10 @@ public:
   X86TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
     LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
+  }
+
+  const char *getLongDoubleMangling() const override {
+    return LongDoubleFormat == &llvm::APFloat::IEEEquad() ? "g" : "e";
   }
 
   unsigned getFloatEvalMethod() const override {
@@ -480,7 +485,6 @@ public:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
     WindowsX86_32TargetInfo::getTargetDefines(Opts, Builder);
-    WindowsX86_32TargetInfo::getVisualStudioDefines(Opts, Builder);
     // The value of the following reflects processor type.
     // 300=386, 400=486, 500=Pentium, 600=Blend (default)
     // We lost the original triple, so we use the default.
@@ -744,7 +748,6 @@ public:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
     WindowsX86_64TargetInfo::getTargetDefines(Opts, Builder);
-    WindowsX86_64TargetInfo::getVisualStudioDefines(Opts, Builder);
     Builder.defineMacro("_M_X64", "100");
     Builder.defineMacro("_M_AMD64", "100");
   }
@@ -846,8 +849,6 @@ public:
       : LinuxTargetInfo<X86_64TargetInfo>(Triple, Opts) {
     LongDoubleFormat = &llvm::APFloat::IEEEquad();
   }
-
-  bool useFloat128ManglingForLongDouble() const override { return true; }
 };
 } // namespace targets
 } // namespace clang
