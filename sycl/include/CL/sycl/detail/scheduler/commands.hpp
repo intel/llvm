@@ -97,6 +97,8 @@ public:
 
   virtual ~Command() = default;
 
+  virtual void printDot(std::ostream &Stream) const = 0;
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
@@ -125,6 +127,8 @@ public:
   ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
       : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
   }
+
+  void printDot(std::ostream &Stream) const override;
 
 private:
   cl_int enqueueImp() override;
@@ -162,6 +166,8 @@ public:
     addDep(DepDesc(nullptr, &MReq, this));
   }
 
+  void printDot(std::ostream &Stream) const override;
+
 private:
   cl_int enqueueImp() override final;
 
@@ -176,6 +182,8 @@ public:
         MParentAlloca(ParentAlloca) {
     addDep(DepDesc(MParentAlloca, &MReq, MParentAlloca));
   }
+
+  void printDot(std::ostream &Stream) const override;
 
 private:
   cl_int enqueueImp() override final;
@@ -193,6 +201,8 @@ public:
   Requirement *MDstAcc = nullptr;
   Requirement MDstReq;
 
+  void printDot(std::ostream &Stream) const override;
+
 private:
   cl_int enqueueImp() override;
 };
@@ -202,6 +212,8 @@ public:
   UnMapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
                  Requirement *DstAcc, QueueImplPtr Queue,
                  bool UseExclusiveQueue = false);
+
+  void printDot(std::ostream &Stream) const override;
 
 private:
   cl_int enqueueImp() override;
@@ -230,6 +242,8 @@ public:
     MAccToUpdate = AccToUpdate;
   }
 
+  void printDot(std::ostream &Stream) const override;
+
 private:
   cl_int enqueueImp() override;
 };
@@ -247,6 +261,8 @@ public:
   Requirement MDstReq;
   Requirement *MDstAcc = nullptr;
 
+  void printDot(std::ostream &Stream) const override;
+
 private:
   cl_int enqueueImp() override;
 };
@@ -259,6 +275,8 @@ public:
         MCommandGroup(std::move(CommandGroup)) {}
 
   void flushStreams();
+
+  void printDot(std::ostream &Stream) const override;
 
 private:
   // Implementation of enqueueing of ExecCGCommand.

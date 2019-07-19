@@ -69,6 +69,8 @@ private:
   // graph (e.g. add/remove edges/nodes).
   class GraphBuilder {
   public:
+    GraphBuilder();
+
     // Registers command group, adds it to the dependency graph and returns an
     // command that represents command group execution. It's called by SYCL's
     // queue::submit.
@@ -161,6 +163,19 @@ private:
 
     void markModifiedIfWrite(GraphBuilder::MemObjRecord *Record,
                              Requirement *Req);
+
+    // Print contents of graph to text file in DOT format
+    void printGraphAsDot(const char *ModeName);
+    enum PrintOptions {
+      BeforeAddCG = 0,
+      AfterAddCG,
+      BeforeAddCopyBack,
+      AfterAddCopyBack,
+      BeforeAddHostAcc,
+      AfterAddHostAcc,
+      Size
+    };
+    std::array<bool, PrintOptions::Size> MPrintOptionsArray;
   };
 
   // The class that provides interfaces for enqueueing command and its

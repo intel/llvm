@@ -22,9 +22,60 @@
 
 #include <vector>
 
+#ifdef __GNUG__
+#include <cstdlib>
+#include <cxxabi.h>
+#include <memory>
+#endif
+
 namespace cl {
 namespace sycl {
 namespace detail {
+
+#ifdef __GNUG__
+struct DemangleHandle {
+  char *p;
+  DemangleHandle(char *ptr) : p(ptr) {}
+  ~DemangleHandle() { std::free(p); }
+};
+static std::string demangleKernelName(std::string Name) {
+  int Status = -1; // some arbitrary value to eliminate the compiler warning
+  DemangleHandle result(abi::__cxa_demangle(Name.c_str(), NULL, NULL, &Status));
+  return (Status == 0) ? result.p : Name;
+}
+#else
+static std::string demangleKernelName(std::string Name) { return Name; }
+#endif
+
+static std::string deviceToString(device Device) {
+  if (Device.is_host())
+    return "HOST";
+  else if (Device.is_cpu())
+    return "CPU";
+  else if (Device.is_gpu())
+    return "GPU";
+  else if (Device.is_accelerator())
+    return "ACCELERATOR";
+  else
+    return "UNKNOWN";
+}
+
+static std::string accessModeToString(access::mode Mode) {
+  switch (Mode) {
+  case access::mode::read:
+    return "read";
+  case access::mode::write:
+    return "write";
+  case access::mode::read_write:
+    return "read_write";
+  case access::mode::discard_write:
+    return "discard_write";
+  case access::mode::discard_read_write:
+    return "discard_read_write";
+  default:
+    return "unknown";
+  }
+}
 
 void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
   // TODO: Handle return values. Store errors to async handler.
@@ -97,6 +148,24 @@ cl_int AllocaCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
+void AllocaCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#FFD28A\", label=\"";
+
+  Stream << "ID = " << this << "\\n";
+  Stream << "ALLOCA ON " << deviceToString(MQueue->get_device()) << "\\n";
+  Stream << " MemObj : " << this->MReq.MSYCLMemObj << "\\n";
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    if (Dep.MDepCommand == nullptr)
+      continue;
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MReq->MSYCLMemObj << " \" ]" << std::endl;
+  }
+}
+
 cl_int AllocaSubBufCommand::enqueueImp() {
   std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
@@ -105,6 +174,27 @@ cl_int AllocaSubBufCommand::enqueueImp() {
       pi::pi_cast<RT::PiMem>(MParentAlloca->getMemAllocation()), MReq.MElemSize,
       MReq.MOffset, MReq.MAccessRange, std::move(RawEvents), Event);
   return CL_SUCCESS;
+}
+
+void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#FFD28A\", label=\"";
+
+  Stream << "ID = " << this << "\\n";
+  Stream << "ALLOCA SUB BUF ON " << deviceToString(MQueue->get_device())
+         << "\\n";
+  Stream << " MemObj : " << this->MReq.MSYCLMemObj << "\\n";
+  Stream << " Offset : " << this->MReq.MOffset[0] << "\\n";
+  Stream << " Access range : " << this->MReq.MAccessRange[0] << "\\n";
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    if (Dep.MDepCommand == nullptr)
+      continue;
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MReq->MSYCLMemObj << " \" ]" << std::endl;
+  }
 }
 
 cl_int ReleaseCommand::enqueueImp() {
@@ -125,6 +215,23 @@ cl_int ReleaseCommand::enqueueImp() {
                                     &RawEvents[0], &Event));
 
   return CL_SUCCESS;
+}
+
+void ReleaseCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#FF827A\", label=\"";
+
+  Stream << "ID = " << this << " ; ";
+  Stream << "RELEASE ON " << deviceToString(MQueue->get_device()) << "\\n";
+  Stream << " Alloca : " << MAllocaCmd << "\\n";
+  Stream << " MemObj : " << MAllocaCmd->getSYCLMemObj() << "\\n";
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MReq->MSYCLMemObj << " \" ]" << std::endl;
+  }
 }
 
 MapMemObject::MapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
@@ -148,6 +255,22 @@ cl_int MapMemObject::enqueueImp() {
   return CL_SUCCESS;
 }
 
+void MapMemObject::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#77AFFF\", label=\"";
+
+  Stream << "ID = " << this << " ; ";
+  Stream << "MAP ON " << deviceToString(MQueue->get_device()) << "\\n";
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MReq->MSYCLMemObj << " \" ]" << std::endl;
+  }
+}
+
 UnMapMemObject::UnMapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
                                Requirement *DstAcc, QueueImplPtr Queue,
                                bool UseExclusiveQueue)
@@ -163,6 +286,22 @@ cl_int UnMapMemObject::enqueueImp() {
                        MSrcAlloca->getMemAllocation(), MQueue, MDstAcc->MData,
                        std::move(RawEvents), MUseExclusiveQueue, Event);
   return CL_SUCCESS;
+}
+
+void UnMapMemObject::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#EBC40F\", label=\"";
+
+  Stream << "ID = " << this << " ; ";
+  Stream << "UNMAP ON " << deviceToString(MQueue->get_device()) << "\\n";
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MReq->MSYCLMemObj << " \" ]" << std::endl;
+  }
 }
 
 MemCpyCommand::MemCpyCommand(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
@@ -212,6 +351,25 @@ cl_int MemCpyCommand::enqueueImp() {
   if (MAccToUpdate)
     MAccToUpdate->MData = MDstAlloca->getMemAllocation();
   return CL_SUCCESS;
+}
+
+void MemCpyCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#C7EB15\" label=\"";
+
+  Stream << "ID = " << this << " ; ";
+  Stream << "MEMCPY ON " << deviceToString(MQueue->get_device()) << "\\n";
+  Stream << "From: " << MSrcAlloca << " is host: " << MSrcQueue->is_host()
+         << "\\n";
+  Stream << "To: " << MDstAlloca << " is host: " << MQueue->is_host() << "\\n";
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MReq->MSYCLMemObj << " \" ]" << std::endl;
+  }
 }
 
 AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
@@ -271,6 +429,67 @@ cl_int MemCpyCommandHost::enqueueImp() {
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
       MDstReq.MElemSize, std::move(RawEvents), MUseExclusiveQueue, Event);
   return CL_SUCCESS;
+}
+
+void MemCpyCommandHost::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
+
+  Stream << "ID = " << this << "\n";
+  Stream << "MEMCPY HOST ON " << deviceToString(MQueue->get_device()) << "\\n";
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MReq->MSYCLMemObj << " \" ]" << std::endl;
+  }
+}
+
+void ExecCGCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
+
+  Stream << "ID = " << this << "\n";
+  Stream << "EXEC CG ON " << deviceToString(MQueue->get_device()) << "\\n";
+
+  switch (MCommandGroup->getType()) {
+  case detail::CG::KERNEL: {
+    auto *KernelCG =
+        reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
+    Stream << "Kernel name: ";
+    if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
+      Stream << "created from source";
+    else
+      Stream << demangleKernelName(KernelCG->getKernelName());
+    Stream << "\\n";
+    break;
+  }
+  case detail::CG::UPDATE_HOST:
+    Stream << "CG type: update_host\\n";
+    break;
+  case detail::CG::FILL:
+    Stream << "CG type: fill\\n";
+    break;
+  case detail::CG::COPY_ACC_TO_ACC:
+    Stream << "CG type: copy acc to acc\\n";
+    break;
+  case detail::CG::COPY_ACC_TO_PTR:
+    Stream << "CG type: copy acc to ptr\\n";
+    break;
+  case detail::CG::COPY_PTR_TO_ACC:
+    Stream << "CG type: copy ptr to acc\\n";
+    break;
+  }
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MReq->MSYCLMemObj << " \" ]" << std::endl;
+  }
 }
 
 // SYCL has a parallel_for_work_group variant where the only NDRange

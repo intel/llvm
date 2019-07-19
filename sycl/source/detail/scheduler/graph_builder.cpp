@@ -13,6 +13,8 @@
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/exception.hpp>
 
+#include <cstdlib>
+#include <fstream>
 #include <memory>
 #include <queue>
 #include <set>
@@ -39,6 +41,63 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
 // In this case we can call clCreateSubBuffer for such sub buffers.
 static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange;
+}
+
+Scheduler::GraphBuilder::GraphBuilder() {
+  if (const char *EnvVarCStr = std::getenv("SYCL_PRINT_EXECUTION_GRAPH")) {
+    std::string GraphPrintOpts(EnvVarCStr);
+    bool EnableAlways = GraphPrintOpts.find("always") != std::string::npos;
+
+    if (GraphPrintOpts.find("before_addCG") != std::string::npos ||
+        EnableAlways)
+      MPrintOptionsArray[BeforeAddCG] = true;
+    if (GraphPrintOpts.find("after_addCG") != std::string::npos || EnableAlways)
+      MPrintOptionsArray[AfterAddCG] = true;
+    if (GraphPrintOpts.find("before_addCopyBack") != std::string::npos ||
+        EnableAlways)
+      MPrintOptionsArray[BeforeAddCopyBack] = true;
+    if (GraphPrintOpts.find("after_addCopyBack") != std::string::npos ||
+        EnableAlways)
+      MPrintOptionsArray[AfterAddCopyBack] = true;
+    if (GraphPrintOpts.find("before_addHostAcc") != std::string::npos ||
+        EnableAlways)
+      MPrintOptionsArray[BeforeAddHostAcc] = true;
+    if (GraphPrintOpts.find("after_addHostAcc") != std::string::npos ||
+        EnableAlways)
+      MPrintOptionsArray[AfterAddHostAcc] = true;
+  }
+}
+
+static void printDotRecursive(std::fstream &Stream,
+                              std::set<Command *> &Visited, Command *Cmd) {
+  if (!Visited.insert(Cmd).second)
+    return;
+  for (Command *User : Cmd->MUsers) {
+    if (User)
+      printDotRecursive(Stream, Visited, User);
+  }
+  Cmd->printDot(Stream);
+}
+
+void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
+  static size_t Counter = 0;
+
+  std::string ModeNameStr(ModeName);
+  std::string FileName =
+      "graph_" + std::to_string(Counter) + ModeNameStr + ".dot";
+
+  Counter++;
+
+  std::fstream Stream(FileName, std::ios::out);
+  Stream << "strict digraph {" << std::endl;
+
+  std::set<Command *> Visited;
+
+  for (MemObjRecord &Record : MMemObjRecords)
+    for (Command *AllocaCmd : Record.MAllocaCommands)
+      printDotRecursive(Stream, Visited, AllocaCmd);
+
+  Stream << "}" << std::endl;
 }
 
 // Returns record for the memory objects passed, nullptr if doesn't exist.
@@ -151,6 +210,8 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
   QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
   SYCLMemObjI *MemObj = Req->MSYCLMemObj;
   Scheduler::GraphBuilder::MemObjRecord *Record = getMemObjRecord(MemObj);
+  if (Record && MPrintOptionsArray[BeforeAddCopyBack])
+    printGraphAsDot("before_addCopyBack");
 
   // Do nothing if there were no or only read operations with the memory object.
   if (nullptr == Record || !Record->MMemModified)
@@ -175,6 +236,8 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 
   UpdateLeafs(Deps, Record, Req);
   AddNodeToLeafs(Record, MemCpyCmd, Req);
+  if (MPrintOptionsArray[AfterAddCopyBack])
+    printGraphAsDot("after_addCopyBack");
   return MemCpyCmd;
 }
 
@@ -187,6 +250,8 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
                                                   EventImplPtr &RetEvent) {
   QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
+  if (MPrintOptionsArray[BeforeAddHostAcc])
+    printGraphAsDot("before_addHostAccessor");
   markModifiedIfWrite(Record, Req);
   QueueImplPtr SrcQueue;
 
@@ -205,6 +270,8 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     MemCpyCommand *DevToHostCmd = insertMemCpyCmd(Record, Req, HostQueue);
     DevToHostCmd->setAccessorToUpdate(Req);
     RetEvent = DevToHostCmd->getEvent();
+    if (MPrintOptionsArray[AfterAddHostAcc])
+      printGraphAsDot("after_addHostAccessor");
     return DevToHostCmd;
   }
 
@@ -374,6 +441,8 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     UnMapCmd->addDep(Req->BlockingEvent);
 
     RetEvent = MapCmd->getEvent();
+    if (MPrintOptionsArray[AfterAddHostAcc])
+      printGraphAsDot("after_addHostAccessor");
     return UnMapCmd;
   }
 
@@ -385,6 +454,8 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   HostToDevCmd->addDep(Req->BlockingEvent);
 
   RetEvent = DevToHostCmd->getEvent();
+  if (MPrintOptionsArray[AfterAddHostAcc])
+    printGraphAsDot("after_addHostAccessor");
   return HostToDevCmd;
 }
 
@@ -533,6 +604,9 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   if (!NewCmd)
     throw runtime_error("Out of host memory");
 
+  if (MPrintOptionsArray[BeforeAddCG])
+    printGraphAsDot("before_addCG");
+
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
     bool ForceFullReq = !IsSuitableSubReq(Req);
@@ -582,6 +656,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     NewCmd->addDep(e);
   }
 
+  if (MPrintOptionsArray[AfterAddCG])
+    printGraphAsDot("after_addCG");
   return NewCmd.release();
 }
 
