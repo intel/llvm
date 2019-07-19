@@ -49,27 +49,21 @@ extern "C" const __attribute__((ocl_constant)) uint32_t __spirv_BuiltInSubgroupL
   template <int Dim, class DstT> struct InitSizesST##POSTFIX;                  \
                                                                                \
   template <class DstT> struct InitSizesST##POSTFIX<1, DstT> {                 \
-    static void initSize(DstT &Dst) {                                          \
-      Dst[0] = get##POSTFIX<0>();                                              \
-    }                                                                          \
+    static DstT initSize() { return {get##POSTFIX<0>()}; }                     \
   };                                                                           \
                                                                                \
   template <class DstT> struct InitSizesST##POSTFIX<2, DstT> {                 \
-    static void initSize(DstT &Dst) {                                          \
-      Dst[1] = get##POSTFIX<1>();                                              \
-      InitSizesST##POSTFIX<1, DstT>::initSize(Dst);                            \
-    }                                                                          \
+    static DstT initSize() { return {get##POSTFIX<0>(), get##POSTFIX<1>()}; }  \
   };                                                                           \
                                                                                \
   template <class DstT> struct InitSizesST##POSTFIX<3, DstT> {                 \
-    static void initSize(DstT &Dst) {                                          \
-      Dst[2] = get##POSTFIX<2>();                                              \
-      InitSizesST##POSTFIX<2, DstT>::initSize(Dst);                            \
+    static DstT initSize() {                                                   \
+      return {get##POSTFIX<0>(), get##POSTFIX<1>(), get##POSTFIX<2>()};        \
     }                                                                          \
   };                                                                           \
                                                                                \
-  template <int Dims, class DstT> static void init##POSTFIX(DstT &Dst) {       \
-    InitSizesST##POSTFIX<Dims, DstT>::initSize(Dst);                           \
+  template <int Dims, class DstT> static DstT init##POSTFIX() {                \
+    return InitSizesST##POSTFIX<Dims, DstT>::initSize();                       \
   }
 
 namespace __spirv {

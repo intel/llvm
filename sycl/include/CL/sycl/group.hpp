@@ -130,15 +130,14 @@ public:
     // compilers are expected to optimize when possible
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
-    range<dimensions> GlobalSize;
-    range<dimensions> LocalSize;
-    id<dimensions> GlobalId;
-    id<dimensions> LocalId;
-
-    __spirv::initGlobalSize<dimensions>(GlobalSize);
-    __spirv::initWorkgroupSize<dimensions>(LocalSize);
-    __spirv::initGlobalInvocationId<dimensions>(GlobalId);
-    __spirv::initLocalInvocationId<dimensions>(LocalId);
+    range<dimensions> GlobalSize{
+        __spirv::initGlobalSize<dimensions, range<dimensions>>()};
+    range<dimensions> LocalSize{
+        __spirv::initWorkgroupSize<dimensions, range<dimensions>>()};
+    id<dimensions> GlobalId{
+        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
+    id<dimensions> LocalId{
+        __spirv::initLocalInvocationId<dimensions, id<dimensions>>()};
 
     // no 'iterate' in the device code variant, because
     // (1) this code is already invoked by each work item as a part of the
@@ -181,15 +180,14 @@ public:
                               WorkItemFunctionT Func) const {
     detail::workGroupBarrier();
 #ifdef __SYCL_DEVICE_ONLY__
-    range<dimensions> GlobalSize;
-    range<dimensions> LocalSize;
-    id<dimensions> GlobalId;
-    id<dimensions> LocalId;
-
-    __spirv::initGlobalSize<dimensions>(GlobalSize);
-    __spirv::initWorkgroupSize<dimensions>(LocalSize);
-    __spirv::initGlobalInvocationId<dimensions>(GlobalId);
-    __spirv::initLocalInvocationId<dimensions>(LocalId);
+    range<dimensions> GlobalSize{
+        __spirv::initGlobalSize<dimensions, range<dimensions>>()};
+    range<dimensions> LocalSize{
+        __spirv::initWorkgroupSize<dimensions, range<dimensions>>()};
+    id<dimensions> GlobalId{
+        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
+    id<dimensions> LocalId{
+        __spirv::initLocalInvocationId<dimensions, id<dimensions>>()};
 
     item<dimensions, false> GlobalItem =
         detail::Builder::createItem<dimensions, false>(GlobalSize, GlobalId);
