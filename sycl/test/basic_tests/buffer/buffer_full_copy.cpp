@@ -1,6 +1,6 @@
-// RUN: %clang -std=c++11 %s -o %t1.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx %s -o %t1.out -lOpenCL -lsycl
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
-// RUN: %clang -std=c++11 -fsycl %s -o %t2.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t2.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t2.out
 // RUN: %CPU_RUN_PLACEHOLDER %t2.out
 // RUN: %GPU_RUN_PLACEHOLDER %t2.out
@@ -51,6 +51,36 @@ void check_copy_device_to_host(cl::sycl::queue &Queue) {
           assert(acc[i][j] == 13);
         }
     }
+  }
+}
+
+void check_fill(cl::sycl::queue &Queue) {
+  const int size = 6, offset = 2;
+  cl::sycl::buffer<float, 1> buf_1(size);
+  cl::sycl::buffer<float, 1> buf_2(size / 2);
+  std::vector<float> expected_res_1(size);
+  std::vector<float> expected_res_2(size / 2);
+
+  // fill with offset
+  {
+    auto acc = buf_1.get_access<cl::sycl::access::mode::write>();
+    for (int i = 0; i < size; ++i) {
+      acc[i] = i + 1;
+      expected_res_1[i] = offset <= i && i < size / 2 + offset ? 1337.0 : i + 1;
+    }
+  }
+
+  auto e = Queue.submit([&](cl::sycl::handler &cgh) {
+    auto a = buf_1.template get_access<cl::sycl::access::mode::write>(
+        cgh, size / 2, offset);
+    cgh.fill(a, (float)1337.0);
+  });
+  e.wait();
+
+  {
+    auto acc_1 = buf_1.get_access<cl::sycl::access::mode::read>();
+    for (int i = 0; i < size; ++i)
+      assert(expected_res_1[i] == acc_1[i]);
   }
 }
 
@@ -144,6 +174,7 @@ int main() {
     cl::sycl::queue Queue;
     check_copy_host_to_device(Queue);
     check_copy_device_to_host(Queue);
+    check_fill(Queue);
   } catch (cl::sycl::exception &ex) {
     std::cerr << ex.what() << std::endl;
   }
