@@ -378,8 +378,8 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     if (Dim == 1) {
       PI_CALL(RT::piEnqueueMemBufferFill(
           Queue->getHandleRef(), pi::pi_cast<RT::PiMem>(Mem), Pattern,
-          PatternSize, Offset[0], Range[0] * ElementSize, DepEvents.size(),
-          &DepEvents[0], &OutEvent));
+          PatternSize, Offset[0] * ElementSize, Range[0] * ElementSize,
+          DepEvents.size(), &DepEvents[0], &OutEvent));
       return;
     }
     assert(!"Not supported configuration of fill requested");
