@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 // >> ---- compile src1
-// RUN: %clang -std=c++11 -fsycl -c %s -o %t-same-kernel-a.o
+// RUN: %clangxx -fsycl -c %s -o %t-same-kernel-a.o
 //
 // >> ---- compile src2
-// RUN: %clang -DB_CPP=1 -std=c++11 -fsycl -c %s -o %t-same-kernel-b.o
+// RUN: %clangxx -DB_CPP=1 -fsycl -c %s -o %t-same-kernel-b.o
 //
 // >> ---- link the full hetero app
-// RUN: %clang %t-same-kernel-a.o %t-same-kernel-b.o -o %t-same-kernel.exe -fsycl -lstdc++
+// RUN: %clangxx %t-same-kernel-a.o %t-same-kernel-b.o -o %t-same-kernel.exe -fsycl
 // RUN: %CPU_RUN_PLACEHOLDER %t-same-kernel.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t-same-kernel.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t-same-kernel.exe

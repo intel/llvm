@@ -1,4 +1,4 @@
-// RUN: %clang -I %sycl_include -std=c++11 -fsyntax-only -Xclang -verify -DCL_TARGET_OPENCL_VERSION=220 %s
+// RUN: %clangxx -I %sycl_include -fsyntax-only -Xclang -verify -DCL_TARGET_OPENCL_VERSION=220 %s
 // expected-no-diagnostics
 //
 //==-- unable-to-redeclare-device.cpp --------------------------------------==//

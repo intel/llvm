@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //==------------- fpga_pipes.cpp - SYCL FPGA pipes test --------------------==//
 //

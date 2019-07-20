@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 //==--------------- queue.cpp - SYCL queue test ----------------------------==//
 //

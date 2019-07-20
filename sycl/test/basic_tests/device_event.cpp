@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.run -lOpenCL -lsycl -lstdc++
+// RUN: %clangxx -fsycl %s -o %t.run -lOpenCL
 // RUN: %GPU_RUN_PLACEHOLDER %t.run
 // RUN: %CPU_RUN_PLACEHOLDER %t.run
 // RUN: %ACC_RUN_PLACEHOLDER %t.run

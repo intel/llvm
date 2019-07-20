@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
