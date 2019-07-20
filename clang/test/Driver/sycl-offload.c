@@ -336,6 +336,11 @@
 // CHECK-LD-SYCL: "{{.*}}ld{{(.exe)?}}"
 // CHECK-LD-SYCL: "-lsycl"
 
+/// Check for default linking of sycl.lib with -fsycl usage
+// RUN: %clang -fsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
+// CHECK-LINK-SYCL: "{{.*}}link{{(.exe)?}}"
+// CHECK-LINK-SYCL: "-defaultlib:sycl.lib"
+
 /// ###########################################################################
 
 /// test behaviors of -foffload-static-lib=<lib>
