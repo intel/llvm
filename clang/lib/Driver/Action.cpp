@@ -104,12 +104,6 @@ std::string Action::getOffloadingKindPrefix() const {
     return "device-hip";
   case OFK_SYCL:
     return "device-sycl";
-  case OFK_SYCL_FPGA_IMAGE_AOCO:
-    return "device-fpga-sycl-aoco";
-  case OFK_SYCL_FPGA_IMAGE_AOCR:
-    return "device-fpga-sycl-aocr";
-  case OFK_SYCL_FPGA_IMAGE_AOCX:
-    return "device-fpga-sycl-aocx";
 
     // TODO: Add other programming models here.
   }
@@ -167,12 +161,6 @@ StringRef Action::GetOffloadKindName(OffloadKind Kind) {
     return "hip";
   case OFK_SYCL:
     return "sycl";
-  case OFK_SYCL_FPGA_IMAGE_AOCO:
-    return "fpga-sycl-aoco";
-  case OFK_SYCL_FPGA_IMAGE_AOCR:
-    return "fpga-sycl-aocr";
-  case OFK_SYCL_FPGA_IMAGE_AOCX:
-    return "fpga-sycl-aocx";
 
     // TODO: Add other programming models here.
   }

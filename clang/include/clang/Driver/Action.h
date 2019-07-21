@@ -91,12 +91,7 @@ public:
     OFK_Cuda = 0x02,
     OFK_OpenMP = 0x04,
     OFK_HIP = 0x08,
-    OFK_SYCL = 0x10,
-
-    // FPGA Images
-    OFK_SYCL_FPGA_IMAGE_AOCO = 0x100,
-    OFK_SYCL_FPGA_IMAGE_AOCR = 0x101,
-    OFK_SYCL_FPGA_IMAGE_AOCX = 0x102
+    OFK_SYCL = 0x10
   };
 
   static const char *getClassName(ActionClass AC);
