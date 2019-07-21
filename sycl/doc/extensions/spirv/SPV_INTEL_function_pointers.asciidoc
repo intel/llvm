@@ -4,6 +4,12 @@
 
 SPV_INTEL_function_pointers
 
+== Contact
+
+To report problems or to provide input on this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
 == Contributors
 
 - Alexey Sachkov, Intel
