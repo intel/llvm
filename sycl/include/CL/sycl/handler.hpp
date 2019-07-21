@@ -591,6 +591,8 @@ public:
         __spirv::initGlobalSize<dimensions, range<dimensions>>()};
     range<dimensions> local_size{
         __spirv::initWorkgroupSize<dimensions, range<dimensions>>()};
+    range<dimensions> group_range{
+        __spirv::initNumWorkgroups<dimensions, range<dimensions>>()};
     id<dimensions> group_id{
         __spirv::initWorkgroupId<dimensions, id<dimensions>>()};
     id<dimensions> global_id{
@@ -601,7 +603,7 @@ public:
         __spirv::initGlobalOffset<dimensions, id<dimensions>>()};
 
     group<dimensions> Group = detail::Builder::createGroup<dimensions>(
-        global_size, local_size, group_id);
+        global_size, local_size, group_range, group_id);
     item<dimensions, true> globalItem =
         detail::Builder::createItem<dimensions, true>(global_size, global_id,
                                                       global_offset);
@@ -717,10 +719,11 @@ public:
 
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
+    range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
     id<Dims> GroupId{__spirv::initWorkgroupId<Dims, id<Dims>>()};
 
-    group<Dims> G =
-        detail::Builder::createGroup<Dims>(GlobalSize, LocalSize, GroupId);
+    group<Dims> G = detail::Builder::createGroup<Dims>(GlobalSize, LocalSize,
+                                                       GroupRange, GroupId);
     KernelFunc(G);
   }
 #endif // __SYCL_DEVICE_ONLY__

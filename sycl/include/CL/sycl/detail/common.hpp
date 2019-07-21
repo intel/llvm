@@ -27,6 +27,13 @@ static inline std::string codeToString(cl_int code){
          stringifyErrorCode(code) + ")");
 }
 
+#ifdef __SYCL_DEVICE_ONLY__
+// TODO remove this when 'assert' is supported in device code
+#define __SYCL_ASSERT(x)
+#else
+#define __SYCL_ASSERT(x) assert(x)
+#endif // #ifdef __SYCL_DEVICE_ONLY__
+
 #define OCL_ERROR_REPORT                                                       \
   "OpenCL API failed. " __FILE__                                               \
   ":" STRINGIFY_LINE(__LINE__) ": "                                            \
