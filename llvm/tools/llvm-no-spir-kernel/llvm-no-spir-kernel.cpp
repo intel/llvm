@@ -1,4 +1,4 @@
-//===- llvm-no-spirv-kernel.cpp - Utility check spirv kernel entry point --===//
+//===--- llvm-no-spir-kernel.cpp - Utility check spir kernel entry point --===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This utility checks if the input module contains functions that is a spirv
+// This utility checks if the input module contains functions that is a spir
 // kernel. Return 0 if no, return 1 if yes.
 // Usage: llvm-no-spir-kernel input.bc/input.ll
 //
@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
 
   LLVMContext Context;
-  cl::ParseCommandLineOptions(argc, argv, "llvm no spirv kernel\n");
+  cl::ParseCommandLineOptions(argc, argv, "llvm no spir kernel\n");
 
   // Use lazy loading, since we only care about function calling convention
   SMDiagnostic Err;

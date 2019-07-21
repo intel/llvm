@@ -177,7 +177,7 @@ add_custom_target( sycl-toolchain
           llc
           llvm-as
           llvm-dis
-          llvm-no-spirv-kernel
+          llvm-no-spir-kernel
           llvm-spirv
           llvm-link
           opt

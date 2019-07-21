@@ -4,8 +4,8 @@ set(LLVM_LINK_COMPONENTS
   Support
   )
 
-add_llvm_tool(llvm-no-spirv-kernel
-  llvm-no-spirv-kernel.cpp
+add_llvm_tool(llvm-no-spir-kernel
+  llvm-no-spir-kernel.cpp
 
   DEPENDS
   intrinsics_gen

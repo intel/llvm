@@ -1,4 +1,4 @@
-; RUN: not llvm-no-spirv-kernel  %s 
+; RUN: not llvm-no-spir-kernel  %s 
 
 ; expected failure
 define spir_kernel void @foo() {

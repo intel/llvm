@@ -378,10 +378,10 @@ Case 1 can be identified in the device binary generation stage (step 1) by scann
 the known kernels.  Case 2 must be verified by the driver by checking for newly
 introduced kernels in the final link stage (step 3).
 
-The llvm-no-spirv-kernel tool was introduced to facilitate checking for case 2 in
+The llvm-no-spir-kernel tool was introduced to facilitate checking for case 2 in
 the driver.  It detects if a module includes kernels and is invoked as follows:
 
-llvm-no-spirv-kernel host.bc
+llvm-no-spir-kernel host.bc
 
 It returns 0 if no kernels are present and 1 otherwise.
 

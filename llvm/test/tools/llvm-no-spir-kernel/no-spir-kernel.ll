@@ -1,4 +1,4 @@
-; RUN: llvm-no-spirv-kernel  %s 
+; RUN: llvm-no-spir-kernel  %s 
 
 define void @foo() {
 bb:

@@ -43,7 +43,7 @@ subdirectories =
  llvm-modextract
  llvm-mt
  llvm-nm
- llvm-no-spirv-kernel
+ llvm-no-spir-kernel
  llvm-objcopy
  llvm-objdump
  llvm-pdbutil
