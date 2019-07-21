@@ -44,10 +44,19 @@ class Builder {
 public:
   Builder() = delete;
   template <int dimensions>
+  static group<dimensions>
+  createGroup(const cl::sycl::range<dimensions> &G,
+              const cl::sycl::range<dimensions> &L,
+              const cl::sycl::range<dimensions> &GroupRange,
+              const cl::sycl::id<dimensions> &I) {
+    return cl::sycl::group<dimensions>(G, L, GroupRange, I);
+  }
+
+  template <int dimensions>
   static group<dimensions> createGroup(const cl::sycl::range<dimensions> &G,
                                        const cl::sycl::range<dimensions> &L,
                                        const cl::sycl::id<dimensions> &I) {
-    return cl::sycl::group<dimensions>(G, L, I);
+    return cl::sycl::group<dimensions>(G, L, G / L, I);
   }
 
   template <int dimensions, bool with_offset>

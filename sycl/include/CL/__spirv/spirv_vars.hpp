@@ -14,6 +14,7 @@ typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
 extern "C" const __attribute__((ocl_constant)) size_t_vec __spirv_BuiltInGlobalSize;
 extern "C" const __attribute__((ocl_constant)) size_t_vec __spirv_BuiltInGlobalInvocationId;
 extern "C" const __attribute__((ocl_constant)) size_t_vec __spirv_BuiltInWorkgroupSize;
+extern "C" const __attribute__((ocl_constant)) size_t_vec __spirv_BuiltInNumWorkgroups;
 extern "C" const __attribute__((ocl_constant)) size_t_vec __spirv_BuiltInLocalInvocationId;
 extern "C" const __attribute__((ocl_constant)) size_t_vec __spirv_BuiltInWorkgroupId;
 extern "C" const __attribute__((ocl_constant)) size_t_vec __spirv_BuiltInGlobalOffset;
@@ -29,6 +30,7 @@ namespace __spirv {
 DEFINE_INT_ID_TO_XYZ_CONVERTER(GlobalSize);
 DEFINE_INT_ID_TO_XYZ_CONVERTER(GlobalInvocationId)
 DEFINE_INT_ID_TO_XYZ_CONVERTER(WorkgroupSize)
+DEFINE_INT_ID_TO_XYZ_CONVERTER(NumWorkgroups)
 DEFINE_INT_ID_TO_XYZ_CONVERTER(LocalInvocationId)
 DEFINE_INT_ID_TO_XYZ_CONVERTER(WorkgroupId)
 DEFINE_INT_ID_TO_XYZ_CONVERTER(GlobalOffset)
@@ -71,6 +73,7 @@ namespace __spirv {
 DEFINE_INIT_SIZES(GlobalSize);
 DEFINE_INIT_SIZES(GlobalInvocationId)
 DEFINE_INIT_SIZES(WorkgroupSize)
+DEFINE_INIT_SIZES(NumWorkgroups)
 DEFINE_INIT_SIZES(LocalInvocationId)
 DEFINE_INIT_SIZES(WorkgroupId)
 DEFINE_INIT_SIZES(GlobalOffset)
