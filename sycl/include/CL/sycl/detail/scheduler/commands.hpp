@@ -139,7 +139,7 @@ public:
   }
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
 
-  SYCLMemObjT *getSYCLMemObj() const { return MReq.MSYCLMemObj; }
+  SYCLMemObjI *getSYCLMemObj() const { return MReq.MSYCLMemObj; }
 
   void *getMemAllocation() const { return MMemAllocation; }
 

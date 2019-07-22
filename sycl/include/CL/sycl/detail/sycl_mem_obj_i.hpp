@@ -1,4 +1,4 @@
-//==------------ sycl_mem_obj.hpp - SYCL standard header file --------------==//
+//==------------ sycl_mem_obj_i.hpp - SYCL standard header file ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,8 +23,9 @@ class context_impl;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
-// The class serves as a base for all SYCL memory objects.
-class SYCLMemObjT {
+// The class serves as an interface in the scheduler for all SYCL memory
+// objects.
+class SYCLMemObjI {
 public:
   enum MemObjType { BUFFER, IMAGE };
 
@@ -57,4 +58,4 @@ public:
 
 } // namespace detail
 } // namespace sycl
-} // namespace detail
+} // namespace cl

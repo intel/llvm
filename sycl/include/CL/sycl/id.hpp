@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/range.hpp>
 
 namespace cl {

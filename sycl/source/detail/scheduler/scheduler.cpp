@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl/detail/sycl_mem_obj.hpp"
+#include "CL/sycl/detail/sycl_mem_obj_i.hpp"
 #include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device_selector.hpp>
@@ -115,7 +115,7 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
   GraphProcessor::waitForEvent(std::move(Event));
 }
 
-void Scheduler::removeMemoryObject(detail::SYCLMemObjT *MemObj) {
+void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
   GraphBuilder::MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);

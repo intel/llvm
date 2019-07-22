@@ -88,6 +88,61 @@ typedef enum {
   PI_QUEUE_INFO_REFERENCE_COUNT = CL_QUEUE_REFERENCE_COUNT
 } _pi_queue_info;
 
+typedef enum {
+  PI_IMAGE_INFO_FORMAT       = CL_IMAGE_FORMAT,
+  PI_IMAGE_INFO_ELEMENT_SIZE = CL_IMAGE_ELEMENT_SIZE,
+  PI_IMAGE_INFO_ROW_PITCH    = CL_IMAGE_ROW_PITCH,
+  PI_IMAGE_INFO_SLICE_PITCH  = CL_IMAGE_SLICE_PITCH,
+  PI_IMAGE_INFO_WIDTH        = CL_IMAGE_WIDTH,
+  PI_IMAGE_INFO_HEIGHT       = CL_IMAGE_HEIGHT,
+  PI_IMAGE_INFO_DEPTH        = CL_IMAGE_DEPTH
+} _pi_image_info;
+
+typedef enum {
+  PI_MEM_OBJECT_BUFFER         = CL_MEM_OBJECT_BUFFER,
+  PI_MEM_OBJECT_IMAGE2D        = CL_MEM_OBJECT_IMAGE2D,
+  PI_MEM_OBJECT_IMAGE3D        = CL_MEM_OBJECT_IMAGE3D,
+  PI_MEM_OBJECT_IMAGE2D_ARRAY  = CL_MEM_OBJECT_IMAGE2D_ARRAY,
+  PI_MEM_OBJECT_IMAGE1D        = CL_MEM_OBJECT_IMAGE1D,
+  PI_MEM_OBJECT_IMAGE1D_ARRAY  = CL_MEM_OBJECT_IMAGE1D_ARRAY,
+  PI_MEM_OBJECT_IMAGE1D_BUFFER = CL_MEM_OBJECT_IMAGE1D_BUFFER
+} _pi_mem_type;
+
+typedef enum {
+  PI_A         = CL_A,
+  PI_R         = CL_R,
+  PI_RG        = CL_RG,
+  PI_RA        = CL_RA,
+  PI_RGB       = CL_RGB,
+  PI_RGBA      = CL_RGBA,
+  PI_BGRA      = CL_BGRA,
+  PI_ARGB      = CL_ARGB,
+  PI_ABGR      = CL_ABGR,
+  PI_INTENSITY = CL_INTENSITY,
+  PI_LUMINANCE = CL_LUMINANCE,
+  PI_Rx        = CL_Rx,
+  PI_RGx       = CL_RGx,
+  PI_RGBx      = CL_RGBx
+} _pi_image_channel_order;
+
+typedef enum {
+  PI_SNORM_INT8       = CL_SNORM_INT8,
+  PI_SNORM_INT16      = CL_SNORM_INT16,
+  PI_UNORM_INT8       = CL_UNORM_INT8,
+  PI_UNORM_INT16      = CL_UNORM_INT16,
+  PI_UNORM_SHORT_565  = CL_UNORM_SHORT_565,
+  PI_UNORM_SHORT_555  = CL_UNORM_SHORT_555,
+  PI_UNORM_INT_101010 = CL_UNORM_INT_101010,
+  PI_SIGNED_INT8      = CL_SIGNED_INT8,
+  PI_SIGNED_INT16     = CL_SIGNED_INT16,
+  PI_SIGNED_INT32     = CL_SIGNED_INT32,
+  PI_UNSIGNED_INT8    = CL_UNSIGNED_INT8,
+  PI_UNSIGNED_INT16   = CL_UNSIGNED_INT16,
+  PI_UNSIGNED_INT32   = CL_UNSIGNED_INT32,
+  PI_HALF_FLOAT       = CL_HALF_FLOAT,
+  PI_FLOAT            = CL_FLOAT
+} _pi_image_channel_type;
+
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate
@@ -105,6 +160,10 @@ typedef _pi_device_type             pi_device_type;
 typedef _pi_device_info             pi_device_info;
 typedef _pi_context_info            pi_context_info;
 typedef _pi_queue_info              pi_queue_info;
+typedef _pi_image_info              pi_image_info;
+typedef _pi_mem_type                pi_mem_type;
+typedef _pi_image_channel_order     pi_image_channel_order;
+typedef _pi_image_channel_type      pi_image_channel_type;
 
 // Opaque data type for compatibility with OpenMP.
 typedef void * _pi_offload_entry;
@@ -204,6 +263,27 @@ typedef _pi_program *     pi_program;
 typedef _pi_kernel *      pi_kernel;
 typedef _pi_event *       pi_event;
 typedef _pi_sampler *     pi_sampler;
+
+typedef struct {
+          pi_image_channel_order image_channel_order;
+          pi_image_channel_type  image_channel_data_type;
+} _pi_image_format;
+
+typedef struct {
+          pi_mem_type image_type;
+          size_t image_width;
+          size_t image_height;
+          size_t image_depth;
+          size_t image_array_size;
+          size_t image_row_pitch;
+          size_t image_slice_pitch;
+          pi_uint32 num_mip_levels;
+          pi_uint32 num_samples;
+          pi_mem buffer;
+} _pi_image_desc;
+
+typedef _pi_image_format   pi_image_format;
+typedef _pi_image_desc     pi_image_desc;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
@@ -321,12 +401,20 @@ pi_result piQueueFinish(pi_queue command_queue);
 //
 // Memory
 //
-pi_mem piMemCreate( // TODO: change interface to return error code
+pi_mem piMemBufferCreate( // TODO: change interface to return error code
   pi_context   context,
   pi_mem_flags flags,
   size_t       size,
   void *       host_ptr,
   pi_result *  errcode_ret);
+
+pi_mem piMemImageCreate( // TODO: change interface to return error code
+  pi_context              context,
+  pi_mem_flags            flags,
+  const pi_image_format * image_format,
+  const pi_image_desc *   image_desc,
+  void *                  host_ptr,
+  pi_result *             errcode_ret);
 
 pi_result piMemGetInfo(
   pi_mem           mem,
@@ -335,9 +423,18 @@ pi_result piMemGetInfo(
   void *           param_value,
   size_t *         param_value_size_ret);
 
-pi_result piMemRetain(pi_mem);
+pi_result piMemImageGetInfo (
+  pi_mem          image,
+  pi_image_info   param_name,
+  size_t          param_value_size,
+  void *          param_value ,
+  size_t *        param_value_size_ret);
 
-pi_result piMemRelease(pi_mem);
+pi_result piMemRetain(
+  pi_mem mem);
+ 
+pi_result piMemRelease(
+  pi_mem mem);
 
 //
 // Program
@@ -537,7 +634,7 @@ pi_result piEnqueueEventsWait(
   const pi_event *  event_wait_list,
   pi_event *        event);
 
-pi_result piEnqueueMemRead(
+pi_result piEnqueueMemBufferRead(
   pi_queue            queue,
   pi_mem              buffer,
   pi_bool             blocking_read,
@@ -548,7 +645,7 @@ pi_result piEnqueueMemRead(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemReadRect(
+pi_result piEnqueueMemBufferReadRect(
   pi_queue            command_queue,
   pi_mem              buffer,
   pi_bool             blocking_read,
@@ -564,7 +661,7 @@ pi_result piEnqueueMemReadRect(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemWrite(
+pi_result piEnqueueMemBufferWrite(
   pi_queue           command_queue,
   pi_mem             buffer,
   pi_bool            blocking_write,
@@ -575,7 +672,7 @@ pi_result piEnqueueMemWrite(
   const pi_event *   event_wait_list,
   pi_event *         event);
 
-pi_result piEnqueueMemWriteRect(
+pi_result piEnqueueMemBufferWriteRect(
   pi_queue            command_queue,
   pi_mem              buffer,
   pi_bool             blocking_write,
@@ -591,7 +688,7 @@ pi_result piEnqueueMemWriteRect(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemCopy(
+pi_result piEnqueueMemBufferCopy(
   pi_queue            command_queue,
   pi_mem              src_buffer,
   pi_mem              dst_buffer,
@@ -602,7 +699,7 @@ pi_result piEnqueueMemCopy(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemCopyRect(
+pi_result piEnqueueMemBufferCopyRect(
   pi_queue            command_queue,
   pi_mem              src_buffer,
   pi_mem              dst_buffer,
@@ -617,7 +714,7 @@ pi_result piEnqueueMemCopyRect(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemFill(
+pi_result piEnqueueMemBufferFill(
   pi_queue           command_queue,
   pi_mem             buffer,
   const void *       pattern,
@@ -628,7 +725,54 @@ pi_result piEnqueueMemFill(
   const pi_event *   event_wait_list,
   pi_event *         event);
 
-void * piEnqueueMemMap( // TODO: change to return pi_result
+pi_result piEnqueueMemImageRead(
+  pi_queue          command_queue,
+  pi_mem            image,
+  pi_bool           blocking_read,
+  const size_t *    origin,
+  const size_t *    region,
+  size_t            row_pitch,
+  size_t            slice_pitch,
+  void *            ptr,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+pi_result piEnqueueMemImageWrite(
+  pi_queue          command_queue,
+  pi_mem            image,
+  pi_bool           blocking_write,
+  const size_t *    origin,
+  const size_t *    region,
+  size_t            input_row_pitch,
+  size_t            input_slice_pitch,
+  const void *      ptr,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+  pi_result piEnqueueMemImageCopy(
+  pi_queue          command_queue,
+  pi_mem            src_image,
+  pi_mem            dst_image,
+  const size_t *    src_origin,
+  const size_t *    dst_origin,
+  const size_t *    region,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+pi_result piEnqueueMemImageFill(
+  pi_queue          command_queue,
+  pi_mem            image,
+  const void *      fill_color,
+  const size_t *    origin,
+  const size_t *    region,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+void * piEnqueueMemBufferMap( // TODO: change to return pi_result
   pi_queue          command_queue,
   pi_mem            buffer,
   pi_bool           blocking_map,

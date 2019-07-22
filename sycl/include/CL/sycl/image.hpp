@@ -175,7 +175,10 @@ public:
   }
 
   image(cl_mem ClMemObject, const context &SyclContext,
-        event AvailableEvent = {});
+        event AvailableEvent = {}) {
+    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+        ClMemObject, SyclContext, AvailableEvent);
+  }
 
   /* -- common interface members -- */
 
@@ -235,17 +238,11 @@ public:
   }
 
   template <typename Destination = std::nullptr_t>
-  void set_final_data(Destination FinalData = nullptr) {
-    if (true)
-      throw cl::sycl::feature_not_supported("Feature Not Implemented");
-    return;
+  void set_final_data(Destination finalData = nullptr) {
+    impl->set_final_data(finalData);
   }
 
-  void set_write_back(bool Flag = true) {
-    if (true)
-      throw cl::sycl::feature_not_supported("Feature Not Implemented");
-    return;
-  }
+  void set_write_back(bool flag = true) { impl->set_write_back(flag); }
 
 private:
   shared_ptr_class<detail::image_impl<Dimensions, AllocatorT>> impl;

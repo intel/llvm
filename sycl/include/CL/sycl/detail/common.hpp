@@ -132,10 +132,6 @@ template <template <int> class T> struct InitializedVal<3, T> {
   template <int Val> static T<3> &&get() { return T<3>{Val, Val, Val}; }
 };
 
-// Fills the lack of enable_if_t in C++11.
-template <bool Cond, typename T = void>
-using enable_if_t = typename std::enable_if<Cond, T>::type;
-
 /// Helper class for the \c NDLoop.
 template <int NDIMS, int DIM, template <int> class LoopBoundTy, typename FuncTy,
           template <int> class LoopIndexTy>
