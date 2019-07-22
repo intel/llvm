@@ -3,10 +3,6 @@
 
 // Shared code for SYCL tests
 
-#ifndef __SYCL_DEVICE_ONLY__
-#define __global
-#endif
-
 namespace cl {
 namespace sycl {
 namespace access {
@@ -61,17 +57,17 @@ struct DeviceValueType;
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::global_buffer> {
-  using type = __global dataT;
+  using type = __attribute__((ocl_global)) dataT;
 };
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::constant_buffer> {
-  using type = __constant dataT;
+  using type = __attribute__((ocl_constant)) dataT;
 };
 
 template <typename dataT>
 struct DeviceValueType<dataT, access::target::local> {
-  using type = __local dataT;
+  using type = __attribute__((ocl_local)) dataT;
 };
 
 template <typename dataT, int dimensions, access::mode accessmode,
