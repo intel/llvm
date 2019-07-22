@@ -25,5 +25,5 @@ int main() {
 
 // CHECK: _ZTS10SimpleVaddIiE
 // CHECK: _ZTS10SimpleVaddIdE
-// CHECK-64: _ZTS10SimpleVaddImE
+// CHECK-64: _ZTS10SimpleVaddIyE
 // CHECK-32: _ZTS10SimpleVaddIjE

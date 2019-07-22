@@ -56,9 +56,12 @@ static const unsigned SYCLAddrSpaceMap[] = {
 };
 
 class LLVM_LIBRARY_VISIBILITY SPIRTargetInfo : public TargetInfo {
+private:
+  bool IsWindowsSYCL;
 public:
   SPIRTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
+    IsWindowsSYCL = false;
     TLSSupported = false;
     VLASupported = false;
     LongWidth = LongAlign = 64;
@@ -103,12 +106,17 @@ public:
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
+    if (isWindows_SYCL())
+      return TargetInfo::CharPtrBuiltinVaList;
     return TargetInfo::VoidPtrBuiltinVaList;
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    if (CC == CC_X86VectorCall && isWindows_SYCL())
+      // Permit CC_X86VectorCall which is used in Microsoft headers
+      return CCCR_OK;
     return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
-                                                            : CCCR_Warning;
+                                    : CCCR_Warning;
   }
 
   CallingConv getDefaultCallingConv(CallingConvMethodType MT) const override {
@@ -120,6 +128,9 @@ public:
     // for SPIR since it is a generic target.
     getSupportedOpenCLOpts().supportAll();
   }
+  void setWindows_SYCL(bool Value) { IsWindowsSYCL = Value; }
+  bool isWindows_SYCL(void) const { return IsWindowsSYCL; }
+
 };
 class LLVM_LIBRARY_VISIBILITY SPIR32TargetInfo : public SPIRTargetInfo {
 public:
@@ -141,8 +152,15 @@ public:
   SPIR64TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : SPIRTargetInfo(Triple, Opts) {
     PointerWidth = PointerAlign = 64;
-    SizeType = TargetInfo::UnsignedLong;
-    PtrDiffType = IntPtrType = TargetInfo::SignedLong;
+    SizeType = TargetInfo::UnsignedLongLong;
+    Int64Type = TargetInfo::SignedLongLong;
+    PtrDiffType = IntPtrType = IntMaxType = Int64Type;
+    llvm::Triple HT(Opts.HostTriple);
+    if (HT.isWindowsMSVCEnvironment() && Triple.isSYCLDeviceEnvironment()) {
+      setWindows_SYCL(true); 
+      WCharType = UnsignedShort;
+      LongWidth = LongAlign = 32;
+    }
     resetDataLayout("e-i64:64-v16:16-v24:32-v32:32-v48:64-"
                     "v96:128-v192:256-v256:256-v512:512-v1024:1024");
   }

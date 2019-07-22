@@ -3550,14 +3550,30 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (UseSYCLTriple) {
     // We want to compile sycl kernels.
-    if (types::isCXX(Input.getType()))
-      CmdArgs.push_back("-std=c++11");
     CmdArgs.push_back("-fsycl-is-device");
     // Pass the triple of host when doing SYCL
-    std::string NormalizedTriple =
-        llvm::Triple(llvm::sys::getProcessTriple()).normalize();
+    auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
+    std::string NormalizedTriple = AuxT.normalize();
     CmdArgs.push_back("-aux-triple");
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
+
+    bool IsMSVC = AuxT.isWindowsMSVCEnvironment();
+    if (types::isCXX(Input.getType()))
+      CmdArgs.push_back(IsMSVC ? "-std=c++14" : "-std=c++11");
+    if (IsMSVC) {
+      CmdArgs.push_back("-fms-extensions");
+      VersionTuple MSVT = TC.computeMSVCVersion(&D, Args);
+      if (!MSVT.empty())
+        CmdArgs.push_back(Args.MakeArgString("-fms-compatibility-version=" +
+                                             MSVT.getAsString()));
+      else {
+        const char *LowestMSVCSupported =
+            "191025017"; // VS2017 v15.0 (initial release)
+        CmdArgs.push_back(Args.MakeArgString(
+            Twine("-fms-compatibility-version=") + LowestMSVCSupported));
+      }
+    }
+
     CmdArgs.push_back("-disable-llvm-passes");
     if (Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
                      options::OPT_fno_sycl_allow_func_ptr, false)) {
