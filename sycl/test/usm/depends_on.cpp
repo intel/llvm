@@ -39,7 +39,9 @@ int main() {
     return -1;
   }
 
+  event e;
   auto eInit = q.submit([&](handler &cgh) {
+    cgh.depends_on(e);
     cgh.single_task<class init>([=]() {
       for (int i = 0; i < N; i++) {
         sarray[i] = MAGIC_NUM - 1;
