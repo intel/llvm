@@ -37,6 +37,7 @@ Ben Ashbaugh, Intel +
 James Brodman, Intel +
 Michael Kinsner, Intel +
 Michal Mrozek, Intel +
+Lukasz Towarek, Intel +
 TODO: many more...
 // spell-checker: enable
 
@@ -57,7 +58,7 @@ If you are interested in using this feature in your software product, please let
 == Version
 
 Built On: {docdate} +
-Revision: D
+Revision: E
 
 == Dependencies
 
@@ -78,7 +79,7 @@ Unified Shared Memory provides:
 ----
 void*   clHostMemAllocINTEL(
             cl_context context,
-            cl_mem_properties_intel* properties,
+            const cl_mem_properties_intel* properties,
             size_t size,
             cl_uint alignment,
             cl_int* errcode_ret);
@@ -86,7 +87,7 @@ void*   clHostMemAllocINTEL(
 void*   clDeviceMemAllocINTEL(
             cl_context context,
             cl_device_id device,
-            cl_mem_properties_intel* properties,
+            const cl_mem_properties_intel* properties,
             size_t size,
             cl_uint alignment,
             cl_int* errcode_ret);
@@ -94,7 +95,7 @@ void*   clDeviceMemAllocINTEL(
 void*   clSharedMemAllocINTEL(
             cl_context context,
             cl_device_id device,
-            cl_mem_properties_intel* properties,
+            const cl_mem_properties_intel* properties,
             size_t size,
             cl_uint alignment,
             cl_int* errcode_ret);
@@ -420,7 +421,7 @@ The function
 ----
 void*   clHostMemAllocINTEL(
             cl_context context,
-            cl_mem_properties_intel* properties,
+            const cl_mem_properties_intel* properties,
             size_t size,
             cl_uint alignment,
             cl_int* errcode_ret);
@@ -458,7 +459,7 @@ The function
 void*   clDeviceMemAllocINTEL(
             cl_context context,
             cl_device_id device,
-            cl_mem_properties_intel* properties,
+            const cl_mem_properties_intel* properties,
             size_t size,
             cl_uint alignment,
             cl_int* errcode_ret);
@@ -498,7 +499,7 @@ The function
 void*   clSharedMemAllocINTEL(
             cl_context context,
             cl_device_id device,
-            cl_mem_properties_intel* properties,
+            const cl_mem_properties_intel* properties,
             size_t size,
             cl_uint alignment,
             cl_int* errcode_ret);
@@ -1038,6 +1039,7 @@ If we added this we'd need to specify what happens for host allocations or share
 |B|2019-03-25|Ben Ashbaugh|Minor name changes.
 |C|2019-06-18|Ben Ashbaugh|Moved flags argument into properties.
 |D|2019-07-19|Ben Ashbaugh|Editorial fixes.
+|E|2019-07-22|Ben Ashbaugh|Allocation properties should be const.
 |========================================
 
 //************************************************************************
