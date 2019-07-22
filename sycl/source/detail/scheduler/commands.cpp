@@ -37,7 +37,7 @@ std::vector<RT::PiEvent> Command::prepareEvents(ContextImplPtr Context) {
   std::vector<EventImplPtr> GlueEvents;
   for (EventImplPtr &Event : MDepsEvents) {
     // Async work is not supported for host device.
-    if (Event->getContextImpl()->is_host()) {
+    if (Event->is_host()) {
       Event->waitInternal();
       continue;
     }
