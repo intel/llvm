@@ -48,6 +48,7 @@
 // CK-HELP: {{.*}}o {{.*}}- object
 // CK-HELP: {{.*}}gch {{.*}}- precompiled-header
 // CK-HELP: {{.*}}ast {{.*}}- clang AST file
+// CK-HELP: {{.*}}ao {{.*}}- archive; output file is a list of unbundled objects
 // CK-HELP: {{.*}}-unbundle {{.*}}- Unbundle bundled file into several output files.
 
 //
@@ -273,6 +274,20 @@
 // RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocr-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
 // RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aoco-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
 // RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocx-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
+
+//
+// Check archive bundle.
+//
+// RUN: llvm-ar crv %t.a %t.2.o
+// RUN: clang-offload-bundler -type=ao -targets=host-powerpc64le-ibm-linux-gnu,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.host.lst,%t.tgt1.lst,%t.tgt2.lst -inputs=%t.a -unbundle
+// RUN: wc -l %t.host.lst | FileCheck %s --check-prefix=CHECK-AR-FILE-LIST
+// RUN: wc -l %t.tgt1.lst | FileCheck %s --check-prefix=CHECK-AR-FILE-LIST
+// RUN: wc -l %t.tgt2.lst | FileCheck %s --check-prefix=CHECK-AR-FILE-LIST
+// RUN: diff %t.2.o `cat %t.host.lst`
+// RUN: diff %t.tgt1 `cat %t.tgt1.lst`
+// RUN: diff %t.tgt1 `cat %t.tgt1.lst`
+
+// CHECK-AR-FILE-LIST: 1
 
 #ifdef EMULATE_FAT_OBJ
 #define BUNDLE_SECTION_PREFIX "__CLANG_OFFLOAD_BUNDLE__"

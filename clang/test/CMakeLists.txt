@@ -102,6 +102,7 @@ if( NOT CLANG_BUILT_STANDALONE )
     FileCheck count not
     llc
     llvm-as
+    llvm-ar
     llvm-bcanalyzer
     llvm-cat
     llvm-cxxfilt
