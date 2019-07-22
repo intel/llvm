@@ -96,8 +96,8 @@ void *MemoryManager::allocateInteropMemObject(
 
 void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
                                          void *UserPtr, bool HostPtrReadOnly,
-                                         const RT::PiImageDesc &Desc,
-                                         const RT::PiImageFormat &Format) {
+                                         const RT::PiMemImageDesc &Desc,
+                                         const RT::PiMemImageFormat &Format) {
   // Create read_write mem object by default to handle arbitrary uses.
   RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
@@ -147,8 +147,8 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
 
 void *MemoryManager::allocateMemImage(
     ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
-    bool HostPtrReadOnly, size_t Size, const RT::PiImageDesc &Desc,
-    const RT::PiImageFormat &Format, const EventImplPtr &InteropEvent,
+    bool HostPtrReadOnly, size_t Size, const RT::PiMemImageDesc &Desc,
+    const RT::PiMemImageFormat &Format, const EventImplPtr &InteropEvent,
     const ContextImplPtr &InteropContext, RT::PiEvent &OutEventToWait) {
   if (TargetContext->is_host())
     return allocateHostMemory(MemObj, UserPtr, HostPtrReadOnly, Size);

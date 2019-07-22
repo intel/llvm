@@ -60,8 +60,8 @@ public:
   // one(not host).
   static void *allocateMemImage(
       ContextImplPtr TargetContext, SYCLMemObjI *MemObj, void *UserPtr,
-      bool HostPtrReadOnly, size_t Size, const RT::PiImageDesc &Desc,
-      const RT::PiImageFormat &Format, const EventImplPtr &InteropEvent,
+      bool HostPtrReadOnly, size_t Size, const RT::PiMemImageDesc &Desc,
+      const RT::PiMemImageFormat &Format, const EventImplPtr &InteropEvent,
       const ContextImplPtr &InteropContext, RT::PiEvent &OutEventToWait);
 
   // Releases memory object(buffer or image). TargetContext should be device
@@ -80,8 +80,8 @@ public:
 
   static void *allocateImageObject(ContextImplPtr TargetContext, void *UserPtr,
                                    bool HostPtrReadOnly,
-                                   const RT::PiImageDesc &Desc,
-                                   const RT::PiImageFormat &Format);
+                                   const RT::PiMemImageDesc &Desc,
+                                   const RT::PiMemImageFormat &Format);
 
   static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size);

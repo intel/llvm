@@ -76,7 +76,7 @@ uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type) {
   return Retval;
 }
 
-RT::PiChannelOrder convertChannelOrder(image_channel_order Order) {
+RT::PiMemImageChannelOrder convertChannelOrder(image_channel_order Order) {
   switch (Order) {
   case image_channel_order::a:
     return PI_A;
@@ -108,12 +108,12 @@ RT::PiChannelOrder convertChannelOrder(image_channel_order Order) {
     return PI_ABGR;
   default: {
     assert(!"Unhandled image_channel_order");
-    return static_cast<RT::PiChannelOrder>(0);
+    return static_cast<RT::PiMemImageChannelOrder>(0);
   }
   }
 }
 
-image_channel_order convertChannelOrder(RT::PiChannelOrder Order) {
+image_channel_order convertChannelOrder(RT::PiMemImageChannelOrder Order) {
   switch (Order) {
   case PI_A:
     return image_channel_order::a;
@@ -150,7 +150,7 @@ image_channel_order convertChannelOrder(RT::PiChannelOrder Order) {
   }
 }
 
-RT::PiChannelType convertChannelType(image_channel_type Type) {
+RT::PiMemImageChannelType convertChannelType(image_channel_type Type) {
   switch (Type) {
   case image_channel_type::snorm_int8:
     return PI_SNORM_INT8;
@@ -184,12 +184,12 @@ RT::PiChannelType convertChannelType(image_channel_type Type) {
     return PI_FLOAT;
   default: {
     assert(!"Unhandled image_channel_order");
-    return static_cast<RT::PiChannelType>(0);
+    return static_cast<RT::PiMemImageChannelType>(0);
   }
   }
 }
 
-image_channel_type convertChannelType(RT::PiChannelType Type) {
+image_channel_type convertChannelType(RT::PiMemImageChannelType Type) {
   switch (Type) {
   case PI_SNORM_INT8:
     return image_channel_type::snorm_int8;

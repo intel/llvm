@@ -43,13 +43,13 @@ uint8_t getImageNumberChannels(image_channel_order Order);
 // utility function: Returns the number of bytes per image element
 uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type);
 
-RT::PiChannelOrder convertChannelOrder(image_channel_order Order);
+RT::PiMemImageChannelOrder convertChannelOrder(image_channel_order Order);
 
-image_channel_order convertChannelOrder(RT::PiChannelOrder Order);
+image_channel_order convertChannelOrder(RT::PiMemImageChannelOrder Order);
 
-RT::PiChannelType convertChannelType(image_channel_type Type);
+RT::PiMemImageChannelType convertChannelType(image_channel_type Type);
 
-image_channel_type convertChannelType(RT::PiChannelType Type);
+image_channel_type convertChannelType(RT::PiMemImageChannelType Type);
 
 // validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
 template <typename T>
@@ -237,25 +237,25 @@ public:
     PI_CALL(RT::piMemGetInfo(Mem, CL_MEM_SIZE, sizeof(size_t),
                              &(BaseT::MSizeInBytes), nullptr));
 
-    RT::PiImageFormat Format;
-    getImageInfo(PI_IMAGE_FORMAT, Format);
+    RT::PiMemImageFormat Format;
+    getImageInfo(PI_IMAGE_INFO_FORMAT, Format);
     MOrder = detail::convertChannelOrder(Format.image_channel_order);
     MType = detail::convertChannelType(Format.image_channel_data_type);
     MNumChannels = getImageNumberChannels(MOrder);
 
-    getImageInfo(PI_IMAGE_ELEMENT_SIZE, MElementSize);
+    getImageInfo(PI_IMAGE_INFO_ELEMENT_SIZE, MElementSize);
     assert(getImageElementSize(MNumChannels, MType) == MElementSize);
 
-    getImageInfo(PI_IMAGE_ROW_PITCH, MRowPitch);
-    getImageInfo(PI_IMAGE_SLICE_PITCH, MSlicePitch);
+    getImageInfo(PI_IMAGE_INFO_ROW_PITCH, MRowPitch);
+    getImageInfo(PI_IMAGE_INFO_SLICE_PITCH, MSlicePitch);
 
     switch (Dimensions) {
     case 3:
-      getImageInfo(PI_IMAGE_DEPTH, MRange[2]);
+      getImageInfo(PI_IMAGE_INFO_DEPTH, MRange[2]);
     case 2:
-      getImageInfo(PI_IMAGE_HEIGHT, MRange[1]);
+      getImageInfo(PI_IMAGE_INFO_HEIGHT, MRange[1]);
     case 1:
-      getImageInfo(PI_IMAGE_WIDTH, MRange[0]);
+      getImageInfo(PI_IMAGE_INFO_WIDTH, MRange[0]);
     }
   }
 
@@ -286,12 +286,12 @@ public:
                     RT::PiEvent &OutEventToWait) override {
     void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : nullptr;
 
-    RT::PiImageDesc Desc = getClImageDesc();
-    assert(checkCLImageDesc(Desc, Context, UserPtr) &&
+    RT::PiMemImageDesc Desc = getImageDesc();
+    assert(checkImageDesc(Desc, Context, UserPtr) &&
            "The check an image desc failed.");
 
-    RT::PiImageFormat Format = getClImageFormat();
-    assert(checkClImageFormat(Format, Context) &&
+    RT::PiMemImageFormat Format = getImageFormat();
+    assert(checkImageFormat(Format, Context) &&
            "The check an image format failed.");
 
     return MemoryManager::allocateMemImage(
@@ -335,14 +335,13 @@ public:
   ~image_impl() { BaseT::updateHostMemory(); }
 
 private:
-  template <typename T> void getImageInfo(RT::PiImageInfo Info, T &Dest) {
+  template <typename T> void getImageInfo(RT::PiMemImageInfo Info, T &Dest) {
     RT::PiMem Mem = pi::pi_cast<RT::PiMem>(BaseT::MInteropMemObject);
     PI_CALL(RT::piMemImageGetInfo(Mem, Info, sizeof(T), &Dest, nullptr));
   }
 
   template <info::device Param>
-  bool checkCLImageValueRange(const ContextImplPtr Context,
-                              const size_t Value) {
+  bool checkImageValueRange(const ContextImplPtr Context, const size_t Value) {
     const auto &Devices = Context->get_devices();
     return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
                                      [Value](const device &Dev) {
@@ -364,7 +363,7 @@ private:
     return checkAnyImpl(Value, Arguments...);
   }
 
-  RT::PiMemObjectType getClImageType() {
+  RT::PiMemObjectType getImageType() {
     if (Dimensions == 1)
       return (MIsArrayImage ? PI_MEM_OBJECT_IMAGE1D_ARRAY
                             : PI_MEM_OBJECT_IMAGE1D);
@@ -374,9 +373,9 @@ private:
     return PI_MEM_OBJECT_IMAGE3D;
   }
 
-  RT::PiImageDesc getClImageDesc() {
-    RT::PiImageDesc Desc;
-    Desc.image_type = getClImageType();
+  RT::PiMemImageDesc getImageDesc() {
+    RT::PiMemImageDesc Desc;
+    Desc.image_type = getImageType();
     Desc.image_width = MRange[0];
     Desc.image_height = Dimensions > 1 ? MRange[1] : 1;
     Desc.image_depth = Dimensions > 2 ? MRange[2] : 1;
@@ -391,19 +390,19 @@ private:
     return Desc;
   }
 
-  bool checkCLImageDesc(const RT::PiImageDesc &Desc, ContextImplPtr Context,
-                        void *UserPtr) {
+  bool checkImageDesc(const RT::PiMemImageDesc &Desc, ContextImplPtr Context,
+                      void *UserPtr) {
     if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE1D,
                  PI_MEM_OBJECT_IMAGE1D_ARRAY, PI_MEM_OBJECT_IMAGE2D_ARRAY,
                  PI_MEM_OBJECT_IMAGE2D) &&
-        !checkCLImageValueRange<info::device::image2d_max_width>(
+        !checkImageValueRange<info::device::image2d_max_width>(
             Context, Desc.image_width))
       throw invalid_parameter_error(
           "For a 1D/2D image/image array, the width must be a Value >= 1 and "
           "<= CL_DEVICE_IMAGE2D_MAX_WIDTH.");
 
     if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE3D) &&
-        !checkCLImageValueRange<info::device::image3d_max_width>(
+        !checkImageValueRange<info::device::image3d_max_width>(
             Context, Desc.image_width))
       throw invalid_parameter_error(
           "For a 3D image, the width must be a Value >= 1 and <= "
@@ -411,21 +410,21 @@ private:
 
     if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE2D,
                  PI_MEM_OBJECT_IMAGE2D_ARRAY) &&
-        !checkCLImageValueRange<info::device::image2d_max_height>(
+        !checkImageValueRange<info::device::image2d_max_height>(
             Context, Desc.image_height))
       throw invalid_parameter_error("For a 2D image or image array, the height "
                                     "must be a Value >= 1 and <= "
                                     "CL_DEVICE_IMAGE2D_MAX_HEIGHT");
 
     if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE3D) &&
-        !checkCLImageValueRange<info::device::image3d_max_height>(
+        !checkImageValueRange<info::device::image3d_max_height>(
             Context, Desc.image_height))
       throw invalid_parameter_error(
           "For a 3D image, the heightmust be a Value >= 1 and <= "
           "CL_DEVICE_IMAGE3D_MAX_HEIGHT");
 
     if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE3D) &&
-        !checkCLImageValueRange<info::device::image3d_max_depth>(
+        !checkImageValueRange<info::device::image3d_max_depth>(
             Context, Desc.image_depth))
       throw invalid_parameter_error(
           "For a 3D image, the depth must be a Value >= 1 and <= "
@@ -433,7 +432,7 @@ private:
 
     if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE1D_ARRAY,
                  PI_MEM_OBJECT_IMAGE2D_ARRAY) &&
-        !checkCLImageValueRange<info::device::image_max_array_size>(
+        !checkImageValueRange<info::device::image_max_array_size>(
             Context, Desc.image_array_size))
       throw invalid_parameter_error(
           "For a 1D and 2D image array, the array_size must be a "
@@ -462,15 +461,15 @@ private:
     return true;
   }
 
-  RT::PiImageFormat getClImageFormat() {
-    RT::PiImageFormat Format;
+  RT::PiMemImageFormat getImageFormat() {
+    RT::PiMemImageFormat Format;
     Format.image_channel_order = detail::convertChannelOrder(MOrder);
     Format.image_channel_data_type = detail::convertChannelType(MType);
     return Format;
   }
 
-  bool checkClImageFormat(const RT::PiImageFormat &Format,
-                          ContextImplPtr Context) {
+  bool checkImageFormat(const RT::PiMemImageFormat &Format,
+                        ContextImplPtr Context) {
     if (checkAny(Format.image_channel_order, PI_INTENSITY, PI_LUMINANCE) &&
         !checkAny(Format.image_channel_data_type, PI_UNORM_INT8, PI_UNORM_INT16,
                   PI_SNORM_INT8, PI_SNORM_INT16, PI_HALF_FLOAT, PI_FLOAT))

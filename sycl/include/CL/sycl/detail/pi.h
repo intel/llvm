@@ -89,13 +89,13 @@ typedef enum {
 } _pi_queue_info;
 
 typedef enum {
-  PI_IMAGE_FORMAT       = CL_IMAGE_FORMAT,
-  PI_IMAGE_ELEMENT_SIZE = CL_IMAGE_ELEMENT_SIZE,
-  PI_IMAGE_ROW_PITCH    = CL_IMAGE_ROW_PITCH,
-  PI_IMAGE_SLICE_PITCH  = CL_IMAGE_SLICE_PITCH,
-  PI_IMAGE_WIDTH        = CL_IMAGE_WIDTH,
-  PI_IMAGE_HEIGHT       = CL_IMAGE_HEIGHT,
-  PI_IMAGE_DEPTH        = CL_IMAGE_DEPTH
+  PI_IMAGE_INFO_FORMAT       = CL_IMAGE_FORMAT,
+  PI_IMAGE_INFO_ELEMENT_SIZE = CL_IMAGE_ELEMENT_SIZE,
+  PI_IMAGE_INFO_ROW_PITCH    = CL_IMAGE_ROW_PITCH,
+  PI_IMAGE_INFO_SLICE_PITCH  = CL_IMAGE_SLICE_PITCH,
+  PI_IMAGE_INFO_WIDTH        = CL_IMAGE_WIDTH,
+  PI_IMAGE_INFO_HEIGHT       = CL_IMAGE_HEIGHT,
+  PI_IMAGE_INFO_DEPTH        = CL_IMAGE_DEPTH
 } _pi_image_info;
 
 typedef enum {
@@ -106,7 +106,7 @@ typedef enum {
   PI_MEM_OBJECT_IMAGE1D        = CL_MEM_OBJECT_IMAGE1D,
   PI_MEM_OBJECT_IMAGE1D_ARRAY  = CL_MEM_OBJECT_IMAGE1D_ARRAY,
   PI_MEM_OBJECT_IMAGE1D_BUFFER = CL_MEM_OBJECT_IMAGE1D_BUFFER
-} _pi_mem_object_type;
+} _pi_mem_type;
 
 typedef enum {
   PI_A         = CL_A,
@@ -123,7 +123,7 @@ typedef enum {
   PI_Rx        = CL_Rx,
   PI_RGx       = CL_RGx,
   PI_RGBx      = CL_RGBx
-} _pi_channel_order;
+} _pi_image_channel_order;
 
 typedef enum {
   PI_SNORM_INT8       = CL_SNORM_INT8,
@@ -141,7 +141,7 @@ typedef enum {
   PI_UNSIGNED_INT32   = CL_UNSIGNED_INT32,
   PI_HALF_FLOAT       = CL_HALF_FLOAT,
   PI_FLOAT            = CL_FLOAT
-} _pi_channel_type;
+} _pi_image_channel_type;
 
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
@@ -161,9 +161,9 @@ typedef _pi_device_info             pi_device_info;
 typedef _pi_context_info            pi_context_info;
 typedef _pi_queue_info              pi_queue_info;
 typedef _pi_image_info              pi_image_info;
-typedef _pi_mem_object_type         pi_mem_object_type;
-typedef _pi_channel_order           pi_channel_order;
-typedef _pi_channel_type            pi_channel_type;
+typedef _pi_mem_type                pi_mem_type;
+typedef _pi_image_channel_order     pi_image_channel_order;
+typedef _pi_image_channel_type      pi_image_channel_type;
 
 // Opaque data type for compatibility with OpenMP.
 typedef void * _pi_offload_entry;
@@ -265,12 +265,12 @@ typedef _pi_event *       pi_event;
 typedef _pi_sampler *     pi_sampler;
 
 typedef struct {
-          pi_channel_order image_channel_order;
-          pi_channel_type  image_channel_data_type;
+          pi_image_channel_order image_channel_order;
+          pi_image_channel_type  image_channel_data_type;
 } _pi_image_format;
 
 typedef struct {
-          pi_mem_object_type image_type;
+          pi_mem_type image_type;
           size_t image_width;
           size_t image_height;
           size_t image_depth;
