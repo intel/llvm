@@ -7504,6 +7504,46 @@ static SDValue LowerAsSplatVectorLoad(SDValue SrcOp, MVT VT, const SDLoc &dl,
   return SDValue();
 }
 
+// Recurse to find a LoadSDNode source and the accumulated ByteOffest.
+static bool findEltLoadSrc(SDValue Elt, LoadSDNode *&Ld, int64_t &ByteOffset) {
+  if (ISD::isNON_EXTLoad(Elt.getNode())) {
+    Ld = cast<LoadSDNode>(Elt);
+    ByteOffset = 0;
+    return true;
+  }
+
+  switch (Elt.getOpcode()) {
+  case ISD::BITCAST:
+  case ISD::TRUNCATE:
+  case ISD::SCALAR_TO_VECTOR:
+    return findEltLoadSrc(Elt.getOperand(0), Ld, ByteOffset);
+  case ISD::SRL:
+    if (isa<ConstantSDNode>(Elt.getOperand(1))) {
+      uint64_t Idx = Elt.getConstantOperandVal(1);
+      if ((Idx % 8) == 0 && findEltLoadSrc(Elt.getOperand(0), Ld, ByteOffset)) {
+        ByteOffset += Idx / 8;
+        return true;
+      }
+    }
+    break;
+  case ISD::EXTRACT_VECTOR_ELT:
+    if (isa<ConstantSDNode>(Elt.getOperand(1))) {
+      SDValue Src = Elt.getOperand(0);
+      unsigned SrcSizeInBits = Src.getScalarValueSizeInBits();
+      unsigned DstSizeInBits = Elt.getScalarValueSizeInBits();
+      if (DstSizeInBits == SrcSizeInBits && (SrcSizeInBits % 8) == 0 &&
+          findEltLoadSrc(Src, Ld, ByteOffset)) {
+        uint64_t Idx = Elt.getConstantOperandVal(1);
+        ByteOffset += Idx * (SrcSizeInBits / 8);
+        return true;
+      }
+    }
+    break;
+  }
+
+  return false;
+}
+
 /// Given the initializing elements 'Elts' of a vector of type 'VT', see if the
 /// elements can be replaced by a single large load which has the same value as
 /// a build_vector or insert_subvector whose loaded operands are 'Elts'.
@@ -7521,6 +7561,7 @@ static SDValue EltsFromConsecutiveLoads(EVT VT, ArrayRef<SDValue> Elts,
   APInt UndefMask = APInt::getNullValue(NumElems);
 
   SmallVector<LoadSDNode*, 8> Loads(NumElems, nullptr);
+  SmallVector<int64_t, 8> ByteOffsets(NumElems, 0);
 
   // For each element in the initializer, see if we've found a load, zero or an
   // undef.
@@ -7539,13 +7580,16 @@ static SDValue EltsFromConsecutiveLoads(EVT VT, ArrayRef<SDValue> Elts,
 
     // Each loaded element must be the correct fractional portion of the
     // requested vector load.
-    if ((NumElems * Elt.getValueSizeInBits()) != VT.getSizeInBits())
+    unsigned EltSizeInBits = Elt.getValueSizeInBits();
+    if ((NumElems * EltSizeInBits) != VT.getSizeInBits())
       return SDValue();
 
-    if (!ISD::isNON_EXTLoad(Elt.getNode()))
+    if (!findEltLoadSrc(Elt, Loads[i], ByteOffsets[i]) || ByteOffsets[i] < 0)
+      return SDValue();
+    unsigned LoadSizeInBits = Loads[i]->getValueSizeInBits(0);
+    if (((ByteOffsets[i] * 8) + EltSizeInBits) > LoadSizeInBits)
       return SDValue();
 
-    Loads[i] = cast<LoadSDNode>(Elt);
     LoadMask.setBit(i);
     LastLoadedElt = i;
   }
@@ -7575,6 +7619,20 @@ static SDValue EltsFromConsecutiveLoads(EVT VT, ArrayRef<SDValue> Elts,
   int LoadSizeInBits = (1 + LastLoadedElt - FirstLoadedElt) * BaseSizeInBits;
   assert((BaseSizeInBits % 8) == 0 && "Sub-byte element loads detected");
 
+  // Check to see if the element's load is consecutive to the base load
+  // or offset from a previous (already checked) load.
+  auto CheckConsecutiveLoad = [&](LoadSDNode *Base, int EltIdx) {
+    LoadSDNode *Ld = Loads[EltIdx];
+    int64_t ByteOffset = ByteOffsets[EltIdx];
+    if (ByteOffset && (ByteOffset % BaseSizeInBytes) == 0) {
+      int64_t BaseIdx = EltIdx - (ByteOffset / BaseSizeInBytes);
+      return (0 <= BaseIdx && BaseIdx < (int)NumElems && LoadMask[BaseIdx] &&
+              Loads[BaseIdx] == Ld && ByteOffsets[BaseIdx] == 0);
+    }
+    return DAG.areNonVolatileConsecutiveLoads(Ld, Base, BaseSizeInBytes,
+                                              EltIdx - FirstLoadedElt);
+  };
+
   // Consecutive loads can contain UNDEFS but not ZERO elements.
   // Consecutive loads with UNDEFs and ZEROs elements require a
   // an additional shuffle stage to clear the ZERO elements.
@@ -7582,8 +7640,7 @@ static SDValue EltsFromConsecutiveLoads(EVT VT, ArrayRef<SDValue> Elts,
   bool IsConsecutiveLoadWithZeros = true;
   for (int i = FirstLoadedElt + 1; i <= LastLoadedElt; ++i) {
     if (LoadMask[i]) {
-      if (!DAG.areNonVolatileConsecutiveLoads(Loads[i], LDBase, BaseSizeInBytes,
-                                              i - FirstLoadedElt)) {
+      if (!CheckConsecutiveLoad(LDBase, i)) {
         IsConsecutiveLoad = false;
         IsConsecutiveLoadWithZeros = false;
         break;
@@ -34062,25 +34119,6 @@ bool X86TargetLowering::SimplifyDemandedVectorEltsForTargetNode(
       return true;
     break;
   }
-  case X86ISD::SUBV_BROADCAST: {
-    // Reduce size of broadcast if we don't need the upper half.
-    unsigned HalfElts = NumElts / 2;
-    if (DemandedElts.extractBits(HalfElts, HalfElts).isNullValue()) {
-      SDValue Src = Op.getOperand(0);
-      MVT SrcVT = Src.getSimpleValueType();
-
-      SDValue Half = Src;
-      if (SrcVT.getVectorNumElements() != HalfElts) {
-        MVT HalfVT = MVT::getVectorVT(SrcVT.getScalarType(), HalfElts);
-        Half = TLO.DAG.getNode(X86ISD::SUBV_BROADCAST, SDLoc(Op), HalfVT, Src);
-      }
-
-      return TLO.CombineTo(Op, insertSubVector(TLO.DAG.getUNDEF(VT), Half, 0,
-                                               TLO.DAG, SDLoc(Op),
-                                               Half.getValueSizeInBits()));
-    }
-    break;
-  }
   case X86ISD::VPERMV: {
     SDValue Mask = Op.getOperand(0);
     APInt MaskUndef, MaskZero;
@@ -34134,6 +34172,19 @@ bool X86TargetLowering::SimplifyDemandedVectorEltsForTargetNode(
       SDValue Insert =
           insertSubVector(UndefVec, ExtOp, 0, TLO.DAG, DL, ExtSizeInBits);
       return TLO.CombineTo(Op, Insert);
+    }
+      // Subvector broadcast.
+    case X86ISD::SUBV_BROADCAST: {
+      SDLoc DL(Op);
+      SDValue Ext = Op.getOperand(0);
+      if (Ext.getValueSizeInBits() != ExtSizeInBits) {
+        MVT ExtSVT = Ext.getSimpleValueType().getScalarType();
+        MVT ExtVT =
+            MVT::getVectorVT(ExtSVT, ExtSizeInBits / ExtSVT.getSizeInBits());
+        Ext = TLO.DAG.getNode(X86ISD::SUBV_BROADCAST, DL, ExtVT, Ext);
+      }
+      return TLO.CombineTo(Op, insertSubVector(TLO.DAG.getUNDEF(VT), Ext, 0,
+                                               TLO.DAG, DL, ExtSizeInBits));
     }
       // Byte shifts by immediate.
     case X86ISD::VSHLDQ:
@@ -35631,12 +35682,6 @@ static SDValue scalarizeExtEltFP(SDNode *ExtElt, SelectionDAG &DAG) {
 static SDValue combineReductionToHorizontal(SDNode *ExtElt, SelectionDAG &DAG,
                                             const X86Subtarget &Subtarget) {
   assert(ExtElt->getOpcode() == ISD::EXTRACT_VECTOR_ELT && "Unexpected caller");
-  bool OptForSize = DAG.getMachineFunction().getFunction().hasOptSize();
-  if (!Subtarget.hasFastHorizontalOps() && !OptForSize)
-    return SDValue();
-  SDValue Index = ExtElt->getOperand(1);
-  if (!isNullConstant(Index))
-    return SDValue();
 
   // TODO: Allow FADD with reduction and/or reassociation and no-signed-zeros.
   ISD::NodeType Opc;
@@ -35644,13 +35689,50 @@ static SDValue combineReductionToHorizontal(SDNode *ExtElt, SelectionDAG &DAG,
   if (!Rdx)
     return SDValue();
 
+  SDValue Index = ExtElt->getOperand(1);
+  assert(isNullConstant(Index) &&
+         "Reduction doesn't end in an extract from index 0");
+
   EVT VT = ExtElt->getValueType(0);
   EVT VecVT = ExtElt->getOperand(0).getValueType();
   if (VecVT.getScalarType() != VT)
     return SDValue();
 
-  unsigned HorizOpcode = Opc == ISD::ADD ? X86ISD::HADD : X86ISD::FHADD;
+  // Must be a >=128-bit vector with pow2 elements.
+  if ((VecVT.getSizeInBits() % 128) != 0 ||
+      !isPowerOf2_32(VecVT.getVectorNumElements()))
+    return SDValue();
+
   SDLoc DL(ExtElt);
+
+  // vXi8 reduction - sum lo/hi halves then use PSADBW.
+  if (VT == MVT::i8) {
+    while (Rdx.getValueSizeInBits() > 128) {
+      EVT RdxVT = Rdx.getValueType();
+      unsigned HalfSize = RdxVT.getSizeInBits() / 2;
+      unsigned HalfElts = RdxVT.getVectorNumElements() / 2;
+      SDValue Lo = extractSubVector(Rdx, 0, DAG, DL, HalfSize);
+      SDValue Hi = extractSubVector(Rdx, HalfElts, DAG, DL, HalfSize);
+      Rdx = DAG.getNode(ISD::ADD, DL, Lo.getValueType(), Lo, Hi);
+    }
+    assert(Rdx.getValueType() == MVT::v16i8 && "v16i8 reduction expected");
+
+    SDValue Hi = DAG.getVectorShuffle(
+        MVT::v16i8, DL, Rdx, Rdx,
+        {8, 9, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1});
+    Rdx = DAG.getNode(ISD::ADD, DL, MVT::v16i8, Rdx, Hi);
+    Rdx = DAG.getNode(X86ISD::PSADBW, DL, MVT::v2i64, Rdx,
+                      getZeroVector(MVT::v16i8, Subtarget, DAG, DL));
+    Rdx = DAG.getBitcast(MVT::v16i8, Rdx);
+    return DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, VT, Rdx, Index);
+  }
+
+  // Only use (F)HADD opcodes if they aren't microcoded or minimizes codesize.
+  bool OptForSize = DAG.getMachineFunction().getFunction().hasOptSize();
+  if (!Subtarget.hasFastHorizontalOps() && !OptForSize)
+    return SDValue();
+
+  unsigned HorizOpcode = Opc == ISD::ADD ? X86ISD::HADD : X86ISD::FHADD;
 
   // 256-bit horizontal instructions operate on 128-bit chunks rather than
   // across the whole vector, so we need an extract + hop preliminary stage.

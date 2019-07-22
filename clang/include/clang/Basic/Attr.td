@@ -2339,6 +2339,7 @@ def WarnUnusedResult : InheritableAttr {
                    CXX11<"clang", "warn_unused_result">,
                    GCC<"warn_unused_result">];
   let Subjects = SubjectList<[ObjCMethod, Enum, Record, FunctionLike]>;
+  let Args = [StringArgument<"Message", 1>];
   let Documentation = [WarnUnusedResultsDocs];
 }
 
