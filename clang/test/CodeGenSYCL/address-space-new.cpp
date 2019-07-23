@@ -38,10 +38,46 @@ void test() {
   // CHECK-NEW: store i8 addrspace(4)* %[[ARRCAST]], i8 addrspace(4)** %{{.*}}
 
   const char *str = "Hello, world!";
-  // CHECK-LEGACY: store i8* getelementptr inbounds ([14 x i8], [14 x i8]* @[[STR]], i64 0, i64 0), i8** %{{.*}}, align 8
-  // CHECK-NEW: store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([14 x i8], [14 x i8]* @[[STR]], i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %{{.*}}, align 8
+  // CHECK-LEGACY: store i8* getelementptr inbounds ([14 x i8], [14 x i8]* @[[STR]], i64 0, i64 0), i8** %[[STRVAL:[a-zA-Z0-9]+]], align 8
+  // CHECK-NEW: store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([14 x i8], [14 x i8]* @[[STR]], i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %[[STRVAL:[a-zA-Z0-9]+]], align 8
 
   i = str[0];
+
+  const char *phi_str = i > 2 ? str : "Another hello world!";
+  (void)phi_str;
+  // CHECK: %[[COND:[a-zA-Z0-9]+]] = icmp sgt i32 %{{.*}}, 2
+  // CHECK: br i1 %[[COND]], label %[[CONDTRUE:[.a-zA-Z0-9]+]], label %[[CONDFALSE:[.a-zA-Z0-9]+]]
+
+  // CHECK: [[CONDTRUE]]:
+  // CHECK-LEGACY-NEXT: %[[VALTRUE:[a-zA-Z0-9]+]] = load i8*, i8** %[[STRVAL]]
+  // CHECK-LEGACY-NEXT: br label %[[CONDEND:[.a-zA-Z0-9]+]]
+  // CHECK-NEW-NEXT: %[[VALTRUE:[a-zA-Z0-9]+]] = load i8 addrspace(4)*, i8 addrspace(4)** %[[STRVAL]]
+  // CHECK-NEW-NEXT: br label %[[CONDEND:[.a-zA-Z0-9]+]]
+
+  // CHECK: [[CONDFALSE]]:
+  // CHECK-LEGACY-NEXT: br label %[[CONDEND]]
+
+  // CHECK-LEGACY: [[CONDEND]]:
+  // CHECK-NEW: [[CONDEND]]:
+  // CHECK-NEW-NEXT: phi i8 addrspace(4)* [ %[[VALTRUE]], %[[CONDTRUE]] ], [ addrspacecast (i8* getelementptr inbounds ([21 x i8], [21 x i8]* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), %[[CONDFALSE]] ]
+  // CHECK-LEGACY-NEXT: phi i8* [ %[[VALTRUE]], %[[CONDTRUE]] ], [ getelementptr inbounds ([21 x i8], [21 x i8]* @{{.*}}, i64 0, i64 0), %[[CONDFALSE]] ]
+
+  const char *select_null = i > 2 ? "Yet another Hello world" : nullptr;
+  (void)select_null;
+  // CHECK-LEGACY: select i1 %{{.*}}, i8* getelementptr inbounds ([24 x i8], [24 x i8]* @{{.*}}, i64 0, i64 0), i8* null
+  // CHECK-NEW: select i1 %{{.*}}, i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([24 x i8], [24 x i8]* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* null
+
+  const char *select_str_trivial1 = true ? str : "Another hello world!";
+  (void)select_str_trivial1;
+  // CHECK-LEGACY: %[[TRIVIALTRUE:[a-zA-Z0-9]+]] = load i8*, i8** %[[STRVAL]]
+  // CHECK-LEGACY: store i8* %[[TRIVIALTRUE]], i8** %{{.*}}, align 8
+  // CHECK-NEW: %[[TRIVIALTRUE:[a-zA-Z0-9]+]] = load i8 addrspace(4)*, i8 addrspace(4)** %[[STRVAL]]
+  // CHECK-NEW: store i8 addrspace(4)* %[[TRIVIALTRUE]], i8 addrspace(4)** %{{.*}}, align 8
+
+  const char *select_str_trivial2 = false ? str : "Another hello world!";
+  (void)select_str_trivial2;
+  // CHECK-LEGACY: store i8* getelementptr inbounds ([21 x i8], [21 x i8]* @{{.*}}, i64 0, i64 0), i8** %{{.*}}
+  // CHECK-NEW: store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([21 x i8], [21 x i8]* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %{{.*}}
 }
 
 
