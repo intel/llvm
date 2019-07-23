@@ -16,6 +16,24 @@ namespace sycl {
 namespace detail {
 namespace pi {
 
+std::string platformInfoToString(pi_platform_info info) {
+  switch (info) {
+  case PI_PLATFORM_INFO_PROFILE:
+    return "PI_PLATFORM_INFO_PROFILE";
+  case PI_PLATFORM_INFO_VERSION:
+    return "PI_PLATFORM_INFO_VERSION";
+  case PI_PLATFORM_INFO_NAME:
+    return "PI_PLATFORM_INFO_NAME";
+  case PI_PLATFORM_INFO_VENDOR:
+    return "PI_PLATFORM_INFO_VENDOR";
+  case PI_PLATFORM_INFO_EXTENSIONS:
+    return "PI_PLATFORM_INFO_EXTENSIONS";
+  default:
+    piDie("Unknown pi_platform_info value passed to "
+          "cl::sycl::detail::pi::platformInfoToString");
+  }
+}
+
 // Check for manually selected BE at run-time.
 bool piUseBackend(PiBackend Backend) {
   static const char *GetEnv = std::getenv("SYCL_BE");
