@@ -70,10 +70,17 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
 }
 
 #elif defined(SYCL_RT_OS_WINDOWS)
-// TODO: implement this function for Windows probably by using
-// GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,...)
 OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
-  throw runtime_error("OSUtil::getOSModuleHandle() is not implemented yet");
+  HMODULE PhModule;
+  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | 
+               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+  auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
+  if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
+     // Expect the caller to check for zero and take
+     // necessary action
+     return reinterpret_cast<OSModuleHandle>(0);
+  }
+  return reinterpret_cast<OSModuleHandle>(PhModule);
 }
 #endif // SYCL_RT_OS_WINDOWS
 
