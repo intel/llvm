@@ -13,8 +13,6 @@
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/exception.hpp>
 
-#include <algorithm>
-#include <iterator>
 #include <memory>
 #include <set>
 #include <vector>
@@ -190,8 +188,9 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   else
     SrcQueue = (*Deps.begin())->getQueue();
 
-  AllocaCommandBase *SrcAllocaCmd = getOrCreateAllocaForReq(Record, Req, SrcQueue);
-  Requirement * SrcReq = SrcAllocaCmd->getAllocationReq();
+  AllocaCommandBase *SrcAllocaCmd =
+      getOrCreateAllocaForReq(Record, Req, SrcQueue);
+  Requirement *SrcReq = SrcAllocaCmd->getAllocationReq();
   if (SrcQueue->is_host()) {
     MemCpyCommand *DevToHostCmd = insertMemCpyCmd(Record, Req, HostQueue);
     DevToHostCmd->setAccessorToUpdate(Req);

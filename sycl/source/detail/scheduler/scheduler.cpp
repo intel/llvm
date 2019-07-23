@@ -118,15 +118,12 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
 void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
-  Scheduler::GraphBuilder::MemObjRecord *Record =
-      MGraphBuilder.getMemObjRecord(MemObj);
-
+  GraphBuilder::MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
   if (!Record) {
     assert(false && "No operations were performed on the mem object?");
     return;
   }
   waitForRecordToFinish(Record);
-
   MGraphBuilder.cleanupCommands(/*CleanupReleaseCommands = */ true);
   MGraphBuilder.removeRecordForMemObj(MemObj);
 }
