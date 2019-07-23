@@ -14,15 +14,15 @@
 namespace cl {
 namespace sycl {
 
-bool exception::has_context() const { return (Context != nullptr); }
+bool exception::has_context() const { return (MContext != nullptr); }
 
 context exception::get_context() const {
   if (!has_context())
     throw invalid_object_error();
 
-  return *Context;
+  return *MContext;
 }
 
-cl_int exception::get_cl_code() const { return cl_err; }
+cl_int exception::get_cl_code() const { return MCLErr; }
 } // namespace sycl
 } // namespace cl

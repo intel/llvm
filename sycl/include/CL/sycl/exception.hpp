@@ -22,26 +22,26 @@ class context;
 struct exception {
   exception() = default;
 
-  const char *what() const noexcept { return msg.c_str(); }
+  const char *what() const noexcept { return MMsg.c_str(); }
   bool has_context() const;
   context get_context() const;
   cl_int get_cl_code() const;
 
 private:
-  std::string msg = "Message not specified";
-  cl_int cl_err = CL_SUCCESS;
-  shared_ptr_class<context> Context;
+  std::string MMsg = "Message not specified";
+  cl_int MCLErr = CL_SUCCESS;
+  shared_ptr_class<context> MContext;
 
 protected:
-  exception(const char *msg, int cl_err = CL_SUCCESS,
+  exception(const char *Msg, int CLErr = CL_SUCCESS,
             shared_ptr_class<context> Context = nullptr)
-      : msg(std::string(msg) + " " +
-            ((cl_err == CL_SUCCESS) ? "" : OCL_CODE_TO_STR(cl_err))),
-        cl_err(cl_err), Context(Context) {}
+      : MMsg(std::string(Msg) + " " +
+             ((CLErr == CL_SUCCESS) ? "" : OCL_CODE_TO_STR(CLErr))),
+        MCLErr(CLErr), MContext(Context) {}
 
-  exception(const std::string &msg, int cl_err = CL_SUCCESS,
+  exception(const std::string &Msg, int CLErr = CL_SUCCESS,
             shared_ptr_class<context> Context = nullptr)
-      : exception(msg.c_str(), cl_err, Context) {}
+      : exception(Msg.c_str(), CLErr, Context) {}
 };
 
 // Forward declaration
@@ -73,10 +73,10 @@ using async_handler = function_class<void(cl::sycl::exception_list)>;
 
 class runtime_error : public exception {
 public:
-  runtime_error(const char *str, cl_int err = CL_SUCCESS)
-      : exception(str, err) {}
-  runtime_error(const std::string &str, cl_int err = CL_SUCCESS)
-      : runtime_error(str.c_str(), err) {}
+  runtime_error(const char *Msg, cl_int Err = CL_SUCCESS)
+      : exception(Msg, Err) {}
+  runtime_error(const std::string &Msg, cl_int Err = CL_SUCCESS)
+      : runtime_error(Msg.c_str(), Err) {}
 };
 class kernel_error : public runtime_error {
   using runtime_error::runtime_error;
@@ -95,8 +95,8 @@ class invalid_parameter_error : public runtime_error {
 };
 class device_error : public exception {
 public:
-  device_error(const char *str, cl_int err = CL_SUCCESS)
-      : exception(str, err) {}
+  device_error(const char *Msg, cl_int Err = CL_SUCCESS)
+      : exception(Msg, Err) {}
   device_error() : device_error("") {}
 };
 class compile_program_error : public device_error {
