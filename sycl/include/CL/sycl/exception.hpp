@@ -12,40 +12,45 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/stl.hpp>
-#include <exception>
 
 namespace cl {
 namespace sycl {
 
+// Forward declaration
 class context;
 
 struct exception {
   exception() = default;
 
-  const char *what() const noexcept { return MMsg.c_str(); }
+  const char *what() const noexcept;
+
   bool has_context() const;
+
   context get_context() const;
+
   cl_int get_cl_code() const;
 
 private:
-  std::string MMsg = "Message not specified";
+  string_class MMsg;
   cl_int MCLErr = CL_SUCCESS;
   shared_ptr_class<context> MContext;
 
 protected:
   exception(const char *Msg, int CLErr = CL_SUCCESS,
             shared_ptr_class<context> Context = nullptr)
-      : MMsg(std::string(Msg) + " " +
+      : MMsg(string_class(Msg) + " " +
              ((CLErr == CL_SUCCESS) ? "" : OCL_CODE_TO_STR(CLErr))),
         MCLErr(CLErr), MContext(Context) {}
 
-  exception(const std::string &Msg, int CLErr = CL_SUCCESS,
+  exception(const string_class &Msg, int CLErr = CL_SUCCESS,
             shared_ptr_class<context> Context = nullptr)
       : exception(Msg.c_str(), CLErr, Context) {}
 };
 
 // Forward declaration
-namespace detail { class queue_impl; }
+namespace detail {
+class queue_impl;
+}
 
 class exception_list : private vector_class<exception_ptr_class> {
   using list_t = vector_class<exception_ptr_class>;
@@ -75,7 +80,7 @@ class runtime_error : public exception {
 public:
   runtime_error(const char *Msg, cl_int Err = CL_SUCCESS)
       : exception(Msg, Err) {}
-  runtime_error(const std::string &Msg, cl_int Err = CL_SUCCESS)
+  runtime_error(const string_class &Msg, cl_int Err = CL_SUCCESS)
       : runtime_error(Msg.c_str(), Err) {}
 };
 class kernel_error : public runtime_error {
