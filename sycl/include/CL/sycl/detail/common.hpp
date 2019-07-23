@@ -22,8 +22,10 @@
 
 const char *stringifyErrorCode(cl_int error);
 
-#define OCL_CODE_TO_STR(code)                                                  \
-  std::string(std::to_string(code) + " (" + stringifyErrorCode(code) + ")")
+static inline std::string codeToString(cl_int code){
+  return std::string(std::to_string(code) + " (" +
+         stringifyErrorCode(code) + ")");
+}
 
 #define OCL_ERROR_REPORT                                                       \
   "OpenCL API failed. " __FILE__                                               \
@@ -32,21 +34,27 @@ const char *stringifyErrorCode(cl_int error);
 
 #ifndef SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
-#define REPORT_OCL_ERR_TO_STREAM(code)                                         \
+#define REPORT_OCL_ERR_TO_STREAM(expr)                                         \
+{                                                                              \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::cerr << OCL_ERROR_REPORT << OCL_CODE_TO_STR(code) << std::endl;       \
-  }
+    std::cerr << OCL_ERROR_REPORT << codeToString(code) << std::endl;          \
+  }                                                                            \
+}
 #endif
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <CL/sycl/exception.hpp>
 
-#define REPORT_OCL_ERR_TO_EXC(code, exc)                                       \
+#define REPORT_OCL_ERR_TO_EXC(expr, exc)                                       \
+{                                                                              \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::string errorMessage(OCL_ERROR_REPORT + OCL_CODE_TO_STR(code));        \
+    std::string errorMessage(OCL_ERROR_REPORT + codeToString(code));           \
     std::cerr << errorMessage << std::endl;                                    \
     throw exc(errorMessage.c_str(), (code));                                   \
-  }
+  }                                                                            \
+}
 #define REPORT_OCL_ERR_TO_EXC_THROW(code, exc) REPORT_OCL_ERR_TO_EXC(code, exc)
 #define REPORT_OCL_ERR_TO_EXC_BASE(code)                                       \
   REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
