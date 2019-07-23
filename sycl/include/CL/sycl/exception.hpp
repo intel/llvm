@@ -42,7 +42,7 @@ protected:
 
   exception(const string_class &Msg, const cl_int CLErr = CL_SUCCESS,
             shared_ptr_class<context> Context = nullptr)
-      : MMsg(Msg + " " + OCL_CODE_TO_STR(CLErr)), MCLErr(CLErr),
+      : MMsg(Msg + " " + codeToString(CLErr)), MCLErr(CLErr),
         MContext(Context) {}
 };
 
