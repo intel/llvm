@@ -59,6 +59,8 @@ add_library(sycl SHARED
   "spirv_ops.cpp"
 )
 
+target_compile_definitions(sycl PRIVATE CL_TARGET_OPENCL_VERSION=220)
+
 add_dependencies(sycl
   ocl-icd
   ocl-headers
