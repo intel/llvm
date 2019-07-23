@@ -27,9 +27,9 @@ namespace detail {
 // information can be used to prove that executing two kernels that
 // work on different parts of the memory object in parallel is legal.
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
-  // Check for one dimensional case only. It will be
-  // enough for most of the cases because 2d and 3d sub-buffers cannot
-  // be mapped to OpenCL's ones.
+  // Check for one dimensional case only. It will be enough for most
+  // of the cases because 2d and 3d sub-buffers cannot be mapped
+  // to OpenCL's ones.
   return RHS->MDims != 1 || LHS->MDims != 1 ||
            (LHS->MOffset[0] + LHS->MAccessRange[0] >= RHS->MOffset[0]) ||
            (RHS->MOffset[0] + RHS->MAccessRange[0] >= LHS->MOffset[0]);
@@ -179,20 +179,24 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
                                                   EventImplPtr &RetEvent) {
   QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
+  markModifiedIfWrite(Record, Req);
+  QueueImplPtr SrcQueue;
+  Requirement *SrcReq;
+  AllocaCommandBase *SrcAllocaCmd;
+
+  std::set<Command *> Deps = findDepsForReq(Record, Req, HostQueue);
   // FIXME The previous behavior of findAllocaForReq and getOrInsertMemObjRecord
   // didn't match their names. This weird condition makes new functions
   // act like before.
-  if (Record->MAllocaCommands.empty() &&
-      !(Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange))
-    getOrCreateAllocaForReq(Record, Req, HostQueue);
-  markModifiedIfWrite(Record, Req);
+  if (Record->MAllocaCommands.empty()) {
+    SrcQueue = HostQueue;
+    SrcAllocaCmd = getOrCreateAllocaForReq(Record, Req, HostQueue);
+  } else {
+    SrcQueue = (*Deps.begin())->getQueue();
+    SrcAllocaCmd = getOrCreateAllocaForReq(Record, Req, SrcQueue);
+  }
 
-  std::set<Command *> Deps = findDepsForReq(Record, Req, HostQueue);
-  QueueImplPtr SrcQueue = (*Deps.begin())->getQueue();
-
-  AllocaCommandBase *SrcAllocaCmd = findAllocaForReq(Record, Req, SrcQueue);
-  Requirement *SrcReq = SrcAllocaCmd->getAllocationReq();
-
+  SrcReq = SrcAllocaCmd->getAllocationReq();
   if (SrcQueue->is_host()) {
     MemCpyCommand *DevToHostCmd = insertMemCpyCmd(Record, Req, HostQueue);
     DevToHostCmd->setAccessorToUpdate(Req);
@@ -454,14 +458,15 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
   return RetDeps;
 }
 
-// The function searchs for the alloca command matching context and requirement.
+// The function searches for the alloca command matching context and
+// requirement.
 AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
   auto IsSuitableAlloca = [&Queue, Req](AllocaCommandBase *AllocaCmd) {
     bool res = AllocaCmd->getQueue()->get_context() == Queue->get_context();
     if (Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange)
-      res = res && AllocaCmd->getAllocationReq()->MOffset == Req->MOffset &&
-            AllocaCmd->getAllocationReq()->MAccessRange == Req->MAccessRange;
+      res &= AllocaCmd->getAllocationReq()->MOffset == Req->MOffset &&
+             AllocaCmd->getAllocationReq()->MAccessRange == Req->MAccessRange;
     return res;
   };
   const auto It = std::find_if(Record->MAllocaCommands.begin(),
@@ -469,22 +474,28 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
   return (Record->MAllocaCommands.end() != It) ? *It : nullptr;
 }
 
-// The function searchs for the alloca command matching context and requirement.
-// If none exists, new command will be created.
+// The function searches for the alloca command matching context and
+// requirement. If none exists, new command will be created.
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
-    MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
-  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Queue);
+    MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue,
+    bool ForceFullReq) {
+
+  Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
+                      Req->MMemoryRange, access::mode::read_write,
+                      Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
+
+  Requirement *SearchReq = ForceFullReq ? &FullReq : Req;
+
+  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, SearchReq, Queue);
   if (!AllocaCmd) {
     AllocaCommandBase *AllocaCmd;
-    Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
-                        Req->MMemoryRange, access::mode::read_write,
-                        Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
 
-    if (Req->MAccessRange != Req->MMemoryRange && Req->MUsedFromSourceKernel) {
+    if (!ForceFullReq && Req->MAccessRange != Req->MMemoryRange &&
+        Req->MUsedFromSourceKernel) {
       if (Req->MDims != 1)
         throw runtime_error("OpenCL only supports 1D sub buffers");
 
-      auto *ParentAlloca = getOrCreateAllocaForReq(Record, &FullReq, Queue);
+      auto *ParentAlloca = getOrCreateAllocaForReq(Record, Req, Queue, true);
       AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca);
     } else
       AllocaCmd = new AllocaCommand(Queue, FullReq);

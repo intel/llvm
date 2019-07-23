@@ -153,7 +153,8 @@ private:
     // If none found, creates new one.
     AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
                                                Requirement *Req,
-                                               QueueImplPtr Queue);
+                                               QueueImplPtr Queue,
+                                               bool ForceFullReq = false);
 
     void markModifiedIfWrite(GraphBuilder::MemObjRecord *Record,
                              Requirement *Req);

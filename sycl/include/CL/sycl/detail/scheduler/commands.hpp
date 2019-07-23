@@ -155,7 +155,7 @@ class AllocaCommand : public AllocaCommandBase {
 public:
   AllocaCommand(QueueImplPtr Queue, Requirement Req,
                 bool InitFromUserData = true)
-      : AllocaCommandBase(CommandType::ALLOCA, Queue, Req),
+      : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), Req),
         MInitFromUserData(InitFromUserData) {
     addDep(DepDesc(nullptr, &MReq, this));
   }
@@ -170,7 +170,7 @@ class AllocaSubBufCommand : public AllocaCommandBase {
 public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca)
-      : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, Queue, Req),
+      : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue), Req),
         MParentAlloca(ParentAlloca) {
     addDep(DepDesc(MParentAlloca, &MReq, MParentAlloca));
   }
