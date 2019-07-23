@@ -467,9 +467,12 @@ public:
                 ((IsImageAcc && IsImageAccessReadOnly) ||
                  (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords) const {
-    // TODO: To be implemented.
-    throw cl::sycl::feature_not_supported("Read API is not implemented.");
-    return;
+#ifdef __SYCL_DEVICE_ONLY__
+    return __invoke__ImageRead<DataT, OCLImageTy, CoordT>(MImageObj, Coords);
+#else
+    throw cl::sycl::feature_not_supported(
+        "Read API is not implemented on host.");
+#endif
   }
 
   // Available only when:
@@ -482,9 +485,13 @@ public:
                 ((IsImageAcc && IsImageAccessReadOnly) ||
                  (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
-    // TODO: To be implemented.
-    throw cl::sycl::feature_not_supported("Read API is not implemented.");
-    return;
+#ifdef __SYCL_DEVICE_ONLY__
+    return __invoke__ImageReadSampler<DataT, OCLImageTy, CoordT>(
+        MImageObj, Coords, Smpl.impl.m_Sampler);
+#else
+    throw cl::sycl::feature_not_supported(
+        "Read API is not implemented on host.");
+#endif
   }
 
   // Available only when:
@@ -495,14 +502,17 @@ public:
   // accessMode == access::mode::read_write))
   template <typename CoordT, int Dims = Dimensions,
             typename = detail::enable_if_t<
-                (Dims > 0) && (detail::is_intn<CoordT>::value) &&
+                (Dims > 0) && (detail::is_genint<CoordT>::value) &&
                 (IsValidCoordDataT<Dims, CoordT>::value) &&
                 ((IsImageAcc && IsImageAccessWriteOnly) ||
                  (IsHostImageAcc && IsImageAccessAnyWrite))>>
   void write(const CoordT &Coords, const DataT &Color) const {
-    // TODO: To be implemented.
-    throw cl::sycl::feature_not_supported("Write API is not implemented.");
-    return;
+#ifdef __SYCL_DEVICE_ONLY__
+    __invoke__ImageWrite<OCLImageTy, CoordT, DataT>(MImageObj, Coords, Color);
+#else
+    throw cl::sycl::feature_not_supported(
+        "Read API is not implemented on host.");
+#endif
   }
 
   // Available only when: accessTarget == access::target::image_array &&
