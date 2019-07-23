@@ -35,13 +35,18 @@ using sycl_memory_object_allocator = detail::aligned_allocator<char>;
 
 // The class serves as a base for all SYCL memory objects.
 template <typename AllocatorT> class SYCLMemObjT : public SYCLMemObjI {
+
+  // The check for output iterator is commented out as it blocks set_final_data
+  // with void * argument to be used.
+  // TODO: Align these checks with the SYCL specification when the behaviour
+  // with void * is clarified.
   template <typename T>
-  using EnableIfOutputPointerT =
-      enable_if_t<is_output_iterator<T>::value && std::is_pointer<T>::value>;
+  using EnableIfOutputPointerT = enable_if_t<
+      /*is_output_iterator<T>::value &&*/ std::is_pointer<T>::value>;
 
   template <typename T>
-  using EnableIfOutputIteratorT =
-      enable_if_t<is_output_iterator<T>::value && !std::is_pointer<T>::value>;
+  using EnableIfOutputIteratorT = enable_if_t<
+      /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value>;
 
   template <typename T>
   using EnableIfDefaultAllocator =

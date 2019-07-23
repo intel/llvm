@@ -636,6 +636,13 @@ int main() {
     }
   }
 
+  {
+    int data[10];
+    void *voidPtr = (void *)data;
+    buffer<int, 1> b(range<1>(10));
+    b.set_final_data(voidPtr);
+  }
+
   // TODO tests with mutex property
   return failed;
 }
