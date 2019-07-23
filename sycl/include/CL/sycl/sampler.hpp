@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_types.hpp>
+#include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/sampler_impl.hpp>
 
@@ -31,6 +32,12 @@ enum class coordinate_normalization_mode : unsigned int {
   normalized = 1,
   unnormalized = 0
 };
+
+namespace detail {
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class image_accessor;
+}
 
 class sampler {
 public:
@@ -67,6 +74,9 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
+  template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
+            cl::sycl::access::target AccessTarget, access::placeholder IsPlaceholder>
+  friend class detail::image_accessor;
 };
 } // namespace sycl
 } // namespace cl

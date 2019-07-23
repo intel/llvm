@@ -46,6 +46,60 @@ INVOKE_SPIRV_CALL_ARG1(ImageQuerySize)
 INVOKE_SPIRV_CALL_ARG1(ImageQueryFormat)
 INVOKE_SPIRV_CALL_ARG1(ImageQueryOrder)
 
+template <typename ImageT, typename CoordT, typename ValT>
+static void __invoke__ImageWrite(ImageT Img, CoordT Coords, ValT Val) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TmpValT = cl::sycl::detail::ConvertToOpenCLType_t<ValT>;
+  using TmpCoordT = cl::sycl::detail::ConvertToOpenCLType_t<CoordT>;
+
+  TmpCoordT TmpCoord =
+      cl::sycl::detail::convertDataToType<CoordT, TmpCoordT>(Coords);
+  TmpValT TmpVal = cl::sycl::detail::convertDataToType<ValT, TmpValT>(Val);
+  __spirv_ImageWrite<ImageT, TmpCoordT, TmpValT>(Img, TmpCoord, TmpVal);
+}
+
+template <typename RetType, typename ImageT, typename CoordT>
+static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = cl::sycl::detail::ConvertToOpenCLType_t<RetType>;
+  using TempArgT = cl::sycl::detail::ConvertToOpenCLType_t<CoordT>;
+
+  TempArgT Arg = cl::sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
+  TempRetT Ret = __spirv_ImageRead<TempRetT, ImageT, TempArgT>(Img, Arg);
+  return cl::sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
+}
+
+template <typename RetType, typename ImageT, typename CoordT>
+static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
+                                          const __ocl_sampler_t &Smpl) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = cl::sycl::detail::ConvertToOpenCLType_t<RetType>;
+  using TempArgT = cl::sycl::detail::ConvertToOpenCLType_t<CoordT>;
+  using SampledT = void*;
+
+  TempArgT TmpCoords =
+      cl::sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
+  // According to validation rules(SPIRV specification, section 2.16.1) result
+  // of __spirv_SampledImage is allowed to be an operand of image lookup
+  // and query instructions explicitly specified to take an operand whose
+  // type is OpTypeSampledImage.
+  //
+  // According to SPIRV specification section 3.32.10 at least one operand
+  // setting the level of detail must be present. The last two arguments of
+  // __spirv_ImageSampleExplicitLod represent image operand type and value.
+  // From the SPIRV specification section 3.14:
+  enum ImageOperands { Lod = 0x2 };
+
+  // Lod value is zero as mipmap is not supported.
+  TempRetT Ret = __spirv_ImageSampleExplicitLod<SampledT, TempRetT, TempArgT>(
+      __spirv_SampledImage<ImageT, SampledT>(Img, Smpl), TmpCoords,
+      ImageOperands::Lod, 0.0f);
+  return cl::sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
+}
+
 namespace cl {
 namespace sycl {
 namespace detail {
