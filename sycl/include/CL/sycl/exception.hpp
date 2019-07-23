@@ -36,15 +36,14 @@ private:
   shared_ptr_class<context> MContext;
 
 protected:
-  exception(const char *Msg, int CLErr = CL_SUCCESS,
+  exception(const char *Msg, const cl_int CLErr = CL_SUCCESS,
             shared_ptr_class<context> Context = nullptr)
-      : MMsg(string_class(Msg) + " " +
-             ((CLErr == CL_SUCCESS) ? "" : OCL_CODE_TO_STR(CLErr))),
-        MCLErr(CLErr), MContext(Context) {}
+      : exception(string_class(Msg), CLErr, Context) {}
 
-  exception(const string_class &Msg, int CLErr = CL_SUCCESS,
+  exception(const string_class &Msg, const cl_int CLErr = CL_SUCCESS,
             shared_ptr_class<context> Context = nullptr)
-      : exception(Msg.c_str(), CLErr, Context) {}
+      : MMsg(Msg + " " + OCL_CODE_TO_STR(CLErr)), MCLErr(CLErr),
+        MContext(Context) {}
 };
 
 // Forward declaration
@@ -78,10 +77,13 @@ using async_handler = function_class<void(cl::sycl::exception_list)>;
 
 class runtime_error : public exception {
 public:
+  runtime_error() = default;
+
   runtime_error(const char *Msg, cl_int Err = CL_SUCCESS)
-      : exception(Msg, Err) {}
+      : runtime_error(string_class(Msg), Err) {}
+
   runtime_error(const string_class &Msg, cl_int Err = CL_SUCCESS)
-      : runtime_error(Msg.c_str(), Err) {}
+      : exception(Msg, Err) {}
 };
 class kernel_error : public runtime_error {
   using runtime_error::runtime_error;
@@ -100,9 +102,13 @@ class invalid_parameter_error : public runtime_error {
 };
 class device_error : public exception {
 public:
+  device_error() = default;
+
   device_error(const char *Msg, cl_int Err = CL_SUCCESS)
+      : device_error(string_class(Msg), Err) {}
+
+  device_error(const string_class &Msg, cl_int Err = CL_SUCCESS)
       : exception(Msg, Err) {}
-  device_error() : device_error("") {}
 };
 class compile_program_error : public device_error {
   using device_error::device_error;
