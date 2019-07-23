@@ -13,6 +13,7 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 
