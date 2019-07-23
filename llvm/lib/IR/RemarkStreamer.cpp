@@ -16,6 +16,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/Remarks/RemarkFormat.h"
+#include "llvm/Remarks/YAMLRemarkSerializer.h"
 
 using namespace llvm;
 
@@ -109,11 +110,13 @@ char RemarkSetupFormatError::ID = 0;
 static std::unique_ptr<remarks::Serializer>
 formatToSerializer(remarks::Format RemarksFormat, raw_ostream &OS) {
   switch (RemarksFormat) {
-  default:
+  case remarks::Format::Unknown:
     llvm_unreachable("Unknown remark serializer format.");
     return nullptr;
   case remarks::Format::YAML:
     return llvm::make_unique<remarks::YAMLSerializer>(OS);
+  case remarks::Format::YAMLStrTab:
+    return llvm::make_unique<remarks::YAMLStrTabSerializer>(OS);
   };
 }
 
