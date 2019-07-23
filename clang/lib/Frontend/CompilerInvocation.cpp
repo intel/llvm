@@ -2433,6 +2433,10 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Diags.Report(diag::err_drv_invalid_value) 
           << A->getAsString(Args) << A->getValue();
     }
+  } else if (Args.hasArg(options::OPT_fsycl_is_device) 
+                         || Args.hasArg(options::OPT_fsycl_is_host)
+                         || Args.hasArg(options::OPT_fsycl)) {
+    Opts.setSYCLVersion(LangOptions::SYCLVersionList::sycl_1_2_1);
   }
 
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);

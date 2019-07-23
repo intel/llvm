@@ -169,7 +169,7 @@ mode in SYCL:
 * IsSYCLOffloadDevice: True if calling clang to set up a device compilation
 * IsSYCLHost: True if setting up a call to clang to do a host compilation
 
-The additional option `-sycl-std` allows specifiying which version of
+The option `-sycl-std` allows specifiying which version of
 the SYCL standard will be used for the compilation. 
 The default value for this option is `1.2.1`.
 
