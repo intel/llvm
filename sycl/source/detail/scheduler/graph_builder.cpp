@@ -181,22 +181,17 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
   markModifiedIfWrite(Record, Req);
   QueueImplPtr SrcQueue;
-  Requirement *SrcReq;
-  AllocaCommandBase *SrcAllocaCmd;
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, HostQueue);
-  // FIXME The previous behavior of findAllocaForReq and getOrInsertMemObjRecord
-  // didn't match their names. This weird condition makes new functions
-  // act like before.
-  if (Record->MAllocaCommands.empty()) {
+  // If we got freshly new Record, there is no point in searching
+  // for allocas on device.
+  if (Record->MAllocaCommands.empty())
     SrcQueue = HostQueue;
-    SrcAllocaCmd = getOrCreateAllocaForReq(Record, Req, HostQueue);
-  } else {
+  else
     SrcQueue = (*Deps.begin())->getQueue();
-    SrcAllocaCmd = getOrCreateAllocaForReq(Record, Req, SrcQueue);
-  }
 
-  SrcReq = SrcAllocaCmd->getAllocationReq();
+  AllocaCommandBase *SrcAllocaCmd = getOrCreateAllocaForReq(Record, Req, SrcQueue);
+  Requirement * SrcReq = SrcAllocaCmd->getAllocationReq();
   if (SrcQueue->is_host()) {
     MemCpyCommand *DevToHostCmd = insertMemCpyCmd(Record, Req, HostQueue);
     DevToHostCmd->setAccessorToUpdate(Req);
@@ -487,9 +482,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
   Requirement *SearchReq = ForceFullReq ? &FullReq : Req;
 
   AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, SearchReq, Queue);
-  if (!AllocaCmd) {
-    AllocaCommandBase *AllocaCmd;
 
+  if (!AllocaCmd) {
     if (!ForceFullReq && Req->MAccessRange != Req->MMemoryRange &&
         Req->MUsedFromSourceKernel) {
       if (Req->MDims != 1)
@@ -533,31 +527,32 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
-    // FIXME The previous behavior of findAllocaForReq and
-    // getOrInsertMemObjRecord didn't match their names. This weird condition
-    // makes new functions act like before.
-    if (Record->MAllocaCommands.empty() ||
-        (Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange))
-      getOrCreateAllocaForReq(Record, Req, Queue);
+    bool forceFullReq =
+        !(Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange);
+    AllocaCommandBase *AllocaCmd = nullptr;
     markModifiedIfWrite(Record, Req);
     std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
 
-    // If contexts of dependency and new command don't match insert
-    // memcpy command.
-    for (const Command *Dep : Deps)
-      if (Dep->getQueue()->get_context() != Queue->get_context()) {
-        // Cannot directly copy memory from OpenCL device to OpenCL device -
-        // create to copies device->host and host->device.
-        if (!Dep->getQueue()->is_host() && !Queue->is_host())
-          insertMemCpyCmd(Record, Req,
-                          Scheduler::getInstance().getDefaultHostQueue());
-        insertMemCpyCmd(Record, Req, Queue);
-        // Need to search for dependencies again as we modified the graph.
-        Deps = findDepsForReq(Record, Req, Queue);
-        break;
-      }
-
-    AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Queue);
+    if (!Deps.empty()) {
+      // If contexts of dependency and new command don't match insert
+      // memcpy command.
+      for (const Command *Dep : Deps)
+        if (Dep->getQueue()->get_context() != Queue->get_context()) {
+          // Cannot directly copy memory from OpenCL device to OpenCL device -
+          // create to copies device->host and host->device.
+          if (!Dep->getQueue()->is_host() && !Queue->is_host())
+            insertMemCpyCmd(Record, Req,
+                            Scheduler::getInstance().getDefaultHostQueue());
+          insertMemCpyCmd(Record, Req, Queue);
+          // Need to search for dependencies again as we modified the graph.
+          Deps = findDepsForReq(Record, Req, Queue);
+          break;
+        }
+      AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, forceFullReq);
+    } else {
+      AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, forceFullReq);
+      Deps = findDepsForReq(Record, Req, Queue);
+    }
 
     for (Command *Dep : Deps) {
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
