@@ -22,7 +22,8 @@
 
 const char *stringifyErrorCode(cl_int error);
 
-#define OCL_CODE_TO_STR(code)                                                  \
+#define OCL_CODE_TO_STR(expr)                                                  \
+  auto code = expr;                                                            \
   std::string(std::to_string(code) + " (" + stringifyErrorCode(code) + ")")
 
 #define OCL_ERROR_REPORT                                                       \
@@ -32,7 +33,8 @@ const char *stringifyErrorCode(cl_int error);
 
 #ifndef SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
-#define REPORT_OCL_ERR_TO_STREAM(code)                                         \
+#define REPORT_OCL_ERR_TO_STREAM(expr)                                         \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
     std::cerr << OCL_ERROR_REPORT << OCL_CODE_TO_STR(code) << std::endl;       \
   }
@@ -42,6 +44,7 @@ const char *stringifyErrorCode(cl_int error);
 #include <CL/sycl/exception.hpp>
 
 #define REPORT_OCL_ERR_TO_EXC(code, exc)                                       \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
     std::string errorMessage(OCL_ERROR_REPORT + OCL_CODE_TO_STR(code));        \
     std::cerr << errorMessage << std::endl;                                    \
