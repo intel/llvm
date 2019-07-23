@@ -59,6 +59,12 @@ public:
   }
 
   ~queue_impl() {
+    try {
+      throw_asynchronous();
+    } catch (...) {
+      assert(!"The asynchronous error handler should not throw exceptions from "
+              "the queue destructor.");
+    }
     if (m_OpenCLInterop) {
       PI_CALL(RT::piQueueRelease(m_CommandQueue));
     }
