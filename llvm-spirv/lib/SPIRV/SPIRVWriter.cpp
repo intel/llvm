@@ -1399,9 +1399,13 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     }
     return 0;
   }
+  // We can just ignore/drop some intrinsics, like optimizations hint.
+  case Intrinsic::invariant_start:
+  case Intrinsic::invariant_end:
+    return nullptr;
   default:
-    // LLVM intrinsic functions shouldn't get to SPIRV, because they
-    // would have no definition there.
+    // Other LLVM intrinsics shouldn't get to SPIRV, because they
+    // can't be represented in SPIRV or not implemented yet.
     BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
                                  II->getCalledValue()->getName().str(), "",
                                  __FILE__, __LINE__);
