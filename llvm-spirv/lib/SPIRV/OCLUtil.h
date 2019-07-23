@@ -650,8 +650,8 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   // CL 2.0 pipe builtins
   _SPIRV_OP(read_pipe_2, ReadPipe)
   _SPIRV_OP(write_pipe_2, WritePipe)
-  _SPIRV_OP(read_pipe_bl_2, ReadPipeBlockingINTEL)
-  _SPIRV_OP(write_pipe_bl_2, WritePipeBlockingINTEL)
+  _SPIRV_OP(read_pipe_2_bl, ReadPipeBlockingINTEL)
+  _SPIRV_OP(write_pipe_2_bl, WritePipeBlockingINTEL)
   _SPIRV_OP(read_pipe_4, ReservedReadPipe)
   _SPIRV_OP(write_pipe_4, ReservedWritePipe)
   _SPIRV_OP(reserve_read_pipe, ReserveReadPipePackets)
