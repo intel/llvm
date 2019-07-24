@@ -1,6 +1,6 @@
 = SYCL(TM) Proposals: Unified Shared Memory
 James Brodman <james.brodman@intel.com>; Ben Ashbaugh <ben.ashbaugh@intel.com>; Michael Kinsner <michael.kinsner@intel.com>
-v0.8
+v0.9
 :source-highlighter: pygments
 :icons: font
 :y: icon:check[role="green"]
@@ -11,6 +11,8 @@ v0.8
 IMPORTANT: This specification is a draft.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) is a trademark of the Khronos Group, Inc.
+
+CAUTION: This document is better viewed when rendered as html with asciidoctor.  Github does not render image icons.
 
 This document presents a series of changes proposed for a future version of the SYCL Specification.  The goal of these proposals is to reduce the complexity and verbosity of using SYCL for programmers.  These proposals also seek to reduce the barrier to integrate SYCL code into existing C++ codebases by introducing new modes that reduce the amount of code that must be changed to interface the two codes.
 
@@ -28,6 +30,9 @@ NOTE: All utility functions described below are located in the `sycl` namespace 
 
 === Explicit USM
 Explict USM defines capabilities for explicitly managing device memory.  Programmers directly allocate device memory, and data must be explicitly copied between the host and a device.  Device allocations are obtained through a SYCL device allocator instead of the system allocator.  Device allocations are not accessible on the host, but the pointer values remain consistent on account of Unified Addressing.  Greater detail about how allocations are used is described by the following tables.
+
+=== Restricted USM
+Restricted USM defines capabilities for implicitly sharing data between host and devices.  However, Restricted USM, as the name implies, is limited in that host and device may not concurrently compute on memory in the shared address space.  Restricted USM builds upon Explicit USM by adding two new types of allocations, `host` and `shared`.  Allocations are obtained through SYCL allocator instead of the system allocator.  `shared` allocations may be limited by device memory.  Greater detail about the allocation types defined in Restricted USM and their usage is described by the following tables.
 
 [cols="^25,75",options="header"]
 |===
@@ -63,56 +68,39 @@ Explict USM defines capabilities for explicitly managing device memory.  Program
 ==== malloc
 [source,cpp]
 ----
-void* sycl_malloc_device(size_t size);
-----
-
-Parameters:: `size_t size` - number of bytes to allocate
-Return value:: Returns a pointer to the newly allocated memory on the `device` selected by the default selector on success.   Memory allocated by `sycl_malloc_device` must be deallocated with `sycl_free` to avoid memory leaks. On failure, returns `nullptr`.
-
-'''
-
-[source,cpp]
-----
-void* sycl_malloc_device(size_t size, const sycl::device& dev);
+void* sycl::malloc_device(size_t size, const sycl::device& dev, const sycl::context& ctxt);
 ----
 
 Parameters::
  * `size_t size` - number of bytes to allocate
  * `const sycl::device& dev` - the SYCL `device` to allocate on
+ * `const sycl::context& dev` - the SYCL `context` to which `device` belongs
 
-Return value:: Returns a pointer to the newly allocated memory on the specified `device` on success.   Memory allocated by `sycl_malloc_device` must be deallocated with `sycl_free` to avoid memory leaks. On failure, returns `nullptr`.
+Return value:: Returns a pointer to the newly allocated memory on the specified `device` on success.   Memory allocated by `sycl::malloc_device` must be deallocated with `sycl::free` to avoid memory leaks. On failure, returns `nullptr`.
 
 '''
 ==== aligned_alloc
 [source,cpp]
 ----
-void* sycl_aligned_alloc_device(size_t alignment, size_t size);
-----
-
-Parameters::
-  * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
-  * `size_t size` - number of bytes to allocate
-Return value:: Returns a pointer to the newly allocated memory on the `device` selected by the default selector on success.  Memory allocated by `sycl_aligned_alloc_device` must be deallocated with `sycl_free` to avoid memory leaks.  On failure, returns `nullptr`.
-
-'''
-[source,cpp]
-----
-void* sycl_aligned_alloc_device(size_t alignment, size_t size, const sycl::device& dev);
+void* sycl::aligned_alloc_device(size_t alignment, size_t size, const sycl::device& dev, const sycl::context& ctxt);
 ----
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
   * `size_t size` - number of bytes to allocate
   * `const sycl::device& dev` - the `device` to allocate on
-Return value:: Returns a pointer to the newly allocated memory on the specified `device` on success.  Memory allocated by `sycl_aligned_alloc_device` must be deallocated with `sycl_free` to avoid memory leaks.  On failure, returns `nullptr`.
+  * `const sycl::context& dev` - the SYCL `context` to which `device` belongs
+Return value:: Returns a pointer to the newly allocated memory on the specified `device` on success.  Memory allocated by `sycl::aligned_alloc_device` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 '''
 ==== free
 [source,cpp]
 ----
-void sycl_free(void* ptr);
+void sycl::free(void* ptr, sycl::context& context);
 ----
-Parameters:: `void* ptr` - pointer to the memory to deallocate.  Must have been allocated by a SYCL `malloc` or `aligned_alloc` function.
+Parameters::
+  * `void* ptr` - pointer to the memory to deallocate.  Must have been allocated by a SYCL `malloc` or `aligned_alloc` function.
+  * `const sycl::context& dev` - the SYCL `context` in which `ptr` was allocated
 Return value:: none
 
 '''
@@ -123,14 +111,14 @@ class handler {
  ...
  public:
   ...
-  event sycl_memcpy(void* dest, const void* src, size_t count);
+  event memcpy(void* dest, const void* src, size_t count);
 };
 
 class queue {
  ...
  public:
   ...
-  event sycl_memcpy(void* dest, const void* src, size_t count);
+  event memcpy(void* dest, const void* src, size_t count);
 };
 ----
 Parameters::
@@ -147,14 +135,14 @@ class handler {
  ...
  public:
   ...
-  event sycl_memset(void* ptr, int value, size_t count);
+  event memset(void* ptr, int value, size_t count);
 };
 
 class queue {
  ...
  public:
   ...
-  event sycl_memset(void* ptr, int value, size_t count);
+  event memset(void* ptr, int value, size_t count);
 };
 ----
 Parameters::
@@ -164,8 +152,6 @@ Parameters::
 Return value:: Returns an event representing the fill operation.
 
 
-=== Restricted USM
-Restricted USM defines capabilities for implicitly sharing data between host and devices.  However, Restricted USM, as the name implies, is limited in that host and device may not concurrently compute on memory in the shared address space.  Restricted USM builds upon Explicit USM by adding two new types of allocations, `host` and `shared`.  Allocations are obtained through SYCL allocator instead of the system allocator.  `shared` allocations may be limited by device memory.  Greater detail about the allocation types defined in Restricted USM and their usage is described by the following tables.
 
 [cols="^25,75",options="header"]
 |===
@@ -188,12 +174,12 @@ Restricted USM defines capabilities for implicitly sharing data between host and
 .3+^.^|`device`
 .3+^.^|`device`
 |`host`
-|{n}
+|{n} No
 |`host`
-|{n}
+|{n} No
 
 |`device`
-|{y}
+|{y} Yes
 |`device`
 |N/A
 
@@ -205,26 +191,26 @@ Restricted USM defines capabilities for implicitly sharing data between host and
 .2+^.^|`host`
 .2+^.^|`host`
 |`host`
-|{y}
+|{y} Yes
 |`host`
 |N/A
 
 |Any `device`
-|{y} (likely over PCIe)
+|{y} Yes (likely over PCIe)
 |`device`
-|{n}
+|{n} No
 
 .3+^.^|`shared`
 .3+^.^|`host` / `device` / Unspecified
 |`host`
-|{y}
+|{y} Yes
 |`host`
-|{y}
+|{y} No
 
 |`device`
-|{y}
+|{y} Yes
 |`device`
-|{y}
+|{y} Yes
 |Another `device`
 |Optional (P2P)
 |Another `device`
@@ -239,66 +225,46 @@ Restricted USM includes all of the Utility Functions of Explicit USM.  It additi
 ==== malloc
 [source,cpp]
 ----
-void* sycl_malloc_host(size_t size);
+void* sycl::malloc_host(size_t size);
 ----
 
 Parameters:: `size_t size` - number of bytes to allocate
-Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl_malloc_host` must be deallocated with `sycl_free` to avoid memory leaks.  On failure, returns `nullptr`.
+Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::malloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 '''
 [source,cpp]
 ----
-void* sycl_malloc(size_t size);
-----
-
-Parameters:: `size_t size` - number of bytes to allocate
-Return value:: Returns a pointer to the newly allocated `shared` memory on the `device` selected by the default selector on success.  Memory allocated by `sycl_malloc` must be deallocated with `sycl_free` to avoid memory leaks.  On failure, returns `nullptr`.
-
-'''
-[source,cpp]
-----
-void* sycl_malloc(size_t size, const sycl::device& dev);
+void* sycl::malloc_shared(size_t size, const sycl::device& dev);
 ----
 
 Parameters::
   * `size_t size` - number of bytes to allocate
   * `const sycl::device& dev` - the SYCL device to allocate on
-Return value:: Returns a pointer to the newly allocated `shared` memory on the specified `device` on success.  Memory allocated by `sycl_malloc` must be deallocated with `sycl_free` to avoid memory leaks.  On failure, returns `nullptr`.
+Return value:: Returns a pointer to the newly allocated `shared` memory on the specified `device` on success.  Memory allocated by `sycl::malloc_shared` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 '''
 ==== aligned_alloc
 [source,cpp]
 ----
-void* sycl_aligned_alloc_host(size_t alignment, size_t size);
+void* sycl::aligned_alloc_host(size_t alignment, size_t size);
 ----
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
   * `size_t size` - number of bytes to allocate
-Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl_aligned_alloc_host` must be deallocated with `sycl_free` to avoid memory leaks.  On failure, returns `nullptr`.
+Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::aligned_alloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 '''
 [source,cpp]
 ----
-void* sycl_aligned_alloc(size_t alignment, size_t size);
-----
-
-Parameters::
-  * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
-  * `size_t size` - number of bytes to allocate
-Return value:: Returns a pointer to the newly allocated `shared` memory on the `device` selected by the default selector on success.  Memory allocated by `sycl_aligned_alloc` must be deallocated with `sycl_free` to avoid memory leaks.  On failure, returns `nullptr`.
-
-'''
-[source,cpp]
-----
-void* sycl_aligned_alloc(size_t alignment, size_t size, const sycl::device& dev);
+void* sycl_aligned_alloc_shared(size_t alignment, size_t size, const sycl::device& dev);
 ----
 
 Parameters::
   * `size_t alignment` - specifies the byte alignment.  Must be a valid alignment supported by the implementation.
   * `size_t size` - number of bytes to allocate
   * `const sycl::device& dev` - the SYCL `device` to allocate on
-Return value:: Returns a pointer to the newly allocated `shared` memory on the specified `device` on success.  Memory allocated by `sycl_aligned_alloc` must be deallocated with `sycl_free` to avoid memory leaks.  On failure, returns `nullptr`.
+Return value:: Returns a pointer to the newly allocated `shared` memory on the specified `device` on success.  Memory allocated by `sycl::aligned_alloc_shared` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 ==== Performance Hints
 Programmers may provide hints to the runtime that data should be made available on a device earlier than Unified Shared Memory would normally require it to be available.  This can be accomplished through enqueueing prefetch commands.  Prefetch commands may not be overlapped with kernel execution in Restricted USM.
@@ -339,7 +305,7 @@ In Concurrent USM, prefetch commands may be overlapped with kernel execution.
 ==== sycl_mem_advise
 [source,cpp]
 ----
-void sycl_mem_advise(void *addr, size_t length, int advice);
+void sycl::mem_advise(void *addr, size_t length, int advice);
 ----
 
 Parameters::
@@ -349,7 +315,7 @@ Parameters::
 Return Value:: none
 
 === System USM
-System USM extends upon the previous tiers by performing all `shared` allocations with the normal system memory allocation routines.  In particular, programmers may now use `malloc` or C++ `new` instead of `sycl_malloc` to create `shared` allocations.  Likewise, `free` and `delete` are used instead of `sycl_free`.  Note that `host` and `device` allocations are unaffected by this change and must still be allocated using their respective USM functions.    
+System USM extends upon the previous tiers by performing all `shared` allocations with the normal system memory allocation routines.  In particular, programmers may now use `malloc` or C++ `new` instead of `sycl_malloc` to create `shared` allocations.  Likewise, `free` and `delete` are used instead of `sycl::free`.  Note that `host` and `device` allocations are unaffected by this change and must still be allocated using their respective USM functions.    
 
 === Unified Shared Memory Information and Descriptors
 
@@ -465,10 +431,11 @@ class handler {
  public:
   ...
   void depends_on(event e);
+  void depends_on(std:vector<event> e);
 };
 ----
 
-Parameters:: `event e` - event representing a task that is required to complete before this task may begin
+Parameters:: `e` - event or vector of events representing task(s) required to complete before this task may begin
 Return value:: none
 
 
