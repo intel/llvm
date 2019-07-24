@@ -67,6 +67,19 @@ private:
   uint16_t Buf;
 };
 } // namespace half_impl
+
+// Accroding to C++ standard math functions from cmath/math.h should work only
+// on arithmetic types. We can't specify half type as arithmetic/floating
+// point(via std::is_floating_point) since only float, double and long double
+// types are "floating point" according to the standard. In order to use half
+// type with these math functions we cast half to float using template function
+// helper.
+template <typename T> inline T cast_if_host_half(T val) { return val; }
+
+inline float cast_if_host_half(half_impl::half val) {
+  return static_cast<float>(val);
+}
+
 } // namespace detail
 
 } // namespace sycl

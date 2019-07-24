@@ -52,7 +52,7 @@ template <typename T> inline T __smoothstep(T edge0, T edge1, T x) {
 }
 
 template <typename T> inline T __sign(T x) {
-  if (std::isnan(x))
+  if (std::isnan(d::cast_if_host_half(x)))
     return T(0.0);
   if (x > 0)
     return T(1.0);

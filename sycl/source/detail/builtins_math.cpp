@@ -46,7 +46,7 @@ template <typename T> T inline __fract(T x, T *iptr) {
 
 template <typename T> inline T __lgamma_r(T x, s::cl_int *signp) {
   T g = std::tgamma(x);
-  *signp = std::signbit(g) ? -1 : 1;
+  *signp = std::signbit(d::cast_if_host_half(g)) ? -1 : 1;
   return std::log(std::abs(g));
 }
 

@@ -43,6 +43,18 @@ make -j`nproc` sycl-toolchain
 After the build completed, the SYCL compiler/include/libraries can be found
 under `$SYCL_HOME/build` directory.
 
+## Build the SYCL runtime with libc++ library.
+
+There is experimental support for building and linking SYCL runtime with
+libc++ library instead of libstdc++. To enable it the following cmake options
+should be used:
+
+```
+-DSYCL_USE_LIBCXX=ON \
+-DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
+-DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
+```
+
 # Test the SYCL compiler and runtime
 
 Run LIT testing using the command below after building SYCL compiler and runtime.
