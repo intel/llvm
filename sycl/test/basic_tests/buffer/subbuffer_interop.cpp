@@ -1,15 +1,17 @@
-// RUN: %clang -std=c++11 -g -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//==------------------- buffer.cpp - SYCL buffer basic test ----------------==//
+//==------------ subbuffer_interop.cpp - SYCL buffer basic test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include <CL/sycl.hpp>
+
 #include <cassert>
 #include <memory>
 
@@ -51,24 +53,25 @@ __kernel void test2(__global int* a, __global int* b) {\
 int main() {
   bool Failed = false;
   {
-    constexpr size_t n_size = ((1U << 10) / sizeof(int)) * 2;
+    // Test if we can write into subbufer from OpenCL code.
+    const size_t NSize = 512;
     cl_int Error = CL_SUCCESS;
-    int a[n_size];
-    for (size_t i = 0; i < n_size; i++) {
-      a[i] = i;
+    int AMem[NSize];
+    for (size_t i = 0; i < NSize; i++) {
+      AMem[i] = i;
     }
 
     try {
-      queue MyQueue;
+      queue TestQueue;
 
-      const char *src[] = {clKernelSourceCodeSimple.c_str()};
-      const size_t src_size = clKernelSourceCodeSimple.size();
+      const char *SrcString[] = {clKernelSourceCodeSimple.c_str()};
+      const size_t SrcStringSize = clKernelSourceCodeSimple.size();
 
-      cl_context clContext = MyQueue.get_context().get();
-      cl_device_id clDevice = MyQueue.get_device().get();
+      cl_context clContext = TestQueue.get_context().get();
+      cl_device_id clDevice = TestQueue.get_device().get();
 
       cl_program clProgram =
-          clCreateProgramWithSource(clContext, 1, src, &src_size, &Error);
+          clCreateProgramWithSource(clContext, 1, SrcString, &SrcStringSize, &Error);
 
       CHECK_OCL_CODE(Error);
 
@@ -80,18 +83,18 @@ int main() {
 
       CHECK_OCL_CODE(Error);
 
-      buffer<int, 1> BufA(a, cl::sycl::range<1>(n_size));
-      buffer<int, 1> BufB(BufA, n_size / 2, n_size / 2);
+      buffer<int, 1> BufA(AMem, cl::sycl::range<1>(NSize));
+      buffer<int, 1> BufB(BufA, NSize / 2, NSize / 2);
 
-      kernel MyKernel(clKernel, MyQueue.get_context());
+      kernel TestKernel(clKernel, TestQueue.get_context());
 
-      MyQueue.submit([&](handler &cgh) {
+      TestQueue.submit([&](handler &cgh) {
         auto a_acc = BufA.get_access<access::mode::read>(cgh);
         auto b_acc = BufB.get_access<access::mode::write>(cgh);
         cgh.set_arg(0, a_acc);
         cgh.set_arg(1, b_acc);
 
-        cgh.parallel_for(range<1>(n_size), MyKernel);
+        cgh.parallel_for(range<1>(NSize), TestKernel);
       });
 
       clReleaseKernel(clKernel);
@@ -100,14 +103,14 @@ int main() {
       std::cout << ex.what() << std::endl;
     }
 
-    for (int i = 0; i < n_size; ++i) {
-      if (i < n_size / 2 && a[i] != i) {
-        std::cout << " array[" << i << "] is " << a[i] << " expected " << i
+    for (int i = 0; i < NSize; ++i) {
+      if (i < NSize / 2 && AMem[i] != i) {
+        std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
         assert(false);
         Failed = true;
-      } else if (i >= n_size / 2 && a[i] != 0) {
-        std::cout << " array[" << i << "] is " << a[i] << " expected " << 0
+      } else if (i >= NSize / 2 && AMem[i] != 0) {
+        std::cout << " array[" << i << "] is " << AMem[i] << " expected " << 0
                   << std::endl;
         assert(false);
         Failed = true;
@@ -115,24 +118,25 @@ int main() {
     }
   }
   {
-    constexpr size_t n_size = ((1U << 10) / sizeof(int)) * 2;
+    // Test if we can use two sub buffers, pointing to one buffer, from OpenCL.
+    const size_t NSize = 512;
     cl_int Error = CL_SUCCESS;
-    int a[n_size];
-    for (size_t i = 0; i < n_size; i++) {
-      a[i] = i;
+    int AMem[NSize];
+    for (size_t i = 0; i < NSize; i++) {
+      AMem[i] = i;
     }
 
     try {
-      queue MyQueue;
+      queue TestQueue;
 
-      const char *src[] = {clKernelSourceCodeNonOverlap.c_str()};
-      const size_t src_size = clKernelSourceCodeNonOverlap.size();
+      const char *SrcString[] = {clKernelSourceCodeNonOverlap.c_str()};
+      const size_t SrcStringSize = clKernelSourceCodeNonOverlap.size();
 
-      cl_context clContext = MyQueue.get_context().get();
-      cl_device_id clDevice = MyQueue.get_device().get();
+      cl_context clContext = TestQueue.get_context().get();
+      cl_device_id clDevice = TestQueue.get_device().get();
 
       cl_program clProgram =
-          clCreateProgramWithSource(clContext, 1, src, &src_size, &Error);
+          clCreateProgramWithSource(clContext, 1, SrcString, &SrcStringSize, &Error);
 
       CHECK_OCL_CODE(Error);
 
@@ -144,13 +148,13 @@ int main() {
 
       CHECK_OCL_CODE(Error);
 
-      buffer<int, 1> BufA(a, cl::sycl::range<1>(n_size));
-      buffer<int, 1> BufB(BufA, 0, n_size / 4);
-      buffer<int, 1> BufC(BufA, 2 * n_size / 4, n_size / 4);
+      buffer<int, 1> BufA(AMem, cl::sycl::range<1>(NSize));
+      buffer<int, 1> BufB(BufA, 0, NSize / 4);
+      buffer<int, 1> BufC(BufA, 2 * NSize / 4, NSize / 4);
 
-      kernel MyKernel(clKernel, MyQueue.get_context());
+      kernel TestKernel(clKernel, TestQueue.get_context());
 
-      MyQueue.submit([&](handler &cgh) {
+      TestQueue.submit([&](handler &cgh) {
         auto a_acc = BufA.get_access<access::mode::read>(cgh);
         auto b_acc = BufB.get_access<access::mode::write>(cgh);
         auto c_acc = BufC.get_access<access::mode::write>(cgh);
@@ -158,7 +162,7 @@ int main() {
         cgh.set_arg(1, b_acc);
         cgh.set_arg(2, c_acc);
 
-        cgh.parallel_for(range<1>(n_size), MyKernel);
+        cgh.parallel_for(range<1>(NSize), TestKernel);
       });
 
       clReleaseKernel(clKernel);
@@ -167,24 +171,24 @@ int main() {
       std::cout << ex.what() << std::endl;
     }
 
-    for (int i = 0; i < n_size; ++i) {
-      if (i < n_size / 4 && a[i] != 0) {
-        std::cout << " array[" << i << "] is " << a[i] << " expected " << 0
+    for (int i = 0; i < NSize; ++i) {
+      if (i < NSize / 4 && AMem[i] != 0) {
+        std::cout << " array[" << i << "] is " << AMem[i] << " expected " << 0
                   << std::endl;
         assert(false);
         Failed = true;
-      } else if (i >= n_size / 4 && i < 2 * n_size / 4 && a[i] != i) {
-        std::cout << " array[" << i << "] is " << a[i] << " expected " << i
+      } else if (i >= NSize / 4 && i < 2 * NSize / 4 && AMem[i] != i) {
+        std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
         assert(false);
         Failed = true;
-      } else if (i >= 2 * n_size / 4 && i < 3 * n_size / 4 && a[i] != 0) {
-        std::cout << " array[" << i << "] is " << a[i] << " expected " << 0
+      } else if (i >= 2 * NSize / 4 && i < 3 * NSize / 4 && AMem[i] != 0) {
+        std::cout << " array[" << i << "] is " << AMem[i] << " expected " << 0
                   << std::endl;
         assert(false);
         Failed = true;
-      } else if (i >= 3 * n_size / 4 && a[i] != i) {
-        std::cout << " array[" << i << "] is " << a[i] << " expected " << i
+      } else if (i >= 3 * NSize / 4 && AMem[i] != i) {
+        std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
         assert(false);
         Failed = true;
@@ -192,24 +196,26 @@ int main() {
     }
   }
   {
-    constexpr size_t n_size = ((1U << 10) / sizeof(int)) * 2;
+    // Test if we can use two sub buffers, pointing to one buffer, from
+    // two different OpenCL kernels.
+    const size_t NSize = 512;
     cl_int Error = CL_SUCCESS;
-    int a[n_size];
-    for (size_t i = 0; i < n_size; i++) {
-      a[i] = i;
+    int AMem[NSize];
+    for (size_t i = 0; i < NSize; i++) {
+      AMem[i] = i;
     }
 
     try {
-      queue MyQueue;
+      queue TestQueue;
 
-      const char *src[] = {clKernelSourceCodeOverlap.c_str()};
-      const size_t src_size = clKernelSourceCodeOverlap.size();
+      const char *SrcString[] = {clKernelSourceCodeOverlap.c_str()};
+      const size_t SrcStringSize = clKernelSourceCodeOverlap.size();
 
-      cl_context clContext = MyQueue.get_context().get();
-      cl_device_id clDevice = MyQueue.get_device().get();
+      cl_context clContext = TestQueue.get_context().get();
+      cl_device_id clDevice = TestQueue.get_device().get();
 
       cl_program clProgram =
-          clCreateProgramWithSource(clContext, 1, src, &src_size, &Error);
+          clCreateProgramWithSource(clContext, 1, SrcString, &SrcStringSize, &Error);
 
       CHECK_OCL_CODE(Error);
 
@@ -223,29 +229,29 @@ int main() {
       cl_kernel clKernel2 = clCreateKernel(clProgram, "test2", &Error);
       CHECK_OCL_CODE(Error);
 
-      buffer<int, 1> BufA(a, cl::sycl::range<1>(n_size));
-      buffer<int, 1> BufB(BufA, 0, n_size / 2);
-      buffer<int, 1> BufC(BufA, n_size / 4, n_size / 4);
+      buffer<int, 1> BufA(AMem, cl::sycl::range<1>(NSize));
+      buffer<int, 1> BufB(BufA, 0, NSize / 2);
+      buffer<int, 1> BufC(BufA, NSize / 4, NSize / 4);
 
-      kernel MyKernel1(clKernel1, MyQueue.get_context());
-      kernel MyKernel2(clKernel2, MyQueue.get_context());
+      kernel TestKernel1(clKernel1, TestQueue.get_context());
+      kernel TestKernel2(clKernel2, TestQueue.get_context());
 
-      MyQueue.submit([&](handler &cgh) {
+      TestQueue.submit([&](handler &cgh) {
         auto a_acc = BufA.get_access<access::mode::read>(cgh);
         auto b_acc = BufB.get_access<access::mode::write>(cgh);
         cgh.set_arg(0, a_acc);
         cgh.set_arg(1, b_acc);
 
-        cgh.parallel_for(range<1>(n_size), MyKernel1);
+        cgh.parallel_for(range<1>(NSize), TestKernel1);
       });
 
-      MyQueue.submit([&](handler &cgh) {
+      TestQueue.submit([&](handler &cgh) {
         auto a_acc = BufA.get_access<access::mode::read>(cgh);
         auto c_acc = BufC.get_access<access::mode::write>(cgh);
         cgh.set_arg(0, a_acc);
         cgh.set_arg(1, c_acc);
 
-        cgh.parallel_for(range<1>(n_size), MyKernel2);
+        cgh.parallel_for(range<1>(NSize), TestKernel2);
       });
 
       clReleaseKernel(clKernel1);
@@ -255,19 +261,19 @@ int main() {
       std::cout << ex.what() << std::endl;
     }
 
-    for (int i = 0; i < n_size; ++i) {
-      if (i < n_size / 4 && a[i] != 0) {
-        std::cout << " array[" << i << "] is " << a[i] << " expected " << 0
+    for (int i = 0; i < NSize; ++i) {
+      if (i < NSize / 4 && AMem[i] != 0) {
+        std::cout << " array[" << i << "] is " << AMem[i] << " expected " << 0
                   << std::endl;
         assert(false);
         Failed = true;
-      } else if (i >= n_size / 4 && i < 2 * n_size / 4 && a[i] != 1) {
-        std::cout << " array[" << i << "] is " << a[i] << " expected " << i
+      } else if (i >= NSize / 4 && i < 2 * NSize / 4 && AMem[i] != 1) {
+        std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
         assert(false);
         Failed = true;
-      } else if (i >= 2 * n_size / 4 && a[i] != i) {
-        std::cout << " array[" << i << "] is " << a[i] << " expected " << i
+      } else if (i >= 2 * NSize / 4 && AMem[i] != i) {
+        std::cout << " array[" << i << "] is " << AMem[i] << " expected " << i
                   << std::endl;
         assert(false);
         Failed = true;

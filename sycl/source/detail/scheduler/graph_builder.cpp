@@ -21,7 +21,7 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-// The function check whether two requirements overlaps or not. This
+// The function checks whether two requirements overlaps or not. This
 // information can be used to prove that executing two kernels that
 // work on different parts of the memory object in parallel is legal.
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
@@ -31,6 +31,13 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
   return RHS->MDims != 1 || LHS->MDims != 1 ||
            (LHS->MOffset[0] + LHS->MAccessRange[0] >= RHS->MOffset[0]) ||
            (RHS->MOffset[0] + RHS->MAccessRange[0] >= LHS->MOffset[0]);
+}
+
+// The function checks if current requirement is used from OpenCL kernel
+// and should be treated as sub buffer (i.e. Access range != Memory range).
+// In this case we can call clCreateSubBuffer for such sub buffers.
+static bool IsSuitableSubReq(const Requirement *Req) {
+  return Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange;
 }
 
 // Returns record for the memory objects passed, nullptr if doesn't exist.
@@ -457,11 +464,11 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
 AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
   auto IsSuitableAlloca = [&Queue, Req](AllocaCommandBase *AllocaCmd) {
-    bool res = AllocaCmd->getQueue()->get_context() == Queue->get_context();
-    if (Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange)
-      res &= AllocaCmd->getAllocationReq()->MOffset == Req->MOffset &&
+    bool Res = AllocaCmd->getQueue()->get_context() == Queue->get_context();
+    if (IsSuitableSubReq(Req))
+      Res &= AllocaCmd->getAllocationReq()->MOffset == Req->MOffset &&
              AllocaCmd->getAllocationReq()->MAccessRange == Req->MAccessRange;
-    return res;
+    return Res;
   };
   const auto It = std::find_if(Record->MAllocaCommands.begin(),
                                Record->MAllocaCommands.end(), IsSuitableAlloca);
@@ -483,8 +490,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
   AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, SearchReq, Queue);
 
   if (!AllocaCmd) {
-    if (!ForceFullReq && Req->MAccessRange != Req->MMemoryRange &&
-        Req->MUsedFromSourceKernel) {
+    if (!ForceFullReq && IsSuitableSubReq(Req)) {
       if (Req->MDims != 1)
         throw runtime_error("OpenCL only supports 1D sub buffers");
 
@@ -526,12 +532,13 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
-    bool forceFullReq =
-        !(Req->MUsedFromSourceKernel && Req->MAccessRange != Req->MMemoryRange);
+    bool ForceFullReq = !IsSuitableSubReq(Req);
     AllocaCommandBase *AllocaCmd = nullptr;
     markModifiedIfWrite(Record, Req);
     std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
 
+    // If no actions on memory record were performed, we need to create
+    // first command.
     if (!Deps.empty()) {
       // If contexts of dependency and new command don't match insert
       // memcpy command.
@@ -547,9 +554,9 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
           Deps = findDepsForReq(Record, Req, Queue);
           break;
         }
-      AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, forceFullReq);
+      AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, ForceFullReq);
     } else {
-      AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, forceFullReq);
+      AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, ForceFullReq);
       Deps = findDepsForReq(Record, Req, Queue);
     }
 
