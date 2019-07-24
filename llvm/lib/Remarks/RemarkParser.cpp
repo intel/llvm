@@ -60,22 +60,24 @@ llvm::remarks::createRemarkParser(Format ParserFormat, StringRef Buf) {
     return createStringError(std::make_error_code(std::errc::invalid_argument),
                              "Unknown remark parser format.");
   }
+  llvm_unreachable("unhandled ParseFormat");
 }
 
 Expected<std::unique_ptr<Parser>>
 llvm::remarks::createRemarkParser(Format ParserFormat, StringRef Buf,
-                                  const ParsedStringTable &StrTab) {
+                                  ParsedStringTable StrTab) {
   switch (ParserFormat) {
   case Format::YAML:
     return createStringError(std::make_error_code(std::errc::invalid_argument),
                              "The YAML format can't be used with a string "
                              "table. Use yaml-strtab instead.");
   case Format::YAMLStrTab:
-    return llvm::make_unique<YAMLStrTabRemarkParser>(Buf, StrTab);
+    return llvm::make_unique<YAMLStrTabRemarkParser>(Buf, std::move(StrTab));
   case Format::Unknown:
     return createStringError(std::make_error_code(std::errc::invalid_argument),
                              "Unknown remark parser format.");
   }
+  llvm_unreachable("unhandled ParseFormat");
 }
 
 // Wrapper that holds the state needed to interact with the C API.
@@ -84,10 +86,10 @@ struct CParser {
   Optional<std::string> Err;
 
   CParser(Format ParserFormat, StringRef Buf,
-          Optional<const ParsedStringTable *> StrTab = None)
-      : TheParser(cantFail(StrTab
-                               ? createRemarkParser(ParserFormat, Buf, **StrTab)
-                               : createRemarkParser(ParserFormat, Buf))) {}
+          Optional<ParsedStringTable> StrTab = None)
+      : TheParser(cantFail(
+            StrTab ? createRemarkParser(ParserFormat, Buf, std::move(*StrTab))
+                   : createRemarkParser(ParserFormat, Buf))) {}
 
   void handleError(Error E) { Err.emplace(toString(std::move(E))); }
   bool hasError() const { return Err.hasValue(); }
