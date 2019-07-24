@@ -1442,7 +1442,7 @@ private:
   // thus does not let using them in template parameters inside swizzle.def.
   template <int Index>
   struct Indexer {
-    static constexpr int IDXs[] = {Indexes...};
+    static constexpr int IDXs[sizeof...(Indexes)] = {Indexes...};
     static constexpr int value = IDXs[Index >= getNumElements() ? 0 : Index];
   };
 
