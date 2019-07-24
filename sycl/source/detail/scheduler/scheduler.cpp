@@ -37,7 +37,7 @@ void Scheduler::waitForRecordToFinish(GraphBuilder::MemObjRecord *Record) {
     }
     GraphProcessor::waitForEvent(Cmd->getEvent());
   }
-  for (AllocaCommand *AllocaCmd : Record->MAllocaCommands) {
+  for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
     Command *FailedCommand = GraphProcessor::enqueueCommand(ReleaseCmd);
     if (FailedCommand) {
@@ -120,7 +120,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
   GraphBuilder::MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
   if (!Record) {
-    assert("No operations were performed on the mem object?");
+    assert(false && "No operations were performed on the mem object?");
     return;
   }
   waitForRecordToFinish(Record);
