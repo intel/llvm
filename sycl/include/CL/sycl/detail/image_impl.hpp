@@ -60,10 +60,6 @@ template <typename DataT>
 using EnableIfImgAccDataT =
     typename std::enable_if<is_validImageDataT<DataT>::value, DataT>::type;
 
-using EventImplPtr = std::shared_ptr<detail::event_impl>;
-
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
-
 template <int Dimensions, typename AllocatorT = image_allocator>
 class image_impl final : public SYCLMemObjT<AllocatorT> {
   using BaseT = SYCLMemObjT<AllocatorT>;

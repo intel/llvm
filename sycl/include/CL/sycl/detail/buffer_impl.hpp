@@ -40,8 +40,6 @@ class handler;
 using buffer_allocator = detail::sycl_memory_object_allocator;
 
 namespace detail {
-using EventImplPtr = std::shared_ptr<detail::event_impl>;
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
 template <typename AllocatorT>
 class buffer_impl final : public SYCLMemObjT<AllocatorT> {

@@ -25,17 +25,16 @@ namespace sycl {
 namespace detail {
 
 // Forward declarations
-class event_impl;
 class context_impl;
+class event_impl;
+
+using ContextImplPtr = shared_ptr_class<context_impl>;
+using EventImplPtr = shared_ptr_class<event_impl>;
 
 using sycl_memory_object_allocator = detail::aligned_allocator<char>;
 
 // The class serves as a base for all SYCL memory objects.
 template <typename AllocatorT> class SYCLMemObjT : public SYCLMemObjI {
-  using EventImplPtr = shared_ptr_class<event_impl>;
-
-  using ContextImplPtr = shared_ptr_class<context_impl>;
-
   template <typename T>
   using EnableIfOutputPointerT =
       enable_if_t<is_output_iterator<T>::value && std::is_pointer<T>::value>;
