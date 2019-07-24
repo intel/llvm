@@ -6411,7 +6411,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // contain bundled objects). We will perform partial linking against the
   // object and specific offload target archives which will be sent to the
   // unbundler to produce a list of target objects.
-  if (Input.getType() == types::TY_Object &&
+  if (!C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
+      Input.getType() == types::TY_Object &&
       TCArgs.hasArg(options::OPT_foffload_static_lib_EQ)) {
     TypeArg = "oo";
     ArgStringList LinkArgs;
@@ -6433,6 +6434,9 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
     C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
   }
+  if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
+      Input.getType() == types::TY_Archive)
+    TypeArg = "ao";
 
   // Get the type.
   CmdArgs.push_back(TCArgs.MakeArgString(Twine("-type=") + TypeArg));
