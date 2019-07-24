@@ -136,6 +136,7 @@ inline int getSPIRVNumChannels(int ImageChannelOrder) {
   case 18: // sBGRA
     // TODO: Enable the below assert after assert is supported for device
     // compiler. assert(!"Unhandled image channel order in sycl.");
+  default:
     return 0;
   }
 }
