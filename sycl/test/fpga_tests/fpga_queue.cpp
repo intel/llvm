@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -32,6 +32,18 @@ void GetCLQueue(event sycl_event, std::set<cl_command_queue>& cl_queues) {
     std::cout << "Failed to get OpenCL queue from SYCL event: " << e.what()
               << std::endl;
   }
+}
+
+int getExpectedQueueNumber(cl_device_id device_id, int default_value) {
+   cl_command_queue_properties reportedProps;
+   cl_int iRet = clGetDeviceInfo(device_id,
+                                 CL_DEVICE_QUEUE_ON_HOST_PROPERTIES,
+                                 sizeof(reportedProps),
+                                 &reportedProps,
+                                 NULL);
+   assert(CL_SUCCESS == iRet && "Failed to obtain queue info from ocl device");
+   return (reportedProps & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
+              ? 1 : default_value;
 }
 
 int main() {
@@ -98,11 +110,11 @@ int main() {
 
     int result = cl_queues.size();
     device dev = Queue.get_device();
-    int expected_result = dev.is_accelerator() ? 3 : dev.is_host() ? 0 : 1;
+    int expected_result = dev.is_host() ? 0 : getExpectedQueueNumber(dev.get(), 3);
 
     if (expected_result != result) {
       std::cout << "Result Num of queues = " << result << std::endl
-                << "Expected Num of queues = 3" << std::endl;
+                << "Expected Num of queues = "<< expected_result << std::endl;
 
       return -1;
     }
@@ -140,12 +152,11 @@ int main() {
 
     int result = cl_queues.size();
     device dev = Queue.get_device();
-    int expected_result = dev.is_accelerator() ? maxNumQueues :
-                          dev.is_host() ? 0 : 1;
+    int expected_result = dev.is_host() ? 0 : getExpectedQueueNumber(dev.get(), maxNumQueues);
 
     if (expected_result != result) {
       std::cout << "Result Num of queues = " << result << std::endl
-                << "Expected Num of queues = " << maxNumQueues << std::endl;
+                << "Expected Num of queues = " << expected_result << std::endl;
 
       return -1;
     }

@@ -33,7 +33,7 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
 
 // Returns record for the memory objects passed, nullptr if doesn't exist.
 Scheduler::GraphBuilder::MemObjRecord *
-Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjT *MemObject) {
+Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
   const auto It = std::find_if(MMemObjRecords.begin(), MMemObjRecords.end(),
                                [MemObject](const MemObjRecord &Record) {
                                  return Record.MMemObj == MemObject;
@@ -46,7 +46,7 @@ Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjT *MemObject) {
 Scheduler::GraphBuilder::MemObjRecord *
 Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                                  Requirement *Req) {
-  SYCLMemObjT *MemObject = Req->MSYCLMemObj;
+  SYCLMemObjI *MemObject = Req->MSYCLMemObj;
   Scheduler::GraphBuilder::MemObjRecord *Record = getMemObjRecord(MemObject);
   if (nullptr != Record)
     return Record;
@@ -74,7 +74,7 @@ void Scheduler::GraphBuilder::UpdateLeafs(
     Scheduler::GraphBuilder::MemObjRecord *Record, Requirement *Req) {
 
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
-  if(ReadOnlyReq)
+  if (ReadOnlyReq)
     return;
 
   for (const Command *Cmd : Cmds) {
@@ -124,8 +124,10 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
 
   AllocaCommand *AllocaCmdSrc = findAllocaForReq(Record, Req, SrcQueue);
 
+  // Full copy of buffer is needed to avoid loss of data that may be caused
+  // by copying specific range form host to device and backwards.
   MemCpyCommand *MemCpyCmd = new MemCpyCommand(
-      *AllocaCmdSrc->getAllocationReq(), AllocaCmdSrc, *Req, AllocaCmdDst,
+      *AllocaCmdSrc->getAllocationReq(), AllocaCmdSrc, FullReq, AllocaCmdDst,
       AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue(), UseExclusiveQueue);
 
   for (Command *Dep : Deps) {
@@ -142,7 +144,7 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
 Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 
   QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
-  SYCLMemObjT *MemObj = Req->MSYCLMemObj;
+  SYCLMemObjI *MemObj = Req->MSYCLMemObj;
   Scheduler::GraphBuilder::MemObjRecord *Record = getMemObjRecord(MemObj);
 
   // Do nothing if there were no or only read operations with the memory object.
@@ -200,10 +202,10 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   ContextImplPtr SrcContext = detail::getSyclObjImpl(SrcQueue->get_context());
   Req->BlockingEvent.reset(new detail::event_impl());
   Req->BlockingEvent->setContextImpl(SrcContext);
-  cl_event &CLEvent = Req->BlockingEvent->getHandleRef();
-  cl_int Error = CL_SUCCESS;
-  CLEvent = clCreateUserEvent(SrcContext->getHandleRef(), &Error);
-  CHECK_OCL_CODE(Error);
+  RT::PiEvent &Event = Req->BlockingEvent->getHandleRef();
+  RT::PiResult Error = PI_SUCCESS;
+  PI_CALL((Event = RT::piEventCreate(
+      SrcContext->getHandleRef(), &Error), Error));
 
   // In case of memory is 1 dimensional and located on OpenCL device we
   // can use map/unmap operation.
@@ -483,6 +485,7 @@ Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
   std::vector<Requirement *> Reqs = CommandGroup->getRequirements();
+  std::vector<detail::EventImplPtr> Events = CommandGroup->getEvents();
   std::unique_ptr<ExecCGCommand> NewCmd(
       new ExecCGCommand(std::move(CommandGroup), Queue));
   if (!NewCmd)
@@ -523,6 +526,11 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     AddNodeToLeafs(Record, NewCmd.get(), Req);
   }
 
+  // Register all the events as dependencies
+  for (detail::EventImplPtr e : Events) {
+    NewCmd->addDep(e);
+  }
+
   return NewCmd.release();
 }
 
@@ -530,7 +538,7 @@ void Scheduler::GraphBuilder::cleanupCommands(bool CleanupReleaseCommands) {
   // TODO: Implement.
 }
 
-void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjT *MemObject) {
+void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
   const auto It = std::find_if(MMemObjRecords.begin(), MMemObjRecords.end(),
                                [MemObject](const MemObjRecord &Record) {
                                  return Record.MMemObj == MemObject;

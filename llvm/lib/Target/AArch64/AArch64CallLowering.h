@@ -34,14 +34,24 @@ public:
   AArch64CallLowering(const AArch64TargetLowering &TLI);
 
   bool lowerReturn(MachineIRBuilder &MIRBuilder, const Value *Val,
-                   ArrayRef<unsigned> VRegs) const override;
+                   ArrayRef<Register> VRegs,
+                   Register SwiftErrorVReg) const override;
 
   bool lowerFormalArguments(MachineIRBuilder &MIRBuilder, const Function &F,
-                            ArrayRef<unsigned> VRegs) const override;
+                            ArrayRef<ArrayRef<Register>> VRegs) const override;
 
   bool lowerCall(MachineIRBuilder &MIRBuilder, CallingConv::ID CallConv,
                  const MachineOperand &Callee, const ArgInfo &OrigRet,
-                 ArrayRef<ArgInfo> OrigArgs) const override;
+                 ArrayRef<ArgInfo> OrigArgs,
+                 Register SwiftErrorVReg) const override;
+
+  bool lowerCall(MachineIRBuilder &MIRBuilder, CallingConv::ID CallConv,
+                 const MachineOperand &Callee, const ArgInfo &OrigRet,
+                 ArrayRef<ArgInfo> OrigArgs) const override {
+    return lowerCall(MIRBuilder, CallConv, Callee, OrigRet, OrigArgs, 0);
+  }
+
+  bool supportSwiftError() const override { return true; }
 
 private:
   using RegHandler = std::function<void(MachineIRBuilder &, Type *, unsigned,
@@ -50,13 +60,10 @@ private:
   using MemHandler =
       std::function<void(MachineIRBuilder &, int, CCValAssign &)>;
 
-  using SplitArgTy = std::function<void(unsigned, uint64_t)>;
-
   void splitToValueTypes(const ArgInfo &OrigArgInfo,
                          SmallVectorImpl<ArgInfo> &SplitArgs,
                          const DataLayout &DL, MachineRegisterInfo &MRI,
-                         CallingConv::ID CallConv,
-                         const SplitArgTy &SplitArg) const;
+                         CallingConv::ID CallConv) const;
 };
 
 } // end namespace llvm

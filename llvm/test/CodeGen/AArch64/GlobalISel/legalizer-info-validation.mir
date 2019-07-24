@@ -144,6 +144,9 @@
 # DEBUG-NEXT: G_ATOMICRMW_UMIN (opcode {{[0-9]+}}): 2 type indices
 # DEBUG:      .. type index coverage check SKIPPED: user-defined predicate detected
 #
+# DEBUG-NEXT: G_FENCE (opcode {{[0-9]+}}): 0 type indices
+# DEBUG:      .. type index coverage check SKIPPED: no rules defined
+#
 # DEBUG-NEXT: G_BRCOND (opcode {{[0-9]+}}): 1 type index
 # DEBUG:      .. the first uncovered type index: 1, OK
 #
@@ -300,6 +303,24 @@
 # DEBUG-NEXT: G_FCANONICALIZE (opcode {{[0-9]+}}): 1 type index
 # DEBUG: .. type index coverage check SKIPPED: no rules defined
 #
+# DEBUG-NEXT: G_FMINNUM (opcode {{[0-9]+}}): 1 type index
+# DEBUG: .. type index coverage check SKIPPED: no rules defined
+#
+# DEBUG-NEXT: G_FMAXNUM (opcode {{[0-9]+}}): 1 type index
+# DEBUG: .. type index coverage check SKIPPED: no rules defined
+#
+# DEBUG-NEXT: G_FMINNUM_IEEE (opcode {{[0-9]+}}): 1 type index
+# DEBUG: .. type index coverage check SKIPPED: no rules defined
+#
+# DEBUG-NEXT: G_FMAXNUM_IEEE (opcode {{[0-9]+}}): 1 type index
+# DEBUG: .. type index coverage check SKIPPED: no rules defined
+#
+# DEBUG-NEXT: G_FMINIMUM (opcode {{[0-9]+}}): 1 type index
+# DEBUG: .. type index coverage check SKIPPED: no rules defined
+#
+# DEBUG-NEXT: G_FMAXIMUM (opcode {{[0-9]+}}): 1 type index
+# DEBUG: .. type index coverage check SKIPPED: no rules defined
+#
 # DEBUG-NEXT: G_GEP (opcode {{[0-9]+}}): 2 type indices
 # DEBUG:      .. the first uncovered type index: 2, OK
 #
@@ -320,6 +341,9 @@
 #
 # DEBUG-NEXT: G_BR (opcode {{[0-9]+}}): 0 type indices
 # DEBUG:      .. type index coverage check SKIPPED: no rules defined
+#
+# DEBUG-NEXT: G_BRJT (opcode {{[0-9]+}}): 2 type indices
+# DEBUG:      .. type index coverage check SKIPPED: user-defined predicate detected
 #
 # DEBUG-NEXT: G_INSERT_VECTOR_ELT (opcode {{[0-9]+}}): 3 type indices
 # DEBUG:      .. type index coverage check SKIPPED: user-defined predicate detected

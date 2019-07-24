@@ -38,21 +38,23 @@ Expected<NativeObjectCache> lto::localCache(StringRef CacheDirectoryPath,
     SmallString<64> EntryPath;
     sys::path::append(EntryPath, CacheDirectoryPath, "llvmcache-" + Key);
     // First, see if we have a cache hit.
-    int FD;
     SmallString<64> ResultPath;
-    std::error_code EC = sys::fs::openFileForRead(
-        Twine(EntryPath), FD, sys::fs::OF_UpdateAtime, &ResultPath);
-    if (!EC) {
+    Expected<sys::fs::file_t> FDOrErr = sys::fs::openNativeFileForRead(
+        Twine(EntryPath), sys::fs::OF_UpdateAtime, &ResultPath);
+    std::error_code EC;
+    if (FDOrErr) {
       ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr =
-          MemoryBuffer::getOpenFile(FD, EntryPath,
-                                    /*FileSize*/ -1,
-                                    /*RequiresNullTerminator*/ false);
-      close(FD);
+          MemoryBuffer::getOpenFile(*FDOrErr, EntryPath,
+                                    /*FileSize=*/-1,
+                                    /*RequiresNullTerminator=*/false);
+      sys::fs::closeFile(*FDOrErr);
       if (MBOrErr) {
         AddBuffer(Task, std::move(*MBOrErr));
         return AddStreamFn();
       }
       EC = MBOrErr.getError();
+    } else {
+      EC = errorToErrorCode(FDOrErr.takeError());
     }
 
     // On Windows we can fail to open a cache file with a permission denied
@@ -86,9 +88,9 @@ Expected<NativeObjectCache> lto::localCache(StringRef CacheDirectoryPath,
 
         // Open the file first to avoid racing with a cache pruner.
         ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrErr =
-            MemoryBuffer::getOpenFile(TempFile.FD, TempFile.TmpName,
-                                      /*FileSize*/ -1,
-                                      /*RequiresNullTerminator*/ false);
+            MemoryBuffer::getOpenFile(
+                sys::fs::convertFDToNativeFile(TempFile.FD), TempFile.TmpName,
+                /*FileSize=*/-1, /*RequiresNullTerminator=*/false);
         if (!MBOrErr)
           report_fatal_error(Twine("Failed to open new cache file ") +
                              TempFile.TmpName + ": " +

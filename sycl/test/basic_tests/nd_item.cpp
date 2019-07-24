@@ -1,5 +1,4 @@
-// RUN: %clang --sycl %s -c -o %T/kernel.spv
-// RUN: %clang -std=c++11 -g %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: %t.out
 //==--------------- nd_item.cpp - SYCL nd_item test ------------------------==//
 //

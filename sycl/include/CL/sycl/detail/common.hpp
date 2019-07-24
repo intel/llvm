@@ -15,16 +15,15 @@
 #include <CL/cl_ext.h>
 #include <CL/cl_ext_intel.h>
 #include <string>
-
 #include <type_traits>
+
+#define STRINGIFY_LINE_HELP(s) #s
+#define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
 const char *stringifyErrorCode(cl_int error);
 
 #define OCL_CODE_TO_STR(code)                                                  \
   std::string(std::to_string(code) + " (" + stringifyErrorCode(code) + ")")
-
-#define STRINGIFY_LINE_HELP(s) #s
-#define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
 #define OCL_ERROR_REPORT                                                       \
   "OpenCL API failed. " __FILE__                                               \
@@ -78,11 +77,20 @@ const char *stringifyErrorCode(cl_int error);
 namespace cl {
 namespace sycl {
 namespace detail {
+
 // Helper function for extracting implementation from SYCL's interface objects.
 // Note! This function relies on the fact that all SYCL interface classes
 // contain "impl" field that points to implementation object. "impl" field
 // should be accessible from this function.
-template <class T> decltype(T::impl) getSyclObjImpl(const T &SyclObject) {
+//
+// Note that due to a bug in MSVC compilers (including MSVC2019 v19.20), it
+// may not recognize the usage of this function in friend member declarations
+// if the template parameter name there is not equal to the name used here,
+// i.e. 'Obj'. For example, using 'Obj' here and 'T' in such declaration
+// would trigger that error in MSVC:
+//   template <class T>
+//   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
+template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
   return SyclObject.impl;
 }
 
@@ -103,15 +111,110 @@ template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
   return T(ImplObj);
 }
 
-#ifdef __SYCL_DEVICE_ONLY__
-// The flag type for passing flag arguments to barrier(), mem_fence(),
-// read_mem_fence(), and write_mem_fence() functions.
-typedef uint cl_mem_fence_flags;
+// Produces N-dimensional object of type T whose all components are initialized
+// to given integer value.
+template <int N, template <int> class T> struct InitializedVal {
+  template <int Val> static T<N> &&get();
+};
 
-const cl_mem_fence_flags CLK_LOCAL_MEM_FENCE   = 0x01;
-const cl_mem_fence_flags CLK_GLOBAL_MEM_FENCE  = 0x02;
-const cl_mem_fence_flags CLK_CHANNEL_MEM_FENCE = 0x04;
-#endif // __SYCL_DEVICE_ONLY__
+// Specialization for a one-dimensional type.
+template <template <int> class T> struct InitializedVal<1, T> {
+  template <int Val> static T<1> &&get() { return T<1>{Val}; }
+};
+
+// Specialization for a two-dimensional type.
+template <template <int> class T> struct InitializedVal<2, T> {
+  template <int Val> static T<2> &&get() { return T<2>{Val, Val}; }
+};
+
+// Specialization for a three-dimensional type.
+template <template <int> class T> struct InitializedVal<3, T> {
+  template <int Val> static T<3> &&get() { return T<3>{Val, Val, Val}; }
+};
+
+/// Helper class for the \c NDLoop.
+template <int NDIMS, int DIM, template <int> class LoopBoundTy, typename FuncTy,
+          template <int> class LoopIndexTy>
+struct NDLoopIterateImpl {
+  NDLoopIterateImpl(const LoopIndexTy<NDIMS> &LowerBound,
+                    const LoopBoundTy<NDIMS> &Stride,
+                    const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDIMS> &Index) {
+
+    for (Index[DIM] = LowerBound[DIM]; Index[DIM] < UpperBound[DIM];
+         Index[DIM] += Stride[DIM]) {
+
+      NDLoopIterateImpl<NDIMS, DIM - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+          LowerBound, Stride, UpperBound, f, Index};
+    }
+  }
+};
+
+// spcialization for DIM=0 to terminate recursion
+template <int NDIMS, template <int> class LoopBoundTy, typename FuncTy,
+          template <int> class LoopIndexTy>
+struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
+  NDLoopIterateImpl(const LoopIndexTy<NDIMS> &LowerBound,
+                    const LoopBoundTy<NDIMS> &Stride,
+                    const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDIMS> &Index) {
+
+    for (Index[0] = LowerBound[0]; Index[0] < UpperBound[0];
+         Index[0] += Stride[0]) {
+
+      f(Index);
+    }
+  }
+};
+
+/// Generates an NDIMS-dimensional perfect loop nest. The purpose of this class
+/// is to better support handling of situations where there must be a loop nest
+/// over a multi-dimensional space - it allows to avoid generating unnecessary
+/// outer loops like 'for (int z=0; z<1; z++)' in case of 1D and 2D iteration
+/// spaces or writing specializations of the algorithms for 1D, 2D and 3D cases.
+template <int NDIMS> struct NDLoop {
+  /// Generates ND loop nest with {0,..0} .. \c UpperBound bounds with unit
+  /// stride. Applies \c f at each iteration, passing current index of
+  /// \c LoopIndexTy<NDIMS> type as the parameter.
+  template <template <int> class LoopBoundTy, typename FuncTy,
+            template <int> class LoopIndexTy = LoopBoundTy>
+  static ALWAYS_INLINE void iterate(const LoopBoundTy<NDIMS> &UpperBound,
+                                    FuncTy f) {
+    const LoopIndexTy<NDIMS> LowerBound =
+        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
+    const LoopBoundTy<NDIMS> Stride =
+        InitializedVal<NDIMS, LoopBoundTy>::template get<1>();
+    LoopIndexTy<NDIMS> Index; // initialized down the call stack
+
+    NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+        LowerBound, Stride, UpperBound, f, Index};
+  }
+
+  /// Generates ND loop nest with \c LowerBound .. \c UpperBound bounds and
+  /// stride \c Stride. Applies \c f at each iteration, passing current index of
+  /// \c LoopIndexTy<NDIMS> type as the parameter.
+  template <template <int> class LoopBoundTy, typename FuncTy,
+            template <int> class LoopIndexTy = LoopBoundTy>
+  static ALWAYS_INLINE void iterate(const LoopIndexTy<NDIMS> &LowerBound,
+                                    const LoopBoundTy<NDIMS> &Stride,
+                                    const LoopBoundTy<NDIMS> &UpperBound,
+                                    FuncTy f) {
+    LoopIndexTy<NDIMS> Index; // initialized down the call stack
+    NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+        LowerBound, Stride, UpperBound, f, Index};
+  }
+};
+
+constexpr size_t getNextPowerOfTwoHelper(size_t Var, size_t Offset) {
+  return Offset != 64
+             ? getNextPowerOfTwoHelper(Var | (Var >> Offset), Offset * 2)
+             : Var;
+}
+
+// Returns the smallest power of two not less than Var
+constexpr size_t getNextPowerOfTwo(size_t Var) {
+  return getNextPowerOfTwoHelper(Var - 1, 1) + 1;
+}
 
 } // namespace detail
 } // namespace sycl

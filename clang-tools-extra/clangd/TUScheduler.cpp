@@ -273,7 +273,7 @@ private:
   // The lifetime of the old/new ASTWorkers will overlap, but their handles
   // don't. When the old handle is destroyed, the old worker will stop reporting
   // diagnostics.
-  bool ReportDiagnostics = true; /* GUARDED_BY(DiagMu) */
+  bool ReportDiagnostics = true; /* GUARDED_BY(DiagsMu) */
 };
 
 /// A smart-pointer-like class that points to an active ASTWorker.
@@ -860,9 +860,10 @@ bool TUScheduler::blockUntilIdle(Deadline D) const {
   return true;
 }
 
-void TUScheduler::update(PathRef File, ParseInputs Inputs,
+bool TUScheduler::update(PathRef File, ParseInputs Inputs,
                          WantDiagnostics WantDiags) {
   std::unique_ptr<FileData> &FD = Files[File];
+  bool NewFile = FD == nullptr;
   if (!FD) {
     // Create a new worker to process the AST-related tasks.
     ASTWorkerHandle Worker = ASTWorker::create(
@@ -875,6 +876,7 @@ void TUScheduler::update(PathRef File, ParseInputs Inputs,
     FD->Contents = Inputs.Contents;
   }
   FD->Worker->update(std::move(Inputs), WantDiags);
+  return NewFile;
 }
 
 void TUScheduler::remove(PathRef File) {
@@ -882,6 +884,15 @@ void TUScheduler::remove(PathRef File) {
   if (!Removed)
     elog("Trying to remove file from TUScheduler that is not tracked: {0}",
          File);
+}
+
+llvm::StringRef TUScheduler::getContents(PathRef File) const {
+  auto It = Files.find(File);
+  if (It == Files.end()) {
+    elog("getContents() for untracked file: {0}", File);
+    return "";
+  }
+  return It->second->Contents;
 }
 
 void TUScheduler::run(llvm::StringRef Name,

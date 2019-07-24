@@ -121,8 +121,11 @@ class JSONNodeDumper
   friend class JSONDumper;
 
   const SourceManager &SM;
+  ASTContext& Ctx;
   PrintingPolicy PrintPolicy;
   const comments::CommandTraits *Traits;
+  StringRef LastLocFilename;
+  unsigned LastLocLine, LastLocPresumedLine;
 
   using InnerAttrVisitor = ConstAttrVisitor<JSONNodeDumper>;
   using InnerCommentVisitor =
@@ -138,17 +141,19 @@ class JSONNodeDumper
       JOS.attribute(Key, Value);
   }
 
-  // Creates a single SourceLocation JSON representation of the given location.
-  llvm::json::Object createBareSourceLocation(SourceLocation Loc);
-  // Creates a JSON representation of a SourceLocation based on its presumed
+  // Writes the attributes of a SourceLocation object without.
+  void writeBareSourceLocation(SourceLocation Loc, bool IsSpelling);
+
+  // Writes the attributes of a SourceLocation to JSON based on its presumed
   // spelling location. If the given location represents a macro invocation,
   // this outputs two sub-objects: one for the spelling and one for the
   // expansion location.
-  llvm::json::Object createSourceLocation(SourceLocation Loc);
-  llvm::json::Object createSourceRange(SourceRange R);
+  void writeSourceLocation(SourceLocation Loc);
+  void writeSourceRange(SourceRange R);
   std::string createPointerRepresentation(const void *Ptr);
   llvm::json::Object createQualType(QualType QT, bool Desugar = true);
   llvm::json::Object createBareDeclRef(const Decl *D);
+  void writeBareDeclRef(const Decl *D);
   llvm::json::Object createCXXRecordDefinitionData(const CXXRecordDecl *RD);
   llvm::json::Object createCXXBaseSpecifier(const CXXBaseSpecifier &BS);
   std::string createAccessSpecifier(AccessSpecifier AS);
@@ -172,11 +177,11 @@ class JSONNodeDumper
   StringRef getCommentCommandName(unsigned CommandID) const;
 
 public:
-  JSONNodeDumper(raw_ostream &OS, const SourceManager &SrcMgr,
+  JSONNodeDumper(raw_ostream &OS, const SourceManager &SrcMgr, ASTContext &Ctx,
                  const PrintingPolicy &PrintPolicy,
                  const comments::CommandTraits *Traits)
-      : NodeStreamer(OS), SM(SrcMgr), PrintPolicy(PrintPolicy), Traits(Traits) {
-  }
+      : NodeStreamer(OS), SM(SrcMgr), Ctx(Ctx), PrintPolicy(PrintPolicy),
+        Traits(Traits), LastLocLine(0), LastLocPresumedLine(0) {}
 
   void Visit(const Attr *A);
   void Visit(const Stmt *Node);
@@ -195,6 +200,23 @@ public:
   void VisitTypedefType(const TypedefType *TT);
   void VisitFunctionType(const FunctionType *T);
   void VisitFunctionProtoType(const FunctionProtoType *T);
+  void VisitRValueReferenceType(const ReferenceType *RT);
+  void VisitArrayType(const ArrayType *AT);
+  void VisitConstantArrayType(const ConstantArrayType *CAT);
+  void VisitDependentSizedExtVectorType(const DependentSizedExtVectorType *VT);
+  void VisitVectorType(const VectorType *VT);
+  void VisitUnresolvedUsingType(const UnresolvedUsingType *UUT);
+  void VisitUnaryTransformType(const UnaryTransformType *UTT);
+  void VisitTagType(const TagType *TT);
+  void VisitTemplateTypeParmType(const TemplateTypeParmType *TTPT);
+  void VisitAutoType(const AutoType *AT);
+  void VisitTemplateSpecializationType(const TemplateSpecializationType *TST);
+  void VisitInjectedClassNameType(const InjectedClassNameType *ICNT);
+  void VisitObjCInterfaceType(const ObjCInterfaceType *OIT);
+  void VisitPackExpansionType(const PackExpansionType *PET);
+  void VisitElaboratedType(const ElaboratedType *ET);
+  void VisitMacroQualifiedType(const MacroQualifiedType *MQT);
+  void VisitMemberPointerType(const MemberPointerType *MPT);
 
   void VisitNamedDecl(const NamedDecl *ND);
   void VisitTypedefDecl(const TypedefDecl *TD);
@@ -218,6 +240,19 @@ public:
   void VisitAccessSpecDecl(const AccessSpecDecl *ASD);
   void VisitFriendDecl(const FriendDecl *FD);
 
+  void VisitObjCIvarDecl(const ObjCIvarDecl *D);
+  void VisitObjCMethodDecl(const ObjCMethodDecl *D);
+  void VisitObjCTypeParamDecl(const ObjCTypeParamDecl *D);
+  void VisitObjCCategoryDecl(const ObjCCategoryDecl *D);
+  void VisitObjCCategoryImplDecl(const ObjCCategoryImplDecl *D);
+  void VisitObjCProtocolDecl(const ObjCProtocolDecl *D);
+  void VisitObjCInterfaceDecl(const ObjCInterfaceDecl *D);
+  void VisitObjCImplementationDecl(const ObjCImplementationDecl *D);
+  void VisitObjCCompatibleAliasDecl(const ObjCCompatibleAliasDecl *D);
+  void VisitObjCPropertyDecl(const ObjCPropertyDecl *D);
+  void VisitObjCPropertyImplDecl(const ObjCPropertyImplDecl *D);
+  void VisitBlockDecl(const BlockDecl *D);
+
   void VisitDeclRefExpr(const DeclRefExpr *DRE);
   void VisitPredefinedExpr(const PredefinedExpr *PE);
   void VisitUnaryOperator(const UnaryOperator *UO);
@@ -231,8 +266,29 @@ public:
   void VisitImplicitCastExpr(const ImplicitCastExpr *ICE);
   void VisitCallExpr(const CallExpr *CE);
   void VisitUnaryExprOrTypeTraitExpr(const UnaryExprOrTypeTraitExpr *TTE);
+  void VisitSizeOfPackExpr(const SizeOfPackExpr *SOPE);
   void VisitUnresolvedLookupExpr(const UnresolvedLookupExpr *ULE);
   void VisitAddrLabelExpr(const AddrLabelExpr *ALE);
+  void VisitCXXTypeidExpr(const CXXTypeidExpr *CTE);
+  void VisitConstantExpr(const ConstantExpr *CE);
+  void VisitInitListExpr(const InitListExpr *ILE);
+  void VisitGenericSelectionExpr(const GenericSelectionExpr *GSE);
+  void VisitCXXUnresolvedConstructExpr(const CXXUnresolvedConstructExpr *UCE);
+  void VisitCXXConstructExpr(const CXXConstructExpr *CE);
+  void VisitExprWithCleanups(const ExprWithCleanups *EWC);
+  void VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *BTE);
+  void VisitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *MTE);
+  void VisitCXXDependentScopeMemberExpr(const CXXDependentScopeMemberExpr *ME);
+
+  void VisitObjCEncodeExpr(const ObjCEncodeExpr *OEE);
+  void VisitObjCMessageExpr(const ObjCMessageExpr *OME);
+  void VisitObjCBoxedExpr(const ObjCBoxedExpr *OBE);
+  void VisitObjCSelectorExpr(const ObjCSelectorExpr *OSE);
+  void VisitObjCProtocolExpr(const ObjCProtocolExpr *OPE);
+  void VisitObjCPropertyRefExpr(const ObjCPropertyRefExpr *OPRE);
+  void VisitObjCSubscriptRefExpr(const ObjCSubscriptRefExpr *OSRE);
+  void VisitObjCIvarRefExpr(const ObjCIvarRefExpr *OIRE);
+  void VisitObjCBoolLiteralExpr(const ObjCBoolLiteralExpr *OBLE);
 
   void VisitIntegerLiteral(const IntegerLiteral *IL);
   void VisitCharacterLiteral(const CharacterLiteral *CL);
@@ -247,6 +303,17 @@ public:
   void VisitLabelStmt(const LabelStmt *LS);
   void VisitGotoStmt(const GotoStmt *GS);
   void VisitWhileStmt(const WhileStmt *WS);
+  void VisitObjCAtCatchStmt(const ObjCAtCatchStmt *OACS);
+
+  void VisitNullTemplateArgument(const TemplateArgument &TA);
+  void VisitTypeTemplateArgument(const TemplateArgument &TA);
+  void VisitDeclarationTemplateArgument(const TemplateArgument &TA);
+  void VisitNullPtrTemplateArgument(const TemplateArgument &TA);
+  void VisitIntegralTemplateArgument(const TemplateArgument &TA);
+  void VisitTemplateTemplateArgument(const TemplateArgument &TA);
+  void VisitTemplateExpansionTemplateArgument(const TemplateArgument &TA);
+  void VisitExpressionTemplateArgument(const TemplateArgument &TA);
+  void VisitPackTemplateArgument(const TemplateArgument &TA);
 
   void visitTextComment(const comments::TextComment *C,
                         const comments::FullComment *);
@@ -302,13 +369,9 @@ class JSONDumper : public ASTNodeTraverser<JSONDumper, JSONNodeDumper> {
       case TSK_Undeclared:
       case TSK_ImplicitInstantiation:
         if (DumpRefOnly)
-          NodeDumper.JOS.value(NodeDumper.createBareDeclRef(Redecl));
+          NodeDumper.AddChild([=] { NodeDumper.writeBareDeclRef(Redecl); });
         else
-          // FIXME: this isn't quite right -- we want to call Visit() rather
-          // than NodeDumper.Visit() but that causes issues because it attempts
-          // to create a new array of child objects due to calling AddChild(),
-          // which messes up the JSON creation.
-          NodeDumper.JOS.object([this, Redecl] { NodeDumper.Visit(Redecl); });
+          Visit(Redecl);
         DumpedAny = true;
         break;
       case TSK_ExplicitSpecialization:
@@ -318,37 +381,31 @@ class JSONDumper : public ASTNodeTraverser<JSONDumper, JSONNodeDumper> {
 
     // Ensure we dump at least one decl for each specialization.
     if (!DumpedAny)
-      NodeDumper.JOS.value(NodeDumper.createBareDeclRef(SD));
+      NodeDumper.AddChild([=] { NodeDumper.writeBareDeclRef(SD); });
   }
 
   template <typename TemplateDecl>
   void writeTemplateDecl(const TemplateDecl *TD, bool DumpExplicitInst) {
-    if (const TemplateParameterList *TPL = TD->getTemplateParameters()) {
-      NodeDumper.JOS.attributeArray("templateParams", [this, TPL] {
-        for (const auto &TP : *TPL) {
-          NodeDumper.JOS.object([this, TP] { NodeDumper.Visit(TP); });
-        }
-      });
-    }
+    // FIXME: it would be nice to dump template parameters and specializations
+    // to their own named arrays rather than shoving them into the "inner"
+    // array. However, template declarations are currently being handled at the
+    // wrong "level" of the traversal hierarchy and so it is difficult to
+    // achieve without losing information elsewhere.
+
+    dumpTemplateParameters(TD->getTemplateParameters());
 
     Visit(TD->getTemplatedDecl());
 
-    auto spec_range = TD->specializations();
-    if (!llvm::empty(spec_range)) {
-      NodeDumper.JOS.attributeArray(
-          "specializations", [this, spec_range, TD, DumpExplicitInst] {
-            for (const auto *Child : spec_range)
-              writeTemplateDeclSpecialization(Child, DumpExplicitInst,
-                                              !TD->isCanonicalDecl());
-          });
-    }
+    for (const auto *Child : TD->specializations())
+      writeTemplateDeclSpecialization(Child, DumpExplicitInst,
+                                      !TD->isCanonicalDecl());
   }
 
 public:
-  JSONDumper(raw_ostream &OS, const SourceManager &SrcMgr,
+  JSONDumper(raw_ostream &OS, const SourceManager &SrcMgr, ASTContext &Ctx,
              const PrintingPolicy &PrintPolicy,
              const comments::CommandTraits *Traits)
-      : NodeDumper(OS, SrcMgr, PrintPolicy, Traits) {}
+      : NodeDumper(OS, SrcMgr, Ctx, PrintPolicy, Traits) {}
 
   JSONNodeDumper &doGetNodeDelegate() { return NodeDumper; }
 

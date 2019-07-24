@@ -37,7 +37,7 @@ struct CommonFixture {
   }
 
   bool setupGenerator(uint16_t Version = 4) {
-    Triple T = getHostTripleForAddrSize(8);
+    Triple T = getDefaultTargetTripleForAddrSize(8);
     if (!isConfigurationSupported(T))
       return false;
     auto ExpectedGenerator = Generator::create(T, Version);
@@ -50,8 +50,9 @@ struct CommonFixture {
     Context = createContext();
     assert(Context != nullptr && "test state is not valid");
     const DWARFObject &Obj = Context->getDWARFObj();
-    LineData = DWARFDataExtractor(Obj, Obj.getLineSection(),
-                                  sys::IsLittleEndianHost, 8);
+    LineData = DWARFDataExtractor(
+        Obj, Obj.getLineSection(),
+        getDefaultTargetTripleForAddrSize(8).isLittleEndian(), 8);
   }
 
   std::unique_ptr<DWARFContext> createContext() {
@@ -290,13 +291,13 @@ TEST_F(DebugLineBasicFixture, ErrorForReservedLength) {
     return;
 
   LineTable &LT = Gen->addLineTable();
-  LT.setCustomPrologue({{0xffffff00, LineTable::Long}});
+  LT.setCustomPrologue({{0xfffffff0, LineTable::Long}});
 
   generate();
 
   checkGetOrParseLineTableEmitsError(
       "parsing line table prologue at offset 0x00000000 unsupported reserved "
-      "unit length found of value 0xffffff00");
+      "unit length found of value 0xfffffff0");
 }
 
 TEST_F(DebugLineBasicFixture, ErrorForLowVersion) {
@@ -531,7 +532,7 @@ TEST_F(DebugLineBasicFixture, ParserMovesToEndForBadLengthWhenParsing) {
     return;
 
   LineTable &LT = Gen->addLineTable();
-  LT.setCustomPrologue({{0xffffff00, LineTable::Long}});
+  LT.setCustomPrologue({{0xfffffff0, LineTable::Long}});
   Gen->addLineTable();
   generate();
 
@@ -543,7 +544,7 @@ TEST_F(DebugLineBasicFixture, ParserMovesToEndForBadLengthWhenParsing) {
   EXPECT_FALSE(Recoverable);
 
   checkError("parsing line table prologue at offset 0x00000000 unsupported "
-             "reserved unit length found of value 0xffffff00",
+             "reserved unit length found of value 0xfffffff0",
              std::move(Unrecoverable));
 }
 
@@ -552,7 +553,7 @@ TEST_F(DebugLineBasicFixture, ParserMovesToEndForBadLengthWhenSkipping) {
     return;
 
   LineTable &LT = Gen->addLineTable();
-  LT.setCustomPrologue({{0xffffff00, LineTable::Long}});
+  LT.setCustomPrologue({{0xfffffff0, LineTable::Long}});
   Gen->addLineTable();
   generate();
 
@@ -563,7 +564,7 @@ TEST_F(DebugLineBasicFixture, ParserMovesToEndForBadLengthWhenSkipping) {
   EXPECT_TRUE(Parser.done());
 
   checkError("parsing line table prologue at offset 0x00000000 unsupported "
-             "reserved unit length found of value 0xffffff00",
+             "reserved unit length found of value 0xfffffff0",
              std::move(Unrecoverable));
 }
 

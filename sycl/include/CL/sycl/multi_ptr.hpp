@@ -69,17 +69,37 @@ public:
     m_Pointer = nullptr;
     return *this;
   }
-  ElementType &operator*() const {
-    return *(reinterpret_cast<ElementType *>(m_Pointer));
+
+#ifdef __SYCL_ENABLE_INFER_AS__
+  using ReturnPtr =
+      typename std::conditional<Space == access::address_space::constant_space,
+                                pointer_t, ElementType *>::type;
+  using ReturnRef =
+      typename std::conditional<Space == access::address_space::constant_space,
+                                reference_t, ElementType &>::type;
+  using ReturnConstRef =
+      typename std::conditional<Space == access::address_space::constant_space,
+                                const_reference_t, const ElementType &>::type;
+#else
+  using ReturnPtr = ElementType *;
+  using ReturnRef = ElementType &;
+  using ReturnConstRef = const ElementType &;
+#endif
+
+  ReturnRef operator*() const {
+    return *reinterpret_cast<ReturnPtr>(m_Pointer);
   }
-  ElementType *operator->() const {
-    return reinterpret_cast<ElementType *>(m_Pointer);
+
+  ReturnPtr operator->() const {
+    return reinterpret_cast<ReturnPtr>(m_Pointer);
   }
-  ElementType &operator[](difference_type index) {
-    return *(reinterpret_cast<ElementType *>(m_Pointer + index));
+
+  ReturnRef operator[](difference_type index) {
+    return reinterpret_cast<ReturnPtr>(m_Pointer)[index];
   }
-  ElementType operator[](difference_type index) const {
-    return *(reinterpret_cast<ElementType *>(m_Pointer + index));
+
+  ReturnConstRef operator[](difference_type index) const {
+    return reinterpret_cast<ReturnPtr>(m_Pointer)[index];
   }
 
   // Only if Space == global_space
@@ -181,9 +201,7 @@ public:
   pointer_t get() const { return m_Pointer; }
 
   // Implicit conversion to the underlying pointer type
-  operator ElementType *() const {
-    return reinterpret_cast<ElementType *>(m_Pointer);
-  }
+  operator ReturnPtr() const { return reinterpret_cast<ReturnPtr>(m_Pointer); }
 
   // Implicit conversion to a multi_ptr<void>
   // Only available when ElementType is not const-qualified

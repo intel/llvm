@@ -109,7 +109,6 @@ class WatchpointLLDBCommandTestCase(TestBase):
     @expectedFailureAll(
         oslist=["windows"],
         bugnumber="llvm.org/pr24446: WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows")
-    @expectedFailureNetBSD
     def test_watchpoint_command_can_disable_a_watchpoint(self):
         """Test that 'watchpoint command' action can disable a watchpoint after it is triggered."""
         self.build(dictionary=self.d)

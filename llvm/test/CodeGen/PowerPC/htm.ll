@@ -57,16 +57,19 @@ entry:
   %0 = tail call i32 @llvm.ppc.tendall()
   %1 = tail call i32 @llvm.ppc.tresume()
   %2 = tail call i32 @llvm.ppc.tsuspend()
+  %3 = tail call i64 @llvm.ppc.ttest()
   ret void
 ; CHECK-LABEL: @test4
 ; CHECK: tend. 1
 ; CHECK: tsr.  1
 ; CHECK: tsr.  0
+; CHECK: tabortwci. 0, {{[0-9]+}}, 0
 }
 
 declare i32 @llvm.ppc.tendall()
 declare i32 @llvm.ppc.tresume()
 declare i32 @llvm.ppc.tsuspend()
+declare i64 @llvm.ppc.ttest()
 
 
 define void @test5(i64 %v) {
@@ -123,3 +126,23 @@ declare i64 @llvm.ppc.get.texasr()
 declare i64 @llvm.ppc.get.texasru()
 declare i64 @llvm.ppc.get.tfhar()
 declare i64 @llvm.ppc.get.tfiar()
+
+define void @test10() {
+entry:
+  %0 = tail call i32 @llvm.ppc.tcheck()
+  %1 = tail call i32 @llvm.ppc.treclaim(i32 5)
+  %2 = tail call i32 @llvm.ppc.trechkpt()
+  %3 = tail call i32 @llvm.ppc.tsr(i32 1)
+  ret void
+; CHECK-LABEL: @test10
+; CHECK: tcheck [[REG1:[0-9]+]] 
+; CHECK: treclaim. [[REG2:[0-9]+]] 
+; CHECK: trechkpt. 
+; CHECK: tsr.  1
+}
+
+declare i32 @llvm.ppc.tcheck()
+declare i32 @llvm.ppc.treclaim(i32)
+declare i32 @llvm.ppc.trechkpt()
+declare i32 @llvm.ppc.tsr(i32)
+

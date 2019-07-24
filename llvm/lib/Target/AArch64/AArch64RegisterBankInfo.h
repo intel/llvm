@@ -57,6 +57,7 @@ protected:
     FPExt16To64Idx = 43,
     FPExt32To64Idx = 45,
     FPExt64To128Idx = 47,
+    Shift64Imm = 49
   };
 
   static bool checkPartialMap(unsigned Idx, unsigned ValStartIdx,
@@ -112,6 +113,18 @@ class AArch64RegisterBankInfo final : public AArch64GenRegisterBankInfo {
   /// OperandsMapping.
   const InstructionMapping &
   getSameKindOfOperandsMapping(const MachineInstr &MI) const;
+
+  /// Returns true if the output of \p MI must be stored on a FPR register.
+  bool hasFPConstraints(const MachineInstr &MI, const MachineRegisterInfo &MRI,
+                     const TargetRegisterInfo &TRI) const;
+
+  /// Returns true if the source registers of \p MI must all be FPRs.
+  bool onlyUsesFP(const MachineInstr &MI, const MachineRegisterInfo &MRI,
+                  const TargetRegisterInfo &TRI) const;
+
+  /// Returns true if the destination register of \p MI must be a FPR.
+  bool onlyDefinesFP(const MachineInstr &MI, const MachineRegisterInfo &MRI,
+                     const TargetRegisterInfo &TRI) const;
 
 public:
   AArch64RegisterBankInfo(const TargetRegisterInfo &TRI);

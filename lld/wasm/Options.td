@@ -31,6 +31,8 @@ defm demangle: B<"demangle",
     "Demangle symbol names",
     "Do not demangle symbol names">;
 
+def emit_relocs: F<"emit-relocs">, HelpText<"Generate relocations in output">;
+
 defm export_dynamic: B<"export-dynamic",
     "Put symbols in the dynamic symbol table",
     "Do not put symbols in the dynamic symbol table (default)">;
@@ -110,6 +112,9 @@ def version: F<"version">, HelpText<"Display the version number and exit">;
 def z: JoinedOrSeparate<["-"], "z">, MetaVarName<"<option>">,
   HelpText<"Linker option extensions">;
 
+defm wrap: Eq<"wrap", "Use wrapper functions for symbol">,
+  MetaVarName<"<symbol>=<symbol>">;
+
 // The follow flags are unique to wasm
 
 def allow_undefined: F<"allow-undefined">,
@@ -137,6 +142,12 @@ def import_memory: F<"import-memory">,
 
 def shared_memory: F<"shared-memory">,
   HelpText<"Use shared linear memory">;
+
+def active_segments: F<"active-segments">,
+  HelpText<"Force segments to be active">;
+
+def passive_segments: F<"passive-segments">,
+  HelpText<"Force segments to be passive">;
 
 def import_table: F<"import-table">,
   HelpText<"Import function table from the environment">;

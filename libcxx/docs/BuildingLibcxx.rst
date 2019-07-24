@@ -41,7 +41,7 @@ The basic steps needed to build libc++ are:
 
    .. warning::
      * Replacing your systems libc++ installation could render the system non-functional.
-     * Mac OS X will not boot without a valid copy of ``libc++.1.dylib`` in ``/usr/lib``.
+     * macOS will not boot without a valid copy of ``libc++.1.dylib`` in ``/usr/lib``.
 
 
 The instructions are for building libc++ on
@@ -288,6 +288,12 @@ libc++ Feature Options
 
   Build libc++ with run time type information.
 
+.. option:: LIBCXX_INCLUDE_TESTS:BOOL
+
+  **Default**: ``ON`` (or value of ``LLVM_INCLUDE_DIR``)
+
+  Build the libc++ tests.
+
 .. option:: LIBCXX_INCLUDE_BENCHMARKS:BOOL
 
   **Default**: ``ON``
@@ -368,6 +374,21 @@ The following options allow building libc++ for a different ABI version.
 
   A semicolon-separated list of ABI macros to persist in the site config header.
   See ``include/__config`` for the list of ABI macros.
+
+
+.. option:: LIBCXX_HAS_MERGED_TYPEINFO_NAMES_DEFAULT
+
+  **Default**: ``None``. When defined this option overrides the libraries default configuration
+  for whether merged type info names are present.
+
+
+  Build ``std::type_info`` with the assumption that type info names for a type have been fully
+  merged are unique across the entire program. This may not be the case for libraries built with
+  ``-Bsymbolic`` or due to compiler or linker bugs (Ex. llvm.org/PR37398).
+
+  When the value is ``ON`` typeinfo comparisons compare only the pointer value, otherwise ``strcmp``
+  is used as a fallback.
+
 
 .. _LLVM-specific variables:
 

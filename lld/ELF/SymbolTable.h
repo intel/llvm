@@ -10,21 +10,14 @@
 #define LLD_ELF_SYMBOL_TABLE_H
 
 #include "InputFiles.h"
-#include "LTO.h"
+#include "Symbols.h"
 #include "lld/Common/Strings.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
 
 namespace lld {
 namespace elf {
-
-class CommonSymbol;
-class Defined;
-class LazyArchive;
-class LazyObject;
-class SectionBase;
-class SharedSymbol;
-class Undefined;
 
 // SymbolTable is a bucket of all known symbols, including defined,
 // undefined, or lazy symbols (the last one is symbols in archive
@@ -40,42 +33,40 @@ class Undefined;
 // is one add* function per symbol type.
 class SymbolTable {
 public:
-  template <class ELFT> void addCombinedLTOObject();
-  void wrap(Symbol *Sym, Symbol *Real, Symbol *Wrap);
+  void wrap(Symbol *sym, Symbol *real, Symbol *wrap);
 
-  ArrayRef<Symbol *> getSymbols() const { return SymVector; }
+  void forEachSymbol(llvm::function_ref<void(Symbol *)> fn) {
+    for (Symbol *sym : symVector)
+      if (!sym->isPlaceholder())
+        fn(sym);
+  }
 
-  Symbol *insert(StringRef Name);
+  Symbol *insert(StringRef name);
 
   Symbol *addSymbol(const Symbol &New);
 
-  void fetchLazy(Symbol *Sym);
-
   void scanVersionScript();
 
-  Symbol *find(StringRef Name);
-
-  void trace(StringRef Name);
+  Symbol *find(StringRef name);
 
   void handleDynamicList();
 
   // Set of .so files to not link the same shared object file more than once.
-  llvm::DenseMap<StringRef, SharedFile *> SoNames;
+  llvm::DenseMap<StringRef, SharedFile *> soNames;
 
   // Comdat groups define "link once" sections. If two comdat groups have the
   // same name, only one of them is linked, and the other is ignored. This map
   // is used to uniquify them.
-  llvm::DenseMap<llvm::CachedHashStringRef, const InputFile *> ComdatGroups;
+  llvm::DenseMap<llvm::CachedHashStringRef, const InputFile *> comdatGroups;
 
 private:
-  std::vector<Symbol *> findByVersion(SymbolVersion Ver);
-  std::vector<Symbol *> findAllByVersion(SymbolVersion Ver);
+  std::vector<Symbol *> findByVersion(SymbolVersion ver);
+  std::vector<Symbol *> findAllByVersion(SymbolVersion ver);
 
   llvm::StringMap<std::vector<Symbol *>> &getDemangledSyms();
-  void handleAnonymousVersion();
-  void assignExactVersion(SymbolVersion Ver, uint16_t VersionId,
-                          StringRef VersionName);
-  void assignWildcardVersion(SymbolVersion Ver, uint16_t VersionId);
+  void assignExactVersion(SymbolVersion ver, uint16_t versionId,
+                          StringRef versionName);
+  void assignWildcardVersion(SymbolVersion ver, uint16_t versionId);
 
   // The order the global symbols are in is not defined. We can use an arbitrary
   // order, but it has to be reproducible. That is true even when cross linking.
@@ -84,23 +75,17 @@ private:
   // but a bit inefficient.
   // FIXME: Experiment with passing in a custom hashing or sorting the symbols
   // once symbol resolution is finished.
-  llvm::DenseMap<llvm::CachedHashStringRef, int> SymMap;
-  std::vector<Symbol *> SymVector;
+  llvm::DenseMap<llvm::CachedHashStringRef, int> symMap;
+  std::vector<Symbol *> symVector;
 
   // A map from demangled symbol names to their symbol objects.
   // This mapping is 1:N because two symbols with different versions
   // can have the same name. We use this map to handle "extern C++ {}"
   // directive in version scripts.
-  llvm::Optional<llvm::StringMap<std::vector<Symbol *>>> DemangledSyms;
-
-  // For LTO.
-  std::unique_ptr<BitcodeCompiler> LTO;
+  llvm::Optional<llvm::StringMap<std::vector<Symbol *>>> demangledSyms;
 };
 
-extern SymbolTable *Symtab;
-
-void mergeSymbolProperties(Symbol *Old, const Symbol &New);
-void resolveSymbol(Symbol *Old, const Symbol &New);
+extern SymbolTable *symtab;
 
 } // namespace elf
 } // namespace lld

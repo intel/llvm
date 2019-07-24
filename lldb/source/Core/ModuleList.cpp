@@ -102,6 +102,11 @@ bool ModuleListProperties::GetEnableExternalLookup() const {
       nullptr, idx, g_properties[idx].default_uint_value != 0);
 }
 
+bool ModuleListProperties::SetEnableExternalLookup(bool new_value) {
+  return m_collection_sp->SetPropertyAtIndexAsBoolean(
+      nullptr, ePropertyEnableExternalLookup, new_value);
+}
+
 FileSpec ModuleListProperties::GetClangModulesCachePath() const {
   return m_collection_sp
       ->GetPropertyAtIndexAsOptionValueFileSpec(nullptr, false,
@@ -113,7 +118,6 @@ bool ModuleListProperties::SetClangModulesCachePath(llvm::StringRef path) {
   return m_collection_sp->SetPropertyAtIndexAsString(
       nullptr, ePropertyClangModulesCachePath, path);
 }
-
 
 ModuleList::ModuleList()
     : m_modules(), m_modules_mutex(), m_notifier(nullptr) {}

@@ -33,6 +33,7 @@
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassTimingInfo.h"
+#include "llvm/IR/RemarkStreamer.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/LTO/LTO.h"
@@ -80,21 +81,26 @@ cl::opt<bool> LTODiscardValueNames(
 #endif
     cl::Hidden);
 
-cl::opt<std::string>
-    LTORemarksFilename("lto-pass-remarks-output",
-                       cl::desc("Output filename for pass remarks"),
-                       cl::value_desc("filename"));
-
-cl::opt<std::string>
-    LTORemarksPasses("lto-pass-remarks-filter",
-                     cl::desc("Only record optimization remarks from passes "
-                              "whose names match the given regular expression"),
-                     cl::value_desc("regex"));
-
-cl::opt<bool> LTOPassRemarksWithHotness(
+cl::opt<bool> RemarksWithHotness(
     "lto-pass-remarks-with-hotness",
     cl::desc("With PGO, include profile count in optimization remarks"),
     cl::Hidden);
+
+cl::opt<std::string>
+    RemarksFilename("lto-pass-remarks-output",
+                    cl::desc("Output filename for pass remarks"),
+                    cl::value_desc("filename"));
+
+cl::opt<std::string>
+    RemarksPasses("lto-pass-remarks-filter",
+                  cl::desc("Only record optimization remarks from passes whose "
+                           "names match the given regular expression"),
+                  cl::value_desc("regex"));
+
+cl::opt<std::string> RemarksFormat(
+    "lto-pass-remarks-format",
+    cl::desc("The format used for serializing remarks (default: YAML)"),
+    cl::value_desc("format"), cl::init("yaml"));
 
 cl::opt<std::string> LTOStatsFile(
     "lto-stats-file",
@@ -130,6 +136,7 @@ void LTOCodeGenerator::initializeLTOPasses() {
   initializeArgPromotionPass(R);
   initializeJumpThreadingPass(R);
   initializeSROALegacyPassPass(R);
+  initializeAttributorLegacyPassPass(R);
   initializePostOrderFunctionAttrsLegacyPassPass(R);
   initializeReversePostOrderFunctionAttrsLegacyPassPass(R);
   initializeGlobalsAAWrapperPassPass(R);
@@ -515,8 +522,9 @@ bool LTOCodeGenerator::optimize(bool DisableVerify, bool DisableInline,
   if (!this->determineTarget())
     return false;
 
-  auto DiagFileOrErr = lto::setupOptimizationRemarks(
-      Context, LTORemarksFilename, LTORemarksPasses, LTOPassRemarksWithHotness);
+  auto DiagFileOrErr =
+      lto::setupOptimizationRemarks(Context, RemarksFilename, RemarksPasses,
+                                    RemarksFormat, RemarksWithHotness);
   if (!DiagFileOrErr) {
     errs() << "Error: " << toString(DiagFileOrErr.takeError()) << "\n";
     report_fatal_error("Can't get an output file for the remarks");

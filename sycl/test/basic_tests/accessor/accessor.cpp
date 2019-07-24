@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -351,6 +351,30 @@ int main() {
         assert(host_acc[i] == 42);
 
     } catch (cl::sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
+
+  // Accessor with dimensionality 0.
+  {
+    try {
+      int data = -1;
+      {
+        sycl::buffer<int, 1> b(&data, sycl::range<1>(1));
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+          sycl::accessor<int, 0, sycl::access::mode::read_write,
+                         sycl::access::target::global_buffer>
+              B(b, cgh);
+          cgh.single_task<class acc_with_zero_dim>([=]() {
+            auto B2 = B;
+            (int &)B2 = 399;
+          });
+        });
+      }
+      assert(data == 399);
+    } catch (sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;
     }

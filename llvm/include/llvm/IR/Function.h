@@ -401,6 +401,11 @@ public:
     return getAttributes().hasParamAttribute(ArgNo, Kind);
   }
 
+  /// gets the specified attribute from the list of attributes.
+  Attribute getParamAttribute(unsigned ArgNo, Attribute::AttrKind Kind) const {
+    return getAttributes().getParamAttr(ArgNo, Kind);
+  }
+
   /// gets the attribute from the list of attributes.
   Attribute getAttribute(unsigned i, Attribute::AttrKind Kind) const {
     return AttributeSets.getAttribute(i, Kind);
@@ -429,6 +434,12 @@ public:
   /// Extract the alignment for a call or parameter (0=unknown).
   unsigned getParamAlignment(unsigned ArgNo) const {
     return AttributeSets.getParamAlignment(ArgNo);
+  }
+
+  /// Extract the byval type for a parameter.
+  Type *getParamByValType(unsigned ArgNo) const {
+    Type *Ty = AttributeSets.getParamByValType(ArgNo);
+    return Ty ? Ty : (arg_begin() + ArgNo)->getType()->getPointerElementType();
   }
 
   /// Extract the number of dereferenceable bytes for a call or
@@ -551,6 +562,14 @@ public:
   }
   void setSpeculatable() {
     addFnAttr(Attribute::Speculatable);
+  }
+
+  /// Determine if the call might deallocate memory.
+  bool doesNotFreeMemory() const {
+    return onlyReadsMemory() || hasFnAttribute(Attribute::NoFree);
+  }
+  void setDoesNotFreeMemory() {
+    addFnAttr(Attribute::NoFree);
   }
 
   /// Determine if the function is known not to recurse, directly or

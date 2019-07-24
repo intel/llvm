@@ -392,8 +392,9 @@ public:
   /// true.
   ///
   /// \param IsFrameworkFound If non-null, will be set to true if a framework is
-  /// found in any of searched SearchDirs. Doesn't guarantee the requested file
-  /// is found.
+  /// found in any of searched SearchDirs. Will be set to false if a framework
+  /// is found only through header maps. Doesn't guarantee the requested file is
+  /// found.
   const FileEntry *LookupFile(
       StringRef Filename, SourceLocation IncludeLoc, bool isAngled,
       const DirectoryLookup *FromDir, const DirectoryLookup *&CurDir,
@@ -708,21 +709,29 @@ public:
 
   /// Suggest a path by which the specified file could be found, for use in
   /// diagnostics to suggest a #include. Returned path will only contain forward
-  /// slashes as separators.
+  /// slashes as separators. MainFile is the absolute path of the file that we
+  /// are generating the diagnostics for. It will try to shorten the path using
+  /// MainFile location, if none of the include search directories were prefix
+  /// of File.
   ///
   /// \param IsSystem If non-null, filled in to indicate whether the suggested
   ///        path is relative to a system header directory.
   std::string suggestPathToFileForDiagnostics(const FileEntry *File,
+                                              llvm::StringRef MainFile,
                                               bool *IsSystem = nullptr);
 
   /// Suggest a path by which the specified file could be found, for use in
   /// diagnostics to suggest a #include. Returned path will only contain forward
-  /// slashes as separators.
+  /// slashes as separators. MainFile is the absolute path of the file that we
+  /// are generating the diagnostics for. It will try to shorten the path using
+  /// MainFile location, if none of the include search directories were prefix
+  /// of File.
   ///
   /// \param WorkingDir If non-empty, this will be prepended to search directory
   /// paths that are relative.
   std::string suggestPathToFileForDiagnostics(llvm::StringRef File,
                                               llvm::StringRef WorkingDir,
+                                              llvm::StringRef MainFile,
                                               bool *IsSystem = nullptr);
 
   void PrintStats();

@@ -25,8 +25,10 @@ std::vector<EventImplPtr>
 Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
   std::vector<EventImplPtr> Result;
   Command *Cmd = getCommand(Event);
-  for (const DepDesc &Dep : Cmd->MDeps)
-    Result.push_back(Dep.MDepCommand->getEvent());
+  for (const DepDesc &Dep : Cmd->MDeps) {
+    if (Dep.MDepCommand)
+      Result.push_back(Dep.MDepCommand->getEvent());
+  }
   return Result;
 }
 
@@ -38,9 +40,9 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.");
 
-  cl_event &CLEvent = Cmd->getEvent()->getHandleRef();
+  RT::PiEvent &CLEvent = Cmd->getEvent()->getHandleRef();
   if (CLEvent)
-    CHECK_OCL_CODE(clWaitForEvents(1, &CLEvent));
+    PI_CALL(RT::piEventsWait(1, &CLEvent));
 }
 
 Command *Scheduler::GraphProcessor::enqueueCommand(Command *Cmd) {

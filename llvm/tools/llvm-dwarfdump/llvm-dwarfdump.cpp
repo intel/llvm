@@ -92,8 +92,6 @@ namespace {
 using namespace cl;
 
 OptionCategory DwarfDumpCategory("Specific Options");
-static opt<bool> Help("h", desc("Alias for -help"), Hidden,
-                      cat(DwarfDumpCategory));
 static list<std::string>
     InputFilenames(Positional, desc("<input object files or .dSYM bundles>"),
                    ZeroOrMore, cat(DwarfDumpCategory));
@@ -141,10 +139,9 @@ static list<std::string>
               "-name option can be used instead."),
          value_desc("name"), cat(DwarfDumpCategory));
 static alias FindAlias("f", desc("Alias for -find."), aliasopt(Find));
-static opt<bool>
-    IgnoreCase("ignore-case",
-               desc("Ignore case distinctions in when searching by name."),
-               value_desc("i"), cat(DwarfDumpCategory));
+static opt<bool> IgnoreCase("ignore-case",
+                            desc("Ignore case distinctions when searching."),
+                            value_desc("i"), cat(DwarfDumpCategory));
 static alias IgnoreCaseAlias("i", desc("Alias for -ignore-case."),
                              aliasopt(IgnoreCase));
 static list<std::string> Name(
@@ -160,12 +157,11 @@ static opt<uint64_t>
                 "available file, function, block and line table details."),
            value_desc("address"), cat(DwarfDumpCategory));
 static opt<std::string>
-    OutputFilename("out-file", cl::init("-"),
+    OutputFilename("o", cl::init("-"),
                    cl::desc("Redirect output to the specified file."),
-                   cl::value_desc("filename"));
-static alias OutputFilenameAlias("o", desc("Alias for -out-file."),
-                                 aliasopt(OutputFilename),
-                                 cat(DwarfDumpCategory));
+                   cl::value_desc("filename"), cat(DwarfDumpCategory));
+static alias OutputFilenameAlias("out-file", desc("Alias for -o."),
+                                 aliasopt(OutputFilename));
 static opt<bool>
     UseRegex("regex",
              desc("Treat any <pattern> strings as regular expressions when "
@@ -175,14 +171,14 @@ static alias RegexAlias("x", desc("Alias for -regex"), aliasopt(UseRegex));
 static opt<bool>
     ShowChildren("show-children",
                  desc("Show a debug info entry's children when selectively "
-                      "printing with the =<offset> option."),
+                      "printing entries."),
                  cat(DwarfDumpCategory));
 static alias ShowChildrenAlias("c", desc("Alias for -show-children."),
                                aliasopt(ShowChildren));
 static opt<bool>
     ShowParents("show-parents",
                 desc("Show a debug info entry's parents when selectively "
-                     "printing with the =<offset> option."),
+                     "printing entries."),
                 cat(DwarfDumpCategory));
 static alias ShowParentsAlias("p", desc("Alias for -show-parents."),
                               aliasopt(ShowParents));
@@ -192,13 +188,18 @@ static opt<bool>
              cat(DwarfDumpCategory));
 static alias ShowFormAlias("F", desc("Alias for -show-form."),
                            aliasopt(ShowForm), cat(DwarfDumpCategory));
-static opt<unsigned> RecurseDepth(
-    "recurse-depth",
-    desc("Only recurse to a depth of N when displaying debug info entries."),
-    cat(DwarfDumpCategory), init(-1U), value_desc("N"));
-static alias RecurseDepthAlias("r", desc("Alias for -recurse-depth."),
-                               aliasopt(RecurseDepth));
-
+static opt<unsigned>
+    ChildRecurseDepth("recurse-depth",
+                      desc("Only recurse to a depth of N when displaying "
+                           "children of debug info entries."),
+                      cat(DwarfDumpCategory), init(-1U), value_desc("N"));
+static alias ChildRecurseDepthAlias("r", desc("Alias for -recurse-depth."),
+                                    aliasopt(ChildRecurseDepth));
+static opt<unsigned>
+    ParentRecurseDepth("parent-recurse-depth",
+                       desc("Only recurse to a depth of N when displaying "
+                            "parents of debug info entries."),
+                       cat(DwarfDumpCategory), init(-1U), value_desc("N"));
 static opt<bool>
     SummarizeTypes("summarize-types",
                    desc("Abbreviate the description of type unit entries."),
@@ -219,6 +220,8 @@ static opt<bool> Verbose("verbose",
                          cat(DwarfDumpCategory));
 static alias VerboseAlias("v", desc("Alias for -verbose."), aliasopt(Verbose),
                           cat(DwarfDumpCategory));
+static cl::extrahelp
+    HelpResponse("\nPass @FILE as argument to read options from FILE.\n");
 } // namespace
 /// @}
 //===----------------------------------------------------------------------===//
@@ -233,7 +236,8 @@ static void error(StringRef Prefix, std::error_code EC) {
 static DIDumpOptions getDumpOpts() {
   DIDumpOptions DumpOpts;
   DumpOpts.DumpType = DumpType;
-  DumpOpts.RecurseDepth = RecurseDepth;
+  DumpOpts.ChildRecurseDepth = ChildRecurseDepth;
+  DumpOpts.ParentRecurseDepth = ParentRecurseDepth;
   DumpOpts.ShowAddresses = !Diff;
   DumpOpts.ShowChildren = ShowChildren;
   DumpOpts.ShowParents = ShowParents;
@@ -389,7 +393,7 @@ static bool lookup(ObjectFile &Obj, DWARFContext &DICtx, uint64_t Address,
     return false;
 
   DIDumpOptions DumpOpts = getDumpOpts();
-  DumpOpts.RecurseDepth = 0;
+  DumpOpts.ChildRecurseDepth = 0;
   DIEsForAddr.CompileUnit->dump(OS, DumpOpts);
   if (DIEsForAddr.FunctionDIE) {
     DIEsForAddr.FunctionDIE.dump(OS, 2, DumpOpts);
@@ -570,11 +574,6 @@ int main(int argc, char **argv) {
       argc, argv,
       "pretty-print DWARF debug information in object files"
       " and debug info archives.\n");
-
-  if (Help) {
-    PrintHelpMessage(/*Hidden =*/false, /*Categorized =*/true);
-    return 0;
-  }
 
   // FIXME: Audit interactions between these two options and make them
   //        compatible.

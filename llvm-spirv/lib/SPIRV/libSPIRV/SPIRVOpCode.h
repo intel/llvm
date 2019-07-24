@@ -137,12 +137,29 @@ inline bool isGroupOpCode(Op OpCode) {
 
 inline bool isPipeOpCode(Op OpCode) {
   unsigned OC = OpCode;
-  return OpReadPipe <= OC && OC <= OpGroupCommitWritePipe;
+  return (OpReadPipe <= OC && OC <= OpGroupCommitWritePipe) ||
+         (OpReadPipeBlockingINTEL <= OC && OC <= OpWritePipeBlockingINTEL);
 }
 
 inline bool isSubgroupAvcINTELTypeOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return OpTypeAvcImePayloadINTEL <= OC && OC <= OpTypeAvcSicResultINTEL;
+}
+
+inline bool isSubgroupAvcINTELInstructionOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return OpSubgroupAvcMceGetDefaultInterBaseMultiReferencePenaltyINTEL <= OC &&
+         OC <= OpSubgroupAvcSicGetInterRawSadsINTEL;
+}
+
+inline bool isSubgroupAvcINTELEvaluateOpcode(Op OpCode) {
+  unsigned OC = OpCode;
+  return (OpSubgroupAvcImeEvaluateWithSingleReferenceINTEL <= OC &&
+          OC <= OpSubgroupAvcImeEvaluateWithDualReferenceStreaminoutINTEL) ||
+         (OpSubgroupAvcRefEvaluateWithSingleReferenceINTEL <= OC &&
+          OC <= OpSubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTEL) ||
+         (OpSubgroupAvcSicEvaluateIpeINTEL <= OC &&
+          OC <= OpSubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL);
 }
 
 inline bool isTypeOpCode(Op OpCode) {

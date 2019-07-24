@@ -33,13 +33,13 @@ define i64 @muli64(i64 %arg1, i64 %arg2) {
 ; CHECK-LABEL: name: allocai64
 ; CHECK: stack:
 ; CHECK-NEXT:   - { id: 0, name: ptr1, type: default, offset: 0, size: 8, alignment: 8,
-; CHECK-NEXT:       stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+; CHECK-NEXT:       stack-id: default, callee-saved-register: '', callee-saved-restored: true,
 ; CHECK-NEXT: debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
 ; CHECK-NEXT:   - { id: 1, name: ptr2, type: default, offset: 0, size: 8, alignment: 1,
-; CHECK-NEXT:       stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+; CHECK-NEXT:       stack-id: default, callee-saved-register: '', callee-saved-restored: true,
 ; CHECK-NEXT:       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
 ; CHECK-NEXT:   - { id: 2, name: ptr3, type: default, offset: 0, size: 128, alignment: 8,
-; CHECK-NEXT:       stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+; CHECK-NEXT:       stack-id: default, callee-saved-register: '', callee-saved-restored: true,
 ; CHECK-NEXT:       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
 ; CHECK-NEXT:   - { id: 3, name: ptr4, type: default, offset: 0, size: 1, alignment: 8,
 ; CHECK: %{{[0-9]+}}:_(p0) = G_FRAME_INDEX %stack.0.ptr1
@@ -127,129 +127,6 @@ true:
   ret void
 false:
   ret void
-}
-
-; Tests for switch.
-; This gets lowered to a very straightforward sequence of comparisons for now.
-; CHECK-LABEL: name: switch
-; CHECK: body:
-;
-; CHECK: bb.{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: successors: %[[BB_CASE100:bb.[0-9]+]](0x40000000), %[[BB_NOTCASE100_CHECKNEXT:bb.[0-9]+]](0x40000000)
-; CHECK: %0:_(s32) = COPY $w0
-; CHECK: %[[reg100:[0-9]+]]:_(s32) = G_CONSTANT i32 100
-; CHECK: %[[reg200:[0-9]+]]:_(s32) = G_CONSTANT i32 200
-; CHECK: %[[reg2:[0-9]+]]:_(s32) = G_CONSTANT i32 2
-; CHECK: %[[reg1:[0-9]+]]:_(s32) = G_CONSTANT i32 1
-; CHECK: %[[reg0:[0-9]+]]:_(s32) = G_CONSTANT i32 0
-; CHECK: %[[regicmp100:[0-9]+]]:_(s1) = G_ICMP intpred(eq), %[[reg100]](s32), %0
-; CHECK: G_BRCOND %[[regicmp100]](s1), %[[BB_CASE100]]
-; CHECK: G_BR %[[BB_NOTCASE100_CHECKNEXT]]
-;
-; CHECK: [[BB_NOTCASE100_CHECKNEXT]].{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: successors: %[[BB_CASE200:bb.[0-9]+]](0x40000000), %[[BB_NOTCASE200_CHECKNEXT:bb.[0-9]+]](0x40000000)
-; CHECK: %[[regicmp200:[0-9]+]]:_(s1) = G_ICMP intpred(eq), %[[reg200]](s32), %0
-; CHECK: G_BRCOND %[[regicmp200]](s1), %[[BB_CASE200]]
-; CHECK: G_BR %[[BB_NOTCASE200_CHECKNEXT]]
-;
-; CHECK: [[BB_NOTCASE200_CHECKNEXT]].{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: successors: %[[BB_DEFAULT:bb.[0-9]+]](0x80000000)
-; CHECK: G_BR %[[BB_DEFAULT]]
-;
-; CHECK: [[BB_DEFAULT]].{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: successors: %[[BB_RET:bb.[0-9]+]](0x80000000)
-; CHECK: %[[regretdefault:[0-9]+]]:_(s32) = G_ADD %0, %[[reg0]]
-; CHECK: G_BR %[[BB_RET]]
-;
-; CHECK: [[BB_CASE100]].{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: successors: %[[BB_RET:bb.[0-9]+]](0x80000000)
-; CHECK: %[[regretc100:[0-9]+]]:_(s32) = G_ADD %0, %[[reg1]]
-; CHECK: G_BR %[[BB_RET]]
-;
-; CHECK: [[BB_CASE200]].{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: successors: %[[BB_RET]](0x80000000)
-; CHECK: %[[regretc200:[0-9]+]]:_(s32) = G_ADD %0, %[[reg2]]
-;
-; CHECK: [[BB_RET]].{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: %[[regret:[0-9]+]]:_(s32) = G_PHI %[[regretdefault]](s32), %[[BB_DEFAULT]], %[[regretc100]](s32), %[[BB_CASE100]]
-; CHECK:  $w0 = COPY %[[regret]](s32)
-; CHECK:  RET_ReallyLR implicit $w0
-;
-define i32 @switch(i32 %argc) {
-entry:
-  switch i32 %argc, label %default [
-    i32 100, label %case100
-    i32 200, label %case200
-  ]
-
-default:
-  %tmp0 = add i32 %argc, 0
-  br label %return
-
-case100:
-  %tmp1 = add i32 %argc, 1
-  br label %return
-
-case200:
-  %tmp2 = add i32 %argc, 2
-  br label %return
-
-return:
-  %res = phi i32 [ %tmp0, %default ], [ %tmp1, %case100 ], [ %tmp2, %case200 ]
-  ret i32 %res
-}
-
-  ; The switch lowering code changes the CFG, which means that the original
-  ; %entry block is no longer a predecessor for the phi instruction. We need to
-  ; use the correct lowered MachineBasicBlock instead.
-; CHECK-LABEL: name: test_cfg_remap
-; CHECK: bb.{{[0-9]+.[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: successors: %{{bb.[0-9]+}}(0x40000000), %[[NOTCASE1_BLOCK:bb.[0-9]+]](0x40000000)
-; CHECK: [[NOTCASE1_BLOCK]].{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: successors: %{{bb.[0-9]+}}(0x40000000), %[[NOTCASE57_BLOCK:bb.[0-9]+]](0x40000000)
-; CHECK: [[NOTCASE57_BLOCK]].{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: successors: %[[PHI_BLOCK:bb.[0-9]+]](0x80000000)
-; CHECK: G_BR %[[PHI_BLOCK]]
-;
-; CHECK: [[PHI_BLOCK]].{{[a-zA-Z0-9.]+}}:
-; CHECK-NEXT: G_PHI %{{.*}}(s32), %[[NOTCASE57_BLOCK:bb.[0-9]+]], %{{.*}}(s32),
-;
-define i32 @test_cfg_remap(i32 %in) {
-entry:
-  switch i32 %in, label %phi.block [i32 1, label %next
-                                    i32 57, label %other]
-
-next:
-  br label %phi.block
-
-other:
-  ret i32 undef
-
-phi.block:
-  %res = phi i32 [1, %entry], [42, %next]
-  ret i32 %res
-}
-
-; CHECK-LABEL: name: test_cfg_remap_multiple_preds
-; CHECK: G_PHI [[ENTRY:%.*]](s32), %bb.{{[0-9]+}}, [[ENTRY]](s32), %bb.{{[0-9]+}}
-define i32 @test_cfg_remap_multiple_preds(i32 %in) {
-entry:
-  switch i32 %in, label %odd [i32 1, label %next
-                              i32 57, label %other
-                              i32 128, label %phi.block
-                              i32 256, label %phi.block]
-odd:
-  unreachable
-
-next:
-  br label %phi.block
-
-other:
-  ret i32 undef
-
-phi.block:
-  %res = phi i32 [1, %entry], [1, %entry], [42, %next]
-  ret i32 12
 }
 
 ; Tests for indirect br.
@@ -834,6 +711,16 @@ define float @test_fneg(float %arg1) {
   ret float %res
 }
 
+; CHECK-LABEL: name: test_fneg_fmf
+; CHECK: [[ARG1:%[0-9]+]]:_(s32) = COPY $s0
+; CHECK-NEXT: [[RES:%[0-9]+]]:_(s32) = nnan ninf nsz arcp contract afn reassoc G_FNEG [[ARG1]]
+; CHECK-NEXT: $s0 = COPY [[RES]]
+; CHECK-NEXT: RET_ReallyLR implicit $s0
+define float @test_fneg_fmf(float %arg1) {
+  %res = fneg fast float %arg1
+  ret float %res
+}
+
 ; CHECK-LABEL: name: test_sadd_overflow
 ; CHECK: [[LHS:%[0-9]+]]:_(s32) = COPY $w0
 ; CHECK: [[RHS:%[0-9]+]]:_(s32) = COPY $w1
@@ -973,6 +860,17 @@ define void @test_extractvalue_agg(%struct.nested* %addr, {i8, i32}* %addr2) {
   ret void
 }
 
+; CHECK-LABEL: name: test_trivial_extract_ptr
+; CHECK: [[STRUCT:%[0-9]+]]:_(p0) = COPY $x0
+; CHECK: [[VAL32:%[0-9]+]]:_(s32) = COPY $w1
+; CHECK: [[VAL:%[0-9]+]]:_(s8) = G_TRUNC [[VAL32]]
+; CHECK: G_STORE [[VAL]](s8), [[STRUCT]](p0)
+define void @test_trivial_extract_ptr([1 x i8*] %s, i8 %val) {
+  %addr = extractvalue [1 x i8*] %s, 0
+  store i8 %val, i8* %addr
+  ret void
+}
+
 ; CHECK-LABEL: name: test_insertvalue
 ; CHECK: %0:_(p0) = COPY $x0
 ; CHECK: %1:_(s32) = COPY $w1
@@ -1011,7 +909,7 @@ define [1 x i64] @test_trivial_insert([1 x i64] %s, i64 %val) {
 
 define [1 x i8*] @test_trivial_insert_ptr([1 x i8*] %s, i8* %val) {
 ; CHECK-LABEL: name: test_trivial_insert_ptr
-; CHECK: [[STRUCT:%[0-9]+]]:_(s64) = COPY $x0
+; CHECK: [[STRUCT:%[0-9]+]]:_(p0) = COPY $x0
 ; CHECK: [[VAL:%[0-9]+]]:_(p0) = COPY $x1
 ; CHECK: $x0 = COPY [[VAL]]
   %res = insertvalue [1 x i8*] %s, i8* %val, 0
@@ -1536,12 +1434,30 @@ define float @test_fneg_f32(float %x) {
   ret float %neg
 }
 
+define float @test_fneg_f32_fmf(float %x) {
+; CHECK-LABEL: name: test_fneg_f32
+; CHECK: [[ARG:%[0-9]+]]:_(s32) = COPY $s0
+; CHECK: [[RES:%[0-9]+]]:_(s32) = nnan ninf nsz arcp contract afn reassoc G_FNEG [[ARG]]
+; CHECK: $s0 = COPY [[RES]](s32)
+  %neg = fsub fast float -0.000000e+00, %x
+  ret float %neg
+}
+
 define double @test_fneg_f64(double %x) {
 ; CHECK-LABEL: name: test_fneg_f64
 ; CHECK: [[ARG:%[0-9]+]]:_(s64) = COPY $d0
 ; CHECK: [[RES:%[0-9]+]]:_(s64) = G_FNEG [[ARG]]
 ; CHECK: $d0 = COPY [[RES]](s64)
   %neg = fsub double -0.000000e+00, %x
+  ret double %neg
+}
+
+define double @test_fneg_f64_fmf(double %x) {
+; CHECK-LABEL: name: test_fneg_f64
+; CHECK: [[ARG:%[0-9]+]]:_(s64) = COPY $d0
+; CHECK: [[RES:%[0-9]+]]:_(s64) = nnan ninf nsz arcp contract afn reassoc G_FNEG [[ARG]]
+; CHECK: $d0 = COPY [[RES]](s64)
+  %neg = fsub fast double -0.000000e+00, %x
   ret double %neg
 }
 
@@ -2389,4 +2305,31 @@ define float @test_rint_f32(float %x) {
   ; CHECK: %{{[0-9]+}}:_(s32) = G_FRINT %{{[0-9]+}}
   %y = call float @llvm.rint.f32(float %x)
   ret float %y
+}
+
+declare void @llvm.assume(i1)
+define void @test_assume(i1 %x) {
+  ; CHECK-LABEL: name:            test_assume
+  ; CHECK-NOT: llvm.assume
+  ; CHECK: RET_ReallyLR
+  call void @llvm.assume(i1 %x)
+  ret void
+}
+
+declare void @llvm.sideeffect()
+define void @test_sideeffect() {
+  ; CHECK-LABEL: name:            test_sideeffect
+  ; CHECK-NOT: llvm.sideeffect
+  ; CHECK: RET_ReallyLR
+  call void @llvm.sideeffect()
+  ret void
+}
+
+declare void @llvm.var.annotation(i8*, i8*, i8*, i32)
+define void @test_var_annotation(i8*, i8*, i8*, i32) {
+  ; CHECK-LABEL: name:            test_var_annotation
+  ; CHECK-NOT: llvm.var.annotation
+  ; CHECK: RET_ReallyLR
+  call void @llvm.var.annotation(i8* %0, i8* %1, i8* %2, i32 %3)
+  ret void
 }

@@ -1,14 +1,22 @@
 // Test target codegen - host bc file has to be created first.
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-linux -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-host.bc
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -aux-triple x86_64-unknown-linux -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple x86_64-unknown-linux -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - | FileCheck %s
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple powerpc64le-unknown-linux-gnu -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-host.bc
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-linux-gnu -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-host.bc -o - | FileCheck %s
 // expected-no-diagnostics
 
-// CHECK-DAG: [[T:%.+]] = type {{.+}}, fp128,
+// CHECK-DAG: [[T:%.+]] = type {{.+}}, {{fp128|ppc_fp128}},
 // CHECK-DAG: [[T1:%.+]] = type {{.+}}, i128, i128,
+
+#ifndef _ARCH_PPC
+typedef __float128 BIGTYPE;
+#else
+typedef long double BIGTYPE;
+#endif
 
 struct T {
   char a;
-  __float128 f;
+  BIGTYPE f;
   char c;
   T() : a(12), f(15) {}
   T &operator+(T &b) { f += b.a; return *this;}
@@ -26,7 +34,7 @@ struct T1 {
 #pragma omp declare target
 T a = T();
 T f = a;
-// CHECK: define{{ dso_local | }}void @{{.+}}foo{{.+}}([[T]]* byval align {{.+}})
+// CHECK: define{{ dso_local | }}void @{{.+}}foo{{.+}}([[T]]* byval([[T]]) align {{.+}})
 void foo(T a = T()) {
   return;
 }
@@ -46,7 +54,7 @@ void baz() {
 }
 T1 a1 = T1();
 T1 f1 = a1;
-// CHECK: define{{ dso_local | }}void @{{.+}}foo1{{.+}}([[T1]]* byval align {{.+}})
+// CHECK: define{{ dso_local | }}void @{{.+}}foo1{{.+}}([[T1]]* byval([[T1]]) align {{.+}})
 void foo1(T1 a = T1()) {
   return;
 }
@@ -62,3 +70,12 @@ void baz1() {
   T1 t = bar1();
 }
 #pragma omp end declare target
+
+BIGTYPE foo(BIGTYPE f) {
+#pragma omp target map(f)
+  f = 1;
+  return f;
+}
+
+// CHECK: define weak void @__omp_offloading_{{.+}}foo{{.+}}_l75([[BIGTYPE:.+]]*
+// CHECK: store [[BIGTYPE]] {{0xL00000000000000003FFF000000000000|0xM3FF00000000000000000000000000000}}, [[BIGTYPE]]* %

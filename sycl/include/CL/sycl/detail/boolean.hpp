@@ -51,10 +51,10 @@ template <int N> struct alignas(N == 3 ? 4 : N) Boolean {
 
 #ifdef __SYCL_DEVICE_ONLY__
   using DataType =
-      element_type __attribute__((ext_vector_type(N == 3 ? 4 : N)));
+      element_type __attribute__((ext_vector_type(N)));
   using vector_t = DataType;
 #else
-  using DataType = element_type[N == 3 ? 4 : N];
+  using DataType = element_type[N];
 #endif
 
   Boolean() : value{false} {}

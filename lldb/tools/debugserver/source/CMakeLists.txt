@@ -120,6 +120,8 @@ if(use_system_debugserver)
             ${system_debugserver} ${LLVM_RUNTIME_OUTPUT_INTDIR}
     COMMENT "Copying the system debugserver to LLDB's binaries directory.")
 
+  set_target_properties(debugserver PROPERTIES FOLDER "lldb libraries/debugserver")
+
   # Don't test debugserver itself.
   # Tests that require debugserver will use the copy.
   set(DEBUGSERVER_PATH ${default_debugserver_path} CACHE FILEPATH "" FORCE)
@@ -138,6 +140,21 @@ else()
   set(SKIP_TEST_DEBUGSERVER ON CACHE BOOL "" FORCE)
 
   message(STATUS "lldb debugserver will not be available.")
+endif()
+
+# On MacOS, debugserver needs to be codesigned when built. Check if we have
+# a certificate instead of failing in the middle of the build.
+if(build_and_sign_debugserver)
+  execute_process(
+    COMMAND security find-certificate -Z -p -c ${LLDB_CODESIGN_IDENTITY_USED} /Library/Keychains/System.keychain
+    RESULT_VARIABLE cert_return
+    OUTPUT_QUIET
+    ERROR_QUIET)
+
+  if (cert_return)
+    message(FATAL_ERROR "Certificate for debugserver not found. Run scripts/macos-setup-codesign.sh or "
+                        "use the system debugserver passing -DLLDB_USE_SYSTEM_DEBUGSERVER=ON to CMake")
+  endif()
 endif()
 
 if(APPLE)
@@ -236,6 +253,7 @@ if(build_and_sign_debugserver)
     ${DEBUGSERVER_VERS_GENERATED_FILE})
 
   add_library(lldbDebugserverCommon ${lldbDebugserverCommonSources})
+  set_target_properties(lldbDebugserverCommon PROPERTIES FOLDER "lldb libraries/debugserver")
 
   target_link_libraries(lldbDebugserverCommon
                         INTERFACE ${COCOA_LIBRARY}
@@ -254,15 +272,13 @@ if(build_and_sign_debugserver)
                  COMPILE_DEFINITIONS HAVE_LIBCOMPRESSION)
   endif()
   set(LLVM_OPTIONAL_SOURCES ${lldbDebugserverCommonSources})
-  add_lldb_tool(debugserver
+  add_lldb_tool(debugserver ADD_TO_FRAMEWORK
     debugserver.cpp
+    LINK_LIBS lldbDebugserverCommon
+    ENTITLEMENTS ${entitlements}
+  )
 
-    LINK_LIBS
-      lldbDebugserverCommon
-
-    ENTITLEMENTS
-      ${entitlements}
-    )
+  set_target_properties(debugserver PROPERTIES FOLDER "lldb libraries/debugserver")
 
   if(IOS)
     set_property(TARGET lldbDebugserverCommon APPEND PROPERTY COMPILE_DEFINITIONS

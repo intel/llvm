@@ -18,6 +18,26 @@ add %eax, %eax
 # DEFAULTREPORT-NEXT: IPC:               0.97
 # DEFAULTREPORT-NEXT: Block RThroughput: 0.5
 
+# FULLREPORT:         Cycles with backend pressure increase [ 76.70% ]
+# FULLREPORT-NEXT:    Throughput Bottlenecks:
+# FULLREPORT-NEXT:      Resource Pressure       [ 0.00% ]
+# FULLREPORT-NEXT:      Data Dependencies:      [ 76.70% ]
+# FULLREPORT-NEXT:      - Register Dependencies [ 76.70% ]
+# FULLREPORT-NEXT:      - Memory Dependencies   [ 0.00% ]
+
+# FULLREPORT:         Critical sequence based on the simulation:
+
+# FULLREPORT:                       Instruction                                 Dependency Information
+# FULLREPORT-NEXT:     +----< 0.    addl	%eax, %eax
+# FULLREPORT-NEXT:     |
+# FULLREPORT-NEXT:     |    < loop carried >
+# FULLREPORT-NEXT:     |
+# FULLREPORT-NEXT:     +----> 0.    addl	%eax, %eax                        ## REGISTER dependency:  %eax
+# FULLREPORT-NEXT:     |
+# FULLREPORT-NEXT:     |    < loop carried >
+# FULLREPORT-NEXT:     |
+# FULLREPORT-NEXT:     +----> 0.    addl	%eax, %eax                        ## REGISTER dependency:  %eax
+
 # DEFAULTREPORT:      Instruction Info:
 # DEFAULTREPORT-NEXT: [1]: #uOps
 # DEFAULTREPORT-NEXT: [2]: Latency

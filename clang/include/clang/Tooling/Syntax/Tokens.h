@@ -66,6 +66,15 @@ struct FileRange {
 
   unsigned length() const { return End - Begin; }
 
+  /// Check if \p Offset is inside the range.
+  bool contains(unsigned Offset) const {
+    return Begin <= Offset && Offset < End;
+  }
+  /// Check \p Offset is inside the range or equal to its endpoint.
+  bool touches(unsigned Offset) const {
+    return Begin <= Offset && Offset <= End;
+  }
+
   /// Gets the substring that this FileRange refers to.
   llvm::StringRef text(const SourceManager &SM) const;
 
@@ -90,8 +99,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const FileRange &R);
 /// Can represent both expanded and spelled tokens.
 class Token {
 public:
-  Token(SourceLocation Location, unsigned Length, tok::TokenKind Kind)
-      : Location(Location), Length(Length), Kind(Kind) {}
+  Token(SourceLocation Location, unsigned Length, tok::TokenKind Kind);
   /// EXPECTS: clang::Token is not an annotation token.
   explicit Token(const clang::Token &T);
 
@@ -160,6 +168,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Token &T);
 /// the spelled tokens of a file using the tokenize() helper.
 ///
 /// FIXME: allow to map from spelled to expanded tokens when use-case shows up.
+/// FIXME: allow mappings into macro arguments.
 class TokenBuffer {
 public:
   TokenBuffer(const SourceManager &SourceMgr) : SourceMgr(&SourceMgr) {}
@@ -200,6 +209,25 @@ public:
   llvm::Optional<llvm::ArrayRef<syntax::Token>>
   spelledForExpanded(llvm::ArrayRef<syntax::Token> Expanded) const;
 
+  /// An expansion produced by the preprocessor, includes macro expansions and
+  /// preprocessor directives. Preprocessor always maps a non-empty range of
+  /// spelled tokens to a (possibly empty) range of expanded tokens. Here is a
+  /// few examples of expansions:
+  ///    #pragma once      // Expands to an empty range.
+  ///    #define FOO 1 2 3 // Expands an empty range.
+  ///    FOO               // Expands to "1 2 3".
+  /// FIXME(ibiryukov): implement this, currently #include expansions are empty.
+  ///    #include <vector> // Expands to tokens produced by the include.
+  struct Expansion {
+    llvm::ArrayRef<syntax::Token> Spelled;
+    llvm::ArrayRef<syntax::Token> Expanded;
+  };
+  /// If \p Spelled starts a mapping (e.g. if it's a macro name or '#' starting
+  /// a preprocessor directive) return the subrange of expanded tokens that the
+  /// macro expands to.
+  llvm::Optional<Expansion>
+  expansionStartingAt(const syntax::Token *Spelled) const;
+
   /// Lexed tokens of a file before preprocessing. E.g. for the following input
   ///     #define DECL(name) int name = 10
   ///     DECL(a);
@@ -207,6 +235,8 @@ public:
   /// FIXME: we do not yet store tokens of directives, like #include, #define,
   ///        #pragma, etc.
   llvm::ArrayRef<syntax::Token> spelledTokens(FileID FID) const;
+
+  const SourceManager &sourceManager() const { return *SourceMgr; }
 
   std::string dumpForTests() const;
 
@@ -291,9 +321,32 @@ public:
   LLVM_NODISCARD TokenBuffer consume() &&;
 
 private:
+  /// Maps from a start to an end spelling location of transformations
+  /// performed by the preprocessor. These include:
+  ///   1. range from '#' to the last token in the line for PP directives,
+  ///   2. macro name and arguments for macro expansions.
+  /// Note that we record only top-level macro expansions, intermediate
+  /// expansions (e.g. inside macro arguments) are ignored.
+  ///
+  /// Used to find correct boundaries of macro calls and directives when
+  /// building mappings from spelled to expanded tokens.
+  ///
+  /// Logically, at each point of the preprocessor execution there is a stack of
+  /// macro expansions being processed and we could use it to recover the
+  /// location information we need. However, the public preprocessor API only
+  /// exposes the points when macro expansions start (when we push a macro onto
+  /// the stack) and not when they end (when we pop a macro from the stack).
+  /// To workaround this limitation, we rely on source location information
+  /// stored in this map.
+  using PPExpansions = llvm::DenseMap</*SourceLocation*/ int, SourceLocation>;
   class Builder;
+  class CollectPPExpansions;
+
   std::vector<syntax::Token> Expanded;
+  // FIXME: we only store macro expansions, also add directives(#pragma, etc.)
+  PPExpansions Expansions;
   Preprocessor &PP;
+  CollectPPExpansions *Collector;
 };
 
 } // namespace syntax

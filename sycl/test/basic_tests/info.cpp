@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -79,8 +79,8 @@ template <> std::string info_to_string(info::global_mem_cache_type info) {
     return "none";
   case info::global_mem_cache_type::read_only:
     return "read_only";
-  case info::global_mem_cache_type::write_only:
-    return "write_only";
+  case info::global_mem_cache_type::read_write:
+    return "read_write";
   }
 }
 

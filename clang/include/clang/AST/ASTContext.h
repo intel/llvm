@@ -271,6 +271,9 @@ private:
   llvm::DenseMap<const MaterializeTemporaryExpr *, APValue *>
     MaterializedTemporaryValues;
 
+  /// Used to cleanups APValues stored in the AST.
+  mutable llvm::SmallVector<APValue *, 0> APValueCleanups;
+
   /// A cache mapping a string value to a StringLiteral object with the same
   /// value.
   ///
@@ -2395,7 +2398,8 @@ public:
 
   /// Retrieves the default calling convention for the current target.
   CallingConv getDefaultCallingConvention(bool IsVariadic,
-                                          bool IsCXXMethod) const;
+                                          bool IsCXXMethod,
+                                          bool IsBuiltin = false) const;
 
   /// Retrieves the "canonical" template name that refers to a
   /// given template.
@@ -2747,12 +2751,11 @@ public:
   ///
   /// \param Data Pointer data that will be provided to the callback function
   /// when it is called.
-  void AddDeallocation(void (*Callback)(void*), void *Data);
+  void AddDeallocation(void (*Callback)(void *), void *Data) const;
 
   /// If T isn't trivially destructible, calls AddDeallocation to register it
   /// for destruction.
-  template <typename T>
-  void addDestruction(T *Ptr) {
+  template <typename T> void addDestruction(T *Ptr) const {
     if (!std::is_trivially_destructible<T>::value) {
       auto DestroyPtr = [](void *V) { static_cast<T *>(V)->~T(); };
       AddDeallocation(DestroyPtr, Ptr);
@@ -2896,7 +2899,6 @@ private:
   V(IsStructField, 4)                                                          \
   V(EncodeBlockParameters, 5)                                                  \
   V(EncodeClassNames, 6)                                                       \
-  V(EncodePointerToObjCTypedef, 7)
 
 #define V(N,I) ObjCEncOptions& set##N() { Bits |= 1 << I; return *this; }
 OPT_LIST(V)
@@ -2915,8 +2917,7 @@ OPT_LIST(V)
     LLVM_NODISCARD ObjCEncOptions forComponentType() const {
       ObjCEncOptions Mask = ObjCEncOptions()
                                 .setIsOutermostType()
-                                .setIsStructField()
-                                .setEncodePointerToObjCTypedef();
+                                .setIsStructField();
       return Bits & ~Mask.Bits;
     }
   };
@@ -2983,7 +2984,7 @@ private:
   // in order to track and run destructors while we're tearing things down.
   using DeallocationFunctionsAndArguments =
       llvm::SmallVector<std::pair<void (*)(void *), void *>, 16>;
-  DeallocationFunctionsAndArguments Deallocations;
+  mutable DeallocationFunctionsAndArguments Deallocations;
 
   // FIXME: This currently contains the set of StoredDeclMaps used
   // by DeclContext objects.  This probably should not be in ASTContext,

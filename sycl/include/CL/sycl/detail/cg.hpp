@@ -9,8 +9,11 @@
 #pragma once
 
 #include <CL/sycl/detail/accessor_impl.hpp>
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
@@ -45,11 +48,12 @@ public:
 class NDRDescT {
   // The method initializes all sizes for dimensions greater than the passed one
   // to the default values, so they will not affect execution.
-  template <int Dims_> void setNDRangeLeftover() {
+  void setNDRangeLeftover(int Dims_) {
     for (int I = Dims_; I < 3; ++I) {
       GlobalSize[I] = 1;
       LocalSize[I] = LocalSize[0] ? 1 : 0;
       GlobalOffset[I] = 0;
+      NumWorkGroups[I] = 0;
     }
   }
 
@@ -61,9 +65,23 @@ public:
       GlobalSize[I] = NumWorkItems[I];
       LocalSize[I] = 0;
       GlobalOffset[I] = 0;
+      NumWorkGroups[I] = 0;
     }
+    setNDRangeLeftover(Dims_);
+    Dims = Dims_;
+  }
 
-    setNDRangeLeftover<Dims_>();
+  // Initializes this ND range descriptor with given range of work items and
+  // offset.
+  template <int Dims_>
+  void set(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset) {
+    for (int I = 0; I < Dims_; ++I) {
+      GlobalSize[I] = NumWorkItems[I];
+      LocalSize[I] = 0;
+      GlobalOffset[I] = Offset[I];
+      NumWorkGroups[I] = 0;
+    }
+    setNDRangeLeftover(Dims_);
     Dims = Dims_;
   }
 
@@ -72,14 +90,42 @@ public:
       GlobalSize[I] = ExecutionRange.get_global_range()[I];
       LocalSize[I] = ExecutionRange.get_local_range()[I];
       GlobalOffset[I] = ExecutionRange.get_offset()[I];
+      NumWorkGroups[I] = 0;
     }
-    setNDRangeLeftover<Dims_>();
+    setNDRangeLeftover(Dims_);
+    Dims = Dims_;
+  }
+
+  void set(int Dims_, sycl::nd_range<3> ExecutionRange) {
+    for (int I = 0; I < Dims_; ++I) {
+      GlobalSize[I] = ExecutionRange.get_global_range()[I];
+      LocalSize[I] = ExecutionRange.get_local_range()[I];
+      GlobalOffset[I] = ExecutionRange.get_offset()[I];
+      NumWorkGroups[I] = 0;
+    }
+    setNDRangeLeftover(Dims_);
+    Dims = Dims_;
+  }
+
+  template <int Dims_> void setNumWorkGroups(sycl::range<Dims_> N) {
+    for (int I = 0; I < Dims_; ++I) {
+      GlobalSize[I] = 0;
+      // '0' is a mark to adjust before kernel launch when there is enough info:
+      LocalSize[I] = 0;
+      GlobalOffset[I] = 0;
+      NumWorkGroups[I] = N[I];
+    }
+    setNDRangeLeftover(Dims_);
     Dims = Dims_;
   }
 
   sycl::range<3> GlobalSize;
   sycl::range<3> LocalSize;
   sycl::id<3> GlobalOffset;
+  /// Number of workgroups, used to record the number of workgroups from the
+  /// simplest form of parallel_for_work_group. If set, all other fields must be
+  /// zero
+  sycl::range<3> NumWorkGroups;
   size_t Dims;
 };
 
@@ -102,7 +148,26 @@ class HostKernel : public HostKernelBase {
 
 public:
   HostKernel(KernelType Kernel) : MKernel(Kernel) {}
-  void call(const NDRDescT &NDRDesc) override { runOnHost(NDRDesc); }
+  void call(const NDRDescT &NDRDesc) override {
+    // adjust ND range for serial host:
+    NDRDescT AdjustedRange;
+    bool Adjust = false;
+
+    if (NDRDesc.GlobalSize[0] == 0 && NDRDesc.NumWorkGroups[0] != 0) {
+      // This is a special case - NDRange information is not complete, only the
+      // desired number of work groups is set by the user. Choose work group
+      // size (LocalSize), calculate the missing NDRange characteristics
+      // needed to invoke the kernel and adjust the NDRange descriptor
+      // accordingly. For some devices the work group size selection requires
+      // access to the device's properties, hence such late "adjustment".
+      range<3> WGsize = {1, 1, 1}; // no better alternative for serial host?
+      AdjustedRange.set(NDRDesc.Dims,
+                        nd_range<3>(NDRDesc.NumWorkGroups * WGsize, WGsize));
+      Adjust = true;
+    }
+    const NDRDescT &R = Adjust ? AdjustedRange : NDRDesc;
+    runOnHost(R);
+  }
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
@@ -165,6 +230,7 @@ public:
     sycl::id<3> GroupSize;
     for (int I = 0; I < 3; ++I) {
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
+      // TODO supoport case NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0
     }
 
     sycl::range<Dims> GlobalSize;
@@ -217,9 +283,34 @@ public:
       }
     }
   }
+
+  template <typename ArgT = KernelArgType>
+  enable_if_t<std::is_same<ArgT, cl::sycl::group<Dims>>::value>
+  runOnHost(const NDRDescT &NDRDesc) {
+    sycl::id<Dims> NGroups;
+
+    for (int I = 0; I < Dims; ++I) {
+      NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
+      assert(NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] == 0);
+    }
+    sycl::range<Dims> GlobalSize;
+    sycl::range<Dims> LocalSize;
+
+    for (int I = 0; I < Dims; ++I) {
+      LocalSize[I] = NDRDesc.LocalSize[I];
+      GlobalSize[I] = NDRDesc.GlobalSize[I];
+    }
+    detail::NDLoop<Dims>::iterate(NGroups, [&](const id<Dims> &GroupID) {
+      sycl::group<Dims> Group =
+          IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, GroupID);
+      MKernel(Group);
+    });
+  }
+
   ~HostKernel() = default;
 };
 
+class stream_impl;
 // The base class for all types of command groups.
 class CG {
 public:
@@ -235,16 +326,19 @@ public:
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
      std::vector<detail::AccessorImplPtr> AccStorage,
-     std::vector<std::shared_ptr<void>> SharedPtrStorage,
-     std::vector<Requirement *> Requirements)
+     std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+     std::vector<Requirement *> Requirements,
+     std::vector<detail::EventImplPtr> Events)
       : MType(Type), MArgsStorage(std::move(ArgsStorage)),
         MAccStorage(std::move(AccStorage)),
         MSharedPtrStorage(std::move(SharedPtrStorage)),
-        MRequirements(std::move(Requirements)) {}
+        MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
 
   CG(CG &&CommandGroup) = default;
 
   std::vector<Requirement *> getRequirements() const { return MRequirements; }
+
+  std::vector<detail::EventImplPtr> getEvents() const { return MEvents; }
 
   CGTYPE getType() { return MType; }
 
@@ -257,10 +351,12 @@ private:
   // Storage for accessors.
   std::vector<detail::AccessorImplPtr> MAccStorage;
   // Storage for shared_ptrs.
-  std::vector<std::shared_ptr<void>> MSharedPtrStorage;
+  std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
   // List of requirements that specify which memory is needed for the command
   // group to be executed.
   std::vector<Requirement *> MRequirements;
+  // List of events that order the execution of this CG
+  std::vector<detail::EventImplPtr> MEvents;
 };
 
 // The class which represents "execute kernel" command group.
@@ -272,23 +368,31 @@ public:
   std::vector<ArgDesc> MArgs;
   std::string MKernelName;
   detail::OSModuleHandle MOSModuleHandle;
+  std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
 
   CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::vector<std::vector<char>> ArgsStorage,
                std::vector<detail::AccessorImplPtr> AccStorage,
-               std::vector<std::shared_ptr<void>> SharedPtrStorage,
+               std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                std::vector<Requirement *> Requirements,
+               std::vector<detail::EventImplPtr> Events,
                std::vector<ArgDesc> Args, std::string KernelName,
-               detail::OSModuleHandle OSModuleHandle)
+               detail::OSModuleHandle OSModuleHandle,
+               std::vector<std::shared_ptr<detail::stream_impl>> Streams)
       : CG(KERNEL, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements)),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle) {}
+        MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
+        MStreams(std::move(Streams)) {}
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }
+  std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
+    return MStreams;
+  }
 };
 
 // The class which represents "copy" command group.
@@ -300,10 +404,12 @@ public:
   CGCopy(CGTYPE CopyType, void *Src, void *Dst,
          std::vector<std::vector<char>> ArgsStorage,
          std::vector<detail::AccessorImplPtr> AccStorage,
-         std::vector<std::shared_ptr<void>> SharedPtrStorage,
-         std::vector<Requirement *> Requirements)
+         std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+         std::vector<Requirement *> Requirements,
+         std::vector<detail::EventImplPtr> Events)
       : CG(CopyType, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements)),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
         MSrc(Src), MDst(Dst) {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
@@ -318,10 +424,12 @@ public:
   CGFill(std::vector<char> Pattern, void *Ptr,
          std::vector<std::vector<char>> ArgsStorage,
          std::vector<detail::AccessorImplPtr> AccStorage,
-         std::vector<std::shared_ptr<void>> SharedPtrStorage,
-         std::vector<Requirement *> Requirements)
+         std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+         std::vector<Requirement *> Requirements,
+         std::vector<detail::EventImplPtr> Events)
       : CG(FILL, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements)),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
         MPattern(std::move(Pattern)), MPtr((Requirement *)Ptr) {}
   Requirement *getReqToFill() { return MPtr; }
 };
@@ -333,15 +441,17 @@ class CGUpdateHost : public CG {
 public:
   CGUpdateHost(void *Ptr, std::vector<std::vector<char>> ArgsStorage,
                std::vector<detail::AccessorImplPtr> AccStorage,
-               std::vector<std::shared_ptr<void>> SharedPtrStorage,
-               std::vector<Requirement *> Requirements)
+               std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+               std::vector<Requirement *> Requirements,
+               std::vector<detail::EventImplPtr> Events)
       : CG(UPDATE_HOST, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements)),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
         MPtr((Requirement *)Ptr) {}
 
   Requirement *getReqToUpdate() { return MPtr; }
 };
 
-} // namespace cl
-} // namespace sycl
 } // namespace detail
+} // namespace sycl
+} // namespace cl

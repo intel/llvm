@@ -564,7 +564,7 @@ define void @test_extract_i32(<4 x i32> %arg, i32* %dst) {
 define void @test_extract_f64(<2 x double> %arg, double* %dst) {
 ; SSE2-LABEL: test_extract_f64:
 ; SSE2:       # %bb.0:
-; SSE2-NEXT:    movhpd %xmm0, (%rdi)
+; SSE2-NEXT:    movhps %xmm0, (%rdi)
 ; SSE2-NEXT:    retq
 ;
 ; SSE4A-LABEL: test_extract_f64:
@@ -575,17 +575,17 @@ define void @test_extract_f64(<2 x double> %arg, double* %dst) {
 ;
 ; SSE41-LABEL: test_extract_f64:
 ; SSE41:       # %bb.0:
-; SSE41-NEXT:    movhpd %xmm0, (%rdi)
+; SSE41-NEXT:    movhps %xmm0, (%rdi)
 ; SSE41-NEXT:    retq
 ;
 ; AVX-LABEL: test_extract_f64:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    vmovhpd %xmm0, (%rdi)
+; AVX-NEXT:    vmovhps %xmm0, (%rdi)
 ; AVX-NEXT:    retq
 ;
 ; VLX-LABEL: test_extract_f64:
 ; VLX:       # %bb.0:
-; VLX-NEXT:    vmovhpd %xmm0, (%rdi)
+; VLX-NEXT:    vmovhps %xmm0, (%rdi)
 ; VLX-NEXT:    retq
   %1 = extractelement <2 x double> %arg, i32 1
   store double %1, double* %dst, align 1, !nontemporal !1
@@ -1061,12 +1061,12 @@ define void @test_op_v8i32(<8 x i32> %a, <8 x i32> %b, <8 x i32>* %dst) {
 ;
 ; AVX1-LABEL: test_op_v8i32:
 ; AVX1:       # %bb.0:
-; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm2
-; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm3
-; AVX1-NEXT:    vpaddd %xmm2, %xmm3, %xmm2
+; AVX1-NEXT:    vpaddd %xmm1, %xmm0, %xmm2
+; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm1
+; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; AVX1-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
-; AVX1-NEXT:    vinsertf128 $1, %xmm2, %ymm0, %ymm0
-; AVX1-NEXT:    vmovntps %ymm0, (%rdi)
+; AVX1-NEXT:    vmovntdq %xmm0, 16(%rdi)
+; AVX1-NEXT:    vmovntdq %xmm2, (%rdi)
 ; AVX1-NEXT:    vzeroupper
 ; AVX1-NEXT:    retq
 ;
@@ -1126,12 +1126,12 @@ define void @test_op_v4i64(<4 x i64> %a, <4 x i64> %b, <4 x i64>* %dst) {
 ;
 ; AVX1-LABEL: test_op_v4i64:
 ; AVX1:       # %bb.0:
-; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm2
-; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm3
-; AVX1-NEXT:    vpaddq %xmm2, %xmm3, %xmm2
+; AVX1-NEXT:    vpaddq %xmm1, %xmm0, %xmm2
+; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm1
+; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; AVX1-NEXT:    vpaddq %xmm1, %xmm0, %xmm0
-; AVX1-NEXT:    vinsertf128 $1, %xmm2, %ymm0, %ymm0
-; AVX1-NEXT:    vmovntps %ymm0, (%rdi)
+; AVX1-NEXT:    vmovntdq %xmm0, 16(%rdi)
+; AVX1-NEXT:    vmovntdq %xmm2, (%rdi)
 ; AVX1-NEXT:    vzeroupper
 ; AVX1-NEXT:    retq
 ;
@@ -1164,12 +1164,12 @@ define void @test_op_v16i16(<16 x i16> %a, <16 x i16> %b, <16 x i16>* %dst) {
 ;
 ; AVX1-LABEL: test_op_v16i16:
 ; AVX1:       # %bb.0:
-; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm2
-; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm3
-; AVX1-NEXT:    vpaddw %xmm2, %xmm3, %xmm2
+; AVX1-NEXT:    vpaddw %xmm1, %xmm0, %xmm2
+; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm1
+; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; AVX1-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
-; AVX1-NEXT:    vinsertf128 $1, %xmm2, %ymm0, %ymm0
-; AVX1-NEXT:    vmovntps %ymm0, (%rdi)
+; AVX1-NEXT:    vmovntdq %xmm0, 16(%rdi)
+; AVX1-NEXT:    vmovntdq %xmm2, (%rdi)
 ; AVX1-NEXT:    vzeroupper
 ; AVX1-NEXT:    retq
 ;
@@ -1202,12 +1202,12 @@ define void @test_op_v32i8(<32 x i8> %a, <32 x i8> %b, <32 x i8>* %dst) {
 ;
 ; AVX1-LABEL: test_op_v32i8:
 ; AVX1:       # %bb.0:
-; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm2
-; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm3
-; AVX1-NEXT:    vpaddb %xmm2, %xmm3, %xmm2
+; AVX1-NEXT:    vpaddb %xmm1, %xmm0, %xmm2
+; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm1
+; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; AVX1-NEXT:    vpaddb %xmm1, %xmm0, %xmm0
-; AVX1-NEXT:    vinsertf128 $1, %xmm2, %ymm0, %ymm0
-; AVX1-NEXT:    vmovntps %ymm0, (%rdi)
+; AVX1-NEXT:    vmovntdq %xmm0, 16(%rdi)
+; AVX1-NEXT:    vmovntdq %xmm2, (%rdi)
 ; AVX1-NEXT:    vzeroupper
 ; AVX1-NEXT:    retq
 ;
@@ -1230,29 +1230,31 @@ define void @test_op_v32i8(<32 x i8> %a, <32 x i8> %b, <32 x i8>* %dst) {
 }
 
 ; 256-bit NT stores require 256-bit alignment.
-; FIXME: For AVX, we could lower this to 2x movntps %xmm. Taken further, we
-; could even scalarize to movnti when we have 1-alignment: nontemporal is
-; probably always worth even some 20 instruction scalarization.
+; For AVX, we lower 128-bit alignment as 2x movntps %xmm.
 define void @test_unaligned_v8f32(<8 x float> %a, <8 x float> %b, <8 x float>* %dst) {
 ; SSE-LABEL: test_unaligned_v8f32:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    addps %xmm2, %xmm0
 ; SSE-NEXT:    addps %xmm3, %xmm1
 ; SSE-NEXT:    movntps %xmm1, 16(%rdi)
+; SSE-NEXT:    addps %xmm2, %xmm0
 ; SSE-NEXT:    movntps %xmm0, (%rdi)
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: test_unaligned_v8f32:
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    vaddps %ymm1, %ymm0, %ymm0
-; AVX-NEXT:    vmovups %ymm0, (%rdi)
+; AVX-NEXT:    vextractf128 $1, %ymm0, %xmm1
+; AVX-NEXT:    vmovntps %xmm1, 16(%rdi)
+; AVX-NEXT:    vmovntps %xmm0, (%rdi)
 ; AVX-NEXT:    vzeroupper
 ; AVX-NEXT:    retq
 ;
 ; VLX-LABEL: test_unaligned_v8f32:
 ; VLX:       # %bb.0:
 ; VLX-NEXT:    vaddps %ymm1, %ymm0, %ymm0
-; VLX-NEXT:    vmovups %ymm0, (%rdi)
+; VLX-NEXT:    vextractf128 $1, %ymm0, %xmm1
+; VLX-NEXT:    vmovntps %xmm1, 16(%rdi)
+; VLX-NEXT:    vmovntps %xmm0, (%rdi)
 ; VLX-NEXT:    vzeroupper
 ; VLX-NEXT:    retq
   %r = fadd <8 x float> %a, %b

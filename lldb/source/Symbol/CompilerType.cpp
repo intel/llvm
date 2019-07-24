@@ -144,7 +144,7 @@ bool CompilerType::IsBlockPointerType(
     CompilerType *function_pointer_type_ptr) const {
   if (IsValid())
     return m_type_system->IsBlockPointerType(m_type, function_pointer_type_ptr);
-  return 0;
+  return false;
 }
 
 bool CompilerType::IsIntegerType(bool &is_signed) const {
@@ -995,7 +995,7 @@ bool CompilerType::ReadFromMemory(lldb_private::ExecutionContext *exe_ctx,
     return false;
 
   auto byte_size =
-      GetByteSize(exe_ctx ? exe_ctx->GetBestExecutionContextScope() : NULL);
+      GetByteSize(exe_ctx ? exe_ctx->GetBestExecutionContextScope() : nullptr);
   if (!byte_size)
     return false;
 
@@ -1040,7 +1040,7 @@ bool CompilerType::WriteToMemory(lldb_private::ExecutionContext *exe_ctx,
     return false;
 
   auto byte_size =
-      GetByteSize(exe_ctx ? exe_ctx->GetBestExecutionContextScope() : NULL);
+      GetByteSize(exe_ctx ? exe_ctx->GetBestExecutionContextScope() : nullptr);
   if (!byte_size)
     return false;
 

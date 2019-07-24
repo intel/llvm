@@ -141,6 +141,11 @@ enum FusedCompareType {
 
 } // end namespace SystemZII
 
+namespace SystemZ {
+int getTwoOperandOpcode(uint16_t Opcode);
+int getTargetMemOpcode(uint16_t Opcode);
+}
+
 class SystemZInstrInfo : public SystemZGenInstrInfo {
   const SystemZRegisterInfo RI;
   SystemZSubtarget &STI;
@@ -157,6 +162,8 @@ class SystemZInstrInfo : public SystemZGenInstrInfo {
                        unsigned HighOpcode) const;
   void expandLOCRPseudo(MachineInstr &MI, unsigned LowOpcode,
                         unsigned HighOpcode) const;
+  void expandSELRPseudo(MachineInstr &MI, unsigned LowOpcode,
+                        unsigned HighOpcode, unsigned MixedOpcode) const;
   void expandZExtPseudo(MachineInstr &MI, unsigned LowOpcode,
                         unsigned Size) const;
   void expandLoadStackGuard(MachineInstr *MI) const;
@@ -248,7 +255,8 @@ public:
   foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
                         ArrayRef<unsigned> Ops,
                         MachineBasicBlock::iterator InsertPt, int FrameIndex,
-                        LiveIntervals *LIS = nullptr) const override;
+                        LiveIntervals *LIS = nullptr,
+                        VirtRegMap *VRM = nullptr) const override;
   MachineInstr *foldMemoryOperandImpl(
       MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops,
       MachineBasicBlock::iterator InsertPt, MachineInstr &LoadMI,

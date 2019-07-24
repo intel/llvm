@@ -98,7 +98,7 @@ protected:
   QueueImplPtr MQueue;
   std::vector<EventImplPtr> MDepsEvents;
 
-  std::vector<cl_event> prepareEvents(ContextImplPtr Context);
+  std::vector<RT::PiEvent> prepareEvents(ContextImplPtr Context);
 
   bool MUseExclusiveQueue = false;
 
@@ -139,7 +139,7 @@ public:
   }
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
 
-  SYCLMemObjT *getSYCLMemObj() const { return MReq.MSYCLMemObj; }
+  SYCLMemObjI *getSYCLMemObj() const { return MReq.MSYCLMemObj; }
 
   void *getMemAllocation() const { return MMemAllocation; }
 
@@ -228,6 +228,8 @@ public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue)
       : Command(CommandType::RUN_CG, std::move(Queue)),
         MCommandGroup(std::move(CommandGroup)) {}
+
+  void flushStreams();
 
 private:
   // Implementation of enqueueing of ExecCGCommand.

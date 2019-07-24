@@ -103,10 +103,18 @@ public:
     return impl->get_property<propertyT>();
   }
 
+  event memset(void* ptr, int value, size_t count) {
+    return impl->memset(ptr, value, count);
+  }
+
+  event memcpy(void* dest, const void* src, size_t count) {
+    return impl->memcpy(dest, src, count);
+  }
+
 private:
   std::shared_ptr<detail::queue_impl> impl;
-  template <class T>
-  friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
 } // namespace sycl

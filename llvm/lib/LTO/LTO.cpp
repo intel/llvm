@@ -192,8 +192,10 @@ void llvm::computeLTOCacheKey(
       AddUnsigned(VI.isDSOLocal());
       AddUsedCfiGlobal(VI.getGUID());
     }
-    if (auto *GVS = dyn_cast<GlobalVarSummary>(GS))
-      AddUnsigned(GVS->isReadOnly());
+    if (auto *GVS = dyn_cast<GlobalVarSummary>(GS)) {
+      AddUnsigned(GVS->maybeReadOnly());
+      AddUnsigned(GVS->maybeWriteOnly());
+    }
     if (auto *FS = dyn_cast<FunctionSummary>(GS)) {
       for (auto &TT : FS->type_tests())
         UsedTypeIds.insert(TT);
@@ -371,9 +373,9 @@ void llvm::thinLTOResolvePrevailingInIndex(
                                  GUIDPreservedSymbols);
 }
 
-static bool isWeakWriteableObject(GlobalValueSummary *GVS) {
+static bool isWeakObjectWithRWAccess(GlobalValueSummary *GVS) {
   if (auto *VarSummary = dyn_cast<GlobalVarSummary>(GVS->getBaseObject()))
-    return !VarSummary->isReadOnly() &&
+    return !VarSummary->maybeReadOnly() && !VarSummary->maybeWriteOnly() &&
            (VarSummary->linkage() == GlobalValue::WeakODRLinkage ||
             VarSummary->linkage() == GlobalValue::LinkOnceODRLinkage);
   return false;
@@ -394,11 +396,12 @@ static void thinLTOInternalizeAndPromoteGUID(
                // We can't internalize available_externally globals because this
                // can break function pointer equality.
                S->linkage() != GlobalValue::AvailableExternallyLinkage &&
-               // Functions and read-only variables with linkonce_odr and weak_odr 
-               // linkage can be internalized. We can't internalize linkonce_odr
-               // and weak_odr variables which are modified somewhere in the
-               // program because reads and writes will become inconsistent.
-               !isWeakWriteableObject(S.get()))
+               // Functions and read-only variables with linkonce_odr and
+               // weak_odr linkage can be internalized. We can't internalize
+               // linkonce_odr and weak_odr variables which are both modified
+               // and read somewhere in the program because reads and writes
+               // will become inconsistent.
+               !isWeakObjectWithRWAccess(S.get()))
       S->setLinkage(GlobalValue::InternalLinkage);
   }
 }
@@ -1338,33 +1341,22 @@ Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
 }
 
 Expected<std::unique_ptr<ToolOutputFile>>
-lto::setupOptimizationRemarks(LLVMContext &Context,
-                              StringRef LTORemarksFilename,
-                              StringRef LTORemarksPasses,
-                              bool LTOPassRemarksWithHotness, int Count) {
-  if (LTOPassRemarksWithHotness)
-    Context.setDiagnosticsHotnessRequested(true);
-  if (LTORemarksFilename.empty())
-    return nullptr;
-
-  std::string Filename = LTORemarksFilename;
-  if (Count != -1)
+lto::setupOptimizationRemarks(LLVMContext &Context, StringRef RemarksFilename,
+                              StringRef RemarksPasses, StringRef RemarksFormat,
+                              bool RemarksWithHotness, int Count) {
+  std::string Filename = RemarksFilename;
+  if (!Filename.empty() && Count != -1)
     Filename += ".thin." + llvm::utostr(Count) + ".yaml";
 
-  std::error_code EC;
-  auto DiagnosticFile =
-      llvm::make_unique<ToolOutputFile>(Filename, EC, sys::fs::F_None);
-  if (EC)
-    return errorCodeToError(EC);
-  Context.setRemarkStreamer(
-      llvm::make_unique<RemarkStreamer>(Filename, DiagnosticFile->os()));
+  auto ResultOrErr = llvm::setupOptimizationRemarks(
+      Context, Filename, RemarksPasses, RemarksFormat, RemarksWithHotness);
+  if (Error E = ResultOrErr.takeError())
+    return std::move(E);
 
-  if (!LTORemarksPasses.empty())
-    if (Error E = Context.getRemarkStreamer()->setFilter(LTORemarksPasses))
-      return std::move(E);
+  if (*ResultOrErr)
+    (*ResultOrErr)->keep();
 
-  DiagnosticFile->keep();
-  return std::move(DiagnosticFile);
+  return ResultOrErr;
 }
 
 Expected<std::unique_ptr<ToolOutputFile>>

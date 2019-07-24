@@ -32,6 +32,7 @@
 #include "FuzzerIO.h"
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 
@@ -106,13 +107,15 @@ class BlockCoverage {
   // Function ID => vector of counters.
   // Each counter represents how many input files trigger the given basic block.
   std::unordered_map<size_t, CoverageVector> Functions;
+  // Functions that have DFT entry.
+  std::unordered_set<size_t> FunctionsWithDFT;
 };
 
 class DataFlowTrace {
  public:
   void ReadCoverage(const std::string &DirPath);
   bool Init(const std::string &DirPath, std::string *FocusFunction,
-            Random &Rand);
+            Vector<SizedFile> &CorporaFiles, Random &Rand);
   void Clear() { Traces.clear(); }
   const Vector<uint8_t> *Get(const std::string &InputSha1) const {
     auto It = Traces.find(InputSha1);
@@ -125,6 +128,7 @@ class DataFlowTrace {
   // Input's sha1 => DFT for the FocusFunction.
   std::unordered_map<std::string, Vector<uint8_t> > Traces;
   BlockCoverage Coverage;
+  std::unordered_set<std::string> CorporaHashes;
 };
 }  // namespace fuzzer
 

@@ -32,25 +32,20 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements regularization of LLVM moduel for SPIR-V.
+// This file implements regularization of LLVM module for SPIR-V.
 //
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spvregular"
 
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
-#include "SPIRVMDBuilder.h"
-#include "SPIRVMDWalker.h"
 
-#include "llvm/ADT/StringSwitch.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/PassSupport.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
 #include <set>
@@ -107,11 +102,8 @@ bool SPIRVRegularizeLLVM::runOnModule(Module &Module) {
 
 /// Remove entities not representable by SPIR-V
 bool SPIRVRegularizeLLVM::regularize() {
-  LLVMContext *Context = &M->getContext();
-
   eraseUselessFunctions(M);
   lowerFuncPtr(M);
-  // lowerConstantExpressions();
 
   for (auto I = M->begin(), E = M->end(); I != E;) {
     Function *F = &(*I++);
@@ -126,7 +118,7 @@ bool SPIRVRegularizeLLVM::regularize() {
           Call->setTailCall(false);
           Function *CF = Call->getCalledFunction();
           if (CF && CF->isIntrinsic())
-            removeFnAttr(Context, Call, Attribute::NoUnwind);
+            removeFnAttr(Call, Attribute::NoUnwind);
         }
 
         // Remove optimization info not supported by SPIRV

@@ -56,6 +56,12 @@ Improvements to Clang's diagnostics
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
+- The ``__VERSION__`` macro has been updated.
+  Previously this macro contained the string '4.2.1 Compatible' to achieve
+  compatibility with GCC 4.2.1, but that should no longer be necessary.
+  However, to retrieve Clang's version, please favor the one of the macro
+  defined in :ref:`clang namespaced version macros <languageextensions-builtin-macros>`.
+
 - ...
 
 
@@ -75,7 +81,7 @@ future versions of Clang.
 Modified Compiler Flags
 -----------------------
 
-- `clang -dumpversion` now returns the version of Clang itself.
+- ``clang -dumpversion`` now returns the version of Clang itself.
 
 - ...
 
@@ -92,15 +98,20 @@ Attribute Changes in Clang
 Windows Support
 ---------------
 
-- ...
+- clang-cl now treats non-existent files as possible typos for flags,
+  ``clang-cl /diagnostic:caret /c test.cc`` for example now produces
+  ``clang: error: no such file or directory: '/diagnostic:caret'; did you mean '/diagnostics:caret'?``
+
 
 
 C Language Changes in Clang
 ---------------------------
 
-- ...
+- ``__FILE_NAME__`` macro has been added as a Clang specific extension supported
+  in all C-family languages. This macro is similar to ``__FILE__`` except it
+  will always provide the last path component when possible.
 
-...
+- ...
 
 C11 Feature Support
 ^^^^^^^^^^^^^^^^^^^
@@ -120,7 +131,14 @@ C++1z Feature Support
 Objective-C Language Changes in Clang
 -------------------------------------
 
-...
+- Fixed encoding of ObjC pointer types that are pointers to typedefs.
+
+.. code-block:: objc
+
+      typedef NSArray<NSObject *> MyArray;
+
+      // clang used to encode this as "^{NSArray=#}" instead of "@".
+      const char *s0 = @encode(MyArray *);
 
 OpenCL C Language Changes in Clang
 ----------------------------------
@@ -172,10 +190,12 @@ AST Matchers
 clang-format
 ------------
 
-- Add language support for clang-formatting C# files
-- Add Microsoft coding style to encapsulate default C# formatting style
+- Add language support for clang-formatting C# files.
+- Add Microsoft coding style to encapsulate default C# formatting style.
 - Added new option `PPDIS_BeforeHash` (in configuration: `BeforeHash`) to
   `IndentPPDirectives` which indents preprocessor directives before the hash.
+- Added new option `AlignConsecutiveMacros` to align the C/C++ preprocessor
+  macros of consecutive lines.
 
 libclang
 --------

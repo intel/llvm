@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Target/ABI.h"
-#include "Plugins/ExpressionParser/Clang/ClangPersistentVariables.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Core/ValueObjectConstResult.h"
+#include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Target/Target.h"
@@ -124,11 +124,11 @@ ValueObjectSP ABI::GetReturnValueObject(Thread &thread, CompilerType &ast_type,
 
     return_valobj_sp = const_valobj_sp;
 
-    ExpressionVariableSP clang_expr_variable_sp(
+    ExpressionVariableSP expr_variable_sp(
         persistent_expression_state->CreatePersistentVariable(
             return_valobj_sp));
 
-    assert(clang_expr_variable_sp);
+    assert(expr_variable_sp);
 
     // Set flags and live data as appropriate
 
@@ -141,21 +141,21 @@ ValueObjectSP ABI::GetReturnValueObject(Thread &thread, CompilerType &ast_type,
       break;
     case Value::eValueTypeScalar:
     case Value::eValueTypeVector:
-      clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVIsFreezeDried;
-      clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVIsLLDBAllocated;
-      clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVNeedsAllocation;
+      expr_variable_sp->m_flags |=
+          ExpressionVariable::EVIsFreezeDried;
+      expr_variable_sp->m_flags |=
+          ExpressionVariable::EVIsLLDBAllocated;
+      expr_variable_sp->m_flags |=
+          ExpressionVariable::EVNeedsAllocation;
       break;
     case Value::eValueTypeLoadAddress:
-      clang_expr_variable_sp->m_live_sp = live_valobj_sp;
-      clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVIsProgramReference;
+      expr_variable_sp->m_live_sp = live_valobj_sp;
+      expr_variable_sp->m_flags |=
+          ExpressionVariable::EVIsProgramReference;
       break;
     }
 
-    return_valobj_sp = clang_expr_variable_sp->GetValueObject();
+    return_valobj_sp = expr_variable_sp->GetValueObject();
   }
   return return_valobj_sp;
 }

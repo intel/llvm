@@ -93,6 +93,14 @@ class RISCVAsmParser : public MCTargetAsmParser {
   // Helper to emit pseudo instruction "la" used in GOT/PC-rel addressing.
   void emitLoadAddress(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out);
 
+  // Helper to emit pseudo instruction "la.tls.ie" used in initial-exec TLS
+  // addressing.
+  void emitLoadTLSIEAddress(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out);
+
+  // Helper to emit pseudo instruction "la.tls.gd" used in global-dynamic TLS
+  // addressing.
+  void emitLoadTLSGDAddress(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out);
+
   // Helper to emit pseudo load/store instruction with a symbol.
   void emitLoadStoreSymbol(MCInst &Inst, unsigned Opcode, SMLoc IDLoc,
                            MCStreamer &Out, bool HasTmpReg);
@@ -989,19 +997,24 @@ OperandMatchResultTy RISCVAsmParser::parseRegister(OperandVector &Operands,
                                                    bool AllowParens) {
   SMLoc FirstS = getLoc();
   bool HadParens = false;
-  AsmToken Buf[2];
+  AsmToken LParen;
 
-  // If this a parenthesised register name is allowed, parse it atomically
+  // If this is an LParen and a parenthesised register name is allowed, parse it
+  // atomically.
   if (AllowParens && getLexer().is(AsmToken::LParen)) {
+    AsmToken Buf[2];
     size_t ReadCount = getLexer().peekTokens(Buf);
     if (ReadCount == 2 && Buf[1].getKind() == AsmToken::RParen) {
       HadParens = true;
+      LParen = getParser().getTok();
       getParser().Lex(); // Eat '('
     }
   }
 
   switch (getLexer().getKind()) {
   default:
+    if (HadParens)
+      getLexer().UnLex(LParen);
     return MatchOperand_NoMatch;
   case AsmToken::Identifier:
     StringRef Name = getLexer().getTok().getIdentifier();
@@ -1010,7 +1023,7 @@ OperandMatchResultTy RISCVAsmParser::parseRegister(OperandVector &Operands,
 
     if (RegNo == 0) {
       if (HadParens)
-        getLexer().UnLex(Buf[0]);
+        getLexer().UnLex(LParen);
       return MatchOperand_NoMatch;
     }
     if (HadParens)
@@ -1040,6 +1053,8 @@ RISCVAsmParser::parseCSRSystemRegister(OperandVector &Operands) {
   case AsmToken::LParen:
   case AsmToken::Minus:
   case AsmToken::Plus:
+  case AsmToken::Exclaim:
+  case AsmToken::Tilde:
   case AsmToken::Integer:
   case AsmToken::String: {
     if (getParser().parseExpression(Res))
@@ -1104,8 +1119,11 @@ OperandMatchResultTy RISCVAsmParser::parseImmediate(OperandVector &Operands) {
   default:
     return MatchOperand_NoMatch;
   case AsmToken::LParen:
+  case AsmToken::Dot:
   case AsmToken::Minus:
   case AsmToken::Plus:
+  case AsmToken::Exclaim:
+  case AsmToken::Tilde:
   case AsmToken::Integer:
   case AsmToken::String:
   case AsmToken::Identifier:
@@ -1200,6 +1218,10 @@ OperandMatchResultTy RISCVAsmParser::parseCallSymbol(OperandVector &Operands) {
   const MCExpr *Res;
 
   if (getLexer().getKind() != AsmToken::Identifier)
+    return MatchOperand_NoMatch;
+
+  // Avoid parsing the register in `call rd, foo` as a call symbol.
+  if (getLexer().peekTok().getKind() != AsmToken::EndOfStatement)
     return MatchOperand_NoMatch;
 
   StringRef Identifier;
@@ -1590,6 +1612,35 @@ void RISCVAsmParser::emitLoadAddress(MCInst &Inst, SMLoc IDLoc,
   emitAuipcInstPair(DestReg, DestReg, Symbol, VKHi, SecondOpcode, IDLoc, Out);
 }
 
+void RISCVAsmParser::emitLoadTLSIEAddress(MCInst &Inst, SMLoc IDLoc,
+                                          MCStreamer &Out) {
+  // The load TLS IE address pseudo-instruction "la.tls.ie" is used in
+  // initial-exec TLS model addressing of global symbols:
+  //   la.tls.ie rdest, symbol
+  // expands to
+  //   TmpLabel: AUIPC rdest, %tls_ie_pcrel_hi(symbol)
+  //             Lx rdest, %pcrel_lo(TmpLabel)(rdest)
+  MCOperand DestReg = Inst.getOperand(0);
+  const MCExpr *Symbol = Inst.getOperand(1).getExpr();
+  unsigned SecondOpcode = isRV64() ? RISCV::LD : RISCV::LW;
+  emitAuipcInstPair(DestReg, DestReg, Symbol, RISCVMCExpr::VK_RISCV_TLS_GOT_HI,
+                    SecondOpcode, IDLoc, Out);
+}
+
+void RISCVAsmParser::emitLoadTLSGDAddress(MCInst &Inst, SMLoc IDLoc,
+                                          MCStreamer &Out) {
+  // The load TLS GD address pseudo-instruction "la.tls.gd" is used in
+  // global-dynamic TLS model addressing of global symbols:
+  //   la.tls.gd rdest, symbol
+  // expands to
+  //   TmpLabel: AUIPC rdest, %tls_gd_pcrel_hi(symbol)
+  //             ADDI rdest, rdest, %pcrel_lo(TmpLabel)
+  MCOperand DestReg = Inst.getOperand(0);
+  const MCExpr *Symbol = Inst.getOperand(1).getExpr();
+  emitAuipcInstPair(DestReg, DestReg, Symbol, RISCVMCExpr::VK_RISCV_TLS_GD_HI,
+                    RISCV::ADDI, IDLoc, Out);
+}
+
 void RISCVAsmParser::emitLoadStoreSymbol(MCInst &Inst, unsigned Opcode,
                                          SMLoc IDLoc, MCStreamer &Out,
                                          bool HasTmpReg) {
@@ -1657,6 +1708,12 @@ bool RISCVAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   case RISCV::PseudoLA:
     emitLoadAddress(Inst, IDLoc, Out);
     return false;
+  case RISCV::PseudoLA_TLS_IE:
+    emitLoadTLSIEAddress(Inst, IDLoc, Out);
+    return false;
+  case RISCV::PseudoLA_TLS_GD:
+    emitLoadTLSGDAddress(Inst, IDLoc, Out);
+    return false;
   case RISCV::PseudoLB:
     emitLoadStoreSymbol(Inst, RISCV::LB, IDLoc, Out, /*HasTmpReg=*/false);
     return false;
@@ -1705,6 +1762,7 @@ bool RISCVAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   case RISCV::PseudoAddTPRel:
     if (checkPseudoAddTPRel(Inst, Operands))
       return true;
+    break;
   }
 
   emitToStreamer(Out, Inst);

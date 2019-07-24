@@ -16,12 +16,14 @@
 namespace cl {
 namespace sycl {
 namespace detail {
-struct Builder;
+class Builder;
 }
-template <int dimensions> struct id;
+template <int dimensions> class id;
 template <int dimensions> class range;
-template <int dimensions = 1, bool with_offset = true> struct item {
+template <int dimensions> class h_item;
 
+template <int dimensions = 1, bool with_offset = true> class item {
+public:
   item() = delete;
 
   id<dimensions> get_id() const { return index; }
@@ -84,9 +86,10 @@ template <int dimensions = 1, bool with_offset = true> struct item {
 
 protected:
   // For call constructor inside conversion operator
-  friend struct item<dimensions, false>;
-  friend struct item<dimensions, true>;
-  friend struct detail::Builder;
+  friend class item<dimensions, false>;
+  friend class item<dimensions, true>;
+  friend class h_item<dimensions>;
+  friend class detail::Builder;
 
   template <size_t W = with_offset>
   item(typename std::enable_if<(W == true), const range<dimensions>>::type &R,
@@ -97,6 +100,8 @@ protected:
   item(typename std::enable_if<(W == false), const range<dimensions>>::type &R,
        const id<dimensions> &I)
       : extent(R), index(I), offset() {}
+
+  void setID(const id<dimensions> &ID) { index = ID; }
 
 private:
   range<dimensions> extent;

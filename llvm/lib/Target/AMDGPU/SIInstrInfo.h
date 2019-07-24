@@ -143,7 +143,7 @@ protected:
 
 public:
   enum TargetOperandFlags {
-    MO_MASK = 0x7,
+    MO_MASK = 0xf,
 
     MO_NONE = 0,
     // MO_GOTPCREL -> symbol@GOTPCREL -> R_AMDGPU_GOTPCREL.
@@ -157,7 +157,13 @@ public:
     MO_REL32 = 4,
     MO_REL32_LO = 4,
     // MO_REL32_HI -> symbol@rel32@hi -> R_AMDGPU_REL32_HI.
-    MO_REL32_HI = 5
+    MO_REL32_HI = 5,
+
+    MO_LONG_BRANCH_FORWARD = 6,
+    MO_LONG_BRANCH_BACKWARD = 7,
+
+    MO_ABS32_LO = 8,
+    MO_ABS32_HI = 9,
   };
 
   explicit SIInstrInfo(const GCNSubtarget &ST);
@@ -490,6 +496,11 @@ public:
     return (Flags & SIInstrFlags::FLAT) && !(Flags & SIInstrFlags::LGKM_CNT);
   }
 
+  // FIXME: Make this more precise
+  static bool isFLATScratch(const MachineInstr &MI) {
+    return isSegmentSpecificFLAT(MI);
+  }
+
   // Any FLAT encoded instruction, including global_* and scratch_*.
   bool isFLAT(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::FLAT;
@@ -559,6 +570,14 @@ public:
     return get(Opcode).TSFlags & SIInstrFlags::VINTRP;
   }
 
+  static bool isMAI(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::IsMAI;
+  }
+
+  bool isMAI(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::IsMAI;
+  }
+
   static bool isScalarUnit(const MachineInstr &MI) {
     return MI.getDesc().TSFlags & (SIInstrFlags::SALU | SIInstrFlags::SMRD);
   }
@@ -625,12 +644,28 @@ public:
     return get(Opcode).TSFlags & SIInstrFlags::FPDPRounding;
   }
 
+  static bool isFPAtomic(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::FPAtomic;
+  }
+
+  bool isFPAtomic(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::FPAtomic;
+  }
+
   bool isVGPRCopy(const MachineInstr &MI) const {
     assert(MI.isCopy());
     unsigned Dest = MI.getOperand(0).getReg();
     const MachineFunction &MF = *MI.getParent()->getParent();
     const MachineRegisterInfo &MRI = MF.getRegInfo();
     return !RI.isSGPRReg(MRI, Dest);
+  }
+
+  bool hasVGPRUses(const MachineInstr &MI) const {
+    const MachineFunction &MF = *MI.getParent()->getParent();
+    const MachineRegisterInfo &MRI = MF.getRegInfo();
+    return llvm::any_of(MI.explicit_uses(),
+                        [&MRI, this](const MachineOperand &MO) {
+      return MO.isReg() && RI.isVGPR(MRI, MO.getReg());});
   }
 
   /// Whether we must prevent this instruction from executing with EXEC = 0.
@@ -935,10 +970,27 @@ public:
     return isUInt<12>(Imm);
   }
 
+  /// Returns if \p Offset is legal for the subtarget as the offset to a FLAT
+  /// encoded instruction. If \p Signed, this is for an instruction that
+  /// interprets the offset as signed.
+  bool isLegalFLATOffset(int64_t Offset, unsigned AddrSpace,
+                         bool Signed) const;
+
   /// \brief Return a target-specific opcode if Opcode is a pseudo instruction.
   /// Return -1 if the target-specific opcode for the pseudo instruction does
   /// not exist. If Opcode is not a pseudo instruction, this is identity.
   int pseudoToMCOpcode(int Opcode) const;
+
+  const TargetRegisterClass *getRegClass(const MCInstrDesc &TID, unsigned OpNum,
+                                         const TargetRegisterInfo *TRI,
+                                         const MachineFunction &MF)
+    const override {
+    if (OpNum >= TID.getNumOperands())
+      return nullptr;
+    return RI.getRegClass(TID.OpInfo[OpNum].RegClass);
+  }
+
+  void fixImplicitOperands(MachineInstr &MI) const;
 };
 
 /// \brief Returns true if a reg:subreg pair P has a TRC class
@@ -969,11 +1021,20 @@ TargetInstrInfo::RegSubRegPair getRegSequenceSubReg(MachineInstr &MI,
 MachineInstr *getVRegSubRegDef(const TargetInstrInfo::RegSubRegPair &P,
                                MachineRegisterInfo &MRI);
 
-/// \brief Return true if EXEC mask isnt' changed between the def and
-/// all uses of VReg. Currently if def and uses are in different BBs -
-/// simply return false. Should be run on SSA.
-bool isEXECMaskConstantBetweenDefAndUses(unsigned VReg,
-                                         MachineRegisterInfo &MRI);
+/// \brief Return false if EXEC is not changed between the def of \p VReg at \p
+/// DefMI and the use at \p UseMI. Should be run on SSA. Currently does not
+/// attempt to track between blocks.
+bool execMayBeModifiedBeforeUse(const MachineRegisterInfo &MRI,
+                                Register VReg,
+                                const MachineInstr &DefMI,
+                                const MachineInstr &UseMI);
+
+/// \brief Return false if EXEC is not changed between the def of \p VReg at \p
+/// DefMI and all its uses. Should be run on SSA. Currently does not attempt to
+/// track between blocks.
+bool execMayBeModifiedBeforeAnyUse(const MachineRegisterInfo &MRI,
+                                   Register VReg,
+                                   const MachineInstr &DefMI);
 
 namespace AMDGPU {
 
@@ -1029,12 +1090,6 @@ namespace AMDGPU {
   const uint64_t RSRC_ELEMENT_SIZE_SHIFT = (32 + 19);
   const uint64_t RSRC_INDEX_STRIDE_SHIFT = (32 + 21);
   const uint64_t RSRC_TID_ENABLE = UINT64_C(1) << (32 + 23);
-
-  // For MachineOperands.
-  enum TargetFlags {
-    TF_LONG_BRANCH_FORWARD = 1 << 0,
-    TF_LONG_BRANCH_BACKWARD = 1 << 1
-  };
 
 } // end namespace AMDGPU
 

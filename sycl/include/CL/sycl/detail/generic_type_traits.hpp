@@ -356,6 +356,16 @@ template <typename T>
 using is_gentype = std::integral_constant<bool, is_genfloat<T>::value ||
                                                     is_geninteger<T>::value>;
 
+// vgentype: vgeninteger || vgenfloat
+template <typename T>
+using is_vgentype = std::integral_constant<bool,
+    is_vgeninteger<T>::value || is_vgenfloat<T>::value>;
+
+// sgentype: sgeninteger || sgenfloat
+template <typename T>
+using is_sgentype = std::integral_constant<bool,
+    is_sgeninteger<T>::value || is_sgenfloat<T>::value>;
+
 // forward declarations
 template <typename T> class TryToGetElementType;
 
@@ -446,6 +456,67 @@ using is_genintptr =
                                      is_MultiPtrOfGLR<P, cl_int8>::value ||
                                      is_MultiPtrOfGLR<P, cl_int16>::value>;
 
+// is_genintegralptr is multi_ptr on any of intergral type including 'int'
+// and 'long long'.
+template <class P>
+using is_genintegralptr =
+  std::integral_constant<bool,
+                         is_MultiPtrOfGLR<P, cl_char>::value ||
+                         is_MultiPtrOfGLR<P, cl_char2>::value ||
+                         is_MultiPtrOfGLR<P, cl_char3>::value ||
+                         is_MultiPtrOfGLR<P, cl_char4>::value ||
+                         is_MultiPtrOfGLR<P, cl_char8>::value ||
+                         is_MultiPtrOfGLR<P, cl_char16>::value ||
+                         is_MultiPtrOfGLR<P, cl_uchar>::value ||
+                         is_MultiPtrOfGLR<P, cl_uchar2>::value ||
+                         is_MultiPtrOfGLR<P, cl_uchar3>::value ||
+                         is_MultiPtrOfGLR<P, cl_uchar4>::value ||
+                         is_MultiPtrOfGLR<P, cl_uchar8>::value ||
+                         is_MultiPtrOfGLR<P, cl_uchar16>::value ||
+                         is_MultiPtrOfGLR<P, cl_short>::value ||
+                         is_MultiPtrOfGLR<P, cl_short2>::value ||
+                         is_MultiPtrOfGLR<P, cl_short3>::value ||
+                         is_MultiPtrOfGLR<P, cl_short4>::value ||
+                         is_MultiPtrOfGLR<P, cl_short8>::value ||
+                         is_MultiPtrOfGLR<P, cl_short16>::value ||
+                         is_MultiPtrOfGLR<P, cl_ushort>::value ||
+                         is_MultiPtrOfGLR<P, cl_ushort2>::value ||
+                         is_MultiPtrOfGLR<P, cl_ushort3>::value ||
+                         is_MultiPtrOfGLR<P, cl_ushort4>::value ||
+                         is_MultiPtrOfGLR<P, cl_ushort8>::value ||
+                         is_MultiPtrOfGLR<P, cl_ushort16>::value ||
+                         is_genintptr<P>::value ||
+                         is_MultiPtrOfGLR<P, cl_uint>::value ||
+                         is_MultiPtrOfGLR<P, cl_uint2>::value ||
+                         is_MultiPtrOfGLR<P, cl_uint3>::value ||
+                         is_MultiPtrOfGLR<P, cl_uint4>::value ||
+                         is_MultiPtrOfGLR<P, cl_uint8>::value ||
+                         is_MultiPtrOfGLR<P, cl_uint16>::value ||
+                         is_MultiPtrOfGLR<P, cl_long>::value ||
+                         is_MultiPtrOfGLR<P, cl_long2>::value ||
+                         is_MultiPtrOfGLR<P, cl_long3>::value ||
+                         is_MultiPtrOfGLR<P, cl_long4>::value ||
+                         is_MultiPtrOfGLR<P, cl_long8>::value ||
+                         is_MultiPtrOfGLR<P, cl_long16>::value ||
+                         is_MultiPtrOfGLR<P, cl_ulong>::value ||
+                         is_MultiPtrOfGLR<P, cl_ulong2>::value ||
+                         is_MultiPtrOfGLR<P, cl_ulong3>::value ||
+                         is_MultiPtrOfGLR<P, cl_ulong4>::value ||
+                         is_MultiPtrOfGLR<P, cl_ulong8>::value ||
+                         is_MultiPtrOfGLR<P, cl_ulong16>::value ||
+                         is_MultiPtrOfGLR<P, longlong>::value ||
+                         is_MultiPtrOfGLR<P, longlong2>::value ||
+                         is_MultiPtrOfGLR<P, longlong3>::value ||
+                         is_MultiPtrOfGLR<P, longlong4>::value ||
+                         is_MultiPtrOfGLR<P, longlong8>::value ||
+                         is_MultiPtrOfGLR<P, longlong16>::value ||
+                         is_MultiPtrOfGLR<P, ulonglong>::value ||
+                         is_MultiPtrOfGLR<P, ulonglong2>::value ||
+                         is_MultiPtrOfGLR<P, ulonglong3>::value ||
+                         is_MultiPtrOfGLR<P, ulonglong4>::value ||
+                         is_MultiPtrOfGLR<P, ulonglong8>::value ||
+                         is_MultiPtrOfGLR<P, ulonglong16>::value>;
+  
 // genfloatptr All permutations of multi_ptr<dataT, addressSpace> where dataT is
 // all types within genfloat and addressSpace is
 // access::address_space::global_space, access::address_space::local_space and
@@ -471,7 +542,12 @@ using is_genfloatptr =
                                      is_MultiPtrOfGLR<P, cl_double8>::value ||
                                      is_MultiPtrOfGLR<P, cl_double16>::value>;
 
-// Used for nan built-in
+// is_genptr = is_genintegralptr || is_genfloatptr
+template <typename T>
+using is_genptr =
+  std::integral_constant<bool, is_genintegralptr<T>::value ||
+                               is_genfloatptr<T>::value>;
+
 template <typename T> struct unsign_integral_to_float_point;
 template <> struct unsign_integral_to_float_point<cl_uint> {
   using type = cl_float;
@@ -527,25 +603,6 @@ template <> struct unsign_integral_to_float_point<cl_ulong8> {
   using type = cl_double8;
 };
 template <> struct unsign_integral_to_float_point<cl_ulong16> {
-  using type = cl_double16;
-};
-
-template <> struct unsign_integral_to_float_point<ulonglong> {
-  using type = cl_double;
-};
-template <> struct unsign_integral_to_float_point<ulonglong2> {
-  using type = cl_double2;
-};
-template <> struct unsign_integral_to_float_point<ulonglong3> {
-  using type = cl_double3;
-};
-template <> struct unsign_integral_to_float_point<ulonglong4> {
-  using type = cl_double4;
-};
-template <> struct unsign_integral_to_float_point<ulonglong8> {
-  using type = cl_double8;
-};
-template <> struct unsign_integral_to_float_point<ulonglong16> {
   using type = cl_double16;
 };
 
@@ -640,77 +697,70 @@ template <> struct float_point_to_int<cl_double16> { using type = cl_int16; };
 // Used for abs and abs_diff built-in
 template <typename T> struct make_unsigned { using type = T; };
 
-template <> struct make_unsigned<cl_char> { using type = cl_uchar; };
-template <> struct make_unsigned<cl_char2> { using type = cl_uchar2; };
-template <> struct make_unsigned<cl_char3> { using type = cl_uchar3; };
-template <> struct make_unsigned<cl_char4> { using type = cl_uchar4; };
-template <> struct make_unsigned<cl_char8> { using type = cl_uchar8; };
-template <> struct make_unsigned<cl_char16> { using type = cl_uchar16; };
+template <> struct make_unsigned<signed char>                    {
+  using type = unsigned char;                                    };
+template <> struct make_unsigned<cl::sycl::vec<signed char, 2>>  {
+  using type = cl::sycl::vec<unsigned char, 2>;                  };
+template <> struct make_unsigned<cl::sycl::vec<signed char, 3>>  {
+  using type = cl::sycl::vec<unsigned char, 3>;                  };
+template <> struct make_unsigned<cl::sycl::vec<signed char, 4>>  {
+  using type = cl::sycl::vec<unsigned char, 4>;                  };
+template <> struct make_unsigned<cl::sycl::vec<signed char, 8>>  {
+  using type = cl::sycl::vec<unsigned char, 8>;                  };
+template <> struct make_unsigned<cl::sycl::vec<signed char, 16>> {
+  using type = cl::sycl::vec<unsigned char, 16>;                 };
 
-template <> struct make_unsigned<cl_short> { using type = cl_ushort; };
-template <> struct make_unsigned<cl_short2> { using type = cl_ushort2; };
-template <> struct make_unsigned<cl_short3> { using type = cl_ushort3; };
-template <> struct make_unsigned<cl_short4> { using type = cl_ushort4; };
-template <> struct make_unsigned<cl_short8> { using type = cl_ushort8; };
-template <> struct make_unsigned<cl_short16> { using type = cl_ushort16; };
+template <> struct make_unsigned<short>                    {
+  using type = unsigned short;                             };
+template <> struct make_unsigned<cl::sycl::vec<short, 2>>  {
+  using type = cl::sycl::vec<unsigned short, 2>;           };
+template <> struct make_unsigned<cl::sycl::vec<short, 3>>  {
+  using type = cl::sycl::vec<unsigned short, 3>;           };
+template <> struct make_unsigned<cl::sycl::vec<short, 4>>  {
+  using type = cl::sycl::vec<unsigned short, 4>;           };
+template <> struct make_unsigned<cl::sycl::vec<short, 8>>  {
+  using type = cl::sycl::vec<unsigned short, 8>;           };
+template <> struct make_unsigned<cl::sycl::vec<short, 16>> {
+  using type = cl::sycl::vec<unsigned short, 16>;          };
 
-template <> struct make_unsigned<cl_int> { using type = cl_uint; };
-template <> struct make_unsigned<cl_int2> { using type = cl_uint2; };
-template <> struct make_unsigned<cl_int3> { using type = cl_uint3; };
-template <> struct make_unsigned<cl_int4> { using type = cl_uint4; };
-template <> struct make_unsigned<cl_int8> { using type = cl_uint8; };
-template <> struct make_unsigned<cl_int16> { using type = cl_uint16; };
+template <> struct make_unsigned<int>                    {
+  using type = unsigned int;                             };
+template <> struct make_unsigned<cl::sycl::vec<int, 2>>  {
+  using type = cl::sycl::vec<unsigned int, 2>;           };
+template <> struct make_unsigned<cl::sycl::vec<int, 3>>  {
+  using type = cl::sycl::vec<unsigned int, 3>;           };
+template <> struct make_unsigned<cl::sycl::vec<int, 4>>  {
+  using type = cl::sycl::vec<unsigned int, 4>;           };
+template <> struct make_unsigned<cl::sycl::vec<int, 8>>  {
+  using type = cl::sycl::vec<unsigned int, 8>;           };
+template <> struct make_unsigned<cl::sycl::vec<int, 16>> {
+  using type = cl::sycl::vec<unsigned int, 16>;          };
 
-template <> struct make_unsigned<cl_long> { using type = cl_ulong; };
-template <> struct make_unsigned<cl_long2> { using type = cl_ulong2; };
-template <> struct make_unsigned<cl_long3> { using type = cl_ulong3; };
-template <> struct make_unsigned<cl_long4> { using type = cl_ulong4; };
-template <> struct make_unsigned<cl_long8> { using type = cl_ulong8; };
-template <> struct make_unsigned<cl_long16> { using type = cl_ulong16; };
+template <> struct make_unsigned<long>                    {
+  using type = unsigned long;                             };
+template <> struct make_unsigned<cl::sycl::vec<long, 2>>  {
+  using type = cl::sycl::vec<unsigned long, 2>;           };
+template <> struct make_unsigned<cl::sycl::vec<long, 3>>  {
+  using type = cl::sycl::vec<unsigned long, 3>;           };
+template <> struct make_unsigned<cl::sycl::vec<long, 4>>  {
+  using type = cl::sycl::vec<unsigned long, 4>;           };
+template <> struct make_unsigned<cl::sycl::vec<long, 8>>  {
+  using type = cl::sycl::vec<unsigned long, 8>;           };
+template <> struct make_unsigned<cl::sycl::vec<long, 16>> {
+  using type = cl::sycl::vec<unsigned long, 16>;          };
 
-template <> struct make_unsigned<longlong> { using type = ulonglong; };
-template <> struct make_unsigned<longlong2> { using type = ulonglong2; };
-template <> struct make_unsigned<longlong3> { using type = ulonglong3; };
-template <> struct make_unsigned<longlong4> { using type = ulonglong4; };
-template <> struct make_unsigned<longlong8> { using type = ulonglong8; };
-template <> struct make_unsigned<longlong16> { using type = ulonglong16; };
-
-template <typename T> struct make_signed { using type = T; };
-
-template <> struct make_signed<cl_uchar> { using type = cl_char; };
-template <> struct make_signed<cl_uchar2> { using type = cl_char2; };
-template <> struct make_signed<cl_uchar3> { using type = cl_char3; };
-template <> struct make_signed<cl_uchar4> { using type = cl_char4; };
-template <> struct make_signed<cl_uchar8> { using type = cl_char8; };
-template <> struct make_signed<cl_uchar16> { using type = cl_char16; };
-
-template <> struct make_signed<cl_ushort> { using type = cl_short; };
-template <> struct make_signed<cl_ushort2> { using type = cl_short2; };
-template <> struct make_signed<cl_ushort3> { using type = cl_short3; };
-template <> struct make_signed<cl_ushort4> { using type = cl_short4; };
-template <> struct make_signed<cl_ushort8> { using type = cl_short8; };
-template <> struct make_signed<cl_ushort16> { using type = cl_short16; };
-
-template <> struct make_signed<cl_uint> { using type = cl_int; };
-template <> struct make_signed<cl_uint2> { using type = cl_int2; };
-template <> struct make_signed<cl_uint3> { using type = cl_int3; };
-template <> struct make_signed<cl_uint4> { using type = cl_int4; };
-template <> struct make_signed<cl_uint8> { using type = cl_int8; };
-template <> struct make_signed<cl_uint16> { using type = cl_int16; };
-
-template <> struct make_signed<cl_ulong> { using type = cl_long; };
-template <> struct make_signed<cl_ulong2> { using type = cl_long2; };
-template <> struct make_signed<cl_ulong3> { using type = cl_long3; };
-template <> struct make_signed<cl_ulong4> { using type = cl_long4; };
-template <> struct make_signed<cl_ulong8> { using type = cl_long8; };
-template <> struct make_signed<cl_ulong16> { using type = cl_long16; };
-
-template <> struct make_signed<ulonglong> { using type = longlong; };
-template <> struct make_signed<ulonglong2> { using type = longlong2; };
-template <> struct make_signed<ulonglong3> { using type = longlong3; };
-template <> struct make_signed<ulonglong4> { using type = longlong4; };
-template <> struct make_signed<ulonglong8> { using type = longlong8; };
-template <> struct make_signed<ulonglong16> { using type = longlong16; };
+template <> struct make_unsigned<long long>                    {
+  using type = unsigned long long;                             };
+template <> struct make_unsigned<cl::sycl::vec<long long, 2>>  {
+  using type = cl::sycl::vec<unsigned long long, 2>;           };
+template <> struct make_unsigned<cl::sycl::vec<long long, 3>>  {
+  using type = cl::sycl::vec<unsigned long long, 3>;           };
+template <> struct make_unsigned<cl::sycl::vec<long long, 4>>  {
+  using type = cl::sycl::vec<unsigned long long, 4>;           };
+template <> struct make_unsigned<cl::sycl::vec<long long, 8>>  {
+  using type = cl::sycl::vec<unsigned long long, 8>;           };
+template <> struct make_unsigned<cl::sycl::vec<long long, 16>> {
+  using type = cl::sycl::vec<unsigned long long, 16>;          };
 
 // Used for upsample built-in
 // Bases on Table 4.93: Scalar data type aliases supported by SYCL
@@ -830,12 +880,123 @@ T TryToGetPointer(T &t) {
   return t;
 }
 
-// Converts T to OpenCL friendly
+// Use conditional_t to improve code readablity.
+template <bool B, typename T1, typename T2>
+using conditional_t = typename std::conditional<B, T1, T2>::type;
+
+// select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
+// sizeof(IN).  expected to handle scalar types.
+template <typename T, typename T8, typename T16, typename T32, typename T64>
+using select_apply_cl_scalar_t =
+  conditional_t<sizeof(T) == 1, T8,
+  conditional_t<sizeof(T) == 2, T16,
+  conditional_t<sizeof(T) == 4, T32, T64>>>;
+
+// Shortcuts for selecting scalar int/unsigned int/fp type.
 template <typename T>
-using ConvertToOpenCLType = std::conditional<
-    TryToGetVectorT<T>::value, typename TryToGetVectorT<T>::type,
-    typename std::conditional<TryToGetPointerT<T>::value,
-                              typename TryToGetPointerVecT<T>::type, T>::type>;
+using select_cl_scalar_intergal_signed_t =
+  select_apply_cl_scalar_t<T, cl_char, cl_short, cl_int, cl_long>;
+
+template <typename T>
+using select_cl_scalar_intergal_unsigned_t =
+  select_apply_cl_scalar_t<T, cl_uchar, cl_ushort, cl_uint, cl_ulong>;
+
+template <typename T>
+using select_cl_scalar_float_t =
+  select_apply_cl_scalar_t<T, std::false_type, cl_half, cl_float, cl_double>;
+
+template <typename T>
+using select_cl_scalar_intergal_t =
+  conditional_t<std::is_signed<T>::value,
+    select_cl_scalar_intergal_signed_t<T>,
+    select_cl_scalar_intergal_unsigned_t<T>>;
+
+// select_cl_scalar_t picks corresponding cl_* type for input
+// scalar T or returns T if T is not scalar.
+template <typename T>
+using select_cl_scalar_t =
+  conditional_t<std::is_integral<T>::value,
+    select_cl_scalar_intergal_t<T>,
+    conditional_t<std::is_floating_point<T>::value,
+      select_cl_scalar_float_t<T>, T>>;
+
+// select_cl_vector_or_scalar does cl_* type selection for element type of
+// a vector type T and does scalar type substitution.  If T is not
+// vector or scalar unmodified T is returned.
+template <typename T, typename Enable = void>
+struct select_cl_vector_or_scalar;
+
+template <typename T>
+struct select_cl_vector_or_scalar<
+  T, typename std::enable_if<is_vgentype<T>::value>::type> {
+  using type = vec<select_cl_scalar_t<typename T::element_type>,
+                   T::get_count()>;
+};
+
+template <typename T>
+struct select_cl_vector_or_scalar<
+  T, typename std::enable_if<!is_vgentype<T>::value>::type> {
+  using type = select_cl_scalar_t<T>;
+};
+
+// select_cl_mptr_or_vector_or_scalar does cl_* type selection for type
+// pointed by multi_ptr or for element type of a vector type T and does
+// scalar type substitution.  If T is not mutlti_ptr or vector or scalar
+// unmodified T is returned.
+template <typename T, typename Enable = void>
+struct select_cl_mptr_or_vector_or_scalar;
+
+template <typename T>
+struct select_cl_mptr_or_vector_or_scalar<
+  T, typename std::enable_if<is_genptr<T>::value>::type> {
+  using type = multi_ptr<
+    typename select_cl_vector_or_scalar<typename T::element_type>::type,
+    T::address_space>;
+};
+
+template <typename T>
+struct select_cl_mptr_or_vector_or_scalar<
+  T, typename std::enable_if<!is_genptr<T>::value>::type> {
+  using type = typename select_cl_vector_or_scalar<T>::type;
+};
+
+// All types converting shortcut.
+template <typename T>
+using SelectMatchingOpenCLType_t =
+  typename select_cl_mptr_or_vector_or_scalar<T>::type;
+
+// Converts T to OpenCL friendly
+//
+template <typename T>
+using ConvertToOpenCLType_t =
+  conditional_t<TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::value,
+    typename TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::type,
+    conditional_t<TryToGetPointerT<SelectMatchingOpenCLType_t<T>>::value,
+      typename TryToGetPointerVecT<SelectMatchingOpenCLType_t<T>>::type,
+      SelectMatchingOpenCLType_t<T>>>;
+
+// convertDataToType() function converts data from FROM type to TO type using
+// 'as' method for vector type and copy otherwise.
+template <typename FROM, typename TO>
+typename std::enable_if<is_vgentype<FROM>::value &&
+                        is_vgentype<TO>::value &&
+                        sizeof(TO) == sizeof(FROM), TO>::type
+convertDataToType(FROM t) {
+  return t.template as<TO>();
+}
+
+template <typename FROM, typename TO>
+typename std::enable_if<!(is_vgentype<FROM>::value &&
+                          is_vgentype<TO>::value) &&
+                        sizeof(TO) == sizeof(FROM), TO>::type
+convertDataToType(FROM t) {
+  return TryToGetPointer(t);
+}
+
+template <typename T>
+  using unsign_integral_to_float_point_t =
+    typename unsign_integral_to_float_point<
+      SelectMatchingOpenCLType_t<T>>::type;
 
 // Used for all,any and select relational built-in functions
 template <typename T> inline constexpr T msbMask(T) {

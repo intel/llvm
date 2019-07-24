@@ -1262,6 +1262,22 @@ TEST(APIntTest, StringBitsNeeded10) {
   EXPECT_EQ(5U, APInt::getBitsNeeded("-10", 10));
   EXPECT_EQ(6U, APInt::getBitsNeeded("-19", 10));
   EXPECT_EQ(6U, APInt::getBitsNeeded("-20", 10));
+
+  EXPECT_EQ(1U, APInt::getBitsNeeded("-1", 10));
+  EXPECT_EQ(2U, APInt::getBitsNeeded("-2", 10));
+  EXPECT_EQ(3U, APInt::getBitsNeeded("-4", 10));
+  EXPECT_EQ(4U, APInt::getBitsNeeded("-8", 10));
+  EXPECT_EQ(5U, APInt::getBitsNeeded("-16", 10));
+  EXPECT_EQ(6U, APInt::getBitsNeeded("-23", 10));
+  EXPECT_EQ(6U, APInt::getBitsNeeded("-32", 10));
+  EXPECT_EQ(7U, APInt::getBitsNeeded("-64", 10));
+  EXPECT_EQ(8U, APInt::getBitsNeeded("-127", 10));
+  EXPECT_EQ(8U, APInt::getBitsNeeded("-128", 10));
+  EXPECT_EQ(9U, APInt::getBitsNeeded("-255", 10));
+  EXPECT_EQ(9U, APInt::getBitsNeeded("-256", 10));
+  EXPECT_EQ(10U, APInt::getBitsNeeded("-512", 10));
+  EXPECT_EQ(11U, APInt::getBitsNeeded("-1024", 10));
+  EXPECT_EQ(12U, APInt::getBitsNeeded("-1025", 10));
 }
 
 TEST(APIntTest, StringBitsNeeded16) {
@@ -2500,6 +2516,26 @@ TEST(APIntTest, SolveQuadraticEquationWrap) {
   // Test all widths in [2..6].
   for (unsigned i = 2; i <= 6; ++i)
     Iterate(i);
+}
+
+TEST(APIntTest, MultiplicativeInverseExaustive) {
+  for (unsigned BitWidth = 1; BitWidth <= 16; ++BitWidth) {
+    for (unsigned Value = 0; Value < (1u << BitWidth); ++Value) {
+      APInt V = APInt(BitWidth, Value);
+      APInt MulInv =
+          V.zext(BitWidth + 1)
+              .multiplicativeInverse(APInt::getSignedMinValue(BitWidth + 1))
+              .trunc(BitWidth);
+      APInt One = V * MulInv;
+      if (!V.isNullValue() && V.countTrailingZeros() == 0) {
+        // Multiplicative inverse exists for all odd numbers.
+        EXPECT_TRUE(One.isOneValue());
+      } else {
+        // Multiplicative inverse does not exist for even numbers (and 0).
+        EXPECT_TRUE(MulInv.isNullValue());
+      }
+    }
+  }
 }
 
 } // end anonymous namespace

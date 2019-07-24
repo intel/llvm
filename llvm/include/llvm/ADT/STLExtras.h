@@ -240,6 +240,13 @@ inline mapped_iterator<ItTy, FuncTy> map_iterator(ItTy I, FuncTy F) {
   return mapped_iterator<ItTy, FuncTy>(std::move(I), std::move(F));
 }
 
+template <class ContainerTy, class FuncTy>
+auto map_range(ContainerTy &&C, FuncTy F)
+    -> decltype(make_range(map_iterator(C.begin(), F),
+                           map_iterator(C.end(), F))) {
+  return make_range(map_iterator(C.begin(), F), map_iterator(C.end(), F));
+}
+
 /// Helper to determine if type T has a member called rbegin().
 template <typename Ty> class has_rbegin_impl {
   using yes = char[1];
@@ -1315,44 +1322,12 @@ void stable_sort(R &&Range, Compare C) {
   std::stable_sort(adl_begin(Range), adl_end(Range), C);
 }
 
-/// Binary search for the first index where a predicate is true.
-/// Returns the first I in [Lo, Hi) where C(I) is true, or Hi if it never is.
-/// Requires that C is always false below some limit, and always true above it.
-///
-/// Example:
-///   size_t DawnModernEra = bsearch(1776, 2050, [](size_t Year){
-///     return Presidents.for(Year).twitterHandle() != None;
-///   });
-///
-/// Note the return value differs from std::binary_search!
-template <typename Predicate>
-size_t bsearch(size_t Lo, size_t Hi, Predicate P) {
-  while (Lo != Hi) {
-    assert(Hi > Lo);
-    size_t Mid = Lo + (Hi - Lo) / 2;
-    if (P(Mid))
-      Hi = Mid;
-    else
-      Lo = Mid + 1;
-  }
-  return Hi;
-}
-
-/// Binary search for the first iterator where a predicate is true.
-/// Returns the first I in [Lo, Hi) where C(*I) is true, or Hi if it never is.
-/// Requires that C is always false below some limit, and always true above it.
-template <typename It, typename Predicate,
-          typename Val = decltype(*std::declval<It>())>
-It bsearch(It Lo, It Hi, Predicate P) {
-  return std::lower_bound(Lo, Hi, 0u,
-                          [&](const Val &V, unsigned) { return !P(V); });
-}
-
-/// Binary search for the first iterator in a range where a predicate is true.
-/// Requires that C is always false below some limit, and always true above it.
-template <typename R, typename Predicate>
-auto bsearch(R &&Range, Predicate P) -> decltype(adl_begin(Range)) {
-  return bsearch(adl_begin(Range), adl_end(Range), P);
+/// Binary search for the first iterator in a range where a predicate is false.
+/// Requires that C is always true below some limit, and always false above it.
+template <typename R, typename Predicate,
+          typename Val = decltype(*adl_begin(std::declval<R>()))>
+auto partition_point(R &&Range, Predicate P) -> decltype(adl_begin(Range)) {
+  return std::partition_point(adl_begin(Range), adl_end(Range), P);
 }
 
 /// Wrapper function around std::equal to detect if all elements
@@ -1383,6 +1358,33 @@ to_vector(R &&Range) {
 template <typename Container, typename UnaryPredicate>
 void erase_if(Container &C, UnaryPredicate P) {
   C.erase(remove_if(C, P), C.end());
+}
+
+/// Given a sequence container Cont, replace the range [ContIt, ContEnd) with
+/// the range [ValIt, ValEnd) (which is not from the same container).
+template<typename Container, typename RandomAccessIterator>
+void replace(Container &Cont, typename Container::iterator ContIt,
+             typename Container::iterator ContEnd, RandomAccessIterator ValIt,
+             RandomAccessIterator ValEnd) {
+  while (true) {
+    if (ValIt == ValEnd) {
+      Cont.erase(ContIt, ContEnd);
+      return;
+    } else if (ContIt == ContEnd) {
+      Cont.insert(ContIt, ValIt, ValEnd);
+      return;
+    }
+    *ContIt++ = *ValIt++;
+  }
+}
+
+/// Given a sequence container Cont, replace the range [ContIt, ContEnd) with
+/// the range R.
+template<typename Container, typename Range = std::initializer_list<
+                                 typename Container::value_type>>
+void replace(Container &Cont, typename Container::iterator ContIt,
+             typename Container::iterator ContEnd, Range R) {
+  replace(Cont, ContIt, ContEnd, R.begin(), R.end());
 }
 
 //===----------------------------------------------------------------------===//
@@ -1472,6 +1474,9 @@ namespace detail {
 template <typename R> class enumerator_iter;
 
 template <typename R> struct result_pair {
+  using value_reference =
+      typename std::iterator_traits<IterOfRange<R>>::reference;
+
   friend class enumerator_iter<R>;
 
   result_pair() = default;
@@ -1485,8 +1490,8 @@ template <typename R> struct result_pair {
   }
 
   std::size_t index() const { return Index; }
-  const ValueOfRange<R> &value() const { return *Iter; }
-  ValueOfRange<R> &value() { return *Iter; }
+  const value_reference value() const { return *Iter; }
+  value_reference value() { return *Iter; }
 
 private:
   std::size_t Index = std::numeric_limits<std::size_t>::max();

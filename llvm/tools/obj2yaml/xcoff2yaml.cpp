@@ -19,32 +19,76 @@ class XCOFFDumper {
   const object::XCOFFObjectFile &Obj;
   XCOFFYAML::Object YAMLObj;
   void dumpHeader();
+  std::error_code dumpSymbols();
 
 public:
-  XCOFFDumper(const object::XCOFFObjectFile &obj);
+  XCOFFDumper(const object::XCOFFObjectFile &obj) : Obj(obj) {}
+  std::error_code dump();
   XCOFFYAML::Object &getYAMLObj() { return YAMLObj; }
 };
 } // namespace
 
-XCOFFDumper::XCOFFDumper(const object::XCOFFObjectFile &obj) : Obj(obj) {
+std::error_code XCOFFDumper::dump() {
   dumpHeader();
+  return dumpSymbols();
 }
 
 void XCOFFDumper::dumpHeader() {
-  const XCOFFFileHeader *FileHdrPtr = Obj.getFileHeader();
 
-  YAMLObj.Header.Magic = FileHdrPtr->Magic;
-  YAMLObj.Header.NumberOfSections = FileHdrPtr->NumberOfSections;
-  YAMLObj.Header.TimeStamp = FileHdrPtr->TimeStamp;
-  YAMLObj.Header.SymbolTableOffset = FileHdrPtr->SymbolTableOffset;
-  YAMLObj.Header.NumberOfSymTableEntries = FileHdrPtr->NumberOfSymTableEntries;
-  YAMLObj.Header.AuxHeaderSize = FileHdrPtr->AuxHeaderSize;
-  YAMLObj.Header.Flags = FileHdrPtr->Flags;
+  YAMLObj.Header.Magic = Obj.getMagic();
+  YAMLObj.Header.NumberOfSections = Obj.getNumberOfSections();
+  YAMLObj.Header.TimeStamp = Obj.getTimeStamp();
+
+  // TODO FIXME only dump 32 bit header for now.
+  if (Obj.is64Bit())
+    report_fatal_error("64-bit XCOFF files not supported yet.");
+  YAMLObj.Header.SymbolTableOffset = Obj.getSymbolTableOffset32();
+
+  YAMLObj.Header.NumberOfSymTableEntries =
+      Obj.getRawNumberOfSymbolTableEntries32();
+  YAMLObj.Header.AuxHeaderSize = Obj.getOptionalHeaderSize();
+  YAMLObj.Header.Flags = Obj.getFlags();
+}
+
+std::error_code XCOFFDumper::dumpSymbols() {
+  std::vector<XCOFFYAML::Symbol> &Symbols = YAMLObj.Symbols;
+
+  for (const SymbolRef &S : Obj.symbols()) {
+    DataRefImpl SymbolDRI = S.getRawDataRefImpl();
+    const XCOFFSymbolEntry *SymbolEntPtr = Obj.toSymbolEntry(SymbolDRI);
+    XCOFFYAML::Symbol Sym;
+
+    Expected<StringRef> SymNameRefOrErr = Obj.getSymbolName(SymbolDRI);
+    if (!SymNameRefOrErr) {
+      return errorToErrorCode(SymNameRefOrErr.takeError());
+    }
+    Sym.SymbolName = SymNameRefOrErr.get();
+
+    Sym.Value = SymbolEntPtr->Value;
+
+    Expected<StringRef> SectionNameRefOrErr =
+        Obj.getSymbolSectionName(SymbolEntPtr);
+    if (!SectionNameRefOrErr)
+      return errorToErrorCode(SectionNameRefOrErr.takeError());
+
+    Sym.SectionName = SectionNameRefOrErr.get();
+
+    Sym.Type = SymbolEntPtr->SymbolType;
+    Sym.StorageClass = SymbolEntPtr->StorageClass;
+    Sym.NumberOfAuxEntries = SymbolEntPtr->NumberOfAuxEntries;
+    Symbols.push_back(Sym);
+  }
+
+  return std::error_code();
 }
 
 std::error_code xcoff2yaml(raw_ostream &Out,
                            const object::XCOFFObjectFile &Obj) {
   XCOFFDumper Dumper(Obj);
+
+  if (std::error_code EC = Dumper.dump())
+    return EC;
+
   yaml::Output Yout(Out);
   Yout << Dumper.getYAMLObj();
 

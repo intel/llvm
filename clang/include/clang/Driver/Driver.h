@@ -235,9 +235,6 @@ private:
   /// Certain options suppress the 'no input files' warning.
   unsigned SuppressMissingInputWarning : 1;
 
-  std::list<std::string> TempFiles;
-  std::list<std::string> ResultFiles;
-
   /// Cache of all the ToolChains in use by the driver.
   ///
   /// This maps from the string representation of a triple to a ToolChain
@@ -393,6 +390,14 @@ public:
   /// \param TC - The default host tool chain.
   void BuildUniversalActions(Compilation &C, const ToolChain &TC,
                              const InputList &BAInputs) const;
+
+  /// Check that the file referenced by Value exists. If it doesn't,
+  /// issue a diagnostic and return false.
+  /// If TypoCorrect is true and the file does not exist, see if it looks
+  /// like a likely typo for a flag and if so print a "did you mean" blurb.
+  bool DiagnoseInputExistence(const llvm::opt::DerivedArgList &Args,
+                              StringRef Value, types::ID Ty,
+                              bool TypoCorrect) const;
 
   /// BuildJobs - Bind actions to concrete tools and translate
   /// arguments to form the list of jobs to run.

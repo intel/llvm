@@ -7,6 +7,10 @@
 //CHECK: [[ANN5:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{max_private_copies:8}
 //CHECK: [[ANN10:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{pump:1}
 //CHECK: [[ANN11:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{pump:2}
+//CHECK: [[ANN12:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{merge:foo:depth}
+//CHECK: [[ANN13:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{merge:bar:width}
+//CHECK: [[ANN14:@.str[\.]*[0-9]*]] = {{.*}}{max_replicates:2}
+//CHECK: [[ANN15:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{simple_dual_port:1}
 //CHECK: [[ANN6:@.str[\.]*[0-9]*]] = {{.*}}{memory:BLOCK_RAM}
 //CHECK: [[ANN7:@.str[\.]*[0-9]*]] = {{.*}}{memory:MLAB}
 //CHECK: [[ANN8:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{bankwidth:8}
@@ -39,6 +43,10 @@ struct foo_two {
   int f5 [[intelfpga::max_private_copies(8)]];
   int f6 [[intelfpga::singlepump]];
   int f7 [[intelfpga::doublepump]];
+  int f8 [[intelfpga::merge("foo", "depth")]];
+  int f9 [[intelfpga::merge("bar", "width")]];
+  int f10 [[intelfpga::max_replicates(2)]];
+  int f11 [[intelfpga::simple_dual_port]];
 };
 
 void bar() {
@@ -71,6 +79,22 @@ void bar() {
   //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD7]]
   //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN11]]
   s1.f7 = 0;
+  //CHECK: %[[FIELD8:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
+  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD8]]
+  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN12]]
+  s1.f8 = 0;
+  //CHECK: %[[FIELD9:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
+  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD9]]
+  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN13]]
+  s1.f9 = 0;
+  //CHECK: %[[FIELD10:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
+  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD10]]
+  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN14]]
+  s1.f10 = 0;
+  //CHECK: %[[FIELD11:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
+  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD11]]
+  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN15]]
+  s1.f11 = 0;
 }
 
 void baz() {
@@ -110,6 +134,22 @@ void baz() {
   //CHECK: %[[V_NINE1:v_nine[0-9]+]] = bitcast{{.*}}v_nine
   //CHECK: llvm.var.annotation{{.*}}%[[V_NINE1]],{{.*}}[[ANN11]]
   int v_nine [[intelfpga::doublepump]];
+  //CHECK: %[[V_TEN:[0-9]+]] = bitcast{{.*}}v_ten
+  //CHECK: %[[V_TEN1:v_ten[0-9]+]] = bitcast{{.*}}v_ten
+  //CHECK: llvm.var.annotation{{.*}}%[[V_TEN1]],{{.*}}[[ANN12]]
+  int v_ten [[intelfpga::merge("foo", "depth")]];
+  //CHECK: %[[V_ELEVEN:[0-9]+]] = bitcast{{.*}}v_eleven
+  //CHECK: %[[V_ELEVEN1:v_eleven[0-9]+]] = bitcast{{.*}}v_eleven
+  //CHECK: llvm.var.annotation{{.*}}%[[V_ELEVEN1]],{{.*}}[[ANN13]]
+  int v_eleven [[intelfpga::merge("bar", "width")]];
+  //CHECK: %[[V_TWELVE:[0-9]+]] = bitcast{{.*}}v_twelve
+  //CHECK: %[[V_TWELVE1:v_twelve[0-9]+]] = bitcast{{.*}}v_twelve
+  //CHECK: llvm.var.annotation{{.*}}%[[V_TWELVE1]],{{.*}}[[ANN14]]
+  int v_twelve [[intelfpga::max_replicates(2)]];
+  //CHECK: %[[V_THIRTEEN:[0-9]+]] = bitcast{{.*}}v_thirteen
+  //CHECK: %[[V_THIRTEEN1:v_thirteen[0-9]+]] = bitcast{{.*}}v_thirteen
+  //CHECK: llvm.var.annotation{{.*}}%[[V_THIRTEEN1]],{{.*}}[[ANN15]]
+  int v_thirteen [[intelfpga::simple_dual_port]];
 }
 
 template <typename name, typename Func>

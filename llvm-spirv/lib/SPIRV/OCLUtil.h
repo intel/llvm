@@ -41,10 +41,12 @@
 
 #include "SPIRVInternal.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Path.h"
 
 #include <functional>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 using namespace SPIRV;
 using namespace llvm;
@@ -163,6 +165,7 @@ const static char Dot[] = "dot";
 const static char EnqueueKernel[] = "enqueue_kernel";
 const static char FMax[] = "fmax";
 const static char FMin[] = "fmin";
+const static char FPGARegIntel[] = "__builtin_intel_fpga_reg";
 const static char GetFence[] = "get_fence";
 const static char GetImageArraySize[] = "get_image_array_size";
 const static char GetImageChannelOrder[] = "get_image_channel_order";
@@ -183,6 +186,7 @@ const static char NDRangePrefix[] = "ndrange_";
 const static char Pipe[] = "pipe";
 const static char ReadImage[] = "read_image";
 const static char ReadPipe[] = "read_pipe";
+const static char ReadPipeBlockingINTEL[] = "read_pipe_bl";
 const static char RoundingPrefix[] = "_r";
 const static char Sampled[] = "sampled_";
 const static char SampledReadImage[] = "sampled_read_image";
@@ -204,6 +208,7 @@ const static char WaitGroupEvent[] = "wait_group_events";
 const static char WriteImage[] = "write_image";
 const static char WorkGroupBarrier[] = "work_group_barrier";
 const static char WritePipe[] = "write_pipe";
+const static char WritePipeBlockingINTEL[] = "write_pipe_bl";
 const static char WorkGroupPrefix[] = "work_group_";
 const static char WorkGroupAll[] = "work_group_all";
 const static char WorkGroupAny[] = "work_group_any";
@@ -434,6 +439,49 @@ template <> inline void SPIRVMap<OCLScopeKind, Scope>::init() {
   add(OCLMS_sub_group, ScopeSubgroup);
 }
 
+template <class KeyTy, class ValTy, class Identifier = void>
+Instruction *
+getOrCreateSwitchFunc(StringRef MapName, Value *V,
+                      const SPIRVMap<KeyTy, ValTy, Identifier> &Map,
+                      bool IsReverse, Optional<int> DefaultCase,
+                      Instruction *InsertPoint, Module *M) {
+  static_assert(std::is_convertible<KeyTy, int>::value &&
+                    std::is_convertible<ValTy, int>::value,
+                "Can map only integer values");
+  Type *Ty = V->getType();
+  assert(Ty && Ty->isIntegerTy() && "Can't map non-integer types");
+  Function *F = getOrCreateFunction(M, Ty, Ty, MapName);
+  if (!F->empty()) // The switch function already exists. just call it.
+    return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
+
+  F->setLinkage(GlobalValue::PrivateLinkage);
+
+  LLVMContext &Ctx = M->getContext();
+  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
+  IRBuilder<> IRB(BB);
+  F->arg_begin()->setName("key");
+  SwitchInst *SI = IRB.CreateSwitch(F->arg_begin(), BB);
+  if (!DefaultCase) {
+    BasicBlock *DefaultBB = BasicBlock::Create(Ctx, "default", F);
+    IRBuilder<> DefaultIRB(DefaultBB);
+    DefaultIRB.CreateUnreachable();
+    SI->setDefaultDest(DefaultBB);
+  }
+
+  Map.foreach ([&](int Key, int Val) {
+    if (IsReverse)
+      std::swap(Key, Val);
+    BasicBlock *CaseBB = BasicBlock::Create(Ctx, "case." + Twine(Key), F);
+    IRBuilder<> CaseIRB(CaseBB);
+    CaseIRB.CreateRet(CaseIRB.getInt32(Val));
+    SI->addCase(IRB.getInt32(Key), CaseBB);
+    if (Key == DefaultCase)
+      SI->setDefaultDest(CaseBB);
+  });
+  assert(SI->getDefaultDest() != BB && "Invalid default destination in switch");
+  return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
+}
+
 template <> inline void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
   add("reduce", GroupOperationReduce);
   add("scan_inclusive", GroupOperationInclusiveScan);
@@ -599,10 +647,11 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(to_global, GenericCastToPtrExplicit)
   _SPIRV_OP(to_local, GenericCastToPtrExplicit)
   _SPIRV_OP(to_private, GenericCastToPtrExplicit)
-  _SPIRV_OP(work_group_barrier, ControlBarrier)
   // CL 2.0 pipe builtins
   _SPIRV_OP(read_pipe_2, ReadPipe)
   _SPIRV_OP(write_pipe_2, WritePipe)
+  _SPIRV_OP(read_pipe_2_bl, ReadPipeBlockingINTEL)
+  _SPIRV_OP(write_pipe_2_bl, WritePipeBlockingINTEL)
   _SPIRV_OP(read_pipe_4, ReservedReadPipe)
   _SPIRV_OP(write_pipe_4, ReservedWritePipe)
   _SPIRV_OP(reserve_read_pipe, ReserveReadPipePackets)

@@ -68,7 +68,7 @@ protected:
     IncludeStructure Includes;
     Clang->getPreprocessor().addPPCallbacks(
         collectIncludeStructureCallback(Clang->getSourceManager(), &Includes));
-    EXPECT_TRUE(Action.Execute());
+    EXPECT_FALSE(Action.Execute());
     Action.EndSourceFile();
     return Includes;
   }
@@ -97,9 +97,9 @@ protected:
     auto Inserted = ToHeaderFile(Preferred);
     if (!Inserter.shouldInsertInclude(Original, Inserted))
       return "";
-    std::string Path = Inserter.calculateIncludePath(Inserted);
+    auto Path = Inserter.calculateIncludePath(Inserted, MainFile);
     Action.EndSourceFile();
-    return Path;
+    return Path.getValueOr("");
   }
 
   llvm::Optional<TextEdit> insert(llvm::StringRef VerbatimHeader) {
@@ -180,13 +180,14 @@ TEST_F(HeadersTest, PreambleIncludesPresentOnce) {
   // includes. (We'd test more directly, but it's pretty well encapsulated!)
   auto TU = TestTU::withCode(R"cpp(
     #include "a.h"
+
     #include "a.h"
     void foo();
     #include "a.h"
   )cpp");
   TU.HeaderFilename = "a.h"; // suppress "not found".
   EXPECT_THAT(TU.build().getIncludeStructure().MainFileIncludes,
-              ElementsAre(IncludeLine(1), IncludeLine(2), IncludeLine(4)));
+              ElementsAre(IncludeLine(1), IncludeLine(3), IncludeLine(5)));
 }
 
 TEST_F(HeadersTest, UnResolvedInclusion) {
@@ -211,7 +212,12 @@ TEST_F(HeadersTest, DoNotInsertIfInSameFile) {
   EXPECT_EQ(calculate(MainFile), "");
 }
 
-TEST_F(HeadersTest, ShortenedInclude) {
+TEST_F(HeadersTest, DoNotInsertOffIncludePath) {
+  MainFile = testPath("sub/main.cpp");
+  EXPECT_EQ(calculate(testPath("sub2/main.cpp")), "");
+}
+
+TEST_F(HeadersTest, ShortenIncludesInSearchPath) {
   std::string BarHeader = testPath("sub/bar.h");
   EXPECT_EQ(calculate(BarHeader), "\"bar.h\"");
 
@@ -221,10 +227,10 @@ TEST_F(HeadersTest, ShortenedInclude) {
   EXPECT_EQ(calculate(BarHeader), "\"sub/bar.h\"");
 }
 
-TEST_F(HeadersTest, NotShortenedInclude) {
+TEST_F(HeadersTest, ShortenedIncludeNotInSearchPath) {
   std::string BarHeader =
       llvm::sys::path::convert_to_slash(testPath("sub-2/bar.h"));
-  EXPECT_EQ(calculate(BarHeader, ""), "\"" + BarHeader + "\"");
+  EXPECT_EQ(calculate(BarHeader, ""), "\"sub-2/bar.h\"");
 }
 
 TEST_F(HeadersTest, PreferredHeader) {
@@ -267,11 +273,16 @@ TEST(Headers, NoHeaderSearchInfo) {
   auto Inserting = HeaderFile{HeaderPath, /*Verbatim=*/false};
   auto Verbatim = HeaderFile{"<x>", /*Verbatim=*/true};
 
-  EXPECT_EQ(Inserter.calculateIncludePath(Inserting), "\"" + HeaderPath + "\"");
+  EXPECT_EQ(Inserter.calculateIncludePath(Inserting, MainFile),
+            std::string("\"sub/bar.h\""));
   EXPECT_EQ(Inserter.shouldInsertInclude(HeaderPath, Inserting), false);
 
-  EXPECT_EQ(Inserter.calculateIncludePath(Verbatim), "<x>");
+  EXPECT_EQ(Inserter.calculateIncludePath(Verbatim, MainFile),
+            std::string("<x>"));
   EXPECT_EQ(Inserter.shouldInsertInclude(HeaderPath, Verbatim), true);
+
+  EXPECT_EQ(Inserter.calculateIncludePath(Inserting, "sub2/main2.cpp"),
+            llvm::None);
 }
 
 } // namespace

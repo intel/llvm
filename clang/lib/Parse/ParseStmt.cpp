@@ -973,10 +973,16 @@ bool Parser::ConsumeNullStmt(StmtVector &Stmts) {
 StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
   bool IsStmtExprResult = false;
   if ((StmtCtx & ParsedStmtContext::InStmtExpr) != ParsedStmtContext()) {
-    // Look ahead to see if the next two tokens close the statement expression;
-    // if so, this expression statement is the last statement in a
-    // statment expression.
-    IsStmtExprResult = Tok.is(tok::r_brace) && NextToken().is(tok::r_paren);
+    // For GCC compatibility we skip past NullStmts.
+    unsigned LookAhead = 0;
+    while (GetLookAheadToken(LookAhead).is(tok::semi)) {
+      ++LookAhead;
+    }
+    // Then look to see if the next two tokens close the statement expression;
+    // if so, this expression statement is the last statement in a statment
+    // expression.
+    IsStmtExprResult = GetLookAheadToken(LookAhead).is(tok::r_brace) &&
+                       GetLookAheadToken(LookAhead + 1).is(tok::r_paren);
   }
 
   if (IsStmtExprResult)
@@ -2382,9 +2388,9 @@ bool Parser::ParseIntelFPGALoopAttributes(ParsedAttributes &Attrs) {
   if (Attrs.empty())
     return true;
 
-  if (Attrs.begin()->getKind() != ParsedAttr::AT_IntelFPGAIVDep &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_IntelFPGAII &&
-      Attrs.begin()->getKind() != ParsedAttr::AT_IntelFPGAMaxConcurrency)
+  if (Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAIVDep &&
+      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAII &&
+      Attrs.begin()->getKind() != ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency)
     return true;
 
   if (!(Tok.is(tok::kw_for) || Tok.is(tok::kw_while) || Tok.is(tok::kw_do))) {

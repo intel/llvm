@@ -385,8 +385,9 @@ COROUTINES_KEYWORD(co_yield)
 MODULES_KEYWORD(module)
 MODULES_KEYWORD(import)
 
-// C++ char8_t proposal
+// C++20 keywords.
 CXX2A_KEYWORD(char8_t               , CHAR8SUPPORT)
+CXX2A_KEYWORD(consteval             , 0)
 
 // C11 Extension
 KEYWORD(_Float16                    , KEYALL)
@@ -540,10 +541,10 @@ KEYWORD(__unaligned                 , KEYMS)
 KEYWORD(__super                     , KEYMS)
 
 // OpenCL address space qualifiers
-KEYWORD(__global                    , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
-KEYWORD(__local                     , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
-KEYWORD(__constant                  , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
-KEYWORD(__private                   , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
+KEYWORD(__global                    , KEYOPENCLC | KEYOPENCLCXX)
+KEYWORD(__local                     , KEYOPENCLC | KEYOPENCLCXX)
+KEYWORD(__constant                  , KEYOPENCLC | KEYOPENCLCXX)
+KEYWORD(__private                   , KEYOPENCLC | KEYOPENCLCXX)
 KEYWORD(__generic                   , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("global", __global            , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("local", __local              , KEYOPENCLC | KEYOPENCLCXX)
@@ -554,8 +555,8 @@ ALIAS("generic", __generic          , KEYOPENCLC | KEYOPENCLCXX)
 KEYWORD(__kernel                    , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("kernel", __kernel            , KEYOPENCLC | KEYOPENCLCXX)
 // OpenCL access qualifiers
-KEYWORD(__read_only                 , KEYOPENCLC | KEYOPENCLCXX)
-KEYWORD(__write_only                , KEYOPENCLC | KEYOPENCLCXX)
+KEYWORD(__read_only                 , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
+KEYWORD(__write_only                , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
 KEYWORD(__read_write                , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("read_only", __read_only      , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("write_only", __write_only    , KEYOPENCLC | KEYOPENCLCXX)
@@ -570,6 +571,7 @@ KEYWORD(vec_step                    , KEYOPENCLC | KEYALTIVEC | KEYZVECTOR)
 KEYWORD(__builtin_omp_required_simd_align, KEYALL)
 
 KEYWORD(pipe                        , KEYOPENCLC | KEYOPENCLCXX)
+KEYWORD(__pipe                      , KEYSYCL)
 
 // Borland Extensions.
 KEYWORD(__pascal                    , KEYALL)
@@ -670,8 +672,9 @@ ALIAS("_pascal"      , __pascal   , KEYBORLAND)
 KEYWORD(__builtin_convertvector   , KEYALL)
 ALIAS("__char16_t"   , char16_t   , KEYCXX)
 ALIAS("__char32_t"   , char32_t   , KEYCXX)
-
+KEYWORD(__builtin_bit_cast        , KEYALL)
 KEYWORD(__builtin_available       , KEYALL)
+KEYWORD(__unique_stable_name        , KEYALL)
 
 // Clang-specific keywords enabled only in testing.
 TESTING_KEYWORD(__unknown_anytype , KEYALL)

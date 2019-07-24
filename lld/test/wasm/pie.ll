@@ -2,7 +2,7 @@
 ; RUN: wasm-ld --no-gc-sections --allow-undefined -pie -o %t.wasm %t.o
 ; RUN: obj2yaml %t.wasm | FileCheck %s
 
-target triple = "wasm32-unknown-unknown"
+target triple = "wasm32-unknown-emscripten"
 
 @data = global i32 2, align 4
 @data_external = external global i32
@@ -39,6 +39,11 @@ define void @_start() {
 ; CHECK-NEXT:           ElemType:        FUNCREF
 ; CHECK-NEXT:           Limits:
 ; CHECK-NEXT:             Initial:         0x00000001
+; CHECK-NEXT:       - Module:          env
+; CHECK-NEXT:         Field:           __stack_pointer
+; CHECK-NEXT:         Kind:            GLOBAL
+; CHECK-NEXT:         GlobalType:      I32
+; CHECK-NEXT:         GlobalMutable:   true
 ; CHECK-NEXT:       - Module:          env
 ; CHECK-NEXT:         Field:           __memory_base
 ; CHECK-NEXT:         Kind:            GLOBAL

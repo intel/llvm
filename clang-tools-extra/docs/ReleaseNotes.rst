@@ -101,6 +101,16 @@ Improvements to clang-tidy
   Finds and fixes ``absl::Time`` subtraction expressions to do subtraction
   in the Time domain instead of the numeric domain.
 
+- New :doc:`android-cloexec-pipe
+  <clang-tidy/checks/android-cloexec-pipe>` check.
+
+  This check detects usage of ``pipe()``.
+
+- New :doc:`android-cloexec-pipe2
+  <clang-tidy/checks/android-cloexec-pipe2>` check.
+
+  This checks ensures that ``pipe2()`` is called with the O_CLOEXEC flag.
+
 - New :doc:`bugprone-unhandled-self-assignment
   <clang-tidy/checks/bugprone-unhandled-self-assignment>` check.
 
@@ -115,6 +125,26 @@ Improvements to clang-tidy
   repeated branches in ``switch`` statements and indentical true and false
   branches in conditional operators.
 
+- New :doc:`bugprone-posix-return
+  <clang-tidy/checks/bugprone-posix-return>` check.
+
+  Checks if any calls to POSIX functions (except ``posix_openpt``) expect negative
+  return values.
+
+- New :doc:`fuchsia-default-arguments-calls
+  <clang-tidy/checks/fuchsia-default-arguments-calls>` check.
+
+  Warns if a function or method is called with default arguments.
+  This was previously done by `fuchsia-default-arguments check`, which has been
+  removed.
+
+- New :doc:`fuchsia-default-arguments-calls
+  <clang-tidy/checks/fuchsia-default-arguments-calls>` check.
+
+  Warns if a function or method is declared with default parameters.
+  This was previously done by `fuchsia-default-arguments check` check, which has
+  been removed.
+
 - New :doc:`google-readability-avoid-underscore-in-googletest-name
   <clang-tidy/checks/google-readability-avoid-underscore-in-googletest-name>`
   check.
@@ -122,11 +152,22 @@ Improvements to clang-tidy
   Checks whether there are underscores in googletest test and test case names in
   test macros, which is prohibited by the Googletest FAQ.
 
+- New :doc:`google-objc-avoid-nsobject-new
+  <clang-tidy/checks/google-objc-avoid-nsobject-new>` check.
+
+  Checks for calls to ``+new`` or overrides of it, which are prohibited by the
+  Google Objective-C style guide.
+
 - New :doc:`objc-super-self <clang-tidy/checks/objc-super-self>` check.
 
   Finds invocations of ``-self`` on super instances in initializers of
   subclasses of ``NSObject`` and recommends calling a superclass initializer
   instead.
+
+- New alias :doc:`cert-oop54-cpp
+  <clang-tidy/checks/cert-oop54-cpp>` to
+  :doc:`bugprone-unhandled-self-assignment
+  <clang-tidy/checks/bugprone-unhandled-self-assignment>` was added.
 
 - New alias :doc:`cppcoreguidelines-explicit-virtual-functions
   <clang-tidy/checks/cppcoreguidelines-explicit-virtual-functions>` to
@@ -144,6 +185,14 @@ Improvements to clang-tidy
   `MagnitudeBitsUpperLimit` option. The default value was set to 16,
   which greatly reduces warnings related to loops which are unlikely to
   cause an actual functional bug.
+
+- The ‘fuchsia-default-arguments’ check has been removed.
+
+  Warnings of function or method calls and declarations with default arguments
+  were moved to :doc:`fuchsia-default-arguments-calls
+  <clang-tidy/checks/fuchsia-default-arguments-calls>` and
+  :doc:`fuchsia-default-arguments-calls
+  <clang-tidy/checks/fuchsia-default-arguments-calls>` checks respectively.
 
 - The :doc:`google-runtime-int <clang-tidy/checks/google-runtime-int>`
   check has been disabled in Objective-C++.
@@ -171,9 +220,20 @@ Improvements to clang-tidy
   Rewrites function signatures to use a trailing return type.
 
 - The :doc:`misc-throw-by-value-catch-by-reference
-  <clang-tidy/misc-throw-by-value-catch-by-reference.rst>` now supports
+  <clang-tidy/checks/misc-throw-by-value-catch-by-reference>` now supports
   `WarnOnLargeObject` and `MaxSize` options to warn on any large trivial
   object caught by value.
+
+- Added `UseAssignment` option to :doc:`cppcoreguidelines-pro-type-member-init
+  <clang-tidy/checks/cppcoreguidelines-pro-type-member-init>`
+
+  If set to true, the check will provide fix-its with literal initializers
+  (``int i = 0;``) instead of curly braces (``int i{};``).
+
+- New :doc:`readability-convert-member-functions-to-static
+  <clang-tidy/checks/readability-convert-member-functions-to-static>` check.
+
+  Finds non-static member functions that can be made ``static``.
 
 Improvements to include-fixer
 -----------------------------

@@ -208,26 +208,47 @@ namespace llvm {
   /// This is the common base class for constrained floating point intrinsics.
   class ConstrainedFPIntrinsic : public IntrinsicInst {
   public:
-    enum RoundingMode {
-      rmInvalid,
-      rmDynamic,
-      rmToNearest,
-      rmDownward,
-      rmUpward,
-      rmTowardZero
+    /// Specifies the rounding mode to be assumed. This is only used when
+    /// when constrained floating point is enabled. See the LLVM Language
+    /// Reference Manual for details.
+    enum RoundingMode : uint8_t {
+      rmDynamic,         ///< This corresponds to "fpround.dynamic".
+      rmToNearest,       ///< This corresponds to "fpround.tonearest".
+      rmDownward,        ///< This corresponds to "fpround.downward".
+      rmUpward,          ///< This corresponds to "fpround.upward".
+      rmTowardZero       ///< This corresponds to "fpround.tozero".
     };
 
-    enum ExceptionBehavior {
-      ebInvalid,
-      ebIgnore,
-      ebMayTrap,
-      ebStrict
+    /// Specifies the required exception behavior. This is only used when
+    /// when constrained floating point is used. See the LLVM Language
+    /// Reference Manual for details.
+    enum ExceptionBehavior : uint8_t {
+      ebIgnore,          ///< This corresponds to "fpexcept.ignore".
+      ebMayTrap,         ///< This corresponds to "fpexcept.maytrap".
+      ebStrict           ///< This corresponds to "fpexcept.strict".
     };
 
     bool isUnaryOp() const;
     bool isTernaryOp() const;
-    RoundingMode getRoundingMode() const;
-    ExceptionBehavior getExceptionBehavior() const;
+    Optional<RoundingMode> getRoundingMode() const;
+    Optional<ExceptionBehavior> getExceptionBehavior() const;
+
+    /// Returns a valid RoundingMode enumerator when given a string
+    /// that is valid as input in constrained intrinsic rounding mode
+    /// metadata.
+    static Optional<RoundingMode> StrToRoundingMode(StringRef);
+
+    /// For any RoundingMode enumerator, returns a string valid as input in
+    /// constrained intrinsic rounding mode metadata.
+    static Optional<StringRef> RoundingModeToStr(RoundingMode);
+
+    /// Returns a valid ExceptionBehavior enumerator when given a string
+    /// valid as input in constrained intrinsic exception behavior metadata.
+    static Optional<ExceptionBehavior> StrToExceptionBehavior(StringRef);
+
+    /// For any ExceptionBehavior enumerator, returns a string valid as 
+    /// input in constrained intrinsic exception behavior metadata.
+    static Optional<StringRef> ExceptionBehaviorToStr(ExceptionBehavior);
 
     // Methods for support type inquiry through isa, cast, and dyn_cast:
     static bool classof(const IntrinsicInst *I) {
@@ -267,8 +288,9 @@ namespace llvm {
     }
   };
 
-  /// This class represents a op.with.overflow intrinsic.
-  class WithOverflowInst : public IntrinsicInst {
+  /// This class represents an intrinsic that is based on a binary operation.
+  /// This includes op.with.overflow and saturating add/sub intrinsics.
+  class BinaryOpIntrinsic : public IntrinsicInst {
   public:
     static bool classof(const IntrinsicInst *I) {
       switch (I->getIntrinsicID()) {
@@ -278,6 +300,10 @@ namespace llvm {
       case Intrinsic::ssub_with_overflow:
       case Intrinsic::umul_with_overflow:
       case Intrinsic::smul_with_overflow:
+      case Intrinsic::uadd_sat:
+      case Intrinsic::sadd_sat:
+      case Intrinsic::usub_sat:
+      case Intrinsic::ssub_sat:
         return true;
       default:
         return false;
@@ -298,6 +324,46 @@ namespace llvm {
 
     /// Returns one of OBO::NoSignedWrap or OBO::NoUnsignedWrap.
     unsigned getNoWrapKind() const;
+  };
+
+  /// Represents an op.with.overflow intrinsic.
+  class WithOverflowInst : public BinaryOpIntrinsic {
+  public:
+    static bool classof(const IntrinsicInst *I) {
+      switch (I->getIntrinsicID()) {
+      case Intrinsic::uadd_with_overflow:
+      case Intrinsic::sadd_with_overflow:
+      case Intrinsic::usub_with_overflow:
+      case Intrinsic::ssub_with_overflow:
+      case Intrinsic::umul_with_overflow:
+      case Intrinsic::smul_with_overflow:
+        return true;
+      default:
+        return false;
+      }
+    }
+    static bool classof(const Value *V) {
+      return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+    }
+  };
+
+  /// Represents a saturating add/sub intrinsic.
+  class SaturatingInst : public BinaryOpIntrinsic {
+  public:
+    static bool classof(const IntrinsicInst *I) {
+      switch (I->getIntrinsicID()) {
+      case Intrinsic::uadd_sat:
+      case Intrinsic::sadd_sat:
+      case Intrinsic::usub_sat:
+      case Intrinsic::ssub_sat:
+        return true;
+      default:
+        return false;
+      }
+    }
+    static bool classof(const Value *V) {
+      return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+    }
   };
 
   /// Common base class for all memory intrinsics. Simply provides

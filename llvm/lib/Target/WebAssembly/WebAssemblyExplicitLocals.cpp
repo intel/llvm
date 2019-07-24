@@ -90,8 +90,8 @@ static unsigned getDropOpcode(const TargetRegisterClass *RC) {
     return WebAssembly::DROP_F64;
   if (RC == &WebAssembly::V128RegClass)
     return WebAssembly::DROP_V128;
-  if (RC == &WebAssembly::EXCEPT_REFRegClass)
-    return WebAssembly::DROP_EXCEPT_REF;
+  if (RC == &WebAssembly::EXNREFRegClass)
+    return WebAssembly::DROP_EXNREF;
   llvm_unreachable("Unexpected register class");
 }
 
@@ -107,8 +107,8 @@ static unsigned getLocalGetOpcode(const TargetRegisterClass *RC) {
     return WebAssembly::LOCAL_GET_F64;
   if (RC == &WebAssembly::V128RegClass)
     return WebAssembly::LOCAL_GET_V128;
-  if (RC == &WebAssembly::EXCEPT_REFRegClass)
-    return WebAssembly::LOCAL_GET_EXCEPT_REF;
+  if (RC == &WebAssembly::EXNREFRegClass)
+    return WebAssembly::LOCAL_GET_EXNREF;
   llvm_unreachable("Unexpected register class");
 }
 
@@ -124,8 +124,8 @@ static unsigned getLocalSetOpcode(const TargetRegisterClass *RC) {
     return WebAssembly::LOCAL_SET_F64;
   if (RC == &WebAssembly::V128RegClass)
     return WebAssembly::LOCAL_SET_V128;
-  if (RC == &WebAssembly::EXCEPT_REFRegClass)
-    return WebAssembly::LOCAL_SET_EXCEPT_REF;
+  if (RC == &WebAssembly::EXNREFRegClass)
+    return WebAssembly::LOCAL_SET_EXNREF;
   llvm_unreachable("Unexpected register class");
 }
 
@@ -141,8 +141,8 @@ static unsigned getLocalTeeOpcode(const TargetRegisterClass *RC) {
     return WebAssembly::LOCAL_TEE_F64;
   if (RC == &WebAssembly::V128RegClass)
     return WebAssembly::LOCAL_TEE_V128;
-  if (RC == &WebAssembly::EXCEPT_REFRegClass)
-    return WebAssembly::LOCAL_TEE_EXCEPT_REF;
+  if (RC == &WebAssembly::EXNREFRegClass)
+    return WebAssembly::LOCAL_TEE_EXNREF;
   llvm_unreachable("Unexpected register class");
 }
 
@@ -158,8 +158,8 @@ static MVT typeForRegClass(const TargetRegisterClass *RC) {
     return MVT::f64;
   if (RC == &WebAssembly::V128RegClass)
     return MVT::v16i8;
-  if (RC == &WebAssembly::EXCEPT_REFRegClass)
-    return MVT::ExceptRef;
+  if (RC == &WebAssembly::EXNREFRegClass)
+    return MVT::exnref;
   llvm_unreachable("unrecognized register class");
 }
 
@@ -205,7 +205,7 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
                                    E = MF.begin()->end();
        I != E;) {
     MachineInstr &MI = *I++;
-    if (!WebAssembly::isArgument(MI))
+    if (!WebAssembly::isArgument(MI.getOpcode()))
       break;
     unsigned Reg = MI.getOperand(0).getReg();
     assert(!MFI.isVRegStackified(Reg));
@@ -227,7 +227,7 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
   for (MachineBasicBlock &MBB : MF) {
     for (MachineBasicBlock::iterator I = MBB.begin(), E = MBB.end(); I != E;) {
       MachineInstr &MI = *I++;
-      assert(!WebAssembly::isArgument(MI));
+      assert(!WebAssembly::isArgument(MI.getOpcode()));
 
       if (MI.isDebugInstr() || MI.isLabel())
         continue;
@@ -235,7 +235,7 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
       // Replace tee instructions with local.tee. The difference is that tee
       // instructions have two defs, while local.tee instructions have one def
       // and an index of a local to write to.
-      if (WebAssembly::isTee(MI)) {
+      if (WebAssembly::isTee(MI.getOpcode())) {
         assert(MFI.isVRegStackified(MI.getOperand(0).getReg()));
         assert(!MFI.isVRegStackified(MI.getOperand(1).getReg()));
         unsigned OldReg = MI.getOperand(2).getReg();
@@ -356,7 +356,7 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
       }
 
       // Coalesce and eliminate COPY instructions.
-      if (WebAssembly::isCopy(MI)) {
+      if (WebAssembly::isCopy(MI.getOpcode())) {
         MRI.replaceRegWith(MI.getOperand(1).getReg(),
                            MI.getOperand(0).getReg());
         MI.eraseFromParent();

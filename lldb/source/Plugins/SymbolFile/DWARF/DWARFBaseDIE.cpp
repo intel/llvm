@@ -17,14 +17,12 @@
 
 using namespace lldb_private;
 
-DIERef DWARFBaseDIE::GetDIERef() const {
+llvm::Optional<DIERef> DWARFBaseDIE::GetDIERef() const {
   if (!IsValid())
-    return DIERef();
+    return llvm::None;
 
-  dw_offset_t cu_offset = m_cu->GetOffset();
-  if (m_cu->GetBaseObjOffset() != DW_INVALID_OFFSET)
-    cu_offset = m_cu->GetBaseObjOffset();
-  return DIERef(m_cu->GetDebugSection(), cu_offset, m_die->GetOffset());
+  return DIERef(m_cu->GetSymbolFileDWARF().GetDwoNum(), m_cu->GetDebugSection(),
+                m_die->GetOffset());
 }
 
 dw_tag_t DWARFBaseDIE::Tag() const {
@@ -90,13 +88,6 @@ lldb::ModuleSP DWARFBaseDIE::GetModule() const {
     return lldb::ModuleSP();
 }
 
-lldb_private::CompileUnit *DWARFBaseDIE::GetLLDBCompileUnit() const {
-  if (IsValid())
-    return GetDWARF()->GetCompUnitForDWARFCompUnit(GetCU());
-  else
-    return nullptr;
-}
-
 dw_offset_t DWARFBaseDIE::GetOffset() const {
   if (IsValid())
     return m_die->GetOffset();
@@ -106,7 +97,7 @@ dw_offset_t DWARFBaseDIE::GetOffset() const {
 
 SymbolFileDWARF *DWARFBaseDIE::GetDWARF() const {
   if (m_cu)
-    return m_cu->GetSymbolFileDWARF();
+    return &m_cu->GetSymbolFileDWARF();
   else
     return nullptr;
 }
@@ -136,10 +127,8 @@ bool DWARFBaseDIE::Supports_DW_AT_APPLE_objc_complete_type() const {
 
 size_t DWARFBaseDIE::GetAttributes(DWARFAttributes &attributes,
                                uint32_t depth) const {
-  if (IsValid()) {
-    return m_die->GetAttributes(m_cu, m_cu->GetFixedFormSizes(), attributes,
-                                depth);
-  }
+  if (IsValid())
+    return m_die->GetAttributes(m_cu, attributes, depth);
   if (depth == 0)
     attributes.Clear();
   return 0;

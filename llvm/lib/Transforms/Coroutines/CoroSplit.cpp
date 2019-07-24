@@ -866,7 +866,7 @@ static void createDevirtTriggerFunc(CallGraph &CG, CallGraphSCC &SCC) {
 
   LLVMContext &C = M.getContext();
   auto *FnTy = FunctionType::get(Type::getVoidTy(C), Type::getInt8PtrTy(C),
-                                 /*IsVarArgs=*/false);
+                                 /*isVarArg=*/false);
   Function *DevirtFn =
       Function::Create(FnTy, GlobalValue::LinkageTypes::PrivateLinkage,
                        CORO_DEVIRT_TRIGGER_FN, &M);
@@ -946,7 +946,12 @@ struct CoroSplit : public CallGraphSCCPass {
 
 char CoroSplit::ID = 0;
 
-INITIALIZE_PASS(
+INITIALIZE_PASS_BEGIN(
+    CoroSplit, "coro-split",
+    "Split coroutine into a set of functions driving its state machine", false,
+    false)
+INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
+INITIALIZE_PASS_END(
     CoroSplit, "coro-split",
     "Split coroutine into a set of functions driving its state machine", false,
     false)

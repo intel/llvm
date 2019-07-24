@@ -1,14 +1,14 @@
 // >> ---- compile src1
 // >> device compilation...
-// RUN: %clang -std=c++11 --sycl -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc
+// RUN: %clangxx --sycl -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc
 // >> host compilation...
-// RUN: %clang -std=c++11 -include sycl_ihdr_a.h -g -c %s -o a.o
+// RUN: %clangxx -include sycl_ihdr_a.h -g -c %s -o a.o
 //
 // >> ---- compile src2
 // >> device compilation...
-// RUN: %clang -DB_CPP=1 -std=c++11 --sycl -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -c -o b_kernel.bc
+// RUN: %clangxx -DB_CPP=1 --sycl -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -c -o b_kernel.bc
 // >> host compilation...
-// RUN: %clang -DB_CPP=1 -std=c++11 -include sycl_ihdr_b.h -g -c %s -o b.o
+// RUN: %clangxx -DB_CPP=1 -include sycl_ihdr_b.h -g -c %s -o b.o
 //
 // >> ---- bundle .o with .spv
 // >> run bundler
@@ -33,7 +33,7 @@
 // RUN: llc -filetype=obj wrapper.bc -o wrapper.o
 //
 // >> ---- link the full hetero app
-// RUN: %clang wrapper.o a.o b.o -o app.exe -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx wrapper.o a.o b.o -o app.exe -lOpenCL -lsycl
 // RUN: ./app.exe | FileCheck %s
 // CHECK: pass
 

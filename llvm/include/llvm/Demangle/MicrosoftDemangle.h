@@ -157,6 +157,7 @@ private:
   SymbolNode *demangleEncodedSymbol(StringView &MangledName,
                                     QualifiedNameNode *QN);
   SymbolNode *demangleDeclarator(StringView &MangledName);
+  SymbolNode *demangleMD5Name(StringView &MangledName);
 
   VariableSymbolNode *demangleVariableEncoding(StringView &MangledName,
                                                StorageClass SC);
@@ -176,8 +177,9 @@ private:
 
   ArrayTypeNode *demangleArrayType(StringView &MangledName);
 
+  NodeArrayNode *demangleFunctionParameterList(StringView &MangledName,
+                                               bool &IsVariadic);
   NodeArrayNode *demangleTemplateParameterList(StringView &MangledName);
-  NodeArrayNode *demangleFunctionParameterList(StringView &MangledName);
 
   std::pair<uint64_t, bool> demangleNumber(StringView &MangledName);
   uint64_t demangleUnsigned(StringView &MangledName);
@@ -222,7 +224,7 @@ private:
   demangleSpecialTableSymbolNode(StringView &MangledName,
                                  SpecialIntrinsicKind SIK);
   LocalStaticGuardVariableNode *
-  demangleLocalStaticGuard(StringView &MangledName);
+  demangleLocalStaticGuard(StringView &MangledName, bool IsThread);
   VariableSymbolNode *demangleUntypedVariable(ArenaAllocator &Arena,
                                               StringView &MangledName,
                                               StringView VariableName);

@@ -62,6 +62,11 @@ static cl::opt<bool> ForceSkipUniformRegions(
   cl::desc("Force whether the StructurizeCFG pass skips uniform regions"),
   cl::init(false));
 
+static cl::opt<bool>
+    RelaxedUniformRegions("structurizecfg-relaxed-uniform-regions", cl::Hidden,
+                          cl::desc("Allow relaxed uniform region checks"),
+                          cl::init(false));
+
 // Definition of the complex types used in this pass.
 
 using BBValuePair = std::pair<BasicBlock *, Value *>;
@@ -623,11 +628,8 @@ void StructurizeCFG::setPhiValues() {
       if (!Dominator.resultIsRememberedBlock())
         Updater.AddAvailableValue(Dominator.result(), Undef);
 
-      for (BasicBlock *FI : From) {
-        int Idx = Phi->getBasicBlockIndex(FI);
-        assert(Idx != -1);
-        Phi->setIncomingValue(Idx, Updater.GetValueAtEndOfBlock(FI));
-      }
+      for (BasicBlock *FI : From)
+        Phi->setIncomingValueForBlock(FI, Updater.GetValueAtEndOfBlock(FI));
     }
 
     DeletedPhis.erase(To);
@@ -936,6 +938,11 @@ void StructurizeCFG::rebuildSSA() {
 
 static bool hasOnlyUniformBranches(Region *R, unsigned UniformMDKindID,
                                    const LegacyDivergenceAnalysis &DA) {
+  // Bool for if all sub-regions are uniform.
+  bool SubRegionsAreUniform = true;
+  // Count of how many direct children are conditional.
+  unsigned ConditionalDirectChildren = 0;
+
   for (auto E : R->elements()) {
     if (!E->isSubRegion()) {
       auto Br = dyn_cast<BranchInst>(E->getEntry()->getTerminator());
@@ -944,6 +951,10 @@ static bool hasOnlyUniformBranches(Region *R, unsigned UniformMDKindID,
 
       if (!DA.isUniform(Br))
         return false;
+
+      // One of our direct children is conditional.
+      ConditionalDirectChildren++;
+
       LLVM_DEBUG(dbgs() << "BB: " << Br->getParent()->getName()
                         << " has uniform terminator\n");
     } else {
@@ -961,12 +972,25 @@ static bool hasOnlyUniformBranches(Region *R, unsigned UniformMDKindID,
         if (!Br || !Br->isConditional())
           continue;
 
-        if (!Br->getMetadata(UniformMDKindID))
-          return false;
+        if (!Br->getMetadata(UniformMDKindID)) {
+          // Early exit if we cannot have relaxed uniform regions.
+          if (!RelaxedUniformRegions)
+            return false;
+
+          SubRegionsAreUniform = false;
+          break;
+        }
       }
     }
   }
-  return true;
+
+  // Our region is uniform if:
+  // 1. All conditional branches that are direct children are uniform (checked
+  // above).
+  // 2. And either:
+  //   a. All sub-regions are uniform.
+  //   b. There is one or less conditional branches among the direct children.
+  return SubRegionsAreUniform || (ConditionalDirectChildren <= 1);
 }
 
 /// Run the transformation for each region found

@@ -8,24 +8,26 @@
 
 #pragma once
 
+#include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/intel/sub_group.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/nd_range.hpp>
 #include <CL/sycl/range.hpp>
-#include <CL/__spirv/spirv_ops.hpp>
+
 #include <stdexcept>
 #include <type_traits>
 
 namespace cl {
 namespace sycl {
 namespace detail {
-struct Builder;
+class Builder;
 }
-template <int dimensions = 1> struct nd_item {
-
+template <int dimensions = 1> class nd_item {
+public:
   nd_item() = delete;
 
   id<dimensions> get_global_id() const { return globalItem.get_id(); }
@@ -50,7 +52,7 @@ template <int dimensions = 1> struct nd_item {
 
   size_t get_group(int dimension) const { return Group[dimension]; }
 
-  size_t get_group_linear_id() const { return Group.get_linear(); }
+  size_t get_group_linear_id() const { return Group.get_linear_id(); }
 
   range<dimensions> get_group_range() const {
     return Group.get_global_range() / Group.get_local_range();
@@ -81,22 +83,9 @@ template <int dimensions = 1> struct nd_item {
 
   void barrier(access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
-    uint32_t flags = MemorySemantics::SequentiallyConsistent;
-    switch (accessSpace) {
-    case access::fence_space::global_space:
-      flags |= MemorySemantics::CrossWorkgroupMemory;
-      break;
-    case access::fence_space::local_space:
-      flags |= MemorySemantics::WorkgroupMemory;
-      break;
-    case access::fence_space::global_and_local:
-    default:
-      flags |= MemorySemantics::CrossWorkgroupMemory |
-               MemorySemantics::WorkgroupMemory;
-      break;
-    }
-    __spirv_ControlBarrier(Scope::Workgroup,
-                                  Scope::Workgroup, flags);
+    uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
+    __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+                           flags);
   }
 
   /// Executes a work-group mem-fence with memory ordering on the local address

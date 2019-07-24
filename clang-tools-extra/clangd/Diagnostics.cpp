@@ -18,6 +18,7 @@
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
+#include "clang/Lex/Token.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -25,7 +26,9 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <cstddef>
 
 namespace clang {
 namespace clangd {
@@ -88,24 +91,19 @@ Range diagnosticRange(const clang::Diagnostic &D, const LangOptions &L) {
     if (locationInRange(Loc, R, M))
       return halfOpenToRange(M, R);
   }
-  llvm::Optional<Range> FallbackRange;
   // The range may be given as a fixit hint instead.
   for (const auto &F : D.getFixItHints()) {
     auto R = Lexer::makeFileCharRange(F.RemoveRange, M, L);
     if (locationInRange(Loc, R, M))
       return halfOpenToRange(M, R);
-    // If there's a fixit that performs insertion, it has zero-width. Therefore
-    // it can't contain the location of the diag, but it might be possible that
-    // this should be reported as range. For example missing semicolon.
-    if (R.getBegin() == R.getEnd() && Loc == R.getBegin())
-      FallbackRange = halfOpenToRange(M, R);
   }
-  if (FallbackRange)
-    return *FallbackRange;
-  // If no suitable range is found, just use the token at the location.
-  auto R = Lexer::makeFileCharRange(CharSourceRange::getTokenRange(Loc), M, L);
-  if (!R.isValid()) // Fall back to location only, let the editor deal with it.
-    R = CharSourceRange::getCharRange(Loc);
+  // If the token at the location is not a comment, we use the token.
+  // If we can't get the token at the location, fall back to using the location
+  auto R = CharSourceRange::getCharRange(Loc);
+  Token Tok;
+  if (!Lexer::getRawToken(Loc, Tok, M, L, true) && Tok.isNot(tok::comment)) {
+    R = CharSourceRange::getTokenRange(Tok.getLocation(), Tok.getEndLoc());
+  }
   return halfOpenToRange(M, R);
 }
 
@@ -420,10 +418,19 @@ std::vector<Diag> StoreDiags::take(const clang::tidy::ClangTidyContext *Tidy) {
         CleanMessage(Diag.Message);
         for (auto &Note : Diag.Notes)
           CleanMessage(Note.Message);
+        for (auto &Fix : Diag.Fixes)
+          CleanMessage(Fix.Message);
         continue;
       }
     }
   }
+  // Deduplicate clang-tidy diagnostics -- some clang-tidy checks may emit
+  // duplicated messages due to various reasons (e.g. the check doesn't handle
+  // template instantiations well; clang-tidy alias checks).
+  std::set<std::pair<Range, std::string>> SeenDiags;
+  llvm::erase_if(Output, [&](const Diag& D) {
+    return !SeenDiags.emplace(D.Range, D.Message).second;
+  });
   return std::move(Output);
 }
 
@@ -435,6 +442,21 @@ void StoreDiags::BeginSourceFile(const LangOptions &Opts,
 void StoreDiags::EndSourceFile() {
   flushLastDiag();
   LangOpts = None;
+}
+
+/// Sanitizes a piece for presenting it in a synthesized fix message. Ensures
+/// the result is not too large and does not contain newlines.
+static void writeCodeToFixMessage(llvm::raw_ostream &OS, llvm::StringRef Code) {
+  constexpr unsigned MaxLen = 50;
+
+  // Only show the first line if there are many.
+  llvm::StringRef R = Code.split('\n').first;
+  // Shorten the message if it's too long.
+  R = R.take_front(MaxLen);
+
+  OS << R;
+  if (R.size() != Code.size())
+    OS << "…";
 }
 
 void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
@@ -494,12 +516,21 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
       llvm::StringRef Insert = FixIt.CodeToInsert;
       if (!Invalid) {
         llvm::raw_svector_ostream M(Message);
-        if (!Remove.empty() && !Insert.empty())
-          M << "change '" << Remove << "' to '" << Insert << "'";
-        else if (!Remove.empty())
-          M << "remove '" << Remove << "'";
-        else if (!Insert.empty())
-          M << "insert '" << Insert << "'";
+        if (!Remove.empty() && !Insert.empty()) {
+          M << "change '";
+          writeCodeToFixMessage(M, Remove);
+          M << "' to '";
+          writeCodeToFixMessage(M, Insert);
+          M << "'";
+        } else if (!Remove.empty()) {
+          M << "remove '";
+          writeCodeToFixMessage(M, Remove);
+          M << "'";
+        } else if (!Insert.empty()) {
+          M << "insert '";
+          writeCodeToFixMessage(M, Insert);
+          M << "'";
+        }
         // Don't allow source code to inject newlines into diagnostics.
         std::replace(Message.begin(), Message.end(), '\n', ' ');
       }

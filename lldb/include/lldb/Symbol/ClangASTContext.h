@@ -598,6 +598,8 @@ public:
 
   bool IsVoidType(lldb::opaque_compiler_type_t type) override;
 
+  bool CanPassInRegisters(const CompilerType &type) override;
+
   bool SupportsLanguage(lldb::LanguageType language) override;
 
   static bool GetCXXClassName(const CompilerType &type,
@@ -980,7 +982,6 @@ protected:
     std::unique_ptr<clang::ASTContext>              m_ast_up;
     std::unique_ptr<clang::LangOptions>             m_language_options_up;
     std::unique_ptr<clang::FileManager>             m_file_manager_up;
-    std::unique_ptr<clang::FileSystemOptions>       m_file_system_options_up;
     std::unique_ptr<clang::SourceManager>           m_source_manager_up;
     std::unique_ptr<clang::DiagnosticsEngine>       m_diagnostics_engine_up;
     std::unique_ptr<clang::DiagnosticConsumer>      m_diagnostic_consumer_up;
@@ -999,7 +1000,6 @@ protected:
     clang::ExternalASTMerger::OriginMap             m_origins;
     uint32_t                                        m_pointer_byte_size;
     bool                                            m_ast_owned;
-    bool                                            m_can_evaluate_expressions;
     /// The sema associated that is currently used to build this ASTContext.
     /// May be null if we are already done parsing this ASTContext or the
     /// ASTContext wasn't created by parsing source code.

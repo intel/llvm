@@ -18,6 +18,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -29,7 +30,7 @@ target triple = "spir64-unknown-unknown"
 
 ;CHECK-LLVM: test_32
 ;CHECK-LLVM: entry
-;CHECK-LLVM: switch i32 %conv, label %sw.epilog
+;CHECK-LLVM: switch i32 %0, label %sw.epilog
 ;CHECK-LLVM: i32 0, label %sw.bb
 ;CHECK-LLVM: i32 1, label %sw.bb1
 

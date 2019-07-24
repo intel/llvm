@@ -233,8 +233,9 @@ public:
     case Value::FunctionVal:
       if (const Function *constant_func = dyn_cast<Function>(constant)) {
         lldb_private::ConstString name(constant_func->getName());
-        lldb::addr_t addr = m_execution_unit.FindSymbol(name);
-        if (addr == LLDB_INVALID_ADDRESS)
+        bool missing_weak = false;
+        lldb::addr_t addr = m_execution_unit.FindSymbol(name, missing_weak);
+        if (addr == LLDB_INVALID_ADDRESS || missing_weak)
           return false;
         value = APInt(m_target_data.getPointerSizeInBits(), addr);
         return true;
@@ -654,7 +655,7 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
     std::string s;
     raw_string_ostream oss(s);
 
-    module.print(oss, NULL);
+    module.print(oss, nullptr);
 
     oss.flush();
 

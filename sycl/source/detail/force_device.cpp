@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/detail/force_device.hpp>
 #include <CL/sycl/stl.hpp>
 #include <cstdlib>
-#include "force_device.hpp"
 
 namespace cl {
 namespace sycl {

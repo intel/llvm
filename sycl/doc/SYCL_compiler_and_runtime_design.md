@@ -28,19 +28,118 @@ Device compiler is further split into the following major components:
 
 - **Front-end** - parses input source, outlines "device part" of the code,
 applies additional restrictions on the device code (e.g. no exceptions or
-virtual calls), generated LLVM IR for the device code only and "integration
+virtual calls), generates LLVM IR for the device code only and "integration
 header" which provides information like kernel name, parameters order and data
 type for the runtime library.
 - **Middle-end** - transforms the initial LLVM IR* to get consumed by the
 back-end. Today middle-end transformations include just a couple of passes:
-  - OpenCL C++* to SPIR-V* built-in function names mapper
-  - Address space handling pass
+  - Optionally: Address space inference pass
   - TBD: potentially the middle-end optimizer can run any LLVM IR
   transformation with only one limitation: back-end compiler should be able to
   handle transformed LLVM IR.
   - Optionally: LLVM IR → SPIR-V translator.
 - **Back-end** - produces native "device" code in ahead-of-time compilation
 mode.
+
+### SYCL support in Clang front-end
+
+SYCL support in Clang front-end can be split into the following components:
+
+- Device code outlining. This component is responsible for identifying and
+outlining "device code" in the single source.
+
+- SYCL kernel function object (functor or lambda) lowering. This component
+creates an OpenCL kernel function interface for SYCL kernels.
+
+- Device code diagnostics. This component enforces language restrictions on
+device code.
+
+- Integration header generation. This component emits information required for
+binding host and device parts of the SYCL code via OpenCL API.
+
+#### Device code outlining
+
+Here is a code example of a SYCL program that demonstrates compiler outlining
+work:
+
+```C++
+int foo(int x) { return ++x; }
+int bar(int x) { throw std::exception{"CPU code only!"}; }
+...
+using namespace cl::sycl;
+queue Q;
+buffer<int, 1> a{range<1>{1024}};
+Q.submit([&](handler& cgh) {
+      auto A = a.get_access<access::mode::write>(cgh);
+      cgh.parallel_for<init_a>(range<1>{1024}, [=](id<1> index) {
+        A[index] = index[0] * 2 + index[1] + foo(42);
+      });
+    }
+...
+```
+
+In this example, the SYCL compiler needs to compile the lambda expression passed
+to the `cl::sycl::handler::parallel_for` method, as well as the function `foo`
+called from the lambda expression for the device.
+The compiler must also ignore the `bar` function when we compile the
+"device" part of the single source code, as it's unused inside the device
+portion of the source code (the contents of the lambda expression passed to the
+`cl::sycl::handler::parallel_for` and any function called from this lambda
+expression).
+
+The current approach is to use the SYCL kernel attribute in the SYCL runtime to
+mark code passed to `cl::sycl::handler::parallel_for` as "kernel functions".
+The SYCL runtime library can't mark foo as "device" code - this is a compiler
+job: to traverse all symbols accessible from kernel functions and add them to
+the "device part" of the code marking them with the new SYCL device attribute.
+
+#### Lowering of lambda function objects and named function objects
+
+All SYCL memory objects shared between host and device (buffers/images,
+these objects map to OpenCL buffers and images) must be accessed through special
+`accessor` classes. The "device" side implementation of these classes contain
+pointers to the device memory. As there is no way in OpenCL to pass structures
+with pointers inside as kernel arguments all memory objects shared between host
+and device must be passed to the kernel as raw pointers.
+SYCL also has a special mechanism for passing kernel arguments from host to
+the device. In OpenCL you need to call `clSetKernelArg`, in SYCL all the
+kernel arguments are captures/fields of lambda/functor SYCL functions for
+invoking kernels (such as `parallel_for`). For example, in the previous code
+snippet above `accessor` `A` is one such captured kernel argument.
+
+To facilitate the mapping of the captures/fields of lambdas/functors to OpenCL
+kernel and overcome OpenCL limitations we added the generation of an OpenCL
+kernel function inside the compiler. An OpenCL kernel function contains the
+body of the SYCL kernel function, receives OpenCL like parameters and
+additionally does some manipulation to initialize captured lambda/functor fields
+with these parameters. In some pseudo code the OpenCL kernel function for the
+previous code snippet above looks like this:
+
+```C++
+
+// SYCL kernel is defined in SYCL headers:
+template <typename KernelName, typename KernelType/*, ...*/>
+__attribute__((sycl_kernel)) void sycl_kernel_function(KernelType KernelFuncObj) {
+  // ...
+  KernelFuncObj();
+}
+
+// Generated OpenCL kernel function
+__kernel KernelName(global int* a) {
+  KernelType KernelFuncObj; // Actually kernel function object declaration
+  // doesn't have a name in AST.
+  // Let the kernel function object have one captured field - accessor A.
+  // We need to init it with global pointer from arguments:
+  KernelFuncObj.A.__init(a);
+  // Body of the SYCL kernel from SYCL headers:
+  {
+    KernelFuncObj();
+  }
+}
+
+```
+
+OpenCL kernel function is generated by the compiler inside the Sema using AST nodes.
 
 ### SYCL support in the driver
 
@@ -291,17 +390,28 @@ produced by OpenCL C front-end compiler.
 It's a regular function, which can conflict with user code produced from C++
 source.
 
-
-SYCL compiler uses solution developed for OpenCL C++ compiler prototype:
+SYCL compiler uses modified solution developed for OpenCL C++ compiler
+prototype:
 
 - Compiler: https://github.com/KhronosGroup/SPIR/tree/spirv-1.1
 - Headers: https://github.com/KhronosGroup/libclcxx
 
-SPIR-V types and operations that do not have LLVM equivalents are **declared**
+Our solution re-uses OpenCL data types like sampler, event, image types, etc,
+but we use different spelling to avoid potential conflicts with C++ code.
+Spelling convention for the OpenCL types enabled in SYCL mode is:
+
+```
+__ocl_<OpenCL_type_name> // e.g. __ocl_sampler_t, __ocl_event_t
+```
+
+Operations using OpenCL types use special naming convention described in this
+[document](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/master/docs/SPIRVRepresentationInLLVM.rst).
+This solution allows us avoid SYCL specialization in SPIR-V translator and
+leverage clang infrastructure developed for OpenCL types.
+
+SPIR-V operations that do not have LLVM equivalents are **declared**
 (but not defined) in the headers and satisfy following requirements:
 
-- the type must be pre-declared as a C++ class in `cl::__spirv` namespace
-- the type must not have actual definition in C++ program
 - the operation is expressed in C++ as `extern` function not throwing C++
   exceptions
 - the operation must not have the actual definition in C++ program
@@ -310,41 +420,16 @@ For example, the following C++ code is successfully recognized and translated
 into SPIR-V operation `OpGroupAsyncCopy`:
 
 ```C++
-namespace cl {
-  namespace __spirv {
-  // This class does not have definition, it is only predeclared here.
-  // The pointers to this class objects can be passed to or returned from
-  // SPIR-V built-in functions. Only in such cases the class is recognized
-  // as SPIR-V type OpTypeEvent.
-  class OpTypeEvent;
+template <typename dataT>
+extern __ocl_event_t
+__spirv_OpGroupAsyncCopy(int32_t Scope, __local dataT *Dest,
+                         __global dataT *Src, size_t NumElements,
+                         size_t Stride, __ocl_event_t E) noexcept;
 
-  template <typename dataT>
-  extern OpTypeEvent *OpGroupAsyncCopy(int32_t Scope, __local dataT *Dest,
-                                       __global dataT *Src, size_t NumElements,
-                                       size_t Stride, OpTypeEvent *E) noexcept;
-  } // namespace __spirv
-} // namespace cl
-
-cl::__spirv::OpTypeEvent *e =
-    cl::__spirv::OpGroupAsyncCopy<dataT>(cl::__spirv::Scope::Workgroup,
-                                         dst, src, numElements, 1, 0);
+__ocl_event_t e =
+  __spirv_OpGroupAsyncCopy(cl::__spirv::Scope::Workgroup,
+                           dst, src, numElements, 1, E);
 ```
-
-OpenCL C++ compiler uses a special module pass in clang that transforms the
-names of C++ classes, globals and functions from the namespace `cl::__spirv::`
-to
-["SPIR-V representation in LLVM IR"](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/master/docs/SPIRVRepresentationInLLVM.rst)
-which is recognized by the LLVM IR to SPIR-V translator.
-
-In the OpenCL C++ prototype project the pass is located at the directory:
-`lib/CodeGen/OclCxxRewrite`.  The file with the pass is:
-`lib/CodeGen/OclCxxRewrite/BifNameReflower.cpp`.  The other files in
-`lib/CodeGen/OclCxxRewrite` are utility files implementing Itanium demangler
-and other helping functionality.
-
-That LLVM module pass has been ported from OpenCL C++ prototype to the SYCL
-compiler as is. It made possible using simple declarations of C++ classes and
-external functions as if they were the SPIR-V specific types and operations.
 
 #### Some details and agreements on using SPIR-V special types and operations
 

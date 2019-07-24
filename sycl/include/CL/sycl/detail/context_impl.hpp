@@ -8,6 +8,7 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
@@ -50,13 +51,13 @@ public:
   // modification. Caller must ensure the returned object lives on stack only.
   // It can also be safely passed to the underlying native runtime API.
   // Warning. Returned reference will be invalid if context_impl was destroyed.
-  cl_context &getHandleRef();
-  const cl_context &getHandleRef() const;
+  RT::PiContext &getHandleRef();
+  const RT::PiContext &getHandleRef() const;
 
 private:
   async_handler m_AsyncHandler;
   vector_class<device> m_Devices;
-  cl_context m_ClContext;
+  RT::PiContext m_Context;
   platform m_Platform;
   bool m_OpenCLInterop;
   bool m_HostContext;

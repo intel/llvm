@@ -70,7 +70,7 @@ SystemRuntime *SystemRuntimeMacOSX::CreateInstance(Process *process) {
 
   if (create)
     return new SystemRuntimeMacOSX(process);
-  return NULL;
+  return nullptr;
 }
 
 // Constructor
@@ -106,7 +106,7 @@ void SystemRuntimeMacOSX::Clear(bool clear_process) {
     m_process->ClearBreakpointSiteByID(m_break_id);
 
   if (clear_process)
-    m_process = NULL;
+    m_process = nullptr;
   m_break_id = LLDB_INVALID_BREAK_ID;
 }
 
@@ -266,7 +266,7 @@ void SystemRuntimeMacOSX::ReadLibdispatchOffsetsAddress() {
 
   static ConstString g_dispatch_queue_offsets_symbol_name(
       "dispatch_queue_offsets");
-  const Symbol *dispatch_queue_offsets_symbol = NULL;
+  const Symbol *dispatch_queue_offsets_symbol = nullptr;
 
   // libdispatch symbols were in libSystem.B.dylib up through Mac OS X 10.6
   // ("Snow Leopard")
@@ -279,7 +279,7 @@ void SystemRuntimeMacOSX::ReadLibdispatchOffsetsAddress() {
 
   // libdispatch symbols are in their own dylib as of Mac OS X 10.7 ("Lion")
   // and later
-  if (dispatch_queue_offsets_symbol == NULL) {
+  if (dispatch_queue_offsets_symbol == nullptr) {
     ModuleSpec libdispatch_module_spec(FileSpec("libdispatch.dylib"));
     module_sp = m_process->GetTarget().GetImages().FindFirstModule(
         libdispatch_module_spec);
@@ -322,7 +322,7 @@ void SystemRuntimeMacOSX::ReadLibpthreadOffsetsAddress() {
 
   static ConstString g_libpthread_layout_offsets_symbol_name(
       "pthread_layout_offsets");
-  const Symbol *libpthread_layout_offsets_symbol = NULL;
+  const Symbol *libpthread_layout_offsets_symbol = nullptr;
 
   ModuleSpec libpthread_module_spec(FileSpec("libsystem_pthread.dylib"));
   ModuleSP module_sp(m_process->GetTarget().GetImages().FindFirstModule(
@@ -370,7 +370,7 @@ void SystemRuntimeMacOSX::ReadLibdispatchTSDIndexesAddress() {
 
   static ConstString g_libdispatch_tsd_indexes_symbol_name(
       "dispatch_tsd_indexes");
-  const Symbol *libdispatch_tsd_indexes_symbol = NULL;
+  const Symbol *libdispatch_tsd_indexes_symbol = nullptr;
 
   ModuleSpec libpthread_module_spec(FileSpec("libdispatch.dylib"));
   ModuleSP module_sp(m_process->GetTarget().GetImages().FindFirstModule(
@@ -485,12 +485,8 @@ ThreadSP SystemRuntimeMacOSX::GetExtendedBacktraceThread(ThreadSP real_thread,
                                   m_process->GetByteOrder(),
                                   m_process->GetAddressByteSize());
           ItemInfo item = ExtractItemInfoFromBuffer(extractor);
-          bool stop_id_is_valid = true;
-          if (item.stop_id == 0)
-            stop_id_is_valid = false;
           originating_thread_sp = std::make_shared<HistoryThread>(
-              *m_process, item.enqueuing_thread_id, item.enqueuing_callstack,
-              item.stop_id, stop_id_is_valid);
+              *m_process, item.enqueuing_thread_id, item.enqueuing_callstack);
           originating_thread_sp->SetExtendedBacktraceToken(
               item.item_that_enqueued_this);
           originating_thread_sp->SetQueueName(
@@ -530,12 +526,8 @@ SystemRuntimeMacOSX::GetExtendedBacktraceFromItemRef(lldb::addr_t item_ref) {
                               m_process->GetByteOrder(),
                               m_process->GetAddressByteSize());
       ItemInfo item = ExtractItemInfoFromBuffer(extractor);
-      bool stop_id_is_valid = true;
-      if (item.stop_id == 0)
-        stop_id_is_valid = false;
       return_thread_sp = std::make_shared<HistoryThread>(
-          *m_process, item.enqueuing_thread_id, item.enqueuing_callstack,
-          item.stop_id, stop_id_is_valid);
+          *m_process, item.enqueuing_thread_id, item.enqueuing_callstack);
       return_thread_sp->SetExtendedBacktraceToken(item.item_that_enqueued_this);
       return_thread_sp->SetQueueName(item.enqueuing_queue_label.c_str());
       return_thread_sp->SetQueueID(item.enqueuing_queue_serialnum);
@@ -556,14 +548,9 @@ SystemRuntimeMacOSX::GetExtendedBacktraceForQueueItem(QueueItemSP queue_item_sp,
   if (type != "libdispatch")
     return extended_thread_sp;
 
-  bool stop_id_is_valid = true;
-  if (queue_item_sp->GetStopID() == 0)
-    stop_id_is_valid = false;
-
   extended_thread_sp = std::make_shared<HistoryThread>(
       *m_process, queue_item_sp->GetEnqueueingThreadID(),
-      queue_item_sp->GetEnqueueingBacktrace(), queue_item_sp->GetStopID(),
-      stop_id_is_valid);
+      queue_item_sp->GetEnqueueingBacktrace());
   extended_thread_sp->SetExtendedBacktraceToken(
       queue_item_sp->GetItemThatEnqueuedThis());
   extended_thread_sp->SetQueueName(queue_item_sp->GetQueueLabel().c_str());
@@ -726,7 +713,8 @@ void SystemRuntimeMacOSX::PopulateQueueList(
   for (ThreadSP thread_sp : m_process->Threads()) {
     if (thread_sp->GetAssociatedWithLibdispatchQueue() != eLazyBoolNo) {
       if (thread_sp->GetQueueID() != LLDB_INVALID_QUEUE_ID) {
-        if (queue_list.FindQueueByID(thread_sp->GetQueueID()).get() == NULL) {
+        if (queue_list.FindQueueByID(thread_sp->GetQueueID()).get() ==
+            nullptr) {
           QueueSP queue_sp(new Queue(m_process->shared_from_this(),
                                      thread_sp->GetQueueID(),
                                      thread_sp->GetQueueName()));
@@ -933,7 +921,7 @@ void SystemRuntimeMacOSX::PopulateQueuesUsingLibBTR(
       offset = start_of_this_item +
                m_lib_backtrace_recording_info.queue_info_data_offset;
       const char *queue_label = extractor.GetCStr(&offset);
-      if (queue_label == NULL)
+      if (queue_label == nullptr)
         queue_label = "";
 
       offset_t start_of_next_item = start_of_this_item + offset_to_next;

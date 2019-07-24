@@ -206,9 +206,10 @@ namespace options {
   static std::string stats_file;
 
   // Optimization remarks filename, accepted passes and hotness options
-  static std::string OptRemarksFilename;
-  static std::string OptRemarksFilter;
-  static bool OptRemarksWithHotness = false;
+  static std::string RemarksFilename;
+  static std::string RemarksPasses;
+  static bool RemarksWithHotness = false;
+  static std::string RemarksFormat;
 
   // Context sensitive PGO options.
   static std::string cs_profile_path;
@@ -285,11 +286,13 @@ namespace options {
     } else if (opt.startswith("dwo_dir=")) {
       dwo_dir = opt.substr(strlen("dwo_dir="));
     } else if (opt.startswith("opt-remarks-filename=")) {
-      OptRemarksFilename = opt.substr(strlen("opt-remarks-filename="));
+      RemarksFilename = opt.substr(strlen("opt-remarks-filename="));
     } else if (opt.startswith("opt-remarks-passes=")) {
-      OptRemarksFilter = opt.substr(strlen("opt-remarks-passes="));
+      RemarksPasses = opt.substr(strlen("opt-remarks-passes="));
     } else if (opt == "opt-remarks-with-hotness") {
-      OptRemarksWithHotness = true;
+      RemarksWithHotness = true;
+    } else if (opt.startswith("opt-remarks-format=")) {
+      RemarksFormat = opt.substr(strlen("opt-remarks-format="));
     } else if (opt.startswith("stats-file=")) {
       stats_file = opt.substr(strlen("stats-file="));
     } else {
@@ -910,9 +913,10 @@ static std::unique_ptr<LTO> createLTO(IndexWriteCallback OnIndexWrite,
   Conf.DwoDir = options::dwo_dir;
 
   // Set up optimization remarks handling.
-  Conf.RemarksFilename = options::OptRemarksFilename;
-  Conf.RemarksPasses = options::OptRemarksFilter;
-  Conf.RemarksWithHotness = options::OptRemarksWithHotness;
+  Conf.RemarksFilename = options::RemarksFilename;
+  Conf.RemarksPasses = options::RemarksPasses;
+  Conf.RemarksWithHotness = options::RemarksWithHotness;
+  Conf.RemarksFormat = options::RemarksFormat;
 
   // Use new pass manager if set in driver
   Conf.UseNewPM = options::new_pass_manager;

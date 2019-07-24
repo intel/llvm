@@ -65,9 +65,9 @@ namespace ImplicitCapture {
     d = 3;
     [=]() { return c; }; // expected-error {{unnamed variable cannot be implicitly captured in a lambda expression}}
 
-    __block int e; // expected-note 3 {{declared}}
+    __block int e; // expected-note 2{{declared}}
     [&]() { return e; }; // expected-error {{__block variable 'e' cannot be captured in a lambda expression}}
-    [&e]() { return e; }; // expected-error 2 {{__block variable 'e' cannot be captured in a lambda expression}}
+    [&e]() { return e; }; // expected-error {{__block variable 'e' cannot be captured in a lambda expression}}
 
     int f[10]; // expected-note {{declared}}
     [&]() { return f[2]; };
@@ -105,7 +105,7 @@ namespace SpecialMembers {
     a = static_cast<decltype(a)&&>(a); // expected-error {{copy assignment operator is implicitly deleted}}
   }
   struct P {
-    P(const P&) = delete; // expected-note {{deleted here}}
+    P(const P&) = delete; // expected-note 2{{deleted here}}
   };
   struct Q {
     ~Q() = delete; // expected-note {{deleted here}}
@@ -117,7 +117,9 @@ namespace SpecialMembers {
     R &operator=(R&&) = delete;
   };
   void g(P &p, Q &q, R &r) {
-    auto pp = [p]{}; // expected-error {{deleted constructor}}
+    // FIXME: The note attached to the second error here is just amazingly bad.
+    auto pp = [p]{}; // expected-error {{deleted constructor}} expected-error {{deleted copy constructor of '(lambda}}
+    // expected-note@-1 {{copy constructor of '' is implicitly deleted because field '' has a deleted copy constructor}}
     auto qq = [q]{}; // expected-error {{deleted function}} expected-note {{because}}
 
     auto a = [r]{}; // expected-note 2{{here}}

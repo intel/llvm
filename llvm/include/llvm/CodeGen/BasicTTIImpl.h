@@ -196,11 +196,12 @@ protected:
 public:
   /// \name Scalar TTI Implementations
   /// @{
-  bool allowsMisalignedMemoryAccesses(LLVMContext &Context,
-                                      unsigned BitWidth, unsigned AddressSpace,
-                                      unsigned Alignment, bool *Fast) const {
+  bool allowsMisalignedMemoryAccesses(LLVMContext &Context, unsigned BitWidth,
+                                      unsigned AddressSpace, unsigned Alignment,
+                                      bool *Fast) const {
     EVT E = EVT::getIntegerVT(Context, BitWidth);
-    return getTLI()->allowsMisalignedMemoryAccesses(E, AddressSpace, Alignment, Fast);
+    return getTLI()->allowsMisalignedMemoryAccesses(
+        E, AddressSpace, Alignment, MachineMemOperand::MONone, Fast);
   }
 
   bool hasBranchDivergence() { return false; }
@@ -413,12 +414,20 @@ public:
       if (TLI->isZExtFree(OpTy, Ty))
         return TargetTransformInfo::TCC_Free;
       return TargetTransformInfo::TCC_Basic;
+
+    case Instruction::AddrSpaceCast:
+      if (TLI->isFreeAddrSpaceCast(OpTy->getPointerAddressSpace(),
+                                   Ty->getPointerAddressSpace()))
+        return TargetTransformInfo::TCC_Free;
+      return TargetTransformInfo::TCC_Basic;
     }
 
     return BaseT::getOperationCost(Opcode, Ty, OpTy);
   }
 
   unsigned getInliningThresholdMultiplier() { return 1; }
+
+  int getInlinerVectorBonusPercent() { return 150; }
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP) {
@@ -483,6 +492,13 @@ public:
     // Set number of instructions optimized when "back edge"
     // becomes "fall through" to default value of 2.
     UP.BEInsns = 2;
+  }
+
+  bool isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
+                                AssumptionCache &AC,
+                                TargetLibraryInfo *LibInfo,
+                                HardwareLoopInfo &HWLoopInfo) {
+    return BaseT::isHardwareLoopProfitable(L, SE, AC, LibInfo, HWLoopInfo);
   }
 
   int getInstructionLatency(const Instruction *I) {
@@ -656,7 +672,7 @@ public:
       return 0;
 
     if (Opcode == Instruction::AddrSpaceCast &&
-        TLI->isNoopAddrSpaceCast(Src->getPointerAddressSpace(),
+        TLI->isFreeAddrSpaceCast(Src->getPointerAddressSpace(),
                                  Dst->getPointerAddressSpace()))
       return 0;
 
@@ -1057,8 +1073,8 @@ public:
     case Intrinsic::experimental_vector_reduce_and:
     case Intrinsic::experimental_vector_reduce_or:
     case Intrinsic::experimental_vector_reduce_xor:
-    case Intrinsic::experimental_vector_reduce_fadd:
-    case Intrinsic::experimental_vector_reduce_fmul:
+    case Intrinsic::experimental_vector_reduce_v2_fadd:
+    case Intrinsic::experimental_vector_reduce_v2_fmul:
     case Intrinsic::experimental_vector_reduce_smax:
     case Intrinsic::experimental_vector_reduce_smin:
     case Intrinsic::experimental_vector_reduce_fmax:
@@ -1248,24 +1264,28 @@ public:
     case Intrinsic::experimental_vector_reduce_xor:
       return ConcreteTTI->getArithmeticReductionCost(Instruction::Xor, Tys[0],
                                                      /*IsPairwiseForm=*/false);
-    case Intrinsic::experimental_vector_reduce_fadd:
-      return ConcreteTTI->getArithmeticReductionCost(Instruction::FAdd, Tys[0],
-                                                     /*IsPairwiseForm=*/false);
-    case Intrinsic::experimental_vector_reduce_fmul:
-      return ConcreteTTI->getArithmeticReductionCost(Instruction::FMul, Tys[0],
-                                                     /*IsPairwiseForm=*/false);
+    case Intrinsic::experimental_vector_reduce_v2_fadd:
+      return ConcreteTTI->getArithmeticReductionCost(
+          Instruction::FAdd, Tys[0],
+          /*IsPairwiseForm=*/false); // FIXME: Add new flag for cost of strict
+                                     // reductions.
+    case Intrinsic::experimental_vector_reduce_v2_fmul:
+      return ConcreteTTI->getArithmeticReductionCost(
+          Instruction::FMul, Tys[0],
+          /*IsPairwiseForm=*/false); // FIXME: Add new flag for cost of strict
+                                     // reductions.
     case Intrinsic::experimental_vector_reduce_smax:
     case Intrinsic::experimental_vector_reduce_smin:
     case Intrinsic::experimental_vector_reduce_fmax:
     case Intrinsic::experimental_vector_reduce_fmin:
       return ConcreteTTI->getMinMaxReductionCost(
           Tys[0], CmpInst::makeCmpResultType(Tys[0]), /*IsPairwiseForm=*/false,
-          /*IsSigned=*/true);
+          /*IsUnsigned=*/true);
     case Intrinsic::experimental_vector_reduce_umax:
     case Intrinsic::experimental_vector_reduce_umin:
       return ConcreteTTI->getMinMaxReductionCost(
           Tys[0], CmpInst::makeCmpResultType(Tys[0]), /*IsPairwiseForm=*/false,
-          /*IsSigned=*/false);
+          /*IsUnsigned=*/false);
     case Intrinsic::sadd_sat:
     case Intrinsic::ssub_sat: {
       Type *CondTy = Type::getInt1Ty(RetTy->getContext());

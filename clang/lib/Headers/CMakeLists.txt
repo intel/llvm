@@ -27,6 +27,8 @@ set(files
   avx512vlcdintrin.h
   avx512vldqintrin.h
   avx512vlintrin.h
+  avx512vp2intersectintrin.h
+  avx512vlvp2intersectintrin.h
   avx512vpopcntdqvlintrin.h
   avx512vnniintrin.h
   avx512vlvnniintrin.h
@@ -48,6 +50,7 @@ set(files
   clflushoptintrin.h
   clwbintrin.h
   emmintrin.h
+  enqcmdintrin.h
   f16cintrin.h
   float.h
   fma4intrin.h
@@ -74,6 +77,7 @@ set(files
   mwaitxintrin.h
   nmmintrin.h
   opencl-c.h
+  opencl-c-base.h
   pkuintrin.h
   pmmintrin.h
   pconfigintrin.h
@@ -126,12 +130,9 @@ set(cuda_wrapper_files
 
 set(ppc_wrapper_files
   ppc_wrappers/mmintrin.h
-)
-
-set(sycl_wrapper_files
-  sycl_wrappers/algorithm
-  sycl_wrappers/random
-  sycl_wrappers/__config
+  ppc_wrappers/xmmintrin.h
+  ppc_wrappers/mm_malloc.h
+  ppc_wrappers/emmintrin.h
 )
 
 set(openmp_wrapper_files
@@ -200,12 +201,6 @@ install(
   FILES ${ppc_wrapper_files}
   DESTINATION ${header_install_dir}/ppc_wrappers
   COMPONENT clang-resource-headers)
-
-install(
-  FILES ${sycl_wrapper_files}
-  COMPONENT clang-resource-headers
-  PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
-  DESTINATION lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/include/sycl_wrappers)
 
 install(
   FILES ${openmp_wrapper_files}

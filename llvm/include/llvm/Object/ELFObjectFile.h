@@ -54,8 +54,8 @@ class ELFObjectFileBase : public ObjectFile {
 protected:
   ELFObjectFileBase(unsigned int Type, MemoryBufferRef Source);
 
-  virtual uint16_t getEMachine() const = 0;
   virtual uint64_t getSymbolSize(DataRefImpl Symb) const = 0;
+  virtual uint8_t getSymbolBinding(DataRefImpl Symb) const = 0;
   virtual uint8_t getSymbolOther(DataRefImpl Symb) const = 0;
   virtual uint8_t getSymbolELFType(DataRefImpl Symb) const = 0;
 
@@ -89,6 +89,8 @@ public:
   void setARMSubArch(Triple &TheTriple) const override;
 
   virtual uint16_t getEType() const = 0;
+
+  virtual uint16_t getEMachine() const = 0;
 
   std::vector<std::pair<DataRefImpl, uint64_t>> getPltAddresses() const;
 };
@@ -143,6 +145,10 @@ public:
 
   uint64_t getSize() const {
     return getObject()->getSymbolSize(getRawDataRefImpl());
+  }
+
+  uint8_t getBinding() const {
+    return getObject()->getSymbolBinding(getRawDataRefImpl());
   }
 
   uint8_t getOther() const {
@@ -252,6 +258,7 @@ protected:
   uint32_t getSymbolAlignment(DataRefImpl Symb) const override;
   uint64_t getCommonSymbolSizeImpl(DataRefImpl Symb) const override;
   uint32_t getSymbolFlags(DataRefImpl Symb) const override;
+  uint8_t getSymbolBinding(DataRefImpl Symb) const override;
   uint8_t getSymbolOther(DataRefImpl Symb) const override;
   uint8_t getSymbolELFType(DataRefImpl Symb) const override;
   Expected<SymbolRef::Type> getSymbolType(DataRefImpl Symb) const override;
@@ -554,6 +561,11 @@ uint64_t ELFObjectFile<ELFT>::getCommonSymbolSizeImpl(DataRefImpl Symb) const {
 }
 
 template <class ELFT>
+uint8_t ELFObjectFile<ELFT>::getSymbolBinding(DataRefImpl Symb) const {
+  return getSymbol(Symb)->getBinding();
+}
+
+template <class ELFT>
 uint8_t ELFObjectFile<ELFT>::getSymbolOther(DataRefImpl Symb) const {
   return getSymbol(Symb)->st_other;
 }
@@ -765,7 +777,7 @@ ELFObjectFile<ELFT>::dynamic_relocation_sections() const {
     }
   }
   for (const Elf_Shdr &Sec : *SectionsOrErr) {
-    if (is_contained(Offsets, Sec.sh_offset))
+    if (is_contained(Offsets, Sec.sh_addr))
       Res.emplace_back(toDRI(&Sec), this);
   }
   return Res;
@@ -940,15 +952,13 @@ ELFObjectFile<ELFT>::create(MemoryBufferRef Object) {
   for (const Elf_Shdr &Sec : *SectionsOrErr) {
     switch (Sec.sh_type) {
     case ELF::SHT_DYNSYM: {
-      if (DotDynSymSec)
-        return createError("More than one dynamic symbol table!");
-      DotDynSymSec = &Sec;
+      if (!DotDynSymSec)
+        DotDynSymSec = &Sec;
       break;
     }
     case ELF::SHT_SYMTAB: {
-      if (DotSymtabSec)
-        return createError("More than one static symbol table!");
-      DotSymtabSec = &Sec;
+      if (!DotSymtabSec)
+        DotSymtabSec = &Sec;
       break;
     }
     case ELF::SHT_SYMTAB_SHNDX: {
@@ -982,7 +992,9 @@ ELFObjectFile<ELFT>::ELFObjectFile(ELFObjectFile<ELFT> &&Other)
 
 template <class ELFT>
 basic_symbol_iterator ELFObjectFile<ELFT>::symbol_begin() const {
-  DataRefImpl Sym = toDRI(DotSymtabSec, 0);
+  DataRefImpl Sym =
+      toDRI(DotSymtabSec,
+            DotSymtabSec && DotSymtabSec->sh_size >= sizeof(Elf_Sym) ? 1 : 0);
   return basic_symbol_iterator(SymbolRef(Sym, this));
 }
 

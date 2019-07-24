@@ -521,9 +521,11 @@ private:
 //                                AtomicCmpXchgInst Class
 //===----------------------------------------------------------------------===//
 
-/// an instruction that atomically checks whether a
+/// An instruction that atomically checks whether a
 /// specified value is in a memory location, and, if it is, stores a new value
-/// there.  Returns the value that was loaded.
+/// there. The value returned by this instruction is a pair containing the
+/// original value as first element, and an i1 indicating success (true) or
+/// failure (false) as second element.
 ///
 class AtomicCmpXchgInst : public Instruction {
   void Init(Value *Ptr, Value *Cmp, Value *NewVal,
@@ -2674,7 +2676,7 @@ public:
   }
 
   /// Replace every incoming basic block \p Old to basic block \p New.
-  void replaceIncomingBlockWith(BasicBlock *Old, BasicBlock *New) {
+  void replaceIncomingBlockWith(const BasicBlock *Old, BasicBlock *New) {
     assert(New && Old && "PHI node got a null basic block!");
     for (unsigned Op = 0, NumOps = getNumOperands(); Op != NumOps; ++Op)
       if (getIncomingBlock(Op) == Old)
@@ -2722,6 +2724,19 @@ public:
     int Idx = getBasicBlockIndex(BB);
     assert(Idx >= 0 && "Invalid basic block argument!");
     return getIncomingValue(Idx);
+  }
+
+  /// Set every incoming value(s) for block \p BB to \p V.
+  void setIncomingValueForBlock(const BasicBlock *BB, Value *V) {
+    assert(BB && "PHI node got a null basic block!");
+    bool Found = false;
+    for (unsigned Op = 0, NumOps = getNumOperands(); Op != NumOps; ++Op)
+      if (getIncomingBlock(Op) == BB) {
+        Found = true;
+        setIncomingValue(Op, V);
+      }
+    (void)Found;
+    assert(Found && "Invalid basic block argument to set!");
   }
 
   /// If the specified PHI node always merges together the
@@ -3433,6 +3448,60 @@ public:
   static bool classof(const Value *V) {
     return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
+};
+
+/// A wrapper class to simplify modification of SwitchInst cases along with
+/// their prof branch_weights metadata.
+class SwitchInstProfUpdateWrapper {
+  SwitchInst &SI;
+  Optional<SmallVector<uint32_t, 8> > Weights = None;
+
+  // Sticky invalid state is needed to safely ignore operations with prof data
+  // in cases where SwitchInstProfUpdateWrapper is created from SwitchInst
+  // with inconsistent prof data. TODO: once we fix all prof data
+  // inconsistencies we can turn invalid state to assertions.
+  enum {
+    Invalid,
+    Initialized,
+    Changed
+  } State = Invalid;
+
+protected:
+  static MDNode *getProfBranchWeightsMD(const SwitchInst &SI);
+
+  MDNode *buildProfBranchWeightsMD();
+
+  void init();
+
+public:
+  using CaseWeightOpt = Optional<uint32_t>;
+  SwitchInst *operator->() { return &SI; }
+  SwitchInst &operator*() { return SI; }
+  operator SwitchInst *() { return &SI; }
+
+  SwitchInstProfUpdateWrapper(SwitchInst &SI) : SI(SI) { init(); }
+
+  ~SwitchInstProfUpdateWrapper() {
+    if (State == Changed)
+      SI.setMetadata(LLVMContext::MD_prof, buildProfBranchWeightsMD());
+  }
+
+  /// Delegate the call to the underlying SwitchInst::removeCase() and remove
+  /// correspondent branch weight.
+  SwitchInst::CaseIt removeCase(SwitchInst::CaseIt I);
+
+  /// Delegate the call to the underlying SwitchInst::addCase() and set the
+  /// specified branch weight for the added case.
+  void addCase(ConstantInt *OnVal, BasicBlock *Dest, CaseWeightOpt W);
+
+  /// Delegate the call to the underlying SwitchInst::eraseFromParent() and mark
+  /// this object to not touch the underlying SwitchInst in destructor.
+  SymbolTableList<Instruction>::iterator eraseFromParent();
+
+  void setSuccessorWeight(unsigned idx, CaseWeightOpt W);
+  CaseWeightOpt getSuccessorWeight(unsigned idx);
+
+  static CaseWeightOpt getSuccessorWeight(const SwitchInst &SI, unsigned idx);
 };
 
 template <>

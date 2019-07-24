@@ -13,7 +13,7 @@
 
 namespace cl {
 namespace sycl {
-template <int dimensions> struct id;
+template <int dimensions> class id;
 template <int dimensions = 1>
 class range : public detail::array<dimensions> {
   static_assert(dimensions >= 1 && dimensions <= 3,

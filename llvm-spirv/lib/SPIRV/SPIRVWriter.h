@@ -47,14 +47,10 @@
 #include "SPIRVBasicBlock.h"
 #include "SPIRVEntry.h"
 #include "SPIRVEnum.h"
-#include "SPIRVExtInst.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
-#include "SPIRVInternal.h"
-#include "SPIRVMDWalker.h"
 #include "SPIRVModule.h"
 #include "SPIRVType.h"
-#include "SPIRVUtil.h"
 #include "SPIRVValue.h"
 
 #include "llvm/Analysis/CallGraph.h"
@@ -92,7 +88,6 @@ public:
   // Translation functions
   bool transAddressingMode();
   bool transAlign(Value *V, SPIRVValue *BV);
-  std::vector<SPIRVValue *> transArguments(CallInst *, SPIRVBasicBlock *);
   std::vector<SPIRVWord> transArguments(CallInst *, SPIRVBasicBlock *,
                                         SPIRVEntry *);
   bool transSourceLanguage();
@@ -101,7 +96,6 @@ public:
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   bool transDecoration(Value *V, SPIRVValue *BV);
-  SPIRVWord transFunctionControlMask(CallInst *);
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
   bool transGlobalVariables();
@@ -175,9 +169,6 @@ private:
   SPIRV::SPIRVInstruction *transUnaryInst(UnaryInstruction *U,
                                           SPIRVBasicBlock *BB);
 
-  /// Add a 32 bit integer constant.
-  /// \return Id of the constant.
-  SPIRVId addInt32(int);
   void transFunction(Function *I);
   SPIRV::SPIRVLinkageTypeKind transLinkageType(const GlobalValue *GV);
 

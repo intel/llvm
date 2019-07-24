@@ -1181,6 +1181,30 @@ TemplateInstantiator::TransformPredefinedExpr(PredefinedExpr *E) {
   if (!E->isTypeDependent())
     return E;
 
+  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameExpr) {
+    EnterExpressionEvaluationContext Unevaluated(
+        SemaRef, Sema::ExpressionEvaluationContext::Unevaluated);
+
+    ExprResult SubExpr = getDerived().TransformExpr(E->getExpr());
+    if (SubExpr.isInvalid())
+      return ExprError();
+
+    if (!getDerived().AlwaysRebuild() && SubExpr.get() == E->getExpr())
+      return E;
+
+    return getSema().BuildUniqueStableName(E->getLocation(), SubExpr.get());
+  }
+
+  if (E->getIdentKind() == PredefinedExpr::UniqueStableNameType) {
+    TypeSourceInfo *Info = getDerived().TransformType(E->getTypeSourceInfo());
+    if (!Info)
+      return ExprError();
+
+    if (!getDerived().AlwaysRebuild() && Info == E->getTypeSourceInfo())
+      return E;
+    return getSema().BuildUniqueStableName(E->getLocation(), Info);
+  }
+
   return getSema().BuildPredefinedExpr(E->getLocation(), E->getIdentKind());
 }
 
@@ -1368,9 +1392,11 @@ TemplateInstantiator::TransformFunctionParmPackExpr(FunctionParmPackExpr *E) {
     Vars.push_back(D);
   }
 
-  return FunctionParmPackExpr::Create(getSema().Context, T,
-                                      E->getParameterPack(),
-                                      E->getParameterPackLocation(), Vars);
+  auto *PackExpr =
+      FunctionParmPackExpr::Create(getSema().Context, T, E->getParameterPack(),
+                                   E->getParameterPackLocation(), Vars);
+  getSema().MarkFunctionParmPackReferenced(PackExpr);
+  return PackExpr;
 }
 
 ExprResult
@@ -1389,8 +1415,10 @@ TemplateInstantiator::TransformFunctionParmPackRefExpr(DeclRefExpr *E,
       QualType T = TransformType(E->getType());
       if (T.isNull())
         return ExprError();
-      return FunctionParmPackExpr::Create(getSema().Context, T, PD,
-                                          E->getExprLoc(), *Pack);
+      auto *PackExpr = FunctionParmPackExpr::Create(getSema().Context, T, PD,
+                                                    E->getExprLoc(), *Pack);
+      getSema().MarkFunctionParmPackReferenced(PackExpr);
+      return PackExpr;
     }
 
     TransformedDecl = (*Pack)[getSema().ArgumentPackSubstitutionIndex];

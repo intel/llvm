@@ -1,4 +1,7 @@
-; RUN: llvm-as < %s | llvm-spirv -spirv-text | FileCheck %s
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s
+; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"
@@ -8,9 +11,6 @@ target triple = "spir-unknown-unknown"
 ; Int64Atomics capability must be declared only if atomic builtins have 64-bit integers arguments.
 ; CHECK-NOT: Capability Int64Atomics
 
-; CHECK: Name [[Pointer:[0-9]+]] "object"
-; CHECK: Name [[ComparatorPtr:[0-9]+]] "expected"
-; CHECK: Name [[Value:[0-9]+]] "desired"
 ; CHECK: 4 TypeInt [[int:[0-9]+]] 32 0
 ; CHECK: Constant [[int]] [[DeviceScope:[0-9]+]] 1
 ; CHECK: Constant [[int]] [[SequentiallyConsistent_MS:[0-9]+]] 16
@@ -19,9 +19,9 @@ target triple = "spir-unknown-unknown"
 
 ; Function Attrs: nounwind
 define spir_func void @test(i32 addrspace(4)* %object, i32 addrspace(4)* %expected, i32 %desired) #0 {
-; CHECK: FunctionParameter [[int_ptr]] [[Pointer]]
-; CHECK: FunctionParameter [[int_ptr]] [[ComparatorPtr]]
-; CHECK: FunctionParameter [[int]] [[Value]]
+; CHECK: FunctionParameter [[int_ptr]] [[object:[0-9]+]]
+; CHECK: FunctionParameter [[int_ptr]] [[expected:[0-9]+]]
+; CHECK: FunctionParameter [[int]] [[desired:[0-9]+]]
 
 entry:
   %object.addr = alloca i32 addrspace(4)*, align 4
@@ -36,11 +36,16 @@ entry:
   %0 = load i32 addrspace(4)*, i32 addrspace(4)** %object.addr, align 4
   %1 = load i32 addrspace(4)*, i32 addrspace(4)** %expected.addr, align 4
   %2 = load i32, i32* %desired.addr, align 4
-
-  %call = call spir_func zeroext i1 @_Z30atomic_compare_exchange_strongPVU3AS4U7_AtomiciPU3AS4ii(i32 addrspace(4)* %0, i32 addrspace(4)* %1, i32 %2)
-; CHECK: Load [[int]] [[Comparator:[0-9]+]] [[ComparatorPtr]]
+; CHECK: Store [[object_addr:[0-9]+]] [[object]]
+; CHECK: Store [[expected_addr:[0-9]+]] [[expected]]
+; CHECK: Store [[desired_addr:[0-9]+]] [[desired]]
+; CHECK: Load [[int_ptr]] [[Pointer:[0-9]+]] [[object_addr]]
+; CHECK: Load [[int_ptr]] [[exp:[0-9]+]] [[expected_addr]]
+; CHECK: Load [[int]] [[Value:[0-9]+]] [[desired_addr]]
+; CHECK: Load [[int]] [[Comparator:[0-9]+]] [[exp]]
 ; CHECK-NEXT: 9 AtomicCompareExchange [[int]] [[Result:[0-9]+]] [[Pointer]] [[DeviceScope]] [[SequentiallyConsistent_MS]] [[SequentiallyConsistent_MS]] [[Value]] [[Comparator]]
-; CHECK-NEXT: Store [[ComparatorPtr]] [[Result]]
+  %call = call spir_func zeroext i1 @_Z30atomic_compare_exchange_strongPVU3AS4U7_AtomiciPU3AS4ii(i32 addrspace(4)* %0, i32 addrspace(4)* %1, i32 %2)
+; CHECK-NEXT: Store [[exp]] [[Result]]
 ; CHECK-NEXT: IEqual [[bool]] [[CallRes:[0-9]+]] [[Result]] [[Comparator]]
 ; CHECK-NOT: [[Result]]
   %frombool = zext i1 %call to i8
@@ -54,10 +59,13 @@ entry:
   %5 = load i32 addrspace(4)*, i32 addrspace(4)** %expected.addr, align 4
   %6 = load i32, i32* %desired.addr, align 4
 
+; CHECK: Load [[int_ptr]] [[Pointer:[0-9]+]] [[object_addr]]
+; CHECK: Load [[int_ptr]] [[exp:[0-9]+]] [[expected_addr]]
+; CHECK: Load [[int]] [[Value:[0-9]+]] [[desired_addr]]
+; CHECK: Load [[int]] [[ComparatorWeak:[0-9]+]] [[exp]]
   %call2 = call spir_func zeroext i1 @_Z28atomic_compare_exchange_weakPVU3AS4U7_AtomiciPU3AS4ii(i32 addrspace(4)* %4, i32 addrspace(4)* %5, i32 %6)
-; CHECK: Load [[int]] [[ComparatorWeak:[0-9]+]] [[ComparatorPtr]]
 ; CHECK-NEXT: 9 AtomicCompareExchangeWeak [[int]] [[Result:[0-9]+]] [[Pointer]] [[DeviceScope]] [[SequentiallyConsistent_MS]] [[SequentiallyConsistent_MS]] [[Value]] [[ComparatorWeak]]
-; CHECK-NEXT: Store [[ComparatorPtr]] [[Result]]
+; CHECK-NEXT: Store [[exp]] [[Result]]
 ; CHECK-NEXT: IEqual [[bool]] [[CallRes:[0-9]+]] [[Result]] [[ComparatorWeak]]
 ; CHECK-NOT: [[Result]]
 

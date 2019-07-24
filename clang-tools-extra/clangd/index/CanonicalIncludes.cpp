@@ -86,32 +86,28 @@ collectIWYUHeaderMaps(CanonicalIncludes *Includes) {
   return llvm::make_unique<PragmaCommentHandler>(Includes);
 }
 
-void addSystemHeadersMapping(CanonicalIncludes *Includes) {
+void addSystemHeadersMapping(CanonicalIncludes *Includes,
+                             const LangOptions &Language) {
   static const std::vector<std::pair<const char *, const char *>> SymbolMap = {
-      // Map symbols in <iosfwd> to their preferred includes.
-      {"std::basic_filebuf", "<fstream>"},
-      {"std::filebuf", "<fstream>"},
-      {"std::wfilebuf", "<fstream>"},
-      {"std::basic_istream", "<istream>"},
-      {"std::istream", "<istream>"},
-      {"std::wistream", "<istream>"},
-      {"std::basic_ostream", "<ostream>"},
-      {"std::ostream", "<ostream>"},
-      {"std::wostream", "<ostream>"},
-      {"std::uint_least16_t", "<cstdint>"}, // <type_traits> redeclares these
-      {"std::uint_least32_t", "<cstdint>"},
 #define SYMBOL(Name, NameSpace, Header) { #NameSpace#Name, #Header },
       #include "StdSymbolMap.inc"
 #undef SYMBOL
   };
-  for (const auto &Pair : SymbolMap)
-    Includes->addSymbolMapping(Pair.first, Pair.second);
-
+  static const std::vector<std::pair<const char *, const char *>> CSymbolMap = {
+#define SYMBOL(Name, NameSpace, Header) { #Name, #Header },
+      #include "CSymbolMap.inc"
+#undef SYMBOL
+  };
+  if (Language.CPlusPlus) {
+    for (const auto &Pair : SymbolMap)
+      Includes->addSymbolMapping(Pair.first, Pair.second);
+  } else if (Language.C11) {
+    for (const auto &Pair : CSymbolMap)
+      Includes->addSymbolMapping(Pair.first, Pair.second);
+  }
   // FIXME: remove the std header mapping once we support ambiguous symbols, now
   // it serves as a fallback to disambiguate:
   //   - symbols with mulitiple headers (e.g. std::move)
-  //   - symbols with a primary template in one header and a specialization in
-  //     another (std::abs)
   static const std::vector<std::pair<const char *, const char *>>
       SystemHeaderMap = {
           {"include/__stddef_max_align_t.h", "<cstddef>"},

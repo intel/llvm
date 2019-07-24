@@ -50,6 +50,18 @@ void foo1()
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
   [[intelfpga::max_private_copies(8)]] unsigned int v_seven[64];
 
+  //CHECK: VarDecl{{.*}}v_ten
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg1" "depth"{{$}}
+  [[intelfpga::merge("mrg1","depth")]]
+  unsigned int v_ten[64];
+
+  //CHECK: VarDecl{{.*}}v_eleven
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg2" "width"{{$}}
+  [[intelfpga::merge("mrg2","width")]]
+  unsigned int v_eleven[64];
+
   //CHECK: VarDecl{{.*}}v_fourteen
   //CHECK: IntelFPGADoublePumpAttr
   //CHECK: IntelFPGAMemoryAttr{{.*}}MLAB{{$}}
@@ -64,10 +76,25 @@ void foo1()
   [[intelfpga::doublepump]]
   unsigned int v_fifteen[64];
 
+  //CHECK: VarDecl{{.*}}v_sixteen
+  //CHECK: IntelFPGAMaxReplicatesAttr
+  //CHECK: ConstantExpr
+  //CHECK: IntegerLiteral{{.*}}2{{$}}
+  [[intelfpga::max_replicates(2)]]
+  unsigned int v_sixteen[64];
+
+  //CHECK: VarDecl{{.*}}v_seventeen
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGASimpleDualPortAttr
+  [[intelfpga::simple_dual_port]]
+  unsigned int v_seventeen[64];
+
   [[intelfpga::register]] int A;
   [[intelfpga::numbanks(4), intelfpga::bankwidth(16), intelfpga::singlepump]] int B;
   [[intelfpga::numbanks(4), intelfpga::bankwidth(16), intelfpga::doublepump]] int C;
   [[intelfpga::numbanks(4), intelfpga::bankwidth(16)]] int E;
+  [[intelfpga::max_replicates(2)]] int G;
+  [[intelfpga::simple_dual_port]] int H;
 
   // diagnostics
 
@@ -148,6 +175,22 @@ void foo1()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_seven[64];
 
+  //expected-error@+2{{attributes are not compatible}}
+  [[intelfpga::register]]
+  [[intelfpga::merge("mrg1","depth")]]
+  //expected-note@-2 {{conflicting attribute is here}}
+  unsigned int reg_eleven[64];
+
+  //expected-error@+3{{'max_replicates' and 'register' attributes are not compatible}}
+  [[intelfpga::register]]
+  //expected-note@-1 {{conflicting attribute is here}}
+  [[intelfpga::max_replicates(2)]] unsigned int reg_twelve[64];
+
+  //expected-error@+3{{'simple_dual_port' and 'register' attributes are not compatible}}
+  [[intelfpga::register]]
+  //expected-note@-1 {{conflicting attribute is here}}
+  [[intelfpga::simple_dual_port]] unsigned int reg_thirteen[64];
+
   // **memory
   //expected-error@+2{{attributes are not compatible}}
   [[intelfpga::memory]]
@@ -165,6 +208,28 @@ void foo1()
   [[intelfpga::register]]
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int bw_one[64];
+
+  // **max_replicates
+  //expected-error@+1{{'max_replicates' attribute requires integer constant between 1 and 1048576 inclusive}}
+  [[intelfpga::max_replicates(0)]] unsigned int mx_one[64];
+  //expected-error@+1{{'max_replicates' attribute requires integer constant between 1 and 1048576 inclusive}}
+  [[intelfpga::max_replicates(-1)]] unsigned int mx_two[64];
+
+  //expected-error@+3{{'max_replicates' and 'register' attributes are not compatible}}
+  [[intelfpga::register]]
+  //expected-note@-1 {{conflicting attribute is here}}
+  [[intelfpga::max_replicates(2)]]
+  unsigned int mx_three[64];
+
+  // **simple_dual_port
+  //expected-error@+1{{'simple_dual_port' attribute takes no arguments}}
+  [[intelfpga::simple_dual_port(0)]] unsigned int sdp_one[64];
+
+  //expected-note@+1 {{conflicting attribute is here}}
+  [[intelfpga::register]]
+  //expected-error@+1{{'simple_dual_port' and 'register' attributes are not compatible}}
+  [[intelfpga::simple_dual_port]]
+  unsigned int sdp_two[64];
 
   //CHECK: VarDecl{{.*}}bw_two
   //CHECK: IntelFPGABankWidthAttr
@@ -275,6 +340,38 @@ void foo1()
   [[intelfpga::numbanks(0)]]
   unsigned int nb_seven[64];
 
+  // merge
+  //expected-error@+2{{attributes are not compatible}}
+  [[intelfpga::merge("mrg1","depth")]]
+  [[intelfpga::register]]
+  //expected-note@-2 {{conflicting attribute is here}}
+  unsigned int mrg_one[4];
+
+  //expected-error@+1{{attribute requires a string}}
+  [[intelfpga::merge(3,9.0f)]]
+  unsigned int mrg_two[4];
+
+  //expected-error@+1{{attribute requires exactly 2 arguments}}
+  [[intelfpga::merge("mrg2")]]
+  unsigned int mrg_three[4];
+
+  //expected-error@+1{{attribute requires exactly 2 arguments}}
+  [[intelfpga::merge("mrg3","depth","oops")]]
+  unsigned int mrg_four[4];
+
+  //expected-error@+1{{merge direction must be 'depth' or 'width'}}
+  [[intelfpga::merge("mrg4","depths")]]
+  unsigned int mrg_five[4];
+
+  //Last one is applied and others ignored.
+  //CHECK: VarDecl{{.*}}mrg_six
+  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg4" "depth"{{$}}
+  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg5" "width"{{$}}
+  //expected-warning@+2{{attribute 'merge' is already applied}}
+  [[intelfpga::merge("mrg4","depth")]]
+  [[intelfpga::merge("mrg5","width")]]
+  unsigned int mrg_six[4];
+
   // GNU style
   //expected-warning@+1{{unknown attribute 'numbanks' ignored}}
   int __attribute__((numbanks(4))) a_one;
@@ -296,11 +393,20 @@ void foo1()
 
   //expected-warning@+1{{unknown attribute '__max_private_copies__' ignored}}
   int __attribute__((__max_private_copies__(4))) a_seven;
+
+  //expected-warning@+1{{unknown attribute '__merge__' ignored}}
+  int __attribute__((__merge__("mrg1","depth"))) a_eight;
+
+  //expected-warning@+1{{unknown attribute 'max_replicates' ignored}}
+  int __attribute__((max_replicates(2))) a_nine;
+
+  //expected-warning@+1{{unknown attribute 'simple_dual_port' ignored}}
+  int __attribute__((simple_dual_port)) a_ten;
 }
 
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
 [[intelfpga::max_private_copies(8)]]
-__constant unsigned int ext_two[64] = { 1, 2, 3 };
+__attribute__((ocl_constant)) unsigned int ext_two[64] = { 1, 2, 3 };
 
 void other2()
 {
@@ -364,6 +470,16 @@ struct foo {
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
   [[intelfpga::max_private_copies(4)]] unsigned int v_seven[64];
+
+  //CHECK: FieldDecl{{.*}}v_ten
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg1" "depth"{{$}}
+  [[intelfpga::merge("mrg1", "depth")]] unsigned int v_ten[64];
+
+  //CHECK: FieldDecl{{.*}}v_eleven
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAMergeAttr{{.*}}"mrg2" "width"{{$}}
+  [[intelfpga::merge("mrg2", "width")]] unsigned int v_eleven[64];
 };
 
 template <typename name, typename Func>

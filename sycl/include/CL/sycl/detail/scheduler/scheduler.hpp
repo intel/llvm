@@ -10,7 +10,7 @@
 
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/scheduler/commands.hpp>
-#include <CL/sycl/detail/sycl_mem_obj.hpp>
+#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 
 #include <memory>
 #include <mutex>
@@ -49,7 +49,7 @@ public:
   // accessing the memory objects are executed and triggers deallocation of all
   // memory assigned to the memory object. It's called from the sycl::buffer and
   // sycl::image destructors.
-  void removeMemoryObject(detail::SYCLMemObjT *MemObj);
+  void removeMemoryObject(detail::SYCLMemObjI *MemObj);
 
   EventImplPtr addHostAccessor(Requirement *Req);
 
@@ -102,7 +102,7 @@ private:
 
     struct MemObjRecord {
       // Used to distinguish one memory object from another.
-      detail::SYCLMemObjT *MMemObj;
+      detail::SYCLMemObjI *MMemObj;
 
       // Contains all allocation commands for the memory object.
       std::vector<AllocaCommand *> MAllocaCommands;
@@ -118,14 +118,14 @@ private:
       bool MMemModified;
     };
 
-    MemObjRecord *getMemObjRecord(SYCLMemObjT *MemObject);
+    MemObjRecord *getMemObjRecord(SYCLMemObjI *MemObject);
     // Returns pointer to MemObjRecord for pointer to memory object.
     // Return nullptr if there the record is not found.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                           Requirement *Req);
 
     // Removes MemObjRecord for memory object passed.
-    void removeRecordForMemObj(SYCLMemObjT *MemObject);
+    void removeRecordForMemObj(SYCLMemObjI *MemObject);
 
     // Add new command to leafs if needed.
     void AddNodeToLeafs(MemObjRecord *Record, Command *Cmd, Requirement *Req);

@@ -1,17 +1,15 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//==------------------- buffer.cpp - SYCL buffer basic test ----*- C++ -*---==//
+//==---------- buffer_dev_to_dev.cpp - SYCL buffer basic test --------------==//
 //
-// Copyright (C) 2018 Intel Corporation. All rights reserved.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// The information and source code contained herein is the exclusive property
-// of Intel Corporation and may not be disclosed, examined or reproduced in
-// whole or in part without explicit written authorization from the company.
-//
-// ===--------------------------------------------------------------------=== //
+//===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
 #include <cassert>

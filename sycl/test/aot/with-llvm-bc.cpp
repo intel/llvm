@@ -1,7 +1,7 @@
-// RUN: %clang -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice -c %s -o %t.o
-// RUN: %clang -fsycl -fsycl-link-targets=spir64-unknown-linux-sycldevice %t.o -o %t.spv
+// RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice -c %s -o %t.o
+// RUN: %clangxx -fsycl -fsycl-link-targets=spir64-unknown-linux-sycldevice %t.o -o %t.spv
 // RUN: llvm-spirv -r %t.spv -o %t.bc
-// RUN: %clang -fsycl -fsycl-add-targets=binary:%t.bc %t.o -o %t.out -lOpenCL -lsycl -lstdc++
+// RUN: %clangxx -fsycl -fsycl-add-targets=binary:%t.bc %t.o -o %t.out -lOpenCL
 //
 // Only CPU supports LLVM IR bitcode as a binary
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
@@ -28,7 +28,18 @@ class SimpleVadd;
 template <typename T, size_t N>
 void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
                  std::array<T, N>& VC) {
-  cl::sycl::queue deviceQueue;
+  cl::sycl::queue deviceQueue([](cl::sycl::exception_list ExceptionList) {
+      for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+        try {
+          std::rethrow_exception(ExceptionPtr);
+        } catch (cl::sycl::exception &E) {
+          std::cerr << E.what();
+        } catch (...) {
+          std::cerr << "Unknown async exception was caught." << std::endl;
+        }
+      }
+    });
+  
   cl::sycl::range<1> numOfItems{N};
   cl::sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
   cl::sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
@@ -44,6 +55,8 @@ void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
         accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
     });
   });
+
+  deviceQueue.wait_and_throw();
 }
 
 int main() {

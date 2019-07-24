@@ -7,11 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#ifdef SCHEDULER_20
-  #include <CL/sycl/detail/buffer_impl2.hpp>
-#else
-  #include <CL/sycl/detail/buffer_impl.hpp>
-#endif // SCHEDULER_20
+#include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
@@ -44,28 +40,32 @@ public:
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        get_count() * sizeof(T), propList);
+        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList);
   }
 
   buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        get_count() * sizeof(T), propList, allocator);
+        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        allocator);
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList);
   }
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
          AllocatorT allocator, const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList, allocator);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList, allocator);
   }
 
   template <typename _T = T>
@@ -74,7 +74,8 @@ public:
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList);
   }
 
   template <typename _T = T>
@@ -83,7 +84,8 @@ public:
          AllocatorT allocator, const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList, allocator);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList, allocator);
   }
 
   buffer(const shared_ptr_class<T> &hostData,
@@ -91,7 +93,8 @@ public:
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList, allocator);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList, allocator);
   }
 
   buffer(const shared_ptr_class<T> &hostData,
@@ -99,7 +102,8 @@ public:
          const property_list &propList = {})
       : Range(bufferRange), MemRange(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        hostData, get_count() * sizeof(T), propList);
+        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList);
   }
 
   template <class InputIterator, int N = dimensions,
@@ -109,7 +113,8 @@ public:
       : Range(range<1>(std::distance(first, last))),
         MemRange(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        first, last, get_count() * sizeof(T), propList, allocator);
+        first, last, get_count() * sizeof(T),
+        detail::getNextPowerOfTwo(sizeof(T)), propList, allocator);
   }
 
   template <class InputIterator, int N = dimensions,
@@ -119,21 +124,24 @@ public:
       : Range(range<1>(std::distance(first, last))),
         MemRange(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
-        first, last, get_count() * sizeof(T), propList);
+        first, last, get_count() * sizeof(T),
+        detail::getNextPowerOfTwo(sizeof(T)), propList);
   }
 
   buffer(buffer<T, dimensions, AllocatorT> &b, const id<dimensions> &baseIndex,
          const range<dimensions> &subRange)
-      : impl(b.impl), Offset(baseIndex + b.Offset), Range(subRange), MemRange(b.MemRange),
-        IsSubBuffer(true) {}
+      : impl(b.impl), Range(subRange), MemRange(b.MemRange), IsSubBuffer(true),
+        Offset(baseIndex + b.Offset) {}
 
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(cl_mem MemObject, const context &SyclContext,
          event AvailableEvent = {}) {
 
     size_t BufSize = 0;
-    CHECK_OCL_CODE(clGetMemObjectInfo(MemObject, CL_MEM_SIZE, sizeof(size_t),
-                                      &BufSize, nullptr));
+    PI_CALL(detail::RT::piMemGetInfo(
+        detail::pi::pi_cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
+        sizeof(size_t), &BufSize, nullptr));
+
     Range[0] = BufSize / sizeof(T);
     MemRange[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
@@ -162,7 +170,7 @@ public:
 
   size_t get_count() const { return Range.size(); }
 
-  size_t get_size() const { return impl->get_size(); }
+  size_t get_size() const { return get_count() * sizeof(T); }
 
   AllocatorT get_allocator() const { return impl->get_allocator(); }
 
@@ -241,11 +249,11 @@ private:
   template <typename DataT, int dims, access::mode mode,
             access::target target, access::placeholder isPlaceholder>
   friend class accessor;
+  range<dimensions> Range;
   // If this buffer is subbuffer - this range represents range of the parent
   // buffer
   range<dimensions> MemRange;
   bool IsSubBuffer = false;
-  range<dimensions> Range;
   // If this buffer is sub-buffer - offset field specifies the origin of the
   // sub-buffer inside the parent buffer
   id<dimensions> Offset;

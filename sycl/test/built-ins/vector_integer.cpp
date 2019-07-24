@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -69,6 +69,25 @@ int main() {
     assert(r2 == 3);
   }
 
+  // max (longlong2)
+  {
+    s::longlong2 r{ 0 };
+    {
+      s::buffer<s::longlong2, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class maxSLL2SLL1>([=]() {
+          AccR[0] = s::max(s::longlong2{ 5, 3 }, s::longlong{ 2 });
+        });
+      });
+    }
+    s::longlong r1 = r.x();
+    s::longlong r2 = r.y();
+    assert(r1 == 5);
+    assert(r2 == 3);
+  }
+
   // max
   {
     s::cl_uint2 r{ 0 };
@@ -88,6 +107,25 @@ int main() {
     assert(r2 == 3);
   }
 
+  // max (ulonglong2)
+  {
+    s::ulonglong2 r{ 0 };
+    {
+      s::buffer<s::ulonglong2, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class maxULL2ULL1>([=]() {
+          AccR[0] = s::max(s::ulonglong2{ 5, 3 }, s::ulonglong{ 2 });
+        });
+      });
+    }
+    s::ulonglong r1 = r.x();
+    s::ulonglong r2 = r.y();
+    assert(r1 == 5);
+    assert(r2 == 3);
+  }
+  
   // min
   {
     s::cl_int2 r{ 0 };
@@ -179,6 +217,25 @@ int main() {
     }
     s::cl_uint r1 = r.x();
     s::cl_uint r2 = r.y();
+    assert(r1 == 5);
+    assert(r2 == 2);
+  }
+
+  // abs (longlong)
+  {
+    s::ulonglong2 r{ 0 };
+    {
+      s::buffer<s::ulonglong2, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class absSL2>([=]() {
+          AccR[0] = s::abs(s::longlong2{ -5, -2 });
+        });
+      });
+    }
+    s::ulonglong r1 = r.x();
+    s::ulonglong r2 = r.y();
     assert(r1 == 5);
     assert(r2 == 2);
   }

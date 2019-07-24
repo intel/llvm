@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/BitVector.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
@@ -844,6 +845,63 @@ TEST_F(ConstantRangeTest, UDiv) {
             ConstantRange(APInt(16, 0), APInt(16, 99)));
 }
 
+TEST_F(ConstantRangeTest, SDiv) {
+  unsigned Bits = 4;
+  EnumerateTwoConstantRanges(Bits, [&](const ConstantRange &CR1,
+                                       const ConstantRange &CR2) {
+    // Collect possible results in a bit vector. We store the signed value plus
+    // a bias to make it unsigned.
+    int Bias = 1 << (Bits - 1);
+    BitVector Results(1 << Bits);
+    ForeachNumInConstantRange(CR1, [&](const APInt &N1) {
+      ForeachNumInConstantRange(CR2, [&](const APInt &N2) {
+        // Division by zero is UB.
+        if (N2 == 0)
+          return;
+
+        // SignedMin / -1 is UB.
+        if (N1.isMinSignedValue() && N2.isAllOnesValue())
+          return;
+
+        APInt N = N1.sdiv(N2);
+        Results.set(N.getSExtValue() + Bias);
+      });
+    });
+
+    ConstantRange CR = CR1.sdiv(CR2);
+    if (Results.none()) {
+      EXPECT_TRUE(CR.isEmptySet());
+      return;
+    }
+
+    // If there is a non-full signed envelope, that should be the result.
+    APInt SMin(Bits, Results.find_first() - Bias);
+    APInt SMax(Bits, Results.find_last() - Bias);
+    ConstantRange Envelope = ConstantRange::getNonEmpty(SMin, SMax + 1);
+    if (!Envelope.isFullSet()) {
+      EXPECT_EQ(Envelope, CR);
+      return;
+    }
+
+    // If the signed envelope is a full set, try to find a smaller sign wrapped
+    // set that is separated in negative and positive components (or one which
+    // can also additionally contain zero).
+    int LastNeg = Results.find_last_in(0, Bias) - Bias;
+    int LastPos = Results.find_next(Bias) - Bias;
+    if (Results[Bias]) {
+      if (LastNeg == -1)
+        ++LastNeg;
+      else if (LastPos == 1)
+        --LastPos;
+    }
+
+    APInt WMax(Bits, LastNeg);
+    APInt WMin(Bits, LastPos);
+    ConstantRange Wrapped = ConstantRange::getNonEmpty(WMin, WMax + 1);
+    EXPECT_EQ(Wrapped, CR);
+  });
+}
+
 TEST_F(ConstantRangeTest, URem) {
   EXPECT_EQ(Full.urem(Empty), Empty);
   EXPECT_EQ(Empty.urem(Full), Empty);
@@ -1487,8 +1545,10 @@ TEST(ConstantRange, MakeGuaranteedNoWrapRegionMulSignedRange) {
 
 #define EXPECT_MAY_OVERFLOW(op) \
   EXPECT_EQ(ConstantRange::OverflowResult::MayOverflow, (op))
-#define EXPECT_ALWAYS_OVERFLOWS(op) \
-  EXPECT_EQ(ConstantRange::OverflowResult::AlwaysOverflows, (op))
+#define EXPECT_ALWAYS_OVERFLOWS_LOW(op) \
+  EXPECT_EQ(ConstantRange::OverflowResult::AlwaysOverflowsLow, (op))
+#define EXPECT_ALWAYS_OVERFLOWS_HIGH(op) \
+  EXPECT_EQ(ConstantRange::OverflowResult::AlwaysOverflowsHigh, (op))
 #define EXPECT_NEVER_OVERFLOWS(op) \
   EXPECT_EQ(ConstantRange::OverflowResult::NeverOverflows, (op))
 
@@ -1521,9 +1581,9 @@ TEST_F(ConstantRangeTest, UnsignedAddOverflow) {
   ConstantRange C1(APInt(16, 0x0299), APInt(16, 0x0400));
   ConstantRange C2(APInt(16, 0x0300), APInt(16, 0x0400));
   EXPECT_MAY_OVERFLOW(A.unsignedAddMayOverflow(C1));
-  EXPECT_ALWAYS_OVERFLOWS(A.unsignedAddMayOverflow(C2));
+  EXPECT_ALWAYS_OVERFLOWS_HIGH(A.unsignedAddMayOverflow(C2));
   EXPECT_MAY_OVERFLOW(C1.unsignedAddMayOverflow(A));
-  EXPECT_ALWAYS_OVERFLOWS(C2.unsignedAddMayOverflow(A));
+  EXPECT_ALWAYS_OVERFLOWS_HIGH(C2.unsignedAddMayOverflow(A));
 }
 
 TEST_F(ConstantRangeTest, UnsignedSubOverflow) {
@@ -1548,7 +1608,7 @@ TEST_F(ConstantRangeTest, UnsignedSubOverflow) {
   ConstantRange A(APInt(16, 0x0000), APInt(16, 0x0100));
   ConstantRange B(APInt(16, 0x0100), APInt(16, 0x0200));
   EXPECT_NEVER_OVERFLOWS(B.unsignedSubMayOverflow(A));
-  EXPECT_ALWAYS_OVERFLOWS(A.unsignedSubMayOverflow(B));
+  EXPECT_ALWAYS_OVERFLOWS_LOW(A.unsignedSubMayOverflow(B));
 
   ConstantRange A1(APInt(16, 0x0000), APInt(16, 0x0101));
   ConstantRange B1(APInt(16, 0x0100), APInt(16, 0x0201));
@@ -1591,7 +1651,7 @@ TEST_F(ConstantRangeTest, SignedAddOverflow) {
   ConstantRange B5(APInt(16, 0x0299), APInt(16, 0x0400));
   ConstantRange B6(APInt(16, 0x0300), APInt(16, 0x0400));
   EXPECT_MAY_OVERFLOW(A.signedAddMayOverflow(B5));
-  EXPECT_ALWAYS_OVERFLOWS(A.signedAddMayOverflow(B6));
+  EXPECT_ALWAYS_OVERFLOWS_HIGH(A.signedAddMayOverflow(B6));
 
   ConstantRange C(APInt(16, 0x8200), APInt(16, 0x8300));
   ConstantRange D1(APInt(16, 0xfe00), APInt(16, 0xff00));
@@ -1605,7 +1665,7 @@ TEST_F(ConstantRangeTest, SignedAddOverflow) {
   ConstantRange D5(APInt(16, 0xfc00), APInt(16, 0xfd02));
   ConstantRange D6(APInt(16, 0xfc00), APInt(16, 0xfd01));
   EXPECT_MAY_OVERFLOW(C.signedAddMayOverflow(D5));
-  EXPECT_ALWAYS_OVERFLOWS(C.signedAddMayOverflow(D6));
+  EXPECT_ALWAYS_OVERFLOWS_LOW(C.signedAddMayOverflow(D6));
 
   ConstantRange E(APInt(16, 0xff00), APInt(16, 0x0100));
   EXPECT_NEVER_OVERFLOWS(E.signedAddMayOverflow(E));
@@ -1637,7 +1697,7 @@ TEST_F(ConstantRangeTest, SignedSubOverflow) {
   ConstantRange B3(APInt(16, 0xfc00), APInt(16, 0xfd02));
   ConstantRange B4(APInt(16, 0xfc00), APInt(16, 0xfd01));
   EXPECT_MAY_OVERFLOW(A.signedSubMayOverflow(B3));
-  EXPECT_ALWAYS_OVERFLOWS(A.signedSubMayOverflow(B4));
+  EXPECT_ALWAYS_OVERFLOWS_HIGH(A.signedSubMayOverflow(B4));
 
   ConstantRange C(APInt(16, 0x8200), APInt(16, 0x8300));
   ConstantRange D1(APInt(16, 0x0100), APInt(16, 0x0201));
@@ -1647,7 +1707,7 @@ TEST_F(ConstantRangeTest, SignedSubOverflow) {
   ConstantRange D3(APInt(16, 0x0299), APInt(16, 0x0400));
   ConstantRange D4(APInt(16, 0x0300), APInt(16, 0x0400));
   EXPECT_MAY_OVERFLOW(C.signedSubMayOverflow(D3));
-  EXPECT_ALWAYS_OVERFLOWS(C.signedSubMayOverflow(D4));
+  EXPECT_ALWAYS_OVERFLOWS_LOW(C.signedSubMayOverflow(D4));
 
   ConstantRange E(APInt(16, 0xff00), APInt(16, 0x0100));
   EXPECT_NEVER_OVERFLOWS(E.signedSubMayOverflow(E));
@@ -1663,25 +1723,39 @@ static void TestOverflowExhaustive(Fn1 OverflowFn, Fn2 MayOverflowFn) {
                                        const ConstantRange &CR2) {
     // Loop over all N1 in CR1 and N2 in CR2 and check whether any of the
     // operations have overflow / have no overflow.
-    bool RangeHasOverflow = false;
+    bool RangeHasOverflowLow = false;
+    bool RangeHasOverflowHigh = false;
     bool RangeHasNoOverflow = false;
     ForeachNumInConstantRange(CR1, [&](const APInt &N1) {
       ForeachNumInConstantRange(CR2, [&](const APInt &N2) {
-        if (OverflowFn(N1, N2))
-          RangeHasOverflow = true;
-        else
+        bool IsOverflowHigh;
+        if (!OverflowFn(IsOverflowHigh, N1, N2)) {
           RangeHasNoOverflow = true;
+          return;
+        }
+
+        if (IsOverflowHigh)
+          RangeHasOverflowHigh = true;
+        else
+          RangeHasOverflowLow = true;
       });
     });
 
     ConstantRange::OverflowResult OR = MayOverflowFn(CR1, CR2);
     switch (OR) {
-    case ConstantRange::OverflowResult::AlwaysOverflows:
-      EXPECT_TRUE(RangeHasOverflow);
+    case ConstantRange::OverflowResult::AlwaysOverflowsLow:
+      EXPECT_TRUE(RangeHasOverflowLow);
+      EXPECT_FALSE(RangeHasOverflowHigh);
+      EXPECT_FALSE(RangeHasNoOverflow);
+      break;
+    case ConstantRange::OverflowResult::AlwaysOverflowsHigh:
+      EXPECT_TRUE(RangeHasOverflowHigh);
+      EXPECT_FALSE(RangeHasOverflowLow);
       EXPECT_FALSE(RangeHasNoOverflow);
       break;
     case ConstantRange::OverflowResult::NeverOverflows:
-      EXPECT_FALSE(RangeHasOverflow);
+      EXPECT_FALSE(RangeHasOverflowLow);
+      EXPECT_FALSE(RangeHasOverflowHigh);
       EXPECT_TRUE(RangeHasNoOverflow);
       break;
     case ConstantRange::OverflowResult::MayOverflow:
@@ -1691,7 +1765,7 @@ static void TestOverflowExhaustive(Fn1 OverflowFn, Fn2 MayOverflowFn) {
       if (CR1.isEmptySet() || CR2.isEmptySet())
         break;
 
-      EXPECT_TRUE(RangeHasOverflow);
+      EXPECT_TRUE(RangeHasOverflowLow || RangeHasOverflowHigh);
       EXPECT_TRUE(RangeHasNoOverflow);
       break;
     }
@@ -1700,9 +1774,10 @@ static void TestOverflowExhaustive(Fn1 OverflowFn, Fn2 MayOverflowFn) {
 
 TEST_F(ConstantRangeTest, UnsignedAddOverflowExhaustive) {
   TestOverflowExhaustive(
-      [](const APInt &N1, const APInt &N2) {
+      [](bool &IsOverflowHigh, const APInt &N1, const APInt &N2) {
         bool Overflow;
         (void) N1.uadd_ov(N2, Overflow);
+        IsOverflowHigh = true;
         return Overflow;
       },
       [](const ConstantRange &CR1, const ConstantRange &CR2) {
@@ -1712,9 +1787,10 @@ TEST_F(ConstantRangeTest, UnsignedAddOverflowExhaustive) {
 
 TEST_F(ConstantRangeTest, UnsignedSubOverflowExhaustive) {
   TestOverflowExhaustive(
-      [](const APInt &N1, const APInt &N2) {
+      [](bool &IsOverflowHigh, const APInt &N1, const APInt &N2) {
         bool Overflow;
         (void) N1.usub_ov(N2, Overflow);
+        IsOverflowHigh = false;
         return Overflow;
       },
       [](const ConstantRange &CR1, const ConstantRange &CR2) {
@@ -1724,9 +1800,10 @@ TEST_F(ConstantRangeTest, UnsignedSubOverflowExhaustive) {
 
 TEST_F(ConstantRangeTest, UnsignedMulOverflowExhaustive) {
   TestOverflowExhaustive(
-      [](const APInt &N1, const APInt &N2) {
+      [](bool &IsOverflowHigh, const APInt &N1, const APInt &N2) {
         bool Overflow;
         (void) N1.umul_ov(N2, Overflow);
+        IsOverflowHigh = true;
         return Overflow;
       },
       [](const ConstantRange &CR1, const ConstantRange &CR2) {
@@ -1736,9 +1813,10 @@ TEST_F(ConstantRangeTest, UnsignedMulOverflowExhaustive) {
 
 TEST_F(ConstantRangeTest, SignedAddOverflowExhaustive) {
   TestOverflowExhaustive(
-      [](const APInt &N1, const APInt &N2) {
+      [](bool &IsOverflowHigh, const APInt &N1, const APInt &N2) {
         bool Overflow;
         (void) N1.sadd_ov(N2, Overflow);
+        IsOverflowHigh = N1.isNonNegative();
         return Overflow;
       },
       [](const ConstantRange &CR1, const ConstantRange &CR2) {
@@ -1748,9 +1826,10 @@ TEST_F(ConstantRangeTest, SignedAddOverflowExhaustive) {
 
 TEST_F(ConstantRangeTest, SignedSubOverflowExhaustive) {
   TestOverflowExhaustive(
-      [](const APInt &N1, const APInt &N2) {
+      [](bool &IsOverflowHigh, const APInt &N1, const APInt &N2) {
         bool Overflow;
         (void) N1.ssub_ov(N2, Overflow);
+        IsOverflowHigh = N1.isNonNegative();
         return Overflow;
       },
       [](const ConstantRange &CR1, const ConstantRange &CR2) {

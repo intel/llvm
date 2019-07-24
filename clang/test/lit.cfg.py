@@ -97,6 +97,10 @@ if config.clang_default_cxx_stdlib != '':
 if platform.system() not in ['FreeBSD']:
     config.available_features.add('crash-recovery')
 
+# Support for new pass manager.
+if config.enable_experimental_new_pass_manager:
+    config.available_features.add('experimental-new-pass-manager')
+
 # ANSI escape sequences in non-dumb terminal
 if platform.system() not in ['Windows']:
     config.available_features.add('ansi-escape-sequences')
@@ -179,7 +183,10 @@ if run_console_tests != 0:
 lit.util.usePlatformSdkOnDarwin(config, lit_config)
 macOSSDKVersion = lit.util.findPlatformSdkVersionOnMacOS(config, lit_config)
 if macOSSDKVersion is not None:
-    config.available_features.add('macos-sdk-' + macOSSDKVersion)
+    config.available_features.add('macos-sdk-' + str(macOSSDKVersion))
 
 if os.path.exists('/etc/gentoo-release'):
     config.available_features.add('gentoo')
+
+if config.enable_shared:
+    config.available_features.add("enable_shared")

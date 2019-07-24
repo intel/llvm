@@ -37,8 +37,9 @@ public:
   const char *id() const override final;
 
   bool prepare(const Selection &Inputs) override;
-  Expected<tooling::Replacements> apply(const Selection &Inputs) override;
-  std::string title() const override;
+  Expected<Effect> apply(const Selection &Inputs) override;
+  std::string title() const override { return "Swap if branches"; }
+  Intent intent() const override { return Refactor; }
 
 private:
   const IfStmt *If = nullptr;
@@ -60,9 +61,9 @@ bool SwapIfBranches::prepare(const Selection &Inputs) {
          dyn_cast_or_null<CompoundStmt>(If->getElse());
 }
 
-Expected<tooling::Replacements> SwapIfBranches::apply(const Selection &Inputs) {
+Expected<Tweak::Effect> SwapIfBranches::apply(const Selection &Inputs) {
   auto &Ctx = Inputs.AST.getASTContext();
-  auto &SrcMgr = Ctx.getSourceManager();
+  auto &SrcMgr = Inputs.AST.getSourceManager();
 
   auto ThenRng = toHalfOpenFileRange(SrcMgr, Ctx.getLangOpts(),
                                      If->getThen()->getSourceRange());
@@ -89,10 +90,8 @@ Expected<tooling::Replacements> SwapIfBranches::apply(const Selection &Inputs) {
                                                  ElseRng->getBegin(),
                                                  ElseCode.size(), ThenCode)))
     return std::move(Err);
-  return Result;
+  return Effect::applyEdit(Result);
 }
-
-std::string SwapIfBranches::title() const { return "Swap if branches"; }
 
 } // namespace
 } // namespace clangd

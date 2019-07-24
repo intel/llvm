@@ -224,6 +224,42 @@ define void @not_nuw(i32* %x) {
   ret void
 }
 
+define void @not_nsw_but_nuw(i32* %x) {
+; CHECK-LABEL: @not_nsw_but_nuw(
+; CHECK-NEXT:    [[IDX1:%.*]] = getelementptr inbounds i32, i32* [[X:%.*]], i64 0
+; CHECK-NEXT:    [[IDX2:%.*]] = getelementptr inbounds i32, i32* [[X]], i64 1
+; CHECK-NEXT:    [[IDX3:%.*]] = getelementptr inbounds i32, i32* [[X]], i64 2
+; CHECK-NEXT:    [[IDX4:%.*]] = getelementptr inbounds i32, i32* [[X]], i64 3
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i32* [[IDX1]] to <4 x i32>*
+; CHECK-NEXT:    [[TMP2:%.*]] = load <4 x i32>, <4 x i32>* [[TMP1]], align 4
+; CHECK-NEXT:    [[TMP3:%.*]] = add nuw <4 x i32> [[TMP2]], <i32 1, i32 1, i32 1, i32 1>
+; CHECK-NEXT:    [[TMP4:%.*]] = bitcast i32* [[IDX1]] to <4 x i32>*
+; CHECK-NEXT:    store <4 x i32> [[TMP3]], <4 x i32>* [[TMP4]], align 4
+; CHECK-NEXT:    ret void
+;
+  %idx1 = getelementptr inbounds i32, i32* %x, i64 0
+  %idx2 = getelementptr inbounds i32, i32* %x, i64 1
+  %idx3 = getelementptr inbounds i32, i32* %x, i64 2
+  %idx4 = getelementptr inbounds i32, i32* %x, i64 3
+
+  %load1 = load i32, i32* %idx1, align 4
+  %load2 = load i32, i32* %idx2, align 4
+  %load3 = load i32, i32* %idx3, align 4
+  %load4 = load i32, i32* %idx4, align 4
+
+  %op1 = add nuw i32 %load1, 1
+  %op2 = add nuw nsw i32 %load2, 1
+  %op3 = add nuw nsw i32 %load3, 1
+  %op4 = add nuw i32 %load4, 1
+
+  store i32 %op1, i32* %idx1, align 4
+  store i32 %op2, i32* %idx2, align 4
+  store i32 %op3, i32* %idx3, align 4
+  store i32 %op4, i32* %idx4, align 4
+
+  ret void
+}
+
 define void @nnan(float* %x) {
 ; CHECK-LABEL: @nnan(
 ; CHECK-NEXT:    [[IDX1:%.*]] = getelementptr inbounds float, float* [[X:%.*]], i64 0
@@ -516,6 +552,40 @@ define void @fcmp_fast(double* %x) #1 {
   ret void
 }
 
+define void @fcmp_fast_unary_fneg(double* %x) #1 {
+; CHECK-LABEL: @fcmp_fast_unary_fneg(
+; CHECK-NEXT:    [[IDX1:%.*]] = getelementptr inbounds double, double* [[X:%.*]], i64 0
+; CHECK-NEXT:    [[IDX2:%.*]] = getelementptr inbounds double, double* [[X]], i64 1
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast double* [[IDX1]] to <2 x double>*
+; CHECK-NEXT:    [[TMP2:%.*]] = load <2 x double>, <2 x double>* [[TMP1]], align 8
+; CHECK-NEXT:    [[TMP3:%.*]] = fcmp fast oge <2 x double> [[TMP2]], zeroinitializer
+; CHECK-NEXT:    [[TMP4:%.*]] = fneg fast <2 x double> [[TMP2]]
+; CHECK-NEXT:    [[TMP5:%.*]] = select <2 x i1> [[TMP3]], <2 x double> [[TMP2]], <2 x double> [[TMP4]]
+; CHECK-NEXT:    [[TMP6:%.*]] = bitcast double* [[IDX1]] to <2 x double>*
+; CHECK-NEXT:    store <2 x double> [[TMP5]], <2 x double>* [[TMP6]], align 8
+; CHECK-NEXT:    ret void
+;
+  %idx1 = getelementptr inbounds double, double* %x, i64 0
+  %idx2 = getelementptr inbounds double, double* %x, i64 1
+
+  %load1 = load double, double* %idx1, align 8
+  %load2 = load double, double* %idx2, align 8
+
+  %cmp1 = fcmp fast oge double %load1, 0.000000e+00
+  %cmp2 = fcmp fast oge double %load2, 0.000000e+00
+
+  %sub1 = fneg fast double %load1
+  %sub2 = fneg fast double %load2
+
+  %sel1 = select i1 %cmp1, double %load1, double %sub1
+  %sel2 = select i1 %cmp2, double %load2, double %sub2
+
+  store double %sel1, double* %idx1, align 8
+  store double %sel2, double* %idx2, align 8
+
+  ret void
+}
+
 define void @fcmp_no_fast(double* %x) #1 {
 ; CHECK-LABEL: @fcmp_no_fast(
 ; CHECK-NEXT:    [[IDX1:%.*]] = getelementptr inbounds double, double* [[X:%.*]], i64 0
@@ -540,6 +610,40 @@ define void @fcmp_no_fast(double* %x) #1 {
 
   %sub1 = fsub fast double -0.000000e+00, %load1
   %sub2 = fsub double -0.000000e+00, %load2
+
+  %sel1 = select i1 %cmp1, double %load1, double %sub1
+  %sel2 = select i1 %cmp2, double %load2, double %sub2
+
+  store double %sel1, double* %idx1, align 8
+  store double %sel2, double* %idx2, align 8
+
+  ret void
+}
+
+define void @fcmp_no_fast_unary_fneg(double* %x) #1 {
+; CHECK-LABEL: @fcmp_no_fast_unary_fneg(
+; CHECK-NEXT:    [[IDX1:%.*]] = getelementptr inbounds double, double* [[X:%.*]], i64 0
+; CHECK-NEXT:    [[IDX2:%.*]] = getelementptr inbounds double, double* [[X]], i64 1
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast double* [[IDX1]] to <2 x double>*
+; CHECK-NEXT:    [[TMP2:%.*]] = load <2 x double>, <2 x double>* [[TMP1]], align 8
+; CHECK-NEXT:    [[TMP3:%.*]] = fcmp oge <2 x double> [[TMP2]], zeroinitializer
+; CHECK-NEXT:    [[TMP4:%.*]] = fneg <2 x double> [[TMP2]]
+; CHECK-NEXT:    [[TMP5:%.*]] = select <2 x i1> [[TMP3]], <2 x double> [[TMP2]], <2 x double> [[TMP4]]
+; CHECK-NEXT:    [[TMP6:%.*]] = bitcast double* [[IDX1]] to <2 x double>*
+; CHECK-NEXT:    store <2 x double> [[TMP5]], <2 x double>* [[TMP6]], align 8
+; CHECK-NEXT:    ret void
+;
+  %idx1 = getelementptr inbounds double, double* %x, i64 0
+  %idx2 = getelementptr inbounds double, double* %x, i64 1
+
+  %load1 = load double, double* %idx1, align 8
+  %load2 = load double, double* %idx2, align 8
+
+  %cmp1 = fcmp fast oge double %load1, 0.000000e+00
+  %cmp2 = fcmp oge double %load2, 0.000000e+00
+
+  %sub1 = fneg double %load1
+  %sub2 = fneg double %load2
 
   %sel1 = select i1 %cmp1, double %load1, double %sub1
   %sel2 = select i1 %cmp2, double %load2, double %sub2

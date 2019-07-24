@@ -419,11 +419,8 @@ SDValue MipsSETargetLowering::lowerSELECT(SDValue Op, SelectionDAG &DAG) const {
                      Op->getOperand(2));
 }
 
-bool
-MipsSETargetLowering::allowsMisalignedMemoryAccesses(EVT VT,
-                                                     unsigned,
-                                                     unsigned,
-                                                     bool *Fast) const {
+bool MipsSETargetLowering::allowsMisalignedMemoryAccesses(
+    EVT VT, unsigned, unsigned, MachineMemOperand::Flags, bool *Fast) const {
   MVT::SimpleValueType SVT = VT.getSimpleVT().SimpleTy;
 
   if (Subtarget.systemSupportsUnalignedAccess()) {
@@ -719,8 +716,31 @@ static bool shouldTransformMulToShiftsAddsSubs(APInt C, EVT VT,
                                                SelectionDAG &DAG,
                                                const MipsSubtarget &Subtarget) {
   // Estimate the number of operations the below transform will turn a
-  // constant multiply into. The number is approximately how many powers
-  // of two summed together that the constant can be broken down into.
+  // constant multiply into. The number is approximately equal to the minimal
+  // number of powers of two that constant can be broken down to by adding
+  // or subtracting them.
+  //
+  // If we have taken more than 12[1] / 8[2] steps to attempt the
+  // optimization for a native sized value, it is more than likely that this
+  // optimization will make things worse.
+  //
+  // [1] MIPS64 requires 6 instructions at most to materialize any constant,
+  //     multiplication requires at least 4 cycles, but another cycle (or two)
+  //     to retrieve the result from the HI/LO registers.
+  //
+  // [2] For MIPS32, more than 8 steps is expensive as the constant could be
+  //     materialized in 2 instructions, multiplication requires at least 4
+  //     cycles, but another cycle (or two) to retrieve the result from the
+  //     HI/LO registers.
+  //
+  // TODO:
+  // - MaxSteps needs to consider the `VT` of the constant for the current
+  //   target.
+  // - Consider to perform this optimization after type legalization.
+  //   That allows to remove a workaround for types not supported natively.
+  // - Take in account `-Os, -Oz` flags because this optimization
+  //   increases code size.
+  unsigned MaxSteps = Subtarget.isABI_O32() ? 8 : 12;
 
   SmallVector<APInt, 16> WorkStack(1, C);
   unsigned Steps = 0;
@@ -732,6 +752,9 @@ static bool shouldTransformMulToShiftsAddsSubs(APInt C, EVT VT,
     if (Val == 0 || Val == 1)
       continue;
 
+    if (Steps >= MaxSteps)
+      return false;
+
     if (Val.isPowerOf2()) {
       ++Steps;
       continue;
@@ -740,36 +763,15 @@ static bool shouldTransformMulToShiftsAddsSubs(APInt C, EVT VT,
     APInt Floor = APInt(BitWidth, 1) << Val.logBase2();
     APInt Ceil = Val.isNegative() ? APInt(BitWidth, 0)
                                   : APInt(BitWidth, 1) << C.ceilLogBase2();
-
     if ((Val - Floor).ule(Ceil - Val)) {
       WorkStack.push_back(Floor);
       WorkStack.push_back(Val - Floor);
-      ++Steps;
-      continue;
+    } else {
+      WorkStack.push_back(Ceil);
+      WorkStack.push_back(Ceil - Val);
     }
 
-    WorkStack.push_back(Ceil);
-    WorkStack.push_back(Ceil - Val);
     ++Steps;
-
-    // If we have taken more than 12[1] / 8[2] steps to attempt the
-    // optimization for a native sized value, it is more than likely that this
-    // optimization will make things worse.
-    //
-    // [1] MIPS64 requires 6 instructions at most to materialize any constant,
-    //     multiplication requires at least 4 cycles, but another cycle (or two)
-    //     to retrieve the result from the HI/LO registers.
-    //
-    // [2] For MIPS32, more than 8 steps is expensive as the constant could be
-    //     materialized in 2 instructions, multiplication requires at least 4
-    //     cycles, but another cycle (or two) to retrieve the result from the
-    //     HI/LO registers.
-
-    if (Steps > 12 && (Subtarget.isABI_N32() || Subtarget.isABI_N64()))
-      return false;
-
-    if (Steps > 8 && Subtarget.isABI_O32())
-      return false;
   }
 
   // If the value being multiplied is not supported natively, we have to pay
@@ -3761,8 +3763,8 @@ MipsSETargetLowering::emitFPEXTEND_PSEUDO(MachineInstr &MI,
 
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
-  unsigned Fd = MI.getOperand(0).getReg();
-  unsigned Ws = MI.getOperand(1).getReg();
+  Register Fd = MI.getOperand(0).getReg();
+  Register Ws = MI.getOperand(1).getReg();
 
   MachineRegisterInfo &RegInfo = BB->getParent()->getRegInfo();
   const TargetRegisterClass *GPRRC =
@@ -3770,10 +3772,10 @@ MipsSETargetLowering::emitFPEXTEND_PSEUDO(MachineInstr &MI,
   unsigned MTC1Opc = IsFGR64onMips64
                          ? Mips::DMTC1
                          : (IsFGR64onMips32 ? Mips::MTC1_D64 : Mips::MTC1);
-  unsigned COPYOpc = IsFGR64onMips64 ? Mips::COPY_S_D : Mips::COPY_S_W;
+  Register COPYOpc = IsFGR64onMips64 ? Mips::COPY_S_D : Mips::COPY_S_W;
 
-  unsigned Wtemp = RegInfo.createVirtualRegister(&Mips::MSA128WRegClass);
-  unsigned WPHI = Wtemp;
+  Register Wtemp = RegInfo.createVirtualRegister(&Mips::MSA128WRegClass);
+  Register WPHI = Wtemp;
 
   BuildMI(*BB, MI, DL, TII->get(Mips::FEXUPR_W), Wtemp).addReg(Ws);
   if (IsFGR64) {
@@ -3782,15 +3784,15 @@ MipsSETargetLowering::emitFPEXTEND_PSEUDO(MachineInstr &MI,
   }
 
   // Perform the safety regclass copy mentioned above.
-  unsigned Rtemp = RegInfo.createVirtualRegister(GPRRC);
-  unsigned FPRPHI = IsFGR64onMips32
+  Register Rtemp = RegInfo.createVirtualRegister(GPRRC);
+  Register FPRPHI = IsFGR64onMips32
                         ? RegInfo.createVirtualRegister(&Mips::FGR64RegClass)
                         : Fd;
   BuildMI(*BB, MI, DL, TII->get(COPYOpc), Rtemp).addReg(WPHI).addImm(0);
   BuildMI(*BB, MI, DL, TII->get(MTC1Opc), FPRPHI).addReg(Rtemp);
 
   if (IsFGR64onMips32) {
-    unsigned Rtemp2 = RegInfo.createVirtualRegister(GPRRC);
+    Register Rtemp2 = RegInfo.createVirtualRegister(GPRRC);
     BuildMI(*BB, MI, DL, TII->get(Mips::COPY_S_W), Rtemp2)
         .addReg(WPHI)
         .addImm(1);

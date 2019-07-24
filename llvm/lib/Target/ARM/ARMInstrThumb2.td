@@ -25,6 +25,7 @@ def it_mask_asmoperand : AsmOperandClass { let Name = "ITMask"; }
 def it_mask : Operand<i32> {
   let PrintMethod = "printThumbITMask";
   let ParserMatchClass = it_mask_asmoperand;
+  let EncoderMethod = "getITMaskOpValue";
 }
 
 // t2_shift_imm: An integer that encodes a shift amount and the type of shift
@@ -37,6 +38,16 @@ def t2_shift_imm : Operand<i32> {
   let PrintMethod = "printShiftImmOperand";
   let ParserMatchClass = ShifterImmAsmOperand;
   let DecoderMethod = "DecodeT2ShifterImmOperand";
+}
+
+def mve_shift_imm : AsmOperandClass {
+  let Name = "MVELongShift";
+  let RenderMethod = "addImmOperands";
+  let DiagnosticString = "operand must be an immediate in the range [1,32]";
+}
+def long_shift : Operand<i32> {
+  let ParserMatchClass = mve_shift_imm;
+  let DecoderMethod = "DecodeLongShiftOperand";
 }
 
 // Shifted operands. No register controlled shifts for Thumb2.
@@ -150,6 +161,26 @@ def lo5AllOne : PatLeaf<(i32 imm), [{
 
 // Define Thumb2 specific addressing modes.
 
+// t2_addr_offset_none := reg
+def MemNoOffsetT2AsmOperand
+  : AsmOperandClass { let Name = "MemNoOffsetT2"; }
+def t2_addr_offset_none : MemOperand {
+  let PrintMethod = "printAddrMode7Operand";
+  let DecoderMethod = "DecodeGPRnopcRegisterClass";
+  let ParserMatchClass = MemNoOffsetT2AsmOperand;
+  let MIOperandInfo = (ops GPRnopc:$base);
+}
+
+// t2_nosp_addr_offset_none := reg
+def MemNoOffsetT2NoSpAsmOperand
+  : AsmOperandClass { let Name = "MemNoOffsetT2NoSp"; }
+def t2_nosp_addr_offset_none : MemOperand {
+  let PrintMethod = "printAddrMode7Operand";
+  let DecoderMethod = "DecoderGPRRegisterClass";
+  let ParserMatchClass = MemNoOffsetT2NoSpAsmOperand;
+  let MIOperandInfo = (ops rGPR:$base);
+}
+
 // t2addrmode_imm12  := reg + imm12
 def t2addrmode_imm12_asmoperand : AsmOperandClass {let Name="MemUImm12Offset";}
 def t2addrmode_imm12 : MemOperand,
@@ -181,31 +212,40 @@ def t2adrlabel : Operand<i32> {
 }
 
 // t2addrmode_posimm8  := reg + imm8
-def MemPosImm8OffsetAsmOperand : AsmOperandClass {let Name="MemPosImm8Offset";}
+def MemPosImm8OffsetAsmOperand : AsmOperandClass {
+  let Name="MemPosImm8Offset";
+  let RenderMethod = "addMemImmOffsetOperands";
+}
 def t2addrmode_posimm8 : MemOperand {
   let PrintMethod = "printT2AddrModeImm8Operand<false>";
-  let EncoderMethod = "getT2AddrModeImm8OpValue";
+  let EncoderMethod = "getT2AddrModeImmOpValue<8,0>";
   let DecoderMethod = "DecodeT2AddrModeImm8";
   let ParserMatchClass = MemPosImm8OffsetAsmOperand;
   let MIOperandInfo = (ops GPR:$base, i32imm:$offsimm);
 }
 
 // t2addrmode_negimm8  := reg - imm8
-def MemNegImm8OffsetAsmOperand : AsmOperandClass {let Name="MemNegImm8Offset";}
+def MemNegImm8OffsetAsmOperand : AsmOperandClass {
+  let Name="MemNegImm8Offset";
+  let RenderMethod = "addMemImmOffsetOperands";
+}
 def t2addrmode_negimm8 : MemOperand,
                       ComplexPattern<i32, 2, "SelectT2AddrModeImm8", []> {
   let PrintMethod = "printT2AddrModeImm8Operand<false>";
-  let EncoderMethod = "getT2AddrModeImm8OpValue";
+  let EncoderMethod = "getT2AddrModeImmOpValue<8,0>";
   let DecoderMethod = "DecodeT2AddrModeImm8";
   let ParserMatchClass = MemNegImm8OffsetAsmOperand;
   let MIOperandInfo = (ops GPR:$base, i32imm:$offsimm);
 }
 
 // t2addrmode_imm8  := reg +/- imm8
-def MemImm8OffsetAsmOperand : AsmOperandClass { let Name = "MemImm8Offset"; }
+def MemImm8OffsetAsmOperand : AsmOperandClass {
+  let Name = "MemImm8Offset";
+  let RenderMethod = "addMemImmOffsetOperands";
+}
 class T2AddrMode_Imm8 : MemOperand,
                         ComplexPattern<i32, 2, "SelectT2AddrModeImm8", []> {
-  let EncoderMethod = "getT2AddrModeImm8OpValue";
+  let EncoderMethod = "getT2AddrModeImmOpValue<8,0>";
   let DecoderMethod = "DecodeT2AddrModeImm8";
   let ParserMatchClass = MemImm8OffsetAsmOperand;
   let MIOperandInfo = (ops GPR:$base, i32imm:$offsimm);
@@ -247,8 +287,36 @@ def t2addrmode_imm8s4_pre : T2AddrMode_Imm8s4 {
 def t2am_imm8s4_offset_asmoperand : AsmOperandClass { let Name = "Imm8s4"; }
 def t2am_imm8s4_offset : MemOperand {
   let PrintMethod = "printT2AddrModeImm8s4OffsetOperand";
-  let EncoderMethod = "getT2Imm8s4OpValue";
+  let EncoderMethod = "getT2ScaledImmOpValue<8,2>";
   let DecoderMethod = "DecodeT2Imm8S4";
+}
+
+// t2addrmode_imm7s4  := reg +/- (imm7 << 2)
+def MemImm7s4OffsetAsmOperand : AsmOperandClass {let Name = "MemImm7s4Offset";}
+class T2AddrMode_Imm7s4 : MemOperand {
+  let EncoderMethod = "getT2AddrModeImm7s4OpValue";
+  let DecoderMethod = "DecodeT2AddrModeImm7<2,0>";
+  let ParserMatchClass = MemImm7s4OffsetAsmOperand;
+  let MIOperandInfo = (ops GPRnopc:$base, i32imm:$offsimm);
+}
+
+def t2addrmode_imm7s4 : T2AddrMode_Imm7s4 {
+  // They are printed the same way as the imm8 version
+  let PrintMethod = "printT2AddrModeImm8s4Operand<false>";
+}
+
+def t2addrmode_imm7s4_pre : T2AddrMode_Imm7s4 {
+  // They are printed the same way as the imm8 version
+  let PrintMethod = "printT2AddrModeImm8s4Operand<true>";
+}
+
+def t2am_imm7s4_offset_asmoperand : AsmOperandClass { let Name = "Imm7s4"; }
+def t2am_imm7s4_offset : MemOperand {
+  // They are printed the same way as the imm8 version
+  let PrintMethod = "printT2AddrModeImm8s4OffsetOperand";
+  let ParserMatchClass = t2am_imm7s4_offset_asmoperand;
+  let EncoderMethod = "getT2ScaledImmOpValue<7,2>";
+  let DecoderMethod = "DecodeT2Imm7S4";
 }
 
 // t2addrmode_imm0_1020s4  := reg + (imm8 << 2)
@@ -289,6 +357,75 @@ def addrmode_tbh : MemOperand {
   let MIOperandInfo = (ops GPR:$Rn, rGPR:$Rm);
 }
 
+// Define ARMv8.1-M specific addressing modes.
+
+// Label operands for BF/BFL/WLS/DLS/LE
+class BFLabelOp<string signed, string isNeg, string zeroPermitted, string size,
+                string fixup>
+  : Operand<OtherVT> {
+  let EncoderMethod = !strconcat("getBFTargetOpValue<", isNeg, ", ",
+                                 fixup, ">");
+  let OperandType = "OPERAND_PCREL";
+  let DecoderMethod = !strconcat("DecodeBFLabelOperand<", signed, ", ",
+                                 isNeg, ", ", zeroPermitted, ", ", size, ">");
+}
+def bflabel_u4  : BFLabelOp<"false", "false", "false", "4",  "ARM::fixup_bf_branch">;
+def bflabel_s12 : BFLabelOp<"true",  "false", "true",  "12", "ARM::fixup_bfc_target">;
+def bflabel_s16 : BFLabelOp<"true",  "false", "true",  "16", "ARM::fixup_bf_target">;
+def bflabel_s18 : BFLabelOp<"true",  "false", "true",  "18", "ARM::fixup_bfl_target">;
+
+def wlslabel_u11_asmoperand : AsmOperandClass {
+  let Name = "WLSLabel";
+  let RenderMethod = "addImmOperands";
+  let PredicateMethod = "isUnsignedOffset<11, 1>";
+  let DiagnosticString =
+    "loop end is out of range or not a positive multiple of 2";
+}
+def wlslabel_u11 : BFLabelOp<"false", "false", "true",  "11", "ARM::fixup_wls"> {
+  let ParserMatchClass = wlslabel_u11_asmoperand;
+}
+def lelabel_u11_asmoperand : AsmOperandClass {
+  let Name = "LELabel";
+  let RenderMethod = "addImmOperands";
+  let PredicateMethod = "isLEOffset";
+  let DiagnosticString =
+    "loop start is out of range or not a negative multiple of 2";
+}
+def lelabel_u11 : BFLabelOp<"false", "true",  "true",  "11", "ARM::fixup_le"> {
+  let ParserMatchClass = lelabel_u11_asmoperand;
+}
+
+def bfafter_target : Operand<OtherVT> {
+    let EncoderMethod = "getBFAfterTargetOpValue";
+    let OperandType = "OPERAND_PCREL";
+    let DecoderMethod = "DecodeBFAfterTargetOperand";
+}
+
+// pred operand excluding AL
+def pred_noal_asmoperand : AsmOperandClass {
+  let Name = "CondCodeNoAL";
+  let RenderMethod = "addITCondCodeOperands";
+  let PredicateMethod = "isITCondCodeNoAL";
+  let ParserMethod = "parseITCondCode";
+}
+def pred_noal : Operand<i32> {
+  let PrintMethod = "printMandatoryPredicateOperand";
+  let ParserMatchClass = pred_noal_asmoperand;
+  let DecoderMethod = "DecodePredNoALOperand";
+}
+
+
+// CSEL aliases inverted predicate
+def pred_noal_inv_asmoperand : AsmOperandClass {
+  let Name = "CondCodeNoALInv";
+  let RenderMethod = "addITCondCodeInvOperands";
+  let PredicateMethod = "isITCondCodeNoAL";
+  let ParserMethod = "parseITCondCode";
+}
+def pred_noal_inv : Operand<i32> {
+  let PrintMethod = "printMandatoryInvertedPredicateOperand";
+  let ParserMatchClass = pred_noal_inv_asmoperand;
+}
 //===----------------------------------------------------------------------===//
 // Multiclass helpers...
 //
@@ -603,6 +740,17 @@ multiclass T2I_bin_irs<bits<4> opcod, string opc,
      let Inst{31-27} = 0b11101;
      let Inst{26-25} = 0b01;
      let Inst{24-21} = opcod;
+     let Inst{15} = 0b0;
+     // In most of these instructions, and most versions of the Arm
+     // architecture, bit 15 of this encoding is listed as (0) rather
+     // than 0, i.e. setting it to 1 is UNPREDICTABLE or a soft-fail
+     // rather than a hard failure. In v8.1-M, this requirement is
+     // upgraded to a hard one for ORR, so that the encodings with 1
+     // in this bit can be reused for other instructions (such as
+     // CSEL). Setting Unpredictable{15} = 1 here would reintroduce
+     // that encoding clash in the auto- generated MC decoder, so I
+     // comment it out.
+     let Unpredictable{15} = !if(!eq(opcod, 0b0010), 0b0, 0b1);
      let Inst{14-12} = 0b000; // imm3
      let Inst{7-6} = 0b00; // imm2
      let Inst{5-4} = 0b00; // type
@@ -616,6 +764,8 @@ multiclass T2I_bin_irs<bits<4> opcod, string opc,
      let Inst{31-27} = 0b11101;
      let Inst{26-25} = 0b01;
      let Inst{24-21} = opcod;
+     let Inst{15} = 0;
+     let Unpredictable{15} = !if(!eq(opcod, 0b0010), 0b0, 0b1); // see above
    }
   // Assembly aliases for optional destination operand when it's the same
   // as the source operand.
@@ -879,6 +1029,7 @@ multiclass T2I_sh_ir<bits<2> opcod, string opc, Operand ty, SDNode opnode> {
      let Inst{31-27} = 0b11101;
      let Inst{26-21} = 0b010010;
      let Inst{19-16} = 0b1111; // Rn
+     let Inst{15}    = 0b0;
      let Inst{5-4} = opcod;
    }
    // register
@@ -1872,6 +2023,7 @@ def t2MOVr : T2sTwoReg<(outs GPRnopc:$Rd), (ins GPRnopc:$Rm), IIC_iMOVr,
   let Inst{26-25} = 0b01;
   let Inst{24-21} = 0b0010;
   let Inst{19-16} = 0b1111; // Rn
+  let Inst{15} = 0b0;
   let Inst{14-12} = 0b000;
   let Inst{7-4} = 0b0000;
 }
@@ -2400,6 +2552,8 @@ def t2RRX : T2sTwoReg<(outs rGPR:$Rd), (ins rGPR:$Rm), IIC_iMOVsi,
   let Inst{26-25} = 0b01;
   let Inst{24-21} = 0b0010;
   let Inst{19-16} = 0b1111; // Rn
+  let Inst{15} = 0b0;
+  let Unpredictable{15} = 0b1;
   let Inst{14-12} = 0b000;
   let Inst{7-4} = 0b0011;
 }
@@ -2602,7 +2756,8 @@ def : T2Pat<(and     rGPR:$src, t2_so_imm_not:$imm),
 
 // top16Zero - answer true if the upper 16 bits of $src are 0, false otherwise
 def top16Zero: PatLeaf<(i32 rGPR:$src), [{
-  return CurDAG->MaskedValueIsZero(SDValue(N,0), APInt::getHighBitsSet(32, 16));
+  return !SDValue(N,0)->getValueType(0).isVector() &&
+         CurDAG->MaskedValueIsZero(SDValue(N,0), APInt::getHighBitsSet(32, 16));
   }]>;
 
 // so_imm_notSext is needed instead of so_imm_not, as the value of imm
@@ -4894,3 +5049,227 @@ def : t2InstAlias<"pld${p} $addr",
 def : InstAlias<"pli${p} $addr",
                  (t2PLIpci  t2ldr_pcrel_imm12:$addr, pred:$p), 0>,
       Requires<[IsThumb2,HasV7]>;
+
+
+//===----------------------------------------------------------------------===//
+// ARMv8.1m instructions
+//
+
+class V8_1MI<dag oops, dag iops, AddrMode am, InstrItinClass itin, string asm,
+             string ops, string cstr, list<dag> pattern>
+  : Thumb2XI<oops, iops, am, 4, itin, !strconcat(asm, "\t", ops), cstr,
+             pattern>,
+    Requires<[HasV8_1MMainline]>;
+
+def t2CLRM : V8_1MI<(outs),
+                    (ins pred:$p, reglist_with_apsr:$regs, variable_ops),
+                    AddrModeNone, NoItinerary, "clrm", "${p}\t$regs", "", []> {
+  bits<16> regs;
+
+  let Inst{31-16} = 0b1110100010011111;
+  let Inst{15-14} = regs{15-14};
+  let Inst{13} = 0b0;
+  let Inst{12-0} = regs{12-0};
+}
+
+class t2BF<dag iops, string asm, string ops>
+  : V8_1MI<(outs ), iops, AddrModeNone, NoItinerary, asm, ops, "", []> {
+
+  let Inst{31-27} = 0b11110;
+  let Inst{15-14} = 0b11;
+  let Inst{12} = 0b0;
+  let Inst{0} = 0b1;
+
+  let Predicates = [IsThumb2, HasV8_1MMainline, HasLOB];
+}
+
+def t2BF_LabelPseudo
+  : t2PseudoInst<(outs ), (ins pclabel:$cp), 0, NoItinerary, []> {
+  let isTerminator = 1;
+  let Predicates = [IsThumb2, HasV8_1MMainline, HasLOB];
+}
+
+def t2BFi : t2BF<(ins bflabel_u4:$b_label, bflabel_s16:$label, pred:$p),
+                 !strconcat("bf", "${p}"), "$b_label, $label"> {
+  bits<4> b_label;
+  bits<16> label;
+
+  let Inst{26-23} = b_label{3-0};
+  let Inst{22-21} = 0b10;
+  let Inst{20-16} = label{15-11};
+  let Inst{13} = 0b1;
+  let Inst{11} = label{0};
+  let Inst{10-1} = label{10-1};
+}
+
+def t2BFic : t2BF<(ins bflabel_u4:$b_label, bflabel_s12:$label,
+                   bfafter_target:$ba_label, pred_noal:$bcond), "bfcsel",
+                  "$b_label, $label, $ba_label, $bcond"> {
+  bits<4> bcond;
+  bits<12> label;
+  bits<1> ba_label;
+  bits<4> b_label;
+
+  let Inst{26-23} = b_label{3-0};
+  let Inst{22} = 0b0;
+  let Inst{21-18} = bcond{3-0};
+  let Inst{17} = ba_label{0};
+  let Inst{16} = label{11};
+  let Inst{13} = 0b1;
+  let Inst{11} = label{0};
+  let Inst{10-1} = label{10-1};
+}
+
+def t2BFr : t2BF<(ins bflabel_u4:$b_label, rGPR:$Rn, pred:$p),
+                 !strconcat("bfx", "${p}"), "$b_label, $Rn"> {
+  bits<4> b_label;
+  bits<4> Rn;
+
+  let Inst{26-23} = b_label{3-0};
+  let Inst{22-20} = 0b110;
+  let Inst{19-16} = Rn{3-0};
+  let Inst{13-1} = 0b1000000000000;
+}
+
+def t2BFLi : t2BF<(ins bflabel_u4:$b_label, bflabel_s18:$label, pred:$p),
+                  !strconcat("bfl", "${p}"), "$b_label, $label"> {
+  bits<4> b_label;
+  bits<18> label;
+
+  let Inst{26-23} = b_label{3-0};
+  let Inst{22-16} = label{17-11};
+  let Inst{13} = 0b0;
+  let Inst{11} = label{0};
+  let Inst{10-1} = label{10-1};
+}
+
+def t2BFLr : t2BF<(ins bflabel_u4:$b_label, rGPR:$Rn, pred:$p),
+                  !strconcat("bflx", "${p}"), "$b_label, $Rn"> {
+  bits<4> b_label;
+  bits<4> Rn;
+
+  let Inst{26-23} = b_label{3-0};
+  let Inst{22-20} = 0b111;
+  let Inst{19-16} = Rn{3-0};
+  let Inst{13-1} = 0b1000000000000;
+}
+
+class t2LOL<dag oops, dag iops, string asm, string ops>
+  : V8_1MI<oops, iops, AddrModeNone, NoItinerary, asm, ops, "", [] > {
+  let Inst{31-23} = 0b111100000;
+  let Inst{15-14} = 0b11;
+  let Inst{0} = 0b1;
+  let isBranch = 1;
+  let isTerminator = 1;
+  let DecoderMethod = "DecodeLOLoop";
+  let Predicates = [IsThumb2, HasV8_1MMainline, HasLOB];
+}
+
+let isNotDuplicable = 1 in {
+def t2WLS : t2LOL<(outs GPRlr:$LR),
+                  (ins rGPR:$Rn, wlslabel_u11:$label),
+                  "wls", "$LR, $Rn, $label"> {
+  bits<4> Rn;
+  bits<11> label;
+  let Inst{22-20} = 0b100;
+  let Inst{19-16} = Rn{3-0};
+  let Inst{13-12} = 0b00;
+  let Inst{11} = label{0};
+  let Inst{10-1} = label{10-1};
+  let usesCustomInserter = 1;
+}
+
+def t2DLS : t2LOL<(outs GPRlr:$LR), (ins rGPR:$Rn),
+                  "dls", "$LR, $Rn"> {
+  bits<4> Rn;
+  let isBranch = 0;
+  let isTerminator = 0;
+  let Inst{22-20} = 0b100;
+  let Inst{19-16} = Rn{3-0};
+  let Inst{13-1} = 0b1000000000000;
+  let usesCustomInserter = 1;
+}
+
+def t2LEUpdate : t2LOL<(outs GPRlr:$LRout),
+                       (ins GPRlr:$LRin, lelabel_u11:$label),
+                       "le", "$LRin, $label"> {
+  bits<11> label;
+  let Inst{22-16} = 0b0001111;
+  let Inst{13-12} = 0b00;
+  let Inst{11} = label{0};
+  let Inst{10-1} = label{10-1};
+  let usesCustomInserter = 1;
+}
+
+def t2LE : t2LOL<(outs ), (ins lelabel_u11:$label), "le", "$label"> {
+  bits<11> label;
+  let Inst{22-16} = 0b0101111;
+  let Inst{13-12} = 0b00;
+  let Inst{11} = label{0};
+  let Inst{10-1} = label{10-1};
+}
+
+def t2DoLoopStart :
+  t2PseudoInst<(outs), (ins rGPR:$elts), 4, IIC_Br,
+  [(int_set_loop_iterations rGPR:$elts)]>, Sched<[WriteBr]>;
+
+def t2LoopDec :
+  t2PseudoInst<(outs GPRlr:$Rm), (ins GPRlr:$Rn, imm0_7:$size),
+               4, IIC_Br, []>, Sched<[WriteBr]>;
+
+let isBranch = 1, isTerminator = 1, hasSideEffects = 1 in {
+def t2WhileLoopStart :
+    t2PseudoInst<(outs),
+                 (ins rGPR:$elts, brtarget:$target),
+                 4, IIC_Br, []>,
+                 Sched<[WriteBr]>;
+
+def t2LoopEnd :
+  t2PseudoInst<(outs), (ins GPRlr:$elts, brtarget:$target),
+  8, IIC_Br, []>, Sched<[WriteBr]>;
+
+} // end isBranch, isTerminator, hasSideEffects
+
+} // end isNotDuplicable
+
+class CS<string iname, bits<4> opcode, list<dag> pattern=[]>
+  : V8_1MI<(outs rGPR:$Rd), (ins GPRwithZR:$Rn, GPRwithZRnosp:$Rm, pred_noal:$fcond),
+           AddrModeNone, NoItinerary, iname, "$Rd, $Rn, $Rm, $fcond", "", pattern> {
+  bits<4> Rd;
+  bits<4> Rm;
+  bits<4> Rn;
+  bits<4> fcond;
+
+  let Inst{31-20} = 0b111010100101;
+  let Inst{19-16} = Rn{3-0};
+  let Inst{15-12} = opcode;
+  let Inst{11-8} = Rd{3-0};
+  let Inst{7-4} = fcond{3-0};
+  let Inst{3-0} = Rm{3-0};
+
+  let Uses = [CPSR];
+}
+
+def t2CSEL  : CS<"csel",  0b1000>;
+def t2CSINC : CS<"csinc", 0b1001>;
+def t2CSINV : CS<"csinv", 0b1010>;
+def t2CSNEG : CS<"csneg", 0b1011>;
+
+
+// CS aliases.
+let Predicates = [HasV8_1MMainline] in {
+  def : InstAlias<"csetm\t$Rd, $fcond",
+                 (t2CSINV rGPR:$Rd, ZR, ZR, pred_noal_inv:$fcond)>;
+
+  def : InstAlias<"cset\t$Rd, $fcond",
+                 (t2CSINC rGPR:$Rd, ZR, ZR, pred_noal_inv:$fcond)>;
+
+  def : InstAlias<"cinc\t$Rd, $Rn, $fcond",
+                 (t2CSINC rGPR:$Rd, GPRwithZRnosp:$Rn, GPRwithZRnosp:$Rn, pred_noal_inv:$fcond)>;
+
+  def : InstAlias<"cinv\t$Rd, $Rn, $fcond",
+                 (t2CSINV rGPR:$Rd, GPRwithZRnosp:$Rn, GPRwithZRnosp:$Rn, pred_noal_inv:$fcond)>;
+
+  def : InstAlias<"cneg\t$Rd, $Rn, $fcond",
+                 (t2CSNEG rGPR:$Rd, GPRwithZRnosp:$Rn, GPRwithZRnosp:$Rn, pred_noal_inv:$fcond)>;
+}

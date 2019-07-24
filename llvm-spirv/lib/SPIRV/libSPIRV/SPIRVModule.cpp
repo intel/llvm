@@ -363,6 +363,8 @@ public:
   SPIRVInstruction *addVectorInsertDynamicInst(SPIRVValue *, SPIRVValue *,
                                                SPIRVValue *,
                                                SPIRVBasicBlock *) override;
+  SPIRVInstruction *addFPGARegINTELInst(SPIRVType *, SPIRVValue *,
+                                        SPIRVBasicBlock *) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -1290,6 +1292,15 @@ SPIRVInstruction *SPIRVModuleImpl::addCopyMemorySizedInst(
                         BB);
 }
 
+SPIRVInstruction *SPIRVModuleImpl::addFPGARegINTELInst(SPIRVType *Type,
+                                                       SPIRVValue *V,
+                                                       SPIRVBasicBlock *BB) {
+  return addInstruction(
+      SPIRVInstTemplateBase::create(OpFPGARegINTEL, Type, getId(),
+                                    getVec(V->getId()), BB, this),
+      BB);
+}
+
 SPIRVInstruction *SPIRVModuleImpl::addVariable(
     SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageType,
     SPIRVValue *Initializer, const std::string &Name,
@@ -1575,7 +1586,7 @@ std::istream &operator>>(std::istream &I, SPIRVModule &M) {
     return I;
   }
 
-  while (Decoder.getWordCountAndOpCode()) {
+  while (Decoder.getWordCountAndOpCode() && M.isModuleValid()) {
     SPIRVEntry *Entry = Decoder.getEntry();
     if (Entry != nullptr)
       M.add(Entry);

@@ -110,6 +110,11 @@ class getVOP3ClampPat<VOPProfile P, SDPatternOperator node> {
                   ret1));
 }
 
+class getVOP3MAIPat<VOPProfile P, SDPatternOperator node> {
+  list<dag> ret = [(set P.DstVT:$vdst, (node P.Src0VT:$src0, P.Src1VT:$src1, P.Src2VT:$src2,
+                                        imm:$cbsz, imm:$abid, imm:$blgp))];
+}
+
 class VOP3Inst<string OpName, VOPProfile P, SDPatternOperator node = null_frag, bit VOP3Only = 0> :
   VOP3_Pseudo<OpName, P,
     !if(P.HasOpSel,
@@ -120,7 +125,9 @@ class VOP3Inst<string OpName, VOPProfile P, SDPatternOperator node = null_frag, 
             getVOP3ModPat<P, node>.ret,
             !if(P.HasIntClamp,
                 getVOP3ClampPat<P, node>.ret,
-                getVOP3Pat<P, node>.ret))),
+                !if (P.IsMAI,
+                    getVOP3MAIPat<P, node>.ret,
+                    getVOP3Pat<P, node>.ret)))),
     VOP3Only, 0, P.HasOpSel> {
 
   let IntClamp = P.HasIntClamp;
@@ -143,24 +150,27 @@ def VOP_F64_F64_F64_F64_VCC : VOPProfile<[f64, f64, f64, f64]> {
 }
 }
 
-class VOP3Features<bit Clamp, bit OpSel, bit Packed> {
+class VOP3Features<bit Clamp, bit OpSel, bit Packed, bit MAI> {
   bit HasClamp = Clamp;
   bit HasOpSel = OpSel;
   bit IsPacked = Packed;
+  bit IsMAI = MAI;
 }
 
-def VOP3_REGULAR : VOP3Features<0, 0, 0>;
-def VOP3_CLAMP   : VOP3Features<1, 0, 0>;
-def VOP3_OPSEL   : VOP3Features<1, 1, 0>;
-def VOP3_PACKED  : VOP3Features<1, 1, 1>;
+def VOP3_REGULAR : VOP3Features<0, 0, 0, 0>;
+def VOP3_CLAMP   : VOP3Features<1, 0, 0, 0>;
+def VOP3_OPSEL   : VOP3Features<1, 1, 0, 0>;
+def VOP3_PACKED  : VOP3Features<1, 1, 1, 0>;
+def VOP3_MAI     : VOP3Features<0, 0, 0, 1>;
 
 class VOP3_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR> : VOPProfile<P.ArgVT> {
 
   let HasClamp = !if(Features.HasClamp, 1, P.HasClamp);
   let HasOpSel = !if(Features.HasOpSel, 1, P.HasOpSel);
+  let IsMAI    = !if(Features.IsMAI,    1, P.IsMAI);
   let IsPacked = !if(Features.IsPacked, 1, P.IsPacked);
 
-  let HasModifiers = !if(Features.IsPacked, 1, P.HasModifiers);
+  let HasModifiers = !if(Features.IsPacked, !if(Features.IsMAI, 0, 1), P.HasModifiers);
 
   // FIXME: Hack to stop printing _e64
   let Outs64 = (outs DstRC.RegClass:$vdst);
@@ -183,7 +193,7 @@ class VOP3b_Profile<ValueType vt> : VOPProfile<[vt, vt, vt, vt]> {
   let HasModifiers = 0;
   let HasClamp = 0;
   let HasOMod = 0;
-  let Outs64 = (outs DstRC:$vdst, SReg_64:$sdst);
+  let Outs64 = (outs DstRC:$vdst, VOPDstS64orS32:$sdst);
   let Asm64 = " $vdst, $sdst, $src0, $src1, $src2";
 }
 
@@ -203,7 +213,7 @@ def VOP3b_I64_I1_I32_I32_I64 : VOPProfile<[i64, i32, i32, i64]> {
   // FIXME: Hack to stop printing _e64
   let DstRC = RegisterOperand<VReg_64>;
 
-  let Outs64 = (outs DstRC:$vdst, SReg_64:$sdst);
+  let Outs64 = (outs DstRC:$vdst, VOPDstS64orS32:$sdst);
   let Asm64 = " $vdst, $sdst, $src0, $src1, $src2$clamp";
 }
 
@@ -294,7 +304,7 @@ def V_MAX_F64 : VOP3Inst <"v_max_f64", VOP3_Profile<VOP_F64_F64_F64>, fmaxnum_li
 } // End SchedRW = [WriteDoubleAdd]
 
 let SchedRW = [WriteQuarterRate32] in {
-def V_MUL_LO_U32 : VOP3Inst <"v_mul_lo_u32", VOP3_Profile<VOP_I32_I32_I32>>;
+def V_MUL_LO_U32 : VOP3Inst <"v_mul_lo_u32", VOP3_Profile<VOP_I32_I32_I32>, mul>;
 def V_MUL_HI_U32 : VOP3Inst <"v_mul_hi_u32", VOP3_Profile<VOP_I32_I32_I32>, mulhu>;
 def V_MUL_LO_I32 : VOP3Inst <"v_mul_lo_i32", VOP3_Profile<VOP_I32_I32_I32>>;
 def V_MUL_HI_I32 : VOP3Inst <"v_mul_hi_i32", VOP3_Profile<VOP_I32_I32_I32>, mulhs>;
@@ -383,9 +393,9 @@ def V_MULLIT_F32 : VOP3Inst <"v_mullit_f32", VOP3_Profile<VOP_F32_F32_F32_F32>>;
 } // End SubtargetPredicate = isGFX6GFX7GFX10, Predicates = [isGFX6GFX7GFX10]
 
 let SubtargetPredicate = isGFX8Plus in {
-def V_LSHLREV_B64 : VOP3Inst <"v_lshlrev_b64", VOP3_Profile<VOP_I64_I32_I64>>;
-def V_LSHRREV_B64 : VOP3Inst <"v_lshrrev_b64", VOP3_Profile<VOP_I64_I32_I64>>;
-def V_ASHRREV_I64 : VOP3Inst <"v_ashrrev_i64", VOP3_Profile<VOP_I64_I32_I64>>;
+def V_LSHLREV_B64 : VOP3Inst <"v_lshlrev_b64", VOP3_Profile<VOP_I64_I32_I64>, lshl_rev>;
+def V_LSHRREV_B64 : VOP3Inst <"v_lshrrev_b64", VOP3_Profile<VOP_I64_I32_I64>, lshr_rev>;
+def V_ASHRREV_I64 : VOP3Inst <"v_ashrrev_i64", VOP3_Profile<VOP_I64_I32_I64>, ashr_rev>;
 } // End SubtargetPredicate = isGFX8Plus
 } // End SchedRW = [Write64Bit]
 
@@ -625,9 +635,35 @@ def : ThreeOp_i32_Pats<xor, add, V_XAD_U32>;
 
 } // End SubtargetPredicate = isGFX9Plus
 
+def VOP3_PERMLANE_Profile : VOP3_Profile<VOPProfile <[i32, i32, i32, i32]>, VOP3_OPSEL> {
+  let Src0RC64 = VRegSrc_32;
+  let Src1RC64 = SCSrc_b32;
+  let Src2RC64 = SCSrc_b32;
+  let InsVOP3OpSel = (ins IntOpSelMods:$src0_modifiers, VRegSrc_32:$src0,
+                          IntOpSelMods:$src1_modifiers, SCSrc_b32:$src1,
+                          IntOpSelMods:$src2_modifiers, SCSrc_b32:$src2,
+                          VGPR_32:$vdst_in, op_sel:$op_sel);
+  let HasClamp = 0;
+  let HasOMod = 0;
+}
+
 let SubtargetPredicate = isGFX10Plus in {
   def V_XOR3_B32 : VOP3Inst <"v_xor3_b32", VOP3_Profile<VOP_I32_I32_I32_I32>>;
   def : ThreeOp_i32_Pats<xor, xor, V_XOR3_B32>;
+
+  let Constraints = "$vdst = $vdst_in", DisableEncoding="$vdst_in" in {
+    def V_PERMLANE16_B32 : VOP3Inst <"v_permlane16_b32", VOP3_PERMLANE_Profile>;
+    def V_PERMLANEX16_B32 : VOP3Inst <"v_permlanex16_b32", VOP3_PERMLANE_Profile>;
+  } // End $vdst = $vdst_in, DisableEncoding $vdst_in
+
+  def : GCNPat<
+    (int_amdgcn_permlane16 i32:$vdst_in, i32:$src0, i32:$src1, i32:$src2, imm:$fi, imm:$bc),
+    (V_PERMLANE16_B32 (as_i1imm $fi), $src0, (as_i1imm $bc), $src1, 0, $src2, $vdst_in)
+  >;
+  def : GCNPat<
+    (int_amdgcn_permlanex16 i32:$vdst_in, i32:$src0, i32:$src1, i32:$src2, imm:$fi, imm:$bc),
+    (V_PERMLANEX16_B32 (as_i1imm $fi), $src0, (as_i1imm $bc), $src1, 0, $src2, $vdst_in)
+  >;
 } // End SubtargetPredicate = isGFX10Plus
 
 //===----------------------------------------------------------------------===//
@@ -790,6 +826,8 @@ defm V_MAX_I16         : VOP3_Real_gfx10_with_name<0x30a, "V_MAX_I16_e64", "v_ma
 defm V_MIN_U16         : VOP3_Real_gfx10_with_name<0x30b, "V_MIN_U16_e64", "v_min_u16">;
 defm V_MIN_I16         : VOP3_Real_gfx10_with_name<0x30c, "V_MIN_I16_e64", "v_min_i16">;
 defm V_LSHLREV_B16     : VOP3_Real_gfx10_with_name<0x314, "V_LSHLREV_B16_e64", "v_lshlrev_b16">;
+defm V_PERMLANE16_B32  : VOP3OpSel_Real_gfx10<0x377>;
+defm V_PERMLANEX16_B32 : VOP3OpSel_Real_gfx10<0x378>;
 
 //===----------------------------------------------------------------------===//
 // GFX7, GFX10.

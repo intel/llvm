@@ -223,6 +223,8 @@ Error DumpOutputStyle::dump() {
       return EC;
   }
 
+  P.NewLine();
+
   return Error::success();
 }
 
@@ -995,6 +997,10 @@ Error DumpOutputStyle::dumpInlineeLines() {
           P.formatLine("{0,+8} | {1,+5} | ", Entry.Header->Inlinee,
                        fmtle(Entry.Header->SourceLineNum));
           Strings.formatFromChecksumsOffset(P, Entry.Header->FileID, true);
+          for (const auto &ExtraFileID : Entry.ExtraFiles) {
+            P.formatLine("                   ");
+            Strings.formatFromChecksumsOffset(P, ExtraFileID, true);
+          }
         }
         P.NewLine();
       });

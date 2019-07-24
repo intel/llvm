@@ -1009,6 +1009,32 @@ is not specified.
   }];
 }
 
+def NoUniqueAddressDocs : Documentation {
+  let Category = DocCatField;
+  let Content = [{
+The ``no_unique_address`` attribute allows tail padding in a non-static data
+member to overlap other members of the enclosing class (and in the special
+case when the type is empty, permits it to fully overlap other members).
+The field is laid out as if a base class were encountered at the corresponding
+point within the class (except that it does not share a vptr with the enclosing
+object).
+
+Example usage:
+
+.. code-block:: c++
+
+  template<typename T, typename Alloc> struct my_vector {
+    T *p;
+    [[no_unique_address]] Alloc alloc;
+    // ...
+  };
+  static_assert(sizeof(my_vector<int, std::allocator<int>>) == sizeof(int*));
+
+``[[no_unique_address]]`` is a standard C++20 attribute. Clang supports its use
+in C++11 onwards.
+  }];
+}
+
 def ObjCRequiresSuperDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -1082,6 +1108,25 @@ This attribute specifies that the Objective-C class to which it applies is
 visible to the Objective-C runtime but not to the linker. Classes annotated
 with this attribute cannot be subclassed and cannot have categories defined for
 them.
+    }];
+}
+
+def ObjCClassStubDocs : Documentation {
+    let Category = DocCatType;
+    let Content = [{
+This attribute specifies that the Objective-C class to which it applies is
+instantiated at runtime.
+
+Unlike ``__attribute__((objc_runtime_visible))``, a class having this attribute
+still has a "class stub" that is visible to the linker. This allows categories
+to be defined. Static message sends with the class as a receiver use a special
+access pattern to ensure the class is lazily instantiated from the class stub.
+
+Classes annotated with this attribute cannot be subclassed and cannot have
+implementations defined for them. This attribute is intended for use in
+Swift-generated headers for classes defined in Swift.
+
+Adding or removing this attribute to a class is an ABI-breaking change.
     }];
 }
 
@@ -1714,7 +1759,41 @@ threads or loop iterations.
   }];
 }
 
-def IntelFPGAIVDepAttrDocs : Documentation {
+def IntelFPGAMergeAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "merge (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+instructs the backend to merge the memories used to implement any variable or
+struct members that are annotated with this attribute and the same first
+argument. The second argument indicates if the memories should be merged in a
+depth-wise or width-wise manner.
+  }];
+}
+
+def IntelFPGAMaxReplicatesAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "max_replicates (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+instructs the backend to replicate the memory generated for the variable or
+struct member no more than the specified maximum number of times to enable
+simultaneous accesses from different load/store sites in the program.
+  }];
+}
+
+def IntelFPGASimpleDualPortAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "simple_dual_port (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+instructs the backend to implement the variable or struct member in a memory
+with simple dual port configuration (no memory port services both stores and
+loads).
+  }];
+}
+
+def SYCLIntelFPGAIVDepAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "ivdep";
   let Content = [{
@@ -1725,7 +1804,7 @@ dependences have a dependence distance of at least that length.
   }];
 }
 
-def IntelFPGAIIAttrDocs : Documentation {
+def SYCLIntelFPGAIIAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "ii";
   let Content = [{
@@ -1735,7 +1814,7 @@ applied multiple times to the same loop.
   }];
 }
 
-def IntelFPGAMaxConcurrencyAttrDocs : Documentation {
+def SYCLIntelFPGAMaxConcurrencyAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "max_concurrency";
   let Content = [{
@@ -4263,4 +4342,16 @@ Studio debugger uses this information to `profile memory usage`_.
 This attribute does not affect optimizations in any way, unlike GCC's
 ``__attribute__((malloc))``.
 }];
+}
+
+def HIPPinnedShadowDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The GNU style attribute __attribute__((hip_pinned_shadow)) or MSVC style attribute
+__declspec(hip_pinned_shadow) can be added to the definition of a global variable
+to indicate it is a HIP pinned shadow variable. A HIP pinned shadow variable can
+be accessed on both device side and host side. It has external linkage and is
+not initialized on device side. It has internal linkage and is initialized by
+the initializer on host side.
+  }];
 }

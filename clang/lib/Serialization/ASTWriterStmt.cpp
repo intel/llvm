@@ -18,7 +18,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Lex/Token.h"
-#include "llvm/Bitcode/BitstreamWriter.h"
+#include "llvm/Bitstream/BitstreamWriter.h"
 using namespace clang;
 
 //===----------------------------------------------------------------------===//
@@ -283,6 +283,7 @@ void ASTStmtWriter::VisitAsmStmt(AsmStmt *S) {
 
 void ASTStmtWriter::VisitGCCAsmStmt(GCCAsmStmt *S) {
   VisitAsmStmt(S);
+  Record.push_back(S->getNumLabels());
   Record.AddSourceLocation(S->getRParenLoc());
   Record.AddStmt(S->getAsmString());
 
@@ -303,6 +304,9 @@ void ASTStmtWriter::VisitGCCAsmStmt(GCCAsmStmt *S) {
   // Clobbers
   for (unsigned I = 0, N = S->getNumClobbers(); I != N; ++I)
     Record.AddStmt(S->getClobberStringLiteral(I));
+
+  // Labels
+  for (auto *E : S->labels()) Record.AddStmt(E);
 
   Code = serialization::STMT_GCCASM;
 }
@@ -428,6 +432,16 @@ void ASTStmtWriter::VisitExpr(Expr *E) {
 
 void ASTStmtWriter::VisitConstantExpr(ConstantExpr *E) {
   VisitExpr(E);
+  Record.push_back(static_cast<uint64_t>(E->ConstantExprBits.ResultKind));
+  switch (E->ConstantExprBits.ResultKind) {
+  case ConstantExpr::RSK_Int64:
+    Record.push_back(E->Int64Result());
+    Record.push_back(E->ConstantExprBits.IsUnsigned |
+                     E->ConstantExprBits.BitWidth << 1);
+    break;
+  case ConstantExpr::RSK_APValue:
+    Record.AddAPValue(E->APValueResult());
+  }
   Record.AddStmt(E->getSubExpr());
   Code = serialization::EXPR_CONSTANT;
 }
@@ -452,6 +466,7 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   Record.push_back(E->hasTemplateKWAndArgsInfo());
   Record.push_back(E->hadMultipleCandidates());
   Record.push_back(E->refersToEnclosingVariableOrCapture());
+  Record.push_back(E->isNonOdrUse());
 
   if (E->hasTemplateKWAndArgsInfo()) {
     unsigned NumTemplateArgs = E->getNumTemplateArgs();
@@ -462,7 +477,8 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
 
   if ((!E->hasTemplateKWAndArgsInfo()) && (!E->hasQualifier()) &&
       (E->getDecl() == E->getFoundDecl()) &&
-      nk == DeclarationName::Identifier) {
+      nk == DeclarationName::Identifier &&
+      !E->refersToEnclosingVariableOrCapture() && !E->isNonOdrUse()) {
     AbbrevToUse = Writer.getDeclRefExprAbbrev();
   }
 
@@ -656,39 +672,46 @@ void ASTStmtWriter::VisitCallExpr(CallExpr *E) {
 }
 
 void ASTStmtWriter::VisitMemberExpr(MemberExpr *E) {
-  // Don't call VisitExpr, we'll write everything here.
+  VisitExpr(E);
 
-  Record.push_back(E->hasQualifier());
-  if (E->hasQualifier())
-    Record.AddNestedNameSpecifierLoc(E->getQualifierLoc());
+  bool HasQualifier = E->hasQualifier();
+  bool HasFoundDecl =
+      E->hasQualifierOrFoundDecl() &&
+      (E->getFoundDecl().getDecl() != E->getMemberDecl() ||
+       E->getFoundDecl().getAccess() != E->getMemberDecl()->getAccess());
+  bool HasTemplateInfo = E->hasTemplateKWAndArgsInfo();
+  unsigned NumTemplateArgs = E->getNumTemplateArgs();
 
-  Record.push_back(E->hasTemplateKWAndArgsInfo());
-  if (E->hasTemplateKWAndArgsInfo()) {
-    Record.AddSourceLocation(E->getTemplateKeywordLoc());
-    unsigned NumTemplateArgs = E->getNumTemplateArgs();
-    Record.push_back(NumTemplateArgs);
-    Record.AddSourceLocation(E->getLAngleLoc());
-    Record.AddSourceLocation(E->getRAngleLoc());
-    for (unsigned i=0; i != NumTemplateArgs; ++i)
-      Record.AddTemplateArgumentLoc(E->getTemplateArgs()[i]);
-  }
+  // Write these first for easy access when deserializing, as they affect the
+  // size of the MemberExpr.
+  Record.push_back(HasQualifier);
+  Record.push_back(HasFoundDecl);
+  Record.push_back(HasTemplateInfo);
+  Record.push_back(NumTemplateArgs);
 
-  Record.push_back(E->hadMultipleCandidates());
-
-  DeclAccessPair FoundDecl = E->getFoundDecl();
-  Record.AddDeclRef(FoundDecl.getDecl());
-  Record.push_back(FoundDecl.getAccess());
-
-  Record.AddTypeRef(E->getType());
-  Record.push_back(E->getValueKind());
-  Record.push_back(E->getObjectKind());
   Record.AddStmt(E->getBase());
   Record.AddDeclRef(E->getMemberDecl());
-  Record.AddSourceLocation(E->getMemberLoc());
-  Record.push_back(E->isArrow());
-  Record.AddSourceLocation(E->getOperatorLoc());
   Record.AddDeclarationNameLoc(E->MemberDNLoc,
                                E->getMemberDecl()->getDeclName());
+  Record.AddSourceLocation(E->getMemberLoc());
+  Record.push_back(E->isArrow());
+  Record.push_back(E->hadMultipleCandidates());
+  Record.push_back(E->isNonOdrUse());
+  Record.AddSourceLocation(E->getOperatorLoc());
+
+  if (HasFoundDecl) {
+    DeclAccessPair FoundDecl = E->getFoundDecl();
+    Record.AddDeclRef(FoundDecl.getDecl());
+    Record.push_back(FoundDecl.getAccess());
+  }
+
+  if (HasQualifier)
+    Record.AddNestedNameSpecifierLoc(E->getQualifierLoc());
+
+  if (HasTemplateInfo)
+    AddTemplateKWAndArgsInfo(*E->getTrailingObjects<ASTTemplateKWAndArgsInfo>(),
+                             E->getTrailingObjects<TemplateArgumentLoc>());
+
   Code = serialization::EXPR_MEMBER;
 }
 
@@ -1426,6 +1449,12 @@ void ASTStmtWriter::VisitCXXFunctionalCastExpr(CXXFunctionalCastExpr *E) {
   Record.AddSourceLocation(E->getLParenLoc());
   Record.AddSourceLocation(E->getRParenLoc());
   Code = serialization::EXPR_CXX_FUNCTIONAL_CAST;
+}
+
+void ASTStmtWriter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *E) {
+  VisitExplicitCastExpr(E);
+  Record.AddSourceLocation(E->getBeginLoc());
+  Record.AddSourceLocation(E->getEndLoc());
 }
 
 void ASTStmtWriter::VisitUserDefinedLiteral(UserDefinedLiteral *E) {

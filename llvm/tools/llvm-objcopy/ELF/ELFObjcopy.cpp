@@ -130,12 +130,9 @@ static ElfType getOutputElfType(const MachineInfo &MI) {
     return MI.IsLittleEndian ? ELFT_ELF32LE : ELFT_ELF32BE;
 }
 
-static std::unique_ptr<Writer> createWriter(const CopyConfig &Config,
-                                            Object &Obj, Buffer &Buf,
-                                            ElfType OutputElfType) {
-  if (Config.OutputFormat == "binary") {
-    return llvm::make_unique<BinaryWriter>(Obj, Buf);
-  }
+static std::unique_ptr<Writer> createELFWriter(const CopyConfig &Config,
+                                               Object &Obj, Buffer &Buf,
+                                               ElfType OutputElfType) {
   // Depending on the initial ELFT and OutputFormat we need a different Writer.
   switch (OutputElfType) {
   case ELFT_ELF32LE:
@@ -152,6 +149,19 @@ static std::unique_ptr<Writer> createWriter(const CopyConfig &Config,
                                                  !Config.StripSections);
   }
   llvm_unreachable("Invalid output format");
+}
+
+static std::unique_ptr<Writer> createWriter(const CopyConfig &Config,
+                                            Object &Obj, Buffer &Buf,
+                                            ElfType OutputElfType) {
+  switch (Config.OutputFormat) {
+  case FileFormat::Binary:
+    return llvm::make_unique<BinaryWriter>(Obj, Buf);
+  case FileFormat::IHex:
+    return llvm::make_unique<IHexWriter>(Obj, Buf);
+  default:
+    return createELFWriter(Config, Obj, Buf, OutputElfType);
+  }
 }
 
 template <class ELFT>
@@ -387,7 +397,8 @@ static Error updateAndRemoveSymbols(const CopyConfig &Config, Object &Obj) {
   // The purpose of this loop is to mark symbols referenced by sections
   // (like GroupSection or RelocationSection). This way, we know which
   // symbols are still 'needed' and which are not.
-  if (Config.StripUnneeded || !Config.UnneededSymbolsToRemove.empty()) {
+  if (Config.StripUnneeded || !Config.UnneededSymbolsToRemove.empty() ||
+      !Config.OnlySection.empty()) {
     for (auto &Section : Obj.sections())
       Section.markSymbols();
   }
@@ -413,6 +424,11 @@ static Error updateAndRemoveSymbols(const CopyConfig &Config, Object &Obj) {
     if ((Config.StripUnneeded ||
          is_contained(Config.UnneededSymbolsToRemove, Sym.Name)) &&
         isUnneededSymbol(Sym))
+      return true;
+
+    // We want to remove undefined symbols if all references have been stripped.
+    if (!Config.OnlySection.empty() && !Sym.Referenced &&
+        Sym.getShndx() == SHN_UNDEF)
       return true;
 
     return false;
@@ -492,6 +508,16 @@ static Error replaceAndRemoveSections(const CopyConfig &Config, Object &Obj) {
         return false;
       return (Sec.Flags & SHF_ALLOC) == 0;
     };
+
+  if (Config.ExtractPartition || Config.ExtractMainPartition) {
+    RemovePred = [RemovePred](const SectionBase &Sec) {
+      if (RemovePred(Sec))
+        return true;
+      if (Sec.Type == SHT_LLVM_PART_EHDR || Sec.Type == SHT_LLVM_PART_PHDR)
+        return true;
+      return (Sec.Flags & SHF_ALLOC) != 0 && !Sec.ParentSegment;
+    };
+  }
 
   // Explicit copies:
   if (!Config.OnlySection.empty()) {
@@ -708,6 +734,26 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj,
   return Error::success();
 }
 
+static Error writeOutput(const CopyConfig &Config, Object &Obj, Buffer &Out,
+                         ElfType OutputElfType) {
+  std::unique_ptr<Writer> Writer =
+      createWriter(Config, Obj, Out, OutputElfType);
+  if (Error E = Writer->finalize())
+    return E;
+  return Writer->write();
+}
+
+Error executeObjcopyOnIHex(const CopyConfig &Config, MemoryBuffer &In,
+                           Buffer &Out) {
+  IHexReader Reader(&In);
+  std::unique_ptr<Object> Obj = Reader.create();
+  const ElfType OutputElfType =
+      getOutputElfType(Config.OutputArch.getValueOr(Config.BinaryArch));
+  if (Error E = handleArgs(Config, *Obj, Reader, OutputElfType))
+    return E;
+  return writeOutput(Config, *Obj, Out, OutputElfType);
+}
+
 Error executeObjcopyOnRawBinary(const CopyConfig &Config, MemoryBuffer &In,
                                 Buffer &Out) {
   BinaryReader Reader(Config.BinaryArch, &In);
@@ -715,20 +761,16 @@ Error executeObjcopyOnRawBinary(const CopyConfig &Config, MemoryBuffer &In,
 
   // Prefer OutputArch (-O<format>) if set, otherwise fallback to BinaryArch
   // (-B<arch>).
-  const ElfType OutputElfType = getOutputElfType(
-      Config.OutputArch ? Config.OutputArch.getValue() : Config.BinaryArch);
+  const ElfType OutputElfType =
+      getOutputElfType(Config.OutputArch.getValueOr(Config.BinaryArch));
   if (Error E = handleArgs(Config, *Obj, Reader, OutputElfType))
     return E;
-  std::unique_ptr<Writer> Writer =
-      createWriter(Config, *Obj, Out, OutputElfType);
-  if (Error E = Writer->finalize())
-    return E;
-  return Writer->write();
+  return writeOutput(Config, *Obj, Out, OutputElfType);
 }
 
 Error executeObjcopyOnBinary(const CopyConfig &Config,
                              object::ELFObjectFileBase &In, Buffer &Out) {
-  ELFReader Reader(&In);
+  ELFReader Reader(&In, Config.ExtractPartition);
   std::unique_ptr<Object> Obj = Reader.create();
   // Prefer OutputArch (-O<format>) if set, otherwise infer it from the input.
   const ElfType OutputElfType =
@@ -758,12 +800,8 @@ Error executeObjcopyOnBinary(const CopyConfig &Config,
   if (Error E = handleArgs(Config, *Obj, Reader, OutputElfType))
     return createFileError(Config.InputFilename, std::move(E));
 
-  std::unique_ptr<Writer> Writer =
-      createWriter(Config, *Obj, Out, OutputElfType);
-  if (Error E = Writer->finalize())
+  if (Error E = writeOutput(Config, *Obj, Out, OutputElfType))
     return createFileError(Config.InputFilename, std::move(E));
-  if (Error E = Writer->write())
-    return E;
   if (!Config.BuildIdLinkDir.empty() && Config.BuildIdLinkOutput)
     if (Error E =
             linkToBuildIdDir(Config, Config.OutputFilename,

@@ -111,7 +111,8 @@ void SPIRVFunction::decode(std::istream &I) {
       break;
     }
     case OpLabel: {
-      decodeBB(Decoder);
+      if (!decodeBB(Decoder))
+        return;
       break;
     }
     default:
@@ -122,7 +123,7 @@ void SPIRVFunction::decode(std::istream &I) {
 
 /// Decode basic block and contained instructions.
 /// Do it here instead of in BB:decode to avoid back track in input stream.
-void SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
+bool SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
   SPIRVBasicBlock *BB = static_cast<SPIRVBasicBlock *>(Decoder.getEntry());
   assert(BB);
   addBasicBlock(BB);
@@ -140,7 +141,16 @@ void SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
       continue;
     }
 
-    auto *Inst = static_cast<SPIRVInstruction *>(Decoder.getEntry());
+    SPIRVEntry *Entry = Decoder.getEntry();
+    if (!Module->getErrorLog().checkError(Entry->isImplemented(),
+                                          SPIRVEC_UnimplementedOpCode,
+                                          std::to_string(Entry->getOpCode()))) {
+      // Bail out if the opcode is not implemented.
+      Module->setInvalid();
+      return false;
+    }
+
+    auto *Inst = static_cast<SPIRVInstruction *>(Entry);
     assert(Inst);
     if (Inst->getOpCode() == OpUndef) {
       Module->add(Inst);
@@ -156,6 +166,7 @@ void SPIRVFunction::decodeBB(SPIRVDecoder &Decoder) {
     }
   }
   Decoder.setScope(this);
+  return true;
 }
 
 void SPIRVFunction::foreachReturnValueAttr(

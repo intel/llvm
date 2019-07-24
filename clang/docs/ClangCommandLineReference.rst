@@ -346,6 +346,8 @@ Disable builtin #include directories
 
 .. option:: -noprebind
 
+.. option:: -noprofilelib
+
 .. option:: -noseglinkedit
 
 .. option:: -nostartfiles
@@ -609,6 +611,10 @@ C++ standard library to use
 .. option:: --target=<arg>, -target <arg>
 
 Generate code for the given target
+
+.. option:: --print-supported-cpus
+
+Print supported cpu models for the given target
 
 .. option:: -time
 
@@ -2164,6 +2170,8 @@ Link stack frames through backchain on System Z
 
 .. option:: -mcpu=<arg>, -mv5 (equivalent to -mcpu=hexagonv5), -mv55 (equivalent to -mcpu=hexagonv55), -mv60 (equivalent to -mcpu=hexagonv60), -mv62 (equivalent to -mcpu=hexagonv62), -mv65 (equivalent to -mcpu=hexagonv65)
 
+Use -mcpu=? to see a list of supported cpu models.
+
 .. option:: -mcrc, -mno-crc
 
 Allow use of CRC instructions (ARM/Mips only)
@@ -2218,7 +2226,7 @@ Generate branches with extended addressability, usually via indirect jumps.
 
 .. option:: -mmacosx-version-min=<arg>, -mmacos-version-min=<arg>
 
-Set Mac OS X deployment target
+Set macOS deployment target
 
 .. option:: -mmcu=<arg>
 
@@ -2297,6 +2305,8 @@ The thread model to use, e.g. posix, single (posix by default)
 .. option:: -mthumb, -mno-thumb
 
 .. option:: -mtune=<arg>
+
+Use -mtune=? to see a list of supported cpu models.
 
 .. option:: -mtvos-version-min=<arg>, -mappletvos-version-min=<arg>
 
@@ -2400,6 +2410,10 @@ AMDGPU
 
 CU wavefront execution mode is used if enabled and WGP wavefront execution mode
 is used if disabled (AMDGPU only)
+
+.. option:: -mwavefrontsize64, -mno-wavefrontsize64
+
+Wavefront size 64 is used if enabled and wavefront size 32 if disabled (AMDGPU only)
 
 .. option:: -mxnack, -mno-xnack
 
@@ -2639,6 +2653,8 @@ X86
 
 .. option:: -mavx512vnni, -mno-avx512vnni
 
+.. option:: -mavx512vp2intersect, -mno-avx512vp2intersect
+
 .. option:: -mavx512vpopcntdq, -mno-avx512vpopcntdq
 
 .. option:: -mbmi, -mno-bmi
@@ -2654,6 +2670,8 @@ X86
 .. option:: -mclzero, -mno-clzero
 
 .. option:: -mcx16, -mno-cx16
+
+.. option:: -menqcmd, -mno-enqcmd
 
 .. option:: -mf16c, -mno-f16c
 

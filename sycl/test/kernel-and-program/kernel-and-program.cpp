@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUNx: %GPU_RUN_PLACEHOLDER %t.out
@@ -52,10 +52,9 @@ int main() {
     assert(data == 1);
 
     // OpenCL interoperability kernel invocation
-    // TODO add set_args(cl::sycl::sampler) use case once it's supported
     if (!q.is_host()) {
-      cl_int err;
-      if (0) {
+      {
+        cl_int err;
         cl::sycl::context ctx = q.get_context();
         cl_context clCtx = ctx.get();
         cl_command_queue clQ = q.get();
@@ -63,7 +62,6 @@ int main() {
             clCreateBuffer(clCtx, CL_MEM_WRITE_ONLY, sizeof(int), NULL, NULL);
         err = clEnqueueWriteBuffer(clQ, clBuffer, CL_TRUE, 0, sizeof(int),
                                    &data, 0, NULL, NULL);
-        // Kernel interoperability constructor
         assert(err == CL_SUCCESS);
         cl::sycl::program prog(ctx);
         prog.build_with_source(
@@ -101,6 +99,28 @@ int main() {
         assert(a == b + c);
       }
     }
+    {
+      cl::sycl::queue Queue;
+      if (!Queue.is_host()) {
+        cl::sycl::sampler first(
+            cl::sycl::coordinate_normalization_mode::normalized,
+            cl::sycl::addressing_mode::clamp, cl::sycl::filtering_mode::linear);
+        cl::sycl::sampler second(
+            cl::sycl::coordinate_normalization_mode::unnormalized,
+            cl::sycl::addressing_mode::clamp_to_edge,
+            cl::sycl::filtering_mode::nearest);
+        cl::sycl::program prog(Queue.get_context());
+        prog.build_with_source(
+            "kernel void sampler_args(int a, sampler_t first, "
+            "int b, sampler_t second, int c) {}\n");
+        cl::sycl::kernel krn = prog.get_kernel("sampler_args");
+
+        Queue.submit([&](cl::sycl::handler &cgh) {
+          cgh.set_args(0, first, 2, second, 3);
+          cgh.single_task(krn);
+        });
+      }
+    }
   }
   // Parallel for with range
   {
@@ -129,7 +149,7 @@ int main() {
         q.submit([&](cl::sycl::handler &cgh) {
           auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
           cgh.parallel_for<class ParallelFor>(
-              numOfItems, krn,
+              krn, numOfItems,
               [=](cl::sycl::id<1> wiID) { acc[wiID] = acc[wiID] + 1; });
         });
       }
@@ -213,7 +233,7 @@ int main() {
               localAcc(localRange, cgh);
 
           cgh.parallel_for<class ParallelForND>(
-              cl::sycl::nd_range<1>(numOfItems, localRange), krn,
+              krn, cl::sycl::nd_range<1>(numOfItems, localRange),
               [=](cl::sycl::nd_item<1> item) {
                 size_t idx = item.get_global_linear_id();
                 int pos = idx & 1;

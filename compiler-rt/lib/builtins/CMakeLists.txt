@@ -20,6 +20,9 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   if(APPLE)
     include(CompilerRTDarwinUtils)
   endif()
+  if(CMAKE_HOST_APPLE AND APPLE)
+    include(UseLibtool)
+  endif()
   include(AddCompilerRT)
 endif()
 
@@ -552,6 +555,9 @@ set(riscv32_SOURCES
   ${riscv_SOURCES}
 )
 set(riscv64_SOURCES ${riscv_SOURCES})
+
+set(sparc_SOURCES ${GENERIC_SOURCES} ${GENERIC_TF_SOURCES})
+set(sparcv9_SOURCES ${GENERIC_SOURCES} ${GENERIC_TF_SOURCES})
 
 set(wasm32_SOURCES
   ${GENERIC_TF_SOURCES}

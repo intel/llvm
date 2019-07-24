@@ -37,7 +37,7 @@
 // CHECK-SAME: "-filetype=obj"
 // CHECK-SAME: "-mcpu=gfx803" "-o" [[OBJ_DEV_A_803:".*-gfx803-.*o"]]
 
-// CHECK: [[LLD: ".*lld"]] "-flavor" "gnu" "--no-undefined" "-shared"
+// CHECK: [[LLD: ".*lld"]] "-flavor" "gnu" "-shared"
 // CHECK-SAME: "-o" "[[IMG_DEV_A_803:.*out]]" [[OBJ_DEV_A_803]]
 
 //
@@ -65,7 +65,7 @@
 // CHECK-SAME: "-filetype=obj"
 // CHECK-SAME: "-mcpu=gfx900" "-o" [[OBJ_DEV_A_900:".*-gfx900-.*o"]]
 
-// CHECK: [[LLD: ".*lld"]] "-flavor" "gnu" "--no-undefined" "-shared"
+// CHECK: [[LLD: ".*lld"]] "-flavor" "gnu" "-shared"
 // CHECK-SAME: "-o" "[[IMG_DEV_A_900:.*out]]" [[OBJ_DEV_A_900]]
 
 //
@@ -80,9 +80,9 @@
 // CHECK-SAME: "-aux-triple" "amdgcn-amd-amdhsa"
 // CHECK-SAME: "-emit-obj"
 // CHECK-SAME: {{.*}} "-main-file-name" "a.cu"
+// CHECK-SAME: {{.*}} "-fcuda-include-gpubinary" "[[BUNDLE_A]]"
 // CHECK-SAME: {{.*}} "-o" [[A_OBJ_HOST:".*o"]] "-x" "hip"
 // CHECK-SAME: {{.*}} [[A_SRC]]
-// CHECK-SAME: {{.*}} "-fcuda-include-gpubinary" "[[BUNDLE_A]]"
 
 //
 // Compile device code in b.hip to code object for gfx803.
@@ -109,7 +109,7 @@
 // CHECK-SAME: "-filetype=obj"
 // CHECK-SAME: "-mcpu=gfx803" "-o" [[OBJ_DEV_B_803:".*-gfx803-.*o"]]
 
-// CHECK: [[LLD: ".*lld"]] "-flavor" "gnu" "--no-undefined" "-shared"
+// CHECK: [[LLD: ".*lld"]] "-flavor" "gnu" "-shared"
 // CHECK-SAME: "-o" "[[IMG_DEV_B_803:.*out]]" [[OBJ_DEV_B_803]]
 
 //
@@ -137,7 +137,7 @@
 // CHECK-SAME: "-filetype=obj"
 // CHECK-SAME: "-mcpu=gfx900" "-o" [[OBJ_DEV_B_900:".*-gfx900-.*o"]]
 
-// CHECK: [[LLD: ".*lld"]] "-flavor" "gnu" "--no-undefined" "-shared"
+// CHECK: [[LLD: ".*lld"]] "-flavor" "gnu" "-shared"
 // CHECK-SAME: "-o" "[[IMG_DEV_B_900:.*out]]" [[OBJ_DEV_B_900]]
 
 //
@@ -152,9 +152,9 @@
 // CHECK-SAME: "-aux-triple" "amdgcn-amd-amdhsa"
 // CHECK-SAME: "-emit-obj"
 // CHECK-SAME: {{.*}} "-main-file-name" "b.hip"
+// CHECK-SAME: {{.*}} "-fcuda-include-gpubinary" "[[BUNDLE_A]]"
 // CHECK-SAME: {{.*}} "-o" [[B_OBJ_HOST:".*o"]] "-x" "hip"
 // CHECK-SAME: {{.*}} [[B_SRC]]
-// CHECK-SAME: {{.*}} "-fcuda-include-gpubinary" "[[BUNDLE_A]]"
 
 //
 // Link host objects.

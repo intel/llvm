@@ -77,7 +77,8 @@ public:
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
-    return I->getOpcode() == Instruction::Alloca ||
+    return I->isUnaryOp() ||
+           I->getOpcode() == Instruction::Alloca ||
            I->getOpcode() == Instruction::Load ||
            I->getOpcode() == Instruction::VAArg ||
            I->getOpcode() == Instruction::ExtractValue ||
@@ -153,8 +154,30 @@ public:
   }
 #include "llvm/IR/Instruction.def"
 
+  static UnaryOperator *CreateWithCopiedFlags(UnaryOps Opc,
+                                              Value *V,
+                                              Instruction *CopyO,
+                                              const Twine &Name = "") {
+    UnaryOperator *UO = Create(Opc, V, Name);
+    UO->copyIRFlags(CopyO);
+    return UO;
+  }
+
+  static UnaryOperator *CreateFNegFMF(Value *Op, Instruction *FMFSource,
+                                      const Twine &Name = "") {
+    return CreateWithCopiedFlags(Instruction::FNeg, Op, FMFSource, Name);
+  }
+
   UnaryOps getOpcode() const {
     return static_cast<UnaryOps>(Instruction::getOpcode());
+  }
+
+  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  static bool classof(const Instruction *I) {
+    return I->isUnaryOp();
+  }
+  static bool classof(const Value *V) {
+    return isa<Instruction>(V) && classof(cast<Instruction>(V));
   }
 };
 
@@ -260,7 +283,7 @@ public:
   static BinaryOperator *CreateFNegFMF(Value *Op, Instruction *FMFSource,
                                        const Twine &Name = "") {
     Value *Zero = ConstantFP::getNegativeZero(Op->getType());
-    return CreateWithCopiedFlags(Instruction::FSub, Zero, Op, FMFSource);
+    return CreateWithCopiedFlags(Instruction::FSub, Zero, Op, FMFSource, Name);
   }
 
   static BinaryOperator *CreateNSW(BinaryOps Opc, Value *V1, Value *V2,
@@ -1549,6 +1572,12 @@ public:
   /// Extract the alignment for a call or parameter (0=unknown).
   unsigned getParamAlignment(unsigned ArgNo) const {
     return Attrs.getParamAlignment(ArgNo);
+  }
+
+  /// Extract the byval type for a call or parameter.
+  Type *getParamByValType(unsigned ArgNo) const {
+    Type *Ty = Attrs.getParamByValType(ArgNo);
+    return Ty ? Ty : getArgOperand(ArgNo)->getType()->getPointerElementType();
   }
 
   /// Extract the number of dereferenceable bytes for a call or

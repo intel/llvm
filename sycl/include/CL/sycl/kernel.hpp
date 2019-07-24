@@ -20,14 +20,15 @@ class program;
 class context;
 
 class kernel {
-  template <class T>
-  friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
 public:
   kernel(cl_kernel clKernel, const context &syclContext)
-      : impl(std::make_shared<detail::kernel_impl>(clKernel, syclContext)) {}
+      : impl(std::make_shared<detail::kernel_impl>(
+            detail::pi::pi_cast<detail::RT::PiKernel>(clKernel), syclContext)) {}
 
   kernel(const kernel &rhs) = default;
 

@@ -73,24 +73,13 @@ ToolChain::ToolChain(const Driver &D, const llvm::Triple &T,
                      const ArgList &Args)
     : D(D), Triple(T), Args(Args), CachedRTTIArg(GetRTTIArgument(Args)),
       CachedRTTIMode(CalculateRTTIMode(Args, Triple, CachedRTTIArg)) {
-  SmallString<128> P;
-
   if (D.CCCIsCXX()) {
-    P.assign(D.Dir);
-    llvm::sys::path::append(P, "..", "lib", D.getTargetTriple(), "c++");
-    if (getVFS().exists(P))
-      getLibraryPaths().push_back(P.str());
+    if (auto CXXStdlibPath = getCXXStdlibPath())
+      getFilePaths().push_back(*CXXStdlibPath);
   }
 
-  P.assign(D.ResourceDir);
-  llvm::sys::path::append(P, D.getTargetTriple(), "lib");
-  if (getVFS().exists(P))
-    getLibraryPaths().push_back(P.str());
-
-  P.assign(D.ResourceDir);
-  llvm::sys::path::append(P, Triple.str(), "lib");
-  if (getVFS().exists(P))
-    getLibraryPaths().push_back(P.str());
+  if (auto RuntimePath = getRuntimePath())
+    getLibraryPaths().push_back(*RuntimePath);
 
   std::string CandidateLibPath = getArchSpecificLibPath();
   if (getVFS().exists(CandidateLibPath))
@@ -272,6 +261,10 @@ Tool *ToolChain::buildLinker() const {
   llvm_unreachable("Linking is not supported by this toolchain");
 }
 
+Tool *ToolChain::buildBackendCompiler() const {
+  llvm_unreachable("Backend Compilation is not supported by this toolchain");
+}
+
 Tool *ToolChain::getAssemble() const {
   if (!Assemble)
     Assemble.reset(buildAssembler());
@@ -306,6 +299,12 @@ Tool *ToolChain::getSPIRVTranslator() const {
   if (!SPIRVTranslator)
     SPIRVTranslator.reset(new tools::SPIRVTranslator(*this));
   return SPIRVTranslator.get();
+}
+
+Tool *ToolChain::getBackendCompiler() const {
+  if (!BackendCompiler)
+    BackendCompiler.reset(buildBackendCompiler());
+  return BackendCompiler.get();
 }
 
 Tool *ToolChain::getTool(Action::ActionClass AC) const {
@@ -343,6 +342,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::SPIRVTranslatorJobClass:
     return getSPIRVTranslator();
+
+  case Action::BackendCompileJobClass:
+    return getBackendCompiler();
   }
 
   llvm_unreachable("Invalid tool kind.");
@@ -434,6 +436,43 @@ const char *ToolChain::getCompilerRTArgString(const llvm::opt::ArgList &Args,
   return Args.MakeArgString(getCompilerRT(Args, Component, Type));
 }
 
+
+Optional<std::string> ToolChain::getRuntimePath() const {
+  SmallString<128> P;
+
+  // First try the triple passed to driver as --target=<triple>.
+  P.assign(D.ResourceDir);
+  llvm::sys::path::append(P, "lib", D.getTargetTriple());
+  if (getVFS().exists(P))
+    return llvm::Optional<std::string>(P.str());
+
+  // Second try the normalized triple.
+  P.assign(D.ResourceDir);
+  llvm::sys::path::append(P, "lib", Triple.str());
+  if (getVFS().exists(P))
+    return llvm::Optional<std::string>(P.str());
+
+  return None;
+}
+
+Optional<std::string> ToolChain::getCXXStdlibPath() const {
+  SmallString<128> P;
+
+  // First try the triple passed to driver as --target=<triple>.
+  P.assign(D.Dir);
+  llvm::sys::path::append(P, "..", "lib", D.getTargetTriple(), "c++");
+  if (getVFS().exists(P))
+    return llvm::Optional<std::string>(P.str());
+
+  // Second try the normalized triple.
+  P.assign(D.Dir);
+  llvm::sys::path::append(P, "..", "lib", Triple.str(), "c++");
+  if (getVFS().exists(P))
+    return llvm::Optional<std::string>(P.str());
+
+  return None;
+}
+
 std::string ToolChain::getArchSpecificLibPath() const {
   SmallString<128> Path(getDriver().ResourceDir);
   llvm::sys::path::append(Path, "lib", getOSLibName(),
@@ -442,6 +481,9 @@ std::string ToolChain::getArchSpecificLibPath() const {
 }
 
 bool ToolChain::needsProfileRT(const ArgList &Args) {
+  if (Args.hasArg(options::OPT_noprofilelib))
+    return false;
+
   if (needsGCovInstrumentation(Args) ||
       Args.hasArg(options::OPT_fprofile_generate) ||
       Args.hasArg(options::OPT_fprofile_generate_EQ) ||
@@ -846,10 +888,6 @@ void ToolChain::AddCXXStdlibLibArgs(const ArgList &Args,
 
 void ToolChain::AddFilePathLibArgs(const ArgList &Args,
                                    ArgStringList &CmdArgs) const {
-  for (const auto &LibPath : getLibraryPaths())
-    if(LibPath.length() > 0)
-      CmdArgs.push_back(Args.MakeArgString(StringRef("-L") + LibPath));
-
   for (const auto &LibPath : getFilePaths())
     if(LibPath.length() > 0)
       CmdArgs.push_back(Args.MakeArgString(StringRef("-L") + LibPath));
@@ -892,6 +930,7 @@ SanitizerMask ToolChain::getSupportedSanitizers() const {
                        ~SanitizerKind::Function) |
                       (SanitizerKind::CFI & ~SanitizerKind::CFIICall) |
                       SanitizerKind::CFICastStrict |
+                      SanitizerKind::FloatDivideByZero |
                       SanitizerKind::UnsignedIntegerOverflow |
                       SanitizerKind::ImplicitConversion |
                       SanitizerKind::Nullability | SanitizerKind::LocalBounds;
@@ -979,7 +1018,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
   const OptTable &Opts = getDriver().getOpts();
   bool Modified = false;
 
-  // Handle -Xopenmp-target and -Xsycl-target flags
+  // Handle -Xopenmp-target and -Xsycl-target-frontend flags
   for (auto *A : Args) {
     // Exclude flags which may only apply to the host toolchain.
     // Do not exclude flags when the host triple (AuxTriple)
@@ -1023,15 +1062,15 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       }
     } else if (DeviceOffloadKind == Action::OFK_SYCL) {
       XOffloadTargetNoTriple =
-        A->getOption().matches(options::OPT_Xsycl_target);
-      if (A->getOption().matches(options::OPT_Xsycl_target_EQ)) {
-        // Passing device args: -Xsycl-target=<triple> -opt=val.
+        A->getOption().matches(options::OPT_Xsycl_frontend);
+      if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
+        // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
         if (A->getValue(0) == getTripleString())
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;
       } else if (XOffloadTargetNoTriple) {
-        // Passing device args: -Xsycl-target -opt=val.
+        // Passing device args: -Xsycl-target-frontend -opt=val.
         Index = Args.getBaseArgs().MakeIndex(A->getValue(0));
       } else {
         DAL->append(A);
@@ -1047,7 +1086,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         getDriver().Diag(diag::err_drv_invalid_Xopenmp_target_with_args)
             << A->getAsString(Args);
       } else {
-        getDriver().Diag(diag::err_drv_invalid_Xsycl_target_with_args)
+        getDriver().Diag(diag::err_drv_invalid_Xsycl_frontend_with_args)
             << A->getAsString(Args);
       }
       continue;
@@ -1060,8 +1099,9 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
       } else if (DeviceOffloadKind == Action::OFK_SYCL &&
-          Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() != 1) {
-        getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple);
+          Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() > 1) {
+        getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
+            << A->getSpelling();
         continue;
       }
     }

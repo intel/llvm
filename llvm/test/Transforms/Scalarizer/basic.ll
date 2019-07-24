@@ -444,6 +444,121 @@ exit:
   ret <4 x float> %next_acc
 }
 
+; Test unary operator scalarization.
+define void @f15(<4 x float> %init, <4 x float> *%base, i32 %count) {
+; CHECK-LABEL: @f15(
+; CHECK: %ptr = getelementptr <4 x float>, <4 x float>* %base, i32 %i
+; CHECK: %ptr.i0 = bitcast <4 x float>* %ptr to float*
+; CHECK: %val.i0 = load float, float* %ptr.i0, align 16
+; CHECK: %ptr.i1 = getelementptr float, float* %ptr.i0, i32 1
+; CHECK: %val.i1 = load float, float* %ptr.i1, align 4
+; CHECK: %ptr.i2 = getelementptr float, float* %ptr.i0, i32 2
+; CHECK: %val.i2 = load float, float* %ptr.i2, align 8
+; CHECK: %ptr.i3 = getelementptr float, float* %ptr.i0, i32 3
+; CHECK: %val.i3 = load float, float* %ptr.i3, align 4
+; CHECK: %neg.i0 = fneg float %val.i0
+; CHECK: %neg.i1 = fneg float %val.i1
+; CHECK: %neg.i2 = fneg float %val.i2
+; CHECK: %neg.i3 = fneg float %val.i3
+; CHECK: %neg.upto0 = insertelement <4 x float> undef, float %neg.i0, i32 0
+; CHECK: %neg.upto1 = insertelement <4 x float> %neg.upto0, float %neg.i1, i32 1
+; CHECK: %neg.upto2 = insertelement <4 x float> %neg.upto1, float %neg.i2, i32 2
+; CHECK: %neg = insertelement <4 x float> %neg.upto2, float %neg.i3, i32 3
+; CHECK: %call = call <4 x float> @ext(<4 x float> %neg)
+; CHECK: %call.i0 = extractelement <4 x float> %call, i32 0
+; CHECK: %cmp.i0 = fcmp ogt float %call.i0, 1.000000e+00
+; CHECK: %call.i1 = extractelement <4 x float> %call, i32 1
+; CHECK: %cmp.i1 = fcmp ogt float %call.i1, 2.000000e+00
+; CHECK: %call.i2 = extractelement <4 x float> %call, i32 2
+; CHECK: %cmp.i2 = fcmp ogt float %call.i2, 3.000000e+00
+; CHECK: %call.i3 = extractelement <4 x float> %call, i32 3
+; CHECK: %cmp.i3 = fcmp ogt float %call.i3, 4.000000e+00
+; CHECK: %sel.i0 = select i1 %cmp.i0, float %call.i0, float 5.000000e+00
+; CHECK: %sel.i1 = select i1 %cmp.i1, float %call.i1, float 6.000000e+00
+; CHECK: %sel.i2 = select i1 %cmp.i2, float %call.i2, float 7.000000e+00
+; CHECK: %sel.i3 = select i1 %cmp.i3, float %call.i3, float 8.000000e+00
+; CHECK: store float %sel.i0, float* %ptr.i0, align 16
+; CHECK: store float %sel.i1, float* %ptr.i1, align 4
+; CHECK: store float %sel.i2, float* %ptr.i2, align 8
+; CHECK: store float %sel.i3, float* %ptr.i3, align 4
+entry:
+  br label %loop
+
+loop:
+  %i = phi i32 [ %count, %entry ], [ %nexti, %loop ]
+  %acc = phi <4 x float> [ %init, %entry ], [ %sel, %loop ]
+  %nexti = sub i32 %i, 1
+
+  %ptr = getelementptr <4 x float>, <4 x float> *%base, i32 %i
+  %val = load <4 x float> , <4 x float> *%ptr
+  %neg = fneg <4 x float> %val
+  %call = call <4 x float> @ext(<4 x float> %neg)
+  %cmp = fcmp ogt <4 x float> %call,
+  <float 1.0, float 2.0, float 3.0, float 4.0>
+  %sel = select <4 x i1> %cmp, <4 x float> %call,
+  <4 x float> <float 5.0, float 6.0, float 7.0, float 8.0>
+  store <4 x float> %sel, <4 x float> *%ptr
+
+  %test = icmp eq i32 %nexti, 0
+  br i1 %test, label %loop, label %exit
+
+exit:
+  ret void
+}
+
+; Check that IR flags are preserved.
+define <2 x i32> @f16(<2 x i32> %i, <2 x i32> %j) {
+; CHECK-LABEL: @f16(
+; CHECK: %res.i0 = add nuw nsw i32
+; CHECK: %res.i1 = add nuw nsw i32
+  %res = add nuw nsw <2 x i32> %i, %j
+  ret <2 x i32> %res
+}
+define <2 x i32> @f17(<2 x i32> %i, <2 x i32> %j) {
+; CHECK-LABEL: @f17(
+; CHECK: %res.i0 = sdiv exact i32
+; CHECK: %res.i1 = sdiv exact i32
+  %res = sdiv exact <2 x i32> %i, %j
+  ret <2 x i32> %res
+}
+define <2 x float> @f18(<2 x float> %x, <2 x float> %y) {
+; CHECK-LABEL: @f18(
+; CHECK: %res.i0 = fadd fast float
+; CHECK: %res.i1 = fadd fast float
+  %res = fadd fast <2 x float> %x, %y
+  ret <2 x float> %res
+}
+define <2 x float> @f19(<2 x float> %x) {
+; CHECK-LABEL: @f19(
+; CHECK: %res.i0 = fneg fast float
+; CHECK: %res.i1 = fneg fast float
+  %res = fneg fast <2 x float> %x
+  ret <2 x float> %res
+}
+define <2 x i1> @f20(<2 x float> %x, <2 x float> %y) {
+; CHECK-LABEL: @f20(
+; CHECK: %res.i0 = fcmp fast ogt float
+; CHECK: %res.i1 = fcmp fast ogt float
+  %res = fcmp fast ogt <2 x float> %x, %y
+  ret <2 x i1> %res
+}
+declare <2 x float> @llvm.sqrt.v2f32(<2 x float>)
+define <2 x float> @f21(<2 x float> %x) {
+; CHECK-LABEL: @f21(
+; CHECK: %res.i0 = call fast float @llvm.sqrt.f32
+; CHECK: %res.i1 = call fast float @llvm.sqrt.f32
+  %res = call fast <2 x float> @llvm.sqrt.v2f32(<2 x float> %x)
+  ret <2 x float> %res
+}
+declare <2 x float> @llvm.fma.v2f32(<2 x float>, <2 x float>, <2 x float>)
+define <2 x float> @f22(<2 x float> %x, <2 x float> %y, <2 x float> %z) {
+; CHECK-LABEL: @f22(
+; CHECK: %res.i0 = call fast float @llvm.fma.f32
+; CHECK: %res.i1 = call fast float @llvm.fma.f32
+  %res = call fast <2 x float> @llvm.fma.v2f32(<2 x float> %x, <2 x float> %y, <2 x float> %z)
+  ret <2 x float> %res
+}
+
 !0 = !{ !"root" }
 !1 = !{ !"set1", !0 }
 !2 = !{ !"set2", !0 }

@@ -23,8 +23,8 @@ class device;
 class kernel;
 
 class program {
-  template <class T>
-  friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
@@ -46,7 +46,8 @@ public:
   }
 
   program(const context &context, cl_program clProgram)
-      : impl(std::make_shared<detail::program_impl>(context, clProgram)) {}
+      : impl(std::make_shared<detail::program_impl>(
+            context, detail::pi::pi_cast<detail::RT::PiProgram>(clProgram))) {}
 
   program(const program &rhs) = default;
 

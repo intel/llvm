@@ -263,7 +263,7 @@ public:
         Addr.getElementType(), Addr.getPointer(), Idx0, Idx1, Name));
     llvm::APInt Offset(
         DL.getIndexSizeInBits(Addr.getType()->getPointerAddressSpace()), 0,
-        /*IsSigned=*/true);
+        /*isSigned=*/true);
     if (!GEP->accumulateConstantOffset(DL, Offset))
       llvm_unreachable("offset of GEP with constants is always computable");
     return Address(GEP, Addr.getAlignment().alignmentAtOffset(
@@ -297,6 +297,21 @@ public:
                                llvm::Value *Size, bool IsVolatile = false) {
     return CreateMemSet(Dest.getPointer(), Value, Size,
                         Dest.getAlignment().getQuantity(), IsVolatile);
+  }
+
+  using CGBuilderBaseTy::CreatePreserveStructAccessIndex;
+  Address CreatePreserveStructAccessIndex(Address Addr,
+                                          unsigned Index,
+                                          unsigned FieldIndex,
+                                          llvm::MDNode *DbgInfo) {
+    llvm::StructType *ElTy = cast<llvm::StructType>(Addr.getElementType());
+    const llvm::DataLayout &DL = BB->getParent()->getParent()->getDataLayout();
+    const llvm::StructLayout *Layout = DL.getStructLayout(ElTy);
+    auto Offset = CharUnits::fromQuantity(Layout->getElementOffset(Index));
+
+    return Address(CreatePreserveStructAccessIndex(Addr.getPointer(),
+                                                   Index, FieldIndex, DbgInfo),
+                   Addr.getAlignment().alignmentAtOffset(Offset));
   }
 };
 

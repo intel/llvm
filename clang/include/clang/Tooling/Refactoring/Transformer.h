@@ -86,6 +86,12 @@ struct ASTEdit {
   TextGenerator Note;
 };
 
+/// Format of the path in an include directive -- angle brackets or quotes.
+enum class IncludeFormat {
+  Quoted,
+  Angled,
+};
+
 /// Description of a source-code transformation.
 //
 // A *rewrite rule* describes a transformation of source code. A simple rule
@@ -114,6 +120,10 @@ struct RewriteRule {
     ast_matchers::internal::DynTypedMatcher Matcher;
     SmallVector<ASTEdit, 1> Edits;
     TextGenerator Explanation;
+    // Include paths to add to the file affected by this case.  These are
+    // bundled with the `Case`, rather than the `RewriteRule`, because each case
+    // might have different associated changes to the includes.
+    std::vector<std::pair<std::string, IncludeFormat>> AddedIncludes;
   };
   // We expect RewriteRules will most commonly include only one case.
   SmallVector<Case, 1> Cases;
@@ -125,15 +135,30 @@ struct RewriteRule {
 
 /// Convenience function for constructing a simple \c RewriteRule.
 RewriteRule makeRule(ast_matchers::internal::DynTypedMatcher M,
-                     SmallVector<ASTEdit, 1> Edits);
+                     SmallVector<ASTEdit, 1> Edits,
+                     TextGenerator Explanation = nullptr);
 
 /// Convenience overload of \c makeRule for common case of only one edit.
 inline RewriteRule makeRule(ast_matchers::internal::DynTypedMatcher M,
-                            ASTEdit Edit) {
+                            ASTEdit Edit,
+                            TextGenerator Explanation = nullptr) {
   SmallVector<ASTEdit, 1> Edits;
   Edits.emplace_back(std::move(Edit));
-  return makeRule(std::move(M), std::move(Edits));
+  return makeRule(std::move(M), std::move(Edits), std::move(Explanation));
 }
+
+/// For every case in Rule, adds an include directive for the given header. The
+/// common use is assumed to be a rule with only one case. For example, to
+/// replace a function call and add headers corresponding to the new code, one
+/// could write:
+/// \code
+///   auto R = makeRule(callExpr(callee(functionDecl(hasName("foo")))),
+///            change(text("bar()")));
+///   AddInclude(R, "path/to/bar_header.h");
+///   AddInclude(R, "vector", IncludeFormat::Angled);
+/// \endcode
+void addInclude(RewriteRule &Rule, llvm::StringRef Header,
+                IncludeFormat Format = IncludeFormat::Quoted);
 
 /// Applies the first rule whose pattern matches; other rules are ignored.
 ///
@@ -189,6 +214,23 @@ ASTEdit change(RangeSelector Target, TextGenerator Replacement);
 /// \endcode
 inline ASTEdit change(TextGenerator Replacement) {
   return change(node(RewriteRule::RootID), std::move(Replacement));
+}
+
+/// Inserts \p Replacement before \p S, leaving the source selected by \S
+/// unchanged.
+inline ASTEdit insertBefore(RangeSelector S, TextGenerator Replacement) {
+  return change(before(std::move(S)), std::move(Replacement));
+}
+
+/// Inserts \p Replacement after \p S, leaving the source selected by \S
+/// unchanged.
+inline ASTEdit insertAfter(RangeSelector S, TextGenerator Replacement) {
+  return change(after(std::move(S)), std::move(Replacement));
+}
+
+/// Removes the source selected by \p S.
+inline ASTEdit remove(RangeSelector S) {
+  return change(std::move(S), text(""));
 }
 
 /// The following three functions are a low-level part of the RewriteRule

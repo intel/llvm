@@ -3,7 +3,7 @@
 ; RUN:   -o /dev/null 2>&1
 ; RUN: llc -mtriple=riscv32 -verify-machineinstrs < %s | FileCheck %s
 
-define void @relax_bcc(i1 %a) {
+define void @relax_bcc(i1 %a) nounwind {
 ; CHECK-LABEL: relax_bcc:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    andi a0, a0, 1
@@ -25,14 +25,15 @@ tail:
   ret void
 }
 
-define i32 @relax_jal(i1 %a) {
+; TODO: Extend simm12's MCOperandPredicate so the jalr zero is printed as a jr.
+define i32 @relax_jal(i1 %a) nounwind {
 ; CHECK-LABEL: relax_jal:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    andi a0, a0, 1
 ; CHECK-NEXT:    bnez a0, .LBB1_1
 ; CHECK-NEXT:  # %bb.3:
 ; CHECK-NEXT:    lui a0, %hi(.LBB1_2)
-; CHECK-NEXT:    jalr zero, a0, %lo(.LBB1_2)
+; CHECK-NEXT:    jalr zero, %lo(.LBB1_2)(a0)
 ; CHECK-NEXT:  .LBB1_1: # %iftrue
 ; CHECK-NEXT:    #APP
 ; CHECK-NEXT:    #NO_APP

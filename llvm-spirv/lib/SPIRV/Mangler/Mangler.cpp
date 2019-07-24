@@ -87,20 +87,20 @@ public:
   //
   MangleError visit(const PrimitiveType *T) override {
     MangleError Me = MANGLE_SUCCESS;
-#if defined(SPIRV_SPIR20_MANGLING_REQUIREMENTS)
-    Stream << mangledPrimitiveString(t->getPrimitive());
-#else
     std::string MangledPrimitive =
         std::string(mangledPrimitiveString(T->getPrimitive()));
-    // out of all enums it makes sense to substitute only
-    // memory_scope/memory_order since only they appear several times in the
-    // builtin declaration.
-    if (MangledPrimitive == "12memory_scope" ||
-        MangledPrimitive == "12memory_order") {
-      if (!mangleSubstitution(T, mangledPrimitiveString(T->getPrimitive()))) {
+#if defined(SPIRV_SPIR20_MANGLING_REQUIREMENTS)
+    Stream << MangledPrimitive;
+#else
+    // Builtin primitives such as int are not substitution candidates, but
+    // all other primitives are.  Even though most of these do not appear
+    // repeatedly in builtin function signatures, we need to track them in
+    // the substitution map.
+    if (T->getPrimitive() >= PRIMITIVE_STRUCT_FIRST) {
+      if (!mangleSubstitution(T, MangledPrimitive)) {
         size_t Index = Stream.str().size();
-        Stream << mangledPrimitiveString(T->getPrimitive());
-        Substitutions[Stream.str().substr(Index)] = SeqId++;
+        Stream << MangledPrimitive;
+        recordSubstitution(Stream.str().substr(Index));
       }
     } else {
       Stream << MangledPrimitive;
@@ -129,9 +129,9 @@ public:
       // and the pointee type itself.
       Me = P->getPointee()->accept(this);
       // The type qualifiers plus a pointee type is a substitutable entity
-      Substitutions[Stream.str().substr(Fpos + 1)] = SeqId++;
+      recordSubstitution(Stream.str().substr(Fpos + 1));
       // The complete pointer type is substitutable as well
-      Substitutions[Stream.str().substr(Fpos)] = SeqId++;
+      recordSubstitution(Stream.str().substr(Fpos));
     }
     return Me;
   }
@@ -147,7 +147,7 @@ public:
     {
       Stream << TypeStr.str();
       Me = V->getScalarType()->accept(this);
-      Substitutions[Stream.str().substr(Index)] = SeqId++;
+      recordSubstitution(Stream.str().substr(Index));
     }
     return Me;
   }
@@ -159,7 +159,7 @@ public:
     if (!mangleSubstitution(P, TypeStr)) {
       Stream << TypeStr;
       Me = P->getBaseType()->accept(this);
-      Substitutions[Stream.str().substr(Index)] = SeqId++;
+      recordSubstitution(Stream.str().substr(Index));
     }
     return Me;
   }
@@ -187,6 +187,10 @@ public:
   }
 
 private:
+  void recordSubstitution(const std::string &Str) {
+    Substitutions[Str] = SeqId++;
+  }
+
   // Holds the mangled string representing the prototype of the function.
   std::stringstream &Stream;
   unsigned SeqId;

@@ -646,7 +646,7 @@ void TargetPassConfig::addIRPasses() {
     // into optimally-sized loads and compares. The transforms are enabled by a
     // target lowering hook.
     if (!DisableMergeICmps)
-      addPass(createMergeICmpsPass());
+      addPass(createMergeICmpsLegacyPass());
     addPass(createExpandMemCmpPass());
   }
 
@@ -815,6 +815,13 @@ bool TargetPassConfig::addCoreISelPasses() {
   } else if (addInstSelector())
     return true;
 
+  // Expand pseudo-instructions emitted by ISel. Don't run the verifier before
+  // FinalizeISel.
+  addPass(&FinalizeISelID);
+
+  // Print the instruction selected machine code...
+  printAndVerify("After Instruction Selection");
+
   return false;
 }
 
@@ -873,12 +880,6 @@ void TargetPassConfig::addMachinePasses() {
       insertPass(TID, IID);
     }
   }
-
-  // Print the instruction selected machine code...
-  printAndVerify("After Instruction Selection");
-
-  // Expand pseudo-instructions emitted by ISel.
-  addPass(&ExpandISelPseudosID);
 
   // Add passes that optimize machine instructions in SSA form.
   if (getOptLevel() != CodeGenOpt::None) {
@@ -1045,12 +1046,8 @@ defaultRegAlloc("default",
                 useDefaultRegisterAllocator);
 
 static void initializeDefaultRegisterAllocatorOnce() {
-  RegisterRegAlloc::FunctionPassCtor Ctor = RegisterRegAlloc::getDefault();
-
-  if (!Ctor) {
-    Ctor = RegAlloc;
+  if (!RegisterRegAlloc::getDefault())
     RegisterRegAlloc::setDefault(RegAlloc);
-  }
 }
 
 /// Instantiate the default register allocator pass for this target for either
@@ -1168,6 +1165,10 @@ void TargetPassConfig::addOptimizedRegAlloc() {
   addPass(&MachineSchedulerID);
 
   if (addRegAssignmentOptimized()) {
+    // Allow targets to expand pseudo instructions depending on the choice of
+    // registers before MachineCopyPropagation.
+    addPostRewrite();
+
     // Copy propagate to forward register uses and try to eliminate COPYs that
     // were not coalesced.
     addPass(&MachineCopyPropagationID);

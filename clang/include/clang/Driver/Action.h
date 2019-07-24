@@ -73,9 +73,10 @@ public:
     OffloadUnbundlingJobClass,
     OffloadWrappingJobClass,
     SPIRVTranslatorJobClass,
+    BackendCompileJobClass,
 
     JobClassFirst = PreprocessJobClass,
-    JobClassLast = SPIRVTranslatorJobClass
+    JobClassLast = BackendCompileJobClass
   };
 
   // The offloading kind determines if this action is binded to a particular
@@ -598,7 +599,7 @@ private:
 
 public:
   // Offloading unbundling doesn't change the type of output.
-  OffloadUnbundlingJobAction(Action *Input);
+  OffloadUnbundlingJobAction(ActionList &Inputs);
 
   /// Register information about a dependent action.
   void registerDependentActionInfo(const ToolChain *TC, StringRef BoundArch,
@@ -635,6 +636,17 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == SPIRVTranslatorJobClass;
+  }
+};
+
+class BackendCompileJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  BackendCompileJobAction(Action *Input, types::ID OutputType);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == BackendCompileJobClass;
   }
 };
 

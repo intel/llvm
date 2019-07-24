@@ -77,6 +77,10 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
 
 template <typename FPGALoopAttrT>
 static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
+
+  if(S.LangOpts.SYCLIsHost)
+    return nullptr;
+
   unsigned NumArgs = A.getNumArgs();
   if (NumArgs > 1) {
     S.Diag(A.getLoc(), diag::err_attribute_too_many_arguments) << A << 1;
@@ -84,8 +88,8 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
   }
 
   if (NumArgs == 0) {
-    if (A.getKind() == ParsedAttr::AT_IntelFPGAII ||
-        A.getKind() == ParsedAttr::AT_IntelFPGAMaxConcurrency) {
+    if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAII ||
+        A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency) {
       S.Diag(A.getLoc(), diag::err_attribute_too_few_arguments) << A << 1;
       return nullptr;
     }
@@ -124,22 +128,17 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
   IdentifierLoc *StateLoc = A.getArgAsIdent(2);
   Expr *ValueExpr = A.getArgAsExpr(3);
 
-  bool PragmaUnroll = PragmaNameLoc->Ident->getName() == "unroll";
-  bool PragmaNoUnroll = PragmaNameLoc->Ident->getName() == "nounroll";
-  bool PragmaUnrollAndJam = PragmaNameLoc->Ident->getName() == "unroll_and_jam";
-  bool PragmaNoUnrollAndJam =
-      PragmaNameLoc->Ident->getName() == "nounroll_and_jam";
+  StringRef PragmaName =
+      llvm::StringSwitch<StringRef>(PragmaNameLoc->Ident->getName())
+          .Cases("unroll", "nounroll", "unroll_and_jam", "nounroll_and_jam",
+                 PragmaNameLoc->Ident->getName())
+          .Default("clang loop");
+
   if (St->getStmtClass() != Stmt::DoStmtClass &&
       St->getStmtClass() != Stmt::ForStmtClass &&
       St->getStmtClass() != Stmt::CXXForRangeStmtClass &&
       St->getStmtClass() != Stmt::WhileStmtClass) {
-    const char *Pragma =
-        llvm::StringSwitch<const char *>(PragmaNameLoc->Ident->getName())
-            .Case("unroll", "#pragma unroll")
-            .Case("nounroll", "#pragma nounroll")
-            .Case("unroll_and_jam", "#pragma unroll_and_jam")
-            .Case("nounroll_and_jam", "#pragma nounroll_and_jam")
-            .Default("#pragma clang loop");
+    std::string Pragma = "#pragma " + std::string(PragmaName);
     S.Diag(St->getBeginLoc(), diag::err_pragma_loop_precedes_nonloop) << Pragma;
     return nullptr;
   }
@@ -148,34 +147,29 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
       LoopHintAttr::Spelling(A.getAttributeSpellingListIndex());
   LoopHintAttr::OptionType Option;
   LoopHintAttr::LoopHintState State;
-  if (PragmaNoUnroll) {
-    // #pragma nounroll
-    Option = LoopHintAttr::Unroll;
-    State = LoopHintAttr::Disable;
-  } else if (PragmaUnroll) {
-    if (ValueExpr) {
-      // #pragma unroll N
-      Option = LoopHintAttr::UnrollCount;
-      State = LoopHintAttr::Numeric;
-    } else {
-      // #pragma unroll
-      Option = LoopHintAttr::Unroll;
-      State = LoopHintAttr::Enable;
-    }
-  } else if (PragmaNoUnrollAndJam) {
-    // #pragma nounroll_and_jam
-    Option = LoopHintAttr::UnrollAndJam;
-    State = LoopHintAttr::Disable;
-  } else if (PragmaUnrollAndJam) {
-    if (ValueExpr) {
-      // #pragma unroll_and_jam N
-      Option = LoopHintAttr::UnrollAndJamCount;
-      State = LoopHintAttr::Numeric;
-    } else {
-      // #pragma unroll_and_jam
-      Option = LoopHintAttr::UnrollAndJam;
-      State = LoopHintAttr::Enable;
-    }
+
+  auto SetHints = [&Option, &State](LoopHintAttr::OptionType O,
+                                    LoopHintAttr::LoopHintState S) {
+    Option = O;
+    State = S;
+  };
+
+  if (PragmaName == "nounroll") {
+    SetHints(LoopHintAttr::Unroll, LoopHintAttr::Disable);
+  } else if (PragmaName == "unroll") {
+    // #pragma unroll N
+    if (ValueExpr)
+      SetHints(LoopHintAttr::UnrollCount, LoopHintAttr::Numeric);
+    else
+      SetHints(LoopHintAttr::Unroll, LoopHintAttr::Enable);
+  } else if (PragmaName == "nounroll_and_jam") {
+    SetHints(LoopHintAttr::UnrollAndJam, LoopHintAttr::Disable);
+  } else if (PragmaName == "unroll_and_jam") {
+    // #pragma unroll_and_jam N
+    if (ValueExpr)
+      SetHints(LoopHintAttr::UnrollAndJamCount, LoopHintAttr::Numeric);
+    else
+      SetHints(LoopHintAttr::UnrollAndJam, LoopHintAttr::Enable);
   } else {
     // #pragma clang loop ...
     assert(OptionLoc && OptionLoc->Ident &&
@@ -351,10 +345,10 @@ static void
 CheckForIncompatibleFPGALoopAttributes(Sema &S,
                                        const SmallVectorImpl<const Attr *>
                                        &Attrs, SourceRange Range) {
-  CheckForDuplicationFPGALoopAttribute<IntelFPGAIVDepAttr>(S, Attrs, Range);
-  CheckForDuplicationFPGALoopAttribute<IntelFPGAIIAttr>(S, Attrs, Range);
+  CheckForDuplicationFPGALoopAttribute<SYCLIntelFPGAIVDepAttr>(S, Attrs, Range);
+  CheckForDuplicationFPGALoopAttribute<SYCLIntelFPGAIIAttr>(S, Attrs, Range);
   CheckForDuplicationFPGALoopAttribute<
-    IntelFPGAMaxConcurrencyAttr>(S, Attrs, Range);
+    SYCLIntelFPGAMaxConcurrencyAttr>(S, Attrs, Range);
 }
 
 static Attr *handleOpenCLUnrollHint(Sema &S, Stmt *St, const ParsedAttr &A,
@@ -411,12 +405,12 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleFallThroughAttr(S, St, A, Range);
   case ParsedAttr::AT_LoopHint:
     return handleLoopHintAttr(S, St, A, Range);
-  case ParsedAttr::AT_IntelFPGAIVDep:
-    return handleIntelFPGALoopAttr<IntelFPGAIVDepAttr>(S, St, A);
-  case ParsedAttr::AT_IntelFPGAII:
-    return handleIntelFPGALoopAttr<IntelFPGAIIAttr>(S, St, A);
-  case ParsedAttr::AT_IntelFPGAMaxConcurrency:
-    return handleIntelFPGALoopAttr<IntelFPGAMaxConcurrencyAttr>(S, St, A);
+  case ParsedAttr::AT_SYCLIntelFPGAIVDep:
+    return handleIntelFPGALoopAttr<SYCLIntelFPGAIVDepAttr>(S, St, A);
+  case ParsedAttr::AT_SYCLIntelFPGAII:
+    return handleIntelFPGALoopAttr<SYCLIntelFPGAIIAttr>(S, St, A);
+  case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
+    return handleIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(S, St, A);
   case ParsedAttr::AT_OpenCLUnrollHint:
     return handleOpenCLUnrollHint(S, St, A, Range);
   case ParsedAttr::AT_Suppress:

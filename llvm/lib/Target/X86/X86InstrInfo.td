@@ -127,6 +127,9 @@ def SDT_X86TCRET : SDTypeProfile<0, 2, [SDTCisPtrTy<0>, SDTCisVT<1, i32>]>;
 
 def SDT_X86MEMBARRIER : SDTypeProfile<0, 0, []>;
 
+def SDT_X86ENQCMD : SDTypeProfile<1, 2, [SDTCisVT<0, i32>,
+                                         SDTCisPtrTy<1>, SDTCisSameAs<1, 2>]>;
+
 def X86MemBarrier : SDNode<"X86ISD::MEMBARRIER", SDT_X86MEMBARRIER,
                             [SDNPHasChain,SDNPSideEffect]>;
 def X86MFence : SDNode<"X86ISD::MFENCE", SDT_X86MEMBARRIER,
@@ -305,6 +308,11 @@ def X86umwait : SDNode<"X86ISD::UMWAIT",
 def X86tpause : SDNode<"X86ISD::TPAUSE",
                        SDTypeProfile<1, 3, [SDTCisVT<0, i32>, SDTCisInt<1>,
                                             SDTCisVT<2, i32>, SDTCisVT<3, i32>]>,
+                       [SDNPHasChain, SDNPSideEffect]>;
+
+def X86enqcmd : SDNode<"X86ISD::ENQCMD", SDT_X86ENQCMD,
+                       [SDNPHasChain, SDNPSideEffect]>;
+def X86enqcmds : SDNode<"X86ISD::ENQCMDS", SDT_X86ENQCMD,
                        [SDNPHasChain, SDNPSideEffect]>;
 
 //===----------------------------------------------------------------------===//
@@ -749,6 +757,33 @@ def lea64mem : Operand<i64> {
   let ParserMatchClass = X86MemAsmOperand;
 }
 
+let RenderMethod = "addMaskPairOperands" in {
+  def VK1PairAsmOperand : AsmOperandClass { let Name = "VK1Pair"; }
+  def VK2PairAsmOperand : AsmOperandClass { let Name = "VK2Pair"; }
+  def VK4PairAsmOperand : AsmOperandClass { let Name = "VK4Pair"; }
+  def VK8PairAsmOperand : AsmOperandClass { let Name = "VK8Pair"; }
+  def VK16PairAsmOperand : AsmOperandClass { let Name = "VK16Pair"; }
+}
+
+def VK1Pair : RegisterOperand<VK1PAIR, "printVKPair"> {
+  let ParserMatchClass = VK1PairAsmOperand;
+}
+
+def VK2Pair : RegisterOperand<VK2PAIR, "printVKPair"> {
+  let ParserMatchClass = VK2PairAsmOperand;
+}
+
+def VK4Pair : RegisterOperand<VK4PAIR, "printVKPair"> {
+  let ParserMatchClass = VK4PairAsmOperand;
+}
+
+def VK8Pair : RegisterOperand<VK8PAIR, "printVKPair"> {
+  let ParserMatchClass = VK8PairAsmOperand;
+}
+
+def VK16Pair : RegisterOperand<VK16PAIR, "printVKPair"> {
+  let ParserMatchClass = VK16PairAsmOperand;
+}
 
 //===----------------------------------------------------------------------===//
 // X86 Complex Pattern Definitions.
@@ -835,6 +870,7 @@ def NoVLX_Or_NoBWI : Predicate<"!Subtarget->hasVLX() || !Subtarget->hasBWI()">;
 def NoVLX_Or_NoDQI : Predicate<"!Subtarget->hasVLX() || !Subtarget->hasDQI()">;
 def PKU        : Predicate<"Subtarget->hasPKU()">;
 def HasVNNI    : Predicate<"Subtarget->hasVNNI()">;
+def HasVP2INTERSECT : Predicate<"Subtarget->hasVP2INTERSECT()">;
 def HasBF16      : Predicate<"Subtarget->hasBF16()">;
 
 def HasBITALG    : Predicate<"Subtarget->hasBITALG()">;
@@ -900,6 +936,7 @@ def HasINVPCID   : Predicate<"Subtarget->hasINVPCID()">;
 def HasCmpxchg8b : Predicate<"Subtarget->hasCmpxchg8b()">;
 def HasCmpxchg16b: Predicate<"Subtarget->hasCmpxchg16b()">;
 def HasPCONFIG   : Predicate<"Subtarget->hasPCONFIG()">;
+def HasENQCMD    : Predicate<"Subtarget->hasENQCMD()">;
 def Not64BitMode : Predicate<"!Subtarget->is64Bit()">,
                              AssemblerPredicate<"!Mode64Bit", "Not 64-bit mode">;
 def In64BitMode  : Predicate<"Subtarget->is64Bit()">,
@@ -2425,15 +2462,20 @@ let Predicates = [HasBMI] in {
             (BLSI64rr GR64:$src)>;
 
   // Versions to match flag producing ops.
+  def : Pat<(and_flag_nocf GR32:$src, (add GR32:$src, -1)),
+            (BLSR32rr GR32:$src)>;
+  def : Pat<(and_flag_nocf GR64:$src, (add GR64:$src, -1)),
+            (BLSR64rr GR64:$src)>;
+
   def : Pat<(xor_flag_nocf GR32:$src, (add GR32:$src, -1)),
             (BLSMSK32rr GR32:$src)>;
   def : Pat<(xor_flag_nocf GR64:$src, (add GR64:$src, -1)),
             (BLSMSK64rr GR64:$src)>;
 
-  def : Pat<(and_flag_nocf GR32:$src, (add GR32:$src, -1)),
-            (BLSR32rr GR32:$src)>;
-  def : Pat<(and_flag_nocf GR64:$src, (add GR64:$src, -1)),
-            (BLSR64rr GR64:$src)>;
+  def : Pat<(and_flag_nocf GR32:$src, (ineg GR32:$src)),
+            (BLSI32rr GR32:$src)>;
+  def : Pat<(and_flag_nocf GR64:$src, (ineg GR64:$src)),
+            (BLSI64rr GR64:$src)>;
 }
 
 multiclass bmi_bextr<bits<8> opc, string mnemonic, RegisterClass RC,
@@ -2756,6 +2798,37 @@ def MOVDIR64B64 : I<0xF8, MRMSrcMem, (outs), (ins GR64:$dst, i512mem:$src),
 } // SchedRW
 
 //===----------------------------------------------------------------------===//
+// ENQCMD/S - Enqueue 64-byte command as user with 64-byte write atomicity
+//
+let SchedRW = [WriteStore], Defs = [EFLAGS] in {
+  def ENQCMD16 : I<0xF8, MRMSrcMem, (outs), (ins GR16:$dst, i512mem:$src),
+                 "enqcmd\t{$src, $dst|$dst, $src}",
+                 [(set EFLAGS, (X86enqcmd GR16:$dst, addr:$src))]>,
+                 T8XD, AdSize16, Requires<[HasENQCMD, Not64BitMode]>;
+  def ENQCMD32 : I<0xF8, MRMSrcMem, (outs), (ins GR32:$dst, i512mem:$src),
+                 "enqcmd\t{$src, $dst|$dst, $src}",
+                 [(set EFLAGS, (X86enqcmd GR32:$dst, addr:$src))]>,
+                 T8XD, AdSize32, Requires<[HasENQCMD]>;
+  def ENQCMD64 : I<0xF8, MRMSrcMem, (outs), (ins GR64:$dst, i512mem:$src),
+                 "enqcmd\t{$src, $dst|$dst, $src}",
+                 [(set EFLAGS, (X86enqcmd GR64:$dst, addr:$src))]>,
+                 T8XD, AdSize64, Requires<[HasENQCMD, In64BitMode]>;
+
+  def ENQCMDS16 : I<0xF8, MRMSrcMem, (outs), (ins GR16:$dst, i512mem:$src),
+                 "enqcmds\t{$src, $dst|$dst, $src}",
+                 [(set EFLAGS, (X86enqcmds GR16:$dst, addr:$src))]>,
+                 T8XS, AdSize16, Requires<[HasENQCMD, Not64BitMode]>;
+  def ENQCMDS32 : I<0xF8, MRMSrcMem, (outs), (ins GR32:$dst, i512mem:$src),
+                 "enqcmds\t{$src, $dst|$dst, $src}",
+                 [(set EFLAGS, (X86enqcmds GR32:$dst, addr:$src))]>,
+                 T8XS, AdSize32, Requires<[HasENQCMD]>;
+  def ENQCMDS64 : I<0xF8, MRMSrcMem, (outs), (ins GR64:$dst, i512mem:$src),
+                 "enqcmds\t{$src, $dst|$dst, $src}",
+                 [(set EFLAGS, (X86enqcmds GR64:$dst, addr:$src))]>,
+                 T8XS, AdSize64, Requires<[HasENQCMD, In64BitMode]>;
+}
+
+//===----------------------------------------------------------------------===//
 // CLZERO Instruction
 //
 let SchedRW = [WriteSystem] in {
@@ -2828,8 +2901,6 @@ let Predicates = [HasTBM] in {
             (TZMSK64rr GR64:$src)>;
 
   // Patterns to match flag producing ops.
-  // X86and_flag nodes are rarely created. Those should use CMP+AND. We do
-  // TESTrr matching in PostProcessISelDAG to allow BLSR/BLSI to be formed.
   def : Pat<(or_flag_nocf GR32:$src, (not (add GR32:$src, 1))),
             (BLCI32rr GR32:$src)>;
   def : Pat<(or_flag_nocf GR64:$src, (not (add GR64:$src, 1))),
@@ -2840,6 +2911,11 @@ let Predicates = [HasTBM] in {
             (BLCI32rr GR32:$src)>;
   def : Pat<(or_flag_nocf GR64:$src, (sub -2, GR64:$src)),
             (BLCI64rr GR64:$src)>;
+
+  def : Pat<(and_flag_nocf (not GR32:$src), (add GR32:$src, 1)),
+            (BLCIC32rr GR32:$src)>;
+  def : Pat<(and_flag_nocf (not GR64:$src), (add GR64:$src, 1)),
+            (BLCIC64rr GR64:$src)>;
 
   def : Pat<(xor_flag_nocf GR32:$src, (add GR32:$src, 1)),
             (BLCMSK32rr GR32:$src)>;
@@ -2865,6 +2941,11 @@ let Predicates = [HasTBM] in {
             (T1MSKC32rr GR32:$src)>;
   def : Pat<(or_flag_nocf (not GR64:$src), (add GR64:$src, 1)),
             (T1MSKC64rr GR64:$src)>;
+
+  def : Pat<(and_flag_nocf (not GR32:$src), (add GR32:$src, -1)),
+            (TZMSK32rr GR32:$src)>;
+  def : Pat<(and_flag_nocf (not GR64:$src), (add GR64:$src, -1)),
+            (TZMSK64rr GR64:$src)>;
 } // HasTBM
 
 //===----------------------------------------------------------------------===//

@@ -182,7 +182,8 @@ public:
                              ISD::LoadExtType ExtType,
                              EVT ExtVT) const override;
 
-  bool isLoadBitCastBeneficial(EVT, EVT) const final;
+  bool isLoadBitCastBeneficial(EVT, EVT, const SelectionDAG &DAG,
+                               const MachineMemOperand &MMO) const final;
 
   bool storeOfVectorConstantIsCheap(EVT MemVT,
                                     unsigned NumElem,
@@ -234,7 +235,7 @@ public:
   // MergeConsecutiveStores() merges two stores; LegalizeStoreOps() un-merges;
   // MergeConsecutiveStores() re-merges, etc. ) to warrant turning it off for
   // now.
-  bool mergeStoresAfterLegalization() const override { return false; }
+  bool mergeStoresAfterLegalization(EVT) const override { return false; }
 
   bool isFsqrtCheap(SDValue Operand, SelectionDAG &DAG) const override {
     return true;
@@ -485,6 +486,7 @@ enum NodeType : unsigned {
   INTERP_P1LV_F16,
   INTERP_P2_F16,
   PC_ADD_REL_OFFSET,
+  LDS,
   KILL,
   DUMMY_CHAIN,
   FIRST_MEM_OPCODE_NUMBER = ISD::FIRST_TARGET_MEMORY_OPCODE,
@@ -531,6 +533,10 @@ enum NodeType : unsigned {
   BUFFER_ATOMIC_OR,
   BUFFER_ATOMIC_XOR,
   BUFFER_ATOMIC_CMPSWAP,
+  BUFFER_ATOMIC_FADD,
+  BUFFER_ATOMIC_PK_FADD,
+  ATOMIC_FADD,
+  ATOMIC_PK_FADD,
 
   LAST_AMDGPU_ISD_NUMBER
 };

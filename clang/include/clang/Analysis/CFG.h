@@ -494,33 +494,51 @@ private:
 
 /// Represents CFGBlock terminator statement.
 ///
-/// TemporaryDtorsBranch bit is set to true if the terminator marks a branch
-/// in control flow of destructors of temporaries. In this case terminator
-/// statement is the same statement that branches control flow in evaluation
-/// of matching full expression.
 class CFGTerminator {
-  llvm::PointerIntPair<Stmt *, 1> Data;
+public:
+  enum Kind {
+    /// A branch that corresponds to a statement in the code,
+    /// such as an if-statement.
+    StmtBranch,
+    /// A branch in control flow of destructors of temporaries. In this case
+    /// terminator statement is the same statement that branches control flow
+    /// in evaluation of matching full expression.
+    TemporaryDtorsBranch,
+    /// A shortcut around virtual base initializers. It gets taken when
+    /// virtual base classes have already been initialized by the constructor
+    /// of the most derived class while we're in the base class.
+    VirtualBaseBranch,
+
+    /// Number of different kinds, for sanity checks. We subtract 1 so that
+    /// to keep receiving compiler warnings when we don't cover all enum values
+    /// in a switch.
+    NumKindsMinusOne = VirtualBaseBranch
+  };
+
+private:
+  static constexpr int KindBits = 2;
+  static_assert((1 << KindBits) > NumKindsMinusOne,
+                "Not enough room for kind!");
+  llvm::PointerIntPair<Stmt *, KindBits> Data;
 
 public:
-  CFGTerminator() = default;
-  CFGTerminator(Stmt *S, bool TemporaryDtorsBranch = false)
-      : Data(S, TemporaryDtorsBranch) {}
+  CFGTerminator() { assert(!isValid()); }
+  CFGTerminator(Stmt *S, Kind K = StmtBranch) : Data(S, K) {}
 
+  bool isValid() const { return Data.getOpaqueValue() != nullptr; }
   Stmt *getStmt() { return Data.getPointer(); }
   const Stmt *getStmt() const { return Data.getPointer(); }
+  Kind getKind() const { return static_cast<Kind>(Data.getInt()); }
 
-  bool isTemporaryDtorsBranch() const { return Data.getInt(); }
-
-  operator Stmt *() { return getStmt(); }
-  operator const Stmt *() const { return getStmt(); }
-
-  Stmt *operator->() { return getStmt(); }
-  const Stmt *operator->() const { return getStmt(); }
-
-  Stmt &operator*() { return *getStmt(); }
-  const Stmt &operator*() const { return *getStmt(); }
-
-  explicit operator bool() const { return getStmt(); }
+  bool isStmtBranch() const {
+    return getKind() == StmtBranch;
+  }
+  bool isTemporaryDtorsBranch() const {
+    return getKind() == TemporaryDtorsBranch;
+  }
+  bool isVirtualBaseBranch() const {
+    return getKind() == VirtualBaseBranch;
+  }
 };
 
 /// Represents a single basic block in a source-level CFG.
@@ -541,11 +559,12 @@ public:
 /// Successors: the order in the set of successors is NOT arbitrary.  We
 ///  currently have the following orderings based on the terminator:
 ///
-///     Terminator       Successor Ordering
-///  -----------------------------------------------------
-///       if            Then Block;  Else Block
-///     ? operator      LHS expression;  RHS expression
-///     &&, ||          expression that uses result of && or ||, RHS
+///     Terminator     |   Successor Ordering
+///  ------------------|------------------------------------
+///       if           |  Then Block;  Else Block
+///     ? operator     |  LHS expression;  RHS expression
+///     logical and/or |  expression that consumes the op, RHS
+///     vbase inits    |  already handled by the most derived class; not yet
 ///
 /// But note that any of that may be NULL in case of optimized-out edges.
 class CFGBlock {
@@ -836,8 +855,18 @@ public:
   void setLoopTarget(const Stmt *loopTarget) { LoopTarget = loopTarget; }
   void setHasNoReturnElement() { HasNoReturnElement = true; }
 
-  CFGTerminator getTerminator() { return Terminator; }
-  const CFGTerminator getTerminator() const { return Terminator; }
+  CFGTerminator getTerminator() const { return Terminator; }
+
+  Stmt *getTerminatorStmt() { return Terminator.getStmt(); }
+  const Stmt *getTerminatorStmt() const { return Terminator.getStmt(); }
+
+  /// \returns the last (\c rbegin()) condition, e.g. observe the following code
+  /// snippet:
+  ///   if (A && B && C)
+  /// A block would be created for \c A, \c B, and \c C. For the latter,
+  /// \c getTerminatorStmt() would retrieve the entire condition, rather than
+  /// C itself, while this method would only return C.
+  const Expr *getLastCondition() const;
 
   Stmt *getTerminatorCondition(bool StripParens = true);
 
@@ -861,7 +890,11 @@ public:
   void dump(const CFG *cfg, const LangOptions &LO, bool ShowColors = false) const;
   void print(raw_ostream &OS, const CFG* cfg, const LangOptions &LO,
              bool ShowColors) const;
+
   void printTerminator(raw_ostream &OS, const LangOptions &LO) const;
+  void printTerminatorJson(raw_ostream &Out, const LangOptions &LO,
+                           bool AddQuotes) const;
+  
   void printAsOperand(raw_ostream &OS, bool /*PrintType*/) {
     OS << "BB#" << getBlockID();
   }
@@ -1026,6 +1059,7 @@ public:
     bool AddCXXDefaultInitExprInCtors = false;
     bool AddRichCXXConstructors = false;
     bool MarkElidedCXXConstructors = false;
+    bool AddVirtualBaseBranches = false;
 
     BuildOptions() = default;
 
@@ -1251,6 +1285,9 @@ template <> struct GraphTraits< ::clang::CFGBlock *> {
   static ChildIteratorType child_end(NodeRef N) { return N->succ_end(); }
 };
 
+template <> struct GraphTraits<clang::CFGBlock>
+    : GraphTraits<clang::CFGBlock *> {};
+
 template <> struct GraphTraits< const ::clang::CFGBlock *> {
   using NodeRef = const ::clang::CFGBlock *;
   using ChildIteratorType = ::clang::CFGBlock::const_succ_iterator;
@@ -1259,6 +1296,9 @@ template <> struct GraphTraits< const ::clang::CFGBlock *> {
   static ChildIteratorType child_begin(NodeRef N) { return N->succ_begin(); }
   static ChildIteratorType child_end(NodeRef N) { return N->succ_end(); }
 };
+
+template <> struct GraphTraits<const clang::CFGBlock>
+    : GraphTraits<clang::CFGBlock *> {};
 
 template <> struct GraphTraits<Inverse< ::clang::CFGBlock *>> {
   using NodeRef = ::clang::CFGBlock *;
@@ -1272,6 +1312,9 @@ template <> struct GraphTraits<Inverse< ::clang::CFGBlock *>> {
   static ChildIteratorType child_end(NodeRef N) { return N->pred_end(); }
 };
 
+template <> struct GraphTraits<Inverse<clang::CFGBlock>>
+    : GraphTraits<clang::CFGBlock *> {};
+
 template <> struct GraphTraits<Inverse<const ::clang::CFGBlock *>> {
   using NodeRef = const ::clang::CFGBlock *;
   using ChildIteratorType = ::clang::CFGBlock::const_pred_iterator;
@@ -1283,6 +1326,9 @@ template <> struct GraphTraits<Inverse<const ::clang::CFGBlock *>> {
   static ChildIteratorType child_begin(NodeRef N) { return N->pred_begin(); }
   static ChildIteratorType child_end(NodeRef N) { return N->pred_end(); }
 };
+
+template <> struct GraphTraits<const Inverse<clang::CFGBlock>>
+    : GraphTraits<clang::CFGBlock *> {};
 
 // Traits for: CFG
 
