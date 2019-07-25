@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 //==------- addrspace_exposure.cpp - SYCL accessor AS exposure test --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
