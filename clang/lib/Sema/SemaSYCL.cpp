@@ -281,7 +281,10 @@ public:
 
       if (auto *A = FD->getAttr<IntelReqdSubGroupSizeAttr>())
         Attrs.insert(A);
-      // TODO: reqd_work_group_size, vec_len_hint should be handled here
+      else if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
+        Attrs.insert(A);
+
+      // TODO: vec_len_hint should be handled here
 
       CallGraphNode *N = SYCLCG.getNode(FD);
       if (!N)
@@ -1002,7 +1005,24 @@ void Sema::MarkDevice(void) {
             }
             break;
           }
-          // TODO: reqd_work_group_size, vec_len_hint should be handled here
+          case attr::Kind::ReqdWorkGroupSize: {
+            auto *Attr = cast<ReqdWorkGroupSizeAttr>(A);
+            if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
+              if (Existing->getXDim() != Attr->getXDim() ||
+                  Existing->getYDim() != Attr->getYDim() ||
+                  Existing->getZDim() != Attr->getZDim()) {
+                Diag(SYCLKernel->getLocation(),
+                     diag::err_conflicting_sycl_kernel_attributes);
+                Diag(Existing->getLocation(), diag::note_conflicting_attribute);
+                Diag(Attr->getLocation(), diag::note_conflicting_attribute);
+                SYCLKernel->setInvalidDecl();
+              }
+            } else {
+              SYCLKernel->addAttr(A);
+            }
+            break;
+          }
+          // TODO: vec_len_hint should be handled here
           default:
             // Seeing this means that CollectPossibleKernelAttributes was
             // updated while this switch wasn't...or something went wrong
