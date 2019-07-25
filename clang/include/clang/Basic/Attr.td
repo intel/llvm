@@ -2163,8 +2163,8 @@ def NoDeref : TypeAttr {
 }
 
 def ReqdWorkGroupSize : InheritableAttr {
-  // Does not have a [[]] spelling because it is an OpenCL-related attribute.
-  let Spellings = [GNU<"reqd_work_group_size">];
+  let Spellings = [GNU<"reqd_work_group_size">,
+                   CXX11<"cl","reqd_work_group_size">];
   let Args = [UnsignedArgument<"XDim">, UnsignedArgument<"YDim">,
               UnsignedArgument<"ZDim">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
