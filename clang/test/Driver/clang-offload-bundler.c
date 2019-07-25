@@ -48,9 +48,6 @@
 // CK-HELP: {{.*}}o {{.*}}- object
 // CK-HELP: {{.*}}gch {{.*}}- precompiled-header
 // CK-HELP: {{.*}}ast {{.*}}- clang AST file
-// CK-HELP: {{.*}}aoco {{.*}}- unlinked Intel FPGA object file
-// CK-HELP: {{.*}}aocr {{.*}}- linked Intel FPGA early image
-// CK-HELP: {{.*}}aocx {{.*}}- linked Intel FPGA image
 // CK-HELP: {{.*}}-unbundle {{.*}}- Unbundle bundled file into several output files.
 
 //

@@ -78,10 +78,7 @@ static cl::opt<std::string> FilesType(
              "  o   - object\n"
              "  oo  - object; output file is a list of unbundled objects\n"
              "  gch - precompiled-header\n"
-             "  ast - clang AST file\n"
-             "  aoco - unlinked Intel FPGA object file\n"
-             "  aocr - linked Intel FPGA early image\n"
-             "  aocx - linked Intel FPGA image\n"),
+             "  ast - clang AST file\n"),
     cl::cat(ClangOffloadBundlerCategory));
 
 static cl::opt<bool>
@@ -955,13 +952,6 @@ static FileHandler *CreateFileHandler(MemoryBuffer &FirstInput) {
   if (FilesType == "gch")
     return new BinaryFileHandler();
   if (FilesType == "ast")
-    return new BinaryFileHandler();
-  // Intel FPGA image files
-  if (FilesType == "aoco")
-    return new BinaryFileHandler();
-  if (FilesType == "aocr")
-    return new BinaryFileHandler();
-  if (FilesType == "aocx")
     return new BinaryFileHandler();
   errs() << "error: invalid file type specified.\n";
   return nullptr;
