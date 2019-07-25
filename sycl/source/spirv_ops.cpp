@@ -20,8 +20,8 @@ void __spirv_GroupWaitEvents(__spv::Scope Execution, uint32_t NumEvents,
 
 void __spirv_ControlBarrier(__spv::Scope Execution, __spv::Scope Memory,
                       uint32_t Semantics) noexcept {
-  throw cl::sycl::runtime_error(
-      "Barrier is not supported on the host device yet.");
+  std::cerr << "Barrier is not supported on the host device yet.\n";
+  abort();
 }
 
 void __spirv_MemoryBarrier(__spv::Scope Memory, uint32_t Semantics) noexcept {
