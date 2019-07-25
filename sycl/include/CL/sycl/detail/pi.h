@@ -608,10 +608,10 @@ pi_result piEventRelease(pi_event event);
 //
 // Sampler
 //
-pi_sampler piSamplerCreate(
+pi_result piSamplerCreate(
   pi_context                     context,
   const cl_sampler_properties *  sampler_properties, // TODO: untie from OpenCL
-  pi_result *                    errcode_ret);
+  pi_sampler *                   result_sampler);
 
 pi_result piSamplerGetInfo(
   pi_sampler         sampler,

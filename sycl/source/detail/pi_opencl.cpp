@@ -159,6 +159,36 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
   return pi_cast<pi_program>(resProgram);
 }
 
+pi_result OCL(piSamplerCreate)(pi_context context,
+                               const cl_sampler_properties *sampler_properties,
+                               pi_sampler *result_sampler) {
+  // Initialize properties according to OpenCL 2.1 spec.
+  pi_result error_code;
+  cl_bool normalizedCoords = CL_TRUE;
+  cl_addressing_mode addressingMode = CL_ADDRESS_CLAMP;
+  cl_filter_mode filterMode = CL_FILTER_NEAREST;
+
+  // Unpack sampler properties
+  for (std::size_t i = 0; sampler_properties && sampler_properties[i] != 0;
+       ++i) {
+    if (sampler_properties[i] == CL_SAMPLER_NORMALIZED_COORDS) {
+      normalizedCoords = sampler_properties[++i];
+    } else if (sampler_properties[i] == CL_SAMPLER_ADDRESSING_MODE) {
+      addressingMode = sampler_properties[++i];
+    } else if (sampler_properties[i] == CL_SAMPLER_FILTER_MODE) {
+      filterMode = sampler_properties[++i];
+    } else {
+      PI_ASSERT(false, "Cannot recognize sampler property");
+    }
+  }
+
+  // Always call OpenCL 1.0 API
+  *result_sampler = pi_cast<pi_sampler>(clCreateSampler(pi_cast<cl_context>(context),
+                                  normalizedCoords, addressingMode, filterMode,
+                                  pi_cast<cl_int *>(&error_code)));
+  return error_code;
+}
+
 // Forward calls to OpenCL RT.
 #define _PI_CL(pi_api, ocl_api)                     \
 const decltype(::pi_api) * pi_api##OclPtr =         \
@@ -222,7 +252,7 @@ _PI_CL(piEventSetStatus,        clSetUserEventStatus)
 _PI_CL(piEventRetain,           clRetainEvent)
 _PI_CL(piEventRelease,          clReleaseEvent)
 // Sampler
-_PI_CL(piSamplerCreate,         clCreateSamplerWithProperties)
+_PI_CL(piSamplerCreate,         OCL(piSamplerCreate))
 _PI_CL(piSamplerGetInfo,        clGetSamplerInfo)
 _PI_CL(piSamplerRetain,         clRetainSampler)
 _PI_CL(piSamplerRelease,        clReleaseSampler)
