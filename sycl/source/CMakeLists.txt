@@ -24,6 +24,7 @@ add_library(sycl SHARED
   "detail/event_impl.cpp"
   "detail/force_device.cpp"
   "detail/helpers.cpp"
+  "detail/image_accessor_util.cpp"
   "detail/image_impl.cpp"
   "detail/kernel_impl.cpp"
   "detail/kernel_info.cpp"

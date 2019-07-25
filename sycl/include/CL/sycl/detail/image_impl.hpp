@@ -328,6 +328,14 @@ public:
   // This information is not accessible from the image using any public API.
   uint8_t getElementSize() const { return MElementSize; };
 
+  image_channel_order getChannelOrder() const { return MOrder; }
+
+  image_channel_type getChannelType() const { return MType; }
+
+  size_t getRowPitch() const { return MRowPitch; }
+
+  size_t getSlicePitch() const { return MSlicePitch; }
+
   ~image_impl() { BaseT::updateHostMemory(); }
 
 private:

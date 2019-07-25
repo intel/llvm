@@ -11,12 +11,13 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/buffer.hpp>
-#include <CL/sycl/exception.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
+#include <CL/sycl/detail/image_accessor_util.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
 #include <CL/sycl/detail/queue_impl.hpp>
+#include <CL/sycl/exception.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
@@ -271,15 +272,17 @@ class image_accessor
     : public detail::AccessorBaseHost {
   size_t MImageCount;
   size_t MImageSize;
+  image_channel_order MImgChannelOrder;
+  image_channel_type MImgChannelType;
 #else
 {
 
   using OCLImageTy = typename detail::opencl_image_type<Dimensions, AccessMode,
                                                         AccessTarget>::type;
   OCLImageTy MImageObj;
-  char MPadding[(sizeof(detail::AccessorBaseHost) +
-                 sizeof(size_t /*MImageSize*/) +
-                 sizeof(size_t /*MImageCount*/)) -
+  char MPadding[sizeof(detail::AccessorBaseHost) +
+                sizeof(size_t /*MImageSize*/) + sizeof(size_t /*MImageCount*/) +
+                sizeof(image_channel_order) + sizeof(image_channel_type) -
                 sizeof(OCLImageTy)];
 
 protected:
@@ -337,7 +340,8 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
 
   sycl::vec<int, Dimensions> getCountInternal() const {
-    return __invoke_ImageQuerySize<sycl::vec<int, Dimensions>, OCLImageTy>(MImageObj);
+    return __invoke_ImageQuerySize<sycl::vec<int, Dimensions>, OCLImageTy>(
+        MImageObj);
   }
 
   size_t getElementSize() const {
@@ -378,13 +382,16 @@ public:
     // host.
   }
 #else
-      : AccessorBaseHost(id<3>(0, 0, 0) /* Offset,*/,
+      : AccessorBaseHost({detail::getSyclObjImpl(ImageRef)->getRowPitch(),
+                          detail::getSyclObjImpl(ImageRef)->getSlicePitch(), 0},
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
         MImageCount(ImageRef.get_count()),
-        MImageSize(MImageCount * ImageElementSize) {
+        MImageSize(MImageCount * ImageElementSize),
+        MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
+        MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
     detail::EventImplPtr Event =
         detail::Scheduler::getInstance().addHostAccessor(
             AccessorBaseHost::impl.get());
@@ -407,13 +414,16 @@ public:
     // host.
   }
 #else
-      : AccessorBaseHost(id<3>(0, 0, 0) /* Offset,*/,
+      : AccessorBaseHost({detail::getSyclObjImpl(ImageRef)->getRowPitch(),
+                          detail::getSyclObjImpl(ImageRef)->getSlicePitch(), 0},
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
         MImageCount(ImageRef.get_count()),
-        MImageSize(MImageCount * ImageElementSize) {
+        MImageSize(MImageCount * ImageElementSize),
+        MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
+        MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
     checkDeviceFeatureSupported<info::device::image_support>(
         CommandGroupHandlerRef.MQueue->get_device());
   }
@@ -472,14 +482,16 @@ public:
   template <typename CoordT, int Dims = Dimensions,
             typename = detail::enable_if_t<
                 (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
+                (detail::is_genint<CoordT>::value) &&
                 ((IsImageAcc && IsImageAccessReadOnly) ||
                  (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __invoke__ImageRead<DataT, OCLImageTy, CoordT>(MImageObj, Coords);
 #else
-    throw cl::sycl::feature_not_supported(
-        "Read API is not implemented on host.");
+    sampler Smpl(coordinate_normalization_mode::unnormalized,
+                 addressing_mode::none, filtering_mode::nearest);
+    return read<CoordT, Dims>(Coords, Smpl);
 #endif
   }
 
@@ -497,8 +509,11 @@ public:
     return __invoke__ImageReadSampler<DataT, OCLImageTy, CoordT>(
         MImageObj, Coords, Smpl.impl.m_Sampler);
 #else
-    throw cl::sycl::feature_not_supported(
-        "Read API is not implemented on host.");
+    return imageReadSamplerHostImpl<CoordT, DataT>(
+        Coords, Smpl, getAccessRange() /*Image Range*/,
+        getOffset() /*Image Pitch*/, MImgChannelType, MImgChannelOrder,
+        AccessorBaseHost::getPtr() /*ptr to image*/,
+        AccessorBaseHost::getElemSize());
 #endif
   }
 
@@ -518,8 +533,10 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __invoke__ImageWrite<OCLImageTy, CoordT, DataT>(MImageObj, Coords, Color);
 #else
-    throw cl::sycl::feature_not_supported(
-        "Read API is not implemented on host.");
+    imageWriteHostImpl(Coords, Color, getOffset() /*ImagePitch*/,
+                       AccessorBaseHost::getElemSize(), MImgChannelType,
+                       MImgChannelOrder,
+                       AccessorBaseHost::getPtr() /*Ptr to Image*/);
 #endif
   }
 };
@@ -556,9 +573,9 @@ class __image_array_slice__ {
 
 public:
   __image_array_slice__(accessor<DataT, Dimensions, AccessMode,
-                           access::target::image_array, IsPlaceholder>
-                      BaseAcc,
-                  size_t Idx)
+                                 access::target::image_array, IsPlaceholder>
+                            BaseAcc,
+                        size_t Idx)
       : MBaseAcc(BaseAcc), MIdx(Idx) {}
 
   template <typename CoordT, int Dims = Dimensions,
@@ -581,7 +598,6 @@ public:
   void write(const CoordT &Coords, const DataT &Color) const {
     return MBaseAcc.write(getAdjustedCoords(Coords), Color);
   }
-
 
 #ifdef __SYCL_DEVICE_ONLY__
   size_t get_size() const { return MBaseAcc.getElementSize() * get_count(); }
@@ -1160,7 +1176,6 @@ public:
             Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
 };
 
-
 // Available only when: accessTarget == access::target::image_array &&
 // dimensions < 3
 // template <typename AllocatorT> accessor(image<dimensions + 1,
@@ -1170,8 +1185,7 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor<DataT, Dimensions, AccessMode, access::target::image_array,
                IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
-                                    access::target::image,
-                                    IsPlaceholder> {
+                                    access::target::image, IsPlaceholder> {
 #ifdef __SYCL_DEVICE_ONLY__
 private:
   using OCLImageTy =
@@ -1196,7 +1210,7 @@ public:
   detail::__image_array_slice__<DataT, Dimensions, AccessMode, IsPlaceholder>
   operator[](size_t Index) const {
     return detail::__image_array_slice__<DataT, Dimensions, AccessMode,
-                                   IsPlaceholder>(*this, Index);
+                                         IsPlaceholder>(*this, Index);
   }
 };
 
