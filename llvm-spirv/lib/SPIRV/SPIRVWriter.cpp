@@ -1840,6 +1840,22 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     auto BArgs = transValue(getArguments(CI), BB);
     return BM->addSelectInst(BArgs[0], BArgs[1], BArgs[2], BB);
   }
+  case OpSampledImage: {
+    // Clang can generate SPIRV-friendly call for OpSampledImage instruction,
+    // i.e. __spirv_SampledImage... But it can't generate correct return type
+    // for this call, because there is no support for type corresponding to
+    // OpTypeSampledImage. So, in this case, we create the required type here.
+    Value *Image = CI->getArgOperand(0);
+    Type *ImageTy = Image->getType();
+    if (isOCLImageType(ImageTy))
+      ImageTy = getSPIRVImageTypeFromOCL(M, ImageTy);
+    Type *SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
+        M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
+    Value *Sampler = CI->getArgOperand(1);
+    return BM->addSampledImageInst(transType(SampledImgTy),
+                                   transValue(Image, BB),
+                                   transValue(Sampler, BB), BB);
+  }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       return BM->addUnaryInst(OC, transType(CI->getType()),
