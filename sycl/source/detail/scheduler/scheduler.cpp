@@ -92,7 +92,7 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   return NewCmd->getEvent();
 }
 
-#ifdef __GCC__
+#ifdef __GNUC__
 // The init_priority here causes the constructor for scheduler to run relatively
 // early, and therefore the destructor to run relatively late (after anything
 // else that has no priority set, or has a priority higher than 2000).
