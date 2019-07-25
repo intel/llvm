@@ -113,6 +113,7 @@ add_custom_target( sycl-toolchain
           clang-offload-bundler
           llc
           llvm-as
+          llvm-ar
           llvm-dis
           llvm-no-spir-kernel
           llvm-spirv
