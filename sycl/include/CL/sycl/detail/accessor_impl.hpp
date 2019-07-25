@@ -111,6 +111,7 @@ protected:
   range<3> &getAccessRange() { return impl->MAccessRange; }
   range<3> &getMemoryRange() { return impl->MMemoryRange; }
   void *getPtr() { return impl->MData; }
+  unsigned int getElemSize() const { return impl->MElemSize; }
 
   const id<3> &getOffset() const { return impl->MOffset; }
   const range<3> &getAccessRange() const { return impl->MAccessRange; }
