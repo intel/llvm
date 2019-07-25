@@ -12,6 +12,8 @@
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
+#include <CL/sycl/exception.hpp>
+#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 
@@ -87,7 +89,7 @@ public:
     try {
       Event = submit_impl(cgf, self);
     } catch (...) {
-      m_Exceptions.push_back(std::current_exception());
+      m_Exceptions.PushBack(std::current_exception());
       Event = second_queue->submit(cgf, second_queue);
     }
     return Event;
@@ -98,7 +100,7 @@ public:
     try {
       Event = submit_impl(cgf, self);
     } catch (...) {
-      m_Exceptions.push_back(std::current_exception());
+      m_Exceptions.PushBack(std::current_exception());
     }
     return Event;
   }
@@ -121,7 +123,7 @@ public:
     if (m_AsyncHandler && m_Exceptions.size()) {
       m_AsyncHandler(m_Exceptions);
     }
-    m_Exceptions.clear();
+    m_Exceptions.Clear();
   }
 
   RT::PiQueue createQueue() {

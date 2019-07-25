@@ -46,35 +46,6 @@ protected:
         MContext(Context) {}
 };
 
-// Forward declaration
-namespace detail {
-class queue_impl;
-}
-
-class exception_list : private vector_class<exception_ptr_class> {
-  using list_t = vector_class<exception_ptr_class>;
-
-public:
-  using value_type = exception_ptr_class;
-  using reference = value_type &;
-  using const_reference = const value_type &;
-  using size_type = ::size_t;
-  using iterator = list_t::const_iterator;
-  using const_iterator = list_t::const_iterator;
-
-  using vector_class<exception_ptr_class>::size;
-
-  /** first asynchronous exception */
-  using vector_class<exception_ptr_class>::begin;
-
-  /** refer to past-the-end last asynchronous exception */
-  using vector_class<exception_ptr_class>::end;
-
-  friend class detail::queue_impl;
-};
-
-using async_handler = function_class<void(cl::sycl::exception_list)>;
-
 class runtime_error : public exception {
 public:
   runtime_error() = default;

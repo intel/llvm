@@ -50,6 +50,7 @@ add_library(sycl SHARED
   "device_selector.cpp"
   "event.cpp"
   "exception.cpp"
+  "exception_list.cpp"
   "half_type.cpp"
   "kernel.cpp"
   "platform.cpp"

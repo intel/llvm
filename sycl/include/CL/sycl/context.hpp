@@ -9,7 +9,7 @@
 #pragma once
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/context_impl.hpp>
-#include <CL/sycl/exception.hpp>
+#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 #include <memory>
