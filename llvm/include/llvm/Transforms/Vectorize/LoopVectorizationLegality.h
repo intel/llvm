@@ -205,12 +205,13 @@ class LoopVectorizationLegality {
 public:
   LoopVectorizationLegality(
       Loop *L, PredicatedScalarEvolution &PSE, DominatorTree *DT,
-      TargetLibraryInfo *TLI, AliasAnalysis *AA, Function *F,
-      std::function<const LoopAccessInfo &(Loop &)> *GetLAA, LoopInfo *LI,
-      OptimizationRemarkEmitter *ORE, LoopVectorizationRequirements *R,
-      LoopVectorizeHints *H, DemandedBits *DB, AssumptionCache *AC)
-      : TheLoop(L), LI(LI), PSE(PSE), TLI(TLI), DT(DT), GetLAA(GetLAA),
-        ORE(ORE), Requirements(R), Hints(H), DB(DB), AC(AC) {}
+      TargetTransformInfo *TTI, TargetLibraryInfo *TLI, AliasAnalysis *AA,
+      Function *F, std::function<const LoopAccessInfo &(Loop &)> *GetLAA,
+      LoopInfo *LI, OptimizationRemarkEmitter *ORE,
+      LoopVectorizationRequirements *R, LoopVectorizeHints *H, DemandedBits *DB,
+      AssumptionCache *AC)
+      : TheLoop(L), LI(LI), PSE(PSE), TTI(TTI), TLI(TLI), DT(DT),
+        GetLAA(GetLAA), ORE(ORE), Requirements(R), Hints(H), DB(DB), AC(AC) {}
 
   /// ReductionList contains the reduction descriptors for all
   /// of the reductions that were found in the loop.
@@ -371,18 +372,6 @@ private:
   void addInductionPhi(PHINode *Phi, const InductionDescriptor &ID,
                        SmallPtrSetImpl<Value *> &AllowedExit);
 
-  /// Create an analysis remark that explains why vectorization failed
-  ///
-  /// \p RemarkName is the identifier for the remark.  If \p I is passed it is
-  /// an instruction that prevents vectorization.  Otherwise the loop is used
-  /// for the location of the remark.  \return the remark object that can be
-  /// streamed to.
-  OptimizationRemarkAnalysis
-  createMissedAnalysis(StringRef RemarkName, Instruction *I = nullptr) const {
-    return createLVMissedAnalysis(Hints->vectorizeAnalysisPassName(),
-                                  RemarkName, TheLoop, I);
-  }
-
   /// If an access has a symbolic strides, this maps the pointer value to
   /// the stride symbol.
   const ValueToValueMap *getSymbolicStrides() {
@@ -392,6 +381,14 @@ private:
     // masked access.
     return LAI ? &LAI->getSymbolicStrides() : nullptr;
   }
+
+  /// Reports a vectorization illegality: print \p DebugMsg for debugging
+  /// purposes along with the corresponding optimization remark \p RemarkName.
+  /// If \p I is passed it is an instruction that prevents vectorization.
+  /// Otherwise the loop is used for the location of the remark.
+  void reportVectorizationFailure(const StringRef DebugMsg,
+      const StringRef OREMsg, const StringRef ORETag,
+      Instruction *I = nullptr) const;
 
   /// The loop that we evaluate.
   Loop *TheLoop;
@@ -405,6 +402,9 @@ private:
   /// of new predicates if this is required to enable vectorization and
   /// unrolling.
   PredicatedScalarEvolution &PSE;
+
+  /// Target Transform Info.
+  TargetTransformInfo *TTI;
 
   /// Target Library Info.
   TargetLibraryInfo *TLI;

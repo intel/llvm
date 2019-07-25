@@ -954,13 +954,33 @@ std::string TreePredicateFn::getPredCode() const {
   }
 
   if (isLoad() || isStore() || isAtomic()) {
-    StringRef SDNodeName =
-        isLoad() ? "LoadSDNode" : isStore() ? "StoreSDNode" : "AtomicSDNode";
+    if (ListInit *AddressSpaces = getAddressSpaces()) {
+      Code += "unsigned AddrSpace = cast<MemSDNode>(N)->getAddressSpace();\n"
+        " if (";
+
+      bool First = true;
+      for (Init *Val : AddressSpaces->getValues()) {
+        if (First)
+          First = false;
+        else
+          Code += " && ";
+
+        IntInit *IntVal = dyn_cast<IntInit>(Val);
+        if (!IntVal) {
+          PrintFatalError(getOrigPatFragRecord()->getRecord()->getLoc(),
+                          "AddressSpaces element must be integer");
+        }
+
+        Code += "AddrSpace != " + utostr(IntVal->getValue());
+      }
+
+      Code += ")\nreturn false;\n";
+    }
 
     Record *MemoryVT = getMemoryVT();
 
     if (MemoryVT)
-      Code += ("if (cast<" + SDNodeName + ">(N)->getMemoryVT() != MVT::" +
+      Code += ("if (cast<MemSDNode>(N)->getMemoryVT() != MVT::" +
                MemoryVT->getName() + ") return false;\n")
                   .str();
   }
@@ -1149,6 +1169,14 @@ Record *TreePredicateFn::getMemoryVT() const {
     return nullptr;
   return R->getValueAsDef("MemoryVT");
 }
+
+ListInit *TreePredicateFn::getAddressSpaces() const {
+  Record *R = getOrigPatFragRecord()->getRecord();
+  if (R->isValueUnset("AddressSpaces"))
+    return nullptr;
+  return R->getValueAsListInit("AddressSpaces");
+}
+
 Record *TreePredicateFn::getScalarMemoryVT() const {
   Record *R = getOrigPatFragRecord()->getRecord();
   if (R->isValueUnset("ScalarMemoryVT"))
@@ -2132,7 +2160,7 @@ static TypeSetByHwMode getImplicitType(Record *R, unsigned ResNo,
 
   if (R->getName() == "node" || R->getName() == "srcvalue" ||
       R->getName() == "zero_reg" || R->getName() == "immAllOnesV" ||
-      R->getName() == "immAllZerosV") {
+      R->getName() == "immAllZerosV" || R->getName() == "undef_tied_input") {
     // Placeholder.
     return TypeSetByHwMode(); // Unknown.
   }
@@ -2437,18 +2465,32 @@ bool TreePatternNode::ApplyTypeConstraints(TreePattern &TP, bool NotRegisters) {
       }
     }
 
+    // If one or more operands with a default value appear at the end of the
+    // formal operand list for an instruction, we allow them to be overridden
+    // by optional operands provided in the pattern.
+    //
+    // But if an operand B without a default appears at any point after an
+    // operand A with a default, then we don't allow A to be overridden,
+    // because there would be no way to specify whether the next operand in
+    // the pattern was intended to override A or skip it.
+    unsigned NonOverridableOperands = Inst.getNumOperands();
+    while (NonOverridableOperands > 0 &&
+           CDP.operandHasDefault(Inst.getOperand(NonOverridableOperands-1)))
+      --NonOverridableOperands;
+
     unsigned ChildNo = 0;
     for (unsigned i = 0, e = Inst.getNumOperands(); i != e; ++i) {
       Record *OperandNode = Inst.getOperand(i);
 
-      // If the instruction expects a predicate or optional def operand, we
-      // codegen this by setting the operand to it's default value if it has a
-      // non-empty DefaultOps field.
-      if (OperandNode->isSubClassOf("OperandWithDefaultOps") &&
-          !CDP.getDefaultOperand(OperandNode).DefaultOps.empty())
+      // If the operand has a default value, do we use it? We must use the
+      // default if we've run out of children of the pattern DAG to consume,
+      // or if the operand is followed by a non-defaulted one.
+      if (CDP.operandHasDefault(OperandNode) &&
+          (i < NonOverridableOperands || ChildNo >= getNumChildren()))
         continue;
 
-      // Verify that we didn't run out of provided operands.
+      // If we have run out of child nodes and there _isn't_ a default
+      // value we can use for the next operand, give an error.
       if (ChildNo >= getNumChildren()) {
         emitTooFewOperandsError(TP, getOperator()->getName(), getNumChildren());
         return false;
@@ -2765,7 +2807,7 @@ TreePatternNodePtr TreePattern::ParseTreePattern(Init *TheInit,
     // chain.
     if (Int.IS.RetVTs.empty())
       Operator = getDAGPatterns().get_intrinsic_void_sdnode();
-    else if (Int.ModRef != CodeGenIntrinsic::NoMem)
+    else if (Int.ModRef != CodeGenIntrinsic::NoMem || Int.hasSideEffects)
       // Has side-effects, requires chain.
       Operator = getDAGPatterns().get_intrinsic_w_chain_sdnode();
     else // Otherwise, no chain.

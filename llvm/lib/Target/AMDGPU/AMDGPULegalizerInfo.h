@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUMACHINELEGALIZER_H
 
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
+#include "AMDGPUArgumentUsageInfo.h"
 
 namespace llvm {
 
@@ -24,6 +25,8 @@ class GCNSubtarget;
 
 /// This class provides the information for the target register banks.
 class AMDGPULegalizerInfo : public LegalizerInfo {
+  const GCNSubtarget &ST;
+
 public:
   AMDGPULegalizerInfo(const GCNSubtarget &ST,
                       const GCNTargetMachine &TM);
@@ -32,7 +35,7 @@ public:
                       MachineIRBuilder &MIRBuilder,
                       GISelChangeObserver &Observer) const override;
 
-  unsigned getSegmentAperture(unsigned AddrSpace,
+  Register getSegmentAperture(unsigned AddrSpace,
                               MachineRegisterInfo &MRI,
                               MachineIRBuilder &MIRBuilder) const;
 
@@ -46,6 +49,27 @@ public:
                               MachineIRBuilder &MIRBuilder) const;
   bool legalizeITOFP(MachineInstr &MI, MachineRegisterInfo &MRI,
                      MachineIRBuilder &MIRBuilder, bool Signed) const;
+  bool legalizeMinNumMaxNum(MachineInstr &MI, MachineRegisterInfo &MRI,
+                            MachineIRBuilder &MIRBuilder) const;
+  bool legalizeExtractVectorElt(MachineInstr &MI, MachineRegisterInfo &MRI,
+                                MachineIRBuilder &MIRBuilder) const;
+  bool legalizeInsertVectorElt(MachineInstr &MI, MachineRegisterInfo &MRI,
+                               MachineIRBuilder &MIRBuilder) const;
+
+  Register getLiveInRegister(MachineRegisterInfo &MRI,
+                             Register Reg, LLT Ty) const;
+
+  bool loadInputValue(Register DstReg, MachineIRBuilder &B,
+                      const ArgDescriptor *Arg) const;
+  bool legalizePreloadedArgIntrin(
+    MachineInstr &MI, MachineRegisterInfo &MRI, MachineIRBuilder &B,
+    AMDGPUFunctionArgInfo::PreloadedValue ArgType) const;
+
+  bool legalizeImplicitArgPtr(MachineInstr &MI, MachineRegisterInfo &MRI,
+                              MachineIRBuilder &B) const;
+  bool legalizeIntrinsic(MachineInstr &MI, MachineRegisterInfo &MRI,
+                         MachineIRBuilder &MIRBuilder) const override;
+
 };
 } // End llvm namespace.
 #endif

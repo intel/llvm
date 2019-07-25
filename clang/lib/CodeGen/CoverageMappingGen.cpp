@@ -1281,7 +1281,7 @@ std::string getCoverageSection(const CodeGenModule &CGM) {
 std::string normalizeFilename(StringRef Filename) {
   llvm::SmallString<256> Path(Filename);
   llvm::sys::fs::make_absolute(Path);
-  llvm::sys::path::remove_dots(Path, /*remove_dot_dots=*/true);
+  llvm::sys::path::remove_dots(Path, /*remove_dot_dot=*/true);
   return Path.str().str();
 }
 
@@ -1388,10 +1388,19 @@ void CoverageMappingModuleGen::emit() {
   std::string FilenamesAndCoverageMappings;
   llvm::raw_string_ostream OS(FilenamesAndCoverageMappings);
   CoverageFilenamesSectionWriter(FilenameRefs).write(OS);
-  std::string RawCoverageMappings =
-      llvm::join(CoverageMappings.begin(), CoverageMappings.end(), "");
-  OS << RawCoverageMappings;
-  size_t CoverageMappingSize = RawCoverageMappings.size();
+
+  // Stream the content of CoverageMappings to OS while keeping
+  // memory consumption under control.
+  size_t CoverageMappingSize = 0;
+  for (auto &S : CoverageMappings) {
+    CoverageMappingSize += S.size();
+    OS << S;
+    S.clear();
+    S.shrink_to_fit();
+  }
+  CoverageMappings.clear();
+  CoverageMappings.shrink_to_fit();
+
   size_t FilenamesSize = OS.str().size() - CoverageMappingSize;
   // Append extra zeroes if necessary to ensure that the size of the filenames
   // and coverage mappings is a multiple of 8.

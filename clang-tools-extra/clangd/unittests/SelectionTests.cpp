@@ -37,7 +37,7 @@ SelectionTree makeSelectionTree(const StringRef MarkedCode, ParsedAST &AST) {
 Range nodeRange(const SelectionTree::Node *N, ParsedAST &AST) {
   if (!N)
     return Range{};
-  SourceManager &SM = AST.getASTContext().getSourceManager();
+  SourceManager &SM = AST.getSourceManager();
   StringRef Buffer = SM.getBufferData(SM.getMainFileID());
   SourceRange SR = N->ASTNode.getSourceRange();
   SR.setBegin(SM.getFileLoc(SR.getBegin()));
@@ -92,6 +92,13 @@ TEST(SelectionTest, CommonAncestor) {
   Case Cases[] = {
       {
           R"cpp(
+            template <typename T>
+            int x = [[T::^U::]]ccc();
+          )cpp",
+          "NestedNameSpecifierLoc",
+      },
+      {
+          R"cpp(
             struct AAA { struct BBB { static int ccc(); };};
             int x = AAA::[[B^B^B]]::ccc();
           )cpp",
@@ -137,9 +144,9 @@ TEST(SelectionTest, CommonAncestor) {
           R"cpp(
             void foo();
             #define CALL_FUNCTION(X) X()
-            void bar() { CALL_FUNC^TION([[fo^o]]); }
+            void bar() [[{ CALL_FUNC^TION(fo^o); }]]
           )cpp",
-          "DeclRefExpr",
+          "CompoundStmt",
       },
       {
           R"cpp(
@@ -157,6 +164,50 @@ TEST(SelectionTest, CommonAncestor) {
           )cpp",
           nullptr,
       },
+      {
+          R"cpp(
+            struct S { S(const char*); };
+            S [[s ^= "foo"]];
+          )cpp",
+          "CXXConstructExpr",
+      },
+      {
+          R"cpp(
+            struct S { S(const char*); };
+            [[S ^s = "foo"]];
+          )cpp",
+          "VarDecl",
+      },
+      {
+          R"cpp(
+            [[^void]] (*S)(int) = nullptr;
+          )cpp",
+          "TypeLoc",
+      },
+      {
+          R"cpp(
+            [[void (*S)^(int)]] = nullptr;
+          )cpp",
+          "TypeLoc",
+      },
+      {
+          R"cpp(
+            [[void (^*S)(int)]] = nullptr;
+          )cpp",
+          "TypeLoc",
+      },
+      {
+          R"cpp(
+            [[void (*^S)(int) = nullptr]];
+          )cpp",
+          "VarDecl",
+      },
+      {
+          R"cpp(
+            [[void ^(*S)(int)]] = nullptr;
+          )cpp",
+          "TypeLoc",
+      },
 
       // Point selections.
       {"void foo() { [[^foo]](); }", "DeclRefExpr"},
@@ -165,7 +216,20 @@ TEST(SelectionTest, CommonAncestor) {
       {"void foo() { [[foo^()]]; }", "CallExpr"},
       {"void foo() { [[foo^]] (); }", "DeclRefExpr"},
       {"int bar; void foo() [[{ foo (); }]]^", "CompoundStmt"},
+
+      // Tricky case: FunctionTypeLoc in FunctionDecl has a hole in it.
       {"[[^void]] foo();", "TypeLoc"},
+      {"[[void foo^()]];", "TypeLoc"},
+      {"[[^void foo^()]];", "FunctionDecl"},
+      {"[[void ^foo()]];", "FunctionDecl"},
+      // Tricky case: two VarDecls share a specifier.
+      {"[[int ^a]], b;", "VarDecl"},
+      {"[[int a, ^b]];", "VarDecl"},
+      // Tricky case: anonymous struct is a sibling of the VarDecl.
+      {"[[st^ruct {int x;}]] y;", "CXXRecordDecl"},
+      {"[[struct {int x;} ^y]];", "VarDecl"},
+      {"struct {[[int ^x]];} y;", "FieldDecl"},
+
       {"^", nullptr},
       {"void foo() { [[foo^^]] (); }", "DeclRefExpr"},
 
@@ -184,8 +248,7 @@ TEST(SelectionTest, CommonAncestor) {
             template <[[template<class> class /*cursor here*/^U]]>
              struct Foo<U<int>*> {};
           )cpp",
-          "TemplateTemplateParmDecl"
-      },
+          "TemplateTemplateParmDecl"},
   };
   for (const Case &C : Cases) {
     Annotations Test(C.Code);
@@ -214,6 +277,16 @@ TEST(SelectionTest, CommonAncestor) {
           << C.Code;
     }
   }
+}
+
+// Regression test: this used to match the injected X, not the outer X.
+TEST(SelectionTest, InjectedClassName) {
+  const char* Code = "struct ^X { int x; };";
+  auto AST = TestTU::withCode(Annotations(Code).code()).build();
+  auto T = makeSelectionTree(Code, AST);
+  ASSERT_EQ("CXXRecordDecl", nodeKind(T.commonAncestor())) << T;
+  auto *D = dyn_cast<CXXRecordDecl>(T.commonAncestor()->ASTNode.get<Decl>());
+  EXPECT_FALSE(D->isInjectedClassName());
 }
 
 TEST(SelectionTest, Selected) {

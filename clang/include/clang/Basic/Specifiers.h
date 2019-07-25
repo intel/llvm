@@ -28,6 +28,13 @@ namespace clang {
     Unresolved,
   };
 
+  /// Define the kind of constexpr specifier.
+  enum ConstexprSpecKind {
+    CSK_unspecified,
+    CSK_constexpr,
+    CSK_consteval
+  };
+
   /// Specifies the width of a type, e.g., short, long, or long long.
   enum TypeSpecifierWidth {
     TSW_unspecified,
@@ -146,6 +153,20 @@ namespace clang {
     /// object or writes at the subscripted array/dictionary element via
     /// Objective-C method calls.
     OK_ObjCSubscript
+  };
+
+  /// The reason why a DeclRefExpr does not constitute an odr-use.
+  enum NonOdrUseReason {
+    /// This is an odr-use.
+    NOUR_None = 0,
+    /// This name appears in an unevaluated operand.
+    NOUR_Unevaluated,
+    /// This name appears as a potential result of an lvalue-to-rvalue
+    /// conversion that is a constant expression.
+    NOUR_Constant,
+    /// This name appears as a potential result of a discarded value
+    /// expression.
+    NOUR_Discarded,
   };
 
   /// Describes the kind of template specialization that a

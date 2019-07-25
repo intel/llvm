@@ -31,15 +31,22 @@ ParsedAST TestTU::build() const {
   Files[FullHeaderName] = HeaderCode;
   Files[ImportThunk] = ThunkContents;
 
-  std::vector<const char *> Cmd = {"clang", FullFilename.c_str()};
+  std::vector<const char *> Cmd = {"clang"};
   // FIXME: this shouldn't need to be conditional, but it breaks a
   // GoToDefinition test for some reason (getMacroArgExpandedLocation fails).
   if (!HeaderCode.empty()) {
     Cmd.push_back("-include");
     Cmd.push_back(ImplicitHeaderGuard ? ImportThunk.c_str()
                                       : FullHeaderName.c_str());
+    // ms-compatibility changes the meaning of #import.
+    // The default is OS-dependent (on on windows), ensure it's off.
+    if (ImplicitHeaderGuard)
+      Cmd.push_back("-fno-ms-compatibility");
   }
   Cmd.insert(Cmd.end(), ExtraArgs.begin(), ExtraArgs.end());
+  // Put the file name at the end -- this allows the extra arg (-xc++) to
+  // override the language setting.
+  Cmd.push_back(FullFilename.c_str());
   ParseInputs Inputs;
   Inputs.CompileCommand.Filename = FullFilename;
   Inputs.CompileCommand.CommandLine = {Cmd.begin(), Cmd.end()};
@@ -59,8 +66,7 @@ ParsedAST TestTU::build() const {
                     /*OldPreamble=*/nullptr,
                     /*OldCompileCommand=*/Inputs.CompileCommand, Inputs,
                     /*StoreInMemory=*/true, /*PreambleCallback=*/nullptr);
-  auto AST = buildAST(FullFilename, createInvocationFromCommandLine(Cmd),
-                      Inputs, Preamble);
+  auto AST = buildAST(FullFilename, std::move(CI), Inputs, Preamble);
   if (!AST.hasValue()) {
     ADD_FAILURE() << "Failed to build code:\n" << Code;
     llvm_unreachable("Failed to build TestTU!");
@@ -70,8 +76,9 @@ ParsedAST TestTU::build() const {
 
 SymbolSlab TestTU::headerSymbols() const {
   auto AST = build();
-  return indexHeaderSymbols(AST.getASTContext(), AST.getPreprocessorPtr(),
-                            AST.getCanonicalIncludes());
+  return std::get<0>(indexHeaderSymbols(AST.getASTContext(),
+                                        AST.getPreprocessorPtr(),
+                                        AST.getCanonicalIncludes()));
 }
 
 std::unique_ptr<SymbolIndex> TestTU::index() const {

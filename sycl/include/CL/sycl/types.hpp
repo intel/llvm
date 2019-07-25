@@ -149,8 +149,8 @@ using rel_t = typename std::conditional<
 template <typename T> class GetOp {
 public:
   using DataT = T;
-  DataT getValue(size_t Index) const;
-  DataT operator()(DataT LHS, DataT Rhs);
+  DataT getValue(size_t Index) const { return 0; }
+  DataT operator()(DataT LHS, DataT Rhs) { return 0; }
 };
 
 // Special type for working SwizzleOp with scalars, stores a scalar and gives
@@ -357,7 +357,7 @@ public:
   using vector_t = DataType;
 #endif
 
-  vec() { m_Data = {0}; }
+  vec() = default;
 
   // TODO Remove this difference between host and device side after
   // when root cause of API incompatibility will be fixed
@@ -479,7 +479,7 @@ public:
 #endif
 
   // Constructor from values of base type or vec of base type. Checks that
-  // base types are match and that the NumElements == sum of lenghts of args.
+  // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
   vec(const argTN &... args) {
@@ -497,7 +497,6 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-
   template <typename vector_t_ = vector_t,
             typename = typename std::enable_if<
                 std::is_same<vector_t_, vector_t>::value &&
@@ -505,6 +504,7 @@ public:
   vec(vector_t openclVector) : m_Data(openclVector) {}
   operator vector_t() const { return m_Data; }
 #endif
+
   // Available only when: NumElements == 1
   template <int N = NumElements>
   operator typename std::enable_if<N == 1, DataT>::type() const {
@@ -529,11 +529,18 @@ public:
                               std::is_integral<DataT>::value,
                           vec<convertT, NumElements>>::type
   convert() const {
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec<convertT, NumElements>{
+        (typename vec<convertT, NumElements>::DataType)m_Data};
+#else
     vec<convertT, NumElements> Result;
     for (size_t I = 0; I < NumElements; ++I) {
       Result.setValue(I, static_cast<convertT>(getValue(I)));
     }
     return Result;
+#endif
   }
   // From FP to Integer
   template <typename convertT, rounding_mode roundingMode>
@@ -542,12 +549,20 @@ public:
                               std::is_floating_point<DataT>::value,
                           vec<convertT, NumElements>>::type
   convert() const {
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec<convertT, NumElements>{
+        detail::convertHelper<vec<convertT, NumElements>::DataType,
+                              roundingMode>(m_Data)};
+#else
     vec<convertT, NumElements> Result;
     for (size_t I = 0; I < NumElements; ++I) {
       Result.setValue(
           I, detail::convertHelper<convertT, roundingMode>(getValue(I)));
     }
     return Result;
+#endif
   }
 
   template <typename asT>
@@ -701,7 +716,7 @@ public:
   // Note: vec<>/SwizzleOp logical value is 0/-1 logic, as opposed to 0/1 logic.
   // As far as CTS validation is concerned, 0/-1 logic also applies when
   // NumElements is equal to one, which is somewhat inconsistent with being
-  // tranparent with scalar data.
+  // transparent with scalar data.
   //
   // TODO, at least for the device: Use direct comparison on aggregate data,
   // e.g., Ret.m_Data = m_Data RELLOGOP Rhs.m_Data, as opposed to looping
@@ -709,6 +724,22 @@ public:
 #ifdef __SYCL_RELLOGOP
 #error "Undefine __SYCL_RELLOGOP macro"
 #endif
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+#define __SYCL_RELLOGOP(RELLOGOP)                                              \
+  vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
+    return vec<rel_t, NumElements>{m_Data RELLOGOP vector_t(Rhs)};             \
+  }                                                                            \
+  template <typename T>                                                        \
+  typename std::enable_if<std::is_convertible<T, DataT>::value &&              \
+                              (std::is_fundamental<T>::value ||                \
+                               std::is_same<T, half>::value),                  \
+                          vec<rel_t, NumElements>>::type                       \
+  operator RELLOGOP(const T &Rhs) const {                                      \
+    return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
+  }
+#else
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
     vec<rel_t, NumElements> Ret;                                               \
@@ -718,14 +749,14 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename std::enable_if<                                                     \
-      std::is_convertible<T, DataT>::value &&                                  \
-          (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const<T>::type, half>::value),    \
-      vec<rel_t, NumElements>>::type                                           \
+  typename std::enable_if<std::is_convertible<T, DataT>::value &&              \
+                              (std::is_fundamental<T>::value ||                \
+                               std::is_same<T, half>::value),                  \
+                          vec<rel_t, NumElements>>::type                       \
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
+#endif
 
   __SYCL_RELLOGOP(==)
   __SYCL_RELLOGOP(!=)
@@ -756,22 +787,38 @@ public:
   __SYCL_UOP(--, -=)
 #undef __SYCL_UOP
 
+  // Available only when: dataT != cl_float && dataT != cl_double
+  // && dataT != cl_half
   template <typename T = DataT>
   typename std::enable_if<std::is_integral<T>::value, vec>::type
   operator~() const {
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec{
+      (typename vec::DataType)~m_Data};
+#else
     vec Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, ~getValue(I));
     }
     return Ret;
+#endif
   }
 
   vec<rel_t, NumElements> operator!() const {
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec<rel_t, NumElements>{
+      (typename vec<rel_t, NumElements>::DataType)!m_Data};
+#else
     vec<rel_t, NumElements> Ret;
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, !getValue(I));
     }
     return Ret;
+#endif
   }
 
   // OP is: &&, ||
@@ -872,19 +919,14 @@ private:
 
   // Special proxies as specialization is not allowed in class scope.
   void setValue(int Index, const DataT &Value) {
-    if (NumElements == 1) {
-      setValue(Index, Value, (int)0);
-    } else {
-      setValue(Index, Value, (float)0);
-    }
+    if (NumElements == 1)
+      setValue(Index, Value, 0);
+    else
+      setValue(Index, Value, 0.f);
   }
 
   DataT getValue(int Index) const {
-    if (NumElements == 1) {
-      return getValue(Index, (int)0);
-    } else {
-      return getValue(Index, (float)0);
-    }
+    return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
   }
 
   // Helpers for variadic template constructor of vec.
@@ -1400,7 +1442,7 @@ private:
   // thus does not let using them in template parameters inside swizzle.def.
   template <int Index>
   struct Indexer {
-    static constexpr int IDXs[] = {Indexes...};
+    static constexpr int IDXs[sizeof...(Indexes)] = {Indexes...};
     static constexpr int value = IDXs[Index >= getNumElements() ? 0 : Index];
   };
 
@@ -1742,11 +1784,24 @@ using cl_schar16 = cl_char16;
 #define GET_SCALAR_CL_TYPE(target) cl_##target
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
+// On the host side we cannot use OpenCL cl_half# types as an underlying type
+// for vec because they are actually defined as an integer type under the hood.
+// As a result half values will be converted to the integer and passed as a
+// kernel argument which is expected to be floating point number.
 #ifndef __SYCL_DEVICE_ONLY__
-#define GET_CL_HALF_TYPE(target, num) cl_##target##num
-#else
-#define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
+template <int NumElements, typename CLType> struct alignas(CLType) half_vec {
+  std::array<half, NumElements> s;
+};
+
+typedef half __half_t;
+typedef half_vec<2, cl_half2> __half2_vec_t;
+typedef half_vec<3, cl_half3> __half3_vec_t;
+typedef half_vec<4, cl_half4> __half4_vec_t;
+typedef half_vec<8, cl_half8> __half8_vec_t;
+typedef half_vec<16, cl_half16> __half16_vec_t;
 #endif
+
+#define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
 namespace cl {
 namespace sycl {

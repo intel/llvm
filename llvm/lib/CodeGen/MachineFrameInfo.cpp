@@ -92,7 +92,7 @@ int MachineFrameInfo::CreateFixedObject(uint64_t Size, int64_t SPOffset,
   Alignment = clampStackAlignment(!StackRealignable, Alignment, StackAlignment);
   Objects.insert(Objects.begin(),
                  StackObject(Size, Alignment, SPOffset, IsImmutable,
-                             /*isSpillSlot=*/false, /*Alloca=*/nullptr,
+                             /*IsSpillSlot=*/false, /*Alloca=*/nullptr,
                              IsAliased));
   return -++NumFixedObjects;
 }
@@ -143,14 +143,14 @@ unsigned MachineFrameInfo::estimateStackSize(const MachineFunction &MF) const {
 
   for (int i = getObjectIndexBegin(); i != 0; ++i) {
     // Only estimate stack size of default stack.
-    if (getStackID(i))
+    if (getStackID(i) != TargetStackID::Default)
       continue;
     int FixedOff = -getObjectOffset(i);
     if (FixedOff > Offset) Offset = FixedOff;
   }
   for (unsigned i = 0, e = getObjectIndexEnd(); i != e; ++i) {
     // Only estimate stack size of live objects on default stack.
-    if (isDeadObjectIndex(i) || getStackID(i))
+    if (isDeadObjectIndex(i) || getStackID(i) != TargetStackID::Default)
       continue;
     Offset += getObjectSize(i);
     unsigned Align = getObjectAlignment(i);

@@ -69,6 +69,8 @@ matrix:
 
 script:
   - |
+    pyenv global 3.7
+  - |
     if [ $BUILD_EXTERNAL == "0" ]; then
       mkdir llvm-spirv
       mv * llvm-spirv

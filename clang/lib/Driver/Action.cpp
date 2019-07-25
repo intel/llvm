@@ -44,6 +44,8 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-wrapper";
   case SPIRVTranslatorJobClass:
     return "llvm-spirv";
+  case BackendCompileJobClass:
+    return "backend-compiler";
   }
 
   llvm_unreachable("invalid class");
@@ -423,3 +425,9 @@ void SPIRVTranslatorJobAction::anchor() {}
 SPIRVTranslatorJobAction::SPIRVTranslatorJobAction(Action *Input,
                                                    types::ID Type)
     : JobAction(SPIRVTranslatorJobClass, Input, Type) {}
+
+void BackendCompileJobAction::anchor() {}
+
+BackendCompileJobAction::BackendCompileJobAction(Action *Input,
+                                                 types::ID Type)
+    : JobAction(BackendCompileJobClass, Input, Type) {}

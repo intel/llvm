@@ -192,6 +192,12 @@ def : Pat<(PPCcall (i64 texternalsym:$dst)),
 def : Pat<(PPCcall_nop (i64 texternalsym:$dst)),
           (BL8_NOP texternalsym:$dst)>;
 
+// Calls for AIX
+def : Pat<(PPCcall (i64 mcsym:$dst)),
+          (BL8 mcsym:$dst)>;
+def : Pat<(PPCcall_nop (i64 mcsym:$dst)),
+          (BL8_NOP mcsym:$dst)>;
+
 // Atomic operations
 // FIXME: some of these might be used with constant operands. This will result
 // in constant materialization instructions that may be redundant. We currently
@@ -382,7 +388,7 @@ def MTCTR8 : XFXForm_7_ext<31, 467, 9, (outs), (ins g8rc:$rS),
              PPC970_DGroup_First, PPC970_Unit_FXU;
 }
 let hasSideEffects = 1, Defs = [CTR8] in {
-let Pattern = [(int_ppc_mtctr i64:$rS)] in
+let Pattern = [(int_set_loop_iterations i64:$rS)] in
 def MTCTR8loop : XFXForm_7_ext<31, 467, 9, (outs), (ins g8rc:$rS),
                                "mtctr $rS", IIC_SprMTSPR>,
                  PPC970_DGroup_First, PPC970_Unit_FXU;
@@ -719,10 +725,17 @@ defm SRADI  : XSForm_1rc<31, 413, (outs g8rc:$rA), (ins g8rc:$rS, u6imm:$SH),
                          "sradi", "$rA, $rS, $SH", IIC_IntRotateDI,
                          [(set i64:$rA, (sra i64:$rS, (i32 imm:$SH)))]>, isPPC64;
 
-defm EXTSWSLI : XSForm_1r<31, 445, (outs g8rc:$rA), (ins gprc:$rS, u6imm:$SH),
-                          "extswsli", "$rA, $rS, $SH", IIC_IntRotateDI,
-                          [(set i64:$rA, (PPCextswsli i32:$rS, (i32 imm:$SH)))]>,
-                          isPPC64, Requires<[IsISA3_0]>;
+let Interpretation64Bit = 1, isCodeGenOnly = 1 in
+defm EXTSWSLI_32_64 : XSForm_1r<31, 445, (outs g8rc:$rA),
+                                (ins gprc:$rS, u6imm:$SH),
+                                "extswsli", "$rA, $rS, $SH", IIC_IntRotateDI,
+                                [(set i64:$rA,
+                                      (PPCextswsli i32:$rS, (i32 imm:$SH)))]>,
+                                isPPC64, Requires<[IsISA3_0]>;
+
+defm EXTSWSLI : XSForm_1rc<31, 445, (outs g8rc:$rA), (ins g8rc:$rS, u6imm:$SH),
+                           "extswsli", "$rA, $rS, $SH", IIC_IntRotateDI,
+                           []>, isPPC64, Requires<[IsISA3_0]>;
 
 // For fast-isel:
 let isCodeGenOnly = 1, Defs = [CARRY] in

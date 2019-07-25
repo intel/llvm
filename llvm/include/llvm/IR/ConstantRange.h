@@ -365,6 +365,13 @@ public:
   ConstantRange udiv(const ConstantRange &Other) const;
 
   /// Return a new range representing the possible values resulting
+  /// from a signed division of a value in this range and a value in
+  /// \p Other. Division by zero and division of SignedMin by -1 are considered
+  /// undefined behavior, in line with IR, and do not contribute towards the
+  /// result.
+  ConstantRange sdiv(const ConstantRange &Other) const;
+
+  /// Return a new range representing the possible values resulting
   /// from an unsigned remainder operation of a value in this range and a
   /// value in \p Other.
   ConstantRange urem(const ConstantRange &Other) const;
@@ -416,7 +423,16 @@ public:
 
   /// Represents whether an operation on the given constant range is known to
   /// always or never overflow.
-  enum class OverflowResult { AlwaysOverflows, MayOverflow, NeverOverflows };
+  enum class OverflowResult {
+    /// Always overflows in the direction of signed/unsigned min value.
+    AlwaysOverflowsLow,
+    /// Always overflows in the direction of signed/unsigned max value.
+    AlwaysOverflowsHigh,
+    /// May or may not overflow.
+    MayOverflow,
+    /// Never overflows.
+    NeverOverflows,
+  };
 
   /// Return whether unsigned add of the two ranges always/never overflows.
   OverflowResult unsignedAddMayOverflow(const ConstantRange &Other) const;

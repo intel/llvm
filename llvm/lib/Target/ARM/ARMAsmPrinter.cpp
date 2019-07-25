@@ -657,7 +657,7 @@ void ARMAsmPrinter::emitAttributes() {
     ATS.emitAttribute(ARMBuildAttrs::ABI_FP_denormal,
                       ARMBuildAttrs::IEEEDenormals);
   else {
-    if (!STI.hasVFP2()) {
+    if (!STI.hasVFP2Base()) {
       // When the target doesn't have an FPU (by design or
       // intention), the assumptions made on the software support
       // mirror that of the equivalent hardware support *if it
@@ -667,7 +667,7 @@ void ARMAsmPrinter::emitAttributes() {
       if (STI.hasV7Ops())
         ATS.emitAttribute(ARMBuildAttrs::ABI_FP_denormal,
                           ARMBuildAttrs::PreserveFPSign);
-    } else if (STI.hasVFP3()) {
+    } else if (STI.hasVFP3Base()) {
       // In VFPv4, VFPv4U, VFPv3, or VFPv3U, it is preserved. That is,
       // the sign bit of the zero matches the sign bit of the input or
       // result that is being flushed to zero.
@@ -761,6 +761,14 @@ void ARMAsmPrinter::emitAttributes() {
 }
 
 //===----------------------------------------------------------------------===//
+
+static MCSymbol *getBFLabel(StringRef Prefix, unsigned FunctionNumber,
+                             unsigned LabelId, MCContext &Ctx) {
+
+  MCSymbol *Label = Ctx.getOrCreateSymbol(Twine(Prefix)
+                       + "BF" + Twine(FunctionNumber) + "_" + Twine(LabelId));
+  return Label;
+}
 
 static MCSymbol *getPICLabel(StringRef Prefix, unsigned FunctionNumber,
                              unsigned LabelId, MCContext &Ctx) {
@@ -1063,7 +1071,6 @@ void ARMAsmPrinter::EmitUnwindingInstruction(const MachineInstr *MI) {
   const TargetRegisterInfo *TargetRegInfo =
     MF.getSubtarget().getRegisterInfo();
   const MachineRegisterInfo &MachineRegInfo = MF.getRegInfo();
-  const ARMFunctionInfo &AFI = *MF.getInfo<ARMFunctionInfo>();
 
   unsigned FramePtr = TargetRegInfo->getFrameRegister(MF);
   unsigned Opc = MI->getOpcode();
@@ -1127,7 +1134,12 @@ void ARMAsmPrinter::EmitUnwindingInstruction(const MachineInstr *MI) {
           Pad += Width;
           continue;
         }
-        RegList.push_back(MO.getReg());
+        // Check for registers that are remapped (for a Thumb1 prologue that
+        // saves high registers).
+        unsigned Reg = MO.getReg();
+        if (unsigned RemappedReg = AFI->EHPrologueRemappedRegs.lookup(Reg))
+          Reg = RemappedReg;
+        RegList.push_back(Reg);
       }
       break;
     case ARM::STR_PRE_IMM:
@@ -1177,7 +1189,7 @@ void ARMAsmPrinter::EmitUnwindingInstruction(const MachineInstr *MI) {
         unsigned CPI = MI->getOperand(1).getIndex();
         const MachineConstantPool *MCP = MF.getConstantPool();
         if (CPI >= MCP->getConstants().size())
-          CPI = AFI.getOriginalCPIdx(CPI);
+          CPI = AFI->getOriginalCPIdx(CPI);
         assert(CPI != -1U && "Invalid constpool index");
 
         // Derive the actual offset.
@@ -1207,8 +1219,12 @@ void ARMAsmPrinter::EmitUnwindingInstruction(const MachineInstr *MI) {
     } else if (DstReg == ARM::SP) {
       MI->print(errs());
       llvm_unreachable("Unsupported opcode for unwinding information");
-    }
-    else {
+    } else if (Opc == ARM::tMOVr) {
+      // If a Thumb1 function spills r8-r11, we copy the values to low
+      // registers before pushing them. Record the copy so we can emit the
+      // correct ".save" later.
+      AFI->EHPrologueRemappedRegs[DstReg] = SrcReg;
+    } else {
       MI->print(errs());
       llvm_unreachable("Unsupported opcode for unwinding information");
     }
@@ -1434,6 +1450,66 @@ void ARMAsmPrinter::EmitInstruction(const MachineInstr *MI) {
     // Add 's' bit operand (always reg0 for this)
     TmpInst.addOperand(MCOperand::createReg(0));
     EmitToStreamer(*OutStreamer, TmpInst);
+    return;
+  }
+  case ARM::t2BFi:
+  case ARM::t2BFic:
+  case ARM::t2BFLi:
+  case ARM::t2BFr:
+  case ARM::t2BFLr: {
+    // This is a Branch Future instruction.
+
+    const MCExpr *BranchLabel = MCSymbolRefExpr::create(
+        getBFLabel(DL.getPrivateGlobalPrefix(), getFunctionNumber(),
+                   MI->getOperand(0).getIndex(), OutContext),
+        OutContext);
+
+    auto MCInst = MCInstBuilder(Opc).addExpr(BranchLabel);
+    if (MI->getOperand(1).isReg()) {
+      // For BFr/BFLr
+      MCInst.addReg(MI->getOperand(1).getReg());
+    } else {
+      // For BFi/BFLi/BFic
+      const MCExpr *BranchTarget;
+      if (MI->getOperand(1).isMBB())
+        BranchTarget = MCSymbolRefExpr::create(
+            MI->getOperand(1).getMBB()->getSymbol(), OutContext);
+      else if (MI->getOperand(1).isGlobal()) {
+        const GlobalValue *GV = MI->getOperand(1).getGlobal();
+        BranchTarget = MCSymbolRefExpr::create(
+            GetARMGVSymbol(GV, MI->getOperand(1).getTargetFlags()), OutContext);
+      } else if (MI->getOperand(1).isSymbol()) {
+        BranchTarget = MCSymbolRefExpr::create(
+            GetExternalSymbolSymbol(MI->getOperand(1).getSymbolName()),
+            OutContext);
+      } else
+        llvm_unreachable("Unhandled operand kind in Branch Future instruction");
+
+      MCInst.addExpr(BranchTarget);
+    }
+
+      if (Opc == ARM::t2BFic) {
+        const MCExpr *ElseLabel = MCSymbolRefExpr::create(
+            getBFLabel(DL.getPrivateGlobalPrefix(), getFunctionNumber(),
+                       MI->getOperand(2).getIndex(), OutContext),
+            OutContext);
+        MCInst.addExpr(ElseLabel);
+        MCInst.addImm(MI->getOperand(3).getImm());
+      } else {
+        MCInst.addImm(MI->getOperand(2).getImm())
+            .addReg(MI->getOperand(3).getReg());
+      }
+
+    EmitToStreamer(*OutStreamer, MCInst);
+    return;
+  }
+  case ARM::t2BF_LabelPseudo: {
+    // This is a pseudo op for a label used by a branch future instruction
+
+    // Emit the label.
+    OutStreamer->EmitLabel(getBFLabel(DL.getPrivateGlobalPrefix(),
+                                       getFunctionNumber(),
+                                       MI->getOperand(0).getIndex(), OutContext));
     return;
   }
   case ARM::tPICADD: {

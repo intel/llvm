@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -fsyntax-only
+// RUN: %clangxx -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -fsyntax-only
 //==--------------- range_error.cpp - SYCL range error test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

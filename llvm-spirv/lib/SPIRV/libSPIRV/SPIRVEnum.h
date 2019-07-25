@@ -114,16 +114,22 @@ typedef spv::Dim SPIRVImageDimKind;
 typedef std::vector<SPIRVCapabilityKind> SPIRVCapVec;
 
 enum SPIRVExtensionKind {
+  SPV_INTEL_blocking_pipes,
   SPV_INTEL_device_side_avc_motion_estimation,
-  SPV_KHR_no_integer_wrap_decoration
+  SPV_KHR_no_integer_wrap_decoration,
+  SPV_INTEL_fpga_memory_attributes,
+  SPV_INTEL_fpga_reg
 };
 
 typedef std::set<SPIRVExtensionKind> SPIRVExtSet;
 
 template <> inline void SPIRVMap<SPIRVExtensionKind, std::string>::init() {
+  add(SPV_INTEL_blocking_pipes, "SPV_INTEL_blocking_pipes");
   add(SPV_INTEL_device_side_avc_motion_estimation,
       "SPV_INTEL_device_side_avc_motion_estimation");
   add(SPV_KHR_no_integer_wrap_decoration, "SPV_KHR_no_integer_wrap_decoration");
+  add(SPV_INTEL_fpga_memory_attributes, "SPV_INTEL_fpga_memory_attributes");
+  add(SPV_INTEL_fpga_reg, "SPV_INTEL_fpga_reg");
 }
 
 template <> inline void SPIRVMap<SPIRVExtInstSetKind, std::string>::init() {
@@ -156,6 +162,7 @@ template <> inline void SPIRVMap<SPIRVCapabilityKind, SPIRVCapVec>::init() {
   ADD_VEC_INIT(CapabilityImageReadWrite, {CapabilityImageBasic});
   ADD_VEC_INIT(CapabilityImageMipmap, {CapabilityImageBasic});
   ADD_VEC_INIT(CapabilityPipes, {CapabilityKernel});
+  ADD_VEC_INIT(CapabilityBlockingPipesINTEL, {CapabilityKernel});
   ADD_VEC_INIT(CapabilityDeviceEnqueue, {CapabilityKernel});
   ADD_VEC_INIT(CapabilityLiteralSampler, {CapabilityKernel});
   ADD_VEC_INIT(CapabilityAtomicStorage, {CapabilityShader});
@@ -355,12 +362,17 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(DecorationMemoryINTEL, {CapabilityFPGAMemoryAttributesINTEL});
   ADD_VEC_INIT(DecorationNumbanksINTEL, {CapabilityFPGAMemoryAttributesINTEL});
   ADD_VEC_INIT(DecorationBankwidthINTEL, {CapabilityFPGAMemoryAttributesINTEL});
-  ADD_VEC_INIT(DecorationMaxconcurrencyINTEL,
+  ADD_VEC_INIT(DecorationMaxPrivateCopiesINTEL,
                {CapabilityFPGAMemoryAttributesINTEL});
   ADD_VEC_INIT(DecorationSinglepumpINTEL,
                {CapabilityFPGAMemoryAttributesINTEL});
   ADD_VEC_INIT(DecorationDoublepumpINTEL,
                {CapabilityFPGAMemoryAttributesINTEL});
+  ADD_VEC_INIT(DecorationMaxReplicatesINTEL,
+               {CapabilityFPGAMemoryAttributesINTEL});
+  ADD_VEC_INIT(DecorationSimpleDualPortINTEL,
+               {CapabilityFPGAMemoryAttributesINTEL});
+  ADD_VEC_INIT(DecorationMergeINTEL, {CapabilityFPGAMemoryAttributesINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {

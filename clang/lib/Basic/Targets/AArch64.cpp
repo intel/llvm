@@ -118,6 +118,28 @@ void AArch64TargetInfo::getTargetDefinesARMV82A(const LangOptions &Opts,
   getTargetDefinesARMV81A(Opts, Builder);
 }
 
+void AArch64TargetInfo::getTargetDefinesARMV83A(const LangOptions &Opts,
+                                                MacroBuilder &Builder) const {
+  Builder.defineMacro("__ARM_FEATURE_JCVT", "1");
+  // Also include the Armv8.2 defines
+  getTargetDefinesARMV82A(Opts, Builder);
+}
+
+void AArch64TargetInfo::getTargetDefinesARMV84A(const LangOptions &Opts,
+                                                MacroBuilder &Builder) const {
+  // Also include the Armv8.3 defines
+  // FIXME: Armv8.4 makes some extensions mandatory. Handle them here.
+  getTargetDefinesARMV83A(Opts, Builder);
+}
+
+void AArch64TargetInfo::getTargetDefinesARMV85A(const LangOptions &Opts,
+                                                MacroBuilder &Builder) const {
+  // Also include the Armv8.4 defines
+  // FIXME: Armv8.5 makes some extensions mandatory. Handle them here.
+  getTargetDefinesARMV84A(Opts, Builder);
+}
+
+
 void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
                                          MacroBuilder &Builder) const {
   // Target identification.
@@ -177,13 +199,13 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   if (FPU & SveMode)
     Builder.defineMacro("__ARM_FEATURE_SVE", "1");
 
-  if (CRC)
+  if (HasCRC)
     Builder.defineMacro("__ARM_FEATURE_CRC32", "1");
 
-  if (Crypto)
+  if (HasCrypto)
     Builder.defineMacro("__ARM_FEATURE_CRYPTO", "1");
 
-  if (Unaligned)
+  if (HasUnaligned)
     Builder.defineMacro("__ARM_FEATURE_UNALIGNED", "1");
 
   if ((FPU & NeonMode) && HasFullFP16)
@@ -209,6 +231,15 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   case llvm::AArch64::ArchKind::ARMV8_2A:
     getTargetDefinesARMV82A(Opts, Builder);
     break;
+  case llvm::AArch64::ArchKind::ARMV8_3A:
+    getTargetDefinesARMV83A(Opts, Builder);
+    break;
+  case llvm::AArch64::ArchKind::ARMV8_4A:
+    getTargetDefinesARMV84A(Opts, Builder);
+    break;
+  case llvm::AArch64::ArchKind::ARMV8_5A:
+    getTargetDefinesARMV85A(Opts, Builder);
+    break;
   }
 
   // All of the __sync_(bool|val)_compare_and_swap_(1|2|4|8) builtins work.
@@ -232,13 +263,13 @@ bool AArch64TargetInfo::hasFeature(StringRef Feature) const {
 bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
                                              DiagnosticsEngine &Diags) {
   FPU = FPUMode;
-  CRC = 0;
-  Crypto = 0;
-  Unaligned = 1;
-  HasFullFP16 = 0;
-  HasDotProd = 0;
-  HasFP16FML = 0;
-  HasMTE = 0;
+  HasCRC = false;
+  HasCrypto = false;
+  HasUnaligned = true;
+  HasFullFP16 = false;
+  HasDotProd = false;
+  HasFP16FML = false;
+  HasMTE = false;
   ArchKind = llvm::AArch64::ArchKind::ARMV8A;
 
   for (const auto &Feature : Features) {
@@ -247,23 +278,29 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     if (Feature == "+sve")
       FPU |= SveMode;
     if (Feature == "+crc")
-      CRC = 1;
+      HasCRC = true;
     if (Feature == "+crypto")
-      Crypto = 1;
+      HasCrypto = true;
     if (Feature == "+strict-align")
-      Unaligned = 0;
+      HasUnaligned = false;
     if (Feature == "+v8.1a")
       ArchKind = llvm::AArch64::ArchKind::ARMV8_1A;
     if (Feature == "+v8.2a")
       ArchKind = llvm::AArch64::ArchKind::ARMV8_2A;
+    if (Feature == "+v8.3a")
+      ArchKind = llvm::AArch64::ArchKind::ARMV8_3A;
+    if (Feature == "+v8.4a")
+      ArchKind = llvm::AArch64::ArchKind::ARMV8_4A;
+    if (Feature == "+v8.5a")
+      ArchKind = llvm::AArch64::ArchKind::ARMV8_5A;
     if (Feature == "+fullfp16")
-      HasFullFP16 = 1;
+      HasFullFP16 = true;
     if (Feature == "+dotprod")
-      HasDotProd = 1;
+      HasDotProd = true;
     if (Feature == "+fp16fml")
-      HasFP16FML = 1;
+      HasFP16FML = true;
     if (Feature == "+mte")
-      HasMTE = 1;
+      HasMTE = true;
   }
 
   setDataLayout();
@@ -534,16 +571,10 @@ MicrosoftARM64TargetInfo::MicrosoftARM64TargetInfo(const llvm::Triple &Triple,
   TheCXXABI.set(TargetCXXABI::Microsoft);
 }
 
-void MicrosoftARM64TargetInfo::getVisualStudioDefines(
-    const LangOptions &Opts, MacroBuilder &Builder) const {
-  WindowsTargetInfo<AArch64leTargetInfo>::getVisualStudioDefines(Opts, Builder);
-  Builder.defineMacro("_M_ARM64", "1");
-}
-
 void MicrosoftARM64TargetInfo::getTargetDefines(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
-  WindowsTargetInfo::getTargetDefines(Opts, Builder);
-  getVisualStudioDefines(Opts, Builder);
+  WindowsARM64TargetInfo::getTargetDefines(Opts, Builder);
+  Builder.defineMacro("_M_ARM64", "1");
 }
 
 TargetInfo::CallingConvKind

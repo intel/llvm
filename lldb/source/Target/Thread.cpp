@@ -22,7 +22,7 @@
 #include "lldb/Target/ABI.h"
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/ExecutionContext.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
+#include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StackFrameRecognizer.h"
@@ -853,7 +853,7 @@ bool Thread::ShouldStop(Event *event_ptr) {
       // Otherwise, don't let the base plan override what the other plans say
       // to do, since presumably if there were other plans they would know what
       // to do...
-      while (1) {
+      while (true) {
         if (PlanIsBasePlan(current_plan))
           break;
 
@@ -978,7 +978,7 @@ Vote Thread::ShouldReportStop(Event *event_ptr) {
   } else {
     Vote thread_vote = eVoteNoOpinion;
     ThreadPlan *plan_ptr = GetCurrentPlan();
-    while (1) {
+    while (true) {
       if (plan_ptr->PlanExplainsStop(event_ptr)) {
         thread_vote = plan_ptr->ShouldReportStop(event_ptr);
         break;
@@ -1298,7 +1298,7 @@ void Thread::DiscardThreadPlans(bool force) {
     return;
   }
 
-  while (1) {
+  while (true) {
     int master_plan_idx;
     bool discard = true;
 
@@ -1677,7 +1677,7 @@ Status Thread::ReturnFromFrame(lldb::StackFrameSP frame_sp,
     // FIXME: ValueObject::Cast doesn't currently work correctly, at least not
     // for scalars.
     // Turn that back on when that works.
-    if (/* DISABLES CODE */ (0) && sc.function != nullptr) {
+    if (/* DISABLES CODE */ (false) && sc.function != nullptr) {
       Type *function_type = sc.function->GetType();
       if (function_type) {
         CompilerType return_type =
@@ -2211,11 +2211,9 @@ ValueObjectSP Thread::GetCurrentException() {
 
   // NOTE: Even though this behavior is generalized, only ObjC is actually
   // supported at the moment.
-  for (unsigned lang = eLanguageTypeUnknown; lang < eNumLanguageTypes; lang++) {
-    if (auto runtime = GetProcess()->GetLanguageRuntime(
-            static_cast<lldb::LanguageType>(lang)))
-      if (auto e = runtime->GetExceptionObjectForThread(shared_from_this()))
-        return e;
+  for (LanguageRuntime *runtime : GetProcess()->GetLanguageRuntimes()) {
+    if (auto e = runtime->GetExceptionObjectForThread(shared_from_this()))
+      return e;
   }
 
   return ValueObjectSP();
@@ -2228,11 +2226,9 @@ ThreadSP Thread::GetCurrentExceptionBacktrace() {
 
   // NOTE: Even though this behavior is generalized, only ObjC is actually
   // supported at the moment.
-  for (unsigned lang = eLanguageTypeUnknown; lang < eNumLanguageTypes; lang++) {
-    if (auto runtime = GetProcess()->GetLanguageRuntime(
-            static_cast<lldb::LanguageType>(lang)))
-      if (auto bt = runtime->GetBacktraceThreadFromException(exception))
-        return bt;
+  for (LanguageRuntime *runtime : GetProcess()->GetLanguageRuntimes()) {
+    if (auto bt = runtime->GetBacktraceThreadFromException(exception))
+      return bt;
   }
 
   return ThreadSP();

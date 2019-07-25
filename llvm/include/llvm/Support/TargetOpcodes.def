@@ -316,6 +316,9 @@ HANDLE_TARGET_OPCODE(G_ATOMICRMW_MIN)
 HANDLE_TARGET_OPCODE(G_ATOMICRMW_UMAX)
 HANDLE_TARGET_OPCODE(G_ATOMICRMW_UMIN)
 
+// Generic atomic fence
+HANDLE_TARGET_OPCODE(G_FENCE)
+
 /// Generic conditional branch instruction.
 HANDLE_TARGET_OPCODE(G_BRCOND)
 
@@ -490,6 +493,18 @@ HANDLE_TARGET_OPCODE(G_FCOPYSIGN)
 /// Generic FP canonicalize value.
 HANDLE_TARGET_OPCODE(G_FCANONICALIZE)
 
+/// FP min/max matching libm's fmin/fmax
+HANDLE_TARGET_OPCODE(G_FMINNUM)
+HANDLE_TARGET_OPCODE(G_FMAXNUM)
+
+/// FP min/max matching IEEE-754 2008's minnum/maxnum semantics.
+HANDLE_TARGET_OPCODE(G_FMINNUM_IEEE)
+HANDLE_TARGET_OPCODE(G_FMAXNUM_IEEE)
+
+/// FP min/max matching IEEE-754 2018 draft semantics.
+HANDLE_TARGET_OPCODE(G_FMINIMUM)
+HANDLE_TARGET_OPCODE(G_FMAXIMUM)
+
 /// Generic pointer offset
 HANDLE_TARGET_OPCODE(G_GEP)
 
@@ -511,6 +526,9 @@ HANDLE_TARGET_OPCODE(G_UMAX)
 
 /// Generic BRANCH instruction. This is an unconditional branch.
 HANDLE_TARGET_OPCODE(G_BR)
+
+/// Generic branch to jump table entry.
+HANDLE_TARGET_OPCODE(G_BRJT)
 
 /// Generic insertelement.
 HANDLE_TARGET_OPCODE(G_INSERT_VECTOR_ELT)
@@ -566,12 +584,15 @@ HANDLE_TARGET_OPCODE(G_ADDRSPACE_CAST)
 /// Generic block address
 HANDLE_TARGET_OPCODE(G_BLOCK_ADDR)
 
+/// Generic jump table address
+HANDLE_TARGET_OPCODE(G_JUMP_TABLE)
+
 // TODO: Add more generic opcodes as we move along.
 
 /// Marker for the end of the generic opcode.
 /// This is used to check if an opcode is in the range of the
 /// generic opcodes.
-HANDLE_TARGET_OPCODE_MARKER(PRE_ISEL_GENERIC_OPCODE_END, G_BLOCK_ADDR)
+HANDLE_TARGET_OPCODE_MARKER(PRE_ISEL_GENERIC_OPCODE_END, G_JUMP_TABLE)
 
 /// BUILTIN_OP_END - This must be the last enum value in this list.
 /// The target-specific post-isel opcode values start here.

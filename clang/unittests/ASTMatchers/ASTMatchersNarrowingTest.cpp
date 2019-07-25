@@ -566,6 +566,74 @@ TEST(Matcher, BindMatchedNodes) {
                                        llvm::make_unique<VerifyIdIsBoundTo<CXXMemberCallExpr>>("x")));
 }
 
+TEST(Matcher, IgnoresElidableConstructors) {
+  EXPECT_TRUE(
+      matches("struct H {};"
+              "template<typename T> H B(T A);"
+              "void f() {"
+              "  H D1;"
+              "  D1 = B(B(1));"
+              "}",
+              cxxOperatorCallExpr(hasArgument(
+                  1, callExpr(hasArgument(
+                         0, ignoringElidableConstructorCall(callExpr()))))),
+              LanguageMode::Cxx11OrLater));
+  EXPECT_TRUE(
+      matches("struct H {};"
+              "template<typename T> H B(T A);"
+              "void f() {"
+              "  H D1;"
+              "  D1 = B(1);"
+              "}",
+              cxxOperatorCallExpr(hasArgument(
+                  1, callExpr(hasArgument(0, ignoringElidableConstructorCall(
+                                                 integerLiteral()))))),
+              LanguageMode::Cxx11OrLater));
+  EXPECT_TRUE(matches(
+      "struct H {};"
+      "H G();"
+      "void f() {"
+      "  H D = G();"
+      "}",
+      varDecl(hasInitializer(anyOf(
+          ignoringElidableConstructorCall(callExpr()),
+          exprWithCleanups(has(ignoringElidableConstructorCall(callExpr())))))),
+      LanguageMode::Cxx11OrLater));
+}
+
+TEST(Matcher, IgnoresElidableInReturn) {
+  auto matcher = expr(ignoringElidableConstructorCall(declRefExpr()));
+  EXPECT_TRUE(matches("struct H {};"
+                      "H f() {"
+                      "  H g;"
+                      "  return g;"
+                      "}",
+                      matcher, LanguageMode::Cxx11OrLater));
+  EXPECT_TRUE(notMatches("struct H {};"
+                         "H f() {"
+                         "  return H();"
+                         "}",
+                         matcher, LanguageMode::Cxx11OrLater));
+}
+
+TEST(Matcher, IgnoreElidableConstructorDoesNotMatchConstructors) {
+  EXPECT_TRUE(matches("struct H {};"
+                      "void f() {"
+                      "  H D;"
+                      "}",
+                      varDecl(hasInitializer(
+                          ignoringElidableConstructorCall(cxxConstructExpr()))),
+                      LanguageMode::Cxx11OrLater));
+}
+
+TEST(Matcher, IgnoresElidableDoesNotPreventMatches) {
+  EXPECT_TRUE(matches("void f() {"
+                      "  int D = 10;"
+                      "}",
+                      expr(ignoringElidableConstructorCall(integerLiteral())),
+                      LanguageMode::Cxx11OrLater));
+}
+
 TEST(Matcher, BindTheSameNameInAlternatives) {
   StatementMatcher matcher = anyOf(
     binaryOperator(hasOperatorName("+"),
@@ -810,6 +878,15 @@ TEST(ConversionDeclaration, IsExplicit) {
                       cxxConversionDecl(isExplicit())));
   EXPECT_TRUE(notMatches("struct S { operator int(); };",
                          cxxConversionDecl(isExplicit())));
+  EXPECT_TRUE(matchesConditionally(
+      "template<bool b> struct S { explicit(b) operator int(); };",
+      cxxConversionDecl(isExplicit()), false, "-std=c++2a"));
+  EXPECT_TRUE(matchesConditionally(
+      "struct S { explicit(true) operator int(); };",
+      cxxConversionDecl(isExplicit()), true, "-std=c++2a"));
+  EXPECT_TRUE(matchesConditionally(
+      "struct S { explicit(false) operator int(); };",
+      cxxConversionDecl(isExplicit()), false, "-std=c++2a"));
 }
 
 TEST(Matcher, ArgumentCount) {
@@ -914,10 +991,10 @@ TEST(isConstexpr, MatchesConstexprDeclarations) {
                       varDecl(hasName("foo"), isConstexpr())));
   EXPECT_TRUE(matches("constexpr int bar();",
                       functionDecl(hasName("bar"), isConstexpr())));
-  EXPECT_TRUE(matchesConditionally("void baz() { if constexpr(1 > 0) {} }",
-                                   ifStmt(isConstexpr()), true, "-std=c++17"));
-  EXPECT_TRUE(matchesConditionally("void baz() { if (1 > 0) {} }",
-                                   ifStmt(isConstexpr()), false, "-std=c++17"));
+  EXPECT_TRUE(matches("void baz() { if constexpr(1 > 0) {} }",
+                      ifStmt(isConstexpr()), LanguageMode::Cxx17OrLater));
+  EXPECT_TRUE(notMatches("void baz() { if (1 > 0) {} }", ifStmt(isConstexpr()),
+                         LanguageMode::Cxx17OrLater));
 }
 
 TEST(TemplateArgumentCountIs, Matches) {
@@ -1129,6 +1206,38 @@ TEST(ConstructorDeclaration, IsExplicit) {
                       cxxConstructorDecl(isExplicit())));
   EXPECT_TRUE(notMatches("struct S { S(int); };",
                          cxxConstructorDecl(isExplicit())));
+  EXPECT_TRUE(matchesConditionally(
+      "template<bool b> struct S { explicit(b) S(int);};",
+      cxxConstructorDecl(isExplicit()), false, "-std=c++2a"));
+  EXPECT_TRUE(matchesConditionally("struct S { explicit(true) S(int);};",
+                                   cxxConstructorDecl(isExplicit()), true,
+                                   "-std=c++2a"));
+  EXPECT_TRUE(matchesConditionally("struct S { explicit(false) S(int);};",
+                                   cxxConstructorDecl(isExplicit()), false,
+                                   "-std=c++2a"));
+}
+
+TEST(DeductionGuideDeclaration, IsExplicit) {
+  EXPECT_TRUE(matchesConditionally("template<typename T> struct S { S(int);};"
+                                   "S(int) -> S<int>;",
+                                   cxxDeductionGuideDecl(isExplicit()), false,
+                                   "-std=c++17"));
+  EXPECT_TRUE(matchesConditionally("template<typename T> struct S { S(int);};"
+                                   "explicit S(int) -> S<int>;",
+                                   cxxDeductionGuideDecl(isExplicit()), true,
+                                   "-std=c++17"));
+  EXPECT_TRUE(matchesConditionally("template<typename T> struct S { S(int);};"
+                                   "explicit(true) S(int) -> S<int>;",
+                                   cxxDeductionGuideDecl(isExplicit()), true,
+                                   "-std=c++2a"));
+  EXPECT_TRUE(matchesConditionally("template<typename T> struct S { S(int);};"
+                                   "explicit(false) S(int) -> S<int>;",
+                                   cxxDeductionGuideDecl(isExplicit()), false,
+                                   "-std=c++2a"));
+  EXPECT_TRUE(matchesConditionally(
+      "template<typename T> struct S { S(int);};"
+      "template<bool b = true> explicit(b) S(int) -> S<int>;",
+      cxxDeductionGuideDecl(isExplicit()), false, "-std=c++2a"));
 }
 
 TEST(ConstructorDeclaration, Kinds) {

@@ -111,18 +111,49 @@ protected:
 
   /// Current Fragment Offset in Bits.
   uint64_t OffsetInBits = 0;
-  unsigned DwarfVersion;
 
   /// Sometimes we need to add a DW_OP_bit_piece to describe a subregister.
-  unsigned SubRegisterSizeInBits = 0;
-  unsigned SubRegisterOffsetInBits = 0;
+  unsigned SubRegisterSizeInBits : 16;
+  unsigned SubRegisterOffsetInBits : 16;
 
   /// The kind of location description being produced.
-  enum { Unknown = 0, Register, Memory, Implicit } LocationKind = Unknown;
+  enum { Unknown = 0, Register, Memory, Implicit };
 
+  /// The flags of location description being produced.
+  enum { EntryValue = 1 };
+
+  unsigned LocationKind : 3;
+  unsigned LocationFlags : 2;
+  unsigned DwarfVersion : 4;
+
+public:
+  bool isUnknownLocation() const {
+    return LocationKind == Unknown;
+  }
+
+  bool isMemoryLocation() const {
+    return LocationKind == Memory;
+  }
+
+  bool isRegisterLocation() const {
+    return LocationKind == Register;
+  }
+
+  bool isImplicitLocation() const {
+    return LocationKind == Implicit;
+  }
+
+  bool isEntryValue() const {
+    return LocationFlags & EntryValue;
+  }
+
+  Optional<uint8_t> TagOffset;
+
+protected:
   /// Push a DW_OP_piece / DW_OP_bit_piece for emitting later, if one is needed
   /// to represent a subregister.
   void setSubRegisterPiece(unsigned SizeInBits, unsigned OffsetInBits) {
+    assert(SizeInBits < 65536 && OffsetInBits < 65536);
     SubRegisterSizeInBits = SizeInBits;
     SubRegisterOffsetInBits = OffsetInBits;
   }
@@ -206,7 +237,9 @@ protected:
 
 public:
   DwarfExpression(unsigned DwarfVersion, DwarfCompileUnit &CU)
-    : CU(CU), DwarfVersion(DwarfVersion) {}
+      : CU(CU), SubRegisterSizeInBits(0), SubRegisterOffsetInBits(0),
+        LocationKind(Unknown), LocationFlags(Unknown),
+        DwarfVersion(DwarfVersion) {}
 
   /// This needs to be called last to commit any pending changes.
   void finalize();
@@ -220,13 +253,15 @@ public:
   /// Emit an unsigned constant.
   void addUnsignedConstant(const APInt &Value);
 
-  bool isMemoryLocation() const { return LocationKind == Memory; }
-  bool isUnknownLocation() const { return LocationKind == Unknown; }
-
   /// Lock this down to become a memory location description.
   void setMemoryLocationKind() {
-    assert(LocationKind == Unknown);
+    assert(isUnknownLocation());
     LocationKind = Memory;
+  }
+
+  /// Lock this down to become an entry value location.
+  void setEntryValueFlag() {
+    LocationFlags |= EntryValue;
   }
 
   /// Emit a machine register location. As an optimization this may also consume
@@ -242,6 +277,9 @@ public:
   bool addMachineRegExpression(const TargetRegisterInfo &TRI,
                                DIExpressionCursor &Expr, unsigned MachineReg,
                                unsigned FragmentOffsetInBits = 0);
+
+  /// Emit entry value dwarf operation.
+  void addEntryValueExpression(DIExpressionCursor &ExprCursor);
 
   /// Emit all remaining operations in the DIExpressionCursor.
   ///

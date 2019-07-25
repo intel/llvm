@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as vscodelc from 'vscode-languageclient';
-import { realpathSync } from 'fs';
 
 /**
  * Method to get workspace configuration option
@@ -73,31 +72,21 @@ export function activate(context: vscode.ExtensionContext) {
     // having a corresponding 'onLanguage:...' activation event in package.json.
     // However, VSCode does not have CUDA as a supported language yet, so we
     // cannot add a corresponding activationEvent for CUDA files and clangd will
-    // *not* load itself automatically on '.cu' files. When any of the files
-    // with other extensions are open, clangd will load itself and will also
-    // work on '.cu' files.
-    const filePattern: string = '**/*.{' +
-        ['cpp', 'c', 'cc', 'cu', 'cxx', 'c++', 'm', 'mm',
-            'h', 'hh', 'hpp', 'hxx', 'inc'].join()
-        + '}';
+    // *not* load itself automatically on '.cu' files.
+    const cudaFilePattern: string = '**/*.{' +['cu'].join()+ '}';
     const clientOptions: vscodelc.LanguageClientOptions = {
-        // Register the server for C/C++ files
-        documentSelector: [{ scheme: 'file', pattern: filePattern }],
+        // Register the server for c-family and cuda files.
+        documentSelector: [
+            { scheme: 'file', language: 'c' },
+            { scheme: 'file', language: 'cpp' },
+            { scheme: 'file', language: 'objective-c'},
+            { scheme: 'file', language: 'objective-cpp'},
+            { scheme: 'file', pattern: cudaFilePattern },
+        ],
         synchronize: !syncFileEvents ? undefined : {
-            fileEvents: vscode.workspace.createFileSystemWatcher(filePattern)
+        // FIXME: send sync file events when clangd provides implemenatations.
         },
         initializationOptions: { clangdFileStatus: true },
-        // Resolve symlinks for all files provided by clangd.
-        // This is a workaround for a bazel + clangd issue - bazel produces a symlink tree to build in,
-        // and when navigating to the included file, clangd passes its path inside the symlink tree
-        // rather than its filesystem path.
-        // FIXME: remove this once clangd knows enough about bazel to resolve the
-        // symlinks where needed (or if this causes problems for other workflows).
-        uriConverters: {
-            code2Protocol: (value: vscode.Uri) => value.toString(),
-            protocol2Code: (value: string) =>
-                vscode.Uri.file(realpathSync(vscode.Uri.parse(value).fsPath))
-        },
         // Do not switch to output window when clangd returns output
         revealOutputChannelOn: vscodelc.RevealOutputChannelOn.Never
     };

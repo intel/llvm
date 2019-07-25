@@ -14,9 +14,10 @@ define void @test_alloca() sanitize_hwaddress {
 ; CHECK: %[[B:[^ ]*]] = lshr i64 %[[A]], 20
 ; CHECK: %[[BASE_TAG:[^ ]*]] = xor i64 %[[A]], %[[B]]
 
-; CHECK: %[[X:[^ ]*]] = alloca i32, align 16
+; CHECK: %[[X:[^ ]*]] = alloca { i32, [12 x i8] }, align 16
+; CHECK: %[[X_BC:[^ ]*]] = bitcast { i32, [12 x i8] }* %[[X]] to i32*
 ; CHECK: %[[X_TAG:[^ ]*]] = xor i64 %[[BASE_TAG]], 0
-; CHECK: %[[X1:[^ ]*]] = ptrtoint i32* %[[X]] to i64
+; CHECK: %[[X1:[^ ]*]] = ptrtoint i32* %[[X_BC]] to i64
 ; CHECK: %[[C:[^ ]*]] = shl i64 %[[X_TAG]], 56
 ; CHECK: %[[D:[^ ]*]] = or i64 %[[C]], 72057594037927935
 ; CHECK: %[[E:[^ ]*]] = and i64 %[[X1]], %[[D]]

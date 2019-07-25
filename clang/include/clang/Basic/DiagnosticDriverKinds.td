@@ -9,9 +9,11 @@
 let Component = "Driver" in {
 
 def err_drv_no_such_file : Error<"no such file or directory: '%0'">;
+def err_drv_no_such_file_with_suggestion : Error<
+  "no such file or directory: '%0'; did you mean '%1'?">;
 def err_drv_unsupported_opt : Error<"unsupported option '%0'">;
-def err_drv_unsupported_opt_with_suggestion
-  : Error<"unsupported option '%0', did you mean '%1'?">;
+def err_drv_unsupported_opt_with_suggestion : Error<
+  "unsupported option '%0'; did you mean '%1'?">;
 def err_drv_unsupported_opt_for_target : Error<
   "unsupported option '%0' for target '%1'">;
 def err_drv_unsupported_option_argument : Error<
@@ -89,6 +91,8 @@ def err_no_external_assembler : Error<
   "there is no external assembler that can be used on this platform">;
 def err_drv_unable_to_remove_file : Error<
   "unable to remove file: %0">;
+def err_drv_unable_to_set_working_directory : Error <
+  "unable to set working directory: %0">;
 def err_drv_command_failure : Error<
   "unable to execute command: %0">;
 def err_drv_invalid_darwin_version : Error<
@@ -104,9 +108,9 @@ def err_drv_Xopenmp_target_missing_triple : Error<
 def err_drv_invalid_Xopenmp_target_with_args : Error<
   "invalid -Xopenmp-target argument: '%0', options requiring arguments are unsupported">;
 def err_drv_Xsycl_target_missing_triple : Error<
-  "cannot deduce implicit triple value for -Xsycl-target, specify triple using -Xsycl-target=<triple>">;
-def err_drv_invalid_Xsycl_target_with_args : Error<
-  "invalid -Xsycl-target argument: '%0', options requiring arguments are unsupported">;
+  "cannot deduce implicit triple value for '%0', specify triple using '%0=<triple>'">;
+def err_drv_invalid_Xsycl_frontend_with_args : Error<
+  "invalid -Xsycl-target-frontend argument: '%0', options requiring arguments are unsupported">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
 def err_drv_argument_not_allowed_with : Error<
@@ -159,6 +163,8 @@ def err_drv_cannot_read_config_file : Error<
   "cannot read configuration file '%0'">;
 def err_drv_nested_config_file: Error<
   "option '--config' is not allowed inside configuration file">;
+def err_drv_arg_requires_bitcode_input: Error<
+  "option '%0' requires input to be LLVM bitcode">;
 
 def err_target_unsupported_arch
   : Error<"the target architecture '%0' is not supported by the target '%1'">;
@@ -170,13 +176,13 @@ def err_arch_unsupported_isa
 def err_drv_I_dash_not_supported : Error<
   "'%0' not supported, please use -iquote instead">;
 def err_drv_unknown_argument : Error<"unknown argument: '%0'">;
-def err_drv_unknown_argument_with_suggestion
-  : Error<"unknown argument '%0', did you mean '%1'?">;
+def err_drv_unknown_argument_with_suggestion : Error<
+  "unknown argument '%0'; did you mean '%1'?">;
 def warn_drv_unknown_argument_clang_cl : Warning<
   "unknown argument ignored in clang-cl: '%0'">,
   InGroup<UnknownArgument>;
 def warn_drv_unknown_argument_clang_cl_with_suggestion : Warning<
-  "unknown argument ignored in clang-cl '%0' (did you mean '%1'?)">,
+  "unknown argument ignored in clang-cl '%0'; did you mean '%1'?">,
   InGroup<UnknownArgument>;
 
 def warn_drv_ycyu_different_arg_clang_cl : Warning<
@@ -229,7 +235,9 @@ def err_drv_gnustep_objc_runtime_incompatible_binary : Error<
 def err_drv_emit_llvm_link : Error<
    "-emit-llvm cannot be used when linking">;
 def err_drv_optimization_remark_pattern : Error<
-  "%0 in '%1'">;
+  "in pattern '%1': %0">;
+def err_drv_optimization_remark_format : Error<
+  "unknown remark serializer format: '%0'">;
 def err_drv_no_neon_modifier : Error<"[no]neon is not accepted as modifier, please use [no]simd instead">;
 def err_drv_invalid_omp_target : Error<"OpenMP target is invalid: '%0'">;
 def err_drv_invalid_sycl_target : Error<"SYCL target is invalid: '%0'">;

@@ -2231,7 +2231,7 @@ SDValue NVPTXTargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
     LoadSDNode *Load = cast<LoadSDNode>(Op);
     EVT MemVT = Load->getMemoryVT();
     if (!allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), MemVT,
-                            Load->getAddressSpace(), Load->getAlignment())) {
+                            *Load->getMemOperand())) {
       SDValue Ops[2];
       std::tie(Ops[0], Ops[1]) = expandUnalignedLoad(Load, DAG);
       return DAG.getMergeValues(Ops, SDLoc(Op));
@@ -2274,7 +2274,7 @@ SDValue NVPTXTargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
   // stores and have to handle it here.
   if (VT == MVT::v2f16 &&
       !allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), VT,
-                          Store->getAddressSpace(), Store->getAlignment()))
+                          *Store->getMemOperand()))
     return expandUnalignedStore(Store, DAG);
 
   if (VT.isVector())
@@ -3749,8 +3749,6 @@ bool NVPTXTargetLowering::getTgtMemIntrinsic(
     return true;
   }
 
-  case Intrinsic::nvvm_atomic_load_add_f32:
-  case Intrinsic::nvvm_atomic_load_add_f64:
   case Intrinsic::nvvm_atomic_load_inc_32:
   case Intrinsic::nvvm_atomic_load_dec_32:
 

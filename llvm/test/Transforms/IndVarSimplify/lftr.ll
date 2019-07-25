@@ -167,7 +167,7 @@ define void @test_zext(i8* %a) #0 {
 ; CHECK-NEXT:    [[TMP2:%.*]] = load i8, i8* [[DOT0]], align 1
 ; CHECK-NEXT:    [[TMP3]] = getelementptr inbounds i8, i8* [[P_0]], i64 1
 ; CHECK-NEXT:    store i8 [[TMP2]], i8* [[P_0]], align 1
-; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp ne i8* [[TMP3]], getelementptr (i8, i8* getelementptr inbounds ([240 x i8], [240 x i8]* @data, i64 0, i64 0), i64 240)
+; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp ne i8* [[P_0]], getelementptr inbounds ([240 x i8], [240 x i8]* @data, i64 0, i64 239)
 ; CHECK-NEXT:    br i1 [[EXITCOND]], label [[LOOP]], label [[EXIT:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret void
@@ -202,7 +202,7 @@ define void @test_udiv_as_shift(i8* %a, i8 %n) nounwind uwtable ssp {
 ; CHECK:       loop.preheader:
 ; CHECK-NEXT:    [[TMP0:%.*]] = add i8 [[N]], 3
 ; CHECK-NEXT:    [[TMP1:%.*]] = lshr i8 [[TMP0]], 2
-; CHECK-NEXT:    [[TMP2:%.*]] = add i8 [[TMP1]], 1
+; CHECK-NEXT:    [[TMP2:%.*]] = add nuw nsw i8 [[TMP1]], 1
 ; CHECK-NEXT:    br label [[LOOP:%.*]]
 ; CHECK:       loop:
 ; CHECK-NEXT:    [[I1:%.*]] = phi i8 [ [[I1_INC:%.*]], [[LOOP]] ], [ 0, [[LOOP_PREHEADER]] ]
@@ -429,6 +429,7 @@ define float @wide_trip_count_test2(float* %a,
 ; CHECK-NEXT:    [[CMP5:%.*]] = icmp ugt i32 [[M:%.*]], 500
 ; CHECK-NEXT:    br i1 [[CMP5]], label [[FOR_BODY_PREHEADER:%.*]], label [[FOR_END:%.*]]
 ; CHECK:       for.body.preheader:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[M]] to i64
 ; CHECK-NEXT:    br label [[FOR_BODY:%.*]]
 ; CHECK:       for.body:
 ; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[INDVARS_IV_NEXT:%.*]], [[FOR_BODY]] ], [ 500, [[FOR_BODY_PREHEADER]] ]
@@ -440,7 +441,6 @@ define float @wide_trip_count_test2(float* %a,
 ; CHECK-NEXT:    [[MUL:%.*]] = fmul float [[TEMP]], [[TEMP1]]
 ; CHECK-NEXT:    [[ADD]] = fadd float [[SUM_07]], [[MUL]]
 ; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
-; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[M]] to i64
 ; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp ne i64 [[INDVARS_IV_NEXT]], [[WIDE_TRIP_COUNT]]
 ; CHECK-NEXT:    br i1 [[EXITCOND]], label [[FOR_BODY]], label [[FOR_END_LOOPEXIT:%.*]]
 ; CHECK:       for.end.loopexit:
@@ -488,6 +488,7 @@ define float @wide_trip_count_test3(float* %b,
 ; CHECK-NEXT:    [[CMP5:%.*]] = icmp sgt i32 [[M:%.*]], -10
 ; CHECK-NEXT:    br i1 [[CMP5]], label [[FOR_BODY_PREHEADER:%.*]], label [[FOR_END:%.*]]
 ; CHECK:       for.body.preheader:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = sext i32 [[M]] to i64
 ; CHECK-NEXT:    br label [[FOR_BODY:%.*]]
 ; CHECK:       for.body:
 ; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[INDVARS_IV_NEXT:%.*]], [[FOR_BODY]] ], [ -10, [[FOR_BODY_PREHEADER]] ]
@@ -500,7 +501,6 @@ define float @wide_trip_count_test3(float* %b,
 ; CHECK-NEXT:    [[MUL:%.*]] = fmul float [[CONV]], [[TEMP]]
 ; CHECK-NEXT:    [[ADD1]] = fadd float [[SUM_07]], [[MUL]]
 ; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nsw i64 [[INDVARS_IV]], 1
-; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = sext i32 [[M]] to i64
 ; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp ne i64 [[INDVARS_IV_NEXT]], [[WIDE_TRIP_COUNT]]
 ; CHECK-NEXT:    br i1 [[EXITCOND]], label [[FOR_BODY]], label [[FOR_END_LOOPEXIT:%.*]]
 ; CHECK:       for.end.loopexit:
@@ -547,6 +547,7 @@ define float @wide_trip_count_test4(float* %b,
 ; CHECK-NEXT:    [[CMP5:%.*]] = icmp sgt i32 [[M:%.*]], 10
 ; CHECK-NEXT:    br i1 [[CMP5]], label [[FOR_BODY_PREHEADER:%.*]], label [[FOR_END:%.*]]
 ; CHECK:       for.body.preheader:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[M]] to i64
 ; CHECK-NEXT:    br label [[FOR_BODY:%.*]]
 ; CHECK:       for.body:
 ; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[INDVARS_IV_NEXT:%.*]], [[FOR_BODY]] ], [ 10, [[FOR_BODY_PREHEADER]] ]
@@ -559,7 +560,6 @@ define float @wide_trip_count_test4(float* %b,
 ; CHECK-NEXT:    [[MUL:%.*]] = fmul float [[CONV]], [[TEMP]]
 ; CHECK-NEXT:    [[ADD1]] = fadd float [[SUM_07]], [[MUL]]
 ; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nuw nsw i64 [[INDVARS_IV]], 1
-; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[M]] to i64
 ; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp ne i64 [[INDVARS_IV_NEXT]], [[WIDE_TRIP_COUNT]]
 ; CHECK-NEXT:    br i1 [[EXITCOND]], label [[FOR_BODY]], label [[FOR_END_LOOPEXIT:%.*]]
 ; CHECK:       for.end.loopexit:
@@ -599,3 +599,34 @@ for.end:                                          ; preds = %for.end.loopexit, %
   %sum.0.lcssa = phi float [ 0.000000e+00, %entry ], [ %add1.lcssa, %for.end.loopexit ]
   ret float %sum.0.lcssa
 }
+
+define void @ptr_non_cmp_exit_test() {
+; CHECK-LABEL: @ptr_non_cmp_exit_test(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br label [[FOR_BODY29:%.*]]
+; CHECK:       for.body29:
+; CHECK-NEXT:    [[IV:%.*]] = phi i8* [ null, [[ENTRY:%.*]] ], [ [[IV_NEXT:%.*]], [[FOR_BODY29]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = load volatile i8, i8* [[IV]], align 1
+; CHECK-NEXT:    [[IV_NEXT]] = getelementptr inbounds i8, i8* [[IV]], i64 1
+; CHECK-NEXT:    [[EXITCOND:%.*]] = icmp ne i8* [[IV]], inttoptr (i64 10 to i8*)
+; CHECK-NEXT:    br i1 [[EXITCOND]], label [[FOR_BODY29]], label [[EXIT:%.*]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  br label %for.body29
+
+for.body29:
+  %iv = phi i8* [ null, %entry ], [ %iv.next, %for.body29 ]
+  load volatile i8, i8* %iv, align 1
+  %iv.next = getelementptr inbounds i8, i8* %iv, i64 1
+  %cmp = icmp ne i8* %iv.next, inttoptr (i64 11 to i8*)
+  %and = and i1 %cmp, %cmp
+  br i1 %and, label %for.body29, label %exit
+
+exit:
+  ret void
+}
+
+
+

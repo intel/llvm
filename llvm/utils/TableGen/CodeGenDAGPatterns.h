@@ -593,6 +593,8 @@ public:
   /// ValueType record for the memory VT.
   Record *getScalarMemoryVT() const;
 
+  ListInit *getAddressSpaces() const;
+
   // If true, indicates that GlobalISel-based C++ code was supplied.
   bool hasGISelPredicateCode() const;
   std::string getGISelPredicateCode() const;
@@ -1281,6 +1283,11 @@ public:
   bool hasTargetIntrinsics() { return !TgtIntrinsics.empty(); }
 
   unsigned allocateScope() { return ++NumScopes; }
+
+  bool operandHasDefault(Record *Op) const {
+    return Op->isSubClassOf("OperandWithDefaultOps") &&
+      !getDefaultOperand(Op).DefaultOps.empty();
+  }
 
 private:
   void ParseNodeInfo();

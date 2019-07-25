@@ -8,6 +8,7 @@
 
 #include "llvm/MC/MCExpr.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/MC/MCAsmBackend.h"
@@ -42,10 +43,15 @@ void MCExpr::print(raw_ostream &OS, const MCAsmInfo *MAI, bool InParens) const {
   switch (getKind()) {
   case MCExpr::Target:
     return cast<MCTargetExpr>(this)->printImpl(OS, MAI);
-  case MCExpr::Constant:
-    OS << cast<MCConstantExpr>(*this).getValue();
+  case MCExpr::Constant: {
+    auto Value = cast<MCConstantExpr>(*this).getValue();
+    auto PrintInHex = cast<MCConstantExpr>(*this).useHexFormat();
+    if (PrintInHex)
+      OS << "0x" << Twine::utohexstr(Value);
+    else
+      OS << Value;
     return;
-
+  }
   case MCExpr::SymbolRef: {
     const MCSymbolRefExpr &SRE = cast<MCSymbolRefExpr>(*this);
     const MCSymbol &Sym = SRE.getSymbol();
@@ -160,8 +166,9 @@ const MCUnaryExpr *MCUnaryExpr::create(Opcode Opc, const MCExpr *Expr,
   return new (Ctx) MCUnaryExpr(Opc, Expr, Loc);
 }
 
-const MCConstantExpr *MCConstantExpr::create(int64_t Value, MCContext &Ctx) {
-  return new (Ctx) MCConstantExpr(Value);
+const MCConstantExpr *MCConstantExpr::create(int64_t Value, MCContext &Ctx,
+                                             bool PrintInHex) {
+  return new (Ctx) MCConstantExpr(Value, PrintInHex);
 }
 
 /* *** */
@@ -310,6 +317,8 @@ StringRef MCSymbolRefExpr::getVariantKindName(VariantKind Kind) {
   case VK_AMDGPU_REL32_LO: return "rel32@lo";
   case VK_AMDGPU_REL32_HI: return "rel32@hi";
   case VK_AMDGPU_REL64: return "rel64";
+  case VK_AMDGPU_ABS32_LO: return "abs32@lo";
+  case VK_AMDGPU_ABS32_HI: return "abs32@hi";
   }
   llvm_unreachable("Invalid variant kind");
 }
@@ -425,6 +434,8 @@ MCSymbolRefExpr::getVariantKindForName(StringRef Name) {
     .Case("rel32@lo", VK_AMDGPU_REL32_LO)
     .Case("rel32@hi", VK_AMDGPU_REL32_HI)
     .Case("rel64", VK_AMDGPU_REL64)
+    .Case("abs32@lo", VK_AMDGPU_ABS32_LO)
+    .Case("abs32@hi", VK_AMDGPU_ABS32_HI)
     .Default(VK_Invalid);
 }
 

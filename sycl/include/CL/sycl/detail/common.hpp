@@ -17,27 +17,15 @@
 #include <string>
 #include <type_traits>
 
-// Select underlying runtime interface in compile-time (OpenCL or PI).
-// Comment the define of the FORCE_SYCL_BE_OPENCL below to switch to PI.
-// As such only one path (OpenCL today) is being regularily tested.
-//
-// TODO: we can just remove this when switch to PI completely.
-//
-#define FORCE_SYCL_BE_OPENCL
-
-#ifdef FORCE_SYCL_BE_OPENCL
-#include <CL/sycl/detail/pi_opencl.hpp>
-#else
-#include <CL/sycl/detail/pi.hpp>
-#endif
+#define STRINGIFY_LINE_HELP(s) #s
+#define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
 const char *stringifyErrorCode(cl_int error);
 
-#define OCL_CODE_TO_STR(code)                                                  \
-  std::string(std::to_string(code) + " (" + stringifyErrorCode(code) + ")")
-
-#define STRINGIFY_LINE_HELP(s) #s
-#define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
+static inline std::string codeToString(cl_int code){
+  return std::string(std::to_string(code) + " (" +
+         stringifyErrorCode(code) + ")");
+}
 
 #define OCL_ERROR_REPORT                                                       \
   "OpenCL API failed. " __FILE__                                               \
@@ -46,21 +34,27 @@ const char *stringifyErrorCode(cl_int error);
 
 #ifndef SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
-#define REPORT_OCL_ERR_TO_STREAM(code)                                         \
+#define REPORT_OCL_ERR_TO_STREAM(expr)                                         \
+{                                                                              \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::cerr << OCL_ERROR_REPORT << OCL_CODE_TO_STR(code) << std::endl;       \
-  }
+    std::cerr << OCL_ERROR_REPORT << codeToString(code) << std::endl;          \
+  }                                                                            \
+}
 #endif
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <CL/sycl/exception.hpp>
 
-#define REPORT_OCL_ERR_TO_EXC(code, exc)                                       \
+#define REPORT_OCL_ERR_TO_EXC(expr, exc)                                       \
+{                                                                              \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::string errorMessage(OCL_ERROR_REPORT + OCL_CODE_TO_STR(code));        \
+    std::string errorMessage(OCL_ERROR_REPORT + codeToString(code));           \
     std::cerr << errorMessage << std::endl;                                    \
     throw exc(errorMessage.c_str(), (code));                                   \
-  }
+  }                                                                            \
+}
 #define REPORT_OCL_ERR_TO_EXC_THROW(code, exc) REPORT_OCL_ERR_TO_EXC(code, exc)
 #define REPORT_OCL_ERR_TO_EXC_BASE(code)                                       \
   REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
@@ -92,19 +86,18 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-// Select underlying runtime interface (RT) in compile-time (OpenCL or PI).
-// As such only one path (OpenCL today) is being regularily tested.
-//
-#ifdef FORCE_SYCL_BE_OPENCL
-using RT = cl::sycl::detail::opencl;
-#else
-using RT = cl::sycl::detail::pi;
-#endif
-
 // Helper function for extracting implementation from SYCL's interface objects.
 // Note! This function relies on the fact that all SYCL interface classes
 // contain "impl" field that points to implementation object. "impl" field
 // should be accessible from this function.
+//
+// Note that due to a bug in MSVC compilers (including MSVC2019 v19.20), it
+// may not recognize the usage of this function in friend member declarations
+// if the template parameter name there is not equal to the name used here,
+// i.e. 'Obj'. For example, using 'Obj' here and 'T' in such declaration
+// would trigger that error in MSVC:
+//   template <class T>
+//   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
 template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
   return SyclObject.impl;
 }
@@ -129,27 +122,23 @@ template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
 // Produces N-dimensional object of type T whose all components are initialized
 // to given integer value.
 template <int N, template <int> class T> struct InitializedVal {
-  template <int Val> static T<N> &&get();
+  template <int Val> static T<N> get();
 };
 
 // Specialization for a one-dimensional type.
 template <template <int> class T> struct InitializedVal<1, T> {
-  template <int Val> static T<1> &&get() { return T<1>{Val}; }
+  template <int Val> static T<1> get() { return T<1>{Val}; }
 };
 
 // Specialization for a two-dimensional type.
 template <template <int> class T> struct InitializedVal<2, T> {
-  template <int Val> static T<2> &&get() { return T<2>{Val, Val}; }
+  template <int Val> static T<2> get() { return T<2>{Val, Val}; }
 };
 
 // Specialization for a three-dimensional type.
 template <template <int> class T> struct InitializedVal<3, T> {
-  template <int Val> static T<3> &&get() { return T<3>{Val, Val, Val}; }
+  template <int Val> static T<3> get() { return T<3>{Val, Val, Val}; }
 };
-
-// Fills the lack of enable_if_t in C++11.
-template <bool Cond, typename T = void>
-using enable_if_t = typename std::enable_if<Cond, T>::type;
 
 /// Helper class for the \c NDLoop.
 template <int NDIMS, int DIM, template <int> class LoopBoundTy, typename FuncTy,
@@ -223,6 +212,17 @@ template <int NDIMS> struct NDLoop {
         LowerBound, Stride, UpperBound, f, Index};
   }
 };
+
+constexpr size_t getNextPowerOfTwoHelper(size_t Var, size_t Offset) {
+  return Offset != 64
+             ? getNextPowerOfTwoHelper(Var | (Var >> Offset), Offset * 2)
+             : Var;
+}
+
+// Returns the smallest power of two not less than Var
+constexpr size_t getNextPowerOfTwo(size_t Var) {
+  return getNextPowerOfTwoHelper(Var - 1, 1) + 1;
+}
 
 } // namespace detail
 } // namespace sycl

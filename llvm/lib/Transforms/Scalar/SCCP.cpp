@@ -20,6 +20,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -209,11 +210,11 @@ class SCCPSolver : public InstVisitor<SCCPSolver> {
   /// TrackedRetVals - If we are tracking arguments into and the return
   /// value out of a function, it will have an entry in this map, indicating
   /// what the known return value for the function is.
-  DenseMap<Function *, LatticeVal> TrackedRetVals;
+  MapVector<Function *, LatticeVal> TrackedRetVals;
 
   /// TrackedMultipleRetVals - Same as TrackedRetVals, but used for functions
   /// that return multiple values.
-  DenseMap<std::pair<Function *, unsigned>, LatticeVal> TrackedMultipleRetVals;
+  MapVector<std::pair<Function *, unsigned>, LatticeVal> TrackedMultipleRetVals;
 
   /// MRVFunctionsTracked - Each function in TrackedMultipleRetVals is
   /// represented here for efficient lookup.
@@ -371,7 +372,7 @@ public:
   }
 
   /// getTrackedRetVals - Get the inferred return value map.
-  const DenseMap<Function*, LatticeVal> &getTrackedRetVals() {
+  const MapVector<Function*, LatticeVal> &getTrackedRetVals() {
     return TrackedRetVals;
   }
 
@@ -613,6 +614,7 @@ private:
 
   void visitCastInst(CastInst &I);
   void visitSelectInst(SelectInst &I);
+  void visitUnaryOperator(Instruction &I);
   void visitBinaryOperator(Instruction &I);
   void visitCmpInst(CmpInst &I);
   void visitExtractValueInst(ExtractValueInst &EVI);
@@ -836,7 +838,7 @@ void SCCPSolver::visitReturnInst(ReturnInst &I) {
 
   // If we are tracking the return value of this function, merge it in.
   if (!TrackedRetVals.empty() && !ResultOp->getType()->isStructTy()) {
-    DenseMap<Function*, LatticeVal>::iterator TFRVI =
+    MapVector<Function*, LatticeVal>::iterator TFRVI =
       TrackedRetVals.find(F);
     if (TFRVI != TrackedRetVals.end()) {
       mergeInValue(TFRVI->second, F, getValueState(ResultOp));
@@ -966,6 +968,29 @@ void SCCPSolver::visitSelectInst(SelectInst &I) {
     return (void)mergeInValue(&I, FVal);
   if (FVal.isUnknown())   // select ?, X, undef -> X.
     return (void)mergeInValue(&I, TVal);
+  markOverdefined(&I);
+}
+
+// Handle Unary Operators.
+void SCCPSolver::visitUnaryOperator(Instruction &I) {
+  LatticeVal V0State = getValueState(I.getOperand(0));
+
+  LatticeVal &IV = ValueState[&I];
+  if (IV.isOverdefined()) return;
+
+  if (V0State.isConstant()) {
+    Constant *C = ConstantExpr::get(I.getOpcode(), V0State.getConstant());
+
+    // op Y -> undef.
+    if (isa<UndefValue>(C))
+      return;
+    return (void)markConstant(IV, &I, C);
+  }
+
+  // If something is undef, wait for it to resolve.
+  if (!V0State.isOverdefined())
+    return;
+
   markOverdefined(&I);
 }
 
@@ -1327,7 +1352,7 @@ CallOverdefined:
       mergeInValue(getStructValueState(I, i), I,
                    TrackedMultipleRetVals[std::make_pair(F, i)]);
   } else {
-    DenseMap<Function*, LatticeVal>::iterator TFRVI = TrackedRetVals.find(F);
+    MapVector<Function*, LatticeVal>::iterator TFRVI = TrackedRetVals.find(F);
     if (TFRVI == TrackedRetVals.end())
       goto CallOverdefined;  // Not tracking this callee.
 
@@ -1484,6 +1509,8 @@ bool SCCPSolver::ResolvedUndefsIn(Function &F) {
         else
           markOverdefined(&I);
         return true;
+      case Instruction::FNeg:
+        break; // fneg undef -> undef
       case Instruction::ZExt:
       case Instruction::SExt:
       case Instruction::FPToUI:
@@ -2132,7 +2159,7 @@ bool llvm::runIPSCCP(
   // whether other functions are optimizable.
   SmallVector<ReturnInst*, 8> ReturnsToZap;
 
-  const DenseMap<Function*, LatticeVal> &RV = Solver.getTrackedRetVals();
+  const MapVector<Function*, LatticeVal> &RV = Solver.getTrackedRetVals();
   for (const auto &I : RV) {
     Function *F = I.first;
     if (I.second.isOverdefined() || F->getReturnType()->isVoidTy())

@@ -54,9 +54,11 @@ namespace llvm {
 class DominatorTree;
 class LoopInfo;
 class Loop;
+class InductionDescriptor;
 class MDNode;
 class MemorySSAUpdater;
 class PHINode;
+class ScalarEvolution;
 class raw_ostream;
 template <class N, bool IsPostDom> class DominatorTreeBase;
 template <class N, class M> class LoopInfoBase;
@@ -199,9 +201,10 @@ public:
   }
 
   /// True if terminator in the block can branch to another block that is
-  /// outside of the current loop.
+  /// outside of the current loop. \p BB must be inside the loop.
   bool isLoopExiting(const BlockT *BB) const {
     assert(!isInvalid() && "Loop not in a valid state!");
+    assert(contains(BB) && "Exiting block must be part of the loop");
     for (const auto &Succ : children<const BlockT *>(BB)) {
       if (!contains(Succ))
         return true;
@@ -267,16 +270,20 @@ public:
 
   /// Return all unique successor blocks of this loop.
   /// These are the blocks _outside of the current loop_ which are branched to.
-  /// This assumes that loop exits are in canonical form, i.e. all exits are
-  /// dedicated exits.
   void getUniqueExitBlocks(SmallVectorImpl<BlockT *> &ExitBlocks) const;
+
+  /// Return all unique successor blocks of this loop except successors from
+  /// Latch block are not considered. If the exit comes from Latch has also
+  /// non Latch predecessor in a loop it will be added to ExitBlocks.
+  /// These are the blocks _outside of the current loop_ which are branched to.
+  void getUniqueNonLatchExitBlocks(SmallVectorImpl<BlockT *> &ExitBlocks) const;
 
   /// If getUniqueExitBlocks would return exactly one block, return that block.
   /// Otherwise return null.
   BlockT *getUniqueExitBlock() const;
 
   /// Edge type.
-  typedef std::pair<const BlockT *, const BlockT *> Edge;
+  typedef std::pair<BlockT *, BlockT *> Edge;
 
   /// Return all pairs of (_inside_block_,_outside_block_).
   void getExitEdges(SmallVectorImpl<Edge> &ExitEdges) const;
@@ -307,6 +314,40 @@ public:
     for (const auto Pred : children<Inverse<BlockT *>>(H))
       if (contains(Pred))
         LoopLatches.push_back(Pred);
+  }
+
+  /// Return all inner loops in the loop nest rooted by the loop in preorder,
+  /// with siblings in forward program order.
+  template <class Type>
+  static void getInnerLoopsInPreorder(const LoopT &L,
+                                      SmallVectorImpl<Type> &PreOrderLoops) {
+    SmallVector<LoopT *, 4> PreOrderWorklist;
+    PreOrderWorklist.append(L.rbegin(), L.rend());
+
+    while (!PreOrderWorklist.empty()) {
+      LoopT *L = PreOrderWorklist.pop_back_val();
+      // Sub-loops are stored in forward program order, but will process the
+      // worklist backwards so append them in reverse order.
+      PreOrderWorklist.append(L->rbegin(), L->rend());
+      PreOrderLoops.push_back(L);
+    }
+  }
+
+  /// Return all loops in the loop nest rooted by the loop in preorder, with
+  /// siblings in forward program order.
+  SmallVector<const LoopT *, 4> getLoopsInPreorder() const {
+    SmallVector<const LoopT *, 4> PreOrderLoops;
+    const LoopT *CurLoop = static_cast<const LoopT *>(this);
+    PreOrderLoops.push_back(CurLoop);
+    getInnerLoopsInPreorder(*CurLoop, PreOrderLoops);
+    return PreOrderLoops;
+  }
+  SmallVector<LoopT *, 4> getLoopsInPreorder() {
+    SmallVector<LoopT *, 4> PreOrderLoops;
+    LoopT *CurLoop = static_cast<LoopT *>(this);
+    PreOrderLoops.push_back(CurLoop);
+    getInnerLoopsInPreorder(*CurLoop, PreOrderLoops);
+    return PreOrderLoops;
   }
 
   //===--------------------------------------------------------------------===//
@@ -528,6 +569,165 @@ public:
   /// non-unique or the loop is dead; otherwise, return true.
   bool getIncomingAndBackEdge(BasicBlock *&Incoming,
                               BasicBlock *&Backedge) const;
+
+  /// Below are some utilities to get loop bounds and induction variable, and
+  /// check if a given phinode is an auxiliary induction variable, as well as
+  /// checking if the loop is canonical.
+  ///
+  /// Here is an example:
+  /// \code
+  /// for (int i = lb; i < ub; i+=step)
+  ///   <loop body>
+  /// --- pseudo LLVMIR ---
+  /// beforeloop:
+  ///   guardcmp = (lb < ub)
+  ///   if (guardcmp) goto preheader; else goto afterloop
+  /// preheader:
+  /// loop:
+  ///   i_1 = phi[{lb, preheader}, {i_2, latch}]
+  ///   <loop body>
+  ///   i_2 = i_1 + step
+  /// latch:
+  ///   cmp = (i_2 < ub)
+  ///   if (cmp) goto loop
+  /// exit:
+  /// afterloop:
+  /// \endcode
+  ///
+  /// - getBounds
+  ///   - getInitialIVValue      --> lb
+  ///   - getStepInst            --> i_2 = i_1 + step
+  ///   - getStepValue           --> step
+  ///   - getFinalIVValue        --> ub
+  ///   - getCanonicalPredicate  --> '<'
+  ///   - getDirection           --> Increasing
+  ///
+  /// - getInductionVariable            --> i_1
+  /// - isAuxiliaryInductionVariable(x) --> true if x == i_1
+  /// - isCanonical                     --> false
+  struct LoopBounds {
+    /// Return the LoopBounds object if
+    /// - the given \p IndVar is an induction variable
+    /// - the initial value of the induction variable can be found
+    /// - the step instruction of the induction variable can be found
+    /// - the final value of the induction variable can be found
+    ///
+    /// Else None.
+    static Optional<Loop::LoopBounds> getBounds(const Loop &L, PHINode &IndVar,
+                                                ScalarEvolution &SE);
+
+    /// Get the initial value of the loop induction variable.
+    Value &getInitialIVValue() const { return InitialIVValue; }
+
+    /// Get the instruction that updates the loop induction variable.
+    Instruction &getStepInst() const { return StepInst; }
+
+    /// Get the step that the loop induction variable gets updated by in each
+    /// loop iteration. Return nullptr if not found.
+    Value *getStepValue() const { return StepValue; }
+
+    /// Get the final value of the loop induction variable.
+    Value &getFinalIVValue() const { return FinalIVValue; }
+
+    /// Return the canonical predicate for the latch compare instruction, if
+    /// able to be calcuated. Else BAD_ICMP_PREDICATE.
+    ///
+    /// A predicate is considered as canonical if requirements below are all
+    /// satisfied:
+    /// 1. The first successor of the latch branch is the loop header
+    ///    If not, inverse the predicate.
+    /// 2. One of the operands of the latch comparison is StepInst
+    ///    If not, and
+    ///    - if the current calcuated predicate is not ne or eq, flip the
+    ///      predicate.
+    ///    - else if the loop is increasing, return slt
+    ///      (notice that it is safe to change from ne or eq to sign compare)
+    ///    - else if the loop is decreasing, return sgt
+    ///      (notice that it is safe to change from ne or eq to sign compare)
+    ///
+    /// Here is an example when both (1) and (2) are not satisfied:
+    /// \code
+    /// loop.header:
+    ///  %iv = phi [%initialiv, %loop.preheader], [%inc, %loop.header]
+    ///  %inc = add %iv, %step
+    ///  %cmp = slt %iv, %finaliv
+    ///  br %cmp, %loop.exit, %loop.header
+    /// loop.exit:
+    /// \endcode
+    /// - The second successor of the latch branch is the loop header instead
+    ///   of the first successor (slt -> sge)
+    /// - The first operand of the latch comparison (%cmp) is the IndVar (%iv)
+    ///   instead of the StepInst (%inc) (sge -> sgt)
+    ///
+    /// The predicate would be sgt if both (1) and (2) are satisfied.
+    /// getCanonicalPredicate() returns sgt for this example.
+    /// Note: The IR is not changed.
+    ICmpInst::Predicate getCanonicalPredicate() const;
+
+    /// An enum for the direction of the loop
+    /// - for (int i = 0; i < ub; ++i)  --> Increasing
+    /// - for (int i = ub; i > 0; --i)  --> Descresing
+    /// - for (int i = x; i != y; i+=z) --> Unknown
+    enum class Direction { Increasing, Decreasing, Unknown };
+
+    /// Get the direction of the loop.
+    Direction getDirection() const;
+
+  private:
+    LoopBounds(const Loop &Loop, Value &I, Instruction &SI, Value *SV, Value &F,
+               ScalarEvolution &SE)
+        : L(Loop), InitialIVValue(I), StepInst(SI), StepValue(SV),
+          FinalIVValue(F), SE(SE) {}
+
+    const Loop &L;
+
+    // The initial value of the loop induction variable
+    Value &InitialIVValue;
+
+    // The instruction that updates the loop induction variable
+    Instruction &StepInst;
+
+    // The value that the loop induction variable gets updated by in each loop
+    // iteration
+    Value *StepValue;
+
+    // The final value of the loop induction variable
+    Value &FinalIVValue;
+
+    ScalarEvolution &SE;
+  };
+
+  /// Return the struct LoopBounds collected if all struct members are found,
+  /// else None.
+  Optional<LoopBounds> getBounds(ScalarEvolution &SE) const;
+
+  /// Return the loop induction variable if found, else return nullptr.
+  /// An instruction is considered as the loop induction variable if
+  /// - it is an induction variable of the loop; and
+  /// - it is used to determine the condition of the branch in the loop latch
+  ///
+  /// Note: the induction variable doesn't need to be canonical, i.e. starts at
+  /// zero and increments by one each time through the loop (but it can be).
+  PHINode *getInductionVariable(ScalarEvolution &SE) const;
+
+  /// Get the loop induction descriptor for the loop induction variable. Return
+  /// true if the loop induction variable is found.
+  bool getInductionDescriptor(ScalarEvolution &SE,
+                              InductionDescriptor &IndDesc) const;
+
+  /// Return true if the given PHINode \p AuxIndVar is
+  /// - in the loop header
+  /// - not used outside of the loop
+  /// - incremented by a loop invariant step for each loop iteration
+  /// - step instruction opcode should be add or sub
+  /// Note: auxiliary induction variable is not required to be used in the
+  ///       conditional branch in the loop latch. (but it can be)
+  bool isAuxiliaryInductionVariable(PHINode &AuxIndVar,
+                                    ScalarEvolution &SE) const;
+
+  /// Return true if the loop induction variable starts at zero and increments
+  /// by one each time through the loop.
+  bool isCanonical(ScalarEvolution &SE) const;
 
   /// Return true if the Loop is in LCSSA form.
   bool isLCSSAForm(DominatorTree &DT) const;

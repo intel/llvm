@@ -23,6 +23,13 @@ if( CMAKE_SYSTEM MATCHES "FreeBSD-9.2-RELEASE" AND
   list(APPEND CMAKE_REQUIRED_LIBRARIES "cxxrt")
 endif()
 
+# Do checks with _XOPEN_SOURCE and large-file API on AIX, because we will build
+# with those too.
+if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+          list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_XOPEN_SOURCE=700")
+          list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_LARGE_FILE_API")
+endif()
+
 # include checks
 check_include_file(dlfcn.h HAVE_DLFCN_H)
 check_include_file(errno.h HAVE_ERRNO_H)
@@ -555,14 +562,11 @@ set(LLVM_BINUTILS_INCDIR "" CACHE PATH
 	"PATH to binutils/include containing plugin-api.h for gold plugin.")
 
 if(CMAKE_GENERATOR STREQUAL "Ninja")
-  include(CMakeNinjaFindMake OPTIONAL)
-  if(CMAKE_MAKE_PROGRAM)
-    execute_process(COMMAND ${CMAKE_MAKE_PROGRAM} --version
-      OUTPUT_VARIABLE NINJA_VERSION
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-    set(NINJA_VERSION ${NINJA_VERSION} CACHE STRING "Ninja version number" FORCE)
-    message(STATUS "Ninja version: ${NINJA_VERSION}")
-  endif()
+  execute_process(COMMAND ${CMAKE_MAKE_PROGRAM} --version
+    OUTPUT_VARIABLE NINJA_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  set(NINJA_VERSION ${NINJA_VERSION} CACHE STRING "Ninja version number" FORCE)
+  message(STATUS "Ninja version: ${NINJA_VERSION}")
 endif()
 
 if(CMAKE_GENERATOR STREQUAL "Ninja" AND

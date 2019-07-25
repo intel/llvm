@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cassert>
+#include <cmath>
 
 namespace s = cl::sycl;
 
@@ -200,6 +201,42 @@ int main() {
     assert(r2 > 0.1024f && r2 < 0.1026f);   // ~0.102583
     assert(i1 == 1);                        // tgamma of 10 is ~362880.0
     assert(i2 == -1); // tgamma of -2.4 is ~-1.1080299470333461
+  }
+
+  // nan (ulong)
+  {
+    s::cl_double2 r{ 0 };
+    {
+      s::buffer<s::cl_double2, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        s::ulong2 in{1, 1};
+        cgh.single_task<class nanISUL2>([=]() { AccR[0] = s::nan(in); });
+      });
+    }
+    s::cl_double x = r.x();
+    s::cl_double y = r.y();
+    assert(std::isnan(x));
+    assert(std::isnan(y));
+  }
+
+  // nan (ulonglong)
+  {
+    s::cl_double2 r{ 0 };
+    {
+      s::buffer<s::cl_double2, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        s::ulonglong2 in{1ULL, 1ULL};
+        cgh.single_task<class nanISULL2>([=]() { AccR[0] = s::nan(in); });
+      });
+    }
+    s::cl_double x = r.x();
+    s::cl_double y = r.y();
+    assert(std::isnan(x));
+    assert(std::isnan(y));
   }
 
   return 0;

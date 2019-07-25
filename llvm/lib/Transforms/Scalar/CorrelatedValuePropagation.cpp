@@ -63,8 +63,10 @@ STATISTIC(NumUDivs,     "Number of udivs whose width was decreased");
 STATISTIC(NumAShrs,     "Number of ashr converted to lshr");
 STATISTIC(NumSRems,     "Number of srem converted to urem");
 STATISTIC(NumOverflows, "Number of overflow checks removed");
+STATISTIC(NumSaturating,
+    "Number of saturating arithmetics converted to normal arithmetics");
 
-static cl::opt<bool> DontAddNoWrapFlags("cvp-dont-add-nowrap-flags", cl::init(true));
+static cl::opt<bool> DontAddNoWrapFlags("cvp-dont-add-nowrap-flags", cl::init(false));
 
 namespace {
 
@@ -306,11 +308,11 @@ static bool processCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
 /// that cannot fire no matter what the incoming edge can safely be removed. If
 /// a case fires on every incoming edge then the entire switch can be removed
 /// and replaced with a branch to the case destination.
-static bool processSwitch(SwitchInst *SI, LazyValueInfo *LVI,
+static bool processSwitch(SwitchInst *I, LazyValueInfo *LVI,
                           DominatorTree *DT) {
   DomTreeUpdater DTU(*DT, DomTreeUpdater::UpdateStrategy::Lazy);
-  Value *Cond = SI->getCondition();
-  BasicBlock *BB = SI->getParent();
+  Value *Cond = I->getCondition();
+  BasicBlock *BB = I->getParent();
 
   // If the condition was defined in same block as the switch then LazyValueInfo
   // currently won't say anything useful about it, though in theory it could.
@@ -327,67 +329,72 @@ static bool processSwitch(SwitchInst *SI, LazyValueInfo *LVI,
   for (auto *Succ : successors(BB))
     SuccessorsCount[Succ]++;
 
-  for (auto CI = SI->case_begin(), CE = SI->case_end(); CI != CE;) {
-    ConstantInt *Case = CI->getCaseValue();
+  { // Scope for SwitchInstProfUpdateWrapper. It must not live during
+    // ConstantFoldTerminator() as the underlying SwitchInst can be changed.
+    SwitchInstProfUpdateWrapper SI(*I);
 
-    // Check to see if the switch condition is equal to/not equal to the case
-    // value on every incoming edge, equal/not equal being the same each time.
-    LazyValueInfo::Tristate State = LazyValueInfo::Unknown;
-    for (pred_iterator PI = PB; PI != PE; ++PI) {
-      // Is the switch condition equal to the case value?
-      LazyValueInfo::Tristate Value = LVI->getPredicateOnEdge(CmpInst::ICMP_EQ,
-                                                              Cond, Case, *PI,
-                                                              BB, SI);
-      // Give up on this case if nothing is known.
-      if (Value == LazyValueInfo::Unknown) {
-        State = LazyValueInfo::Unknown;
-        break;
+    for (auto CI = SI->case_begin(), CE = SI->case_end(); CI != CE;) {
+      ConstantInt *Case = CI->getCaseValue();
+
+      // Check to see if the switch condition is equal to/not equal to the case
+      // value on every incoming edge, equal/not equal being the same each time.
+      LazyValueInfo::Tristate State = LazyValueInfo::Unknown;
+      for (pred_iterator PI = PB; PI != PE; ++PI) {
+        // Is the switch condition equal to the case value?
+        LazyValueInfo::Tristate Value = LVI->getPredicateOnEdge(CmpInst::ICMP_EQ,
+                                                                Cond, Case, *PI,
+                                                                BB, SI);
+        // Give up on this case if nothing is known.
+        if (Value == LazyValueInfo::Unknown) {
+          State = LazyValueInfo::Unknown;
+          break;
+        }
+
+        // If this was the first edge to be visited, record that all other edges
+        // need to give the same result.
+        if (PI == PB) {
+          State = Value;
+          continue;
+        }
+
+        // If this case is known to fire for some edges and known not to fire for
+        // others then there is nothing we can do - give up.
+        if (Value != State) {
+          State = LazyValueInfo::Unknown;
+          break;
+        }
       }
 
-      // If this was the first edge to be visited, record that all other edges
-      // need to give the same result.
-      if (PI == PB) {
-        State = Value;
+      if (State == LazyValueInfo::False) {
+        // This case never fires - remove it.
+        BasicBlock *Succ = CI->getCaseSuccessor();
+        Succ->removePredecessor(BB);
+        CI = SI.removeCase(CI);
+        CE = SI->case_end();
+
+        // The condition can be modified by removePredecessor's PHI simplification
+        // logic.
+        Cond = SI->getCondition();
+
+        ++NumDeadCases;
+        Changed = true;
+        if (--SuccessorsCount[Succ] == 0)
+          DTU.applyUpdatesPermissive({{DominatorTree::Delete, BB, Succ}});
         continue;
       }
-
-      // If this case is known to fire for some edges and known not to fire for
-      // others then there is nothing we can do - give up.
-      if (Value != State) {
-        State = LazyValueInfo::Unknown;
+      if (State == LazyValueInfo::True) {
+        // This case always fires.  Arrange for the switch to be turned into an
+        // unconditional branch by replacing the switch condition with the case
+        // value.
+        SI->setCondition(Case);
+        NumDeadCases += SI->getNumCases();
+        Changed = true;
         break;
       }
+
+      // Increment the case iterator since we didn't delete it.
+      ++CI;
     }
-
-    if (State == LazyValueInfo::False) {
-      // This case never fires - remove it.
-      BasicBlock *Succ = CI->getCaseSuccessor();
-      Succ->removePredecessor(BB);
-      CI = SI->removeCase(CI);
-      CE = SI->case_end();
-
-      // The condition can be modified by removePredecessor's PHI simplification
-      // logic.
-      Cond = SI->getCondition();
-
-      ++NumDeadCases;
-      Changed = true;
-      if (--SuccessorsCount[Succ] == 0)
-        DTU.applyUpdatesPermissive({{DominatorTree::Delete, BB, Succ}});
-      continue;
-    }
-    if (State == LazyValueInfo::True) {
-      // This case always fires.  Arrange for the switch to be turned into an
-      // unconditional branch by replacing the switch condition with the case
-      // value.
-      SI->setCondition(Case);
-      NumDeadCases += SI->getNumCases();
-      Changed = true;
-      break;
-    }
-
-    // Increment the case iterator since we didn't delete it.
-    ++CI;
   }
 
   if (Changed)
@@ -398,17 +405,14 @@ static bool processSwitch(SwitchInst *SI, LazyValueInfo *LVI,
   return Changed;
 }
 
-// See if we can prove that the given overflow intrinsic will not overflow.
-static bool willNotOverflow(WithOverflowInst *WO, LazyValueInfo *LVI) {
-  Value *RHS = WO->getRHS();
-  ConstantRange RRange = LVI->getConstantRange(RHS, WO->getParent(), WO);
+// See if we can prove that the given binary op intrinsic will not overflow.
+static bool willNotOverflow(BinaryOpIntrinsic *BO, LazyValueInfo *LVI) {
+  ConstantRange LRange = LVI->getConstantRange(
+      BO->getLHS(), BO->getParent(), BO);
+  ConstantRange RRange = LVI->getConstantRange(
+      BO->getRHS(), BO->getParent(), BO);
   ConstantRange NWRegion = ConstantRange::makeGuaranteedNoWrapRegion(
-      WO->getBinaryOp(), RRange, WO->getNoWrapKind());
-  // As an optimization, do not compute LRange if we do not need it.
-  if (NWRegion.isEmptySet())
-    return false;
-  Value *LHS = WO->getLHS();
-  ConstantRange LRange = LVI->getConstantRange(LHS, WO->getParent(), WO);
+      BO->getBinaryOp(), RRange, BO->getNoWrapKind());
   return NWRegion.contains(LRange);
 }
 
@@ -416,7 +420,7 @@ static void processOverflowIntrinsic(WithOverflowInst *WO) {
   IRBuilder<> B(WO);
   Value *NewOp = B.CreateBinOp(
       WO->getBinaryOp(), WO->getLHS(), WO->getRHS(), WO->getName());
-  // Constant-holing could have happened.
+  // Constant-folding could have happened.
   if (auto *Inst = dyn_cast<Instruction>(NewOp)) {
     if (WO->isSigned())
       Inst->setHasNoSignedWrap();
@@ -431,14 +435,35 @@ static void processOverflowIntrinsic(WithOverflowInst *WO) {
   ++NumOverflows;
 }
 
+static void processSaturatingInst(SaturatingInst *SI) {
+  BinaryOperator *BinOp = BinaryOperator::Create(
+      SI->getBinaryOp(), SI->getLHS(), SI->getRHS(), SI->getName(), SI);
+  BinOp->setDebugLoc(SI->getDebugLoc());
+  if (SI->isSigned())
+    BinOp->setHasNoSignedWrap();
+  else
+    BinOp->setHasNoUnsignedWrap();
+
+  SI->replaceAllUsesWith(BinOp);
+  SI->eraseFromParent();
+  ++NumSaturating;
+}
+
 /// Infer nonnull attributes for the arguments at the specified callsite.
 static bool processCallSite(CallSite CS, LazyValueInfo *LVI) {
   SmallVector<unsigned, 4> ArgNos;
   unsigned ArgNo = 0;
 
   if (auto *WO = dyn_cast<WithOverflowInst>(CS.getInstruction())) {
-    if (willNotOverflow(WO, LVI)) {
+    if (WO->getLHS()->getType()->isIntegerTy() && willNotOverflow(WO, LVI)) {
       processOverflowIntrinsic(WO);
+      return true;
+    }
+  }
+
+  if (auto *SI = dyn_cast<SaturatingInst>(CS.getInstruction())) {
+    if (SI->getType()->isIntegerTy() && willNotOverflow(SI, LVI)) {
+      processSaturatingInst(SI);
       return true;
     }
   }
@@ -516,7 +541,7 @@ static bool processUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
   // Find the smallest power of two bitwidth that's sufficient to hold Instr's
   // operands.
   auto OrigWidth = Instr->getType()->getIntegerBitWidth();
-  ConstantRange OperandRange(OrigWidth, /*isFullset=*/false);
+  ConstantRange OperandRange(OrigWidth, /*isFullSet=*/false);
   for (Value *Operand : Instr->operands()) {
     OperandRange = OperandRange.unionWith(
         LVI->getConstantRange(Operand, Instr->getParent()));
@@ -626,36 +651,23 @@ static bool processBinOp(BinaryOperator *BinOp, LazyValueInfo *LVI) {
   Value *LHS = BinOp->getOperand(0);
   Value *RHS = BinOp->getOperand(1);
 
+  ConstantRange LRange = LVI->getConstantRange(LHS, BB, BinOp);
   ConstantRange RRange = LVI->getConstantRange(RHS, BB, BinOp);
-
-  // Initialize LRange only if we need it. If we know that guaranteed no wrap
-  // range for the given RHS range is empty don't spend time calculating the
-  // range for the LHS.
-  Optional<ConstantRange> LRange;
-  auto LazyLRange = [&] () {
-      if (!LRange)
-        LRange = LVI->getConstantRange(LHS, BB, BinOp);
-      return LRange.getValue();
-  };
 
   bool Changed = false;
   if (!NUW) {
     ConstantRange NUWRange = ConstantRange::makeGuaranteedNoWrapRegion(
         BinOp->getOpcode(), RRange, OBO::NoUnsignedWrap);
-    if (!NUWRange.isEmptySet()) {
-      bool NewNUW = NUWRange.contains(LazyLRange());
-      BinOp->setHasNoUnsignedWrap(NewNUW);
-      Changed |= NewNUW;
-    }
+    bool NewNUW = NUWRange.contains(LRange);
+    BinOp->setHasNoUnsignedWrap(NewNUW);
+    Changed |= NewNUW;
   }
   if (!NSW) {
     ConstantRange NSWRange = ConstantRange::makeGuaranteedNoWrapRegion(
         BinOp->getOpcode(), RRange, OBO::NoSignedWrap);
-    if (!NSWRange.isEmptySet()) {
-      bool NewNSW = NSWRange.contains(LazyLRange());
-      BinOp->setHasNoSignedWrap(NewNSW);
-      Changed |= NewNSW;
-    }
+    bool NewNSW = NSWRange.contains(LRange);
+    BinOp->setHasNoSignedWrap(NewNSW);
+    Changed |= NewNSW;
   }
 
   return Changed;

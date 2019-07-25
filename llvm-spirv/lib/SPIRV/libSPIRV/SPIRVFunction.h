@@ -173,7 +173,7 @@ private:
     for (size_t I = 0, E = getFunctionType()->getNumParameters(); I != E; ++I)
       addArgument(I, FirstArgId + I);
   }
-  void decodeBB(SPIRVDecoder &);
+  bool decodeBB(SPIRVDecoder &);
 
   SPIRVTypeFunction *FuncType; // Function type
   SPIRVWord FCtrlMask;         // Function control mask

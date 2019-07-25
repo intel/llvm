@@ -34,7 +34,7 @@ using ::testing::Field;
 using ::testing::IsEmpty;
 using ::testing::Matcher;
 using ::testing::Pointee;
-using ::testing::UnorderedElementsAreArray;
+using ::testing::UnorderedElementsAre;
 
 // GMock helpers for matching TypeHierarchyItem.
 MATCHER_P(WithName, N, "") { return arg.name == N; }
@@ -42,8 +42,17 @@ MATCHER_P(WithKind, Kind, "") { return arg.kind == Kind; }
 MATCHER_P(SelectionRangeIs, R, "") { return arg.selectionRange == R; }
 template <class... ParentMatchers>
 ::testing::Matcher<TypeHierarchyItem> Parents(ParentMatchers... ParentsM) {
-  return Field(&TypeHierarchyItem::parents, HasValue(ElementsAre(ParentsM...)));
+  return Field(&TypeHierarchyItem::parents,
+               HasValue(UnorderedElementsAre(ParentsM...)));
 }
+template <class... ChildMatchers>
+::testing::Matcher<TypeHierarchyItem> Children(ChildMatchers... ChildrenM) {
+  return Field(&TypeHierarchyItem::children,
+               HasValue(UnorderedElementsAre(ChildrenM...)));
+}
+// Note: "not resolved" is differnt from "resolved but empty"!
+MATCHER(ParentsNotResolved, "") { return !arg.parents; }
+MATCHER(ChildrenNotResolved, "") { return !arg.children; }
 
 TEST(FindRecordTypeAt, TypeOrVariable) {
   Annotations Source(R"cpp(
@@ -390,6 +399,7 @@ TEST(TypeHierarchy, RecursiveHierarchyUnbounded) {
   )cpp");
 
   TestTU TU = TestTU::withCode(Source.code());
+  TU.ExtraArgs.push_back("-ftemplate-depth=10");
   auto AST = TU.build();
 
   // The compiler should produce a diagnostic for hitting the
@@ -448,6 +458,194 @@ TEST(TypeHierarchy, RecursiveHierarchyBounded) {
       AllOf(WithName("S"), WithKind(SymbolKind::Struct),
             Parents(AllOf(WithName("S"), WithKind(SymbolKind::Struct),
                           SelectionRangeIs(Source.range("SDef")), Parents()))));
+}
+
+SymbolID findSymbolIDByName(SymbolIndex *Index, llvm::StringRef Name,
+                            llvm::StringRef TemplateArgs = "") {
+  SymbolID Result;
+  FuzzyFindRequest Request;
+  Request.Query = Name;
+  Request.AnyScope = true;
+  bool GotResult = false;
+  Index->fuzzyFind(Request, [&](const Symbol &S) {
+    if (TemplateArgs == S.TemplateSpecializationArgs) {
+      EXPECT_FALSE(GotResult);
+      Result = S.ID;
+      GotResult = true;
+    }
+  });
+  EXPECT_TRUE(GotResult);
+  return Result;
+}
+
+std::vector<SymbolID> collectSubtypes(SymbolID Subject, SymbolIndex *Index) {
+  std::vector<SymbolID> Result;
+  RelationsRequest Req;
+  Req.Subjects.insert(Subject);
+  Req.Predicate = index::SymbolRole::RelationBaseOf;
+  Index->relations(Req,
+                   [&Result](const SymbolID &Subject, const Symbol &Object) {
+                     Result.push_back(Object.ID);
+                   });
+  return Result;
+}
+
+TEST(Subtypes, SimpleInheritance) {
+  Annotations Source(R"cpp(
+struct Parent {};
+struct Child1a : Parent {};
+struct Child1b : Parent {};
+struct Child2 : Child1a {};
+)cpp");
+
+  TestTU TU = TestTU::withCode(Source.code());
+  auto Index = TU.index();
+
+  SymbolID Parent = findSymbolIDByName(Index.get(), "Parent");
+  SymbolID Child1a = findSymbolIDByName(Index.get(), "Child1a");
+  SymbolID Child1b = findSymbolIDByName(Index.get(), "Child1b");
+  SymbolID Child2 = findSymbolIDByName(Index.get(), "Child2");
+
+  EXPECT_THAT(collectSubtypes(Parent, Index.get()),
+              UnorderedElementsAre(Child1a, Child1b));
+  EXPECT_THAT(collectSubtypes(Child1a, Index.get()), ElementsAre(Child2));
+}
+
+TEST(Subtypes, MultipleInheritance) {
+  Annotations Source(R"cpp(
+struct Parent1 {};
+struct Parent2 {};
+struct Parent3 : Parent2 {};
+struct Child : Parent1, Parent3 {};
+)cpp");
+
+  TestTU TU = TestTU::withCode(Source.code());
+  auto Index = TU.index();
+
+  SymbolID Parent1 = findSymbolIDByName(Index.get(), "Parent1");
+  SymbolID Parent2 = findSymbolIDByName(Index.get(), "Parent2");
+  SymbolID Parent3 = findSymbolIDByName(Index.get(), "Parent3");
+  SymbolID Child = findSymbolIDByName(Index.get(), "Child");
+
+  EXPECT_THAT(collectSubtypes(Parent1, Index.get()), ElementsAre(Child));
+  EXPECT_THAT(collectSubtypes(Parent2, Index.get()), ElementsAre(Parent3));
+  EXPECT_THAT(collectSubtypes(Parent3, Index.get()), ElementsAre(Child));
+}
+
+TEST(Subtypes, ClassTemplate) {
+  Annotations Source(R"cpp(
+struct Parent {};
+
+template <typename T>
+struct Child : Parent {};
+)cpp");
+
+  TestTU TU = TestTU::withCode(Source.code());
+  auto Index = TU.index();
+
+  SymbolID Parent = findSymbolIDByName(Index.get(), "Parent");
+  SymbolID Child = findSymbolIDByName(Index.get(), "Child");
+
+  EXPECT_THAT(collectSubtypes(Parent, Index.get()), ElementsAre(Child));
+}
+
+TEST(Subtypes, TemplateSpec1) {
+  Annotations Source(R"cpp(
+template <typename T>
+struct Parent {};
+
+template <>
+struct Parent<int> {};
+
+struct Child1 : Parent<float> {};
+
+struct Child2 : Parent<int> {};
+)cpp");
+
+  TestTU TU = TestTU::withCode(Source.code());
+  auto Index = TU.index();
+
+  SymbolID Parent = findSymbolIDByName(Index.get(), "Parent");
+  SymbolID ParentSpec = findSymbolIDByName(Index.get(), "Parent", "<int>");
+  SymbolID Child1 = findSymbolIDByName(Index.get(), "Child1");
+  SymbolID Child2 = findSymbolIDByName(Index.get(), "Child2");
+
+  EXPECT_THAT(collectSubtypes(Parent, Index.get()), ElementsAre(Child1));
+  EXPECT_THAT(collectSubtypes(ParentSpec, Index.get()), ElementsAre(Child2));
+}
+
+TEST(Subtypes, TemplateSpec2) {
+  Annotations Source(R"cpp(
+struct Parent {};
+
+template <typename T>
+struct Child {};
+
+template <>
+struct Child<int> : Parent {};
+)cpp");
+
+  TestTU TU = TestTU::withCode(Source.code());
+  auto Index = TU.index();
+
+  SymbolID Parent = findSymbolIDByName(Index.get(), "Parent");
+  SymbolID ChildSpec = findSymbolIDByName(Index.get(), "Child", "<int>");
+
+  EXPECT_THAT(collectSubtypes(Parent, Index.get()), ElementsAre(ChildSpec));
+}
+
+TEST(Subtypes, DependentBase) {
+  Annotations Source(R"cpp(
+template <typename T>
+struct Parent {};
+
+template <typename T>
+struct Child : Parent<T> {};
+)cpp");
+
+  TestTU TU = TestTU::withCode(Source.code());
+  auto Index = TU.index();
+
+  SymbolID Parent = findSymbolIDByName(Index.get(), "Parent");
+  SymbolID Child = findSymbolIDByName(Index.get(), "Child");
+
+  EXPECT_THAT(collectSubtypes(Parent, Index.get()), ElementsAre(Child));
+}
+
+TEST(Subtypes, LazyResolution) {
+  Annotations Source(R"cpp(
+struct P^arent {};
+struct Child1 : Parent {};
+struct Child2a : Child1 {};
+struct Child2b : Child1 {};
+)cpp");
+
+  TestTU TU = TestTU::withCode(Source.code());
+  auto AST = TU.build();
+  auto Index = TU.index();
+
+  llvm::Optional<TypeHierarchyItem> Result = getTypeHierarchy(
+      AST, Source.point(), /*ResolveLevels=*/1,
+      TypeHierarchyDirection::Children, Index.get(), testPath(TU.Filename));
+  ASSERT_TRUE(bool(Result));
+  EXPECT_THAT(
+      *Result,
+      AllOf(WithName("Parent"), WithKind(SymbolKind::Struct),
+            ParentsNotResolved(),
+            Children(AllOf(WithName("Child1"), WithKind(SymbolKind::Struct),
+                           ParentsNotResolved(), ChildrenNotResolved()))));
+
+  resolveTypeHierarchy((*Result->children)[0], /*ResolveLevels=*/1,
+                       TypeHierarchyDirection::Children, Index.get());
+
+  EXPECT_THAT(
+      (*Result->children)[0],
+      AllOf(WithName("Child1"), WithKind(SymbolKind::Struct),
+            ParentsNotResolved(),
+            Children(AllOf(WithName("Child2a"), WithKind(SymbolKind::Struct),
+                           ParentsNotResolved(), ChildrenNotResolved()),
+                     AllOf(WithName("Child2b"), WithKind(SymbolKind::Struct),
+                           ParentsNotResolved(), ChildrenNotResolved()))));
 }
 
 } // namespace

@@ -751,7 +751,7 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*IsAmbiguous=*/false,
       /*LParenLoc=*/NoLoc,
       /*ArgInfo=*/nullptr,
-      /*NumArgs=*/0,
+      /*NumParams=*/0,
       /*EllipsisLoc=*/NoLoc,
       /*RParenLoc=*/NoLoc,
       /*RefQualifierIsLvalueRef=*/true,
@@ -1365,7 +1365,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
         // errors.
         declarator.setInvalidType(true);
       } else if ((S.getLangOpts().OpenCLVersion >= 200 ||
-                  S.getLangOpts().OpenCLCPlusPlus) &&
+                  S.getLangOpts().OpenCLCPlusPlus ||
+                  S.getLangOpts().SYCLIsDevice) &&
                  DS.isTypeSpecPipe()) {
         S.Diag(DeclLoc, diag::err_missing_actual_pipe_type)
           << DS.getSourceRange();
@@ -1494,7 +1495,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       Result = Context.DoubleTy;
     break;
   case DeclSpec::TST_float128:
-    if (!S.Context.getTargetInfo().hasFloat128Type() &&
+    if (!S.Context.getTargetInfo().hasFloat128Type() && 
+        !S.getLangOpts().SYCLIsDevice &&
         !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
         << "__float128";
@@ -2322,7 +2324,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
   // OpenCL v2.0 s6.12.5 - Arrays of blocks are not supported.
   // OpenCL v2.0 s6.16.13.1 - Arrays of pipe type are not supported.
   // OpenCL v2.0 s6.9.b - Arrays of image/sampler type are not supported.
-  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
+  if (getLangOpts().OpenCL) {
     const QualType ArrType = Context.getBaseElementType(T);
     if (ArrType->isBlockPointerType() || ArrType->isPipeType() ||
         ArrType->isSamplerT() || ArrType->isImageType()) {
@@ -2457,6 +2459,11 @@ bool Sema::CheckFunctionReturnType(QualType T, SourceLocation Loc) {
         << 0 << T << FixItHint::CreateInsertion(Loc, "*");
     return true;
   }
+
+  if (T.hasNonTrivialToPrimitiveDestructCUnion() ||
+      T.hasNonTrivialToPrimitiveCopyCUnion())
+    checkNonTrivialCUnion(T, Loc, NTCUC_FunctionReturn,
+                          NTCUK_Destruct|NTCUK_Copy);
 
   return false;
 }
@@ -4518,7 +4525,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       // If the function declarator has a prototype (i.e. it is not () and
       // does not have a K&R-style identifier list), then the arguments are part
       // of the type, otherwise the argument list is ().
-      const DeclaratorChunk::FunctionTypeInfo &FTI = DeclType.Fun;
+      DeclaratorChunk::FunctionTypeInfo &FTI = DeclType.Fun;
       IsQualifiedFunction =
           FTI.hasMethodTypeQualifiers() || FTI.hasRefQualifier();
 
@@ -4607,11 +4614,20 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         }
       }
 
+      if (LangOpts.OpenCL) {
+        // OpenCL v2.0 s6.12.5 - A pipe cannot be the return value of a
+        // function. Disrespect this for SYCL.
+        if (T->isPipeType()) {
+          S.Diag(D.getIdentifierLoc(), diag::err_opencl_invalid_return)
+              << T << 1 /*hint off*/;
+          D.setInvalidType(true);
+        }
+      }
+
       if (LangOpts.OpenCL || LangOpts.SYCLIsDevice) {
         // OpenCL v2.0 s6.12.5 - A block cannot be the return value of a
         // function.
-        if (T->isBlockPointerType() || T->isImageType() || T->isSamplerT() ||
-            T->isPipeType()) {
+        if (T->isBlockPointerType() || T->isImageType() || T->isSamplerT()) {
           S.Diag(D.getIdentifierLoc(), diag::err_opencl_invalid_return)
               << T << 1 /*hint off*/;
           D.setInvalidType(true);
@@ -5150,7 +5166,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   // C++0x [dcl.constexpr]p9:
   //  A constexpr specifier used in an object declaration declares the object
   //  as const.
-  if (D.getDeclSpec().isConstexprSpecified() && T->isObjectType()) {
+  if (D.getDeclSpec().hasConstexprSpecifier() && T->isObjectType()) {
     T.addConst();
   }
 
@@ -6971,6 +6987,57 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
     return true;
   }
 
+  if (attr.getKind() == ParsedAttr::AT_NoThrow) {
+    // Delay if this is not a function type.
+    if (!unwrapped.isFunctionType())
+      return false;
+
+    if (S.CheckAttrNoArgs(attr)) {
+      attr.setInvalid();
+      return true;
+    }
+
+    // Otherwise we can process right away.
+    auto *Proto = unwrapped.get()->castAs<FunctionProtoType>();
+
+    // MSVC ignores nothrow if it is in conflict with an explicit exception
+    // specification.
+    if (Proto->hasExceptionSpec()) {
+      switch (Proto->getExceptionSpecType()) {
+      case EST_None:
+        llvm_unreachable("This doesn't have an exception spec!");
+
+      case EST_DynamicNone:
+      case EST_BasicNoexcept:
+      case EST_NoexceptTrue:
+      case EST_NoThrow:
+        // Exception spec doesn't conflict with nothrow, so don't warn.
+        LLVM_FALLTHROUGH;
+      case EST_Unparsed:
+      case EST_Uninstantiated:
+      case EST_DependentNoexcept:
+      case EST_Unevaluated:
+        // We don't have enough information to properly determine if there is a
+        // conflict, so suppress the warning.
+        break;
+      case EST_Dynamic:
+      case EST_MSAny:
+      case EST_NoexceptFalse:
+        S.Diag(attr.getLoc(), diag::warn_nothrow_attribute_ignored);
+        break;
+      }
+      return true;
+    }
+
+    type = unwrapped.wrap(
+        S, S.Context
+               .getFunctionTypeWithExceptionSpec(
+                   QualType{Proto, 0},
+                   FunctionProtoType::ExceptionSpecInfo{EST_NoThrow})
+               ->getAs<FunctionType>());
+    return true;
+  }
+
   // Delay if the type didn't work out to a function.
   if (!unwrapped.isFunctionType()) return false;
 
@@ -7004,11 +7071,12 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
   // much ability to diagnose it later.
   if (!supportsVariadicCall(CC)) {
     const FunctionProtoType *FnP = dyn_cast<FunctionProtoType>(fn);
-    if (FnP && FnP->isVariadic()) {
+    // Disable these diagnostics for SYCL
+    if (FnP && FnP->isVariadic() && !S.getLangOpts().SYCLIsDevice) {
       // stdcall and fastcall are ignored with a warning for GCC and MS
       // compatibility.
       if (CC == CC_X86StdCall || CC == CC_X86FastCall)
-        return S.Diag(attr.getLoc(), diag::warn_cconv_ignored)
+        return S.Diag(attr.getLoc(), diag::warn_cconv_unsupported)
                << FunctionType::getNameForCallConv(CC)
                << (int)Sema::CallingConventionIgnoredReason::VariadicFunction;
 
@@ -7073,7 +7141,7 @@ void Sema::adjustMemberFunctionCC(QualType &T, bool IsStatic, bool IsCtorOrDtor,
     // Issue a warning on ignored calling convention -- except of __stdcall.
     // Again, this is what MS compiler does.
     if (CurCC != CC_X86StdCall)
-      Diag(Loc, diag::warn_cconv_ignored)
+      Diag(Loc, diag::warn_cconv_unsupported)
           << FunctionType::getNameForCallConv(CurCC)
           << (int)Sema::CallingConventionIgnoredReason::ConstructorDestructor;
   // Default adjustment.
@@ -7376,6 +7444,9 @@ static void deduceOpenCLImplicitAddrSpace(TypeProcessingState &State,
       (D.getContext() == DeclaratorContext::MemberContext &&
        (!IsPointee &&
         D.getDeclSpec().getStorageClassSpec() != DeclSpec::SCS_static)) ||
+      // Do not deduce addr space of non-pointee in type alias because it
+      // doesn't define any object.
+      (D.getContext() == DeclaratorContext::AliasDeclContext && !IsPointee) ||
       // Do not deduce addr space for types used to define a typedef and the
       // typedef itself, except the pointee type of a pointer type which is used
       // to define the typedef.
@@ -7389,7 +7460,21 @@ static void deduceOpenCLImplicitAddrSpace(TypeProcessingState &State,
       T->isDependentType() ||
       // Do not deduce addr space of decltype because it will be taken from
       // its argument.
-      T->isDecltypeType())
+      T->isDecltypeType() ||
+      // OpenCL spec v2.0 s6.9.b:
+      // The sampler type cannot be used with the __local and __global address
+      // space qualifiers.
+      // OpenCL spec v2.0 s6.13.14:
+      // Samplers can also be declared as global constants in the program
+      // source using the following syntax.
+      //   const sampler_t <sampler name> = <value>
+      // In codegen, file-scope sampler type variable has special handing and
+      // does not rely on address space qualifier. On the other hand, deducing
+      // address space of const sampler file-scope variable as global address
+      // space causes spurious diagnostic about __global address space
+      // qualifier, therefore do not deduce address space of file-scope sampler
+      // type variable.
+      (D.getContext() == DeclaratorContext::FileContext && T->isSamplerT()))
     return;
 
   LangAS ImpAddr = LangAS::Default;
@@ -7443,6 +7528,16 @@ static void HandleLifetimeBoundAttr(TypeProcessingState &State,
   }
 }
 
+static bool isAddressSpaceKind(const ParsedAttr &attr) {
+  auto attrKind = attr.getKind();
+
+  return attrKind == ParsedAttr::AT_AddressSpace ||
+         attrKind == ParsedAttr::AT_OpenCLPrivateAddressSpace ||
+         attrKind == ParsedAttr::AT_OpenCLGlobalAddressSpace ||
+         attrKind == ParsedAttr::AT_OpenCLLocalAddressSpace ||
+         attrKind == ParsedAttr::AT_OpenCLConstantAddressSpace ||
+         attrKind == ParsedAttr::AT_OpenCLGenericAddressSpace;
+}
 
 static void processTypeAttrs(TypeProcessingState &state, QualType &type,
                              TypeAttrLocation TAL,
@@ -7481,11 +7576,11 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
           if (!IsTypeAttr)
             continue;
         }
-      } else if (TAL != TAL_DeclChunk &&
-                 attr.getKind() != ParsedAttr::AT_AddressSpace) {
+      } else if (TAL != TAL_DeclChunk && !isAddressSpaceKind(attr)) {
         // Otherwise, only consider type processing for a C++11 attribute if
         // it's actually been applied to a type.
-        // We also allow C++11 address_space attributes to pass through.
+        // We also allow C++11 address_space and
+        // opencl language address space attributes to pass through.
         continue;
       }
     }
@@ -7622,6 +7717,12 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
         attr.setInvalid();
       break;
 
+    case ParsedAttr::AT_NoThrow:
+    // Exception Specifications aren't generally supported in C mode throughout
+    // clang, so revert to attribute-based handling for C.
+      if (!state.getSema().getLangOpts().CPlusPlus)
+        break;
+      LLVM_FALLTHROUGH;
     FUNCTION_TYPE_ATTRS_CASELIST:
       attr.setUsedAsTypeAttr();
 

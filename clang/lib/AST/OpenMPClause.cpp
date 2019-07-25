@@ -35,6 +35,20 @@ OMPClause::child_range OMPClause::children() {
   llvm_unreachable("unknown OMPClause");
 }
 
+OMPClause::child_range OMPClause::used_children() {
+  switch (getClauseKind()) {
+#define OPENMP_CLAUSE(Name, Class)                                             \
+  case OMPC_##Name:                                                            \
+    return static_cast<Class *>(this)->used_children();
+#include "clang/Basic/OpenMPKinds.def"
+  case OMPC_threadprivate:
+  case OMPC_uniform:
+  case OMPC_unknown:
+    break;
+  }
+  llvm_unreachable("unknown OMPClause");
+}
+
 OMPClauseWithPreInit *OMPClauseWithPreInit::get(OMPClause *C) {
   auto *Res = OMPClauseWithPreInit::get(const_cast<const OMPClause *>(C));
   return Res ? const_cast<OMPClauseWithPreInit *>(Res) : nullptr;
@@ -193,6 +207,25 @@ const OMPClauseWithPostUpdate *OMPClauseWithPostUpdate::get(const OMPClause *C) 
   }
 
   return nullptr;
+}
+
+/// Gets the address of the original, non-captured, expression used in the
+/// clause as the preinitializer.
+static Stmt **getAddrOfExprAsWritten(Stmt *S) {
+  if (!S)
+    return nullptr;
+  if (auto *DS = dyn_cast<DeclStmt>(S)) {
+    assert(DS->isSingleDecl() && "Only single expression must be captured.");
+    if (auto *OED = dyn_cast<OMPCapturedExprDecl>(DS->getSingleDecl()))
+      return OED->getInitAddress();
+  }
+  return nullptr;
+}
+
+OMPClause::child_range OMPIfClause::used_children() {
+  if (Stmt **C = getAddrOfExprAsWritten(getPreInitStmt()))
+    return child_range(C, C + 1);
+  return child_range(&Condition, &Condition + 1);
 }
 
 OMPOrderedClause *OMPOrderedClause::Create(const ASTContext &C, Expr *Num,

@@ -240,6 +240,10 @@ SPIRVToLLVMDbgTran::transTypeComposite(const SPIRVExtInst *DebugInst) {
   DINode::DIFlags Flags = DINode::FlagZero;
   if (Ops[FlagsIdx] & SPIRVDebug::FlagIsFwdDecl)
     Flags |= DINode::FlagFwdDecl;
+  if (Ops[FlagsIdx] & SPIRVDebug::FlagTypePassByValue)
+    Flags |= DINode::FlagTypePassByValue;
+  if (Ops[FlagsIdx] & SPIRVDebug::FlagTypePassByReference)
+    Flags |= DINode::FlagTypePassByReference;
 
   DICompositeType *CT = nullptr;
   switch (Ops[TagIdx]) {

@@ -112,7 +112,6 @@ public:
                                     SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transOCLBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSPIRVBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
-  Instruction *transOCLBarrierFence(SPIRVInstruction *BI, BasicBlock *BB);
   void transOCLVectorLoadStore(std::string &UnmangledName,
                                std::vector<SPIRVWord> &BArgs);
 
@@ -256,12 +255,6 @@ private:
   llvm::GlobalValue::LinkageTypes transLinkageType(const SPIRVValue *V);
   Instruction *transOCLAllAny(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transOCLRelational(SPIRVInstruction *BI, BasicBlock *BB);
-
-  CallInst *transOCLBarrier(BasicBlock *BB, SPIRVWord ExecScope,
-                            SPIRVWord MemSema, SPIRVWord MemScope);
-
-  CallInst *transOCLMemFence(BasicBlock *BB, SPIRVWord MemSema,
-                             SPIRVWord MemScope);
 
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
 }; // class SPIRVToLLVM

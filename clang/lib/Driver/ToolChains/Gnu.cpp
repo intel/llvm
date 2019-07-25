@@ -382,6 +382,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-static");
     CmdArgs.push_back("-pie");
     CmdArgs.push_back("--no-dynamic-linker");
+    CmdArgs.push_back("-z");
+    CmdArgs.push_back("text");
   }
 
   if (ToolChain.isNoExecStackDefault()) {
@@ -523,13 +525,10 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // linked archives.  The unbundled information is a list of files and not
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
-  if (JA.isDeviceOffloading(Action::OFK_OpenMP) &&
-      Args.hasArg(options::OPT_foffload_static_lib_EQ)) {
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP)) {
     InputInfoList UpdatedInputs;
-    // Go through the Inputs to the link.  When an object is encountered, we
+    // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
-    // FIXME - properly add objects from list to be removed when compilation is
-    // complete.
     for (const auto &II : Inputs) {
       if (II.getType() == types::TY_Tempfilelist) {
         // Take the unbundled list file and pass it in with '@'.
@@ -956,10 +955,6 @@ static bool isMips16(const ArgList &Args) {
 static bool isMicroMips(const ArgList &Args) {
   Arg *A = Args.getLastArg(options::OPT_mmicromips, options::OPT_mno_micromips);
   return A && A->getOption().matches(options::OPT_mmicromips);
-}
-
-static bool isRISCV(llvm::Triple::ArchType Arch) {
-  return Arch == llvm::Triple::riscv32 || Arch == llvm::Triple::riscv64;
 }
 
 static bool isMSP430(llvm::Triple::ArchType Arch) {
@@ -2337,7 +2332,7 @@ bool Generic_GCC::GCCInstallationDetector::ScanGCCForMultilibs(
   } else if (TargetTriple.isMIPS()) {
     if (!findMIPSMultilibs(D, TargetTriple, Path, Args, Detected))
       return false;
-  } else if (isRISCV(TargetArch)) {
+  } else if (TargetTriple.isRISCV()) {
     findRISCVMultilibs(D, TargetTriple, Path, Args, Detected);
   } else if (isMSP430(TargetArch)) {
     findMSP430Multilibs(D, TargetTriple, Path, Args, Detected);

@@ -381,6 +381,11 @@ bool Sema::CheckEquivalentExceptionSpec(FunctionDecl *Old, FunctionDecl *New) {
     // when declaring a replaceable global allocation function.
     DiagID = diag::ext_missing_exception_specification;
     ReturnValueOnError = false;
+  } else if (ESI.Type == EST_NoThrow) {
+    // Allow missing attribute 'nothrow' in redeclarations, since this is a very
+    // common omission.
+    DiagID = diag::ext_missing_exception_specification;
+    ReturnValueOnError = false;
   } else {
     DiagID = diag::err_missing_exception_specification;
     ReturnValueOnError = true;
@@ -421,8 +426,14 @@ bool Sema::CheckEquivalentExceptionSpec(FunctionDecl *Old, FunctionDecl *New) {
     OldProto->getNoexceptExpr()->printPretty(OS, nullptr, getPrintingPolicy());
     OS << ")";
     break;
-
-  default:
+  case EST_NoThrow:
+    OS <<"__attribute__((nothrow))";
+    break;
+  case EST_None:
+  case EST_MSAny:
+  case EST_Unevaluated:
+  case EST_Uninstantiated:
+  case EST_Unparsed:
     llvm_unreachable("This spec type is compatible with none.");
   }
 
@@ -733,6 +744,7 @@ bool Sema::handlerCanCatch(QualType HandlerType, QualType ExceptionType) {
 bool Sema::CheckExceptionSpecSubset(const PartialDiagnostic &DiagID,
                                     const PartialDiagnostic &NestedDiagID,
                                     const PartialDiagnostic &NoteID,
+                                    const PartialDiagnostic &NoThrowDiagID,
                                     const FunctionProtoType *Superset,
                                     SourceLocation SuperLoc,
                                     const FunctionProtoType *Subset,
@@ -778,6 +790,16 @@ bool Sema::CheckExceptionSpecSubset(const PartialDiagnostic &DiagID,
       SubCanThrow == CT_Cannot)
     return CheckParamExceptionSpec(NestedDiagID, NoteID, Superset, SuperLoc,
                                    Subset, SubLoc);
+
+  // Allow __declspec(nothrow) to be missing on redeclaration as an extension in
+  // some cases.
+  if (NoThrowDiagID.getDiagID() != 0 && SubCanThrow == CT_Can &&
+      SuperCanThrow == CT_Cannot && SuperEST == EST_NoThrow) {
+    Diag(SubLoc, NoThrowDiagID);
+    if (NoteID.getDiagID() != 0)
+      Diag(SuperLoc, NoteID);
+    return true;
+  }
 
   // If the subset contains everything or the superset contains nothing, we've
   // failed.
@@ -908,9 +930,9 @@ bool Sema::CheckExceptionSpecCompatibility(Expr *From, QualType ToType) {
   //     void (*q)(void (*) throw(int)) = p;
   //   }
   // ... because it might be instantiated with T=int.
-  return CheckExceptionSpecSubset(PDiag(DiagID), PDiag(NestedDiagID), PDiag(),
-                                  ToFunc, From->getSourceRange().getBegin(),
-                                  FromFunc, SourceLocation()) &&
+  return CheckExceptionSpecSubset(
+             PDiag(DiagID), PDiag(NestedDiagID), PDiag(), PDiag(), ToFunc,
+             From->getSourceRange().getBegin(), FromFunc, SourceLocation()) &&
          !getLangOpts().CPlusPlus17;
 }
 
@@ -942,6 +964,7 @@ bool Sema::CheckOverridingFunctionExceptionSpec(const CXXMethodDecl *New,
   return CheckExceptionSpecSubset(PDiag(DiagID),
                                   PDiag(diag::err_deep_exception_specs_differ),
                                   PDiag(diag::note_overridden_virtual_function),
+                                  PDiag(diag::ext_override_exception_spec),
                                   Old->getType()->getAs<FunctionProtoType>(),
                                   Old->getLocation(),
                                   New->getType()->getAs<FunctionProtoType>(),
@@ -1178,6 +1201,7 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::CoyieldExprClass:
   case Expr::CXXConstCastExprClass:
   case Expr::CXXReinterpretCastExprClass:
+  case Expr::BuiltinBitCastExprClass:
   case Expr::CXXStdInitializerListExprClass:
   case Expr::DesignatedInitExprClass:
   case Expr::DesignatedInitUpdateExprClass:

@@ -501,7 +501,7 @@ bool SymbolContext::GetParentOfInlinedScope(const Address &curr_frame_pc,
         }
 #ifdef LLDB_CONFIGURATION_DEBUG
         else {
-          ObjectFile *objfile = NULL;
+          ObjectFile *objfile = nullptr;
           if (module_sp) {
             SymbolVendor *symbol_vendor = module_sp->GetSymbolVendor();
             if (symbol_vendor) {
@@ -729,7 +729,7 @@ bool SymbolContext::GetAddressRangeFromHereToEndLine(uint32_t end_line,
 
   uint32_t line_index = 0;
   bool found = false;
-  while (1) {
+  while (true) {
     LineEntry this_line;
     line_index = comp_unit->FindLineEntry(line_index, line_entry.line, nullptr,
                                           false, &this_line);

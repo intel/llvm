@@ -54,11 +54,9 @@
 #include "SPIRVValue.h"
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
@@ -67,22 +65,18 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/PassSupport.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Transforms/Utils.h" // loop-simplify pass
 
 #include <cstdlib>
 #include <functional>
 #include <iostream>
-#include <list>
 #include <memory>
 #include <set>
-#include <sstream>
 #include <vector>
 
 #define DEBUG_TYPE "spirv"
@@ -93,7 +87,7 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-cl::opt<bool> SPIRVMemToReg("spirv-mem2reg", cl::init(true),
+cl::opt<bool> SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                             cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
 cl::opt<bool> SPIRVNoDerefAttr(
@@ -109,16 +103,6 @@ static void foreachKernelArgMD(
     Func(getMDOperandAsString(MD, I), BA);
   }
 }
-
-/// Information for translating OCL builtin.
-struct OCLBuiltinSPIRVTransInfo {
-  std::string UniqName;
-  /// Postprocessor of operands
-  std::function<void(std::vector<SPIRVWord> &)> PostProc;
-  OCLBuiltinSPIRVTransInfo() {
-    PostProc = [](std::vector<SPIRVWord> &) {};
-  }
-};
 
 LLVMToSPIRV::LLVMToSPIRV(SPIRVModule *SMod)
     : ModulePass(ID), M(nullptr), Ctx(nullptr), BM(SMod), SrcLang(0),
@@ -274,7 +258,7 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
 
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
-  // sampler or pipe type.
+  // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
     auto ET = T->getPointerElementType();
     assert(!ET->isFunctionTy() && "Function pointer type is not allowed");
@@ -526,10 +510,6 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
   return BF;
 }
 
-#define _SPIRV_OPL(x) OpLogical##x
-
-#define _SPIRV_OPB(x) OpBitwise##x
-
 SPIRVValue *LLVMToSPIRV::transConstant(Value *V) {
   if (auto CPNull = dyn_cast<ConstantPointerNull>(V))
     return BM->addNullConstant(
@@ -728,6 +708,7 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     llvm::Value *Init = GV->hasInitializer() && !GV->hasCommonLinkage()
                             ? GV->getInitializer()
                             : nullptr;
+    SPIRVValue *BVarInit = nullptr;
     StructType *ST = Init ? dyn_cast<StructType>(Init->getType()) : nullptr;
     if (ST && ST->hasName() && isSPIRVConstantName(ST->getName())) {
       auto BV = transConstant(Init);
@@ -740,10 +721,22 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
         Ty = static_cast<PointerType *>(Init->getType());
       }
       Inst->dropAllReferences();
+      BVarInit = transValue(Init, nullptr);
+    } else if (ST && isa<UndefValue>(Init)) {
+      // Undef initializer for LLVM structure be can translated to
+      // OpConstantComposite with OpUndef constituents.
+      auto I = ValueMap.find(Init);
+      if (I == ValueMap.end()) {
+        std::vector<SPIRVValue *> Elements;
+        for (Type *E : ST->elements())
+          Elements.push_back(transValue(UndefValue::get(E), nullptr));
+        BVarInit = BM->addCompositeConstant(transType(ST), Elements);
+        ValueMap[Init] = BVarInit;
+      } else
+        BVarInit = I->second;
+    } else if (Init && !isa<UndefValue>(Init)) {
+      BVarInit = transValue(Init, nullptr);
     }
-    // Translate initializer first.
-    SPIRVValue *BVarInit =
-        (Init && !isa<UndefValue>(Init)) ? transValue(Init, nullptr) : nullptr;
 
     auto BVar = static_cast<SPIRVVariable *>(BM->addVariable(
         transType(Ty), GV->isConstant(), transLinkageType(GV), BVarInit,
@@ -1137,12 +1130,16 @@ parseAnnotations(StringRef AnnotatedCode) {
                 .Case("2", DecorationDoublepumpINTEL);
     } else if (F == "register") {
       Dec = DecorationRegisterINTEL;
+    } else if (F == "simple_dual_port") {
+      Dec = DecorationSimpleDualPortINTEL;
     } else {
       Dec = llvm::StringSwitch<Decoration>(F)
                 .Case("memory", DecorationMemoryINTEL)
                 .Case("numbanks", DecorationNumbanksINTEL)
                 .Case("bankwidth", DecorationBankwidthINTEL)
-                .Case("max_concurrency", DecorationMaxconcurrencyINTEL)
+                .Case("max_private_copies", DecorationMaxPrivateCopiesINTEL)
+                .Case("max_replicates", DecorationMaxReplicatesINTEL)
+                .Case("merge", DecorationMergeINTEL)
                 .Default(DecorationUserSemantic);
       if (Dec == DecorationUserSemantic)
         Value = AnnotatedCode.substr(From, To + 1);
@@ -1167,16 +1164,24 @@ void addIntelFPGADecorations(
     case DecorationUserSemantic:
       E->addDecorate(new SPIRVDecorateUserSemanticAttr(E, I.second));
       break;
+    case DecorationMergeINTEL: {
+      StringRef Name = StringRef(I.second).split(':').first;
+      StringRef Direction = StringRef(I.second).split(':').second;
+      E->addDecorate(
+          new SPIRVDecorateMergeINTELAttr(E, Name.str(), Direction.str()));
+    } break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
     case DecorationDoublepumpINTEL:
+    case DecorationSimpleDualPortINTEL:
       assert(I.second.empty());
       E->addDecorate(I.first);
       break;
     // The rest of IntelFPGA decorations:
     // DecorationNumbanksINTEL
     // DecorationBankwidthINTEL
-    // DecorationMaxconcurrencyINTEL
+    // DecorationMaxPrivateCopiesINTEL
+    // DecorationMaxReplicatesINTEL
     default:
       SPIRVWord Result = 0;
       StringRef(I.second).getAsInteger(10, Result);
@@ -1199,16 +1204,24 @@ void addIntelFPGADecorationsForStructMember(
       E->addMemberDecorate(
           new SPIRVMemberDecorateUserSemanticAttr(E, MemberNumber, I.second));
       break;
+    case DecorationMergeINTEL: {
+      StringRef Name = StringRef(I.second).split(':').first;
+      StringRef Direction = StringRef(I.second).split(':').second;
+      E->addMemberDecorate(new SPIRVMemberDecorateMergeINTELAttr(
+          E, MemberNumber, Name.str(), Direction.str()));
+    } break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
     case DecorationDoublepumpINTEL:
+    case DecorationSimpleDualPortINTEL:
       assert(I.second.empty());
       E->addMemberDecorate(MemberNumber, I.first);
       break;
     // The rest of IntelFPGA decorations:
     // DecorationNumbanksINTEL
     // DecorationBankwidthINTEL
-    // DecorationMaxconcurrencyINTEL
+    // DecorationMaxPrivateCopiesINTEL
+    // DecorationMaxReplicatesINTEL
     default:
       SPIRVWord Result = 0;
       StringRef(I.second).getAsInteger(10, Result);
@@ -1309,6 +1322,22 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     return DbgTran->createDebugDeclarePlaceholder(cast<DbgDeclareInst>(II), BB);
   case Intrinsic::dbg_value:
     return DbgTran->createDebugValuePlaceholder(cast<DbgValueInst>(II), BB);
+  case Intrinsic::annotation: {
+    SPIRVType *Ty = transType(II->getType());
+
+    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
+    if (!GEP)
+      return nullptr;
+    Constant *C = cast<Constant>(GEP->getOperand(0));
+    // TODO: Refactor to use getConstantStringInfo()
+    StringRef AnnotationString =
+        cast<ConstantDataArray>(C->getOperand(0))->getAsCString();
+
+    if (AnnotationString == kOCLBuiltinName::FPGARegIntel)
+      return BM->addFPGARegINTELInst(Ty, transValue(II->getOperand(0), BB), BB);
+
+    return nullptr;
+  }
   case Intrinsic::var_annotation: {
     SPIRVValue *SV;
     if (auto *BI = dyn_cast<BitCastInst>(II->getArgOperand(0))) {
@@ -1319,6 +1348,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
 
     GetElementPtrInst *GEP = cast<GetElementPtrInst>(II->getArgOperand(1));
     Constant *C = cast<Constant>(GEP->getOperand(0));
+    // TODO: Refactor to use getConstantStringInfo()
     StringRef AnnotationString =
         cast<ConstantDataArray>(C->getOperand(0))->getAsString();
 
@@ -1339,33 +1369,43 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     } else {
       GI = dyn_cast<GetElementPtrInst>(II->getOperand(0));
     }
-    SPIRVType *Ty = transType(GI->getSourceElementType());
-
-    SPIRVWord MemberNumber =
-        dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
 
     GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
     Constant *C = dyn_cast<Constant>(GEP->getOperand(0));
+    // TODO: Refactor to use getConstantStringInfo()
     StringRef AnnotationString =
-        dyn_cast<ConstantDataArray>(C->getOperand(0))->getAsString();
+        dyn_cast<ConstantDataArray>(C->getOperand(0))->getAsCString();
 
-    std::vector<std::pair<Decoration, std::string>> Decorations =
-        parseAnnotations(AnnotationString);
+    if (GI) {
+      auto *Ty = transType(GI->getSourceElementType());
+      SPIRVWord MemberNumber =
+          dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
 
-    if (Decorations.empty()) {
-      Ty->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-          Ty, MemberNumber,
-          AnnotationString.substr(0, AnnotationString.size() - 1)));
+      std::vector<std::pair<Decoration, std::string>> Decorations =
+          parseAnnotations(AnnotationString);
+
+      if (Decorations.empty()) {
+        Ty->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
+            Ty, MemberNumber, AnnotationString));
+      } else {
+        addIntelFPGADecorationsForStructMember(Ty, MemberNumber, Decorations);
+      }
+      II->replaceAllUsesWith(II->getOperand(0));
     } else {
-      addIntelFPGADecorationsForStructMember(Ty, MemberNumber, Decorations);
+      auto *Ty = transType(II->getType());
+      auto *BI = dyn_cast<BitCastInst>(II->getOperand(0));
+      if (AnnotationString == kOCLBuiltinName::FPGARegIntel)
+        return BM->addFPGARegINTELInst(Ty, transValue(BI, BB), BB);
     }
-
-    II->replaceAllUsesWith(II->getOperand(0));
     return 0;
   }
+  // We can just ignore/drop some intrinsics, like optimizations hint.
+  case Intrinsic::invariant_start:
+  case Intrinsic::invariant_end:
+    return nullptr;
   default:
-    // LLVM intrinsic functions shouldn't get to SPIRV, because they
-    // would have no definition there.
+    // Other LLVM intrinsics shouldn't get to SPIRV, because they
+    // can't be represented in SPIRV or not implemented yet.
     BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
                                  II->getCalledValue()->getName().str(), "",
                                  __FILE__, __LINE__);
@@ -1427,11 +1467,6 @@ LLVMToSPIRV::transValue(const std::vector<Value *> &Args, SPIRVBasicBlock *BB) {
   return BArgs;
 }
 
-std::vector<SPIRVValue *> LLVMToSPIRV::transArguments(CallInst *CI,
-                                                      SPIRVBasicBlock *BB) {
-  return transValue(getArguments(CI), BB);
-}
-
 std::vector<SPIRVWord> LLVMToSPIRV::transValue(const std::vector<Value *> &Args,
                                                SPIRVBasicBlock *BB,
                                                SPIRVEntry *Entry) {
@@ -1448,16 +1483,6 @@ std::vector<SPIRVWord> LLVMToSPIRV::transArguments(CallInst *CI,
                                                    SPIRVBasicBlock *BB,
                                                    SPIRVEntry *Entry) {
   return transValue(getArguments(CI), BB, Entry);
-}
-
-SPIRVWord LLVMToSPIRV::transFunctionControlMask(CallInst *CI) {
-  SPIRVWord FCM = 0;
-  SPIRSPIRVFuncCtlMaskMap::foreach (
-      [&](Attribute::AttrKind Attr, SPIRVFunctionControlMaskKind Mask) {
-        if (CI->hasFnAttr(Attr))
-          FCM |= Mask;
-      });
-  return FCM;
 }
 
 SPIRVWord LLVMToSPIRV::transFunctionControlMask(Function *F) {
@@ -1878,10 +1903,6 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
   }
   }
   return nullptr;
-}
-
-SPIRVId LLVMToSPIRV::addInt32(int I) {
-  return transValue(getInt32(M, I), nullptr, false)->getId();
 }
 
 SPIRV::SPIRVLinkageTypeKind

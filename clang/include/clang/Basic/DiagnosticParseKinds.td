@@ -27,8 +27,8 @@ def err_msasm_unable_to_create_target : Error<
   "MS-style inline assembly is not available: %0">;
 def err_gnu_inline_asm_disabled : Error<
   "GNU-style inline assembly is disabled">;
-def err_asm_goto_not_supported_yet : Error<
-  "'asm goto' constructs are not supported yet">;
+def err_asm_goto_cannot_have_output : Error<
+  "'asm goto' cannot have output constraints">;
 }
 
 let CategoryName = "Parse Issue" in {
@@ -360,7 +360,7 @@ def err_typename_invalid_storageclass : Error<
 def err_typename_invalid_functionspec : Error<
   "type name does not allow function specifier to be specified">;
 def err_typename_invalid_constexpr : Error<
-  "type name does not allow constexpr specifier to be specified">;
+  "type name does not allow %select{constexpr|consteval}0 specifier to be specified">;
 def err_typename_identifiers_only : Error<
   "typename is allowed for identifiers only">;
 
@@ -684,7 +684,7 @@ def warn_cxx14_compat_template_template_param_typename : Warning<
 def err_template_spec_syntax_non_template : Error<
   "identifier followed by '<' indicates a class template specialization but "
   "%0 %select{does not refer to a template|refers to a function template|"
-  "<unused>|refers to a variable template|<unused>}1">;
+  "<unused>|refers to a variable template|<unused>|refers to a concept}1">;
 def err_id_after_template_in_nested_name_spec : Error<
   "expected template name after 'template' keyword in nested name specifier">;
 def err_unexpected_template_in_unqualified_id : Error<
@@ -875,9 +875,9 @@ def warn_cxx98_compat_lambda : Warning<
   InGroup<CXX98Compat>, DefaultIgnore;
 def err_lambda_missing_parens : Error<
   "lambda requires '()' before %select{'mutable'|return type|"
-  "attribute specifier|'constexpr'}0">;
+  "attribute specifier|'constexpr'|'consteval'}0">;
 def err_lambda_decl_specifier_repeated : Error<
-  "%select{'mutable'|'constexpr'}0 cannot appear multiple times in a lambda declarator">;
+  "%select{'mutable'|'constexpr'|'consteval'}0 cannot appear multiple times in a lambda declarator">;
 def err_lambda_capture_misplaced_ellipsis : Error<
   "ellipsis in pack %select{|init-}0capture must appear %select{after|before}0 "
   "the name of the capture">;
@@ -1290,6 +1290,14 @@ def note_meant_to_use_typename : Note<
 let CategoryName = "Coroutines Issue" in {
 def err_for_co_await_not_range_for : Error<
   "'co_await' modifier can only be applied to range-based for loop">;
+}
+
+let CategoryName = "Concepts Issue" in {
+def err_concept_definition_not_identifier : Error<
+  "name defined in concept definition must be an identifier">;
+def ext_concept_legacy_bool_keyword : ExtWarn<
+  "ISO C++2a does not permit the 'bool' keyword after 'concept'">,
+  InGroup<DiagGroup<"concepts-ts-compat">>;
 }
 
 } // end of Parser diagnostics

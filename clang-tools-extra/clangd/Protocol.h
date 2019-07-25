@@ -353,6 +353,15 @@ llvm::json::Value toJSON(const OffsetEncoding &);
 bool fromJSON(const llvm::json::Value &, OffsetEncoding &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, OffsetEncoding);
 
+// Describes the content type that a client supports in various result literals
+// like `Hover`, `ParameterInfo` or `CompletionItem`.
+enum class MarkupKind {
+  PlainText,
+  Markdown,
+};
+bool fromJSON(const llvm::json::Value &, MarkupKind &);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, MarkupKind);
+
 // This struct doesn't mirror LSP!
 // The protocol defines deeply nested structures for client capabilities.
 // Instead of mapping them all, this just parses out the bits we care about.
@@ -378,8 +387,22 @@ struct ClientCapabilities {
   /// textDocument.completion.completionItem.snippetSupport
   bool CompletionSnippets = false;
 
+  /// Client supports completions with additionalTextEdit near the cursor.
+  /// This is a clangd extension. (LSP says this is for unrelated text only).
+  /// textDocument.completion.editsNearCursor
+  bool CompletionFixes = false;
+
   /// Client supports hierarchical document symbols.
+  /// textDocument.documentSymbol.hierarchicalDocumentSymbolSupport
   bool HierarchicalDocumentSymbol = false;
+
+  /// Client supports signature help.
+  /// textDocument.signatureHelp
+  bool HasSignatureHelp = false;
+
+  /// Client supports processing label offsets instead of a simple label string.
+  /// textDocument.signatureHelp.signatureInformation.parameterInformation.labelOffsetSupport
+  bool OffsetsInSignatureHelp = false;
 
   /// The supported set of CompletionItemKinds for textDocument/completion.
   /// textDocument.completion.completionItemKind.valueSet
@@ -389,8 +412,16 @@ struct ClientCapabilities {
   /// textDocument.codeAction.codeActionLiteralSupport.
   bool CodeActionStructure = false;
 
+  /// Client supports semantic highlighting.
+  /// textDocument.semanticHighlightingCapabilities.semanticHighlighting
+  bool SemanticHighlighting = false;
+
   /// Supported encodings for LSP character offsets. (clangd extension).
   llvm::Optional<std::vector<OffsetEncoding>> offsetEncoding;
+
+  /// The content format that should be used for Hover requests.
+  /// textDocument.hover.contentEncoding
+  MarkupKind HoverContentFormat = MarkupKind::PlainText;
 };
 bool fromJSON(const llvm::json::Value &, ClientCapabilities &);
 
@@ -463,6 +494,28 @@ struct InitializeParams {
 };
 bool fromJSON(const llvm::json::Value &, InitializeParams &);
 
+enum class MessageType {
+  /// An error message.
+  Error = 1,
+  /// A warning message.
+  Warning = 2,
+  /// An information message.
+  Info = 3,
+  /// A log message.
+  Log = 4,
+};
+llvm::json::Value toJSON(const MessageType &);
+
+/// The show message notification is sent from a server to a client to ask the
+/// client to display a particular message in the user interface.
+struct ShowMessageParams {
+  /// The message type.
+  MessageType type = MessageType::Info;
+  /// The actual message.
+  std::string message;
+};
+llvm::json::Value toJSON(const ShowMessageParams &);
+
 struct DidOpenTextDocumentParams {
   /// The document that was opened.
   TextDocumentItem textDocument;
@@ -533,15 +586,13 @@ struct DidChangeConfigurationParams {
 };
 bool fromJSON(const llvm::json::Value &, DidChangeConfigurationParams &);
 
-struct FormattingOptions {
-  /// Size of a tab in spaces.
-  int tabSize = 0;
-
-  /// Prefer spaces over tabs.
-  bool insertSpaces = false;
-};
-bool fromJSON(const llvm::json::Value &, FormattingOptions &);
-llvm::json::Value toJSON(const FormattingOptions &);
+// Note: we do not parse FormattingOptions for *FormattingParams.
+// In general, we use a clang-format style detected from common mechanisms
+// (.clang-format files and the -fallback-style flag).
+// It would be possible to override these with FormatOptions, but:
+//  - the protocol makes FormatOptions mandatory, so many clients set them to
+//    useless values, and we can't tell when to respect them
+// - we also format in other places, where FormatOptions aren't available.
 
 struct DocumentRangeFormattingParams {
   /// The document to format.
@@ -549,9 +600,6 @@ struct DocumentRangeFormattingParams {
 
   /// The range to format
   Range range;
-
-  /// The format options
-  FormattingOptions options;
 };
 bool fromJSON(const llvm::json::Value &, DocumentRangeFormattingParams &);
 
@@ -564,18 +612,12 @@ struct DocumentOnTypeFormattingParams {
 
   /// The character that has been typed.
   std::string ch;
-
-  /// The format options.
-  FormattingOptions options;
 };
 bool fromJSON(const llvm::json::Value &, DocumentOnTypeFormattingParams &);
 
 struct DocumentFormattingParams {
   /// The document to format.
   TextDocumentIdentifier textDocument;
-
-  /// The format options
-  FormattingOptions options;
 };
 bool fromJSON(const llvm::json::Value &, DocumentFormattingParams &);
 
@@ -584,7 +626,6 @@ struct DocumentSymbolParams {
   TextDocumentIdentifier textDocument;
 };
 bool fromJSON(const llvm::json::Value &, DocumentSymbolParams &);
-
 
 /// Represents a related message and source code location for a diagnostic.
 /// This should be used to point to code locations that cause or related to a
@@ -731,6 +772,7 @@ struct CodeAction {
   llvm::Optional<std::string> kind;
   const static llvm::StringLiteral QUICKFIX_KIND;
   const static llvm::StringLiteral REFACTOR_KIND;
+  const static llvm::StringLiteral INFO_KIND;
 
   /// The diagnostics that this code action resolves.
   llvm::Optional<std::vector<Diagnostic>> diagnostics;
@@ -861,11 +903,6 @@ struct CompletionParams : TextDocumentPositionParams {
 };
 bool fromJSON(const llvm::json::Value &, CompletionParams &);
 
-enum class MarkupKind {
-  PlainText,
-  Markdown,
-};
-
 struct MarkupContent {
   MarkupKind kind = MarkupKind::PlainText;
   std::string value;
@@ -972,8 +1009,14 @@ llvm::json::Value toJSON(const CompletionList &);
 /// A single parameter of a particular signature.
 struct ParameterInformation {
 
-  /// The label of this parameter. Mandatory.
-  std::string label;
+  /// The label of this parameter. Ignored when labelOffsets is set.
+  std::string labelString;
+
+  /// Inclusive start and exclusive end offsets withing the containing signature
+  /// label.
+  /// Offsets are computed by lspLength(), which counts UTF-16 code units by
+  /// default but that can be overriden, see its documentation for details.
+  llvm::Optional<std::pair<unsigned, unsigned>> labelOffsets;
 
   /// The documentation of this parameter. Optional.
   std::string documentation;
@@ -1084,7 +1127,7 @@ struct TypeHierarchyItem {
   SymbolKind kind;
 
   /// `true` if the hierarchy item is deprecated. Otherwise, `false`.
-  bool deprecated;
+  bool deprecated = false;
 
   /// The URI of the text document where this type hierarchy item belongs to.
   URIForFile uri;
@@ -1110,13 +1153,26 @@ struct TypeHierarchyItem {
   /// descendants. If not defined, the children have not been resolved.
   llvm::Optional<std::vector<TypeHierarchyItem>> children;
 
-  /// The protocol has a slot here for an optional 'data' filed, which can
-  /// be used to identify a type hierarchy item in a resolve request. We don't
-  /// need this (the item itself is sufficient to identify what to resolve)
-  /// so don't declare it.
+  /// An optional 'data' filed, which can be used to identify a type hierarchy
+  /// item in a resolve request.
+  llvm::Optional<std::string> data;
 };
 llvm::json::Value toJSON(const TypeHierarchyItem &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const TypeHierarchyItem &);
+bool fromJSON(const llvm::json::Value &, TypeHierarchyItem &);
+
+/// Parameters for the `typeHierarchy/resolve` request.
+struct ResolveTypeHierarchyItemParams {
+  /// The item to resolve.
+  TypeHierarchyItem item;
+
+  /// The hierarchy levels to resolve. `0` indicates no level.
+  int resolve;
+
+  /// The direction of the hierarchy levels to resolve.
+  TypeHierarchyDirection direction;
+};
+bool fromJSON(const llvm::json::Value &, ResolveTypeHierarchyItemParams &);
 
 struct ReferenceParams : public TextDocumentPositionParams {
   // For now, no options like context.includeDeclaration are supported.
@@ -1134,6 +1190,27 @@ struct FileStatus {
   // FIXME: add detail messages.
 };
 llvm::json::Value toJSON(const FileStatus &FStatus);
+
+/// Represents a semantic highlighting information that has to be applied on a
+/// specific line of the text document.
+struct SemanticHighlightingInformation {
+  /// The line these highlightings belong to.
+  int Line;
+  /// The base64 encoded string of highlighting tokens.
+  std::string Tokens;
+};
+bool operator==(const SemanticHighlightingInformation &Lhs,
+                const SemanticHighlightingInformation &Rhs);
+llvm::json::Value toJSON(const SemanticHighlightingInformation &Highlighting);
+
+/// Parameters for the semantic highlighting (server-side) push notification.
+struct SemanticHighlightingParams {
+  /// The textdocument these highlightings belong to.
+  TextDocumentIdentifier TextDocument;
+  /// The lines of highlightings that should be sent.
+  std::vector<SemanticHighlightingInformation> Lines;
+};
+llvm::json::Value toJSON(const SemanticHighlightingParams &Highlighting);
 
 } // namespace clangd
 } // namespace clang

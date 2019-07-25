@@ -1,32 +1,34 @@
 ; SOFT:
 ; RUN: llc < %s -mtriple=arm-none-eabi -float-abi=soft     | FileCheck %s --check-prefixes=CHECK,CHECK-SOFT
 ; RUN: llc < %s -mtriple=thumb-none-eabi -float-abi=soft   | FileCheck %s --check-prefixes=CHECK,CHECK-SOFT
+; RUN: llc < %s -mtriple=thumbv8.1m.main-none-eabi -mattr=+mve | FileCheck %s --check-prefixes=CHECK,CHECK-SOFT
+; RUN: llc < %s -mtriple=thumbv8.1m.main-none-eabi -float-abi=soft -mattr=+mve | FileCheck %s --check-prefixes=CHECK,CHECK-SOFT
 
 ; SOFTFP:
 ; RUN: llc < %s -mtriple=arm-none-eabi -mattr=+vfp3        | FileCheck %s --check-prefixes=CHECK,CHECK-SOFTFP-VFP3
 ; RUN: llc < %s -mtriple=arm-none-eabi -mattr=+vfp4        | FileCheck %s --check-prefixes=CHECK,CHECK-SOFTFP-FP16,CHECK-SOFTFP-FP16-A32
-; RUN: llc < %s -mtriple=arm-none-eabi -mattr=+fullfp16    | FileCheck %s --check-prefixes=CHECK,CHECK-SOFTFP-FULLFP16
+; RUN: llc < %s -mtriple=arm-none-eabi -mattr=+fullfp16,+fp64    | FileCheck %s --check-prefixes=CHECK,CHECK-SOFTFP-FULLFP16
 
 ; RUN: llc < %s -mtriple=thumbv7-none-eabi -mattr=+vfp3        | FileCheck %s --check-prefixes=CHECK,CHECK-SOFTFP-VFP3
 ; RUN: llc < %s -mtriple=thumbv7-none-eabi -mattr=+vfp4        | FileCheck %s --check-prefixes=CHECK,CHECK-SOFTFP-FP16,CHECK-SOFTFP-FP16-T32
-; RUN: llc < %s -mtriple=thumbv7-none-eabi -mattr=+fullfp16    | FileCheck %s --check-prefixes=CHECK,CHECK-SOFTFP-FULLFP16
+; RUN: llc < %s -mtriple=thumbv7-none-eabi -mattr=+fullfp16,+fp64    | FileCheck %s --check-prefixes=CHECK,CHECK-SOFTFP-FULLFP16
 
 ; Test fast-isel
-; RUN: llc < %s -mtriple=arm-none-eabi -mattr=+fullfp16 -O0 | FileCheck %s --check-prefixes=CHECK-SPILL-RELOAD
-; RUN: llc < %s -mtriple=thumbv7-none-eabi -mattr=+fullfp16 -O0 | FileCheck %s --check-prefixes=CHECK-SPILL-RELOAD
+; RUN: llc < %s -mtriple=arm-none-eabi -mattr=+fullfp16,+fp64 -O0 | FileCheck %s --check-prefixes=CHECK-SPILL-RELOAD
+; RUN: llc < %s -mtriple=thumbv7-none-eabi -mattr=+fullfp16,+fp64 -O0 | FileCheck %s --check-prefixes=CHECK-SPILL-RELOAD
 
 ; HARD:
 ; RUN: llc < %s -mtriple=arm-none-eabihf -mattr=+vfp3      | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-VFP3
 ; RUN: llc < %s -mtriple=arm-none-eabihf -mattr=+vfp4      | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FP16
-; RUN: llc < %s -mtriple=arm-none-eabihf -mattr=+fullfp16  | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FULLFP16
+; RUN: llc < %s -mtriple=arm-none-eabihf -mattr=+fullfp16,+fp64  | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FULLFP16
 
 ; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mattr=+vfp3      | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-VFP3
 ; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mattr=+vfp4      | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FP16
-; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mattr=+fullfp16  | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FULLFP16
+; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mattr=+fullfp16,fp64  | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FULLFP16
 
 ; FP-CONTRACT=FAST
-; RUN: llc < %s -mtriple=arm-none-eabihf -mattr=+fullfp16 -fp-contract=fast | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FULLFP16-FAST
-; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mattr=+fullfp16 -fp-contract=fast | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FULLFP16-FAST
+; RUN: llc < %s -mtriple=arm-none-eabihf -mattr=+fullfp16,+fp64 -fp-contract=fast | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FULLFP16-FAST
+; RUN: llc < %s -mtriple=thumbv7-none-eabihf -mattr=+fullfp16,+fp64 -fp-contract=fast | FileCheck %s --check-prefixes=CHECK,CHECK-HARDFP-FULLFP16-FAST
 
 ; TODO: we can't pass half-precision arguments as "half" types yet. We do
 ; that for the time being by passing "float %f.coerce" and the necessary
@@ -42,8 +44,6 @@ entry:
 ; CHECK-LABEL:            RetValBug:
 ; CHECK-HARDFP-FULLFP16:  {{.*}} lr
 }
-
-; 1. VABS: TODO
 
 ; 2. VADD
 define float @Add(float %a.coerce, float %b.coerce) {
@@ -208,8 +208,8 @@ for.end:
 
 ; CHECK-LABEL:            VCMPBRCC:
 
-; CHECK-SOFT:             bl  __aeabi_fcmpgt
-; CHECK-SOFT:             cmp r0, #0
+; CHECK-SOFT:             bl  __aeabi_fcmp{{gt|le}}
+; CHECK-SOFT:             cmp r0, #{{0|1}}
 
 ; CHECK-SOFTFP-FP16:      vcvtb.f32.f16 [[S2:s[0-9]]], [[S2]]
 ; CHECK-SOFTFP-FP16:      vcmpe.f32 [[S2]], s0
@@ -691,15 +691,6 @@ entry:
 ; CHECK-HARDFP-FULLFP16:       vnmul.f16  s0, s0, s1
 }
 
-; TODO:
-; 28. VRINTA
-; 29. VRINTM
-; 30. VRINTN
-; 31. VRINTP
-; 32. VRINTR
-; 33. VRINTX
-; 34. VRINTZ
-
 ; 35. VSELEQ
 define half @select_cc1(half* %a0)  {
   %1 = load half, half* %a0
@@ -954,8 +945,6 @@ entry:
 ; CHECK-SOFTFP-FP16-T32-NEXT:  vmovvs.f32	[[S4]], [[S2]]
 ; CHECK-SOFTFP-FP16-T32-NEXT:  vcvtb.f16.f32 s0, [[S4]]
 }
-
-; 39. VSQRT - TODO
 
 ; 40. VSUB
 define float @Sub(float %a.coerce, float %b.coerce) {

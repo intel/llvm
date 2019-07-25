@@ -56,6 +56,21 @@ inline constexpr MemorySemanticsMask operator|(MemorySemanticsMask a,
 
 } // namespace __spv
 
+#ifdef __SYCL_DEVICE_ONLY__
+// OpenCL pipe types
+template<typename dataT>
+using RPipeTy = __read_only __pipe const dataT;
+template<typename dataT>
+using WPipeTy = __write_only __pipe const dataT;
+
+// Struct representing layout of pipe storage
+struct ConstantPipeStorage {
+  int32_t _PacketSize;
+  int32_t _PacketAlignment;
+  int32_t _Capacity;
+};
+#endif // __SYCL_DEVICE_ONLY__
+
 // This class does not have definition, it is only predeclared here.
 // The pointers to this class objects can be passed to or returned from
 // SPIRV built-in functions.

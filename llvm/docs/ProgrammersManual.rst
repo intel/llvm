@@ -821,7 +821,7 @@ T value:
 
 Like the ExitOnError utility, cantFail simplifies control flow. Their treatment
 of error cases is very different however: Where ExitOnError is guaranteed to
-terminate the program on an error input, cantFile simply asserts that the result
+terminate the program on an error input, cantFail simply asserts that the result
 is success. In debug builds this will result in an assertion failure if an error
 is encountered. In release builds the behavior of cantFail for failure values is
 undefined. As such, care must be taken in the use of cantFail: clients must be
@@ -1372,8 +1372,8 @@ these functions in your code in places you want to debug.
 
 Getting this to work requires a small amount of setup.  On Unix systems
 with X11, install the `graphviz <http://www.graphviz.org>`_ toolkit, and make
-sure 'dot' and 'gv' are in your path.  If you are running on Mac OS X, download
-and install the Mac OS X `Graphviz program
+sure 'dot' and 'gv' are in your path.  If you are running on macOS, download
+and install the macOS `Graphviz program
 <http://www.pixelglow.com/graphviz/>`_ and add
 ``/Applications/Graphviz.app/Contents/MacOS/`` (or wherever you install it) to
 your path. The programs need not be present when configuring, building or
@@ -3387,8 +3387,8 @@ compatible LLVM libraries built without it defined.  By default,
 turning on assertions also turns on `LLVM_ENABLE_ABI_BREAKING_CHECKS`
 so a default +Asserts build is not ABI compatible with a
 default -Asserts build.  Clients that want ABI compatibility
-between +Asserts and -Asserts builds should use the CMake or autoconf
-build systems to set `LLVM_ENABLE_ABI_BREAKING_CHECKS` independently
+between +Asserts and -Asserts builds should use the CMake build system
+to set `LLVM_ENABLE_ABI_BREAKING_CHECKS` independently
 of `LLVM_ENABLE_ASSERTIONS`.
 
 .. _coreclasses:

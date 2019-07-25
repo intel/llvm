@@ -73,13 +73,22 @@ void test_image3dwo(write_only image3d_t img) {
 }
 #endif //__OPENCL_C_VERSION__
 
+#if defined(__OPENCL_CPP_VERSION__)
+// Test old atomic overloaded with generic addr space.
+void test_atomics(__generic volatile unsigned int* a) {
+  atomic_add(a, 1);
+}
+#endif
+
+// Verify that ATOMIC_VAR_INIT is defined.
+#if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+global atomic_int z = ATOMIC_VAR_INIT(99);
+#endif //__OPENCL_C_VERSION__
+
 // Verify that non-builtin cl_intel_planar_yuv extension is defined from
 // OpenCL 1.2 onwards.
 #if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)
 // expected-no-diagnostics
-#ifndef cl_intel_planar_yuv
-#error "Missing cl_intel_planar_yuv define"
-#endif
 #else //__OPENCL_C_VERSION__
 // expected-warning@+2{{unknown OpenCL extension 'cl_intel_planar_yuv' - ignoring}}
 #endif //__OPENCL_C_VERSION__

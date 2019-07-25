@@ -285,7 +285,7 @@ static void instantiateOMPDeclareSimdDeclAttr(
   SmallVector<Expr *, 4> Uniforms, Aligneds, Alignments, Linears, Steps;
   SmallVector<unsigned, 4> LinModifiers;
 
-  auto &&Subst = [&](Expr *E) -> ExprResult {
+  auto SubstExpr = [&](Expr *E) -> ExprResult {
     if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts()))
       if (auto *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
         Sema::ContextRAII SavedContext(S, FD);
@@ -298,6 +298,17 @@ static void instantiateOMPDeclareSimdDeclAttr(
     Sema::CXXThisScopeRAII ThisScope(S, ThisContext, Qualifiers(),
                                      FD->isCXXInstanceMember());
     return S.SubstExpr(E, TemplateArgs);
+  };
+
+  // Substitute a single OpenMP clause, which is a potentially-evaluated
+  // full-expression.
+  auto Subst = [&](Expr *E) -> ExprResult {
+    EnterExpressionEvaluationContext Evaluated(
+        S, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+    ExprResult Res = SubstExpr(E);
+    if (Res.isInvalid())
+      return Res;
+    return S.ActOnFinishFullExpr(Res.get(), false);
   };
 
   ExprResult Simdlen;
@@ -1768,7 +1779,7 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(FunctionDecl *D,
     Function = FunctionDecl::Create(
         SemaRef.Context, DC, D->getInnerLocStart(), NameInfo, T, TInfo,
         D->getCanonicalDecl()->getStorageClass(), D->isInlineSpecified(),
-        D->hasWrittenPrototype(), D->isConstexpr());
+        D->hasWrittenPrototype(), D->getConstexprKind());
     Function->setRangeEnd(D->getSourceRange().getEnd());
   }
 
@@ -2076,7 +2087,7 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
     Method = CXXConstructorDecl::Create(
         SemaRef.Context, Record, StartLoc, NameInfo, T, TInfo,
         InstantiatedExplicitSpecifier, Constructor->isInlineSpecified(), false,
-        Constructor->isConstexpr());
+        Constructor->getConstexprKind());
     Method->setRangeEnd(Constructor->getEndLoc());
   } else if (CXXDestructorDecl *Destructor = dyn_cast<CXXDestructorDecl>(D)) {
     Method = CXXDestructorDecl::Create(SemaRef.Context, Record,
@@ -2088,12 +2099,12 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
     Method = CXXConversionDecl::Create(
         SemaRef.Context, Record, StartLoc, NameInfo, T, TInfo,
         Conversion->isInlineSpecified(), InstantiatedExplicitSpecifier,
-        Conversion->isConstexpr(), Conversion->getEndLoc());
+        Conversion->getConstexprKind(), Conversion->getEndLoc());
   } else {
     StorageClass SC = D->isStatic() ? SC_Static : SC_None;
     Method = CXXMethodDecl::Create(SemaRef.Context, Record, StartLoc, NameInfo,
                                    T, TInfo, SC, D->isInlineSpecified(),
-                                   D->isConstexpr(), D->getEndLoc());
+                                   D->getConstexprKind(), D->getEndLoc());
   }
 
   if (D->isInlined())
@@ -3388,6 +3399,10 @@ Decl *TemplateDeclInstantiator::VisitFriendTemplateDecl(FriendTemplateDecl *D) {
     << D->getDeclKindName();
 
   return nullptr;
+}
+
+Decl *TemplateDeclInstantiator::VisitConceptDecl(ConceptDecl *D) {
+  llvm_unreachable("Concept definitions cannot reside inside a template");
 }
 
 Decl *TemplateDeclInstantiator::VisitDecl(Decl *D) {
@@ -4714,8 +4729,12 @@ void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
   //   of reference types, [...] explicit instantiation declarations
   //   have the effect of suppressing the implicit instantiation of the entity
   //   to which they refer.
+  //
+  // FIXME: That's not exactly the same as "might be usable in constant
+  // expressions", which only allows constexpr variables and const integral
+  // types, not arbitrary const literal types.
   if (TSK == TSK_ExplicitInstantiationDeclaration &&
-      !Var->isUsableInConstantExpressions(getASTContext()))
+      !Var->mightBeUsableInConstantExpressions(getASTContext()))
     return;
 
   // Make sure to pass the instantiated variable to the consumer at the end.

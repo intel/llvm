@@ -1922,6 +1922,30 @@ bool PragmaClangAttributeSupport::isAttributedSupported(
   return true;
 }
 
+static std::string GenerateTestExpression(ArrayRef<Record *> LangOpts) {
+  std::string Test;
+
+  for (auto *E : LangOpts) {
+    if (!Test.empty())
+      Test += " || ";
+
+    const StringRef Code = E->getValueAsString("CustomCode");
+    if (!Code.empty()) {
+      Test += "(";
+      Test += Code;
+      Test += ")";
+    } else {
+      Test += "LangOpts.";
+      Test += E->getValueAsString("Name");
+    }
+  }
+
+  if (Test.empty())
+    return "true";
+
+  return Test;
+}
+
 std::string
 PragmaClangAttributeSupport::generateStrictConformsTo(const Record &Attr,
                                                       raw_ostream &OS) {
@@ -1948,19 +1972,8 @@ PragmaClangAttributeSupport::generateStrictConformsTo(const Record &Attr,
       // rules if the specific language options are specified.
       std::vector<Record *> LangOpts = Rule.getLangOpts();
       OS << "  MatchRules.push_back(std::make_pair(" << Rule.getEnumValue()
-         << ", /*IsSupported=*/";
-      if (!LangOpts.empty()) {
-        for (auto I = LangOpts.begin(), E = LangOpts.end(); I != E; ++I) {
-          const StringRef Part = (*I)->getValueAsString("Name");
-          if ((*I)->getValueAsBit("Negated"))
-            OS << "!";
-          OS << "LangOpts." << Part;
-          if (I + 1 != E)
-            OS << " || ";
-        }
-      } else
-        OS << "true";
-      OS << "));\n";
+         << ", /*IsSupported=*/" << GenerateTestExpression(LangOpts)
+         << "));\n";
     }
   }
   OS << "}\n\n";
@@ -2797,7 +2810,7 @@ void EmitClangAttrPCHWrite(RecordKeeper &Records, raw_ostream &OS) {
 
 // Helper function for GenerateTargetSpecificAttrChecks that alters the 'Test'
 // parameter with only a single check type, if applicable.
-static void GenerateTargetSpecificAttrCheck(const Record *R, std::string &Test,
+static bool GenerateTargetSpecificAttrCheck(const Record *R, std::string &Test,
                                             std::string *FnName,
                                             StringRef ListName,
                                             StringRef CheckAgainst,
@@ -2817,7 +2830,9 @@ static void GenerateTargetSpecificAttrCheck(const Record *R, std::string &Test,
         *FnName += Part;
     }
     Test += ")";
+    return true;
   }
+  return false;
 }
 
 // Generate a conditional expression to check if the current target satisfies
@@ -2825,10 +2840,12 @@ static void GenerateTargetSpecificAttrCheck(const Record *R, std::string &Test,
 // those checks to the Test string. If the FnName string pointer is non-null,
 // append a unique suffix to distinguish this set of target checks from other
 // TargetSpecificAttr records.
-static void GenerateTargetSpecificAttrChecks(const Record *R,
+static bool GenerateTargetSpecificAttrChecks(const Record *R,
                                              std::vector<StringRef> &Arches,
                                              std::string &Test,
                                              std::string *FnName) {
+  bool AnyTargetChecks = false;
+
   // It is assumed that there will be an llvm::Triple object
   // named "T" and a TargetInfo object named "Target" within
   // scope that can be used to determine whether the attribute exists in
@@ -2838,6 +2855,7 @@ static void GenerateTargetSpecificAttrChecks(const Record *R,
   // differently because GenerateTargetRequirements needs to combine the list
   // with ParseKind.
   if (!Arches.empty()) {
+    AnyTargetChecks = true;
     Test += " && (";
     for (auto I = Arches.begin(), E = Arches.end(); I != E; ++I) {
       StringRef Part = *I;
@@ -2852,16 +2870,24 @@ static void GenerateTargetSpecificAttrChecks(const Record *R,
   }
 
   // If the attribute is specific to particular OSes, check those.
-  GenerateTargetSpecificAttrCheck(R, Test, FnName, "OSes", "T.getOS()",
-                                  "llvm::Triple::");
+  AnyTargetChecks |= GenerateTargetSpecificAttrCheck(
+      R, Test, FnName, "OSes", "T.getOS()", "llvm::Triple::");
 
-  // If one or more CXX ABIs are specified, check those as well.
-  GenerateTargetSpecificAttrCheck(R, Test, FnName, "CXXABIs",
-                                  "Target.getCXXABI().getKind()",
-                                  "TargetCXXABI::");
   // If one or more object formats is specified, check those.
-  GenerateTargetSpecificAttrCheck(R, Test, FnName, "ObjectFormats",
-                                  "T.getObjectFormat()", "llvm::Triple::");
+  AnyTargetChecks |=
+      GenerateTargetSpecificAttrCheck(R, Test, FnName, "ObjectFormats",
+                                      "T.getObjectFormat()", "llvm::Triple::");
+
+  // If custom code is specified, emit it.
+  StringRef Code = R->getValueAsString("CustomCode");
+  if (!Code.empty()) {
+    AnyTargetChecks = true;
+    Test += " && (";
+    Test += Code;
+    Test += ")";
+  }
+
+  return AnyTargetChecks;
 }
 
 static void GenerateHasAttrSpellingStringSwitch(
@@ -3431,23 +3457,12 @@ static std::string GenerateLangOptRequirements(const Record &R,
   if (LangOpts.empty())
     return "defaultDiagnoseLangOpts";
 
-  // Generate the test condition, as well as a unique function name for the
-  // diagnostic test. The list of options should usually be short (one or two
-  // options), and the uniqueness isn't strictly necessary (it is just for
-  // codegen efficiency).
-  std::string FnName = "check", Test;
-  for (auto I = LangOpts.begin(), E = LangOpts.end(); I != E; ++I) {
-    const StringRef Part = (*I)->getValueAsString("Name");
-    if ((*I)->getValueAsBit("Negated")) {
-      FnName += "Not";
-      Test += "!";
-    }
-    Test += "S.LangOpts.";
-    Test +=  Part;
-    if (I + 1 != E)
-      Test += " || ";
-    FnName += Part;
-  }
+  // Generate a unique function name for the diagnostic test. The list of
+  // options should usually be short (one or two options), and the
+  // uniqueness isn't strictly necessary (it is just for codegen efficiency).
+  std::string FnName = "check";
+  for (auto I = LangOpts.begin(), E = LangOpts.end(); I != E; ++I)
+    FnName += (*I)->getValueAsString("Name");
   FnName += "LangOpts";
 
   // If this code has already been generated, simply return the previous
@@ -3458,7 +3473,8 @@ static std::string GenerateLangOptRequirements(const Record &R,
     return *I;
 
   OS << "static bool " << FnName << "(Sema &S, const ParsedAttr &Attr) {\n";
-  OS << "  if (" << Test << ")\n";
+  OS << "  auto &LangOpts = S.LangOpts;\n";
+  OS << "  if (" << GenerateTestExpression(LangOpts) << ")\n";
   OS << "    return true;\n\n";
   OS << "  S.Diag(Attr.getLoc(), diag::warn_attribute_ignored) ";
   OS << "<< Attr.getName();\n";
@@ -3507,7 +3523,7 @@ static std::string GenerateTargetRequirements(const Record &Attr,
 
   std::string FnName = "isTarget";
   std::string Test;
-  GenerateTargetSpecificAttrChecks(R, Arches, Test, &FnName);
+  bool UsesT = GenerateTargetSpecificAttrChecks(R, Arches, Test, &FnName);
 
   // If this code has already been generated, simply return the previous
   // instance of it.
@@ -3517,7 +3533,8 @@ static std::string GenerateTargetRequirements(const Record &Attr,
     return *I;
 
   OS << "static bool " << FnName << "(const TargetInfo &Target) {\n";
-  OS << "  const llvm::Triple &T = Target.getTriple();\n";
+  if (UsesT)
+    OS << "  const llvm::Triple &T = Target.getTriple(); (void)T;\n";
   OS << "  return " << Test << ";\n";
   OS << "}\n\n";
 

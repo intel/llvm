@@ -702,18 +702,20 @@ enum : unsigned {
   EF_AMDGPU_MACH_AMDGCN_GFX902 = 0x02d,
   EF_AMDGPU_MACH_AMDGCN_GFX904 = 0x02e,
   EF_AMDGPU_MACH_AMDGCN_GFX906 = 0x02f,
+  EF_AMDGPU_MACH_AMDGCN_GFX908 = 0x030,
   EF_AMDGPU_MACH_AMDGCN_GFX909 = 0x031,
   // AMDGCN GFX10.
   EF_AMDGPU_MACH_AMDGCN_GFX1010 = 0x033,
+  EF_AMDGPU_MACH_AMDGCN_GFX1011 = 0x034,
+  EF_AMDGPU_MACH_AMDGCN_GFX1012 = 0x035,
 
   // Reserved for AMDGCN-based processors.
   EF_AMDGPU_MACH_AMDGCN_RESERVED0 = 0x027,
-  EF_AMDGPU_MACH_AMDGCN_RESERVED1 = 0x030,
-  EF_AMDGPU_MACH_AMDGCN_RESERVED2 = 0x032,
+  EF_AMDGPU_MACH_AMDGCN_RESERVED1 = 0x032,
 
   // First/last AMDGCN-based processors.
   EF_AMDGPU_MACH_AMDGCN_FIRST = EF_AMDGPU_MACH_AMDGCN_GFX600,
-  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_GFX1010,
+  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_GFX1012,
 
   // Indicates if the "xnack" target feature is enabled for all code contained
   // in the object.
@@ -842,6 +844,9 @@ enum : unsigned {
   SHT_LLVM_ADDRSIG = 0x6fff4c03,        // List of address-significant symbols
                                         // for safe ICF.
   SHT_LLVM_DEPENDENT_LIBRARIES = 0x6fff4c04, // LLVM Dependent Library Specifiers.
+  SHT_LLVM_SYMPART = 0x6fff4c05,        // Symbol partition specification.
+  SHT_LLVM_PART_EHDR = 0x6fff4c06,      // ELF header for loadable partition.
+  SHT_LLVM_PART_PHDR = 0x6fff4c07,      // Phdrs for loadable partition.
   // Android's experimental support for SHT_RELR sections.
   // https://android.googlesource.com/platform/bionic/+/b7feec74547f84559a1467aca02708ff61346d2a/libc/include/elf.h#512
   SHT_ANDROID_RELR = 0x6fffff00,        // Relocation entries; only offsets.
@@ -1363,11 +1368,18 @@ enum {
 enum : unsigned {
   GNU_PROPERTY_STACK_SIZE = 1,
   GNU_PROPERTY_NO_COPY_ON_PROTECTED = 2,
+  GNU_PROPERTY_AARCH64_FEATURE_1_AND = 0xc0000000,
   GNU_PROPERTY_X86_FEATURE_1_AND = 0xc0000002,
   GNU_PROPERTY_X86_ISA_1_NEEDED = 0xc0008000,
   GNU_PROPERTY_X86_FEATURE_2_NEEDED = 0xc0008001,
   GNU_PROPERTY_X86_ISA_1_USED = 0xc0010000,
   GNU_PROPERTY_X86_FEATURE_2_USED = 0xc0010001,
+};
+
+// aarch64 processor feature bits.
+enum : unsigned {
+  GNU_PROPERTY_AARCH64_FEATURE_1_BTI = 1 << 0,
+  GNU_PROPERTY_AARCH64_FEATURE_1_PAC = 1 << 1,
 };
 
 // x86 processor feature bits.
@@ -1410,6 +1422,11 @@ enum : unsigned {
   GNU_PROPERTY_X86_FEATURE_2_XSAVE = 1 << 7,
   GNU_PROPERTY_X86_FEATURE_2_XSAVEOPT = 1 << 8,
   GNU_PROPERTY_X86_FEATURE_2_XSAVEC = 1 << 9,
+};
+
+// AMDGPU-specific section indices.
+enum {
+  SHN_AMDGPU_LDS = 0xff00, // Variable in LDS; symbol encoded like SHN_COMMON
 };
 
 // AMD specific notes. (Code Object V2)

@@ -37,8 +37,10 @@
 ; CHECK-SPIRV: SubgroupShuffleXorINTEL
 
 ; CHECK-SPIRV: SubgroupImageBlockReadINTEL
-; CHECK-SPIRV: SubgroupBlockWriteINTEL
 ; CHECK-SPIRV: SubgroupImageBlockWriteINTEL
+
+; CHECK-SPIRV: SubgroupBlockReadINTEL
+; CHECK-SPIRV: SubgroupBlockWriteINTEL
 
 ; CHECK-SPIRV: SubgroupBlockReadINTEL
 ; CHECK-SPIRV: SubgroupBlockWriteINTEL
@@ -57,24 +59,27 @@ entry:
   %call1 = tail call spir_func <2 x float> @_Z28intel_sub_group_shuffle_downDv2_fDv2_fj(<2 x float> %x, <2 x float> %x, i32 %c) #3
   %call2 = tail call spir_func <2 x float> @_Z26intel_sub_group_shuffle_upDv2_fDv2_fj(<2 x float> %x, <2 x float> %x, i32 %c) #3
   %call3 = tail call spir_func <2 x float> @_Z27intel_sub_group_shuffle_xorDv2_fj(<2 x float> %x, i32 %c) #3
-; CHECK-LLVM: call spir_func <2 x float> @_Z23intel_sub_group_shuffle{{.*}}(<2 x float> %x, i32 %c)
-; CHECK-LLVM: call spir_func <2 x float> @_Z28intel_sub_group_shuffle_down{{.*}}(<2 x float> %x, <2 x float> %x, i32 %c)
-; CHECK-LLVM: call spir_func <2 x float> @_Z26intel_sub_group_shuffle_up{{.*}}(<2 x float> %x, <2 x float> %x, i32 %c)
-; CHECK-LLVM: call spir_func <2 x float> @_Z27intel_sub_group_shuffle_xor{{.*}}(<2 x float> %x, i32 %c)
+; CHECK-LLVM: call spir_func <2 x float> @_Z23intel_sub_group_shuffleDv2_fj(<2 x float> %x, i32 %c)
+; CHECK-LLVM: call spir_func <2 x float> @_Z28intel_sub_group_shuffle_downDv2_fS_j(<2 x float> %x, <2 x float> %x, i32 %c)
+; CHECK-LLVM: call spir_func <2 x float> @_Z26intel_sub_group_shuffle_upDv2_fS_j(<2 x float> %x, <2 x float> %x, i32 %c)
+; CHECK-LLVM: call spir_func <2 x float> @_Z27intel_sub_group_shuffle_xorDv2_fj(<2 x float> %x, i32 %c)
 
   %call4 = tail call spir_func <2 x i32> @_Z27intel_sub_group_block_read214ocl_image2d_roDv2_i(%opencl.image2d_ro_t addrspace(1)* %image_in, <2 x i32> %coord) #4
-  tail call spir_func void @_Z28intel_sub_group_block_write2PU3AS1jDv2_j(i32 addrspace(1)* %p, <2 x i32> %call4) #3
   tail call spir_func void @_Z28intel_sub_group_block_write214ocl_image2d_woDv2_iDv2_j(%opencl.image2d_wo_t addrspace(1)* %image_out, <2 x i32> %coord, <2 x i32> %call4) #3
-; CHECK-LLVM: call spir_func <2 x i32> @_Z27intel_sub_group_block_read2{{.*}}(%opencl.image2d_ro_t addrspace(1)* %image_in, <2 x i32> %coord)
-; CHECK-LLVM: call spir_func void @_Z28intel_sub_group_block_write2{{.*}}(i32 addrspace(1)* %p, <2 x i32> %call4)
-; CHECK-LLVM: call spir_func void @_Z28intel_sub_group_block_write2{{.*}}(%opencl.image2d_wo_t addrspace(1)* %image_out, <2 x i32> %coord, <2 x i32> %call4)
+; CHECK-LLVM: call spir_func <2 x i32> @_Z27intel_sub_group_block_read214ocl_image2d_roDv2_i(%opencl.image2d_ro_t addrspace(1)* %image_in, <2 x i32> %coord)
+; CHECK-LLVM: call spir_func void @_Z28intel_sub_group_block_write214ocl_image2d_woDv2_iDv2_j(%opencl.image2d_wo_t addrspace(1)* %image_out, <2 x i32> %coord, <2 x i32> %call4)
 
-  %call5 = tail call spir_func <2 x i16> @_Z30intel_sub_group_block_read_us2PKU3AS1t(i16 addrspace(1)* %sp) #4
-  tail call spir_func void @_Z31intel_sub_group_block_write_us2PU3AS1tDv2_t(i16 addrspace(1)* %sp, <2 x i16> %call5) #3
-  tail call spir_func void @_Z31intel_sub_group_block_write_us214ocl_image2d_woDv2_iDv2_t(%opencl.image2d_wo_t addrspace(1)* %image_out, <2 x i32> %coord, <2 x i16> %call5) #3
-; CHECK-LLVM: call spir_func <2 x i16> @_Z30intel_sub_group_block_read_us2{{.*}}(i16 addrspace(1)* %sp)
-; CHECK-LLVM: call spir_func void @_Z31intel_sub_group_block_write_us2{{.*}}(i16 addrspace(1)* %sp, <2 x i16> %call5)
-; CHECK-LLVM: call spir_func void @_Z31intel_sub_group_block_write_us2{{.*}}(%opencl.image2d_wo_t addrspace(1)* %image_out, <2 x i32> %coord, <2 x i16> %call5)
+  %call5 = tail call spir_func <2 x i32> @_Z27intel_sub_group_block_read2PU3AS1Kj(i32 addrspace(1)* %p) #4
+  tail call spir_func void @_Z28intel_sub_group_block_write2PU3AS1jDv2_j(i32 addrspace(1)* %p, <2 x i32> %call5) #3
+; CHECK-LLVM: call spir_func <2 x i32> @_Z27intel_sub_group_block_read2PU3AS1Kj(i32 addrspace(1)* %p)
+; CHECK-LLVM: call spir_func void @_Z28intel_sub_group_block_write2PU3AS1jDv2_j(i32 addrspace(1)* %p, <2 x i32> %call5)
+
+  %call6 = tail call spir_func <2 x i16> @_Z30intel_sub_group_block_read_us2PU3AS1Kt(i16 addrspace(1)* %sp) #4
+  tail call spir_func void @_Z31intel_sub_group_block_write_us2PU3AS1tDv2_t(i16 addrspace(1)* %sp, <2 x i16> %call6) #3
+  tail call spir_func void @_Z31intel_sub_group_block_write_us214ocl_image2d_woDv2_iDv2_t(%opencl.image2d_wo_t addrspace(1)* %image_out, <2 x i32> %coord, <2 x i16> %call6) #3
+; CHECK-LLVM: call spir_func <2 x i16> @_Z30intel_sub_group_block_read_us2PU3AS1Kt(i16 addrspace(1)* %sp)
+; CHECK-LLVM: call spir_func void @_Z31intel_sub_group_block_write_us2PU3AS1tDv2_t(i16 addrspace(1)* %sp, <2 x i16> %call6)
+; CHECK-LLVM: call spir_func void @_Z31intel_sub_group_block_write_us214ocl_image2d_woDv2_iDv2_t(%opencl.image2d_wo_t addrspace(1)* %image_out, <2 x i32> %coord, <2 x i16> %call6)
   ret void
 }
 
@@ -89,12 +94,15 @@ declare spir_func <2 x float> @_Z27intel_sub_group_shuffle_xorDv2_fj(<2 x float>
 ; Function Attrs: nounwind readonly
 declare spir_func <2 x i32> @_Z27intel_sub_group_block_read214ocl_image2d_roDv2_i(%opencl.image2d_ro_t addrspace(1)*, <2 x i32>) #2
 
-declare spir_func void @_Z28intel_sub_group_block_write2PU3AS1jDv2_j(i32 addrspace(1)*, <2 x i32>) #1
-
 declare spir_func void @_Z28intel_sub_group_block_write214ocl_image2d_woDv2_iDv2_j(%opencl.image2d_wo_t addrspace(1)*, <2 x i32>, <2 x i32>) #1
 
 ; Function Attrs: nounwind readonly
-declare spir_func <2 x i16> @_Z30intel_sub_group_block_read_us2PKU3AS1t(i16 addrspace(1)*) #2
+declare spir_func <2 x i32> @_Z27intel_sub_group_block_read2PU3AS1Kj(i32 addrspace(1)*) #2
+
+declare spir_func void @_Z28intel_sub_group_block_write2PU3AS1jDv2_j(i32 addrspace(1)*, <2 x i32>) #1
+
+; Function Attrs: nounwind readonly
+declare spir_func <2 x i16> @_Z30intel_sub_group_block_read_us2PU3AS1Kt(i16 addrspace(1)*) #2
 
 declare spir_func void @_Z31intel_sub_group_block_write_us2PU3AS1tDv2_t(i16 addrspace(1)*, <2 x i16>) #1
 

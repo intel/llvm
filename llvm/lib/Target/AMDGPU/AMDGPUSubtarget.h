@@ -299,7 +299,6 @@ protected:
   bool TrapHandler;
 
   // Used as options.
-  bool EnableHugePrivateBuffer;
   bool EnableLoadStoreOpt;
   bool EnableUnsafeDSOffsetFolding;
   bool EnableSIScheduler;
@@ -332,11 +331,19 @@ protected:
   bool HasSDWAMac;
   bool HasSDWAOutModsVOPC;
   bool HasDPP;
+  bool HasDPP8;
   bool HasR128A16;
   bool HasNSAEncoding;
   bool HasDLInsts;
   bool HasDot1Insts;
   bool HasDot2Insts;
+  bool HasDot3Insts;
+  bool HasDot4Insts;
+  bool HasDot5Insts;
+  bool HasDot6Insts;
+  bool HasMAIInsts;
+  bool HasPkFmacF16Inst;
+  bool HasAtomicFaddInsts;
   bool EnableSRAMECC;
   bool DoesNotSupportSRAMECC;
   bool HasNoSdstCMPX;
@@ -366,6 +373,7 @@ protected:
   bool HasVcmpxExecWARHazard;
   bool HasLdsBranchVmemWARHazard;
   bool HasNSAtoVMEMBug;
+  bool HasOffset3fBug;
   bool HasFlatSegmentOffsetBug;
 
   // Dummy feature to use for assembler in tablegen.
@@ -376,6 +384,9 @@ private:
   SIInstrInfo InstrInfo;
   SITargetLowering TLInfo;
   SIFrameLowering FrameLowering;
+
+  // See COMPUTE_TMPRING_SIZE.WAVESIZE, 13-bit field in units of 256-dword.
+  static const unsigned MaxWaveScratchSize = (256 * 4) * ((1 << 13) - 1);
 
 public:
   GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
@@ -436,6 +447,11 @@ public:
     return Log2_32(WavefrontSize);
   }
 
+  /// Return the number of high bits known to be zero fror a frame index.
+  unsigned getKnownHighZeroBitsForFrameIndex() const {
+    return countLeadingZeros(MaxWaveScratchSize) + getWavefrontSizeLog2();
+  }
+
   int getLDSBankCount() const {
     return LDSBankCount;
   }
@@ -472,6 +488,12 @@ public:
 
   bool hasAddr64() const {
     return (getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS);
+  }
+
+  // Return true if the target only has the reverse operand versions of VALU
+  // shift instructions (e.g. v_lshrrev_b32, and no v_lshr_b32).
+  bool hasOnlyRevVALUShifts() const {
+    return getGeneration() >= VOLCANIC_ISLANDS;
   }
 
   bool hasBFE() const {
@@ -526,12 +548,46 @@ public:
     return isAmdHsaOS() ? TrapHandlerAbiHsa : TrapHandlerAbiNone;
   }
 
-  bool enableHugePrivateBuffer() const {
-    return EnableHugePrivateBuffer;
+  /// True if the offset field of DS instructions works as expected. On SI, the
+  /// offset uses a 16-bit adder and does not always wrap properly.
+  bool hasUsableDSOffset() const {
+    return getGeneration() >= SEA_ISLANDS;
   }
 
   bool unsafeDSOffsetFoldingEnabled() const {
     return EnableUnsafeDSOffsetFolding;
+  }
+
+  /// Condition output from div_scale is usable.
+  bool hasUsableDivScaleConditionOutput() const {
+    return getGeneration() != SOUTHERN_ISLANDS;
+  }
+
+  /// Extra wait hazard is needed in some cases before
+  /// s_cbranch_vccnz/s_cbranch_vccz.
+  bool hasReadVCCZBug() const {
+    return getGeneration() <= SEA_ISLANDS;
+  }
+
+  /// A read of an SGPR by SMRD instruction requires 4 wait states when the SGPR
+  /// was written by a VALU instruction.
+  bool hasSMRDReadVALUDefHazard() const {
+    return getGeneration() == SOUTHERN_ISLANDS;
+  }
+
+  /// A read of an SGPR by a VMEM instruction requires 5 wait states when the
+  /// SGPR was written by a VALU Instruction.
+  bool hasVMEMReadSGPRVALUDefHazard() const {
+    return getGeneration() >= VOLCANIC_ISLANDS;
+  }
+
+  bool hasRFEHazards() const {
+    return getGeneration() >= VOLCANIC_ISLANDS;
+  }
+
+  /// Number of hazard wait states for s_setreg_b32/s_setreg_imm32_b32.
+  unsigned getSetRegWaitStates() const {
+    return getGeneration() <= SEA_ISLANDS ? 1 : 2;
   }
 
   bool dumpCode() const {
@@ -563,6 +619,11 @@ public:
   /// of ds_read/write_b128.
   bool useDS128() const {
     return CIInsts && EnableDS128;
+  }
+
+  /// Have v_trunc_f64, v_ceil_f64, v_rndne_f64
+  bool haveRoundOpsF64() const {
+    return CIInsts;
   }
 
   /// \returns If MUBUF instructions always perform range checking, even for
@@ -614,6 +675,10 @@ public:
     return FlatAddressSpace;
   }
 
+  bool hasFlatScrRegister() const {
+    return hasFlatAddressSpace();
+  }
+
   bool hasFlatInstOffsets() const {
     return FlatInstOffsets;
   }
@@ -646,10 +711,28 @@ public:
     return hasD16LoadStore() && !isSRAMECCEnabled();
   }
 
+  bool hasD16Images() const {
+    return getGeneration() >= VOLCANIC_ISLANDS;
+  }
+
   /// Return if most LDS instructions have an m0 use that require m0 to be
   /// iniitalized.
   bool ldsRequiresM0Init() const {
     return getGeneration() < GFX9;
+  }
+
+  // True if the hardware rewinds and replays GWS operations if a wave is
+  // preempted.
+  //
+  // If this is false, a GWS operation requires testing if a nack set the
+  // MEM_VIOL bit, and repeating if so.
+  bool hasGWSAutoReplay() const {
+    return getGeneration() >= GFX9;
+  }
+
+  /// \returns if target has ds_gws_sema_release_all instruction.
+  bool hasGWSSemaReleaseAll() const {
+    return CIInsts;
   }
 
   bool hasAddNoCarry() const {
@@ -699,6 +782,34 @@ public:
 
   bool hasDot2Insts() const {
     return HasDot2Insts;
+  }
+
+  bool hasDot3Insts() const {
+    return HasDot3Insts;
+  }
+
+  bool hasDot4Insts() const {
+    return HasDot4Insts;
+  }
+
+  bool hasDot5Insts() const {
+    return HasDot5Insts;
+  }
+
+  bool hasDot6Insts() const {
+    return HasDot6Insts;
+  }
+
+  bool hasMAIInsts() const {
+    return HasMAIInsts;
+  }
+
+  bool hasPkFmacF16Inst() const {
+    return HasPkFmacF16Inst;
+  }
+
+  bool hasAtomicFaddInsts() const {
+    return HasAtomicFaddInsts;
   }
 
   bool isSRAMECCEnabled() const {
@@ -833,8 +944,16 @@ public:
     return HasDPP;
   }
 
+  bool hasDPP8() const {
+    return HasDPP8;
+  }
+
   bool hasR128A16() const {
     return HasR128A16;
+  }
+
+  bool hasOffset3fBug() const {
+    return HasOffset3fBug;
   }
 
   bool hasNSAEncoding() const {
@@ -1019,6 +1138,14 @@ public:
   void getPostRAMutations(
       std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations)
       const override;
+
+  bool isWave32() const {
+    return WavefrontSize == 32;
+  }
+
+  const TargetRegisterClass *getBoolRC() const {
+    return getRegisterInfo()->getBoolRC();
+  }
 
   /// \returns Maximum number of work groups per compute unit supported by the
   /// subtarget and limited by given \p FlatWorkGroupSize.

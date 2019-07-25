@@ -39,8 +39,15 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
       .legalForTypesWithMemDesc({{s32, p0, 8, 8},
                                  {s32, p0, 16, 8},
                                  {s32, p0, 32, 8},
+                                 {s64, p0, 64, 8},
                                  {p0, p0, 32, 8}})
       .minScalar(0, s32);
+
+  getActionDefinitionsBuilder(G_UNMERGE_VALUES)
+     .legalFor({{s32, s64}});
+
+  getActionDefinitionsBuilder(G_MERGE_VALUES)
+     .legalFor({{s64, s32}});
 
   getActionDefinitionsBuilder({G_ZEXTLOAD, G_SEXTLOAD})
     .legalForTypesWithMemDesc({{s32, p0, 8, 8},
@@ -48,7 +55,7 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
       .minScalar(0, s32);
 
   getActionDefinitionsBuilder(G_SELECT)
-      .legalForCartesianProduct({p0, s32}, {s32})
+      .legalForCartesianProduct({p0, s32, s64}, {s32})
       .minScalar(0, s32)
       .minScalar(1, s32);
 
@@ -57,7 +64,7 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
       .minScalar(0, s32);
 
   getActionDefinitionsBuilder(G_PHI)
-      .legalFor({p0, s32})
+      .legalFor({p0, s32, s64})
       .minScalar(0, s32);
 
   getActionDefinitionsBuilder({G_AND, G_OR, G_XOR})
@@ -74,7 +81,8 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
     .minScalar(1, s32);
 
   getActionDefinitionsBuilder(G_ICMP)
-      .legalFor({{s32, s32}})
+      .legalForCartesianProduct({s32}, {s32, p0})
+      .clampScalar(1, s32, s32)
       .minScalar(0, s32);
 
   getActionDefinitionsBuilder(G_CONSTANT)
@@ -94,8 +102,41 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
   getActionDefinitionsBuilder(G_FCONSTANT)
       .legalFor({s32, s64});
 
-  getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV})
+  getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FABS, G_FSQRT})
       .legalFor({s32, s64});
+
+  getActionDefinitionsBuilder(G_FCMP)
+      .legalFor({{s32, s32}, {s32, s64}})
+      .minScalar(0, s32);
+
+  getActionDefinitionsBuilder({G_FCEIL, G_FFLOOR})
+      .libcallFor({s32, s64});
+
+  getActionDefinitionsBuilder(G_FPEXT)
+      .legalFor({{s64, s32}});
+
+  getActionDefinitionsBuilder(G_FPTRUNC)
+      .legalFor({{s32, s64}});
+
+  // FP to int conversion instructions
+  getActionDefinitionsBuilder(G_FPTOSI)
+      .legalForCartesianProduct({s32}, {s64, s32})
+      .libcallForCartesianProduct({s64}, {s64, s32})
+      .minScalar(0, s32);
+
+  getActionDefinitionsBuilder(G_FPTOUI)
+      .libcallForCartesianProduct({s64}, {s64, s32})
+      .minScalar(0, s32);
+
+  // Int to FP conversion instructions
+  getActionDefinitionsBuilder(G_SITOFP)
+      .legalForCartesianProduct({s64, s32}, {s32})
+      .libcallForCartesianProduct({s64, s32}, {s64})
+      .minScalar(1, s32);
+
+  getActionDefinitionsBuilder(G_UITOFP)
+      .libcallForCartesianProduct({s64, s32}, {s64})
+      .minScalar(1, s32);
 
   computeTables();
   verify(*ST.getInstrInfo());

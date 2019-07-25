@@ -142,18 +142,23 @@ public:
   /// contain files that currently run something over their AST.
   std::vector<Path> getFilesWithCachedAST() const;
 
-  /// Schedule an update for \p File. Adds \p File to a list of tracked files if
-  /// \p File was not part of it before. The compile command in \p Inputs is
-  /// ignored; worker queries CDB to get the actual compile command.
+  /// Schedule an update for \p File.
+  /// The compile command in \p Inputs is ignored; worker queries CDB to get
+  /// the actual compile command.
   /// If diagnostics are requested (Yes), and the context is cancelled
   /// before they are prepared, they may be skipped if eventual-consistency
   /// permits it (i.e. WantDiagnostics is downgraded to Auto).
-  void update(PathRef File, ParseInputs Inputs, WantDiagnostics WD);
+  /// Returns true if the file was not previously tracked.
+  bool update(PathRef File, ParseInputs Inputs, WantDiagnostics WD);
 
   /// Remove \p File from the list of tracked files and schedule removal of its
   /// resources. Pending diagnostics for closed files may not be delivered, even
   /// if requested with WantDiags::Auto or WantDiags::Yes.
   void remove(PathRef File);
+
+  /// Returns the current contents of the buffer for File, per last update().
+  /// The returned StringRef may be invalidated by any write to TUScheduler.
+  llvm::StringRef getContents(PathRef File) const;
 
   /// Schedule an async task with no dependencies.
   void run(llvm::StringRef Name, llvm::unique_function<void()> Action);

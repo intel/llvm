@@ -185,8 +185,6 @@ public:
     atomic_store_relaxed(&MaxCacheSize, CacheSize);
 
     Cache.initLinkerInitialized();
-    CacheMutex.initLinkerInitialized();
-    RecyleMutex.initLinkerInitialized();
   }
   void init(uptr Size, uptr CacheSize) {
     memset(this, 0, sizeof(*this));
@@ -204,7 +202,7 @@ public:
 
   void NOINLINE drain(CacheT *C, Callback Cb) {
     {
-      SpinMutexLock L(&CacheMutex);
+      ScopedLock L(CacheMutex);
       Cache.transfer(C);
     }
     if (Cache.getSize() > getMaxSize() && RecyleMutex.tryLock())
@@ -213,7 +211,7 @@ public:
 
   void NOINLINE drainAndRecycle(CacheT *C, Callback Cb) {
     {
-      SpinMutexLock L(&CacheMutex);
+      ScopedLock L(CacheMutex);
       Cache.transfer(C);
     }
     RecyleMutex.lock();
@@ -229,9 +227,9 @@ public:
 
 private:
   // Read-only data.
-  alignas(SCUDO_CACHE_LINE_SIZE) StaticSpinMutex CacheMutex;
+  alignas(SCUDO_CACHE_LINE_SIZE) HybridMutex CacheMutex;
   CacheT Cache;
-  alignas(SCUDO_CACHE_LINE_SIZE) StaticSpinMutex RecyleMutex;
+  alignas(SCUDO_CACHE_LINE_SIZE) HybridMutex RecyleMutex;
   atomic_uptr MinSize;
   atomic_uptr MaxSize;
   alignas(SCUDO_CACHE_LINE_SIZE) atomic_uptr MaxCacheSize;
@@ -240,7 +238,7 @@ private:
     CacheT Tmp;
     Tmp.init();
     {
-      SpinMutexLock L(&CacheMutex);
+      ScopedLock L(CacheMutex);
       // Go over the batches and merge partially filled ones to
       // save some memory, otherwise batches themselves (since the memory used
       // by them is counted against quarantine limit) can overcome the actual

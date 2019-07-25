@@ -49,6 +49,9 @@ class IgnoreDiagnostics : public DiagnosticsConsumer {
 
 // GMock helpers for matching completion items.
 MATCHER_P(Named, Name, "") { return arg.Name == Name; }
+MATCHER_P(NameStartsWith, Prefix, "") {
+  return llvm::StringRef(arg.Name).startswith(Prefix);
+}
 MATCHER_P(Scope, S, "") { return arg.Scope == S; }
 MATCHER_P(Qualifier, Q, "") { return arg.RequiredQualifier == Q; }
 MATCHER_P(Labeled, Label, "") {
@@ -87,7 +90,7 @@ std::unique_ptr<SymbolIndex> memIndex(std::vector<Symbol> Symbols) {
   SymbolSlab::Builder Slab;
   for (const auto &Sym : Symbols)
     Slab.insert(Sym);
-  return MemIndex::build(std::move(Slab).build(), RefSlab());
+  return MemIndex::build(std::move(Slab).build(), RefSlab(), RelationSlab());
 }
 
 CodeCompleteResult completions(ClangdServer &Server, llvm::StringRef TestCode,
@@ -446,6 +449,45 @@ TEST(CompletionTest, Kinds) {
   Results = completions("nam^");
   EXPECT_THAT(Results.Completions,
               Has("namespace", CompletionItemKind::Snippet));
+
+  // Members of anonymous unions are of kind 'field'.
+  Results = completions(
+      R"cpp(
+        struct X{
+            union {
+              void *a;
+            };
+        };
+        auto u = X().^
+      )cpp");
+  EXPECT_THAT(
+      Results.Completions,
+      UnorderedElementsAre(AllOf(Named("a"), Kind(CompletionItemKind::Field))));
+
+  // Completion kinds for templates should not be unknown.
+  Results = completions(
+      R"cpp(
+        template <class T> struct complete_class {};
+        template <class T> void complete_function();
+        template <class T> using complete_type_alias = int;
+        template <class T> int complete_variable = 10;
+
+        struct X {
+          template <class T> static int complete_static_member = 10;
+
+          static auto x = complete_^
+        }
+      )cpp");
+  EXPECT_THAT(
+      Results.Completions,
+      UnorderedElementsAre(
+          AllOf(Named("complete_class"), Kind(CompletionItemKind::Class)),
+          AllOf(Named("complete_function"), Kind(CompletionItemKind::Function)),
+          AllOf(Named("complete_type_alias"),
+                Kind(CompletionItemKind::Interface)),
+          AllOf(Named("complete_variable"), Kind(CompletionItemKind::Variable)),
+          AllOf(Named("complete_static_member"),
+                Kind(CompletionItemKind::Property))));
 }
 
 TEST(CompletionTest, NoDuplicates) {
@@ -599,10 +641,10 @@ TEST(CompletionTest, IncludeInsertionPreprocessorIntegrationTests) {
   CodeCompleteOptions NoInsertion;
   NoInsertion.InsertIncludes = CodeCompleteOptions::NeverInsert;
   Results = completions(Server,
-                             R"cpp(
+                        R"cpp(
           int main() { ns::^ }
       )cpp",
-                             {Sym}, NoInsertion);
+                        {Sym}, NoInsertion);
   EXPECT_THAT(Results.Completions,
               ElementsAre(AllOf(Named("X"), Not(InsertInclude()))));
   // Duplicate based on inclusions in preamble.
@@ -720,11 +762,7 @@ TEST(CompletionTest, DynamicIndexIncludeInsertion) {
   // Wait for the dynamic index being built.
   ASSERT_TRUE(Server.blockUntilIdleForTest());
   EXPECT_THAT(completions(Server, "Foo^ foo;").Completions,
-              ElementsAre(AllOf(Named("Foo"),
-                                HasInclude('"' +
-                                           llvm::sys::path::convert_to_slash(
-                                               testPath("foo_header.h")) +
-                                           '"'),
+              ElementsAre(AllOf(Named("Foo"), HasInclude("\"foo_header.h\""),
                                 InsertInclude())));
 }
 
@@ -925,19 +963,37 @@ SignatureHelp signatures(llvm::StringRef Text,
   return signatures(Test.code(), Test.point(), std::move(IndexSymbols));
 }
 
+struct ExpectedParameter {
+  std::string Text;
+  std::pair<unsigned, unsigned> Offsets;
+};
 MATCHER_P(ParamsAre, P, "") {
   if (P.size() != arg.parameters.size())
     return false;
-  for (unsigned I = 0; I < P.size(); ++I)
-    if (P[I] != arg.parameters[I].label)
+  for (unsigned I = 0; I < P.size(); ++I) {
+    if (P[I].Text != arg.parameters[I].labelString ||
+        P[I].Offsets != arg.parameters[I].labelOffsets)
       return false;
+  }
   return true;
 }
 MATCHER_P(SigDoc, Doc, "") { return arg.documentation == Doc; }
 
-Matcher<SignatureInformation> Sig(std::string Label,
-                                  std::vector<std::string> Params) {
-  return AllOf(SigHelpLabeled(Label), ParamsAre(Params));
+/// \p AnnotatedLabel is a signature label with ranges marking parameters, e.g.
+///    foo([[int p1]], [[double p2]]) -> void
+Matcher<SignatureInformation> Sig(llvm::StringRef AnnotatedLabel) {
+  llvm::Annotations A(AnnotatedLabel);
+  std::string Label = A.code();
+  std::vector<ExpectedParameter> Parameters;
+  for (auto Range : A.ranges()) {
+    Parameters.emplace_back();
+
+    ExpectedParameter &P = Parameters.back();
+    P.Text = Label.substr(Range.Begin, Range.End - Range.Begin);
+    P.Offsets.first = lspLength(llvm::StringRef(Label).substr(0, Range.Begin));
+    P.Offsets.second = lspLength(llvm::StringRef(Label).substr(1, Range.End));
+  }
+  return AllOf(SigHelpLabeled(Label), ParamsAre(Parameters));
 }
 
 TEST(SignatureHelpTest, Overloads) {
@@ -950,11 +1006,10 @@ TEST(SignatureHelpTest, Overloads) {
     int main() { foo(^); }
   )cpp");
   EXPECT_THAT(Results.signatures,
-              UnorderedElementsAre(
-                  Sig("foo(float x, float y) -> void", {"float x", "float y"}),
-                  Sig("foo(float x, int y) -> void", {"float x", "int y"}),
-                  Sig("foo(int x, float y) -> void", {"int x", "float y"}),
-                  Sig("foo(int x, int y) -> void", {"int x", "int y"})));
+              UnorderedElementsAre(Sig("foo([[float x]], [[float y]]) -> void"),
+                                   Sig("foo([[float x]], [[int y]]) -> void"),
+                                   Sig("foo([[int x]], [[float y]]) -> void"),
+                                   Sig("foo([[int x]], [[int y]]) -> void")));
   // We always prefer the first signature.
   EXPECT_EQ(0, Results.activeSignature);
   EXPECT_EQ(0, Results.activeParameter);
@@ -968,9 +1023,8 @@ TEST(SignatureHelpTest, DefaultArgs) {
   )cpp");
   EXPECT_THAT(Results.signatures,
               UnorderedElementsAre(
-                  Sig("bar(int x, int y = 0) -> void", {"int x", "int y = 0"}),
-                  Sig("bar(float x = 0, int y = 42) -> void",
-                      {"float x = 0", "int y = 42"})));
+                  Sig("bar([[int x]], [[int y = 0]]) -> void"),
+                  Sig("bar([[float x = 0]], [[int y = 42]]) -> void")));
   EXPECT_EQ(0, Results.activeSignature);
   EXPECT_EQ(0, Results.activeParameter);
 }
@@ -981,8 +1035,7 @@ TEST(SignatureHelpTest, ActiveArg) {
     int main() { baz(baz(1,2,3), ^); }
   )cpp");
   EXPECT_THAT(Results.signatures,
-              ElementsAre(Sig("baz(int a, int b, int c) -> int",
-                              {"int a", "int b", "int c"})));
+              ElementsAre(Sig("baz([[int a]], [[int b]], [[int c]]) -> int")));
   EXPECT_EQ(0, Results.activeSignature);
   EXPECT_EQ(1, Results.activeParameter);
 }
@@ -1050,6 +1103,10 @@ public:
 
   void refs(const RefsRequest &,
             llvm::function_ref<void(const Ref &)>) const override {}
+
+  void relations(const RelationsRequest &,
+                 llvm::function_ref<void(const SymbolID &, const Symbol &)>)
+      const override {}
 
   // This is incorrect, but IndexRequestCollector is not an actual index and it
   // isn't used in production code.
@@ -1719,14 +1776,12 @@ TEST(SignatureHelpTest, OverloadsOrdering) {
     void foo(int x, int y = 0);
     int main() { foo(^); }
   )cpp");
-  EXPECT_THAT(
-      Results.signatures,
-      ElementsAre(
-          Sig("foo(int x) -> void", {"int x"}),
-          Sig("foo(int x, int y = 0) -> void", {"int x", "int y = 0"}),
-          Sig("foo(float x, int y) -> void", {"float x", "int y"}),
-          Sig("foo(int x, float y) -> void", {"int x", "float y"}),
-          Sig("foo(float x, float y) -> void", {"float x", "float y"})));
+  EXPECT_THAT(Results.signatures,
+              ElementsAre(Sig("foo([[int x]]) -> void"),
+                          Sig("foo([[int x]], [[int y = 0]]) -> void"),
+                          Sig("foo([[float x]], [[int y]]) -> void"),
+                          Sig("foo([[int x]], [[float y]]) -> void"),
+                          Sig("foo([[float x]], [[float y]]) -> void")));
   // We always prefer the first signature.
   EXPECT_EQ(0, Results.activeSignature);
   EXPECT_EQ(0, Results.activeParameter);
@@ -1743,7 +1798,7 @@ TEST(SignatureHelpTest, InstantiatedSignatures) {
   )cpp";
 
   EXPECT_THAT(signatures(Sig0).signatures,
-              ElementsAre(Sig("foo(T, T, T) -> void", {"T", "T", "T"})));
+              ElementsAre(Sig("foo([[T]], [[T]], [[T]]) -> void")));
 
   StringRef Sig1 = R"cpp(
     template <class T>
@@ -1754,7 +1809,7 @@ TEST(SignatureHelpTest, InstantiatedSignatures) {
     })cpp";
 
   EXPECT_THAT(signatures(Sig1).signatures,
-              ElementsAre(Sig("foo(T, T, T) -> void", {"T", "T", "T"})));
+              ElementsAre(Sig("foo([[T]], [[T]], [[T]]) -> void")));
 
   StringRef Sig2 = R"cpp(
     template <class ...T>
@@ -1766,7 +1821,7 @@ TEST(SignatureHelpTest, InstantiatedSignatures) {
   )cpp";
 
   EXPECT_THAT(signatures(Sig2).signatures,
-              ElementsAre(Sig("foo(T...) -> void", {"T..."})));
+              ElementsAre(Sig("foo([[T...]]) -> void")));
 
   // It is debatable whether we should substitute the outer template parameter
   // ('T') in that case. Currently we don't substitute it in signature help, but
@@ -1786,7 +1841,7 @@ TEST(SignatureHelpTest, InstantiatedSignatures) {
   )cpp";
 
   EXPECT_THAT(signatures(Sig3).signatures,
-              ElementsAre(Sig("foo(T, U) -> void", {"T", "U"})));
+              ElementsAre(Sig("foo([[T]], [[U]]) -> void")));
 }
 
 TEST(SignatureHelpTest, IndexDocumentation) {
@@ -1807,8 +1862,8 @@ TEST(SignatureHelpTest, IndexDocumentation) {
 
   EXPECT_THAT(
       signatures(Sig0, {Foo0}).signatures,
-      ElementsAre(AllOf(Sig("foo() -> int", {}), SigDoc("Doc from the index")),
-                  AllOf(Sig("foo(double) -> int", {"double"}), SigDoc(""))));
+      ElementsAre(AllOf(Sig("foo() -> int"), SigDoc("Doc from the index")),
+                  AllOf(Sig("foo([[double]]) -> int"), SigDoc(""))));
 
   StringRef Sig1 = R"cpp(
     int foo();
@@ -1824,11 +1879,10 @@ TEST(SignatureHelpTest, IndexDocumentation) {
 
   EXPECT_THAT(
       signatures(Sig1, {Foo0, Foo1, Foo2}).signatures,
-      ElementsAre(AllOf(Sig("foo() -> int", {}), SigDoc("Doc from the index")),
-                  AllOf(Sig("foo(int) -> int", {"int"}),
-                        SigDoc("Overriden doc from sema")),
-                  AllOf(Sig("foo(int, int) -> int", {"int", "int"}),
-                        SigDoc("Doc from sema"))));
+      ElementsAre(
+          AllOf(Sig("foo() -> int"), SigDoc("Doc from the index")),
+          AllOf(Sig("foo([[int]]) -> int"), SigDoc("Overriden doc from sema")),
+          AllOf(Sig("foo([[int]], [[int]]) -> int"), SigDoc("Doc from sema"))));
 }
 
 TEST(SignatureHelpTest, DynamicIndexDocumentation) {
@@ -1859,7 +1913,7 @@ TEST(SignatureHelpTest, DynamicIndexDocumentation) {
   EXPECT_THAT(
       llvm::cantFail(runSignatureHelp(Server, File, FileContent.point()))
           .signatures,
-      ElementsAre(AllOf(Sig("foo() -> int", {}), SigDoc("Member doc"))));
+      ElementsAre(AllOf(Sig("foo() -> int"), SigDoc("Member doc"))));
 }
 
 TEST(CompletionTest, CompletionFunctionArgsDisabled) {
@@ -1946,10 +2000,13 @@ TEST(CompletionTest, SuggestOverrides) {
   };
   )cpp");
   const auto Results = completions(Text);
-  EXPECT_THAT(Results.Completions,
-              AllOf(Contains(Labeled("void vfunc(bool param, int p) override")),
-                    Contains(Labeled("void ttt(bool param) const override")),
-                    Not(Contains(Labeled("void vfunc(bool param) override")))));
+  EXPECT_THAT(
+      Results.Completions,
+      AllOf(Contains(AllOf(Labeled("void vfunc(bool param, int p) override"),
+                           NameStartsWith("vfunc"))),
+            Contains(AllOf(Labeled("void ttt(bool param) const override"),
+                           NameStartsWith("ttt"))),
+            Not(Contains(Labeled("void vfunc(bool param) override")))));
 }
 
 TEST(CompletionTest, OverridesNonIdentName) {
@@ -1969,19 +2026,19 @@ TEST(CompletionTest, OverridesNonIdentName) {
 
 TEST(GuessCompletionPrefix, Filters) {
   for (llvm::StringRef Case : {
-    "[[scope::]][[ident]]^",
-    "[[]][[]]^",
-    "\n[[]][[]]^",
-    "[[]][[ab]]^",
-    "x.[[]][[ab]]^",
-    "x.[[]][[]]^",
-    "[[x::]][[ab]]^",
-    "[[x::]][[]]^",
-    "[[::x::]][[ab]]^",
-    "some text [[scope::more::]][[identif]]^ier",
-    "some text [[scope::]][[mor]]^e::identifier",
-    "weird case foo::[[::bar::]][[baz]]^",
-  }) {
+           "[[scope::]][[ident]]^",
+           "[[]][[]]^",
+           "\n[[]][[]]^",
+           "[[]][[ab]]^",
+           "x.[[]][[ab]]^",
+           "x.[[]][[]]^",
+           "[[x::]][[ab]]^",
+           "[[x::]][[]]^",
+           "[[::x::]][[ab]]^",
+           "some text [[scope::more::]][[identif]]^ier",
+           "some text [[scope::]][[mor]]^e::identifier",
+           "weird case foo::[[::bar::]][[baz]]^",
+       }) {
     Annotations F(Case);
     auto Offset = cantFail(positionToOffset(F.code(), F.point()));
     auto ToStringRef = [&](Range R) {
@@ -2134,10 +2191,9 @@ TEST(SignatureHelpTest, InsideArgument) {
       void foo(int x, int y);
       int main() { foo(1+^); }
     )cpp");
-    EXPECT_THAT(
-        Results.signatures,
-        ElementsAre(Sig("foo(int x) -> void", {"int x"}),
-                    Sig("foo(int x, int y) -> void", {"int x", "int y"})));
+    EXPECT_THAT(Results.signatures,
+                ElementsAre(Sig("foo([[int x]]) -> void"),
+                            Sig("foo([[int x]], [[int y]]) -> void")));
     EXPECT_EQ(0, Results.activeParameter);
   }
   {
@@ -2146,10 +2202,9 @@ TEST(SignatureHelpTest, InsideArgument) {
       void foo(int x, int y);
       int main() { foo(1^); }
     )cpp");
-    EXPECT_THAT(
-        Results.signatures,
-        ElementsAre(Sig("foo(int x) -> void", {"int x"}),
-                    Sig("foo(int x, int y) -> void", {"int x", "int y"})));
+    EXPECT_THAT(Results.signatures,
+                ElementsAre(Sig("foo([[int x]]) -> void"),
+                            Sig("foo([[int x]], [[int y]]) -> void")));
     EXPECT_EQ(0, Results.activeParameter);
   }
   {
@@ -2158,10 +2213,9 @@ TEST(SignatureHelpTest, InsideArgument) {
       void foo(int x, int y);
       int main() { foo(1^0); }
     )cpp");
-    EXPECT_THAT(
-        Results.signatures,
-        ElementsAre(Sig("foo(int x) -> void", {"int x"}),
-                    Sig("foo(int x, int y) -> void", {"int x", "int y"})));
+    EXPECT_THAT(Results.signatures,
+                ElementsAre(Sig("foo([[int x]]) -> void"),
+                            Sig("foo([[int x]], [[int y]]) -> void")));
     EXPECT_EQ(0, Results.activeParameter);
   }
   {
@@ -2171,8 +2225,8 @@ TEST(SignatureHelpTest, InsideArgument) {
       int bar(int x, int y);
       int main() { bar(foo(2, 3^)); }
     )cpp");
-    EXPECT_THAT(Results.signatures, ElementsAre(Sig("foo(int x, int y) -> void",
-                                                    {"int x", "int y"})));
+    EXPECT_THAT(Results.signatures,
+                ElementsAre(Sig("foo([[int x]], [[int y]]) -> void")));
     EXPECT_EQ(1, Results.activeParameter);
   }
 }
@@ -2189,9 +2243,8 @@ TEST(SignatureHelpTest, ConstructorInitializeFields) {
       };
     )cpp");
     EXPECT_THAT(Results.signatures,
-                UnorderedElementsAre(Sig("A(int)", {"int"}),
-                                     Sig("A(A &&)", {"A &&"}),
-                                     Sig("A(const A &)", {"const A &"})));
+                UnorderedElementsAre(Sig("A([[int]])"), Sig("A([[A &&]])"),
+                                     Sig("A([[const A &]])")));
   }
   {
     const auto Results = signatures(R"cpp(
@@ -2208,9 +2261,8 @@ TEST(SignatureHelpTest, ConstructorInitializeFields) {
       };
     )cpp");
     EXPECT_THAT(Results.signatures,
-                UnorderedElementsAre(Sig("A(int)", {"int"}),
-                                     Sig("A(A &&)", {"A &&"}),
-                                     Sig("A(const A &)", {"const A &"})));
+                UnorderedElementsAre(Sig("A([[int]])"), Sig("A([[A &&]])"),
+                                     Sig("A([[const A &]])")));
   }
 }
 
@@ -2374,6 +2426,28 @@ TEST(CompletionTest, ObjectiveCMethodTwoArgumentsFromMiddle) {
   EXPECT_THAT(C, ElementsAre(ReturnType("id")));
   EXPECT_THAT(C, ElementsAre(Signature("(unsigned int)")));
   EXPECT_THAT(C, ElementsAre(SnippetSuffix("${1:(unsigned int)}")));
+}
+
+TEST(CompletionTest, CursorInSnippets) {
+  clangd::CodeCompleteOptions Options;
+  Options.EnableSnippets = true;
+  auto Results = completions(
+      R"cpp(
+    void while_foo(int a, int b);
+    void test() {
+      whil^
+    })cpp",
+      /*IndexSymbols=*/{}, Options);
+
+  // Last placeholder in code patterns should be $0 to put the cursor there.
+  EXPECT_THAT(Results.Completions,
+              Contains(AllOf(
+                  Named("while"),
+                  SnippetSuffix(" (${1:condition}) {\n${0:statements}\n}"))));
+  // However, snippets for functions must *not* end with $0.
+  EXPECT_THAT(Results.Completions,
+              Contains(AllOf(Named("while_foo"),
+                             SnippetSuffix("(${1:int a}, ${2:int b})"))));
 }
 
 TEST(CompletionTest, WorksWithNullType) {

@@ -49,7 +49,7 @@ kDevNull = "/dev/null"
 # This regex captures ARG.  ARG must not contain a right parenthesis, which
 # terminates %dbg.  ARG must not contain quotes, in which ARG might be enclosed
 # during expansion.
-kPdbgRegex = '%dbg\(([^)\'"]*)\)'
+kPdbgRegex = '%dbg\\(([^)\'"]*)\\)'
 
 class ShellEnvironment(object):
 
@@ -991,6 +991,7 @@ def _executeShCmd(cmd, shenv, results, timeoutHelper):
     for i,f in stderrTempFiles:
         f.seek(0, 0)
         procData[i] = (procData[i][0], f.read())
+        f.close()
 
     exitCode = None
     for i,(out,err) in enumerate(procData):
@@ -1118,7 +1119,7 @@ def executeScriptInternal(test, litConfig, tmpBase, commands, cwd):
                 codeStr = str(result.exitCode)
             out += "error: command failed with exit status: %s\n" % (
                 codeStr,)
-        if litConfig.maxIndividualTestTime > 0:
+        if litConfig.maxIndividualTestTime > 0 and result.timeoutReached:
             out += 'error: command reached timeout: %s\n' % (
                 str(result.timeoutReached),)
 
@@ -1133,9 +1134,12 @@ def executeScript(test, litConfig, tmpBase, commands, cwd):
 
     # Write script file
     mode = 'w'
+    open_kwargs = {}
     if litConfig.isWindows and not isWin32CMDEXE:
-      mode += 'b'  # Avoid CRLFs when writing bash scripts.
-    f = open(script, mode)
+        mode += 'b'  # Avoid CRLFs when writing bash scripts.
+    elif sys.version_info > (3,0):
+        open_kwargs['encoding'] = 'utf-8'
+    f = open(script, mode, **open_kwargs)
     if isWin32CMDEXE:
         for i, ln in enumerate(commands):
             commands[i] = re.sub(kPdbgRegex, "echo '\\1' > nul && ", ln)
@@ -1420,14 +1424,14 @@ class IntegratedTestKeywordParser(object):
         # Trim trailing whitespace.
         line = line.rstrip()
         # Substitute line number expressions
-        line = re.sub('%\(line\)', str(line_number), line)
+        line = re.sub(r'%\(line\)', str(line_number), line)
 
         def replace_line_number(match):
             if match.group(1) == '+':
                 return str(line_number + int(match.group(2)))
             if match.group(1) == '-':
                 return str(line_number - int(match.group(2)))
-        line = re.sub('%\(line *([\+-]) *(\d+)\)', replace_line_number, line)
+        line = re.sub(r'%\(line *([\+-]) *(\d+)\)', replace_line_number, line)
         # Collapse lines with trailing '\\'.
         if output and output[-1][-1] == '\\':
             output[-1] = output[-1][:-1] + line

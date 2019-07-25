@@ -134,7 +134,7 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
 
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS)
-    this->VFS = llvm::vfs::getRealFileSystem();
+    this->VFS = llvm::vfs::createPhysicalFileSystem().release();
 
   Name = llvm::sys::path::filename(ClangExecutable);
   Dir = llvm::sys::path::parent_path(ClangExecutable);
@@ -281,11 +281,13 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
 
     // -{fsyntax-only,-analyze,emit-ast} only run up to the compiler.
   } else if ((PhaseArg = DAL.getLastArg(options::OPT_fsyntax_only)) ||
+             (PhaseArg = DAL.getLastArg(options::OPT_print_supported_cpus)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_module_file_info)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_verify_pch)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_rewrite_objc)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_rewrite_legacy_objc)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__migrate)) ||
+             (PhaseArg = DAL.getLastArg(options::OPT_emit_iterface_stubs)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__analyze,
                                         options::OPT__analyze_auto)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_emit_ast))) {
@@ -1067,6 +1069,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   InputArgList Args = std::move(HasConfigFile ? std::move(*CfgOptions)
                                               : std::move(*CLOptions));
 
+  // The args for config files or /clang: flags belong to different InputArgList
+  // objects than Args. This copies an Arg from one of those other InputArgLists
+  // to the ownership of Args.
   auto appendOneArg = [&Args](const Arg *Opt, const Arg *BaseArg) {
       unsigned Index = Args.MakeIndex(Opt->getSpelling());
       Arg *Copy = new llvm::opt::Arg(Opt->getOption(), Opt->getSpelling(),
@@ -1107,6 +1112,11 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
         }
     }
   }
+
+  // Check for working directory option before accessing any files
+  if (Arg *WD = Args.getLastArg(options::OPT_working_directory))
+    if (VFS->setCurrentWorkingDirectory(WD->getValue()))
+      Diag(diag::err_drv_unable_to_set_working_directory) << WD->getValue();
 
   // FIXME: This stuff needs to go into the Compilation, not the driver.
   bool CCCPrintPhases;
@@ -1451,7 +1461,7 @@ void Driver::generateCompilationDiagnostics(
     return;
   }
 
-  const ArgStringList &TempFiles = C.getTempFiles();
+  const TempFileList &TempFiles = C.getTempFiles();
   if (TempFiles.empty()) {
     Diag(clang::diag::note_drv_command_failed_diag_msg)
         << "Error generating preprocessed source(s).";
@@ -1465,24 +1475,24 @@ void Driver::generateCompilationDiagnostics(
 
   SmallString<128> VFS;
   SmallString<128> ReproCrashFilename;
-  for (const char *TempFile : TempFiles) {
-    Diag(clang::diag::note_drv_command_failed_diag_msg) << TempFile;
+  for (auto &TempFile : TempFiles) {
+    Diag(clang::diag::note_drv_command_failed_diag_msg) << TempFile.first;
     if (Report)
-      Report->TemporaryFiles.push_back(TempFile);
+      Report->TemporaryFiles.push_back(TempFile.first);
     if (ReproCrashFilename.empty()) {
-      ReproCrashFilename = TempFile;
+      ReproCrashFilename = TempFile.first;
       llvm::sys::path::replace_extension(ReproCrashFilename, ".crash");
     }
-    if (StringRef(TempFile).endswith(".cache")) {
+    if (StringRef(TempFile.first).endswith(".cache")) {
       // In some cases (modules) we'll dump extra data to help with reproducing
       // the crash into a directory next to the output.
-      VFS = llvm::sys::path::filename(TempFile);
+      VFS = llvm::sys::path::filename(TempFile.first);
       llvm::sys::path::append(VFS, "vfs", "vfs.yaml");
     }
   }
 
   // Assume associated files are based off of the first temporary file.
-  CrashReportInfo CrashInfo(TempFiles[0], VFS);
+  CrashReportInfo CrashInfo(TempFiles[0].first, VFS);
 
   llvm::SmallString<128> Script(CrashInfo.Filename);
   llvm::sys::path::replace_extension(Script, "sh");
@@ -1780,7 +1790,8 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
   }
 
   if (C.getArgs().hasArg(options::OPT_v) ||
-      C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
+      C.getArgs().hasArg(options::OPT__HASH_HASH_HASH) ||
+      C.getArgs().hasArg(options::OPT_print_supported_cpus)) {
     PrintVersion(C, llvm::errs());
     SuppressMissingInputWarning = true;
   }
@@ -2089,31 +2100,20 @@ void Driver::BuildUniversalActions(Compilation &C, const ToolChain &TC,
   }
 }
 
-/// Check that the file referenced by Value exists. If it doesn't,
-/// issue a diagnostic and return false.
-static bool DiagnoseInputExistence(const Driver &D, const DerivedArgList &Args,
-                                   StringRef Value, types::ID Ty) {
-  if (!D.getCheckInputsExist())
+bool Driver::DiagnoseInputExistence(const DerivedArgList &Args, StringRef Value,
+                                    types::ID Ty, bool TypoCorrect) const {
+  if (!getCheckInputsExist())
     return true;
 
   // stdin always exists.
   if (Value == "-")
     return true;
 
-  SmallString<64> Path(Value);
-  if (Arg *WorkDir = Args.getLastArg(options::OPT_working_directory)) {
-    if (!llvm::sys::path::is_absolute(Path)) {
-      SmallString<64> Directory(WorkDir->getValue());
-      llvm::sys::path::append(Directory, Value);
-      Path.assign(Directory);
-    }
-  }
-
-  if (D.getVFS().exists(Path))
+  if (getVFS().exists(Value))
     return true;
 
-  if (D.IsCLMode()) {
-    if (!llvm::sys::path::is_absolute(Twine(Path)) &&
+  if (IsCLMode()) {
+    if (!llvm::sys::path::is_absolute(Twine(Value)) &&
         llvm::sys::Process::FindInEnvPath("LIB", Value))
       return true;
 
@@ -2125,7 +2125,26 @@ static bool DiagnoseInputExistence(const Driver &D, const DerivedArgList &Args,
     }
   }
 
-  D.Diag(clang::diag::err_drv_no_such_file) << Path;
+  if (TypoCorrect) {
+    // Check if the filename is a typo for an option flag. OptTable thinks
+    // that all args that are not known options and that start with / are
+    // filenames, but e.g. `/diagnostic:caret` is more likely a typo for
+    // the option `/diagnostics:caret` than a reference to a file in the root
+    // directory.
+    unsigned IncludedFlagsBitmask;
+    unsigned ExcludedFlagsBitmask;
+    std::tie(IncludedFlagsBitmask, ExcludedFlagsBitmask) =
+        getIncludeExcludeOptionFlagMasks(IsCLMode());
+    std::string Nearest;
+    if (getOpts().findNearest(Value, Nearest, IncludedFlagsBitmask,
+                              ExcludedFlagsBitmask) <= 1) {
+      Diag(clang::diag::err_drv_no_such_file_with_suggestion)
+          << Value << Nearest;
+      return false;
+    }
+  }
+
+  Diag(clang::diag::err_drv_no_such_file) << Value;
   return false;
 }
 
@@ -2214,6 +2233,12 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
               Diag(clang::diag::warn_drv_treating_input_as_cxx)
                   << getTypeName(OldTy) << getTypeName(Ty);
           }
+
+          // If running with -fthinlto-index=, extensions that normally identify
+          // native object files actually identify LLVM bitcode files.
+          if (Args.hasArgNoClaim(options::OPT_fthinlto_index_EQ) &&
+              Ty == types::TY_Object)
+            Ty = types::TY_LLVM_BC;
         }
 
         // -ObjC and -ObjC++ override the default language, but only for "source
@@ -2242,19 +2267,21 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         }
       }
 
-      if (DiagnoseInputExistence(*this, Args, Value, Ty))
+      if (DiagnoseInputExistence(Args, Value, Ty, /*TypoCorrect=*/true))
         Inputs.push_back(std::make_pair(Ty, A));
 
     } else if (A->getOption().matches(options::OPT__SLASH_Tc)) {
       StringRef Value = A->getValue();
-      if (DiagnoseInputExistence(*this, Args, Value, types::TY_C)) {
+      if (DiagnoseInputExistence(Args, Value, types::TY_C,
+                                 /*TypoCorrect=*/false)) {
         Arg *InputArg = MakeInputArg(Args, *Opts, A->getValue());
         Inputs.push_back(std::make_pair(types::TY_C, InputArg));
       }
       A->claim();
     } else if (A->getOption().matches(options::OPT__SLASH_Tp)) {
       StringRef Value = A->getValue();
-      if (DiagnoseInputExistence(*this, Args, Value, types::TY_CXX)) {
+      if (DiagnoseInputExistence(Args, Value, types::TY_CXX,
+                                 /*TypoCorrect=*/false)) {
         Arg *InputArg = MakeInputArg(Args, *Opts, A->getValue());
         Inputs.push_back(std::make_pair(types::TY_CXX, InputArg));
       }
@@ -2276,7 +2303,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         Diag(clang::diag::err_drv_unknown_language) << A->getValue();
         InputType = types::TY_Object;
       }
-    } else if (A->getOption().getID() == options::OPT__SLASH_U) {
+    } else if (A->getOption().getID() == options::OPT_U) {
       assert(A->getNumValues() == 1 && "The /U option has one value.");
       StringRef Val = A->getValue(0);
       if (Val.find_first_of("/\\") != StringRef::npos) {
@@ -3023,6 +3050,10 @@ class OffloadingActionBuilder final {
     /// The compiler inputs obtained for each toolchain
     Action * DeviceCompilerInput = nullptr;
 
+    /// List of offload device triples needed to track for different toolchain
+    /// construction
+    SmallVector<llvm::Triple, 4> SYCLTripleList;
+
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs)
@@ -3087,6 +3118,7 @@ class OffloadingActionBuilder final {
           // We avoid creating host action in device-only mode.
           return ABRT_Ignore_Host;
         }
+
         // We passed the device action as a host dependence, so we don't need to
         // do anything else with them.
         SYCLDeviceActions.clear();
@@ -3188,17 +3220,38 @@ class OffloadingActionBuilder final {
       if (SYCLAOTInputs.empty()) {
         // Append a new link action for each device.
         auto TC = ToolChains.begin();
+
+        unsigned I = 0;
         for (auto &LI : DeviceLinkerInputs) {
           auto *DeviceLinkAction =
-              C.MakeAction<LinkJobAction>(LI, types::TY_Image);
+              C.MakeAction<LinkJobAction>(LI, types::TY_SPIRV);
+          auto TT = SYCLTripleList[I];
+          bool SYCLAOTCompile = (TT.getSubArch() != llvm::Triple::NoSubArch &&
+                         (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                          TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64));
 
           // After the Link, wrap the files before the final host link
-          auto *DeviceWrappingAction =
+          if (SYCLAOTCompile) {
+            // Do the additional Ahead of Time compilation when the specific
+            // triple calls for it (provided a valid subarch).
+            auto *DeviceBECompileAction =
+                C.MakeAction<BackendCompileJobAction>(DeviceLinkAction,
+                                                      types::TY_Image);
+            auto *DeviceWrappingAction =
+              C.MakeAction<OffloadWrappingJobAction>(DeviceBECompileAction,
+                                                     types::TY_Object);
+            DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
+                   Action::OFK_SYCL);
+          } else {
+            auto *DeviceWrappingAction =
               C.MakeAction<OffloadWrappingJobAction>(DeviceLinkAction,
                                                      types::TY_Object);
-          DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
-                 Action::OFK_SYCL);
+            DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
+                   Action::OFK_SYCL);
+          }
           ++TC;
+          ++I;
         }
       } else {
         // Perform additional wraps against -fsycl-add-targets
@@ -3262,6 +3315,38 @@ class OffloadingActionBuilder final {
                  << SYCLAddTargets->getOption().getName() << Val;
           }
         }
+      }
+      // Gather information about the SYCL Ahead of Time targets.  The targets
+      // are determined on the SubArch values passed along in the triple.
+      Arg *SYCLTargets =
+              C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
+      bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(options::OPT_fsycl,
+                                              options::OPT_fno_sycl, false);
+      if (SYCLTargets) {
+        llvm::StringMap<const char *> FoundNormalizedTriples;
+        for (const char *Val : SYCLTargets->getValues()) {
+          llvm::Triple TT(Val);
+          std::string NormalizedName = TT.normalize();
+
+          // Make sure we don't have a duplicate triple.
+          auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
+          if (Duplicate != FoundNormalizedTriples.end())
+            continue;
+
+          // Store the current triple so that we can check for duplicates in
+          // the following iterations.
+          FoundNormalizedTriples[NormalizedName] = Val;
+
+          SYCLTripleList.push_back(TT);
+        }
+      } else if (HasValidSYCLRuntime) {
+        // Only -fsycl is provided without -fsycl-targets.
+        llvm::Triple TT;
+        TT.setArch(llvm::Triple::spir64);
+        TT.setVendor(llvm::Triple::UnknownVendor);
+        TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+        TT.setEnvironment(llvm::Triple::SYCLDevice);
+        SYCLTripleList.push_back(TT);
       }
 
       DeviceLinkerInputs.resize(ToolChains.size());
@@ -3872,6 +3957,18 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     Args.ClaimAllArgs(options::OPT_cl_compile_Group);
   }
 
+  // If --print-supported-cpus, -mcpu=? or -mtune=? is specified, build a custom
+  // Compile phase that prints out supported cpu models and quits.
+  if (Arg *A = Args.getLastArg(options::OPT_print_supported_cpus)) {
+    // Use the -mcpu=? flag as the dummy input to cc1.
+    Actions.clear();
+    Action *InputAc = C.MakeAction<InputAction>(*A, types::TY_C);
+    Actions.push_back(
+        C.MakeAction<PrecompileJobAction>(InputAc, types::TY_Nothing));
+    for (auto &I : Inputs)
+      I.second->claim();
+  }
+
   // Claim ignored clang-cl options.
   Args.ClaimAllArgs(options::OPT_cl_ignored_Group);
 
@@ -3957,6 +4054,8 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<CompileJobAction>(Input, types::TY_ModuleFile);
     if (Args.hasArg(options::OPT_verify_pch))
       return C.MakeAction<VerifyPCHJobAction>(Input, types::TY_Nothing);
+    if (Args.hasArg(options::OPT_emit_iterface_stubs))
+      return C.MakeAction<CompileJobAction>(Input, types::TY_IFS);
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
@@ -4505,9 +4604,9 @@ InputInfo Driver::BuildJobsForActionNoCache(
     Input.claim();
     if (Input.getOption().matches(options::OPT_INPUT)) {
       const char *Name = Input.getValue();
-      return InputInfo(A, Name, /* BaseInput = */ Name);
+      return InputInfo(A, Name, /* _BaseInput = */ Name);
     }
-    return InputInfo(A, &Input, /* BaseInput = */ "");
+    return InputInfo(A, &Input, /* _BaseInput = */ "");
   }
 
   if (const BindArchAction *BAA = dyn_cast<BindArchAction>(A)) {
@@ -4618,7 +4717,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
            C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
                                           "txt");
         const char *TmpFile =
-                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName),
+                                      types::TY_Tempfilelist);
         CurI = InputInfo(types::TY_Tempfilelist, TmpFile, TmpFile);
       } else {
         std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
@@ -4975,6 +5075,11 @@ std::string Driver::GetFilePath(StringRef Name, const ToolChain &TC) const {
   if (llvm::sys::fs::exists(Twine(P)))
     return P.str();
 
+  SmallString<128> D(Dir);
+  llvm::sys::path::append(D, "..", Name);
+  if (llvm::sys::fs::exists(Twine(D)))
+    return D.str();
+
   if (auto P = SearchPaths(TC.getLibraryPaths()))
     return *P;
 
@@ -5150,6 +5255,8 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       TC = llvm::make_unique<toolchains::Solaris>(*this, Target, Args);
       break;
     case llvm::Triple::AMDHSA:
+    case llvm::Triple::AMDPAL:
+    case llvm::Triple::Mesa3D:
       TC = llvm::make_unique<toolchains::AMDGPUToolChain>(*this, Target, Args);
       break;
     case llvm::Triple::Win32:

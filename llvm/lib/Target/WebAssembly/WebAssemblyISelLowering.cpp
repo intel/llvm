@@ -182,7 +182,8 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
 
     // Expand float operations supported for scalars but not SIMD
     for (auto Op : {ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FNEARBYINT,
-                    ISD::FCOPYSIGN}) {
+                    ISD::FCOPYSIGN, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
+                    ISD::FEXP, ISD::FEXP2, ISD::FRINT}) {
       setOperationAction(Op, MVT::v4f32, Expand);
       if (Subtarget->hasUnimplementedSIMD128())
         setOperationAction(Op, MVT::v2f64, Expand);
@@ -529,7 +530,8 @@ bool WebAssemblyTargetLowering::isLegalAddressingMode(const DataLayout &DL,
 }
 
 bool WebAssemblyTargetLowering::allowsMisalignedMemoryAccesses(
-    EVT /*VT*/, unsigned /*AddrSpace*/, unsigned /*Align*/, bool *Fast) const {
+    EVT /*VT*/, unsigned /*AddrSpace*/, unsigned /*Align*/,
+    MachineMemOperand::Flags /*Flags*/, bool *Fast) const {
   // WebAssembly supports unaligned accesses, though it should be declared
   // with the p2align attribute on loads and stores which do so, and there
   // may be a performance impact. We tell LLVM they're "fast" because
@@ -642,13 +644,14 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
   if (CLI.IsPatchPoint)
     fail(DL, DAG, "WebAssembly doesn't support patch point yet");
 
-  // WebAssembly doesn't currently support explicit tail calls. If they are
-  // required, fail. Otherwise, just disable them.
-  if ((CallConv == CallingConv::Fast && CLI.IsTailCall &&
-       MF.getTarget().Options.GuaranteedTailCallOpt) ||
-      (CLI.CS && CLI.CS.isMustTailCall()))
-    fail(DL, DAG, "WebAssembly doesn't support tail call yet");
-  CLI.IsTailCall = false;
+  // Fail if tail calls are required but not enabled
+  if (!Subtarget->hasTailCall()) {
+    if ((CallConv == CallingConv::Fast && CLI.IsTailCall &&
+         MF.getTarget().Options.GuaranteedTailCallOpt) ||
+        (CLI.CS && CLI.CS.isMustTailCall()))
+      fail(DL, DAG, "WebAssembly 'tail-call' feature not enabled");
+    CLI.IsTailCall = false;
+  }
 
   SmallVectorImpl<ISD::InputArg> &Ins = CLI.Ins;
   if (Ins.size() > 1)
@@ -781,6 +784,13 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
     // registers.
     InTys.push_back(In.VT);
   }
+
+  if (CLI.IsTailCall) {
+    // ret_calls do not return values to the current frame
+    SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
+    return DAG.getNode(WebAssemblyISD::RET_CALL, DL, NodeTys, Ops);
+  }
+
   InTys.push_back(MVT::Other);
   SDVTList InTyList = DAG.getVTList(InTys);
   SDValue Res =
@@ -895,6 +905,21 @@ SDValue WebAssemblyTargetLowering::LowerFormalArguments(
                     Params.begin()));
 
   return Chain;
+}
+
+void WebAssemblyTargetLowering::ReplaceNodeResults(
+    SDNode *N, SmallVectorImpl<SDValue> &Results, SelectionDAG &DAG) const {
+  switch (N->getOpcode()) {
+  case ISD::SIGN_EXTEND_INREG:
+    // Do not add any results, signifying that N should not be custom lowered
+    // after all. This happens because simd128 turns on custom lowering for
+    // SIGN_EXTEND_INREG, but for non-vector sign extends the result might be an
+    // illegal type.
+    break;
+  default:
+    llvm_unreachable(
+        "ReplaceNodeResults not implemented for this op for WebAssembly!");
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -1181,6 +1206,7 @@ SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
 SDValue
 WebAssemblyTargetLowering::LowerSIGN_EXTEND_INREG(SDValue Op,
                                                   SelectionDAG &DAG) const {
+  SDLoc DL(Op);
   // If sign extension operations are disabled, allow sext_inreg only if operand
   // is a vector extract. SIMD does not depend on sign extension operations, but
   // allowing sext_inreg in this context lets us have simple patterns to select
@@ -1188,8 +1214,31 @@ WebAssemblyTargetLowering::LowerSIGN_EXTEND_INREG(SDValue Op,
   // simpler in this file, but would necessitate large and brittle patterns to
   // undo the expansion and select extract_lane_s instructions.
   assert(!Subtarget->hasSignExt() && Subtarget->hasSIMD128());
-  if (Op.getOperand(0).getOpcode() == ISD::EXTRACT_VECTOR_ELT)
-    return Op;
+  if (Op.getOperand(0).getOpcode() == ISD::EXTRACT_VECTOR_ELT) {
+    const SDValue &Extract = Op.getOperand(0);
+    MVT VecT = Extract.getOperand(0).getSimpleValueType();
+    MVT ExtractedLaneT = static_cast<VTSDNode *>(Op.getOperand(1).getNode())
+                             ->getVT()
+                             .getSimpleVT();
+    MVT ExtractedVecT =
+        MVT::getVectorVT(ExtractedLaneT, 128 / ExtractedLaneT.getSizeInBits());
+    if (ExtractedVecT == VecT)
+      return Op;
+    // Bitcast vector to appropriate type to ensure ISel pattern coverage
+    const SDValue &Index = Extract.getOperand(1);
+    unsigned IndexVal =
+        static_cast<ConstantSDNode *>(Index.getNode())->getZExtValue();
+    unsigned Scale =
+        ExtractedVecT.getVectorNumElements() / VecT.getVectorNumElements();
+    assert(Scale > 1);
+    SDValue NewIndex =
+        DAG.getConstant(IndexVal * Scale, DL, Index.getValueType());
+    SDValue NewExtract = DAG.getNode(
+        ISD::EXTRACT_VECTOR_ELT, DL, Extract.getValueType(),
+        DAG.getBitcast(ExtractedVecT, Extract.getOperand(0)), NewIndex);
+    return DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, Op.getValueType(),
+                       NewExtract, Op.getOperand(1));
+  }
   // Otherwise expand
   return SDValue();
 }

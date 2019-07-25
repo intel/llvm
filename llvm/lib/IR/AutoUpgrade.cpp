@@ -602,6 +602,26 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     }
     break;
   }
+  case 'e': {
+    SmallVector<StringRef, 2> Groups;
+    Regex R("^experimental.vector.reduce.([a-z]+)\\.[fi][0-9]+");
+    if (R.match(Name, &Groups)) {
+      Intrinsic::ID ID = Intrinsic::not_intrinsic;
+      if (Groups[1] == "fadd")
+        ID = Intrinsic::experimental_vector_reduce_v2_fadd;
+      if (Groups[1] == "fmul")
+        ID = Intrinsic::experimental_vector_reduce_v2_fmul;
+
+      if (ID != Intrinsic::not_intrinsic) {
+        rename(F);
+        auto Args = F->getFunctionType()->params();
+        Type *Tys[] = {F->getFunctionType()->getReturnType(), Args[1]};
+        NewFn = Intrinsic::getDeclaration(F->getParent(), ID, Tys);
+        return true;
+      }
+    }
+    break;
+  }
   case 'i':
   case 'l': {
     bool IsLifetimeStart = Name.startswith("lifetime.start");
@@ -744,6 +764,8 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
                         .Cases("clz.ll", "popc.ll", "h2f", true)
                         .Cases("max.i", "max.ll", "max.ui", "max.ull", true)
                         .Cases("min.i", "min.ll", "min.ui", "min.ull", true)
+                        .StartsWith("atomic.load.add.f32.p", true)
+                        .StartsWith("atomic.load.add.f64.p", true)
                         .Default(false);
       if (Expand) {
         NewFn = nullptr;
@@ -3406,6 +3428,12 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
       Value *Cmp = Builder.CreateICmpSGE(
           Arg, llvm::Constant::getNullValue(Arg->getType()), "abs.cond");
       Rep = Builder.CreateSelect(Cmp, Arg, Neg, "abs");
+    } else if (IsNVVM && (Name.startswith("atomic.load.add.f32.p") ||
+                          Name.startswith("atomic.load.add.f64.p"))) {
+      Value *Ptr = CI->getArgOperand(0);
+      Value *Val = CI->getArgOperand(1);
+      Rep = Builder.CreateAtomicRMW(AtomicRMWInst::FAdd, Ptr, Val,
+                                    AtomicOrdering::SequentiallyConsistent);
     } else if (IsNVVM && (Name == "max.i" || Name == "max.ll" ||
                           Name == "max.ui" || Name == "max.ull")) {
       Value *Arg0 = CI->getArgOperand(0);
@@ -3467,7 +3495,28 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
     DefaultCase();
     return;
   }
-
+  case Intrinsic::experimental_vector_reduce_v2_fmul: {
+    SmallVector<Value *, 2> Args;
+    if (CI->isFast())
+      Args.push_back(ConstantFP::get(CI->getOperand(0)->getType(), 1.0));
+    else
+      Args.push_back(CI->getOperand(0));
+    Args.push_back(CI->getOperand(1));
+    NewCall = Builder.CreateCall(NewFn, Args);
+    cast<Instruction>(NewCall)->copyFastMathFlags(CI);
+    break;
+  }
+  case Intrinsic::experimental_vector_reduce_v2_fadd: {
+    SmallVector<Value *, 2> Args;
+    if (CI->isFast())
+      Args.push_back(Constant::getNullValue(CI->getOperand(0)->getType()));
+    else
+      Args.push_back(CI->getOperand(0));
+    Args.push_back(CI->getOperand(1));
+    NewCall = Builder.CreateCall(NewFn, Args);
+    cast<Instruction>(NewCall)->copyFastMathFlags(CI);
+    break;
+  }
   case Intrinsic::arm_neon_vld1:
   case Intrinsic::arm_neon_vld2:
   case Intrinsic::arm_neon_vld3:

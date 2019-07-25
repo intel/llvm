@@ -92,15 +92,13 @@ INITIALIZE_PASS(SIInsertSkips, DEBUG_TYPE,
 
 char &llvm::SIInsertSkipsPassID = SIInsertSkips::ID;
 
-static bool opcodeEmitsNoInsts(unsigned Opc) {
-  switch (Opc) {
-  case TargetOpcode::IMPLICIT_DEF:
-  case TargetOpcode::KILL:
-  case TargetOpcode::BUNDLE:
-  case TargetOpcode::CFI_INSTRUCTION:
-  case TargetOpcode::EH_LABEL:
-  case TargetOpcode::GC_LABEL:
-  case TargetOpcode::DBG_VALUE:
+static bool opcodeEmitsNoInsts(const MachineInstr &MI) {
+  if (MI.isMetaInstruction())
+    return true;
+
+  // Handle target specific opcodes.
+  switch (MI.getOpcode()) {
+  case AMDGPU::SI_MASK_BRANCH:
     return true;
   default:
     return false;
@@ -109,9 +107,6 @@ static bool opcodeEmitsNoInsts(unsigned Opc) {
 
 bool SIInsertSkips::shouldSkip(const MachineBasicBlock &From,
                                const MachineBasicBlock &To) const {
-  if (From.succ_empty())
-    return false;
-
   unsigned NumInstr = 0;
   const MachineFunction *MF = From.getParent();
 
@@ -121,7 +116,7 @@ bool SIInsertSkips::shouldSkip(const MachineBasicBlock &From,
 
     for (MachineBasicBlock::const_iterator I = MBB.begin(), E = MBB.end();
          NumInstr < SkipThreshold && I != E; ++I) {
-      if (opcodeEmitsNoInsts(I->getOpcode()))
+      if (opcodeEmitsNoInsts(*I))
         continue;
 
       // FIXME: Since this is required for correctness, this should be inserted
@@ -138,7 +133,8 @@ bool SIInsertSkips::shouldSkip(const MachineBasicBlock &From,
         return true;
 
       // These instructions are potentially expensive even if EXEC = 0.
-      if (TII->isSMRD(*I) || TII->isVMEM(*I) || I->getOpcode() == AMDGPU::S_WAITCNT)
+      if (TII->isSMRD(*I) || TII->isVMEM(*I) || TII->isFLAT(*I) ||
+          I->getOpcode() == AMDGPU::S_WAITCNT)
         return true;
 
       ++NumInstr;
@@ -270,12 +266,14 @@ void SIInsertSkips::kill(MachineInstr &MI) {
         .addImm(0)  // src1 modifiers
         .add(MI.getOperand(0));
 
-      if (!ST.hasNoSdstCMPX())
-        I.addImm(0);  // omod
+      I.addImm(0);  // omod
     }
     break;
   }
   case AMDGPU::SI_KILL_I1_TERMINATOR: {
+    const MachineFunction *MF = MI.getParent()->getParent();
+    const GCNSubtarget &ST = MF->getSubtarget<GCNSubtarget>();
+    unsigned Exec = ST.isWave32() ? AMDGPU::EXEC_LO : AMDGPU::EXEC;
     const MachineOperand &Op = MI.getOperand(0);
     int64_t KillVal = MI.getOperand(1).getImm();
     assert(KillVal == 0 || KillVal == -1);
@@ -286,14 +284,17 @@ void SIInsertSkips::kill(MachineInstr &MI) {
       assert(Imm == 0 || Imm == -1);
 
       if (Imm == KillVal)
-        BuildMI(MBB, &MI, DL, TII->get(AMDGPU::S_MOV_B64), AMDGPU::EXEC)
+        BuildMI(MBB, &MI, DL, TII->get(ST.isWave32() ? AMDGPU::S_MOV_B32
+                                                     : AMDGPU::S_MOV_B64), Exec)
           .addImm(0);
       break;
     }
 
     unsigned Opcode = KillVal ? AMDGPU::S_ANDN2_B64 : AMDGPU::S_AND_B64;
-    BuildMI(MBB, &MI, DL, TII->get(Opcode), AMDGPU::EXEC)
-        .addReg(AMDGPU::EXEC)
+    if (ST.isWave32())
+      Opcode = KillVal ? AMDGPU::S_ANDN2_B32 : AMDGPU::S_AND_B32;
+    BuildMI(MBB, &MI, DL, TII->get(Opcode), Exec)
+        .addReg(Exec)
         .add(Op);
     break;
   }
@@ -342,9 +343,11 @@ bool SIInsertSkips::optimizeVccBranch(MachineInstr &MI) const {
   // S_CBRANCH_EXEC[N]Z
   bool Changed = false;
   MachineBasicBlock &MBB = *MI.getParent();
-  const unsigned CondReg = AMDGPU::VCC;
-  const unsigned ExecReg = AMDGPU::EXEC;
-  const unsigned And = AMDGPU::S_AND_B64;
+  const GCNSubtarget &ST = MBB.getParent()->getSubtarget<GCNSubtarget>();
+  const bool IsWave32 = ST.isWave32();
+  const unsigned CondReg = TRI->getVCC();
+  const unsigned ExecReg = IsWave32 ? AMDGPU::EXEC_LO : AMDGPU::EXEC;
+  const unsigned And = IsWave32 ? AMDGPU::S_AND_B32 : AMDGPU::S_AND_B64;
 
   MachineBasicBlock::reverse_iterator A = MI.getReverseIterator(),
                                       E = MBB.rend();

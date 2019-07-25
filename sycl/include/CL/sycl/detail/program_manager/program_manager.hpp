@@ -48,24 +48,24 @@ public:
   // Returns the single instance of the program manager for the entire process.
   // Can only be called after staticInit is done.
   static ProgramManager &getInstance();
-  cl_program createOpenCLProgram(OSModuleHandle M, const context &Context,
+  RT::PiProgram createOpenCLProgram(OSModuleHandle M, const context &Context,
                                  DeviceImage **I = nullptr) {
     return loadProgram(M, Context, I);
   }
-  cl_program getBuiltOpenCLProgram(OSModuleHandle M, const context &Context);
-  cl_kernel getOrCreateKernel(OSModuleHandle M, const context &Context,
-                              const string_class &KernelName);
-  cl_program getClProgramFromClKernel(cl_kernel ClKernel);
+  RT::PiProgram getBuiltOpenCLProgram(OSModuleHandle M, const context &Context);
+  RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
+                                  const string_class &KernelName);
+  RT::PiProgram getClProgramFromClKernel(RT::PiKernel Kernel);
 
   void addImages(pi_device_binaries DeviceImages);
   void debugDumpBinaryImages() const;
   void debugDumpBinaryImage(const DeviceImage *Img) const;
 
 private:
-  RT::pi_program loadProgram(OSModuleHandle M, const context &Context,
-                             DeviceImage **I = nullptr);
-  void build(cl_program &ClProgram, const string_class &Options = "",
-             std::vector<cl_device_id> ClDevices = std::vector<cl_device_id>());
+  RT::PiProgram loadProgram(OSModuleHandle M, const context &Context,
+                            DeviceImage **I = nullptr);
+  void build(RT::PiProgram &Program, const string_class &Options = "",
+             std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());
 
   struct ContextAndModuleLess {
     bool operator()(const std::pair<context, OSModuleHandle> &LHS,
@@ -77,9 +77,9 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  std::map<std::pair<context, OSModuleHandle>, cl_program, ContextAndModuleLess>
+  std::map<std::pair<context, OSModuleHandle>, RT::PiProgram, ContextAndModuleLess>
       m_CachedSpirvPrograms;
-  std::map<cl_program, std::map<string_class, cl_kernel>> m_CachedKernels;
+  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> m_CachedKernels;
 
   /// Keeps all available device executable images added via \ref addImages.
   /// Organizes the images as a map from a module handle (.exe .dll) to the

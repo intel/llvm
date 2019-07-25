@@ -24,7 +24,8 @@
 ; RUN:     | FileCheck %s --check-prefix=CHECK-O --check-prefix=CHECK-Oz
 ; RUN: opt -disable-verify -debug-pass-manager \
 ; RUN:     -passes='lto-pre-link<O2>' -S %s 2>&1 \
-; RUN:     | FileCheck %s --check-prefix=CHECK-O --check-prefix=CHECK-O2
+; RUN:     | FileCheck %s --check-prefix=CHECK-O --check-prefix=CHECK-O2 \
+; RUN:     --check-prefix=CHECK-O2-LTO
 
 ; RUN: opt -disable-verify -debug-pass-manager \
 ; RUN:     -passes-ep-peephole='no-op-function' \
@@ -223,8 +224,8 @@
 ; CHECK-O-NEXT: Starting llvm::Module pass manager run.
 ; CHECK-O-NEXT: Running pass: GlobalOptPass
 ; CHECK-O-NEXT: Running pass: GlobalDCEPass
-; CHECK-O-NEXT: Running pass: EliminateAvailableExternallyPass
-; CHECK-O-NEXT: Running pass: ReversePostOrderFunctionAttrsPass
+; CHECK-O2-LTO-NOT: Running pass: EliminateAvailableExternallyPass
+; CHECK-O: Running pass: ReversePostOrderFunctionAttrsPass
 ; CHECK-O-NEXT: Running pass: RequireAnalysisPass<{{.*}}GlobalsAA
 ; CHECK-O-NEXT: Running pass: ModuleToFunctionPassAdaptor<{{.*}}PassManager{{.*}}>
 ; CHECK-O-NEXT: Starting llvm::Function pass manager run.
@@ -243,7 +244,6 @@
 ; CHECK-O-NEXT: Running analysis: LoopAccessAnalysis
 ; CHECK-O-NEXT: Running pass: InstCombinePass
 ; CHECK-O-NEXT: Running pass: SimplifyCFGPass
-; CHECK-O-NEXT: Running pass: SLPVectorizerPass
 ; CHECK-O-NEXT: Running pass: InstCombinePass
 ; CHECK-O-NEXT: Running pass: LoopUnrollPass
 ; CHECK-O-NEXT: Running pass: WarnMissedTransformationsPass

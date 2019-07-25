@@ -97,11 +97,10 @@ public:
   void addFrame(const DILineInfo &Frame) {
     Frames.push_back(Frame);
   }
-  
+
   void resize(unsigned i) {
     Frames.resize(i);
   }
-  
 };
 
 /// Container for description of a global variable.
@@ -111,6 +110,16 @@ struct DIGlobal {
   uint64_t Size = 0;
 
   DIGlobal() : Name("<invalid>") {}
+};
+
+struct DILocal {
+  std::string FunctionName;
+  std::string Name;
+  std::string DeclFile;
+  uint64_t DeclLine = 0;
+  Optional<int64_t> FrameOffset;
+  Optional<uint64_t> Size;
+  Optional<uint64_t> TagOffset;
 };
 
 /// A DINameKind is passed to name search methods to specify a
@@ -157,7 +166,8 @@ enum DIDumpType : unsigned {
 /// dumped.
 struct DIDumpOptions {
   unsigned DumpType = DIDT_All;
-  unsigned RecurseDepth = -1U;
+  unsigned ChildRecurseDepth = -1U;
+  unsigned ParentRecurseDepth = -1U;
   uint16_t Version = 0; // DWARF version to assume when extracting.
   uint8_t AddrSize = 4; // Address byte size to assume when extracting.
   bool ShowAddresses = true;
@@ -171,15 +181,18 @@ struct DIDumpOptions {
   /// Return default option set for printing a single DIE without children.
   static DIDumpOptions getForSingleDIE() {
     DIDumpOptions Opts;
-    Opts.RecurseDepth = 0;
+    Opts.ChildRecurseDepth = 0;
+    Opts.ParentRecurseDepth = 0;
     return Opts;
   }
 
   /// Return the options with RecurseDepth set to 0 unless explicitly required.
   DIDumpOptions noImplicitRecursion() const {
     DIDumpOptions Opts = *this;
-    if (RecurseDepth == -1U && !ShowChildren)
-      Opts.RecurseDepth = 0;
+    if (ChildRecurseDepth == -1U && !ShowChildren)
+      Opts.ChildRecurseDepth = 0;
+    if (ParentRecurseDepth == -1U && !ShowParents)
+      Opts.ParentRecurseDepth = 0;
     return Opts;
   }
 };
@@ -212,6 +225,9 @@ public:
   virtual DIInliningInfo getInliningInfoForAddress(
       object::SectionedAddress Address,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) = 0;
+
+  virtual std::vector<DILocal>
+  getLocalsForAddress(object::SectionedAddress Address) = 0;
 
 private:
   const DIContextKind Kind;

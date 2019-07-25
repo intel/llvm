@@ -9,6 +9,7 @@
 #pragma once
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/common_info.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
 namespace cl {
@@ -20,18 +21,18 @@ template <typename T, info::platform param> struct get_platform_info {};
 
 template <info::platform param>
 struct get_platform_info<string_class, param> {
-  static string_class _(RT::pi_platform plt) {
+  static string_class _(RT::PiPlatform plt) {
     size_t resultSize;
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piPlatformGetInfo(
-      plt, pi_cast<pi_platform_info>(param), 0, 0, &resultSize));
+      plt, pi::pi_cast<pi_platform_info>(param), 0, 0, &resultSize));
     if (resultSize == 0) {
       return "";
     }
     unique_ptr_class<char[]> result(new char[resultSize]);
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piPlatformGetInfo(
-      plt, pi_cast<pi_platform_info>(param), resultSize, result.get(), 0));
+      plt, pi::pi_cast<pi_platform_info>(param), resultSize, result.get(), 0));
     return result.get();
   }
 };
@@ -39,7 +40,7 @@ struct get_platform_info<string_class, param> {
 template <>
 struct get_platform_info<vector_class<string_class>,
                          info::platform::extensions> {
-  static vector_class<string_class> _(RT::pi_platform plt) {
+  static vector_class<string_class> _(RT::PiPlatform plt) {
     string_class result =
         get_platform_info<string_class, info::platform::extensions>::_(plt);
     return split_string(result, ' ');

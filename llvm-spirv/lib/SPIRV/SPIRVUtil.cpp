@@ -79,12 +79,11 @@ cl::opt<bool, true> EnableDbgOutput("spirv-debug",
 
 bool isSupportedTriple(Triple T) { return T.isSPIR(); }
 
-void addFnAttr(LLVMContext *Context, CallInst *Call, Attribute::AttrKind Attr) {
+void addFnAttr(CallInst *Call, Attribute::AttrKind Attr) {
   Call->addAttribute(AttributeList::FunctionIndex, Attr);
 }
 
-void removeFnAttr(LLVMContext *Context, CallInst *Call,
-                  Attribute::AttrKind Attr) {
+void removeFnAttr(CallInst *Call, Attribute::AttrKind Attr) {
   Call->removeAttribute(AttributeList::FunctionIndex, Attr);
 }
 
@@ -702,6 +701,7 @@ CallInst *addCallInst(Module *M, StringRef FuncName, Type *RetTy,
   // Cannot assign a Name to void typed values
   auto CI = CallInst::Create(F, Args, RetTy->isVoidTy() ? "" : InstName, Pos);
   CI->setCallingConv(F->getCallingConv());
+  CI->setAttributes(F->getAttributes());
   return CI;
 }
 
@@ -973,6 +973,31 @@ SPIR::TypePrimitiveEnum getOCLTypePrimitiveEnum(StringRef TyName) {
       .Case("opencl.clk_event_t", SPIR::PRIMITIVE_CLK_EVENT_T)
       .Case("opencl.sampler_t", SPIR::PRIMITIVE_SAMPLER_T)
       .Case("struct.ndrange_t", SPIR::PRIMITIVE_NDRANGE_T)
+      .Case("opencl.intel_sub_group_avc_mce_payload_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_MCE_PAYLOAD_T)
+      .Case("opencl.intel_sub_group_avc_ime_payload_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_IME_PAYLOAD_T)
+      .Case("opencl.intel_sub_group_avc_ref_payload_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_REF_PAYLOAD_T)
+      .Case("opencl.intel_sub_group_avc_sic_payload_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_SIC_PAYLOAD_T)
+      .Case("opencl.intel_sub_group_avc_mce_result_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_MCE_RESULT_T)
+      .Case("opencl.intel_sub_group_avc_ime_result_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_IME_RESULT_T)
+      .Case("opencl.intel_sub_group_avc_ref_result_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_REF_RESULT_T)
+      .Case("opencl.intel_sub_group_avc_sic_result_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_SIC_RESULT_T)
+      .Case(
+          "opencl.intel_sub_group_avc_ime_result_single_reference_streamout_t",
+          SPIR::PRIMITIVE_SUB_GROUP_AVC_IME_SINGLE_REF_STREAMOUT_T)
+      .Case("opencl.intel_sub_group_avc_ime_result_dual_reference_streamout_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_IME_DUAL_REF_STREAMOUT_T)
+      .Case("opencl.intel_sub_group_avc_ime_single_reference_streamin_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_IME_SINGLE_REF_STREAMIN_T)
+      .Case("opencl.intel_sub_group_avc_ime_dual_reference_streamin_t",
+            SPIR::PRIMITIVE_SUB_GROUP_AVC_IME_DUAL_REF_STREAMIN_T)
       .Default(SPIR::PRIMITIVE_NONE);
 }
 /// Translates LLVM type to descriptor for mangler.

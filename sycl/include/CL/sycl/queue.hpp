@@ -103,6 +103,14 @@ public:
     return impl->get_property<propertyT>();
   }
 
+  event memset(void* ptr, int value, size_t count) {
+    return impl->memset(ptr, value, count);
+  }
+
+  event memcpy(void* dest, const void* src, size_t count) {
+    return impl->memcpy(dest, src, count);
+  }
+
 private:
   std::shared_ptr<detail::queue_impl> impl;
   template <class Obj>

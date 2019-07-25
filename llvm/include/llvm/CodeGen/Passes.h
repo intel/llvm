@@ -345,8 +345,9 @@ namespace llvm {
   /// pointer or stack pointer index addressing.
   extern char &LocalStackSlotAllocationID;
 
-  /// ExpandISelPseudos - This pass expands pseudo-instructions.
-  extern char &ExpandISelPseudosID;
+  /// This pass expands pseudo-instructions, reserves registers and adjusts
+  /// machine frame information.
+  extern char &FinalizeISelID;
 
   /// UnpackMachineBundles - This pass unpack machine instruction bundles.
   extern char &UnpackMachineBundlesID;
@@ -445,6 +446,9 @@ namespace llvm {
 
   /// Creates CFI Instruction Inserter pass. \see CFIInstrInserter.cpp
   FunctionPass *createCFIInstrInserter();
+
+  /// Create Hardware Loop pass. \see HardwareLoops.cpp
+  FunctionPass *createHardwareLoopsPass();
 
 } // End llvm namespace
 

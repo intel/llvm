@@ -32,7 +32,7 @@ define i64 @test_v2i64(<2 x i64> %a0) {
 ; AVX512-NEXT:    vpaddq %xmm1, %xmm0, %xmm0
 ; AVX512-NEXT:    vmovq %xmm0, %rax
 ; AVX512-NEXT:    retq
-  %1 = call i64 @llvm.experimental.vector.reduce.add.i64.v2i64(<2 x i64> %a0)
+  %1 = call i64 @llvm.experimental.vector.reduce.add.v2i64(<2 x i64> %a0)
   ret i64 %1
 }
 
@@ -74,7 +74,7 @@ define i64 @test_v4i64(<4 x i64> %a0) {
 ; AVX512-NEXT:    vmovq %xmm0, %rax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i64 @llvm.experimental.vector.reduce.add.i64.v4i64(<4 x i64> %a0)
+  %1 = call i64 @llvm.experimental.vector.reduce.add.v4i64(<4 x i64> %a0)
   ret i64 %1
 }
 
@@ -124,7 +124,7 @@ define i64 @test_v8i64(<8 x i64> %a0) {
 ; AVX512-NEXT:    vmovq %xmm0, %rax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i64 @llvm.experimental.vector.reduce.add.i64.v8i64(<8 x i64> %a0)
+  %1 = call i64 @llvm.experimental.vector.reduce.add.v8i64(<8 x i64> %a0)
   ret i64 %1
 }
 
@@ -187,7 +187,7 @@ define i64 @test_v16i64(<16 x i64> %a0) {
 ; AVX512-NEXT:    vmovq %xmm0, %rax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i64 @llvm.experimental.vector.reduce.add.i64.v16i64(<16 x i64> %a0)
+  %1 = call i64 @llvm.experimental.vector.reduce.add.v16i64(<16 x i64> %a0)
   ret i64 %1
 }
 
@@ -229,7 +229,7 @@ define i32 @test_v2i32(<2 x i32> %a0) {
 ; AVX512-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
 ; AVX512-NEXT:    vmovd %xmm0, %eax
 ; AVX512-NEXT:    retq
-  %1 = call i32 @llvm.experimental.vector.reduce.add.i32.v2i32(<2 x i32> %a0)
+  %1 = call i32 @llvm.experimental.vector.reduce.add.v2i32(<2 x i32> %a0)
   ret i32 %1
 }
 
@@ -254,8 +254,7 @@ define i32 @test_v4i32(<4 x i32> %a0) {
 ;
 ; AVX1-FAST-LABEL: test_v4i32:
 ; AVX1-FAST:       # %bb.0:
-; AVX1-FAST-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
-; AVX1-FAST-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
+; AVX1-FAST-NEXT:    vphaddd %xmm0, %xmm0, %xmm0
 ; AVX1-FAST-NEXT:    vphaddd %xmm0, %xmm0, %xmm0
 ; AVX1-FAST-NEXT:    vmovd %xmm0, %eax
 ; AVX1-FAST-NEXT:    retq
@@ -277,7 +276,7 @@ define i32 @test_v4i32(<4 x i32> %a0) {
 ; AVX512-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
 ; AVX512-NEXT:    vmovd %xmm0, %eax
 ; AVX512-NEXT:    retq
-  %1 = call i32 @llvm.experimental.vector.reduce.add.i32.v4i32(<4 x i32> %a0)
+  %1 = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> %a0)
   ret i32 %1
 }
 
@@ -307,9 +306,8 @@ define i32 @test_v8i32(<8 x i32> %a0) {
 ; AVX1-FAST-LABEL: test_v8i32:
 ; AVX1-FAST:       # %bb.0:
 ; AVX1-FAST-NEXT:    vextractf128 $1, %ymm0, %xmm1
-; AVX1-FAST-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
-; AVX1-FAST-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
-; AVX1-FAST-NEXT:    vpaddd %xmm1, %xmm0, %xmm0
+; AVX1-FAST-NEXT:    vphaddd %xmm0, %xmm1, %xmm0
+; AVX1-FAST-NEXT:    vphaddd %xmm0, %xmm0, %xmm0
 ; AVX1-FAST-NEXT:    vphaddd %xmm0, %xmm0, %xmm0
 ; AVX1-FAST-NEXT:    vmovd %xmm0, %eax
 ; AVX1-FAST-NEXT:    vzeroupper
@@ -338,7 +336,7 @@ define i32 @test_v8i32(<8 x i32> %a0) {
 ; AVX512-NEXT:    vmovd %xmm0, %eax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i32 @llvm.experimental.vector.reduce.add.i32.v8i32(<8 x i32> %a0)
+  %1 = call i32 @llvm.experimental.vector.reduce.add.v8i32(<8 x i32> %a0)
   ret i32 %1
 }
 
@@ -410,7 +408,7 @@ define i32 @test_v16i32(<16 x i32> %a0) {
 ; AVX512-NEXT:    vmovd %xmm0, %eax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i32 @llvm.experimental.vector.reduce.add.i32.v16i32(<16 x i32> %a0)
+  %1 = call i32 @llvm.experimental.vector.reduce.add.v16i32(<16 x i32> %a0)
   ret i32 %1
 }
 
@@ -501,7 +499,7 @@ define i32 @test_v32i32(<32 x i32> %a0) {
 ; AVX512-NEXT:    vmovd %xmm0, %eax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i32 @llvm.experimental.vector.reduce.add.i32.v32i32(<32 x i32> %a0)
+  %1 = call i32 @llvm.experimental.vector.reduce.add.v32i32(<32 x i32> %a0)
   ret i32 %1
 }
 
@@ -549,7 +547,7 @@ define i16 @test_v2i16(<2 x i16> %a0) {
 ; AVX512-NEXT:    vmovd %xmm0, %eax
 ; AVX512-NEXT:    # kill: def $ax killed $ax killed $eax
 ; AVX512-NEXT:    retq
-  %1 = call i16 @llvm.experimental.vector.reduce.add.i16.v2i16(<2 x i16> %a0)
+  %1 = call i16 @llvm.experimental.vector.reduce.add.v2i16(<2 x i16> %a0)
   ret i16 %1
 }
 
@@ -603,7 +601,7 @@ define i16 @test_v4i16(<4 x i16> %a0) {
 ; AVX512-NEXT:    vmovd %xmm0, %eax
 ; AVX512-NEXT:    # kill: def $ax killed $ax killed $eax
 ; AVX512-NEXT:    retq
-  %1 = call i16 @llvm.experimental.vector.reduce.add.i16.v4i16(<4 x i16> %a0)
+  %1 = call i16 @llvm.experimental.vector.reduce.add.v4i16(<4 x i16> %a0)
   ret i16 %1
 }
 
@@ -635,10 +633,8 @@ define i16 @test_v8i16(<8 x i16> %a0) {
 ;
 ; AVX1-FAST-LABEL: test_v8i16:
 ; AVX1-FAST:       # %bb.0:
-; AVX1-FAST-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
-; AVX1-FAST-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
-; AVX1-FAST-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
-; AVX1-FAST-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
+; AVX1-FAST-NEXT:    vphaddw %xmm0, %xmm0, %xmm0
+; AVX1-FAST-NEXT:    vphaddw %xmm0, %xmm0, %xmm0
 ; AVX1-FAST-NEXT:    vphaddw %xmm0, %xmm0, %xmm0
 ; AVX1-FAST-NEXT:    vmovd %xmm0, %eax
 ; AVX1-FAST-NEXT:    # kill: def $ax killed $ax killed $eax
@@ -667,7 +663,7 @@ define i16 @test_v8i16(<8 x i16> %a0) {
 ; AVX512-NEXT:    vmovd %xmm0, %eax
 ; AVX512-NEXT:    # kill: def $ax killed $ax killed $eax
 ; AVX512-NEXT:    retq
-  %1 = call i16 @llvm.experimental.vector.reduce.add.i16.v8i16(<8 x i16> %a0)
+  %1 = call i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16> %a0)
   ret i16 %1
 }
 
@@ -704,11 +700,9 @@ define i16 @test_v16i16(<16 x i16> %a0) {
 ; AVX1-FAST-LABEL: test_v16i16:
 ; AVX1-FAST:       # %bb.0:
 ; AVX1-FAST-NEXT:    vextractf128 $1, %ymm0, %xmm1
-; AVX1-FAST-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
-; AVX1-FAST-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[2,3,0,1]
-; AVX1-FAST-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
-; AVX1-FAST-NEXT:    vpshufd {{.*#+}} xmm1 = xmm0[1,1,2,3]
-; AVX1-FAST-NEXT:    vpaddw %xmm1, %xmm0, %xmm0
+; AVX1-FAST-NEXT:    vphaddw %xmm0, %xmm1, %xmm0
+; AVX1-FAST-NEXT:    vphaddw %xmm0, %xmm0, %xmm0
+; AVX1-FAST-NEXT:    vphaddw %xmm0, %xmm0, %xmm0
 ; AVX1-FAST-NEXT:    vphaddw %xmm0, %xmm0, %xmm0
 ; AVX1-FAST-NEXT:    vmovd %xmm0, %eax
 ; AVX1-FAST-NEXT:    # kill: def $ax killed $ax killed $eax
@@ -744,7 +738,7 @@ define i16 @test_v16i16(<16 x i16> %a0) {
 ; AVX512-NEXT:    # kill: def $ax killed $ax killed $eax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i16 @llvm.experimental.vector.reduce.add.i16.v16i16(<16 x i16> %a0)
+  %1 = call i16 @llvm.experimental.vector.reduce.add.v16i16(<16 x i16> %a0)
   ret i16 %1
 }
 
@@ -832,7 +826,7 @@ define i16 @test_v32i16(<32 x i16> %a0) {
 ; AVX512-NEXT:    # kill: def $ax killed $ax killed $eax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i16 @llvm.experimental.vector.reduce.add.i16.v32i16(<32 x i16> %a0)
+  %1 = call i16 @llvm.experimental.vector.reduce.add.v32i16(<32 x i16> %a0)
   ret i16 %1
 }
 
@@ -939,7 +933,7 @@ define i16 @test_v64i16(<64 x i16> %a0) {
 ; AVX512-NEXT:    # kill: def $ax killed $ax killed $eax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i16 @llvm.experimental.vector.reduce.add.i16.v64i16(<64 x i16> %a0)
+  %1 = call i16 @llvm.experimental.vector.reduce.add.v64i16(<64 x i16> %a0)
   ret i16 %1
 }
 
@@ -981,7 +975,7 @@ define i8 @test_v2i8(<2 x i8> %a0) {
 ; AVX512-NEXT:    vpextrb $0, %xmm0, %eax
 ; AVX512-NEXT:    # kill: def $al killed $al killed $eax
 ; AVX512-NEXT:    retq
-  %1 = call i8 @llvm.experimental.vector.reduce.add.i8.v2i8(<2 x i8> %a0)
+  %1 = call i8 @llvm.experimental.vector.reduce.add.v2i8(<2 x i8> %a0)
   ret i8 %1
 }
 
@@ -1029,7 +1023,7 @@ define i8 @test_v4i8(<4 x i8> %a0) {
 ; AVX512-NEXT:    vpextrb $0, %xmm0, %eax
 ; AVX512-NEXT:    # kill: def $al killed $al killed $eax
 ; AVX512-NEXT:    retq
-  %1 = call i8 @llvm.experimental.vector.reduce.add.i8.v4i8(<4 x i8> %a0)
+  %1 = call i8 @llvm.experimental.vector.reduce.add.v4i8(<4 x i8> %a0)
   ret i8 %1
 }
 
@@ -1085,7 +1079,7 @@ define i8 @test_v8i8(<8 x i8> %a0) {
 ; AVX512-NEXT:    vpextrb $0, %xmm0, %eax
 ; AVX512-NEXT:    # kill: def $al killed $al killed $eax
 ; AVX512-NEXT:    retq
-  %1 = call i8 @llvm.experimental.vector.reduce.add.i8.v8i8(<8 x i8> %a0)
+  %1 = call i8 @llvm.experimental.vector.reduce.add.v8i8(<8 x i8> %a0)
   ret i8 %1
 }
 
@@ -1149,7 +1143,7 @@ define i8 @test_v16i8(<16 x i8> %a0) {
 ; AVX512-NEXT:    vpextrb $0, %xmm0, %eax
 ; AVX512-NEXT:    # kill: def $al killed $al killed $eax
 ; AVX512-NEXT:    retq
-  %1 = call i8 @llvm.experimental.vector.reduce.add.i8.v16i8(<16 x i8> %a0)
+  %1 = call i8 @llvm.experimental.vector.reduce.add.v16i8(<16 x i8> %a0)
   ret i8 %1
 }
 
@@ -1238,7 +1232,7 @@ define i8 @test_v32i8(<32 x i8> %a0) {
 ; AVX512-NEXT:    # kill: def $al killed $al killed $eax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i8 @llvm.experimental.vector.reduce.add.i8.v32i8(<32 x i8> %a0)
+  %1 = call i8 @llvm.experimental.vector.reduce.add.v32i8(<32 x i8> %a0)
   ret i8 %1
 }
 
@@ -1337,7 +1331,7 @@ define i8 @test_v64i8(<64 x i8> %a0) {
 ; AVX512-NEXT:    # kill: def $al killed $al killed $eax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i8 @llvm.experimental.vector.reduce.add.i8.v64i8(<64 x i8> %a0)
+  %1 = call i8 @llvm.experimental.vector.reduce.add.v64i8(<64 x i8> %a0)
   ret i8 %1
 }
 
@@ -1453,32 +1447,32 @@ define i8 @test_v128i8(<128 x i8> %a0) {
 ; AVX512-NEXT:    # kill: def $al killed $al killed $eax
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
-  %1 = call i8 @llvm.experimental.vector.reduce.add.i8.v128i8(<128 x i8> %a0)
+  %1 = call i8 @llvm.experimental.vector.reduce.add.v128i8(<128 x i8> %a0)
   ret i8 %1
 }
 
-declare i64 @llvm.experimental.vector.reduce.add.i64.v2i64(<2 x i64>)
-declare i64 @llvm.experimental.vector.reduce.add.i64.v4i64(<4 x i64>)
-declare i64 @llvm.experimental.vector.reduce.add.i64.v8i64(<8 x i64>)
-declare i64 @llvm.experimental.vector.reduce.add.i64.v16i64(<16 x i64>)
+declare i64 @llvm.experimental.vector.reduce.add.v2i64(<2 x i64>)
+declare i64 @llvm.experimental.vector.reduce.add.v4i64(<4 x i64>)
+declare i64 @llvm.experimental.vector.reduce.add.v8i64(<8 x i64>)
+declare i64 @llvm.experimental.vector.reduce.add.v16i64(<16 x i64>)
 
-declare i32 @llvm.experimental.vector.reduce.add.i32.v2i32(<2 x i32>)
-declare i32 @llvm.experimental.vector.reduce.add.i32.v4i32(<4 x i32>)
-declare i32 @llvm.experimental.vector.reduce.add.i32.v8i32(<8 x i32>)
-declare i32 @llvm.experimental.vector.reduce.add.i32.v16i32(<16 x i32>)
-declare i32 @llvm.experimental.vector.reduce.add.i32.v32i32(<32 x i32>)
+declare i32 @llvm.experimental.vector.reduce.add.v2i32(<2 x i32>)
+declare i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32>)
+declare i32 @llvm.experimental.vector.reduce.add.v8i32(<8 x i32>)
+declare i32 @llvm.experimental.vector.reduce.add.v16i32(<16 x i32>)
+declare i32 @llvm.experimental.vector.reduce.add.v32i32(<32 x i32>)
 
-declare i16 @llvm.experimental.vector.reduce.add.i16.v2i16(<2 x i16>)
-declare i16 @llvm.experimental.vector.reduce.add.i16.v4i16(<4 x i16>)
-declare i16 @llvm.experimental.vector.reduce.add.i16.v8i16(<8 x i16>)
-declare i16 @llvm.experimental.vector.reduce.add.i16.v16i16(<16 x i16>)
-declare i16 @llvm.experimental.vector.reduce.add.i16.v32i16(<32 x i16>)
-declare i16 @llvm.experimental.vector.reduce.add.i16.v64i16(<64 x i16>)
+declare i16 @llvm.experimental.vector.reduce.add.v2i16(<2 x i16>)
+declare i16 @llvm.experimental.vector.reduce.add.v4i16(<4 x i16>)
+declare i16 @llvm.experimental.vector.reduce.add.v8i16(<8 x i16>)
+declare i16 @llvm.experimental.vector.reduce.add.v16i16(<16 x i16>)
+declare i16 @llvm.experimental.vector.reduce.add.v32i16(<32 x i16>)
+declare i16 @llvm.experimental.vector.reduce.add.v64i16(<64 x i16>)
 
-declare i8 @llvm.experimental.vector.reduce.add.i8.v2i8(<2 x i8>)
-declare i8 @llvm.experimental.vector.reduce.add.i8.v4i8(<4 x i8>)
-declare i8 @llvm.experimental.vector.reduce.add.i8.v8i8(<8 x i8>)
-declare i8 @llvm.experimental.vector.reduce.add.i8.v16i8(<16 x i8>)
-declare i8 @llvm.experimental.vector.reduce.add.i8.v32i8(<32 x i8>)
-declare i8 @llvm.experimental.vector.reduce.add.i8.v64i8(<64 x i8>)
-declare i8 @llvm.experimental.vector.reduce.add.i8.v128i8(<128 x i8>)
+declare i8 @llvm.experimental.vector.reduce.add.v2i8(<2 x i8>)
+declare i8 @llvm.experimental.vector.reduce.add.v4i8(<4 x i8>)
+declare i8 @llvm.experimental.vector.reduce.add.v8i8(<8 x i8>)
+declare i8 @llvm.experimental.vector.reduce.add.v16i8(<16 x i8>)
+declare i8 @llvm.experimental.vector.reduce.add.v32i8(<32 x i8>)
+declare i8 @llvm.experimental.vector.reduce.add.v64i8(<64 x i8>)
+declare i8 @llvm.experimental.vector.reduce.add.v128i8(<128 x i8>)

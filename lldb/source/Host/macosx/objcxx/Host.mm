@@ -313,13 +313,16 @@ LaunchInNewTerminalWithAppleScript(const char *exe_path,
   // in a shell and the shell will fork/exec a couple of times before we get
   // to the process that we wanted to launch. So when our process actually
   // gets launched, we will handshake with it and get the process ID for it.
-  HostThread accept_thread = ThreadLauncher::LaunchThread(
-      unix_socket_name, AcceptPIDFromInferior, connect_url, &lldb_error);
+  llvm::Expected<HostThread> accept_thread = ThreadLauncher::LaunchThread(
+      unix_socket_name, AcceptPIDFromInferior, connect_url);
+
+  if (!accept_thread)
+    return Status(accept_thread.takeError());
 
   [applescript executeAndReturnError:nil];
 
   thread_result_t accept_thread_result = NULL;
-  lldb_error = accept_thread.Join(&accept_thread_result);
+  lldb_error = accept_thread->Join(&accept_thread_result);
   if (lldb_error.Success() && accept_thread_result) {
     pid = (intptr_t)accept_thread_result;
 
@@ -547,7 +550,7 @@ static bool GetMacOSXProcessArgs(const ProcessInstanceInfoMatch *match_info_ptr,
                 match_info_ptr->GetNameMatchType(),
                 match_info_ptr->GetProcessInfo().GetName())) {
           // Skip NULLs
-          while (1) {
+          while (true) {
             const uint8_t *p = data.PeekData(offset, 1);
             if ((p == NULL) || (*p != '\0'))
               break;
@@ -1417,7 +1420,7 @@ Status Host::ShellExpandArguments(ProcessLaunchInfo &launch_info) {
   return error;
 }
 
-HostThread Host::StartMonitoringChildProcess(
+llvm::Expected<HostThread> Host::StartMonitoringChildProcess(
     const Host::MonitorChildProcessCallback &callback, lldb::pid_t pid,
     bool monitor_signals) {
   unsigned long mask = DISPATCH_PROC_EXIT;

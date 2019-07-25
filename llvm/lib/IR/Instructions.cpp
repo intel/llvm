@@ -45,6 +45,12 @@
 
 using namespace llvm;
 
+static cl::opt<bool> SwitchInstProfUpdateWrapperStrict(
+    "switch-inst-prof-update-wrapper-strict", cl::Hidden,
+    cl::desc("Assert that prof branch_weights metadata is valid when creating "
+             "an instance of SwitchInstProfUpdateWrapper"),
+    cl::init(false));
+
 //===----------------------------------------------------------------------===//
 //                            AllocaInst Class
 //===----------------------------------------------------------------------===//
@@ -3868,6 +3874,141 @@ void SwitchInst::growOperands() {
 
   ReservedSpace = NumOps;
   growHungoffUses(ReservedSpace);
+}
+
+MDNode *
+SwitchInstProfUpdateWrapper::getProfBranchWeightsMD(const SwitchInst &SI) {
+  if (MDNode *ProfileData = SI.getMetadata(LLVMContext::MD_prof))
+    if (auto *MDName = dyn_cast<MDString>(ProfileData->getOperand(0)))
+      if (MDName->getString() == "branch_weights")
+        return ProfileData;
+  return nullptr;
+}
+
+MDNode *SwitchInstProfUpdateWrapper::buildProfBranchWeightsMD() {
+  assert(State == Changed && "called only if metadata has changed");
+
+  if (!Weights)
+    return nullptr;
+
+  assert(SI.getNumSuccessors() == Weights->size() &&
+         "num of prof branch_weights must accord with num of successors");
+
+  bool AllZeroes =
+      all_of(Weights.getValue(), [](uint32_t W) { return W == 0; });
+
+  if (AllZeroes || Weights.getValue().size() < 2)
+    return nullptr;
+
+  return MDBuilder(SI.getParent()->getContext()).createBranchWeights(*Weights);
+}
+
+void SwitchInstProfUpdateWrapper::init() {
+  MDNode *ProfileData = getProfBranchWeightsMD(SI);
+  if (!ProfileData) {
+    State = Initialized;
+    return;
+  }
+
+  if (ProfileData->getNumOperands() != SI.getNumSuccessors() + 1) {
+    State = Invalid;
+    if (SwitchInstProfUpdateWrapperStrict)
+      llvm_unreachable("number of prof branch_weights metadata operands does "
+                       "not correspond to number of succesors");
+    return;
+  }
+
+  SmallVector<uint32_t, 8> Weights;
+  for (unsigned CI = 1, CE = SI.getNumSuccessors(); CI <= CE; ++CI) {
+    ConstantInt *C = mdconst::extract<ConstantInt>(ProfileData->getOperand(CI));
+    uint32_t CW = C->getValue().getZExtValue();
+    Weights.push_back(CW);
+  }
+  State = Initialized;
+  this->Weights = std::move(Weights);
+}
+
+SwitchInst::CaseIt
+SwitchInstProfUpdateWrapper::removeCase(SwitchInst::CaseIt I) {
+  if (Weights) {
+    assert(SI.getNumSuccessors() == Weights->size() &&
+           "num of prof branch_weights must accord with num of successors");
+    State = Changed;
+    // Copy the last case to the place of the removed one and shrink.
+    // This is tightly coupled with the way SwitchInst::removeCase() removes
+    // the cases in SwitchInst::removeCase(CaseIt).
+    Weights.getValue()[I->getCaseIndex() + 1] = Weights.getValue().back();
+    Weights.getValue().pop_back();
+  }
+  return SI.removeCase(I);
+}
+
+void SwitchInstProfUpdateWrapper::addCase(
+    ConstantInt *OnVal, BasicBlock *Dest,
+    SwitchInstProfUpdateWrapper::CaseWeightOpt W) {
+  SI.addCase(OnVal, Dest);
+
+  if (State == Invalid)
+    return;
+
+  if (!Weights && W && *W) {
+    State = Changed;
+    Weights = SmallVector<uint32_t, 8>(SI.getNumSuccessors(), 0);
+    Weights.getValue()[SI.getNumSuccessors() - 1] = *W;
+  } else if (Weights) {
+    State = Changed;
+    Weights.getValue().push_back(W ? *W : 0);
+  }
+  if (Weights)
+    assert(SI.getNumSuccessors() == Weights->size() &&
+           "num of prof branch_weights must accord with num of successors");
+}
+
+SymbolTableList<Instruction>::iterator
+SwitchInstProfUpdateWrapper::eraseFromParent() {
+  // Instruction is erased. Mark as unchanged to not touch it in the destructor.
+  if (State != Invalid) {
+    State = Initialized;
+    if (Weights)
+      Weights->resize(0);
+  }
+  return SI.eraseFromParent();
+}
+
+SwitchInstProfUpdateWrapper::CaseWeightOpt
+SwitchInstProfUpdateWrapper::getSuccessorWeight(unsigned idx) {
+  if (!Weights)
+    return None;
+  return Weights.getValue()[idx];
+}
+
+void SwitchInstProfUpdateWrapper::setSuccessorWeight(
+    unsigned idx, SwitchInstProfUpdateWrapper::CaseWeightOpt W) {
+  if (!W || State == Invalid)
+    return;
+
+  if (!Weights && *W)
+    Weights = SmallVector<uint32_t, 8>(SI.getNumSuccessors(), 0);
+
+  if (Weights) {
+    auto &OldW = Weights.getValue()[idx];
+    if (*W != OldW) {
+      State = Changed;
+      OldW = *W;
+    }
+  }
+}
+
+SwitchInstProfUpdateWrapper::CaseWeightOpt
+SwitchInstProfUpdateWrapper::getSuccessorWeight(const SwitchInst &SI,
+                                                unsigned idx) {
+  if (MDNode *ProfileData = getProfBranchWeightsMD(SI))
+    if (ProfileData->getNumOperands() == SI.getNumSuccessors() + 1)
+      return mdconst::extract<ConstantInt>(ProfileData->getOperand(idx + 1))
+          ->getValue()
+          .getZExtValue();
+
+  return None;
 }
 
 //===----------------------------------------------------------------------===//

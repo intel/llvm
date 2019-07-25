@@ -10,8 +10,8 @@
 #include "BitcodeWriter.h"
 #include "ClangDocTest.h"
 #include "Representation.h"
-#include "llvm/Bitcode/BitstreamReader.h"
-#include "llvm/Bitcode/BitstreamWriter.h"
+#include "llvm/Bitstream/BitstreamReader.h"
+#include "llvm/Bitstream/BitstreamWriter.h"
 #include "gtest/gtest.h"
 
 namespace clang {
@@ -80,6 +80,7 @@ TEST(BitcodeTest, emitRecordInfoBitcode) {
 
   I.Members.emplace_back("int", "X", AccessSpecifier::AS_private);
   I.TagType = TagTypeKind::TTK_Class;
+  I.IsTypeDef = true;
   I.Parents.emplace_back(EmptySID, "F", InfoType::IT_record);
   I.VirtualParents.emplace_back(EmptySID, "G", InfoType::IT_record);
 

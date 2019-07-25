@@ -365,6 +365,9 @@ unsigned GCNRegBankReassign::analyzeInst(const MachineInstr& MI,
       continue;
 
     unsigned R = Op.getReg();
+    if (TRI->hasAGPRs(TRI->getRegClassForReg(*MRI, R)))
+      continue;
+
     unsigned ShiftedBank = Bank;
 
     if (Bank != -1 && R == Reg && Op.getSubReg()) {
@@ -740,7 +743,7 @@ bool GCNRegBankReassign::runOnMachineFunction(MachineFunction &MF) {
   MaxNumVGPRs = std::min(ST->getMaxNumVGPRs(Occupancy), MaxNumVGPRs);
   MaxNumSGPRs = std::min(ST->getMaxNumSGPRs(Occupancy, true), MaxNumSGPRs);
 
-  CSRegs = TRI->getCalleeSavedRegs(&MF);
+  CSRegs = MRI->getCalleeSavedRegs();
 
   RegsUsed.resize(AMDGPU::VGPR_32RegClass.getNumRegs() +
                   TRI->getEncodingValue(AMDGPU::SGPR_NULL) / 2 + 1);

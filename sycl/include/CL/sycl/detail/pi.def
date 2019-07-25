@@ -1,0 +1,96 @@
+//==------------ pi.def Plugin Interface list of API -----------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef _PI_API
+#error Undefined _PI_API macro expansion
+#endif
+
+// The list of all PI interfaces wrapped with _PI_API macro.
+// This is for convinience of doing same thing for all interfaces, e.g.
+// declare, define, initialize.
+//
+// Platform
+_PI_API(piPlatformsGet)
+_PI_API(piPlatformGetInfo)
+// Device
+_PI_API(piDevicesGet)
+_PI_API(piDeviceGetInfo)
+_PI_API(piDevicePartition)
+_PI_API(piDeviceRetain)
+_PI_API(piDeviceRelease)
+_PI_API(piextDeviceSelectBinary)
+// Context
+_PI_API(piContextCreate)
+_PI_API(piContextGetInfo)
+_PI_API(piContextRetain)
+_PI_API(piContextRelease)
+// Queue
+_PI_API(piQueueCreate)
+_PI_API(piQueueGetInfo)
+_PI_API(piQueueFinish)
+_PI_API(piQueueRetain)
+_PI_API(piQueueRelease)
+// Memory
+_PI_API(piMemBufferCreate)
+_PI_API(piMemImageCreate)
+_PI_API(piMemGetInfo)
+_PI_API(piMemImageGetInfo)
+_PI_API(piMemRetain)
+_PI_API(piMemRelease)
+_PI_API(piSubBufCreate)
+// Program
+_PI_API(piProgramCreate)
+_PI_API(piclProgramCreateWithSource)
+_PI_API(piclProgramCreateWithBinary)
+_PI_API(piProgramGetInfo)
+_PI_API(piProgramCompile)
+_PI_API(piProgramBuild)
+_PI_API(piProgramLink)
+_PI_API(piProgramGetBuildInfo)
+_PI_API(piProgramRetain)
+_PI_API(piProgramRelease)
+// Kernel
+_PI_API(piKernelCreate)
+_PI_API(piKernelSetArg)
+_PI_API(piKernelGetInfo)
+_PI_API(piKernelGetGroupInfo)
+_PI_API(piKernelGetSubGroupInfo)
+_PI_API(piKernelRetain)
+_PI_API(piKernelRelease)
+// Event
+_PI_API(piEventCreate)
+_PI_API(piEventGetInfo)
+_PI_API(piEventGetProfilingInfo)
+_PI_API(piEventsWait)
+_PI_API(piEventSetCallback)
+_PI_API(piEventSetStatus)
+_PI_API(piEventRetain)
+_PI_API(piEventRelease)
+// Sampler
+_PI_API(piSamplerCreate)
+_PI_API(piSamplerGetInfo)
+_PI_API(piSamplerRetain)
+_PI_API(piSamplerRelease)
+// Queue commands
+_PI_API(piEnqueueKernelLaunch)
+_PI_API(piEnqueueEventsWait)
+_PI_API(piEnqueueMemBufferRead)
+_PI_API(piEnqueueMemBufferReadRect)
+_PI_API(piEnqueueMemBufferWrite)
+_PI_API(piEnqueueMemBufferWriteRect)
+_PI_API(piEnqueueMemBufferCopy)
+_PI_API(piEnqueueMemBufferCopyRect)
+_PI_API(piEnqueueMemBufferFill)
+_PI_API(piEnqueueMemImageRead)
+_PI_API(piEnqueueMemImageWrite)
+_PI_API(piEnqueueMemImageCopy)
+_PI_API(piEnqueueMemImageFill)
+_PI_API(piEnqueueMemBufferMap)
+_PI_API(piEnqueueMemUnmap)
+
+#undef _PI_API

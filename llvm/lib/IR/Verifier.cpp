@@ -691,6 +691,13 @@ void Verifier::visitGlobalVariable(const GlobalVariable &GV) {
                       "DIGlobalVariableExpression");
   }
 
+  // Scalable vectors cannot be global variables, since we don't know
+  // the runtime size. If the global is a struct or an array containing
+  // scalable vectors, that will be caught by the isValidElementType methods
+  // in StructType or ArrayType instead.
+  if (auto *VTy = dyn_cast<VectorType>(GV.getValueType()))
+    Assert(!VTy->isScalable(), "Globals cannot contain scalable vectors", &GV);
+
   if (!GV.hasInitializer()) {
     visitGlobalValue(GV);
     return;
@@ -1486,9 +1493,12 @@ void Verifier::visitModuleFlagCGProfileEntry(const MDOperand &MDO) {
 static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   switch (Kind) {
   case Attribute::NoReturn:
+  case Attribute::NoSync:
+  case Attribute::WillReturn:
   case Attribute::NoCfCheck:
   case Attribute::NoUnwind:
   case Attribute::NoInline:
+  case Attribute::NoFree:
   case Attribute::AlwaysInline:
   case Attribute::OptimizeForSize:
   case Attribute::StackProtect:
@@ -1506,6 +1516,7 @@ static bool isFuncOnlyAttr(Attribute::AttrKind Kind) {
   case Attribute::ReturnsTwice:
   case Attribute::SanitizeAddress:
   case Attribute::SanitizeHWAddress:
+  case Attribute::SanitizeMemTag:
   case Attribute::SanitizeThread:
   case Attribute::SanitizeMemory:
   case Attribute::MinSize:
@@ -1628,6 +1639,11 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
          "Attributes "
          "'noinline and alwaysinline' are incompatible!",
          V);
+
+  if (Attrs.hasAttribute(Attribute::ByVal) && Attrs.getByValType()) {
+    Assert(Attrs.getByValType() == cast<PointerType>(Ty)->getElementType(),
+           "Attribute 'byval' type does not match parameter!", V);
+  }
 
   AttrBuilder IncompatibleAttrs = AttributeFuncs::typeIncompatible(Ty);
   Assert(!AttrBuilder(Attrs).overlaps(IncompatibleAttrs),
@@ -2223,8 +2239,11 @@ void Verifier::visitFunction(const Function &F) {
            MDs.empty() ? nullptr : MDs.front().second);
   } else if (F.isDeclaration()) {
     for (const auto &I : MDs) {
-      AssertDI(I.first != LLVMContext::MD_dbg,
-               "function declaration may not have a !dbg attachment", &F);
+      // This is used for call site debug information.
+      AssertDI(I.first != LLVMContext::MD_dbg ||
+                   !cast<DISubprogram>(I.second)->isDistinct(),
+               "function declaration may only have a unique !dbg attachment",
+               &F);
       Assert(I.first != LLVMContext::MD_prof,
              "function declaration may not have a !prof attachment", &F);
 
@@ -2302,36 +2321,44 @@ void Verifier::visitFunction(const Function &F) {
   // FIXME: Check this incrementally while visiting !dbg attachments.
   // FIXME: Only check when N is the canonical subprogram for F.
   SmallPtrSet<const MDNode *, 32> Seen;
+  auto VisitDebugLoc = [&](const Instruction &I, const MDNode *Node) {
+    // Be careful about using DILocation here since we might be dealing with
+    // broken code (this is the Verifier after all).
+    const DILocation *DL = dyn_cast_or_null<DILocation>(Node);
+    if (!DL)
+      return;
+    if (!Seen.insert(DL).second)
+      return;
+
+    Metadata *Parent = DL->getRawScope();
+    AssertDI(Parent && isa<DILocalScope>(Parent),
+             "DILocation's scope must be a DILocalScope", N, &F, &I, DL,
+             Parent);
+    DILocalScope *Scope = DL->getInlinedAtScope();
+    if (Scope && !Seen.insert(Scope).second)
+      return;
+
+    DISubprogram *SP = Scope ? Scope->getSubprogram() : nullptr;
+
+    // Scope and SP could be the same MDNode and we don't want to skip
+    // validation in that case
+    if (SP && ((Scope != SP) && !Seen.insert(SP).second))
+      return;
+
+    // FIXME: Once N is canonical, check "SP == &N".
+    AssertDI(SP->describes(&F),
+             "!dbg attachment points at wrong subprogram for function", N, &F,
+             &I, DL, Scope, SP);
+  };
   for (auto &BB : F)
     for (auto &I : BB) {
-      // Be careful about using DILocation here since we might be dealing with
-      // broken code (this is the Verifier after all).
-      DILocation *DL =
-          dyn_cast_or_null<DILocation>(I.getDebugLoc().getAsMDNode());
-      if (!DL)
-        continue;
-      if (!Seen.insert(DL).second)
-        continue;
-
-      Metadata *Parent = DL->getRawScope();
-      AssertDI(Parent && isa<DILocalScope>(Parent),
-               "DILocation's scope must be a DILocalScope", N, &F, &I, DL,
-               Parent);
-      DILocalScope *Scope = DL->getInlinedAtScope();
-      if (Scope && !Seen.insert(Scope).second)
-        continue;
-
-      DISubprogram *SP = Scope ? Scope->getSubprogram() : nullptr;
-
-      // Scope and SP could be the same MDNode and we don't want to skip
-      // validation in that case
-      if (SP && ((Scope != SP) && !Seen.insert(SP).second))
-        continue;
-
-      // FIXME: Once N is canonical, check "SP == &N".
-      AssertDI(SP->describes(&F),
-               "!dbg attachment points at wrong subprogram for function", N, &F,
-               &I, DL, Scope, SP);
+      VisitDebugLoc(I, I.getDebugLoc().getAsMDNode());
+      // The llvm.loop annotations also contain two DILocations.
+      if (auto MD = I.getMetadata(LLVMContext::MD_loop))
+        for (unsigned i = 1; i < MD->getNumOperands(); ++i)
+          VisitDebugLoc(I, dyn_cast_or_null<MDNode>(MD->getOperand(i)));
+      if (BrokenDebugInfo)
+        return;
     }
 }
 
@@ -4149,14 +4176,14 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   getIntrinsicInfoTableEntries(ID, Table);
   ArrayRef<Intrinsic::IITDescriptor> TableRef = Table;
 
+  // Walk the descriptors to extract overloaded types.
   SmallVector<Type *, 4> ArgTys;
-  Assert(!Intrinsic::matchIntrinsicType(IFTy->getReturnType(),
-                                        TableRef, ArgTys),
+  Intrinsic::MatchIntrinsicTypesResult Res =
+      Intrinsic::matchIntrinsicSignature(IFTy, TableRef, ArgTys);
+  Assert(Res != Intrinsic::MatchIntrinsicTypes_NoMatchRet,
          "Intrinsic has incorrect return type!", IF);
-  for (unsigned i = 0, e = IFTy->getNumParams(); i != e; ++i)
-    Assert(!Intrinsic::matchIntrinsicType(IFTy->getParamType(i),
-                                          TableRef, ArgTys),
-           "Intrinsic has incorrect argument type!", IF);
+  Assert(Res != Intrinsic::MatchIntrinsicTypes_NoMatchArg,
+         "Intrinsic has incorrect argument type!", IF);
 
   // Verify if the intrinsic call matches the vararg property.
   if (IsVarArg)
@@ -4622,7 +4649,9 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     break;
   }
   case Intrinsic::lround:
-  case Intrinsic::llround: {
+  case Intrinsic::llround:
+  case Intrinsic::lrint:
+  case Intrinsic::llrint: {
     Type *ValTy = Call.getArgOperand(0)->getType();
     Type *ResultTy = Call.getType();
     Assert(!ValTy->isVectorTy() && !ResultTy->isVectorTy(),
@@ -4749,11 +4778,11 @@ void Verifier::visitConstrainedFPIntrinsic(ConstrainedFPIntrinsic &FPI) {
   // argument type check is needed here.
 
   if (HasExceptionMD) {
-    Assert(FPI.getExceptionBehavior() != ConstrainedFPIntrinsic::ebInvalid,
+    Assert(FPI.getExceptionBehavior().hasValue(),
            "invalid exception behavior argument", &FPI);
   }
   if (HasRoundingMD) {
-    Assert(FPI.getRoundingMode() != ConstrainedFPIntrinsic::rmInvalid,
+    Assert(FPI.getRoundingMode().hasValue(),
            "invalid rounding mode argument", &FPI);
   }
 }

@@ -151,8 +151,12 @@ std::vector<Fix> IncludeFixer::fixesForSymbols(const SymbolSlab &Syms) const {
     auto ResolvedInserted = toHeaderFile(Header, File);
     if (!ResolvedInserted)
       return ResolvedInserted.takeError();
+    auto Spelled = Inserter->calculateIncludePath(*ResolvedInserted, File);
+    if (!Spelled)
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "Header not on include path");
     return std::make_pair(
-        Inserter->calculateIncludePath(*ResolvedInserted),
+        std::move(*Spelled),
         Inserter->shouldInsertInclude(*ResolvedDeclaring, *ResolvedInserted));
   };
 
@@ -396,7 +400,6 @@ std::vector<Fix> IncludeFixer::fixUnresolvedName() const {
 
   return {};
 }
-
 
 llvm::Optional<const SymbolSlab *>
 IncludeFixer::fuzzyFindCached(const FuzzyFindRequest &Req) const {

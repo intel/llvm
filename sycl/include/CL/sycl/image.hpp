@@ -175,7 +175,10 @@ public:
   }
 
   image(cl_mem ClMemObject, const context &SyclContext,
-        event AvailableEvent = {});
+        event AvailableEvent = {}) {
+    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+        ClMemObject, SyclContext, AvailableEvent);
+  }
 
   /* -- common interface members -- */
 
@@ -219,21 +222,31 @@ public:
   // Returns the allocator provided to the image
   AllocatorT get_allocator() const { return impl->get_allocator(); }
 
-  template <typename Destination = std::nullptr_t>
-  void set_final_data(Destination FinalData = nullptr) {
-    if (true)
-      throw cl::sycl::feature_not_supported("Feature Not Implemented");
-    return;
+  template <typename DataT, access::mode AccessMode>
+  accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
+           access::target::image, access::placeholder::false_t>
+  get_access(handler &commandGroupHandler) {
+    return impl->template get_access<DataT, AccessMode>(*this,
+                                                        commandGroupHandler);
   }
 
-  void set_write_back(bool Flag = true) {
-    if (true)
-      throw cl::sycl::feature_not_supported("Feature Not Implemented");
-    return;
+  template <typename DataT, access::mode AccessMode>
+  accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
+           access::target::host_image, access::placeholder::false_t>
+  get_access() {
+    return impl->template get_access<DataT, AccessMode>(*this);
   }
+
+  template <typename Destination = std::nullptr_t>
+  void set_final_data(Destination finalData = nullptr) {
+    impl->set_final_data(finalData);
+  }
+
+  void set_write_back(bool flag = true) { impl->set_write_back(flag); }
 
 private:
   shared_ptr_class<detail::image_impl<Dimensions, AllocatorT>> impl;
+
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 };

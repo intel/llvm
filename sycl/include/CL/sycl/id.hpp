@@ -10,13 +10,14 @@
 
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/range.hpp>
 
 namespace cl {
 namespace sycl {
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;
-template <int dimensions = 1> struct id : public detail::array<dimensions> {
+template <int dimensions = 1> class id : public detail::array<dimensions> {
 private:
   using base = detail::array<dimensions>;
   static_assert(dimensions >= 1 && dimensions <= 3,

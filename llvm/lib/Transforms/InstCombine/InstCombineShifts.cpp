@@ -20,6 +20,51 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
+// Given pattern:
+//   (x shiftopcode Q) shiftopcode K
+// we should rewrite it as
+//   x shiftopcode (Q+K)  iff (Q+K) u< bitwidth(x)
+// This is valid for any shift, but they must be identical.
+static Instruction *
+reassociateShiftAmtsOfTwoSameDirectionShifts(BinaryOperator *Sh0,
+                                             const SimplifyQuery &SQ) {
+  // Look for:  (x shiftopcode ShAmt0) shiftopcode ShAmt1
+  Value *X, *ShAmt1, *ShAmt0;
+  Instruction *Sh1;
+  if (!match(Sh0, m_Shift(m_CombineAnd(m_Shift(m_Value(X), m_Value(ShAmt1)),
+                                       m_Instruction(Sh1)),
+                          m_Value(ShAmt0))))
+    return nullptr;
+
+  // The shift opcodes must be identical.
+  Instruction::BinaryOps ShiftOpcode = Sh0->getOpcode();
+  if (ShiftOpcode != Sh1->getOpcode())
+    return nullptr;
+  // Can we fold (ShAmt0+ShAmt1) ?
+  Value *NewShAmt = SimplifyBinOp(Instruction::BinaryOps::Add, ShAmt0, ShAmt1,
+                                  SQ.getWithInstruction(Sh0));
+  if (!NewShAmt)
+    return nullptr; // Did not simplify.
+  // Is the new shift amount smaller than the bit width?
+  // FIXME: could also rely on ConstantRange.
+  unsigned BitWidth = X->getType()->getScalarSizeInBits();
+  if (!match(NewShAmt, m_SpecificInt_ICMP(ICmpInst::Predicate::ICMP_ULT,
+                                          APInt(BitWidth, BitWidth))))
+    return nullptr;
+  // All good, we can do this fold.
+  BinaryOperator *NewShift = BinaryOperator::Create(ShiftOpcode, X, NewShAmt);
+  // If both of the original shifts had the same flag set, preserve the flag.
+  if (ShiftOpcode == Instruction::BinaryOps::Shl) {
+    NewShift->setHasNoUnsignedWrap(Sh0->hasNoUnsignedWrap() &&
+                                   Sh1->hasNoUnsignedWrap());
+    NewShift->setHasNoSignedWrap(Sh0->hasNoSignedWrap() &&
+                                 Sh1->hasNoSignedWrap());
+  } else {
+    NewShift->setIsExact(Sh0->isExact() && Sh1->isExact());
+  }
+  return NewShift;
+}
+
 Instruction *InstCombiner::commonShiftTransforms(BinaryOperator &I) {
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
   assert(Op0->getType() == Op1->getType());
@@ -37,6 +82,10 @@ Instruction *InstCombiner::commonShiftTransforms(BinaryOperator &I) {
   if (Constant *CUI = dyn_cast<Constant>(Op1))
     if (Instruction *Res = FoldShiftByConstant(Op0, CUI, I))
       return Res;
+
+  if (Instruction *NewShift =
+          reassociateShiftAmtsOfTwoSameDirectionShifts(&I, SQ))
+    return NewShift;
 
   // (C1 shift (A add C2)) -> (C1 shift C2) shift A)
   // iff A and C2 are both positive.
@@ -582,6 +631,8 @@ Instruction *InstCombiner::visitShl(BinaryOperator &I) {
 
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
   Type *Ty = I.getType();
+  unsigned BitWidth = Ty->getScalarSizeInBits();
+
   const APInt *ShAmtAPInt;
   if (match(Op1, m_APInt(ShAmtAPInt))) {
     unsigned ShAmt = ShAmtAPInt->getZExtValue();
@@ -669,6 +720,12 @@ Instruction *InstCombiner::visitShl(BinaryOperator &I) {
     if (match(Op0, m_Mul(m_Value(X), m_Constant(C2))))
       return BinaryOperator::CreateMul(X, ConstantExpr::getShl(C2, C1));
   }
+
+  // (1 << (C - x)) -> ((1 << C) >> x) if C is bitwidth - 1
+  if (match(Op0, m_One()) &&
+      match(Op1, m_Sub(m_SpecificInt(BitWidth - 1), m_Value(X))))
+    return BinaryOperator::CreateLShr(
+        ConstantInt::get(Ty, APInt::getSignMask(BitWidth)), X);
 
   return nullptr;
 }

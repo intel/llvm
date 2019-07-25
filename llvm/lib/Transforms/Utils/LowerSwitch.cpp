@@ -494,7 +494,7 @@ void LowerSwitch::processSwitchInst(SwitchInst *SI,
     KnownBits Known = computeKnownBits(Val, DL, /*Depth=*/0, AC, SI);
     // TODO Shouldn't this create a signed range?
     ConstantRange KnownBitsRange =
-        ConstantRange::fromKnownBits(Known, /*ForSigned=*/false);
+        ConstantRange::fromKnownBits(Known, /*IsSigned=*/false);
     const ConstantRange LVIRange = LVI->getConstantRange(Val, OrigBlock, SI);
     ConstantRange ValRange = KnownBitsRange.intersectWith(LVIRange);
     // We delegate removal of unreachable non-default cases to other passes. In
@@ -584,6 +584,11 @@ void LowerSwitch::processSwitchInst(SwitchInst *SI,
         PopSucc->removePredecessor(OrigBlock);
       return;
     }
+
+    // If the condition was a PHI node with the switch block as a predecessor
+    // removing predecessors may have caused the condition to be erased.
+    // Getting the condition value again here protects against that.
+    Val = SI->getCondition();
   }
 
   // Create a new, empty default block so that the new hierarchy of

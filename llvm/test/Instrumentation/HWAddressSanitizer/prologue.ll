@@ -56,9 +56,11 @@ define void @test_alloca() sanitize_hwaddress {
 ; CHECK-TLS:   %[[B:[^ ]*]] = getelementptr i8, i8* %[[A]], i32 48
 ; CHECK-TLS:   %[[C:[^ ]*]] = bitcast i8* %[[B]] to i64*
 ; CHECK-TLS:   %[[D:[^ ]*]] = load i64, i64* %[[C]]
+; CHECK-TLS:   %[[E:[^ ]*]] = ashr i64 %[[D]], 3
 
 ; CHECK-NOHISTORY-NOT: store i64
 
+; CHECK-HISTORY: call i64 @llvm.read_register.i64(metadata [[MD:![0-9]*]])
 ; CHECK-HISTORY: %[[PTR:[^ ]*]] = inttoptr i64 %[[D]] to i64*
 ; CHECK-HISTORY: store i64 %{{.*}}, i64* %[[PTR]]
 ; CHECK-HISTORY: %[[D1:[^ ]*]] = ashr i64 %[[D]], 56
@@ -68,8 +70,10 @@ define void @test_alloca() sanitize_hwaddress {
 ; CHECK-HISTORY: %[[D5:[^ ]*]] = and i64 %[[D4]], %[[D3]]
 ; CHECK-HISTORY: store i64 %[[D5]], i64* %[[C]]
 
-; CHECK-TLS:   %[[E:[^ ]*]] = or i64 %[[D]], 4294967295
-; CHECK-TLS:   = add i64 %[[E]], 1
+; CHECK-TLS:   %[[F:[^ ]*]] = or i64 %[[D]], 4294967295
+; CHECK-TLS:   = add i64 %[[F]], 1
+
+; CHECK-HISTORY: = xor i64 %[[E]], 0
 
 ; CHECK-NOHISTORY-NOT: store i64
 
@@ -79,3 +83,5 @@ entry:
   call void @use(i32* %x)
   ret void
 }
+
+; CHECK-HISTORY: [[MD]] = !{!"pc"}

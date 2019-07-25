@@ -26,7 +26,7 @@ The translator can be built with the latest(nightly) package of LLVM. For Ubuntu
 ```
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
-sudo apt-get install llvm-9-dev llvm-9-tools libclang-9-dev
+sudo apt-get install llvm-9-dev llvm-9-tools clang-9 libclang-9-dev
 ```
 The installed version of LLVM will be used by default for out-of-tree build of the translator.
 ```
@@ -71,7 +71,9 @@ Execute the following command inside the build directory to run translator tests
 ```
 make test
 ```
-This requires that the `-DLLVM_INCLUDE_TESTS=ON` argument was passed to CMake during the build step.
+This requires that the `-DLLVM_INCLUDE_TESTS=ON` and
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-9/build/utils/lit/lit.py"` arguments were
+passed to CMake during the build step.
 
 ## Run Instructions for `llvm-spirv`
 
@@ -87,6 +89,8 @@ To translate between LLVM IR and SPIR-V:
     ```
     llvm-spirv -r input.spv
     ```
+    Recommended options:
+    * `-spirv-ocl-builtins-version` - to specify target version of OpenCL builtins to translate to (default CL1.2)
 
 3. Other options accepted by `llvm-spirv`
 

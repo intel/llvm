@@ -587,10 +587,6 @@ Value *SafeStack::moveStaticAllocasToUnsafeStack(
     IRB.SetInsertPoint(AI);
     unsigned Offset = SSL.getObjectOffset(AI);
 
-    uint64_t Size = getStaticAllocaAllocationSize(AI);
-    if (Size == 0)
-      Size = 1; // Don't create zero-sized stack objects.
-
     replaceDbgDeclareForAlloca(AI, BasePointer, DIB, DIExpression::ApplyOffset,
                                -Offset);
     replaceDbgValueForAlloca(AI, BasePointer, DIB, -Offset);
@@ -613,16 +609,12 @@ Value *SafeStack::moveStaticAllocasToUnsafeStack(
                                      ConstantInt::get(Int32Ty, -Offset));
       Value *Replacement = IRBUser.CreateBitCast(Off, AI->getType(), Name);
 
-      if (auto *PHI = dyn_cast<PHINode>(User)) {
+      if (auto *PHI = dyn_cast<PHINode>(User))
         // PHI nodes may have multiple incoming edges from the same BB (why??),
         // all must be updated at once with the same incoming value.
-        auto *BB = PHI->getIncomingBlock(U);
-        for (unsigned I = 0; I < PHI->getNumIncomingValues(); ++I)
-          if (PHI->getIncomingBlock(I) == BB)
-            PHI->setIncomingValue(I, Replacement);
-      } else {
+        PHI->setIncomingValueForBlock(PHI->getIncomingBlock(U), Replacement);
+      else
         U.set(Replacement);
-      }
     }
 
     AI->eraseFromParent();

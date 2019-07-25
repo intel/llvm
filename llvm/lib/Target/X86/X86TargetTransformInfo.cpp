@@ -2346,6 +2346,9 @@ int X86TTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
 int X86TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *SrcTy,
                                       unsigned Alignment,
                                       unsigned AddressSpace) {
+  bool IsLoad = (Instruction::Load == Opcode);
+  bool IsStore = (Instruction::Store == Opcode);
+
   VectorType *SrcVTy = dyn_cast<VectorType>(SrcTy);
   if (!SrcVTy)
     // To calculate scalar take the regular cost, without mask
@@ -2353,10 +2356,9 @@ int X86TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *SrcTy,
 
   unsigned NumElem = SrcVTy->getVectorNumElements();
   VectorType *MaskTy =
-    VectorType::get(Type::getInt8Ty(SrcVTy->getContext()), NumElem);
-  if ((Opcode == Instruction::Load && !isLegalMaskedLoad(SrcVTy)) ||
-      (Opcode == Instruction::Store && !isLegalMaskedStore(SrcVTy)) ||
-      !isPowerOf2_32(NumElem)) {
+      VectorType::get(Type::getInt8Ty(SrcVTy->getContext()), NumElem);
+  if ((IsLoad && !isLegalMaskedLoad(SrcVTy)) ||
+      (IsStore && !isLegalMaskedStore(SrcVTy)) || !isPowerOf2_32(NumElem)) {
     // Scalarization
     int MaskSplitCost = getScalarizationOverhead(MaskTy, false, true);
     int ScalarCompareCost = getCmpSelInstrCost(
@@ -2364,8 +2366,7 @@ int X86TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *SrcTy,
     int BranchCost = getCFInstrCost(Instruction::Br);
     int MaskCmpCost = NumElem * (BranchCost + ScalarCompareCost);
 
-    int ValueSplitCost = getScalarizationOverhead(
-        SrcVTy, Opcode == Instruction::Load, Opcode == Instruction::Store);
+    int ValueSplitCost = getScalarizationOverhead(SrcVTy, IsLoad, IsStore);
     int MemopCost =
         NumElem * BaseT::getMemoryOpCost(Opcode, SrcVTy->getScalarType(),
                                          Alignment, AddressSpace);
@@ -2388,11 +2389,13 @@ int X86TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *SrcTy,
     // Expanding requires fill mask with zeroes
     Cost += getShuffleCost(TTI::SK_InsertSubvector, NewMaskTy, 0, MaskTy);
   }
+
+  // Pre-AVX512 - each maskmov load costs 2 + store costs ~8.
   if (!ST->hasAVX512())
-    return Cost + LT.first*4; // Each maskmov costs 4
+    return Cost + LT.first * (IsLoad ? 2 : 8);
 
   // AVX-512 masked load/store is cheapper
-  return Cost+LT.first;
+  return Cost + LT.first;
 }
 
 int X86TTIImpl::getAddressComputationCost(Type *Ty, ScalarEvolution *SE,
@@ -3140,6 +3143,41 @@ bool X86TTIImpl::isLegalMaskedStore(Type *DataType) {
   return isLegalMaskedLoad(DataType);
 }
 
+bool X86TTIImpl::isLegalNTLoad(Type *DataType, unsigned Alignment) {
+  unsigned DataSize = DL.getTypeStoreSize(DataType);
+  // The only supported nontemporal loads are for aligned vectors of 16 or 32
+  // bytes.  Note that 32-byte nontemporal vector loads are supported by AVX2
+  // (the equivalent stores only require AVX).
+  if (Alignment >= DataSize && (DataSize == 16 || DataSize == 32))
+    return DataSize == 16 ?  ST->hasSSE1() : ST->hasAVX2();
+
+  return false;
+}
+
+bool X86TTIImpl::isLegalNTStore(Type *DataType, unsigned Alignment) {
+  unsigned DataSize = DL.getTypeStoreSize(DataType);
+
+  // SSE4A supports nontemporal stores of float and double at arbitrary
+  // alignment.
+  if (ST->hasSSE4A() && (DataType->isFloatTy() || DataType->isDoubleTy()))
+    return true;
+
+  // Besides the SSE4A subtarget exception above, only aligned stores are
+  // available nontemporaly on any other subtarget.  And only stores with a size
+  // of 4..32 bytes (powers of 2, only) are permitted.
+  if (Alignment < DataSize || DataSize < 4 || DataSize > 32 ||
+      !isPowerOf2_32(DataSize))
+    return false;
+
+  // 32-byte vector nontemporal stores are supported by AVX (the equivalent
+  // loads require AVX2).
+  if (DataSize == 32)
+    return ST->hasAVX();
+  else if (DataSize == 16)
+    return ST->hasSSE1();
+  return true;
+}
+
 bool X86TTIImpl::isLegalMaskedExpandLoad(Type *DataTy) {
   if (!isa<VectorType>(DataTy))
     return false;
@@ -3253,38 +3291,30 @@ bool X86TTIImpl::areFunctionArgsABICompatible(
          TM.getSubtarget<X86Subtarget>(*Callee).useAVX512Regs();
 }
 
-const X86TTIImpl::TTI::MemCmpExpansionOptions *
-X86TTIImpl::enableMemCmpExpansion(bool IsZeroCmp) const {
-  // Only enable vector loads for equality comparison.
-  // Right now the vector version is not as fast, see #33329.
-  static const auto ThreeWayOptions = [this]() {
-    TTI::MemCmpExpansionOptions Options;
-    if (ST->is64Bit()) {
-      Options.LoadSizes.push_back(8);
-    }
-    Options.LoadSizes.push_back(4);
-    Options.LoadSizes.push_back(2);
-    Options.LoadSizes.push_back(1);
-    return Options;
-  }();
-  static const auto EqZeroOptions = [this]() {
-    TTI::MemCmpExpansionOptions Options;
+X86TTIImpl::TTI::MemCmpExpansionOptions
+X86TTIImpl::enableMemCmpExpansion(bool OptSize, bool IsZeroCmp) const {
+  TTI::MemCmpExpansionOptions Options;
+  Options.MaxNumLoads = TLI->getMaxExpandSizeMemcmp(OptSize);
+  Options.NumLoadsPerBlock = 2;
+  if (IsZeroCmp) {
+    // Only enable vector loads for equality comparison. Right now the vector
+    // version is not as fast for three way compare (see #33329).
     // TODO: enable AVX512 when the DAG is ready.
     // if (ST->hasAVX512()) Options.LoadSizes.push_back(64);
-    if (ST->hasAVX2()) Options.LoadSizes.push_back(32);
-    if (ST->hasSSE2()) Options.LoadSizes.push_back(16);
-    if (ST->is64Bit()) {
-      Options.LoadSizes.push_back(8);
-    }
-    Options.LoadSizes.push_back(4);
-    Options.LoadSizes.push_back(2);
-    Options.LoadSizes.push_back(1);
+    const unsigned PreferredWidth = ST->getPreferVectorWidth();
+    if (PreferredWidth >= 256 && ST->hasAVX2()) Options.LoadSizes.push_back(32);
+    if (PreferredWidth >= 128 && ST->hasSSE2()) Options.LoadSizes.push_back(16);
     // All GPR and vector loads can be unaligned. SIMD compare requires integer
     // vectors (SSE2/AVX2).
     Options.AllowOverlappingLoads = true;
-    return Options;
-  }();
-  return IsZeroCmp ? &EqZeroOptions : &ThreeWayOptions;
+  }
+  if (ST->is64Bit()) {
+    Options.LoadSizes.push_back(8);
+  }
+  Options.LoadSizes.push_back(4);
+  Options.LoadSizes.push_back(2);
+  Options.LoadSizes.push_back(1);
+  return Options;
 }
 
 bool X86TTIImpl::enableInterleavedAccessVectorization() {

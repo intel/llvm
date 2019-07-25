@@ -111,18 +111,40 @@ void DumpProcessGDBRemotePacketHistory(void *p, const char *path) {
 namespace {
 
 static constexpr PropertyDefinition g_properties[] = {
-    {"packet-timeout", OptionValue::eTypeUInt64, true, 5
+    {"packet-timeout",
+     OptionValue::eTypeUInt64,
+     true,
+     5
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
-      * 2
+         * 2
 #endif
 #endif
-      , NULL, {},
+     ,
+     nullptr,
+     {},
      "Specify the default packet timeout in seconds."},
-    {"target-definition-file", OptionValue::eTypeFileSpec, true, 0, NULL, {},
-     "The file that provides the description for remote target registers."}};
+    {"target-definition-file",
+     OptionValue::eTypeFileSpec,
+     true,
+     0,
+     nullptr,
+     {},
+     "The file that provides the description for remote target registers."},
+    {"use-libraries-svr4",
+     OptionValue::eTypeBoolean,
+     true,
+     false,
+     nullptr,
+     {},
+     "If true, the libraries-svr4 feature will be used to get a hold of the "
+     "process's loaded modules."}};
 
-enum { ePropertyPacketTimeout, ePropertyTargetDefinitionFile };
+enum {
+  ePropertyPacketTimeout,
+  ePropertyTargetDefinitionFile,
+  ePropertyUseSVR4
+};
 
 class PluginProperties : public Properties {
 public:
@@ -140,17 +162,23 @@ public:
   uint64_t GetPacketTimeout() {
     const uint32_t idx = ePropertyPacketTimeout;
     return m_collection_sp->GetPropertyAtIndexAsUInt64(
-        NULL, idx, g_properties[idx].default_uint_value);
+        nullptr, idx, g_properties[idx].default_uint_value);
   }
 
   bool SetPacketTimeout(uint64_t timeout) {
     const uint32_t idx = ePropertyPacketTimeout;
-    return m_collection_sp->SetPropertyAtIndexAsUInt64(NULL, idx, timeout);
+    return m_collection_sp->SetPropertyAtIndexAsUInt64(nullptr, idx, timeout);
   }
 
   FileSpec GetTargetDefinitionFile() const {
     const uint32_t idx = ePropertyTargetDefinitionFile;
-    return m_collection_sp->GetPropertyAtIndexAsFileSpec(NULL, idx);
+    return m_collection_sp->GetPropertyAtIndexAsFileSpec(nullptr, idx);
+  }
+
+  bool GetUseSVR4() const {
+    const uint32_t idx = ePropertyUseSVR4;
+    return m_collection_sp->GetPropertyAtIndexAsBoolean(
+        nullptr, idx, g_properties[idx].default_uint_value != 0);
   }
 };
 
@@ -163,24 +191,19 @@ static const ProcessKDPPropertiesSP &GetGlobalPluginProperties() {
   return g_settings_sp;
 }
 
-struct ProcessGDBRemoteInfo {
-  static const char *name;
-  static const char *file;
-};
-
-const char *ProcessGDBRemoteInfo::name = "gdb-remote";
-const char *ProcessGDBRemoteInfo::file = "gdb-remote.yaml";
-
 class ProcessGDBRemoteProvider
     : public repro::Provider<ProcessGDBRemoteProvider> {
 public:
-  typedef ProcessGDBRemoteInfo info;
+  struct Info {
+    static const char *name;
+    static const char *file;
+  };
 
   ProcessGDBRemoteProvider(const FileSpec &directory) : Provider(directory) {
   }
 
   raw_ostream *GetHistoryStream() {
-    FileSpec history_file = GetRoot().CopyByAppendingPathComponent(info::file);
+    FileSpec history_file = GetRoot().CopyByAppendingPathComponent(Info::file);
 
     std::error_code EC;
     m_stream_up = llvm::make_unique<raw_fd_ostream>(history_file.GetPath(), EC,
@@ -204,6 +227,8 @@ private:
 };
 
 char ProcessGDBRemoteProvider::ID = 0;
+const char *ProcessGDBRemoteProvider::Info::name = "gdb-remote";
+const char *ProcessGDBRemoteProvider::Info::file = "gdb-remote.yaml";
 
 } // namespace
 
@@ -252,7 +277,7 @@ ProcessGDBRemote::CreateInstance(lldb::TargetSP target_sp,
                                  ListenerSP listener_sp,
                                  const FileSpec *crash_file_path) {
   lldb::ProcessSP process_sp;
-  if (crash_file_path == NULL)
+  if (crash_file_path == nullptr)
     process_sp = std::make_shared<ProcessGDBRemote>(target_sp, listener_sp);
   return process_sp;
 }
@@ -294,7 +319,7 @@ ProcessGDBRemote::ProcessGDBRemote(lldb::TargetSP target_sp,
     : Process(target_sp, listener_sp),
       m_debugserver_pid(LLDB_INVALID_PROCESS_ID), m_last_stop_packet_mutex(),
       m_register_info(),
-      m_async_broadcaster(NULL, "lldb.process.gdb-remote.async-broadcaster"),
+      m_async_broadcaster(nullptr, "lldb.process.gdb-remote.async-broadcaster"),
       m_async_listener_sp(
           Listener::MakeListener("lldb.process.gdb-remote.async-listener")),
       m_async_thread_state_mutex(), m_thread_ids(), m_thread_pcs(),
@@ -547,8 +572,8 @@ void ProcessGDBRemote::BuildDynamicRegisterInfo(bool force) {
         std::vector<uint32_t> invalidate_regs;
         std::vector<uint8_t> dwarf_opcode_bytes;
         RegisterInfo reg_info = {
-            NULL,          // Name
-            NULL,          // Alt name
+            nullptr,       // Name
+            nullptr,       // Alt name
             0,             // byte size
             reg_offset,    // offset
             eEncodingUint, // encoding
@@ -560,10 +585,10 @@ void ProcessGDBRemote::BuildDynamicRegisterInfo(bool force) {
                 reg_num,             // process plugin reg num
                 reg_num              // native register number
             },
-            NULL,
-            NULL,
-            NULL, // Dwarf expression opcode bytes pointer
-            0     // Dwarf expression opcode bytes length
+            nullptr,
+            nullptr,
+            nullptr, // Dwarf expression opcode bytes pointer
+            0        // Dwarf expression opcode bytes length
         };
 
         while (response.GetNameColonValue(name, value)) {
@@ -583,7 +608,7 @@ void ProcessGDBRemote::BuildDynamicRegisterInfo(bool force) {
               reg_info.encoding = encoding;
           } else if (name.equals("format")) {
             Format format = eFormatInvalid;
-            if (OptionArgParser::ToFormat(value.str().c_str(), format, NULL)
+            if (OptionArgParser::ToFormat(value.str().c_str(), format, nullptr)
                     .Success())
               reg_info.format = format;
             else {
@@ -888,8 +913,8 @@ Status ProcessGDBRemote::DoLaunch(lldb_private::Module *exe_module,
         // since 'O' packets can really slow down debugging if the inferior
         // does a lot of output.
         if ((!stdin_file_spec || !stdout_file_spec || !stderr_file_spec) &&
-            pty.OpenFirstAvailableMaster(O_RDWR | O_NOCTTY, NULL, 0)) {
-          FileSpec slave_name{pty.GetSlaveName(NULL, 0)};
+            pty.OpenFirstAvailableMaster(O_RDWR | O_NOCTTY, nullptr, 0)) {
+          FileSpec slave_name{pty.GetSlaveName(nullptr, 0)};
 
           if (!stdin_file_spec)
             stdin_file_spec = slave_name;
@@ -933,7 +958,7 @@ Status ProcessGDBRemote::DoLaunch(lldb_private::Module *exe_module,
           GetTarget().GetArchitecture().GetArchitectureName());
 
       const char *launch_event_data = launch_info.GetLaunchEventData();
-      if (launch_event_data != NULL && *launch_event_data != '\0')
+      if (launch_event_data != nullptr && *launch_event_data != '\0')
         m_gdb_comm.SendLaunchEventDataPacket(launch_event_data);
 
       if (working_dir) {
@@ -1847,7 +1872,7 @@ ThreadSP ProcessGDBRemote::SetThreadStopInfo(
         gdb_thread->PrivateSetRegisterValue(pair.first, buffer_sp->GetData());
       }
 
-      thread_sp->SetName(thread_name.empty() ? NULL : thread_name.c_str());
+      thread_sp->SetName(thread_name.empty() ? nullptr : thread_name.c_str());
 
       gdb_thread->SetThreadDispatchQAddr(thread_dispatch_qaddr);
       // Check if the GDB server was able to provide the queue name, kind and
@@ -2426,6 +2451,15 @@ void ProcessGDBRemote::RefreshStateAfterStop() {
 
   // Scope for the lock
   {
+    // Check to see if SetThreadStopInfo() filled in m_thread_ids?
+    if (m_thread_ids.empty()) {
+        // No, we need to fetch the thread list manually
+        UpdateThreadIDList();
+    }
+    // We might set some stop info's so make sure the thread list is up to
+    // date before we do that or we might overwrite what was computed here.
+    UpdateThreadListIfNeeded();
+
     // Lock the thread stack while we access it
     std::lock_guard<std::recursive_mutex> guard(m_last_stop_packet_mutex);
     // Get the number of stop packets on the stack
@@ -2440,13 +2474,7 @@ void ProcessGDBRemote::RefreshStateAfterStop() {
     // Clear the thread stop stack
     m_stop_packet_stack.clear();
   }
-
-  // Check to see if SetThreadStopInfo() filled in m_thread_ids?
-  if (m_thread_ids.empty()) {
-    // No, we need to fetch the thread list manually
-    UpdateThreadIDList();
-  }
-
+  
   // If we have queried for a default thread id
   if (m_initial_tid != LLDB_INVALID_THREAD_ID) {
     m_thread_list.SetSelectedThreadByID(m_initial_tid);
@@ -3126,7 +3154,7 @@ size_t ProcessGDBRemote::PutSTDIN(const char *src, size_t src_len,
                                   Status &error) {
   if (m_stdio_communication.IsConnected()) {
     ConnectionStatus status;
-    m_stdio_communication.Write(src, src_len, status, NULL);
+    m_stdio_communication.Write(src, src_len, status, nullptr);
   } else if (m_stdin_forward) {
     m_gdb_comm.SendStdinNotification(src, src_len);
   }
@@ -3135,7 +3163,7 @@ size_t ProcessGDBRemote::PutSTDIN(const char *src, size_t src_len,
 
 Status ProcessGDBRemote::EnableBreakpointSite(BreakpointSite *bp_site) {
   Status error;
-  assert(bp_site != NULL);
+  assert(bp_site != nullptr);
 
   // Get logging info
   Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_BREAKPOINTS));
@@ -3261,7 +3289,7 @@ Status ProcessGDBRemote::EnableBreakpointSite(BreakpointSite *bp_site) {
 
 Status ProcessGDBRemote::DisableBreakpointSite(BreakpointSite *bp_site) {
   Status error;
-  assert(bp_site != NULL);
+  assert(bp_site != nullptr);
   addr_t addr = bp_site->GetLoadAddress();
   user_id_t site_id = bp_site->GetID();
   Log *log(ProcessGDBRemoteLog::GetLogIfAllCategoriesSet(GDBR_LOG_BREAKPOINTS));
@@ -3432,7 +3460,7 @@ Status ProcessGDBRemote::ConnectToReplayServer(repro::Loader *loader) {
     return Status("No loader provided.");
 
   // Construct replay history path.
-  FileSpec history_file = loader->GetFile<ProcessGDBRemoteInfo>();
+  FileSpec history_file = loader->GetFile<ProcessGDBRemoteProvider::Info>();
   if (!history_file)
     return Status("No provider for gdb-remote.");
 
@@ -3672,9 +3700,15 @@ bool ProcessGDBRemote::StartAsyncThread() {
     // Create a thread that watches our internal state and controls which
     // events make it to clients (into the DCProcess event queue).
 
-    m_async_thread =
-        ThreadLauncher::LaunchThread("<lldb.process.gdb-remote.async>",
-                                     ProcessGDBRemote::AsyncThread, this, NULL);
+    llvm::Expected<HostThread> async_thread = ThreadLauncher::LaunchThread(
+        "<lldb.process.gdb-remote.async>", ProcessGDBRemote::AsyncThread, this);
+    if (!async_thread) {
+      LLDB_LOG(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST),
+               "failed to launch host thread: {}",
+               llvm::toString(async_thread.takeError()));
+      return false;
+    }
+    m_async_thread = *async_thread;
   } else if (log)
     log->Printf("ProcessGDBRemote::%s () - Called when Async thread was "
                 "already running.",
@@ -3768,7 +3802,7 @@ thread_result_t ProcessGDBRemote::AsyncThread(void *arg) {
                           ") got eBroadcastBitAsyncContinue: %s",
                           __FUNCTION__, arg, process->GetID(), continue_cstr);
 
-            if (::strstr(continue_cstr, "vAttach") == NULL)
+            if (::strstr(continue_cstr, "vAttach") == nullptr)
               process->SetPrivateState(eStateRunning);
             StringExtractorGDBRemote response;
 
@@ -3834,11 +3868,11 @@ thread_result_t ProcessGDBRemote::AsyncThread(void *arg) {
                 // the "E87" error code from debugserver -- this indicates that
                 // the process is not debuggable.  Return a slightly more
                 // helpful error message about why the attach failed.
-                if (::strstr(continue_cstr, "vAttach") != NULL &&
+                if (::strstr(continue_cstr, "vAttach") != nullptr &&
                     response.GetError() == 0x87) {
                   process->SetExitStatus(-1, "cannot attach to process due to "
                                              "System Integrity Protection");
-                } else if (::strstr(continue_cstr, "vAttach") != NULL &&
+                } else if (::strstr(continue_cstr, "vAttach") != nullptr &&
                            response.GetStatus().Fail()) {
                   process->SetExitStatus(-1, response.GetStatus().AsCString());
                 } else {
@@ -3913,7 +3947,7 @@ thread_result_t ProcessGDBRemote::AsyncThread(void *arg) {
                 ") thread exiting...",
                 __FUNCTION__, arg, process->GetID());
 
-  return NULL;
+  return {};
 }
 
 // uint32_t
@@ -4009,7 +4043,7 @@ bool ProcessGDBRemote::StartNoticingNewThreads() {
       }
     }
   }
-  return m_thread_create_bp_sp.get() != NULL;
+  return m_thread_create_bp_sp.get() != nullptr;
 }
 
 bool ProcessGDBRemote::StopNoticingNewThreads() {
@@ -4024,8 +4058,8 @@ bool ProcessGDBRemote::StopNoticingNewThreads() {
 }
 
 DynamicLoader *ProcessGDBRemote::GetDynamicLoader() {
-  if (m_dyld_up.get() == NULL)
-    m_dyld_up.reset(DynamicLoader::FindPlugin(this, NULL));
+  if (m_dyld_up.get() == nullptr)
+    m_dyld_up.reset(DynamicLoader::FindPlugin(this, nullptr));
   return m_dyld_up.get();
 }
 
@@ -4046,7 +4080,7 @@ Status ProcessGDBRemote::SendEventData(const char *data) {
   return error;
 }
 
-const DataBufferSP ProcessGDBRemote::GetAuxvData() {
+DataExtractor ProcessGDBRemote::GetAuxvData() {
   DataBufferSP buf;
   if (m_gdb_comm.GetQXferAuxvReadSupported()) {
     std::string response_string;
@@ -4056,7 +4090,7 @@ const DataBufferSP ProcessGDBRemote::GetAuxvData() {
       buf = std::make_shared<DataBufferHeap>(response_string.c_str(),
                                              response_string.length());
   }
-  return buf;
+  return DataExtractor(buf, GetByteOrder(), GetAddressByteSize());
 }
 
 StructuredData::ObjectSP
@@ -4366,8 +4400,8 @@ bool ParseRegisters(XMLNode feature_node, GdbServerTargetInfo &target_info,
         bool encoding_set = false;
         bool format_set = false;
         RegisterInfo reg_info = {
-            NULL,          // Name
-            NULL,          // Alt name
+            nullptr,       // Name
+            nullptr,       // Alt name
             0,             // byte size
             reg_offset,    // offset
             eEncodingUint, // encoding
@@ -4379,10 +4413,10 @@ bool ParseRegisters(XMLNode feature_node, GdbServerTargetInfo &target_info,
                 cur_reg_num,         // process plugin reg num
                 cur_reg_num          // native register number
             },
-            NULL,
-            NULL,
-            NULL, // Dwarf Expression opcode bytes pointer
-            0     // Dwarf Expression opcode bytes length
+            nullptr,
+            nullptr,
+            nullptr, // Dwarf Expression opcode bytes pointer
+            0        // Dwarf Expression opcode bytes length
         };
 
         reg_node.ForEachAttribute([&target_info, &gdb_group, &gdb_type,
@@ -4416,7 +4450,8 @@ bool ParseRegisters(XMLNode feature_node, GdbServerTargetInfo &target_info,
           } else if (name == "format") {
             format_set = true;
             Format format = eFormatInvalid;
-            if (OptionArgParser::ToFormat(value.data(), format, NULL).Success())
+            if (OptionArgParser::ToFormat(value.data(), format, nullptr)
+                    .Success())
               reg_info.format = format;
             else if (value == "vector-sint8")
               reg_info.format = eFormatVectorOfSInt8;
@@ -4492,8 +4527,15 @@ bool ParseRegisters(XMLNode feature_node, GdbServerTargetInfo &target_info,
         // Only update the register set name if we didn't get a "reg_set"
         // attribute. "set_name" will be empty if we didn't have a "reg_set"
         // attribute.
-        if (!set_name && !gdb_group.empty())
-          set_name.SetCString(gdb_group.c_str());
+        if (!set_name) {
+          if (!gdb_group.empty()) {
+            set_name.SetCString(gdb_group.c_str());
+          } else {
+            // If no register group name provided anywhere,
+            // we'll create a 'general' register set
+            set_name.SetCString("general");
+          }
+        }
 
         reg_info.byte_offset = reg_offset;
         assert(reg_info.byte_size != 0);
@@ -4518,38 +4560,33 @@ bool ParseRegisters(XMLNode feature_node, GdbServerTargetInfo &target_info,
 
 } // namespace
 
-// query the target of gdb-remote for extended target information return:
-// 'true'  on success
-//          'false' on failure
-bool ProcessGDBRemote::GetGDBServerRegisterInfo(ArchSpec &arch_to_use) {
-  // Make sure LLDB has an XML parser it can use first
-  if (!XMLDocument::XMLEnabled())
-    return false;
-
-  // redirect libxml2's error handler since the default prints to stdout
-
-  GDBRemoteCommunicationClient &comm = m_gdb_comm;
-
-  // check that we have extended feature read support
-  if (!comm.GetQXferFeaturesReadSupported())
-    return false;
-
+// This method fetches a register description feature xml file from
+// the remote stub and adds registers/register groupsets/architecture
+// information to the current process.  It will call itself recursively
+// for nested register definition files.  It returns true if it was able
+// to fetch and parse an xml file.
+bool ProcessGDBRemote::GetGDBServerRegisterInfoXMLAndProcess(ArchSpec &arch_to_use, 
+                                                             std::string xml_filename,
+                                                             uint32_t &cur_reg_num,
+                                                             uint32_t &reg_offset) {
   // request the target xml file
   std::string raw;
   lldb_private::Status lldberr;
-  if (!comm.ReadExtFeature(ConstString("features"), ConstString("target.xml"),
+  if (!m_gdb_comm.ReadExtFeature(ConstString("features"), 
+                           ConstString(xml_filename.c_str()), 
                            raw, lldberr)) {
     return false;
   }
 
   XMLDocument xml_document;
 
-  if (xml_document.ParseMemory(raw.c_str(), raw.size(), "target.xml")) {
+  if (xml_document.ParseMemory(raw.c_str(), raw.size(), xml_filename.c_str())) {
     GdbServerTargetInfo target_info;
+    std::vector<XMLNode> feature_nodes;
 
+    // The top level feature XML file will start with a <target> tag.
     XMLNode target_node = xml_document.GetRootElement("target");
     if (target_node) {
-      std::vector<XMLNode> feature_nodes;
       target_node.ForEachChildElement([&target_info, &feature_nodes](
                                           const XMLNode &node) -> bool {
         llvm::StringRef name = node.GetName();
@@ -4587,32 +4624,48 @@ bool ProcessGDBRemote::GetGDBServerRegisterInfo(ArchSpec &arch_to_use) {
         }
         return true; // Keep iterating through all children of the target_node
       });
+    } else {
+      // In an included XML feature file, we're already "inside" the <target>
+      // tag of the initial XML file; this included file will likely only have
+      // a <feature> tag.  Need to check for any more included files in this
+      // <feature> element.
+      XMLNode feature_node = xml_document.GetRootElement("feature");
+      if (feature_node) {
+        feature_nodes.push_back(feature_node);
+        feature_node.ForEachChildElement([&target_info](
+                                        const XMLNode &node) -> bool {
+          llvm::StringRef name = node.GetName();
+          if (name == "xi:include" || name == "include") {
+            llvm::StringRef href = node.GetAttributeValue("href");
+            if (!href.empty())
+              target_info.includes.push_back(href.str());
+            }
+            return true;
+          });
+      }
+    }
 
-      // If the target.xml includes an architecture entry like
-      //   <architecture>i386:x86-64</architecture> (seen from VMWare ESXi)
-      //   <architecture>arm</architecture> (seen from Segger JLink on unspecified arm board)
-      // use that if we don't have anything better.
-      if (!arch_to_use.IsValid() && !target_info.arch.empty()) {
-        if (target_info.arch == "i386:x86-64") {
-          // We don't have any information about vendor or OS.
-          arch_to_use.SetTriple("x86_64--");
-          GetTarget().MergeArchitecture(arch_to_use);
-        }
-
-        // SEGGER J-Link jtag boards send this very-generic arch name,
-        // we'll need to use this if we have absolutely nothing better
-        // to work with or the register definitions won't be accepted.
-        if (target_info.arch == "arm") {
-          arch_to_use.SetTriple("arm--");
-          GetTarget().MergeArchitecture(arch_to_use);
-        }
+    // If the target.xml includes an architecture entry like
+    //   <architecture>i386:x86-64</architecture> (seen from VMWare ESXi)
+    //   <architecture>arm</architecture> (seen from Segger JLink on unspecified arm board)
+    // use that if we don't have anything better.
+    if (!arch_to_use.IsValid() && !target_info.arch.empty()) {
+      if (target_info.arch == "i386:x86-64") {
+        // We don't have any information about vendor or OS.
+        arch_to_use.SetTriple("x86_64--");
+        GetTarget().MergeArchitecture(arch_to_use);
       }
 
-      // Initialize these outside of ParseRegisters, since they should not be
-      // reset inside each include feature
-      uint32_t cur_reg_num = 0;
-      uint32_t reg_offset = 0;
+      // SEGGER J-Link jtag boards send this very-generic arch name,
+      // we'll need to use this if we have absolutely nothing better
+      // to work with or the register definitions won't be accepted.
+      if (target_info.arch == "arm") {
+        arch_to_use.SetTriple("arm--");
+        GetTarget().MergeArchitecture(arch_to_use);
+      }
+    }
 
+    if (arch_to_use.IsValid()) {
       // Don't use Process::GetABI, this code gets called from DidAttach, and
       // in that context we haven't set the Target's architecture yet, so the
       // ABI is also potentially incorrect.
@@ -4623,26 +4676,31 @@ bool ProcessGDBRemote::GetGDBServerRegisterInfo(ArchSpec &arch_to_use) {
       }
 
       for (const auto &include : target_info.includes) {
-        // request register file
-        std::string xml_data;
-        if (!comm.ReadExtFeature(ConstString("features"), ConstString(include),
-                                 xml_data, lldberr))
-          continue;
-
-        XMLDocument include_xml_document;
-        include_xml_document.ParseMemory(xml_data.data(), xml_data.size(),
-                                         include.c_str());
-        XMLNode include_feature_node =
-            include_xml_document.GetRootElement("feature");
-        if (include_feature_node) {
-          ParseRegisters(include_feature_node, target_info,
-                         this->m_register_info, abi_to_use_sp, cur_reg_num,
-                         reg_offset);
-        }
+        GetGDBServerRegisterInfoXMLAndProcess(arch_to_use, include, 
+                                              cur_reg_num, reg_offset);
       }
-      this->m_register_info.Finalize(arch_to_use);
     }
+  } else {
+    return false;
   }
+  return true;
+}
+
+// query the target of gdb-remote for extended target information returns
+// true on success (got register definitions), false on failure (did not).
+bool ProcessGDBRemote::GetGDBServerRegisterInfo(ArchSpec &arch_to_use) {
+  // Make sure LLDB has an XML parser it can use first
+  if (!XMLDocument::XMLEnabled())
+    return false;
+
+  // check that we have extended feature read support
+  if (!m_gdb_comm.GetQXferFeaturesReadSupported())
+    return false;
+
+  uint32_t cur_reg_num = 0;
+  uint32_t reg_offset = 0;
+  if (GetGDBServerRegisterInfoXMLAndProcess (arch_to_use, "target.xml", cur_reg_num, reg_offset))
+    this->m_register_info.Finalize(arch_to_use);
 
   return m_register_info.GetNumRegisters() > 0;
 }
@@ -4657,9 +4715,10 @@ Status ProcessGDBRemote::GetLoadedModuleList(LoadedModuleInfoList &list) {
     log->Printf("ProcessGDBRemote::%s", __FUNCTION__);
 
   GDBRemoteCommunicationClient &comm = m_gdb_comm;
+  bool can_use_svr4 = GetGlobalPluginProperties()->GetUseSVR4();
 
   // check that we have extended feature read support
-  if (comm.GetQXferLibrariesSVR4ReadSupported()) {
+  if (can_use_svr4 && comm.GetQXferLibrariesSVR4ReadSupported()) {
     list.clear();
 
     // request the loaded library list
@@ -5133,7 +5192,7 @@ public:
                             "Tests packet speeds of various sizes to determine "
                             "the performance characteristics of the GDB remote "
                             "connection. ",
-                            NULL),
+                            nullptr),
         m_option_group(),
         m_num_packets(LLDB_OPT_SET_1, false, "count", 'c', 0, eArgTypeCount,
                       "The number of packets to send of each varying size "
@@ -5207,7 +5266,7 @@ private:
 public:
   CommandObjectProcessGDBRemotePacketHistory(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "process plugin packet history",
-                            "Dumps the packet history buffer. ", NULL) {}
+                            "Dumps the packet history buffer. ", nullptr) {}
 
   ~CommandObjectProcessGDBRemotePacketHistory() override {}
 
@@ -5238,7 +5297,7 @@ public:
       : CommandObjectParsed(
             interpreter, "process plugin packet xfer-size",
             "Maximum size that lldb will try to read/write one one chunk.",
-            NULL) {}
+            nullptr) {}
 
   ~CommandObjectProcessGDBRemotePacketXferSize() override {}
 
@@ -5258,7 +5317,7 @@ public:
     if (process) {
       const char *packet_size = command.GetArgumentAtIndex(0);
       errno = 0;
-      uint64_t user_specified_max = strtoul(packet_size, NULL, 10);
+      uint64_t user_specified_max = strtoul(packet_size, nullptr, 10);
       if (errno == 0 && user_specified_max != 0) {
         process->SetUserSpecifiedMaxMemoryTransferSize(user_specified_max);
         result.SetStatus(eReturnStatusSuccessFinishResult);
@@ -5280,7 +5339,7 @@ public:
                             "The packet header and footer will automatically "
                             "be added to the packet prior to sending and "
                             "stripped from the result.",
-                            NULL) {}
+                            nullptr) {}
 
   ~CommandObjectProcessGDBRemotePacketSend() override {}
 
@@ -5308,7 +5367,7 @@ public:
         output_strm.Printf("  packet: %s\n", packet_cstr);
         std::string &response_str = response.GetStringRef();
 
-        if (strstr(packet_cstr, "qGetProfileData") != NULL) {
+        if (strstr(packet_cstr, "qGetProfileData") != nullptr) {
           response_str = process->HarmonizeThreadIdsForProfileData(response);
         }
 
@@ -5376,7 +5435,7 @@ public:
   CommandObjectProcessGDBRemotePacket(CommandInterpreter &interpreter)
       : CommandObjectMultiword(interpreter, "process plugin packet",
                                "Commands that deal with GDB remote packets.",
-                               NULL) {
+                               nullptr) {
     LoadSubCommand(
         "history",
         CommandObjectSP(

@@ -76,6 +76,10 @@ class VectorType;
 
       PIC_ADD,      // Add with a PC operand and a PIC label.
 
+      ASRL,         // MVE long arithmetic shift right.
+      LSRL,         // MVE long shift right.
+      LSLL,         // MVE long shift left.
+
       CMP,          // ARM compare instructions.
       CMN,          // ARM CMN instructions.
       CMPZ,         // ARM compare that sets only Z flag.
@@ -121,6 +125,8 @@ class VectorType;
       WIN__CHKSTK,  // Windows' __chkstk call to do stack probing.
       WIN__DBZCHK,  // Windows' divide by zero check
 
+      WLS,          // Low-overhead loops, While Loop Start
+
       VCEQ,         // Vector compare equal.
       VCEQZ,        // Vector compare equal to zero.
       VCGE,         // Vector compare greater than or equal.
@@ -133,32 +139,36 @@ class VectorType;
       VCGTU,        // Vector compare unsigned greater than.
       VTST,         // Vector test bits.
 
+      // Vector shift by vector
+      VSHLs,        // ...left/right by signed
+      VSHLu,        // ...left/right by unsigned
+
       // Vector shift by immediate:
-      VSHL,         // ...left
-      VSHRs,        // ...right (signed)
-      VSHRu,        // ...right (unsigned)
+      VSHLIMM,      // ...left
+      VSHRsIMM,     // ...right (signed)
+      VSHRuIMM,     // ...right (unsigned)
 
       // Vector rounding shift by immediate:
-      VRSHRs,       // ...right (signed)
-      VRSHRu,       // ...right (unsigned)
-      VRSHRN,       // ...right narrow
+      VRSHRsIMM,    // ...right (signed)
+      VRSHRuIMM,    // ...right (unsigned)
+      VRSHRNIMM,    // ...right narrow
 
       // Vector saturating shift by immediate:
-      VQSHLs,       // ...left (signed)
-      VQSHLu,       // ...left (unsigned)
-      VQSHLsu,      // ...left (signed to unsigned)
-      VQSHRNs,      // ...right narrow (signed)
-      VQSHRNu,      // ...right narrow (unsigned)
-      VQSHRNsu,     // ...right narrow (signed to unsigned)
+      VQSHLsIMM,    // ...left (signed)
+      VQSHLuIMM,    // ...left (unsigned)
+      VQSHLsuIMM,   // ...left (signed to unsigned)
+      VQSHRNsIMM,   // ...right narrow (signed)
+      VQSHRNuIMM,   // ...right narrow (unsigned)
+      VQSHRNsuIMM,  // ...right narrow (signed to unsigned)
 
       // Vector saturating rounding shift by immediate:
-      VQRSHRNs,     // ...right narrow (signed)
-      VQRSHRNu,     // ...right narrow (unsigned)
-      VQRSHRNsu,    // ...right narrow (signed to unsigned)
+      VQRSHRNsIMM,  // ...right narrow (signed)
+      VQRSHRNuIMM,  // ...right narrow (unsigned)
+      VQRSHRNsuIMM, // ...right narrow (signed to unsigned)
 
       // Vector shift and insert:
-      VSLI,         // ...left
-      VSRI,         // ...right
+      VSLIIMM,      // ...left
+      VSRIIMM,      // ...right
 
       // Vector get lane (VMOV scalar to ARM core register)
       // (These are used for 8- and 16-bit element types only.)
@@ -321,6 +331,7 @@ class VectorType;
     /// is "fast" by reference in the second argument.
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
                                         unsigned Align,
+                                        MachineMemOperand::Flags Flags,
                                         bool *Fast) const override;
 
     EVT getOptimalMemOpType(uint64_t Size,
@@ -456,7 +467,8 @@ class VectorType;
 
     /// getRegClassFor - Return the register class that should be used for the
     /// specified value type.
-    const TargetRegisterClass *getRegClassFor(MVT VT) const override;
+    const TargetRegisterClass *
+    getRegClassFor(MVT VT, bool isDivergent = false) const override;
 
     /// Returns true if a cast between SrcAS and DestAS is a noop.
     bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
@@ -547,6 +559,10 @@ class VectorType;
 
     bool useLoadStackGuardNode() const override;
 
+    void insertSSPDeclarations(Module &M) const override;
+    Value *getSDagStackGuard(const Module &M) const override;
+    Function *getSSPStackGuardCheck(const Module &M) const override;
+
     bool canCombineStoreAndExtract(Type *VectorTy, Value *Idx,
                                    unsigned &Cost) const override;
 
@@ -600,6 +616,9 @@ class VectorType;
 
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;
+
+    bool preferIncOfAddToSubOfNot(EVT VT) const override;
+
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>
     findRepresentativeClass(const TargetRegisterInfo *TRI,
@@ -685,6 +704,7 @@ class VectorType;
                             const ARMSubtarget *ST) const;
     SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
                               const ARMSubtarget *ST) const;
+    SDValue LowerINSERT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFSINCOS(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerDivRem(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerDIV_Windows(SDValue Op, SelectionDAG &DAG, bool Signed) const;
@@ -762,15 +782,13 @@ class VectorType;
     /// IsEligibleForTailCallOptimization - Check whether the call is eligible
     /// for tail call optimization. Targets which want to do tail call
     /// optimization should implement this function.
-    bool IsEligibleForTailCallOptimization(SDValue Callee,
-                                           CallingConv::ID CalleeCC,
-                                           bool isVarArg,
-                                           bool isCalleeStructRet,
-                                           bool isCallerStructRet,
-                                    const SmallVectorImpl<ISD::OutputArg> &Outs,
-                                    const SmallVectorImpl<SDValue> &OutVals,
-                                    const SmallVectorImpl<ISD::InputArg> &Ins,
-                                           SelectionDAG& DAG) const;
+    bool IsEligibleForTailCallOptimization(
+        SDValue Callee, CallingConv::ID CalleeCC, bool isVarArg,
+        bool isCalleeStructRet, bool isCallerStructRet,
+        const SmallVectorImpl<ISD::OutputArg> &Outs,
+        const SmallVectorImpl<SDValue> &OutVals,
+        const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG,
+        const bool isIndirect) const;
 
     bool CanLowerReturn(CallingConv::ID CallConv,
                         MachineFunction &MF, bool isVarArg,
@@ -787,6 +805,8 @@ class VectorType;
     bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
 
     bool shouldConsiderGEPOffsetSplit() const override { return true; }
+
+    bool isUnsupportedFloatingType(EVT VT) const;
 
     SDValue getCMOV(const SDLoc &dl, EVT VT, SDValue FalseVal, SDValue TrueVal,
                     SDValue ARMcc, SDValue CCR, SDValue Cmp,
@@ -813,11 +833,15 @@ class VectorType;
                                            MachineBasicBlock *MBB) const;
     MachineBasicBlock *EmitLowered__dbzchk(MachineInstr &MI,
                                            MachineBasicBlock *MBB) const;
+    void addMVEVectorTypes(bool HasMVEFP);
+    void addAllExtLoads(const MVT From, const MVT To, LegalizeAction Action);
+    void setAllExpand(MVT VT);
   };
 
   enum NEONModImmType {
     VMOVModImm,
     VMVNModImm,
+    MVEVMVNModImm,
     OtherModImm
   };
 

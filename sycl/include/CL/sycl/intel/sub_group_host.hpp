@@ -137,7 +137,7 @@ struct sub_group {
   }
 
 protected:
-  template <int dimensions> friend struct cl::sycl::nd_item;
+  template <int dimensions> friend class cl::sycl::nd_item;
   sub_group() {
     throw runtime_error("Subgroups are not supported on host device. ");
   }

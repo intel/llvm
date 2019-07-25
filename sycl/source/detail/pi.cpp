@@ -1,10 +1,11 @@
-//==---------- pi.cpp - Plugin Interface for SYCL RT -----------------------==//
+//===-- pi.cpp - PI utilities implementation -------------------*- C++ -*--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <cstdarg>
 #include <iostream>
@@ -13,85 +14,88 @@
 namespace cl {
 namespace sycl {
 namespace detail {
-
-// For selection of SYCL RT back-end, now manually through the "SYCL_BE"
-// environment variable.
-//
-enum pi_backend {
-  SYCL_BE_PI_OPENCL,
-  SYCL_BE_PI_OTHER
-};
+namespace pi {
 
 // Check for manually selected BE at run-time.
-bool pi_use_backend(pi_backend be) {
-  static const pi_backend use =
-    std::map<std::string, pi_backend>{
+bool piUseBackend(PiBackend Backend) {
+  static const char *GetEnv = std::getenv("SYCL_BE");
+  static const PiBackend Use =
+    std::map<std::string, PiBackend>{
       { "PI_OPENCL", SYCL_BE_PI_OPENCL },
       { "PI_OTHER",  SYCL_BE_PI_OTHER }
-      // Any other value would yield 0 -> PI_OPENCL (current default)
-    }[std::getenv("SYCL_BE")];
-  return be == use;
+      // Any other value would yield PI_OPENCL (current default)
+    }[ GetEnv ? GetEnv : "PI_OPENCL"];
+  return Backend == Use;
+}
+
+// Definitions of the PI dispatch entries, they will be initialized
+// at their first use with piInitialize.
+#define _PI_API(api) decltype(::api) * api = nullptr;
+#include <CL/sycl/detail/pi.def>
+
+// TODO: implement real plugins (ICD-like?)
+// For now this has the effect of redirecting to built-in PI OpenCL plugin.
+void piInitialize() {
+  static bool Initialized = false;
+  if (Initialized) {
+    return;
+  }
+  if (!piUseBackend(SYCL_BE_PI_OPENCL)) {
+    piDie("Unknown SYCL_BE");
+  }
+  #define _PI_API(api)                          \
+    extern const decltype(::api) * api##OclPtr; \
+    api = api##OclPtr;
+  #include <CL/sycl/detail/pi.def>
+
+  Initialized = true;
 }
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
 //       but for now it is useful to see every failure.
 //
-[[noreturn]] void pi_die(const char *message) {
-  std::cerr << "pi_die: " << message << std::endl;
+[[noreturn]] void piDie(const char *Message) {
+  std::cerr << "pi_die: " << Message << std::endl;
   std::terminate();
 }
 
-void pi_assert(bool condition, const char *message) {
-  if (!condition)
-    pi_die(message);
+void piAssert(bool Condition, const char *Message) {
+  if (!Condition)
+    piDie(Message);
 }
 
-// TODO: implement a more mature and controllable tracing of PI calls.
-void pi_trace(const char *format, ...) {
-  static bool do_trace = std::getenv("SYCL_BE_TRACE");
-  if (!do_trace)
-    return;
+bool PiCall::m_TraceEnabled = (std::getenv("SYCL_PI_TRACE") != nullptr);
 
-  va_list args;
-  va_start(args, format);
-  vprintf(format, args);
+// Emits trace before the start of PI call
+PiCall::PiCall(const char *Trace) {
+  if (m_TraceEnabled && Trace) {
+    std::cerr << "PI ---> " << Trace << std::endl;
+  }
+}
+// Emits trace after the end of PI call
+PiCall::~PiCall() {
+  if (m_TraceEnabled) {
+    std::cerr << "PI <--- " << m_Result << std::endl;
+  }
+}
+// Records and returns the result of PI call
+RT::PiResult PiCall::get(RT::PiResult Result) {
+  m_Result = Result;
+  return Result;
+}
+template<typename Exception>
+void PiCall::check(RT::PiResult Result) {
+  m_Result = Result;
+  // TODO: remove dependency on CHECK_OCL_CODE_THROW.
+  CHECK_OCL_CODE_THROW(Result, Exception);
 }
 
-extern "C" {
-// TODO: change this pseudo-dispatch to plugins (ICD-like?)
-// Currently this is using the low-level "ifunc" machinery to
-// re-direct (with no overhead) the PI call to the underlying
-// PI plugin requested by SYCL_BE environment variable (today
-// only OpenCL, other would just die).
-//
-void __resolve_die() {
-  pi_die("Unknown SYCL_BE");
-}
+template void PiCall::check<cl::sycl::runtime_error>(RT::PiResult);
+template void PiCall::check<cl::sycl::compile_program_error>(RT::PiResult);
 
-#define PI_DISPATCH(api)                                  \
-decltype(api) ocl_##api;                                  \
-static void *__resolve_##api(void) {                      \
-  return (pi_use_backend(SYCL_BE_PI_OPENCL) ?             \
-    (void*)ocl_##api : (void*)__resolve_die);             \
-}                                                         \
-decltype(api) api __attribute__((ifunc ("__resolve_" #api)));
 
-// Platform
-PI_DISPATCH(piPlatformsGet)
-PI_DISPATCH(piPlatformGetInfo)
-// Device
-PI_DISPATCH(piDevicesGet)
-PI_DISPATCH(piDeviceRetain)
-PI_DISPATCH(piDeviceRelease)
-PI_DISPATCH(piDeviceGetInfo)
-PI_DISPATCH(piDevicePartition)
-// IR
-PI_DISPATCH(piextDeviceSelectBinary)
-
-} // extern "C"
-
+} // namespace pi
 } // namespace detail
 } // namespace sycl
 } // namespace cl
-

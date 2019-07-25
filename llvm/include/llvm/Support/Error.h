@@ -1160,8 +1160,8 @@ private:
 
 /// Create formatted StringError object.
 template <typename... Ts>
-Error createStringError(std::error_code EC, char const *Fmt,
-                        const Ts &... Vals) {
+inline Error createStringError(std::error_code EC, char const *Fmt,
+                               const Ts &... Vals) {
   std::string Buffer;
   raw_string_ostream Stream(Buffer);
   Stream << format(Fmt, Vals...);
@@ -1170,6 +1170,12 @@ Error createStringError(std::error_code EC, char const *Fmt,
 
 Error createStringError(std::error_code EC, char const *Msg);
 
+template <typename... Ts>
+inline Error createStringError(std::errc EC, char const *Fmt,
+                               const Ts &... Vals) {
+  return createStringError(std::make_error_code(EC), Fmt, Vals...);
+}
+
 /// This class wraps a filename and another Error.
 ///
 /// In some cases, an error needs to live along a 'source' name, in order to
@@ -1177,11 +1183,14 @@ Error createStringError(std::error_code EC, char const *Msg);
 class FileError final : public ErrorInfo<FileError> {
 
   friend Error createFileError(const Twine &, Error);
+  friend Error createFileError(const Twine &, size_t, Error);
 
 public:
   void log(raw_ostream &OS) const override {
     assert(Err && !FileName.empty() && "Trying to log after takeError().");
     OS << "'" << FileName << "': ";
+    if (Line.hasValue())
+      OS << "line " << Line.getValue() << ": ";
     Err->log(OS);
   }
 
@@ -1193,32 +1202,48 @@ public:
   static char ID;
 
 private:
-  FileError(const Twine &F, std::unique_ptr<ErrorInfoBase> E) {
+  FileError(const Twine &F, Optional<size_t> LineNum,
+            std::unique_ptr<ErrorInfoBase> E) {
     assert(E && "Cannot create FileError from Error success value.");
     assert(!F.isTriviallyEmpty() &&
            "The file name provided to FileError must not be empty.");
     FileName = F.str();
     Err = std::move(E);
+    Line = std::move(LineNum);
   }
 
-  static Error build(const Twine &F, Error E) {
-    return Error(std::unique_ptr<FileError>(new FileError(F, E.takePayload())));
+  static Error build(const Twine &F, Optional<size_t> Line, Error E) {
+    return Error(
+        std::unique_ptr<FileError>(new FileError(F, Line, E.takePayload())));
   }
 
   std::string FileName;
+  Optional<size_t> Line;
   std::unique_ptr<ErrorInfoBase> Err;
 };
 
 /// Concatenate a source file path and/or name with an Error. The resulting
 /// Error is unchecked.
 inline Error createFileError(const Twine &F, Error E) {
-  return FileError::build(F, std::move(E));
+  return FileError::build(F, Optional<size_t>(), std::move(E));
+}
+
+/// Concatenate a source file path and/or name with line number and an Error.
+/// The resulting Error is unchecked.
+inline Error createFileError(const Twine &F, size_t Line, Error E) {
+  return FileError::build(F, Optional<size_t>(Line), std::move(E));
 }
 
 /// Concatenate a source file path and/or name with a std::error_code 
 /// to form an Error object.
 inline Error createFileError(const Twine &F, std::error_code EC) {
   return createFileError(F, errorCodeToError(EC));
+}
+
+/// Concatenate a source file path and/or name with line number and
+/// std::error_code to form an Error object.
+inline Error createFileError(const Twine &F, size_t Line, std::error_code EC) {
+  return createFileError(F, Line, errorCodeToError(EC));
 }
 
 Error createFileError(const Twine &F, ErrorSuccess) = delete;

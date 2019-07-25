@@ -30,8 +30,11 @@ void MachOReader::readHeader(Object &O) const {
 template <typename SectionType>
 Section constructSectionCommon(SectionType Sec) {
   Section S;
-  memcpy(S.Sectname, Sec.sectname, sizeof(Sec.sectname));
-  memcpy(S.Segname, Sec.segname, sizeof(Sec.segname));
+  S.Sectname =
+      StringRef(Sec.sectname, strnlen(Sec.sectname, sizeof(Sec.sectname)))
+          .str();
+  S.Segname =
+      StringRef(Sec.segname, strnlen(Sec.segname, sizeof(Sec.sectname))).str();
   S.Addr = Sec.addr;
   S.Size = Sec.size;
   S.Offset = Sec.offset;
@@ -79,7 +82,6 @@ extractSections(const object::MachOObjectFile::LoadCommandInfo &LoadCmd,
 
     Section &S = Sections.back();
 
-    StringRef SectName(S.Sectname);
     Expected<object::SectionRef> SecRef =
         MachOObj.getSection(NextSectionIndex++);
     if (!SecRef)
@@ -95,8 +97,14 @@ extractSections(const object::MachOObjectFile::LoadCommandInfo &LoadCmd,
     S.Relocations.reserve(S.NReloc);
     for (auto RI = MachOObj.section_rel_begin(SecRef->getRawDataRefImpl()),
               RE = MachOObj.section_rel_end(SecRef->getRawDataRefImpl());
-         RI != RE; ++RI)
-      S.Relocations.push_back(MachOObj.getRelocation(RI->getRawDataRefImpl()));
+         RI != RE; ++RI) {
+      RelocationInfo R;
+      R.Symbol = nullptr; // We'll fill this field later.
+      R.Info = MachOObj.getRelocation(RI->getRawDataRefImpl());
+      R.Scattered = MachOObj.isRelocationScattered(R.Info);
+      S.Relocations.push_back(R);
+    }
+
     assert(S.NReloc == S.Relocations.size() &&
            "Incorrect number of relocations");
   }
@@ -155,35 +163,43 @@ void MachOReader::readLoadCommands(Object &O) const {
   }
 }
 
-template <typename nlist_t> NListEntry constructNameList(const nlist_t &nlist) {
-  NListEntry NL;
-  NL.n_strx = nlist.n_strx;
-  NL.n_type = nlist.n_type;
-  NL.n_sect = nlist.n_sect;
-  NL.n_desc = nlist.n_desc;
-  NL.n_value = nlist.n_value;
-  return NL;
+template <typename nlist_t>
+SymbolEntry constructSymbolEntry(StringRef StrTable, const nlist_t &nlist) {
+  assert(nlist.n_strx < StrTable.size() &&
+         "n_strx exceeds the size of the string table");
+  SymbolEntry SE;
+  SE.Name = StringRef(StrTable.data() + nlist.n_strx).str();
+  SE.n_type = nlist.n_type;
+  SE.n_sect = nlist.n_sect;
+  SE.n_desc = nlist.n_desc;
+  SE.n_value = nlist.n_value;
+  return SE;
 }
 
 void MachOReader::readSymbolTable(Object &O) const {
+  StringRef StrTable = MachOObj.getStringTableData();
   for (auto Symbol : MachOObj.symbols()) {
-    NListEntry NLE =
-        MachOObj.is64Bit()
-            ? constructNameList<MachO::nlist_64>(
-                  MachOObj.getSymbol64TableEntry(Symbol.getRawDataRefImpl()))
-            : constructNameList<MachO::nlist>(
-                  MachOObj.getSymbolTableEntry(Symbol.getRawDataRefImpl()));
-    O.SymTable.NameList.push_back(NLE);
+    SymbolEntry SE =
+        (MachOObj.is64Bit()
+             ? constructSymbolEntry(
+                   StrTable,
+                   MachOObj.getSymbol64TableEntry(Symbol.getRawDataRefImpl()))
+             : constructSymbolEntry(
+                   StrTable,
+                   MachOObj.getSymbolTableEntry(Symbol.getRawDataRefImpl())));
+
+    O.SymTable.Symbols.push_back(llvm::make_unique<SymbolEntry>(SE));
   }
 }
 
-void MachOReader::readStringTable(Object &O) const {
-  StringRef Data = MachOObj.getStringTableData();
-  SmallVector<StringRef, 10> Strs;
-  Data.split(Strs, '\0');
-  O.StrTable.Strings.reserve(Strs.size());
-  for (auto S : Strs)
-    O.StrTable.Strings.push_back(S.str());
+void MachOReader::setSymbolInRelocationInfo(Object &O) const {
+  for (auto &LC : O.LoadCommands)
+    for (auto &Sec : LC.Sections)
+      for (auto &Reloc : Sec.Relocations)
+        if (!Reloc.Scattered) {
+          auto *Info = reinterpret_cast<MachO::relocation_info *>(&Reloc.Info);
+          Reloc.Symbol = O.SymTable.getSymbolByIndex(Info->r_symbolnum);
+        }
 }
 
 void MachOReader::readRebaseInfo(Object &O) const {
@@ -211,7 +227,7 @@ std::unique_ptr<Object> MachOReader::create() const {
   readHeader(*Obj);
   readLoadCommands(*Obj);
   readSymbolTable(*Obj);
-  readStringTable(*Obj);
+  setSymbolInRelocationInfo(*Obj);
   readRebaseInfo(*Obj);
   readBindInfo(*Obj);
   readWeakBindInfo(*Obj);

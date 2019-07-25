@@ -553,10 +553,12 @@ void DWARFDie::getCallerFrame(uint32_t &CallFile, uint32_t &CallLine,
 
 /// Helper to dump a DIE with all of its parents, but no siblings.
 static unsigned dumpParentChain(DWARFDie Die, raw_ostream &OS, unsigned Indent,
-                                DIDumpOptions DumpOpts) {
+                                DIDumpOptions DumpOpts, unsigned Depth = 0) {
   if (!Die)
     return Indent;
-  Indent = dumpParentChain(Die.getParent(), OS, Indent, DumpOpts);
+  if (DumpOpts.ParentRecurseDepth > 0 && Depth >= DumpOpts.ParentRecurseDepth)
+    return Indent;
+  Indent = dumpParentChain(Die.getParent(), OS, Indent, DumpOpts, Depth + 1);
   Die.dump(OS, Indent, DumpOpts);
   return Indent + 2;
 }
@@ -604,8 +606,8 @@ void DWARFDie::dump(raw_ostream &OS, unsigned Indent,
         }
 
         DWARFDie child = getFirstChild();
-        if (DumpOpts.ShowChildren && DumpOpts.RecurseDepth > 0 && child) {
-          DumpOpts.RecurseDepth--;
+        if (DumpOpts.ShowChildren && DumpOpts.ChildRecurseDepth > 0 && child) {
+          DumpOpts.ChildRecurseDepth--;
           DIDumpOptions ChildDumpOpts = DumpOpts;
           ChildDumpOpts.ShowParents = false;
           while (child) {
@@ -661,7 +663,7 @@ iterator_range<DWARFDie::attribute_iterator> DWARFDie::attributes() const {
 }
 
 DWARFDie::attribute_iterator::attribute_iterator(DWARFDie D, bool End)
-    : Die(D), AttrValue(0), Index(0) {
+    : Die(D), Index(0) {
   auto AbbrDecl = Die.getAbbreviationDeclarationPtr();
   assert(AbbrDecl && "Must have abbreviation declaration");
   if (End) {
@@ -691,7 +693,7 @@ void DWARFDie::attribute_iterator::updateForIndex(
     AttrValue.ByteSize = ParseOffset - AttrValue.Offset;
   } else {
     assert(Index == NumAttrs && "Indexes should be [0, NumAttrs) only");
-    AttrValue.clear();
+    AttrValue = {};
   }
 }
 

@@ -10,70 +10,114 @@
 //
 #pragma once
 
+#include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
+#include <CL/sycl/detail/common.hpp>
 
 namespace cl {
 namespace sycl {
 namespace detail {
+namespace pi {
+  // For selection of SYCL RT back-end, now manually through the "SYCL_BE"
+  // environment variable.
+  //
+  enum PiBackend {
+    SYCL_BE_PI_OPENCL,
+    SYCL_BE_PI_OTHER
+  };
 
-class pi {
-public:
-  using pi_result             = ::pi_result;
-  using pi_platform           = ::pi_platform;
-  using pi_device             = ::pi_device;
-  using pi_device_type        = ::pi_device_type;
-  using pi_device_binary_type = ::pi_device_binary_type;
-  using pi_device_info        = ::pi_device_info;
-  using pi_program            = ::pi_program;
+  // Check for manually selected BE at run-time.
+  bool piUseBackend(PiBackend Backend);
 
-  // Convinience macro to have things look compact.
-  #define _PI_API(pi_api) \
-    static constexpr decltype(::pi_api) * pi_api = &::pi_api;
+  using PiResult               = ::pi_result;
+  using PiPlatform             = ::pi_platform;
+  using PiDevice               = ::pi_device;
+  using PiDeviceType           = ::pi_device_type;
+  using PiDeviceInfo           = ::pi_device_info;
+  using PiDeviceBinaryType     = ::pi_device_binary_type;
+  using PiContext              = ::pi_context;
+  using PiProgram              = ::pi_program;
+  using PiKernel               = ::pi_kernel;
+  using PiQueue                = ::pi_queue;
+  using PiMem                  = ::pi_mem;
+  using PiMemFlags             = ::pi_mem_flags;
+  using PiEvent                = ::pi_event;
+  using PiSampler              = ::pi_sampler;
+  using PiMemImageFormat       = ::pi_image_format;
+  using PiMemImageDesc         = ::pi_image_desc;
+  using PiMemImageInfo         = ::pi_image_info;
+  using PiMemObjectType        = ::pi_mem_type;
+  using PiMemImageChannelOrder = ::pi_image_channel_order;
+  using PiMemImageChannelType  = ::pi_image_channel_type;
 
-  // Platform
-  _PI_API(piPlatformsGet)
-  _PI_API(piPlatformGetInfo)
-  // Device
-  _PI_API(piDevicesGet)
-  _PI_API(piDeviceGetInfo)
-  _PI_API(piDevicePartition)
-  _PI_API(piDeviceRetain)
-  _PI_API(piDeviceRelease)
-  // IR
-  _PI_API(piextDeviceSelectBinary)
+  // Report error and no return (keeps compiler happy about no return statements).
+  [[noreturn]] void piDie(const char *Message);
+  void piAssert(bool Condition, const char *Message = nullptr);
 
-  #undef _PI_API
-};
+  // Want all the needed casts be explicit, do not define conversion operators.
+  template<class To, class From>
+  To pi_cast(From value);
 
-// Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] void pi_die(const char *message);
-void pi_assert(bool condition, const char *message = 0);
+  // Forward declarations of the PI dispatch entries.
+  #define _PI_API(api) __SYCL_EXPORTED extern decltype(::api) * api;
+  #include <CL/sycl/detail/pi.def>
 
-#define _PI_STRINGIZE(x) _PI_STRINGIZE2(x)
-#define _PI_STRINGIZE2(x) #x
+  // Performs PI one-time initialization.
+  void piInitialize();
+
+  // The PiCall helper structure facilitates performing a call to PI.
+  // It holds utilities to do the tracing and to check the returned result.
+  // TODO: implement a more mature and controllable tracing of PI calls.
+  class PiCall {
+    PiResult m_Result;
+    static bool m_TraceEnabled;
+
+  public:
+    explicit PiCall(const char *Trace = nullptr);
+    ~PiCall();
+    PiResult get(PiResult Result);
+    template<typename Exception>
+    void check(PiResult Result);
+  };
+} // namespace pi
+
+namespace RT = cl::sycl::detail::pi;
+
 #define PI_ASSERT(cond, msg) \
-  pi_assert(condition, "assert @ " __FILE__ ":" _PI_STRINGIZE(__LINE__) msg);
+  RT::piAssert((cond), "assert @ " __FILE__ ":" STRINGIFY_LINE(__LINE__) msg);
 
 // This does the call, the trace and the check for no errors.
-// TODO: remove dependency on CHECK_OCL_CODE.
-// TODO: implement a more mature and controllable tracing of PI calls.
-void pi_trace(const char *format, ...);
-#define PI_CALL(pi_call) {                  \
-  pi_trace("PI ---> %s\n", #pi_call);       \
-  auto __result = (pi_call);                \
-  pi_trace("PI <--- %d\n", __result);       \
-  CHECK_OCL_CODE(__result);                 \
-}
+#define PI_CALL(pi)                                   \
+    RT::piInitialize(),                               \
+    RT::PiCall(#pi).check<cl::sycl::runtime_error>(   \
+        RT::pi_cast<detail::RT::PiResult>(pi))
+
+// This does the trace, the call, and returns the result
+#define PI_CALL_RESULT(pi) \
+    RT::PiCall(#pi).get(detail::RT::pi_cast<detail::RT::PiResult>(pi))
+
+// This does the check for no errors and possibly throws
+#define PI_CHECK(pi) \
+    RT::PiCall().check<cl::sycl::runtime_error>( \
+       RT::pi_cast<detail::RT::PiResult>(pi))
+
+// This does the check for no errors and possibly throws x
+#define PI_CHECK_THROW(pi, x) \
+    RT::PiCall().check<x>( \
+        RT::pi_cast<detail::RT::PiResult>(pi))
 
 // Want all the needed casts be explicit, do not define conversion operators.
 template<class To, class From>
-To pi_cast(From value) {
+To pi::pi_cast(From value) {
   // TODO: see if more sanity checks are possible.
-  pi_assert(sizeof(From) == sizeof(To));
+  PI_ASSERT(sizeof(From) == sizeof(To), "pi_cast failed size check");
   return (To)(value);
 }
 
 } // namespace detail
+
+// For shortness of using PI from the top-level sycl files.
+namespace RT = cl::sycl::detail::pi;
+
 } // namespace sycl
 } // namespace cl
-

@@ -49,7 +49,6 @@ namespace llvm {
 // PassSupport.h.
 class PassRegistry;
 void initializeLLVMToSPIRVPass(PassRegistry &);
-void initializeOCL20To12Pass(PassRegistry &);
 void initializeOCL20ToSPIRVPass(PassRegistry &);
 void initializeOCL21ToSPIRVPass(PassRegistry &);
 void initializeOCLTypeToSPIRVPass(PassRegistry &);
@@ -59,6 +58,7 @@ void initializeSPIRVLowerSPIRBlocksPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksPass(PassRegistry &);
 void initializeSPIRVLowerMemmovePass(PassRegistry &);
 void initializeSPIRVRegularizeLLVMPass(PassRegistry &);
+void initializeSPIRVToOCL12Pass(PassRegistry &);
 void initializeSPIRVToOCL20Pass(PassRegistry &);
 void initializePreprocessMetadataPass(PassRegistry &);
 } // namespace llvm
@@ -123,10 +123,6 @@ void mangleOpenClBuiltin(const std::string &UnmangledName,
 /// Create a pass for translating LLVM to SPIR-V.
 ModulePass *createLLVMToSPIRV(SPIRV::SPIRVModule *);
 
-/// Create a pass for translating OCL 2.0 builtin functions to equivalent
-/// OCL 1.2 builtin functions.
-ModulePass *createOCL20To12();
-
 /// Create a pass for translating OCL 2.0 builtin functions to SPIR-V builtin
 /// functions.
 ModulePass *createOCL20ToSPIRV();
@@ -156,6 +152,14 @@ ModulePass *createSPIRVLowerMemmove();
 
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
 ModulePass *createSPIRVRegularizeLLVM();
+
+/// Create a pass for translating SPIR-V builtin functions to OCL builtin
+/// functions.
+ModulePass *createSPIRVToOCL(Module &M);
+
+/// Create a pass for translating SPIR-V builtin functions to OCL 1.2 builtin
+/// functions.
+ModulePass *createSPIRVToOCL12();
 
 /// Create a pass for translating SPIR-V builtin functions to OCL 2.0 builtin
 /// functions.

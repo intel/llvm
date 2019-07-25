@@ -112,6 +112,7 @@ public:
     ARMSubArch_v8r,
     ARMSubArch_v8m_baseline,
     ARMSubArch_v8m_mainline,
+    ARMSubArch_v8_1m_mainline,
     ARMSubArch_v7,
     ARMSubArch_v7em,
     ARMSubArch_v7m,
@@ -130,7 +131,11 @@ public:
     KalimbaSubArch_v4,
     KalimbaSubArch_v5,
 
-    MipsSubArch_r6
+    MipsSubArch_r6,
+
+    SPIRSubArch_fpga,
+    SPIRSubArch_gen,
+    SPIRSubArch_x86_64
   };
   enum VendorType {
     UnknownVendor,
@@ -219,7 +224,8 @@ public:
     CoreCLR,
     SYCLDevice,
     Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
-    LastEnvironmentType = Simulator
+    MacABI, // Mac Catalyst variant of Apple's iOS deployment target.
+    LastEnvironmentType = MacABI
   };
   enum ObjectFormatType {
     UnknownObjectFormat,
@@ -493,6 +499,10 @@ public:
     return getEnvironment() == Triple::SYCLDevice;
   }
 
+  bool isMacCatalystEnvironment() const {
+    return getEnvironment() == Triple::MacABI;
+  }
+
   bool isOSNetBSD() const {
     return getOS() == Triple::NetBSD;
   }
@@ -726,6 +736,11 @@ public:
   /// Tests whether the target is 64-bit PowerPC (little and big endian).
   bool isPPC64() const {
     return getArch() == Triple::ppc64 || getArch() == Triple::ppc64le;
+  }
+
+  /// Tests whether the target is RISC-V (32- and 64-bit).
+  bool isRISCV() const {
+    return getArch() == Triple::riscv32 || getArch() == Triple::riscv64;
   }
 
   /// Tests whether the target supports comdat

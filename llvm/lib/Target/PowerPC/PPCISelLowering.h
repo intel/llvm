@@ -14,7 +14,6 @@
 #ifndef LLVM_LIB_TARGET_POWERPC_PPCISELLOWERING_H
 #define LLVM_LIB_TARGET_POWERPC_PPCISELLOWERING_H
 
-#include "PPC.h"
 #include "PPCInstrInfo.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -160,7 +159,7 @@ namespace llvm {
 
       /// CALL - A direct function call.
       /// CALL_NOP is a call with the special NOP which follows 64-bit
-      /// SVR4 calls.
+      /// SVR4 calls and 32-bit/64-bit AIX calls.
       CALL, CALL_NOP,
 
       /// CHAIN,FLAG = MTCTR(VAL, CHAIN[, INFLAG]) - Directly corresponds to a
@@ -194,6 +193,15 @@ namespace llvm {
 
       /// Direct move of 2 consecutive GPR to a VSX register.
       BUILD_FP128,
+
+      /// BUILD_SPE64 and EXTRACT_SPE are analogous to BUILD_PAIR and
+      /// EXTRACT_ELEMENT but take f64 arguments instead of i64, as i64 is
+      /// unsupported for this target.
+      /// Merge 2 GPRs to a single SPE register.
+      BUILD_SPE64,
+
+      /// Extract SPE register component, second argument is high or low.
+      EXTRACT_SPE,
 
       /// Extract a subvector from signed integer vector and convert to FP.
       /// It is primarily used to convert a (widened) illegal integer vector
@@ -626,6 +634,8 @@ namespace llvm {
       return true;
     }
 
+    bool preferIncOfAddToSubOfNot(EVT VT) const override;
+
     bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
       return VT.isScalarInteger();
     }
@@ -658,6 +668,11 @@ namespace llvm {
                                    SDValue &Offset,
                                    ISD::MemIndexedMode &AM,
                                    SelectionDAG &DAG) const override;
+
+    /// SelectAddressEVXRegReg - Given the specified addressed, check to see if
+    /// it can be more efficiently represented as [r+imm].
+    bool SelectAddressEVXRegReg(SDValue N, SDValue &Base, SDValue &Index,
+                                SelectionDAG &DAG) const;
 
     /// SelectAddressRegReg - Given the specified addressed, check to see if it
     /// can be more efficiently represented as [r+imm]. If \p EncodingAlignment
@@ -847,10 +862,10 @@ namespace llvm {
 
     /// Is unaligned memory access allowed for the given type, and is it fast
     /// relative to software emulation.
-    bool allowsMisalignedMemoryAccesses(EVT VT,
-                                        unsigned AddrSpace,
-                                        unsigned Align = 1,
-                                        bool *Fast = nullptr) const override;
+    bool allowsMisalignedMemoryAccesses(
+        EVT VT, unsigned AddrSpace, unsigned Align = 1,
+        MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+        bool *Fast = nullptr) const override;
 
     /// isFMAFasterThanFMulAndFAdd - Return true if an FMA operation is faster
     /// than a pair of fmul and fadd instructions. fmuladd intrinsics will be
@@ -908,14 +923,6 @@ namespace llvm {
     const MCExpr *getPICJumpTableRelocBaseExpr(const MachineFunction *MF,
                                                unsigned JTI,
                                                MCContext &Ctx) const override;
-
-    unsigned getNumRegistersForCallingConv(LLVMContext &Context,
-                                           CallingConv:: ID CC,
-                                           EVT VT) const override;
-
-    MVT getRegisterTypeForCallingConv(LLVMContext &Context,
-                                      CallingConv:: ID CC,
-                                      EVT VT) const override;
 
   private:
     struct ReuseLoadInfo {
@@ -1120,6 +1127,15 @@ namespace llvm {
                              const SDLoc &dl, SelectionDAG &DAG,
                              SmallVectorImpl<SDValue> &InVals,
                              ImmutableCallSite CS) const;
+    SDValue LowerCall_AIX(SDValue Chain, SDValue Callee,
+                          CallingConv::ID CallConv, bool isVarArg,
+                          bool isTailCall, bool isPatchPoint,
+                          const SmallVectorImpl<ISD::OutputArg> &Outs,
+                          const SmallVectorImpl<SDValue> &OutVals,
+                          const SmallVectorImpl<ISD::InputArg> &Ins,
+                          const SDLoc &dl, SelectionDAG &DAG,
+                          SmallVectorImpl<SDValue> &InVals,
+                          ImmutableCallSite CS) const;
 
     SDValue lowerEH_SJLJ_SETJMP(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerEH_SJLJ_LONGJMP(SDValue Op, SelectionDAG &DAG) const;

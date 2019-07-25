@@ -27,6 +27,7 @@
 #include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/LazyCallGraph.h"
+#include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Argument.h"
@@ -75,6 +76,7 @@ STATISTIC(NumNoAlias, "Number of function returns marked noalias");
 STATISTIC(NumNonNullReturn, "Number of function returns marked nonnull");
 STATISTIC(NumNoRecurse, "Number of functions marked as norecurse");
 STATISTIC(NumNoUnwind, "Number of functions marked as nounwind");
+STATISTIC(NumNoFree, "Number of functions marked as nofree");
 
 // FIXME: This is disabled by default to avoid exposing security vulnerabilities
 // in C/C++ code compiled by clang:
@@ -87,6 +89,10 @@ static cl::opt<bool> EnableNonnullArgPropagation(
 static cl::opt<bool> DisableNoUnwindInference(
     "disable-nounwind-inference", cl::Hidden,
     cl::desc("Stop inferring nounwind attribute during function-attrs pass"));
+
+static cl::opt<bool> DisableNoFreeInference(
+    "disable-nofree-inference", cl::Hidden,
+    cl::desc("Stop inferring nofree attribute during function-attrs pass"));
 
 namespace {
 
@@ -255,12 +261,15 @@ static bool addReadAttrs(const SCCNodeSet &SCCNodes, AARGetterT &&AARGetter) {
     }
   }
 
+  // If the SCC contains both functions that read and functions that write, then
+  // we cannot add readonly attributes.
+  if (ReadsMemory && WritesMemory)
+    return false;
+
   // Success!  Functions in this SCC do not access memory, or only read memory.
   // Give them the appropriate attribute.
   bool MadeChange = false;
 
-  assert(!(ReadsMemory && WritesMemory) &&
-          "Function marked read-only and write-only");
   for (Function *F : SCCNodes) {
     if (F->doesNotAccessMemory())
       // Already perfect!
@@ -1227,6 +1236,25 @@ static bool InstrBreaksNonThrowing(Instruction &I, const SCCNodeSet &SCCNodes) {
   return true;
 }
 
+/// Helper for NoFree inference predicate InstrBreaksAttribute.
+static bool InstrBreaksNoFree(Instruction &I, const SCCNodeSet &SCCNodes) {
+  CallSite CS(&I);
+  if (!CS)
+    return false;
+
+  Function *Callee = CS.getCalledFunction();
+  if (!Callee)
+    return true;
+
+  if (Callee->doesNotFreeMemory())
+    return false;
+
+  if (SCCNodes.count(Callee) > 0)
+    return false;
+
+  return true;
+}
+
 /// Infer attributes from all functions in the SCC by scanning every
 /// instruction for compliance to the attribute assumptions. Currently it
 /// does:
@@ -1280,6 +1308,29 @@ static bool inferAttrsFromFunctionBodies(const SCCNodeSet &SCCNodes) {
         },
         /* RequiresExactDefinition= */ true});
 
+  if (!DisableNoFreeInference)
+    // Request to infer nofree attribute for all the functions in the SCC if
+    // every callsite within the SCC does not directly or indirectly free
+    // memory (except for calls to functions within the SCC). Note that nofree
+    // attribute suffers from derefinement - results may change depending on
+    // how functions are optimized. Thus it can be inferred only from exact
+    // definitions.
+    AI.registerAttrInference(AttributeInferer::InferenceDescriptor{
+        Attribute::NoFree,
+        // Skip functions known not to free memory.
+        [](const Function &F) { return F.doesNotFreeMemory(); },
+        // Instructions that break non-deallocating assumption.
+        [SCCNodes](Instruction &I) {
+          return InstrBreaksNoFree(I, SCCNodes);
+        },
+        [](Function &F) {
+          LLVM_DEBUG(dbgs()
+                     << "Adding nofree attr to fn " << F.getName() << "\n");
+          F.setDoesNotFreeMemory();
+          ++NumNoFree;
+        },
+        /* RequiresExactDefinition= */ true});
+
   // Perform all the requested attribute inference actions.
   return AI.run(SCCNodes);
 }
@@ -1300,7 +1351,7 @@ static bool addNoRecurseAttrs(const SCCNodeSet &SCCNodes) {
     return false;
 
   Function *F = *SCCNodes.begin();
-  if (!F || F->isDeclaration() || F->doesNotRecurse())
+  if (!F || !F->hasExactDefinition() || F->doesNotRecurse())
     return false;
 
   // If all of the calls in F are identifiable and are to norecurse functions, F
@@ -1322,7 +1373,8 @@ static bool addNoRecurseAttrs(const SCCNodeSet &SCCNodes) {
 }
 
 template <typename AARGetterT>
-static bool deriveAttrsInPostOrder(SCCNodeSet &SCCNodes, AARGetterT &&AARGetter,
+static bool deriveAttrsInPostOrder(SCCNodeSet &SCCNodes,
+                                   AARGetterT &&AARGetter,
                                    bool HasUnknownCall) {
   bool Changed = false;
 

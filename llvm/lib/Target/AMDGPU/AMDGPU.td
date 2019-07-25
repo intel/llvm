@@ -193,6 +193,12 @@ def FeatureFlatSegmentOffsetBug : SubtargetFeature<"flat-segment-offset-bug",
   "GFX10 bug, inst_offset ignored in flat segment"
 >;
 
+def FeatureOffset3fBug : SubtargetFeature<"offset-3f-bug",
+  "HasOffset3fBug",
+  "true",
+  "Branch offset of 3f hardware bug"
+>;
+
 class SubtargetFeatureLDSBankCount <int Value> : SubtargetFeature <
   "ldsbankcount"#Value,
   "LDSBankCount",
@@ -329,6 +335,13 @@ def FeatureDPP : SubtargetFeature<"dpp",
   "Support DPP (Data Parallel Primitives) extension"
 >;
 
+// DPP8 allows arbitrary cross-lane swizzling withing groups of 8 lanes.
+def FeatureDPP8 : SubtargetFeature<"dpp8",
+  "HasDPP8",
+  "true",
+  "Support DPP8 (Data Parallel Primitives) extension"
+>;
+
 def FeatureR128A16 : SubtargetFeature<"r128-a16",
   "HasR128A16",
   "true",
@@ -369,6 +382,49 @@ def FeatureDot2Insts : SubtargetFeature<"dot2-insts",
   "HasDot2Insts",
   "true",
   "Has v_dot2_f32_f16, v_dot2_i32_i16, v_dot2_u32_u16, v_dot4_u32_u8, v_dot8_u32_u4 instructions"
+>;
+
+def FeatureDot3Insts : SubtargetFeature<"dot3-insts",
+  "HasDot3Insts",
+  "true",
+  "Has v_dot8c_i32_i4 instruction"
+>;
+
+def FeatureDot4Insts : SubtargetFeature<"dot4-insts",
+  "HasDot4Insts",
+  "true",
+  "Has v_dot2c_i32_i16 instruction"
+>;
+
+def FeatureDot5Insts : SubtargetFeature<"dot5-insts",
+  "HasDot5Insts",
+  "true",
+  "Has v_dot2c_f32_f16 instruction"
+>;
+
+def FeatureDot6Insts : SubtargetFeature<"dot6-insts",
+  "HasDot6Insts",
+  "true",
+  "Has v_dot4c_i32_i8 instruction"
+>;
+
+def FeatureMAIInsts : SubtargetFeature<"mai-insts",
+  "HasMAIInsts",
+  "true",
+  "Has mAI instructions"
+>;
+
+def FeaturePkFmacF16Inst : SubtargetFeature<"pk-fmac-f16-inst",
+  "HasPkFmacF16Inst",
+  "true",
+  "Has v_pk_fmac_f16 instruction"
+>;
+
+def FeatureAtomicFaddInsts : SubtargetFeature<"atomic-fadd-insts",
+  "HasAtomicFaddInsts",
+  "true",
+  "Has buffer_atomic_add_f32, buffer_atomic_pk_add_f16, global_atomic_add_f32, "
+  "global_atomic_pk_add_f16 instructions"
 >;
 
 def FeatureDoesNotSupportSRAMECC : SubtargetFeature<"no-sram-ecc-support",
@@ -457,13 +513,6 @@ class FeatureMaxPrivateElementSize<int size> : SubtargetFeature<
 def FeatureMaxPrivateElementSize4 : FeatureMaxPrivateElementSize<4>;
 def FeatureMaxPrivateElementSize8 : FeatureMaxPrivateElementSize<8>;
 def FeatureMaxPrivateElementSize16 : FeatureMaxPrivateElementSize<16>;
-
-def FeatureEnableHugePrivateBuffer : SubtargetFeature<
-  "huge-private-buffer",
-  "EnableHugePrivateBuffer",
-  "true",
-  "Enable private/scratch buffer sizes greater than 128 GB"
->;
 
 def FeatureDumpCode : SubtargetFeature <"DumpCode",
   "DumpCode",
@@ -617,8 +666,8 @@ def FeatureGFX10 : GCNSubtargetFeatureGeneration<"GFX10",
    FeatureFlatInstOffsets, FeatureFlatGlobalInsts, FeatureFlatScratchInsts,
    FeatureAddNoCarryInsts, FeatureFmaMixInsts, FeatureGFX8Insts,
    FeatureNoSdstCMPX, FeatureVscnt, FeatureRegisterBanking,
-   FeatureVOP3Literal, FeatureNoDataDepHazard,
-   FeatureDoesNotSupportSRAMECC
+   FeatureVOP3Literal, FeatureDPP8,
+   FeatureNoDataDepHazard, FeaturePkFmacF16Inst, FeatureDoesNotSupportSRAMECC
   ]
 >;
 
@@ -737,6 +786,24 @@ def FeatureISAVersion9_0_6 : FeatureSet<
    FeatureDoesNotSupportXNACK,
    FeatureCodeObjectV3]>;
 
+def FeatureISAVersion9_0_8 : FeatureSet<
+  [FeatureGFX9,
+   HalfRate64Ops,
+   FeatureFmaMixInsts,
+   FeatureLDSBankCount32,
+   FeatureDLInsts,
+   FeatureDot1Insts,
+   FeatureDot2Insts,
+   FeatureDot3Insts,
+   FeatureDot4Insts,
+   FeatureDot5Insts,
+   FeatureDot6Insts,
+   FeatureMAIInsts,
+   FeaturePkFmacF16Inst,
+   FeatureAtomicFaddInsts,
+   FeatureSRAMECC,
+   FeatureCodeObjectV3]>;
+
 def FeatureISAVersion9_0_9 : FeatureSet<
   [FeatureGFX9,
    FeatureMadMixInsts,
@@ -755,6 +822,7 @@ def FeatureGroup {
     FeatureVcmpxExecWARHazard,
     FeatureLdsBranchVmemWARHazard,
     FeatureNSAtoVMEMBug,
+    FeatureOffset3fBug,
     FeatureFlatSegmentOffsetBug
    ];
 }
@@ -765,7 +833,42 @@ def FeatureISAVersion10_1_0 : FeatureSet<
      FeatureLDSBankCount32,
      FeatureDLInsts,
      FeatureNSAEncoding,
-     FeatureWavefrontSize64,
+     FeatureWavefrontSize32,
+     FeatureScalarStores,
+     FeatureScalarAtomics,
+     FeatureScalarFlatScratchInsts,
+     FeatureLdsMisalignedBug,
+     FeatureDoesNotSupportXNACK,
+     FeatureCodeObjectV3])>;
+
+def FeatureISAVersion10_1_1 : FeatureSet<
+  !listconcat(FeatureGroup.GFX10_1_Bugs,
+    [FeatureGFX10,
+     FeatureLDSBankCount32,
+     FeatureDLInsts,
+     FeatureDot1Insts,
+     FeatureDot2Insts,
+     FeatureDot5Insts,
+     FeatureDot6Insts,
+     FeatureNSAEncoding,
+     FeatureWavefrontSize32,
+     FeatureScalarStores,
+     FeatureScalarAtomics,
+     FeatureScalarFlatScratchInsts,
+     FeatureDoesNotSupportXNACK,
+     FeatureCodeObjectV3])>;
+
+def FeatureISAVersion10_1_2 : FeatureSet<
+  !listconcat(FeatureGroup.GFX10_1_Bugs,
+    [FeatureGFX10,
+     FeatureLDSBankCount32,
+     FeatureDLInsts,
+     FeatureDot1Insts,
+     FeatureDot2Insts,
+     FeatureDot5Insts,
+     FeatureDot6Insts,
+     FeatureNSAEncoding,
+     FeatureWavefrontSize32,
      FeatureScalarStores,
      FeatureScalarAtomics,
      FeatureScalarFlatScratchInsts,
@@ -969,8 +1072,14 @@ def HasSDWA10 :
 def HasDPP : Predicate<"Subtarget->hasDPP()">,
   AssemblerPredicate<"FeatureGCN3Encoding,FeatureDPP">;
 
+def HasDPP8 : Predicate<"Subtarget->hasDPP8()">,
+  AssemblerPredicate<"!FeatureGCN3Encoding,FeatureGFX10Insts,FeatureDPP8">;
+
 def HasR128A16 : Predicate<"Subtarget->hasR128A16()">,
   AssemblerPredicate<"FeatureR128A16">;
+
+def HasDPP16 : Predicate<"Subtarget->hasDPP()">,
+  AssemblerPredicate<"!FeatureGCN3Encoding,FeatureGFX10Insts,FeatureDPP">;
 
 def HasIntClamp : Predicate<"Subtarget->hasIntClamp()">,
   AssemblerPredicate<"FeatureIntClamp">;
@@ -1009,6 +1118,29 @@ def HasDot1Insts : Predicate<"Subtarget->hasDot1Insts()">,
 def HasDot2Insts : Predicate<"Subtarget->hasDot2Insts()">,
   AssemblerPredicate<"FeatureDot2Insts">;
 
+def HasDot3Insts : Predicate<"Subtarget->hasDot3Insts()">,
+  AssemblerPredicate<"FeatureDot3Insts">;
+
+def HasDot4Insts : Predicate<"Subtarget->hasDot4Insts()">,
+  AssemblerPredicate<"FeatureDot4Insts">;
+
+def HasDot5Insts : Predicate<"Subtarget->hasDot5Insts()">,
+  AssemblerPredicate<"FeatureDot5Insts">;
+
+def HasDot6Insts : Predicate<"Subtarget->hasDot6Insts()">,
+  AssemblerPredicate<"FeatureDot6Insts">;
+
+def HasMAIInsts : Predicate<"Subtarget->hasMAIInsts()">,
+  AssemblerPredicate<"FeatureMAIInsts">;
+
+def HasPkFmacF16Inst : Predicate<"Subtarget->hasPkFmacF16Inst()">,
+  AssemblerPredicate<"FeaturePkFmacF16Inst">;
+
+def HasAtomicFaddInsts : Predicate<"Subtarget->hasAtomicFaddInsts()">,
+  AssemblerPredicate<"FeatureAtomicFaddInsts">;
+
+def HasOffset3fBug : Predicate<"!Subtarget->hasOffset3fBug()">,
+  AssemblerPredicate<"FeatureOffset3fBug">;
 
 def EnableLateCFGStructurize : Predicate<
   "EnableLateStructurizeCFG">;

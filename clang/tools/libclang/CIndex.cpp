@@ -3356,7 +3356,7 @@ enum CXErrorCode clang_createTranslationUnit2(CXIndex CIdx,
       ASTUnit::LoadEverything, Diags,
       FileSystemOpts, /*UseDebugInfo=*/false,
       CXXIdx->getOnlyLocalDecls(), None,
-      /*CaptureDiagnostics=*/true,
+      CaptureDiagsKind::All,
       /*AllowPCHWithCompilerErrors=*/true,
       /*UserFilesAreVolatile=*/true);
   *out_TU = MakeCXTranslationUnit(CXXIdx, std::move(AU));
@@ -3428,6 +3428,10 @@ clang_parseTranslationUnit_Impl(CXIndex CIdx, const char *source_filename,
 
   if (options & CXTranslationUnit_KeepGoing)
     Diags->setFatalsAsError(true);
+
+  CaptureDiagsKind CaptureDiagnostics = CaptureDiagsKind::All;
+  if (options & CXTranslationUnit_IgnoreNonErrorsFromIncludedFiles)
+    CaptureDiagnostics = CaptureDiagsKind::AllWithoutNonErrorsFromIncludes;
 
   // Recover resources if we crash before exiting this function.
   llvm::CrashRecoveryContextCleanupRegistrar<DiagnosticsEngine,
@@ -3506,7 +3510,7 @@ clang_parseTranslationUnit_Impl(CXIndex CIdx, const char *source_filename,
       Args->data(), Args->data() + Args->size(),
       CXXIdx->getPCHContainerOperations(), Diags,
       CXXIdx->getClangResourcesPath(), CXXIdx->getOnlyLocalDecls(),
-      /*CaptureDiagnostics=*/true, *RemappedFiles.get(),
+      CaptureDiagnostics, *RemappedFiles.get(),
       /*RemappedFilesKeepOriginalName=*/true, PrecompilePreambleAfterNParses,
       TUKind, CacheCodeCompletionResults, IncludeBriefCommentsInCodeCompletion,
       /*AllowPCHWithCompilerErrors=*/true, SkipFunctionBodies, SingleFileParse,
@@ -3778,6 +3782,8 @@ static const ExprEvalResult* evaluateExpr(Expr *expr, CXCursor C) {
     return nullptr;
 
   expr = expr->IgnoreParens();
+  if (expr->isValueDependent())
+    return nullptr;
   if (!expr->EvaluateAsRValue(ER, ctx))
     return nullptr;
 
@@ -5190,6 +5196,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
       return cxstring::createRef("CallExpr");
   case CXCursor_ObjCMessageExpr:
       return cxstring::createRef("ObjCMessageExpr");
+  case CXCursor_BuiltinBitCastExpr:
+    return cxstring::createRef("BuiltinBitCastExpr");
   case CXCursor_UnexposedStmt:
       return cxstring::createRef("UnexposedStmt");
   case CXCursor_DeclStmt:
@@ -6263,6 +6271,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::PragmaComment:
   case Decl::PragmaDetectMismatch:
   case Decl::UsingPack:
+  case Decl::Concept:
     return C;
 
   // Declaration kinds that don't make any sense here, but are

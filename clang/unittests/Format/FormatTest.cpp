@@ -1870,9 +1870,117 @@ TEST_F(FormatTest, FormatsNamespaces) {
                    Style));
 }
 
+TEST_F(FormatTest, NamespaceMacros) {
+  FormatStyle Style = getLLVMStyle();
+  Style.NamespaceMacros.push_back("TESTSUITE");
+
+  verifyFormat("TESTSUITE(A) {\n"
+               "int foo();\n"
+               "} // TESTSUITE(A)",
+               Style);
+
+  verifyFormat("TESTSUITE(A, B) {\n"
+               "int foo();\n"
+               "} // TESTSUITE(A)",
+               Style);
+
+  // Properly indent according to NamespaceIndentation style
+  Style.NamespaceIndentation = FormatStyle::NI_All;
+  verifyFormat("TESTSUITE(A) {\n"
+               "  int foo();\n"
+               "} // TESTSUITE(A)",
+               Style);
+  verifyFormat("TESTSUITE(A) {\n"
+               "  namespace B {\n"
+               "    int foo();\n"
+               "  } // namespace B\n"
+               "} // TESTSUITE(A)",
+               Style);
+  verifyFormat("namespace A {\n"
+               "  TESTSUITE(B) {\n"
+               "    int foo();\n"
+               "  } // TESTSUITE(B)\n"
+               "} // namespace A",
+               Style);
+
+  Style.NamespaceIndentation = FormatStyle::NI_Inner;
+  verifyFormat("TESTSUITE(A) {\n"
+               "TESTSUITE(B) {\n"
+               "  int foo();\n"
+               "} // TESTSUITE(B)\n"
+               "} // TESTSUITE(A)",
+               Style);
+  verifyFormat("TESTSUITE(A) {\n"
+               "namespace B {\n"
+               "  int foo();\n"
+               "} // namespace B\n"
+               "} // TESTSUITE(A)",
+               Style);
+  verifyFormat("namespace A {\n"
+               "TESTSUITE(B) {\n"
+               "  int foo();\n"
+               "} // TESTSUITE(B)\n"
+               "} // namespace A",
+               Style);
+
+  // Properly merge namespace-macros blocks in CompactNamespaces mode
+  Style.NamespaceIndentation = FormatStyle::NI_None;
+  Style.CompactNamespaces = true;
+  verifyFormat("TESTSUITE(A) { TESTSUITE(B) {\n"
+               "}} // TESTSUITE(A::B)",
+               Style);
+
+  EXPECT_EQ("TESTSUITE(out) { TESTSUITE(in) {\n"
+            "}} // TESTSUITE(out::in)",
+            format("TESTSUITE(out) {\n"
+                   "TESTSUITE(in) {\n"
+                   "} // TESTSUITE(in)\n"
+                   "} // TESTSUITE(out)",
+                   Style));
+
+  EXPECT_EQ("TESTSUITE(out) { TESTSUITE(in) {\n"
+            "}} // TESTSUITE(out::in)",
+            format("TESTSUITE(out) {\n"
+                   "TESTSUITE(in) {\n"
+                   "} // TESTSUITE(in)\n"
+                   "} // TESTSUITE(out)",
+                   Style));
+
+  // Do not merge different namespaces/macros
+  EXPECT_EQ("namespace out {\n"
+            "TESTSUITE(in) {\n"
+            "} // TESTSUITE(in)\n"
+            "} // namespace out",
+            format("namespace out {\n"
+                   "TESTSUITE(in) {\n"
+                   "} // TESTSUITE(in)\n"
+                   "} // namespace out",
+                   Style));
+  EXPECT_EQ("TESTSUITE(out) {\n"
+            "namespace in {\n"
+            "} // namespace in\n"
+            "} // TESTSUITE(out)",
+            format("TESTSUITE(out) {\n"
+                   "namespace in {\n"
+                   "} // namespace in\n"
+                   "} // TESTSUITE(out)",
+                   Style));
+  Style.NamespaceMacros.push_back("FOOBAR");
+  EXPECT_EQ("TESTSUITE(out) {\n"
+            "FOOBAR(in) {\n"
+            "} // FOOBAR(in)\n"
+            "} // TESTSUITE(out)",
+            format("TESTSUITE(out) {\n"
+                   "FOOBAR(in) {\n"
+                   "} // FOOBAR(in)\n"
+                   "} // TESTSUITE(out)",
+                   Style));
+}
+
 TEST_F(FormatTest, FormatsCompactNamespaces) {
   FormatStyle Style = getLLVMStyle();
   Style.CompactNamespaces = true;
+  Style.NamespaceMacros.push_back("TESTSUITE");
 
   verifyFormat("namespace A { namespace B {\n"
 			   "}} // namespace A::B",
@@ -6919,6 +7027,12 @@ TEST_F(FormatTest, UnderstandsSquareAttributes) {
   // On the other hand, we still need to correctly find array subscripts.
   verifyFormat("int a = std::vector<int>{1, 2, 3}[0];");
 
+  // Make sure that we do not mistake Objective-C method inside array literals
+  // as attributes, even if those method names are also keywords.
+  verifyFormat("@[ [foo bar] ];");
+  verifyFormat("@[ [NSArray class] ];");
+  verifyFormat("@[ [foo enum] ];");
+
   // Make sure we do not parse attributes as lambda introducers.
   FormatStyle MultiLineFunctions = getLLVMStyle();
   MultiLineFunctions.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_None;
@@ -10057,8 +10171,104 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeColon) {
                NoSpaceStyle);
 }
 
+TEST_F(FormatTest, AlignConsecutiveMacros) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AlignConsecutiveAssignments = true;
+  Style.AlignConsecutiveDeclarations = true;
+  Style.AlignConsecutiveMacros = false;
+
+  verifyFormat("#define a 3\n"
+               "#define bbbb 4\n"
+               "#define ccc (5)",
+               Style);
+
+  verifyFormat("#define f(x) (x * x)\n"
+               "#define fff(x, y, z) (x * y + z)\n"
+               "#define ffff(x, y) (x - y)",
+               Style);
+
+  verifyFormat("#define foo(x, y) (x + y)\n"
+               "#define bar (5, 6)(2 + 2)",
+               Style);
+
+  verifyFormat("#define a 3\n"
+               "#define bbbb 4\n"
+               "#define ccc (5)\n"
+               "#define f(x) (x * x)\n"
+               "#define fff(x, y, z) (x * y + z)\n"
+               "#define ffff(x, y) (x - y)",
+               Style);
+
+  Style.AlignConsecutiveMacros = true;
+  verifyFormat("#define a    3\n"
+               "#define bbbb 4\n"
+               "#define ccc  (5)",
+               Style);
+
+  verifyFormat("#define f(x)         (x * x)\n"
+               "#define fff(x, y, z) (x * y + z)\n"
+               "#define ffff(x, y)   (x - y)",
+               Style);
+
+  verifyFormat("#define foo(x, y) (x + y)\n"
+               "#define bar       (5, 6)(2 + 2)",
+               Style);
+
+  verifyFormat("#define a            3\n"
+               "#define bbbb         4\n"
+               "#define ccc          (5)\n"
+               "#define f(x)         (x * x)\n"
+               "#define fff(x, y, z) (x * y + z)\n"
+               "#define ffff(x, y)   (x - y)",
+               Style);
+
+  verifyFormat("#define a         5\n"
+               "#define foo(x, y) (x + y)\n"
+               "#define CCC       (6)\n"
+               "auto lambda = []() {\n"
+               "  auto  ii = 0;\n"
+               "  float j  = 0;\n"
+               "  return 0;\n"
+               "};\n"
+               "int   i  = 0;\n"
+               "float i2 = 0;\n"
+               "auto  v  = type{\n"
+               "    i = 1,   //\n"
+               "    (i = 2), //\n"
+               "    i = 3    //\n"
+               "};",
+               Style);
+
+  Style.AlignConsecutiveMacros = false;
+  Style.ColumnLimit = 20;
+
+  verifyFormat("#define a          \\\n"
+               "  \"aabbbbbbbbbbbb\"\n"
+               "#define D          \\\n"
+               "  \"aabbbbbbbbbbbb\" \\\n"
+               "  \"ccddeeeeeeeee\"\n"
+               "#define B          \\\n"
+               "  \"QQQQQQQQQQQQQ\"  \\\n"
+               "  \"FFFFFFFFFFFFF\"  \\\n"
+               "  \"LLLLLLLL\"\n",
+               Style);
+
+  Style.AlignConsecutiveMacros = true;
+  verifyFormat("#define a          \\\n"
+               "  \"aabbbbbbbbbbbb\"\n"
+               "#define D          \\\n"
+               "  \"aabbbbbbbbbbbb\" \\\n"
+               "  \"ccddeeeeeeeee\"\n"
+               "#define B          \\\n"
+               "  \"QQQQQQQQQQQQQ\"  \\\n"
+               "  \"FFFFFFFFFFFFF\"  \\\n"
+               "  \"LLLLLLLL\"\n",
+               Style);
+}
+
 TEST_F(FormatTest, AlignConsecutiveAssignments) {
   FormatStyle Alignment = getLLVMStyle();
+  Alignment.AlignConsecutiveMacros = true;
   Alignment.AlignConsecutiveAssignments = false;
   verifyFormat("int a = 5;\n"
                "int oneTwoThree = 123;",
@@ -10248,6 +10458,7 @@ TEST_F(FormatTest, AlignConsecutiveAssignments) {
 
 TEST_F(FormatTest, AlignConsecutiveDeclarations) {
   FormatStyle Alignment = getLLVMStyle();
+  Alignment.AlignConsecutiveMacros = true;
   Alignment.AlignConsecutiveDeclarations = false;
   verifyFormat("float const a = 5;\n"
                "int oneTwoThree = 123;",
@@ -11397,6 +11608,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(AlignTrailingComments);
   CHECK_PARSE_BOOL(AlignConsecutiveAssignments);
   CHECK_PARSE_BOOL(AlignConsecutiveDeclarations);
+  CHECK_PARSE_BOOL(AlignConsecutiveMacros);
   CHECK_PARSE_BOOL(AllowAllArgumentsOnNextLine);
   CHECK_PARSE_BOOL(AllowAllConstructorInitializersOnNextLine);
   CHECK_PARSE_BOOL(AllowAllParametersOfDeclarationOnNextLine);
@@ -11699,6 +11911,12 @@ TEST_F(FormatTest, ParsesConfiguration) {
               std::vector<std::string>{"QUNUSED"});
   CHECK_PARSE("StatementMacros: [QUNUSED, QT_REQUIRE_VERSION]", StatementMacros,
               std::vector<std::string>({"QUNUSED", "QT_REQUIRE_VERSION"}));
+
+  Style.NamespaceMacros.clear();
+  CHECK_PARSE("NamespaceMacros: [TESTSUITE]", NamespaceMacros,
+              std::vector<std::string>{"TESTSUITE"});
+  CHECK_PARSE("NamespaceMacros: [TESTSUITE, SUITE]", NamespaceMacros,
+              std::vector<std::string>({"TESTSUITE", "SUITE"}));
 
   Style.IncludeStyle.IncludeCategories.clear();
   std::vector<tooling::IncludeStyle::IncludeCategory> ExpectedCategories = {
@@ -13543,6 +13761,35 @@ TEST_F(FormatTest, GuessLanguageWithChildLines) {
   EXPECT_EQ(
       FormatStyle::LK_ObjC,
       guessLanguage("foo.h", "#define FOO ({ foo(); ({ NSString *s; }) })"));
+}
+
+TEST_F(FormatTest, TypenameMacros) {
+  std::vector<std::string> TypenameMacros = {"STACK_OF", "LIST", "TAILQ_ENTRY"};
+
+  // Test case reported in https://bugs.llvm.org/show_bug.cgi?id=30353
+  FormatStyle Google = getGoogleStyleWithColumns(0);
+  Google.TypenameMacros = TypenameMacros;
+  verifyFormat("struct foo {\n"
+               "  int bar;\n"
+               "  TAILQ_ENTRY(a) bleh;\n"
+               "};", Google);
+
+  FormatStyle Macros = getLLVMStyle();
+  Macros.TypenameMacros = TypenameMacros;
+
+  verifyFormat("STACK_OF(int) a;", Macros);
+  verifyFormat("STACK_OF(int) *a;", Macros);
+  verifyFormat("STACK_OF(int const *) *a;", Macros);
+  verifyFormat("STACK_OF(int *const) *a;", Macros);
+  verifyFormat("STACK_OF(int, string) a;", Macros);
+  verifyFormat("STACK_OF(LIST(int)) a;", Macros);
+  verifyFormat("STACK_OF(LIST(int)) a, b;", Macros);
+  verifyFormat("for (LIST(int) *a = NULL; a;) {\n}", Macros);
+  verifyFormat("STACK_OF(int) f(LIST(int) *arg);", Macros);
+
+  Macros.PointerAlignment = FormatStyle::PAS_Left;
+  verifyFormat("STACK_OF(int)* a;", Macros);
+  verifyFormat("STACK_OF(int*)* a;", Macros);
 }
 
 } // end namespace

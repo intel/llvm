@@ -188,6 +188,7 @@ public:
     bool IsSwiftSelf : 1;
     bool IsSwiftError : 1;
     uint16_t Alignment = 0;
+    Type *ByValType = nullptr;
 
     ArgListEntry()
         : IsSExt(false), IsZExt(false), IsInReg(false), IsSRet(false),
@@ -400,8 +401,9 @@ public:
   /// efficiently, casting the load to a smaller vector of larger types and
   /// loading is more efficient, however, this can be undone by optimizations in
   /// dag combiner.
-  virtual bool isLoadBitCastBeneficial(EVT LoadVT,
-                                       EVT BitcastVT) const {
+  virtual bool isLoadBitCastBeneficial(EVT LoadVT, EVT BitcastVT,
+                                       const SelectionDAG &DAG,
+                                       const MachineMemOperand &MMO) const {
     // Don't do if we could do an indexed load on the original type, but not on
     // the new one.
     if (!LoadVT.isSimple() || !BitcastVT.isSimple())
@@ -415,14 +417,18 @@ public:
         getTypeToPromoteTo(ISD::LOAD, LoadMVT) == BitcastVT.getSimpleVT())
       return false;
 
-    return true;
+    bool Fast = false;
+    return allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), BitcastVT,
+                              MMO, &Fast) && Fast;
   }
 
   /// Return true if the following transform is beneficial:
   /// (store (y (conv x)), y*)) -> (store x, (x*))
-  virtual bool isStoreBitCastBeneficial(EVT StoreVT, EVT BitcastVT) const {
+  virtual bool isStoreBitCastBeneficial(EVT StoreVT, EVT BitcastVT,
+                                        const SelectionDAG &DAG,
+                                        const MachineMemOperand &MMO) const {
     // Default to the same logic as loads.
-    return isLoadBitCastBeneficial(StoreVT, BitcastVT);
+    return isLoadBitCastBeneficial(StoreVT, BitcastVT, DAG, MMO);
   }
 
   /// Return true if it is expected to be cheaper to do a store of a non-zero
@@ -434,10 +440,12 @@ public:
     return false;
   }
 
-  /// Allow store merging after legalization in addition to before legalization.
-  /// This may catch stores that do not exist earlier (eg, stores created from
-  /// intrinsics).
-  virtual bool mergeStoresAfterLegalization() const { return true; }
+  /// Allow store merging for the specified type after legalization in addition
+  /// to before legalization. This may transform stores that do not exist
+  /// earlier (for example, stores created from intrinsics).
+  virtual bool mergeStoresAfterLegalization(EVT MemVT) const {
+    return true;
+  }
 
   /// Returns if it's reasonable to merge stores to MemVT size.
   virtual bool canMergeStoresTo(unsigned AS, EVT MemVT,
@@ -563,6 +571,16 @@ public:
     return false;
   }
 
+  /// These two forms are equivalent:
+  ///   sub %y, (xor %x, -1)
+  ///   add (add %x, 1), %y
+  /// The variant with two add's is IR-canonical.
+  /// Some targets may prefer one to the other.
+  virtual bool preferIncOfAddToSubOfNot(EVT VT) const {
+    // By default, let's assume that everyone prefers the form with two add's.
+    return true;
+  }
+
   /// Return true if the target wants to use the optimization that
   /// turns ext(promotableInst1(...(promotableInstN(load)))) into
   /// promotedInst1(...(promotedInstN(ext(load)))).
@@ -636,10 +654,19 @@ public:
 
   /// Return the register class that should be used for the specified value
   /// type.
-  virtual const TargetRegisterClass *getRegClassFor(MVT VT) const {
+  virtual const TargetRegisterClass *getRegClassFor(MVT VT, bool isDivergent = false) const {
+    (void)isDivergent;
     const TargetRegisterClass *RC = RegClassForVT[VT.SimpleTy];
     assert(RC && "This value type is not natively supported!");
     return RC;
+  }
+
+  /// Allows target to decide about the register class of the
+  /// specific value that is live outside the defining block.
+  /// Returns true if the value needs uniform register class.
+  virtual bool requiresUniformRegister(MachineFunction &MF,
+                                       const Value *) const {
+    return false;
   }
 
   /// Return the 'representative' register class for the specified value
@@ -792,8 +819,8 @@ public:
   /// Returns true if the target can instruction select the specified FP
   /// immediate natively. If false, the legalizer will materialize the FP
   /// immediate as a load from a constant pool.
-  virtual bool isFPImmLegal(const APFloat &/*Imm*/, EVT /*VT*/,
-			    bool ForCodeSize = false) const {
+  virtual bool isFPImmLegal(const APFloat & /*Imm*/, EVT /*VT*/,
+                            bool ForCodeSize = false) const {
     return false;
   }
 
@@ -960,19 +987,20 @@ public:
 
   /// Return true if lowering to a jump table is suitable for a set of case
   /// clusters which may contain \p NumCases cases, \p Range range of values.
-  /// FIXME: This function check the maximum table size and density, but the
-  /// minimum size is not checked. It would be nice if the minimum size is
-  /// also combined within this function. Currently, the minimum size check is
-  /// performed in findJumpTable() in SelectionDAGBuiler and
-  /// getEstimatedNumberOfCaseClusters() in BasicTTIImpl.
   virtual bool isSuitableForJumpTable(const SwitchInst *SI, uint64_t NumCases,
                                       uint64_t Range) const {
+    // FIXME: This function check the maximum table size and density, but the
+    // minimum size is not checked. It would be nice if the minimum size is
+    // also combined within this function. Currently, the minimum size check is
+    // performed in findJumpTable() in SelectionDAGBuiler and
+    // getEstimatedNumberOfCaseClusters() in BasicTTIImpl.
     const bool OptForSize = SI->getParent()->getParent()->hasOptSize();
     const unsigned MinDensity = getMinimumJumpTableDensity(OptForSize);
-    const unsigned MaxJumpTableSize =
-        OptForSize ? UINT_MAX : getMaximumJumpTableSize();
-    // Check whether a range of clusters is dense enough for a jump table.
-    if (Range <= MaxJumpTableSize &&
+    const unsigned MaxJumpTableSize = getMaximumJumpTableSize();
+    
+    // Check whether the number of cases is small enough and
+    // the range is dense enough for a jump table.
+    if ((OptForSize || Range <= MaxJumpTableSize) &&
         (NumCases * 100 >= Range * MinDensity)) {
       return true;
     }
@@ -1372,18 +1400,6 @@ public:
     return OptSize ? MaxLoadsPerMemcmpOptSize : MaxLoadsPerMemcmp;
   }
 
-  /// For memcmp expansion when the memcmp result is only compared equal or
-  /// not-equal to 0, allow up to this number of load pairs per block. As an
-  /// example, this may allow 'memcmp(a, b, 3) == 0' in a single block:
-  ///   a0 = load2bytes &a[0]
-  ///   b0 = load2bytes &b[0]
-  ///   a2 = load1byte  &a[2]
-  ///   b2 = load1byte  &b[2]
-  ///   r  = cmp eq (a0 ^ b0 | a2 ^ b2), 0
-  virtual unsigned getMemcmpEqZeroLoadsPerBlock() const {
-    return 1;
-  }
-
   /// Get maximum # of store operations permitted for llvm.memmove
   ///
   /// This function returns the maximum number of store operations permitted
@@ -1403,10 +1419,10 @@ public:
   /// copy/move/set is converted to a sequence of store operations. Its use
   /// helps to ensure that such replacements don't generate code that causes an
   /// alignment error (trap) on the target machine.
-  virtual bool allowsMisalignedMemoryAccesses(EVT,
-                                              unsigned AddrSpace = 0,
-                                              unsigned Align = 1,
-                                              bool * /*Fast*/ = nullptr) const {
+  virtual bool allowsMisalignedMemoryAccesses(
+      EVT, unsigned AddrSpace = 0, unsigned Align = 1,
+      MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+      bool * /*Fast*/ = nullptr) const {
     return false;
   }
 
@@ -1414,8 +1430,18 @@ public:
   /// given address space and alignment. If the access is allowed, the optional
   /// final parameter returns if the access is also fast (as defined by the
   /// target).
+  bool
+  allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
+                     unsigned AddrSpace = 0, unsigned Alignment = 1,
+                     MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+                     bool *Fast = nullptr) const;
+
+  /// Return true if the target supports a memory access of this type for the
+  /// given MachineMemOperand. If the access is allowed, the optional
+  /// final parameter returns if the access is also fast (as defined by the
+  /// target).
   bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
-                          unsigned AddrSpace = 0, unsigned Alignment = 1,
+                          const MachineMemOperand &MMO,
                           bool *Fast = nullptr) const;
 
   /// Returns the target specific optimal type for load and store operations as
@@ -1581,8 +1607,9 @@ public:
   }
 
   /// Returns true if a cast from SrcAS to DestAS is "cheap", such that e.g. we
-  /// are happy to sink it into basic blocks.
-  virtual bool isCheapAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
+  /// are happy to sink it into basic blocks. A cast may be free, but not
+  /// necessarily a no-op. e.g. a free truncate from a 64-bit to 32-bit pointer.
+  virtual bool isFreeAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
     return isNoopAddrSpaceCast(SrcAS, DestAS);
   }
 
@@ -2173,39 +2200,6 @@ public:
     return false;
   }
 
-  /// Return true if the node is a math/logic binary operator.
-  virtual bool isBinOp(unsigned Opcode) const {
-    switch (Opcode) {
-    case ISD::ADD:
-    case ISD::SUB:
-    case ISD::MUL:
-    case ISD::AND:
-    case ISD::OR:
-    case ISD::XOR:
-    case ISD::SHL:
-    case ISD::SRL:
-    case ISD::SRA:
-    case ISD::SDIV:
-    case ISD::UDIV:
-    case ISD::SREM:
-    case ISD::UREM:
-    case ISD::FADD:
-    case ISD::FSUB:
-    case ISD::FMUL:
-    case ISD::FDIV:
-    case ISD::FREM:
-    case ISD::FMINNUM:
-    case ISD::FMAXNUM:
-    case ISD::FMINNUM_IEEE:
-    case ISD::FMAXNUM_IEEE:
-    case ISD::FMAXIMUM:
-    case ISD::FMINIMUM:
-      return true;
-    default:
-      return false;
-    }
-  }
-
   /// Returns true if the opcode is a commutative binary operation.
   virtual bool isCommutativeBinOp(unsigned Opcode) const {
     // FIXME: This should get its info from the td file.
@@ -2233,10 +2227,36 @@ public:
     case ISD::UADDSAT:
     case ISD::FMINNUM:
     case ISD::FMAXNUM:
+    case ISD::FMINNUM_IEEE:
+    case ISD::FMAXNUM_IEEE:
     case ISD::FMINIMUM:
     case ISD::FMAXIMUM:
       return true;
     default: return false;
+    }
+  }
+
+  /// Return true if the node is a math/logic binary operator.
+  virtual bool isBinOp(unsigned Opcode) const {
+    // A commutative binop must be a binop.
+    if (isCommutativeBinOp(Opcode))
+      return true;
+    // These are non-commutative binops.
+    switch (Opcode) {
+    case ISD::SUB:
+    case ISD::SHL:
+    case ISD::SRL:
+    case ISD::SRA:
+    case ISD::SDIV:
+    case ISD::UDIV:
+    case ISD::SREM:
+    case ISD::UREM:
+    case ISD::FSUB:
+    case ISD::FDIV:
+    case ISD::FREM:
+      return true;
+    default:
+      return false;
     }
   }
 
@@ -3118,6 +3138,10 @@ public:
                                                  KnownBits &Known,
                                                  TargetLoweringOpt &TLO,
                                                  unsigned Depth = 0) const;
+
+  /// This method returns the constant pool value that will be loaded by LD.
+  /// NOTE: You must check for implicit extensions of the constant by LD.
+  virtual const Constant *getTargetConstantFromLoad(LoadSDNode *LD) const;
 
   /// If \p SNaN is false, \returns true if \p Op is known to never be any
   /// NaN. If \p sNaN is true, returns if \p Op is known to never be a signaling
@@ -4045,6 +4069,14 @@ private:
                                                SDValue N1, ISD::CondCode Cond,
                                                DAGCombinerInfo &DCI,
                                                const SDLoc &DL) const;
+
+  SDValue prepareUREMEqFold(EVT SETCCVT, SDValue REMNode,
+                            SDValue CompTargetNode, ISD::CondCode Cond,
+                            DAGCombinerInfo &DCI, const SDLoc &DL,
+                            SmallVectorImpl<SDNode *> &Created) const;
+  SDValue buildUREMEqFold(EVT SETCCVT, SDValue REMNode, SDValue CompTargetNode,
+                          ISD::CondCode Cond, DAGCombinerInfo &DCI,
+                          const SDLoc &DL) const;
 };
 
 /// Given an LLVM IR type and return type attributes, compute the return value

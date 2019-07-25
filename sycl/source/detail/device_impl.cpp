@@ -18,7 +18,7 @@ device_impl_pi::create_sub_devices(
   const cl_device_partition_property *Properties,
   size_t SubDevicesCount) const {
 
-  vector_class<RT::pi_device> SubDevices(SubDevicesCount);
+  vector_class<RT::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
   PI_CALL(RT::piDevicePartition(m_device, Properties, SubDevicesCount,
                                 SubDevices.data(), &ReturnedSubDevices));
@@ -31,7 +31,7 @@ device_impl_pi::create_sub_devices(
   //
   vector_class<device> res;
   std::for_each(SubDevices.begin(), SubDevices.end(),
-                [&res](const RT::pi_device &a_pi_device) {
+                [&res](const RT::PiDevice &a_pi_device) {
     device sycl_device =
       detail::createSyclObjFromImpl<device>(
         std::make_shared<device_impl_pi>(a_pi_device));

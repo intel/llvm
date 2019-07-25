@@ -18,7 +18,6 @@
 #include "lldb/DataFormatters/TypeSummary.h"
 #include "lldb/DataFormatters/VectorIterator.h"
 #include "lldb/Symbol/ClangASTContext.h"
-#include "lldb/Target/CPPLanguageRuntime.h"
 #include "lldb/Target/ProcessStructReader.h"
 #include "lldb/Target/SectionLoadList.h"
 #include "lldb/Target/Target.h"
@@ -26,6 +25,8 @@
 #include "lldb/Utility/Endian.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/Stream.h"
+
+#include "Plugins/LanguageRuntime/CPlusPlus/CPPLanguageRuntime.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -67,7 +68,7 @@ bool lldb_private::formatters::LibcxxFunctionSummaryProvider(
   if (process == nullptr)
     return false;
 
-  CPPLanguageRuntime *cpp_runtime = process->GetCPPLanguageRuntime();
+  CPPLanguageRuntime *cpp_runtime = CPPLanguageRuntime::Get(*process);
 
   if (!cpp_runtime)
     return false;

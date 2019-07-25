@@ -7,7 +7,7 @@
 #
 #===------------------------------------------------------------------------===#
 
-from gen_std import ParseSymbolPage, ParseIndexPage
+from cppreference_parser import _ParseSymbolPage, _ParseIndexPage
 
 import unittest
 
@@ -22,7 +22,7 @@ class TestStdGen(unittest.TestCase):
  <a href="as_bytes.html" title="as bytes"><tt>as_bytes&lt;&gt;()</tt></a> <span class="t-mark-rev t-since-cxx20">(since C++20)</span> <br>
  """
 
-    actual = ParseIndexPage(html)
+    actual = _ParseIndexPage(html)
     expected = [
       ("abs", "abs.html", True),
       ("abs", "complex/abs.html", True),
@@ -53,7 +53,7 @@ class TestStdGen(unittest.TestCase):
   </tr>
 </tbody></table>
 """
-    self.assertEqual(ParseSymbolPage(html, 'foo'), set(['<cmath>']))
+    self.assertEqual(_ParseSymbolPage(html, 'foo'), set(['<cmath>']))
 
 
   def testParseSymbolPage_MulHeaders(self):
@@ -85,12 +85,16 @@ class TestStdGen(unittest.TestCase):
     <td></td>
   </tr>
   <tr class="t-dcl">
-    <td>void foo()</td>
+    <td>
+      <span>void</span>
+      foo
+      <span>()</span>
+    </td>
     <td>this is matched</td>
   </tr>
 </tbody></table>
 """
-    self.assertEqual(ParseSymbolPage(html, "foo"),
+    self.assertEqual(_ParseSymbolPage(html, "foo"),
                      set(['<cstdio>', '<cstdlib>']))
 
 
@@ -108,13 +112,43 @@ class TestStdGen(unittest.TestCase):
 <td></td>
 </tr>
 <tr class="t-dcl">
-  <td>void foo()</td>
+  <td>
+    <span>void</span>
+    foo
+    <span>()</span>
+  </td>
   <td>this is matched</td>
 </tr>
 </tbody></table>
 """
-    self.assertEqual(ParseSymbolPage(html, "foo"),
+    self.assertEqual(_ParseSymbolPage(html, "foo"),
                      set(['<algorithm>', '<utility>']))
+
+  def testParseSymbolPage_MulSymbolsInSameTd(self):
+    # defined in header <cstdint>
+    #   int8_t
+    #   int16_t
+    html = """
+<table class="t-dcl-begin"><tbody>
+<tr class="t-dsc-header">
+<td><div>
+     Defined in header <code><a href="cstdint.html" title="cstdint">&lt;cstdint&gt;</a></code><br>
+</div></td>
+<td></td>
+</tr>
+<tr class="t-dcl">
+  <td>
+    <span>int8_t</span>
+    <span>int16_t</span>
+  </td>
+  <td>this is matched</td>
+</tr>
+</tbody></table>
+"""
+    self.assertEqual(_ParseSymbolPage(html, "int8_t"),
+                     set(['<cstdint>']))
+    self.assertEqual(_ParseSymbolPage(html, "int16_t"),
+                     set(['<cstdint>']))
 
 
 if __name__ == '__main__':

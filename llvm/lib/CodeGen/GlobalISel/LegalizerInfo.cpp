@@ -544,11 +544,10 @@ LegalizerInfo::findAction(const SizeAndActionsVec &Vec, const uint32_t Size) {
   // Find the last element in Vec that has a bitsize equal to or smaller than
   // the requested bit size.
   // That is the element just before the first element that is bigger than Size.
-  auto VecIt = llvm::bsearch(
-      Vec, [=](const SizeAndAction &A) { return Size < A.first; });
-  assert(VecIt != Vec.begin() && "Does Vec not start with size 1?");
-  --VecIt;
-  int VecIdx = VecIt - Vec.begin();
+  auto It = partition_point(
+      Vec, [=](const SizeAndAction &A) { return A.first <= Size; });
+  assert(It != Vec.begin() && "Does Vec not start with size 1?");
+  int VecIdx = It - Vec.begin() - 1;
 
   LegalizeAction Action = Vec[VecIdx].second;
   switch (Action) {
@@ -657,6 +656,12 @@ LegalizerInfo::findVectorLegalAction(const InstrAspect &Aspect) const {
   return {NumElementsAndAction.second,
           LLT::vector(NumElementsAndAction.first,
                       IntermediateType.getScalarSizeInBits())};
+}
+
+bool LegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
+                                      MachineRegisterInfo &MRI,
+                                      MachineIRBuilder &MIRBuilder) const {
+  return true;
 }
 
 /// \pre Type indices of every opcode form a dense set starting from 0.

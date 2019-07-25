@@ -1,4 +1,4 @@
-//==-------- array.hpp --- SYCL common iteration object ---------------------==//
+//==-------- array.hpp --- SYCL common iteration object --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,20 +8,40 @@
 
 #pragma once
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <functional>
 #include <stdexcept>
-#include <type_traits>
 
 namespace cl {
 namespace sycl {
-template <int dimensions> struct id;
+template <int dimensions> class id;
 template <int dimensions> class range;
 namespace detail {
 
 template <int dimensions = 1> class array {
   static_assert(dimensions >= 1, "Array cannot be 0-dimensional.");
+
 public:
-  array() : common_array{0} {}
+  /* TODO: use common_array initialization via initialization list in
+   * constructor when memset conversion between SPIR-V and LLVM IR formats
+   * will be fixed in SPIR-V translator. */
+  template <int N = dimensions, detail::enable_if_t<(N == 1), size_t> = 0>
+  array() {
+    common_array[0] = 0;
+  }
+
+  template <int N = dimensions, detail::enable_if_t<(N == 2), size_t> = 0>
+  array() {
+    common_array[0] = 0;
+    common_array[1] = 0;
+  }
+
+  template <int N = dimensions, detail::enable_if_t<(N == 3), size_t> = 0>
+  array() {
+    common_array[0] = 0;
+    common_array[1] = 0;
+    common_array[2] = 0;
+  }
 
   /* The following constructor is only available in the array struct
    * specialization where: dimensions==1 */

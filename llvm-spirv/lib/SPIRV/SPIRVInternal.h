@@ -333,6 +333,10 @@ const static char ImageSampleExplicitLod[] = "ImageSampleExplicitLod";
 const static char ReservedPrefix[] = "reserved_";
 const static char SampledImage[] = "SampledImage";
 const static char TempSampledImage[] = "TempSampledImage";
+const static char TranslateOCLMemOrder[] = "__translate_ocl_memory_order";
+const static char TranslateOCLMemScope[] = "__translate_ocl_memory_scope";
+const static char TranslateSPIRVMemOrder[] = "__translate_spirv_memory_order";
+const static char TranslateSPIRVMemScope[] = "__translate_spirv_memory_scope";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {
@@ -412,6 +416,11 @@ public:
   virtual ~BuiltinFuncMangleInfo() {}
   const std::string &getUnmangledName() const { return UnmangledName; }
   void addUnsignedArg(int Ndx) { UnsignedArgs.insert(Ndx); }
+  void addUnsignedArgs(int StartNdx, int StopNdx) {
+    assert(StartNdx < StopNdx && "wrong parameters");
+    for (int I = StartNdx; I <= StopNdx; ++I)
+      addUnsignedArg(I);
+  }
   void addVoidPtrArg(int Ndx) { VoidPtrArgs.insert(Ndx); }
   void addSamplerArg(int Ndx) { SamplerArgs.insert(Ndx); }
   void addAtomicArg(int Ndx) { AtomicArgs.insert(Ndx); }
@@ -520,9 +529,8 @@ inline size_t findFirstPtr(const std::vector<Value *> &Args) {
 }
 
 bool isSupportedTriple(Triple T);
-void removeFnAttr(LLVMContext *Context, CallInst *Call,
-                  Attribute::AttrKind Attr);
-void addFnAttr(LLVMContext *Context, CallInst *Call, Attribute::AttrKind Attr);
+void removeFnAttr(CallInst *Call, Attribute::AttrKind Attr);
+void addFnAttr(CallInst *Call, Attribute::AttrKind Attr);
 void saveLLVMModule(Module *M, const std::string &OutputFile);
 std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed);
 std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed);

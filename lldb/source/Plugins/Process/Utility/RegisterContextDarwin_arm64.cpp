@@ -122,7 +122,7 @@ RegisterContextDarwin_arm64::GetRegisterInfoAtIndex(size_t reg) {
   assert(k_num_register_infos == k_num_registers);
   if (reg < k_num_registers)
     return &g_register_infos_arm64_le[reg];
-  return NULL;
+  return nullptr;
 }
 
 size_t RegisterContextDarwin_arm64::GetRegisterInfosCount() {
@@ -157,7 +157,7 @@ size_t RegisterContextDarwin_arm64::GetRegisterSetCount() {
 const RegisterSet *RegisterContextDarwin_arm64::GetRegisterSet(size_t reg_set) {
   if (reg_set < k_num_regsets)
     return &g_reg_sets[reg_set];
-  return NULL;
+  return nullptr;
 }
 
 // Register information definitions for arm64
@@ -646,8 +646,8 @@ bool RegisterContextDarwin_arm64::WriteRegister(const RegisterInfo *reg_info,
 bool RegisterContextDarwin_arm64::ReadAllRegisterValues(
     lldb::DataBufferSP &data_sp) {
   data_sp = std::make_shared<DataBufferHeap>(REG_CONTEXT_SIZE, 0);
-  if (data_sp && ReadGPR(false) == KERN_SUCCESS &&
-      ReadFPU(false) == KERN_SUCCESS && ReadEXC(false) == KERN_SUCCESS) {
+  if (ReadGPR(false) == KERN_SUCCESS && ReadFPU(false) == KERN_SUCCESS &&
+      ReadEXC(false) == KERN_SUCCESS) {
     uint8_t *dst = data_sp->GetBytes();
     ::memcpy(dst, &gpr, sizeof(gpr));
     dst += sizeof(gpr);

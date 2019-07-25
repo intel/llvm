@@ -425,7 +425,7 @@ namespace compound_assign {
   constexpr bool test_overflow() {
     T a = 1;
     while (a != a / 2)
-      a *= 2; // expected-note {{value 2147483648 is outside the range}} expected-note {{ 9223372036854775808 }} expected-note {{floating point arithmetic produces an infinity}}
+      a *= 2; // expected-note {{value 2147483648 is outside the range}} expected-note {{ 9223372036854775808 }}
     return true;
   }
 
@@ -435,7 +435,8 @@ namespace compound_assign {
   static_assert(test_overflow<unsigned short>(), ""); // ok
   static_assert(test_overflow<unsigned long long>(), ""); // ok
   static_assert(test_overflow<long long>(), ""); // expected-error {{constant}} expected-note {{call}}
-  static_assert(test_overflow<float>(), ""); // expected-error {{constant}} expected-note {{call}}
+  static_assert(test_overflow<float>(), ""); // ok
+  static_assert(test_overflow<double>(), ""); // ok
 
   constexpr short test_promotion(short k) {
     short s = k;
@@ -1204,4 +1205,20 @@ namespace ObjectsUnderConstruction {
 
   // The lifetime of 'n' begins at the initialization, not before.
   constexpr int n = ++const_cast<int&>(n); // expected-error {{constant expression}} expected-note {{modification}}
+}
+
+namespace PR39728 {
+  struct Comment0 {
+    Comment0 &operator=(const Comment0 &) = default;
+    ~Comment0() = default;
+  };
+  constexpr void f() {
+    Comment0 a;
+    a = a;
+  }
+  static_assert((f(), true), "");
+  struct Comment1 {
+    constexpr Comment1 &operator=(const Comment1 &) = default; // OK
+    ~Comment1() = default;
+  };
 }

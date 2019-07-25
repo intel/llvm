@@ -184,7 +184,7 @@ Function::Function(CompileUnit *comp_unit, lldb::user_id_t func_uid,
                    const AddressRange &range)
     : UserID(func_uid), m_comp_unit(comp_unit), m_type_uid(type_uid),
       m_type(type), m_mangled(mangled), m_block(func_uid), m_range(range),
-      m_frame_base(nullptr), m_flags(), m_prologue_byte_size(0) {
+      m_frame_base(), m_flags(), m_prologue_byte_size(0) {
   m_block.SetParentScope(this);
   assert(comp_unit != nullptr);
 }
@@ -546,7 +546,7 @@ uint32_t Function::GetPrologueByteSize() {
 
         // Now calculate the offset to pass the subsequent line 0 entries.
         uint32_t first_non_zero_line = prologue_end_line_idx;
-        while (1) {
+        while (true) {
           LineEntry line_entry;
           if (line_table->GetLineEntryAtIndex(first_non_zero_line,
                                               line_entry)) {
@@ -589,10 +589,14 @@ uint32_t Function::GetPrologueByteSize() {
 }
 
 lldb::LanguageType Function::GetLanguage() const {
+  lldb::LanguageType lang = m_mangled.GuessLanguage();
+  if (lang != lldb::eLanguageTypeUnknown)
+    return lang;
+
   if (m_comp_unit)
     return m_comp_unit->GetLanguage();
-  else
-    return lldb::eLanguageTypeUnknown;
+
+  return lldb::eLanguageTypeUnknown;
 }
 
 ConstString Function::GetName() const {

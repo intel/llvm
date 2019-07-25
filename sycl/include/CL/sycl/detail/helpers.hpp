@@ -11,6 +11,8 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/pi.hpp>
+
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -20,10 +22,10 @@ namespace cl {
 namespace sycl {
 class context;
 class event;
-template <int dimensions, bool with_offset> struct item;
+template <int dimensions, bool with_offset> class item;
 template <int dimensions> class group;
 template <int dimensions> class range;
-template <int dimensions> struct id;
+template <int dimensions> class id;
 template <int dimensions> class nd_item;
 enum class memory_order;
 template <int dimensions> class h_item;
@@ -32,13 +34,14 @@ namespace detail {
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
-std::vector<cl_event>
+std::vector<RT::PiEvent>
 getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
                 std::shared_ptr<cl::sycl::detail::context_impl> Context);
 
 void waitEvents(std::vector<cl::sycl::event> DepEvents);
 
-struct Builder {
+class Builder {
+public:
   Builder() = delete;
   template <int dimensions>
   static group<dimensions> createGroup(const cl::sycl::range<dimensions> &G,

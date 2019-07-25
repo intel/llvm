@@ -28,6 +28,7 @@
 #include "FuzzyMatch.h"
 #include "Headers.h"
 #include "Logger.h"
+#include "Protocol.h"
 #include "Quality.h"
 #include "SourceCode.h"
 #include "TUScheduler.h"
@@ -56,6 +57,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
@@ -92,8 +94,10 @@ CompletionItemKind toCompletionItemKind(index::SymbolKind Kind) {
   case SK::Extension:
   case SK::Union:
     return CompletionItemKind::Class;
-  // FIXME(ioeric): figure out whether reference is the right type for aliases.
   case SK::TypeAlias:
+    // We use the same kind as the VSCode C++ extension.
+    // FIXME: pick a better option when we have one.
+    return CompletionItemKind::Interface;
   case SK::Using:
     return CompletionItemKind::Reference;
   case SK::Function:
@@ -146,46 +150,6 @@ toCompletionItemKind(CodeCompletionResult::ResultKind ResKind,
   llvm_unreachable("Unhandled CodeCompletionResult::ResultKind.");
 }
 
-/// Get the optional chunk as a string. This function is possibly recursive.
-///
-/// The parameter info for each parameter is appended to the Parameters.
-std::string getOptionalParameters(const CodeCompletionString &CCS,
-                                  std::vector<ParameterInformation> &Parameters,
-                                  SignatureQualitySignals &Signal) {
-  std::string Result;
-  for (const auto &Chunk : CCS) {
-    switch (Chunk.Kind) {
-    case CodeCompletionString::CK_Optional:
-      assert(Chunk.Optional &&
-             "Expected the optional code completion string to be non-null.");
-      Result += getOptionalParameters(*Chunk.Optional, Parameters, Signal);
-      break;
-    case CodeCompletionString::CK_VerticalSpace:
-      break;
-    case CodeCompletionString::CK_Placeholder:
-      // A string that acts as a placeholder for, e.g., a function call
-      // argument.
-      // Intentional fallthrough here.
-    case CodeCompletionString::CK_CurrentParameter: {
-      // A piece of text that describes the parameter that corresponds to
-      // the code-completion location within a function call, message send,
-      // macro invocation, etc.
-      Result += Chunk.Text;
-      ParameterInformation Info;
-      Info.label = Chunk.Text;
-      Parameters.push_back(std::move(Info));
-      Signal.ContainsActiveParameter = true;
-      Signal.NumberOfOptionalParameters++;
-      break;
-    }
-    default:
-      Result += Chunk.Text;
-      break;
-    }
-  }
-  return Result;
-}
-
 // Identifier code completion result.
 struct RawIdentifier {
   llvm::StringRef Name;
@@ -205,7 +169,7 @@ struct CompletionCandidate {
   // Returns a token identifying the overload set this is part of.
   // 0 indicates it's not part of any overload set.
   size_t overloadSet(const CodeCompleteOptions &Opts) const {
-    if (!Opts.BundleOverloads)
+    if (!Opts.BundleOverloads.getValueOr(false))
       return 0;
     llvm::SmallString<256> Scratch;
     if (IndexResult) {
@@ -363,8 +327,12 @@ struct CodeCompletionBuilder {
       auto ResolvedInserted = toHeaderFile(Header, FileName);
       if (!ResolvedInserted)
         return ResolvedInserted.takeError();
+      auto Spelled = Includes.calculateIncludePath(*ResolvedInserted, FileName);
+      if (!Spelled)
+        return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                       "Header not on include path");
       return std::make_pair(
-          Includes.calculateIncludePath(*ResolvedInserted),
+          std::move(*Spelled),
           Includes.shouldInsertInclude(*ResolvedDeclaring, *ResolvedInserted));
     };
     bool ShouldInsert = C.headerToInsertIfAllowed(Opts).hasValue();
@@ -378,8 +346,9 @@ struct CodeCompletionBuilder {
         Completion.Includes.push_back(std::move(Include));
       } else
         log("Failed to generate include insertion edits for adding header "
-            "(FileURI='{0}', IncludeHeader='{1}') into {2}",
-            C.IndexResult->CanonicalDeclaration.FileURI, Inc, FileName);
+            "(FileURI='{0}', IncludeHeader='{1}') into {2}: {3}",
+            C.IndexResult->CanonicalDeclaration.FileURI, Inc, FileName,
+            ToInclude.takeError());
     }
     // Prefer includes that do not need edits (i.e. already exist).
     std::stable_partition(Completion.Includes.begin(),
@@ -394,8 +363,9 @@ struct CodeCompletionBuilder {
     Bundled.emplace_back();
     BundledEntry &S = Bundled.back();
     if (C.SemaResult) {
+      bool IsPattern = C.SemaResult->Kind == CodeCompletionResult::RK_Pattern;
       getSignature(*SemaCCS, &S.Signature, &S.SnippetSuffix,
-                   &Completion.RequiredQualifier);
+                   &Completion.RequiredQualifier, IsPattern);
       S.ReturnType = getReturnType(*SemaCCS);
     } else if (C.IndexResult) {
       S.Signature = C.IndexResult->Signature;
@@ -480,7 +450,8 @@ private:
         return EmptyArgs ? "()" : "($0)";
       return *Snippet; // Not an arg snippet?
     }
-    if (Completion.Kind == CompletionItemKind::Reference ||
+    // 'CompletionItemKind::Interface' matches template type aliases.
+    if (Completion.Kind == CompletionItemKind::Interface ||
         Completion.Kind == CompletionItemKind::Class) {
       if (Snippet->front() != '<')
         return *Snippet; // Not an arg snippet?
@@ -826,8 +797,7 @@ class SignatureHelpCollector final : public CodeCompleteConsumer {
 public:
   SignatureHelpCollector(const clang::CodeCompleteOptions &CodeCompleteOpts,
                          const SymbolIndex *Index, SignatureHelp &SigHelp)
-      : CodeCompleteConsumer(CodeCompleteOpts),
-        SigHelp(SigHelp),
+      : CodeCompleteConsumer(CodeCompleteOpts), SigHelp(SigHelp),
         Allocator(std::make_shared<clang::GlobalCodeCompletionAllocator>()),
         CCTUInfo(Allocator), Index(Index) {}
 
@@ -940,6 +910,47 @@ public:
   CodeCompletionTUInfo &getCodeCompletionTUInfo() override { return CCTUInfo; }
 
 private:
+  void processParameterChunk(llvm::StringRef ChunkText,
+                             SignatureInformation &Signature) const {
+    // (!) this is O(n), should still be fast compared to building ASTs.
+    unsigned ParamStartOffset = lspLength(Signature.label);
+    unsigned ParamEndOffset = ParamStartOffset + lspLength(ChunkText);
+    // A piece of text that describes the parameter that corresponds to
+    // the code-completion location within a function call, message send,
+    // macro invocation, etc.
+    Signature.label += ChunkText;
+    ParameterInformation Info;
+    Info.labelOffsets.emplace(ParamStartOffset, ParamEndOffset);
+    // FIXME: only set 'labelOffsets' when all clients migrate out of it.
+    Info.labelString = ChunkText;
+
+    Signature.parameters.push_back(std::move(Info));
+  }
+
+  void processOptionalChunk(const CodeCompletionString &CCS,
+                            SignatureInformation &Signature,
+                            SignatureQualitySignals &Signal) const {
+    for (const auto &Chunk : CCS) {
+      switch (Chunk.Kind) {
+      case CodeCompletionString::CK_Optional:
+        assert(Chunk.Optional &&
+               "Expected the optional code completion string to be non-null.");
+        processOptionalChunk(*Chunk.Optional, Signature, Signal);
+        break;
+      case CodeCompletionString::CK_VerticalSpace:
+        break;
+      case CodeCompletionString::CK_CurrentParameter:
+      case CodeCompletionString::CK_Placeholder:
+        processParameterChunk(Chunk.Text, Signature);
+        Signal.NumberOfOptionalParameters++;
+        break;
+      default:
+        Signature.label += Chunk.Text;
+        break;
+      }
+    }
+  }
+
   // FIXME(ioeric): consider moving CodeCompletionString logic here to
   // CompletionString.h.
   ScoredSignature processOverloadCandidate(const OverloadCandidate &Candidate,
@@ -960,28 +971,16 @@ private:
         assert(!ReturnType && "Unexpected CK_ResultType");
         ReturnType = Chunk.Text;
         break;
+      case CodeCompletionString::CK_CurrentParameter:
       case CodeCompletionString::CK_Placeholder:
-        // A string that acts as a placeholder for, e.g., a function call
-        // argument.
-        // Intentional fallthrough here.
-      case CodeCompletionString::CK_CurrentParameter: {
-        // A piece of text that describes the parameter that corresponds to
-        // the code-completion location within a function call, message send,
-        // macro invocation, etc.
-        Signature.label += Chunk.Text;
-        ParameterInformation Info;
-        Info.label = Chunk.Text;
-        Signature.parameters.push_back(std::move(Info));
+        processParameterChunk(Chunk.Text, Signature);
         Signal.NumberOfParameters++;
-        Signal.ContainsActiveParameter = true;
         break;
-      }
       case CodeCompletionString::CK_Optional: {
         // The rest of the parameters are defaulted/optional.
         assert(Chunk.Optional &&
                "Expected the optional code completion string to be non-null.");
-        Signature.label += getOptionalParameters(*Chunk.Optional,
-                                                 Signature.parameters, Signal);
+        processOptionalChunk(*Chunk.Optional, Signature, Signal);
         break;
       }
       case CodeCompletionString::CK_VerticalSpace:
@@ -1033,7 +1032,7 @@ void loadMainFilePreambleMacros(const Preprocessor &PP,
       PP.getIdentifierTable().getExternalIdentifierLookup();
   if (!PreambleIdentifiers || !PreambleMacros)
     return;
-  for (const auto& MacroName : Preamble.MainFileMacros)
+  for (const auto &MacroName : Preamble.MainFileMacros)
     if (auto *II = PreambleIdentifiers->get(MacroName))
       if (II->isOutOfDate())
         PreambleMacros->updateOutOfDateIdentifier(*II);
@@ -1111,8 +1110,9 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   if (Includes)
     Clang->getPreprocessor().addPPCallbacks(
         collectIncludeStructureCallback(Clang->getSourceManager(), Includes));
-  if (!Action.Execute()) {
-    log("Execute() failed when running codeComplete for {0}", Input.FileName);
+  if (llvm::Error Err = Action.Execute()) {
+    log("Execute() failed when running codeComplete for {0}: {1}",
+        Input.FileName, toString(std::move(Err)));
     return false;
   }
   Action.EndSourceFile();
@@ -1209,7 +1209,7 @@ class CodeCompleteFlow {
   int NSema = 0, NIndex = 0, NSemaAndIndex = 0, NIdent = 0;
   bool Incomplete = false; // Would more be available with a higher limit?
   CompletionPrefix HeuristicPrefix;
-  llvm::Optional<FuzzyMatcher> Filter;  // Initialized once Sema runs.
+  llvm::Optional<FuzzyMatcher> Filter; // Initialized once Sema runs.
   Range ReplacedRange;
   std::vector<std::string> QueryScopes; // Initialized once Sema runs.
   // Initialized once QueryScopes is initialized, if there are scopes.
@@ -1391,12 +1391,12 @@ private:
     unsigned RangeEnd = HeuristicPrefix.Qualifier.begin() - Content.data(),
              RangeBegin = RangeEnd;
     for (size_t I = 0; I < 3 && RangeBegin > 0; ++I) {
-      auto PrevNL = Content.rfind('\n', RangeBegin - 1);
+      auto PrevNL = Content.rfind('\n', RangeBegin);
       if (PrevNL == StringRef::npos) {
         RangeBegin = 0;
         break;
       }
-      RangeBegin = PrevNL + 1;
+      RangeBegin = PrevNL;
     }
 
     ContextWords = collectWords(Content.slice(RangeBegin, RangeEnd));
@@ -1703,8 +1703,8 @@ clang::CodeCompleteOptions CodeCompleteOptions::getClangCompleteOpts() const {
   return Result;
 }
 
-CompletionPrefix
-guessCompletionPrefix(llvm::StringRef Content, unsigned Offset) {
+CompletionPrefix guessCompletionPrefix(llvm::StringRef Content,
+                                       unsigned Offset) {
   assert(Offset <= Content.size());
   StringRef Rest = Content.take_front(Offset);
   CompletionPrefix Result;

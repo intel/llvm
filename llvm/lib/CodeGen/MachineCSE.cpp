@@ -102,7 +102,8 @@ namespace {
 
     unsigned LookAheadLimit = 0;
     DenseMap<MachineBasicBlock *, ScopeType *> ScopeMap;
-    DenseMap<MachineInstr *, MachineBasicBlock *, MachineInstrExpressionTrait> PREMap;
+    DenseMap<MachineInstr *, MachineBasicBlock *, MachineInstrExpressionTrait>
+        PREMap;
     ScopedHTType VNT;
     SmallVector<MachineInstr *, 64> Exps;
     unsigned CurrVN = 0;
@@ -391,7 +392,7 @@ bool MachineCSE::isCSECandidate(MachineInstr *MI) {
 
   // Ignore stuff that we obviously can't move.
   if (MI->mayStore() || MI->isCall() || MI->isTerminator() ||
-      MI->hasUnmodeledSideEffects())
+      MI->mayRaiseFPException() || MI->hasUnmodeledSideEffects())
     return false;
 
   if (MI->mayLoad()) {
@@ -761,25 +762,27 @@ bool MachineCSE::PerformCSE(MachineDomTreeNode *Node) {
 bool MachineCSE::isPRECandidate(MachineInstr *MI) {
   if (!isCSECandidate(MI) ||
       MI->isNotDuplicable() ||
+      MI->mayLoad() ||
       MI->isAsCheapAsAMove() ||
       MI->getNumDefs() != 1 ||
       MI->getNumExplicitDefs() != 1)
     return false;
 
-  for (auto def: MI->defs())
+  for (auto def : MI->defs())
     if (!TRI->isVirtualRegister(def.getReg()))
       return false;
 
-  for (auto use: MI->uses())
+  for (auto use : MI->uses())
     if (use.isReg() && !TRI->isVirtualRegister(use.getReg()))
       return false;
 
   return true;
 }
 
-bool MachineCSE::ProcessBlockPRE(MachineDominatorTree *DT, MachineBasicBlock *MBB) {
+bool MachineCSE::ProcessBlockPRE(MachineDominatorTree *DT,
+                                 MachineBasicBlock *MBB) {
   bool Changed = false;
-  for (MachineBasicBlock::iterator I = MBB->begin(), E = MBB->end(); I != E; ) {
+  for (MachineBasicBlock::iterator I = MBB->begin(), E = MBB->end(); I != E;) {
     MachineInstr *MI = &*I;
     ++I;
 
@@ -792,9 +795,12 @@ bool MachineCSE::ProcessBlockPRE(MachineDominatorTree *DT, MachineBasicBlock *MB
     }
 
     auto MBB1 = PREMap[MI];
-    assert(!DT->properlyDominates(MBB, MBB1) &&
-           "MBB cannot properly dominate MBB1 while DFS through dominators tree!");
+    assert(
+        !DT->properlyDominates(MBB, MBB1) &&
+        "MBB cannot properly dominate MBB1 while DFS through dominators tree!");
     auto CMBB = DT->findNearestCommonDominator(MBB, MBB1);
+    if (!CMBB->isLegalToHoistInto())
+      continue;
 
     // Two instrs are partial redundant if their basic blocks are reachable
     // from one to another but one doesn't dominate another.
@@ -810,7 +816,8 @@ bool MachineCSE::ProcessBlockPRE(MachineDominatorTree *DT, MachineBasicBlock *MB
         unsigned NewReg = MRI->cloneVirtualRegister(VReg);
         if (!isProfitableToCSE(NewReg, VReg, CMBB, MI))
           continue;
-        MachineInstr &NewMI = TII->duplicate(*CMBB, CMBB->getFirstTerminator(), *MI);
+        MachineInstr &NewMI =
+            TII->duplicate(*CMBB, CMBB->getFirstTerminator(), *MI);
         NewMI.getOperand(0).setReg(NewReg);
 
         PREMap[MI] = CMBB;
@@ -828,14 +835,14 @@ bool MachineCSE::ProcessBlockPRE(MachineDominatorTree *DT, MachineBasicBlock *MB
 // If CSE doesn't eliminate this, than created instruction will remain dead
 // and eliminated later by Remove Dead Machine Instructions pass.
 bool MachineCSE::PerformSimplePRE(MachineDominatorTree *DT) {
-  SmallVector<MachineDomTreeNode*, 32> BBs;
+  SmallVector<MachineDomTreeNode *, 32> BBs;
 
   PREMap.clear();
   bool Changed = false;
   BBs.push_back(DT->getRootNode());
   do {
     auto Node = BBs.pop_back_val();
-    const std::vector<MachineDomTreeNode*> &Children = Node->getChildren();
+    const std::vector<MachineDomTreeNode *> &Children = Node->getChildren();
     for (MachineDomTreeNode *Child : Children)
       BBs.push_back(Child);
 

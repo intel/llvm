@@ -14,6 +14,7 @@ class DocumentationCategory<string name> {
 }
 def DocCatFunction : DocumentationCategory<"Function Attributes">;
 def DocCatVariable : DocumentationCategory<"Variable Attributes">;
+def DocCatField : DocumentationCategory<"Field Attributes">;
 def DocCatType : DocumentationCategory<"Type Attributes">;
 def DocCatStmt : DocumentationCategory<"Statement Attributes">;
 def DocCatDecl : DocumentationCategory<"Declaration Attributes">;
@@ -284,21 +285,28 @@ class SubjectList<list<AttrSubject> subjects, SubjectDiag diag = WarnDiag,
   string CustomDiag = customDiag;
 }
 
-class LangOpt<string name, bit negated = 0> {
+class LangOpt<string name, code customCode = [{}]> {
   string Name = name;
-  bit Negated = negated;
+
+  // A custom predicate, written as an expression evaluated in a context with
+  // "LangOpts" bound.
+  code CustomCode = customCode;
 }
 def MicrosoftExt : LangOpt<"MicrosoftExt">;
 def Borland : LangOpt<"Borland">;
 def CUDA : LangOpt<"CUDA">;
-def SYCL : LangOpt<"SYCLIsDevice">;
-def COnly : LangOpt<"CPlusPlus", 1>;
+def SYCLIsDevice : LangOpt<"SYCLIsDevice">;
+def SYCLIsHost : LangOpt<"SYCLIsHost">;
+def HIP : LangOpt<"HIP">;
+def COnly : LangOpt<"COnly", "!LangOpts.CPlusPlus">;
 def CPlusPlus : LangOpt<"CPlusPlus">;
 def OpenCL : LangOpt<"OpenCL">;
 def RenderScript : LangOpt<"RenderScript">;
 def ObjC : LangOpt<"ObjC">;
 def BlocksSupported : LangOpt<"Blocks">;
 def ObjCAutoRefCount : LangOpt<"ObjCAutoRefCount">;
+def ObjCNonFragileRuntime : LangOpt<"ObjCNonFragileRuntime",
+                                    "LangOpts.ObjCRuntime.allowsClassStubs()">;
 
 // Language option for CMSE extensions
 def Cmse : LangOpt<"Cmse">;
@@ -311,12 +319,14 @@ class TargetSpec {
   // Specifies Operating Systems for which the target applies, based off the
   // OSType enumeration in Triple.h
   list<string> OSes;
-  // Specifies the C++ ABIs for which the target applies, based off the
-  // TargetCXXABI::Kind in TargetCXXABI.h.
-  list<string> CXXABIs;
   // Specifies Object Formats for which the target applies, based off the
   // ObjectFormatType enumeration in Triple.h
   list<string> ObjectFormats;
+  // A custom predicate, written as an expression evaluated in a context
+  // with the following declarations in scope:
+  //   const clang::TargetInfo &Target;
+  //   const llvm::Triple &T = Target.getTriple();
+  code CustomCode = [{}];
 }
 
 class TargetArch<list<string> arches> : TargetSpec {
@@ -334,8 +344,11 @@ def TargetWebAssembly : TargetArch<["wasm32", "wasm64"]>;
 def TargetWindows : TargetArch<["x86", "x86_64", "arm", "thumb", "aarch64"]> {
   let OSes = ["Win32"];
 }
+def TargetItaniumCXXABI : TargetSpec {
+  let CustomCode = [{ Target.getCXXABI().isItaniumFamily() }];
+}
 def TargetMicrosoftCXXABI : TargetArch<["x86", "x86_64", "arm", "thumb", "aarch64"]> {
-  let CXXABIs = ["Microsoft"];
+  let CustomCode = [{ Target.getCXXABI().isMicrosoft() }];
 }
 def TargetELF : TargetSpec {
   let ObjectFormats = ["ELF"];
@@ -947,6 +960,13 @@ def CUDADevice : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def HIPPinnedShadow : InheritableAttr {
+  let Spellings = [GNU<"hip_pinned_shadow">, Declspec<"__hip_pinned_shadow__">];
+  let Subjects = SubjectList<[Var]>;
+  let LangOpts = [HIP];
+  let Documentation = [HIPPinnedShadowDocs];
+}
+
 def CUDADeviceBuiltin : IgnoredAttr {
   let Spellings = [GNU<"device_builtin">, Declspec<"__device_builtin__">];
   let LangOpts = [CUDA];
@@ -1006,14 +1026,14 @@ def CUDAShared : InheritableAttr {
 def SYCLDevice : InheritableAttr {
   let Spellings = [GNU<"sycl_device">];
   let Subjects = SubjectList<[Function, Var]>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice];
   let Documentation = [Undocumented];
 }
 
 def SYCLKernel : InheritableAttr {
   let Spellings = [GNU<"sycl_kernel">];
   let Subjects = SubjectList<[Function]>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice];
   let Documentation = [Undocumented];
 }
 
@@ -1049,7 +1069,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
   let Args = [UnsignedArgument<"SubGroupSize">];
   let Subjects = SubjectList<[Function, CXXMethod], ErrorDiag>;
   let Documentation = [IntelReqdSubGroupSizeDocs];
-  let LangOpts = [OpenCL, SYCL];
+  let LangOpts = [OpenCL, SYCLIsDevice];
 }
 
 // This attribute is both a type attribute, and a declaration attribute (for
@@ -1069,27 +1089,27 @@ def OpenCLAccess : Attr {
 }
 
 def OpenCLPrivateAddressSpace : TypeAttr {
-  let Spellings = [Keyword<"__private">, Keyword<"private">];
+  let Spellings = [Keyword<"__private">, Keyword<"private">, Clang<"ocl_private">];
   let Documentation = [OpenCLAddressSpacePrivateDocs];
 }
 
 def OpenCLGlobalAddressSpace : TypeAttr {
-  let Spellings = [Keyword<"__global">, Keyword<"global">];
+  let Spellings = [Keyword<"__global">, Keyword<"global">, Clang<"ocl_global">];
   let Documentation = [OpenCLAddressSpaceGlobalDocs];
 }
 
 def OpenCLLocalAddressSpace : TypeAttr {
-  let Spellings = [Keyword<"__local">, Keyword<"local">];
+  let Spellings = [Keyword<"__local">, Keyword<"local">, Clang<"ocl_local">];
   let Documentation = [OpenCLAddressSpaceLocalDocs];
 }
 
 def OpenCLConstantAddressSpace : TypeAttr {
-  let Spellings = [Keyword<"__constant">, Keyword<"constant">];
+  let Spellings = [Keyword<"__constant">, Keyword<"constant">, Clang<"ocl_constant">];
   let Documentation = [OpenCLAddressSpaceConstantDocs];
 }
 
 def OpenCLGenericAddressSpace : TypeAttr {
-  let Spellings = [Keyword<"__generic">, Keyword<"generic">];
+  let Spellings = [Keyword<"__generic">, Keyword<"generic">, Clang<"ocl_generic">];
   let Documentation = [OpenCLAddressSpaceGenericDocs];
 }
 
@@ -1400,7 +1420,7 @@ def Mode : Attr {
 def SYCLIntelFPGAIVDep : Attr {
   let Spellings = [CXX11<"intelfpga","ivdep">];
   let Args = [IntArgument<"Safelen">];
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let AdditionalMembers = [{
     static const char *getName() {
       return "ivdep";
@@ -1412,7 +1432,7 @@ def SYCLIntelFPGAIVDep : Attr {
 def SYCLIntelFPGAII : Attr {
   let Spellings = [CXX11<"intelfpga","ii">];
   let Args = [IntArgument<"Interval">];
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let AdditionalMembers = [{
     static const char *getName() {
       return "ii";
@@ -1424,7 +1444,7 @@ def SYCLIntelFPGAII : Attr {
 def SYCLIntelFPGAMaxConcurrency : Attr {
   let Spellings = [CXX11<"intelfpga","max_concurrency">];
   let Args = [IntArgument<"NThreads">];
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let AdditionalMembers = [{
     static const char *getName() {
       return "max_concurrency";
@@ -1469,7 +1489,7 @@ def IntelFPGADoublePump : Attr {
   let Spellings = [CXX11<"intelfpga", "doublepump">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGADoublePumpAttrDocs];
 }
 
@@ -1477,7 +1497,7 @@ def IntelFPGASinglePump : Attr {
   let Spellings = [CXX11<"intelfpga", "singlepump">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGASinglePumpAttrDocs];
 }
 
@@ -1497,7 +1517,7 @@ def IntelFPGAMemory : Attr {
   }];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGAMemoryAttrDocs];
 }
 
@@ -1505,7 +1525,7 @@ def IntelFPGARegister : Attr {
   let Spellings = [CXX11<"intelfpga", "register">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGARegisterAttrDocs];
 }
 
@@ -1515,7 +1535,7 @@ def IntelFPGABankWidth : Attr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGABankWidthAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {
@@ -1532,7 +1552,7 @@ def IntelFPGANumBanks : Attr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGANumBanksAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {
@@ -1547,7 +1567,7 @@ def IntelFPGANumBanks : Attr {
 def IntelFPGAMaxPrivateCopies : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","max_private_copies">];
   let Args = [ExprArgument<"Value">];
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[IntelFPGALocalNonConstVar, Field], ErrorDiag>;
   let Documentation = [IntelFPGAMaxPrivateCopiesAttrDocs];
   let AdditionalMembers = [{
@@ -1566,7 +1586,7 @@ def IntelFPGAMerge : Attr {
   let Args = [StringArgument<"Name">, StringArgument<"Direction">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGAMergeAttrDocs];
 }
 
@@ -1575,7 +1595,7 @@ def IntelFPGAMaxReplicates : Attr {
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGAMaxReplicatesAttrDocs];
   let AdditionalMembers = [{
     static unsigned getMinValue() {
@@ -1591,7 +1611,7 @@ def IntelFPGASimpleDualPort : Attr {
   let Spellings = [CXX11<"intelfpga","simple_dual_port">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
                               Field], ErrorDiag>;
-  let LangOpts = [SYCL];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Documentation = [IntelFPGASimpleDualPortAttrDocs];
 }
 
@@ -1615,6 +1635,12 @@ def NeonVectorType : TypeAttr {
   let Documentation = [Undocumented];
   // Represented as VectorType instead.
   let ASTNode = 0;
+}
+
+def NoUniqueAddress : InheritableAttr, TargetSpecificAttr<TargetItaniumCXXABI> {
+  let Spellings = [CXX11<"", "no_unique_address", 201803>];
+  let Subjects = SubjectList<[NonBitField], ErrorDiag>;
+  let Documentation = [NoUniqueAddressDocs];
 }
 
 def ReturnsTwice : InheritableAttr {
@@ -1643,7 +1669,7 @@ def NoCommon : InheritableAttr {
 
 def NoDebug : InheritableAttr {
   let Spellings = [GCC<"nodebug">];
-  let Subjects = SubjectList<[FunctionLike, ObjCMethod, NonParmVar]>;
+  let Subjects = SubjectList<[TypedefName, FunctionLike, ObjCMethod, NonParmVar]>;
   let Documentation = [NoDebugDocs];
 }
 
@@ -1866,7 +1892,7 @@ def NoStackProtector : InheritableAttr {
 
 def NoThrow : InheritableAttr {
   let Spellings = [GCC<"nothrow">, Declspec<"nothrow">];
-  let Subjects = SubjectList<[Function]>;
+  let Subjects = SubjectList<[FunctionLike]>;
   let Documentation = [NoThrowDocs];
 }
 
@@ -2020,6 +2046,13 @@ def ObjCRuntimeVisible : Attr {
   let Documentation = [ObjCRuntimeVisibleDocs];
 }
 
+def ObjCClassStub : Attr {
+  let Spellings = [Clang<"objc_class_stub">];
+  let Subjects = SubjectList<[ObjCInterface], ErrorDiag>;
+  let Documentation = [ObjCClassStubDocs];
+  let LangOpts = [ObjCNonFragileRuntime];
+}
+
 def ObjCBoxable : Attr {
   let Spellings = [Clang<"objc_boxable">];
   let Subjects = SubjectList<[Record], ErrorDiag>;
@@ -2151,6 +2184,8 @@ def Section : InheritableAttr {
   let Documentation = [SectionDocs];
 }
 
+// This is used for `__declspec(code_seg("segname"))`, but not for
+// `#pragma code_seg("segname")`.
 def CodeSeg : InheritableAttr {
   let Spellings = [Declspec<"code_seg">];
   let Args = [StringArgument<"Name">];

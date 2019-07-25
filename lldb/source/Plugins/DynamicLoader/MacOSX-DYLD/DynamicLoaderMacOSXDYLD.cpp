@@ -16,7 +16,6 @@
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/ABI.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
@@ -29,6 +28,8 @@
 
 #include "DynamicLoaderDarwin.h"
 #include "DynamicLoaderMacOSXDYLD.h"
+
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 
 //#define ENABLE_DEBUG_PRINTF // COMMENT THIS LINE OUT PRIOR TO CHECKIN
 #ifdef ENABLE_DEBUG_PRINTF
@@ -88,7 +89,7 @@ DynamicLoader *DynamicLoaderMacOSXDYLD::CreateInstance(Process *process,
 
   if (create)
     return new DynamicLoaderMacOSXDYLD(process);
-  return NULL;
+  return nullptr;
 }
 
 // Constructor
@@ -608,7 +609,7 @@ bool DynamicLoaderMacOSXDYLD::RemoveModulesUsingImageInfosAddress(
         // We'll remove them all at one go later on.
 
         ModuleSP unload_image_module_sp(
-            FindTargetModuleForImageInfo(image_infos[idx], false, NULL));
+            FindTargetModuleForImageInfo(image_infos[idx], false, nullptr));
         if (unload_image_module_sp.get()) {
           // When we unload, be sure to use the image info from the old list,
           // since that has sections correctly filled in.
@@ -794,7 +795,7 @@ bool DynamicLoaderMacOSXDYLD::ReadMachHeader(lldb::addr_t addr,
     if (data.GetU32(&offset, &header->cputype,
                     (sizeof(llvm::MachO::mach_header) / sizeof(uint32_t)) -
                         1)) {
-      if (load_command_data == NULL)
+      if (load_command_data == nullptr)
         return true; // We were able to read the mach_header and weren't asked
                      // to read the load command bytes
 
@@ -922,7 +923,7 @@ void DynamicLoaderMacOSXDYLD::UpdateImageInfosHeaderAndLoadCommands(
                           &data))
         continue;
 
-      ParseLoadCommands(data, image_infos[i], NULL);
+      ParseLoadCommands(data, image_infos[i], nullptr);
 
       if (image_infos[i].header.filetype == llvm::MachO::MH_EXECUTE)
         exe_idx = i;
@@ -933,8 +934,8 @@ void DynamicLoaderMacOSXDYLD::UpdateImageInfosHeaderAndLoadCommands(
 
   if (exe_idx < image_infos.size()) {
     const bool can_create = true;
-    ModuleSP exe_module_sp(
-        FindTargetModuleForImageInfo(image_infos[exe_idx], can_create, NULL));
+    ModuleSP exe_module_sp(FindTargetModuleForImageInfo(image_infos[exe_idx],
+                                                        can_create, nullptr));
 
     if (exe_module_sp) {
       UpdateImageLoadAddress(exe_module_sp.get(), image_infos[exe_idx]);
@@ -969,7 +970,7 @@ void DynamicLoaderMacOSXDYLD::UpdateImageInfosHeaderAndLoadCommands(
 // Dump the _dyld_all_image_infos members and all current image infos that we
 // have parsed to the file handle provided.
 void DynamicLoaderMacOSXDYLD::PutToLog(Log *log) const {
-  if (log == NULL)
+  if (log == nullptr)
     return;
 
   std::lock_guard<std::recursive_mutex> guard(m_mutex);

@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // The test checks that the types can be used to pass kernel parameters by value
-// RUN: %clang -std=c++11 -fsyntax-only %s
+// RUN: %clangxx -fsyntax-only %s
 
 // Check that the test can be compiled with device compiler as well.
-// RUN: %clang --sycl -fsyntax-only %s
+// RUN: %clangxx --sycl -fsyntax-only %s
 
 #include <CL/sycl.hpp>
 

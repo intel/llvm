@@ -38,18 +38,6 @@ enum target {
   image_array
 };
 
-enum RestrictKind {
-  KernelGlobalVariable,
-  KernelRTTI,
-  KernelNonConstStaticDataVariable,
-  KernelCallVirtualFunction,
-  KernelCallRecursiveFunction,
-  KernelCallFunctionPointer,
-  KernelAllocateStorage,
-  KernelUseExceptions,
-  KernelUseAssembly
-};
-
 using ParamDesc = std::tuple<QualType, IdentifierInfo *, TypeSourceInfo *>;
 
 /// Various utilities.
@@ -95,28 +83,28 @@ public:
       // definitions.
       if (RecursiveSet.count(Callee)) {
         SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-            << KernelCallRecursiveFunction;
+            << Sema::KernelCallRecursiveFunction;
         SemaRef.Diag(Callee->getSourceRange().getBegin(),
                      diag::note_sycl_recursive_function_declared_here)
-            << KernelCallRecursiveFunction;
+            << Sema::KernelCallRecursiveFunction;
       }
 
       if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Callee))
         if (Method->isVirtual())
           SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-              << KernelCallVirtualFunction;
+              << Sema::KernelCallVirtualFunction;
 
       CheckSYCLType(Callee->getReturnType(), Callee->getSourceRange());
 
       if (FunctionDecl *Def = Callee->getDefinition()) {
         if (!Def->hasAttr<SYCLDeviceAttr>()) {
           Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-          SemaRef.AddSyclKernel(Def);
+          SemaRef.addSyclDeviceDecl(Def);
         }
       }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr)
       SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-          << KernelCallFunctionPointer;
+          << Sema::KernelCallFunctionPointer;
     return true;
   }
 
@@ -128,7 +116,7 @@ public:
 
     if (FunctionDecl *Def = Ctor->getDefinition()) {
       Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-      SemaRef.AddSyclKernel(Def);
+      SemaRef.addSyclDeviceDecl(Def);
     }
 
     const auto *ConstructedType = Ctor->getParent();
@@ -137,19 +125,19 @@ public:
 
       if (FunctionDecl *Def = Dtor->getDefinition()) {
         Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-        SemaRef.AddSyclKernel(Def);
+        SemaRef.addSyclDeviceDecl(Def);
       }
     }
     return true;
   }
 
   bool VisitCXXTypeidExpr(CXXTypeidExpr *E) {
-    SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << KernelRTTI;
+    SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << Sema::KernelRTTI;
     return true;
   }
 
   bool VisitCXXDynamicCastExpr(const CXXDynamicCastExpr *E) {
-    SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << KernelRTTI;
+    SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict) << Sema::KernelRTTI;
     return true;
   }
 
@@ -178,7 +166,7 @@ public:
       bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
       if (!IsConst && VD->isStaticDataMember())
         SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
-            << KernelNonConstStaticDataVariable;
+            << Sema::KernelNonConstStaticDataVariable;
     }
     return true;
   }
@@ -189,11 +177,15 @@ public:
       bool IsConst = VD->getType().getNonReferenceType().isConstQualified();
       if (!IsConst && VD->isStaticDataMember())
         SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
-            << KernelNonConstStaticDataVariable;
+            << Sema::KernelNonConstStaticDataVariable;
       else if (!IsConst && VD->hasGlobalStorage() && !VD->isStaticLocal() &&
           !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD))
         SemaRef.Diag(E->getLocation(), diag::err_sycl_restrict)
-            << KernelGlobalVariable;
+            << Sema::KernelGlobalVariable;
+      if (!VD->isLocalVarDeclOrParm() && VD->hasGlobalStorage()) {
+        VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
+        SemaRef.addSyclDeviceDecl(VD);
+      }
     }
     return true;
   }
@@ -209,50 +201,26 @@ public:
     if (FunctionDecl *FD = E->getOperatorNew()) {
       if (FD->isReplaceableGlobalAllocationFunction()) {
         SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
-            << KernelAllocateStorage;
+            << Sema::KernelAllocateStorage;
       } else if (FunctionDecl *Def = FD->getDefinition()) {
         if (!Def->hasAttr<SYCLDeviceAttr>()) {
           Def->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
-          SemaRef.AddSyclKernel(Def);
+          SemaRef.addSyclDeviceDecl(Def);
         }
       }
     }
     return true;
   }
-
-  bool VisitCXXThrowExpr(CXXThrowExpr *E) {
-    SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
-        << KernelUseExceptions;
-    return true;
-  }
-
-  bool VisitCXXCatchStmt(CXXCatchStmt *S) {
-    SemaRef.Diag(S->getBeginLoc(), diag::err_sycl_restrict)
-        << KernelUseExceptions;
-    return true;
-  }
-
-  bool VisitCXXTryStmt(CXXTryStmt *S) {
-    SemaRef.Diag(S->getBeginLoc(), diag::err_sycl_restrict)
-        << KernelUseExceptions;
-    return true;
-  }
-
-  bool VisitSEHTryStmt(SEHTryStmt *S) {
-    SemaRef.Diag(S->getBeginLoc(), diag::err_sycl_restrict)
-        << KernelUseExceptions;
-    return true;
-  }
-
+  
   bool VisitGCCAsmStmt(GCCAsmStmt *S) {
     SemaRef.Diag(S->getBeginLoc(), diag::err_sycl_restrict)
-        << KernelUseAssembly;
+        << Sema::KernelUseAssembly;
     return true;
   }
-
+ 
   bool VisitMSAsmStmt(MSAsmStmt *S) {
     SemaRef.Diag(S->getBeginLoc(), diag::err_sycl_restrict)
-        << KernelUseAssembly;
+        << Sema::KernelUseAssembly;
     return true;
   }
 
@@ -349,6 +317,9 @@ private:
     if (!Visited.insert(Ty).second)
       return true;
     
+    if (const auto *ATy = dyn_cast<AttributedType>(Ty))
+      return CheckSYCLType(ATy->getModifiedType(), Loc, Visited);
+
     if (const auto *CRD = Ty->getAsCXXRecordDecl()) {
       // If the class is a forward declaration - skip it, because otherwise we
       // would query property of class with no definition, which results in
@@ -357,25 +328,38 @@ private:
         return true;
 
       if (CRD->isPolymorphic()) {
-        SemaRef.Diag(CRD->getLocation(), diag::err_sycl_virtual_types);
-        SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
+        // Exceptions aren't allowed in SYCL device code.
+        if (SemaRef.getLangOpts().SYCLIsDevice) {
+          SemaRef.SYCLDiagIfDeviceCode(CRD->getLocation(),
+			               diag::err_sycl_restrict)
+                  << Sema::KernelHavePolymorphicClass;
+          SemaRef.SYCLDiagIfDeviceCode(Loc.getBegin(),
+                                       diag::note_sycl_used_here);
+	}
         return false;
       }
 
       for (const auto &Field : CRD->fields()) {
         if (!CheckSYCLType(Field->getType(), Field->getSourceRange(), Visited)) {
-          SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
+          if (SemaRef.getLangOpts().SYCLIsDevice)
+            SemaRef.SYCLDiagIfDeviceCode(Loc.getBegin(),
+	                                 diag::note_sycl_used_here);
           return false;
         }
       }
     } else if (const auto *RD = Ty->getAsRecordDecl()) {
       for (const auto &Field : RD->fields()) {
         if (!CheckSYCLType(Field->getType(), Field->getSourceRange(), Visited)) {
-          SemaRef.Diag(Loc.getBegin(), diag::note_sycl_used_here);
+          if (SemaRef.getLangOpts().SYCLIsDevice)
+            SemaRef.SYCLDiagIfDeviceCode(Loc.getBegin(), 
+	                                 diag::note_sycl_used_here);
           return false;
         }
       }
     } else if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
+      if (FPTy->isVariadic() && SemaRef.getLangOpts().SYCLIsDevice)
+	SemaRef.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_sycl_restrict)
+            << Sema::KernelCallVariadicFunction;
       for (const auto &ParamTy : FPTy->param_types())
         if (!CheckSYCLType(ParamTy, Loc, Visited))
           return false;
@@ -540,7 +524,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
             S.Context, Base, false, SourceLocation(), NestedNameSpecifierLoc(),
             SourceLocation(), Field, FieldDAP,
             DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
-            nullptr, Field->getType(), VK_LValue, OK_Ordinary);
+            nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
 
         // [kernel_obj or wrapper object].special_obj.__init
         DeclAccessPair MethodDAP = DeclAccessPair::make(InitMethod, AS_none);
@@ -548,7 +532,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
             S.Context, SpecialObjME, false, SourceLocation(),
             NestedNameSpecifierLoc(), SourceLocation(), InitMethod, MethodDAP,
             DeclarationNameInfo(InitMethod->getDeclName(), SourceLocation()),
-            nullptr, InitMethod->getType(), VK_LValue, OK_Ordinary);
+            nullptr, InitMethod->getType(), VK_LValue, OK_Ordinary, NOUR_None);
 
         // Not referenced -> not emitted
         S.MarkFunctionReferenced(SourceLocation(), InitMethod, true);
@@ -601,7 +585,8 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
                       WrapperFieldDAP,
                       DeclarationNameInfo(WrapperFld->getDeclName(),
                                           SourceLocation()),
-                      nullptr, WrapperFld->getType(), VK_LValue, OK_Ordinary);
+                      nullptr, WrapperFld->getType(), VK_LValue, OK_Ordinary,
+                      NOUR_None);
                   getExprForWrappedAccessorInit(WrapperFldCRD, NewBase);
                 }
               }
@@ -638,7 +623,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
             S.Context, KernelObjCloneRef, false, SourceLocation(),
             NestedNameSpecifierLoc(), SourceLocation(), Field, FieldDAP,
             DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
-            nullptr, Field->getType(), VK_LValue, OK_Ordinary);
+            nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
         auto Rhs = ImplicitCastExpr::Create(
             S.Context, ParamType, CK_LValueToRValue, DRE, nullptr, VK_RValue);
         // lambda.field = kernel_parameter
@@ -970,10 +955,15 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc) {
   // Let's copy source location of a functor/lambda to emit nicer diagnostics
   OpenCLKernel->setLocation(LE->getLocation());
 
+  // If the source function is implicitly inline, the kernel should be marked
+  // such as well. This allows the kernel to be ODR'd if there are multiple uses
+  // in different translation units.
+  OpenCLKernel->setImplicitlyInline(KernelCallerFunc->isInlined());
+
   CompoundStmt *OpenCLKernelBody =
       CreateOpenCLKernelBody(*this, KernelCallerFunc, OpenCLKernel);
   OpenCLKernel->setBody(OpenCLKernelBody);
-  AddSyclKernel(OpenCLKernel);
+  addSyclDeviceDecl(OpenCLKernel);
 }
 
 void Sema::MarkDevice(void) {
@@ -983,7 +973,7 @@ void Sema::MarkDevice(void) {
   // it is recursive.
   MarkDeviceFunction Marker(*this);
   Marker.SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
-  for (Decl *D : SyclKernels()) {
+  for (Decl *D : syclDeviceDecls()) {
     if (auto SYCLKernel = dyn_cast<FunctionDecl>(D)) {
       llvm::SmallPtrSet<FunctionDecl *, 10> VisitedSet;
       Marker.CollectKernelSet(SYCLKernel, SYCLKernel, VisitedSet);
@@ -1026,11 +1016,59 @@ void Sema::MarkDevice(void) {
     if (FunctionDecl *Def = elt->getDefinition()) {
       if (!Def->hasAttr<SYCLDeviceAttr>()) {
         Def->addAttr(SYCLDeviceAttr::CreateImplicit(Context));
-        AddSyclKernel(Def);
+        addSyclDeviceDecl(Def);
       }
       Marker.TraverseStmt(Def->getBody());
     }
   }
+}
+//
+// Do we know that we will eventually codegen the given function?
+static bool isKnownEmitted(Sema &S, FunctionDecl *FD) {
+  if (!FD)
+    return true; // Seen in LIT testing
+
+  if (FD->hasAttr<SYCLDeviceAttr>() ||
+      FD->hasAttr<SYCLKernelAttr>())
+     return true;
+
+  // Templates are emitted when they're instantiated.
+  if (FD->isDependentContext())
+    return false;
+
+  // Otherwise, the function is known-emitted if it's in our set of
+  // known-emitted functions.
+  return S.DeviceKnownEmittedFns.count(FD) > 0;
+}
+
+Sema::DeviceDiagBuilder Sema::SYCLDiagIfDeviceCode(SourceLocation Loc,
+                                                   unsigned DiagID) {
+  assert(getLangOpts().SYCLIsDevice &&
+    "Should only be called during SYCL compilation");
+  DeviceDiagBuilder::Kind DiagKind = [this] {
+    if (isKnownEmitted(*this, dyn_cast<FunctionDecl>(CurContext)))
+      return DeviceDiagBuilder::K_ImmediateWithCallStack;
+    return DeviceDiagBuilder::K_Deferred;
+  }();
+  return DeviceDiagBuilder(DiagKind, Loc, DiagID,
+                           dyn_cast<FunctionDecl>(CurContext), *this);
+}
+
+bool Sema::CheckSYCLCall(SourceLocation Loc, FunctionDecl *Callee) {
+
+  assert(Callee && "Callee may not be null.");
+  FunctionDecl *Caller = getCurFunctionDecl();
+
+  // If the caller is known-emitted, mark the callee as known-emitted.
+  // Otherwise, mark the call in our call graph so we can traverse it later.
+  if (//!isOpenMPDeviceDelayedContext(*this) ||
+      (Caller && Caller->hasAttr<SYCLKernelAttr>()) ||
+      (Caller && Caller->hasAttr<SYCLDeviceAttr>()) ||
+      (Caller && isKnownEmitted(*this, Caller)))
+    markKnownEmitted(*this, Caller, Callee, Loc, isKnownEmitted);
+  else if (Caller)
+    DeviceCallGraph[Caller].insert({Callee, Loc});
+  return true;
 }
 
 // -----------------------------------------------------------------------------

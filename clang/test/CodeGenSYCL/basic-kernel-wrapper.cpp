@@ -20,7 +20,7 @@ int main() {
   return 0;
 }
 
-// CHECK: define spir_kernel void @{{.*}}kernel_function(i32 addrspace(1)* [[MEM_ARG:%[a-zA-Z0-9_]+]], %"struct.{{.*}}.cl::sycl::range"* byval align 4 [[ACC_RANGE:%[a-zA-Z0-9_]+]], %"struct.{{.*}}.cl::sycl::range"* byval align 4 [[MEM_RANGE:%[a-zA-Z0-9_]+]], %"struct.{{.*}}.cl::sycl::id"* byval align 4 [[OFFSET:%[a-zA-Z0-9_]+]])
+// CHECK: define spir_kernel void @{{.*}}kernel_function(i32 addrspace(1)* [[MEM_ARG:%[a-zA-Z0-9_]+]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE:%[a-zA-Z0-9_]+]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE:%[a-zA-Z0-9_]+]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET:%[a-zA-Z0-9_]+]])
 //
 // Check alloca for pointer argument
 // CHECK: [[MEM_ARG]].addr = alloca i32 addrspace(1)*
@@ -38,9 +38,9 @@ int main() {
 // CHECK: [[MEM_LOAD:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[MEM_ARG]].addr
 
 // Check accessor __init method call
-// CHECK-OLD: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor"* [[ACCESSOR]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval align 4 [[ACC_RANGE]], %"struct.{{.*}}.cl::sycl::range"* byval align 4 [[MEM_RANGE]], %"struct.{{.*}}.cl::sycl::id"* byval align 4 [[OFFSET]])
+// CHECK-OLD: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor"* [[ACCESSOR]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET]])
 // CHECK-NEW: [[ACCESSORCAST:%[0-9]+]] = addrspacecast %"class{{.*}}accessor"* [[ACCESSOR]] to %"class{{.*}}accessor" addrspace(4)*
-// CHECK-NEW: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACCESSORCAST]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval align 4 [[ACC_RANGE]], %"struct.{{.*}}.cl::sycl::range"* byval align 4 [[MEM_RANGE]], %"struct.{{.*}}.cl::sycl::id"* byval align 4 [[OFFSET]])
+// CHECK-NEW: call spir_func void @{{.*}}__init{{.*}}(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* [[ACCESSORCAST]], i32 addrspace(1)* [[MEM_LOAD]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[ACC_RANGE]], %"struct.{{.*}}.cl::sycl::range"* byval({{.*}}) align 4 [[MEM_RANGE]], %"struct.{{.*}}.cl::sycl::id"* byval({{.*}}) align 4 [[OFFSET]])
 
 // Check lambda "()" operator call
 // CHECK-OLD: call spir_func void @{{.*}}(%"class.{{.*}}.anon"* [[ANON]])

@@ -342,7 +342,7 @@ hash_code llvm::hash_value(const MachineOperand &MO) {
   switch (MO.getType()) {
   case MachineOperand::MO_Register:
     // Register operands don't have target flags.
-    return hash_combine(MO.getType(), MO.getReg(), MO.getSubReg(), MO.isDef());
+    return hash_combine(MO.getType(), (unsigned)MO.getReg(), MO.getSubReg(), MO.isDef());
   case MachineOperand::MO_Immediate:
     return hash_combine(MO.getType(), MO.getTargetFlags(), MO.getImm());
   case MachineOperand::MO_CImmediate:
@@ -361,7 +361,7 @@ hash_code llvm::hash_value(const MachineOperand &MO) {
     return hash_combine(MO.getType(), MO.getTargetFlags(), MO.getIndex());
   case MachineOperand::MO_ExternalSymbol:
     return hash_combine(MO.getType(), MO.getTargetFlags(), MO.getOffset(),
-                        MO.getSymbolName());
+                        StringRef(MO.getSymbolName()));
   case MachineOperand::MO_GlobalAddress:
     return hash_combine(MO.getType(), MO.getTargetFlags(), MO.getGlobal(),
                         MO.getOffset());
@@ -1138,7 +1138,7 @@ void MachineMemOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,
       printLLVMNameWithoutPrefix(
           OS, cast<ExternalSymbolPseudoSourceValue>(PVal)->getSymbol());
       break;
-    case PseudoSourceValue::TargetCustom:
+    default:
       // FIXME: This is not necessarily the correct MIR serialization format for
       // a custom pseudo source value, but at least it allows
       // -print-machineinstrs to work on a target with custom pseudo source

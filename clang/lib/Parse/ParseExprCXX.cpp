@@ -232,13 +232,16 @@ bool Parser::ParseOptionalCXXScopeSpecifier(CXXScopeSpec &SS,
     HasScopeSpecifier = true;
   }
 
+  // Preferred type might change when parsing qualifiers, we need the original.
+  auto SavedType = PreferredType;
   while (true) {
     if (HasScopeSpecifier) {
       if (Tok.is(tok::code_completion)) {
         // Code completion for a nested-name-specifier, where the code
         // completion token follows the '::'.
         Actions.CodeCompleteQualifiedId(getCurScope(), SS, EnteringContext,
-                                        ObjectType.get());
+                                        ObjectType.get(),
+                                        SavedType.get(SS.getBeginLoc()));
         // Include code completion token into the range of the scope otherwise
         // when we try to annotate the scope tokens the dangling code completion
         // token will cause assertion in
@@ -1098,10 +1101,11 @@ bool Parser::ParseLambdaIntroducer(LambdaIntroducer &Intro,
   return false;
 }
 
-static void
-tryConsumeMutableOrConstexprToken(Parser &P, SourceLocation &MutableLoc,
-                                  SourceLocation &ConstexprLoc,
-                                  SourceLocation &DeclEndLoc) {
+static void tryConsumeLambdaSpecifierToken(Parser &P,
+                                           SourceLocation &MutableLoc,
+                                           SourceLocation &ConstexprLoc,
+                                           SourceLocation &ConstevalLoc,
+                                           SourceLocation &DeclEndLoc) {
   assert(MutableLoc.isInvalid());
   assert(ConstexprLoc.isInvalid());
   // Consume constexpr-opt mutable-opt in any sequence, and set the DeclEndLoc
@@ -1129,6 +1133,15 @@ tryConsumeMutableOrConstexprToken(Parser &P, SourceLocation &MutableLoc,
       ConstexprLoc = P.ConsumeToken();
       DeclEndLoc = ConstexprLoc;
       break /*switch*/;
+    case tok::kw_consteval:
+      if (ConstevalLoc.isValid()) {
+        P.Diag(P.getCurToken().getLocation(),
+               diag::err_lambda_decl_specifier_repeated)
+            << 2 << FixItHint::CreateRemoval(P.getCurToken().getLocation());
+      }
+      ConstevalLoc = P.ConsumeToken();
+      DeclEndLoc = ConstevalLoc;
+      break /*switch*/;
     default:
       return;
     }
@@ -1144,9 +1157,22 @@ addConstexprToLambdaDeclSpecifier(Parser &P, SourceLocation ConstexprLoc,
                              : diag::warn_cxx14_compat_constexpr_on_lambda);
     const char *PrevSpec = nullptr;
     unsigned DiagID = 0;
-    DS.SetConstexprSpec(ConstexprLoc, PrevSpec, DiagID);
+    DS.SetConstexprSpec(CSK_constexpr, ConstexprLoc, PrevSpec, DiagID);
     assert(PrevSpec == nullptr && DiagID == 0 &&
            "Constexpr cannot have been set previously!");
+  }
+}
+
+static void addConstevalToLambdaDeclSpecifier(Parser &P,
+                                              SourceLocation ConstevalLoc,
+                                              DeclSpec &DS) {
+  if (ConstevalLoc.isValid()) {
+    P.Diag(ConstevalLoc, diag::warn_cxx20_compat_consteval);
+    const char *PrevSpec = nullptr;
+    unsigned DiagID = 0;
+    DS.SetConstexprSpec(CSK_consteval, ConstevalLoc, PrevSpec, DiagID);
+    if (DiagID != 0)
+      P.Diag(ConstevalLoc, DiagID) << PrevSpec;
   }
 }
 
@@ -1260,14 +1286,16 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
     // compatible with MSVC.
     MaybeParseMicrosoftDeclSpecs(Attr, &DeclEndLoc);
 
-    // Parse mutable-opt and/or constexpr-opt, and update the DeclEndLoc.
+    // Parse mutable-opt and/or constexpr-opt or consteval-opt, and update the
+    // DeclEndLoc.
     SourceLocation MutableLoc;
     SourceLocation ConstexprLoc;
-    tryConsumeMutableOrConstexprToken(*this, MutableLoc, ConstexprLoc,
-                                      DeclEndLoc);
+    SourceLocation ConstevalLoc;
+    tryConsumeLambdaSpecifierToken(*this, MutableLoc, ConstexprLoc,
+                                   ConstevalLoc, DeclEndLoc);
 
     addConstexprToLambdaDeclSpecifier(*this, ConstexprLoc, DS);
-
+    addConstevalToLambdaDeclSpecifier(*this, ConstevalLoc, DS);
     // Parse exception-specification[opt].
     ExceptionSpecificationType ESpecType = EST_None;
     SourceRange ESpecRange;
@@ -1306,10 +1334,10 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
 
     SourceLocation NoLoc;
     D.AddTypeInfo(DeclaratorChunk::getFunction(
-                      /*hasProto=*/true,
-                      /*isAmbiguous=*/false, LParenLoc, ParamInfo.data(),
+                      /*HasProto=*/true,
+                      /*IsAmbiguous=*/false, LParenLoc, ParamInfo.data(),
                       ParamInfo.size(), EllipsisLoc, RParenLoc,
-                      /*RefQualifierIsLValueRef=*/true,
+                      /*RefQualifierIsLvalueRef=*/true,
                       /*RefQualifierLoc=*/NoLoc, MutableLoc, ESpecType,
                       ESpecRange, DynamicExceptions.data(),
                       DynamicExceptionRanges.data(), DynamicExceptions.size(),
@@ -1319,7 +1347,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                       TrailingReturnType),
                   std::move(Attr), DeclEndLoc);
   } else if (Tok.isOneOf(tok::kw_mutable, tok::arrow, tok::kw___attribute,
-                         tok::kw_constexpr) ||
+                         tok::kw_constexpr, tok::kw_consteval) ||
              (Tok.is(tok::l_square) && NextToken().is(tok::l_square))) {
     // It's common to forget that one needs '()' before 'mutable', an attribute
     // specifier, or the result type. Deal with this.
@@ -1330,6 +1358,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
     case tok::kw___attribute:
     case tok::l_square: TokKind = 2; break;
     case tok::kw_constexpr: TokKind = 3; break;
+    case tok::kw_consteval: TokKind = 4; break;
     default: llvm_unreachable("Unknown token kind");
     }
 
@@ -1365,14 +1394,14 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
 
     SourceLocation NoLoc;
     D.AddTypeInfo(DeclaratorChunk::getFunction(
-                      /*hasProto=*/true,
-                      /*isAmbiguous=*/false,
+                      /*HasProto=*/true,
+                      /*IsAmbiguous=*/false,
                       /*LParenLoc=*/NoLoc,
                       /*Params=*/nullptr,
                       /*NumParams=*/0,
                       /*EllipsisLoc=*/NoLoc,
                       /*RParenLoc=*/NoLoc,
-                      /*RefQualifierIsLValueRef=*/true,
+                      /*RefQualifierIsLvalueRef=*/true,
                       /*RefQualifierLoc=*/NoLoc, MutableLoc, EST_None,
                       /*ESpecRange=*/SourceRange(),
                       /*Exceptions=*/nullptr,
@@ -1672,7 +1701,7 @@ Parser::ParseCXXPseudoDestructor(Expr *Base, SourceLocation OpLoc,
       ParseUnqualifiedIdTemplateId(SS, SourceLocation(),
                                    Name, NameLoc,
                                    false, ObjectType, SecondTypeName,
-                                   /*AssumeTemplateName=*/true))
+                                   /*AssumeTemplateId=*/true))
     return ExprError();
 
   return Actions.ActOnPseudoDestructorExpr(getCurScope(), Base, OpLoc, OpKind,
@@ -3032,7 +3061,7 @@ void Parser::ParseDirectNewDeclarator(Declarator &D) {
     MaybeParseCXX11Attributes(Attrs);
 
     D.AddTypeInfo(DeclaratorChunk::getArray(0,
-                                            /*static=*/false, /*star=*/false,
+                                            /*isStatic=*/false, /*isStar=*/false,
                                             Size.get(), T.getOpenLocation(),
                                             T.getCloseLocation()),
                   std::move(Attrs), T.getCloseLocation());
@@ -3483,4 +3512,38 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
   assert(Tok.is(tok::eof) && Tok.getEofData() == AttrEnd.getEofData());
   ConsumeAnyToken();
   return Result;
+}
+
+/// Parse a __builtin_bit_cast(T, E).
+ExprResult Parser::ParseBuiltinBitCast() {
+  SourceLocation KWLoc = ConsumeToken();
+
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+  if (T.expectAndConsume(diag::err_expected_lparen_after, "__builtin_bit_cast"))
+    return ExprError();
+
+  // Parse the common declaration-specifiers piece.
+  DeclSpec DS(AttrFactory);
+  ParseSpecifierQualifierList(DS);
+
+  // Parse the abstract-declarator, if present.
+  Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
+  ParseDeclarator(DeclaratorInfo);
+
+  if (ExpectAndConsume(tok::comma)) {
+    Diag(Tok.getLocation(), diag::err_expected) << tok::comma;
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  ExprResult Operand = ParseExpression();
+
+  if (T.consumeClose())
+    return ExprError();
+
+  if (Operand.isInvalid() || DeclaratorInfo.isInvalidType())
+    return ExprError();
+
+  return Actions.ActOnBuiltinBitCastExpr(KWLoc, DeclaratorInfo, Operand,
+                                         T.getCloseLocation());
 }

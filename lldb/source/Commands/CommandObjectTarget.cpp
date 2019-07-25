@@ -1967,9 +1967,8 @@ static constexpr OptionEnumValueElement g_sort_option_enumeration[] = {
     {eSortOrderByName, "name", "Sort output by symbol name."} };
 
 static constexpr OptionDefinition g_target_modules_dump_symtab_options[] = {
-    // clang-format off
-  { LLDB_OPT_SET_1, false, "sort", 's', OptionParser::eRequiredArgument, nullptr, OptionEnumValues(g_sort_option_enumeration), 0, eArgTypeSortOrder, "Supply a sort order when dumping the symbol table." }
-    // clang-format on
+#define LLDB_OPTIONS_target_modules_dump_symtab
+#include "CommandOptions.inc"
 };
 
 class CommandObjectTargetModulesDumpSymtab
@@ -3521,7 +3520,7 @@ protected:
             non_callsite_unwind_plan->GetSourceName().AsCString());
       }
       UnwindPlanSP callsite_unwind_plan =
-          func_unwinders_sp->GetUnwindPlanAtCallSite(*target);
+          func_unwinders_sp->GetUnwindPlanAtCallSite(*target, *thread);
       if (callsite_unwind_plan) {
         result.GetOutputStream().Printf(
             "Synchronous (restricted to call-sites) UnwindPlan is '%s'\n",
@@ -3740,7 +3739,7 @@ public:
         break;
 
       case 'v':
-        m_verbose = 1;
+        m_verbose = true;
         break;
 
       case 'A':

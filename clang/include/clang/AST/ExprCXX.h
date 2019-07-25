@@ -216,6 +216,8 @@ public:
 
 /// Represents a call to a CUDA kernel function.
 class CUDAKernelCallExpr final : public CallExpr {
+  friend class ASTStmtReader;
+
   enum { CONFIG, END_PREARG };
 
   // CUDAKernelCallExpr has some trailing objects belonging
@@ -240,20 +242,6 @@ public:
     return cast_or_null<CallExpr>(getPreArg(CONFIG));
   }
   CallExpr *getConfig() { return cast_or_null<CallExpr>(getPreArg(CONFIG)); }
-
-  /// Sets the kernel configuration expression.
-  ///
-  /// Note that this method cannot be called if config has already been set to a
-  /// non-null value.
-  void setConfig(CallExpr *E) {
-    assert(!getConfig() &&
-           "Cannot call setConfig if config is not null");
-    setPreArg(CONFIG, E);
-    setInstantiationDependent(isInstantiationDependent() ||
-                              E->isInstantiationDependent());
-    setContainsUnexpandedParameterPack(containsUnexpandedParameterPack() ||
-                                       E->containsUnexpandedParameterPack());
-  }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CUDAKernelCallExprClass;
@@ -4725,6 +4713,35 @@ public:
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CoyieldExprClass;
+  }
+};
+
+/// Represents a C++2a __builtin_bit_cast(T, v) expression. Used to implement
+/// std::bit_cast. These can sometimes be evaluated as part of a constant
+/// expression, but otherwise CodeGen to a simple memcpy in general.
+class BuiltinBitCastExpr final
+    : public ExplicitCastExpr,
+      private llvm::TrailingObjects<BuiltinBitCastExpr, CXXBaseSpecifier *> {
+  friend class ASTStmtReader;
+  friend class CastExpr;
+  friend class TrailingObjects;
+
+  SourceLocation KWLoc;
+  SourceLocation RParenLoc;
+
+public:
+  BuiltinBitCastExpr(QualType T, ExprValueKind VK, CastKind CK, Expr *SrcExpr,
+                     TypeSourceInfo *DstType, SourceLocation KWLoc,
+                     SourceLocation RParenLoc)
+      : ExplicitCastExpr(BuiltinBitCastExprClass, T, VK, CK, SrcExpr, 0,
+                         DstType),
+        KWLoc(KWLoc), RParenLoc(RParenLoc) {}
+
+  SourceLocation getBeginLoc() const LLVM_READONLY { return KWLoc; }
+  SourceLocation getEndLoc() const LLVM_READONLY { return RParenLoc; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == BuiltinBitCastExprClass;
   }
 };
 

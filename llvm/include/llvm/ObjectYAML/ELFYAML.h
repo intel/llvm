@@ -75,6 +75,11 @@ struct FileHeader {
   ELF_EM Machine;
   ELF_EF Flags;
   llvm::yaml::Hex64 Entry;
+
+  Optional<llvm::yaml::Hex16> SHEntSize;
+  Optional<llvm::yaml::Hex16> SHOffset;
+  Optional<llvm::yaml::Hex16> SHNum;
+  Optional<llvm::yaml::Hex16> SHStrNdx;
 };
 
 struct SectionName {
@@ -129,11 +134,19 @@ struct Section {
   SectionKind Kind;
   StringRef Name;
   ELF_SHT Type;
-  ELF_SHF Flags;
+  Optional<ELF_SHF> Flags;
   llvm::yaml::Hex64 Address;
   StringRef Link;
   llvm::yaml::Hex64 AddressAlign;
   Optional<llvm::yaml::Hex64> EntSize;
+
+  // This can be used to override the sh_offset field. It does not place the
+  // section data at the offset specified. Useful for creating invalid objects.
+  Optional<llvm::yaml::Hex64> ShOffset;
+
+  // This can be used to override the sh_size field. It does not affect the
+  // content written.
+  Optional<llvm::yaml::Hex64> ShSize;
 
   Section(SectionKind Kind) : Kind(Kind) {}
   virtual ~Section();
@@ -151,9 +164,9 @@ struct DynamicSection : Section {
 };
 
 struct RawContentSection : Section {
-  yaml::BinaryRef Content;
-  llvm::yaml::Hex64 Size;
-  llvm::yaml::Hex64 Info;
+  Optional<yaml::BinaryRef> Content;
+  Optional<llvm::yaml::Hex64> Size;
+  Optional<llvm::yaml::Hex64> Info;
 
   RawContentSection() : Section(SectionKind::RawContent) {}
 

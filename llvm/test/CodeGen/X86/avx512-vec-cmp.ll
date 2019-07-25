@@ -850,8 +850,7 @@ define <4  x float> @test42(<4  x float> %x, <4  x float> %x1, float* %ptr) noun
 define <8 x double> @test43(<8 x double> %x, <8 x double> %x1, double* %ptr,<8 x i1> %mask_in) nounwind {
 ; KNL-LABEL: test43:
 ; KNL:       ## %bb.0:
-; KNL-NEXT:    vpmovzxwq %xmm2, %zmm2 ## encoding: [0x62,0xf2,0x7d,0x48,0x34,0xd2]
-; KNL-NEXT:    ## zmm2 = xmm2[0],zero,zero,zero,xmm2[1],zero,zero,zero,xmm2[2],zero,zero,zero,xmm2[3],zero,zero,zero,xmm2[4],zero,zero,zero,xmm2[5],zero,zero,zero,xmm2[6],zero,zero,zero,xmm2[7],zero,zero,zero
+; KNL-NEXT:    vpmovsxwq %xmm2, %zmm2 ## encoding: [0x62,0xf2,0x7d,0x48,0x24,0xd2]
 ; KNL-NEXT:    vpsllq $63, %zmm2, %zmm2 ## encoding: [0x62,0xf1,0xed,0x48,0x73,0xf2,0x3f]
 ; KNL-NEXT:    vcmpltpd (%rdi){1to8}, %zmm0, %k1 ## encoding: [0x62,0xf1,0xfd,0x58,0xc2,0x0f,0x01]
 ; KNL-NEXT:    vptestmq %zmm2, %zmm2, %k1 {%k1} ## encoding: [0x62,0xf2,0xed,0x49,0x27,0xca]
@@ -940,9 +939,8 @@ define <2 x i64> @test46(<2 x float> %x, <2 x float> %y) #0 {
 ; AVX512-LABEL: test46:
 ; AVX512:       ## %bb.0:
 ; AVX512-NEXT:    vcmpeqps %xmm1, %xmm0, %xmm0 ## encoding: [0xc5,0xf8,0xc2,0xc1,0x00]
-; AVX512-NEXT:    vxorps %xmm1, %xmm1, %xmm1 ## encoding: [0xc5,0xf0,0x57,0xc9]
-; AVX512-NEXT:    vunpcklps %xmm1, %xmm0, %xmm0 ## encoding: [0xc5,0xf8,0x14,0xc1]
-; AVX512-NEXT:    ## xmm0 = xmm0[0],xmm1[0],xmm0[1],xmm1[1]
+; AVX512-NEXT:    vpermilps $212, %xmm0, %xmm0 ## encoding: [0xc4,0xe3,0x79,0x04,0xc0,0xd4]
+; AVX512-NEXT:    ## xmm0 = xmm0[0,1,1,3]
 ; AVX512-NEXT:    vandps {{.*}}(%rip), %xmm0, %xmm0 ## encoding: [0xc5,0xf8,0x54,0x05,A,A,A,A]
 ; AVX512-NEXT:    ## fixup A - offset: 4, value: LCPI47_0-4, kind: reloc_riprel_4byte
 ; AVX512-NEXT:    retq ## encoding: [0xc3]

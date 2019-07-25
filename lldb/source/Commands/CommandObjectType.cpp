@@ -2806,17 +2806,11 @@ public:
       return m_cmd_help_long;
 
     StreamString stream;
-    // FIXME: hardcoding languages is not good
-    lldb::LanguageType languages[] = {eLanguageTypeObjC,
-                                      eLanguageTypeC_plus_plus};
-
-    for (const auto lang_type : languages) {
-      if (auto language = Language::FindPlugin(lang_type)) {
-        if (const char *help = language->GetLanguageSpecificTypeLookupHelp()) {
-          stream.Printf("%s\n", help);
-        }
-      }
-    }
+    Language::ForEach([&](Language *lang) {
+      if (const char *help = lang->GetLanguageSpecificTypeLookupHelp())
+        stream.Printf("%s\n", help);
+      return true;
+    });
 
     m_cmd_help_long = stream.GetString();
     return m_cmd_help_long;
@@ -2841,10 +2835,6 @@ public:
                                  exe_ctx))
         return false;
 
-    // TargetSP
-    // target_sp(GetCommandInterpreter().GetDebugger().GetSelectedTarget());
-    // const bool fill_all_in = true;
-    // ExecutionContext exe_ctx(target_sp.get(), fill_all_in);
     ExecutionContextScope *best_scope = exe_ctx.GetBestExecutionContextScope();
 
     bool any_found = false;
@@ -2856,9 +2846,10 @@ public:
 
     if ((is_global_search =
              (m_command_options.m_language == eLanguageTypeUnknown))) {
-      // FIXME: hardcoding languages is not good
-      languages.push_back(Language::FindPlugin(eLanguageTypeObjC));
-      languages.push_back(Language::FindPlugin(eLanguageTypeC_plus_plus));
+      Language::ForEach([&](Language *lang) {
+        languages.push_back(lang);
+        return true;
+      });
     } else {
       languages.push_back(Language::FindPlugin(m_command_options.m_language));
     }

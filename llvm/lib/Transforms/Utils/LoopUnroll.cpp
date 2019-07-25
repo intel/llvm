@@ -44,6 +44,8 @@ using namespace llvm;
 // TODO: Should these be here or in LoopUnroll?
 STATISTIC(NumCompletelyUnrolled, "Number of loops completely unrolled");
 STATISTIC(NumUnrolled, "Number of loops unrolled (completely or otherwise)");
+STATISTIC(NumUnrolledWithHeader, "Number of loops unrolled without a "
+                                 "conditional latch (completely or otherwise)");
 
 static cl::opt<bool>
 UnrollRuntimeEpilog("unroll-runtime-epilog", cl::init(false), cl::Hidden,
@@ -91,66 +93,6 @@ void llvm::remapInstruction(Instruction *I, ValueToValueMapTy &VMap) {
         PN->setIncomingBlock(i, cast<BasicBlock>(It->second));
     }
   }
-}
-
-/// Folds a basic block into its predecessor if it only has one predecessor, and
-/// that predecessor only has one successor.
-/// The LoopInfo Analysis that is passed will be kept consistent.
-BasicBlock *llvm::foldBlockIntoPredecessor(BasicBlock *BB, LoopInfo *LI,
-                                           ScalarEvolution *SE,
-                                           DominatorTree *DT) {
-  // Merge basic blocks into their predecessor if there is only one distinct
-  // pred, and if there is only one distinct successor of the predecessor, and
-  // if there are no PHI nodes.
-  BasicBlock *OnlyPred = BB->getSinglePredecessor();
-  if (!OnlyPred) return nullptr;
-
-  if (OnlyPred->getTerminator()->getNumSuccessors() != 1)
-    return nullptr;
-
-  LLVM_DEBUG(dbgs() << "Merging: " << BB->getName() << " into "
-                    << OnlyPred->getName() << "\n");
-
-  // Resolve any PHI nodes at the start of the block.  They are all
-  // guaranteed to have exactly one entry if they exist, unless there are
-  // multiple duplicate (but guaranteed to be equal) entries for the
-  // incoming edges.  This occurs when there are multiple edges from
-  // OnlyPred to OnlySucc.
-  FoldSingleEntryPHINodes(BB);
-
-  // Delete the unconditional branch from the predecessor...
-  OnlyPred->getInstList().pop_back();
-
-  // Make all PHI nodes that referred to BB now refer to Pred as their
-  // source...
-  BB->replaceAllUsesWith(OnlyPred);
-
-  // Move all definitions in the successor to the predecessor...
-  OnlyPred->getInstList().splice(OnlyPred->end(), BB->getInstList());
-
-  // OldName will be valid until erased.
-  StringRef OldName = BB->getName();
-
-  // Erase the old block and update dominator info.
-  if (DT)
-    if (DomTreeNode *DTN = DT->getNode(BB)) {
-      DomTreeNode *PredDTN = DT->getNode(OnlyPred);
-      SmallVector<DomTreeNode *, 8> Children(DTN->begin(), DTN->end());
-      for (auto *DI : Children)
-        DT->changeImmediateDominator(DI, PredDTN);
-
-      DT->eraseNode(BB);
-    }
-
-  LI->removeBlock(BB);
-
-  // Inherit predecessor's name if it exists...
-  if (!OldName.empty() && !OnlyPred->hasName())
-    OnlyPred->setName(OldName);
-
-  BB->eraseFromParent();
-
-  return OnlyPred;
 }
 
 /// Check if unrolling created a situation where we need to insert phi nodes to
@@ -355,28 +297,46 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
     return LoopUnrollResult::Unmodified;
   }
 
-  // The current loop unroll pass can only unroll loops with a single latch
+  // The current loop unroll pass can unroll loops with a single latch or header
   // that's a conditional branch exiting the loop.
   // FIXME: The implementation can be extended to work with more complicated
   // cases, e.g. loops with multiple latches.
   BasicBlock *Header = L->getHeader();
+  BranchInst *HeaderBI = dyn_cast<BranchInst>(Header->getTerminator());
   BranchInst *BI = dyn_cast<BranchInst>(LatchBlock->getTerminator());
 
-  if (!BI || BI->isUnconditional()) {
-    // The loop-rotate pass can be helpful to avoid this in many cases.
-    LLVM_DEBUG(
-        dbgs()
-        << "  Can't unroll; loop not terminated by a conditional branch.\n");
+  // FIXME: Support loops without conditional latch and multiple exiting blocks.
+  if (!BI ||
+      (BI->isUnconditional() && (!HeaderBI || HeaderBI->isUnconditional() ||
+                                 L->getExitingBlock() != Header))) {
+    LLVM_DEBUG(dbgs() << "  Can't unroll; loop not terminated by a conditional "
+                         "branch in the latch or header.\n");
     return LoopUnrollResult::Unmodified;
   }
 
-  auto CheckSuccessors = [&](unsigned S1, unsigned S2) {
-    return BI->getSuccessor(S1) == Header && !L->contains(BI->getSuccessor(S2));
+  auto CheckLatchSuccessors = [&](unsigned S1, unsigned S2) {
+    return BI->isConditional() && BI->getSuccessor(S1) == Header &&
+           !L->contains(BI->getSuccessor(S2));
   };
 
-  if (!CheckSuccessors(0, 1) && !CheckSuccessors(1, 0)) {
-    LLVM_DEBUG(dbgs() << "Can't unroll; only loops with one conditional latch"
-                         " exiting the loop can be unrolled\n");
+  // If we have a conditional latch, it must exit the loop.
+  if (BI && BI->isConditional() && !CheckLatchSuccessors(0, 1) &&
+      !CheckLatchSuccessors(1, 0)) {
+    LLVM_DEBUG(
+        dbgs() << "Can't unroll; a conditional latch must exit the loop");
+    return LoopUnrollResult::Unmodified;
+  }
+
+  auto CheckHeaderSuccessors = [&](unsigned S1, unsigned S2) {
+    return HeaderBI && HeaderBI->isConditional() &&
+           L->contains(HeaderBI->getSuccessor(S1)) &&
+           !L->contains(HeaderBI->getSuccessor(S2));
+  };
+
+  // If we do not have a conditional latch, the header must exit the loop.
+  if (BI && !BI->isConditional() && HeaderBI && HeaderBI->isConditional() &&
+      !CheckHeaderSuccessors(0, 1) && !CheckHeaderSuccessors(1, 0)) {
+    LLVM_DEBUG(dbgs() << "Can't unroll; conditional header must exit the loop");
     return LoopUnrollResult::Unmodified;
   }
 
@@ -441,8 +401,12 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
     // Successful peeling may result in a change in the loop preheader/trip
     // counts. If we later unroll the loop, we want these to be updated.
     if (Peeled) {
-      BasicBlock *ExitingBlock = L->getExitingBlock();
+      // According to our guards and profitability checks the only
+      // meaningful exit should be latch block. Other exits go to deopt,
+      // so we do not worry about them.
+      BasicBlock *ExitingBlock = L->getLoopLatch();
       assert(ExitingBlock && "Loop without exiting block?");
+      assert(L->isLoopExiting(ExitingBlock) && "Latch is not exiting?");
       Preheader = L->getLoopPreheader();
       ULO.TripCount = SE->getSmallConstantTripCount(L, ExitingBlock);
       ULO.TripMultiple = SE->getSmallConstantTripMultiple(L, ExitingBlock);
@@ -563,8 +527,17 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
       SE->forgetTopmostLoop(L);
   }
 
-  bool ContinueOnTrue = L->contains(BI->getSuccessor(0));
-  BasicBlock *LoopExit = BI->getSuccessor(ContinueOnTrue);
+  bool ContinueOnTrue;
+  bool LatchIsExiting = BI->isConditional();
+  BasicBlock *LoopExit = nullptr;
+  if (LatchIsExiting) {
+    ContinueOnTrue = L->contains(BI->getSuccessor(0));
+    LoopExit = BI->getSuccessor(ContinueOnTrue);
+  } else {
+    NumUnrolledWithHeader++;
+    ContinueOnTrue = L->contains(HeaderBI->getSuccessor(0));
+    LoopExit = HeaderBI->getSuccessor(ContinueOnTrue);
+  }
 
   // For the first iteration of the loop, we should use the precloned values for
   // PHI nodes.  Insert associations now.
@@ -574,10 +547,22 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
     OrigPHINode.push_back(cast<PHINode>(I));
   }
 
-  std::vector<BasicBlock*> Headers;
-  std::vector<BasicBlock*> Latches;
+  std::vector<BasicBlock *> Headers;
+  std::vector<BasicBlock *> HeaderSucc;
+  std::vector<BasicBlock *> Latches;
   Headers.push_back(Header);
   Latches.push_back(LatchBlock);
+
+  if (!LatchIsExiting) {
+    auto *Term = cast<BranchInst>(Header->getTerminator());
+    if (Term->isUnconditional() || L->contains(Term->getSuccessor(0))) {
+      assert(L->contains(Term->getSuccessor(0)));
+      HeaderSucc.push_back(Term->getSuccessor(0));
+    } else {
+      assert(L->contains(Term->getSuccessor(1)));
+      HeaderSucc.push_back(Term->getSuccessor(1));
+    }
+  }
 
   // The current on-the-fly SSA update requires blocks to be processed in
   // reverse postorder so that LastValueMap contains the correct value at each
@@ -668,6 +653,13 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
       if (*BB == LatchBlock)
         Latches.push_back(New);
 
+      // Keep track of the successor of the new header in the current iteration.
+      for (auto *Pred : predecessors(*BB))
+        if (Pred == Header) {
+          HeaderSucc.push_back(New);
+          break;
+        }
+
       NewBlocks.push_back(New);
       UnrolledLoopBlocks.push_back(New);
 
@@ -717,41 +709,11 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
     }
   }
 
-  // Now that all the basic blocks for the unrolled iterations are in place,
-  // set up the branches to connect them.
-  for (unsigned i = 0, e = Latches.size(); i != e; ++i) {
-    // The original branch was replicated in each unrolled iteration.
-    BranchInst *Term = cast<BranchInst>(Latches[i]->getTerminator());
-
-    // The branch destination.
-    unsigned j = (i + 1) % e;
-    BasicBlock *Dest = Headers[j];
-    bool NeedConditional = true;
-
-    if (RuntimeTripCount && j != 0) {
-      NeedConditional = false;
-    }
-
-    // For a complete unroll, make the last iteration end with a branch
-    // to the exit block.
-    if (CompletelyUnroll) {
-      if (j == 0)
-        Dest = LoopExit;
-      // If using trip count upper bound to completely unroll, we need to keep
-      // the conditional branch except the last one because the loop may exit
-      // after any iteration.
-      assert(NeedConditional &&
-             "NeedCondition cannot be modified by both complete "
-             "unrolling and runtime unrolling");
-      NeedConditional =
-          (ULO.PreserveCondBr && j && !(ULO.PreserveOnlyFirst && i != 0));
-    } else if (j != BreakoutTrip &&
-               (ULO.TripMultiple == 0 || j % ULO.TripMultiple != 0)) {
-      // If we know the trip count or a multiple of it, we can safely use an
-      // unconditional branch for some iterations.
-      NeedConditional = false;
-    }
-
+  auto setDest = [LoopExit, ContinueOnTrue](BasicBlock *Src, BasicBlock *Dest,
+                                            ArrayRef<BasicBlock *> NextBlocks,
+                                            BasicBlock *CurrentHeader,
+                                            bool NeedConditional) {
+    auto *Term = cast<BranchInst>(Src->getTerminator());
     if (NeedConditional) {
       // Update the conditional branch's successor for the following
       // iteration.
@@ -759,9 +721,9 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
     } else {
       // Remove phi operands at this loop exit
       if (Dest != LoopExit) {
-        BasicBlock *BB = Latches[i];
-        for (BasicBlock *Succ: successors(BB)) {
-          if (Succ == Headers[i])
+        BasicBlock *BB = Src;
+        for (BasicBlock *Succ : successors(BB)) {
+          if (Succ == CurrentHeader)
             continue;
           for (PHINode &Phi : Succ->phis())
             Phi.removeIncomingValue(BB, false);
@@ -769,6 +731,90 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
       }
       // Replace the conditional branch with an unconditional one.
       BranchInst::Create(Dest, Term);
+      Term->eraseFromParent();
+    }
+  };
+
+  // Now that all the basic blocks for the unrolled iterations are in place,
+  // set up the branches to connect them.
+  if (LatchIsExiting) {
+    // Set up latches to branch to the new header in the unrolled iterations or
+    // the loop exit for the last latch in a fully unrolled loop.
+    for (unsigned i = 0, e = Latches.size(); i != e; ++i) {
+      // The branch destination.
+      unsigned j = (i + 1) % e;
+      BasicBlock *Dest = Headers[j];
+      bool NeedConditional = true;
+
+      if (RuntimeTripCount && j != 0) {
+        NeedConditional = false;
+      }
+
+      // For a complete unroll, make the last iteration end with a branch
+      // to the exit block.
+      if (CompletelyUnroll) {
+        if (j == 0)
+          Dest = LoopExit;
+        // If using trip count upper bound to completely unroll, we need to keep
+        // the conditional branch except the last one because the loop may exit
+        // after any iteration.
+        assert(NeedConditional &&
+               "NeedCondition cannot be modified by both complete "
+               "unrolling and runtime unrolling");
+        NeedConditional =
+            (ULO.PreserveCondBr && j && !(ULO.PreserveOnlyFirst && i != 0));
+      } else if (j != BreakoutTrip &&
+                 (ULO.TripMultiple == 0 || j % ULO.TripMultiple != 0)) {
+        // If we know the trip count or a multiple of it, we can safely use an
+        // unconditional branch for some iterations.
+        NeedConditional = false;
+      }
+
+      setDest(Latches[i], Dest, Headers, Headers[i], NeedConditional);
+    }
+  } else {
+    // Setup headers to branch to their new successors in the unrolled
+    // iterations.
+    for (unsigned i = 0, e = Headers.size(); i != e; ++i) {
+      // The branch destination.
+      unsigned j = (i + 1) % e;
+      BasicBlock *Dest = HeaderSucc[i];
+      bool NeedConditional = true;
+
+      if (RuntimeTripCount && j != 0)
+        NeedConditional = false;
+
+      if (CompletelyUnroll)
+        // We cannot drop the conditional branch for the last condition, as we
+        // may have to execute the loop body depending on the condition.
+        NeedConditional = j == 0 || ULO.PreserveCondBr;
+      else if (j != BreakoutTrip &&
+               (ULO.TripMultiple == 0 || j % ULO.TripMultiple != 0))
+        // If we know the trip count or a multiple of it, we can safely use an
+        // unconditional branch for some iterations.
+        NeedConditional = false;
+
+      setDest(Headers[i], Dest, Headers, Headers[i], NeedConditional);
+    }
+
+    // Set up latches to branch to the new header in the unrolled iterations or
+    // the loop exit for the last latch in a fully unrolled loop.
+
+    for (unsigned i = 0, e = Latches.size(); i != e; ++i) {
+      // The original branch was replicated in each unrolled iteration.
+      BranchInst *Term = cast<BranchInst>(Latches[i]->getTerminator());
+
+      // The branch destination.
+      unsigned j = (i + 1) % e;
+      BasicBlock *Dest = Headers[j];
+
+      // When completely unrolling, the last latch becomes unreachable.
+      if (CompletelyUnroll && j == 0)
+        new UnreachableInst(Term->getContext(), Term);
+      else
+        // Replace the conditional branch with an unconditional one.
+        BranchInst::Create(Dest, Term);
+
       Term->eraseFromParent();
     }
   }
@@ -787,7 +833,9 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
           ChildrenToUpdate.push_back(ChildBB);
       }
       BasicBlock *NewIDom;
-      if (BB == LatchBlock) {
+      BasicBlock *&TermBlock = LatchIsExiting ? LatchBlock : Header;
+      auto &TermBlocks = LatchIsExiting ? Latches : Headers;
+      if (BB == TermBlock) {
         // The latch is special because we emit unconditional branches in
         // some cases where the original loop contained a conditional branch.
         // Since the latch is always at the bottom of the loop, if the latch
@@ -795,11 +843,13 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
         // must also be a latch.  Specifically, the dominator is the first
         // latch which ends in a conditional branch, or the last latch if
         // there is no such latch.
-        NewIDom = Latches.back();
-        for (BasicBlock *IterLatch : Latches) {
-          Instruction *Term = IterLatch->getTerminator();
+        // For loops exiting from the header, we limit the supported loops
+        // to have a single exiting block.
+        NewIDom = TermBlocks.back();
+        for (BasicBlock *Iter : TermBlocks) {
+          Instruction *Term = Iter->getTerminator();
           if (isa<BranchInst>(Term) && cast<BranchInst>(Term)->isConditional()) {
-            NewIDom = IterLatch;
+            NewIDom = Iter;
             break;
           }
         }
@@ -816,14 +866,20 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   }
 
   assert(!DT || !UnrollVerifyDomtree ||
-      DT->verify(DominatorTree::VerificationLevel::Fast));
+         DT->verify(DominatorTree::VerificationLevel::Fast));
 
+  DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Eager);
   // Merge adjacent basic blocks, if possible.
   for (BasicBlock *Latch : Latches) {
-    BranchInst *Term = cast<BranchInst>(Latch->getTerminator());
-    if (Term->isUnconditional()) {
+    BranchInst *Term = dyn_cast<BranchInst>(Latch->getTerminator());
+    assert((Term ||
+            (CompletelyUnroll && !LatchIsExiting && Latch == Latches.back())) &&
+           "Need a branch as terminator, except when fully unrolling with "
+           "unconditional latch");
+    if (Term && Term->isUnconditional()) {
       BasicBlock *Dest = Term->getSuccessor(0);
-      if (BasicBlock *Fold = foldBlockIntoPredecessor(Dest, LI, SE, DT)) {
+      BasicBlock *Fold = Dest->getUniquePredecessor();
+      if (MergeBlockIntoPredecessor(Dest, &DTU, LI)) {
         // Dest has been folded into Fold. Update our worklists accordingly.
         std::replace(Latches.begin(), Latches.end(), Dest, Fold);
         UnrolledLoopBlocks.erase(std::remove(UnrolledLoopBlocks.begin(),

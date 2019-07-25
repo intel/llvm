@@ -135,6 +135,7 @@ def HasMTE           : Predicate<"Subtarget->hasMTE()">,
                        AssemblerPredicate<"FeatureMTE", "mte">;
 def IsLE             : Predicate<"Subtarget->isLittleEndian()">;
 def IsBE             : Predicate<"!Subtarget->isLittleEndian()">;
+def IsWindows        : Predicate<"Subtarget->isTargetWindows()">;
 def UseAlternateSExtLoadCVTF32
     : Predicate<"Subtarget->useAlternateSExtLoadCVTF32Pattern()">;
 
@@ -407,6 +408,12 @@ def AArch64sminv    : SDNode<"AArch64ISD::SMINV", SDT_AArch64UnaryVec>;
 def AArch64uminv    : SDNode<"AArch64ISD::UMINV", SDT_AArch64UnaryVec>;
 def AArch64smaxv    : SDNode<"AArch64ISD::SMAXV", SDT_AArch64UnaryVec>;
 def AArch64umaxv    : SDNode<"AArch64ISD::UMAXV", SDT_AArch64UnaryVec>;
+
+def SDT_AArch64SETTAG : SDTypeProfile<0, 2, [SDTCisPtrTy<0>, SDTCisPtrTy<1>]>;
+def AArch64stg : SDNode<"AArch64ISD::STG", SDT_AArch64SETTAG, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+def AArch64stzg : SDNode<"AArch64ISD::STZG", SDT_AArch64SETTAG, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+def AArch64st2g : SDNode<"AArch64ISD::ST2G", SDT_AArch64SETTAG, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+def AArch64stz2g : SDNode<"AArch64ISD::STZ2G", SDT_AArch64SETTAG, [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
 
 //===----------------------------------------------------------------------===//
 
@@ -716,7 +723,9 @@ let Predicates = [HasPA] in {
 // v8.3a floating point conversion for javascript
 let Predicates = [HasJS, HasFPARMv8] in
 def FJCVTZS  : BaseFPToIntegerUnscaled<0b01, 0b11, 0b110, FPR64, GPR32,
-                                      "fjcvtzs", []> {
+                                      "fjcvtzs",
+                                      [(set GPR32:$Rd,
+                                         (int_aarch64_fjcvtzs FPR64:$Rn))]> {
   let Inst{31} = 0;
 } // HasJS, HasFPARMv8
 
@@ -1286,12 +1295,51 @@ defm STZG  : MemTagStore<0b01, "stzg">;
 defm ST2G  : MemTagStore<0b10, "st2g">;
 defm STZ2G : MemTagStore<0b11, "stz2g">;
 
+def : Pat<(AArch64stg GPR64sp:$Rn, (am_indexeds9s128 GPR64sp:$Rm, simm9s16:$imm)),
+          (STGOffset $Rn, $Rm, $imm)>;
+def : Pat<(AArch64stzg GPR64sp:$Rn, (am_indexeds9s128 GPR64sp:$Rm, simm9s16:$imm)),
+          (STZGOffset $Rn, $Rm, $imm)>;
+def : Pat<(AArch64st2g GPR64sp:$Rn, (am_indexeds9s128 GPR64sp:$Rm, simm9s16:$imm)),
+          (ST2GOffset $Rn, $Rm, $imm)>;
+def : Pat<(AArch64stz2g GPR64sp:$Rn, (am_indexeds9s128 GPR64sp:$Rm, simm9s16:$imm)),
+          (STZ2GOffset $Rn, $Rm, $imm)>;
+
 defm STGP     : StorePairOffset <0b01, 0, GPR64z, simm7s16, "stgp">;
 def  STGPpre  : StorePairPreIdx <0b01, 0, GPR64z, simm7s16, "stgp">;
 def  STGPpost : StorePairPostIdx<0b01, 0, GPR64z, simm7s16, "stgp">;
 
 def : Pat<(int_aarch64_stg GPR64:$Rt, (am_indexeds9s128 GPR64sp:$Rn, simm9s16:$offset)),
           (STGOffset GPR64:$Rt, GPR64sp:$Rn,  simm9s16:$offset)>;
+
+def : Pat<(int_aarch64_stgp (am_indexed7s128 GPR64sp:$Rn, simm7s16:$imm), GPR64:$Rt, GPR64:$Rt2),
+          (STGPi $Rt, $Rt2, $Rn, $imm)>;
+
+def IRGstack
+    : Pseudo<(outs GPR64sp:$Rd), (ins GPR64sp:$Rsp, GPR64:$Rm), []>,
+      Sched<[]>;
+def TAGPstack
+    : Pseudo<(outs GPR64sp:$Rd), (ins GPR64sp:$Rn, uimm6s16:$imm6, GPR64sp:$Rm, imm0_15:$imm4), []>,
+      Sched<[]>;
+
+// Explicit SP in the first operand prevents ShrinkWrap optimization
+// from leaving this instruction out of the stack frame. When IRGstack
+// is transformed into IRG, this operand is replaced with the actual
+// register / expression for the tagged base pointer of the current function.
+def : Pat<(int_aarch64_irg_sp i64:$Rm), (IRGstack SP, i64:$Rm)>;
+
+// Large STG to be expanded into a loop. $Rm is the size, $Rn is start address.
+// $Rn_wback is one past the end of the range.
+let isCodeGenOnly=1, mayStore=1 in {
+def STGloop
+    : Pseudo<(outs GPR64common:$Rm_wback, GPR64sp:$Rn_wback), (ins GPR64common:$Rm, GPR64sp:$Rn),
+             [], "$Rn = $Rn_wback,@earlyclobber $Rn_wback,$Rm = $Rm_wback,@earlyclobber $Rm_wback" >,
+      Sched<[WriteAdr, WriteST]>;
+
+def STZGloop
+    : Pseudo<(outs GPR64common:$Rm_wback, GPR64sp:$Rn_wback), (ins GPR64common:$Rm, GPR64sp:$Rn),
+             [], "$Rn = $Rn_wback,@earlyclobber $Rn_wback,$Rm = $Rm_wback,@earlyclobber $Rm_wback" >,
+      Sched<[WriteAdr, WriteST]>;
+}
 
 } // Predicates = [HasMTE]
 
@@ -3083,6 +3131,14 @@ defm : FPToIntegerPats<fp_to_uint, ftrunc, "FCVTZU">;
 defm : FPToIntegerPats<fp_to_sint, fround, "FCVTAS">;
 defm : FPToIntegerPats<fp_to_uint, fround, "FCVTAU">;
 
+let Predicates = [HasFullFP16] in {
+  def : Pat<(i32 (lround f16:$Rn)),
+            (!cast<Instruction>(FCVTASUWHr) f16:$Rn)>;
+  def : Pat<(i64 (lround f16:$Rn)),
+            (!cast<Instruction>(FCVTASUXHr) f16:$Rn)>;
+  def : Pat<(i64 (llround f16:$Rn)),
+            (!cast<Instruction>(FCVTASUXHr) f16:$Rn)>;
+}
 def : Pat<(i32 (lround f32:$Rn)),
           (!cast<Instruction>(FCVTASUWSr) f32:$Rn)>;
 def : Pat<(i32 (lround f64:$Rn)),
@@ -3159,6 +3215,27 @@ let Predicates = [HasFRInt3264] in {
   defm FRINT32X : FRIntNNT<0b01, "frint32x">;
   defm FRINT64X : FRIntNNT<0b11, "frint64x">;
 } // HasFRInt3264
+
+let Predicates = [HasFullFP16] in {
+  def : Pat<(i32 (lrint f16:$Rn)),
+            (FCVTZSUWHr (!cast<Instruction>(FRINTXHr) f16:$Rn))>;
+  def : Pat<(i64 (lrint f16:$Rn)),
+            (FCVTZSUXHr (!cast<Instruction>(FRINTXHr) f16:$Rn))>;
+  def : Pat<(i64 (llrint f16:$Rn)),
+            (FCVTZSUXHr (!cast<Instruction>(FRINTXHr) f16:$Rn))>;
+}
+def : Pat<(i32 (lrint f32:$Rn)),
+          (FCVTZSUWSr (!cast<Instruction>(FRINTXSr) f32:$Rn))>;
+def : Pat<(i32 (lrint f64:$Rn)),
+          (FCVTZSUWDr (!cast<Instruction>(FRINTXDr) f64:$Rn))>;
+def : Pat<(i64 (lrint f32:$Rn)),
+          (FCVTZSUXSr (!cast<Instruction>(FRINTXSr) f32:$Rn))>;
+def : Pat<(i64 (lrint f64:$Rn)),
+          (FCVTZSUXDr (!cast<Instruction>(FRINTXDr) f64:$Rn))>;
+def : Pat<(i64 (llrint f32:$Rn)),
+          (FCVTZSUXSr (!cast<Instruction>(FRINTXSr) f32:$Rn))>;
+def : Pat<(i64 (llrint f64:$Rn)),
+          (FCVTZSUXDr (!cast<Instruction>(FRINTXDr) f64:$Rn))>;
 
 //===----------------------------------------------------------------------===//
 // Floating point two operand instructions.
@@ -6087,6 +6164,7 @@ def : Pat<(i32 (trunc GPR64sp:$src)),
 
 // __builtin_trap() uses the BRK instruction on AArch64.
 def : Pat<(trap), (BRK 1)>;
+def : Pat<(debugtrap), (BRK 0xF000)>, Requires<[IsWindows]>;
 
 // Multiply high patterns which multiply the lower subvector using smull/umull
 // and the upper subvector with smull2/umull2. Then shuffle the high the high
@@ -6203,6 +6281,7 @@ def : Pat<(v4i16 (AArch64NvCast (v2f32 FPR64:$src))), (v4i16 FPR64:$src)>;
 def : Pat<(v2i32 (AArch64NvCast (v2f32 FPR64:$src))), (v2i32 FPR64:$src)>;
 def : Pat<(v2f32 (AArch64NvCast (v2f32 FPR64:$src))), (v2f32 FPR64:$src)>;
 def : Pat<(v1i64 (AArch64NvCast (v2f32 FPR64:$src))), (v1i64 FPR64:$src)>;
+def : Pat<(v1f64 (AArch64NvCast (v2f32 FPR64:$src))), (v1f64 FPR64:$src)>;
 
 // Natural vector casts (128 bit)
 def : Pat<(v16i8 (AArch64NvCast (v4i32 FPR128:$src))), (v16i8 FPR128:$src)>;

@@ -48,7 +48,7 @@ class DWARFUnitHeader {
   uint32_t Offset = 0;
   // Version, address size, and DWARF format.
   dwarf::FormParams FormParams;
-  uint32_t Length = 0;
+  uint64_t Length = 0;
   uint64_t AbbrOffset = 0;
 
   // For DWO units only.
@@ -82,7 +82,7 @@ public:
   uint8_t getDwarfOffsetByteSize() const {
     return FormParams.getDwarfOffsetByteSize();
   }
-  uint32_t getLength() const { return Length; }
+  uint64_t getLength() const { return Length; }
   uint64_t getAbbrOffset() const { return AbbrOffset; }
   Optional<uint64_t> getDWOId() const { return DWOId; }
   void setDWOId(uint64_t Id) {
@@ -97,8 +97,11 @@ public:
     return UnitType == dwarf::DW_UT_type || UnitType == dwarf::DW_UT_split_type;
   }
   uint8_t getSize() const { return Size; }
-  // FIXME: Support DWARF64.
-  uint32_t getNextUnitOffset() const { return Offset + Length + 4; }
+  uint32_t getNextUnitOffset() const {
+    return Offset + Length +
+           (FormParams.Format == llvm::dwarf::DwarfFormat::DWARF64 ? 4 : 0) +
+           FormParams.getDwarfOffsetByteSize();
+  }
 };
 
 const DWARFUnitIndex &getDWARFUnitIndex(DWARFContext &Context,
@@ -172,6 +175,7 @@ struct StrOffsetsContributionDescriptor {
   StrOffsetsContributionDescriptor(uint64_t Base, uint64_t Size,
                                    uint8_t Version, dwarf::DwarfFormat Format)
       : Base(Base), Size(Size), FormParams({Version, 0, Format}) {}
+  StrOffsetsContributionDescriptor() = default;
 
   uint8_t getVersion() const { return FormParams.Version; }
   dwarf::DwarfFormat getFormat() const { return FormParams.Format; }
@@ -181,7 +185,7 @@ struct StrOffsetsContributionDescriptor {
   /// Determine whether a contribution to the string offsets table is
   /// consistent with the relevant section size and that its length is
   /// a multiple of the size of one of its entries.
-  Optional<StrOffsetsContributionDescriptor>
+  Expected<StrOffsetsContributionDescriptor>
   validateContributionSize(DWARFDataExtractor &DA);
 };
 
@@ -246,14 +250,14 @@ protected:
   /// Find the unit's contribution to the string offsets table and determine its
   /// length and form. The given offset is expected to be derived from the unit
   /// DIE's DW_AT_str_offsets_base attribute.
-  Optional<StrOffsetsContributionDescriptor>
+  Expected<Optional<StrOffsetsContributionDescriptor>>
   determineStringOffsetsTableContribution(DWARFDataExtractor &DA);
 
   /// Find the unit's contribution to the string offsets table and determine its
   /// length and form. The given offset is expected to be 0 in a dwo file or,
   /// in a dwp file, the start of the unit's contribution to the string offsets
   /// table section (as determined by the index table).
-  Optional<StrOffsetsContributionDescriptor>
+  Expected<Optional<StrOffsetsContributionDescriptor>>
   determineStringOffsetsTableContributionDWO(DWARFDataExtractor &DA);
 
 public:
@@ -469,9 +473,10 @@ public:
   DWARFDie getDIEForOffset(uint32_t Offset) {
     extractDIEsIfNeeded(false);
     assert(!DieArray.empty());
-    auto It = llvm::bsearch(DieArray, [=](const DWARFDebugInfoEntry &LHS) {
-      return Offset <= LHS.getOffset();
-    });
+    auto It =
+        llvm::partition_point(DieArray, [=](const DWARFDebugInfoEntry &DIE) {
+          return DIE.getOffset() < Offset;
+        });
     if (It != DieArray.end() && It->getOffset() == Offset)
       return DWARFDie(this, &*It);
     return DWARFDie();

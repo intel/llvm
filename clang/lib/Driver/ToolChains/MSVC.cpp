@@ -321,6 +321,9 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       !C.getDriver().IsCLMode())
     CmdArgs.push_back("-defaultlib:libcmt");
 
+  if (!Args.hasArg(options::OPT_nostdlib) && Args.hasArg(options::OPT_fsycl))
+    CmdArgs.push_back("-defaultlib:sycl.lib");
+
   if (!llvm::sys::Process::GetEnv("LIB")) {
     // If the VC environment hasn't been configured (perhaps because the user
     // did not run vcvarsall), try to build a consistent link environment.  If
@@ -626,11 +629,11 @@ std::unique_ptr<Command> visualstudio::Compiler::GetCommand(
   // FIXME: How can we ensure this stays in sync with relevant clang-cl options?
 
   if (Args.hasFlag(options::OPT__SLASH_GR_, options::OPT__SLASH_GR,
-                   /*default=*/false))
+                   /*Default=*/false))
     CmdArgs.push_back("/GR-");
 
   if (Args.hasFlag(options::OPT__SLASH_GS_, options::OPT__SLASH_GS,
-                   /*default=*/false))
+                   /*Default=*/false))
     CmdArgs.push_back("/GS-");
 
   if (Arg *A = Args.getLastArg(options::OPT_ffunction_sections,
