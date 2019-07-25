@@ -14,6 +14,7 @@
 #include <CL/sycl/exception.hpp>
 
 #include <memory>
+#include <queue>
 #include <set>
 #include <vector>
 
@@ -585,50 +586,38 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 }
 
 void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
-  std::vector<Command *> ToRemove(Record->MAllocaCommands.size());
-  std::copy(Record->MAllocaCommands.begin(), Record->MAllocaCommands.end(),
-            ToRemove.begin());
-  std::vector<Command *> ToRemoveNew;
+  if (Record->MAllocaCommands.empty())
+    return;
+
+  std::queue<Command *> RemoveQueue;
   std::set<Command *> Visited;
 
-  while (true) {
-    for (Command *Cmd : ToRemove) {
-      for (Command *&UserCmd : Cmd->MUsers) {
-        if (!UserCmd || !Visited.insert(UserCmd).second) {
-          continue;
+  for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
+    if (Visited.find(AllocaCmd) == Visited.end())
+      RemoveQueue.push(AllocaCmd);
+    // Use BFS to find and process all users of removal candidate
+    while (!RemoveQueue.empty()) {
+      Command *CandidateCommand = RemoveQueue.front();
+      RemoveQueue.pop();
+
+      if (Visited.insert(CandidateCommand).second) {
+        for (Command *UserCmd : CandidateCommand->MUsers) {
+          // As candidate command is about to be freed, we need
+          // to remove it from dependency list of other commands.
+          auto NewEnd = std::remove_if(UserCmd->MDeps.begin(),
+                  UserCmd->MDeps.end(), [CandidateCommand] (const DepDesc &Dep) {
+                    return Dep.MDepCommand == CandidateCommand;
+                    });
+          UserCmd->MDeps.erase(NewEnd, UserCmd->MDeps.end());
+
+          // Commands that have no unsatisfied dependencies can be executed
+          // and are good candidates for clean up.
+          if (UserCmd->MDeps.empty())
+            RemoveQueue.push(UserCmd);
         }
-
-        auto NewEnd =
-            std::remove_if(UserCmd->MDeps.begin(), UserCmd->MDeps.end(),
-                           [Record](const DepDesc &Dep) {
-                             return Dep.MReq->MSYCLMemObj == Record->MMemObj;
-                           });
-
-        if (NewEnd == UserCmd->MDeps.end())
-          continue;
-
-        UserCmd->MDeps.erase(NewEnd, UserCmd->MDeps.end());
-
-        ToRemoveNew.push_back(UserCmd);
-
-        if (UserCmd->MDeps.empty())
-          UserCmd = nullptr;
-      }
-
-      if (Cmd->MDeps.empty()) {
-        delete Cmd;
+        delete CandidateCommand;
       }
     }
-
-    if (ToRemoveNew.empty())
-      break;
-
-    ToRemove.swap(ToRemoveNew);
-    ToRemoveNew.clear();
-  }
-
-  for (Command *AllocaCmd : Record->MAllocaCommands) {
-    delete AllocaCmd;
   }
 }
 
