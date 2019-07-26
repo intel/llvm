@@ -58,7 +58,7 @@ static cl::list<std::string>
                    cl::desc("[<input file>,...]"),
                    cl::cat(ClangOffloadBundlerCategory));
 static cl::list<std::string>
-    OutputFileNames("outputs", cl::CommaSeparated, cl::OneOrMore,
+    OutputFileNames("outputs", cl::CommaSeparated, cl::ZeroOrMore,
                     cl::desc("[<output file>,...]"),
                     cl::cat(ClangOffloadBundlerCategory));
 static cl::list<std::string>
@@ -68,7 +68,7 @@ static cl::list<std::string>
 
 static cl::opt<std::string> FilesType(
     "type", cl::Required,
-    cl::desc("Type of the files to be bundled/unbundled.\n"
+    cl::desc("Type of the files to be bundled/unbundled/checked.\n"
              "Current supported types are:\n"
              "  i   - cpp-output\n"
              "  ii  - c++-cpp-output\n"
@@ -78,11 +78,17 @@ static cl::opt<std::string> FilesType(
              "  o   - object\n"
              "  oo  - object; output file is a list of unbundled objects\n"
              "  gch - precompiled-header\n"
-             "  ast - clang AST file"),
+             "  ast - clang AST file\n"),
     cl::cat(ClangOffloadBundlerCategory));
+
 static cl::opt<bool>
     Unbundle("unbundle",
              cl::desc("Unbundle bundled file into several output files.\n"),
+             cl::init(false), cl::cat(ClangOffloadBundlerCategory));
+
+static cl::opt<bool>
+    CheckSection("check-section",
+             cl::desc("Check if the section exists.\n"),
              cl::init(false), cl::cat(ClangOffloadBundlerCategory));
 
 static cl::opt<bool> PrintExternalCommands(
@@ -947,7 +953,6 @@ static FileHandler *CreateFileHandler(MemoryBuffer &FirstInput) {
     return new BinaryFileHandler();
   if (FilesType == "ast")
     return new BinaryFileHandler();
-
   errs() << "error: invalid file type specified.\n";
   return nullptr;
 }
@@ -1050,16 +1055,15 @@ static bool UnbundleFiles() {
       break;
 
     auto Output = Worklist.find(CurTriple);
-    // The file may have more bundles for other targets, that we don't care
-    // about. Therefore, move on to the next triple
-    if (Output == Worklist.end()) {
-      continue;
-    }
 
-    // Check if the output file can be opened and copy the bundle to it.
-    FH->ReadBundle(Output->second, Input);
+    // Read the bundle if triple is included in targets
+    if (Output != Worklist.end()) {
+      // Check if the output file can be opened and copy the bundle to it.
+      FH->ReadBundle(Output->second, Input);
+      Worklist.erase(Output);
+    }
+    
     FH->ReadBundleEnd(Input);
-    Worklist.erase(Output);
 
     // Record if we found the host bundle.
     if (hasHostKind(CurTriple))
@@ -1105,6 +1109,51 @@ static bool UnbundleFiles() {
   return false;
 }
 
+// Unbundle the files. Return true if an error was found.
+static bool CheckBundledSection() {
+  const StringRef InputFileName = InputFileNames.front();
+  // Open Input file.
+  ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
+      MemoryBuffer::getFileOrSTDIN(InputFileName);
+  if (std::error_code EC = CodeOrErr.getError()) {
+    errs() << "error: Can't open file " << InputFileName << ": " << EC.message()
+           << "\n";
+    return true;
+  }
+  MemoryBuffer &Input = *CodeOrErr.get();
+
+  // Select the right files handler.
+  std::unique_ptr<FileHandler> FH;
+  FH.reset(CreateFileHandler(Input));
+
+  // Quit if we don't have a handler.
+  if (!FH.get())
+    return true;
+
+  // Seed temporary filename generation with the stem of the input file.
+  FH->SetTempFileNameBase(llvm::sys::path::stem(InputFileName));
+
+  // Read the header of the bundled file.
+  FH->ReadHeader(Input);
+  StringRef triple = TargetNames.front();
+  // Read all the bundles that are in the work list. If we find no bundles we
+  // assume the file is meant for the host target.
+  bool found = false;
+  while (!found) {
+    StringRef CurTriple = FH->ReadBundleStart(Input);
+    // We don't have more bundles.
+    if (CurTriple.empty())
+      break;
+
+    if(CurTriple == triple) {
+      found = true;
+    }
+    FH->ReadBundleEnd(Input);
+  }
+  return found;
+}
+
+
 static void PrintVersion(raw_ostream &OS) {
   OS << clang::getClangToolFullVersion("clang-offload-bundler") << '\n';
 }
@@ -1126,8 +1175,30 @@ int main(int argc, const char **argv) {
     return 0;
   }
 
+  if(Unbundle && CheckSection) {
+    errs() << "error: -unbundle and -check-section are not compatible options.\n";
+    return 1;
+  }
+
   bool Error = false;
-  if (Unbundle) {
+
+  // -check-section
+  if(CheckSection) {
+    if (InputFileNames.size() != 1) {
+      Error = true;
+      errs() << "error: only one input file supported in checking mode.\n";
+    }
+    if (TargetNames.size() != 1) {
+      Error = true;
+      errs() << "error: only one target supported in checking mode.\n";
+    }
+    if (OutputFileNames.size() != 0) {
+      Error = true;
+      errs() << "error: no output file supported in checking mode.\n";
+    }
+  }
+  // -unbundle
+  else if (Unbundle) {
     if (InputFileNames.size() != 1) {
       Error = true;
       errs() << "error: only one input file supported in unbundling mode.\n";
@@ -1137,7 +1208,9 @@ int main(int argc, const char **argv) {
       errs() << "error: number of output files and targets should match in "
                 "unbundling mode.\n";
     }
-  } else {
+  }
+  // no explicit option: bundle
+  else {
     if (OutputFileNames.size() != 1) {
       Error = true;
       errs() << "error: only one output file supported in bundling mode.\n";
@@ -1164,7 +1237,8 @@ int main(int argc, const char **argv) {
                                      .Case("openmp", true)
                                      .Case("hip", true)
                                      .Case("sycl", true)
-                                     .Default(false);
+                                     .Case("fpga", true)
+                                     .Default(false);                           
 
     bool TripleIsValid = !Triple.empty();
     llvm::Triple T(Triple);
@@ -1190,7 +1264,7 @@ int main(int argc, const char **argv) {
     ++Index;
   }
 
-  if (HostTargetNum != 1) {
+  if (!CheckSection && HostTargetNum != 1) {
     Error = true;
     errs() << "error: expecting exactly one host target but got "
            << HostTargetNum << ".\n";
@@ -1203,5 +1277,6 @@ int main(int argc, const char **argv) {
   // tools.
   BundlerExecutable = sys::fs::getMainExecutable(argv[0], &BundlerExecutable);
 
+  if(CheckSection) return !CheckBundledSection();
   return Unbundle ? UnbundleFiles() : BundleFiles();
 }
