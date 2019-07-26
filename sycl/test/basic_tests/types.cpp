@@ -17,11 +17,28 @@ using namespace std;
 using cl_schar = cl_char;
 using cl_schar4 = cl_char4;
 
+namespace s = cl::sycl;
+
 #define CHECK_TYPE(type)                                                       \
   static_assert(sizeof(cl_##type) == sizeof(cl::sycl::cl_##type), "Wrong "     \
                                                                   "size")
 
 #define CHECK_SIZE(T, S) static_assert(sizeof(T) == S, "Wrong size of type");
+
+#define CHECK_SIZE_VEC_N(T, n)                                \
+  static_assert(n * sizeof(T) == sizeof(cl::sycl::vec<T, n>), \
+                    "Wrong size of vec<type>");
+
+#define CHECK_SIZE_VEC_N3(T)                                  \
+  static_assert(sizeof(cl::sycl::vec<T, 3>) == sizeof(cl::sycl::vec<T, 4>), \
+                    "Wrong size of vec<cl_type3>");
+
+#define CHECK_SIZE_VEC(T) \
+  CHECK_SIZE_VEC_N(T, 2); \
+  CHECK_SIZE_VEC_N3(T);   \  
+  CHECK_SIZE_VEC_N(T, 4); \
+  CHECK_SIZE_VEC_N(T, 8); \
+  CHECK_SIZE_VEC_N(T, 16);
 
 #define CHECK_SIZE_TYPE_I(T, S)                                                \
   CHECK_SIZE(T, S)                                                             \
@@ -50,7 +67,6 @@ int main() {
   CHECK_TYPE(ulong);
   CHECK_TYPE(float);
   CHECK_TYPE(double);
-  CHECK_TYPE(bool);
   CHECK_TYPE(char2);
   CHECK_TYPE(uchar3);
   CHECK_TYPE(short4);
@@ -80,6 +96,31 @@ int main() {
   CHECK_SIZE_TYPE_F(cl::sycl::cl_float, 4);
   CHECK_SIZE_TYPE_F(cl::sycl::cl_double, 8);
   // CHECK_SIZE_TYPE_F(cl::sycl::cl_half, 2);
+
+  CHECK_SIZE_VEC(char);
+  CHECK_SIZE_VEC(short);
+  CHECK_SIZE_VEC(unsigned short);
+  CHECK_SIZE_VEC(int);
+  CHECK_SIZE_VEC(unsigned int);
+  CHECK_SIZE_VEC(long);
+  CHECK_SIZE_VEC(unsigned long);
+  CHECK_SIZE_VEC(long long);
+  CHECK_SIZE_VEC(unsigned long long);
+  CHECK_SIZE_VEC(float);
+  CHECK_SIZE_VEC(double);
+
+  CHECK_SIZE_VEC(s::cl_char);
+  CHECK_SIZE_VEC(s::cl_schar);
+  CHECK_SIZE_VEC(s::cl_uchar);
+  CHECK_SIZE_VEC(s::cl_short);
+  CHECK_SIZE_VEC(s::cl_ushort);
+  CHECK_SIZE_VEC(s::cl_half);
+  CHECK_SIZE_VEC(s::cl_int);
+  CHECK_SIZE_VEC(s::cl_uint);
+  CHECK_SIZE_VEC(s::cl_long);
+  CHECK_SIZE_VEC(s::cl_ulong);
+  CHECK_SIZE_VEC(s::cl_float);
+  CHECK_SIZE_VEC(s::cl_double);
 
   using value_type = decltype(std::declval<cl::sycl::item<1>>()[0]);
   static_assert(!std::is_reference<value_type>::value,
