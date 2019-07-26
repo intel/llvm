@@ -5412,16 +5412,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (isa<CompileJobAction>(JA) && JA.isHostOffloading(Action::OFK_SYCL)) {
     SmallString<128> TargetInfo("-fsycl-targets=");
 
-    Arg *Tgts = Args.getLastArg(options::OPT_fsycl_targets_EQ);
-    assert(Tgts && Tgts->getNumValues() &&
-           "SYCL offloading has to have targets specified.");
-    for (unsigned i = 0; i < Tgts->getNumValues(); ++i) {
-      if (i)
-        TargetInfo += ',';
-      // We need to get the string from the triple because it may be not exactly
-      // the same as the one we get directly from the arguments.
-      llvm::Triple T(Tgts->getValue(i));
-      TargetInfo += T.getTriple();
+    if (Arg *Tgts = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+      for (unsigned i = 0; i < Tgts->getNumValues(); ++i) {
+        if (i)
+          TargetInfo += ',';
+        // We need to get the string from the triple because it may be not
+        // exactly the same as the one we get directly from the arguments.
+        llvm::Triple T(Tgts->getValue(i));
+        TargetInfo += T.getTriple();
+      }
+    } else {
+      // Use the default.
+      llvm::Triple TT(Triple);
+      TT.setArch(llvm::Triple::spir64);
+      TT.setVendor(llvm::Triple::UnknownVendor);
+      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+      TT.setEnvironment(llvm::Triple::SYCLDevice);
+      TargetInfo += TT.normalize();
     }
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }

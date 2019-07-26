@@ -521,3 +521,8 @@
 // CHK-PHASE-MULTI-TARG: 29: backend-compiler, {28}, image, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 30: clang-offload-wrapper, {29}, object, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 31: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64-unknown-linux-sycldevice)" {16}, "device-sycl (spir64_fpga-unknown-linux-sycldevice)" {24}, "device-sycl (spir64_gen-unknown-linux-sycldevice)" {30}, image
+
+/// ###########################################################################
+/// Verify that -save-temps does not crash
+// RUN: %clang -fsycl -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1
+// RUN: %clang -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1

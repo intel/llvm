@@ -294,7 +294,8 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
     FinalPhase = phases::Compile;
 
     // -S only runs up to the backend.
-  } else if ((PhaseArg = DAL.getLastArg(options::OPT_S))) {
+  } else if ((PhaseArg = DAL.getLastArg(options::OPT_S)) ||
+             (PhaseArg = DAL.getLastArg(options::OPT_sycl))) {
     FinalPhase = phases::Backend;
 
     // -c compilation only runs up to the assembler.
