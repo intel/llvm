@@ -306,7 +306,7 @@ public:
   };
 
 public:
-  SYCLIntegrationHeader(DiagnosticsEngine &Diag);
+  SYCLIntegrationHeader(DiagnosticsEngine &Diag, bool UnnamedLambdaSupport);
 
   /// Emits contents of the header into given stream.
   void emit(raw_ostream &Out);
@@ -353,7 +353,7 @@ private:
     /// Kernel name type.
     QualType NameType;
 
-    /// Kernel name with stable lamba name mangling
+    /// Kernel name with stable lambda name mangling
     std::string StableName;
 
     /// Descriptor of kernel actual parameters.
@@ -391,6 +391,9 @@ private:
 
   /// Used for emitting diagnostics.
   DiagnosticsEngine &Diag;
+
+  /// Whether header is generated with unnamed lambda support
+  bool UnnamedLambdaSupport;
 };
 
 /// Keeps track of expected type during expression parsing. The type is tied to
@@ -11408,7 +11411,7 @@ public:
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
     if (SyclIntHeader == nullptr)
       SyclIntHeader = llvm::make_unique<SYCLIntegrationHeader>(
-        getDiagnostics());
+          getDiagnostics(), getLangOpts().SYCLUnnamedLambda);
     return *SyclIntHeader.get();
   }
 

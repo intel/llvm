@@ -225,6 +225,7 @@ LANGOPT(GPURelocatableDeviceCode, 1, 0, "generate relocatable device code")
 LANGOPT(SYCLIsDevice      , 1, 0, "Generate code for SYCL device")
 LANGOPT(SYCLIsHost        , 1, 0, "SYCL host compilation")
 LANGOPT(SYCLAllowFuncPtr  , 1, 0, "Allow function pointers in SYCL device code")
+LANGOPT(SYCLUnnamedLambda , 1, 0, "Allow unnamed lambda SYCL kernels")
 
 LANGOPT(SizedDeallocation , 1, 0, "sized deallocation")
 LANGOPT(AlignedAllocation , 1, 0, "aligned allocation")

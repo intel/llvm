@@ -51,7 +51,7 @@ struct kernel_param_desc_t {
   int offset;
 };
 
-#ifndef UNNAMED_LAMBDA_EXT
+#ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() { return 0; }
   static const kernel_param_desc_t &getParamDesc(int Idx) {
@@ -82,7 +82,7 @@ public:
   using type = decltype(impl(make_index_sequence<__builtin_strlen(n)>{}));
 };
 template <typename T> using KernelInfo = typename KernelInfoImpl<T>::type;
-#endif
+#endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
 } // namespace sycl

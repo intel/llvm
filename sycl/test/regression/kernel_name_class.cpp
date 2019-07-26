@@ -3,7 +3,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %clangxx -fsycl %s -o %t.ext.out -lOpenCL -DUNNAMED_LAMBDA_EXT
+// RUN: %clangxx -fsycl %s -o %t.ext.out -lOpenCL -fsycl-unnamed-lambda
 // RUN: %CPU_RUN_PLACEHOLDER %t.ext.out
 
 //==-- kernel_name_class.cpp - SYCL kernel naming variants test ------------==//

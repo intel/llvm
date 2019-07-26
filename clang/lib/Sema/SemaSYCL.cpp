@@ -1110,11 +1110,11 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D) {
                                 ? cast<ClassTemplateDecl>(D)->getTemplatedDecl()
                                 : dyn_cast<TagDecl>(D);
 
-        if (TD && TD->isCompleteDefinition()) {
+        if (TD && TD->isCompleteDefinition() && !UnnamedLambdaSupport) {
           // defined class constituting the kernel name is not globally
           // accessible - contradicts the spec
           Diag.Report(D->getSourceRange().getBegin(),
-                      diag::warn_sycl_kernel_name_class_not_top_level);
+                      diag::err_sycl_kernel_name_class_not_top_level);
         }
       }
       break;
@@ -1240,14 +1240,14 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
 
   O << "\n";
-  O << "#ifndef UNNAMED_LAMBDA_EXT\n";
-  O << "// Forward declarations of templated kernel function types:\n";
+  if (!UnnamedLambdaSupport) {
+    O << "// Forward declarations of templated kernel function types:\n";
 
-  llvm::SmallPtrSet<const void *, 4> Printed;
-  for (const KernelDesc &K : KernelDescs) {
-    emitForwardClassDecls(O, K.NameType, Printed);
+    llvm::SmallPtrSet<const void *, 4> Printed;
+    for (const KernelDesc &K : KernelDescs) {
+      emitForwardClassDecls(O, K.NameType, Printed);
+    }
   }
-  O << "#endif\n";
   O << "\n";
 
   O << "namespace cl {\n";
@@ -1314,16 +1314,16 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
-    O << "#ifdef UNNAMED_LAMBDA_EXT\n";
-    O << "template <> struct KernelInfoData<";
-    O << "'" << K.StableName.front();
-    for (char c : StringRef(K.StableName).substr(1))
-      O << "', '" << c;
-    O << "'> {\n";
-    O << "#else\n";
-    O << "template <> struct KernelInfo<"
-      << eraseAnonNamespace(K.NameType.getAsString()) << "> {\n";
-    O << "#endif\n";
+    if (UnnamedLambdaSupport) {
+      O << "template <> struct KernelInfoData<";
+      O << "'" << K.StableName.front();
+      for (char c : StringRef(K.StableName).substr(1))
+        O << "', '" << c;
+      O << "'> {\n";
+    } else {
+      O << "template <> struct KernelInfo<"
+        << eraseAnonNamespace(K.NameType.getAsString()) << "> {\n";
+    }
     O << "  DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
       << "\"; }\n";
@@ -1384,8 +1384,9 @@ void SYCLIntegrationHeader::endKernel() {
   // nop for now
 }
 
-SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag)
-    : Diag(_Diag) {}
+SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
+                                             bool _UnnamedLambdaSupport)
+    : Diag(_Diag), UnnamedLambdaSupport(_UnnamedLambdaSupport) {}
 
 bool Util::isSyclAccessorType(const QualType &Ty) {
   static std::array<DeclContextDesc, 3> Scopes = {

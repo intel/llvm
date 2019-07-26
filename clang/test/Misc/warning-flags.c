@@ -18,7 +18,7 @@ This test serves two purposes:
 
 The list of warnings below should NEVER grow.  It should gradually shrink to 0.
 
-CHECK: Warnings without flags (75):
+CHECK: Warnings without flags (74):
 CHECK-NEXT:   ext_excess_initializers
 CHECK-NEXT:   ext_excess_initializers_in_char_array_initializer
 CHECK-NEXT:   ext_expected_semi_decl_list
@@ -84,7 +84,6 @@ CHECK-NEXT:   warn_property_getter_owning_mismatch
 CHECK-NEXT:   warn_register_objc_catch_parm
 CHECK-NEXT:   warn_related_result_type_compatibility_class
 CHECK-NEXT:   warn_related_result_type_compatibility_protocol
-CHECK-NEXT:   warn_sycl_kernel_name_class_not_top_level
 CHECK-NEXT:   warn_template_export_unsupported
 CHECK-NEXT:   warn_template_spec_extra_headers
 CHECK-NEXT:   warn_tentative_incomplete_array
