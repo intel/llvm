@@ -1,4 +1,5 @@
 // RUN: %clang -### --sycl -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
+// RUN: %clang -### --sycl %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### --sycl -fno-sycl-use-bitcode -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE
 // RUN: %clang -### -target spir64-unknown-linux-sycldevice -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=TARGET
 // RUN: %clang -### --sycl -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=COMBINED
