@@ -165,7 +165,7 @@ and single device compiler for this target is invoked.
 In the driver, the following bools are defined to determine the compilation
 mode in SYCL:
 
-* IsSYCL : True if the user has passed `-fsycl` or `-sycl` to the compilation
+* IsSYCL : True if the user has passed `--sycl` to the compilation
 * IsSYCLOffloadDevice: True if calling clang to set up a device compilation
 * IsSYCLHost: True if setting up a call to clang to do a host compilation
 
