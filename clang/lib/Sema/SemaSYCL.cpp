@@ -83,6 +83,106 @@ static CXXRecordDecl *getKernelObjectType(FunctionDecl *Caller) {
   return (*Caller->param_begin())->getType()->getAsCXXRecordDecl();
 }
 
+// This information is from Section 4.13 of the SYCL spec
+// https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf
+// This function returns false if the math lib function
+// corresponding to the input builtin is not supported
+// for SYCL
+static bool IsSyclMathFunc(unsigned BuiltinID) {
+  switch (BuiltinID) {
+  case Builtin::BIlround:
+  case Builtin::BI__builtin_lround:
+  case Builtin::BIceill:
+  case Builtin::BI__builtin_ceill:
+  case Builtin::BIcopysignl:
+  case Builtin::BI__builtin_copysignl:
+  case Builtin::BIcosl:
+  case Builtin::BI__builtin_cosl:
+  case Builtin::BIexpl:
+  case Builtin::BI__builtin_expl:
+  case Builtin::BIexp2l:
+  case Builtin::BI__builtin_exp2l:
+  case Builtin::BIfabsl:
+  case Builtin::BI__builtin_fabsl:
+  case Builtin::BIfloorl:
+  case Builtin::BI__builtin_floorl:
+  case Builtin::BIfmal:
+  case Builtin::BI__builtin_fmal:
+  case Builtin::BIfmaxl:
+  case Builtin::BI__builtin_fmaxl:
+  case Builtin::BIfminl:
+  case Builtin::BI__builtin_fminl:
+  case Builtin::BIfmodl:
+  case Builtin::BI__builtin_fmodl:
+  case Builtin::BIlogl:
+  case Builtin::BI__builtin_logl:
+  case Builtin::BIlog10l:
+  case Builtin::BI__builtin_log10l:
+  case Builtin::BIlog2l:
+  case Builtin::BI__builtin_log2l:
+  case Builtin::BIpowl:
+  case Builtin::BI__builtin_powl:
+  case Builtin::BIrintl:
+  case Builtin::BI__builtin_rintl:
+  case Builtin::BIroundl:
+  case Builtin::BI__builtin_roundl:
+  case Builtin::BIsinl:
+  case Builtin::BI__builtin_sinl:
+  case Builtin::BIsqrtl:
+  case Builtin::BI__builtin_sqrtl:
+  case Builtin::BItruncl:
+  case Builtin::BI__builtin_truncl:
+  case Builtin::BIlroundl:
+  case Builtin::BI__builtin_lroundl:
+  case Builtin::BIceilf:
+  case Builtin::BI__builtin_ceilf:
+  case Builtin::BIcopysignf:
+  case Builtin::BI__builtin_copysignf:
+  case Builtin::BIcosf:
+  case Builtin::BI__builtin_cosf:
+  case Builtin::BIexpf:
+  case Builtin::BI__builtin_expf:
+  case Builtin::BIexp2f:
+  case Builtin::BI__builtin_exp2f:
+  case Builtin::BIfabsf:
+  case Builtin::BI__builtin_fabsf:
+  case Builtin::BIfloorf:
+  case Builtin::BI__builtin_floorf:
+  case Builtin::BIfmaf:
+  case Builtin::BI__builtin_fmaf:
+  case Builtin::BIfmaxf:
+  case Builtin::BI__builtin_fmaxf:
+  case Builtin::BIfminf:
+  case Builtin::BI__builtin_fminf:
+  case Builtin::BIfmodf:
+  case Builtin::BI__builtin_fmodf:
+  case Builtin::BIlogf:
+  case Builtin::BI__builtin_logf:
+  case Builtin::BIlog10f:
+  case Builtin::BI__builtin_log10f:
+  case Builtin::BIlog2f:
+  case Builtin::BI__builtin_log2f:
+  case Builtin::BIpowf:
+  case Builtin::BI__builtin_powf:
+  case Builtin::BIrintf:
+  case Builtin::BI__builtin_rintf:
+  case Builtin::BIroundf:
+  case Builtin::BI__builtin_roundf:
+  case Builtin::BIsinf:
+  case Builtin::BI__builtin_sinf:
+  case Builtin::BIsqrtf:
+  case Builtin::BI__builtin_sqrtf:
+  case Builtin::BItruncf:
+  case Builtin::BI__builtin_truncf:
+  case Builtin::BIlroundf:
+  case Builtin::BI__builtin_lroundf:
+    return false;
+  default:
+    break;
+  }
+  return true;
+}
+
 class MarkDeviceFunction : public RecursiveASTVisitor<MarkDeviceFunction> {
 public:
   MarkDeviceFunction(Sema &S)
@@ -131,7 +231,16 @@ public:
           SemaRef.Diag(FD->getLocation(), diag::note_callee_decl) << FD;
         }
       }
-    } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
+      // Specifically check if the math library function corresponding to this
+      // builtin is supported for SYCL
+      unsigned BuiltinID = (Callee ? Callee->getBuiltinID() : 0);
+      if (BuiltinID && !IsSyclMathFunc(BuiltinID)) {
+        StringRef Name = SemaRef.Context.BuiltinInfo.getName(BuiltinID);
+        SemaRef.Diag(e->getExprLoc(),
+                     diag::err_builtin_target_unsupported)
+            << Name << "SYCL device";
+      }
+    } else if ((!SemaRef.getLangOpts().SYCLAllowFuncPtr) &&
                !e->isTypeDependent())
       SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
           << Sema::KernelCallFunctionPointer;
