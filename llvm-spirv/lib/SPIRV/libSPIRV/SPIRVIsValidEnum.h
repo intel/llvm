@@ -559,6 +559,7 @@ inline bool isValid(spv::Capability V) {
   case CapabilityFPGAMemoryAttributesINTEL:
   case CapabilityFPGALoopControlsINTEL:
   case CapabilityBlockingPipesINTEL:
+  case CapabilityUnstructuredLoopControlsINTEL:
     return true;
   default:
     return false;
@@ -1003,6 +1004,7 @@ inline bool isValid(spv::Op V) {
   case OpSubgroupAvcSicGetPackedSkcLumaSumThresholdINTEL:
   case OpSubgroupAvcSicGetInterRawSadsINTEL:
   case OpFPGARegINTEL:
+  case OpLoopControlINTEL:
     return true;
   default:
     return false;

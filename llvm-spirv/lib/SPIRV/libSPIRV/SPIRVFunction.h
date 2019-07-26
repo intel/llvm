@@ -141,6 +141,7 @@ public:
   _SPIRV_DCL_ENCDEC
   void validate() const override {
     SPIRVValue::validate();
+    validateFunctionControlMask(FCtrlMask);
     assert(FuncType && "Invalid func type");
   }
 

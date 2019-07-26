@@ -331,6 +331,10 @@ public:
                    SPIRVWord LoopControl,
                    std::vector<SPIRVWord> LoopControlParameters,
                    SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *
+  addLoopControlINTELInst(SPIRVWord LoopControl,
+                          std::vector<SPIRVWord> LoopControlParameters,
+                          SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addSelectionMergeInst(SPIRVId MergeBlock,
                                           SPIRVWord SelectionControl,
                                           SPIRVBasicBlock *BB) override;
@@ -364,6 +368,8 @@ public:
                                                SPIRVValue *,
                                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addFPGARegINTELInst(SPIRVType *, SPIRVValue *,
+                                        SPIRVBasicBlock *) override;
+  SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *, SPIRVValue *,
                                         SPIRVBasicBlock *) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
@@ -1230,6 +1236,16 @@ SPIRVInstruction *SPIRVModuleImpl::addLoopMergeInst(
       BB, const_cast<SPIRVInstruction *>(BB->getTerminateInstr()));
 }
 
+SPIRVInstruction *SPIRVModuleImpl::addLoopControlINTELInst(
+    SPIRVWord LoopControl, std::vector<SPIRVWord> LoopControlParameters,
+    SPIRVBasicBlock *BB) {
+  addCapability(CapabilityUnstructuredLoopControlsINTEL);
+  addExtension(SPV_INTEL_unstructured_loop_controls);
+  return addInstruction(
+      new SPIRVLoopControlINTEL(LoopControl, LoopControlParameters, BB), BB,
+      const_cast<SPIRVInstruction *>(BB->getTerminateInstr()));
+}
+
 SPIRVInstruction *
 SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type, SPIRVValue *Base,
                                        std::vector<SPIRVValue *> Indices,
@@ -1299,6 +1315,16 @@ SPIRVInstruction *SPIRVModuleImpl::addFPGARegINTELInst(SPIRVType *Type,
       SPIRVInstTemplateBase::create(OpFPGARegINTEL, Type, getId(),
                                     getVec(V->getId()), BB, this),
       BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addSampledImageInst(SPIRVType *ResultTy,
+                                                       SPIRVValue *Image,
+                                                       SPIRVValue *Sampler,
+                                                       SPIRVBasicBlock *BB) {
+  return addInstruction(SPIRVInstTemplateBase::create(
+                            OpSampledImage, ResultTy, getId(),
+                            getVec(Image->getId(), Sampler->getId()), BB, this),
+                        BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addVariable(

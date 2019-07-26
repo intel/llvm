@@ -66,6 +66,18 @@ enum OCLMemFenceKind {
   OCLMF_Image = 4,
 };
 
+// This enum declares extra constants for OpenCL mem_fence flag. It includes
+// combinations of local/global/image flags.
+enum OCLMemFenceExtendedKind {
+  OCLMFEx_Local = OCLMF_Local,
+  OCLMFEx_Global = OCLMF_Global,
+  OCLMFEx_Local_Global = OCLMF_Global | OCLMF_Local,
+  OCLMFEx_Image = OCLMF_Image,
+  OCLMFEx_Image_Local = OCLMF_Image | OCLMF_Local,
+  OCLMFEx_Image_Global = OCLMF_Image | OCLMF_Global,
+  OCLMFEx_Image_Local_Global = OCLMF_Image | OCLMF_Global | OCLMF_Local,
+};
+
 enum OCLScopeKind {
   OCLMS_work_item,
   OCLMS_work_group,
@@ -95,6 +107,9 @@ enum OCLMemOrderKind {
 
 typedef SPIRVMap<OCLMemFenceKind, MemorySemanticsMask> OCLMemFenceMap;
 
+typedef SPIRVMap<OCLMemFenceExtendedKind, MemorySemanticsMask>
+    OCLMemFenceExtendedMap;
+
 typedef SPIRVMap<OCLMemOrderKind, unsigned, MemorySemanticsMask> OCLMemOrderMap;
 
 typedef SPIRVMap<OCLScopeKind, Scope> OCLMemScopeMap;
@@ -106,6 +121,9 @@ typedef SPIRVMap<std::string, SPIRVFPRoundingModeKind>
     SPIRSPIRVFPRoundingModeMap;
 
 typedef SPIRVMap<std::string, Op, SPIRVInstruction> OCLSPIRVBuiltinMap;
+
+class OCL12Builtin;
+typedef SPIRVMap<std::string, Op, OCL12Builtin> OCL12SPIRVBuiltinMap;
 
 typedef SPIRVMap<std::string, SPIRVBuiltinVariableKind>
     SPIRSPIRVBuiltinVariableMap;
@@ -305,6 +323,9 @@ BarrierLiterals getBarrierLiterals(CallInst *CI);
 /// Get number of memory order arguments for atomic builtin function.
 size_t getAtomicBuiltinNumMemoryOrderArgs(StringRef Name);
 
+/// Get number of memory order arguments for spirv atomic builtin function.
+size_t getSPIRVAtomicBuiltinNumMemoryOrderArgs(Op OC);
+
 /// Return true for OpenCL builtins which do compute operations
 /// (like add, sub, min, max, inc, dec, ...) atomically
 bool isComputeAtomicOCLBuiltin(StringRef DemangledName);
@@ -420,6 +441,22 @@ template <> inline void SPIRVMap<OCLMemFenceKind, MemorySemanticsMask>::init() {
   add(OCLMF_Local, MemorySemanticsWorkgroupMemoryMask);
   add(OCLMF_Global, MemorySemanticsCrossWorkgroupMemoryMask);
   add(OCLMF_Image, MemorySemanticsImageMemoryMask);
+}
+
+template <>
+inline void SPIRVMap<OCLMemFenceExtendedKind, MemorySemanticsMask>::init() {
+  add(OCLMFEx_Local, MemorySemanticsWorkgroupMemoryMask);
+  add(OCLMFEx_Global, MemorySemanticsCrossWorkgroupMemoryMask);
+  add(OCLMFEx_Local_Global, MemorySemanticsWorkgroupMemoryMask |
+                                MemorySemanticsCrossWorkgroupMemoryMask);
+  add(OCLMFEx_Image, MemorySemanticsImageMemoryMask);
+  add(OCLMFEx_Image_Local,
+      MemorySemanticsWorkgroupMemoryMask | MemorySemanticsImageMemoryMask);
+  add(OCLMFEx_Image_Global,
+      MemorySemanticsCrossWorkgroupMemoryMask | MemorySemanticsImageMemoryMask);
+  add(OCLMFEx_Image_Local_Global, MemorySemanticsWorkgroupMemoryMask |
+                                      MemorySemanticsCrossWorkgroupMemoryMask |
+                                      MemorySemanticsImageMemoryMask);
 }
 
 template <>
@@ -622,6 +659,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(signbit, SignBitSet)
   _SPIRV_OP(any, Any)
   _SPIRV_OP(all, All)
+  _SPIRV_OP(popcount, BitCount)
   _SPIRV_OP(get_fence, GenericPtrMemSemantics)
   // CL 2.0 kernel enqueue builtins
   _SPIRV_OP(enqueue_marker, EnqueueMarker)
@@ -693,6 +731,22 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(intel_sub_group_shuffle_down, SubgroupShuffleDownINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_up, SubgroupShuffleUpINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_xor, SubgroupShuffleXorINTEL)
+#undef _SPIRV_OP
+}
+
+template <> inline void SPIRVMap<std::string, Op, OCL12Builtin>::init() {
+#define _SPIRV_OP(x, y) add("atomic_" #x, Op##y);
+  _SPIRV_OP(add, AtomicIAdd)
+  _SPIRV_OP(sub, AtomicISub)
+  _SPIRV_OP(xchg, AtomicExchange)
+  _SPIRV_OP(cmpxchg, AtomicCompareExchange)
+  _SPIRV_OP(inc, AtomicIIncrement)
+  _SPIRV_OP(dec, AtomicIDecrement)
+  _SPIRV_OP(min, AtomicSMin)
+  _SPIRV_OP(max, AtomicSMax)
+  _SPIRV_OP(and, AtomicAnd)
+  _SPIRV_OP(or, AtomicOr)
+  _SPIRV_OP(xor, AtomicXor)
 #undef _SPIRV_OP
 }
 

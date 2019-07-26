@@ -656,7 +656,8 @@ Instruction *mutateCallInst(
   NewI->takeName(CI);
   NewI->setDebugLoc(CI->getDebugLoc());
   LLVM_DEBUG(dbgs() << " => " << *NewI << '\n');
-  CI->replaceAllUsesWith(NewI);
+  if (!CI->getType()->isVoidTy())
+    CI->replaceAllUsesWith(NewI);
   CI->eraseFromParent();
   return NewI;
 }
