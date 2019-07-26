@@ -17,6 +17,7 @@
 #include "clang/Basic/TargetOptions.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/Compiler.h"
+#include "OSTargets.h"
 
 namespace clang {
 namespace targets {
@@ -143,6 +144,7 @@ public:
     PointerWidth = PointerAlign = 64;
     SizeType = TargetInfo::UnsignedLong;
     PtrDiffType = IntPtrType = TargetInfo::SignedLong;
+
     resetDataLayout("e-i64:64-v16:16-v24:32-v32:32-v48:64-"
                     "v96:128-v192:256-v256:256-v512:512-v1024:1024");
   }
@@ -187,6 +189,108 @@ public:
   }
 };
 
+// x86-32 SPIR Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsX86_32SPIRTargetInfo
+    : public WindowsTargetInfo<SPIR32SYCLDeviceTargetInfo> {
+public:
+  WindowsX86_32SPIRTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIR32SYCLDeviceTargetInfo>(Triple, Opts) {
+    DoubleAlign = LongLongAlign = 64;
+    WCharType = UnsignedShort;
+    bool IsWinCOFF =
+        getTriple().isOSWindows() && getTriple().isOSBinFormatCOFF();
+    resetDataLayout(IsWinCOFF
+                        ? "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32"
+                        : "e-m:e-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32");
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    if (CC == CC_X86VectorCall)
+      // Permit CC_X86VectorCall which is used in Microsoft headers
+      return CCCR_OK;
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                    : CCCR_Warning;
+  }
+};
+
+// x86-32 SPIR Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftX86_32SPIRTargetInfo
+    : public WindowsX86_32SPIRTargetInfo {
+public:
+  MicrosoftX86_32SPIRTargetInfo(const llvm::Triple &Triple,
+                            const TargetOptions &Opts)
+      : WindowsX86_32SPIRTargetInfo(Triple, Opts) {
+    LongDoubleWidth = LongDoubleAlign = 64;
+    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
+  }
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsX86_32SPIRTargetInfo::getTargetDefines(Opts, Builder);
+    // The value of the following reflects processor type.
+    // 300=386, 400=486, 500=Pentium, 600=Blend (default)
+    // We lost the original triple, so we use the default.
+    // TBD should we keep these lines?  Copied from X86.h.
+    Builder.defineMacro("_M_IX86", "600");
+  }
+};
+
+// x86-64 SPIR64 Windows target
+class LLVM_LIBRARY_VISIBILITY WindowsX86_64_SPIR64TargetInfo
+    : public WindowsTargetInfo<SPIR64SYCLDeviceTargetInfo> {
+public:
+  WindowsX86_64_SPIR64TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
+      : WindowsTargetInfo<SPIR64SYCLDeviceTargetInfo>(Triple, Opts) {
+    LongWidth = LongAlign = 32;
+    DoubleAlign = LongLongAlign = 64;
+    IntMaxType = SignedLongLong;
+    Int64Type = SignedLongLong;
+    SizeType = UnsignedLongLong;
+    PtrDiffType = SignedLongLong;
+    IntPtrType = SignedLongLong;
+    WCharType = UnsignedShort;
+    bool IsWinCOFF =
+        getTriple().isOSWindows() && getTriple().isOSBinFormatCOFF();
+    resetDataLayout(IsWinCOFF
+                        ? "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32"
+                        : "e-m:e-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32");
+  }
+
+  BuiltinVaListKind getBuiltinVaListKind() const override {
+    return TargetInfo::CharPtrBuiltinVaList;
+  }
+
+  CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
+    if (CC == CC_X86VectorCall)
+      // Permit CC_X86VectorCall which is used in Microsoft headers
+      return CCCR_OK;
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
+                                    : CCCR_Warning;
+  }
+};
+
+// x86-64 SPIR64 Windows Visual Studio target
+class LLVM_LIBRARY_VISIBILITY MicrosoftX86_64_SPIR64TargetInfo
+    : public WindowsX86_64_SPIR64TargetInfo {
+public:
+  MicrosoftX86_64_SPIR64TargetInfo(const llvm::Triple &Triple,
+                            const TargetOptions &Opts)
+      : WindowsX86_64_SPIR64TargetInfo(Triple, Opts) {
+    LongDoubleWidth = LongDoubleAlign = 64;
+    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
+  }
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    WindowsX86_64_SPIR64TargetInfo::getTargetDefines(Opts, Builder);
+    Builder.defineMacro("_M_X64", "100");
+    Builder.defineMacro("_M_AMD64", "100");
+  }
+};
 } // namespace targets
 } // namespace clang
 #endif // LLVM_CLANG_LIB_BASIC_TARGETS_SPIR_H
