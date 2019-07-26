@@ -38,8 +38,8 @@
 ; CHECK: entry:
 ; CHECK:   %call1 = call spir_func i32 @__translate_spirv_memory_scope(i32 %scope)
 ; CHECK:   %call2 = call spir_func i32 @__translate_spirv_memory_order(i32 %order)
-; CHECK:   %call.old = call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(i32 addrspace(4)* %obj, i32 %call2, i32 %call1)
-; CHECK:   ret i32 %call.old
+; CHECK:   %call = call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(i32 addrspace(4)* %obj, i32 %call2, i32 %call1)
+; CHECK:   ret i32 %call
 ; CHECK: }
 
 ; CHECK: define private spir_func i32 @__translate_spirv_memory_scope(i32 %key) {

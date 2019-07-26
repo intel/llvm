@@ -10,6 +10,7 @@
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
 ; CHECK-SPIRV: Decorate {{[0-9]+}} RegisterINTEL
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "BLOCK_RAM"
+; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 2
 ; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 4
 ; CHECK-SPIRV: Decorate {{[0-9]+}} BankwidthINTEL 8
 ; CHECK-SPIRV: Decorate {{[0-9]+}} MaxPrivateCopiesINTEL 4
@@ -23,6 +24,7 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-linux"
 
 %class.anon = type { i8 }
+%struct._ZTS7foo_two.foo_two = type { i32 }
 
 ; CHECK-LLVM: [[STR1:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:4}
 ; CHECK-LLVM: [[STR2:@[0-9_.]+]] = {{.*}}{register:1}
@@ -34,6 +36,7 @@ target triple = "spir64-unknown-linux"
 ; CHECK-LLVM: [[STR8:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{merge:foo:depth}
 ; CHECK-LLVM: [[STR9:@[0-9_.]+]] = {{.*}}{max_replicates:2}
 ; CHECK-LLVM: [[STR10:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{simple_dual_port:1}
+; CHECK-LLVM: [[STR11:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:2}
 @.str = private unnamed_addr constant [29 x i8] c"{memory:DEFAULT}{numbanks:4}\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [13 x i8] c"test_var.cpp\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [13 x i8] c"{register:1}\00", section "llvm.metadata"
@@ -45,6 +48,7 @@ target triple = "spir64-unknown-linux"
 @.str.8 = private unnamed_addr constant [34 x i8] c"{memory:DEFAULT}{merge:foo:depth}\00", section "llvm.metadata"
 @.str.9 = private unnamed_addr constant [19 x i8] c"{max_replicates:2}\00", section "llvm.metadata"
 @.str.10 = private unnamed_addr constant [37 x i8] c"{memory:DEFAULT}{simple_dual_port:1}\00", section "llvm.metadata"
+@.str.11 = private unnamed_addr constant [29 x i8] c"{memory:DEFAULT}{numbanks:2}\00", section "llvm.metadata"
 
 ; Function Attrs: nounwind
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -68,6 +72,7 @@ entry:
   store %class.anon* %this, %class.anon** %this.addr, align 8, !tbaa !5
   %this1 = load %class.anon*, %class.anon** %this.addr, align 8
   call spir_func void @_Z3foov()
+  call spir_func void @_Z3boov()
   ret void
 }
 
@@ -155,6 +160,19 @@ entry:
   %17 = bitcast i32* %var_one to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %17) #4
   ret void
+}
+
+; Function Attrs: nounwind
+define dso_local spir_func void @_Z3boov() #3 {
+  %1 = alloca %struct._ZTS7foo_two.foo_two, align 4
+  %2 = bitcast %struct._ZTS7foo_two.foo_two* %1 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 44, i8* %2) #4
+  %3 = bitcast %struct._ZTS7foo_two.foo_two* %1 to i8*
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR11:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([29 x i8], [29 x i8]* [[STR11]], i32 0, i32 0), i8* undef, i32 undef)
+  call void @llvm.var.annotation(i8* %3, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.11, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.1, i32 0, i32 0), i32 35)
+   %4 = bitcast %struct._ZTS7foo_two.foo_two* %1 to i8*
+   call void @llvm.lifetime.end.p0i8(i64 44, i8* %4) #4
+   ret void
 }
 
 ; Function Attrs: nounwind

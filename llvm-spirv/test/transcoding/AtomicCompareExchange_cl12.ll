@@ -13,18 +13,14 @@ target triple = "spir-unknown-unknown"
 
 ; CHECK:         define spir_func i32 @test
 ; CHECK-LABEL:   entry
-; CHECK:         [[PTR:%expected[0-9]*]] = alloca i32, align 4
-; CHECK:         store i32 {{.*}}, i32* [[PTR]]
-; CHECK:         [[PTR]].as = addrspacecast i32* [[PTR]] to i32 addrspace(4)*
-; CHECK:         call spir_func i1 @_Z39atomic_compare_exchange_strong_explicit{{.*}}%object, i32 addrspace(4)* [[PTR]].as, i32 %desired, i32 5, i32 5, i32 2)
-; CHECK-NEXT;         load i32* [[PTR]]
+; CHECK:         call spir_func i32 @_Z14atomic_cmpxchgPU3AS1Viii(i32 addrspace(1)* %object, i32 %expected, i32 %desired) #0
 define spir_func i32 @test(i32 addrspace(1)* %object, i32 %expected, i32 %desired) #0 {
 entry:
-  %call = tail call spir_func i32 @_Z14atomic_cmpxchgPVU3AS1iii(i32 addrspace(1)* %object, i32 %expected, i32 %desired) #2
+  %call = tail call spir_func i32 @_Z14atomic_cmpxchgPU3AS1Viii(i32 addrspace(1)* %object, i32 %expected, i32 %desired) #2
   ret i32 %call
 }
 
-declare spir_func i32 @_Z14atomic_cmpxchgPVU3AS1iii(i32 addrspace(1)*, i32, i32) #1
+declare spir_func i32 @_Z14atomic_cmpxchgPU3AS1Viii(i32 addrspace(1)*, i32, i32) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
