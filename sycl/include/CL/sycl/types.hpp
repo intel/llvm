@@ -717,10 +717,9 @@ public:
   // As far as CTS validation is concerned, 0/-1 logic also applies when
   // NumElements is equal to one, which is somewhat inconsistent with being
   // transparent with scalar data.
-  //
-  // TODO, at least for the device: Use direct comparison on aggregate data,
-  // e.g., Ret.m_Data = m_Data RELLOGOP Rhs.m_Data, as opposed to looping
-  // around scalar operations.
+  // TODO: Determine if vec<, NumElements=1> is needed at all, remove this
+  // inconsistency if not by disallowing one-element vectors (as in OpenCL)
+
 #ifdef __SYCL_RELLOGOP
 #error "Undefine __SYCL_RELLOGOP macro"
 #endif
@@ -729,7 +728,12 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
-    return vec<rel_t, NumElements>{m_Data RELLOGOP vector_t(Rhs)};             \
+    auto Ret =                                                                 \
+        vec<rel_t, NumElements>((typename vec<rel_t, NumElements>::vector_t)(  \
+            m_Data RELLOGOP Rhs.m_Data));                                      \
+    if (NumElements == 1) /*Scalar 0/1 logic was applied, invert*/             \
+      Ret *= -1;                                                               \
+    return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if<std::is_convertible<T, DataT>::value &&              \
