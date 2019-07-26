@@ -2421,6 +2421,24 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       LangStd = OpenCLLangStd;
   }
 
+  // -sycl-std applies to any SYCL source, not only those containing kernels,
+  // but also those using the SYCL API
+  if(const Arg  *A = Args.getLastArg(OPT_sycl_std_EQ)) {
+    Opts.setSYCLVersion(llvm::StringSwitch<LangOptions::SYCLVersionList>(A->getValue())
+      .Cases("1.2.1",  "121", "sycl-1.2.1", LangOptions::SYCLVersionList::sycl_1_2_1)
+      .Default(LangOptions::SYCLVersionList::undefined));
+
+    if (Opts.getSYCLVersion() == LangOptions::SYCLVersionList::undefined) {
+      // User has passed an invalid value to the flag, this is an error
+      Diags.Report(diag::err_drv_invalid_value) 
+          << A->getAsString(Args) << A->getValue();
+    }
+  } else if (Args.hasArg(options::OPT_fsycl_is_device) 
+                         || Args.hasArg(options::OPT_fsycl_is_host)
+                         || Args.hasArg(options::OPT_fsycl)) {
+    Opts.setSYCLVersion(LangOptions::SYCLVersionList::sycl_1_2_1);
+  }
+
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);
   Opts.DeclareOpenCLBuiltins = Args.hasArg(OPT_fdeclare_opencl_builtins);
 
