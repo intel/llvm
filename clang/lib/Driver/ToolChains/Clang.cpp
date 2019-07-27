@@ -6377,16 +6377,16 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
 
   // When bundling for FPGA with -fsycl-link a specific triple is formulated
   // to match the FPGA binary.  We are also guaranteed only the single device
-  // and host object inputs
+  // and host object inputs.
   const ToolChain *TCCheck = &getToolChain();
   if (TCArgs.hasArg(options::OPT_fsycl_link_EQ) &&
       TCCheck->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
     Triples = "-targets=";
     llvm::Triple TT;
-    TT.setArchName(JA.getInputs()[0]->getType() == types::TY_AOCX ? "fpga_aocx"
-                                                                 : "fpga_aocr");
+    TT.setArchName(JA.getInputs()[0]->getType() == types::TY_FPGA_AOCX
+                   ? "fpga_aocx" : "fpga_aocr");
     TT.setVendorName("intel");
-    TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+    TT.setOS(llvm::Triple(TCCheck->getTriple()).getOS());
     TT.setEnvironment(llvm::Triple::SYCLDevice);
     Triples += "fpga-";
     Triples += TT.normalize();
@@ -6474,8 +6474,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       LinkArgs.push_back(TCArgs.MakeArgString(A));
     const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
     C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
-  } else if (Input.getType() == types::TY_AOCX ||
-             Input.getType() == types::TY_AOCR) {
+  } else if (Input.getType() == types::TY_FPGA_AOCX ||
+             Input.getType() == types::TY_FPGA_AOCR) {
     // Override type with object type.
     TypeArg = "o";
   }
@@ -6499,10 +6499,10 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // aocx or aocr type bundles.
     if (Dep.DependentToolChain->getTriple().getSubArch() ==
                                    llvm::Triple::SPIRSubArch_fpga &&
-        (Input.getType() == types::TY_AOCX ||
-         Input.getType() == types::TY_AOCR)) {
+        (Input.getType() == types::TY_FPGA_AOCX ||
+         Input.getType() == types::TY_FPGA_AOCR)) {
       llvm::Triple TT;
-      TT.setArchName(Input.getType() == types::TY_AOCX ? "fpga_aocx"
+      TT.setArchName(Input.getType() == types::TY_FPGA_AOCX ? "fpga_aocx"
                                                        : "fpga_aocr");
       TT.setVendorName("intel");
       TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
@@ -6652,9 +6652,9 @@ void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
 
   // The translator command looks like this:
   // llvm-no-spir-kernel <file>.bc
-  // Upon success, we just move ahead.  Error means a kernel was found and
+  // Upon success, we just move ahead.  Error means the check failed and
   // we need to exit.  The expected output is the input as this is just an
-  // intermediate check with no functional change
+  // intermediate check with no functional change.
   ArgStringList CheckArgs;
   for (auto I : Inputs) {
     CheckArgs.push_back(I.getFilename());

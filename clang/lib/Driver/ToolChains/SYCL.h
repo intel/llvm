@@ -9,7 +9,6 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 
-#include "InputInfo.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Tool.h"
 
