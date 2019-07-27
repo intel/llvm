@@ -569,12 +569,15 @@ bool TargetLowering::SimplifyDemandedBits(SDValue Op, const APInt &DemandedBits,
 SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
     SDValue Op, const APInt &DemandedBits, const APInt &DemandedElts,
     SelectionDAG &DAG, unsigned Depth) const {
+  if (Depth >= 6) // Limit search depth.
+    return SDValue();
+
   unsigned NumElts = DemandedElts.getBitWidth();
   KnownBits LHSKnown, RHSKnown;
   switch (Op.getOpcode()) {
   case ISD::BITCAST: {
     SDValue Src = peekThroughBitcasts(Op.getOperand(0));
-    EVT SrcVT = Op.getOperand(0).getValueType();
+    EVT SrcVT = Src.getValueType();
     EVT DstVT = Op.getValueType();
     unsigned NumSrcEltBits = SrcVT.getScalarSizeInBits();
     unsigned NumDstEltBits = DstVT.getScalarSizeInBits();
@@ -761,7 +764,7 @@ bool TargetLowering::SimplifyDemandedBits(
   } else if (OriginalDemandedBits == 0 || OriginalDemandedElts == 0) {
     // Not demanding any bits/elts from Op.
     return TLO.CombineTo(Op, TLO.DAG.getUNDEF(VT));
-  } else if (Depth == 6) { // Limit search depth.
+  } else if (Depth >= 6) { // Limit search depth.
     return false;
   }
 
