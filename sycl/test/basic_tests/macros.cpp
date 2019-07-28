@@ -1,4 +1,4 @@
-// RUN: %clangxx %s -o %t.out -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 //==------------------- macros.cpp - SYCL buffer basic test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
