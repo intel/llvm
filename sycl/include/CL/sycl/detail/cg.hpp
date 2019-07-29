@@ -243,24 +243,22 @@ public:
       GlobalSize[I] = NDRDesc.GlobalSize[I];
     }
 
-    detail::NDLoop<Dims>::iterate(
-        GroupSize, [&](const id<Dims> &GroupID) {
-          sycl::group<Dims> Group = IDBuilder::createGroup<Dims>(
-              GlobalSize, LocalSize, GroupSize, GroupID);
+    detail::NDLoop<Dims>::iterate(GroupSize, [&](const id<Dims> &GroupID) {
+      sycl::group<Dims> Group = IDBuilder::createGroup<Dims>(
+          GlobalSize, LocalSize, GroupSize, GroupID);
 
-          detail::NDLoop<Dims>::iterate(
-              LocalSize, [&](const id<Dims> &LocalID) {
-                id<Dims> GlobalID = GroupID * LocalSize + LocalID;
-                const sycl::item<Dims, /*Offset=*/true> GlobalItem =
-                    IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
-                                                      GlobalOffset);
-                const sycl::item<Dims, /*Offset=*/false> LocalItem =
-                    IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
-                const sycl::nd_item<Dims> NDItem =
-                    IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-                MKernel(NDItem);
-              });
-        });
+      detail::NDLoop<Dims>::iterate(LocalSize, [&](const id<Dims> &LocalID) {
+        id<Dims> GlobalID = GroupID * LocalSize + LocalID;
+        const sycl::item<Dims, /*Offset=*/true> GlobalItem =
+            IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
+                                              GlobalOffset);
+        const sycl::item<Dims, /*Offset=*/false> LocalItem =
+            IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
+        const sycl::nd_item<Dims> NDItem =
+            IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
+        MKernel(NDItem);
+      });
+    });
   }
 
   template <typename ArgT = KernelArgType>
