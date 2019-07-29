@@ -19,8 +19,10 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Casting.h"
@@ -38,6 +40,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <list>
 #include <memory>
 #include <string>
 #include <system_error>
@@ -78,7 +81,8 @@ static cl::opt<std::string> FilesType(
              "  o   - object\n"
              "  oo  - object; output file is a list of unbundled objects\n"
              "  gch - precompiled-header\n"
-             "  ast - clang AST file\n"),
+             "  ast - clang AST file\n"
+             "  ao  - archive; output file is a list of unbundled objects\n"),
     cl::cat(ClangOffloadBundlerCategory));
 
 static cl::opt<bool>
@@ -908,6 +912,154 @@ public:
   }
 };
 
+static void fatalError(std::error_code EC, Twine Context = "") {
+  auto Msg = Context.str();
+  if (!Msg.empty())
+    Msg += ": " + EC.message();
+  report_fatal_error(Msg);
+}
+
+static void fatalError(Error E, Twine Context = "") {
+  handleAllErrors(std::move(E), [&](const ErrorInfoBase &EIB) {
+    auto Msg = Context.str();
+    if (!Msg.empty())
+      Msg += ": " + EIB.message();
+    report_fatal_error(Msg);
+  });
+}
+
+/// Archive file handler. Only unbundling is supported so far.
+class ArchiveFileHandler final : public FileHandler {
+  /// Archive we are dealing with.
+  std::unique_ptr<Archive> Ar;
+
+  /// Union of bundle names from all object.
+  StringSet<> Bundles;
+
+  /// Iterators over the bundle names.
+  StringSet<>::iterator CurrBundle = Bundles.end();
+  StringSet<>::iterator NextBundle = Bundles.end();
+
+public:
+  ArchiveFileHandler() = default;
+  ~ArchiveFileHandler() = default;
+
+  void ReadHeader(MemoryBuffer &Input) override {
+    // Create archive instance for the given input.
+    auto ArOrErr = Archive::create(Input);
+    if (!ArOrErr)
+      fatalError(ArOrErr.takeError());
+    Ar = std::move(*ArOrErr);
+
+    // Read all children.
+    Error Err = Error::success();
+    for (auto &C : Ar->children(Err)) {
+      auto BinOrErr = C.getAsBinary();
+      if (!BinOrErr)
+        fatalError(BinOrErr.takeError());
+
+      auto &Bin = BinOrErr.get();
+      if (!Bin->isObject())
+        continue;
+
+      auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+      auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+
+      // Collect the list of bundles from the object.
+      ObjectFileHandler OFH(std::move(Obj));
+      OFH.ReadHeader(*Buf);
+
+      for (auto TT = OFH.ReadBundleStart(*Buf); !TT.empty();
+           TT = OFH.ReadBundleStart(*Buf))
+        Bundles.insert(TT);
+    }
+    if (Err)
+      fatalError(std::move(Err));
+
+    CurrBundle = Bundles.end();
+    NextBundle = Bundles.begin();
+  }
+
+  StringRef ReadBundleStart(MemoryBuffer &Input) override {
+    if (NextBundle == Bundles.end())
+      return "";
+    CurrBundle = NextBundle++;
+    return CurrBundle->first();
+  }
+
+  void ReadBundleEnd(MemoryBuffer &Input) override {}
+
+  void ReadBundle(StringRef OutName, MemoryBuffer &Input) override {
+    // Archive unbundling produces multiple files, so output file is a file list
+    // where we write the unbundled object names.
+    std::error_code EC;
+    raw_fd_ostream OS(OutName, EC);
+    if (EC)
+      fatalError(EC, Twine("can't open file for writing ") + OutName);
+
+    // Read all children.
+    Error Err = Error::success();
+    for (auto &C : Ar->children(Err)) {
+      auto BinOrErr = C.getAsBinary();
+      if (!BinOrErr)
+        fatalError(BinOrErr.takeError());
+
+      auto &Bin = BinOrErr.get();
+      if (!Bin->isObject())
+        continue;
+
+      auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+      auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+
+      ObjectFileHandler OFH(std::move(Obj));
+      OFH.ReadHeader(*Buf);
+      for (auto TT = OFH.ReadBundleStart(*Buf); !TT.empty();
+           TT = OFH.ReadBundleStart(*Buf)) {
+        if (TT != CurrBundle->first())
+          continue;
+
+        // This is the bundle we are looking for. Created temporary file
+        // where the device part will be extracted.
+        SmallString<128u> ChildFileName;
+        auto EC =
+            sys::fs::createTemporaryFile(TempFileNameBase, "o", ChildFileName);
+        if (EC)
+          fatalError(EC, "can't create temporary file");
+
+        // And extract the bundle.
+        OFH.ReadBundle(ChildFileName, *Buf);
+        OFH.ReadBundleEnd(*Buf);
+
+        // Add temporary file name with the device part to the output file list.
+        OS << ChildFileName << "\n";
+      }
+    }
+    if (Err)
+      fatalError(std::move(Err));
+  }
+
+  void ReadBundle(raw_fd_ostream &OS, MemoryBuffer &Input) override {
+    llvm_unreachable("must not be called for the ArchiveFileHandler");
+  }
+
+  void WriteHeader(raw_fd_ostream &OS,
+                   ArrayRef<std::unique_ptr<MemoryBuffer>> Inputs) override {
+    llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+
+  void WriteBundleStart(raw_fd_ostream &OS, StringRef TargetTriple) override {
+    llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+
+  bool WriteBundleEnd(raw_fd_ostream &OS, StringRef TargetTriple) override {
+    llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+
+  void WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) override {
+    llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+};
+
 /// Return an appropriate object file handler. We use the specific object
 /// handler if we know how to deal with that format, otherwise we use a default
 /// binary file handler.
@@ -953,6 +1105,9 @@ static FileHandler *CreateFileHandler(MemoryBuffer &FirstInput) {
     return new BinaryFileHandler();
   if (FilesType == "ast")
     return new BinaryFileHandler();
+  if (FilesType == "ao")
+    return new ArchiveFileHandler();
+
   errs() << "error: invalid file type specified.\n";
   return nullptr;
 }
@@ -960,6 +1115,11 @@ static FileHandler *CreateFileHandler(MemoryBuffer &FirstInput) {
 /// Bundle the files. Return true if an error was found.
 static bool BundleFiles() {
   std::error_code EC;
+
+  if (FilesType == "ao") {
+    errs() << "error: bundling is not supported for archives\n";
+    return true;
+  }
 
   // Create output file.
   raw_fd_ostream OutputFile(OutputFileNames.front(), EC, sys::fs::F_None);
@@ -1082,8 +1242,9 @@ static bool UnbundleFiles() {
         return true;
       }
 
-      // If this entry has a host kind, copy the input file to the output file.
-      if (hasHostKind(E.first()))
+      // If this entry has a host kind, copy the input file to the output file
+      // except for the archive unbundling where output is a list file.
+      if (hasHostKind(E.first()) && FilesType != "ao")
         OutputFile.write(Input.getBufferStart(), Input.getBufferSize());
     }
     return false;

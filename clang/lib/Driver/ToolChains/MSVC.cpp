@@ -324,6 +324,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (!Args.hasArg(options::OPT_nostdlib) && Args.hasArg(options::OPT_fsycl))
     CmdArgs.push_back("-defaultlib:sycl.lib");
 
+  for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("-defaultlib:") + A->getValue()));
+
   if (!llvm::sys::Process::GetEnv("LIB")) {
     // If the VC environment hasn't been configured (perhaps because the user
     // did not run vcvarsall), try to build a consistent link environment.  If

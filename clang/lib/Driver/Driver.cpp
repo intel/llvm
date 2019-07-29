@@ -3499,7 +3499,14 @@ public:
       // Do not create an unbundling action for an object when we know a fat
       // static library is being used.  A separate unbundling action is created
       // for all objects and the fat static library.
-      if (!(HostAction->getType() == types::TY_Object &&
+      // But in MSVC environment static offload archives are handled differently
+      // due to absence of partial linking support in the linker. Instead of
+      // partially linking input objects and static archives and then unbundling
+      // result we are unbundling all objects and offload archives to extract
+      // device parts. Therefore, in case on MSVC environment unbundling action
+      // for objects is still needed.
+      if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ||
+          !(HostAction->getType() == types::TY_Object &&
             llvm::sys::path::has_extension(InputName) &&
             types::lookupTypeForExtension(
               llvm::sys::path::extension(InputName).drop_front()) ==
@@ -3909,7 +3916,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   // When a static fat archive is provided, create a new unbundling step
   // for all of the objects.
-  if (Args.hasArg(options::OPT_foffload_static_lib_EQ) &&
+  if (!C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
+      Args.hasArg(options::OPT_foffload_static_lib_EQ) &&
       !LinkerInputs.empty()) {
     ActionList UnbundlerInputs;
     ActionList TempLinkerInputs;
@@ -3942,6 +3950,22 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
     for (const auto &TLI : TempLinkerInputs)
       LinkerInputs.push_back(TLI);
+  }
+  if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
+      Args.hasArg(options::OPT_foffload_static_lib_EQ)) {
+    // In MSVC environment offload-static-libs are handled slightly different
+    // because of missing support for partial linking in the linker. We add an
+    // unbundling action for each static archive which produces list files with
+    // extracted objects. Device lists are then added to the appropriate device
+    // link actions and host list is ignored since we are adding
+    // offload-static-libs as normal libraries to the host link command.
+    for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ)) {
+      Arg *InputArg = MakeInputArg(Args, *Opts, A->getValue());
+      Action *Current = C.MakeAction<InputAction>(*InputArg, types::TY_Archive);
+      OffloadBuilder.addHostDependenceToDeviceActions(Current, InputArg, Args);
+      OffloadBuilder.addDeviceDependencesToHostAction(
+          Current, InputArg, phases::Link, FinalPhase, PL);
+    }
   }
 
   // Add a link action if necessary.
@@ -4711,9 +4735,12 @@ InputInfo Driver::BuildJobsForActionNoCache(
       // unbundling action does not change the type of the output which can
       // cause a overwrite.
       InputInfo CurI;
+      bool IsMSVCEnv =
+          C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
       if (C.getInputArgs().hasArg(options::OPT_foffload_static_lib_EQ) &&
           UI.DependentOffloadKind != Action::OFK_Host &&
-          JA->getType() == types::TY_Object) {
+          ((JA->getType() == types::TY_Object && !IsMSVCEnv) ||
+           (JA->getType() == types::TY_Archive && IsMSVCEnv))) {
         std::string TmpFileName =
            C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
                                           "txt");
