@@ -45,10 +45,12 @@
 #endif // __HAS_EXT_VECTOR_TYPE__
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 
 #include <array>
+#include <cmath>
 
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
@@ -226,17 +228,75 @@ template <typename T> struct LShift {
   }
 };
 
-template <typename T, typename convertT, rounding_mode roundingMode>
-T convertHelper(const T &Opnd) {
-  if (roundingMode == rounding_mode::automatic ||
-      roundingMode == rounding_mode::rtz) {
-    return static_cast<convertT>(Opnd);
-  }
-  if (roundingMode == rounding_mode::rtp) {
-    return static_cast<convertT>(ceil(Opnd));
-  }
-  // roundingMode == rounding_mode::rtn
-  return static_cast<convertT>(floor(Opnd));
+template <typename T>
+using is_floating_point =
+    std::integral_constant<bool, std::is_floating_point<T>::value ||
+                                     std::is_same<T, half>::value>;
+
+template <typename T, typename R>
+using is_int_to_int =
+    std::integral_constant<bool, std::is_integral<T>::value &&
+                                     std::is_integral<R>::value>;
+
+template <typename T, typename R>
+using is_int_to_float =
+    std::integral_constant<bool, std::is_integral<T>::value &&
+                                     detail::is_floating_point<R>::value>;
+
+template <typename T, typename R>
+using is_float_to_int =
+    std::integral_constant<bool, detail::is_floating_point<T>::value &&
+                                     std::is_integral<R>::value>;
+
+template <typename T, typename R>
+using is_float_to_float =
+    std::integral_constant<bool, detail::is_floating_point<T>::value &&
+                                     detail::is_floating_point<R>::value>;
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
+  return Value;
+}
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<!std::is_same<T, R>::value &&
+                        (is_int_to_int<T, R>::value ||
+                         is_int_to_float<T, R>::value ||
+                         is_float_to_float<T, R>::value),
+                    R>
+convertImpl(T Value) {
+  return static_cast<R>(Value);
+}
+
+// float to int
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<!std::is_same<T, R>::value && is_float_to_int<T, R>::value,
+                    R>
+convertImpl(T Value) {
+#ifndef __SYCL_DEVICE_ONLY__
+  switch (roundingMode) {
+    // Round to nearest even is default rounding mode for floating-point types
+  case rounding_mode::automatic:
+    // Round to nearest even.
+  case rounding_mode::rte:
+    return std::round(Value);
+    // Round toward zero.
+  case rounding_mode::rtz:
+    return std::trunc(Value);
+    // Round toward positive infinity.
+  case rounding_mode::rtp:
+    return std::ceil(Value);
+    // Round toward negative infinity.
+  case rounding_mode::rtn:
+    return std::floor(Value);
+  default:
+    assert(!"Unsupported rounding mode!");
+    return static_cast<R>(Value);
+  };
+#else
+  // TODO implement device side convertion.
+  return static_cast<R>(Value);
+#endif
 }
 
 } // namespace detail
@@ -513,56 +573,17 @@ public:
   static constexpr size_t get_count() { return NumElements; }
   static constexpr size_t get_size() { return sizeof(m_Data); }
 
-  // TODO: convert() for FP to FP. Also, check whether rounding mode handling
-  // is needed for integers to FP convert.
-  //
-  // Convert to same type is no-op.
   template <typename convertT, rounding_mode roundingMode>
-  typename std::enable_if<std::is_same<DataT, convertT>::value,
-                          vec<convertT, NumElements>>::type
-  convert() const {
-    return *this;
-  }
-  // From Integer to Integer or FP
-  template <typename convertT, rounding_mode roundingMode>
-  typename std::enable_if<!std::is_same<DataT, convertT>::value &&
-                              std::is_integral<DataT>::value,
-                          vec<convertT, NumElements>>::type
-  convert() const {
-// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
-// by SYCL device compiler only.
-#ifdef __SYCL_DEVICE_ONLY__
-    return vec<convertT, NumElements>{
-        (typename vec<convertT, NumElements>::DataType)m_Data};
-#else
-    vec<convertT, NumElements> Result;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Result.setValue(I, static_cast<convertT>(getValue(I)));
-    }
-    return Result;
-#endif
-  }
-  // From FP to Integer
-  template <typename convertT, rounding_mode roundingMode>
-  typename std::enable_if<!std::is_same<DataT, convertT>::value &&
-                              std::is_integral<convertT>::value &&
-                              std::is_floating_point<DataT>::value,
-                          vec<convertT, NumElements>>::type
-  convert() const {
-// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
-// by SYCL device compiler only.
-#ifdef __SYCL_DEVICE_ONLY__
-    return vec<convertT, NumElements>{
-        detail::convertHelper<vec<convertT, NumElements>::DataType,
-                              roundingMode>(m_Data)};
-#else
+  vec<convertT, NumElements> convert() const {
+    static_assert(std::is_integral<convertT>::value ||
+                      detail::is_floating_point<convertT>::value,
+                  "Unsupported convertT");
     vec<convertT, NumElements> Result;
     for (size_t I = 0; I < NumElements; ++I) {
       Result.setValue(
-          I, detail::convertHelper<convertT, roundingMode>(getValue(I)));
+          I, detail::convertImpl<DataT, convertT, roundingMode>(getValue(I)));
     }
     return Result;
-#endif
   }
 
   template <typename asT>
