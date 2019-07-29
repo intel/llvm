@@ -27,10 +27,10 @@
 //
 // >> ---- wrap device binary
 // >> produce .bc
-// RUN: clang-offload-wrapper -o wrapper.bc -host=x86_64-pc-linux-gnu -kind=sycl app.spv
+// RUN: clang-offload-wrapper -o wrapper.bc -host=x86_64 -kind=sycl app.spv
 //
 // >> compile .bc to .o
-// RUN: llc -filetype=obj wrapper.bc -o wrapper.o
+// RUN: %clangxx -c wrapper.bc -o wrapper.o
 //
 // >> ---- link the full hetero app
 // RUN: %clangxx wrapper.o a.o b.o -o app.exe -lOpenCL -lsycl
