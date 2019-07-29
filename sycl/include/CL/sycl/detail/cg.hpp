@@ -58,7 +58,8 @@ class NDRDescT {
   }
 
 public:
-  NDRDescT() = default;
+  NDRDescT()
+      : GlobalSize{0, 0, 0}, LocalSize{0, 0, 0}, NumWorkGroups{0, 0, 0} {}
 
   template <int Dims_> void set(sycl::range<Dims_> NumWorkItems) {
     for (int I = 0; I < Dims_; ++I) {
@@ -160,7 +161,7 @@ public:
       // needed to invoke the kernel and adjust the NDRange descriptor
       // accordingly. For some devices the work group size selection requires
       // access to the device's properties, hence such late "adjustment".
-      range<3> WGsize = {1, 1, 1}; // no better alternative for serial host?
+      range<3> WGsize{1, 1, 1}; // no better alternative for serial host?
       AdjustedRange.set(NDRDesc.Dims,
                         nd_range<3>(NDRDesc.NumWorkGroups * WGsize, WGsize));
       Adjust = true;

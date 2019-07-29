@@ -135,7 +135,7 @@ public:
 
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(cl_mem MemObject, const context &SyclContext,
-         event AvailableEvent = {}) {
+         event AvailableEvent = {}) : Range{0}, MemRange{0} {
 
     size_t BufSize = 0;
     PI_CALL(detail::RT::piMemGetInfo(
