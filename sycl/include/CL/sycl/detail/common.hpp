@@ -58,9 +58,7 @@ static inline std::string codeToString(cl_int code){
 {                                                                              \
   auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::string errorMessage(OCL_ERROR_REPORT + codeToString(code));           \
-    std::cerr << errorMessage << std::endl;                                    \
-    throw exc(errorMessage.c_str(), (code));                                   \
+    throw exc(OCL_ERROR_REPORT + codeToString(code), code);                    \
   }                                                                            \
 }
 #define REPORT_OCL_ERR_TO_EXC_THROW(code, exc) REPORT_OCL_ERR_TO_EXC(code, exc)
