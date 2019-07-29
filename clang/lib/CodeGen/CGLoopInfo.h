@@ -66,6 +66,9 @@ struct LoopAttributes {
   /// Value for llvm.loop.ii.count metadata.
   unsigned SYCLIInterval;
 
+  /// Flag for llvm.loop.max_concurrency.count metadata.
+  bool SYCLMaxConcurrencyEnable;
+
   /// Value for llvm.loop.max_concurrency.count metadata.
   unsigned SYCLMaxConcurrencyNThreads;
 
@@ -268,6 +271,11 @@ public:
 
   /// Set value of an initiation interval for the next loop pushed.
   void setSYCLIInterval(unsigned C) { StagedAttrs.SYCLIInterval = C; }
+
+  /// Set flag of max_concurrency for the next loop pushed.
+  void setSYCLMaxConcurrencyEnable() {
+    StagedAttrs.SYCLMaxConcurrencyEnable = true;
+  }
 
   /// Set value of threads for the next loop pushed.
   void setSYCLMaxConcurrencyNThreads(unsigned C) {
