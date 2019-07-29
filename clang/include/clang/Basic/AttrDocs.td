@@ -1819,8 +1819,9 @@ def SYCLIntelFPGAMaxConcurrencyAttrDocs : Documentation {
   let Heading = "max_concurrency";
   let Content = [{
 This attribute applies to a loop. Indicates that the loop should allow no more
-than N threads or iterations to execute it simultaneously. N must be a positive
-integer. Cannot be applied multiple times to the same loop.
+than N threads or iterations to execute it simultaneously. N must be a non
+negative integer. '0' indicates the max_concurrency case to be unbounded. Cannot
+be applied multiple times to the same loop.
   }];
 }
 

@@ -15,23 +15,23 @@ void foo() {
 // Test for incorrect number of arguments for Intel FPGA loop attributes
 void boo() {
   int a[10];
-  // expected-error@+1 {{'ivdep' attribute takes no more than 1 argument}}
+  // expected-warning@+1 {{'ivdep' attribute takes no more than 1 argument - attribute ignored}}
   [[intelfpga::ivdep(2,2)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-error@+1 {{'ii' attribute takes at least 1 argument}}
+  // expected-warning@+1 {{'ii' attribute takes at least 1 argument - attribute ignored}}
   [[intelfpga::ii]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-error@+1 {{'ii' attribute takes no more than 1 argument}}
+  // expected-warning@+1 {{'ii' attribute takes no more than 1 argument - attribute ignored}}
   [[intelfpga::ii(2,2)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-error@+1 {{'max_concurrency' attribute takes at least 1 argument}}
+  // expected-warning@+1 {{'max_concurrency' attribute takes at least 1 argument - attribute ignored}}
   [[intelfpga::max_concurrency]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-error@+1 {{'max_concurrency' attribute takes no more than 1 argument}}
+  // expected-warning@+1 {{'max_concurrency' attribute takes no more than 1 argument - attribute ignored}}
   [[intelfpga::max_concurrency(2,2)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
@@ -40,16 +40,20 @@ void boo() {
 // Test for incorrect argument value for Intel FPGA loop attributes
 void goo() {
   int a[10];
-  // expected-error@+1 {{'ivdep' attribute requires a positive integral compile time constant expression}}
+  // no diagnostics are expected
+  [[intelfpga::max_concurrency(0)]]
+  for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-warning@+1 {{'ivdep' attribute requires a positive integral compile time constant expression - attribute ignored}}
   [[intelfpga::ivdep(0)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-error@+1 {{'ii' attribute requires a positive integral compile time constant expression}}
+  // expected-warning@+1 {{'ii' attribute requires a positive integral compile time constant expression - attribute ignored}}
   [[intelfpga::ii(0)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-error@+1 {{'max_concurrency' attribute requires a positive integral compile time constant expression}}
-  [[intelfpga::max_concurrency(0)]]
+  // expected-warning@+1 {{'max_concurrency' attribute requires a non-negative integral compile time constant expression - attribute ignored}}
+  [[intelfpga::max_concurrency(-1)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
   // expected-error@+1 {{'ivdep' attribute requires an integer constant}}

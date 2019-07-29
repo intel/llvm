@@ -83,14 +83,14 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
 
   unsigned NumArgs = A.getNumArgs();
   if (NumArgs > 1) {
-    S.Diag(A.getLoc(), diag::err_attribute_too_many_arguments) << A << 1;
+    S.Diag(A.getLoc(), diag::warn_attribute_too_many_arguments) << A << 1;
     return nullptr;
   }
 
   if (NumArgs == 0) {
     if (A.getKind() == ParsedAttr::AT_SYCLIntelFPGAII ||
         A.getKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency) {
-      S.Diag(A.getLoc(), diag::err_attribute_too_few_arguments) << A << 1;
+      S.Diag(A.getLoc(), diag::warn_attribute_too_few_arguments) << A << 1;
       return nullptr;
     }
   }
@@ -109,11 +109,20 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
 
     int Val = ArgVal.getSExtValue();
 
-    if (Val <= 0) {
-      S.Diag(A.getRange().getBegin(),
-          diag::err_attribute_requires_positive_integer)
-        << A << /* positive */ 0;
-      return nullptr;
+    if (A.getKind() != ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency) {
+      if (Val <= 0) {
+        S.Diag(A.getRange().getBegin(),
+            diag::warn_attribute_requires_positive_integer)
+          << A << /* positive */ 0;
+        return nullptr;
+      }
+    } else {
+      if (Val < 0) {
+        S.Diag(A.getRange().getBegin(),
+            diag::warn_attribute_requires_positive_integer)
+          << A << /* non-negative */ 1;
+        return nullptr;
+      }
     }
     SafeInterval = Val;
   }

@@ -430,7 +430,7 @@ MDNode *LoopInfo::createMetadata(
   }
 
   // Setting max_concurrency attribute with number of threads
-  if (Attrs.SYCLMaxConcurrencyNThreads > 0) {
+  if (Attrs.SYCLMaxConcurrencyEnable) {
     LLVMContext &Ctx = Header->getContext();
     Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.max_concurrency.count"),
                         ConstantAsMetadata::get(ConstantInt::get(
@@ -449,9 +449,10 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       UnrollEnable(LoopAttributes::Unspecified),
       UnrollAndJamEnable(LoopAttributes::Unspecified), VectorizeWidth(0),
       InterleaveCount(0), SYCLIVDepEnable(false), SYCLIVDepSafelen(0),
-      SYCLIInterval(0), SYCLMaxConcurrencyNThreads(0), UnrollCount(0),
-      UnrollAndJamCount(0), DistributeEnable(LoopAttributes::Unspecified),
-      PipelineDisabled(false), PipelineInitiationInterval(0) {}
+      SYCLIInterval(0), SYCLMaxConcurrencyEnable(false),
+      SYCLMaxConcurrencyNThreads(0), UnrollCount(0), UnrollAndJamCount(0),
+      DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
+      PipelineInitiationInterval(0) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -459,6 +460,7 @@ void LoopAttributes::clear() {
   SYCLIVDepEnable = false;
   SYCLIVDepSafelen = 0;
   SYCLIInterval = 0;
+  SYCLMaxConcurrencyEnable = false;
   SYCLMaxConcurrencyNThreads = 0;
   InterleaveCount = 0;
   UnrollCount = 0;
@@ -486,7 +488,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
   if (!Attrs.IsParallel && Attrs.VectorizeWidth == 0 &&
       Attrs.InterleaveCount == 0 && Attrs.SYCLIVDepEnable == false &&
       Attrs.SYCLIVDepSafelen == 0 && Attrs.SYCLIInterval == 0 &&
-      Attrs.SYCLMaxConcurrencyNThreads == 0 && Attrs.UnrollCount == 0 &&
+      Attrs.SYCLMaxConcurrencyEnable == false && Attrs.UnrollCount == 0 &&
       Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
       Attrs.PipelineInitiationInterval == 0 &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
@@ -784,20 +786,19 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       unsigned ValueInt = IntelFPGAIVDep->getSafelen();
       if (ValueInt == 0)
         setSYCLIVDepEnable();
-      else if (ValueInt > 1)
+      else if (ValueInt > 0)
         setSYCLIVDepSafelen(ValueInt);
     }
 
     if (IntelFPGAII) {
       unsigned ValueInt = IntelFPGAII->getInterval();
-      if (ValueInt > 1)
+      if (ValueInt > 0)
         setSYCLIInterval(ValueInt);
     }
 
     if (IntelFPGAMaxConcurrency) {
-      unsigned ValueInt = IntelFPGAMaxConcurrency->getNThreads();
-      if (ValueInt > 1)
-        setSYCLMaxConcurrencyNThreads(ValueInt);
+      setSYCLMaxConcurrencyEnable();
+      setSYCLMaxConcurrencyNThreads(IntelFPGAMaxConcurrency->getNThreads());
     }
   }
 
