@@ -218,25 +218,10 @@ struct ImageDeleter {
   }
 };
 
-static bool is_compiler_available(const RT::PiContext &Ctx) {
-  // Does any device support compiling SPIR-V programs?
-  cl_uint NumDevices = 0;
-  PI_CALL(RT::piContextGetInfo(Ctx, PI_CONTEXT_INFO_NUM_DEVICES,
-                               sizeof(NumDevices), &NumDevices,
-                               /*param_value_size_ret=*/nullptr));
-  assert(NumDevices > 0 && "Context without devices?");
-
-  vector_class<RT::PiDevice> Devices(NumDevices);
-  size_t ParamValueSize = 0;
-  PI_CALL(RT::piContextGetInfo(Ctx, PI_CONTEXT_INFO_DEVICES,
-                               sizeof(cl_device_id) * NumDevices, &Devices[0],
-                               &ParamValueSize));
-  assert(ParamValueSize == sizeof(cl_device_id) * NumDevices &&
-         "Number of CL_CONTEXT_DEVICES should match CL_CONTEXT_NUM_DEVICES.");
-
-  for (const auto &DeviceId : Devices) {
-    if (createSyclObjFromImpl<device>(std::make_shared<device_impl_pi>(DeviceId)).
-            get_info<info::device::is_compiler_available>()) {
+static bool is_compiler_available(const context &C) {
+  // Does any device support compiling programs?
+  for (const auto &D : C.get_devices()) {
+    if (D.get_info<info::device::is_compiler_available>()) {
       return true;
     }
   }
@@ -388,6 +373,10 @@ RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
     F.close();
   }
   // Load the selected image
+  if ((Format == PI_DEVICE_BINARY_TYPE_SPIRV || Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE) &&
+      !is_compiler_available(Context)) {
+    throw feature_not_supported("Online compilation is not supported by this device");
+  }
   const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
   if ((Format == PI_DEVICE_BINARY_TYPE_SPIRV || Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE) &&
       !is_compiler_available(Ctx)) {
