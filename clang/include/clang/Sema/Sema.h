@@ -306,7 +306,7 @@ public:
   };
 
 public:
-  SYCLIntegrationHeader(DiagnosticsEngine &Diag);
+  SYCLIntegrationHeader(DiagnosticsEngine &Diag, bool UnnamedLambdaSupport);
 
   /// Emits contents of the header into given stream.
   void emit(raw_ostream &Out);
@@ -317,7 +317,8 @@ public:
 
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
-  void startKernel(StringRef KernelName, QualType KernelNameType);
+  void startKernel(StringRef KernelName, QualType KernelNameType,
+                   StringRef KernelStableName);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -351,6 +352,9 @@ private:
 
     /// Kernel name type.
     QualType NameType;
+
+    /// Kernel name with stable lambda name mangling
+    std::string StableName;
 
     /// Descriptor of kernel actual parameters.
     SmallVector<KernelParamDesc, 8> Params;
@@ -387,6 +391,9 @@ private:
 
   /// Used for emitting diagnostics.
   DiagnosticsEngine &Diag;
+
+  /// Whether header is generated with unnamed lambda support
+  bool UnnamedLambdaSupport;
 };
 
 /// Keeps track of expected type during expression parsing. The type is tied to
@@ -11404,7 +11411,7 @@ public:
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
     if (SyclIntHeader == nullptr)
       SyclIntHeader = llvm::make_unique<SYCLIntegrationHeader>(
-        getDiagnostics());
+          getDiagnostics(), getLangOpts().SYCLUnnamedLambda);
     return *SyclIntHeader.get();
   }
 

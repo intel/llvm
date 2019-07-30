@@ -5373,6 +5373,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       HeaderOpt += Output.getFilename();
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
+    if (Args.hasArg(options::OPT_fsycl_unnamed_lambda))
+      CmdArgs.push_back("-fsycl-unnamed-lambda");
   }
 
   // OpenMP offloading device jobs take the argument -fopenmp-host-ir-file-path

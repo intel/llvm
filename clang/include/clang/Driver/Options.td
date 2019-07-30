@@ -1744,6 +1744,8 @@ def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
   Flags<[CC1Option]>, HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects">;
 def fsycl_link : Flag<["-"], "fsycl-link">,
   Flags<[CC1Option]>, HelpText<"Generate partially linked device object to be used with the host link">;
+def fsycl_unnamed_lambda : Flag<["-"], "fsycl-unnamed-lambda">,
+  Flags<[CC1Option]>, HelpText<"Allow unnamed SYCL lambda kernels">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[DriverOption,CoreOption,CC1Option]>, Group<Action_Group>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;

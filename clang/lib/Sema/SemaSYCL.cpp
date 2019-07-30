@@ -936,7 +936,9 @@ static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
 
   ASTContext &Ctx = KernelObjTy->getASTContext();
   const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(KernelObjTy);
-  H.startKernel(Name, NameType);
+  const std::string StableName = PredefinedExpr::ComputeName(
+      Ctx, PredefinedExpr::UniqueStableNameExpr, NameType);
+  H.startKernel(Name, NameType, StableName);
 
   auto populateHeaderForAccessor = [&](const QualType &ArgTy, uint64_t Offset) {
     // The parameter is a SYCL accessor object.
@@ -1247,7 +1249,7 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D) {
                                 ? cast<ClassTemplateDecl>(D)->getTemplatedDecl()
                                 : dyn_cast<TagDecl>(D);
 
-        if (TD && TD->isCompleteDefinition()) {
+        if (TD && TD->isCompleteDefinition() && !UnnamedLambdaSupport) {
           // defined class constituting the kernel name is not globally
           // accessible - contradicts the spec
           Diag.Report(D->getSourceRange().getBegin(),
@@ -1377,11 +1379,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
 
   O << "\n";
-  O << "// Forward declarations of templated kernel function types:\n";
+  if (!UnnamedLambdaSupport) {
+    O << "// Forward declarations of templated kernel function types:\n";
 
-  llvm::SmallPtrSet<const void *, 4> Printed;
-  for (const KernelDesc &K : KernelDescs) {
-    emitForwardClassDecls(O, K.NameType, Printed);
+    llvm::SmallPtrSet<const void *, 4> Printed;
+    for (const KernelDesc &K : KernelDescs) {
+      emitForwardClassDecls(O, K.NameType, Printed);
+    }
   }
   O << "\n";
 
@@ -1444,19 +1448,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "};\n\n";
 
-  O << "// Specializations of this template class encompasses information\n";
-  O << "// about a kernel. The kernel is identified by the template\n";
-  O << "// parameter type.\n";
-  O << "template <class KernelNameType> struct KernelInfo;\n";
-  O << "\n";
-
   O << "// Specializations of KernelInfo for kernel function types:\n";
   CurStart = 0;
 
   for (const KernelDesc &K : KernelDescs) {
     const size_t N = K.Params.size();
-    O << "template <> struct KernelInfo<"
-      << eraseAnonNamespace(K.NameType.getAsString()) << "> {\n";
+    if (UnnamedLambdaSupport) {
+      O << "template <> struct KernelInfoData<";
+      O << "'" << K.StableName.front();
+      for (char c : StringRef(K.StableName).substr(1))
+        O << "', '" << c;
+      O << "'> {\n";
+    } else {
+      O << "template <> struct KernelInfo<"
+        << eraseAnonNamespace(K.NameType.getAsString()) << "> {\n";
+    }
     O << "  DLL_LOCAL\n";
     O << "  static constexpr const char* getName() { return \"" << K.Name
       << "\"; }\n";
@@ -1494,10 +1500,12 @@ bool SYCLIntegrationHeader::emit(const StringRef &IntHeaderName) {
 }
 
 void SYCLIntegrationHeader::startKernel(StringRef KernelName,
-                                        QualType KernelNameType) {
+                                        QualType KernelNameType,
+                                        StringRef KernelStableName) {
   KernelDescs.resize(KernelDescs.size() + 1);
   KernelDescs.back().Name = KernelName;
   KernelDescs.back().NameType = KernelNameType;
+  KernelDescs.back().StableName = KernelStableName;
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
@@ -1515,8 +1523,9 @@ void SYCLIntegrationHeader::endKernel() {
   // nop for now
 }
 
-SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag)
-    : Diag(_Diag) {}
+SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
+                                             bool _UnnamedLambdaSupport)
+    : Diag(_Diag), UnnamedLambdaSupport(_UnnamedLambdaSupport) {}
 
 bool Util::isSyclAccessorType(const QualType &Ty) {
   return isSyclType(Ty, "accessor", true /*Tmpl*/);
