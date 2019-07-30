@@ -124,6 +124,9 @@ private:
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                           Requirement *Req);
 
+    // Removes commands that use given MemObjRecord from the graph.
+    void cleanupCommandsForRecord(MemObjRecord *Record);
+
     // Removes MemObjRecord for memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
 

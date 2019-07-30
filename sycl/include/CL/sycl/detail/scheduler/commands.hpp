@@ -95,6 +95,8 @@ public:
 
   std::shared_ptr<event_impl> getEvent() const { return MEvent; }
 
+  virtual ~Command() = default;
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
