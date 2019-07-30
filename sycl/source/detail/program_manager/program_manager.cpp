@@ -87,7 +87,7 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
 }
 
 RT::PiProgram ProgramManager::getBuiltOpenCLProgram(OSModuleHandle M,
-                                                 const context &Context) {
+                                                    const context &Context) {
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
   std::map<OSModuleHandle, RT::PiProgram> &CachedPrograms =
       Ctx->getCachedPrograms();
