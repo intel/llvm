@@ -82,7 +82,7 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
                                 size_t length, pi_result *err) {
 
   size_t deviceCount;
-  cl_program resProgram;
+  cl_program resProgram = nullptr;
 
   cl_int ret_err = clGetContextInfo(pi_cast<cl_context>(context),
                                     CL_CONTEXT_DEVICES, 0, NULL, &deviceCount);
