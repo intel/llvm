@@ -326,7 +326,9 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
         DepOpt += ',';
       DepOpt += FPGADepFiles[I].getFilename();
     }
-    CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));
+    // FIXME: -input-dep-files is not hooked up yet in aoc, turn this back
+    // on when aoc is ready.
+    // CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));
   }
 
   // Depending on output file designations, set the report folder
@@ -353,7 +355,9 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       }
     }
   }
-  CmdArgs.push_back(C.getArgs().MakeArgString(ReportOpt));
+  // FIXME: -output-report-folder is not hooked up yet in aoc, turn this back
+  // on when aoc is ready.
+  // CmdArgs.push_back(C.getArgs().MakeArgString(ReportOpt));
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
 
   SmallString<128> ExecPath(getToolChain().GetProgramPath("aoc"));

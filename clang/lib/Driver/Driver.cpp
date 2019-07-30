@@ -821,9 +821,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       const ToolChain *HostTC =
           C.getSingleOffloadToolChain<Action::OFK_Host>();
       llvm::Triple TT(TargetTriple);
-      if (SYCLfpga)
-        TT.setTriple("spir64_fpga-unknown-linux-sycldevice");
-      else {
+      if (SYCLfpga) {
+        // Triple for -fintelfpga is spir64_fpga-unknown-<os>-sycldevice.
+        // TODO: Use 'unknown' for OS as devices do not have any OS.
+        TT.setArchName("spir64_fpga");
+        TT.setVendor(llvm::Triple::UnknownVendor);
+        TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+        TT.setEnvironment(llvm::Triple::SYCLDevice);
+      } else {
         TT.setArch(llvm::Triple::spir64);
         TT.setVendor(llvm::Triple::UnknownVendor);
         TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
