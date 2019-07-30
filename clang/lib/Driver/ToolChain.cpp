@@ -301,6 +301,12 @@ Tool *ToolChain::getSPIRVTranslator() const {
   return SPIRVTranslator.get();
 }
 
+Tool *ToolChain::getSPIRCheck() const {
+  if (!SPIRCheck)
+    SPIRCheck.reset(new tools::SPIRCheck(*this));
+  return SPIRCheck.get();
+}
+
 Tool *ToolChain::getBackendCompiler() const {
   if (!BackendCompiler)
     BackendCompiler.reset(buildBackendCompiler());
@@ -342,6 +348,9 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::SPIRVTranslatorJobClass:
     return getSPIRVTranslator();
+
+  case Action::SPIRCheckJobClass:
+    return getSPIRCheck();
 
   case Action::BackendCompileJobClass:
     return getBackendCompiler();

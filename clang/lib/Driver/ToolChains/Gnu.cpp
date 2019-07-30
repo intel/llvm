@@ -587,8 +587,13 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
       AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
 
-      if (Args.hasArg(options::OPT_fsycl))
+      if (Args.hasArg(options::OPT_fsycl)) {
         CmdArgs.push_back("-lsycl");
+        // Use of -fintelfpga implies -lOpenCL.
+        // FIXME: Adjust to use plugin interface when available.
+        if (Args.hasArg(options::OPT_fintelfpga))
+          CmdArgs.push_back("-lOpenCL");
+      }
 
       if (WantPthread && !isAndroid)
         CmdArgs.push_back("-lpthread");
