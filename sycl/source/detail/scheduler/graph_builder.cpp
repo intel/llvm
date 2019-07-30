@@ -139,7 +139,7 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
     MemCpyCmd->addDep(DepDesc{Dep, &MemCpyCmd->MDstReq, AllocaCmdDst});
     Dep->addUser(MemCpyCmd);
   }
-  UpdateLeafs(Deps, Record, Req);
+  UpdateLeafs(Deps, Record, &FullReq);
   AddNodeToLeafs(Record, MemCpyCmd, &FullReq);
   return MemCpyCmd;
 }
