@@ -220,8 +220,10 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   // In case of memory is 1 dimensional and located on OpenCL device we
   // can use map/unmap operation.
+  // TODO: Implement mapping/unmapping for images
   if (!SrcQueue->is_host() && Req->MDims == 1 &&
-      Req->MAccessRange == Req->MMemoryRange) {
+      Req->MAccessRange == Req->MMemoryRange &&
+      Req->MSYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
 
     std::unique_ptr<MapMemObject> MapCmdUniquePtr(
         new MapMemObject(*SrcReq, SrcAllocaCmd, Req, SrcQueue));
