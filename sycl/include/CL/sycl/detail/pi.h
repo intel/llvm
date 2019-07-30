@@ -47,9 +47,10 @@ typedef pi_uint32   pi_bool;
 // TODO: populate PI enums.
 //
 typedef enum {
-  PI_SUCCESS = CL_SUCCESS,
+  PI_SUCCESS                    = CL_SUCCESS,
   PI_RESULT_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME,
-  PI_INVALID_OPERATION = CL_INVALID_OPERATION
+  PI_INVALID_OPERATION          = CL_INVALID_OPERATION,
+  PI_INVALID_QUEUE_PROPERTIES   = CL_INVALID_QUEUE_PROPERTIES
 } _pi_result;
 
 typedef enum {
@@ -148,6 +149,14 @@ typedef enum {
   PI_BUFFER_CREATE_TYPE_REGION = CL_BUFFER_CREATE_TYPE_REGION
 } _pi_buffer_create_type;
 
+typedef enum : pi_uint64 {
+  PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
+    CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,
+  PI_QUEUE_PROFILING_ENABLE              = CL_QUEUE_PROFILING_ENABLE,
+  PI_QUEUE_ON_DEVICE                     = CL_QUEUE_ON_DEVICE,
+  PI_QUEUE_ON_DEVICE_DEFAULT             = CL_QUEUE_ON_DEVICE_DEFAULT
+} _pi_queue_properties;
+
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate
@@ -165,6 +174,7 @@ typedef _pi_device_type             pi_device_type;
 typedef _pi_device_info             pi_device_info;
 typedef _pi_context_info            pi_context_info;
 typedef _pi_queue_info              pi_queue_info;
+typedef _pi_queue_properties        pi_queue_properties;
 typedef _pi_image_info              pi_image_info;
 typedef _pi_mem_type                pi_mem_type;
 typedef _pi_image_channel_order     pi_image_channel_order;
@@ -385,11 +395,11 @@ pi_result piContextRelease(pi_context context);
 //
 // Queue
 //
-pi_queue piQueueCreate( // TODO: change interface to return error code instead
-  pi_context              context,
-  pi_device               device,
-  const cl_queue_properties *    properties, // TODO: untie from OpenCL
-  pi_result *             result);
+pi_result piQueueCreate(
+  pi_context                  context,
+  pi_device                   device,
+  pi_queue_properties         properties,
+  pi_queue *                  queue);
 
 pi_result piQueueGetInfo(
   pi_queue            command_queue,
