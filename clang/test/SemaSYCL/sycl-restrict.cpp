@@ -10,6 +10,8 @@ namespace std {
 namespace Check_User_Operators {
 class Fraction
 {
+    // expected-error@+2 {{SYCL kernel cannot call a recursive function}}
+    // expected-note@+1 {{function implemented using recursion declared here}}
     int gcd(int a, int b) { return b == 0 ? a : gcd(b, a % b); }
     int n, d;
 public:
