@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_PI_TRACE=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_TRACE=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_PI_TRACE=1 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
 
 //==-------------- image_access.cpp - SYCL image accessors test  -----------==//
 //
@@ -40,3 +40,6 @@ int main() {
   }
   return 0;
 }
+
+// CHECK: PI ---> (NewMem = RT::piMemImageCreate(TargetContext->getHandleRef(), CreationFlags, &Format, &Desc, UserPtr, &Error), Error)
+// CHECK: PI ---> RT::piEnqueueMemImageRead( Queue, SrcMem, CL_FALSE, &SrcOffset[0], &SrcAccessRange[0], RowPitch, SlicePitch, DstMem, DepEvents.size(), &DepEvents[0], &OutEvent)
