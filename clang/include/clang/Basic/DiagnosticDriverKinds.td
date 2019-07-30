@@ -111,6 +111,8 @@ def err_drv_Xsycl_target_missing_triple : Error<
   "cannot deduce implicit triple value for '%0', specify triple using '%0=<triple>'">;
 def err_drv_invalid_Xsycl_frontend_with_args : Error<
   "invalid -Xsycl-target-frontend argument: '%0', options requiring arguments are unsupported">;
+def err_drv_bad_fpga_device_count : Error<
+  "More than one FPGA specific device binary found in input objects">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
 def err_drv_argument_not_allowed_with : Error<
@@ -241,9 +243,7 @@ def err_drv_optimization_remark_format : Error<
 def err_drv_no_neon_modifier : Error<"[no]neon is not accepted as modifier, please use [no]simd instead">;
 def err_drv_invalid_omp_target : Error<"OpenMP target is invalid: '%0'">;
 def err_drv_invalid_sycl_target : Error<"SYCL target is invalid: '%0'">;
-def err_drv_sycl_target_conflict : Error<"The option -fsycl-targets conflicts with -fsycl-link-targets">;
-def err_drv_sycl_add_link_conflict : Error<"The option -fsycl-link-targets conflicts with -fsycl-add-targets">;
-def err_drv_sycl_link_link_targets_conflict : Error<"The option -fsycl-link-targets conflicts with -fsycl-link">;
+def err_drv_option_conflict : Error<"The option %0 conflicts with %1">;
 def err_drv_omp_host_ir_file_not_found : Error<
   "The provided host compiler IR file '%0' is required to generate code for OpenMP target regions but cannot be found.">;
 def err_drv_omp_host_target_not_supported : Error<
