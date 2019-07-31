@@ -18,6 +18,7 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Sema.h"
+#include "clang/Sema/Initialization.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/FileSystem.h"
@@ -626,14 +627,10 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
   auto KernelFuncParam =
       KernelFuncDecl->param_begin(); // Iterator to ParamVarDecl (VarDecl)
   if (KernelFuncParam) {
+    llvm::SmallVector<Expr *, 16> InitExprs;
+    InitializedEntity VarEntity =
+        InitializedEntity::InitializeVariable(KernelObjClone);
     for (auto Field : LC->fields()) {
-      auto getExprForKernelParameter = [](Sema &S, const QualType &paramTy,
-                                          DeclRefExpr *DRE) {
-        Expr *Res = ImplicitCastExpr::Create(
-            S.Context, paramTy, CK_LValueToRValue, DRE, nullptr, VK_RValue);
-        return Res;
-      };
-
       // Creates Expression for special SYCL object: accessor or sampler.
       // All special SYCL objects must have __init method, here we use it to
       // initialize them. We create call of __init method and pass built kernel
@@ -647,7 +644,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
         assert(InitMethod &&
                "The accessor/sampler must have the __init method");
         unsigned NumParams = InitMethod->getNumParams();
-        llvm::SmallVector<DeclRefExpr *, 4> ParamDREs(NumParams);
+        llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
         auto KFP = KernelFuncParam;
         for (size_t I = 0; I < NumParams; ++KFP, ++I) {
           QualType ParamType = (*KFP)->getOriginalType();
@@ -680,15 +677,10 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
         ExprValueKind VK = Expr::getValueKindForType(ResultTy);
         ResultTy = ResultTy.getNonLValueExprType(S.Context);
 
-        // __init needs four parameter
-        auto ParamItr = InitMethod->param_begin();
-
-        // kernel_parameters
         llvm::SmallVector<Expr *, 4> ParamStmts;
-        for (size_t I = 0; I < NumParams; ++I) {
-          ParamStmts.push_back(getExprForKernelParameter(
-              S, (*(ParamItr++))->getOriginalType(), ParamDREs[I]));
-        }
+        const auto *Proto = cast<FunctionProtoType>(InitMethod->getType());
+        S.GatherArgumentsForCall(SourceLocation(), InitMethod, Proto, 0,
+                                 ParamDREs, ParamStmts);
         // [kernel_obj or wrapper object].accessor.__init(_ValueType*,
         // range<int>, range<int>, id<int>)
         CXXMemberCallExpr *Call = CXXMemberCallExpr::Create(
@@ -738,49 +730,67 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
       //     sampler). These objects has a special initialization scheme - using
       //     __init method.
       //   - Kernel object field has a scalar type. In this case we should add
-      //     simple initialization using binary '=' operator.
+      //     simple initialization.
       //   - Kernel object field has a structure or class type. Same handling as
       //     a scalar but we should check if this structure/class contains
       //     accessors and add initialization for them properly.
       QualType FieldType = Field->getType();
       CXXRecordDecl *CRD = FieldType->getAsCXXRecordDecl();
+      InitializedEntity Entity =
+          InitializedEntity::InitializeMember(Field, &VarEntity);
       if (Util::isSyclAccessorType(FieldType) ||
           Util::isSyclSamplerType(FieldType)) {
+        // Initialize with the default constructor.
+        InitializationKind InitKind =
+            InitializationKind::CreateDefault(SourceLocation());
+        InitializationSequence InitSeq(S, Entity, InitKind, None);
+        ExprResult MemberInit = InitSeq.Perform(S, Entity, InitKind, None);
+        InitExprs.push_back(MemberInit.get());
         getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef);
       } else if (CRD || FieldType->isScalarType()) {
         // If field has built-in or a structure/class type just initialize
-        // this field with corresponding kernel argument using '=' binary
-        // operator. The structure/class type must be copy assignable - this
-        // holds because SYCL kernel lambdas capture arguments by copy.
+        // this field with corresponding kernel argument using copy
+        // initialization.
         QualType ParamType = (*KernelFuncParam)->getOriginalType();
-        auto DRE =
+        Expr *DRE =
             DeclRefExpr::Create(S.Context, NestedNameSpecifierLoc(),
                                 SourceLocation(), *KernelFuncParam, false,
                                 DeclarationNameInfo(), ParamType, VK_LValue);
-        DeclAccessPair FieldDAP = DeclAccessPair::make(Field, AS_none);
-        auto Lhs = MemberExpr::Create(
-            S.Context, KernelObjCloneRef, false, SourceLocation(),
-            NestedNameSpecifierLoc(), SourceLocation(), Field, FieldDAP,
-            DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
-            nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
-        auto Rhs = ImplicitCastExpr::Create(
-            S.Context, ParamType, CK_LValueToRValue, DRE, nullptr, VK_RValue);
-        // lambda.field = kernel_parameter
-        Expr *Res = new (S.Context)
-            BinaryOperator(Lhs, Rhs, BO_Assign, FieldType, VK_LValue,
-                           OK_Ordinary, SourceLocation(), FPOptions());
-        BodyStmts.push_back(Res);
 
-        // If a structure/class type has accessor fields then we need to
-        // initialize these accessors in proper way by calling __init method of
-        // the accessor and passing corresponding kernel parameters.
-        if (CRD)
+        if (FieldType->isPointerType() &&
+            FieldType->getPointeeType().getAddressSpace() !=
+                ParamType->getPointeeType().getAddressSpace())
+          DRE = ImplicitCastExpr::Create(S.Context, FieldType,
+                                         CK_AddressSpaceConversion, DRE,
+                                         nullptr, VK_LValue);
+        InitializationKind InitKind =
+            InitializationKind::CreateCopy(SourceLocation(), SourceLocation());
+        InitializationSequence InitSeq(S, Entity, InitKind, DRE);
+
+        ExprResult MemberInit = InitSeq.Perform(S, Entity, InitKind, DRE);
+        InitExprs.push_back(MemberInit.get());
+
+        if (CRD) {
+          // If a structure/class type has accessor fields then we need to
+          // initialize these accessors in proper way by calling __init method
+          // of the accessor and passing corresponding kernel parameters.
+          DeclAccessPair FieldDAP = DeclAccessPair::make(Field, AS_none);
+          auto Lhs = MemberExpr::Create(
+              S.Context, KernelObjCloneRef, false, SourceLocation(),
+              NestedNameSpecifierLoc(), SourceLocation(), Field, FieldDAP,
+              DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
+              nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
           getExprForWrappedAccessorInit(CRD, Lhs);
+        }
       } else {
         llvm_unreachable("Unsupported field type");
       }
       KernelFuncParam++;
     }
+    Expr *ILE = new (S.Context)
+        InitListExpr(S.Context, SourceLocation(), InitExprs, SourceLocation());
+    ILE->setType(QualType(LC->getTypeForDecl(), 0));
+    KernelObjClone->setInit(ILE);
   }
 
   // In the kernel caller function kernel object is a function parameter, so we

@@ -369,6 +369,11 @@ public:
 
   // image_accessor Constructors.
 
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  image_accessor() = default;
+#endif
+
   // Available only when: accessTarget == access::target::host_image
   // template <typename AllocatorT>
   // accessor(image<dimensions, AllocatorT> &imageRef);
@@ -713,8 +718,11 @@ class accessor :
   }
 
   PtrType getQualifiedPtr() const { return MData; }
-#else
 
+public:
+  // Default constructor for objects later initialized with __init member.
+  accessor() : impl({}) {}
+#else
   using AccessorBaseHost::getAccessRange;
   using AccessorBaseHost::getMemoryRange;
   using AccessorBaseHost::getOffset;
@@ -1016,6 +1024,11 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
       getSize()[I] = AccessRange[I];
   }
 
+public:
+  // Default constructor for objects later initialized with __init member.
+  accessor() : impl({}) {}
+
+private:
   PtrType getQualifiedPtr() const { return MData; }
 
   PtrType MData;
@@ -1155,6 +1168,10 @@ private:
   // Front End requires this method to be defined in the accessor class.
   // It does not call the base class's init method.
   void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
+
+public:
+  // Default constructor for objects later initialized with __init member.
+  accessor() = default;
 #endif
 };
 
@@ -1195,6 +1212,10 @@ private:
   // Front End requires this method to be defined in the accessor class.
   // It does not call the base class's init method.
   void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
+
+public:
+  // Default constructor for objects later initialized with __init member.
+  accessor() = default;
 #endif
 public:
   template <typename AllocatorT>
