@@ -133,10 +133,13 @@ void SPIRVToOCL12::visitCallSPIRVMemoryBarrier(CallInst *CI) {
           if (F && F->getName().equals(kSPIRVName::TranslateOCLMemScope)) {
             Args[0] = TransCall->getArgOperand(0);
           } else {
-            Args[0] = getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemFence,
-                                            Args[1],
-                                            OCLMemFenceExtendedMap::getRMap(),
-                                            true /*IsReverse*/, None, CI, M);
+            int ClMemFenceMask = MemorySemanticsWorkgroupMemoryMask |
+                                 MemorySemanticsCrossWorkgroupMemoryMask |
+                                 MemorySemanticsImageMemoryMask;
+            Args[0] = getOrCreateSwitchFunc(
+                kSPIRVName::TranslateSPIRVMemFence, Args[1],
+                OCLMemFenceExtendedMap::getRMap(), true /*IsReverse*/, None, CI,
+                M, ClMemFenceMask);
           }
           Args.resize(1);
         }
@@ -162,10 +165,13 @@ void SPIRVToOCL12::visitCallSPIRVControlBarrier(CallInst *CI) {
           if (F && F->getName().equals(kSPIRVName::TranslateOCLMemScope)) {
             Args[0] = TransCall->getArgOperand(0);
           } else {
-            Args[0] = getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemFence,
-                                            Args[2],
-                                            OCLMemFenceExtendedMap::getRMap(),
-                                            true /*IsReverse*/, None, CI, M);
+            int ClMemFenceMask = MemorySemanticsWorkgroupMemoryMask |
+                                 MemorySemanticsCrossWorkgroupMemoryMask |
+                                 MemorySemanticsImageMemoryMask;
+            Args[0] = getOrCreateSwitchFunc(
+                kSPIRVName::TranslateSPIRVMemFence, Args[2],
+                OCLMemFenceExtendedMap::getRMap(), true /*IsReverse*/, None, CI,
+                M, ClMemFenceMask);
           }
           Args.resize(1);
         }
