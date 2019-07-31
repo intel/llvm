@@ -78,11 +78,10 @@ pi_result OCL(piextDeviceSelectBinary)(
   return PI_SUCCESS;
 }
 
-pi_program OCL(piProgramCreate)(pi_context context, const void *il,
-                                size_t length, pi_result *err) {
+pi_result OCL(piProgramCreate)(pi_context context, const void *il,
+                               size_t length, pi_program *res_program) {
 
   size_t deviceCount;
-  cl_program resProgram;
 
   cl_int ret_err = clGetContextInfo(pi_cast<cl_context>(context),
                                     CL_CONTEXT_DEVICES, 0, NULL, &deviceCount);
@@ -95,9 +94,9 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
                              devicesInCtx.data(), NULL);
 
   if (ret_err != CL_SUCCESS || deviceCount < 1) {
-    if (err != nullptr)
-      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
-    return pi_cast<pi_program>(resProgram);
+    if (res_program != nullptr)
+      *res_program = nullptr;
+    return pi_cast<pi_result>(CL_INVALID_CONTEXT);
   }
 
   cl_platform_id curPlatform;
@@ -105,9 +104,9 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
                             sizeof(cl_platform_id), &curPlatform, NULL);
 
   if (ret_err != CL_SUCCESS) {
-    if (err != nullptr)
-      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
-    return pi_cast<pi_program>(resProgram);
+    if (res_program != nullptr)
+      *res_program = nullptr;
+    return pi_cast<pi_result>(CL_INVALID_CONTEXT);
   }
 
   size_t devVerSize;
@@ -118,18 +117,20 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
                               &devVer.front(), NULL);
 
   if (ret_err != CL_SUCCESS) {
-    if (err != nullptr)
-      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
-    return pi_cast<pi_program>(resProgram);
+    if (res_program != nullptr)
+      *res_program = nullptr;
+    return pi_cast<pi_result>(CL_INVALID_CONTEXT);
   }
 
+  pi_result err = PI_SUCCESS;
   if (devVer.find("OpenCL 1.0") == std::string::npos &&
       devVer.find("OpenCL 1.1") == std::string::npos &&
       devVer.find("OpenCL 1.2") == std::string::npos &&
       devVer.find("OpenCL 2.0") == std::string::npos) {
-    resProgram = clCreateProgramWithIL(pi_cast<cl_context>(context), il, length,
-                                       pi_cast<cl_int *>(err));
-    return pi_cast<pi_program>(resProgram);
+    if (res_program != nullptr)
+      *res_program = pi_cast<pi_program>(clCreateProgramWithIL(
+          pi_cast<cl_context>(context), il, length, pi_cast<cl_int *>(&err)));
+    return err;
   }
 
   size_t extSize;
@@ -141,9 +142,9 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
 
   if (ret_err != CL_SUCCESS ||
       extStr.find("cl_khr_il_program") == std::string::npos) {
-    if (err != nullptr)
-      *err = pi_cast<pi_result>(CL_INVALID_CONTEXT);
-    return pi_cast<pi_program>(resProgram);
+    if (res_program != nullptr)
+      *res_program = nullptr;
+    return pi_cast<pi_result>(CL_INVALID_CONTEXT);
   }
 
   using apiFuncT =
@@ -153,10 +154,11 @@ pi_program OCL(piProgramCreate)(pi_context context, const void *il,
           curPlatform, "clCreateProgramWithILKHR"));
 
   assert(funcPtr != nullptr);
-  resProgram = funcPtr(pi_cast<cl_context>(context), il, length,
-                         pi_cast<cl_int *>(err));
+  if (res_program != nullptr)
+    *res_program = pi_cast<pi_program>(funcPtr(
+        pi_cast<cl_context>(context), il, length, pi_cast<cl_int *>(&err)));
 
-  return pi_cast<pi_program>(resProgram);
+  return err;
 }
 
 pi_result OCL(piSamplerCreate)(pi_context context,
