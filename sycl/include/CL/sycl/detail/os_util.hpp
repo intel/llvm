@@ -53,7 +53,7 @@ namespace detail {
 
 /// Uniquely identifies an operating system module (executable or a dynamic
 /// library)
-using OSModuleHandle = void *;
+using OSModuleHandle = intptr_t;
 
 /// Groups the OS-dependent services.
 class OSUtil {
@@ -63,7 +63,7 @@ public:
 
   /// Module handle for the executable module - it is assumed there is always
   /// single one at most.
-  __SYCL_EXPORTED static const OSModuleHandle ExeModuleHandle;
+  static constexpr OSModuleHandle ExeModuleHandle = -1;
 
   /// Returns the amount of RAM available for the operating system.
   static size_t getOSMemSize();

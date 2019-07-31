@@ -29,9 +29,6 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-const OSModuleHandle OSUtil::ExeModuleHandle =
-    reinterpret_cast<OSModuleHandle>(-1);
-
 #if defined(SYCL_RT_OS_LINUX)
 
 struct ModuleInfo {
@@ -54,7 +51,7 @@ static int callback(struct dl_phdr_info *Info, size_t Size, void *Data) {
       // ... it is - belongs to the module then
       // dlpi_addr is zero for the executable, replace it
       auto H = reinterpret_cast<void *>(Info->dlpi_addr);
-      MI->Handle = H ? H : OSUtil::ExeModuleHandle;
+      MI->Handle = H ? H : reinterpret_cast<void *>(OSUtil::ExeModuleHandle);
       MI->Name = Info->dlpi_name;
       return 1; // non-zero tells to finish iteration via modules
     }
