@@ -149,14 +149,6 @@ typedef enum {
   PI_BUFFER_CREATE_TYPE_REGION = CL_BUFFER_CREATE_TYPE_REGION
 } _pi_buffer_create_type;
 
-typedef enum : pi_uint64 {
-  PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
-    CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,
-  PI_QUEUE_PROFILING_ENABLE              = CL_QUEUE_PROFILING_ENABLE,
-  PI_QUEUE_ON_DEVICE                     = CL_QUEUE_ON_DEVICE,
-  PI_QUEUE_ON_DEVICE_DEFAULT             = CL_QUEUE_ON_DEVICE_DEFAULT
-} _pi_queue_properties;
-
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate
@@ -168,13 +160,21 @@ const pi_uint64 PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
 const pi_uint64 PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
 const pi_uint64 PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
 
+// NOTE: queue properties is implemented this way to better support bit
+// manipulations
+typedef pi_uint64 pi_queue_properties;
+const pi_uint64 PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
+        CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+const pi_uint64 PI_QUEUE_PROFILING_ENABLE  = CL_QUEUE_PROFILING_ENABLE;
+const pi_uint64 PI_QUEUE_ON_DEVICE         = CL_QUEUE_ON_DEVICE;
+const pi_uint64 PI_QUEUE_ON_DEVICE_DEFAULT = CL_QUEUE_ON_DEVICE_DEFAULT;
+
 typedef _pi_result                  pi_result;
 typedef _pi_platform_info           pi_platform_info;
 typedef _pi_device_type             pi_device_type;
 typedef _pi_device_info             pi_device_info;
 typedef _pi_context_info            pi_context_info;
 typedef _pi_queue_info              pi_queue_info;
-typedef _pi_queue_properties        pi_queue_properties;
 typedef _pi_image_info              pi_image_info;
 typedef _pi_mem_type                pi_mem_type;
 typedef _pi_image_channel_order     pi_image_channel_order;

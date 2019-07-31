@@ -39,6 +39,7 @@ namespace pi {
   using PiProgram              = ::pi_program;
   using PiKernel               = ::pi_kernel;
   using PiQueue                = ::pi_queue;
+  using PiQueueProperties      = ::pi_queue_properties;
   using PiMem                  = ::pi_mem;
   using PiMemFlags             = ::pi_mem_flags;
   using PiEvent                = ::pi_event;

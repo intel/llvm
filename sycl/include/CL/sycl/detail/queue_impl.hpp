@@ -127,7 +127,7 @@ public:
   }
 
   RT::PiQueue createQueue() {
-    pi_uint64 CreationFlags = 0;
+    RT::PiQueueProperties CreationFlags = 0;
 
     if (m_SupportOOO) {
       CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
@@ -140,9 +140,8 @@ public:
     RT::PiQueue Queue;
     RT::PiContext Context = detail::getSyclObjImpl(m_Context)->getHandleRef();
     RT::PiDevice Device = detail::getSyclObjImpl(m_Device)->getHandleRef();
-    RT::PiResult Error = PI_CALL_RESULT(RT::piQueueCreate(
-        Context, Device, pi::pi_cast<pi_queue_properties>(CreationFlags),
-        &Queue));
+    RT::PiResult Error = PI_CALL_RESULT(RT::piQueueCreate(Context, Device,
+        CreationFlags, &Queue));
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
