@@ -481,7 +481,7 @@ Instruction *
 getOrCreateSwitchFunc(StringRef MapName, Value *V,
                       const SPIRVMap<KeyTy, ValTy, Identifier> &Map,
                       bool IsReverse, Optional<int> DefaultCase,
-                      Instruction *InsertPoint, Module *M) {
+                      Instruction *InsertPoint, Module *M, int KeyMask = 0) {
   static_assert(std::is_convertible<KeyTy, int>::value &&
                     std::is_convertible<ValTy, int>::value,
                 "Can map only integer values");
@@ -496,8 +496,17 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   LLVMContext &Ctx = M->getContext();
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   IRBuilder<> IRB(BB);
+  SwitchInst *SI;
   F->arg_begin()->setName("key");
-  SwitchInst *SI = IRB.CreateSwitch(F->arg_begin(), BB);
+  if (KeyMask) {
+    Value *MaskV = ConstantInt::get(Type::getInt32Ty(Ctx), KeyMask);
+    Value *NewKey = IRB.CreateAnd(MaskV, F->arg_begin());
+    NewKey->setName("key.masked");
+    SI = IRB.CreateSwitch(NewKey, BB);
+  } else {
+    SI = IRB.CreateSwitch(F->arg_begin(), BB);
+  }
+
   if (!DefaultCase) {
     BasicBlock *DefaultBB = BasicBlock::Create(Ctx, "default", F);
     IRBuilder<> DefaultIRB(DefaultBB);
