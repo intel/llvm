@@ -29,7 +29,7 @@ remarks::createRemarkSerializer(Format RemarksFormat, SerializerMode Mode,
   case Format::YAMLStrTab:
     return llvm::make_unique<YAMLStrTabRemarkSerializer>(OS, Mode);
   case Format::Bitstream:
-    return llvm::make_unique<BitstreamSerializer>(OS, Mode);
+    return llvm::make_unique<BitstreamRemarkSerializer>(OS, Mode);
   }
   llvm_unreachable("Unknown remarks::Format enum");
 }
@@ -49,7 +49,8 @@ remarks::createRemarkSerializer(Format RemarksFormat, SerializerMode Mode,
     return llvm::make_unique<YAMLStrTabRemarkSerializer>(OS, Mode,
                                                          std::move(StrTab));
   case Format::Bitstream:
-    return llvm::make_unique<BitstreamSerializer>(OS, Mode, std::move(StrTab));
+    return llvm::make_unique<BitstreamRemarkSerializer>(OS, Mode,
+                                                        std::move(StrTab));
   }
   llvm_unreachable("Unknown remarks::Format enum");
 }

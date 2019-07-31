@@ -16,7 +16,7 @@
 using namespace llvm;
 using namespace llvm::remarks;
 
-BitstreamSerializerHelper::BitstreamSerializerHelper(
+BitstreamRemarkSerializerHelper::BitstreamRemarkSerializerHelper(
     BitstreamRemarkContainerType ContainerType)
     : Encoded(), R(), Bitstream(Encoded), ContainerType(ContainerType) {}
 
@@ -44,7 +44,7 @@ static void initBlock(unsigned BlockID, BitstreamWriter &Bitstream,
   Bitstream.EmitRecord(bitc::BLOCKINFO_CODE_BLOCKNAME, R);
 }
 
-void BitstreamSerializerHelper::setupMetaBlockInfo() {
+void BitstreamRemarkSerializerHelper::setupMetaBlockInfo() {
   // Setup the metadata block.
   initBlock(META_BLOCK_ID, Bitstream, R, MetaBlockName);
 
@@ -60,7 +60,7 @@ void BitstreamSerializerHelper::setupMetaBlockInfo() {
       Bitstream.EmitBlockInfoAbbrev(META_BLOCK_ID, Abbrev);
 }
 
-void BitstreamSerializerHelper::setupMetaRemarkVersion() {
+void BitstreamRemarkSerializerHelper::setupMetaRemarkVersion() {
   setRecordName(RECORD_META_REMARK_VERSION, Bitstream, R,
                 MetaRemarkVersionName);
 
@@ -71,7 +71,8 @@ void BitstreamSerializerHelper::setupMetaRemarkVersion() {
       Bitstream.EmitBlockInfoAbbrev(META_BLOCK_ID, Abbrev);
 }
 
-void BitstreamSerializerHelper::emitMetaRemarkVersion(uint64_t RemarkVersion) {
+void BitstreamRemarkSerializerHelper::emitMetaRemarkVersion(
+    uint64_t RemarkVersion) {
   // The remark version is emitted only if we emit remarks.
   R.clear();
   R.push_back(RECORD_META_REMARK_VERSION);
@@ -79,7 +80,7 @@ void BitstreamSerializerHelper::emitMetaRemarkVersion(uint64_t RemarkVersion) {
   Bitstream.EmitRecordWithAbbrev(RecordMetaRemarkVersionAbbrevID, R);
 }
 
-void BitstreamSerializerHelper::setupMetaStrTab() {
+void BitstreamRemarkSerializerHelper::setupMetaStrTab() {
   setRecordName(RECORD_META_STRTAB, Bitstream, R, MetaStrTabName);
 
   auto Abbrev = std::make_shared<BitCodeAbbrev>();
@@ -89,7 +90,8 @@ void BitstreamSerializerHelper::setupMetaStrTab() {
       Bitstream.EmitBlockInfoAbbrev(META_BLOCK_ID, Abbrev);
 }
 
-void BitstreamSerializerHelper::emitMetaStrTab(const StringTable &StrTab) {
+void BitstreamRemarkSerializerHelper::emitMetaStrTab(
+    const StringTable &StrTab) {
   // The string table is not emitted if we emit remarks separately.
   R.clear();
   R.push_back(RECORD_META_STRTAB);
@@ -102,7 +104,7 @@ void BitstreamSerializerHelper::emitMetaStrTab(const StringTable &StrTab) {
   Bitstream.EmitRecordWithBlob(RecordMetaStrTabAbbrevID, R, Blob);
 }
 
-void BitstreamSerializerHelper::setupMetaExternalFile() {
+void BitstreamRemarkSerializerHelper::setupMetaExternalFile() {
   setRecordName(RECORD_META_EXTERNAL_FILE, Bitstream, R, MetaExternalFileName);
 
   auto Abbrev = std::make_shared<BitCodeAbbrev>();
@@ -112,14 +114,14 @@ void BitstreamSerializerHelper::setupMetaExternalFile() {
       Bitstream.EmitBlockInfoAbbrev(META_BLOCK_ID, Abbrev);
 }
 
-void BitstreamSerializerHelper::emitMetaExternalFile(StringRef Filename) {
+void BitstreamRemarkSerializerHelper::emitMetaExternalFile(StringRef Filename) {
   // The external file is emitted only if we emit the separate metadata.
   R.clear();
   R.push_back(RECORD_META_EXTERNAL_FILE);
   Bitstream.EmitRecordWithBlob(RecordMetaExternalFileAbbrevID, R, Filename);
 }
 
-void BitstreamSerializerHelper::setupRemarkBlockInfo() {
+void BitstreamRemarkSerializerHelper::setupRemarkBlockInfo() {
   // Setup the remark block.
   initBlock(REMARK_BLOCK_ID, Bitstream, R, RemarkBlockName);
 
@@ -191,7 +193,7 @@ void BitstreamSerializerHelper::setupRemarkBlockInfo() {
   }
 }
 
-void BitstreamSerializerHelper::setupBlockInfo() {
+void BitstreamRemarkSerializerHelper::setupBlockInfo() {
   // Emit magic number.
   for (const char C : ContainerMagic)
     Bitstream.Emit(static_cast<unsigned>(C), 8);
@@ -228,7 +230,7 @@ void BitstreamSerializerHelper::setupBlockInfo() {
   Bitstream.ExitBlock();
 }
 
-void BitstreamSerializerHelper::emitMetaBlock(
+void BitstreamRemarkSerializerHelper::emitMetaBlock(
     uint64_t ContainerVersion, Optional<uint64_t> RemarkVersion,
     Optional<const StringTable *> StrTab, Optional<StringRef> Filename) {
   // Emit the meta block
@@ -263,8 +265,8 @@ void BitstreamSerializerHelper::emitMetaBlock(
   Bitstream.ExitBlock();
 }
 
-void BitstreamSerializerHelper::emitRemarkBlock(const Remark &Remark,
-                                                StringTable &StrTab) {
+void BitstreamRemarkSerializerHelper::emitRemarkBlock(const Remark &Remark,
+                                                      StringTable &StrTab) {
   Bitstream.EnterSubblock(REMARK_BLOCK_ID, 4);
 
   R.clear();
@@ -313,16 +315,17 @@ void BitstreamSerializerHelper::emitRemarkBlock(const Remark &Remark,
   Bitstream.ExitBlock();
 }
 
-void BitstreamSerializerHelper::flushToStream(raw_ostream &OS) {
+void BitstreamRemarkSerializerHelper::flushToStream(raw_ostream &OS) {
   OS.write(Encoded.data(), Encoded.size());
   Encoded.clear();
 }
 
-StringRef BitstreamSerializerHelper::getBuffer() {
+StringRef BitstreamRemarkSerializerHelper::getBuffer() {
   return StringRef(Encoded.data(), Encoded.size());
 }
 
-BitstreamSerializer::BitstreamSerializer(raw_ostream &OS, SerializerMode Mode)
+BitstreamRemarkSerializer::BitstreamRemarkSerializer(raw_ostream &OS,
+                                                     SerializerMode Mode)
     : RemarkSerializer(OS, Mode),
       Helper(BitstreamRemarkContainerType::SeparateRemarksFile) {
   assert(Mode == SerializerMode::Separate &&
@@ -332,8 +335,9 @@ BitstreamSerializer::BitstreamSerializer(raw_ostream &OS, SerializerMode Mode)
   StrTab.emplace();
 }
 
-BitstreamSerializer::BitstreamSerializer(raw_ostream &OS, SerializerMode Mode,
-                                         StringTable StrTabIn)
+BitstreamRemarkSerializer::BitstreamRemarkSerializer(raw_ostream &OS,
+                                                     SerializerMode Mode,
+                                                     StringTable StrTabIn)
     : RemarkSerializer(OS, Mode),
       Helper(Mode == SerializerMode::Separate
                  ? BitstreamRemarkContainerType::SeparateRemarksFile
@@ -341,7 +345,7 @@ BitstreamSerializer::BitstreamSerializer(raw_ostream &OS, SerializerMode Mode,
   StrTab = std::move(StrTabIn);
 }
 
-void BitstreamSerializer::emit(const Remark &Remark) {
+void BitstreamRemarkSerializer::emit(const Remark &Remark) {
   if (!DidSetUp) {
     // Emit the metadata that is embedded in the remark file.
     // If we're in standalone mode, serialize the string table as well.
@@ -361,9 +365,8 @@ void BitstreamSerializer::emit(const Remark &Remark) {
   Helper.flushToStream(OS);
 }
 
-std::unique_ptr<MetaSerializer>
-BitstreamSerializer::metaSerializer(raw_ostream &OS,
-                                    Optional<StringRef> ExternalFilename) {
+std::unique_ptr<MetaSerializer> BitstreamRemarkSerializer::metaSerializer(
+    raw_ostream &OS, Optional<StringRef> ExternalFilename) {
   assert(Helper.ContainerType !=
          BitstreamRemarkContainerType::SeparateRemarksMeta);
   bool IsStandalone =
@@ -378,6 +381,6 @@ BitstreamSerializer::metaSerializer(raw_ostream &OS,
 void BitstreamMetaSerializer::emit() {
   Helper->setupBlockInfo();
   Helper->emitMetaBlock(CurrentContainerVersion, CurrentRemarkVersion, StrTab,
-                       ExternalFilename);
+                        ExternalFilename);
   Helper->flushToStream(OS);
 }

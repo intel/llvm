@@ -46,7 +46,7 @@ namespace remarks {
 ///                         | Remark2
 ///                         | ...
 ///
-struct BitstreamSerializerHelper {
+struct BitstreamRemarkSerializerHelper {
   /// Buffer used for encoding the bitstream before writing it to the final
   /// stream.
   SmallVector<char, 1024> Encoded;
@@ -71,16 +71,18 @@ struct BitstreamSerializerHelper {
   uint64_t RecordRemarkArgWithDebugLocAbbrevID = 0;
   uint64_t RecordRemarkArgWithoutDebugLocAbbrevID = 0;
 
-  BitstreamSerializerHelper(BitstreamRemarkContainerType ContainerType);
+  BitstreamRemarkSerializerHelper(BitstreamRemarkContainerType ContainerType);
 
   // Disable copy and move: Bitstream points to Encoded, which needs special
   // handling during copy/move, but moving the vectors is probably useless
   // anyway.
-  BitstreamSerializerHelper(const BitstreamSerializerHelper &) = delete;
-  BitstreamSerializerHelper &
-  operator=(const BitstreamSerializerHelper &) = delete;
-  BitstreamSerializerHelper(BitstreamSerializerHelper &&) = delete;
-  BitstreamSerializerHelper &operator=(BitstreamSerializerHelper &&) = delete;
+  BitstreamRemarkSerializerHelper(const BitstreamRemarkSerializerHelper &) =
+      delete;
+  BitstreamRemarkSerializerHelper &
+  operator=(const BitstreamRemarkSerializerHelper &) = delete;
+  BitstreamRemarkSerializerHelper(BitstreamRemarkSerializerHelper &&) = delete;
+  BitstreamRemarkSerializerHelper &
+  operator=(BitstreamRemarkSerializerHelper &&) = delete;
 
   /// Set up the necessary block info entries according to the container type.
   void setupBlockInfo();
@@ -117,7 +119,7 @@ struct BitstreamSerializerHelper {
 };
 
 /// Implementation of the remark serializer using LLVM bitstream.
-struct BitstreamSerializer : public RemarkSerializer {
+struct BitstreamRemarkSerializer : public RemarkSerializer {
   /// The file should contain:
   /// 1) The block info block that describes how to read the blocks.
   /// 2) The metadata block that contains various information about the remarks
@@ -128,12 +130,13 @@ struct BitstreamSerializer : public RemarkSerializer {
   /// is used to emit the first two blocks only once.
   bool DidSetUp = false;
   /// The helper to emit bitstream.
-  BitstreamSerializerHelper Helper;
+  BitstreamRemarkSerializerHelper Helper;
 
   /// Construct a serializer that will create its own string table.
-  BitstreamSerializer(raw_ostream &OS, SerializerMode Mode);
+  BitstreamRemarkSerializer(raw_ostream &OS, SerializerMode Mode);
   /// Construct a serializer with a pre-filled string table.
-  BitstreamSerializer(raw_ostream &OS, SerializerMode Mode, StringTable StrTab);
+  BitstreamRemarkSerializer(raw_ostream &OS, SerializerMode Mode,
+                            StringTable StrTab);
 
   /// Emit a remark to the stream. This also emits the metadata associated to
   /// the remarks based on the SerializerMode specified at construction.
@@ -150,13 +153,13 @@ struct BitstreamSerializer : public RemarkSerializer {
 /// Serializer of metadata for bitstream remarks.
 struct BitstreamMetaSerializer : public MetaSerializer {
   /// This class can be used with [1] a pre-constructed
-  /// BitstreamSerializerHelper, or with [2] one that is owned by the meta
+  /// BitstreamRemarkSerializerHelper, or with [2] one that is owned by the meta
   /// serializer. In case of [1], we need to be able to store a reference to the
   /// object, while in case of [2] we need to store the whole object.
-  Optional<BitstreamSerializerHelper> TmpHelper;
+  Optional<BitstreamRemarkSerializerHelper> TmpHelper;
   /// The actual helper, that can point to \p TmpHelper or to an external helper
   /// object.
-  BitstreamSerializerHelper *Helper = nullptr;
+  BitstreamRemarkSerializerHelper *Helper = nullptr;
 
   Optional<const StringTable *> StrTab;
   Optional<StringRef> ExternalFilename;
@@ -173,7 +176,8 @@ struct BitstreamMetaSerializer : public MetaSerializer {
   }
 
   /// Create a new meta serializer based on a previously built \p Helper.
-  BitstreamMetaSerializer(raw_ostream &OS, BitstreamSerializerHelper &Helper,
+  BitstreamMetaSerializer(raw_ostream &OS,
+                          BitstreamRemarkSerializerHelper &Helper,
                           Optional<const StringTable *> StrTab = None,
                           Optional<StringRef> ExternalFilename = None)
       : MetaSerializer(OS), TmpHelper(None), Helper(&Helper), StrTab(StrTab),
