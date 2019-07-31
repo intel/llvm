@@ -1478,9 +1478,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
           if (isa<OpTypeArray>(Ty)) {
             SPIRVTypeArray *AT = static_cast<SPIRVTypeArray *>(Ty);
             Type *SrcTy = transType(AT->getArrayElementType());
-            assert(SrcTy->isIntegerTy(8));
-            llvm::Value *Src = ConstantInt::get(SrcTy, 0);
-            CI = Builder.CreateMemSet(Dst, Src, Size, Align, IsVolatile);
+            if (SrcTy->isIntegerTy(8)) {
+              llvm::Value *Src = ConstantInt::get(SrcTy, 0);
+              CI = Builder.CreateMemSet(Dst, Src, Size, Align, IsVolatile);
+            }
           }
         }
       }
