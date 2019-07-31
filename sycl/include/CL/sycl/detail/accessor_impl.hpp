@@ -27,6 +27,7 @@ namespace detail {
 
 template <int Dims> class AccessorImplDevice {
 public:
+  AccessorImplDevice() = default;
   AccessorImplDevice(id<Dims> Offset, range<Dims> AccessRange,
                      range<Dims> MemoryRange)
       : Offset(Offset), AccessRange(AccessRange), MemRange(MemoryRange) {}

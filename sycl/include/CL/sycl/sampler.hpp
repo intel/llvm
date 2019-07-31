@@ -69,6 +69,11 @@ private:
   detail::sampler_impl impl;
   void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }
   char padding[sizeof(std::shared_ptr<detail::sampler_impl>) - sizeof(impl)];
+
+public:
+  sampler() = default;
+
+private:
 #else
   std::shared_ptr<detail::sampler_impl> impl;
   template <class Obj>
