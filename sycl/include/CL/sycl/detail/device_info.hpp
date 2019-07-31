@@ -281,7 +281,7 @@ struct get_device_info<vector_class<size_t>,
       dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::sub_group_sizes),
       0, nullptr, &resultSize));
 
-    vector_class<size_t> result(resultSize);
+    vector_class<size_t> result(resultSize/sizeof(size_t));
     PI_CALL(RT::piDeviceGetInfo(
       dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::sub_group_sizes),
       resultSize, result.data(), nullptr));
