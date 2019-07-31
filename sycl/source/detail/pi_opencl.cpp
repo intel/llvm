@@ -127,10 +127,9 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
       devVer.find("OpenCL 1.1") == std::string::npos &&
       devVer.find("OpenCL 1.2") == std::string::npos &&
       devVer.find("OpenCL 2.0") == std::string::npos) {
-      if (res_program != nullptr)
-        *res_program = pi_cast<pi_program>(clCreateProgramWithIL(
-                           pi_cast<cl_context>(context), il, length,
-                           pi_cast<cl_int *>(&err)));
+    if (res_program != nullptr)
+      *res_program = pi_cast<pi_program>(clCreateProgramWithIL(
+          pi_cast<cl_context>(context), il, length, pi_cast<cl_int *>(&err)));
     return err;
   }
 
@@ -155,9 +154,9 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
           curPlatform, "clCreateProgramWithILKHR"));
 
   assert(funcPtr != nullptr);
-    if (res_program != nullptr)
-      *res_program = pi_cast<pi_program>(funcPtr(pi_cast<cl_context>(context),
-                         il, length, pi_cast<cl_int *>(&err)));
+  if (res_program != nullptr)
+    *res_program = pi_cast<pi_program>(funcPtr(
+        pi_cast<cl_context>(context), il, length, pi_cast<cl_int *>(&err)));
 
   return err;
 }
