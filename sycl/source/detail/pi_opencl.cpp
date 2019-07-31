@@ -80,25 +80,39 @@ pi_result OCL(piextDeviceSelectBinary)(
 
 pi_result OCL(piQueueCreate)(pi_context context, pi_device device,
                              pi_queue_properties properties, pi_queue *queue) {
-  size_t devVerSize;
-  cl_int ret_err = clGetDeviceInfo(pi_cast<cl_device_id>(device),
-                                   CL_DEVICE_VERSION, 0, NULL, &devVerSize);
-
-  if (ret_err != CL_SUCCESS)
-    return pi_cast<pi_result>(ret_err);
-
-  std::string devVer(devVerSize, '\0');
-  clGetDeviceInfo(pi_cast<cl_device_id>(device), CL_DEVICE_VERSION, devVerSize,
-                  &devVer.front(), NULL);
-
-  if (ret_err != CL_SUCCESS)
-    return pi_cast<pi_result>(ret_err);
-
   PI_ASSERT(queue, "piQueueCreate failed, queue argument is null");
 
-  if (devVer.find("OpenCL 1.0") != std::string::npos ||
-      devVer.find("OpenCL 1.1") != std::string::npos ||
-      devVer.find("OpenCL 1.2") != std::string::npos) {
+  cl_platform_id curPlatform;
+  cl_int ret_err = clGetDeviceInfo(pi_cast<cl_device_id>(device),
+                                   CL_DEVICE_PLATFORM, sizeof(cl_platform_id),
+                                   &curPlatform, NULL);
+
+  if (ret_err != CL_SUCCESS) {
+    *queue = nullptr;
+    return pi_cast<pi_result>(ret_err);
+  }
+
+  size_t platVerSize;
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, NULL,
+                              &platVerSize);
+
+  if (ret_err != CL_SUCCESS) {
+    *queue = nullptr;
+    return pi_cast<pi_result>(ret_err);
+  }
+
+  std::string platVer(platVerSize, '\0');
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, platVerSize,
+                              &platVer.front(), NULL);
+
+  if (ret_err != CL_SUCCESS) {
+    *queue = nullptr;
+    return pi_cast<pi_result>(ret_err);
+  }
+
+  if (platVer.find("OpenCL 1.0") != std::string::npos ||
+      platVer.find("OpenCL 1.1") != std::string::npos ||
+      platVer.find("OpenCL 1.2") != std::string::npos) {
     *queue = pi_cast<pi_queue>(clCreateCommandQueue(
         pi_cast<cl_context>(context), pi_cast<cl_device_id>(device),
         pi_cast<cl_command_queue_properties>(properties), &ret_err));
