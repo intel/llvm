@@ -449,11 +449,11 @@ pi_mem piSubBufCreate( // TODO: change interface to return error code
 //
 // Program
 //
-pi_program piProgramCreate(  // TODO: change interface to return error code
+pi_result piProgramCreate(
   pi_context    context,
   const void *  il,
   size_t        length,
-  pi_result *   errcode_ret);
+  pi_program *  res_program);
 
 pi_program piclProgramCreateWithBinary( // TODO: change to return pi_result
   pi_context                     context,
