@@ -119,7 +119,8 @@ public:
           SemaRef.addSyclDeviceDecl(Def);
         }
       }
-    } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr)
+    } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
+               !e->isTypeDependent())
       SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
           << Sema::KernelCallFunctionPointer;
     return true;
