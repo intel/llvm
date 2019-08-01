@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
 #include <iostream>
+#include <vector>
 
 using namespace cl::sycl;
 
@@ -51,7 +52,7 @@ int check_results(int *data, size_t stride) {
 
 int test_strideN(size_t stride) {
   // Define and initialize data to be copied to the device.
-  int out_data[nElems] = {0};
+  std::vector<int> out_data(nElems, 0);
   int nElemsToCopy = (workGroupSize / stride);
   if (workGroupSize % stride)
     nElemsToCopy++;
@@ -68,7 +69,7 @@ int test_strideN(size_t stride) {
       }
     });
 
-    buffer<int, 1> out_buf(out_data, range<1>(nElems));
+    buffer<int, 1> out_buf(out_data.data(), range<1>(nElems));
 
     myQueue.submit([&](handler& cgh) {
 
@@ -111,7 +112,7 @@ int test_strideN(size_t stride) {
     return 2;
   }
 
-  return check_results(out_data, stride);
+  return check_results(out_data.data(), stride);
 }
 
 int main() {
