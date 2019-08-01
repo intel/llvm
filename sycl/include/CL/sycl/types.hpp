@@ -231,6 +231,74 @@ T convertHelper(const T &Opnd) {
   if (roundingMode == rounding_mode::automatic ||
       roundingMode == rounding_mode::rtz) {
     return static_cast<convertT>(Opnd);
+
+// Add a specific is_arithmetic for SYCL types that include half FP type
+template <typename T>
+using is_arithmetic = std::integral_constant<bool,
+     std::is_arithmetic<T>::value ||
+     std::is_same<typename std::remove_const<T>::type, half>::value>;
+
+template <typename T>
+using is_floating_point =
+    std::integral_constant<bool, std::is_floating_point<T>::value ||
+                                     std::is_same<T, half>::value>;
+
+template <typename T, typename R>
+using is_int_to_int =
+    std::integral_constant<bool, std::is_integral<T>::value &&
+                                     std::is_integral<R>::value>;
+
+template <typename T, typename R>
+using is_int_to_float =
+    std::integral_constant<bool, std::is_integral<T>::value &&
+                                     detail::is_floating_point<R>::value>;
+
+template <typename T, typename R>
+using is_float_to_int =
+    std::integral_constant<bool, detail::is_floating_point<T>::value &&
+                                     std::is_integral<R>::value>;
+
+template <typename T, typename R>
+using is_float_to_float =
+    std::integral_constant<bool, detail::is_floating_point<T>::value &&
+                                     detail::is_floating_point<R>::value>;
+
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
+  return Value;
+}
+
+// Note for float to half conversions, static_cast calls the conversion operator
+// implemented for host that takes care of the precision requirements.
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<!std::is_same<T, R>::value &&
+                        (is_int_to_int<T, R>::value ||
+                         is_int_to_float<T, R>::value ||
+                         is_float_to_float<T, R>::value),
+                    R>
+convertImpl(T Value) {
+  return static_cast<R>(Value);
+}
+
+// float to int
+template <typename T, typename R, rounding_mode roundingMode>
+detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
+#ifndef __SYCL_DEVICE_ONLY__
+  switch (roundingMode) {
+    // Round to nearest even is default rounding mode for floating-point types
+  case rounding_mode::automatic:
+    // Round to nearest even.
+  case rounding_mode::rte: {
+    int OldRoundingDirection = std::fegetround();
+    int Err = std::fesetround(FE_TONEAREST);
+    if (Err)
+      throw runtime_error("Unable to set rounding mode to FE_TONEAREST");
+    R Result = std::rint(Value);
+    Err = std::fesetround(OldRoundingDirection);
+    if (Err)
+      throw runtime_error("Unable to restore rounding mode.");
+    return Result;
+>>>>>>> fc8bdf55ea4... [SYCL] Add float16 type (half) support to the collectives: broadcast, reduce, inclusive_scan and exclusive_scan. Also the corresponding tests has been updated to reflect the change.
   }
   if (roundingMode == rounding_mode::rtp) {
     return static_cast<convertT>(ceil(Opnd));
