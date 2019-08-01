@@ -17,7 +17,7 @@
 using namespace cl::sycl;
 
 // Define the number of work items to enqueue.
-const int nElems = 1024*1024u;
+const int nElems = 128*1024u;
 const int workGroupSize = 16;
 
 // Check the result is correct.
