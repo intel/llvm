@@ -34,10 +34,11 @@
 extern "C" {
 #endif // __cplusplus
 
-typedef  int32_t    pi_int32;
+typedef int32_t     pi_int32;
 typedef uint32_t    pi_uint32;
 typedef uint64_t    pi_uint64;
 typedef pi_uint32   pi_bool;
+typedef pi_uint64   pi_bitfield;
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
@@ -158,7 +159,7 @@ typedef enum {
 // make the translation to OpenCL transparent.
 // TODO: populate
 //
-typedef pi_uint64 pi_mem_flags;
+typedef pi_bitfield pi_mem_flags;
 // Access
 const pi_mem_flags PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
 // Host pointer
@@ -167,7 +168,7 @@ const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
 
 // NOTE: queue properties is implemented this way to better support bit
 // manipulations
-typedef pi_uint64 pi_queue_properties;
+typedef pi_bitfield pi_queue_properties;
 const pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
         CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 const pi_queue_properties PI_QUEUE_PROFILING_ENABLE = CL_QUEUE_PROFILING_ENABLE;
