@@ -218,6 +218,16 @@ struct ImageDeleter {
   }
 };
 
+static bool is_compiler_available(const context &C) {
+  // Does any device support compiling programs?
+  for (const auto &D : C.get_devices()) {
+    if (D.get_info<info::device::is_compiler_available>()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
                                           const context &Context,
                                           DeviceImage **I) {
@@ -363,6 +373,10 @@ RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
     F.close();
   }
   // Load the selected image
+  if ((Format == PI_DEVICE_BINARY_TYPE_SPIRV || Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE) &&
+      !is_compiler_available(Context)) {
+    throw feature_not_supported("Online compilation is not supported by this device");
+  }
   const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
   RT::PiProgram Res = nullptr;
   Res = Format == PI_DEVICE_BINARY_TYPE_SPIRV
