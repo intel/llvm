@@ -140,7 +140,6 @@ void writePixel(vec<T, 4> Pixel, T *Ptr, image_channel_order Order) {
     assert(!"Unhandled image channel order");
     break;
   }
-  return Pixel;
 }
 
 // Converts read pixel data into return datatype based on the channel type of
