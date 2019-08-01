@@ -78,7 +78,7 @@ public:
   template <int dimensions, bool with_offset>
   static void updateItemIndex(cl::sycl::item<dimensions, with_offset> &Item,
                               const id<dimensions> &NextIndex) {
-    Item.index = NextIndex;
+    Item.MImpl.MIndex = NextIndex;
   }
 
   template <int dimensions>
