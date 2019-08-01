@@ -3563,6 +3563,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (IsMSVC) {
       CmdArgs.push_back("-fms-extensions");
       CmdArgs.push_back("-fms-compatibility");
+      CmdArgs.push_back("-fdelayed-template-parsing");
       VersionTuple MSVT = TC.computeMSVCVersion(&D, Args);
       if (!MSVT.empty())
         CmdArgs.push_back(Args.MakeArgString("-fms-compatibility-version=" +
