@@ -20,7 +20,6 @@ class Builder;
 }
 template <int dimensions> class id;
 template <int dimensions> class range;
-template <int dimensions> class h_item;
 
 template <int dimensions = 1, bool with_offset = true> class item {
 public:
@@ -88,7 +87,6 @@ protected:
   // For call constructor inside conversion operator
   friend class item<dimensions, false>;
   friend class item<dimensions, true>;
-  friend class h_item<dimensions>;
   friend class detail::Builder;
 
   template <size_t W = with_offset>
@@ -100,8 +98,6 @@ protected:
   item(typename std::enable_if<(W == false), const range<dimensions>>::type &R,
        const id<dimensions> &I)
       : extent(R), index(I), offset() {}
-
-  void setID(const id<dimensions> &ID) { index = ID; }
 
 private:
   range<dimensions> extent;
