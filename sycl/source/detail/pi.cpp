@@ -62,7 +62,7 @@ void piInitialize() {
     piDie("Unknown SYCL_BE");
   }
   #define _PI_API(api)                          \
-    extern const decltype(::api) * api##OclPtr; \
+    extern decltype(::api) * api##OclPtr; \
     api = api##OclPtr;
   #include <CL/sycl/detail/pi.def>
 
@@ -111,7 +111,6 @@ void PiCall::check(RT::PiResult Result) {
 
 template void PiCall::check<cl::sycl::runtime_error>(RT::PiResult);
 template void PiCall::check<cl::sycl::compile_program_error>(RT::PiResult);
-
 
 } // namespace pi
 } // namespace detail
