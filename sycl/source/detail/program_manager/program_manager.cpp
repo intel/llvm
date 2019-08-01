@@ -218,13 +218,27 @@ struct ImageDeleter {
   }
 };
 
-static bool is_compiler_available(const context &C) {
-  // Does any device support compiling programs?
+static bool is_device_binary_type_supported(const context &C,
+                                  RT::PiDeviceBinaryType Format) {
+  // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
+  if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
+    return true;
+
+  // OpenCL 2.1 and greater require clCreateProgramWithIL
+  if (pi::piUseBackend(pi::SYCL_BE_PI_OPENCL) &&
+      C.get_platform().get_info<info::platform::version>() >= "2.1")
+    return true;
+
+  // Otherwise we need cl_khr_program_il extension to be present
+  // and we can call clCreateProgramWithILKHR using the extension
   for (const auto &D : C.get_devices()) {
-    if (D.get_info<info::device::is_compiler_available>()) {
+    auto Extensions = D.get_info<info::device::extensions>();
+    if (std::find(Extensions.begin(), Extensions.end(),
+                  string_class("cl_khr_program_il")) != Extensions.end())
       return true;
-    }
   }
+
+  // This device binary type is not supported.
   return false;
 }
 
@@ -373,10 +387,8 @@ RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
     F.close();
   }
   // Load the selected image
-  if ((Format == PI_DEVICE_BINARY_TYPE_SPIRV || Format == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE) &&
-      !is_compiler_available(Context)) {
-    throw feature_not_supported("Online compilation is not supported by this device");
-  }
+  if (!is_device_binary_type_supported(Context, Format))
+    throw feature_not_supported("Online compilation is not supported in this context");
   const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
   RT::PiProgram Res = nullptr;
   Res = Format == PI_DEVICE_BINARY_TYPE_SPIRV
