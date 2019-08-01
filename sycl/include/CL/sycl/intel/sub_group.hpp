@@ -116,34 +116,6 @@ struct sub_group {
     return __spirv_GroupAll(__spv::Scope::Subgroup, predicate);
   }
 
-  /* --- collectives --- */
-
-  template <typename T>
-  T broadcast(typename std::enable_if<std::is_arithmetic<T>::value, T>::type x,
-              id<1> local_id) const {
-    return __spirv_GroupBroadcast<T>(__spv::Scope::Subgroup, x,
-                                            local_id.get(0));
-  }
-
-  template <typename T, class BinaryOperation>
-  T reduce(
-      typename std::enable_if<std::is_arithmetic<T>::value, T>::type x) const {
-    return BinaryOperation::template calc<T, __spv::GroupOperation::Reduce>(x);
-  }
-
-  template <typename T, class BinaryOperation>
-  T exclusive_scan(
-      typename std::enable_if<std::is_arithmetic<T>::value, T>::type x) const {
-    return BinaryOperation::template
-        calc<T, __spv::GroupOperation::ExclusiveScan>(x);
-  }
-
-  template <typename T, class BinaryOperation>
-  T inclusive_scan(
-      typename std::enable_if<std::is_arithmetic<T>::value, T>::type x) const {
-    return BinaryOperation::template
-        calc<T, __spv::GroupOperation::InclusiveScan>(x);
-  }
 
   template <typename T>
   using EnableIfIsArithmeticOrHalf = typename std::enable_if<
@@ -151,6 +123,30 @@ struct sub_group {
        std::is_same<typename std::remove_const<T>::type, half>::value),
       T>::type;
 
+  /* --- collectives --- */
+
+  template <typename T>
+  T broadcast(EnableIfIsArithmeticOrHalf<T> x, id<1> local_id) const {
+    return __spirv_GroupBroadcast<T>(__spv::Scope::Subgroup, x,
+                                            local_id.get(0));
+  }
+
+  template <typename T, class BinaryOperation>
+  T reduce(EnableIfIsArithmeticOrHalf<T> x) const {
+    return BinaryOperation::template calc<T, __spv::GroupOperation::Reduce>(x);
+  }
+
+  template <typename T, class BinaryOperation>
+  T exclusive_scan(EnableIfIsArithmeticOrHalf<T> x) const {
+    return BinaryOperation::template
+        calc<T, __spv::GroupOperation::ExclusiveScan>(x);
+  }
+
+  template <typename T, class BinaryOperation>
+  T inclusive_scan(EnableIfIsArithmeticOrHalf<T> x) const {
+    return BinaryOperation::template
+        calc<T, __spv::GroupOperation::InclusiveScan>(x);
+  }
 
   /* --- one - input shuffles --- */
   /* indices in [0 , sub - group size ) */
