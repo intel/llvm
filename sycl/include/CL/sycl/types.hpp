@@ -1770,7 +1770,7 @@ template <int NumElements, typename CLType> struct alignas(CLType) half_vec {
 
 typedef half __half_t;
 typedef half_vec<2, cl_half2> __half2_vec_t;
-typedef half_vec<3, cl_half3> __half3_vec_t;
+typedef half_vec<4, cl_half3> __half3_vec_t;
 typedef half_vec<4, cl_half4> __half4_vec_t;
 typedef half_vec<8, cl_half8> __half8_vec_t;
 typedef half_vec<16, cl_half16> __half16_vec_t;

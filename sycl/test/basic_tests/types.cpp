@@ -35,7 +35,7 @@ namespace s = cl::sycl;
 
 #define CHECK_SIZE_VEC(T) \
   CHECK_SIZE_VEC_N(T, 2); \
-  CHECK_SIZE_VEC_N3(T);   \  
+  CHECK_SIZE_VEC_N3(T);   \
   CHECK_SIZE_VEC_N(T, 4); \
   CHECK_SIZE_VEC_N(T, 8); \
   CHECK_SIZE_VEC_N(T, 16);
