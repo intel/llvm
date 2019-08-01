@@ -191,6 +191,12 @@ template <typename T> struct LShift {
   }
 };
 
+// Add a specific is_arithmetic for SYCL types that include half FP type
+template <typename T>
+using is_arithmetic = std::integral_constant<bool,
+     std::is_arithmetic<T>::value ||
+     std::is_same<typename std::remove_const<T>::type, half>::value>;
+
 template <typename T>
 using is_floating_point =
     std::integral_constant<bool, std::is_floating_point<T>::value ||
