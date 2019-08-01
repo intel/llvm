@@ -3562,6 +3562,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(IsMSVC ? "-std=c++14" : "-std=c++11");
     if (IsMSVC) {
       CmdArgs.push_back("-fms-extensions");
+      CmdArgs.push_back("-fms-compatibility");
       VersionTuple MSVT = TC.computeMSVCVersion(&D, Args);
       if (!MSVT.empty())
         CmdArgs.push_back(Args.MakeArgString("-fms-compatibility-version=" +
