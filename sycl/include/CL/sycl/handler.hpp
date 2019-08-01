@@ -578,7 +578,7 @@ public:
   template <typename KernelName, typename KernelType, int dimensions>
   __attribute__((sycl_kernel)) void kernel_parallel_for(
       typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
-                                           item<dimensions>>::value &&
+                                           item<dimensions, false>>::value &&
                                   (dimensions > 0 && dimensions < 4),
                               KernelType>::type KernelFunc) {
     id<dimensions> global_id{
@@ -588,6 +588,24 @@ public:
 
     item<dimensions, false> Item =
         detail::Builder::createItem<dimensions, false>(global_size, global_id);
+    KernelFunc(Item);
+  }
+
+    template <typename KernelName, typename KernelType, int dimensions>
+  __attribute__((sycl_kernel)) void kernel_parallel_for(
+      typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
+                                           item<dimensions, true>>::value &&
+                                  (dimensions > 0 && dimensions < 4),
+                              KernelType>::type KernelFunc) {
+    id<dimensions> global_id{
+        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
+    range<dimensions> global_size{
+        __spirv::initGlobalSize<dimensions, range<dimensions>>()};
+    id<dimensions> global_offset{
+        __spirv::initGlobalOffset<dimensions, id<dimensions>>()};
+
+    item<dimensions, true> Item = detail::Builder::createItem<dimensions, true>(
+        global_size, global_id, global_offset);
     KernelFunc(Item);
   }
 

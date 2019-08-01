@@ -198,8 +198,7 @@ public:
 
   template <class ArgT = KernelArgType>
   typename std::enable_if<
-      (std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value ||
-       std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value)>::type
+      std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
     size_t XYZ[3] = {0};
     sycl::id<Dims> ID;
@@ -224,10 +223,36 @@ public:
   }
 
   template <class ArgT = KernelArgType>
+  typename std::enable_if<
+      std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>::type
+  runOnHost(const NDRDescT &NDRDesc) {
+    sycl::range<Dims> Range;
+    sycl::id<Dims> Offset;
+    for (int I = 0; I < Dims; ++I) {
+      Range[I] = NDRDesc.GlobalSize[I];
+      Offset[I] = NDRDesc.GlobalOffset[I];
+    }
+    size_t XYZ[3] = {0};
+    sycl::id<Dims> ID;
+    for (; XYZ[2] < NDRDesc.GlobalSize[2]; ++XYZ[2]) {
+      XYZ[1] = 0;
+      for (; XYZ[1] < NDRDesc.GlobalSize[1]; ++XYZ[1]) {
+        XYZ[0] = 0;
+        for (; XYZ[0] < NDRDesc.GlobalSize[0]; ++XYZ[0]) {
+          for (int I = 0; I < Dims; ++I)
+            ID[I] = XYZ[I] + Offset[I];
+
+          sycl::item<Dims, /*Offset=*/true> Item =
+              IDBuilder::createItem<Dims, true>(Range, ID, Offset);
+          MKernel(Item);
+        }
+      }
+    }
+  }
+
+  template <class ArgT = KernelArgType>
   typename std::enable_if<std::is_same<ArgT, nd_item<Dims>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
-    // TODO add offset logic
-
     sycl::range<Dims> GroupSize;
     for (int I = 0; I < Dims; ++I) {
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
@@ -249,7 +274,7 @@ public:
           GlobalSize, LocalSize, GroupSize, GroupID);
 
       detail::NDLoop<Dims>::iterate(LocalSize, [&](const id<Dims> &LocalID) {
-        id<Dims> GlobalID = GroupID * LocalSize + LocalID;
+        id<Dims> GlobalID = GroupID * LocalSize + LocalID + GlobalOffset;
         const sycl::item<Dims, /*Offset=*/true> GlobalItem =
             IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
                                               GlobalOffset);
