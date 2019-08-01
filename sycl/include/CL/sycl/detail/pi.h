@@ -155,19 +155,20 @@ typedef enum {
 //
 typedef pi_uint64 pi_mem_flags;
 // Access
-const pi_uint64 PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
+const pi_mem_flags PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
 // Host pointer
-const pi_uint64 PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
-const pi_uint64 PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
+const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
 
 // NOTE: queue properties is implemented this way to better support bit
 // manipulations
 typedef pi_uint64 pi_queue_properties;
-const pi_uint64 PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
+const pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
         CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-const pi_uint64 PI_QUEUE_PROFILING_ENABLE  = CL_QUEUE_PROFILING_ENABLE;
-const pi_uint64 PI_QUEUE_ON_DEVICE         = CL_QUEUE_ON_DEVICE;
-const pi_uint64 PI_QUEUE_ON_DEVICE_DEFAULT = CL_QUEUE_ON_DEVICE_DEFAULT;
+const pi_queue_properties PI_QUEUE_PROFILING_ENABLE = CL_QUEUE_PROFILING_ENABLE;
+const pi_queue_properties PI_QUEUE_ON_DEVICE = CL_QUEUE_ON_DEVICE;
+const pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT =
+        CL_QUEUE_ON_DEVICE_DEFAULT;
 
 typedef _pi_result                  pi_result;
 typedef _pi_platform_info           pi_platform_info;
@@ -186,11 +187,15 @@ typedef void * _pi_offload_entry;
 
 /// Types of device binary.
 typedef uint8_t pi_device_binary_type;
-static const uint8_t PI_DEVICE_BINARY_TYPE_NONE    = 0; // format is not determined
-static const uint8_t PI_DEVICE_BINARY_TYPE_NATIVE  = 1; // specific to a device
+// format is not determined
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NONE    = 0;
+// specific to a device
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NATIVE  = 1;
 // portable binary types go next
-static const uint8_t PI_DEVICE_BINARY_TYPE_SPIRV   = 2;        // SPIR-V
-static const uint8_t PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3; // LLVM bitcode
+// SPIR-V
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_SPIRV   = 2;
+// LLVM bitcode
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3;
 
 // Device binary descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARY_VERSION = 1;
