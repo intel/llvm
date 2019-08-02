@@ -579,7 +579,8 @@ public:
   static constexpr size_t get_count() { return NumElements; }
   static constexpr size_t get_size() { return sizeof(m_Data); }
 
-  template <typename convertT, rounding_mode roundingMode>
+  template <typename convertT,
+            rounding_mode roundingMode = rounding_mode::automatic>
   vec<convertT, NumElements> convert() const {
     static_assert(std::is_integral<convertT>::value ||
                       detail::is_floating_point<convertT>::value,

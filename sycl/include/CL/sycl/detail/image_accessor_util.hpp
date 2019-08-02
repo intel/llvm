@@ -9,10 +9,15 @@
 // device
 //
 #ifndef __SYCL_DEVICE_ONLY__
+#include <CL/sycl/builtins.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/image.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <CL/sycl/types.hpp>
+#include <cfenv>
+#include <cmath>
+
+#include <iostream>
 
 namespace cl {
 namespace sycl {
@@ -123,18 +128,65 @@ template <typename T> vec<T, 4> readPixel(T *Ptr, image_channel_order Order) {
 // converted to Datatype of the Channel based on ImageChannelType by the calling
 // API.
 template <typename T>
-void writePixel(vec<T, 4> Pixel, T *Ptr, image_channel_order Order) {
-  const uint8_t NumChannels = getImageNumberChannels(Order);
+void writePixel(vec<T, 4> Pixel, T *Ptr, image_channel_order ChannelOrder,
+                image_channel_type ChannelType) {
 
-  switch (NumChannels) {
-  case 4:
-    Ptr[3] = Pixel.w();
-  case 3:
-    Ptr[2] = Pixel.z();
-  case 2:
-    Ptr[1] = Pixel.y();
-  case 1:
+  // Data is written based on section 6.12.14.6 of openCL spec.
+  switch (ChannelOrder) {
+  case image_channel_order::a:
+    Ptr[0] = Pixel.w();
+    break;
+  case image_channel_order::r:
+  case image_channel_order::rx:
+  case image_channel_order::intensity:
+  case image_channel_order::luminance:
     Ptr[0] = Pixel.x();
+    break;
+  case image_channel_order::rg:
+  case image_channel_order::rgx:
+    Ptr[0] = Pixel.x();
+    Ptr[1] = Pixel.y();
+    break;
+  case image_channel_order::ra:
+    Ptr[0] = Pixel.x();
+    Ptr[1] = Pixel.w();
+    break;
+  case image_channel_order::rgb:
+  case image_channel_order::rgbx:
+    if (ChannelType == image_channel_type::unorm_short_565 ||
+        ChannelType == image_channel_type::unorm_short_555 ||
+        ChannelType == image_channel_type::unorm_int_101010) {
+      Ptr[0] = Pixel.x();
+    } else {
+      Ptr[0] = Pixel.x();
+      Ptr[1] = Pixel.y();
+      Ptr[2] = Pixel.z();
+    }
+    break;
+  case image_channel_order::rgba:
+    Ptr[0] = Pixel.x(); // r
+    Ptr[1] = Pixel.y(); // g
+    Ptr[2] = Pixel.z(); // b
+    Ptr[3] = Pixel.w(); // a
+    break;
+  case image_channel_order::argb:
+    Ptr[0] = Pixel.w(); // a
+    Ptr[1] = Pixel.x(); // r
+    Ptr[2] = Pixel.y(); // g
+    Ptr[3] = Pixel.z(); // b
+    break;
+  case image_channel_order::bgra:
+    Ptr[0] = Pixel.z(); // b
+    Ptr[1] = Pixel.y(); // g
+    Ptr[2] = Pixel.x(); // r
+    Ptr[3] = Pixel.w(); // a
+    break;
+  case image_channel_order::abgr:
+    // TODO:Check this, it is not given in the OpenCL spec.
+    Ptr[0] = Pixel.w(); // a
+    Ptr[1] = Pixel.z(); // b
+    Ptr[2] = Pixel.y(); // g
+    Ptr[3] = Pixel.x(); // r
     break;
   default:
     assert(!"Unhandled image channel order");
@@ -176,34 +228,235 @@ void convertReadData(vec<ChannelType, 4> PixelData,
 
 // Converts data to write into appropriate datatype based on the channel of the
 // image.
-// TODO: Change this method to use the conversion rules as given in the OpenCL
-// Spec Section 8.3. The conversion rules may be handled differently for each
-// return datatype - float, int32, uint32, half. ImageChannelType is passed to
-// the function to use appropriate conversion rules.
-template <typename ChannelType, typename WriteDataType>
-vec<ChannelType, 4> convertWriteData(vec<WriteDataType, 4> WriteData,
+// The conversion rules used are as given in OpenCL Spec Section 8.3. The
+// conversion rules are different for each return datatype - float,
+// int32, uint32, half. ImageChannelType is passed to the function to use
+// appropriate conversion rules.
+template <typename ChannelType>
+vec<ChannelType, 4> convertWriteData(vec<cl_uint, 4> WriteData,
                                      image_channel_type ImageChannelType) {
   vec<ChannelType, 4> PixelData;
-  PixelData.x() = (ChannelType)WriteData.x();
-  PixelData.y() = (ChannelType)WriteData.y();
-  PixelData.z() = (ChannelType)WriteData.z();
-  PixelData.w() = (ChannelType)WriteData.w();
+  vec<cl_uint, 4> Temp;
+  switch (ImageChannelType) {
+  case image_channel_type::unsigned_int8:
+    // convert_uchar_sat(Data)
+    Temp = (cl::sycl::clamp(WriteData, (uint)min_v<uint8_t>(),
+                            (uint)max_v<uint8_t>()));
+    PixelData = Temp.convert<ChannelType>();
+    break;
+  case image_channel_type::unsigned_int16:
+    // convert_ushort_sat(Data)
+    Temp = cl::sycl::clamp(WriteData, (uint)min_v<uint16_t>(),
+                           (uint)max_v<uint16_t>());
+    PixelData = Temp.convert<ChannelType>();
+    break;
+  case image_channel_type::unsigned_int32:
+    // no conversion is performed.
+    PixelData = WriteData.convert<ChannelType>();
+    break;
+  default:
+    // OpenCL Spec section 6.12.14.4 does not allow writing uint4 data to an
+    // image with channel datatype other than unsigned_int8,unsigned_int16 and
+    // unsigned_int32.
+    assert(!"Datatype of data to write - cl_uint4 is incompatible with the "
+            "image_channel_type of the image.");
+    break;
+  }
   return PixelData;
 }
 
-// Separate function for half datatype.
-// To resolve ambiguity when converting data into half datatype,float is used as
-// typecast.
-template <typename WriteDataType>
-vec<cl_half, 4> convertWriteDataToHalf(vec<WriteDataType, 4> WriteData,
-                                       image_channel_type ImageChannelType) {
-  vec<cl_half, 4> PixelData;
-  PixelData.x() = (float)WriteData.x();
-  PixelData.y() = (float)WriteData.y();
-  PixelData.z() = (float)WriteData.z();
-  PixelData.w() = (float)WriteData.w();
+template <typename ChannelType>
+vec<ChannelType, 4> convertWriteData(vec<cl_int, 4> WriteData,
+                                     image_channel_type ImageChannelType) {
+
+  vec<ChannelType, 4> PixelData;
+  vec<cl_int, 4> Temp;
+  switch (ImageChannelType) {
+  case image_channel_type::signed_int8:
+    // convert_char_sat(Data)
+    Temp =
+        cl::sycl::clamp(WriteData, (int)min_v<int8_t>(), (int)max_v<int8_t>());
+    PixelData = Temp.convert<ChannelType>();
+    break;
+  case image_channel_type::signed_int16:
+    // convert_short_sat(Data)
+    Temp = cl::sycl::clamp(WriteData, (int)min_v<int16_t>(),
+                           (int)max_v<int16_t>());
+    PixelData = Temp.convert<ChannelType>();
+    break;
+  case image_channel_type::signed_int32:
+    // This is equivalent to a No-op.
+    PixelData = WriteData.convert<ChannelType>();
+    break;
+  default:
+    // OpenCL Spec section 6.12.14.4 does not allow writing int4 data to an
+    // image with channel datatype other than signed_int8,signed_int16 and
+    // signed_int32.
+    assert(!"Datatype of data to write - cl_int4 is incompatible with the "
+            "image_channel_type of the image.");
+    break;
+  }
   return PixelData;
 }
+
+// Multiplication operator is not supported in vec class for a float operand.
+// So here each vector element is individually multiplied by the multiplicand.
+#define MULTIPLY_EACH(Result, Operand, Multiplicand)                           \
+  Result.x() = Operand.x() * Multiplicand;                                     \
+  Result.y() = Operand.y() * Multiplicand;                                     \
+  Result.z() = Operand.z() * Multiplicand;                                     \
+  Result.w() = Operand.w() * Multiplicand;
+
+template <typename ChannelType>
+vec<ChannelType, 4> convertWriteData(vec<cl_float, 4> WriteData,
+                                     image_channel_type ImageChannelType) {
+
+  vec<ChannelType, 4> PixelData;
+  vec<cl_float, 4> Temp;
+  vec<cl_int, 4> TempInInt;
+  vec<cl_int, 4> TempInIntSaturated;
+
+  switch (ImageChannelType) {
+  case image_channel_type::snorm_int8:
+    // convert_char_sat_rte(f * 127.0f)
+    MULTIPLY_EACH(Temp, WriteData, 127.0f);
+    TempInInt = Temp.convert<int, rounding_mode::rte>();
+    TempInIntSaturated =
+        cl::sycl::clamp(TempInInt, (int)min_v<char>(), (int)max_v<char>());
+    PixelData = TempInIntSaturated.convert<ChannelType>();
+    break;
+  case image_channel_type::snorm_int16:
+    // convert_short_sat_rte(f * 32767.0f)
+    MULTIPLY_EACH(Temp, WriteData, 32767.0f);
+    TempInInt = Temp.convert<int, rounding_mode::rte>();
+    TempInIntSaturated =
+        cl::sycl::clamp(TempInInt, (int)min_v<short>(), (int)max_v<short>());
+    PixelData = TempInIntSaturated.convert<ChannelType>();
+    break;
+  case image_channel_type::unorm_int8:
+    // convert_uchar_sat_rte(f * 255.0f)
+    MULTIPLY_EACH(Temp, WriteData, 255.0f);
+    TempInInt = Temp.convert<int, rounding_mode::rte>();
+    TempInIntSaturated =
+        cl::sycl::clamp(TempInInt, (int)min_v<uchar>(), (int)max_v<uchar>());
+    PixelData = TempInIntSaturated.convert<ChannelType>();
+    break;
+  case image_channel_type::unorm_int16:
+    // convert_ushort_sat_rte(f * 65535.0f)
+    MULTIPLY_EACH(Temp, WriteData, 65535.0f);
+    TempInInt = Temp.convert<int, rounding_mode::rte>();
+    TempInIntSaturated =
+        cl::sycl::clamp(TempInInt, (int)min_v<ushort>(), (int)max_v<ushort>());
+    PixelData = TempInIntSaturated.convert<ChannelType>();
+    break;
+  case image_channel_type::unorm_short_565:
+    // TODO: Missing information in OpenCL spec.
+    assert(!"Currently unsupported datatype conversion from image_channel_type "
+            "to cl_float4.");
+    break;
+  case image_channel_type::unorm_short_555:
+    // TODO: Missing information in OpenCL spec.
+    // Check if the below code is correct after the spec is updated.
+    // Assuming: min(convert_ushort_sat_rte(f * 32.0f), 0x1f)
+    MULTIPLY_EACH(Temp, WriteData, 32.0f);
+    TempInInt = Temp.convert<int, rounding_mode::rte>();
+    TempInIntSaturated =
+        cl::sycl::clamp(TempInInt, (int)min_v<uchar>(), (int)max_v<uchar>());
+    TempInIntSaturated = cl::sycl::min(TempInIntSaturated, (int)0x1f);
+    PixelData = TempInIntSaturated.convert<ChannelType>();
+    // Compressing the data into the first element of PixelData.
+    // This is needed so that the data can be directly stored into the pixel
+    // location from the first element.
+    // For CL_UNORM_SHORT_555, bit 15 is undefined, R is in bits 14:10, G in
+    // bits 9:5 and B in bits 4:0.
+    PixelData.x() = ((short)PixelData.x() << 10) | ((short)PixelData.y() << 5) |
+                    (short)PixelData.z();
+    break;
+  case image_channel_type::unorm_int_101010:
+    // min(convert_ushort_sat_rte(f * 1023.0f), 0x3ff)
+    MULTIPLY_EACH(Temp, WriteData, 1023.0f);
+    TempInInt = Temp.convert<int, rounding_mode::rte>();
+    TempInIntSaturated =
+        cl::sycl::clamp(TempInInt, (int)min_v<ushort>(), (int)max_v<ushort>());
+    TempInIntSaturated = cl::sycl::min(TempInIntSaturated, (int)0x3ff);
+    PixelData = TempInIntSaturated.convert<ChannelType>();
+    // For CL_UNORM_INT_101010, bits 31:30 are undefined, R is in bits 29:20, G
+    // in bits 19:10 and B in bits 9:0
+    PixelData.x() = ((uint32_t)PixelData.x() << 20) |
+                    ((uint32_t)PixelData.y() << 10) | (uint32_t)PixelData.z();
+    break;
+  case image_channel_type::signed_int8:
+  case image_channel_type::signed_int16:
+  case image_channel_type::signed_int32:
+  case image_channel_type::unsigned_int8:
+  case image_channel_type::unsigned_int16:
+  case image_channel_type::unsigned_int32:
+    // OpenCL Spec section 6.12.14.4 does not allow writing float4 data to an
+    // image with channel datatype -  signed/unsigned_int8,signed/unsigned_int16
+    // and signed/unsigned_int32.
+    assert(!"Datatype of data to write - cl_float4 is incompatible with the "
+            "image_channel_type of the image.");
+    break;
+  case image_channel_type::fp16:
+    // Host has conversion from float to half with accuracy as required in
+    // section 8.3.2 OpenCL spec.
+    PixelData = WriteData.convert<ChannelType>();
+    break;
+  case image_channel_type::fp32:
+    PixelData = WriteData.convert<ChannelType>();
+    break;
+  default:
+    break;
+  }
+  return PixelData;
+}
+
+template <typename ChannelType>
+vec<ChannelType, 4> convertWriteData(vec<cl_half, 4> WriteData,
+                                     image_channel_type ImageChannelType) {
+
+  vec<ChannelType, 4> PixelData;
+  vec<cl_half, 4> Temp;
+  vec<cl_int, 4> TempInInt;
+  vec<cl_int, 4> TempInIntSaturated;
+
+  switch (ImageChannelType) {
+  case image_channel_type::snorm_int8:
+  case image_channel_type::snorm_int16:
+  case image_channel_type::unorm_int8:
+  case image_channel_type::unorm_int16:
+  case image_channel_type::unorm_short_565:
+  case image_channel_type::unorm_short_555:
+  case image_channel_type::unorm_int_101010:
+    // TODO: Missing information in OpenCL spec.
+    assert(!"Currently unsupported datatype conversion from image_channel_type "
+            "to cl_half4.");
+    break;
+  case image_channel_type::signed_int8:
+  case image_channel_type::signed_int16:
+  case image_channel_type::signed_int32:
+  case image_channel_type::unsigned_int8:
+  case image_channel_type::unsigned_int16:
+  case image_channel_type::unsigned_int32:
+    // OpenCL Spec section 6.12.14.4 does not allow writing float4 data to an
+    // image with channel datatype - signed/unsigned_int8,signed/unsigned_int16
+    // and signed/unsigned_int32.
+    assert(!"Datatype of data to write - cl_float4 is incompatible with the "
+            "image_channel_type of the image.");
+    break;
+  case image_channel_type::fp16:
+    PixelData = WriteData.convert<ChannelType>();
+    break;
+  case image_channel_type::fp32:
+    assert(!"Datatype of data to write - cl_float4 is incompatible with the "
+            "image_channel_type of the image.");
+    break;
+  default:
+    break;
+  }
+  return PixelData;
+}
+#undef MULTIPLY_EACH
 
 // imageWriteHostImpl method is called by the write API in image accessors for
 // host device. Steps:
@@ -215,6 +468,10 @@ vec<cl_half, 4> convertWriteDataToHalf(vec<WriteDataType, 4> WriteData,
 // the spec.(convertWriteData)
 // 4. The converted data is then written to the pixel at Ptr, based on Number of
 // Channels in the Image.(writePixel)
+// Note: We assume that Coords are in the appropriate image range. OpenCL
+// Spec says that the behaviour is undefined when the Coords are passed outside
+// the image range. In the current implementation, the data gets written to the
+// calculated Ptr.
 template <typename CoordT, typename WriteDataT>
 void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
                         id<3> ImgPitch, uint8_t ElementSize,
@@ -226,94 +483,78 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
 
   switch (ImgChannelType) {
   case image_channel_type::snorm_int8:
-    writePixel(convertWriteData<int8_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<int8_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<int8_t>(Color, ImgChannelType),
+               reinterpret_cast<int8_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::snorm_int16:
-    writePixel(convertWriteData<int16_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<int16_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<int16_t>(Color, ImgChannelType),
+               reinterpret_cast<int16_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::unorm_int8:
-    writePixel(convertWriteData<uint8_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<uint8_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<uint8_t>(Color, ImgChannelType),
+               reinterpret_cast<uint8_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::unorm_int16:
-    writePixel(convertWriteData<uint16_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<uint16_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<uint16_t>(Color, ImgChannelType),
+               reinterpret_cast<uint16_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::unorm_short_565:
-    writePixel(
-        convertWriteData<short, typename TryToGetElementType<WriteDataT>::type>(
-            Color, ImgChannelType),
-        reinterpret_cast<short *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<short>(Color, ImgChannelType),
+               reinterpret_cast<short *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   case image_channel_type::unorm_short_555:
-    writePixel(
-        convertWriteData<short, typename TryToGetElementType<WriteDataT>::type>(
-            Color, ImgChannelType),
-        reinterpret_cast<short *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<short>(Color, ImgChannelType),
+               reinterpret_cast<short *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   case image_channel_type::unorm_int_101010:
-    writePixel(convertWriteData<uint32_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<uint32_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<uint32_t>(Color, ImgChannelType),
+               reinterpret_cast<uint32_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::signed_int8:
-    writePixel(convertWriteData<int8_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<int8_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<int8_t>(Color, ImgChannelType),
+               reinterpret_cast<int8_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::signed_int16:
-    writePixel(convertWriteData<int16_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<int16_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<int16_t>(Color, ImgChannelType),
+               reinterpret_cast<int16_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::signed_int32:
-    writePixel(convertWriteData<int32_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<int32_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<int32_t>(Color, ImgChannelType),
+               reinterpret_cast<int32_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::unsigned_int8:
-    writePixel(convertWriteData<uint8_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<uint8_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<uint8_t>(Color, ImgChannelType),
+               reinterpret_cast<uint8_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::unsigned_int16:
-    writePixel(convertWriteData<uint16_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<uint16_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<uint16_t>(Color, ImgChannelType),
+               reinterpret_cast<uint16_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::unsigned_int32:
-    writePixel(convertWriteData<uint32_t,
-                                typename TryToGetElementType<WriteDataT>::type>(
-                   Color, ImgChannelType),
-               reinterpret_cast<uint32_t *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<uint32_t>(Color, ImgChannelType),
+               reinterpret_cast<uint32_t *>(Ptr), ImgChannelOrder,
+               ImgChannelType);
     break;
   case image_channel_type::fp16:
     writePixel(
-        convertWriteDataToHalf<typename TryToGetElementType<WriteDataT>::type>(
-            Color, ImgChannelType),
-        reinterpret_cast<cl_half *>(Ptr), ImgChannelOrder);
+        // convertWriteDataToHalf<typename
+        // TryToGetElementType<WriteDataT>::type>(
+        convertWriteData<cl::sycl::half>(Color, ImgChannelType),
+        reinterpret_cast<cl_half *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   case image_channel_type::fp32:
-    writePixel(
-        convertWriteData<float, typename TryToGetElementType<WriteDataT>::type>(
-            Color, ImgChannelType),
-        reinterpret_cast<float *>(Ptr), ImgChannelOrder);
+    writePixel(convertWriteData<float>(Color, ImgChannelType),
+               reinterpret_cast<float *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   }
 }
