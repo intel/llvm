@@ -1312,7 +1312,8 @@ void CodeGenFunction::EmitAutoVarDecl(const VarDecl &D) {
   AutoVarEmission emission = EmitAutoVarAlloca(D);
   EmitAutoVarInit(emission);
   EmitAutoVarCleanups(emission);
-  if (CGM.getLangOpts().SYCLIsDevice)
+  // No alloca in case of NRVO (named return value optimization) variable.
+  if (CGM.getLangOpts().SYCLIsDevice && !D.isNRVOVariable())
     CGM.getSYCLRuntime().actOnAutoVarEmit(
         *this, D, emission.getOriginalAllocatedAddress().getPointer());
 }
