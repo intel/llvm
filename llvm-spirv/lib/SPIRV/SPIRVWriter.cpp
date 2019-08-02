@@ -261,7 +261,19 @@ SPIRVType *LLVMToSPIRV::transType(Type *T) {
   // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
     auto ET = T->getPointerElementType();
-    assert(!ET->isFunctionTy() && "Function pointer type is not allowed");
+    bool IsFuncPtrAllowed = true;
+    // TODO: uncomment the line below once
+    // https://github.com/KhronosGroup/SPIRV-LLVM-Translator/pull/244 is merged.
+    //    BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_function_pointers);
+    if (ET->isFunctionTy() && !IsFuncPtrAllowed) {
+      std::string S;
+      raw_string_ostream RSOS(S);
+      T->print(RSOS);
+      BM->getErrorLog().checkError(false, SPIRVEC_FunctionPointersDisallowed,
+                                   RSOS.str());
+      BM->setInvalid();
+      return nullptr;
+    }
     auto ST = dyn_cast<StructType>(ET);
     auto AddrSpc = T->getPointerAddressSpace();
     if (ST && !ST->isSized()) {
@@ -505,6 +517,11 @@ SPIRVFunction *LLVMToSPIRV::transFunctionDecl(Function *F) {
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeZext);
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt))
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeSext);
+  if (Attrs.hasFnAttribute("referenced-indirectly")) {
+    assert(!oclIsKernel(F) &&
+           "kernel function was marked as referenced-indirectly");
+    BF->addDecorate(DecorationReferencedIndirectlyINTEL);
+  }
   SPIRVDBG(dbgs() << "[transFunction] " << *F << " => ";
            spvdbgs() << *BF << '\n';)
   return BF;
@@ -780,9 +797,19 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
       MemoryAccess[0] |= MemoryAccessNontemporalMask;
     if (MemoryAccess.front() == 0)
       MemoryAccess.clear();
+
+    SPIRVValue *BSV = nullptr;
+    if(Function *F = dyn_cast<Function>(ST->getValueOperand())) {
+      // store of function pointer
+      BSV = BM->addFunctionPointerINTELInst(
+          transType(F->getType()),
+          static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
+    } else {
+      BSV = transValue(ST->getValueOperand(), BB);
+    }
+
     return mapValue(V, BM->addStoreInst(transValue(ST->getPointerOperand(), BB),
-                                        transValue(ST->getValueOperand(), BB),
-                                        MemoryAccess, BB));
+                                        BSV, MemoryAccess, BB));
   }
 
   if (LoadInst *LD = dyn_cast<LoadInst>(V)) {
@@ -911,8 +938,17 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
 
   if (auto Phi = dyn_cast<PHINode>(V)) {
     std::vector<SPIRVValue *> IncomingPairs;
+
     for (size_t I = 0, E = Phi->getNumIncomingValues(); I != E; ++I) {
-      IncomingPairs.push_back(transValue(Phi->getIncomingValue(I), BB));
+      SPIRVValue *BV = nullptr;
+      if (Function *F = dyn_cast<Function>(Phi->getIncomingValue(I))) {
+        BV = BM->addFunctionPointerINTELInst(
+            transType(F->getType()),
+            static_cast<SPIRVFunction *>(transValue(F, BB)), BB);
+      } else {
+        BV = transValue(Phi->getIncomingValue(I), BB);
+      }
+      IncomingPairs.push_back(BV);
       IncomingPairs.push_back(transValue(Phi->getIncomingBlock(I), nullptr));
     }
     return mapValue(
@@ -1425,6 +1461,12 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
 }
 
 SPIRVValue *LLVMToSPIRV::transCallInst(CallInst *CI, SPIRVBasicBlock *BB) {
+  if (CI->isIndirectCall())
+    return transIndirectCallInst(CI, BB);
+  return transDirectCallInst(CI, BB);
+}
+
+SPIRVValue *LLVMToSPIRV::transDirectCallInst(CallInst *CI, SPIRVBasicBlock *BB) {
   SPIRVExtInstSetKind ExtSetKind = SPIRVEIS_Count;
   SPIRVWord ExtOp = SPIRVWORD_MAX;
   llvm::Function *F = CI->getCalledFunction();
@@ -1452,6 +1494,14 @@ SPIRVValue *LLVMToSPIRV::transCallInst(CallInst *CI, SPIRVBasicBlock *BB) {
 
   return BM->addCallInst(
       transFunctionDecl(CI->getCalledFunction()),
+      transArguments(CI, BB, SPIRVEntry::createUnique(OpFunctionCall).get()),
+      BB);
+}
+
+SPIRVValue *LLVMToSPIRV::transIndirectCallInst(CallInst *CI,
+                                               SPIRVBasicBlock *BB) {
+  return BM->addIndirectCallInst(
+      transValue(CI->getCalledValue(), BB), transType(CI->getType()),
       transArguments(CI, BB, SPIRVEntry::createUnique(OpFunctionCall).get()),
       BB);
 }
