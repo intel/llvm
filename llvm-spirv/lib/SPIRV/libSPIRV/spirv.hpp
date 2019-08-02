@@ -399,6 +399,7 @@ enum Decoration {
     DecorationMaxReplicatesINTEL = 5832,
     DecorationSimpleDualPortINTEL = 5833,
     DecorationMergeINTEL = 5834,
+    DecorationReferencedIndirectlyINTEL = 5602,
     DecorationMax = 0x7fffffff,
 };
 
@@ -683,6 +684,8 @@ enum Capability {
   CapabilityFPGALoopControlsINTEL = 5888,
   CapabilityBlockingPipesINTEL = 5945,
   CapabilityFPGARegINTEL = 5948,
+  CapabilityFunctionPointersINTEL = 5603,
+  CapabilityIndirectReferencesINTEL = 5604,
   CapabilityMax = 0x7fffffff,
 };
 
@@ -1127,10 +1130,12 @@ enum Op {
   OpSubgroupAvcSicGetPackedSkcLumaCountThresholdINTEL = 5814,
   OpSubgroupAvcSicGetPackedSkcLumaSumThresholdINTEL = 5815,
   OpSubgroupAvcSicGetInterRawSadsINTEL = 5816,
+  OpLoopControlINTEL = 5887,
   OpReadPipeBlockingINTEL = 5946,
   OpWritePipeBlockingINTEL = 5947,
   OpFPGARegINTEL = 5949,
-  OpLoopControlINTEL = 5887,
+  OpFunctionPointerINTEL = 5600,
+  OpFunctionPointerCallINTEL = 5601,
   OpMax = 0x7fffffff,
 };
 

@@ -342,6 +342,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMaxReplicatesINTEL, "MaxReplicatesINTEL");
   add(DecorationSimpleDualPortINTEL, "SimpleDualPortINTEL");
   add(DecorationMergeINTEL, "MergeINTEL");
+  add(DecorationReferencedIndirectlyINTEL, "ReferencedIndirectlyINTEL");
 }
 SPIRV_DEF_NAMEMAP(Decoration, SPIRVDecorationNameMap)
 
@@ -492,6 +493,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPGARegINTEL, "FPGARegINTEL");
   add(CapabilityBlockingPipesINTEL, "BlockingPipesINTEL");
   add(CapabilityUnstructuredLoopControlsINTEL, "UnstructuredLoopControlsINTEL");
+  add(CapabilityFunctionPointersINTEL, "FunctionPointersINTEL");
+  add(CapabilityIndirectReferencesINTEL, "IndirectReferencesINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

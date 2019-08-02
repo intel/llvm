@@ -288,6 +288,12 @@ public:
   virtual SPIRVInstruction *addCallInst(SPIRVFunction *,
                                         const std::vector<SPIRVWord> &,
                                         SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *addIndirectCallInst(SPIRVValue *, SPIRVType *,
+                                                const std::vector<SPIRVWord> &,
+                                                SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *,
+                                                        SPIRVFunction *,
+                                                        SPIRVBasicBlock *) = 0;
   virtual SPIRVInstruction *
   addCompositeConstructInst(SPIRVType *, const std::vector<SPIRVId> &,
                             SPIRVBasicBlock *) = 0;
