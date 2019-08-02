@@ -34,10 +34,11 @@
 extern "C" {
 #endif // __cplusplus
 
-typedef  int32_t    pi_int32;
+typedef int32_t     pi_int32;
 typedef uint32_t    pi_uint32;
 typedef uint64_t    pi_uint64;
 typedef pi_uint32   pi_bool;
+typedef pi_uint64   pi_bitfield;
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
@@ -47,9 +48,15 @@ typedef pi_uint32   pi_bool;
 // TODO: populate PI enums.
 //
 typedef enum {
-  PI_SUCCESS = CL_SUCCESS,
+  PI_SUCCESS                    = CL_SUCCESS,
   PI_RESULT_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME,
-  PI_INVALID_OPERATION = CL_INVALID_OPERATION
+  PI_INVALID_OPERATION          = CL_INVALID_OPERATION,
+  PI_INVALID_QUEUE_PROPERTIES   = CL_INVALID_QUEUE_PROPERTIES,
+  PI_INVALID_VALUE              = CL_INVALID_VALUE,
+  PI_INVALID_CONTEXT            = CL_INVALID_CONTEXT,
+  PI_INVALID_PLATFORM           = CL_INVALID_PLATFORM,
+  PI_INVALID_DEVICE             = CL_INVALID_DEVICE,
+  PI_OUT_OF_HOST_MEMORY         = CL_OUT_OF_HOST_MEMORY
 } _pi_result;
 
 typedef enum {
@@ -152,12 +159,22 @@ typedef enum {
 // make the translation to OpenCL transparent.
 // TODO: populate
 //
-typedef pi_uint64 pi_mem_flags;
+typedef pi_bitfield pi_mem_flags;
 // Access
-const pi_uint64 PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
+const pi_mem_flags PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
 // Host pointer
-const pi_uint64 PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
-const pi_uint64 PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
+const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+
+// NOTE: queue properties is implemented this way to better support bit
+// manipulations
+typedef pi_bitfield pi_queue_properties;
+const pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
+        CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+const pi_queue_properties PI_QUEUE_PROFILING_ENABLE = CL_QUEUE_PROFILING_ENABLE;
+const pi_queue_properties PI_QUEUE_ON_DEVICE = CL_QUEUE_ON_DEVICE;
+const pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT =
+        CL_QUEUE_ON_DEVICE_DEFAULT;
 
 typedef _pi_result                  pi_result;
 typedef _pi_platform_info           pi_platform_info;
@@ -176,11 +193,15 @@ typedef void * _pi_offload_entry;
 
 /// Types of device binary.
 typedef uint8_t pi_device_binary_type;
-static const uint8_t PI_DEVICE_BINARY_TYPE_NONE    = 0; // format is not determined
-static const uint8_t PI_DEVICE_BINARY_TYPE_NATIVE  = 1; // specific to a device
+// format is not determined
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NONE    = 0;
+// specific to a device
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NATIVE  = 1;
 // portable binary types go next
-static const uint8_t PI_DEVICE_BINARY_TYPE_SPIRV   = 2;        // SPIR-V
-static const uint8_t PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3; // LLVM bitcode
+// SPIR-V
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_SPIRV   = 2;
+// LLVM bitcode
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3;
 
 // Device binary descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARY_VERSION = 1;
@@ -385,11 +406,11 @@ pi_result piContextRelease(pi_context context);
 //
 // Queue
 //
-pi_queue piQueueCreate( // TODO: change interface to return error code instead
-  pi_context              context,
-  pi_device               device,
-  const cl_queue_properties *    properties, // TODO: untie from OpenCL
-  pi_result *             result);
+pi_result piQueueCreate(
+  pi_context                  context,
+  pi_device                   device,
+  pi_queue_properties         properties,
+  pi_queue *                  queue);
 
 pi_result piQueueGetInfo(
   pi_queue            command_queue,

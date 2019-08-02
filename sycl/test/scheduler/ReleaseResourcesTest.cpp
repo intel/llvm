@@ -49,7 +49,7 @@ int main() {
 }
 
 // CHECK: PI ---> (m_Context = RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &Err), Err)
-// CHECK: PI ---> (Queue = RT::piQueueCreate( Context, Device, CreationFlagProperties, &Error), Error)
+// CHECK: PI ---> RT::piQueueCreate(Context, Device, CreationFlags, &Queue)
 // CHECK: PI ---> pi::piProgramCreate(Context, Data, DataLen, &Program)
 // CHECK: PI ---> (Kernel = RT::piKernelCreate( Program, KernelName.c_str(), &Err), Err)
 // CHECK: PI ---> RT::piQueueRelease(m_CommandQueue)
