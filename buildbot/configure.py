@@ -2,6 +2,7 @@ import argparse
 import os
 import subprocess
 import sys
+import platform
 
 def do_configure(args):
     ret = False
@@ -10,9 +11,15 @@ def do_configure(args):
     sycl_dir = os.path.join(args.src_dir, "sycl")
     spirv_dir = os.path.join(args.src_dir, "llvm-spirv")
     ocl_header_dir = os.path.join(args.obj_dir, "OpenCL-Headers")
-    icd_loader_lib = os.path.join(args.obj_dir, "OpenCL-ICD-Loader", "build", "libOpenCL.so")
+    icd_loader_lib = ''
+
+    if platform.system() == 'Linux':
+      icd_loader_lib = os.path.join(args.obj_dir, "OpenCL-ICD-Loader", "build", "libOpenCL.so")
+    else:
+      icd_loader_lib = os.path.join(args.obj_dir, "OpenCL-ICD-Loader", "build", "OpenCL.lib")
 
     cmake_cmd = ["cmake",
+                 "-G", "Ninja",
                  "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
                  "-DLLVM_EXTERNAL_PROJECTS=sycl;llvm-spirv",
                  "-DLLVM_EXTERNAL_SYCL_SOURCE_DIR={}".format(sycl_dir),
