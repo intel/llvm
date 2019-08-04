@@ -11893,8 +11893,12 @@ static SDValue lowerShuffleAsSpecificZeroOrAnyExtend(
     SDValue PSHUFBMask[16];
     for (int i = 0; i < 16; ++i) {
       int Idx = Offset + (i / Scale);
-      PSHUFBMask[i] = DAG.getConstant(
-          (i % Scale == 0 && SafeOffset(Idx)) ? Idx : 0x80, DL, MVT::i8);
+      if ((i % Scale == 0 && SafeOffset(Idx))) {
+        PSHUFBMask[i] = DAG.getConstant(Idx, DL, MVT::i8);
+        continue;
+      }
+      PSHUFBMask[i] =
+          AnyExt ? DAG.getUNDEF(MVT::i8) : DAG.getConstant(0x80, DL, MVT::i8);
     }
     InputV = DAG.getBitcast(MVT::v16i8, InputV);
     return DAG.getBitcast(
@@ -34731,7 +34735,7 @@ SDValue X86TargetLowering::SimplifyMultipleUseDemandedBitsForTargetNode(
     // If all the demanded elts are from one operand and are inline,
     // then we can use the operand directly.
     int NumOps = ShuffleOps.size();
-    if (ShuffleMask.size() == NumElts &&
+    if (ShuffleMask.size() == (unsigned)NumElts &&
         llvm::all_of(ShuffleOps, [VT](SDValue V) {
           return VT.getSizeInBits() == V.getValueSizeInBits();
         })) {
