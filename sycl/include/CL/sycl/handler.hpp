@@ -465,8 +465,14 @@ private:
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = (void *)storePlainArg(Arg);
-    MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout, StoredArg,
-                       sizeof(T), ArgIndex);
+
+    if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
+      MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
+                         sizeof(T), ArgIndex);
+    } else {
+      MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout,
+                         StoredArg, sizeof(T), ArgIndex);
+    }
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {

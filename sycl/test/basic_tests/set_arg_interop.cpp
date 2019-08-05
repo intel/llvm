@@ -72,6 +72,24 @@ int main() {
       assert(Array[I] == I);
     }
 
+    {
+      auto dev = Queue.get_device();
+      auto ctxt = Queue.get_context();
+      float *data =
+          static_cast<float *>(malloc_shared(Count * sizeof(float), dev, ctxt));
+
+      Queue.submit([&](handler &CGH) {
+        CGH.set_arg(0, data);
+        CGH.parallel_for(range<1>{Count}, SecondKernel);
+      });
+      Queue.wait_and_throw();
+
+      for (size_t I = 0; I < Count; ++I) {
+        assert(data[I] == I);
+      }
+      free(data, ctxt);
+    }
+
     clReleaseContext(ClContext);
     clReleaseKernel(FirstCLKernel);
     clReleaseKernel(SecondCLKernel);
