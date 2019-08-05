@@ -1312,7 +1312,7 @@ void CodeGenFunction::EmitAutoVarDecl(const VarDecl &D) {
   AutoVarEmission emission = EmitAutoVarAlloca(D);
   EmitAutoVarInit(emission);
   EmitAutoVarCleanups(emission);
-  if (CGM.getLangOpts().SYCLIsDevice)
+  if (CGM.getLangOpts().SYCLIsDevice && !emission.IsConstantAggregate)
     CGM.getSYCLRuntime().actOnAutoVarEmit(
         *this, D, emission.getOriginalAllocatedAddress().getPointer());
 }
