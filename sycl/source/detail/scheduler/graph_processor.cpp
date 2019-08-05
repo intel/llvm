@@ -23,14 +23,16 @@ static Command *getCommand(const EventImplPtr &Event) {
 
 std::vector<EventImplPtr>
 Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
-  std::vector<EventImplPtr> Result;
   Command *Cmd = getCommand(Event);
-  // We can't iterate through the empty command
-  if (Cmd)
-    for (const DepDesc &Dep : Cmd->MDeps) {
-      if (Dep.MDepCommand)
-        Result.push_back(Dep.MDepCommand->getEvent());
-    }
+  // We can't iterate through the empty command. It can be empty if Event was
+  // created with default constructor and was not initialized after)
+  if (!Cmd)
+    return {};
+  std::vector<EventImplPtr> Result;
+  for (const DepDesc &Dep : Cmd->MDeps) {
+    if (Dep.MDepCommand)
+      Result.push_back(Dep.MDepCommand->getEvent());
+  }
   return Result;
 }
 
