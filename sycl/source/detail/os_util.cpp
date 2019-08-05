@@ -77,6 +77,8 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
      // necessary action
      return 0;
   }
+  if (PhModule == GetModuleHandleA(nullptr))
+    return OSUtil::ExeModuleHandle;
   return reinterpret_cast<OSModuleHandle>(PhModule);
 }
 #endif // SYCL_RT_OS_WINDOWS

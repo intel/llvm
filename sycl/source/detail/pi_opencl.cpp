@@ -137,8 +137,7 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
   cl_int ret_err = clGetContextInfo(pi_cast<cl_context>(context),
                                     CL_CONTEXT_DEVICES, 0, NULL, &deviceCount);
 
-  std::vector<cl_device_id> devicesInCtx;
-  devicesInCtx.reserve(deviceCount);
+  std::vector<cl_device_id> devicesInCtx(deviceCount);
 
   ret_err = clGetContextInfo(pi_cast<cl_context>(context), CL_CONTEXT_DEVICES,
                              deviceCount * sizeof(cl_device_id),
