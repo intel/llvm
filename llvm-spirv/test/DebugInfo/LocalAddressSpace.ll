@@ -22,7 +22,7 @@
 ; CHECK: DW_TAG_variable
 ; CHECK-NEXT: DW_AT_name {{.*}} = "a")
 ; CHECK-NEXT: DW_AT_type {{.*}} "int")
-; CHECK-NEXT: DW_AT_decl_file {{.*}} ("/work/tmp/tmp.cl")
+; CHECK-NEXT: DW_AT_decl_file {{.*}} ("/work/tmp{{[/\\]}}tmp.cl")
 ; CHECK-NEXT: DW_AT_decl_line {{.*}} (2)
 ; CHECK-NEXT: DW_AT_location [DW_FORM_exprloc]      (DW_OP_addr 0x0)
 
