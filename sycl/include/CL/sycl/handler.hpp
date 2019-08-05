@@ -10,11 +10,11 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
@@ -583,53 +583,25 @@ public:
   template <typename KernelName, typename KernelType, int Dims>
   __attribute__((sycl_kernel)) EnableIfId<KernelType, Dims>
   kernel_parallel_for(KernelType KernelFunc) {
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    KernelFunc(GlobalId);
+    KernelFunc(detail::Builder::getId<Dims>());
   }
 
   template <typename KernelName, typename KernelType, int Dims>
   __attribute__((sycl_kernel)) EnableIfItemWithoutOffset<KernelType, Dims>
   kernel_parallel_for(KernelType KernelFunc) {
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-
-    item<Dims, false> Item =
-        detail::Builder::createItem<Dims, false>(GlobalSize, GlobalId);
-    KernelFunc(Item);
+    KernelFunc(detail::Builder::getItem<Dims, false>());
   }
 
   template <typename KernelName, typename KernelType, int Dims>
   __attribute__((sycl_kernel)) EnableIfItemWithOffset<KernelType, Dims>
   kernel_parallel_for(KernelType KernelFunc) {
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    id<Dims> GlobalOffset{__spirv::initGlobalOffset<Dims, id<Dims>>()};
-
-    item<Dims, true> Item = detail::Builder::createItem<Dims, true>(
-        GlobalSize, GlobalId, GlobalOffset);
-    KernelFunc(Item);
+    KernelFunc(detail::Builder::getItem<Dims, true>());
   }
 
   template <typename KernelName, typename KernelType, int Dims>
   __attribute__((sycl_kernel)) EnableIfNDItem<KernelType, Dims>
   kernel_parallel_for(KernelType KernelFunc) {
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
-    range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
-    id<Dims> GroupId{__spirv::initWorkgroupId<Dims, id<Dims>>()};
-    id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
-    id<Dims> LocalId{__spirv::initLocalInvocationId<Dims, id<Dims>>()};
-    id<Dims> GlobalOffset{__spirv::initGlobalOffset<Dims, id<Dims>>()};
-
-    group<Dims> Group = detail::Builder::createGroup<Dims>(
-        GlobalSize, LocalSize, GroupRange, GroupId);
-    item<Dims, true> GlobalItem = detail::Builder::createItem<Dims, true>(
-        GlobalSize, GlobalId, GlobalOffset);
-    item<Dims, false> LocalItem =
-        detail::Builder::createItem<Dims, false>(LocalSize, LocalId);
-    nd_item<Dims> NDItem =
-        detail::Builder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-    KernelFunc(NDItem);
+    KernelFunc(detail::Builder::getNDItem<Dims>());
   }
 
   // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
@@ -637,14 +609,7 @@ public:
   template <typename KernelName, typename KernelType, int Dims>
   __attribute__((sycl_kernel)) void
   kernel_parallel_for_work_group(KernelType KernelFunc) {
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
-    range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
-    id<Dims> GroupId{__spirv::initWorkgroupId<Dims, id<Dims>>()};
-
-    group<Dims> Group = detail::Builder::createGroup<Dims>(
-        GlobalSize, LocalSize, GroupRange, GroupId);
-    KernelFunc(Group);
+    KernelFunc(detail::Builder::getGroup<Dims>());
   }
 
 #endif

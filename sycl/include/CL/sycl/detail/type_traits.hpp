@@ -25,6 +25,9 @@ using allocator_pointer_t = typename std::allocator_traits<T>::pointer;
 template <bool B, class T = void>
 using enable_if_t = typename std::enable_if<B, T>::type;
 
+template <bool B, class T, class F>
+using conditional_t = typename std::conditional<B, T, F>::type;
+
 template <typename T>
 using remove_pointer_t = typename std::remove_pointer<T>::type;
 
