@@ -422,29 +422,23 @@ ChangeStatus AANoUnwindImpl::updateImpl(Attributor &A,
   Function &F = getAnchorScope();
 
   // The map from instruction opcodes to those instructions in the function.
-  auto &OpcodeInstMap = InfoCache.getOpcodeInstMapForFunction(F);
   auto Opcodes = {
       (unsigned)Instruction::Invoke,      (unsigned)Instruction::CallBr,
       (unsigned)Instruction::Call,        (unsigned)Instruction::CleanupRet,
       (unsigned)Instruction::CatchSwitch, (unsigned)Instruction::Resume};
 
-  auto *LivenessAA = A.getAAFor<AAIsDead>(*this, F);
+  auto CheckForNoUnwind = [&](Instruction &I) {
+    if (!I.mayThrow())
+      return true;
 
-  for (unsigned Opcode : Opcodes) {
-    for (Instruction *I : OpcodeInstMap[Opcode]) {
-      // Skip dead instructions.
-      if (LivenessAA && LivenessAA->isAssumedDead(I))
-        continue;
+    auto *NoUnwindAA = A.getAAFor<AANoUnwind>(*this, I);
+    return NoUnwindAA && NoUnwindAA->isAssumedNoUnwind();
+  };
 
-      if (!I->mayThrow())
-        continue;
+  if (!A.checkForAllInstructions(F, CheckForNoUnwind, *this, InfoCache,
+                                 Opcodes))
+    return indicatePessimisticFixpoint();
 
-      auto *NoUnwindAA = A.getAAFor<AANoUnwind>(*this, *I);
-
-      if (!NoUnwindAA || !NoUnwindAA->isAssumedNoUnwind())
-        return indicatePessimisticFixpoint();
-    }
-  }
   return ChangeStatus::UNCHANGED;
 }
 
@@ -968,30 +962,18 @@ ChangeStatus AANoSyncImpl::updateImpl(Attributor &A,
     return indicatePessimisticFixpoint();
   }
 
-  auto &OpcodeInstMap = InfoCache.getOpcodeInstMapForFunction(F);
-  auto Opcodes = {(unsigned)Instruction::Invoke, (unsigned)Instruction::CallBr,
-                  (unsigned)Instruction::Call};
+  auto CheckForNoSync = [&](Instruction &I) {
+    // At this point we handled all read/write effects and they are all
+    // nosync, so they can be skipped.
+    if (I.mayReadOrWriteMemory())
+      return true;
 
-  for (unsigned Opcode : Opcodes) {
-    for (Instruction *I : OpcodeInstMap[Opcode]) {
-      // Skip assumed dead instructions.
-      if (LivenessAA && LivenessAA->isAssumedDead(I))
-        continue;
-      // At this point we handled all read/write effects and they are all
-      // nosync, so they can be skipped.
-      if (I->mayReadOrWriteMemory())
-        continue;
+    // non-convergent and readnone imply nosync.
+    return !ImmutableCallSite(&I).isConvergent();
+  };
 
-      ImmutableCallSite ICS(I);
-
-      // non-convergent and readnone imply nosync.
-      if (!ICS.isConvergent())
-        continue;
-
-      return indicatePessimisticFixpoint();
-    }
-  }
-
+  if (!A.checkForAllCallLikeInstructions(F, CheckForNoSync, *this, InfoCache))
+    return indicatePessimisticFixpoint();
   return ChangeStatus::UNCHANGED;
 }
 
@@ -1029,26 +1011,16 @@ ChangeStatus AANoFreeImpl::updateImpl(Attributor &A,
                                       InformationCache &InfoCache) {
   Function &F = getAnchorScope();
 
-  auto *LivenessAA = A.getAAFor<AAIsDead>(*this, F);
+  auto CheckForNoFree = [&](Instruction &I) {
+    if (ImmutableCallSite(&I).hasFnAttr(Attribute::NoFree))
+      return true;
 
-  // The map from instruction opcodes to those instructions in the function.
-  auto &OpcodeInstMap = InfoCache.getOpcodeInstMapForFunction(F);
+    auto *NoFreeAA = A.getAAFor<AANoFreeImpl>(*this, I);
+    return NoFreeAA && NoFreeAA->isAssumedNoFree();
+  };
 
-  for (unsigned Opcode :
-       {(unsigned)Instruction::Invoke, (unsigned)Instruction::CallBr,
-        (unsigned)Instruction::Call}) {
-    for (Instruction *I : OpcodeInstMap[Opcode]) {
-      // Skip assumed dead instructions.
-      if (LivenessAA && LivenessAA->isAssumedDead(I))
-        continue;
-      auto ICS = ImmutableCallSite(I);
-      auto *NoFreeAA = A.getAAFor<AANoFreeImpl>(*this, *I);
-
-      if ((!NoFreeAA || !NoFreeAA->isAssumedNoFree()) &&
-          !ICS.hasFnAttr(Attribute::NoFree))
-        return indicatePessimisticFixpoint();
-    }
-  }
+  if (!A.checkForAllCallLikeInstructions(F, CheckForNoFree, *this, InfoCache))
+    return indicatePessimisticFixpoint();
   return ChangeStatus::UNCHANGED;
 }
 
@@ -1168,8 +1140,8 @@ struct AANonNullArgument : AANonNullImpl {
 struct AANonNullCallSiteArgument : AANonNullImpl {
 
   /// See AANonNullImpl::AANonNullImpl(...).
-  AANonNullCallSiteArgument(CallSite CS, unsigned ArgNo)
-      : AANonNullImpl(CS.getArgOperand(ArgNo), *CS.getInstruction(), ArgNo) {}
+  AANonNullCallSiteArgument(Instruction &I, unsigned ArgNo)
+      : AANonNullImpl(CallSite(&I).getArgOperand(ArgNo), I, ArgNo) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A, InformationCache &InfoCache) override {
@@ -1215,7 +1187,7 @@ ChangeStatus AANonNullArgument::updateImpl(Attributor &A,
 
     return false;
   };
-  if (!A.checkForAllCallSites(F, CallSiteCheck, true, *this))
+  if (!A.checkForAllCallSites(F, CallSiteCheck, *this, true))
     return indicatePessimisticFixpoint();
   return ChangeStatus::UNCHANGED;
 }
@@ -1303,41 +1275,29 @@ void AAWillReturnFunction::initialize(Attributor &A,
 
 ChangeStatus AAWillReturnFunction::updateImpl(Attributor &A,
                                               InformationCache &InfoCache) {
-  Function &F = getAnchorScope();
-
+  const Function &F = getAnchorScope();
   // The map from instruction opcodes to those instructions in the function.
-  auto &OpcodeInstMap = InfoCache.getOpcodeInstMapForFunction(F);
 
-  auto *LivenessAA = A.getAAFor<AAIsDead>(*this, F);
+  auto CheckForWillReturn = [&](Instruction &I) {
+    ImmutableCallSite ICS(&I);
+    if (ICS.hasFnAttr(Attribute::WillReturn))
+      return true;
 
-  for (unsigned Opcode :
-       {(unsigned)Instruction::Invoke, (unsigned)Instruction::CallBr,
-        (unsigned)Instruction::Call}) {
-    for (Instruction *I : OpcodeInstMap[Opcode]) {
-      // Skip assumed dead instructions.
-      if (LivenessAA && LivenessAA->isAssumedDead(I))
-        continue;
+    auto *WillReturnAA = A.getAAFor<AAWillReturn>(*this, I);
+    if (!WillReturnAA || !WillReturnAA->isAssumedWillReturn())
+      return false;
 
-      auto ICS = ImmutableCallSite(I);
+    // FIXME: Prohibit any recursion for now.
+    if (ICS.hasFnAttr(Attribute::NoRecurse))
+      return true;
 
-      if (ICS.hasFnAttr(Attribute::WillReturn))
-        continue;
+    auto *NoRecurseAA = A.getAAFor<AANoRecurse>(*this, I);
+    return NoRecurseAA && NoRecurseAA->isAssumedNoRecurse();
+  };
 
-      auto *WillReturnAA = A.getAAFor<AAWillReturn>(*this, *I);
-      if (!WillReturnAA || !WillReturnAA->isAssumedWillReturn())
-        return indicatePessimisticFixpoint();
-
-      auto *NoRecurseAA = A.getAAFor<AANoRecurse>(*this, *I);
-
-      // FIXME: (i) Prohibit any recursion for now.
-      //        (ii) AANoRecurse isn't implemented yet so currently any call is
-      //        regarded as having recursion.
-      //       Code below should be
-      //       if ((!NoRecurseAA || !NoRecurseAA->isAssumedNoRecurse()) &&
-      if (!NoRecurseAA && !ICS.hasFnAttr(Attribute::NoRecurse))
-        return indicatePessimisticFixpoint();
-    }
-  }
+  if (!A.checkForAllCallLikeInstructions(F, CheckForWillReturn, *this,
+                                         InfoCache))
+    return indicatePessimisticFixpoint();
 
   return ChangeStatus::UNCHANGED;
 }
@@ -1969,7 +1929,7 @@ AADereferenceableArgument::updateImpl(Attributor &A,
     return isValidState();
   };
 
-  if (!A.checkForAllCallSites(F, CallSiteCheck, true, *this))
+  if (!A.checkForAllCallSites(F, CallSiteCheck, *this, true))
     return indicatePessimisticFixpoint();
 
   updateAssumedNonNullGlobalState(IsNonNull, IsGlobal);
@@ -1982,9 +1942,8 @@ AADereferenceableArgument::updateImpl(Attributor &A,
 struct AADereferenceableCallSiteArgument : AADereferenceableImpl {
 
   /// See AADereferenceableImpl::AADereferenceableImpl(...).
-  AADereferenceableCallSiteArgument(CallSite CS, unsigned ArgNo)
-      : AADereferenceableImpl(CS.getArgOperand(ArgNo), *CS.getInstruction(),
-                              ArgNo) {}
+  AADereferenceableCallSiteArgument(Instruction &I, unsigned ArgNo)
+      : AADereferenceableImpl(CallSite(&I).getArgOperand(ArgNo), I, ArgNo) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A, InformationCache &InfoCache) override {
@@ -2155,7 +2114,7 @@ ChangeStatus AAAlignArgument::updateImpl(Attributor &A,
     return isValidState();
   };
 
-  if (!A.checkForAllCallSites(F, CallSiteCheck, true, *this))
+  if (!A.checkForAllCallSites(F, CallSiteCheck, *this, true))
     indicatePessimisticFixpoint();
 
   return BeforeState == getAssumed() ? ChangeStatus::UNCHANGED
@@ -2165,8 +2124,8 @@ ChangeStatus AAAlignArgument::updateImpl(Attributor &A,
 struct AAAlignCallSiteArgument final : AAAlignImpl {
 
   /// See AANonNullImpl::AANonNullImpl(...).
-  AAAlignCallSiteArgument(CallSite CS, unsigned ArgNo)
-      : AAAlignImpl(CS.getArgOperand(ArgNo), *CS.getInstruction(), ArgNo) {}
+  AAAlignCallSiteArgument(Instruction &I, unsigned ArgNo)
+      : AAAlignImpl(CallSite(&I).getArgOperand(ArgNo), I, ArgNo) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A, InformationCache &InfoCache) override {
@@ -2230,21 +2189,11 @@ struct AANoReturnImpl : public AANoReturn, BooleanState {
   /// See AbstractAttribute::updateImpl(Attributor &A).
   virtual ChangeStatus updateImpl(Attributor &A,
                                   InformationCache &InfoCache) override {
-    Function &F = getAnchorScope();
-
-    // The map from instruction opcodes to those instructions in the function.
-    auto &OpcodeInstMap = InfoCache.getOpcodeInstMapForFunction(F);
-
-    // Look at all return instructions.
-    auto &ReturnInsts = OpcodeInstMap[Instruction::Ret];
-    if (ReturnInsts.empty())
-      return indicateOptimisticFixpoint();
-
-    auto *LivenessAA = A.getAAFor<AAIsDead>(*this, F);
-    if (!LivenessAA ||
-        LivenessAA->isLiveInstSet(ReturnInsts.begin(), ReturnInsts.end()))
+    const Function &F = getAnchorScope();
+    auto CheckForNoReturn = [](Instruction &) { return false; };
+    if (!A.checkForAllInstructions(F, CheckForNoReturn, *this, InfoCache,
+                                   {(unsigned)Instruction::Ret}))
       return indicatePessimisticFixpoint();
-
     return ChangeStatus::UNCHANGED;
   }
 };
@@ -2259,8 +2208,8 @@ struct AANoReturnFunction final : AANoReturnImpl {
 
 bool Attributor::checkForAllCallSites(Function &F,
                                       std::function<bool(CallSite)> &Pred,
-                                      bool RequireAllCallSites,
-                                      AbstractAttribute &AA) {
+                                      AbstractAttribute &QueryingAA,
+                                      bool RequireAllCallSites) {
   // We can try to determine information from
   // the call sites. However, this is only possible all call sites are known,
   // hence the function has internal linkage.
@@ -2276,7 +2225,7 @@ bool Attributor::checkForAllCallSites(Function &F,
     Instruction *I = cast<Instruction>(U.getUser());
     Function *AnchorValue = I->getParent()->getParent();
 
-    auto *LivenessAA = getAAFor<AAIsDead>(AA, *AnchorValue);
+    auto *LivenessAA = getAAFor<AAIsDead>(QueryingAA, *AnchorValue);
 
     // Skip dead calls.
     if (LivenessAA && LivenessAA->isAssumedDead(I))
@@ -2298,6 +2247,28 @@ bool Attributor::checkForAllCallSites(Function &F,
     LLVM_DEBUG(dbgs() << "Attributor: Call site callback failed for "
                       << *CS.getInstruction() << "\n");
     return false;
+  }
+
+  return true;
+}
+
+bool Attributor::checkForAllInstructions(
+    const Function &F, const llvm::function_ref<bool(Instruction &)> &Pred,
+    AbstractAttribute &QueryingAA, InformationCache &InfoCache,
+    const ArrayRef<unsigned> &Opcodes) {
+
+  auto *LivenessAA = getAAFor<AAIsDead>(QueryingAA, F);
+
+  auto &OpcodeInstMap = InfoCache.getOpcodeInstMapForFunction(F);
+  for (unsigned Opcode : Opcodes) {
+    for (Instruction *I : OpcodeInstMap[Opcode]) {
+      // Skip dead instructions.
+      if (LivenessAA && LivenessAA->isAssumedDead(I))
+        continue;
+
+      if (!Pred(*I))
+        return false;
+    }
   }
 
   return true;
@@ -2437,70 +2408,85 @@ ChangeStatus Attributor::run(InformationCache &InfoCache) {
   return ManifestChange;
 }
 
+/// Helper function that checks if an abstract attribute of type \p AAType
+/// should be created for \p V (with argument number \p ArgNo) and if so creates
+/// and registers it with the Attributor \p A.
+///
+/// This method will look at the provided whitelist. If one is given and the
+/// kind \p AAType::ID is not contained, no abstract attribute is created.
+///
+/// \returns The created abstract argument, or nullptr if none was created.
+template <typename AAType, typename ValueType, typename... ArgsTy>
+static AAType *checkAndRegisterAA(const Function &F, Attributor &A,
+                                  DenseSet<const char *> *Whitelist,
+                                  ValueType &V, int ArgNo, ArgsTy... Args) {
+  if (Whitelist && !Whitelist->count(&AAType::ID))
+    return nullptr;
+
+  return &A.registerAA<AAType>(*new AAType(V, Args...), ArgNo);
+}
+
 void Attributor::identifyDefaultAbstractAttributes(
     Function &F, InformationCache &InfoCache,
     DenseSet<const char *> *Whitelist) {
 
   // Check for dead BasicBlocks in every function.
-  registerAA(*new AAIsDeadFunction(F));
+  // We need dead instruction detection because we do not want to deal with
+  // broken IR in which SSA rules do not apply.
+  checkAndRegisterAA<AAIsDeadFunction>(F, *this, /* Whitelist */ nullptr, F,
+                                       -1);
 
   // Every function might be "will-return".
-  registerAA(*new AAWillReturnFunction(F));
+  checkAndRegisterAA<AAWillReturnFunction>(F, *this, Whitelist, F, -1);
 
   // Every function can be nounwind.
-  registerAA(*new AANoUnwindFunction(F));
+  checkAndRegisterAA<AANoUnwindFunction>(F, *this, Whitelist, F, -1);
 
   // Every function might be marked "nosync"
-  registerAA(*new AANoSyncFunction(F));
+  checkAndRegisterAA<AANoSyncFunction>(F, *this, Whitelist, F, -1);
 
   // Every function might be "no-free".
-  registerAA(*new AANoFreeFunction(F));
+  checkAndRegisterAA<AANoFreeFunction>(F, *this, Whitelist, F, -1);
 
   // Every function might be "no-return".
-  registerAA(*new AANoReturnFunction(F));
+  checkAndRegisterAA<AANoReturnFunction>(F, *this, Whitelist, F, -1);
 
   // Return attributes are only appropriate if the return type is non void.
   Type *ReturnType = F.getReturnType();
   if (!ReturnType->isVoidTy()) {
     // Argument attribute "returned" --- Create only one per function even
     // though it is an argument attribute.
-    if (!Whitelist || Whitelist->count(&AAReturnedValues::ID))
-      registerAA(*new AAReturnedValuesFunction(F));
+    checkAndRegisterAA<AAReturnedValuesFunction>(F, *this, Whitelist, F, -1);
 
     if (ReturnType->isPointerTy()) {
       // Every function with pointer return type might be marked align.
-      if (!Whitelist || Whitelist->count(&AAAlignReturned::ID))
-        registerAA(*new AAAlignReturned(F));
+      checkAndRegisterAA<AAAlignReturned>(F, *this, Whitelist, F, -1);
 
       // Every function with pointer return type might be marked nonnull.
-      if (!Whitelist || Whitelist->count(&AANonNullReturned::ID))
-        registerAA(*new AANonNullReturned(F));
+      checkAndRegisterAA<AANonNullReturned>(F, *this, Whitelist, F, -1);
 
       // Every function with pointer return type might be marked noalias.
-      if (!Whitelist || Whitelist->count(&AANoAliasReturned::ID))
-        registerAA(*new AANoAliasReturned(F));
+      checkAndRegisterAA<AANoAliasReturned>(F, *this, Whitelist, F, -1);
 
       // Every function with pointer return type might be marked
       // dereferenceable.
-      if (ReturnType->isPointerTy() &&
-          (!Whitelist || Whitelist->count(&AADereferenceableReturned::ID)))
-        registerAA(*new AADereferenceableReturned(F));
+      checkAndRegisterAA<AADereferenceableReturned>(F, *this, Whitelist, F, -1);
     }
   }
 
   for (Argument &Arg : F.args()) {
     if (Arg.getType()->isPointerTy()) {
       // Every argument with pointer type might be marked nonnull.
-      if (!Whitelist || Whitelist->count(&AANonNullArgument::ID))
-        registerAA(*new AANonNullArgument(Arg));
+      checkAndRegisterAA<AANonNullArgument>(F, *this, Whitelist, Arg,
+                                            Arg.getArgNo());
 
       // Every argument with pointer type might be marked dereferenceable.
-      if (!Whitelist || Whitelist->count(&AADereferenceableArgument::ID))
-        registerAA(*new AADereferenceableArgument(Arg));
+      checkAndRegisterAA<AADereferenceableArgument>(F, *this, Whitelist, Arg,
+                                                    Arg.getArgNo());
 
       // Every argument with pointer type might be marked align.
-      if (!Whitelist || Whitelist->count(&AAAlignArgument::ID))
-        registerAA(*new AAAlignArgument(Arg));
+      checkAndRegisterAA<AAAlignArgument>(F, *this, Whitelist, Arg,
+                                          Arg.getArgNo());
     }
   }
 
@@ -2545,17 +2531,16 @@ void Attributor::identifyDefaultAbstractAttributes(
           continue;
 
         // Call site argument attribute "non-null".
-        if (!Whitelist || Whitelist->count(&AANonNullCallSiteArgument::ID))
-          registerAA(*new AANonNullCallSiteArgument(CS, i), i);
+        checkAndRegisterAA<AANonNullCallSiteArgument>(F, *this, Whitelist, I, i,
+                                                      i);
 
         // Call site argument attribute "dereferenceable".
-        if (!Whitelist ||
-            Whitelist->count(&AADereferenceableCallSiteArgument::ID))
-          registerAA(*new AADereferenceableCallSiteArgument(CS, i), i);
+        checkAndRegisterAA<AADereferenceableCallSiteArgument>(
+            F, *this, Whitelist, I, i, i);
 
         // Call site argument attribute "align".
-        if (!Whitelist || Whitelist->count(&AAAlignCallSiteArgument::ID))
-          registerAA(*new AAAlignCallSiteArgument(CS, i), i);
+        checkAndRegisterAA<AAAlignCallSiteArgument>(F, *this, Whitelist, I, i,
+                                                    i);
       }
     }
   }
