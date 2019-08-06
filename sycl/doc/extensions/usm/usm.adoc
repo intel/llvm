@@ -77,7 +77,7 @@ namespace sycl {
 
 [cols="6*^",options="header", stripes=none]
 |===
-|Allocation Type |Initial Location |Accessibly By | |Migratable To |
+|Allocation Type |Initial Location |Accessible By | |Migratable To |
 .3+^.^|`device`
 .3+^.^|`device`
 |`host`
