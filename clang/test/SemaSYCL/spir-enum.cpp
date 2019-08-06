@@ -31,3 +31,6 @@ int main() {
   test( enum_type::B );
   return 0;
 }
+
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows-msvc

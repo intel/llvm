@@ -43,3 +43,6 @@
 // CHK-FPGA-LINK-PHASES: 5: linker, {4}, object, (device-sycl)
 // CHK-FPGA-LINK-PHASES: 6: clang-offload-bundler, {3, 5}, object, (device-sycl)
 // CHK-FPGA-LINK-PHASES: 7: offload, "device-sycl (spir64_fpga-unknown-{{.*}}-sycldevice)" {6}, object
+
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows-msvc

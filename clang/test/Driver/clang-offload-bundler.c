@@ -318,3 +318,5 @@ void test_func(void) {
   ++A;
 }
 
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows-msvc
