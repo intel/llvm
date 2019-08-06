@@ -124,4 +124,5 @@ add_custom_target( sycl-toolchain
 )
 
 add_subdirectory( test )
+add_subdirectory( unittests )
 add_subdirectory( tools )
