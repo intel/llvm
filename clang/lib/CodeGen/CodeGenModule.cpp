@@ -20,6 +20,7 @@
 #include "CGOpenCLRuntime.h"
 #include "CGOpenMPRuntime.h"
 #include "CGOpenMPRuntimeNVPTX.h"
+#include "CGSYCLRuntime.h"
 #include "CodeGenFunction.h"
 #include "CodeGenPGO.h"
 #include "ConstantEmitter.h"
@@ -135,6 +136,8 @@ CodeGenModule::CodeGenModule(ASTContext &C, const HeaderSearchOptions &HSO,
     createOpenMPRuntime();
   if (LangOpts.CUDA)
     createCUDARuntime();
+  if (LangOpts.SYCLIsDevice)
+    createSYCLRuntime();
 
   // Enable TBAA unless it's suppressed. ThreadSanitizer needs TBAA even at O0.
   if (LangOpts.Sanitize.has(SanitizerKind::Thread) ||
@@ -220,6 +223,17 @@ void CodeGenModule::createOpenMPRuntime() {
 
 void CodeGenModule::createCUDARuntime() {
   CUDARuntime.reset(CreateNVCUDARuntime(*this));
+}
+
+void CodeGenModule::createSYCLRuntime() {
+  switch (getTriple().getArch()) {
+  case llvm::Triple::spir:
+  case llvm::Triple::spir64:
+    SYCLRuntime.reset(new CGSYCLRuntime(*this));
+    break;
+  default:
+    llvm_unreachable("unsupported target for SYCL");
+  }
 }
 
 void CodeGenModule::addReplacement(StringRef Name, llvm::Constant *C) {
@@ -3653,6 +3667,10 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
   }
 
   if (LangOpts.SYCLIsDevice) {
+    auto *Scope = D->getAttr<SYCLScopeAttr>();
+
+    if (Scope && Scope->isWorkGroup())
+      return LangAS::opencl_local;
     if (!getenv("DISABLE_INFER_AS")) {
       if (!D || D->getType().getAddressSpace() == LangAS::Default) {
         return LangAS::opencl_global;

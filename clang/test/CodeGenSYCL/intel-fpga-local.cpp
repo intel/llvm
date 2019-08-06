@@ -16,6 +16,9 @@
 //CHECK: [[ANN8:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{bankwidth:8}
 //CHECK: [[ANN9:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{max_private_copies:4}
 
+//CHECK: @llvm.global.annotations
+//CHECK-SAME: a_one{{.*}}[[ANN1]]{{.*}}i32 159
+
 void foo() {
   //CHECK: %[[VAR_ONE:[0-9]+]] = bitcast{{.*}}var_one
   //CHECK: %[[VAR_ONE1:var_one[0-9]+]] = bitcast{{.*}}var_one
@@ -152,6 +155,13 @@ void baz() {
   int v_thirteen [[intelfpga::simple_dual_port]];
 }
 
+void qux(int a) {
+  static int a_one [[intelfpga::numbanks(2)]];
+  //CHECK: load{{.*}}a_one
+  //CHECK: store{{.*}}a_one
+  a_one = a_one + a;
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
@@ -162,6 +172,7 @@ int main() {
     foo();
     bar();
     baz();
+    qux(42);
   });
   return 0;
 }

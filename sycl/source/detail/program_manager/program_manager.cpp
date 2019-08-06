@@ -78,17 +78,17 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
                                         const unsigned char *Data,
                                         size_t DataLen) {
   RT::PiResult Err = PI_SUCCESS;
-  RT::PiProgram Program;
-  PI_CALL((Program = pi::pi_cast<pi_program>(
-               pi::piProgramCreate(pi::pi_cast<pi_context>(Context), Data, DataLen,
-                                   pi::pi_cast<pi_result *>(&Err))),
-           Err));
+  RT::PiProgram Program = nullptr;
+  PI_CALL(pi::piProgramCreate(Context, Data, DataLen, &Program));
   return Program;
 }
 
 RT::PiProgram ProgramManager::getBuiltOpenCLProgram(OSModuleHandle M,
                                                     const context &Context) {
-  RT::PiProgram &Program = m_CachedSpirvPrograms[std::make_pair(Context, M)];
+  std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
+  std::map<OSModuleHandle, RT::PiProgram> &CachedPrograms =
+      Ctx->getCachedPrograms();
+  RT::PiProgram &Program = CachedPrograms[M];
   if (!Program) {
     DeviceImage *Img = nullptr;
     Program = loadProgram(M, Context, &Img);
@@ -105,7 +105,10 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
               << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
   }
   RT::PiProgram Program = getBuiltOpenCLProgram(M, Context);
-  std::map<string_class, RT::PiKernel> &KernelsCache = m_CachedKernels[Program];
+  std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
+  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &CachedKernels =
+      Ctx->getCachedKernels();
+  std::map<string_class, RT::PiKernel> &KernelsCache = CachedKernels[Program];
   RT::PiKernel &Kernel = KernelsCache[KernelName];
   if (!Kernel) {
     RT::PiResult Err = PI_SUCCESS;
@@ -169,15 +172,6 @@ void ProgramManager::build(RT::PiProgram &Program, const string_class &Options,
            Dev.get_info<info::device::name>() + "':\n" + BuildLog.data();
   }
   throw compile_program_error(Log.c_str());
-}
-
-bool ProgramManager::ContextAndModuleLess::
-operator()(const std::pair<context, OSModuleHandle> &LHS,
-           const std::pair<context, OSModuleHandle> &RHS) const {
-  if (LHS.first != RHS.first)
-    return getRawSyclObjImpl(LHS.first) < getRawSyclObjImpl(RHS.first);
-  return reinterpret_cast<intptr_t>(LHS.second) <
-         reinterpret_cast<intptr_t>(RHS.second);
 }
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
@@ -382,6 +376,7 @@ RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
   }
   return Res;
 }
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl

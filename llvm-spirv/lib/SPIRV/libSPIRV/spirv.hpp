@@ -679,6 +679,7 @@ enum Capability {
   CapabilitySubgroupAvcMotionEstimationIntraINTEL = 5697,
   CapabilitySubgroupAvcMotionEstimationChromaINTEL = 5698,
   CapabilityFPGAMemoryAttributesINTEL = 5824,
+  CapabilityUnstructuredLoopControlsINTEL = 5886,
   CapabilityFPGALoopControlsINTEL = 5888,
   CapabilityBlockingPipesINTEL = 5945,
   CapabilityFPGARegINTEL = 5948,
@@ -1129,6 +1130,7 @@ enum Op {
   OpReadPipeBlockingINTEL = 5946,
   OpWritePipeBlockingINTEL = 5947,
   OpFPGARegINTEL = 5949,
+  OpLoopControlINTEL = 5887,
   OpMax = 0x7fffffff,
 };
 

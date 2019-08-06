@@ -22,31 +22,45 @@
 
 const char *stringifyErrorCode(cl_int error);
 
-#define OCL_CODE_TO_STR(code)                                                  \
-  std::string(std::to_string(code) + " (" + stringifyErrorCode(code) + ")")
+static inline std::string codeToString(cl_int code){
+  return std::string(std::to_string(code) + " (" +
+         stringifyErrorCode(code) + ")");
+}
+
+#ifdef __SYCL_DEVICE_ONLY__
+// TODO remove this when 'assert' is supported in device code
+#define __SYCL_ASSERT(x)
+#else
+#define __SYCL_ASSERT(x) assert(x)
+#endif // #ifdef __SYCL_DEVICE_ONLY__
 
 #define OCL_ERROR_REPORT                                                       \
-  "OpenCL API failed. " __FILE__                                               \
-  ":" STRINGIFY_LINE(__LINE__) ": "                                            \
+  "OpenCL API failed. " /*__FILE__*/                                           \
+  /* TODO: replace __FILE__ to report only relative path*/                     \
+  /* ":" STRINGIFY_LINE(__LINE__) ": " */                                      \
                                "OpenCL API returns: "
 
 #ifndef SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
-#define REPORT_OCL_ERR_TO_STREAM(code)                                         \
+#define REPORT_OCL_ERR_TO_STREAM(expr)                                         \
+{                                                                              \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::cerr << OCL_ERROR_REPORT << OCL_CODE_TO_STR(code) << std::endl;       \
-  }
+    std::cerr << OCL_ERROR_REPORT << codeToString(code) << std::endl;          \
+  }                                                                            \
+}
 #endif
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <CL/sycl/exception.hpp>
 
-#define REPORT_OCL_ERR_TO_EXC(code, exc)                                       \
+#define REPORT_OCL_ERR_TO_EXC(expr, exc)                                       \
+{                                                                              \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::string errorMessage(OCL_ERROR_REPORT + OCL_CODE_TO_STR(code));        \
-    std::cerr << errorMessage << std::endl;                                    \
-    throw exc(errorMessage.c_str(), (code));                                   \
-  }
+    throw exc(OCL_ERROR_REPORT + codeToString(code), code);                    \
+  }                                                                            \
+}
 #define REPORT_OCL_ERR_TO_EXC_THROW(code, exc) REPORT_OCL_ERR_TO_EXC(code, exc)
 #define REPORT_OCL_ERR_TO_EXC_BASE(code)                                       \
   REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
@@ -114,22 +128,22 @@ template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
 // Produces N-dimensional object of type T whose all components are initialized
 // to given integer value.
 template <int N, template <int> class T> struct InitializedVal {
-  template <int Val> static T<N> &&get();
+  template <int Val> static T<N> get();
 };
 
 // Specialization for a one-dimensional type.
 template <template <int> class T> struct InitializedVal<1, T> {
-  template <int Val> static T<1> &&get() { return T<1>{Val}; }
+  template <int Val> static T<1> get() { return T<1>{Val}; }
 };
 
 // Specialization for a two-dimensional type.
 template <template <int> class T> struct InitializedVal<2, T> {
-  template <int Val> static T<2> &&get() { return T<2>{Val, Val}; }
+  template <int Val> static T<2> get() { return T<2>{Val, Val}; }
 };
 
 // Specialization for a three-dimensional type.
 template <template <int> class T> struct InitializedVal<3, T> {
-  template <int Val> static T<3> &&get() { return T<3>{Val, Val, Val}; }
+  template <int Val> static T<3> get() { return T<3>{Val, Val, Val}; }
 };
 
 /// Helper class for the \c NDLoop.

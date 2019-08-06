@@ -263,6 +263,7 @@ private:
       case access::target::global_buffer:
       case access::target::constant_buffer: {
         detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
+        AccImpl->MUsedFromSourceKernel = IsKernelCreatedFromSource;
         MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
         if (!IsKernelCreatedFromSource) {
           // Dimensionality of the buffer is 1 when dimensionality of the
@@ -389,19 +390,6 @@ private:
         std::move(CommandGroup), std::move(MQueue));
 
     EventRet = detail::createSyclObjFromImpl<event>(Event);
-
-    // Waiting for copy command to complete here as SYCL specification says that
-    // the SYCL runtime must ensure that data is copied to the destination once
-    // the command group has completed execution.
-    switch (MCGType) {
-    case detail::CG::COPY_ACC_TO_PTR:
-    case detail::CG::COPY_PTR_TO_ACC:
-    case detail::CG::COPY_ACC_TO_ACC:
-      EventRet.wait();
-    default:
-      break;
-    }
-
     return EventRet;
   }
 
@@ -560,6 +548,8 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
+  // NOTE: the name of this function - "kernel_single_task" - is used by the
+  // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType>
   __attribute__((sycl_kernel)) void kernel_single_task(KernelType KernelFunc) {
     KernelFunc();
@@ -571,24 +561,24 @@ public:
                                            id<dimensions>>::value &&
                                   (dimensions > 0 && dimensions < 4),
                               KernelType>::type KernelFunc) {
-    id<dimensions> global_id;
-
-    __spirv::initGlobalInvocationId<dimensions>(global_id);
+    id<dimensions> global_id{
+        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
 
     KernelFunc(global_id);
   }
 
+  // NOTE: the name of this function - "kernel_parallel_for" - is used by the
+  // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType, int dimensions>
   __attribute__((sycl_kernel)) void kernel_parallel_for(
       typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
                                            item<dimensions>>::value &&
                                   (dimensions > 0 && dimensions < 4),
                               KernelType>::type KernelFunc) {
-    id<dimensions> global_id;
-    range<dimensions> global_size;
-
-    __spirv::initGlobalInvocationId<dimensions>(global_id);
-    __spirv::initGlobalSize<dimensions>(global_size);
+    id<dimensions> global_id{
+        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
+    range<dimensions> global_size{
+        __spirv::initGlobalSize<dimensions, range<dimensions>>()};
 
     item<dimensions, false> Item =
         detail::Builder::createItem<dimensions, false>(global_size, global_id);
@@ -601,22 +591,23 @@ public:
                                            nd_item<dimensions>>::value &&
                                   (dimensions > 0 && dimensions < 4),
                               KernelType>::type KernelFunc) {
-    range<dimensions> global_size;
-    range<dimensions> local_size;
-    id<dimensions> group_id;
-    id<dimensions> global_id;
-    id<dimensions> local_id;
-    id<dimensions> global_offset;
-
-    __spirv::initGlobalSize<dimensions>(global_size);
-    __spirv::initWorkgroupSize<dimensions>(local_size);
-    __spirv::initWorkgroupId<dimensions>(group_id);
-    __spirv::initGlobalInvocationId<dimensions>(global_id);
-    __spirv::initLocalInvocationId<dimensions>(local_id);
-    __spirv::initGlobalOffset<dimensions>(global_offset);
+    range<dimensions> global_size{
+        __spirv::initGlobalSize<dimensions, range<dimensions>>()};
+    range<dimensions> local_size{
+        __spirv::initWorkgroupSize<dimensions, range<dimensions>>()};
+    range<dimensions> group_range{
+        __spirv::initNumWorkgroups<dimensions, range<dimensions>>()};
+    id<dimensions> group_id{
+        __spirv::initWorkgroupId<dimensions, id<dimensions>>()};
+    id<dimensions> global_id{
+        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
+    id<dimensions> local_id{
+        __spirv::initLocalInvocationId<dimensions, id<dimensions>>()};
+    id<dimensions> global_offset{
+        __spirv::initGlobalOffset<dimensions, id<dimensions>>()};
 
     group<dimensions> Group = detail::Builder::createGroup<dimensions>(
-        global_size, local_size, group_id);
+        global_size, local_size, group_range, group_id);
     item<dimensions, true> globalItem =
         detail::Builder::createItem<dimensions, true>(global_size, global_id,
                                                       global_offset);
@@ -726,20 +717,19 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
+  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
+  // used by the Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType, int Dims>
   __attribute__((sycl_kernel)) void
   kernel_parallel_for_work_group(KernelType KernelFunc) {
 
-    range<Dims> GlobalSize;
-    range<Dims> LocalSize;
-    id<Dims> GroupId;
+    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
+    range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
+    range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
+    id<Dims> GroupId{__spirv::initWorkgroupId<Dims, id<Dims>>()};
 
-    __spirv::initGlobalSize<Dims>(GlobalSize);
-    __spirv::initWorkgroupSize<Dims>(LocalSize);
-    __spirv::initWorkgroupId<Dims>(GroupId);
-
-    group<Dims> G =
-        detail::Builder::createGroup<Dims>(GlobalSize, LocalSize, GroupId);
+    group<Dims> G = detail::Builder::createGroup<Dims>(GlobalSize, LocalSize,
+                                                       GroupRange, GroupId);
     KernelFunc(G);
   }
 #endif // __SYCL_DEVICE_ONLY__

@@ -34,10 +34,11 @@
 extern "C" {
 #endif // __cplusplus
 
-typedef  int32_t    pi_int32;
+typedef int32_t     pi_int32;
 typedef uint32_t    pi_uint32;
 typedef uint64_t    pi_uint64;
 typedef pi_uint32   pi_bool;
+typedef pi_uint64   pi_bitfield;
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
@@ -47,9 +48,15 @@ typedef pi_uint32   pi_bool;
 // TODO: populate PI enums.
 //
 typedef enum {
-  PI_SUCCESS = CL_SUCCESS,
+  PI_SUCCESS                    = CL_SUCCESS,
   PI_RESULT_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME,
-  PI_INVALID_OPERATION = CL_INVALID_OPERATION
+  PI_INVALID_OPERATION          = CL_INVALID_OPERATION,
+  PI_INVALID_QUEUE_PROPERTIES   = CL_INVALID_QUEUE_PROPERTIES,
+  PI_INVALID_VALUE              = CL_INVALID_VALUE,
+  PI_INVALID_CONTEXT            = CL_INVALID_CONTEXT,
+  PI_INVALID_PLATFORM           = CL_INVALID_PLATFORM,
+  PI_INVALID_DEVICE             = CL_INVALID_DEVICE,
+  PI_OUT_OF_HOST_MEMORY         = CL_OUT_OF_HOST_MEMORY
 } _pi_result;
 
 typedef enum {
@@ -100,60 +107,74 @@ typedef enum {
 } _pi_image_info;
 
 typedef enum {
-  PI_MEM_OBJECT_BUFFER         = CL_MEM_OBJECT_BUFFER,
-  PI_MEM_OBJECT_IMAGE2D        = CL_MEM_OBJECT_IMAGE2D,
-  PI_MEM_OBJECT_IMAGE3D        = CL_MEM_OBJECT_IMAGE3D,
-  PI_MEM_OBJECT_IMAGE2D_ARRAY  = CL_MEM_OBJECT_IMAGE2D_ARRAY,
-  PI_MEM_OBJECT_IMAGE1D        = CL_MEM_OBJECT_IMAGE1D,
-  PI_MEM_OBJECT_IMAGE1D_ARRAY  = CL_MEM_OBJECT_IMAGE1D_ARRAY,
-  PI_MEM_OBJECT_IMAGE1D_BUFFER = CL_MEM_OBJECT_IMAGE1D_BUFFER
+  PI_MEM_TYPE_BUFFER         = CL_MEM_OBJECT_BUFFER,
+  PI_MEM_TYPE_IMAGE2D        = CL_MEM_OBJECT_IMAGE2D,
+  PI_MEM_TYPE_IMAGE3D        = CL_MEM_OBJECT_IMAGE3D,
+  PI_MEM_TYPE_IMAGE2D_ARRAY  = CL_MEM_OBJECT_IMAGE2D_ARRAY,
+  PI_MEM_TYPE_IMAGE1D        = CL_MEM_OBJECT_IMAGE1D,
+  PI_MEM_TYPE_IMAGE1D_ARRAY  = CL_MEM_OBJECT_IMAGE1D_ARRAY,
+  PI_MEM_TYPE_IMAGE1D_BUFFER = CL_MEM_OBJECT_IMAGE1D_BUFFER
 } _pi_mem_type;
 
 typedef enum {
-  PI_A         = CL_A,
-  PI_R         = CL_R,
-  PI_RG        = CL_RG,
-  PI_RA        = CL_RA,
-  PI_RGB       = CL_RGB,
-  PI_RGBA      = CL_RGBA,
-  PI_BGRA      = CL_BGRA,
-  PI_ARGB      = CL_ARGB,
-  PI_ABGR      = CL_ABGR,
-  PI_INTENSITY = CL_INTENSITY,
-  PI_LUMINANCE = CL_LUMINANCE,
-  PI_Rx        = CL_Rx,
-  PI_RGx       = CL_RGx,
-  PI_RGBx      = CL_RGBx
+  PI_IMAGE_CHANNEL_ORDER_A         = CL_A,
+  PI_IMAGE_CHANNEL_ORDER_R         = CL_R,
+  PI_IMAGE_CHANNEL_ORDER_RG        = CL_RG,
+  PI_IMAGE_CHANNEL_ORDER_RA        = CL_RA,
+  PI_IMAGE_CHANNEL_ORDER_RGB       = CL_RGB,
+  PI_IMAGE_CHANNEL_ORDER_RGBA      = CL_RGBA,
+  PI_IMAGE_CHANNEL_ORDER_BGRA      = CL_BGRA,
+  PI_IMAGE_CHANNEL_ORDER_ARGB      = CL_ARGB,
+  PI_IMAGE_CHANNEL_ORDER_ABGR      = CL_ABGR,
+  PI_IMAGE_CHANNEL_ORDER_INTENSITY = CL_INTENSITY,
+  PI_IMAGE_CHANNEL_ORDER_LUMINANCE = CL_LUMINANCE,
+  PI_IMAGE_CHANNEL_ORDER_Rx        = CL_Rx,
+  PI_IMAGE_CHANNEL_ORDER_RGx       = CL_RGx,
+  PI_IMAGE_CHANNEL_ORDER_RGBx      = CL_RGBx
 } _pi_image_channel_order;
 
 typedef enum {
-  PI_SNORM_INT8       = CL_SNORM_INT8,
-  PI_SNORM_INT16      = CL_SNORM_INT16,
-  PI_UNORM_INT8       = CL_UNORM_INT8,
-  PI_UNORM_INT16      = CL_UNORM_INT16,
-  PI_UNORM_SHORT_565  = CL_UNORM_SHORT_565,
-  PI_UNORM_SHORT_555  = CL_UNORM_SHORT_555,
-  PI_UNORM_INT_101010 = CL_UNORM_INT_101010,
-  PI_SIGNED_INT8      = CL_SIGNED_INT8,
-  PI_SIGNED_INT16     = CL_SIGNED_INT16,
-  PI_SIGNED_INT32     = CL_SIGNED_INT32,
-  PI_UNSIGNED_INT8    = CL_UNSIGNED_INT8,
-  PI_UNSIGNED_INT16   = CL_UNSIGNED_INT16,
-  PI_UNSIGNED_INT32   = CL_UNSIGNED_INT32,
-  PI_HALF_FLOAT       = CL_HALF_FLOAT,
-  PI_FLOAT            = CL_FLOAT
+  PI_IMAGE_CHANNEL_TYPE_SNORM_INT8       = CL_SNORM_INT8,
+  PI_IMAGE_CHANNEL_TYPE_SNORM_INT16      = CL_SNORM_INT16,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_INT8       = CL_UNORM_INT8,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_INT16      = CL_UNORM_INT16,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565  = CL_UNORM_SHORT_565,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555  = CL_UNORM_SHORT_555,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010 = CL_UNORM_INT_101010,
+  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8      = CL_SIGNED_INT8,
+  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16     = CL_SIGNED_INT16,
+  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32     = CL_SIGNED_INT32,
+  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8    = CL_UNSIGNED_INT8,
+  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16   = CL_UNSIGNED_INT16,
+  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32   = CL_UNSIGNED_INT32,
+  PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT       = CL_HALF_FLOAT,
+  PI_IMAGE_CHANNEL_TYPE_FLOAT            = CL_FLOAT
 } _pi_image_channel_type;
+
+typedef enum {
+  PI_BUFFER_CREATE_TYPE_REGION = CL_BUFFER_CREATE_TYPE_REGION
+} _pi_buffer_create_type;
 
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate
 //
-typedef pi_uint64 pi_mem_flags;
+typedef pi_bitfield pi_mem_flags;
 // Access
-const pi_uint64 PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
+const pi_mem_flags PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
 // Host pointer
-const pi_uint64 PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
-const pi_uint64 PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
+const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+
+// NOTE: queue properties is implemented this way to better support bit
+// manipulations
+typedef pi_bitfield pi_queue_properties;
+const pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
+        CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+const pi_queue_properties PI_QUEUE_PROFILING_ENABLE = CL_QUEUE_PROFILING_ENABLE;
+const pi_queue_properties PI_QUEUE_ON_DEVICE = CL_QUEUE_ON_DEVICE;
+const pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT =
+        CL_QUEUE_ON_DEVICE_DEFAULT;
 
 typedef _pi_result                  pi_result;
 typedef _pi_platform_info           pi_platform_info;
@@ -165,17 +186,22 @@ typedef _pi_image_info              pi_image_info;
 typedef _pi_mem_type                pi_mem_type;
 typedef _pi_image_channel_order     pi_image_channel_order;
 typedef _pi_image_channel_type      pi_image_channel_type;
+typedef _pi_buffer_create_type      pi_buffer_create_type;
 
 // Opaque data type for compatibility with OpenMP.
 typedef void * _pi_offload_entry;
 
 /// Types of device binary.
 typedef uint8_t pi_device_binary_type;
-static const uint8_t PI_DEVICE_BINARY_TYPE_NONE    = 0; // format is not determined
-static const uint8_t PI_DEVICE_BINARY_TYPE_NATIVE  = 1; // specific to a device
+// format is not determined
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NONE    = 0;
+// specific to a device
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NATIVE  = 1;
 // portable binary types go next
-static const uint8_t PI_DEVICE_BINARY_TYPE_SPIRV   = 2;        // SPIR-V
-static const uint8_t PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3; // LLVM bitcode
+// SPIR-V
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_SPIRV   = 2;
+// LLVM bitcode
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3;
 
 // Device binary descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARY_VERSION = 1;
@@ -380,11 +406,11 @@ pi_result piContextRelease(pi_context context);
 //
 // Queue
 //
-pi_queue piQueueCreate( // TODO: change interface to return error code instead
-  pi_context              context,
-  pi_device               device,
-  const cl_queue_properties *    properties, // TODO: untie from OpenCL
-  pi_result *             result);
+pi_result piQueueCreate(
+  pi_context                  context,
+  pi_device                   device,
+  pi_queue_properties         properties,
+  pi_queue *                  queue);
 
 pi_result piQueueGetInfo(
   pi_queue            command_queue,
@@ -437,14 +463,18 @@ pi_result piMemRetain(
 pi_result piMemRelease(
   pi_mem mem);
 
+pi_mem piSubBufCreate( // TODO: change interface to return error code
+    pi_mem context, pi_mem_flags flags,
+    pi_buffer_create_type buffer_create_type, void *buffer_create_info,
+    pi_result *errcode_ret);
 //
 // Program
 //
-pi_program piProgramCreate(  // TODO: change interface to return error code
+pi_result piProgramCreate(
   pi_context    context,
   const void *  il,
   size_t        length,
-  pi_result *   errcode_ret);
+  pi_program *  res_program);
 
 pi_program piclProgramCreateWithBinary( // TODO: change to return pi_result
   pi_context                     context,
@@ -599,10 +629,10 @@ pi_result piEventRelease(pi_event event);
 //
 // Sampler
 //
-pi_sampler piSamplerCreate(
+pi_result piSamplerCreate(
   pi_context                     context,
   const cl_sampler_properties *  sampler_properties, // TODO: untie from OpenCL
-  pi_result *                    errcode_ret);
+  pi_sampler *                   result_sampler);
 
 pi_result piSamplerGetInfo(
   pi_sampler         sampler,

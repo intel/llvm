@@ -29,9 +29,6 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-const OSModuleHandle OSUtil::ExeModuleHandle =
-    reinterpret_cast<OSModuleHandle>(-1);
-
 #if defined(SYCL_RT_OS_LINUX)
 
 struct ModuleInfo {
@@ -54,7 +51,7 @@ static int callback(struct dl_phdr_info *Info, size_t Size, void *Data) {
       // ... it is - belongs to the module then
       // dlpi_addr is zero for the executable, replace it
       auto H = reinterpret_cast<void *>(Info->dlpi_addr);
-      MI->Handle = H ? H : OSUtil::ExeModuleHandle;
+      MI->Handle = H ? H : reinterpret_cast<void *>(OSUtil::ExeModuleHandle);
       MI->Name = Info->dlpi_name;
       return 1; // non-zero tells to finish iteration via modules
     }
@@ -70,10 +67,19 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
 }
 
 #elif defined(SYCL_RT_OS_WINDOWS)
-// TODO: implement this function for Windows probably by using
-// GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,...)
 OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
-  throw runtime_error("OSUtil::getOSModuleHandle() is not implemented yet");
+  HMODULE PhModule;
+  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | 
+               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+  auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
+  if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
+     // Expect the caller to check for zero and take
+     // necessary action
+     return 0;
+  }
+  if (PhModule == GetModuleHandleA(nullptr))
+    return OSUtil::ExeModuleHandle;
+  return reinterpret_cast<OSModuleHandle>(PhModule);
 }
 #endif // SYCL_RT_OS_WINDOWS
 

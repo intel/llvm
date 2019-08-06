@@ -58,7 +58,8 @@ class NDRDescT {
   }
 
 public:
-  NDRDescT() = default;
+  NDRDescT()
+      : GlobalSize{0, 0, 0}, LocalSize{0, 0, 0}, NumWorkGroups{0, 0, 0} {}
 
   template <int Dims_> void set(sycl::range<Dims_> NumWorkItems) {
     for (int I = 0; I < Dims_; ++I) {
@@ -160,7 +161,7 @@ public:
       // needed to invoke the kernel and adjust the NDRange descriptor
       // accordingly. For some devices the work group size selection requires
       // access to the device's properties, hence such late "adjustment".
-      range<3> WGsize = {1, 1, 1}; // no better alternative for serial host?
+      range<3> WGsize{1, 1, 1}; // no better alternative for serial host?
       AdjustedRange.set(NDRDesc.Dims,
                         nd_range<3>(NDRDesc.NumWorkGroups * WGsize, WGsize));
       Adjust = true;
@@ -227,10 +228,11 @@ public:
   runOnHost(const NDRDescT &NDRDesc) {
     // TODO add offset logic
 
-    sycl::id<3> GroupSize;
-    for (int I = 0; I < 3; ++I) {
+    sycl::range<Dims> GroupSize;
+    for (int I = 0; I < Dims; ++I) {
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
-      // TODO supoport case NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0
+      assert((NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] == 0) &&
+             "SYCL requires the global size to be a multiple of local");
     }
 
     sycl::range<Dims> GlobalSize;
@@ -242,52 +244,28 @@ public:
       GlobalSize[I] = NDRDesc.GlobalSize[I];
     }
 
-    sycl::id<Dims> GlobalID;
-    sycl::id<Dims> LocalID;
+    detail::NDLoop<Dims>::iterate(GroupSize, [&](const id<Dims> &GroupID) {
+      sycl::group<Dims> Group = IDBuilder::createGroup<Dims>(
+          GlobalSize, LocalSize, GroupSize, GroupID);
 
-    size_t GroupXYZ[3] = {0};
-    sycl::id<Dims> GroupID;
-    for (; GroupXYZ[2] < GroupSize[2]; ++GroupXYZ[2]) {
-      GroupXYZ[1] = 0;
-      for (; GroupXYZ[1] < GroupSize[1]; ++GroupXYZ[1]) {
-        GroupXYZ[0] = 0;
-        for (; GroupXYZ[0] < GroupSize[0]; ++GroupXYZ[0]) {
-          for (int I = 0; I < Dims; ++I)
-            GroupID[I] = GroupXYZ[I];
-
-          sycl::group<Dims> Group =
-              IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, GroupID);
-          size_t LocalXYZ[3] = {0};
-          for (; LocalXYZ[2] < NDRDesc.LocalSize[2]; ++LocalXYZ[2]) {
-            LocalXYZ[1] = 0;
-            for (; LocalXYZ[1] < NDRDesc.LocalSize[1]; ++LocalXYZ[1]) {
-              LocalXYZ[0] = 0;
-              for (; LocalXYZ[0] < NDRDesc.LocalSize[0]; ++LocalXYZ[0]) {
-
-                for (int I = 0; I < Dims; ++I) {
-                  GlobalID[I] = GroupXYZ[I] * LocalSize[I] + LocalXYZ[I];
-                  LocalID[I] = LocalXYZ[I];
-                }
-                const sycl::item<Dims, /*Offset=*/true> GlobalItem =
-                    IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
-                                                      GlobalOffset);
-                const sycl::item<Dims, /*Offset=*/false> LocalItem =
-                    IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
-                const sycl::nd_item<Dims> NDItem =
-                    IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-                MKernel(NDItem);
-              }
-            }
-          }
-        }
-      }
-    }
+      detail::NDLoop<Dims>::iterate(LocalSize, [&](const id<Dims> &LocalID) {
+        id<Dims> GlobalID = GroupID * LocalSize + LocalID;
+        const sycl::item<Dims, /*Offset=*/true> GlobalItem =
+            IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
+                                              GlobalOffset);
+        const sycl::item<Dims, /*Offset=*/false> LocalItem =
+            IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
+        const sycl::nd_item<Dims> NDItem =
+            IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
+        MKernel(NDItem);
+      });
+    });
   }
 
   template <typename ArgT = KernelArgType>
   enable_if_t<std::is_same<ArgT, cl::sycl::group<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    sycl::id<Dims> NGroups;
+    sycl::range<Dims> NGroups;
 
     for (int I = 0; I < Dims; ++I) {
       NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
@@ -302,7 +280,7 @@ public:
     }
     detail::NDLoop<Dims>::iterate(NGroups, [&](const id<Dims> &GroupID) {
       sycl::group<Dims> Group =
-          IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, GroupID);
+          IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, NGroups, GroupID);
       MKernel(Group);
     });
   }

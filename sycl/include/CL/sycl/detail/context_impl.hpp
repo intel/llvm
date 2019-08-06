@@ -8,12 +8,14 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/exception.hpp>
+#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <map>
 #include <memory>
 // 4.6.2 Context class
 
@@ -54,6 +56,14 @@ public:
   RT::PiContext &getHandleRef();
   const RT::PiContext &getHandleRef() const;
 
+  std::map<OSModuleHandle, RT::PiProgram> &getCachedPrograms() {
+    return m_CachedPrograms;
+  }
+  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &
+  getCachedKernels() {
+    return m_CachedKernels;
+  }
+
 private:
   async_handler m_AsyncHandler;
   vector_class<device> m_Devices;
@@ -61,6 +71,8 @@ private:
   platform m_Platform;
   bool m_OpenCLInterop;
   bool m_HostContext;
+  std::map<OSModuleHandle, RT::PiProgram> m_CachedPrograms;
+  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> m_CachedKernels;
 };
 
 } // namespace detail

@@ -60,10 +60,6 @@ template <typename DataT>
 using EnableIfImgAccDataT =
     typename std::enable_if<is_validImageDataT<DataT>::value, DataT>::type;
 
-using EventImplPtr = std::shared_ptr<detail::event_impl>;
-
-using ContextImplPtr = std::shared_ptr<detail::context_impl>;
-
 template <int Dimensions, typename AllocatorT = image_allocator>
 class image_impl final : public SYCLMemObjT<AllocatorT> {
   using BaseT = SYCLMemObjT<AllocatorT>;
@@ -332,6 +328,14 @@ public:
   // This information is not accessible from the image using any public API.
   uint8_t getElementSize() const { return MElementSize; };
 
+  image_channel_order getChannelOrder() const { return MOrder; }
+
+  image_channel_type getChannelType() const { return MType; }
+
+  size_t getRowPitch() const { return MRowPitch; }
+
+  size_t getSlicePitch() const { return MSlicePitch; }
+
   ~image_impl() { BaseT::updateHostMemory(); }
 
 private:
@@ -365,12 +369,10 @@ private:
 
   RT::PiMemObjectType getImageType() {
     if (Dimensions == 1)
-      return (MIsArrayImage ? PI_MEM_OBJECT_IMAGE1D_ARRAY
-                            : PI_MEM_OBJECT_IMAGE1D);
+      return (MIsArrayImage ? PI_MEM_TYPE_IMAGE1D_ARRAY : PI_MEM_TYPE_IMAGE1D);
     if (Dimensions == 2)
-      return (MIsArrayImage ? PI_MEM_OBJECT_IMAGE2D_ARRAY
-                            : PI_MEM_OBJECT_IMAGE2D);
-    return PI_MEM_OBJECT_IMAGE3D;
+      return (MIsArrayImage ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE2D);
+    return PI_MEM_TYPE_IMAGE3D;
   }
 
   RT::PiMemImageDesc getImageDesc() {
@@ -392,46 +394,46 @@ private:
 
   bool checkImageDesc(const RT::PiMemImageDesc &Desc, ContextImplPtr Context,
                       void *UserPtr) {
-    if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE1D,
-                 PI_MEM_OBJECT_IMAGE1D_ARRAY, PI_MEM_OBJECT_IMAGE2D_ARRAY,
-                 PI_MEM_OBJECT_IMAGE2D) &&
+    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D,
+                 PI_MEM_TYPE_IMAGE1D_ARRAY, PI_MEM_TYPE_IMAGE2D_ARRAY,
+                 PI_MEM_TYPE_IMAGE2D) &&
         !checkImageValueRange<info::device::image2d_max_width>(
             Context, Desc.image_width))
       throw invalid_parameter_error(
           "For a 1D/2D image/image array, the width must be a Value >= 1 and "
           "<= CL_DEVICE_IMAGE2D_MAX_WIDTH.");
 
-    if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE3D) &&
+    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
         !checkImageValueRange<info::device::image3d_max_width>(
             Context, Desc.image_width))
       throw invalid_parameter_error(
           "For a 3D image, the width must be a Value >= 1 and <= "
           "CL_DEVICE_IMAGE3D_MAX_WIDTH");
 
-    if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE2D,
-                 PI_MEM_OBJECT_IMAGE2D_ARRAY) &&
+    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE2D,
+                 PI_MEM_TYPE_IMAGE2D_ARRAY) &&
         !checkImageValueRange<info::device::image2d_max_height>(
             Context, Desc.image_height))
       throw invalid_parameter_error("For a 2D image or image array, the height "
                                     "must be a Value >= 1 and <= "
                                     "CL_DEVICE_IMAGE2D_MAX_HEIGHT");
 
-    if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE3D) &&
+    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
         !checkImageValueRange<info::device::image3d_max_height>(
             Context, Desc.image_height))
       throw invalid_parameter_error(
           "For a 3D image, the heightmust be a Value >= 1 and <= "
           "CL_DEVICE_IMAGE3D_MAX_HEIGHT");
 
-    if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE3D) &&
+    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
         !checkImageValueRange<info::device::image3d_max_depth>(
             Context, Desc.image_depth))
       throw invalid_parameter_error(
           "For a 3D image, the depth must be a Value >= 1 and <= "
           "CL_DEVICE_IMAGE3D_MAX_DEPTH");
 
-    if (checkAny(Desc.image_type, PI_MEM_OBJECT_IMAGE1D_ARRAY,
-                 PI_MEM_OBJECT_IMAGE2D_ARRAY) &&
+    if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D_ARRAY,
+                 PI_MEM_TYPE_IMAGE2D_ARRAY) &&
         !checkImageValueRange<info::device::image_max_array_size>(
             Context, Desc.image_array_size))
       throw invalid_parameter_error(
@@ -470,25 +472,35 @@ private:
 
   bool checkImageFormat(const RT::PiMemImageFormat &Format,
                         ContextImplPtr Context) {
-    if (checkAny(Format.image_channel_order, PI_INTENSITY, PI_LUMINANCE) &&
-        !checkAny(Format.image_channel_data_type, PI_UNORM_INT8, PI_UNORM_INT16,
-                  PI_SNORM_INT8, PI_SNORM_INT16, PI_HALF_FLOAT, PI_FLOAT))
+    if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_INTENSITY,
+                 PI_IMAGE_CHANNEL_ORDER_LUMINANCE) &&
+        !checkAny(
+            Format.image_channel_data_type, PI_IMAGE_CHANNEL_TYPE_UNORM_INT8,
+            PI_IMAGE_CHANNEL_TYPE_UNORM_INT16, PI_IMAGE_CHANNEL_TYPE_SNORM_INT8,
+            PI_IMAGE_CHANNEL_TYPE_SNORM_INT16, PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT,
+            PI_IMAGE_CHANNEL_TYPE_FLOAT))
       throw invalid_parameter_error(
           "CL_INTENSITY or CL_LUMINANCE format can only be used if channel "
           "data type = CL_UNORM_INT8, CL_UNORM_INT16, CL_SNORM_INT8, "
           "CL_SNORM_INT16, CL_HALF_FLOAT, or CL_FLOAT. ");
 
-    if (checkAny(Format.image_channel_order, PI_RGB, PI_RGBx) &&
-        !checkAny(Format.image_channel_data_type, PI_UNORM_SHORT_565,
-                  PI_UNORM_SHORT_555, PI_UNORM_INT_101010))
+    if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_RGB,
+                 PI_IMAGE_CHANNEL_ORDER_RGBx) &&
+        !checkAny(Format.image_channel_data_type,
+                  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
+                  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555,
+                  PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010))
       throw invalid_parameter_error(
           "CL_RGB or CL_RGBx	These formats can only be used if channel data "
           "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
           "CL_UNORM_INT_101010. ");
 
-    if (checkAny(Format.image_channel_order, PI_ARGB, PI_BGRA, PI_ABGR) &&
-        !checkAny(Format.image_channel_data_type, PI_UNORM_INT8, PI_SNORM_INT8,
-                  PI_SIGNED_INT8, PI_UNSIGNED_INT8))
+    if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_ARGB,
+                 PI_IMAGE_CHANNEL_ORDER_BGRA, PI_IMAGE_CHANNEL_ORDER_ABGR) &&
+        !checkAny(
+            Format.image_channel_data_type, PI_IMAGE_CHANNEL_TYPE_UNORM_INT8,
+            PI_IMAGE_CHANNEL_TYPE_SNORM_INT8, PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8,
+            PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8))
       throw invalid_parameter_error(
           "CL_ARGB, CL_BGRA, CL_ABGR	These formats can only be used if "
           "channel data type = CL_UNORM_INT8, CL_SNORM_INT8, CL_SIGNED_INT8 "

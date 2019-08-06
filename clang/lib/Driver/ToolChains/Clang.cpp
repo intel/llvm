@@ -3550,19 +3550,42 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (UseSYCLTriple) {
     // We want to compile sycl kernels.
-    if (types::isCXX(Input.getType()))
-      CmdArgs.push_back("-std=c++11");
     CmdArgs.push_back("-fsycl-is-device");
     // Pass the triple of host when doing SYCL
-    std::string NormalizedTriple =
-        llvm::Triple(llvm::sys::getProcessTriple()).normalize();
+    auto AuxT = llvm::Triple(llvm::sys::getProcessTriple());
+    std::string NormalizedTriple = AuxT.normalize();
     CmdArgs.push_back("-aux-triple");
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
+
+    bool IsMSVC = AuxT.isWindowsMSVCEnvironment();
+    if (types::isCXX(Input.getType()))
+      CmdArgs.push_back(IsMSVC ? "-std=c++14" : "-std=c++11");
+    if (IsMSVC) {
+      CmdArgs.push_back("-fms-extensions");
+      VersionTuple MSVT = TC.computeMSVCVersion(&D, Args);
+      if (!MSVT.empty())
+        CmdArgs.push_back(Args.MakeArgString("-fms-compatibility-version=" +
+                                             MSVT.getAsString()));
+      else {
+        const char *LowestMSVCSupported =
+            "191025017"; // VS2017 v15.0 (initial release)
+        CmdArgs.push_back(Args.MakeArgString(
+            Twine("-fms-compatibility-version=") + LowestMSVCSupported));
+      }
+    }
+
     CmdArgs.push_back("-disable-llvm-passes");
     if (Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
                      options::OPT_fno_sycl_allow_func_ptr, false)) {
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
+  }
+
+  if (Arg *A = Args.getLastArg(options::OPT_sycl_std_EQ)) {
+    A->render(Args, CmdArgs);
+  } else if (IsSYCL) {
+    // Ensure the default version in SYCL mode is 1.2.1
+    CmdArgs.push_back("-sycl-std=1.2.1");
   }
 
   if (IsOpenMPDevice) {
@@ -4720,6 +4743,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Forward -cl options to -cc1
   RenderOpenCLOptions(Args, CmdArgs);
 
+  // Forward -sycl-std option to -cc1
+  Args.AddLastArg(CmdArgs, options::OPT_sycl_std_EQ);
+
   if (Arg *A = Args.getLastArg(options::OPT_fcf_protection_EQ)) {
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-fcf-protection=") + A->getValue()));
@@ -5363,6 +5389,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       HeaderOpt += Output.getFilename();
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
+    if (Args.hasArg(options::OPT_fsycl_unnamed_lambda))
+      CmdArgs.push_back("-fsycl-unnamed-lambda");
   }
 
   // OpenMP offloading device jobs take the argument -fopenmp-host-ir-file-path
@@ -5402,16 +5430,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (isa<CompileJobAction>(JA) && JA.isHostOffloading(Action::OFK_SYCL)) {
     SmallString<128> TargetInfo("-fsycl-targets=");
 
-    Arg *Tgts = Args.getLastArg(options::OPT_fsycl_targets_EQ);
-    assert(Tgts && Tgts->getNumValues() &&
-           "SYCL offloading has to have targets specified.");
-    for (unsigned i = 0; i < Tgts->getNumValues(); ++i) {
-      if (i)
-        TargetInfo += ',';
-      // We need to get the string from the triple because it may be not exactly
-      // the same as the one we get directly from the arguments.
-      llvm::Triple T(Tgts->getValue(i));
-      TargetInfo += T.getTriple();
+    if (Arg *Tgts = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+      for (unsigned i = 0; i < Tgts->getNumValues(); ++i) {
+        if (i)
+          TargetInfo += ',';
+        // We need to get the string from the triple because it may be not
+        // exactly the same as the one we get directly from the arguments.
+        llvm::Triple T(Tgts->getValue(i));
+        TargetInfo += T.getTriple();
+      }
+    } else {
+      // Use the default.
+      llvm::Triple TT(Triple);
+      TT.setArch(llvm::Triple::spir64);
+      TT.setVendor(llvm::Triple::UnknownVendor);
+      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+      TT.setEnvironment(llvm::Triple::SYCLDevice);
+      TargetInfo += TT.normalize();
     }
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }
@@ -6355,6 +6390,28 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       Triples += CurDep->getOffloadingArch();
     }
   }
+
+  // When bundling for FPGA with -fsycl-link a specific triple is formulated
+  // to match the FPGA binary.  We are also guaranteed only the single device
+  // and host object inputs.
+  const ToolChain *TCCheck = &getToolChain();
+  if (TCArgs.hasArg(options::OPT_fsycl_link_EQ) &&
+      TCCheck->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+    Triples = "-targets=";
+    llvm::Triple TT;
+    TT.setArchName(JA.getInputs()[0]->getType() == types::TY_FPGA_AOCX
+                   ? "fpga_aocx" : "fpga_aocr");
+    TT.setVendorName("intel");
+    TT.setOS(llvm::Triple(TCCheck->getTriple()).getOS());
+    TT.setEnvironment(llvm::Triple::SYCLDevice);
+    Triples += "fpga-";
+    Triples += TT.normalize();
+    Triples += ",";
+    Triples += Action::GetOffloadKindName(Action::OFK_Host);
+    Triples += "-";
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    Triples += HostTC->getTriple().normalize();
+  }
   CmdArgs.push_back(TCArgs.MakeArgString(Triples));
 
   // Get bundled file command.
@@ -6411,7 +6468,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // contain bundled objects). We will perform partial linking against the
   // object and specific offload target archives which will be sent to the
   // unbundler to produce a list of target objects.
-  if (Input.getType() == types::TY_Object &&
+  if (!C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
+      Input.getType() == types::TY_Object &&
       TCArgs.hasArg(options::OPT_foffload_static_lib_EQ)) {
     TypeArg = "oo";
     ArgStringList LinkArgs;
@@ -6432,7 +6490,14 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       LinkArgs.push_back(TCArgs.MakeArgString(A));
     const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
     C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
+  } else if (Input.getType() == types::TY_FPGA_AOCX ||
+             Input.getType() == types::TY_FPGA_AOCR) {
+    // Override type with object type.
+    TypeArg = "o";
   }
+  if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
+      Input.getType() == types::TY_Archive)
+    TypeArg = "ao";
 
   // Get the type.
   CmdArgs.push_back(TCArgs.MakeArgString(Twine("-type=") + TypeArg));
@@ -6446,6 +6511,22 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       Triples += ',';
 
     auto &Dep = DepInfo[I];
+    // FPGA device triples are 'transformed' for the bundler when creating
+    // aocx or aocr type bundles.
+    if (Dep.DependentToolChain->getTriple().getSubArch() ==
+                                   llvm::Triple::SPIRSubArch_fpga &&
+        (Input.getType() == types::TY_FPGA_AOCX ||
+         Input.getType() == types::TY_FPGA_AOCR)) {
+      llvm::Triple TT;
+      TT.setArchName(Input.getType() == types::TY_FPGA_AOCX ? "fpga_aocx"
+                                                       : "fpga_aocr");
+      TT.setVendorName("intel");
+      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+      TT.setEnvironment(llvm::Triple::SYCLDevice);
+      Triples += "fpga-";
+      Triples += TT.normalize();
+      continue;
+    }
     Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Triples += '-';
     Triples += Dep.DependentToolChain->getTriple().normalize();
@@ -6575,5 +6656,28 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   C.addCommand(llvm::make_unique<Command>(JA, *this,
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       TranslatorArgs, None));
+}
+
+void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
+                             const InputInfo &Output,
+                             const InputInfoList &Inputs,
+                             const llvm::opt::ArgList &TCArgs,
+                             const char *LinkingOutput) const {
+  // Construct llvm-no-spir-kernel command.
+  assert(isa<SPIRCheckJobAction>(JA) && "Expecting SPIR Check job!");
+
+  // The translator command looks like this:
+  // llvm-no-spir-kernel <file>.bc
+  // Upon success, we just move ahead.  Error means the check failed and
+  // we need to exit.  The expected output is the input as this is just an
+  // intermediate check with no functional change.
+  ArgStringList CheckArgs;
+  for (auto I : Inputs) {
+    CheckArgs.push_back(I.getFilename());
+  }
+
+  C.addCommand(llvm::make_unique<Command>(JA, *this,
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CheckArgs, None));
 }
 

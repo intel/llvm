@@ -886,6 +886,11 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
           BM->addLoopMergeInst(Br->getFalseLabel()->getId(), // Merge Block
                                BB->getId(),                  // Continue Target
                                LoopControl, Parameters, SuccessorTrue);
+        } else {
+          // For unstructured loop we add a special loop control instruction.
+          // Simple example of unstructured loop is an infinite loop, that has
+          // no terminate instruction.
+          BM->addLoopControlINTELInst(LoopControl, Parameters, SuccessorTrue);
         }
       }
       return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
@@ -1253,6 +1258,12 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   };
 
   switch (II->getIntrinsicID()) {
+  case Intrinsic::bitreverse: {
+    BM->addCapability(CapabilityShader);
+    SPIRVType *Ty = transType(II->getType());
+    SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
+    return BM->addUnaryInst(OpBitReverse, Ty, Op, BB);
+  }
   case Intrinsic::fmuladd: {
     // For llvm.fmuladd.* fusion is not guaranteed. If a fused multiply-add
     // is required the corresponding llvm.fma.* intrinsic function should be
@@ -1399,9 +1410,13 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     }
     return 0;
   }
+  // We can just ignore/drop some intrinsics, like optimizations hint.
+  case Intrinsic::invariant_start:
+  case Intrinsic::invariant_end:
+    return nullptr;
   default:
-    // LLVM intrinsic functions shouldn't get to SPIRV, because they
-    // would have no definition there.
+    // Other LLVM intrinsics shouldn't get to SPIRV, because they
+    // can't be represented in SPIRV or not implemented yet.
     BM->getErrorLog().checkError(false, SPIRVEC_InvalidFunctionCall,
                                  II->getCalledValue()->getName().str(), "",
                                  __FILE__, __LINE__);
@@ -1835,6 +1850,22 @@ LLVMToSPIRV::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
   case OpSelect: {
     auto BArgs = transValue(getArguments(CI), BB);
     return BM->addSelectInst(BArgs[0], BArgs[1], BArgs[2], BB);
+  }
+  case OpSampledImage: {
+    // Clang can generate SPIRV-friendly call for OpSampledImage instruction,
+    // i.e. __spirv_SampledImage... But it can't generate correct return type
+    // for this call, because there is no support for type corresponding to
+    // OpTypeSampledImage. So, in this case, we create the required type here.
+    Value *Image = CI->getArgOperand(0);
+    Type *ImageTy = Image->getType();
+    if (isOCLImageType(ImageTy))
+      ImageTy = getSPIRVImageTypeFromOCL(M, ImageTy);
+    Type *SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
+        M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
+    Value *Sampler = CI->getArgOperand(1);
+    return BM->addSampledImageInst(transType(SampledImgTy),
+                                   transValue(Image, BB),
+                                   transValue(Sampler, BB), BB);
   }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {

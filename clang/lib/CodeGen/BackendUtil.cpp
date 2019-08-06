@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CodeGen/BackendUtil.h"
+#include "SYCLLowerIR/LowerWGScope.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
@@ -37,6 +38,7 @@
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
+#include "llvm/SYCL/ASFixer.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -70,7 +72,6 @@
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
-#include "llvm/SYCL/ASFixer.h"
 #include <memory>
 
 namespace SPIRV {
@@ -819,6 +820,9 @@ void EmitAssemblyHelper::EmitAssembly(BackendAction Action,
   legacy::FunctionPassManager PerFunctionPasses(TheModule);
   PerFunctionPasses.add(
       createTargetTransformInfoWrapperPass(getTargetIRAnalysis()));
+
+  if (LangOpts.SYCLIsDevice)
+    PerModulePasses.add(createSYCLLowerWGScopePass());
 
   CreatePasses(PerModulePasses, PerFunctionPasses);
 

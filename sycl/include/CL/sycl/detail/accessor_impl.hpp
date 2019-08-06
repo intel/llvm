@@ -27,6 +27,7 @@ namespace detail {
 
 template <int Dims> class AccessorImplDevice {
 public:
+  AccessorImplDevice() = default;
   AccessorImplDevice(id<Dims> Offset, range<Dims> AccessRange,
                      range<Dims> MemoryRange)
       : Offset(Offset), AccessRange(AccessRange), MemRange(MemoryRange) {}
@@ -90,6 +91,8 @@ public:
   void *MData = nullptr;
 
   EventImplPtr BlockingEvent;
+
+  bool MUsedFromSourceKernel = false;
 };
 
 using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
@@ -109,6 +112,7 @@ protected:
   range<3> &getAccessRange() { return impl->MAccessRange; }
   range<3> &getMemoryRange() { return impl->MMemoryRange; }
   void *getPtr() { return impl->MData; }
+  unsigned int getElemSize() const { return impl->MElemSize; }
 
   const id<3> &getOffset() const { return impl->MOffset; }
   const range<3> &getAccessRange() const { return impl->MAccessRange; }

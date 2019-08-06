@@ -174,6 +174,19 @@ public:
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
 };
+
+/// SPIR Checking tool.
+class LLVM_LIBRARY_VISIBILITY SPIRCheck final : public Tool {
+public:
+  SPIRCheck(const ToolChain &TC)
+      : Tool("SPIR Checker", "llvm-no-spir-kernel", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
 } // end namespace tools
 
 } // end namespace driver

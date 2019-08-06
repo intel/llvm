@@ -1037,6 +1037,27 @@ def SYCLKernel : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def SYCLScope : Attr {
+  // No spelling, as this attribute can't be created in the source code.
+  let Spellings = [];
+  let Args = [EnumArgument<"level", "Level", ["work_group", "work_item"],
+                                             ["WorkGroup", "WorkItem"]>];
+  let Subjects = SubjectList<[Function, Var]>;
+  let LangOpts = [SYCLIsDevice];
+
+  let AdditionalMembers = [{
+    bool isWorkGroup() const {
+      return getLevel() == SYCLScopeAttr::WorkGroup;
+    }
+
+    bool isWorkItem() const {
+      return getLevel() == SYCLScopeAttr::WorkItem;
+    }
+  }];
+
+  let Documentation = [Undocumented];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -2142,8 +2163,8 @@ def NoDeref : TypeAttr {
 }
 
 def ReqdWorkGroupSize : InheritableAttr {
-  // Does not have a [[]] spelling because it is an OpenCL-related attribute.
-  let Spellings = [GNU<"reqd_work_group_size">];
+  let Spellings = [GNU<"reqd_work_group_size">,
+                   CXX11<"cl","reqd_work_group_size">];
   let Args = [UnsignedArgument<"XDim">, UnsignedArgument<"YDim">,
               UnsignedArgument<"ZDim">];
   let Subjects = SubjectList<[Function], ErrorDiag>;

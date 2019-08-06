@@ -69,6 +69,8 @@ private:
   // graph (e.g. add/remove edges/nodes).
   class GraphBuilder {
   public:
+    GraphBuilder();
+
     // Registers command group, adds it to the dependency graph and returns an
     // command that represents command group execution. It's called by SYCL's
     // queue::submit.
@@ -105,7 +107,7 @@ private:
       detail::SYCLMemObjI *MMemObj;
 
       // Contains all allocation commands for the memory object.
-      std::vector<AllocaCommand *> MAllocaCommands;
+      std::vector<AllocaCommandBase *> MAllocaCommands;
 
       // Contains latest read only commands working with memory object.
       std::vector<Command *> MReadLeafs;
@@ -123,6 +125,9 @@ private:
     // Return nullptr if there the record is not found.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                           Requirement *Req);
+
+    // Removes commands that use given MemObjRecord from the graph.
+    void cleanupCommandsForRecord(MemObjRecord *Record);
 
     // Removes MemObjRecord for memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -146,11 +151,31 @@ private:
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                        QueueImplPtr Context);
 
-    AllocaCommand *findAllocaForReq(MemObjRecord *Record, Requirement *Req,
-                                    QueueImplPtr Queue);
+    // Searches for suitable alloca in memory record.
+    AllocaCommandBase *findAllocaForReq(MemObjRecord *Record, Requirement *Req,
+                                        QueueImplPtr Queue);
+    // Searches for suitable alloca in memory record.
+    // If none found, creates new one.
+    AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
+                                               Requirement *Req,
+                                               QueueImplPtr Queue,
+                                               bool ForceFullReq = false);
 
     void markModifiedIfWrite(GraphBuilder::MemObjRecord *Record,
                              Requirement *Req);
+
+    // Print contents of graph to text file in DOT format
+    void printGraphAsDot(const char *ModeName);
+    enum PrintOptions {
+      BeforeAddCG = 0,
+      AfterAddCG,
+      BeforeAddCopyBack,
+      AfterAddCopyBack,
+      BeforeAddHostAcc,
+      AfterAddHostAcc,
+      Size
+    };
+    std::array<bool, PrintOptions::Size> MPrintOptionsArray;
   };
 
   // The class that provides interfaces for enqueueing command and its

@@ -66,6 +66,18 @@ enum OCLMemFenceKind {
   OCLMF_Image = 4,
 };
 
+// This enum declares extra constants for OpenCL mem_fence flag. It includes
+// combinations of local/global/image flags.
+enum OCLMemFenceExtendedKind {
+  OCLMFEx_Local = OCLMF_Local,
+  OCLMFEx_Global = OCLMF_Global,
+  OCLMFEx_Local_Global = OCLMF_Global | OCLMF_Local,
+  OCLMFEx_Image = OCLMF_Image,
+  OCLMFEx_Image_Local = OCLMF_Image | OCLMF_Local,
+  OCLMFEx_Image_Global = OCLMF_Image | OCLMF_Global,
+  OCLMFEx_Image_Local_Global = OCLMF_Image | OCLMF_Global | OCLMF_Local,
+};
+
 enum OCLScopeKind {
   OCLMS_work_item,
   OCLMS_work_group,
@@ -95,6 +107,9 @@ enum OCLMemOrderKind {
 
 typedef SPIRVMap<OCLMemFenceKind, MemorySemanticsMask> OCLMemFenceMap;
 
+typedef SPIRVMap<OCLMemFenceExtendedKind, MemorySemanticsMask>
+    OCLMemFenceExtendedMap;
+
 typedef SPIRVMap<OCLMemOrderKind, unsigned, MemorySemanticsMask> OCLMemOrderMap;
 
 typedef SPIRVMap<OCLScopeKind, Scope> OCLMemScopeMap;
@@ -106,6 +121,9 @@ typedef SPIRVMap<std::string, SPIRVFPRoundingModeKind>
     SPIRSPIRVFPRoundingModeMap;
 
 typedef SPIRVMap<std::string, Op, SPIRVInstruction> OCLSPIRVBuiltinMap;
+
+class OCL12Builtin;
+typedef SPIRVMap<std::string, Op, OCL12Builtin> OCL12SPIRVBuiltinMap;
 
 typedef SPIRVMap<std::string, SPIRVBuiltinVariableKind>
     SPIRSPIRVBuiltinVariableMap;
@@ -305,6 +323,9 @@ BarrierLiterals getBarrierLiterals(CallInst *CI);
 /// Get number of memory order arguments for atomic builtin function.
 size_t getAtomicBuiltinNumMemoryOrderArgs(StringRef Name);
 
+/// Get number of memory order arguments for spirv atomic builtin function.
+size_t getSPIRVAtomicBuiltinNumMemoryOrderArgs(Op OC);
+
 /// Return true for OpenCL builtins which do compute operations
 /// (like add, sub, min, max, inc, dec, ...) atomically
 bool isComputeAtomicOCLBuiltin(StringRef DemangledName);
@@ -423,6 +444,22 @@ template <> inline void SPIRVMap<OCLMemFenceKind, MemorySemanticsMask>::init() {
 }
 
 template <>
+inline void SPIRVMap<OCLMemFenceExtendedKind, MemorySemanticsMask>::init() {
+  add(OCLMFEx_Local, MemorySemanticsWorkgroupMemoryMask);
+  add(OCLMFEx_Global, MemorySemanticsCrossWorkgroupMemoryMask);
+  add(OCLMFEx_Local_Global, MemorySemanticsWorkgroupMemoryMask |
+                                MemorySemanticsCrossWorkgroupMemoryMask);
+  add(OCLMFEx_Image, MemorySemanticsImageMemoryMask);
+  add(OCLMFEx_Image_Local,
+      MemorySemanticsWorkgroupMemoryMask | MemorySemanticsImageMemoryMask);
+  add(OCLMFEx_Image_Global,
+      MemorySemanticsCrossWorkgroupMemoryMask | MemorySemanticsImageMemoryMask);
+  add(OCLMFEx_Image_Local_Global, MemorySemanticsWorkgroupMemoryMask |
+                                      MemorySemanticsCrossWorkgroupMemoryMask |
+                                      MemorySemanticsImageMemoryMask);
+}
+
+template <>
 inline void SPIRVMap<OCLMemOrderKind, unsigned, MemorySemanticsMask>::init() {
   add(OCLMO_relaxed, MemorySemanticsMaskNone);
   add(OCLMO_acquire, MemorySemanticsAcquireMask);
@@ -444,7 +481,7 @@ Instruction *
 getOrCreateSwitchFunc(StringRef MapName, Value *V,
                       const SPIRVMap<KeyTy, ValTy, Identifier> &Map,
                       bool IsReverse, Optional<int> DefaultCase,
-                      Instruction *InsertPoint, Module *M) {
+                      Instruction *InsertPoint, Module *M, int KeyMask = 0) {
   static_assert(std::is_convertible<KeyTy, int>::value &&
                     std::is_convertible<ValTy, int>::value,
                 "Can map only integer values");
@@ -459,8 +496,17 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   LLVMContext &Ctx = M->getContext();
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   IRBuilder<> IRB(BB);
+  SwitchInst *SI;
   F->arg_begin()->setName("key");
-  SwitchInst *SI = IRB.CreateSwitch(F->arg_begin(), BB);
+  if (KeyMask) {
+    Value *MaskV = ConstantInt::get(Type::getInt32Ty(Ctx), KeyMask);
+    Value *NewKey = IRB.CreateAnd(MaskV, F->arg_begin());
+    NewKey->setName("key.masked");
+    SI = IRB.CreateSwitch(NewKey, BB);
+  } else {
+    SI = IRB.CreateSwitch(F->arg_begin(), BB);
+  }
+
   if (!DefaultCase) {
     BasicBlock *DefaultBB = BasicBlock::Create(Ctx, "default", F);
     IRBuilder<> DefaultIRB(DefaultBB);
@@ -622,6 +668,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(signbit, SignBitSet)
   _SPIRV_OP(any, Any)
   _SPIRV_OP(all, All)
+  _SPIRV_OP(popcount, BitCount)
   _SPIRV_OP(get_fence, GenericPtrMemSemantics)
   // CL 2.0 kernel enqueue builtins
   _SPIRV_OP(enqueue_marker, EnqueueMarker)
@@ -693,6 +740,22 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(intel_sub_group_shuffle_down, SubgroupShuffleDownINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_up, SubgroupShuffleUpINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_xor, SubgroupShuffleXorINTEL)
+#undef _SPIRV_OP
+}
+
+template <> inline void SPIRVMap<std::string, Op, OCL12Builtin>::init() {
+#define _SPIRV_OP(x, y) add("atomic_" #x, Op##y);
+  _SPIRV_OP(add, AtomicIAdd)
+  _SPIRV_OP(sub, AtomicISub)
+  _SPIRV_OP(xchg, AtomicExchange)
+  _SPIRV_OP(cmpxchg, AtomicCompareExchange)
+  _SPIRV_OP(inc, AtomicIIncrement)
+  _SPIRV_OP(dec, AtomicIDecrement)
+  _SPIRV_OP(min, AtomicSMin)
+  _SPIRV_OP(max, AtomicSMax)
+  _SPIRV_OP(and, AtomicAnd)
+  _SPIRV_OP(or, AtomicOr)
+  _SPIRV_OP(xor, AtomicXor)
 #undef _SPIRV_OP
 }
 

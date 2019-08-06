@@ -13,6 +13,20 @@
 #include <type_traits>
 
 #ifdef __SYCL_DEVICE_ONLY__
+
+template <typename ImageT, typename CoordT, typename ValT>
+extern void __spirv_ImageWrite(ImageT, CoordT, ValT);
+
+template <class ReTTT, typename ImageT, typename TempArgT>
+extern ReTTT __spirv_ImageRead(ImageT, TempArgT);
+
+template <typename ImageT, typename SampledType>
+extern SampledType __spirv_SampledImage(ImageT, __ocl_sampler_t);
+
+template <typename SampledType, typename TempRetT, typename TempArgT>
+extern TempRetT __spirv_ImageSampleExplicitLod(SampledType, TempArgT, int,
+                                               float);
+
 template <typename dataT>
 extern __ocl_event_t
 __spirv_GroupAsyncCopy(__spv::Scope Execution, __attribute__((ocl_local)) dataT *Dest,

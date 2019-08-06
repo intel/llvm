@@ -245,7 +245,8 @@ private:
                                  BasicBlock *BB);
   Value *oclTransConstantPipeStorage(SPIRV::SPIRVConstantPipeStorage *BCPS);
   void setName(llvm::Value *V, SPIRVValue *BV);
-  void setLLVMLoopMetadata(SPIRVLoopMerge *LM, BranchInst *BI);
+  template <typename LoopInstType>
+  void setLLVMLoopMetadata(LoopInstType *LM, BranchInst *BI);
   inline llvm::Metadata *getMetadataFromName(std::string Name);
   inline std::vector<llvm::Metadata *>
   getMetadataFromNameAndParameter(std::string Name, SPIRVWord Parameter);

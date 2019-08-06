@@ -19,14 +19,10 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
-#include "llvm/Bitcode/BitcodeWriter.h"
-#include "llvm/IR/Constant.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/GlobalVariable.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Casting.h"
@@ -44,6 +40,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <list>
 #include <memory>
 #include <string>
 #include <system_error>
@@ -64,7 +61,7 @@ static cl::list<std::string>
                    cl::desc("[<input file>,...]"),
                    cl::cat(ClangOffloadBundlerCategory));
 static cl::list<std::string>
-    OutputFileNames("outputs", cl::CommaSeparated, cl::OneOrMore,
+    OutputFileNames("outputs", cl::CommaSeparated, cl::ZeroOrMore,
                     cl::desc("[<output file>,...]"),
                     cl::cat(ClangOffloadBundlerCategory));
 static cl::list<std::string>
@@ -74,7 +71,7 @@ static cl::list<std::string>
 
 static cl::opt<std::string> FilesType(
     "type", cl::Required,
-    cl::desc("Type of the files to be bundled/unbundled.\n"
+    cl::desc("Type of the files to be bundled/unbundled/checked.\n"
              "Current supported types are:\n"
              "  i   - cpp-output\n"
              "  ii  - c++-cpp-output\n"
@@ -84,11 +81,18 @@ static cl::opt<std::string> FilesType(
              "  o   - object\n"
              "  oo  - object; output file is a list of unbundled objects\n"
              "  gch - precompiled-header\n"
-             "  ast - clang AST file"),
+             "  ast - clang AST file\n"
+             "  ao  - archive; output file is a list of unbundled objects\n"),
     cl::cat(ClangOffloadBundlerCategory));
+
 static cl::opt<bool>
     Unbundle("unbundle",
              cl::desc("Unbundle bundled file into several output files.\n"),
+             cl::init(false), cl::cat(ClangOffloadBundlerCategory));
+
+static cl::opt<bool>
+    CheckSection("check-section",
+             cl::desc("Check if the section exists.\n"),
              cl::init(false), cl::cat(ClangOffloadBundlerCategory));
 
 static cl::opt<bool> PrintExternalCommands(
@@ -97,10 +101,10 @@ static cl::opt<bool> PrintExternalCommands(
              "instead of actually executing them - for testing purposes.\n"),
     cl::init(false), cl::cat(ClangOffloadBundlerCategory));
 
-static cl::opt<bool> DumpTemporaryFiles(
-    "dump-temporary-files",
-    cl::desc("Dumps any temporary files created - for testing purposes.\n"),
-    cl::init(false), cl::cat(ClangOffloadBundlerCategory));
+static cl::opt<bool>
+    SaveTemporaryFiles("save-temps",
+                       cl::desc("Saves intermediate temporary files.\n"),
+                       cl::init(false), cl::cat(ClangOffloadBundlerCategory));
 
 /// Magic string that marks the existence of offloading data.
 #define OFFLOAD_BUNDLER_MAGIC_STR "__CLANG_OFFLOAD_BUNDLE__"
@@ -121,12 +125,6 @@ static void getOffloadKindAndTriple(StringRef Target, StringRef &OffloadKind,
   auto KindTriplePair = Target.split('-');
   OffloadKind = KindTriplePair.first;
   Triple = KindTriplePair.second;
-}
-static StringRef getTriple(StringRef Target) {
-  StringRef OffloadKind;
-  StringRef Triple;
-  getOffloadKindAndTriple(Target, OffloadKind, Triple);
-  return Triple;
 }
 static bool hasHostKind(StringRef Target) {
   StringRef OffloadKind;
@@ -499,11 +497,6 @@ class ObjectFileHandler final : public FileHandler {
     return true;
   }
 
-  /// \return LLVM type representing an ELF section size.
-  static inline Type *getSectionSizeTy(LLVMContext &C) {
-    return Type::getInt64Ty(C);
-  }
-
   /// Total number of inputs.
   unsigned NumberOfInputs = 0;
 
@@ -511,18 +504,8 @@ class ObjectFileHandler final : public FileHandler {
   /// read from the buffers.
   unsigned NumberOfProcessedInputs = 0;
 
-  /// LLVM context used to create the auxiliary modules.
-  LLVMContext VMContext;
-
-  /// LLVM module used to create an object with all the bundle
-  /// components.
-  std::unique_ptr<Module> AuxModule;
-
-  /// The current triple we are working with.
-  StringRef CurrentTriple;
-
-  /// The name of the main input file.
-  StringRef MainInputFileName;
+  /// Input sizes.
+  SmallVector<uint64_t, 16u> InputSizes;
 
 public:
   ObjectFileHandler(std::unique_ptr<ObjectFile> ObjIn)
@@ -559,8 +542,8 @@ public:
           consumeError(Content.takeError());
           return;
         }
-        unsigned int ElemSize =
-            getSectionSizeTy(VMContext)->getPrimitiveSizeInBits() / 8;
+        unsigned int ElemSize = sizeof(uint64_t);
+
         // the size of the size section must be a multiple of ElemSize
         if (Content->size() % ElemSize != 0)
           report_fatal_error(
@@ -710,18 +693,14 @@ public:
     // Record number of inputs.
     NumberOfInputs = Inputs.size();
 
-    // Create an LLVM module to have the content we need to bundle.
-    auto *M = new Module("clang-offload-bundle", VMContext);
-    M->setTargetTriple(getTriple(TargetNames[HostInputIndex]));
-    AuxModule.reset(M);
+    // And input sizes.
+    for (unsigned I = 0; I < NumberOfInputs; ++I)
+      InputSizes.push_back(I == HostInputIndex ? 1u
+                                               : Inputs[I]->getBufferSize());
   }
 
   void WriteBundleStart(raw_fd_ostream &OS, StringRef TargetTriple) final {
     ++NumberOfProcessedInputs;
-
-    // Record the triple we are using, that will be used to name the section we
-    // will create.
-    CurrentTriple = TargetTriple;
   }
 
   bool WriteBundleEnd(raw_fd_ostream &OS, StringRef TargetTriple) final {
@@ -733,76 +712,96 @@ public:
     if (NumberOfProcessedInputs != NumberOfInputs)
       return false;
 
-    // Create the bitcode file name to write the resulting code to. Keep it if
-    // save-temps is active.
-    SmallString<128> BitcodeFileName;
-    if (sys::fs::createTemporaryFile("clang-offload-bundler", "bc",
-                                     BitcodeFileName)) {
-      errs() << "error: unable to create temporary file.\n";
+    // Find llvm-objcopy in order to create the bundle binary.
+    auto Objcopy = sys::findProgramByName(
+        "llvm-objcopy", sys::path::parent_path(BundlerExecutable));
+    if (Objcopy.getError()) {
+      errs() << "error: unable to find 'llvm-objcopy' in path.\n";
       return true;
     }
 
-    // Dump the contents of the temporary file if that was requested.
-    if (DumpTemporaryFiles) {
-      errs() << ";\n; Object file bundler IR file.\n;\n";
-      AuxModule.get()->print(errs(), nullptr,
-                             /*ShouldPreserveUseListOrder=*/false,
-                             /*IsForDebug=*/true);
-      errs() << '\n';
-    }
-
-    // Find clang in order to create the bundle binary.
-    StringRef Dir = sys::path::parent_path(BundlerExecutable);
-
-    auto ClangBinary = sys::findProgramByName("clang", Dir);
-    if (ClangBinary.getError()) {
-      // Remove bitcode file.
-      sys::fs::remove(BitcodeFileName);
-
-      errs() << "error: unable to find 'clang' in path.\n";
-      return true;
-    }
-
-    // Do the incremental linking. We write to the output file directly. So, we
-    // close it and use the name to pass down to clang.
+    // We write to the output file directly. So, we close it and use the name
+    // to pass down to llvm-objcopy.
     OS.close();
-    SmallString<128> TargetName = getTriple(TargetNames[HostInputIndex]);
-    std::vector<StringRef> ClangArgs = {"clang",
-                                        "-r",
-                                        "-target",
-                                        TargetName.c_str(),
-                                        "-o",
-                                        OutputFileNames.front().c_str(),
-                                        InputFileNames[HostInputIndex].c_str(),
-                                        BitcodeFileName.c_str(),
-                                        "-nostdlib"};
+
+    // Temp files that need to be removed.
+    struct Dummy : public SmallVector<std::string, 8u> {
+      ~Dummy() {
+        if (!SaveTemporaryFiles)
+          for (const auto &File : *this)
+            sys::fs::remove(File);
+        clear();
+      }
+    } TempFiles;
+
+    // Helper lambda that creates temporary file with given contents.
+    auto CreateTempFile =
+        [&TempFiles](ArrayRef<char> Contents) -> Optional<std::string> {
+      SmallString<128u> FileName;
+      if (sys::fs::createTemporaryFile("clang-offload-bundler", "tmp",
+                                       FileName)) {
+        errs() << "error: unable to create temporary file.\n";
+        return {};
+      }
+
+      TempFiles.push_back(FileName.c_str());
+
+      std::error_code EC;
+      raw_fd_ostream HostFile(FileName, EC);
+      if (EC) {
+        errs() << "can't open file for writing" << FileName << ": "
+               << EC.message() << "\n";
+        return {};
+      }
+      HostFile.write(Contents.data(), Contents.size());
+      return TempFiles.back();
+    };
+
+    // Create temp file with zero char for the host object section.
+    char Byte[] = {0};
+    auto DummyHostFile = CreateTempFile(Byte);
+    if (!DummyHostFile)
+      return true;
+
+    // Compose command line for the objcopy tool.
+    SmallVector<std::string, 16u> ObjcopyArgs = {"llvm-objcopy"};
+    for (unsigned I = 0; I < NumberOfInputs; ++I) {
+      const auto &Triple = TargetNames[I];
+      const auto &InputFile =
+          I == HostInputIndex ? DummyHostFile.getValue() : InputFileNames[I];
+
+      // Add section with target object.
+      ObjcopyArgs.push_back(std::string("--add-section=") +
+                            OFFLOAD_BUNDLER_MAGIC_STR + Triple + "=" +
+                            InputFile);
+
+      // Create temporary file with the section size contents.
+      auto SizeFile = CreateTempFile(makeArrayRef(
+          reinterpret_cast<char *>(&InputSizes[I]), sizeof(InputSizes[I])));
+      if (!SizeFile)
+        return true;
+
+      // And add one more section with target object size.
+      ObjcopyArgs.push_back(std::string("--add-section=") +
+                            SIZE_SECTION_PREFIX + Triple + "=" +
+                            SizeFile.getValue());
+    }
+
+    ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
+    ObjcopyArgs.push_back(OutputFileNames.front());
 
     // If the user asked for the commands to be printed out, we do that instead
     // of executing it.
     if (PrintExternalCommands) {
-      errs() << "\"" << ClangBinary.get() << "\"";
-      for (StringRef Arg : ClangArgs)
+      errs() << "\"" << Objcopy.get() << "\"";
+      for (StringRef Arg : ObjcopyArgs)
         errs() << " \"" << Arg << "\"";
       errs() << "\n";
     } else {
-      // Write the bitcode contents to the temporary file.
-      {
-        std::error_code EC;
-        raw_fd_ostream BitcodeFile(BitcodeFileName, EC, sys::fs::F_None);
-        if (EC) {
-          errs() << "error: unable to open temporary file.\n";
-          return true;
-        }
-        WriteBitcodeToFile(*AuxModule, BitcodeFile);
-      }
-
-      bool Failed = sys::ExecuteAndWait(ClangBinary.get(), ClangArgs);
-
-      // Remove bitcode file.
-      sys::fs::remove(BitcodeFileName);
-
-      if (Failed) {
-        errs() << "error: incremental linking by external tool failed.\n";
+      SmallVector<StringRef, 16u> Args;
+      copy(ObjcopyArgs, std::back_inserter(Args));
+      if (sys::ExecuteAndWait(Objcopy.get(), Args)) {
+        errs() << "error: llvm-objcopy tool failed.\n";
         return true;
       }
     }
@@ -810,50 +809,7 @@ public:
     return false;
   }
 
-  void WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) final {
-    Module *M = AuxModule.get();
-
-    // Create the new section name, it will consist of the reserved prefix
-    // concatenated with the triple.
-    std::string SectionName = OFFLOAD_BUNDLER_MAGIC_STR;
-    SectionName += CurrentTriple;
-
-    // Create the constant with the content of the section. For the input we are
-    // bundling into (the host input), this is just a place-holder, so a single
-    // byte is sufficient.
-    assert(HostInputIndex != ~0u && "Host input index undefined??");
-    Constant *Content;
-
-    if (NumberOfProcessedInputs == HostInputIndex + 1) {
-      uint8_t Byte[] = {0};
-      Content = ConstantDataArray::get(VMContext, Byte);
-    } else
-      Content = ConstantDataArray::get(
-          VMContext, ArrayRef<uint8_t>(reinterpret_cast<const uint8_t *>(
-                                           Input.getBufferStart()),
-                                       Input.getBufferSize()));
-
-    // Create the global in the desired section. We don't want these globals in
-    // the symbol table, so we mark them private.
-    auto *GV = new GlobalVariable(*M, Content->getType(), /*IsConstant=*/true,
-                                  GlobalVariable::PrivateLinkage, Content);
-    GV->setSection(SectionName);
-    // Set alignment to 1 to avoid gaps between concatenated sections after
-    // linkage of a number of fat objects:
-    GV->setAlignment(1);
-
-    // Now add a section with the data section size
-    ConstantDataArray *CDA = reinterpret_cast<ConstantDataArray *>(Content);
-    auto *BufSize =
-        ConstantInt::get(getSectionSizeTy(VMContext),
-                         CDA->getNumElements() * CDA->getElementByteSize());
-    auto *SizeV =
-        new GlobalVariable(*M, Type::getInt64Ty(VMContext), /*IsConstant=*/true,
-                           GlobalVariable::PrivateLinkage, BufSize);
-    SizeV->setSection(
-        (Twine(SIZE_SECTION_PREFIX) + Twine(CurrentTriple)).str());
-    SizeV->setAlignment(1);
-  }
+  void WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) final {}
 };
 
 /// Handler for text files. The bundled file will have the following format.
@@ -956,6 +912,154 @@ public:
   }
 };
 
+static void fatalError(std::error_code EC, Twine Context = "") {
+  auto Msg = Context.str();
+  if (!Msg.empty())
+    Msg += ": " + EC.message();
+  report_fatal_error(Msg);
+}
+
+static void fatalError(Error E, Twine Context = "") {
+  handleAllErrors(std::move(E), [&](const ErrorInfoBase &EIB) {
+    auto Msg = Context.str();
+    if (!Msg.empty())
+      Msg += ": " + EIB.message();
+    report_fatal_error(Msg);
+  });
+}
+
+/// Archive file handler. Only unbundling is supported so far.
+class ArchiveFileHandler final : public FileHandler {
+  /// Archive we are dealing with.
+  std::unique_ptr<Archive> Ar;
+
+  /// Union of bundle names from all object.
+  StringSet<> Bundles;
+
+  /// Iterators over the bundle names.
+  StringSet<>::iterator CurrBundle = Bundles.end();
+  StringSet<>::iterator NextBundle = Bundles.end();
+
+public:
+  ArchiveFileHandler() = default;
+  ~ArchiveFileHandler() = default;
+
+  void ReadHeader(MemoryBuffer &Input) override {
+    // Create archive instance for the given input.
+    auto ArOrErr = Archive::create(Input);
+    if (!ArOrErr)
+      fatalError(ArOrErr.takeError());
+    Ar = std::move(*ArOrErr);
+
+    // Read all children.
+    Error Err = Error::success();
+    for (auto &C : Ar->children(Err)) {
+      auto BinOrErr = C.getAsBinary();
+      if (!BinOrErr)
+        fatalError(BinOrErr.takeError());
+
+      auto &Bin = BinOrErr.get();
+      if (!Bin->isObject())
+        continue;
+
+      auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+      auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+
+      // Collect the list of bundles from the object.
+      ObjectFileHandler OFH(std::move(Obj));
+      OFH.ReadHeader(*Buf);
+
+      for (auto TT = OFH.ReadBundleStart(*Buf); !TT.empty();
+           TT = OFH.ReadBundleStart(*Buf))
+        Bundles.insert(TT);
+    }
+    if (Err)
+      fatalError(std::move(Err));
+
+    CurrBundle = Bundles.end();
+    NextBundle = Bundles.begin();
+  }
+
+  StringRef ReadBundleStart(MemoryBuffer &Input) override {
+    if (NextBundle == Bundles.end())
+      return "";
+    CurrBundle = NextBundle++;
+    return CurrBundle->first();
+  }
+
+  void ReadBundleEnd(MemoryBuffer &Input) override {}
+
+  void ReadBundle(StringRef OutName, MemoryBuffer &Input) override {
+    // Archive unbundling produces multiple files, so output file is a file list
+    // where we write the unbundled object names.
+    std::error_code EC;
+    raw_fd_ostream OS(OutName, EC);
+    if (EC)
+      fatalError(EC, Twine("can't open file for writing ") + OutName);
+
+    // Read all children.
+    Error Err = Error::success();
+    for (auto &C : Ar->children(Err)) {
+      auto BinOrErr = C.getAsBinary();
+      if (!BinOrErr)
+        fatalError(BinOrErr.takeError());
+
+      auto &Bin = BinOrErr.get();
+      if (!Bin->isObject())
+        continue;
+
+      auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+      auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+
+      ObjectFileHandler OFH(std::move(Obj));
+      OFH.ReadHeader(*Buf);
+      for (auto TT = OFH.ReadBundleStart(*Buf); !TT.empty();
+           TT = OFH.ReadBundleStart(*Buf)) {
+        if (TT != CurrBundle->first())
+          continue;
+
+        // This is the bundle we are looking for. Created temporary file
+        // where the device part will be extracted.
+        SmallString<128u> ChildFileName;
+        auto EC =
+            sys::fs::createTemporaryFile(TempFileNameBase, "o", ChildFileName);
+        if (EC)
+          fatalError(EC, "can't create temporary file");
+
+        // And extract the bundle.
+        OFH.ReadBundle(ChildFileName, *Buf);
+        OFH.ReadBundleEnd(*Buf);
+
+        // Add temporary file name with the device part to the output file list.
+        OS << ChildFileName << "\n";
+      }
+    }
+    if (Err)
+      fatalError(std::move(Err));
+  }
+
+  void ReadBundle(raw_fd_ostream &OS, MemoryBuffer &Input) override {
+    llvm_unreachable("must not be called for the ArchiveFileHandler");
+  }
+
+  void WriteHeader(raw_fd_ostream &OS,
+                   ArrayRef<std::unique_ptr<MemoryBuffer>> Inputs) override {
+    llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+
+  void WriteBundleStart(raw_fd_ostream &OS, StringRef TargetTriple) override {
+    llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+
+  bool WriteBundleEnd(raw_fd_ostream &OS, StringRef TargetTriple) override {
+    llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+
+  void WriteBundle(raw_fd_ostream &OS, MemoryBuffer &Input) override {
+    llvm_unreachable("unsupported for the ArchiveFileHandler");
+  }
+};
+
 /// Return an appropriate object file handler. We use the specific object
 /// handler if we know how to deal with that format, otherwise we use a default
 /// binary file handler.
@@ -1001,6 +1105,8 @@ static FileHandler *CreateFileHandler(MemoryBuffer &FirstInput) {
     return new BinaryFileHandler();
   if (FilesType == "ast")
     return new BinaryFileHandler();
+  if (FilesType == "ao")
+    return new ArchiveFileHandler();
 
   errs() << "error: invalid file type specified.\n";
   return nullptr;
@@ -1009,6 +1115,11 @@ static FileHandler *CreateFileHandler(MemoryBuffer &FirstInput) {
 /// Bundle the files. Return true if an error was found.
 static bool BundleFiles() {
   std::error_code EC;
+
+  if (FilesType == "ao") {
+    errs() << "error: bundling is not supported for archives\n";
+    return true;
+  }
 
   // Create output file.
   raw_fd_ostream OutputFile(OutputFileNames.front(), EC, sys::fs::F_None);
@@ -1104,16 +1215,15 @@ static bool UnbundleFiles() {
       break;
 
     auto Output = Worklist.find(CurTriple);
-    // The file may have more bundles for other targets, that we don't care
-    // about. Therefore, move on to the next triple
-    if (Output == Worklist.end()) {
-      continue;
-    }
 
-    // Check if the output file can be opened and copy the bundle to it.
-    FH->ReadBundle(Output->second, Input);
+    // Read the bundle if triple is included in targets
+    if (Output != Worklist.end()) {
+      // Check if the output file can be opened and copy the bundle to it.
+      FH->ReadBundle(Output->second, Input);
+      Worklist.erase(Output);
+    }
+    
     FH->ReadBundleEnd(Input);
-    Worklist.erase(Output);
 
     // Record if we found the host bundle.
     if (hasHostKind(CurTriple))
@@ -1132,8 +1242,9 @@ static bool UnbundleFiles() {
         return true;
       }
 
-      // If this entry has a host kind, copy the input file to the output file.
-      if (hasHostKind(E.first()))
+      // If this entry has a host kind, copy the input file to the output file
+      // except for the archive unbundling where output is a list file.
+      if (hasHostKind(E.first()) && FilesType != "ao")
         OutputFile.write(Input.getBufferStart(), Input.getBufferSize());
     }
     return false;
@@ -1159,6 +1270,51 @@ static bool UnbundleFiles() {
   return false;
 }
 
+// Unbundle the files. Return true if an error was found.
+static bool CheckBundledSection() {
+  const StringRef InputFileName = InputFileNames.front();
+  // Open Input file.
+  ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
+      MemoryBuffer::getFileOrSTDIN(InputFileName);
+  if (std::error_code EC = CodeOrErr.getError()) {
+    errs() << "error: Can't open file " << InputFileName << ": " << EC.message()
+           << "\n";
+    return true;
+  }
+  MemoryBuffer &Input = *CodeOrErr.get();
+
+  // Select the right files handler.
+  std::unique_ptr<FileHandler> FH;
+  FH.reset(CreateFileHandler(Input));
+
+  // Quit if we don't have a handler.
+  if (!FH.get())
+    return true;
+
+  // Seed temporary filename generation with the stem of the input file.
+  FH->SetTempFileNameBase(llvm::sys::path::stem(InputFileName));
+
+  // Read the header of the bundled file.
+  FH->ReadHeader(Input);
+  StringRef triple = TargetNames.front();
+  // Read all the bundles that are in the work list. If we find no bundles we
+  // assume the file is meant for the host target.
+  bool found = false;
+  while (!found) {
+    StringRef CurTriple = FH->ReadBundleStart(Input);
+    // We don't have more bundles.
+    if (CurTriple.empty())
+      break;
+
+    if(CurTriple == triple) {
+      found = true;
+    }
+    FH->ReadBundleEnd(Input);
+  }
+  return found;
+}
+
+
 static void PrintVersion(raw_ostream &OS) {
   OS << clang::getClangToolFullVersion("clang-offload-bundler") << '\n';
 }
@@ -1180,8 +1336,30 @@ int main(int argc, const char **argv) {
     return 0;
   }
 
+  if(Unbundle && CheckSection) {
+    errs() << "error: -unbundle and -check-section are not compatible options.\n";
+    return 1;
+  }
+
   bool Error = false;
-  if (Unbundle) {
+
+  // -check-section
+  if(CheckSection) {
+    if (InputFileNames.size() != 1) {
+      Error = true;
+      errs() << "error: only one input file supported in checking mode.\n";
+    }
+    if (TargetNames.size() != 1) {
+      Error = true;
+      errs() << "error: only one target supported in checking mode.\n";
+    }
+    if (OutputFileNames.size() != 0) {
+      Error = true;
+      errs() << "error: no output file supported in checking mode.\n";
+    }
+  }
+  // -unbundle
+  else if (Unbundle) {
     if (InputFileNames.size() != 1) {
       Error = true;
       errs() << "error: only one input file supported in unbundling mode.\n";
@@ -1191,7 +1369,9 @@ int main(int argc, const char **argv) {
       errs() << "error: number of output files and targets should match in "
                 "unbundling mode.\n";
     }
-  } else {
+  }
+  // no explicit option: bundle
+  else {
     if (OutputFileNames.size() != 1) {
       Error = true;
       errs() << "error: only one output file supported in bundling mode.\n";
@@ -1218,7 +1398,8 @@ int main(int argc, const char **argv) {
                                      .Case("openmp", true)
                                      .Case("hip", true)
                                      .Case("sycl", true)
-                                     .Default(false);
+                                     .Case("fpga", true)
+                                     .Default(false);                           
 
     bool TripleIsValid = !Triple.empty();
     llvm::Triple T(Triple);
@@ -1244,7 +1425,7 @@ int main(int argc, const char **argv) {
     ++Index;
   }
 
-  if (HostTargetNum != 1) {
+  if (!CheckSection && HostTargetNum != 1) {
     Error = true;
     errs() << "error: expecting exactly one host target but got "
            << HostTargetNum << ".\n";
@@ -1257,5 +1438,6 @@ int main(int argc, const char **argv) {
   // tools.
   BundlerExecutable = sys::fs::getMainExecutable(argv[0], &BundlerExecutable);
 
+  if(CheckSection) return !CheckBundledSection();
   return Unbundle ? UnbundleFiles() : BundleFiles();
 }

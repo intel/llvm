@@ -64,19 +64,21 @@ template <typename T> cl_int inline __Any(T x) { return d::msbIsSet(x); }
 template <typename T> cl_int inline __All(T x) { return d::msbIsSet(x); }
 
 template <typename T> inline T __vOrdered(T x, T y) {
-  return -(!(std::isunordered(x, y)));
+  return -(
+      !(std::isunordered(d::cast_if_host_half(x), d::cast_if_host_half(y))));
 }
 
 template <typename T> inline T __sOrdered(T x, T y) {
-  return !(std::isunordered(x, y));
+  return !(std::isunordered(d::cast_if_host_half(x), d::cast_if_host_half(y)));
 }
 
 template <typename T> inline T __vUnordered(T x, T y) {
-  return -(static_cast<T>(std::isunordered(x, y)));
+  return -(static_cast<T>(
+      std::isunordered(d::cast_if_host_half(x), d::cast_if_host_half(y))));
 }
 
 template <typename T> inline T __sUnordered(T x, T y) {
-  return std::isunordered(x, y);
+  return std::isunordered(d::cast_if_host_half(x), d::cast_if_host_half(y));
 }
 
 template <typename T>
@@ -268,9 +270,11 @@ cl_int __vIsFinite(s::cl_float x) __NOEXC {
 cl_long __vIsFinite(s::cl_double x) __NOEXC {
   return -static_cast<cl_long>(std::isfinite(x));
 }
-cl_int IsFinite(s::cl_half x) __NOEXC { return std::isfinite(x); }
+cl_int IsFinite(s::cl_half x) __NOEXC {
+  return std::isfinite(d::cast_if_host_half(x));
+}
 cl_short __vIsFinite(s::cl_half x) __NOEXC {
-  return -static_cast<cl_int>(std::isfinite(x));
+  return -static_cast<cl_int>(std::isfinite(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(IsFinite, __vIsFinite, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(IsFinite, __vIsFinite, s::cl_long, s::cl_double)
@@ -285,9 +289,11 @@ cl_int __vIsInf(s::cl_float x) __NOEXC {
 cl_long __vIsInf(s::cl_double x) __NOEXC {
   return -static_cast<cl_long>(std::isinf(x));
 }
-cl_int IsInf(s::cl_half x) __NOEXC { return std::isinf(x); }
+cl_int IsInf(s::cl_half x) __NOEXC {
+  return std::isinf(d::cast_if_host_half(x));
+}
 cl_short __vIsInf(s::cl_half x) __NOEXC {
-  return -static_cast<cl_short>(std::isinf(x));
+  return -static_cast<cl_short>(std::isinf(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(IsInf, __vIsInf, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(IsInf, __vIsInf, s::cl_long, s::cl_double)
@@ -303,9 +309,11 @@ cl_long __vIsNan(s::cl_double x) __NOEXC {
   return -static_cast<cl_long>(std::isnan(x));
 }
 
-cl_int IsNan(s::cl_half x) __NOEXC { return std::isnan(x); }
+cl_int IsNan(s::cl_half x) __NOEXC {
+  return std::isnan(d::cast_if_host_half(x));
+}
 cl_short __vIsNan(s::cl_half x) __NOEXC {
-  return -static_cast<cl_short>(std::isnan(x));
+  return -static_cast<cl_short>(std::isnan(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(IsNan, __vIsNan, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(IsNan, __vIsNan, s::cl_long, s::cl_double)
@@ -320,9 +328,11 @@ cl_int __vIsNormal(s::cl_float x) __NOEXC {
 cl_long __vIsNormal(s::cl_double x) __NOEXC {
   return -static_cast<cl_long>(std::isnormal(x));
 }
-cl_int IsNormal(s::cl_half x) __NOEXC { return std::isnormal(x); }
+cl_int IsNormal(s::cl_half x) __NOEXC {
+  return std::isnormal(d::cast_if_host_half(x));
+}
 cl_short __vIsNormal(s::cl_half x) __NOEXC {
-  return -static_cast<cl_short>(std::isnormal(x));
+  return -static_cast<cl_short>(std::isnormal(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(IsNormal, __vIsNormal, s::cl_long, s::cl_double)
@@ -368,9 +378,11 @@ cl_int __vSignBitSet(s::cl_float x) __NOEXC {
 cl_long __vSignBitSet(s::cl_double x) __NOEXC {
   return -static_cast<cl_long>(std::signbit(x));
 }
-cl_int SignBitSet(s::cl_half x) __NOEXC { return std::signbit(x); }
+cl_int SignBitSet(s::cl_half x) __NOEXC {
+  return std::signbit(d::cast_if_host_half(x));
+}
 cl_short __vSignBitSet(s::cl_half x) __NOEXC {
-  return -static_cast<cl_short>(std::signbit(x));
+  return -static_cast<cl_short>(std::signbit(d::cast_if_host_half(x)));
 }
 MAKE_1V_FUNC(SignBitSet, __vSignBitSet, s::cl_int, s::cl_float)
 MAKE_1V_FUNC(SignBitSet, __vSignBitSet, s::cl_long, s::cl_double)

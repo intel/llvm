@@ -12,6 +12,8 @@
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
+#include <CL/sycl/exception.hpp>
+#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/property_list.hpp>
 
@@ -87,7 +89,7 @@ public:
     try {
       Event = submit_impl(cgf, self);
     } catch (...) {
-      m_Exceptions.push_back(std::current_exception());
+      m_Exceptions.PushBack(std::current_exception());
       Event = second_queue->submit(cgf, second_queue);
     }
     return Event;
@@ -98,7 +100,7 @@ public:
     try {
       Event = submit_impl(cgf, self);
     } catch (...) {
-      m_Exceptions.push_back(std::current_exception());
+      m_Exceptions.PushBack(std::current_exception());
     }
     return Event;
   }
@@ -121,43 +123,34 @@ public:
     if (m_AsyncHandler && m_Exceptions.size()) {
       m_AsyncHandler(m_Exceptions);
     }
-    m_Exceptions.clear();
+    m_Exceptions.Clear();
   }
 
   RT::PiQueue createQueue() {
-    cl_command_queue_properties CreationFlags = 0;
+    RT::PiQueueProperties CreationFlags = 0;
 
     if (m_SupportOOO) {
-      CreationFlags = CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+      CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
 
     if (m_PropList.has_property<property::queue::enable_profiling>()) {
-      CreationFlags |= CL_QUEUE_PROFILING_ENABLE;
+      CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
     }
 
-    RT::PiResult Error = PI_SUCCESS;
     RT::PiQueue Queue;
     RT::PiContext Context = detail::getSyclObjImpl(m_Context)->getHandleRef();
     RT::PiDevice Device = detail::getSyclObjImpl(m_Device)->getHandleRef();
-#ifdef CL_VERSION_2_0
-    cl_queue_properties CreationFlagProperties[] = {
-        CL_QUEUE_PROPERTIES, CreationFlags, 0};
-    PI_CALL((Queue = RT::piQueueCreate(
-        Context, Device, CreationFlagProperties, &Error), Error));
-#else
-    // TODO: do we really need this old interface into PI and here?
-    Queue = clCreateCommandQueue(Context, m_Device.get(), CreationFlags, &Error);
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CHECK(Error);
-#endif
-    // Tf creating out-of-order queue failed and this property is not
-    // supported(for example, on FPGA), it will return
+    RT::PiResult Error = PI_CALL_RESULT(RT::piQueueCreate(Context, Device,
+        CreationFlags, &Queue));
+
+    // If creating out-of-order queue failed and this property is not
+    // supported (for example, on FPGA), it will return
     // CL_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
-    if (m_SupportOOO && Error == CL_INVALID_QUEUE_PROPERTIES) {
+    if (m_SupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
       m_SupportOOO = false;
       Queue = createQueue();
     } else {
-      CHECK_OCL_CODE(Error);
+      PI_CHECK(Error);
     }
     return Queue;
   }

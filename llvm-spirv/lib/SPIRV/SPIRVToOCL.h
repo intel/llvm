@@ -101,10 +101,19 @@ public:
   /// workgroup/subgroup scope enums.
   std::string getGroupBuiltinPrefix(CallInst *CI);
 
+  /// Transform __spirv_OpAtomicCompareExchange and
+  /// __spirv_OpAtomicCompareExchangeWeak
+  virtual Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) = 0;
+
+  /// Transform __spirv_OpAtomicIIncrement/OpAtomicIDecrement to:
+  /// - OCL2.0: atomic_fetch_add_explicit/atomic_fetch_sub_explicit
+  /// - OCL1.2: atomic_inc/atomic_dec
+  virtual Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) = 0;
+
   /// Transform __spirv_Atomic* to atomic_*.
   ///   __spirv_Atomic*(atomic_op, scope, sema, ops, ...) =>
   ///      atomic_*(atomic_op, ops, ..., order(sema), map(scope))
-  virtual Instruction *visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC);
+  virtual Instruction *visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) = 0;
 
   /// Transform __spirv_MemoryBarrier to:
   /// - OCL2.0: atomic_work_item_fence.__spirv_MemoryBarrier(scope, sema) =>
@@ -116,6 +125,13 @@ public:
   /// - OCL2.0: work_group_barrier or sub_group barrier
   /// - OCL1.2: barrier
   virtual void visitCallSPIRVControlBarrier(CallInst *CI) = 0;
+
+  /// Conduct generic mutations for all atomic builtins
+  virtual CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) = 0;
+
+  /// Transform __spirv_Opcode to ocl-version specific builtin name
+  /// using separate maps for OpenCL 1.2 and OpenCL 2.0
+  virtual Instruction *mutateAtomicName(CallInst *CI, Op OC) = 0;
 
   static char ID;
 

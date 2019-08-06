@@ -18,14 +18,14 @@
 
 using namespace cl::sycl;
 
-constexpr float FLT_EPSILON = 9.77e-4;
+constexpr float flt_epsilon = 9.77e-4;
 
 constexpr size_t N = 100;
 
 template <typename T> void assert_close(const T &C, const float ref) {
   for (size_t i = 0; i < N; i++) {
     float diff = C[i] - ref;
-    assert(std::fabs(diff) < FLT_EPSILON);
+    assert(std::fabs(diff) < flt_epsilon);
   }
 }
 

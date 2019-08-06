@@ -51,6 +51,7 @@ struct kernel_param_desc_t {
   int offset;
 };
 
+#ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() { return 0; }
   static const kernel_param_desc_t &getParamDesc(int Idx) {
@@ -59,6 +60,29 @@ template <class KernelNameType> struct KernelInfo {
   }
   static constexpr const char *getName() { return ""; }
 };
+#else
+template <char...> struct KernelInfoData; // Should this have dummy impl?
+
+// C++14 like index_sequence and make_index_sequence
+// not needed C++14 members (value_type, size) not implemented
+template <class T, T...> struct integer_sequence {};
+template <size_t... I> using index_sequence = integer_sequence<size_t, I...>;
+template <size_t N>
+using make_index_sequence = __make_integer_seq<integer_sequence, size_t, N>;
+
+template <typename T> struct KernelInfoImpl {
+private:
+  static constexpr auto n = __unique_stable_name(T);
+  template <size_t... I>
+  static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
+    return {};
+  }
+
+public:
+  using type = decltype(impl(make_index_sequence<__builtin_strlen(n)>{}));
+};
+template <typename T> using KernelInfo = typename KernelInfoImpl<T>::type;
+#endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
 } // namespace sycl

@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/queue.hpp>
+
 #include <algorithm>
+
 namespace cl {
 namespace sycl {
 queue::queue(const context &syclContext, const device_selector &deviceSelector,

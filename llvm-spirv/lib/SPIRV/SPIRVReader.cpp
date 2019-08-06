@@ -576,7 +576,8 @@ SPIRVToLLVM::getMetadataFromNameAndParameter(std::string Name,
               ConstantInt::get(Type::getInt32Ty(*Context), Parameter))};
 }
 
-void SPIRVToLLVM::setLLVMLoopMetadata(SPIRVLoopMerge *LM, BranchInst *BI) {
+template <typename LoopInstType>
+void SPIRVToLLVM::setLLVMLoopMetadata(LoopInstType *LM, BranchInst *BI) {
   if (!LM)
     return;
   auto Temp = MDNode::getTemporary(*Context, None);
@@ -1358,7 +1359,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto Prev = BR->getPrevious();
     if (Prev && Prev->getOpCode() == OpLoopMerge) {
       auto LM = static_cast<SPIRVLoopMerge *>(Prev);
-      setLLVMLoopMetadata(LM, BI);
+      setLLVMLoopMetadata<SPIRVLoopMerge>(LM, BI);
+    } else if (Prev && Prev->getOpCode() == OpLoopControlINTEL) {
+      auto LCI = static_cast<SPIRVLoopControlINTEL *>(Prev);
+      setLLVMLoopMetadata<SPIRVLoopControlINTEL>(LCI, BI);
     }
     return mapValue(BV, BI);
   }
@@ -1372,7 +1376,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto Prev = BR->getPrevious();
     if (Prev && Prev->getOpCode() == OpLoopMerge) {
       auto LM = static_cast<SPIRVLoopMerge *>(Prev);
-      setLLVMLoopMetadata(LM, BC);
+      setLLVMLoopMetadata<SPIRVLoopMerge>(LM, BC);
+    } else if (Prev && Prev->getOpCode() == OpLoopControlINTEL) {
+      auto LCI = static_cast<SPIRVLoopControlINTEL *>(Prev);
+      setLLVMLoopMetadata<SPIRVLoopControlINTEL>(LCI, BC);
     }
     return mapValue(BV, BC);
   }
@@ -1498,9 +1505,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpVmeImageINTEL:
   case OpLine:
-  case OpSelectionMerge: // OpenCL Compiler does not use this instruction
-  case OpLoopMerge: // Should be translated at OpBranch or OpBranchConditional
-                    // cases
+  case OpSelectionMerge:   // OpenCL Compiler does not use this instruction
+  case OpLoopMerge:        // Should be translated at OpBranch or
+  case OpLoopControlINTEL: // OpBranchConditional cases
     return nullptr;
 
   case OpSwitch: {
@@ -1657,6 +1664,16 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
                                           transValue(VS->getVector2(), F, BB),
                                           ConstantVector::get(Components),
                                           BV->getName(), BB));
+  }
+
+  case OpBitReverse: {
+    auto *BR = static_cast<SPIRVUnary *>(BV);
+    IntegerType *Int32Ty = IntegerType::get(*Context, 32);
+    Function *intr =
+        Intrinsic::getDeclaration(M, llvm::Intrinsic::bitreverse, Int32Ty);
+    auto *Call = CallInst::Create(intr, transValue(BR->getOperand(0), F, BB),
+                                  BR->getName(), BB);
+    return mapValue(BV, Call);
   }
 
   case OpFunctionCall: {
@@ -2493,21 +2510,21 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
             Builder.CreateCall(AnnotationFn, Args);
           }
         }
-      } else {
-        SmallString<256> AnnotStr;
-        generateIntelFPGAAnnotation(BV, AnnotStr);
-        if (!AnnotStr.empty()) {
-          auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
+      }
 
-          auto AnnotationFn =
-              llvm::Intrinsic::getDeclaration(M, Intrinsic::var_annotation);
+      SmallString<256> AnnotStr;
+      generateIntelFPGAAnnotation(BV, AnnotStr);
+      if (!AnnotStr.empty()) {
+        auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
 
-          llvm::Value *Args[] = {
-              Builder.CreateBitCast(V, Int8PtrTyPrivate, V->getName()),
-              Builder.CreateBitCast(GS, Int8PtrTyPrivate), UndefInt8Ptr,
-              UndefInt32};
-          Builder.CreateCall(AnnotationFn, Args);
-        }
+        auto AnnotationFn =
+            llvm::Intrinsic::getDeclaration(M, Intrinsic::var_annotation);
+
+        llvm::Value *Args[] = {
+            Builder.CreateBitCast(V, Int8PtrTyPrivate, V->getName()),
+            Builder.CreateBitCast(GS, Int8PtrTyPrivate), UndefInt8Ptr,
+            UndefInt32};
+        Builder.CreateCall(AnnotationFn, Args);
       }
     }
   }

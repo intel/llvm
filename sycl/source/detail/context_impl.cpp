@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
@@ -90,6 +91,14 @@ context_impl::~context_impl() {
   if (m_OpenCLInterop) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piContextRelease(m_Context));
+  }
+  // Release all programs and kernels created with this context
+  for (auto ProgIt : m_CachedPrograms) {
+    RT::PiProgram ToBeDeleted = ProgIt.second;
+    for (auto KernIt : m_CachedKernels[ToBeDeleted]) {
+      PI_CALL(RT::piKernelRelease(KernIt.second));
+    }
+    PI_CALL(RT::piProgramRelease(ToBeDeleted));
   }
 }
 

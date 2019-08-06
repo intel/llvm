@@ -9,7 +9,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// TODO temporarily disable GPU until regression in Intel Gen driver fixed.
+// R.U.N: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // This test checks hierarchical parallelism invocation APIs, but without any
@@ -46,6 +47,64 @@ struct MyStruct {
   int y;
 };
 
+using AccTy = accessor<int, 1, access::mode::read_write,
+                       cl::sycl::access::target::global_buffer>;
+
+struct PFWIFunctor {
+  PFWIFunctor(size_t wg_chunk, size_t wg_size, size_t wg_offset,
+              size_t range_length, int v, AccTy &dev_ptr)
+      : wg_chunk(wg_chunk), wg_size(wg_size), wg_offset(wg_offset),
+        range_length(range_length), v(v), dev_ptr(dev_ptr) {}
+
+  void operator()(h_item<1> i) {
+    // number of buf elements per work item:
+    size_t wi_chunk = (wg_chunk + wg_size - 1) / wg_size;
+    auto id = i.get_physical_local_id().get(0);
+    if (id >= wg_chunk)
+      return;
+    size_t wi_offset = wg_offset + id * wi_chunk;
+    size_t ub = cl::sycl::min(wi_offset + wi_chunk, range_length);
+
+    for (size_t ind = wi_offset; ind < ub; ind++)
+      dev_ptr[ind] += v;
+  }
+
+  size_t wg_chunk;
+  size_t wg_size;
+  size_t wg_offset;
+  size_t range_length;
+  int v;
+  AccTy &dev_ptr;
+};
+
+struct PFWGFunctor {
+  PFWGFunctor(size_t wg_chunk, size_t range_length, int addend, int n_iter,
+              AccTy &dev_ptr)
+      : wg_chunk(wg_chunk), range_length(range_length), dev_ptr(dev_ptr),
+        addend(addend), n_iter(n_iter) {}
+
+  void operator()(group<1> g) {
+    int v = addend; // to check constant initializer works too
+    size_t wg_offset = wg_chunk * g.get_id(0);
+    size_t wg_size = g.get_local_range(0);
+
+    PFWIFunctor PFWI(wg_chunk, wg_size, wg_offset, range_length, v, dev_ptr);
+
+    for (int cnt = 0; cnt < n_iter; cnt++) {
+      g.parallel_for_work_item(PFWI);
+    }
+  }
+  // Dummy operator '()' to make sure compiler can handle multiple '()'
+  // operators/ and pick the right one for PFWG kernel code generation.
+  void operator()(int ind, int val) { dev_ptr[ind] += val; }
+
+  const size_t wg_chunk;
+  const size_t range_length;
+  const int n_iter;
+  const int addend;
+  AccTy dev_ptr;
+};
+
 int main() {
   constexpr int N_WG = 7;
   constexpr int WG_SIZE_PHYSICAL = 3;
@@ -66,6 +125,8 @@ int main() {
               << "\n";
     {
       // Testcase1
+      // - PFWG kernel and PFWI function are represented as functor objects
+      // - PFWG functor contains extra dummy '()' operator
       // - handler::parallel_for_work_group w/o local size specification +
       //   group::parallel_for_work_item w/o flexible range
       // - h_item::get_global_id
@@ -73,35 +134,18 @@ int main() {
       // dynamically, hence the complex loop bound and index computation.
       std::memset(ptr, 0, range_length * sizeof(ptr[0]));
       buffer<int, 1> buf(ptr, range<1>(range_length));
+      const int addend = 10;
+
       myQueue.submit([&](handler &cgh) {
         auto dev_ptr = buf.get_access<access::mode::read_write>(cgh);
         // number of 'buf' elements per work group:
         size_t wg_chunk = (range_length + N_WG - 1) / N_WG;
-
-        cgh.parallel_for_work_group<class hpar_simple>(
-            range<1>(N_WG), [=](group<1> g) {
-              size_t wg_offset = wg_chunk * g.get_id(0);
-              size_t wg_size = g.get_local_range(0);
-
-              for (int cnt = 0; cnt < N_ITER; cnt++) {
-                g.parallel_for_work_item([&](h_item<1> i) {
-                  // number of buf elements per work item:
-                  size_t wi_chunk = (wg_chunk + wg_size - 1) / wg_size;
-                  auto id = i.get_physical_local_id().get(0);
-                  if (id >= wg_chunk)
-                    return;
-                  size_t wi_offset = wg_offset + id * wi_chunk;
-                  size_t ub = cl::sycl::min(wi_offset + wi_chunk, range_length);
-
-                  for (size_t ind = wi_offset; ind < ub; ind++)
-                    dev_ptr[ind]++;
-                });
-              }
-            });
+        PFWGFunctor PFWG(wg_chunk, range_length, addend, N_ITER, dev_ptr);
+        cgh.parallel_for_work_group(range<1>(N_WG), PFWG);
       });
       auto ptr1 = buf.get_access<access::mode::read>().get_pointer();
-      passed &=
-          verify(1, range_length, ptr1, [&](int i) -> int { return N_ITER; });
+      passed &= verify(1, range_length, ptr1,
+                       [&](int i) -> int { return N_ITER * addend; });
     }
 
     {

@@ -449,6 +449,18 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
         Builder.defineMacro("__FAST_RELAXED_MATH__");
     }
   }
+
+  // SYCL Version is set to a value when building SYCL applications
+  switch (LangOpts.getSYCLVersion()) {
+    case LangOptions::SYCLVersionList::sycl_1_2_1:
+      Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
+      break;
+    case LangOptions::SYCLVersionList::undefined:
+    default:
+      // This is not a SYCL source, nothing to add
+      break;
+  }
+
   // Not "standard" per se, but available even with the -undef flag.
   if (LangOpts.AsmPreprocessor)
     Builder.defineMacro("__ASSEMBLER__");
@@ -1065,6 +1077,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     if (!getenv("DISABLE_INFER_AS"))
       Builder.defineMacro("__SYCL_ENABLE_INFER_AS__", "1");
   }
+  if (LangOpts.SYCLUnnamedLambda)
+    Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");
 
   // OpenCL definitions.
   if (LangOpts.OpenCL) {

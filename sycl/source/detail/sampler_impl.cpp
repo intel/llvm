@@ -42,11 +42,9 @@ sampler_impl::~sampler_impl() {
 }
 
 RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
-  RT::PiResult errcode_ret = PI_SUCCESS;
   if (m_contextToSampler[Context])
     return m_contextToSampler[Context];
 
-#if CL_TARGET_OPENCL_VERSION > 120
   const cl_sampler_properties sprops[] = {
       CL_SAMPLER_NORMALIZED_COORDS,
       static_cast<cl_sampler_properties>(m_CoordNormMode),
@@ -56,24 +54,17 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
       static_cast<cl_sampler_properties>(m_FiltMode),
       0};
 
-  PI_CALL((m_contextToSampler[Context] = RT::piSamplerCreate(
-      getSyclObjImpl(Context)->getHandleRef(), sprops, &errcode_ret),
-      errcode_ret));
+  RT::PiResult errcode_ret = PI_SUCCESS;
+  RT::PiSampler resultSampler = nullptr;
+  PI_CALL_RESULT((errcode_ret = RT::piSamplerCreate(
+      getSyclObjImpl(Context)->getHandleRef(), sprops, &resultSampler)));
 
   if (errcode_ret == PI_INVALID_OPERATION)
-      throw feature_not_supported("Images are not supported by this device.");
-#else
-  // TODO: do we really need this old interface into PI and here?
-  cl_int cl_errcode_ret;
-  m_contextToSampler[Context] =
-      clCreateSampler(getSyclObjImpl(Context)->getHandleRef(),
-                      static_cast<cl_bool>(m_CoordNormMode),
-                      static_cast<cl_addressing_mode>(m_AddrMode),
-                      static_cast<cl_filter_mode>(m_FiltMode), &cl_errcode_ret);
-  if (cl_errcode_ret == CL_INVALID_OPERATION)
-      throw feature_not_supported("Images are not supported by this device.");
-  PI_CHECK(cl_errcode_ret);
-#endif
+    throw feature_not_supported("Images are not supported by this device.");
+
+  PI_CHECK(errcode_ret);
+  m_contextToSampler[Context] = resultSampler;
+
   return m_contextToSampler[Context];
 }
 

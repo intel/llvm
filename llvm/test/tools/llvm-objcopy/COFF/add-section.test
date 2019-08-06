@@ -1,0 +1,114 @@
+# RUN: yaml2obj %s > %t
+# RUN: echo DEADBEEF > %t.sec
+# RUN: llvm-objcopy --add-section=.test.section=%t.sec %t %t1
+# RUN: llvm-readobj --file-headers --sections --section-data %t1 | FileCheck %s
+
+# CHECK: SectionCount: 5
+# CHECK: Name: .text
+# CHECK: Name: .bss
+# CHECK: Name: .comdat
+# CHECK: Name: .associative
+# CHECK: Name: .test.section
+# CHECK:    Characteristics [
+# CHECK-NEXT:      IMAGE_SCN_ALIGN_1BYTES
+# CHECK-NEXT:      IMAGE_SCN_CNT_INITIALIZED_DATA
+# CHECK-NEXT:    ]
+# CHECK:    SectionData (
+# CHECK-NEXT:      0000: {{.+}}|DEADBEEF{{.+}}|
+# CHECK-NEXT:    )
+
+--- !COFF
+header:
+  Machine:         IMAGE_FILE_MACHINE_AMD64
+  Characteristics: [  ]
+sections:
+  - Name:            .text
+    Characteristics: [  ]
+    Alignment:       4
+    SectionData:     488B0500000000C3
+    Relocations:
+      - VirtualAddress:  3
+        SymbolName:      foo
+        Type:            IMAGE_REL_AMD64_REL32
+  - Name:            .bss
+    Characteristics: [  ]
+    Alignment:       4
+    SectionData:     ''
+  - Name:            .comdat
+    Characteristics: [ IMAGE_SCN_LNK_COMDAT ]
+    Alignment:       1
+    SectionData:     '2A000000'
+  - Name:            .associative
+    Characteristics: [ IMAGE_SCN_LNK_COMDAT ]
+    Alignment:       1
+    SectionData:     '0000000000000000'
+symbols:
+  - Name:            '@feat.00'
+    Value:           0
+    SectionNumber:   -1
+    SimpleType:      IMAGE_SYM_TYPE_NULL
+    ComplexType:     IMAGE_SYM_DTYPE_NULL
+    StorageClass:    IMAGE_SYM_CLASS_STATIC
+  - Name:            .text
+    Value:           0
+    SectionNumber:   1
+    SimpleType:      IMAGE_SYM_TYPE_NULL
+    ComplexType:     IMAGE_SYM_DTYPE_NULL
+    StorageClass:    IMAGE_SYM_CLASS_STATIC
+    SectionDefinition:
+      Length:          8
+      NumberOfRelocations: 1
+      NumberOfLinenumbers: 0
+      CheckSum:        583624169
+      Number:          1
+  - Name:            .bss
+    Value:           0
+    SectionNumber:   2
+    SimpleType:      IMAGE_SYM_TYPE_NULL
+    ComplexType:     IMAGE_SYM_DTYPE_NULL
+    StorageClass:    IMAGE_SYM_CLASS_STATIC
+    SectionDefinition:
+      Length:          0
+      NumberOfRelocations: 0
+      NumberOfLinenumbers: 0
+      CheckSum:        0
+      Number:          2
+  - Name:            .associative
+    Value:           0
+    SectionNumber:   4
+    SimpleType:      IMAGE_SYM_TYPE_NULL
+    ComplexType:     IMAGE_SYM_DTYPE_NULL
+    StorageClass:    IMAGE_SYM_CLASS_STATIC
+    SectionDefinition:
+      Length:          8
+      NumberOfRelocations: 0
+      NumberOfLinenumbers: 0
+      CheckSum:        0
+      Number:          3
+      Selection:       IMAGE_COMDAT_SELECT_ASSOCIATIVE
+  - Name:            .comdat
+    Value:           0
+    SectionNumber:   3
+    SimpleType:      IMAGE_SYM_TYPE_NULL
+    ComplexType:     IMAGE_SYM_DTYPE_NULL
+    StorageClass:    IMAGE_SYM_CLASS_STATIC
+    SectionDefinition:
+      Length:          4
+      NumberOfRelocations: 0
+      NumberOfLinenumbers: 0
+      CheckSum:        3482275674
+      Number:          3
+      Selection:       IMAGE_COMDAT_SELECT_ANY
+  - Name:            foo
+    Value:           0
+    SectionNumber:   3
+    SimpleType:      IMAGE_SYM_TYPE_NULL
+    ComplexType:     IMAGE_SYM_DTYPE_NULL
+    StorageClass:    IMAGE_SYM_CLASS_EXTERNAL
+  - Name:            main
+    Value:           0
+    SectionNumber:   1
+    SimpleType:      IMAGE_SYM_TYPE_NULL
+    ComplexType:     IMAGE_SYM_DTYPE_NULL
+    StorageClass:    IMAGE_SYM_CLASS_EXTERNAL
+...
