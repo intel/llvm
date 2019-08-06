@@ -24,8 +24,8 @@ static Command *getCommand(const EventImplPtr &Event) {
 std::vector<EventImplPtr>
 Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
   Command *Cmd = getCommand(Event);
-  // We can't iterate through the empty command. It can be empty if Event was
-  // created with default constructor and was not initialized after)
+  // Command can be nullptr if user creates cl::sycl::event explicitly,
+  // as such event is not mapped to any SYCL task.
   if (!Cmd)
     return {};
   std::vector<EventImplPtr> Result;
