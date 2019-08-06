@@ -1382,8 +1382,28 @@ void SYCLIntegrationHeader::emitForwardClassDecls(
         }
         break;
       }
-      case TemplateArgument::ArgKind::Template:
-        llvm_unreachable("template template arguments not supported");
+      case TemplateArgument::ArgKind::Template: {
+        // recursion is not required, since the maximum possible nesting level
+        // equals two for template argument
+        //
+        // for example:
+        //   template <typename T> class Bar;
+        //   template <template <typename> class> class Baz;
+        //   template <template <template <typename> class> class T> 
+        //   class Foo;
+        //
+        // The Baz is a template class. The Baz<Bar> is a class. The class Foo
+        // should be specialized with template class, not a class. The correct
+        // specialization of template class Foo is Foo<Baz>. The incorrect 
+        // specialization of template class Foo is Foo<Baz<Bar>>. In this case
+        // template class Foo specialized by class Baz<Bar>, not a template 
+        // class template <template <typename> class> class T as it should.
+        TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl();
+        if (Printed.insert(TD).second) {
+          emitFwdDecl(O, TD);
+        }
+        break;
+      }
       default:
         break; // nop
       }
