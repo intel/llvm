@@ -44,6 +44,10 @@ namespace pi {
   using PiMemFlags             = ::pi_mem_flags;
   using PiEvent                = ::pi_event;
   using PiSampler              = ::pi_sampler;
+  using PiSamplerInfo          = ::pi_sampler_info;
+  using PiSamplerProperties    = ::pi_sampler_properties;
+  using PiAddressingMode       = ::pi_addressing_mode;
+  using PiFilterMode           = ::pi_filter_mode;
   using PiMemImageFormat       = ::pi_image_format;
   using PiMemImageDesc         = ::pi_image_desc;
   using PiMemImageInfo         = ::pi_image_info;
