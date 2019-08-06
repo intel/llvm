@@ -32,8 +32,6 @@ int main(int argc, char** argv) {
     preferCPU = false;
   }
   
-  CLUSM* clusm = GetCLUSM();
-
   cl_device_type  deviceType =
     (preferCPU)
     ? CL_DEVICE_TYPE_CPU
@@ -70,6 +68,8 @@ int main(int argc, char** argv) {
     &errorCode);
 
   if (errorCode != CL_SUCCESS) return 4;
+
+  CLUSM* clusm = GetCLUSM(context);
 
   cl_command_queue queue = clCreateCommandQueueWithProperties(context,
                                                               device,

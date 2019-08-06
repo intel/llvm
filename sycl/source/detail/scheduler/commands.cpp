@@ -676,36 +676,41 @@ cl_int ExecCGCommand::enqueueImp() {
                                MQueue->get_device())->getHandleRef());
 
     // TODO: Replace CL with PI
-    auto clusm = GetCLUSM();
-    if (usesUSM && clusm) {
-      cl_bool t = CL_TRUE;
-      auto theKernel = pi::pi_cast<cl_kernel>(Kernel);
-      // Enable USM Indirect Access for Kernels
-      if (clusm->useCLUSM()) {
-        CHECK_OCL_CODE(clusm->setKernelExecInfo(
-            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-            sizeof(cl_bool), &t));
-        CHECK_OCL_CODE(clusm->setKernelExecInfo(
-            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-            sizeof(cl_bool), &t));
-        CHECK_OCL_CODE(clusm->setKernelExecInfo(
-            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-            sizeof(cl_bool), &t));
+    if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
+      cl_context context = pi::pi_cast<cl_context>(
+          detail::getSyclObjImpl(Context)->getHandleRef());
+      auto clusm = GetCLUSM(context);
+      if (usesUSM && clusm) {
+        cl_bool t = CL_TRUE;
+        auto theKernel = pi::pi_cast<cl_kernel>(Kernel);
+        // Enable USM Indirect Access for Kernels
+        if (clusm->useCLUSM()) {
+          CHECK_OCL_CODE(clusm->setKernelExecInfo(
+              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+              sizeof(cl_bool), &t));
+          CHECK_OCL_CODE(clusm->setKernelExecInfo(
+              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+              sizeof(cl_bool), &t));
+          CHECK_OCL_CODE(clusm->setKernelExecInfo(
+              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+              sizeof(cl_bool), &t));
 
-        // This passes all the allocations we've tracked as SVM Pointers
-        CHECK_OCL_CODE(clusm->setKernelIndirectUSMExecInfo(
-            pi::pi_cast<cl_command_queue>(MQueue->getHandleRef()), theKernel));
-      } else if (clusm->isInitialized()) {
-        // Sanity check that nothing went wrong setting up clusm
-        CHECK_OCL_CODE(clSetKernelExecInfo(
-            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-            sizeof(cl_bool), &t));
-        CHECK_OCL_CODE(clSetKernelExecInfo(
-            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-            sizeof(cl_bool), &t));
-        CHECK_OCL_CODE(clSetKernelExecInfo(
-            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-            sizeof(cl_bool), &t));
+          // This passes all the allocations we've tracked as SVM Pointers
+          CHECK_OCL_CODE(clusm->setKernelIndirectUSMExecInfo(
+              pi::pi_cast<cl_command_queue>(MQueue->getHandleRef()),
+              theKernel));
+        } else if (clusm->isInitialized()) {
+          // Sanity check that nothing went wrong setting up clusm
+          CHECK_OCL_CODE(clSetKernelExecInfo(
+              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+              sizeof(cl_bool), &t));
+          CHECK_OCL_CODE(clSetKernelExecInfo(
+              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+              sizeof(cl_bool), &t));
+          CHECK_OCL_CODE(clSetKernelExecInfo(
+              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+              sizeof(cl_bool), &t));
+        }
       }
     }
 

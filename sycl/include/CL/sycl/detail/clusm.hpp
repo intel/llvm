@@ -24,10 +24,10 @@ namespace usm {
 
 class CLUSM {
 public:
-  static bool Create(CLUSM *&pCLUSM);
-  static void Delete(CLUSM *&pCLUSM);
+  CLUSM() = default;
+  ~CLUSM() = default;
 
-  void initExtensions(cl_platform_id platform);
+  void initExtensions(cl_context context, cl_platform_id platform);
 
   void *hostMemAlloc(cl_context context, cl_mem_properties_intel *properties,
                      size_t size, cl_uint alignment, cl_int *errcode_ret);
@@ -62,9 +62,6 @@ private:
   bool mEnableCLUSM = true;
   bool mInitialized = false;
   std::mutex mLock;
-
-  CLUSM() = default;
-  ~CLUSM() = default;
 
   struct SUSMAllocInfo {
     SUSMAllocInfo() = default;
@@ -108,23 +105,24 @@ private:
 } // namespace usm
 
 namespace cliext {
-bool initializeExtensions(cl_platform_id platform);
+bool initializeExtensions(cl_context context, cl_platform_id platform);
 } // namespace cliext
 
 } // namespace detail
 } // namespace sycl
 } // namespace cl
 
-__SYCL_EXPORTED extern cl::sycl::detail::usm::CLUSM *gCLUSM;
-inline cl::sycl::detail::usm::CLUSM *GetCLUSM() {
-  if (gCLUSM == nullptr) {
-    cl::sycl::detail::usm::CLUSM::Create(gCLUSM);
-  }
-
+__SYCL_EXPORTED extern std::map<cl_context, cl::sycl::detail::usm::CLUSM *>
+    gCLUSM;
+inline cl::sycl::detail::usm::CLUSM *GetCLUSM(cl_context ctxt) {
   cl::sycl::detail::usm::CLUSM *retVal = nullptr;
+  if (gCLUSM.find(ctxt) == gCLUSM.end()) {
+    gCLUSM[ctxt] = new cl::sycl::detail::usm::CLUSM();
+  };
+
   if (cl::sycl::detail::pi::piUseBackend(
           cl::sycl::detail::pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    retVal = gCLUSM;
+    retVal = gCLUSM[ctxt];
   }
   return retVal;
 }

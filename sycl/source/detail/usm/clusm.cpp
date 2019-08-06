@@ -17,33 +17,19 @@
 #include <stdarg.h>
 #include <time.h> // strdate
 
-cl::sycl::detail::usm::CLUSM *gCLUSM = nullptr;
+std::map<cl_context,cl::sycl::detail::usm::CLUSM *> gCLUSM;
 
 namespace cl {
 namespace sycl {
 namespace detail {
 namespace usm {
 
-bool CLUSM::Create(CLUSM *&pCLUSM) {
-  pCLUSM = new CLUSM();
-  if (pCLUSM) {
-    return true;
-  }
-
-  return false;
-}
-
-void CLUSM::Delete(CLUSM *&pCLUSM) {
-  delete pCLUSM;
-  pCLUSM = nullptr;
-}
-
-void CLUSM::initExtensions(cl_platform_id platform) {
+void CLUSM::initExtensions(cl_context context, cl_platform_id platform) {
   // If OpenCL supports the USM Extension, don't enable CLUSM.
   std::lock_guard<std::mutex> guard(mLock);
 
   if (!mInitialized) {
-    mEnableCLUSM = !cliext::initializeExtensions(platform);
+    mEnableCLUSM = !cliext::initializeExtensions(context, platform);
     mInitialized = true;
   }
 }

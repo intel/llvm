@@ -40,9 +40,12 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
       RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &Err),
       Err));
 
-  if (usm::CLUSM* clusm = GetCLUSM()) {
-    cl_platform_id id = m_Platform.get();
-    clusm->initExtensions(id);
+  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
+    cl_context ctxt =  pi::pi_cast<cl_context>(m_Context);
+    if (usm::CLUSM *clusm = GetCLUSM(ctxt)) {
+      cl_platform_id id = m_Platform.get();
+      clusm->initExtensions(ctxt, id);
+    }
   }
 }
 

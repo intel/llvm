@@ -41,8 +41,6 @@ int main(int argc, char** argv) {
   
   cl_platform_id platform;
   errorCode = clGetPlatformIDs(1, &platform, nullptr);
-
-  GetCLUSM()->initExtensions(platform);
   
   if (errorCode != CL_SUCCESS) return 2;
 
@@ -70,6 +68,8 @@ int main(int argc, char** argv) {
     &errorCode);
 
   if (errorCode != CL_SUCCESS) return 4;
+
+  GetCLUSM(context)->initExtensions(context, platform);
 
   cl_command_queue queue = clCreateCommandQueueWithProperties(context,
                                                               device,
