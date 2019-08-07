@@ -98,6 +98,7 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 // else that has no priority set, or has a priority higher than 2000).
 Scheduler Scheduler::instance __attribute__((init_priority(2000)));
 #else
+#pragma warning(disable:4073)
 #pragma init_seg(lib)
 Scheduler Scheduler::instance;
 #endif
