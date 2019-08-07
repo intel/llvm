@@ -79,6 +79,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 }
 
 EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
+  std::lock_guard<std::mutex> lock(MGraphLock);
   Command *NewCmd = MGraphBuilder.addCopyBack(Req);
   // Command was not creted because there were no operations with
   // buffer.
