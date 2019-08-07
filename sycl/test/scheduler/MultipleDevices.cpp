@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
-// RUN: %t.out
-//===- MultipleDevices.cpp - Test checkking multi-device execution --------===//
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+//===- MultipleDevices.cpp - Test checking multi-device execution --------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
