@@ -66,7 +66,7 @@ using namespace llvm;
 STATISTIC(NumTailCalls, "Number of tail calls");
 
 static cl::opt<bool> ExperimentalVectorWideningLegalization(
-    "x86-experimental-vector-widening-legalization", cl::init(true),
+    "x86-experimental-vector-widening-legalization", cl::init(false),
     cl::desc("Enable an experimental vector type legalization through widening "
              "rather than promotion."),
     cl::Hidden);
@@ -40450,7 +40450,8 @@ static SDValue combineStore(SDNode *N, SelectionDAG &DAG,
   bool NoImplicitFloatOps = F.hasFnAttribute(Attribute::NoImplicitFloat);
   bool F64IsLegal =
       !Subtarget.useSoftFloat() && !NoImplicitFloatOps && Subtarget.hasSSE2();
-  if ((VT == MVT::i64 && F64IsLegal && !Subtarget.is64Bit()) &&
+  if (((VT.isVector() && !VT.isFloatingPoint()) ||
+       (VT == MVT::i64 && F64IsLegal && !Subtarget.is64Bit())) &&
       isa<LoadSDNode>(St->getValue()) &&
       !cast<LoadSDNode>(St->getValue())->isVolatile() &&
       St->getChain().hasOneUse() && !St->isVolatile()) {
@@ -42848,6 +42849,7 @@ static SDValue combineUIntToFP(SDNode *N, SelectionDAG &DAG,
 }
 
 static SDValue combineSIntToFP(SDNode *N, SelectionDAG &DAG,
+                               TargetLowering::DAGCombinerInfo &DCI,
                                const X86Subtarget &Subtarget) {
   // First try to optimize away the conversion entirely when it's
   // conditionally from a constant. Vectors only.
@@ -42877,13 +42879,22 @@ static SDValue combineSIntToFP(SDNode *N, SelectionDAG &DAG,
     unsigned BitWidth = InVT.getScalarSizeInBits();
     unsigned NumSignBits = DAG.ComputeNumSignBits(Op0);
     if (NumSignBits >= (BitWidth - 31)) {
-      EVT TruncVT = EVT::getIntegerVT(*DAG.getContext(), 32);
+      EVT TruncVT = MVT::i32;
       if (InVT.isVector())
         TruncVT = EVT::getVectorVT(*DAG.getContext(), TruncVT,
                                    InVT.getVectorNumElements());
       SDLoc dl(N);
-      SDValue Trunc = DAG.getNode(ISD::TRUNCATE, dl, TruncVT, Op0);
-      return DAG.getNode(ISD::SINT_TO_FP, dl, VT, Trunc);
+      if (DCI.isBeforeLegalize() || TruncVT != MVT::v2i32) {
+        SDValue Trunc = DAG.getNode(ISD::TRUNCATE, dl, TruncVT, Op0);
+        return DAG.getNode(ISD::SINT_TO_FP, dl, VT, Trunc);
+      }
+      // If we're after legalize and the type is v2i32 we need to shuffle and
+      // use CVTSI2P.
+      assert(InVT == MVT::v2i64 && "Unexpected VT!");
+      SDValue Cast = DAG.getBitcast(MVT::v4i32, Op0);
+      SDValue Shuf = DAG.getVectorShuffle(MVT::v4i32, dl, Cast, Cast,
+                                          { 0, 2, -1, -1 });
+      return DAG.getNode(X86ISD::CVTSI2P, dl, VT, Shuf);
     }
   }
 
@@ -44481,7 +44492,7 @@ SDValue X86TargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::MLOAD:          return combineMaskedLoad(N, DAG, DCI, Subtarget);
   case ISD::STORE:          return combineStore(N, DAG, DCI, Subtarget);
   case ISD::MSTORE:         return combineMaskedStore(N, DAG, DCI, Subtarget);
-  case ISD::SINT_TO_FP:     return combineSIntToFP(N, DAG, Subtarget);
+  case ISD::SINT_TO_FP:     return combineSIntToFP(N, DAG, DCI, Subtarget);
   case ISD::UINT_TO_FP:     return combineUIntToFP(N, DAG, Subtarget);
   case ISD::FADD:
   case ISD::FSUB:           return combineFaddFsub(N, DAG, Subtarget);
