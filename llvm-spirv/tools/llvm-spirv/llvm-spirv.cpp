@@ -216,11 +216,18 @@ static int convertSPIRV() {
     }
     return 0;
   };
-  if (OutputFile != "-") {
-    std::ofstream OFS(OutputFile);
-    return Action(OFS);
-  } else
+  if (OutputFile == "-")
     return Action(std::cout);
+
+  // Open the output file in binary mode in case we convert text to SPIRV binary
+  if (ToBinary) {
+    std::ofstream OFS(OutputFile, std::ios::binary);
+    return Action(OFS);
+  }
+
+  // Convert SPIRV binary to text
+  std::ofstream OFS(OutputFile);
+  return Action(OFS);
 }
 #endif
 

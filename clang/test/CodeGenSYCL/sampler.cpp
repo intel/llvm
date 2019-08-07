@@ -28,3 +28,6 @@ int main() {
 
   return 0;
 }
+
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows-msvc

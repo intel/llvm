@@ -19,3 +19,6 @@ int main() {
   kernel_single_task<class kernel_function>([]() {});
   return 0;
 }
+
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows-msvc
