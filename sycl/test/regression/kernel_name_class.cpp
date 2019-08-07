@@ -68,6 +68,14 @@ struct Wrapper {
       // 2: Declaration level of the template argument class of the kernel class
       // 3: Definition of the template argument class of the kernel class
 
+      // PD--
+      // bool as kernel name
+      deviceQueue.submit([&](cl::sycl::handler &cgh) {
+        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+        cgh.single_task<bool>([=]() { acc[0] += GOLD; });
+      });
+      ++NumTestCases;
+
       // PI--
       // traditional in-place incomplete type
       deviceQueue.submit([&](cl::sycl::handler &cgh) {
