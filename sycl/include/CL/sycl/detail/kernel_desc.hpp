@@ -23,8 +23,10 @@ class half;
 // half type as _Float16 and it will add _Float16 to integration header if it
 // is used in kernel name template parameters. To avoid errors in host
 // compilation we remove _Float16 from integration header using following macro.
+// Same thing goes about bool type which is defined as _Bool.
 #ifndef __SYCL_DEVICE_ONLY__
 #define _Float16 cl::sycl::detail::half_impl::half
+#define _Bool bool
 #endif
 
 } // namespace half_impl
