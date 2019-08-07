@@ -224,11 +224,11 @@ pi_result OCL(piSamplerCreate)(pi_context context,
   for (std::size_t i = 0; sampler_properties && sampler_properties[i] != 0;
        ++i) {
     if (sampler_properties[i] == PI_SAMPLER_INFO_NORMALIZED_COORDS) {
-      normalizedCoords = (pi_bool)sampler_properties[++i];
+      normalizedCoords = static_cast<pi_bool>(sampler_properties[++i]);
     } else if (sampler_properties[i] == PI_SAMPLER_INFO_ADDRESSING_MODE) {
-      addressingMode = (pi_sampler_addressing_mode)sampler_properties[++i];
+      addressingMode = static_cast<pi_sampler_addressing_mode>(sampler_properties[++i]);
     } else if (sampler_properties[i] == PI_SAMPLER_INFO_FILTER_MODE) {
-      filterMode = (pi_sampler_filter_mode)sampler_properties[++i];
+      filterMode = static_cast<pi_sampler_filter_mode>(sampler_properties[++i]);
     } else {
       PI_ASSERT(false, "Cannot recognize sampler property");
     }
