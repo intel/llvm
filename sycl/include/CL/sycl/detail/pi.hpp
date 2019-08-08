@@ -88,12 +88,12 @@ namespace pi {
   // TODO: replace PiCall completely with this one (PiTrace)
   //
   template <typename T> inline
-  void Print(T val) {
+  void print(T val) {
     std::cout << "<unknown> : " << val;
   }
 
-  template<> inline void Print<> (PiPlatform val) { std::cout << "pi_platform : " << val; }
-  template<> inline void Print<> (PiResult val) {
+  template<> inline void print<> (PiPlatform val) { std::cout << "pi_platform : " << val; }
+  template<> inline void print<> (PiResult val) {
     std::cout << "pi_result : ";
     if (val == PI_SUCCESS)
       std::cout << "PI_SUCCESS";
@@ -101,12 +101,12 @@ namespace pi {
       std::cout << val; 
   }
   
-  inline void PrintArgs(void) {}
+  inline void printArgs(void) {}
   template <typename Arg0, typename... Args>
-  void PrintArgs(Arg0 arg0, Args... args) {
+  void printArgs(Arg0 arg0, Args... args) {
     std::cout << std::endl << "       ";
-    Print(arg0);
-    PrintArgs(std::forward<Args>(args)...);
+    print(arg0);
+    printArgs(std::forward<Args>(args)...);
   }
   
   template <typename FnType>
@@ -124,14 +124,14 @@ namespace pi {
     typename std::result_of<FnType(Args...)>::type
     operator() (Args... args) {
       if (m_TraceEnabled)
-        PrintArgs(args...);
+        printArgs(args...);
 
       piInitialize();
       auto r = m_FnPtr(args...);
 
       if (m_TraceEnabled) {
         std::cout << ") ---> ";
-        std::cout << (Print(r),"") << "\n";
+        std::cout << (print(r),"") << "\n";
       }
       return r;
     }
