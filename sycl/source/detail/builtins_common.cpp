@@ -66,14 +66,15 @@ template <typename T> inline T __sign(T x) {
 
 // --------------- 4.13.5 Common functions. Host implementations ---------------
 // fclamp
-cl_float fclamp(s::cl_float x, s::cl_float minval, s::cl_float maxval) __NOEXC {
+s::cl_float fclamp(s::cl_float x, s::cl_float minval,
+                   s::cl_float maxval) __NOEXC {
   return __fclamp(x, minval, maxval);
 }
-cl_double fclamp(s::cl_double x, s::cl_double minval,
-                 s::cl_double maxval) __NOEXC {
+s::cl_double fclamp(s::cl_double x, s::cl_double minval,
+                    s::cl_double maxval) __NOEXC {
   return __fclamp(x, minval, maxval);
 }
-cl_half fclamp(s::cl_half x, s::cl_half minval, s::cl_half maxval) __NOEXC {
+s::cl_half fclamp(s::cl_half x, s::cl_half minval, s::cl_half maxval) __NOEXC {
   return __fclamp(x, minval, maxval);
 }
 MAKE_1V_2V_3V(fclamp, s::cl_float, s::cl_float, s::cl_float, s::cl_float)
@@ -81,21 +82,23 @@ MAKE_1V_2V_3V(fclamp, s::cl_double, s::cl_double, s::cl_double, s::cl_double)
 MAKE_1V_2V_3V(fclamp, s::cl_half, s::cl_half, s::cl_half, s::cl_half)
 
 // degrees
-cl_float degrees(s::cl_float radians) __NOEXC { return __degrees(radians); }
-cl_double degrees(s::cl_double radians) __NOEXC { return __degrees(radians); }
-cl_half degrees(s::cl_half radians) __NOEXC { return __degrees(radians); }
+s::cl_float degrees(s::cl_float radians) __NOEXC { return __degrees(radians); }
+s::cl_double degrees(s::cl_double radians) __NOEXC {
+  return __degrees(radians);
+}
+s::cl_half degrees(s::cl_half radians) __NOEXC { return __degrees(radians); }
 MAKE_1V(degrees, s::cl_float, s::cl_float)
 MAKE_1V(degrees, s::cl_double, s::cl_double)
 MAKE_1V(degrees, s::cl_half, s::cl_half)
 
 // fmin_common
-cl_float fmin_common(s::cl_float x, s::cl_float y) __NOEXC {
+s::cl_float fmin_common(s::cl_float x, s::cl_float y) __NOEXC {
   return std::fmin(x, y);
 }
-cl_double fmin_common(s::cl_double x, s::cl_double y) __NOEXC {
+s::cl_double fmin_common(s::cl_double x, s::cl_double y) __NOEXC {
   return std::fmin(x, y);
 }
-cl_half fmin_common(s::cl_half x, s::cl_half y) __NOEXC {
+s::cl_half fmin_common(s::cl_half x, s::cl_half y) __NOEXC {
   return std::fmin(x, y);
 }
 MAKE_1V_2V(fmin_common, s::cl_float, s::cl_float, s::cl_float)
@@ -103,13 +106,13 @@ MAKE_1V_2V(fmin_common, s::cl_double, s::cl_double, s::cl_double)
 MAKE_1V_2V(fmin_common, s::cl_half, s::cl_half, s::cl_half)
 
 // fmax_common
-cl_float fmax_common(s::cl_float x, s::cl_float y) __NOEXC {
+s::cl_float fmax_common(s::cl_float x, s::cl_float y) __NOEXC {
   return std::fmax(x, y);
 }
-cl_double fmax_common(s::cl_double x, s::cl_double y) __NOEXC {
+s::cl_double fmax_common(s::cl_double x, s::cl_double y) __NOEXC {
   return std::fmax(x, y);
 }
-cl_half fmax_common(s::cl_half x, s::cl_half y) __NOEXC {
+s::cl_half fmax_common(s::cl_half x, s::cl_half y) __NOEXC {
   return std::fmax(x, y);
 }
 MAKE_1V_2V(fmax_common, s::cl_float, s::cl_float, s::cl_float)
@@ -117,13 +120,13 @@ MAKE_1V_2V(fmax_common, s::cl_double, s::cl_double, s::cl_double)
 MAKE_1V_2V(fmax_common, s::cl_half, s::cl_half, s::cl_half)
 
 // mix
-cl_float mix(s::cl_float x, s::cl_float y, s::cl_float a) __NOEXC {
+s::cl_float mix(s::cl_float x, s::cl_float y, s::cl_float a) __NOEXC {
   return __mix(x, y, a);
 }
-cl_double mix(s::cl_double x, s::cl_double y, s::cl_double a) __NOEXC {
+s::cl_double mix(s::cl_double x, s::cl_double y, s::cl_double a) __NOEXC {
   return __mix(x, y, a);
 }
-cl_half mix(s::cl_half x, s::cl_half y, s::cl_half a) __NOEXC {
+s::cl_half mix(s::cl_half x, s::cl_half y, s::cl_half a) __NOEXC {
   return __mix(x, y, a);
 }
 MAKE_1V_2V_3V(mix, s::cl_float, s::cl_float, s::cl_float, s::cl_float)
@@ -131,35 +134,40 @@ MAKE_1V_2V_3V(mix, s::cl_double, s::cl_double, s::cl_double, s::cl_double)
 MAKE_1V_2V_3V(mix, s::cl_half, s::cl_half, s::cl_half, s::cl_half)
 
 // radians
-cl_float radians(s::cl_float degrees) __NOEXC { return __radians(degrees); }
-cl_double radians(s::cl_double degrees) __NOEXC { return __radians(degrees); }
-cl_half radians(s::cl_half degrees) __NOEXC { return __radians(degrees); }
+s::cl_float radians(s::cl_float degrees) __NOEXC { return __radians(degrees); }
+s::cl_double radians(s::cl_double degrees) __NOEXC {
+  return __radians(degrees);
+}
+s::cl_half radians(s::cl_half degrees) __NOEXC { return __radians(degrees); }
 MAKE_1V(radians, s::cl_float, s::cl_float)
 MAKE_1V(radians, s::cl_double, s::cl_double)
 MAKE_1V(radians, s::cl_half, s::cl_half)
 
 // step
-cl_float step(s::cl_float edge, s::cl_float x) __NOEXC {
+s::cl_float step(s::cl_float edge, s::cl_float x) __NOEXC {
   return __step(edge, x);
 }
-cl_double step(s::cl_double edge, s::cl_double x) __NOEXC {
+s::cl_double step(s::cl_double edge, s::cl_double x) __NOEXC {
   return __step(edge, x);
 }
-cl_half step(s::cl_half edge, s::cl_half x) __NOEXC { return __step(edge, x); }
+s::cl_half step(s::cl_half edge, s::cl_half x) __NOEXC {
+  return __step(edge, x);
+}
 MAKE_1V_2V(step, s::cl_float, s::cl_float, s::cl_float)
 MAKE_1V_2V(step, s::cl_double, s::cl_double, s::cl_double)
 MAKE_1V_2V(step, s::cl_half, s::cl_half, s::cl_half)
 
 // smoothstep
-cl_float smoothstep(s::cl_float edge0, s::cl_float edge1,
-                    s::cl_float x) __NOEXC {
+s::cl_float smoothstep(s::cl_float edge0, s::cl_float edge1,
+                       s::cl_float x) __NOEXC {
   return __smoothstep(edge0, edge1, x);
 }
-cl_double smoothstep(s::cl_double edge0, s::cl_double edge1,
-                     s::cl_double x) __NOEXC {
+s::cl_double smoothstep(s::cl_double edge0, s::cl_double edge1,
+                        s::cl_double x) __NOEXC {
   return __smoothstep(edge0, edge1, x);
 }
-cl_half smoothstep(s::cl_half edge0, s::cl_half edge1, s::cl_half x) __NOEXC {
+s::cl_half smoothstep(s::cl_half edge0, s::cl_half edge1,
+                      s::cl_half x) __NOEXC {
   return __smoothstep(edge0, edge1, x);
 }
 MAKE_1V_2V_3V(smoothstep, s::cl_float, s::cl_float, s::cl_float, s::cl_float)
@@ -168,9 +176,9 @@ MAKE_1V_2V_3V(smoothstep, s::cl_double, s::cl_double, s::cl_double,
 MAKE_1V_2V_3V(smoothstep, s::cl_half, s::cl_half, s::cl_half, s::cl_half)
 
 // sign
-cl_float sign(s::cl_float x) __NOEXC { return __sign(x); }
-cl_double sign(s::cl_double x) __NOEXC { return __sign(x); }
-cl_half sign(s::cl_half x) __NOEXC { return __sign(x); }
+s::cl_float sign(s::cl_float x) __NOEXC { return __sign(x); }
+s::cl_double sign(s::cl_double x) __NOEXC { return __sign(x); }
+s::cl_half sign(s::cl_half x) __NOEXC { return __sign(x); }
 MAKE_1V(sign, s::cl_float, s::cl_float)
 MAKE_1V(sign, s::cl_double, s::cl_double)
 MAKE_1V(sign, s::cl_half, s::cl_half)
