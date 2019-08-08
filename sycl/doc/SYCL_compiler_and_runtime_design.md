@@ -72,7 +72,7 @@ buffer<int, 1> a{range<1>{1024}};
 Q.submit([&](handler& cgh) {
       auto A = a.get_access<access::mode::write>(cgh);
       cgh.parallel_for<init_a>(range<1>{1024}, [=](id<1> index) {
-        A[index] = index[0] * 2 + index[1] + foo(42);
+        A[index] = index[0] * 2 + foo(42);
       });
     }
 ...
