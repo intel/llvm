@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %t.out
 //===- MultipleDevices.cpp - Test checking multi-device execution --------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -11,6 +11,8 @@
 #include <CL/sycl.hpp>
 
 #include <iostream>
+
+#include "../helpers.hpp"
 
 using namespace cl::sycl;
 
@@ -96,10 +98,9 @@ int main() {
   queue MyQueue2(HOSTSelector);
   int Result = -1;
   try {
-    cpu_selector CPUSelector;
-    MyQueue1 = queue(CPUSelector);
+    TestQueue MyQueue1 {default_selector()};
     Result = multidevice_test(MyQueue1, MyQueue2);
-    MyQueue2 = queue(CPUSelector);
+    TestQueue MyQueue2 {default_selector()};
     Result |= multidevice_test(MyQueue1, MyQueue2);
   } catch (cl::sycl::invalid_parameter_error &) {
     std::cout << "Using 2 host devices." << std::endl;
