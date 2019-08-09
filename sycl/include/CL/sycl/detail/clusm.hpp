@@ -27,32 +27,32 @@ public:
   CLUSM() = default;
   ~CLUSM() = default;
 
-  void initExtensions(cl_context context, cl_platform_id platform);
+  void initExtensions(cl_context Context, cl_platform_id Platform);
 
-  void *hostMemAlloc(cl_context context, cl_mem_properties_intel *properties,
-                     size_t size, cl_uint alignment, cl_int *errcode_ret);
-  void *deviceMemAlloc(cl_context context, cl_device_id device,
-                       cl_mem_properties_intel *properties, size_t size,
-                       cl_uint alignment, cl_int *errcode_ret);
-  void *sharedMemAlloc(cl_context context, cl_device_id device,
-                       cl_mem_properties_intel *properties, size_t size,
-                       cl_uint alignment, cl_int *errcode_ret);
+  void *hostMemAlloc(cl_context Context, cl_mem_properties_intel *Properties,
+                     size_t Size, cl_uint Alignment, cl_int *Errcode_ret);
+  void *deviceMemAlloc(cl_context Context, cl_device_id Device,
+                       cl_mem_properties_intel *Properties, size_t Size,
+                       cl_uint Alignment, cl_int *Errcode_ret);
+  void *sharedMemAlloc(cl_context Context, cl_device_id Device,
+                       cl_mem_properties_intel *Properties, size_t Size,
+                       cl_uint Alignment, cl_int *Errcode_ret);
 
-  cl_int memFree(cl_context context, const void *ptr);
+  cl_int memFree(cl_context Context, const void *Ptr);
 
-  cl_int getMemAllocInfoINTEL(cl_context context, const void *ptr,
-                              cl_mem_info_intel param_name,
-                              size_t param_value_size, void *param_value,
-                              size_t *param_value_size_ret);
+  cl_int getMemAllocInfoINTEL(cl_context Context, const void *Ptr,
+                              cl_mem_info_intel Param_name,
+                              size_t Param_value_size, void *Param_value,
+                              size_t *Param_value_size_ret);
 
-  cl_int setKernelExecInfo(cl_kernel kernel, cl_kernel_exec_info param_name,
-                           size_t param_value_size, const void *param_value);
+  cl_int setKernelExecInfo(cl_kernel Kernel, cl_kernel_exec_info Param_name,
+                           size_t Param_value_size, const void *Param_value);
 
-  cl_int setKernelIndirectUSMExecInfo(cl_command_queue queue, cl_kernel kernel);
+  cl_int setKernelIndirectUSMExecInfo(cl_command_queue Queue, cl_kernel Kernel);
 
   template <class T>
-  cl_int writeParamToMemory(size_t param_value_size, T param,
-                            size_t *param_value_size_ret, T *pointer) const;
+  cl_int writeParamToMemory(size_t Param_value_size, T Param,
+                            size_t *Param_value_size_ret, T *Pointer) const;
 
   bool useCLUSM() { return mEnableCLUSM; }
 
@@ -115,14 +115,15 @@ bool initializeExtensions(cl_context context, cl_platform_id platform);
 __SYCL_EXPORTED extern std::map<cl_context, cl::sycl::detail::usm::CLUSM *>
     gCLUSM;
 inline cl::sycl::detail::usm::CLUSM *GetCLUSM(cl_context ctxt) {
-  cl::sycl::detail::usm::CLUSM *retVal = nullptr;
-  if (gCLUSM.find(ctxt) == gCLUSM.end()) {
-    gCLUSM[ctxt] = new cl::sycl::detail::usm::CLUSM();
-  };
-
-  if (cl::sycl::detail::pi::piUseBackend(
+  if (!cl::sycl::detail::pi::piUseBackend(
           cl::sycl::detail::pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    retVal = gCLUSM[ctxt];
+    // Bail if we're not using a CL backend. CLUSM is not relevant.
+    return nullptr;
+  }
+
+  cl::sycl::detail::usm::CLUSM &*retVal = gCLUSM[ctxt];;
+  if (retVal == nullptr) {
+    retVal = new cl::sycl::detail::usm::CLUSM();
   }
   return retVal;
 }

@@ -677,39 +677,39 @@ cl_int ExecCGCommand::enqueueImp() {
 
     // TODO: Replace CL with PI
     if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-      cl_context context = pi::pi_cast<cl_context>(
+      cl_context CLContext = pi::pi_cast<cl_context>(
           detail::getSyclObjImpl(Context)->getHandleRef());
-      auto clusm = GetCLUSM(context);
-      if (usesUSM && clusm) {
-        cl_bool t = CL_TRUE;
-        auto theKernel = pi::pi_cast<cl_kernel>(Kernel);
+      auto Clusm = GetCLUSM(context);
+      if (usesUSM && Clusm) {
+        cl_bool TrueVal = CL_TRUE;
+        auto TheKernel = pi::pi_cast<cl_kernel>(Kernel);
         // Enable USM Indirect Access for Kernels
-        if (clusm->useCLUSM()) {
-          CHECK_OCL_CODE(clusm->setKernelExecInfo(
-              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-              sizeof(cl_bool), &t));
-          CHECK_OCL_CODE(clusm->setKernelExecInfo(
-              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-              sizeof(cl_bool), &t));
-          CHECK_OCL_CODE(clusm->setKernelExecInfo(
-              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-              sizeof(cl_bool), &t));
+        if (Clusm->useCLUSM()) {
+          CHECK_OCL_CODE(Clusm->setKernelExecInfo(
+              TheKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+              sizeof(cl_bool), &TrueVal));
+          CHECK_OCL_CODE(Clusm->setKernelExecInfo(
+              TheKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+              sizeof(cl_bool), &TrueVal));
+          CHECK_OCL_CODE(Clusm->setKernelExecInfo(
+              TheKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+              sizeof(cl_bool), &TrueVal));
 
           // This passes all the allocations we've tracked as SVM Pointers
-          CHECK_OCL_CODE(clusm->setKernelIndirectUSMExecInfo(
+          CHECK_OCL_CODE(Clusm->setKernelIndirectUSMExecInfo(
               pi::pi_cast<cl_command_queue>(MQueue->getHandleRef()),
-              theKernel));
-        } else if (clusm->isInitialized()) {
+              TheKernel));
+        } else if (Clusm->isInitialized()) {
           // Sanity check that nothing went wrong setting up clusm
           CHECK_OCL_CODE(clSetKernelExecInfo(
-              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-              sizeof(cl_bool), &t));
+              TheKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+              sizeof(cl_bool), &TrueVal));
           CHECK_OCL_CODE(clSetKernelExecInfo(
-              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-              sizeof(cl_bool), &t));
+              TheKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+              sizeof(cl_bool), &TrueVal));
           CHECK_OCL_CODE(clSetKernelExecInfo(
-              theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-              sizeof(cl_bool), &t));
+              TheKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+              sizeof(cl_bool), &TrueVal));
         }
       }
     }
