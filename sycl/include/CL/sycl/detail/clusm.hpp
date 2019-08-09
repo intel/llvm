@@ -121,7 +121,7 @@ inline cl::sycl::detail::usm::CLUSM *GetCLUSM(cl_context ctxt) {
     return nullptr;
   }
 
-  cl::sycl::detail::usm::CLUSM &*retVal = gCLUSM[ctxt];;
+  cl::sycl::detail::usm::CLUSM *&retVal = gCLUSM[ctxt];
   if (retVal == nullptr) {
     retVal = new cl::sycl::detail::usm::CLUSM();
   }

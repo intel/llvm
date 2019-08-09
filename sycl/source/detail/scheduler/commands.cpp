@@ -679,7 +679,7 @@ cl_int ExecCGCommand::enqueueImp() {
     if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
       cl_context CLContext = pi::pi_cast<cl_context>(
           detail::getSyclObjImpl(Context)->getHandleRef());
-      auto Clusm = GetCLUSM(context);
+      auto Clusm = GetCLUSM(CLContext);
       if (usesUSM && Clusm) {
         cl_bool TrueVal = CL_TRUE;
         auto TheKernel = pi::pi_cast<cl_kernel>(Kernel);
