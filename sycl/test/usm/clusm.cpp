@@ -9,41 +9,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/clusm.hpp>
+
+#include "findplatforms.hpp"
+
 #include <cstring>
 #include <iostream>
 
 using namespace cl::sycl::detail::usm;
-
-static int SIZE = 6;
-
-bool findPlatformAndDevice(cl_device_type deviceType,
-			   cl_platform_id& platformOut,
-			   cl_device_id& deviceOut) {
-  cl_platform_id platforms[SIZE];
-  cl_uint numPlatforms;
-  cl_device_id device;
-  cl_int errorCode;
-  bool foundDevice = false;
-
-  errorCode = clGetPlatformIDs(SIZE, platforms, &numPlatforms);
-
-  for (int i = 0; (!foundDevice) && (i < numPlatforms); i++) {
-    cl_uint numDevices;
-    errorCode = clGetDeviceIDs(platforms[i],
-			       deviceType,
-			       1,
-			       &device,
-			       &numDevices);
-
-    if (numDevices) {
-      platformOut = platforms[i];
-      deviceOut = device;
-      foundDevice = true;
-    }
-  }
-
-  return foundDevice;
-}
 
 int main(int argc, char** argv) {
   if (argc != 2) {
@@ -71,11 +43,10 @@ int main(int argc, char** argv) {
     : CL_DEVICE_TYPE_GPU;
 
   cl_int errorCode;
-  
   cl_platform_id platform;
   cl_device_id device;
 
-  if (!findPlatformAndDevice(deviceType, platform, device)) {
+  if (!findPlatformAndDevice(deviceType, platform, device, errorCode)) {
     return 2;
   }
 
