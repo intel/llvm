@@ -155,6 +155,9 @@ int main() {
         Out << ConstPtr << sm::endl;
         auto multiPtr = private_ptr<int>(Ptr);
         Out << multiPtr << sm::endl;
+// CHECK-NEXT: 0x{{[0-9a-fA-F]*$}}
+// CHECK-NEXT: 0x{{[0-9a-fA-F]*$}}
+// CHECK-NEXT: 0x{{[0-9a-fA-F]*$}}
 
         // Vectors
         vec<int, 1> f1(545);
@@ -168,7 +171,7 @@ int main() {
         Out << sm::dec << f4 << sm::endl;
         vec<float, 4> f5(542.3f, 645.3f, 771.6f, 1024.2f);
         Out << f5 << sm::endl;
-// CHECK: 545
+// CHECK-NEXT: 545
 // CHECK-NEXT: 545, 645
 // CHECK-NEXT: 545, 645, 771
 // CHECK-NEXT: 0x84675, 0x285, 0x303, 0x400
