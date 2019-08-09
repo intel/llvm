@@ -487,7 +487,7 @@ template <int ArrayLength>
 inline void writeArray(stream_impl::OffsetAccessorType &OffsetAcc,
                        stream_impl::AccessorType &Acc,
                        const array<ArrayLength> &Arr) {
-  char Buf[MAX_ARRAY_SIZE] = {0};
+  char Buf[MAX_ARRAY_SIZE];
   unsigned Len = ArrayToStr(Buf, Arr);
   write(OffsetAcc, Acc, Len, Buf);
 }
@@ -498,7 +498,7 @@ inline void writeItem(stream_impl::OffsetAccessorType &OffsetAcc,
                       const item<Dimensions> &Item) {
   // Reserve space for 3 arrays and additional place (40 symbols) for printing
   // the text
-  char Buf[3 * MAX_ARRAY_SIZE + 40] = {0};
+  char Buf[3 * MAX_ARRAY_SIZE + 40];
   unsigned Len = 0;
   Len += append(Buf, "item(");
   Len += append(Buf + Len, "range: ");
@@ -517,7 +517,7 @@ inline void writeNDRange(stream_impl::OffsetAccessorType &OffsetAcc,
                          const nd_range<Dimensions> &ND_Range) {
   // Reserve space for 3 arrays and additional place (50 symbols) for printing
   // the text
-  char Buf[3 * MAX_ARRAY_SIZE + 50] = {0};
+  char Buf[3 * MAX_ARRAY_SIZE + 50];
   unsigned Len = 0;
   Len += append(Buf, "nd_range(");
   Len += append(Buf + Len, "global_range: ");
@@ -536,7 +536,7 @@ inline void writeNDItem(stream_impl::OffsetAccessorType &OffsetAcc,
                         const nd_item<Dimensions> &ND_Item) {
   // Reserve space for 2 arrays and additional place (40 symbols) for printing
   // the text
-  char Buf[2 * MAX_ARRAY_SIZE + 40] = {0};
+  char Buf[2 * MAX_ARRAY_SIZE + 40];
   unsigned Len = 0;
   Len += append(Buf, "nd_item(");
   Len += append(Buf + Len, "global_id: ");
@@ -553,7 +553,7 @@ inline void writeGroup(stream_impl::OffsetAccessorType &OffsetAcc,
                        const group<Dimensions> &Group) {
   // Reserve space for 4 arrays and additional place (60 symbols) for printing
   // the text
-  char Buf[4 * MAX_ARRAY_SIZE + 60] = {0};
+  char Buf[4 * MAX_ARRAY_SIZE + 60];
   unsigned Len = 0;
   Len += append(Buf, "group(");
   Len += append(Buf + Len, "id: ");
@@ -590,7 +590,7 @@ inline void writeHItem(stream_impl::OffsetAccessorType &OffsetAcc,
                        const h_item<Dimensions> &HItem) {
   // Reserve space for 3 items and additional place (60 symbols) for printing
   // the text
-  char Buf[3 * MAX_ITEM_SIZE + 60] = {0};
+  char Buf[3 * MAX_ITEM_SIZE + 60];
   unsigned Len = 0;
   Len += append(Buf, "h_item(");
   Len += append(Buf + Len, "\n  global ");
