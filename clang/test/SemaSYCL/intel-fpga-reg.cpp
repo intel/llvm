@@ -16,6 +16,7 @@ struct st {
 
 
 #ifdef __SYCL_DEVICE_ONLY__
+static_assert(__has_builtin(__builtin_intel_fpga_reg), "");
 
 struct inner {
   void (*fp)(); // expected-note {{Field with illegal type declared here}}
@@ -66,6 +67,7 @@ int main() {
 
 #else
 
+static_assert(!__has_builtin(__builtin_intel_fpga_reg), "");
 int main() {
   A a(3);
   A b = __builtin_intel_fpga_reg(a);
