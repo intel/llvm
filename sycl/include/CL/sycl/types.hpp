@@ -1741,7 +1741,7 @@ DECLARE_TYPE_T(half);
 DECLARE_TYPE_T(double);
 
 #define GET_CL_TYPE(target, num) __##target##num##_vec_t
-#define GET_SCALAR_CL_TYPE(target) target
+#define GET_SCALAR_CL_TYPE(target) __##target##_t
 
 #undef DECLARE_TYPE_T
 #undef DECLARE_LLTYPE_T
