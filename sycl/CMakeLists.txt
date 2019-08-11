@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
+option(SYCL_DEPLOY_OPENCL OFF)
+
 if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
@@ -82,6 +84,17 @@ else()
   add_custom_target(ocl-icd DEPENDS ${OpenCL_LIBRARIES} COMMENT "Copying OpenCL ICD Loader ...")
 endif()
 
+if(NOT TARGET OpenCL)
+  add_library(OpenCL INTERFACE)
+  if (TARGET OpenCL::OpenCL)
+    # Since 3.8 CMake exports target for FindOpenCL
+    target_link_libraries(OpenCL INTERFACE OpenCL::OpenCL)
+  else()
+    target_link_libraries(OpenCL INTERFACE ${OpenCL_LIBRARIES})
+    target_include_directories(OpenCL INTERFACE ${OpenCL_INCLUDE_DIRS})
+  endif()
+endif()
+
 set(OPENCL_INCLUDE "${OpenCL_INCLUDE_DIRS}")
 
 # Configure SYCL version macro
@@ -95,34 +108,108 @@ add_custom_target(sycl-headers ALL
 COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${dst_dir}/CL
 COMMENT "Copying SYCL headers ...")
 
-# Configure SYCL headers
-install(DIRECTORY "${sycl_inc_dir}/." DESTINATION "${LLVM_INST_INC_DIRECTORY}" COMPONENT sycl-headers)
-
-# Configure OpenCL header and ICD loader
-include_directories(AFTER "${sycl_inc_dir}" "${OpenCL_INCLUDE_DIRS}")
-link_libraries(${OpenCL_LIBRARIES})
-
 # SYCL runtime library
 add_subdirectory(source)
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
+set(SYCL_TOOLCHAIN_DEPS
+  sycl
+  clang
+  clang-offload-wrapper
+  clang-offload-bundler
+  llc
+  llvm-as
+  llvm-ar
+  llvm-dis
+  llvm-no-spir-kernel
+  llvm-spirv
+  llvm-link
+  llvm-objcopy
+  opt)
 add_custom_target( sycl-toolchain
-  DEPENDS sycl
-          clang
-          clang-offload-wrapper
-          clang-offload-bundler
-          llc
-          llvm-as
-          llvm-ar
-          llvm-dis
-          llvm-no-spir-kernel
-          llvm-spirv
-          llvm-link
-          llvm-objcopy
-          opt
+  DEPENDS ${SYCL_TOOLCHAIN_DEPS}
   COMMENT "Building SYCL compiler toolchain..."
 )
 
 add_subdirectory( test )
 add_subdirectory( unittests )
 add_subdirectory( tools )
+
+# Configure SYCL toolchain installation targets
+add_custom_target(deploy-sycl-toolchain)
+
+set(SYCL_BUNDLE_DEPS ${SYCL_TOOLCHAIN_DEPS} opencl clang-resource-headers)
+
+foreach(comp ${SYCL_BUNDLE_DEPS})
+    add_custom_command(TARGET deploy-sycl-toolchain PRE_BUILD
+        COMMAND ${CMAKE_COMMAND}
+        ARGS -DCOMPONENT="${comp}" -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+endforeach()
+
+set(LLVM_LIT_EXT "")
+if(WIN32)
+  set(LLVM_LIT_EXT ".py")
+endif()
+add_custom_command(TARGET deploy-sycl-toolchain PRE_BUILD
+  COMMAND ${CMAKE_COMMAND}
+  ARGS -E copy ${CMAKE_BINARY_DIR}/bin/llvm-lit${LLVM_LIT_EXT}
+  ${CMAKE_INSTALL_PREFIX}/bin/llvm-lit${LLVM_LIT_EXT})
+
+# For some reason clang-cl is being created on Linux. Remove it so users
+# are not confused.
+if (NOT WIN32)
+  add_custom_command(TARGET deploy-sycl-toolchain POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+    ARGS -E remove ${CMAKE_INSTALL_PREFIX}/bin/clang-cl)
+endif()
+
+if (SYCL_DEPLOY_OPENCL)
+  install(TARGETS OpenCL EXPORT SYCL
+      LIBRARY
+        DESTINATION lib
+        COMPONENT opencl
+      ARCHIVE
+        DESTINATION lib
+        COMPONENT opencl
+      RUNTIME
+        DESTINATION bin
+        COMPONENT opencl
+      INCLUDES
+      DESTINATION include
+        COMPONENT opencl)
+
+  # If OpenCL target is not built with SYCL, we need to copy libraries manually
+  if(OpenCL_LIBRARIES)
+    set (RESOLVED_LIBS "")
+    foreach (file ${OpenCL_LIBRARIES})
+      get_filename_component(resolved_lib "${file}" REALPATH)
+      list (APPEND RESOLVED_LIBS "${resolved_lib}")
+    endforeach()
+    install(FILES ${RESOLVED_LIBS} DESTINATION lib COMPONENT opencl)
+    if(WIN32)
+      string(REPLACE ".lib" ".dll" DLL_LIBS "${RESOLVED_LIBS}")
+      install(FILES ${DLL_LIBS} DESTINATION bin COMPONENT opencl)
+    else(WIN32)
+      if(RESOLVED_LIBS MATCHES "libOpenCL.so.1.0.0")
+        # Workaround for some OpenCL ICD packages
+        add_custom_command(TARGET deploy-sycl-toolchain POST_BUILD
+            COMMAND ${CMAKE_COMMAND}
+          ARGS -E rename ${CMAKE_INSTALL_PREFIX}/lib/libOpenCL.so.1.0.0
+          ${CMAKE_INSTALL_PREFIX}/lib/libOpenCL.so)
+      endif()
+      add_custom_command(TARGET deploy-sycl-toolchain
+        COMMAND ${CMAKE_COMMAND}
+        ARGS -E create_symlink ${CMAKE_INSTALL_PREFIX}/lib/libOpenCL.so
+        ${CMAKE_INSTALL_PREFIX}/lib/libOpenCL.so.1)
+      add_custom_command(TARGET deploy-sycl-toolchain
+        COMMAND ${CMAKE_COMMAND}
+        ARGS -E create_symlink ${CMAKE_INSTALL_PREFIX}/lib/libOpenCL.so
+        ${CMAKE_INSTALL_PREFIX}/lib/libOpenCL.so.1.2)
+    endif()
+  endif()
+  if(OpenCL_INCLUDE_DIRS)
+      install(DIRECTORY ${OpenCL_INCLUDE_DIRS}/CL
+          DESTINATION include COMPONENT opencl)
+  endif()
+endif()
+

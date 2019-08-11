@@ -61,6 +61,9 @@ add_library(sycl SHARED
   "spirv_ops.cpp"
 )
 
+target_link_libraries(sycl PUBLIC OpenCL)
+target_include_directories(sycl PUBLIC ${sycl_inc_dir})
+
 add_dependencies(sycl
   ocl-icd
   ocl-headers
@@ -88,9 +91,23 @@ else()
 # More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
     CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
-  target_link_libraries(sycl gcc_s gcc)
+  target_link_libraries(sycl PRIVATE gcc_s gcc)
 endif()
 
 endif()
 
-install(TARGETS sycl DESTINATION "lib" COMPONENT sycl)
+install(TARGETS sycl EXPORT SYCL
+    LIBRARY
+      DESTINATION lib
+      COMPONENT sycl
+    ARCHIVE
+      DESTINATION lib
+      COMPONENT sycl
+    RUNTIME
+      DESTINATION bin
+      COMPONENT sycl
+    INCLUDES
+    DESTINATION "include"
+      COMPONENT sycl
+      )
+install(DIRECTORY ${sycl_inc_dir}/CL DESTINATION include COMPONENT sycl)

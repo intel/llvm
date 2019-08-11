@@ -36,6 +36,8 @@ cmake -DCMAKE_BUILD_TYPE=Release \
 -DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$SYCL_HOME/sycl \
 -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$SYCL_HOME/llvm-spirv \
 -DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" \
+-DCMAKE_INSTALL_PREFIX=/usr/local \
+-DSYCL_DEPLOY_OPENCL=ON \
 $SYCL_HOME/llvm
 make -j`nproc` sycl-toolchain
 ```
@@ -63,6 +65,14 @@ Run LIT testing using the command below after building SYCL compiler and runtime
 make -j`nproc` check-all
 ```
 If no OpenCL GPU/CPU runtimes are available, the corresponding LIT tests are skipped
+
+# Install the SYCL compiler and runtime
+
+Install the SYCL compiler with all dependencies using the command below.
+
+```bash
+make deploy-sycl-toolchain
+```
 
 # Creating a simple SYCL program
 
