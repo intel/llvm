@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
   cl_platform_id platform;
   cl_device_id device;
 
-  if (!findPlatformAndDevice(deviceType, platform, device, errorCode)) {
+  if (!findPlatformAndDevice(deviceType, platform, device)) {
     return 2;
   }
 
