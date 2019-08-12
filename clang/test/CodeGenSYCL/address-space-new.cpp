@@ -6,6 +6,16 @@ void test() {
   // CHECK-LEGACY: @_ZZ4testvE3foo = internal constant i32 66, align 4
   // CHECK-NEW:    @_ZZ4testvE3foo = internal addrspace(1) constant i32 66, align 4
 
+  // Intentionally leave a part of an array uninitialized. This triggers a
+  // different code path contrary to a fully initialized array.
+  static const unsigned bars[256] = {
+    0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
+    11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+  };
+  (void)bars;
+  // CHECK-LEGACY: @_ZZ4testvE4bars = internal constant <{ [21 x i32], [235 x i32] }> <{ [21 x i32] [i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 17, i32 18, i32 19, i32 20], [235 x i32] zeroinitializer }>, align 4
+  // CHECK-NEW:    @_ZZ4testvE4bars = internal addrspace(1) constant <{ [21 x i32], [235 x i32] }> <{ [21 x i32] [i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 17, i32 18, i32 19, i32 20], [235 x i32] zeroinitializer }>, align 4
+
   // CHECK: @[[STR:[.a-zA-Z0-9_]+]] = private unnamed_addr constant [14 x i8] c"Hello, world!\00", align 1
 
   // CHECK: %[[ARR:[a-zA-Z0-9]+]] = alloca [42 x i32]

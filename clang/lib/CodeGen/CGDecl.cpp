@@ -373,7 +373,7 @@ CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
                                   OldGV->getLinkage(), Init, "",
                                   /*InsertBefore*/ OldGV,
                                   OldGV->getThreadLocalMode(),
-                           CGM.getContext().getTargetAddressSpace(D.getType()));
+                                  OldGV->getType()->getPointerAddressSpace());
     GV->setVisibility(OldGV->getVisibility());
     GV->setDSOLocal(OldGV->isDSOLocal());
     GV->setComdat(OldGV->getComdat());
