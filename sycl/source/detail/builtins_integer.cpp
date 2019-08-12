@@ -12,6 +12,7 @@
 #include "builtins_helper.hpp"
 
 #include <algorithm>
+#include <type_traits>
 
 namespace s = cl::sycl;
 namespace d = s::detail;
@@ -20,7 +21,11 @@ namespace cl {
 namespace __host_std {
 namespace {
 
-template <typename T> inline T __abs_diff(T x, T y) { return std::abs(x - y); }
+template <typename T> inline T __abs_diff(T x, T y) {
+  static_assert(std::is_integral<T>::value,
+                "Only integral types are supported");
+  return (x > y) ? (x - y) : (y - x);
+}
 
 template <typename T> inline T __u_add_sat(T x, T y) {
   return (x < (d::max_v<T>() - y) ? x + y : d::max_v<T>());
@@ -198,10 +203,18 @@ MAKE_1V(s_abs, s::cl_uint, s::cl_int)
 MAKE_1V(s_abs, s::cl_ulong, s::cl_long)
 
 // u_abs_diff
-cl_uchar u_abs_diff(s::cl_uchar x, s::cl_uchar y) __NOEXC { return x - y; }
-cl_ushort u_abs_diff(s::cl_ushort x, s::cl_ushort y) __NOEXC { return x - y; }
-cl_uint u_abs_diff(s::cl_uint x, s::cl_uint y) __NOEXC { return x - y; }
-cl_ulong u_abs_diff(s::cl_ulong x, s::cl_ulong y) __NOEXC { return x - y; }
+cl_uchar u_abs_diff(s::cl_uchar x, s::cl_uchar y) __NOEXC {
+  return __abs_diff(x, y);
+}
+cl_ushort u_abs_diff(s::cl_ushort x, s::cl_ushort y) __NOEXC {
+  return __abs_diff(x, y);
+}
+cl_uint u_abs_diff(s::cl_uint x, s::cl_uint y) __NOEXC {
+  return __abs_diff(x, y);
+}
+cl_ulong u_abs_diff(s::cl_ulong x, s::cl_ulong y) __NOEXC {
+  return __abs_diff(x, y);
+}
 
 MAKE_1V_2V(u_abs_diff, s::cl_uchar, s::cl_uchar, s::cl_uchar)
 MAKE_1V_2V(u_abs_diff, s::cl_ushort, s::cl_ushort, s::cl_ushort)

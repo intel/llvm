@@ -107,7 +107,7 @@ int main() {
     }
     assert(r == 2);
   }
-  
+
   // abs
   {
     s::cl_uint r{ 0 };
@@ -138,6 +138,22 @@ int main() {
       });
     }
     assert(r == 4);
+  }
+
+  // abs_diff(uchar)
+  {
+    s::cl_uchar r{ 0 };
+    {
+      s::buffer<s::cl_uchar, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class abs_diffUC1UC1>([=]() {
+          AccR[0] = s::abs_diff(s::uchar{ 3 }, s::uchar{ 250 });
+        });
+      });
+    }
+    assert(r == 247);
   }
 
   // add_sat
