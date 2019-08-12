@@ -21,6 +21,10 @@ public:
   void use(void) const {}
 };
 
+template <int dimensions = 1>
+class group {
+};
+
 namespace access {
 
 enum class target {
