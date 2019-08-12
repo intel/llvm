@@ -152,6 +152,8 @@ public:
     case DecorationSimpleDualPortINTEL:
     case DecorationMergeINTEL:
       return getSet(SPV_INTEL_fpga_memory_attributes);
+    case DecorationReferencedIndirectlyINTEL:
+      return getSet(SPV_INTEL_function_pointers);
     default:
       return SPIRVExtSet();
     }

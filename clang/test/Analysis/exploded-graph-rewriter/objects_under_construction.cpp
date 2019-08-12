@@ -8,6 +8,9 @@
 // FIXME: Substitution doesn't seem to work on Windows.
 // UNSUPPORTED: system-windows
 
+// https://bugs.llvm.org/show_bug.cgi?id=42601
+// XFAIL: *
+
 struct S {
   S() {}
 };

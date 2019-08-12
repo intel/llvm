@@ -51,6 +51,9 @@ namespace pi {
   using PiMemImageChannelOrder = ::pi_image_channel_order;
   using PiMemImageChannelType  = ::pi_image_channel_type;
 
+  // Get a string representing a _pi_platform_info enum
+  std::string platformInfoToString(pi_platform_info info);
+
   // Report error and no return (keeps compiler happy about no return statements).
   [[noreturn]] void piDie(const char *Message);
   void piAssert(bool Condition, const char *Message = nullptr);

@@ -72,6 +72,18 @@ int main() {
     /* Sub-group size is not specified in kernel or IL*/
     exit_if_not_equal<size_t>(Res, 0, "compile_num_sub_groups");
 
+    // According to specification, this kernel query requires `cl_khr_subgroups`
+    // or `cl_intel_subgroups`
+    if ((Device.has_extension("cl_khr_subgroups") ||
+         Device.has_extension("cl_intel_subgroups")) &&
+        Device.has_extension("cl_intel_required_subgroup_size")) {
+      Res = Kernel.get_sub_group_info<
+          info::kernel_sub_group::compile_sub_group_size>(Device);
+
+      /* Required sub-group size is not specified in kernel or IL*/
+      exit_if_not_equal<size_t>(Res, 0, "compile_sub_group_size");
+    }
+
     /* Check work-group sizea which can accommodate the requested number of
      * sub-groups*/
     for (auto s : {(size_t)200, (size_t)1, (size_t)3, (size_t)5, (size_t)7,
@@ -103,4 +115,3 @@ int main() {
   std::cout << "Test passed.\n";
   return 0;
 }
-

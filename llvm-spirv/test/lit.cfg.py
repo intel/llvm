@@ -13,7 +13,7 @@ from lit.llvm.subst import FindTool
 config.name = 'LLVM_SPIRV'
 
 # testFormat: The test format to use to interpret tests.
-config.test_format = lit.formats.ShTest(True)
+config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.cl', '.ll', '.spt']
@@ -58,4 +58,4 @@ if config.spirv_tools_have_spirv_val:
     config.environment['LD_LIBRARY_PATH'] = new_ld_library_path
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
 else:
-    config.substitutions.append(('spirv-val', ':'))
+    config.substitutions.append(('spirv-val', 'echo'))

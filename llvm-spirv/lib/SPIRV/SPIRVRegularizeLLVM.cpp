@@ -182,8 +182,8 @@ void SPIRVRegularizeLLVM::lowerFuncPtr(Module *M) {
     auto AI = F.arg_begin();
     if (hasFunctionPointerArg(&F, AI)) {
       auto OC = getSPIRVFuncOC(F.getName());
-      assert(OC != OpNop && "Invalid function pointer usage");
-      Work.push_back(std::make_pair(&F, OC));
+      if (OC != OpNop) // not a user-defined function
+        Work.push_back(std::make_pair(&F, OC));
     }
   }
   for (auto &I : Work)

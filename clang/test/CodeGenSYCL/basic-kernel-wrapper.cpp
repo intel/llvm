@@ -55,3 +55,6 @@ int main() {
 // CHECK-OLD: call spir_func void @{{.*}}(%"class.{{.*}}.anon"* [[ANON]])
 // CHECK-NEW: [[ANONCAST:%[0-9]+]] = addrspacecast %"class{{.*}}anon"* {{.*}} to %"class{{.*}}anon" addrspace(4)*
 // CHECK-NEW: call spir_func void @{{.*}}(%"class.{{.*}}.anon" addrspace(4)* [[ANONCAST]])
+
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows-msvc

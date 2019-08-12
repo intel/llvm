@@ -20,14 +20,14 @@ template <typename ResultVecT>
 void check_result_length_4(ResultVecT &res, ResultVecT &expected_res) {
   assert(res.get_count() == 4 && expected_res.get_count() == 4);
 
-  assert(res.template swizzle<s::elem::s0>() ==
-         expected_res.template swizzle<s::elem::s0>());
-  assert(res.template swizzle<s::elem::s1>() ==
-         expected_res.template swizzle<s::elem::s1>());
-  assert(res.template swizzle<s::elem::s2>() ==
-         expected_res.template swizzle<s::elem::s2>());
-  assert(res.template swizzle<s::elem::s3>() ==
-         expected_res.template swizzle<s::elem::s3>());
+  assert(static_cast<bool>(res.template swizzle<s::elem::s0>() ==
+                           expected_res.template swizzle<s::elem::s0>()));
+  assert(static_cast<bool>(res.template swizzle<s::elem::s1>() ==
+                           expected_res.template swizzle<s::elem::s1>()));
+  assert(static_cast<bool>(res.template swizzle<s::elem::s2>() ==
+                           expected_res.template swizzle<s::elem::s2>()));
+  assert(static_cast<bool>(res.template swizzle<s::elem::s3>() ==
+                           expected_res.template swizzle<s::elem::s3>()));
 }
 
 int main() {
@@ -51,8 +51,9 @@ int main() {
     }
     // 1-element vector operators follow vector 0/-1 logic
     vec_type expected_res(-1);
-    assert(res.template swizzle<cl::sycl::elem::s0>() ==
-           expected_res.template swizzle<cl::sycl::elem::s0>());
+    assert(
+        static_cast<bool>(res.template swizzle<cl::sycl::elem::s0>() ==
+                          expected_res.template swizzle<cl::sycl::elem::s0>()));
   }
 
   {
@@ -72,8 +73,9 @@ int main() {
     }
     // 1-element vector operators follow vector 0/-1 logic
     vec_type expected_res(-1);
-    assert(res.template swizzle<cl::sycl::elem::s0>() ==
-           expected_res.template swizzle<cl::sycl::elem::s0>());
+    assert(
+        static_cast<bool>(res.template swizzle<cl::sycl::elem::s0>() ==
+                          expected_res.template swizzle<cl::sycl::elem::s0>()));
   }
 
   /* Test different operators, different types

@@ -717,8 +717,8 @@ llvm::BasicBlock *CodeGenFunction::getInvokeDestImpl() {
       return nullptr;
   }
 
-  // CUDA device code doesn't have exceptions.
-  if (LO.CUDA && LO.CUDAIsDevice)
+  // CUDA and SYCL device code doesn't have exceptions.
+  if (LO.CUDA && LO.CUDAIsDevice || LO.SYCLIsDevice)
     return nullptr;
 
   // Check the innermost scope for a cached landing pad.  If this is

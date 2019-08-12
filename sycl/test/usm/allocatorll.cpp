@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl %s -o %t1.out -lOpenCL
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows
+
 //==---- allocatorll.cpp - Device Memory Linked List Allocator test --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -12,7 +12,7 @@ def do_compile(args):
     if cpu_count is None:
         cpu_count = DEFAULT_CPU_COUNT
 
-    make_cmd = ["make", "-j", str(cpu_count), "sycl-toolchain"]
+    make_cmd = ["ninja", "-j", str(cpu_count), "sycl-toolchain"]
     print(make_cmd)
 
     subprocess.check_call(make_cmd, cwd=args.obj_dir)

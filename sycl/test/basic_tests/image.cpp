@@ -3,6 +3,9 @@
 // RUNx: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows
+
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

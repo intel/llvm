@@ -358,7 +358,7 @@ template <typename T> std::string getFullPath(const T *Scope) {
   if (sys::path::is_absolute(Filename))
     return Filename;
   SmallString<16> DirName = Scope->getDirectory();
-  sys::path::append(DirName, Filename);
+  sys::path::append(DirName, sys::path::Style::posix, Filename);
   return DirName.str().str();
 }
 

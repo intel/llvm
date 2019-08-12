@@ -275,6 +275,11 @@ public:
                                   SPIRVBasicBlock *) override;
   SPIRVInstruction *addCallInst(SPIRVFunction *, const std::vector<SPIRVWord> &,
                                 SPIRVBasicBlock *) override;
+  SPIRVInstruction *addIndirectCallInst(SPIRVValue *, SPIRVType *,
+                                        const std::vector<SPIRVWord> &,
+                                        SPIRVBasicBlock *) override;
+  SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *, SPIRVFunction *,
+                                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addCmpInst(Op, SPIRVType *, SPIRVValue *, SPIRVValue *,
                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addLoadInst(SPIRVValue *, const std::vector<SPIRVWord> &,
@@ -1107,6 +1112,21 @@ SPIRVModuleImpl::addCallInst(SPIRVFunction *TheFunction,
                              SPIRVBasicBlock *BB) {
   return addInstruction(
       new SPIRVFunctionCall(getId(), TheFunction, TheArguments, BB), BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addIndirectCallInst(
+    SPIRVValue *TheCalledValue, SPIRVType *TheReturnType,
+    const std::vector<SPIRVWord> &TheArguments, SPIRVBasicBlock *BB) {
+  return addInstruction(
+      new SPIRVFunctionPointerCallINTEL(getId(), TheCalledValue, TheReturnType,
+                                        TheArguments, BB),
+      BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addFunctionPointerINTELInst(
+    SPIRVType *TheType, SPIRVFunction *TheFunction, SPIRVBasicBlock *BB) {
+  return addInstruction(
+      new SPIRVFunctionPointerINTEL(getId(), TheType, TheFunction, BB), BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addBinaryInst(Op TheOpCode, SPIRVType *Type,

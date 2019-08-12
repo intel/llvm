@@ -326,7 +326,7 @@ public:
   // This utility api is currently used by accessor to get the element size of
   // the image. Element size is dependent on num of channels and channel type.
   // This information is not accessible from the image using any public API.
-  uint8_t getElementSize() const { return MElementSize; };
+  size_t getElementSize() const { return MElementSize; };
 
   image_channel_order getChannelOrder() const { return MOrder; }
 
@@ -514,7 +514,7 @@ private:
   image_channel_order MOrder;
   image_channel_type MType;
   uint8_t MNumChannels = 0; // Maximum Value - 4
-  uint8_t MElementSize = 0; // Maximum Value - 16
+  size_t MElementSize = 0; // Maximum Value - 16
   size_t MRowPitch = 0;
   size_t MSlicePitch = 0;
 };
