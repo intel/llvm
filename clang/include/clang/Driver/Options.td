@@ -1753,6 +1753,11 @@ def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
   HelpText<"Generate partially linked device object to be used with the host link">;
 def fsycl_unnamed_lambda : Flag<["-"], "fsycl-unnamed-lambda">,
   Flags<[CC1Option]>, HelpText<"Allow unnamed SYCL lambda kernels">;
+def fsycl_help_EQ : Joined<["-"], "fsycl-help=">,
+  Flags<[DriverOption]>, HelpText<"Emit help information from the related offline compilation tool">, Values<"all,fpga,gen,x86_64">;
+def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
+  Flags<[DriverOption]>, AliasArgs<["all"]>, HelpText<"Emit help information "
+  "from all of the offline compilation tools">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[DriverOption,CoreOption,CC1Option]>, Group<Action_Group>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;

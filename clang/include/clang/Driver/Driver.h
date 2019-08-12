@@ -440,6 +440,9 @@ public:
   /// \param ShowHidden - Show hidden options.
   void PrintHelp(bool ShowHidden) const;
 
+  /// PrintSYCLToolHelp - Print help text from offline compiler tools.
+  void PrintSYCLToolHelp(const Compilation &C) const;
+
   /// PrintVersion - Print the driver version.
   void PrintVersion(const Compilation &C, raw_ostream &OS) const;
 
