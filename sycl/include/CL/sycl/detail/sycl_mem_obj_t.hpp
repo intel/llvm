@@ -120,7 +120,8 @@ public:
   }
 
   void releaseHostMem(void *Ptr) override {
-    MAllocator.deallocate(allocator_pointer_t<AllocatorT>(Ptr), get_size());
+    if (Ptr)
+      MAllocator.deallocate(allocator_pointer_t<AllocatorT>(Ptr), get_size());
   }
 
   void releaseMem(ContextImplPtr Context, void *MemAllocation) override {
@@ -230,7 +231,8 @@ public:
   }
 
   bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
-    bool Aligned = (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
+    bool Aligned =
+        (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
     return Aligned || useHostPtr();
   }
 
