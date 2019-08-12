@@ -1669,6 +1669,59 @@ void Driver::PrintHelp(bool ShowHidden) const {
                       /*ShowAllAliases=*/false);
 }
 
+llvm::Triple makeDeviceTriple(StringRef subArch) {
+  llvm::Triple TT;
+  TT.setArchName(subArch);
+  TT.setVendor(llvm::Triple::UnknownVendor);
+  TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+  TT.setEnvironment(llvm::Triple::SYCLDevice);
+  return TT;
+}
+
+// Print the help from any of the given tools which are used for AOT
+// compilation for SYCL
+void Driver::PrintSYCLToolHelp(const Compilation &C) const {
+  SmallVector<std::tuple<llvm::Triple, StringRef, StringRef>, 4> HelpArgs;
+  // Populate the vector with the tools and help options
+  if (Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_help_EQ)) {
+    StringRef AV(A->getValue());
+    llvm::Triple T;
+    if (AV == "gen" || AV == "all")
+      HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_gen"),
+                                         "ocloc", "-?"));
+    if (AV == "fpga" || AV == "all")
+      HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_fpga"),
+                                         "aoc", "-help"));
+    if (AV == "x86_64" || AV == "all")
+      HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_x86_64"),
+                                         "ioc64", "-help"));
+    if (HelpArgs.empty()) {
+      C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
+                         << A->getOption().getName() << AV;
+      return;
+    }
+  }
+
+  // Go through the args and emit the help information for each.
+  for (auto &HA : HelpArgs) {
+    llvm::outs() << "Emitting help information for " << std::get<1>(HA) << '\n'
+        << "Use triple of '" << std::get<0>(HA).normalize() <<
+        "' to enable ahead of time compilation\n";
+    // do not run the tools with -###.
+    if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH))
+      continue;
+    std::vector<StringRef> ToolArgs = { std::get<1>(HA), std::get<2>(HA) };
+    StringRef ExecPath(C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
+    auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
+    if (ToolBinary.getError()) {
+      C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
+      continue;
+    }
+    // Run the Tool.
+    llvm::sys::ExecuteAndWait(ToolBinary.get(), ToolArgs);
+  }
+}
+
 void Driver::PrintVersion(const Compilation &C, raw_ostream &OS) const {
   // FIXME: The following handlers should use a callback mechanism, we don't
   // know what the client would like to do.
@@ -1806,6 +1859,11 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
   if (C.getArgs().hasArg(options::OPT_help) ||
       C.getArgs().hasArg(options::OPT__help_hidden)) {
     PrintHelp(C.getArgs().hasArg(options::OPT__help_hidden));
+    return false;
+  }
+
+  if (C.getArgs().hasArg(options::OPT_fsycl_help_EQ)) {
+    PrintSYCLToolHelp(C);
     return false;
   }
 
