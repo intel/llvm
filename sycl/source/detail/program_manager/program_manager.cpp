@@ -10,12 +10,13 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/program_manager/program_manager.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <assert.h>
+#include <cassert>
 #include <cstdlib>
 #include <fstream>
 #include <memory>
@@ -87,12 +88,19 @@ RT::PiProgram ProgramManager::getBuiltOpenCLProgram(OSModuleHandle M,
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
   std::map<OSModuleHandle, RT::PiProgram> &CachedPrograms =
       Ctx->getCachedPrograms();
-  RT::PiProgram &Program = CachedPrograms[M];
-  if (!Program) {
-    DeviceImage *Img = nullptr;
-    Program = loadProgram(M, Context, &Img);
-    build(Program, Img->BuildOptions);
-  }
+  auto It = CachedPrograms.find(M);
+  if (It != CachedPrograms.end())
+    return It->second;
+
+  DeviceImage *Img = nullptr;
+  using PiProgramT = remove_pointer_t<RT::PiProgram>;
+  unique_ptr_class<PiProgramT, decltype(RT::piProgramRelease)> ProgramManaged(
+      loadProgram(M, Context, &Img), RT::piProgramRelease);
+
+  build(ProgramManaged.get(), Img->BuildOptions);
+  RT::PiProgram Program = ProgramManaged.release();
+  CachedPrograms[M] = Program;
+
   return Program;
 }
 
@@ -150,7 +158,7 @@ string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program) {
   return Log;
 }
 
-void ProgramManager::build(RT::PiProgram &Program, const string_class &Options,
+void ProgramManager::build(RT::PiProgram Program, const string_class &Options,
                            std::vector<RT::PiDevice> Devices) {
 
   if (DbgProgMgr > 0) {
