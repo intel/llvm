@@ -21,31 +21,30 @@ namespace usm {
 
 void *alignedAlloc(size_t alignment, size_t size, const context *ctxt,
                    const device *dev, alloc kind) {
-  cl_int error;
-  cl_context c =
-      pi::pi_cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
-  cl_device_id id;
+  pi_result error;
+  pi_context c = detail::getSyclObjImpl(*ctxt)->getHandleRef();
+  pi_device id;
 
   void *retVal = nullptr;
 
   switch (kind) {
   case alloc::host: {
-    retVal = clHostMemAllocINTEL(c, nullptr, size, alignment, &error);
+    retVal = RT::piHostMemAlloc(c, nullptr, size, alignment, &error);
     break;
   }
   case alloc::device: {
-    id = dev->get();
-    retVal = clDeviceMemAllocINTEL(c, id, nullptr, size, alignment, &error);
+    id = detail::getSyclObjImpl(*dev)->getHandleRef();
+    retVal = RT::piDeviceMemAlloc(c, id, nullptr, size, alignment, &error);
     break;
   }
   case alloc::shared: {
-    id = dev->get();
-    retVal = clSharedMemAllocINTEL(c, id, nullptr, size, alignment, &error);
+    id = detail::getSyclObjImpl(*dev)->getHandleRef();
+    retVal = RT::piSharedMemAlloc(c, id, nullptr, size, alignment, &error);
     break;
   }
   case alloc::unknown: {
     retVal = nullptr;
-    error = CL_MEM_OBJECT_ALLOCATION_FAILURE;
+    error = PI_INVALID_VALUE;
     break;
   }
   }
@@ -57,10 +56,9 @@ void *alignedAlloc(size_t alignment, size_t size, const context *ctxt,
 
 void free(void *ptr, const context *ctxt) {
   cl_int error;
-  cl_context c =
-      pi::pi_cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
+  pi_context c = detail::getSyclObjImpl(*ctxt)->getHandleRef();
 
-  error = clMemFreeINTEL(c, ptr);
+  error = RT::piMemFree(c, ptr);
 
   CHECK_OCL_CODE_THROW(error, runtime_error);
 }

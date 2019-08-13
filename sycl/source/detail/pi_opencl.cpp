@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "CL/opencl.h"
+#include "CL/cl_usm_ext.h"
 #include <CL/sycl/detail/pi.hpp>
 #include <cassert>
 #include <cstring>
@@ -324,6 +325,18 @@ _PI_CL(piEnqueueMemImageCopy,        clEnqueueCopyImage)
 _PI_CL(piEnqueueMemImageFill,        clEnqueueFillImage)
 _PI_CL(piEnqueueMemBufferMap,        clEnqueueMapBuffer)
 _PI_CL(piEnqueueMemUnmap,            clEnqueueUnmapMemObject)
+// USM
+_PI_CL(piHostMemAlloc,           clHostMemAllocINTEL)
+_PI_CL(piDeviceMemAlloc,         clDeviceMemAllocINTEL)
+_PI_CL(piSharedMemAlloc,         clSharedMemAllocINTEL)
+_PI_CL(piMemFree,                clMemFreeINTEL)
+_PI_CL(piGetMemAllocInfo,        clGetMemAllocInfoINTEL)
+_PI_CL(piSetKernelArgMemPointer, clSetKernelArgMemPointerINTEL)
+_PI_CL(piEnqueueMemset,          clEnqueueMemsetINTEL)
+_PI_CL(piEnqueueMemcpy,          clEnqueueMemcpyINTEL)
+_PI_CL(piEnqueueMigrateMem,      clEnqueueMigrateMemINTEL)
+_PI_CL(piEnqueueMemAdvise,       clEnqueueMemAdviseINTEL)
+_PI_CL(piSetKernelAttribute,     clSetKernelExecInfo)
 
 #undef _PI_CL
 

@@ -662,8 +662,7 @@ cl_int ExecCGCommand::enqueueImp() {
         usesUSM = true;
         auto PtrToPtr = reinterpret_cast<intptr_t*>(Arg.MPtr);
         auto DerefPtr = reinterpret_cast<void*>(*PtrToPtr);
-        auto theKernel = pi::pi_cast<cl_kernel>(Kernel);
-        CHECK_OCL_CODE(clSetKernelArgMemPointerINTEL(theKernel, Arg.MIndex, DerefPtr));
+        PI_CALL(RT::piSetKernelArgMemPointer(Kernel, Arg.MIndex, DerefPtr));
         break;
       }
       default:
@@ -697,14 +696,14 @@ cl_int ExecCGCommand::enqueueImp() {
             pi::pi_cast<cl_command_queue>(MQueue->getHandleRef()), theKernel));
       } else if (clusm->isInitialized()) {
         // Sanity check that nothing went wrong setting up clusm
-        CHECK_OCL_CODE(clSetKernelExecInfo(
-            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+        PI_CALL(RT::piSetKernelAttribute(
+            Kernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
             sizeof(cl_bool), &t));
-        CHECK_OCL_CODE(clSetKernelExecInfo(
-            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+        PI_CALL(RT::piSetKernelAttribute(
+            Kernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
             sizeof(cl_bool), &t));
-        CHECK_OCL_CODE(clSetKernelExecInfo(
-            theKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+        PI_CALL(RT::piSetKernelAttribute(
+            Kernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
             sizeof(cl_bool), &t));
       }
     }

@@ -28,6 +28,7 @@
 // done here, for efficiency and simplicity.
 //
 #include <CL/opencl.h>
+#include <CL/cl_usm_ext.h>
 #include <cstdint>
 
 #ifdef __cplusplus
@@ -822,6 +823,92 @@ pi_result piEnqueueMemUnmap(
   pi_uint32        num_events_in_wait_list,
   const pi_event * event_wait_list,
   pi_event *       event);
+
+//
+// USM
+//
+void * piHostMemAlloc(
+  pi_context context,
+  cl_mem_properties_intel *properties,
+  size_t size,
+  pi_uint32 alignment,
+  pi_result * errcode_ret);
+
+void * piDeviceMemAlloc(
+  pi_context context,
+  pi_device device,
+  cl_mem_properties_intel *properties,
+  size_t size,
+  pi_uint32 alignment,
+  pi_result * errcode_ret);
+
+void * piSharedMemAlloc(
+  pi_context context,
+  pi_device device,
+  cl_mem_properties_intel *properties,
+  size_t size,
+  pi_uint32 alignment,
+  pi_result * errcode_ret);
+
+pi_result piMemFree(
+  pi_context context,
+  const void *ptr);
+
+pi_result piGetMemAllocInfo(
+  pi_context context,
+  const void *ptr,
+  cl_mem_info_intel param_name,
+  size_t param_value_size,
+  void *param_value,
+  size_t *param_value_size_ret);
+
+pi_result piSetKernelArgMemPointer(
+  pi_kernel kernel,
+  pi_uint32 arg_index,
+  const void *arg_value);
+
+pi_result piEnqueueMemset(
+  pi_queue command_queue,
+  void *dst_ptr,
+  pi_int32 value,
+  size_t size,
+  pi_uint32 num_events_in_wait_list,
+  const pi_event *event_wait_list,
+  pi_event *event);
+
+pi_result piEnqueueMemcpy(
+  pi_queue command_queue,
+  pi_bool blocking,
+  void *dst_ptr,
+  const void *src_ptr,
+  size_t size,
+  pi_uint32 num_events_in_wait_list,
+  const pi_event *event_wait_list,
+  pi_event *event);
+
+pi_result  piEnqueueMigrateMem(
+  pi_queue command_queue,
+  const void *ptr,
+  size_t size,
+  cl_mem_migration_flags flags,
+  pi_uint32 num_events_in_wait_list,
+  const pi_event *event_wait_list,
+  pi_event *event);
+
+pi_result piEnqueueMemAdvise(
+  pi_queue command_queue,
+  const void *ptr,
+  size_t size,
+  cl_mem_advice_intel advice,
+  pi_uint32 num_events_in_wait_list,
+  const pi_event *event_wait_list,
+  pi_event *event);
+
+pi_result piSetKernelAttribute(
+  pi_kernel kernel,
+  cl_kernel_exec_info param_name,
+  size_t param_value_size,
+  const void *param_value);
 
 #ifdef __cplusplus
 } // extern "C"
