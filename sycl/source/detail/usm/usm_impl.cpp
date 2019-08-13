@@ -19,50 +19,51 @@ using alloc = cl::sycl::usm::alloc;
 namespace detail {
 namespace usm {
 
-void *alignedAlloc(size_t alignment, size_t size, const context *ctxt,
-                   const device *dev, alloc kind) {
-  cl_int error;
-  cl_context c =
-      pi::cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
-  cl_device_id id;
+void *alignedAlloc(size_t Alignment, size_t Size, const context *Ctxt,
+                   const device *Dev, alloc Kind) {
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(*Ctxt);
+  std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
+  pi_context C = CtxImpl->getHandleRef();
+  pi_result Error;
+  pi_device Id;
+  void *RetVal = nullptr;
 
-  void *retVal = nullptr;
-
-  switch (kind) {
+  switch (Kind) {
   case alloc::host: {
-    retVal = clHostMemAllocINTEL(c, nullptr, size, alignment, &error);
+    RetVal = Dispatch->hostMemAlloc(C, nullptr, Size, Alignment, &Error);
     break;
   }
   case alloc::device: {
-    id = dev->get();
-    retVal = clDeviceMemAllocINTEL(c, id, nullptr, size, alignment, &error);
+    Id = detail::getSyclObjImpl(*Dev)->getHandleRef();
+    RetVal = Dispatch->deviceMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
     break;
   }
   case alloc::shared: {
-    id = dev->get();
-    retVal = clSharedMemAllocINTEL(c, id, nullptr, size, alignment, &error);
+    Id = detail::getSyclObjImpl(*Dev)->getHandleRef();
+    RetVal = Dispatch->sharedMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
     break;
   }
   case alloc::unknown: {
-    retVal = nullptr;
-    error = CL_MEM_OBJECT_ALLOCATION_FAILURE;
+    RetVal = nullptr;
+    Error = PI_INVALID_VALUE;
     break;
   }
   }
 
-  CHECK_OCL_CODE_THROW(error, runtime_error);
+  PI_CHECK(Error);
 
-  return retVal;
+  return RetVal;
 }
 
-void free(void *ptr, const context *ctxt) {
-  cl_int error;
-  cl_context c =
-      pi::cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
+void free(void *Ptr, const context *Ctxt) {
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(*Ctxt);
+  std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
+  pi_context C = CtxImpl->getHandleRef();
+  pi_result Error;
 
-  error = clMemFreeINTEL(c, ptr);
+  Error = Dispatch->memFree(C, Ptr);
 
-  CHECK_OCL_CODE_THROW(error, runtime_error);
+  PI_CHECK(Error);
 }
 
 } // namespace usm

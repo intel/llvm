@@ -24,30 +24,6 @@ namespace sycl {
 namespace detail {
 namespace usm {
 
-bool CLUSM::Create(CLUSM *&pCLUSM) {
-  pCLUSM = new CLUSM();
-  if (pCLUSM) {
-    return true;
-  }
-
-  return false;
-}
-
-void CLUSM::Delete(CLUSM *&pCLUSM) {
-  delete pCLUSM;
-  pCLUSM = nullptr;
-}
-
-void CLUSM::initExtensions(cl_platform_id platform) {
-  // If OpenCL supports the USM Extension, don't enable CLUSM.
-  std::lock_guard<std::mutex> guard(mLock);
-
-  if (!mInitialized) {
-    mEnableCLUSM = !cliext::initializeExtensions(platform);
-    mInitialized = true;
-  }
-}
-
 void *CLUSM::hostMemAlloc(cl_context context,
                           cl_mem_properties_intel *properties, size_t size,
                           cl_uint alignment, cl_int *errcode_ret) {
