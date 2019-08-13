@@ -3276,6 +3276,10 @@ defm whole_file : BooleanFFlag<"whole-file">, Group<gfortran_Group>;
 def sycl : Flag<["--"], "sycl">,
   HelpText<"Compile SYCL kernels for device">;
 
+def reuse_exe_EQ : Joined<["-"], "reuse-exe=">,
+  HelpText<"Speed up FPGA aoc compile if the device code in <exe> is unchanged.">,
+  MetaVarName<"<exe>">;
+
 include "CC1Options.td"
 
 include "CLCompatOptions.td"

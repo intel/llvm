@@ -44,5 +44,11 @@
 // CHK-FPGA-LINK-PHASES: 6: clang-offload-bundler, {3, 5}, object, (device-sycl)
 // CHK-FPGA-LINK-PHASES: 7: offload, "device-sycl (spir64_fpga-unknown-{{.*}}-sycldevice)" {6}, object
 
+// -fintelfpga -reuse-exe tests
+// RUN: %clang++ -### -fsycl -fintelfpga %s -reuse-exe=does_not_exist 2>&1 \
+// RUN:  | FileCheck -check-prefixes=CHK-FPGA-REUSE-EXE %s
+// CHK-FPGA-REUSE-EXE: warning: -reuse-exe file 'does_not_exist' not found; ignored
+//
+
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc
