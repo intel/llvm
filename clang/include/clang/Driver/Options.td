@@ -476,22 +476,22 @@ def Xopenmp_target_EQ : JoinedAndSeparate<["-"], "Xopenmp-target=">,
   HelpText<"Pass <arg> to the target offloading toolchain identified by <triple>.">,
   MetaVarName<"<triple> <arg>">;
 def Xsycl_backend : Separate<["-"], "Xsycl-target-backend">,
-  HelpText<"Pass <arg> to the SYCL based target backend.">, MetaVarName<"<arg>">;
+  HelpText<"Pass <arg> to the SYCL based target backend.">, MetaVarName<"<arg>">, Flags<[CoreOption]>;
 def Xsycl_backend_EQ : JoinedAndSeparate<["-"], "Xsycl-target-backend=">,
   HelpText<"Pass <arg> to the SYCL based backend identified by <triple>.">,
-  MetaVarName<"<triple> <arg>">;
+  MetaVarName<"<triple> <arg>">, Flags<[CoreOption]>;
 def Xsycl_frontend : Separate<["-"], "Xsycl-target-frontend">,
-  HelpText<"Pass <arg> to the SYCL based target frontend.">, MetaVarName<"<arg>">;
+  HelpText<"Pass <arg> to the SYCL based target frontend.">, MetaVarName<"<arg>">, Flags<[CoreOption]>;
 def Xsycl_frontend_EQ : JoinedAndSeparate<["-"], "Xsycl-target-frontend=">,
-  HelpText<"Pass <arg> to the SYCL based target frontend identified by <triple>.">,
+  HelpText<"Pass <arg> to the SYCL based target frontend identified by <triple>.">, Flags<[CoreOption]>,
   MetaVarName<"<triple> <arg>">;
 def Xsycl_linker : Separate<["-"], "Xsycl-target-linker">,
-  HelpText<"Pass <arg> to the SYCL based target linker.">, MetaVarName<"<arg>">;
+  HelpText<"Pass <arg> to the SYCL based target linker.">, MetaVarName<"<arg>">, Flags<[CoreOption]>;
 def Xsycl_linker_EQ : JoinedAndSeparate<["-"], "Xsycl-target-linker=">,
   HelpText<"Pass <arg> to the SYCL based target linker identified by <triple>.">,
-  MetaVarName<"<triple> <arg>">;
-def Xs : Joined<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler.">, MetaVarName<"<arg">;
-def Xs_separate : Separate<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler.">, MetaVarName<"<arg">;
+  MetaVarName<"<triple> <arg>">, Flags<[CoreOption]>;
+def Xs : Joined<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler.">, MetaVarName<"<arg">, Flags<[CoreOption]>;
+def Xs_separate : Separate<["-"], "Xs">, HelpText<"Pass <arg> to the offline compiler.">, MetaVarName<"<arg">, Flags<[CoreOption]>;
 def z : Separate<["-"], "z">, Flags<[LinkerInput, RenderAsInput]>,
   HelpText<"Pass -z <arg> to the linker">, MetaVarName<"<arg>">,
   Group<Link_Group>;
@@ -1581,7 +1581,7 @@ def fobjc_nonfragile_abi : Flag<["-"], "fobjc-nonfragile-abi">, Group<f_Group>;
 def fno_objc_nonfragile_abi : Flag<["-"], "fno-objc-nonfragile-abi">, Group<f_Group>;
 
 def fobjc_sender_dependent_dispatch : Flag<["-"], "fobjc-sender-dependent-dispatch">, Group<f_Group>;
-def foffload_static_lib_EQ : CommaJoined<["-"], "foffload-static-lib=">, Flags<[DriverOption]>;
+def foffload_static_lib_EQ : CommaJoined<["-"], "foffload-static-lib=">, Flags<[DriverOption, CoreOption]>;
 def fomit_frame_pointer : Flag<["-"], "fomit-frame-pointer">, Group<f_Group>;
 def fopenmp : Flag<["-"], "fopenmp">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused]>,
   HelpText<"Parse OpenMP pragmas and generate parallel code.">;
@@ -1732,31 +1732,31 @@ def fstrict_vtable_pointers: Flag<["-"], "fstrict-vtable-pointers">,
              "polymorphic C++ objects">;
 def fstrict_overflow : Flag<["-"], "fstrict-overflow">, Group<f_Group>;
 def fintelfpga : Flag<["-"], "fintelfpga">, Group<f_Group>,
-  Flags<[CC1Option]>, HelpText<"Perform ahead of time compilation for FPGA">;
-def fsycl : Flag<["-"], "fsycl">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused]>,
+  Flags<[CC1Option, CoreOption]>, HelpText<"Perform ahead of time compilation for FPGA">;
+def fsycl : Flag<["-"], "fsycl">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, CoreOption]>,
   HelpText<"generate SYCL code.">;
-def fno_sycl : Flag<["-"], "fno-sycl">, Group<f_Group>, Flags<[NoArgumentUnused]>;
-def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[DriverOption, CC1Option]>,
+def fno_sycl : Flag<["-"], "fno-sycl">, Group<f_Group>, Flags<[NoArgumentUnused, CoreOption]>;
+def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[DriverOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
-def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">, Flags<[DriverOption]>,
+def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">, Flags<[DriverOption, CoreOption]>,
   HelpText<"Specify comma-separated list of triple and device binary image pairs to add to the final SYCL binary">;
-def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">, Flags<[DriverOption, CC1Option]>,
+def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">, Flags<[DriverOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to produce linked device images">;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
-  Flags<[CC1Option]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
+  Flags<[CC1Option, CoreOption]>, HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects">;
 def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
-  Flags<[CC1Option]>, HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects">;
+  Flags<[CC1Option, CoreOption]>, HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects">;
 def fsycl_link_EQ : Joined<["-"], "fsycl-link=">,
-  Flags<[CC1Option]>, HelpText<"Generate partially linked device and host object to be used at various stages of compilation">, Values<"image,early">;
+  Flags<[CC1Option, CoreOption]>, HelpText<"Generate partially linked device and host object to be used at various stages of compilation">, Values<"image,early">;
 def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
-  AliasArgs<["early"]>, Flags<[CC1Option]>,
+  AliasArgs<["early"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Generate partially linked device object to be used with the host link">;
 def fsycl_unnamed_lambda : Flag<["-"], "fsycl-unnamed-lambda">,
-  Flags<[CC1Option]>, HelpText<"Allow unnamed SYCL lambda kernels">;
+  Flags<[CC1Option, CoreOption]>, HelpText<"Allow unnamed SYCL lambda kernels">;
 def fsycl_help_EQ : Joined<["-"], "fsycl-help=">,
-  Flags<[DriverOption]>, HelpText<"Emit help information from the related offline compilation tool">, Values<"all,fpga,gen,x86_64">;
+  Flags<[DriverOption, CoreOption]>, HelpText<"Emit help information from the related offline compilation tool">, Values<"all,fpga,gen,x86_64">;
 def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
-  Flags<[DriverOption]>, AliasArgs<["all"]>, HelpText<"Emit help information "
+  Flags<[DriverOption, CoreOption]>, AliasArgs<["all"]>, HelpText<"Emit help information "
   "from all of the offline compilation tools">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[DriverOption,CoreOption,CC1Option]>, Group<Action_Group>;
@@ -3273,9 +3273,9 @@ defm stack_arrays : BooleanFFlag<"stack-arrays">, Group<gfortran_Group>;
 defm underscoring : BooleanFFlag<"underscoring">, Group<gfortran_Group>;
 defm whole_file : BooleanFFlag<"whole-file">, Group<gfortran_Group>;
 
-def sycl_device_only : Flag<["-"], "fsycl-device-only">,
+def sycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
-def sycl : Flag<["--"], "sycl">, Alias<sycl_device_only>;
+def sycl : Flag<["--"], "sycl">, Alias<sycl_device_only>, Flags<[CoreOption]>;
 
 def reuse_exe_EQ : Joined<["-"], "reuse-exe=">,
   HelpText<"Speed up FPGA aoc compile if the device code in <exe> is unchanged.">,
