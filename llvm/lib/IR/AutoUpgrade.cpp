@@ -3865,8 +3865,9 @@ void llvm::UpgradeARCRuntimeCalls(Module &M) {
       return;
 
     Function *NewFn = llvm::Intrinsic::getDeclaration(&M, IntrinsicFunc);
-    for (Use &U : Fn->uses()) {
-      CallInst *CI = dyn_cast<CallInst>(U.getUser());
+
+    for (auto I = Fn->user_begin(), E = Fn->user_end(); I != E;) {
+      CallInst *CI = dyn_cast<CallInst>(*I++);
       if (!CI || CI->getCalledFunction() != Fn)
         continue;
 
