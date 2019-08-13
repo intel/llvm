@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/image_impl.hpp>
+#include <CL/sycl/event.hpp>
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
 #include <cstddef>
