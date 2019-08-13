@@ -10,6 +10,8 @@
 // RUN: touch %t.obj
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %t.obj -### 2>&1 \
 // RUN:   | FileCheck -DOBJ=%t.obj -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %t.obj -### 2>&1 \
+// RUN:   | FileCheck -DOBJ=%t.obj -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs=[[OBJ]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=ao"{{.+}} "-inputs=[[LIB]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB: llvm-link{{(.exe)?}}{{.*}} "@{{.*}}"
@@ -23,6 +25,8 @@
 // RUN: touch %t-2.obj
 // RUN: touch %t-3.obj
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %t-1.obj %t-2.obj %t-3.obj -### 2>&1 \
+// RUN:   | FileCheck -DOBJ1=%t-1.obj -DOBJ2=%t-2.obj -DOBJ3=%t-3.obj -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_MULTI_O
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %t-1.obj %t-2.obj %t-3.obj -### 2>&1 \
 // RUN:   | FileCheck -DOBJ1=%t-1.obj -DOBJ2=%t-2.obj -DOBJ3=%t-3.obj -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_MULTI_O
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs=[[OBJ1]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs=[[OBJ2]]"{{.+}} "-unbundle"
@@ -39,6 +43,8 @@
 // RUN: touch %t.obj
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t1.lib -foffload-static-lib=%t2.lib %t.obj -### 2>&1 \
 // RUN:   | FileCheck -DOBJ=%t.obj -DLIB1=%t1.lib -DLIB2=%t2.lib %s -check-prefix=FOFFLOAD_STATIC_MULTI_LIB
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t1.lib -foffload-static-lib=%t2.lib %t.obj -### 2>&1 \
+// RUN:   | FileCheck -DOBJ=%t.obj -DLIB1=%t1.lib -DLIB2=%t2.lib %s -check-prefix=FOFFLOAD_STATIC_MULTI_LIB
 // FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs=[[OBJ]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=ao"{{.+}} "-inputs=[[LIB1]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=ao"{{.+}} "-inputs=[[LIB2]]"{{.+}} "-unbundle"
@@ -50,6 +56,8 @@
 /// Test behaviors of -foffload-static-lib=<lib> from source.
 // RUN: touch %t.lib
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUT:.+\.c]]", c, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 1: preprocessor, {0}, cpp-output, (host-sycl)
@@ -74,6 +82,8 @@
 
 // RUN: touch %t.lib
 // RUN: %clang --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %s -### 2>&1 \
+// RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %s -### 2>&1 \
 // RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
 // FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=ao"{{.+}} "-inputs=[[LIB]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{(.exe)?}}{{.*}} "@{{.*}}"
