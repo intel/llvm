@@ -125,6 +125,13 @@ public:
   };
 
   virtual PathGenerationScheme getGenerationScheme() const { return Minimal; }
+
+  bool shouldGenerateDiagnostics() const {
+    return getGenerationScheme() != None;
+  }
+
+  bool shouldAddPathEdges() const { return getGenerationScheme() == Extensive; }
+
   virtual bool supportsLogicalOpControlFlow() const { return false; }
 
   /// Return true if the PathDiagnosticConsumer supports individual
@@ -919,7 +926,6 @@ public:
 };
 
 } // namespace ento
-
 } // namespace clang
 
 #endif // LLVM_CLANG_STATICANALYZER_CORE_BUGREPORTER_PATHDIAGNOSTIC_H

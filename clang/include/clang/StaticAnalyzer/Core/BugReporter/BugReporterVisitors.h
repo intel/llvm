@@ -74,12 +74,13 @@ public:
   /// NOTE that this function can be implemented on at most one used visitor,
   /// and otherwise it crahes at runtime.
   virtual PathDiagnosticPieceRef
-  getEndPath(BugReporterContext &BRC, const ExplodedNode *N, BugReport &BR);
+  getEndPath(BugReporterContext &BRC, const ExplodedNode *N,
+             BugReport &BR);
 
   virtual void Profile(llvm::FoldingSetNodeID &ID) const = 0;
 
   /// Generates the default final diagnostic piece.
-  static PathDiagnosticPieceRef getDefaultEndPath(BugReporterContext &BRC,
+  static PathDiagnosticPieceRef getDefaultEndPath(const BugReporterContext &BRC,
                                                   const ExplodedNode *N,
                                                   BugReport &BR);
 };
