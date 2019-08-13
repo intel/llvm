@@ -75,6 +75,12 @@ public:
     return cl::sycl::item<dimensions, with_offset>(R, I);
   }
 
+  template <int dimensions, bool with_offset>
+  static void updateItemIndex(cl::sycl::item<dimensions, with_offset> &Item,
+                              const id<dimensions> &NextIndex) {
+    Item.MImpl.MIndex = NextIndex;
+  }
+
   template <int dimensions>
   static nd_item<dimensions>
   createNDItem(const cl::sycl::item<dimensions, true> &GL,
