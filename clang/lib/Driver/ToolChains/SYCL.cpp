@@ -359,7 +359,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   // on when aoc is ready.
   // CmdArgs.push_back(C.getArgs().MakeArgString(ReportOpt));
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
-  // Look for -reuse-exe=XX option;
+  // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
     StringRef reuse_exe = A->getValue();
     Args.ClaimAllArgs(options::OPT_reuse_exe_EQ);
