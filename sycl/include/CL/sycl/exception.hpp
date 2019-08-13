@@ -13,16 +13,21 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <exception>
+
 namespace cl {
 namespace sycl {
 
 // Forward declaration
 class context;
 
-struct exception {
+// Derive from std::exception so uncaught exceptions are printed in c++ default
+// exception handler.
+class exception: public std::exception {
+public:
   exception() = default;
 
-  const char *what() const noexcept;
+  const char *what() const noexcept final;
 
   bool has_context() const;
 
