@@ -19,6 +19,7 @@ namespace detail {
 
 class event_impl;
 class context_impl;
+struct MemObjRecord;
 
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
@@ -54,6 +55,12 @@ public:
 
   // Ptr must be a pointer returned by allocateHostMem.
   virtual void releaseHostMem(void *Ptr) = 0;
+
+protected:
+  // Pointer to the record that contains the memory commands. This is managed
+  // by the scheduler.
+  std::unique_ptr<MemObjRecord> MRecord;
+  friend class Scheduler;
 };
 
 } // namespace detail
