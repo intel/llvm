@@ -31,6 +31,8 @@ int main() {
       stream Out(1024, 80, CGH);
       assert(Out.get_size() == 1024);
       assert(Out.get_max_statement_size() == 80);
+
+      CGH.single_task<class DummyTask1>([=]() {});
     });
 
     // Check common reference semantics
@@ -47,6 +49,8 @@ int main() {
 
       assert(Out2 == Out3);
       assert(Hasher(Out2) == Hasher(Out3));
+
+      CGH.single_task<class DummyTask2>([=]() {});
     });
 
     // TODO: support cl::sycl::endl. According to specitification endl should be
