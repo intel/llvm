@@ -217,7 +217,10 @@ public:
     if ((MUploadDataFunctor != nullptr) && MNeedWriteBack)
       MUploadDataFunctor();
 
-    Scheduler::getInstance().removeMemoryObject(this);
+    // If we're attached to a memory record, process the deletion of the memory
+    // record. We may get detached before we do this.
+    if (MRecord)
+      Scheduler::getInstance().removeMemoryObject(this);
     releaseHostMem(MShadowCopy);
 
     if (MOpenCLInterop)
