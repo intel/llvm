@@ -3210,8 +3210,14 @@ class OffloadingActionBuilder final {
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
         SYCLDeviceActions.clear();
 
-        // libraries are not replicated for SYCL
-        if (!types::isSrcFile(IA->getType()))
+        // Objects should already be consumed with -foffload-static-lib
+        const char * InputName = IA->getInputArg().getValue();
+        if (Args.hasArg(options::OPT_foffload_static_lib_EQ) &&
+            HostAction->getType() == types::TY_Object &&
+            llvm::sys::path::has_extension(InputName) &&
+            types::lookupTypeForExtension(
+                llvm::sys::path::extension(InputName).drop_front()) ==
+                types::TY_Object)
           return ABRT_Inactive;
 
         for (unsigned I = 0; I < ToolChains.size(); ++I)
