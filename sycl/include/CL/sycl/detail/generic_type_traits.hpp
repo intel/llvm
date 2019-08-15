@@ -233,23 +233,23 @@ using is_genint =
 // ulongn: ulong2, ulong3, ulong4, ulong8,ulong16
 template <typename T>
 using is_ulongn = typename is_contained<
-    T, type_list<cl_ulong2, cl_ulong3, cl_ulong4, cl_ulong8, cl_ulong16>>::type;
+    T, type_list<ulong2, ulong3, ulong4, ulong8, ulong16>>::type;
 
 // ugenlong: unsigned long int, ulongn
 template <typename T>
 using is_ugenlong =
-    std::integral_constant<bool, is_contained<T, type_list<cl_ulong>>::value ||
+    std::integral_constant<bool, is_contained<T, type_list<ulong>>::value ||
                                      is_ulongn<T>::value>;
 
 // longn: long2, long3, long4, long8, long16
 template <typename T>
 using is_longn = typename is_contained<
-    T, type_list<cl_long2, cl_long3, cl_long4, cl_long8, cl_long16>>::type;
+    T, type_list<long2, long3, long4, long8, long16>>::type;
 
 // genlong: long int, longn
 template <typename T>
 using is_genlong =
-    std::integral_constant<bool, is_contained<T, type_list<cl_long>>::value ||
+    std::integral_constant<bool, is_contained<T, type_list<long>>::value ||
                                      is_longn<T>::value>;
 
 // ulonglongn: ulonglong2, ulonglong3, ulonglong4,ulonglong8, ulonglong16
