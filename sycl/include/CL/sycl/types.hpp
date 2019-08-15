@@ -1762,7 +1762,7 @@ DECLARE_TYPE_T(half);
 DECLARE_TYPE_T(double);
 
 #define GET_CL_TYPE(target, num) __##target##num##_vec_t
-#define GET_SCALAR_CL_TYPE(target) __##target##_t
+#define GET_SCALAR_CL_TYPE(target) target
 
 #undef DECLARE_TYPE_T
 #undef DECLARE_LLTYPE_T
@@ -1925,7 +1925,7 @@ using select_apply_cl_t =
   DECLARE_LONGLONG_CONVERTER(base, 16)                                         \
   template <> class BaseCLTypeConverter<base##long, 1> {                       \
   public:                                                                      \
-    using DataType = GET_SCALAR_CL_TYPE(base);                                 \
+    using DataType = base##long;                                               \
   };                                                                           \
   } // namespace detail
 
@@ -1965,6 +1965,18 @@ using select_apply_cl_t =
   using half3 = vec<half, 3>;                                                  \
   using half2 = vec<half, 2>;
 
+#define DECLARE_SYCL_VEC_LONG_WO_CONVERTERS(base)                              \
+  using cl_##base##16 = vec<cl_##base, 16>;                                    \
+  using cl_##base##8 = vec<cl_##base, 8>;                                      \
+  using cl_##base##4 = vec<cl_##base, 4>;                                      \
+  using cl_##base##3 = vec<cl_##base, 3>;                                      \
+  using cl_##base##2 = vec<cl_##base, 2>;                                      \
+  using base##16 = vec<base, 16>;                                              \
+  using base##8 = vec<base, 8>;                                                \
+  using base##4 = vec<base, 4>;                                                \
+  using base##3 = vec<base, 3>;                                                \
+  using base##2 = vec<base, 2>;
+
 // cl_longlong/cl_ulonglong are not supported in SYCL
 #define DECLARE_SYCL_VEC_LONGLONG_WO_CONVERTERS(base)                          \
   using base##long16 = vec<base##long, 16>;                                    \
@@ -1989,6 +2001,14 @@ using select_apply_cl_t =
   DECLARE_VECTOR_CONVERTERS(char)                                              \
   DECLARE_SYCL_VEC_CHAR_WO_CONVERTERS
 
+#define DECLARE_SYCL_VEC_LONG                                                  \
+  DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(long)                              \
+  DECLARE_SYCL_VEC_LONG_WO_CONVERTERS(long)
+
+#define DECLARE_SYCL_VEC_ULONG                                                 \
+  DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(ulong)                           \
+  DECLARE_SYCL_VEC_LONG_WO_CONVERTERS(ulong)
+
 #define DECLARE_SYCL_VEC_LONGLONG(base)                                        \
   DECLARE_VECTOR_LONGLONG_CONVERTERS(base)                                     \
   DECLARE_SYCL_VEC_LONGLONG_WO_CONVERTERS(base)
@@ -2004,8 +2024,8 @@ DECLARE_SYCL_SIGNED_INTEGRAL_VEC(short)
 DECLARE_SYCL_UNSIGNED_INTEGRAL_VEC(ushort)
 DECLARE_SYCL_SIGNED_INTEGRAL_VEC(int)
 DECLARE_SYCL_UNSIGNED_INTEGRAL_VEC(uint)
-DECLARE_SYCL_SIGNED_INTEGRAL_VEC(long)
-DECLARE_SYCL_UNSIGNED_INTEGRAL_VEC(ulong)
+DECLARE_SYCL_VEC_LONG
+DECLARE_SYCL_VEC_ULONG
 DECLARE_SYCL_VEC_LONGLONG(long)
 DECLARE_SYCL_VEC_LONGLONG(ulong)
 DECLARE_SYCL_VEC_HALF(half)
@@ -2018,6 +2038,9 @@ DECLARE_SYCL_FLOAT_VEC(double)
 #undef DECLARE_VECTOR_CONVERTERS
 #undef DECLARE_SYCL_VEC
 #undef DECLARE_SYCL_VEC_WO_CONVERTERS
+#undef DECLARE_SYCL_VEC_LONG_WO_CONVERTERS
+#undef DECLARE_SYCL_VEC_LONG
+#undef DECLARE_SYCL_VEC_ULONG
 
 } // namespace sycl
 } // namespace cl

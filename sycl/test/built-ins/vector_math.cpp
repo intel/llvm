@@ -206,9 +206,15 @@ int main() {
 
   // nan (ulong)
   {
-    s::cl_double2 r{ 0 };
+    // Result type depends on the ulong type size which varies across targets.
+    // It is a 64-bit type on Linux and 32-bit on Windows.
+    using res_scalar_t = std::conditional<sizeof(s::ulong) == sizeof(float),
+                                          s::cl_float, s::cl_double>::type;
+    using res_vector_t = s::vec<res_scalar_t, 2>;
+
+    res_vector_t r{ 0 };
     {
-      s::buffer<s::cl_double2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<res_vector_t, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
@@ -216,8 +222,8 @@ int main() {
         cgh.single_task<class nanISUL2>([=]() { AccR[0] = s::nan(in); });
       });
     }
-    s::cl_double x = r.x();
-    s::cl_double y = r.y();
+    res_scalar_t x = r.x();
+    res_scalar_t y = r.y();
     assert(std::isnan(x));
     assert(std::isnan(y));
   }

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx %s -o %t.out -lOpenCL -lsycl
 // RUN: %t.out
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //
@@ -56,6 +56,25 @@ int main() {
   assert(static_cast<float>(b_vec.y()) == static_cast<float>(0.5));
   assert(static_cast<float>(b_vec.z()) == static_cast<float>(0.5));
   assert(static_cast<float>(b_vec.w()) == static_cast<float>(0.5));
+
+  // Check that vector with 'unsigned long long' elements has enough bits to
+  // store value.
+  unsigned long long ull_ref = 1ull - 2ull;
+  auto ull_vec = cl::sycl::vec<unsigned long long, 1>(ull_ref);
+  unsigned long long ull_val = ull_vec.template swizzle<cl::sycl::elem::s0>();
+  assert(ull_val == ull_ref);
+
+  // Check that [u]long[n] type aliases match vec<[unsigned] long, n> types.
+  assert((std::is_same<cl::sycl::vec<long, 2>, cl::sycl::long2>::value));
+  assert((std::is_same<cl::sycl::vec<long, 3>, cl::sycl::long3>::value));
+  assert((std::is_same<cl::sycl::vec<long, 4>, cl::sycl::long4>::value));
+  assert((std::is_same<cl::sycl::vec<long, 8>, cl::sycl::long8>::value));
+  assert((std::is_same<cl::sycl::vec<long, 16>, cl::sycl::long16>::value));
+  assert((std::is_same<cl::sycl::vec<unsigned long, 2>, cl::sycl::ulong2>::value));
+  assert((std::is_same<cl::sycl::vec<unsigned long, 3>, cl::sycl::ulong3>::value));
+  assert((std::is_same<cl::sycl::vec<unsigned long, 4>, cl::sycl::ulong4>::value));
+  assert((std::is_same<cl::sycl::vec<unsigned long, 8>, cl::sycl::ulong8>::value));
+  assert((std::is_same<cl::sycl::vec<unsigned long, 16>, cl::sycl::ulong16>::value));
 
   return 0;
 }
