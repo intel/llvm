@@ -56,7 +56,7 @@ enum class image_channel_type : unsigned int {
 
 using byte = unsigned char;
 
-using image_allocator = std::allocator<byte>;
+using image_allocator = detail::aligned_allocator<byte>;
 
 template <int Dimensions = 1, typename AllocatorT = cl::sycl::image_allocator>
 class image {
