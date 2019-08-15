@@ -83,12 +83,71 @@ namespace pi {
     template<typename Exception>
     void check(PiResult Result);
   };
+
+  // The run-time tracing of PI calls.
+  // TODO: replace PiCall completely with this one (PiTrace)
+  //
+  template <typename T> inline
+  void print(T val) {
+    std::cout << "<unknown> : " << val;
+  }
+
+  template<> inline void print<> (PiPlatform val) { std::cout << "pi_platform : " << val; }
+  template<> inline void print<> (PiResult val) {
+    std::cout << "pi_result : ";
+    if (val == PI_SUCCESS)
+      std::cout << "PI_SUCCESS";
+    else
+      std::cout << val; 
+  }
+  
+  inline void printArgs(void) {}
+  template <typename Arg0, typename... Args>
+  void printArgs(Arg0 arg0, Args... args) {
+    std::cout << std::endl << "       ";
+    print(arg0);
+    printArgs(std::forward<Args>(args)...);
+  }
+  
+  template <typename FnType>
+  class Trace {
+  private:
+    FnType m_FnPtr;
+    static bool m_TraceEnabled;
+  public:
+    Trace(FnType FnPtr, const std::string &FnName) : m_FnPtr(FnPtr) {
+      if (m_TraceEnabled)
+        std::cout << "---> " << FnName << "(";
+    }
+  
+    template <typename... Args>
+    typename std::result_of<FnType(Args...)>::type
+    operator() (Args... args) {
+      if (m_TraceEnabled)
+        printArgs(args...);
+
+      piInitialize();
+      auto r = m_FnPtr(args...);
+
+      if (m_TraceEnabled) {
+        std::cout << ") ---> ";
+        std::cout << (print(r),"") << "\n";
+      }
+      return r;
+    }
+  };
+
+  template <typename FnType>
+  bool Trace<FnType>::m_TraceEnabled = (std::getenv("SYCL_PI_TRACE") != nullptr);
+
 } // namespace pi
 
 namespace RT = cl::sycl::detail::pi;
 
 #define PI_ASSERT(cond, msg) \
   RT::piAssert((cond), "assert @ " __FILE__ ":" STRINGIFY_LINE(__LINE__) msg);
+
+#define PI_TRACE(func) RT::Trace<decltype(func)>(func, #func)
 
 // This does the call, the trace and the check for no errors.
 #define PI_CALL(pi)                                   \

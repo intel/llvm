@@ -53,8 +53,10 @@ platform_impl_pi::get_devices(info::device_type deviceType) const {
     return res;
 
   pi_uint32 num_devices;
-  PI_CALL(RT::piDevicesGet(
-      m_platform, pi::pi_cast<RT::PiDeviceType>(deviceType), 0, 0, &num_devices));
+  PI_TRACE(RT::piDevicesGet)(
+      m_platform, pi::pi_cast<RT::PiDeviceType>(deviceType),
+      0, pi::pi_cast<RT::PiDevice *>(nullptr),
+      &num_devices);
 
   if (num_devices == 0)
     return res;
