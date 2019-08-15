@@ -60,6 +60,7 @@ public:
   void addImages(pi_device_binaries DeviceImages);
   void debugDumpBinaryImages() const;
   void debugDumpBinaryImage(const DeviceImage *Img) const;
+  static string_class getProgramBuildLog(const RT::PiProgram &Program);
 
 private:
   RT::PiProgram loadProgram(OSModuleHandle M, const context &Context,
