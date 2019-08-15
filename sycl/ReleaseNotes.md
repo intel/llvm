@@ -1,3 +1,87 @@
+# August'19 release notes
+
+Release notes for commit c557eb740d55e828fcf74b28d2b686c928e45318.
+
+## New features
+- Support for `image accessor` has been landed.
+- Added support for unnamed lambda kernels, so `parallel_for` works without
+  specifying "Kernel Name" type. This can be enabled by passing
+  `-fsycl-unnamed-lambda` option.
+- Kernel to kernel blocking and non-blocking pipe feature is implemented.
+- Added support for Unified Shared Memory ([USM](sycl/doc/extensions/usm)).
+
+## Improvements
+- Now OpenCL 1.2 clCreateSampler sampler is used for all version of OpenCL
+  implementation.
+- Added Intel FPGA specific command line interfaces for ahead of time
+  compilation.
+- Intel FPGA memory attributes are now supported for static variables.
+- Hierarchical parallelism is improved to pass conformance tests.
+- `private_memory` class has been implemented.
+- sycl.lib is automatically linked with -fsycl switch on Windows.
+- Added support for Windows getOSModuleHandle.
+- Functions with variadic arguments doesn't trigger compiler diagnostic about
+  calling convention.
+- Added experimental support for building and linking SYCL runtime with libc++
+  library instead of libstdc++.
+- Adjusted array and vec classes so they are more efficient for Intel FPGA
+  devices.
+- Exception will be thrown on attempt to create image accessor for the device
+  which doesn't support images.
+- Use `llvm-objcopy` for merging device and host objects instead of doing
+  partial linking.
+- Check if online compiler is available before building the program.
+- clCreateProgramWithILKHR is used if OpenCL implementation supports
+  cl_khr_il_program extension.
+- Reuse the pointer provided by the user in the `buffer` constructor (even if
+  `use_host_ptr` property isn't specified) if its alignment is sufficient.
+- `-Ldir` now can be used to find libraries with `-foffload-static-lib`
+- `max_concurrency` Intel FPGA loop attribute now accepts zero.
+- Ignore incorrectly used Intel FPGA loop attribute emitting user friendly
+  warning instead of compiler error.
+- Added `depends_on` methods of `handler` class which can be used to provide
+  additional dependency for a command group.
+- SYCL implementation can now be built on Windows using Visual Studio 2017 or
+  higher.
+
+## Bug fixes
+- Fixed assertion failure when use `-save-temps` option along with `-fsycl`.
+- Cached JITed programs are now released during destruction of `context` they
+  are bound to, earlier release happened during a process shutdown.
+- Fixed `get_linear_id` method of `group` class, now it calculate according to
+  row-major ordering.
+- Removed printing of error messages to stderr before throwing an exception.
+- Explicit copy API of the handler class is asynchronous again.
+- `fill` method of `handler` class now takes element size into account.
+- Fixed bug with ignored several Intel FPGA loop attributes in case of argument
+  is 1.
+- Fixed bug which prevented Intel FPGA loop attributes work with infinite loops.
+- Fixed problem which caused invalid/redundant memory copy operations to be
+  generated.
+- The commands created by Scheduler now cleaned up on destruction of
+  corresponding `SYCL` memory objects (`buffer`, `image`).
+- 1 dimensional sub buffer is passed as cl_mem obtained by calling
+  clCreateSubBuffer when kernel is built from OpenCL C source.
+- Now copy of entire memory is performed when data is needed in new context even
+  if user requests accesses to only part of the memory.
+- Fixed problem with one element `vec` objects relation/logical operation which
+  was working like scalar.
+- Type casting and conditional operator (ternary 'if') with pointers now working
+  correctly.
+- The problem with calling inlined kernel from multiple TUs is fixed.
+- Fixed compiler warnings for Intel FPGA attributes on host compilation.
+- Fixed bug with passing values of `vec<#, half>` type to the kernel.
+- Fixed buffer constructor which takes host data as shared_ptr. Now it increments
+  shared_ptr reference counter and reuses provided memory if possible.
+- Fixed a bug with nd_item.barrier not respecting fence_space flag
+
+## Prerequisites
+- Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
+  support version [2019.8.7.0.0725_rel](https://github.com/intel/llvm/releases/download/2019-08/oclcpuexp-2019.8.7.0.0725_rel.tar.gz)
+  is recommended OpenCL CPU RT prerequisite for the SYCL compiler
+- The Intel(R) Graphics Compute Runtime for OpenCL(TM) version [19.29.13530](https://github.com/intel/compute-runtime/releases/tag/19.29.13530) is
+  recommended OpenCL GPU RT prerequisite for the SYCL compiler.
+
 # July'19 release notes
 
 Release notes for commit 64c0262c0f0b9e1b7b2e2dcef57542a3fe3bdb97.
