@@ -272,17 +272,17 @@ struct IRPosition {
   /// Return the Function surrounding the anchor value.
   ///
   ///{
-  Function &getAnchorScope() {
+  Function *getAnchorScope() {
     Value &V = getAnchorValue();
     if (isa<Function>(V))
-      return cast<Function>(V);
+      return &cast<Function>(V);
     if (isa<Argument>(V))
-      return *cast<Argument>(V).getParent();
+      return cast<Argument>(V).getParent();
     if (isa<Instruction>(V))
-      return *cast<Instruction>(V).getFunction();
-    llvm_unreachable("No anchor scope");
+      return cast<Instruction>(V).getFunction();
+    return nullptr;
   }
-  const Function &getAnchorScope() const {
+  const Function *getAnchorScope() const {
     return const_cast<IRPosition *>(this)->getAnchorScope();
   }
   ///}
@@ -887,6 +887,31 @@ struct IntegerState : public AbstractState {
            this->getKnown() == R.getKnown();
   }
 
+  /// Inequality for IntegerState.
+  bool operator!=(const IntegerState &R) const { return !(*this == R); }
+
+  /// "Clamp" this state with \p R. The result is the maximum of the known
+  /// information but the minimum of the assumed.
+  IntegerState operator^=(const IntegerState &R) {
+    takeKnownMaximum(R.Known);
+    takeAssumedMinimum(R.Assumed);
+    return *this;
+  }
+
+  /// Make this the minimum, known and assumed, of this state and \p R.
+  IntegerState operator&=(const IntegerState &R) {
+    Known = std::min(Known, R.Known);
+    Assumed = std::min(Assumed, R.Assumed);
+    return *this;
+  }
+
+  /// Make this the maximum, known and assumed, of this state and \p R.
+  IntegerState operator|=(const IntegerState &R) {
+    Known = std::max(Known, R.Known);
+    Assumed = std::max(Assumed, R.Assumed);
+    return *this;
+  }
+
 private:
   /// The known state encoding in an integer of type base_t.
   base_t Known = getWorstState();
@@ -1091,6 +1116,11 @@ struct AAReturnedValues
     : public IRAttribute<Attribute::Returned, AbstractAttribute> {
   AAReturnedValues(const IRPosition &IRP) : IRAttribute(IRP) {}
 
+  /// Return an assumed unique return value if a single candidate is found. If
+  /// there cannot be one, return a nullptr. If it is not clear yet, return the
+  /// Optional::NoneType.
+  Optional<Value *> getAssumedUniqueReturnValue(Attributor &A) const;
+
   /// Check \p Pred on all returned values.
   ///
   /// This method will evaluate \p Pred on returned values and return
@@ -1102,6 +1132,15 @@ struct AAReturnedValues
   virtual bool checkForAllReturnedValuesAndReturnInsts(
       const function_ref<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)>
           &Pred) const = 0;
+
+  using iterator = DenseMap<Value *, SmallPtrSet<ReturnInst *, 2>>::iterator;
+  using const_iterator =
+      DenseMap<Value *, SmallPtrSet<ReturnInst *, 2>>::const_iterator;
+  virtual llvm::iterator_range<iterator> returned_values() = 0;
+  virtual llvm::iterator_range<const_iterator> returned_values() const = 0;
+
+  virtual size_t getNumReturnValues() const = 0;
+  virtual const SmallPtrSetImpl<CallBase *> &getUnresolvedCalls() const = 0;
 
   /// Unique ID (due to the unique address)
   static const char ID;
@@ -1254,7 +1293,7 @@ struct AAIsDead : public StateWrapper<BooleanState, AbstractAttribute>,
   /// of instructions is live.
   template <typename T> bool isLiveInstSet(T begin, T end) const {
     for (const auto &I : llvm::make_range(begin, end)) {
-      assert(I->getFunction() == &getIRPosition().getAnchorScope() &&
+      assert(I->getFunction() == getIRPosition().getAnchorScope() &&
              "Instruction must be in the same anchor scope function.");
 
       if (!isAssumedDead(I))
@@ -1282,9 +1321,6 @@ struct AADereferenceable
 
   /// Return true if we assume that the underlying value is nonnull.
   virtual bool isAssumedNonNull() const = 0;
-
-  /// Return true if we know that underlying value is nonnull.
-  virtual bool isKnownNonNull() const = 0;
 
   /// Return true if we assume that underlying value is
   /// dereferenceable(_or_null) globally.
