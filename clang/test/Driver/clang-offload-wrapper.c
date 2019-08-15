@@ -32,26 +32,26 @@
 // CHECK-HELP: {{.*}}USAGE: clang-offload-wrapper [options] <input  files>
 // CHECK-HELP: {{.*}}OPTIONS:
 // CHECK-HELP: {{.*}}clang-offload-wrapper options:
-// CHECK-HELP: {{.*}}  -build-opts=<string>    - build options passed to the offload runtime
-// CHECK-HELP: {{.*}}  -desc-name=<name>       - Specifies offload descriptor symbol name: '.<offload kind>.<name>', and makes it globally visible
-// CHECK-HELP: {{.*}}  -emit-reg-funcs         - Emit [un-]registration functions
-// CHECK-HELP: {{.*}}  -format                 - device binary image formats:
-// CHECK-HELP: {{.*}}    =none                 -   not set
-// CHECK-HELP: {{.*}}    =native               -   unknown or native
-// CHECK-HELP: {{.*}}    =spirv                -   SPIRV binary
-// CHECK-HELP: {{.*}}    =llvmbc               -   LLVMIR bitcode
-// CHECK-HELP: {{.*}}  -host=<triple>          - wrapper object target triple
-// CHECK-HELP: {{.*}}  -kind                   - offload kind:
-// CHECK-HELP: {{.*}}    =unknown              -   unknown
-// CHECK-HELP: {{.*}}    =host                 -   host
-// CHECK-HELP: {{.*}}    =openmp               -   OpenMP
-// CHECK-HELP: {{.*}}    =hip                  -   HIP
-// CHECK-HELP: {{.*}}    =sycl                 -   SYCL
-// CHECK-HELP: {{.*}}  -o=<filename>           - Output filename
-// CHECK-HELP: {{.*}}  -reg-func-name=<name>   - Offload descriptor registration function name
-// CHECK-HELP: {{.*}}  -target=<string>        - offload target triple
-// CHECK-HELP: {{.*}}  -unreg-func-name=<name> - Offload descriptor un-registration function name
-// CHECK-HELP: {{.*}}  -v                      - verbose output
+// CHECK-HELP: {{.*}}  --build-opts=<string>    - build options passed to the offload runtime
+// CHECK-HELP: {{.*}}  --desc-name=<name>       - Specifies offload descriptor symbol name: '.<offload kind>.<name>', and makes it globally visible
+// CHECK-HELP: {{.*}}  --emit-reg-funcs         - Emit [un-]registration functions
+// CHECK-HELP: {{.*}}  --format=<value>         - device binary image formats:
+// CHECK-HELP: {{.*}}    =none                  -   not set
+// CHECK-HELP: {{.*}}    =native                -   unknown or native
+// CHECK-HELP: {{.*}}    =spirv                 -   SPIRV binary
+// CHECK-HELP: {{.*}}    =llvmbc                -   LLVMIR bitcode
+// CHECK-HELP: {{.*}}  --host=<triple>          - wrapper object target triple
+// CHECK-HELP: {{.*}}  --kind=<value>           - offload kind:
+// CHECK-HELP: {{.*}}    =unknown               -   unknown
+// CHECK-HELP: {{.*}}    =host                  -   host
+// CHECK-HELP: {{.*}}    =openmp                -   OpenMP
+// CHECK-HELP: {{.*}}    =hip                   -   HIP
+// CHECK-HELP: {{.*}}    =sycl                  -   SYCL
+// CHECK-HELP: {{.*}}  -o=<filename>            - Output filename
+// CHECK-HELP: {{.*}}  --reg-func-name=<name>   - Offload descriptor registration function name
+// CHECK-HELP: {{.*}}  --target=<string>        - offload target triple
+// CHECK-HELP: {{.*}}  --unreg-func-name=<name> - Offload descriptor un-registration function name
+// CHECK-HELP: {{.*}}  -v                       - verbose output
 
 // -------
 // Generate files to wrap.
@@ -159,4 +159,10 @@
 
 // CHECK-IR2: declare void @__UNREGFUNC__
 
-
+// -------
+// Check that device image can be extracted from the wrapper object by the clang-offload-bundler tool.
+//
+// RUN: clang-offload-wrapper -o %t.wrapper.bc -host=x86_64-pc-linux-gnu -kind=sycl -target=spir64-unknown-linux-sycldevice %t1.tgt
+// RUN: %clang -target x86_64-pc-linux-gnu -c %t.wrapper.bc -o %t.wrapper.o
+// RUN: clang-offload-bundler --type=o --inputs=%t.wrapper.o --targets=host-x86_64-pc-linux-gnu,sycl-spir64-unknown-linux-sycldevice --outputs=%t.host.out,%t1.out --unbundle
+// RUN: diff %t1.out %t1.tgt
