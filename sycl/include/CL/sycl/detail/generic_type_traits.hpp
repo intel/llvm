@@ -441,7 +441,8 @@ template <class P, typename T>
 using is_MultiPtrOfGLR =
     std::integral_constant<bool, std::is_same<P, global_ptr<T>>::value ||
                                      std::is_same<P, local_ptr<T>>::value ||
-                                     std::is_same<P, private_ptr<T>>::value>;
+                                     std::is_same<P, private_ptr<T>>::value ||
+                                     std::is_same<P, T*>::value>;
 
 // genintptr All permutations of multi_ptr<dataT, addressSpace> where dataT is
 // all types within genint and addressSpace is
@@ -829,7 +830,8 @@ template <typename T> class TryToGetPointerT {
 
 public:
   using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same<T, type>::value;
+  static constexpr bool value = std::is_pointer<T>::value ||
+                                !std::is_same<T, type>::value;
 };
 
 // Try to get element_type, otherwise T
@@ -861,6 +863,8 @@ template <typename T> class TryToGetPointerVecT {
       typename TryToGetVectorT<typename TryToGetElementType<A>::type>::type,
       A::address_space>::type *
   check(const A &);
+  template <typename A>
+  static typename TryToGetVectorT<A>::type * check(const A *);
 
 public:
   using type = decltype(check(T()));
@@ -872,6 +876,13 @@ typename TryToGetPointerVecT<T>::type TryToGetPointer(T &t) {
   // TODO find the better way to get the pointer to underlying data from vec
   // class
   return reinterpret_cast<typename TryToGetPointerVecT<T>::type>(t.get());
+}
+
+template <typename T>
+typename TryToGetPointerVecT<T *>::type TryToGetPointer(T *t) {
+  // TODO find the better way to get the pointer to underlying data from vec
+  // class
+  return reinterpret_cast<typename TryToGetPointerVecT<T *>::type>(t);
 }
 
 template <typename T, typename = typename std::enable_if<
@@ -948,7 +959,8 @@ struct select_cl_mptr_or_vector_or_scalar;
 
 template <typename T>
 struct select_cl_mptr_or_vector_or_scalar<
-  T, typename std::enable_if<is_genptr<T>::value>::type> {
+  T, typename std::enable_if<is_genptr<T>::value &&
+                             !std::is_pointer<T>::value>::type> {
   using type = multi_ptr<
     typename select_cl_vector_or_scalar<typename T::element_type>::type,
     T::address_space>;
@@ -956,7 +968,8 @@ struct select_cl_mptr_or_vector_or_scalar<
 
 template <typename T>
 struct select_cl_mptr_or_vector_or_scalar<
-  T, typename std::enable_if<!is_genptr<T>::value>::type> {
+  T, typename std::enable_if<!is_genptr<T>::value ||
+                             std::is_pointer<T>::value>::type> {
   using type = typename select_cl_vector_or_scalar<T>::type;
 };
 
