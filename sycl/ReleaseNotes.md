@@ -77,9 +77,9 @@ Release notes for commit c557eb740d55e828fcf74b28d2b686c928e45318.
 
 ## Prerequisites
 - Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
-  support version 2019.8.7.0.0725_rel is recommended OpenCL CPU RT prerequisite
-  for the SYCL compiler
-- The Intel(R) Graphics Compute Runtime for OpenCL(TM) version 19.29.13530 is
+  support version [2019.8.7.0.0725_rel](https://github.com/intel/llvm/releases/download/2019-08/oclcpuexp-2019.8.7.0.0725_rel.tar.gz)
+  is recommended OpenCL CPU RT prerequisite for the SYCL compiler
+- The Intel(R) Graphics Compute Runtime for OpenCL(TM) version [19.29.13530](https://github.com/intel/compute-runtime/releases/tag/19.29.13530) is
   recommended OpenCL GPU RT prerequisite for the SYCL compiler.
 
 # July'19 release notes
