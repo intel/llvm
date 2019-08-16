@@ -18,6 +18,26 @@ using d_t = double;
 
 struct v {};
 
+void check_many(void)
+{
+  {
+    unsigned y = 1;
+    auto x = cl::sycl::nan(y);
+  }
+  {
+    unsigned long y = 1;
+    auto x = cl::sycl::nan(y);
+  }
+  {
+    long int y = 1;
+    auto x = cl::sycl::any(y);
+  }
+  {
+    int y = 1;
+    auto x = cl::sycl::any(y);
+  }
+}
+
 int main() {
   // is_floatn
   static_assert(d::is_floatn<s::cl_float4>::value == true, "");
@@ -53,6 +73,17 @@ int main() {
   static_assert(d::is_ugenint<s::cl_uint>::value == true, "");
 
   static_assert(d::is_ugenint<s::cl_uint3>::value == true, "");
+
+  static_assert(d::is_ugenlong<unsigned long>::value, "");
+  static_assert(d::is_genlong<long>::value, "");
+
+  static_assert(d::is_sgeninteger<int>::value, "");
+  static_assert(d::is_sgeninteger<long int>::value, "");
+  static_assert(d::is_sgeninteger<long long int>::value, "");
+
+  static_assert(d::is_sigeninteger<int>::value, "");
+  static_assert(d::is_sigeninteger<long int>::value, "");
+  static_assert(d::is_sigeninteger<long long int>::value, "");
 
   // TODO add checks for the following type traits
   /*

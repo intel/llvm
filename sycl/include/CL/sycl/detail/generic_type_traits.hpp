@@ -238,8 +238,9 @@ using is_ulongn = typename is_contained<
 // ugenlong: unsigned long int, ulongn
 template <typename T>
 using is_ugenlong =
-    std::integral_constant<bool, is_contained<T, type_list<cl_ulong>>::value ||
-                                     is_ulongn<T>::value>;
+    std::integral_constant<bool,
+      is_contained<T, type_list<unsigned long, cl_ulong>>::value ||
+      is_ulongn<T>::value>;
 
 // longn: long2, long3, long4, long8, long16
 template <typename T>
@@ -249,8 +250,8 @@ using is_longn = typename is_contained<
 // genlong: long int, longn
 template <typename T>
 using is_genlong =
-    std::integral_constant<bool, is_contained<T, type_list<cl_long>>::value ||
-                                     is_longn<T>::value>;
+    std::integral_constant<bool,
+      is_contained<T, type_list<long, cl_long>>::value || is_longn<T>::value>;
 
 // ulonglongn: ulonglong2, ulonglong3, ulonglong4,ulonglong8, ulonglong16
 template <typename T>
@@ -314,7 +315,8 @@ using is_ugeninteger = std::integral_constant<
 template <typename T>
 using is_sgeninteger = typename is_contained<
     T, type_list<cl_char, cl_schar, cl_uchar, cl_short, cl_ushort, cl_int,
-                 cl_uint, cl_long, cl_ulong, longlong, ulonglong>>::type;
+                 cl_uint, cl_long, cl_ulong, long, unsigned long,
+                 longlong, ulonglong>>::type;
 
 // vgeninteger: charn, scharn, ucharn, shortn, ushortn, intn, uintn, longn,
 // ulongn, longlongn, ulonglongn
@@ -329,7 +331,8 @@ using is_vgeninteger = std::integral_constant<
 // sigeninteger: char, signed char, short, int, long int, , long long int
 template <typename T>
 using is_sigeninteger = typename is_contained<
-    T, type_list<cl_char, cl_schar, cl_short, cl_int, cl_long, longlong>>::type;
+    T, type_list<cl_char, cl_schar, cl_short, cl_int, cl_long, long,
+                 longlong>>::type;
 
 // sugeninteger: unsigned char, unsigned short,  unsigned int, unsigned long
 // int, unsigned long long int
