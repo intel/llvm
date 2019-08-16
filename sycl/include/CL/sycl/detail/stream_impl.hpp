@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/builtins.hpp>
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/queue.hpp>
@@ -322,15 +323,52 @@ inline unsigned append(char *Dst, const char *Src) {
   return Len;
 }
 
+template <typename T>
+inline typename std::enable_if<std::is_same<T, half>::value, unsigned>::type
+checkForInfNan(char *Buf, T Val) {
+  if (Val != Val)
+    return append(Buf, "nan");
+
+  // Extract the sign from the bits
+  const uint16_t Sign = reinterpret_cast<uint16_t &>(Val) & 0x8000;
+  // Extract the exponent from the bits
+  const uint16_t Exp16 = (reinterpret_cast<uint16_t &>(Val) & 0x7c00) >> 10;
+
+  if (Exp16 == 0x1f) {
+    if (Sign)
+      return append(Buf, "-inf");
+    return append(Buf, "inf");
+  }
+  return 0;
+}
+
+template <typename T>
+inline typename std::enable_if<std::is_same<T, float>::value ||
+                                   std::is_same<T, double>::value,
+                               unsigned>::type
+checkForInfNan(char *Buf, T Val) {
+  if (isnan(Val))
+    return append(Buf, "nan");
+  if (isinf(Val)) {
+    if (signbit(Val))
+      return append(Buf, "-inf");
+    return append(Buf, "inf");
+  }
+  return 0;
+}
+
 // Returns number of symbols written to the buffer
 template <typename T>
 inline EnableIfFP<T, unsigned> ScalarToStr(const T &Val, char *Buf,
                                            unsigned Flags, int Width,
                                            int Precision = -1) {
+  unsigned Offset = checkForInfNan(Buf, Val);
+  if (Offset)
+    return Offset;
+
   T Neg = -Val;
   auto AbsVal = Val < 0 ? Neg : Val;
 
-  unsigned Offset = 0;
 
   if (Val < 0) {
     Buf[Offset++] = '-';
