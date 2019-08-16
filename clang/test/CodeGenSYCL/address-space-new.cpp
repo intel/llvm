@@ -1,6 +1,22 @@
 // RUN: DISABLE_INFER_AS=1 %clang_cc1 -triple spir64-unknown-linux-sycldevice  -std=c++11 -fsycl-is-device -disable-llvm-passes -emit-llvm -x c++ %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-LEGACY
 // RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice  -std=c++11 -fsycl-is-device -disable-llvm-passes -emit-llvm -x c++ %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-NEW
 
+struct SpaceWaster {
+  int i, j;
+};
+
+struct HasX {
+  int x;
+};
+
+struct Y : SpaceWaster, HasX {};
+
+void bar(HasX &hx);
+
+void baz(Y &y) {
+  bar(y);
+}
+
 void test() {
   static const int foo = 0x42;
   // CHECK-LEGACY: @_ZZ4testvE3foo = internal constant i32 66, align 4
@@ -88,6 +104,19 @@ void test() {
   (void)select_str_trivial2;
   // CHECK-LEGACY: store i8* getelementptr inbounds ([21 x i8], [21 x i8]* @{{.*}}, i64 0, i64 0), i8** %{{.*}}
   // CHECK-NEW: store i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([21 x i8], [21 x i8]* @{{.*}}, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)** %{{.*}}
+  //
+  //
+  Y yy;
+  baz(yy);
+  // CHECK: define spir_func void @{{.*}}baz{{.*}}
+  // CHECK-LEGACY: %[[FIRST:[a-zA-Z0-9]+]] = bitcast %struct.{{.*}}.Y* %{{.*}} to i8*
+  // CHECK-LEGACY: %[[OFFSET:[a-zA-Z0-9]+]].ptr = getelementptr inbounds i8, i8* %[[FIRST]], i64 8
+  // CHECK-LEGACY: %[[SECOND:[a-zA-Z0-9]+]] = bitcast i8* %[[OFFSET]].ptr to %struct.{{.*}}.HasX*
+  // CHECK-LEGACY: call spir_func void @{{.*}}bar{{.*}}(%struct.{{.*}}.HasX* dereferenceable(4) %[[SECOND]])
+  // CHECK-NEW: %[[FIRST:[a-zA-Z0-9]+]] = bitcast %struct.{{.*}}.Y addrspace(4)* %{{.*}} to i8 addrspace(4)*
+  // CHECK-NEW: %[[OFFSET:[a-zA-Z0-9]+]].ptr = getelementptr inbounds i8, i8 addrspace(4)* %[[FIRST]], i64 8
+  // CHECK-NEW: %[[SECOND:[a-zA-Z0-9]+]] = bitcast i8 addrspace(4)* %[[OFFSET]].ptr to %struct.{{.*}}.HasX addrspace(4)*
+  // CHECK-NEW: call spir_func void @{{.*}}bar{{.*}}(%struct.{{.*}}.HasX addrspace(4)* dereferenceable(4) %[[SECOND]])
 }
 
 

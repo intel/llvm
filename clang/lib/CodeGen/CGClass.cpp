@@ -246,7 +246,9 @@ ApplyNonVirtualAndVirtualOffset(CodeGenFunction &CGF, Address addr,
 
   // Apply the base offset.
   llvm::Value *ptr = addr.getPointer();
-  ptr = CGF.Builder.CreateBitCast(ptr, CGF.Int8PtrTy);
+  llvm::Type *resTy = llvm::PointerType::getInt8PtrTy(
+      CGF.getLLVMContext(), ptr->getType()->getPointerAddressSpace());
+  ptr = CGF.Builder.CreateBitCast(ptr, resTy);
   ptr = CGF.Builder.CreateInBoundsGEP(ptr, baseOffset, "add.ptr");
 
   // If we have a virtual component, the alignment of the result will
