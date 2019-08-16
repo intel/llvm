@@ -77,7 +77,7 @@ protected:
        const id<dimensions> &index)
       : MImpl{extent, index} {}
 
-  friend struct detail::Builder;
+  friend class detail::Builder;
 
 private:
   detail::ItemBase<dimensions, with_offset> MImpl;
