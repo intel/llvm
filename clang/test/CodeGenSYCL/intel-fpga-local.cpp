@@ -17,7 +17,7 @@
 //CHECK: [[ANN9:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{max_private_copies:4}
 
 //CHECK: @llvm.global.annotations
-//CHECK-SAME: a_one{{.*}}[[ANN1]]{{.*}}i32 159
+//CHECK-SAME: a_one{{.*}}[[ANN1]]{{.*}}i32 148
 
 void foo() {
   //CHECK: %[[VAR_ONE:[0-9]+]] = bitcast{{.*}}var_one
@@ -55,48 +55,37 @@ struct foo_two {
 void bar() {
   struct foo_two s1;
   //CHECK: %[[FIELD1:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD1]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN1]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD1]]{{.*}}[[ANN1]]
   s1.f1 = 0;
   //CHECK: %[[FIELD2:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD2]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN2]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD2]]{{.*}}[[ANN2]]
   s1.f2 = 0;
   //CHECK: %[[FIELD3:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD3]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN3]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD3]]{{.*}}[[ANN3]]
   s1.f3 = 0;
   //CHECK: %[[FIELD4:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD4]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN4]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD4]]{{.*}}[[ANN4]]
   s1.f4 = 0;
   //CHECK: %[[FIELD5:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD5]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN5]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD5]]{{.*}}[[ANN5]]
   s1.f5 = 0;
   //CHECK: %[[FIELD6:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD6]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN10]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD6]]{{.*}}[[ANN10]]
   s1.f6 = 0;
   //CHECK: %[[FIELD7:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD7]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN11]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD7]]{{.*}}[[ANN11]]
   s1.f7 = 0;
   //CHECK: %[[FIELD8:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD8]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN12]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD8]]{{.*}}[[ANN12]]
   s1.f8 = 0;
   //CHECK: %[[FIELD9:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD9]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN13]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD9]]{{.*}}[[ANN13]]
   s1.f9 = 0;
   //CHECK: %[[FIELD10:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD10]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN14]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD10]]{{.*}}[[ANN14]]
   s1.f10 = 0;
   //CHECK: %[[FIELD11:.*]] = getelementptr inbounds %struct.{{.*}}.foo_two{{.*}}
-  //CHECK: %[[CAST:.*]] = bitcast{{.*}}%[[FIELD11]]
-  //CHECK: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[CAST]]{{.*}}[[ANN15]]
+  //CHECK: call i32* @llvm.ptr.annotation.p0i32{{.*}}%[[FIELD11]]{{.*}}[[ANN15]]
   s1.f11 = 0;
 }
 
@@ -162,6 +151,26 @@ void qux(int a) {
   a_one = a_one + a;
 }
 
+void field_addrspace_cast() {
+  struct state {
+    [[intelfpga::numbanks(2)]] int mem[8];
+
+    // The initialization code is not relevant to this example.
+    // It prevents the compiler from optimizing away access to this struct.
+    state() {
+      for (auto i = 0; i < 8; i++) {
+        mem[i] = i;
+      }
+    }
+  } state_var;
+  // CHECK: define internal {{.*}} @_ZZ20field_addrspace_castvEN5stateC2Ev
+  // CHECK: %[[MEM:[a-zA-Z0-9]+]] = getelementptr inbounds %{{.*}}, %struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)* %{{.*}}, i32 0, i32 0
+  // CHECK: %[[BITCAST:[0-9]+]] = bitcast [8 x i32] addrspace(4)* %[[MEM]] to i8 addrspace(4)*
+  // CHECK: %[[ANN16:[0-9]+]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* %[[BITCAST]], {{.*}}, {{.*}})
+  // CHECK: %{{[0-9]+}} = bitcast i8 addrspace(4)* %[[ANN16]] to [8 x i32] addrspace(4)
+  state_var.mem[0] = 42;
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
@@ -173,6 +182,7 @@ int main() {
     bar();
     baz();
     qux(42);
+    field_addrspace_cast();
   });
   return 0;
 }
