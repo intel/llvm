@@ -10,11 +10,11 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
@@ -554,6 +554,23 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
+
+  template <typename KernelT, typename IndexerT>
+  using EnableIfIndexer = detail::enable_if_t<
+      std::is_same<detail::lambda_arg_type<KernelT>, IndexerT>::value>;
+
+  template <typename KernelT, int Dims>
+  using EnableIfId = EnableIfIndexer<KernelT, id<Dims>>;
+
+  template <typename KernelT, int Dims>
+  using EnableIfItemWithOffset = EnableIfIndexer<KernelT, item<Dims, true>>;
+
+  template <typename KernelT, int Dims>
+  using EnableIfItemWithoutOffset = EnableIfIndexer<KernelT, item<Dims, false>>;
+
+  template <typename KernelT, int Dims>
+  using EnableIfNDItem = EnableIfIndexer<KernelT, nd_item<Dims>>;
+
   // NOTE: the name of this function - "kernel_single_task" - is used by the
   // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType>
@@ -561,87 +578,40 @@ public:
     KernelFunc();
   }
 
-  template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
-      typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
-                                           id<dimensions>>::value &&
-                                  (dimensions > 0 && dimensions < 4),
-                              KernelType>::type KernelFunc) {
-    id<dimensions> global_id{
-        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
-
-    KernelFunc(global_id);
-  }
-
-  // NOTE: the name of this function - "kernel_parallel_for" - is used by the
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
   // Front End to determine kernel invocation kind.
-  template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
-      typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
-                                           item<dimensions, false>>::value &&
-                                  (dimensions > 0 && dimensions < 4),
-                              KernelType>::type KernelFunc) {
-    id<dimensions> global_id{
-        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
-    range<dimensions> global_size{
-        __spirv::initGlobalSize<dimensions, range<dimensions>>()};
-
-    item<dimensions, false> Item =
-        detail::Builder::createItem<dimensions, false>(global_size, global_id);
-    KernelFunc(Item);
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) EnableIfId<KernelType, Dims>
+  kernel_parallel_for(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getId<Dims>());
   }
 
-    template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
-      typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
-                                           item<dimensions, true>>::value &&
-                                  (dimensions > 0 && dimensions < 4),
-                              KernelType>::type KernelFunc) {
-    id<dimensions> global_id{
-        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
-    range<dimensions> global_size{
-        __spirv::initGlobalSize<dimensions, range<dimensions>>()};
-    id<dimensions> global_offset{
-        __spirv::initGlobalOffset<dimensions, id<dimensions>>()};
-
-    item<dimensions, true> Item = detail::Builder::createItem<dimensions, true>(
-        global_size, global_id, global_offset);
-    KernelFunc(Item);
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) EnableIfItemWithoutOffset<KernelType, Dims>
+  kernel_parallel_for(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getItem<Dims, false>());
   }
 
-  template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
-      typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
-                                           nd_item<dimensions>>::value &&
-                                  (dimensions > 0 && dimensions < 4),
-                              KernelType>::type KernelFunc) {
-    range<dimensions> global_size{
-        __spirv::initGlobalSize<dimensions, range<dimensions>>()};
-    range<dimensions> local_size{
-        __spirv::initWorkgroupSize<dimensions, range<dimensions>>()};
-    range<dimensions> group_range{
-        __spirv::initNumWorkgroups<dimensions, range<dimensions>>()};
-    id<dimensions> group_id{
-        __spirv::initWorkgroupId<dimensions, id<dimensions>>()};
-    id<dimensions> global_id{
-        __spirv::initGlobalInvocationId<dimensions, id<dimensions>>()};
-    id<dimensions> local_id{
-        __spirv::initLocalInvocationId<dimensions, id<dimensions>>()};
-    id<dimensions> global_offset{
-        __spirv::initGlobalOffset<dimensions, id<dimensions>>()};
-
-    group<dimensions> Group = detail::Builder::createGroup<dimensions>(
-        global_size, local_size, group_range, group_id);
-    item<dimensions, true> globalItem =
-        detail::Builder::createItem<dimensions, true>(global_size, global_id,
-                                                      global_offset);
-    item<dimensions, false> localItem =
-        detail::Builder::createItem<dimensions, false>(local_size, local_id);
-    nd_item<dimensions> Nd_item =
-        detail::Builder::createNDItem<dimensions>(globalItem, localItem, Group);
-
-    KernelFunc(Nd_item);
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) EnableIfItemWithOffset<KernelType, Dims>
+  kernel_parallel_for(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getItem<Dims, true>());
   }
+
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) EnableIfNDItem<KernelType, Dims>
+  kernel_parallel_for(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getNDItem<Dims>());
+  }
+
+  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
+  // used by the Front End to determine kernel invocation kind.
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) void
+  kernel_parallel_for_work_group(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getGroup<Dims>());
+  }
+
 #endif
 
   // The method stores lambda to the template-free object and initializes
@@ -739,24 +709,6 @@ public:
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
   }
-
-#ifdef __SYCL_DEVICE_ONLY__
-  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
-  // used by the Front End to determine kernel invocation kind.
-  template <typename KernelName, typename KernelType, int Dims>
-  __attribute__((sycl_kernel)) void
-  kernel_parallel_for_work_group(KernelType KernelFunc) {
-
-    range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
-    range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
-    range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
-    id<Dims> GroupId{__spirv::initWorkgroupId<Dims, id<Dims>>()};
-
-    group<Dims> G = detail::Builder::createGroup<Dims>(GlobalSize, LocalSize,
-                                                       GroupRange, GroupId);
-    KernelFunc(G);
-  }
-#endif // __SYCL_DEVICE_ONLY__
 
   template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
