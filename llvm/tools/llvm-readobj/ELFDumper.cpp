@@ -4644,6 +4644,7 @@ void DumpStyle<ELFT>::printStackSize(const ELFObjectFile<ELFT> *Obj,
           createError("cannot identify the section for relocation symbol " +
                       SymName),
           FileStr);
+      consumeError(SectionOrErr.takeError());
     } else if (*SectionOrErr != FunctionSec) {
       reportWarning(createError("relocation symbol " + SymName +
                                 " is not in the expected section"),
