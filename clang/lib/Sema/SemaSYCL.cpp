@@ -119,6 +119,18 @@ public:
           SemaRef.addSyclDeviceDecl(Def);
         }
       }
+      if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
+        //FIXME: We need check all target specified attributes for error if that
+        //function with attribute can not be called from sycl kernel.  The info
+        //is in ParsedAttr. We don't have to map from Attr to ParsedAttr
+        //currently. Erich is currently working on that in LLVM, once that is
+        //committed we need to change this".
+        if (FD->hasAttr<DLLImportAttr>()) {
+          SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
+            << Sema::KernelCallDllimportFunction;
+          SemaRef.Diag(FD->getLocation(), diag::note_callee_decl) << FD;
+        }
+      }
     } else if (!SemaRef.getLangOpts().SYCLAllowFuncPtr &&
                !e->isTypeDependent())
       SemaRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)

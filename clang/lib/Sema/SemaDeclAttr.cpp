@@ -2066,7 +2066,10 @@ bool Sema::CheckAttrNoArgs(const ParsedAttr &Attrs) {
 
 bool Sema::CheckAttrTarget(const ParsedAttr &AL) {
   // Check whether the attribute is valid on the current target.
-  if (!AL.existsInTarget(Context.getTargetInfo())) {
+  const TargetInfo *Aux = Context.getAuxTargetInfo();
+  if (!(AL.existsInTarget(Context.getTargetInfo()) ||
+        (Context.getLangOpts().SYCLIsDevice &&
+         Aux && AL.existsInTarget(*Aux)))) {
     Diag(AL.getLoc(), diag::warn_unknown_attribute_ignored) << AL;
     AL.setInvalid();
     return true;
@@ -6935,8 +6938,11 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   // Unknown attributes are automatically warned on. Target-specific attributes
   // which do not apply to the current target architecture are treated as
   // though they were unknown attributes.
+  const TargetInfo *Aux = S.Context.getAuxTargetInfo();
   if (AL.getKind() == ParsedAttr::UnknownAttribute ||
-      !AL.existsInTarget(S.Context.getTargetInfo())) {
+      !(AL.existsInTarget(S.Context.getTargetInfo()) ||
+        (S.Context.getLangOpts().SYCLIsDevice &&
+         Aux && AL.existsInTarget(*Aux)))) {
     S.Diag(AL.getLoc(),
            AL.isDeclspecAttribute()
                ? (unsigned)diag::warn_unhandled_ms_attribute_ignored
