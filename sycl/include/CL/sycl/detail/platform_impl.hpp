@@ -70,7 +70,7 @@ public:
     return (all_extension_names.find(extension_name) != std::string::npos);
   }
 
-  cl_platform_id get() const override { return pi::pi_cast<cl_platform_id>(m_platform); }
+  cl_platform_id get() const override { return pi::cast<cl_platform_id>(m_platform); }
 
   const RT::PiPlatform &getHandleRef() const override { return m_platform; }
 

@@ -229,7 +229,7 @@ public:
   image_impl(cl_mem MemObject, const context &SyclContext,
              event AvailableEvent = {})
       : BaseT(MemObject, SyclContext, std::move(AvailableEvent)) {
-    RT::PiMem Mem = pi::pi_cast<RT::PiMem>(BaseT::MInteropMemObject);
+    RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
     PI_CALL(RT::piMemGetInfo(Mem, CL_MEM_SIZE, sizeof(size_t),
                              &(BaseT::MSizeInBytes), nullptr));
 
@@ -340,7 +340,7 @@ public:
 
 private:
   template <typename T> void getImageInfo(RT::PiMemImageInfo Info, T &Dest) {
-    RT::PiMem Mem = pi::pi_cast<RT::PiMem>(BaseT::MInteropMemObject);
+    RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
     PI_CALL(RT::piMemImageGetInfo(Mem, Info, sizeof(T), &Dest, nullptr));
   }
 

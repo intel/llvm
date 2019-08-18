@@ -63,7 +63,7 @@ public:
       throw invalid_object_error("This instance of kernel is a host instance");
     }
     PI_CALL(RT::piKernelRetain(Kernel));
-    return pi::pi_cast<cl_kernel>(Kernel);
+    return pi::cast<cl_kernel>(Kernel);
   }
 
   bool is_host() const { return Context.is_host(); }

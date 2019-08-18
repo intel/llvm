@@ -139,7 +139,7 @@ public:
 
     size_t BufSize = 0;
     PI_CALL(detail::RT::piMemGetInfo(
-        detail::pi::pi_cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
+        detail::pi::cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
         sizeof(size_t), &BufSize, nullptr));
 
     Range[0] = BufSize / sizeof(T);

@@ -84,7 +84,7 @@ public:
           "Creation of interoperability memory object using host context is "
           "not allowed");
 
-    RT::PiMem Mem = pi::pi_cast<RT::PiMem>(MInteropMemObject);
+    RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
     RT::PiContext Context = nullptr;
     PI_CALL(RT::piMemGetInfo(Mem, CL_MEM_CONTEXT, sizeof(Context), &Context,
                              nullptr));
@@ -225,7 +225,7 @@ public:
     releaseHostMem(MShadowCopy);
 
     if (MOpenCLInterop)
-      PI_CALL(RT::piMemRelease(pi::pi_cast<RT::PiMem>(MInteropMemObject)));
+      PI_CALL(RT::piMemRelease(pi::cast<RT::PiMem>(MInteropMemObject)));
   }
 
   bool useHostPtr() {

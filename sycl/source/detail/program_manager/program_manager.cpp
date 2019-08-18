@@ -77,7 +77,6 @@ static RT::PiProgram createBinaryProgram(const RT::PiContext Context,
 static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
                                         const unsigned char *Data,
                                         size_t DataLen) {
-  RT::PiResult Err = PI_SUCCESS;
   RT::PiProgram Program = nullptr;
   PI_CALL(pi::piProgramCreate(Context, Data, DataLen, &Program));
   return Program;
@@ -225,7 +224,7 @@ static bool is_device_binary_type_supported(const context &C,
     return true;
 
   // OpenCL 2.1 and greater require clCreateProgramWithIL
-  if (pi::piUseBackend(pi::SYCL_BE_PI_OPENCL) &&
+  if (pi::useBackend(pi::SYCL_BE_PI_OPENCL) &&
       C.get_platform().get_info<info::platform::version>() >= "2.1")
     return true;
 
@@ -325,7 +324,7 @@ RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
     throw runtime_error("Invalid device program image: size is zero");
   }
   size_t ImgSize = static_cast<size_t>(Img->BinaryEnd - Img->BinaryStart);
-  auto Format = pi::pi_cast<RT::PiDeviceBinaryType>(Img->Format);
+  auto Format = pi::cast<RT::PiDeviceBinaryType>(Img->Format);
 
   // Determine the format of the image if not set already
   if (Format == PI_DEVICE_BINARY_TYPE_NONE) {

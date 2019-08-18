@@ -19,7 +19,7 @@ platform::platform() : impl(std::make_shared<detail::platform_impl_host>()) {}
 
 platform::platform(cl_platform_id platform_id)
     : impl(std::make_shared<detail::platform_impl_pi>(
-             detail::pi::pi_cast<detail::RT::PiPlatform>(platform_id))) {}
+             detail::pi::cast<detail::RT::PiPlatform>(platform_id))) {}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
