@@ -22,7 +22,7 @@ template <info::context param> struct get_context_info {
   static RetType _(RT::PiContext ctx) {
     RetType Result = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piContextGetInfo(ctx, pi::pi_cast<pi_context_info>(param),
+    PI_CALL(RT::piContextGetInfo(ctx, pi::cast<pi_context_info>(param),
                                  sizeof(Result), &Result, nullptr));
     return Result;
   }

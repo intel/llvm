@@ -122,7 +122,7 @@ public:
       PI_CALL(RT::piDeviceRetain(m_device));
     }
     // TODO: check that device is an OpenCL interop one
-    return pi::pi_cast<cl_device_id>(m_device);
+    return pi::cast<cl_device_id>(m_device);
   }
 
   RT::PiDevice &getHandleRef() override { return m_device; }

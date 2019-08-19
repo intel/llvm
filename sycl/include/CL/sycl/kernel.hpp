@@ -28,7 +28,7 @@ class kernel {
 public:
   kernel(cl_kernel clKernel, const context &syclContext)
       : impl(std::make_shared<detail::kernel_impl>(
-            detail::pi::pi_cast<detail::RT::PiKernel>(clKernel), syclContext)) {}
+            detail::pi::cast<detail::RT::PiKernel>(clKernel), syclContext)) {}
 
   kernel(const kernel &rhs) = default;
 
