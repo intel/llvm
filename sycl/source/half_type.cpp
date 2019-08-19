@@ -9,7 +9,6 @@
 #include <CL/sycl/half_type.hpp>
 // This is included to enable __builtin_expect()
 #include <CL/sycl/detail/platform_util.hpp>
-#include <iostream>
 #include <cstring>
 
 namespace cl {
@@ -28,7 +27,13 @@ static uint16_t float2Half(const float &Val) {
   const int8_t Exp32Diff = Exp32 - 127;
 
   uint16_t Exp16 = 0;
+
+  // convert 23-bit mantissa to 10-bit mantissa.
   uint16_t Frac16 = Frac32 >> 13;
+  // Round the mantissa as given in OpenCL spec section : 6.1.1.1 The half data
+  // type.
+  if (Frac32 >> 12 & 0x01)
+    Frac16 += 1;
 
   if (__builtin_expect(Exp32 == 0xff || Exp32Diff > 15, 0)) {
     Exp16 = 0x1f;
@@ -109,18 +114,6 @@ static float half2Float(const uint16_t &Val) {
   float Result;
   std::memcpy(&Result, &Bits, sizeof(Result));
   return Result;
-}
-
-std::ostream &operator<<(std::ostream &O, const half_impl::half &Val) {
-  O << static_cast<float>(Val);
-  return O;
-}
-
-std::istream &operator>>(std::istream &I, half_impl::half &ValHalf) {
-  float ValFloat = 0.0f;
-  I >> ValFloat;
-  ValHalf = ValFloat;
-  return I;
 }
 
 namespace half_impl {

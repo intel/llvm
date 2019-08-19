@@ -51,15 +51,13 @@
 
 #include <array>
 #include <cmath>
+#ifndef __SYCL_DEVICE_ONLY__
+#include <cfenv>
+#pragma STDC FENV_ACCESS ON
+#endif
 
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
-
-#ifdef __SYCL_DEVICE_ONLY__
-using half = _Float16;
-#else
-using half = cl::sycl::detail::half_impl::half;
-#endif
 
 namespace cl {
 namespace sycl {
@@ -258,6 +256,8 @@ detail::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
   return Value;
 }
 
+// Note for float to half conversions, static_cast calls the conversion operator
+// implemented for host that takes care of the precision requirements.
 template <typename T, typename R, rounding_mode roundingMode>
 detail::enable_if_t<!std::is_same<T, R>::value &&
                         (is_int_to_int<T, R>::value ||
@@ -270,16 +270,23 @@ convertImpl(T Value) {
 
 // float to int
 template <typename T, typename R, rounding_mode roundingMode>
-detail::enable_if_t<!std::is_same<T, R>::value && is_float_to_int<T, R>::value,
-                    R>
-convertImpl(T Value) {
+detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
 #ifndef __SYCL_DEVICE_ONLY__
   switch (roundingMode) {
     // Round to nearest even is default rounding mode for floating-point types
   case rounding_mode::automatic:
     // Round to nearest even.
-  case rounding_mode::rte:
-    return std::round(Value);
+  case rounding_mode::rte: {
+    int OldRoundingDirection = std::fegetround();
+    int Err = std::fesetround(FE_TONEAREST);
+    if (Err)
+      throw runtime_error("Unable to set rounding mode to FE_TONEAREST");
+    R Result = std::rint(Value);
+    Err = std::fesetround(OldRoundingDirection);
+    if (Err)
+      throw runtime_error("Unable to restore rounding mode.");
+    return Result;
+  }
     // Round toward zero.
   case rounding_mode::rtz:
     return std::trunc(Value);
@@ -294,7 +301,7 @@ convertImpl(T Value) {
     return static_cast<R>(Value);
   };
 #else
-  // TODO implement device side convertion.
+  // TODO implement device side conversion.
   return static_cast<R>(Value);
 #endif
 }
