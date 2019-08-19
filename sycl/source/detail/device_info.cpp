@@ -30,7 +30,7 @@ device get_device_info<device, info::device::parent_device>::_(
 
   typename sycl_to_pi<device>::type result;
   PI_CALL(RT::piDeviceGetInfo(
-    dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::parent_device),
+    dev, pi::cast<RT::PiDeviceInfo>(info::device::parent_device),
     sizeof(result), &result, NULL));
   if (result == nullptr)
     throw invalid_object_error(

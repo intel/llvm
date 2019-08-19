@@ -29,21 +29,21 @@ std::string platformInfoToString(pi_platform_info info) {
   case PI_PLATFORM_INFO_EXTENSIONS:
     return "PI_PLATFORM_INFO_EXTENSIONS";
   default:
-    piDie("Unknown pi_platform_info value passed to "
-          "cl::sycl::detail::pi::platformInfoToString");
+    die("Unknown pi_platform_info value passed to "
+        "cl::sycl::detail::pi::platformInfoToString");
   }
 }
 
 // Check for manually selected BE at run-time.
-bool piUseBackend(PiBackend Backend) {
+bool useBackend(Backend TheBackend) {
   static const char *GetEnv = std::getenv("SYCL_BE");
-  static const PiBackend Use =
-    std::map<std::string, PiBackend>{
+  static const Backend Use =
+    std::map<std::string, Backend>{
       { "PI_OPENCL", SYCL_BE_PI_OPENCL },
       { "PI_OTHER",  SYCL_BE_PI_OTHER }
       // Any other value would yield PI_OPENCL (current default)
     }[ GetEnv ? GetEnv : "PI_OPENCL"];
-  return Backend == Use;
+  return TheBackend == Use;
 }
 
 // Definitions of the PI dispatch entries, they will be initialized
@@ -53,13 +53,13 @@ bool piUseBackend(PiBackend Backend) {
 
 // TODO: implement real plugins (ICD-like?)
 // For now this has the effect of redirecting to built-in PI OpenCL plugin.
-void piInitialize() {
+void initialize() {
   static bool Initialized = false;
   if (Initialized) {
     return;
   }
-  if (!piUseBackend(SYCL_BE_PI_OPENCL)) {
-    piDie("Unknown SYCL_BE");
+  if (!useBackend(SYCL_BE_PI_OPENCL)) {
+    die("Unknown SYCL_BE");
   }
   #define _PI_API(api)                          \
     extern const decltype(::api) * api##OclPtr; \
@@ -73,14 +73,14 @@ void piInitialize() {
 // TODO: Probably change that to throw a catchable exception,
 //       but for now it is useful to see every failure.
 //
-[[noreturn]] void piDie(const char *Message) {
+[[noreturn]] void die(const char *Message) {
   std::cerr << "pi_die: " << Message << std::endl;
   std::terminate();
 }
 
-void piAssert(bool Condition, const char *Message) {
+void assertion(bool Condition, const char *Message) {
   if (!Condition)
-    piDie(Message);
+    die(Message);
 }
 
 bool PiCall::m_TraceEnabled = (std::getenv("SYCL_PI_TRACE") != nullptr);

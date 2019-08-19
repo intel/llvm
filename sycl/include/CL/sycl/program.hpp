@@ -47,7 +47,7 @@ public:
 
   program(const context &context, cl_program clProgram)
       : impl(std::make_shared<detail::program_impl>(
-            context, detail::pi::pi_cast<detail::RT::PiProgram>(clProgram))) {}
+            context, detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
 
   program(const program &rhs) = default;
 

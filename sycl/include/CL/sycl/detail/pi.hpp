@@ -21,13 +21,13 @@ namespace pi {
   // For selection of SYCL RT back-end, now manually through the "SYCL_BE"
   // environment variable.
   //
-  enum PiBackend {
+  enum Backend {
     SYCL_BE_PI_OPENCL,
     SYCL_BE_PI_OTHER
   };
 
   // Check for manually selected BE at run-time.
-  bool piUseBackend(PiBackend Backend);
+  bool useBackend(Backend Backend);
 
   using PiResult               = ::pi_result;
   using PiPlatform             = ::pi_platform;
@@ -55,19 +55,19 @@ namespace pi {
   std::string platformInfoToString(pi_platform_info info);
 
   // Report error and no return (keeps compiler happy about no return statements).
-  [[noreturn]] void piDie(const char *Message);
-  void piAssert(bool Condition, const char *Message = nullptr);
+  [[noreturn]] void die(const char *Message);
+  void assertion(bool Condition, const char *Message = nullptr);
 
   // Want all the needed casts be explicit, do not define conversion operators.
   template<class To, class From>
-  To pi_cast(From value);
+  To cast(From value);
 
   // Forward declarations of the PI dispatch entries.
   #define _PI_API(api) __SYCL_EXPORTED extern decltype(::api) * api;
   #include <CL/sycl/detail/pi.def>
 
   // Performs PI one-time initialization.
-  void piInitialize();
+  void initialize();
 
   // The PiCall helper structure facilitates performing a call to PI.
   // It holds utilities to do the tracing and to check the returned result.
@@ -126,7 +126,7 @@ namespace pi {
       if (m_TraceEnabled)
         printArgs(args...);
 
-      piInitialize();
+      initialize();
       auto r = m_FnPtr(args...);
 
       if (m_TraceEnabled) {
@@ -145,35 +145,35 @@ namespace pi {
 namespace RT = cl::sycl::detail::pi;
 
 #define PI_ASSERT(cond, msg) \
-  RT::piAssert((cond), "assert @ " __FILE__ ":" STRINGIFY_LINE(__LINE__) msg);
+  RT::assertion((cond), "assert @ " __FILE__ ":" STRINGIFY_LINE(__LINE__) msg);
 
 #define PI_TRACE(func) RT::Trace<decltype(func)>(func, #func)
 
 // This does the call, the trace and the check for no errors.
 #define PI_CALL(pi)                                   \
-    RT::piInitialize(),                               \
+    RT::initialize(),                                 \
     RT::PiCall(#pi).check<cl::sycl::runtime_error>(   \
-        RT::pi_cast<detail::RT::PiResult>(pi))
+        RT::cast<detail::RT::PiResult>(pi))
 
 // This does the trace, the call, and returns the result
 #define PI_CALL_RESULT(pi) \
-    RT::PiCall(#pi).get(detail::RT::pi_cast<detail::RT::PiResult>(pi))
+    RT::PiCall(#pi).get(detail::RT::cast<detail::RT::PiResult>(pi))
 
 // This does the check for no errors and possibly throws
 #define PI_CHECK(pi) \
     RT::PiCall().check<cl::sycl::runtime_error>( \
-       RT::pi_cast<detail::RT::PiResult>(pi))
+       RT::cast<detail::RT::PiResult>(pi))
 
 // This does the check for no errors and possibly throws x
 #define PI_CHECK_THROW(pi, x) \
     RT::PiCall().check<x>( \
-        RT::pi_cast<detail::RT::PiResult>(pi))
+        RT::cast<detail::RT::PiResult>(pi))
 
 // Want all the needed casts be explicit, do not define conversion operators.
 template<class To, class From>
-To pi::pi_cast(From value) {
+To pi::cast(From value) {
   // TODO: see if more sanity checks are possible.
-  PI_ASSERT(sizeof(From) == sizeof(To), "pi_cast failed size check");
+  PI_ASSERT(sizeof(From) == sizeof(To), "cast failed size check");
   return (To)(value);
 }
 

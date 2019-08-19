@@ -22,7 +22,7 @@ bool event_impl::is_host() const { return m_HostEvent || !m_OpenCLInterop; }
 cl_event event_impl::get() const {
   if (m_OpenCLInterop) {
     PI_CALL(RT::piEventRetain(m_Event));
-    return pi::pi_cast<cl_event>(m_Event);
+    return pi::cast<cl_event>(m_Event);
   }
   throw invalid_object_error(
       "This instance of event doesn't support OpenCL interoperability.");
@@ -61,7 +61,7 @@ event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
     : m_Context(detail::getSyclObjImpl(SyclContext)),
       m_OpenCLInterop(true), m_HostEvent(false) {
 
-  m_Event = pi::pi_cast<RT::PiEvent>(CLEvent);
+  m_Event = pi::cast<RT::PiEvent>(CLEvent);
 
   if (m_Context->is_host()) {
     throw cl::sycl::invalid_parameter_error(
