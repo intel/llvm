@@ -27,7 +27,7 @@ namespace usm {
 USMDispatcher::USMDispatcher(cl_platform_id platform) {
   // TODO: update when platform_impl becomes more PI aware
   
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
     GET_EXTENSION(clHostMemAllocINTEL);
     GET_EXTENSION(clDeviceMemAllocINTEL);
     GET_EXTENSION(clSharedMemAllocINTEL);
@@ -53,15 +53,15 @@ void *USMDispatcher::hostMemAlloc(pi_context Context,
                                   pi_result *ErrcodeRet) {
   void *RetVal = nullptr;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_context CLContext = pi::pi_cast<cl_context>(Context);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_context CLContext = pi::cast<cl_context>(Context);
 
     if (mEmulated) {
       RetVal = mEmulator->hostMemAlloc(CLContext, Properties, Size, Alignment,
-                                       pi::pi_cast<cl_int *>(ErrcodeRet));
+                                       pi::cast<cl_int *>(ErrcodeRet));
     } else {
       RetVal = pfn_clHostMemAllocINTEL(CLContext, Properties, Size, Alignment,
-                                       pi::pi_cast<cl_int *>(ErrcodeRet));
+                                       pi::cast<cl_int *>(ErrcodeRet));
     }
   }
 
@@ -77,18 +77,18 @@ void *USMDispatcher::deviceMemAlloc(pi_context Context, pi_device Device,
                                     pi_result *ErrcodeRet) {
   void *RetVal = nullptr;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_context CLContext = pi::pi_cast<cl_context>(Context);
-    cl_device_id CLDevice = pi::pi_cast<cl_device_id>(Device);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_context CLContext = pi::cast<cl_context>(Context);
+    cl_device_id CLDevice = pi::cast<cl_device_id>(Device);
 
     if (mEmulated) {
       RetVal = mEmulator->deviceMemAlloc(CLContext, CLDevice, Properties, Size,
                                          Alignment,
-                                         pi::pi_cast<cl_int *>(ErrcodeRet));
+                                         pi::cast<cl_int *>(ErrcodeRet));
     } else {
       RetVal = pfn_clDeviceMemAllocINTEL(CLContext, CLDevice, Properties, Size,
                                          Alignment,
-                                         pi::pi_cast<cl_int *>(ErrcodeRet));
+                                         pi::cast<cl_int *>(ErrcodeRet));
     }
   }
 
@@ -104,18 +104,18 @@ void *USMDispatcher::sharedMemAlloc(pi_context Context, pi_device Device,
                                     pi_result *ErrcodeRet) {
   void *RetVal = nullptr;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_context CLContext = pi::pi_cast<cl_context>(Context);
-    cl_device_id CLDevice = pi::pi_cast<cl_device_id>(Device);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_context CLContext = pi::cast<cl_context>(Context);
+    cl_device_id CLDevice = pi::cast<cl_device_id>(Device);
 
     if (mEmulated) {
       RetVal = mEmulator->sharedMemAlloc(CLContext, CLDevice, Properties, Size,
                                          Alignment,
-                                         pi::pi_cast<cl_int *>(ErrcodeRet));
+                                         pi::cast<cl_int *>(ErrcodeRet));
     } else {
       RetVal = pfn_clSharedMemAllocINTEL(CLContext, CLDevice, Properties, Size,
                                          Alignment,
-                                         pi::pi_cast<cl_int *>(ErrcodeRet));
+                                         pi::cast<cl_int *>(ErrcodeRet));
     }
   }
 
@@ -128,8 +128,8 @@ void *USMDispatcher::sharedMemAlloc(pi_context Context, pi_device Device,
 pi_result USMDispatcher::memFree(pi_context Context, void *Ptr) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_context CLContext = pi::pi_cast<cl_context>(Context);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_context CLContext = pi::cast<cl_context>(Context);
 
     if (mEmulated) {
       RetVal = PI_CALL_RESULT(mEmulator->memFree(CLContext, Ptr));
@@ -146,8 +146,8 @@ pi_result USMDispatcher::setKernelArgMemPointer(pi_kernel Kernel,
                                                 const void *ArgValue) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_kernel CLKernel = pi::pi_cast<cl_kernel>(Kernel);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_kernel CLKernel = pi::cast<cl_kernel>(Kernel);
 
     if (mEmulated) {
       RetVal = PI_CALL_RESULT(
@@ -162,9 +162,9 @@ pi_result USMDispatcher::setKernelArgMemPointer(pi_kernel Kernel,
 }
 
 void USMDispatcher::setKernelIndirectAccess(pi_kernel Kernel, pi_queue Queue) {
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_kernel CLKernel = pi::pi_cast<cl_kernel>(Kernel);
-    cl_command_queue CLQueue = pi::pi_cast<cl_command_queue>(Queue);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_kernel CLKernel = pi::cast<cl_kernel>(Kernel);
+    cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
     cl_bool TrueVal = CL_TRUE;
 
     if (mEmulated) {
@@ -199,8 +199,8 @@ pi_result USMDispatcher::enqueueMemset(pi_queue Queue, void *Ptr,
                                        pi_event *Event) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_command_queue CLQueue = pi::pi_cast<cl_command_queue>(Queue);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
 
     // Is there a better way to convert pi_event * to cl_event *?
     
@@ -230,8 +230,8 @@ pi_result USMDispatcher::enqueueMemcpy(pi_queue Queue, pi_bool Blocking,
                                        pi_event *Event) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_command_queue CLQueue = pi::pi_cast<cl_command_queue>(Queue);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
 
     if (mEmulated) {
       RetVal = PI_CALL_RESULT(clEnqueueSVMMemcpy(
@@ -257,8 +257,8 @@ pi_result USMDispatcher::enqueueMigrateMem(pi_queue Queue, const void *Ptr,
                                            pi_event *Event) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_command_queue CLQueue = pi::pi_cast<cl_command_queue>(Queue);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
 
     if (mEmulated) {
       // We could check for OpenCL 2.1 and call the SVM migrate
@@ -286,8 +286,8 @@ pi_result USMDispatcher::enqueueMemAdvise(pi_queue Queue, void *Ptr,
                                           pi_event *Event) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_command_queue CLQueue = pi::pi_cast<cl_command_queue>(Queue);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
 
     if (mEmulated) {
       // TODO: What should we do here?
@@ -316,8 +316,8 @@ pi_result USMDispatcher::getMemAllocInfo(pi_context Context, const void *Ptr,
                                          size_t *ParamValueSizeRet) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
-  if (pi::piUseBackend(pi::PiBackend::SYCL_BE_PI_OPENCL)) {
-    cl_context CLContext = pi::pi_cast<cl_context>(Context);
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_context CLContext = pi::cast<cl_context>(Context);
 
     if (mEmulated) {
       // TODO: What should we do here?

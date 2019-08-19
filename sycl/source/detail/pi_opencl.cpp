@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include "CL/opencl.h"
-#include "CL/cl_usm_ext.h"
 #include <CL/sycl/detail/pi.hpp>
 #include <cassert>
 #include <cstring>

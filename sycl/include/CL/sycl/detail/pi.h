@@ -28,7 +28,6 @@
 // done here, for efficiency and simplicity.
 //
 #include <CL/opencl.h>
-#include <CL/cl_usm_ext.h>
 #include <cstdint>
 
 #ifdef __cplusplus

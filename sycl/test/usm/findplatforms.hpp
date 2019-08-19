@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
-
 bool findPlatformAndDevice(cl_device_type deviceType,
                            cl_platform_id &platformOut, cl_device_id &deviceOut) {
   cl_uint numPlatforms;
