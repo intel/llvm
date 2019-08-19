@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <iostream>
 
 namespace cl {
 namespace sycl {
@@ -95,3 +96,21 @@ template <> struct hash<cl::sycl::detail::half_impl::half> {
 };
 
 } // namespace std
+
+#ifdef __SYCL_DEVICE_ONLY__
+using half = _Float16;
+#else
+using half = cl::sycl::detail::half_impl::half;
+#endif
+
+inline std::ostream &operator<<(std::ostream &O, half const &rhs) {
+  O << static_cast<float>(rhs);
+  return O;
+}
+
+inline std::istream &operator>>(std::istream &I, half &rhs) {
+  float ValFloat = 0.0f;
+  I >> ValFloat;
+  rhs = ValFloat;
+  return I;
+}
