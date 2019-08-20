@@ -34,6 +34,7 @@ void test() {
 
   // CHECK: @[[STR:[.a-zA-Z0-9_]+]] = private unnamed_addr constant [14 x i8] c"Hello, world!\00", align 1
 
+  // CHECK-NEW: %i.ascast = addrspacecast i32* %i to i32 addrspace(4)*
   // CHECK: %[[ARR:[a-zA-Z0-9]+]] = alloca [42 x i32]
 
   int i = 0;
@@ -41,14 +42,19 @@ void test() {
   // CHECK-LEGACY: store i32* %i, i32** %pptr
   // CHECK-NEW: %[[GEN:[0-9]+]] = addrspacecast i32* %i to i32 addrspace(4)*
   // CHECK-NEW: store i32 addrspace(4)* %[[GEN]], i32 addrspace(4)** %pptr
+  bool is_i_ptr = (pptr == &i);
+  // CHECK-LEGACY: %[[VALPPTR:[0-9]+]] = load i32*, i32** %pptr
+  // CHECK-LEGACY: %cmp{{[0-9]*}} = icmp eq i32* %[[VALPPTR]], %i
+  // CHECK-NEW: %[[VALPPTR:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)** %pptr
+  // CHECK-NEW: %cmp{{[0-9]*}} = icmp eq i32 addrspace(4)* %[[VALPPTR]], %i.ascast
   *pptr = foo;
 
   int var23 = 23;
   char *cp = (char *)&var23;
   *cp = 41;
   // CHECK: store i32 23, i32* %[[VAR:[a-zA-Z0-9]+]]
-  // CHECK-OLD: [[VARCAST:[a-zA-Z0-9]+]] = bitcast i32* %[[VAR]] to i8*
-  // CHECK-OLD: store i8* %[[VARCAST]], i8** %{{.*}}
+  // CHECK-LEGACY: [[VARCAST:[a-zA-Z0-9]+]] = bitcast i32* %[[VAR]] to i8*
+  // CHECK-LEGACY: store i8* %[[VARCAST]], i8** %{{.*}}
   // CHECK-NEW: [[VARAS:[a-zA-Z0-9]+]] = addrspacecast i32* %[[VAR]] to i32 addrspace(4)*
   // CHECK-NEW: [[VARCAST:[a-zA-Z0-9]+]] = bitcast i32 addrspace(4)* %[[VARAS]] to i8 addrspace(4)*
   // CHECK-NEW: store i8 addrspace(4)* %[[VARCAST]], i8 addrspace(4)** %{{.*}}
@@ -57,11 +63,22 @@ void test() {
   char *cpp = (char *)arr;
   *cpp = 43;
   // CHECK:     %[[ARRDECAY:[a-zA-Z0-9]+]] = getelementptr inbounds [42 x i32], [42 x i32]* %[[ARR]], i64 0, i64 0
-  // CHECK-OLD: [[ARRCAST:[a-zA-Z0-9]+]] = bitcast i32* %[[ARRDECAY]] to i8*
-  // CHECK-OLD: store i8* %[[ARRCAST]], i8** %{{.*}}
+  // CHECK-LEGACY: [[ARRCAST:[a-zA-Z0-9]+]] = bitcast i32* %[[ARRDECAY]] to i8*
+  // CHECK-LEGACY: store i8* %[[ARRCAST]], i8** %{{.*}}
   // CHECK-NEW: %[[ARRAS:[a-zA-Z0-9]+]] = addrspacecast i32* %[[ARRDECAY]] to i32 addrspace(4)*
   // CHECK-NEW: %[[ARRCAST:[a-zA-Z0-9]+]] = bitcast i32 addrspace(4)* %[[ARRAS]] to i8 addrspace(4)*
   // CHECK-NEW: store i8 addrspace(4)* %[[ARRCAST]], i8 addrspace(4)** %{{.*}}
+
+  int *aptr = arr + 10;
+  if (aptr < arr + sizeof(arr))
+    *aptr = 44;
+  // CHECK-LEGACY: %[[VALAPTR:[0-9]+]] = load i32*, i32** %aptr
+  // CHECK-NEW:    %[[VALAPTR:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)** %aptr
+  // CHECK:        %[[ARRDCY2:[a-zA-Z0-9]+]] = getelementptr inbounds [42 x i32], [42 x i32]* %[[ARR]], i64 0, i64 0
+  // CHECK:        %[[ADDPTR:[a-zA-Z0-9.]+]] = getelementptr inbounds i32, i32* %[[ARRDCY2]], i64 168
+  // CHECK-LEGACY: %cmp{{[0-9]+}} = icmp ult i32* %[[VALAPTR]], %[[ADDPTR]]
+  // CHECK-NEW:    %[[ADDPTRCAST:[a-zA-Z0-9.]+]] = addrspacecast i32* %[[ADDPTR]] to i32 addrspace(4)*
+  // CHECK-NEW:    %cmp{{[0-9]+}} = icmp ult i32 addrspace(4)* %[[VALAPTR]], %[[ADDPTRCAST]]
 
   const char *str = "Hello, world!";
   // CHECK-LEGACY: store i8* getelementptr inbounds ([14 x i8], [14 x i8]* @[[STR]], i64 0, i64 0), i8** %[[STRVAL:[a-zA-Z0-9]+]], align 8
