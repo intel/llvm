@@ -82,6 +82,10 @@ SPIRVWord SPIRVDecorateGeneric::getLiteral(size_t I) const {
   return Literals[I];
 }
 
+std::vector<SPIRVWord> SPIRVDecorateGeneric::getVecLiteral() const {
+  return Literals;
+}
+
 size_t SPIRVDecorateGeneric::getLiteralCount() const { return Literals.size(); }
 
 void SPIRVDecorate::encode(spv_ostream &O) const {

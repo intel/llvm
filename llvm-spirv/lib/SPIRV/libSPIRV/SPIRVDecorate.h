@@ -61,6 +61,7 @@ public:
   SPIRVDecorateGeneric(Op OC);
 
   SPIRVWord getLiteral(size_t) const;
+  std::vector<SPIRVWord> getVecLiteral() const;
   Decoration getDecorateKind() const;
   size_t getLiteralCount() const;
   /// Compare for kind and literal only.
@@ -84,15 +85,15 @@ public:
     switch (Dec) {
     case DecorationSpecId:
       if (getModule()->hasCapability(CapabilityKernel))
-        return SPIRV_1_1;
+        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
       else
-        return SPIRV_1_0;
+        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
 
     case DecorationMaxByteOffset:
-      return SPIRV_1_1;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
 
     default:
-      return SPIRV_1_0;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
     }
   }
 
@@ -140,7 +141,7 @@ public:
     switch (Dec) {
     case DecorationNoSignedWrap:
     case DecorationNoUnsignedWrap:
-      return getSet(SPV_KHR_no_integer_wrap_decoration);
+      return getSet(ExtensionID::SPV_KHR_no_integer_wrap_decoration);
     case DecorationRegisterINTEL:
     case DecorationMemoryINTEL:
     case DecorationNumbanksINTEL:
@@ -151,9 +152,9 @@ public:
     case DecorationMaxReplicatesINTEL:
     case DecorationSimpleDualPortINTEL:
     case DecorationMergeINTEL:
-      return getSet(SPV_INTEL_fpga_memory_attributes);
+      return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
     case DecorationReferencedIndirectlyINTEL:
-      return getSet(SPV_INTEL_function_pointers);
+      return getSet(ExtensionID::SPV_INTEL_function_pointers);
     default:
       return SPIRVExtSet();
     }
@@ -247,7 +248,7 @@ public:
     case DecorationMaxReplicatesINTEL:
     case DecorationSimpleDualPortINTEL:
     case DecorationMergeINTEL:
-      return getSet(SPV_INTEL_fpga_memory_attributes);
+      return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
     default:
       return SPIRVExtSet();
     }

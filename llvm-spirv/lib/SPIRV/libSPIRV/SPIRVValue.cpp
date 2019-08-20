@@ -75,11 +75,18 @@ bool SPIRVValue::hasNoSignedWrap() const {
 void SPIRVValue::setNoSignedWrap(bool HasNoSignedWrap) {
   if (!HasNoSignedWrap) {
     eraseDecorate(DecorationNoSignedWrap);
-    return;
   }
-  addDecorate(new SPIRVDecorate(DecorationNoSignedWrap, this));
-  SPIRVDBG(spvdbgs() << "Set nsw "
-                     << " for obj " << Id << "\n")
+  if (Module->isAllowedToUseExtension(
+          ExtensionID::SPV_KHR_no_integer_wrap_decoration)) {
+    // NoSignedWrap decoration is available only if it is allowed to use SPIR-V
+    // 1.4 or if SPV_KHR_no_integer_wrap_decoration extension is allowed
+    // FIXME: update this 'if' to include check for SPIR-V 1.4 once translator
+    // support this version
+    addDecorate(new SPIRVDecorate(DecorationNoSignedWrap, this));
+    SPIRVDBG(spvdbgs() << "Set nsw for obj " << Id << "\n")
+  } else {
+    SPIRVDBG(spvdbgs() << "Skip setting nsw for obj " << Id << "\n")
+  }
 }
 
 bool SPIRVValue::hasNoUnsignedWrap() const {
@@ -91,9 +98,17 @@ void SPIRVValue::setNoUnsignedWrap(bool HasNoUnsignedWrap) {
     eraseDecorate(DecorationNoUnsignedWrap);
     return;
   }
-  addDecorate(new SPIRVDecorate(DecorationNoUnsignedWrap, this));
-  SPIRVDBG(spvdbgs() << "Set nuw "
-                     << " for obj " << Id << "\n")
+  if (Module->isAllowedToUseExtension(
+          ExtensionID::SPV_KHR_no_integer_wrap_decoration)) {
+    // NoUnsignedWrap decoration is available only if it is allowed to use
+    // SPIR-V 1.4 or if SPV_KHR_no_integer_wrap_decoration extension is allowed
+    // FIXME: update this 'if' to include check for SPIR-V 1.4 once translator
+    // support this version
+    addDecorate(new SPIRVDecorate(DecorationNoUnsignedWrap, this));
+    SPIRVDBG(spvdbgs() << "Set nuw for obj " << Id << "\n")
+  } else {
+    SPIRVDBG(spvdbgs() << "Skip setting nuw for obj " << Id << "\n")
+  }
 }
 
 } // namespace SPIRV

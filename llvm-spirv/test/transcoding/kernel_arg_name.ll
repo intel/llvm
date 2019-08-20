@@ -2,8 +2,8 @@
 ; RUN: llvm-spirv %t.spv -spirv-gen-kernel-arg-name-md -r -o - | llvm-dis -o - | FileCheck %s
 
 ; CHECK: spir_kernel void @named_arg(float %f) {{.*}} !kernel_arg_name ![[MD_named:[0-9]+]]
-; CHECK: spir_kernel void @unnamed_arg(float) {{.*}} !kernel_arg_name ![[MD_unnamed:[0-9]+]]
-; CHECK: spir_kernel void @one_unnamed_arg(i8 %a, i8 %b, i8) {{.*}} !kernel_arg_name ![[MD_one_unnamed:[0-9]+]]
+; CHECK: spir_kernel void @unnamed_arg(float{{.*}}) {{.*}} !kernel_arg_name ![[MD_unnamed:[0-9]+]]
+; CHECK: spir_kernel void @one_unnamed_arg(i8 %a, i8 %b, i8{{.*}}) {{.*}} !kernel_arg_name ![[MD_one_unnamed:[0-9]+]]
 
 ; CHECK: ![[MD_unnamed]] = !{!""}
 ; CHECK: ![[MD_named]] = !{!"f"}

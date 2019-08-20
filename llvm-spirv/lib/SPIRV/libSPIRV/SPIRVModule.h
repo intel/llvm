@@ -40,6 +40,7 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVMODULE_H
 #define SPIRV_LIBSPIRV_SPIRVMODULE_H
 
+#include "LLVMSPIRVOpts.h"
 #include "SPIRVEntry.h"
 
 #include <iostream>
@@ -92,6 +93,7 @@ public:
   typedef std::map<SPIRVCapabilityKind, SPIRVCapability *> SPIRVCapMap;
 
   static SPIRVModule *createSPIRVModule();
+  static SPIRVModule *createSPIRVModule(const SPIRV::TranslatorOpts &);
   SPIRVModule();
   virtual ~SPIRVModule();
 
@@ -107,6 +109,10 @@ public:
   // Error handling functions
   virtual SPIRVErrorLog &getErrorLog() = 0;
   virtual SPIRVErrorCode getError(std::string &) = 0;
+  // Check if extension is allowed, and set ErrCode and DetailedMsg if not.
+  // Returns true if no error.
+  virtual bool checkExtension(ExtensionID, SPIRVErrorCode,
+                              const std::string &) = 0;
   void setInvalid() { IsValid = false; }
   bool isModuleValid() { return IsValid; }
 
@@ -281,7 +287,7 @@ public:
     for (auto I : Caps)
       addCapability(I);
   }
-  virtual void addExtension(SPIRVExtensionKind) = 0;
+  virtual void addExtension(ExtensionID) = 0;
   /// Used by SPIRV entries to add required capability internally.
   /// Should not be used by users directly.
   virtual void addCapabilityInternal(SPIRVCapabilityKind) = 0;
@@ -392,6 +398,35 @@ public:
                                                 SPIRVBasicBlock *) = 0;
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 
+  virtual bool
+  isAllowedToUseVersion(SPIRV::VersionNumber RequestedVersion) const final {
+    return TranslationOpts.isAllowedToUseVersion(RequestedVersion);
+  }
+
+  virtual bool isAllowedToUseVersion(SPIRVWord RequestedVersion) const final {
+    return TranslationOpts.isAllowedToUseVersion(
+        static_cast<SPIRV::VersionNumber>(RequestedVersion));
+  }
+
+  virtual SPIRV::VersionNumber getMaximumAllowedSPIRVVersion() const final {
+    return TranslationOpts.getMaxVersion();
+  }
+
+  virtual bool
+  isAllowedToUseExtension(ExtensionID RequestedExtension) const final {
+    return TranslationOpts.isAllowedToUseExtension(RequestedExtension);
+  }
+
+  virtual bool
+  isAllowedToUseExtensions(const SPIRVExtSet &RequestedExtensions) const final {
+    for (const auto &Ext : RequestedExtensions) {
+      if (!TranslationOpts.isAllowedToUseExtension(Ext))
+        return false;
+    }
+
+    return true;
+  }
+
   // I/O functions
   friend spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M);
   friend std::istream &operator>>(std::istream &I, SPIRVModule &M);
@@ -400,6 +435,7 @@ protected:
   bool AutoAddCapability;
   bool ValidateCapability;
   bool AutoAddExtensions = true;
+  SPIRV::TranslatorOpts TranslationOpts;
 
 private:
   bool IsValid;

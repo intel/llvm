@@ -41,7 +41,7 @@
 ; CHECK-LLVM-12: call spir_func void @_Z7barrierj(i32 3) [[attr]]
 ; CHECK-LLVM-12: call spir_func void @_Z7barrierj(i32 5) [[attr]]
 ; CHECK-LLVM-12: call spir_func void @_Z7barrierj(i32 7) [[attr]]
-; CHECK-LLVM-12: attributes [[attr]] = { noduplicate nounwind }
+; CHECK-LLVM-12: attributes [[attr]] = { convergent nounwind }
 
 ; RUN: llvm-spirv %s -to-binary -o %t2.spv
 ; RUN: spirv-val %t2.spv
@@ -54,4 +54,4 @@
 ; CHECK-LLVM-20: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 3, i32 1) [[attr]]
 ; CHECK-LLVM-20: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 5, i32 1) [[attr]]
 ; CHECK-LLVM-20: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 7, i32 1) [[attr]]
-; CHECK-LLVM-20: attributes [[attr]] = { noduplicate nounwind }
+; CHECK-LLVM-20: attributes [[attr]] = { convergent nounwind }
