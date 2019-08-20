@@ -592,8 +592,8 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(
 Command *
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                QueueImplPtr Queue) {
-  std::vector<Requirement *> Reqs = CommandGroup->getRequirements();
-  std::vector<detail::EventImplPtr> Events = CommandGroup->getEvents();
+  const std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
+  const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
   std::unique_ptr<ExecCGCommand> NewCmd(
       new ExecCGCommand(std::move(CommandGroup), Queue));
   if (!NewCmd)

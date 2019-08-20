@@ -325,7 +325,8 @@ public:
     COPY_PTR_TO_ACC,
     COPY_ACC_TO_ACC,
     FILL,
-    UPDATE_HOST
+    UPDATE_HOST,
+    RUN_ON_HOST_INTEL
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -339,10 +340,6 @@ public:
         MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
 
   CG(CG &&CommandGroup) = default;
-
-  std::vector<Requirement *> getRequirements() const { return MRequirements; }
-
-  std::vector<detail::EventImplPtr> getEvents() const { return MEvents; }
 
   CGTYPE getType() { return MType; }
 
@@ -358,6 +355,8 @@ private:
   std::vector<detail::AccessorImplPtr> MAccStorage;
   // Storage for shared_ptrs.
   std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
+
+public:
   // List of requirements that specify which memory is needed for the command
   // group to be executed.
   std::vector<Requirement *> MRequirements;
@@ -385,14 +384,18 @@ public:
                std::vector<detail::EventImplPtr> Events,
                std::vector<ArgDesc> Args, std::string KernelName,
                detail::OSModuleHandle OSModuleHandle,
-               std::vector<std::shared_ptr<detail::stream_impl>> Streams)
-      : CG(KERNEL, std::move(ArgsStorage), std::move(AccStorage),
+               std::vector<std::shared_ptr<detail::stream_impl>> Streams,
+               CGTYPE Type)
+      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
-        MStreams(std::move(Streams)) {}
+        MStreams(std::move(Streams)) {
+    assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL) &&
+           "Wrong type of exec kernel CG.");
+  }
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }

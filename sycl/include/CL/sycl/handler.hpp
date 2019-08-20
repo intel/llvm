@@ -355,12 +355,13 @@ private:
     std::unique_ptr<detail::CG> CommandGroup;
     switch (MCGType) {
     case detail::CG::KERNEL:
+    case detail::CG::RUN_ON_HOST_INTEL:
       CommandGroup.reset(new detail::CGExecKernel(
           std::move(MNDRDesc), std::move(MHostKernel), std::move(MSyclKernel),
           std::move(MArgsStorage), std::move(MAccStorage),
           std::move(MSharedPtrStorage), std::move(MRequirements),
           std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-          std::move(MOSModuleHandle), std::move(MStreamStorage)));
+          std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType));
       break;
     case detail::CG::COPY_ACC_TO_PTR:
     case detail::CG::COPY_PTR_TO_ACC:
@@ -669,6 +670,16 @@ public:
     StoreLambda<NameT, KernelType, Dims>(std::move(KernelFunc));
     MCGType = detail::CG::KERNEL;
 #endif
+  }
+
+  // Similar to single_task, but passed lambda will be executed on host.
+  template <typename FuncT> void run_on_host_intel(FuncT Func) {
+    MNDRDesc.set(range<1>{1});
+
+    MArgs = std::move(MAssociatedAccesors);
+    MHostKernel.reset(
+        new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
+    MCGType = detail::CG::RUN_ON_HOST_INTEL;
   }
 
   // parallel_for version with a kernel represented as a lambda + range and
