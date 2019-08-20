@@ -130,7 +130,8 @@ int main() {
         std::move(Handler.MAccStorage), std::move(Handler.MSharedPtrStorage),
         std::move(Handler.MRequirements), /*DepsEvents*/ {},
         std::move(Handler.MArgs), std::move(Handler.MKernelName),
-        std::move(Handler.MOSModuleHandle), std::move(Handler.MStreamStorage)));
+        std::move(Handler.MOSModuleHandle), std::move(Handler.MStreamStorage),
+        d::CG::KERNEL));
 
     d::EventImplPtr Event = d::Scheduler::getInstance().addCG(
         std::move(CommandGroup), d::getSyclObjImpl(Queue));
