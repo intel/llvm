@@ -6,9 +6,9 @@
 
 // DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
-// DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}} "-spirv-no-deref-attr"
+// DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.0"{{.*}} "-spirv-ext=+all"
 // NO-BITCODE: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
-// NO-BITCODE: "{{.*}}llvm-spirv"{{.*}} "-spirv-no-deref-attr"
+// NO-BITCODE: "{{.*}}llvm-spirv"{{.*}} "-spirv-max-version=1.0"{{.*}} "-spirv-ext=+all"
 // TARGET: "-triple" "spir64-unknown-linux-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // COMBINED: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 
