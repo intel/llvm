@@ -188,6 +188,7 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                  .Case("vectorize", LoopHintAttr::Vectorize)
                  .Case("vectorize_width", LoopHintAttr::VectorizeWidth)
                  .Case("interleave", LoopHintAttr::Interleave)
+                 .Case("vectorize_predicate", LoopHintAttr::VectorizePredicate)
                  .Case("interleave_count", LoopHintAttr::InterleaveCount)
                  .Case("unroll", LoopHintAttr::Unroll)
                  .Case("unroll_count", LoopHintAttr::UnrollCount)
@@ -206,6 +207,7 @@ static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
       State = LoopHintAttr::Numeric;
     } else if (Option == LoopHintAttr::Vectorize ||
                Option == LoopHintAttr::Interleave ||
+               Option == LoopHintAttr::VectorizePredicate ||
                Option == LoopHintAttr::Unroll ||
                Option == LoopHintAttr::Distribute ||
                Option == LoopHintAttr::PipelineDisabled) {
@@ -244,7 +246,8 @@ CheckForIncompatibleAttributes(Sema &S,
     const LoopHintAttr *StateAttr;
     const LoopHintAttr *NumericAttr;
   } HintAttrs[] = {{nullptr, nullptr}, {nullptr, nullptr}, {nullptr, nullptr},
-                   {nullptr, nullptr}, {nullptr, nullptr}, {nullptr, nullptr}};
+                   {nullptr, nullptr}, {nullptr, nullptr}, {nullptr, nullptr},
+                   {nullptr, nullptr}};
 
   for (const auto *I : Attrs) {
     const LoopHintAttr *LH = dyn_cast<LoopHintAttr>(I);
@@ -260,7 +263,8 @@ CheckForIncompatibleAttributes(Sema &S,
       Unroll,
       UnrollAndJam,
       Distribute,
-      Pipeline
+      Pipeline,
+      VectorizePredicate
     } Category;
     switch (Option) {
     case LoopHintAttr::Vectorize:
@@ -287,6 +291,9 @@ CheckForIncompatibleAttributes(Sema &S,
     case LoopHintAttr::PipelineInitiationInterval:
       Category = Pipeline;
       break;
+    case LoopHintAttr::VectorizePredicate:
+      Category = VectorizePredicate;
+      break;
     };
 
     assert(Category < sizeof(HintAttrs) / sizeof(HintAttrs[0]));
@@ -295,6 +302,7 @@ CheckForIncompatibleAttributes(Sema &S,
     if (Option == LoopHintAttr::Vectorize ||
         Option == LoopHintAttr::Interleave || Option == LoopHintAttr::Unroll ||
         Option == LoopHintAttr::UnrollAndJam ||
+        Option == LoopHintAttr::VectorizePredicate ||
         Option == LoopHintAttr::PipelineDisabled ||
         Option == LoopHintAttr::Distribute) {
       // Enable|Disable|AssumeSafety hint.  For example, vectorize(enable).
