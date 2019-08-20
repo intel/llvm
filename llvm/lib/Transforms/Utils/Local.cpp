@@ -324,7 +324,13 @@ bool llvm::ConstantFoldTerminator(BasicBlock *BB, bool DeleteDeadConditions,
       Value *Address = IBI->getAddress();
       IBI->eraseFromParent();
       if (DeleteDeadConditions)
+        // Delete pointer cast instructions.
         RecursivelyDeleteTriviallyDeadInstructions(Address, TLI);
+
+      // Also zap the blockaddress constant if there are no users remaining,
+      // otherwise the destination is still marked as having its address taken.
+      if (BA->use_empty())
+        BA->destroyConstant();
 
       // If we didn't find our destination in the IBI successor list, then we
       // have undefined behavior.  Replace the unconditional branch with an
@@ -1591,13 +1597,13 @@ static void replaceOneDbgValueForAlloca(DbgValueInst *DVI, Value *NewAddress,
       DIExpr->getElement(0) != dwarf::DW_OP_deref)
     return;
 
-  // Insert the offset immediately after the first deref.
+  // Insert the offset before the first deref.
   // We could just change the offset argument of dbg.value, but it's unsigned...
   if (Offset) {
     SmallVector<uint64_t, 4> Ops;
-    Ops.push_back(dwarf::DW_OP_deref);
     DIExpression::appendOffset(Ops, Offset);
     Ops.append(DIExpr->elements_begin() + 1, DIExpr->elements_end());
+    Ops.push_back(dwarf::DW_OP_deref);
     DIExpr = Builder.createExpression(Ops);
   }
 

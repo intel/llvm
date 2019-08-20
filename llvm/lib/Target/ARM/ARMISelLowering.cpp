@@ -3898,6 +3898,12 @@ SDValue ARMTargetLowering::LowerFormalArguments(
         // Transform the arguments in physical registers into virtual ones.
         unsigned Reg = MF.addLiveIn(VA.getLocReg(), RC);
         ArgValue = DAG.getCopyFromReg(Chain, dl, Reg, RegVT);
+
+        // If this value is passed in r0 and has the returned attribute (e.g.
+        // C++ 'structors), record this fact for later use.
+        if (VA.getLocReg() == ARM::R0 && Ins[VA.getValNo()].Flags.isReturned()) {
+          AFI->setPreservesR0();
+        }
       }
 
       // If this is an 8 or 16-bit value, it is really passed promoted
@@ -11748,9 +11754,11 @@ static SDValue PerformVMOVRRDCombine(SDNode *N,
 
     SDValue OffsetPtr = DAG.getNode(ISD::ADD, DL, MVT::i32, BasePtr,
                                     DAG.getConstant(4, DL, MVT::i32));
-    SDValue NewLD2 = DAG.getLoad(
-        MVT::i32, DL, NewLD1.getValue(1), OffsetPtr, LD->getPointerInfo(),
-        std::min(4U, LD->getAlignment() / 2), LD->getMemOperand()->getFlags());
+
+    SDValue NewLD2 = DAG.getLoad(MVT::i32, DL, LD->getChain(), OffsetPtr,
+                                 LD->getPointerInfo().getWithOffset(4),
+                                 std::min(4U, LD->getAlignment()),
+                                 LD->getMemOperand()->getFlags());
 
     DAG.ReplaceAllUsesOfValueWith(SDValue(LD, 1), NewLD2.getValue(1));
     if (DCI.DAG.getDataLayout().isBigEndian())

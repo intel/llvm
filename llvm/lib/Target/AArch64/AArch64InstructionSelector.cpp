@@ -67,6 +67,11 @@ private:
   bool earlySelect(MachineInstr &I) const;
 
   bool earlySelectSHL(MachineInstr &I, MachineRegisterInfo &MRI) const;
+  bool earlySelectLoad(MachineInstr &I, MachineRegisterInfo &MRI) const;
+
+  /// Eliminate same-sized cross-bank copies into stores before selectImpl().
+  void contractCrossBankCopyIntoStore(MachineInstr &I,
+                                      MachineRegisterInfo &MRI) const;
 
   bool selectVaStartAAPCS(MachineInstr &I, MachineFunction &MF,
                           MachineRegisterInfo &MRI) const;
@@ -182,6 +187,7 @@ private:
   ComplexRendererFns selectAddrModeIndexed(MachineOperand &Root) const {
     return selectAddrModeIndexed(Root, Width / 8);
   }
+  ComplexRendererFns selectAddrModeRegisterOffset(MachineOperand &Root) const;
 
   void renderTruncImm(MachineInstrBuilder &MIB, const MachineInstr &MI) const;
 
@@ -1118,6 +1124,9 @@ void AArch64InstructionSelector::preISelLower(MachineInstr &I) const {
     }
     return;
   }
+  case TargetOpcode::G_STORE:
+    contractCrossBankCopyIntoStore(I, MRI);
+    return;
   default:
     return;
   }
@@ -1158,6 +1167,99 @@ bool AArch64InstructionSelector::earlySelectSHL(
   return constrainSelectedInstRegOperands(*NewI, TII, TRI, RBI);
 }
 
+void AArch64InstructionSelector::contractCrossBankCopyIntoStore(
+    MachineInstr &I, MachineRegisterInfo &MRI) const {
+  assert(I.getOpcode() == TargetOpcode::G_STORE && "Expected G_STORE");
+  // If we're storing a scalar, it doesn't matter what register bank that
+  // scalar is on. All that matters is the size.
+  //
+  // So, if we see something like this (with a 32-bit scalar as an example):
+  //
+  // %x:gpr(s32) = ... something ...
+  // %y:fpr(s32) = COPY %x:gpr(s32)
+  // G_STORE %y:fpr(s32)
+  //
+  // We can fix this up into something like this:
+  //
+  // G_STORE %x:gpr(s32)
+  //
+  // And then continue the selection process normally.
+  MachineInstr *Def = getDefIgnoringCopies(I.getOperand(0).getReg(), MRI);
+  if (!Def)
+    return;
+  Register DefDstReg = Def->getOperand(0).getReg();
+  LLT DefDstTy = MRI.getType(DefDstReg);
+  Register StoreSrcReg = I.getOperand(0).getReg();
+  LLT StoreSrcTy = MRI.getType(StoreSrcReg);
+
+  // If we get something strange like a physical register, then we shouldn't
+  // go any further.
+  if (!DefDstTy.isValid())
+    return;
+
+  // Are the source and dst types the same size?
+  if (DefDstTy.getSizeInBits() != StoreSrcTy.getSizeInBits())
+    return;
+
+  if (RBI.getRegBank(StoreSrcReg, MRI, TRI) ==
+      RBI.getRegBank(DefDstReg, MRI, TRI))
+    return;
+
+  // We have a cross-bank copy, which is entering a store. Let's fold it.
+  I.getOperand(0).setReg(DefDstReg);
+}
+
+bool AArch64InstructionSelector::earlySelectLoad(
+    MachineInstr &I, MachineRegisterInfo &MRI) const {
+  // Try to fold in shifts, etc into the addressing mode of a load.
+  assert(I.getOpcode() == TargetOpcode::G_LOAD && "unexpected op");
+
+  // Don't handle atomic loads/stores yet.
+  auto &MemOp = **I.memoperands_begin();
+  if (MemOp.getOrdering() != AtomicOrdering::NotAtomic) {
+    LLVM_DEBUG(dbgs() << "Atomic load/store not supported yet\n");
+    return false;
+  }
+
+  unsigned MemBytes = MemOp.getSize();
+
+  // Only support 64-bit loads for now.
+  if (MemBytes != 8)
+    return false;
+
+  Register DstReg = I.getOperand(0).getReg();
+  const LLT DstTy = MRI.getType(DstReg);
+  // Don't handle vectors.
+  if (DstTy.isVector())
+    return false;
+
+  unsigned DstSize = DstTy.getSizeInBits();
+  // TODO: 32-bit destinations.
+  if (DstSize != 64)
+    return false;
+
+  // Check if we can do any folding from GEPs etc. into the load.
+  auto ImmFn = selectAddrModeRegisterOffset(I.getOperand(1));
+  if (!ImmFn)
+    return false;
+
+  // We can fold something. Emit the load here.
+  MachineIRBuilder MIB(I);
+
+  // Choose the instruction based off the size of the element being loaded, and
+  // whether or not we're loading into a FPR.
+  const RegisterBank &RB = *RBI.getRegBank(DstReg, MRI, TRI);
+  unsigned Opc =
+      RB.getID() == AArch64::GPRRegBankID ? AArch64::LDRXroX : AArch64::LDRDroX;
+  // Construct the load.
+  auto LoadMI = MIB.buildInstr(Opc, {DstReg}, {});
+  for (auto &RenderFn : *ImmFn)
+    RenderFn(LoadMI);
+  LoadMI.addMemOperand(*I.memoperands_begin());
+  I.eraseFromParent();
+  return constrainSelectedInstRegOperands(*LoadMI, TII, TRI, RBI);
+}
+
 bool AArch64InstructionSelector::earlySelect(MachineInstr &I) const {
   assert(I.getParent() && "Instruction should be in a basic block!");
   assert(I.getParent()->getParent() && "Instruction should be in a function!");
@@ -1169,6 +1271,8 @@ bool AArch64InstructionSelector::earlySelect(MachineInstr &I) const {
   switch (I.getOpcode()) {
   case TargetOpcode::G_SHL:
     return earlySelectSHL(I, MRI);
+  case TargetOpcode::G_LOAD:
+    return earlySelectLoad(I, MRI);
   default:
     return false;
   }
@@ -3888,6 +3992,44 @@ AArch64InstructionSelector::selectArithImmed(MachineOperand &Root) const {
   return {{
       [=](MachineInstrBuilder &MIB) { MIB.addImm(Immed); },
       [=](MachineInstrBuilder &MIB) { MIB.addImm(ShVal); },
+  }};
+}
+
+/// This is used for computing addresses like this:
+///
+/// ldr x1, [x2, x3]
+///
+/// Where x2 is the base register, and x3 is an offset register.
+///
+/// When possible (or profitable) to fold a G_GEP into the address calculation,
+/// this will do so. Otherwise, it will return None.
+InstructionSelector::ComplexRendererFns
+AArch64InstructionSelector::selectAddrModeRegisterOffset(
+    MachineOperand &Root) const {
+  MachineRegisterInfo &MRI = Root.getParent()->getMF()->getRegInfo();
+
+  // If we have a constant offset, then we probably don't want to match a
+  // register offset.
+  if (isBaseWithConstantOffset(Root, MRI))
+    return None;
+
+  // We need a GEP.
+  MachineInstr *Gep = MRI.getVRegDef(Root.getReg());
+  if (!Gep || Gep->getOpcode() != TargetOpcode::G_GEP)
+    return None;
+
+  // If this is used more than once, let's not bother folding.
+  // TODO: Check if they are memory ops. If they are, then we can still fold
+  // without having to recompute anything.
+  if (!MRI.hasOneUse(Gep->getOperand(0).getReg()))
+    return None;
+
+  // Base is the GEP's LHS, offset is its RHS.
+  return {{
+      [=](MachineInstrBuilder &MIB) { MIB.add(Gep->getOperand(1)); },
+      [=](MachineInstrBuilder &MIB) { MIB.add(Gep->getOperand(2)); },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+      [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
   }};
 }
 

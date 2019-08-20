@@ -68,7 +68,7 @@ public:
   bool HandleTopLevelDecl(DeclGroupRef DG) override {
     for (Decl *D : DG) {
       auto &SM = D->getASTContext().getSourceManager();
-      if (!SM.isWrittenInMainFile(SM.getExpansionLoc(D->getLocation())))
+      if (!isInsideMainFile(D->getLocation(), SM))
         continue;
 
       // ObjCMethodDecl are not actually top-level decls.
@@ -355,8 +355,7 @@ ParsedAST::build(std::unique_ptr<CompilerInvocation> CI,
           // those might take us into a preamble file as well.
           bool IsInsideMainFile =
               Info.hasSourceManager() &&
-              Info.getSourceManager().isWrittenInMainFile(
-                  Info.getSourceManager().getFileLoc(Info.getLocation()));
+              isInsideMainFile(Info.getLocation(), Info.getSourceManager());
           if (IsInsideMainFile && tidy::ShouldSuppressDiagnostic(
                                       DiagLevel, Info, *CTContext,
                                       /* CheckMacroExpansion = */ false)) {
@@ -571,7 +570,8 @@ buildPreamble(PathRef FileName, CompilerInvocation &CI,
               PreambleParsedCallback PreambleCallback) {
   // Note that we don't need to copy the input contents, preamble can live
   // without those.
-  auto ContentsBuffer = llvm::MemoryBuffer::getMemBuffer(Inputs.Contents);
+  auto ContentsBuffer =
+      llvm::MemoryBuffer::getMemBuffer(Inputs.Contents, FileName);
   auto Bounds =
       ComputePreambleBounds(*CI.getLangOpts(), ContentsBuffer.get(), 0);
 
@@ -651,10 +651,10 @@ buildAST(PathRef FileName, std::unique_ptr<CompilerInvocation> Invocation,
     // dirs.
   }
 
-  return ParsedAST::build(llvm::make_unique<CompilerInvocation>(*Invocation),
-                          Preamble,
-                          llvm::MemoryBuffer::getMemBufferCopy(Inputs.Contents),
-                          std::move(VFS), Inputs.Index, Inputs.Opts);
+  return ParsedAST::build(
+      llvm::make_unique<CompilerInvocation>(*Invocation), Preamble,
+      llvm::MemoryBuffer::getMemBufferCopy(Inputs.Contents, FileName),
+      std::move(VFS), Inputs.Index, Inputs.Opts);
 }
 
 SourceLocation getBeginningOfIdentifier(const ParsedAST &Unit,

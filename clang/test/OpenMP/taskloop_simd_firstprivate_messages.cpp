@@ -19,6 +19,13 @@ bool foobool(int argc) {
   return argc;
 }
 
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp taskloop simd firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
+}
+
 struct S1; // expected-note 2 {{declared here}} expected-note 2 {{forward declaration of 'S1'}}
 extern S1 a;
 class S2 {
@@ -150,11 +157,11 @@ int foomain(int argc, char **argv) {
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp parallel private(i)
-#pragma omp taskloop simd firstprivate(i) // expected-note {{defined as firstprivate}}
-  for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp taskloop simd' directive may not be firstprivate, predetermined as linear}}
+#pragma omp taskloop simd firstprivate(i) // expected-note 2 {{defined as firstprivate}}
+  for (i = 0; i < argc; ++i) // expected-error 2 {{loop iteration variable in the associated loop of 'omp taskloop simd' directive may not be firstprivate, predetermined as linear}}
     foo();
-#pragma omp parallel reduction(+ : i)
-#pragma omp taskloop simd firstprivate(i) // expected-note {{defined as firstprivate}}
+#pragma omp parallel reduction(+ : i) // expected-note {{defined as reduction}}
+#pragma omp taskloop simd firstprivate(i) // expected-note {{defined as firstprivate}} expected-error {{argument of a reduction clause of a parallel construct must not appear in a firstprivate clause on a task construct}}
   for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp taskloop simd' directive may not be firstprivate, predetermined as linear}}
     foo();
   return 0;
@@ -307,9 +314,9 @@ int main(int argc, char **argv) {
 #pragma omp taskloop simd firstprivate(i) // expected-note {{defined as firstprivate}}
   for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp taskloop simd' directive may not be firstprivate, predetermined as linear}}
     foo();
-#pragma omp parallel reduction(+ : i) // expected-note 2 {{defined as reduction}}
+#pragma omp parallel reduction(+ : i) // expected-note {{defined as reduction}}
 #pragma omp taskloop simd firstprivate(i) // expected-error {{argument of a reduction clause of a parallel construct must not appear in a firstprivate clause on a task construct}}
-  for (i = 0; i < argc; ++i) // expected-error {{reduction variables may not be accessed in an explicit task}}
+  for (i = 0; i < argc; ++i)
     foo();
 #pragma omp taskloop simd firstprivate(i) //expected-note {{defined as firstprivate}}
   for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp taskloop simd' directive may not be firstprivate, predetermined as linear}}

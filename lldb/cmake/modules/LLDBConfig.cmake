@@ -50,6 +50,7 @@ option(LLDB_USE_SYSTEM_SIX "Use six.py shipped with system and do not install a 
 option(LLDB_USE_ENTITLEMENTS "When codesigning, use entitlements if available" ON)
 option(LLDB_BUILD_FRAMEWORK "Build LLDB.framework (Darwin only)" OFF)
 option(LLDB_NO_INSTALL_DEFAULT_RPATH "Disable default RPATH settings in binaries" OFF)
+option(LLDB_USE_SYSTEM_DEBUGSERVER "Use the system's debugserver for testing (Darwin only)." OFF)
 
 if(LLDB_BUILD_FRAMEWORK)
   if(NOT APPLE)
@@ -372,17 +373,17 @@ list(APPEND system_libs ${CMAKE_DL_LIBS})
 # Figure out if lldb could use lldb-server.  If so, then we'll
 # ensure we build lldb-server when an lldb target is being built.
 if (CMAKE_SYSTEM_NAME MATCHES "Android|Darwin|FreeBSD|Linux|NetBSD")
-  set(LLDB_CAN_USE_LLDB_SERVER 1)
+  set(LLDB_CAN_USE_LLDB_SERVER ON)
 else()
-  set(LLDB_CAN_USE_LLDB_SERVER 0)
+  set(LLDB_CAN_USE_LLDB_SERVER OFF)
 endif()
 
 # Figure out if lldb could use debugserver.  If so, then we'll
 # ensure we build debugserver when we build lldb.
-if ( CMAKE_SYSTEM_NAME MATCHES "Darwin" )
-    set(LLDB_CAN_USE_DEBUGSERVER 1)
+if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
+    set(LLDB_CAN_USE_DEBUGSERVER ON)
 else()
-    set(LLDB_CAN_USE_DEBUGSERVER 0)
+    set(LLDB_CAN_USE_DEBUGSERVER OFF)
 endif()
 
 if (NOT LLDB_DISABLE_CURSES)

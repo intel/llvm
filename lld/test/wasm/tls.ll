@@ -2,8 +2,8 @@
 
 target triple = "wasm32-unknown-unknown"
 
-@tls1 = thread_local(localexec) global i32 1, align 4
 @no_tls = global i32 0, align 4
+@tls1 = thread_local(localexec) global i32 1, align 4
 @tls2 = thread_local(localexec) global i32 1, align 4
 
 define i32* @tls1_addr() {
@@ -13,6 +13,13 @@ define i32* @tls1_addr() {
 define i32* @tls2_addr() {
   ret i32* @tls2
 }
+
+define i32 @tls_align() {
+  %1 = call i32 @llvm.wasm.tls.align.i32()
+  ret i32 %1
+}
+
+declare i32 @llvm.wasm.tls.align.i32()
 
 ; RUN: wasm-ld -no-gc-sections --shared-memory --max-memory=131072 --no-entry -o %t.wasm %t.o
 ; RUN: obj2yaml %t.wasm | FileCheck %s
@@ -28,12 +35,16 @@ define i32* @tls2_addr() {
 ; CHECK-NEXT:       InitExpr:
 ; CHECK-NEXT:         Opcode:          I32_CONST
 ; CHECK-NEXT:         Value:           66576
+
+; __tls_base
 ; CHECK-NEXT:     - Index:           1
 ; CHECK-NEXT:       Type:            I32
 ; CHECK-NEXT:       Mutable:         true
 ; CHECK-NEXT:       InitExpr:
 ; CHECK-NEXT:         Opcode:          I32_CONST
 ; CHECK-NEXT:         Value:           0
+
+; __tls_size
 ; CHECK-NEXT:     - Index:           2
 ; CHECK-NEXT:       Type:            I32
 ; CHECK-NEXT:       Mutable:         false
@@ -41,15 +52,21 @@ define i32* @tls2_addr() {
 ; CHECK-NEXT:         Opcode:          I32_CONST
 ; CHECK-NEXT:         Value:           8
 
+; __tls_align
+; CHECK-NEXT:     - Index:           3
+; CHECK-NEXT:       Type:            I32
+; CHECK-NEXT:       Mutable:         false
+; CHECK-NEXT:       InitExpr:
+; CHECK-NEXT:         Opcode:          I32_CONST
+; CHECK-NEXT:         Value:           4
+
 
 ; CHECK:      - Type:            CODE
 ; CHECK-NEXT:   Functions:
-; CHECK-NEXT:     - Index:           0
+; Skip __wasm_call_ctors and __wasm_init_memory
+; CHECK:          - Index:           2
 ; CHECK-NEXT:       Locals:          []
-; CHECK-NEXT:       Body:            0B
-; CHECK-NEXT:     - Index:           1
-; CHECK-NEXT:       Locals:          []
-; CHECK-NEXT:       Body:            20002401200041004108FC0800000B
+; CHECK-NEXT:       Body:            20002401200041004108FC0801000B
 
 ; Expected body of __wasm_init_tls:
 ;   local.get 0
@@ -57,10 +74,10 @@ define i32* @tls2_addr() {
 ;   local.get 0
 ;   i32.const 0
 ;   i32.const 8
-;   memory.init 0, 0
+;   memory.init 1, 0
 ;   end
 
-; CHECK-NEXT:     - Index:           2
+; CHECK-NEXT:     - Index:           3
 ; CHECK-NEXT:       Locals:          []
 ; CHECK-NEXT:       Body:            2381808080004180808080006A0B
 
@@ -70,7 +87,7 @@ define i32* @tls2_addr() {
 ;   i32.add
 ;   end
 
-; CHECK-NEXT:     - Index:           3
+; CHECK-NEXT:     - Index:           4
 ; CHECK-NEXT:       Locals:          []
 ; CHECK-NEXT:       Body:            2381808080004184808080006A0B
 
@@ -78,4 +95,12 @@ define i32* @tls2_addr() {
 ;   global.get 1
 ;   i32.const 4
 ;   i32.add
+;   end
+
+; CHECK-NEXT:     - Index:           5
+; CHECK-NEXT:       Locals:          []
+; CHECK-NEXT:       Body:            2383808080000B
+
+; Expected body of tls1_addr:
+;   global.get 3
 ;   end

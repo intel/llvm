@@ -1,11 +1,12 @@
 // RUN: %clangxx_asan -xc++ -shared -fPIC -o %t.so - < %s
 // RUN: %clang_asan %s -o %t.out -ldl
-// RUN: ASAN_OPTIONS=verbosity=1 not %t.out %t.so 2>&1 | FileCheck %s
 //
-// CHECK: AddressSanitizer: failed to intercept '__cxa_throw'
+// RUN: { env ASAN_OPTIONS=verbosity=1 %t.out %t.so || : ; } 2>&1 | FileCheck %s
 //
-// dlopen() can not be intercepted on Android
-// UNSUPPORTED: android
+// CHECK: {{.*}}AddressSanitizer: failed to intercept '__cxa_{{.*}}throw{{.*}}'
+//
+// REQUIRES: x86_64-target-arch && !android
+
 #ifdef __cplusplus
 
 static void foo(void) {

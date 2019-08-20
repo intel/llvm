@@ -8,6 +8,14 @@ void foo() {
 bool foobool(int argc) {
   return argc;
 }
+
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp distribute parallel for firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
+}
+
 extern int omp_default_mem_alloc;
 
 struct S1; // expected-note 2 {{declared here}} expected-note 2 {{forward declaration of 'S1'}}
@@ -162,14 +170,14 @@ int foomain(int argc, char **argv) {
 #pragma omp parallel private(i)
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(i) // expected-note {{defined as firstprivate}}
-  for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp distribute parallel for' directive may not be firstprivate, predetermined as private}}
+#pragma omp distribute parallel for firstprivate(i) // expected-note 2 {{defined as firstprivate}}
+  for (i = 0; i < argc; ++i) // expected-error 2 {{loop iteration variable in the associated loop of 'omp distribute parallel for' directive may not be firstprivate, predetermined as private}}
     foo();
 #pragma omp parallel reduction(+ : i)
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for firstprivate(i) // expected-note {{defined as firstprivate}}
-  for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp distribute parallel for' directive may not be firstprivate, predetermined as private}}
+#pragma omp distribute parallel for firstprivate(i) // expected-note 2 {{defined as firstprivate}}
+  for (i = 0; i < argc; ++i) // expected-error 2 {{loop iteration variable in the associated loop of 'omp distribute parallel for' directive may not be firstprivate, predetermined as private}}
     foo();
   return 0;
 }
