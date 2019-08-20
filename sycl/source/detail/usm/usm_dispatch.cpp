@@ -66,7 +66,7 @@ void *USMDispatcher::hostMemAlloc(pi_context Context,
   }
 
   if (ErrcodeRet && !RetVal) {
-    ErrcodeRet[0] = PI_INVALID_OPERATION;
+    *ErrcodeRet = PI_INVALID_OPERATION;
   }
   return RetVal;
 }
@@ -93,7 +93,7 @@ void *USMDispatcher::deviceMemAlloc(pi_context Context, pi_device Device,
   }
 
   if (ErrcodeRet && !RetVal) {
-    ErrcodeRet[0] = PI_INVALID_OPERATION;
+    *ErrcodeRet = PI_INVALID_OPERATION;
   }
   return RetVal;
 }
@@ -132,9 +132,9 @@ pi_result USMDispatcher::memFree(pi_context Context, void *Ptr) {
     cl_context CLContext = pi::cast<cl_context>(Context);
 
     if (mEmulated) {
-      RetVal = PI_CALL_RESULT(mEmulator->memFree(CLContext, Ptr));
+      RetVal = pi::cast<pi_result>(mEmulator->memFree(CLContext, Ptr));
     } else {
-      RetVal = PI_CALL_RESULT(pfn_clMemFreeINTEL(CLContext, Ptr));
+      RetVal = pi::cast<pi_result>(pfn_clMemFreeINTEL(CLContext, Ptr));
     }
   }
 
@@ -150,10 +150,10 @@ pi_result USMDispatcher::setKernelArgMemPointer(pi_kernel Kernel,
     cl_kernel CLKernel = pi::cast<cl_kernel>(Kernel);
 
     if (mEmulated) {
-      RetVal = PI_CALL_RESULT(
+      RetVal = pi::cast<pi_result>(
           clSetKernelArgSVMPointer(CLKernel, ArgIndex, ArgValue));
     } else {
-      RetVal = PI_CALL_RESULT(
+      RetVal = pi::cast<pi_result>(
           pfn_clSetKernelArgMemPointerINTEL(CLKernel, ArgIndex, ArgValue));
     }
   }
@@ -179,13 +179,13 @@ void USMDispatcher::setKernelIndirectAccess(pi_kernel Kernel, pi_queue Queue) {
           sizeof(cl_bool), &TrueVal));
       CHECK_OCL_CODE(mEmulator->setKernelIndirectUSMExecInfo(CLQueue, CLKernel));
     } else {
-      PI_CALL(clSetKernelExecInfo(
+      CHECK_OCL_CODE(clSetKernelExecInfo(
           CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
           sizeof(cl_bool), &TrueVal));
-      PI_CALL(clSetKernelExecInfo(
+      CHECK_OCL_CODE(clSetKernelExecInfo(
           CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
           sizeof(cl_bool), &TrueVal));
-      PI_CALL(clSetKernelExecInfo(
+      CHECK_OCL_CODE(clSetKernelExecInfo(
           CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
           sizeof(cl_bool), &TrueVal));
     }
@@ -206,13 +206,13 @@ pi_result USMDispatcher::enqueueMemset(pi_queue Queue, void *Ptr,
     
     if (mEmulated) {
       const cl_uchar Pattern = (cl_uchar)Value;
-      
-      RetVal = PI_CALL_RESULT(clEnqueueSVMMemFill(
+
+      RetVal = pi::cast<pi_result>(clEnqueueSVMMemFill(
           CLQueue, Ptr, &Pattern, sizeof(Pattern), Count, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
     } else {
-      RetVal = PI_CALL_RESULT(pfn_clEnqueueMemsetINTEL(
+      RetVal = pi::cast<pi_result>(pfn_clEnqueueMemsetINTEL(
           CLQueue, Ptr, Value, Count, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
@@ -234,12 +234,12 @@ pi_result USMDispatcher::enqueueMemcpy(pi_queue Queue, pi_bool Blocking,
     cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
 
     if (mEmulated) {
-      RetVal = PI_CALL_RESULT(clEnqueueSVMMemcpy(
+      RetVal = pi::cast<pi_result>(clEnqueueSVMMemcpy(
           CLQueue, Blocking, DestPtr, SrcPtr, Size, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
     } else {
-      RetVal = PI_CALL_RESULT(pfn_clEnqueueMemcpyINTEL(
+      RetVal = pi::cast<pi_result>(pfn_clEnqueueMemcpyINTEL(
           CLQueue, Blocking, DestPtr, SrcPtr, Size, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
@@ -263,12 +263,12 @@ pi_result USMDispatcher::enqueueMigrateMem(pi_queue Queue, const void *Ptr,
     if (mEmulated) {
       // We could check for OpenCL 2.1 and call the SVM migrate
       // functions, but for now we'll just enqueue a marker.
-      RetVal = PI_CALL_RESULT(clEnqueueMarkerWithWaitList(
+      RetVal = pi::cast<pi_result>(clEnqueueMarkerWithWaitList(
           CLQueue, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
     } else {
-      RetVal = PI_CALL_RESULT(pfn_clEnqueueMigrateMemINTEL(
+      RetVal = pi::cast<pi_result>(pfn_clEnqueueMigrateMemINTEL(
           CLQueue, Ptr, Size, Flags, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
@@ -294,12 +294,12 @@ pi_result USMDispatcher::enqueueMemAdvise(pi_queue Queue, void *Ptr,
       // This isn't really supported yet.
       // Advice is typically safe to ignore,
       //  so a NOP will do.
-      RetVal = PI_CALL_RESULT(clEnqueueMarkerWithWaitList(
+      RetVal = pi::cast<pi_result>(clEnqueueMarkerWithWaitList(
           CLQueue, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
     } else {
-      RetVal = PI_CALL_RESULT(pfn_clEnqueueMemAdviseINTEL(
+      RetVal = pi::cast<pi_result>(pfn_clEnqueueMemAdviseINTEL(
           CLQueue, Ptr, Size, Advice, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
@@ -324,11 +324,11 @@ pi_result USMDispatcher::getMemAllocInfo(pi_context Context, const void *Ptr,
       // This isn't really supported yet.
       // Advice is typically safe to ignore,
       //  so a NOP will do.
-      RetVal = PI_CALL_RESULT(mEmulator->getMemAllocInfoINTEL(
+      RetVal = pi::cast<pi_result>(mEmulator->getMemAllocInfoINTEL(
           CLContext, Ptr, ParamName, ParamValueSize, ParamValue,
           ParamValueSizeRet));
     } else {
-      RetVal = PI_CALL_RESULT(
+      RetVal = pi::cast<pi_result>(
           pfn_clGetMemAllocInfoINTEL(CLContext, Ptr, ParamName, ParamValueSize,
                                      ParamValue, ParamValueSizeRet));
     }

@@ -111,7 +111,7 @@ public:
     }
     auto Result = reinterpret_cast<pointer>(
         detail::usm::alignedAlloc(getAlignment(), Size * sizeof(value_type),
-                                  mContext, mDevice, AllocKind));
+                                  *mContext, mDevice, AllocKind));
     if (!Result) {
       throw memory_allocation_error();
     }
@@ -121,7 +121,7 @@ public:
   // Deallocate memory
   void deallocate(pointer Ptr, size_t size) {
     if (Ptr) {
-      detail::usm::free(Ptr, mContext);
+      detail::usm::free(Ptr, *mContext);
     }
   }
 

@@ -11,9 +11,11 @@ bool findPlatformAndDevice(cl_device_type deviceType,
   cl_int errorCode;
 
   errorCode = clGetPlatformIDs(0, nullptr, &numPlatforms);
+  if (errorCode != CL_SUCCESS) return false;
 
   std::vector<cl_platform_id> platforms(numPlatforms);
   errorCode = clGetPlatformIDs(numPlatforms, platforms.data(), nullptr);
+  if (errorCode != CL_SUCCESS) return false;
 
   for (auto platform : platforms) {
     cl_uint numDevices = 0;

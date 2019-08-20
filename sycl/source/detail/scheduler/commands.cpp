@@ -664,7 +664,7 @@ cl_int ExecCGCommand::enqueueImp() {
             getSyclObjImpl(Context)->getUSMDispatch();
         auto PtrToPtr = reinterpret_cast<intptr_t*>(Arg.MPtr);
         auto DerefPtr = reinterpret_cast<void*>(*PtrToPtr);
-        PI_CALL(
+        pi::cast<RT::PiResult>(
             USMDispatch->setKernelArgMemPointer(Kernel, Arg.MIndex, DerefPtr));
         break;
       }
