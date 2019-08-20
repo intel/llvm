@@ -120,7 +120,7 @@ void *USMDispatcher::sharedMemAlloc(pi_context Context, pi_device Device,
   }
 
   if (ErrcodeRet && !RetVal) {
-    ErrcodeRet[0] = PI_INVALID_OPERATION;
+    *ErrcodeRet = PI_INVALID_OPERATION;
   }
   return RetVal;
 }
