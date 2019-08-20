@@ -1236,6 +1236,12 @@ void addIntelFPGADecorationsForStructMember(
     SPIRVEntry *E, SPIRVWord MemberNumber,
     std::vector<std::pair<Decoration, std::string>> &Decorations) {
   for (const auto &I : Decorations) {
+    // Such decoration already exists on a type, skip it
+    if (E->hasMemberDecorate(I.first, /*Index=*/0, MemberNumber,
+                             /*Result=*/nullptr)) {
+      continue;
+    }
+
     switch (I.first) {
     case DecorationMemoryINTEL:
       E->addMemberDecorate(
@@ -1410,20 +1416,21 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     return SV;
   }
   case Intrinsic::ptr_annotation: {
-    GetElementPtrInst *GI;
-    if (auto *BI = dyn_cast<BitCastInst>(II->getArgOperand(0))) {
-      GI = dyn_cast<GetElementPtrInst>(BI->getOperand(0));
-    } else {
-      GI = dyn_cast<GetElementPtrInst>(II->getOperand(0));
-    }
-
     GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
     Constant *C = dyn_cast<Constant>(GEP->getOperand(0));
     // TODO: Refactor to use getConstantStringInfo()
     StringRef AnnotationString =
         dyn_cast<ConstantDataArray>(C->getOperand(0))->getAsCString();
 
-    if (GI) {
+    // Strip all bitcast and addrspace casts from the pointer argument:
+    //   llvm annotation intrinsic only takes i8*, so the original pointer
+    //   probably had to loose its addrspace and its original type.
+    Value *AnnotSubj = II->getArgOperand(0);
+    while (isa<BitCastInst>(AnnotSubj) || isa<AddrSpaceCastInst>(AnnotSubj)) {
+      AnnotSubj = cast<CastInst>(AnnotSubj)->getOperand(0);
+    }
+    // If the pointer is a GEP, then we have to emit a member decoration
+    if (auto *GI = dyn_cast<GetElementPtrInst>(AnnotSubj)) {
       auto *Ty = transType(GI->getSourceElementType());
       SPIRVWord MemberNumber =
           dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
