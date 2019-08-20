@@ -41,6 +41,8 @@
 #ifndef SPIRV_H
 #define SPIRV_H
 
+#include "LLVMSPIRVOpts.h"
+
 #include <iostream>
 #include <string>
 
@@ -66,6 +68,7 @@ void initializePreprocessMetadataPass(PassRegistry &);
 #include "llvm/IR/Module.h"
 
 namespace SPIRV {
+
 class SPIRVModule;
 
 /// \brief Check if a string contains SPIR-V binary.
@@ -94,6 +97,12 @@ bool isSpirvText(std::string &Img);
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
                                              std::string &ErrMsg);
 
+/// \brief Load SPIR-V from istream as a SPIRVModule.
+/// \returns null on failure.
+std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
+                                             const SPIRV::TranslatorOpts &Opts,
+                                             std::string &ErrMsg);
+
 } // End namespace SPIRV
 
 namespace llvm {
@@ -106,6 +115,16 @@ bool writeSpirv(Module *M, std::ostream &OS, std::string &ErrMsg);
 /// \returns true if succeeds.
 bool readSpirv(LLVMContext &C, std::istream &IS, Module *&M,
                std::string &ErrMsg);
+
+/// \brief Translate LLVM module to SPIR-V and write to ostream.
+/// \returns true if succeeds.
+bool writeSpirv(Module *M, const SPIRV::TranslatorOpts &Opts, std::ostream &OS,
+                std::string &ErrMsg);
+
+/// \brief Load SPIR-V from istream and translate to LLVM module.
+/// \returns true if succeeds.
+bool readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
+               std::istream &IS, Module *&M, std::string &ErrMsg);
 
 /// \brief Convert a SPIRVModule into LLVM IR.
 /// \returns null on failure.

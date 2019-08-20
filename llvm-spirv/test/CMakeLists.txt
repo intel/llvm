@@ -10,11 +10,22 @@ set(LLVM_SPIRV_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 # find spirv-val
 pkg_search_module(SPIRV_TOOLS SPIRV-Tools)
 if(SPIRV_TOOLS_FOUND)
+  find_program(SPIRV_TOOLS_SPIRV_AS NAMES spirv-as PATHS ${SPIRV_TOOLS_PREFIX}/bin)
+  if(SPIRV_TOOLS_SPIRV_AS)
+    set(SPIRV_TOOLS_SPIRV_AS_FOUND True)
+  endif()
+
   find_program(SPIRV_TOOLS_SPIRV_VAL NAMES spirv-val PATHS ${SPIRV_TOOLS_PREFIX}/bin)
   if(SPIRV_TOOLS_SPIRV_VAL)
-    get_filename_component(SPIRV_TOOLS_BINDIR "${SPIRV_TOOLS_SPIRV_VAL}" DIRECTORY)
     set(SPIRV_TOOLS_SPIRV_VAL_FOUND True)
   endif()
+
+  set(SPIRV_TOOLS_BINDIR "${SPIRV_TOOLS_PREFIX}/bin")
+endif()
+
+if(NOT SPIRV_TOOLS_SPIRV_AS)
+  message(WARNING "spirv-as not found! SPIR-V assembly tests will not be run.")
+  set(SPIRV_TOOLS_SPIRV_AS_FOUND False)
 endif()
 
 if(NOT SPIRV_TOOLS_SPIRV_VAL)

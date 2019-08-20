@@ -160,6 +160,12 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
       unsigned LineNo = 0;
       unsigned Col = 0;
       for (const Instruction &I : BB) {
+        if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
+          if (II->getIntrinsicID() == Intrinsic::dbg_label) {
+            // SPIR-V doesn't support llvm.dbg.label intrinsic translation
+            continue;
+          }
+        }
         const DebugLoc &DL = I.getDebugLoc();
         if (!DL.get()) {
           if (DbgScope || InlinedAt) { // Emit DebugNoScope

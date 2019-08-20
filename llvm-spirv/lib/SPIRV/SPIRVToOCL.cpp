@@ -302,7 +302,8 @@ void SPIRVToOCL::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
           Args.erase(Args.begin(), Args.begin() + 1);
 
         if (!(OC == OpReadPipe || OC == OpWritePipe ||
-              OC == OpReservedReadPipe || OC == OpReservedWritePipe))
+              OC == OpReservedReadPipe || OC == OpReservedWritePipe ||
+              OC == OpReadPipeBlockingINTEL || OC == OpWritePipeBlockingINTEL))
           return DemangledName;
 
         auto &P = Args[Args.size() - 3];

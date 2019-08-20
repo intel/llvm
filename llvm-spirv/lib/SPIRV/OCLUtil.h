@@ -427,6 +427,13 @@ bool isSamplerTy(Type *Ty);
 // If so, it applies ContractionOff ExecutionMode to the kernel.
 void checkFpContract(BinaryOperator *B, SPIRVBasicBlock *BB);
 
+template <typename T> std::string toString(const T *Object) {
+  std::string S;
+  llvm::raw_string_ostream RSOS(S);
+  Object->print(RSOS);
+  RSOS.flush();
+  return S;
+}
 } // namespace OCLUtil
 
 ///////////////////////////////////////////////////////////////////////////////

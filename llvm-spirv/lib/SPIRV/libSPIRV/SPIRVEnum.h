@@ -40,6 +40,7 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVENUM_H
 #define SPIRV_LIBSPIRV_SPIRVENUM_H
 
+#include "LLVMSPIRVOpts.h"
 #include "SPIRVOpCode.h"
 #include "spirv.hpp"
 #include <cstdint>
@@ -60,11 +61,6 @@ inline SPIRVWord mkWord(unsigned WordCount, Op OpCode) {
 }
 
 const static unsigned KSpirvMemOrderSemanticMask = 0x1F;
-
-enum SPIRVVersion : SPIRVWord {
-  SPIRV_1_0 = 0x00010000,
-  SPIRV_1_1 = 0x00010100
-};
 
 enum SPIRVGeneratorKind {
   SPIRVGEN_KhronosLLVMSPIRVTranslator = 6,
@@ -113,28 +109,16 @@ typedef spv::GroupOperation SPIRVGroupOperationKind;
 typedef spv::Dim SPIRVImageDimKind;
 typedef std::vector<SPIRVCapabilityKind> SPIRVCapVec;
 
-enum SPIRVExtensionKind {
-  SPV_KHR_no_integer_wrap_decoration,
-  SPV_INTEL_blocking_pipes,
-  SPV_INTEL_device_side_avc_motion_estimation,
-  SPV_INTEL_fpga_reg,
-  SPV_INTEL_fpga_memory_attributes,
-  SPV_INTEL_unstructured_loop_controls,
-  SPV_INTEL_function_pointers
-};
+typedef std::set<ExtensionID> SPIRVExtSet;
 
-typedef std::set<SPIRVExtensionKind> SPIRVExtSet;
-
-template <> inline void SPIRVMap<SPIRVExtensionKind, std::string>::init() {
-  add(SPV_INTEL_blocking_pipes, "SPV_INTEL_blocking_pipes");
-  add(SPV_INTEL_device_side_avc_motion_estimation,
-      "SPV_INTEL_device_side_avc_motion_estimation");
-  add(SPV_INTEL_unstructured_loop_controls,
-      "SPV_INTEL_unstructured_loop_controls");
-  add(SPV_KHR_no_integer_wrap_decoration, "SPV_KHR_no_integer_wrap_decoration");
-  add(SPV_INTEL_fpga_reg, "SPV_INTEL_fpga_reg");
-  add(SPV_INTEL_fpga_memory_attributes, "SPV_INTEL_fpga_memory_attributes");
-  add(SPV_INTEL_function_pointers, "SPV_INTEL_function_pointers");
+template <> inline void SPIRVMap<ExtensionID, std::string>::init() {
+#define _STRINGIFY(X) #X
+#define STRINGIFY(X) _STRINGIFY(X)
+#define EXT(X) add(ExtensionID::X, STRINGIFY(X));
+#include "LLVMSPIRVExtensions.inc"
+#undef EXT
+#undef STRINGIFY
+#undef _STRINGIFY
 }
 
 template <> inline void SPIRVMap<SPIRVExtInstSetKind, std::string>::init() {
@@ -378,7 +362,8 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(DecorationSimpleDualPortINTEL,
                {CapabilityFPGAMemoryAttributesINTEL});
   ADD_VEC_INIT(DecorationMergeINTEL, {CapabilityFPGAMemoryAttributesINTEL});
-  ADD_VEC_INIT(DecorationReferencedIndirectlyINTEL, {CapabilityIndirectReferencesINTEL});
+  ADD_VEC_INIT(DecorationReferencedIndirectlyINTEL,
+               {CapabilityIndirectReferencesINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {

@@ -67,7 +67,10 @@
 
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
+#include <set>
+#include <string>
 
 #define DEBUG_TYPE "spirv"
 
@@ -93,6 +96,23 @@ static cl::opt<bool>
     IsRegularization("s",
                      cl::desc("Regularize LLVM to be representable by SPIR-V"));
 
+using SPIRV::VersionNumber;
+
+static cl::opt<VersionNumber> MaxSPIRVVersion(
+    "spirv-max-version",
+    cl::desc("Choose maximum SPIR-V version which can be emitted"),
+    cl::values(clEnumValN(VersionNumber::SPIRV_1_0, "1.0", "SPIR-V 1.0"),
+               clEnumValN(VersionNumber::SPIRV_1_1, "1.1", "SPIR-V 1.1")),
+    cl::init(VersionNumber::MaximumVersion));
+
+static cl::list<std::string>
+    SPVExt("spirv-ext", cl::CommaSeparated,
+           cl::desc("Specify list of allowed/disallowed extensions"),
+           cl::value_desc("+SPV_extenstion1_name,-SPV_extension2_name"),
+           cl::ValueRequired);
+
+using SPIRV::ExtensionID;
+
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
 namespace SPIRV {
 // Use textual format for SPIRV.
@@ -117,7 +137,7 @@ static std::string removeExt(const std::string &FileName) {
 
 static ExitOnError ExitOnErr;
 
-static int convertLLVMToSPIRV() {
+static int convertLLVMToSPIRV(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
 
   std::unique_ptr<MemoryBuffer> MB =
@@ -140,9 +160,9 @@ static int convertLLVMToSPIRV() {
   bool Success = false;
   if (OutputFile != "-") {
     std::ofstream OutFile(OutputFile, std::ios::binary);
-    Success = writeSpirv(M.get(), OutFile, Err);
+    Success = writeSpirv(M.get(), Opts, OutFile, Err);
   } else {
-    Success = writeSpirv(M.get(), std::cout, Err);
+    Success = writeSpirv(M.get(), Opts, std::cout, Err);
   }
 
   if (!Success) {
@@ -152,13 +172,13 @@ static int convertLLVMToSPIRV() {
   return 0;
 }
 
-static int convertSPIRVToLLVM() {
+static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
   std::ifstream IFS(InputFile, std::ios::binary);
   Module *M;
   std::string Err;
 
-  if (!readSpirv(Context, IFS, M, Err)) {
+  if (!readSpirv(Context, Opts, IFS, M, Err)) {
     errs() << "Fails to load SPIR-V as LLVM Module: " << Err << '\n';
     return -1;
   }
@@ -266,12 +286,81 @@ static int regularizeLLVM() {
   return 0;
 }
 
+static int parseSPVExtOption(
+    SPIRV::TranslatorOpts::ExtensionsStatusMap &ExtensionsStatus) {
+  // Map name -> id for known extensions
+  std::map<std::string, ExtensionID> ExtensionNamesMap;
+#define _STRINGIFY(X) #X
+#define STRINGIFY(X) _STRINGIFY(X)
+#define EXT(X) ExtensionNamesMap[STRINGIFY(X)] = ExtensionID::X;
+#include "LLVMSPIRVExtensions.inc"
+#undef EXT
+#undef STRINGIFY
+#undef _STRINGIFY
+
+  // Set the initial state:
+  //  - during SPIR-V consumption, assume that any known extension is allowed.
+  //  - during SPIR-V generation, assume that any known extension is disallowed.
+  //  - during conversion to/from SPIR-V text representation, assume that any
+  //    known extension is allowed.
+  for (const auto &It : ExtensionNamesMap)
+    ExtensionsStatus[It.second] = IsReverse;
+
+  if (SPVExt.empty())
+    return 0; // Nothing to do
+
+  for (unsigned i = 0; i < SPVExt.size(); ++i) {
+    const std::string &ExtString = SPVExt[i];
+    if ('+' != ExtString.front() && '-' != ExtString.front()) {
+      errs() << "Invalid value of --spirv-ext, expected format is:\n"
+             << "\t--spirv-ext=+EXT_NAME,-EXT_NAME\n";
+      return -1;
+    }
+
+    auto ExtName = ExtString.substr(1);
+
+    if (ExtName.empty()) {
+      errs() << "Invalid value of --spirv-ext, expected format is:\n"
+             << "\t--spirv-ext=+EXT_NAME,-EXT_NAME\n";
+      return -1;
+    }
+
+    bool ExtStatus = ('+' == ExtString.front());
+    if ("all" == ExtName) {
+      // Update status for all known extensions
+      for (const auto &It : ExtensionNamesMap)
+        ExtensionsStatus[It.second] = ExtStatus;
+    } else {
+      // Reject unknown extensions
+      const auto &It = ExtensionNamesMap.find(ExtName);
+      if (ExtensionNamesMap.end() == It) {
+        errs() << "Unknown extension '" << ExtName << "' was specified via "
+               << "--spirv-ext option\n";
+        return -1;
+      }
+
+      ExtensionsStatus[It->second] = ExtStatus;
+    }
+  }
+
+  return 0;
+}
+
 int main(int Ac, char **Av) {
   EnablePrettyStackTrace();
   sys::PrintStackTraceOnErrorSignal(Av[0]);
   PrettyStackTraceProgram X(Ac, Av);
 
   cl::ParseCommandLineOptions(Ac, Av, "LLVM/SPIR-V translator");
+
+  SPIRV::TranslatorOpts::ExtensionsStatusMap ExtensionsStatus;
+  // ExtensionsStatus will be properly initialized and update according to
+  // values passed via --spirv-ext option in parseSPVExtOption function.
+  int Ret = parseSPVExtOption(ExtensionsStatus);
+  if (0 != Ret)
+    return Ret;
+
+  SPIRV::TranslatorOpts Opts(MaxSPIRVVersion, ExtensionsStatus);
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (ToText && (ToBinary || IsReverse || IsRegularization)) {
@@ -289,14 +378,14 @@ int main(int Ac, char **Av) {
 #endif
 
   if (!IsReverse && !IsRegularization)
-    return convertLLVMToSPIRV();
+    return convertLLVMToSPIRV(Opts);
 
   if (IsReverse && IsRegularization) {
     errs() << "Cannot have both -r and -s options\n";
     return -1;
   }
   if (IsReverse)
-    return convertSPIRVToLLVM();
+    return convertSPIRVToLLVM(Opts);
 
   if (IsRegularization)
     return regularizeLLVM();

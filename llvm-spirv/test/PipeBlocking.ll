@@ -1,7 +1,8 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_blocking_pipes -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -o %t.spv
+; FIXME: add more negative test cases
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_blocking_pipes -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -19,6 +20,10 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: 3 TypePipe [[PipeWTy:[0-9]+]] 1
 ; CHECK-SPIRV: 6 Load [[PipeRTy]] [[PipeR:[0-9]+]] {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV: 5 ReadPipeBlockingINTEL [[PipeR]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 6 Load [[PipeRTy]] [[PipeR:[0-9]+]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 5 ReadPipeBlockingINTEL [[PipeR]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 6 Load [[PipeWTy]] [[PipeW:[0-9]+]] {{[0-9]+}} {{[0-9]+}}
+; CHECK-SPIRV: 5 WritePipeBlockingINTEL [[PipeW]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV: 6 Load [[PipeWTy]] [[PipeW:[0-9]+]] {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV: 5 WritePipeBlockingINTEL [[PipeW]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 
@@ -26,6 +31,8 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-LLVM: %opencl.pipe_wo_t = type opaque
 
 ; CHECK-LLVM: call spir_func void @__read_pipe_2_bl(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
+; CHECK-LLVM: call spir_func void @__read_pipe_2_bl(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
+; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
 ; CHECK-LLVM: call spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %{{[0-9]+}}, i32 4, i32 4)
 
 ; Function Attrs: convergent noinline nounwind optnone
@@ -37,13 +44,28 @@ entry:
   store i32 addrspace(1)* %ptr, i32 addrspace(1)** %ptr.addr, align 8
   %0 = load %opencl.pipe_ro_t addrspace(1)*, %opencl.pipe_ro_t addrspace(1)** %p.addr, align 8
   %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
-  %2 = addrspacecast i32 addrspace(1)* %1 to i8 addrspace(4)*
-  call spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePT_ii(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %2, i32 4, i32 4)
+  %2 = addrspacecast i32 addrspace(1)* %1 to i32 addrspace(4)*
+  call spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePiii(%opencl.pipe_ro_t addrspace(1)* %0, i32 addrspace(4)* %2, i32 4, i32 4)
   ret void
 }
 
-declare dso_local spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePT_ii(%opencl.pipe_ro_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
-; CHECK-LLVM: declare spir_func void @__read_pipe_2_bl(%opencl.pipe_ro_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
+declare dso_local spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePiii(%opencl.pipe_ro_t addrspace(1)*, i32 addrspace(4)*, i32, i32)
+
+; Function Attrs: convergent noinline nounwind optnone
+define spir_func void @bar(%opencl.pipe_ro_t addrspace(1)* %p, i32 addrspace(1)* %ptr) #0 {
+entry:
+  %p.addr = alloca %opencl.pipe_ro_t addrspace(1)*, align 8
+  %ptr.addr = alloca i32 addrspace(1)*, align 8
+  store %opencl.pipe_ro_t addrspace(1)* %p, %opencl.pipe_ro_t addrspace(1)** %p.addr, align 8
+  store i32 addrspace(1)* %ptr, i32 addrspace(1)** %ptr.addr, align 8
+  %0 = load %opencl.pipe_ro_t addrspace(1)*, %opencl.pipe_ro_t addrspace(1)** %p.addr, align 8
+  %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
+  %2 = addrspacecast i32 addrspace(1)* %1 to i8 addrspace(4)*
+  call spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePvii(%opencl.pipe_ro_t addrspace(1)* %0, i8 addrspace(4)* %2, i32 4, i32 4)
+  ret void
+}
+
+declare dso_local spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePvii(%opencl.pipe_ro_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
 
 ; Function Attrs: convergent noinline nounwind optnone
 define spir_func void @boo(%opencl.pipe_wo_t addrspace(1)* %p, i32 addrspace(1)* %ptr) #0 {
@@ -54,11 +76,30 @@ entry:
   store i32 addrspace(1)* %ptr, i32 addrspace(1)** %ptr.addr, align 8
   %0 = load %opencl.pipe_wo_t addrspace(1)*, %opencl.pipe_wo_t addrspace(1)** %p.addr, align 8
   %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
-  %2 = addrspacecast i32 addrspace(1)* %1 to i8 addrspace(4)*
-  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePT_ii(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %2, i32 4, i32 4)
+  %2 = addrspacecast i32 addrspace(1)* %1 to i32 addrspace(4)*
+  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePiii(%opencl.pipe_wo_t addrspace(1)* %0, i32 addrspace(4)* %2, i32 4, i32 4)
   ret void
 }
-declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePT_ii(%opencl.pipe_wo_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
+
+declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePiii(%opencl.pipe_wo_t addrspace(1)*, i32 addrspace(4)*, i32, i32)
+
+; Function Attrs: convergent noinline nounwind optnone
+define spir_func void @baz(%opencl.pipe_wo_t addrspace(1)* %p, i32 addrspace(1)* %ptr) #0 {
+entry:
+  %p.addr = alloca %opencl.pipe_wo_t addrspace(1)*, align 8
+  %ptr.addr = alloca i32 addrspace(1)*, align 8
+  store %opencl.pipe_wo_t addrspace(1)* %p, %opencl.pipe_wo_t addrspace(1)** %p.addr, align 8
+  store i32 addrspace(1)* %ptr, i32 addrspace(1)** %ptr.addr, align 8
+  %0 = load %opencl.pipe_wo_t addrspace(1)*, %opencl.pipe_wo_t addrspace(1)** %p.addr, align 8
+  %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
+  %2 = addrspacecast i32 addrspace(1)* %1 to i8 addrspace(4)*
+  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePvii(%opencl.pipe_wo_t addrspace(1)* %0, i8 addrspace(4)* %2, i32 4, i32 4)
+  ret void
+}
+
+declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePvii(%opencl.pipe_wo_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
+
+; CHECK-LLVM: declare spir_func void @__read_pipe_2_bl(%opencl.pipe_ro_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
 ; CHECK-LLVM: declare spir_func void @__write_pipe_2_bl(%opencl.pipe_wo_t addrspace(1)*, i8 addrspace(4)*, i32, i32)
 
 attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

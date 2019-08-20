@@ -388,6 +388,7 @@ enum Decoration {
     DecorationPassthroughNV = 5250,
     DecorationViewportRelativeNV = 5252,
     DecorationSecondaryViewportRelativeNV = 5256,
+    DecorationReferencedIndirectlyINTEL = 5602,
     DecorationUserSemantic = 5635,
     DecorationRegisterINTEL = 5825,
     DecorationMemoryINTEL = 5826,
@@ -399,7 +400,6 @@ enum Decoration {
     DecorationMaxReplicatesINTEL = 5832,
     DecorationSimpleDualPortINTEL = 5833,
     DecorationMergeINTEL = 5834,
-    DecorationReferencedIndirectlyINTEL = 5602,
     DecorationMax = 0x7fffffff,
 };
 
@@ -676,6 +676,8 @@ enum Capability {
   CapabilitySubgroupBufferBlockIOINTEL = 5569,
   CapabilitySubgroupImageBlockIOINTEL = 5570,
   CapabilitySubgroupImageMediaBlockIOINTEL = 5579,
+  CapabilityFunctionPointersINTEL = 5603,
+  CapabilityIndirectReferencesINTEL = 5604,
   CapabilitySubgroupAvcMotionEstimationINTEL = 5696,
   CapabilitySubgroupAvcMotionEstimationIntraINTEL = 5697,
   CapabilitySubgroupAvcMotionEstimationChromaINTEL = 5698,
@@ -684,8 +686,6 @@ enum Capability {
   CapabilityFPGALoopControlsINTEL = 5888,
   CapabilityBlockingPipesINTEL = 5945,
   CapabilityFPGARegINTEL = 5948,
-  CapabilityFunctionPointersINTEL = 5603,
-  CapabilityIndirectReferencesINTEL = 5604,
   CapabilityMax = 0x7fffffff,
 };
 
@@ -1011,6 +1011,8 @@ enum Op {
   OpSubgroupImageBlockWriteINTEL = 5578,
   OpSubgroupImageMediaBlockReadINTEL = 5580,
   OpSubgroupImageMediaBlockWriteINTEL = 5581,
+  OpFunctionPointerINTEL = 5600,
+  OpFunctionPointerCallINTEL = 5601,
   OpVmeImageINTEL = 5699,
   OpTypeVmeImageINTEL = 5700,
   OpTypeAvcImePayloadINTEL = 5701,
@@ -1134,8 +1136,6 @@ enum Op {
   OpReadPipeBlockingINTEL = 5946,
   OpWritePipeBlockingINTEL = 5947,
   OpFPGARegINTEL = 5949,
-  OpFunctionPointerINTEL = 5600,
-  OpFunctionPointerCallINTEL = 5601,
   OpMax = 0x7fffffff,
 };
 

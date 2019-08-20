@@ -40,6 +40,7 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVENTRY_H
 #define SPIRV_LIBSPIRV_SPIRVENTRY_H
 
+#include "LLVMSPIRVOpts.h"
 #include "SPIRVEnum.h"
 #include "SPIRVError.h"
 #include "SPIRVIsValidEnum.h"
@@ -295,9 +296,10 @@ public:
   bool hasMemberDecorate(Decoration Kind, size_t Index = 0,
                          SPIRVWord MemberNumber = 0,
                          SPIRVWord *Result = 0) const;
-  std::string getDecorationStringLiteral(Decoration Kind) const;
-  std::string getMemberDecorationStringLiteral(Decoration Kind,
-                                               SPIRVWord MemberNumber) const;
+  std::vector<std::string> getDecorationStringLiteral(Decoration Kind) const;
+  std::vector<std::string>
+  getMemberDecorationStringLiteral(Decoration Kind,
+                                   SPIRVWord MemberNumber) const;
   std::set<SPIRVWord> getDecorate(Decoration Kind, size_t Index = 0) const;
   bool hasId() const { return !(Attrib & SPIRVEA_NOID); }
   bool hasLine() const { return Line != nullptr; }
@@ -382,7 +384,9 @@ public:
   void validateBuiltin(SPIRVWord, SPIRVWord) const;
 
   // By default assume SPIRV 1.0 as required version
-  virtual SPIRVWord getRequiredSPIRVVersion() const { return SPIRV_1_0; }
+  virtual SPIRVWord getRequiredSPIRVVersion() const {
+    return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+  }
 
   virtual std::vector<SPIRVEntry *> getNonLiteralOperands() const {
     return std::vector<SPIRVEntry *>();
@@ -644,10 +648,10 @@ public:
     case ExecutionModeInitializer:
     case ExecutionModeSubgroupSize:
     case ExecutionModeSubgroupsPerWorkgroup:
-      return SPIRV_1_1;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
 
     default:
-      return SPIRV_1_0;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
     }
   }
 
@@ -720,6 +724,9 @@ class SPIRVExtension : public SPIRVEntryNoId<OpExtension> {
 public:
   SPIRVExtension(SPIRVModule *M, const std::string &SS);
   SPIRVExtension() {}
+
+  std::string getExtensionName() const { return S; }
+
   _SPIRV_DCL_ENCDEC
 private:
   std::string S;
@@ -736,10 +743,10 @@ public:
     case CapabilityNamedBarrier:
     case CapabilitySubgroupDispatch:
     case CapabilityPipeStorage:
-      return SPIRV_1_1;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
 
     default:
-      return SPIRV_1_0;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
     }
   }
 

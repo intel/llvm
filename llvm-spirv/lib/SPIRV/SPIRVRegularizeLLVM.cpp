@@ -182,7 +182,7 @@ void SPIRVRegularizeLLVM::lowerFuncPtr(Module *M) {
     auto AI = F.arg_begin();
     if (hasFunctionPointerArg(&F, AI)) {
       auto OC = getSPIRVFuncOC(F.getName());
-      if (OC != OpNop) // not a user-defined function
+      if (OC != OpNop) // builtin with a function pointer argument
         Work.push_back(std::make_pair(&F, OC));
     }
   }
