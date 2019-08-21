@@ -115,7 +115,7 @@ void testMultPtrArrowOperator() {
       accessor<point<T>, 1, access::mode::read, access::target::global_buffer,
                access::placeholder::false_t>
           accessorData_1(bufferData_1, cgh);
-      accessor<point<T>, 1, access::mode::read_write, access::target::constant_buffer,
+      accessor<point<T>, 1, access::mode::read, access::target::constant_buffer,
                access::placeholder::false_t>
           accessorData_2(bufferData_2, cgh);
       accessor<point<T>, 1, access::mode::read_write, access::target::local,
