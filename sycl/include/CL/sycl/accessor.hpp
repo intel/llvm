@@ -651,6 +651,12 @@ class accessor :
                  AccessTarget == access::target::host_buffer),
                 "Expected buffer type");
 
+  static_assert((AccessTarget == access::target::global_buffer ||
+                 AccessTarget == access::target::host_buffer) ||
+                (AccessTarget == access::target::constant_buffer &&
+                 AccessMode == access::mode::read),
+                "Access mode can be only read for constant buffers");
+
   using AccessorCommonT = detail::accessor_common<DataT, Dimensions, AccessMode,
                                                   AccessTarget, IsPlaceholder>;
 
