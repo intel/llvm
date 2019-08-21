@@ -2460,11 +2460,6 @@ bool Sema::CheckFunctionReturnType(QualType T, SourceLocation Loc) {
     return true;
   }
 
-  if (T.hasNonTrivialToPrimitiveDestructCUnion() ||
-      T.hasNonTrivialToPrimitiveCopyCUnion())
-    checkNonTrivialCUnion(T, Loc, NTCUC_FunctionReturn,
-                          NTCUK_Destruct|NTCUK_Copy);
-
   return false;
 }
 

@@ -634,23 +634,8 @@ def warn_cstruct_memaccess : Warning<
   InGroup<NonTrivialMemaccess>;
 def note_nontrivial_field : Note<
   "field is non-trivial to %select{copy|default-initialize}0">;
-def err_non_trivial_c_union_in_invalid_context : Error<
-  "cannot %select{"
-  "use type %1 for a function/method parameter|"
-  "use type %1 for function/method return|"
-  "default-initialize an object of type %1|"
-  "declare an automatic variable of type %1|"
-  "copy-initialize an object of type %1|"
-  "assign to a variable of type %1|"
-  "construct an automatic compound literal of type %1|"
-  "capture a variable of type %1|"
-  "cannot use volatile type %1 where it causes an lvalue-to-rvalue conversion"
-  "}3 "
-  "since it %select{contains|is}2 a union that is non-trivial to "
-  "%select{default-initialize|destruct|copy}0">;
-def note_non_trivial_c_union : Note<
-  "%select{%2 has subobjects that are|%3 has type %2 that is}0 "
-  "non-trivial to %select{default-initialize|destruct|copy}1">;
+def err_nontrivial_primitive_type_in_union : Error<
+  "non-trivial C types are disallowed in union">;
 def warn_dyn_class_memaccess : Warning<
   "%select{destination for|source of|first operand of|second operand of}0 this "
   "%1 call is a pointer to %select{|class containing a }2dynamic class %3; "
@@ -2802,6 +2787,11 @@ def err_no_accessor_for_property : Error<
   "no %select{getter|setter}0 defined for property %1">;
 def err_cannot_find_suitable_accessor : Error<
   "cannot find suitable %select{getter|setter}0 for property %1">;
+
+def warn_alloca : Warning<
+  "use of function %0 is discouraged; there is no way to check for failure but "
+  "failure may still occur, resulting in a possibly exploitable security vulnerability">,
+  InGroup<DiagGroup<"alloca">>, DefaultIgnore;
 
 def warn_alloca_align_alignof : Warning<
   "second argument to __builtin_alloca_with_align is supposed to be in bits">,
