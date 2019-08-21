@@ -6499,7 +6499,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   }
   if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
       Input.getType() == types::TY_Archive)
-    TypeArg = "ao";
+    TypeArg = "aoo";
 
   // Get the type.
   CmdArgs.push_back(TCArgs.MakeArgString(Twine("-type=") + TypeArg));
