@@ -22,7 +22,7 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  usm_allocator<int, usm::alloc::host> alloc(&ctxt, &dev);
+  usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
 
   std::vector<int, decltype(alloc)> vec(alloc);
   vec.reserve(N);
