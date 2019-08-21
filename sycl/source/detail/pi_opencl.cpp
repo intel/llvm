@@ -212,23 +212,23 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
 }
 
 pi_result OCL(piSamplerCreate)(pi_context context,
-                               const cl_sampler_properties *sampler_properties,
+                               const pi_sampler_properties *sampler_properties,
                                pi_sampler *result_sampler) {
   // Initialize properties according to OpenCL 2.1 spec.
   pi_result error_code;
-  cl_bool normalizedCoords = CL_TRUE;
-  cl_addressing_mode addressingMode = CL_ADDRESS_CLAMP;
-  cl_filter_mode filterMode = CL_FILTER_NEAREST;
+  pi_bool normalizedCoords = PI_TRUE;
+  pi_sampler_addressing_mode addressingMode = PI_SAMPLER_ADDRESSING_MODE_CLAMP;
+  pi_sampler_filter_mode filterMode = PI_SAMPLER_FILTER_MODE_NEAREST;
 
   // Unpack sampler properties
   for (std::size_t i = 0; sampler_properties && sampler_properties[i] != 0;
        ++i) {
-    if (sampler_properties[i] == CL_SAMPLER_NORMALIZED_COORDS) {
-      normalizedCoords = sampler_properties[++i];
-    } else if (sampler_properties[i] == CL_SAMPLER_ADDRESSING_MODE) {
-      addressingMode = sampler_properties[++i];
-    } else if (sampler_properties[i] == CL_SAMPLER_FILTER_MODE) {
-      filterMode = sampler_properties[++i];
+    if (sampler_properties[i] == PI_SAMPLER_INFO_NORMALIZED_COORDS) {
+      normalizedCoords = static_cast<pi_bool>(sampler_properties[++i]);
+    } else if (sampler_properties[i] == PI_SAMPLER_INFO_ADDRESSING_MODE) {
+      addressingMode = static_cast<pi_sampler_addressing_mode>(sampler_properties[++i]);
+    } else if (sampler_properties[i] == PI_SAMPLER_INFO_FILTER_MODE) {
+      filterMode = static_cast<pi_sampler_filter_mode>(sampler_properties[++i]);
     } else {
       PI_ASSERT(false, "Cannot recognize sampler property");
     }
