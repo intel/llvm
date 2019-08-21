@@ -1,0 +1,38 @@
+119734787 65536 393230 13 0
+2 Capability Addresses
+2 Capability Kernel
+2 Capability Groups
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+10 EntryPoint 6 6 "testWorkGroupIAddUnsigned"
+3 Source 3 200000
+3 Name 7 "a"
+4 Decorate 8 FuncParamAttr 5
+4 TypeInt 3 32 0
+4 Constant 3 11 2
+2 TypeVoid 2
+4 TypePointer 4 5 3
+5 TypeFunction 5 2 3 4
+
+
+5 Function 2 6 0 5
+3 FunctionParameter 3 7
+3 FunctionParameter 4 8
+
+2 Label 9
+6 GroupIAdd 3 10 11 0 7
+5 Store 8 10 2 4
+1 Return
+
+1 FunctionEnd
+
+; TODO: This currently maps to _Z21work_group_reduce_addi, but should map
+; to _Z21work_group_reduce_addj, instead.  Remove this test and update
+; test/transcoding/group_ops.cl when fixing this.
+; XFAIL: *
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s
+
+; CHECK: call spir_func i32 @_Z21work_group_reduce_addj(i32 %a)

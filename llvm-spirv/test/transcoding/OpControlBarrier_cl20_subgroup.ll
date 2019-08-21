@@ -27,7 +27,7 @@
 ; CHECK-LLVM-NEXT: call spir_func void @_Z17sub_group_barrierj12memory_scope(i32 4, i32 2) [[attr]]
 ; CHECK-LLVM-NEXT: call spir_func void @_Z17sub_group_barrierj12memory_scope(i32 4, i32 3) [[attr]]
 
-; CHECK-LLVM: attributes [[attr]] = { noduplicate nounwind }
+; CHECK-LLVM: attributes [[attr]] = { convergent nounwind }
 
 ; CHECK-SPIRV-DAG: 4 Constant {{[0-9]+}} [[MemSema1:[0-9]+]] 528
 ; CHECK-SPIRV-DAG: 4 Constant {{[0-9]+}} [[MemSema2:[0-9]+]] 272

@@ -955,8 +955,11 @@ public:
     Error Err = Error::success();
     for (auto &C : Ar->children(Err)) {
       auto BinOrErr = C.getAsBinary();
-      if (!BinOrErr)
-        fatalError(BinOrErr.takeError());
+      if (!BinOrErr) {
+        if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
+          fatalError(std::move(Err));
+        continue;
+      }
 
       auto &Bin = BinOrErr.get();
       if (!Bin->isObject())
@@ -1001,8 +1004,11 @@ public:
     Error Err = Error::success();
     for (auto &C : Ar->children(Err)) {
       auto BinOrErr = C.getAsBinary();
-      if (!BinOrErr)
-        fatalError(BinOrErr.takeError());
+      if (!BinOrErr) {
+        if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
+          fatalError(std::move(Err));
+        continue;
+      }
 
       auto &Bin = BinOrErr.get();
       if (!Bin->isObject())

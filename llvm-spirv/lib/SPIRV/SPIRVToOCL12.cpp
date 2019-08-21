@@ -151,7 +151,7 @@ void SPIRVToOCL12::visitCallSPIRVMemoryBarrier(CallInst *CI) {
 void SPIRVToOCL12::visitCallSPIRVControlBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Attrs = Attrs.addAttribute(CI->getContext(), AttributeList::FunctionIndex,
-                             Attribute::NoDuplicate);
+                             Attribute::Convergent);
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
@@ -229,7 +229,10 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicLoad(CallInst *CI, Op OC) {
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
         Args.resize(1);
-        Args.push_back(getInt32(M, 0));
+        // There is no atomic_load in OpenCL 1.2 spec.
+        // Emit this builtin via call of atomic_add(*p, 0).
+        Type *ptrElemTy = Args[0]->getType()->getPointerElementType();
+        Args.push_back(Constant::getNullValue(ptrElemTy));
         return OCL12SPIRVBuiltinMap::rmap(OpAtomicIAdd);
       },
       &Attrs);
@@ -242,7 +245,9 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicStore(CallInst *CI, Op OC) {
       [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
         std::swap(Args[1], Args[3]);
         Args.resize(2);
-        RetTy = Type::getInt32Ty(M->getContext());
+        // The type of the value pointed to by Pointer (1st argument)
+        // must be the same as Result Type.
+        RetTy = Args[0]->getType()->getPointerElementType();
         return OCL12SPIRVBuiltinMap::rmap(OpAtomicExchange);
       },
       [=](CallInst *CI) -> Instruction * { return CI; }, &Attrs);

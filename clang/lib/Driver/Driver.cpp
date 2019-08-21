@@ -295,7 +295,7 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
 
     // -S only runs up to the backend.
   } else if ((PhaseArg = DAL.getLastArg(options::OPT_S)) ||
-             (PhaseArg = DAL.getLastArg(options::OPT_sycl))) {
+             (PhaseArg = DAL.getLastArg(options::OPT_sycl_device_only))) {
     FinalPhase = phases::Backend;
 
     // -c compilation only runs up to the assembler.
@@ -1180,7 +1180,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     T.setObjectFormat(llvm::Triple::COFF);
     TargetTriple = T.str();
   }
-  if (Args.hasArg(options::OPT_sycl)) {
+  if (Args.hasArg(options::OPT_sycl_device_only)) {
     // --sycl implies spir arch and SYCL Device
     llvm::Triple T(TargetTriple);
     // FIXME: defaults to spir64, should probably have a way to set spir
@@ -4358,7 +4358,7 @@ Action *Driver::ConstructPhaseAction(
           Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
-    if (Args.hasArg(options::OPT_sycl)) {
+    if (Args.hasArg(options::OPT_sycl_device_only)) {
       if (Args.hasFlag(options::OPT_fsycl_use_bitcode,
                        options::OPT_fno_sycl_use_bitcode, true))
         return C.MakeAction<BackendJobAction>(Input, types::TY_LLVM_BC);

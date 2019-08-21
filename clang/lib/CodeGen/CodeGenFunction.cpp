@@ -2141,15 +2141,24 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
                                                        StringRef AnnotStr) {
   llvm::Value *V = Addr.getPointer();
   llvm::Type *VTy = V->getType();
+  // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
+  // don't perform bitcasts if value is integer
+  if (VTy->getPointerElementType()->isIntegerTy()) {
+    llvm::Function *F =
+        CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, VTy);
+    V = EmitAnnotationCall(F, V, AnnotStr, Location);
+
+    return Address(V, Addr.getAlignment());
+  }
+
+  unsigned AS = VTy->getPointerAddressSpace();
+  llvm::Type *Int8VPtrTy = llvm::Type::getInt8PtrTy(CGM.getLLVMContext(), AS);
   llvm::Function *F =
-      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, CGM.Int8PtrTy);
-  // FIXME Always emit the cast inst so we can differentiate between
-  // annotation on the first field of a struct and annotation on the struct
-  // itself.
-  if (VTy != CGM.Int8PtrTy)
-    V = Builder.CreateBitCast(V, CGM.Int8PtrTy);
+      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, Int8VPtrTy);
+  V = Builder.CreateBitCast(V, Int8VPtrTy);
   V = EmitAnnotationCall(F, V, AnnotStr, Location);
   V = Builder.CreateBitCast(V, VTy);
+
   return Address(V, Addr.getAlignment());
 }
 

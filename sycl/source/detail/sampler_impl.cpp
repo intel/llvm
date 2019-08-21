@@ -24,13 +24,13 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
   RT::PiSampler Sampler = pi::cast<RT::PiSampler>(clSampler);
   m_contextToSampler[syclContext] = Sampler;
   PI_CALL(RT::piSamplerRetain(Sampler));
-  PI_CALL(RT::piSamplerGetInfo(Sampler, CL_SAMPLER_NORMALIZED_COORDS,
-                               sizeof(cl_bool), &m_CoordNormMode, nullptr));
-  PI_CALL(RT::piSamplerGetInfo(Sampler, CL_SAMPLER_ADDRESSING_MODE,
-                               sizeof(cl_addressing_mode), &m_AddrMode,
+  PI_CALL(RT::piSamplerGetInfo(Sampler, PI_SAMPLER_INFO_NORMALIZED_COORDS,
+                               sizeof(pi_bool), &m_CoordNormMode, nullptr));
+  PI_CALL(RT::piSamplerGetInfo(Sampler, PI_SAMPLER_INFO_ADDRESSING_MODE,
+                               sizeof(pi_sampler_addressing_mode), &m_AddrMode,
                                nullptr));
-  PI_CALL(RT::piSamplerGetInfo(Sampler, CL_SAMPLER_FILTER_MODE,
-                               sizeof(cl_filter_mode), &m_FiltMode,
+  PI_CALL(RT::piSamplerGetInfo(Sampler, PI_SAMPLER_INFO_FILTER_MODE,
+                               sizeof(pi_sampler_filter_mode), &m_FiltMode,
                                nullptr));
 }
 
@@ -45,13 +45,13 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
   if (m_contextToSampler[Context])
     return m_contextToSampler[Context];
 
-  const cl_sampler_properties sprops[] = {
-      CL_SAMPLER_NORMALIZED_COORDS,
-      static_cast<cl_sampler_properties>(m_CoordNormMode),
-      CL_SAMPLER_ADDRESSING_MODE,
-      static_cast<cl_sampler_properties>(m_AddrMode),
-      CL_SAMPLER_FILTER_MODE,
-      static_cast<cl_sampler_properties>(m_FiltMode),
+  const pi_sampler_properties sprops[] = {
+      PI_SAMPLER_INFO_NORMALIZED_COORDS,
+      static_cast<pi_sampler_properties>(m_CoordNormMode),
+      PI_SAMPLER_INFO_ADDRESSING_MODE,
+      static_cast<pi_sampler_properties>(m_AddrMode),
+      PI_SAMPLER_INFO_FILTER_MODE,
+      static_cast<pi_sampler_properties>(m_FiltMode),
       0};
 
   RT::PiResult errcode_ret = PI_SUCCESS;

@@ -39,7 +39,8 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(Compilation &C,
     CmdArgs.push_back("-o");
     CmdArgs.push_back(OutputFileName);
   } else {
-    CmdArgs.push_back("-spirv-no-deref-attr");
+    CmdArgs.push_back("-spirv-max-version=1.0");
+    CmdArgs.push_back("-spirv-ext=+all");
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
   }

@@ -383,12 +383,11 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
   case OpTypeArray:
     return mapType(T, ArrayType::get(transType(T->getArrayElementType()),
                                      T->getArrayLength()));
-  case OpTypePointer: {
+  case OpTypePointer:
     return mapType(
         T, PointerType::get(
                transType(T->getPointerElementType(), IsClassMember),
                SPIRSPIRVAddrSpaceMap::rmap(T->getPointerStorageClass())));
-  }
   case OpTypeVector:
     return mapType(T, VectorType::get(transType(T->getVectorComponentType()),
                                       T->getVectorComponentCount()));
@@ -504,10 +503,10 @@ std::string SPIRVToLLVM::transTypeToOCLTypeName(SPIRVType *T, bool IsSigned) {
   case OpTypePointer: {
     SPIRVType *ET = T->getPointerElementType();
     if (isa<OpTypeFunction>(ET)) {
-      SPIRVTypeFunction *TF = static_cast<SPIRVTypeFunction*>(ET);
+      SPIRVTypeFunction *TF = static_cast<SPIRVTypeFunction *>(ET);
       std::string name = transTypeToOCLTypeName(TF->getReturnType());
       name += " (*)(";
-      for(unsigned I = 0, E = TF->getNumParameters(); I < E; ++I)
+      for (unsigned I = 0, E = TF->getNumParameters(); I < E; ++I)
         name += transTypeToOCLTypeName(TF->getParameterType(I)) + ',';
       name.back() = ')'; // replace the last comma with a closing brace.
       return name;
@@ -1714,8 +1713,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpFunctionPointerINTEL: {
     SPIRVFunctionPointerINTEL *BC =
-      static_cast<SPIRVFunctionPointerINTEL *>(BV);
-    SPIRVFunction* F = BC->getFunction();
+        static_cast<SPIRVFunctionPointerINTEL *>(BV);
+    SPIRVFunction *F = BC->getFunction();
     BV->setName(F->getName());
     return mapValue(BV, transFunction(F));
   }
@@ -1777,7 +1776,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
                                        BV->getName(), BB));
   }
 
-  case OpNot: {
+  case OpNot:
+  case OpLogicalNot: {
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
     return mapValue(
         BV, BinaryOperator::CreateNot(transValue(BC->getOperand(0), F, BB),
@@ -1958,9 +1958,9 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
 
 /// LLVM convert builtin functions is translated to two instructions:
 /// y = i32 islessgreater(float x, float z) ->
-///     y = i32 ZExt(bool LessGreater(float x, float z))
+///     y = i32 ZExt(bool LessOrGreater(float x, float z))
 /// When translating back, for simplicity, a trunc instruction is inserted
-/// w = bool LessGreater(float x, float z) ->
+/// w = bool LessOrGreater(float x, float z) ->
 ///     w = bool Trunc(i32 islessgreater(float x, float z))
 /// Optimizer should be able to remove the redundant trunc/zext
 void SPIRVToLLVM::transOCLBuiltinFromInstPreproc(
@@ -1976,9 +1976,7 @@ void SPIRVToLLVM::transOCLBuiltinFromInstPreproc(
       RetTy = VectorType::get(
           IntegerType::get(
               *Context,
-              Args[0]->getType()->getVectorComponentType()->isTypeFloat(64)
-                  ? 64
-                  : 32),
+              Args[0]->getType()->getVectorComponentType()->getBitWidth()),
           BT->getVectorComponentCount());
     else
       llvm_unreachable("invalid compare instruction");
@@ -2449,10 +2447,9 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
     Out << "{register:1}";
 
   SPIRVWord Result = 0;
-  if (E->hasDecorate(DecorationMemoryINTEL)) {
-    Out << "{memory:" << E->getDecorationStringLiteral(DecorationMemoryINTEL)
-        << '}';
-  }
+  if (E->hasDecorate(DecorationMemoryINTEL))
+    Out << "{memory:"
+        << E->getDecorationStringLiteral(DecorationMemoryINTEL).front() << '}';
   if (E->hasDecorate(DecorationBankwidthINTEL, 0, &Result))
     Out << "{bankwidth:" << Result << '}';
   if (E->hasDecorate(DecorationNumbanksINTEL, 0, &Result))
@@ -2467,11 +2464,14 @@ void generateIntelFPGAAnnotation(const SPIRVEntry *E,
     Out << "{max_replicates:" << Result << '}';
   if (E->hasDecorate(DecorationSimpleDualPortINTEL))
     Out << "{simple_dual_port:1}";
-  if (E->hasDecorate(DecorationMergeINTEL))
-    Out << "{merge:" << E->getDecorationStringLiteral(DecorationMergeINTEL)
-        << '}';
+  if (E->hasDecorate(DecorationMergeINTEL)) {
+    Out << "{merge";
+    for (auto Str : E->getDecorationStringLiteral(DecorationMergeINTEL))
+      Out << ":" << Str;
+    Out << '}';
+  }
   if (E->hasDecorate(DecorationUserSemantic))
-    Out << E->getDecorationStringLiteral(DecorationUserSemantic);
+    Out << E->getDecorationStringLiteral(DecorationUserSemantic).front();
 }
 
 void generateIntelFPGAAnnotationForStructMember(
@@ -2486,6 +2486,7 @@ void generateIntelFPGAAnnotationForStructMember(
     Out << "{memory:"
         << E->getMemberDecorationStringLiteral(DecorationMemoryINTEL,
                                                MemberNumber)
+               .front()
         << '}';
   if (E->hasMemberDecorate(DecorationBankwidthINTEL, 0, MemberNumber, &Result))
     Out << "{bankwidth:" << Result << '}';
@@ -2503,14 +2504,18 @@ void generateIntelFPGAAnnotationForStructMember(
     Out << "{max_replicates:" << Result << '}';
   if (E->hasMemberDecorate(DecorationSimpleDualPortINTEL, 0, MemberNumber))
     Out << "{simple_dual_port:1}";
-  if (E->hasMemberDecorate(DecorationMergeINTEL, 0, MemberNumber))
-    Out << "{merge:"
-        << E->getMemberDecorationStringLiteral(DecorationMergeINTEL,
-                                               MemberNumber)
-        << '}';
+  if (E->hasMemberDecorate(DecorationMergeINTEL, 0, MemberNumber)) {
+    Out << "{merge";
+    for (auto Str : E->getMemberDecorationStringLiteral(DecorationMergeINTEL,
+                                                        MemberNumber))
+      Out << ":" << Str;
+    Out << '}';
+  }
+
   if (E->hasMemberDecorate(DecorationUserSemantic, 0, MemberNumber))
     Out << E->getMemberDecorationStringLiteral(DecorationUserSemantic,
-                                               MemberNumber);
+                                               MemberNumber)
+               .front();
 }
 
 void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
@@ -3052,8 +3057,9 @@ Instruction *SPIRVToLLVM::transOCLRelational(SPIRVInstruction *I,
 }
 
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
+                                             const SPIRV::TranslatorOpts &Opts,
                                              std::string &ErrMsg) {
-  std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule());
+  std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule(Opts));
 
   IS >> *BM;
   if (!BM->isModuleValid()) {
@@ -3061,6 +3067,12 @@ std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
     return nullptr;
   }
   return BM;
+}
+
+std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
+                                             std::string &ErrMsg) {
+  SPIRV::TranslatorOpts DefaultOpts;
+  return readSpirvModule(IS, DefaultOpts, ErrMsg);
 }
 
 } // namespace SPIRV
@@ -3084,7 +3096,16 @@ llvm::convertSpirvToLLVM(LLVMContext &C, SPIRVModule &BM, std::string &ErrMsg) {
 
 bool llvm::readSpirv(LLVMContext &C, std::istream &IS, Module *&M,
                      std::string &ErrMsg) {
-  std::unique_ptr<SPIRVModule> BM(readSpirvModule(IS, ErrMsg));
+  SPIRV::TranslatorOpts DefaultOpts;
+  // As it is stated in the documentation, the translator accepts all SPIR-V
+  // extensions by default
+  DefaultOpts.enableAllExtensions();
+  return llvm::readSpirv(C, DefaultOpts, IS, M, ErrMsg);
+}
+
+bool llvm::readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
+                     std::istream &IS, Module *&M, std::string &ErrMsg) {
+  std::unique_ptr<SPIRVModule> BM(readSpirvModule(IS, Opts, ErrMsg));
 
   if (!BM)
     return false;

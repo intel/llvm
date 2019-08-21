@@ -1,9 +1,15 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_attributes -o %t.spv
+; RUN: llvm-spirv %t.spv --spirv-ext=+SPV_INTEL_fpga_memory_attributes -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r %t.spt -spirv-text -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; RUN: llvm-spirv -spirv-text -r %t.spt -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+;
+; TODO: add a bunch of different tests for --spirv-ext option
 
 ; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
@@ -11,6 +17,7 @@
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "DEFAULT"
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 3 MemoryINTEL "DEFAULT"
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 2 MemoryINTEL "MLAB"
+; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 2
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 4
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 3 BankwidthINTEL 8
 ; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 4 MaxPrivateCopiesINTEL 4
@@ -26,6 +33,8 @@ target triple = "spir64-unknown-linux"
 %class.anon = type { i8 }
 %struct.foo = type { i32, i32, i32, i32, i8, i32, i32, i32, i32, i32 }
 
+%struct._ZTSZ20field_addrspace_castvE5state.state = type { [8 x i32] }
+
 ; CHECK-LLVM: [[STR1:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:4}
 ; CHECK-LLVM: [[STR2:@[0-9_.]+]] = {{.*}}{register:1}
 ; CHECK-LLVM: [[STR3:@[0-9_.]+]] = {{.*}}{memory:MLAB}
@@ -36,6 +45,7 @@ target triple = "spir64-unknown-linux"
 ; CHECK-LLVM: [[STR8:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{merge:foobar:width}
 ; CHECK-LLVM: [[STR9:@[0-9_.]+]] = {{.*}}{max_replicates:4}
 ; CHECK-LLVM: [[STR10:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{simple_dual_port:1}
+; CHECK-LLVM: [[STR11:@[0-9_.]+]] = {{.*}}{memory:DEFAULT}{numbanks:2}
 @.str = private unnamed_addr constant [29 x i8] c"{memory:DEFAULT}{numbanks:4}\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [16 x i8] c"test_struct.cpp\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [13 x i8] c"{register:1}\00", section "llvm.metadata"
@@ -47,6 +57,7 @@ target triple = "spir64-unknown-linux"
 @.str.8 = private unnamed_addr constant [37 x i8] c"{memory:DEFAULT}{merge:foobar:width}\00", section "llvm.metadata"
 @.str.9 = private unnamed_addr constant [19 x i8] c"{max_replicates:4}\00", section "llvm.metadata"
 @.str.10 = private unnamed_addr constant [37 x i8] c"{memory:DEFAULT}{simple_dual_port:1}\00", section "llvm.metadata"
+@.str.11 = private unnamed_addr constant [29 x i8] c"{memory:DEFAULT}{numbanks:2}\00", section "llvm.metadata"
 
 ; Function Attrs: nounwind
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -164,8 +175,76 @@ entry:
   ret void
 }
 
+define spir_func void @_Z20field_addrspace_castv() #3 {
+entry:
+  %state_var = alloca %struct._ZTSZ20field_addrspace_castvE5state.state, align 4
+  %0 = bitcast %struct._ZTSZ20field_addrspace_castvE5state.state* %state_var to i8*
+  call void @llvm.lifetime.start.p0i8(i64 32, i8* %0) #4
+  %1 = addrspacecast %struct._ZTSZ20field_addrspace_castvE5state.state* %state_var to %struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)*
+  call spir_func void @_ZZ20field_addrspace_castvEN5stateC2Ev(%struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)* %1)
+  %mem = getelementptr inbounds %struct._ZTSZ20field_addrspace_castvE5state.state, %struct._ZTSZ20field_addrspace_castvE5state.state* %state_var, i32 0, i32 0
+  ; CHECK-LLVM: %[[GEP:.*]] = getelementptr inbounds %struct._ZTSZ20field_addrspace_castvE5state.state, %struct._ZTSZ20field_addrspace_castvE5state.state* %state_var, i32 0, i32 0
+  ; CHECK-LLVM: %[[CAST11:.*]] = bitcast [8 x i32]* %[[GEP:.*]] to i8*
+  ; CHECK-LLVM: %{{[0-9]+}} = call i8* @llvm.ptr.annotation.p0i8(i8* %[[CAST11]]{{.*}}[[STR11]]
+  %2 = bitcast [8 x i32]* %mem to i8*
+  %3 = call i8* @llvm.ptr.annotation.p0i8(i8* %2, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.11, i32 0, i32 0), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.1, i32 0, i32 0), i32 24)
+  %4 = bitcast i8* %3 to [8 x i32]*
+  %arrayidx = getelementptr inbounds [8 x i32], [8 x i32]* %4, i64 0, i64 0
+  store i32 42, i32* %arrayidx, align 4, !tbaa !9
+  %5 = bitcast %struct._ZTSZ20field_addrspace_castvE5state.state* %state_var to i8*
+  call void @llvm.lifetime.end.p0i8(i64 32, i8* %5) #4
+  ret void
+}
+
+define internal spir_func void @_ZZ20field_addrspace_castvEN5stateC2Ev(%struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)* %this) unnamed_addr #3 align 2 {
+entry:
+  %this.addr = alloca %struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)*, align 8
+  %i = alloca i32, align 4
+  store %struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)* %this, %struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)** %this.addr, align 8, !tbaa !5
+  %this1 = load %struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)*, %struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)** %this.addr, align 8
+  %0 = bitcast i32* %i to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #4
+  store i32 0, i32* %i, align 4, !tbaa !9
+  br label %for.cond
+
+for.cond:                                         ; preds = %for.inc, %entry
+  %1 = load i32, i32* %i, align 4, !tbaa !9
+  %cmp = icmp slt i32 %1, 8
+  br i1 %cmp, label %for.body, label %for.cond.cleanup
+
+for.cond.cleanup:                                 ; preds = %for.cond
+  %2 = bitcast i32* %i to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #4
+  br label %for.end
+
+for.body:                                         ; preds = %for.cond
+  %3 = load i32, i32* %i, align 4, !tbaa !9
+  %mem = getelementptr inbounds %struct._ZTSZ20field_addrspace_castvE5state.state, %struct._ZTSZ20field_addrspace_castvE5state.state addrspace(4)* %this1, i32 0, i32 0
+  ; FIXME: currently llvm.ptr.annotation is not emitted for c'tors, need to fix it and add a check here
+  %4 = bitcast [8 x i32] addrspace(4)* %mem to i8 addrspace(4)*
+  %5 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* %4, i8* getelementptr inbounds ([29 x i8], [29 x i8]* @.str.11, i32 0, i32 0), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.1, i32 0, i32 0), i32 24)
+  %6 = bitcast i8 addrspace(4)* %5 to [8 x i32] addrspace(4)*
+  %7 = load i32, i32* %i, align 4, !tbaa !9
+  %idxprom = sext i32 %7 to i64
+  %arrayidx = getelementptr inbounds [8 x i32], [8 x i32] addrspace(4)* %6, i64 0, i64 %idxprom
+  store i32 %3, i32 addrspace(4)* %arrayidx, align 4, !tbaa !9
+  br label %for.inc
+
+for.inc:                                          ; preds = %for.body
+  %8 = load i32, i32* %i, align 4, !tbaa !9
+  %inc = add nsw i32 %8, 1
+  store i32 %inc, i32* %i, align 4, !tbaa !9
+  br label %for.cond
+
+for.end:                                          ; preds = %for.cond.cleanup
+  ret void
+}
+
 ; Function Attrs: nounwind
 declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32) #4
+
+; Function Attrs: nounwind
+declare i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)*, i8*, i8*, i32) #4
 
 attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }

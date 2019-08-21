@@ -16,7 +16,7 @@ config.name = 'LLVM_SPIRV'
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.cl', '.ll', '.spt']
+config.suffixes = ['.cl', '.ll', '.spt', '.spvasm']
 
 # excludes: A list of directories  and fles to exclude from the testsuite.
 config.excludes = ['CMakeLists.txt']
@@ -53,9 +53,19 @@ if not config.spirv_skip_debug_info_tests:
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
+using_spirv_tools = False
+
+if config.spirv_tools_have_spirv_as:
+    llvm_config.add_tool_substitutions(['spirv-as'], [config.spirv_tools_bin_dir])
+    config.available_features.add('spirv-as')
+    using_spirv_tools = True
+
 if config.spirv_tools_have_spirv_val:
-    new_ld_library_path = os.path.pathsep.join((config.spirv_tools_lib_dir, config.environment['LD_LIBRARY_PATH']))
-    config.environment['LD_LIBRARY_PATH'] = new_ld_library_path
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
+    using_spirv_tools = True
 else:
     config.substitutions.append(('spirv-val', 'echo'))
+
+if using_spirv_tools:
+    new_ld_library_path = os.path.pathsep.join((config.spirv_tools_lib_dir, config.environment['LD_LIBRARY_PATH']))
+    config.environment['LD_LIBRARY_PATH'] = new_ld_library_path

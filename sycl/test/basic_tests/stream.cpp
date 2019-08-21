@@ -101,11 +101,23 @@ int main() {
         Out << -33.4f << sm::endl;
         Out << -5.2 << sm::endl;
         Out << 0.0003 << sm::endl;
+        Out << -1.0 / 0.0 << sm::endl;
+        Out << 1.0 / 0.0 << sm::endl;
+        Out << cl::sycl::sqrt(-1.0) << sm::endl;
+        Out << -1.0f / 0.0f << sm::endl;
+        Out << 1.0f / 0.0f << sm::endl;
+        Out << sqrt(-1.0f) << sm::endl;
 // CHECK-NEXT: 33.4
 // CHECK-NEXT: 5.2
 // CHECK-NEXT: -33.4
 // CHECK-NEXT: -5.2
 // CHECK-NEXT: 0.0003
+// CHECK-NEXT: -inf
+// CHECK-NEXT: inf
+// CHECK-NEXT: nan
+// CHECK-NEXT: -inf
+// CHECK-NEXT: inf
+// CHECK-NEXT: nan
 
         // Manipulators for integral types
         Out << sm::dec << 0213 << sm::endl;

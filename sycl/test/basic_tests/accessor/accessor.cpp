@@ -379,4 +379,52 @@ int main() {
       return 1;
     }
   }
+
+  {
+    // Call every available accessor's constructor to ensure that they work with
+    // a buffer with a non-default allocator.
+    int data[] = {1, 2, 3};
+
+    using allocator_type = std::allocator<int>;
+
+    sycl::buffer<int, 1, allocator_type> buf1(&data[0], sycl::range<1>(1),
+                                              allocator_type{});
+    sycl::buffer<int, 1, allocator_type> buf2(&data[1], sycl::range<1>(1),
+                                              allocator_type{});
+    sycl::buffer<int, 1, allocator_type> buf3(&data[2], sycl::range<1>(1),
+                                              allocator_type{});
+
+    sycl::queue queue;
+    queue.submit([&](sycl::handler &cgh) {
+      sycl::accessor<int, 0, sycl::access::mode::read_write,
+                     sycl::access::target::global_buffer>
+          acc1(buf1, cgh);
+      sycl::accessor<int, 1, sycl::access::mode::read_write,
+                     sycl::access::target::global_buffer>
+          acc2(buf2, cgh);
+      sycl::accessor<int, 1, sycl::access::mode::read_write,
+                     sycl::access::target::global_buffer>
+          acc3(buf3, cgh, sycl::range<1>(1));
+
+      cgh.single_task<class acc_alloc_buf>([=]() {
+        acc1 *= 2;
+        acc2[0] *= 2;
+        acc3[0] *= 2;
+      });
+    });
+
+    sycl::accessor<int, 0, sycl::access::mode::read,
+                   sycl::access::target::host_buffer>
+        acc4(buf1);
+    sycl::accessor<int, 1, sycl::access::mode::read,
+                   sycl::access::target::host_buffer>
+        acc5(buf2);
+    sycl::accessor<int, 1, sycl::access::mode::read,
+                   sycl::access::target::host_buffer>
+        acc6(buf3, sycl::range<1>(1));
+
+    assert(acc4 == 2);
+    assert(acc5[0] == 4);
+    assert(acc6[0] == 6);
+  }
 }
