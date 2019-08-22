@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
     preferCPU = false;
   }
   
-  CLUSM* clusm = GetCLUSM();
+  CLUSM* clusm = new CLUSM();
 
   cl_device_type  deviceType =
     (preferCPU)

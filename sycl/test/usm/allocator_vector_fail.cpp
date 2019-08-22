@@ -24,7 +24,7 @@ int main() {
     auto dev = q.get_device();
     auto ctxt = q.get_context();
 
-    usm_allocator<int, usm::alloc::device> alloc(&ctxt, &dev);
+    usm_allocator<int, usm::alloc::device> alloc(ctxt, dev);
     std::vector<int, decltype(alloc)> vec(alloc);
 
     // This statement should throw an exception since

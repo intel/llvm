@@ -16,10 +16,13 @@ namespace sycl {
 namespace detail {
 namespace usm {
 
-void *alignedAlloc(size_t alignment, size_t bytes, const context *ctxt,
-                   const device *dev, cl::sycl::usm::alloc kind);
+void *alignedAlloc(size_t Alignment, size_t Bytes, const context &Ctxt,
+                   const device &Dev, cl::sycl::usm::alloc Kind);
 
-void free(void *ptr, const context *ctxt);
+void *alignedAlloc(size_t Alignment, size_t Bytes, const context &Ctxt,
+                   cl::sycl::usm::alloc Kind);
+
+void free(void *Ptr, const context &Ctxt);
 
 } // namespace usm
 } // namespace detail

@@ -361,8 +361,8 @@ private:
         0, nullptr, nullptr, nullptr, nullptr));
 
     if (Err != PI_SUCCESS) {
-      // TODO make the exception message more descriptive
-      throw compile_program_error("Program compilation error");
+      throw compile_program_error("Program compilation error:\n" +
+                                  ProgramManager::getProgramBuildLog(Program));
     }
     CompileOptions = Options;
     BuildOptions = Options;
@@ -377,8 +377,8 @@ private:
         nullptr, nullptr));
 
     if (Err != PI_SUCCESS) {
-      // TODO make the exception message more descriptive
-      throw compile_program_error("Program build error");
+      throw compile_program_error("Program build error:\n" +
+                                  ProgramManager::getProgramBuildLog(Program));
     }
     BuildOptions = Options;
   }

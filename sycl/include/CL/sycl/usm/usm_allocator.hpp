@@ -33,11 +33,11 @@ public:
     typedef usm_allocator<U, AllocKind, Alignment> other;
   };
 
-  usm_allocator() : mContext(nullptr), mDevice(nullptr) {}
-  usm_allocator(const context *ctxt, const device *dev)
-      : mContext(ctxt), mDevice(dev) {}
-  usm_allocator(const usm_allocator &other)
-      : mContext(other.mContext), mDevice(other.mDevice) {}
+  usm_allocator() = delete;
+  usm_allocator(const context &Ctxt, const device &Dev)
+      : mContext(Ctxt), mDevice(Dev) {}
+  usm_allocator(const usm_allocator &Other)
+      : mContext(Other.mContext), mDevice(Other.mDevice) {}
 
   // Construct an object
   // Note: AllocKind == alloc::device is not allowed
@@ -105,10 +105,21 @@ public:
   }
 
   // Allocate memory
+  template <
+      usm::alloc AllocT = AllocKind,
+      typename std::enable_if<AllocT == usm::alloc::host, int>::type = 0>
   pointer allocate(size_t Size) {
-    if (!mContext && !mDevice) {
+    auto Result = reinterpret_cast<pointer>(detail::usm::alignedAlloc(
+        getAlignment(), Size * sizeof(value_type), mContext, AllocKind));
+    if (!Result) {
       throw memory_allocation_error();
     }
+    return Result;
+  }
+
+  template <usm::alloc AllocT = AllocKind,
+            typename std::enable_if<AllocT != usm::alloc::host, int>::type = 0>
+  pointer allocate(size_t Size) {
     auto Result = reinterpret_cast<pointer>(
         detail::usm::alignedAlloc(getAlignment(), Size * sizeof(value_type),
                                   mContext, mDevice, AllocKind));
@@ -137,8 +148,8 @@ private:
     return Alignment;
   }
 
-  const context *mContext;
-  const device *mDevice;
+  const context mContext;
+  const device mDevice;
 };
 
 } // namespace sycl

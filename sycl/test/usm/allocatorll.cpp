@@ -30,7 +30,7 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  usm_allocator<Node, usm::alloc::device> alloc(&ctxt, &dev);
+  usm_allocator<Node, usm::alloc::device> alloc(ctxt, dev);
 
   Node *d_head = nullptr;
   Node *d_cur = nullptr;
