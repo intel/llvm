@@ -10,12 +10,16 @@
 /// Check whether an invalid SYCL target is specified:
 // RUN:   %clang -### -fsycl -fsycl-targets=aaa-bbb-ccc-ddd %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
+// RUN:   %clang_cl -### -fsycl -fsycl-targets=aaa-bbb-ccc-ddd %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
 // CHK-INVALID-TARGET: error: SYCL target is invalid: 'aaa-bbb-ccc-ddd'
 
 /// ###########################################################################
 
 /// Check whether an invalid SYCL target is specified:
 // RUN:   %clang -### -fsycl -fsycl-targets=x86_64 %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INVALID-REAL-TARGET %s
+// RUN:   %clang_cl -### -fsycl -fsycl-targets=x86_64 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-REAL-TARGET %s
 // CHK-INVALID-REAL-TARGET: error: SYCL target is invalid: 'x86_64'
 
@@ -24,12 +28,16 @@
 /// Check warning for empty -fsycl-targets
 // RUN:   %clang -### -fsycl -fsycl-targets=  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-EMPTY-SYCLTARGETS %s
+// RUN:   %clang_cl -### -fsycl -fsycl-targets=  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-EMPTY-SYCLTARGETS %s
 // CHK-EMPTY-SYCLTARGETS: warning: joined argument expects additional value: '-fsycl-targets='
 
 /// ###########################################################################
 
 /// Check error for no -fsycl option
 // RUN:   %clang -### -fsycl-targets=spir64-unknown-linux-sycldevice  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
+// RUN:   %clang_cl -### -fsycl-targets=spir64-unknown-linux-sycldevice  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // CHK-NO-FSYCL: error: The option -fsycl-targets must be used in conjunction with -fsycl to enable offloading.
 
@@ -38,6 +46,8 @@
 /// Check error for -fsycl-add-targets -fsycl-link-targets conflict
 // RUN:   %clang -### -fsycl-link-targets=spir64-unknown-linux-sycldevice -fsycl-add-targets=spir64:dummy.spv -fsycl %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-ADD-LINK %s
+// RUN:   %clang_cl -### -fsycl-link-targets=spir64-unknown-linux-sycldevice -fsycl-add-targets=spir64:dummy.spv -fsycl %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-ADD-LINK %s
 // CHK-SYCL-ADD-LINK: error: The option -fsycl-link-targets= conflicts with -fsycl-add-targets=
 
 /// ###########################################################################
@@ -45,12 +55,16 @@
 /// Check error for -fsycl-targets -fsycl-link-targets conflict
 // RUN:   %clang -### -fsycl-link-targets=spir64-unknown-linux-sycldevice -fsycl-targets=spir64-unknown-linux-sycldevice -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-LINK-CONFLICT %s
+// RUN:   %clang_cl -### -fsycl-link-targets=spir64-unknown-linux-sycldevice -fsycl-targets=spir64-unknown-linux-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-LINK-CONFLICT %s
 // CHK-SYCL-LINK-CONFLICT: error: The option -fsycl-targets= conflicts with -fsycl-link-targets=
 
 /// ###########################################################################
 
 /// Check error for -fsycl-targets -fintelfpga conflict
 // RUN:   %clang -### -fsycl-targets=spir64-unknown-linux-sycldevice -fintelfpga -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
+// RUN:   %clang_cl -### -fsycl-targets=spir64-unknown-linux-sycldevice -fintelfpga -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
 // CHK-SYCL-FPGA-CONFLICT: error: The option -fsycl-targets= conflicts with -fintelfpga
 
@@ -66,7 +80,8 @@
 /// Check -Xsycl-target-frontend triggers error when multiple triples are used.
 // RUN:   %clang -### -no-canonical-prefixes -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice,spir-unknown-linux-sycldevice -Xsycl-target-frontend -DFOO %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-COMPILER-AMBIGUOUS-ERROR %s
-
+// RUN:   %clang_cl -### -no-canonical-prefixes -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice,spir-unknown-linux-sycldevice -Xsycl-target-frontend -DFOO %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-FSYCL-COMPILER-AMBIGUOUS-ERROR %s
 // CHK-FSYCL-COMPILER-AMBIGUOUS-ERROR: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-frontend', specify triple using '-Xsycl-target-frontend=<triple>'
 
 /// ###########################################################################
@@ -74,7 +89,8 @@
 /// Check -Xsycl-target-frontend triggers error when an option requiring arguments is passed to it.
 // RUN:   %clang -### -no-canonical-prefixes -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice -Xsycl-target-frontend -Xsycl-target-frontend -mcpu=none %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-COMPILER-NESTED-ERROR %s
-
+// RUN:   %clang_cl -### -no-canonical-prefixes -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice -Xsycl-target-frontend -Xsycl-target-frontend -mcpu=none %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-FSYCL-COMPILER-NESTED-ERROR %s
 // CHK-FSYCL-COMPILER-NESTED-ERROR: clang{{.*}} error: invalid -Xsycl-target-frontend argument: '-Xsycl-target-frontend -Xsycl-target-frontend', options requiring arguments are unsupported
 
 /// ###########################################################################
@@ -113,9 +129,9 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -c %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
 // CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device" {{.*}} "-o" "[[OUTPUT1:.+\.o]]"
-// CHK-INT-HEADER: clang{{.*}} "-triple" "spir64-unknown-linux-sycldevice" {{.*}} "-fsycl-int-header=[[INPUT1:.+\.h]]" "-faddrsig"
+// CHK-INT-HEADER: clang{{.*}} "-triple" "spir64-unknown-{{windows|linux}}-sycldevice" {{.*}} "-fsycl-int-header=[[INPUT1:.+\.h]]" "-faddrsig"
 // CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT2:.+.o]]"
-// CHK-INT-HEADER: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-linux-sycldevice,host-x86_64-unknown-linux-gnu" {{.*}} "-inputs=[[OUTPUT1]],[[OUTPUT2]]"
+// CHK-INT-HEADER: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-{{windows|linux}}-sycldevice,host-x86_64-unknown-linux-gnu" {{.*}} "-inputs=[[OUTPUT1]],[[OUTPUT2]]"
 
 /// ###########################################################################
 
@@ -248,6 +264,8 @@
 /// also check for SPIR-V binary creation
 // RUN:   %clang -### -no-canonical-prefixes -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE %s
+// RUN:   %clang_cl -### -no-canonical-prefixes -fsycl -fsycl-targets=spir64-unknown-windows-sycldevice %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE %s
 
 // CHK-FSYCL-IS-DEVICE: clang{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc" {{.*}}.c
 
@@ -257,6 +275,8 @@
 /// when using -fno-sycl-use-bitcode
 // RUN:   %clang -### -fno-sycl-use-bitcode -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE-NO-BITCODE %s
+// RUN:   %clang_cl -### -fno-sycl-use-bitcode -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-FSYCL-IS-DEVICE-NO-BITCODE %s
 
 // CHK-FSYCL-IS-DEVICE-NO-BITCODE: clang{{.*}} "-fsycl-is-device" {{.*}} "-emit-llvm-bc" {{.*}}.c
 
@@ -265,6 +285,8 @@
 /// Check -fsycl-link-targets=<triple> behaviors unbundle
 // RUN:   touch %t.o
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-linux-sycldevice %t.o 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS-UB %s
+// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-linux-sycldevice %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS-UB %s
 // CHK-LINK-TARGETS-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-TARGETS-UB: 1: clang-offload-unbundler, {0}, object
@@ -278,6 +300,8 @@
 // RUN:   touch %t-b.o
 // RUN:   touch %t-c.o
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-linux-sycldevice %t-a.o %t-b.o %t-c.o 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS-UB2 %s
+// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-linux-sycldevice %t-a.o %t-b.o %t-c.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS-UB2 %s
 // CHK-LINK-TARGETS-UB2: 0: input, "[[INPUT:.+\a.o]]", object
 // CHK-LINK-TARGETS-UB2: 1: clang-offload-unbundler, {0}, object
@@ -293,13 +317,15 @@
 /// Check -fsycl-link-targets=<triple> behaviors from source
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS %s
+// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS %s
 // CHK-LINK-TARGETS: 0: input, "[[INPUT:.+\.c]]", c, (device-sycl)
 // CHK-LINK-TARGETS: 1: preprocessor, {0}, cpp-output, (device-sycl)
 // CHK-LINK-TARGETS: 2: compiler, {1}, ir, (device-sycl)
 // CHK-LINK-TARGETS: 3: backend, {2}, assembler, (device-sycl)
 // CHK-LINK-TARGETS: 4: assembler, {3}, object, (device-sycl)
 // CHK-LINK-TARGETS: 5: linker, {4}, image, (device-sycl)
-// CHK-LINK-TARGETS: 6: offload, "device-sycl (spir64-unknown-linux-sycldevice)" {5}, image
+// CHK-LINK-TARGETS: 6: offload, "device-sycl (spir64-unknown-{{linux|windows}}-sycldevice)" {5}, image
 
 /// ###########################################################################
 
@@ -307,16 +333,20 @@
 // RUN:   touch %t.o
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
+// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link %t.o 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
 // CHK-LINK-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-UB: 1: clang-offload-unbundler, {0}, object
 // CHK-LINK-UB: 2: linker, {1}, image, (device-sycl)
 // CHK-LINK-UB: 3: clang-offload-wrapper, {2}, object, (device-sycl)
-// CHK-LINK-UB: 4: offload, "device-sycl (spir64-unknown-linux-sycldevice)" {3}, object
+// CHK-LINK-UB: 4: offload, "device-sycl (spir64-unknown-{{linux|windows}}-sycldevice{{.*}})" {3}, object
 
 /// ###########################################################################
 
 /// Check -fsycl-link behaviors from source
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-LINK %s
+// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
 // CHK-LINK: 0: input, "[[INPUT:.+\.c]]", c, (device-sycl)
 // CHK-LINK: 1: preprocessor, {0}, cpp-output, (device-sycl)
@@ -325,7 +355,7 @@
 // CHK-LINK: 4: assembler, {3}, object, (device-sycl)
 // CHK-LINK: 5: linker, {4}, image, (device-sycl)
 // CHK-LINK: 6: clang-offload-wrapper, {5}, object, (device-sycl)
-// CHK-LINK: 7: offload, "device-sycl (spir64-unknown-linux-sycldevice)" {6}, object
+// CHK-LINK: 7: offload, "device-sycl (spir64-unknown-{{linux|windows}}-sycldevice{{.*}})" {6}, object
 
 /// ###########################################################################
 
@@ -349,6 +379,7 @@
 
 /// Check for default linking of sycl.lib with -fsycl usage
 // RUN: %clang -fsycl -target x86_64-unknown-windows-msvc %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
+// RUN: %clang_cl -fsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
 // CHECK-LINK-SYCL: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-SYCL: "-defaultlib:sycl.lib"
 
@@ -423,6 +454,8 @@
 
 /// Check -Xsycl-target-backend triggers error when multiple triples are used.
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga-unknown-linux-sycldevice,spir_fpga-unknown-linux-sycldevice -Xsycl-target-backend -DFOO %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-AMBIGUOUS-ERROR %s
+// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_fpga-unknown-linux-sycldevice,spir_fpga-unknown-linux-sycldevice -Xsycl-target-backend -DFOO %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-AMBIGUOUS-ERROR %s
 // CHK-FSYCL-TARGET-AMBIGUOUS-ERROR: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-backend', specify triple using '-Xsycl-target-backend=<triple>'
 
