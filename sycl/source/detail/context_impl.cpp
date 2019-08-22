@@ -40,10 +40,7 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
       RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &Err),
       Err));
 
-  if (usm::CLUSM* clusm = GetCLUSM()) {
-    cl_platform_id id = m_Platform.get();
-    clusm->initExtensions(id);
-  }
+  m_USMDispatch.reset(new usm::USMDispatcher(m_Platform.get()));
 }
 
 context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
@@ -125,6 +122,10 @@ context_impl::get_info<info::context::devices>() const {
 
 RT::PiContext &context_impl::getHandleRef() { return m_Context; }
 const RT::PiContext &context_impl::getHandleRef() const { return m_Context; }
+
+std::shared_ptr<usm::USMDispatcher> context_impl::getUSMDispatch() const {
+  return m_USMDispatch;
+}
 
 } // namespace detail
 } // namespace sycl

@@ -43,7 +43,7 @@ add_library(sycl SHARED
   "detail/scheduler/graph_processor.cpp"
   "detail/scheduler/graph_builder.cpp"
   "detail/usm/clusm.cpp"
-  "detail/usm/opencl_shim.cpp"
+  "detail/usm/usm_dispatch.cpp"
   "detail/usm/usm_impl.cpp"
   "detail/util.cpp"
   "context.cpp"

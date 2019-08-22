@@ -24,10 +24,8 @@ namespace usm {
 
 class CLUSM {
 public:
-  static bool Create(CLUSM *&pCLUSM);
-  static void Delete(CLUSM *&pCLUSM);
-
-  void initExtensions(cl_platform_id platform);
+  CLUSM() = default;
+  ~CLUSM() = default;
 
   void *hostMemAlloc(cl_context context, cl_mem_properties_intel *properties,
                      size_t size, cl_uint alignment, cl_int *errcode_ret);
@@ -54,17 +52,8 @@ public:
   cl_int writeParamToMemory(size_t param_value_size, T param,
                             size_t *param_value_size_ret, T *pointer) const;
 
-  bool useCLUSM() { return mEnableCLUSM; }
-
-  bool isInitialized() { return mInitialized; }
-
 private:
-  bool mEnableCLUSM = true;
-  bool mInitialized = false;
   std::mutex mLock;
-
-  CLUSM() = default;
-  ~CLUSM() = default;
 
   struct SUSMAllocInfo {
     SUSMAllocInfo() = default;
@@ -106,25 +95,6 @@ private:
 };
 
 } // namespace usm
-
-namespace cliext {
-bool initializeExtensions(cl_platform_id platform);
-} // namespace cliext
-
 } // namespace detail
 } // namespace sycl
 } // namespace cl
-
-__SYCL_EXPORTED extern cl::sycl::detail::usm::CLUSM *gCLUSM;
-inline cl::sycl::detail::usm::CLUSM *GetCLUSM() {
-  if (gCLUSM == nullptr) {
-    cl::sycl::detail::usm::CLUSM::Create(gCLUSM);
-  }
-
-  cl::sycl::detail::usm::CLUSM *retVal = nullptr;
-  if (cl::sycl::detail::pi::useBackend(
-          cl::sycl::detail::pi::Backend::SYCL_BE_PI_OPENCL)) {
-    retVal = gCLUSM;
-  }
-  return retVal;
-}

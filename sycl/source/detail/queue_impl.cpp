@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/clusm.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/queue_impl.hpp>
+#include <CL/sycl/detail/usm_dispatch.hpp>
 #include <CL/sycl/device.hpp>
 
 namespace cl {
@@ -32,32 +33,31 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
-// TODO: Update with PI interfaces
-event queue_impl::memset(void* ptr, int value, size_t count) {
-  cl_event e;
-  cl_int error;
-  cl_command_queue q = pi::cast<cl_command_queue>(getHandleRef());
+event queue_impl::memset(void *Ptr, int Value, size_t Count) {
+  context Context = get_context();
+  std::shared_ptr<usm::USMDispatcher> USMDispatch =
+      getSyclObjImpl(Context)->getUSMDispatch();
+  cl_event Event;
 
-  error = clEnqueueMemsetINTEL(q, ptr, value, count,
-                               /* sizeof waitlist */ 0, nullptr, &e);
+  PI_CHECK(USMDispatch->enqueueMemset(getHandleRef(), Ptr, Value, Count,
+                                      /* sizeof waitlist */ 0, nullptr,
+                                      reinterpret_cast<pi_event *>(&Event)));
 
-  CHECK_OCL_CODE_THROW(error, runtime_error);
-
-  return event(e, get_context());
+  return event(Event, Context);
 }
 
-event queue_impl::memcpy(void* dest, const void* src, size_t count) {
-  cl_event e;
-  cl_int error;
-  cl_command_queue q = pi::cast<cl_command_queue>(getHandleRef());
+event queue_impl::memcpy(void *Dest, const void *Src, size_t Count) {
+  context Context = get_context();
+  std::shared_ptr<usm::USMDispatcher> USMDispatch =
+      getSyclObjImpl(Context)->getUSMDispatch();
+  cl_event Event;
 
-  error = clEnqueueMemcpyINTEL(q,
-                               /* blocking */ false, dest, src, count,
-                               /* sizeof waitlist */ 0, nullptr, &e);
+  PI_CHECK(USMDispatch->enqueueMemcpy(getHandleRef(),
+                                      /* blocking */ false, Dest, Src, Count,
+                                      /* sizeof waitlist */ 0, nullptr,
+                                      reinterpret_cast<pi_event *>(&Event)));
 
-  CHECK_OCL_CODE_THROW(error, runtime_error);
-
-  return event(e, get_context());
+  return event(Event, Context);
 }
 } // namespace detail
 } // namespace sycl

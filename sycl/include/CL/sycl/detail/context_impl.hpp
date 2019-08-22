@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/usm_dispatch.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
@@ -64,6 +65,7 @@ public:
     return m_CachedKernels;
   }
 
+  std::shared_ptr<usm::USMDispatcher> getUSMDispatch() const;
 private:
   async_handler m_AsyncHandler;
   vector_class<device> m_Devices;
@@ -73,6 +75,7 @@ private:
   bool m_HostContext;
   std::map<OSModuleHandle, RT::PiProgram> m_CachedPrograms;
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> m_CachedKernels;
+  std::shared_ptr<usm::USMDispatcher> m_USMDispatch;
 };
 
 } // namespace detail

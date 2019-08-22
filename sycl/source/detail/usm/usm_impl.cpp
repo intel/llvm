@@ -19,98 +19,120 @@ using alloc = cl::sycl::usm::alloc;
 namespace detail {
 namespace usm {
 
-void *alignedAlloc(size_t alignment, size_t size, const context *ctxt,
-                   const device *dev, alloc kind) {
-  cl_int error;
-  cl_context c =
-      pi::cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
-  cl_device_id id;
+void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
+                   alloc Kind) {
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
+  pi_context C = CtxImpl->getHandleRef();
+  pi_result Error;
+  void *RetVal = nullptr;
 
-  void *retVal = nullptr;
-
-  switch (kind) {
+  switch (Kind) {
   case alloc::host: {
-    retVal = clHostMemAllocINTEL(c, nullptr, size, alignment, &error);
+    RetVal = Dispatch->hostMemAlloc(C, nullptr, Size, Alignment, &Error);
     break;
   }
+  case alloc::device:
+  case alloc::shared:
+  case alloc::unknown: {
+    RetVal = nullptr;
+    Error = PI_INVALID_VALUE;
+    break;
+  }
+  }
+
+  PI_CHECK(Error);
+
+  return RetVal;
+}
+
+void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
+                   const device &Dev, alloc Kind) {
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
+  pi_context C = CtxImpl->getHandleRef();
+  pi_result Error;
+  pi_device Id;
+  void *RetVal = nullptr;
+
+  switch (Kind) {
   case alloc::device: {
-    id = dev->get();
-    retVal = clDeviceMemAllocINTEL(c, id, nullptr, size, alignment, &error);
+    Id = detail::getSyclObjImpl(Dev)->getHandleRef();
+    RetVal = Dispatch->deviceMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
     break;
   }
   case alloc::shared: {
-    id = dev->get();
-    retVal = clSharedMemAllocINTEL(c, id, nullptr, size, alignment, &error);
+    Id = detail::getSyclObjImpl(Dev)->getHandleRef();
+    RetVal = Dispatch->sharedMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
     break;
   }
+  case alloc::host:
   case alloc::unknown: {
-    retVal = nullptr;
-    error = CL_MEM_OBJECT_ALLOCATION_FAILURE;
+    RetVal = nullptr;
+    Error = PI_INVALID_VALUE;
     break;
   }
   }
 
-  CHECK_OCL_CODE_THROW(error, runtime_error);
+  PI_CHECK(Error);
 
-  return retVal;
+  return RetVal;
 }
+  
+void free(void *Ptr, const context &Ctxt) {
+  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
+  pi_context C = CtxImpl->getHandleRef();
+  pi_result Error = Dispatch->memFree(C, Ptr);
 
-void free(void *ptr, const context *ctxt) {
-  cl_int error;
-  cl_context c =
-      pi::cast<cl_context>(detail::getSyclObjImpl(*ctxt)->getHandleRef());
-
-  error = clMemFreeINTEL(c, ptr);
-
-  CHECK_OCL_CODE_THROW(error, runtime_error);
+  PI_CHECK(Error);
 }
 
 } // namespace usm
 } // namespace detail
 
-void *malloc_device(size_t size, const device &dev, const context &ctxt) {
-  return detail::usm::alignedAlloc(0, size, &ctxt, &dev, alloc::device);
+void *malloc_device(size_t Size, const device &Dev, const context &Ctxt) {
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device);
 }
 
-void *aligned_alloc_device(size_t alignment, size_t size, const device &dev,
-                           const context &ctxt) {
-  return detail::usm::alignedAlloc(alignment, size, &ctxt, &dev, alloc::device);
+void *aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
+                           const context &Ctxt) {
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::device);
 }
 
-void free(void *ptr, const context &ctxt) {
-  return detail::usm::free(ptr, &ctxt);
+void free(void *ptr, const context &Ctxt) {
+  return detail::usm::free(ptr, Ctxt);
 }
 
 ///
 // Restricted USM
 ///
-void *malloc_host(size_t size, const context &ctxt) {
-  return detail::usm::alignedAlloc(0, size, &ctxt, nullptr, alloc::host);
+void *malloc_host(size_t Size, const context &Ctxt) {
+  return detail::usm::alignedAlloc(0, Size, Ctxt, alloc::host);
 }
 
-void *malloc_shared(size_t size, const device &dev, const context &ctxt) {
-  return detail::usm::alignedAlloc(0, size, &ctxt, &dev, alloc::shared);
+void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt) {
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared);
 }
 
-void *aligned_alloc_host(size_t alignment, size_t size, const context &ctxt) {
-  return detail::usm::alignedAlloc(alignment, size, &ctxt, nullptr,
-                                   alloc::host);
+void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt) {
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, alloc::host);
 }
 
-void *aligned_alloc_shared(size_t alignment, size_t size, const device &dev,
-                           const context &ctxt) {
-  return detail::usm::alignedAlloc(alignment, size, &ctxt, &dev, alloc::shared);
+void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
+                           const context &Ctxt) {
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::shared);
 }
 
 // single form
 
-void *malloc(size_t size, const device &dev, const context &ctxt, alloc kind) {
-  return detail::usm::alignedAlloc(0, size, &ctxt, &dev, kind);
+void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind) {
+  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind);
 }
 
-void *aligned_alloc(size_t alignment, size_t size, const device &dev,
-                    const context &ctxt, alloc kind) {
-  return detail::usm::alignedAlloc(alignment, size, &ctxt, &dev, kind);
+void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
+                    const context &Ctxt, alloc Kind) {
+  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind);
 }
 
 } // namespace sycl
