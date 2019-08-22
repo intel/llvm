@@ -95,7 +95,8 @@ def Feature3DNowA  : SubtargetFeature<"3dnowa", "X863DNowLevel", "ThreeDNowA",
 def Feature64Bit   : SubtargetFeature<"64bit", "HasX86_64", "true",
                                       "Support 64-bit instructions">;
 def FeatureCMPXCHG16B : SubtargetFeature<"cx16", "HasCmpxchg16b", "true",
-                                      "64-bit with cmpxchg16b">;
+                                      "64-bit with cmpxchg16b",
+                                      [FeatureCMPXCHG8B]>;
 def FeatureSlowSHLD : SubtargetFeature<"slow-shld", "IsSHLDSlow", "true",
                                        "SHLD instruction is slow">;
 def FeatureSlowPMULLD : SubtargetFeature<"slow-pmulld", "IsPMULLDSlow", "true",
@@ -786,6 +787,22 @@ def ProcessorFeatures {
   list<SubtargetFeature> KNMFeatures =
     !listconcat(KNLFeatures, [FeatureVPOPCNTDQ]);
 
+  // Barcelona
+  list<SubtargetFeature> BarcelonaInheritableFeatures = [FeatureX87,
+                                                         FeatureCMPXCHG8B,
+                                                         FeatureSSE4A,
+                                                         Feature3DNowA,
+                                                         FeatureFXSR,
+                                                         FeatureNOPL,
+                                                         FeatureCMPXCHG16B,
+                                                         FeatureLZCNT,
+                                                         FeaturePOPCNT,
+                                                         FeatureSlowSHLD,
+                                                         FeatureLAHFSAHF,
+                                                         FeatureCMOV,
+                                                         Feature64Bit,
+                                                         FeatureFastScalarShiftMasks];
+  list<SubtargetFeature> BarcelonaFeatures = BarcelonaInheritableFeatures;
 
   // Bobcat
   list<SubtargetFeature> BtVer1InheritableFeatures = [FeatureX87,
@@ -1129,10 +1146,7 @@ foreach P = ["k8-sse3", "opteron-sse3", "athlon64-sse3"] in {
 }
 
 foreach P = ["amdfam10", "barcelona"] in {
-  def : Proc<P, [FeatureX87, FeatureCMPXCHG8B, FeatureSSE4A, Feature3DNowA,
-                 FeatureFXSR, FeatureNOPL, FeatureCMPXCHG16B, FeatureLZCNT,
-                 FeaturePOPCNT, FeatureSlowSHLD, FeatureLAHFSAHF, FeatureCMOV,
-                 Feature64Bit, FeatureFastScalarShiftMasks]>;
+  def : Proc<P, ProcessorFeatures.BarcelonaFeatures>;
 }
 
 // Bobcat

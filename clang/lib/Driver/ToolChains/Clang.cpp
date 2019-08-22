@@ -1242,6 +1242,9 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       // Do not claim the argument so that the use of the argument does not
       // silently go unnoticed on toolchains which do not honour the option.
       continue;
+    } else if (A->getOption().matches(options::OPT_stdlibxx_isystem)) {
+      // Translated to -internal-isystem by the driver, no need to pass to cc1.
+      continue;
     }
 
     // Not translated, render as usual.
@@ -1296,11 +1299,15 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   // of an offloading programming model.
 
   // Add C++ include arguments, if needed.
-  if (types::isCXX(Inputs[0].getType()))
-    forAllAssociatedToolChains(C, JA, getToolChain(),
-                               [&Args, &CmdArgs](const ToolChain &TC) {
-                                 TC.AddClangCXXStdlibIncludeArgs(Args, CmdArgs);
-                               });
+  if (types::isCXX(Inputs[0].getType())) {
+    bool HasStdlibxxIsystem = Args.hasArg(options::OPT_stdlibxx_isystem);
+    forAllAssociatedToolChains(
+        C, JA, getToolChain(),
+        [&Args, &CmdArgs, HasStdlibxxIsystem](const ToolChain &TC) {
+          HasStdlibxxIsystem ? TC.AddClangCXXStdlibIsystemArgs(Args, CmdArgs)
+                             : TC.AddClangCXXStdlibIncludeArgs(Args, CmdArgs);
+        });
+  }
 
   // Add system include arguments for all targets but IAMCU.
   if (!IsIAMCU)
@@ -1848,21 +1855,11 @@ void Clang::AddPPCTargetArgs(const ArgList &Args,
 
 void Clang::AddRISCVTargetArgs(const ArgList &Args,
                                ArgStringList &CmdArgs) const {
-  // FIXME: currently defaults to the soft-float ABIs. Will need to be
-  // expanded to select ilp32f, ilp32d, lp64f, lp64d when appropriate.
-  const char *ABIName = nullptr;
   const llvm::Triple &Triple = getToolChain().getTriple();
-  if (Arg *A = Args.getLastArg(options::OPT_mabi_EQ))
-    ABIName = A->getValue();
-  else if (Triple.getArch() == llvm::Triple::riscv32)
-    ABIName = "ilp32";
-  else if (Triple.getArch() == llvm::Triple::riscv64)
-    ABIName = "lp64";
-  else
-    llvm_unreachable("Unexpected triple!");
+  StringRef ABIName = riscv::getRISCVABI(Args, Triple);
 
   CmdArgs.push_back("-target-abi");
-  CmdArgs.push_back(ABIName);
+  CmdArgs.push_back(ABIName.data());
 }
 
 void Clang::AddSparcTargetArgs(const ArgList &Args,
@@ -2179,6 +2176,8 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
         CmdArgs.push_back("-msave-temp-labels");
       } else if (Value == "--fatal-warnings") {
         CmdArgs.push_back("-massembler-fatal-warnings");
+      } else if (Value == "--no-warn") {
+        CmdArgs.push_back("-massembler-no-warn");
       } else if (Value == "--noexecstack") {
         UseNoExecStack = true;
       } else if (Value.startswith("-compress-debug-sections") ||

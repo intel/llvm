@@ -324,6 +324,11 @@ namespace opts {
   PrintStackMap("stackmap",
                 cl::desc("Display contents of stackmap section"));
 
+  // --stack-sizes
+  cl::opt<bool>
+      PrintStackSizes("stack-sizes",
+                      cl::desc("Display contents of all stack sizes sections"));
+
   // --version-info, -V
   cl::opt<bool>
       VersionInfo("version-info",
@@ -387,6 +392,12 @@ void reportWarning(Twine Msg) {
   fouts().flush();
   errs() << "\n";
   WithColor::warning(errs()) << Msg << "\n";
+}
+
+void reportWarning(StringRef Input, Error Err) {
+  if (Input == "-")
+    Input = "<stdin>";
+  warn(createFileError(Input, std::move(Err)));
 }
 
 void warn(Error Err) {
@@ -583,6 +594,8 @@ static void dumpObject(const ObjectFile *Obj, ScopedPrinter &Writer,
   }
   if (opts::PrintStackMap)
     Dumper->printStackMap();
+  if (opts::PrintStackSizes)
+    Dumper->printStackSizes();
 }
 
 /// Dumps each object file in \a Arc;
@@ -727,6 +740,10 @@ int main(int argc, const char *argv[]) {
     opts::UnwindInfo = true;
     opts::SectionGroups = true;
     opts::HashHistogram = true;
+    // FIXME: As soon as we implement LLVM-style printing of the .stack_size
+    // section, we will enable it with --all (only for LLVM-style).
+    if (opts::Output == opts::LLVM)
+      opts::PrintStackSizes = false;
   }
 
   if (opts::Headers) {

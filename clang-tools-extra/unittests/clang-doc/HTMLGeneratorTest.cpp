@@ -9,6 +9,7 @@
 #include "ClangDocTest.h"
 #include "Generators.h"
 #include "Representation.h"
+#include "Serialize.h"
 #include "gtest/gtest.h"
 
 namespace clang {
@@ -28,6 +29,7 @@ getClangDocContext(std::vector<std::string> UserStylesheets = {}) {
   CDCtx.UserStylesheets.insert(
       CDCtx.UserStylesheets.begin(),
       "../share/clang/clang-doc-default-stylesheet.css");
+  CDCtx.JsScripts.emplace_back("index.js");
   return CDCtx;
 }
 
@@ -56,24 +58,62 @@ TEST(HTMLGeneratorTest, emitNamespaceHTML) {
 <title>namespace Namespace</title>
 <link rel="stylesheet" href="clang-doc-default-stylesheet.css"/>
 <link rel="stylesheet" href="user-provided-stylesheet.css"/>
+<script src="index.js"></script>
+<div id="index" path=""></div>
+<ul>
+  <li>
+    <span>
+      <a href="#Namespaces">Namespaces</a>
+    </span>
+  </li>
+  <li>
+    <span>
+      <a href="#Records">Records</a>
+    </span>
+  </li>
+  <li>
+    <span>
+      <a href="#Functions">Functions</a>
+    </span>
+    <ul>
+      <li>
+        <span>
+          <a href="#0000000000000000000000000000000000000000">OneFunction</a>
+        </span>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <span>
+      <a href="#Enums">Enums</a>
+    </span>
+    <ul>
+      <li>
+        <span>
+          <a href="#0000000000000000000000000000000000000000">OneEnum</a>
+        </span>
+      </li>
+    </ul>
+  </li>
+</ul>
 <div>
   <h1>namespace Namespace</h1>
-  <h2>Namespaces</h2>
+  <h2 id="Namespaces">Namespaces</h2>
   <ul>
     <li>ChildNamespace</li>
   </ul>
-  <h2>Records</h2>
+  <h2 id="Records">Records</h2>
   <ul>
     <li>ChildStruct</li>
   </ul>
-  <h2>Functions</h2>
+  <h2 id="Functions">Functions</h2>
   <div>
-    <h3>OneFunction</h3>
+    <h3 id="0000000000000000000000000000000000000000">OneFunction</h3>
     <p>OneFunction()</p>
   </div>
-  <h2>Enums</h2>
+  <h2 id="Enums">Enums</h2>
   <div>
-    <h3>enum OneEnum</h3>
+    <h3 id="0000000000000000000000000000000000000000">enum OneEnum</h3>
   </div>
 </div>
 )raw";
@@ -114,6 +154,44 @@ TEST(HTMLGeneratorTest, emitRecordHTML) {
 <meta charset="utf-8"/>
 <title>class r</title>
 <link rel="stylesheet" href="../../../clang-doc-default-stylesheet.css"/>
+<script src="../../../index.js"></script>
+<div id="index" path="X/Y/Z"></div>
+<ul>
+  <li>
+    <span>
+      <a href="#Members">Members</a>
+    </span>
+  </li>
+  <li>
+    <span>
+      <a href="#Records">Records</a>
+    </span>
+  </li>
+  <li>
+    <span>
+      <a href="#Functions">Functions</a>
+    </span>
+    <ul>
+      <li>
+        <span>
+          <a href="#0000000000000000000000000000000000000000">OneFunction</a>
+        </span>
+      </li>
+    </ul>
+  </li>
+  <li>
+    <span>
+      <a href="#Enums">Enums</a>
+    </span>
+    <ul>
+      <li>
+        <span>
+          <a href="#0000000000000000000000000000000000000000">OneEnum</a>
+        </span>
+      </li>
+    </ul>
+  </li>
+</ul>
 <div>
   <h1>class r</h1>
   <p>Defined at line 10 of test.cpp</p>
@@ -122,7 +200,7 @@ TEST(HTMLGeneratorTest, emitRecordHTML) {
     <a href="../../../path/to/F.html">F</a>
     , G
   </p>
-  <h2>Members</h2>
+  <h2 id="Members">Members</h2>
   <ul>
     <li>
       private 
@@ -130,18 +208,18 @@ TEST(HTMLGeneratorTest, emitRecordHTML) {
        X
     </li>
   </ul>
-  <h2>Records</h2>
+  <h2 id="Records">Records</h2>
   <ul>
     <li>ChildStruct</li>
   </ul>
-  <h2>Functions</h2>
+  <h2 id="Functions">Functions</h2>
   <div>
-    <h3>OneFunction</h3>
+    <h3 id="0000000000000000000000000000000000000000">OneFunction</h3>
     <p>OneFunction()</p>
   </div>
-  <h2>Enums</h2>
+  <h2 id="Enums">Enums</h2>
   <div>
-    <h3>enum OneEnum</h3>
+    <h3 id="0000000000000000000000000000000000000000">enum OneEnum</h3>
   </div>
 </div>
 )raw";
@@ -175,8 +253,10 @@ TEST(HTMLGeneratorTest, emitFunctionHTML) {
 <meta charset="utf-8"/>
 <title></title>
 <link rel="stylesheet" href="clang-doc-default-stylesheet.css"/>
+<script src="index.js"></script>
+<div id="index" path=""></div>
 <div>
-  <h3>f</h3>
+  <h3 id="0000000000000000000000000000000000000000">f</h3>
   <p>
     <a href="path/to/float.html">float</a>
      f(
@@ -212,8 +292,10 @@ TEST(HTMLGeneratorTest, emitEnumHTML) {
 <meta charset="utf-8"/>
 <title></title>
 <link rel="stylesheet" href="clang-doc-default-stylesheet.css"/>
+<script src="index.js"></script>
+<div id="index" path=""></div>
 <div>
-  <h3>enum class e</h3>
+  <h3 id="0000000000000000000000000000000000000000">enum class e</h3>
   <ul>
     <li>X</li>
   </ul>
@@ -281,8 +363,10 @@ TEST(HTMLGeneratorTest, emitCommentHTML) {
 <meta charset="utf-8"/>
 <title></title>
 <link rel="stylesheet" href="clang-doc-default-stylesheet.css"/>
+<script src="index.js"></script>
+<div id="index" path=""></div>
 <div>
-  <h3>f</h3>
+  <h3 id="0000000000000000000000000000000000000000">f</h3>
   <p>void f(int I, int J)</p>
   <p>Defined at line 10 of test.cpp</p>
   <div>

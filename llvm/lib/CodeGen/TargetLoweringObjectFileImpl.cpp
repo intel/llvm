@@ -586,29 +586,14 @@ MCSection *TargetLoweringObjectFileELF::getExplicitSectionGlobal(
     Flags |= ELF::SHF_GROUP;
   }
 
-  bool EmitUniqueSection = false;
-
-  // If we have -ffunction-sections or -fdata-sections then we should emit the
-  // global value to a uniqued section of the same name.
-  if (!(Flags & ELF::SHF_MERGE) && !Kind.isCommon()) {
-    if (Kind.isText())
-      EmitUniqueSection = TM.getFunctionSections();
-    else
-      EmitUniqueSection = TM.getDataSections();
-  }
-  EmitUniqueSection |= GO->hasComdat();
-
   // A section can have at most one associated section. Put each global with
   // MD_associated in a unique section.
+  unsigned UniqueID = MCContext::GenericSectionID;
   const MCSymbolELF *AssociatedSymbol = getAssociatedSymbol(GO, TM);
   if (AssociatedSymbol) {
-    EmitUniqueSection = true;
+    UniqueID = NextUniqueID++;
     Flags |= ELF::SHF_LINK_ORDER;
   }
-
-  unsigned UniqueID = MCContext::GenericSectionID;
-  if (EmitUniqueSection)
-    UniqueID = NextUniqueID++;
 
   MCSectionELF *Section = getContext().getELFSection(
       SectionName, getELFSectionType(SectionName, Kind), Flags,
@@ -1851,11 +1836,12 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
 
   // Common symbols go into a csect with matching name which will get mapped
   // into the .bss section.
-  if (Kind.isCommon()) {
+  if (Kind.isBSSLocal() || Kind.isCommon()) {
     SmallString<128> Name;
     getNameWithPrefix(Name, GO, TM);
-    return getContext().getXCOFFSection(Name, XCOFF::XMC_RW, XCOFF::XTY_CM,
-                                        Kind, /* BeginSymbolName */ nullptr);
+    return getContext().getXCOFFSection(
+        Name, Kind.isBSSLocal() ? XCOFF::XMC_BS : XCOFF::XMC_RW, XCOFF::XTY_CM,
+        Kind, /* BeginSymbolName */ nullptr);
   }
 
   if (Kind.isText())

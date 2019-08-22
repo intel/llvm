@@ -29,10 +29,10 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/Timer.h"
-
 #include "llvm/ADT/IntervalMap.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/Decompressor.h"
 #include "llvm/Support/ARMBuildAttributes.h"
 #include "llvm/Support/JamCRC.h"
@@ -80,41 +80,6 @@ const elf_word LLDB_NT_NETBSD_PROCINFO = 1;
 const elf_word LLDB_NT_GNU_ABI_OS_LINUX = 0x00;
 const elf_word LLDB_NT_GNU_ABI_OS_HURD = 0x01;
 const elf_word LLDB_NT_GNU_ABI_OS_SOLARIS = 0x02;
-
-// LLDB_NT_OWNER_CORE and LLDB_NT_OWNER_LINUX note contants
-#define NT_PRSTATUS 1
-#define NT_PRFPREG 2
-#define NT_PRPSINFO 3
-#define NT_TASKSTRUCT 4
-#define NT_AUXV 6
-#define NT_SIGINFO 0x53494749
-#define NT_FILE 0x46494c45
-#define NT_PRXFPREG 0x46e62b7f
-#define NT_PPC_VMX 0x100
-#define NT_PPC_SPE 0x101
-#define NT_PPC_VSX 0x102
-#define NT_386_TLS 0x200
-#define NT_386_IOPERM 0x201
-#define NT_X86_XSTATE 0x202
-#define NT_S390_HIGH_GPRS 0x300
-#define NT_S390_TIMER 0x301
-#define NT_S390_TODCMP 0x302
-#define NT_S390_TODPREG 0x303
-#define NT_S390_CTRS 0x304
-#define NT_S390_PREFIX 0x305
-#define NT_S390_LAST_BREAK 0x306
-#define NT_S390_SYSTEM_CALL 0x307
-#define NT_S390_TDB 0x308
-#define NT_S390_VXRS_LOW 0x309
-#define NT_S390_VXRS_HIGH 0x30a
-#define NT_ARM_VFP 0x400
-#define NT_ARM_TLS 0x401
-#define NT_ARM_HW_BREAK 0x402
-#define NT_ARM_HW_WATCH 0x403
-#define NT_ARM_SYSTEM_CALL 0x404
-#define NT_METAG_CBUF 0x500
-#define NT_METAG_RPIPE 0x501
-#define NT_METAG_TLS 0x502
 
 //===----------------------------------------------------------------------===//
 /// \class ELFRelocation
@@ -1712,6 +1677,8 @@ class VMAddressProvider {
   VMMap Segments = VMMap(Alloc);
   VMMap Sections = VMMap(Alloc);
   lldb_private::Log *Log = GetLogIfAllCategoriesSet(LIBLLDB_LOG_MODULES);
+  size_t SegmentCount = 0;
+  std::string SegmentName;
 
   VMRange GetVMRange(const ELFSectionHeader &H) {
     addr_t Address = H.sh_addr;
@@ -1726,18 +1693,23 @@ class VMAddressProvider {
   }
 
 public:
-  VMAddressProvider(ObjectFile::Type Type) : ObjectType(Type) {}
+  VMAddressProvider(ObjectFile::Type Type, llvm::StringRef SegmentName)
+      : ObjectType(Type), SegmentName(SegmentName) {}
+
+  std::string GetNextSegmentName() const {
+    return llvm::formatv("{0}[{1}]", SegmentName, SegmentCount).str();
+  }
 
   llvm::Optional<VMRange> GetAddressInfo(const ELFProgramHeader &H) {
     if (H.p_memsz == 0) {
-      LLDB_LOG(Log,
-               "Ignoring zero-sized PT_LOAD segment. Corrupt object file?");
+      LLDB_LOG(Log, "Ignoring zero-sized {0} segment. Corrupt object file?",
+               SegmentName);
       return llvm::None;
     }
 
     if (Segments.overlaps(H.p_vaddr, H.p_vaddr + H.p_memsz)) {
-      LLDB_LOG(Log,
-               "Ignoring overlapping PT_LOAD segment. Corrupt object file?");
+      LLDB_LOG(Log, "Ignoring overlapping {0} segment. Corrupt object file?",
+               SegmentName);
       return llvm::None;
     }
     return VMRange(H.p_vaddr, H.p_memsz);
@@ -1772,6 +1744,7 @@ public:
 
   void AddSegment(const VMRange &Range, SectionSP Seg) {
     Segments.insert(Range.GetRangeBase(), Range.GetRangeEnd(), std::move(Seg));
+    ++SegmentCount;
   }
 
   void AddSection(SectionAddressInfo Info, SectionSP Sect) {
@@ -1790,28 +1763,31 @@ void ObjectFileELF::CreateSections(SectionList &unified_section_list) {
     return;
 
   m_sections_up = llvm::make_unique<SectionList>();
-  VMAddressProvider address_provider(GetType());
+  VMAddressProvider regular_provider(GetType(), "PT_LOAD");
+  VMAddressProvider tls_provider(GetType(), "PT_TLS");
 
-  size_t LoadID = 0;
   for (const auto &EnumPHdr : llvm::enumerate(ProgramHeaders())) {
     const ELFProgramHeader &PHdr = EnumPHdr.value();
-    if (PHdr.p_type != PT_LOAD)
+    if (PHdr.p_type != PT_LOAD && PHdr.p_type != PT_TLS)
       continue;
 
-    auto InfoOr = address_provider.GetAddressInfo(PHdr);
+    VMAddressProvider &provider =
+        PHdr.p_type == PT_TLS ? tls_provider : regular_provider;
+    auto InfoOr = provider.GetAddressInfo(PHdr);
     if (!InfoOr)
       continue;
 
-    ConstString Name(("PT_LOAD[" + llvm::Twine(LoadID++) + "]").str());
     uint32_t Log2Align = llvm::Log2_64(std::max<elf_xword>(PHdr.p_align, 1));
     SectionSP Segment = std::make_shared<Section>(
-        GetModule(), this, SegmentID(EnumPHdr.index()), Name,
-        eSectionTypeContainer, InfoOr->GetRangeBase(), InfoOr->GetByteSize(),
-        PHdr.p_offset, PHdr.p_filesz, Log2Align, /*flags*/ 0);
+        GetModule(), this, SegmentID(EnumPHdr.index()),
+        ConstString(provider.GetNextSegmentName()), eSectionTypeContainer,
+        InfoOr->GetRangeBase(), InfoOr->GetByteSize(), PHdr.p_offset,
+        PHdr.p_filesz, Log2Align, /*flags*/ 0);
     Segment->SetPermissions(GetPermissions(PHdr));
+    Segment->SetIsThreadSpecific(PHdr.p_type == PT_TLS);
     m_sections_up->AddSection(Segment);
 
-    address_provider.AddSegment(*InfoOr, std::move(Segment));
+    provider.AddSegment(*InfoOr, std::move(Segment));
   }
 
   ParseSectionHeaders();
@@ -1826,7 +1802,9 @@ void ObjectFileELF::CreateSections(SectionList &unified_section_list) {
     const uint64_t file_size =
         header.sh_type == SHT_NOBITS ? 0 : header.sh_size;
 
-    auto InfoOr = address_provider.GetAddressInfo(header);
+    VMAddressProvider &provider =
+        header.sh_flags & SHF_TLS ? tls_provider : regular_provider;
+    auto InfoOr = provider.GetAddressInfo(header);
     if (!InfoOr)
       continue;
 
@@ -1857,7 +1835,7 @@ void ObjectFileELF::CreateSections(SectionList &unified_section_list) {
     section_sp->SetIsThreadSpecific(header.sh_flags & SHF_TLS);
     (InfoOr->Segment ? InfoOr->Segment->GetChildren() : *m_sections_up)
         .AddSection(section_sp);
-    address_provider.AddSection(std::move(*InfoOr), std::move(section_sp));
+    provider.AddSection(std::move(*InfoOr), std::move(section_sp));
   }
 
   // For eTypeDebugInfo files, the Symbol Vendor will take care of updating the

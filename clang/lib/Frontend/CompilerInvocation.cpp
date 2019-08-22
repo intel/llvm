@@ -889,6 +889,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.NumRegisterParameters = getLastArgIntValue(Args, OPT_mregparm, 0, Diags);
   Opts.NoExecStack = Args.hasArg(OPT_mno_exec_stack);
   Opts.FatalWarnings = Args.hasArg(OPT_massembler_fatal_warnings);
+  Opts.NoWarn = Args.hasArg(OPT_massembler_no_warn);
   Opts.EnableSegmentedStacks = Args.hasArg(OPT_split_stacks);
   Opts.RelaxAll = Args.hasArg(OPT_mrelax_all);
   Opts.IncrementalLinkerCompatible =
@@ -2916,8 +2917,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     }
   }
 
-  // Check if -fopenmp is specified.
-  Opts.OpenMP = Args.hasArg(options::OPT_fopenmp) ? 1 : 0;
+  // Check if -fopenmp is specified and set default version to 4.5.
+  Opts.OpenMP = Args.hasArg(options::OPT_fopenmp) ? 45 : 0;
   // Check if -fopenmp-simd is specified.
   bool IsSimdSpecified =
       Args.hasFlag(options::OPT_fopenmp_simd, options::OPT_fno_openmp_simd,

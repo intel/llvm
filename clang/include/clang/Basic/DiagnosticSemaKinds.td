@@ -3320,6 +3320,10 @@ def warn_impcast_bool_to_null_pointer : Warning<
 def warn_non_literal_null_pointer : Warning<
     "expression which evaluates to zero treated as a null pointer constant of "
     "type %0">, InGroup<NonLiteralNullConversion>;
+def warn_pointer_compare : Warning<
+    "comparing a pointer to a null character constant; did you mean "
+    "to compare to %select{NULL|(void *)0}0?">,
+    InGroup<DiagGroup<"pointer-compare">>;
 def warn_impcast_null_pointer_to_integer : Warning<
     "implicit conversion of %select{NULL|nullptr}0 constant to %1">,
     InGroup<NullConversion>;
@@ -8127,6 +8131,10 @@ def warn_dangling_member : Warning<
   "%select{binds to|is}2 a temporary object "
   "whose lifetime is shorter than the lifetime of the constructed object">,
   InGroup<DanglingField>;
+def warn_dangling_lifetime_pointer_member : Warning<
+  "initializing pointer member %0 to point to a temporary object "
+  "whose lifetime is shorter than the lifetime of the constructed object">,
+  InGroup<DanglingField>;
 def note_lifetime_extending_member_declared_here : Note<
   "%select{%select{reference|'std::initializer_list'}0 member|"
   "member with %select{reference|'std::initializer_list'}0 subobject}1 "
@@ -8145,6 +8153,10 @@ def warn_new_dangling_reference : Warning<
   "temporary bound to reference member of allocated object "
   "will be destroyed at the end of the full-expression">,
   InGroup<DanglingField>;
+def warn_dangling_lifetime_pointer : Warning<
+  "object backing the pointer "
+  "will be destroyed at the end of the full-expression">,
+  InGroup<Dangling>;
 def warn_new_dangling_initializer_list : Warning<
   "array backing "
   "%select{initializer list subobject of the allocated object|"
@@ -8162,7 +8174,8 @@ def warn_unsupported_lifetime_extension : Warning<
 // should result in a warning, since these always evaluate to a constant.
 // Array comparisons have similar warnings
 def warn_comparison_always : Warning<
-  "%select{self-|array }0comparison always evaluates to %select{a constant|%2}1">,
+  "%select{self-|array }0comparison always evaluates to "
+  "%select{a constant|true|false|'std::strong_ordering::equal'}1">,
   InGroup<TautologicalCompare>;
 def warn_comparison_bitwise_always : Warning<
   "bitwise comparison always evaluates to %select{false|true}0">,

@@ -569,8 +569,17 @@ bool TargetLowering::SimplifyDemandedBits(SDValue Op, const APInt &DemandedBits,
 SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
     SDValue Op, const APInt &DemandedBits, const APInt &DemandedElts,
     SelectionDAG &DAG, unsigned Depth) const {
-  if (Depth >= 6) // Limit search depth.
+  // Limit search depth.
+  if (Depth >= 6)
     return SDValue();
+
+  // Ignore UNDEFs.
+  if (Op.isUndef())
+    return SDValue();
+
+  // Not demanding any bits/elts from Op.
+  if (DemandedBits == 0 || DemandedElts == 0)
+    return DAG.getUNDEF(Op.getValueType());
 
   unsigned NumElts = DemandedElts.getBitWidth();
   KnownBits LHSKnown, RHSKnown;
@@ -928,21 +937,36 @@ bool TargetLowering::SimplifyDemandedBits(
     }
 
     if (!!DemandedLHS || !!DemandedRHS) {
+      SDValue Op0 = Op.getOperand(0);
+      SDValue Op1 = Op.getOperand(1);
+
       Known.Zero.setAllBits();
       Known.One.setAllBits();
       if (!!DemandedLHS) {
-        if (SimplifyDemandedBits(Op.getOperand(0), DemandedBits, DemandedLHS,
-                                 Known2, TLO, Depth + 1))
+        if (SimplifyDemandedBits(Op0, DemandedBits, DemandedLHS, Known2, TLO,
+                                 Depth + 1))
           return true;
         Known.One &= Known2.One;
         Known.Zero &= Known2.Zero;
       }
       if (!!DemandedRHS) {
-        if (SimplifyDemandedBits(Op.getOperand(1), DemandedBits, DemandedRHS,
-                                 Known2, TLO, Depth + 1))
+        if (SimplifyDemandedBits(Op1, DemandedBits, DemandedRHS, Known2, TLO,
+                                 Depth + 1))
           return true;
         Known.One &= Known2.One;
         Known.Zero &= Known2.Zero;
+      }
+
+      // Attempt to avoid multi-use ops if we don't need anything from them.
+      SDValue DemandedOp0 = SimplifyMultipleUseDemandedBits(
+          Op0, DemandedBits, DemandedLHS, TLO.DAG, Depth + 1);
+      SDValue DemandedOp1 = SimplifyMultipleUseDemandedBits(
+          Op1, DemandedBits, DemandedRHS, TLO.DAG, Depth + 1);
+      if (DemandedOp0 || DemandedOp1) {
+        Op0 = DemandedOp0 ? DemandedOp0 : Op0;
+        Op1 = DemandedOp1 ? DemandedOp1 : Op1;
+        SDValue NewOp = TLO.DAG.getVectorShuffle(VT, dl, Op0, Op1, ShuffleMask);
+        return TLO.CombineTo(Op, NewOp);
       }
     }
     break;
@@ -1755,6 +1779,17 @@ bool TargetLowering::SimplifyDemandedBits(
                              Depth + 1))
       return true;
 
+    // Attempt to avoid multi-use ops if we don't need anything from them.
+    if (!DemandedSrcBits.isAllOnesValue() ||
+        !DemandedSrcElts.isAllOnesValue()) {
+      if (SDValue DemandedSrc = SimplifyMultipleUseDemandedBits(
+              Src, DemandedSrcBits, DemandedSrcElts, TLO.DAG, Depth + 1)) {
+        SDValue NewOp =
+            TLO.DAG.getNode(Op.getOpcode(), dl, VT, DemandedSrc, Idx);
+        return TLO.CombineTo(Op, NewOp);
+      }
+    }
+
     Known = Known2;
     if (BitWidth > EltBitWidth)
       Known = Known.zext(BitWidth, false /* => any extend */);
@@ -2524,6 +2559,12 @@ void TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
           Op.getOpcode() == ISD::INTRINSIC_VOID) &&
          "Should use MaskedValueIsZero if you don't know whether Op"
          " is a target node!");
+  Known.resetAll();
+}
+
+void TargetLowering::computeKnownBitsForTargetInstr(
+    Register R, KnownBits &Known, const APInt &DemandedElts,
+    const MachineRegisterInfo &MRI, unsigned Depth) const {
   Known.resetAll();
 }
 

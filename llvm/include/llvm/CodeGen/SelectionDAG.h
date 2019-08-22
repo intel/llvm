@@ -269,7 +269,13 @@ class SelectionDAG {
 
   using CallSiteInfo = MachineFunction::CallSiteInfo;
   using CallSiteInfoImpl = MachineFunction::CallSiteInfoImpl;
-  DenseMap<const SDNode *, CallSiteInfo> SDCallSiteInfo;
+
+  struct CallSiteDbgInfo {
+    CallSiteInfo CSInfo;
+    MDNode *HeapAllocSite = nullptr;
+  };
+
+  DenseMap<const SDNode *, CallSiteDbgInfo> SDCallSiteDbgInfo;
 
   uint16_t NextPersistentId = 0;
 
@@ -1113,9 +1119,11 @@ public:
                          MachineMemOperand *MMO, bool IsTruncating = false,
                          bool IsCompressing = false);
   SDValue getMaskedGather(SDVTList VTs, EVT VT, const SDLoc &dl,
-                          ArrayRef<SDValue> Ops, MachineMemOperand *MMO);
+                          ArrayRef<SDValue> Ops, MachineMemOperand *MMO,
+                          ISD::MemIndexType IndexType);
   SDValue getMaskedScatter(SDVTList VTs, EVT VT, const SDLoc &dl,
-                           ArrayRef<SDValue> Ops, MachineMemOperand *MMO);
+                           ArrayRef<SDValue> Ops, MachineMemOperand *MMO,
+                           ISD::MemIndexType IndexType);
 
   /// Return (create a new or find existing) a target-specific node.
   /// TargetMemSDNode should be derived class from MemSDNode.
@@ -1663,14 +1671,26 @@ public:
   }
 
   void addCallSiteInfo(const SDNode *CallNode, CallSiteInfoImpl &&CallInfo) {
-    SDCallSiteInfo[CallNode] = std::move(CallInfo);
+    SDCallSiteDbgInfo[CallNode].CSInfo = std::move(CallInfo);
   }
 
   CallSiteInfo getSDCallSiteInfo(const SDNode *CallNode) {
-    auto I = SDCallSiteInfo.find(CallNode);
-    if (I != SDCallSiteInfo.end())
-      return std::move(I->second);
+    auto I = SDCallSiteDbgInfo.find(CallNode);
+    if (I != SDCallSiteDbgInfo.end())
+      return std::move(I->second).CSInfo;
     return CallSiteInfo();
+  }
+
+  void addHeapAllocSite(const SDNode *Node, MDNode *MD) {
+    SDCallSiteDbgInfo[Node].HeapAllocSite = MD;
+  }
+
+  /// Return the HeapAllocSite type associated with the SDNode, if it exists.
+  MDNode *getHeapAllocSite(const SDNode *Node) {
+    auto It = SDCallSiteDbgInfo.find(Node);
+    if (It == SDCallSiteDbgInfo.end())
+      return nullptr;
+    return It->second.HeapAllocSite;
   }
 
 private:

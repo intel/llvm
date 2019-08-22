@@ -43,7 +43,7 @@
 #include "lldb/Symbol/LineTable.h"
 #include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Symbol/ObjectFile.h"
-#include "lldb/Symbol/SymbolVendor.h"
+#include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/TypeMap.h"
 #include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Symbol/VariableList.h"
@@ -2431,18 +2431,22 @@ uint32_t SymbolFileDWARF::FindTypes(
             name.GetCString(), append, max_matches, num_matches);
       }
     }
-    return num_matches;
-  } else {
+  }
+
+  // Next search through the reachable Clang modules. This only applies for
+  // DWARF objects compiled with -gmodules that haven't been processed by
+  // dsymutil.
+  if (num_die_matches < max_matches) {
     UpdateExternalModuleListIfNeeded();
 
     for (const auto &pair : m_external_type_modules) {
       ModuleSP external_module_sp = pair.second;
       if (external_module_sp) {
-        SymbolVendor *sym_vendor = external_module_sp->GetSymbolVendor();
-        if (sym_vendor) {
+        SymbolFile *sym_file = external_module_sp->GetSymbolFile();
+        if (sym_file) {
           const uint32_t num_external_matches =
-              sym_vendor->FindTypes(name, parent_decl_ctx, append, max_matches,
-                                    searched_symbol_files, types);
+              sym_file->FindTypes(name, parent_decl_ctx, append, max_matches,
+                                  searched_symbol_files, types);
           if (num_external_matches)
             return num_external_matches;
         }
@@ -2450,7 +2454,7 @@ uint32_t SymbolFileDWARF::FindTypes(
     }
   }
 
-  return 0;
+  return num_die_matches;
 }
 
 size_t SymbolFileDWARF::FindTypes(const std::vector<CompilerContext> &context,

@@ -1162,10 +1162,12 @@ void StringTableSection::writeTo(uint8_t *buf) {
   }
 }
 
-// Returns the number of version definition entries. Because the first entry
-// is for the version definition itself, it is the number of versioned symbols
-// plus one. Note that we don't support multiple versions yet.
-static unsigned getVerDefNum() { return config->versionDefinitions.size() + 1; }
+// Returns the number of entries in .gnu.version_d: the number of
+// non-VER_NDX_LOCAL-non-VER_NDX_GLOBAL definitions, plus 1.
+// Note that we don't support vd_cnt > 1 yet.
+static unsigned getVerDefNum() {
+  return namedVersionDefs().size() + 1;
+}
 
 template <class ELFT>
 DynamicSection<ELFT>::DynamicSection()
@@ -2473,6 +2475,10 @@ readAddressAreas(DWARFContext &dwarf, InputSection *sec) {
 
   uint32_t cuIdx = 0;
   for (std::unique_ptr<DWARFUnit> &cu : dwarf.compile_units()) {
+    if (Error e = cu->tryExtractDIEsIfNeeded(false)) {
+      error(toString(sec) + ": " + toString(std::move(e)));
+      return {};
+    }
     Expected<DWARFAddressRangesVector> ranges = cu->collectAddressRanges();
     if (!ranges) {
       error(toString(sec) + ": " + toString(ranges.takeError()));
@@ -2503,8 +2509,8 @@ template <class ELFT>
 static std::vector<GdbIndexSection::NameAttrEntry>
 readPubNamesAndTypes(const LLDDwarfObj<ELFT> &obj,
                      const std::vector<GdbIndexSection::CuEntry> &cUs) {
-  const DWARFSection &pubNames = obj.getGnuPubNamesSection();
-  const DWARFSection &pubTypes = obj.getGnuPubTypesSection();
+  const DWARFSection &pubNames = obj.getGnuPubnamesSection();
+  const DWARFSection &pubTypes = obj.getGnuPubtypesSection();
 
   std::vector<GdbIndexSection::NameAttrEntry> ret;
   for (const DWARFSection *pub : {&pubNames, &pubTypes}) {
@@ -2771,7 +2777,7 @@ StringRef VersionDefinitionSection::getFileDefName() {
 
 void VersionDefinitionSection::finalizeContents() {
   fileDefNameOff = getPartition().dynStrTab->addString(getFileDefName());
-  for (VersionDefinition &v : config->versionDefinitions)
+  for (const VersionDefinition &v : namedVersionDefs())
     verDefNameOffs.push_back(getPartition().dynStrTab->addString(v.name));
 
   if (OutputSection *sec = getPartition().dynStrTab->getParent())
@@ -2805,7 +2811,7 @@ void VersionDefinitionSection::writeTo(uint8_t *buf) {
   writeOne(buf, 1, getFileDefName(), fileDefNameOff);
 
   auto nameOffIt = verDefNameOffs.begin();
-  for (VersionDefinition &v : config->versionDefinitions) {
+  for (const VersionDefinition &v : namedVersionDefs()) {
     buf += EntrySize;
     writeOne(buf, v.id, v.name, *nameOffIt++);
   }
@@ -3198,11 +3204,23 @@ static bool isDuplicateArmExidxSec(InputSection *prev, InputSection *cur) {
 
 // The .ARM.exidx table must be sorted in ascending order of the address of the
 // functions the table describes. Optionally duplicate adjacent table entries
-// can be removed. At the end of the function the ExecutableSections must be
+// can be removed. At the end of the function the executableSections must be
 // sorted in ascending order of address, Sentinel is set to the InputSection
 // with the highest address and any InputSections that have mergeable
 // .ARM.exidx table entries are removed from it.
 void ARMExidxSyntheticSection::finalizeContents() {
+  if (script->hasSectionsCommand) {
+    // The executableSections and exidxSections that we use to derive the
+    // final contents of this SyntheticSection are populated before the
+    // linker script assigns InputSections to OutputSections. The linker script
+    // SECTIONS command may have a /DISCARD/ entry that removes executable
+    // InputSections and their dependent .ARM.exidx section that we recorded
+    // earlier.
+    auto isDiscarded = [](const InputSection *isec) { return !isec->isLive(); };
+    llvm::erase_if(executableSections, isDiscarded);
+    llvm::erase_if(exidxSections, isDiscarded);
+  }
+
   // Sort the executable sections that may or may not have associated
   // .ARM.exidx sections by order of ascending address. This requires the
   // relative positions of InputSections to be known.

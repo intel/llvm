@@ -1480,8 +1480,9 @@ example:
     target-specific ABI normally permits it.
 ``noreturn``
     This function attribute indicates that the function never returns
-    normally. This produces undefined behavior at runtime if the
-    function ever does dynamically return.
+    normally, hence through a return instruction. This produces undefined
+    behavior at runtime if the function ever does dynamically return. Annotated
+    functions may still raise an exception, i.a., ``nounwind`` is not implied.
 ``norecurse``
     This function attribute indicates that the function does not call itself
     either directly or indirectly down any possible call path. This produces
@@ -3951,6 +3952,17 @@ PowerPC:
 - ``ws``: A 32 or 64-bit floating-point register, from the full VSX register
   set.
 
+RISC-V:
+
+- ``A``: An address operand (using a general-purpose register, without an
+  offset).
+- ``I``: A 12-bit signed integer immediate operand.
+- ``J``: A zero integer immediate operand.
+- ``K``: A 5-bit unsigned integer immediate operand.
+- ``f``: A 32- or 64-bit floating-point register (requires F or D extension).
+- ``r``: A 32- or 64-bit general-purpose register (depending on the platform
+  ``XLEN``).
+
 Sparc:
 
 - ``I``: An immediate 13-bit signed integer.
@@ -5369,7 +5381,7 @@ suggests an unroll factor to the loop unroller:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This metadata disables all optional loop transformations unless
-explicitly instructed using other transformation metdata such as
+explicitly instructed using other transformation metadata such as
 ``llvm.loop.unroll.enable``. That is, no heuristic will try to determine
 whether a transformation is profitable. The purpose is to avoid that the
 loop is transformed to a different loop before an explicitly requested
@@ -5708,9 +5720,23 @@ the non-distributed fallback version will have. See
 '``llvm.loop.distribute.followup_all``' Metadata
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Thes attributes in this metdata is added to all followup loops of the
+The attributes in this metadata is added to all followup loops of the
 loop distribution pass. See
 :ref:`Transformation Metadata <transformation-metadata>` for details.
+
+'``llvm.licm.disable``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This metadata indicates that loop-invariant code motion (LICM) should not be
+performed on this loop. The metadata has a single operand which is the string
+``llvm.licm.disable``. For example:
+
+.. code-block:: llvm
+
+   !0 = !{!"llvm.licm.disable"}
+
+Note that although it operates per loop it isn't given the llvm.loop prefix
+as it is not affected by the ``llvm.loop.disable_nonforced`` metadata.
 
 '``llvm.access.group``' Metadata
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
