@@ -147,6 +147,26 @@ Other tools that support remarks:
     .. option:: -opt-remarks-format=<format>
     .. option:: -opt-remarks-with-hotness
 
+Serialization modes
+===================
+
+There are two modes available for serializing remarks:
+
+``Separate``
+
+    In this mode, the remarks and the metadata are serialized separately. The
+    client is responsible for parsing the metadata first, then use the metadata
+    to correctly parse the remarks.
+
+``Standalone``
+
+    In this mode, the remarks and the metadata are serialized to the same
+    stream. The metadata will always come before the remarks.
+
+    The compiler does not support emitting standalone remarks. This mode is
+    more suited for post-processing tools like linkers, that can merge the
+    remarks for one whole project.
+
 .. _yamlremarks:
 
 YAML remarks
@@ -217,6 +237,28 @@ Currently, none of the tools in :ref:`the opt-viewer directory <optviewer>`
 support this format.
 
 .. _optviewer:
+
+YAML metadata
+-------------
+
+The metadata used together with the YAML format is:
+
+* a magic number: "REMARKS\\0"
+* the version number: a little-endian uint64_t
+* the total size of the string table (the size itself excluded):
+  little-endian uint64_t
+* a list of null-terminated strings
+
+Optional:
+
+* the absolute file path to the serialized remark diagnostics: a
+  null-terminated string.
+
+When the metadata is serialized separately from the remarks, the file path
+should be present and point to the file where the remarks are serialized to.
+
+In case the metadata only acts as a header to the remarks, the file path can be
+omitted.
 
 opt-viewer
 ==========
@@ -295,15 +337,8 @@ Emitting remark diagnostics in the object file
 ==============================================
 
 A section containing metadata on remark diagnostics will be emitted when
--remarks-section is passed. The section contains:
-
-* a magic number: "REMARKS\\0"
-* the version number: a little-endian uint64_t
-* the total size of the string table (the size itself excluded):
-  little-endian uint64_t
-* a list of null-terminated strings
-* the absolute file path to the serialized remark diagnostics: a
-  null-terminated string.
+-remarks-section is passed. The section contains the metadata associated to the
+format used to serialize the remarks.
 
 The section is named:
 

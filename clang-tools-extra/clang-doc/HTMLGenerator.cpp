@@ -231,6 +231,8 @@ genStylesheetsHTML(StringRef InfoPath, const ClangDocContext &CDCtx) {
     SmallString<128> StylesheetPath = computeRelativePath("", InfoPath);
     llvm::sys::path::append(StylesheetPath,
                             llvm::sys::path::filename(FilePath));
+    // Paths in HTML must be in posix-style
+    llvm::sys::path::native(StylesheetPath, llvm::sys::path::Style::posix);
     LinkNode->Attributes.try_emplace("href", StylesheetPath);
     Out.emplace_back(std::move(LinkNode));
   }
@@ -250,6 +252,8 @@ static std::unique_ptr<HTMLNode> genTypeReference(const Reference &Type,
   llvm::SmallString<128> Path =
       computeRelativePath(Type.Path, CurrentDirectory);
   llvm::sys::path::append(Path, Type.Name + ".html");
+  // Paths in HTML must be in posix-style
+  llvm::sys::path::native(Path, llvm::sys::path::Style::posix);
   return genLink(Type.Name, Path);
 }
 

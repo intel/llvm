@@ -14,6 +14,7 @@ set(CMAKE_MODULE_PATH
 # If we are not building as part of LLVM, build LLDB as a standalone project,
 # using LLVM as an external library.
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  project(lldb)
   include(LLDBStandalone)
 endif()
 
@@ -52,13 +53,12 @@ if(CMAKE_CROSSCOMPILING AND LLDB_BUILT_STANDALONE)
     -DClang_DIR=${NATIVE_Clang_DIR})
 endif()
 
+# TableGen
 add_subdirectory(utils/TableGen)
+
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(docs)
-
-# Needed by tablegen.
-add_subdirectory(include/lldb/Core)
 
 option(LLDB_INCLUDE_TESTS "Generate build targets for the LLDB unit tests." ${LLVM_INCLUDE_TESTS})
 option(LLDB_TEST_USE_CUSTOM_C_COMPILER "Use the C compiler provided via LLDB_TEST_C_COMPILER for building test inferiors (instead of the just-built compiler). Defaults to OFF." OFF)

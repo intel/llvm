@@ -65,14 +65,12 @@ using namespace lldb_private;
 
 namespace {
 
-static constexpr PropertyDefinition g_properties[] = {
 #define LLDB_PROPERTIES_modulelist
-#include "lldb/Core/Properties.inc"
-};
+#include "CoreProperties.inc"
 
 enum {
 #define LLDB_PROPERTIES_modulelist
-#include "lldb/Core/PropertiesEnum.inc"
+#include "CorePropertiesEnum.inc"
 };
 
 } // namespace
@@ -80,7 +78,7 @@ enum {
 ModuleListProperties::ModuleListProperties() {
   m_collection_sp =
       std::make_shared<OptionValueProperties>(ConstString("symbols"));
-  m_collection_sp->Initialize(g_properties);
+  m_collection_sp->Initialize(g_modulelist_properties);
 
   llvm::SmallString<128> path;
   clang::driver::Driver::getDefaultModuleCachePath(path);
@@ -90,7 +88,7 @@ ModuleListProperties::ModuleListProperties() {
 bool ModuleListProperties::GetEnableExternalLookup() const {
   const uint32_t idx = ePropertyEnableExternalLookup;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_properties[idx].default_uint_value != 0);
+      nullptr, idx, g_modulelist_properties[idx].default_uint_value != 0);
 }
 
 bool ModuleListProperties::SetEnableExternalLookup(bool new_value) {
@@ -126,9 +124,9 @@ ModuleList::ModuleList(ModuleList::Notifier *notifier)
 const ModuleList &ModuleList::operator=(const ModuleList &rhs) {
   if (this != &rhs) {
     std::lock(m_modules_mutex, rhs.m_modules_mutex);
-    std::lock_guard<std::recursive_mutex> lhs_guard(m_modules_mutex, 
+    std::lock_guard<std::recursive_mutex> lhs_guard(m_modules_mutex,
                                                     std::adopt_lock);
-    std::lock_guard<std::recursive_mutex> rhs_guard(rhs.m_modules_mutex, 
+    std::lock_guard<std::recursive_mutex> rhs_guard(rhs.m_modules_mutex,
                                                     std::adopt_lock);
     m_modules = rhs.m_modules;
   }
@@ -146,8 +144,8 @@ void ModuleList::AppendImpl(const ModuleSP &module_sp, bool use_notifier) {
   }
 }
 
-void ModuleList::Append(const ModuleSP &module_sp, bool notify) { 
-  AppendImpl(module_sp, notify); 
+void ModuleList::Append(const ModuleSP &module_sp, bool notify) {
+  AppendImpl(module_sp, notify);
 }
 
 void ModuleList::ReplaceEquivalent(const ModuleSP &module_sp) {
