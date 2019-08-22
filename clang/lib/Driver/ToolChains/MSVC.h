@@ -34,6 +34,11 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
+private:
+  void constructMSVCLibCommand(Compilation &C, const JobAction &JA,
+                               const InputInfo &Output,
+                               const InputInfoList &InputFiles,
+                               const llvm::opt::ArgList &Args) const;
 };
 
 class LLVM_LIBRARY_VISIBILITY Compiler : public Tool {

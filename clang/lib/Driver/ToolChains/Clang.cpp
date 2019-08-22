@@ -6494,8 +6494,12 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
   } else if (Input.getType() == types::TY_FPGA_AOCX ||
              Input.getType() == types::TY_FPGA_AOCR) {
-    // Override type with object type.
-    TypeArg = "o";
+    // Override type with archive object
+    if (getToolChain().getTriple().getSubArch() ==
+                                     llvm::Triple::SPIRSubArch_fpga)
+      TypeArg = "ao";
+    else
+      TypeArg = "aoo";
   }
   if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
       Input.getType() == types::TY_Archive)
@@ -6509,26 +6513,34 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   Triples += "-targets=";
   auto DepInfo = UA.getDependentActionsInfo();
   for (unsigned I = 0; I < DepInfo.size(); ++I) {
-    if (I)
-      Triples += ',';
-
     auto &Dep = DepInfo[I];
     // FPGA device triples are 'transformed' for the bundler when creating
-    // aocx or aocr type bundles.
-    if (Dep.DependentToolChain->getTriple().getSubArch() ==
-                                   llvm::Triple::SPIRSubArch_fpga &&
-        (Input.getType() == types::TY_FPGA_AOCX ||
-         Input.getType() == types::TY_FPGA_AOCR)) {
-      llvm::Triple TT;
-      TT.setArchName(Input.getType() == types::TY_FPGA_AOCX ? "fpga_aocx"
-                                                       : "fpga_aocr");
-      TT.setVendorName("intel");
-      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-      TT.setEnvironment(llvm::Triple::SYCLDevice);
-      Triples += "fpga-";
-      Triples += TT.normalize();
+    // aocx or aocr type bundles.  Also, we only do a specific target
+    // unbundling, skipping the host side or device side.
+    if (Input.getType() == types::TY_FPGA_AOCX ||
+        Input.getType() == types::TY_FPGA_AOCR) {
+      if (getToolChain().getTriple().getSubArch() ==
+                                     llvm::Triple::SPIRSubArch_fpga &&
+          Dep.DependentOffloadKind == Action::OFK_SYCL) {
+        llvm::Triple TT;
+        TT.setArchName(Input.getType() == types::TY_FPGA_AOCX ? "fpga_aocx"
+                                                              : "fpga_aocr");
+        TT.setVendorName("intel");
+        TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+        TT.setEnvironment(llvm::Triple::SYCLDevice);
+        Triples += "sycl-";
+        Triples += TT.normalize();
+      } else if (getToolChain().getTriple().getSubArch() !=
+                                     llvm::Triple::SPIRSubArch_fpga &&
+                 Dep.DependentOffloadKind == Action::OFK_Host) {
+        Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
+        Triples += '-';
+        Triples += Dep.DependentToolChain->getTriple().normalize();
+      }
       continue;
     }
+    if (I)
+      Triples += ',';
     Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Triples += '-';
     Triples += Dep.DependentToolChain->getTriple().normalize();
@@ -6593,6 +6605,23 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   SmallString<128> HostTripleOpt("-host=");
   HostTripleOpt += getToolChain().getAuxTriple()->str();
   WrapperArgs.push_back(C.getArgs().MakeArgString(HostTripleOpt));
+  // When wrapping an FPGA device binary, we need to be sure to apply the
+  // appropriate triple that corresponds (fpga_aoc[xr]-intel-<os>-sycldevice)
+  // to the target triple setting.
+  if (getToolChain().getTriple().getSubArch() ==
+                                   llvm::Triple::SPIRSubArch_fpga &&
+      TCArgs.hasArg(options::OPT_fsycl_link_EQ)) {
+    llvm::Triple TT;
+    auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ);
+    TT.setArchName((A->getValue() == StringRef("early")) ? "fpga_aocr"
+                                                         : "fpga_aocx");
+    TT.setVendorName("intel");
+    TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+    TT.setEnvironment(llvm::Triple::SYCLDevice);
+    SmallString<128> TargetTripleOpt("-target=");
+    TargetTripleOpt += TT.str();
+    WrapperArgs.push_back(C.getArgs().MakeArgString(TargetTripleOpt));
+  }
 
   // TODO forcing offload kind is a simplification which assumes wrapper used
   // only with SYCL. Device binary format (-format=xxx) option should also come
