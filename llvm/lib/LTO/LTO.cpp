@@ -44,6 +44,7 @@
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
 #include "llvm/Transforms/Utils/SplitModule.h"
 
@@ -1204,7 +1205,7 @@ public:
 
     std::error_code EC;
     raw_fd_ostream OS(NewModulePath + ".thinlto.bc", EC,
-                      sys::fs::OpenFlags::F_None);
+                      sys::fs::OpenFlags::OF_None);
     if (EC)
       return errorCodeToError(EC);
     WriteIndexToFile(CombinedIndex, OS, &ModuleToSummariesForIndex);
@@ -1274,15 +1275,28 @@ Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
   if (DumpThinCGSCCs)
     ThinLTO.CombinedIndex.dumpSCCs(outs());
 
+  std::set<GlobalValue::GUID> ExportedGUIDs;
+
+  // Perform index-based WPD. This will return immediately if there are
+  // no index entries in the typeIdMetadata map (e.g. if we are instead
+  // performing IR-based WPD in hybrid regular/thin LTO mode).
+  std::map<ValueInfo, std::vector<VTableSlotSummary>> LocalWPDTargetsMap;
+  runWholeProgramDevirtOnIndex(ThinLTO.CombinedIndex, ExportedGUIDs,
+                               LocalWPDTargetsMap);
+
   if (Conf.OptLevel > 0)
     ComputeCrossModuleImport(ThinLTO.CombinedIndex, ModuleToDefinedGVSummaries,
                              ImportLists, ExportLists);
+
+  // Update local devirtualized targets that were exported by cross-module
+  // importing
+  updateIndexWPDForExports(ThinLTO.CombinedIndex, ExportLists,
+                           LocalWPDTargetsMap);
 
   // Figure out which symbols need to be internalized. This also needs to happen
   // at -O0 because summary-based DCE is implemented using internalization, and
   // we must apply DCE consistently with the full LTO module in order to avoid
   // undefined references during the final link.
-  std::set<GlobalValue::GUID> ExportedGUIDs;
   for (auto &Res : GlobalResolutions) {
     // If the symbol does not have external references or it is not prevailing,
     // then not need to mark it as exported from a ThinLTO partition.
@@ -1368,7 +1382,7 @@ lto::setupStatsFile(StringRef StatsFilename) {
   llvm::EnableStatistics(false);
   std::error_code EC;
   auto StatsFile =
-      llvm::make_unique<ToolOutputFile>(StatsFilename, EC, sys::fs::F_None);
+      llvm::make_unique<ToolOutputFile>(StatsFilename, EC, sys::fs::OF_None);
   if (EC)
     return errorCodeToError(EC);
 

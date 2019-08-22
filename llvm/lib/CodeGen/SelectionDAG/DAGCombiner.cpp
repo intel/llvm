@@ -839,7 +839,7 @@ static char isNegatibleForFree(SDValue Op, bool LegalOperations,
     });
   }
   case ISD::FADD:
-    if (!Options->UnsafeFPMath && !Flags.hasNoSignedZeros())
+    if (!Options->NoSignedZerosFPMath && !Flags.hasNoSignedZeros())
       return 0;
 
     // After operation legalization, it might not be legal to create new FSUBs.
@@ -912,7 +912,7 @@ static SDValue GetNegatedExpression(SDValue Op, SelectionDAG &DAG,
     return DAG.getBuildVector(Op.getValueType(), SDLoc(Op), Ops);
   }
   case ISD::FADD:
-    assert(Options.UnsafeFPMath || Flags.hasNoSignedZeros());
+    assert(Options.NoSignedZerosFPMath || Flags.hasNoSignedZeros());
 
     // fold (fneg (fadd A, B)) -> (fsub (fneg A), B)
     if (isNegatibleForFree(Op.getOperand(0), LegalOperations,
@@ -3556,7 +3556,7 @@ SDValue DAGCombiner::visitMUL(SDNode *N) {
   //           x * 15 --> (x << 4) - x
   //           x * -33 --> -((x << 5) + x)
   //           x * -15 --> -((x << 4) - x) ; this reduces --> x - (x << 4)
-  if (N1IsConst && TLI.decomposeMulByConstant(VT, N1)) {
+  if (N1IsConst && TLI.decomposeMulByConstant(*DAG.getContext(), VT, N1)) {
     // TODO: We could handle more general decomposition of any constant by
     //       having the target set a limit on number of ops and making a
     //       callback to determine that sequence (similar to sqrt expansion).
@@ -7612,6 +7612,32 @@ SDValue DAGCombiner::visitSRA(SDNode *N) {
                                     Shift);
         return DAG.getNode(ISD::SIGN_EXTEND, DL,
                            N->getValueType(0), Trunc);
+      }
+    }
+  }
+
+  // We convert trunc/ext to opposing shifts in IR, but casts may be cheaper.
+  //   sra (add (shl X, N1C), AddC), N1C -->
+  //   sext (add (trunc X to (width - N1C)), AddC')
+  if (!LegalOperations && N0.getOpcode() == ISD::ADD && N0.hasOneUse() && N1C &&
+      N0.getOperand(0).getOpcode() == ISD::SHL &&
+      N0.getOperand(0).getOperand(1) == N1 && N0.getOperand(0).hasOneUse()) {
+    if (ConstantSDNode *AddC = isConstOrConstSplat(N0.getOperand(1))) {
+      SDValue Shl = N0.getOperand(0);
+      // Determine what the truncate's type would be and ask the target if that
+      // is a free operation.
+      LLVMContext &Ctx = *DAG.getContext();
+      unsigned ShiftAmt = N1C->getZExtValue();
+      EVT TruncVT = EVT::getIntegerVT(Ctx, OpSizeInBits - ShiftAmt);
+      if (VT.isVector())
+        TruncVT = EVT::getVectorVT(Ctx, TruncVT, VT.getVectorNumElements());
+      if (isTypeLegal(TruncVT) && TLI.isTruncateFree(VT, TruncVT)) {
+        SDLoc DL(N);
+        SDValue Trunc = DAG.getZExtOrTrunc(Shl.getOperand(0), DL, TruncVT);
+        SDValue ShiftC = DAG.getConstant(AddC->getAPIntValue().lshr(ShiftAmt).
+                             trunc(TruncVT.getScalarSizeInBits()), DL, TruncVT);
+        SDValue Add = DAG.getNode(ISD::ADD, DL, TruncVT, Trunc, ShiftC);
+        return DAG.getSExtOrTrunc(Add, DL, VT);
       }
     }
   }
@@ -12017,7 +12043,7 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
   // N0 + -0.0 --> N0 (also allowed with +0.0 and fast-math)
   ConstantFPSDNode *N1C = isConstOrConstSplatFP(N1, true);
   if (N1C && N1C->isZero())
-    if (N1C->isNegative() || Options.UnsafeFPMath || Flags.hasNoSignedZeros())
+    if (N1C->isNegative() || Options.NoSignedZerosFPMath || Flags.hasNoSignedZeros())
       return N0;
 
   if (SDValue NewSel = foldBinOpIntoSelect(N))
@@ -12075,7 +12101,7 @@ SDValue DAGCombiner::visitFADD(SDNode *N) {
   // If 'unsafe math' or reassoc and nsz, fold lots of things.
   // TODO: break out portions of the transformations below for which Unsafe is
   //       considered and which do not require both nsz and reassoc
-  if ((Options.UnsafeFPMath ||
+  if (((Options.UnsafeFPMath && Options.NoSignedZerosFPMath) ||
        (Flags.hasAllowReassociation() && Flags.hasNoSignedZeros())) &&
       AllowNewConst) {
     // fadd (fadd x, c1), c2 -> fadd x, c1 + c2
@@ -12194,7 +12220,7 @@ SDValue DAGCombiner::visitFSUB(SDNode *N) {
 
   // (fsub A, 0) -> A
   if (N1CFP && N1CFP->isZero()) {
-    if (!N1CFP->isNegative() || Options.UnsafeFPMath ||
+    if (!N1CFP->isNegative() || Options.NoSignedZerosFPMath ||
         Flags.hasNoSignedZeros()) {
       return N0;
     }
@@ -12221,7 +12247,7 @@ SDValue DAGCombiner::visitFSUB(SDNode *N) {
     }
   }
 
-  if ((Options.UnsafeFPMath ||
+  if (((Options.UnsafeFPMath && Options.NoSignedZerosFPMath) ||
       (Flags.hasAllowReassociation() && Flags.hasNoSignedZeros()))
       && N1.getOpcode() == ISD::FADD) {
     // X - (X + Y) -> -Y

@@ -580,6 +580,7 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
   for (auto ArgReg : CallFwdRegsInfo->second) {
     bool InsertedReg = ForwardedRegWorklist.insert(ArgReg.Reg).second;
     assert(InsertedReg && "Single register used to forward two arguments?");
+    (void)InsertedReg;
   }
 
   // We erase, from the ForwardedRegWorklist, those forwarding registers for
@@ -605,7 +606,8 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
       return;
 
     for (const MachineOperand &MO : MI.operands()) {
-      if (MO.isReg() && MO.isDef() && TRI->isPhysicalRegister(MO.getReg())) {
+      if (MO.isReg() && MO.isDef() &&
+          Register::isPhysicalRegister(MO.getReg())) {
         for (auto FwdReg : ForwardedRegWorklist) {
           if (TRI->regsOverlap(FwdReg, MO.getReg())) {
             Defs.push_back(FwdReg);

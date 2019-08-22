@@ -1128,7 +1128,7 @@ static bool BundleFiles() {
   }
 
   // Create output file.
-  raw_fd_ostream OutputFile(OutputFileNames.front(), EC, sys::fs::F_None);
+  raw_fd_ostream OutputFile(OutputFileNames.front(), EC, sys::fs::OF_None);
 
   if (EC) {
     errs() << "error: Can't open file " << OutputFileNames.front() << ".\n";
@@ -1241,7 +1241,7 @@ static bool UnbundleFiles() {
   if (Worklist.size() == TargetNames.size()) {
     for (auto &E : Worklist) {
       std::error_code EC;
-      raw_fd_ostream OutputFile(E.second, EC, sys::fs::F_None);
+      raw_fd_ostream OutputFile(E.second, EC, sys::fs::OF_None);
       if (EC) {
         errs() << "error: Can't open file " << E.second << ": " << EC.message()
                << "\n";
@@ -1265,7 +1265,7 @@ static bool UnbundleFiles() {
   // If we still have any elements in the worklist, create empty files for them.
   for (auto &E : Worklist) {
     std::error_code EC;
-    raw_fd_ostream OutputFile(E.second, EC, sys::fs::F_None);
+    raw_fd_ostream OutputFile(E.second, EC, sys::fs::OF_None);
     if (EC) {
       errs() << "error: Can't open file " << E.second << ": " << EC.message()
              << "\n";

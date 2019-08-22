@@ -116,8 +116,8 @@ public:
 
   bool forAllRanges(const SourceManager &SM,
                     llvm::function_ref<void(SourceRange R)> Callback) override {
-    const FileEntry *FE = SM.getFileManager().getFile(Range.FileName);
-    FileID FID = FE ? SM.translateFile(FE) : FileID();
+    auto FE = SM.getFileManager().getFile(Range.FileName);
+    FileID FID = FE ? SM.translateFile(*FE) : FileID();
     if (!FE || FID.isInvalid()) {
       llvm::errs() << "error: -selection=" << Range.FileName
                    << ":... : given file is not in the target TU\n";
@@ -497,7 +497,7 @@ public:
 
       if (opts::Inplace) {
         std::error_code EC;
-        llvm::raw_fd_ostream OS(File, EC, llvm::sys::fs::F_Text);
+        llvm::raw_fd_ostream OS(File, EC, llvm::sys::fs::OF_Text);
         if (EC) {
           llvm::errs() << EC.message() << "\n";
           return true;
