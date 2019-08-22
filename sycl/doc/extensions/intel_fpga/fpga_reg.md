@@ -1,6 +1,6 @@
 # FPGA reg
 
-Intel FPGA extension fpga_reg() is implemented in header file
+Intel FPGA extension `fpga_reg()` is implemented in header file
 `#include <CL/sycl/intel/fpga_extensions.hpp>`.
 
 fpga_reg is used to help compiler infer that at least one register is on the corresponding data path.

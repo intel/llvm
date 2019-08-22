@@ -14,7 +14,7 @@ namespace cl {
 namespace sycl {
 namespace intel {
 
-class platform_selector : public default_selector {
+class platform_selector : public device_selector {
 private:
   std::string device_platform_name;
 
