@@ -24,6 +24,7 @@ _PI_API(piDevicePartition)
 _PI_API(piDeviceRetain)
 _PI_API(piDeviceRelease)
 _PI_API(piextDeviceSelectBinary)
+_PI_API(piextGetDeviceFunctionPointer)
 // Context
 _PI_API(piContextCreate)
 _PI_API(piContextGetInfo)

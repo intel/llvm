@@ -409,6 +409,20 @@ pi_result piextDeviceSelectBinary(
   pi_uint32           num_binaries,
   pi_device_binary *  selected_binary);
 
+/// Retrieves a device function pointer to a user-defined function
+/// \arg \c function_name. \arg \c function_pointer_ret is set to 0 if query
+/// failed.
+///
+/// \arg \c program must be built before calling this API. \arg \c device
+/// must present in the list of devices returned by \c get_device method for
+/// \arg \c program.
+///
+pi_result piextGetDeviceFunctionPointer(
+  pi_device        device,
+  pi_program       program,
+  const char *     function_name,
+  pi_uint64 *      function_pointer_ret);
+
 //
 // Context
 //
