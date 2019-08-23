@@ -276,9 +276,8 @@ MemoryBufferRef LazyArchive::getMemberBuffer() {
 uint8_t Symbol::computeBinding() const {
   if (config->relocatable)
     return binding;
-  if (visibility != STV_DEFAULT && visibility != STV_PROTECTED)
-    return STB_LOCAL;
-  if (versionId == VER_NDX_LOCAL && isDefined() && !isPreemptible)
+  if ((visibility != STV_DEFAULT && visibility != STV_PROTECTED) ||
+      versionId == VER_NDX_LOCAL)
     return STB_LOCAL;
   if (!config->gnuUnique && binding == STB_GNU_UNIQUE)
     return STB_GLOBAL;
@@ -296,7 +295,7 @@ bool Symbol::includeInDynsym() const {
   if (isUndefWeak() && config->pie && sharedFiles.empty())
     return false;
 
-  return isUndefined() || isShared() || exportDynamic;
+  return isUndefined() || isShared() || exportDynamic || inDynamicList;
 }
 
 // Print out a log message for --trace-symbol.

@@ -6568,19 +6568,33 @@ static bool shouldTrackImplicitObjectArg(const CXXMethodDecl *Callee) {
   if (auto *Conv = dyn_cast_or_null<CXXConversionDecl>(Callee))
     if (isRecordWithAttr<PointerAttr>(Conv->getConversionType()))
       return true;
-  if (!Callee->getParent()->isInStdNamespace() || !Callee->getIdentifier())
+  if (!Callee->getParent()->isInStdNamespace())
     return false;
   if (!isRecordWithAttr<PointerAttr>(Callee->getThisObjectType()) &&
       !isRecordWithAttr<OwnerAttr>(Callee->getThisObjectType()))
     return false;
-  if (!isRecordWithAttr<PointerAttr>(Callee->getReturnType()) &&
-      !Callee->getReturnType()->isPointerType())
-    return false;
-  return llvm::StringSwitch<bool>(Callee->getName())
-      .Cases("begin", "rbegin", "cbegin", "crbegin", true)
-      .Cases("end", "rend", "cend", "crend", true)
-      .Cases("c_str", "data", "get", true)
-      .Default(false);
+  if (Callee->getReturnType()->isPointerType() ||
+      isRecordWithAttr<PointerAttr>(Callee->getReturnType())) {
+    if (!Callee->getIdentifier())
+      return false;
+    return llvm::StringSwitch<bool>(Callee->getName())
+        .Cases("begin", "rbegin", "cbegin", "crbegin", true)
+        .Cases("end", "rend", "cend", "crend", true)
+        .Cases("c_str", "data", "get", true)
+        // Map and set types.
+        .Cases("find", "equal_range", "lower_bound", "upper_bound", true)
+        .Default(false);
+  } else if (Callee->getReturnType()->isReferenceType()) {
+    if (!Callee->getIdentifier()) {
+      auto OO = Callee->getOverloadedOperator();
+      return OO == OverloadedOperatorKind::OO_Subscript ||
+             OO == OverloadedOperatorKind::OO_Star;
+    }
+    return llvm::StringSwitch<bool>(Callee->getName())
+        .Cases("front", "back", "at", true)
+        .Default(false);
+  }
+  return false;
 }
 
 static void handleGslAnnotatedTypes(IndirectLocalPath &Path, Expr *Call,
@@ -6599,6 +6613,12 @@ static void handleGslAnnotatedTypes(IndirectLocalPath &Path, Expr *Call,
     const auto *MD = cast_or_null<CXXMethodDecl>(MCE->getDirectCallee());
     if (MD && shouldTrackImplicitObjectArg(MD))
       VisitPointerArg(MD, MCE->getImplicitObjectArgument());
+    return;
+  } else if (auto *OCE = dyn_cast<CXXOperatorCallExpr>(Call)) {
+    FunctionDecl *Callee = OCE->getDirectCallee();
+    if (Callee && Callee->isCXXInstanceMember() &&
+        shouldTrackImplicitObjectArg(cast<CXXMethodDecl>(Callee)))
+      VisitPointerArg(Callee, OCE->getArg(0));
     return;
   }
 
@@ -7050,8 +7070,11 @@ static SourceRange nextPathEntryRange(const IndirectLocalPath &Path, unsigned I,
       // supporting lifetime extension.
       break;
 
-    case IndirectLocalPathEntry::DefaultInit:
     case IndirectLocalPathEntry::VarInit:
+      if (cast<VarDecl>(Path[I].D)->isImplicit())
+        return SourceRange();
+      LLVM_FALLTHROUGH;
+    case IndirectLocalPathEntry::DefaultInit:
       return Path[I].E->getSourceRange();
     }
   }
@@ -7059,8 +7082,12 @@ static SourceRange nextPathEntryRange(const IndirectLocalPath &Path, unsigned I,
 }
 
 static bool pathOnlyInitializesGslPointer(IndirectLocalPath &Path) {
-  return !Path.empty() &&
-         Path.back().Kind == IndirectLocalPathEntry::GslPointerInit;
+  for (auto It = Path.rbegin(), End = Path.rend(); It != End; ++It) {
+    if (It->Kind == IndirectLocalPathEntry::VarInit)
+      continue;
+    return It->Kind == IndirectLocalPathEntry::GslPointerInit;
+  }
+  return false;
 }
 
 void Sema::checkInitializerLifetime(const InitializedEntity &Entity,
@@ -7080,7 +7107,8 @@ void Sema::checkInitializerLifetime(const InitializedEntity &Entity,
     SourceLocation DiagLoc = DiagRange.getBegin();
 
     auto *MTE = dyn_cast<MaterializeTemporaryExpr>(L);
-    bool IsTempGslOwner = MTE && isRecordWithAttr<OwnerAttr>(MTE->getType());
+    bool IsTempGslOwner = MTE && !MTE->getExtendingDecl() &&
+                          isRecordWithAttr<OwnerAttr>(MTE->getType());
     bool IsLocalGslOwner =
         isa<DeclRefExpr>(L) && isRecordWithAttr<OwnerAttr>(L->getType());
 
@@ -7089,8 +7117,8 @@ void Sema::checkInitializerLifetime(const InitializedEntity &Entity,
     // a local or temporary owner or the address of a local variable/param. We
     // do not want to follow the references when returning a pointer originating
     // from a local owner to avoid the following false positive:
-    //   int &p = *localOwner;
-    //   someContainer.add(std::move(localOwner));
+    //   int &p = *localUniquePtr;
+    //   someContainer.add(std::move(localUniquePtr));
     //   return p;
     if (!IsTempGslOwner && pathOnlyInitializesGslPointer(Path) &&
         !(IsLocalGslOwner && !pathContainsInit(Path)))
@@ -7113,7 +7141,7 @@ void Sema::checkInitializerLifetime(const InitializedEntity &Entity,
         return false;
       }
 
-      if (IsGslPtrInitWithGslTempOwner) {
+      if (IsGslPtrInitWithGslTempOwner && DiagLoc.isValid()) {
         Diag(DiagLoc, diag::warn_dangling_lifetime_pointer) << DiagRange;
         return false;
       }
@@ -7195,6 +7223,11 @@ void Sema::checkInitializerLifetime(const InitializedEntity &Entity,
         // (there's no other way that a default initializer can refer to a
         // local). Don't produce a bogus warning on those cases.
         if (pathContainsInit(Path))
+          return false;
+
+        // Suppress false positives for code like the one below:
+        //   Ctor(unique_ptr<T> up) : member(*up), member2(move(up)) {}
+        if (IsLocalGslOwner && pathOnlyInitializesGslPointer(Path))
           return false;
 
         auto *DRE = dyn_cast<DeclRefExpr>(L);
@@ -8219,7 +8252,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
       // argument passing.
       assert(Step->Type->isSamplerT() &&
              "Sampler initialization on non-sampler type.");
-      Expr *Init = CurInit.get();
+      Expr *Init = CurInit.get()->IgnoreParens();
       QualType SourceType = Init->getType();
       // Case 1
       if (Entity.isParameterKind()) {

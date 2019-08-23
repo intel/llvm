@@ -1022,14 +1022,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
       X86FI->getCalleeSavedFrameSize() - TailCallReturnAddrDelta);
 
   bool UseStackProbe = !STI.getTargetLowering()->getStackProbeSymbolName(MF).empty();
-
-  // The default stack probe size is 4096 if the function has no stackprobesize
-  // attribute.
-  unsigned StackProbeSize = 4096;
-  if (Fn.hasFnAttribute("stack-probe-size"))
-    Fn.getFnAttribute("stack-probe-size")
-        .getValueAsString()
-        .getAsInteger(0, StackProbeSize);
+  unsigned StackProbeSize = STI.getTargetLowering()->getStackProbeSize(MF);
 
   // Re-align the stack on 64-bit if the x86-interrupt calling convention is
   // used and an error code was pushed, since the x86-64 ABI requires a 16-byte
@@ -3198,14 +3191,19 @@ void X86FrameLowering::orderFrameObjects(
     std::reverse(ObjectsToAllocate.begin(), ObjectsToAllocate.end());
 }
 
-
-unsigned X86FrameLowering::getWinEHParentFrameOffset(const MachineFunction &MF) const {
+unsigned
+X86FrameLowering::getWinEHParentFrameOffset(const MachineFunction &MF) const {
+  const X86MachineFunctionInfo *X86FI = MF.getInfo<X86MachineFunctionInfo>();
   // RDX, the parent frame pointer, is homed into 16(%rsp) in the prologue.
   unsigned Offset = 16;
   // RBP is immediately pushed.
   Offset += SlotSize;
   // All callee-saved registers are then pushed.
-  Offset += MF.getInfo<X86MachineFunctionInfo>()->getCalleeSavedFrameSize();
+  Offset += X86FI->getCalleeSavedFrameSize();
+  // Funclets allocate space for however XMM registers are required.
+  int Ignore;
+  if (MF.getTarget().getMCAsmInfo()->usesWindowsCFI())
+    Offset += X86FI->getCalleeSavedXMMFrameInfo(Ignore);
   // Every funclet allocates enough stack space for the largest outgoing call.
   Offset += getWinEHFuncletFrameSize(MF);
   return Offset;
