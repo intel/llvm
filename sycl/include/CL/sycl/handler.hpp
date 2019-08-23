@@ -159,7 +159,7 @@ class handler {
   // Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   // Type of the command group, e.g. kernel, fill.
-  detail::CG::CGTYPE MCGType;
+  detail::CG::CGTYPE MCGType = detail::CG::NONE;
   // Pointer to the source host memory or accessor(depending on command type).
   void *MSrcPtr = nullptr;
   // Pointer to the dest host memory or accessor(depends on command type).
@@ -382,6 +382,9 @@ private:
           std::move(MSharedPtrStorage), std::move(MRequirements),
           std::move(MEvents)));
       break;
+    case detail::CG::NONE:
+      throw runtime_error("Command group submitted without a kernel or a "
+                          "explicit memory operation.");
     default:
       throw runtime_error("Unhandled type of command group");
     }

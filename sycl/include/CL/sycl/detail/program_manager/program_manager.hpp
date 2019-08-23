@@ -65,7 +65,7 @@ public:
 private:
   RT::PiProgram loadProgram(OSModuleHandle M, const context &Context,
                             DeviceImage **I = nullptr);
-  void build(RT::PiProgram &Program, const string_class &Options = "",
+  void build(RT::PiProgram Program, const string_class &Options = "",
              std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());
 
   ProgramManager() = default;

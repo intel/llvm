@@ -23,3 +23,11 @@ template <typename T> T fpga_reg(const T &t) {
 } // namespace intel
 } // namespace sycl
 } // namespace cl
+
+// Keep it consistent with FPGA attributes like intelfpga::memory()
+// Currently clang does not support nested namespace for attributes
+namespace intelfpga {
+template <typename T> T fpga_reg(const T &t) {
+	return cl::sycl::intel::fpga_reg(t);
+}	
+}

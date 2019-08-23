@@ -10,16 +10,7 @@
 
 #include <CL/sycl.hpp>
 
-void foo() {
+int main() {
   cl::sycl::event start;
   start.wait_and_throw();
-  return;
-}
-
-int main() {
-  cl::sycl::queue Q;
-  Q.submit([&](cl::sycl::handler &CGH) {
-    foo();
-  });
-  return 0;
 }
