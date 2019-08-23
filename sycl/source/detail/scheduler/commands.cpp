@@ -480,6 +480,9 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
   case detail::CG::COPY_PTR_TO_ACC:
     Stream << "CG type: copy ptr to acc\\n";
     break;
+  default:
+    Stream << "CG type: unknown\\n";
+    break;
   }
 
   Stream << "\"];" << std::endl;
@@ -692,10 +695,10 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return PI_SUCCESS;
   }
+  case CG::CGTYPE::NONE:
+  default:
+    throw runtime_error("CG type not implemented.");
   }
-
-  assert(!"CG type not implemented");
-  throw runtime_error("CG type not implemented.");
 }
 
 } // namespace detail

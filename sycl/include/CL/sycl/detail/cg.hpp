@@ -319,6 +319,7 @@ class CG {
 public:
   // Type of the command group.
   enum CGTYPE {
+    NONE,
     KERNEL,
     COPY_ACC_TO_PTR,
     COPY_PTR_TO_ACC,
