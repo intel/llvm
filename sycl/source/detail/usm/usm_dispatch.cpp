@@ -347,10 +347,17 @@ void USMDispatcher::memAdvise(pi_queue Queue, const void *Ptr, size_t Length,
       PI_CHECK(clEnqueueMarkerWithWaitList(
           CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event)));
     } else {
+      // Temporary until driver supports
+      // memAdvise doesn't do anything on an iGPU anyway
+      PI_CHECK(clEnqueueMarkerWithWaitList(
+                 CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event)));
+      /*
+      // Enable once this is supported in the driver
       auto CLAdvice = *reinterpret_cast<cl_mem_advice_intel *>(&Advice);
       PI_CHECK(pfn_clEnqueueMemAdviseINTEL(
           CLQueue, Ptr, Length, CLAdvice, 0, nullptr,
           reinterpret_cast<cl_event *>(Event)));
+      */
     }
   }
 }
