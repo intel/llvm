@@ -486,7 +486,10 @@ class ObjectFileHandler final : public FileHandler {
   static bool matchSectionName(StringRef NamePrefix, SectionRef CurSection,
                                StringRef &NameSuffix) {
     StringRef SectionName;
-    CurSection.getName(SectionName);
+    if (Expected<StringRef> NameOrErr = CurSection.getName())
+      SectionName = *NameOrErr;
+    else
+      consumeError(NameOrErr.takeError());
 
     // If it does not start with given prefix, just skip this section.
     if (!SectionName.startswith(NamePrefix))

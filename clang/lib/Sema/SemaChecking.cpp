@@ -6645,7 +6645,8 @@ static void CheckFormatString(Sema &S, const FormatStringLiteral *FExpr,
                               bool inFunctionCall,
                               Sema::VariadicCallType CallType,
                               llvm::SmallBitVector &CheckedVarArgs,
-                              UncoveredArgHandler &UncoveredArg);
+                              UncoveredArgHandler &UncoveredArg,
+                              bool IgnoreStringsWithoutSpecifiers);
 
 // Determine if an expression is a string literal or constant string.
 // If this function returns false on the arguments to a function expecting a
@@ -6658,7 +6659,8 @@ checkFormatStringExpr(Sema &S, const Expr *E, ArrayRef<const Expr *> Args,
                       Sema::VariadicCallType CallType, bool InFunctionCall,
                       llvm::SmallBitVector &CheckedVarArgs,
                       UncoveredArgHandler &UncoveredArg,
-                      llvm::APSInt Offset) {
+                      llvm::APSInt Offset,
+                      bool IgnoreStringsWithoutSpecifiers = false) {
   if (S.isConstantEvaluated())
     return SLCT_NotALiteral;
  tryAgain:
@@ -6709,17 +6711,17 @@ checkFormatStringExpr(Sema &S, const Expr *E, ArrayRef<const Expr *> Args,
       Left = checkFormatStringExpr(S, C->getTrueExpr(), Args,
                                    HasVAListArg, format_idx, firstDataArg,
                                    Type, CallType, InFunctionCall,
-                                   CheckedVarArgs, UncoveredArg, Offset);
+                                   CheckedVarArgs, UncoveredArg, Offset,
+                                   IgnoreStringsWithoutSpecifiers);
       if (Left == SLCT_NotALiteral || !CheckRight) {
         return Left;
       }
     }
 
-    StringLiteralCheckType Right =
-        checkFormatStringExpr(S, C->getFalseExpr(), Args,
-                              HasVAListArg, format_idx, firstDataArg,
-                              Type, CallType, InFunctionCall, CheckedVarArgs,
-                              UncoveredArg, Offset);
+    StringLiteralCheckType Right = checkFormatStringExpr(
+        S, C->getFalseExpr(), Args, HasVAListArg, format_idx, firstDataArg,
+        Type, CallType, InFunctionCall, CheckedVarArgs, UncoveredArg, Offset,
+        IgnoreStringsWithoutSpecifiers);
 
     return (CheckLeft && Left < Right) ? Left : Right;
   }
@@ -6823,7 +6825,8 @@ checkFormatStringExpr(Sema &S, const Expr *E, ArrayRef<const Expr *> Args,
         const Expr *Arg = CE->getArg(FA->getFormatIdx().getASTIndex());
         StringLiteralCheckType Result = checkFormatStringExpr(
             S, Arg, Args, HasVAListArg, format_idx, firstDataArg, Type,
-            CallType, InFunctionCall, CheckedVarArgs, UncoveredArg, Offset);
+            CallType, InFunctionCall, CheckedVarArgs, UncoveredArg, Offset,
+            IgnoreStringsWithoutSpecifiers);
         if (IsFirst) {
           CommonResult = Result;
           IsFirst = false;
@@ -6841,7 +6844,8 @@ checkFormatStringExpr(Sema &S, const Expr *E, ArrayRef<const Expr *> Args,
                                        HasVAListArg, format_idx,
                                        firstDataArg, Type, CallType,
                                        InFunctionCall, CheckedVarArgs,
-                                       UncoveredArg, Offset);
+                                       UncoveredArg, Offset,
+                                       IgnoreStringsWithoutSpecifiers);
         }
       }
     }
@@ -6850,12 +6854,28 @@ checkFormatStringExpr(Sema &S, const Expr *E, ArrayRef<const Expr *> Args,
   }
   case Stmt::ObjCMessageExprClass: {
     const auto *ME = cast<ObjCMessageExpr>(E);
-    if (const auto *ND = ME->getMethodDecl()) {
-      if (const auto *FA = ND->getAttr<FormatArgAttr>()) {
+    if (const auto *MD = ME->getMethodDecl()) {
+      if (const auto *FA = MD->getAttr<FormatArgAttr>()) {
+        // As a special case heuristic, if we're using the method -[NSBundle
+        // localizedStringForKey:value:table:], ignore any key strings that lack
+        // format specifiers. The idea is that if the key doesn't have any
+        // format specifiers then its probably just a key to map to the
+        // localized strings. If it does have format specifiers though, then its
+        // likely that the text of the key is the format string in the
+        // programmer's language, and should be checked.
+        const ObjCInterfaceDecl *IFace;
+        if (MD->isInstanceMethod() && (IFace = MD->getClassInterface()) &&
+            IFace->getIdentifier()->isStr("NSBundle") &&
+            MD->getSelector().isKeywordSelector(
+                {"localizedStringForKey", "value", "table"})) {
+          IgnoreStringsWithoutSpecifiers = true;
+        }
+
         const Expr *Arg = ME->getArg(FA->getFormatIdx().getASTIndex());
         return checkFormatStringExpr(
             S, Arg, Args, HasVAListArg, format_idx, firstDataArg, Type,
-            CallType, InFunctionCall, CheckedVarArgs, UncoveredArg, Offset);
+            CallType, InFunctionCall, CheckedVarArgs, UncoveredArg, Offset,
+            IgnoreStringsWithoutSpecifiers);
       }
     }
 
@@ -6879,7 +6899,8 @@ checkFormatStringExpr(Sema &S, const Expr *E, ArrayRef<const Expr *> Args,
       FormatStringLiteral FStr(StrE, Offset.sextOrTrunc(64).getSExtValue());
       CheckFormatString(S, &FStr, E, Args, HasVAListArg, format_idx,
                         firstDataArg, Type, InFunctionCall, CallType,
-                        CheckedVarArgs, UncoveredArg);
+                        CheckedVarArgs, UncoveredArg,
+                        IgnoreStringsWithoutSpecifiers);
       return SLCT_CheckedLiteral;
     }
 
@@ -8570,7 +8591,8 @@ static void CheckFormatString(Sema &S, const FormatStringLiteral *FExpr,
                               bool inFunctionCall,
                               Sema::VariadicCallType CallType,
                               llvm::SmallBitVector &CheckedVarArgs,
-                              UncoveredArgHandler &UncoveredArg) {
+                              UncoveredArgHandler &UncoveredArg,
+                              bool IgnoreStringsWithoutSpecifiers) {
   // CHECK: is the format string a wide literal?
   if (!FExpr->isAscii() && !FExpr->isUTF8()) {
     CheckFormatHandler::EmitFormatDiagnostic(
@@ -8590,6 +8612,11 @@ static void CheckFormatString(Sema &S, const FormatStringLiteral *FExpr,
   size_t TypeSize = T->getSize().getZExtValue();
   size_t StrLen = std::min(std::max(TypeSize, size_t(1)) - 1, StrRef.size());
   const unsigned numDataArgs = Args.size() - firstDataArg;
+
+  if (IgnoreStringsWithoutSpecifiers &&
+      !analyze_format_string::parseFormatStringHasFormattingSpecifiers(
+          Str, Str + StrLen, S.getLangOpts(), S.Context.getTargetInfo()))
+    return;
 
   // Emit a warning if the string literal is truncated and does not contain an
   // embedded null character.
