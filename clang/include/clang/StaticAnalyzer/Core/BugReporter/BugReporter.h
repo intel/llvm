@@ -105,6 +105,7 @@ protected:
 
   const ExplodedNode *ErrorNode = nullptr;
   SmallVector<SourceRange, 4> Ranges;
+  const SourceRange ErrorNodeRange;
   ExtraTextList ExtraText;
   NoteList Notes;
 
@@ -155,16 +156,22 @@ protected:
   llvm::SmallSet<const ExplodedNode *, 4> TrackedConditions;
 
 public:
-  BugReport(const BugType& bt, StringRef desc, const ExplodedNode *errornode)
-      : BT(bt), Description(desc), ErrorNode(errornode) {}
+  BugReport(const BugType &bt, StringRef desc, const ExplodedNode *errornode)
+      : BT(bt), Description(desc), ErrorNode(errornode),
+        ErrorNodeRange(getStmt() ? getStmt()->getSourceRange()
+                                 : SourceRange()) {}
 
-  BugReport(const BugType& bt, StringRef shortDesc, StringRef desc,
+  BugReport(const BugType &bt, StringRef shortDesc, StringRef desc,
             const ExplodedNode *errornode)
       : BT(bt), ShortDescription(shortDesc), Description(desc),
-        ErrorNode(errornode) {}
+        ErrorNode(errornode),
+        ErrorNodeRange(getStmt() ? getStmt()->getSourceRange()
+                                 : SourceRange()) {}
 
   BugReport(const BugType &bt, StringRef desc, PathDiagnosticLocation l)
-      : BT(bt), Description(desc), Location(l) {}
+      : BT(bt), Description(desc), Location(l),
+        ErrorNodeRange(getStmt() ? getStmt()->getSourceRange()
+                                 : SourceRange()) {}
 
   /// Create a BugReport with a custom uniqueing location.
   ///
@@ -217,10 +224,10 @@ public:
   void markInteresting(SVal V);
   void markInteresting(const LocationContext *LC);
 
-  bool isInteresting(SymbolRef sym);
-  bool isInteresting(const MemRegion *R);
-  bool isInteresting(SVal V);
-  bool isInteresting(const LocationContext *LC);
+  bool isInteresting(SymbolRef sym) const;
+  bool isInteresting(const MemRegion *R) const;
+  bool isInteresting(SVal V) const;
+  bool isInteresting(const LocationContext *LC) const;
 
   /// Returns whether or not this report should be considered valid.
   ///
@@ -323,7 +330,7 @@ public:
   }
 
   /// Get the SourceRanges associated with the report.
-  virtual llvm::iterator_range<ranges_iterator> getRanges();
+  virtual llvm::iterator_range<ranges_iterator> getRanges() const;
 
   /// Add custom or predefined bug report visitors to this report.
   ///
@@ -469,9 +476,9 @@ public:
 
   ASTContext &getContext() { return D.getASTContext(); }
 
-  SourceManager &getSourceManager() { return D.getSourceManager(); }
+  const SourceManager &getSourceManager() { return D.getSourceManager(); }
 
-  AnalyzerOptions &getAnalyzerOptions() { return D.getAnalyzerOptions(); }
+  const AnalyzerOptions &getAnalyzerOptions() { return D.getAnalyzerOptions(); }
 
   virtual std::unique_ptr<DiagnosticForConsumerMapTy>
   generatePathDiagnostics(ArrayRef<PathDiagnosticConsumer *> consumers,
@@ -515,15 +522,17 @@ public:
   GRBugReporter(BugReporterData& d, ExprEngine& eng)
       : BugReporter(d, GRBugReporterKind), Eng(eng) {}
 
-  ~GRBugReporter() override = default;;
+  ~GRBugReporter() override = default;
 
   /// getGraph - Get the exploded graph created by the analysis engine
   ///  for the analyzed method or function.
-  ExplodedGraph &getGraph();
+  const ExplodedGraph &getGraph() const;
 
   /// getStateManager - Return the state manager used by the analysis
   ///  engine.
   ProgramStateManager &getStateManager();
+
+  ProgramStateManager &getStateManager() const;
 
   /// \p bugReports A set of bug reports within a *single* equivalence class
   ///
@@ -566,25 +575,25 @@ public:
 
   GRBugReporter& getBugReporter() { return BR; }
 
-  ExplodedGraph &getGraph() { return BR.getGraph(); }
+  const ExplodedGraph &getGraph() const { return BR.getGraph(); }
 
-  ProgramStateManager& getStateManager() {
+  ProgramStateManager& getStateManager() const {
     return BR.getStateManager();
   }
 
-  SValBuilder &getSValBuilder() {
+  SValBuilder &getSValBuilder() const {
     return getStateManager().getSValBuilder();
   }
 
-  ASTContext &getASTContext() {
+  ASTContext &getASTContext() const {
     return BR.getContext();
   }
 
-  SourceManager& getSourceManager() {
+  const SourceManager& getSourceManager() const {
     return BR.getSourceManager();
   }
 
-  AnalyzerOptions &getAnalyzerOptions() {
+  const AnalyzerOptions &getAnalyzerOptions() const {
     return BR.getAnalyzerOptions();
   }
 
