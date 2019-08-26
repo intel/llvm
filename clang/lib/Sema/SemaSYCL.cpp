@@ -209,9 +209,12 @@ public:
         SemaRef.Diag(E->getExprLoc(), diag::err_sycl_restrict)
             << Sema::KernelNonConstStaticDataVariable;
       else if (!IsConst && VD->hasGlobalStorage() && !VD->isStaticLocal() &&
-          !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD))
+          !VD->isStaticDataMember() && !isa<ParmVarDecl>(VD)) {
+        if (VD->getTLSKind() != VarDecl::TLS_None)
+          SemaRef.Diag(E->getLocation(), diag::err_thread_unsupported);
         SemaRef.Diag(E->getLocation(), diag::err_sycl_restrict)
             << Sema::KernelGlobalVariable;
+      }
       if (!VD->isLocalVarDeclOrParm() && VD->hasGlobalStorage()) {
         VD->addAttr(SYCLDeviceAttr::CreateImplicit(SemaRef.Context));
         SemaRef.addSyclDeviceDecl(VD);
