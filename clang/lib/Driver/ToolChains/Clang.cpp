@@ -6650,7 +6650,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
   if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
-    TranslatorArgs.push_back("-spirv-max-version=1.0");
+    TranslatorArgs.push_back("-spirv-max-version=1.1");
     TranslatorArgs.push_back("-spirv-ext=+all");
   }
   for (auto I : Inputs) {
