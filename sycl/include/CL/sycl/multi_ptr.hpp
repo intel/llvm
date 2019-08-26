@@ -70,21 +70,9 @@ public:
     return *this;
   }
 
-#ifdef __SYCL_ENABLE_INFER_AS__
-  using ReturnPtr =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                pointer_t, ElementType *>::type;
-  using ReturnRef =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                reference_t, ElementType &>::type;
-  using ReturnConstRef =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                const_reference_t, const ElementType &>::type;
-#else
   using ReturnPtr = ElementType *;
   using ReturnRef = ElementType &;
   using ReturnConstRef = const ElementType &;
-#endif
 
   ReturnRef operator*() const {
     return *reinterpret_cast<ReturnPtr>(m_Pointer);
