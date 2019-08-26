@@ -103,12 +103,12 @@ static void foreachKernelArgMD(
 LLVMToSPIRV::LLVMToSPIRV(SPIRVModule *SMod)
     : ModulePass(ID), M(nullptr), Ctx(nullptr), BM(SMod), SrcLang(0),
       SrcLangVer(0) {
-  DbgTran = make_unique<LLVMToSPIRVDbgTran>(nullptr, SMod, this);
+  DbgTran = std::make_unique<LLVMToSPIRVDbgTran>(nullptr, SMod, this);
 }
 
 bool LLVMToSPIRV::runOnModule(Module &Mod) {
   M = &Mod;
-  CG = make_unique<CallGraph>(Mod);
+  CG = std::make_unique<CallGraph>(Mod);
   Ctx = &M->getContext();
   DbgTran->setModule(M);
   assert(BM && "SPIR-V module not initialized");

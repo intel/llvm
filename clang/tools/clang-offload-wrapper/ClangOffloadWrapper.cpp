@@ -257,7 +257,7 @@ public:
     std::unique_ptr<SameKindPack> &Pack = Packs[Kind];
     if (!Pack)
       Pack.reset(new SameKindPack());
-    Pack->emplace_back(llvm::make_unique<Image>(File, Manif, Tgt, Fmt, Opts));
+    Pack->emplace_back(std::make_unique<Image>(File, Manif, Tgt, Fmt, Opts));
   }
 
 private:
