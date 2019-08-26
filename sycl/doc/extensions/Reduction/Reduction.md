@@ -86,7 +86,7 @@ queue.submit([&](handler& cgh)
 
 # Reductions using USM Pointers
 
-Unlike a buffer, a [USM pointer](https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions/usm) does not carry information describing the extent of the memory it points to; there is no way to distinguish between a scalar in device memory and an array.  This proposal assumes that the majority of reductions are scalar, and that a pointer passed to a reduction should therefore always be interpreted as a reduction of a single element.  The user must explicitly request an array reduction by passing a `span` denoting the memory region to include in the reduction.
+Unlike a buffer, a [USM pointer](https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions/USM) does not carry information describing the extent of the memory it points to; there is no way to distinguish between a scalar in device memory and an array.  This proposal assumes that the majority of reductions are scalar, and that a pointer passed to a reduction should therefore always be interpreted as a reduction of a single element.  The user must explicitly request an array reduction by passing a `span` denoting the memory region to include in the reduction.
 
 ## Example
 
