@@ -515,11 +515,11 @@ compiler:
 
 ## Supported extensions
 
-- [Intel subgroups](extensions/sub_group_ndrange/sub_group_ndrange.md)
+- [Intel subgroups](extensions/SubGroupNDRange/SubGroupNDRange.md)
 
 ## Unsupported extensions/proposals
 
-- [Ordered queue](extensions/ordered_queue/ordered_queue.adoc)
-- [Unified shared memory](extensions/usm/usm.adoc)
+- [Ordered queue](extensions/OrderedQueue/OrderedQueue.adoc)
+- [Unified shared memory](extensions/USM/USM.adoc)
 
 \*Other names and brands may be claimed as the property of others.
