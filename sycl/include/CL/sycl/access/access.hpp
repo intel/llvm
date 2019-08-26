@@ -127,7 +127,7 @@ struct PtrValueType<ElementType, access::address_space::global_space> {
 
 template <typename ElementType>
 struct PtrValueType<ElementType, access::address_space::constant_space> {
-  using type = SYCL_CONSTANT_AS ElementType;
+  using type = SYCL_GLOBAL_AS ElementType;
 };
 
 template <typename ElementType>
