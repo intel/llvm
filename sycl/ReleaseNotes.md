@@ -8,7 +8,7 @@ Release notes for commit c557eb740d55e828fcf74b28d2b686c928e45318.
   specifying "Kernel Name" type. This can be enabled by passing
   `-fsycl-unnamed-lambda` option.
 - Kernel to kernel blocking and non-blocking pipe feature is implemented.
-- Added support for Unified Shared Memory ([USM](doc/extensions/usm)).
+- Added support for Unified Shared Memory ([USM](doc/extensions/USM)).
 
 ## Improvements
 - Now OpenCL 1.2 clCreateSampler sampler is used for all version of OpenCL
