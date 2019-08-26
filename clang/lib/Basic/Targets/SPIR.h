@@ -164,10 +164,6 @@ public:
     // to parse host code. So we allow compilation of exception_ptr but
     // if exceptions are used in device code we should emit a diagnostic.
     MaxAtomicInlineWidth = 32;
-    // This is workaround for mutex class.
-    // I'm not sure about this hack but I guess that mutex_class is same
-    // problem.
-    TLSSupported = true;
   }
 };
 
@@ -182,10 +178,6 @@ public:
     // to parse host code. So we allow compilation of exception_ptr but
     // if exceptions are used in device code we should emit a diagnostic.
     MaxAtomicInlineWidth = 64;
-    // This is workaround for mutex class.
-    // I'm not sure about this hack but I guess that mutex_class is same
-    // problem.
-    TLSSupported = true;
   }
 };
 

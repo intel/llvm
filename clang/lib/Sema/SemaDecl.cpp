@@ -6729,6 +6729,14 @@ NamedDecl *Sema::ActOnVariableDeclarator(
         // proper storage class for other tools to use even if we're not going
         // to emit any code for it.
         NewVD->setTSCSpec(TSCS);
+      } else if (getLangOpts().SYCLIsDevice) {
+        // While SYCL does not support TLS, emitting the diagnostic here
+        // prevents the compilation of header files with TLS declarations.
+        // When TLS objects are used in kernel code, they are diagnosed.
+        // We still need to mark the variable as TLS so it shows up in AST with
+        // proper storage class for other tools to use even if we're not going
+        // to emit any code for it.
+        NewVD->setTSCSpec(TSCS);
       } else
         Diag(D.getDeclSpec().getThreadStorageClassSpecLoc(),
              diag::err_thread_unsupported);
