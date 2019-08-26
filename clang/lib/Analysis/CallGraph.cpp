@@ -94,6 +94,8 @@ public:
     CXXConstructorDecl *Ctor = E->getConstructor();
     if (FunctionDecl *Def = Ctor->getDefinition())
       addCalledDecl(Def);
+    // TODO: resolve issues raised in review with llorg. See
+    // https://reviews.llvm.org/D65453?vs=on&id=212351&whitespace=ignore-most#1632207
     const auto *ConstructedType = Ctor->getParent();
     if (ConstructedType->hasUserDeclaredDestructor()) {
       CXXDestructorDecl *Dtor = ConstructedType->getDestructor();
