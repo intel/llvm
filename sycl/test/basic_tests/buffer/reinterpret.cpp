@@ -81,5 +81,116 @@ int main() {
               << std::endl;
   }
 
+  // subbuffer reinterpret
+  // 1d int -> char
+  {
+    std::size_t size = 12, offset = 4;
+    std::vector<int> data(size + offset, 8);
+    std::vector<int> expected_data(size + offset, 8);
+    char *ptr = reinterpret_cast<char *>(&expected_data[offset]);
+    for (int i = 0; i < size * sizeof(int); ++i) {
+      *(ptr + i) = 13;
+    }
+    {
+      cl::sycl::range<1> rng(size + offset);
+      cl::sycl::buffer<int, 1> buffer_1(data.data(), rng);
+      cl::sycl::buffer<int, 1> subbuffer_1(buffer_1, cl::sycl::id<1>(offset),
+                                           cl::sycl::range<1>(size));
+      cl::sycl::buffer<char, 1> reinterpret_subbuffer(
+          subbuffer_1.reinterpret<char, 1>(
+              cl::sycl::range<1>(subbuffer_1.get_size())));
+
+      cl::sycl::queue cmd_queue;
+
+      cmd_queue.submit([&](cl::sycl::handler &cgh) {
+        auto rb_acc = reinterpret_subbuffer
+                          .get_access<cl::sycl::access::mode::read_write>(cgh);
+        cgh.parallel_for<class foo_1>(
+            cl::sycl::range<1>(reinterpret_subbuffer.get_count()),
+            [=](cl::sycl::id<1> index) { rb_acc[index] = 13; });
+      });
+    }
+
+    for (std::size_t i = 0; i < size + offset; ++i) {
+      assert(data[i] == expected_data[i]);
+    }
+  }
+
+  // 1d char -> int
+  {
+    std::size_t size = 12, offset = 4;
+    std::vector<char> data(size + offset, 8);
+    std::vector<char> expected_data(size + offset, 8);
+    for (std::size_t i = offset; i < size + offset; ++i) {
+      expected_data[i] = i % sizeof(int) == 0 ? 1 : 0;
+    }
+
+    {
+      cl::sycl::range<1> rng(size + offset);
+      cl::sycl::buffer<char, 1> buffer_1(data.data(), rng);
+      cl::sycl::buffer<char, 1> subbuffer_1(buffer_1, cl::sycl::id<1>(offset),
+                                            cl::sycl::range<1>(size));
+      cl::sycl::buffer<int, 1> reinterpret_subbuffer =
+          subbuffer_1.reinterpret<int, 1>(
+              cl::sycl::range<1>(subbuffer_1.get_size() / sizeof(int)));
+
+      cl::sycl::queue cmd_queue;
+      cmd_queue.submit([&](cl::sycl::handler &cgh) {
+        auto rb_acc = reinterpret_subbuffer
+                          .get_access<cl::sycl::access::mode::read_write>(cgh);
+        cgh.parallel_for<class foo_2>(
+            cl::sycl::range<1>(reinterpret_subbuffer.get_count()),
+            [=](cl::sycl::id<1> index) { rb_acc[index] = 1; });
+      });
+    }
+
+    for (std::size_t i = 0; i < size + offset; ++i) {
+      assert(data[i] == expected_data[i]);
+    }
+  }
+
+  // reinterpret 2D buffer to 1D buffer (same data type)
+  // create subbuffer from 1D buffer with an offset
+  // reinterpret subbuffer as 1D buffer of different data type
+  {
+    std::size_t size = 4, offset = 2, total_size = size + offset;
+    cl::sycl::range<2> rng(total_size, total_size);
+
+    std::vector<int> data(total_size * total_size, 8);
+    std::vector<int> expected_data(total_size * total_size, 8);
+    std::fill(expected_data.begin() + offset, expected_data.end(), 8);
+    char *ptr =
+        reinterpret_cast<char *>(&expected_data[offset * total_size + offset]);
+    for (int i = 0; i < size * sizeof(int); ++i) {
+      *(ptr + i) = 13;
+    }
+
+    {
+      cl::sycl::buffer<int, 2> buffer_2d(data.data(), rng);
+      cl::sycl::buffer<int, 1> buffer_1d = buffer_2d.reinterpret<int, 1>(
+          cl::sycl::range<1>(buffer_2d.get_count()));
+      // let's make an offset like for 2d buffer {offset, offset}
+      // with a range = size elements
+      cl::sycl::buffer<int, 1> subbuffer_1d(
+          buffer_1d, cl::sycl::id<1>(offset * total_size + offset),
+          cl::sycl::range<1>(size));
+
+      cl::sycl::buffer<char, 1> reinterpret_subbuf =
+          subbuffer_1d.reinterpret<char, 1>(subbuffer_1d.get_size());
+
+      cl::sycl::queue cmd_queue;
+      cmd_queue.submit([&](cl::sycl::handler &cgh) {
+        auto rb_acc =
+            reinterpret_subbuf.get_access<cl::sycl::access::mode::write>(cgh);
+        cgh.parallel_for<class foo_3>(
+            reinterpret_subbuf.get_range(),
+            [=](cl::sycl::id<1> index) { rb_acc[index] = 13; });
+      });
+    }
+
+    for (std::size_t i = 0; i < total_size; ++i)
+      for (std::size_t j = 0; j < total_size; ++j)
+        assert(data[i * total_size + j] == expected_data[i * total_size + j]);
+  }
   return failed;
 }
