@@ -142,11 +142,6 @@ void foo() {
 // CHECK-NEXT: store i32 addrspace(4)* %[[V_AP3]], i32 addrspace(4)** %bp, align 8, !tbaa !5
 }
 
-// CHECK: declare i32 @llvm.annotation.i32(i32, i8*, i8*, i32) #4
-// CHECK: declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture writeonly, i8* nocapture readonly, i64, i1 immarg) #1
-// CHECK: declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32) #4
-// CHECK: declare i64 @llvm.annotation.i64(i64, i8*, i8*, i32) #4
-
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
