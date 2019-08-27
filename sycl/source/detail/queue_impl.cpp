@@ -59,6 +59,18 @@ event queue_impl::memcpy(void *Dest, const void *Src, size_t Count) {
 
   return event(Event, Context);
 }
+
+event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
+  context Context = get_context();
+  std::shared_ptr<usm::USMDispatcher> USMDispatch =
+    getSyclObjImpl(Context)->getUSMDispatch();
+  cl_event Event;
+
+  USMDispatch->memAdvise(getHandleRef(), Ptr, Length, Advice,
+                         reinterpret_cast<pi_event *>(&Event));
+
+  return event(Event, Context);
+}
 } // namespace detail
 } // namespace sycl
 } // namespace cl
