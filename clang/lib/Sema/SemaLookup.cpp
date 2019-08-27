@@ -686,8 +686,8 @@ LLVM_DUMP_METHOD void LookupResult::dump() {
 ///        of (vector sizes) x (types) .
 static void GetQualTypesForOpenCLBuiltin(
     ASTContext &Context, const OpenCLBuiltinStruct &OpenCLBuiltin,
-    unsigned &GenTypeMaxCnt, std::vector<QualType> &RetTypes,
-    SmallVector<std::vector<QualType>, 5> &ArgTypes) {
+    unsigned &GenTypeMaxCnt, SmallVector<QualType, 1> &RetTypes,
+    SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes) {
   // Get the QualType instances of the return types.
   unsigned Sig = SignatureTable[OpenCLBuiltin.SigTableIndex];
   OCL2Qual(Context, TypeTable[Sig], RetTypes);
@@ -696,11 +696,11 @@ static void GetQualTypesForOpenCLBuiltin(
   // Get the QualType instances of the arguments.
   // First type is the return type, skip it.
   for (unsigned Index = 1; Index < OpenCLBuiltin.NumTypes; Index++) {
-    std::vector<QualType> Ty;
+    SmallVector<QualType, 1> Ty;
     OCL2Qual(Context,
         TypeTable[SignatureTable[OpenCLBuiltin.SigTableIndex + Index]], Ty);
-    ArgTypes.push_back(Ty);
     GenTypeMaxCnt = (Ty.size() > GenTypeMaxCnt) ? Ty.size() : GenTypeMaxCnt;
+    ArgTypes.push_back(std::move(Ty));
   }
 }
 
@@ -713,11 +713,10 @@ static void GetQualTypesForOpenCLBuiltin(
 /// \param FunctionList (out) List of FunctionTypes.
 /// \param RetTypes (in) List of the possible return types.
 /// \param ArgTypes (in) List of the possible types for the arguments.
-static void
-GetOpenCLBuiltinFctOverloads(ASTContext &Context, unsigned GenTypeMaxCnt,
-                             std::vector<QualType> &FunctionList,
-                             std::vector<QualType> &RetTypes,
-                             SmallVector<std::vector<QualType>, 5> &ArgTypes) {
+static void GetOpenCLBuiltinFctOverloads(
+    ASTContext &Context, unsigned GenTypeMaxCnt,
+    std::vector<QualType> &FunctionList, SmallVector<QualType, 1> &RetTypes,
+    SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes) {
   FunctionProtoType::ExtProtoInfo PI;
   PI.Variadic = false;
 
@@ -765,8 +764,8 @@ static void InsertOCLBuiltinDeclarationsFromTable(Sema &S, LookupResult &LR,
         BuiltinTable[FctIndex + SignatureIndex];
     ASTContext &Context = S.Context;
 
-    std::vector<QualType> RetTypes;
-    SmallVector<std::vector<QualType>, 5> ArgTypes;
+    SmallVector<QualType, 1> RetTypes;
+    SmallVector<SmallVector<QualType, 1>, 5> ArgTypes;
 
     // Obtain QualType lists for the function signature.
     GetQualTypesForOpenCLBuiltin(Context, OpenCLBuiltin, GenTypeMaxCnt,
@@ -3089,8 +3088,11 @@ Sema::SpecialMemberOverloadResult Sema::LookupSpecialMember(CXXRecordDecl *RD,
   SpecialMemberCache.InsertNode(Result, InsertPoint);
 
   if (SM == CXXDestructor) {
-    if (RD->needsImplicitDestructor())
-      DeclareImplicitDestructor(RD);
+    if (RD->needsImplicitDestructor()) {
+      runWithSufficientStackSpace(RD->getLocation(), [&] {
+        DeclareImplicitDestructor(RD);
+      });
+    }
     CXXDestructorDecl *DD = RD->getDestructor();
     assert(DD && "record without a destructor");
     Result->setMethod(DD);
@@ -3113,21 +3115,36 @@ Sema::SpecialMemberOverloadResult Sema::LookupSpecialMember(CXXRecordDecl *RD,
   if (SM == CXXDefaultConstructor) {
     Name = Context.DeclarationNames.getCXXConstructorName(CanTy);
     NumArgs = 0;
-    if (RD->needsImplicitDefaultConstructor())
-      DeclareImplicitDefaultConstructor(RD);
+    if (RD->needsImplicitDefaultConstructor()) {
+      runWithSufficientStackSpace(RD->getLocation(), [&] {
+        DeclareImplicitDefaultConstructor(RD);
+      });
+    }
   } else {
     if (SM == CXXCopyConstructor || SM == CXXMoveConstructor) {
       Name = Context.DeclarationNames.getCXXConstructorName(CanTy);
-      if (RD->needsImplicitCopyConstructor())
-        DeclareImplicitCopyConstructor(RD);
-      if (getLangOpts().CPlusPlus11 && RD->needsImplicitMoveConstructor())
-        DeclareImplicitMoveConstructor(RD);
+      if (RD->needsImplicitCopyConstructor()) {
+        runWithSufficientStackSpace(RD->getLocation(), [&] {
+          DeclareImplicitCopyConstructor(RD);
+        });
+      }
+      if (getLangOpts().CPlusPlus11 && RD->needsImplicitMoveConstructor()) {
+        runWithSufficientStackSpace(RD->getLocation(), [&] {
+          DeclareImplicitMoveConstructor(RD);
+        });
+      }
     } else {
       Name = Context.DeclarationNames.getCXXOperatorName(OO_Equal);
-      if (RD->needsImplicitCopyAssignment())
-        DeclareImplicitCopyAssignment(RD);
-      if (getLangOpts().CPlusPlus11 && RD->needsImplicitMoveAssignment())
-        DeclareImplicitMoveAssignment(RD);
+      if (RD->needsImplicitCopyAssignment()) {
+        runWithSufficientStackSpace(RD->getLocation(), [&] {
+          DeclareImplicitCopyAssignment(RD);
+        });
+      }
+      if (getLangOpts().CPlusPlus11 && RD->needsImplicitMoveAssignment()) {
+        runWithSufficientStackSpace(RD->getLocation(), [&] {
+          DeclareImplicitMoveAssignment(RD);
+        });
+      }
     }
 
     if (ConstArg)
@@ -3284,12 +3301,14 @@ CXXConstructorDecl *Sema::LookupMovingConstructor(CXXRecordDecl *Class,
 DeclContext::lookup_result Sema::LookupConstructors(CXXRecordDecl *Class) {
   // If the implicit constructors have not yet been declared, do so now.
   if (CanDeclareSpecialMemberFunction(Class)) {
-    if (Class->needsImplicitDefaultConstructor())
-      DeclareImplicitDefaultConstructor(Class);
-    if (Class->needsImplicitCopyConstructor())
-      DeclareImplicitCopyConstructor(Class);
-    if (getLangOpts().CPlusPlus11 && Class->needsImplicitMoveConstructor())
-      DeclareImplicitMoveConstructor(Class);
+    runWithSufficientStackSpace(Class->getLocation(), [&] {
+      if (Class->needsImplicitDefaultConstructor())
+        DeclareImplicitDefaultConstructor(Class);
+      if (Class->needsImplicitCopyConstructor())
+        DeclareImplicitCopyConstructor(Class);
+      if (getLangOpts().CPlusPlus11 && Class->needsImplicitMoveConstructor())
+        DeclareImplicitMoveConstructor(Class);
+    });
   }
 
   CanQualType T = Context.getCanonicalType(Context.getTypeDeclType(Class));

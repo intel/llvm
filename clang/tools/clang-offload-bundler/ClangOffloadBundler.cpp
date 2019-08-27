@@ -34,8 +34,9 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
-#include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Signals.h"
+#include "llvm/Support/StringSaver.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -100,11 +101,6 @@ static cl::opt<bool> PrintExternalCommands(
     cl::desc("Print any external commands that are to be executed "
              "instead of actually executing them - for testing purposes.\n"),
     cl::init(false), cl::cat(ClangOffloadBundlerCategory));
-
-static cl::opt<bool>
-    SaveTemporaryFiles("save-temps",
-                       cl::desc("Saves intermediate temporary files.\n"),
-                       cl::init(false), cl::cat(ClangOffloadBundlerCategory));
 
 /// Magic string that marks the existence of offloading data.
 #define OFFLOAD_BUNDLER_MAGIC_STR "__CLANG_OFFLOAD_BUNDLE__"
@@ -698,9 +694,9 @@ public:
       return false;
 
     // Find llvm-objcopy in order to create the bundle binary.
-    auto Objcopy = sys::findProgramByName(
+    ErrorOr<std::string> Objcopy = sys::findProgramByName(
         "llvm-objcopy", sys::path::parent_path(BundlerExecutable));
-    if (Objcopy.getError()) {
+    if (!Objcopy) {
       errs() << "error: unable to find 'llvm-objcopy' in path.\n";
       return true;
     }
@@ -712,9 +708,8 @@ public:
     // Temp files that need to be removed.
     struct Dummy : public SmallVector<std::string, 8u> {
       ~Dummy() {
-        if (!SaveTemporaryFiles)
-          for (const auto &File : *this)
-            sys::fs::remove(File);
+        for (const auto &File : *this)
+          sys::fs::remove(File);
         clear();
       }
     } TempFiles;
@@ -743,12 +738,13 @@ public:
     };
 
     // Compose command line for the objcopy tool.
-    SmallVector<std::string, 16u> ObjcopyArgs = {"llvm-objcopy"};
+    BumpPtrAllocator Alloc;
+    StringSaver SS{Alloc};
+    SmallVector<StringRef, 8u> ObjcopyArgs{"llvm-objcopy"};
     for (unsigned I = 0; I < NumberOfInputs; ++I) {
-      // Add section with target object.
-      ObjcopyArgs.push_back(std::string("--add-section=") +
-                            OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] + "=" +
-                            InputFileNames[I]);
+      ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
+                                    OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
+                                    "=" + InputFileNames[I]));
 
       // Create temporary file with the section size contents.
       auto SizeFile = CreateTempFile(makeArrayRef(
@@ -757,11 +753,10 @@ public:
         return true;
 
       // And add one more section with target object size.
-      ObjcopyArgs.push_back(std::string("--add-section=") +
-                            SIZE_SECTION_PREFIX + TargetNames[I] + "=" +
-                            SizeFile.getValue());
+      ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
+                                    SIZE_SECTION_PREFIX + TargetNames[I] + "=" +
+                                    SizeFile.getValue()));
     }
-
     ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
     ObjcopyArgs.push_back(OutputFileNames.front());
 
@@ -769,13 +764,11 @@ public:
     // of executing it.
     if (PrintExternalCommands) {
       errs() << "\"" << Objcopy.get() << "\"";
-      for (StringRef Arg : ObjcopyArgs)
+      for (StringRef Arg : drop_begin(ObjcopyArgs, 1))
         errs() << " \"" << Arg << "\"";
       errs() << "\n";
     } else {
-      SmallVector<StringRef, 16u> Args;
-      copy(ObjcopyArgs, std::back_inserter(Args));
-      if (sys::ExecuteAndWait(Objcopy.get(), Args)) {
+      if (sys::ExecuteAndWait(Objcopy.get(), ObjcopyArgs)) {
         errs() << "error: llvm-objcopy tool failed.\n";
         return true;
       }
@@ -1203,7 +1196,7 @@ static bool UnbundleFiles() {
       FH->ReadBundle(Output->second, Input);
       Worklist.erase(Output);
     }
-    
+
     FH->ReadBundleEnd(Input);
 
     // Record if we found the host bundle.
@@ -1380,7 +1373,7 @@ int main(int argc, const char **argv) {
                                      .Case("hip", true)
                                      .Case("sycl", true)
                                      .Case("fpga", true)
-                                     .Default(false);                           
+                                     .Default(false);
 
     bool TripleIsValid = !Triple.empty();
     llvm::Triple T(Triple);

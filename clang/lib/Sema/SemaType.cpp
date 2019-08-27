@@ -7777,7 +7777,9 @@ void Sema::completeExprArrayBound(Expr *E) {
         auto *Def = Var->getDefinition();
         if (!Def) {
           SourceLocation PointOfInstantiation = E->getExprLoc();
-          InstantiateVariableDefinition(PointOfInstantiation, Var);
+          runWithSufficientStackSpace(PointOfInstantiation, [&] {
+            InstantiateVariableDefinition(PointOfInstantiation, Var);
+          });
           Def = Var->getDefinition();
 
           // If we don't already have a point of instantiation, and we managed
@@ -8115,9 +8117,11 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
     } else if (auto *ClassTemplateSpec =
             dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
       if (ClassTemplateSpec->getSpecializationKind() == TSK_Undeclared) {
-        Diagnosed = InstantiateClassTemplateSpecialization(
-            Loc, ClassTemplateSpec, TSK_ImplicitInstantiation,
-            /*Complain=*/Diagnoser);
+        runWithSufficientStackSpace(Loc, [&] {
+          Diagnosed = InstantiateClassTemplateSpecialization(
+              Loc, ClassTemplateSpec, TSK_ImplicitInstantiation,
+              /*Complain=*/Diagnoser);
+        });
         Instantiated = true;
       }
     } else {
@@ -8128,10 +8132,12 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
         // This record was instantiated from a class within a template.
         if (MSI->getTemplateSpecializationKind() !=
             TSK_ExplicitSpecialization) {
-          Diagnosed = InstantiateClass(Loc, RD, Pattern,
-                                       getTemplateInstantiationArgs(RD),
-                                       TSK_ImplicitInstantiation,
-                                       /*Complain=*/Diagnoser);
+          runWithSufficientStackSpace(Loc, [&] {
+            Diagnosed = InstantiateClass(Loc, RD, Pattern,
+                                         getTemplateInstantiationArgs(RD),
+                                         TSK_ImplicitInstantiation,
+                                         /*Complain=*/Diagnoser);
+          });
           Instantiated = true;
         }
       }

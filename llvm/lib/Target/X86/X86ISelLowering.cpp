@@ -15013,7 +15013,7 @@ getHalfShuffleMask(ArrayRef<int> Mask, MutableArrayRef<int> HalfMask,
 static SDValue getShuffleHalfVectors(const SDLoc &DL, SDValue V1, SDValue V2,
                                      ArrayRef<int> HalfMask, int HalfIdx1,
                                      int HalfIdx2, bool UndefLower,
-                                     SelectionDAG &DAG) {
+                                     SelectionDAG &DAG, bool UseConcat = false) {
   assert(V1.getValueType() == V2.getValueType() && "Different sized vectors?");
   assert(V1.getValueType().isSimple() && "Expecting only simple types");
 
@@ -15034,6 +15034,14 @@ static SDValue getShuffleHalfVectors(const SDLoc &DL, SDValue V1, SDValue V2,
   SDValue Half1 = getHalfVector(HalfIdx1);
   SDValue Half2 = getHalfVector(HalfIdx2);
   SDValue V = DAG.getVectorShuffle(HalfVT, DL, Half1, Half2, HalfMask);
+  if (UseConcat) {
+    SDValue Op0 = V;
+    SDValue Op1 = DAG.getUNDEF(HalfVT);
+    if (UndefLower)
+      std::swap(Op0, Op1);
+    return DAG.getNode(ISD::CONCAT_VECTORS, DL, VT, Op0, Op1);
+  }
+
   unsigned Offset = UndefLower ? HalfNumElts : 0;
   return DAG.getNode(ISD::INSERT_SUBVECTOR, DL, VT, DAG.getUNDEF(VT), V,
                      DAG.getIntPtrConstant(Offset, DL));
@@ -20390,8 +20398,11 @@ static SDValue LowerVSETCC(SDValue Op, const X86Subtarget &Subtarget,
 
   // This is being called by type legalization because v2i32 is marked custom
   // for result type legalization for v2f32.
-  if (VTOp0 == MVT::v2i32)
+  if (VTOp0 == MVT::v2i32) {
+    assert(!ExperimentalVectorWideningLegalization &&
+           "Should only get here with promote legalization!");
     return SDValue();
+  }
 
   // The non-AVX512 code below works under the assumption that source and
   // destination types are the same.
@@ -33971,7 +33982,7 @@ static SDValue narrowShuffle(ShuffleVectorSDNode *Shuf, SelectionDAG &DAG) {
   // the wide shuffle that we started with.
   return getShuffleHalfVectors(SDLoc(Shuf), Shuf->getOperand(0),
                                Shuf->getOperand(1), HalfMask, HalfIdx1,
-                               HalfIdx2, false, DAG);
+                               HalfIdx2, false, DAG, /*UseConcat*/true);
 }
 
 static SDValue combineShuffle(SDNode *N, SelectionDAG &DAG,
@@ -35380,6 +35391,26 @@ static SDValue combineBitcast(SDNode *N, SelectionDAG &DAG,
     // type, widen both sides to avoid a trip through memory.
     if ((SrcVT == MVT::v4i1 || SrcVT == MVT::v2i1) && VT.isScalarInteger() &&
         Subtarget.hasAVX512()) {
+      // Use zeros for the widening if we already have some zeroes. This can
+      // allow SimplifyDemandedBits to remove scalar ANDs that may be down
+      // stream of this.
+      // FIXME: It might make sense to detect a concat_vectors with a mix of
+      // zeroes and undef and turn it into insert_subvector for i1 vectors as
+      // a separate combine. What we can't do is canonicalize the operands of
+      // such a concat or we'll get into a loop with SimplifyDemandedBits.
+      if (N0.getOpcode() == ISD::CONCAT_VECTORS) {
+        SDValue LastOp = N0.getOperand(N0.getNumOperands() - 1);
+        if (ISD::isBuildVectorAllZeros(LastOp.getNode())) {
+          SrcVT = LastOp.getValueType();
+          unsigned NumConcats = 8 / SrcVT.getVectorNumElements();
+          SmallVector<SDValue, 4> Ops(N0->op_begin(), N0->op_end());
+          Ops.resize(NumConcats, DAG.getConstant(0, dl, SrcVT));
+          N0 = DAG.getNode(ISD::CONCAT_VECTORS, dl, MVT::v8i1, Ops);
+          N0 = DAG.getBitcast(MVT::i8, N0);
+          return DAG.getNode(ISD::TRUNCATE, dl, VT, N0);
+        }
+      }
+
       unsigned NumConcats = 8 / SrcVT.getVectorNumElements();
       SmallVector<SDValue, 4> Ops(NumConcats, DAG.getUNDEF(SrcVT));
       Ops[0] = N0;
@@ -44227,14 +44258,6 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
     }
   }
 
-  // If we're inserting all zeros into the upper half, change this to
-  // an insert into an all zeros vector. We will match this to a move
-  // with implicit upper bit zeroing during isel.
-  if (Ops.size() == 2 && ISD::isBuildVectorAllZeros(Ops[1].getNode()))
-    return DAG.getNode(ISD::INSERT_SUBVECTOR, DL, VT,
-                       getZeroVector(VT, Subtarget, DAG, DL), Ops[0],
-                       DAG.getIntPtrConstant(0, DL));
-
   return SDValue();
 }
 
@@ -44340,10 +44363,22 @@ static SDValue combineInsertSubvector(SDNode *N, SelectionDAG &DAG,
 
   // Match concat_vector style patterns.
   SmallVector<SDValue, 2> SubVectorOps;
-  if (collectConcatOps(N, SubVectorOps))
+  if (collectConcatOps(N, SubVectorOps)) {
     if (SDValue Fold =
             combineConcatVectorOps(dl, OpVT, SubVectorOps, DAG, DCI, Subtarget))
       return Fold;
+
+    // If we're inserting all zeros into the upper half, change this to
+    // a concat with zero. We will match this to a move
+    // with implicit upper bit zeroing during isel.
+    // We do this here because we don't want combineConcatVectorOps to
+    // create INSERT_SUBVECTOR from CONCAT_VECTORS.
+    if (SubVectorOps.size() == 2 &&
+        ISD::isBuildVectorAllZeros(SubVectorOps[1].getNode()))
+      return DAG.getNode(ISD::INSERT_SUBVECTOR, dl, OpVT,
+                         getZeroVector(OpVT, Subtarget, DAG, dl),
+                         SubVectorOps[0], DAG.getIntPtrConstant(0, dl));
+  }
 
   // If this is a broadcast insert into an upper undef, use a larger broadcast.
   if (Vec.isUndef() && IdxVal != 0 && SubVec.getOpcode() == X86ISD::VBROADCAST)
@@ -44623,6 +44658,34 @@ static SDValue combinePMULDQ(SDNode *N, SelectionDAG &DAG,
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   if (TLI.SimplifyDemandedBits(SDValue(N, 0), APInt::getAllOnesValue(64), DCI))
     return SDValue(N, 0);
+
+  // If the input is an extend_invec and the SimplifyDemandedBits call didn't
+  // convert it to any_extend_invec, due to the LegalOperations check, do the
+  // conversion directly to a vector shuffle manually. This exposes combine
+  // opportunities missed by combineExtInVec not calling
+  // combineX86ShufflesRecursively on SSE4.1 targets.
+  // FIXME: This is basically a hack around several other issues related to
+  // ANY_EXTEND_VECTOR_INREG.
+  if (N->getValueType(0) == MVT::v2i64 && LHS.hasOneUse() &&
+      (LHS.getOpcode() == ISD::ZERO_EXTEND_VECTOR_INREG ||
+       LHS.getOpcode() == ISD::SIGN_EXTEND_VECTOR_INREG) &&
+      LHS.getOperand(0).getValueType() == MVT::v4i32) {
+    SDLoc dl(N);
+    LHS = DAG.getVectorShuffle(MVT::v4i32, dl, LHS.getOperand(0),
+                               LHS.getOperand(0), { 0, -1, 1, -1 });
+    LHS = DAG.getBitcast(MVT::v2i64, LHS);
+    return DAG.getNode(N->getOpcode(), dl, MVT::v2i64, LHS, RHS);
+  }
+  if (N->getValueType(0) == MVT::v2i64 && RHS.hasOneUse() &&
+      (RHS.getOpcode() == ISD::ZERO_EXTEND_VECTOR_INREG ||
+       RHS.getOpcode() == ISD::SIGN_EXTEND_VECTOR_INREG) &&
+      RHS.getOperand(0).getValueType() == MVT::v4i32) {
+    SDLoc dl(N);
+    RHS = DAG.getVectorShuffle(MVT::v4i32, dl, RHS.getOperand(0),
+                               RHS.getOperand(0), { 0, -1, 1, -1 });
+    RHS = DAG.getBitcast(MVT::v2i64, RHS);
+    return DAG.getNode(N->getOpcode(), dl, MVT::v2i64, LHS, RHS);
+  }
 
   return SDValue();
 }

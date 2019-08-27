@@ -86,8 +86,8 @@ static bool isAttributeLateParsed(const IdentifierInfo &II) {
 }
 
 /// Check if the a start and end source location expand to the same macro.
-bool FindLocsWithCommonFileID(Preprocessor &PP, SourceLocation StartLoc,
-                              SourceLocation EndLoc) {
+static bool FindLocsWithCommonFileID(Preprocessor &PP, SourceLocation StartLoc,
+                                     SourceLocation EndLoc) {
   if (!StartLoc.isMacroID() || !EndLoc.isMacroID())
     return false;
 
@@ -3575,6 +3575,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       isStorageClass = true;
       break;
     case tok::kw__Thread_local:
+      if (!getLangOpts().C11)
+        Diag(Tok, diag::ext_c11_feature) << Tok.getName();
       isInvalid = DS.SetStorageClassSpecThread(DeclSpec::TSCS__Thread_local,
                                                Loc, PrevSpec, DiagID);
       isStorageClass = true;
@@ -3632,7 +3634,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     // alignment-specifier
     case tok::kw__Alignas:
       if (!getLangOpts().C11)
-        Diag(Tok, diag::ext_c11_alignment) << Tok.getName();
+        Diag(Tok, diag::ext_c11_feature) << Tok.getName();
       ParseAlignmentSpecifier(DS.getAttributes());
       continue;
 
