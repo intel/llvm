@@ -229,8 +229,15 @@ public:
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
           "represented by the type and range of this SYCL buffer");
-    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(impl,
-                                                            reinterpretRange);
+
+    // This is not the best approach since for now it works only for
+    // 1D subbuffers. Other cases are not supported for now.
+    id<ReinterpretDim> NewOffset{};
+    NewOffset[ReinterpretDim - 1] =
+        Offset[dimensions - 1] * sizeof(T) / sizeof(ReinterpretT);
+
+    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
+        impl, reinterpretRange, NewOffset, IsSubBuffer);
   }
 
   template <typename propertyT> bool has_property() const {
@@ -260,8 +267,10 @@ private:
 
   // Reinterpret contructor
   buffer(shared_ptr_class<detail::buffer_impl<AllocatorT>> Impl,
-         range<dimensions> reinterpretRange)
-      : impl(Impl), Range(reinterpretRange), MemRange(reinterpretRange) {};
+         range<dimensions> reinterpretRange, id<dimensions>reinterpretOffset,
+         bool isSubBuffer)
+      : impl(Impl), Range(reinterpretRange), MemRange(reinterpretRange),
+        IsSubBuffer(isSubBuffer), Offset(reinterpretOffset) {};
 };
 } // namespace sycl
 } // namespace cl
