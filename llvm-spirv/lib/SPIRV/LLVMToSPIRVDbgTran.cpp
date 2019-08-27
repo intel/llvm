@@ -165,6 +165,20 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
             // SPIR-V doesn't support llvm.dbg.label intrinsic translation
             continue;
           }
+          if (II->getIntrinsicID() == Intrinsic::annotation ||
+              II->getIntrinsicID() == Intrinsic::var_annotation ||
+              II->getIntrinsicID() == Intrinsic::ptr_annotation) {
+            // llvm call instruction for llvm .*annotation intrinsics
+            // is translated into SPIR-V instruction only if it represents
+            // call of __builtin_intel_fpga_reg() builtin. In other cases this
+            // instruction is dropped. In these cases debug info for this call
+            // should be skipped too.
+            // TODO: Remove skipping of debug info when *.annotation call will
+            //       be handled in a better way during SPIR-V translation.
+            V = SPIRVWriter->getTranslatedValue(&I);
+            if (!V || V->getOpCode() != OpFPGARegINTEL)
+              continue;
+          }
         }
         const DebugLoc &DL = I.getDebugLoc();
         if (!DL.get()) {
