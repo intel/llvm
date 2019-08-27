@@ -12,6 +12,14 @@
 // TARGET: "-triple" "spir64-unknown-linux-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // COMBINED: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 
+/// Verify -fsycl-device-only phases
+// RUN: %clang -### -ccc-print-phases -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
+// DEFAULT-PHASES: 0: input, "{{.*}}", c
+// DEFAULT-PHASES: 1: preprocessor, {0}, cpp-output
+// DEFAULT-PHASES: 2: compiler, {1}, ir
+// DEFAULT-PHASES: 3: backend, {2}, ir
+// DEFAULT-PHASES-NOT: linker
+
 // -fsycl-help tests
 // Test with a bad argument is expected to fail
 // RUN: not %clang -fsycl-help=foo %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-BADARG
