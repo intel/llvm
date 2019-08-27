@@ -15416,9 +15416,13 @@ void Sema::MarkFunctionReferenced(SourceLocation Loc, FunctionDecl *Func,
       CheckCompleteParameterTypesForMangler(*this, Func, Loc);
 
     Func->markUsed(Context);
+  }
 
-    if (LangOpts.OpenMP && LangOpts.OpenMPIsDevice)
+  if (LangOpts.OpenMP) {
+    if (LangOpts.OpenMPIsDevice)
       checkOpenMPDeviceFunction(Loc, Func);
+    else
+      checkOpenMPHostFunction(Loc, Func);
   }
 }
 
@@ -15726,7 +15730,8 @@ static bool captureInCapturedRegion(CapturedRegionScopeInfo *RSI,
       if (HasConst)
         DeclRefType.addConst();
     }
-    ByRef = S.isOpenMPCapturedByRef(Var, RSI->OpenMPLevel);
+    ByRef = S.isOpenMPCapturedByRef(Var, RSI->OpenMPLevel,
+                                    RSI->OpenMPCaptureLevel);
   }
 
   if (ByRef)

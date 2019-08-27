@@ -1397,12 +1397,6 @@ bool SIInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.setDesc(get(AMDGPU::S_OR_B32));
     break;
 
-  case AMDGPU::S_OR_B64_term:
-    // This is only a terminator to get the correct spill code placement during
-    // register allocation.
-    MI.setDesc(get(AMDGPU::S_OR_B64));
-    break;
-
   case AMDGPU::S_ANDN2_B64_term:
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
@@ -1895,7 +1889,6 @@ bool SIInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
     case AMDGPU::SI_MASK_BRANCH:
     case AMDGPU::S_MOV_B64_term:
     case AMDGPU::S_XOR_B64_term:
-    case AMDGPU::S_OR_B64_term:
     case AMDGPU::S_ANDN2_B64_term:
     case AMDGPU::S_MOV_B32_term:
     case AMDGPU::S_XOR_B32_term:
@@ -4207,6 +4200,15 @@ void SIInstrInfo::legalizeGenericOperand(MachineBasicBlock &InsertMBB,
   // Try to eliminate the copy if it is copying an immediate value.
   if (Def->isMoveImmediate())
     FoldImmediate(*Copy, *Def, OpReg, &MRI);
+
+  bool ImpDef = Def->isImplicitDef();
+  while (!ImpDef && Def && Def->isCopy()) {
+    Def = MRI.getUniqueVRegDef(Def->getOperand(1).getReg());
+    ImpDef = Def && Def->isImplicitDef();
+  }
+  if (!RI.isSGPRClass(DstRC) && !Copy->readsRegister(AMDGPU::EXEC, &RI) &&
+      !ImpDef)
+    Copy->addOperand(MachineOperand::CreateReg(AMDGPU::EXEC, false, true));
 }
 
 // Emit the actual waterfall loop, executing the wrapped instruction for each

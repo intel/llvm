@@ -270,7 +270,7 @@ Status Debugger::SetPropertyValue(const ExecutionContext *exe_ctx,
     // FIXME it would be nice to have "on-change" callbacks for properties
     if (property_path == g_debugger_properties[ePropertyPrompt].name) {
       llvm::StringRef new_prompt = GetPrompt();
-      std::string str = lldb_utility::ansi::FormatAnsiTerminalCodes(
+      std::string str = lldb_private::ansi::FormatAnsiTerminalCodes(
           new_prompt, GetUseColor());
       if (str.length())
         new_prompt = str;
@@ -345,7 +345,7 @@ void Debugger::SetPrompt(llvm::StringRef p) {
   m_collection_sp->SetPropertyAtIndexAsString(nullptr, idx, p);
   llvm::StringRef new_prompt = GetPrompt();
   std::string str =
-      lldb_utility::ansi::FormatAnsiTerminalCodes(new_prompt, GetUseColor());
+      lldb_private::ansi::FormatAnsiTerminalCodes(new_prompt, GetUseColor());
   if (str.length())
     new_prompt = str;
   GetCommandInterpreter().UpdatePrompt(new_prompt);
@@ -1623,13 +1623,11 @@ Status Debugger::RunREPL(LanguageType language, const char *repl_options) {
   FileSpec repl_executable;
 
   if (language == eLanguageTypeUnknown) {
-    std::set<LanguageType> repl_languages;
+    LanguageSet repl_languages = Language::GetLanguagesSupportingREPLs();
 
-    Language::GetLanguagesSupportingREPLs(repl_languages);
-
-    if (repl_languages.size() == 1) {
-      language = *repl_languages.begin();
-    } else if (repl_languages.empty()) {
+    if (auto single_lang = repl_languages.GetSingularLanguage()) {
+      language = *single_lang;
+    } else if (repl_languages.Empty()) {
       err.SetErrorStringWithFormat(
           "LLDB isn't configured with REPL support for any languages.");
       return err;

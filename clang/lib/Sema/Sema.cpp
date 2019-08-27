@@ -934,6 +934,10 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   if (getLangOpts().SYCLIsDevice)
     MarkDevice();
 
+  // Finalize analysis of OpenMP-specific constructs.
+  if (LangOpts.OpenMP)
+    finalizeOpenMPDelayedAnalysis();
+
   assert(LateParsedInstantiations.empty() &&
          "end of TU template instantiation should not create more "
          "late-parsed templates");
@@ -1404,7 +1408,7 @@ static void emitCallStackNotes(Sema &S, FunctionDecl *FD) {
 
 // Emit any deferred diagnostics for FD and erase them from the map in which
 // they're stored.
-static void emitDeferredDiags(Sema &S, FunctionDecl *FD) {
+static void emitDeferredDiags(Sema &S, FunctionDecl *FD, bool ShowCallStack) {
   auto It = S.DeviceDeferredDiags.find(FD);
   if (It == S.DeviceDeferredDiags.end())
     return;
@@ -1423,7 +1427,7 @@ static void emitDeferredDiags(Sema &S, FunctionDecl *FD) {
   // FIXME: Should this be called after every warning/error emitted in the loop
   // above, instead of just once per function?  That would be consistent with
   // how we handle immediate errors, but it also seems like a bit much.
-  if (HasWarningOrError)
+  if (HasWarningOrError && ShowCallStack)
     emitCallStackNotes(S, FD);
 }
 
@@ -1526,7 +1530,7 @@ void Sema::markKnownEmitted(
     assert(!IsKnownEmitted(S, C.Callee) &&
            "Worklist should not contain known-emitted functions.");
     S.DeviceKnownEmittedFns[C.Callee] = {C.Caller, C.Loc};
-    emitDeferredDiags(S, C.Callee);
+    emitDeferredDiags(S, C.Callee, C.Caller);
 
     // If this is a template instantiation, explore its callgraph as well:
     // Non-dependent calls are part of the template's callgraph, while dependent
@@ -1563,8 +1567,9 @@ void Sema::markKnownEmitted(
 }
 
 Sema::DeviceDiagBuilder Sema::targetDiag(SourceLocation Loc, unsigned DiagID) {
-  if (LangOpts.OpenMP && LangOpts.OpenMPIsDevice)
-    return diagIfOpenMPDeviceCode(Loc, DiagID);
+  if (LangOpts.OpenMP)
+    return LangOpts.OpenMPIsDevice ? diagIfOpenMPDeviceCode(Loc, DiagID)
+                                   : diagIfOpenMPHostCode(Loc, DiagID);
   if (getLangOpts().CUDA)
     return getLangOpts().CUDAIsDevice ? CUDADiagIfDeviceCode(Loc, DiagID)
                                       : CUDADiagIfHostCode(Loc, DiagID);
@@ -2126,10 +2131,12 @@ IdentifierInfo *Sema::getFloat128Identifier() const {
 }
 
 void Sema::PushCapturedRegionScope(Scope *S, CapturedDecl *CD, RecordDecl *RD,
-                                   CapturedRegionKind K) {
-  CapturingScopeInfo *CSI = new CapturedRegionScopeInfo(
+                                   CapturedRegionKind K,
+                                   unsigned OpenMPCaptureLevel) {
+  auto *CSI = new CapturedRegionScopeInfo(
       getDiagnostics(), S, CD, RD, CD->getContextParam(), K,
-      (getLangOpts().OpenMP && K == CR_OpenMP) ? getOpenMPNestingLevel() : 0);
+      (getLangOpts().OpenMP && K == CR_OpenMP) ? getOpenMPNestingLevel() : 0,
+      OpenMPCaptureLevel);
   CSI->ReturnType = Context.VoidTy;
   FunctionScopes.push_back(CSI);
 }

@@ -2049,8 +2049,6 @@ void BuiltinBug::anchor() {}
 // Methods for BugReport and subclasses.
 //===----------------------------------------------------------------------===//
 
-void BugReport::NodeResolver::anchor() {}
-
 void BugReport::addVisitor(std::unique_ptr<BugReporterVisitor> visitor) {
   if (!visitor)
     return;
@@ -2103,30 +2101,61 @@ void BugReport::Profile(llvm::FoldingSetNodeID& hash) const {
   }
 }
 
-void BugReport::markInteresting(SymbolRef sym) {
+template <class T>
+static void insertToInterestingnessMap(
+    llvm::DenseMap<T, bugreporter::TrackingKind> &InterestingnessMap, T Val,
+    bugreporter::TrackingKind TKind) {
+  auto Result = InterestingnessMap.insert({Val, TKind});
+
+  if (Result.second)
+    return;
+
+  // Even if this symbol/region was already marked as interesting as a
+  // condition, if we later mark it as interesting again but with
+  // thorough tracking, overwrite it. Entities marked with thorough
+  // interestiness are the most important (or most interesting, if you will),
+  // and we wouldn't like to downplay their importance.
+
+  switch (TKind) {
+    case bugreporter::TrackingKind::Thorough:
+      Result.first->getSecond() = bugreporter::TrackingKind::Thorough;
+      return;
+    case bugreporter::TrackingKind::Condition:
+      return;
+  }
+
+  llvm_unreachable(
+      "BugReport::markInteresting currently can only handle 2 different "
+      "tracking kinds! Please define what tracking kind should this entitiy"
+      "have, if it was already marked as interesting with a different kind!");
+}
+
+void BugReport::markInteresting(SymbolRef sym,
+                                bugreporter::TrackingKind TKind) {
   if (!sym)
     return;
 
-  InterestingSymbols.insert(sym);
+  insertToInterestingnessMap(InterestingSymbols, sym, TKind);
 
   if (const auto *meta = dyn_cast<SymbolMetadata>(sym))
-    InterestingRegions.insert(meta->getRegion());
+    markInteresting(meta->getRegion(), TKind);
 }
 
-void BugReport::markInteresting(const MemRegion *R) {
+void BugReport::markInteresting(const MemRegion *R,
+                                bugreporter::TrackingKind TKind) {
   if (!R)
     return;
 
   R = R->getBaseRegion();
-  InterestingRegions.insert(R);
+  insertToInterestingnessMap(InterestingRegions, R, TKind);
 
   if (const auto *SR = dyn_cast<SymbolicRegion>(R))
-    InterestingSymbols.insert(SR->getSymbol());
+    markInteresting(SR->getSymbol(), TKind);
 }
 
-void BugReport::markInteresting(SVal V) {
-  markInteresting(V.getAsRegion());
-  markInteresting(V.getAsSymbol());
+void BugReport::markInteresting(SVal V, bugreporter::TrackingKind TKind) {
+  markInteresting(V.getAsRegion(), TKind);
+  markInteresting(V.getAsSymbol(), TKind);
 }
 
 void BugReport::markInteresting(const LocationContext *LC) {
@@ -2135,28 +2164,68 @@ void BugReport::markInteresting(const LocationContext *LC) {
   InterestingLocationContexts.insert(LC);
 }
 
-bool BugReport::isInteresting(SVal V)  const {
-  return isInteresting(V.getAsRegion()) || isInteresting(V.getAsSymbol());
+Optional<bugreporter::TrackingKind>
+BugReport::getInterestingnessKind(SVal V) const {
+  auto RKind = getInterestingnessKind(V.getAsRegion());
+  auto SKind = getInterestingnessKind(V.getAsSymbol());
+  if (!RKind)
+    return SKind;
+  if (!SKind)
+    return RKind;
+
+  // If either is marked with throrough tracking, return that, we wouldn't like
+  // to downplay a note's importance by 'only' mentioning it as a condition.
+  switch(*RKind) {
+    case bugreporter::TrackingKind::Thorough:
+      return RKind;
+    case bugreporter::TrackingKind::Condition:
+      return SKind;
+  }
+
+  llvm_unreachable(
+      "BugReport::getInterestingnessKind currently can only handle 2 different "
+      "tracking kinds! Please define what tracking kind should we return here "
+      "when the kind of getAsRegion() and getAsSymbol() is different!");
+  return None;
 }
 
-bool BugReport::isInteresting(SymbolRef sym)  const {
+Optional<bugreporter::TrackingKind>
+BugReport::getInterestingnessKind(SymbolRef sym) const {
   if (!sym)
-    return false;
+    return None;
   // We don't currently consider metadata symbols to be interesting
   // even if we know their region is interesting. Is that correct behavior?
-  return InterestingSymbols.count(sym);
+  auto It = InterestingSymbols.find(sym);
+  if (It == InterestingSymbols.end())
+    return None;
+  return It->getSecond();
 }
 
-bool BugReport::isInteresting(const MemRegion *R)  const {
+Optional<bugreporter::TrackingKind>
+BugReport::getInterestingnessKind(const MemRegion *R) const {
   if (!R)
-    return false;
+    return None;
+
   R = R->getBaseRegion();
-  bool b = InterestingRegions.count(R);
-  if (b)
-    return true;
+  auto It = InterestingRegions.find(R);
+  if (It != InterestingRegions.end())
+    return It->getSecond();
+
   if (const auto *SR = dyn_cast<SymbolicRegion>(R))
-    return InterestingSymbols.count(SR->getSymbol());
-  return false;
+    return getInterestingnessKind(SR->getSymbol());
+  return None;
+}
+
+bool BugReport::isInteresting(SVal V) const {
+  return getInterestingnessKind(V).hasValue();
+}
+
+bool BugReport::isInteresting(SymbolRef sym) const {
+  return getInterestingnessKind(sym).hasValue();
+}
+
+bool BugReport::isInteresting(const MemRegion *R) const {
+  return getInterestingnessKind(R).hasValue();
 }
 
 bool BugReport::isInteresting(const LocationContext *LC)  const {
@@ -2218,16 +2287,14 @@ const ExplodedGraph &PathSensitiveBugReporter::getGraph() const {
   return Eng.getGraph();
 }
 
-ProgramStateManager &PathSensitiveBugReporter::getStateManager() {
-  return Eng.getStateManager();
-}
-
 ProgramStateManager &PathSensitiveBugReporter::getStateManager() const {
   return Eng.getStateManager();
 }
 
 BugReporter::~BugReporter() {
-  FlushReports();
+  // Make sure reports are flushed.
+  assert(StrBugTypes.empty() &&
+         "Destroying BugReporter before diagnostics are emitted!");
 
   // Free the bug reports we are tracking.
   for (const auto I : EQClassesVector)
@@ -2235,9 +2302,6 @@ BugReporter::~BugReporter() {
 }
 
 void BugReporter::FlushReports() {
-  if (BugTypes.isEmpty())
-    return;
-
   // We need to flush reports in deterministic order to ensure the order
   // of the reports is consistent between runs.
   for (const auto EQ : EQClassesVector)
@@ -2248,9 +2312,6 @@ void BugReporter::FlushReports() {
   // FIXME: There are leaks from checkers that assume that the BugTypes they
   // create will be destroyed by the BugReporter.
   llvm::DeleteContainerSeconds(StrBugTypes);
-
-  // Remove all references to the BugType objects.
-  BugTypes = F.getEmptySet();
 }
 
 //===----------------------------------------------------------------------===//
@@ -2260,11 +2321,9 @@ void BugReporter::FlushReports() {
 namespace {
 
 /// A wrapper around an ExplodedGraph that contains a single path from the root
-/// to the error node, and a map that maps the nodes in this path to the ones in
-/// the original ExplodedGraph.
+/// to the error node.
 class BugPathInfo {
 public:
-  InterExplodedGraphMap MapToOriginNodes;
   std::unique_ptr<ExplodedGraph> BugPath;
   BugReport *Report;
   const ExplodedNode *ErrorNode;
@@ -2274,9 +2333,6 @@ public:
 /// conveniently retrieve bug paths from a single error node to the root.
 class BugPathGetter {
   std::unique_ptr<ExplodedGraph> TrimmedGraph;
-
-  /// Map from the trimmed graph to the original.
-  InterExplodedGraphMap InverseMap;
 
   using PriorityMapTy = llvm::DenseMap<const ExplodedNode *, unsigned>;
 
@@ -2340,7 +2396,7 @@ BugPathGetter::BugPathGetter(const ExplodedGraph *OriginalGraph,
   // The trimmed graph is created in the body of the constructor to ensure
   // that the DenseMaps have been initialized already.
   InterExplodedGraphMap ForwardMap;
-  TrimmedGraph = OriginalGraph->trim(Nodes, &ForwardMap, &InverseMap);
+  TrimmedGraph = OriginalGraph->trim(Nodes, &ForwardMap);
 
   // Find the (first) error node in the trimmed graph.  We just need to consult
   // the node map which maps from nodes in the original graph to nodes
@@ -2403,7 +2459,6 @@ BugPathInfo *BugPathGetter::getNextBugPath() {
   // Create a new graph with a single path. This is the graph that will be
   // returned to the caller.
   auto GNew = std::make_unique<ExplodedGraph>();
-  CurrentBugPath.MapToOriginNodes.clear();
 
   // Now walk from the error node up the BFS path, always taking the
   // predeccessor with the lowest number.
@@ -2413,11 +2468,6 @@ BugPathInfo *BugPathGetter::getNextBugPath() {
     // and location.
     ExplodedNode *NewN = GNew->createUncachedNode(
         OrigN->getLocation(), OrigN->getState(), OrigN->isSink());
-
-    // Store the mapping to the original node.
-    InterExplodedGraphMap::const_iterator IMitr = InverseMap.find(OrigN);
-    assert(IMitr != InverseMap.end() && "No mapping to original node.");
-    CurrentBugPath.MapToOriginNodes[NewN] = IMitr->second;
 
     // Link up the new node with the previous node.
     if (Succ)
@@ -2617,7 +2667,7 @@ PathDiagnosticBuilder::findValidReport(ArrayRef<BugReport *> &bugReports,
     R->addVisitor(std::make_unique<ConditionBRVisitor>());
     R->addVisitor(std::make_unique<TagVisitor>());
 
-    BugReporterContext BRC(Reporter, BugPath->MapToOriginNodes);
+    BugReporterContext BRC(Reporter);
 
     // Run all visitors on a given graph, once.
     std::unique_ptr<VisitorsDiagnosticsTy> visitorNotes =
@@ -2668,10 +2718,6 @@ PathSensitiveBugReporter::generatePathDiagnostics(
   return Out;
 }
 
-void BugReporter::Register(const BugType *BT) {
-  BugTypes = F.add(BugTypes, BT);
-}
-
 void BugReporter::emitReport(std::unique_ptr<BugReport> R) {
   if (const ExplodedNode *E = R->getErrorNode()) {
     // An error node must either be a sink or have a tag, otherwise
@@ -2702,8 +2748,6 @@ void BugReporter::emitReport(std::unique_ptr<BugReport> R) {
   R->Profile(ID);
 
   // Lookup the equivance class.  If there isn't one, create it.
-  const BugType& BT = R->getBugType();
-  Register(&BT);
   void *InsertPos;
   BugReportEquivClass* EQ = EQClasses.FindNodeOrInsertPos(ID, InsertPos);
 

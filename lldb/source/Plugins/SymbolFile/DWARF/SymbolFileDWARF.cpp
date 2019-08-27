@@ -2484,16 +2484,17 @@ uint32_t SymbolFileDWARF::FindTypes(
   return num_die_matches;
 }
 
-size_t SymbolFileDWARF::FindTypes(const std::vector<CompilerContext> &context,
-                                  bool append, TypeMap &types) {
+size_t SymbolFileDWARF::FindTypes(llvm::ArrayRef<CompilerContext> pattern,
+                                  LanguageSet languages, bool append,
+                                  TypeMap &types) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   if (!append)
     types.Clear();
 
-  if (context.empty())
+  if (pattern.empty())
     return 0;
 
-  ConstString name = context.back().name;
+  ConstString name = pattern.back().name;
 
   if (!name)
     return 0;
@@ -2508,9 +2509,12 @@ size_t SymbolFileDWARF::FindTypes(const std::vector<CompilerContext> &context,
     DWARFDIE die = GetDIE(die_ref);
 
     if (die) {
-      std::vector<CompilerContext> die_context;
+      if (!languages[die.GetCU()->GetLanguageType()])
+        continue;
+
+      llvm::SmallVector<CompilerContext, 4> die_context;
       die.GetDeclContext(die_context);
-      if (die_context != context)
+      if (!contextMatches(die_context, pattern))
         continue;
 
       Type *matching_type = ResolveType(die, true, true);
