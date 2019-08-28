@@ -40,7 +40,7 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
       RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &Err),
       Err));
 
-  m_USMDispatch.reset(new usm::USMDispatcher(m_Platform.get()));
+  m_USMDispatch.reset(new usm::USMDispatcher(m_Platform.get(), DeviceIds));
 }
 
 context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
