@@ -1248,15 +1248,16 @@ static bool UnbundleFiles() {
       break;
 
     auto Output = Worklist.find(CurTriple);
-
-    // Read the bundle if triple is included in targets
-    if (Output != Worklist.end()) {
-      // Check if the output file can be opened and copy the bundle to it.
-      FH->ReadBundle(Output->second, Input);
-      Worklist.erase(Output);
+    // The file may have more bundles for other targets, that we don't care
+    // about. Therefore, move on to the next triple
+    if (Output == Worklist.end()) {
+      continue;
     }
-    
+
+    // Check if the output file can be opened and copy the bundle to it.
+    FH->ReadBundle(Output->second, Input);
     FH->ReadBundleEnd(Input);
+    Worklist.erase(Output);
 
     // Record if we found the host bundle.
     if (hasHostKind(CurTriple))
@@ -1342,8 +1343,8 @@ static bool CheckBundledSection() {
 
     if(CurTriple == triple) {
       found = true;
+      break;
     }
-    FH->ReadBundleEnd(Input);
   }
   return found;
 }
