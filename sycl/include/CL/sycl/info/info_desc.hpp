@@ -172,8 +172,13 @@ enum class execution_capability : unsigned int {
   exec_native_kernel
 };
 
-// A.4 Queue information desctiptors
+// A.4 Queue information descriptors
 enum class queue : cl_command_queue_info {
+  context = CL_QUEUE_CONTEXT,
+  device = CL_QUEUE_DEVICE,
+  reference_count = CL_QUEUE_REFERENCE_COUNT
+};
+enum class ordered_queue : cl_command_queue_info {
   context = CL_QUEUE_CONTEXT,
   device = CL_QUEUE_DEVICE,
   reference_count = CL_QUEUE_REFERENCE_COUNT

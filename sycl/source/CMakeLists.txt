@@ -52,6 +52,7 @@ add_library(sycl SHARED
   "kernel.cpp"
   "platform.cpp"
   "queue.cpp"
+  "ordered_queue.cpp"
   "sampler.cpp"
   "stream.cpp"
   "spirv_ops.cpp"
