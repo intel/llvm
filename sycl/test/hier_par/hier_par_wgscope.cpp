@@ -40,7 +40,7 @@ static bool testWgScope(queue &Q) {
   const int VAL2 = 1000;
   const int GROUP_ID_SPLIT = 2;
 
-  std::unique_ptr<int> Data(new int[RangeLength]);
+  std::unique_ptr<int[]> Data(new int[RangeLength]);
   int *Ptr = Data.get();
   std::memset(Ptr, 0, RangeLength * sizeof(Ptr[0]));
 
@@ -204,7 +204,7 @@ bool testPrivateMemory(queue &Q) {
   constexpr int C1 = 5;
   constexpr int C2 = 1;
 
-  std::unique_ptr<int> Data(new int[RangeLength]);
+  std::unique_ptr<int[]> Data(new int[RangeLength]);
   int *Ptr = Data.get();
 
   std::memset(Ptr, 0, RangeLength * sizeof(Ptr[0]));

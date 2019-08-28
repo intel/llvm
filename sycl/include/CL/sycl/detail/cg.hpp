@@ -346,6 +346,8 @@ public:
 
   CGTYPE getType() { return MType; }
 
+  virtual ~CG() = default;
+
 private:
   CGTYPE MType;
   // The following storages needed to ensure that arguments won't die while
