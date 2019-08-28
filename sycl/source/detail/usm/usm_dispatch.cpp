@@ -50,17 +50,22 @@ USMDispatcher::USMDispatcher(cl_platform_id platform,
       // See if every device in this context supports
       // CL_DEVICE_SVM_FINE_GRAIN_BUFFER
       // If not, disable USM
-      
-      bool AnybodyNotSupportSVM = false;
-      for (const auto &D : DeviceIds) {
-        cl_device_svm_capabilities caps;
-        cl_int Error = clGetDeviceInfo(
-            pi::cast<cl_device_id>(D), CL_DEVICE_SVM_CAPABILITIES,
-            sizeof(cl_device_svm_capabilities), &caps, nullptr);
-        AnybodyNotSupportSVM = (Error != CL_SUCCESS) ||
-                               (!(caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER));
+
+      if (CL_TARGET_OPENCL_VERSION >= 200) {
+        bool AnybodyNotSupportSVM = false;
+        for (const auto &D : DeviceIds) {
+          cl_device_svm_capabilities caps;
+          cl_int Error = clGetDeviceInfo(
+              pi::cast<cl_device_id>(D), CL_DEVICE_SVM_CAPABILITIES,
+              sizeof(cl_device_svm_capabilities), &caps, nullptr);
+          AnybodyNotSupportSVM = (Error != CL_SUCCESS) ||
+                                 (!(caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER));
+        }
+        mSupported = !AnybodyNotSupportSVM;
+      } else {
+        // USM isn't support on CL 1.2
+        mSupported = false;
       }
-      mSupported = !AnybodyNotSupportSVM;
     } else {
       // We support the CL Extension
       mSupported = true;
