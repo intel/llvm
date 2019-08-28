@@ -306,6 +306,15 @@ detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
 #endif
 }
 
+// 4.10.2.6 Memory layout and alignment
+template <int N> struct VectorLength { constexpr static int value = N; };
+
+template <> struct VectorLength<3> { constexpr static int value = 4; };
+
+template <typename T, int N> struct VectorAlignment {
+  constexpr static int value = sizeof(T) * VectorLength<N>::value;
+};
+
 } // namespace detail
 
 template <typename Type, int NumElements> class vec {
@@ -313,8 +322,8 @@ template <typename Type, int NumElements> class vec {
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType =
-      typename detail::BaseCLTypeConverter<DataT, NumElements>::DataType;
+  using DataType = typename detail::BaseCLTypeConverter<
+      DataT, detail::VectorLength<NumElements>::value>::DataType;
 
   template <bool B, class T, class F>
   using conditional_t = typename std::conditional<B, T, F>::type;
@@ -1792,16 +1801,18 @@ using cl_schar16 = cl_char16;
 // As a result half values will be converted to the integer and passed as a
 // kernel argument which is expected to be floating point number.
 #ifndef __SYCL_DEVICE_ONLY__
-template <int NumElements, typename CLType> struct alignas(CLType) half_vec {
-  std::array<half, NumElements> s;
+template <int NumElements>
+struct alignas(
+    cl::sycl::detail::VectorAlignment<half, NumElements>::value) half_vec {
+  std::array<half, cl::sycl::detail::VectorLength<NumElements>::value> s;
 };
 
-typedef half __half_t;
-typedef half_vec<2, cl_half2> __half2_vec_t;
-typedef half_vec<4, cl_half3> __half3_vec_t;
-typedef half_vec<4, cl_half4> __half4_vec_t;
-typedef half_vec<8, cl_half8> __half8_vec_t;
-typedef half_vec<16, cl_half16> __half16_vec_t;
+using __half_t = half;
+using __half2_vec_t = half_vec<2>;
+using __half3_vec_t = half_vec<4>;
+using __half4_vec_t = half_vec<4>;
+using __half8_vec_t = half_vec<8>;
+using __half16_vec_t = half_vec<16>;
 #endif
 
 #define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
