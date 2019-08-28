@@ -32,6 +32,7 @@
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/queue.hpp>
+#include <CL/sycl/ordered_queue.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <CL/sycl/stream.hpp>

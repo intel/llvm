@@ -23,14 +23,15 @@ queue::queue(const context &syclContext, const device_selector &deviceSelector,
   };
 
   const device &syclDevice = *std::max_element(Devs.begin(), Devs.end(), Comp);
-  impl = std::make_shared<detail::queue_impl>(syclDevice, syclContext,
-                                              asyncHandler, propList);
+  impl = std::make_shared<detail::queue_impl>(
+      syclDevice, syclContext, asyncHandler, cl::sycl::detail::QueueOrder::OOO,
+      propList);
 }
 
 queue::queue(const device &syclDevice, const async_handler &asyncHandler,
              const property_list &propList) {
-  impl =
-      std::make_shared<detail::queue_impl>(syclDevice, asyncHandler, propList);
+  impl = std::make_shared<detail::queue_impl>(
+      syclDevice, asyncHandler, cl::sycl::detail::QueueOrder::OOO, propList);
 }
 
 queue::queue(cl_command_queue clQueue, const context &syclContext,

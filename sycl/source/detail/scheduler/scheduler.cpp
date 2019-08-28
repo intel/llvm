@@ -145,8 +145,8 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 
 Scheduler::Scheduler() {
   sycl::device HostDevice;
-  DefaultHostQueue = QueueImplPtr(
-      new queue_impl(HostDevice, /*AsyncHandler=*/{}, /*PropList=*/{}));
+  DefaultHostQueue = QueueImplPtr(new queue_impl(
+      HostDevice, /*AsyncHandler=*/{}, QueueOrder::Ordered, /*PropList=*/{}));
 }
 
 } // namespace detail
