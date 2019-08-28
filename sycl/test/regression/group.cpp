@@ -34,7 +34,7 @@ bool group__get_group_range() {
   const range<DIMS> GlobalRange = LocalRange * GroupRange;
   using DataType = size_t;
   const int DataLen = GlobalRange.size() * DIMS;
-  std::unique_ptr<DataType> Data(new DataType[DataLen]);
+  std::unique_ptr<DataType[]> Data(new DataType[DataLen]);
   std::memset(Data.get(), 0, DataLen * sizeof(DataType));
 
   try {
@@ -100,7 +100,7 @@ bool group__get_linear_id() {
   const range<DIMS> GlobalRange = LocalRange * GroupRange;
   using DataType = size_t;
   const int DataLen = GlobalRange.size() * DIMS;
-  std::unique_ptr<DataType> Data(new DataType[DataLen]);
+  std::unique_ptr<DataType[]> Data(new DataType[DataLen]);
   std::memset(Data.get(), 0, DataLen * sizeof(DataType));
 
   try {

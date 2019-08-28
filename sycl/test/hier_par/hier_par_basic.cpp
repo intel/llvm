@@ -114,7 +114,7 @@ int main() {
   constexpr int N_ITER = 2;
 
   constexpr size_t range_length = N_WG * WG_SIZE_PHYSICAL;
-  std::unique_ptr<int> data(new int[range_length]);
+  std::unique_ptr<int[]> data(new int[range_length]);
   int *ptr = data.get();
   bool passed = true;
 
@@ -232,7 +232,7 @@ int main() {
       const int WG_LINEAR_SIZE = WG_X_SIZE * WG_Y_SIZE;
       const int range_length = N_WG * WG_LINEAR_SIZE;
 
-      std::unique_ptr<int> data(new int[range_length]);
+      std::unique_ptr<int[]> data(new int[range_length]);
       int *ptr = data.get();
 
       std::memset(ptr, 0, range_length * sizeof(ptr[0]));
