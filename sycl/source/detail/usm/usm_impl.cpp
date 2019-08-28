@@ -43,6 +43,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 
   // Error is for debugging purposes.
   // The spec wants a nullptr returned, not an exception.
+  if (Error != PI_SUCCESS) return nullptr;
 
   return RetVal;
 }
@@ -77,6 +78,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 
   // Error is for debugging purposes.
   // The spec wants a nullptr returned, not an exception.
+  if (Error != PI_SUCCESS) return nullptr;
 
   return RetVal;
 }
