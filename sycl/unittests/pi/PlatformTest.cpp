@@ -32,7 +32,7 @@ TEST_F(PlatformTest, piPlatformsGet) {
             PI_SUCCESS)
       << "piPlatformsGet failed";
 
-  ASSERT_GT(platformCount, 0) << "piPlatformsGet found 0 platforms.\n";
+  ASSERT_GT(platformCount, 0u) << "piPlatformsGet found 0 platforms.\n";
 
   std::vector<pi_platform> platforms(platformCount);
 
