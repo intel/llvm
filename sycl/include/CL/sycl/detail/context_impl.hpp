@@ -121,6 +121,21 @@ public:
   ///
   /// @return a pointer to USM dispatcher.
   std::shared_ptr<usm::USMDispatcher> getUSMDispatch() const;
+
+  /// Returns device library programs: in contrast to user programs, which are a
+  /// part of user code, these programs come from the SYCL runtime. Device
+  /// libraries are identified by the corresponding extension name:
+  ///
+  ///  "cl_intel_devicelib_assert" -> #<pi_program with assert functions>
+  ///  "cl_intel_devicelib_complex" -> #<pi_program with complex functions>
+  ////  etc.
+  ///
+  /// See `doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst' for
+  /// more details.
+  std::map<std::string, RT::PiProgram> &getCachedLibPrograms() {
+    return MCachedLibPrograms;
+  }
+
 private:
   async_handler MAsyncHandler;
   vector_class<device> MDevices;
@@ -131,6 +146,7 @@ private:
   std::map<KernelSetId, RT::PiProgram> MCachedPrograms;
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> MCachedKernels;
   std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
+  std::map<std::string, RT::PiProgram> MCachedLibPrograms;
 };
 
 } // namespace detail

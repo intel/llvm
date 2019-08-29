@@ -35,6 +35,7 @@ config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
 if platform.system() == "Linux":
+    config.available_features.add('linux')
     # Propagate 'LD_LIBRARY_PATH' through the environment.
     if 'LD_LIBRARY_PATH' in os.environ:
         config.environment['LD_LIBRARY_PATH'] = os.path.pathsep.join((config.environment['LD_LIBRARY_PATH'], config.llvm_build_libs_dir))

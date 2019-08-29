@@ -70,8 +70,12 @@ private:
 
   DeviceImage &getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                               const context &Context);
-  void build(RT::PiProgram Program, const string_class &Options,
-             std::vector<RT::PiDevice> Devices);
+  RT::PiProgram build(RT::PiProgram Program,
+                      RT::PiContext Context,
+                      const string_class &Options,
+                      std::vector<RT::PiDevice> Devices,
+                      std::map<std::string, RT::PiProgram> &CachedLibPrograms,
+                      bool LinkDeviceLibs = false);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;
   /// Returns the kernel set associated with the kernel, handles some special
