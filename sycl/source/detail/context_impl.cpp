@@ -77,7 +77,7 @@ cl_context context_impl::get() const {
     return pi::cast<cl_context>(m_Context);
   }
   throw invalid_object_error(
-      "This instance of event doesn't support OpenCL interoperability.");
+      "This instance of context doesn't support OpenCL interoperability.");
 }
 
 bool context_impl::is_host() const { return m_HostContext || !m_OpenCLInterop; }
