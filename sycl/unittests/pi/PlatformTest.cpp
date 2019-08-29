@@ -20,7 +20,7 @@ protected:
 constexpr static size_t out_string_size =
     8192u; // Using values from OpenCL CTS clGetPlatforms test
 
-  PlatformTest() { detail::pi::piInitialize(); }
+  PlatformTest() { detail::pi::initialize(); }
 
   ~PlatformTest() = default;
 };
