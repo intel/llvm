@@ -6,9 +6,9 @@ OpenCL&trade; API to offload computations to accelerators.
 
 # Before You Begin
 
-### Get `OpenCL runtime` for CPU and/or GPU:
+### Get `OpenCL runtime` for CPU and/or GPU on `Linux`:
 
-   a. OpenCL runtime for GPU: follow instructions on
+   a. OpenCL&trade; runtime for GPU: follow instructions on
 [github.com/intel/compute-runtime/releases](https://github.com/intel/compute-runtime/releases)
 to install.
 
@@ -16,12 +16,19 @@ to install.
 SYCL support: follow the instructions under
 [SYCL* Compiler and Runtimes](https://github.com/intel/llvm/releases/tag/2019-07)
 
+### Get `OpenCL runtime` for CPU and/or GPU on `Windows`:
+   a. OpenCL&trade; runtime for GPU and CPU: download it from
+   [Intel&reg; Download Center](https://downloadcenter.intel.com/download/28991/Intel-Graphics-Windows-10-DCH-Drivers)
+
+   b. The latest/experimental Intel&reg; CPU Runtime for OpenCL&trade; Applications with SYCL support
+   on Windows `will soon be published` together with Linux runtime at [SYCL* Compiler and Runtimes](https://github.com/intel/llvm/releases)
+
 ### Get the required tools:
 
    a. `git` - for downloading the sources (Get it at https://git-scm.com/downloads)
-   
+
    b. `cmake` - for building the compiler and tools, version 3.2 or later (Get it at: http://www.cmake.org/download)
-      
+
    c. `python` - for building the compiler and running tests (Get it at: https://www.python.org/downloads/release/python-2716/ )
 
    d. `Visual Studio 2017 or later` (Windows only. Get it at: https://visualstudio.microsoft.com/downloads/)
