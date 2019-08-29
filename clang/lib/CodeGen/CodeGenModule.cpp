@@ -3867,8 +3867,11 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
                    *UnitGV = EmitAnnotationUnit(VD->getLocation()),
                    *LineNoCst = EmitAnnotationLineNo(VD->getLocation());
 
+    llvm::Type *ResType = llvm::PointerType::getInt8PtrTy(
+        this->getLLVMContext(), GV->getType()->getPointerAddressSpace());
     llvm::Constant *C =
-        llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, Int8PtrTy);
+        llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType);
+
     // Create the ConstantStruct for the global annotation.
     llvm::Constant *Fields[4] = {
         C, llvm::ConstantExpr::getBitCast(AnnoGV, Int8PtrTy),

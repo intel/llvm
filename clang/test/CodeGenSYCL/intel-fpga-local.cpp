@@ -17,7 +17,9 @@
 //CHECK: [[ANN9:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{max_private_copies:4}
 
 //CHECK: @llvm.global.annotations
-//CHECK-SAME: a_one{{.*}}[[ANN1]]{{.*}}i32 148
+//CHECK-SAME: @_ZZ3quxiE5a_one
+//CHECK-NOT: to i8*
+//CHECK-SAME: [[ANN1]]{{.*}}i32 150
 
 void foo() {
   //CHECK: %[[VAR_ONE:[0-9]+]] = bitcast{{.*}}var_one
@@ -145,7 +147,7 @@ void baz() {
 }
 
 void qux(int a) {
-  static int a_one [[intelfpga::numbanks(2)]];
+  static int a_one [[intelfpga::numbanks(4)]];
   //CHECK: load{{.*}}a_one
   //CHECK: store{{.*}}a_one
   a_one = a_one + a;
