@@ -11,6 +11,8 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/usm.hpp>
 
+#include <cstdlib>
+
 namespace cl {
 namespace sycl {
 
@@ -21,75 +23,99 @@ namespace usm {
 
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    alloc Kind) {
-  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
-  pi_context C = CtxImpl->getHandleRef();
-  pi_result Error;
   void *RetVal = nullptr;
+  if (Ctxt.is_host()) {
+    if (Alignment) {
+      RetVal = ::aligned_alloc(Alignment, Size);
+    }
+    else {
+      RetVal = ::malloc(Size);
+    }
+  } else {
+    std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+    std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
+    pi_context C = CtxImpl->getHandleRef();
+    pi_result Error;
 
-  switch (Kind) {
-  case alloc::host: {
-    RetVal = Dispatch->hostMemAlloc(C, nullptr, Size, Alignment, &Error);
-    break;
-  }
-  case alloc::device:
-  case alloc::shared:
-  case alloc::unknown: {
-    RetVal = nullptr;
-    Error = PI_INVALID_VALUE;
-    break;
-  }
-  }
+    switch (Kind) {
+    case alloc::host: {
+      RetVal = Dispatch->hostMemAlloc(C, nullptr, Size, Alignment, &Error);
+      break;
+    }
+    case alloc::device:
+    case alloc::shared:
+    case alloc::unknown: {
+      RetVal = nullptr;
+      Error = PI_INVALID_VALUE;
+      break;
+    }
+    }
 
-  // Error is for debugging purposes.
-  // The spec wants a nullptr returned, not an exception.
-  if (Error != PI_SUCCESS) return nullptr;
-
+    // Error is for debugging purposes.
+    // The spec wants a nullptr returned, not an exception.
+    if (Error != PI_SUCCESS)
+      return nullptr;
+  }
   return RetVal;
 }
 
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind) {
-  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
-  pi_context C = CtxImpl->getHandleRef();
-  pi_result Error;
-  pi_device Id;
   void *RetVal = nullptr;
+  if (Ctxt.is_host()) {
+    if (Alignment) {
+      RetVal = ::aligned_alloc(Alignment, Size);
+    }
+    else {
+      RetVal = ::malloc(Size);
+    }
+  } else {
+    std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+    std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
+    pi_context C = CtxImpl->getHandleRef();
+    pi_result Error;
+    pi_device Id;
 
-  switch (Kind) {
-  case alloc::device: {
-    Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-    RetVal = Dispatch->deviceMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
-    break;
-  }
-  case alloc::shared: {
-    Id = detail::getSyclObjImpl(Dev)->getHandleRef();
-    RetVal = Dispatch->sharedMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
-    break;
-  }
-  case alloc::host:
-  case alloc::unknown: {
-    RetVal = nullptr;
-    Error = PI_INVALID_VALUE;
-    break;
-  }
-  }
+    switch (Kind) {
+    case alloc::device: {
+      Id = detail::getSyclObjImpl(Dev)->getHandleRef();
+      RetVal =
+          Dispatch->deviceMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
+      break;
+    }
+    case alloc::shared: {
+      Id = detail::getSyclObjImpl(Dev)->getHandleRef();
+      RetVal =
+          Dispatch->sharedMemAlloc(C, Id, nullptr, Size, Alignment, &Error);
+      break;
+    }
+    case alloc::host:
+    case alloc::unknown: {
+      RetVal = nullptr;
+      Error = PI_INVALID_VALUE;
+      break;
+    }
+    }
 
-  // Error is for debugging purposes.
-  // The spec wants a nullptr returned, not an exception.
-  if (Error != PI_SUCCESS) return nullptr;
-
+    // Error is for debugging purposes.
+    // The spec wants a nullptr returned, not an exception.
+    if (Error != PI_SUCCESS)
+      return nullptr;
+  }
   return RetVal;
 }
   
 void free(void *Ptr, const context &Ctxt) {
-  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
-  std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
-  pi_context C = CtxImpl->getHandleRef();
-  pi_result Error = Dispatch->memFree(C, Ptr);
+  if (Ctxt.is_host()) {
+    ::free(Ptr);
+  } else {
+    std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+    std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
+    pi_context C = CtxImpl->getHandleRef();
+    pi_result Error = Dispatch->memFree(C, Ptr);
 
-  PI_CHECK(Error);
+    PI_CHECK(Error);
+  }
 }
 
 } // namespace usm

@@ -13,6 +13,8 @@
 #include <CL/sycl/detail/usm_dispatch.hpp>
 #include <CL/sycl/device.hpp>
 
+#include <cstring>
+
 namespace cl {
 namespace sycl {
 namespace detail {
@@ -35,33 +37,48 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 
 event queue_impl::memset(void *Ptr, int Value, size_t Count) {
   context Context = get_context();
-  std::shared_ptr<usm::USMDispatcher> USMDispatch =
-      getSyclObjImpl(Context)->getUSMDispatch();
-  cl_event Event;
+  if (Context.is_host()) {
+    std::memset(Ptr, Value, Count);
 
-  PI_CHECK(USMDispatch->enqueueMemset(getHandleRef(), Ptr, Value, Count,
-                                      /* sizeof waitlist */ 0, nullptr,
-                                      reinterpret_cast<pi_event *>(&Event)));
+    return event();
+  } else {
+    std::shared_ptr<usm::USMDispatcher> USMDispatch =
+        getSyclObjImpl(Context)->getUSMDispatch();
+    cl_event Event;
 
-  return event(Event, Context);
+    PI_CHECK(USMDispatch->enqueueMemset(getHandleRef(), Ptr, Value, Count,
+                                        /* sizeof waitlist */ 0, nullptr,
+                                        reinterpret_cast<pi_event *>(&Event)));
+
+    return event(Event, Context);
+  }
 }
 
 event queue_impl::memcpy(void *Dest, const void *Src, size_t Count) {
   context Context = get_context();
-  std::shared_ptr<usm::USMDispatcher> USMDispatch =
-      getSyclObjImpl(Context)->getUSMDispatch();
-  cl_event Event;
+  if (Context.is_host()) {
+    std::memcpy(Dest, Src, Count);
 
-  PI_CHECK(USMDispatch->enqueueMemcpy(getHandleRef(),
-                                      /* blocking */ false, Dest, Src, Count,
-                                      /* sizeof waitlist */ 0, nullptr,
-                                      reinterpret_cast<pi_event *>(&Event)));
+    return event();
+  } else {
+    std::shared_ptr<usm::USMDispatcher> USMDispatch =
+        getSyclObjImpl(Context)->getUSMDispatch();
+    cl_event Event;
 
-  return event(Event, Context);
+    PI_CHECK(USMDispatch->enqueueMemcpy(getHandleRef(),
+                                        /* blocking */ false, Dest, Src, Count,
+                                        /* sizeof waitlist */ 0, nullptr,
+                                        reinterpret_cast<pi_event *>(&Event)));
+
+    return event(Event, Context);
+  }
 }
 
 event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
   context Context = get_context();
+  if (Context.is_host()) {
+    return event();
+  } else {
   std::shared_ptr<usm::USMDispatcher> USMDispatch =
     getSyclObjImpl(Context)->getUSMDispatch();
   cl_event Event;
@@ -70,6 +87,7 @@ event queue_impl::mem_advise(const void *Ptr, size_t Length, int Advice) {
                          reinterpret_cast<pi_event *>(&Event));
 
   return event(Event, Context);
+  }
 }
 } // namespace detail
 } // namespace sycl
