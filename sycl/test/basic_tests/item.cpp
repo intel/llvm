@@ -107,5 +107,9 @@ int main() {
   cl::sycl::item<3, true> three_dim_check =
       Builder::createItem<3, true>({4, 8, 16}, {2, 4, 8}, {0, 0, 0});
   assert((three_dim_transformed == three_dim_check));
+
+  using value_type = decltype(std::declval<cl::sycl::item<1>>()[0]);
+  static_assert(!std::is_reference<value_type>::value,
+                "Expected a non-reference type");
 }
 

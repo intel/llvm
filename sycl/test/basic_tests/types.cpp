@@ -121,8 +121,4 @@ int main() {
   CHECK_SIZE_VEC(s::cl_ulong);
   CHECK_SIZE_VEC(s::cl_float);
   CHECK_SIZE_VEC(s::cl_double);
-
-  using value_type = decltype(std::declval<cl::sycl::item<1>>()[0]);
-  static_assert(!std::is_reference<value_type>::value,
-                "Expected a non-reference type");
 }
