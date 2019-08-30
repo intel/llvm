@@ -8,11 +8,10 @@
 
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// TODO: SYCL specific fail - analyze and enable on Windows
+// RUN: %CPU_RUN_ON_LINUX_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// TODO: SYCL specific fail - analyze and enable
-// XFAIL: windows
 
 // This test checks hierarchical parallelism invocation APIs, but without any
 // data or code with side-effects between the work group and work item scopes.
