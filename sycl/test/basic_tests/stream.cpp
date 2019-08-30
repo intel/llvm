@@ -19,7 +19,6 @@
 #include <cassert>
 
 using namespace cl::sycl;
-using sm = stream_manipulator;
 
 int main() {
   {
@@ -53,11 +52,6 @@ int main() {
       CGH.single_task<class DummyTask2>([=]() {});
     });
 
-    // TODO: support cl::sycl::endl. According to specitification endl should be
-    // constant global variable in cl::sycl which is initialized with
-    // strean_manipulator::endl. This approach doesn't currently work,
-    // variable is not initialized in the kernel code, it contains some garbage
-    // value.
     Queue.submit([&](handler &CGH) {
       stream Out(1024, 80, CGH);
       CGH.single_task<class integral>([=]() {
@@ -70,23 +64,23 @@ int main() {
 // CHECK-NEXT: a
 
         // Boolean type
-        Out << true << sm::endl;
-        Out << false << sm::endl;
+        Out << true << endl;
+        Out << false << endl;
 // CHECK-NEXT: true
 // CHECK-NEXT: false
 
         // Integral types
-        Out << static_cast<unsigned char>(123) << sm::endl;
-        Out << static_cast<signed char>(-123) << sm::endl;
-        Out << static_cast<short>(2344) << sm::endl;
-        Out << static_cast<signed short>(-2344) << sm::endl;
-        Out << 3454 << sm::endl;
-        Out << -3454 << sm::endl;
-        Out << 3454U << sm::endl;
-        Out << 3454L << sm::endl;
-        Out << 12345678901245UL << sm::endl;
-        Out << -12345678901245LL << sm::endl;
-        Out << 12345678901245ULL << sm::endl;
+        Out << static_cast<unsigned char>(123) << endl;
+        Out << static_cast<signed char>(-123) << endl;
+        Out << static_cast<short>(2344) << endl;
+        Out << static_cast<signed short>(-2344) << endl;
+        Out << 3454 << endl;
+        Out << -3454 << endl;
+        Out << 3454U << endl;
+        Out << 3454L << endl;
+        Out << 12345678901245UL << endl;
+        Out << -12345678901245LL << endl;
+        Out << 12345678901245ULL << endl;
 // CHECK-NEXT: 123
 // CHECK-NEXT: -123
 // CHECK-NEXT: 2344
@@ -100,17 +94,17 @@ int main() {
 // CHECK-NEXT: 12345678901245
 
         // Floating point types
-        Out << 33.4f << sm::endl;
-        Out << 5.2 << sm::endl;
-        Out << -33.4f << sm::endl;
-        Out << -5.2 << sm::endl;
-        Out << 0.0003 << sm::endl;
-        Out << -1.0 / 0.0 << sm::endl;
-        Out << 1.0 / 0.0 << sm::endl;
-        Out << cl::sycl::sqrt(-1.0) << sm::endl;
-        Out << -1.0f / 0.0f << sm::endl;
-        Out << 1.0f / 0.0f << sm::endl;
-        Out << sqrt(-1.0f) << sm::endl;
+        Out << 33.4f << endl;
+        Out << 5.2 << endl;
+        Out << -33.4f << endl;
+        Out << -5.2 << endl;
+        Out << 0.0003 << endl;
+        Out << -1.0 / 0.0 << endl;
+        Out << 1.0 / 0.0 << endl;
+        Out << cl::sycl::sqrt(-1.0) << endl;
+        Out << -1.0f / 0.0f << endl;
+        Out << 1.0f / 0.0f << endl;
+        Out << cl::sycl::sqrt(-1.0f) << endl;
 // CHECK-NEXT: 33.4
 // CHECK-NEXT: 5.2
 // CHECK-NEXT: -33.4
@@ -124,41 +118,41 @@ int main() {
 // CHECK-NEXT: nan
 
         // Manipulators for integral types
-        Out << sm::dec << 0213 << sm::endl;
-        Out << sm::dec << 0x213A << sm::endl;
-        Out << sm::oct << 139 << sm::endl;
-        Out << sm::hex << 8506 << sm::endl;
+        Out << dec << 0213 << endl;
+        Out << dec << 0x213A << endl;
+        Out << oct << 139 << endl;
+        Out << hex << 8506 << endl;
 // CHECK-NEXT: 139
 // CHECK-NEXT: 8506
 // CHECK-NEXT: 213
 // CHECK-NEXT: 213a
 
-        Out << sm::oct << sm::showbase << 8506 << ' ' << sm::noshowbase << 8506
-            << sm::endl;
-        Out << sm::hex << sm::showbase << 8506 << ' ' << sm::noshowbase << 8506
-            << sm::endl;
-        Out << sm::dec << sm::showbase << 8506 << ' ' << sm::noshowbase << 8506
-            << sm::endl;
+        Out << oct << showbase << 8506 << ' ' << noshowbase << 8506
+            << endl;
+        Out << hex << showbase << 8506 << ' ' << noshowbase << 8506
+            << endl;
+        Out << dec << showbase << 8506 << ' ' << noshowbase << 8506
+            << endl;
 // CHECK-NEXT: 020472 20472
 // CHECK-NEXT: 0x213a 213a
 // CHECK-NEXT: 8506 8506
 
-        Out << sm::dec << sm::showpos << 234 << ' ' << sm::noshowpos << 234
-            << sm::endl;
-        Out << sm::hex << sm::showpos << 234 << ' ' << sm::noshowpos << 234
-            << sm::endl;
-        Out << sm::oct << sm::showpos << 234 << ' ' << sm::noshowpos << 234
-            << sm::endl;
+        Out << dec << showpos << 234 << ' ' << noshowpos << 234
+            << endl;
+        Out << hex << showpos << 234 << ' ' << noshowpos << 234
+            << endl;
+        Out << oct << showpos << 234 << ' ' << noshowpos << 234
+            << endl;
 // CHECK-NEXT: +234 234
 // CHECK-NEXT: ea ea
 // CHECK-NEXT: 352 352
 
-        Out << sm::hex << sm::showpos << -1 << ' ' << sm::noshowpos << -1
-            << sm::endl;
-        Out << sm::oct << sm::showpos << -1 << ' ' << sm::noshowpos << -1
-            << sm::endl;
-        Out << sm::dec << sm::showpos << -1 << ' ' << sm::noshowpos << -1
-            << sm::endl;
+        Out << hex << showpos << -1 << ' ' << noshowpos << -1
+            << endl;
+        Out << oct << showpos << -1 << ' ' << noshowpos << -1
+            << endl;
+        Out << dec << showpos << -1 << ' ' << noshowpos << -1
+            << endl;
 // CHECK-NEXT: ffffffff ffffffff
 // CHECK-NEXT: 37777777777 37777777777
 // CHECK-NEXT: -1 -1
@@ -166,27 +160,27 @@ int main() {
         // Pointers
         int a = 5;
         int *Ptr = &a;
-        Out << Ptr << sm::endl;
+        Out << Ptr << endl;
         const int *const ConstPtr = &a;
-        Out << ConstPtr << sm::endl;
+        Out << ConstPtr << endl;
         auto multiPtr = private_ptr<int>(Ptr);
-        Out << multiPtr << sm::endl;
+        Out << multiPtr << endl;
 // CHECK-NEXT: 0x{{[0-9a-fA-F]*$}}
 // CHECK-NEXT: 0x{{[0-9a-fA-F]*$}}
 // CHECK-NEXT: 0x{{[0-9a-fA-F]*$}}
 
         // Vectors
         vec<int, 1> f1(545);
-        Out << f1 << sm::endl;
+        Out << f1 << endl;
         vec<int, 2> f2(545, 645);
-        Out << f2 << sm::endl;
+        Out << f2 << endl;
         vec<int, 3> f3(545, 645, 771);
-        Out << f3 << sm::endl;
+        Out << f3 << endl;
         vec<int, 4> f4(542325, 645, 771, 1024);
-        Out << sm::hex << sm::showbase << f4 << sm::endl;
-        Out << sm::dec << f4 << sm::endl;
+        Out << hex << showbase << f4 << endl;
+        Out << dec << f4 << endl;
         vec<float, 4> f5(542.3f, 645.3f, 771.6f, 1024.2f);
-        Out << f5 << sm::endl;
+        Out << f5 << endl;
 // CHECK-NEXT: 545
 // CHECK-NEXT: 545, 645
 // CHECK-NEXT: 545, 645, 771
@@ -195,15 +189,15 @@ int main() {
 // CHECK-NEXT: 542.3, 645.3, 771.6, 1024.2
 
         // Swizzles
-        Out << f4.xyzw() << sm::endl;
+        Out << f4.xyzw() << endl;
 // CHECK-NEXT: 542325, 645, 771, 1024
 
         // SYCL types
-        Out << id<3>(11, 12, 13) << sm::endl;
-        Out << range<3>(11, 12, 13) << sm::endl;
+        Out << id<3>(11, 12, 13) << endl;
+        Out << range<3>(11, 12, 13) << endl;
         Out << cl::sycl::nd_range<3>(cl::sycl::range<3>(2, 4, 1),
                                      cl::sycl::range<3>(1, 2, 1))
-            << sm::endl;
+            << endl;
 // CHECK-NEXT: {11, 12, 13}
 // CHECK-NEXT: {11, 12, 13}
 // CHECK-NEXT: nd_range(global_range: {2, 4, 1}, local_range: {1, 2, 1}, offset: {0, 0, 0})
@@ -237,7 +231,7 @@ int main() {
           [=](nd_item<3> item) {
             if (item.get_global_id(0) == 1 && item.get_global_id(1) == 2 &&
                 item.get_global_id(2) == 3)
-              Out << item << sm::endl;
+              Out << item << endl;
           });
     });
     Queue.wait();
@@ -248,7 +242,7 @@ int main() {
       CGH.parallel_for_work_group<class stream_h_item>(
           range<3>(1, 1, 1), range<3>(1, 1, 1), [=](group<3> Group) {
             Group.parallel_for_work_item(
-                [&](h_item<3> Item) { Out << Item << sm::endl; });
+                [&](h_item<3> Item) { Out << Item << endl; });
           });
     });
 // CHECK-NEXT: h_item(
