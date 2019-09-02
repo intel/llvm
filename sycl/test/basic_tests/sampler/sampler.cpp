@@ -57,9 +57,12 @@ int main() {
         clCreateSampler(Queue.get_context().get(), true, CL_ADDRESS_REPEAT,
                         CL_FILTER_LINEAR, &Err);
 #endif
+    // If device doesn't support sampler - skip it
+    if (Err == CL_INVALID_OPERATION)
+      return 0;
+
     CHECK_OCL_CODE(Err);
     B = sycl::sampler(ClSampler, Queue.get_context());
-
   } else {
     // Host sampler
     B = sycl::sampler(sycl::coordinate_normalization_mode::normalized,
