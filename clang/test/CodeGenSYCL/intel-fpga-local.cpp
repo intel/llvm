@@ -15,11 +15,15 @@
 //CHECK: [[ANN7:@.str[\.]*[0-9]*]] = {{.*}}{memory:MLAB}
 //CHECK: [[ANN8:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{bankwidth:8}
 //CHECK: [[ANN9:@.str[\.]*[0-9]*]] = {{.*}}{memory:DEFAULT}{max_private_copies:4}
+//CHECK: [[ANN16:@.str.[0-9]*]] = {{.*}}foobar
 
 //CHECK: @llvm.global.annotations
 //CHECK-SAME: @_ZZ3quxiE5a_one
 //CHECK-NOT: to i8*
-//CHECK-SAME: [[ANN1]]{{.*}}i32 150
+//CHECK-SAME: [[ANN1]]{{.*}}i32 154
+//CHECK-SAME: @_ZZ3quxiE5b_two
+//CHECK-NOT: to i8*
+//CHECK-SAME: [[ANN16]]{{.*}}i32 158
 
 void foo() {
   //CHECK: %[[VAR_ONE:[0-9]+]] = bitcast{{.*}}var_one
@@ -151,6 +155,10 @@ void qux(int a) {
   //CHECK: load{{.*}}a_one
   //CHECK: store{{.*}}a_one
   a_one = a_one + a;
+  static int b_two [[clang::annotate("foobar")]];
+  //CHECK: load{{.*}}b_two
+  //CHECK: store{{.*}}b_two
+  b_two = b_two + a;
 }
 
 void field_addrspace_cast() {
