@@ -7,6 +7,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
+# Find OpenCL headers and libraries installed in the system and use them to
+# build SYCL runtime.
+# WARNING: use with caution, building SYCL runtime with OpenCL implementation
+# instead of Khronos ICD loader might cause build and/or portability issues.
+option(BUILD_WITH_SYSTEM_OPENCL OFF)
+
 if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
@@ -34,7 +40,9 @@ set(CLANG_VERSION "${CLANG_VERSION_MAJOR}.${CLANG_VERSION_MINOR}.${CLANG_VERSION
 set(LLVM_INST_INC_DIRECTORY "lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}/include")
 set(dst_dir ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/include)
 
-find_package(OpenCL)
+if (BUILD_WITH_SYSTEM_OPENCL)
+  find_package(OpenCL)
+endif()
 
 include(ExternalProject)
 
