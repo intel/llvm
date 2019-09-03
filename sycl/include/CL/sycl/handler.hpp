@@ -164,6 +164,8 @@ class handler {
   void *MSrcPtr = nullptr;
   // Pointer to the dest host memory or accessor(depends on command type).
   void *MDstPtr = nullptr;
+  // Length to copy or fill (for USM operations).
+  size_t MLength = 0;
   // Pattern that is used to fill memory object in case command type is fill.
   std::vector<char> MPattern;
   // Storage for a lambda or function object.
@@ -382,6 +384,18 @@ private:
           MDstPtr, std::move(MArgsStorage), std::move(MAccStorage),
           std::move(MSharedPtrStorage), std::move(MRequirements),
           std::move(MEvents)));
+      break;
+    case detail::CG::COPY_USM:
+      CommandGroup.reset(new detail::CGCopyUSM(
+          MSrcPtr, MDstPtr, MLength, std::move(MArgsStorage),
+          std::move(MAccStorage), std::move(MSharedPtrStorage),
+          std::move(MRequirements), std::move(MEvents)));
+      break;
+    case detail::CG::FILL_USM:
+      CommandGroup.reset(new detail::CGFillUSM(
+          std::move(MPattern), MDstPtr, MLength, std::move(MArgsStorage),
+          std::move(MAccStorage), std::move(MSharedPtrStorage),
+          std::move(MRequirements), std::move(MEvents)));
       break;
     case detail::CG::NONE:
       throw runtime_error("Command group submitted without a kernel or a "
@@ -1132,6 +1146,22 @@ public:
         Dst[Index] = Pattern;
       });
     }
+  }
+
+  // Copy memory from the source to the destination.
+  void memcpy(void* Dest, const void* Src, size_t Count) {
+    MSrcPtr = const_cast<void *>(Src);
+    MDstPtr = Dest;
+    MLength = Count;
+    MCGType = detail::CG::COPY_USM;
+  }
+
+  // Fill the memory pointed to by the destination with the given bytes.
+  void memset(void *Dest, int Value, size_t Count) {
+    MDstPtr = Dest;
+    MPattern.push_back((char)Value);
+    MLength = Count;
+    MCGType = detail::CG::FILL_USM;
   }
 };
 } // namespace sycl
