@@ -26,13 +26,14 @@ def do_configure(args):
                  "-DLLVM_EXTERNAL_PROJECTS=sycl;llvm-spirv",
                  "-DLLVM_EXTERNAL_SYCL_SOURCE_DIR={}".format(sycl_dir),
                  "-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR={}".format(spirv_dir),
-                 "-DLLVM_ENABLE_PROJECTS=clang;llvm-spirv;sycl",
+                 "-DLLVM_ENABLE_PROJECTS=clang;sycl;llvm-spirv",
                  "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
                  "-DOpenCL_LIBRARY={}".format(icd_loader_lib),
                  "-DLLVM_BUILD_TOOLS=OFF",
                  "-DSYCL_ENABLE_WERROR=ON",
                  "-DLLVM_ENABLE_ASSERTIONS=ON",
                  "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
+                 "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
                  llvm_dir]
 
     print(cmake_cmd)

@@ -11,12 +11,11 @@ config.llvm_build_bins_dir = "@LLVM_BUILD_BINARY_DIRS@"
 config.llvm_binary_dir = "@LLVM_BINARY_DIR@"
 config.opencl_include = "@OPENCL_INCLUDE@"
 config.sycl_include = "@SYCL_INCLUDE@"
+config.sycl_obj_root = "@SYCL_BINARY_DIR@"
 
-config.sycl_tests_binary_dir = "@SYCL_TESTS_BINARY_DIR@"
-config.sycl_dir = "@SYCL_BINARY_DIR@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
 # Let the main config do the real work.
-lit_config.load_config(config, "@SYCL_TESTS_ROOT_DIR@/lit.cfg")
+lit_config.load_config(config, "@SYCL_SOURCE_DIR@/test/lit.cfg.py")
