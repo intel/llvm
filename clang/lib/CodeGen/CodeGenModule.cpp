@@ -2231,13 +2231,15 @@ llvm::Constant *CodeGenModule::EmitAnnotateAttr(llvm::GlobalValue *GV,
                  *UnitGV = EmitAnnotationUnit(L),
                  *LineNoCst = EmitAnnotationLineNo(L);
 
+  llvm::Type *ResType = llvm::PointerType::getInt8PtrTy(
+      this->getLLVMContext(), GV->getType()->getPointerAddressSpace());
+
   // Create the ConstantStruct for the global annotation.
   llvm::Constant *Fields[4] = {
-    llvm::ConstantExpr::getBitCast(GV, Int8PtrTy),
-    llvm::ConstantExpr::getBitCast(AnnoGV, Int8PtrTy),
-    llvm::ConstantExpr::getBitCast(UnitGV, Int8PtrTy),
-    LineNoCst
-  };
+      llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType),
+      llvm::ConstantExpr::getBitCast(AnnoGV, Int8PtrTy),
+      llvm::ConstantExpr::getBitCast(UnitGV, Int8PtrTy),
+      LineNoCst};
   return llvm::ConstantStruct::getAnon(Fields);
 }
 
@@ -3867,8 +3869,11 @@ void CodeGenModule::addGlobalIntelFPGAAnnotation(const VarDecl *VD,
                    *UnitGV = EmitAnnotationUnit(VD->getLocation()),
                    *LineNoCst = EmitAnnotationLineNo(VD->getLocation());
 
+    llvm::Type *ResType = llvm::PointerType::getInt8PtrTy(
+        this->getLLVMContext(), GV->getType()->getPointerAddressSpace());
     llvm::Constant *C =
-        llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, Int8PtrTy);
+        llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType);
+
     // Create the ConstantStruct for the global annotation.
     llvm::Constant *Fields[4] = {
         C, llvm::ConstantExpr::getBitCast(AnnoGV, Int8PtrTy),
