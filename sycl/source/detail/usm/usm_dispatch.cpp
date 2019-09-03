@@ -54,12 +54,12 @@ USMDispatcher::USMDispatcher(cl_platform_id platform,
       if (CL_TARGET_OPENCL_VERSION >= 200) {
         bool AnybodyNotSupportSVM = false;
         for (const auto &D : DeviceIds) {
-          cl_device_svm_capabilities caps;
+          cl_device_svm_capabilities Caps;
           cl_int Error = clGetDeviceInfo(
               pi::cast<cl_device_id>(D), CL_DEVICE_SVM_CAPABILITIES,
-              sizeof(cl_device_svm_capabilities), &caps, nullptr);
-          AnybodyNotSupportSVM = (Error != CL_SUCCESS) ||
-                                 (!(caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER));
+              sizeof(cl_device_svm_capabilities), &Caps, nullptr);
+          AnybodyNotSupportSVM |= ((Error != CL_SUCCESS) ||
+                                   (!(Caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER)));
         }
         mSupported = !AnybodyNotSupportSVM;
       } else {
@@ -73,8 +73,6 @@ USMDispatcher::USMDispatcher(cl_platform_id platform,
   } else {
     mSupported = false;
   }
-  
-  // Else Error?
 }
 
 void *USMDispatcher::hostMemAlloc(pi_context Context,
@@ -370,6 +368,3 @@ void USMDispatcher::memAdvise(pi_queue Queue, const void *Ptr, size_t Length,
 } // namespace detail
 } // namespace sycl
 } // namespace cl
-
-
-
