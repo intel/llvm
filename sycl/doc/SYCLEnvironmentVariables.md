@@ -7,7 +7,7 @@ This file describes environment variables that are having effect on SYCL compile
 | Environment variable | Description |
 | ----------- | ----------- |
 | SYCL_PI_TRACE | If set forces tracing of PI calls to stdout. |
-| SYCL_BE={PI_OPENCL,PI_OTHER} | When SYCL RT is buils with PI this controls which plugin to use. |
+| SYCL_BE={PI_OPENCL,PI_OTHER} | When SYCL RT is built with PI this controls which plugin to use. |
 | SYCL_PRINT_EXECUTION_GRAPH | Print execution graph to DOT text file. Options are described below. |
 
 SYCL_PRINT_EXECUTION_GRAPH can accept one or more comma separated values from table below

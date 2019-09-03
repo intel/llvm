@@ -278,37 +278,6 @@ pi_result USMDispatcher::enqueueMigrateMem(pi_queue Queue, const void *Ptr,
   return RetVal;
 }
 
-pi_result USMDispatcher::enqueueMemAdvise(pi_queue Queue, void *Ptr,
-                                          size_t Size,
-                                          cl_mem_advice_intel Advice,
-                                          pi_uint32 NumEventsInWaitList,
-                                          const pi_event *EventWaitList,
-                                          pi_event *Event) {
-  pi_result RetVal = PI_INVALID_OPERATION;
-
-  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
-    cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
-
-    if (mEmulated) {
-      // TODO: What should we do here?
-      // This isn't really supported yet.
-      // Advice is typically safe to ignore,
-      //  so a NOP will do.
-      RetVal = pi::cast<pi_result>(clEnqueueMarkerWithWaitList(
-          CLQueue, NumEventsInWaitList,
-          reinterpret_cast<const cl_event *>(EventWaitList),
-          reinterpret_cast<cl_event *>(Event)));
-    } else {
-      RetVal = pi::cast<pi_result>(pfn_clEnqueueMemAdviseINTEL(
-          CLQueue, Ptr, Size, Advice, NumEventsInWaitList,
-          reinterpret_cast<const cl_event *>(EventWaitList),
-          reinterpret_cast<cl_event *>(Event)));
-    }
-  }
-
-  return RetVal;
-}
-
 pi_result USMDispatcher::getMemAllocInfo(pi_context Context, const void *Ptr,
                                          cl_mem_info_intel ParamName,
                                          size_t ParamValueSize,
@@ -337,6 +306,30 @@ pi_result USMDispatcher::getMemAllocInfo(pi_context Context, const void *Ptr,
   return RetVal;
 }
 
+void USMDispatcher::memAdvise(pi_queue Queue, const void *Ptr, size_t Length,
+                              int Advice, pi_event *Event) {
+  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+    cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
+
+    if (mEmulated) {
+      // memAdvise does nothing here
+      PI_CHECK(clEnqueueMarkerWithWaitList(
+          CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event)));
+    } else {
+      // Temporary until driver supports
+      // memAdvise doesn't do anything on an iGPU anyway
+      PI_CHECK(clEnqueueMarkerWithWaitList(
+                 CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event)));
+      /*
+      // Enable once this is supported in the driver
+      auto CLAdvice = *reinterpret_cast<cl_mem_advice_intel *>(&Advice);
+      PI_CHECK(pfn_clEnqueueMemAdviseINTEL(
+          CLQueue, Ptr, Length, CLAdvice, 0, nullptr,
+          reinterpret_cast<cl_event *>(Event)));
+      */
+    }
+  }
+}
 } // namespace usm
 } // namespace detail
 } // namespace sycl

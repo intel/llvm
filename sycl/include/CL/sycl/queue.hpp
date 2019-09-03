@@ -104,12 +104,16 @@ public:
     return impl->get_property<propertyT>();
   }
 
-  event memset(void* ptr, int value, size_t count) {
-    return impl->memset(ptr, value, count);
+  event memset(void* Ptr, int Value, size_t Count) {
+    return impl->memset(Ptr, Value, Count);
   }
 
-  event memcpy(void* dest, const void* src, size_t count) {
-    return impl->memcpy(dest, src, count);
+  event memcpy(void* Dest, const void* Src, size_t Count) {
+    return impl->memcpy(Dest, Src, Count);
+  }
+
+  event mem_advise(const void *Ptr, size_t Length, int Advice) {
+    return impl->mem_advise(Ptr, Length, Advice);
   }
 
 private:

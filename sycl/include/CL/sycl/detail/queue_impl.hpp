@@ -59,12 +59,7 @@ public:
   }
 
   ~queue_impl() {
-    try {
-      throw_asynchronous();
-    } catch (...) {
-      assert(!"The asynchronous error handler should not throw exceptions from "
-              "the queue destructor.");
-    }
+    throw_asynchronous();
     if (m_OpenCLInterop) {
       PI_CALL(RT::piQueueRelease(m_CommandQueue));
     }
@@ -201,8 +196,9 @@ public:
     return m_PropList.get_property<propertyT>();
   }
 
-  event memset(void* ptr, int value, size_t count);
-  event memcpy(void* dest, const void* src, size_t count);
+  event memset(void* Ptr, int Value, size_t Count);
+  event memcpy(void* Dest, const void* Src, size_t Count);
+  event mem_advise(const void *Ptr, size_t Length, int Advice);
 
 private:
   template <typename T>

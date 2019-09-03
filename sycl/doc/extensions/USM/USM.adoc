@@ -374,22 +374,28 @@ Return value:: none
 
 '''
 ==== Concurrent USM
-Concurrent USM contains all the utility functions of Explicit USM and Restricted USM.  It introduces a new function, `sycl::mem_advise`, that allows programmers to provide additional information to the underlying runtime about how different allocations are used.  
+Concurrent USM contains all the utility functions of Explicit USM and Restricted USM.  It introduces a new function, `sycl::queue::mem_advise`, that allows programmers to provide additional information to the underlying runtime about how different allocations are used.  
 
 ===== Performance Hints
 ===== prefetch
 In Concurrent USM, prefetch commands may be overlapped with kernel execution.
+
 ===== mem_advise
 [source,cpp]
 ----
-void sycl::mem_advise(void *addr, size_t length, int advice);
+class queue {
+ ...
+ public:
+  ...
+  event mem_advise(void *addr, size_t length, int advice);
+};
 ----
 
 Parameters::
  * `void* addr` - address of allocation
  * `size_t length` - number of bytes in the allocation
  * `int advice` - device-defined advice for the specified allocation
-Return Value:: none
+Return Value:: Returns an event representing the operation.
 
 '''
 ==== General

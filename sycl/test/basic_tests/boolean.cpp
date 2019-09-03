@@ -4,9 +4,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// TODO: SYCL specific fail - analyze and enable
-// XFAIL: windows
-
 #include <CL/sycl.hpp>
 
 #include <cassert>
