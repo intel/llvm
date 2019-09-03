@@ -18,12 +18,10 @@
 //CHECK: [[ANN16:@.str.[0-9]*]] = {{.*}}foobar
 
 //CHECK: @llvm.global.annotations
-//CHECK-SAME: @_ZZ3quxiE5a_one
-//CHECK-NOT: to i8*
-//CHECK-SAME: [[ANN1]]{{.*}}i32 154
-//CHECK-SAME: @_ZZ3quxiE5b_two
-//CHECK-NOT: to i8*
-//CHECK-SAME: [[ANN16]]{{.*}}i32 158
+//CHECK-SAME: { i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ3quxiE5a_one to i8 addrspace(1)*)
+//CHECK-SAME: [[ANN1]]{{.*}}i32 152
+//CHECK-SAME: { i8 addrspace(1)* bitcast (i32 addrspace(1)* @_ZZ3quxiE5b_two to i8 addrspace(1)*)
+//CHECK-SAME: [[ANN16]]{{.*}}i32 156
 
 void foo() {
   //CHECK: %[[VAR_ONE:[0-9]+]] = bitcast{{.*}}var_one
