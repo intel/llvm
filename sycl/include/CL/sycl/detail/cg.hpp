@@ -326,7 +326,9 @@ public:
     COPY_ACC_TO_ACC,
     FILL,
     UPDATE_HOST,
-    RUN_ON_HOST_INTEL
+    RUN_ON_HOST_INTEL,
+    COPY_USM,
+    FILL_USM
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -459,6 +461,51 @@ public:
         MPtr((Requirement *)Ptr) {}
 
   Requirement *getReqToUpdate() { return MPtr; }
+};
+
+// The class which represents "copy" command group for USM pointers.
+class CGCopyUSM : public CG {
+  void *MSrc;
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGCopyUSM(void *Src, void *Dst, size_t Length,
+            std::vector<std::vector<char>> ArgsStorage,
+            std::vector<detail::AccessorImplPtr> AccStorage,
+            std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+            std::vector<Requirement *> Requirements,
+            std::vector<detail::EventImplPtr> Events)
+      : CG(COPY_USM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
+        MSrc(Src), MDst(Dst), MLength(Length) {}
+
+  void *getSrc() { return MSrc; }
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+};
+
+// The class which represents "fill" command group for USM pointers.
+class CGFillUSM : public CG {
+  std::vector<char> MPattern;
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGFillUSM(std::vector<char> Pattern, void *DstPtr, size_t Length,
+            std::vector<std::vector<char>> ArgsStorage,
+            std::vector<detail::AccessorImplPtr> AccStorage,
+            std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+            std::vector<Requirement *> Requirements,
+            std::vector<detail::EventImplPtr> Events)
+      : CG(FILL_USM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
+        MPattern(std::move(Pattern)), MDst(DstPtr), MLength(Length) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+  int getFill() { return MPattern[0]; }
 };
 
 } // namespace detail

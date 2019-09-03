@@ -120,6 +120,15 @@ public:
   static void unmap(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                     void *MappedPtr, std::vector<RT::PiEvent> DepEvents,
                     bool UseExclusiveQueue, RT::PiEvent &OutEvent);
+
+  static void copy_usm(void *SrcMem, QueueImplPtr Queue, size_t Len,
+                       void *DstMem, std::vector<RT::PiEvent> DepEvents,
+                       bool UseExclusiveQueue, RT::PiEvent &OutEvent);
+
+  static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
+                       int Pattern, std::vector<RT::PiEvent> DepEvents,
+                       RT::PiEvent &OutEvent);
+
 };
 } // namespace detail
 } // namespace sycl

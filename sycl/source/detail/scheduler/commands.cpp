@@ -480,6 +480,12 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
   case detail::CG::COPY_PTR_TO_ACC:
     Stream << "CG type: copy ptr to acc\\n";
     break;
+  case detail::CG::COPY_USM:
+    Stream << "CG type: copy usm\\n";
+    break;
+  case detail::CG::FILL_USM:
+    Stream << "CG type: fill usm\\n";
+    break;
   default:
     Stream << "CG type: unknown\\n";
     break;
@@ -765,6 +771,18 @@ cl_int ExecCGCommand::enqueueImp() {
         RawEvents.empty() ? nullptr : &RawEvents[0], &Event));
 
     return PI_SUCCESS;
+  }
+  case CG::CGTYPE::COPY_USM: {
+    CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
+    MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
+        Copy->getDst(), std::move(RawEvents), MUseExclusiveQueue, Event);
+    return CL_SUCCESS;
+  }
+  case CG::CGTYPE::FILL_USM: {
+    CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
+    MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
+        Fill->getFill(), std::move(RawEvents), Event);
+    return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:
   default:

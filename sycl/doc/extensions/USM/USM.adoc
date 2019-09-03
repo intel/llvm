@@ -256,7 +256,7 @@ class handler {
  ...
  public:
   ...
-  event memcpy(void* dest, const void* src, size_t count);
+  void memcpy(void* dest, const void* src, size_t count);
 };
 
 class queue {
@@ -279,7 +279,7 @@ class handler {
  ...
  public:
   ...
-  event memset(void* ptr, int value, size_t count);
+  void memset(void* ptr, int value, size_t count);
 };
 
 class queue {

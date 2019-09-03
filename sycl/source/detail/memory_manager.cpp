@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/queue_impl.hpp>
+#include <CL/sycl/detail/usm_dispatch.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -460,6 +461,31 @@ void MemoryManager::unmap(SYCLMemObjI *SYCLMemObj, void *Mem,
                         : Queue->getHandleRef(),
       pi::cast<RT::PiMem>(Mem), MappedPtr, DepEvents.size(),
       DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent));
+}
+
+void MemoryManager::copy_usm(void *SrcMem, QueueImplPtr SrcQueue, size_t Len,
+                             void *DstMem, std::vector<RT::PiEvent> DepEvents,
+                             bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
+  RT::PiQueue Queue = UseExclusiveQueue
+    ? SrcQueue->getExclusiveQueueHandleRef()
+    : SrcQueue->getHandleRef();
+
+  sycl::context Context = SrcQueue->get_context();
+  std::shared_ptr<usm::USMDispatcher> USMDispatch =
+    getSyclObjImpl(Context)->getUSMDispatch();
+  PI_CHECK(USMDispatch->enqueueMemcpy(Queue,
+    /* blocking */ false, DstMem, SrcMem, Len, DepEvents.size(),
+    &DepEvents[0], &OutEvent));
+}
+
+void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
+                             int Pattern, std::vector<RT::PiEvent> DepEvents,
+                             RT::PiEvent &OutEvent) {
+  sycl::context Context = Queue->get_context();
+  std::shared_ptr<usm::USMDispatcher> USMDispatch =
+    getSyclObjImpl(Context)->getUSMDispatch();
+  PI_CHECK(USMDispatch->enqueueMemset(Queue->getHandleRef(),
+    Mem, Pattern, Length, DepEvents.size(), &DepEvents[0], &OutEvent));
 }
 
 } // namespace detail
