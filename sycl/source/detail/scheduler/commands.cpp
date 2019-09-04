@@ -635,7 +635,6 @@ cl_int ExecCGCommand::enqueueImp() {
       Kernel = detail::ProgramManager::getInstance().getOrCreateKernel(
           ExecKernel->MOSModuleHandle, Context, ExecKernel->MKernelName);
 
-    bool usesUSM = false;
     for (ArgDesc &Arg : ExecKernel->MArgs) {
       switch (Arg.MType) {
       case kernel_param_kind_t::kind_accessor: {
@@ -661,8 +660,6 @@ cl_int ExecCGCommand::enqueueImp() {
         break;
       }
       case kernel_param_kind_t::kind_pointer:  {
-        // TODO: Change to PI
-        usesUSM = true;
         std::shared_ptr<usm::USMDispatcher> USMDispatch =
             getSyclObjImpl(Context)->getUSMDispatch();
         auto PtrToPtr = reinterpret_cast<intptr_t*>(Arg.MPtr);
@@ -680,11 +677,9 @@ cl_int ExecCGCommand::enqueueImp() {
                            detail::getSyclObjImpl(
                                MQueue->get_device())->getHandleRef());
 
-    if (usesUSM) {
-      std::shared_ptr<usm::USMDispatcher> USMDispatch =
+    std::shared_ptr<usm::USMDispatcher> USMDispatch =
         getSyclObjImpl(Context)->getUSMDispatch();
-      USMDispatch->setKernelIndirectAccess(Kernel, MQueue->getHandleRef());
-    }
+    USMDispatch->setKernelIndirectAccess(Kernel, MQueue->getHandleRef());
 
     PI_CALL(RT::piEnqueueKernelLaunch(
         MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
