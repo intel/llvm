@@ -34273,6 +34273,31 @@ bool X86TargetLowering::SimplifyDemandedVectorEltsForTargetNode(
     // TODO convert SrcUndef to KnownUndef.
     break;
   }
+  case X86ISD::KSHIFTL:
+  case X86ISD::KSHIFTR: {
+    SDValue Src = Op.getOperand(0);
+    auto *Amt = cast<ConstantSDNode>(Op.getOperand(1));
+    assert(Amt->getAPIntValue().ult(NumElts) && "Out of range shift amount");
+    unsigned ShiftAmt = Amt->getZExtValue();
+    bool ShiftLeft = (X86ISD::KSHIFTL == Opc);
+
+    APInt DemandedSrc =
+        ShiftLeft ? DemandedElts.lshr(ShiftAmt) : DemandedElts.shl(ShiftAmt);
+    if (SimplifyDemandedVectorElts(Src, DemandedSrc, KnownUndef, KnownZero, TLO,
+                                   Depth + 1))
+      return true;
+
+    if (ShiftLeft) {
+      KnownUndef = KnownUndef.shl(ShiftAmt);
+      KnownZero = KnownZero.shl(ShiftAmt);
+      KnownZero.setLowBits(ShiftAmt);
+    } else {
+      KnownUndef = KnownUndef.lshr(ShiftAmt);
+      KnownZero = KnownZero.lshr(ShiftAmt);
+      KnownZero.setHighBits(ShiftAmt);
+    }
+    break;
+  }
   case X86ISD::CVTSI2P:
   case X86ISD::CVTUI2P: {
     SDValue Src = Op.getOperand(0);
@@ -43712,9 +43737,17 @@ static SDValue combineLoopSADPattern(SDNode *N, SelectionDAG &DAG,
 /// The all-ones vector constant can be materialized using a pcmpeq instruction
 /// that is commonly recognized as an idiom (has no register dependency), so
 /// that's better/smaller than loading a splat 1 constant.
-static SDValue combineIncDecVector(SDNode *N, SelectionDAG &DAG) {
+static SDValue combineIncDecVector(SDNode *N, SelectionDAG &DAG,
+                                   TargetLowering::DAGCombinerInfo &DCI) {
   assert((N->getOpcode() == ISD::ADD || N->getOpcode() == ISD::SUB) &&
          "Unexpected opcode for increment/decrement transform");
+
+  // Delay this until legalize ops to avoid interfering with early DAG combines
+  // that may expect canonical adds.
+  // FIXME: We may want to consider moving this to custom lowering or all the
+  // way to isel, but lets start here.
+  if (DCI.isBeforeLegalizeOps())
+    return SDValue();
 
   // Pseudo-legality check: getOnesVector() expects one of these types, so bail
   // out and wait for legalization if we have an unsupported vector length.
@@ -43962,6 +43995,7 @@ static SDValue matchPMADDWD_2(SelectionDAG &DAG, SDValue N0, SDValue N1,
 }
 
 static SDValue combineAdd(SDNode *N, SelectionDAG &DAG,
+                          TargetLowering::DAGCombinerInfo &DCI,
                           const X86Subtarget &Subtarget) {
   const SDNodeFlags Flags = N->getFlags();
   if (Flags.hasVectorReduction()) {
@@ -43992,7 +44026,7 @@ static SDValue combineAdd(SDNode *N, SelectionDAG &DAG,
                             HADDBuilder);
   }
 
-  if (SDValue V = combineIncDecVector(N, DAG))
+  if (SDValue V = combineIncDecVector(N, DAG, DCI))
     return V;
 
   return combineAddOrSubToADCOrSBB(N, DAG);
@@ -44086,6 +44120,7 @@ static SDValue combineSubToSubus(SDNode *N, SelectionDAG &DAG,
 }
 
 static SDValue combineSub(SDNode *N, SelectionDAG &DAG,
+                          TargetLowering::DAGCombinerInfo &DCI,
                           const X86Subtarget &Subtarget) {
   SDValue Op0 = N->getOperand(0);
   SDValue Op1 = N->getOperand(1);
@@ -44122,7 +44157,7 @@ static SDValue combineSub(SDNode *N, SelectionDAG &DAG,
                             HSUBBuilder);
   }
 
-  if (SDValue V = combineIncDecVector(N, DAG))
+  if (SDValue V = combineIncDecVector(N, DAG, DCI))
     return V;
 
   // Try to create PSUBUS if SUB's argument is max/min
@@ -44761,8 +44796,8 @@ SDValue X86TargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::BITCAST:        return combineBitcast(N, DAG, DCI, Subtarget);
   case X86ISD::CMOV:        return combineCMov(N, DAG, DCI, Subtarget);
   case X86ISD::CMP:         return combineCMP(N, DAG);
-  case ISD::ADD:            return combineAdd(N, DAG, Subtarget);
-  case ISD::SUB:            return combineSub(N, DAG, Subtarget);
+  case ISD::ADD:            return combineAdd(N, DAG, DCI, Subtarget);
+  case ISD::SUB:            return combineSub(N, DAG, DCI, Subtarget);
   case X86ISD::ADD:
   case X86ISD::SUB:         return combineX86AddSub(N, DAG, DCI);
   case X86ISD::SBB:         return combineSBB(N, DAG);
