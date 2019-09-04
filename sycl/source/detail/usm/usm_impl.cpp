@@ -7,6 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/usm.hpp>
@@ -26,9 +27,14 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   void *RetVal = nullptr;
   if (Ctxt.is_host()) {
     if (Alignment) {
-      RetVal = ::aligned_alloc(Alignment, Size);
-    }
-    else {
+      aligned_allocator<char> Alloc(Alignment);
+      try {
+        RetVal = Alloc.allocate(Size);
+      } catch (const std::bad_alloc &) {
+        // Conform with Specification behavior
+        RetVal = nullptr;
+      }
+    } else {
       RetVal = ::malloc(Size);
     }
   } else {
@@ -64,9 +70,14 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   void *RetVal = nullptr;
   if (Ctxt.is_host()) {
     if (Alignment) {
-      RetVal = ::aligned_alloc(Alignment, Size);
-    }
-    else {
+      aligned_allocator<char> Alloc(Alignment);
+      try {
+        RetVal = Alloc.allocate(Size);
+      } catch (const std::bad_alloc &) {
+        // Conform with Specification behavior
+        RetVal = nullptr;
+      }
+    } else {
       RetVal = ::malloc(Size);
     }
   } else {
