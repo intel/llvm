@@ -302,10 +302,12 @@ Restricted USM includes all of the Utility Functions of Explicit USM.  It additi
 ===== malloc
 [source,cpp]
 ----
-void* sycl::malloc_host(size_t size);
+void* sycl::malloc_host(size_t size, const sycl::context& ctxt);
 ----
 
-Parameters:: `size_t size` - number of bytes to allocate
+Parameters::
+  * `size_t size` - number of bytes to allocate
+  * `const sycl::context& ctxt` - the SYCL `context` that contains the devices that will access the `host` allocation
 Return value:: Returns a pointer to the newly allocated `host` memory on success.  Memory allocated by `sycl::malloc_host` must be deallocated with `sycl::free` to avoid memory leaks.  On failure, returns `nullptr`.
 
 [source,cpp]
