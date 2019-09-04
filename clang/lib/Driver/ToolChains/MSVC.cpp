@@ -306,21 +306,23 @@ static std::string FindVisualStudioExecutable(const ToolChain &TC,
 // Add a call to lib.exe to create an archive.  This is used to embed host
 // objects into the bundled fat FPGA device binary.
 void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
-    const JobAction &JA, const InputInfo &Output, const InputInfoList &Input,
-    const ArgList &Args) const {
+                                                   const JobAction &JA,
+                                                   const InputInfo &Output,
+                                                   const InputInfoList &Input,
+                                                   const ArgList &Args) const {
   ArgStringList CmdArgs;
   for (const auto &II : Input) {
     if (II.getType() == types::TY_Tempfilelist) {
       // Take the list file and pass it in with '@'.
       std::string FileName(II.getFilename());
-      const char * ArgFile = Args.MakeArgString("@" + FileName);
+      const char *ArgFile = Args.MakeArgString("@" + FileName);
       CmdArgs.push_back(ArgFile);
       continue;
     }
     CmdArgs.push_back(II.getFilename());
   }
-  CmdArgs.push_back(C.getArgs().MakeArgString(Twine("-OUT:") +
-                    Output.getFilename()));
+  CmdArgs.push_back(
+      C.getArgs().MakeArgString(Twine("-OUT:") + Output.getFilename()));
 
   SmallString<128> ExecPath(getToolChain().GetProgramPath("lib"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
@@ -488,7 +490,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       if (Input.getType() == types::TY_Tempfilelist) {
         // Take the list file and pass it in with '@'.
         std::string FileName(Input.getFilename());
-        const char * ArgFile = Args.MakeArgString("@" + FileName);
+        const char *ArgFile = Args.MakeArgString("@" + FileName);
         CmdArgs.push_back(ArgFile);
         continue;
       }

@@ -343,9 +343,9 @@ static bool getStatic(const ArgList &Args) {
 
 // Create an archive with llvm-ar.  This is used to create an archive that
 // contains host objects and the wrapped FPGA device binary
-void tools::gnutools::Linker::constructLLVMARCommand(Compilation &C,
-    const JobAction &JA, const InputInfo &Output, const InputInfoList &Input,
-    const ArgList &Args) const {
+void tools::gnutools::Linker::constructLLVMARCommand(
+    Compilation &C, const JobAction &JA, const InputInfo &Output,
+    const InputInfoList &Input, const ArgList &Args) const {
   ArgStringList CmdArgs;
   CmdArgs.push_back("cr");
   CmdArgs.push_back(Output.getFilename());
@@ -353,7 +353,7 @@ void tools::gnutools::Linker::constructLLVMARCommand(Compilation &C,
     if (II.getType() == types::TY_Tempfilelist) {
       // Take the list file and pass it in with '@'.
       std::string FileName(II.getFilename());
-      const char * ArgFile = Args.MakeArgString("@" + FileName);
+      const char *ArgFile = Args.MakeArgString("@" + FileName);
       CmdArgs.push_back(ArgFile);
       continue;
     }

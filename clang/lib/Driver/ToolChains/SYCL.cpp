@@ -270,7 +270,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
           getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
          "Unsupported target");
   assert((JA.getType() == types::TY_FPGA_AOCX ||
-          JA.getType() == types::TY_FPGA_AOCR) && "aoc type required");
+          JA.getType() == types::TY_FPGA_AOCR) &&
+         "aoc type required");
 
   ArgStringList CmdArgs{"-o",  Output.getFilename()};
   for (const auto &II : Inputs) {
@@ -337,8 +338,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     }
   }
   if (!ReportOptArg.empty())
-    CmdArgs.push_back(C.getArgs().MakeArgString(Twine("-output-report-folder=")
-                                                      + ReportOptArg));
+    CmdArgs.push_back(C.getArgs().MakeArgString(
+        Twine("-output-report-folder=") + ReportOptArg));
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {

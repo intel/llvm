@@ -168,7 +168,7 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
     if (II.getType() == types::TY_Tempfilelist) {
       // Take the list file and pass it in with '@'.
       std::string FileName(II.getFilename());
-      const char * ArgFile = Args.MakeArgString("@" + FileName);
+      const char *ArgFile = Args.MakeArgString("@" + FileName);
       CmdArgs.push_back(ArgFile);
       continue;
     }
