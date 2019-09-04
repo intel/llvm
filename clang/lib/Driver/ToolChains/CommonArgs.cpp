@@ -165,6 +165,14 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
       // Don't try to pass LLVM inputs unless we have native support.
       D.Diag(diag::err_drv_no_linker_llvm_support) << TC.getTripleString();
 
+    if (II.getType() == types::TY_Tempfilelist) {
+      // Take the list file and pass it in with '@'.
+      std::string FileName(II.getFilename());
+      const char * ArgFile = Args.MakeArgString("@" + FileName);
+      CmdArgs.push_back(ArgFile);
+      continue;
+    }
+
     // Add filenames immediately.
     if (II.isFilename()) {
       CmdArgs.push_back(II.getFilename());

@@ -109,21 +109,6 @@ void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
   C.addCommand(std::make_unique<Command>(JA, *this, Llc, LlcArgs, None));
 }
 
-void SYCL::Linker::constructPartialLinkCommand(Compilation &C,
-    const JobAction &JA, const InputInfo &Output, const InputInfoList &Input,
-    const ArgList &Args) const {
-  ArgStringList CmdArgs;
-  CmdArgs.push_back("-r");
-  for (const auto &II : Input)
-    CmdArgs.push_back(II.getFilename());
-  CmdArgs.push_back("-o");
-  CmdArgs.push_back(Output.getFilename());
-
-  SmallString<128> ExecPath(getToolChain().GetLinkerPath());
-  const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
-}
-
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is
 // a single SPIR-V binary.  Input can also be bitcode when specified by
 // the user.
@@ -141,12 +126,6 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Prefix for temporary file name.
   std::string Prefix = llvm::sys::path::stem(SubArchName);
-
-  // Object type, we are performing a partial link
-  if (JA.getType() == types::TY_Object) {
-    constructPartialLinkCommand(C, JA, Output, Inputs, Args);
-    return;
-  }
 
   // We want to use llvm-spirv linker to link spirv binaries before putting
   // them into the fat object.
@@ -290,6 +269,9 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   assert((getToolChain().getTriple().getArch() == llvm::Triple::spir ||
           getToolChain().getTriple().getArch() == llvm::Triple::spir64) &&
          "Unsupported target");
+  assert((JA.getType() == types::TY_FPGA_AOCX ||
+          JA.getType() == types::TY_FPGA_AOCR) && "aoc type required");
+
   ArgStringList CmdArgs{"-o",  Output.getFilename()};
   for (const auto &II : Inputs) {
     CmdArgs.push_back(II.getFilename());
@@ -321,24 +303,22 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
 
   // Add any dependency files.
   if (!FPGADepFiles.empty()) {
-    SmallString<128> DepOpt("-input-dep-files=");
+    SmallString<128> DepOpt("-dep-files=");
     for (unsigned I = 0; I < FPGADepFiles.size(); ++I) {
       if (I)
         DepOpt += ',';
       DepOpt += FPGADepFiles[I].getFilename();
     }
-    // FIXME: -input-dep-files is not hooked up yet in aoc, turn this back
-    // on when aoc is ready.
-    // CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));
+    CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));
   }
 
   // Depending on output file designations, set the report folder
-  SmallString<128> ReportOpt("-output-report-folder=");
+  SmallString<128> ReportOptArg;
   if (Arg *FinalOutput = Args.getLastArg(options::OPT_o)) {
     SmallString<128> FN(FinalOutput->getValue());
     llvm::sys::path::replace_extension(FN, "prj");
     const char * FolderName = Args.MakeArgString(FN);
-    ReportOpt += FolderName;
+    ReportOptArg += FolderName;
   } else {
     // Output directory is based off of the first object name
     for (Arg * Cur : Args) {
@@ -350,15 +330,15 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
           continue;
         if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
           llvm::sys::path::replace_extension(AN, "prj");
-          ReportOpt += Args.MakeArgString(AN);
+          ReportOptArg += Args.MakeArgString(AN);
           break;
         }
       }
     }
   }
-  // FIXME: -output-report-folder is not hooked up yet in aoc, turn this back
-  // on when aoc is ready.
-  // CmdArgs.push_back(C.getArgs().MakeArgString(ReportOpt));
+  if (!ReportOptArg.empty())
+    CmdArgs.push_back(C.getArgs().MakeArgString(Twine("-output-report-folder=")
+                                                      + ReportOptArg));
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
