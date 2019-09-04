@@ -317,13 +317,32 @@ template <typename T, int N> struct VectorAlignment {
 
 } // namespace detail
 
+#if defined(_WIN32) && (_MSC_VER)
+// MSVC Compiler doesn't allow using of function arguments with alignment
+// requirements. MSVC Compiler Error C2719: 'parameter': formal parameter with
+// __declspec(align('#')) won't be aligned. The align __declspec modifier
+// is not permitted on function parameters. Function parameter alignment
+// is controlled by the calling convention used.
+// For more information, see Calling Conventions
+// (https://docs.microsoft.com/en-us/cpp/cpp/calling-conventions).
+// For information on calling conventions for x64 processors, see
+// Calling Convention
+// (https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention).
+#pragma message ("Alignment of class vec is not in accordance with SYCL \
+specification requirements, a limitation of the MSVC compiler(Error C2719).\
+Applied default alignment.")
+#define SYCL_ALIGNAS(x)
+#else
+#define SYCL_ALIGNAS(N) alignas(N)
+#endif
+
 template <typename Type, int NumElements> class vec {
   using DataT = Type;
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType = typename detail::BaseCLTypeConverter<
-      DataT, detail::VectorLength<NumElements>::value>::DataType;
+  using DataType =
+      typename detail::BaseCLTypeConverter<DataT, NumElements>::DataType;
 
   template <bool B, class T, class F>
   using conditional_t = typename std::conditional<B, T, F>::type;
@@ -1023,7 +1042,12 @@ private:
   }
 
   // fields
-  DataType m_Data;
+  // Used "SYCL_ALIGNAS" instead "alignas" to handle MSVC compiler.
+  // For MSVC compiler max alignment is 64, e.g. vec<double, 16> required
+  // alignment of 128 and MSVC compiler cann't align a parameter with requested
+  // alignment of 128.
+  SYCL_ALIGNAS((detail::VectorAlignment<DataT, NumElements>::value))
+      DataType m_Data;
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -1801,15 +1825,14 @@ using cl_schar16 = cl_char16;
 // As a result half values will be converted to the integer and passed as a
 // kernel argument which is expected to be floating point number.
 #ifndef __SYCL_DEVICE_ONLY__
-template <int NumElements>
-struct alignas(
-    cl::sycl::detail::VectorAlignment<half, NumElements>::value) half_vec {
-  std::array<half, cl::sycl::detail::VectorLength<NumElements>::value> s;
+template <int NumElements> struct half_vec {
+  alignas(cl::sycl::detail::VectorAlignment<half, NumElements>::value)
+      std::array<half, NumElements> s;
 };
 
 using __half_t = half;
 using __half2_vec_t = half_vec<2>;
-using __half3_vec_t = half_vec<4>;
+using __half3_vec_t = half_vec<3>;
 using __half4_vec_t = half_vec<4>;
 using __half8_vec_t = half_vec<8>;
 using __half16_vec_t = half_vec<16>;
@@ -2062,3 +2085,5 @@ DECLARE_SYCL_FLOAT_VEC(double)
 
 } // namespace sycl
 } // namespace cl
+
+#undef SYCL_ALIGNAS
