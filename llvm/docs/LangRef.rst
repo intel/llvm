@@ -3811,8 +3811,9 @@ AArch64:
   offsets). (However, LLVM currently does this for the ``m`` constraint as
   well.)
 - ``r``: A 32 or 64-bit integer register (W* or X*).
-- ``w``: A 32, 64, or 128-bit floating-point/SIMD register.
-- ``x``: A lower 128-bit floating-point/SIMD register (``V0`` to ``V15``).
+- ``w``: A 32, 64, or 128-bit floating-point, SIMD or SVE vector register.
+- ``x``: Like w, but restricted to registers 0 to 15 inclusive.
+- ``y``: Like w, but restricted to SVE vector registers Z0 to Z7 inclusive.
 
 AMDGPU:
 
@@ -13754,9 +13755,9 @@ Examples
 
       ; Saturation
       %res = call i4 @llvm.smul.fix.sat.i4(i4 7, i4 2, i32 0)  ; %res = 7
-      %res = call i4 @llvm.smul.fix.sat.i4(i4 7, i4 2, i32 2)  ; %res = 7
-      %res = call i4 @llvm.smul.fix.sat.i4(i4 -8, i4 2, i32 2)  ; %res = -8
-      %res = call i4 @llvm.smul.fix.sat.i4(i4 -8, i4 -2, i32 2)  ; %res = 7
+      %res = call i4 @llvm.smul.fix.sat.i4(i4 7, i4 4, i32 2)  ; %res = 7
+      %res = call i4 @llvm.smul.fix.sat.i4(i4 -8, i4 5, i32 2)  ; %res = -8
+      %res = call i4 @llvm.smul.fix.sat.i4(i4 -8, i4 -2, i32 1)  ; %res = 7
 
       ; Scale can affect the saturation result
       %res = call i4 @llvm.smul.fix.sat.i4(i4 2, i4 4, i32 0)  ; %res = 7 (2 x 4 -> clamped to 7)
@@ -15279,6 +15280,72 @@ Semantics:
 The result produced is the product of the first two operands added to the third
 operand computed with infinite precision, and then rounded to the target
 precision.
+
+'``llvm.experimental.constrained.fptoui``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <ty2>
+      @llvm.experimental.constrained.fptoui(<type> <value>,
+                                          metadata <exception behavior>)
+
+Overview:
+"""""""""
+
+The '``llvm.experimental.constrained.fptoui``' intrinsic converts a 
+floating-point ``value`` to its unsigned integer equivalent of type ``ty2``.
+
+Arguments:
+""""""""""
+
+The first argument to the '``llvm.experimental.constrained.fptoui``'
+intrinsic must be :ref:`floating point <t_floating>` or :ref:`vector
+<t_vector>` of floating point values.
+
+The second argument specifies the exception behavior as described above.
+
+Semantics:
+""""""""""
+
+The result produced is an unsigned integer converted from the floating
+point operand. The value is truncated, so it is rounded towards zero.
+
+'``llvm.experimental.constrained.fptosi``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare <ty2>
+      @llvm.experimental.constrained.fptosi(<type> <value>,
+                                          metadata <exception behavior>)
+
+Overview:
+"""""""""
+
+The '``llvm.experimental.constrained.fptosi``' intrinsic converts 
+:ref:`floating-point <t_floating>` ``value`` to type ``ty2``.
+
+Arguments:
+""""""""""
+
+The first argument to the '``llvm.experimental.constrained.fptosi``'
+intrinsic must be :ref:`floating point <t_floating>` or :ref:`vector
+<t_vector>` of floating point values. 
+
+The second argument specifies the exception behavior as described above.
+
+Semantics:
+""""""""""
+
+The result produced is a signed integer converted from the floating
+point operand. The value is truncated, so it is rounded towards zero.
 
 '``llvm.experimental.constrained.fptrunc``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

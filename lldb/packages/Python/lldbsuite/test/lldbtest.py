@@ -1852,9 +1852,9 @@ class TestBase(Base):
         Base.setUp(self)
 
         # Set the clang modules cache path used by LLDB.
-        mod_cache = os.path.join(os.environ["LLDB_BUILD"], "module-cache-lldb")
-        self.runCmd('settings set symbols.clang-modules-cache-path "%s"'
-                    % mod_cache)
+        self.runCmd(
+            'settings set symbols.clang-modules-cache-path "{}"'.format(
+                configuration.module_cache_dir))
 
         for s in self.setUpCommands():
             self.runCmd(s)
@@ -2058,13 +2058,13 @@ class TestBase(Base):
         if check:
             output = ""
             if self.res.GetOutput():
-              output += "\nCommand output:\n" + self.res.GetOutput()
+                output += "\nCommand output:\n" + self.res.GetOutput()
             if self.res.GetError():
-              output += "\nError output:\n" + self.res.GetError()
+                output += "\nError output:\n" + self.res.GetError()
             if msg:
-              msg += output
+                msg += output
             if cmd:
-              cmd += output
+                cmd += output
             self.assertTrue(self.res.Succeeded(),
                             msg if (msg) else CMD_MSG(cmd))
 
@@ -2193,6 +2193,16 @@ class TestBase(Base):
                 self.expect(
                     compare_string, msg=COMPLETION_MSG(
                         str_input, p, match_strings), exe=False, patterns=[p])
+
+    def completions_match(self, command, completions):
+        """Checks that the completions for the given command are equal to the
+        given list of completions"""
+        interp = self.dbg.GetCommandInterpreter()
+        match_strings = lldb.SBStringList()
+        interp.HandleCompletion(command, len(command), 0, -1, match_strings)
+        # match_strings is a 1-indexed list, so we have to slice...
+        self.assertItemsEqual(completions, list(match_strings)[1:],
+                              "List of returned completion is wrong")
 
     def filecheck(
             self,

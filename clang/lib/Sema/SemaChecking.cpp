@@ -629,7 +629,9 @@ static bool SemaOpenCLBuiltinEnqueueKernel(Sema &S, CallExpr *TheCall) {
   unsigned NumArgs = TheCall->getNumArgs();
 
   if (NumArgs < 4) {
-    S.Diag(TheCall->getBeginLoc(), diag::err_typecheck_call_too_few_args);
+    S.Diag(TheCall->getBeginLoc(),
+           diag::err_typecheck_call_too_few_args_at_least)
+        << 0 << 4 << NumArgs;
     return true;
   }
 
@@ -3228,6 +3230,8 @@ bool Sema::CheckPPCBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   case PPC::BI__builtin_altivec_crypto_vshasigmad:
     return SemaBuiltinConstantArgRange(TheCall, 1, 0, 1) ||
            SemaBuiltinConstantArgRange(TheCall, 2, 0, 15);
+  case PPC::BI__builtin_altivec_dss:
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3);
   case PPC::BI__builtin_tbegin:
   case PPC::BI__builtin_tend: i = 0; l = 0; u = 1; break;
   case PPC::BI__builtin_tsr: i = 0; l = 0; u = 7; break;

@@ -197,6 +197,11 @@ void TargetLoweringBase::InitLibcalls(const Triple &TT) {
     setLibcallName(RTLIB::SINCOS_PPCF128, "sincosl");
   }
 
+  if (TT.isPS4CPU()) {
+    setLibcallName(RTLIB::SINCOS_F32, "sincosf");
+    setLibcallName(RTLIB::SINCOS_F64, "sincos");
+  }
+
   if (TT.isOSOpenBSD()) {
     setLibcallName(RTLIB::STACKPROTECTOR_CHECK_FAIL, nullptr);
   }
@@ -716,6 +721,8 @@ void TargetLoweringBase::initActions() {
     setOperationAction(ISD::STRICT_FMINNUM, VT, Expand);
     setOperationAction(ISD::STRICT_FP_ROUND, VT, Expand);
     setOperationAction(ISD::STRICT_FP_EXTEND, VT, Expand);
+    setOperationAction(ISD::STRICT_FP_TO_SINT, VT, Expand);
+    setOperationAction(ISD::STRICT_FP_TO_UINT, VT, Expand);
 
     // For most targets @llvm.get.dynamic.area.offset just returns 0.
     setOperationAction(ISD::GET_DYNAMIC_AREA_OFFSET, VT, Expand);

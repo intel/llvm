@@ -639,7 +639,8 @@ namespace clang {
       return ImportArrayChecked(InContainer.begin(), InContainer.end(), Obegin);
     }
 
-    void ImportOverrides(CXXMethodDecl *ToMethod, CXXMethodDecl *FromMethod);
+    Error ImportOverriddenMethods(CXXMethodDecl *ToMethod,
+                                  CXXMethodDecl *FromMethod);
 
     Expected<FunctionDecl *> FindFunctionTemplateSpecialization(
         FunctionDecl *FromFD);
@@ -929,6 +930,27 @@ Expected<LambdaCapture> ASTNodeImporter::import(const LambdaCapture &From) {
   return LambdaCapture(
       *LocationOrErr, From.isImplicit(), From.getCaptureKind(), Var,
       EllipsisLoc);
+}
+
+template <typename T>
+bool ASTNodeImporter::hasSameVisibilityContext(T *Found, T *From) {
+  if (From->hasExternalFormalLinkage())
+    return Found->hasExternalFormalLinkage();
+  if (Importer.GetFromTU(Found) != From->getTranslationUnitDecl())
+    return false;
+  if (From->isInAnonymousNamespace())
+    return Found->isInAnonymousNamespace();
+  else
+    return !Found->isInAnonymousNamespace() &&
+           !Found->hasExternalFormalLinkage();
+}
+
+template <>
+bool ASTNodeImporter::hasSameVisibilityContext(TypedefNameDecl *Found,
+                                               TypedefNameDecl *From) {
+  if (From->isInAnonymousNamespace() && Found->isInAnonymousNamespace())
+    return Importer.GetFromTU(Found) == From->getTranslationUnitDecl();
+  return From->isInAnonymousNamespace() == Found->isInAnonymousNamespace();
 }
 
 } // namespace clang
@@ -1701,7 +1723,7 @@ ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) {
   // Remove all declarations, which may be in wrong order in the
   // lexical DeclContext and then add them in the proper order.
   for (auto *D : FromRD->decls()) {
-    if (isa<FieldDecl>(D) || isa<FriendDecl>(D)) {
+    if (isa<FieldDecl>(D) || isa<IndirectFieldDecl>(D) || isa<FriendDecl>(D)) {
       assert(D && "DC contains a null decl");
       Decl *ToD = Importer.GetAlreadyImportedOrNull(D);
       // Remove only the decls which we successfully imported.
@@ -2343,6 +2365,9 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
   // If this typedef is not in block scope, determine whether we've
   // seen a typedef with the same name (that we can merge with) or any
   // other entity by that name (which name lookup could conflict with).
+  // Note: Repeated typedefs are not valid in C99:
+  // 'typedef int T; typedef int T;' is invalid
+  // We do not care about this now.
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
@@ -2351,6 +2376,9 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
       if (auto *FoundTypedef = dyn_cast<TypedefNameDecl>(FoundDecl)) {
+        if (!hasSameVisibilityContext(FoundTypedef, D))
+          continue;
+
         QualType FromUT = D->getUnderlyingType();
         QualType FoundUT = FoundTypedef->getUnderlyingType();
         if (Importer.IsStructurallyEquivalent(FromUT, FoundUT)) {
@@ -2632,7 +2660,7 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
 
   // We may already have a record of the same name; try to find and match it.
   RecordDecl *PrevDecl = nullptr;
-  if (!DC->isFunctionOrMethod()) {
+  if (!DC->isFunctionOrMethod() && !D->isLambda()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     auto FoundDecls =
         Importer.findDeclsInToCtx(DC, SearchName);
@@ -3021,19 +3049,6 @@ Error ASTNodeImporter::ImportFunctionDeclBody(FunctionDecl *FromFD,
   return Error::success();
 }
 
-template <typename T>
-bool ASTNodeImporter::hasSameVisibilityContext(T *Found, T *From) {
-  if (From->hasExternalFormalLinkage())
-    return Found->hasExternalFormalLinkage();
-  if (Importer.GetFromTU(Found) != From->getTranslationUnitDecl())
-    return false;
-  if (From->isInAnonymousNamespace())
-    return Found->isInAnonymousNamespace();
-  else
-    return !Found->isInAnonymousNamespace() &&
-           !Found->hasExternalFormalLinkage();
-}
-
 ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
   SmallVector<Decl *, 2> Redecls = getCanonicalForwardRedeclChain(D);
@@ -3370,7 +3385,9 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   }
 
   if (auto *FromCXXMethod = dyn_cast<CXXMethodDecl>(D))
-    ImportOverrides(cast<CXXMethodDecl>(ToFunction), FromCXXMethod);
+    if (Error Err = ImportOverriddenMethods(cast<CXXMethodDecl>(ToFunction),
+                                            FromCXXMethod))
+      return std::move(Err);
 
   // Import the rest of the chain. I.e. import all subsequent declarations.
   for (++RedeclIt; RedeclIt != Redecls.end(); ++RedeclIt) {
@@ -7804,15 +7821,18 @@ ExpectedStmt ASTNodeImporter::VisitCXXTypeidExpr(CXXTypeidExpr *E) {
       *ToTypeOrErr, *ToExprOperandOrErr, *ToSourceRangeOrErr);
 }
 
-void ASTNodeImporter::ImportOverrides(CXXMethodDecl *ToMethod,
-                                      CXXMethodDecl *FromMethod) {
+Error ASTNodeImporter::ImportOverriddenMethods(CXXMethodDecl *ToMethod,
+                                               CXXMethodDecl *FromMethod) {
+  Error ImportErrors = Error::success();
   for (auto *FromOverriddenMethod : FromMethod->overridden_methods()) {
     if (auto ImportedOrErr = import(FromOverriddenMethod))
       ToMethod->getCanonicalDecl()->addOverriddenMethod(cast<CXXMethodDecl>(
           (*ImportedOrErr)->getCanonicalDecl()));
     else
-      consumeError(ImportedOrErr.takeError());
+      ImportErrors =
+          joinErrors(std::move(ImportErrors), ImportedOrErr.takeError());
   }
+  return ImportErrors;
 }
 
 ASTImporter::ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,

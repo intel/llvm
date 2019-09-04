@@ -482,7 +482,46 @@ static bool regIsPICBase(unsigned BaseReg, const MachineRegisterInfo &MRI) {
 bool X86InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
                                                      AliasAnalysis *AA) const {
   switch (MI.getOpcode()) {
-  default: break;
+  default:
+    // This function should only be called for opcodes with the ReMaterializable
+    // flag set.
+    llvm_unreachable("Unknown rematerializable operation!");
+    break;
+
+  case X86::LOAD_STACK_GUARD:
+  case X86::AVX1_SETALLONES:
+  case X86::AVX2_SETALLONES:
+  case X86::AVX512_128_SET0:
+  case X86::AVX512_256_SET0:
+  case X86::AVX512_512_SET0:
+  case X86::AVX512_512_SETALLONES:
+  case X86::AVX512_FsFLD0SD:
+  case X86::AVX512_FsFLD0SS:
+  case X86::AVX_SET0:
+  case X86::FsFLD0SD:
+  case X86::FsFLD0SS:
+  case X86::KSET0D:
+  case X86::KSET0Q:
+  case X86::KSET0W:
+  case X86::KSET1D:
+  case X86::KSET1Q:
+  case X86::KSET1W:
+  case X86::MMX_SET0:
+  case X86::MOV32ImmSExti8:
+  case X86::MOV32r0:
+  case X86::MOV32r1:
+  case X86::MOV32r_1:
+  case X86::MOV32ri64:
+  case X86::MOV64ImmSExti8:
+  case X86::V_SET0:
+  case X86::V_SETALLONES:
+  case X86::MOV16ri:
+  case X86::MOV32ri:
+  case X86::MOV64ri:
+  case X86::MOV64ri32:
+  case X86::MOV8ri:
+    return true;
+
   case X86::MOV8rm:
   case X86::MOV8rm_NOREX:
   case X86::MOV16rm:
@@ -594,10 +633,6 @@ bool X86InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
     return false;
   }
   }
-
-  // All other instructions marked M_REMATERIALIZABLE are always trivially
-  // rematerializable.
-  return true;
 }
 
 void X86InstrInfo::reMaterialize(MachineBasicBlock &MBB,
@@ -3149,25 +3184,6 @@ void X86InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     .addReg(SrcReg, getKillRegState(isKill));
 }
 
-void X86InstrInfo::storeRegToAddr(
-    MachineFunction &MF, unsigned SrcReg, bool isKill,
-    SmallVectorImpl<MachineOperand> &Addr, const TargetRegisterClass *RC,
-    ArrayRef<MachineMemOperand *> MMOs,
-    SmallVectorImpl<MachineInstr *> &NewMIs) const {
-  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
-  unsigned Alignment = std::max<uint32_t>(TRI.getSpillSize(*RC), 16);
-  bool isAligned = !MMOs.empty() && MMOs.front()->getAlignment() >= Alignment;
-  unsigned Opc = getStoreRegOpcode(SrcReg, RC, isAligned, Subtarget);
-  DebugLoc DL;
-  MachineInstrBuilder MIB = BuildMI(MF, DL, get(Opc));
-  for (unsigned i = 0, e = Addr.size(); i != e; ++i)
-    MIB.add(Addr[i]);
-  MIB.addReg(SrcReg, getKillRegState(isKill));
-  MIB.setMemRefs(MMOs);
-  NewMIs.push_back(MIB);
-}
-
-
 void X86InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
                                         unsigned DestReg, int FrameIdx,
@@ -3180,23 +3196,6 @@ void X86InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
       RI.canRealignStack(MF);
   unsigned Opc = getLoadRegOpcode(DestReg, RC, isAligned, Subtarget);
   addFrameReference(BuildMI(MBB, MI, DebugLoc(), get(Opc), DestReg), FrameIdx);
-}
-
-void X86InstrInfo::loadRegFromAddr(
-    MachineFunction &MF, unsigned DestReg,
-    SmallVectorImpl<MachineOperand> &Addr, const TargetRegisterClass *RC,
-    ArrayRef<MachineMemOperand *> MMOs,
-    SmallVectorImpl<MachineInstr *> &NewMIs) const {
-  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
-  unsigned Alignment = std::max<uint32_t>(TRI.getSpillSize(*RC), 16);
-  bool isAligned = !MMOs.empty() && MMOs.front()->getAlignment() >= Alignment;
-  unsigned Opc = getLoadRegOpcode(DestReg, RC, isAligned, Subtarget);
-  DebugLoc DL;
-  MachineInstrBuilder MIB = BuildMI(MF, DL, get(Opc), DestReg);
-  for (unsigned i = 0, e = Addr.size(); i != e; ++i)
-    MIB.add(Addr[i]);
-  MIB.setMemRefs(MMOs);
-  NewMIs.push_back(MIB);
 }
 
 bool X86InstrInfo::analyzeCompare(const MachineInstr &MI, unsigned &SrcReg,
@@ -4806,6 +4805,7 @@ MachineInstr *X86InstrInfo::foldMemoryOperandImpl(
   if (I != nullptr) {
     unsigned Opcode = I->DstOp;
     unsigned MinAlign = (I->Flags & TB_ALIGN_MASK) >> TB_ALIGN_SHIFT;
+    MinAlign = MinAlign ? 1 << (MinAlign - 1) : 0;
     if (Align < MinAlign)
       return nullptr;
     bool NarrowToMOV32rm = false;
@@ -5311,6 +5311,51 @@ extractStoreMMOs(ArrayRef<MachineMemOperand *> MMOs, MachineFunction &MF) {
   return StoreMMOs;
 }
 
+static unsigned getBroadcastOpcode(const X86MemoryFoldTableEntry *I,
+                                   const TargetRegisterClass *RC,
+                                   const X86Subtarget &STI) {
+  assert(STI.hasAVX512() && "Expected at least AVX512!");
+  unsigned SpillSize = STI.getRegisterInfo()->getSpillSize(*RC);
+  assert((SpillSize == 64 || STI.hasVLX()) &&
+         "Can't broadcast less than 64 bytes without AVX512VL!");
+
+  switch (I->Flags & TB_BCAST_MASK) {
+  default: llvm_unreachable("Unexpected broadcast type!");
+  case TB_BCAST_D:
+    switch (SpillSize) {
+    default: llvm_unreachable("Unknown spill size");
+    case 16: return X86::VPBROADCASTDZ128m;
+    case 32: return X86::VPBROADCASTDZ256m;
+    case 64: return X86::VPBROADCASTDZm;
+    }
+    break;
+  case TB_BCAST_Q:
+    switch (SpillSize) {
+    default: llvm_unreachable("Unknown spill size");
+    case 16: return X86::VPBROADCASTQZ128m;
+    case 32: return X86::VPBROADCASTQZ256m;
+    case 64: return X86::VPBROADCASTQZm;
+    }
+    break;
+  case TB_BCAST_SS:
+    switch (SpillSize) {
+    default: llvm_unreachable("Unknown spill size");
+    case 16: return X86::VBROADCASTSSZ128m;
+    case 32: return X86::VBROADCASTSSZ256m;
+    case 64: return X86::VBROADCASTSSZm;
+    }
+    break;
+  case TB_BCAST_SD:
+    switch (SpillSize) {
+    default: llvm_unreachable("Unknown spill size");
+    case 16: return X86::VMOVDDUPZ128rm;
+    case 32: return X86::VBROADCASTSDZ256m;
+    case 64: return X86::VBROADCASTSDZm;
+    }
+    break;
+  }
+}
+
 bool X86InstrInfo::unfoldMemoryOperand(
     MachineFunction &MF, MachineInstr &MI, unsigned Reg, bool UnfoldLoad,
     bool UnfoldStore, SmallVectorImpl<MachineInstr *> &NewMIs) const {
@@ -5321,6 +5366,7 @@ bool X86InstrInfo::unfoldMemoryOperand(
   unsigned Index = I->Flags & TB_INDEX_MASK;
   bool FoldedLoad = I->Flags & TB_FOLDED_LOAD;
   bool FoldedStore = I->Flags & TB_FOLDED_STORE;
+  bool FoldedBCast = I->Flags & TB_FOLDED_BCAST;
   if (UnfoldLoad && !FoldedLoad)
     return false;
   UnfoldLoad &= FoldedLoad;
@@ -5329,7 +5375,9 @@ bool X86InstrInfo::unfoldMemoryOperand(
   UnfoldStore &= FoldedStore;
 
   const MCInstrDesc &MCID = get(Opc);
+
   const TargetRegisterClass *RC = getRegClass(MCID, Index, &RI, MF);
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   // TODO: Check if 32-byte or greater accesses are slow too?
   if (!MI.hasOneMemOperand() && RC == &X86::VR128RegClass &&
       Subtarget.isUnalignedMem16Slow())
@@ -5353,10 +5401,26 @@ bool X86InstrInfo::unfoldMemoryOperand(
       AfterOps.push_back(Op);
   }
 
-  // Emit the load instruction.
+  // Emit the load or broadcast instruction.
   if (UnfoldLoad) {
     auto MMOs = extractLoadMMOs(MI.memoperands(), MF);
-    loadRegFromAddr(MF, Reg, AddrOps, RC, MMOs, NewMIs);
+
+    unsigned Opc;
+    if (FoldedBCast) {
+      Opc = getBroadcastOpcode(I, RC, Subtarget);
+    } else {
+      unsigned Alignment = std::max<uint32_t>(TRI.getSpillSize(*RC), 16);
+      bool isAligned = !MMOs.empty() && MMOs.front()->getAlignment() >= Alignment;
+      Opc = getLoadRegOpcode(Reg, RC, isAligned, Subtarget);
+    }
+
+    DebugLoc DL;
+    MachineInstrBuilder MIB = BuildMI(MF, DL, get(Opc), Reg);
+    for (unsigned i = 0, e = AddrOps.size(); i != e; ++i)
+      MIB.add(AddrOps[i]);
+    MIB.setMemRefs(MMOs);
+    NewMIs.push_back(MIB);
+
     if (UnfoldStore) {
       // Address operands cannot be marked isKill.
       for (unsigned i = 1; i != 1 + X86::AddrNumOperands; ++i) {
@@ -5422,7 +5486,16 @@ bool X86InstrInfo::unfoldMemoryOperand(
   if (UnfoldStore) {
     const TargetRegisterClass *DstRC = getRegClass(MCID, 0, &RI, MF);
     auto MMOs = extractStoreMMOs(MI.memoperands(), MF);
-    storeRegToAddr(MF, Reg, true, AddrOps, DstRC, MMOs, NewMIs);
+    unsigned Alignment = std::max<uint32_t>(TRI.getSpillSize(*DstRC), 16);
+    bool isAligned = !MMOs.empty() && MMOs.front()->getAlignment() >= Alignment;
+    unsigned Opc = getStoreRegOpcode(Reg, DstRC, isAligned, Subtarget);
+    DebugLoc DL;
+    MachineInstrBuilder MIB = BuildMI(MF, DL, get(Opc));
+    for (unsigned i = 0, e = AddrOps.size(); i != e; ++i)
+      MIB.add(AddrOps[i]);
+    MIB.addReg(Reg, RegState::Kill);
+    MIB.setMemRefs(MMOs);
+    NewMIs.push_back(MIB);
   }
 
   return true;
@@ -5441,6 +5514,7 @@ X86InstrInfo::unfoldMemoryOperand(SelectionDAG &DAG, SDNode *N,
   unsigned Index = I->Flags & TB_INDEX_MASK;
   bool FoldedLoad = I->Flags & TB_FOLDED_LOAD;
   bool FoldedStore = I->Flags & TB_FOLDED_STORE;
+  bool FoldedBCast = I->Flags & TB_FOLDED_BCAST;
   const MCInstrDesc &MCID = get(Opc);
   MachineFunction &MF = DAG.getMachineFunction();
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
@@ -5474,10 +5548,17 @@ X86InstrInfo::unfoldMemoryOperand(SelectionDAG &DAG, SDNode *N,
       return false;
     // FIXME: If a VR128 can have size 32, we should be checking if a 32-byte
     // memory access is slow above.
-    unsigned Alignment = std::max<uint32_t>(TRI.getSpillSize(*RC), 16);
-    bool isAligned = !MMOs.empty() && MMOs.front()->getAlignment() >= Alignment;
-    Load = DAG.getMachineNode(getLoadRegOpcode(0, RC, isAligned, Subtarget), dl,
-                              VT, MVT::Other, AddrOps);
+
+    unsigned Opc;
+    if (FoldedBCast) {
+      Opc = getBroadcastOpcode(I, RC, Subtarget);
+    } else {
+      unsigned Alignment = std::max<uint32_t>(TRI.getSpillSize(*RC), 16);
+      bool isAligned = !MMOs.empty() && MMOs.front()->getAlignment() >= Alignment;
+      Opc = getLoadRegOpcode(0, RC, isAligned, Subtarget);
+    }
+
+    Load = DAG.getMachineNode(Opc, dl, VT, MVT::Other, AddrOps);
     NewNodes.push_back(Load);
 
     // Preserve memory reference information.

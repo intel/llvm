@@ -20,7 +20,7 @@ INLINE static unsigned getLaneId() { return threadIdx.x % WARPSIZE; }
 
 // Return true if this is the first active thread in the warp.
 INLINE static bool IsWarpMasterActiveThread() {
-  unsigned long long Mask = __ACTIVEMASK();
+  unsigned long long Mask = __kmpc_impl_activemask();
   unsigned long long ShNum = WARPSIZE - (GetThreadIdInBlock() % WARPSIZE);
   unsigned long long Sh = Mask << ShNum;
   // Truncate Sh to the 32 lower bits
@@ -112,7 +112,7 @@ EXTERN void *__kmpc_data_sharing_environment_begin(
           (unsigned long long)SharingDefaultDataSize);
 
   unsigned WID = getWarpId();
-  unsigned CurActiveThreads = __ACTIVEMASK();
+  __kmpc_impl_lanemask_t CurActiveThreads = __kmpc_impl_activemask();
 
   __kmpc_data_sharing_slot *&SlotP = DataSharingState.SlotPtr[WID];
   void *&StackP = DataSharingState.StackPtr[WID];
@@ -252,7 +252,7 @@ EXTERN void __kmpc_data_sharing_environment_end(
     return;
   }
 
-  int32_t CurActive = __ACTIVEMASK();
+  __kmpc_impl_lanemask_t CurActive = __kmpc_impl_activemask();
 
   // Only the warp master can restore the stack and frame information, and only
   // if there are no other threads left behind in this environment (i.e. the
@@ -378,7 +378,7 @@ INLINE static void* data_sharing_push_stack_common(size_t PushSize) {
   // Frame pointer must be visible to all workers in the same warp.
   const unsigned WID = getWarpId();
   void *FrameP = 0;
-  int32_t CurActive = __ACTIVEMASK();
+  __kmpc_impl_lanemask_t CurActive = __kmpc_impl_activemask();
 
   if (IsWarpMaster) {
     // SlotP will point to either the shared memory slot or an existing
@@ -553,8 +553,7 @@ EXTERN void __kmpc_get_team_static_memory(int16_t isSPMDExecutionMode,
     if (GetThreadIdInBlock() == 0) {
       *frame = omptarget_nvptx_simpleMemoryManager.Acquire(buf, size);
     }
-    // FIXME: use __syncthreads instead when the function copy is fixed in LLVM.
-    __SYNCTHREADS();
+    __kmpc_impl_syncthreads();
     return;
   }
   ASSERT0(LT_FUSSY, GetThreadIdInBlock() == GetMasterThreadID(),
@@ -568,8 +567,7 @@ EXTERN void __kmpc_restore_team_static_memory(int16_t isSPMDExecutionMode,
   if (is_shared)
     return;
   if (isSPMDExecutionMode) {
-    // FIXME: use __syncthreads instead when the function copy is fixed in LLVM.
-    __SYNCTHREADS();
+    __kmpc_impl_syncthreads();
     if (GetThreadIdInBlock() == 0) {
       omptarget_nvptx_simpleMemoryManager.Release();
     }

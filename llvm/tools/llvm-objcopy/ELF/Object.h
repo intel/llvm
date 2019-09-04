@@ -57,8 +57,8 @@ public:
       : Sections(Secs) {}
   SectionTableRef(const SectionTableRef &) = default;
 
-  iterator begin() { return iterator(Sections.data()); }
-  iterator end() { return iterator(Sections.data() + Sections.size()); }
+  iterator begin() const { return iterator(Sections.data()); }
+  iterator end() const { return iterator(Sections.data() + Sections.size()); }
   size_t size() const { return Sections.size(); }
 
   SectionBase *getSection(uint32_t Index, Twine ErrMsg);
@@ -889,11 +889,13 @@ public:
 
 class BinaryELFBuilder : public BasicELFBuilder {
   MemoryBuffer *MemBuf;
+  uint8_t NewSymbolVisibility;
   void addData(SymbolTableSection *SymTab);
 
 public:
-  BinaryELFBuilder(uint16_t EM, MemoryBuffer *MB)
-      : BasicELFBuilder(EM), MemBuf(MB) {}
+  BinaryELFBuilder(uint16_t EM, MemoryBuffer *MB, uint8_t NewSymbolVisibility)
+      : BasicELFBuilder(EM), MemBuf(MB),
+        NewSymbolVisibility(NewSymbolVisibility) {}
 
   std::unique_ptr<Object> build();
 };
@@ -942,10 +944,12 @@ public:
 class BinaryReader : public Reader {
   const MachineInfo &MInfo;
   MemoryBuffer *MemBuf;
+  uint8_t NewSymbolVisibility;
 
 public:
-  BinaryReader(const MachineInfo &MI, MemoryBuffer *MB)
-      : MInfo(MI), MemBuf(MB) {}
+  BinaryReader(const MachineInfo &MI, MemoryBuffer *MB,
+               const uint8_t NewSymbolVisibility)
+      : MInfo(MI), MemBuf(MB), NewSymbolVisibility(NewSymbolVisibility) {}
   std::unique_ptr<Object> create() const override;
 };
 
@@ -990,6 +994,10 @@ private:
   std::vector<SegPtr> Segments;
   std::vector<SecPtr> RemovedSections;
 
+  static bool sectionIsAlloc(const SectionBase &Sec) {
+    return Sec.Flags & ELF::SHF_ALLOC;
+  };
+
 public:
   template <class T>
   using Range = iterator_range<
@@ -1028,6 +1036,13 @@ public:
   ConstRange<SectionBase> sections() const {
     return make_pointee_range(Sections);
   }
+  iterator_range<
+      filter_iterator<pointee_iterator<std::vector<SecPtr>::const_iterator>,
+                      decltype(&sectionIsAlloc)>>
+  allocSections() const {
+    return make_filter_range(make_pointee_range(Sections), sectionIsAlloc);
+  }
+
   SectionBase *findSection(StringRef Name) {
     auto SecIt =
         find_if(Sections, [&](const SecPtr &Sec) { return Sec->Name == Name; });

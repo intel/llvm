@@ -85,6 +85,15 @@ Changes to the X86 Target
 
  During this release ...
 
+* Less than 128 bit vector types, v2i32, v4i16, v2i16, v8i8, v4i8, and v2i8, are
+  now stored in the lower bits of an xmm register and the upper bits are
+  undefined. Previously the elements were spread apart with undefined bits in
+  between them.
+* v32i8 and v64i8 vectors with AVX512F enabled, but AVX512BW disabled will now
+  be passed in ZMM registers for calls and returns. Previously they were passed
+  in two YMM registers. Old behavior can be enabled by passing
+  -x86-enable-old-knl-abi
+
 Changes to the AMDGPU Target
 -----------------------------
 
@@ -92,6 +101,10 @@ Changes to the AVR Target
 -----------------------------
 
  During this release ...
+
+* Deprecated the mpx feature flag for the Intel MPX instructions. There were no
+  intrinsics for this feature. This change only this effects the results
+  returned by getHostCPUFeatures on CPUs that implement the MPX instructions.
 
 Changes to the WebAssembly Target
 ---------------------------------

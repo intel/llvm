@@ -91,6 +91,13 @@ class CommandLineCompletionTestCase(TestBase):
                                'arm64'])
 
     @skipIfFreeBSD  # timing out on the FreeBSD buildbot
+    def test_ambiguous_long_opt(self):
+        self.completions_match('breakpoint modify --th',
+                               ['--thread-id',
+                                '--thread-index',
+                                '--thread-name'])
+
+    @skipIfFreeBSD  # timing out on the FreeBSD buildbot
     def test_plugin_load(self):
         self.complete_from_to('plugin load ', [])
 
@@ -142,7 +149,7 @@ class CommandLineCompletionTestCase(TestBase):
         # Complete our source directory.
         src_dir =  os.path.dirname(os.path.realpath(__file__))
         self.complete_from_to('log enable lldb expr -f ' + src_dir,
-                              [src_dir + "/"])
+                              [src_dir + os.sep], turn_off_re_match=True)
 
     # <rdar://problem/11052829>
     @skipIfFreeBSD  # timing out on the FreeBSD buildbot
@@ -367,6 +374,30 @@ class CommandLineCompletionTestCase(TestBase):
         # Just check that this doesn't crash.
         self.check_completion_with_desc("comman", [])
         self.check_completion_with_desc("non-existent-command", [])
+
+    def test_completion_description_command_options(self):
+        """Test descriptions of command options"""
+        # Short options
+        self.check_completion_with_desc("breakpoint set -", [
+            ["-h", "Set the breakpoint on exception catcH."],
+            ["-w", "Set the breakpoint on exception throW."]
+        ])
+
+        # Long options.
+        self.check_completion_with_desc("breakpoint set --", [
+            ["--on-catch", "Set the breakpoint on exception catcH."],
+            ["--on-throw", "Set the breakpoint on exception throW."]
+        ])
+
+        # Ambiguous long options.
+        self.check_completion_with_desc("breakpoint set --on-", [
+            ["--on-catch", "Set the breakpoint on exception catcH."],
+            ["--on-throw", "Set the breakpoint on exception throW."]
+        ])
+
+        # Unknown long option.
+        self.check_completion_with_desc("breakpoint set --Z", [
+        ])
 
     @expectedFailureAll(oslist=["windows"], bugnumber="llvm.org/pr24489")
     def test_symbol_name(self):
