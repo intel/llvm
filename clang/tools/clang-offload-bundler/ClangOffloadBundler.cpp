@@ -253,6 +253,7 @@ class BinaryFileHandler final : public FileHandler {
 
   /// Iterator for the bundle information that is being read.
   StringMap<BundleInfo>::iterator CurBundleInfo;
+  StringMap<BundleInfo>::iterator NextBundleInfo;
 
 public:
   BinaryFileHandler() : FileHandler() {}
@@ -322,19 +323,19 @@ public:
       BundlesInfo[Triple] = BundleInfo(Size, Offset);
     }
     // Set the iterator to where we will start to read.
-    CurBundleInfo = BundlesInfo.begin();
+    CurBundleInfo = BundlesInfo.end();
+    NextBundleInfo = BundlesInfo.begin();
   }
 
   StringRef ReadBundleStart(MemoryBuffer &Input) final {
-    if (CurBundleInfo == BundlesInfo.end())
+    if (NextBundleInfo == BundlesInfo.end())
       return StringRef();
-
+    CurBundleInfo = NextBundleInfo++;
     return CurBundleInfo->first();
   }
 
   void ReadBundleEnd(MemoryBuffer &Input) final {
     assert(CurBundleInfo != BundlesInfo.end() && "Invalid reader info!");
-    ++CurBundleInfo;
   }
 
   using FileHandler::ReadBundle; // to avoid hiding via the overload below
@@ -1215,15 +1216,16 @@ static bool UnbundleFiles() {
       break;
 
     auto Output = Worklist.find(CurTriple);
-
-    // Read the bundle if triple is included in targets
-    if (Output != Worklist.end()) {
-      // Check if the output file can be opened and copy the bundle to it.
-      FH->ReadBundle(Output->second, Input);
-      Worklist.erase(Output);
+    // The file may have more bundles for other targets, that we don't care
+    // about. Therefore, move on to the next triple
+    if (Output == Worklist.end()) {
+      continue;
     }
 
+    // Check if the output file can be opened and copy the bundle to it.
+    FH->ReadBundle(Output->second, Input);
     FH->ReadBundleEnd(Input);
+    Worklist.erase(Output);
 
     // Record if we found the host bundle.
     if (hasHostKind(CurTriple))
@@ -1250,8 +1252,9 @@ static bool UnbundleFiles() {
     return false;
   }
 
-  // If we found elements, we emit an error if none of those were for the host.
-  if (!FoundHostBundle) {
+  // If we found elements, we emit an error if none of those were for the host
+  // in case host bundle name was provided in command line.
+  if (!FoundHostBundle && HostInputIndex != ~0u) {
     errs() << "error: Can't find bundle for the host target\n";
     return true;
   }
@@ -1308,8 +1311,8 @@ static bool CheckBundledSection() {
 
     if(CurTriple == triple) {
       found = true;
+      break;
     }
-    FH->ReadBundleEnd(Input);
   }
   return found;
 }
@@ -1425,7 +1428,10 @@ int main(int argc, const char **argv) {
     ++Index;
   }
 
-  if (!CheckSection && HostTargetNum != 1) {
+  // Host triple is not really needed for unbundling operation, so do not
+  // treat missing host triple as error if we do unbundling.
+  if (!CheckSection &&
+      ((Unbundle && HostTargetNum > 1) || (!Unbundle && HostTargetNum != 1))) {
     Error = true;
     errs() << "error: expecting exactly one host target but got "
            << HostTargetNum << ".\n";

@@ -51,15 +51,13 @@
 
 #include <array>
 #include <cmath>
+#ifndef __SYCL_DEVICE_ONLY__
+#include <cfenv>
+#pragma STDC FENV_ACCESS ON
+#endif
 
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
-
-#ifdef __SYCL_DEVICE_ONLY__
-using half = _Float16;
-#else
-using half = cl::sycl::detail::half_impl::half;
-#endif
 
 namespace cl {
 namespace sycl {
@@ -258,6 +256,8 @@ detail::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
   return Value;
 }
 
+// Note for float to half conversions, static_cast calls the conversion operator
+// implemented for host that takes care of the precision requirements.
 template <typename T, typename R, rounding_mode roundingMode>
 detail::enable_if_t<!std::is_same<T, R>::value &&
                         (is_int_to_int<T, R>::value ||
@@ -270,16 +270,23 @@ convertImpl(T Value) {
 
 // float to int
 template <typename T, typename R, rounding_mode roundingMode>
-detail::enable_if_t<!std::is_same<T, R>::value && is_float_to_int<T, R>::value,
-                    R>
-convertImpl(T Value) {
+detail::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
 #ifndef __SYCL_DEVICE_ONLY__
   switch (roundingMode) {
     // Round to nearest even is default rounding mode for floating-point types
   case rounding_mode::automatic:
     // Round to nearest even.
-  case rounding_mode::rte:
-    return std::round(Value);
+  case rounding_mode::rte: {
+    int OldRoundingDirection = std::fegetround();
+    int Err = std::fesetround(FE_TONEAREST);
+    if (Err)
+      throw runtime_error("Unable to set rounding mode to FE_TONEAREST");
+    R Result = std::rint(Value);
+    Err = std::fesetround(OldRoundingDirection);
+    if (Err)
+      throw runtime_error("Unable to restore rounding mode.");
+    return Result;
+  }
     // Round toward zero.
   case rounding_mode::rtz:
     return std::trunc(Value);
@@ -294,10 +301,19 @@ convertImpl(T Value) {
     return static_cast<R>(Value);
   };
 #else
-  // TODO implement device side convertion.
+  // TODO implement device side conversion.
   return static_cast<R>(Value);
 #endif
 }
+
+// 4.10.2.6 Memory layout and alignment
+template <int N> struct VectorLength { constexpr static int value = N; };
+
+template <> struct VectorLength<3> { constexpr static int value = 4; };
+
+template <typename T, int N> struct VectorAlignment {
+  constexpr static int value = sizeof(T) * VectorLength<N>::value;
+};
 
 } // namespace detail
 
@@ -306,8 +322,8 @@ template <typename Type, int NumElements> class vec {
 
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-  using DataType =
-      typename detail::BaseCLTypeConverter<DataT, NumElements>::DataType;
+  using DataType = typename detail::BaseCLTypeConverter<
+      DataT, detail::VectorLength<NumElements>::value>::DataType;
 
   template <bool B, class T, class F>
   using conditional_t = typename std::conditional<B, T, F>::type;
@@ -1785,16 +1801,18 @@ using cl_schar16 = cl_char16;
 // As a result half values will be converted to the integer and passed as a
 // kernel argument which is expected to be floating point number.
 #ifndef __SYCL_DEVICE_ONLY__
-template <int NumElements, typename CLType> struct alignas(CLType) half_vec {
-  std::array<half, NumElements> s;
+template <int NumElements>
+struct alignas(
+    cl::sycl::detail::VectorAlignment<half, NumElements>::value) half_vec {
+  std::array<half, cl::sycl::detail::VectorLength<NumElements>::value> s;
 };
 
-typedef half __half_t;
-typedef half_vec<2, cl_half2> __half2_vec_t;
-typedef half_vec<4, cl_half3> __half3_vec_t;
-typedef half_vec<4, cl_half4> __half4_vec_t;
-typedef half_vec<8, cl_half8> __half8_vec_t;
-typedef half_vec<16, cl_half16> __half16_vec_t;
+using __half_t = half;
+using __half2_vec_t = half_vec<2>;
+using __half3_vec_t = half_vec<4>;
+using __half4_vec_t = half_vec<4>;
+using __half8_vec_t = half_vec<8>;
+using __half16_vec_t = half_vec<16>;
 #endif
 
 #define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t

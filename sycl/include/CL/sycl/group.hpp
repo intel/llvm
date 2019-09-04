@@ -77,7 +77,7 @@ private:
 #else
   // On serial host there is one private_memory<T> instance per work group, so
   // it must have space to hold separate value per WI in the group.
-  std::unique_ptr<T> Val;
+  std::unique_ptr<T[]> Val;
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 };
 

@@ -71,7 +71,7 @@ if( NOT OpenCL_LIBRARIES )
     BINARY_DIR        "${CMAKE_CURRENT_BINARY_DIR}/icd_build"
     CONFIGURE_COMMAND ${CMAKE_COMMAND} "${CMAKE_CURRENT_BINARY_DIR}/OpenCL/icd" -DCMAKE_INSTALL_LIBDIR:PATH=lib -DCMAKE_INSTALL_PREFIX=${LLVM_BINARY_DIR}
     BUILD_COMMAND     make C_INCLUDE_PATH=${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc
-    INSTALL_COMMAND   make install 
+    INSTALL_COMMAND   make install
     STEP_TARGETS      configure,build,install
     DEPENDS           ocl-headers
   )
@@ -83,6 +83,16 @@ else()
 endif()
 
 set(OPENCL_INCLUDE "${OpenCL_INCLUDE_DIRS}")
+
+add_library (OpenCL-Headers INTERFACE)
+add_library (OpenCL::Headers ALIAS OpenCL-Headers)
+target_include_directories(OpenCL-Headers
+  INTERFACE ${OPENCL_INCLUDE}
+)
+install(DIRECTORY ${OPENCL_INCLUDE}/CL
+  DESTINATION ${LLVM_INST_INC_DIRECTORY}
+  COMPONENT opencl-headers
+)
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -97,10 +107,6 @@ COMMENT "Copying SYCL headers ...")
 
 # Configure SYCL headers
 install(DIRECTORY "${sycl_inc_dir}/." DESTINATION "${LLVM_INST_INC_DIRECTORY}" COMPONENT sycl-headers)
-
-# Configure OpenCL header and ICD loader
-include_directories(AFTER "${sycl_inc_dir}" "${OpenCL_INCLUDE_DIRS}")
-link_libraries(${OpenCL_LIBRARIES})
 
 # SYCL runtime library
 add_subdirectory(source)
@@ -126,3 +132,51 @@ add_custom_target( sycl-toolchain
 add_subdirectory( test )
 add_subdirectory( unittests )
 add_subdirectory( tools )
+
+# Package deploy support
+# Listed here are component names contributing the package
+set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
+     clang
+     clang-offload-wrapper
+     clang-offload-bundler
+     llc
+     llvm-as
+     llvm-ar
+     llvm-dis
+     llvm-no-spir-kernel
+     llvm-spirv
+     llvm-link
+     llvm-objcopy
+     opt
+     clang-resource-headers
+     opencl-headers
+     sycl-headers
+)
+
+# Use it as fake dependency in order to force another command(s) to execute.
+add_custom_command(OUTPUT __force_it
+  COMMAND "${CMAKE_COMMAND}" -E echo
+)
+#Serialize installation to avoid missing components due to build race conditions
+set(__chain_dep __force_it)
+
+set(manifest_list)
+foreach( comp ${SYCL_TOOLCHAIN_DEPLOY_COMPONENTS} )
+  message( STATUS "Adding component ${comp} to deploy")
+
+  set (manifest_file ${CMAKE_CURRENT_BINARY_DIR}/install_manifest_${comp}.txt)
+  add_custom_command(OUTPUT ${manifest_file}
+    COMMAND "${CMAKE_COMMAND}"
+    "-DCMAKE_INSTALL_COMPONENT=${comp}"
+    -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
+    DEPENDS  ${__chain_dep}
+    COMMENT "Deploying component ${comp}"
+    USES_TERMINAL
+  )
+  list(APPEND manifest_list ${manifest_file})
+  set(__chain_dep ${manifest_file})
+endforeach( comp )
+
+add_custom_target(deploy-sycl-toolchain
+  DEPENDS sycl-toolchain ${manifest_list}
+)
