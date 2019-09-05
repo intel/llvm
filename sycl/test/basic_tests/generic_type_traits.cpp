@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx -fsycl %s -o %t.out
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/common.hpp>

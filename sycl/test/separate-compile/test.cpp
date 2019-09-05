@@ -33,7 +33,7 @@
 // RUN: %clangxx -c wrapper.bc -o wrapper.o
 //
 // >> ---- link the full hetero app
-// RUN: %clangxx wrapper.o a.o b.o -o app.exe -lOpenCL -lsycl
+// RUN: %clangxx wrapper.o a.o b.o -o app.exe -lsycl
 // RUN: ./app.exe | FileCheck %s
 // CHECK: pass
 
