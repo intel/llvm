@@ -202,15 +202,15 @@ public:
         detail::Builder::createItem<dimensions, false>(GlobalSize, GlobalId);
     item<dimensions, false> LocalItem =
         detail::Builder::createItem<dimensions, false>(LocalSize, LocalId);
-    h_item<dimensions> HItem =
-        detail::Builder::createHItem<dimensions>(GlobalItem, LocalItem);
 
     // iterate over flexible range with work group size stride; each item
     // performs flexibleRange/LocalSize iterations (if the former is divisible
     // by the latter)
     detail::NDLoop<dimensions>::iterate(
         LocalId, LocalSize, flexibleRange,
-        [&](const id<dimensions> &LogicalLocalID) {
+        [=](const id<dimensions> &LogicalLocalID) {
+          h_item<dimensions> HItem = detail::Builder::createHItem<dimensions>(
+              GlobalItem, LocalItem, flexibleRange);
           HItem.setLogicalLocalID(LogicalLocalID);
           Func(HItem);
         });
