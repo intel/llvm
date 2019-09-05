@@ -9,7 +9,7 @@
 // Separate kernel sources and host code sources
 // RUN: %clangxx -fsycl -c -o %t.kernel.o %s -DINIT_KERNEL -DCALC_KERNEL
 // RUN: %clangxx -fsycl -c -o %t.main.o %s -DMAIN_APP
-// RUN: %clangxx -fsycl %t.kernel.o %t.main.o -o %t.fat -lOpenCL
+// RUN: %clangxx -fsycl %t.kernel.o %t.main.o -o %t.fat
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.fat
 // RUN: %CPU_RUN_PLACEHOLDER %t.fat
 // RUN: %GPU_RUN_PLACEHOLDER %t.fat
@@ -19,7 +19,7 @@
 // RUN: %clangxx -fsycl -c -o %t.init.o %s -DINIT_KERNEL
 // RUN: %clangxx -fsycl -c -o %t.calc.o %s -DCALC_KERNEL
 // RUN: %clangxx -fsycl -c -o %t.main.o %s -DMAIN_APP
-// RUN: %clangxx -fsycl %t.init.o %t.calc.o %t.main.o -o %t.fat -lOpenCL
+// RUN: %clangxx -fsycl %t.init.o %t.calc.o %t.main.o -o %t.fat
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.fat
 // RUN: %CPU_RUN_PLACEHOLDER %t.fat
 // RUN: %GPU_RUN_PLACEHOLDER %t.fat

@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t1.out -lOpenCL
-// RUN: %clangxx %s -o %t3.out -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t1.out
+// RUN: %clangxx %s -o %t3.out -lsycl
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t3.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
