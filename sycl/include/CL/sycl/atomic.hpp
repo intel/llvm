@@ -194,10 +194,32 @@ public:
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+  template <typename T2 = T>
+  detail::enable_if_t<!std::is_same<float, T2>::value, T>
+  load(memory_order Order = memory_order::relaxed) const {
+    return __spirv_AtomicLoad(Ptr, SpirvScope,
+                              detail::getSPIRVMemorySemanticsMask(Order));
+  }
+  template <typename T2 = T>
+  detail::enable_if_t<std::is_same<float, T2>::value, T>
+  load(memory_order Order = memory_order::relaxed) const {
+    auto *TmpPtr =
+        reinterpret_cast<typename multi_ptr<int, addressSpace>::pointer_t>(Ptr);
+    union {
+      int Int;
+      float Float;
+    } TmpVal;
+    TmpVal.Int = __spirv_AtomicLoad(TmpPtr, SpirvScope,
+                                    detail::getSPIRVMemorySemanticsMask(Order));
+    return TmpVal.Float;
+  }
+#else
   T load(memory_order Order = memory_order::relaxed) const {
     return __spirv_AtomicLoad(Ptr, SpirvScope,
                               detail::getSPIRVMemorySemanticsMask(Order));
   }
+#endif
 
   T exchange(T Operand, memory_order Order = memory_order::relaxed) {
     return __spirv_AtomicExchange(
