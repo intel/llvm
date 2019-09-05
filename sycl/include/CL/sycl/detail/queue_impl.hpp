@@ -122,9 +122,10 @@ public:
 
   void throw_asynchronous() {
     if (m_AsyncHandler && m_Exceptions.size()) {
-      m_AsyncHandler(m_Exceptions);
+      exception_list Exceptions;
+      std::swap(m_Exceptions, Exceptions);
+      m_AsyncHandler(Exceptions);
     }
-    m_Exceptions.Clear();
   }
 
   RT::PiQueue createQueue() {
