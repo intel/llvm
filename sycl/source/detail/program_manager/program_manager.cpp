@@ -240,12 +240,12 @@ static bool is_device_binary_type_supported(const context &C,
       C.get_platform().get_info<info::platform::version>() >= "2.1")
     return true;
 
-  // Otherwise we need cl_khr_program_il extension to be present
+  // Otherwise we need cl_khr_il_program extension to be present
   // and we can call clCreateProgramWithILKHR using the extension
   for (const auto &D : C.get_devices()) {
     auto Extensions = D.get_info<info::device::extensions>();
     if (std::find(Extensions.begin(), Extensions.end(),
-                  string_class("cl_khr_program_il")) != Extensions.end())
+                  string_class("cl_khr_il_program")) != Extensions.end())
       return true;
   }
 
