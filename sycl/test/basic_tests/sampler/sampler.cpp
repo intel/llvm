@@ -37,7 +37,7 @@ int main() {
              B.get_coordinate_normalization_mode() &&
          A.get_filtering_mode() == B.get_filtering_mode());
 
-  // Check assigment operator
+  // Check assignment operator
   if (!Queue.is_host()) {
     // OpenCL sampler
     cl_int Err = CL_SUCCESS;
@@ -75,7 +75,7 @@ int main() {
   sycl::hash_class<cl::sycl::sampler> Hasher;
   assert(Hasher(A) != Hasher(B));
 
-  // Check move assigment
+  // Check move assignment
   sycl::sampler C(B);
   A = std::move(B);
   assert(Hasher(C) == Hasher(A));
