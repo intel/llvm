@@ -160,20 +160,41 @@ void *MemoryManager::allocateMemImage(
                              Format);
 }
 
-void *MemoryManager::createSubBuffer(RT::PiMem ParentMem, size_t ElemSize,
-                                     id<3> Offset, range<3> Range,
-                                     std::vector<RT::PiEvent> DepEvents,
-                                     RT::PiEvent &OutEvent) {
+void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
+                                          void *ParentMemObj, size_t ElemSize,
+                                          size_t Offset, range<3> Range,
+                                          std::vector<RT::PiEvent> DepEvents,
+                                          RT::PiEvent &OutEvent) {
   waitForEvents(DepEvents);
   OutEvent = nullptr;
 
+  if (TargetContext->is_host())
+    return static_cast<void *>(static_cast<char *>(ParentMemObj) + Offset);
+
+  size_t SizeInBytes = ElemSize;
+  for (size_t I = 0; I < 3; ++I)
+    SizeInBytes *= Range[I];
+
+  return allocateSubBufferObject(TargetContext, ParentMemObj, Offset,
+                                 SizeInBytes);
+}
+
+void *MemoryManager::allocateSubBufferObject(ContextImplPtr TargetContext,
+                                             void *ParentMemObj,
+                                             const size_t Offset,
+                                             const size_t Size) {
+
   RT::PiResult Error = PI_SUCCESS;
   // TODO replace with pi_buffer_region
-  cl_buffer_region Region{Offset[0] * ElemSize, Range[0] * ElemSize};
+  cl_buffer_region Region{Offset, Size};
   RT::PiMem NewMem;
-  PI_CALL((NewMem = RT::piMemBufferPartition(ParentMem, PI_MEM_FLAGS_ACCESS_RW,
-                                             PI_BUFFER_CREATE_TYPE_REGION,
-                                             &Region, &Error),
+  // TODO: An asyncronous exception is thrown if OffsetInBytes %
+  // CL_DEVICE_MEM_BASE_ADDR_ALIGN != 0 which is caught by SYCL runtime. As a
+  // result, after PI_CALL cl_mem for sub buffer equals to nullptr, which will
+  // cause segmentation fault in kernel execution.
+  PI_CALL((NewMem = RT::piMemBufferPartition(
+               pi::cast<RT::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
+               PI_BUFFER_CREATE_TYPE_REGION, &Region, &Error),
            Error));
   return NewMem;
 }

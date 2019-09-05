@@ -63,10 +63,10 @@ class AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
-                   int Dims, int ElemSize)
+                   int Dims, int ElemSize, int OffsetInBytes = 0)
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
-        MElemSize(ElemSize) {}
+        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes) {}
 
   ~AccessorImplHost() {
     if (BlockingEvent)
@@ -76,7 +76,7 @@ public:
       : MOffset(Other.MOffset), MAccessRange(Other.MAccessRange),
         MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
-        MElemSize(Other.MElemSize) {}
+        MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes) {}
 
   id<3> MOffset;
   // The size of accessing region.
@@ -89,6 +89,7 @@ public:
 
   unsigned int MDims;
   unsigned int MElemSize;
+  unsigned int MOffsetInBytes;
 
   void *MData = nullptr;
 
@@ -103,10 +104,10 @@ class AccessorBaseHost {
 public:
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
-                   int Dims, int ElemSize) {
+                   int Dims, int ElemSize, int OffsetInBytes = 0) {
     impl = std::make_shared<AccessorImplHost>(Offset, AccessRange, MemoryRange,
-                                              AccessMode, SYCLMemObject,
-                                              Dims, ElemSize);
+                                              AccessMode, SYCLMemObject, Dims,
+                                              ElemSize, OffsetInBytes);
   }
 
 protected:

@@ -65,7 +65,8 @@ public:
     ALLOCA_SUB_BUF,
     RELEASE,
     MAP_MEM_OBJ,
-    UNMAP_MEM_OBJ
+    UNMAP_MEM_OBJ,
+    UPDATE_REQUIREMENT
   };
 
   Command(CommandType Type, QueueImplPtr Queue, bool UseExclusiveQueue = false);
@@ -99,14 +100,19 @@ public:
 
   virtual void printDot(std::ostream &Stream) const = 0;
 
+  Requirement *storeRequirement(Requirement *ReqToStore);
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
   std::vector<EventImplPtr> MDepsEvents;
 
+  void waitForEvents(QueueImplPtr Queue, std::vector<RT::PiEvent> &RawEvents,
+                     RT::PiEvent &Event);
   std::vector<RT::PiEvent> prepareEvents(ContextImplPtr Context);
 
   bool MUseExclusiveQueue = false;
+  std::vector<Requirement> MStoredRequirements;
 
   // Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
@@ -187,6 +193,7 @@ public:
   }
 
   void printDot(std::ostream &Stream) const override;
+  AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
 
 private:
   cl_int enqueueImp() override final;
@@ -288,6 +295,22 @@ private:
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
   std::unique_ptr<detail::CG> MCommandGroup;
+};
+
+// The main purpose of this class is to update host requirements
+class UpdateRequirementCommand : public Command {
+public:
+  UpdateRequirementCommand(QueueImplPtr Queue, Requirement *Req,
+                           AllocaCommandBase *AllocaForReq)
+      : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
+        MReqToUpdate(Req), MAllocaForReq(AllocaForReq) {}
+
+private:
+  cl_int enqueueImp() override;
+  void printDot(std::ostream &Stream) const override;
+
+  Requirement *MReqToUpdate = nullptr;
+  AllocaCommandBase *MAllocaForReq = nullptr;
 };
 
 } // namespace detail

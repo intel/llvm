@@ -235,6 +235,19 @@ constexpr size_t getNextPowerOfTwo(size_t Var) {
   return getNextPowerOfTwoHelper(Var - 1, 1) + 1;
 }
 
+// Returns linear index by given index and range
+template <int N, template <int> class T, template <int> class U>
+size_t getLinearIndex(T<N> Index, U<N> Range) {
+  size_t LinearIndex = 0;
+  for (int I = 0; I < N; ++I) {
+    size_t tmp = Index[I];
+    for (int J = N - I - 1; J >= 1; --J)
+      tmp *= Range[J];
+    LinearIndex += tmp;
+  }
+  return LinearIndex;
+}
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl

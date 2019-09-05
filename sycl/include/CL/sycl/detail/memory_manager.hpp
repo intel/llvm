@@ -47,10 +47,11 @@ public:
 
   // The following method creates OpenCL sub buffer for specified
   // offset, range, and memory object.
-  static void *createSubBuffer(RT::PiMem ParentMem, size_t ElemSize,
-                               id<3> Offset, range<3> Range,
-                               std::vector<RT::PiEvent> DepEvents,
-                               RT::PiEvent &OutEvent);
+  static void *allocateMemSubBuffer(ContextImplPtr TargetContext,
+                                    void *ParentMemObj, size_t ElemSize,
+                                    size_t Offset, range<3> Range,
+                                    std::vector<RT::PiEvent> DepEvents,
+                                    RT::PiEvent &OutEvent);
 
   // Allocates buffer in specified context taking into account situations such
   // as host ptr or cl_mem provided by user. TargetContext should be device
@@ -92,6 +93,10 @@ public:
 
   static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size);
+
+  static void *allocateSubBufferObject(ContextImplPtr TargetContext,
+                                       void *ParentPtr, const size_t Offset,
+                                       const size_t Size);
 
   // Copies memory between: host and device, host and host,
   // device and device if memory objects bound to the one context.
