@@ -370,7 +370,6 @@ inline EnableIfFP<T, unsigned> ScalarToStr(const T &Val, char *Buf,
   T Neg = -Val;
   auto AbsVal = Val < 0 ? Neg : Val;
 
-
   if (Val < 0) {
     Buf[Offset++] = '-';
   } else if (Flags & ShowPos) {
@@ -615,10 +614,10 @@ template <int Dimensions>
 inline unsigned ItemToStr(char *Buf, const item<Dimensions, false> &Item) {
   unsigned Len = 0;
   Len += append(Buf, "item(");
-  Len += append(Buf + Len, "range: ");
-  Len += ArrayToStr(Buf + Len, Item.get_range());
-  Len += append(Buf + Len, ", id: ");
-  Len += ArrayToStr(Buf + Len, Item.get_id());
+  for (int I = 0; I < 2; ++I) {
+    Len += append(Buf + Len, I == 0 ? "range: " : ", id: ");
+    Len += ArrayToStr(Buf + Len, I == 0 ? Item.get_range() : Item.get_id());
+  }
   Buf[Len++] = ')';
   return Len;
 }
@@ -632,12 +631,14 @@ inline void writeHItem(stream_impl::OffsetAccessorType &OffsetAcc,
   char Buf[3 * MAX_ITEM_SIZE + 60];
   unsigned Len = 0;
   Len += append(Buf, "h_item(");
-  Len += append(Buf + Len, "\n  global ");
-  Len += ItemToStr(Buf + Len, HItem.get_global());
-  Len += append(Buf + Len, "\n  logical local ");
-  Len += ItemToStr(Buf + Len, HItem.get_logical_local());
-  Len += append(Buf + Len, "\n  physical local ");
-  Len += ItemToStr(Buf + Len, HItem.get_physical_local());
+  for (int I = 0; I < 3; ++I) {
+    Len += append(Buf + Len, I == 0 ? "\n  global "
+                                    : I == 1 ? "\n  logical local "
+                                             : "\n  physical local ");
+    Len += ItemToStr(Buf + Len, I == 0 ? HItem.get_global()
+                                       : I == 1 ? HItem.get_logical_local()
+                                                : HItem.get_physical_local());
+  }
   Len += append(Buf + Len, "\n)");
   write(OffsetAcc, Acc, Len, Buf);
 }
@@ -645,4 +646,3 @@ inline void writeHItem(stream_impl::OffsetAccessorType &OffsetAcc,
 } // namespace detail
 } // namespace sycl
 } // namespace cl
-
