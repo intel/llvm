@@ -384,7 +384,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   ArgStringList CmdArgs{"-output",  Output.getFilename()};
   for (const auto &II : Inputs) {
     CmdArgs.push_back("-file");
-    CmdArgs.push_back(II.getFilename());
+    const char *Prefix = II.getFilename();
+    CmdArgs.push_back(Args.MakeArgString(Prefix + Twine("__Gen9core.bin")));
   }
   CmdArgs.push_back("-spirv_input");
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
