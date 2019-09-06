@@ -128,7 +128,7 @@ public:
     if (m_AsyncHandler && m_Exceptions.size()) {
       exception_list Exceptions;
       std::swap(m_Exceptions, Exceptions);
-      m_AsyncHandler(Exceptions);
+      m_AsyncHandler(std::move(Exceptions));
     }
   }
 
