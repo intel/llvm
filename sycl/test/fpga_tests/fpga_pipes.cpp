@@ -10,6 +10,9 @@
 #include <CL/sycl.hpp>
 #include <iostream>
 
+// Size of an array passing through a pipe
+constexpr size_t N = 10;
+
 // For simple non-blocking pipes with explicit type
 class some_nb_pipe;
 
@@ -140,6 +143,47 @@ int test_multiple_nb_pipe(cl::sycl::queue Queue) {
   return 0;
 }
 
+// Test for array passing through a non-blocking pipe
+template<int TestNumber>
+int test_array_th_nb_pipe(cl::sycl::queue Queue) {
+  int data[N] = {0};
+  using AnotherNbPipe = cl::sycl::pipe<class another_nb_pipe, int>;
+
+  Queue.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task<class writer<TestNumber>>([=]() {
+      bool SuccessCode = false;
+      for (size_t i = 0; i != N; ++i) {
+        do {
+          AnotherNbPipe::write(i, SuccessCode);
+        } while (!SuccessCode);
+      }
+    });
+  });
+
+  cl::sycl::buffer<int, 1> writeBuf(data, N);
+  Queue.submit([&](cl::sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+    cgh.single_task<class reader<TestNumber>>([=]() {
+      for (size_t i = 0; i != N; ++i) {
+        bool SuccessCode = false;
+        do {
+          write_acc[i] = AnotherNbPipe::read(SuccessCode);
+        } while (!SuccessCode);
+      }
+    });
+  });
+
+  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  for (size_t i = 0; i != N; ++i) {
+    if (readHostBuffer[i] != i)
+      std::cout << "Test: " << TestNumber << "\nResult mismatches "
+                << readHostBuffer[i] << " Vs expected " << i << std::endl;
+    return -1;
+  }
+
+  return 0;
+}
+
 // Test for simple blocking pipes
 template<typename PipeName, int TestNumber>
 int test_simple_bl_pipe(cl::sycl::queue Queue) {
@@ -211,6 +255,39 @@ int test_multiple_bl_pipe(cl::sycl::queue Queue) {
   return 0;
 }
 
+// Test for array passing through a blocking pipe
+template<int TestNumber>
+int test_array_th_bl_pipe(cl::sycl::queue Queue) {
+  int data[N] = {0};
+  using AnotherBlPipe = cl::sycl::pipe<class another_bl_pipe, int>;
+
+  Queue.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task<class writer<TestNumber>>([=]() {
+      for (size_t i = 0; i != N; ++i)
+        AnotherBlPipe::write(i);
+    });
+  });
+
+  cl::sycl::buffer<int, 1> writeBuf(data, N);
+  Queue.submit([&](cl::sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+    cgh.single_task<class reader<TestNumber>>([=]() {
+      for (size_t i = 0; i != N; ++i)
+        write_acc[i] = AnotherBlPipe::read();
+    });
+  });
+
+  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  for (size_t i = 0; i != N; ++i) {
+    if (readHostBuffer[i] != i)
+      std::cout << "Test: " << TestNumber << "\nResult mismatches "
+                << readHostBuffer[i] << " Vs expected " << i << std::endl;
+    return -1;
+  }
+
+  return 0;
+}
+
 int main() {
   cl::sycl::queue Queue;
 
@@ -229,6 +306,10 @@ int main() {
   Result &= test_simple_bl_pipe<forward_bl_pipe, /*test number*/ 8>(Queue);
   Result &= test_simple_bl_pipe<templ_bl_pipe<0>, /*test number*/ 9>(Queue);
   Result &= test_multiple_bl_pipe</*test number*/ 10>(Queue);
+
+  // Test for an array data passing through a pipe
+  Result &= test_array_th_nb_pipe</*test number*/ 11>(Queue);
+  Result &= test_array_th_bl_pipe</*test number*/ 12>(Queue);
 
   return Result;
 }
