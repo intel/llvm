@@ -389,6 +389,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
     CmdArgs.push_back("-file");
     CmdArgs.push_back(II.getFilename());
   }
+  // The next line prevents ocloc from modifying the image name
+  CmdArgs.push_back("-output_no_suffix");
   CmdArgs.push_back("-spirv_input");
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("ocloc"));
