@@ -1,10 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUNx: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-
-// TODO: SYCL specific fail - analyze and enable
-// XFAIL: windows
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
