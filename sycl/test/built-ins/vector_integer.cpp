@@ -378,6 +378,25 @@ int main() {
     assert(r2 == 4);
   }
 
+  // ctz
+  {
+    s::cl_int2 r{ 0 };
+    {
+      s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class ctzSI2>([=]() {
+          AccR[0] = s::intel::ctz(s::cl_int2{ 0x7FFFFFF0, 0x7FFFFFF0 });
+        });
+      });
+    }
+    s::cl_int r1 = r.x();
+    s::cl_int r2 = r.y();
+    assert(r1 == 4);
+    assert(r2 == 4);
+  }
+
   // mad_hi
   {
     s::cl_int2 r{ 0 };

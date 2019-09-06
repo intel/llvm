@@ -236,6 +236,22 @@ int main() {
     assert(r == 4);
   }
 
+  // ctz
+  {
+    s::cl_int r{ 0 };
+    {
+      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class ctzSI1>([=]() {
+          AccR[0] = s::intel::ctz(s::cl_int{ 0x7FFFFFF0 });
+        });
+      });
+    }
+    assert(r == 4);
+  }
+
   // mad_hi
   {
     s::cl_int r{ 0 };
