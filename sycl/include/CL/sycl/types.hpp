@@ -54,7 +54,6 @@
 #include <cmath>
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv>
-#pragma STDC FENV_ACCESS ON
 #endif
 
 // 4.10.1: Scalar data types
