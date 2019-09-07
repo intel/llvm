@@ -297,9 +297,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
           continue;
         if (types::isSrcFile(Ty) || Ty == types::TY_Object) {
           llvm::sys::path::replace_extension(FN, "d");
-          if (llvm::sys::fs::exists(FN))
-            FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
-                  Args.MakeArgString(FN), Args.MakeArgString(FN)));
+          FPGADepFiles.push_back(InputInfo(types::TY_Dependencies,
+              Args.MakeArgString(FN), Args.MakeArgString(FN)));
         }
       }
     }
