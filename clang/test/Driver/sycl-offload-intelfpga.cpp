@@ -6,8 +6,8 @@
 /// -fintelfpga implies -g and -MMD
 // RUN:   %clang++ -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-INTELFPGA %s
-// CHK-TOOLS-INTELFPGA: clang{{.*}} "-dependency-file"
-// CHK-TOOLS-INTELFPGA: clang{{.*}} "-debug-info-kind=limited"
+// CHK-TOOLS-INTELFPGA: clang{{.*}} "-debug-info-kind=limited" {{.*}} "-dependency-file"
+// CHK-TOOLS-INTELFPGA: aoc{{.*}} "-dep-files={{.*}}"
 
 /// -fintelfpga -fsycl-link tests
 // RUN:  touch %t.o
