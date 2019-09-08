@@ -160,7 +160,7 @@ using is_charn = typename is_contained<
 // scharn: schar2, schar3, schar4, schar8, schar16
 template <typename T>
 using is_scharn = typename is_contained<
-    T, type_list<schar2, schar3, schar4, schar8, schar16>>::type;
+    T, type_list<cl_schar2, cl_schar3, cl_schar4, cl_schar8, cl_schar16>>::type;
 
 // ucharn: uchar2, uchar3, uchar4, uchar8, uchar16
 template <typename T>
@@ -170,7 +170,7 @@ using is_ucharn = typename is_contained<
 // igenchar: signed char, scharn
 template <typename T>
 using is_igenchar =
-    std::integral_constant<bool, is_contained<T, type_list<schar>>::value ||
+    std::integral_constant<bool, is_contained<T, type_list<cl_schar>>::value ||
                                      is_scharn<T>::value>;
 
 // ugenchar: unsigned char, ucharn
@@ -313,7 +313,7 @@ using is_ugeninteger = std::integral_constant<
 // int
 template <typename T>
 using is_sgeninteger = typename is_contained<
-    T, type_list<cl_char, schar, cl_uchar, cl_short, cl_ushort, cl_int,
+    T, type_list<cl_char, cl_schar, cl_uchar, cl_short, cl_ushort, cl_int,
                  cl_uint, cl_long, cl_ulong, longlong, ulonglong>>::type;
 
 // vgeninteger: charn, scharn, ucharn, shortn, ushortn, intn, uintn, longn,
@@ -329,7 +329,7 @@ using is_vgeninteger = std::integral_constant<
 // sigeninteger: char, signed char, short, int, long int, , long long int
 template <typename T>
 using is_sigeninteger = typename is_contained<
-    T, type_list<cl_char, schar, cl_short, cl_int, cl_long, longlong>>::type;
+    T, type_list<cl_char, cl_schar, cl_short, cl_int, cl_long, longlong>>::type;
 
 // sugeninteger: unsigned char, unsigned short,  unsigned int, unsigned long
 // int, unsigned long long int
