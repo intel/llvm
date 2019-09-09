@@ -14,6 +14,8 @@
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
+#else
+#include <cstring>
 #endif
 #include <type_traits>
 
@@ -206,13 +208,11 @@ public:
   load(memory_order Order = memory_order::relaxed) const {
     auto *TmpPtr =
         reinterpret_cast<typename multi_ptr<int, addressSpace>::pointer_t>(Ptr);
-    union {
-      int Int;
-      float Float;
-    } TmpVal;
-    TmpVal.Int = __spirv_AtomicLoad(TmpPtr, SpirvScope,
+    int TmpVal = __spirv_AtomicLoad(TmpPtr, SpirvScope,
                                     detail::getSPIRVMemorySemanticsMask(Order));
-    return TmpVal.Float;
+    float ResVal;
+    std::memcpy(&ResVal, &TmpVal, sizeof TmpVal);
+    return ResVal;
   }
 #else
   T load(memory_order Order = memory_order::relaxed) const {

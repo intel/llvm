@@ -27,11 +27,11 @@ void kernel_func(T val) {
 }
 
 int main() {
-  // CHECK: [[U_NAME:%[0-9a-zA-Z]*]] = alloca %union
-  // CHECK: call spir_func i32 @_Z18__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %{{[0-9a-zA-Z]*}}, i32 1, i32 %{{[0-9a-zA-Z]*}})
-  // CHECK: bitcast %union{{.*}} [[U_NAME]] to i32*
-  // CHECK: [[F_NAME:%[0-9a-zA-Z]*]] = bitcast %union{{.*}} [[U_NAME]] to float*
-  // CHECK: [[RET_NAME:%[0-9a-zA-Z]*]] = {{.*}}[[F_NAME]]
+  // CHECK: [[RES_VAL:%ResVal]] = alloca float
+  // CHECK: call spir_func i32 @_Z18__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %{{[0-9]*}}, i32 1, i32 %{{[a-zA-Z]*}})
+  // CHECK: [[CAST:%[0-9]*]] = {{.*}} [[RES_VAL]]
+  // CHECK: call void @llvm.memcpy{{.*}}[[CAST]]
+  // CHECK: [[RET_NAME:%[0-9a-zA-Z]*]] = load float{{.*}}[[RES_VAL]]
   // CHECK: ret float [[RET_NAME]]
   kernel_func<float>(5.5);
   // CHECK: [[RET_NAME2:%[0-9a-zA-Z]*]] = call spir_func i32 @_Z18__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %{{[0-9a-zA-Z]*}}, i32 1, i32 %{{[0-9a-zA-Z]*}})
