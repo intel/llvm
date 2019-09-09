@@ -9,13 +9,18 @@
 
 #include <CL/sycl.hpp>
 
+#include <cfloat>
+#include <cstdint>
+#include <type_traits>
+
+using namespace std;
+namespace s = cl::sycl;
+
 template <typename T, int N> inline void checkVectorSizeAndAlignment() {
-  using VectorT = cl::sycl::vec<T, N>;
+  using VectorT = s::vec<T, N>;
   constexpr auto RealLength = (N != 3 ? N : 4);
-  static_assert(sizeof(VectorT) == (sizeof(T) * RealLength),
-                "Wrong size of vec<T, N>");
-  static_assert(alignof(VectorT) == (alignof(T) * RealLength),
-                "Wrong alignment of vec<T, N>");
+  static_assert(sizeof(VectorT) == (sizeof(T) * RealLength), "");
+  static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
 }
 
 template <typename T> inline void checkVectorsWithN() {
@@ -55,7 +60,55 @@ inline void checkVectors() {
   checkVectorsWithN<::cl_double>();
 }
 
+template <typename T, int ExpectedSize>
+inline void checkSizeForSignedIntegral() {
+  static_assert(is_integral<T>::value, "");
+  static_assert(is_signed<T>::value, "");
+  static_assert(sizeof(T) == ExpectedSize, "");
+}
+
+template <typename T, int ExpectedSize>
+inline void checkSizeForUnsignedIntegral() {
+  static_assert(is_integral<T>::value, "");
+  static_assert(is_unsigned<T>::value, "");
+  static_assert(sizeof(T) == ExpectedSize, "");
+}
+
+template <typename T, int ExpectedSize>
+inline void checkSizeForFloatingPoint() {
+  static_assert(is_floating_point<T>::value, "");
+  static_assert(numeric_limits<T>::is_iec559, "");
+  static_assert(sizeof(T) == ExpectedSize, "");
+}
+
+template <> inline void checkSizeForFloatingPoint<s::half, sizeof(int16_t)>() {
+  // TODO is_floating_point does not support sycl half now.
+  // static_assert(is_floating_point<T>::is_iec559, "");
+  // TODO numeric_limits does not support sycl half now.
+  // static_assert(numeric_limits<T>::is_iec559, "");
+  static_assert(sizeof(s::half) == sizeof(int16_t), "");
+}
+
 int main() {
+  // Check the size and alignment of the SYCL vectors.
   checkVectors();
+
+  // Table 4.93: Additional scalar data types supported by SYCL.
+  static_assert(sizeof(s::byte) == sizeof(int8_t), "");
+
+  // Table 4.94: Scalar data type aliases supported by SYCL
+  static_assert(is_same<s::cl_bool, decltype(0 != 1)>::value, "");
+  checkSizeForSignedIntegral<s::cl_char, sizeof(int8_t)>();
+  checkSizeForUnsignedIntegral<s::cl_uchar, sizeof(uint8_t)>();
+  checkSizeForSignedIntegral<s::cl_short, sizeof(int16_t)>();
+  checkSizeForUnsignedIntegral<s::cl_ushort, sizeof(uint16_t)>();
+  checkSizeForSignedIntegral<s::cl_int, sizeof(int32_t)>();
+  checkSizeForUnsignedIntegral<s::cl_uint, sizeof(uint32_t)>();
+  checkSizeForSignedIntegral<s::cl_long, sizeof(int64_t)>();
+  checkSizeForUnsignedIntegral<s::cl_ulong, sizeof(uint64_t)>();
+  checkSizeForFloatingPoint<s::cl_half, sizeof(int16_t)>();
+  checkSizeForFloatingPoint<s::cl_float, sizeof(int32_t)>();
+  checkSizeForFloatingPoint<s::cl_double, sizeof(int64_t)>();
+
   return 0;
 }
