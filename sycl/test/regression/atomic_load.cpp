@@ -12,12 +12,12 @@ class foo;
 
 template<typename T>
 void kernel_func(T val) {
-  cl::sycl::queue testQueue;
+  queue testQueue;
 
   T data = val;
   buffer<T,1> buf(&data, range<1>(1));
 
-  testQueue.submit([&](cl::sycl::handler &cgh) {
+  testQueue.submit([&](handler &cgh) {
     auto GlobAcc = buf.template get_access<access::mode::atomic>(cgh);
     cgh.single_task<class foo<T>>([=]() {
       auto a = GlobAcc[0];
