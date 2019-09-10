@@ -1,9 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
-// RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %clangxx --sycl -S -x c++ -O0 -emit-llvm %s -o - | FileCheck %s
 #include <CL/sycl.hpp>
 using namespace cl::sycl;
 
@@ -27,15 +23,7 @@ void kernel_func(T val) {
 }
 
 int main() {
-  // CHECK: [[RES_VAL:%ResVal]] = alloca float
-  // CHECK: call spir_func i32 @_Z18__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %{{[0-9]*}}, i32 1, i32 %{{[a-zA-Z]*}})
-  // CHECK: [[CAST:%[0-9]*]] = {{.*}} [[RES_VAL]]
-  // CHECK: call void @llvm.memcpy{{.*}}[[CAST]]
-  // CHECK: [[RET_NAME:%[0-9a-zA-Z]*]] = load float{{.*}}[[RES_VAL]]
-  // CHECK: ret float [[RET_NAME]]
   kernel_func<float>(5.5);
-  // CHECK: [[RET_NAME2:%[0-9a-zA-Z]*]] = call spir_func i32 @_Z18__spirv_AtomicLoad{{.*}}(i32 addrspace(1)* %{{[0-9a-zA-Z]*}}, i32 1, i32 %{{[0-9a-zA-Z]*}})
-  // CHECK: ret i32 [[RET_NAME2]]
   kernel_func<int>(42);
   return 0;
 }
