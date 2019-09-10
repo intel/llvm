@@ -185,19 +185,12 @@ public:
   template <class ArgT = KernelArgType>
   typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
-    size_t XYZ[3] = {0};
-    sycl::id<Dims> ID;
-    for (; XYZ[2] < NDRDesc.GlobalSize[2]; ++XYZ[2]) {
-      XYZ[1] = 0;
-      for (; XYZ[1] < NDRDesc.GlobalSize[1]; ++XYZ[1]) {
-        XYZ[0] = 0;
-        for (; XYZ[0] < NDRDesc.GlobalSize[0]; ++XYZ[0]) {
-          for (int I = 0; I < Dims; ++I)
-            ID[I] = XYZ[I];
-          MKernel(ID);
-        }
-      }
-    }
+    sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
+    for (int I = 0; I < Dims; ++I)
+      Range[I] = NDRDesc.GlobalSize[I];
+
+    detail::NDLoop<Dims>::iterate(
+        Range, [&](const sycl::id<Dims> &ID) { MKernel(ID); });
   }
 
   template <class ArgT = KernelArgType>
@@ -210,20 +203,11 @@ public:
     for (int I = 0; I < Dims; ++I)
       Range[I] = NDRDesc.GlobalSize[I];
 
-    for (; XYZ[2] < NDRDesc.GlobalSize[2]; ++XYZ[2]) {
-      XYZ[1] = 0;
-      for (; XYZ[1] < NDRDesc.GlobalSize[1]; ++XYZ[1]) {
-        XYZ[0] = 0;
-        for (; XYZ[0] < NDRDesc.GlobalSize[0]; ++XYZ[0]) {
-          for (int I = 0; I < Dims; ++I)
-            ID[I] = XYZ[I];
-
-          sycl::item<Dims, /*Offset=*/false> Item =
-              IDBuilder::createItem<Dims, false>(Range, ID);
-          MKernel(Item);
-        }
-      }
-    }
+    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> ID) {
+      sycl::item<Dims, /*Offset=*/false> Item =
+          IDBuilder::createItem<Dims, false>(Range, ID);
+      MKernel(Item);
+    });
   }
 
   template <class ArgT = KernelArgType>
@@ -236,22 +220,13 @@ public:
       Range[I] = NDRDesc.GlobalSize[I];
       Offset[I] = NDRDesc.GlobalOffset[I];
     }
-    size_t XYZ[3] = {0};
-    sycl::id<Dims> ID;
-    for (; XYZ[2] < NDRDesc.GlobalSize[2]; ++XYZ[2]) {
-      XYZ[1] = 0;
-      for (; XYZ[1] < NDRDesc.GlobalSize[1]; ++XYZ[1]) {
-        XYZ[0] = 0;
-        for (; XYZ[0] < NDRDesc.GlobalSize[0]; ++XYZ[0]) {
-          for (int I = 0; I < Dims; ++I)
-            ID[I] = XYZ[I] + Offset[I];
 
-          sycl::item<Dims, /*Offset=*/true> Item =
-              IDBuilder::createItem<Dims, true>(Range, ID, Offset);
-          MKernel(Item);
-        }
-      }
-    }
+    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
+      sycl::id<Dims> OffsetID = ID + Offset;
+      sycl::item<Dims, /*Offset=*/true> Item =
+          IDBuilder::createItem<Dims, true>(Range, OffsetID, Offset);
+      MKernel(Item);
+    });
   }
 
   template <class ArgT = KernelArgType>

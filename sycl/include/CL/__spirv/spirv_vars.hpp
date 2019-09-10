@@ -55,12 +55,12 @@ extern "C" const __attribute__((ocl_constant)) uint32_t __spirv_BuiltInSubgroupL
   };                                                                           \
                                                                                \
   template <class DstT> struct InitSizesST##POSTFIX<2, DstT> {                 \
-    static DstT initSize() { return {get##POSTFIX<0>(), get##POSTFIX<1>()}; }  \
+    static DstT initSize() { return {get##POSTFIX<1>(), get##POSTFIX<0>()}; }  \
   };                                                                           \
                                                                                \
   template <class DstT> struct InitSizesST##POSTFIX<3, DstT> {                 \
     static DstT initSize() {                                                   \
-      return {get##POSTFIX<0>(), get##POSTFIX<1>(), get##POSTFIX<2>()};        \
+      return {get##POSTFIX<2>(), get##POSTFIX<1>(), get##POSTFIX<0>()};        \
     }                                                                          \
   };                                                                           \
                                                                                \
