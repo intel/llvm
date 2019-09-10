@@ -674,7 +674,7 @@ cl_int ExecCGCommand::enqueueImp() {
     pi_result Error = PI_CALL_RESULT(RT::piEnqueueNativeKernel(
         MQueue->getHandleRef(), DispatchNativeKernel, (void *)ArgsBlob.data(),
         HostTask->MArgs[0].MSize, Buffers.size(), Buffers.data(),
-        (const void **)MemLocs.data(), RawEvents.size(),
+        const_cast<const void **>(MemLocs.data()), RawEvents.size(),
         RawEvents.empty() ? nullptr : RawEvents.data(), &Event));
 
     switch (Error) {

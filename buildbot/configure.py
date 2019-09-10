@@ -28,6 +28,7 @@ def do_configure(args):
                  "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
                  "-DOpenCL_LIBRARY={}".format(icd_loader_lib),
                  "-DLLVM_BUILD_TOOLS=OFF",
+                 "-DSYCL_ENABLE_WERROR=ON",
                  llvm_dir]
 
     print(cmake_cmd)
