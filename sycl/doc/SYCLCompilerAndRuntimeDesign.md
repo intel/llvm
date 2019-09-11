@@ -394,6 +394,35 @@ llvm-no-spir-kernel host.bc
 
 It returns 0 if no kernels are present and 1 otherwise.
 
+#### Device code splitting
+
+Putting all device code into a single SPIRV module does not work well in the
+following cases:
+1. There are thousands of kernels defined and only small part of them is used at
+run-time. Having them all in one SPIR-V module significantly increases JIT time.
+2. Device code can be specialized for different devices. For example, kernels
+which are supposed to be executed only on CPU can contain standard C library calls
+like "malloc" unavaliable on GPU. This will cause JIT compilation failure on GPU
+even if this particular kernel is never called on GPU device.
+
+To resolve these problems the compiler should be able to split a single module
+into smaller ones. The following features should be supported:
+* Grouping kernels on per-translation unit basis
+* Emitting a separate module for each kernel
+
+The current approach is:
+* Generate special meta-data with translation unit ID for each kernel in SYCL
+front-end
+* Link all LLVM modules using llvm-link
+* Run the module splitter pass on fully linked device code
+* Generate a symbol table for each device module for proper module selection in
+runtime
+
+Device code splitting process:
+![Device code splitting](DeviceCodeSplitting.png)
+
+The "split" box will be implemented as dedicated tool ("sycl-split"?). The tool
+will run splitter pass and generate a symbol table for each produced device module.
 
 ### Integration with SPIR-V format
 
