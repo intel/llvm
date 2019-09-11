@@ -139,7 +139,9 @@ private:
 class AllocaCommandBase : public Command {
 public:
   AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req)
-      : Command(Type, Queue), MReleaseCmd(Queue, this), MReq(std::move(Req)) {}
+      : Command(Type, Queue), MReleaseCmd(Queue, this), MReq(std::move(Req)) {
+    MReq.MAccessMode = access::mode::read_write;
+  }
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
 
@@ -178,7 +180,8 @@ class AllocaSubBufCommand : public AllocaCommandBase {
 public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca)
-      : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue), Req),
+      : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
+                          std::move(Req)),
         MParentAlloca(ParentAlloca) {
     addDep(DepDesc(MParentAlloca, &MReq, MParentAlloca));
   }
