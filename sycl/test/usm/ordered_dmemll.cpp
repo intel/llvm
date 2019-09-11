@@ -1,7 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t1.out -lOpenCL
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// TODO: SYCL specific fail - analyze and enable
-// XFAIL: windows
+// RUN: %GPU_RUN_PLACEHOLDER %t1.out
 
 //==----------- ordered_dmemll.cpp - Device Memory Linked List test --------==//
 // It uses an ordered queue where explicit waiting is not necessary between

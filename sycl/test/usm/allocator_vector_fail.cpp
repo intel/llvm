@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
+// RUN: %GPU_RUN_PLACEHOLDER %t1.out
 
 //==-- allocator_vector_fail.cpp - Device Memory Allocator fail test -------==//
 //
