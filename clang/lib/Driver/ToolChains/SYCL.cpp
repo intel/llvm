@@ -90,6 +90,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(Compilation &C,
     CmdArgs.push_back(OutputFileName);
   } else
     CmdArgs.push_back(Output.getFilename());
+  // TODO: temporary workaround for a problem with warnings reported by
+  // llvm-link when driver links LLVM modules with empty modules
+  CmdArgs.push_back("--suppress-warnings");
   SmallString<128> ExecPath(C.getDriver().Dir);
   llvm::sys::path::append(ExecPath, "llvm-link");
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
