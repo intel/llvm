@@ -59,7 +59,7 @@ public:
   range(range<dimensions> &&rhs) = default;
   range<dimensions> &operator=(const range<dimensions> &rhs) = default;
   range<dimensions> &operator=(range<dimensions> &&rhs) = default;
-  range() = default;
+  range() = delete;
 
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT(op)                                                     \
@@ -133,5 +133,6 @@ public:
 
 #undef __SYCL_GEN_OPT
 };
+
 } // namespace sycl
 } // namespace cl

@@ -158,7 +158,7 @@ namespace detail {
 // DefaultValue, truncation just removes extra values.
 template <int NewDim, int DefaultValue, template <int> class T, int OldDim>
 static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
-  T<NewDim> NewObj;
+  T<NewDim> NewObj = InitializedVal<NewDim, T>::template get<0>();
   const int CopyDims = NewDim > OldDim ? OldDim : NewDim;
   for (int I = 0; I < CopyDims; ++I)
     NewObj[I] = OldObj[I];
@@ -727,7 +727,10 @@ class accessor :
 
 public:
   // Default constructor for objects later initialized with __init member.
-  accessor() : impl({}) {}
+  accessor()
+    : impl({}, detail::InitializedVal<AdjustedDim, range>::template get<0>(),
+            detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
+
 #else
   using AccessorBaseHost::getAccessRange;
   using AccessorBaseHost::getMemoryRange;
@@ -1035,7 +1038,8 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
 
 public:
   // Default constructor for objects later initialized with __init member.
-  accessor() : impl({}) {}
+  accessor()
+      : impl(detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 private:
   PtrType getQualifiedPtr() const { return MData; }

@@ -45,7 +45,9 @@ public:
 
 template <int Dims> class LocalAccessorBaseDevice {
 public:
-  LocalAccessorBaseDevice(sycl::range<Dims> Size) : AccessRange(Size) {}
+  LocalAccessorBaseDevice(sycl::range<Dims> Size)
+      : AccessRange(Size),
+        MemRange(InitializedVal<Dims, range>::template get<0>()) {}
   // TODO: Actually we need only one field here, but currently compiler requires
   // all of them.
   range<Dims> AccessRange;
