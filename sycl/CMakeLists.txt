@@ -99,12 +99,25 @@ if( NOT OpenCL_LIBRARIES )
     CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
                -DOPENCL_ICD_LOADER_HEADERS_DIR=${CMAKE_CURRENT_BINARY_DIR}/OpenCL/inc
-               -DCMAKE_INSTALL_PREFIX=${LLVM_BINARY_DIR}
+               -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/icd_build/deploy
                -DCMAKE_INSTALL_LIBDIR:PATH=lib
                ${OPENCL_ICD_LOADER_WDK}
     STEP_TARGETS      configure,build,install
     DEPENDS           ocl-headers
+    INSTALL_COMMAND   ${CMAKE_COMMAND} --build <BINARY_DIR> --target install
+    COMMAND           ${CMAKE_COMMAND} -DCMAKE_INSTALL_PREFIX=${LLVM_BINARY_DIR}
+                -P <BINARY_DIR>/cmake_install.cmake
   )
+  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/icd_build/deploy/lib
+    DESTINATION .
+    COMPONENT khronos-icd-loader
+  )
+  if(MSVC)
+    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/icd_build/deploy/bin
+      DESTINATION .
+      COMPONENT khronos-icd-loader
+    )
+  endif()
 else()
   file(GLOB ICD_LOADER_SRC "${OpenCL_LIBRARIES}*")
   file(COPY ${ICD_LOADER_SRC} DESTINATION ${LLVM_LIBRARY_OUTPUT_INTDIR})
