@@ -24,19 +24,23 @@ namespace detail {
 // Set max number of queues supported by FPGA RT.
 const size_t MaxNumQueues = 256;
 
+enum QueueOrder { Ordered, OOO };
+
 class queue_impl {
 public:
   queue_impl(const device &SyclDevice, async_handler AsyncHandler,
-             const property_list &PropList)
-      : queue_impl(SyclDevice, context(SyclDevice), AsyncHandler, PropList) {};
+             QueueOrder Order, const property_list &PropList)
+      : queue_impl(SyclDevice, context(SyclDevice), AsyncHandler, Order,
+                   PropList){};
 
   queue_impl(const device &SyclDevice, const context &Context,
-             async_handler AsyncHandler, const property_list &PropList)
+             async_handler AsyncHandler, QueueOrder Order,
+             const property_list &PropList)
       : m_Device(SyclDevice), m_Context(Context), m_AsyncHandler(AsyncHandler),
         m_PropList(PropList), m_HostQueue(m_Device.is_host()) {
     m_OpenCLInterop = !m_HostQueue;
     if (!m_HostQueue) {
-      m_CommandQueue = createQueue();
+      m_CommandQueue = createQueue(Order);
     }
   }
 
@@ -51,8 +55,8 @@ public:
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piQueueGetInfo(m_CommandQueue, PI_QUEUE_INFO_DEVICE,
                                sizeof(Device), &Device, nullptr));
-    m_Device = createSyclObjFromImpl<device>(
-        std::make_shared<device_impl_pi>(Device));
+    m_Device =
+        createSyclObjFromImpl<device>(std::make_shared<device_impl_pi>(Device));
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piQueueRetain(m_CommandQueue));
@@ -122,37 +126,37 @@ public:
 
   void throw_asynchronous() {
     if (m_AsyncHandler && m_Exceptions.size()) {
-      m_AsyncHandler(m_Exceptions);
+      exception_list Exceptions;
+      std::swap(m_Exceptions, Exceptions);
+      m_AsyncHandler(std::move(Exceptions));
     }
-    m_Exceptions.Clear();
   }
 
-  RT::PiQueue createQueue() {
+  RT::PiQueue createQueue(QueueOrder Order) {
     RT::PiQueueProperties CreationFlags = 0;
 
-    if (m_SupportOOO) {
+    if (Order == QueueOrder::OOO) {
       CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
-
     if (m_PropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
     }
-
     RT::PiQueue Queue;
     RT::PiContext Context = detail::getSyclObjImpl(m_Context)->getHandleRef();
     RT::PiDevice Device = detail::getSyclObjImpl(m_Device)->getHandleRef();
-    RT::PiResult Error = PI_CALL_RESULT(RT::piQueueCreate(Context, Device,
-        CreationFlags, &Queue));
+    RT::PiResult Error = PI_CALL_RESULT(
+        RT::piQueueCreate(Context, Device, CreationFlags, &Queue));
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
     // CL_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
     if (m_SupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
       m_SupportOOO = false;
-      Queue = createQueue();
+      Queue = createQueue(QueueOrder::Ordered);
     } else {
       PI_CHECK(Error);
     }
+
     return Queue;
   }
 
@@ -162,7 +166,7 @@ public:
     // possibility of two kernels to share data with each other we shall
     // create a queue for every kernel enqueued.
     if (m_Queues.size() < MaxNumQueues) {
-      m_Queues.push_back(createQueue());
+      m_Queues.push_back(createQueue(QueueOrder::Ordered));
       return m_Queues.back();
     }
 
@@ -196,8 +200,8 @@ public:
     return m_PropList.get_property<propertyT>();
   }
 
-  event memset(void* Ptr, int Value, size_t Count);
-  event memcpy(void* Dest, const void* Src, size_t Count);
+  event memset(void *Ptr, int Value, size_t Count);
+  event memcpy(void *Dest, const void *Src, size_t Count);
   event mem_advise(const void *Ptr, size_t Length, int Advice);
 
 private:

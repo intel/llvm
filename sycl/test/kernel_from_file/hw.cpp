@@ -1,5 +1,5 @@
 // RUN: %clangxx --sycl -fno-sycl-use-bitcode -Xclang -fsycl-int-header=%t.h -c %s -o %t.spv
-// RUN: %clangxx -include %t.h -g %s -o %t.out -lOpenCL -lsycl
+// RUN: %clangxx -include %t.h -g %s -o %t.out -lsycl
 // RUN: env SYCL_USE_KERNEL_SPV=%t.spv %t.out | FileCheck %s
 // CHECK: Passed
 

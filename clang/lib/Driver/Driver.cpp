@@ -718,9 +718,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   //
   // We need to generate a SYCL toolchain if the user specified targets with
   // the -fsycl-targets, -fsycl-add-targets or -fsycl-link-targets option.
-  // If -fsycl is supplied without any of these we will assume SPIR-V
-  bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(options::OPT_fsycl,
-                                              options::OPT_fno_sycl, false);
+  // If -fsycl is supplied without any of these we will assume SPIR-V.
+  // Use of -fsycl-device-only overrides -fsycl.
+  bool HasValidSYCLRuntime = (C.getInputArgs().hasFlag(options::OPT_fsycl,
+      options::OPT_fno_sycl, false) &&
+      !C.getInputArgs().hasArg(options::OPT_sycl_device_only));
 
   Arg *SYCLTargets =
           C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
@@ -3340,12 +3342,10 @@ class OffloadingActionBuilder final {
             ActionList DeviceObjects;
             for (const auto &I : LI) {
               if (I->getType() == types::TY_Object) {
-                // FIXME - Checker does not work well inline with the tool
-                // chain, but it needs to be here for real time checking
-                // auto *DeviceCheckAction =
-                // C.MakeAction<SPIRCheckJobAction>(I, types::TY_Object);
-                // DeviceObjects.push_back(DeviceCheckAction);
-                DeviceObjects.push_back(I);
+                // Perform a check for SPIR kernel.
+                auto *DeviceCheckAction =
+                    C.MakeAction<SPIRCheckJobAction>(I, types::TY_Object);
+                DeviceObjects.push_back(DeviceCheckAction);
               } else {
                 // Do not perform a device link and only pass the aocr
                 // file to the offline compilation before wrapping.  Just

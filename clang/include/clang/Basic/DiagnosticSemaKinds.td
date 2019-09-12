@@ -9894,6 +9894,7 @@ def err_sycl_restrict : Error<
   "|allocate storage"
   "|use inline assembly"
   "|have a class with a virtual function table"
+  "|call a dllimport function"
   "|call a variadic function}0">;
 def err_sycl_virtual_types : Error<
   "No class with a vtable can be used in a SYCL kernel or any code included in the kernel">;

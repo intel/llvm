@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -o %t.out %s -lOpenCL
+// RUN: %clangxx -fsycl -o %t.out %s
 // RUN: cd %T
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out

@@ -92,12 +92,13 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   return NewCmd->getEvent();
 }
 
-#ifdef __GCC__
+#ifdef __GNUC__
 // The init_priority here causes the constructor for scheduler to run relatively
 // early, and therefore the destructor to run relatively late (after anything
 // else that has no priority set, or has a priority higher than 2000).
 Scheduler Scheduler::instance __attribute__((init_priority(2000)));
 #else
+#pragma warning(disable:4073)
 #pragma init_seg(lib)
 Scheduler Scheduler::instance;
 #endif
@@ -145,8 +146,8 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
 
 Scheduler::Scheduler() {
   sycl::device HostDevice;
-  DefaultHostQueue = QueueImplPtr(
-      new queue_impl(HostDevice, /*AsyncHandler=*/{}, /*PropList=*/{}));
+  DefaultHostQueue = QueueImplPtr(new queue_impl(
+      HostDevice, /*AsyncHandler=*/{}, QueueOrder::Ordered, /*PropList=*/{}));
 }
 
 } // namespace detail

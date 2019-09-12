@@ -497,7 +497,6 @@ private:
 
     SmallVector<Constant *, 4> ImagesInits;
     unsigned ImgId = 0;
-    bool AddHostBundle = false;
 
     for (const auto &ImgPtr : Pack) {
       const BinaryWrapper::Image &Img = *(ImgPtr.get());
@@ -532,22 +531,11 @@ private:
           makeArrayRef(Bin->getBufferStart(), Bin->getBufferSize()),
           Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind, Img.Tgt);
 
-      // Need to add 'host' dummy bundle if target triple was specified for at
-      // least one target image.
-      AddHostBundle |= !Img.Tgt.empty();
-
       ImagesInits.push_back(ConstantStruct::get(
           getDeviceImageTy(),
           {Fver, Fknd, Ffmt, Ftgt, Fopt, FMnf.first, FMnf.second, Fbin.first,
            Fbin.second, EntriesB, EntriesE}));
       ImgId++;
-    }
-
-    if (AddHostBundle) {
-      // Add dummy image for the 'host' binary to satisfy bundler expectations
-      // for fat objects.
-      addDeviceImageToModule(0, Twine(OffloadKindTag) + Twine("host.data"),
-                             OffloadKind::Host, Target);
     }
 
     auto *ImagesData = ConstantArray::get(

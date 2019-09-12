@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_PI_TRACE=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 
  //==----------- memcpy-update-leafs.cpp - SYCL regression test  -----------==//

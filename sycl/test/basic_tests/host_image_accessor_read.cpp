@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 //==---- host_image_accessor_read.cpp - SYCL host image accessor check ----==//
 //

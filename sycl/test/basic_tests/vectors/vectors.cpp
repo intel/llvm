@@ -1,4 +1,4 @@
-// RUN: %clangxx %s -o %t.out -lOpenCL -lsycl
+// RUN: %clangxx %s -o %t.out -lsycl
 // RUN: %t.out
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //

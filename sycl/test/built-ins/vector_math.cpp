@@ -1,7 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
-// TODO: re-enable the test once CI drivers are updated
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 

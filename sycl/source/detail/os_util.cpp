@@ -69,7 +69,7 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
 #elif defined(SYCL_RT_OS_WINDOWS)
 OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   HMODULE PhModule;
-  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | 
+  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
   auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
   if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {

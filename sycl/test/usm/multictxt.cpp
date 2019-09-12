@@ -1,5 +1,5 @@
 // REQUIRES: cpu,gpu
-// RUN: %clangxx -fsycl %s -o %t1.out -lOpenCL
+// RUN: %clangxx -fsycl %s -o %t1.out
 // RUN: %t1.out
 
 //==----------------- multictxt.cpp - Multi Context USM test ---------------==//

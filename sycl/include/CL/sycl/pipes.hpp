@@ -25,7 +25,7 @@ public:
     RPipeTy<dataT> RPipe =
       __spirv_CreatePipeFromPipeStorage_read<dataT>(&m_Storage);
     dataT TempData;
-    Success = static_cast<bool>(
+    Success = !static_cast<bool>(
         __spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
@@ -39,7 +39,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     WPipeTy<dataT> WPipe =
       __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
-    Success = static_cast<bool>(
+    Success = !static_cast<bool>(
         __spirv_WritePipe(WPipe, &Data, m_Size, m_Alignment));
 #else
     assert(!"Pipes are not supported on a host device!");

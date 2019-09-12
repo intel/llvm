@@ -24,8 +24,10 @@ namespace usm {
   pfn_##_funcname = (_funcname##_fn)clGetExtensionFunctionAddressForPlatform(  \
       platform, #_funcname);
 
-USMDispatcher::USMDispatcher(cl_platform_id platform) {
-  // TODO: update when platform_impl becomes more PI aware
+USMDispatcher::USMDispatcher(cl_platform_id platform,
+                             const vector_class<RT::PiDevice> &DeviceIds) {
+  // Note: This function should be modified whenever a new BE is added.
+  // mSupported needs to be appropriately set to properly gate USM support.
   
   if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
     GET_EXTENSION(clHostMemAllocINTEL);
@@ -43,8 +45,34 @@ USMDispatcher::USMDispatcher(cl_platform_id platform) {
                   pfn_clSetKernelArgMemPointerINTEL &&
                   pfn_clEnqueueMemsetINTEL && pfn_clEnqueueMemcpyINTEL);
     mEmulator.reset(new CLUSM());
+
+    if (mEmulated) {
+      // See if every device in this context supports
+      // CL_DEVICE_SVM_FINE_GRAIN_BUFFER
+      // If not, disable USM
+
+      if (CL_TARGET_OPENCL_VERSION >= 200) {
+        bool AnybodyNotSupportSVM = false;
+        for (const auto &D : DeviceIds) {
+          cl_device_svm_capabilities Caps;
+          cl_int Error = clGetDeviceInfo(
+              pi::cast<cl_device_id>(D), CL_DEVICE_SVM_CAPABILITIES,
+              sizeof(cl_device_svm_capabilities), &Caps, nullptr);
+          AnybodyNotSupportSVM |= ((Error != CL_SUCCESS) ||
+                                   (!(Caps & CL_DEVICE_SVM_FINE_GRAIN_BUFFER)));
+        }
+        mSupported = !AnybodyNotSupportSVM;
+      } else {
+        // USM isn't support on CL 1.2
+        mSupported = false;
+      }
+    } else {
+      // We support the CL Extension
+      mSupported = true;
+    }
+  } else {
+    mSupported = false;
   }
-  // Else Error?
 }
 
 void *USMDispatcher::hostMemAlloc(pi_context Context,
@@ -146,15 +174,17 @@ pi_result USMDispatcher::setKernelArgMemPointer(pi_kernel Kernel,
                                                 const void *ArgValue) {
   pi_result RetVal = PI_INVALID_OPERATION;
 
-  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
-    cl_kernel CLKernel = pi::cast<cl_kernel>(Kernel);
+  if (mSupported) {
+    if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+      cl_kernel CLKernel = pi::cast<cl_kernel>(Kernel);
 
-    if (mEmulated) {
-      RetVal = pi::cast<pi_result>(
-          clSetKernelArgSVMPointer(CLKernel, ArgIndex, ArgValue));
-    } else {
-      RetVal = pi::cast<pi_result>(
-          pfn_clSetKernelArgMemPointerINTEL(CLKernel, ArgIndex, ArgValue));
+      if (mEmulated) {
+        RetVal = pi::cast<pi_result>(
+            clSetKernelArgSVMPointer(CLKernel, ArgIndex, ArgValue));
+      } else {
+        RetVal = pi::cast<pi_result>(
+            pfn_clSetKernelArgMemPointerINTEL(CLKernel, ArgIndex, ArgValue));
+      }
     }
   }
 
@@ -162,32 +192,36 @@ pi_result USMDispatcher::setKernelArgMemPointer(pi_kernel Kernel,
 }
 
 void USMDispatcher::setKernelIndirectAccess(pi_kernel Kernel, pi_queue Queue) {
-  if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
-    cl_kernel CLKernel = pi::cast<cl_kernel>(Kernel);
-    cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
-    cl_bool TrueVal = CL_TRUE;
 
-    if (mEmulated) {
-      CHECK_OCL_CODE(mEmulator->setKernelExecInfo(
-          CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-          sizeof(cl_bool), &TrueVal));
-      CHECK_OCL_CODE(mEmulator->setKernelExecInfo(
-          CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-          sizeof(cl_bool), &TrueVal));
-      CHECK_OCL_CODE(mEmulator->setKernelExecInfo(
-          CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-          sizeof(cl_bool), &TrueVal));
-      CHECK_OCL_CODE(mEmulator->setKernelIndirectUSMExecInfo(CLQueue, CLKernel));
-    } else {
-      CHECK_OCL_CODE(clSetKernelExecInfo(
-          CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
-          sizeof(cl_bool), &TrueVal));
-      CHECK_OCL_CODE(clSetKernelExecInfo(
-          CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
-          sizeof(cl_bool), &TrueVal));
-      CHECK_OCL_CODE(clSetKernelExecInfo(
-          CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
-          sizeof(cl_bool), &TrueVal));
+  if (mSupported) {
+    if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
+      cl_kernel CLKernel = pi::cast<cl_kernel>(Kernel);
+      cl_command_queue CLQueue = pi::cast<cl_command_queue>(Queue);
+      cl_bool TrueVal = CL_TRUE;
+
+      if (mEmulated) {
+        CHECK_OCL_CODE(mEmulator->setKernelExecInfo(
+            CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+            sizeof(cl_bool), &TrueVal));
+        CHECK_OCL_CODE(mEmulator->setKernelExecInfo(
+            CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+            sizeof(cl_bool), &TrueVal));
+        CHECK_OCL_CODE(mEmulator->setKernelExecInfo(
+            CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+            sizeof(cl_bool), &TrueVal));
+        CHECK_OCL_CODE(
+            mEmulator->setKernelIndirectUSMExecInfo(CLQueue, CLKernel));
+      } else {
+        CHECK_OCL_CODE(clSetKernelExecInfo(
+            CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
+            sizeof(cl_bool), &TrueVal));
+        CHECK_OCL_CODE(clSetKernelExecInfo(
+            CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
+            sizeof(cl_bool), &TrueVal));
+        CHECK_OCL_CODE(clSetKernelExecInfo(
+            CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
+            sizeof(cl_bool), &TrueVal));
+      }
     }
   }
 }
@@ -334,6 +368,3 @@ void USMDispatcher::memAdvise(pi_queue Queue, const void *Ptr, size_t Length,
 } // namespace detail
 } // namespace sycl
 } // namespace cl
-
-
-

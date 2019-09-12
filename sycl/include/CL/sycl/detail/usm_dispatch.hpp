@@ -18,8 +18,9 @@ namespace usm {
 
 class USMDispatcher {
 public:
-  USMDispatcher(cl_platform_id Platform);
-  
+  USMDispatcher(cl_platform_id Platform,
+                const vector_class<RT::PiDevice> &DeviceIds);
+
   void *hostMemAlloc(pi_context Context, cl_mem_properties_intel *Properties,
                      size_t Size, pi_uint32 Alignment, pi_result *ErrcodeRet);
   void *deviceMemAlloc(pi_context Context, pi_device Device,
@@ -51,6 +52,7 @@ public:
 
 private:
   bool mEmulated = false;
+  bool mSupported = false;
   std::unique_ptr<CLUSM> mEmulator;
 
   clHostMemAllocINTEL_fn pfn_clHostMemAllocINTEL = nullptr;

@@ -1,7 +1,8 @@
-// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //==--------------- reduce.cpp - SYCL sub_group reduce test ----*- C++ -*---==//
 //
@@ -40,7 +41,7 @@ template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
     auto addacc = addbuf.template get_access<access::mode::read_write>();
     size_t sg_size = get_sg_size(Queue.get_device());
     int WGid = -1, SGid = 0;
-    T max = 0, add = 0;
+    int max = 0, add = 0;
     for (int j = 0; j < G; j++) {
       if (j % L % sg_size == 0) {
         SGid++;
@@ -75,6 +76,12 @@ int main() {
   check<long>(Queue);
   check<unsigned long>(Queue);
   check<float>(Queue);
+  // reduce half type is not supported in OCL CPU RT
+#ifdef SG_GPU
+  if (Queue.get_device().has_extension("cl_khr_fp16")) {
+    check<cl::sycl::half>(Queue);
+  }
+#endif
   if (Queue.get_device().has_extension("cl_khr_fp64")) {
     check<double>(Queue);
   }

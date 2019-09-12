@@ -691,6 +691,18 @@ pi_result piEnqueueKernelLaunch(
   const pi_event *  event_wait_list,
   pi_event *        event);
 
+pi_result piEnqueueNativeKernel(
+  pi_queue         queue,
+  void             (*user_func)(void *),
+  void *           args,
+  size_t           cb_args,
+  pi_uint32        num_mem_objects,
+  const pi_mem *   mem_list,
+  const void **    args_mem_loc,
+  pi_uint32        num_events_in_wait_list,
+  const pi_event * event_wait_list,
+  pi_event *       event);
+
 pi_result piEnqueueEventsWait(
   pi_queue          command_queue,
   pi_uint32         num_events_in_wait_list,

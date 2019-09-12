@@ -6813,6 +6813,11 @@ void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
     CheckArgs.push_back(I.getFilename());
   }
 
+  // Add output file, which is just a copy of the input to better fit in the
+  // toolchain flow.
+  CheckArgs.push_back("-o");
+  CheckArgs.push_back(Output.getFilename());
+
   C.addCommand(std::make_unique<Command>(JA, *this,
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       CheckArgs, None));
