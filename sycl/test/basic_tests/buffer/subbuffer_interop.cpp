@@ -14,6 +14,7 @@
 
 #include <cassert>
 #include <memory>
+#include <numeric>
 
 using namespace cl::sycl;
 
@@ -280,5 +281,56 @@ int main() {
       }
     }
   }
+
+  const char *cl_src = "kernel void test(global int *p) { "
+                       "        printf(\"offset on device = \%d\\n\", *p);"
+                       "        if (p) *p *= 3;"
+                       "}";
+
+  {
+    cl::sycl::queue Q;
+
+    // Create OpenCL program
+    cl_int err;
+    auto context_cl = Q.get_context().get();
+    auto device_cl = Q.get_device().get();
+    cl_program program_cl =
+        clCreateProgramWithSource(context_cl, 1, &cl_src, nullptr, &err);
+    err = clBuildProgram(program_cl, 1, &device_cl, nullptr, nullptr, nullptr);
+    cl_kernel kernel_cl = clCreateKernel(program_cl, "test", &err);
+    cl::sycl::kernel kernel_sycl(kernel_cl, Q.get_context());
+
+    // Create buffer
+    constexpr int N = 256;
+    std::vector<int> v(2 * N);
+    std::iota(v.begin(), v.end(), 0);
+    cl::sycl::buffer<int, 1> buf(v.data(), v.size());
+    cl::sycl::buffer<int, 1> subbuf(buf, N, N);
+
+    auto subbuf_copy =
+        new cl::sycl::buffer<int, 1>(subbuf.reinterpret<int, 1>(N));
+
+    // Test offsets
+    {
+      auto host_acc = subbuf_copy->get_access<cl::sycl::access::mode::read>();
+      std::cout << "On host: offset = " << host_acc[0] << std::endl;
+      assert(host_acc[0] == 256 && "Invalid subbuffer origin");
+    }
+
+    Q.submit([&](cl::sycl::handler &cgh) {
+      auto acc = subbuf_copy->get_access<cl::sycl::access::mode::write>(cgh);
+      cgh.set_args(acc);
+      cgh.single_task(kernel_sycl);
+    });
+
+    Q.wait_and_throw();
+
+    {
+      auto host_acc = subbuf_copy->get_access<cl::sycl::access::mode::read>();
+      std::cout << "On host: offset = " << host_acc[0] << std::endl;
+      assert(host_acc[0] == 256 * 3 && "Invalid subbuffer origin");
+    }
+  }
+
   return Failed;
 }
