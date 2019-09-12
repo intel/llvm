@@ -171,9 +171,9 @@ void *MemoryManager::createSubBuffer(RT::PiMem ParentMem, size_t ElemSize,
   // TODO replace with pi_buffer_region
   cl_buffer_region Region{Offset[0] * ElemSize, Range[0] * ElemSize};
   RT::PiMem NewMem;
-  PI_CALL((NewMem = RT::piSubBufCreate(ParentMem, PI_MEM_FLAGS_ACCESS_RW,
-                                       PI_BUFFER_CREATE_TYPE_REGION, &Region,
-                                       &Error),
+  PI_CALL((NewMem = RT::piMemBufferPartition(ParentMem, PI_MEM_FLAGS_ACCESS_RW,
+                                             PI_BUFFER_CREATE_TYPE_REGION,
+                                             &Region, &Error),
            Error));
   return NewMem;
 }

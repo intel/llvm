@@ -495,7 +495,7 @@ pi_result piMemRetain(
 pi_result piMemRelease(
   pi_mem mem);
 
-pi_mem piSubBufCreate( // TODO: change interface to return error code
+pi_mem piMemBufferPartition( // TODO: change interface to return error code
     pi_mem context, pi_mem_flags flags,
     pi_buffer_create_type buffer_create_type, void *buffer_create_info,
     pi_result *errcode_ret);
