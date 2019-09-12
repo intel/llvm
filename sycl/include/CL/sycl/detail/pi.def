@@ -42,7 +42,7 @@ _PI_API(piMemGetInfo)
 _PI_API(piMemImageGetInfo)
 _PI_API(piMemRetain)
 _PI_API(piMemRelease)
-_PI_API(piSubBufCreate)
+_PI_API(piMemBufferPartition)
 // Program
 _PI_API(piProgramCreate)
 _PI_API(piclProgramCreateWithSource)
