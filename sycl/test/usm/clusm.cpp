@@ -1,6 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t1.out -lOpenCL
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out -cpu
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out -gpu
 //==------------------- clusm.cpp - CLUSM API test --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
