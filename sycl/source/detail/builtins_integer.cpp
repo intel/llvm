@@ -154,7 +154,12 @@ template <typename T> inline T __u_long_mad_sat(T a, T b, T c) {
 
 template <typename T> inline T __rotate(T x, T n) {
   using UT = typename std::make_unsigned<T>::type;
-  return (x << n) | (UT(x) >> ((sizeof(x) * 8) - n));
+  // Shrink the shift width so that it's in the range [0, num_bits(T)). Cast
+  // everything to unsigned to avoid type conversion issues.
+  constexpr UT size = sizeof(x) * 8;
+  UT xu = UT(x);
+  UT nu = UT(n) & (size - 1);
+  return (xu << nu) | (xu >> (size - nu));
 }
 
 template <typename T> inline T __u_sub_sat(T x, T y) {

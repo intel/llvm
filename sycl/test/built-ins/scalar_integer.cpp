@@ -319,6 +319,22 @@ int main() {
     assert(r == 0x00000111);
   }
 
+  // rotate (with large rotate size)
+  {
+    s::cl_char r{ 0 };
+    {
+      s::buffer<s::cl_char, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class rotateSI1SI2>([=]() {
+          AccR[0] = s::rotate(static_cast<s::cl_char>((unsigned char)0xe0),
+              s::cl_char{ 50 });
+        });
+      });
+    }
+    assert((unsigned char)r == 0x83);
+  }
   // sub_sat
   {
     s::cl_int r{ 0 };
