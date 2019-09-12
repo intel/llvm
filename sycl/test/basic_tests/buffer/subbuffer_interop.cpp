@@ -314,7 +314,7 @@ int main() {
     {
       auto host_acc = subbuf_copy->get_access<cl::sycl::access::mode::read>();
       std::cout << "On host: offset = " << host_acc[0] << std::endl;
-      assert(host_acc[0] == 256);
+      assert(host_acc[0] == 256 && "Invalid subbuffer origin");
     }
 
     Q.submit([&](cl::sycl::handler &cgh) {
@@ -328,7 +328,7 @@ int main() {
     {
       auto host_acc = subbuf_copy->get_access<cl::sycl::access::mode::read>();
       std::cout << "On host: offset = " << host_acc[0] << std::endl;
-      assert(host_acc[0] == 256 * 3);
+      assert(host_acc[0] == 256 * 3 && "Invalid subbuffer origin");
     }
   }
 
