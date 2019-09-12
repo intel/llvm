@@ -149,7 +149,7 @@ namespace pi {
 namespace RT = cl::sycl::detail::pi;
 
 #define PI_ASSERT(cond, msg) \
-  RT::assertion((cond), "assert @ " __FILE__ ":" STRINGIFY_LINE(__LINE__) msg);
+  RT::assertion((cond), "assert: " msg);
 
 #define PI_TRACE(func) RT::Trace<decltype(func)>(func, #func)
 
