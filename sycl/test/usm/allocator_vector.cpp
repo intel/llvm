@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
+// RUN: %GPU_RUN_PLACEHOLDER %t1.out
 //==---- allocator_vector.cpp - Allocator Container test -------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
