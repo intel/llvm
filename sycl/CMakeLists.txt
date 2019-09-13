@@ -138,12 +138,17 @@ COMMENT "Copying SYCL headers ...")
 # Configure SYCL headers
 install(DIRECTORY "${sycl_inc_dir}/." DESTINATION "${LLVM_INST_INC_DIRECTORY}" COMPONENT sycl-headers)
 
+set(SYCL_RT_LIBS sycl)
+if (MSVC)
+  list(APPEND SYCL_RT_LIBS sycld)
+endif()
+
 # SYCL runtime library
 add_subdirectory(source)
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
-  DEPENDS sycl
+  DEPENDS ${SYCL_RT_LIBS}
           clang
           clang-offload-wrapper
           clang-offload-bundler
