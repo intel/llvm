@@ -604,7 +604,7 @@ This document is better viewed when rendered as html with asciidoctor.  GitHub d
 <h2 id="_version">Version</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Built On: 2019-09-12<br>
+<p>Built On: 2019-09-13<br>
 Revision: 1</p>
 </div>
 </div>
@@ -879,11 +879,11 @@ myQueue.submit([&amp;](handler&amp; cgh) {
 <span class="keyword">class</span> <span class="class">pipe</span> {
   <span class="comment">// Blocking</span>
   <span class="directive">static</span> dataT read();
-  <span class="directive">static</span> <span class="directive">void</span> write( dataT data );
+  <span class="directive">static</span> <span class="directive">void</span> write( <span class="directive">const</span> dataT &amp;data );
 
   <span class="comment">// Non-blocking</span>
   <span class="directive">static</span> dataT read( <span class="predefined-type">bool</span> &amp;success_code );
-  <span class="directive">static</span> <span class="directive">void</span> write( dataT data, <span class="predefined-type">bool</span> &amp;success_code );
+  <span class="directive">static</span> <span class="directive">void</span> write( <span class="directive">const</span> dataT &amp;data, <span class="predefined-type">bool</span> &amp;success_code );
 }</pre></td>
 </tr></table></code></pre>
 </div>
@@ -1768,7 +1768,7 @@ pipe_memcpy&lt;<span class="integer">2</span>&gt;(d2, s2, N);</pre></td>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2019-09-12 09:24:21 EDT
+Last updated 2019-09-13 09:20:36 EDT
 </div>
 </div>
 </body>

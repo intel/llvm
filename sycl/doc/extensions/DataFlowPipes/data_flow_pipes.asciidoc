@@ -176,11 +176,11 @@ template <class name,
 class pipe {
   // Blocking
   static dataT read();
-  static void write( dataT data );
+  static void write( const dataT &data );
 
   // Non-blocking
   static dataT read( bool &success_code );
-  static void write( dataT data, bool &success_code );
+  static void write( const dataT &data, bool &success_code );
 }
 ----
 
