@@ -2,15 +2,15 @@
 // RUN: FileCheck -input-file=%t.h %s
 
 // CHECK:template <> struct KernelInfo<class KernelName> {
-// CHECK:template <> struct KernelInfo<class nm1::nm2::KernelName0> {
-// CHECK:template <> struct KernelInfo<class nm1::KernelName1> {
-// CHECK:template <> struct KernelInfo<class nm1::KernelName3<class nm1::nm2::KernelName0>> {
-// CHECK:template <> struct KernelInfo<class nm1::KernelName3<class nm1::KernelName1>> {
-// CHECK:template <> struct KernelInfo<class nm1::KernelName4<class nm1::nm2::KernelName0>> {
-// CHECK:template <> struct KernelInfo<class nm1::KernelName4<class nm1::KernelName1>> {
-// CHECK:template <> struct KernelInfo<class nm1::KernelName3<class KernelName5>> {
-// CHECK:template <> struct KernelInfo<class nm1::KernelName4<class KernelName7>> {
-// CHECK:template <> struct KernelInfo<class nm1::KernelName8<class nm1::nm2::C>> {
+// CHECK:template <> struct KernelInfo<::nm1::nm2::KernelName0> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName1> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName3< ::nm1::nm2::KernelName0>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName3< ::nm1::KernelName1>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName4< ::nm1::nm2::KernelName0>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName4< ::nm1::KernelName1>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName3<KernelName5>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName4<KernelName7>> {
+// CHECK:template <> struct KernelInfo<::nm1::KernelName8< ::nm1::nm2::C>> {
 // CHECK:template <> struct KernelInfo<class TmplClassInAnonNS<class ClassInAnonNS>> {
 
 // This test checks if the SYCL device compiler is able to generate correct

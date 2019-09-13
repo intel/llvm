@@ -1423,7 +1423,7 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D) {
   // print declaration into a string:
   PrintingPolicy P(D->getASTContext().getLangOpts());
   P.adjustForCPlusPlusFwdDecl();
-  P.PrintCanonicalTypes = true;
+  P.SuppressTypedefs = true;
   std::string S;
   llvm::raw_string_ostream SO(S);
   D->print(SO, P);
@@ -1638,7 +1638,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     } else {
       LangOptions LO;
       PrintingPolicy P(LO);
-      P.PrintCanonicalTypes = true;
+      P.SuppressTypedefs = true;
       O << "template <> struct KernelInfo<"
         << eraseAnonNamespace(K.NameType.getAsString(P)) << "> {\n";
     }
