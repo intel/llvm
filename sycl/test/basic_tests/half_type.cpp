@@ -15,22 +15,22 @@
 #include <CL/sycl.hpp>
 
 #include <cmath>
+#include <unordered_set>
 
 using namespace cl::sycl;
 
-constexpr float flt_epsilon = 9.77e-4;
-
 constexpr size_t N = 100;
 
-template <typename T> void assert_close(const T &C, const float ref) {
+template <typename T> void assert_close(const T &C, const cl::sycl::half ref) {
   for (size_t i = 0; i < N; i++) {
-    float diff = C[i] - ref;
-    assert(std::fabs(diff) < flt_epsilon);
+    auto diff = C[i] - ref;
+    assert(std::fabs(static_cast<float>(diff)) <
+           std::numeric_limits<cl::sycl::half>::epsilon());
   }
 }
 
 void verify_add(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
-                const float ref) {
+                const half ref) {
   buffer<half, 1> c{r};
 
   q.submit([&](handler &cgh) {
@@ -45,7 +45,7 @@ void verify_add(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
 }
 
 void verify_min(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
-                const float ref) {
+                const half ref) {
   buffer<half, 1> c{r};
 
   q.submit([&](handler &cgh) {
@@ -60,7 +60,7 @@ void verify_min(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
 }
 
 void verify_mul(queue &q, buffer<half, 1> &a, buffer<half, 1> &b, range<1> &r,
-                const float ref) {
+                const half ref) {
   buffer<half, 1> c{r};
 
   q.submit([&](handler &cgh) {
@@ -103,17 +103,97 @@ void verify_vec(queue &q) {
   assert(e.get_access<access::mode::read>()[0] == 0);
 }
 
+void verify_numeric_limits(queue &q) {
+  // Verify on host side
+  // Static member variables
+  std::numeric_limits<cl::sycl::half>::is_specialized;
+  std::numeric_limits<cl::sycl::half>::is_signed;
+  std::numeric_limits<cl::sycl::half>::is_integer;
+  std::numeric_limits<cl::sycl::half>::is_exact;
+  std::numeric_limits<cl::sycl::half>::has_infinity;
+  std::numeric_limits<cl::sycl::half>::has_quiet_NaN;
+  std::numeric_limits<cl::sycl::half>::has_signaling_NaN;
+  std::numeric_limits<cl::sycl::half>::has_denorm;
+  std::numeric_limits<cl::sycl::half>::has_denorm_loss;
+  std::numeric_limits<cl::sycl::half>::tinyness_before;
+  std::numeric_limits<cl::sycl::half>::traps;
+  std::numeric_limits<cl::sycl::half>::max_exponent10;
+  std::numeric_limits<cl::sycl::half>::max_exponent;
+  std::numeric_limits<cl::sycl::half>::min_exponent10;
+  std::numeric_limits<cl::sycl::half>::min_exponent;
+  std::numeric_limits<cl::sycl::half>::radix;
+  std::numeric_limits<cl::sycl::half>::max_digits10;
+  std::numeric_limits<cl::sycl::half>::digits;
+  std::numeric_limits<cl::sycl::half>::is_bounded;
+  std::numeric_limits<cl::sycl::half>::digits10;
+  std::numeric_limits<cl::sycl::half>::is_modulo;
+  std::numeric_limits<cl::sycl::half>::is_iec559;
+  std::numeric_limits<cl::sycl::half>::round_style;
+
+  // Static member functions
+  std::numeric_limits<cl::sycl::half>::min();
+  std::numeric_limits<cl::sycl::half>::max();
+  std::numeric_limits<cl::sycl::half>::lowest();
+  std::numeric_limits<cl::sycl::half>::epsilon();
+  std::numeric_limits<cl::sycl::half>::round_error();
+  std::numeric_limits<cl::sycl::half>::infinity();
+  std::numeric_limits<cl::sycl::half>::quiet_NaN();
+  std::numeric_limits<cl::sycl::half>::signaling_NaN();
+  std::numeric_limits<cl::sycl::half>::denorm_min();
+
+  // Verify in kernel function for device side check
+  q.submit([&](cl::sycl::handler &cgh) {
+    cgh.single_task<class kernel>([]() {
+      // Static member variables
+      std::numeric_limits<cl::sycl::half>::is_specialized;
+      std::numeric_limits<cl::sycl::half>::is_signed;
+      std::numeric_limits<cl::sycl::half>::is_integer;
+      std::numeric_limits<cl::sycl::half>::is_exact;
+      std::numeric_limits<cl::sycl::half>::has_infinity;
+      std::numeric_limits<cl::sycl::half>::has_quiet_NaN;
+      std::numeric_limits<cl::sycl::half>::has_signaling_NaN;
+      std::numeric_limits<cl::sycl::half>::has_denorm;
+      std::numeric_limits<cl::sycl::half>::has_denorm_loss;
+      std::numeric_limits<cl::sycl::half>::tinyness_before;
+      std::numeric_limits<cl::sycl::half>::traps;
+      std::numeric_limits<cl::sycl::half>::max_exponent10;
+      std::numeric_limits<cl::sycl::half>::max_exponent;
+      std::numeric_limits<cl::sycl::half>::min_exponent10;
+      std::numeric_limits<cl::sycl::half>::min_exponent;
+      std::numeric_limits<cl::sycl::half>::radix;
+      std::numeric_limits<cl::sycl::half>::max_digits10;
+      std::numeric_limits<cl::sycl::half>::digits;
+      std::numeric_limits<cl::sycl::half>::is_bounded;
+      std::numeric_limits<cl::sycl::half>::digits10;
+      std::numeric_limits<cl::sycl::half>::is_modulo;
+      std::numeric_limits<cl::sycl::half>::is_iec559;
+      std::numeric_limits<cl::sycl::half>::round_style;
+
+      // Static member functions
+      std::numeric_limits<cl::sycl::half>::min();
+      std::numeric_limits<cl::sycl::half>::max();
+      std::numeric_limits<cl::sycl::half>::lowest();
+      std::numeric_limits<cl::sycl::half>::epsilon();
+      std::numeric_limits<cl::sycl::half>::round_error();
+      std::numeric_limits<cl::sycl::half>::infinity();
+      std::numeric_limits<cl::sycl::half>::quiet_NaN();
+      std::numeric_limits<cl::sycl::half>::signaling_NaN();
+      std::numeric_limits<cl::sycl::half>::denorm_min();
+    });
+  });
+}
+
 inline bool bitwise_comparison_fp16(const half val, const uint16_t exp) {
-  return reinterpret_cast<const uint16_t&>(val) == exp;
+  return reinterpret_cast<const uint16_t &>(val) == exp;
 }
 
 inline bool bitwise_comparison_fp32(const half val, const uint32_t exp) {
   const float fp32 = static_cast<float>(val);
-  return reinterpret_cast<const uint32_t&>(fp32) == exp;
+  return reinterpret_cast<const uint32_t &>(fp32) == exp;
 }
 
 int main() {
-  // We assert that the length is 1 because we use macro to select the device
+  // We assert that the length is 1 because we use env to select the device
   assert(device::get_devices().size() == 1);
 
   auto dev = device::get_devices()[0];
@@ -137,6 +217,7 @@ int main() {
   verify_mul(q, a, b, r, 10.0);
   verify_div(q, a, b, r, 2.5);
   verify_vec(q);
+  verify_numeric_limits(q);
 
   if (!dev.is_host()) {
     return 0;
@@ -196,6 +277,11 @@ int main() {
   const uint16_t subnormal = 0x0005;
   assert(bitwise_comparison_fp32(reinterpret_cast<const half &>(subnormal),
                                  882900992));
+
+  // std::hash<cl::sycl::half>
+  std::unordered_set<half> sets;
+  sets.insert(1.2);
+  assert(sets.find(1.2) != sets.end());
 
   return 0;
 }

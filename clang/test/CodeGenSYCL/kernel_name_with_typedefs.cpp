@@ -1,80 +1,120 @@
 // RUN: %clang -I %S/Inputs --sycl -Xclang -fsycl-int-header=%t.h %s -c -o kernel.spv
 // RUN: FileCheck -input-file=%t.h %s
 
-// CHECK: // Forward declarations of templated kernel function types:
-// CHECK-NEXT: template <typename T, typename T2, long N, unsigned long M> struct functor1;
-// CHECK-NEXT: template <typename T, typename T2, long N, unsigned long M> struct functor2;
-// CHECK-NEXT: template <typename T, typename T2> struct functor3;
-//
-// CHECK: // Specializations of KernelInfo for kernel function types:
-// CHECK: template <> struct KernelInfo<struct functor1<long, unsigned long, 0, 1>> {
-// CHECK: template <> struct KernelInfo<struct functor2<long, unsigned long, 0, 1>> {
-// CHECK: template <> struct KernelInfo<struct functor3<int, int>> {
-// CHECK: template <> struct KernelInfo<struct functor3<long, int>> {
-// CHECK: template <> struct KernelInfo<struct functor3<int, unsigned long>> {
-// CHECK: template <> struct KernelInfo<struct functor3<long, float>> {
-// CHECK: template <> struct KernelInfo<struct functor3<float, unsigned long>> {
-// CHECK: template <> struct KernelInfo<struct functor3<long, unsigned long>> {
-
 #include "sycl.hpp"
 
 template <typename KernelName, typename KernelType>
-__attribute__((sycl_kernel)) void kernel_single_task(KernelType kernelFunc) {
+__attribute__((sycl_kernel)) void single_task(KernelType kernelFunc) {
   kernelFunc();
 }
 
-typedef signed long int signed_integer_t;
+struct dummy_functor {
+  void operator()() {}
+};
 
-using unsigned_integer_t = unsigned long int;
+typedef int int_t;
+using uint_t = unsigned int;
 
-template <typename T, typename T2, signed long int N, unsigned long int M>
-struct functor1 { void operator()() {} };
+typedef const int cint_t;
+using cuint_t = const unsigned int;
 
-template <typename T, typename T2, signed_integer_t N, unsigned_integer_t M>
-struct functor2 { void operator()() {} };
+namespace space {
+typedef long long_t;
+using ulong_t = unsigned long;
+typedef const long clong_t;
+using culong_t = const unsigned long;
+} // namespace space
 
+// non-type template arguments cases
+// CHECK: template <int N, unsigned int M> struct kernel_name1;
+template <int N, unsigned int M>
+struct kernel_name1 {};
+
+// CHECK: template <int N, unsigned int M> struct kernel_name1v1;
+template <int_t N, uint_t M>
+struct kernel_name1v1 {};
+
+// CHECK: template <long N, unsigned long M> struct kernel_name1v2;
+template <space::long_t N, space::ulong_t M>
+struct kernel_name1v2 {};
+
+// CHECK: template <typename T, typename T2> struct kernel_name2;
 template <typename T, typename T2>
-struct functor3 { void operator()() {} };
+struct kernel_name2;
+
+// CHECK: class A;
+class A {};
+namespace space {
+// CHECK: namespace space {
+// CHECK-NEXT: class B;
+// CHECK-NEXT: }
+class B {};
+using a_t = A;
+using b_t = B;
+} // namespace space
+
+// partial template specialization cases
+template <typename T>
+struct kernel_name2<int_t, T> {};
 
 template <typename T>
-struct functor3<signed_integer_t, T> { void operator()() {} };
+struct kernel_name2<cint_t, T> {};
 
 template <typename T>
-struct functor3<T, unsigned_integer_t> { void operator()() {} };
+struct kernel_name2<space::long_t, T> {};
+
+template <typename T>
+struct kernel_name2<const space::long_t, T> {};
+
+template <typename T>
+struct kernel_name2<volatile space::clong_t, T> {};
+
+template <typename T>
+struct kernel_name2<space::a_t, T> {};
+
+template <typename T>
+struct kernel_name2<space::b_t, T> {};
+
+// full template specialization cases
+template <>
+struct kernel_name2<int_t, const uint_t> {};
 
 template <>
-struct functor3<signed_integer_t, float> { void operator()() {} };
+struct kernel_name2<space::clong_t, volatile space::culong_t> {};
 
 template <>
-struct functor3<float, unsigned_integer_t> { void operator()() {} };
-
-template <>
-struct functor3<signed_integer_t, unsigned_integer_t> { void operator()() {} };
+struct kernel_name2<space::a_t, volatile space::b_t> {};
 
 int main() {
-  functor1<signed long int, unsigned long int, 0L, 1UL> Functor1;
-  kernel_single_task<decltype(Functor1)>(Functor1);
-
-  functor2<signed_integer_t, unsigned_integer_t, 0L, 1UL> Functor2;
-  kernel_single_task<decltype(Functor2)>(Functor2);
-
-  functor3<int, int> Functor3;
-  kernel_single_task<decltype(Functor3)>(Functor3);
-
-  functor3<signed_integer_t, int> Functor4;
-  kernel_single_task<decltype(Functor4)>(Functor4);
-
-  functor3<int, unsigned_integer_t> Functor5;
-  kernel_single_task<decltype(Functor5)>(Functor5);
-
-  functor3<signed_integer_t, float> Functor6;
-  kernel_single_task<decltype(Functor6)>(Functor6);
-
-  functor3<float, unsigned_integer_t> Functor7;
-  kernel_single_task<decltype(Functor7)>(Functor7);
-
-  functor3<signed_integer_t, unsigned_integer_t> Functor8;
-  kernel_single_task<decltype(Functor8)>(Functor8);
-
+  dummy_functor f;
+  // non-type template arguments
+  // CHECK: template <> struct KernelInfo<::kernel_name1<1, 1>> {
+  single_task<kernel_name1<1, 1>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name1v1<1, 1>> {
+  single_task<kernel_name1v1<1, 1>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name1v2<1, 1>> {
+  single_task<kernel_name1v2<1, 1>>(f);
+  // partial template specialization
+  // CHECK: template <> struct KernelInfo<::kernel_name2<int, int>> {
+  single_task<kernel_name2<int_t, int>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name2<const int, char>> {
+  single_task<kernel_name2<cint_t, char>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name2<long, float>> {
+  single_task<kernel_name2<space::long_t, float>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name2<const long, ::A>> {
+  single_task<kernel_name2<const space::long_t, space::a_t>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name2<const volatile long, const ::space::B>> {
+  single_task<kernel_name2<volatile space::clong_t, const space::b_t>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name2< ::A, long>> {
+  single_task<kernel_name2<space::a_t, space::long_t>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name2< ::space::B, int>> {
+  single_task<kernel_name2<space::b_t, int_t>>(f);
+  // full template specialization
+  // CHECK: template <> struct KernelInfo<::kernel_name2<int, const unsigned int>> {
+  single_task<kernel_name2<int_t, const uint_t>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name2<const long, volatile const unsigned long>> {
+  single_task<kernel_name2<space::clong_t, volatile space::culong_t>>(f);
+  // CHECK: template <> struct KernelInfo<::kernel_name2< ::A, volatile ::space::B>> {
+  single_task<kernel_name2<space::a_t, volatile space::b_t>>(f);
   return 0;
 }

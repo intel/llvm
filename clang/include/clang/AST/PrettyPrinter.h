@@ -42,7 +42,7 @@ struct PrintingPolicy {
         SuppressScope(false), SuppressUnwrittenScope(false),
         SuppressInitializers(false), ConstantArraySizeAsWritten(false),
         AnonymousTagLocations(true), SuppressStrongLifetime(false),
-        SuppressLifetimeQualifiers(false),
+        SuppressLifetimeQualifiers(false), SuppressTypedefs(false),
         SuppressTemplateArgsInCXXConstructors(false), Bool(LO.Bool),
         Restrict(LO.C99), Alignof(LO.CPlusPlus11), UnderscoreAlignof(LO.C11),
         UseVoidForZeroParams(!LO.CPlusPlus), TerseOutput(false),
@@ -158,6 +158,17 @@ struct PrintingPolicy {
 
   /// When true, suppress printing of lifetime qualifier in ARC.
   unsigned SuppressLifetimeQualifiers : 1;
+
+  /// When true prints a canonical type instead of an alias. E.g.
+  ///   \code
+  ///   using SizeT = int;
+  ///   template<SizeT N> class C;
+  ///   \endcode
+  /// will be printed as
+  ///   \code
+  ///   template<int N> class C;
+  ///   \endcode
+  unsigned SuppressTypedefs : 1;
 
   /// When true, suppresses printing template arguments in names of C++
   /// constructors.
