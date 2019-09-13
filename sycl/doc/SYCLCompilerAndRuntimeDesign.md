@@ -401,9 +401,9 @@ following cases:
 1. There are thousands of kernels defined and only small part of them is used at
 run-time. Having them all in one SPIR-V module significantly increases JIT time.
 2. Device code can be specialized for different devices. For example, kernels
-which are supposed to be executed only on CPU can contain standard C library calls
-like "malloc" unavaliable on GPU. This will cause JIT compilation failure on GPU
-even if this particular kernel is never called on GPU device.
+that are supposed to be executed only on FPGA can use extensions avaliable for
+FPGA only. This will cause JIT compilation failure on other devices even if this
+particular kernel is never called on them.
 
 To resolve these problems the compiler should be able to split a single module
 into smaller ones. The following features should be supported:
