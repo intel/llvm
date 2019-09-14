@@ -236,7 +236,12 @@ public:
     T Value = __spirv_AtomicCompareExchange(
         Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(SuccessOrder),
         detail::getSPIRVMemorySemanticsMask(FailOrder), Desired, Expected);
-    return (Value == Expected);
+
+    if (Value == Expected)
+      return true;
+
+    Expected = Value;
+    return false;
 #else
     return Ptr->compare_exchange_strong(Expected, Desired,
                                         detail::getStdMemoryOrder(SuccessOrder),
