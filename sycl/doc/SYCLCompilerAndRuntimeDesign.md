@@ -419,7 +419,7 @@ front-end
 runtime
 
 Device code splitting process:
-![Device code splitting](DeviceCodeSplitting.png)
+![Device code splitting](DeviceCodeSplitting.svg)
 
 The "split" box will be implemented as dedicated tool ("sycl-split"?). The tool
 will run splitter pass and generate a symbol table for each produced device module.
