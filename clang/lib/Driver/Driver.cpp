@@ -3237,6 +3237,10 @@ class OffloadingActionBuilder final {
             IA->getType() == types::TY_Object && isObjectFile(InputName))
           return ABRT_Inactive;
 
+        // Libraries are not processed in the SYCL toolchain
+        if (IA->getType() == types::TY_Object && !isObjectFile(InputName))
+          return ABRT_Inactive;
+
         for (unsigned I = 0; I < ToolChains.size(); ++I)
           SYCLDeviceActions.push_back(
               C.MakeAction<InputAction>(IA->getInputArg(), IA->getType()));
