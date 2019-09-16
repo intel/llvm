@@ -98,9 +98,9 @@ handler:
 define float @foo_if(%swift_error** swifterror %error_ptr_ref, i32 %cc) {
 ; CHECK-LABEL: foo_if:
 ; CHECK: cbz w0
-; CHECK: mov [[ID:w[0-9]+]], #1
 ; CHECK: mov w0, #16
 ; CHECK: malloc
+; CHECK: mov [[ID:w[0-9]+]], #1
 ; CHECK: strb [[ID]], [x0, #8]
 ; CHECK: mov x21, x0
 ; CHECK-NOT: x21
@@ -484,6 +484,15 @@ declare void @acallee(i8*)
 define swiftcc void @tailcall_from_swifterror(%swift_error** swifterror %error_ptr_ref) {
 entry:
   tail call void @acallee(i8* null)
+  ret void
+}
+
+; CHECK: tailcall_from_swifterror2
+; CHECK-NOT: b _simple_fn
+; CHECK: bl _simple_fn
+declare void @simple_fn()
+define swiftcc void @tailcall_from_swifterror2(%swift_error** swifterror %error_ptr_ref) {
+  tail call void @simple_fn()
   ret void
 }
 

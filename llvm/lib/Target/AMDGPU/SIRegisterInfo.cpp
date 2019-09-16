@@ -1285,12 +1285,15 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
               .addImm(ST.getWavefrontSizeLog2())
               .addReg(DiffReg, RegState::Kill);
 
+            const bool IsVOP2 = MIB->getOpcode() == AMDGPU::V_ADD_U32_e32;
+
             // TODO: Fold if use instruction is another add of a constant.
-            if (AMDGPU::isInlinableLiteral32(Offset, ST.hasInv2PiInlineImm())) {
+            if (IsVOP2 || AMDGPU::isInlinableLiteral32(Offset, ST.hasInv2PiInlineImm())) {
               // FIXME: This can fail
               MIB.addImm(Offset);
               MIB.addReg(ScaledReg, RegState::Kill);
-              MIB.addImm(0); // clamp bit
+              if (!IsVOP2)
+                MIB.addImm(0); // clamp bit
             } else {
               Register ConstOffsetReg =
                 RS->scavengeRegister(&AMDGPU::SReg_32_XM0RegClass, MIB, 0, false);
@@ -1438,8 +1441,6 @@ const TargetRegisterClass *SIRegisterInfo::getPhysRegClass(unsigned Reg) const {
 // TargetRegisterClass to mark which classes are VGPRs to make this trivial.
 bool SIRegisterInfo::hasVGPRs(const TargetRegisterClass *RC) const {
   unsigned Size = getRegSizeInBits(*RC);
-  if (Size < 32)
-    return false;
   switch (Size) {
   case 32:
     return getCommonSubClass(&AMDGPU::VGPR_32RegClass, RC) != nullptr;
@@ -1457,8 +1458,11 @@ bool SIRegisterInfo::hasVGPRs(const TargetRegisterClass *RC) const {
     return getCommonSubClass(&AMDGPU::VReg_512RegClass, RC) != nullptr;
   case 1024:
     return getCommonSubClass(&AMDGPU::VReg_1024RegClass, RC) != nullptr;
+  case 1:
+    return getCommonSubClass(&AMDGPU::VReg_1RegClass, RC) != nullptr;
   default:
-    llvm_unreachable("Invalid register class size");
+    assert(Size < 32 && "Invalid register class size");
+    return false;
   }
 }
 
@@ -1506,6 +1510,8 @@ const TargetRegisterClass *SIRegisterInfo::getEquivalentVGPRClass(
     return &AMDGPU::VReg_512RegClass;
   case 1024:
     return &AMDGPU::VReg_1024RegClass;
+  case 1:
+    return &AMDGPU::VReg_1RegClass;
   default:
     llvm_unreachable("Invalid register class size");
   }

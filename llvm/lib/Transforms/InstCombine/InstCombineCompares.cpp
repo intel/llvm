@@ -929,8 +929,8 @@ Instruction *InstCombiner::foldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
       Base = Builder.CreateVectorSplat(NumElts, Base);
     }
     return new ICmpInst(Cond, Base,
-                        ConstantExpr::getBitCast(cast<Constant>(RHS),
-                                                 Base->getType()));
+                        ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+                            cast<Constant>(RHS), Base->getType()));
   } else if (GEPOperator *GEPRHS = dyn_cast<GEPOperator>(RHS)) {
     // If the base pointers are different, but the indices are the same, just
     // compare the base pointer.
@@ -2249,6 +2249,44 @@ Instruction *InstCombiner::foldICmpShrConstant(ICmpInst &Cmp,
   return nullptr;
 }
 
+Instruction *InstCombiner::foldICmpSRemConstant(ICmpInst &Cmp,
+                                                BinaryOperator *SRem,
+                                                const APInt &C) {
+  // Match an 'is positive' or 'is negative' comparison of remainder by a
+  // constant power-of-2 value:
+  // (X % pow2C) sgt/slt 0
+  const ICmpInst::Predicate Pred = Cmp.getPredicate();
+  if (Pred != ICmpInst::ICMP_SGT && Pred != ICmpInst::ICMP_SLT)
+    return nullptr;
+
+  // TODO: The one-use check is standard because we do not typically want to
+  //       create longer instruction sequences, but this might be a special-case
+  //       because srem is not good for analysis or codegen.
+  if (!SRem->hasOneUse())
+    return nullptr;
+
+  const APInt *DivisorC;
+  if (!C.isNullValue() || !match(SRem->getOperand(1), m_Power2(DivisorC)))
+    return nullptr;
+
+  // Mask off the sign bit and the modulo bits (low-bits).
+  Type *Ty = SRem->getType();
+  APInt SignMask = APInt::getSignMask(Ty->getScalarSizeInBits());
+  Constant *MaskC = ConstantInt::get(Ty, SignMask | (*DivisorC - 1));
+  Value *And = Builder.CreateAnd(SRem->getOperand(0), MaskC);
+
+  // For 'is positive?' check that the sign-bit is clear and at least 1 masked
+  // bit is set. Example:
+  // (i8 X % 32) s> 0 --> (X & 159) s> 0
+  if (Pred == ICmpInst::ICMP_SGT)
+    return new ICmpInst(ICmpInst::ICMP_SGT, And, ConstantInt::getNullValue(Ty));
+
+  // For 'is negative?' check that the sign-bit is set and at least 1 masked
+  // bit is set. Example:
+  // (i16 X % 4) s< 0 --> (X & 32771) u> 32768
+  return new ICmpInst(ICmpInst::ICMP_UGT, And, ConstantInt::get(Ty, SignMask));
+}
+
 /// Fold icmp (udiv X, Y), C.
 Instruction *InstCombiner::foldICmpUDivConstant(ICmpInst &Cmp,
                                                 BinaryOperator *UDiv,
@@ -2804,6 +2842,10 @@ Instruction *InstCombiner::foldICmpInstWithConstant(ICmpInst &Cmp) {
     case Instruction::LShr:
     case Instruction::AShr:
       if (Instruction *I = foldICmpShrConstant(Cmp, BO, *C))
+        return I;
+      break;
+    case Instruction::SRem:
+      if (Instruction *I = foldICmpSRemConstant(Cmp, BO, *C))
         return I;
       break;
     case Instruction::UDiv:
@@ -3609,13 +3651,13 @@ Instruction *InstCombiner::foldICmpBinOp(ICmpInst &I) {
   Value *X;
 
   // Convert add-with-unsigned-overflow comparisons into a 'not' with compare.
-  // (Op1 + X) <u Op1 --> ~Op1 <u X
-  // Op0 >u (Op0 + X) --> X >u ~Op0
+  // (Op1 + X) u</u>= Op1 --> ~Op1 u</u>= X
   if (match(Op0, m_OneUse(m_c_Add(m_Specific(Op1), m_Value(X)))) &&
-      Pred == ICmpInst::ICMP_ULT)
+      (Pred == ICmpInst::ICMP_ULT || Pred == ICmpInst::ICMP_UGE))
     return new ICmpInst(Pred, Builder.CreateNot(Op1), X);
+  // Op0 u>/u<= (Op0 + X) --> X u>/u<= ~Op0
   if (match(Op1, m_OneUse(m_c_Add(m_Specific(Op0), m_Value(X)))) &&
-      Pred == ICmpInst::ICMP_UGT)
+      (Pred == ICmpInst::ICMP_UGT || Pred == ICmpInst::ICMP_ULE))
     return new ICmpInst(Pred, X, Builder.CreateNot(Op0));
 
   bool NoOp0WrapProblem = false, NoOp1WrapProblem = false;
@@ -3791,12 +3833,13 @@ Instruction *InstCombiner::foldICmpBinOp(ICmpInst &I) {
   if (C == Op0 && NoOp1WrapProblem)
     return new ICmpInst(Pred, D, Constant::getNullValue(Op0->getType()));
 
-  // (A - B) >u A --> A <u B
-  if (A == Op1 && Pred == ICmpInst::ICMP_UGT)
-    return new ICmpInst(ICmpInst::ICMP_ULT, A, B);
-  // C <u (C - D) --> C <u D
-  if (C == Op0 && Pred == ICmpInst::ICMP_ULT)
-    return new ICmpInst(ICmpInst::ICMP_ULT, C, D);
+  // Convert sub-with-unsigned-overflow comparisons into a comparison of args.
+  // (A - B) u>/u<= A --> B u>/u<= A
+  if (A == Op1 && (Pred == ICmpInst::ICMP_UGT || Pred == ICmpInst::ICMP_ULE))
+    return new ICmpInst(Pred, B, A);
+  // C u</u>= (C - D) --> C u</u>= D
+  if (C == Op0 && (Pred == ICmpInst::ICMP_ULT || Pred == ICmpInst::ICMP_UGE))
+    return new ICmpInst(Pred, C, D);
 
   // icmp (Y-X), (Z-X) -> icmp Y, Z for equalities or if there is no overflow.
   if (B && D && B == D && NoOp0WrapProblem && NoOp1WrapProblem &&

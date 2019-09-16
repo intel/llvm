@@ -306,8 +306,8 @@ bool ICF<ELFT>::equalsConstant(const InputSection *a, const InputSection *b) {
     return false;
 
   // If two sections have different output sections, we cannot merge them.
-  if (getOutputSectionName(a) != getOutputSectionName(b) ||
-      a->getParent() != b->getParent())
+  assert(a->getParent() && b->getParent());
+  if (a->getParent() != b->getParent())
     return false;
 
   if (a->areRelocsRela)
@@ -446,10 +446,11 @@ static void print(const Twine &s) {
 // The main function of ICF.
 template <class ELFT> void ICF<ELFT>::run() {
   // Collect sections to merge.
-  for (InputSectionBase *sec : inputSections)
-    if (auto *s = dyn_cast<InputSection>(sec))
-      if (isEligible(s))
-        sections.push_back(s);
+  for (InputSectionBase *sec : inputSections) {
+    auto *s = cast<InputSection>(sec);
+    if (isEligible(s))
+      sections.push_back(s);
+  }
 
   // Initially, we use hash values to partition sections.
   parallelForEach(sections, [&](InputSection *s) {

@@ -15,6 +15,8 @@
 //
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
 #include "llvm/Transforms/Vectorize/LoopVectorizationLegality.h"
+#include "llvm/Analysis/Loads.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/IntrinsicInst.h"
 
@@ -739,7 +741,8 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
           Type *VecTy = VectorType::get(T, /*NumElements=*/2);
           assert(VecTy && "did not find vectorized version of stored type");
           unsigned Alignment = getLoadStoreAlignment(ST);
-          if (!TTI->isLegalNTStore(VecTy, Alignment)) {
+          assert(Alignment && "Alignment should be set");
+          if (!TTI->isLegalNTStore(VecTy, llvm::Align(Alignment))) {
             reportVectorizationFailure(
                 "nontemporal store instruction cannot be vectorized",
                 "nontemporal store instruction cannot be vectorized",
@@ -755,7 +758,8 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
           Type *VecTy = VectorType::get(I.getType(), /*NumElements=*/2);
           assert(VecTy && "did not find vectorized version of load type");
           unsigned Alignment = getLoadStoreAlignment(LD);
-          if (!TTI->isLegalNTLoad(VecTy, Alignment)) {
+          assert(Alignment && "Alignment should be set");
+          if (!TTI->isLegalNTLoad(VecTy, llvm::Align(Alignment))) {
             reportVectorizationFailure(
                 "nontemporal load instruction cannot be vectorized",
                 "nontemporal load instruction cannot be vectorized",
@@ -934,12 +938,25 @@ bool LoopVectorizationLegality::canVectorizeWithIfConvert() {
 
   // Collect safe addresses.
   for (BasicBlock *BB : TheLoop->blocks()) {
-    if (blockNeedsPredication(BB))
+    if (!blockNeedsPredication(BB)) {
+      for (Instruction &I : *BB)
+        if (auto *Ptr = getLoadStorePointerOperand(&I))
+          SafePointes.insert(Ptr);
       continue;
+    }
 
-    for (Instruction &I : *BB)
-      if (auto *Ptr = getLoadStorePointerOperand(&I))
-        SafePointes.insert(Ptr);
+    // For a block which requires predication, a address may be safe to access
+    // in the loop w/o predication if we can prove dereferenceability facts
+    // sufficient to ensure it'll never fault within the loop. For the moment,
+    // we restrict this to loads; stores are more complicated due to
+    // concurrency restrictions.
+    ScalarEvolution &SE = *PSE.getSE();
+    for (Instruction &I : *BB) {
+      LoadInst *LI = dyn_cast<LoadInst>(&I);
+      if (LI && !mustSuppressSpeculation(*LI) &&
+          isDereferenceableAndAlignedInLoop(LI, TheLoop, SE, *DT))
+        SafePointes.insert(LI->getPointerOperand());
+    }
   }
 
   // Collect the blocks that need predication.

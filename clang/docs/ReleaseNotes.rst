@@ -56,8 +56,12 @@ Improvements to Clang's diagnostics
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
-- ...
-
+- For X86 target, -march=skylake-avx512, -march=icelake-client,
+  -march=icelake-server, -march=cascadelake, -march=cooperlake will default to
+  not using 512-bit zmm registers in vectorized code unless 512-bit intrinsics
+  are used in the source code. 512-bit operations are known to cause the CPUs
+  to run at a lower frequency which can impact performance. This behavior can be
+  changed by passing -mprefer-vector-width=512 on the command line.
 
 New Compiler Flags
 ------------------
@@ -129,7 +133,10 @@ OpenCL C Language Changes in Clang
 ABI Changes in Clang
 --------------------
 
-- ...
+- gcc passes vectors of __int128 in memory on X86-64. Clang historically
+  broke the vectors into multiple scalars using two 64-bit values for each
+  element. Clang now matches the gcc behavior on Linux and NetBSD. You can
+  switch back to old API behavior with flag: -fclang-abi-compat=9.0.
 
 OpenMP Support in Clang
 -----------------------

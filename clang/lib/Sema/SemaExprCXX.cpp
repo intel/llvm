@@ -7765,6 +7765,10 @@ class TransformTypos : public TreeTransform<TransformTypos> {
         TypoCorrection TC = SemaRef.getTypoExprState(TE).Consumer->peekNextCorrection();
         TypoCorrection Next;
         do {
+          // Fetch the next correction by erasing the typo from the cache and calling
+          // `TryTransform` which will iterate through corrections in
+          // `TransformTypoExpr`.
+          TransformCache.erase(TE);
           ExprResult AmbigRes = CheckForRecursiveTypos(TryTransform(E), IsAmbiguous);
 
           if (!AmbigRes.isInvalid() || IsAmbiguous) {

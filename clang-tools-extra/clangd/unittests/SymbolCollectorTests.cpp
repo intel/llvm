@@ -14,6 +14,7 @@
 #include "clang/Basic/FileSystemOptions.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Index/IndexingAction.h"
+#include "clang/Index/IndexingOptions.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/STLExtras.h"
@@ -973,7 +974,7 @@ TEST_F(SymbolCollectorTest, CanonicalSTLHeader) {
   CanonicalIncludes Includes;
   auto Language = LangOptions();
   Language.CPlusPlus = true;
-  addSystemHeadersMapping(&Includes, Language);
+  Includes.addSystemHeadersMapping(Language);
   CollectorOpts.Includes = &Includes;
   runSymbolCollector("namespace std { class string {}; }", /*Main=*/"");
   EXPECT_THAT(Symbols,

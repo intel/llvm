@@ -378,6 +378,10 @@ def FeatureHasFastGather
     : SubtargetFeature<"fast-gather", "HasFastGather", "true",
                        "Indicates if gather is reasonably fast">;
 
+def FeaturePrefer128Bit
+    : SubtargetFeature<"prefer-128-bit", "Prefer128Bit", "true",
+                       "Prefer 128-bit AVX instructions">;
+
 def FeaturePrefer256Bit
     : SubtargetFeature<"prefer-256-bit", "Prefer256Bit", "true",
                        "Prefer 256-bit AVX instructions">;
@@ -597,6 +601,7 @@ def ProcessorFeatures {
 
   // Skylake-AVX512
   list<SubtargetFeature> SKXAdditionalFeatures = [FeatureAVX512,
+                                                  FeaturePrefer256Bit,
                                                   FeatureCDI,
                                                   FeatureDQI,
                                                   FeatureBWI,
@@ -630,6 +635,7 @@ def ProcessorFeatures {
 
   // Cannonlake
   list<SubtargetFeature> CNLAdditionalFeatures = [FeatureAVX512,
+                                                  FeaturePrefer256Bit,
                                                   FeatureCDI,
                                                   FeatureDQI,
                                                   FeatureBWI,

@@ -3245,6 +3245,17 @@ match what was already there. However, a store *to* an undefined
 location could clobber arbitrary memory, therefore, it has undefined
 behavior.
 
+**MemorySanitizer**, a detector of uses of uninitialized memory,
+defines a branch with condition that depends on an undef value (or
+certain other values, like e.g. a result of a load from heap-allocated
+memory that has never been stored to) to have an externally visible
+side effect. For this reason functions with *sanitize_memory*
+attribute are not allowed to produce such branches "out of thin
+air". More strictly, an optimization that inserts a conditional branch
+is only valid if in all executions where the branch condition has at
+least one undefined bit, the same branch condition is evaluated in the
+input IR as well.
+
 .. _poisonvalues:
 
 Poison Values
@@ -3510,7 +3521,7 @@ resulting assembly string is parsed by LLVM's integrated assembler unless it is
 disabled -- even when emitting a ``.s`` file -- and thus must contain assembly
 syntax known to LLVM.
 
-LLVM also supports a few more substitions useful for writing inline assembly:
+LLVM also supports a few more substitutions useful for writing inline assembly:
 
 - ``${:uid}``: Expands to a decimal integer unique to this inline assembly blob.
   This substitution is useful when declaring a local label. Many standard
@@ -6507,7 +6518,7 @@ Where each VFuncId has the format:
     vFuncId: (TypeIdRef, offset: 16)
 
 Where each ``TypeIdRef`` refers to a :ref:`type id<typeid_summary>`
-by summary id or ``GUID`` preceeded by a ``guid:`` tag.
+by summary id or ``GUID`` preceded by a ``guid:`` tag.
 
 TypeCheckedLoadVCalls
 """""""""""""""""""""
@@ -11353,7 +11364,7 @@ privileges.
 The default behavior is to emit a call to ``__clear_cache`` from the run
 time library.
 
-This instrinsic does *not* empty the instruction pipeline. Modifications
+This intrinsic does *not* empty the instruction pipeline. Modifications
 of the current function are outside the scope of the intrinsic.
 
 '``llvm.instrprof.increment``' Intrinsic
@@ -11428,7 +11439,7 @@ The last argument specifies the value of the increment of the counter variable.
 
 Semantics:
 """"""""""
-See description of '``llvm.instrprof.increment``' instrinsic.
+See description of '``llvm.instrprof.increment``' intrinsic.
 
 
 '``llvm.instrprof.value.profile``' Intrinsic
@@ -12061,6 +12072,8 @@ trapping or setting ``errno``.
 
 When specified with the fast-math-flag 'afn', the result may be approximated
 using a less accurate calculation.
+
+.. _int_fma:
 
 '``llvm.fma.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -13764,6 +13777,73 @@ Examples
       %res = call i4 @llvm.smul.fix.sat.i4(i4 2, i4 4, i32 1)  ; %res = 4 (1 x 2 = 2)
 
 
+'``llvm.umul.fix.sat.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.umul.fix.sat``
+on any integer bit width or vectors of integers.
+
+::
+
+      declare i16 @llvm.umul.fix.sat.i16(i16 %a, i16 %b, i32 %scale)
+      declare i32 @llvm.umul.fix.sat.i32(i32 %a, i32 %b, i32 %scale)
+      declare i64 @llvm.umul.fix.sat.i64(i64 %a, i64 %b, i32 %scale)
+      declare <4 x i32> @llvm.umul.fix.sat.v4i32(<4 x i32> %a, <4 x i32> %b, i32 %scale)
+
+Overview
+"""""""""
+
+The '``llvm.umul.fix.sat``' family of intrinsic functions perform unsigned
+fixed point saturation multiplication on 2 arguments of the same scale.
+
+Arguments
+""""""""""
+
+The arguments (%a and %b) and the result may be of integer types of any bit
+width, but they must have the same bit width. ``%a`` and ``%b`` are the two
+values that will undergo unsigned fixed point multiplication. The argument
+``%scale`` represents the scale of both operands, and must be a constant
+integer.
+
+Semantics:
+""""""""""
+
+This operation performs fixed point multiplication on the 2 arguments of a
+specified scale. The result will also be returned in the same scale specified
+in the third argument.
+
+If the result value cannot be precisely represented in the given scale, the
+value is rounded up or down to the closest representable value. The rounding
+direction is unspecified.
+
+The maximum value this operation can clamp to is the largest unsigned value
+representable by the bit width of the first 2 arguments. The minimum value is the
+smallest unsigned value representable by this bit width (zero).
+
+
+Examples
+"""""""""
+
+.. code-block:: llvm
+
+      %res = call i4 @llvm.umul.fix.sat.i4(i4 3, i4 2, i32 0)  ; %res = 6 (2 x 3 = 6)
+      %res = call i4 @llvm.umul.fix.sat.i4(i4 3, i4 2, i32 1)  ; %res = 3 (1.5 x 1 = 1.5)
+
+      ; The result in the following could be rounded down to 2 or up to 2.5
+      %res = call i4 @llvm.umul.fix.sat.i4(i4 3, i4 3, i32 1)  ; %res = 4 (or 5) (1.5 x 1.5 = 2.25)
+
+      ; Saturation
+      %res = call i4 @llvm.umul.fix.sat.i4(i4 8, i4 2, i32 0)  ; %res = 15 (8 x 2 -> clamped to 15)
+      %res = call i4 @llvm.umul.fix.sat.i4(i4 8, i4 8, i32 2)  ; %res = 15 (2 x 2 -> clamped to 3.75)
+
+      ; Scale can affect the saturation result
+      %res = call i4 @llvm.umul.fix.sat.i4(i4 2, i4 4, i32 0)  ; %res = 7 (2 x 4 -> clamped to 7)
+      %res = call i4 @llvm.umul.fix.sat.i4(i4 2, i4 4, i32 1)  ; %res = 4 (1 x 2 = 2)
+
+
 Specialised Arithmetic Intrinsics
 ---------------------------------
 
@@ -13874,8 +13954,8 @@ The expression:
 is equivalent to the expression a \* b + c, except that rounding will
 not be performed between the multiplication and addition steps if the
 code generator fuses the operations. Fusion is not guaranteed, even if
-the target platform supports it. If a fused multiply-add is required the
-corresponding llvm.fma.\* intrinsic function should be used
+the target platform supports it. If a fused multiply-add is required, the
+corresponding :ref:`llvm.fma <int_fma>` intrinsic function should be used
 instead. This never sets errno, just as '``llvm.fma.*``'.
 
 Examples:

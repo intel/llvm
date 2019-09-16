@@ -12,6 +12,7 @@
 
 #include "clang/AST/ASTContext.h"
 #include "CXXABI.h"
+#include "Interp/Context.h"
 #include "clang/AST/APValue.h"
 #include "clang/AST/ASTMutationListener.h"
 #include "clang/AST/ASTTypeTraits.h"
@@ -781,6 +782,13 @@ CXXABI *ASTContext::createCXXABI(const TargetInfo &T) {
     return CreateMicrosoftCXXABI(*this);
   }
   llvm_unreachable("Invalid CXXABI type!");
+}
+
+interp::Context &ASTContext::getInterpContext() {
+  if (!InterpContext) {
+    InterpContext.reset(new interp::Context(*this));
+  }
+  return *InterpContext.get();
 }
 
 static const LangASMap *getAddressSpaceMap(const TargetInfo &T,
@@ -7952,6 +7960,28 @@ bool ASTContext::areCompatibleVectorTypes(QualType FirstVec,
     return true;
 
   return false;
+}
+
+bool ASTContext::hasDirectOwnershipQualifier(QualType Ty) const {
+  while (true) {
+    // __strong id
+    if (const AttributedType *Attr = dyn_cast<AttributedType>(Ty)) {
+      if (Attr->getAttrKind() == attr::ObjCOwnership)
+        return true;
+
+      Ty = Attr->getModifiedType();
+
+    // X *__strong (...)
+    } else if (const ParenType *Paren = dyn_cast<ParenType>(Ty)) {
+      Ty = Paren->getInnerType();
+
+    // We do not want to look through typedefs, typeof(expr),
+    // typeof(type), or any other way that the type is somehow
+    // abstracted.
+    } else {
+      return false;
+    }
+  }
 }
 
 //===----------------------------------------------------------------------===//

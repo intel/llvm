@@ -463,6 +463,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_SHT>::enumeration(
   ECase(SHT_LLVM_CALL_GRAPH_PROFILE);
   ECase(SHT_LLVM_ADDRSIG);
   ECase(SHT_LLVM_DEPENDENT_LIBRARIES);
+  ECase(SHT_LLVM_SYMPART);
+  ECase(SHT_LLVM_PART_EHDR);
+  ECase(SHT_LLVM_PART_PHDR);
   ECase(SHT_GNU_ATTRIBUTES);
   ECase(SHT_GNU_HASH);
   ECase(SHT_GNU_verdef);
@@ -821,7 +824,7 @@ void MappingTraits<ELFYAML::FileHeader>::mapping(IO &IO,
   IO.mapOptional("Entry", FileHdr.Entry, Hex64(0));
 
   IO.mapOptional("SHEntSize", FileHdr.SHEntSize);
-  IO.mapOptional("SHOffset", FileHdr.SHOffset);
+  IO.mapOptional("SHOff", FileHdr.SHOff);
   IO.mapOptional("SHNum", FileHdr.SHNum);
   IO.mapOptional("SHStrNdx", FileHdr.SHStrNdx);
 }
@@ -894,10 +897,9 @@ struct NormalizedOther {
     if (to_integer(Name, Val))
       return Val;
 
-    llvm::WithColor::error()
-        << "an unknown value is used for symbol's 'Other' field: " << Name
-        << ".\n";
-    exit(1);
+    YamlIO.setError("an unknown value is used for symbol's 'Other' field: " +
+                    Name);
+    return 0;
   }
 
   Optional<uint8_t> denormalize(IO &) {
@@ -942,7 +944,7 @@ struct NormalizedOther {
     return Map;
   }
 
-  const IO &YamlIO;
+  IO &YamlIO;
   Optional<std::vector<StOtherPiece>> Other;
   std::string UnknownFlagsHolder;
 };

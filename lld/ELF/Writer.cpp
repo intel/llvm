@@ -534,11 +534,6 @@ template <class ELFT> void elf::createSyntheticSections() {
 
 // The main function of the writer.
 template <class ELFT> void Writer<ELFT>::run() {
-  // Linker scripts controls how input sections are assigned to output sections.
-  // Input sections that were not handled by scripts are called "orphans", and
-  // they are assigned to output sections by the default rule. Process that.
-  script->addOrphanSections();
-
   if (config->discard != DiscardPolicy::All)
     copyLocalSymbols();
 
@@ -2035,27 +2030,32 @@ std::vector<PhdrEntry *> Writer<ELFT>::createPhdrs(Partition &part) {
   unsigned partNo = part.getNumber();
   bool isMain = partNo == 1;
 
-  // The first phdr entry is PT_PHDR which describes the program header itself.
-  if (isMain)
-    addHdr(PT_PHDR, PF_R)->add(Out::programHeaders);
-  else
-    addHdr(PT_PHDR, PF_R)->add(part.programHeaders->getParent());
-
-  // PT_INTERP must be the second entry if exists.
-  if (OutputSection *cmd = findSection(".interp", partNo))
-    addHdr(PT_INTERP, cmd->getPhdrFlags())->add(cmd);
-
   // Add the first PT_LOAD segment for regular output sections.
   uint64_t flags = computeFlags(PF_R);
   PhdrEntry *load = nullptr;
 
-  // Add the headers. We will remove them if they don't fit.
-  // In the other partitions the headers are ordinary sections, so they don't
-  // need to be added here.
-  if (isMain) {
-    load = addHdr(PT_LOAD, flags);
-    load->add(Out::elfHeader);
-    load->add(Out::programHeaders);
+  // nmagic or omagic output does not have PT_PHDR, PT_INTERP, or the readonly
+  // PT_LOAD.
+  if (!config->nmagic && !config->omagic) {
+    // The first phdr entry is PT_PHDR which describes the program header
+    // itself.
+    if (isMain)
+      addHdr(PT_PHDR, PF_R)->add(Out::programHeaders);
+    else
+      addHdr(PT_PHDR, PF_R)->add(part.programHeaders->getParent());
+
+    // PT_INTERP must be the second entry if exists.
+    if (OutputSection *cmd = findSection(".interp", partNo))
+      addHdr(PT_INTERP, cmd->getPhdrFlags())->add(cmd);
+
+    // Add the headers. We will remove them if they don't fit.
+    // In the other partitions the headers are ordinary sections, so they don't
+    // need to be added here.
+    if (isMain) {
+      load = addHdr(PT_LOAD, flags);
+      load->add(Out::elfHeader);
+      load->add(Out::programHeaders);
+    }
   }
 
   // PT_GNU_RELRO includes all sections that should be marked as
@@ -2218,7 +2218,6 @@ template <class ELFT> void Writer<ELFT>::fixSectionAlignments() {
       //
       // TODO Enable this technique on all targets.
       bool enable = config->emachine != EM_HEXAGON &&
-                    config->emachine != EM_MIPS &&
                     config->emachine != EM_X86_64;
 
       if (!enable ||
@@ -2270,11 +2269,9 @@ template <class ELFT> void Writer<ELFT>::fixSectionAlignments() {
 // load executables without any address adjustment.
 static uint64_t computeFileOffset(OutputSection *os, uint64_t off) {
   // The first section in a PT_LOAD has to have congruent offset and address
-  // module the page size.
-  if (os->ptLoad && os->ptLoad->firstSec == os) {
-    uint64_t alignment = std::max<uint64_t>(os->alignment, config->maxPageSize);
-    return alignTo(off, alignment, os->addr);
-  }
+  // modulo the maximum page size.
+  if (os->ptLoad && os->ptLoad->firstSec == os)
+    return alignTo(off, os->ptLoad->p_align, os->addr);
 
   // File offsets are not significant for .bss sections other than the first one
   // in a PT_LOAD. By convention, we keep section offsets monotonically
@@ -2384,9 +2381,7 @@ template <class ELFT> void Writer<ELFT>::setPhdrs(Partition &part) {
         p->p_paddr = first->getLMA();
     }
 
-    if (p->p_type == PT_LOAD) {
-      p->p_align = std::max<uint64_t>(p->p_align, config->maxPageSize);
-    } else if (p->p_type == PT_GNU_RELRO) {
+    if (p->p_type == PT_GNU_RELRO) {
       p->p_align = 1;
       // musl/glibc ld.so rounds the size down, so we need to round up
       // to protect the last page. This is a no-op on FreeBSD which always

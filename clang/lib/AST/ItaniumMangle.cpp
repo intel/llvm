@@ -1693,6 +1693,7 @@ void CXXNameMangler::mangleUnqualifiedBlock(const BlockDecl *Block) {
 //   ::= Ty                              # template type parameter
 //   ::= Tn <type>                       # template non-type parameter
 //   ::= Tt <template-param-decl>* E     # template template parameter
+//   ::= Tp <template-param-decl>        # template parameter pack
 void CXXNameMangler::mangleTemplateParamDecl(const NamedDecl *Decl) {
   if (auto *Ty = dyn_cast<TemplateTypeParmDecl>(Decl)) {
     if (Ty->isParameterPack())
@@ -1708,7 +1709,8 @@ void CXXNameMangler::mangleTemplateParamDecl(const NamedDecl *Decl) {
       QualType T = Tn->getType();
       if (Tn->isParameterPack()) {
         Out << "Tp";
-        T = T->castAs<PackExpansionType>()->getPattern();
+        if (auto *PackExpansion = T->getAs<PackExpansionType>())
+          T = PackExpansion->getPattern();
       }
       Out << "Tn";
       mangleType(T);

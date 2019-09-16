@@ -35,6 +35,7 @@ public:
   private:
     friend class Args;
     std::unique_ptr<char[]> ptr;
+    char quote;
 
     char *data() { return ptr.get(); }
 
@@ -42,12 +43,12 @@ public:
     ArgEntry() = default;
     ArgEntry(llvm::StringRef str, char quote);
 
-    llvm::StringRef ref;
-    char quote;
+    llvm::StringRef ref() const { return c_str(); }
     const char *c_str() const { return ptr.get(); }
 
     /// Returns true if this argument was quoted in any way.
     bool IsQuoted() const { return quote != '\0'; }
+    char GetQuoteChar() const { return quote; }
   };
 
   /// Construct with an option command string.
@@ -121,7 +122,6 @@ public:
   const char *GetArgumentAtIndex(size_t idx) const;
 
   llvm::ArrayRef<ArgEntry> entries() const { return m_entries; }
-  char GetArgumentQuoteCharAtIndex(size_t idx) const;
 
   using const_iterator = std::vector<ArgEntry>::const_iterator;
 
@@ -251,10 +251,6 @@ public:
   //
   // For re-setting or blanking out the list of arguments.
   void Clear();
-
-  static const char *StripSpaces(std::string &s, bool leading = true,
-                                 bool trailing = true,
-                                 bool return_null_if_empty = true);
 
   static bool UInt64ValueIsValidForByteSize(uint64_t uval64,
                                             size_t total_byte_size) {

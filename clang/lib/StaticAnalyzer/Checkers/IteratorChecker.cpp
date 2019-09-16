@@ -248,7 +248,7 @@ public:
   };
 
   DefaultBool ChecksEnabled[CK_NumCheckKinds];
-  CheckName CheckNames[CK_NumCheckKinds];
+  CheckerNameRef CheckNames[CK_NumCheckKinds];
 
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
   void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
@@ -1590,7 +1590,8 @@ IteratorPosition IteratorChecker::advancePosition(CheckerContext &C,
 void IteratorChecker::reportOutOfRangeBug(const StringRef &Message,
                                           const SVal &Val, CheckerContext &C,
                                           ExplodedNode *ErrNode) const {
-  auto R = std::make_unique<BugReport>(*OutOfRangeBugType, Message, ErrNode);
+  auto R = std::make_unique<PathSensitiveBugReport>(*OutOfRangeBugType, Message,
+                                                    ErrNode);
   R->markInteresting(Val);
   C.emitReport(std::move(R));
 }
@@ -1599,7 +1600,8 @@ void IteratorChecker::reportMismatchedBug(const StringRef &Message,
                                           const SVal &Val1, const SVal &Val2,
                                           CheckerContext &C,
                                           ExplodedNode *ErrNode) const {
-  auto R = std::make_unique<BugReport>(*MismatchedBugType, Message, ErrNode);
+  auto R = std::make_unique<PathSensitiveBugReport>(*MismatchedBugType, Message,
+                                                    ErrNode);
   R->markInteresting(Val1);
   R->markInteresting(Val2);
   C.emitReport(std::move(R));
@@ -1609,7 +1611,8 @@ void IteratorChecker::reportMismatchedBug(const StringRef &Message,
                                           const SVal &Val, const MemRegion *Reg,
                                           CheckerContext &C,
                                           ExplodedNode *ErrNode) const {
-  auto R = std::make_unique<BugReport>(*MismatchedBugType, Message, ErrNode);
+  auto R = std::make_unique<PathSensitiveBugReport>(*MismatchedBugType, Message,
+                                                    ErrNode);
   R->markInteresting(Val);
   R->markInteresting(Reg);
   C.emitReport(std::move(R));
@@ -1618,7 +1621,8 @@ void IteratorChecker::reportMismatchedBug(const StringRef &Message,
 void IteratorChecker::reportInvalidatedBug(const StringRef &Message,
                                            const SVal &Val, CheckerContext &C,
                                            ExplodedNode *ErrNode) const {
-  auto R = std::make_unique<BugReport>(*InvalidatedBugType, Message, ErrNode);
+  auto R = std::make_unique<PathSensitiveBugReport>(*InvalidatedBugType,
+                                                    Message, ErrNode);
   R->markInteresting(Val);
   C.emitReport(std::move(R));
 }
@@ -2376,12 +2380,10 @@ bool ento::shouldRegisterIteratorModeling(const LangOptions &LO) {
     auto *checker = Mgr.getChecker<IteratorChecker>();                         \
     checker->ChecksEnabled[IteratorChecker::CK_##name] = true;                 \
     checker->CheckNames[IteratorChecker::CK_##name] =                          \
-        Mgr.getCurrentCheckName();                                             \
+        Mgr.getCurrentCheckerName();                                           \
   }                                                                            \
                                                                                \
-  bool ento::shouldRegister##name(const LangOptions &LO) {                     \
-    return true;                                                               \
-  }
+  bool ento::shouldRegister##name(const LangOptions &LO) { return true; }
 
 REGISTER_CHECKER(IteratorRangeChecker)
 REGISTER_CHECKER(MismatchedIteratorChecker)

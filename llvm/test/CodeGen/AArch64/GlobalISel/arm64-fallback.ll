@@ -73,7 +73,7 @@ define i128 @sequence_sizes([8 x i8] %in) {
 }
 
 ; Just to make sure we don't accidentally emit a normal load/store.
-; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: cannot select: %2:gpr(s64) = G_LOAD %0:gpr(p0) :: (load seq_cst 8 from %ir.addr)  (in function: atomic_ops)
+; FALLBACK-WITH-REPORT-ERR: cannot select: G_STORE %1:gpr(s64), %0:gpr64sp(p0) :: (store unordered 8 into %ir.addr) (in function: atomic_ops)
 ; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for atomic_ops
 ; FALLBACK-WITH-REPORT-LABEL: atomic_ops:
 define i64 @atomic_ops(i64* %addr) {
@@ -188,4 +188,15 @@ define void @nonpow2_vector_add_fewerelements() {
   %ex = extractelement <7 x i64> %dummy, i64 0
   store i64 %ex, i64* undef
   ret void
+}
+
+; Currently can't handle dealing with a split type (s128 -> 2 x s64) on the stack yet.
+declare void @use_s128(i128 %a, i128 %b)
+; FALLBACK-WITH-REPORT-ERR: remark: <unknown>:0:0: unable to lower arguments: i32 (i32, i128, i32, i32, i32, i128, i32)* (in function: fn1)
+; FALLBACK-WITH-REPORT-ERR: warning: Instruction selection used fallback path for fn1
+; FALLBACK-WITH-REPORT-OUT-LABEL: fn1:
+define i32 @fn1(i32 %p1, i128 %p2, i32 %p3, i32 %p4, i32 %p5, i128 %p6, i32 %p7) {
+entry:
+  call void @use_s128(i128 %p2, i128 %p6)
+  ret i32 0
 }

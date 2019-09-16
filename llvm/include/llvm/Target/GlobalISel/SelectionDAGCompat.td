@@ -27,6 +27,7 @@ class GINodeEquiv<Instruction i, SDNode node> {
   // (ISD::LOAD, ISD::ATOMIC_LOAD, ISD::STORE, ISD::ATOMIC_STORE) but GlobalISel
   // stores this information in the MachineMemoryOperand.
   bit CheckMMOIsNonAtomic = 0;
+  bit CheckMMOIsAtomic = 0;
 
   // SelectionDAG has one node for all loads and uses predicates to
   // differentiate them. GlobalISel on the other hand uses separate opcodes.
@@ -77,6 +78,7 @@ def : GINodeEquiv<G_UITOFP, uint_to_fp>;
 def : GINodeEquiv<G_FADD, fadd>;
 def : GINodeEquiv<G_FSUB, fsub>;
 def : GINodeEquiv<G_FMA, fma>;
+def : GINodeEquiv<G_FMAD, fmad>;
 def : GINodeEquiv<G_FMUL, fmul>;
 def : GINodeEquiv<G_FDIV, fdiv>;
 def : GINodeEquiv<G_FREM, frem>;
@@ -141,6 +143,11 @@ def : GINodeEquiv<G_ICMP, setcc> {
 // separate nodes for them. This GINodeEquiv maps the non-atomic stores to
 // G_STORE with a non-atomic MachineMemOperand.
 def : GINodeEquiv<G_STORE, st> { let CheckMMOIsNonAtomic = 1; }
+
+def : GINodeEquiv<G_LOAD, atomic_load> {
+  let CheckMMOIsNonAtomic = 0;
+  let CheckMMOIsAtomic = 1;
+}
 
 def : GINodeEquiv<G_ATOMIC_CMPXCHG, atomic_cmp_swap>;
 def : GINodeEquiv<G_ATOMICRMW_XCHG, atomic_swap>;

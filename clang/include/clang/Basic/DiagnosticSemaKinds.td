@@ -661,8 +661,23 @@ def warn_cstruct_memaccess : Warning<
   InGroup<NonTrivialMemaccess>;
 def note_nontrivial_field : Note<
   "field is non-trivial to %select{copy|default-initialize}0">;
-def err_nontrivial_primitive_type_in_union : Error<
-  "non-trivial C types are disallowed in union">;
+def err_non_trivial_c_union_in_invalid_context : Error<
+  "cannot %select{"
+  "use type %1 for a function/method parameter|"
+  "use type %1 for function/method return|"
+  "default-initialize an object of type %1|"
+  "declare an automatic variable of type %1|"
+  "copy-initialize an object of type %1|"
+  "assign to a variable of type %1|"
+  "construct an automatic compound literal of type %1|"
+  "capture a variable of type %1|"
+  "cannot use volatile type %1 where it causes an lvalue-to-rvalue conversion"
+  "}3 "
+  "since it %select{contains|is}2 a union that is non-trivial to "
+  "%select{default-initialize|destruct|copy}0">;
+def note_non_trivial_c_union : Note<
+  "%select{%2 has subobjects that are|%3 has type %2 that is}0 "
+  "non-trivial to %select{default-initialize|destruct|copy}1">;
 def warn_dyn_class_memaccess : Warning<
   "%select{destination for|source of|first operand of|second operand of}0 this "
   "%1 call is a pointer to %select{|class containing a }2dynamic class %3; "
@@ -3378,6 +3393,9 @@ def warn_address_of_reference_bool_conversion : Warning<
   "code; pointer may be assumed to always convert to true">,
   InGroup<UndefinedBoolConversion>;
 
+def warn_xor_used_as_pow : Warning<
+  "result of '%0' is %1; did you mean an exponentiation?">,
+  InGroup<XorUsedAsPow>;
 def warn_xor_used_as_pow_base_extra : Warning<
   "result of '%0' is %1; did you mean '%2' (%3)?">,
   InGroup<XorUsedAsPow>;
@@ -3385,7 +3403,7 @@ def warn_xor_used_as_pow_base : Warning<
   "result of '%0' is %1; did you mean '%2'?">,
   InGroup<XorUsedAsPow>;
 def note_xor_used_as_pow_silence : Note<
-  "replace expression with '%0' to silence this warning">;
+  "replace expression with '%0' %select{|or use 'xor' instead of '^' }1to silence this warning">;
 
 def warn_null_pointer_compare : Warning<
     "comparison of %select{address of|function|array}0 '%1' %select{not |}2"
@@ -3412,6 +3430,10 @@ def note_pointer_declared_here : Note<
 def warn_division_sizeof_ptr : Warning<
   "'%0' will return the size of the pointer, not the array itself">,
   InGroup<DiagGroup<"sizeof-pointer-div">>;
+def warn_division_sizeof_array : Warning<
+  "expression does not compute the number of elements in this array; element "
+  "type is %0, not %1">,
+  InGroup<DiagGroup<"sizeof-array-div">>;
 
 def note_function_warning_silence : Note<
     "prefix with the address-of operator to silence this warning">;
@@ -3926,10 +3948,7 @@ def note_implicit_member_target_infer_collision : Note<
 
 def note_ambiguous_type_conversion: Note<
     "because of ambiguity in conversion %diff{of $ to $|between types}0,1">;
-def note_ovl_builtin_binary_candidate : Note<
-    "built-in candidate %0">;
-def note_ovl_builtin_unary_candidate : Note<
-    "built-in candidate %0">;
+def note_ovl_builtin_candidate : Note<"built-in candidate %0">;
 def err_ovl_no_viable_function_in_init : Error<
   "no matching constructor for initialization of %0">;
 def err_ovl_no_conversion_in_cast : Error<
@@ -4005,6 +4024,8 @@ def err_ovl_no_viable_literal_operator : Error<
 // C++ Template Declarations
 def err_template_param_shadow : Error<
   "declaration of %0 shadows template parameter">;
+def ext_template_param_shadow : ExtWarn<
+  err_template_param_shadow.Text>, InGroup<MicrosoftTemplate>;
 def note_template_param_here : Note<"template parameter is declared here">;
 def warn_template_export_unsupported : Warning<
   "exported templates are unsupported">;
@@ -8024,7 +8045,7 @@ def warn_array_index_precedes_bounds : Warning<
 def warn_array_index_exceeds_bounds : Warning<
   "array index %0 is past the end of the array (which contains %1 "
   "element%s2)">, InGroup<ArrayBounds>;
-def note_array_index_out_of_bounds : Note<
+def note_array_declared_here : Note<
   "array %0 declared here">;
 
 def warn_printf_insufficient_data_args : Warning<
@@ -9099,7 +9120,7 @@ def ext_omp_loop_not_canonical_init : ExtWarn<
   "('var = init' or 'T var = init')">, InGroup<OpenMPLoopForm>;
 def err_omp_loop_not_canonical_cond : Error<
   "condition of OpenMP for loop must be a relational comparison "
-  "('<', '<=', '>', or '>=') of loop variable %0">;
+	"('<', '<=', '>', %select{or '>='|'>=', or '!='}0) of loop variable %1">;
 def err_omp_loop_not_canonical_incr : Error<
   "increment clause of OpenMP for loop must perform simple addition "
   "or subtraction on loop variable %0">;

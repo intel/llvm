@@ -26,8 +26,8 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
 
-#include "Plugins/ExpressionParser/Clang/ClangPersistentVariables.h"
 #include "lldb/Core/ClangForward.h"
+#include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Utility/ConstString.h"
@@ -694,6 +694,8 @@ public:
 
   // Exploring the type
 
+  const llvm::fltSemantics &GetFloatTypeSemantics(size_t byte_size) override;
+
   llvm::Optional<uint64_t> GetByteSize(lldb::opaque_compiler_type_t type,
                        ExecutionContextScope *exe_scope) {
     if (llvm::Optional<uint64_t> bit_size = GetBitSize(type, exe_scope))
@@ -1040,13 +1042,9 @@ public:
   }
 private:
   lldb::TargetWP m_target_wp;
-  lldb::ClangPersistentVariablesUP m_persistent_variables; ///< These are the
-                                                           ///persistent
-                                                           ///variables
-                                                           ///associated with
-                                                           ///this process for
-                                                           ///the expression
-                                                           ///parser.
+  std::unique_ptr<PersistentExpressionState>
+      m_persistent_variables; // These are the persistent variables associated
+                              // with this process for the expression parser
 };
 
 } // namespace lldb_private

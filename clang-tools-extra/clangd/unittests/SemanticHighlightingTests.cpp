@@ -10,9 +10,14 @@
 #include "ClangdServer.h"
 #include "Protocol.h"
 #include "SemanticHighlighting.h"
+#include "SourceCode.h"
 #include "TestFS.h"
 #include "TestTU.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 #include "gmock/gmock.h"
+#include <algorithm>
 
 namespace clang {
 namespace clangd {
@@ -59,6 +64,36 @@ std::vector<HighlightingToken> getExpectedTokens(Annotations &Test) {
   return ExpectedTokens;
 }
 
+/// Annotates the input code with provided semantic highlightings. Results look
+/// something like:
+///   class $Class[[X]] {
+///     $Primitive[[int]] $Field[[a]] = 0;
+///   };
+std::string annotate(llvm::StringRef Input,
+                     llvm::ArrayRef<HighlightingToken> Tokens) {
+  assert(std::is_sorted(
+      Tokens.begin(), Tokens.end(),
+      [](const HighlightingToken &L, const HighlightingToken &R) {
+        return L.R.start < R.R.start;
+      }));
+
+  std::string Result;
+  unsigned NextChar = 0;
+  for (auto &T : Tokens) {
+    unsigned StartOffset = llvm::cantFail(positionToOffset(Input, T.R.start));
+    unsigned EndOffset = llvm::cantFail(positionToOffset(Input, T.R.end));
+    assert(StartOffset <= EndOffset);
+    assert(NextChar <= StartOffset);
+
+    Result += Input.substr(NextChar, StartOffset - NextChar);
+    Result += llvm::formatv("${0}[[{1}]]", T.Kind,
+                            Input.substr(StartOffset, EndOffset - StartOffset));
+    NextChar = EndOffset;
+  }
+  Result += Input.substr(NextChar);
+  return Result;
+}
+
 void checkHighlightings(llvm::StringRef Code,
                         std::vector<std::pair</*FileName*/ llvm::StringRef,
                                               /*FileContent*/ llvm::StringRef>>
@@ -68,8 +103,8 @@ void checkHighlightings(llvm::StringRef Code,
   for (auto File : AdditionalFiles)
     TU.AdditionalFiles.insert({File.first, File.second});
   auto AST = TU.build();
-  std::vector<HighlightingToken> ActualTokens = getSemanticHighlightings(AST);
-  EXPECT_THAT(ActualTokens, getExpectedTokens(Test)) << Code;
+
+  EXPECT_EQ(Code, annotate(Test.code(), getSemanticHighlightings(AST)));
 }
 
 // Any annotations in OldCode and NewCode are converted into their corresponding
@@ -392,18 +427,19 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       R"cpp(
       #define DEF_MULTIPLE(X) namespace X { class X { int X; }; }
       #define DEF_CLASS(T) class T {};
+      // Preamble ends.
       $Macro[[DEF_MULTIPLE]](XYZ);
       $Macro[[DEF_MULTIPLE]](XYZW);
       $Macro[[DEF_CLASS]]($Class[[A]])
-      #define MACRO_CONCAT(X, V, T) T foo##X = V
-      #define DEF_VAR(X, V) int X = V
-      #define DEF_VAR_T(T, X, V) T X = V
-      #define DEF_VAR_REV(V, X) DEF_VAR(X, V)
-      #define CPY(X) X
-      #define DEF_VAR_TYPE(X, Y) X Y
-      #define SOME_NAME variable
-      #define SOME_NAME_SET variable2 = 123
-      #define INC_VAR(X) X += 2
+      #define $Macro[[MACRO_CONCAT]](X, V, T) T foo##X = V
+      #define $Macro[[DEF_VAR]](X, V) int X = V
+      #define $Macro[[DEF_VAR_T]](T, X, V) T X = V
+      #define $Macro[[DEF_VAR_REV]](V, X) DEF_VAR(X, V)
+      #define $Macro[[CPY]](X) X
+      #define $Macro[[DEF_VAR_TYPE]](X, Y) X Y
+      #define $Macro[[SOME_NAME]] variable
+      #define $Macro[[SOME_NAME_SET]] variable2 = 123
+      #define $Macro[[INC_VAR]](X) X += 2
       $Primitive[[void]] $Function[[foo]]() {
         $Macro[[DEF_VAR]]($LocalVariable[[X]],  123);
         $Macro[[DEF_VAR_REV]](908, $LocalVariable[[XY]]);
@@ -422,8 +458,8 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       $Macro[[DEF_VAR]]($Variable[[XYZ]], 567);
       $Macro[[DEF_VAR_REV]](756, $Variable[[AB]]);
 
-      #define CALL_FN(F) F();
-      #define DEF_FN(F) void F ()
+      #define $Macro[[CALL_FN]](F) F();
+      #define $Macro[[DEF_FN]](F) void F ()
       $Macro[[DEF_FN]]($Function[[g]]) {
         $Macro[[CALL_FN]]($Function[[foo]]);
       }
@@ -431,6 +467,7 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       R"cpp(
       #define fail(expr) expr
       #define assert(COND) if (!(COND)) { fail("assertion failed" #COND); }
+      // Preamble ends.
       $Primitive[[int]] $Variable[[x]];
       $Primitive[[int]] $Variable[[y]];
       $Primitive[[int]] $Function[[f]]();
@@ -439,7 +476,7 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
         $Macro[[assert]]($Variable[[x]] != $Function[[f]]());
       }
     )cpp",
-    R"cpp(
+      R"cpp(
       struct $Class[[S]] {
         $Primitive[[float]] $Field[[Value]];
         $Class[[S]] *$Field[[Next]];
@@ -453,6 +490,25 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
         // Highlights references to BindingDecls.
         $Variable[[B1]]++;
       }
+    )cpp",
+      R"cpp(
+      template<class $TemplateParameter[[T]]>
+      class $Class[[A]] {
+        using $TemplateParameter[[TemplateParam1]] = $TemplateParameter[[T]];
+        typedef $TemplateParameter[[T]] $TemplateParameter[[TemplateParam2]];
+        using $Primitive[[IntType]] = $Primitive[[int]];
+
+        using $Typedef[[Pointer]] = $TemplateParameter[[T]] *;
+        using $Typedef[[LVReference]] = $TemplateParameter[[T]] &;
+        using $Typedef[[RVReference]] = $TemplateParameter[[T]]&&;
+        using $Typedef[[Array]] = $TemplateParameter[[T]]*[3];
+        using $Typedef[[MemberPointer]] = $Primitive[[int]] (A::*)($Primitive[[int]]);
+
+        // Use various previously defined typedefs in a function type.
+        $Primitive[[void]] $Method[[func]](
+          $Typedef[[Pointer]], $Typedef[[LVReference]], $Typedef[[RVReference]],
+          $Typedef[[Array]], $Typedef[[MemberPointer]]);
+      };
     )cpp"};
   for (const auto &TestCase : TestCases) {
     checkHighlightings(TestCase);

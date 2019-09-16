@@ -269,6 +269,10 @@ void ARMTargetLowering::addMVEVectorTypes(bool HasMVEFP) {
 
     // Vector reductions
     setOperationAction(ISD::VECREDUCE_ADD, VT, Legal);
+    setOperationAction(ISD::VECREDUCE_SMAX, VT, Legal);
+    setOperationAction(ISD::VECREDUCE_UMAX, VT, Legal);
+    setOperationAction(ISD::VECREDUCE_SMIN, VT, Legal);
+    setOperationAction(ISD::VECREDUCE_UMIN, VT, Legal);
 
     if (!HasMVEFP) {
       setOperationAction(ISD::SINT_TO_FP, VT, Expand);
@@ -378,6 +382,8 @@ void ARMTargetLowering::addMVEVectorTypes(bool HasMVEFP) {
     setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Custom);
     setOperationAction(ISD::SETCC, VT, Custom);
     setOperationAction(ISD::SCALAR_TO_VECTOR, VT, Expand);
+    setOperationAction(ISD::LOAD, VT, Custom);
+    setOperationAction(ISD::STORE, VT, Custom);
   }
 }
 
@@ -1414,14 +1420,16 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
 
   // On ARM arguments smaller than 4 bytes are extended, so all arguments
   // are at least 4 bytes aligned.
-  setMinStackArgumentAlignment(4);
+  setMinStackArgumentAlignment(llvm::Align(4));
 
   // Prefer likely predicted branches to selects on out-of-order cores.
   PredictableSelectIsExpensive = Subtarget->getSchedModel().isOutOfOrder();
 
-  setPrefLoopAlignment(Subtarget->getPrefLoopAlignment());
+  setPrefLoopAlignment(
+      llvm::Align(1ULL << Subtarget->getPrefLoopLogAlignment()));
 
-  setMinFunctionAlignment(Subtarget->isThumb() ? 1 : 2);
+  setMinFunctionAlignment(Subtarget->isThumb() ? llvm::Align(2)
+                                               : llvm::Align(4));
 
   if (Subtarget->isThumb() || Subtarget->isThumb2())
     setTargetDAGCombine(ISD::ABS);
@@ -8781,6 +8789,65 @@ void ARMTargetLowering::ExpandDIV_Windows(
   Results.push_back(Upper);
 }
 
+static SDValue LowerPredicateLoad(SDValue Op, SelectionDAG &DAG) {
+  LoadSDNode *LD = cast<LoadSDNode>(Op.getNode());
+  EVT MemVT = LD->getMemoryVT();
+  assert((MemVT == MVT::v4i1 || MemVT == MVT::v8i1 || MemVT == MVT::v16i1) &&
+         "Expected a predicate type!");
+  assert(MemVT == Op.getValueType());
+  assert(LD->getExtensionType() == ISD::NON_EXTLOAD &&
+         "Expected a non-extending load");
+  assert(LD->isUnindexed() && "Expected a unindexed load");
+
+  // The basic MVE VLDR on a v4i1/v8i1 actually loads the entire 16bit
+  // predicate, with the "v4i1" bits spread out over the 16 bits loaded. We
+  // need to make sure that 8/4 bits are actually loaded into the correct
+  // place, which means loading the value and then shuffling the values into
+  // the bottom bits of the predicate.
+  // Equally, VLDR for an v16i1 will actually load 32bits (so will be incorrect
+  // for BE).
+
+  SDLoc dl(Op);
+  SDValue Load = DAG.getExtLoad(
+      ISD::EXTLOAD, dl, MVT::i32, LD->getChain(), LD->getBasePtr(),
+      EVT::getIntegerVT(*DAG.getContext(), MemVT.getSizeInBits()),
+      LD->getMemOperand());
+  SDValue Pred = DAG.getNode(ARMISD::PREDICATE_CAST, dl, MVT::v16i1, Load);
+  if (MemVT != MVT::v16i1)
+    Pred = DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, MemVT, Pred,
+                       DAG.getConstant(0, dl, MVT::i32));
+  return DAG.getMergeValues({Pred, Load.getValue(1)}, dl);
+}
+
+static SDValue LowerPredicateStore(SDValue Op, SelectionDAG &DAG) {
+  StoreSDNode *ST = cast<StoreSDNode>(Op.getNode());
+  EVT MemVT = ST->getMemoryVT();
+  assert((MemVT == MVT::v4i1 || MemVT == MVT::v8i1 || MemVT == MVT::v16i1) &&
+         "Expected a predicate type!");
+  assert(MemVT == ST->getValue().getValueType());
+  assert(!ST->isTruncatingStore() && "Expected a non-extending store");
+  assert(ST->isUnindexed() && "Expected a unindexed store");
+
+  // Only store the v4i1 or v8i1 worth of bits, via a buildvector with top bits
+  // unset and a scalar store.
+  SDLoc dl(Op);
+  SDValue Build = ST->getValue();
+  if (MemVT != MVT::v16i1) {
+    SmallVector<SDValue, 16> Ops;
+    for (unsigned I = 0; I < MemVT.getVectorNumElements(); I++)
+      Ops.push_back(DAG.getNode(ISD::EXTRACT_VECTOR_ELT, dl, MVT::i32, Build,
+                                DAG.getConstant(I, dl, MVT::i32)));
+    for (unsigned I = MemVT.getVectorNumElements(); I < 16; I++)
+      Ops.push_back(DAG.getUNDEF(MVT::i32));
+    Build = DAG.getNode(ISD::BUILD_VECTOR, dl, MVT::v16i1, Ops);
+  }
+  SDValue GRP = DAG.getNode(ARMISD::PREDICATE_CAST, dl, MVT::i32, Build);
+  return DAG.getTruncStore(
+      ST->getChain(), dl, GRP, ST->getBasePtr(),
+      EVT::getIntegerVT(*DAG.getContext(), MemVT.getSizeInBits()),
+      ST->getMemOperand());
+}
+
 static SDValue LowerAtomicLoadStore(SDValue Op, SelectionDAG &DAG) {
   if (isStrongerThanMonotonic(cast<AtomicSDNode>(Op)->getOrdering()))
     // Acquire/Release load/store is not legal for targets without a dmb or
@@ -8980,6 +9047,10 @@ SDValue ARMTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::UADDO:
   case ISD::USUBO:
     return LowerUnsignedALUO(Op, DAG);
+  case ISD::LOAD:
+    return LowerPredicateLoad(Op, DAG);
+  case ISD::STORE:
+    return LowerPredicateStore(Op, DAG);
   case ISD::ATOMIC_LOAD:
   case ISD::ATOMIC_STORE:  return LowerAtomicLoadStore(Op, DAG);
   case ISD::FSINCOS:       return LowerFSINCOS(Op, DAG);
@@ -14338,22 +14409,60 @@ static bool areExtractExts(Value *Ext1, Value *Ext2) {
 /// sext/zext can be folded into vsubl.
 bool ARMTargetLowering::shouldSinkOperands(Instruction *I,
                                            SmallVectorImpl<Use *> &Ops) const {
-  if (!Subtarget->hasNEON() || !I->getType()->isVectorTy())
+  if (!I->getType()->isVectorTy())
     return false;
 
-  switch (I->getOpcode()) {
-  case Instruction::Sub:
-  case Instruction::Add: {
-    if (!areExtractExts(I->getOperand(0), I->getOperand(1)))
+  if (Subtarget->hasNEON()) {
+    switch (I->getOpcode()) {
+    case Instruction::Sub:
+    case Instruction::Add: {
+      if (!areExtractExts(I->getOperand(0), I->getOperand(1)))
+        return false;
+      Ops.push_back(&I->getOperandUse(0));
+      Ops.push_back(&I->getOperandUse(1));
+      return true;
+    }
+    default:
       return false;
-    Ops.push_back(&I->getOperandUse(0));
-    Ops.push_back(&I->getOperandUse(1));
-    return true;
+    }
   }
-  default:
+
+  if (!Subtarget->hasMVEIntegerOps())
+    return false;
+
+  auto IsSinker = [](Instruction *I, int Operand) {
+    switch (I->getOpcode()) {
+    case Instruction::Add:
+    case Instruction::Mul:
+      return true;
+    case Instruction::Sub:
+      return Operand == 1;
+    default:
+      return false;
+    }
+  };
+
+  int Op = 0;
+  if (!isa<ShuffleVectorInst>(I->getOperand(Op)))
+    Op = 1;
+  if (!IsSinker(I, Op))
+    return false;
+  if (!match(I->getOperand(Op),
+             m_ShuffleVector(m_InsertElement(m_Undef(), m_Value(), m_ZeroInt()),
+                             m_Undef(), m_Zero()))) {
     return false;
   }
-  return false;
+  Instruction *Shuffle = cast<Instruction>(I->getOperand(Op));
+  // All uses of the shuffle should be sunk to avoid duplicating it across gpr
+  // and vector registers
+  for (Use &U : Shuffle->uses()) {
+    Instruction *Insn = cast<Instruction>(U.getUser());
+    if (!IsSinker(Insn, U.getOperandNo()))
+      return false;
+  }
+  Ops.push_back(&Shuffle->getOperandUse(0));
+  Ops.push_back(&I->getOperandUse(Op));
+  return true;
 }
 
 bool ARMTargetLowering::isVectorLoadExtDesirable(SDValue ExtVal) const {
@@ -15323,7 +15432,7 @@ void ARMTargetLowering::LowerAsmOperandForConstraint(SDValue Op,
       case 'j':
         // Constant suitable for movw, must be between 0 and
         // 65535.
-        if (Subtarget->hasV6T2Ops())
+        if (Subtarget->hasV6T2Ops() || (Subtarget->hasV8MBaselineOps()))
           if (CVal >= 0 && CVal <= 65535)
             break;
         return;
@@ -15431,7 +15540,7 @@ void ARMTargetLowering::LowerAsmOperandForConstraint(SDValue Op,
         return;
 
       case 'N':
-        if (Subtarget->isThumb()) {  // FIXME thumb2
+        if (Subtarget->isThumb1Only()) {
           // This must be a constant between 0 and 31, for shift amounts.
           if (CVal >= 0 && CVal <= 31)
             break;
@@ -15439,7 +15548,7 @@ void ARMTargetLowering::LowerAsmOperandForConstraint(SDValue Op,
         return;
 
       case 'O':
-        if (Subtarget->isThumb()) {  // FIXME thumb2
+        if (Subtarget->isThumb1Only()) {
           // This must be a multiple of 4 between -508 and 508, for
           // ADD/SUB sp = sp + immediate.
           if ((CVal >= -508 && CVal <= 508) && ((CVal & 3) == 0))

@@ -712,13 +712,6 @@ inline uint64_t alignDown(uint64_t Value, uint64_t Align, uint64_t Skew = 0) {
   return (Value - Skew) / Align * Align + Skew;
 }
 
-/// Returns the offset to the next integer (mod 2**64) that is greater than
-/// or equal to \p Value and is a multiple of \p Align. \p Align must be
-/// non-zero.
-inline uint64_t OffsetToAlignment(uint64_t Value, uint64_t Align) {
-  return alignTo(Value, Align) - Value;
-}
-
 /// Sign-extend the number in the bottom B bits of X to a 32-bit integer.
 /// Requires 0 < B <= 32.
 template <unsigned B> constexpr inline int32_t SignExtend32(uint32_t X) {
@@ -902,9 +895,6 @@ SubOverflow(T X, T Y, T &Result) {
 template <typename T>
 typename std::enable_if<std::is_signed<T>::value, T>::type
 MulOverflow(T X, T Y, T &Result) {
-#if __has_builtin(__builtin_mul_overflow)
-  return __builtin_mul_overflow(X, Y, &Result);
-#else
   // Perform the unsigned multiplication on absolute values.
   using U = typename std::make_unsigned<T>::type;
   const U UX = X < 0 ? (0 - static_cast<U>(X)) : static_cast<U>(X);
@@ -926,7 +916,6 @@ MulOverflow(T X, T Y, T &Result) {
     return UX > (static_cast<U>(std::numeric_limits<T>::max()) + U(1)) / UY;
   else
     return UX > (static_cast<U>(std::numeric_limits<T>::max())) / UY;
-#endif
 }
 
 } // End llvm namespace

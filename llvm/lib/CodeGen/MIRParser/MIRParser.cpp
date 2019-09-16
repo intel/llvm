@@ -393,7 +393,7 @@ MIRParserImpl::initializeMachineFunction(const yaml::MachineFunction &YamlMF,
   }
 
   if (YamlMF.Alignment)
-    MF.setAlignment(YamlMF.Alignment);
+    MF.setAlignment(llvm::Align(YamlMF.Alignment));
   MF.setExposesReturnsTwice(YamlMF.ExposesReturnsTwice);
   MF.setHasWinCFI(YamlMF.HasWinCFI);
 

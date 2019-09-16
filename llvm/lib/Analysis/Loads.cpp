@@ -12,6 +12,9 @@
 
 #include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GlobalAlias.h"
@@ -188,6 +191,61 @@ static bool AreEquivalentAddressValues(const Value *A, const Value *B) {
 
   // Otherwise they may not be equivalent.
   return false;
+}
+
+bool llvm::isDereferenceableAndAlignedInLoop(LoadInst *LI, Loop *L,
+                                             ScalarEvolution &SE,
+                                             DominatorTree &DT) {
+  auto &DL = LI->getModule()->getDataLayout();
+  Value *Ptr = LI->getPointerOperand();
+
+  APInt EltSize(DL.getIndexTypeSizeInBits(Ptr->getType()),
+                DL.getTypeStoreSize(LI->getType()));
+  unsigned Align = LI->getAlignment();
+  if (Align == 0)
+    Align = DL.getABITypeAlignment(LI->getType());
+
+  Instruction *HeaderFirstNonPHI = L->getHeader()->getFirstNonPHI();
+
+  // If given a uniform (i.e. non-varying) address, see if we can prove the
+  // access is safe within the loop w/o needing predication.
+  if (L->isLoopInvariant(Ptr))
+    return isDereferenceableAndAlignedPointer(Ptr, Align, EltSize, DL,
+                                              HeaderFirstNonPHI, &DT);    
+
+  // Otherwise, check to see if we have a repeating access pattern where we can
+  // prove that all accesses are well aligned and dereferenceable.
+  auto *AddRec = dyn_cast<SCEVAddRecExpr>(SE.getSCEV(Ptr));
+  if (!AddRec || AddRec->getLoop() != L || !AddRec->isAffine())
+    return false;
+  auto* Step = dyn_cast<SCEVConstant>(AddRec->getStepRecurrence(SE));
+  if (!Step)
+    return false;
+  // TODO: generalize to access patterns which have gaps
+  if (Step->getAPInt() != EltSize)
+    return false;
+
+  // TODO: If the symbolic trip count has a small bound (max count), we might
+  // be able to prove safety.
+  auto TC = SE.getSmallConstantTripCount(L);
+  if (!TC)
+    return false;
+
+  const APInt AccessSize = TC * EltSize;
+
+  auto *StartS = dyn_cast<SCEVUnknown>(AddRec->getStart());
+  if (!StartS)
+    return false;
+  assert(SE.isLoopInvariant(StartS, L) && "implied by addrec definition");
+  Value *Base = StartS->getValue();
+
+  // For the moment, restrict ourselves to the case where the access size is a
+  // multiple of the requested alignment and the base is aligned.
+  // TODO: generalize if a case found which warrants
+  if (EltSize.urem(Align) != 0)
+    return false;
+  return isDereferenceableAndAlignedPointer(Base, Align, AccessSize,
+                                            DL, HeaderFirstNonPHI, &DT);
 }
 
 /// Check if executing a load of this pointer value cannot trap.

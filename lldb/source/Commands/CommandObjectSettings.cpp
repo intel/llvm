@@ -205,16 +205,13 @@ protected:
     }
 
     // Split the raw command into var_name and value pair.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, false, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.ltrim();
 
     Status error;
-    if (m_options.m_global) {
+    if (m_options.m_global)
       error = GetDebugger().SetPropertyValue(nullptr, eVarSetOperationAssign,
-                                             var_name, var_value_cstr);
-    }
+                                             var_name, var_value);
 
     if (error.Success()) {
       // FIXME this is the same issue as the one in commands script import
@@ -225,7 +222,7 @@ protected:
       ExecutionContext exe_ctx(m_exe_ctx);
       m_exe_ctx.Clear();
       error = GetDebugger().SetPropertyValue(&exe_ctx, eVarSetOperationAssign,
-                                             var_name, var_value_cstr);
+                                             var_name, var_value);
     }
 
     if (error.Fail()) {
@@ -284,7 +281,7 @@ protected:
     if (!args.empty()) {
       for (const auto &arg : args) {
         Status error(GetDebugger().DumpPropertyValue(
-            &m_exe_ctx, result.GetOutputStream(), arg.ref,
+            &m_exe_ctx, result.GetOutputStream(), arg.ref(),
             OptionValue::eDumpGroupValue));
         if (error.Success()) {
           result.GetOutputStream().EOL();
@@ -406,7 +403,7 @@ protected:
 
     for (const auto &arg : args) {
       Status error(GetDebugger().DumpPropertyValue(
-          &clean_ctx, out_file, arg.ref, OptionValue::eDumpGroupExport));
+          &clean_ctx, out_file, arg.ref(), OptionValue::eDumpGroupExport));
       if (!error.Success()) {
         result.AppendError(error.AsCString());
         result.SetStatus(eReturnStatusFailed);
@@ -646,13 +643,11 @@ protected:
     }
 
     // Split the raw command into var_name and value pair.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationRemove, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationRemove, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
       result.SetStatus(eReturnStatusFailed);
@@ -744,13 +739,11 @@ protected:
     }
 
     // Split the raw command into var_name, index_value, and value triple.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationReplace, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationReplace, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
       result.SetStatus(eReturnStatusFailed);
@@ -848,13 +841,11 @@ protected:
     }
 
     // Split the raw command into var_name, index_value, and value triple.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationInsertBefore, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationInsertBefore, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
       result.SetStatus(eReturnStatusFailed);
@@ -949,13 +940,11 @@ protected:
     }
 
     // Split the raw command into var_name, index_value, and value triple.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationInsertAfter, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationInsertAfter, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
       result.SetStatus(eReturnStatusFailed);
@@ -1041,13 +1030,11 @@ protected:
     // character string later on.
 
     // Split the raw command into var_name and value pair.
-    llvm::StringRef raw_str(command);
-    std::string var_value_string = raw_str.split(var_name).second.str();
-    const char *var_value_cstr =
-        Args::StripSpaces(var_value_string, true, true, false);
+    llvm::StringRef var_value(command);
+    var_value = var_value.split(var_name).second.trim();
 
     Status error(GetDebugger().SetPropertyValue(
-        &m_exe_ctx, eVarSetOperationAppend, var_name, var_value_cstr));
+        &m_exe_ctx, eVarSetOperationAppend, var_name, var_value));
     if (error.Fail()) {
       result.AppendError(error.AsCString());
       result.SetStatus(eReturnStatusFailed);

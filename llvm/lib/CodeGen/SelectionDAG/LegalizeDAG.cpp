@@ -968,15 +968,13 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
 
 #ifndef NDEBUG
   for (unsigned i = 0, e = Node->getNumValues(); i != e; ++i)
-    assert((TLI.getTypeAction(*DAG.getContext(), Node->getValueType(i)) ==
-              TargetLowering::TypeLegal ||
-            TLI.isTypeLegal(Node->getValueType(i))) &&
+    assert(TLI.getTypeAction(*DAG.getContext(), Node->getValueType(i)) ==
+             TargetLowering::TypeLegal &&
            "Unexpected illegal type!");
 
   for (const SDValue &Op : Node->op_values())
     assert((TLI.getTypeAction(*DAG.getContext(), Op.getValueType()) ==
               TargetLowering::TypeLegal ||
-            TLI.isTypeLegal(Op.getValueType()) ||
             Op.getOpcode() == ISD::TargetConstant ||
             Op.getOpcode() == ISD::Register) &&
             "Unexpected illegal type!");
@@ -1013,7 +1011,6 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     Action = TLI.getOperationAction(Node->getOpcode(),
                                     Node->getOperand(0).getValueType());
     break;
-  case ISD::FP_ROUND_INREG:
   case ISD::SIGN_EXTEND_INREG: {
     EVT InnerType = cast<VTSDNode>(Node->getOperand(1))->getVT();
     Action = TLI.getOperationAction(Node->getOpcode(), InnerType);
@@ -1115,7 +1112,8 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
   }
   case ISD::SMULFIX:
   case ISD::SMULFIXSAT:
-  case ISD::UMULFIX: {
+  case ISD::UMULFIX:
+  case ISD::UMULFIXSAT: {
     unsigned Scale = Node->getConstantOperandVal(2);
     Action = TLI.getFixedPointOperationAction(Node->getOpcode(),
                                               Node->getValueType(0), Scale);
@@ -2861,19 +2859,6 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     Results.push_back(Tmp1);
     break;
   }
-  case ISD::FP_ROUND_INREG: {
-    // The only way we can lower this is to turn it into a TRUNCSTORE,
-    // EXTLOAD pair, targeting a temporary location (a stack slot).
-
-    // NOTE: there is a choice here between constantly creating new stack
-    // slots and always reusing the same one.  We currently always create
-    // new ones, as reuse may inhibit scheduling.
-    EVT ExtraVT = cast<VTSDNode>(Node->getOperand(1))->getVT();
-    Tmp1 = EmitStackConvert(Node->getOperand(0), ExtraVT,
-                            Node->getValueType(0), dl);
-    Results.push_back(Tmp1);
-    break;
-  }
   case ISD::UINT_TO_FP:
     if (TLI.expandUINT_TO_FP(Node, Tmp1, DAG)) {
       Results.push_back(Tmp1);
@@ -3353,6 +3338,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
   case ISD::SMULFIX:
   case ISD::SMULFIXSAT:
   case ISD::UMULFIX:
+  case ISD::UMULFIXSAT:
     Results.push_back(TLI.expandFixedPointMul(Node, DAG));
     break;
   case ISD::ADDCARRY:

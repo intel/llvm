@@ -15,7 +15,7 @@
 ...
 ---
 name:            test_store_release_i64
-alignment:       2
+alignment:       4
 legalized:       true
 regBankSelected: true
 tracksRegLiveness: true
@@ -39,7 +39,7 @@ body:             |
 ...
 ---
 name:            test_store_release_i32
-alignment:       2
+alignment:       4
 legalized:       true
 regBankSelected: true
 tracksRegLiveness: true
@@ -63,7 +63,7 @@ body:             |
 ...
 ---
 name:            test_store_release_i8
-alignment:       2
+alignment:       4
 legalized:       true
 regBankSelected: true
 tracksRegLiveness: true
@@ -76,7 +76,7 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gpr32 = COPY $w1
     ; CHECK: [[COPY1:%[0-9]+]]:gpr64sp = COPY $x2
     ; CHECK: [[DEF:%[0-9]+]]:gpr64all = IMPLICIT_DEF
-    ; CHECK: [[INSERT_SUBREG:%[0-9]+]]:gpr64all = INSERT_SUBREG [[DEF]], [[COPY]], %subreg.sub_32
+    ; CHECK: [[INSERT_SUBREG:%[0-9]+]]:gpr64 = INSERT_SUBREG [[DEF]], [[COPY]], %subreg.sub_32
     ; CHECK: [[COPY2:%[0-9]+]]:gpr32 = COPY [[INSERT_SUBREG]].sub_32
     ; CHECK: early-clobber %5:gpr32 = STLXRB [[COPY2]], [[COPY1]] :: (volatile store 1 into %ir.addr)
     ; CHECK: $w0 = COPY %5
@@ -93,7 +93,7 @@ body:             |
 ...
 ---
 name:            test_store_release_i16
-alignment:       2
+alignment:       4
 legalized:       true
 regBankSelected: true
 tracksRegLiveness: true
@@ -106,7 +106,7 @@ body:             |
     ; CHECK: [[COPY:%[0-9]+]]:gpr32 = COPY $w1
     ; CHECK: [[COPY1:%[0-9]+]]:gpr64sp = COPY $x2
     ; CHECK: [[DEF:%[0-9]+]]:gpr64all = IMPLICIT_DEF
-    ; CHECK: [[INSERT_SUBREG:%[0-9]+]]:gpr64all = INSERT_SUBREG [[DEF]], [[COPY]], %subreg.sub_32
+    ; CHECK: [[INSERT_SUBREG:%[0-9]+]]:gpr64 = INSERT_SUBREG [[DEF]], [[COPY]], %subreg.sub_32
     ; CHECK: [[COPY2:%[0-9]+]]:gpr32 = COPY [[INSERT_SUBREG]].sub_32
     ; CHECK: early-clobber %5:gpr32 = STLXRH [[COPY2]], [[COPY1]] :: (volatile store 2 into %ir.addr)
     ; CHECK: $w0 = COPY %5

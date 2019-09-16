@@ -452,16 +452,13 @@ SDValue VectorLegalizer::LegalizeOp(SDValue Op) {
     break;
   case ISD::SMULFIX:
   case ISD::SMULFIXSAT:
-  case ISD::UMULFIX: {
+  case ISD::UMULFIX:
+  case ISD::UMULFIXSAT: {
     unsigned Scale = Node->getConstantOperandVal(2);
     Action = TLI.getFixedPointOperationAction(Node->getOpcode(),
                                               Node->getValueType(0), Scale);
     break;
   }
-  case ISD::FP_ROUND_INREG:
-    Action = TLI.getOperationAction(Node->getOpcode(),
-               cast<VTSDNode>(Node->getOperand(1))->getVT());
-    break;
   case ISD::SINT_TO_FP:
   case ISD::UINT_TO_FP:
   case ISD::VECREDUCE_ADD:
@@ -834,11 +831,11 @@ SDValue VectorLegalizer::Expand(SDValue Op) {
   case ISD::UMULFIX:
     return ExpandFixedPointMul(Op);
   case ISD::SMULFIXSAT:
-    // FIXME: We do not expand SMULFIXSAT here yet, not sure why. Maybe it
-    // results in worse codegen compared to the default unroll? This should
-    // probably be investigated. And if we still prefer to unroll an explanation
-    // could be helpful, otherwise it just looks like something that hasn't been
-    // "implemented" yet.
+  case ISD::UMULFIXSAT:
+    // FIXME: We do not expand SMULFIXSAT/UMULFIXSAT here yet, not sure exactly
+    // why. Maybe it results in worse codegen compared to the unroll for some
+    // targets? This should probably be investigated. And if we still prefer to
+    // unroll an explanation could be helpful.
     return DAG.UnrollVectorOp(Op.getNode());
   case ISD::STRICT_FADD:
   case ISD::STRICT_FSUB:
