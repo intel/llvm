@@ -37,8 +37,8 @@ public:
              async_handler AsyncHandler, QueueOrder Order,
              const property_list &PropList)
       : m_Device(SyclDevice), m_Context(Context), m_AsyncHandler(AsyncHandler),
-        m_PropList(PropList), m_HostQueue(m_Device.is_host()) {
-    m_OpenCLInterop = !m_HostQueue;
+        m_PropList(PropList), m_HostQueue(m_Device.is_host()),
+        m_OpenCLInterop(!m_HostQueue) {
     if (!m_HostQueue) {
       m_CommandQueue = createQueue(Order);
     }
@@ -47,7 +47,7 @@ public:
   queue_impl(cl_command_queue CLQueue, const context &SyclContext,
              const async_handler &AsyncHandler)
       : m_Context(SyclContext), m_AsyncHandler(AsyncHandler),
-        m_OpenCLInterop(true), m_HostQueue(false) {
+        m_HostQueue(false), m_OpenCLInterop(true) {
 
     m_CommandQueue = pi::cast<RT::PiQueue>(CLQueue);
 
@@ -94,7 +94,10 @@ public:
     try {
       Event = submit_impl(cgf, self);
     } catch (...) {
-      m_Exceptions.PushBack(std::current_exception());
+      {
+        std::lock_guard<mutex_class> guard(m_Mutex);
+        m_Exceptions.PushBack(std::current_exception());
+      }
       Event = second_queue->submit(cgf, second_queue);
     }
     return Event;
@@ -105,13 +108,14 @@ public:
     try {
       Event = submit_impl(cgf, self);
     } catch (...) {
+      std::lock_guard<mutex_class> guard(m_Mutex);
       m_Exceptions.PushBack(std::current_exception());
     }
     return Event;
   }
 
   void wait() {
-    // TODO: Make thread safe.
+    std::lock_guard<mutex_class> guard(m_Mutex);
     for (auto &evnt : m_Events)
       evnt.wait();
     m_Events.clear();
@@ -125,9 +129,18 @@ public:
   }
 
   void throw_asynchronous() {
+    std::unique_lock<mutex_class> lock(m_Mutex);
+
     if (m_AsyncHandler && m_Exceptions.size()) {
       exception_list Exceptions;
+
       std::swap(m_Exceptions, Exceptions);
+
+      // Unlock the mutex before calling user-provided handler to avoid
+      // potential deadlock if the same queue is somehow referenced in the
+      // handler.
+      lock.unlock();
+
       m_AsyncHandler(std::move(Exceptions));
     }
   }
@@ -162,6 +175,8 @@ public:
 
   // Warning. Returned reference will be invalid if queue_impl was destroyed.
   RT::PiQueue &getExclusiveQueueHandleRef() {
+    std::lock_guard<mutex_class> guard(m_Mutex);
+
     // To achive parallelism for FPGA with in order execution model with
     // possibility of two kernels to share data with each other we shall
     // create a queue for every kernel enqueued.
@@ -184,9 +199,15 @@ public:
       return m_CommandQueue;
     }
 
-    if (m_Queues.empty()) {
-      m_Queues.push_back(m_CommandQueue);
-      return m_CommandQueue;
+    {
+      // Reduce the scope since this mutex is also
+      // locked inside of getExclusiveQueueHandleRef()
+      std::lock_guard<mutex_class> guard(m_Mutex);
+
+      if (m_Queues.empty()) {
+        m_Queues.push_back(m_CommandQueue);
+        return m_CommandQueue;
+      }
     }
 
     return getExclusiveQueueHandleRef();
@@ -210,17 +231,22 @@ private:
     handler Handler(std::move(self), m_HostQueue);
     cgf(Handler);
     event Event = Handler.finalize();
-    // TODO: Make thread safe.
-    m_Events.push_back(Event);
+    {
+      std::lock_guard<mutex_class> guard(m_Mutex);
+      m_Events.push_back(Event);
+    }
     return Event;
   }
 
+  // Protects all the fields that can be changed by class' methods
+  mutex_class m_Mutex;
+
   device m_Device;
-  context m_Context;
+  const context m_Context;
   vector_class<event> m_Events;
   exception_list m_Exceptions;
-  async_handler m_AsyncHandler;
-  property_list m_PropList;
+  const async_handler m_AsyncHandler;
+  const property_list m_PropList;
 
   RT::PiQueue m_CommandQueue = nullptr;
 
@@ -229,8 +255,8 @@ private:
   // Iterator through m_Queues.
   size_t m_QueueNumber = 0;
 
-  bool m_OpenCLInterop = false;
-  bool m_HostQueue = false;
+  const bool m_HostQueue = false;
+  const bool m_OpenCLInterop = false;
   // Assume OOO support by default.
   bool m_SupportOOO = true;
 };
