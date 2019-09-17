@@ -346,28 +346,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
-    StringRef reuse_exe = A->getValue();
     Args.ClaimAllArgs(options::OPT_reuse_exe_EQ);
-    if (llvm::sys::fs::exists(reuse_exe)) {
-      SmallString<128> ExecPath(getToolChain().GetProgramPath("aocl"));
-      const char *Exec = C.getArgs().MakeArgString(ExecPath);
-      ArgStringList ExtractArgs{"do", "aocl-extract-aocx", "-i"};
-      ExtractArgs.push_back(C.getArgs().MakeArgString(reuse_exe));
-      std::string TmpName = C.getDriver().GetTemporaryPath("reused-exe", "aocx");
-      auto OutputFileName = C.addTempFile(C.getArgs().MakeArgString(TmpName));
-      ExtractArgs.push_back("-o");
-      ExtractArgs.push_back(OutputFileName);
-      Command run_extract(JA, *this, Exec, ExtractArgs, None);
-      const Command* failingCommand = nullptr;
-      auto res = C.ExecuteCommand(run_extract, failingCommand);
-      if (res == 0) {
-        // We extracted the aocx file.  Pass it to the aoc command.
-        CmdArgs.push_back(Args.MakeArgString(Twine("-reuse-aocx=") + TmpName));
-      }
-    } else {
-      const Driver &D = getToolChain().getDriver();
-      D.Diag(clang::diag::warn_drv_reuse_exe_file_not_found) << reuse_exe;
-    }
+    CmdArgs.push_back(Args.MakeArgString(A->getAsString(Args)));
   }
 
   SmallString<128> ExecPath(getToolChain().GetProgramPath("aoc"));

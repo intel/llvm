@@ -85,11 +85,11 @@
 // CHK-FPGA-LINK-SRC: 15: clang-offload-wrapper, {14}, object, (device-sycl)
 // CHK-FPGA-LINK-SRC: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_fpga-unknown-{{linux|windows}}-sycldevice)" {15}, archive
 
-// -fintelfpga -reuse-exe tests
-// RUN: %clang++ -### -fsycl -fintelfpga %s -reuse-exe=does_not_exist 2>&1 \
+/// -fintelfpga with -reuse-exe=
+// RUN:  touch %t.cpp
+// RUN:  %clang++ -### -reuse-exe=testing -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t.cpp 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-REUSE-EXE %s
-// CHK-FPGA-REUSE-EXE: warning: -reuse-exe file 'does_not_exist' not found; ignored
-//
+// CHK-FPGA-REUSE-EXE: aoc{{.*}} "-o" {{.*}} "-sycl" {{.*}} "-reuse-exe=testing"
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc
