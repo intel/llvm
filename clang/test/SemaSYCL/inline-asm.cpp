@@ -26,6 +26,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
 
 int main() {
   foo();
+  // expected-note@+1 {{called by 'operator()'}}
   kernel_single_task<class fake_kernel>([]() { bar(); });
   return 0;
 }

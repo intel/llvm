@@ -354,18 +354,6 @@ public:
     return true;
   }
   
-  bool VisitGCCAsmStmt(GCCAsmStmt *S) {
-    SemaRef.Diag(S->getBeginLoc(), diag::err_sycl_restrict)
-        << Sema::KernelUseAssembly;
-    return true;
-  }
- 
-  bool VisitMSAsmStmt(MSAsmStmt *S) {
-    SemaRef.Diag(S->getBeginLoc(), diag::err_sycl_restrict)
-        << Sema::KernelUseAssembly;
-    return true;
-  }
-
   // The call graph for this translation unit.
   CallGraph SYCLCG;
   // The set of functions called by a kernel function.

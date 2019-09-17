@@ -1386,6 +1386,13 @@ Sema::Diag(SourceLocation Loc, const PartialDiagnostic& PD) {
 static void emitCallStackNotes(Sema &S, FunctionDecl *FD) {
   auto FnIt = S.DeviceKnownEmittedFns.find(FD);
   while (FnIt != S.DeviceKnownEmittedFns.end()) {
+    if (S.getLangOpts().SYCLIsDevice &&
+        FnIt->second.FD->hasAttr<SYCLKernelAttr>()) {
+      // Skip over the routines with sycl_kernel attributes
+      // in the traceback as they are likely from SYCL headers.
+      FnIt = S.DeviceKnownEmittedFns.find(FnIt->second.FD);
+      continue;
+    }
     DiagnosticBuilder Builder(
         S.Diags.Report(FnIt->second.Loc, diag::note_called_by));
     Builder << FnIt->second.FD;
@@ -1532,6 +1539,24 @@ void Sema::markKnownEmitted(
             {/* Caller = */ C.Caller, /* Callee = */ TemplFD, C.Loc});
       }
     }
+
+    // Function object calls are not walked above.
+    // Extract the call expression from the statement block.
+    FunctionDecl *FD = C.Callee->getDefinition();
+    const CompoundStmt *CS = FD ? dyn_cast_or_null<CompoundStmt>(FD->getBody())
+                                : nullptr;
+    if (CS)
+      for (auto *I : CS->body()) {
+        FunctionDecl *D = nullptr;
+        CallExpr *CE = dyn_cast<CallExpr>(I);
+        if (CE)
+          D = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl());
+        if (!D || Seen.count(D) || IsKnownEmitted(S, D))
+          continue;
+        Seen.insert(D);
+        Worklist.push_back(
+            {/* Caller = */ C.Callee, /* Callee = */ D, CE->getBeginLoc()});
+      }
 
     // Add all functions called by Callee to our worklist.
     auto CGIt = S.DeviceCallGraph.find(C.Callee);
