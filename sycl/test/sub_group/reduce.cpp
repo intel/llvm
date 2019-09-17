@@ -14,9 +14,10 @@
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>
-template <typename T> class sycl_subgr;
+template <typename T, bool init> class sycl_subgr;
 using namespace cl::sycl;
-template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
+template <typename T, bool init>
+void check(queue &Queue, size_t G = 240, size_t L = 60) {
   try {
     nd_range<1> NdRange(G, L);
     buffer<T> minbuf(G);
@@ -26,14 +27,26 @@ template <typename T> void check(queue &Queue, size_t G = 240, size_t L = 60) {
       auto minacc = minbuf.template get_access<access::mode::read_write>(cgh);
       auto maxacc = maxbuf.template get_access<access::mode::read_write>(cgh);
       auto addacc = addbuf.template get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
+      cgh.parallel_for<sycl_subgr<T, init>>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group sg = NdItem.get_sub_group();
-        minacc[NdItem.get_global_id()] =
-            sg.reduce<T, intel::minimum>(NdItem.get_global_id(0));
-        maxacc[NdItem.get_global_id()] =
-            sg.reduce<T, intel::maximum>(NdItem.get_global_id(0));
-        addacc[NdItem.get_global_id()] =
-            sg.reduce<T, intel::plus>(NdItem.get_global_id(0));
+        if (init) {
+          minacc[NdItem.get_global_id()] = sg.reduce(
+              static_cast<T>(NdItem.get_global_id(0)),
+              static_cast<T>(NdItem.get_global_range(0)), intel::minimum<T>());
+          maxacc[NdItem.get_global_id()] =
+              sg.reduce(static_cast<T>(NdItem.get_global_id(0)),
+                        static_cast<T>(0), intel::maximum<T>());
+          addacc[NdItem.get_global_id()] =
+              sg.reduce(static_cast<T>(NdItem.get_global_id(0)),
+                        static_cast<T>(0), intel::plus<T>());
+        } else {
+          minacc[NdItem.get_global_id()] = sg.reduce(
+              static_cast<T>(NdItem.get_global_id(0)), intel::minimum<T>());
+          maxacc[NdItem.get_global_id()] = sg.reduce(
+              static_cast<T>(NdItem.get_global_id(0)), intel::maximum<T>());
+          addacc[NdItem.get_global_id()] = sg.reduce(
+              static_cast<T>(NdItem.get_global_id(0)), intel::plus<T>());
+        }
       });
     });
     auto minacc = minbuf.template get_access<access::mode::read_write>();
@@ -71,19 +84,26 @@ int main() {
     std::cout << "Skipping test\n";
     return 0;
   }
-  check<int>(Queue);
-  check<unsigned int>(Queue);
-  check<long>(Queue);
-  check<unsigned long>(Queue);
-  check<float>(Queue);
+  check<int, true>(Queue);
+  check<int, false>(Queue);
+  check<unsigned int, true>(Queue);
+  check<unsigned int, false>(Queue);
+  check<long, true>(Queue);
+  check<long, false>(Queue);
+  check<unsigned long, true>(Queue);
+  check<unsigned long, false>(Queue);
+  check<float, true>(Queue);
+  check<float, false>(Queue);
   // reduce half type is not supported in OCL CPU RT
 #ifdef SG_GPU
   if (Queue.get_device().has_extension("cl_khr_fp16")) {
-    check<cl::sycl::half>(Queue);
+    check<cl::sycl::half, true>(Queue);
+    check<cl::sycl::half, false>(Queue);
   }
 #endif
   if (Queue.get_device().has_extension("cl_khr_fp64")) {
-    check<double>(Queue);
+    check<double, true>(Queue);
+    check<double, false>(Queue);
   }
   std::cout << "Test passed." << std::endl;
   return 0;

@@ -143,9 +143,12 @@ The `plus`, `minimum` and `maximum` functors in the `cl::sycl` namespace corresp
 |Member functions|Description|
 |----------------|-----------|
 | `template <typename T>T broadcast(T x, id<1> local_id) const` | Broadcast the value of `x` from the work-item with the specified id to all work-items within the sub-group. The value of `local_id` must be the same for all work-items in the sub-group. |
-| `template <typename T, class BinaryOp>T reduce(T x, T init, BinaryOp binary_op) const` | Combine the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. |
-| `template <typename T, class BinaryOp>T exclusive_scan(T x, T init, BinaryOp binary_op) const` | Perform an exclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the exclusive scan of the first `i` work-items in the sub-group. |
-| `template <typename T, class BinaryOp>T inclusive_scan(T x, BinaryOp binary_op, T init) const` | Perform an inclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the inclusive scan of the first `i` work-items in the sub-group. |
+| `template <typename T, class BinaryOp>T reduce(T x, BinaryOp binary_op) const` | Combine the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. |
+| `template <typename T, class BinaryOp>T reduce(T x, T init, BinaryOp binary_op) const` | Combine the values of `x` from all work-items in the sub-group using an initial value of `init` and the specified operator, which must be one of: `plus`, `minimum` or `maximum`. |
+| `template <typename T, class BinaryOp>T exclusive_scan(T x, BinaryOp binary_op) const` | Perform an exclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the exclusive scan of the first `i` work-items in the sub-group. The initial value is the identity value of the operator. |
+| `template <typename T, class BinaryOp>T exclusive_scan(T x, T init, BinaryOp binary_op) const` | Perform an exclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the exclusive scan of the first `i` work-items in the sub-group. The initial value is specified by `init`. |
+| `template <typename T, class BinaryOp>T inclusive_scan(T x, BinaryOp binary_op) const` | Perform an inclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the inclusive scan of the first `i` work-items in the sub-group. |
+| `template <typename T, class BinaryOp>T inclusive_scan(T x, BinaryOp binary_op, T init) const` | Perform an inclusive scan over the values of `x` from all work-items in the sub-group using the specified operator, which must be one of: `plus`, `minimum` or `maximum`. The value returned on work-item `i` is the inclusive scan of the initial value `init` and the first `i` work-items in the sub-group. |
 
 ## Extended Functionality
 
@@ -215,10 +218,19 @@ struct sub_group {
     T broadcast(T x, id<1> local_id) const;
 
     template <typename T, class BinaryOp>
+    T reduce(T x, BinaryOp binary_op) const;
+
+    template <typename T, class BinaryOp>
     T reduce(T x, T init, BinaryOp binary_op) const;
 
     template <typename T, class BinaryOp>
+    T exclusive_scan(T x, BinaryOp binary_op) const;
+
+    template <typename T, class BinaryOp>
     T exclusive_scan(T x, T init, BinaryOp binary_op) const;
+
+    template <typename T, class BinaryOp>
+    T inclusive_scan(T x, BinaryOp binary_op) const;
 
     template <typename T, class BinaryOp>
     T inclusive_scan(T x, BinaryOp binary_op, T init) const;

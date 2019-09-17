@@ -22,69 +22,80 @@ namespace cl {
 namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
 namespace intel {
-template <typename>
 
-struct is_vec : std::false_type {};
+template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
 struct is_vec<cl::sycl::vec<T, N>> : std::true_type {};
 
-struct minimum {
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
-    !detail::is_floating_point<T>::value && std::is_signed<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupSMin(__spv::Scope::Subgroup, O, x);
-  }
-
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
-    !detail::is_floating_point<T>::value && std::is_unsigned<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupUMin(__spv::Scope::Subgroup, O, x);
-  }
-
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<detail::is_floating_point<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupFMin(__spv::Scope::Subgroup, O, x);
+template <typename T> struct minimum {
+  T operator()(const T &lhs, const T &rhs) const {
+    return (lhs <= rhs) ? lhs : rhs;
   }
 };
 
-struct maximum {
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
-    !detail::is_floating_point<T>::value && std::is_signed<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupSMax(__spv::Scope::Subgroup, O, x);
-  }
-
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
-    !detail::is_floating_point<T>::value && std::is_unsigned<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupUMax(__spv::Scope::Subgroup, O, x);
-  }
-
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<detail::is_floating_point<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupFMax(__spv::Scope::Subgroup, O, x);
+template <typename T> struct maximum {
+  T operator()(const T &lhs, const T &rhs) const {
+    return (lhs >= rhs) ? lhs : rhs;
   }
 };
 
-struct plus {
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
+template <typename T> struct plus {
+  T operator()(const T &lhs, const T &rhs) const { return lhs + rhs; }
+};
+
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
+    !detail::is_floating_point<T>::value && std::is_signed<T>::value, T>::type
+calc(T x, minimum<T> op) {
+  return __spirv_GroupSMin(__spv::Scope::Subgroup, O, x);
+}
+
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
+    !detail::is_floating_point<T>::value && std::is_unsigned<T>::value, T>::type
+calc(T x, minimum<T> op) {
+  return __spirv_GroupUMin(__spv::Scope::Subgroup, O, x);
+}
+
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<detail::is_floating_point<T>::value, T>::type
+calc(T x, minimum<T> op) {
+  return __spirv_GroupFMin(__spv::Scope::Subgroup, O, x);
+}
+
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
+    !detail::is_floating_point<T>::value && std::is_signed<T>::value, T>::type
+calc(T x, maximum<T> op) {
+  return __spirv_GroupSMax(__spv::Scope::Subgroup, O, x);
+}
+
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
+    !detail::is_floating_point<T>::value && std::is_unsigned<T>::value, T>::type
+calc(T x, maximum<T> op) {
+  return __spirv_GroupUMax(__spv::Scope::Subgroup, O, x);
+}
+
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<detail::is_floating_point<T>::value, T>::type
+calc(T x, maximum<T> op) {
+  return __spirv_GroupFMax(__spv::Scope::Subgroup, O, x);
+}
+
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
     !detail::is_floating_point<T>::value && std::is_integral<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupIAdd<T>(__spv::Scope::Subgroup, O, x);
-  }
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<detail::is_floating_point<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupFAdd<T>(__spv::Scope::Subgroup, O, x);
-  }
-};
+calc(T x, plus<T> op) {
+  return __spirv_GroupIAdd<T>(__spv::Scope::Subgroup, O, x);
+}
+
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<detail::is_floating_point<T>::value, T>::type
+calc(T x, plus<T> op) {
+  return __spirv_GroupFAdd<T>(__spv::Scope::Subgroup, O, x);
+}
+
 struct sub_group {
   /* --- common interface members --- */
 
@@ -131,20 +142,45 @@ struct sub_group {
   }
 
   template <typename T, class BinaryOperation>
-  T reduce(EnableIfIsScalarArithmetic<T> x) const {
-    return BinaryOperation::template calc<T, __spv::GroupOperation::Reduce>(x);
+  EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
+    return calc<T, __spv::GroupOperation::Reduce>(x, op);
   }
 
   template <typename T, class BinaryOperation>
-  T exclusive_scan(EnableIfIsScalarArithmetic<T> x) const {
-    return BinaryOperation::template
-        calc<T, __spv::GroupOperation::ExclusiveScan>(x);
+  EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
+    return op(init, reduce(x, op));
   }
 
   template <typename T, class BinaryOperation>
-  T inclusive_scan(EnableIfIsScalarArithmetic<T> x) const {
-    return BinaryOperation::template
-        calc<T, __spv::GroupOperation::InclusiveScan>(x);
+  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
+    return calc<T, __spv::GroupOperation::ExclusiveScan>(x, op);
+  }
+
+  template <typename T, class BinaryOperation>
+  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
+                                         BinaryOperation op) const {
+    if (get_local_id().get(0) == 0) {
+      x = op(init, x);
+    }
+    T scan = exclusive_scan(x, op);
+    if (get_local_id().get(0) == 0) {
+      scan = init;
+    }
+    return scan;
+  }
+
+  template <typename T, class BinaryOperation>
+  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
+    return calc<T, __spv::GroupOperation::InclusiveScan>(x, op);
+  }
+
+  template <typename T, class BinaryOperation>
+  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
+                                         T init) const {
+    if (get_local_id().get(0) == 0) {
+      x = op(init, x);
+    }
+    return inclusive_scan(x, op);
   }
 
   /* --- one - input shuffles --- */

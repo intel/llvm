@@ -15,9 +15,10 @@
 #include "helper.hpp"
 #include <CL/sycl.hpp>
 #include <limits>
-template <typename T> class sycl_subgr;
+template <typename T, bool init> class sycl_subgr;
 using namespace cl::sycl;
-template <typename T> void check(queue &Queue, size_t G = 120, size_t L = 60) {
+template <typename T, bool init>
+void check(queue &Queue, size_t G = 120, size_t L = 60) {
   try {
     nd_range<1> NdRange(G, L);
     buffer<T> minexbuf(G);
@@ -39,20 +40,41 @@ template <typename T> void check(queue &Queue, size_t G = 120, size_t L = 60) {
           maxinbuf.template get_access<access::mode::read_write>(cgh);
       auto addinacc =
           addinbuf.template get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
+      cgh.parallel_for<sycl_subgr<T, init>>(NdRange, [=](nd_item<1> NdItem) {
         intel::sub_group SG = NdItem.get_sub_group();
-        minexacc[NdItem.get_global_id()] =
-            SG.exclusive_scan<T, intel::minimum>(NdItem.get_global_id(0));
-        maxexacc[NdItem.get_global_id()] =
-            SG.exclusive_scan<T, intel::maximum>(NdItem.get_global_id(0));
-        addexacc[NdItem.get_global_id()] =
-            SG.exclusive_scan<T, intel::plus>(NdItem.get_global_id(0));
-        mininacc[NdItem.get_global_id()] =
-            SG.inclusive_scan<T, intel::minimum>(NdItem.get_global_id(0));
-        maxinacc[NdItem.get_global_id()] =
-            SG.inclusive_scan<T, intel::maximum>(NdItem.get_global_id(0));
-        addinacc[NdItem.get_global_id()] =
-            SG.inclusive_scan<T, intel::plus>(NdItem.get_global_id(0));
+        if (init) {
+          minexacc[NdItem.get_global_id()] = SG.exclusive_scan(
+              static_cast<T>(NdItem.get_global_id(0)), intel::minimum<T>());
+          maxexacc[NdItem.get_global_id()] = SG.exclusive_scan(
+              static_cast<T>(NdItem.get_global_id(0)), intel::maximum<T>());
+          addexacc[NdItem.get_global_id()] = SG.exclusive_scan(
+              static_cast<T>(NdItem.get_global_id(0)), intel::plus<T>());
+          mininacc[NdItem.get_global_id()] = SG.inclusive_scan(
+              static_cast<T>(NdItem.get_global_id(0)), intel::minimum<T>());
+          maxinacc[NdItem.get_global_id()] = SG.inclusive_scan(
+              static_cast<T>(NdItem.get_global_id(0)), intel::maximum<T>());
+          addinacc[NdItem.get_global_id()] = SG.inclusive_scan(
+              static_cast<T>(NdItem.get_global_id(0)), intel::plus<T>());
+        } else {
+          minexacc[NdItem.get_global_id()] = SG.exclusive_scan(
+              static_cast<T>(NdItem.get_global_id(0)),
+              static_cast<T>(NdItem.get_global_range(0)), intel::minimum<T>());
+          maxexacc[NdItem.get_global_id()] =
+              SG.exclusive_scan(static_cast<T>(NdItem.get_global_id(0)),
+                                static_cast<T>(0), intel::maximum<T>());
+          addexacc[NdItem.get_global_id()] =
+              SG.exclusive_scan(static_cast<T>(NdItem.get_global_id(0)),
+                                static_cast<T>(0), intel::plus<T>());
+          mininacc[NdItem.get_global_id()] = SG.inclusive_scan(
+              static_cast<T>(NdItem.get_global_id(0)), intel::minimum<T>(),
+              static_cast<T>(NdItem.get_global_range(0)));
+          maxinacc[NdItem.get_global_id()] =
+              SG.inclusive_scan(static_cast<T>(NdItem.get_global_id(0)),
+                                intel::maximum<T>(), static_cast<T>(0));
+          addinacc[NdItem.get_global_id()] =
+              SG.inclusive_scan(static_cast<T>(NdItem.get_global_id(0)),
+                                intel::plus<T>(), static_cast<T>(0));
+        }
       });
     });
     auto minexacc = minexbuf.template get_access<access::mode::read_write>();
@@ -98,19 +120,26 @@ int main() {
     std::cout << "Skipping test\n";
     return 0;
   }
-  check<int>(Queue);
-  check<unsigned int>(Queue);
-  check<long>(Queue);
-  check<unsigned long>(Queue);
-  check<float>(Queue);
+  check<int, true>(Queue);
+  check<int, false>(Queue);
+  check<unsigned int, true>(Queue);
+  check<unsigned int, false>(Queue);
+  check<long, true>(Queue);
+  check<long, false>(Queue);
+  check<unsigned long, true>(Queue);
+  check<unsigned long, false>(Queue);
+  check<float, true>(Queue);
+  check<float, false>(Queue);
   // scan half type is not supported in OCL CPU RT
 #ifdef SG_GPU
   if (Queue.get_device().has_extension("cl_khr_fp16")) {
-    check<cl::sycl::half>(Queue);
+    check<cl::sycl::half, true>(Queue);
+    check<cl::sycl::half, false>(Queue);
   }
 #endif
   if (Queue.get_device().has_extension("cl_khr_fp64")) {
-    check<double>(Queue);
+    check<double, true>(Queue);
+    check<double, false>(Queue);
   }
   std::cout << "Test passed." << std::endl;
   return 0;
