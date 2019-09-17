@@ -12,11 +12,33 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/stl.hpp>
 
+#ifndef __SYCL_DEVICE_ONLY__
+#include <iostream>
+#endif // __SYCL_DEVICE_ONLY__
+
 namespace cl {
 namespace sycl {
 
-template <class name, class dataT, int32_t min_capacity = 0> class pipe {
+// Utility to dump typeid
+template <typename T> class wrap {};
+template <typename Type>
+std::string __str_type_name() {
+  return std::string(typeid(wrap<Type>).name());
+}
+
+template <typename PipeName>
+inline void __pipe_printer(std::string Input, int32_t S, int32_t A, int32_t C) {
+  std::cout << Input << __str_type_name<PipeName>() << std::endl
+            << "Size: " << S << " Alignment: " << A << " Capacity: " << C
+            << std::endl;
+}
+
+template <typename name, typename dataT, int32_t min_capacity = 0> class pipe {
 public:
+  // Cannot instantiate a pipe object. Static interface only, with connectivity
+  // determined by type.
+  pipe() = delete;
+
   // Non-blocking pipes
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
@@ -29,7 +51,9 @@ public:
         __spirv_ReadPipe(RPipe, &TempData, m_Size, m_Alignment));
     return TempData;
 #else
-    assert(!"Pipes are not supported on a host device!");
+    __pipe_printer<name>("Non-blocking read data from pipe: ", m_Size,
+                         m_Alignment, m_Capacity);
+    return dataT();
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -42,7 +66,8 @@ public:
     Success = !static_cast<bool>(
         __spirv_WritePipe(WPipe, &Data, m_Size, m_Alignment));
 #else
-    assert(!"Pipes are not supported on a host device!");
+    __pipe_printer<name>("Non-blocking write data to pipe: ", m_Size,
+                         m_Alignment, m_Capacity);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -57,7 +82,9 @@ public:
     __spirv_ReadPipeBlockingINTEL(RPipe, &TempData, m_Size, m_Alignment);
     return TempData;
 #else
-    assert(!"Pipes are not supported on a host device!");
+    __pipe_printer<name>("Blocking read data from pipe: ", m_Size, m_Alignment,
+                         m_Capacity);
+    return dataT();
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -69,7 +96,8 @@ public:
       __spirv_CreatePipeFromPipeStorage_write<dataT>(&m_Storage);
     __spirv_WritePipeBlockingINTEL(WPipe, &Data, m_Size, m_Alignment);
 #else
-    assert(!"Pipes are not supported on a host device!");
+    __pipe_printer<name>("Blocking write data to pipe: ", m_Size, m_Alignment,
+                         m_Capacity);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
