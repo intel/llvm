@@ -167,11 +167,12 @@ template <typename T> inline T __u_sub_sat(T x, T y) {
 }
 
 template <typename T> inline T __s_sub_sat(T x, T y) {
-  if (y > 0)
-    return (y < (x - d::min_v<T>()) ? x - y : d::min_v<T>());
-  if (y < 0)
-    return (y > (x - d::max_v<T>()) ? x - y : d::max_v<T>());
-  return x;
+  using UT = typename std::make_unsigned<T>::type;
+  T result = UT(x) - UT(y);
+  // Saturate result if (+) - (-) = (-) or (-) - (+) = (+).
+  if (((x < 0) ^ (y < 0)) && ((x < 0) ^ (result < 0)))
+    result = result < 0 ? d::max_v<T>() : d::min_v<T>();
+  return result;
 }
 
 template <typename T1, typename T2>
