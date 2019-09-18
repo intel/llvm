@@ -575,5 +575,13 @@
 // RUN: %clang -fsycl -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1
 // RUN: %clang -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1
 
+/// -fsycl with /Fo testing
+// RUN: %clang_cl -fsycl /Fosomefile.obj -c %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix=FO-CHECK %s
+// FO-CHECK: clang{{.*}} "-o" "[[OUTPUT1:.+\.obj]]"
+// FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" {{.*}} "-o"
+// FO-CHECK: clang{{.*}} "-include" "[[HEADER]]" {{.*}} "-o" "[[OUTPUT2:.+\.obj]]"
+// FO-CHECK: clang-offload-bundler{{.*}} "-outputs=somefile.obj" "-inputs=[[OUTPUT1]],[[OUTPUT2]]"
+
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc

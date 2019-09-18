@@ -5247,7 +5247,12 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
 
   // Output to a temporary file?
   if ((!AtTopLevel && !isSaveTempsEnabled() &&
-       !C.getArgs().hasArg(options::OPT__SLASH_Fo)) ||
+       (!C.getArgs().hasArg(options::OPT__SLASH_Fo) ||
+        // FIXME - The use of /Fo is limited when offloading is enabled.  When
+        // compiling to exe use of /Fo does not produce the named obj
+        (C.getArgs().hasArg(options::OPT__SLASH_Fo) &&
+         (!JA.isOffloading(Action::OFK_None) ||
+          JA.getOffloadingHostActiveKinds() > Action::OFK_Host)))) ||
       CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');
