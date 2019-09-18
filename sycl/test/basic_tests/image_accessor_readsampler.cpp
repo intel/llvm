@@ -21,17 +21,22 @@ namespace s = cl::sycl;
 
 template <int unique_number> class kernel_class;
 
-void validateReadData(s::cl_float4 ReadData, s::cl_float4 ExpectedColor) {
-  // Maximum difference of 1.5 ULP is allowed.
+void validateReadData(s::cl_float4 ReadData, s::cl_float4 ExpectedColor,
+                      s::cl_int precision = 1) {
+  // Maximum difference of 1.5 ULP is allowed when precision = 1.
   s::cl_int4 PixelDataInt = ReadData.template as<s::cl_int4>();
   s::cl_int4 ExpectedDataInt = ExpectedColor.template as<s::cl_int4>();
   s::cl_int4 Diff = ExpectedDataInt - PixelDataInt;
 #if DEBUG_OUTPUT
   {
-    if (((s::cl_int)Diff.x() <= 1 && (s::cl_int)Diff.x() >= -1) &&
-        ((s::cl_int)Diff.y() <= 1 && (s::cl_int)Diff.y() >= -1) &&
-        ((s::cl_int)Diff.z() <= 1 && (s::cl_int)Diff.z() >= -1) &&
-        ((s::cl_int)Diff.w() <= 1 && (s::cl_int)Diff.w() >= -1)) {
+    if (((s::cl_int)Diff.x() <= precision &&
+         (s::cl_int)Diff.x() >= -precision) &&
+        ((s::cl_int)Diff.y() <= precision &&
+         (s::cl_int)Diff.y() >= -precision) &&
+        ((s::cl_int)Diff.z() <= precision &&
+         (s::cl_int)Diff.z() >= -precision) &&
+        ((s::cl_int)Diff.w() <= precision &&
+         (s::cl_int)Diff.w() >= -precision)) {
       std::cout << "Read Data is correct within precision: " << std::endl;
     } else {
       std::cout << "Read Data is WRONG/ outside precision: " << std::endl;
@@ -47,20 +52,27 @@ void validateReadData(s::cl_float4 ReadData, s::cl_float4 ExpectedColor) {
               << (float)ExpectedColor.y() * 127 << "  "
               << (float)ExpectedColor.z() * 127 << "  "
               << (float)ExpectedColor.w() * 127 << std::endl;
+
+    std::cout << "Diff: \t" << (int)Diff.x() << "  " << (int)Diff.y() << "  "
+              << (int)Diff.z() << "  " << (int)Diff.w() << std::endl;
   }
 #else
   {
-    assert((s::cl_int)Diff.x() <= 1 && (s::cl_int)Diff.x() >= -1);
-    assert((s::cl_int)Diff.y() <= 1 && (s::cl_int)Diff.y() >= -1);
-    assert((s::cl_int)Diff.z() <= 1 && (s::cl_int)Diff.z() >= -1);
-    assert((s::cl_int)Diff.w() <= 1 && (s::cl_int)Diff.w() >= -1);
+    assert((s::cl_int)Diff.x() <= precision &&
+           (s::cl_int)Diff.x() >= -precision);
+    assert((s::cl_int)Diff.y() <= precision &&
+           (s::cl_int)Diff.y() >= -precision);
+    assert((s::cl_int)Diff.z() <= precision &&
+           (s::cl_int)Diff.z() >= -precision);
+    assert((s::cl_int)Diff.w() <= precision &&
+           (s::cl_int)Diff.w() >= -precision);
   }
 #endif
 }
 
 template <int i>
 void checkReadSampler(char *host_ptr, s::sampler Sampler, s::cl_float4 Coord,
-                      s::cl_float4 ExpectedColor) {
+                      s::cl_float4 ExpectedColor, s::cl_int precision = 1) {
 
   s::cl_float4 ReadData;
   {
@@ -80,7 +92,7 @@ void checkReadSampler(char *host_ptr, s::sampler Sampler, s::cl_float4 Coord,
     });
     });
   }
-  validateReadData(ReadData, ExpectedColor);
+  validateReadData(ReadData, ExpectedColor, precision);
 }
 
 void checkSamplerNearest() {
@@ -192,12 +204,199 @@ void checkSamplerNearest() {
   }
 }
 
-void checkSamplerLinear(){
-    // TODO. Implement this code.
-};
+// Precision requirement for linear filtering mode is not defined by OpenCL
+// specification. Based on observation, Host and CPU device produce values
+// within +-1 ULP. GPU return values have been found to be varying. For this
+// reason and to allow compatibility with all OpenCL device testing, a higher
+// value of precision (in ULP) is used for Linear Filter Mode. In this case a
+// value of 15000 ULP is used.
+void checkSamplerLinear() {
+
+  // create image:
+  char host_ptr[100];
+  for (int i = 0; i < 100; i++)
+    host_ptr[i] = i;
+
+  // Calling only valid configurations.
+  // A. coordinate normalization mode::normalized
+  // addressing_mode::mirrored_repeat
+  {
+    s::cl_float4 Coord(0.0f, 1.5f, 2.5f,
+                       0.0f); // Out-of-range mirrored_repeat mode
+    auto Sampler = s::sampler(s::coordinate_normalization_mode::normalized,
+                              s::addressing_mode::mirrored_repeat,
+                              s::filtering_mode::linear);
+    checkReadSampler<1>(host_ptr, Sampler, Coord,
+                        s::cl_float4((44.0f / 127.0f), (45.0f / 127.0f),
+                                     (46.0f / 127.0f),
+                                     (47.0f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+  {
+    s::cl_float4 Coord(0.0f, 0.25f, 0.55f,
+                       0.0f); // In-range mirrored_repeat mode
+    auto Sampler = s::sampler(s::coordinate_normalization_mode::normalized,
+                              s::addressing_mode::mirrored_repeat,
+                              s::filtering_mode::linear);
+    checkReadSampler<1>(host_ptr, Sampler, Coord,
+                        s::cl_float4((42.8f / 127.0f), (43.8f / 127.0f),
+                                     (44.8f / 127.0f),
+                                     (45.8f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+
+  // addressing_mode::repeat
+  {
+    s::cl_float4 Coord(0.0f, 1.5f, 2.5f, 0.0f); // Out-of-range repeat mode
+    auto Sampler =
+        s::sampler(s::coordinate_normalization_mode::normalized,
+                   s::addressing_mode::repeat, s::filtering_mode::linear);
+    checkReadSampler<2>(host_ptr, Sampler, Coord,
+                        s::cl_float4((46.0f / 127.0f), (47.0f / 127.0f),
+                                     (48.0f / 127.0f),
+                                     (49.0f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+  {
+    s::cl_float4 Coord(0.0f, 0.25f, 0.55f, 0.0f); // In-range repeat mode
+    auto Sampler =
+        s::sampler(s::coordinate_normalization_mode::normalized,
+                   s::addressing_mode::repeat, s::filtering_mode::linear);
+    checkReadSampler<2>(host_ptr, Sampler, Coord,
+                        s::cl_float4((44.8f / 127.0f), (45.8f / 127.0f),
+                                     (46.8f / 127.0f),
+                                     (47.8f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+
+  // addressing_mode::clamp_to_edge
+  {
+    s::cl_float4 Coord(0.0f, 1.5f, 2.5f, 0.0f); // Out-of-range Edge Color
+    auto Sampler = s::sampler(s::coordinate_normalization_mode::normalized,
+                              s::addressing_mode::clamp_to_edge,
+                              s::filtering_mode::linear);
+    checkReadSampler<3>(host_ptr, Sampler, Coord,
+                        s::cl_float4((88.0f / 127.0f), (89.0f / 127.0f),
+                                     (90.0f / 127.0f),
+                                     (91.0f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+  {
+    s::cl_float4 Coord(0.0f, 0.2f, 0.5f, 0.0f); // In-range
+    auto Sampler = s::sampler(s::coordinate_normalization_mode::normalized,
+                              s::addressing_mode::clamp_to_edge,
+                              s::filtering_mode::linear);
+    checkReadSampler<3>(host_ptr, Sampler, Coord,
+                        s::cl_float4((36.8f / 127.0f), (37.8f / 127.0f),
+                                     (38.8f / 127.0f),
+                                     (39.8f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+
+  // addressing_mode::clamp
+  {
+    s::cl_float4 Coord(0.0f, 1.5f, 2.5f, 0.0f); // Out-of-range
+    auto Sampler =
+        s::sampler(s::coordinate_normalization_mode::normalized,
+                   s::addressing_mode::clamp, s::filtering_mode::linear);
+    checkReadSampler<4>(host_ptr, Sampler, Coord,
+                        s::cl_float4(0.0f, 0.0f, 0.0f, 0.0f) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+  {
+    s::cl_float4 Coord(0.0f, 0.2f, 0.5f, 0.0f); // In-range
+    auto Sampler =
+        s::sampler(s::coordinate_normalization_mode::normalized,
+                   s::addressing_mode::clamp, s::filtering_mode::linear);
+    checkReadSampler<4>(host_ptr, Sampler, Coord,
+                        s::cl_float4(18.4f / 127.0f, 18.9f / 127.0f,
+                                     19.4f / 127.0f,
+                                     19.9f / 127.0f) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+
+  // addressing_mode::none
+  {
+    s::cl_float4 Coord(0.5f, 0.5f, 0.5f,
+                       0.0f); // In-range for consistent return value.
+    auto Sampler =
+        s::sampler(s::coordinate_normalization_mode::normalized,
+                   s::addressing_mode::none, s::filtering_mode::linear);
+    checkReadSampler<5>(host_ptr, Sampler, Coord,
+                        s::cl_float4((46.0f / 127.0f), (47.0f / 127.0f),
+                                     (48.0f / 127.0f),
+                                     (49.0f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+
+  // B. coordinate_normalization_mode::unnormalized
+  // addressing_mode::clamp_to_edge
+  {
+    s::cl_float4 Coord(0.0f, 1.5f, 2.5f, 0.0f); // Out-of-range
+    auto Sampler = s::sampler(s::coordinate_normalization_mode::unnormalized,
+                              s::addressing_mode::clamp_to_edge,
+                              s::filtering_mode::linear);
+    checkReadSampler<6>(host_ptr, Sampler, Coord,
+                        s::cl_float4((56.0f / 127.0f), (57.0f / 127.0f),
+                                     (58.0f / 127.0f),
+                                     (59.0f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+  {
+    s::cl_float4 Coord(0.0f, 0.2f, 0.5f, 0.0f); // In-range
+    auto Sampler = s::sampler(s::coordinate_normalization_mode::unnormalized,
+                              s::addressing_mode::clamp_to_edge,
+                              s::filtering_mode::linear);
+    checkReadSampler<6>(host_ptr, Sampler, Coord,
+                        s::cl_float4((0.0f / 127.0f), (1.0f / 127.0f),
+                                     (2.0f / 127.0f),
+                                     (3.0f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+
+  // addressing_mode::clamp
+  {
+    s::cl_float4 Coord(0.0f, 1.5f, 1.5f, 0.0f); // Out-of-range
+    auto Sampler =
+        s::sampler(s::coordinate_normalization_mode::unnormalized,
+                   s::addressing_mode::clamp, s::filtering_mode::linear);
+    checkReadSampler<7>(host_ptr, Sampler, Coord,
+                        s::cl_float4((16.0f / 127.0f), (16.5f / 127.0f),
+                                     (17.0f / 127.0f),
+                                     (17.5f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+  {
+    s::cl_float4 Coord(0.0f, 0.2f, 0.5f, 0.0f); // In-range
+    auto Sampler =
+        s::sampler(s::coordinate_normalization_mode::unnormalized,
+                   s::addressing_mode::clamp, s::filtering_mode::linear);
+    checkReadSampler<7>(host_ptr, Sampler, Coord,
+                        s::cl_float4((0.0f / 127.0f), (0.35f / 127.0f),
+                                     (0.7f / 127.0f),
+                                     (1.05f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+
+  // addressing_mode::none
+  {
+    s::cl_float4 Coord(1.0f, 2.0f, 3.0f,
+                       0.0f); // In-range for consistent return value.
+    auto Sampler =
+        s::sampler(s::coordinate_normalization_mode::unnormalized,
+                   s::addressing_mode::none, s::filtering_mode::linear);
+    checkReadSampler<8>(host_ptr, Sampler, Coord,
+                        s::cl_float4((74.0f / 127.0f), (75.0f / 127.0f),
+                                     (76.0f / 127.0f),
+                                     (77.0f / 127.0f)) /*Expected Value*/,
+                        15000 /*Precision in ULP*/);
+  }
+}
 
 int main() {
 
+  // Note: Currently these functions only check for cl_float4 return datatype,
+  // the test case can be extended to test all return datatypes.
   checkSamplerNearest();
-  // checkSamplerLinear();
+  checkSamplerLinear();
 }
