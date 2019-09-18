@@ -12,7 +12,7 @@ IMPORTANT: This specification is a draft.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) is a trademark of the Khronos Group, Inc.
 
-CAUTION: This document is better viewed when rendered as html with asciidoctor.  Github does not render image icons.
+CAUTION: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
 
 This document presents a series of changes proposed for a future version of the SYCL Specification.  The goal of these proposals is to reduce the complexity and verbosity of using SYCL for programmers.  These proposals also seek to reduce the barrier to integrate SYCL code into existing C++ codebases by introducing new modes that reduce the amount of code that must be changed to interface the two codes.
 
@@ -26,7 +26,7 @@ Unified Addressing guarantees that all devices will use a unified address space.
 === Unified Shared Memory
 Unified Shared Memory (USM) is a capability that, when available, provides the ability to create allocations that are visible to both host and device(s).  USM builds upon Unified Addressing to define a shared address space where pointer values in this space always refer to the same location in memory.  USM defines multiple tiers of increasing capability described in the following sections:
 
- * Explict USM
+ * Explicit USM
  * Restricted USM
  * Concurrent USM
  * System USM
@@ -34,7 +34,7 @@ Unified Shared Memory (USM) is a capability that, when available, provides the a
 NOTE: All utility functions described below are located in the `sycl` namespace unless otherwise indicated.
 
 ==== Explicit USM
-Explict USM defines capabilities for explicitly managing device memory.  Programmers directly allocate device memory, and data must be explicitly copied between the host and a device.  Device allocations are obtained through a SYCL device allocator instead of the system allocator.  Device allocations are not accessible on the host, but the pointer values remain consistent on account of Unified Addressing.  Greater detail about how allocations are used is described by the following tables.
+Explicit USM defines capabilities for explicitly managing device memory.  Programmers directly allocate device memory, and data must be explicitly copied between the host and a device.  Device allocations are obtained through a SYCL device allocator instead of the system allocator.  Device allocations are not accessible on the host, but the pointer values remain consistent on account of Unified Addressing.  Greater detail about how allocations are used is described by the following tables.
 
 ==== Restricted USM
 Restricted USM defines capabilities for implicitly sharing data between host and devices.  However, Restricted USM, as the name implies, is limited in that host and device may not concurrently compute on memory in the shared address space.  Restricted USM builds upon Explicit USM by adding two new types of allocations, `host` and `shared`.  Allocations are obtained through SYCL allocator instead of the system allocator.  `shared` allocations may be limited by device memory.  Greater detail about the allocation types defined in Restricted USM and their usage is described by the following tables.
