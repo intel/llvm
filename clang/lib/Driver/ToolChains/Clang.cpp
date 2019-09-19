@@ -1090,6 +1090,11 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     } else if (A->getOption().matches(options::OPT_M) ||
                A->getOption().matches(options::OPT_MM)) {
       DepFile = "-";
+    } else if (A->getOption().matches(options::OPT_MMD) &&
+        Args.hasArg(options::OPT_fintelfpga)) {
+      // When generating dependency files for FPGA AOT, the output files will
+      // always be named after the source file.
+      DepFile = Args.MakeArgString(Twine(getBaseInputStem(Args, Inputs)) + ".d");
     } else {
       DepFile = getDependencyFileName(Args, Inputs);
       C.addFailureResultFile(DepFile, &JA);

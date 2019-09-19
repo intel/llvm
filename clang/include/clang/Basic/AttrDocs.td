@@ -1887,6 +1887,17 @@ function pointer for the specified function.
   }];
 }
 
+def SYCLDeviceDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "sycl_device";
+  let Content = [{
+This attribute can only be applied to functions and indicates that the
+function must be treated as a device function and must be emitted even if it has
+no direct uses from other device functions. All ``sycl_device`` function callees
+implicitly inherit this attribute.
+  }];
+}
+
 def RISCVInterruptDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "interrupt (RISCV)";

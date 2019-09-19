@@ -6,8 +6,8 @@
 /// -fintelfpga implies -g and -MMD
 // RUN:   %clang++ -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-INTELFPGA %s
-// CHK-TOOLS-INTELFPGA: clang{{.*}} "-dependency-file"
-// CHK-TOOLS-INTELFPGA: clang{{.*}} "-debug-info-kind=limited"
+// CHK-TOOLS-INTELFPGA: clang{{.*}} "-debug-info-kind=limited" {{.*}} "-dependency-file"
+// CHK-TOOLS-INTELFPGA: aoc{{.*}} "-dep-files={{.*}}"
 
 /// -fintelfpga -fsycl-link tests
 // RUN:  touch %t.o
@@ -85,11 +85,22 @@
 // CHK-FPGA-LINK-SRC: 15: clang-offload-wrapper, {14}, object, (device-sycl)
 // CHK-FPGA-LINK-SRC: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64_fpga-unknown-{{linux|windows}}-sycldevice)" {15}, archive
 
-// -fintelfpga -reuse-exe tests
-// RUN: %clang++ -### -fsycl -fintelfpga %s -reuse-exe=does_not_exist 2>&1 \
+/// -fintelfpga with -reuse-exe=
+// RUN:  touch %t.cpp
+// RUN:  %clang++ -### -reuse-exe=testing -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t.cpp 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-REUSE-EXE %s
-// CHK-FPGA-REUSE-EXE: warning: -reuse-exe file 'does_not_exist' not found; ignored
-//
+// CHK-FPGA-REUSE-EXE: aoc{{.*}} "-o" {{.*}} "-sycl" {{.*}} "-reuse-exe=testing"
+
+/// -fintelfpga dependency file generation test
+// RUN: touch %t-1.cpp
+// RUN: touch %t-2.cpp
+// RUN: %clang++ -### -fsycl -fintelfpga %t-1.cpp %t-2.cpp -o %t.out 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES %s
+// RUN: %clang++ -### -fsycl -fintelfpga %t-1.cpp %t-2.cpp 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES %s
+// CHK-FPGA-DEP-FILES: clang{{.*}} "-dependency-file" "[[INPUT1:.+\.d]]"
+// CHK-FPGA-DEP-FILES: clang{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]"
+// CHK-FPGA-DEP-FILES: aoc{{.*}} "-dep-files={{.*}}[[INPUT1]],{{.*}}[[INPUT2]]"
 
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc

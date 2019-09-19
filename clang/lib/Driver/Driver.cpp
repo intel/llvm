@@ -3237,14 +3237,14 @@ class OffloadingActionBuilder final {
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
         SYCLDeviceActions.clear();
 
+        std::string InputName = IA->getInputArg().getValue();
         // Objects should already be consumed with -foffload-static-lib
-        const char * InputName = IA->getInputArg().getValue();
         if (Args.hasArg(options::OPT_foffload_static_lib_EQ) &&
-            HostAction->getType() == types::TY_Object &&
-            llvm::sys::path::has_extension(InputName) &&
-            types::lookupTypeForExtension(
-                llvm::sys::path::extension(InputName).drop_front()) ==
-                types::TY_Object)
+            IA->getType() == types::TY_Object && isObjectFile(InputName))
+          return ABRT_Inactive;
+
+        // Libraries are not processed in the SYCL toolchain
+        if (IA->getType() == types::TY_Object && !isObjectFile(InputName))
           return ABRT_Inactive;
 
         for (unsigned I = 0; I < ToolChains.size(); ++I)
@@ -3261,11 +3261,7 @@ class OffloadingActionBuilder final {
           // Check if the type of the file is the same as the action. Do not
           // unbundle it if it is not. Do not unbundle .so files, for example,
           // which are not object files.
-          if (IA->getType() == types::TY_Object &&
-              (!llvm::sys::path::has_extension(FileName) ||
-               types::lookupTypeForExtension(
-                 llvm::sys::path::extension(FileName).drop_front()) !=
-                 types::TY_Object))
+          if (IA->getType() == types::TY_Object && !isObjectFile(FileName))
             return ABRT_Inactive;
           // When creating FPGA device fat objects, all host objects are
           // partially linked.  Gather that list here.
@@ -3722,7 +3718,7 @@ public:
     if (CanUseBundler && isa<InputAction>(HostAction) &&
         InputArg->getOption().getKind() == llvm::opt::Option::InputClass &&
         !types::isSrcFile(HostAction->getType())) {
-      const char * InputName = InputArg->getValue();
+      std::string InputName = InputArg->getValue();
       // Do not create an unbundling action for an object when we know a fat
       // static library is being used.  A separate unbundling action is created
       // for all objects and the fat static library.
@@ -3734,10 +3730,7 @@ public:
       // for objects is still needed.
       if (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() ||
           !(HostAction->getType() == types::TY_Object &&
-            llvm::sys::path::has_extension(InputName) &&
-            types::lookupTypeForExtension(
-              llvm::sys::path::extension(InputName).drop_front()) ==
-              types::TY_Object &&
+            isObjectFile(InputName) &&
             Args.hasArg(options::OPT_foffload_static_lib_EQ))) {
         ActionList HostActionList;
         Action *A(HostAction);
@@ -3746,10 +3739,7 @@ public:
             HostAction->getType() != types::TY_FPGA_AOCR &&
             HostAction->getType() != types::TY_FPGA_AOCX &&
             !(HostAction->getType() == types::TY_Object &&
-              llvm::sys::path::has_extension(InputName) &&
-              types::lookupTypeForExtension(
-                  llvm::sys::path::extension(InputName).drop_front()) ==
-                  types::TY_Object)) {
+              isObjectFile(InputName))) {
           if (HasFPGADeviceBinary(C, InputArg->getAsString(Args), true))
             A = C.MakeAction<InputAction>(*InputArg, types::TY_FPGA_AOCX);
           else if (HasFPGADeviceBinary(C, InputArg->getAsString(Args)))
@@ -4194,10 +4184,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (auto *IA = dyn_cast<InputAction>(LI)) {
         std::string FileName = IA->getInputArg().getAsString(Args);
         if (IA->getType() == types::TY_Object &&
-            (!llvm::sys::path::has_extension(FileName) ||
-             types::lookupTypeForExtension(
-               llvm::sys::path::extension(FileName).drop_front()) !=
-               types::TY_Object))
+            !isObjectFile(FileName))
           // Pass the Input along to linker.
           TempLinkerInputs.push_back(LI);
         else
@@ -5842,3 +5829,9 @@ bool clang::driver::isOptimizationLevelFast(const ArgList &Args) {
   return Args.hasFlag(options::OPT_Ofast, options::OPT_O_Group, false);
 }
 
+bool clang::driver::isObjectFile(std::string FileName) {
+  return (llvm::sys::path::has_extension(FileName) &&
+      types::lookupTypeForExtension(
+          llvm::sys::path::extension(FileName).drop_front()) ==
+          types::TY_Object);
+}

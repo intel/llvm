@@ -165,7 +165,7 @@ and single device compiler for this target is invoked.
 In the driver, the following bools are defined to determine the compilation
 mode in SYCL:
 
-* IsSYCL : True if the user has passed `--sycl` to the compilation
+* IsSYCL : True if the user has passed `-fsycl-device-only` to the compilation
 * IsSYCLOffloadDevice: True if calling clang to set up a device compilation
 * IsSYCLHost: True if setting up a call to clang to do a host compilation
 
@@ -394,7 +394,6 @@ the driver.  It detects if a module includes kernels and is invoked as follows:
 llvm-no-spir-kernel host.bc
 
 It returns 0 if no kernels are present and 1 otherwise.
-
 
 
 ### Integration with SPIR-V format

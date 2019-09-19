@@ -630,6 +630,9 @@ public:
 /// And False otherwise.
 bool isOptimizationLevelFast(const llvm::opt::ArgList &Args);
 
+/// \return True if the filename has a valid object file extension.
+bool isObjectFile(std::string FileName);
+
 } // end namespace driver
 } // end namespace clang
 

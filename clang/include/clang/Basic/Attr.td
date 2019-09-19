@@ -1036,9 +1036,9 @@ def CUDAShared : InheritableAttr {
 
 def SYCLDevice : InheritableAttr {
   let Spellings = [GNU<"sycl_device">];
-  let Subjects = SubjectList<[Function, Var]>;
+  let Subjects = SubjectList<[Function]>;
   let LangOpts = [SYCLIsDevice];
-  let Documentation = [Undocumented];
+  let Documentation = [SYCLDeviceDocs];
 }
 
 def SYCLKernel : InheritableAttr {

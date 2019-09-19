@@ -158,7 +158,7 @@ namespace detail {
 // DefaultValue, truncation just removes extra values.
 template <int NewDim, int DefaultValue, template <int> class T, int OldDim>
 static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
-  T<NewDim> NewObj;
+  T<NewDim> NewObj = InitializedVal<NewDim, T>::template get<0>();
   const int CopyDims = NewDim > OldDim ? OldDim : NewDim;
   for (int I = 0; I < CopyDims; ++I)
     NewObj[I] = OldObj[I];
@@ -193,12 +193,8 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
-  using RefType = typename std::conditional<
-      AS == access::address_space::constant_space,
-      typename detail::PtrValueType<DataT, AS>::type &, DataT &>::type;
-  using PtrType = typename std::conditional<
-      AS == access::address_space::constant_space,
-      typename detail::PtrValueType<DataT, AS>::type *, DataT *>::type;
+  using RefType = DataT &;
+  using PtrType = DataT *;
 
   using AccType =
       accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>;
@@ -673,13 +669,9 @@ class accessor :
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using RefType = typename std::conditional<
-      AS == access::address_space::constant_space,
-      typename detail::PtrValueType<DataT, AS>::type &, DataT &>::type;
+  using RefType = DataT &;
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
-  using PtrType =
-      typename std::conditional<AS == access::address_space::constant_space,
-                                ConcreteASPtrType, DataT *>::type;
+  using PtrType = DataT *;
 
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
 
@@ -727,7 +719,10 @@ class accessor :
 
 public:
   // Default constructor for objects later initialized with __init member.
-  accessor() : impl({}) {}
+  accessor()
+    : impl({}, detail::InitializedVal<AdjustedDim, range>::template get<0>(),
+            detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
+
 #else
   using AccessorBaseHost::getAccessRange;
   using AccessorBaseHost::getMemoryRange;
@@ -1012,13 +1007,9 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using RefType = typename std::conditional<
-      AS == access::address_space::constant_space,
-      typename detail::PtrValueType<DataT, AS>::type &, DataT &>::type;
+  using RefType = DataT &;
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
-  using PtrType =
-      typename std::conditional<AS == access::address_space::constant_space,
-                                ConcreteASPtrType, DataT *>::type;
+  using PtrType = DataT *;
 
 #ifdef __SYCL_DEVICE_ONLY__
   detail::LocalAccessorBaseDevice<AdjustedDim> impl;
@@ -1035,7 +1026,8 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
 
 public:
   // Default constructor for objects later initialized with __init member.
-  accessor() : impl({}) {}
+  accessor()
+      : impl(detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 private:
   PtrType getQualifiedPtr() const { return MData; }

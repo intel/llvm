@@ -150,13 +150,12 @@
 // CHK-PHASES-LIB: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASES-LIB: 9: assembler, {8}, object, (host-sycl)
 // CHK-PHASES-LIB: 10: linker, {0, 9}, image, (host-sycl)
-// CHK-PHASES-LIB: 11: input, "somelib", object, (device-sycl)
-// CHK-PHASES-LIB: 12: compiler, {4}, ir, (device-sycl)
-// CHK-PHASES-LIB: 13: backend, {12}, assembler, (device-sycl)
-// CHK-PHASES-LIB: 14: assembler, {13}, object, (device-sycl)
-// CHK-PHASES-LIB: 15: linker, {11, 14}, spirv, (device-sycl)
-// CHK-PHASES-LIB: 16: clang-offload-wrapper, {15}, object, (device-sycl)
-// CHK-PHASES-LIB: 17: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-linux-sycldevice)" {16}, image
+// CHK-PHASES-LIB: 11: compiler, {4}, ir, (device-sycl)
+// CHK-PHASES-LIB: 12: backend, {11}, assembler, (device-sycl)
+// CHK-PHASES-LIB: 13: assembler, {12}, object, (device-sycl)
+// CHK-PHASES-LIB: 14: linker, {13}, spirv, (device-sycl)
+// CHK-PHASES-LIB: 15: clang-offload-wrapper, {14}, object, (device-sycl)
+// CHK-PHASES-LIB: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-linux-sycldevice)" {15}, image
 
 /// ###########################################################################
 
@@ -185,16 +184,15 @@
 // CHK-PHASES-FILES: 17: backend, {16}, assembler, (host-sycl)
 // CHK-PHASES-FILES: 18: assembler, {17}, object, (host-sycl)
 // CHK-PHASES-FILES: 19: linker, {0, 9, 18}, image, (host-sycl)
-// CHK-PHASES-FILES: 20: input, "somelib", object, (device-sycl)
-// CHK-PHASES-FILES: 21: compiler, {4}, ir, (device-sycl)
-// CHK-PHASES-FILES: 22: backend, {21}, assembler, (device-sycl)
-// CHK-PHASES-FILES: 23: assembler, {22}, object, (device-sycl)
-// CHK-PHASES-FILES: 24: compiler, {13}, ir, (device-sycl)
-// CHK-PHASES-FILES: 25: backend, {24}, assembler, (device-sycl)
-// CHK-PHASES-FILES: 26: assembler, {25}, object, (device-sycl)
-// CHK-PHASES-FILES: 27: linker, {20, 23, 26}, spirv, (device-sycl)
-// CHK-PHASES-FILES: 28: clang-offload-wrapper, {27}, object, (device-sycl)
-// CHK-PHASES-FILES: 29: offload, "host-sycl (x86_64-unknown-linux-gnu)" {19}, "device-sycl (spir64-unknown-linux-sycldevice)" {28}, image
+// CHK-PHASES-FILES: 20: compiler, {4}, ir, (device-sycl)
+// CHK-PHASES-FILES: 21: backend, {20}, assembler, (device-sycl)
+// CHK-PHASES-FILES: 22: assembler, {21}, object, (device-sycl)
+// CHK-PHASES-FILES: 23: compiler, {13}, ir, (device-sycl)
+// CHK-PHASES-FILES: 24: backend, {23}, assembler, (device-sycl)
+// CHK-PHASES-FILES: 25: assembler, {24}, object, (device-sycl)
+// CHK-PHASES-FILES: 26: linker, {22, 25}, spirv, (device-sycl)
+// CHK-PHASES-FILES: 27: clang-offload-wrapper, {26}, object, (device-sycl)
+// CHK-PHASES-FILES: 28: offload, "host-sycl (x86_64-unknown-linux-gnu)" {19}, "device-sycl (spir64-unknown-linux-sycldevice)" {27}, image
 
 /// ###########################################################################
 
@@ -226,10 +224,9 @@
 // CHK-UBACTIONS: 1: input, "[[INPUT:.+\.o]]", object, (host-sycl)
 // CHK-UBACTIONS: 2: clang-offload-unbundler, {1}, object, (host-sycl)
 // CHK-UBACTIONS: 3: linker, {0, 2}, image, (host-sycl)
-// CHK-UBACTIONS: 4: input, "somelib", object, (device-sycl)
-// CHK-UBACTIONS: 5: linker, {4, 2}, spirv, (device-sycl)
-// CHK-UBACTIONS: 6: clang-offload-wrapper, {5}, object, (device-sycl)
-// CHK-UBACTIONS: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-linux-sycldevice)" {6}, image
+// CHK-UBACTIONS: 4: linker, {2}, spirv, (device-sycl)
+// CHK-UBACTIONS: 5: clang-offload-wrapper, {4}, object, (device-sycl)
+// CHK-UBACTIONS: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-linux-sycldevice)" {5}, image
 
 /// ###########################################################################
 
@@ -250,13 +247,12 @@
 // CHK-UBUACTIONS: 10: backend, {9}, assembler, (host-sycl)
 // CHK-UBUACTIONS: 11: assembler, {10}, object, (host-sycl)
 // CHK-UBUACTIONS: 12: linker, {0, 2, 11}, image, (host-sycl)
-// CHK-UBUACTIONS: 13: input, "somelib", object, (device-sycl)
-// CHK-UBUACTIONS: 14: compiler, {6}, ir, (device-sycl)
-// CHK-UBUACTIONS: 15: backend, {14}, assembler, (device-sycl)
-// CHK-UBUACTIONS: 16: assembler, {15}, object, (device-sycl)
-// CHK-UBUACTIONS: 17: linker, {13, 2, 16}, spirv, (device-sycl)
-// CHK-UBUACTIONS: 18: clang-offload-wrapper, {17}, object, (device-sycl)
-// CHK-UBUACTIONS: 19: offload, "host-sycl (x86_64-unknown-linux-gnu)" {12}, "device-sycl (spir64-unknown-linux-sycldevice)" {18}, image
+// CHK-UBUACTIONS: 13: compiler, {6}, ir, (device-sycl)
+// CHK-UBUACTIONS: 14: backend, {13}, assembler, (device-sycl)
+// CHK-UBUACTIONS: 15: assembler, {14}, object, (device-sycl)
+// CHK-UBUACTIONS: 16: linker, {2, 15}, spirv, (device-sycl)
+// CHK-UBUACTIONS: 17: clang-offload-wrapper, {16}, object, (device-sycl)
+// CHK-UBUACTIONS: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {12}, "device-sycl (spir64-unknown-linux-sycldevice)" {17}, image
 
 /// ###########################################################################
 
@@ -530,7 +526,7 @@
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-linux-sycldevice -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-GEN-OPTS %s
-// CHK-TOOLS-GEN-OPTS: ocloc{{.*}} "-output" {{.*}} "-DFOO1" "-DFOO2"
+// CHK-TOOLS-GEN-OPTS: ocloc{{.*}} "-output" {{.*}} "-output_no_suffix" {{.*}} "-DFOO1" "-DFOO2"
 
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-linux-sycldevice -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-CPU-OPTS %s

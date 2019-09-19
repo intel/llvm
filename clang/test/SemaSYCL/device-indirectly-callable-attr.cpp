@@ -10,19 +10,19 @@ int N;
 [[intel::device_indirectly_callable(3)]] // expected-error {{'device_indirectly_callable' attribute takes no arguments}}
 void bar() {}
 
-[[intel::device_indirectly_callable]] // expected-error {{device_indirectly_callable attribute cannot be applied to a static function or function in an anonymous namespace}}
+[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
 static void func1() {}
 
 namespace {
-  [[intel::device_indirectly_callable]] // expected-error {{device_indirectly_callable attribute cannot be applied to a static function or function in an anonymous namespace}}
+  [[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
   void func2() {}
 }
 
 class A {
-  [[intel::device_indirectly_callable]] // expected-error {{device_indirectly_callable attribute cannot be applied to a class member function}}
+  [[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a class member function}}
   A() {}
 
-  [[intel::device_indirectly_callable]] // expected-error {{device_indirectly_callable attribute cannot be applied to a class member function}}
+  [[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a class member function}}
   int func3() {}
 };
 

@@ -68,7 +68,8 @@ public:
       : base(item.get_id(0), item.get_id(1), item.get_id(2)) {}
 
   explicit operator range<dimensions>() const {
-    range<dimensions> result;
+    range<dimensions> result(
+        detail::InitializedVal<dimensions, range>::template get<0>());
     for (int i = 0; i < dimensions; ++i) {
       result[i] = this->get(i);
     }
