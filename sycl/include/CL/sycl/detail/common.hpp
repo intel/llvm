@@ -88,6 +88,10 @@ static inline std::string codeToString(cl_int code){
 #define ALWAYS_INLINE
 #endif
 
+#ifndef SYCL_EXTERNAL
+#define SYCL_EXTERNAL
+#endif
+
 namespace cl {
 namespace sycl {
 namespace detail {
