@@ -97,6 +97,14 @@ getImageOffset(const vec<T, 4> &Coords, id<3> ImgPitch,
 // read from based on Addressing Mode for Nearest filter mode.
 cl_int4 getPixelCoordNearestFiltMode(cl_float4, addressing_mode, range<3>);
 
+// Check if PixelCoord are out of range for Sampler with clamp adressing mode.
+bool isOutOfRange(cl_int4 PixelCoord, addressing_mode SmplAddrMode,
+                  range<3> ImgRange);
+
+// Get Border Color for the image_channel_order, the border color values are
+// only used when the sampler has clamp addressing mode.
+cl_float4 getBorderColor(image_channel_order ImgChannelOrder);
+
 // Reads data from a pixel at Ptr location, based on the number of Channels in
 // Order and returns the data.
 // The datatype used to read from the Ptr is based on the T of the
@@ -957,12 +965,18 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
     // Get Pixel Coordinates in integers that will be read from in the Image.
     PixelCoord =
         getPixelCoordNearestFiltMode(FloatCoorduvw, SmplAddrMode, ImgRange);
-    // TODO: Check Out-of-range coordinates. Need to use Addressing Mode Of
-    // Sampler to find the appropriate return value. Eg: clamp_to_edge returns
-    // edge values and clamp returns border color for out-of-range coordinates.
-    RetData = ReadPixelDataNearestFiltMode<DataT>(
-        PixelCoord, ImgPitch, ImgChannelType, ImgChannelOrder, BasePtr,
-        ElementSize);
+
+    // Return Border Color for out-of-range coordinates for Sampler with
+    // addressing_mode::clamp.
+
+    if (isOutOfRange(PixelCoord, SmplAddrMode, ImgRange)) {
+      cl_float4 BorderColor = (getBorderColor(ImgChannelOrder));
+      RetData = BorderColor.convert<typename TryToGetElementType<DataT>::type>();
+    } else {
+      RetData = ReadPixelDataNearestFiltMode<DataT>(
+          PixelCoord, ImgPitch, ImgChannelType, ImgChannelOrder, BasePtr,
+          ElementSize);
+    }
     break;
   }
   case filtering_mode::linear:
