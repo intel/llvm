@@ -29,7 +29,7 @@ class Builder;
 // Implements a barrier accross work items within a work group.
 static inline void workGroupBarrier() {
 #ifdef __SYCL_DEVICE_ONLY__
-  uint32_t flags =
+  constexpr uint32_t flags =
       static_cast<uint32_t>(
           __spv::MemorySemanticsMask::SequentiallyConsistent) |
       static_cast<uint32_t>(__spv::MemorySemanticsMask::WorkgroupMemory);
