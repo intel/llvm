@@ -228,7 +228,8 @@ public:
 
   image_impl(cl_mem MemObject, const context &SyclContext,
              event AvailableEvent = {})
-      : BaseT(MemObject, SyclContext, std::move(AvailableEvent)) {
+      : BaseT(MemObject, SyclContext, std::move(AvailableEvent)),
+        MRange(InitializedVal<Dimensions, range>::template get<0>()) {
     RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
     PI_CALL(RT::piMemGetInfo(Mem, CL_MEM_SIZE, sizeof(size_t),
                              &(BaseT::MSizeInBytes), nullptr));

@@ -198,7 +198,8 @@ template <int NDIMS> struct NDLoop {
         InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
     const LoopBoundTy<NDIMS> Stride =
         InitializedVal<NDIMS, LoopBoundTy>::template get<1>();
-    LoopIndexTy<NDIMS> Index; // initialized down the call stack
+    LoopIndexTy<NDIMS> Index =
+        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
 
     NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
         LowerBound, Stride, UpperBound, f, Index};
