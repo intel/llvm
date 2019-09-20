@@ -13,7 +13,7 @@
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %t.obj -### 2>&1 \
 // RUN:   | FileCheck -DOBJ=%t.obj -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB
 // FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs=[[OBJ]]"{{.+}} "-unbundle"
-// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo"{{.+}} "-inputs=[[LIB]]"{{.+}} "-unbundle"
+// FOFFLOAD_STATIC_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}-sycldevice" "-inputs=[[LIB]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB: llvm-link{{(.exe)?}}{{.*}} "@{{.*}}"
 // FOFFLOAD_STATIC_LIB: link{{(.exe)?}}{{.+}} "-defaultlib:[[LIB]]"
 
@@ -31,7 +31,7 @@
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs=[[OBJ1]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs=[[OBJ2]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs=[[OBJ3]]"{{.+}} "-unbundle"
-// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo"{{.+}} "-inputs=[[LIB]]"{{.+}} "-unbundle"
+// FOFFLOAD_STATIC_LIB_MULTI_O: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}-sycldevice" "-inputs=[[LIB]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB_MULTI_O: llvm-link{{(.exe)?}}{{.*}} "@{{.*}}"
 // FOFFLOAD_STATIC_LIB_MULTI_O: link{{(.exe)?}}{{.+}} "-defaultlib:[[LIB]]"
 
@@ -46,8 +46,8 @@
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t1.lib -foffload-static-lib=%t2.lib %t.obj -### 2>&1 \
 // RUN:   | FileCheck -DOBJ=%t.obj -DLIB1=%t1.lib -DLIB2=%t2.lib %s -check-prefix=FOFFLOAD_STATIC_MULTI_LIB
 // FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=o"{{.+}} "-inputs=[[OBJ]]"{{.+}} "-unbundle"
-// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo"{{.+}} "-inputs=[[LIB1]]"{{.+}} "-unbundle"
-// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo"{{.+}} "-inputs=[[LIB2]]"{{.+}} "-unbundle"
+// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}-sycldevice" "-inputs=[[LIB1]]"{{.+}} "-unbundle"
+// FOFFLOAD_STATIC_MULTI_LIB: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}-sycldevice" "-inputs=[[LIB2]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_MULTI_LIB: llvm-link{{(.exe)?}}{{.*}} "@{{.*}}" "@{{.*}}"
 // FOFFLOAD_STATIC_MULTI_LIB: link{{(.exe)?}}{{.+}} "-defaultlib:[[LIB1]]" "-defaultlib:[[LIB2]]"
 
@@ -85,7 +85,7 @@
 // RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -foffload-static-lib=%t.lib %s -### 2>&1 \
 // RUN:   | FileCheck -DLIB=%t.lib %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC2
-// FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo"{{.+}} "-inputs=[[LIB]]"{{.+}} "-unbundle"
+// FOFFLOAD_STATIC_LIB_SRC2: clang-offload-bundler{{(.exe)?}}{{.+}} "-type=aoo" "-targets=sycl-spir64-{{.+}}-sycldevice" "-inputs=[[LIB]]"{{.+}} "-unbundle"
 // FOFFLOAD_STATIC_LIB_SRC2: llvm-link{{(.exe)?}}{{.*}} "@{{.*}}"
 // FOFFLOAD_STATIC_LIB_SRC2: link{{(.exe)?}}{{.+}} "-defaultlib:[[LIB]]"
 
