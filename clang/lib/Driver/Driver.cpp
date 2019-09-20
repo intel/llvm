@@ -5012,9 +5012,13 @@ InputInfo Driver::BuildJobsForActionNoCache(
       bool IsMSVCEnv =
           C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
       if (C.getInputArgs().hasArg(options::OPT_foffload_static_lib_EQ) &&
-          UI.DependentOffloadKind != Action::OFK_Host &&
-          ((JA->getType() == types::TY_Object && !IsMSVCEnv) ||
-           (JA->getType() == types::TY_Archive && IsMSVCEnv))) {
+          ((JA->getType() == types::TY_Archive && IsMSVCEnv) ||
+           (UI.DependentOffloadKind != Action::OFK_Host &&
+            (JA->getType() == types::TY_Object && !IsMSVCEnv)))) {
+        // Host part of the unbundled static archive is not used.
+        if (UI.DependentOffloadKind == Action::OFK_Host &&
+            JA->getType() == types::TY_Archive && IsMSVCEnv)
+          continue;
         std::string TmpFileName =
            C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
                                           "txt");
