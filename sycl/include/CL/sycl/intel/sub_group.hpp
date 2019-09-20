@@ -27,21 +27,45 @@ template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
 struct is_vec<cl::sycl::vec<T, N>> : std::true_type {};
 
-template <typename T> struct minimum {
+template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {
     return (lhs <= rhs) ? lhs : rhs;
   }
 };
 
-template <typename T> struct maximum {
+template <> struct minimum<void> {
+  template <typename T> T operator()(const T &lhs, const T &rhs) const {
+    return (lhs <= rhs) ? lhs : rhs;
+  }
+};
+
+template <typename T = void> struct maximum {
   T operator()(const T &lhs, const T &rhs) const {
     return (lhs >= rhs) ? lhs : rhs;
   }
 };
 
-template <typename T> struct plus {
+template <> struct maximum<void> {
+  template <typename T> T operator()(const T &lhs, const T &rhs) const {
+    return (lhs >= rhs) ? lhs : rhs;
+  }
+};
+
+template <typename T = void> struct plus {
   T operator()(const T &lhs, const T &rhs) const { return lhs + rhs; }
 };
+
+template <> struct plus<void> {
+  template <typename T> T operator()(const T &lhs, const T &rhs) const {
+    return lhs + rhs;
+  }
+};
+
+template <typename T, __spv::GroupOperation O,
+          template <typename> class BinaryOperation>
+static T calc(T x, BinaryOperation<void>) {
+  return calc<T, O>(x, BinaryOperation<T>());
+}
 
 template <typename T, __spv::GroupOperation O>
 static typename std::enable_if<
