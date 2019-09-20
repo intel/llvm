@@ -26,7 +26,7 @@ int main() {
   usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
 
   std::vector<int, decltype(alloc)> vec(alloc);
-  vec.reserve(N);
+  vec.resize(N);
 
   for (int i = 0; i < N; i++) {
     vec[i] = i;
