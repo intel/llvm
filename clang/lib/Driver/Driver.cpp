@@ -1685,7 +1685,7 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     llvm::Triple T;
     if (AV == "gen" || AV == "all")
       HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_gen"),
-                                         "ocloc", "-?"));
+                                         "ocloc", "--help"));
     if (AV == "fpga" || AV == "all")
       HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_fpga"),
                                          "aoc", "-help"));
@@ -1704,14 +1704,17 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     llvm::outs() << "Emitting help information for " << std::get<1>(HA) << '\n'
         << "Use triple of '" << std::get<0>(HA).normalize() <<
         "' to enable ahead of time compilation\n";
-    // do not run the tools with -###.
-    if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH))
-      continue;
     std::vector<StringRef> ToolArgs = { std::get<1>(HA), std::get<2>(HA) };
-    StringRef ExecPath(C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
+    SmallString<128> ExecPath(
+        C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
     auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
     if (ToolBinary.getError()) {
       C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
+      continue;
+    }
+    // do not run the tools with -###.
+    if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
+      llvm::errs() << "\"" << ExecPath << "\" \"" << ToolArgs[1] << "\"\n";
       continue;
     }
     // Run the Tool.
