@@ -202,8 +202,8 @@ public:
         detail::Builder::createItem<dimensions, false>(GlobalSize, GlobalId);
     item<dimensions, false> LocalItem =
         detail::Builder::createItem<dimensions, false>(LocalSize, LocalId);
-    h_item<dimensions> HItem =
-        detail::Builder::createHItem<dimensions>(GlobalItem, LocalItem);
+    h_item<dimensions> HItem = detail::Builder::createHItem<dimensions>(
+        GlobalItem, LocalItem, flexibleRange);
 
     // iterate over flexible range with work group size stride; each item
     // performs flexibleRange/LocalSize iterations (if the former is divisible
@@ -225,8 +225,8 @@ public:
           item<dimensions, false> LocalItem =
               detail::Builder::createItem<dimensions, false>(localRange,
                                                              LocalID);
-          h_item<dimensions> HItem =
-              detail::Builder::createHItem<dimensions>(GlobalItem, LocalItem);
+          h_item<dimensions> HItem = detail::Builder::createHItem<dimensions>(
+              GlobalItem, LocalItem, flexibleRange);
 
           detail::NDLoop<dimensions>::iterate(
               LocalID, localRange, flexibleRange,
