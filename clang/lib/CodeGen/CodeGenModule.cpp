@@ -3871,6 +3871,24 @@ void CodeGenModule::generateIntelFPGAAnnotation(
       break;
     }
     Out << '}';
+    if (const auto *DD = dyn_cast<DeclaratorDecl>(D)) {
+      Out << "{sizeinfo:";
+      // D can't be of type FunctionDecl (as no memory attribute can be applied
+      // to a function)
+      QualType ElementTy = DD->getType();
+      QualType TmpTy = ElementTy->isArrayType()
+                           ? getContext().getBaseElementType(ElementTy)
+                           : ElementTy;
+      Out << getContext().getTypeSizeInChars(TmpTy).getQuantity();
+      // Add the dimension of the array to Out.
+      while (const auto *AT = getContext().getAsArrayType(ElementTy)) {
+        // Expecting only constant array types, assert otherwise.
+        const auto *CAT = cast<ConstantArrayType>(AT);
+        Out << "," << CAT->getSize();
+        ElementTy = CAT->getElementType();
+      }
+      Out << '}';
+    }
   }
   if (D->hasAttr<IntelFPGASinglePumpAttr>())
     Out << "{pump:1}";
