@@ -756,10 +756,12 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    detail::EventImplPtr Event =
-        detail::Scheduler::getInstance().addHostAccessor(
-            AccessorBaseHost::impl.get());
-    Event->wait(Event);
+    if (!IsPlaceH) {
+      detail::EventImplPtr Event =
+          detail::Scheduler::getInstance().addHostAccessor(
+              AccessorBaseHost::impl.get());
+      Event->wait(Event);
+    }
 #endif
   }
 
@@ -798,10 +800,12 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
-    detail::EventImplPtr Event =
-        detail::Scheduler::getInstance().addHostAccessor(
-            AccessorBaseHost::impl.get());
-    Event->wait(Event);
+    if (!IsPlaceH) {
+      detail::EventImplPtr Event =
+          detail::Scheduler::getInstance().addHostAccessor(
+              AccessorBaseHost::impl.get());
+      Event->wait(Event);
+    }
   }
 #endif
 
@@ -840,10 +844,12 @@ public:
                          AccessMode, detail::getSyclObjImpl(BufferRef).get(),
                          Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
-    detail::EventImplPtr Event =
-        detail::Scheduler::getInstance().addHostAccessor(
-            AccessorBaseHost::impl.get());
-    Event->wait(Event);
+    if (!IsPlaceH) {
+      detail::EventImplPtr Event =
+          detail::Scheduler::getInstance().addHostAccessor(
+              AccessorBaseHost::impl.get());
+      Event->wait(Event);
+    }
   }
 #endif
 
