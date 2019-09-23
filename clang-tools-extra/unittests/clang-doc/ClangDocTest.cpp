@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ClangDocTest.h"
 #include "Representation.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "gtest/gtest.h"
@@ -63,6 +64,7 @@ void CheckCommentInfo(CommentInfo &Expected, CommentInfo &Actual) {
 void CheckReference(Reference &Expected, Reference &Actual) {
   EXPECT_EQ(Expected.Name, Actual.Name);
   EXPECT_EQ(Expected.RefType, Actual.RefType);
+  EXPECT_EQ(Expected.Path, Actual.Path);
 }
 
 void CheckTypeInfo(TypeInfo *Expected, TypeInfo *Actual) {
@@ -82,6 +84,7 @@ void CheckMemberTypeInfo(MemberTypeInfo *Expected, MemberTypeInfo *Actual) {
 void CheckBaseInfo(Info *Expected, Info *Actual) {
   EXPECT_EQ(size_t(20), Actual->USR.size());
   EXPECT_EQ(Expected->Name, Actual->Name);
+  EXPECT_EQ(Expected->Path, Actual->Path);
   ASSERT_EQ(Expected->Namespace.size(), Actual->Namespace.size());
   for (size_t Idx = 0; Idx < Actual->Namespace.size(); ++Idx)
     CheckReference(Expected->Namespace[Idx], Actual->Namespace[Idx]);
@@ -166,6 +169,10 @@ void CheckRecordInfo(RecordInfo *Expected, RecordInfo *Actual) {
   for (size_t Idx = 0; Idx < Actual->VirtualParents.size(); ++Idx)
     CheckReference(Expected->VirtualParents[Idx], Actual->VirtualParents[Idx]);
 
+  ASSERT_EQ(Expected->Bases.size(), Actual->Bases.size());
+  for (size_t Idx = 0; Idx < Actual->Bases.size(); ++Idx)
+    CheckBaseRecordInfo(&Expected->Bases[Idx], &Actual->Bases[Idx]);
+
   ASSERT_EQ(Expected->ChildRecords.size(), Actual->ChildRecords.size());
   for (size_t Idx = 0; Idx < Actual->ChildRecords.size(); ++Idx)
     CheckReference(Expected->ChildRecords[Idx], Actual->ChildRecords[Idx]);
@@ -178,6 +185,21 @@ void CheckRecordInfo(RecordInfo *Expected, RecordInfo *Actual) {
   ASSERT_EQ(Expected->ChildEnums.size(), Actual->ChildEnums.size());
   for (size_t Idx = 0; Idx < Actual->ChildEnums.size(); ++Idx)
     CheckEnumInfo(&Expected->ChildEnums[Idx], &Actual->ChildEnums[Idx]);
+}
+
+void CheckBaseRecordInfo(BaseRecordInfo *Expected, BaseRecordInfo *Actual) {
+  CheckRecordInfo(Expected, Actual);
+
+  EXPECT_EQ(Expected->IsVirtual, Actual->IsVirtual);
+  EXPECT_EQ(Expected->Access, Actual->Access);
+  EXPECT_EQ(Expected->IsParent, Actual->IsParent);
+}
+
+void CheckIndex(Index &Expected, Index &Actual) {
+  CheckReference(Expected, Actual);
+  ASSERT_EQ(Expected.Children.size(), Actual.Children.size());
+  for (size_t Idx = 0; Idx < Actual.Children.size(); ++Idx)
+    CheckIndex(Expected.Children[Idx], Actual.Children[Idx]);
 }
 
 } // namespace doc

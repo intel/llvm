@@ -16,7 +16,6 @@
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/LineTable.h"
 #include "lldb/Symbol/SymbolFile.h"
-#include "lldb/Symbol/SymbolVendor.h"
 #include "lldb/Target/Language.h"
 #include "lldb/Utility/Log.h"
 #include "llvm/Support/Casting.h"
@@ -128,9 +127,14 @@ size_t InlineFunctionInfo::MemorySize() const {
 }
 
 //
-CallEdge::CallEdge(const char *symbol_name, lldb::addr_t return_pc)
-    : return_pc(return_pc), resolved(false) {
+CallEdge::CallEdge(const char *symbol_name, lldb::addr_t return_pc,
+                   CallSiteParameterArray parameters)
+    : return_pc(return_pc), parameters(std::move(parameters)), resolved(false) {
   lazy_callee.symbol_name = symbol_name;
+}
+
+llvm::ArrayRef<CallSiteParameter> CallEdge::GetCallSiteParameters() const {
+  return parameters;
 }
 
 void CallEdge::ParseSymbolFileAndResolve(ModuleList &images) {
@@ -277,11 +281,25 @@ llvm::MutableArrayRef<CallEdge> Function::GetTailCallingEdges() {
   });
 }
 
+CallEdge *Function::GetCallEdgeForReturnAddress(addr_t return_pc,
+                                                Target &target) {
+  auto edges = GetCallEdges();
+  auto edge_it =
+      std::lower_bound(edges.begin(), edges.end(), return_pc,
+                       [&](const CallEdge &edge, addr_t pc) {
+                         return edge.GetReturnPCAddress(*this, target) < pc;
+                       });
+  if (edge_it == edges.end() ||
+      edge_it->GetReturnPCAddress(*this, target) != return_pc)
+    return nullptr;
+  return &const_cast<CallEdge &>(*edge_it);
+}
+
 Block &Function::GetBlock(bool can_create) {
   if (!m_block.BlockInfoHasBeenParsed() && can_create) {
     ModuleSP module_sp = CalculateSymbolContextModule();
     if (module_sp) {
-      module_sp->GetSymbolVendor()->ParseBlocksRecursive(*this);
+      module_sp->GetSymbolFile()->ParseBlocksRecursive(*this);
     } else {
       Host::SystemLog(Host::eSystemLogError,
                       "error: unable to find module "
@@ -428,14 +446,8 @@ CompilerDeclContext Function::GetDeclContext() {
   ModuleSP module_sp = CalculateSymbolContextModule();
 
   if (module_sp) {
-    SymbolVendor *sym_vendor = module_sp->GetSymbolVendor();
-
-    if (sym_vendor) {
-      SymbolFile *sym_file = sym_vendor->GetSymbolFile();
-
-      if (sym_file)
-        return sym_file->GetDeclContextForUID(GetID());
-    }
+    if (SymbolFile *sym_file = module_sp->GetSymbolFile())
+      return sym_file->GetDeclContextForUID(GetID());
   }
   return CompilerDeclContext();
 }
@@ -449,12 +461,7 @@ Type *Function::GetType() {
     if (!sc.module_sp)
       return nullptr;
 
-    SymbolVendor *sym_vendor = sc.module_sp->GetSymbolVendor();
-
-    if (sym_vendor == nullptr)
-      return nullptr;
-
-    SymbolFile *sym_file = sym_vendor->GetSymbolFile();
+    SymbolFile *sym_file = sc.module_sp->GetSymbolFile();
 
     if (sym_file == nullptr)
       return nullptr;

@@ -9,12 +9,11 @@
 /// \file Break False Dependency pass.
 ///
 /// Some instructions have false dependencies which cause unnecessary stalls.
-/// For exmaple, instructions that only write part of a register, and implicitly
-/// need to read the other parts of the register.  This may cause unwanted
+/// For example, instructions may write part of a register and implicitly
+/// need to read the other parts of the register. This may cause unwanted
 /// stalls preventing otherwise unrelated instructions from executing in
 /// parallel in an out-of-order CPU.
-/// This pass is aimed at identifying and avoiding these depepndencies when
-/// possible.
+/// This pass is aimed at identifying and avoiding these dependencies.
 //
 //===----------------------------------------------------------------------===//
 
@@ -109,7 +108,7 @@ bool BreakFalseDeps::pickBestRegisterForUndef(MachineInstr *MI, unsigned OpIdx,
   MachineOperand &MO = MI->getOperand(OpIdx);
   assert(MO.isUndef() && "Expected undef machine operand");
 
-  unsigned OriginalReg = MO.getReg();
+  Register OriginalReg = MO.getReg();
 
   // Update only undef operands that have reg units that are mapped to one root.
   for (MCRegUnitIterator Unit(OriginalReg, TRI); Unit.isValid(); ++Unit) {
@@ -162,7 +161,7 @@ bool BreakFalseDeps::pickBestRegisterForUndef(MachineInstr *MI, unsigned OpIdx,
 
 bool BreakFalseDeps::shouldBreakDependence(MachineInstr *MI, unsigned OpIdx,
                                            unsigned Pref) {
-  unsigned reg = MI->getOperand(OpIdx).getReg();
+  Register reg = MI->getOperand(OpIdx).getReg();
   unsigned Clearance = RDA->getClearance(MI, reg);
   LLVM_DEBUG(dbgs() << "Clearance: " << Clearance << ", want " << Pref);
 

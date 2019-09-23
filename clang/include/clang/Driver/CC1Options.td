@@ -140,7 +140,8 @@ def analyzer_checker_help_developer : Flag<["-"], "analyzer-checker-help-develop
            "and debug checkers">;
 
 def analyzer_config_help : Flag<["-"], "analyzer-config-help">,
-  HelpText<"Display the list of -analyzer-config options">;
+  HelpText<"Display the list of -analyzer-config options. These are meant for "
+           "development purposes only!">;
 
 def analyzer_list_enabled_checkers : Flag<["-"], "analyzer-list-enabled-checkers">,
   HelpText<"Display the list of enabled analyzer checkers">;
@@ -200,6 +201,8 @@ def compress_debug_sections_EQ : Joined<["-", "--"], "compress-debug-sections=">
     HelpText<"DWARF debug sections compression type">;
 def mno_exec_stack : Flag<["-"], "mnoexecstack">,
   HelpText<"Mark the file as not needing an executable stack">;
+def massembler_no_warn : Flag<["-"], "massembler-no-warn">,
+  HelpText<"Make assembler not emit warnings">;
 def massembler_fatal_warnings : Flag<["-"], "massembler-fatal-warnings">,
   HelpText<"Make assembler warnings fatal">;
 def mrelax_relocations : Flag<["--"], "mrelax-relocations">,
@@ -285,8 +288,8 @@ def mcode_model : Separate<["-"], "mcode-model">,
   HelpText<"The code model to use">, Values<"tiny,small,kernel,medium,large">;
 def mdebug_pass : Separate<["-"], "mdebug-pass">,
   HelpText<"Enable additional debug output">;
-def mdisable_fp_elim : Flag<["-"], "mdisable-fp-elim">,
-  HelpText<"Disable frame pointer elimination optimization">;
+def mframe_pointer_EQ : Joined<["-"], "mframe-pointer=">,
+  HelpText<"Specify which frame pointers to retain (all, non-leaf, none).">, Values<"all,non-leaf,none">;
 def mdisable_tail_calls : Flag<["-"], "mdisable-tail-calls">,
   HelpText<"Disable tail call optimization, keeping the call stack accurate">;
 def menable_no_infinities : Flag<["-"], "menable-no-infs">,

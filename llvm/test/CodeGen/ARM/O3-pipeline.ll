@@ -37,8 +37,7 @@
 ; CHECK-NEXT:      Scalar Evolution Analysis
 ; CHECK-NEXT:      Basic Alias Analysis (stateless AA impl)
 ; CHECK-NEXT:      Function Alias Analysis Results
-; CHECK-NEXT:      Loop Pass Manager
-; CHECK-NEXT:        Transform loops to use DSP intrinsics
+; CHECK-NEXT:      Transform functions to use DSP intrinsics
 ; CHECK-NEXT:      Interleaved Access Pass
 ; CHECK-NEXT:      ARM IR optimizations
 ; CHECK-NEXT:      Dominator Tree Construction
@@ -53,6 +52,9 @@
 ; CHECK-NEXT:      Natural Loop Information
 ; CHECK-NEXT:      Scalar Evolution Analysis
 ; CHECK-NEXT:      Hardware Loop Insertion
+; CHECK-NEXT:      Scalar Evolution Analysis
+; CHECK-NEXT:      Loop Pass Manager
+; CHECK-NEXT:        Transform predicated vector loops to use MVE tail predication
 ; CHECK-NEXT:      Safe Stack instrumentation pass
 ; CHECK-NEXT:      Insert stack protectors
 ; CHECK-NEXT:      Module Verifier
@@ -72,9 +74,9 @@
 ; CHECK-NEXT:      MachineDominator Tree Construction
 ; CHECK-NEXT:      Machine Natural Loop Construction
 ; CHECK-NEXT:      Early Machine Loop Invariant Code Motion
+; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      Machine Common Subexpression Elimination
 ; CHECK-NEXT:      MachinePostDominator Tree Construction
-; CHECK-NEXT:      Machine Block Frequency Analysis
 ; CHECK-NEXT:      Machine code sinking
 ; CHECK-NEXT:      Peephole Optimizations
 ; CHECK-NEXT:      Remove dead machine instructions

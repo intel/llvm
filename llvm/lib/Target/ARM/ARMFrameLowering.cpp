@@ -376,7 +376,7 @@ void ARMFrameLowering::emitPrologue(MachineFunction &MF,
   // to determine the end of the prologue.
   DebugLoc dl;
 
-  unsigned FramePtr = RegInfo->getFrameRegister(MF);
+  Register FramePtr = RegInfo->getFrameRegister(MF);
 
   // Determine the sizes of each callee-save spill areas and record which frame
   // belongs to which callee-save spill areas.
@@ -780,7 +780,7 @@ void ARMFrameLowering::emitEpilogue(MachineFunction &MF,
 
   unsigned ArgRegsSaveSize = AFI->getArgRegsSaveSize();
   int NumBytes = (int)MFI.getStackSize();
-  unsigned FramePtr = RegInfo->getFrameRegister(MF);
+  Register FramePtr = RegInfo->getFrameRegister(MF);
 
   // All calls are tail calls in GHC calling conv, and functions have no
   // prologue/epilogue.
@@ -1623,7 +1623,7 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
   (void)TRI;  // Silence unused warning in non-assert builds.
-  unsigned FramePtr = RegInfo->getFrameRegister(MF);
+  Register FramePtr = RegInfo->getFrameRegister(MF);
 
   // Spill R4 if Thumb2 function requires stack realignment - it will be used as
   // scratch register. Also spill R4 if Thumb2 function has varsized objects,
@@ -2080,9 +2080,8 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
             ExtraCSSpill = true;
         }
       }
-      if (!ExtraCSSpill) {
+      if (!ExtraCSSpill && RS) {
         // Reserve a slot closest to SP or frame pointer.
-        assert(RS && "Register scavenging not provided");
         LLVM_DEBUG(dbgs() << "Reserving emergency spill slot\n");
         const TargetRegisterClass &RC = ARM::GPRRegClass;
         unsigned Size = TRI->getSpillSize(RC);
@@ -2097,6 +2096,12 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
     AFI->setLRIsSpilledForFarJump(true);
   }
   AFI->setLRIsSpilled(SavedRegs.test(ARM::LR));
+
+  // If we have the "returned" parameter attribute which guarantees that we
+  // return the value which was passed in r0 unmodified (e.g. C++ 'structors),
+  // record that fact for IPRA.
+  if (AFI->getPreservesR0())
+    SavedRegs.set(ARM::R0);
 }
 
 MachineBasicBlock::iterator ARMFrameLowering::eliminateCallFramePseudoInstr(

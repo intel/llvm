@@ -84,9 +84,7 @@ class ShowSelectionTree : public Tweak {
 public:
   const char *id() const override final;
 
-  bool prepare(const Selection &Inputs) override {
-    return Inputs.ASTSelection.root() != nullptr;
-  }
+  bool prepare(const Selection &Inputs) override { return true; }
   Expected<Effect> apply(const Selection &Inputs) override {
     return Effect::showMessage(llvm::to_string(Inputs.ASTSelection));
   }
@@ -128,6 +126,11 @@ public:
         TypeWithKeyword::getTagTypeKindName(Record->getTagKind()));
   }
   Intent intent() const override { return Info; }
+  // FIXME: this is interesting to most users. However:
+  //  - triggering is too broad (e.g. triggers on comments within a class)
+  //  - showMessage has inconsistent UX (e.g. newlines are stripped in VSCode)
+  //  - the output itself is a bit hard to decipher.
+  bool hidden() const override { return true; }
 
 private:
   const RecordDecl *Record = nullptr;

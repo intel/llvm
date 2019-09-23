@@ -39,7 +39,6 @@ add_clang_library(clangDaemon
   Cancellation.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
-  ClangdUnit.cpp
   CodeComplete.cpp
   CodeCompletionStrings.cpp
   Compiler.cpp
@@ -48,6 +47,7 @@ add_clang_library(clangDaemon
   DraftStore.cpp
   ExpectedTypes.cpp
   FindSymbols.cpp
+  FindTarget.cpp
   FileDistance.cpp
   Format.cpp
   FS.cpp
@@ -61,6 +61,8 @@ add_clang_library(clangDaemon
   Logger.cpp
   Protocol.cpp
   Quality.cpp
+  ParsedAST.cpp
+  Preamble.cpp
   RIFF.cpp
   Selection.cpp
   SemanticHighlighting.cpp
@@ -73,6 +75,7 @@ add_clang_library(clangDaemon
   XRefs.cpp
 
   index/Background.cpp
+  index/BackgroundIndexLoader.cpp
   index/BackgroundIndexStorage.cpp
   index/BackgroundQueue.cpp
   index/BackgroundRebuild.cpp
@@ -121,10 +124,12 @@ add_clang_library(clangDaemon
   clangTidyFuchsiaModule
   clangTidyGoogleModule
   clangTidyHICPPModule
+  clangTidyLinuxKernelModule
   clangTidyLLVMModule
   clangTidyMiscModule
   clangTidyModernizeModule
   clangTidyObjCModule
+  clangTidyOpenMPModule
   clangTidyPerformanceModule
   clangTidyPortabilityModule
   clangTidyReadabilityModule

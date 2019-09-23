@@ -656,7 +656,7 @@ public:
          TargetLibraryInfo *TLI, AliasAnalysis *AA, MemorySSA *MSSA,
          const DataLayout &DL)
       : F(F), DT(DT), TLI(TLI), AA(AA), MSSA(MSSA), DL(DL),
-        PredInfo(make_unique<PredicateInfo>(F, *DT, *AC)),
+        PredInfo(std::make_unique<PredicateInfo>(F, *DT, *AC)),
         SQ(DL, TLI, DT, AC, /*CtxI=*/nullptr, /*UseInstrInfo=*/false) {}
 
   bool runGVN();
@@ -4196,7 +4196,7 @@ bool NewGVNLegacyPass::runOnFunction(Function &F) {
     return false;
   return NewGVN(F, &getAnalysis<DominatorTreeWrapperPass>().getDomTree(),
                 &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F),
-                &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(),
+                &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F),
                 &getAnalysis<AAResultsWrapperPass>().getAAResults(),
                 &getAnalysis<MemorySSAWrapperPass>().getMSSA(),
                 F.getParent()->getDataLayout())

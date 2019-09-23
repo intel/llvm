@@ -140,7 +140,7 @@ NativeProcessNetBSD::NativeProcessNetBSD(::pid_t pid, int terminal_fd,
                                          NativeDelegate &delegate,
                                          const ArchSpec &arch,
                                          MainLoop &mainloop)
-    : NativeProcessProtocol(pid, terminal_fd, delegate), m_arch(arch) {
+    : NativeProcessELF(pid, terminal_fd, delegate), m_arch(arch) {
   if (m_terminal_fd != -1) {
     Status status = EnsureFDFlags(m_terminal_fd, O_NONBLOCK);
     assert(status.Success());
@@ -195,6 +195,7 @@ void NativeProcessNetBSD::MonitorSIGSTOP(lldb::pid_t pid) {
             SIGSTOP, &info.psi_siginfo);
       }
     }
+    SetState(StateType::eStateStopped, true);
   }
 }
 
@@ -658,7 +659,7 @@ NativeThreadNetBSD &NativeProcessNetBSD::AddThread(lldb::tid_t thread_id) {
   if (m_threads.empty())
     SetCurrentThreadID(thread_id);
 
-  m_threads.push_back(llvm::make_unique<NativeThreadNetBSD>(*this, thread_id));
+  m_threads.push_back(std::make_unique<NativeThreadNetBSD>(*this, thread_id));
   return static_cast<NativeThreadNetBSD &>(*m_threads.back());
 }
 

@@ -107,6 +107,10 @@ public:
   WasmSymbolType getWasmType() const;
   bool isExported() const;
 
+  // Indicates that the symbol is used in an __attribute__((used)) directive
+  // or similar.
+  bool isNoStrip() const;
+
   const WasmSignature* getSignature() const;
 
   bool isInGOT() const { return gotIndex != INVALID_INDEX; }
@@ -435,6 +439,10 @@ struct WasmSym {
   // Symbol whose value is the size of the TLS block.
   static GlobalSymbol *tlsSize;
 
+  // __tls_size
+  // Symbol whose value is the alignment of the TLS block.
+  static GlobalSymbol *tlsAlign;
+
   // __data_end
   // Symbol marking the end of the data and bss.
   static DefinedData *dataEnd;
@@ -445,13 +453,17 @@ struct WasmSym {
   // therefore be used as a backing store for brk()/malloc() implementations.
   static DefinedData *heapBase;
 
+  // __wasm_init_memory_flag
+  // Symbol whose contents are nonzero iff memory has already been initialized.
+  static DefinedData *initMemoryFlag;
+
+  // __wasm_init_memory
+  // Function that initializes passive data segments during instantiation.
+  static DefinedFunction *initMemory;
+
   // __wasm_call_ctors
   // Function that directly calls all ctors in priority order.
   static DefinedFunction *callCtors;
-
-  // __wasm_init_memory
-  // Function that initializes passive data segments post-instantiation.
-  static DefinedFunction *initMemory;
 
   // __wasm_apply_relocs
   // Function that applies relocations to data segment post-instantiation.
@@ -468,10 +480,12 @@ struct WasmSym {
   // __table_base
   // Used in PIC code for offset of indirect function table
   static UndefinedGlobal *tableBase;
+  static DefinedData *definedTableBase;
 
   // __memory_base
   // Used in PIC code for offset of global data
   static UndefinedGlobal *memoryBase;
+  static DefinedData *definedMemoryBase;
 };
 
 // A buffer class that is large enough to hold any Symbol-derived

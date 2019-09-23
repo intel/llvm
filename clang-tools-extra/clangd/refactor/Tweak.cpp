@@ -7,12 +7,18 @@
 //===----------------------------------------------------------------------===//
 #include "Tweak.h"
 #include "Logger.h"
+#include "Path.h"
+#include "SourceCode.h"
+#include "llvm/ADT/None.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Registry.h"
 #include <functional>
 #include <memory>
+#include <utility>
 
 LLVM_INSTANTIATE_REGISTRY(llvm::Registry<clang::clangd::Tweak>)
 
@@ -40,7 +46,8 @@ void validateRegistry() {
 
 Tweak::Selection::Selection(ParsedAST &AST, unsigned RangeBegin,
                             unsigned RangeEnd)
-    : AST(AST), ASTSelection(AST.getASTContext(), RangeBegin, RangeEnd) {
+    : AST(AST), SelectionBegin(RangeBegin), SelectionEnd(RangeEnd),
+      ASTSelection(AST.getASTContext(), AST.getTokens(), RangeBegin, RangeEnd) {
   auto &SM = AST.getSourceManager();
   Code = SM.getBufferData(SM.getMainFileID());
   Cursor = SM.getComposedLoc(SM.getMainFileID(), RangeBegin);
@@ -78,6 +85,29 @@ llvm::Expected<std::unique_ptr<Tweak>> prepareTweak(StringRef ID,
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "failed to prepare() a check");
   return std::move(T);
+}
+
+llvm::Expected<std::pair<Path, Edit>>
+Tweak::Effect::fileEdit(const SourceManager &SM, FileID FID,
+                        tooling::Replacements Replacements) {
+  Edit Ed(SM.getBufferData(FID), std::move(Replacements));
+  if (auto FilePath = getCanonicalPath(SM.getFileEntryForID(FID), SM))
+    return std::make_pair(*FilePath, std::move(Ed));
+  return llvm::createStringError(
+      llvm::inconvertibleErrorCode(),
+      "Failed to get absolute path for edited file: " +
+          SM.getFileEntryForID(FID)->getName());
+}
+
+llvm::Expected<Tweak::Effect>
+Tweak::Effect::mainFileEdit(const SourceManager &SM,
+                            tooling::Replacements Replacements) {
+  auto PathAndEdit = fileEdit(SM, SM.getMainFileID(), std::move(Replacements));
+  if (!PathAndEdit)
+    return PathAndEdit.takeError();
+  Tweak::Effect E;
+  E.ApplyEdits.try_emplace(PathAndEdit->first, PathAndEdit->second);
+  return E;
 }
 
 } // namespace clangd

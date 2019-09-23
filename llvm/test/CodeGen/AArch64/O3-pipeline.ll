@@ -55,6 +55,8 @@
 ; CHECK-NEXT:       Interleaved Load Combine Pass
 ; CHECK-NEXT:       Dominator Tree Construction
 ; CHECK-NEXT:       Interleaved Access Pass
+; CHECK-NEXT:       Basic Alias Analysis (stateless AA impl)
+; CHECK-NEXT:       Function Alias Analysis Results
 ; CHECK-NEXT:       AArch64 Stack Tagging
 ; CHECK-NEXT:       Natural Loop Information
 ; CHECK-NEXT:       CodeGen Prepare
@@ -95,12 +97,13 @@
 ; CHECK-NEXT:       Early If-Conversion
 ; CHECK-NEXT:       AArch64 Store Pair Suppression
 ; CHECK-NEXT:       AArch64 SIMD instructions optimization pass
+; CHECK-NEXT:       AArch64 Stack Tagging PreRA
 ; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       Machine Natural Loop Construction
 ; CHECK-NEXT:       Early Machine Loop Invariant Code Motion
+; CHECK-NEXT:       Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine Common Subexpression Elimination
 ; CHECK-NEXT:       MachinePostDominator Tree Construction
-; CHECK-NEXT:       Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine code sinking
 ; CHECK-NEXT:       Peephole Optimizations
 ; CHECK-NEXT:       Remove dead machine instructions

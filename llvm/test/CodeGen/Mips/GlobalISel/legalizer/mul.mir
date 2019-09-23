@@ -17,7 +17,7 @@
 ...
 ---
 name:            mul_i32
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.0.entry:
@@ -39,7 +39,7 @@ body:             |
 ...
 ---
 name:            mul_i8_sext
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -52,8 +52,8 @@ body:             |
     ; MIPS32: [[COPY2:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
     ; MIPS32: [[COPY3:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
     ; MIPS32: [[MUL:%[0-9]+]]:_(s32) = G_MUL [[COPY2]], [[COPY3]]
-    ; MIPS32: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 24
     ; MIPS32: [[COPY4:%[0-9]+]]:_(s32) = COPY [[MUL]](s32)
+    ; MIPS32: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 24
     ; MIPS32: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY4]], [[C]](s32)
     ; MIPS32: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[C]](s32)
     ; MIPS32: $v0 = COPY [[ASHR]](s32)
@@ -70,7 +70,7 @@ body:             |
 ...
 ---
 name:            mul_i8_zext
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -100,7 +100,7 @@ body:             |
 ...
 ---
 name:            mul_i8_aext
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -128,7 +128,7 @@ body:             |
 ...
 ---
 name:            mul_i16_sext
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -141,8 +141,8 @@ body:             |
     ; MIPS32: [[COPY2:%[0-9]+]]:_(s32) = COPY [[COPY1]](s32)
     ; MIPS32: [[COPY3:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
     ; MIPS32: [[MUL:%[0-9]+]]:_(s32) = G_MUL [[COPY2]], [[COPY3]]
-    ; MIPS32: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
     ; MIPS32: [[COPY4:%[0-9]+]]:_(s32) = COPY [[MUL]](s32)
+    ; MIPS32: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
     ; MIPS32: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY4]], [[C]](s32)
     ; MIPS32: [[ASHR:%[0-9]+]]:_(s32) = G_ASHR [[SHL]], [[C]](s32)
     ; MIPS32: $v0 = COPY [[ASHR]](s32)
@@ -159,7 +159,7 @@ body:             |
 ...
 ---
 name:            mul_i16_zext
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -189,7 +189,7 @@ body:             |
 ...
 ---
 name:            mul_i16_aext
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -217,7 +217,7 @@ body:             |
 ...
 ---
 name:            mul_i64
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -253,7 +253,7 @@ body:             |
 ...
 ---
 name:            mul_i128
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 fixedStack:
   - { id: 0, offset: 28, size: 4, alignment: 4, stack-id: default, isImmutable: true }
@@ -365,7 +365,7 @@ body:             |
 ...
 ---
 name:            umulh_i64
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1.entry:
@@ -427,7 +427,7 @@ body:             |
 ...
 ---
 name:            umul_with_overflow
-alignment:       2
+alignment:       4
 tracksRegLiveness: true
 body:             |
   bb.1 (%ir-block.0):

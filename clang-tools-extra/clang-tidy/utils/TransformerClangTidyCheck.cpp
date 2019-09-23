@@ -53,7 +53,7 @@ void TransformerClangTidyCheck::registerPPCallbacks(
   if (Rule && llvm::any_of(Rule->Cases, [](const RewriteRule::Case &C) {
         return !C.AddedIncludes.empty();
       })) {
-    Inserter = llvm::make_unique<IncludeInserter>(
+    Inserter = std::make_unique<IncludeInserter>(
         SM, getLangOpts(), utils::IncludeSorter::IS_LLVM);
     PP->addPPCallbacks(Inserter->CreatePPCallbacks());
   }
@@ -62,21 +62,14 @@ void TransformerClangTidyCheck::registerPPCallbacks(
 void TransformerClangTidyCheck::registerMatchers(
     ast_matchers::MatchFinder *Finder) {
   if (Rule)
-    Finder->addDynamicMatcher(tooling::detail::buildMatcher(*Rule), this);
+    for (auto &Matcher : tooling::detail::buildMatchers(*Rule))
+      Finder->addDynamicMatcher(Matcher, this);
 }
 
 void TransformerClangTidyCheck::check(
     const ast_matchers::MatchFinder::MatchResult &Result) {
   if (Result.Context->getDiagnostics().hasErrorOccurred())
     return;
-
-  // Verify the existence and validity of the AST node that roots this rule.
-  const ast_matchers::BoundNodes::IDToNodeMap &NodesMap = Result.Nodes.getMap();
-  auto Root = NodesMap.find(RewriteRule::RootID);
-  assert(Root != NodesMap.end() && "Transformation failed: missing root node.");
-  SourceLocation RootLoc = Result.SourceManager->getExpansionLoc(
-      Root->second.getSourceRange().getBegin());
-  assert(RootLoc.isValid() && "Invalid location for Root node of match.");
 
   assert(Rule && "check() should not fire if Rule is None");
   RewriteRule::Case Case = tooling::detail::findSelectedCase(Result, *Rule);
@@ -98,10 +91,12 @@ void TransformerClangTidyCheck::check(
                  << llvm::toString(Explanation.takeError()) << "\n";
     return;
   }
-  DiagnosticBuilder Diag = diag(RootLoc, *Explanation);
-  for (const auto &T : *Transformations) {
+
+  // Associate the diagnostic with the location of the first change.
+  DiagnosticBuilder Diag =
+      diag((*Transformations)[0].Range.getBegin(), *Explanation);
+  for (const auto &T : *Transformations)
     Diag << FixItHint::CreateReplacement(T.Range, T.Replacement);
-  }
 
   for (const auto &I : Case.AddedIncludes) {
     auto &Header = I.first;

@@ -34,9 +34,9 @@ get_property(COMPILE_FLAGS TARGET llvm-config PROPERTY COMPILE_FLAGS)
 # NOTE: We don't want to start extracting any random C/CXX flags that the
 # user may add that could affect the ABI.  We only want to extract flags
 # that have been added by the LLVM build system.
-string(REGEX MATCH "-std=[^ ]\+" LLVM_CXX_STD_FLAG ${CMAKE_CXX_FLAGS})
-string(REGEX MATCH "-stdlib=[^ ]\+" LLVM_CXX_STDLIB_FLAG ${CMAKE_CXX_FLAGS})
-string(REGEX MATCH "-std=[^ ]\+" LLVM_C_STD_FLAG ${CMAKE_C_FLAGS})
+string(REGEX MATCH "-std=[^ ]+" LLVM_CXX_STD_FLAG ${CMAKE_CXX_FLAGS})
+string(REGEX MATCH "-stdlib=[^ ]+" LLVM_CXX_STDLIB_FLAG ${CMAKE_CXX_FLAGS})
+string(REGEX MATCH "-std=[^ ]+" LLVM_C_STD_FLAG ${CMAKE_C_FLAGS})
 
 # Use configure_file to create BuildVariables.inc.
 set(LLVM_SRC_ROOT ${LLVM_MAIN_SRC_DIR})
@@ -60,6 +60,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_HAS_RTTI
   LLVM_HAS_GLOBAL_ISEL
   BUILD_SHARED_LIBS)
+llvm_expand_pseudo_components(LLVM_DYLIB_COMPONENTS_expanded "${LLVM_DYLIB_COMPONENTS}")
 configure_file(${BUILDVARIABLES_SRCPATH} ${BUILDVARIABLES_OBJPATH} @ONLY)
 
 # Set build-time environment(s).

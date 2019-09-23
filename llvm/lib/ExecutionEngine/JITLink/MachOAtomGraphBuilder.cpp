@@ -34,7 +34,7 @@ Expected<std::unique_ptr<AtomGraph>> MachOAtomGraphBuilder::buildGraph() {
 
 MachOAtomGraphBuilder::MachOAtomGraphBuilder(const object::MachOObjectFile &Obj)
     : Obj(Obj),
-      G(llvm::make_unique<AtomGraph>(Obj.getFileName(), getPointerSize(Obj),
+      G(std::make_unique<AtomGraph>(Obj.getFileName(), getPointerSize(Obj),
                                      getEndianness(Obj))) {}
 
 void MachOAtomGraphBuilder::addCustomAtomizer(StringRef SectionName,
@@ -96,9 +96,10 @@ Error MachOAtomGraphBuilder::parseSections() {
     assert((SecRef.getAlignment() <= std::numeric_limits<uint32_t>::max()) &&
            "Section alignment does not fit in 32 bits");
 
-    StringRef Name;
-    if (auto EC = SecRef.getName(Name))
-      return errorCodeToError(EC);
+    Expected<StringRef> NameOrErr = SecRef.getName();
+    if (!NameOrErr)
+      return NameOrErr.takeError();
+    StringRef Name = *NameOrErr;
 
     unsigned SectionIndex = SecRef.getIndex() + 1;
 

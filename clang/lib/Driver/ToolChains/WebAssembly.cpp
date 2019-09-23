@@ -89,7 +89,7 @@ void wasm::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
 
-  C.addCommand(llvm::make_unique<Command>(JA, *this, Linker, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this, Linker, CmdArgs, Inputs));
 }
 
 WebAssembly::WebAssembly(const Driver &D, const llvm::Triple &Triple,
@@ -165,6 +165,26 @@ void WebAssembly::addClangTargetOptions(const ArgList &DriverArgs,
     CC1Args.push_back("+bulk-memory");
     CC1Args.push_back("-target-feature");
     CC1Args.push_back("+mutable-globals");
+  }
+
+  if (DriverArgs.getLastArg(options::OPT_fwasm_exceptions)) {
+    // '-fwasm-exceptions' is not compatible with '-mno-exception-handling'
+    if (DriverArgs.hasFlag(options::OPT_mno_exception_handing,
+                           options::OPT_mexception_handing, false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-fwasm-exceptions"
+          << "-mno-exception-handling";
+    // '-fwasm-exceptions' is not compatible with
+    // '-mllvm -enable-emscripten-cxx-exceptions'
+    for (const Arg *A : DriverArgs.filtered(options::OPT_mllvm)) {
+      if (StringRef(A->getValue(0)) == "-enable-emscripten-cxx-exceptions")
+        getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+            << "-fwasm-exceptions"
+            << "-mllvm -enable-emscripten-cxx-exceptions";
+    }
+    // '-fwasm-exceptions' implies exception-handling
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+exception-handling");
   }
 }
 

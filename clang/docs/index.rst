@@ -61,6 +61,7 @@ Using Clang as a Library
    RAVFrontendAction
    LibASTMatchersTutorial
    LibASTMatchers
+   LibASTImporter
    HowToSetupToolingForLLVM
    JSONCompilationDatabase
    RefactoringEngine
@@ -87,6 +88,7 @@ Design Documents
    PCHInternals
    ItaniumMangleAbiTags
    HardwareAssistedAddressSanitizerDesign.rst
+   ConstantInterpreter
 
 
 Indices and tables

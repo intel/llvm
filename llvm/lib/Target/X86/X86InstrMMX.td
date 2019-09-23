@@ -567,6 +567,13 @@ def MMX_PMOVMSKBrr : MMXI<0xD7, MRMSrcReg, (outs GR32orGR64:$dst),
                                 (int_x86_mmx_pmovmskb VR64:$src))]>,
                           Sched<[WriteMMXMOVMSK]>;
 
+// MMX to XMM for vector types
+def MMX_X86movq2dq : SDNode<"X86ISD::MOVQ2DQ", SDTypeProfile<1, 1,
+                            [SDTCisVT<0, v2i64>, SDTCisVT<1, x86mmx>]>>;
+
+def : Pat<(v2i64 (MMX_X86movq2dq VR64:$src)),
+          (v2i64 (MMX_MOVQ2DQrr VR64:$src))>;
+
 // Low word of XMM to MMX.
 def MMX_X86movdq2q : SDNode<"X86ISD::MOVDQ2Q", SDTypeProfile<1, 1,
                             [SDTCisVT<0, x86mmx>, SDTCisVT<1, v2i64>]>>;
@@ -574,8 +581,12 @@ def MMX_X86movdq2q : SDNode<"X86ISD::MOVDQ2Q", SDTypeProfile<1, 1,
 def : Pat<(x86mmx (MMX_X86movdq2q VR128:$src)),
           (x86mmx (MMX_MOVDQ2Qrr VR128:$src))>;
 
-def : Pat<(x86mmx (MMX_X86movdq2q (loadv2i64 addr:$src))),
+def : Pat<(x86mmx (MMX_X86movdq2q (v2i64 (simple_load addr:$src)))),
           (x86mmx (MMX_MOVQ64rm addr:$src))>;
+
+def : Pat<(v2i64 (X86vzmovl (scalar_to_vector
+                             (i64 (bitconvert (x86mmx VR64:$src)))))),
+          (MMX_MOVQ2DQrr VR64:$src)>;
 
 // Misc.
 let SchedRW = [SchedWriteShuffle.MMX] in {
@@ -600,9 +611,6 @@ def : Pat<(x86mmx (MMX_X86movdq2q
           (MMX_CVTPS2PIirr VR128:$src)>;
 def : Pat<(x86mmx (MMX_X86movdq2q
                    (bc_v2i64 (v4i32 (X86cvttp2si (v4f32 VR128:$src)))))),
-          (MMX_CVTTPS2PIirr VR128:$src)>;
-def : Pat<(x86mmx (MMX_X86movdq2q
-                   (bc_v2i64 (v4i32 (fp_to_sint (v4f32 VR128:$src)))))),
           (MMX_CVTTPS2PIirr VR128:$src)>;
 def : Pat<(x86mmx (MMX_X86movdq2q
                    (bc_v2i64 (v4i32 (X86cvtp2Int (v2f64 VR128:$src)))))),

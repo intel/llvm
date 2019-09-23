@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -std=c++98 -verify -fsyntax-only %s -Wno-c++11-extensions -Wno-c++1y-extensions -DPRECXX11
-// RUN: %clang_cc1 -std=c++11 -verify -fsyntax-only -Wno-c++1y-extensions %s
-// RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only %s -DCPP1Y
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++98 -verify -fsyntax-only %s -Wno-c++11-extensions -Wno-c++1y-extensions -DPRECXX11
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++11 -verify -fsyntax-only -Wno-c++1y-extensions %s
+// RUN: %clang_cc1 -triple %itanium_abi_triple -std=c++1y -verify -fsyntax-only %s -DCPP1Y
 
 #define CONST const
 
@@ -395,3 +395,32 @@ namespace dependent_static_var_template {
   }
   int &t = B::template n; // expected-error {{use of variable template 'n' requires template arguments}}
 }
+
+#ifndef PRECXX11
+namespace template_vars_in_template {
+template <int> struct TakesInt {};
+
+template <class T2>
+struct S {
+  template <class T1>
+  static constexpr int v = 42;
+
+  template <class T>
+  void mf() {
+    constexpr int val = v<T>;
+  }
+
+  void mf2() {
+    constexpr int val = v<char>;
+    TakesInt<val> ti;
+    (void)ti.x; // expected-error{{no member named 'x' in 'template_vars_in_template::TakesInt<42>'}}
+  }
+};
+
+void useit() {
+  S<int> x;
+  x.mf<double>();
+  x.mf2(); // expected-note{{in instantiation of member function 'template_vars_in_template::S<int>::mf2' requested here}}
+}
+}
+#endif

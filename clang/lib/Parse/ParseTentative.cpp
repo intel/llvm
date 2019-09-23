@@ -1194,7 +1194,7 @@ public:
   }
 
   std::unique_ptr<CorrectionCandidateCallback> clone() override {
-    return llvm::make_unique<TentativeParseCCC>(*this);
+    return std::make_unique<TentativeParseCCC>(*this);
   }
 };
 }
@@ -1409,6 +1409,7 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
   case tok::kw_typedef:
   case tok::kw_constexpr:
   case tok::kw_consteval:
+  case tok::kw_constinit:
     // storage-class-specifier
   case tok::kw_register:
   case tok::kw_static:

@@ -26,6 +26,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -357,9 +358,6 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   HasFarJump = false;
   bool GenerateTBB = isThumb2 || (isThumb1 && SynthesizeThumb1TBB);
 
-  // This pass invalidates liveness information when it splits basic blocks.
-  MF->getRegInfo().invalidateLiveness();
-
   // Renumber all of the machine basic blocks in the function, guaranteeing that
   // the numbers agree with the position of the block in the function.
   MF->RenumberBlocks();
@@ -398,7 +396,7 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
   // Functions with jump tables need an alignment of 4 because they use the ADR
   // instruction, which aligns the PC to 4 bytes before adding an offset.
   if (!T2JumpTables.empty())
-    MF->ensureAlignment(2);
+    MF->ensureAlignment(llvm::Align(4));
 
   /// Remove dead constant pool entries.
   MadeChange |= removeUnusedCPEntries();
@@ -488,10 +486,10 @@ ARMConstantIslands::doInitialConstPlacement(std::vector<MachineInstr*> &CPEMIs) 
   MF->push_back(BB);
 
   // MachineConstantPool measures alignment in bytes. We measure in log2(bytes).
-  unsigned MaxAlign = Log2_32(MCP->getConstantPoolAlignment());
+  unsigned MaxLogAlign = Log2_32(MCP->getConstantPoolAlignment());
 
   // Mark the basic block as required by the const-pool.
-  BB->setAlignment(MaxAlign);
+  BB->setLogAlignment(MaxLogAlign);
 
   // The function needs to be as aligned as the basic blocks. The linker may
   // move functions around based on their alignment.
@@ -501,7 +499,8 @@ ARMConstantIslands::doInitialConstPlacement(std::vector<MachineInstr*> &CPEMIs) 
   // alignment of all entries as long as BB is sufficiently aligned.  Keep
   // track of the insertion point for each alignment.  We are going to bucket
   // sort the entries as they are created.
-  SmallVector<MachineBasicBlock::iterator, 8> InsPoint(MaxAlign + 1, BB->end());
+  SmallVector<MachineBasicBlock::iterator, 8> InsPoint(MaxLogAlign + 1,
+                                                       BB->end());
 
   // Add all of the constants from the constant pool to the end block, use an
   // identity mapping of CPI's to CPE's.
@@ -526,7 +525,7 @@ ARMConstantIslands::doInitialConstPlacement(std::vector<MachineInstr*> &CPEMIs) 
 
     // Ensure that future entries with higher alignment get inserted before
     // CPEMI. This is bucket sort with iterators.
-    for (unsigned a = LogAlign + 1; a <= MaxAlign; ++a)
+    for (unsigned a = LogAlign + 1; a <= MaxLogAlign; ++a)
       if (InsPoint[a] == InsAt)
         InsPoint[a] = CPEMI;
 
@@ -687,7 +686,7 @@ initializeFunctionInfo(const std::vector<MachineInstr*> &CPEMIs) {
   BBInfoVector &BBInfo = BBUtils->getBBInfo();
   // The known bits of the entry block offset are determined by the function
   // alignment.
-  BBInfo.front().KnownBits = MF->getAlignment();
+  BBInfo.front().KnownBits = Log2(MF->getAlignment());
 
   // Compute block offsets and known bits.
   BBUtils->adjustBBOffsetsAfter(&MF->front());
@@ -824,11 +823,6 @@ initializeFunctionInfo(const std::vector<MachineInstr*> &CPEMIs) {
             Scale = 2;  // +-(offset_8*2)
             NegOk = true;
             break;
-
-          case ARM::tLDRHi:
-            Bits = 5;
-            Scale = 2; // +(offset_5*2)
-            break;
           }
 
           // Remember that this is a user of a CP entry.
@@ -885,6 +879,13 @@ void ARMConstantIslands::updateForInsertedWaterBlock(MachineBasicBlock *NewBB) {
 MachineBasicBlock *ARMConstantIslands::splitBlockBeforeInstr(MachineInstr *MI) {
   MachineBasicBlock *OrigBB = MI->getParent();
 
+  // Collect liveness information at MI.
+  LivePhysRegs LRs(*MF->getSubtarget().getRegisterInfo());
+  LRs.addLiveOuts(*OrigBB);
+  auto LivenessEnd = ++MachineBasicBlock::iterator(MI).getReverse();
+  for (MachineInstr &LiveMI : make_range(OrigBB->rbegin(), LivenessEnd))
+    LRs.stepBackward(LiveMI);
+
   // Create a new MBB for the code after the OrigBB.
   MachineBasicBlock *NewBB =
     MF->CreateMachineBasicBlock(OrigBB->getBasicBlock());
@@ -912,6 +913,12 @@ MachineBasicBlock *ARMConstantIslands::splitBlockBeforeInstr(MachineInstr *MI) {
 
   // OrigBB branches to NewBB.
   OrigBB->addSuccessor(NewBB);
+
+  // Update live-in information in the new block.
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  for (MCPhysReg L : LRs)
+    if (!MRI.isReserved(L))
+      NewBB->addLiveIn(L);
 
   // Update internal data structures to account for the newly inserted MBB.
   // This is almost the same as updateForInsertedWaterBlock, except that
@@ -1009,11 +1016,11 @@ bool ARMConstantIslands::isWaterInRange(unsigned UserOffset,
   BBInfoVector &BBInfo = BBUtils->getBBInfo();
   unsigned CPELogAlign = getCPELogAlign(U.CPEMI);
   unsigned CPEOffset = BBInfo[Water->getNumber()].postOffset(CPELogAlign);
-  unsigned NextBlockOffset, NextBlockAlignment;
+  unsigned NextBlockOffset;
+  llvm::Align NextBlockAlignment;
   MachineFunction::const_iterator NextBlock = Water->getIterator();
   if (++NextBlock == MF->end()) {
     NextBlockOffset = BBInfo[Water->getNumber()].postOffset();
-    NextBlockAlignment = 0;
   } else {
     NextBlockOffset = BBInfo[NextBlock->getNumber()].Offset;
     NextBlockAlignment = NextBlock->getAlignment();
@@ -1028,13 +1035,14 @@ bool ARMConstantIslands::isWaterInRange(unsigned UserOffset,
     Growth = CPEEnd - NextBlockOffset;
     // Compute the padding that would go at the end of the CPE to align the next
     // block.
-    Growth += OffsetToAlignment(CPEEnd, 1ULL << NextBlockAlignment);
+    Growth += offsetToAlignment(CPEEnd, NextBlockAlignment);
 
     // If the CPE is to be inserted before the instruction, that will raise
     // the offset of the instruction. Also account for unknown alignment padding
     // in blocks between CPE and the user.
     if (CPEOffset < UserOffset)
-      UserOffset += Growth + UnknownPadding(MF->getAlignment(), CPELogAlign);
+      UserOffset +=
+          Growth + UnknownPadding(Log2(MF->getAlignment()), CPELogAlign);
   } else
     // CPE fits in existing padding.
     Growth = 0;
@@ -1309,7 +1317,7 @@ void ARMConstantIslands::createNewWater(unsigned CPUserIndex,
   // Try to split the block so it's fully aligned.  Compute the latest split
   // point where we can add a 4-byte branch instruction, and then align to
   // LogAlign which is the largest possible alignment in the function.
-  unsigned LogAlign = MF->getAlignment();
+  unsigned LogAlign = Log2(MF->getAlignment());
   assert(LogAlign >= CPELogAlign && "Over-aligned constant pool entry");
   unsigned KnownBits = UserBBI.internalKnownBits();
   unsigned UPad = UnknownPadding(LogAlign, KnownBits);
@@ -1337,6 +1345,28 @@ void ARMConstantIslands::createNewWater(unsigned CPUserIndex,
     BaseInsertOffset =
         std::max(UserBBI.postOffset() - UPad - 8,
                  UserOffset + TII->getInstSizeInBytes(*UserMI) + 1);
+    // If the CP is referenced(ie, UserOffset) is in first four instructions
+    // after IT, this recalculated BaseInsertOffset could be in the middle of
+    // an IT block. If it is, change the BaseInsertOffset to just after the
+    // IT block. This still make the CP Entry is in range becuase of the
+    // following reasons.
+    //   1. The initial BaseseInsertOffset calculated is (UserOffset +
+    //   U.getMaxDisp() - UPad).
+    //   2. An IT block is only at most 4 instructions plus the "it" itself (18
+    //   bytes).
+    //   3. All the relevant instructions support much larger Maximum
+    //   displacement.
+    MachineBasicBlock::iterator I = UserMI;
+    ++I;
+    for (unsigned Offset = UserOffset + TII->getInstSizeInBytes(*UserMI),
+                  PredReg = 0;
+         I->getOpcode() != ARM::t2IT &&
+         getITInstrPredicate(*I, PredReg) != ARMCC::AL;
+         Offset += TII->getInstSizeInBytes(*I), I = std::next(I)) {
+      BaseInsertOffset =
+          std::max(BaseInsertOffset, Offset + TII->getInstSizeInBytes(*I) + 1);
+      assert(I != UserMBB->end() && "Fell off end of block");
+    }
     LLVM_DEBUG(dbgs() << format("Move inside block: %#x\n", BaseInsertOffset));
   }
   unsigned EndInsertOffset = BaseInsertOffset + 4 + UPad +
@@ -1397,9 +1427,10 @@ void ARMConstantIslands::createNewWater(unsigned CPUserIndex,
   }
 
   // We really must not split an IT block.
-  LLVM_DEBUG(unsigned PredReg; assert(
-                 !isThumb || getITInstrPredicate(*MI, PredReg) == ARMCC::AL));
-
+#ifndef NDEBUG
+  unsigned PredReg;
+  assert(!isThumb || getITInstrPredicate(*MI, PredReg) == ARMCC::AL);
+#endif
   NewMBB = splitBlockBeforeInstr(&*MI);
 }
 
@@ -1464,9 +1495,9 @@ bool ARMConstantIslands::handleConstantPoolUser(unsigned CPUserIndex,
   // Always align the new block because CP entries can be smaller than 4
   // bytes. Be careful not to decrease the existing alignment, e.g. NewMBB may
   // be an already aligned constant pool block.
-  const unsigned Align = isThumb ? 1 : 2;
-  if (NewMBB->getAlignment() < Align)
-    NewMBB->setAlignment(Align);
+  const unsigned LogAlign = isThumb ? 1 : 2;
+  if (NewMBB->getLogAlignment() < LogAlign)
+    NewMBB->setLogAlignment(LogAlign);
 
   // Remove the original WaterList entry; we want subsequent insertions in
   // this vicinity to go after the one we're about to insert.  This
@@ -1495,7 +1526,7 @@ bool ARMConstantIslands::handleConstantPoolUser(unsigned CPUserIndex,
   decrementCPEReferenceCount(CPI, CPEMI);
 
   // Mark the basic block as aligned as required by the const-pool entry.
-  NewIsland->setAlignment(getCPELogAlign(U.CPEMI));
+  NewIsland->setLogAlignment(getCPELogAlign(U.CPEMI));
 
   // Increase the size of the island block to account for the new entry.
   BBUtils->adjustBBSize(NewIsland, Size);
@@ -1529,10 +1560,10 @@ void ARMConstantIslands::removeDeadCPEMI(MachineInstr *CPEMI) {
     BBInfo[CPEBB->getNumber()].Size = 0;
 
     // This block no longer needs to be aligned.
-    CPEBB->setAlignment(0);
+    CPEBB->setLogAlignment(0);
   } else
     // Entries are sorted by descending alignment, so realign from the front.
-    CPEBB->setAlignment(getCPELogAlign(&*CPEBB->begin()));
+    CPEBB->setLogAlignment(getCPELogAlign(&*CPEBB->begin()));
 
   BBUtils->adjustBBOffsetsAfter(CPEBB);
   // An island has only one predecessor BB and one successor BB. Check if
@@ -1620,7 +1651,7 @@ ARMConstantIslands::fixupConditionalBr(ImmBranch &Br) {
   // L2:
   ARMCC::CondCodes CC = (ARMCC::CondCodes)MI->getOperand(1).getImm();
   CC = ARMCC::getOppositeCondition(CC);
-  unsigned CCReg = MI->getOperand(2).getReg();
+  Register CCReg = MI->getOperand(2).getReg();
 
   // If the branch is at the end of its MBB and that has a fall-through block,
   // direct the updated conditional branch to the fall-through block. Otherwise,
@@ -1852,7 +1883,7 @@ bool ARMConstantIslands::optimizeThumb2Branches() {
     if (!CmpMI || CmpMI->getOpcode() != ARM::tCMPi8)
       continue;
 
-    unsigned Reg = CmpMI->getOperand(0).getReg();
+    Register Reg = CmpMI->getOperand(0).getReg();
 
     // Check for Kill flags on Reg. If they are present remove them and set kill
     // on the new CBZ.
@@ -1931,8 +1962,8 @@ bool ARMConstantIslands::preserveBaseRegister(MachineInstr *JumpMI,
   //      of BaseReg, but only if the t2ADDrs can be removed.
   //    + Some instruction other than t2ADDrs computing the entry. Not seen in
   //      the wild, but we should be careful.
-  unsigned EntryReg = JumpMI->getOperand(0).getReg();
-  unsigned BaseReg = LEAMI->getOperand(0).getReg();
+  Register EntryReg = JumpMI->getOperand(0).getReg();
+  Register BaseReg = LEAMI->getOperand(0).getReg();
 
   CanDeleteLEA = true;
   BaseRegKill = false;
@@ -2009,7 +2040,7 @@ static void RemoveDeadAddBetweenLEAAndJT(MachineInstr *LEAMI,
   // but the JT now uses PC. Finds the last ADD (if any) that def's EntryReg
   // and is not clobbered / used.
   MachineInstr *RemovableAdd = nullptr;
-  unsigned EntryReg = JumpMI->getOperand(0).getReg();
+  Register EntryReg = JumpMI->getOperand(0).getReg();
 
   // Find the last ADD to set EntryReg
   MachineBasicBlock::iterator I(LEAMI);
@@ -2106,7 +2137,7 @@ bool ARMConstantIslands::optimizeThumb2JumpTables() {
       //   %idx = tLSLri %idx, 2
       //   %base = tLEApcrelJT
       //   %t = tLDRr %base, %idx
-      unsigned BaseReg = User.MI->getOperand(0).getReg();
+      Register BaseReg = User.MI->getOperand(0).getReg();
 
       if (User.MI->getIterator() == User.MI->getParent()->begin())
         continue;
@@ -2116,7 +2147,7 @@ bool ARMConstantIslands::optimizeThumb2JumpTables() {
           !Shift->getOperand(2).isKill())
         continue;
       IdxReg = Shift->getOperand(2).getReg();
-      unsigned ShiftedIdxReg = Shift->getOperand(0).getReg();
+      Register ShiftedIdxReg = Shift->getOperand(0).getReg();
 
       // It's important that IdxReg is live until the actual TBB/TBH. Most of
       // the range is checked later, but the LEA might still clobber it and not
@@ -2312,6 +2343,10 @@ adjustJTTargetBlockForward(MachineBasicBlock *BB, MachineBasicBlock *JTBB) {
     MF->CreateMachineBasicBlock(JTBB->getBasicBlock());
   MachineFunction::iterator MBBI = ++JTBB->getIterator();
   MF->insert(MBBI, NewBB);
+
+  // Copy live-in information to new block.
+  for (const MachineBasicBlock::RegisterMaskPair &RegMaskPair : BB->liveins())
+    NewBB->addLiveIn(RegMaskPair);
 
   // Add an unconditional branch from NewBB to BB.
   // There doesn't seem to be meaningful DebugInfo available; this doesn't

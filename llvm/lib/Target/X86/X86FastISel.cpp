@@ -1241,7 +1241,7 @@ bool X86FastISel::X86SelectRet(const Instruction *I) {
     }
 
     // Make the copy.
-    unsigned DstReg = VA.getLocReg();
+    Register DstReg = VA.getLocReg();
     const TargetRegisterClass *SrcRC = MRI.getRegClass(SrcReg);
     // Avoid a cross-class copy. This is very unlikely.
     if (!SrcRC->contains(DstReg))
@@ -3387,6 +3387,7 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
     case CCValAssign::SExtUpper:
     case CCValAssign::ZExtUpper:
     case CCValAssign::FPExt:
+    case CCValAssign::Trunc:
       llvm_unreachable("Unexpected loc info!");
     case CCValAssign::Indirect:
       // FIXME: Indirect doesn't need extending, but fast-isel doesn't fully
@@ -3547,7 +3548,7 @@ bool X86FastISel::fastLowerCall(CallLoweringInfo &CLI) {
     CCValAssign &VA = RVLocs[i];
     EVT CopyVT = VA.getValVT();
     unsigned CopyReg = ResultReg + i;
-    unsigned SrcReg = VA.getLocReg();
+    Register SrcReg = VA.getLocReg();
 
     // If this is x86-64, and we disabled SSE, we can't return FP values
     if ((CopyVT == MVT::f32 || CopyVT == MVT::f64) &&

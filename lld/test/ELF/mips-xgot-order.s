@@ -4,33 +4,36 @@
 
 # RUN: llvm-mc -filetype=obj -triple=mips-unknown-linux %s -o %t.o
 # RUN: ld.lld %t.o -o %t.exe
-# RUN: llvm-objdump -d -s -t %t.exe | FileCheck %s
+# RUN: llvm-objdump -d --no-show-raw-insn %t.exe | FileCheck %s
+# RUN: llvm-readelf -s -mips-plt-got %t.exe | FileCheck -check-prefix=GOT %s
 
 # CHECK:      Disassembly of section .text:
 # CHECK-EMPTY:
 # CHECK-NEXT: __start:
-# CHECK-NEXT:    20000:       3c 02 00 00     lui     $2, 0
-# CHECK-NEXT:    20004:       8c 42 80 24     lw      $2, -32732($2)
-# CHECK-NEXT:    20008:       3c 02 00 00     lui     $2, 0
-# CHECK-NEXT:    2000c:       8c 42 80 28     lw      $2, -32728($2)
+# CHECK-NEXT:    lui     $2, 0
+# CHECK-NEXT:    lw      $2, -32732($2)
+# CHECK-NEXT:    lui     $2, 0
+# CHECK-NEXT:    lw      $2, -32728($2)
 #
 # CHECK:      bar:
-# CHECK-NEXT:    20010:       8c 42 80 20     lw      $2, -32736($2)
-# CHECK-NEXT:    20014:       8c 42 80 18     lw      $2, -32744($2)
-# CHECK-NEXT:    20018:       20 42 00 00     addi    $2, $2, 0
+# CHECK-NEXT:    lw      $2, -32736($2)
+# CHECK-NEXT:    lw      $2, -32744($2)
+# CHECK-NEXT:    addi    $2, $2, {{.*}}
 
-# CHECK:      Contents of section .got:
-# CHECK-NEXT:  30010 00000000 80000000 00030000 00040000
-#                                      ^ %hi(loc)
-#                                               ^ redundant entry
-# CHECK-NEXT:  30020 00020010 00020000 00030000
-#                    ^ %got(bar)
-#                             ^ %got_hi/lo(start)
-#                                      ^ %got_hi/lo(loc)
+# GOT: Symbol table '.symtab'
+# GOT:    Num:               Value  Size Type    Bind   Vis       Ndx Name
+# GOT:           [[LOC:[0-9a-f]+]]     0 NOTYPE  LOCAL  DEFAULT     4 loc
+# GOT:         [[START:[0-9a-f]+]]     0 NOTYPE  GLOBAL DEFAULT     3 __start
+# GOT:           [[BAR:[0-9a-f]+]]     0 NOTYPE  GLOBAL DEFAULT     3 bar
 
-# CHECK: 00030000         .data           00000000 loc
-# CHECK: 00020000         .text           00000000 __start
-# CHECK: 00020010         .text           00000000 bar
+# GOT:      Static GOT:
+# GOT:       Local entries:
+# GOT:         Address     Access  Initial
+# GOT-NEXT:            -32744(gp) 00030000
+# GOT-NEXT:            -32740(gp) 00040000
+# GOT-NEXT:            -32736(gp) [[BAR]]
+# GOT-NEXT:            -32732(gp) [[START]]
+# GOT-NEXT:            -32728(gp) [[LOC]]
 
   .text
   .global __start, bar

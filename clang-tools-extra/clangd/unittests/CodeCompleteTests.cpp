@@ -939,6 +939,25 @@ TEST(CompletionTest, IgnoreCompleteInExcludedPPBranchWithRecoveryContext) {
 
   EXPECT_TRUE(Results.Completions.empty());
 }
+
+TEST(CompletionTest, DefaultArgs) {
+  clangd::CodeCompleteOptions Opts;
+  std::string Context = R"cpp(
+    int X(int A = 0);
+    int Y(int A, int B = 0);
+    int Z(int A, int B = 0, int C = 0, int D = 0);
+  )cpp";
+  EXPECT_THAT(completions(Context + "int y = X^", {}, Opts).Completions,
+              UnorderedElementsAre(Labeled("X(int A = 0)")));
+  EXPECT_THAT(completions(Context + "int y = Y^", {}, Opts).Completions,
+              UnorderedElementsAre(AllOf(Labeled("Y(int A, int B = 0)"),
+                                         SnippetSuffix("(${1:int A})"))));
+  EXPECT_THAT(completions(Context + "int y = Z^", {}, Opts).Completions,
+              UnorderedElementsAre(
+                  AllOf(Labeled("Z(int A, int B = 0, int C = 0, int D = 0)"),
+                        SnippetSuffix("(${1:int A})"))));
+}
+
 SignatureHelp signatures(llvm::StringRef Text, Position Point,
                          std::vector<Symbol> IndexSymbols = {}) {
   std::unique_ptr<SymbolIndex> Index;
@@ -2567,6 +2586,7 @@ TEST(NoCompileCompletionTest, WithIndex) {
         void foo() {
         xx^
         }
+        }
       )cpp",
       Syms);
   EXPECT_THAT(Results.Completions,
@@ -2583,6 +2603,7 @@ TEST(NoCompileCompletionTest, WithIndex) {
         using namespace b;
         void foo() {
         xx^
+        }
         }
       )cpp",
       Syms, Opts);
@@ -2601,6 +2622,7 @@ TEST(NoCompileCompletionTest, WithIndex) {
         void foo() {
         b::xx^
         }
+        }
       )cpp",
       Syms, Opts);
   EXPECT_THAT(Results.Completions,
@@ -2613,6 +2635,7 @@ TEST(NoCompileCompletionTest, WithIndex) {
         using namespace b;
         void foo() {
         ::a::xx^
+        }
         }
       )cpp",
       Syms, Opts);

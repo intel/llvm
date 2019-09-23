@@ -201,8 +201,8 @@ define <2 x i19> @weird_vec_power_of_2_constant_splat_divisor(<2 x i19> %A) {
 
 define i1 @test3a(i32 %A) {
 ; CHECK-LABEL: @test3a(
-; CHECK-NEXT:    [[B1:%.*]] = and i32 [[A:%.*]], 7
-; CHECK-NEXT:    [[C:%.*]] = icmp ne i32 [[B1]], 0
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[A:%.*]], 7
+; CHECK-NEXT:    [[C:%.*]] = icmp ne i32 [[TMP1]], 0
 ; CHECK-NEXT:    ret i1 [[C]]
 ;
   %B = srem i32 %A, -8
@@ -212,8 +212,8 @@ define i1 @test3a(i32 %A) {
 
 define <2 x i1> @test3a_vec(<2 x i32> %A) {
 ; CHECK-LABEL: @test3a_vec(
-; CHECK-NEXT:    [[B1:%.*]] = and <2 x i32> [[A:%.*]], <i32 7, i32 7>
-; CHECK-NEXT:    [[C:%.*]] = icmp ne <2 x i32> [[B1]], zeroinitializer
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> [[A:%.*]], <i32 7, i32 7>
+; CHECK-NEXT:    [[C:%.*]] = icmp ne <2 x i32> [[TMP1]], zeroinitializer
 ; CHECK-NEXT:    ret <2 x i1> [[C]]
 ;
   %B = srem <2 x i32> %A, <i32 -8, i32 -8>
@@ -367,8 +367,8 @@ define i32 @test16(i32 %x, i32 %y) {
 define i32 @test17(i32 %X) {
 ; CHECK-LABEL: @test17(
 ; CHECK-NEXT:    [[TMP1:%.*]] = icmp ne i32 [[X:%.*]], 1
-; CHECK-NEXT:    [[TMP2:%.*]] = zext i1 [[TMP1]] to i32
-; CHECK-NEXT:    ret i32 [[TMP2]]
+; CHECK-NEXT:    [[A:%.*]] = zext i1 [[TMP1]] to i32
+; CHECK-NEXT:    ret i32 [[A]]
 ;
   %A = urem i32 1, %X
   ret i32 %A
@@ -655,6 +655,88 @@ define <2 x i32> @test23(<2 x i32> %A) {
   %and = and <2 x i32> %A, <i32 2147483647, i32 2147483647>
   %mul = srem <2 x i32> %and, <i32 2147483647, i32 2147483647>
   ret <2 x i32> %mul
+}
+
+define i1 @test24(i32 %A) {
+; CHECK-LABEL: @test24(
+; CHECK-NEXT:    [[B:%.*]] = and i32 [[A:%.*]], 2147483647
+; CHECK-NEXT:    [[C:%.*]] = icmp ne i32 [[B]], 0
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %B = urem i32 %A, 2147483648 ; signbit
+  %C = icmp ne i32 %B, 0
+  ret i1 %C
+}
+
+define <2 x i1> @test24_vec(<2 x i32> %A) {
+; CHECK-LABEL: @test24_vec(
+; CHECK-NEXT:    [[B:%.*]] = and <2 x i32> [[A:%.*]], <i32 2147483647, i32 2147483647>
+; CHECK-NEXT:    [[C:%.*]] = icmp ne <2 x i32> [[B]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[C]]
+;
+  %B = urem <2 x i32> %A, <i32 2147483648, i32 2147483648>
+  %C = icmp ne <2 x i32> %B, zeroinitializer
+  ret <2 x i1> %C
+}
+
+define i1 @test25(i32 %A) {
+; CHECK-LABEL: @test25(
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[A:%.*]], 2147483647
+; CHECK-NEXT:    [[C:%.*]] = icmp ne i32 [[TMP1]], 0
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %B = srem i32 %A, 2147483648 ; signbit
+  %C = icmp ne i32 %B, 0
+  ret i1 %C
+}
+
+define <2 x i1> @test25_vec(<2 x i32> %A) {
+; CHECK-LABEL: @test25_vec(
+; CHECK-NEXT:    [[TMP1:%.*]] = and <2 x i32> [[A:%.*]], <i32 2147483647, i32 2147483647>
+; CHECK-NEXT:    [[C:%.*]] = icmp ne <2 x i32> [[TMP1]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[C]]
+;
+  %B = srem <2 x i32> %A, <i32 2147483648, i32 2147483648>
+  %C = icmp ne <2 x i32> %B, zeroinitializer
+  ret <2 x i1> %C
+}
+
+define i1 @test26(i32 %A, i32 %B) {
+; CHECK-LABEL: @test26(
+; CHECK-NEXT:    [[NOTMASK:%.*]] = shl nsw i32 -1, [[B:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = xor i32 [[NOTMASK]], -1
+; CHECK-NEXT:    [[TMP2:%.*]] = and i32 [[TMP1]], [[A:%.*]]
+; CHECK-NEXT:    [[E:%.*]] = icmp ne i32 [[TMP2]], 0
+; CHECK-NEXT:    ret i1 [[E]]
+;
+  %C = shl i32 1, %B ; not a constant
+  %D = srem i32 %A, %C
+  %E = icmp ne i32 %D, 0
+  ret i1 %E
+}
+
+define i1 @test27(i32 %A, i32* %remdst) {
+; CHECK-LABEL: @test27(
+; CHECK-NEXT:    [[B:%.*]] = srem i32 [[A:%.*]], -2147483648
+; CHECK-NEXT:    store i32 [[B]], i32* [[REMDST:%.*]], align 1
+; CHECK-NEXT:    [[C:%.*]] = icmp ne i32 [[B]], 0
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %B = srem i32 %A, 2147483648 ; signbit
+  store i32 %B, i32* %remdst, align 1 ; extra use of rem
+  %C = icmp ne i32 %B, 0
+  ret i1 %C
+}
+
+define i1 @test28(i32 %A) {
+; CHECK-LABEL: @test28(
+; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[A:%.*]], 2147483647
+; CHECK-NEXT:    [[C:%.*]] = icmp eq i32 [[TMP1]], 0
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %B = srem i32 %A, 2147483648 ; signbit
+  %C = icmp eq i32 %B, 0 ; another equality predicate
+  ret i1 %C
 }
 
 ; FP division-by-zero is not UB.

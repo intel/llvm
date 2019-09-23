@@ -11,8 +11,7 @@
 /// The expectation is that the loop contains three pseudo instructions:
 /// - t2*LoopStart - placed in the preheader or pre-preheader. The do-loop
 ///   form should be in the preheader, whereas the while form should be in the
-///   preheaders only predecessor. TODO: Could DoLoopStart get moved into the
-///   pre-preheader?
+///   preheaders only predecessor.
 /// - t2LoopDec - placed within in the loop body.
 /// - t2LoopEnd - the loop latch terminator.
 ///
@@ -54,6 +53,8 @@ namespace {
 
     bool ProcessLoop(MachineLoop *ML);
 
+    bool RevertNonLoops(MachineFunction &MF);
+
     void RevertWhile(MachineInstr *MI) const;
 
     void RevertLoopDec(MachineInstr *MI) const;
@@ -73,7 +74,7 @@ namespace {
     }
   };
 }
-  
+
 char ARMLowOverheadLoops::ID = 0;
 
 INITIALIZE_PASS(ARMLowOverheadLoops, DEBUG_TYPE, ARM_LOW_OVERHEAD_LOOPS_NAME,
@@ -98,7 +99,13 @@ bool ARMLowOverheadLoops::runOnMachineFunction(MachineFunction &MF) {
     if (!ML->getParentLoop())
       Changed |= ProcessLoop(ML);
   }
+  Changed |= RevertNonLoops(MF);
   return Changed;
+}
+
+static bool IsLoopStart(MachineInstr &MI) {
+  return MI.getOpcode() == ARM::t2DoLoopStart ||
+         MI.getOpcode() == ARM::t2WhileLoopStart;
 }
 
 bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
@@ -111,15 +118,10 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
 
   LLVM_DEBUG(dbgs() << "ARM Loops: Processing " << *ML);
 
-  auto IsLoopStart = [](MachineInstr &MI) {
-    return MI.getOpcode() == ARM::t2DoLoopStart ||
-           MI.getOpcode() == ARM::t2WhileLoopStart;
-  };
-
   // Search the given block for a loop start instruction. If one isn't found,
   // and there's only one predecessor block, search that one too.
   std::function<MachineInstr*(MachineBasicBlock*)> SearchForStart =
-    [&IsLoopStart, &SearchForStart](MachineBasicBlock *MBB) -> MachineInstr* {
+    [&SearchForStart](MachineBasicBlock *MBB) -> MachineInstr* {
     for (auto &MI : *MBB) {
       if (IsLoopStart(MI))
         return &MI;
@@ -165,41 +167,60 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
         Dec = &MI;
       else if (MI.getOpcode() == ARM::t2LoopEnd)
         End = &MI;
+      else if (IsLoopStart(MI))
+        Start = &MI;
       else if (MI.getDesc().isCall())
         // TODO: Though the call will require LE to execute again, does this
         // mean we should revert? Always executing LE hopefully should be
         // faster than performing a sub,cmp,br or even subs,br.
         Revert = true;
 
-      if (!Dec)
+      if (!Dec || End)
         continue;
 
-      // If we find that we load/store LR between LoopDec and LoopEnd, expect
-      // that the decremented value has been spilled to the stack. Because
-      // this value isn't actually going to be produced until the latch, by LE,
-      // we would need to generate a real sub. The value is also likely to be
-      // reloaded for use of LoopEnd - in which in case we'd need to perform
-      // an add because it gets negated again by LE! The other option is to
-      // then generate the other form of LE which doesn't perform the sub.
-      if (MI.mayLoad() || MI.mayStore())
-        Revert =
-          MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == ARM::LR;
+      // If we find that LR has been written or read between LoopDec and
+      // LoopEnd, expect that the decremented value is being used else where.
+      // Because this value isn't actually going to be produced until the
+      // latch, by LE, we would need to generate a real sub. The value is also
+      // likely to be copied/reloaded for use of LoopEnd - in which in case
+      // we'd need to perform an add because it gets subtracted again by LE!
+      // The other option is to then generate the other form of LE which doesn't
+      // perform the sub.
+      for (auto &MO : MI.operands()) {
+        if (MI.getOpcode() != ARM::t2LoopDec && MO.isReg() &&
+            MO.getReg() == ARM::LR) {
+          LLVM_DEBUG(dbgs() << "ARM Loops: Found LR Use/Def: " << MI);
+          Revert = true;
+          break;
+        }
+      }
     }
 
     if (Dec && End && Revert)
       break;
   }
 
+  LLVM_DEBUG(if (Start) dbgs() << "ARM Loops: Found Loop Start: " << *Start;
+             if (Dec) dbgs() << "ARM Loops: Found Loop Dec: " << *Dec;
+             if (End) dbgs() << "ARM Loops: Found Loop End: " << *End;);
+
   if (!Start && !Dec && !End) {
     LLVM_DEBUG(dbgs() << "ARM Loops: Not a low-overhead loop.\n");
     return Changed;
-  } if (!(Start && Dec && End)) {
-    report_fatal_error("Failed to find all loop components");
+  } else if (!(Start && Dec && End)) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: Failed to find all loop components.\n");
+    return false;
   }
 
-  if (!End->getOperand(1).isMBB() ||
-      End->getOperand(1).getMBB() != ML->getHeader())
-    report_fatal_error("Expected LoopEnd to target Loop Header");
+  if (!End->getOperand(1).isMBB())
+    report_fatal_error("Expected LoopEnd to target basic block");
+
+  // TODO Maybe there's cases where the target doesn't have to be the header,
+  // but for now be safe and revert.
+  if (End->getOperand(1).getMBB() != ML->getHeader()) {
+    LLVM_DEBUG(dbgs() << "ARM Loops: LoopEnd is not targetting header.\n");
+    Revert = true;
+  }
 
   // The WLS and LE instructions have 12-bits for the label offset. WLS
   // requires a positive offset, while LE uses negative.
@@ -216,10 +237,6 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
     Revert = true;
   }
 
-  LLVM_DEBUG(dbgs() << "ARM Loops:\n - Found Loop Start: " << *Start
-                    << " - Found Loop Dec: " << *Dec
-                    << " - Found Loop End: " << *End);
-
   Expand(ML, Start, Dec, End, Revert);
   return true;
 }
@@ -234,10 +251,10 @@ void ARMLowOverheadLoops::RevertWhile(MachineInstr *MI) const {
   MachineBasicBlock *MBB = MI->getParent();
   MachineInstrBuilder MIB = BuildMI(*MBB, MI, MI->getDebugLoc(),
                                     TII->get(ARM::t2CMPri));
-  MIB.addReg(ARM::LR);
+  MIB.add(MI->getOperand(0));
   MIB.addImm(0);
   MIB.addImm(ARMCC::AL);
-  MIB.addReg(ARM::CPSR);
+  MIB.addReg(ARM::NoRegister);
 
   // TODO: Try to use tBcc instead
   MIB = BuildMI(*MBB, MI, MI->getDebugLoc(), TII->get(ARM::t2Bcc));
@@ -275,7 +292,7 @@ void ARMLowOverheadLoops::RevertLoopEnd(MachineInstr *MI) const {
   MIB.addReg(ARM::LR);
   MIB.addImm(0);
   MIB.addImm(ARMCC::AL);
-  MIB.addReg(ARM::CPSR);
+  MIB.addReg(ARM::NoRegister);
 
   // TODO Try to use tBcc instead.
   // Create bne
@@ -377,6 +394,44 @@ void ARMLowOverheadLoops::Expand(MachineLoop *ML, MachineInstr *Start,
     End = ExpandLoopEnd(ML, Dec, End);
     RemoveDeadBranch(End);
   }
+}
+
+bool ARMLowOverheadLoops::RevertNonLoops(MachineFunction &MF) {
+  LLVM_DEBUG(dbgs() << "ARM Loops: Reverting any remaining pseudos...\n");
+  bool Changed = false;
+
+  for (auto &MBB : MF) {
+    SmallVector<MachineInstr*, 4> Starts;
+    SmallVector<MachineInstr*, 4> Decs;
+    SmallVector<MachineInstr*, 4> Ends;
+
+    for (auto &I : MBB) {
+      if (IsLoopStart(I))
+        Starts.push_back(&I);
+      else if (I.getOpcode() == ARM::t2LoopDec)
+        Decs.push_back(&I);
+      else if (I.getOpcode() == ARM::t2LoopEnd)
+        Ends.push_back(&I);
+    }
+
+    if (Starts.empty() && Decs.empty() && Ends.empty())
+      continue;
+
+    Changed = true;
+
+    for (auto *Start : Starts) {
+      if (Start->getOpcode() == ARM::t2WhileLoopStart)
+        RevertWhile(Start);
+      else
+        Start->eraseFromParent();
+    }
+    for (auto *Dec : Decs)
+      RevertLoopDec(Dec);
+
+    for (auto *End : Ends)
+      RevertLoopEnd(End);
+  }
+  return Changed;
 }
 
 FunctionPass *llvm::createARMLowOverheadLoopsPass() {

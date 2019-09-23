@@ -118,7 +118,7 @@ NativeRegisterContextLinux::CreateHostNativeRegisterContextLinux(
     const ArchSpec &target_arch, NativeThreadProtocol &native_thread) {
   switch (target_arch.GetMachine()) {
   case llvm::Triple::ppc64le:
-    return llvm::make_unique<NativeRegisterContextLinux_ppc64le>(target_arch,
+    return std::make_unique<NativeRegisterContextLinux_ppc64le>(target_arch,
                                                                  native_thread);
   default:
     llvm_unreachable("have no register context for architecture");
@@ -443,34 +443,6 @@ bool NativeRegisterContextLinux_ppc64le::IsGPR(unsigned reg) const {
 
 bool NativeRegisterContextLinux_ppc64le::IsFPR(unsigned reg) const {
   return (k_first_fpr_ppc64le <= reg && reg <= k_last_fpr_ppc64le);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoReadGPR(
-    void *buf, size_t buf_size) {
-  int regset = NT_PRSTATUS;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_GETREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoWriteGPR(
-    void *buf, size_t buf_size) {
-  int regset = NT_PRSTATUS;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_SETREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoReadFPR(void *buf,
-                                                     size_t buf_size) {
-  int regset = NT_FPREGSET;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_GETFPREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
-}
-
-Status NativeRegisterContextLinux_ppc64le::DoWriteFPR(void *buf,
-                                                      size_t buf_size) {
-  int regset = NT_FPREGSET;
-  return NativeProcessLinux::PtraceWrapper(PTRACE_SETFPREGS, m_thread.GetID(),
-                                           &regset, buf, buf_size);
 }
 
 uint32_t NativeRegisterContextLinux_ppc64le::CalculateFprOffset(

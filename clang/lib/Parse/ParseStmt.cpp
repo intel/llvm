@@ -141,7 +141,7 @@ public:
   }
 
   std::unique_ptr<CorrectionCandidateCallback> clone() override {
-    return llvm::make_unique<StatementFilterCCC>(*this);
+    return std::make_unique<StatementFilterCCC>(*this);
   }
 
 private:
@@ -154,6 +154,7 @@ StmtResult Parser::ParseStatementOrDeclarationAfterAttributes(
     SourceLocation *TrailingElseLoc, ParsedAttributesWithRange &Attrs) {
   const char *SemiError = nullptr;
   StmtResult Res;
+  SourceLocation GNUAttributeLoc;
 
   // Cases in this switch statement should fall through if the parser expects
   // the token to end in a semicolon (in which case SemiError should be set),
@@ -209,10 +210,17 @@ Retry:
     if ((getLangOpts().CPlusPlus || getLangOpts().MicrosoftExt ||
          (StmtCtx & ParsedStmtContext::AllowDeclarationsInC) !=
              ParsedStmtContext()) &&
-        isDeclarationStatement()) {
+        (GNUAttributeLoc.isValid() || isDeclarationStatement())) {
       SourceLocation DeclStart = Tok.getLocation(), DeclEnd;
-      DeclGroupPtrTy Decl = ParseDeclaration(DeclaratorContext::BlockContext,
-                                             DeclEnd, Attrs);
+      DeclGroupPtrTy Decl;
+      if (GNUAttributeLoc.isValid()) {
+        DeclStart = GNUAttributeLoc;
+        Decl = ParseDeclaration(DeclaratorContext::BlockContext, DeclEnd, Attrs,
+                                &GNUAttributeLoc);
+      } else {
+        Decl =
+            ParseDeclaration(DeclaratorContext::BlockContext, DeclEnd, Attrs);
+      }
       return Actions.ActOnDeclStmt(Decl, DeclStart, DeclEnd);
     }
 
@@ -222,6 +230,12 @@ Retry:
     }
 
     return ParseExprStatement(StmtCtx);
+  }
+
+  case tok::kw___attribute: {
+    GNUAttributeLoc = Tok.getLocation();
+    ParseGNUAttributes(Attrs);
+    goto Retry;
   }
 
   case tok::kw_case:                // C99 6.8.1: labeled-statement

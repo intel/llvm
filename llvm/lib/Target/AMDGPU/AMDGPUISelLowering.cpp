@@ -39,80 +39,6 @@
 #include "llvm/Support/KnownBits.h"
 using namespace llvm;
 
-static bool allocateCCRegs(unsigned ValNo, MVT ValVT, MVT LocVT,
-                           CCValAssign::LocInfo LocInfo,
-                           ISD::ArgFlagsTy ArgFlags, CCState &State,
-                           const TargetRegisterClass *RC,
-                           unsigned NumRegs) {
-  ArrayRef<MCPhysReg> RegList = makeArrayRef(RC->begin(), NumRegs);
-  unsigned RegResult = State.AllocateReg(RegList);
-  if (RegResult == AMDGPU::NoRegister)
-    return false;
-
-  State.addLoc(CCValAssign::getReg(ValNo, ValVT, RegResult, LocVT, LocInfo));
-  return true;
-}
-
-static bool allocateSGPRTuple(unsigned ValNo, MVT ValVT, MVT LocVT,
-                              CCValAssign::LocInfo LocInfo,
-                              ISD::ArgFlagsTy ArgFlags, CCState &State) {
-  switch (LocVT.SimpleTy) {
-  case MVT::i64:
-  case MVT::f64:
-  case MVT::v2i32:
-  case MVT::v2f32:
-  case MVT::v4i16:
-  case MVT::v4f16: {
-    // Up to SGPR0-SGPR105
-    return allocateCCRegs(ValNo, ValVT, LocVT, LocInfo, ArgFlags, State,
-                          &AMDGPU::SGPR_64RegClass, 53);
-  }
-  default:
-    return false;
-  }
-}
-
-// Allocate up to VGPR31.
-//
-// TODO: Since there are no VGPR alignent requirements would it be better to
-// split into individual scalar registers?
-static bool allocateVGPRTuple(unsigned ValNo, MVT ValVT, MVT LocVT,
-                              CCValAssign::LocInfo LocInfo,
-                              ISD::ArgFlagsTy ArgFlags, CCState &State) {
-  switch (LocVT.SimpleTy) {
-  case MVT::i64:
-  case MVT::f64:
-  case MVT::v2i32:
-  case MVT::v2f32:
-  case MVT::v4i16:
-  case MVT::v4f16: {
-    return allocateCCRegs(ValNo, ValVT, LocVT, LocInfo, ArgFlags, State,
-                          &AMDGPU::VReg_64RegClass, 31);
-  }
-  case MVT::v4i32:
-  case MVT::v4f32:
-  case MVT::v2i64:
-  case MVT::v2f64: {
-    return allocateCCRegs(ValNo, ValVT, LocVT, LocInfo, ArgFlags, State,
-                          &AMDGPU::VReg_128RegClass, 29);
-  }
-  case MVT::v8i32:
-  case MVT::v8f32: {
-    return allocateCCRegs(ValNo, ValVT, LocVT, LocInfo, ArgFlags, State,
-                          &AMDGPU::VReg_256RegClass, 25);
-
-  }
-  case MVT::v16i32:
-  case MVT::v16f32: {
-    return allocateCCRegs(ValNo, ValVT, LocVT, LocInfo, ArgFlags, State,
-                          &AMDGPU::VReg_512RegClass, 17);
-
-  }
-  default:
-    return false;
-  }
-}
-
 #include "AMDGPUGenCallingConv.inc"
 
 // Find a larger type to do a load / store of a vector with.
@@ -218,6 +144,9 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
     setLoadExtAction(ISD::EXTLOAD, VT, MVT::v2i16, Expand);
     setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i16, Expand);
     setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i16, Expand);
+    setLoadExtAction(ISD::EXTLOAD, VT, MVT::v3i16, Expand);
+    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v3i16, Expand);
+    setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v3i16, Expand);
     setLoadExtAction(ISD::EXTLOAD, VT, MVT::v4i16, Expand);
     setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v4i16, Expand);
     setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v4i16, Expand);
@@ -225,8 +154,11 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
 
   setLoadExtAction(ISD::EXTLOAD, MVT::f32, MVT::f16, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v2f32, MVT::v2f16, Expand);
+  setLoadExtAction(ISD::EXTLOAD, MVT::v3f32, MVT::v3f16, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v4f32, MVT::v4f16, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v8f32, MVT::v8f16, Expand);
+  setLoadExtAction(ISD::EXTLOAD, MVT::v16f32, MVT::v16f16, Expand);
+  setLoadExtAction(ISD::EXTLOAD, MVT::v32f32, MVT::v32f16, Expand);
 
   setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
   setLoadExtAction(ISD::EXTLOAD, MVT::v2f64, MVT::v2f32, Expand);
@@ -286,8 +218,11 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
 
   setTruncStoreAction(MVT::f32, MVT::f16, Expand);
   setTruncStoreAction(MVT::v2f32, MVT::v2f16, Expand);
+  setTruncStoreAction(MVT::v3f32, MVT::v3f16, Expand);
   setTruncStoreAction(MVT::v4f32, MVT::v4f16, Expand);
   setTruncStoreAction(MVT::v8f32, MVT::v8f16, Expand);
+  setTruncStoreAction(MVT::v16f32, MVT::v16f16, Expand);
+  setTruncStoreAction(MVT::v32f32, MVT::v32f16, Expand);
 
   setTruncStoreAction(MVT::f64, MVT::f16, Expand);
   setTruncStoreAction(MVT::f64, MVT::f32, Expand);
@@ -571,6 +506,7 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::FABS);
   setTargetDAGCombine(ISD::AssertZext);
   setTargetDAGCombine(ISD::AssertSext);
+  setTargetDAGCombine(ISD::INTRINSIC_WO_CHAIN);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1236,7 +1172,7 @@ void AMDGPUTargetLowering::ReplaceNodeResults(SDNode *N,
   }
 }
 
-static bool hasDefinedInitializer(const GlobalValue *GV) {
+bool AMDGPUTargetLowering::hasDefinedInitializer(const GlobalValue *GV) {
   const GlobalVariable *GVar = dyn_cast<GlobalVariable>(GV);
   if (!GVar || !GVar->hasInitializer())
     return false;
@@ -2836,8 +2772,16 @@ static bool isI24(SDValue Op, SelectionDAG &DAG) {
 static SDValue simplifyI24(SDNode *Node24,
                            TargetLowering::DAGCombinerInfo &DCI) {
   SelectionDAG &DAG = DCI.DAG;
-  SDValue LHS = Node24->getOperand(0);
-  SDValue RHS = Node24->getOperand(1);
+  bool IsIntrin = Node24->getOpcode() == ISD::INTRINSIC_WO_CHAIN;
+
+  SDValue LHS = IsIntrin ? Node24->getOperand(1) : Node24->getOperand(0);
+  SDValue RHS = IsIntrin ? Node24->getOperand(2) : Node24->getOperand(1);
+  unsigned NewOpcode = Node24->getOpcode();
+  if (IsIntrin) {
+    unsigned IID = cast<ConstantSDNode>(Node24->getOperand(0))->getZExtValue();
+    NewOpcode = IID == Intrinsic::amdgcn_mul_i24 ?
+      AMDGPUISD::MUL_I24 : AMDGPUISD::MUL_U24;
+  }
 
   APInt Demanded = APInt::getLowBitsSet(LHS.getValueSizeInBits(), 24);
 
@@ -2847,7 +2791,7 @@ static SDValue simplifyI24(SDNode *Node24,
   SDValue DemandedLHS = DAG.GetDemandedBits(LHS, Demanded);
   SDValue DemandedRHS = DAG.GetDemandedBits(RHS, Demanded);
   if (DemandedLHS || DemandedRHS)
-    return DAG.getNode(Node24->getOpcode(), SDLoc(Node24), Node24->getVTList(),
+    return DAG.getNode(NewOpcode, SDLoc(Node24), Node24->getVTList(),
                        DemandedLHS ? DemandedLHS : LHS,
                        DemandedRHS ? DemandedRHS : RHS);
 
@@ -3085,6 +3029,19 @@ SDValue AMDGPUTargetLowering::performAssertSZExtCombine(SDNode *N,
 
   return SDValue();
 }
+
+SDValue AMDGPUTargetLowering::performIntrinsicWOChainCombine(
+  SDNode *N, DAGCombinerInfo &DCI) const {
+  unsigned IID = cast<ConstantSDNode>(N->getOperand(0))->getZExtValue();
+  switch (IID) {
+  case Intrinsic::amdgcn_mul_i24:
+  case Intrinsic::amdgcn_mul_u24:
+    return simplifyI24(N, DCI);
+  default:
+    return SDValue();
+  }
+}
+
 /// Split the 64-bit value \p LHS into two 32-bit components, and perform the
 /// binary operation \p Opc to it with the corresponding constant operands.
 SDValue AMDGPUTargetLowering::splitBinaryBitConstantOpImpl(
@@ -4173,6 +4130,8 @@ SDValue AMDGPUTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::AssertZext:
   case ISD::AssertSext:
     return performAssertSZExtCombine(N, DCI);
+  case ISD::INTRINSIC_WO_CHAIN:
+    return performIntrinsicWOChainCombine(N, DCI);
   }
   return SDValue();
 }
@@ -4203,14 +4162,28 @@ SDValue AMDGPUTargetLowering::CreateLiveInRegister(SelectionDAG &DAG,
   return DAG.getCopyFromReg(DAG.getEntryNode(), SL, VReg, VT);
 }
 
+// This may be called multiple times, and nothing prevents creating multiple
+// objects at the same offset. See if we already defined this object.
+static int getOrCreateFixedStackObject(MachineFrameInfo &MFI, unsigned Size,
+                                       int64_t Offset) {
+  for (int I = MFI.getObjectIndexBegin(); I < 0; ++I) {
+    if (MFI.getObjectOffset(I) == Offset) {
+      assert(MFI.getObjectSize(I) == Size);
+      return I;
+    }
+  }
+
+  return MFI.CreateFixedObject(Size, Offset, true);
+}
+
 SDValue AMDGPUTargetLowering::loadStackInputValue(SelectionDAG &DAG,
                                                   EVT VT,
                                                   const SDLoc &SL,
                                                   int64_t Offset) const {
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  int FI = getOrCreateFixedStackObject(MFI, VT.getStoreSize(), Offset);
 
-  int FI = MFI.CreateFixedObject(VT.getStoreSize(), Offset, true);
   auto SrcPtrInfo = MachinePointerInfo::getStack(MF, Offset);
   SDValue Ptr = DAG.getFrameIndex(FI, MVT::i32);
 
@@ -4295,6 +4268,7 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(FRACT)
   NODE_NAME_CASE(SETCC)
   NODE_NAME_CASE(SETREG)
+  NODE_NAME_CASE(DENORM_MODE)
   NODE_NAME_CASE(FMA_W_CHAIN)
   NODE_NAME_CASE(FMUL_W_CHAIN)
   NODE_NAME_CASE(CLAMP)
@@ -4377,10 +4351,6 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(KILL)
   NODE_NAME_CASE(DUMMY_CHAIN)
   case AMDGPUISD::FIRST_MEM_OPCODE_NUMBER: break;
-  NODE_NAME_CASE(INIT_EXEC)
-  NODE_NAME_CASE(INIT_EXEC_FROM_INPUT)
-  NODE_NAME_CASE(SENDMSG)
-  NODE_NAME_CASE(SENDMSGHALT)
   NODE_NAME_CASE(INTERP_MOV)
   NODE_NAME_CASE(INTERP_P1)
   NODE_NAME_CASE(INTERP_P2)
@@ -4428,6 +4398,8 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(BUFFER_ATOMIC_AND)
   NODE_NAME_CASE(BUFFER_ATOMIC_OR)
   NODE_NAME_CASE(BUFFER_ATOMIC_XOR)
+  NODE_NAME_CASE(BUFFER_ATOMIC_INC)
+  NODE_NAME_CASE(BUFFER_ATOMIC_DEC)
   NODE_NAME_CASE(BUFFER_ATOMIC_CMPSWAP)
   NODE_NAME_CASE(BUFFER_ATOMIC_FADD)
   NODE_NAME_CASE(BUFFER_ATOMIC_PK_FADD)
@@ -4576,9 +4548,9 @@ void AMDGPUTargetLowering::computeKnownBitsForTargetNode(
         Known.One |= ((LHSKnown.One.getZExtValue() >> SelBits) & 0xff) << I;
         Known.Zero |= ((LHSKnown.Zero.getZExtValue() >> SelBits) & 0xff) << I;
       } else if (SelBits == 0x0c) {
-        Known.Zero |= 0xff << I;
+        Known.Zero |= 0xFFull << I;
       } else if (SelBits > 0x0c) {
-        Known.One |= 0xff << I;
+        Known.One |= 0xFFull << I;
       }
       Sel >>= 8;
     }

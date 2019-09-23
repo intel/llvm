@@ -16,6 +16,8 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/Support/LowLevelTypeImpl.h"
+#include "llvm/Support/MachineValueType.h"
 
 namespace llvm {
 
@@ -151,6 +153,9 @@ Optional<APInt> ConstantFoldBinOp(unsigned Opcode, const unsigned Op1,
                                   const unsigned Op2,
                                   const MachineRegisterInfo &MRI);
 
+Optional<APInt> ConstantFoldExtOp(unsigned Opcode, const unsigned Op1,
+                                  uint64_t Imm, const MachineRegisterInfo &MRI);
+
 /// Returns true if \p Val can be assumed to never be a NaN. If \p SNaN is true,
 /// this returns if \p Val can be assumed to never be a signaling NaN.
 bool isKnownNeverNaN(Register Val, const MachineRegisterInfo &MRI,
@@ -160,6 +165,11 @@ bool isKnownNeverNaN(Register Val, const MachineRegisterInfo &MRI,
 inline bool isKnownNeverSNaN(Register Val, const MachineRegisterInfo &MRI) {
   return isKnownNeverNaN(Val, MRI, true);
 }
+
+/// Get a rough equivalent of an MVT for a given LLT.
+MVT getMVTForLLT(LLT Ty);
+/// Get a rough equivalent of an LLT for a given MVT.
+LLT getLLTForMVT(MVT Ty);
 
 } // End namespace llvm.
 #endif

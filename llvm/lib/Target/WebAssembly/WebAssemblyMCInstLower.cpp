@@ -79,7 +79,7 @@ MCSymbol *WebAssemblyMCInstLower::GetExternalSymbolSymbol(
   // Clang-provided symbols.
   if (strcmp(Name, "__stack_pointer") == 0 || strcmp(Name, "__tls_base") == 0 ||
       strcmp(Name, "__memory_base") == 0 || strcmp(Name, "__table_base") == 0 ||
-      strcmp(Name, "__tls_size") == 0) {
+      strcmp(Name, "__tls_size") == 0 || strcmp(Name, "__tls_align") == 0) {
     bool Mutable =
         strcmp(Name, "__stack_pointer") == 0 || strcmp(Name, "__tls_base") == 0;
     WasmSym->setType(wasm::WASM_SYMBOL_TYPE_GLOBAL);
@@ -115,7 +115,7 @@ MCSymbol *WebAssemblyMCInstLower::GetExternalSymbolSymbol(
     getLibcallSignature(Subtarget, Name, Returns, Params);
   }
   auto Signature =
-      make_unique<wasm::WasmSignature>(std::move(Returns), std::move(Params));
+      std::make_unique<wasm::WasmSignature>(std::move(Returns), std::move(Params));
   WasmSym->setSignature(Signature.get());
   Printer.addSignature(std::move(Signature));
 
@@ -226,8 +226,19 @@ void WebAssemblyMCInstLower::lower(const MachineInstr *MI,
           if (WebAssembly::isCallIndirect(MI->getOpcode()))
             Params.pop_back();
 
+          // return_call_indirect instructions have the return type of the
+          // caller
+          if (MI->getOpcode() == WebAssembly::RET_CALL_INDIRECT) {
+            const Function &F = MI->getMF()->getFunction();
+            const TargetMachine &TM = MI->getMF()->getTarget();
+            Type *RetTy = F.getReturnType();
+            SmallVector<MVT, 4> CallerRetTys;
+            computeLegalValueVTs(F, TM, RetTy, CallerRetTys);
+            valTypesFromMVTs(CallerRetTys, Returns);
+          }
+
           auto *WasmSym = cast<MCSymbolWasm>(Sym);
-          auto Signature = make_unique<wasm::WasmSignature>(std::move(Returns),
+          auto Signature = std::make_unique<wasm::WasmSignature>(std::move(Returns),
                                                             std::move(Params));
           WasmSym->setSignature(Signature.get());
           Printer.addSignature(std::move(Signature));

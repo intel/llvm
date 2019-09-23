@@ -204,6 +204,10 @@ public:
       const char *path_with_object, lldb_private::FileSpec &archive_file,
       lldb_private::ConstString &archive_object, bool must_exist);
 
+  // LLVM RTTI support
+  static char ID;
+  virtual bool isA(const void *ClassID) const { return ClassID == &ID; }
+
   /// Gets the address size in bytes for the current object file.
   ///
   /// \return
@@ -365,17 +369,6 @@ public:
   ///     The object file's UUID. In case of an error, an empty UUID is
   ///     returned.
   virtual UUID GetUUID() = 0;
-
-  /// Gets the symbol file spec list for this object file.
-  ///
-  /// If the object file format contains a debug symbol file link, the values
-  /// will be returned in the FileSpecList.
-  ///
-  /// \return
-  ///     Returns filespeclist.
-  virtual lldb_private::FileSpecList GetDebugSymbolFilePaths() {
-    return FileSpecList();
-  }
 
   /// Gets the file spec list of libraries re-exported by this object file.
   ///

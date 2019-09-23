@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "FileIndex.h"
-#include "ClangdUnit.h"
 #include "Logger.h"
+#include "ParsedAST.h"
 #include "SymbolCollector.h"
 #include "index/CanonicalIncludes.h"
 #include "index/Index.h"
@@ -17,6 +17,7 @@
 #include "index/SymbolOrigin.h"
 #include "index/dex/Dex.h"
 #include "clang/Index/IndexingAction.h"
+#include "clang/Index/IndexingOptions.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/DenseMap.h"
@@ -216,14 +217,14 @@ FileSymbols::buildIndex(IndexType Type, DuplicateHandling DuplicateHandle) {
   // Index must keep the slabs and contiguous ranges alive.
   switch (Type) {
   case IndexType::Light:
-    return llvm::make_unique<MemIndex>(
+    return std::make_unique<MemIndex>(
         llvm::make_pointee_range(AllSymbols), std::move(AllRefs),
         std::move(AllRelations),
         std::make_tuple(std::move(SymbolSlabs), std::move(RefSlabs),
                         std::move(RefsStorage), std::move(SymsStorage)),
         StorageSize);
   case IndexType::Heavy:
-    return llvm::make_unique<dex::Dex>(
+    return std::make_unique<dex::Dex>(
         llvm::make_pointee_range(AllSymbols), std::move(AllRefs),
         std::move(AllRelations),
         std::make_tuple(std::move(SymbolSlabs), std::move(RefSlabs),
@@ -235,17 +236,17 @@ FileSymbols::buildIndex(IndexType Type, DuplicateHandling DuplicateHandle) {
 
 FileIndex::FileIndex(bool UseDex)
     : MergedIndex(&MainFileIndex, &PreambleIndex), UseDex(UseDex),
-      PreambleIndex(llvm::make_unique<MemIndex>()),
-      MainFileIndex(llvm::make_unique<MemIndex>()) {}
+      PreambleIndex(std::make_unique<MemIndex>()),
+      MainFileIndex(std::make_unique<MemIndex>()) {}
 
 void FileIndex::updatePreamble(PathRef Path, ASTContext &AST,
                                std::shared_ptr<Preprocessor> PP,
                                const CanonicalIncludes &Includes) {
   auto Slabs = indexHeaderSymbols(AST, std::move(PP), Includes);
   PreambleSymbols.update(
-      Path, llvm::make_unique<SymbolSlab>(std::move(std::get<0>(Slabs))),
-      llvm::make_unique<RefSlab>(),
-      llvm::make_unique<RelationSlab>(std::move(std::get<2>(Slabs))),
+      Path, std::make_unique<SymbolSlab>(std::move(std::get<0>(Slabs))),
+      std::make_unique<RefSlab>(),
+      std::make_unique<RelationSlab>(std::move(std::get<2>(Slabs))),
       /*CountReferences=*/false);
   PreambleIndex.reset(
       PreambleSymbols.buildIndex(UseDex ? IndexType::Heavy : IndexType::Light,
@@ -255,9 +256,9 @@ void FileIndex::updatePreamble(PathRef Path, ASTContext &AST,
 void FileIndex::updateMain(PathRef Path, ParsedAST &AST) {
   auto Contents = indexMainDecls(AST);
   MainFileSymbols.update(
-      Path, llvm::make_unique<SymbolSlab>(std::move(std::get<0>(Contents))),
-      llvm::make_unique<RefSlab>(std::move(std::get<1>(Contents))),
-      llvm::make_unique<RelationSlab>(std::move(std::get<2>(Contents))),
+      Path, std::make_unique<SymbolSlab>(std::move(std::get<0>(Contents))),
+      std::make_unique<RefSlab>(std::move(std::get<1>(Contents))),
+      std::make_unique<RelationSlab>(std::move(std::get<2>(Contents))),
       /*CountReferences=*/true);
   MainFileIndex.reset(
       MainFileSymbols.buildIndex(IndexType::Light, DuplicateHandling::Merge));

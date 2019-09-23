@@ -211,7 +211,7 @@ static const Target *GetTarget(const char *ProgName) {
 
 static std::unique_ptr<ToolOutputFile> GetOutputStream(StringRef Path) {
   std::error_code EC;
-  auto Out = llvm::make_unique<ToolOutputFile>(Path, EC, sys::fs::F_None);
+  auto Out = std::make_unique<ToolOutputFile>(Path, EC, sys::fs::OF_None);
   if (EC) {
     WithColor::error() << EC.message() << '\n';
     return nullptr;
@@ -279,7 +279,7 @@ static int fillCommandLineSymbols(MCAsmParser &Parser) {
 static int AssembleInput(const char *ProgName, const Target *TheTarget,
                          SourceMgr &SrcMgr, MCContext &Ctx, MCStreamer &Str,
                          MCAsmInfo &MAI, MCSubtargetInfo &STI,
-                         MCInstrInfo &MCII, MCTargetOptions &MCOptions) {
+                         MCInstrInfo &MCII, MCTargetOptions const &MCOptions) {
   std::unique_ptr<MCAsmParser> Parser(
       createMCAsmParser(SrcMgr, Ctx, Str, MAI));
   std::unique_ptr<MCTargetAsmParser> TAP(
@@ -316,7 +316,7 @@ int main(int argc, char **argv) {
   cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);
 
   cl::ParseCommandLineOptions(argc, argv, "llvm machine code playground\n");
-  MCTargetOptions MCOptions = InitMCTargetOptionsFromFlags();
+  const MCTargetOptions MCOptions = InitMCTargetOptionsFromFlags();
   setDwarfDebugFlags(argc, argv);
 
   setDwarfDebugProducer();
@@ -368,7 +368,7 @@ int main(int argc, char **argv) {
   // FIXME: This is not pretty. MCContext has a ptr to MCObjectFileInfo and
   // MCObjectFileInfo needs a MCContext reference in order to initialize itself.
   MCObjectFileInfo MOFI;
-  MCContext Ctx(MAI.get(), MRI.get(), &MOFI, &SrcMgr);
+  MCContext Ctx(MAI.get(), MRI.get(), &MOFI, &SrcMgr, &MCOptions);
   MOFI.InitMCObjectFileInfo(TheTriple, PIC, Ctx, LargeCodeModel);
 
   if (SaveTempLabels)
@@ -459,7 +459,7 @@ int main(int argc, char **argv) {
 
     std::unique_ptr<MCAsmBackend> MAB(
         TheTarget->createMCAsmBackend(*STI, *MRI, MCOptions));
-    auto FOut = llvm::make_unique<formatted_raw_ostream>(*OS);
+    auto FOut = std::make_unique<formatted_raw_ostream>(*OS);
     Str.reset(
         TheTarget->createAsmStreamer(Ctx, std::move(FOut), /*asmverbose*/ true,
                                      /*useDwarfDirectory*/ true, IP,
@@ -474,7 +474,7 @@ int main(int argc, char **argv) {
     Ctx.setUseNamesOnTempLabels(false);
 
     if (!Out->os().supportsSeeking()) {
-      BOS = make_unique<buffer_ostream>(Out->os());
+      BOS = std::make_unique<buffer_ostream>(Out->os());
       OS = BOS.get();
     }
 
@@ -506,7 +506,7 @@ int main(int argc, char **argv) {
     break;
   case AC_MDisassemble:
     assert(IP && "Expected assembly output");
-    IP->setUseMarkup(1);
+    IP->setUseMarkup(true);
     disassemble = true;
     break;
   case AC_Disassemble:

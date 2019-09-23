@@ -92,7 +92,7 @@ void RegBankSelect::init(MachineFunction &MF) {
     MBPI = nullptr;
   }
   MIRBuilder.setMF(MF);
-  MORE = llvm::make_unique<MachineOptimizationRemarkEmitter>(MF, MBFI);
+  MORE = std::make_unique<MachineOptimizationRemarkEmitter>(MF, MBFI);
 }
 
 void RegBankSelect::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -154,7 +154,7 @@ bool RegBankSelect::repairReg(
       std::swap(Src, Dst);
 
     assert((RepairPt.getNumInsertPoints() == 1 ||
-            TargetRegisterInfo::isPhysicalRegister(Dst)) &&
+            Register::isPhysicalRegister(Dst)) &&
            "We are about to create several defs for Dst");
 
     // Build the instruction used to repair, then clone it at the right
@@ -398,7 +398,7 @@ void RegBankSelect::tryAvoidingSplit(
 
   // Check if this is a physical or virtual register.
   Register Reg = MO.getReg();
-  if (TargetRegisterInfo::isPhysicalRegister(Reg)) {
+  if (Register::isPhysicalRegister(Reg)) {
     // We are going to split every outgoing edges.
     // Check that this is possible.
     // FIXME: The machine representation is currently broken

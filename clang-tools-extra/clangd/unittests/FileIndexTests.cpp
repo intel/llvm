@@ -8,7 +8,8 @@
 
 #include "AST.h"
 #include "Annotations.h"
-#include "ClangdUnit.h"
+#include "Compiler.h"
+#include "ParsedAST.h"
 #include "SyncAPI.h"
 #include "TestFS.h"
 #include "TestTU.h"
@@ -67,7 +68,7 @@ std::unique_ptr<SymbolSlab> numSlab(int Begin, int End) {
   SymbolSlab::Builder Slab;
   for (int i = Begin; i <= End; i++)
     Slab.insert(symbol(std::to_string(i)));
-  return llvm::make_unique<SymbolSlab>(std::move(Slab).build());
+  return std::make_unique<SymbolSlab>(std::move(Slab).build());
 }
 
 std::unique_ptr<RefSlab> refSlab(const SymbolID &ID, const char *Path) {
@@ -76,7 +77,7 @@ std::unique_ptr<RefSlab> refSlab(const SymbolID &ID, const char *Path) {
   R.Location.FileURI = Path;
   R.Kind = RefKind::Reference;
   Slab.insert(ID, R);
-  return llvm::make_unique<RefSlab>(std::move(Slab).build());
+  return std::make_unique<RefSlab>(std::move(Slab).build());
 }
 
 TEST(FileSymbolsTest, UpdateAndGet) {
@@ -106,7 +107,7 @@ TEST(FileSymbolsTest, MergeOverlap) {
   auto OneSymboSlab = [](Symbol Sym) {
     SymbolSlab::Builder S;
     S.insert(Sym);
-    return llvm::make_unique<SymbolSlab>(std::move(S).build());
+    return std::make_unique<SymbolSlab>(std::move(S).build());
   };
   auto X1 = symbol("x");
   X1.CanonicalDeclaration.FileURI = "file:///x1";
@@ -280,7 +281,8 @@ TEST(FileIndexTest, RebuildWithPreamble) {
   )cpp";
 
   // Rebuild the file.
-  auto CI = buildCompilerInvocation(PI);
+  IgnoreDiagnostics IgnoreDiags;
+  auto CI = buildCompilerInvocation(PI, IgnoreDiags);
 
   FileIndex Index;
   bool IndexUpdated = false;

@@ -39,37 +39,36 @@ class IndexActionFactory : public tooling::FrontendActionFactory {
 public:
   IndexActionFactory(IndexFileIn &Result) : Result(Result) {}
 
-  clang::FrontendAction *create() override {
+  std::unique_ptr<FrontendAction> create() override {
     SymbolCollector::Options Opts;
     Opts.CountReferences = true;
     return createStaticIndexingAction(
-               Opts,
-               [&](SymbolSlab S) {
-                 // Merge as we go.
-                 std::lock_guard<std::mutex> Lock(SymbolsMu);
-                 for (const auto &Sym : S) {
-                   if (const auto *Existing = Symbols.find(Sym.ID))
-                     Symbols.insert(mergeSymbol(*Existing, Sym));
-                   else
-                     Symbols.insert(Sym);
-                 }
-               },
-               [&](RefSlab S) {
-                 std::lock_guard<std::mutex> Lock(SymbolsMu);
-                 for (const auto &Sym : S) {
-                   // Deduplication happens during insertion.
-                   for (const auto &Ref : Sym.second)
-                     Refs.insert(Sym.first, Ref);
-                 }
-               },
-               [&](RelationSlab S) {
-                 std::lock_guard<std::mutex> Lock(SymbolsMu);
-                 for (const auto &R : S) {
-                   Relations.insert(R);
-                 }
-               },
-               /*IncludeGraphCallback=*/nullptr)
-        .release();
+        Opts,
+        [&](SymbolSlab S) {
+          // Merge as we go.
+          std::lock_guard<std::mutex> Lock(SymbolsMu);
+          for (const auto &Sym : S) {
+            if (const auto *Existing = Symbols.find(Sym.ID))
+              Symbols.insert(mergeSymbol(*Existing, Sym));
+            else
+              Symbols.insert(Sym);
+          }
+        },
+        [&](RefSlab S) {
+          std::lock_guard<std::mutex> Lock(SymbolsMu);
+          for (const auto &Sym : S) {
+            // Deduplication happens during insertion.
+            for (const auto &Ref : Sym.second)
+              Refs.insert(Sym.first, Ref);
+          }
+        },
+        [&](RelationSlab S) {
+          std::lock_guard<std::mutex> Lock(SymbolsMu);
+          for (const auto &R : S) {
+            Relations.insert(R);
+          }
+        },
+        /*IncludeGraphCallback=*/nullptr);
   }
 
   // Awkward: we write the result in the destructor, because the executor
@@ -120,7 +119,7 @@ int main(int argc, const char **argv) {
   // Collect symbols found in each translation unit, merging as we go.
   clang::clangd::IndexFileIn Data;
   auto Err = Executor->get()->execute(
-      llvm::make_unique<clang::clangd::IndexActionFactory>(Data),
+      std::make_unique<clang::clangd::IndexActionFactory>(Data),
       clang::tooling::getStripPluginsAdjuster());
   if (Err) {
     llvm::errs() << llvm::toString(std::move(Err)) << "\n";

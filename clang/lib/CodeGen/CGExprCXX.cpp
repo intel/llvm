@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CodeGenFunction.h"
 #include "CGCUDARuntime.h"
 #include "CGCXXABI.h"
 #include "CGDebugInfo.h"
 #include "CGObjCRuntime.h"
+#include "CodeGenFunction.h"
 #include "ConstantEmitter.h"
+#include "TargetInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "llvm/IR/Intrinsics.h"
@@ -90,12 +91,26 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorCall(
 }
 
 RValue CodeGenFunction::EmitCXXDestructorCall(
-    GlobalDecl Dtor, const CGCallee &Callee, llvm::Value *This,
+    GlobalDecl Dtor, const CGCallee &Callee, llvm::Value *This, QualType ThisTy,
     llvm::Value *ImplicitParam, QualType ImplicitParamTy, const CallExpr *CE) {
+  const CXXMethodDecl *DtorDecl = cast<CXXMethodDecl>(Dtor.getDecl());
+
+  assert(!ThisTy.isNull());
+  assert(ThisTy->getAsCXXRecordDecl() == DtorDecl->getParent() &&
+         "Pointer/Object mixup");
+
+  LangAS SrcAS = ThisTy.getAddressSpace();
+  LangAS DstAS = DtorDecl->getMethodQualifiers().getAddressSpace();
+  if (SrcAS != DstAS) {
+    QualType DstTy = DtorDecl->getThisType();
+    llvm::Type *NewType = CGM.getTypes().ConvertType(DstTy);
+    This = getTargetHooks().performAddrSpaceCast(*this, This, SrcAS, DstAS,
+                                                 NewType);
+  }
+
   CallArgList Args;
-  commonEmitCXXMemberOrOperatorCall(*this, cast<CXXMethodDecl>(Dtor.getDecl()),
-                                    This, ImplicitParam, ImplicitParamTy, CE,
-                                    Args, nullptr);
+  commonEmitCXXMemberOrOperatorCall(*this, DtorDecl, This, ImplicitParam,
+                                    ImplicitParamTy, CE, Args, nullptr);
   return EmitCall(CGM.getTypes().arrangeCXXStructorDeclaration(Dtor), Callee,
                   ReturnValueSlot(), Args);
 }
@@ -345,7 +360,9 @@ RValue CodeGenFunction::EmitCXXMemberOrOperatorMemberCallExpr(
         Callee = CGCallee::forDirect(CGM.GetAddrOfFunction(GD, Ty), GD);
       }
 
-      EmitCXXDestructorCall(GD, Callee, This.getPointer(),
+      QualType ThisTy =
+          IsArrow ? Base->getType()->getPointeeType() : Base->getType();
+      EmitCXXDestructorCall(GD, Callee, This.getPointer(), ThisTy,
                             /*ImplicitParam=*/nullptr,
                             /*ImplicitParamTy=*/QualType(), nullptr);
     }
@@ -1865,9 +1882,33 @@ static void EmitObjectDelete(CodeGenFunction &CGF,
       Dtor = RD->getDestructor();
 
       if (Dtor->isVirtual()) {
-        CGF.CGM.getCXXABI().emitVirtualObjectDelete(CGF, DE, Ptr, ElementType,
-                                                    Dtor);
-        return;
+        bool UseVirtualCall = true;
+        const Expr *Base = DE->getArgument();
+        if (auto *DevirtualizedDtor =
+                dyn_cast_or_null<const CXXDestructorDecl>(
+                    Dtor->getDevirtualizedMethod(
+                        Base, CGF.CGM.getLangOpts().AppleKext))) {
+          UseVirtualCall = false;
+          const CXXRecordDecl *DevirtualizedClass =
+              DevirtualizedDtor->getParent();
+          if (declaresSameEntity(getCXXRecord(Base), DevirtualizedClass)) {
+            // Devirtualized to the class of the base type (the type of the
+            // whole expression).
+            Dtor = DevirtualizedDtor;
+          } else {
+            // Devirtualized to some other type. Would need to cast the this
+            // pointer to that type but we don't have support for that yet, so
+            // do a virtual call. FIXME: handle the case where it is
+            // devirtualized to the derived type (the type of the inner
+            // expression) as in EmitCXXMemberOrOperatorMemberCallExpr.
+            UseVirtualCall = true;
+          }
+        }
+        if (UseVirtualCall) {
+          CGF.CGM.getCXXABI().emitVirtualObjectDelete(CGF, DE, Ptr, ElementType,
+                                                      Dtor);
+          return;
+        }
       }
     }
   }
@@ -1883,7 +1924,7 @@ static void EmitObjectDelete(CodeGenFunction &CGF,
     CGF.EmitCXXDestructorCall(Dtor, Dtor_Complete,
                               /*ForVirtualBase=*/false,
                               /*Delegating=*/false,
-                              Ptr);
+                              Ptr, ElementType);
   else if (auto Lifetime = ElementType.getObjCLifetime()) {
     switch (Lifetime) {
     case Qualifiers::OCL_None:

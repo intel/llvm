@@ -3,7 +3,7 @@
 
 define <8 x i8> @foo(<16 x i8> %a) {
 ; CHECK-LABEL: foo:
-; CHECK:       # %bb.0: # %cond.store
+; CHECK:       # %bb.0:
 ; CHECK-NEXT:    pextrb $0, %xmm0, -{{[0-9]+}}(%rsp)
 ; CHECK-NEXT:    pextrb $2, %xmm0, -{{[0-9]+}}(%rsp)
 ; CHECK-NEXT:    pextrb $4, %xmm0, -{{[0-9]+}}(%rsp)
@@ -12,7 +12,7 @@ define <8 x i8> @foo(<16 x i8> %a) {
 ; CHECK-NEXT:    pextrb $10, %xmm0, -{{[0-9]+}}(%rsp)
 ; CHECK-NEXT:    pextrb $12, %xmm0, -{{[0-9]+}}(%rsp)
 ; CHECK-NEXT:    pextrb $14, %xmm0, -{{[0-9]+}}(%rsp)
-; CHECK-NEXT:    pmovzxbw {{.*#+}} xmm0 = mem[0],zero,mem[1],zero,mem[2],zero,mem[3],zero,mem[4],zero,mem[5],zero,mem[6],zero,mem[7],zero
+; CHECK-NEXT:    movsd {{.*#+}} xmm0 = mem[0],zero
 ; CHECK-NEXT:    retq
   %v = alloca i8, i32 8, align 16
   call void @llvm.masked.compressstore.v16i8(<16 x i8> %a, i8* %v, <16 x i1> <i1 true, i1 false, i1 true, i1 false, i1 true, i1 false, i1 true, i1 false, i1 true, i1 false, i1 true, i1 false, i1 true, i1 false, i1 true, i1 false>)

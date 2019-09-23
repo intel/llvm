@@ -74,7 +74,7 @@
 ...
 ---
 name:            int8_to_float
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -88,8 +88,8 @@ body:             |
     ; CHECK-LABEL: name: int8_to_float
     ; CHECK: liveins: $edi
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $edi
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 24
     ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 24
     ; CHECK: [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
     ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[TRUNC]](s8)
     ; CHECK: [[TRUNC1:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
@@ -108,7 +108,7 @@ body:             |
 ...
 ---
 name:            int16_to_float
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -122,8 +122,8 @@ body:             |
     ; CHECK-LABEL: name: int16_to_float
     ; CHECK: liveins: $edi
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $edi
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
     ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
     ; CHECK: [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
     ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[TRUNC]](s8)
     ; CHECK: [[TRUNC1:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
@@ -142,7 +142,7 @@ body:             |
 ...
 ---
 name:            int32_to_float
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -168,7 +168,7 @@ body:             |
 ...
 ---
 name:            int64_to_float
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -194,7 +194,7 @@ body:             |
 ...
 ---
 name:            int8_to_double
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -208,8 +208,8 @@ body:             |
     ; CHECK-LABEL: name: int8_to_double
     ; CHECK: liveins: $edi
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $edi
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 24
     ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 24
     ; CHECK: [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
     ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[TRUNC]](s8)
     ; CHECK: [[TRUNC1:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
@@ -228,7 +228,7 @@ body:             |
 ...
 ---
 name:            int16_to_double
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -242,8 +242,8 @@ body:             |
     ; CHECK-LABEL: name: int16_to_double
     ; CHECK: liveins: $edi
     ; CHECK: [[COPY:%[0-9]+]]:_(s32) = COPY $edi
-    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
     ; CHECK: [[COPY1:%[0-9]+]]:_(s32) = COPY [[COPY]](s32)
+    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 16
     ; CHECK: [[TRUNC:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
     ; CHECK: [[SHL:%[0-9]+]]:_(s32) = G_SHL [[COPY1]], [[TRUNC]](s8)
     ; CHECK: [[TRUNC1:%[0-9]+]]:_(s8) = G_TRUNC [[C]](s32)
@@ -262,7 +262,7 @@ body:             |
 ...
 ---
 name:            int32_to_double
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }
@@ -288,7 +288,7 @@ body:             |
 ...
 ---
 name:            int64_to_double
-alignment:       4
+alignment:       16
 tracksRegLiveness: true
 registers:
   - { id: 0, class: _ }

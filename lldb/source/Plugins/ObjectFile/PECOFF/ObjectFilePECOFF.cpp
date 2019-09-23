@@ -88,6 +88,8 @@ static UUID GetCoffUUID(llvm::object::COFFObjectFile *coff_obj) {
   return UUID();
 }
 
+char ObjectFilePECOFF::ID;
+
 void ObjectFilePECOFF::Initialize() {
   PluginManager::RegisterPlugin(
       GetPluginNameStatic(), GetPluginDescriptionStatic(), CreateInstance,
@@ -131,7 +133,7 @@ ObjectFile *ObjectFilePECOFF::CreateInstance(const lldb::ModuleSP &module_sp,
       return nullptr;
   }
 
-  auto objfile_up = llvm::make_unique<ObjectFilePECOFF>(
+  auto objfile_up = std::make_unique<ObjectFilePECOFF>(
       module_sp, data_sp, data_offset, file, file_offset, length);
   if (!objfile_up || !objfile_up->ParseHeader())
     return nullptr;
@@ -148,7 +150,7 @@ ObjectFile *ObjectFilePECOFF::CreateMemoryInstance(
     const lldb::ProcessSP &process_sp, lldb::addr_t header_addr) {
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return nullptr;
-  auto objfile_up = llvm::make_unique<ObjectFilePECOFF>(
+  auto objfile_up = std::make_unique<ObjectFilePECOFF>(
       module_sp, data_sp, process_sp, header_addr);
   if (objfile_up.get() && objfile_up->ParseHeader()) {
     return objfile_up.release();
@@ -235,11 +237,11 @@ bool ObjectFilePECOFF::CreateBinary() {
 
   auto binary = llvm::object::createBinary(m_file.GetPath());
   if (!binary) {
-    if (log)
-      log->Printf("ObjectFilePECOFF::CreateBinary() - failed to create binary "
-                  "for file (%s): %s",
-                  m_file ? m_file.GetPath().c_str() : "<NULL>",
-                  errorToErrorCode(binary.takeError()).message().c_str());
+    LLDB_LOGF(log,
+              "ObjectFilePECOFF::CreateBinary() - failed to create binary "
+              "for file (%s): %s",
+              m_file ? m_file.GetPath().c_str() : "<NULL>",
+              errorToErrorCode(binary.takeError()).message().c_str());
     return false;
   }
 
@@ -249,15 +251,14 @@ bool ObjectFilePECOFF::CreateBinary() {
     return false;
 
   m_owningbin = OWNBINType(std::move(*binary));
-  if (log)
-    log->Printf("%p ObjectFilePECOFF::CreateBinary() module = %p (%s), file = "
-                "%s, binary = %p (Bin = %p)",
-                static_cast<void *>(this),
-                static_cast<void *>(GetModule().get()),
-                GetModule()->GetSpecificationDescription().c_str(),
-                m_file ? m_file.GetPath().c_str() : "<NULL>",
-                static_cast<void *>(m_owningbin.getPointer()),
-                static_cast<void *>(m_owningbin->getBinary()));
+  LLDB_LOGF(log,
+            "%p ObjectFilePECOFF::CreateBinary() module = %p (%s), file = "
+            "%s, binary = %p (Bin = %p)",
+            static_cast<void *>(this), static_cast<void *>(GetModule().get()),
+            GetModule()->GetSpecificationDescription().c_str(),
+            m_file ? m_file.GetPath().c_str() : "<NULL>",
+            static_cast<void *>(m_owningbin.getPointer()),
+            static_cast<void *>(m_owningbin->getBinary()));
   return true;
 }
 
@@ -268,11 +269,10 @@ ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
                                    lldb::offset_t file_offset,
                                    lldb::offset_t length)
     : ObjectFile(module_sp, file, file_offset, length, data_sp, data_offset),
-      m_dos_header(), m_coff_header(), m_coff_header_opt(), m_sect_headers(),
+      m_dos_header(), m_coff_header(), m_sect_headers(),
       m_entry_point_address(), m_deps_filespec(), m_owningbin() {
   ::memset(&m_dos_header, 0, sizeof(m_dos_header));
   ::memset(&m_coff_header, 0, sizeof(m_coff_header));
-  ::memset(&m_coff_header_opt, 0, sizeof(m_coff_header_opt));
 }
 
 ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
@@ -280,11 +280,10 @@ ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
                                    const lldb::ProcessSP &process_sp,
                                    addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
-      m_dos_header(), m_coff_header(), m_coff_header_opt(), m_sect_headers(),
+      m_dos_header(), m_coff_header(), m_sect_headers(),
       m_entry_point_address(), m_deps_filespec(), m_owningbin() {
   ::memset(&m_dos_header, 0, sizeof(m_dos_header));
   ::memset(&m_coff_header, 0, sizeof(m_coff_header));
-  ::memset(&m_coff_header_opt, 0, sizeof(m_coff_header_opt));
 }
 
 ObjectFilePECOFF::~ObjectFilePECOFF() {}
@@ -525,7 +524,7 @@ DataExtractor ObjectFilePECOFF::ReadImageData(uint32_t offset, size_t size) {
   ProcessSP process_sp(m_process_wp.lock());
   DataExtractor data;
   if (process_sp) {
-    auto data_up = llvm::make_unique<DataBufferHeap>(size, 0);
+    auto data_up = std::make_unique<DataBufferHeap>(size, 0);
     Status readmem_error;
     size_t bytes_read =
         process_sp->ReadMemory(m_image_base + offset, data_up->GetBytes(),
@@ -911,13 +910,13 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
     return 0;
 
   Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
-  if (log)
-    log->Printf("%p ObjectFilePECOFF::ParseDependentModules() module = %p "
-                "(%s), binary = %p (Bin = %p)",
-                static_cast<void *>(this), static_cast<void *>(module_sp.get()),
-                module_sp->GetSpecificationDescription().c_str(),
-                static_cast<void *>(m_owningbin.getPointer()),
-                static_cast<void *>(m_owningbin->getBinary()));
+  LLDB_LOGF(log,
+            "%p ObjectFilePECOFF::ParseDependentModules() module = %p "
+            "(%s), binary = %p (Bin = %p)",
+            static_cast<void *>(this), static_cast<void *>(module_sp.get()),
+            module_sp->GetSpecificationDescription().c_str(),
+            static_cast<void *>(m_owningbin.getPointer()),
+            static_cast<void *>(m_owningbin->getBinary()));
 
   auto COFFObj =
       llvm::dyn_cast<llvm::object::COFFObjectFile>(m_owningbin->getBinary());
@@ -931,10 +930,10 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
     auto ec = entry.getName(dll_name);
     // Report a bogus entry.
     if (ec != std::error_code()) {
-      if (log)
-        log->Printf("ObjectFilePECOFF::ParseDependentModules() - failed to get "
-                    "import directory entry name: %s",
-                    ec.message().c_str());
+      LLDB_LOGF(log,
+                "ObjectFilePECOFF::ParseDependentModules() - failed to get "
+                "import directory entry name: %s",
+                ec.message().c_str());
       continue;
     }
 
@@ -946,10 +945,10 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
     dll_specs.GetDirectory().SetString(m_file.GetDirectory().GetCString());
 
     if (!llvm::sys::fs::real_path(dll_specs.GetPath(), dll_fullpath))
-      m_deps_filespec->Append(FileSpec(dll_fullpath));
+      m_deps_filespec->EmplaceBack(dll_fullpath);
     else {
       // Known DLLs or DLL not found in the object file directory.
-      m_deps_filespec->Append(FileSpec(dll_name));
+      m_deps_filespec->EmplaceBack(dll_name);
     }
   }
   return m_deps_filespec->GetSize();

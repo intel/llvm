@@ -109,8 +109,8 @@ void RISCVRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     assert(isInt<32>(Offset) && "Int32 expected");
     // The offset won't fit in an immediate, so use a scratch register instead
     // Modify Offset and FrameReg appropriately
-    unsigned ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
-    TII->movImm32(MBB, II, DL, ScratchReg, Offset);
+    Register ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+    TII->movImm(MBB, II, DL, ScratchReg, Offset);
     BuildMI(MBB, II, DL, TII->get(RISCV::ADD), ScratchReg)
         .addReg(FrameReg)
         .addReg(ScratchReg, RegState::Kill);

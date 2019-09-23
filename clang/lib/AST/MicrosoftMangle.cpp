@@ -868,16 +868,11 @@ void MicrosoftCXXNameMangler::mangleUnqualifiedName(const NamedDecl *ND,
       }
 
       if (const DecompositionDecl *DD = dyn_cast<DecompositionDecl>(ND)) {
-        // FIXME: Invented mangling for decomposition declarations:
-        //   [X,Y,Z]
-        // where X,Y,Z are the names of the bindings.
-        llvm::SmallString<128> Name("[");
-        for (auto *BD : DD->bindings()) {
-          if (Name.size() > 1)
-            Name += ',';
-          Name += BD->getDeclName().getAsIdentifierInfo()->getName();
-        }
-        Name += ']';
+        // Decomposition declarations are considered anonymous, and get
+        // numbered with a $S prefix.
+        llvm::SmallString<64> Name("$S");
+        // Get a unique id for the anonymous struct.
+        Name += llvm::utostr(Context.getAnonymousStructId(DD) + 1);
         mangleSourceName(Name);
         break;
       }
@@ -2109,6 +2104,9 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
     mangleArtificialTagType(TTK_Struct, "_Half", {"__clang"});
     break;
 
+#define SVE_TYPE(Name, Id, SingletonId) \
+  case BuiltinType::Id:
+#include "clang/Basic/AArch64SVEACLETypes.def"
   case BuiltinType::ShortAccum:
   case BuiltinType::Accum:
   case BuiltinType::LongAccum:

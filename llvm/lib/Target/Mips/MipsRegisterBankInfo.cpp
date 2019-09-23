@@ -149,6 +149,7 @@ static bool isAmbiguous(unsigned Opc) {
   case TargetOpcode::G_STORE:
   case TargetOpcode::G_PHI:
   case TargetOpcode::G_SELECT:
+  case TargetOpcode::G_IMPLICIT_DEF:
     return true;
   default:
     return false;
@@ -163,8 +164,7 @@ void MipsRegisterBankInfo::AmbiguousRegDefUseContainer::addDefUses(
     MachineInstr *NonCopyInstr = skipCopiesOutgoing(&UseMI);
     // Copy with many uses.
     if (NonCopyInstr->getOpcode() == TargetOpcode::COPY &&
-        !TargetRegisterInfo::isPhysicalRegister(
-            NonCopyInstr->getOperand(0).getReg()))
+        !Register::isPhysicalRegister(NonCopyInstr->getOperand(0).getReg()))
       addDefUses(NonCopyInstr->getOperand(0).getReg(), MRI);
     else
       DefUses.push_back(skipCopiesOutgoing(&UseMI));
@@ -186,7 +186,7 @@ MipsRegisterBankInfo::AmbiguousRegDefUseContainer::skipCopiesOutgoing(
   const MachineRegisterInfo &MRI = MF.getRegInfo();
   MachineInstr *Ret = MI;
   while (Ret->getOpcode() == TargetOpcode::COPY &&
-         !TargetRegisterInfo::isPhysicalRegister(Ret->getOperand(0).getReg()) &&
+         !Register::isPhysicalRegister(Ret->getOperand(0).getReg()) &&
          MRI.hasOneUse(Ret->getOperand(0).getReg())) {
     Ret = &(*MRI.use_instr_begin(Ret->getOperand(0).getReg()));
   }
@@ -200,7 +200,7 @@ MipsRegisterBankInfo::AmbiguousRegDefUseContainer::skipCopiesIncoming(
   const MachineRegisterInfo &MRI = MF.getRegInfo();
   MachineInstr *Ret = MI;
   while (Ret->getOpcode() == TargetOpcode::COPY &&
-         !TargetRegisterInfo::isPhysicalRegister(Ret->getOperand(1).getReg()))
+         !Register::isPhysicalRegister(Ret->getOperand(1).getReg()))
     Ret = MRI.getVRegDef(Ret->getOperand(1).getReg());
   return Ret;
 }
@@ -231,6 +231,9 @@ MipsRegisterBankInfo::AmbiguousRegDefUseContainer::AmbiguousRegDefUseContainer(
     addUseDef(MI->getOperand(2).getReg(), MRI);
     addUseDef(MI->getOperand(3).getReg(), MRI);
   }
+
+  if (MI->getOpcode() == TargetOpcode::G_IMPLICIT_DEF)
+    addDefUses(MI->getOperand(0).getReg(), MRI);
 }
 
 bool MipsRegisterBankInfo::TypeInfoForMF::visit(
@@ -318,8 +321,7 @@ void MipsRegisterBankInfo::TypeInfoForMF::setTypes(const MachineInstr *MI,
 
 void MipsRegisterBankInfo::TypeInfoForMF::setTypesAccordingToPhysicalRegister(
     const MachineInstr *MI, const MachineInstr *CopyInst, unsigned Op) {
-  assert((TargetRegisterInfo::isPhysicalRegister(
-             CopyInst->getOperand(Op).getReg())) &&
+  assert((Register::isPhysicalRegister(CopyInst->getOperand(Op).getReg())) &&
          "Copies of non physical registers should not be considered here.\n");
 
   const MachineFunction &MF = *CopyInst->getMF();
@@ -388,6 +390,8 @@ MipsRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case G_ZEXTLOAD:
   case G_SEXTLOAD:
   case G_GEP:
+  case G_INTTOPTR:
+  case G_PTRTOINT:
   case G_AND:
   case G_OR:
   case G_XOR:
@@ -398,6 +402,7 @@ MipsRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case G_UDIV:
   case G_SREM:
   case G_UREM:
+  case G_BRINDIRECT:
     OperandsMapping = &Mips::ValueMappings[Mips::GPRIdx];
     break;
   case G_LOAD: {
@@ -495,6 +500,24 @@ MipsRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     }
     break;
   }
+  case G_IMPLICIT_DEF: {
+    unsigned Size = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
+    InstType InstTy = InstType::Integer;
+    if (!MRI.getType(MI.getOperand(0).getReg()).isPointer()) {
+      InstTy = TI.determineInstType(&MI);
+    }
+
+    if (InstTy == InstType::FloatingPoint) { // fprb
+      OperandsMapping = Size == 32 ? &Mips::ValueMappings[Mips::SPRIdx]
+                                   : &Mips::ValueMappings[Mips::DPRIdx];
+    } else { // gprb
+      OperandsMapping = Size == 32 ? &Mips::ValueMappings[Mips::GPRIdx]
+                                   : &Mips::ValueMappings[Mips::DPRIdx];
+      if (Size == 64)
+        MappingID = CustomMappingID;
+    }
+    break;
+  }
   case G_UNMERGE_VALUES: {
     OperandsMapping = getOperandsMapping({&Mips::ValueMappings[Mips::GPRIdx],
                                           &Mips::ValueMappings[Mips::GPRIdx],
@@ -576,9 +599,15 @@ MipsRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case G_CONSTANT:
   case G_FRAME_INDEX:
   case G_GLOBAL_VALUE:
+  case G_JUMP_TABLE:
   case G_BRCOND:
     OperandsMapping =
         getOperandsMapping({&Mips::ValueMappings[Mips::GPRIdx], nullptr});
+    break;
+  case G_BRJT:
+    OperandsMapping =
+        getOperandsMapping({&Mips::ValueMappings[Mips::GPRIdx], nullptr,
+                            &Mips::ValueMappings[Mips::GPRIdx]});
     break;
   case G_ICMP:
     OperandsMapping =
@@ -632,7 +661,8 @@ void MipsRegisterBankInfo::applyMappingImpl(
   case TargetOpcode::G_LOAD:
   case TargetOpcode::G_STORE:
   case TargetOpcode::G_PHI:
-  case TargetOpcode::G_SELECT: {
+  case TargetOpcode::G_SELECT:
+  case TargetOpcode::G_IMPLICIT_DEF: {
     Helper.narrowScalar(MI, 0, LLT::scalar(32));
     // Handle new instructions.
     while (!NewInstrs.empty()) {

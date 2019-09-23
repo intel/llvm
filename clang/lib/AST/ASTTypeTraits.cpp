@@ -15,6 +15,7 @@
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/NestedNameSpecifier.h"
 
 namespace clang {
 namespace ast_type_traits {
@@ -115,6 +116,7 @@ ASTNodeKind ASTNodeKind::getFromNode(const OMPClause &C) {
 #include "clang/Basic/OpenMPKinds.def"
   case OMPC_threadprivate:
   case OMPC_uniform:
+  case OMPC_device_type:
   case OMPC_unknown:
     llvm_unreachable("unexpected OpenMP clause kind");
   }
@@ -129,9 +131,12 @@ void DynTypedNode::print(llvm::raw_ostream &OS,
     TN->print(OS, PP);
   else if (const NestedNameSpecifier *NNS = get<NestedNameSpecifier>())
     NNS->print(OS, PP);
-  else if (const NestedNameSpecifierLoc *NNSL = get<NestedNameSpecifierLoc>())
-    NNSL->getNestedNameSpecifier()->print(OS, PP);
-  else if (const QualType *QT = get<QualType>())
+  else if (const NestedNameSpecifierLoc *NNSL = get<NestedNameSpecifierLoc>()) {
+    if (const NestedNameSpecifier *NNS = NNSL->getNestedNameSpecifier())
+      NNS->print(OS, PP);
+    else
+      OS << "(empty NestedNameSpecifierLoc)";
+  } else if (const QualType *QT = get<QualType>())
     QT->print(OS, PP);
   else if (const TypeLoc *TL = get<TypeLoc>())
     TL->getType().print(OS, PP);

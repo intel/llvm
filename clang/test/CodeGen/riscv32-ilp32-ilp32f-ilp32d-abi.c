@@ -1,6 +1,10 @@
 // RUN: %clang_cc1 -triple riscv32 -emit-llvm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -triple riscv32 -emit-llvm -fforce-enable-int128 %s -o - \
 // RUN:   | FileCheck %s -check-prefixes=CHECK,CHECK-FORCEINT128
+// RUN: %clang_cc1 -triple riscv32 -target-feature +f -target-abi ilp32f -emit-llvm %s -o - \
+// RUN:     | FileCheck %s
+// RUN: %clang_cc1 -triple riscv32 -target-feature +d -target-abi ilp32d -emit-llvm %s -o - \
+// RUN:     | FileCheck %s
 
 // This file contains test cases that will have the same output for the ilp32,
 // ilp32f, and ilp32d ABIs.
@@ -180,7 +184,7 @@ struct large f_agg_large_ret(int32_t i, int8_t j) {
 
 typedef unsigned char v16i8 __attribute__((vector_size(16)));
 
-// CHECK-LABEL: define void @f_vec_large_v16i8(<16 x i8>*)
+// CHECK-LABEL: define void @f_vec_large_v16i8(<16 x i8>* %0)
 void f_vec_large_v16i8(v16i8 x) {
   x[0] = x[7];
 }

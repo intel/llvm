@@ -31,6 +31,7 @@ module Clang_Basic {
   requires cplusplus
   umbrella "Basic"
 
+  textual header "Basic/AArch64SVEACLETypes.def"
   textual header "Basic/BuiltinsAArch64.def"
   textual header "Basic/BuiltinsAMDGPU.def"
   textual header "Basic/BuiltinsARM.def"
@@ -100,7 +101,7 @@ module Clang_Frontend {
   requires cplusplus
   umbrella "Frontend"
 
-  textual header "Frontend/LangStandards.def"
+  textual header "Basic/LangStandards.def"
 
   module * { export * }
 }

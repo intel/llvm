@@ -2067,10 +2067,15 @@ CXXMethodDecl *CXXMethodDecl::getDevirtualizedMethod(const Expr *Base,
   if (DevirtualizedMethod->hasAttr<FinalAttr>())
     return DevirtualizedMethod;
 
-  // Similarly, if the class itself is marked 'final' it can't be overridden
-  // and we can therefore devirtualize the member function call.
+  // Similarly, if the class itself or its destructor is marked 'final',
+  // the class can't be derived from and we can therefore devirtualize the 
+  // member function call.
   if (BestDynamicDecl->hasAttr<FinalAttr>())
     return DevirtualizedMethod;
+  if (const auto *dtor = BestDynamicDecl->getDestructor()) {
+    if (dtor->hasAttr<FinalAttr>())
+      return DevirtualizedMethod;
+  }
 
   if (const auto *DRE = dyn_cast<DeclRefExpr>(Base)) {
     if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl()))
@@ -2253,12 +2258,23 @@ CXXMethodDecl::overridden_methods() const {
   return getASTContext().overridden_methods(this);
 }
 
+static QualType getThisObjectType(ASTContext &C, const FunctionProtoType *FPT,
+                                  const CXXRecordDecl *Decl) {
+  QualType ClassTy = C.getTypeDeclType(Decl);
+  return C.getQualifiedType(ClassTy, FPT->getMethodQuals());
+}
+
 QualType CXXMethodDecl::getThisType(const FunctionProtoType *FPT,
                                     const CXXRecordDecl *Decl) {
   ASTContext &C = Decl->getASTContext();
-  QualType ClassTy = C.getTypeDeclType(Decl);
-  ClassTy = C.getQualifiedType(ClassTy, FPT->getMethodQuals());
-  return C.getPointerType(ClassTy);
+  QualType ObjectTy = ::getThisObjectType(C, FPT, Decl);
+  return C.getPointerType(ObjectTy);
+}
+
+QualType CXXMethodDecl::getThisObjectType(const FunctionProtoType *FPT,
+                                          const CXXRecordDecl *Decl) {
+  ASTContext &C = Decl->getASTContext();
+  return ::getThisObjectType(C, FPT, Decl);
 }
 
 QualType CXXMethodDecl::getThisType() const {
@@ -2271,6 +2287,14 @@ QualType CXXMethodDecl::getThisType() const {
 
   return CXXMethodDecl::getThisType(getType()->getAs<FunctionProtoType>(),
                                     getParent());
+}
+
+QualType CXXMethodDecl::getThisObjectType() const {
+  // Ditto getThisType.
+  assert(isInstance() && "No 'this' for static methods!");
+
+  return CXXMethodDecl::getThisObjectType(getType()->getAs<FunctionProtoType>(),
+                                          getParent());
 }
 
 bool CXXMethodDecl::hasInlineBody() const {

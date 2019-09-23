@@ -159,30 +159,31 @@ static gcp_map_type &getGCMap(void *&P) {
   return *(gcp_map_type*)P;
 }
 
-/// getGVAlignmentLog2 - Return the alignment to use for the specified global
-/// value in log2 form.  This rounds up to the preferred alignment if possible
-/// and legal.
-static unsigned getGVAlignmentLog2(const GlobalValue *GV, const DataLayout &DL,
-                                   unsigned InBits = 0) {
-  unsigned NumBits = 0;
+/// getGVAlignment - Return the alignment to use for the specified global
+/// value.  This rounds up to the preferred alignment if possible and legal.
+llvm::Align AsmPrinter::getGVAlignment(const GlobalValue *GV,
+                                       const DataLayout &DL,
+                                       llvm::Align InAlign) {
+  llvm::Align Align;
   if (const GlobalVariable *GVar = dyn_cast<GlobalVariable>(GV))
-    NumBits = DL.getPreferredAlignmentLog(GVar);
+    Align = llvm::Align(DL.getPreferredAlignment(GVar));
 
-  // If InBits is specified, round it to it.
-  if (InBits > NumBits)
-    NumBits = InBits;
+  // If InAlign is specified, round it to it.
+  if (InAlign > Align)
+    Align = InAlign;
 
   // If the GV has a specified alignment, take it into account.
-  if (GV->getAlignment() == 0)
-    return NumBits;
+  const llvm::MaybeAlign GVAlign(GV->getAlignment());
+  if (!GVAlign)
+    return Align;
 
-  unsigned GVAlign = Log2_32(GV->getAlignment());
+  assert(GVAlign && "GVAlign must be set");
 
   // If the GVAlign is larger than NumBits, or if we are required to obey
   // NumBits because the GV has an assigned section, obey it.
-  if (GVAlign > NumBits || GV->hasSection())
-    NumBits = GVAlign;
-  return NumBits;
+  if (*GVAlign > Align || GV->hasSection())
+    Align = *GVAlign;
+  return Align;
 }
 
 AsmPrinter::AsmPrinter(TargetMachine &tm, std::unique_ptr<MCStreamer> Streamer)
@@ -311,7 +312,7 @@ bool AsmPrinter::doInitialization(Module &M) {
   if (MAI->doesSupportDebugInformation()) {
     bool EmitCodeView = MMI->getModule()->getCodeViewFlag();
     if (EmitCodeView && TM.getTargetTriple().isOSWindows()) {
-      Handlers.emplace_back(llvm::make_unique<CodeViewDebug>(this),
+      Handlers.emplace_back(std::make_unique<CodeViewDebug>(this),
                             DbgTimerName, DbgTimerDescription,
                             CodeViewLineTablesGroupName,
                             CodeViewLineTablesGroupDescription);
@@ -380,7 +381,7 @@ bool AsmPrinter::doInitialization(Module &M) {
 
   if (mdconst::extract_or_null<ConstantInt>(
           MMI->getModule()->getModuleFlag("cfguardtable")))
-    Handlers.emplace_back(llvm::make_unique<WinCFGuard>(this), CFGuardName,
+    Handlers.emplace_back(std::make_unique<WinCFGuard>(this), CFGuardName,
                           CFGuardDescription, DWARFGroupName,
                           DWARFGroupDescription);
 
@@ -501,7 +502,7 @@ void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
   // If the alignment is specified, we *must* obey it.  Overaligning a global
   // with a specified alignment is a prompt way to break globals emitted to
   // sections and expected to be contiguous (e.g. ObjC metadata).
-  unsigned AlignLog = getGVAlignmentLog2(GV, DL);
+  const llvm::Align Align = getGVAlignment(GV, DL);
 
   for (const HandlerInfo &HI : Handlers) {
     NamedRegionTimer T(HI.TimerName, HI.TimerDescription,
@@ -513,12 +514,11 @@ void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
   // Handle common symbols
   if (GVKind.isCommon()) {
     if (Size == 0) Size = 1;   // .comm Foo, 0 is undefined, avoid it.
-    unsigned Align = 1 << AlignLog;
-    if (!getObjFileLowering().getCommDirectiveSupportsAlignment())
-      Align = 0;
-
     // .comm _foo, 42, 4
-    OutStreamer->EmitCommonSymbol(GVSym, Size, Align);
+    const bool SupportsAlignment =
+        getObjFileLowering().getCommDirectiveSupportsAlignment();
+    OutStreamer->EmitCommonSymbol(GVSym, Size,
+                                  SupportsAlignment ? Align.value() : 0);
     return;
   }
 
@@ -531,10 +531,9 @@ void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
       TheSection->isVirtualSection()) {
     if (Size == 0)
       Size = 1; // zerofill of 0 bytes is undefined.
-    unsigned Align = 1 << AlignLog;
     EmitLinkage(GV, GVSym);
     // .zerofill __DATA, __bss, _foo, 400, 5
-    OutStreamer->EmitZerofill(TheSection, GVSym, Size, Align);
+    OutStreamer->EmitZerofill(TheSection, GVSym, Size, Align.value());
     return;
   }
 
@@ -544,7 +543,6 @@ void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
       getObjFileLowering().getBSSSection() == TheSection) {
     if (Size == 0)
       Size = 1; // .comm Foo, 0 is undefined, avoid it.
-    unsigned Align = 1 << AlignLog;
 
     // Use .lcomm only if it supports user-specified alignment.
     // Otherwise, while it would still be correct to use .lcomm in some
@@ -554,17 +552,17 @@ void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
     // Prefer to simply fall back to .local / .comm in this case.
     if (MAI->getLCOMMDirectiveAlignmentType() != LCOMM::NoAlignment) {
       // .lcomm _foo, 42
-      OutStreamer->EmitLocalCommonSymbol(GVSym, Size, Align);
+      OutStreamer->EmitLocalCommonSymbol(GVSym, Size, Align.value());
       return;
     }
-
-    if (!getObjFileLowering().getCommDirectiveSupportsAlignment())
-      Align = 0;
 
     // .local _foo
     OutStreamer->EmitSymbolAttribute(GVSym, MCSA_Local);
     // .comm _foo, 42, 4
-    OutStreamer->EmitCommonSymbol(GVSym, Size, Align);
+    const bool SupportsAlignment =
+        getObjFileLowering().getCommDirectiveSupportsAlignment();
+    OutStreamer->EmitCommonSymbol(GVSym, Size,
+                                  SupportsAlignment ? Align.value() : 0);
     return;
   }
 
@@ -585,11 +583,11 @@ void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
 
     if (GVKind.isThreadBSS()) {
       TheSection = getObjFileLowering().getTLSBSSSection();
-      OutStreamer->EmitTBSSSymbol(TheSection, MangSym, Size, 1 << AlignLog);
+      OutStreamer->EmitTBSSSymbol(TheSection, MangSym, Size, Align.value());
     } else if (GVKind.isThreadData()) {
       OutStreamer->SwitchSection(TheSection);
 
-      EmitAlignment(AlignLog, GV);
+      EmitAlignment(Align, GV);
       OutStreamer->EmitLabel(MangSym);
 
       EmitGlobalConstant(GV->getParent()->getDataLayout(),
@@ -625,7 +623,7 @@ void AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
   OutStreamer->SwitchSection(TheSection);
 
   EmitLinkage(GV, EmittedInitSym);
-  EmitAlignment(AlignLog, GV);
+  EmitAlignment(Align, GV);
 
   OutStreamer->EmitLabel(EmittedInitSym);
 
@@ -783,7 +781,7 @@ static void emitComments(const MachineInstr &MI, raw_ostream &CommentOS) {
 /// emitImplicitDef - This method emits the specified machine instruction
 /// that is an implicit def.
 void AsmPrinter::emitImplicitDef(const MachineInstr *MI) const {
-  unsigned RegNo = MI->getOperand(0).getReg();
+  Register RegNo = MI->getOperand(0).getReg();
 
   SmallString<128> Str;
   raw_svector_ostream OS(Str);
@@ -910,7 +908,8 @@ static bool emitDebugLabelComment(const MachineInstr *MI, AsmPrinter &AP) {
   OS << "DEBUG_LABEL: ";
 
   const DILabel *V = MI->getDebugLabel();
-  if (auto *SP = dyn_cast<DISubprogram>(V->getScope())) {
+  if (auto *SP = dyn_cast<DISubprogram>(
+          V->getScope()->getNonLexicalBlockFileScope())) {
     StringRef Name = SP->getName();
     if (!Name.empty())
       OS << Name << ":";
@@ -1024,7 +1023,7 @@ void AsmPrinter::EmitFunctionBody() {
     // Get MachineDominatorTree or compute it on the fly if it's unavailable
     MDT = getAnalysisIfAvailable<MachineDominatorTree>();
     if (!MDT) {
-      OwnedMDT = make_unique<MachineDominatorTree>();
+      OwnedMDT = std::make_unique<MachineDominatorTree>();
       OwnedMDT->getBase().recalculate(*MF);
       MDT = OwnedMDT.get();
     }
@@ -1032,7 +1031,7 @@ void AsmPrinter::EmitFunctionBody() {
     // Get MachineLoopInfo or compute it on the fly if it's unavailable
     MLI = getAnalysisIfAvailable<MachineLoopInfo>();
     if (!MLI) {
-      OwnedMLI = make_unique<MachineLoopInfo>();
+      OwnedMLI = std::make_unique<MachineLoopInfo>();
       OwnedMLI->getBase().analyze(MDT->getBase());
       MLI = OwnedMLI.get();
     }
@@ -1313,11 +1312,10 @@ void AsmPrinter::emitGlobalIndirectSymbol(Module &M,
 
   // Set the symbol type to function if the alias has a function type.
   // This affects codegen when the aliasee is not a function.
-  if (IsFunction) {
-    OutStreamer->EmitSymbolAttribute(Name, MCSA_ELF_TypeFunction);
-    if (isa<GlobalIFunc>(GIS))
-      OutStreamer->EmitSymbolAttribute(Name, MCSA_ELF_TypeIndFunction);
-  }
+  if (IsFunction)
+    OutStreamer->EmitSymbolAttribute(Name, isa<GlobalIFunc>(GIS)
+                                               ? MCSA_ELF_TypeIndFunction
+                                               : MCSA_ELF_TypeFunction);
 
   EmitVisibility(Name, GIS.getVisibility());
 
@@ -1349,60 +1347,25 @@ void AsmPrinter::emitRemarksSection(Module &M) {
   RemarkStreamer *RS = M.getContext().getRemarkStreamer();
   if (!RS)
     return;
-  const remarks::Serializer &Serializer = RS->getSerializer();
+  remarks::RemarkSerializer &RemarkSerializer = RS->getSerializer();
+
+  StringRef FilenameRef = RS->getFilename();
+  SmallString<128> Filename = FilenameRef;
+  sys::fs::make_absolute(Filename);
+  assert(!Filename.empty() && "The filename can't be empty.");
+
+  std::string Buf;
+  raw_string_ostream OS(Buf);
+  std::unique_ptr<remarks::MetaSerializer> MetaSerializer =
+      RemarkSerializer.metaSerializer(OS, StringRef(Filename));
+  MetaSerializer->emit();
 
   // Switch to the right section: .remarks/__remarks.
   MCSection *RemarksSection =
       OutContext.getObjectFileInfo()->getRemarksSection();
   OutStreamer->SwitchSection(RemarksSection);
 
-  // Emit the magic number.
-  OutStreamer->EmitBytes(remarks::Magic);
-  // Explicitly emit a '\0'.
-  OutStreamer->EmitIntValue(/*Value=*/0, /*Size=*/1);
-
-  // Emit the version number: little-endian uint64_t.
-  // The version number is located at the offset 0x0 in the section.
-  std::array<char, 8> Version;
-  support::endian::write64le(Version.data(), remarks::Version);
-  OutStreamer->EmitBinaryData(StringRef(Version.data(), Version.size()));
-
-  // Emit the string table in the section.
-  // Note: we need to use the streamer here to emit it in the section. We can't
-  // just use the serialize function with a raw_ostream because of the way
-  // MCStreamers work.
-  uint64_t StrTabSize =
-      Serializer.StrTab ? Serializer.StrTab->SerializedSize : 0;
-  // Emit the total size of the string table (the size itself excluded):
-  // little-endian uint64_t.
-  // The total size is located after the version number.
-  // Note: even if no string table is used, emit 0.
-  std::array<char, 8> StrTabSizeBuf;
-  support::endian::write64le(StrTabSizeBuf.data(), StrTabSize);
-  OutStreamer->EmitBinaryData(
-      StringRef(StrTabSizeBuf.data(), StrTabSizeBuf.size()));
-
-  if (const Optional<remarks::StringTable> &StrTab = Serializer.StrTab) {
-    std::vector<StringRef> StrTabStrings = StrTab->serialize();
-    // Emit a list of null-terminated strings.
-    // Note: the order is important here: the ID used in the remarks corresponds
-    // to the position of the string in the section.
-    for (StringRef Str : StrTabStrings) {
-      OutStreamer->EmitBytes(Str);
-      // Explicitly emit a '\0'.
-      OutStreamer->EmitIntValue(/*Value=*/0, /*Size=*/1);
-    }
-  }
-
-  // Emit the null-terminated absolute path to the remark file.
-  // The path is located at the offset 0x4 in the section.
-  StringRef FilenameRef = RS->getFilename();
-  SmallString<128> Filename = FilenameRef;
-  sys::fs::make_absolute(Filename);
-  assert(!Filename.empty() && "The filename can't be empty.");
-  OutStreamer->EmitBytes(Filename);
-  // Explicitly emit a '\0'.
-  OutStreamer->EmitIntValue(/*Value=*/0, /*Size=*/1);
+  OutStreamer->EmitBinaryData(OS.str());
 }
 
 bool AsmPrinter::doFinalization(Module &M) {
@@ -1455,7 +1418,7 @@ bool AsmPrinter::doFinalization(Module &M) {
       OutStreamer->SwitchSection(TLOF.getDataSection());
       const DataLayout &DL = M.getDataLayout();
 
-      EmitAlignment(Log2_32(DL.getPointerSize()));
+      EmitAlignment(llvm::Align(DL.getPointerSize()));
       for (const auto &Stub : Stubs) {
         OutStreamer->EmitLabel(Stub.first);
         OutStreamer->EmitSymbolValue(Stub.second.getPointer(),
@@ -1482,7 +1445,7 @@ bool AsmPrinter::doFinalization(Module &M) {
                 COFF::IMAGE_SCN_LNK_COMDAT,
             SectionKind::getReadOnly(), Stub.first->getName(),
             COFF::IMAGE_COMDAT_SELECT_ANY));
-        EmitAlignment(Log2_32(DL.getPointerSize()));
+        EmitAlignment(llvm::Align(DL.getPointerSize()));
         OutStreamer->EmitSymbolAttribute(Stub.first, MCSA_Global);
         OutStreamer->EmitLabel(Stub.first);
         OutStreamer->EmitSymbolValue(Stub.second.getPointer(),
@@ -1607,8 +1570,7 @@ bool AsmPrinter::doFinalization(Module &M) {
              "expected llvm.used to be an array type");
       if (const auto *A = cast<ConstantArray>(LU->getInitializer())) {
         for (const Value *Op : A->operands()) {
-          const auto *GV =
-              cast<GlobalValue>(Op->stripPointerCastsNoFollowAliases());
+          const auto *GV = cast<GlobalValue>(Op->stripPointerCasts());
           // Global symbols with internal or private linkage are not visible to
           // the linker, and thus would cause an error when the linker tried to
           // preserve the symbol due to the `/include:` directive.
@@ -1765,7 +1727,7 @@ void AsmPrinter::EmitConstantPool() {
 
       if (CurSection != CPSections[i].S) {
         OutStreamer->SwitchSection(CPSections[i].S);
-        EmitAlignment(Log2_32(CPSections[i].Alignment));
+        EmitAlignment(llvm::Align(CPSections[i].Alignment));
         CurSection = CPSections[i].S;
         Offset = 0;
       }
@@ -1812,7 +1774,7 @@ void AsmPrinter::EmitJumpTableInfo() {
     OutStreamer->SwitchSection(ReadOnlySection);
   }
 
-  EmitAlignment(Log2_32(MJTI->getEntryAlignment(DL)));
+  EmitAlignment(llvm::Align(MJTI->getEntryAlignment(DL)));
 
   // Jump tables in code sections are marked with a data_region directive
   // where that's supported.
@@ -2025,7 +1987,7 @@ void AsmPrinter::EmitXXStructorList(const DataLayout &DL, const Constant *List,
   }
 
   // Emit the function pointers in the target-specific order
-  unsigned Align = Log2_32(DL.getPointerPrefAlignment());
+  const llvm::Align Align = llvm::Align(DL.getPointerPrefAlignment());
   llvm::stable_sort(Structors, [](const Structor &L, const Structor &R) {
     return L.Priority < R.Priority;
   });
@@ -2149,23 +2111,21 @@ void AsmPrinter::EmitLabelPlusOffset(const MCSymbol *Label, uint64_t Offset,
 //===----------------------------------------------------------------------===//
 
 // EmitAlignment - Emit an alignment directive to the specified power of
-// two boundary.  For example, if you pass in 3 here, you will get an 8
-// byte alignment.  If a global value is specified, and if that global has
+// two boundary.  If a global value is specified, and if that global has
 // an explicit alignment requested, it will override the alignment request
 // if required for correctness.
-void AsmPrinter::EmitAlignment(unsigned NumBits, const GlobalObject *GV) const {
+void AsmPrinter::EmitAlignment(llvm::Align Align,
+                               const GlobalObject *GV) const {
   if (GV)
-    NumBits = getGVAlignmentLog2(GV, GV->getParent()->getDataLayout(), NumBits);
+    Align = getGVAlignment(GV, GV->getParent()->getDataLayout(), Align);
 
-  if (NumBits == 0) return;   // 1-byte aligned: no need to emit alignment.
+  if (Align == 1)
+    return; // 1-byte aligned: no need to emit alignment.
 
-  assert(NumBits <
-             static_cast<unsigned>(std::numeric_limits<unsigned>::digits) &&
-         "undefined behavior");
   if (getCurrentSection()->getKind().isText())
-    OutStreamer->EmitCodeAlignment(1u << NumBits);
+    OutStreamer->EmitCodeAlignment(Align.value());
   else
-    OutStreamer->EmitValueToAlignment(1u << NumBits);
+    OutStreamer->EmitValueToAlignment(Align.value());
 }
 
 //===----------------------------------------------------------------------===//
@@ -2670,7 +2630,7 @@ static void handleIndirectSymViaGOTPCRel(AsmPrinter &AP, const MCExpr **ME,
   const GlobalValue *FinalGV = dyn_cast<GlobalValue>(GV->getOperand(0));
   const MCSymbol *FinalSym = AP.getSymbol(FinalGV);
   *ME = AP.getObjFileLowering().getIndirectSymViaGOTPCRel(
-      FinalSym, MV, Offset, AP.MMI, *AP.OutStreamer);
+      FinalGV, FinalSym, MV, Offset, AP.MMI, *AP.OutStreamer);
 
   // Update GOT equivalent usage information
   --NumUses;
@@ -2930,7 +2890,7 @@ void AsmPrinter::setupCodePaddingContext(const MachineBasicBlock &MBB,
 /// EmitBasicBlockStart - This method prints the label for the specified
 /// MachineBasicBlock, an alignment (if present) and a comment describing
 /// it if appropriate.
-void AsmPrinter::EmitBasicBlockStart(const MachineBasicBlock &MBB) const {
+void AsmPrinter::EmitBasicBlockStart(const MachineBasicBlock &MBB) {
   // End the previous funclet and start a new one.
   if (MBB.isEHFuncletEntry()) {
     for (const HandlerInfo &HI : Handlers) {
@@ -2940,7 +2900,8 @@ void AsmPrinter::EmitBasicBlockStart(const MachineBasicBlock &MBB) const {
   }
 
   // Emit an alignment directive for this block, if needed.
-  if (unsigned Align = MBB.getAlignment())
+  const llvm::Align Align = MBB.getAlignment();
+  if (Align > 1)
     EmitAlignment(Align);
   MCCodePaddingContext Context;
   setupCodePaddingContext(MBB, Context);

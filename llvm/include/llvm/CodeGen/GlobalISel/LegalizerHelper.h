@@ -200,6 +200,9 @@ public:
   LegalizeResult moreElementsVectorPhi(MachineInstr &MI, unsigned TypeIdx,
                                        LLT MoreTy);
 
+  LegalizeResult fewerElementsVectorUnmergeValues(MachineInstr &MI,
+                                                  unsigned TypeIdx,
+                                                  LLT NarrowTy);
   LegalizeResult
   reduceLoadStoreWidth(MachineInstr &MI, unsigned TypeIdx, LLT NarrowTy);
 
@@ -219,9 +222,14 @@ public:
   LegalizeResult lowerU64ToF32BitOps(MachineInstr &MI);
   LegalizeResult lowerUITOFP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult lowerSITOFP(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
+  LegalizeResult lowerFPTOUI(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult lowerMinMax(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult lowerFCopySign(MachineInstr &MI, unsigned TypeIdx, LLT Ty);
   LegalizeResult lowerFMinNumMaxNum(MachineInstr &MI);
+  LegalizeResult lowerFMad(MachineInstr &MI);
+  LegalizeResult lowerUnmergeValues(MachineInstr &MI);
+  LegalizeResult lowerShuffleVector(MachineInstr &MI);
+  LegalizeResult lowerDynStackAlloc(MachineInstr &MI);
 
 private:
   MachineRegisterInfo &MRI;
@@ -235,6 +243,11 @@ LegalizerHelper::LegalizeResult
 createLibcall(MachineIRBuilder &MIRBuilder, RTLIB::Libcall Libcall,
               const CallLowering::ArgInfo &Result,
               ArrayRef<CallLowering::ArgInfo> Args);
+
+/// Create a libcall to memcpy et al.
+LegalizerHelper::LegalizeResult createMemLibcall(MachineIRBuilder &MIRBuilder,
+                                                 MachineRegisterInfo &MRI,
+                                                 MachineInstr &MI);
 
 } // End namespace llvm.
 

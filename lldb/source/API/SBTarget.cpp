@@ -44,11 +44,11 @@
 #include "lldb/Core/ValueObjectList.h"
 #include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/Host/Host.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/DeclVendor.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/SymbolVendor.h"
+#include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/ABI.h"
 #include "lldb/Target/Language.h"
@@ -218,7 +218,7 @@ SBStructuredData SBTarget::GetStatistics() {
   if (!target_sp)
     return LLDB_RECORD_RESULT(data);
 
-  auto stats_up = llvm::make_unique<StructuredData::Dictionary>();
+  auto stats_up = std::make_unique<StructuredData::Dictionary>();
   int i = 0;
   for (auto &Entry : target_sp->GetStatistics()) {
     std::string Desc = lldb_private::GetStatDescription(
@@ -960,8 +960,8 @@ lldb::SBBreakpoint SBTarget::BreakpointCreateByRegex(
     const LazyBool skip_prologue = eLazyBoolCalculate;
 
     sb_bp = target_sp->CreateFuncRegexBreakpoint(
-        module_list.get(), comp_unit_list.get(), regexp, symbol_language,
-        skip_prologue, internal, hardware);
+        module_list.get(), comp_unit_list.get(), std::move(regexp),
+        symbol_language, skip_prologue, internal, hardware);
   }
 
   return LLDB_RECORD_RESULT(sb_bp);
@@ -1061,8 +1061,8 @@ lldb::SBBreakpoint SBTarget::BreakpointCreateBySourceRegex(
     }
 
     sb_bp = target_sp->CreateSourceRegexBreakpoint(
-        module_list.get(), source_file_list.get(), func_names_set, regexp,
-        false, hardware, move_to_nearest_code);
+        module_list.get(), source_file_list.get(), func_names_set,
+        std::move(regexp), false, hardware, move_to_nearest_code);
   }
 
   return LLDB_RECORD_RESULT(sb_bp);
@@ -1858,11 +1858,11 @@ lldb::SBType SBTarget::FindFirstType(const char *typename_cstr) {
     }
 
     // No matches, search for basic typename matches
-    ClangASTContext *clang_ast = target_sp->GetScratchClangASTContext();
-    if (clang_ast)
-      return LLDB_RECORD_RESULT(SBType(ClangASTContext::GetBasicType(
-          clang_ast->getASTContext(), const_typename)));
+    for (auto *type_system : target_sp->GetScratchTypeSystems())
+      if (auto type = type_system->GetBuiltinTypeByName(const_typename))
+        return LLDB_RECORD_RESULT(SBType(type));
   }
+
   return LLDB_RECORD_RESULT(SBType());
 }
 
@@ -1872,10 +1872,9 @@ SBType SBTarget::GetBasicType(lldb::BasicType type) {
 
   TargetSP target_sp(GetSP());
   if (target_sp) {
-    ClangASTContext *clang_ast = target_sp->GetScratchClangASTContext();
-    if (clang_ast)
-      return LLDB_RECORD_RESULT(SBType(
-          ClangASTContext::GetBasicType(clang_ast->getASTContext(), type)));
+    for (auto *type_system : target_sp->GetScratchTypeSystems())
+      if (auto compiler_type = type_system->GetBasicTypeFromAST(type))
+        return LLDB_RECORD_RESULT(SBType(compiler_type));
   }
   return LLDB_RECORD_RESULT(SBType());
 }
@@ -1918,10 +1917,10 @@ lldb::SBTypeList SBTarget::FindTypes(const char *typename_cstr) {
 
     if (sb_type_list.GetSize() == 0) {
       // No matches, search for basic typename matches
-      ClangASTContext *clang_ast = target_sp->GetScratchClangASTContext();
-      if (clang_ast)
-        sb_type_list.Append(SBType(ClangASTContext::GetBasicType(
-            clang_ast->getASTContext(), const_typename)));
+      for (auto *type_system : target_sp->GetScratchTypeSystems())
+        if (auto compiler_type =
+                type_system->GetBuiltinTypeByName(const_typename))
+          sb_type_list.Append(SBType(compiler_type));
     }
   }
   return LLDB_RECORD_RESULT(sb_type_list);
@@ -2355,10 +2354,10 @@ lldb::SBValue SBTarget::EvaluateExpression(const char *expr,
       expr_result.SetSP(expr_value_sp, options.GetFetchDynamicValue());
     }
   }
-  if (expr_log)
-    expr_log->Printf("** [SBTarget::EvaluateExpression] Expression result is "
-                     "%s, summary %s **",
-                     expr_result.GetValue(), expr_result.GetSummary());
+  LLDB_LOGF(expr_log,
+            "** [SBTarget::EvaluateExpression] Expression result is "
+            "%s, summary %s **",
+            expr_result.GetValue(), expr_result.GetSummary());
   return LLDB_RECORD_RESULT(expr_result);
 }
 

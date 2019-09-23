@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 //
 // This file defines several macros, based on the current compiler.  This allows
-// use of compiler-specific features in a way that remains portable.
+// use of compiler-specific features in a way that remains portable. This header
+// can be included from either C or C++.
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,7 +17,9 @@
 
 #include "llvm/Config/llvm-config.h"
 
+#ifdef __cplusplus
 #include <new>
+#endif
 #include <stddef.h>
 
 #if defined(_MSC_VER)
@@ -35,12 +38,18 @@
 # define __has_attribute(x) 0
 #endif
 
-#ifndef __has_cpp_attribute
-# define __has_cpp_attribute(x) 0
-#endif
-
 #ifndef __has_builtin
 # define __has_builtin(x) 0
+#endif
+
+// Only use __has_cpp_attribute in C++ mode. GCC defines __has_cpp_attribute in
+// C mode, but the :: in __has_cpp_attribute(scoped::attribute) is invalid.
+#ifndef LLVM_HAS_CPP_ATTRIBUTE
+#if defined(__cplusplus) && defined(__has_cpp_attribute)
+# define LLVM_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
+#else
+# define LLVM_HAS_CPP_ATTRIBUTE(x) 0
+#endif
 #endif
 
 /// \macro LLVM_GNUC_PREREQ
@@ -62,13 +71,21 @@
 /// \macro LLVM_MSC_PREREQ
 /// Is the compiler MSVC of at least the specified version?
 /// The common \param version values to check for are:
-///  * 1900: Microsoft Visual Studio 2015 / 14.0
+/// * 1910: VS2017, version 15.1 & 15.2
+/// * 1911: VS2017, version 15.3 & 15.4
+/// * 1912: VS2017, version 15.5
+/// * 1913: VS2017, version 15.6
+/// * 1914: VS2017, version 15.7
+/// * 1915: VS2017, version 15.8
+/// * 1916: VS2017, version 15.9
+/// * 1920: VS2019, version 16.0
+/// * 1921: VS2019, version 16.1
 #ifdef _MSC_VER
 #define LLVM_MSC_PREREQ(version) (_MSC_VER >= (version))
 
-// We require at least MSVC 2015.
-#if !LLVM_MSC_PREREQ(1900)
-#error LLVM requires at least MSVC 2015.
+// We require at least MSVC 2017.
+#if !LLVM_MSC_PREREQ(1910)
+#error LLVM requires at least MSVC 2017.
 #endif
 
 #else
@@ -120,13 +137,9 @@
 #endif
 
 /// LLVM_NODISCARD - Warn if a type or return value is discarded.
-#if __cplusplus > 201402L && __has_cpp_attribute(nodiscard)
+#if __cplusplus > 201402L && LLVM_HAS_CPP_ATTRIBUTE(nodiscard)
 #define LLVM_NODISCARD [[nodiscard]]
-#elif !__cplusplus
-// Workaround for llvm.org/PR23435, since clang 3.6 and below emit a spurious
-// error when __has_cpp_attribute is given a scoped attribute in C mode.
-#define LLVM_NODISCARD
-#elif __has_cpp_attribute(clang::warn_unused_result)
+#elif LLVM_HAS_CPP_ATTRIBUTE(clang::warn_unused_result)
 #define LLVM_NODISCARD [[clang::warn_unused_result]]
 #else
 #define LLVM_NODISCARD
@@ -139,7 +152,7 @@
 // The clang-tidy check bugprone-use-after-move recognizes this attribute as a
 // marker that a moved-from object has left the indeterminate state and can be
 // reused.
-#if __has_cpp_attribute(clang::reinitializes)
+#if LLVM_HAS_CPP_ATTRIBUTE(clang::reinitializes)
 #define LLVM_ATTRIBUTE_REINITIALIZES [[clang::reinitializes]]
 #else
 #define LLVM_ATTRIBUTE_REINITIALIZES
@@ -240,15 +253,13 @@
 #endif
 
 /// LLVM_FALLTHROUGH - Mark fallthrough cases in switch statements.
-#if __cplusplus > 201402L && __has_cpp_attribute(fallthrough)
+#if __cplusplus > 201402L && LLVM_HAS_CPP_ATTRIBUTE(fallthrough)
 #define LLVM_FALLTHROUGH [[fallthrough]]
-#elif __has_cpp_attribute(gnu::fallthrough)
+#elif LLVM_HAS_CPP_ATTRIBUTE(gnu::fallthrough)
 #define LLVM_FALLTHROUGH [[gnu::fallthrough]]
-#elif !__cplusplus
-// Workaround for llvm.org/PR23435, since clang 3.6 and below emit a spurious
-// error when __has_cpp_attribute is given a scoped attribute in C mode.
-#define LLVM_FALLTHROUGH
-#elif __has_cpp_attribute(clang::fallthrough)
+#elif __has_attribute(fallthrough)
+#define LLVM_FALLTHROUGH __attribute__((fallthrough))
+#elif LLVM_HAS_CPP_ATTRIBUTE(clang::fallthrough)
 #define LLVM_FALLTHROUGH [[clang::fallthrough]]
 #else
 #define LLVM_FALLTHROUGH
@@ -256,7 +267,7 @@
 
 /// LLVM_REQUIRE_CONSTANT_INITIALIZATION - Apply this to globals to ensure that
 /// they are constant initialized.
-#if __has_cpp_attribute(clang::require_constant_initialization)
+#if LLVM_HAS_CPP_ATTRIBUTE(clang::require_constant_initialization)
 #define LLVM_REQUIRE_CONSTANT_INITIALIZATION                                   \
   [[clang::require_constant_initialization]]
 #else
@@ -338,14 +349,6 @@
 # define LLVM_ASSUME_ALIGNED(p, a) (p)
 #endif
 
-/// \macro LLVM_ALIGNAS
-/// Used to specify a minimum alignment for a structure or variable.
-#if __GNUC__ && !__has_feature(cxx_alignas) && !LLVM_GNUC_PREREQ(4, 8, 1)
-# define LLVM_ALIGNAS(x) __attribute__((aligned(x)))
-#else
-# define LLVM_ALIGNAS(x) alignas(x)
-#endif
-
 /// \macro LLVM_PACKED
 /// Used to specify a packed structure.
 /// LLVM_PACKED(
@@ -376,8 +379,8 @@
 
 /// \macro LLVM_PTR_SIZE
 /// A constant integer equivalent to the value of sizeof(void*).
-/// Generally used in combination with LLVM_ALIGNAS or when doing computation in
-/// the preprocessor.
+/// Generally used in combination with alignas or when doing computation in the
+/// preprocessor.
 #ifdef __SIZEOF_POINTER__
 # define LLVM_PTR_SIZE __SIZEOF_POINTER__
 #elif defined(_WIN64)
@@ -527,6 +530,7 @@ void AnnotateIgnoreWritesEnd(const char *file, int line);
 #define LLVM_ENABLE_EXCEPTIONS 1
 #endif
 
+#ifdef __cplusplus
 namespace llvm {
 
 /// Allocate a buffer of memory with the given size and alignment.
@@ -569,4 +573,5 @@ inline void deallocate_buffer(void *Ptr, size_t Size, size_t Alignment) {
 
 } // End namespace llvm
 
+#endif // __cplusplus
 #endif

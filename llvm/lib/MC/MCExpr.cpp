@@ -453,41 +453,34 @@ void MCTargetExpr::anchor() {}
 /* *** */
 
 bool MCExpr::evaluateAsAbsolute(int64_t &Res) const {
-  return evaluateAsAbsolute(Res, nullptr, nullptr, nullptr);
+  return evaluateAsAbsolute(Res, nullptr, nullptr, nullptr, false);
 }
 
 bool MCExpr::evaluateAsAbsolute(int64_t &Res,
                                 const MCAsmLayout &Layout) const {
-  return evaluateAsAbsolute(Res, &Layout.getAssembler(), &Layout, nullptr);
+  return evaluateAsAbsolute(Res, &Layout.getAssembler(), &Layout, nullptr, false);
 }
 
 bool MCExpr::evaluateAsAbsolute(int64_t &Res,
                                 const MCAsmLayout &Layout,
                                 const SectionAddrMap &Addrs) const {
-  return evaluateAsAbsolute(Res, &Layout.getAssembler(), &Layout, &Addrs);
+  // Setting InSet causes us to absolutize differences across sections and that
+  // is what the MachO writer uses Addrs for.
+  return evaluateAsAbsolute(Res, &Layout.getAssembler(), &Layout, &Addrs, true);
 }
 
 bool MCExpr::evaluateAsAbsolute(int64_t &Res, const MCAssembler &Asm) const {
-  return evaluateAsAbsolute(Res, &Asm, nullptr, nullptr);
+  return evaluateAsAbsolute(Res, &Asm, nullptr, nullptr, false);
 }
 
 bool MCExpr::evaluateAsAbsolute(int64_t &Res, const MCAssembler *Asm) const {
-  return evaluateAsAbsolute(Res, Asm, nullptr, nullptr);
+  return evaluateAsAbsolute(Res, Asm, nullptr, nullptr, false);
 }
 
 bool MCExpr::evaluateKnownAbsolute(int64_t &Res,
                                    const MCAsmLayout &Layout) const {
   return evaluateAsAbsolute(Res, &Layout.getAssembler(), &Layout, nullptr,
                             true);
-}
-
-bool MCExpr::evaluateAsAbsolute(int64_t &Res, const MCAssembler *Asm,
-                                const MCAsmLayout *Layout,
-                                const SectionAddrMap *Addrs) const {
-  // FIXME: The use if InSet = Addrs is a hack. Setting InSet causes us
-  // absolutize differences across sections and that is what the MachO writer
-  // uses Addrs for.
-  return evaluateAsAbsolute(Res, Asm, Layout, Addrs, Addrs);
 }
 
 bool MCExpr::evaluateAsAbsolute(int64_t &Res, const MCAssembler *Asm,
@@ -577,6 +570,24 @@ static void AttemptToFoldSymbolOffsetDifference(
   A = B = nullptr;
 }
 
+static bool canFold(const MCAssembler *Asm, const MCSymbolRefExpr *A,
+                    const MCSymbolRefExpr *B, bool InSet) {
+  if (InSet)
+    return true;
+
+  if (!Asm->getBackend().requiresDiffExpressionRelocations())
+    return true;
+
+  const MCSymbol &CheckSym = A ? A->getSymbol() : B->getSymbol();
+  if (!CheckSym.isInSection())
+    return true;
+
+  if (!CheckSym.getSection().hasInstructions())
+    return true;
+
+  return false;
+}
+
 /// Evaluate the result of an add between (conceptually) two MCValues.
 ///
 /// This routine conceptually attempts to construct an MCValue:
@@ -617,8 +628,7 @@ EvaluateSymbolicAdd(const MCAssembler *Asm, const MCAsmLayout *Layout,
   // the backend requires this to be emitted as individual relocations, unless
   // the InSet flag is set to get the current difference anyway (used for
   // example to calculate symbol sizes).
-  if (Asm &&
-      (InSet || !Asm->getBackend().requiresDiffExpressionRelocations())) {
+  if (Asm && canFold(Asm, LHS_A, LHS_B, InSet)) {
     // First, fold out any differences which are fully resolved. By
     // reassociating terms in
     //   Result = (LHS_A - LHS_B + LHS_Cst) + (RHS_A - RHS_B + RHS_Cst).

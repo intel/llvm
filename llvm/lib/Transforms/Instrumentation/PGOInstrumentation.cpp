@@ -108,6 +108,7 @@
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/MisExpect.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -1662,9 +1663,9 @@ static bool annotateAllFunctions(
          F.getName().equals(ViewBlockFreqFuncName))) {
       LoopInfo LI{DominatorTree(F)};
       std::unique_ptr<BranchProbabilityInfo> NewBPI =
-          llvm::make_unique<BranchProbabilityInfo>(F, LI);
+          std::make_unique<BranchProbabilityInfo>(F, LI);
       std::unique_ptr<BlockFrequencyInfo> NewBFI =
-          llvm::make_unique<BlockFrequencyInfo>(F, *NewBPI, LI);
+          std::make_unique<BlockFrequencyInfo>(F, *NewBPI, LI);
       if (PGOViewCounts == PGOVCT_Graph)
         NewBFI->view();
       else if (PGOViewCounts == PGOVCT_Text) {
@@ -1776,6 +1777,9 @@ void llvm::setProfMetadata(Module *M, Instruction *TI,
                                            : Weights) {
     dbgs() << W << " ";
   } dbgs() << "\n";);
+
+  misexpect::verifyMisExpect(TI, Weights, TI->getContext());
+
   TI->setMetadata(LLVMContext::MD_prof, MDB.createBranchWeights(Weights));
   if (EmitBranchProbability) {
     std::string BrCondStr = getBranchCondString(TI);

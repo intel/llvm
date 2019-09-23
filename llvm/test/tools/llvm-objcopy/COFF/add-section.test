@@ -1,21 +1,52 @@
 # RUN: yaml2obj %s > %t
+
+## Test that llvm-objcopy adds a section to the given object with expected
+## contents.
 # RUN: echo DEADBEEF > %t.sec
 # RUN: llvm-objcopy --add-section=.test.section=%t.sec %t %t1
-# RUN: llvm-readobj --file-headers --sections --section-data %t1 | FileCheck %s
+# RUN: llvm-readobj --file-headers --sections --section-data %t1 | FileCheck %s --check-prefixes=CHECK-ADD
 
-# CHECK: SectionCount: 5
-# CHECK: Name: .text
-# CHECK: Name: .bss
-# CHECK: Name: .comdat
-# CHECK: Name: .associative
-# CHECK: Name: .test.section
-# CHECK:    Characteristics [
-# CHECK-NEXT:      IMAGE_SCN_ALIGN_1BYTES
-# CHECK-NEXT:      IMAGE_SCN_CNT_INITIALIZED_DATA
-# CHECK-NEXT:    ]
-# CHECK:    SectionData (
-# CHECK-NEXT:      0000: {{.+}}|DEADBEEF{{.+}}|
-# CHECK-NEXT:    )
+# CHECK-ADD:      SectionCount: 2
+# CHECK-ADD:      Name: .text
+# CHECK-ADD:      Name: .test.section
+# CHECK-ADD:      Characteristics [
+# CHECK-ADD-NEXT:   IMAGE_SCN_ALIGN_1BYTES
+# CHECK-ADD-NEXT:   IMAGE_SCN_CNT_INITIALIZED_DATA
+# CHECK-ADD-NEXT: ]
+# CHECK-ADD:      SectionData (
+# CHECK-ADD-NEXT:  0000: {{.+}}|DEADBEEF{{.+}}|
+# CHECK-ADD-NEXT: )
+
+## Test that llvm-objcopy can add a section with an empty name.
+# RUN: llvm-objcopy --add-section==%t.sec %t %t1.empty.name
+# RUN: llvm-readobj --file-headers --sections --section-data %t1.empty.name | FileCheck %s --check-prefixes=CHECK-ADD-EMPTY-NAME
+
+# CHECK-ADD-EMPTY-NAME:      SectionCount: 2
+# CHECK-ADD-EMPTY-NAME:      Name: .text
+# CHECK-ADD-EMPTY-NAME:      Name: (00 00 00 00 00 00 00 00)
+# CHECK-ADD-EMPTY-NAME:      Characteristics [
+# CHECK-ADD-EMPTY-NAME-NEXT:   IMAGE_SCN_ALIGN_1BYTES
+# CHECK-ADD-EMPTY-NAME-NEXT:   IMAGE_SCN_CNT_INITIALIZED_DATA
+# CHECK-ADD-EMPTY-NAME-NEXT: ]
+# CHECK-ADD-EMPTY-NAME:      SectionData (
+# CHECK-ADD-EMPTY-NAME-NEXT:  0000: {{.+}}|DEADBEEF{{.+}}|
+# CHECK-ADD-EMPTY-NAME-NEXT: )
+
+## Test that llvm-objcopy produces an error if the file with section contents
+## to be added does not exist.
+# RUN: not llvm-objcopy --add-section=.another.section=%t2 %t %t3 2>&1 | FileCheck -DFILE1=%t -DFILE2=%t2 %s --check-prefixes=ERR1
+
+# ERR1: error: '[[FILE1]]': '[[FILE2]]': {{[Nn]}}o such file or directory
+
+## Another negative test for invalid --add-sections command line argument.
+# RUN: not llvm-objcopy --add-section=.another.section %t %t3 2>&1 | FileCheck %s --check-prefixes=ERR2
+
+# ERR2: error: bad format for --add-section: missing '='
+
+## Negative test for invalid --add-sections argument - missing file name.
+# RUN: not llvm-objcopy --add-section=.section.name= %t %t3 2>&1 | FileCheck %s --check-prefixes=ERR3
+
+# ERR3: error: bad format for --add-section: missing file name
 
 --- !COFF
 header:
@@ -26,89 +57,5 @@ sections:
     Characteristics: [  ]
     Alignment:       4
     SectionData:     488B0500000000C3
-    Relocations:
-      - VirtualAddress:  3
-        SymbolName:      foo
-        Type:            IMAGE_REL_AMD64_REL32
-  - Name:            .bss
-    Characteristics: [  ]
-    Alignment:       4
-    SectionData:     ''
-  - Name:            .comdat
-    Characteristics: [ IMAGE_SCN_LNK_COMDAT ]
-    Alignment:       1
-    SectionData:     '2A000000'
-  - Name:            .associative
-    Characteristics: [ IMAGE_SCN_LNK_COMDAT ]
-    Alignment:       1
-    SectionData:     '0000000000000000'
 symbols:
-  - Name:            '@feat.00'
-    Value:           0
-    SectionNumber:   -1
-    SimpleType:      IMAGE_SYM_TYPE_NULL
-    ComplexType:     IMAGE_SYM_DTYPE_NULL
-    StorageClass:    IMAGE_SYM_CLASS_STATIC
-  - Name:            .text
-    Value:           0
-    SectionNumber:   1
-    SimpleType:      IMAGE_SYM_TYPE_NULL
-    ComplexType:     IMAGE_SYM_DTYPE_NULL
-    StorageClass:    IMAGE_SYM_CLASS_STATIC
-    SectionDefinition:
-      Length:          8
-      NumberOfRelocations: 1
-      NumberOfLinenumbers: 0
-      CheckSum:        583624169
-      Number:          1
-  - Name:            .bss
-    Value:           0
-    SectionNumber:   2
-    SimpleType:      IMAGE_SYM_TYPE_NULL
-    ComplexType:     IMAGE_SYM_DTYPE_NULL
-    StorageClass:    IMAGE_SYM_CLASS_STATIC
-    SectionDefinition:
-      Length:          0
-      NumberOfRelocations: 0
-      NumberOfLinenumbers: 0
-      CheckSum:        0
-      Number:          2
-  - Name:            .associative
-    Value:           0
-    SectionNumber:   4
-    SimpleType:      IMAGE_SYM_TYPE_NULL
-    ComplexType:     IMAGE_SYM_DTYPE_NULL
-    StorageClass:    IMAGE_SYM_CLASS_STATIC
-    SectionDefinition:
-      Length:          8
-      NumberOfRelocations: 0
-      NumberOfLinenumbers: 0
-      CheckSum:        0
-      Number:          3
-      Selection:       IMAGE_COMDAT_SELECT_ASSOCIATIVE
-  - Name:            .comdat
-    Value:           0
-    SectionNumber:   3
-    SimpleType:      IMAGE_SYM_TYPE_NULL
-    ComplexType:     IMAGE_SYM_DTYPE_NULL
-    StorageClass:    IMAGE_SYM_CLASS_STATIC
-    SectionDefinition:
-      Length:          4
-      NumberOfRelocations: 0
-      NumberOfLinenumbers: 0
-      CheckSum:        3482275674
-      Number:          3
-      Selection:       IMAGE_COMDAT_SELECT_ANY
-  - Name:            foo
-    Value:           0
-    SectionNumber:   3
-    SimpleType:      IMAGE_SYM_TYPE_NULL
-    ComplexType:     IMAGE_SYM_DTYPE_NULL
-    StorageClass:    IMAGE_SYM_CLASS_EXTERNAL
-  - Name:            main
-    Value:           0
-    SectionNumber:   1
-    SimpleType:      IMAGE_SYM_TYPE_NULL
-    ComplexType:     IMAGE_SYM_DTYPE_NULL
-    StorageClass:    IMAGE_SYM_CLASS_EXTERNAL
 ...

@@ -21,6 +21,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(Location)
 LLVM_YAML_IS_SEQUENCE_VECTOR(CommentInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(FunctionInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(EnumInfo)
+LLVM_YAML_IS_SEQUENCE_VECTOR(BaseRecordInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(std::unique_ptr<CommentInfo>)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::SmallString<16>)
 
@@ -124,6 +125,19 @@ static void SymbolInfoMapping(IO &IO, SymbolInfo &I) {
   IO.mapOptional("Location", I.Loc, llvm::SmallVector<Location, 2>());
 }
 
+static void RecordInfoMapping(IO &IO, RecordInfo &I) {
+  SymbolInfoMapping(IO, I);
+  IO.mapOptional("TagType", I.TagType, clang::TagTypeKind::TTK_Struct);
+  IO.mapOptional("Members", I.Members);
+  IO.mapOptional("Bases", I.Bases);
+  IO.mapOptional("Parents", I.Parents, llvm::SmallVector<Reference, 4>());
+  IO.mapOptional("VirtualParents", I.VirtualParents,
+                 llvm::SmallVector<Reference, 4>());
+  IO.mapOptional("ChildRecords", I.ChildRecords, std::vector<Reference>());
+  IO.mapOptional("ChildFunctions", I.ChildFunctions);
+  IO.mapOptional("ChildEnums", I.ChildEnums);
+}
+
 static void CommentInfoMapping(IO &IO, CommentInfo &I) {
   IO.mapOptional("Kind", I.Kind, SmallString<16>());
   IO.mapOptional("Text", I.Text, SmallString<64>());
@@ -156,6 +170,7 @@ template <> struct MappingTraits<Reference> {
     IO.mapOptional("Name", Ref.Name, SmallString<16>());
     IO.mapOptional("USR", Ref.USR, SymbolID());
     IO.mapOptional("Path", Ref.Path, SmallString<128>());
+    IO.mapOptional("IsInGlobalNamespace", Ref.IsInGlobalNamespace, false);
   }
 };
 
@@ -173,6 +188,9 @@ template <> struct MappingTraits<FieldTypeInfo> {
 template <> struct MappingTraits<MemberTypeInfo> {
   static void mapping(IO &IO, MemberTypeInfo &I) {
     FieldTypeInfoMapping(IO, I);
+    // clang::AccessSpecifier::AS_none is used as the default here because it's
+    // the AS that shouldn't be part of the output. Even though AS_public is the
+    // default in the struct, it should be displayed in the YAML output.
     IO.mapOptional("Access", I.Access, clang::AccessSpecifier::AS_none);
   }
 };
@@ -189,16 +207,18 @@ template <> struct MappingTraits<NamespaceInfo> {
 };
 
 template <> struct MappingTraits<RecordInfo> {
-  static void mapping(IO &IO, RecordInfo &I) {
-    SymbolInfoMapping(IO, I);
-    IO.mapOptional("TagType", I.TagType, clang::TagTypeKind::TTK_Struct);
-    IO.mapOptional("Members", I.Members);
-    IO.mapOptional("Parents", I.Parents, llvm::SmallVector<Reference, 4>());
-    IO.mapOptional("VirtualParents", I.VirtualParents,
-                   llvm::SmallVector<Reference, 4>());
-    IO.mapOptional("ChildRecords", I.ChildRecords, std::vector<Reference>());
-    IO.mapOptional("ChildFunctions", I.ChildFunctions);
-    IO.mapOptional("ChildEnums", I.ChildEnums);
+  static void mapping(IO &IO, RecordInfo &I) { RecordInfoMapping(IO, I); }
+};
+
+template <> struct MappingTraits<BaseRecordInfo> {
+  static void mapping(IO &IO, BaseRecordInfo &I) {
+    RecordInfoMapping(IO, I);
+    IO.mapOptional("IsVirtual", I.IsVirtual, false);
+    // clang::AccessSpecifier::AS_none is used as the default here because it's
+    // the AS that shouldn't be part of the output. Even though AS_public is the
+    // default in the struct, it should be displayed in the YAML output.
+    IO.mapOptional("Access", I.Access, clang::AccessSpecifier::AS_none);
+    IO.mapOptional("IsParent", I.IsParent, false);
   }
 };
 
@@ -217,6 +237,9 @@ template <> struct MappingTraits<FunctionInfo> {
     IO.mapOptional("Parent", I.Parent, Reference());
     IO.mapOptional("Params", I.Params);
     IO.mapOptional("ReturnType", I.ReturnType);
+    // clang::AccessSpecifier::AS_none is used as the default here because it's
+    // the AS that shouldn't be part of the output. Even though AS_public is the
+    // default in the struct, it should be displayed in the YAML output.
     IO.mapOptional("Access", I.Access, clang::AccessSpecifier::AS_none);
   }
 };
@@ -243,12 +266,14 @@ class YAMLGenerator : public Generator {
 public:
   static const char *Format;
 
-  llvm::Error generateDocForInfo(Info *I, llvm::raw_ostream &OS) override;
+  llvm::Error generateDocForInfo(Info *I, llvm::raw_ostream &OS,
+                                 const ClangDocContext &CDCtx) override;
 };
 
 const char *YAMLGenerator::Format = "yaml";
 
-llvm::Error YAMLGenerator::generateDocForInfo(Info *I, llvm::raw_ostream &OS) {
+llvm::Error YAMLGenerator::generateDocForInfo(Info *I, llvm::raw_ostream &OS,
+                                              const ClangDocContext &CDCtx) {
   llvm::yaml::Output InfoYAML(OS);
   switch (I->IT) {
   case InfoType::IT_namespace:
@@ -264,8 +289,8 @@ llvm::Error YAMLGenerator::generateDocForInfo(Info *I, llvm::raw_ostream &OS) {
     InfoYAML << *static_cast<clang::doc::FunctionInfo *>(I);
     break;
   case InfoType::IT_default:
-    return llvm::make_error<llvm::StringError>("Unexpected info type.\n",
-                                               llvm::inconvertibleErrorCode());
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "unexpected InfoType");
   }
   return llvm::Error::success();
 }

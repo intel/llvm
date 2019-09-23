@@ -8,10 +8,17 @@
 
 #include "SemanticHighlighting.h"
 #include "Logger.h"
+#include "ParsedAST.h"
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Type.h"
+#include "clang/AST/TypeLoc.h"
+#include "clang/Basic/SourceLocation.h"
+#include <algorithm>
 
 namespace clang {
 namespace clangd {
@@ -21,25 +28,44 @@ namespace {
 class HighlightingTokenCollector
     : public RecursiveASTVisitor<HighlightingTokenCollector> {
   std::vector<HighlightingToken> Tokens;
-  ASTContext &Ctx;
-  const SourceManager &SM;
+  ParsedAST &AST;
 
 public:
-  HighlightingTokenCollector(ParsedAST &AST)
-      : Ctx(AST.getASTContext()), SM(AST.getSourceManager()) {}
+  HighlightingTokenCollector(ParsedAST &AST) : AST(AST) {}
 
   std::vector<HighlightingToken> collectTokens() {
     Tokens.clear();
-    TraverseAST(Ctx);
+    TraverseAST(AST.getASTContext());
+    // Add highlightings for macro expansions as they are not traversed by the
+    // visitor.
+    for (SourceLocation Loc : AST.getMacros())
+      addToken(Loc, HighlightingKind::Macro);
     // Initializer lists can give duplicates of tokens, therefore all tokens
     // must be deduplicated.
-    llvm::sort(Tokens,
-               [](const HighlightingToken &L, const HighlightingToken &R) {
-                 return std::tie(L.R, L.Kind) < std::tie(R.R, R.Kind);
-               });
+    llvm::sort(Tokens);
     auto Last = std::unique(Tokens.begin(), Tokens.end());
     Tokens.erase(Last, Tokens.end());
-    return Tokens;
+    // Macros can give tokens that have the same source range but conflicting
+    // kinds. In this case all tokens sharing this source range should be
+    // removed.
+    std::vector<HighlightingToken> NonConflicting;
+    NonConflicting.reserve(Tokens.size());
+    for (ArrayRef<HighlightingToken> TokRef = Tokens; !TokRef.empty();) {
+      ArrayRef<HighlightingToken> Conflicting =
+          TokRef.take_while([&](const HighlightingToken &T) {
+            // TokRef is guaranteed at least one element here because otherwise
+            // this predicate would never fire.
+            return T.R == TokRef.front().R;
+          });
+      // If there is exactly one token with this range it's non conflicting and
+      // should be in the highlightings.
+      if (Conflicting.size() == 1)
+        NonConflicting.push_back(TokRef.front());
+      // TokRef[Conflicting.size()] is the next token with a different range (or
+      // the end of the Tokens).
+      TokRef = TokRef.drop_front(Conflicting.size());
+    }
+    return NonConflicting;
   }
 
   bool VisitNamespaceAliasDecl(NamespaceAliasDecl *NAD) {
@@ -53,6 +79,10 @@ public:
     if (isa<CXXDestructorDecl>(MD))
       // When calling the destructor manually like: AAA::~A(); The ~ is a
       // MemberExpr. Other methods should still be highlighted though.
+      return true;
+    if (isa<CXXConversionDecl>(MD))
+      // The MemberLoc is invalid for C++ conversion operators. We do not
+      // attempt to add tokens with invalid locations.
       return true;
     addToken(ME->getMemberLoc(), MD);
     return true;
@@ -94,8 +124,19 @@ public:
   }
 
   bool VisitTypedefNameDecl(TypedefNameDecl *TD) {
-    if(const auto *TSI = TD->getTypeSourceInfo())
-      addTypeLoc(TD->getLocation(), TSI->getTypeLoc());
+    addTokenForTypedef(TD->getLocation(), TD);
+    return true;
+  }
+
+  bool VisitTypedefTypeLoc(TypedefTypeLoc TL) {
+    addTokenForTypedef(TL.getBeginLoc(), TL.getTypedefNameDecl());
+    return true;
+  }
+
+  bool VisitTemplateSpecializationTypeLoc(TemplateSpecializationTypeLoc TL) {
+    if (const TemplateDecl *TD =
+            TL.getTypePtr()->getTemplateName().getAsTemplateDecl())
+      addToken(TL.getBeginLoc(), TD);
     return true;
   }
 
@@ -104,10 +145,8 @@ public:
     // structs. It also makes us not highlight certain namespace qualifiers
     // twice. For elaborated types the actual type is highlighted as an inner
     // TypeLoc.
-    if (TL.getTypeLocClass() == TypeLoc::TypeLocClass::Elaborated)
-      return true;
-
-    addTypeLoc(TL.getBeginLoc(), TL);
+    if (TL.getTypeLocClass() != TypeLoc::TypeLocClass::Elaborated)
+      addType(TL.getBeginLoc(), TL.getTypePtr());
     return true;
   }
 
@@ -121,11 +160,55 @@ public:
         HighlightingTokenCollector>::TraverseNestedNameSpecifierLoc(NNSLoc);
   }
 
+  bool TraverseConstructorInitializer(CXXCtorInitializer *CI) {
+    if (const FieldDecl *FD = CI->getMember())
+      addToken(CI->getSourceLocation(), FD);
+    return RecursiveASTVisitor<
+        HighlightingTokenCollector>::TraverseConstructorInitializer(CI);
+  }
+
+  bool VisitDeclaratorDecl(DeclaratorDecl *D) {
+    if ((!D->getTypeSourceInfo()))
+      return true;
+
+    if (auto *AT = D->getType()->getContainedAutoType()) {
+      const auto Deduced = AT->getDeducedType();
+      if (!Deduced.isNull())
+        addType(D->getTypeSpecStartLoc(), Deduced.getTypePtr());
+    }
+    return true;
+  }
+
 private:
-  void addTypeLoc(SourceLocation Loc, const TypeLoc &TL) {
-    if (const Type *TP = TL.getTypePtr())
-      if (const TagDecl *TD = TP->getAsTagDecl())
-        addToken(Loc, TD);
+  void addTokenForTypedef(SourceLocation Loc, const TypedefNameDecl *TD) {
+    auto *TSI = TD->getTypeSourceInfo();
+    if (!TSI)
+      return;
+    // Try to highlight as underlying type.
+    if (addType(Loc, TSI->getType().getTypePtrOrNull()))
+      return;
+    // Fallback to the typedef highlighting kind.
+    addToken(Loc, HighlightingKind::Typedef);
+  }
+
+  bool addType(SourceLocation Loc, const Type *TP) {
+    if (!TP)
+      return false;
+    if (TP->isBuiltinType()) {
+      // Builtins must be special cased as they do not have a TagDecl.
+      addToken(Loc, HighlightingKind::Primitive);
+      return true;
+    }
+    if (auto *TD = dyn_cast<TemplateTypeParmType>(TP)) {
+      // TemplateTypeParmType also do not have a TagDecl.
+      addToken(Loc, TD->getDecl());
+      return true;
+    }
+    if (auto *TD = TP->getAsTagDecl()) {
+      addToken(Loc, TD);
+      return true;
+    }
+    return false;
   }
 
   void addToken(SourceLocation Loc, const NamedDecl *D) {
@@ -135,6 +218,10 @@ private:
     // We highlight class decls, constructor decls and destructor decls as
     // `Class` type. The destructor decls are handled in `VisitTypeLoc` (we will
     // visit a TypeLoc where the underlying Type is a CXXRecordDecl).
+    if (isa<ClassTemplateDecl>(D)) {
+      addToken(Loc, HighlightingKind::Class);
+      return;
+    }
     if (isa<RecordDecl>(D)) {
       addToken(Loc, HighlightingKind::Class);
       return;
@@ -143,8 +230,9 @@ private:
       addToken(Loc, HighlightingKind::Class);
       return;
     }
-    if (isa<CXXMethodDecl>(D)) {
-      addToken(Loc, HighlightingKind::Method);
+    if (auto *MD = dyn_cast<CXXMethodDecl>(D)) {
+      addToken(Loc, MD->isStatic() ? HighlightingKind::StaticMethod
+                                   : HighlightingKind::Method);
       return;
     }
     if (isa<FieldDecl>(D)) {
@@ -159,7 +247,18 @@ private:
       addToken(Loc, HighlightingKind::EnumConstant);
       return;
     }
-    if (isa<VarDecl>(D)) {
+    if (isa<ParmVarDecl>(D)) {
+      addToken(Loc, HighlightingKind::Parameter);
+      return;
+    }
+    if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
+      addToken(Loc, VD->isStaticDataMember()
+                        ? HighlightingKind::StaticField
+                        : VD->isLocalVarDecl() ? HighlightingKind::LocalVariable
+                                               : HighlightingKind::Variable);
+      return;
+    }
+    if (isa<BindingDecl>(D)) {
       addToken(Loc, HighlightingKind::Variable);
       return;
     }
@@ -175,14 +274,38 @@ private:
       addToken(Loc, HighlightingKind::Namespace);
       return;
     }
+    if (isa<TemplateTemplateParmDecl>(D)) {
+      addToken(Loc, HighlightingKind::TemplateParameter);
+      return;
+    }
+    if (isa<TemplateTypeParmDecl>(D)) {
+      addToken(Loc, HighlightingKind::TemplateParameter);
+      return;
+    }
+    if (isa<NonTypeTemplateParmDecl>(D)) {
+      addToken(Loc, HighlightingKind::TemplateParameter);
+      return;
+    }
   }
 
   void addToken(SourceLocation Loc, HighlightingKind Kind) {
-    if (Loc.isMacroID())
-      // FIXME: skip tokens inside macros for now.
+    const auto &SM = AST.getSourceManager();
+    if (Loc.isMacroID()) {
+      // Only intereseted in highlighting arguments in macros (DEF_X(arg)).
+      if (!SM.isMacroArgExpansion(Loc))
+        return;
+      Loc = SM.getSpellingLoc(Loc);
+    }
+
+    // Non top level decls that are included from a header are not filtered by
+    // topLevelDecls. (example: method declarations being included from another
+    // file for a class from another file)
+    // There are also cases with macros where the spelling loc will not be in
+    // the main file and the highlighting would be incorrect.
+    if (!isInsideMainFile(Loc, SM))
       return;
 
-    auto R = getTokenRange(SM, Ctx.getLangOpts(), Loc);
+    auto R = getTokenRange(SM, AST.getASTContext().getLangOpts(), Loc);
     if (!R) {
       // R should always have a value, if it doesn't something is very wrong.
       elog("Tried to add semantic token with an invalid range");
@@ -235,10 +358,112 @@ void write16be(uint16_t I, llvm::raw_ostream &OS) {
   llvm::support::endian::write16be(Buf.data(), I);
   OS.write(Buf.data(), Buf.size());
 }
+
+// Get the highlightings on \c Line where the first entry of line is at \c
+// StartLineIt. If it is not at \c StartLineIt an empty vector is returned.
+ArrayRef<HighlightingToken>
+takeLine(ArrayRef<HighlightingToken> AllTokens,
+         ArrayRef<HighlightingToken>::iterator StartLineIt, int Line) {
+  return ArrayRef<HighlightingToken>(StartLineIt, AllTokens.end())
+      .take_while([Line](const HighlightingToken &Token) {
+        return Token.R.start.line == Line;
+      });
+}
 } // namespace
 
-bool operator==(const HighlightingToken &Lhs, const HighlightingToken &Rhs) {
-  return Lhs.Kind == Rhs.Kind && Lhs.R == Rhs.R;
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, HighlightingKind K) {
+  switch (K) {
+  case HighlightingKind::Variable:
+    return OS << "Variable";
+  case HighlightingKind::LocalVariable:
+    return OS << "LocalVariable";
+  case HighlightingKind::Parameter:
+    return OS << "Parameter";
+  case HighlightingKind::Function:
+    return OS << "Function";
+  case HighlightingKind::Method:
+    return OS << "Method";
+  case HighlightingKind::StaticMethod:
+    return OS << "StaticMethod";
+  case HighlightingKind::Field:
+    return OS << "Field";
+  case HighlightingKind::StaticField:
+    return OS << "StaticField";
+  case HighlightingKind::Class:
+    return OS << "Class";
+  case HighlightingKind::Enum:
+    return OS << "Enum";
+  case HighlightingKind::EnumConstant:
+    return OS << "EnumConstant";
+  case HighlightingKind::Typedef:
+    return OS << "Typedef";
+  case HighlightingKind::Namespace:
+    return OS << "Namespace";
+  case HighlightingKind::TemplateParameter:
+    return OS << "TemplateParameter";
+  case HighlightingKind::Primitive:
+    return OS << "Primitive";
+  case HighlightingKind::Macro:
+    return OS << "Macro";
+  }
+  llvm_unreachable("invalid HighlightingKind");
+}
+
+std::vector<LineHighlightings>
+diffHighlightings(ArrayRef<HighlightingToken> New,
+                  ArrayRef<HighlightingToken> Old) {
+  assert(std::is_sorted(New.begin(), New.end()) &&
+         "New must be a sorted vector");
+  assert(std::is_sorted(Old.begin(), Old.end()) &&
+         "Old must be a sorted vector");
+
+  // FIXME: There's an edge case when tokens span multiple lines. If the first
+  // token on the line started on a line above the current one and the rest of
+  // the line is the equal to the previous one than we will remove all
+  // highlights but the ones for the token spanning multiple lines. This means
+  // that when we get into the LSP layer the only highlights that will be
+  // visible are the ones for the token spanning multiple lines.
+  // Example:
+  // EndOfMultilineToken  Token Token Token
+  // If "Token Token Token" don't differ from previously the line is
+  // incorrectly removed. Suggestion to fix is to separate any multiline tokens
+  // into one token for every line it covers. This requires reading from the
+  // file buffer to figure out the length of each line though.
+  std::vector<LineHighlightings> DiffedLines;
+  // ArrayRefs to the current line in the highlightings.
+  ArrayRef<HighlightingToken> NewLine(New.begin(),
+                                      /*length*/ static_cast<size_t>(0));
+  ArrayRef<HighlightingToken> OldLine(Old.begin(),
+                                      /*length*/ static_cast<size_t>(0));
+  auto NewEnd = New.end();
+  auto OldEnd = Old.end();
+  auto NextLineNumber = [&]() {
+    int NextNew = NewLine.end() != NewEnd ? NewLine.end()->R.start.line
+                                          : std::numeric_limits<int>::max();
+    int NextOld = OldLine.end() != OldEnd ? OldLine.end()->R.start.line
+                                          : std::numeric_limits<int>::max();
+    return std::min(NextNew, NextOld);
+  };
+
+  for (int LineNumber = 0; NewLine.end() < NewEnd || OldLine.end() < OldEnd;
+       LineNumber = NextLineNumber()) {
+    NewLine = takeLine(New, NewLine.end(), LineNumber);
+    OldLine = takeLine(Old, OldLine.end(), LineNumber);
+    if (NewLine != OldLine)
+      DiffedLines.push_back({LineNumber, NewLine});
+  }
+
+  return DiffedLines;
+}
+
+bool operator==(const HighlightingToken &L, const HighlightingToken &R) {
+  return std::tie(L.R, L.Kind) == std::tie(R.R, R.Kind);
+}
+bool operator<(const HighlightingToken &L, const HighlightingToken &R) {
+  return std::tie(L.R, L.Kind) < std::tie(R.R, R.Kind);
+}
+bool operator==(const LineHighlightings &L, const LineHighlightings &R) {
+  return std::tie(L.Line, L.Tokens) == std::tie(R.Line, R.Tokens);
 }
 
 std::vector<HighlightingToken> getSemanticHighlightings(ParsedAST &AST) {
@@ -246,22 +471,18 @@ std::vector<HighlightingToken> getSemanticHighlightings(ParsedAST &AST) {
 }
 
 std::vector<SemanticHighlightingInformation>
-toSemanticHighlightingInformation(llvm::ArrayRef<HighlightingToken> Tokens) {
+toSemanticHighlightingInformation(llvm::ArrayRef<LineHighlightings> Tokens) {
   if (Tokens.size() == 0)
     return {};
 
   // FIXME: Tokens might be multiple lines long (block comments) in this case
   // this needs to add multiple lines for those tokens.
-  std::map<int, std::vector<HighlightingToken>> TokenLines;
-  for (const HighlightingToken &Token : Tokens)
-    TokenLines[Token.R.start.line].push_back(Token);
-
   std::vector<SemanticHighlightingInformation> Lines;
-  Lines.reserve(TokenLines.size());
-  for (const auto &Line : TokenLines) {
+  Lines.reserve(Tokens.size());
+  for (const auto &Line : Tokens) {
     llvm::SmallVector<char, 128> LineByteTokens;
     llvm::raw_svector_ostream OS(LineByteTokens);
-    for (const auto &Token : Line.second) {
+    for (const auto &Token : Line.Tokens) {
       // Writes the token to LineByteTokens in the byte format specified by the
       // LSP proposal. Described below.
       // |<---- 4 bytes ---->|<-- 2 bytes -->|<--- 2 bytes -->|
@@ -272,7 +493,7 @@ toSemanticHighlightingInformation(llvm::ArrayRef<HighlightingToken> Tokens) {
       write16be(static_cast<int>(Token.Kind), OS);
     }
 
-    Lines.push_back({Line.first, encodeBase64(LineByteTokens)});
+    Lines.push_back({Line.Line, encodeBase64(LineByteTokens)});
   }
 
   return Lines;
@@ -285,20 +506,34 @@ llvm::StringRef toTextMateScope(HighlightingKind Kind) {
     return "entity.name.function.cpp";
   case HighlightingKind::Method:
     return "entity.name.function.method.cpp";
+  case HighlightingKind::StaticMethod:
+    return "entity.name.function.method.static.cpp";
   case HighlightingKind::Variable:
     return "variable.other.cpp";
+  case HighlightingKind::LocalVariable:
+    return "variable.other.local.cpp";
+  case HighlightingKind::Parameter:
+    return "variable.parameter.cpp";
   case HighlightingKind::Field:
     return "variable.other.field.cpp";
+  case HighlightingKind::StaticField:
+    return "variable.other.field.static.cpp";
   case HighlightingKind::Class:
     return "entity.name.type.class.cpp";
   case HighlightingKind::Enum:
     return "entity.name.type.enum.cpp";
   case HighlightingKind::EnumConstant:
     return "variable.other.enummember.cpp";
+  case HighlightingKind::Typedef:
+    return "entity.name.type.typedef.cpp";
   case HighlightingKind::Namespace:
     return "entity.name.namespace.cpp";
-  case HighlightingKind::NumKinds:
-    llvm_unreachable("must not pass NumKinds to the function");
+  case HighlightingKind::TemplateParameter:
+    return "entity.name.type.template.cpp";
+  case HighlightingKind::Primitive:
+    return "storage.type.primitive.cpp";
+  case HighlightingKind::Macro:
+    return "entity.name.function.preprocessor.cpp";
   }
   llvm_unreachable("unhandled HighlightingKind");
 }

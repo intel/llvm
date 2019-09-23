@@ -104,15 +104,13 @@ public:
 
 /// Handle array type.
 class BTFTypeArray : public BTFTypeBase {
-  uint32_t ElemSize;
   struct BTF::BTFArray ArrayInfo;
 
 public:
-  BTFTypeArray(uint32_t ElemTypeId, uint32_t ElemSize, uint32_t NumElems);
+  BTFTypeArray(uint32_t ElemTypeId, uint32_t NumElems);
   uint32_t getSize() { return BTFTypeBase::getSize() + BTF::BTFArraySize; }
   void completeType(BTFDebug &BDebug);
   void emitType(MCStreamer &OS);
-  void getLocInfo(uint32_t Loc, uint32_t &LocOffset, uint32_t &ElementTypeId);
 };
 
 /// Handle struct/union type.
@@ -130,8 +128,6 @@ public:
   void completeType(BTFDebug &BDebug);
   void emitType(MCStreamer &OS);
   std::string getName();
-  void getMemberInfo(uint32_t Loc, uint32_t &Offset, uint32_t &MemberType);
-  uint32_t getStructSize();
 };
 
 /// Handle function pointer.
@@ -258,7 +254,6 @@ class BTFDebug : public DebugHandlerBase {
   StringMap<std::vector<std::string>> FileContent;
   std::map<std::string, std::unique_ptr<BTFKindDataSec>> DataSecEntries;
   std::vector<BTFTypeStruct *> StructTypes;
-  std::vector<BTFTypeArray *> ArrayTypes;
   std::map<std::string, int64_t> AccessOffsets;
   std::map<StringRef, std::pair<bool, std::vector<BTFTypeDerived *>>>
       FixupDerivedTypes;
@@ -307,10 +302,6 @@ class BTFDebug : public DebugHandlerBase {
   /// Generate one offset relocation record.
   void generateOffsetReloc(const MachineInstr *MI, const MCSymbol *ORSym,
                            DIType *RootTy, StringRef AccessPattern);
-
-  /// Set the to-be-traversed Struct/Array Type based on TypeId.
-  void setTypeFromId(uint32_t TypeId, BTFTypeStruct **PrevStructType,
-                     BTFTypeArray **PrevArrayType);
 
   /// Populating unprocessed struct type.
   unsigned populateStructType(const DIType *Ty);

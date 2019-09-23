@@ -1,6 +1,6 @@
 ; RUN: opt -S -functionattrs -enable-nonnull-arg-prop %s | FileCheck %s --check-prefixes=BOTH,FNATTR
 ; RUN: opt -S -passes=function-attrs -enable-nonnull-arg-prop %s | FileCheck %s --check-prefixes=BOTH,FNATTR
-; RUN: opt -attributor --attributor-disable=false -S < %s | FileCheck %s --check-prefixes=BOTH,ATTRIBUTOR
+; RUN: opt -attributor --attributor-disable=false -attributor-max-iterations-verify -attributor-max-iterations=8 -S < %s | FileCheck %s --check-prefixes=BOTH,ATTRIBUTOR
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
@@ -21,15 +21,20 @@ define i8* @test2(i8* nonnull %p) {
 
 ; Given an SCC where one of the functions can not be marked nonnull,
 ; can we still mark the other one which is trivially nonnull
-define i8* @scc_binder() {
-; BOTH: define i8* @scc_binder
-  call i8* @test3()
+define i8* @scc_binder(i1 %c) {
+; FNATTR: define i8* @scc_binder
+; ATTRIBUTOR: define noalias i8* @scc_binder
+  br i1 %c, label %rec, label %end
+rec:
+  call i8* @test3(i1 %c)
+  br label %end
+end:
   ret i8* null
 }
 
-define i8* @test3() {
+define i8* @test3(i1 %c) {
 ; BOTH: define nonnull i8* @test3
-  call i8* @scc_binder()
+  call i8* @scc_binder(i1 %c)
   %ret = call i8* @ret_nonnull()
   ret i8* %ret
 }
@@ -39,31 +44,35 @@ define i8* @test3() {
 ; just never return period.)
 define i8* @test4_helper() {
 ; FNATTR: define noalias nonnull i8* @test4_helper
-; ATTRIBUTOR: define nonnull i8* @test4_helper
+; ATTRIBUTOR: define noalias nonnull align 536870912 dereferenceable(4294967295) i8* @test4_helper
   %ret = call i8* @test4()
   ret i8* %ret
 }
 
 define i8* @test4() {
 ; FNATTR: define noalias nonnull i8* @test4
-; ATTRIBUTOR: define nonnull i8* @test4
+; ATTRIBUTOR: define noalias nonnull align 536870912 dereferenceable(4294967295) i8* @test4
   %ret = call i8* @test4_helper()
   ret i8* %ret
 }
 
 ; Given a mutual recursive set of functions which *can* return null
 ; make sure we haven't marked them as nonnull.
-define i8* @test5_helper() {
+define i8* @test5_helper(i1 %c) {
 ; FNATTR: define noalias i8* @test5_helper
-; ATTRIBUTOR: define i8* @test5_helper
-  %ret = call i8* @test5()
+; ATTRIBUTOR: define noalias i8* @test5_helper
+  br i1 %c, label %rec, label %end
+rec:
+  %ret = call i8* @test5(i1 %c)
+  br label %end
+end:
   ret i8* null
 }
 
-define i8* @test5() {
+define i8* @test5(i1 %c) {
 ; FNATTR: define noalias i8* @test5
-; ATTRIBUTOR: define i8* @test5
-  %ret = call i8* @test5_helper()
+; ATTRIBUTOR: define noalias i8* @test5
+  %ret = call i8* @test5_helper(i1 %c)
   ret i8* %ret
 }
 
@@ -150,7 +159,7 @@ define void @test13_helper() {
   ret void
 }
 define internal void @test13(i8* %a, i8* %b, i8* %c) {
-; ATTRIBUTOR: define internal void @test13(i8* nonnull %a, i8* %b, i8* %c) 
+; ATTRIBUTOR: define internal void @test13(i8* nocapture nonnull %a, i8* nocapture %b, i8* nocapture %c) 
   ret void
 }
 
@@ -189,7 +198,7 @@ bb4:                                              ; preds = %bb1
 
 bb6:                                              ; preds = %bb1
 ; FIXME: missing nonnull. It should be @f2(i32* nonnull %arg)
-; ATTRIBUTOR: %tmp7 = tail call i32* @f2(i32* %arg)
+; ATTRIBUTOR: %tmp7 = tail call nonnull i32* @f2(i32* %arg)
   %tmp7 = tail call i32* @f2(i32* %arg)
   ret i32* %tmp7
 
@@ -204,7 +213,7 @@ define internal i32* @f2(i32* %arg) {
 bb:
 
 ; FIXME: missing nonnull. It should be @f1(i32* nonnull %arg) 
-; ATTRIBUTOR:   %tmp = tail call i32* @f1(i32* %arg)
+; ATTRIBUTOR:   %tmp = tail call nonnull i32* @f1(i32* %arg)
   %tmp = tail call i32* @f1(i32* %arg)
   ret i32* %tmp
 }
@@ -218,6 +227,15 @@ bb:
   %tmp = call i32* @f1(i32* %arg)
   ret i32* null
 }
+
+; TEST 15
+define void @f15(i8* %arg) {
+; ATTRIBUTOR:   tail call void @use1(i8* nonnull dereferenceable(4) %arg)
+
+  tail call void @use1(i8* dereferenceable(4) %arg)
+  ret void
+}
+
 ; Test propagation of nonnull callsite args back to caller.
 
 declare void @use1(i8* %x)
@@ -337,10 +355,12 @@ f:
 }
 
 ; The callsite must execute in order for the attribute to transfer to the parent.
-; The volatile load might trap, so there's no guarantee that we'll ever get to the call.
+; The volatile load can't trap, so we can guarantee that we'll get to the call.
 
 define i8 @parent6(i8* %a, i8* %b) {
-; BOTH-LABEL: @parent6(i8* %a, i8* %b)
+; FNATTR-LABEL: @parent6(i8* nonnull %a, i8* %b)
+; FIXME: missing "nonnull"
+; ATTRIBUTOR-LABEL: @parent6(i8* %a, i8* %b)
 ; BOTH-NEXT:    [[C:%.*]] = load volatile i8, i8* %b
 ; FNATTR-NEXT:    call void @use1nonnull(i8* %a)
 ; ATTRIBUTOR-NEXT:    call void @use1nonnull(i8* nonnull %a)
@@ -382,7 +402,7 @@ declare i32 @esfp(...)
 define i1 @parent8(i8* %a, i8* %bogus1, i8* %b) personality i8* bitcast (i32 (...)* @esfp to i8*){
 ; FNATTR-LABEL: @parent8(i8* nonnull %a, i8* nocapture readnone %bogus1, i8* nonnull %b)
 ; FIXME : missing "nonnull", it should be @parent8(i8* nonnull %a, i8* %bogus1, i8* nonnull %b)
-; ATTRIBUTOR-LABEL: @parent8(i8* %a, i8* %bogus1, i8* %b)
+; ATTRIBUTOR-LABEL: @parent8(i8* %a, i8* nocapture %bogus1, i8* %b)
 ; BOTH-NEXT:  entry:
 ; FNATTR-NEXT:    invoke void @use2nonnull(i8* %a, i8* %b)
 ; ATTRIBUTOR-NEXT:    invoke void @use2nonnull(i8* nonnull %a, i8* nonnull %b)
@@ -436,6 +456,18 @@ define internal i32* @g2() {
 define  i32* @g1() {
  %c = call i32* @g2()
   ret i32* %c
+}
+
+; ATTRIBUTOR: define internal void @called_by_weak(i32* nocapture nonnull %a)
+define internal void @called_by_weak(i32* %a) {
+  ret void
+}
+
+; Check we do not annotate the function interface of this weak function.
+; ATTRIBUTOR: define weak_odr void @weak_caller(i32* nonnull %a)
+define weak_odr void @weak_caller(i32* nonnull %a) {
+  call void @called_by_weak(i32* %a)
+  ret void
 }
 
 attributes #0 = { "null-pointer-is-valid"="true" }

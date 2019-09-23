@@ -121,7 +121,7 @@ ArrayRef<MCSymbol *> MMIAddrLabelMap::getAddrLabelSymbolToEmit(BasicBlock *BB) {
   BBCallbacks.back().setMap(this);
   Entry.Index = BBCallbacks.size() - 1;
   Entry.Fn = BB->getParent();
-  Entry.Symbols.push_back(Context.createTempSymbol());
+  Entry.Symbols.push_back(Context.createTempSymbol(!BB->hasAddressTaken()));
   return Entry.Symbols;
 }
 
@@ -194,9 +194,9 @@ void MMIAddrLabelMapCallbackPtr::allUsesReplacedWith(Value *V2) {
 }
 
 MachineModuleInfo::MachineModuleInfo(const LLVMTargetMachine *TM)
-  : ImmutablePass(ID), TM(*TM),
-    Context(TM->getMCAsmInfo(), TM->getMCRegisterInfo(),
-            TM->getObjFileLowering(), nullptr, false) {
+    : ImmutablePass(ID), TM(*TM),
+      Context(TM->getMCAsmInfo(), TM->getMCRegisterInfo(),
+              TM->getObjFileLowering(), nullptr, nullptr, false) {
   initializeMachineModuleInfoPass(*PassRegistry::getPassRegistry());
 }
 

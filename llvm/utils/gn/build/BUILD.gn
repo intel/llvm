@@ -42,8 +42,11 @@ config("compiler_defaults") {
       cflags += [ "-O3" ]
     }
     cflags += [ "-fdiagnostics-color" ]
+    if (use_lld) {
+      ldflags += [ "-Wl,--color-diagnostics" ]
+    }
     cflags_cc = [
-      "-std=c++11",
+      "-std=c++14",
       "-fvisibility-inlines-hidden",
     ]
   } else {

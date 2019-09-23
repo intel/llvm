@@ -10,6 +10,7 @@
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 
 TEST_F(GISelMITest, TestBuildConstantFConstant) {
+  setUp();
   if (!TM)
     return;
 
@@ -41,6 +42,7 @@ TEST_F(GISelMITest, TestBuildConstantFConstant) {
 #ifndef NDEBUG
 
 TEST_F(GISelMITest, TestBuildConstantFConstantDeath) {
+  setUp();
   if (!TM)
     return;
 
@@ -128,6 +130,8 @@ TEST_F(GISelMITest, TestBuildFPInsts) {
   B.buildFAdd(S64, Copies[0], Copies[1]);
   B.buildFSub(S64, Copies[0], Copies[1]);
   B.buildFMA(S64, Copies[0], Copies[1], Copies[2]);
+  B.buildFMAD(S64, Copies[0], Copies[1], Copies[2]);
+  B.buildFMAD(S64, Copies[0], Copies[1], Copies[2], MachineInstr::FmNoNans);
   B.buildFNeg(S64, Copies[0]);
   B.buildFAbs(S64, Copies[0]);
   B.buildFCopysign(S64, Copies[0], Copies[1]);
@@ -139,6 +143,8 @@ TEST_F(GISelMITest, TestBuildFPInsts) {
   ; CHECK: [[FADD:%[0-9]+]]:_(s64) = G_FADD [[COPY0]]:_, [[COPY1]]:_
   ; CHECK: [[FSUB:%[0-9]+]]:_(s64) = G_FSUB [[COPY0]]:_, [[COPY1]]:_
   ; CHECK: [[FMA:%[0-9]+]]:_(s64) = G_FMA [[COPY0]]:_, [[COPY1]]:_, [[COPY2]]:_
+  ; CHECK: [[FMAD0:%[0-9]+]]:_(s64) = G_FMAD [[COPY0]]:_, [[COPY1]]:_, [[COPY2]]:_
+  ; CHECK: [[FMAD1:%[0-9]+]]:_(s64) = nnan G_FMAD [[COPY0]]:_, [[COPY1]]:_, [[COPY2]]:_
   ; CHECK: [[FNEG:%[0-9]+]]:_(s64) = G_FNEG [[COPY0]]:_
   ; CHECK: [[FABS:%[0-9]+]]:_(s64) = G_FABS [[COPY0]]:_
   ; CHECK: [[FCOPYSIGN:%[0-9]+]]:_(s64) = G_FCOPYSIGN [[COPY0]]:_, [[COPY1]]:_
@@ -274,6 +280,36 @@ TEST_F(GISelMITest, BuildMinMax) {
   ; CHECK: [[SMAX0:%[0-9]+]]:_(s64) = G_SMAX [[COPY0]]:_, [[COPY1]]:_
   ; CHECK: [[UMIN0:%[0-9]+]]:_(s64) = G_UMIN [[COPY0]]:_, [[COPY1]]:_
   ; CHECK: [[UMAX0:%[0-9]+]]:_(s64) = G_UMAX [[COPY0]]:_, [[COPY1]]:_
+  )";
+
+  EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;
+}
+
+TEST_F(GISelMITest, BuildAtomicRMW) {
+  if (!TM)
+    return;
+
+  LLT S64 = LLT::scalar(64);
+  LLT P0 = LLT::pointer(0, 64);
+  SmallVector<Register, 4> Copies;
+  collectCopies(Copies, MF);
+
+  MachineMemOperand *MMO =
+    MF->getMachineMemOperand(
+      MachinePointerInfo(),
+      MachineMemOperand::MOLoad | MachineMemOperand::MOStore,
+      8, 8, AAMDNodes(), nullptr, SyncScope::System, AtomicOrdering::Unordered);
+
+  auto Ptr = B.buildUndef(P0);
+  B.buildAtomicRMWFAdd(S64, Ptr, Copies[0], *MMO);
+  B.buildAtomicRMWFSub(S64, Ptr, Copies[0], *MMO);
+
+  auto CheckStr = R"(
+  ; CHECK: [[COPY0:%[0-9]+]]:_(s64) = COPY $x0
+  ; CHECK: [[COPY1:%[0-9]+]]:_(s64) = COPY $x1
+  ; CHECK: [[PTR:%[0-9]+]]:_(p0) = G_IMPLICIT_DEF
+  ; CHECK: [[FADD:%[0-9]+]]:_(s64) = G_ATOMICRMW_FADD [[PTR]]:_(p0), [[COPY0]]:_ :: (load store unordered 8)
+  ; CHECK: [[FSUB:%[0-9]+]]:_(s64) = G_ATOMICRMW_FSUB [[PTR]]:_(p0), [[COPY0]]:_ :: (load store unordered 8)
   )";
 
   EXPECT_TRUE(CheckMachineFunction(*MF, CheckStr)) << *MF;

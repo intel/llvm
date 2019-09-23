@@ -351,7 +351,11 @@ def interleave;
 // RegisterTuples instances can be used in other set operations to form
 // register classes and so on. This is the only way of using the generated
 // registers.
-class RegisterTuples<list<SubRegIndex> Indices, list<dag> Regs> {
+//
+// RegNames may be specified to supply asm names for the generated tuples.
+// If used must have the same size as the list of produced registers.
+class RegisterTuples<list<SubRegIndex> Indices, list<dag> Regs,
+                     list<string> RegNames = []> {
   // SubRegs - N lists of registers to be zipped up. Super-registers are
   // synthesized from the first element of each SubRegs list, the second
   // element and so on.
@@ -360,6 +364,9 @@ class RegisterTuples<list<SubRegIndex> Indices, list<dag> Regs> {
   // SubRegIndices - N SubRegIndex instances. This provides the names of the
   // sub-registers in the synthesized super-registers.
   list<SubRegIndex> SubRegIndices = Indices;
+
+  // List of asm names for the generated tuple registers.
+  list<string> RegAsmNames = RegNames;
 }
 
 
@@ -834,6 +841,7 @@ def f64imm : Operand<f64>;
 class TypedOperand<string Ty> : Operand<untyped> {
   let OperandType = Ty;
   bit IsPointer = 0;
+  bit IsImmediate = 0;
 }
 
 def type0 : TypedOperand<"OPERAND_GENERIC_0">;
@@ -850,6 +858,12 @@ let IsPointer = 1 in {
   def ptype3 : TypedOperand<"OPERAND_GENERIC_3">;
   def ptype4 : TypedOperand<"OPERAND_GENERIC_4">;
   def ptype5 : TypedOperand<"OPERAND_GENERIC_5">;
+}
+
+// untyped_imm is for operands where isImm() will be true. It currently has no
+// special behaviour and is only used for clarity.
+def untyped_imm_0 : TypedOperand<"OPERAND_GENERIC_IMM_0"> {
+  let IsImmediate = 1;
 }
 
 /// zero_reg definition - Special node to stand for the zero register.

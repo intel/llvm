@@ -43,6 +43,9 @@ void CheckFunctionInfo(FunctionInfo *Expected, FunctionInfo *Actual);
 void CheckEnumInfo(EnumInfo *Expected, EnumInfo *Actual);
 void CheckNamespaceInfo(NamespaceInfo *Expected, NamespaceInfo *Actual);
 void CheckRecordInfo(RecordInfo *Expected, RecordInfo *Actual);
+void CheckBaseRecordInfo(BaseRecordInfo *Expected, BaseRecordInfo *Actual);
+
+void CheckIndex(Index &Expected, Index &Actual);
 
 } // namespace doc
 } // namespace clang

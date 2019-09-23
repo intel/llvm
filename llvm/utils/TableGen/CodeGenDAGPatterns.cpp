@@ -883,7 +883,8 @@ std::string TreePredicateFn::getPredCode() const {
   if (isLoad()) {
     if (!isUnindexed() && !isNonExtLoad() && !isAnyExtLoad() &&
         !isSignExtLoad() && !isZeroExtLoad() && getMemoryVT() == nullptr &&
-        getScalarMemoryVT() == nullptr)
+        getScalarMemoryVT() == nullptr && getAddressSpaces() == nullptr &&
+        getMinAlignment() < 1)
       PrintFatalError(getOrigPatFragRecord()->getRecord()->getLoc(),
                       "IsLoad cannot be used by itself");
   } else {
@@ -903,7 +904,8 @@ std::string TreePredicateFn::getPredCode() const {
 
   if (isStore()) {
     if (!isUnindexed() && !isTruncStore() && !isNonTruncStore() &&
-        getMemoryVT() == nullptr && getScalarMemoryVT() == nullptr)
+        getMemoryVT() == nullptr && getScalarMemoryVT() == nullptr &&
+        getAddressSpaces() == nullptr && getMinAlignment() < 1)
       PrintFatalError(getOrigPatFragRecord()->getRecord()->getLoc(),
                       "IsStore cannot be used by itself");
   } else {
@@ -917,6 +919,7 @@ std::string TreePredicateFn::getPredCode() const {
 
   if (isAtomic()) {
     if (getMemoryVT() == nullptr && !isAtomicOrderingMonotonic() &&
+        getAddressSpaces() == nullptr &&
         !isAtomicOrderingAcquire() && !isAtomicOrderingRelease() &&
         !isAtomicOrderingAcquireRelease() &&
         !isAtomicOrderingSequentiallyConsistent() &&
@@ -974,6 +977,13 @@ std::string TreePredicateFn::getPredCode() const {
         Code += "AddrSpace != " + utostr(IntVal->getValue());
       }
 
+      Code += ")\nreturn false;\n";
+    }
+
+    int64_t MinAlign = getMinAlignment();
+    if (MinAlign > 0) {
+      Code += "if (cast<MemSDNode>(N)->getAlignment() < ";
+      Code += utostr(MinAlign);
       Code += ")\nreturn false;\n";
     }
 
@@ -1177,6 +1187,13 @@ ListInit *TreePredicateFn::getAddressSpaces() const {
   return R->getValueAsListInit("AddressSpaces");
 }
 
+int64_t TreePredicateFn::getMinAlignment() const {
+  Record *R = getOrigPatFragRecord()->getRecord();
+  if (R->isValueUnset("MinAlignment"))
+    return 0;
+  return R->getValueAsInt("MinAlignment");
+}
+
 Record *TreePredicateFn::getScalarMemoryVT() const {
   Record *R = getOrigPatFragRecord()->getRecord();
   if (R->isValueUnset("ScalarMemoryVT"))
@@ -1373,9 +1390,11 @@ getPatternComplexity(const CodeGenDAGPatterns &CGP) const {
 ///
 std::string PatternToMatch::getPredicateCheck() const {
   SmallVector<const Predicate*,4> PredList;
-  for (const Predicate &P : Predicates)
-    PredList.push_back(&P);
-  llvm::sort(PredList, deref<llvm::less>());
+  for (const Predicate &P : Predicates) {
+    if (!P.getCondString().empty())
+      PredList.push_back(&P);
+  }
+  llvm::sort(PredList, deref<std::less<>>());
 
   std::string Check;
   for (unsigned i = 0, e = PredList.size(); i != e; ++i) {
@@ -3083,7 +3102,7 @@ void CodeGenDAGPatterns::ParsePatternFragments(bool OutFrags) {
 
     ListInit *LI = Frag->getValueAsListInit("Fragments");
     TreePattern *P =
-        (PatternFragments[Frag] = llvm::make_unique<TreePattern>(
+        (PatternFragments[Frag] = std::make_unique<TreePattern>(
              Frag, LI, !Frag->isSubClassOf("OutPatFrag"),
              *this)).get();
 

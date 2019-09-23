@@ -6,14 +6,14 @@
 
 ; Check that we actually have relocations, otherwise this is kind of pointless.
 ; READOBJ-RELOCS:  Section (8) .rela.debug_info {
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_ADD32 - 0x0
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_SUB32 - 0x0
-; READOBJ-RELOCS:  Section (11) .rela.debug_addr {
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_ADD32 - 0x0
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_SUB32 - 0x0
+; READOBJ-RELOCS:    0x1B R_RISCV_ADD32 - 0x0
+; READOBJ-RELOCS-NEXT:    0x1B R_RISCV_SUB32 - 0x0
+; READOBJ-RELOCS:  Section (15) .rela.debug_frame {
+; READOBJ-RELOCS:    0x20 R_RISCV_ADD32 - 0x0
+; READOBJ-RELOCS-NEXT:    0x20 R_RISCV_SUB32 - 0x0
 ; READOBJ-RELOCS:  Section (17) .rela.debug_line {
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_ADD32 - 0xFFFFFFFC
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_SUB32 .Lline_table_start0 0x0
+; READOBJ-RELOCS:    0x5A R_RISCV_ADD16 - 0x0
+; READOBJ-RELOCS-NEXT:    0x5A R_RISCV_SUB16 - 0x0
 
 ; Check that we can print the source, even with relocations.
 ; OBJDUMP-SOURCE: Disassembly of section .text:
@@ -26,7 +26,7 @@
 ; DWARF-DUMP: DW_AT_name        ("dwarf-riscv-relocs.c")
 ; DWARF-DUMP: DW_AT_comp_dir    (".")
 ; DWARF-DUMP: DW_AT_name      ("main")
-; DWARF-DUMP: DW_AT_decl_file (".{{[/\\]}}dwarf-riscv-relocs.c")
+; DWARF-DUMP: DW_AT_decl_file ("{{.*}}dwarf-riscv-relocs.c")
 ; DWARF-DUMP: DW_AT_decl_line (1)
 ; DWARF-DUMP: DW_AT_type      (0x00000032 "int")
 ; DWARF-DUMP: DW_AT_name      ("int")

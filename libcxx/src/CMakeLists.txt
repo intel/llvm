@@ -196,9 +196,20 @@ function(cxx_link_system_libraries target)
   endif()
 endfunction()
 
+if (LIBCXX_ENABLE_PARALLEL_ALGORITHMS AND NOT TARGET pstl::ParallelSTL)
+  message(FATAL_ERROR "Could not find ParallelSTL")
+endif()
+
 function(cxx_set_common_defines name)
   if(LIBCXX_CXX_ABI_HEADER_TARGET)
     add_dependencies(${name} ${LIBCXX_CXX_ABI_HEADER_TARGET})
+  endif()
+  # Our visibility annotations are not quite right for non-Clang compilers,
+  # so we end up not exporting all the symbols we should. In the future, we
+  # can improve the situation by providing an explicit list of exported
+  # symbols on all compilers.
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(${name} PRIVATE -fvisibility=hidden)
   endif()
   if(WIN32 AND NOT MINGW)
     target_compile_definitions(${name}
@@ -221,6 +232,10 @@ function(cxx_set_common_defines name)
                                  # Use the ISO conforming behaviour for conversion
                                  # in printf, scanf.
                                  _CRT_STDIO_ISO_WIDE_SPECIFIERS)
+  endif()
+
+  if (LIBCXX_ENABLE_PARALLEL_ALGORITHMS)
+    target_link_libraries(${name} PUBLIC pstl::ParallelSTL)
   endif()
 endfunction()
 
@@ -347,7 +362,6 @@ if (LIBCXX_ENABLE_STATIC)
   cxx_set_common_defines(cxx_static)
 
   if (LIBCXX_HERMETIC_STATIC_LIBRARY)
-    append_flags_if_supported(CXX_STATIC_LIBRARY_FLAGS -fvisibility=hidden)
     # If the hermetic library doesn't define the operator new/delete functions
     # then its code shouldn't declare them with hidden visibility.  They might
     # actually be provided by a shared library at link time.

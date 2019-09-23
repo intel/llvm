@@ -3,12 +3,12 @@
 
 # RUN: llvm-mc -filetype=obj -triple=mips-unknown-linux %s -o %t.o
 # RUN: ld.lld %t.o -o %t.exe
-# RUN: llvm-objdump -d %t.exe | FileCheck %s
+# RUN: llvm-objdump -d --no-show-raw-insn --print-imm-hex %t.exe | FileCheck %s
 
 # CHECK:      Disassembly of section .text:
 # CHECK-EMPTY:
 # CHECK:      __start:
-# CHECK-NEXT:   20000:       0e 00 80 00     jal     134348800
+# CHECK-NEXT:   [[ADDR:[0-9a-f]+]]:       jal     0x80[[ADDR]]
 
   .text
   .global __start

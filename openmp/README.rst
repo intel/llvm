@@ -133,7 +133,7 @@ Options for all Libraries
 Options for ``libomp``
 ----------------------
 
-**LIBOMP_ARCH** = ``aarch64|arm|i386|mic|mips|mips64|ppc64|ppc64le|x86_64``
+**LIBOMP_ARCH** = ``aarch64|arm|i386|mic|mips|mips64|ppc64|ppc64le|x86_64|riscv64``
   The default value for this option is chosen based on probing the compiler for
   architecture macros (e.g., is ``__x86_64__`` predefined by compiler?).
 
@@ -189,8 +189,8 @@ Optional Features
 
 **LIBOMP_OMPT_SUPPORT** = ``ON|OFF``
   Include support for the OpenMP Tools Interface (OMPT).
-  This option is supported and ``ON`` by default for x86, x86_64, AArch64, and
-  PPC64 on Linux* and macOS*.
+  This option is supported and ``ON`` by default for x86, x86_64, AArch64,
+  PPC64 and RISCV64 on Linux* and macOS*.
   This option is ``OFF`` if this feature is not supported for the platform.
 
 **LIBOMP_OMPT_OPTIONAL** = ``ON|OFF``
@@ -220,9 +220,6 @@ These flags are **appended**, they do not overwrite any of the preset flags.
 
 **LIBOMP_CPPFLAGS** = <space-separated flags>
   Additional C preprocessor flags.
-
-**LIBOMP_CFLAGS** = <space-separated flags>
-  Additional C compiler flags.
 
 **LIBOMP_CXXFLAGS** = <space-separated flags>
   Additional C++ compiler flags.
@@ -321,12 +318,12 @@ Advanced Builds with Various Options
 
     $ cmake -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DLIBOMP_FORTRAN_MODULES=on ..
 
-- Have CMake find the C/C++ compiler and specify additional flags for the C
-  compiler, preprocessor, and C++ compiler.
+- Have CMake find the C/C++ compiler and specify additional flags for the
+  preprocessor and C++ compiler.
 
   .. code-blocks:: console
 
-    $ cmake -DLIBOMP_CFLAGS='-specific-flag' -DLIBOMP_CPPFLAGS='-DNEW_FEATURE=1 -DOLD_FEATURE=0' -DLIBOMP_CXXFLAGS='--one-specific-flag --two-specific-flag' ..
+    $ cmake -DLIBOMP_CPPFLAGS='-DNEW_FEATURE=1 -DOLD_FEATURE=0' -DLIBOMP_CXXFLAGS='--one-specific-flag --two-specific-flag' ..
 
 - Build the stubs library
 

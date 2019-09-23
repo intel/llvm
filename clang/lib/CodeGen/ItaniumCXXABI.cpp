@@ -43,6 +43,10 @@ class ItaniumCXXABI : public CodeGen::CGCXXABI {
   /// VTables - All the vtables which have been defined.
   llvm::DenseMap<const CXXRecordDecl *, llvm::GlobalVariable *> VTables;
 
+  /// All the thread wrapper functions that have been used.
+  llvm::SmallVector<std::pair<const VarDecl *, llvm::Function *>, 8>
+      ThreadWrappers;
+
 protected:
   bool UseARMMethodPtrABI;
   bool UseARMGuardVarABI;
@@ -224,7 +228,8 @@ public:
 
   void EmitDestructorCall(CodeGenFunction &CGF, const CXXDestructorDecl *DD,
                           CXXDtorType Type, bool ForVirtualBase,
-                          bool Delegating, Address This) override;
+                          bool Delegating, Address This,
+                          QualType ThisTy) override;
 
   void emitVTableDefinitions(CodeGenVTables &CGVT,
                              const CXXRecordDecl *RD) override;
@@ -261,9 +266,8 @@ public:
 
   llvm::Value *EmitVirtualDestructorCall(CodeGenFunction &CGF,
                                          const CXXDestructorDecl *Dtor,
-                                         CXXDtorType DtorType,
-                                         Address This,
-                                         const CXXMemberCallExpr *CE) override;
+                                         CXXDtorType DtorType, Address This,
+                                         DeleteOrMemberCallExpr E) override;
 
   void emitVirtualInheritanceTables(const CXXRecordDecl *RD) override;
 
@@ -322,7 +326,42 @@ public:
       ArrayRef<llvm::Function *> CXXThreadLocalInits,
       ArrayRef<const VarDecl *> CXXThreadLocalInitVars) override;
 
-  bool usesThreadWrapperFunction() const override { return true; }
+  /// Determine whether we will definitely emit this variable with a constant
+  /// initializer, either because the language semantics demand it or because
+  /// we know that the initializer is a constant.
+  bool isEmittedWithConstantInitializer(const VarDecl *VD) const {
+    VD = VD->getMostRecentDecl();
+    if (VD->hasAttr<ConstInitAttr>())
+      return true;
+
+    // All later checks examine the initializer specified on the variable. If
+    // the variable is weak, such examination would not be correct.
+    if (VD->isWeak() || VD->hasAttr<SelectAnyAttr>())
+      return false;
+
+    const VarDecl *InitDecl = VD->getInitializingDeclaration();
+    if (!InitDecl)
+      return false;
+
+    // If there's no initializer to run, this is constant initialization.
+    if (!InitDecl->hasInit())
+      return true;
+
+    // If we have the only definition, we don't need a thread wrapper if we
+    // will emit the value as a constant.
+    if (isUniqueGVALinkage(getContext().GetGVALinkageForVariable(VD)))
+      return !VD->getType().isDestructedType() && InitDecl->evaluateValue();
+
+    // Otherwise, we need a thread wrapper unless we know that every
+    // translation unit will emit the value as a constant. We rely on
+    // ICE-ness not varying between translation units, which isn't actually
+    // guaranteed by the standard but is necessary for sanity.
+    return InitDecl->isInitKnownICE() && InitDecl->isInitICE();
+  }
+
+  bool usesThreadWrapperFunction(const VarDecl *VD) const override {
+    return !isEmittedWithConstantInitializer(VD);
+  }
   LValue EmitThreadLocalVarDeclLValue(CodeGenFunction &CGF, const VarDecl *VD,
                                       QualType LValType) override;
 
@@ -415,8 +454,8 @@ public:
 class ARMCXXABI : public ItaniumCXXABI {
 public:
   ARMCXXABI(CodeGen::CodeGenModule &CGM) :
-    ItaniumCXXABI(CGM, /* UseARMMethodPtrABI = */ true,
-                  /* UseARMGuardVarABI = */ true) {}
+    ItaniumCXXABI(CGM, /*UseARMMethodPtrABI=*/true,
+                  /*UseARMGuardVarABI=*/true) {}
 
   bool HasThisReturn(GlobalDecl GD) const override {
     return (isa<CXXConstructorDecl>(GD.getDecl()) || (
@@ -480,11 +519,11 @@ CodeGen::CGCXXABI *CodeGen::CreateItaniumCXXABI(CodeGenModule &CGM) {
   // include the other 32-bit ARM oddities: constructor/destructor return values
   // and array cookies.
   case TargetCXXABI::GenericAArch64:
-    return new ItaniumCXXABI(CGM, /* UseARMMethodPtrABI = */ true,
-                             /* UseARMGuardVarABI = */ true);
+    return new ItaniumCXXABI(CGM, /*UseARMMethodPtrABI=*/true,
+                             /*UseARMGuardVarABI=*/true);
 
   case TargetCXXABI::GenericMIPS:
-    return new ItaniumCXXABI(CGM, /* UseARMMethodPtrABI = */ true);
+    return new ItaniumCXXABI(CGM, /*UseARMMethodPtrABI=*/true);
 
   case TargetCXXABI::WebAssembly:
     return new WebAssemblyCXXABI(CGM);
@@ -495,8 +534,7 @@ CodeGen::CGCXXABI *CodeGen::CreateItaniumCXXABI(CodeGenModule &CGM) {
       // For PNaCl, use ARM-style method pointers so that PNaCl code
       // does not assume anything about the alignment of function
       // pointers.
-      return new ItaniumCXXABI(CGM, /* UseARMMethodPtrABI = */ true,
-                               /* UseARMGuardVarABI = */ false);
+      return new ItaniumCXXABI(CGM, /*UseARMMethodPtrABI=*/true);
     }
     return new ItaniumCXXABI(CGM);
 
@@ -1128,7 +1166,7 @@ void ItaniumCXXABI::emitVirtualObjectDelete(CodeGenFunction &CGF,
   // FIXME: Provide a source location here even though there's no
   // CXXMemberCallExpr for dtor call.
   CXXDtorType DtorType = UseGlobalDelete ? Dtor_Complete : Dtor_Deleting;
-  EmitVirtualDestructorCall(CGF, Dtor, DtorType, Ptr, /*CE=*/nullptr);
+  EmitVirtualDestructorCall(CGF, Dtor, DtorType, Ptr, DE);
 
   if (UseGlobalDelete)
     CGF.PopCleanupBlock();
@@ -1539,7 +1577,8 @@ CGCXXABI::AddedStructorArgs ItaniumCXXABI::addImplicitConstructorArgs(
 void ItaniumCXXABI::EmitDestructorCall(CodeGenFunction &CGF,
                                        const CXXDestructorDecl *DD,
                                        CXXDtorType Type, bool ForVirtualBase,
-                                       bool Delegating, Address This) {
+                                       bool Delegating, Address This,
+                                       QualType ThisTy) {
   GlobalDecl GD(DD, Type);
   llvm::Value *VTT = CGF.GetVTTParameter(GD, ForVirtualBase, Delegating);
   QualType VTTTy = getContext().getPointerType(getContext().VoidPtrTy);
@@ -1551,7 +1590,8 @@ void ItaniumCXXABI::EmitDestructorCall(CodeGenFunction &CGF,
   else
     Callee = CGCallee::forDirect(CGM.getAddrOfCXXStructor(GD), GD);
 
-  CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(), VTT, VTTTy, nullptr);
+  CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(), ThisTy, VTT, VTTTy,
+                            nullptr);
 }
 
 void ItaniumCXXABI::emitVTableDefinitions(CodeGenVTables &CGVT,
@@ -1739,7 +1779,10 @@ CGCallee ItaniumCXXABI::getVirtualFunctionPointer(CodeGenFunction &CGF,
 
 llvm::Value *ItaniumCXXABI::EmitVirtualDestructorCall(
     CodeGenFunction &CGF, const CXXDestructorDecl *Dtor, CXXDtorType DtorType,
-    Address This, const CXXMemberCallExpr *CE) {
+    Address This, DeleteOrMemberCallExpr E) {
+  auto *CE = E.dyn_cast<const CXXMemberCallExpr *>();
+  auto *D = E.dyn_cast<const CXXDeleteExpr *>();
+  assert((CE != nullptr) ^ (D != nullptr));
   assert(CE == nullptr || CE->arg_begin() == CE->arg_end());
   assert(DtorType == Dtor_Deleting || DtorType == Dtor_Complete);
 
@@ -1749,8 +1792,15 @@ llvm::Value *ItaniumCXXABI::EmitVirtualDestructorCall(
   llvm::FunctionType *Ty = CGF.CGM.getTypes().GetFunctionType(*FInfo);
   CGCallee Callee = CGCallee::forVirtual(CE, GD, This, Ty);
 
-  CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(), nullptr, QualType(),
-                            nullptr);
+  QualType ThisTy;
+  if (CE) {
+    ThisTy = CE->getObjectType();
+  } else {
+    ThisTy = D->getDestroyedType();
+  }
+
+  CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(), ThisTy, nullptr,
+                            QualType(), nullptr);
   return nullptr;
 }
 
@@ -2445,9 +2495,6 @@ ItaniumCXXABI::getOrCreateThreadLocalWrapper(const VarDecl *VD,
 
   CGM.SetLLVMFunctionAttributes(GlobalDecl(), FI, Wrapper);
 
-  if (VD->hasDefinition())
-    CGM.SetLLVMFunctionAttributesForDefinition(nullptr, Wrapper);
-
   // Always resolve references to the wrapper at link time.
   if (!Wrapper->hasLocalLinkage())
     if (!isThreadWrapperReplaceable(VD, CGM) ||
@@ -2460,6 +2507,8 @@ ItaniumCXXABI::getOrCreateThreadLocalWrapper(const VarDecl *VD,
     Wrapper->setCallingConv(llvm::CallingConv::CXX_FAST_TLS);
     Wrapper->addFnAttr(llvm::Attribute::NoUnwind);
   }
+
+  ThreadWrappers.push_back({VD, Wrapper});
   return Wrapper;
 }
 
@@ -2508,19 +2557,39 @@ void ItaniumCXXABI::EmitThreadLocalInitFuncs(
     }
   }
 
-  // Emit thread wrappers.
+  // Create declarations for thread wrappers for all thread-local variables
+  // with non-discardable definitions in this translation unit.
   for (const VarDecl *VD : CXXThreadLocals) {
+    if (VD->hasDefinition() &&
+        !isDiscardableGVALinkage(getContext().GetGVALinkageForVariable(VD))) {
+      llvm::GlobalValue *GV = CGM.GetGlobalValue(CGM.getMangledName(VD));
+      getOrCreateThreadLocalWrapper(VD, GV);
+    }
+  }
+
+  // Emit all referenced thread wrappers.
+  for (auto VDAndWrapper : ThreadWrappers) {
+    const VarDecl *VD = VDAndWrapper.first;
     llvm::GlobalVariable *Var =
         cast<llvm::GlobalVariable>(CGM.GetGlobalValue(CGM.getMangledName(VD)));
-    llvm::Function *Wrapper = getOrCreateThreadLocalWrapper(VD, Var);
+    llvm::Function *Wrapper = VDAndWrapper.second;
 
     // Some targets require that all access to thread local variables go through
     // the thread wrapper.  This means that we cannot attempt to create a thread
     // wrapper or a thread helper.
-    if (isThreadWrapperReplaceable(VD, CGM) && !VD->hasDefinition()) {
-      Wrapper->setLinkage(llvm::Function::ExternalLinkage);
-      continue;
+    if (!VD->hasDefinition()) {
+      if (isThreadWrapperReplaceable(VD, CGM)) {
+        Wrapper->setLinkage(llvm::Function::ExternalLinkage);
+        continue;
+      }
+
+      // If this isn't a TU in which this variable is defined, the thread
+      // wrapper is discardable.
+      if (Wrapper->getLinkage() == llvm::Function::WeakODRLinkage)
+        Wrapper->setLinkage(llvm::Function::LinkOnceODRLinkage);
     }
+
+    CGM.SetLLVMFunctionAttributesForDefinition(nullptr, Wrapper);
 
     // Mangle the name for the thread_local initialization function.
     SmallString<256> InitFnName;
@@ -2536,7 +2605,10 @@ void ItaniumCXXABI::EmitThreadLocalInitFuncs(
     // produce a declaration of the initialization function.
     llvm::GlobalValue *Init = nullptr;
     bool InitIsInitFunc = false;
-    if (VD->hasDefinition()) {
+    bool HasConstantInitialization = false;
+    if (isEmittedWithConstantInitializer(VD)) {
+      HasConstantInitialization = true;
+    } else if (VD->hasDefinition()) {
       InitIsInitFunc = true;
       llvm::Function *InitFuncToUse = InitFunc;
       if (isTemplateInstantiation(VD->getTemplateSpecializationKind()))
@@ -2565,7 +2637,9 @@ void ItaniumCXXABI::EmitThreadLocalInitFuncs(
     llvm::LLVMContext &Context = CGM.getModule().getContext();
     llvm::BasicBlock *Entry = llvm::BasicBlock::Create(Context, "", Wrapper);
     CGBuilderTy Builder(CGM, Entry);
-    if (InitIsInitFunc) {
+    if (HasConstantInitialization) {
+      // No dynamic initialization to invoke.
+    } else if (InitIsInitFunc) {
       if (Init) {
         llvm::CallInst *CallVal = Builder.CreateCall(InitFnTy, Init);
         if (isThreadWrapperReplaceable(VD, CGM)) {
@@ -2849,6 +2923,9 @@ static bool TypeInfoIsInStandardLibrary(const BuiltinType *Ty) {
     case BuiltinType::OCLClkEvent:
     case BuiltinType::OCLQueue:
     case BuiltinType::OCLReserveID:
+#define SVE_TYPE(Name, Id, SingletonId) \
+    case BuiltinType::Id:
+#include "clang/Basic/AArch64SVEACLETypes.def"
     case BuiltinType::ShortAccum:
     case BuiltinType::Accum:
     case BuiltinType::LongAccum:

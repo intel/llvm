@@ -34,7 +34,7 @@ public:
   CreateASTConsumer(clang::CompilerInstance &Compiler,
                     StringRef InFile) override {
     SemaSource.setFilePath(InFile);
-    return llvm::make_unique<clang::ASTConsumer>();
+    return std::make_unique<clang::ASTConsumer>();
   }
 
   void ExecuteAction() override {
@@ -104,7 +104,7 @@ bool IncludeFixerActionFactory::runInvocation(
 
   // Run the parser, gather missing includes.
   auto ScopedToolAction =
-      llvm::make_unique<Action>(SymbolIndexMgr, MinimizeIncludePaths);
+      std::make_unique<Action>(SymbolIndexMgr, MinimizeIncludePaths);
   Compiler.ExecuteAction(*ScopedToolAction);
 
   Contexts.push_back(ScopedToolAction->getIncludeFixerContext(
@@ -306,8 +306,7 @@ std::string IncludeFixerSemaSource::minimizeInclude(
 
   // Get the FileEntry for the include.
   StringRef StrippedInclude = Include.trim("\"<>");
-  const FileEntry *Entry =
-      SourceManager.getFileManager().getFile(StrippedInclude);
+  auto Entry = SourceManager.getFileManager().getFile(StrippedInclude);
 
   // If the file doesn't exist return the path from the database.
   // FIXME: This should never happen.
@@ -316,7 +315,7 @@ std::string IncludeFixerSemaSource::minimizeInclude(
 
   bool IsSystem = false;
   std::string Suggestion =
-      HeaderSearch.suggestPathToFileForDiagnostics(Entry, "", &IsSystem);
+      HeaderSearch.suggestPathToFileForDiagnostics(*Entry, "", &IsSystem);
 
   return IsSystem ? '<' + Suggestion + '>' : '"' + Suggestion + '"';
 }

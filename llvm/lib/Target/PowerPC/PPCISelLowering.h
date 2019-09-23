@@ -456,6 +456,11 @@ namespace llvm {
       /// an xxswapd.
       LXVD2X,
 
+      /// VSRC, CHAIN = LOAD_VEC_BE CHAIN, Ptr - Occurs only for little endian.
+      /// Maps directly to one of lxvd2x/lxvw4x/lxvh8x/lxvb16x depending on
+      /// the vector type to load vector in big-endian element order.
+      LOAD_VEC_BE,
+
       /// VSRC, CHAIN = LD_VSX_LH CHAIN, Ptr - This is a floating-point load of a
       /// v2f32 value into the lower half of a VSR register.
       LD_VSX_LH,
@@ -464,6 +469,11 @@ namespace llvm {
       /// Maps directly to an stxvd2x instruction that will be preceded by
       /// an xxswapd.
       STXVD2X,
+
+      /// CHAIN = STORE_VEC_BE CHAIN, VSRC, Ptr - Occurs only for little endian.
+      /// Maps directly to one of stxvd2x/stxvw4x/stxvh8x/stxvb16x depending on
+      /// the vector type to store vector in big-endian element order.
+      STORE_VEC_BE,
 
       /// Store scalar integers from VSR.
       ST_VSR_SCAL_INT,
@@ -725,7 +735,7 @@ namespace llvm {
                                        const SelectionDAG &DAG,
                                        unsigned Depth = 0) const override;
 
-    unsigned getPrefLoopAlignment(MachineLoop *ML) const override;
+    llvm::Align getPrefLoopAlignment(MachineLoop *ML) const override;
 
     bool shouldInsertFencesForAtomic(const Instruction *I) const override {
       return true;
@@ -832,6 +842,18 @@ namespace llvm {
 
     bool convertSelectOfConstantsToMath(EVT VT) const override {
       return true;
+    }
+
+    bool isDesirableToTransformToIntegerOp(unsigned Opc,
+                                           EVT VT) const override {
+      // Only handle float load/store pair because float(fpr) load/store
+      // instruction has more cycles than integer(gpr) load/store in PPC.
+      if (Opc != ISD::LOAD && Opc != ISD::STORE)
+        return false;
+      if (VT != MVT::f32 && VT != MVT::f64)
+        return false;
+
+      return true; 
     }
 
     // Returns true if the address of the global is stored in TOC entry.
@@ -998,6 +1020,8 @@ namespace llvm {
                                          SDValue &FPOpOut,
                                          const SDLoc &dl) const;
 
+    SDValue getTOCEntry(SelectionDAG &DAG, const SDLoc &dl, SDValue GA) const;
+
     SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
@@ -1155,6 +1179,8 @@ namespace llvm {
     SDValue combineSetCC(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineABS(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineVSelect(SDNode *N, DAGCombinerInfo &DCI) const;
+    SDValue combineVReverseMemOP(ShuffleVectorSDNode *SVN, LSBaseSDNode *LSBase,
+                                 DAGCombinerInfo &DCI) const;
 
     /// ConvertSETCCToSubtract - looks at SETCC that compares ints. It replaces
     /// SETCC with integer subtraction when (1) there is a legal way of doing it

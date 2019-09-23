@@ -39,6 +39,7 @@
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
@@ -512,11 +513,11 @@ public:
 
     // Remember the initial assembler options. The user can not modify these.
     AssemblerOptions.push_back(
-        llvm::make_unique<MipsAssemblerOptions>(getSTI().getFeatureBits()));
+        std::make_unique<MipsAssemblerOptions>(getSTI().getFeatureBits()));
 
     // Create an assembler options environment for the user to modify.
     AssemblerOptions.push_back(
-        llvm::make_unique<MipsAssemblerOptions>(getSTI().getFeatureBits()));
+        std::make_unique<MipsAssemblerOptions>(getSTI().getFeatureBits()));
 
     getTargetStreamer().updateABIInfo(*this);
 
@@ -844,7 +845,7 @@ private:
                                                 const MCRegisterInfo *RegInfo,
                                                 SMLoc S, SMLoc E,
                                                 MipsAsmParser &Parser) {
-    auto Op = llvm::make_unique<MipsOperand>(k_RegisterIndex, Parser);
+    auto Op = std::make_unique<MipsOperand>(k_RegisterIndex, Parser);
     Op->RegIdx.Index = Index;
     Op->RegIdx.RegInfo = RegInfo;
     Op->RegIdx.Kind = RegKind;
@@ -1446,7 +1447,7 @@ public:
 
   static std::unique_ptr<MipsOperand> CreateToken(StringRef Str, SMLoc S,
                                                   MipsAsmParser &Parser) {
-    auto Op = llvm::make_unique<MipsOperand>(k_Token, Parser);
+    auto Op = std::make_unique<MipsOperand>(k_Token, Parser);
     Op->Tok.Data = Str.data();
     Op->Tok.Length = Str.size();
     Op->StartLoc = S;
@@ -1521,7 +1522,7 @@ public:
 
   static std::unique_ptr<MipsOperand>
   CreateImm(const MCExpr *Val, SMLoc S, SMLoc E, MipsAsmParser &Parser) {
-    auto Op = llvm::make_unique<MipsOperand>(k_Immediate, Parser);
+    auto Op = std::make_unique<MipsOperand>(k_Immediate, Parser);
     Op->Imm.Val = Val;
     Op->StartLoc = S;
     Op->EndLoc = E;
@@ -1531,7 +1532,7 @@ public:
   static std::unique_ptr<MipsOperand>
   CreateMem(std::unique_ptr<MipsOperand> Base, const MCExpr *Off, SMLoc S,
             SMLoc E, MipsAsmParser &Parser) {
-    auto Op = llvm::make_unique<MipsOperand>(k_Memory, Parser);
+    auto Op = std::make_unique<MipsOperand>(k_Memory, Parser);
     Op->Mem.Base = Base.release();
     Op->Mem.Off = Off;
     Op->StartLoc = S;
@@ -1544,7 +1545,7 @@ public:
                 MipsAsmParser &Parser) {
     assert(Regs.size() > 0 && "Empty list not allowed");
 
-    auto Op = llvm::make_unique<MipsOperand>(k_RegList, Parser);
+    auto Op = std::make_unique<MipsOperand>(k_RegList, Parser);
     Op->RegList.List = new SmallVector<unsigned, 10>(Regs.begin(), Regs.end());
     Op->StartLoc = StartLoc;
     Op->EndLoc = EndLoc;
@@ -1804,8 +1805,9 @@ bool MipsAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
         break; // We'll deal with this situation later on when applying fixups.
       if (!isIntN(inMicroMipsMode() ? 17 : 18, Offset.getImm()))
         return Error(IDLoc, "branch target out of range");
-      if (OffsetToAlignment(Offset.getImm(),
-                            1LL << (inMicroMipsMode() ? 1 : 2)))
+      if (offsetToAlignment(
+              Offset.getImm(),
+              (inMicroMipsMode() ? llvm::Align(2) : llvm::Align(4))))
         return Error(IDLoc, "branch to misaligned address");
       break;
     case Mips::BGEZ:
@@ -1834,8 +1836,9 @@ bool MipsAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
         break; // We'll deal with this situation later on when applying fixups.
       if (!isIntN(inMicroMipsMode() ? 17 : 18, Offset.getImm()))
         return Error(IDLoc, "branch target out of range");
-      if (OffsetToAlignment(Offset.getImm(),
-                            1LL << (inMicroMipsMode() ? 1 : 2)))
+      if (offsetToAlignment(
+              Offset.getImm(),
+              (inMicroMipsMode() ? llvm::Align(2) : llvm::Align(4))))
         return Error(IDLoc, "branch to misaligned address");
       break;
     case Mips::BGEC:    case Mips::BGEC_MMR6:
@@ -1850,7 +1853,7 @@ bool MipsAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
         break; // We'll deal with this situation later on when applying fixups.
       if (!isIntN(18, Offset.getImm()))
         return Error(IDLoc, "branch target out of range");
-      if (OffsetToAlignment(Offset.getImm(), 1LL << 2))
+      if (offsetToAlignment(Offset.getImm(), llvm::Align(4)))
         return Error(IDLoc, "branch to misaligned address");
       break;
     case Mips::BLEZC:   case Mips::BLEZC_MMR6:
@@ -1863,7 +1866,7 @@ bool MipsAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
         break; // We'll deal with this situation later on when applying fixups.
       if (!isIntN(18, Offset.getImm()))
         return Error(IDLoc, "branch target out of range");
-      if (OffsetToAlignment(Offset.getImm(), 1LL << 2))
+      if (offsetToAlignment(Offset.getImm(), llvm::Align(4)))
         return Error(IDLoc, "branch to misaligned address");
       break;
     case Mips::BEQZC:   case Mips::BEQZC_MMR6:
@@ -1874,7 +1877,7 @@ bool MipsAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
         break; // We'll deal with this situation later on when applying fixups.
       if (!isIntN(23, Offset.getImm()))
         return Error(IDLoc, "branch target out of range");
-      if (OffsetToAlignment(Offset.getImm(), 1LL << 2))
+      if (offsetToAlignment(Offset.getImm(), llvm::Align(4)))
         return Error(IDLoc, "branch to misaligned address");
       break;
     case Mips::BEQZ16_MM:
@@ -1887,7 +1890,7 @@ bool MipsAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
         break; // We'll deal with this situation later on when applying fixups.
       if (!isInt<8>(Offset.getImm()))
         return Error(IDLoc, "branch target out of range");
-      if (OffsetToAlignment(Offset.getImm(), 2LL))
+      if (offsetToAlignment(Offset.getImm(), llvm::Align(2)))
         return Error(IDLoc, "branch to misaligned address");
       break;
     }
@@ -2870,7 +2873,8 @@ bool MipsAsmParser::loadAndAddSymbolAddress(const MCExpr *SymExpr,
                                             const MCSubtargetInfo *STI) {
   // FIXME: These expansions do not respect -mxgot.
   MipsTargetStreamer &TOut = getTargetStreamer();
-  bool UseSrcReg = SrcReg != Mips::NoRegister;
+  bool UseSrcReg = SrcReg != Mips::NoRegister && SrcReg != Mips::ZERO &&
+                   SrcReg != Mips::ZERO_64;
   warnIfNoMacro(IDLoc);
 
   if (inPicMode() && ABI.IsO32()) {
@@ -2884,16 +2888,18 @@ bool MipsAsmParser::loadAndAddSymbolAddress(const MCExpr *SymExpr,
       return true;
     }
 
+    bool IsLocalSym =
+        Res.getSymA()->getSymbol().isInSection() ||
+        Res.getSymA()->getSymbol().isTemporary() ||
+        (Res.getSymA()->getSymbol().isELF() &&
+         cast<MCSymbolELF>(Res.getSymA()->getSymbol()).getBinding() ==
+             ELF::STB_LOCAL);
+
     // The case where the result register is $25 is somewhat special. If the
     // symbol in the final relocation is external and not modified with a
     // constant then we must use R_MIPS_CALL16 instead of R_MIPS_GOT16.
     if ((DstReg == Mips::T9 || DstReg == Mips::T9_64) && !UseSrcReg &&
-        Res.getConstant() == 0 &&
-        !(Res.getSymA()->getSymbol().isInSection() ||
-          Res.getSymA()->getSymbol().isTemporary() ||
-          (Res.getSymA()->getSymbol().isELF() &&
-           cast<MCSymbolELF>(Res.getSymA()->getSymbol()).getBinding() ==
-               ELF::STB_LOCAL))) {
+        Res.getConstant() == 0 && !IsLocalSym) {
       const MCExpr *CallExpr =
           MipsMCExpr::create(MipsMCExpr::MEK_GOT_CALL, SymExpr, getContext());
       TOut.emitRRX(Mips::LW, DstReg, GPReg, MCOperand::createExpr(CallExpr),
@@ -2902,8 +2908,8 @@ bool MipsAsmParser::loadAndAddSymbolAddress(const MCExpr *SymExpr,
     }
 
     // The remaining cases are:
-    //   External GOT: lw $tmp, %got(symbol+offset)($gp)
-    //                >addiu $tmp, $tmp, %lo(offset)
+    //   External GOT: lw $tmp, %got(symbol)($gp)
+    //                >addiu $tmp, $tmp, offset
     //                >addiu $rd, $tmp, $rs
     //   Local GOT:    lw $tmp, %got(symbol+offset)($gp)
     //                 addiu $tmp, $tmp, %lo(symbol+offset)($gp)
@@ -2911,17 +2917,19 @@ bool MipsAsmParser::loadAndAddSymbolAddress(const MCExpr *SymExpr,
     // The addiu's marked with a '>' may be omitted if they are redundant. If
     // this happens then the last instruction must use $rd as the result
     // register.
-    const MipsMCExpr *GotExpr =
-        MipsMCExpr::create(MipsMCExpr::MEK_GOT, SymExpr, getContext());
+    const MipsMCExpr *GotExpr = nullptr;
     const MCExpr *LoExpr = nullptr;
-    if (Res.getSymA()->getSymbol().isInSection() ||
-        Res.getSymA()->getSymbol().isTemporary())
+    if (IsLocalSym) {
+      GotExpr = MipsMCExpr::create(MipsMCExpr::MEK_GOT, SymExpr, getContext());
       LoExpr = MipsMCExpr::create(MipsMCExpr::MEK_LO, SymExpr, getContext());
-    else if (Res.getConstant() != 0) {
+    } else {
       // External symbols fully resolve the symbol with just the %got(symbol)
       // but we must still account for any offset to the symbol for expressions
       // like symbol+8.
-      LoExpr = MCConstantExpr::create(Res.getConstant(), getContext());
+      GotExpr =
+          MipsMCExpr::create(MipsMCExpr::MEK_GOT, Res.getSymA(), getContext());
+      if (Res.getConstant() != 0)
+        LoExpr = MCConstantExpr::create(Res.getConstant(), getContext());
     }
 
     unsigned TmpReg = DstReg;
@@ -3489,7 +3497,7 @@ bool MipsAsmParser::expandUncondBranchMMPseudo(MCInst &Inst, SMLoc IDLoc,
     } else {
       if (!isInt<17>(Offset.getImm()))
         return Error(IDLoc, "branch target out of range");
-      if (OffsetToAlignment(Offset.getImm(), 1LL << 1))
+      if (offsetToAlignment(Offset.getImm(), llvm::Align(2)))
         return Error(IDLoc, "branch to misaligned address");
       Inst.clear();
       Inst.setOpcode(Mips::BEQ_MM);
@@ -3581,7 +3589,6 @@ void MipsAsmParser::expandMemInst(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
   assert(DstRegOp.isReg() && "expected register operand kind");
   const MCOperand &BaseRegOp = Inst.getOperand(1);
   assert(BaseRegOp.isReg() && "expected register operand kind");
-  const MCOperand &OffsetOp = Inst.getOperand(2);
 
   MipsTargetStreamer &TOut = getTargetStreamer();
   unsigned DstReg = DstRegOp.getReg();
@@ -3602,6 +3609,26 @@ void MipsAsmParser::expandMemInst(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
     if (!TmpReg)
       return;
   }
+
+  if (Inst.getNumOperands() > 3) {
+    const MCOperand &BaseRegOp = Inst.getOperand(2);
+    assert(BaseRegOp.isReg() && "expected register operand kind");
+    const MCOperand &ExprOp = Inst.getOperand(3);
+    assert(ExprOp.isExpr() && "expected expression oprand kind");
+
+    unsigned BaseReg = BaseRegOp.getReg();
+    const MCExpr *ExprOffset = ExprOp.getExpr();
+
+    MCOperand LoOperand = MCOperand::createExpr(
+        MipsMCExpr::create(MipsMCExpr::MEK_LO, ExprOffset, getContext()));
+    MCOperand HiOperand = MCOperand::createExpr(
+        MipsMCExpr::create(MipsMCExpr::MEK_HI, ExprOffset, getContext()));
+    TOut.emitSCWithSymOffset(Inst.getOpcode(), DstReg, BaseReg, HiOperand,
+                             LoOperand, TmpReg, IDLoc, STI);
+    return;
+  }
+
+  const MCOperand &OffsetOp = Inst.getOperand(2);
 
   if (OffsetOp.isImm()) {
     int64_t LoOffset = OffsetOp.getImm() & 0xffff;
@@ -3625,21 +3652,54 @@ void MipsAsmParser::expandMemInst(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
       TOut.emitRRR(isGP64bit() ? Mips::DADDu : Mips::ADDu, TmpReg, TmpReg,
                    BaseReg, IDLoc, STI);
     TOut.emitRRI(Inst.getOpcode(), DstReg, TmpReg, LoOffset, IDLoc, STI);
-  } else {
-    assert(OffsetOp.isExpr() && "expected expression operand kind");
-    const MCExpr *ExprOffset = OffsetOp.getExpr();
-    MCOperand LoOperand = MCOperand::createExpr(
-        MipsMCExpr::create(MipsMCExpr::MEK_LO, ExprOffset, getContext()));
-    MCOperand HiOperand = MCOperand::createExpr(
-        MipsMCExpr::create(MipsMCExpr::MEK_HI, ExprOffset, getContext()));
-
-    if (IsLoad)
-      TOut.emitLoadWithSymOffset(Inst.getOpcode(), DstReg, BaseReg, HiOperand,
-                                 LoOperand, TmpReg, IDLoc, STI);
-    else
-      TOut.emitStoreWithSymOffset(Inst.getOpcode(), DstReg, BaseReg, HiOperand,
-                                  LoOperand, TmpReg, IDLoc, STI);
+    return;
   }
+
+  if (OffsetOp.isExpr()) {
+    if (inPicMode()) {
+      // FIXME:
+      // c) Check that immediates of R_MIPS_GOT16/R_MIPS_LO16 relocations
+      //    do not exceed 16-bit.
+      // d) Use R_MIPS_GOT_PAGE/R_MIPS_GOT_OFST relocations instead
+      //    of R_MIPS_GOT_DISP in appropriate cases to reduce number
+      //    of GOT entries.
+      MCValue Res;
+      if (!OffsetOp.getExpr()->evaluateAsRelocatable(Res, nullptr, nullptr)) {
+        Error(IDLoc, "expected relocatable expression");
+        return;
+      }
+      if (Res.getSymB() != nullptr) {
+        Error(IDLoc, "expected relocatable expression with only one symbol");
+        return;
+      }
+
+      loadAndAddSymbolAddress(Res.getSymA(), TmpReg, BaseReg,
+                              !ABI.ArePtrs64bit(), IDLoc, Out, STI);
+      TOut.emitRRI(Inst.getOpcode(), DstReg, TmpReg, Res.getConstant(), IDLoc,
+                   STI);
+    } else {
+      // FIXME: Implement 64-bit case.
+      // 1) lw $8, sym => lui $8,  %hi(sym)
+      //                  lw  $8,  %lo(sym)($8)
+      // 2) sw $8, sym => lui $at, %hi(sym)
+      //                  sw  $8,  %lo(sym)($at)
+      const MCExpr *ExprOffset = OffsetOp.getExpr();
+      MCOperand LoOperand = MCOperand::createExpr(
+          MipsMCExpr::create(MipsMCExpr::MEK_LO, ExprOffset, getContext()));
+      MCOperand HiOperand = MCOperand::createExpr(
+          MipsMCExpr::create(MipsMCExpr::MEK_HI, ExprOffset, getContext()));
+
+      // Generate the base address in TmpReg.
+      TOut.emitRX(Mips::LUi, TmpReg, HiOperand, IDLoc, STI);
+      if (BaseReg != Mips::ZERO)
+        TOut.emitRRR(Mips::ADDu, TmpReg, TmpReg, BaseReg, IDLoc, STI);
+      // Emit the load or store with the adjusted base and offset.
+      TOut.emitRRX(Inst.getOpcode(), DstReg, TmpReg, LoOperand, IDLoc, STI);
+    }
+    return;
+  }
+
+  llvm_unreachable("unexpected operand type");
 }
 
 bool MipsAsmParser::expandLoadStoreMultiple(MCInst &Inst, SMLoc IDLoc,
@@ -6976,7 +7036,7 @@ bool MipsAsmParser::parseSetPushDirective() {
 
   // Create a copy of the current assembler options environment and push it.
   AssemblerOptions.push_back(
-        llvm::make_unique<MipsAssemblerOptions>(AssemblerOptions.back().get()));
+        std::make_unique<MipsAssemblerOptions>(AssemblerOptions.back().get()));
 
   getTargetStreamer().emitDirectiveSetPush();
   return false;

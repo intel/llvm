@@ -16,10 +16,13 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticIDs.h"
 #include "clang/Basic/FileManager.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Token.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Capacity.h"
@@ -107,8 +110,13 @@ Range diagnosticRange(const clang::Diagnostic &D, const LangOptions &L) {
   return halfOpenToRange(M, R);
 }
 
-void adjustDiagFromHeader(Diag &D, const clang::Diagnostic &Info,
+// Returns whether the \p D is modified.
+bool adjustDiagFromHeader(Diag &D, const clang::Diagnostic &Info,
                           const LangOptions &LangOpts) {
+  // We only report diagnostics with at least error severity from headers.
+  if (D.Severity < DiagnosticsEngine::Level::Error)
+    return false;
+
   const SourceLocation &DiagLoc = Info.getLocation();
   const SourceManager &SM = Info.getSourceManager();
   SourceLocation IncludeInMainFile;
@@ -116,16 +124,21 @@ void adjustDiagFromHeader(Diag &D, const clang::Diagnostic &Info,
     return SM.getIncludeLoc(SM.getFileID(SLoc));
   };
   for (auto IncludeLocation = GetIncludeLoc(DiagLoc); IncludeLocation.isValid();
-       IncludeLocation = GetIncludeLoc(IncludeLocation))
-    IncludeInMainFile = IncludeLocation;
+       IncludeLocation = GetIncludeLoc(IncludeLocation)) {
+    if (clangd::isInsideMainFile(IncludeLocation, SM)) {
+      IncludeInMainFile = IncludeLocation;
+      break;
+    }
+  }
   if (IncludeInMainFile.isInvalid())
-    return;
+    return false;
 
   // Update diag to point at include inside main file.
   D.File = SM.getFileEntryForID(SM.getMainFileID())->getName().str();
   D.Range.start = sourceLocToPosition(SM, IncludeInMainFile);
   D.Range.end = sourceLocToPosition(
       SM, Lexer::getLocForEndOfToken(IncludeInMainFile, 0, SM, LangOpts));
+  D.InsideMainFile = true;
 
   // Add a note that will point to real diagnostic.
   const auto *FE = SM.getFileEntryForID(SM.getFileID(DiagLoc));
@@ -138,17 +151,14 @@ void adjustDiagFromHeader(Diag &D, const clang::Diagnostic &Info,
 
   // Update message to mention original file.
   D.Message = llvm::Twine("in included file: ", D.Message).str();
-}
-
-bool isInsideMainFile(const SourceLocation Loc, const SourceManager &M) {
-  return Loc.isValid() && M.isWrittenInMainFile(M.getFileLoc(Loc));
+  return true;
 }
 
 bool isInsideMainFile(const clang::Diagnostic &D) {
   if (!D.hasSourceManager())
     return false;
 
-  return isInsideMainFile(D.getLocation(), D.getSourceManager());
+  return clangd::isInsideMainFile(D.getLocation(), D.getSourceManager());
 }
 
 bool isNote(DiagnosticsEngine::Level L) {
@@ -385,6 +395,9 @@ int getSeverity(DiagnosticsEngine::Level L) {
 }
 
 std::vector<Diag> StoreDiags::take(const clang::tidy::ClangTidyContext *Tidy) {
+  // Do not forget to emit a pending diagnostic if there is one.
+  flushLastDiag();
+
   // Fill in name/source now that we have all the context needed to map them.
   for (auto &Diag : Output) {
     if (const char *ClangDiag = getDiagnosticCode(Diag.ID)) {
@@ -440,7 +453,6 @@ void StoreDiags::BeginSourceFile(const LangOptions &Opts,
 }
 
 void StoreDiags::EndSourceFile() {
-  flushLastDiag();
   LangOpts = None;
 }
 
@@ -459,9 +471,45 @@ static void writeCodeToFixMessage(llvm::raw_ostream &OS, llvm::StringRef Code) {
     OS << "…";
 }
 
+/// Fills \p D with all information, except the location-related bits.
+/// Also note that ID and Name are not part of clangd::DiagBase and should be
+/// set elsewhere.
+static void fillNonLocationData(DiagnosticsEngine::Level DiagLevel,
+                                const clang::Diagnostic &Info,
+                                clangd::DiagBase &D) {
+  llvm::SmallString<64> Message;
+  Info.FormatDiagnostic(Message);
+
+  D.Message = Message.str();
+  D.Severity = DiagLevel;
+  D.Category = DiagnosticIDs::getCategoryNameFromID(
+                   DiagnosticIDs::getCategoryNumberForDiag(Info.getID()))
+                   .str();
+}
+
 void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
                                   const clang::Diagnostic &Info) {
   DiagnosticConsumer::HandleDiagnostic(DiagLevel, Info);
+
+  if (Info.getLocation().isInvalid()) {
+    // Handle diagnostics coming from command-line arguments. The source manager
+    // is *not* available at this point, so we cannot use it.
+    if (DiagLevel < DiagnosticsEngine::Level::Error) {
+      IgnoreDiagnostics::log(DiagLevel, Info);
+      return; // non-errors add too much noise, do not show them.
+    }
+
+    flushLastDiag();
+
+    LastDiag = Diag();
+    LastDiag->ID = Info.getID();
+    fillNonLocationData(DiagLevel, Info, *LastDiag);
+    LastDiag->InsideMainFile = true;
+    // Put it at the start of the main file, for a lack of a better place.
+    LastDiag->Range.start = Position{0, 0};
+    LastDiag->Range.end = Position{0, 0};
+    return;
+  }
 
   if (!LangOpts || !Info.hasSourceManager()) {
     IgnoreDiagnostics::log(DiagLevel, Info);
@@ -469,21 +517,16 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
   }
 
   bool InsideMainFile = isInsideMainFile(Info);
+  SourceManager &SM = Info.getSourceManager();
 
   auto FillDiagBase = [&](DiagBase &D) {
-    D.Range = diagnosticRange(Info, *LangOpts);
-    llvm::SmallString<64> Message;
-    Info.FormatDiagnostic(Message);
-    D.Message = Message.str();
+    fillNonLocationData(DiagLevel, Info, D);
+
     D.InsideMainFile = InsideMainFile;
-    D.File = Info.getSourceManager().getFilename(Info.getLocation());
-    auto &SM = Info.getSourceManager();
+    D.Range = diagnosticRange(Info, *LangOpts);
+    D.File = SM.getFilename(Info.getLocation());
     D.AbsFile = getCanonicalPath(
         SM.getFileEntryForID(SM.getFileID(Info.getLocation())), SM);
-    D.Severity = DiagLevel;
-    D.Category = DiagnosticIDs::getCategoryNameFromID(
-                     DiagnosticIDs::getCategoryNumberForDiag(Info.getID()))
-                     .str();
     return D;
   };
 
@@ -500,10 +543,9 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
       if (FixIt.RemoveRange.getBegin().isMacroID() ||
           FixIt.RemoveRange.getEnd().isMacroID())
         return false;
-      if (!isInsideMainFile(FixIt.RemoveRange.getBegin(),
-                            Info.getSourceManager()))
+      if (!isInsideMainFile(FixIt.RemoveRange.getBegin(), SM))
         return false;
-      Edits.push_back(toTextEdit(FixIt, Info.getSourceManager(), *LangOpts));
+      Edits.push_back(toTextEdit(FixIt, SM, *LangOpts));
     }
 
     llvm::SmallString<64> Message;
@@ -511,8 +553,8 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
     if (SyntheticMessage && Info.getNumFixItHints() == 1) {
       const auto &FixIt = Info.getFixItHint(0);
       bool Invalid = false;
-      llvm::StringRef Remove = Lexer::getSourceText(
-          FixIt.RemoveRange, Info.getSourceManager(), *LangOpts, &Invalid);
+      llvm::StringRef Remove =
+          Lexer::getSourceText(FixIt.RemoveRange, SM, *LangOpts, &Invalid);
       llvm::StringRef Insert = FixIt.CodeToInsert;
       if (!Invalid) {
         llvm::raw_svector_ostream M(Message);
@@ -557,7 +599,8 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
     LastDiag = Diag();
     LastDiag->ID = Info.getID();
     FillDiagBase(*LastDiag);
-    adjustDiagFromHeader(*LastDiag, Info, *LangOpts);
+    if (!InsideMainFile)
+      LastDiagWasAdjusted = adjustDiagFromHeader(*LastDiag, Info, *LangOpts);
 
     if (!Info.getFixItHints().empty())
       AddFix(true /* try to invent a message instead of repeating the diag */);
@@ -599,16 +642,16 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
 void StoreDiags::flushLastDiag() {
   if (!LastDiag)
     return;
-  // Only keeps diagnostics inside main file or the first one coming from a
-  // header.
-  if (mentionsMainFile(*LastDiag) ||
-      (LastDiag->Severity >= DiagnosticsEngine::Level::Error &&
+  if (mentionsMainFile(*LastDiag) &&
+      (!LastDiagWasAdjusted ||
+       // Only report the first diagnostic coming from each particular header.
        IncludeLinesWithErrors.insert(LastDiag->Range.start.line).second)) {
     Output.push_back(std::move(*LastDiag));
   } else {
     vlog("Dropped diagnostic: {0}: {1}", LastDiag->File, LastDiag->Message);
   }
   LastDiag.reset();
+  LastDiagWasAdjusted = false;
 }
 
 } // namespace clangd

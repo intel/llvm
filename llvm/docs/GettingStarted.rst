@@ -95,7 +95,7 @@ Here's the short story for getting up and running quickly with LLVM:
        ``make -j NNN`` (with an appropriate value of NNN, e.g. number of CPUs
        you have.)
 
-   * For more information see `CMake <CMake.html>`_
+   * For more information see `CMake <CMake.html>`__
 
    * If you get an "internal compiler error (ICE)" or test failures, see
      `below`_.
@@ -169,10 +169,11 @@ uses the package and provides other details.
 =========================================================== ============ ==========================================
 Package                                                     Version      Notes
 =========================================================== ============ ==========================================
-`GNU Make <http://savannah.gnu.org/projects/make>`_         3.79, 3.79.1 Makefile/build processor
+`CMake <http://cmake.org/>`__                               >=3.4.3      Makefile/workspace generator
 `GCC <http://gcc.gnu.org/>`_                                >=5.1.0      C/C++ compiler\ :sup:`1`
 `python <http://www.python.org/>`_                          >=2.7        Automated test suite\ :sup:`2`
 `zlib <http://zlib.net>`_                                   >=1.2.3.4    Compression library\ :sup:`3`
+`GNU Make <http://savannah.gnu.org/projects/make>`_         3.79, 3.79.1 Makefile/build processor\ :sup:`4`
 =========================================================== ============ ==========================================
 
 .. note::
@@ -184,6 +185,7 @@ Package                                                     Version      Notes
       ``llvm/test`` directory.
    #. Optional, adds compression / uncompression capabilities to selected LLVM
       tools.
+   #. Optional, you can use any other build tool supported by CMake.
 
 Additionally, your compilation host is expected to have the usual plethora of
 Unix utilities. Specifically:
@@ -231,15 +233,6 @@ popular host toolchains for specific minimum versions in our build systems:
 * Clang 3.5
 * Apple Clang 6.0
 * GCC 5.1
-* Visual Studio 2017
-
-The below versions currently soft-error as we transition to the new compiler
-versions listed above. The LLVM codebase is currently known to compile correctly
-with the following compilers, though this will change in the near future:
-
-* Clang 3.1
-* Apple Clang 3.1
-* GCC 4.8
 * Visual Studio 2017
 
 Anything older than these toolchains *may* work, but will require forcing the
@@ -597,6 +590,11 @@ used by people developing LLVM.
 +-------------------------+----------------------------------------------------+
 | CMAKE_INSTALL_PREFIX    | Specifies the install directory to target when     |
 |                         | running the install action of the build files.     |
++-------------------------+----------------------------------------------------+
+| PYTHON_EXECUTABLE       | Forces CMake to use a specific Python version by   |
+|                         | passing a path to a Python interpreter. By default |
+|                         | the Python version of the interpreter in your PATH |
+|                         | is used.                                           |
 +-------------------------+----------------------------------------------------+
 | LLVM_TARGETS_TO_BUILD   | A semicolon delimited list controlling which       |
 |                         | targets will be built and linked into llvm.        |

@@ -19,7 +19,6 @@
 
 #include "CodeComplete.h"
 #include "AST.h"
-#include "ClangdUnit.h"
 #include "CodeCompletionStrings.h"
 #include "Compiler.h"
 #include "Diagnostics.h"
@@ -28,10 +27,12 @@
 #include "FuzzyMatch.h"
 #include "Headers.h"
 #include "Logger.h"
+#include "Preamble.h"
 #include "Protocol.h"
 #include "Quality.h"
 #include "SourceCode.h"
 #include "TUScheduler.h"
+#include "Threading.h"
 #include "Trace.h"
 #include "URI.h"
 #include "index/Index.h"
@@ -1053,7 +1054,9 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   ParseInput.FS = VFS;
   ParseInput.Contents = Input.Contents;
   ParseInput.Opts = ParseOptions();
-  auto CI = buildCompilerInvocation(ParseInput);
+
+  IgnoreDiagnostics IgnoreDiags;
+  auto CI = buildCompilerInvocation(ParseInput, IgnoreDiags);
   if (!CI) {
     elog("Couldn't create CompilerInvocation");
     return false;
@@ -1084,12 +1087,11 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   bool CompletingInPreamble = PreambleRegion.Size > Input.Offset;
   // NOTE: we must call BeginSourceFile after prepareCompilerInstance. Otherwise
   // the remapped buffers do not get freed.
-  IgnoreDiagnostics DummyDiagsConsumer;
   auto Clang = prepareCompilerInstance(
       std::move(CI),
       (Input.Preamble && !CompletingInPreamble) ? &Input.Preamble->Preamble
                                                 : nullptr,
-      std::move(ContentsBuffer), std::move(VFS), DummyDiagsConsumer);
+      std::move(ContentsBuffer), std::move(VFS), IgnoreDiags);
   Clang->getPreprocessorOpts().SingleFileParseMode = CompletingInPreamble;
   Clang->setCodeCompletionConsumer(Consumer.release());
 
@@ -1252,7 +1254,7 @@ public:
     //   - completion results based on the AST.
     //   - partial identifier and context. We need these for the index query.
     CodeCompleteResult Output;
-    auto RecorderOwner = llvm::make_unique<CompletionRecorder>(Opts, [&]() {
+    auto RecorderOwner = std::make_unique<CompletionRecorder>(Opts, [&]() {
       assert(Recorder && "Recorder is not set");
       CCContextKind = Recorder->CCContext.getKind();
       auto Style = getFormatStyleForFile(
@@ -1674,13 +1676,6 @@ private:
   }
 };
 
-template <class T> bool isExplicitTemplateSpecialization(const NamedDecl &ND) {
-  if (const auto *TD = dyn_cast<T>(&ND))
-    if (TD->getTemplateSpecializationKind() == TSK_ExplicitSpecialization)
-      return true;
-  return false;
-}
-
 } // namespace
 
 clang::CodeCompleteOptions CodeCompleteOptions::getClangCompleteOpts() const {
@@ -1763,7 +1758,7 @@ SignatureHelp signatureHelp(PathRef FileName,
   Options.IncludeBriefComments = false;
   IncludeStructure PreambleInclusions; // Unused for signatureHelp
   semaCodeComplete(
-      llvm::make_unique<SignatureHelpCollector>(Options, Index, Result),
+      std::make_unique<SignatureHelpCollector>(Options, Index, Result),
       Options,
       {FileName, Command, Preamble, Contents, *Offset, std::move(VFS)});
   return Result;
@@ -1783,9 +1778,7 @@ bool isIndexedForCodeCompletion(const NamedDecl &ND, ASTContext &ASTCtx) {
   };
   // We only complete symbol's name, which is the same as the name of the
   // *primary* template in case of template specializations.
-  if (isExplicitTemplateSpecialization<FunctionDecl>(ND) ||
-      isExplicitTemplateSpecialization<CXXRecordDecl>(ND) ||
-      isExplicitTemplateSpecialization<VarDecl>(ND))
+  if (isExplicitTemplateSpecialization(&ND))
     return false;
 
   if (InTopLevelScope(ND))

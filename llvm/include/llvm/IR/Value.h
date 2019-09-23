@@ -14,6 +14,7 @@
 #define LLVM_IR_VALUE_H
 
 #include "llvm-c/Types.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Use.h"
 #include "llvm/Support/CBindingWrapping.h"
@@ -292,10 +293,29 @@ public:
   /// "V" instead of "this". This function skips metadata entries in the list.
   void replaceNonMetadataUsesWith(Value *V);
 
+  /// Go through the uses list for this definition and make each use point
+  /// to "V" if the callback ShouldReplace returns true for the given Use.
+  /// Unlike replaceAllUsesWith() this function does not support basic block
+  /// values or constant users.
+  void replaceUsesWithIf(Value *New,
+                         llvm::function_ref<bool(Use &U)> ShouldReplace) {
+    assert(New && "Value::replaceUsesWithIf(<null>) is invalid!");
+    assert(New->getType() == getType() &&
+           "replaceUses of value with new value of different type!");
+
+    for (use_iterator UI = use_begin(), E = use_end(); UI != E;) {
+      Use &U = *UI;
+      ++UI;
+      if (!ShouldReplace(U))
+        continue;
+      U.set(New);
+    }
+  }
+
   /// replaceUsesOutsideBlock - Go through the uses list for this definition and
   /// make each use point to "V" instead of "this" when the use is outside the
   /// block. 'This's use list is expected to have at least one element.
-  /// Unlike replaceAllUsesWith this function does not support basic block
+  /// Unlike replaceAllUsesWith() this function does not support basic block
   /// values or constant users.
   void replaceUsesOutsideBlock(Value *V, BasicBlock *BB);
 
@@ -493,17 +513,17 @@ public:
   /// swifterror attribute.
   bool isSwiftError() const;
 
-  /// Strip off pointer casts, all-zero GEPs, address space casts, and aliases.
+  /// Strip off pointer casts, all-zero GEPs and address space casts.
   ///
   /// Returns the original uncasted value.  If this is called on a non-pointer
   /// value, it returns 'this'.
   const Value *stripPointerCasts() const;
   Value *stripPointerCasts() {
     return const_cast<Value *>(
-                         static_cast<const Value *>(this)->stripPointerCasts());
+        static_cast<const Value *>(this)->stripPointerCasts());
   }
 
-  /// Strip off pointer casts, all-zero GEPs, address space casts, and aliases
+  /// Strip off pointer casts, all-zero GEPs and address space casts
   /// but ensures the representation of the result stays the same.
   ///
   /// Returns the original uncasted value with the same representation. If this
@@ -514,26 +534,15 @@ public:
                                    ->stripPointerCastsSameRepresentation());
   }
 
-  /// Strip off pointer casts, all-zero GEPs, aliases and invariant group
-  /// info.
+  /// Strip off pointer casts, all-zero GEPs and invariant group info.
   ///
   /// Returns the original uncasted value.  If this is called on a non-pointer
   /// value, it returns 'this'. This function should be used only in
   /// Alias analysis.
   const Value *stripPointerCastsAndInvariantGroups() const;
   Value *stripPointerCastsAndInvariantGroups() {
-    return const_cast<Value *>(
-        static_cast<const Value *>(this)->stripPointerCastsAndInvariantGroups());
-  }
-
-  /// Strip off pointer casts and all-zero GEPs.
-  ///
-  /// Returns the original uncasted value.  If this is called on a non-pointer
-  /// value, it returns 'this'.
-  const Value *stripPointerCastsNoFollowAliases() const;
-  Value *stripPointerCastsNoFollowAliases() {
-    return const_cast<Value *>(
-          static_cast<const Value *>(this)->stripPointerCastsNoFollowAliases());
+    return const_cast<Value *>(static_cast<const Value *>(this)
+                                   ->stripPointerCastsAndInvariantGroups());
   }
 
   /// Strip off pointer casts and all-constant inbounds GEPs.

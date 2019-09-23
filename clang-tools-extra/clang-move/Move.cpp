@@ -92,10 +92,10 @@ std::string MakeAbsolutePath(const SourceManager &SM, StringRef Path) {
                  << '\n';
   // Handle symbolic link path cases.
   // We are trying to get the real file path of the symlink.
-  const DirectoryEntry *Dir = SM.getFileManager().getDirectory(
+  auto Dir = SM.getFileManager().getDirectory(
       llvm::sys::path::parent_path(AbsolutePath.str()));
   if (Dir) {
-    StringRef DirName = SM.getFileManager().getCanonicalName(Dir);
+    StringRef DirName = SM.getFileManager().getCanonicalName(*Dir);
     // FIXME: getCanonicalName might fail to get real path on VFS.
     if (llvm::sys::path::is_absolute(DirName)) {
       SmallString<128> AbsoluteFilename;
@@ -115,7 +115,7 @@ AST_POLYMORPHIC_MATCHER_P(isExpansionInFile,
   auto ExpansionLoc = SourceManager.getExpansionLoc(Node.getBeginLoc());
   if (ExpansionLoc.isInvalid())
     return false;
-  auto FileEntry =
+  auto *FileEntry =
       SourceManager.getFileEntryForID(SourceManager.getFileID(ExpansionLoc));
   if (!FileEntry)
     return false;
@@ -476,7 +476,7 @@ getUsedDecls(const HelperDeclRefGraph *RG,
 std::unique_ptr<ASTConsumer>
 ClangMoveAction::CreateASTConsumer(CompilerInstance &Compiler,
                                    StringRef /*InFile*/) {
-  Compiler.getPreprocessor().addPPCallbacks(llvm::make_unique<FindAllIncludes>(
+  Compiler.getPreprocessor().addPPCallbacks(std::make_unique<FindAllIncludes>(
       &Compiler.getSourceManager(), &MoveTool));
   return MatchFinder.newASTConsumer();
 }
@@ -610,7 +610,7 @@ void ClangMoveTool::registerMatchers(ast_matchers::MatchFinder *Finder) {
   // Matchers for old files, including old.h/old.cc
   //============================================================================
   // Create a MatchCallback for class declarations.
-  MatchCallbacks.push_back(llvm::make_unique<ClassDeclarationMatch>(this));
+  MatchCallbacks.push_back(std::make_unique<ClassDeclarationMatch>(this));
   // Match moved class declarations.
   auto MovedClass = cxxRecordDecl(InOldFiles, *HasAnySymbolNames,
                                   isDefinition(), TopLevelDecl)
@@ -629,19 +629,19 @@ void ClangMoveTool::registerMatchers(ast_matchers::MatchFinder *Finder) {
           .bind("class_static_var_decl"),
       MatchCallbacks.back().get());
 
-  MatchCallbacks.push_back(llvm::make_unique<FunctionDeclarationMatch>(this));
+  MatchCallbacks.push_back(std::make_unique<FunctionDeclarationMatch>(this));
   Finder->addMatcher(functionDecl(InOldFiles, *HasAnySymbolNames, TopLevelDecl)
                          .bind("function"),
                      MatchCallbacks.back().get());
 
-  MatchCallbacks.push_back(llvm::make_unique<VarDeclarationMatch>(this));
+  MatchCallbacks.push_back(std::make_unique<VarDeclarationMatch>(this));
   Finder->addMatcher(
       varDecl(InOldFiles, *HasAnySymbolNames, TopLevelDecl).bind("var"),
       MatchCallbacks.back().get());
 
   // Match enum definition in old.h. Enum helpers (which are defined in old.cc)
   // will not be moved for now no matter whether they are used or not.
-  MatchCallbacks.push_back(llvm::make_unique<EnumDeclarationMatch>(this));
+  MatchCallbacks.push_back(std::make_unique<EnumDeclarationMatch>(this));
   Finder->addMatcher(
       enumDecl(InOldHeader, *HasAnySymbolNames, isDefinition(), TopLevelDecl)
           .bind("enum"),
@@ -650,7 +650,7 @@ void ClangMoveTool::registerMatchers(ast_matchers::MatchFinder *Finder) {
   // Match type alias in old.h, this includes "typedef" and "using" type alias
   // declarations. Type alias helpers (which are defined in old.cc) will not be
   // moved for now no matter whether they are used or not.
-  MatchCallbacks.push_back(llvm::make_unique<TypeAliasMatch>(this));
+  MatchCallbacks.push_back(std::make_unique<TypeAliasMatch>(this));
   Finder->addMatcher(namedDecl(anyOf(typedefDecl().bind("typedef"),
                                      typeAliasDecl().bind("type_alias")),
                                InOldHeader, *HasAnySymbolNames, TopLevelDecl),
@@ -842,12 +842,12 @@ void ClangMoveTool::moveDeclsToNewFiles() {
 // Move all contents from OldFile to NewFile.
 void ClangMoveTool::moveAll(SourceManager &SM, StringRef OldFile,
                             StringRef NewFile) {
-  const FileEntry *FE = SM.getFileManager().getFile(makeAbsolutePath(OldFile));
+  auto FE = SM.getFileManager().getFile(makeAbsolutePath(OldFile));
   if (!FE) {
     llvm::errs() << "Failed to get file: " << OldFile << "\n";
     return;
   }
-  FileID ID = SM.getOrCreateFileID(FE, SrcMgr::C_User);
+  FileID ID = SM.getOrCreateFileID(*FE, SrcMgr::C_User);
   auto Begin = SM.getLocForStartOfFile(ID);
   auto End = SM.getLocForEndOfFile(ID);
   tooling::Replacement RemoveAll(SM, CharSourceRange::getCharRange(Begin, End),

@@ -53,8 +53,7 @@ SIMachineFunctionInfo::SIMachineFunctionInfo(const MachineFunction &MF)
   FlatWorkGroupSizes = ST.getFlatWorkGroupSizes(F);
   WavesPerEU = ST.getWavesPerEU(F);
 
-  Occupancy = getMaxWavesPerEU();
-  limitOccupancy(MF);
+  Occupancy = ST.computeOccupancy(MF, getLDSSize());
   CallingConv::ID CC = F.getCallingConv();
 
   if (CC == CallingConv::AMDGPU_KERNEL || CC == CallingConv::SPIR_KERNEL) {
@@ -487,6 +486,7 @@ yaml::SIMachineFunctionInfo::SIMachineFunctionInfo(
     NoSignedZerosFPMath(MFI.hasNoSignedZerosFPMath()),
     MemoryBound(MFI.isMemoryBound()),
     WaveLimiter(MFI.needsWaveLimiter()),
+    HighBitsOf32BitAddress(MFI.get32BitAddressHighBits()),
     ScratchRSrcReg(regToString(MFI.getScratchRSrcReg(), TRI)),
     ScratchWaveOffsetReg(regToString(MFI.getScratchWaveOffsetReg(), TRI)),
     FrameOffsetReg(regToString(MFI.getFrameOffsetReg(), TRI)),
@@ -503,6 +503,7 @@ bool SIMachineFunctionInfo::initializeBaseYamlFields(
   ExplicitKernArgSize = YamlMFI.ExplicitKernArgSize;
   MaxKernArgAlign = YamlMFI.MaxKernArgAlign;
   LDSSize = YamlMFI.LDSSize;
+  HighBitsOf32BitAddress = YamlMFI.HighBitsOf32BitAddress;
   IsEntryFunction = YamlMFI.IsEntryFunction;
   NoSignedZerosFPMath = YamlMFI.NoSignedZerosFPMath;
   MemoryBound = YamlMFI.MemoryBound;

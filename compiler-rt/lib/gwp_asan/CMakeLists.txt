@@ -7,6 +7,7 @@ set(GWP_ASAN_SOURCES
   platform_specific/mutex_posix.cpp
   guarded_pool_allocator.cpp
   random.cpp
+  stack_trace_compressor.cpp
 )
 
 set(GWP_ASAN_HEADERS
@@ -16,6 +17,7 @@ set(GWP_ASAN_HEADERS
   options.h
   options.inc
   random.h
+  stack_trace_compressor.h
 )
 
 # Ensure that GWP-ASan meets the delegated requirements of some supporting

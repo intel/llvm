@@ -174,7 +174,7 @@ bool Parser::ExpectAndConsumeSemi(unsigned DiagID) {
   return ExpectAndConsume(tok::semi, DiagID);
 }
 
-void Parser::ConsumeExtraSemi(ExtraSemiKind Kind, unsigned TST) {
+void Parser::ConsumeExtraSemi(ExtraSemiKind Kind, DeclSpec::TST TST) {
   if (!Tok.is(tok::semi)) return;
 
   bool HadMultipleSemis = false;
@@ -202,7 +202,7 @@ void Parser::ConsumeExtraSemi(ExtraSemiKind Kind, unsigned TST) {
 
   if (Kind != AfterMemberFunctionDefinition || HadMultipleSemis)
     Diag(StartLoc, diag::ext_extra_semi)
-        << Kind << DeclSpec::getSpecifierName((DeclSpec::TST)TST,
+        << Kind << DeclSpec::getSpecifierName(TST,
                                     Actions.getASTContext().getPrintingPolicy())
         << FixItHint::CreateRemoval(SourceRange(StartLoc, EndLoc));
   else
@@ -1174,8 +1174,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   if (Tok.isNot(tok::equal)) {
     for (const ParsedAttr &AL : D.getAttributes())
       if (AL.isKnownToGCC() && !AL.isCXX11Attribute())
-        Diag(AL.getLoc(), diag::warn_attribute_on_function_definition)
-            << AL.getName();
+        Diag(AL.getLoc(), diag::warn_attribute_on_function_definition) << AL;
   }
 
   // In delayed template parsing mode, for function template we consume the

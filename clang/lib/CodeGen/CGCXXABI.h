@@ -378,7 +378,7 @@ public:
   virtual void EmitDestructorCall(CodeGenFunction &CGF,
                                   const CXXDestructorDecl *DD, CXXDtorType Type,
                                   bool ForVirtualBase, bool Delegating,
-                                  Address This) = 0;
+                                  Address This, QualType ThisTy) = 0;
 
   /// Emits the VTable definitions required for the given record type.
   virtual void emitVTableDefinitions(CodeGenVTables &CGVT,
@@ -421,11 +421,15 @@ public:
                                              llvm::Type *Ty,
                                              SourceLocation Loc) = 0;
 
+  using DeleteOrMemberCallExpr =
+      llvm::PointerUnion<const CXXDeleteExpr *, const CXXMemberCallExpr *>;
+
   /// Emit the ABI-specific virtual destructor call.
-  virtual llvm::Value *
-  EmitVirtualDestructorCall(CodeGenFunction &CGF, const CXXDestructorDecl *Dtor,
-                            CXXDtorType DtorType, Address This,
-                            const CXXMemberCallExpr *CE) = 0;
+  virtual llvm::Value *EmitVirtualDestructorCall(CodeGenFunction &CGF,
+                                                 const CXXDestructorDecl *Dtor,
+                                                 CXXDtorType DtorType,
+                                                 Address This,
+                                                 DeleteOrMemberCallExpr E) = 0;
 
   virtual void adjustCallArgsForDestructorThunk(CodeGenFunction &CGF,
                                                 GlobalDecl GD,
@@ -573,7 +577,7 @@ public:
 
   // Determine if references to thread_local global variables can be made
   // directly or require access through a thread wrapper function.
-  virtual bool usesThreadWrapperFunction() const = 0;
+  virtual bool usesThreadWrapperFunction(const VarDecl *VD) const = 0;
 
   /// Emit a reference to a non-local thread_local variable (including
   /// triggering the initialization of all thread_local variables in its

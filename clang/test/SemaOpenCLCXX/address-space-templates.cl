@@ -1,9 +1,9 @@
-//RUN: %clang_cc1 %s -cl-std=c++ -pedantic -verify -fsyntax-only
+//RUN: %clang_cc1 %s -cl-std=clc++ -pedantic -verify -fsyntax-only
 
 template <typename T>
 struct S {
   T a;        // expected-error{{field may not be qualified with an address space}}
-  T f1();     // expected-error{{function type may not be qualified with an address space}}
+  T f1();     // we ignore address space on a return types.
   void f2(T); // expected-error{{parameter may not be qualified with an address space}}
 };
 

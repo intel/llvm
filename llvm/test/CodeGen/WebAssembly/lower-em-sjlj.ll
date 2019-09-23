@@ -34,7 +34,7 @@ entry:
 ; CHECK-NEXT: phi i32 [ 0, %entry ], [ %[[LONGJMP_RESULT:.*]], %if.end ]
 ; CHECK-NEXT: %[[ARRAYDECAY1:.*]] = getelementptr inbounds [1 x %struct.__jmp_buf_tag], [1 x %struct.__jmp_buf_tag]* %[[BUF]], i32 0, i32 0
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
-; CHECK-NEXT: call void @"__invoke_void_%struct.__jmp_buf_tag*_i32"(void (%struct.__jmp_buf_tag*, i32)* @emscripten_longjmp_jmpbuf, %struct.__jmp_buf_tag* %[[ARRAYDECAY1]], i32 1)
+; CHECK-NEXT: call cc{{.*}} void @"__invoke_void_%struct.__jmp_buf_tag*_i32"(void (%struct.__jmp_buf_tag*, i32)* @emscripten_longjmp_jmpbuf, %struct.__jmp_buf_tag* %[[ARRAYDECAY1]], i32 1)
 ; CHECK-NEXT: %[[__THREW__VAL:.*]] = load i32, i32* @__THREW__
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
 ; CHECK-NEXT: %[[CMP0:.*]] = icmp ne i32 %__THREW__.val, 0
@@ -85,7 +85,7 @@ entry:
 ; CHECK: %[[SETJMP_TABLE:.*]] = call i32* @saveSetjmp(
 
 ; CHECK: entry.split:
-; CHECK: call void @__invoke_void(void ()* @foo)
+; CHECK: @__invoke_void(void ()* @foo)
 
 ; CHECK: entry.split.split:
 ; CHECK-NEXT: %[[BUF:.*]] = bitcast i32* %[[SETJMP_TABLE]] to i8*
@@ -94,7 +94,7 @@ entry:
 }
 
 ; Test a case when a function call is within try-catch, after a setjmp
-define hidden void @exception_and_longjmp() #3 personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+define hidden void @exception_and_longjmp() personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
 ; CHECK-LABEL: @exception_and_longjmp
 entry:
   %buf = alloca [1 x %struct.__jmp_buf_tag], align 16
@@ -105,7 +105,7 @@ entry:
 
 ; CHECK: entry.split:
 ; CHECK: store i32 0, i32* @__THREW__
-; CHECK-NEXT: call void @__invoke_void(void ()* @foo)
+; CHECK-NEXT: call cc{{.*}} void @__invoke_void(void ()* @foo)
 ; CHECK-NEXT: %[[__THREW__VAL:.*]] = load i32, i32* @__THREW__
 ; CHECK-NEXT: store i32 0, i32* @__THREW__
 ; CHECK-NEXT: %[[CMP0:.*]] = icmp ne i32 %[[__THREW__VAL]], 0
@@ -185,7 +185,7 @@ entry:
   call void @longjmp(%struct.__jmp_buf_tag* %arraydecay, i32 5) #1
   unreachable
 ; CHECK: %[[ARRAYDECAY:.*]] = getelementptr inbounds
-; CHECK-NEXT: call void @emscripten_longjmp_jmpbuf(%struct.__jmp_buf_tag* %[[ARRAYDECAY]], i32 5) #1
+; CHECK-NEXT: call void @emscripten_longjmp_jmpbuf(%struct.__jmp_buf_tag* %[[ARRAYDECAY]], i32 5)
 }
 
 ; Test inline asm handling
@@ -201,6 +201,49 @@ entry:
 ; CHECK-NOT: __invoke_void
   call void asm sideeffect "", ""()
   ret void
+}
+
+; Test that the allocsize attribute is being transformed properly
+declare i8 *@allocator(i32, %struct.__jmp_buf_tag*) #3
+define hidden i8 *@allocsize() {
+; CHECK-LABEL: @allocsize
+entry:
+  %buf = alloca [1 x %struct.__jmp_buf_tag], align 16
+  %arraydecay = getelementptr inbounds [1 x %struct.__jmp_buf_tag], [1 x %struct.__jmp_buf_tag]* %buf, i32 0, i32 0
+  %call = call i32 @setjmp(%struct.__jmp_buf_tag* %arraydecay) #0
+; CHECK: call cc{{.*}} i8* @"__invoke_i8*_i32_%struct.__jmp_buf_tag*"([[ARGS:.*]]) #[[ALLOCSIZE_ATTR:[0-9]+]]
+  %alloc = call i8* @allocator(i32 20, %struct.__jmp_buf_tag* %arraydecay) #3
+  ret i8 *%alloc
+}
+
+; Tests if program does not crash when there's no setjmp function calls in the
+; module.
+@buffer = global [1 x %struct.__jmp_buf_tag] zeroinitializer, align 16
+define void @longjmp_only() {
+entry:
+  ; CHECK: call void @emscripten_longjmp_jmpbuf
+  call void @longjmp(%struct.__jmp_buf_tag* getelementptr inbounds ([1 x %struct.__jmp_buf_tag], [1 x %struct.__jmp_buf_tag]* @buffer, i32 0, i32 0), i32 1) #1
+  unreachable
+}
+
+; Tests if SSA rewrite works when a use and its def are within the same BB.
+define void @ssa_rewite_in_same_bb() {
+entry:
+  call void @foo()
+  br label %for.cond
+
+for.cond:                                         ; preds = %for.inc, %entry
+  ; CHECK: %{{.*}} = phi i32 [ %var[[VARNO:.*]], %for.inc.split ]
+  %0 = phi i32 [ %var, %for.inc ], [ undef, %entry ]
+  %var = add i32 0, 0
+  br label %for.inc
+
+for.inc:                                          ; preds = %for.cond
+  %call5 = call i32 @setjmp(%struct.__jmp_buf_tag* undef) #0
+  br label %for.cond
+
+; CHECK: for.inc.split:
+  ; CHECK: %var[[VARNO]] = phi i32 [ %var, %for.inc ]
 }
 
 declare void @foo()
@@ -227,3 +270,5 @@ declare void @free(i8*)
 attributes #0 = { returns_twice }
 attributes #1 = { noreturn }
 attributes #2 = { nounwind }
+attributes #3 = { allocsize(0) }
+; CHECK: attributes #[[ALLOCSIZE_ATTR]] = { allocsize(1) }

@@ -282,6 +282,7 @@ private:
   void SelectDSAppendConsume(SDNode *N, unsigned IntrID);
   void SelectDS_GWS(SDNode *N, unsigned IntrID);
   void SelectINTRINSIC_W_CHAIN(SDNode *N);
+  void SelectINTRINSIC_WO_CHAIN(SDNode *N);
   void SelectINTRINSIC_VOID(SDNode *N);
 
 protected:
@@ -543,7 +544,7 @@ const TargetRegisterClass *AMDGPUDAGToDAGISel::getOperandRegClass(SDNode *N,
   if (!N->isMachineOpcode()) {
     if (N->getOpcode() == ISD::CopyToReg) {
       unsigned Reg = cast<RegisterSDNode>(N->getOperand(1))->getReg();
-      if (TargetRegisterInfo::isVirtualRegister(Reg)) {
+      if (Register::isVirtualRegister(Reg)) {
         MachineRegisterInfo &MRI = CurDAG->getMachineFunction().getRegInfo();
         return MRI.getRegClass(Reg);
       }
@@ -906,6 +907,10 @@ void AMDGPUDAGToDAGISel::Select(SDNode *N) {
   }
   case ISD::INTRINSIC_W_CHAIN: {
     SelectINTRINSIC_W_CHAIN(N);
+    return;
+  }
+  case ISD::INTRINSIC_WO_CHAIN: {
+    SelectINTRINSIC_WO_CHAIN(N);
     return;
   }
   case ISD::INTRINSIC_VOID: {
@@ -2158,10 +2163,12 @@ void AMDGPUDAGToDAGISel::SelectDS_GWS(SDNode *N, unsigned IntrID) {
   // offset field) % 64. Some versions of the programming guide omit the m0
   // part, or claim it's from offset 0.
   if (ConstantSDNode *ConstOffset = dyn_cast<ConstantSDNode>(BaseOffset)) {
-    // If we have a constant offset, try to use the default value for m0 as a
-    // base to possibly avoid setting it up.
-    glueCopyToM0(N, CurDAG->getTargetConstant(-1, SL, MVT::i32));
-    ImmOffset = ConstOffset->getZExtValue() + 1;
+    // If we have a constant offset, try to use the 0 in m0 as the base.
+    // TODO: Look into changing the default m0 initialization value. If the
+    // default -1 only set the low 16-bits, we could leave it as-is and add 1 to
+    // the immediate offset.
+    glueCopyToM0(N, CurDAG->getTargetConstant(0, SL, MVT::i32));
+    ImmOffset = ConstOffset->getZExtValue();
   } else {
     if (CurDAG->isBaseWithConstantOffset(BaseOffset)) {
       ImmOffset = BaseOffset.getConstantOperandVal(1);
@@ -2182,22 +2189,7 @@ void AMDGPUDAGToDAGISel::SelectDS_GWS(SDNode *N, unsigned IntrID) {
     glueCopyToM0(N, SDValue(M0Base, 0));
   }
 
-  SDValue V0;
   SDValue Chain = N->getOperand(0);
-  SDValue Glue;
-  if (HasVSrc) {
-    SDValue VSrc0 = N->getOperand(2);
-
-    // The manual doesn't mention this, but it seems only v0 works.
-    V0 = CurDAG->getRegister(AMDGPU::VGPR0, MVT::i32);
-
-    SDValue CopyToV0 = CurDAG->getCopyToReg(
-      N->getOperand(0), SL, V0, VSrc0,
-      N->getOperand(N->getNumOperands() - 1));
-    Chain = CopyToV0;
-    Glue = CopyToV0.getValue(1);
-  }
-
   SDValue OffsetField = CurDAG->getTargetConstant(ImmOffset, SL, MVT::i32);
 
   // TODO: Can this just be removed from the instruction?
@@ -2206,13 +2198,10 @@ void AMDGPUDAGToDAGISel::SelectDS_GWS(SDNode *N, unsigned IntrID) {
   const unsigned Opc = gwsIntrinToOpcode(IntrID);
   SmallVector<SDValue, 5> Ops;
   if (HasVSrc)
-    Ops.push_back(V0);
+    Ops.push_back(N->getOperand(2));
   Ops.push_back(OffsetField);
   Ops.push_back(GDS);
   Ops.push_back(Chain);
-
-  if (HasVSrc)
-    Ops.push_back(Glue);
 
   SDNode *Selected = CurDAG->SelectNodeTo(N, Opc, N->getVTList(), Ops);
   CurDAG->setNodeMemRefs(cast<MachineSDNode>(Selected), {MMO});
@@ -2231,6 +2220,28 @@ void AMDGPUDAGToDAGISel::SelectINTRINSIC_W_CHAIN(SDNode *N) {
   }
 
   SelectCode(N);
+}
+
+void AMDGPUDAGToDAGISel::SelectINTRINSIC_WO_CHAIN(SDNode *N) {
+  unsigned IntrID = cast<ConstantSDNode>(N->getOperand(0))->getZExtValue();
+  unsigned Opcode;
+  switch (IntrID) {
+  case Intrinsic::amdgcn_wqm:
+    Opcode = AMDGPU::WQM;
+    break;
+  case Intrinsic::amdgcn_softwqm:
+    Opcode = AMDGPU::SOFT_WQM;
+    break;
+  case Intrinsic::amdgcn_wwm:
+    Opcode = AMDGPU::WWM;
+    break;
+  default:
+    SelectCode(N);
+    return;
+  }
+
+  SDValue Src = N->getOperand(1);
+  CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), {Src});
 }
 
 void AMDGPUDAGToDAGISel::SelectINTRINSIC_VOID(SDNode *N) {

@@ -1313,7 +1313,8 @@ static bool HoistThenElseCodeToIf(BranchInst *BI,
                              LLVMContext::MD_dereferenceable,
                              LLVMContext::MD_dereferenceable_or_null,
                              LLVMContext::MD_mem_parallel_loop_access,
-                             LLVMContext::MD_access_group};
+                             LLVMContext::MD_access_group,
+                             LLVMContext::MD_preserve_access_index};
       combineMetadata(I1, I2, KnownIDs, true);
 
       // I1 and I2 are being combined into a single instruction.  Its debug
@@ -1420,6 +1421,20 @@ HoistTerminator:
   return true;
 }
 
+// Check lifetime markers.
+static bool isLifeTimeMarker(const Instruction *I) {
+  if (auto II = dyn_cast<IntrinsicInst>(I)) {
+    switch (II->getIntrinsicID()) {
+    default:
+      break;
+    case Intrinsic::lifetime_start:
+    case Intrinsic::lifetime_end:
+      return true;
+    }
+  }
+  return false;
+}
+
 // All instructions in Insts belong to different blocks that all unconditionally
 // branch to a common successor. Analyze each instruction and return true if it
 // would be possible to sink them into their successor, creating one common
@@ -1474,20 +1489,25 @@ static bool canSinkInstructions(
       return false;
   }
 
-  // Because SROA can't handle speculating stores of selects, try not
-  // to sink loads or stores of allocas when we'd have to create a PHI for
-  // the address operand. Also, because it is likely that loads or stores
-  // of allocas will disappear when Mem2Reg/SROA is run, don't sink them.
+  // Because SROA can't handle speculating stores of selects, try not to sink
+  // loads, stores or lifetime markers of allocas when we'd have to create a
+  // PHI for the address operand. Also, because it is likely that loads or
+  // stores of allocas will disappear when Mem2Reg/SROA is run, don't sink
+  // them.
   // This can cause code churn which can have unintended consequences down
   // the line - see https://llvm.org/bugs/show_bug.cgi?id=30244.
   // FIXME: This is a workaround for a deficiency in SROA - see
   // https://llvm.org/bugs/show_bug.cgi?id=30188
   if (isa<StoreInst>(I0) && any_of(Insts, [](const Instruction *I) {
-        return isa<AllocaInst>(I->getOperand(1));
+        return isa<AllocaInst>(I->getOperand(1)->stripPointerCasts());
       }))
     return false;
   if (isa<LoadInst>(I0) && any_of(Insts, [](const Instruction *I) {
-        return isa<AllocaInst>(I->getOperand(0));
+        return isa<AllocaInst>(I->getOperand(0)->stripPointerCasts());
+      }))
+    return false;
+  if (isLifeTimeMarker(I0) && any_of(Insts, [](const Instruction *I) {
+        return isa<AllocaInst>(I->getOperand(1)->stripPointerCasts());
       }))
     return false;
 
@@ -1959,7 +1979,7 @@ static bool SpeculativelyExecuteBB(BranchInst *BI, BasicBlock *ThenBB,
 
   SmallVector<Instruction *, 4> SpeculatedDbgIntrinsics;
 
-  unsigned SpeculationCost = 0;
+  unsigned SpeculatedInstructions = 0;
   Value *SpeculatedStoreValue = nullptr;
   StoreInst *SpeculatedStore = nullptr;
   for (BasicBlock::iterator BBI = ThenBB->begin(),
@@ -1974,8 +1994,8 @@ static bool SpeculativelyExecuteBB(BranchInst *BI, BasicBlock *ThenBB,
 
     // Only speculatively execute a single instruction (not counting the
     // terminator) for now.
-    ++SpeculationCost;
-    if (SpeculationCost > 1)
+    ++SpeculatedInstructions;
+    if (SpeculatedInstructions > 1)
       return false;
 
     // Don't hoist the instruction if it's unsafe or expensive.
@@ -2012,8 +2032,8 @@ static bool SpeculativelyExecuteBB(BranchInst *BI, BasicBlock *ThenBB,
            E = SinkCandidateUseCounts.end();
        I != E; ++I)
     if (I->first->hasNUses(I->second)) {
-      ++SpeculationCost;
-      if (SpeculationCost > 1)
+      ++SpeculatedInstructions;
+      if (SpeculatedInstructions > 1)
         return false;
     }
 
@@ -2053,8 +2073,8 @@ static bool SpeculativelyExecuteBB(BranchInst *BI, BasicBlock *ThenBB,
     // getting expanded into Instructions.
     // FIXME: This doesn't account for how many operations are combined in the
     // constant expression.
-    ++SpeculationCost;
-    if (SpeculationCost > 1)
+    ++SpeculatedInstructions;
+    if (SpeculatedInstructions > 1)
       return false;
   }
 
@@ -2328,12 +2348,24 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
   if (!PN)
     return true;
 
-  // Don't fold i1 branches on PHIs which contain binary operators.  These can
-  // often be turned into switches and other things.
+  // Return true if at least one of these is a 'not', and another is either
+  // a 'not' too, or a constant.
+  auto CanHoistNotFromBothValues = [](Value *V0, Value *V1) {
+    if (!match(V0, m_Not(m_Value())))
+      std::swap(V0, V1);
+    auto Invertible = m_CombineOr(m_Not(m_Value()), m_AnyIntegralConstant());
+    return match(V0, m_Not(m_Value())) && match(V1, Invertible);
+  };
+
+  // Don't fold i1 branches on PHIs which contain binary operators, unless one
+  // of the incoming values is an 'not' and another one is freely invertible.
+  // These can often be turned into switches and other things.
   if (PN->getType()->isIntegerTy(1) &&
       (isa<BinaryOperator>(PN->getIncomingValue(0)) ||
        isa<BinaryOperator>(PN->getIncomingValue(1)) ||
-       isa<BinaryOperator>(IfCond)))
+       isa<BinaryOperator>(IfCond)) &&
+      !CanHoistNotFromBothValues(PN->getIncomingValue(0),
+                                 PN->getIncomingValue(1)))
     return false;
 
   // If all PHI nodes are promotable, check to make sure that all instructions
@@ -3697,12 +3729,17 @@ static bool SimplifyBranchOnICmpChain(BranchInst *BI, IRBuilder<> &Builder,
 
   BasicBlock *BB = BI->getParent();
 
+  // MSAN does not like undefs as branch condition which can be introduced
+  // with "explicit branch".
+  if (ExtraCase && BB->getParent()->hasFnAttribute(Attribute::SanitizeMemory))
+    return false;
+
   LLVM_DEBUG(dbgs() << "Converting 'icmp' chain with " << Values.size()
                     << " cases into SWITCH.  BB is:\n"
                     << *BB);
 
   // If there are any extra values that couldn't be folded into the switch
-  // then we evaluate them with an explicit branch first.  Split the block
+  // then we evaluate them with an explicit branch first. Split the block
   // right before the condbr to handle it.
   if (ExtraCase) {
     BasicBlock *NewBB =
@@ -4178,23 +4215,22 @@ bool SimplifyCFGOpt::SimplifyUnreachable(UnreachableInst *UI) {
     IRBuilder<> Builder(TI);
     if (auto *BI = dyn_cast<BranchInst>(TI)) {
       if (BI->isUnconditional()) {
-        if (BI->getSuccessor(0) == BB) {
-          new UnreachableInst(TI->getContext(), TI);
-          TI->eraseFromParent();
-          Changed = true;
-        }
+        assert(BI->getSuccessor(0) == BB && "Incorrect CFG");
+        new UnreachableInst(TI->getContext(), TI);
+        TI->eraseFromParent();
+        Changed = true;
       } else {
         Value* Cond = BI->getCondition();
         if (BI->getSuccessor(0) == BB) {
           Builder.CreateAssumption(Builder.CreateNot(Cond));
           Builder.CreateBr(BI->getSuccessor(1));
-          EraseTerminatorAndDCECond(BI);
-        } else if (BI->getSuccessor(1) == BB) {
+        } else {
+          assert(BI->getSuccessor(1) == BB && "Incorrect CFG");
           Builder.CreateAssumption(Cond);
           Builder.CreateBr(BI->getSuccessor(0));
-          EraseTerminatorAndDCECond(BI);
-          Changed = true;
         }
+        EraseTerminatorAndDCECond(BI);
+        Changed = true;
       }
     } else if (auto *SI = dyn_cast<SwitchInst>(TI)) {
       SwitchInstProfUpdateWrapper SU(*SI);
@@ -4274,6 +4310,17 @@ static bool CasesAreContiguous(SmallVectorImpl<ConstantInt *> &Cases) {
       return false;
   }
   return true;
+}
+
+static void createUnreachableSwitchDefault(SwitchInst *Switch) {
+  LLVM_DEBUG(dbgs() << "SimplifyCFG: switch default is dead.\n");
+  BasicBlock *NewDefaultBlock =
+     SplitBlockPredecessors(Switch->getDefaultDest(), Switch->getParent(), "");
+  Switch->setDefaultDest(&*NewDefaultBlock);
+  SplitBlock(&*NewDefaultBlock, &NewDefaultBlock->front());
+  auto *NewTerminator = NewDefaultBlock->getTerminator();
+  new UnreachableInst(Switch->getContext(), NewTerminator);
+  EraseTerminatorAndDCECond(NewTerminator);
 }
 
 /// Turn a switch with two reachable destinations into an integer range
@@ -4384,6 +4431,11 @@ static bool TurnSwitchRangeIntoICmp(SwitchInst *SI, IRBuilder<> &Builder) {
       cast<PHINode>(BBI)->removeIncomingValue(SI->getParent());
   }
 
+  // Clean up the default block - it may have phis or other instructions before
+  // the unreachable terminator.
+  if (!HasDefault)
+    createUnreachableSwitchDefault(SI);
+
   // Drop the switch.
   SI->eraseFromParent();
 
@@ -4428,14 +4480,7 @@ static bool eliminateDeadSwitchCases(SwitchInst *SI, AssumptionCache *AC,
   if (HasDefault && DeadCases.empty() &&
       NumUnknownBits < 64 /* avoid overflow */ &&
       SI->getNumCases() == (1ULL << NumUnknownBits)) {
-    LLVM_DEBUG(dbgs() << "SimplifyCFG: switch default is dead.\n");
-    BasicBlock *NewDefault =
-        SplitBlockPredecessors(SI->getDefaultDest(), SI->getParent(), "");
-    SI->setDefaultDest(&*NewDefault);
-    SplitBlock(&*NewDefault, &NewDefault->front());
-    auto *OldTI = NewDefault->getTerminator();
-    new UnreachableInst(SI->getContext(), OldTI);
-    EraseTerminatorAndDCECond(OldTI);
+    createUnreachableSwitchDefault(SI);
     return true;
   }
 

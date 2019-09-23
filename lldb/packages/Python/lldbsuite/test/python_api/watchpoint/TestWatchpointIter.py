@@ -5,9 +5,6 @@ Use lldb Python SBTarget API to iterate on the watchpoint(s) for the target.
 from __future__ import print_function
 
 
-import os
-import re
-import time
 
 import lldb
 from lldbsuite.test.decorators import *
@@ -33,9 +30,6 @@ class WatchpointIteratorTestCase(TestBase):
             self.source, '// Set break point at this line.')
 
     @add_test_categories(['pyapi'])
-    @expectedFailureAll(
-        oslist=["windows"],
-        bugnumber="llvm.org/pr24446: WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows")
     def test_watch_iter(self):
         """Exercise SBTarget.watchpoint_iter() API to iterate on the available watchpoints."""
         self.build()

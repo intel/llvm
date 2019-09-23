@@ -35,11 +35,13 @@
 ; CHECK-NEXT:       Module Verifier
 ; CHECK-NEXT:       Analysis containing CSE Info
 ; CHECK-NEXT:       IRTranslator
+; CHECK-NEXT:       Analysis for ComputingKnownBits
 ; CHECK-NEXT:       AArch64PreLegalizerCombiner
 ; CHECK-NEXT:       Analysis containing CSE Info
 ; CHECK-NEXT:       Legalizer
 ; CHECK-NEXT:       RegBankSelect
 ; CHECK-NEXT:       Localizer
+; CHECK-NEXT:       Analysis for ComputingKnownBits
 ; CHECK-NEXT:       InstructionSelect
 ; CHECK-NEXT:       ResetMachineFunction
 ; CHECK-NEXT:       AArch64 Instruction Selection

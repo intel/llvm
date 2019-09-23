@@ -1390,15 +1390,15 @@ TEST(APIntTest, magicu) {
 #ifdef GTEST_HAS_DEATH_TEST
 #ifndef NDEBUG
 TEST(APIntTest, StringDeath) {
-  EXPECT_DEATH(APInt(0, "", 0), "Bitwidth too small");
-  EXPECT_DEATH(APInt(32, "", 0), "Invalid string length");
-  EXPECT_DEATH(APInt(32, "0", 0), "Radix should be 2, 8, 10, 16, or 36!");
-  EXPECT_DEATH(APInt(32, "", 10), "Invalid string length");
-  EXPECT_DEATH(APInt(32, "-", 10), "String is only a sign, needs a value.");
-  EXPECT_DEATH(APInt(1, "1234", 10), "Insufficient bit width");
-  EXPECT_DEATH(APInt(32, "\0", 10), "Invalid string length");
-  EXPECT_DEATH(APInt(32, StringRef("1\02", 3), 10), "Invalid character in digit string");
-  EXPECT_DEATH(APInt(32, "1L", 10), "Invalid character in digit string");
+  EXPECT_DEATH((void)APInt(0, "", 0), "Bitwidth too small");
+  EXPECT_DEATH((void)APInt(32, "", 0), "Invalid string length");
+  EXPECT_DEATH((void)APInt(32, "0", 0), "Radix should be 2, 8, 10, 16, or 36!");
+  EXPECT_DEATH((void)APInt(32, "", 10), "Invalid string length");
+  EXPECT_DEATH((void)APInt(32, "-", 10), "String is only a sign, needs a value.");
+  EXPECT_DEATH((void)APInt(1, "1234", 10), "Insufficient bit width");
+  EXPECT_DEATH((void)APInt(32, "\0", 10), "Invalid string length");
+  EXPECT_DEATH((void)APInt(32, StringRef("1\02", 3), 10), "Invalid character in digit string");
+  EXPECT_DEATH((void)APInt(32, "1L", 10), "Invalid character in digit string");
 }
 #endif
 #endif
@@ -2115,6 +2115,71 @@ TEST(APIntTest, getHiBits) {
   APInt i128(128, 0xfa);
   i128.setHighBits(2);
   EXPECT_EQ(0xc, i128.getHiBits(4));
+}
+
+TEST(APIntTest, clearLowBits) {
+  APInt i64hi32 = APInt::getAllOnesValue(64);
+  i64hi32.clearLowBits(32);
+  EXPECT_EQ(32u, i64hi32.countLeadingOnes());
+  EXPECT_EQ(0u, i64hi32.countLeadingZeros());
+  EXPECT_EQ(64u, i64hi32.getActiveBits());
+  EXPECT_EQ(32u, i64hi32.countTrailingZeros());
+  EXPECT_EQ(0u, i64hi32.countTrailingOnes());
+  EXPECT_EQ(32u, i64hi32.countPopulation());
+
+  APInt i128hi64 = APInt::getAllOnesValue(128);
+  i128hi64.clearLowBits(64);
+  EXPECT_EQ(64u, i128hi64.countLeadingOnes());
+  EXPECT_EQ(0u, i128hi64.countLeadingZeros());
+  EXPECT_EQ(128u, i128hi64.getActiveBits());
+  EXPECT_EQ(64u, i128hi64.countTrailingZeros());
+  EXPECT_EQ(0u, i128hi64.countTrailingOnes());
+  EXPECT_EQ(64u, i128hi64.countPopulation());
+
+  APInt i128hi24 = APInt::getAllOnesValue(128);
+  i128hi24.clearLowBits(104);
+  EXPECT_EQ(24u, i128hi24.countLeadingOnes());
+  EXPECT_EQ(0u, i128hi24.countLeadingZeros());
+  EXPECT_EQ(128u, i128hi24.getActiveBits());
+  EXPECT_EQ(104u, i128hi24.countTrailingZeros());
+  EXPECT_EQ(0u, i128hi24.countTrailingOnes());
+  EXPECT_EQ(24u, i128hi24.countPopulation());
+
+  APInt i128hi104 = APInt::getAllOnesValue(128);
+  i128hi104.clearLowBits(24);
+  EXPECT_EQ(104u, i128hi104.countLeadingOnes());
+  EXPECT_EQ(0u, i128hi104.countLeadingZeros());
+  EXPECT_EQ(128u, i128hi104.getActiveBits());
+  EXPECT_EQ(24u, i128hi104.countTrailingZeros());
+  EXPECT_EQ(0u, i128hi104.countTrailingOnes());
+  EXPECT_EQ(104u, i128hi104.countPopulation());
+
+  APInt i128hi0 = APInt::getAllOnesValue(128);
+  i128hi0.clearLowBits(128);
+  EXPECT_EQ(0u, i128hi0.countLeadingOnes());
+  EXPECT_EQ(128u, i128hi0.countLeadingZeros());
+  EXPECT_EQ(0u, i128hi0.getActiveBits());
+  EXPECT_EQ(128u, i128hi0.countTrailingZeros());
+  EXPECT_EQ(0u, i128hi0.countTrailingOnes());
+  EXPECT_EQ(0u, i128hi0.countPopulation());
+
+  APInt i80hi1 = APInt::getAllOnesValue(80);
+  i80hi1.clearLowBits(79);
+  EXPECT_EQ(1u, i80hi1.countLeadingOnes());
+  EXPECT_EQ(0u, i80hi1.countLeadingZeros());
+  EXPECT_EQ(80u, i80hi1.getActiveBits());
+  EXPECT_EQ(79u, i80hi1.countTrailingZeros());
+  EXPECT_EQ(0u, i80hi1.countTrailingOnes());
+  EXPECT_EQ(1u, i80hi1.countPopulation());
+
+  APInt i32hi16 = APInt::getAllOnesValue(32);
+  i32hi16.clearLowBits(16);
+  EXPECT_EQ(16u, i32hi16.countLeadingOnes());
+  EXPECT_EQ(0u, i32hi16.countLeadingZeros());
+  EXPECT_EQ(32u, i32hi16.getActiveBits());
+  EXPECT_EQ(16u, i32hi16.countTrailingZeros());
+  EXPECT_EQ(0u, i32hi16.countTrailingOnes());
+  EXPECT_EQ(16u, i32hi16.countPopulation());
 }
 
 TEST(APIntTest, GCD) {

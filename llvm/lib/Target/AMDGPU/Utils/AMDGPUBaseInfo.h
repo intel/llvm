@@ -94,7 +94,7 @@ unsigned getMinWavesPerEU(const MCSubtargetInfo *STI);
 
 /// \returns Maximum number of waves per execution unit for given subtarget \p
 /// STI without any kind of limitation.
-unsigned getMaxWavesPerEU();
+unsigned getMaxWavesPerEU(const MCSubtargetInfo *STI);
 
 /// \returns Maximum number of waves per execution unit for given subtarget \p
 /// STI and limited by given \p FlatWorkGroupSize.
@@ -267,10 +267,10 @@ LLVM_READONLY
 int getMUBUFBaseOpcode(unsigned Opc);
 
 LLVM_READONLY
-int getMUBUFOpcode(unsigned BaseOpc, unsigned Dwords);
+int getMUBUFOpcode(unsigned BaseOpc, unsigned Elements);
 
 LLVM_READONLY
-int getMUBUFDwords(unsigned Opc);
+int getMUBUFElements(unsigned Opc);
 
 LLVM_READONLY
 bool getMUBUFHasVAddr(unsigned Opc);

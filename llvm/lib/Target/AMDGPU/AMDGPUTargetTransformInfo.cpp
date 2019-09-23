@@ -590,6 +590,61 @@ bool GCNTTIImpl::isAlwaysUniform(const Value *V) const {
   return false;
 }
 
+bool GCNTTIImpl::collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
+                                            Intrinsic::ID IID) const {
+  switch (IID) {
+  case Intrinsic::amdgcn_atomic_inc:
+  case Intrinsic::amdgcn_atomic_dec:
+  case Intrinsic::amdgcn_ds_fadd:
+  case Intrinsic::amdgcn_ds_fmin:
+  case Intrinsic::amdgcn_ds_fmax:
+  case Intrinsic::amdgcn_is_shared:
+  case Intrinsic::amdgcn_is_private:
+    OpIndexes.push_back(0);
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool GCNTTIImpl::rewriteIntrinsicWithAddressSpace(
+  IntrinsicInst *II, Value *OldV, Value *NewV) const {
+  auto IntrID = II->getIntrinsicID();
+  switch (IntrID) {
+  case Intrinsic::amdgcn_atomic_inc:
+  case Intrinsic::amdgcn_atomic_dec:
+  case Intrinsic::amdgcn_ds_fadd:
+  case Intrinsic::amdgcn_ds_fmin:
+  case Intrinsic::amdgcn_ds_fmax: {
+    const ConstantInt *IsVolatile = cast<ConstantInt>(II->getArgOperand(4));
+    if (!IsVolatile->isZero())
+      return false;
+    Module *M = II->getParent()->getParent()->getParent();
+    Type *DestTy = II->getType();
+    Type *SrcTy = NewV->getType();
+    Function *NewDecl =
+        Intrinsic::getDeclaration(M, II->getIntrinsicID(), {DestTy, SrcTy});
+    II->setArgOperand(0, NewV);
+    II->setCalledFunction(NewDecl);
+    return true;
+  }
+  case Intrinsic::amdgcn_is_shared:
+  case Intrinsic::amdgcn_is_private: {
+    unsigned TrueAS = IntrID == Intrinsic::amdgcn_is_shared ?
+      AMDGPUAS::LOCAL_ADDRESS : AMDGPUAS::PRIVATE_ADDRESS;
+    unsigned NewAS = NewV->getType()->getPointerAddressSpace();
+    LLVMContext &Ctx = NewV->getType()->getContext();
+    ConstantInt *NewVal = (TrueAS == NewAS) ?
+      ConstantInt::getTrue(Ctx) : ConstantInt::getFalse(Ctx);
+    II->replaceAllUsesWith(NewVal);
+    II->eraseFromParent();
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
 unsigned GCNTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
                                        Type *SubTp) {
   if (ST->hasVOP3PInsts()) {

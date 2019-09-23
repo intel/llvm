@@ -2,11 +2,11 @@
     "name": "vscode-clangd",
     "displayName": "vscode-clangd",
     "description": "Clang Language Server",
-    "version": "0.0.15",
+    "version": "0.0.16",
     "publisher": "llvm-vs-code-extensions",
     "homepage": "https://clang.llvm.org/extra/clangd.html",
     "engines": {
-        "vscode": "^1.30.0"
+        "vscode": "^1.36.0"
     },
     "categories": [
         "Programming Languages",
@@ -32,15 +32,19 @@
         "vscode:prepublish": "tsc -p ./",
         "compile": "tsc -watch -p ./",
         "postinstall": "node ./node_modules/vscode/bin/install",
+        "format": "clang-format --style=LLVM -i --glob=\"{src,test}/*.ts\"",
         "test": "node ./node_modules/vscode/bin/test"
     },
     "dependencies": {
-        "vscode-languageclient": "^5.2.0",
-        "vscode-languageserver": "^5.2.0"
+        "jsonc-parser": "^2.1.0",
+        "vscode-languageclient": "^5.3.0-next.6",
+        "vscode-languageserver": "^5.3.0-next.6",
+        "vscode-languageserver-types": "^3.14.0"
     },
     "devDependencies": {
         "@types/mocha": "^2.2.32",
         "@types/node": "^6.0.40",
+        "clang-format": "1.2.4",
         "mocha": "^5.2.0",
         "typescript": "^2.0.3",
         "vscode": "^1.1.0"
@@ -50,14 +54,16 @@
         "url": "http://llvm.org/svn/llvm-project/clang-tools-extra/trunk/clangd/clients/clangd-vscode/"
     },
     "contributes": {
-        "languages": [{
-            "id": "cpp",
-            "filenamePatterns": [
-                "**/include/c++/**",
-                "**/MSVC/*/include/**"
-            ],
-            "firstLine": "^\/[/*].*-\\*-\\s*C\\+\\+\\s*-\\*-.*"
-        }],
+        "languages": [
+            {
+                "id": "cpp",
+                "filenamePatterns": [
+                    "**/include/c++/**",
+                    "**/MSVC/*/include/**"
+                ],
+                "firstLine": "^/[/*].*-\\*-\\s*C\\+\\+\\s*-\\*-.*"
+            }
+        ],
         "configuration": {
             "type": "object",
             "title": "clangd configuration",
@@ -83,6 +89,11 @@
                 "clangd.trace": {
                     "type": "string",
                     "description": "Names a file that clangd should log a performance trace to, in chrome trace-viewer JSON format."
+                },
+                "clangd.semanticHighlighting": {
+                    "type": "boolean",
+                    "default": "false",
+                    "description": "Enable semantic highlighting in clangd"
                 }
             }
         },

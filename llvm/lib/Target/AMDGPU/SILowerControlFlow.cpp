@@ -144,7 +144,7 @@ char &llvm::SILowerControlFlowID = SILowerControlFlow::ID;
 
 static bool isSimpleIf(const MachineInstr &MI, const MachineRegisterInfo *MRI,
                        const SIInstrInfo *TII) {
-  unsigned SaveExecReg = MI.getOperand(0).getReg();
+  Register SaveExecReg = MI.getOperand(0).getReg();
   auto U = MRI->use_instr_nodbg_begin(SaveExecReg);
 
   if (U == MRI->use_instr_nodbg_end() ||
@@ -204,7 +204,7 @@ void SILowerControlFlow::emitIf(MachineInstr &MI) {
     .addReg(Exec)
     .addReg(Exec, RegState::ImplicitDefine);
 
-  unsigned Tmp = MRI->createVirtualRegister(BoolRC);
+  Register Tmp = MRI->createVirtualRegister(BoolRC);
 
   MachineInstr *And =
     BuildMI(MBB, I, DL, TII->get(AndOpc), Tmp)
@@ -422,7 +422,7 @@ void SILowerControlFlow::emitEndCf(MachineInstr &MI) {
 void SILowerControlFlow::findMaskOperands(MachineInstr &MI, unsigned OpNo,
        SmallVectorImpl<MachineOperand> &Src) const {
   MachineOperand &Op = MI.getOperand(OpNo);
-  if (!Op.isReg() || !TargetRegisterInfo::isVirtualRegister(Op.getReg())) {
+  if (!Op.isReg() || !Register::isVirtualRegister(Op.getReg())) {
     Src.push_back(Op);
     return;
   }
@@ -442,8 +442,7 @@ void SILowerControlFlow::findMaskOperands(MachineInstr &MI, unsigned OpNo,
 
   for (const auto &SrcOp : Def->explicit_operands())
     if (SrcOp.isReg() && SrcOp.isUse() &&
-        (TargetRegisterInfo::isVirtualRegister(SrcOp.getReg()) ||
-        SrcOp.getReg() == Exec))
+        (Register::isVirtualRegister(SrcOp.getReg()) || SrcOp.getReg() == Exec))
       Src.push_back(SrcOp);
 }
 
@@ -466,7 +465,7 @@ void SILowerControlFlow::combineMasks(MachineInstr &MI) {
   else if (Ops[1].isIdenticalTo(Ops[2])) UniqueOpndIdx = 1;
   else return;
 
-  unsigned Reg = MI.getOperand(OpToReplace).getReg();
+  Register Reg = MI.getOperand(OpToReplace).getReg();
   MI.RemoveOperand(OpToReplace);
   MI.addOperand(Ops[UniqueOpndIdx]);
   if (MRI->use_empty(Reg))

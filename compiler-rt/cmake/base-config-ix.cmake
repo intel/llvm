@@ -47,11 +47,21 @@ if (LLVM_TREE_AVAILABLE)
          ${LLVM_INCLUDE_TESTS})
   option(COMPILER_RT_ENABLE_WERROR "Fail and stop if warning is triggered"
          ${LLVM_ENABLE_WERROR})
+
   # Use just-built Clang to compile/link tests on all platforms.
+  if (CMAKE_CROSSCOMPILING)
+    if (CMAKE_HOST_WIN32)
+      set(_host_executable_suffix ".exe")
+    else()
+      set(_host_executable_suffix "")
+    endif()
+  else()
+    set(_host_executable_suffix ${CMAKE_EXECUTABLE_SUFFIX})
+  endif()
   set(COMPILER_RT_TEST_COMPILER
-    ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang${CMAKE_EXECUTABLE_SUFFIX})
+    ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang${_host_executable_suffix})
   set(COMPILER_RT_TEST_CXX_COMPILER
-    ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++${CMAKE_EXECUTABLE_SUFFIX})
+    ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++${_host_executable_suffix})
 else()
     # Take output dir and install path from the user.
   set(COMPILER_RT_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR} CACHE PATH
@@ -91,15 +101,22 @@ else(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR)
 endif()
 
 if(APPLE)
-  # On Darwin if /usr/include doesn't exist, the user probably has Xcode but not
-  # the command line tools. If this is the case, we need to find the OS X
-  # sysroot to pass to clang.
-  if(NOT EXISTS /usr/include)
-    execute_process(COMMAND xcodebuild -version -sdk macosx Path
+  # On Darwin if /usr/include/c++ doesn't exist, the user probably has Xcode but
+  # not the command line tools (or is using macOS 10.14 or newer). If this is
+  # the case, we need to find the OS X sysroot to pass to clang.
+  if(NOT EXISTS /usr/include/c++)
+    execute_process(COMMAND xcrun -sdk macosx --show-sdk-path
        OUTPUT_VARIABLE OSX_SYSROOT
        ERROR_QUIET
        OUTPUT_STRIP_TRAILING_WHITESPACE)
-    set(OSX_SYSROOT_FLAG "-isysroot${OSX_SYSROOT}")
+    if (NOT OSX_SYSROOT OR NOT EXISTS ${OSX_SYSROOT})
+      message(WARNING "Detected OSX_SYSROOT ${OSX_SYSROOT} does not exist")
+    else()
+      message(STATUS "Found OSX_SYSROOT: ${OSX_SYSROOT}")
+      set(OSX_SYSROOT_FLAG "-isysroot${OSX_SYSROOT}")
+    endif()
+  else()
+    set(OSX_SYSROOT_FLAG "")
   endif()
 
   option(COMPILER_RT_ENABLE_IOS "Enable building for iOS" On)

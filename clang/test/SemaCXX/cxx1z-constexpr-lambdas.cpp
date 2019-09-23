@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -std=c++1z -verify -fsyntax-only -fblocks %s -fcxx-exceptions
+// RUN: %clang_cc1 -std=c++2a -verify -fsyntax-only -fblocks %s -fcxx-exceptions
 // RUN: %clang_cc1 -std=c++1z -verify -fsyntax-only -fblocks -fdelayed-template-parsing %s -fcxx-exceptions
 // RUN: %clang_cc1 -std=c++14 -verify -fsyntax-only -fblocks %s -DCPP14_AND_EARLIER -fcxx-exceptions
 
@@ -22,8 +23,39 @@ namespace ns1 {
 } // end ns1
 
 namespace ns2 {
-  auto L = [](int I) constexpr { asm("non-constexpr");  }; //expected-error{{not allowed in constexpr function}}
+  auto L = [](int I) constexpr { if (I == 5) asm("non-constexpr");  };
+#if __cpp_constexpr < 201907L
+  //expected-warning@-2{{use of this statement in a constexpr function is a C++2a extension}}
+#endif
 } // end ns1
+
+// This is not constexpr until C++20, as the requirements on constexpr
+// functions don't permit try-catch blocks.
+#if __cplusplus <= 201703L
+// expected-error@#try-catch {{constant expression}}
+// expected-note@#try-catch {{non-constexpr function 'operator()'}}
+// expected-note@#try-catch {{declared here}}
+#endif
+constexpr int try_catch = [] { // #try-catch
+  try { return 0; } catch (...) { return 1; }
+}();
+
+// These lambdas have constexpr operator() even though they can never produce a
+// constant expression.
+auto never_constant_1 = [] { // expected-note {{here}}
+  volatile int n = 0;
+  return n;
+};
+auto never_constant_2 = [] () -> int { // expected-note {{here}}
+};
+struct test_never_constant {
+  #if __cplusplus >= 201703L
+  // expected-error@+3 {{non-constexpr declaration of 'operator()' follows constexpr declaration}}
+  // expected-error@+3 {{non-constexpr declaration of 'operator()' follows constexpr declaration}}
+  #endif
+  friend auto decltype(never_constant_1)::operator()() const;
+  friend int decltype(never_constant_2)::operator()() const;
+};
 
 } // end ns test_constexpr_checking
 
@@ -39,9 +71,16 @@ namespace ns2 {
   static_assert(L(3.14) == 3.14);
 }
 namespace ns3 {
-  auto L = [](auto a) { asm("non-constexpr"); return a; }; //expected-note{{declared here}}
+  auto L = [](auto a) { asm("non-constexpr"); return a; };
   constexpr int I =  //expected-error{{must be initialized by a constant expression}}
-      L(3); //expected-note{{non-constexpr function}}
+      L(3);
+#if __cpp_constexpr < 201907L
+//expected-note@-2{{non-constexpr function}}
+//expected-note@-5{{declared here}}
+#else
+//expected-note@-7{{subexpression not valid in a constant expression}}
+//expected-note@-6{{in call to}}
+#endif
 } 
 
 } // end ns test_constexpr_call
@@ -138,7 +177,7 @@ static_assert(I == 12);
 namespace contained_lambdas_call_operator_is_not_constexpr {
 constexpr auto f(int i) {
   double d = 3.14;
-  auto L = [=](auto a) { //expected-note{{declared here}}
+  auto L = [=](auto a) {
     int Isz = sizeof(i);
     asm("hello");
     return sizeof(i) + sizeof(a) + sizeof(d); 
@@ -149,8 +188,14 @@ constexpr auto f(int i) {
 constexpr auto L = f(3);
 
 constexpr auto M =  // expected-error{{must be initialized by}} 
-    L("abc"); //expected-note{{non-constexpr function}}
-
+    L("abc");
+#if __cpp_constexpr < 201907L
+//expected-note@-2{{non-constexpr function}}
+//expected-note@-14{{declared here}}
+#else
+//expected-note@-14{{subexpression not valid in a constant expression}}
+//expected-note@-6{{in call to}}
+#endif
 } // end ns contained_lambdas_call_operator_is_not_constexpr
 
 

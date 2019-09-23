@@ -365,8 +365,8 @@ protected:
   /// Processor has AVX-512 vp2intersect instructions
   bool HasVP2INTERSECT = false;
 
-  /// Processor supports MPX - Memory Protection Extensions
-  bool HasMPX = false;
+  /// Deprecated flag for MPX instructions.
+  bool DeprecatedHasMPX = false;
 
   /// Processor supports CET SHSTK - Control-Flow Enforcement Technology
   /// using Shadow Stack
@@ -435,6 +435,9 @@ protected:
   ///
   // FIXME: this is a known good value for Yonah. How about others?
   unsigned MaxInlineSizeThreshold = 128;
+
+  /// Indicates target prefers 128 bit instructions.
+  bool Prefer128Bit = false;
 
   /// Indicates target prefers 256 bit instructions.
   bool Prefer256Bit = false;
@@ -527,7 +530,7 @@ public:
 
   /// Methods used by Global ISel
   const CallLowering *getCallLowering() const override;
-  const InstructionSelector *getInstructionSelector() const override;
+  InstructionSelector *getInstructionSelector() const override;
   const LegalizerInfo *getLegalizerInfo() const override;
   const RegisterBankInfo *getRegBankInfo() const override;
 
@@ -684,7 +687,6 @@ public:
   bool hasBF16() const { return HasBF16; }
   bool hasVP2INTERSECT() const { return HasVP2INTERSECT; }
   bool hasBITALG() const { return HasBITALG; }
-  bool hasMPX() const { return HasMPX; }
   bool hasSHSTK() const { return HasSHSTK; }
   bool hasCLFLUSHOPT() const { return HasCLFLUSHOPT; }
   bool hasCLWB() const { return HasCLWB; }

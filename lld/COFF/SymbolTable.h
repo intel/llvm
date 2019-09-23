@@ -29,7 +29,7 @@ class Defined;
 class DefinedAbsolute;
 class DefinedRegular;
 class DefinedRelative;
-class Lazy;
+class LazyArchive;
 class SectionChunk;
 class Symbol;
 
@@ -49,10 +49,13 @@ class SymbolTable {
 public:
   void addFile(InputFile *file);
 
+  // Emit errors for symbols that cannot be resolved.
+  void reportUnresolvable();
+
   // Try to resolve any undefined symbols and update the symbol table
   // accordingly, then print an error message for any remaining undefined
-  // symbols.
-  void reportRemainingUndefines();
+  // symbols and warn about imported local symbols.
+  void resolveRemainingUndefines();
 
   void loadMinGWAutomaticImports();
   bool handleMinGWAutomaticImport(Symbol *sym, StringRef name);
@@ -83,7 +86,8 @@ public:
   Symbol *addAbsolute(StringRef n, uint64_t va);
 
   Symbol *addUndefined(StringRef name, InputFile *f, bool isWeakAlias);
-  void addLazy(ArchiveFile *f, const Archive::Symbol sym);
+  void addLazyArchive(ArchiveFile *f, const Archive::Symbol &sym);
+  void addLazyObject(LazyObjFile *f, StringRef n);
   Symbol *addAbsolute(StringRef n, COFFSymbolRef s);
   Symbol *addRegular(InputFile *f, StringRef n,
                      const llvm::object::coff_symbol_generic *s = nullptr,
@@ -97,6 +101,7 @@ public:
   Symbol *addImportData(StringRef n, ImportFile *f);
   Symbol *addImportThunk(StringRef name, DefinedImportData *s,
                          uint16_t machine);
+  void addLibcall(StringRef name);
 
   void reportDuplicate(Symbol *existing, InputFile *newFile);
 
@@ -110,6 +115,9 @@ public:
   }
 
 private:
+  /// Given a name without "__imp_" prefix, returns a defined symbol
+  /// with the "__imp_" prefix, if it exists.
+  Defined *impSymbol(StringRef name);
   /// Inserts symbol if not already present.
   std::pair<Symbol *, bool> insert(StringRef name);
   /// Same as insert(Name), but also sets isUsedInRegularObj.

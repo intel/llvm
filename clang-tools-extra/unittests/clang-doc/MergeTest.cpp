@@ -43,10 +43,10 @@ TEST(MergeTest, mergeNamespaceInfos) {
   Two.ChildEnums.back().Name = "TwoEnum";
 
   std::vector<std::unique_ptr<Info>> Infos;
-  Infos.emplace_back(llvm::make_unique<NamespaceInfo>(std::move(One)));
-  Infos.emplace_back(llvm::make_unique<NamespaceInfo>(std::move(Two)));
+  Infos.emplace_back(std::make_unique<NamespaceInfo>(std::move(One)));
+  Infos.emplace_back(std::make_unique<NamespaceInfo>(std::move(Two)));
 
-  auto Expected = llvm::make_unique<NamespaceInfo>();
+  auto Expected = std::make_unique<NamespaceInfo>();
   Expected->Name = "Namespace";
   Expected->Namespace.emplace_back(EmptySID, "A", InfoType::IT_namespace);
 
@@ -87,7 +87,9 @@ TEST(MergeTest, mergeRecordInfos) {
   One.Parents.emplace_back(EmptySID, "F", InfoType::IT_record);
   One.VirtualParents.emplace_back(EmptySID, "G", InfoType::IT_record);
 
-  One.ChildRecords.emplace_back(NonEmptySID, "ChildStruct",
+  One.Bases.emplace_back(EmptySID, "F", "path/to/F", true,
+                         AccessSpecifier::AS_protected, true);
+  One.ChildRecords.emplace_back(NonEmptySID, "SharedChildStruct",
                                 InfoType::IT_record);
   One.ChildFunctions.emplace_back();
   One.ChildFunctions.back().Name = "OneFunction";
@@ -104,18 +106,18 @@ TEST(MergeTest, mergeRecordInfos) {
 
   Two.TagType = TagTypeKind::TTK_Class;
 
-  Two.ChildRecords.emplace_back(EmptySID, "OtherChildStruct",
-                                InfoType::IT_record);
+  Two.ChildRecords.emplace_back(NonEmptySID, "SharedChildStruct",
+                                InfoType::IT_record, "path");
   Two.ChildFunctions.emplace_back();
   Two.ChildFunctions.back().Name = "TwoFunction";
   Two.ChildEnums.emplace_back();
   Two.ChildEnums.back().Name = "TwoEnum";
 
   std::vector<std::unique_ptr<Info>> Infos;
-  Infos.emplace_back(llvm::make_unique<RecordInfo>(std::move(One)));
-  Infos.emplace_back(llvm::make_unique<RecordInfo>(std::move(Two)));
+  Infos.emplace_back(std::make_unique<RecordInfo>(std::move(One)));
+  Infos.emplace_back(std::make_unique<RecordInfo>(std::move(Two)));
 
-  auto Expected = llvm::make_unique<RecordInfo>();
+  auto Expected = std::make_unique<RecordInfo>();
   Expected->Name = "r";
   Expected->Namespace.emplace_back(EmptySID, "A", InfoType::IT_namespace);
 
@@ -126,11 +128,11 @@ TEST(MergeTest, mergeRecordInfos) {
   Expected->TagType = TagTypeKind::TTK_Class;
   Expected->Parents.emplace_back(EmptySID, "F", InfoType::IT_record);
   Expected->VirtualParents.emplace_back(EmptySID, "G", InfoType::IT_record);
+  Expected->Bases.emplace_back(EmptySID, "F", "path/to/F", true,
+                               AccessSpecifier::AS_protected, true);
 
-  Expected->ChildRecords.emplace_back(NonEmptySID, "ChildStruct",
-                                      InfoType::IT_record);
-  Expected->ChildRecords.emplace_back(EmptySID, "OtherChildStruct",
-                                      InfoType::IT_record);
+  Expected->ChildRecords.emplace_back(NonEmptySID, "SharedChildStruct",
+                                      InfoType::IT_record, "path");
   Expected->ChildFunctions.emplace_back();
   Expected->ChildFunctions.back().Name = "OneFunction";
   Expected->ChildFunctions.back().USR = NonEmptySID;
@@ -162,9 +164,9 @@ TEST(MergeTest, mergeFunctionInfos) {
   One.Description.emplace_back();
   auto OneFullComment = &One.Description.back();
   OneFullComment->Kind = "FullComment";
-  auto OneParagraphComment = llvm::make_unique<CommentInfo>();
+  auto OneParagraphComment = std::make_unique<CommentInfo>();
   OneParagraphComment->Kind = "ParagraphComment";
-  auto OneTextComment = llvm::make_unique<CommentInfo>();
+  auto OneTextComment = std::make_unique<CommentInfo>();
   OneTextComment->Kind = "TextComment";
   OneTextComment->Text = "This is a text comment.";
   OneParagraphComment->Children.push_back(std::move(OneTextComment));
@@ -182,19 +184,19 @@ TEST(MergeTest, mergeFunctionInfos) {
   Two.Description.emplace_back();
   auto TwoFullComment = &Two.Description.back();
   TwoFullComment->Kind = "FullComment";
-  auto TwoParagraphComment = llvm::make_unique<CommentInfo>();
+  auto TwoParagraphComment = std::make_unique<CommentInfo>();
   TwoParagraphComment->Kind = "ParagraphComment";
-  auto TwoTextComment = llvm::make_unique<CommentInfo>();
+  auto TwoTextComment = std::make_unique<CommentInfo>();
   TwoTextComment->Kind = "TextComment";
   TwoTextComment->Text = "This is a text comment.";
   TwoParagraphComment->Children.push_back(std::move(TwoTextComment));
   TwoFullComment->Children.push_back(std::move(TwoParagraphComment));
 
   std::vector<std::unique_ptr<Info>> Infos;
-  Infos.emplace_back(llvm::make_unique<FunctionInfo>(std::move(One)));
-  Infos.emplace_back(llvm::make_unique<FunctionInfo>(std::move(Two)));
+  Infos.emplace_back(std::make_unique<FunctionInfo>(std::move(One)));
+  Infos.emplace_back(std::make_unique<FunctionInfo>(std::move(Two)));
 
-  auto Expected = llvm::make_unique<FunctionInfo>();
+  auto Expected = std::make_unique<FunctionInfo>();
   Expected->Name = "f";
   Expected->Namespace.emplace_back(EmptySID, "A", InfoType::IT_namespace);
 
@@ -209,9 +211,9 @@ TEST(MergeTest, mergeFunctionInfos) {
   Expected->Description.emplace_back();
   auto ExpectedFullComment = &Expected->Description.back();
   ExpectedFullComment->Kind = "FullComment";
-  auto ExpectedParagraphComment = llvm::make_unique<CommentInfo>();
+  auto ExpectedParagraphComment = std::make_unique<CommentInfo>();
   ExpectedParagraphComment->Kind = "ParagraphComment";
-  auto ExpectedTextComment = llvm::make_unique<CommentInfo>();
+  auto ExpectedTextComment = std::make_unique<CommentInfo>();
   ExpectedTextComment->Kind = "TextComment";
   ExpectedTextComment->Text = "This is a text comment.";
   ExpectedParagraphComment->Children.push_back(std::move(ExpectedTextComment));
@@ -243,10 +245,10 @@ TEST(MergeTest, mergeEnumInfos) {
   Two.Members.emplace_back("Y");
 
   std::vector<std::unique_ptr<Info>> Infos;
-  Infos.emplace_back(llvm::make_unique<EnumInfo>(std::move(One)));
-  Infos.emplace_back(llvm::make_unique<EnumInfo>(std::move(Two)));
+  Infos.emplace_back(std::make_unique<EnumInfo>(std::move(One)));
+  Infos.emplace_back(std::make_unique<EnumInfo>(std::move(Two)));
 
-  auto Expected = llvm::make_unique<EnumInfo>();
+  auto Expected = std::make_unique<EnumInfo>();
   Expected->Name = "e";
   Expected->Namespace.emplace_back(EmptySID, "A", InfoType::IT_namespace);
 

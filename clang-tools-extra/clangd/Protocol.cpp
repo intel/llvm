@@ -331,6 +331,10 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R) {
         }
       }
     }
+    if (auto *Rename = TextDocument->getObject("rename")) {
+      if (auto RenameSupport = Rename->getBoolean("prepareSupport"))
+        R.RenamePrepareSupport = *RenameSupport;
+    }
   }
   if (auto *Workspace = O->getObject("workspace")) {
     if (auto *Symbol = Workspace->getObject("symbol")) {
@@ -664,6 +668,15 @@ llvm::json::Value toJSON(const TweakArgs &A) {
 
 llvm::json::Value toJSON(const ApplyWorkspaceEditParams &Params) {
   return llvm::json::Object{{"edit", Params.edit}};
+}
+
+bool fromJSON(const llvm::json::Value &Response,
+              ApplyWorkspaceEditResponse &R) {
+  llvm::json::ObjectMapper O(Response);
+  if (!O || !O.map("applied", R.applied))
+    return false;
+  O.map("failureReason", R.failureReason);
+  return true;
 }
 
 bool fromJSON(const llvm::json::Value &Params, TextDocumentPositionParams &R) {

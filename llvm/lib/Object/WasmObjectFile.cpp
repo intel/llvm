@@ -56,7 +56,7 @@ LLVM_DUMP_METHOD void WasmSymbol::dump() const { print(dbgs()); }
 Expected<std::unique_ptr<WasmObjectFile>>
 ObjectFile::createWasmObjectFile(MemoryBufferRef Buffer) {
   Error Err = Error::success();
-  auto ObjectFile = llvm::make_unique<WasmObjectFile>(Buffer, Err);
+  auto ObjectFile = std::make_unique<WasmObjectFile>(Buffer, Err);
   if (Err)
     return std::move(Err);
 
@@ -781,7 +781,7 @@ Error WasmObjectFile::parseRelocSection(StringRef Name, ReadContext &Ctx) {
       break;
     case wasm::R_WASM_GLOBAL_INDEX_LEB:
       // R_WASM_GLOBAL_INDEX_LEB are can be used against function and data
-      // symbols to refer to thier GOT enties.
+      // symbols to refer to their GOT entries.
       if (!isValidGlobalSymbol(Reloc.Index) &&
           !isValidDataSymbol(Reloc.Index) &&
           !isValidFunctionSymbol(Reloc.Index))

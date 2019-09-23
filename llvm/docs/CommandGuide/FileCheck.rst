@@ -107,12 +107,12 @@ and from the command line.
   Sets a filecheck pattern variable ``VAR`` with value ``VALUE`` that can be
   used in ``CHECK:`` lines.
 
-.. option:: -D#<NUMVAR>=<VALUE EXPRESSION>
+.. option:: -D#<NUMVAR>=<NUMERIC EXPRESSION>
 
   Sets a filecheck numeric variable ``NUMVAR`` to the result of evaluating
-  ``<VALUE EXPRESSION>`` that can be used in ``CHECK:`` lines. See section
-  ``FileCheck Numeric Variables and Expressions`` for details on the format
-  and meaning of ``<VALUE EXPRESSION>``.
+  ``<NUMERIC EXPRESSION>`` that can be used in ``CHECK:`` lines. See section
+  ``FileCheck Numeric Variables and Expressions`` for details on supported
+  numeric expressions.
 
 .. option:: -version
 
@@ -527,7 +527,10 @@ Because regular expressions are enclosed with double braces, they are
 visually distinct, and you don't need to use escape characters within the double
 braces like you would in C.  In the rare case that you want to match double
 braces explicitly from the input, you can use something ugly like
-``{{[{][{]}}`` as your pattern.
+``{{[}][}]}}`` as your pattern.  Or if you are using the repetition count
+syntax, for example ``[[:xdigit:]]{8}`` to match exactly 8 hex digits, you
+would need to add parentheses like this ``{{([[:xdigit:]]{8})}}`` to avoid
+confusion with FileCheck's closing double-brace.
 
 FileCheck String Substitution Blocks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -625,11 +628,27 @@ but would not match the text:
 
 due to ``7`` being unequal to ``5 + 1``.
 
+The syntax also supports an empty expression, equivalent to writing {{[0-9]+}},
+for cases where the input must contain a numeric value but the value itself
+does not matter:
+
+.. code-block:: gas
+
+    ; CHECK-NOT: mov r0, r[[#]]
+
+to check that a value is synthesized rather than moved around.
+
+A numeric variable can also be defined to the result of a numeric expression,
+in which case the numeric expression is checked and if verified the variable is
+assigned to the value. The unified syntax for both defining numeric variables
+and checking a numeric expression is thus ``[[#<NUMVAR>: <expr>]]`` with each
+element as described previously.
+
 The ``--enable-var-scope`` option has the same effect on numeric variables as
 on string variables.
 
 Important note: In its current implementation, an expression cannot use a
-numeric variable defined on the same line.
+numeric variable defined earlier in the same CHECK directive.
 
 FileCheck Pseudo Numeric Variables
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

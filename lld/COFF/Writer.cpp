@@ -240,6 +240,8 @@ private:
   IdataContents idata;
   Chunk *importTableStart = nullptr;
   uint64_t importTableSize = 0;
+  Chunk *edataStart = nullptr;
+  Chunk *edataEnd = nullptr;
   Chunk *iatStart = nullptr;
   uint64_t iatSize = 0;
   DelayLoadContents delayIdata;
@@ -626,6 +628,9 @@ void Writer::run() {
 
   writeMapFile(outputSections);
 
+  if (errorCount())
+    return;
+
   ScopedTimer t2(diskCommitTimer);
   if (auto e = buffer->commit())
     fatal("failed to write the output file: " + toString(std::move(e)));
@@ -762,6 +767,28 @@ void Writer::locateImportTables() {
   }
 }
 
+// Return whether a SectionChunk's suffix (the dollar and any trailing
+// suffix) should be removed and sorted into the main suffixless
+// PartialSection.
+static bool shouldStripSectionSuffix(SectionChunk *sc, StringRef name) {
+  // On MinGW, comdat groups are formed by putting the comdat group name
+  // after the '$' in the section name. For .eh_frame$<symbol>, that must
+  // still be sorted before the .eh_frame trailer from crtend.o, thus just
+  // strip the section name trailer. For other sections, such as
+  // .tls$$<symbol> (where non-comdat .tls symbols are otherwise stored in
+  // ".tls$"), they must be strictly sorted after .tls. And for the
+  // hypothetical case of comdat .CRT$XCU, we definitely need to keep the
+  // suffix for sorting. Thus, to play it safe, only strip the suffix for
+  // the standard sections.
+  if (!config->mingw)
+    return false;
+  if (!sc || !sc->isCOMDAT())
+    return false;
+  return name.startswith(".text$") || name.startswith(".data$") ||
+         name.startswith(".rdata$") || name.startswith(".pdata$") ||
+         name.startswith(".xdata$") || name.startswith(".eh_frame$");
+}
+
 // Create output section objects and add them to OutputSections.
 void Writer::createSections() {
   // First, create the builtin sections.
@@ -807,10 +834,7 @@ void Writer::createSections() {
       continue;
     }
     StringRef name = c->getSectionName();
-    // On MinGW, comdat groups are formed by putting the comdat group name
-    // after the '$' in the section name. Such a section name suffix shouldn't
-    // imply separate alphabetical sorting of those section chunks though.
-    if (config->mingw && sc && sc->isCOMDAT())
+    if (shouldStripSectionSuffix(sc, name))
       name = name.split('$').first;
     PartialSection *pSec = createPartialSection(name,
                                                 c->getOutputCharacteristics());
@@ -818,6 +842,7 @@ void Writer::createSections() {
   }
 
   fixPartialSectionChars(".rsrc", data | r);
+  fixPartialSectionChars(".edata", data | r);
   // Even in non MinGW cases, we might need to link against GNU import
   // libraries.
   bool hasIdata = fixGnuImportChunks();
@@ -992,10 +1017,19 @@ void Writer::appendImportThunks() {
 }
 
 void Writer::createExportTable() {
-  if (config->exports.empty())
-    return;
-  for (Chunk *c : edata.chunks)
-    edataSec->addChunk(c);
+  if (!edataSec->chunks.empty()) {
+    // Allow using a custom built export table from input object files, instead
+    // of having the linker synthesize the tables.
+    if (config->hadExplicitExports)
+      warn("literal .edata sections override exports");
+  } else if (!config->exports.empty()) {
+    for (Chunk *c : edata.chunks)
+      edataSec->addChunk(c);
+  }
+  if (!edataSec->chunks.empty()) {
+    edataStart = edataSec->chunks.front();
+    edataEnd = edataSec->chunks.back();
+  }
 }
 
 void Writer::removeUnusedSections() {
@@ -1075,6 +1109,13 @@ Optional<coff_symbol16> Writer::createSymbol(Defined *def) {
     break;
   }
   }
+
+  // Symbols that are runtime pseudo relocations don't point to the actual
+  // symbol data itself (as they are imported), but points to the IAT entry
+  // instead. Avoid emitting them to the symbol table, as they can confuse
+  // debuggers.
+  if (def->isRuntimePseudoReloc)
+    return None;
 
   StringRef name = def->getName();
   if (name.size() > COFF::NameSize) {
@@ -1179,8 +1220,10 @@ void Writer::assignAddresses() {
   sizeOfHeaders +=
       config->is64() ? sizeof(pe32plus_header) : sizeof(pe32_header);
   sizeOfHeaders = alignTo(sizeOfHeaders, config->fileAlign);
-  uint64_t rva = pageSize; // The first page is kept unmapped.
   fileSize = sizeOfHeaders;
+
+  // The first page is kept unmapped.
+  uint64_t rva = alignTo(sizeOfHeaders, config->align);
 
   for (OutputSection *sec : outputSections) {
     if (sec == relocSec)
@@ -1211,10 +1254,10 @@ void Writer::assignAddresses() {
     sec->header.SizeOfRawData = rawSize;
     if (rawSize != 0)
       sec->header.PointerToRawData = fileSize;
-    rva += alignTo(virtualSize, pageSize);
+    rva += alignTo(virtualSize, config->align);
     fileSize += alignTo(rawSize, config->fileAlign);
   }
-  sizeOfImage = alignTo(rva, pageSize);
+  sizeOfImage = alignTo(rva, config->align);
 
   // Assign addresses to sections in MergeChunks.
   for (MergeChunk *mc : MergeChunk::instances)
@@ -1283,7 +1326,7 @@ template <typename PEHeaderTy> void Writer::writeHeader() {
   pe->MinorLinkerVersion = 0;
 
   pe->ImageBase = config->imageBase;
-  pe->SectionAlignment = pageSize;
+  pe->SectionAlignment = config->align;
   pe->FileAlignment = config->fileAlign;
   pe->MajorImageVersion = config->majorImageVersion;
   pe->MinorImageVersion = config->minorImageVersion;
@@ -1335,9 +1378,10 @@ template <typename PEHeaderTy> void Writer::writeHeader() {
   // Write data directory
   auto *dir = reinterpret_cast<data_directory *>(buf);
   buf += sizeof(*dir) * numberOfDataDirectory;
-  if (!config->exports.empty()) {
-    dir[EXPORT_TABLE].RelativeVirtualAddress = edata.getRVA();
-    dir[EXPORT_TABLE].Size = edata.getSize();
+  if (edataStart) {
+    dir[EXPORT_TABLE].RelativeVirtualAddress = edataStart->getRVA();
+    dir[EXPORT_TABLE].Size =
+        edataEnd->getRVA() + edataEnd->getSize() - edataStart->getRVA();
   }
   if (importTableStart) {
     dir[IMPORT_TABLE].RelativeVirtualAddress = importTableStart->getRVA();
@@ -1475,7 +1519,8 @@ static void maybeAddAddressTakenFunction(SymbolRVASet &addressTakenSyms,
     // Absolute is never code, synthetic generally isn't and usually isn't
     // determinable.
     break;
-  case Symbol::LazyKind:
+  case Symbol::LazyArchiveKind:
+  case Symbol::LazyObjectKind:
   case Symbol::UndefinedKind:
     // Undefined symbols resolve to zero, so they don't have an RVA. Lazy
     // symbols shouldn't have relocations.

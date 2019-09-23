@@ -1,12 +1,12 @@
-========================
-LLVM 9.0.0 Release Notes
-========================
+=========================
+LLVM 10.0.0 Release Notes
+=========================
 
 .. contents::
     :local:
 
 .. warning::
-   These are in-progress notes for the upcoming LLVM 9 release.
+   These are in-progress notes for the upcoming LLVM 10 release.
    Release notes for previous releases can be found on
    `the Download Page <https://releases.llvm.org/download.html>`_.
 
@@ -15,7 +15,7 @@ Introduction
 ============
 
 This document contains the release notes for the LLVM Compiler Infrastructure,
-release 9.0.0.  Here we describe the status of LLVM, including major improvements
+release 10.0.0.  Here we describe the status of LLVM, including major improvements
 from the previous release, improvements in various subprojects of LLVM, and
 some of the current users of the code.  All LLVM releases may be downloaded
 from the `LLVM releases web site <https://llvm.org/releases/>`_.
@@ -40,14 +40,8 @@ Non-comprehensive list of changes in this release
    functionality, or simply have a lot to talk about), see the `NOTE` below
    for adding a new subsection.
 
-* The optimizer will now convert calls to ``memcmp`` into a calls to ``bcmp`` in
-  some circumstances. Users who are building freestanding code (not depending on
-  the platform's libc) without specifying ``-ffreestanding`` may need to either
-  pass ``-fno-builtin-bcmp``, or provide a ``bcmp`` function.
-
-* Two new extension points, namely ``EP_FullLinkTimeOptimizationEarly`` and
-  ``EP_FullLinkTimeOptimizationLast`` are available for plugins to specialize
-  the legacy pass manager full LTO pipeline.
+* The ISD::FP_ROUND_INREG opcode and related code was removed from SelectionDAG.
+* Enabled MemorySSA as a loop dependency.
 
 .. NOTE
    If you would like to document a larger change, then you can add a
@@ -62,29 +56,15 @@ Non-comprehensive list of changes in this release
 Changes to the LLVM IR
 ----------------------
 
-* Added ``immarg`` parameter attribute. This indicates an intrinsic
-  parameter is required to be a simple constant. This annotation must
-  be accurate to avoid possible miscompiles.
+* Unnamed function arguments now get printed with their automatically
+  generated name (e.g. "i32 %0") in definitions. This may require front-ends
+  to update their tests; if so there is a script utils/add_argument_names.py
+  that correctly converted 80-90% of Clang tests. Some manual work will almost
+  certainly still be needed.
 
-* The 2-field form of global variables ``@llvm.global_ctors`` and
-  ``@llvm.global_dtors`` has been deleted. The third field of their element
-  type is now mandatory. Specify `i8* null` to migrate from the obsoleted
-  2-field form.
-
-* The ``byval`` attribute can now take a type parameter:
-  ``byval(<ty>)``. If present it must be identical to the argument's
-  pointee type. In the next release we intend to make this parameter
-  mandatory in preparation for opaque pointer types.
-
-* ``atomicrmw xchg`` now allows floating point types
-
-* ``atomicrmw`` now supports ``fadd`` and ``fsub``
 
 Changes to building LLVM
 ------------------------
-
-* Building LLVM with Visual Studio now requires version 2017 or later.
-
 
 Changes to the ARM Backend
 --------------------------
@@ -108,21 +88,30 @@ Changes to the X86 Target
 
  During this release ...
 
+* Less than 128 bit vector types, v2i32, v4i16, v2i16, v8i8, v4i8, and v2i8, are
+  now stored in the lower bits of an xmm register and the upper bits are
+  undefined. Previously the elements were spread apart with undefined bits in
+  between them.
+* v32i8 and v64i8 vectors with AVX512F enabled, but AVX512BW disabled will now
+  be passed in ZMM registers for calls and returns. Previously they were passed
+  in two YMM registers. Old behavior can be enabled by passing
+  -x86-enable-old-knl-abi
+* -mprefer-vector-width=256 is now the default behavior skylake-avx512 and later
+  Intel CPUs. This tries to limit the use of 512-bit registers which can cause a
+  decrease in CPU frequency on these CPUs. This can be re-enabled by passing
+  -mprefer-vector-width=512 to clang or passing -mattr=-prefer-256-bit to llc.
+
 Changes to the AMDGPU Target
 -----------------------------
-
-* Function call support is now enabled by default
-
-* Improved support for 96-bit loads and stores
-
-* DPP combiner pass is now enabled by default
-
-* Support for gfx10
 
 Changes to the AVR Target
 -----------------------------
 
  During this release ...
+
+* Deprecated the mpx feature flag for the Intel MPX instructions. There were no
+  intrinsics for this feature. This change only this effects the results
+  returned by getHostCPUFeatures on CPUs that implement the MPX instructions.
 
 Changes to the WebAssembly Target
 ---------------------------------
@@ -145,16 +134,8 @@ Changes to the DAG infrastructure
 Changes to LLDB
 ===============
 
-* Backtraces are now color highlighting in the terminal.
-
-* DWARF4 (debug_types) and DWARF5 (debug_info) type units are now supported.
-
-* This release will be the last where ``lldb-mi`` is shipped as part of LLDB.
-  The tool will still be available in a `downstream repository on GitHub
-  <https://github.com/lldb-tools/lldb-mi>`_.
-
-External Open Source Projects Using LLVM 9
-==========================================
+External Open Source Projects Using LLVM 10
+===========================================
 
 * A project...
 

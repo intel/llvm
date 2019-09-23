@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if defined(__x86_64__) || defined(_M_X64)
+
 #include "lldb/Host/windows/HostThreadWindows.h"
 #include "lldb/Host/windows/windows.h"
 #include "lldb/Utility/RegisterValue.h"
@@ -530,7 +532,7 @@ bool RegisterContextWindows_x64::WriteRegister(const RegisterInfo *reg_info,
   }
 
   // Physically update the registers in the target process.
-  TargetThreadWindows &wthread = static_cast<TargetThreadWindows &>(m_thread);
-  return ::SetThreadContext(
-      wthread.GetHostThread().GetNativeThread().GetSystemHandle(), &m_context);
+  return ApplyAllRegisterValues();
 }
+
+#endif // defined(__x86_64__) || defined(_M_X64)

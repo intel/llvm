@@ -178,7 +178,7 @@ static Error createPlistFile(llvm::StringRef Bin, llvm::StringRef BundleRoot) {
   llvm::SmallString<128> InfoPlist(BundleRoot);
   llvm::sys::path::append(InfoPlist, "Contents/Info.plist");
   std::error_code EC;
-  llvm::raw_fd_ostream PL(InfoPlist, EC, llvm::sys::fs::F_Text);
+  llvm::raw_fd_ostream PL(InfoPlist, EC, llvm::sys::fs::OF_Text);
   if (EC)
     return make_error<StringError>(
         "cannot create Plist: " + toString(errorCodeToError(EC)), EC);
@@ -584,16 +584,17 @@ int main(int argc, char **argv) {
       } else {
         std::error_code EC;
         OS = std::make_shared<raw_fd_ostream>(NoOutput ? "-" : OutputFile, EC,
-                                              sys::fs::F_None);
+                                              sys::fs::OF_None);
         if (EC) {
           WithColor::error() << OutputFile << ": " << EC.message();
           return 1;
         }
       }
 
-      auto LinkLambda = [&,
-                         OutputFile](std::shared_ptr<raw_fd_ostream> Stream) {
-        AllOK.fetch_and(linkDwarf(*Stream, BinHolder, *Map, *OptionsOrErr));
+      auto LinkLambda = [&, OutputFile](std::shared_ptr<raw_fd_ostream> Stream,
+                                        LinkOptions Options) {
+        AllOK.fetch_and(
+            linkDwarf(*Stream, BinHolder, *Map, std::move(Options)));
         Stream->flush();
         if (Verify && !NoOutput)
           AllOK.fetch_and(verify(OutputFile, Map->getTriple().getArchName()));
@@ -603,9 +604,9 @@ int main(int argc, char **argv) {
       // out the (significantly smaller) stack when using threads. We don't
       // want this limitation when we only have a single thread.
       if (ThreadCount == 1)
-        LinkLambda(OS);
+        LinkLambda(OS, *OptionsOrErr);
       else
-        Threads.async(LinkLambda, OS);
+        Threads.async(LinkLambda, OS, *OptionsOrErr);
     }
 
     Threads.wait();

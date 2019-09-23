@@ -145,7 +145,7 @@ public:
     else if (!Parser.Line->Tokens.empty())
       Parser.CurrentLines = &Parser.Line->Tokens.back().Children;
     PreBlockLine = std::move(Parser.Line);
-    Parser.Line = llvm::make_unique<UnwrappedLine>();
+    Parser.Line = std::make_unique<UnwrappedLine>();
     Parser.Line->Level = PreBlockLine->Level;
     Parser.Line->InPPDirective = PreBlockLine->InPPDirective;
   }
@@ -174,8 +174,7 @@ public:
                             const FormatStyle &Style, unsigned &LineLevel)
       : CompoundStatementIndenter(Parser, LineLevel,
                                   Style.BraceWrapping.AfterControlStatement,
-                                  Style.BraceWrapping.IndentBraces) {
-  }
+                                  Style.BraceWrapping.IndentBraces) {}
   CompoundStatementIndenter(UnwrappedLineParser *Parser, unsigned &LineLevel,
                             bool WrapBrace, bool IndentBrace)
       : LineLevel(LineLevel), OldLineLevel(LineLevel) {
@@ -1215,7 +1214,9 @@ void UnwrappedLineParser::parseStructuralElement() {
     case tok::kw_typedef:
       nextToken();
       if (FormatTok->isOneOf(Keywords.kw_NS_ENUM, Keywords.kw_NS_OPTIONS,
-                             Keywords.kw_CF_ENUM, Keywords.kw_CF_OPTIONS))
+                             Keywords.kw_CF_ENUM, Keywords.kw_CF_OPTIONS,
+                             Keywords.kw_CF_CLOSED_ENUM,
+                             Keywords.kw_NS_CLOSED_ENUM))
         parseEnum();
       break;
     case tok::kw_struct:
@@ -1350,7 +1351,7 @@ void UnwrappedLineParser::parseStructuralElement() {
           (TokenCount == 2 && Line->Tokens.front().Tok->is(tok::comment))) {
         if (FormatTok->Tok.is(tok::colon) && !Line->MustBeDeclaration) {
           Line->Tokens.begin()->Tok->MustBreakBefore = true;
-          parseLabel();
+          parseLabel(!Style.IndentGotoLabels);
           return;
         }
         // Recognize function-like macro usages without trailing semicolon as
@@ -1439,8 +1440,11 @@ bool UnwrappedLineParser::tryToParseLambda() {
     case tok::identifier:
     case tok::numeric_constant:
     case tok::coloncolon:
+    case tok::kw_class:
     case tok::kw_mutable:
     case tok::kw_noexcept:
+    case tok::kw_template:
+    case tok::kw_typename:
       nextToken();
       break;
     // Specialization of a template with an integer parameter can contain
@@ -1454,6 +1458,9 @@ bool UnwrappedLineParser::tryToParseLambda() {
     // followed by an `a->b` expression, such as:
     // ([obj func:arg] + a->b)
     // Otherwise the code below would parse as a lambda.
+    //
+    // FIXME: This heuristic is incorrect for C++20 generic lambdas with
+    // explicit template lists: []<bool b = true && false>(U &&u){}
     case tok::plus:
     case tok::minus:
     case tok::exclaim:
@@ -1755,7 +1762,7 @@ void UnwrappedLineParser::parseSquare(bool LambdaIntroducer) {
 void UnwrappedLineParser::parseIfThenElse() {
   assert(FormatTok->Tok.is(tok::kw_if) && "'if' expected");
   nextToken();
-  if (FormatTok->Tok.is(tok::kw_constexpr))
+  if (FormatTok->Tok.isOneOf(tok::kw_constexpr, tok::identifier))
     nextToken();
   if (FormatTok->Tok.is(tok::l_paren))
     parseParens();
@@ -1872,8 +1879,13 @@ void UnwrappedLineParser::parseNamespace() {
   if (InitialToken.is(TT_NamespaceMacro)) {
     parseParens();
   } else {
-    while (FormatTok->isOneOf(tok::identifier, tok::coloncolon))
-      nextToken();
+    while (FormatTok->isOneOf(tok::identifier, tok::coloncolon, tok::kw_inline,
+                              tok::l_square)) {
+      if (FormatTok->is(tok::l_square))
+        parseSquare();
+      else
+        nextToken();
+    }
   }
   if (FormatTok->Tok.is(tok::l_brace)) {
     if (ShouldBreakBeforeBrace(Style, InitialToken))
@@ -1964,11 +1976,13 @@ void UnwrappedLineParser::parseDoWhile() {
   parseStructuralElement();
 }
 
-void UnwrappedLineParser::parseLabel() {
+void UnwrappedLineParser::parseLabel(bool LeftAlignLabel) {
   nextToken();
   unsigned OldLineLevel = Line->Level;
   if (Line->Level > 1 || (!Line->InPPDirective && Line->Level > 0))
     --Line->Level;
+  if (LeftAlignLabel)
+    Line->Level = 0;
   if (CommentsBeforeNextToken.empty() && FormatTok->Tok.is(tok::l_brace)) {
     CompoundStatementIndenter Indenter(this, Line->Level,
                                        Style.BraceWrapping.AfterCaseLabel,

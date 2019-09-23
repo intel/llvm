@@ -81,6 +81,10 @@ TEST(BitcodeTest, emitRecordInfoBitcode) {
   I.Members.emplace_back("int", "X", AccessSpecifier::AS_private);
   I.TagType = TagTypeKind::TTK_Class;
   I.IsTypeDef = true;
+  I.Bases.emplace_back(EmptySID, "F", "path/to/F", true,
+                       AccessSpecifier::AS_public, true);
+  I.Bases.back().ChildFunctions.emplace_back();
+  I.Bases.back().Members.emplace_back("int", "X", AccessSpecifier::AS_private);
   I.Parents.emplace_back(EmptySID, "F", InfoType::IT_record);
   I.VirtualParents.emplace_back(EmptySID, "G", InfoType::IT_record);
 
@@ -106,6 +110,8 @@ TEST(BitcodeTest, emitFunctionInfoBitcode) {
   I.ReturnType = TypeInfo(EmptySID, "void", InfoType::IT_default);
   I.Params.emplace_back("int", "P");
 
+  I.Access = AccessSpecifier::AS_none;
+
   std::string WriteResult = writeInfo(&I);
   EXPECT_TRUE(WriteResult.size() > 0);
   std::vector<std::unique_ptr<Info>> ReadResults = readInfo(WriteResult, 1);
@@ -126,8 +132,7 @@ TEST(BitcodeTest, emitMethodInfoBitcode) {
   I.IsMethod = true;
   I.Parent = Reference(EmptySID, "Parent", InfoType::IT_record);
 
-  // TODO: fix access
-  // I.Access = AccessSpecifier::AS_private;
+  I.Access = AccessSpecifier::AS_public;
 
   std::string WriteResult = writeInfo(&I);
   EXPECT_TRUE(WriteResult.size() > 0);
@@ -164,100 +169,100 @@ TEST(SerializeTest, emitInfoWithCommentBitcode) {
   CommentInfo Top;
   Top.Kind = "FullComment";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *BlankLine = Top.Children.back().get();
   BlankLine->Kind = "ParagraphComment";
-  BlankLine->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  BlankLine->Children.emplace_back(std::make_unique<CommentInfo>());
   BlankLine->Children.back()->Kind = "TextComment";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *Brief = Top.Children.back().get();
   Brief->Kind = "ParagraphComment";
-  Brief->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Brief->Children.emplace_back(std::make_unique<CommentInfo>());
   Brief->Children.back()->Kind = "TextComment";
   Brief->Children.back()->Name = "ParagraphComment";
   Brief->Children.back()->Text = " Brief description.";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *Extended = Top.Children.back().get();
   Extended->Kind = "ParagraphComment";
-  Extended->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Extended->Children.emplace_back(std::make_unique<CommentInfo>());
   Extended->Children.back()->Kind = "TextComment";
   Extended->Children.back()->Text = " Extended description that";
-  Extended->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Extended->Children.emplace_back(std::make_unique<CommentInfo>());
   Extended->Children.back()->Kind = "TextComment";
   Extended->Children.back()->Text = " continues onto the next line.";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *HTML = Top.Children.back().get();
   HTML->Kind = "ParagraphComment";
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "TextComment";
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "HTMLStartTagComment";
   HTML->Children.back()->Name = "ul";
   HTML->Children.back()->AttrKeys.emplace_back("class");
   HTML->Children.back()->AttrValues.emplace_back("test");
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "HTMLStartTagComment";
   HTML->Children.back()->Name = "li";
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "TextComment";
   HTML->Children.back()->Text = " Testing.";
-  HTML->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  HTML->Children.emplace_back(std::make_unique<CommentInfo>());
   HTML->Children.back()->Kind = "HTMLEndTagComment";
   HTML->Children.back()->Name = "ul";
   HTML->Children.back()->SelfClosing = true;
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *Verbatim = Top.Children.back().get();
   Verbatim->Kind = "VerbatimBlockComment";
   Verbatim->Name = "verbatim";
   Verbatim->CloseName = "endverbatim";
-  Verbatim->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Verbatim->Children.emplace_back(std::make_unique<CommentInfo>());
   Verbatim->Children.back()->Kind = "VerbatimBlockLineComment";
   Verbatim->Children.back()->Text = " The description continues.";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *ParamOut = Top.Children.back().get();
   ParamOut->Kind = "ParamCommandComment";
   ParamOut->Direction = "[out]";
   ParamOut->ParamName = "I";
   ParamOut->Explicit = true;
-  ParamOut->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  ParamOut->Children.emplace_back(std::make_unique<CommentInfo>());
   ParamOut->Children.back()->Kind = "ParagraphComment";
   ParamOut->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   ParamOut->Children.back()->Children.back()->Kind = "TextComment";
   ParamOut->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   ParamOut->Children.back()->Children.back()->Kind = "TextComment";
   ParamOut->Children.back()->Children.back()->Text = " is a parameter.";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *ParamIn = Top.Children.back().get();
   ParamIn->Kind = "ParamCommandComment";
   ParamIn->Direction = "[in]";
   ParamIn->ParamName = "J";
-  ParamIn->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  ParamIn->Children.emplace_back(std::make_unique<CommentInfo>());
   ParamIn->Children.back()->Kind = "ParagraphComment";
   ParamIn->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   ParamIn->Children.back()->Children.back()->Kind = "TextComment";
   ParamIn->Children.back()->Children.back()->Text = " is a parameter.";
   ParamIn->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   ParamIn->Children.back()->Children.back()->Kind = "TextComment";
 
-  Top.Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Top.Children.emplace_back(std::make_unique<CommentInfo>());
   CommentInfo *Return = Top.Children.back().get();
   Return->Kind = "BlockCommandComment";
   Return->Name = "return";
   Return->Explicit = true;
-  Return->Children.emplace_back(llvm::make_unique<CommentInfo>());
+  Return->Children.emplace_back(std::make_unique<CommentInfo>());
   Return->Children.back()->Kind = "ParagraphComment";
   Return->Children.back()->Children.emplace_back(
-      llvm::make_unique<CommentInfo>());
+      std::make_unique<CommentInfo>());
   Return->Children.back()->Children.back()->Kind = "TextComment";
   Return->Children.back()->Children.back()->Text = "void";
 

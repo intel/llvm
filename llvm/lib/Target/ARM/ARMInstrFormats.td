@@ -188,6 +188,13 @@ def s_cc_out : OptionalDefOperand<OtherVT, (ops CCR), (ops (i32 CPSR))> {
   let DecoderMethod = "DecodeCCOutOperand";
 }
 
+// Transform to generate the inverse of a condition code during ISel
+def inv_cond_XFORM : SDNodeXForm<imm, [{
+  ARMCC::CondCodes CC = static_cast<ARMCC::CondCodes>(N->getZExtValue());
+  return CurDAG->getTargetConstant(ARMCC::getOppositeCondition(CC), SDLoc(N),
+                                   MVT::i32);
+}]>;
+
 // VPT predicate
 
 def VPTPredNOperand : AsmOperandClass {
@@ -2282,7 +2289,7 @@ class N1ModImm<bit op23, bits<3> op21_19, bits<4> op11_8, bit op7, bit op6,
   let Inst{24}    = SIMM{7};
   let Inst{18-16} = SIMM{6-4};
   let Inst{3-0}   = SIMM{3-0};
-  let DecoderMethod = "DecodeNEONModImmInstruction";
+  let DecoderMethod = "DecodeVMOVModImmInstruction";
 }
 
 // NEON 2 vector register format.
@@ -2722,6 +2729,16 @@ def complexrotateop : Operand<i32> {
 def complexrotateopodd : Operand<i32> {
   let ParserMatchClass = ComplexRotationOperand<180, 90, "Odd", "90 or 270">;
   let PrintMethod = "printComplexRotationOp<180, 90>";
+}
+
+def MveSaturateOperand : AsmOperandClass {
+  let PredicateMethod = "isMveSaturateOp";
+  let DiagnosticString = "saturate operand must be 48 or 64";
+  let Name = "MveSaturate";
+}
+def saturateop : Operand<i32> {
+  let ParserMatchClass = MveSaturateOperand;
+  let PrintMethod = "printMveSaturateOp";
 }
 
 // Data type suffix token aliases. Implements Table A7-3 in the ARM ARM.

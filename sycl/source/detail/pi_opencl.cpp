@@ -243,7 +243,7 @@ pi_result OCL(piSamplerCreate)(pi_context context,
 
 // Forward calls to OpenCL RT.
 #define _PI_CL(pi_api, ocl_api)                     \
-const decltype(::pi_api) * pi_api##OclPtr =         \
+decltype(::pi_api) * pi_api##OclPtr =               \
     detail::pi::cast<decltype(&::pi_api)>(&ocl_api);
 
 // Platform

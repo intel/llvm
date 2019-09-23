@@ -371,8 +371,6 @@ TEST(findCompileArgsInJsonDatabase, FindsEntry) {
 }
 
 TEST(findCompileArgsInJsonDatabase, ParsesCompilerWrappers) {
-  StringRef Directory("//net/dir");
-  StringRef FileName("//net/dir/filename");
   std::vector<std::pair<std::string, std::string>> Cases = {
       {"distcc gcc foo.c", "gcc foo.c"},
       {"gomacc clang++ foo.c", "clang++ foo.c"},
@@ -696,7 +694,7 @@ protected:
   // The input file is not included in the returned command.
   std::string getCommand(llvm::StringRef F) {
     auto Results =
-        inferMissingCompileCommands(llvm::make_unique<MemCDB>(Entries))
+        inferMissingCompileCommands(std::make_unique<MemCDB>(Entries))
             ->getCompileCommands(path(F));
     if (Results.empty())
       return "none";
@@ -710,7 +708,7 @@ protected:
   // Parse the file whose command was used out of the Heuristic string.
   std::string getProxy(llvm::StringRef F) {
     auto Results =
-        inferMissingCompileCommands(llvm::make_unique<MemCDB>(Entries))
+        inferMissingCompileCommands(std::make_unique<MemCDB>(Entries))
             ->getCompileCommands(path(F));
     if (Results.empty())
       return "none";
@@ -843,7 +841,7 @@ public:
 protected:
   // Look up the command from a relative path, and return it in string form.
   std::string getCommand(llvm::StringRef F) {
-    auto Results = inferTargetAndDriverMode(llvm::make_unique<MemCDB>(Entries))
+    auto Results = inferTargetAndDriverMode(std::make_unique<MemCDB>(Entries))
                        ->getCompileCommands(path(F));
     if (Results.empty())
       return "none";

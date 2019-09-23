@@ -125,7 +125,8 @@ static StringRef normalizeAttrName(StringRef AttrName,
       SyntaxUsed == ParsedAttr::AS_GNU ||
       ((SyntaxUsed == ParsedAttr::AS_CXX11 ||
         SyntaxUsed == ParsedAttr::AS_C2x) &&
-       (NormalizedScopeName == "gnu" || NormalizedScopeName == "clang"));
+       (NormalizedScopeName.empty() || NormalizedScopeName == "gnu" ||
+        NormalizedScopeName == "clang"));
   if (ShouldNormalize && AttrName.size() >= 4 && AttrName.startswith("__") &&
       AttrName.endswith("__"))
     AttrName = AttrName.slice(2, AttrName.size() - 2);
@@ -133,9 +134,13 @@ static StringRef normalizeAttrName(StringRef AttrName,
   return AttrName;
 }
 
-ParsedAttr::Kind ParsedAttr::getKind(const IdentifierInfo *Name,
-                                     const IdentifierInfo *ScopeName,
-                                     Syntax SyntaxUsed) {
+bool AttributeCommonInfo::isGNUScope() const {
+  return ScopeName && (ScopeName->isStr("gnu") || ScopeName->isStr("__gnu__"));
+}
+AttributeCommonInfo::Kind
+AttributeCommonInfo::getParsedKind(const IdentifierInfo *Name,
+                                   const IdentifierInfo *ScopeName,
+                                   Syntax SyntaxUsed) {
   StringRef AttrName = Name->getName();
 
   SmallString<64> FullName;
@@ -153,16 +158,16 @@ ParsedAttr::Kind ParsedAttr::getKind(const IdentifierInfo *Name,
   return ::getAttrKind(FullName, SyntaxUsed);
 }
 
-unsigned ParsedAttr::getAttributeSpellingListIndex() const {
+unsigned AttributeCommonInfo::calculateAttributeSpellingListIndex() const {
   // Both variables will be used in tablegen generated
   // attribute spell list index matching code.
-  auto Syntax = static_cast<ParsedAttr::Syntax>(SyntaxUsed);
+  auto Syntax = static_cast<ParsedAttr::Syntax>(getSyntax());
   StringRef Scope =
-      ScopeName ? normalizeAttrScopeName(ScopeName->getName(), Syntax) : "";
-  StringRef Name = normalizeAttrName(AttrName->getName(), Scope, Syntax);
+      getScopeName() ? normalizeAttrScopeName(getScopeName()->getName(), Syntax)
+                     : "";
+  StringRef Name = normalizeAttrName(getAttrName()->getName(), Scope, Syntax);
 
 #include "clang/Sema/AttrSpellingListIndex.inc"
-
 }
 
 struct ParsedAttrInfo {

@@ -59,6 +59,8 @@ class ELFDumper {
   Expected<ELFYAML::RelocationSection *> dumpRelocSection(const Elf_Shdr *Shdr);
   Expected<ELFYAML::RawContentSection *>
   dumpContentSection(const Elf_Shdr *Shdr);
+  Expected<ELFYAML::SymtabShndxSection *>
+  dumpSymtabShndxSection(const Elf_Shdr *Shdr);
   Expected<ELFYAML::NoBitsSection *> dumpNoBitsSection(const Elf_Shdr *Shdr);
   Expected<ELFYAML::VerdefSection *> dumpVerdefSection(const Elf_Shdr *Shdr);
   Expected<ELFYAML::SymverSection *> dumpSymverSection(const Elf_Shdr *Shdr);
@@ -135,9 +137,9 @@ ELFDumper<ELFT>::getUniquedSymbolName(const Elf_Sym *Sym, StringRef StrTable,
 }
 
 template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
-  auto Y = make_unique<ELFYAML::Object>();
+  auto Y = std::make_unique<ELFYAML::Object>();
 
-  // Dump header. We do not dump SHEntSize, SHOffset, SHNum and SHStrNdx field.
+  // Dump header. We do not dump SHEntSize, SHOff, SHNum and SHStrNdx fields.
   // When not explicitly set, the values are set by yaml2obj automatically
   // and there is no need to dump them here.
   Y->Header.Class = ELFYAML::ELF_ELFCLASS(Obj.getHeader()->getFileClass());
@@ -158,14 +160,44 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
 
   // Dump symbols. We need to do this early because other sections might want
   // to access the deduplicated symbol names that we also create here.
+  const Elf_Shdr *SymTab = nullptr;
+  const Elf_Shdr *SymTabShndx = nullptr;
+  const Elf_Shdr *DynSymTab = nullptr;
+
   for (const Elf_Shdr &Sec : Sections) {
-    if (Sec.sh_type == ELF::SHT_SYMTAB)
-      if (Error E = dumpSymbols(&Sec, Y->Symbols))
-        return std::move(E);
-    if (Sec.sh_type == ELF::SHT_DYNSYM)
-      if (Error E = dumpSymbols(&Sec, Y->DynamicSymbols))
-        return std::move(E);
+    if (Sec.sh_type == ELF::SHT_SYMTAB) {
+      SymTab = &Sec;
+    } else if (Sec.sh_type == ELF::SHT_DYNSYM) {
+      DynSymTab = &Sec;
+    } else if (Sec.sh_type == ELF::SHT_SYMTAB_SHNDX) {
+      // ABI allows us to have one SHT_SYMTAB_SHNDX for each symbol table.
+      // We only support having the SHT_SYMTAB_SHNDX for SHT_SYMTAB now.
+      if (SymTabShndx)
+        return createStringError(obj2yaml_error::not_implemented,
+                                 "multiple SHT_SYMTAB_SHNDX sections are not supported");
+      SymTabShndx = &Sec;
+    }
   }
+
+  // We need to locate the SHT_SYMTAB_SHNDX section early, because it might be
+  // needed for dumping symbols.
+  if (SymTabShndx) {
+    if (!SymTab || SymTabShndx->sh_link != SymTab - Sections.begin())
+      return createStringError(
+          obj2yaml_error::not_implemented,
+          "only SHT_SYMTAB_SHNDX associated with SHT_SYMTAB are supported");
+
+    auto TableOrErr = Obj.getSHNDXTable(*SymTabShndx);
+    if (!TableOrErr)
+      return TableOrErr.takeError();
+    ShndxTable = *TableOrErr;
+  }
+  if (SymTab)
+    if (Error E = dumpSymbols(SymTab, Y->Symbols))
+      return std::move(E);
+  if (DynSymTab)
+    if (Error E = dumpSymbols(DynSymTab, Y->DynamicSymbols))
+      return std::move(E);
 
   for (const Elf_Shdr &Sec : Sections) {
     switch (Sec.sh_type) {
@@ -176,17 +208,17 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
       Y->Sections.emplace_back(*SecOrErr);
       break;
     }
-    case ELF::SHT_NULL:
     case ELF::SHT_STRTAB:
     case ELF::SHT_SYMTAB:
     case ELF::SHT_DYNSYM:
       // Do not dump these sections.
       break;
     case ELF::SHT_SYMTAB_SHNDX: {
-      auto TableOrErr = Obj.getSHNDXTable(Sec);
-      if (!TableOrErr)
-        return TableOrErr.takeError();
-      ShndxTable = *TableOrErr;
+      Expected<ELFYAML::SymtabShndxSection *> SecOrErr =
+          dumpSymtabShndxSection(&Sec);
+      if (!SecOrErr)
+        return SecOrErr.takeError();
+      Y->Sections.emplace_back(*SecOrErr);
       break;
     }
     case ELF::SHT_REL:
@@ -238,6 +270,18 @@ template <class ELFT> Expected<ELFYAML::Object *> ELFDumper<ELFT>::dump() {
         return SecOrErr.takeError();
       Y->Sections.emplace_back(*SecOrErr);
       break;
+    }
+    case ELF::SHT_NULL: {
+      // We only dump the SHT_NULL section at index 0 when it
+      // has at least one non-null field, because yaml2obj
+      // normally creates the zero section at index 0 implicitly.
+      if (&Sec == &Sections[0]) {
+        const uint8_t *Begin = reinterpret_cast<const uint8_t *>(&Sec);
+        const uint8_t *End = Begin + sizeof(Elf_Shdr);
+        if (std::find_if(Begin, End, [](uint8_t V) { return V != 0; }) == End)
+          break;
+      }
+      LLVM_FALLTHROUGH;
     }
     default: {
       Expected<ELFYAML::RawContentSection *> SecOrErr =
@@ -298,9 +342,6 @@ Error ELFDumper<ELFT>::dumpSymbol(const Elf_Sym *Sym, const Elf_Shdr *SymTab,
   S.Name = SymbolNameOrErr.get();
 
   if (Sym->st_shndx >= ELF::SHN_LORESERVE) {
-    if (Sym->st_shndx == ELF::SHN_XINDEX)
-      return createStringError(obj2yaml_error::not_implemented,
-                               "SHN_XINDEX symbols are not supported");
     S.Index = (ELFYAML::ELF_SHN)Sym->st_shndx;
     return Error::success();
   }
@@ -376,8 +417,12 @@ Error ELFDumper<ELFT>::dumpCommonSection(const Elf_Shdr *Shdr,
 
   if (Shdr->sh_link != ELF::SHN_UNDEF) {
     auto LinkSection = Obj.getSection(Shdr->sh_link);
-    if (LinkSection.takeError())
-      return LinkSection.takeError();
+    if (!LinkSection)
+      return make_error<StringError>(
+          "unable to resolve sh_link reference in section '" + S.Name +
+              "': " + toString(LinkSection.takeError()),
+          inconvertibleErrorCode());
+
     NameOrErr = getUniquedSectionName(*LinkSection);
     if (!NameOrErr)
       return NameOrErr.takeError();
@@ -408,7 +453,7 @@ Error ELFDumper<ELFT>::dumpCommonRelocationSection(
 template <class ELFT>
 Expected<ELFYAML::DynamicSection *>
 ELFDumper<ELFT>::dumpDynamicSection(const Elf_Shdr *Shdr) {
-  auto S = make_unique<ELFYAML::DynamicSection>();
+  auto S = std::make_unique<ELFYAML::DynamicSection>();
   if (Error E = dumpCommonSection(Shdr, *S))
     return std::move(E);
 
@@ -425,7 +470,7 @@ ELFDumper<ELFT>::dumpDynamicSection(const Elf_Shdr *Shdr) {
 template <class ELFT>
 Expected<ELFYAML::RelocationSection *>
 ELFDumper<ELFT>::dumpRelocSection(const Elf_Shdr *Shdr) {
-  auto S = make_unique<ELFYAML::RelocationSection>();
+  auto S = std::make_unique<ELFYAML::RelocationSection>();
   if (auto E = dumpCommonRelocationSection(Shdr, *S))
     return std::move(E);
 
@@ -463,25 +508,46 @@ ELFDumper<ELFT>::dumpRelocSection(const Elf_Shdr *Shdr) {
 template <class ELFT>
 Expected<ELFYAML::RawContentSection *>
 ELFDumper<ELFT>::dumpContentSection(const Elf_Shdr *Shdr) {
-  auto S = make_unique<ELFYAML::RawContentSection>();
+  auto S = std::make_unique<ELFYAML::RawContentSection>();
   if (Error E = dumpCommonSection(Shdr, *S))
     return std::move(E);
 
-  auto ContentOrErr = Obj.getSectionContents(Shdr);
-  if (!ContentOrErr)
-    return ContentOrErr.takeError();
-  ArrayRef<uint8_t> Content = *ContentOrErr;
-  if (!Content.empty())
-    S->Content = yaml::BinaryRef(Content);
+  unsigned SecIndex = Shdr - &Sections[0];
+  if (SecIndex != 0 || Shdr->sh_type != ELF::SHT_NULL) {
+    auto ContentOrErr = Obj.getSectionContents(Shdr);
+    if (!ContentOrErr)
+      return ContentOrErr.takeError();
+    ArrayRef<uint8_t> Content = *ContentOrErr;
+    if (!Content.empty())
+      S->Content = yaml::BinaryRef(Content);
+  } else {
+    S->Size = static_cast<llvm::yaml::Hex64>(Shdr->sh_size);
+  }
+
   if (Shdr->sh_info)
     S->Info = static_cast<llvm::yaml::Hex64>(Shdr->sh_info);
   return S.release();
 }
 
 template <class ELFT>
+Expected<ELFYAML::SymtabShndxSection *>
+ELFDumper<ELFT>::dumpSymtabShndxSection(const Elf_Shdr *Shdr) {
+  auto S = std::make_unique<ELFYAML::SymtabShndxSection>();
+  if (Error E = dumpCommonSection(Shdr, *S))
+    return std::move(E);
+
+  auto EntriesOrErr = Obj.template getSectionContentsAsArray<Elf_Word>(Shdr);
+  if (!EntriesOrErr)
+    return EntriesOrErr.takeError();
+  for (const Elf_Word &E : *EntriesOrErr)
+    S->Entries.push_back(E);
+  return S.release();
+}
+
+template <class ELFT>
 Expected<ELFYAML::NoBitsSection *>
 ELFDumper<ELFT>::dumpNoBitsSection(const Elf_Shdr *Shdr) {
-  auto S = make_unique<ELFYAML::NoBitsSection>();
+  auto S = std::make_unique<ELFYAML::NoBitsSection>();
   if (Error E = dumpCommonSection(Shdr, *S))
     return std::move(E);
   S->Size = Shdr->sh_size;
@@ -495,7 +561,7 @@ ELFDumper<ELFT>::dumpVerdefSection(const Elf_Shdr *Shdr) {
   typedef typename ELFT::Verdef Elf_Verdef;
   typedef typename ELFT::Verdaux Elf_Verdaux;
 
-  auto S = make_unique<ELFYAML::VerdefSection>();
+  auto S = std::make_unique<ELFYAML::VerdefSection>();
   if (Error E = dumpCommonSection(Shdr, *S))
     return std::move(E);
 
@@ -544,7 +610,7 @@ Expected<ELFYAML::SymverSection *>
 ELFDumper<ELFT>::dumpSymverSection(const Elf_Shdr *Shdr) {
   typedef typename ELFT::Half Elf_Half;
 
-  auto S = make_unique<ELFYAML::SymverSection>();
+  auto S = std::make_unique<ELFYAML::SymverSection>();
   if (Error E = dumpCommonSection(Shdr, *S))
     return std::move(E);
 
@@ -563,7 +629,7 @@ ELFDumper<ELFT>::dumpVerneedSection(const Elf_Shdr *Shdr) {
   typedef typename ELFT::Verneed Elf_Verneed;
   typedef typename ELFT::Vernaux Elf_Vernaux;
 
-  auto S = make_unique<ELFYAML::VerneedSection>();
+  auto S = std::make_unique<ELFYAML::VerneedSection>();
   if (Error E = dumpCommonSection(Shdr, *S))
     return std::move(E);
 
@@ -616,7 +682,7 @@ ELFDumper<ELFT>::dumpVerneedSection(const Elf_Shdr *Shdr) {
 
 template <class ELFT>
 Expected<ELFYAML::Group *> ELFDumper<ELFT>::dumpGroup(const Elf_Shdr *Shdr) {
-  auto S = make_unique<ELFYAML::Group>();
+  auto S = std::make_unique<ELFYAML::Group>();
   if (Error E = dumpCommonSection(Shdr, *S))
     return std::move(E);
 
@@ -664,7 +730,7 @@ Expected<ELFYAML::MipsABIFlags *>
 ELFDumper<ELFT>::dumpMipsABIFlags(const Elf_Shdr *Shdr) {
   assert(Shdr->sh_type == ELF::SHT_MIPS_ABIFLAGS &&
          "Section type is not SHT_MIPS_ABIFLAGS");
-  auto S = make_unique<ELFYAML::MipsABIFlags>();
+  auto S = std::make_unique<ELFYAML::MipsABIFlags>();
   if (Error E = dumpCommonSection(Shdr, *S))
     return std::move(E);
 

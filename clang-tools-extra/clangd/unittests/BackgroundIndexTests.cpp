@@ -74,7 +74,7 @@ public:
       return nullptr;
     }
     CacheHits++;
-    return llvm::make_unique<IndexFileIn>(std::move(*IndexFile));
+    return std::make_unique<IndexFileIn>(std::move(*IndexFile));
   }
 
   mutable llvm::StringSet<> AccessedPaths;
@@ -211,7 +211,7 @@ TEST_F(BackgroundIndexTest, ShardStorageTest) {
     OverlayCDB CDB(/*Base=*/nullptr);
     BackgroundIndex Idx(Context::empty(), FS, CDB,
                         [&](llvm::StringRef) { return &MSS; });
-    CDB.setCompileCommand(testPath("root"), Cmd);
+    CDB.setCompileCommand(testPath("root/A.cc"), Cmd);
     ASSERT_TRUE(Idx.blockUntilIdleForTest());
   }
   EXPECT_EQ(CacheHits, 2U); // Check both A.cc and A.h loaded from cache.
@@ -335,7 +335,7 @@ TEST_F(BackgroundIndexTest, ShardStorageLoad) {
     OverlayCDB CDB(/*Base=*/nullptr);
     BackgroundIndex Idx(Context::empty(), FS, CDB,
                         [&](llvm::StringRef) { return &MSS; });
-    CDB.setCompileCommand(testPath("root"), Cmd);
+    CDB.setCompileCommand(testPath("root/A.cc"), Cmd);
     ASSERT_TRUE(Idx.blockUntilIdleForTest());
   }
   EXPECT_EQ(CacheHits, 2U); // Check both A.cc and A.h loaded from cache.
@@ -353,7 +353,7 @@ TEST_F(BackgroundIndexTest, ShardStorageLoad) {
     OverlayCDB CDB(/*Base=*/nullptr);
     BackgroundIndex Idx(Context::empty(), FS, CDB,
                         [&](llvm::StringRef) { return &MSS; });
-    CDB.setCompileCommand(testPath("root"), Cmd);
+    CDB.setCompileCommand(testPath("root/A.cc"), Cmd);
     ASSERT_TRUE(Idx.blockUntilIdleForTest());
   }
   EXPECT_EQ(CacheHits, 2U); // Check both A.cc and A.h loaded from cache.
@@ -575,7 +575,7 @@ TEST_F(BackgroundIndexTest, CmdLineHash) {
 class BackgroundIndexRebuilderTest : public testing::Test {
 protected:
   BackgroundIndexRebuilderTest()
-      : Target(llvm::make_unique<MemIndex>()),
+      : Target(std::make_unique<MemIndex>()),
         Rebuilder(&Target, &Source, /*Threads=*/10) {
     // Prepare FileSymbols with TestSymbol in it, for checkRebuild.
     TestSymbol.ID = SymbolID("foo");
@@ -588,7 +588,7 @@ protected:
     TestSymbol.Name = VersionStorage.back();
     SymbolSlab::Builder SB;
     SB.insert(TestSymbol);
-    Source.update("", llvm::make_unique<SymbolSlab>(std::move(SB).build()),
+    Source.update("", std::make_unique<SymbolSlab>(std::move(SB).build()),
                   nullptr, nullptr, false);
     // Now maybe update the index.
     Action();
@@ -621,8 +621,8 @@ TEST_F(BackgroundIndexRebuilderTest, IndexingTUs) {
 
 TEST_F(BackgroundIndexRebuilderTest, LoadingShards) {
   Rebuilder.startLoading();
-  Rebuilder.loadedTU();
-  Rebuilder.loadedTU();
+  Rebuilder.loadedShard(10);
+  Rebuilder.loadedShard(20);
   EXPECT_TRUE(checkRebuild([&] { Rebuilder.doneLoading(); }));
 
   // No rebuild for no shards.
@@ -631,11 +631,11 @@ TEST_F(BackgroundIndexRebuilderTest, LoadingShards) {
 
   // Loads can overlap.
   Rebuilder.startLoading();
-  Rebuilder.loadedTU();
+  Rebuilder.loadedShard(1);
   Rebuilder.startLoading();
-  Rebuilder.loadedTU();
+  Rebuilder.loadedShard(1);
   EXPECT_FALSE(checkRebuild([&] { Rebuilder.doneLoading(); }));
-  Rebuilder.loadedTU();
+  Rebuilder.loadedShard(1);
   EXPECT_TRUE(checkRebuild([&] { Rebuilder.doneLoading(); }));
 
   // No rebuilding for indexed files while loading.

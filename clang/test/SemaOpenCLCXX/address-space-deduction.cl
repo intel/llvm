@@ -1,4 +1,4 @@
-//RUN: %clang_cc1 %s -cl-std=c++ -pedantic -ast-dump -verify | FileCheck %s
+//RUN: %clang_cc1 %s -cl-std=clc++ -pedantic -ast-dump -verify | FileCheck %s
 
 //expected-no-diagnostics
 
@@ -63,3 +63,40 @@ public:
 //CHECK: -CXXConstructorDecl {{.*}} x3<T> 'void (const x3<T> &){{( __attribute__.*)?}} __generic'
 template <typename T>
 x3<T>::x3(const x3<T> &t) {}
+
+template <class T>
+T xxx(T *in) {
+  // This pointer can't be deduced to generic because addr space
+  // will be taken from the template argument.
+  //CHECK: `-VarDecl {{.*}} i 'T *' cinit
+  T *i = in;
+  T ii;
+  return *i;
+}
+
+__kernel void test() {
+  int foo[10];
+  xxx(&foo[0]);
+}
+
+// Addr space for pointer/reference to an array
+//CHECK: FunctionDecl {{.*}} t1 'void (const __generic float (&)[2])'
+void t1(const float (&fYZ)[2]);
+//CHECK: FunctionDecl {{.*}} t2 'void (const __generic float (*)[2])'
+void t2(const float (*fYZ)[2]);
+//CHECK: FunctionDecl {{.*}} t3 'void (__generic float (((*)))[2])'
+void t3(float(((*fYZ)))[2]);
+//CHECK: FunctionDecl {{.*}} t4 'void (__generic float (((*__generic *)))[2])'
+void t4(float(((**fYZ)))[2]);
+//CHECK: FunctionDecl {{.*}} t5 'void (__generic float (*__generic (*))[2])'
+void t5(float (*(*fYZ))[2]);
+
+__kernel void k() {
+  __local float x[2];
+  __local float(*p)[2];
+  t1(x);
+  t2(&x);
+  t3(&x);
+  t4(&p);
+  t5(&p);
+}

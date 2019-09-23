@@ -5217,11 +5217,13 @@ def t2LoopDec :
   t2PseudoInst<(outs GPRlr:$Rm), (ins GPRlr:$Rn, imm0_7:$size),
                4, IIC_Br, []>, Sched<[WriteBr]>;
 
-let isBranch = 1, isTerminator = 1, hasSideEffects = 1 in {
+let isBranch = 1, isTerminator = 1, hasSideEffects = 1, Defs = [CPSR] in {
+// Set WhileLoopStart and LoopEnd to occupy 8 bytes because they may
+// get converted into t2CMP and t2Bcc.
 def t2WhileLoopStart :
     t2PseudoInst<(outs),
                  (ins rGPR:$elts, brtarget:$target),
-                 4, IIC_Br, []>,
+                 8, IIC_Br, []>,
                  Sched<[WriteBr]>;
 
 def t2LoopEnd :
@@ -5233,7 +5235,7 @@ def t2LoopEnd :
 } // end isNotDuplicable
 
 class CS<string iname, bits<4> opcode, list<dag> pattern=[]>
-  : V8_1MI<(outs rGPR:$Rd), (ins GPRwithZR:$Rn, GPRwithZRnosp:$Rm, pred_noal:$fcond),
+  : V8_1MI<(outs rGPR:$Rd), (ins GPRwithZRnosp:$Rn, GPRwithZRnosp:$Rm, pred_noal:$fcond),
            AddrModeNone, NoItinerary, iname, "$Rd, $Rn, $Rm, $fcond", "", pattern> {
   bits<4> Rd;
   bits<4> Rm;
@@ -5255,6 +5257,25 @@ def t2CSINC : CS<"csinc", 0b1001>;
 def t2CSINV : CS<"csinv", 0b1010>;
 def t2CSNEG : CS<"csneg", 0b1011>;
 
+let Predicates = [HasV8_1MMainline] in {
+  def : T2Pat<(ARMcsinc GPRwithZR:$tval, GPRwithZR:$fval, imm0_31:$imm),
+              (t2CSINC GPRwithZR:$tval, GPRwithZR:$fval, imm0_31:$imm)>;
+  def : T2Pat<(ARMcsinv GPRwithZR:$tval, GPRwithZR:$fval, imm0_31:$imm),
+              (t2CSINV GPRwithZR:$tval, GPRwithZR:$fval, imm0_31:$imm)>;
+  def : T2Pat<(ARMcsneg GPRwithZR:$tval, GPRwithZR:$fval, imm0_31:$imm),
+              (t2CSNEG GPRwithZR:$tval, GPRwithZR:$fval, imm0_31:$imm)>;
+
+  multiclass ModifiedV8_1CSEL<Instruction Insn, dag modvalue> {
+    def : T2Pat<(ARMcmov modvalue, GPRwithZR:$tval, cmovpred:$imm),
+                (Insn GPRwithZR:$tval, GPRwithZR:$fval, imm0_31:$imm)>;
+    def : T2Pat<(ARMcmov GPRwithZR:$tval, modvalue, cmovpred:$imm),
+                (Insn GPRwithZR:$tval, GPRwithZR:$fval,
+                         (i32 (inv_cond_XFORM imm:$imm)))>;
+  }
+  defm : ModifiedV8_1CSEL<t2CSINC, (add rGPR:$fval, 1)>;
+  defm : ModifiedV8_1CSEL<t2CSINV, (xor rGPR:$fval, -1)>;
+  defm : ModifiedV8_1CSEL<t2CSNEG, (sub 0, rGPR:$fval)>;
+}
 
 // CS aliases.
 let Predicates = [HasV8_1MMainline] in {

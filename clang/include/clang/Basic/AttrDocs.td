@@ -1408,15 +1408,17 @@ all optional, but the attribute has to have at least one clause.
   }];
 }
 
-def RequireConstantInitDocs : Documentation {
+def ConstInitDocs : Documentation {
   let Category = DocCatVariable;
+  let Heading = "require_constant_initialization, constinit (C++20)";
   let Content = [{
 This attribute specifies that the variable to which it is attached is intended
 to have a `constant initializer <http://en.cppreference.com/w/cpp/language/constant_initialization>`_
 according to the rules of [basic.start.static]. The variable is required to
 have static or thread storage duration. If the initialization of the variable
 is not a constant initializer an error will be produced. This attribute may
-only be used in C++.
+only be used in C++; the ``constinit`` spelling is only accepted in C++20
+onwards.
 
 Note that in C++03 strict constant expression checking is not done. Instead
 the attribute reports if Clang can emit the variable as a constant, even if it's
@@ -1430,6 +1432,12 @@ This attribute acts as a compile time assertion that the requirements
 for constant initialization have been met. Since these requirements change
 between dialects and have subtle pitfalls it's important to fail fast instead
 of silently falling back on dynamic initialization.
+
+The first use of the attribute on a variable must be part of, or precede, the
+initializing declaration of the variable. C++20 requires the ``constinit``
+spelling of the attribute to be present on the initializing declaration if it
+is used anywhere. The other spellings can be specified on a forward declaration
+and omitted on a later initializing declaration.
 
 .. code-block:: c++
 
@@ -1482,6 +1490,13 @@ generated when a function or its return type is marked with ``[[nodiscard]]``
 potentially-evaluated discarded-value expression that is not explicitly cast to
 `void`.
 
+A string literal may optionally be provided to the attribute, which will be
+reproduced in any resulting diagnostics. Redeclarations using different forms
+of the attribute (with or without the string literal or with different string
+literal contents) are allowed. If there are redeclarations of the entity with
+differing string literals, it is unspecified which one will be used by Clang
+in any resulting diagnostics.
+
 .. code-block: c++
   struct [[nodiscard]] error_info { /*...*/ };
   error_info enable_missile_safety_mode();
@@ -1493,6 +1508,33 @@ potentially-evaluated discarded-value expression that is not explicitly cast to
   }
   error_info &foo();
   void f() { foo(); } // Does not diagnose, error_info is a reference.
+
+Additionally, discarded temporaries resulting from a call to a constructor
+marked with ``[[nodiscard]]`` or a constructor of a type marked
+``[[nodiscard]]`` will also diagnose. This also applies to type conversions that
+use the annotated ``[[nodiscard]]`` constructor or result in an annotated type.
+
+.. code-block: c++
+  struct [[nodiscard]] marked_type {/*..*/ };
+  struct marked_ctor {
+    [[nodiscard]] marked_ctor();
+    marked_ctor(int);
+  };
+
+  struct S {
+    operator marked_type() const;
+    [[nodiscard]] operator int() const;
+  };
+
+  void usages() {
+    marked_type(); // diagnoses.
+    marked_ctor(); // diagnoses.
+    marked_ctor(3); // Does not diagnose, int constructor isn't marked nodiscard.
+
+    S s;
+    static_cast<marked_type>(s); // diagnoses
+    (int)s; // diagnoses
+  }
   }];
 }
 
@@ -2356,6 +2398,18 @@ to avoid false positives in other places.
   }];
 }
 
+def CFICanonicalJumpTableDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "cfi_canonical_jump_table";
+  let Content = [{
+.. _langext-cfi_canonical_jump_table:
+
+Use ``__attribute__((cfi_canonical_jump_table))`` on a function declaration to
+make the function's CFI jump table canonical. See :ref:`the CFI documentation
+<cfi-canonical-jump-tables>` for more details.
+  }];
+}
+
 def DocCatTypeSafety : DocumentationCategory<"Type Safety Checking"> {
   let Content = [{
 Clang supports additional attributes to enable checking type safety properties
@@ -2752,7 +2806,7 @@ is retained by the return value of the annotated function
 It is only supported in C++.
 
 This attribute provides an experimental implementation of the facility
-described in the C++ committee paper [http://wg21.link/p0936r0](P0936R0),
+described in the C++ committee paper `P0936R0 <http://wg21.link/p0936r0>`_,
 and is subject to change as the design of the corresponding functionality
 changes.
   }];
@@ -2878,9 +2932,10 @@ def LoopHintDocs : Documentation {
   let Content = [{
 The ``#pragma clang loop`` directive allows loop optimization hints to be
 specified for the subsequent loop. The directive allows pipelining to be
-disabled, or vectorization, interleaving, and unrolling to be enabled or disabled.
-Vector width, interleave count, unrolling count, and the initiation interval
-for pipelining can be explicitly specified. See `language extensions
+disabled, or vectorization, vector predication, interleaving, and unrolling to
+be enabled or disabled. Vector width, vector predication, interleave count,
+unrolling count, and the initiation interval for pipelining can be explicitly
+specified. See `language extensions
 <http://clang.llvm.org/docs/LanguageExtensions.html#extensions-for-loop-hint-optimizations>`_
 for details.
   }];
@@ -3321,6 +3376,27 @@ The syntax of the declare target directive is as follows:
     #pragma omp declare target new-line
     declarations-definition-seq
     #pragma omp end declare target new-line
+
+or
+
+  .. code-block:: c
+
+    #pragma omp declare target (extended-list) new-line
+
+or
+
+  .. code-block:: c
+
+    #pragma omp declare target clause[ [,] clause ... ] new-line
+
+where clause is one of the following:
+
+
+  .. code-block:: c
+
+     to(extended-list)
+     link(list)
+     device_type(host | nohost | any)
   }];
 }
 
@@ -4386,4 +4462,72 @@ be accessed on both device side and host side. It has external linkage and is
 not initialized on device side. It has internal linkage and is initialized by
 the initializer on host side.
   }];
+}
+
+def LifetimeOwnerDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+.. Note:: This attribute is experimental and its effect on analysis is subject to change in
+  a future version of clang.
+
+The attribute ``[[gsl::Owner(T)]]`` applies to structs and classes that own an
+object of type ``T``:
+
+.. code-block:: c++
+
+  class [[gsl::Owner(int)]] IntOwner {
+  private:
+    int value;
+  public:
+    int *getInt() { return &value; }
+  };
+
+The argument ``T`` is optional and is ignored.
+This attribute may be used by analysis tools and has no effect on code
+generation.
+
+See Pointer_ for an example.
+}];
+}
+
+def LifetimePointerDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+.. Note:: This attribute is experimental and its effect on analysis is subject to change in
+  a future version of clang.
+
+The attribute ``[[gsl::Pointer(T)]]`` applies to structs and classes that behave
+like pointers to an object of type ``T``:
+
+.. code-block:: c++
+
+  class [[gsl::Pointer(int)]] IntPointer {
+  private:
+    int *valuePointer;
+  public:
+    int *getInt() { return &valuePointer; }
+  };
+
+The argument ``T`` is optional and is ignored.
+This attribute may be used by analysis tools and has no effect on code
+generation.
+
+Example:
+When constructing an instance of a class annotated like this (a Pointer) from
+an instance of a class annotated with ``[[gsl::Owner]]`` (an Owner),
+then the analysis will consider the Pointer to point inside the Owner.
+When the Owner's lifetime ends, it will consider the Pointer to be dangling.
+
+.. code-block:: c++
+
+  int f() {
+    IntPointer P;
+    if (true) {
+      IntOwner O(7);
+      P = IntPointer(O); // P "points into" O
+    } // P is dangling
+    return P.get(); // error: Using a dangling Pointer.
+  }
+
+}];
 }

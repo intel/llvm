@@ -411,7 +411,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       if (LangOpts.OpenCLCPlusPlusVersion == 100)
         Builder.defineMacro("__OPENCL_CPP_VERSION__", "100");
       else
-        llvm_unreachable("Unsupported OpenCL C++ version");
+        llvm_unreachable("Unsupported C++ version for OpenCL");
       Builder.defineMacro("__CL_CPP_VERSION_1_0__", "100");
     } else {
       // OpenCL v1.0 and v1.1 do not have a predefined macro to indicate the
@@ -437,17 +437,17 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       default:
         llvm_unreachable("Unsupported OpenCL version");
       }
-      Builder.defineMacro("CL_VERSION_1_0", "100");
-      Builder.defineMacro("CL_VERSION_1_1", "110");
-      Builder.defineMacro("CL_VERSION_1_2", "120");
-      Builder.defineMacro("CL_VERSION_2_0", "200");
-
-      if (TI.isLittleEndian())
-        Builder.defineMacro("__ENDIAN_LITTLE__");
-
-      if (LangOpts.FastRelaxedMath)
-        Builder.defineMacro("__FAST_RELAXED_MATH__");
     }
+    Builder.defineMacro("CL_VERSION_1_0", "100");
+    Builder.defineMacro("CL_VERSION_1_1", "110");
+    Builder.defineMacro("CL_VERSION_1_2", "120");
+    Builder.defineMacro("CL_VERSION_2_0", "200");
+
+    if (TI.isLittleEndian())
+      Builder.defineMacro("__ENDIAN_LITTLE__");
+
+    if (LangOpts.FastRelaxedMath)
+      Builder.defineMacro("__FAST_RELAXED_MATH__");
   }
 
   // SYCL Version is set to a value when building SYCL applications
@@ -492,6 +492,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_user_defined_literals", "200809L");
     Builder.defineMacro("__cpp_lambdas", "200907L");
     Builder.defineMacro("__cpp_constexpr",
+                        LangOpts.CPlusPlus2a ? "201907L" :
                         LangOpts.CPlusPlus17 ? "201603L" :
                         LangOpts.CPlusPlus14 ? "201304L" : "200704");
     Builder.defineMacro("__cpp_range_based_for",
@@ -552,8 +553,10 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_template_template_args", "201611L");
 
   // C++20 features.
-  if (LangOpts.CPlusPlus2a)
+  if (LangOpts.CPlusPlus2a) {
     Builder.defineMacro("__cpp_conditional_explicit", "201806L");
+    Builder.defineMacro("__cpp_constinit", "201907L");
+  }
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "201811L");
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
@@ -1044,15 +1047,18 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     switch (LangOpts.OpenMP) {
     case 0:
       break;
+    case 31:
+      Builder.defineMacro("_OPENMP", "201107");
+      break;
     case 40:
       Builder.defineMacro("_OPENMP", "201307");
       break;
-    case 45:
-      Builder.defineMacro("_OPENMP", "201511");
+    case 50:
+      Builder.defineMacro("_OPENMP", "201811");
       break;
     default:
-      // Default version is OpenMP 3.1
-      Builder.defineMacro("_OPENMP", "201107");
+      // Default version is OpenMP 4.5
+      Builder.defineMacro("_OPENMP", "201511");
       break;
     }
   }

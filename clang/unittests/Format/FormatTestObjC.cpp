@@ -114,7 +114,12 @@ TEST(FormatTestObjCStyle, DetectsObjCInHeaders) {
   EXPECT_EQ(FormatStyle::LK_Cpp, Style->Language);
 
   Style =
-      getStyle("{}", "a.h", "none", "typedef NS_ENUM(NSInteger, Foo) {};\n");
+      getStyle("{}", "a.h", "none", "typedef NS_ENUM(int, Foo) {};\n");
+  ASSERT_TRUE((bool)Style);
+  EXPECT_EQ(FormatStyle::LK_ObjC, Style->Language);
+
+  Style = getStyle("{}", "a.h", "none",
+                   "typedef NS_CLOSED_ENUM(int, Foo) {};\n");
   ASSERT_TRUE((bool)Style);
   EXPECT_EQ(FormatStyle::LK_ObjC, Style->Language);
 
@@ -885,6 +890,18 @@ TEST_F(FormatTestObjC, FormatObjCMethodExpr) {
   verifyFormat("[[[obj foo] bar] aa:42\n"
                "                 bb:42\n"
                "                 cc:42];");
+
+  // Avoid breaking between unary operators and ObjC method expressions.
+  Style.ColumnLimit = 45;
+  verifyFormat("if (a012345678901234567890123 &&\n"
+               "    ![foo bar]) {\n"
+               "}");
+  verifyFormat("if (a012345678901234567890123 &&\n"
+               "    +[foo bar]) {\n"
+               "}");
+  verifyFormat("if (a012345678901234567890123 &&\n"
+               "    -[foo bar]) {\n"
+               "}");
 
   Style.ColumnLimit = 70;
   verifyFormat(

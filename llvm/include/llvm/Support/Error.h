@@ -328,7 +328,7 @@ inline ErrorSuccess Error::success() { return ErrorSuccess(); }
 /// Make a Error instance representing failure using the given error info
 /// type.
 template <typename ErrT, typename... ArgTs> Error make_error(ArgTs &&... Args) {
-  return Error(llvm::make_unique<ErrT>(std::forward<ArgTs>(Args)...));
+  return Error(std::make_unique<ErrT>(std::forward<ArgTs>(Args)...));
 }
 
 /// Base class for user error types. Users should declare their error types
@@ -548,7 +548,7 @@ public:
   /// Take ownership of the stored error.
   /// After calling this the Expected<T> is in an indeterminate state that can
   /// only be safely destructed. No further calls (beside the destructor) should
-  /// be made on the Expected<T> vaule.
+  /// be made on the Expected<T> value.
   Error takeError() {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     Unchecked = false;
@@ -982,6 +982,20 @@ inline void consumeError(Error Err) {
   handleAllErrors(std::move(Err), [](const ErrorInfoBase &) {});
 }
 
+/// Convert an Expected to an Optional without doing anything. This method
+/// should be used only where an error can be considered a reasonable and
+/// expected return value.
+///
+/// Uses of this method are potentially indicative of problems: perhaps the
+/// error should be propagated further, or the error-producer should just
+/// return an Optional in the first place.
+template <typename T> Optional<T> expectedToOptional(Expected<T> &&E) {
+  if (E)
+    return std::move(*E);
+  consumeError(E.takeError());
+  return None;
+}
+
 /// Helper for converting an Error to a bool.
 ///
 /// This method returns true if Err is in an error state, or false if it is
@@ -1169,6 +1183,10 @@ inline Error createStringError(std::error_code EC, char const *Fmt,
 }
 
 Error createStringError(std::error_code EC, char const *Msg);
+
+inline Error createStringError(std::error_code EC, const Twine &S) {
+  return createStringError(EC, S.str().c_str());
+}
 
 template <typename... Ts>
 inline Error createStringError(std::errc EC, char const *Fmt,

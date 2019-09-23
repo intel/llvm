@@ -534,9 +534,9 @@ template <> struct MappingTraits<const InterfaceFile *> {
 
     // prope file type when reading.
     if (!IO.outputting()) {
-      if (IO.mapTag("!tapi-tbd-v2", false))
-        Ctx->FileKind = FileType::TBD_V2;
-      else if (IO.mapTag("!tapi-tbd-v3", false))
+      if (IO.mapTag("!tapi-tbd-v3", false))
+        Ctx->FileKind = FileType::TBD_V3;
+      else if (IO.mapTag("!tapi-tbd-v2", false))
         Ctx->FileKind = FileType::TBD_V2;
       else if (IO.mapTag("!tapi-tbd-v1", false) ||
                IO.mapTag("tag:yaml.org,2002:map", false))
@@ -547,7 +547,7 @@ template <> struct MappingTraits<const InterfaceFile *> {
       }
     }
 
-    // Set file tyoe when writing.
+    // Set file type when writing.
     if (IO.outputting()) {
       switch (Ctx->FileKind) {
       default:
@@ -623,15 +623,17 @@ static void DiagHandler(const SMDiagnostic &Diag, void *Context) {
 }
 
 Expected<std::unique_ptr<InterfaceFile>>
-TextAPIReader::get(std::unique_ptr<MemoryBuffer> InputBuffer) {
+TextAPIReader::get(MemoryBufferRef InputBuffer) {
   TextAPIContext Ctx;
-  Ctx.Path = InputBuffer->getBufferIdentifier();
-  yaml::Input YAMLIn(InputBuffer->getBuffer(), &Ctx, DiagHandler, &Ctx);
+  Ctx.Path = InputBuffer.getBufferIdentifier();
+  yaml::Input YAMLIn(InputBuffer.getBuffer(), &Ctx, DiagHandler, &Ctx);
 
   // Fill vector with interface file objects created by parsing the YAML file.
   std::vector<const InterfaceFile *> Files;
   YAMLIn >> Files;
 
+  // YAMLIn dynamically allocates for Interface file and in case of error,
+  // memory leak will occur unless wrapped around unique_ptr
   auto File = std::unique_ptr<InterfaceFile>(
       const_cast<InterfaceFile *>(Files.front()));
 

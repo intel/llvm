@@ -42,6 +42,20 @@ Defined *ElfSym::relaIpltEnd;
 Defined *ElfSym::riscvGlobalPointer;
 Defined *ElfSym::tlsModuleBase;
 
+// Returns a symbol for an error message.
+static std::string demangle(StringRef symName) {
+  if (config->demangle)
+    if (Optional<std::string> s = demangleItanium(symName))
+      return *s;
+  return symName;
+}
+namespace lld {
+std::string toString(const Symbol &b) { return demangle(b.getName()); }
+std::string toELFString(const Archive::Symbol &b) {
+  return demangle(b.getName());
+}
+} // namespace lld
+
 static uint64_t getSymVA(const Symbol &sym, int64_t &addend) {
   switch (sym.kind()) {
   case Symbol::DefinedKind: {
@@ -213,7 +227,7 @@ void Symbol::parseSymbolVersion() {
   if (isDefault)
     verstr = verstr.substr(1);
 
-  for (VersionDefinition &ver : config->versionDefinitions) {
+  for (const VersionDefinition &ver : namedVersionDefs()) {
     if (ver.name != verstr)
       continue;
 
@@ -250,20 +264,20 @@ void Symbol::fetch() const {
 }
 
 MemoryBufferRef LazyArchive::getMemberBuffer() {
-  Archive::Child c = CHECK(
-      sym.getMember(), "could not get the member for symbol " + sym.getName());
+  Archive::Child c =
+      CHECK(sym.getMember(),
+            "could not get the member for symbol " + toELFString(sym));
 
   return CHECK(c.getMemoryBufferRef(),
                "could not get the buffer for the member defining symbol " +
-                   sym.getName());
+                   toELFString(sym));
 }
 
 uint8_t Symbol::computeBinding() const {
   if (config->relocatable)
     return binding;
-  if (visibility != STV_DEFAULT && visibility != STV_PROTECTED)
-    return STB_LOCAL;
-  if (versionId == VER_NDX_LOCAL && isDefined() && !isPreemptible)
+  if ((visibility != STV_DEFAULT && visibility != STV_PROTECTED) ||
+      versionId == VER_NDX_LOCAL)
     return STB_LOCAL;
   if (!config->gnuUnique && binding == STB_GNU_UNIQUE)
     return STB_GLOBAL;
@@ -281,7 +295,7 @@ bool Symbol::includeInDynsym() const {
   if (isUndefWeak() && config->pie && sharedFiles.empty())
     return false;
 
-  return isUndefined() || isShared() || exportDynamic;
+  return isUndefined() || isShared() || exportDynamic || inDynamicList;
 }
 
 // Print out a log message for --trace-symbol.
@@ -329,14 +343,6 @@ void elf::maybeWarnUnorderableSymbol(const Symbol *sym) {
     report(": unable to order synthetic symbol: ");
   else if (d && !d->section->repl->isLive())
     report(": unable to order discarded symbol: ");
-}
-
-// Returns a symbol for an error message.
-std::string lld::toString(const Symbol &b) {
-  if (config->demangle)
-    if (Optional<std::string> s = demangleItanium(b.getName()))
-      return *s;
-  return b.getName();
 }
 
 static uint8_t getMinVisibility(uint8_t va, uint8_t vb) {
@@ -485,17 +491,13 @@ void Symbol::resolveUndefined(const Undefined &other) {
   if (dyn_cast_or_null<SharedFile>(other.file))
     return;
 
-  if (isUndefined()) {
-    // The binding may "upgrade" from weak to non-weak.
-    if (other.binding != STB_WEAK)
+  if (isUndefined() || isShared()) {
+    // The binding will be weak if there is at least one reference and all are
+    // weak. The binding has one opportunity to change to weak: if the first
+    // reference is weak.
+    if (other.binding != STB_WEAK || !referenced)
       binding = other.binding;
-  } else if (auto *s = dyn_cast<SharedSymbol>(this)) {
-    // The binding of a SharedSymbol will be weak if there is at least one
-    // reference and all are weak. The binding has one opportunity to change to
-    // weak: if the first reference is weak.
-    if (other.binding != STB_WEAK || !s->referenced)
-      binding = other.binding;
-    s->referenced = true;
+    referenced = true;
   }
 }
 
@@ -553,7 +555,7 @@ int Symbol::compare(const Symbol *other) const {
   auto *oldSym = cast<Defined>(this);
   auto *newSym = cast<Defined>(other);
 
-  if (other->file && isa<BitcodeFile>(other->file))
+  if (dyn_cast_or_null<BitcodeFile>(other->file))
     return 0;
 
   if (!oldSym->section && !newSym->section && oldSym->value == newSym->value &&
@@ -651,6 +653,6 @@ void Symbol::resolveShared(const SharedSymbol &other) {
     uint8_t bind = binding;
     replace(other);
     binding = bind;
-    cast<SharedSymbol>(this)->referenced = true;
+    referenced = true;
   }
 }

@@ -140,7 +140,16 @@ unsigned LLVMGetLastEnumAttributeKind(void) {
 
 LLVMAttributeRef LLVMCreateEnumAttribute(LLVMContextRef C, unsigned KindID,
                                          uint64_t Val) {
-  return wrap(Attribute::get(*unwrap(C), (Attribute::AttrKind)KindID, Val));
+  auto &Ctx = *unwrap(C);
+  auto AttrKind = (Attribute::AttrKind)KindID;
+
+  if (AttrKind == Attribute::AttrKind::ByVal) {
+    // After r362128, byval attributes need to have a type attribute. Provide a
+    // NULL one until a proper API is added for this.
+    return wrap(Attribute::getWithByValType(Ctx, NULL));
+  } else {
+    return wrap(Attribute::get(Ctx, AttrKind, Val));
+  }
 }
 
 unsigned LLVMGetEnumAttributeKind(LLVMAttributeRef A) {
@@ -386,7 +395,7 @@ void LLVMDumpModule(LLVMModuleRef M) {
 LLVMBool LLVMPrintModuleToFile(LLVMModuleRef M, const char *Filename,
                                char **ErrorMessage) {
   std::error_code EC;
-  raw_fd_ostream dest(Filename, EC, sys::fs::F_Text);
+  raw_fd_ostream dest(Filename, EC, sys::fs::OF_Text);
   if (EC) {
     *ErrorMessage = strdup(EC.message().c_str());
     return true;

@@ -73,52 +73,6 @@ class TemplateDecl;
 class TemplateParameterList;
 class UsingDecl;
 
-/// Represents any kind of function declaration, whether it is a
-/// concrete function or a function template.
-class AnyFunctionDecl {
-  NamedDecl *Function;
-
-  AnyFunctionDecl(NamedDecl *ND) : Function(ND) {}
-
-public:
-  AnyFunctionDecl(FunctionDecl *FD) : Function(FD) {}
-  AnyFunctionDecl(FunctionTemplateDecl *FTD);
-
-  /// Implicily converts any function or function template into a
-  /// named declaration.
-  operator NamedDecl *() const { return Function; }
-
-  /// Retrieve the underlying function or function template.
-  NamedDecl *get() const { return Function; }
-
-  static AnyFunctionDecl getFromNamedDecl(NamedDecl *ND) {
-    return AnyFunctionDecl(ND);
-  }
-};
-
-} // namespace clang
-
-namespace llvm {
-
-  // Provide PointerLikeTypeTraits for non-cvr pointers.
-  template<>
-  struct PointerLikeTypeTraits< ::clang::AnyFunctionDecl> {
-    static void *getAsVoidPointer(::clang::AnyFunctionDecl F) {
-      return F.get();
-    }
-
-    static ::clang::AnyFunctionDecl getFromVoidPointer(void *P) {
-      return ::clang::AnyFunctionDecl::getFromNamedDecl(
-                                      static_cast< ::clang::NamedDecl*>(P));
-    }
-
-    enum { NumLowBitsAvailable = 2 };
-  };
-
-} // namespace llvm
-
-namespace clang {
-
 /// Represents an access specifier followed by colon ':'.
 ///
 /// An objects of this class represents sugar for the syntactic occurrence
@@ -2232,20 +2186,20 @@ public:
 
   overridden_method_range overridden_methods() const;
 
-  /// Returns the parent of this method declaration, which
+  /// Return the parent of this method declaration, which
   /// is the class in which this method is defined.
   const CXXRecordDecl *getParent() const {
     return cast<CXXRecordDecl>(FunctionDecl::getParent());
   }
 
-  /// Returns the parent of this method declaration, which
+  /// Return the parent of this method declaration, which
   /// is the class in which this method is defined.
   CXXRecordDecl *getParent() {
     return const_cast<CXXRecordDecl *>(
              cast<CXXRecordDecl>(FunctionDecl::getParent()));
   }
 
-  /// Returns the type of the \c this pointer.
+  /// Return the type of the \c this pointer.
   ///
   /// Should only be called for instance (i.e., non-static) methods. Note
   /// that for the call operator of a lambda closure type, this returns the
@@ -2253,8 +2207,16 @@ public:
   /// 'this' type.
   QualType getThisType() const;
 
+  /// Return the type of the object pointed by \c this.
+  ///
+  /// See getThisType() for usage restriction.
+  QualType getThisObjectType() const;
+
   static QualType getThisType(const FunctionProtoType *FPT,
                               const CXXRecordDecl *Decl);
+
+  static QualType getThisObjectType(const FunctionProtoType *FPT,
+                                    const CXXRecordDecl *Decl);
 
   Qualifiers getMethodQualifiers() const {
     return getType()->getAs<FunctionProtoType>()->getMethodQuals();
@@ -3460,12 +3422,6 @@ public:
   bool constructsVirtualBase() const {
     return IsVirtual;
   }
-
-  /// Get the constructor or constructor template in the derived class
-  /// correspnding to this using shadow declaration, if it has been implicitly
-  /// declared already.
-  CXXConstructorDecl *getConstructor() const;
-  void setConstructor(NamedDecl *Ctor);
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == ConstructorUsingShadow; }

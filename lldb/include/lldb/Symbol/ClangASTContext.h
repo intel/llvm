@@ -26,8 +26,8 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
 
-#include "Plugins/ExpressionParser/Clang/ClangPersistentVariables.h"
 #include "lldb/Core/ClangForward.h"
+#include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Utility/ConstString.h"
@@ -68,9 +68,8 @@ public:
   static lldb::TypeSystemSP CreateInstance(lldb::LanguageType language,
                                            Module *module, Target *target);
 
-  static void EnumerateSupportedLanguages(
-      std::set<lldb::LanguageType> &languages_for_types,
-      std::set<lldb::LanguageType> &languages_for_expressions);
+  static LanguageSet GetSupportedLanguagesForTypes();
+  static LanguageSet GetSupportedLanguagesForExpressions();
 
   static void Initialize();
 
@@ -229,7 +228,8 @@ public:
           if (const RecordDeclType *record_decl =
                   llvm::dyn_cast<RecordDeclType>(named_decl))
             compiler_type.SetCompilerType(
-                ast, clang::QualType(record_decl->getTypeForDecl(), 0));
+                this, clang::QualType(record_decl->getTypeForDecl(), 0)
+                          .getAsOpaquePtr());
         }
       }
     }
@@ -249,7 +249,7 @@ public:
           &type_fields,
       bool packed = false);
 
-  static bool IsOperator(const char *name,
+  static bool IsOperator(llvm::StringRef name,
                          clang::OverloadedOperatorKind &op_kind);
 
   // Structure, Unions, Classes
@@ -395,7 +395,8 @@ public:
   clang::ParmVarDecl *CreateParameterDeclaration(clang::DeclContext *decl_ctx,
                                                  const char *name,
                                                  const CompilerType &param_type,
-                                                 int storage);
+                                                 int storage,
+                                                 bool add_decl=false);
 
   void SetFunctionParameters(clang::FunctionDecl *function_decl,
                              clang::ParmVarDecl **params, unsigned num_params);
@@ -463,6 +464,8 @@ public:
 
   CompilerType DeclGetFunctionArgumentType(void *opaque_decl,
                                            size_t arg_idx) override;
+
+  CompilerType GetTypeForDecl(void *opaque_decl) override;
 
   // CompilerDeclContext override functions
 
@@ -691,6 +694,8 @@ public:
 
   // Exploring the type
 
+  const llvm::fltSemantics &GetFloatTypeSemantics(size_t byte_size) override;
+
   llvm::Optional<uint64_t> GetByteSize(lldb::opaque_compiler_type_t type,
                        ExecutionContextScope *exe_scope) {
     if (llvm::Optional<uint64_t> bit_size = GetBitSize(type, exe_scope))
@@ -707,7 +712,9 @@ public:
 
   lldb::Format GetFormat(lldb::opaque_compiler_type_t type) override;
 
-  size_t GetTypeBitAlign(lldb::opaque_compiler_type_t type) override;
+  llvm::Optional<size_t>
+  GetTypeBitAlign(lldb::opaque_compiler_type_t type,
+                  ExecutionContextScope *exe_scope) override;
 
   uint32_t GetNumChildren(lldb::opaque_compiler_type_t type,
                           bool omit_empty_base_classes,
@@ -878,12 +885,6 @@ public:
   static CompilerType CreateMemberPointerType(const CompilerType &type,
                                               const CompilerType &pointee_type);
 
-  // Converts "s" to a floating point value and place resulting floating point
-  // bytes in the "dst" buffer.
-  size_t ConvertStringToFloatValue(lldb::opaque_compiler_type_t type,
-                                   const char *s, uint8_t *dst,
-                                   size_t dst_size) override;
-
   // Dumping types
 #ifndef NDEBUG
   /// Convenience LLVM-style dump method for use in the debugger only.
@@ -1041,13 +1042,9 @@ public:
   }
 private:
   lldb::TargetWP m_target_wp;
-  lldb::ClangPersistentVariablesUP m_persistent_variables; ///< These are the
-                                                           ///persistent
-                                                           ///variables
-                                                           ///associated with
-                                                           ///this process for
-                                                           ///the expression
-                                                           ///parser.
+  std::unique_ptr<PersistentExpressionState>
+      m_persistent_variables; // These are the persistent variables associated
+                              // with this process for the expression parser
 };
 
 } // namespace lldb_private

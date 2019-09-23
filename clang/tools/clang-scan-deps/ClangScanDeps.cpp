@@ -8,6 +8,7 @@
 
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/CommonOptionsParser.h"
+#include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
 #include "clang/Tooling/JSONCompilationDatabase.h"
 #include "llvm/Support/InitLLVM.h"
@@ -45,15 +46,72 @@ public:
   ///
   /// \param Compilations     The reference to the compilation database that's
   /// used by the clang tool.
-  DependencyScanningTool(const tooling::CompilationDatabase &Compilations,
+  DependencyScanningTool(DependencyScanningService &Service,
+                         const tooling::CompilationDatabase &Compilations,
                          SharedStream &OS, SharedStream &Errs)
-      : Compilations(Compilations), OS(OS), Errs(Errs) {}
+      : Worker(Service), Compilations(Compilations), OS(OS), Errs(Errs) {}
+
+  /// Print out the dependency information into a string using the dependency
+  /// file format that is specified in the options (-MD is the default) and
+  /// return it.
+  ///
+  /// \returns A \c StringError with the diagnostic output if clang errors
+  /// occurred, dependency file contents otherwise.
+  llvm::Expected<std::string> getDependencyFile(const std::string &Input,
+                                                StringRef CWD) {
+    /// Prints out all of the gathered dependencies into a string.
+    class DependencyPrinterConsumer : public DependencyConsumer {
+    public:
+      void handleFileDependency(const DependencyOutputOptions &Opts,
+                                StringRef File) override {
+        if (!this->Opts)
+          this->Opts = std::make_unique<DependencyOutputOptions>(Opts);
+        Dependencies.push_back(File);
+      }
+
+      void printDependencies(std::string &S) {
+        if (!Opts)
+          return;
+
+        class DependencyPrinter : public DependencyFileGenerator {
+        public:
+          DependencyPrinter(DependencyOutputOptions &Opts,
+                            ArrayRef<std::string> Dependencies)
+              : DependencyFileGenerator(Opts) {
+            for (const auto &Dep : Dependencies)
+              addDependency(Dep);
+          }
+
+          void printDependencies(std::string &S) {
+            llvm::raw_string_ostream OS(S);
+            outputDependencyFile(OS);
+          }
+        };
+
+        DependencyPrinter Generator(*Opts, Dependencies);
+        Generator.printDependencies(S);
+      }
+
+    private:
+      std::unique_ptr<DependencyOutputOptions> Opts;
+      std::vector<std::string> Dependencies;
+    };
+
+    DependencyPrinterConsumer Consumer;
+    auto Result =
+        Worker.computeDependencies(Input, CWD, Compilations, Consumer);
+    if (Result)
+      return std::move(Result);
+    std::string Output;
+    Consumer.printDependencies(Output);
+    return Output;
+  }
 
   /// Computes the dependencies for the given file and prints them out.
   ///
   /// \returns True on error.
   bool runOnFile(const std::string &Input, StringRef CWD) {
-    auto MaybeFile = Worker.getDependencyFile(Input, CWD, Compilations);
+    auto MaybeFile = getDependencyFile(Input, CWD);
     if (!MaybeFile) {
       llvm::handleAllErrors(
           MaybeFile.takeError(), [this, &Input](llvm::StringError &Err) {
@@ -80,18 +138,53 @@ llvm::cl::opt<bool> Help("h", llvm::cl::desc("Alias for -help"),
 
 llvm::cl::OptionCategory DependencyScannerCategory("Tool options");
 
+static llvm::cl::opt<ScanningMode> ScanMode(
+    "mode",
+    llvm::cl::desc("The preprocessing mode used to compute the dependencies"),
+    llvm::cl::values(
+        clEnumValN(ScanningMode::MinimizedSourcePreprocessing,
+                   "preprocess-minimized-sources",
+                   "The set of dependencies is computed by preprocessing the "
+                   "source files that were minimized to only include the "
+                   "contents that might affect the dependencies"),
+        clEnumValN(ScanningMode::CanonicalPreprocessing, "preprocess",
+                   "The set of dependencies is computed by preprocessing the "
+                   "unmodified source files")),
+    llvm::cl::init(ScanningMode::MinimizedSourcePreprocessing),
+    llvm::cl::cat(DependencyScannerCategory));
+
 llvm::cl::opt<unsigned>
     NumThreads("j", llvm::cl::Optional,
                llvm::cl::desc("Number of worker threads to use (default: use "
                               "all concurrent threads)"),
-               llvm::cl::init(0));
+               llvm::cl::init(0), llvm::cl::cat(DependencyScannerCategory));
 
 llvm::cl::opt<std::string>
     CompilationDB("compilation-database",
                   llvm::cl::desc("Compilation database"), llvm::cl::Required,
                   llvm::cl::cat(DependencyScannerCategory));
 
+llvm::cl::opt<bool> ReuseFileManager(
+    "reuse-filemanager",
+    llvm::cl::desc("Reuse the file manager and its cache between invocations."),
+    llvm::cl::init(true), llvm::cl::cat(DependencyScannerCategory));
+
+llvm::cl::opt<bool> SkipExcludedPPRanges(
+    "skip-excluded-pp-ranges",
+    llvm::cl::desc(
+        "Use the preprocessor optimization that skips excluded conditionals by "
+        "bumping the buffer pointer in the lexer instead of lexing the tokens  "
+        "until reaching the end directive."),
+    llvm::cl::init(true), llvm::cl::cat(DependencyScannerCategory));
+
 } // end anonymous namespace
+
+/// \returns object-file path derived from source-file path.
+static std::string getObjFilePath(StringRef SrcFile) {
+  SmallString<128> ObjFileName(SrcFile);
+  llvm::sys::path::replace_extension(ObjFileName, "o");
+  return ObjFileName.str();
+}
 
 int main(int argc, const char **argv) {
   llvm::InitLLVM X(argc, argv);
@@ -118,13 +211,48 @@ int main(int argc, const char **argv) {
 
   // The command options are rewritten to run Clang in preprocessor only mode.
   auto AdjustingCompilations =
-      llvm::make_unique<tooling::ArgumentsAdjustingCompilations>(
+      std::make_unique<tooling::ArgumentsAdjustingCompilations>(
           std::move(Compilations));
   AdjustingCompilations->appendArgumentsAdjuster(
-      [](const tooling::CommandLineArguments &Args, StringRef /*unused*/) {
+      [](const tooling::CommandLineArguments &Args, StringRef FileName) {
+        std::string LastO = "";
+        bool HasMT = false;
+        bool HasMQ = false;
+        bool HasMD = false;
+        // We need to find the last -o value.
+        if (!Args.empty()) {
+          std::size_t Idx = Args.size() - 1;
+          for (auto It = Args.rbegin(); It != Args.rend(); ++It) {
+            if (It != Args.rbegin()) {
+              if (Args[Idx] == "-o")
+                LastO = Args[Idx + 1];
+              if (Args[Idx] == "-MT")
+                HasMT = true;
+              if (Args[Idx] == "-MQ")
+                HasMQ = true;
+              if (Args[Idx] == "-MD")
+                HasMD = true;
+            }
+            --Idx;
+          }
+        }
+        // If there's no -MT/-MQ Driver would add -MT with the value of the last
+        // -o option.
         tooling::CommandLineArguments AdjustedArgs = Args;
         AdjustedArgs.push_back("-o");
         AdjustedArgs.push_back("/dev/null");
+        if (!HasMT && !HasMQ) {
+          AdjustedArgs.push_back("-MT");
+          // We're interested in source dependencies of an object file.
+          if (!HasMD) {
+            // FIXME: We are missing the directory unless the -o value is an
+            // absolute path.
+            AdjustedArgs.push_back(!LastO.empty() ? LastO
+                                                  : getObjFilePath(FileName));
+          } else {
+            AdjustedArgs.push_back(FileName);
+          }
+        }
         AdjustedArgs.push_back("-Xclang");
         AdjustedArgs.push_back("-Eonly");
         AdjustedArgs.push_back("-Xclang");
@@ -136,12 +264,19 @@ int main(int argc, const char **argv) {
   SharedStream Errs(llvm::errs());
   // Print out the dependency results to STDOUT by default.
   SharedStream DependencyOS(llvm::outs());
+
+  DependencyScanningService Service(ScanMode, ReuseFileManager,
+                                    SkipExcludedPPRanges);
+#if LLVM_ENABLE_THREADS
   unsigned NumWorkers =
       NumThreads == 0 ? llvm::hardware_concurrency() : NumThreads;
+#else
+  unsigned NumWorkers = 1;
+#endif
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;
   for (unsigned I = 0; I < NumWorkers; ++I)
-    WorkerTools.push_back(llvm::make_unique<DependencyScanningTool>(
-        *AdjustingCompilations, DependencyOS, Errs));
+    WorkerTools.push_back(std::make_unique<DependencyScanningTool>(
+        Service, *AdjustingCompilations, DependencyOS, Errs));
 
   std::vector<std::thread> WorkerThreads;
   std::atomic<bool> HadErrors(false);
@@ -151,25 +286,30 @@ int main(int argc, const char **argv) {
   llvm::outs() << "Running clang-scan-deps on " << Inputs.size()
                << " files using " << NumWorkers << " workers\n";
   for (unsigned I = 0; I < NumWorkers; ++I) {
-    WorkerThreads.emplace_back(
-        [I, &Lock, &Index, &Inputs, &HadErrors, &WorkerTools]() {
-          while (true) {
-            std::string Input;
-            StringRef CWD;
-            // Take the next input.
-            {
-              std::unique_lock<std::mutex> LockGuard(Lock);
-              if (Index >= Inputs.size())
-                return;
-              const auto &Compilation = Inputs[Index++];
-              Input = Compilation.first;
-              CWD = Compilation.second;
-            }
-            // Run the tool on it.
-            if (WorkerTools[I]->runOnFile(Input, CWD))
-              HadErrors = true;
-          }
-        });
+    auto Worker = [I, &Lock, &Index, &Inputs, &HadErrors, &WorkerTools]() {
+      while (true) {
+        std::string Input;
+        StringRef CWD;
+        // Take the next input.
+        {
+          std::unique_lock<std::mutex> LockGuard(Lock);
+          if (Index >= Inputs.size())
+            return;
+          const auto &Compilation = Inputs[Index++];
+          Input = Compilation.first;
+          CWD = Compilation.second;
+        }
+        // Run the tool on it.
+        if (WorkerTools[I]->runOnFile(Input, CWD))
+          HadErrors = true;
+      }
+    };
+#if LLVM_ENABLE_THREADS
+    WorkerThreads.emplace_back(std::move(Worker));
+#else
+    // Run the worker without spawning a thread when threads are disabled.
+    Worker();
+#endif
   }
   for (auto &W : WorkerThreads)
     W.join();

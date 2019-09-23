@@ -48,10 +48,6 @@ private:
 
   bool evaluateAsAbsolute(int64_t &Res, const MCAssembler *Asm,
                           const MCAsmLayout *Layout,
-                          const SectionAddrMap *Addrs) const;
-
-  bool evaluateAsAbsolute(int64_t &Res, const MCAssembler *Asm,
-                          const MCAsmLayout *Layout,
                           const SectionAddrMap *Addrs, bool InSet) const;
 
 protected:
@@ -136,7 +132,7 @@ class MCConstantExpr : public MCExpr {
   int64_t Value;
   bool PrintInHex = false;
 
-  MCConstantExpr(int64_t Value)
+  explicit MCConstantExpr(int64_t Value)
       : MCExpr(MCExpr::Constant, SMLoc()), Value(Value) {}
 
   MCConstantExpr(int64_t Value, bool PrintInHex)

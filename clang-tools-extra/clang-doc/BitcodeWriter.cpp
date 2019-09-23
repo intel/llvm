@@ -77,10 +77,13 @@ static void LocationAbbrev(std::shared_ptr<llvm::BitCodeAbbrev> &Abbrev) {
       {// 0. Fixed-size integer (line number)
        llvm::BitCodeAbbrevOp(llvm::BitCodeAbbrevOp::Fixed,
                              BitCodeConstants::LineNumberSize),
-       // 1. Fixed-size integer (length of the following string (filename))
+       // 1. Boolean (IsFileInRootDir)
+       llvm::BitCodeAbbrevOp(llvm::BitCodeAbbrevOp::Fixed,
+                             BitCodeConstants::BoolSize),
+       // 2. Fixed-size integer (length of the following string (filename))
        llvm::BitCodeAbbrevOp(llvm::BitCodeAbbrevOp::Fixed,
                              BitCodeConstants::StringLengthSize),
-       // 2. The string blob
+       // 3. The string blob
        llvm::BitCodeAbbrevOp(llvm::BitCodeAbbrevOp::Blob)});
 }
 
@@ -113,6 +116,7 @@ static const llvm::IndexedMap<llvm::StringRef, BlockIdToIndexFunctor>
           {BI_FIELD_TYPE_BLOCK_ID, "FieldTypeBlock"},
           {BI_MEMBER_TYPE_BLOCK_ID, "MemberTypeBlock"},
           {BI_RECORD_BLOCK_ID, "RecordBlock"},
+          {BI_BASE_RECORD_BLOCK_ID, "BaseRecordBlock"},
           {BI_FUNCTION_BLOCK_ID, "FunctionBlock"},
           {BI_COMMENT_BLOCK_ID, "CommentBlock"},
           {BI_REFERENCE_BLOCK_ID, "ReferenceBlock"}};
@@ -162,6 +166,13 @@ static const llvm::IndexedMap<RecordIdDsc, RecordIdToIndexFunctor>
           {RECORD_LOCATION, {"Location", &LocationAbbrev}},
           {RECORD_TAG_TYPE, {"TagType", &IntAbbrev}},
           {RECORD_IS_TYPE_DEF, {"IsTypeDef", &BoolAbbrev}},
+          {BASE_RECORD_USR, {"USR", &SymbolIDAbbrev}},
+          {BASE_RECORD_NAME, {"Name", &StringAbbrev}},
+          {BASE_RECORD_PATH, {"Path", &StringAbbrev}},
+          {BASE_RECORD_TAG_TYPE, {"TagType", &IntAbbrev}},
+          {BASE_RECORD_IS_VIRTUAL, {"IsVirtual", &BoolAbbrev}},
+          {BASE_RECORD_ACCESS, {"Access", &IntAbbrev}},
+          {BASE_RECORD_IS_PARENT, {"IsParent", &BoolAbbrev}},
           {FUNCTION_USR, {"USR", &SymbolIDAbbrev}},
           {FUNCTION_NAME, {"Name", &StringAbbrev}},
           {FUNCTION_DEFLOCATION, {"DefLocation", &LocationAbbrev}},
@@ -172,6 +183,8 @@ static const llvm::IndexedMap<RecordIdDsc, RecordIdToIndexFunctor>
           {REFERENCE_NAME, {"Name", &StringAbbrev}},
           {REFERENCE_TYPE, {"RefType", &IntAbbrev}},
           {REFERENCE_PATH, {"Path", &StringAbbrev}},
+          {REFERENCE_IS_IN_GLOBAL_NAMESPACE,
+           {"IsInGlobalNamespace", &BoolAbbrev}},
           {REFERENCE_FIELD, {"Field", &IntAbbrev}}};
       assert(Inits.size() == RecordIdCount);
       for (const auto &Init : Inits) {
@@ -208,6 +221,11 @@ static const std::vector<std::pair<BlockId, std::vector<RecordId>>>
         {BI_RECORD_BLOCK_ID,
          {RECORD_USR, RECORD_NAME, RECORD_PATH, RECORD_DEFLOCATION,
           RECORD_LOCATION, RECORD_TAG_TYPE, RECORD_IS_TYPE_DEF}},
+        // BaseRecord Block
+        {BI_BASE_RECORD_BLOCK_ID,
+         {BASE_RECORD_USR, BASE_RECORD_NAME, BASE_RECORD_PATH,
+          BASE_RECORD_TAG_TYPE, BASE_RECORD_IS_VIRTUAL, BASE_RECORD_ACCESS,
+          BASE_RECORD_IS_PARENT}},
         // Function Block
         {BI_FUNCTION_BLOCK_ID,
          {FUNCTION_USR, FUNCTION_NAME, FUNCTION_DEFLOCATION, FUNCTION_LOCATION,
@@ -215,7 +233,7 @@ static const std::vector<std::pair<BlockId, std::vector<RecordId>>>
         // Reference Block
         {BI_REFERENCE_BLOCK_ID,
          {REFERENCE_USR, REFERENCE_NAME, REFERENCE_TYPE, REFERENCE_PATH,
-          REFERENCE_FIELD}}};
+          REFERENCE_IS_IN_GLOBAL_NAMESPACE, REFERENCE_FIELD}}};
 
 // AbbreviationMap
 
@@ -236,7 +254,7 @@ unsigned ClangDocBitcodeWriter::AbbreviationMap::get(RecordId RID) const {
 
 // Validation and Overview Blocks
 
-/// \brief Emits the magic number header to check that its the right format,
+/// Emits the magic number header to check that its the right format,
 /// in this case, 'DOCS'.
 void ClangDocBitcodeWriter::emitHeader() {
   for (char C : BitCodeConstants::Signature)
@@ -248,7 +266,7 @@ void ClangDocBitcodeWriter::emitVersionBlock() {
   emitRecord(VersionNumber, VERSION);
 }
 
-/// \brief Emits a block ID and the block name to the BLOCKINFO block.
+/// Emits a block ID and the block name to the BLOCKINFO block.
 void ClangDocBitcodeWriter::emitBlockID(BlockId BID) {
   const auto &BlockIdName = BlockIdNameMap[BID];
   assert(BlockIdName.data() && BlockIdName.size() && "Unknown BlockId.");
@@ -261,7 +279,7 @@ void ClangDocBitcodeWriter::emitBlockID(BlockId BID) {
                                             BlockIdName.bytes_end()));
 }
 
-/// \brief Emits a record name to the BLOCKINFO block.
+/// Emits a record name to the BLOCKINFO block.
 void ClangDocBitcodeWriter::emitRecordID(RecordId ID) {
   assert(RecordIdNameMap[ID] && "Unknown RecordId.");
   prepRecordData(ID);
@@ -314,6 +332,7 @@ void ClangDocBitcodeWriter::emitRecord(const Location &Loc, RecordId ID) {
   // FIXME: Assert that the line number is of the appropriate size.
   Record.push_back(Loc.LineNumber);
   assert(Loc.Filename.size() < (1U << BitCodeConstants::StringLengthSize));
+  Record.push_back(Loc.IsFileInRootDir);
   Record.push_back(Loc.Filename.size());
   Stream.EmitRecordWithBlob(Abbrevs.get(ID), Record, Loc.Filename);
 }
@@ -387,6 +406,7 @@ void ClangDocBitcodeWriter::emitBlock(const Reference &R, FieldId Field) {
   emitRecord(R.Name, REFERENCE_NAME);
   emitRecord((unsigned)R.RefType, REFERENCE_TYPE);
   emitRecord(R.Path, REFERENCE_PATH);
+  emitRecord(R.IsInGlobalNamespace, REFERENCE_IS_IN_GLOBAL_NAMESPACE);
   emitRecord((unsigned)Field, REFERENCE_FIELD);
 }
 
@@ -487,11 +507,28 @@ void ClangDocBitcodeWriter::emitBlock(const RecordInfo &I) {
     emitBlock(P, FieldId::F_parent);
   for (const auto &P : I.VirtualParents)
     emitBlock(P, FieldId::F_vparent);
+  for (const auto &PB : I.Bases)
+    emitBlock(PB);
   for (const auto &C : I.ChildRecords)
     emitBlock(C, FieldId::F_child_record);
   for (const auto &C : I.ChildFunctions)
     emitBlock(C);
   for (const auto &C : I.ChildEnums)
+    emitBlock(C);
+}
+
+void ClangDocBitcodeWriter::emitBlock(const BaseRecordInfo &I) {
+  StreamSubBlockGuard Block(Stream, BI_BASE_RECORD_BLOCK_ID);
+  emitRecord(I.USR, BASE_RECORD_USR);
+  emitRecord(I.Name, BASE_RECORD_NAME);
+  emitRecord(I.Path, BASE_RECORD_PATH);
+  emitRecord(I.TagType, BASE_RECORD_TAG_TYPE);
+  emitRecord(I.IsVirtual, BASE_RECORD_IS_VIRTUAL);
+  emitRecord(I.Access, BASE_RECORD_ACCESS);
+  emitRecord(I.IsParent, BASE_RECORD_IS_PARENT);
+  for (const auto &M : I.Members)
+    emitBlock(M);
+  for (const auto &C : I.ChildFunctions)
     emitBlock(C);
 }
 
@@ -503,6 +540,7 @@ void ClangDocBitcodeWriter::emitBlock(const FunctionInfo &I) {
     emitBlock(N, FieldId::F_namespace);
   for (const auto &CI : I.Description)
     emitBlock(CI);
+  emitRecord(I.Access, FUNCTION_ACCESS);
   emitRecord(I.IsMethod, FUNCTION_IS_METHOD);
   if (I.DefLoc)
     emitRecord(I.DefLoc.getValue(), FUNCTION_DEFLOCATION);

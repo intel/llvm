@@ -26,6 +26,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -39,6 +40,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
@@ -82,6 +84,8 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "dwarfdebug"
+
+STATISTIC(NumCSParams, "Number of dbg call site params created");
 
 static cl::opt<bool>
 DisableDebugInfoPrinting("disable-debug-info-print", cl::Hidden,
@@ -275,7 +279,7 @@ void DbgVariable::initializeDbgValue(const MachineInstr *DbgValue) {
   assert(getInlinedAt() == DbgValue->getDebugLoc()->getInlinedAt() &&
          "Wrong inlined-at");
 
-  ValueLoc = llvm::make_unique<DbgValueLoc>(getDebugLocValue(DbgValue));
+  ValueLoc = std::make_unique<DbgValueLoc>(getDebugLocValue(DbgValue));
   if (auto *E = DbgValue->getDebugExpression())
     if (E->getNumElements())
       FrameIndexExprs.push_back({0, E});
@@ -551,6 +555,158 @@ void DwarfDebug::constructAbstractSubprogramScopeDIE(DwarfCompileUnit &SrcCU,
   }
 }
 
+/// Try to interpret values loaded into registers that forward parameters
+/// for \p CallMI. Store parameters with interpreted value into \p Params.
+static void collectCallSiteParameters(const MachineInstr *CallMI,
+                                      ParamSet &Params) {
+  auto *MF = CallMI->getMF();
+  auto CalleesMap = MF->getCallSitesInfo();
+  auto CallFwdRegsInfo = CalleesMap.find(CallMI);
+
+  // There is no information for the call instruction.
+  if (CallFwdRegsInfo == CalleesMap.end())
+    return;
+
+  auto *MBB = CallMI->getParent();
+  const auto &TRI = MF->getSubtarget().getRegisterInfo();
+  const auto &TII = MF->getSubtarget().getInstrInfo();
+  const auto &TLI = MF->getSubtarget().getTargetLowering();
+
+  // Skip the call instruction.
+  auto I = std::next(CallMI->getReverseIterator());
+
+  DenseSet<unsigned> ForwardedRegWorklist;
+  // Add all the forwarding registers into the ForwardedRegWorklist.
+  for (auto ArgReg : CallFwdRegsInfo->second) {
+    bool InsertedReg = ForwardedRegWorklist.insert(ArgReg.Reg).second;
+    assert(InsertedReg && "Single register used to forward two arguments?");
+    (void)InsertedReg;
+  }
+
+  // We erase, from the ForwardedRegWorklist, those forwarding registers for
+  // which we successfully describe a loaded value (by using
+  // the describeLoadedValue()). For those remaining arguments in the working
+  // list, for which we do not describe a loaded value by
+  // the describeLoadedValue(), we try to generate an entry value expression
+  // for their call site value desctipion, if the call is within the entry MBB.
+  // The RegsForEntryValues maps a forwarding register into the register holding
+  // the entry value.
+  // TODO: Handle situations when call site parameter value can be described
+  // as the entry value within basic blocks other then the first one.
+  bool ShouldTryEmitEntryVals = MBB->getIterator() == MF->begin();
+  DenseMap<unsigned, unsigned> RegsForEntryValues;
+
+  // If the MI is an instruction defining one or more parameters' forwarding
+  // registers, add those defines. We can currently only describe forwarded
+  // registers that are explicitly defined, but keep track of implicit defines
+  // also to remove those registers from the work list.
+  auto getForwardingRegsDefinedByMI = [&](const MachineInstr &MI,
+                                          SmallVectorImpl<unsigned> &Explicit,
+                                          SmallVectorImpl<unsigned> &Implicit) {
+    if (MI.isDebugInstr())
+      return;
+
+    for (const MachineOperand &MO : MI.operands()) {
+      if (MO.isReg() && MO.isDef() &&
+          Register::isPhysicalRegister(MO.getReg())) {
+        for (auto FwdReg : ForwardedRegWorklist) {
+          if (TRI->regsOverlap(FwdReg, MO.getReg())) {
+            if (MO.isImplicit())
+              Implicit.push_back(FwdReg);
+            else
+              Explicit.push_back(FwdReg);
+            break;
+          }
+        }
+      }
+    }
+  };
+
+  auto finishCallSiteParam = [&](DbgValueLoc DbgLocVal, unsigned Reg) {
+    unsigned FwdReg = Reg;
+    if (ShouldTryEmitEntryVals) {
+      auto EntryValReg = RegsForEntryValues.find(Reg);
+      if (EntryValReg != RegsForEntryValues.end())
+        FwdReg = EntryValReg->second;
+    }
+
+    DbgCallSiteParam CSParm(FwdReg, DbgLocVal);
+    Params.push_back(CSParm);
+    ++NumCSParams;
+  };
+
+  // Search for a loading value in forwaring registers.
+  for (; I != MBB->rend(); ++I) {
+    // If the next instruction is a call we can not interpret parameter's
+    // forwarding registers or we finished the interpretation of all parameters.
+    if (I->isCall())
+      return;
+
+    if (ForwardedRegWorklist.empty())
+      return;
+
+    SmallVector<unsigned, 4> ExplicitFwdRegDefs;
+    SmallVector<unsigned, 4> ImplicitFwdRegDefs;
+    getForwardingRegsDefinedByMI(*I, ExplicitFwdRegDefs, ImplicitFwdRegDefs);
+    if (ExplicitFwdRegDefs.empty() && ImplicitFwdRegDefs.empty())
+      continue;
+
+    // If the MI clobbers more then one forwarding register we must remove
+    // all of them from the working list.
+    for (auto Reg : concat<unsigned>(ExplicitFwdRegDefs, ImplicitFwdRegDefs))
+      ForwardedRegWorklist.erase(Reg);
+
+    // The describeLoadedValue() hook currently does not have any information
+    // about which register it should describe in case of multiple defines, so
+    // for now we only handle instructions where a forwarded register is (at
+    // least partially) defined by the instruction's single explicit define.
+    if (I->getNumExplicitDefs() != 1 || ExplicitFwdRegDefs.empty())
+      continue;
+    unsigned Reg = ExplicitFwdRegDefs[0];
+
+    if (auto ParamValue = TII->describeLoadedValue(*I)) {
+      if (ParamValue->first.isImm()) {
+        unsigned Val = ParamValue->first.getImm();
+        DbgValueLoc DbgLocVal(ParamValue->second, Val);
+        finishCallSiteParam(DbgLocVal, Reg);
+      } else if (ParamValue->first.isReg()) {
+        Register RegLoc = ParamValue->first.getReg();
+        unsigned SP = TLI->getStackPointerRegisterToSaveRestore();
+        Register FP = TRI->getFrameRegister(*MF);
+        bool IsSPorFP = (RegLoc == SP) || (RegLoc == FP);
+        if (TRI->isCalleeSavedPhysReg(RegLoc, *MF) || IsSPorFP) {
+          DbgValueLoc DbgLocVal(ParamValue->second,
+                                MachineLocation(RegLoc,
+                                                /*IsIndirect=*/IsSPorFP));
+          finishCallSiteParam(DbgLocVal, Reg);
+        } else if (ShouldTryEmitEntryVals) {
+          ForwardedRegWorklist.insert(RegLoc);
+          RegsForEntryValues[RegLoc] = Reg;
+        }
+      }
+    }
+  }
+
+  // Emit the call site parameter's value as an entry value.
+  if (ShouldTryEmitEntryVals) {
+    // Create an entry value expression where the expression following
+    // the 'DW_OP_entry_value' will be the size of 1 (a register operation).
+    DIExpression *EntryExpr = DIExpression::get(MF->getFunction().getContext(),
+                                                {dwarf::DW_OP_entry_value, 1});
+    for (auto RegEntry : ForwardedRegWorklist) {
+      unsigned FwdReg = RegEntry;
+      auto EntryValReg = RegsForEntryValues.find(RegEntry);
+        if (EntryValReg != RegsForEntryValues.end())
+          FwdReg = EntryValReg->second;
+
+      DbgValueLoc DbgLocVal(EntryExpr, MachineLocation(RegEntry));
+      DbgCallSiteParam CSParm(FwdReg, DbgLocVal);
+      Params.push_back(CSParm);
+      ++NumCSParams;
+    }
+  }
+}
+
 void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
                                             DwarfCompileUnit &CU, DIE &ScopeDIE,
                                             const MachineFunction &MF) {
@@ -563,10 +719,11 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
   // for both tail and non-tail calls. Don't use DW_AT_call_all_source_calls
   // because one of its requirements is not met: call site entries for
   // optimized-out calls are elided.
-  CU.addFlag(ScopeDIE, dwarf::DW_AT_call_all_calls);
+  CU.addFlag(ScopeDIE, CU.getDwarf5OrGNUAttr(dwarf::DW_AT_call_all_calls));
 
   const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
   assert(TII && "TargetInstrInfo not found: cannot label tail calls");
+  bool ApplyGNUExtensions = getDwarfVersion() == 4 && tuneForGDB();
 
   // Emit call site entries for each call or tail call in the function.
   for (const MachineBasicBlock &MBB : MF) {
@@ -581,30 +738,66 @@ void DwarfDebug::constructCallSiteEntryDIEs(const DISubprogram &SP,
         return;
 
       // If this is a direct call, find the callee's subprogram.
+      // In the case of an indirect call find the register that holds
+      // the callee.
       const MachineOperand &CalleeOp = MI.getOperand(0);
-      if (!CalleeOp.isGlobal())
-        continue;
-      const Function *CalleeDecl = dyn_cast<Function>(CalleeOp.getGlobal());
-      if (!CalleeDecl || !CalleeDecl->getSubprogram())
+      if (!CalleeOp.isGlobal() && !CalleeOp.isReg())
         continue;
 
+      unsigned CallReg = 0;
+      const DISubprogram *CalleeSP = nullptr;
+      const Function *CalleeDecl = nullptr;
+      if (CalleeOp.isReg()) {
+        CallReg = CalleeOp.getReg();
+        if (!CallReg)
+          continue;
+      } else {
+        CalleeDecl = dyn_cast<Function>(CalleeOp.getGlobal());
+        if (!CalleeDecl || !CalleeDecl->getSubprogram())
+          continue;
+        CalleeSP = CalleeDecl->getSubprogram();
+      }
+
       // TODO: Omit call site entries for runtime calls (objc_msgSend, etc).
-      // TODO: Add support for indirect calls.
 
       bool IsTail = TII->isTailCall(MI);
 
-      // For tail calls, no return PC information is needed. For regular calls,
-      // the return PC is needed to disambiguate paths in the call graph which
-      // could lead to some target function.
+      // For tail calls, for non-gdb tuning, no return PC information is needed.
+      // For regular calls (and tail calls in GDB tuning), the return PC
+      // is needed to disambiguate paths in the call graph which could lead to
+      // some target function.
       const MCExpr *PCOffset =
-          IsTail ? nullptr : getFunctionLocalOffsetAfterInsn(&MI);
+          (IsTail && !tuneForGDB()) ? nullptr
+                                    : getFunctionLocalOffsetAfterInsn(&MI);
 
-      assert((IsTail || PCOffset) && "Call without return PC information");
+      // Address of a call-like instruction for a normal call or a jump-like
+      // instruction for a tail call. This is needed for GDB + DWARF 4 tuning.
+      const MCSymbol *PCAddr =
+          ApplyGNUExtensions ? const_cast<MCSymbol*>(getLabelAfterInsn(&MI))
+                             : nullptr;
+
+      assert((IsTail || PCOffset || PCAddr) &&
+             "Call without return PC information");
+
       LLVM_DEBUG(dbgs() << "CallSiteEntry: " << MF.getName() << " -> "
-                        << CalleeDecl->getName() << (IsTail ? " [tail]" : "")
-                        << "\n");
-      CU.constructCallSiteEntryDIE(ScopeDIE, *CalleeDecl->getSubprogram(),
-                                   IsTail, PCOffset);
+                        << (CalleeDecl ? CalleeDecl->getName()
+                                       : StringRef(MF.getSubtarget()
+                                                       .getRegisterInfo()
+                                                       ->getName(CallReg)))
+                        << (IsTail ? " [IsTail]" : "") << "\n");
+
+      DIE &CallSiteDIE =
+            CU.constructCallSiteEntryDIE(ScopeDIE, CalleeSP, IsTail, PCAddr,
+                                         PCOffset, CallReg);
+
+      // GDB and LLDB support call site parameter debug info.
+      if (Asm->TM.Options.EnableDebugEntryValues &&
+          (tuneForGDB() || tuneForLLDB())) {
+        ParamSet Params;
+        // Try to interpret values of call site parameters.
+        collectCallSiteParameters(&MI, Params);
+        CU.constructCallSiteParmEntryDIEs(CallSiteDIE, Params);
+      }
     }
   }
 }
@@ -680,7 +873,7 @@ DwarfDebug::getOrCreateDwarfCompileUnit(const DICompileUnit *DIUnit) {
 
   CompilationDir = DIUnit->getDirectory();
 
-  auto OwnedUnit = llvm::make_unique<DwarfCompileUnit>(
+  auto OwnedUnit = std::make_unique<DwarfCompileUnit>(
       InfoHolder.getUnits().size(), DIUnit, Asm, this, &InfoHolder);
   DwarfCompileUnit &NewCU = *OwnedUnit;
   InfoHolder.addUnit(std::move(OwnedUnit));
@@ -1105,7 +1298,7 @@ void DwarfDebug::collectVariableInfoFromMFTable(
       continue;
 
     ensureAbstractEntityIsCreatedIfScoped(TheCU, Var.first, Scope->getScopeNode());
-    auto RegVar = llvm::make_unique<DbgVariable>(
+    auto RegVar = std::make_unique<DbgVariable>(
                     cast<DILocalVariable>(Var.first), Var.second);
     RegVar->initializeMMI(VI.Expr, VI.Slot);
     if (DbgVariable *DbgVar = MFVars.lookup(Var))
@@ -1316,13 +1509,13 @@ DbgEntity *DwarfDebug::createConcreteEntity(DwarfCompileUnit &TheCU,
   ensureAbstractEntityIsCreatedIfScoped(TheCU, Node, Scope.getScopeNode());
   if (isa<const DILocalVariable>(Node)) {
     ConcreteEntities.push_back(
-        llvm::make_unique<DbgVariable>(cast<const DILocalVariable>(Node),
+        std::make_unique<DbgVariable>(cast<const DILocalVariable>(Node),
                                        Location));
     InfoHolder.addScopeVariable(&Scope,
         cast<DbgVariable>(ConcreteEntities.back().get()));
   } else if (isa<const DILabel>(Node)) {
     ConcreteEntities.push_back(
-        llvm::make_unique<DbgLabel>(cast<const DILabel>(Node),
+        std::make_unique<DbgLabel>(cast<const DILabel>(Node),
                                     Location, Sym));
     InfoHolder.addScopeLabel(&Scope,
         cast<DbgLabel>(ConcreteEntities.back().get()));
@@ -1419,11 +1612,14 @@ void DwarfDebug::collectEntityInfo(DwarfCompileUnit &TheCU,
 
     LexicalScope *Scope = nullptr;
     const DILabel *Label = cast<DILabel>(IL.first);
+    // The scope could have an extra lexical block file.
+    const DILocalScope *LocalScope =
+        Label->getScope()->getNonLexicalBlockFileScope();
     // Get inlined DILocation if it is inlined label.
     if (const DILocation *IA = IL.second)
-      Scope = LScopes.findInlinedScope(Label->getScope(), IA);
+      Scope = LScopes.findInlinedScope(LocalScope, IA);
     else
-      Scope = LScopes.findLexicalScope(Label->getScope());
+      Scope = LScopes.findLexicalScope(LocalScope);
     // If label scope is not found then skip this label.
     if (!Scope)
       continue;
@@ -1967,7 +2163,7 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
   DWARFExpression Expr(Data, getDwarfVersion(), PtrSize);
 
   using Encoding = DWARFExpression::Operation::Encoding;
-  uint32_t Offset = 0;
+  uint64_t Offset = 0;
   for (auto &Op : Expr) {
     assert(Op.getCode() != dwarf::DW_OP_const_type &&
            "3 operand ops not yet supported");
@@ -1990,7 +2186,7 @@ void DwarfDebug::emitDebugLocEntry(ByteStreamer &Streamer,
             if (Comment != End)
               Comment++;
       } else {
-        for (uint32_t J = Offset; J < Op.getOperandEndOffset(I); ++J)
+        for (uint64_t J = Offset; J < Op.getOperandEndOffset(I); ++J)
           Streamer.EmitInt8(Data.getData()[J], Comment != End ? *(Comment++) : "");
       }
       Offset = Op.getOperandEndOffset(I);
@@ -2359,8 +2555,8 @@ void DwarfDebug::emitDebugARanges() {
     unsigned TupleSize = PtrSize * 2;
 
     // 7.20 in the Dwarf specs requires the table to be aligned to a tuple.
-    unsigned Padding =
-        OffsetToAlignment(sizeof(int32_t) + ContentSize, TupleSize);
+    unsigned Padding = offsetToAlignment(sizeof(int32_t) + ContentSize,
+                                         llvm::Align(TupleSize));
 
     ContentSize += Padding;
     ContentSize += (List.size() + 1) * TupleSize;
@@ -2637,7 +2833,7 @@ void DwarfDebug::initSkeletonUnit(const DwarfUnit &U, DIE &Die,
 
 DwarfCompileUnit &DwarfDebug::constructSkeletonCU(const DwarfCompileUnit &CU) {
 
-  auto OwnedUnit = llvm::make_unique<DwarfCompileUnit>(
+  auto OwnedUnit = std::make_unique<DwarfCompileUnit>(
       CU.getUniqueID(), CU.getCUNode(), Asm, this, &SkeletonHolder);
   DwarfCompileUnit &NewCU = *OwnedUnit;
   NewCU.setSection(Asm->getObjFileLowering().getDwarfInfoSection());
@@ -2737,7 +2933,7 @@ void DwarfDebug::addDwarfTypeUnitType(DwarfCompileUnit &CU,
   bool TopLevelType = TypeUnitsUnderConstruction.empty();
   AddrPool.resetUsedFlag();
 
-  auto OwnedUnit = llvm::make_unique<DwarfTypeUnit>(CU, Asm, this, &InfoHolder,
+  auto OwnedUnit = std::make_unique<DwarfTypeUnit>(CU, Asm, this, &InfoHolder,
                                                     getDwoLineTable(CU));
   DwarfTypeUnit &NewTU = *OwnedUnit;
   DIE &UnitDie = NewTU.getUnitDie();

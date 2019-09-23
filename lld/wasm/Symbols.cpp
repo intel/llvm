@@ -32,11 +32,15 @@ DefinedData *WasmSym::dsoHandle;
 DefinedData *WasmSym::dataEnd;
 DefinedData *WasmSym::globalBase;
 DefinedData *WasmSym::heapBase;
+DefinedData *WasmSym::initMemoryFlag;
 GlobalSymbol *WasmSym::stackPointer;
 GlobalSymbol *WasmSym::tlsBase;
 GlobalSymbol *WasmSym::tlsSize;
+GlobalSymbol *WasmSym::tlsAlign;
 UndefinedGlobal *WasmSym::tableBase;
+DefinedData *WasmSym::definedTableBase;
 UndefinedGlobal *WasmSym::memoryBase;
+DefinedData *WasmSym::definedMemoryBase;
 
 WasmSymbolType Symbol::getWasmType() const {
   if (isa<FunctionSymbol>(this))
@@ -110,9 +114,11 @@ void Symbol::setOutputSymbolIndex(uint32_t index) {
 void Symbol::setGOTIndex(uint32_t index) {
   LLVM_DEBUG(dbgs() << "setGOTIndex " << name << " -> " << index << "\n");
   assert(gotIndex == INVALID_INDEX);
-  // Any symbol that is assigned a GOT entry must be exported othewise the
-  // dynamic linker won't be able create the entry that contains it.
-  forceExport = true;
+  if (config->isPic) {
+    // Any symbol that is assigned a GOT entry must be exported othewise the
+    // dynamic linker won't be able create the entry that contains it.
+    forceExport = true;
+  }
   gotIndex = index;
 }
 
@@ -148,6 +154,10 @@ bool Symbol::isExported() const {
     return true;
 
   return flags & WASM_SYMBOL_EXPORTED;
+}
+
+bool Symbol::isNoStrip() const {
+  return flags & WASM_SYMBOL_NO_STRIP;
 }
 
 uint32_t FunctionSymbol::getFunctionIndex() const {

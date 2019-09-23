@@ -95,6 +95,8 @@ private:
   void onCommand(const ExecuteCommandParams &, Callback<llvm::json::Value>);
   void onWorkspaceSymbol(const WorkspaceSymbolParams &,
                          Callback<std::vector<SymbolInformation>>);
+  void onPrepareRename(const TextDocumentPositionParams &,
+                       Callback<llvm::Optional<Range>>);
   void onRename(const RenameParams &, Callback<WorkspaceEdit>);
   void onHover(const TextDocumentPositionParams &,
                Callback<llvm::Optional<Hover>>);
@@ -131,20 +133,45 @@ private:
   /// Language Server client.
   bool ShutdownRequestReceived = false;
 
+  /// Used to indicate the ClangdLSPServer is being destroyed.
+  std::atomic<bool> IsBeingDestroyed = {false};
+
   std::mutex FixItsMutex;
   typedef std::map<clangd::Diagnostic, std::vector<Fix>, LSPDiagnosticCompare>
       DiagnosticToReplacementMap;
   /// Caches FixIts per file and diagnostics
   llvm::StringMap<DiagnosticToReplacementMap> FixItsMap;
+  std::mutex HighlightingsMutex;
+  llvm::StringMap<std::vector<HighlightingToken>> FileToHighlightings;
 
   // Most code should not deal with Transport directly.
   // MessageHandler deals with incoming messages, use call() etc for outgoing.
   clangd::Transport &Transp;
   class MessageHandler;
   std::unique_ptr<MessageHandler> MsgHandler;
-  std::atomic<int> NextCallID = {0};
   std::mutex TranspWriter;
-  void call(StringRef Method, llvm::json::Value Params);
+
+  template <typename Response>
+  void call(StringRef Method, llvm::json::Value Params, Callback<Response> CB) {
+    // Wrap the callback with LSP conversion and error-handling.
+    auto HandleReply =
+        [CB = std::move(CB)](
+            llvm::Expected<llvm::json::Value> RawResponse) mutable {
+          Response Rsp;
+          if (!RawResponse) {
+            CB(RawResponse.takeError());
+          } else if (fromJSON(*RawResponse, Rsp)) {
+            CB(std::move(Rsp));
+          } else {
+            elog("Failed to decode {0} response", *RawResponse);
+            CB(llvm::make_error<LSPError>("failed to decode reponse",
+                                          ErrorCode::InvalidParams));
+          }
+        };
+    callRaw(Method, std::move(Params), std::move(HandleReply));
+  }
+  void callRaw(StringRef Method, llvm::json::Value Params,
+               Callback<llvm::json::Value> CB);
   void notify(StringRef Method, llvm::json::Value Params);
 
   const FileSystemProvider &FSProvider;

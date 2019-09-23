@@ -103,6 +103,7 @@ uint32_t ImportSection::getNumImports() const {
 
 void ImportSection::addGOTEntry(Symbol *sym) {
   assert(!isSealed);
+  LLVM_DEBUG(dbgs() << "addGOTEntry: " << toString(*sym) << "\n");
   if (sym->hasGOTIndex())
     return;
   sym->setGOTIndex(numImportedGlobals++);
@@ -142,7 +143,7 @@ void ImportSection::writeBody() {
   }
 
   if (config->importTable) {
-    uint32_t tableSize = out.elemSec->elemOffset + out.elemSec->numEntries();
+    uint32_t tableSize = config->tableBase + out.elemSec->numEntries();
     WasmImport import;
     import.Module = defaultModule;
     import.Field = functionTableName;
@@ -211,11 +212,15 @@ void FunctionSection::addFunction(InputFunction *func) {
 }
 
 void TableSection::writeBody() {
-  uint32_t tableSize = out.elemSec->elemOffset + out.elemSec->numEntries();
+  uint32_t tableSize = config->tableBase + out.elemSec->numEntries();
 
   raw_ostream &os = bodyOutputStream;
   writeUleb128(os, 1, "table count");
-  WasmLimits limits = {WASM_LIMITS_FLAG_HAS_MAX, tableSize, tableSize};
+  WasmLimits limits;
+  if (config->growableTable)
+    limits = {0, tableSize, 0};
+  else
+    limits = {WASM_LIMITS_FLAG_HAS_MAX, tableSize, tableSize};
   writeTableType(os, WasmTable{WASM_TYPE_FUNCREF, limits});
 }
 
@@ -235,11 +240,26 @@ void MemorySection::writeBody() {
     writeUleb128(os, maxMemoryPages, "max pages");
 }
 
+void GlobalSection::assignIndexes() {
+  uint32_t globalIndex = out.importSec->getNumImportedGlobals();
+  for (InputGlobal *g : inputGlobals)
+    g->setGlobalIndex(globalIndex++);
+  for (Symbol *sym : gotSymbols)
+    sym->setGOTIndex(globalIndex++);
+}
+
+void GlobalSection::addDummyGOTEntry(Symbol *sym) {
+  LLVM_DEBUG(dbgs() << "addDummyGOTEntry: " << toString(*sym) << "\n");
+  if (sym->hasGOTIndex())
+    return;
+  gotSymbols.push_back(sym);
+}
+
 void GlobalSection::writeBody() {
   raw_ostream &os = bodyOutputStream;
 
   writeUleb128(os, numGlobals(), "global count");
-  for (const InputGlobal *g : inputGlobals)
+  for (InputGlobal *g : inputGlobals)
     writeGlobal(os, g->global);
   for (const DefinedData *sym : definedFakeGlobals) {
     WasmGlobal global;
@@ -248,16 +268,22 @@ void GlobalSection::writeBody() {
     global.InitExpr.Value.Int32 = sym->getVirtualAddress();
     writeGlobal(os, global);
   }
+  for (const Symbol *sym : gotSymbols) {
+    WasmGlobal global;
+    global.Type = {WASM_TYPE_I32, false};
+    global.InitExpr.Opcode = WASM_OPCODE_I32_CONST;
+    if (auto *d = dyn_cast<DefinedData>(sym))
+      global.InitExpr.Value.Int32 = d->getVirtualAddress();
+    else if (auto *f = cast<DefinedFunction>(sym))
+      global.InitExpr.Value.Int32 = f->getTableIndex();
+    writeGlobal(os, global);
+  }
 }
 
 void GlobalSection::addGlobal(InputGlobal *global) {
   if (!global->live)
     return;
-  uint32_t globalIndex =
-      out.importSec->getNumImportedGlobals() + inputGlobals.size();
-  LLVM_DEBUG(dbgs() << "addGlobal: " << globalIndex << "\n");
-  global->setGlobalIndex(globalIndex);
-  out.globalSec->inputGlobals.push_back(global);
+  inputGlobals.push_back(global);
 }
 
 void EventSection::writeBody() {
@@ -288,10 +314,19 @@ void ExportSection::writeBody() {
     writeExport(os, export_);
 }
 
+bool StartSection::isNeeded() const {
+  return !config->relocatable && numSegments && config->sharedMemory;
+}
+
+void StartSection::writeBody() {
+  raw_ostream &os = bodyOutputStream;
+  writeUleb128(os, WasmSym::initMemory->getFunctionIndex(), "function index");
+}
+
 void ElemSection::addEntry(FunctionSymbol *sym) {
   if (sym->hasTableIndex())
     return;
-  sym->setTableIndex(elemOffset + indirectFunctions.size());
+  sym->setTableIndex(config->tableBase + indirectFunctions.size());
   indirectFunctions.emplace_back(sym);
 }
 
@@ -306,12 +341,12 @@ void ElemSection::writeBody() {
     initExpr.Value.Global = WasmSym::tableBase->getGlobalIndex();
   } else {
     initExpr.Opcode = WASM_OPCODE_I32_CONST;
-    initExpr.Value.Int32 = elemOffset;
+    initExpr.Value.Int32 = config->tableBase;
   }
   writeInitExpr(os, initExpr);
   writeUleb128(os, indirectFunctions.size(), "elem count");
 
-  uint32_t tableIndex = elemOffset;
+  uint32_t tableIndex = config->tableBase;
   for (const FunctionSymbol *sym : indirectFunctions) {
     assert(sym->getTableIndex() == tableIndex);
     writeUleb128(os, sym->getFunctionIndex(), "function index");
@@ -324,7 +359,7 @@ void DataCountSection::writeBody() {
 }
 
 bool DataCountSection::isNeeded() const {
-  return numSegments && config->passiveSegments;
+  return numSegments && config->sharedMemory;
 }
 
 static uint32_t getWasmFlags(const Symbol *sym) {

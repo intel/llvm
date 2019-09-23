@@ -41,7 +41,7 @@ namespace serialization {
     /// Version 4 of AST files also requires that the version control branch and
     /// revision match exactly, since there is no backward compatibility of
     /// AST files at this time.
-    const unsigned VERSION_MAJOR = 7;
+    const unsigned VERSION_MAJOR = 8;
 
     /// AST file minor version number supported by this version of
     /// Clang.
@@ -1018,6 +1018,9 @@ namespace serialization {
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
       PREDEF_TYPE_##Id##_ID,
 #include "clang/Basic/OpenCLExtensionTypes.def"
+      // \brief SVE types with auto numeration
+#define SVE_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
+#include "clang/Basic/AArch64SVEACLETypes.def"
     };
 
     /// The number of predefined type IDs that are reserved for

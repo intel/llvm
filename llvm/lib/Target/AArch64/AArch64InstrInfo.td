@@ -116,7 +116,7 @@ def HasSVE2SM4       : Predicate<"Subtarget->hasSVE2SM4()">,
 def HasSVE2SHA3      : Predicate<"Subtarget->hasSVE2SHA3()">,
                                  AssemblerPredicate<"FeatureSVE2SHA3", "sve2-sha3">;
 def HasSVE2BitPerm   : Predicate<"Subtarget->hasSVE2BitPerm()">,
-                                 AssemblerPredicate<"FeatureSVE2BitPerm", "bitperm">;
+                                 AssemblerPredicate<"FeatureSVE2BitPerm", "sve2-bitperm">;
 def HasRCPC          : Predicate<"Subtarget->hasRCPC()">,
                                  AssemblerPredicate<"FeatureRCPC", "rcpc">;
 def HasAltNZCV       : Predicate<"Subtarget->hasAlternativeNZCV()">,
@@ -133,6 +133,12 @@ def HasBTI           : Predicate<"Subtarget->hasBTI()">,
                        AssemblerPredicate<"FeatureBranchTargetId", "bti">;
 def HasMTE           : Predicate<"Subtarget->hasMTE()">,
                        AssemblerPredicate<"FeatureMTE", "mte">;
+def HasTME           : Predicate<"Subtarget->hasTME()">,
+                       AssemblerPredicate<"FeatureTME", "tme">;
+def HasETE           : Predicate<"Subtarget->hasETE()">,
+                       AssemblerPredicate<"FeatureETE", "ete">;
+def HasTRBE          : Predicate<"Subtarget->hasTRBE()">,
+                       AssemblerPredicate<"FeatureTRBE", "trbe">;
 def IsLE             : Predicate<"Subtarget->isLittleEndian()">;
 def IsBE             : Predicate<"!Subtarget->isLittleEndian()">;
 def IsWindows        : Predicate<"Subtarget->isTargetWindows()">;
@@ -431,6 +437,13 @@ let RecomputePerFunction = 1 in {
 
   def UseBTI : Predicate<[{ MF->getFunction().hasFnAttribute("branch-target-enforcement") }]>;
   def NotUseBTI : Predicate<[{ !MF->getFunction().hasFnAttribute("branch-target-enforcement") }]>;
+
+  // Toggles patterns which aren't beneficial in GlobalISel when we aren't
+  // optimizing. This allows us to selectively use patterns without impacting
+  // SelectionDAG's behaviour.
+  // FIXME: One day there will probably be a nicer way to check for this, but
+  // today is not that day.
+  def OptimizedGISelOrOtherSelector : Predicate<"!MF->getFunction().hasOptNone() || MF->getProperties().hasProperty(MachineFunctionProperties::Property::FailedISel) || !MF->getProperties().hasProperty(MachineFunctionProperties::Property::Legalized)">;
 }
 
 include "AArch64InstrFormats.td"
@@ -804,6 +817,23 @@ def : InstAlias<"sys $op1, $Cn, $Cm, $op2",
                 (SYSxt imm0_7:$op1, sys_cr_op:$Cn,
                  sys_cr_op:$Cm, imm0_7:$op2, XZR)>;
 
+
+let Predicates = [HasTME] in {
+
+def TSTART : TMSystemI<0b0000, "tstart",
+                      [(set GPR64:$Rt, (int_aarch64_tstart))]>;
+
+def TCOMMIT : TMSystemINoOperand<0b0000, "tcommit", [(int_aarch64_tcommit)]>;
+
+def TCANCEL : TMSystemException<0b011, "tcancel",
+                                [(int_aarch64_tcancel i64_imm0_65535:$imm)]>;
+
+def TTEST : TMSystemI<0b0001, "ttest", [(set GPR64:$Rt, (int_aarch64_ttest))]> {
+  let mayLoad = 0;
+  let mayStore = 0;
+}
+} // HasTME
+
 //===----------------------------------------------------------------------===//
 // Move immediate instructions.
 //===----------------------------------------------------------------------===//
@@ -815,37 +845,37 @@ let PostEncoderMethod = "fixMOVZ" in
 defm MOVZ : MoveImmediate<0b10, "movz">;
 
 // First group of aliases covers an implicit "lsl #0".
-def : InstAlias<"movk $dst, $imm", (MOVKWi GPR32:$dst, imm0_65535:$imm, 0), 0>;
-def : InstAlias<"movk $dst, $imm", (MOVKXi GPR64:$dst, imm0_65535:$imm, 0), 0>;
-def : InstAlias<"movn $dst, $imm", (MOVNWi GPR32:$dst, imm0_65535:$imm, 0)>;
-def : InstAlias<"movn $dst, $imm", (MOVNXi GPR64:$dst, imm0_65535:$imm, 0)>;
-def : InstAlias<"movz $dst, $imm", (MOVZWi GPR32:$dst, imm0_65535:$imm, 0)>;
-def : InstAlias<"movz $dst, $imm", (MOVZXi GPR64:$dst, imm0_65535:$imm, 0)>;
+def : InstAlias<"movk $dst, $imm", (MOVKWi GPR32:$dst, i32_imm0_65535:$imm, 0), 0>;
+def : InstAlias<"movk $dst, $imm", (MOVKXi GPR64:$dst, i32_imm0_65535:$imm, 0), 0>;
+def : InstAlias<"movn $dst, $imm", (MOVNWi GPR32:$dst, i32_imm0_65535:$imm, 0)>;
+def : InstAlias<"movn $dst, $imm", (MOVNXi GPR64:$dst, i32_imm0_65535:$imm, 0)>;
+def : InstAlias<"movz $dst, $imm", (MOVZWi GPR32:$dst, i32_imm0_65535:$imm, 0)>;
+def : InstAlias<"movz $dst, $imm", (MOVZXi GPR64:$dst, i32_imm0_65535:$imm, 0)>;
 
 // Next, we have various ELF relocations with the ":XYZ_g0:sym" syntax.
-def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movz_symbol_g3:$sym, 48)>;
-def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movz_symbol_g2:$sym, 32)>;
-def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movz_symbol_g1:$sym, 16)>;
-def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movz_symbol_g0:$sym, 0)>;
+def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movw_symbol_g3:$sym, 48)>;
+def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movw_symbol_g2:$sym, 32)>;
+def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movw_symbol_g1:$sym, 16)>;
+def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movw_symbol_g0:$sym, 0)>;
 
-def : InstAlias<"movn $Rd, $sym", (MOVNXi GPR64:$Rd, movz_symbol_g3:$sym, 48)>;
-def : InstAlias<"movn $Rd, $sym", (MOVNXi GPR64:$Rd, movz_symbol_g2:$sym, 32)>;
-def : InstAlias<"movn $Rd, $sym", (MOVNXi GPR64:$Rd, movz_symbol_g1:$sym, 16)>;
-def : InstAlias<"movn $Rd, $sym", (MOVNXi GPR64:$Rd, movz_symbol_g0:$sym, 0)>;
+def : InstAlias<"movn $Rd, $sym", (MOVNXi GPR64:$Rd, movw_symbol_g3:$sym, 48)>;
+def : InstAlias<"movn $Rd, $sym", (MOVNXi GPR64:$Rd, movw_symbol_g2:$sym, 32)>;
+def : InstAlias<"movn $Rd, $sym", (MOVNXi GPR64:$Rd, movw_symbol_g1:$sym, 16)>;
+def : InstAlias<"movn $Rd, $sym", (MOVNXi GPR64:$Rd, movw_symbol_g0:$sym, 0)>;
 
-def : InstAlias<"movk $Rd, $sym", (MOVKXi GPR64:$Rd, movk_symbol_g3:$sym, 48), 0>;
-def : InstAlias<"movk $Rd, $sym", (MOVKXi GPR64:$Rd, movk_symbol_g2:$sym, 32), 0>;
-def : InstAlias<"movk $Rd, $sym", (MOVKXi GPR64:$Rd, movk_symbol_g1:$sym, 16), 0>;
-def : InstAlias<"movk $Rd, $sym", (MOVKXi GPR64:$Rd, movk_symbol_g0:$sym, 0), 0>;
+def : InstAlias<"movk $Rd, $sym", (MOVKXi GPR64:$Rd, movw_symbol_g3:$sym, 48), 0>;
+def : InstAlias<"movk $Rd, $sym", (MOVKXi GPR64:$Rd, movw_symbol_g2:$sym, 32), 0>;
+def : InstAlias<"movk $Rd, $sym", (MOVKXi GPR64:$Rd, movw_symbol_g1:$sym, 16), 0>;
+def : InstAlias<"movk $Rd, $sym", (MOVKXi GPR64:$Rd, movw_symbol_g0:$sym, 0), 0>;
 
-def : InstAlias<"movz $Rd, $sym", (MOVZWi GPR32:$Rd, movz_symbol_g1:$sym, 16)>;
-def : InstAlias<"movz $Rd, $sym", (MOVZWi GPR32:$Rd, movz_symbol_g0:$sym, 0)>;
+def : InstAlias<"movz $Rd, $sym", (MOVZWi GPR32:$Rd, movw_symbol_g1:$sym, 16)>;
+def : InstAlias<"movz $Rd, $sym", (MOVZWi GPR32:$Rd, movw_symbol_g0:$sym, 0)>;
 
-def : InstAlias<"movn $Rd, $sym", (MOVNWi GPR32:$Rd, movz_symbol_g1:$sym, 16)>;
-def : InstAlias<"movn $Rd, $sym", (MOVNWi GPR32:$Rd, movz_symbol_g0:$sym, 0)>;
+def : InstAlias<"movn $Rd, $sym", (MOVNWi GPR32:$Rd, movw_symbol_g1:$sym, 16)>;
+def : InstAlias<"movn $Rd, $sym", (MOVNWi GPR32:$Rd, movw_symbol_g0:$sym, 0)>;
 
-def : InstAlias<"movk $Rd, $sym", (MOVKWi GPR32:$Rd, movk_symbol_g1:$sym, 16), 0>;
-def : InstAlias<"movk $Rd, $sym", (MOVKWi GPR32:$Rd, movk_symbol_g0:$sym, 0), 0>;
+def : InstAlias<"movk $Rd, $sym", (MOVKWi GPR32:$Rd, movw_symbol_g1:$sym, 16), 0>;
+def : InstAlias<"movk $Rd, $sym", (MOVKWi GPR32:$Rd, movw_symbol_g0:$sym, 0), 0>;
 
 // Final group of aliases covers true "mov $Rd, $imm" cases.
 multiclass movw_mov_alias<string basename,Instruction INST, RegisterClass GPR,
@@ -917,8 +947,12 @@ def trunc_imm : SDNodeXForm<imm, [{
 def gi_trunc_imm : GICustomOperandRenderer<"renderTruncImm">,
   GISDNodeXFormEquiv<trunc_imm>;
 
+let Predicates = [OptimizedGISelOrOtherSelector] in {
+// The SUBREG_TO_REG isn't eliminated at -O0, which can result in pointless
+// copies.
 def : Pat<(i64 i64imm_32bit:$src),
           (SUBREG_TO_REG (i64 0), (MOVi32imm (trunc_imm imm:$src)), sub_32)>;
+}
 
 // Materialize FP constants via MOVi32imm/MOVi64imm (MachO large code model).
 def bitcast_fpimm_to_i32 : SDNodeXForm<fpimm, [{
@@ -1012,10 +1046,10 @@ def : Pat<(sub GPR32:$Rn, arith_shifted_reg32:$Rm),
 def : Pat<(sub GPR64:$Rn, arith_shifted_reg64:$Rm),
           (SUBSXrs GPR64:$Rn, arith_shifted_reg64:$Rm)>;
 let AddedComplexity = 1 in {
-def : Pat<(sub GPR32sp:$R2, arith_extended_reg32<i32>:$R3),
-          (SUBSWrx GPR32sp:$R2, arith_extended_reg32<i32>:$R3)>;
-def : Pat<(sub GPR64sp:$R2, arith_extended_reg32to64<i64>:$R3),
-          (SUBSXrx GPR64sp:$R2, arith_extended_reg32to64<i64>:$R3)>;
+def : Pat<(sub GPR32sp:$R2, arith_extended_reg32_i32:$R3),
+          (SUBSWrx GPR32sp:$R2, arith_extended_reg32_i32:$R3)>;
+def : Pat<(sub GPR64sp:$R2, arith_extended_reg32to64_i64:$R3),
+          (SUBSXrx GPR64sp:$R2, arith_extended_reg32to64_i64:$R3)>;
 }
 
 // Because of the immediate format for add/sub-imm instructions, the

@@ -11,7 +11,6 @@
 
 #include "../clang-tidy/ClangTidyOptions.h"
 #include "Cancellation.h"
-#include "ClangdUnit.h"
 #include "CodeComplete.h"
 #include "FSProvider.h"
 #include "FormattedString.h"
@@ -52,6 +51,8 @@ public:
   virtual void onFileUpdated(PathRef File, const TUStatus &Status){};
 
   /// Called by ClangdServer when some \p Highlightings for \p File are ready.
+  /// \p NumLines are the number of lines in the file where the highlightings
+  /// where generated from.
   virtual void
   onHighlightingsReady(PathRef File,
                        std::vector<HighlightingToken> Highlightings) {}
@@ -241,6 +242,10 @@ public:
                                                      PathRef File, Position Pos,
                                                      StringRef TriggerText);
 
+  /// Test the validity of a rename operation.
+  void prepareRename(PathRef File, Position Pos,
+                     Callback<llvm::Optional<Range>> CB);
+
   /// Rename all occurrences of the symbol at the \p Pos in \p File to
   /// \p NewName.
   /// If WantFormat is false, the final TextEdit will be not formatted,
@@ -317,7 +322,6 @@ private:
   // If this is true, suggest include insertion fixes for diagnostic errors that
   // can be caused by missing includes (e.g. member access in incomplete type).
   bool SuggestMissingIncludes = false;
-  bool EnableHiddenFeatures = false;
 
   std::function<bool(const Tweak &)> TweakFilter;
 

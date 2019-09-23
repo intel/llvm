@@ -48,24 +48,22 @@ using namespace lld::elf;
 
 LinkerScript *elf::script;
 
-static uint64_t getOutputSectionVA(SectionBase *inputSec, StringRef loc) {
-  if (OutputSection *os = inputSec->getOutputSection())
-    return os->addr;
-  error(loc + ": unable to evaluate expression: input section " +
-        inputSec->name + " has no output section assigned");
-  return 0;
+static uint64_t getOutputSectionVA(SectionBase *sec) {
+  OutputSection *os = sec->getOutputSection();
+  assert(os && "input section has no output section assigned");
+  return os ? os->addr : 0;
 }
 
 uint64_t ExprValue::getValue() const {
   if (sec)
-    return alignTo(sec->getOffset(val) + getOutputSectionVA(sec, loc),
+    return alignTo(sec->getOffset(val) + getOutputSectionVA(sec),
                    alignment);
   return alignTo(val, alignment);
 }
 
 uint64_t ExprValue::getSecAddr() const {
   if (sec)
-    return sec->getOffset(0) + getOutputSectionVA(sec, loc);
+    return sec->getOffset(0) + getOutputSectionVA(sec);
   return 0;
 }
 
@@ -73,7 +71,7 @@ uint64_t ExprValue::getSectionOffset() const {
   // If the alignment is trivial, we don't have to compute the full
   // value to know the offset. This allows this function to succeed in
   // cases where the output section is not yet known.
-  if (alignment == 1 && (!sec || !sec->getOutputSection()))
+  if (alignment == 1 && !sec)
     return val;
   return getValue() - getSecAddr();
 }
@@ -157,8 +155,8 @@ static bool shouldDefineSym(SymbolAssignment *cmd) {
   return false;
 }
 
-// This function is called from processSectionCommands,
-// while we are fixing the output section layout.
+// Called by processSymbolAssignments() to assign definitions to
+// linker-script-defined symbols.
 void LinkerScript::addSymbol(SymbolAssignment *cmd) {
   if (!shouldDefineSym(cmd))
     return;
@@ -181,12 +179,12 @@ void LinkerScript::addSymbol(SymbolAssignment *cmd) {
   // write expressions like this: `alignment = 16; . = ALIGN(., alignment)`.
   uint64_t symValue = value.sec ? 0 : value.getValue();
 
-  Defined New(nullptr, cmd->name, STB_GLOBAL, visibility, STT_NOTYPE, symValue,
-              0, sec);
+  Defined newSym(nullptr, cmd->name, STB_GLOBAL, visibility, STT_NOTYPE,
+                 symValue, 0, sec);
 
   Symbol *sym = symtab->insert(cmd->name);
-  sym->mergeProperties(New);
-  sym->replace(New);
+  sym->mergeProperties(newSym);
+  sym->replace(newSym);
   cmd->sym = cast<Defined>(sym);
 }
 
@@ -197,17 +195,55 @@ static void declareSymbol(SymbolAssignment *cmd) {
     return;
 
   uint8_t visibility = cmd->hidden ? STV_HIDDEN : STV_DEFAULT;
-  Defined New(nullptr, cmd->name, STB_GLOBAL, visibility, STT_NOTYPE, 0, 0,
-              nullptr);
+  Defined newSym(nullptr, cmd->name, STB_GLOBAL, visibility, STT_NOTYPE, 0, 0,
+                 nullptr);
 
   // We can't calculate final value right now.
   Symbol *sym = symtab->insert(cmd->name);
-  sym->mergeProperties(New);
-  sym->replace(New);
+  sym->mergeProperties(newSym);
+  sym->replace(newSym);
 
   cmd->sym = cast<Defined>(sym);
   cmd->provide = false;
   sym->scriptDefined = true;
+}
+
+using SymbolAssignmentMap =
+    DenseMap<const Defined *, std::pair<SectionBase *, uint64_t>>;
+
+// Collect section/value pairs of linker-script-defined symbols. This is used to
+// check whether symbol values converge.
+static SymbolAssignmentMap
+getSymbolAssignmentValues(const std::vector<BaseCommand *> &sectionCommands) {
+  SymbolAssignmentMap ret;
+  for (BaseCommand *base : sectionCommands) {
+    if (auto *cmd = dyn_cast<SymbolAssignment>(base)) {
+      if (cmd->sym) // sym is nullptr for dot.
+        ret.try_emplace(cmd->sym,
+                        std::make_pair(cmd->sym->section, cmd->sym->value));
+      continue;
+    }
+    for (BaseCommand *sub_base : cast<OutputSection>(base)->sectionCommands)
+      if (auto *cmd = dyn_cast<SymbolAssignment>(sub_base))
+        if (cmd->sym)
+          ret.try_emplace(cmd->sym,
+                          std::make_pair(cmd->sym->section, cmd->sym->value));
+  }
+  return ret;
+}
+
+// Returns the lexicographical smallest (for determinism) Defined whose
+// section/value has changed.
+static const Defined *
+getChangedSymbolAssignment(const SymbolAssignmentMap &oldValues) {
+  const Defined *changed = nullptr;
+  for (auto &it : oldValues) {
+    const Defined *sym = it.first;
+    if (std::make_pair(sym->section, sym->value) != it.second &&
+        (!changed || sym->getName() < changed->getName()))
+      changed = sym;
+  }
+  return changed;
 }
 
 // This method is used to handle INSERT AFTER statement. Here we rebuild
@@ -305,30 +341,6 @@ bool LinkerScript::shouldKeep(InputSectionBase *s) {
 }
 
 // A helper function for the SORT() command.
-static std::function<bool(InputSectionBase *, InputSectionBase *)>
-getComparator(SortSectionPolicy k) {
-  switch (k) {
-  case SortSectionPolicy::Alignment:
-    return [](InputSectionBase *a, InputSectionBase *b) {
-      // ">" is not a mistake. Sections with larger alignments are placed
-      // before sections with smaller alignments in order to reduce the
-      // amount of padding necessary. This is compatible with GNU.
-      return a->alignment > b->alignment;
-    };
-  case SortSectionPolicy::Name:
-    return [](InputSectionBase *a, InputSectionBase *b) {
-      return a->name < b->name;
-    };
-  case SortSectionPolicy::Priority:
-    return [](InputSectionBase *a, InputSectionBase *b) {
-      return getPriority(a->name) < getPriority(b->name);
-    };
-  default:
-    llvm_unreachable("unknown sort policy");
-  }
-}
-
-// A helper function for the SORT() command.
 static bool matchConstraints(ArrayRef<InputSection *> sections,
                              ConstraintKind kind) {
   if (kind == ConstraintKind::NoConstraint)
@@ -343,8 +355,30 @@ static bool matchConstraints(ArrayRef<InputSection *> sections,
 
 static void sortSections(MutableArrayRef<InputSection *> vec,
                          SortSectionPolicy k) {
-  if (k != SortSectionPolicy::Default && k != SortSectionPolicy::None)
-    llvm::stable_sort(vec, getComparator(k));
+  auto alignmentComparator = [](InputSectionBase *a, InputSectionBase *b) {
+    // ">" is not a mistake. Sections with larger alignments are placed
+    // before sections with smaller alignments in order to reduce the
+    // amount of padding necessary. This is compatible with GNU.
+    return a->alignment > b->alignment;
+  };
+  auto nameComparator = [](InputSectionBase *a, InputSectionBase *b) {
+    return a->name < b->name;
+  };
+  auto priorityComparator = [](InputSectionBase *a, InputSectionBase *b) {
+    return getPriority(a->name) < getPriority(b->name);
+  };
+
+  switch (k) {
+  case SortSectionPolicy::Default:
+  case SortSectionPolicy::None:
+    return;
+  case SortSectionPolicy::Alignment:
+    return llvm::stable_sort(vec, alignmentComparator);
+  case SortSectionPolicy::Name:
+    return llvm::stable_sort(vec, nameComparator);
+  case SortSectionPolicy::Priority:
+    return llvm::stable_sort(vec, priorityComparator);
+  }
 }
 
 // Sort sections as instructed by SORT-family commands and --sort-section
@@ -388,9 +422,11 @@ LinkerScript::computeInputSections(const InputSectionDescription *cmd) {
       // which are common because they are in the default bfd script.
       // We do not ignore SHT_REL[A] linker-synthesized sections here because
       // want to support scripts that do custom layout for them.
-      if (auto *isec = dyn_cast<InputSection>(sec))
-        if (isec->getRelocatedSection())
-          continue;
+      //
+      // It is safe to assume that Sec is an InputSection because mergeable or
+      // EH input sections have already been handled and eliminated.
+      if (cast<InputSection>(sec)->getRelocatedSection())
+        continue;
 
       std::string filename = getFilename(sec->file);
       if (!cmd->filePat.match(filename) ||
@@ -398,9 +434,6 @@ LinkerScript::computeInputSections(const InputSectionDescription *cmd) {
           !pat.sectionPat.match(sec->name))
         continue;
 
-      // It is safe to assume that Sec is an InputSection
-      // because mergeable or EH input sections have already been
-      // handled and eliminated.
       ret.push_back(cast<InputSection>(sec));
       sec->assigned = true;
     }
@@ -424,7 +457,6 @@ void LinkerScript::discard(ArrayRef<InputSection *> v) {
     if (s == mainPart->hashTab)
       mainPart->hashTab = nullptr;
 
-    s->assigned = false;
     s->markDead();
     discard(s->dependentSections);
   }
@@ -443,36 +475,10 @@ LinkerScript::createInputSectionList(OutputSection &outCmd) {
   return ret;
 }
 
+// Create output sections described by SECTIONS commands.
 void LinkerScript::processSectionCommands() {
-  // A symbol can be assigned before any section is mentioned in the linker
-  // script. In an DSO, the symbol values are addresses, so the only important
-  // section values are:
-  // * SHN_UNDEF
-  // * SHN_ABS
-  // * Any value meaning a regular section.
-  // To handle that, create a dummy aether section that fills the void before
-  // the linker scripts switches to another section. It has an index of one
-  // which will map to whatever the first actual section is.
-  aether = make<OutputSection>("", 0, SHF_ALLOC);
-  aether->sectionIndex = 1;
-
-  // Ctx captures the local AddressState and makes it accessible deliberately.
-  // This is needed as there are some cases where we cannot just
-  // thread the current state through to a lambda function created by the
-  // script parser.
-  auto deleter = make_unique<AddressState>();
-  ctx = deleter.get();
-  ctx->outSec = aether;
-
   size_t i = 0;
-  // Add input sections to output sections.
   for (BaseCommand *base : sectionCommands) {
-    // Handle symbol assignments outside of any output section.
-    if (auto *cmd = dyn_cast<SymbolAssignment>(base)) {
-      addSymbol(cmd);
-      continue;
-    }
-
     if (auto *sec = dyn_cast<OutputSection>(base)) {
       std::vector<InputSection *> v = createInputSectionList(*sec);
 
@@ -498,12 +504,6 @@ void LinkerScript::processSectionCommands() {
         continue;
       }
 
-      // A directive may contain symbol definitions like this:
-      // ".foo : { ...; bar = .; }". Handle them.
-      for (BaseCommand *base : sec->sectionCommands)
-        if (auto *outCmd = dyn_cast<SymbolAssignment>(base))
-          addSymbol(outCmd);
-
       // Handle subalign (e.g. ".foo : SUBALIGN(32) { ... }"). If subalign
       // is given, input sections are aligned to that value, whether the
       // given value is larger or smaller than the original section alignment.
@@ -513,7 +513,7 @@ void LinkerScript::processSectionCommands() {
           s->alignment = subalign;
       }
 
-      // Add input sections to an output section.
+      // Some input sections may be removed from the list after ICF.
       for (InputSection *s : v)
         sec->addSection(s);
 
@@ -524,6 +524,32 @@ void LinkerScript::processSectionCommands() {
         sec->flags &= ~(uint64_t)SHF_ALLOC;
     }
   }
+}
+
+void LinkerScript::processSymbolAssignments() {
+  // Dot outside an output section still represents a relative address, whose
+  // sh_shndx should not be SHN_UNDEF or SHN_ABS. Create a dummy aether section
+  // that fills the void outside a section. It has an index of one, which is
+  // indistinguishable from any other regular section index.
+  aether = make<OutputSection>("", 0, SHF_ALLOC);
+  aether->sectionIndex = 1;
+
+  // ctx captures the local AddressState and makes it accessible deliberately.
+  // This is needed as there are some cases where we cannot just thread the
+  // current state through to a lambda function created by the script parser.
+  AddressState state;
+  ctx = &state;
+  ctx->outSec = aether;
+
+  for (BaseCommand *base : sectionCommands) {
+    if (auto *cmd = dyn_cast<SymbolAssignment>(base))
+      addSymbol(cmd);
+    else
+      for (BaseCommand *sub_base : cast<OutputSection>(base)->sectionCommands)
+        if (auto *cmd = dyn_cast<SymbolAssignment>(sub_base))
+          addSymbol(cmd);
+  }
+
   ctx = nullptr;
 }
 
@@ -771,6 +797,14 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
 
   if ((sec->flags & SHF_ALLOC) && sec->addrExpr)
     setDot(sec->addrExpr, sec->location, false);
+
+  // If the address of the section has been moved forward by an explicit
+  // expression so that it now starts past the current curPos of the enclosing
+  // region, we need to expand the current region to account for the space
+  // between the previous section, if any, and the start of this section.
+  if (ctx->memRegion && ctx->memRegion->curPos < dot)
+    expandMemoryRegion(ctx->memRegion, dot - ctx->memRegion->curPos,
+                       ctx->memRegion->name, sec->name);
 
   switchTo(sec);
 
@@ -1046,14 +1080,17 @@ static uint64_t getInitialDot() {
 // Here we assign addresses as instructed by linker script SECTIONS
 // sub-commands. Doing that allows us to use final VA values, so here
 // we also handle rest commands like symbol assignments and ASSERTs.
-void LinkerScript::assignAddresses() {
+// Returns a symbol that has changed its section or value, or nullptr if no
+// symbol has changed.
+const Defined *LinkerScript::assignAddresses() {
   dot = getInitialDot();
 
-  auto deleter = make_unique<AddressState>();
+  auto deleter = std::make_unique<AddressState>();
   ctx = deleter.get();
   errorOnMissingSection = true;
   switchTo(aether);
 
+  SymbolAssignmentMap oldValues = getSymbolAssignmentValues(sectionCommands);
   for (BaseCommand *base : sectionCommands) {
     if (auto *cmd = dyn_cast<SymbolAssignment>(base)) {
       cmd->addr = dot;
@@ -1063,7 +1100,9 @@ void LinkerScript::assignAddresses() {
     }
     assignOffsets(cast<OutputSection>(base));
   }
+
   ctx = nullptr;
+  return getChangedSymbolAssignment(oldValues);
 }
 
 // Creates program headers as instructed by PHDRS linker script command.

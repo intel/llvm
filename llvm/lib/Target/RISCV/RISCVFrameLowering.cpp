@@ -40,8 +40,16 @@ void RISCVFrameLowering::determineFrameLayout(MachineFunction &MF) const {
   uint64_t FrameSize = MFI.getStackSize();
 
   // Get the alignment.
-  uint64_t StackAlign = RI->needsStackRealignment(MF) ? MFI.getMaxAlignment()
-                                                      : getStackAlignment();
+  unsigned StackAlign = getStackAlignment();
+  if (RI->needsStackRealignment(MF)) {
+    unsigned MaxStackAlign = std::max(StackAlign, MFI.getMaxAlignment());
+    FrameSize += (MaxStackAlign - StackAlign);
+    StackAlign = MaxStackAlign;
+  }
+
+  // Set Max Call Frame Size
+  uint64_t MaxCallSize = alignTo(MFI.getMaxCallFrameSize(), StackAlign);
+  MFI.setMaxCallFrameSize(MaxCallSize);
 
   // Make sure the frame is aligned.
   FrameSize = alignTo(FrameSize, StackAlign);
@@ -52,8 +60,8 @@ void RISCVFrameLowering::determineFrameLayout(MachineFunction &MF) const {
 
 void RISCVFrameLowering::adjustReg(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator MBBI,
-                                   const DebugLoc &DL, unsigned DestReg,
-                                   unsigned SrcReg, int64_t Val,
+                                   const DebugLoc &DL, Register DestReg,
+                                   Register SrcReg, int64_t Val,
                                    MachineInstr::MIFlag Flag) const {
   MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
   const RISCVInstrInfo *TII = STI.getInstrInfo();
@@ -66,7 +74,7 @@ void RISCVFrameLowering::adjustReg(MachineBasicBlock &MBB,
         .addReg(SrcReg)
         .addImm(Val)
         .setMIFlag(Flag);
-  } else if (isInt<32>(Val)) {
+  } else {
     unsigned Opc = RISCV::ADD;
     bool isSub = Val < 0;
     if (isSub) {
@@ -74,22 +82,20 @@ void RISCVFrameLowering::adjustReg(MachineBasicBlock &MBB,
       Opc = RISCV::SUB;
     }
 
-    unsigned ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
-    TII->movImm32(MBB, MBBI, DL, ScratchReg, Val, Flag);
+    Register ScratchReg = MRI.createVirtualRegister(&RISCV::GPRRegClass);
+    TII->movImm(MBB, MBBI, DL, ScratchReg, Val, Flag);
     BuildMI(MBB, MBBI, DL, TII->get(Opc), DestReg)
         .addReg(SrcReg)
         .addReg(ScratchReg, RegState::Kill)
         .setMIFlag(Flag);
-  } else {
-    report_fatal_error("adjustReg cannot yet handle adjustments >32 bits");
   }
 }
 
 // Returns the register used to hold the frame pointer.
-static unsigned getFPReg(const RISCVSubtarget &STI) { return RISCV::X8; }
+static Register getFPReg(const RISCVSubtarget &STI) { return RISCV::X8; }
 
 // Returns the register used to hold the stack pointer.
-static unsigned getSPReg(const RISCVSubtarget &STI) { return RISCV::X2; }
+static Register getSPReg(const RISCVSubtarget &STI) { return RISCV::X2; }
 
 void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
@@ -101,8 +107,14 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   const RISCVInstrInfo *TII = STI.getInstrInfo();
   MachineBasicBlock::iterator MBBI = MBB.begin();
 
-  unsigned FPReg = getFPReg(STI);
-  unsigned SPReg = getSPReg(STI);
+  if (RI->needsStackRealignment(MF) && MFI.hasVarSizedObjects()) {
+    report_fatal_error(
+        "RISC-V backend can't currently handle functions that need stack "
+        "realignment and have variable sized objects");
+  }
+
+  Register FPReg = getFPReg(STI);
+  Register SPReg = getSPReg(STI);
 
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
@@ -141,7 +153,7 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   // directives.
   for (const auto &Entry : CSI) {
     int64_t Offset = MFI.getObjectOffset(Entry.getFrameIdx());
-    unsigned Reg = Entry.getReg();
+    Register Reg = Entry.getReg();
     unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(
         nullptr, RI->getDwarfRegNum(Reg, true), Offset));
     BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
@@ -158,6 +170,29 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
         nullptr, RI->getDwarfRegNum(FPReg, true), 0));
     BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
         .addCFIIndex(CFIIndex);
+
+    // Realign Stack
+    const RISCVRegisterInfo *RI = STI.getRegisterInfo();
+    if (RI->needsStackRealignment(MF)) {
+      unsigned MaxAlignment = MFI.getMaxAlignment();
+
+      const RISCVInstrInfo *TII = STI.getInstrInfo();
+      if (isInt<12>(-(int)MaxAlignment)) {
+        BuildMI(MBB, MBBI, DL, TII->get(RISCV::ANDI), SPReg)
+            .addReg(SPReg)
+            .addImm(-(int)MaxAlignment);
+      } else {
+        unsigned ShiftAmount = countTrailingZeros(MaxAlignment);
+        Register VR =
+            MF.getRegInfo().createVirtualRegister(&RISCV::GPRRegClass);
+        BuildMI(MBB, MBBI, DL, TII->get(RISCV::SRLI), VR)
+            .addReg(SPReg)
+            .addImm(ShiftAmount);
+        BuildMI(MBB, MBBI, DL, TII->get(RISCV::SLLI), SPReg)
+            .addReg(VR)
+            .addImm(ShiftAmount);
+      }
+    }
   }
 }
 
@@ -169,8 +204,8 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
   DebugLoc DL = MBBI->getDebugLoc();
   const RISCVInstrInfo *TII = STI.getInstrInfo();
-  unsigned FPReg = getFPReg(STI);
-  unsigned SPReg = getSPReg(STI);
+  Register FPReg = getFPReg(STI);
+  Register SPReg = getSPReg(STI);
 
   // Skip to before the restores of callee-saved registers
   // FIXME: assumes exactly one instruction is used to restore each
@@ -193,7 +228,7 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
     // To find the instruction restoring FP from stack.
     for (auto &I = LastFrameDestroy; I != MBBI; ++I) {
       if (I->mayLoad() && I->getOperand(0).isReg()) {
-        unsigned DestReg = I->getOperand(0).getReg();
+        Register DestReg = I->getOperand(0).getReg();
         if (DestReg == FPReg) {
           // If there is frame pointer, after restoring $fp registers, we
           // need adjust CFA to ($sp - FPOffset).
@@ -214,7 +249,7 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   // Iterate over list of callee-saved registers and emit .cfi_restore
   // directives.
   for (const auto &Entry : CSI) {
-    unsigned Reg = Entry.getReg();
+    Register Reg = Entry.getReg();
     unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createRestore(
         nullptr, RI->getDwarfRegNum(Reg, true)));
     BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
@@ -255,6 +290,13 @@ int RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF,
   }
 
   if (FI >= MinCSFI && FI <= MaxCSFI) {
+    FrameReg = RISCV::X2;
+    Offset += MF.getFrameInfo().getStackSize();
+  } else if (RI->needsStackRealignment(MF)) {
+    assert(!MFI.hasVarSizedObjects() &&
+           "Unexpected combination of stack realignment and varsized objects");
+    // If the stack was realigned, the frame pointer is set in order to allow
+    // SP to be restored, but we still access stack objects using SP.
     FrameReg = RISCV::X2;
     Offset += MF.getFrameInfo().getStackSize();
   } else {
@@ -338,7 +380,7 @@ bool RISCVFrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
 MachineBasicBlock::iterator RISCVFrameLowering::eliminateCallFramePseudoInstr(
     MachineFunction &MF, MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI) const {
-  unsigned SPReg = RISCV::X2;
+  Register SPReg = RISCV::X2;
   DebugLoc DL = MI->getDebugLoc();
 
   if (!hasReservedCallFrame(MF)) {

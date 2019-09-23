@@ -145,6 +145,11 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
   // (constructed via -Xarch_).
   Args.AddAllArgValues(CmdArgs, options::OPT_Zlinker_input);
 
+  // LIBRARY_PATH are included before user inputs and only supported on native
+  // toolchains.
+  if (!TC.isCrossCompiling())
+    addDirectoryList(Args, CmdArgs, "-L", "LIBRARY_PATH");
+
   for (const auto &II : Inputs) {
     // If the current tool chain refers to an OpenMP or HIP offloading host, we
     // should ignore inputs that refer to OpenMP or HIP offloading devices -
@@ -189,12 +194,6 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
     } else {
       A.renderAsInput(Args, CmdArgs);
     }
-  }
-
-  // LIBRARY_PATH - included following the user specified library paths.
-  //                and only supported on native toolchains.
-  if (!TC.isCrossCompiling()) {
-    addDirectoryList(Args, CmdArgs, "-L", "LIBRARY_PATH");
   }
 }
 
@@ -509,29 +508,40 @@ void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
 }
 
 bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
-                             const ArgList &Args, bool IsOffloadingHost,
-                             bool GompNeedsRT) {
+                             const ArgList &Args, bool ForceStaticHostRuntime,
+                             bool IsOffloadingHost, bool GompNeedsRT) {
   if (!Args.hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
                     options::OPT_fno_openmp, false))
     return false;
 
-  switch (TC.getDriver().getOpenMPRuntime(Args)) {
+  Driver::OpenMPRuntimeKind RTKind = TC.getDriver().getOpenMPRuntime(Args);
+
+  if (RTKind == Driver::OMPRT_Unknown)
+    // Already diagnosed.
+    return false;
+
+  if (ForceStaticHostRuntime)
+    CmdArgs.push_back("-Bstatic");
+
+  switch (RTKind) {
   case Driver::OMPRT_OMP:
     CmdArgs.push_back("-lomp");
     break;
   case Driver::OMPRT_GOMP:
     CmdArgs.push_back("-lgomp");
-
-    if (GompNeedsRT)
-      CmdArgs.push_back("-lrt");
     break;
   case Driver::OMPRT_IOMP5:
     CmdArgs.push_back("-liomp5");
     break;
   case Driver::OMPRT_Unknown:
-    // Already diagnosed.
-    return false;
+    break;
   }
+
+  if (ForceStaticHostRuntime)
+    CmdArgs.push_back("-Bdynamic");
+
+  if (RTKind == Driver::OMPRT_GOMP && GompNeedsRT)
+      CmdArgs.push_back("-lrt");
 
   if (IsOffloadingHost)
     CmdArgs.push_back("-lomptarget");
@@ -613,29 +623,29 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   const SanitizerArgs &SanArgs = TC.getSanitizerArgs();
   // Collect shared runtimes.
   if (SanArgs.needsSharedRt()) {
-    if (SanArgs.needsAsanRt()) {
+    if (SanArgs.needsAsanRt() && SanArgs.linkRuntimes()) {
       SharedRuntimes.push_back("asan");
       if (!Args.hasArg(options::OPT_shared) && !TC.getTriple().isAndroid())
         HelperStaticRuntimes.push_back("asan-preinit");
     }
-    if (SanArgs.needsUbsanRt()) {
+    if (SanArgs.needsUbsanRt() && SanArgs.linkRuntimes()) {
       if (SanArgs.requiresMinimalRuntime())
         SharedRuntimes.push_back("ubsan_minimal");
       else
         SharedRuntimes.push_back("ubsan_standalone");
     }
-    if (SanArgs.needsScudoRt()) {
+    if (SanArgs.needsScudoRt() && SanArgs.linkRuntimes()) {
       if (SanArgs.requiresMinimalRuntime())
         SharedRuntimes.push_back("scudo_minimal");
       else
         SharedRuntimes.push_back("scudo");
     }
-    if (SanArgs.needsHwasanRt())
+    if (SanArgs.needsHwasanRt() && SanArgs.linkRuntimes())
       SharedRuntimes.push_back("hwasan");
   }
 
   // The stats_client library is also statically linked into DSOs.
-  if (SanArgs.needsStatsRt())
+  if (SanArgs.needsStatsRt() && SanArgs.linkRuntimes())
     StaticRuntimes.push_back("stats_client");
 
   // Collect static runtimes.
@@ -643,32 +653,32 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     // Don't link static runtimes into DSOs or if -shared-libasan.
     return;
   }
-  if (SanArgs.needsAsanRt()) {
+  if (SanArgs.needsAsanRt() && SanArgs.linkRuntimes()) {
     StaticRuntimes.push_back("asan");
     if (SanArgs.linkCXXRuntimes())
       StaticRuntimes.push_back("asan_cxx");
   }
 
-  if (SanArgs.needsHwasanRt()) {
+  if (SanArgs.needsHwasanRt() && SanArgs.linkRuntimes()) {
     StaticRuntimes.push_back("hwasan");
     if (SanArgs.linkCXXRuntimes())
       StaticRuntimes.push_back("hwasan_cxx");
   }
-  if (SanArgs.needsDfsanRt())
+  if (SanArgs.needsDfsanRt() && SanArgs.linkRuntimes())
     StaticRuntimes.push_back("dfsan");
-  if (SanArgs.needsLsanRt())
+  if (SanArgs.needsLsanRt() && SanArgs.linkRuntimes())
     StaticRuntimes.push_back("lsan");
-  if (SanArgs.needsMsanRt()) {
+  if (SanArgs.needsMsanRt() && SanArgs.linkRuntimes()) {
     StaticRuntimes.push_back("msan");
     if (SanArgs.linkCXXRuntimes())
       StaticRuntimes.push_back("msan_cxx");
   }
-  if (SanArgs.needsTsanRt()) {
+  if (SanArgs.needsTsanRt() && SanArgs.linkRuntimes()) {
     StaticRuntimes.push_back("tsan");
     if (SanArgs.linkCXXRuntimes())
       StaticRuntimes.push_back("tsan_cxx");
   }
-  if (SanArgs.needsUbsanRt()) {
+  if (SanArgs.needsUbsanRt() && SanArgs.linkRuntimes()) {
     if (SanArgs.requiresMinimalRuntime()) {
       StaticRuntimes.push_back("ubsan_minimal");
     } else {
@@ -677,22 +687,22 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
         StaticRuntimes.push_back("ubsan_standalone_cxx");
     }
   }
-  if (SanArgs.needsSafeStackRt()) {
+  if (SanArgs.needsSafeStackRt() && SanArgs.linkRuntimes()) {
     NonWholeStaticRuntimes.push_back("safestack");
     RequiredSymbols.push_back("__safestack_init");
   }
-  if (SanArgs.needsCfiRt())
+  if (SanArgs.needsCfiRt() && SanArgs.linkRuntimes())
     StaticRuntimes.push_back("cfi");
-  if (SanArgs.needsCfiDiagRt()) {
+  if (SanArgs.needsCfiDiagRt() && SanArgs.linkRuntimes()) {
     StaticRuntimes.push_back("cfi_diag");
     if (SanArgs.linkCXXRuntimes())
       StaticRuntimes.push_back("ubsan_standalone_cxx");
   }
-  if (SanArgs.needsStatsRt()) {
+  if (SanArgs.needsStatsRt() && SanArgs.linkRuntimes()) {
     NonWholeStaticRuntimes.push_back("stats");
     RequiredSymbols.push_back("__sanitizer_stats_register");
   }
-  if (SanArgs.needsScudoRt()) {
+  if (SanArgs.needsScudoRt() && SanArgs.linkRuntimes()) {
     if (SanArgs.requiresMinimalRuntime()) {
       StaticRuntimes.push_back("scudo_minimal");
       if (SanArgs.linkCXXRuntimes())
@@ -715,9 +725,10 @@ bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
                            NonWholeStaticRuntimes, HelperStaticRuntimes,
                            RequiredSymbols);
 
+  const SanitizerArgs &SanArgs = TC.getSanitizerArgs();
   // Inject libfuzzer dependencies.
-  if (TC.getSanitizerArgs().needsFuzzer()
-      && !Args.hasArg(options::OPT_shared)) {
+  if (SanArgs.needsFuzzer() && SanArgs.linkRuntimes() &&
+      !Args.hasArg(options::OPT_shared)) {
 
     addSanitizerRuntime(TC, Args, CmdArgs, "fuzzer", false, true);
     if (!Args.hasArg(clang::driver::options::OPT_nostdlibxx))
@@ -746,7 +757,6 @@ bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   if (AddExportDynamic)
     CmdArgs.push_back("--export-dynamic");
 
-  const SanitizerArgs &SanArgs = TC.getSanitizerArgs();
   if (SanArgs.hasCrossDsoCfi() && !AddExportDynamic)
     CmdArgs.push_back("-export-dynamic-symbol=__cfi_check");
 
@@ -831,10 +841,10 @@ void tools::SplitDebugInfo(const ToolChain &TC, Compilation &C, const Tool &T,
   InputInfo II(types::TY_Object, Output.getFilename(), Output.getFilename());
 
   // First extract the dwo sections.
-  C.addCommand(llvm::make_unique<Command>(JA, T, Exec, ExtractArgs, II));
+  C.addCommand(std::make_unique<Command>(JA, T, Exec, ExtractArgs, II));
 
   // Then remove them from the original .o file.
-  C.addCommand(llvm::make_unique<Command>(JA, T, Exec, StripArgs, II));
+  C.addCommand(std::make_unique<Command>(JA, T, Exec, StripArgs, II));
 }
 
 // Claim options we don't want to warn if they are unused. We do this for
@@ -1358,7 +1368,7 @@ void tools::AddOpenMPLinkerScript(const ToolChain &TC, Compilation &C,
 
   // Open script file and write the contents.
   std::error_code EC;
-  llvm::raw_fd_ostream Lksf(LKS, EC, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream Lksf(LKS, EC, llvm::sys::fs::OF_None);
 
   if (EC) {
     C.getDriver().Diag(clang::diag::err_unable_to_make_temp) << EC.message();
@@ -1466,7 +1476,7 @@ void tools::AddHIPLinkerScript(const ToolChain &TC, Compilation &C,
 
   // Open script file and write the contents.
   std::error_code EC;
-  llvm::raw_fd_ostream Lksf(LKS, EC, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream Lksf(LKS, EC, llvm::sys::fs::OF_None);
 
   if (EC) {
     C.getDriver().Diag(clang::diag::err_unable_to_make_temp) << EC.message();

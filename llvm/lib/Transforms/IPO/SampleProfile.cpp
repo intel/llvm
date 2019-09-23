@@ -72,6 +72,7 @@
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/CallPromotionUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/MisExpect.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -79,6 +80,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <queue>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -185,6 +187,74 @@ private:
   /// keyed by FunctionSamples pointers, but these stats are cleared after
   /// every function, so we just need to keep a single counter.
   uint64_t TotalUsedSamples = 0;
+};
+
+class GUIDToFuncNameMapper {
+public:
+  GUIDToFuncNameMapper(Module &M, SampleProfileReader &Reader,
+                        DenseMap<uint64_t, StringRef> &GUIDToFuncNameMap)
+      : CurrentReader(Reader), CurrentModule(M),
+      CurrentGUIDToFuncNameMap(GUIDToFuncNameMap) {
+    if (CurrentReader.getFormat() != SPF_Compact_Binary)
+      return;
+
+    for (const auto &F : CurrentModule) {
+      StringRef OrigName = F.getName();
+      CurrentGUIDToFuncNameMap.insert(
+          {Function::getGUID(OrigName), OrigName});
+
+      // Local to global var promotion used by optimization like thinlto
+      // will rename the var and add suffix like ".llvm.xxx" to the
+      // original local name. In sample profile, the suffixes of function
+      // names are all stripped. Since it is possible that the mapper is
+      // built in post-thin-link phase and var promotion has been done,
+      // we need to add the substring of function name without the suffix
+      // into the GUIDToFuncNameMap.
+      StringRef CanonName = FunctionSamples::getCanonicalFnName(F);
+      if (CanonName != OrigName)
+        CurrentGUIDToFuncNameMap.insert(
+            {Function::getGUID(CanonName), CanonName});
+    }
+
+    // Update GUIDToFuncNameMap for each function including inlinees.
+    SetGUIDToFuncNameMapForAll(&CurrentGUIDToFuncNameMap);
+  }
+
+  ~GUIDToFuncNameMapper() {
+    if (CurrentReader.getFormat() != SPF_Compact_Binary)
+      return;
+
+    CurrentGUIDToFuncNameMap.clear();
+
+    // Reset GUIDToFuncNameMap for of each function as they're no
+    // longer valid at this point.
+    SetGUIDToFuncNameMapForAll(nullptr);
+  }
+
+private:
+  void SetGUIDToFuncNameMapForAll(DenseMap<uint64_t, StringRef> *Map) {
+    std::queue<FunctionSamples *> FSToUpdate;
+    for (auto &IFS : CurrentReader.getProfiles()) {
+      FSToUpdate.push(&IFS.second);
+    }
+
+    while (!FSToUpdate.empty()) {
+      FunctionSamples *FS = FSToUpdate.front();
+      FSToUpdate.pop();
+      FS->GUIDToFuncNameMap = Map;
+      for (const auto &ICS : FS->getCallsiteSamples()) {
+        const FunctionSamplesMap &FSMap = ICS.second;
+        for (auto &IFS : FSMap) {
+          FunctionSamples &FS = const_cast<FunctionSamples &>(IFS.second);
+          FSToUpdate.push(&FS);
+        }
+      }
+    }
+  }
+
+  SampleProfileReader &CurrentReader;
+  Module &CurrentModule;
+  DenseMap<uint64_t, StringRef> &CurrentGUIDToFuncNameMap;
 };
 
 /// Sample profile pass.
@@ -310,6 +380,10 @@ protected:
   /// Profile Summary Info computed from sample profile.
   ProfileSummaryInfo *PSI = nullptr;
 
+  /// Profle Symbol list tells whether a function name appears in the binary
+  /// used to generate the current profile.
+  std::unique_ptr<ProfileSymbolList> PSL;
+
   /// Total number of samples collected in this profile.
   ///
   /// This is the sum of all the samples collected in all the functions executed
@@ -326,6 +400,10 @@ protected:
     uint64_t entryCount;
   };
   DenseMap<Function *, NotInlinedProfileInfo> notInlinedCallInfo;
+
+  // GUIDToFuncNameMap saves the mapping from GUID to the symbol name, for
+  // all the function symbols defined or declared in current module.
+  DenseMap<uint64_t, StringRef> GUIDToFuncNameMap;
 };
 
 class SampleProfileLoaderLegacyPass : public ModulePass {
@@ -1219,17 +1297,12 @@ void SampleProfileLoader::buildEdges(Function &F) {
 }
 
 /// Returns the sorted CallTargetMap \p M by count in descending order.
-static SmallVector<InstrProfValueData, 2> SortCallTargets(
-    const SampleRecord::CallTargetMap &M) {
+static SmallVector<InstrProfValueData, 2> GetSortedValueDataFromCallTargets(
+    const SampleRecord::CallTargetMap & M) {
   SmallVector<InstrProfValueData, 2> R;
-  for (auto I = M.begin(); I != M.end(); ++I)
-    R.push_back({FunctionSamples::getGUID(I->getKey()), I->getValue()});
-  llvm::sort(R, [](const InstrProfValueData &L, const InstrProfValueData &R) {
-    if (L.Count == R.Count)
-      return L.Value > R.Value;
-    else
-      return L.Count > R.Count;
-  });
+  for (const auto &I : SampleRecord::SortCallTargets(M)) {
+    R.emplace_back(InstrProfValueData{FunctionSamples::getGUID(I.first), I.second});
+  }
   return R;
 }
 
@@ -1324,7 +1397,7 @@ void SampleProfileLoader::propagateWeights(Function &F) {
           if (!T || T.get().empty())
             continue;
           SmallVector<InstrProfValueData, 2> SortedCallTargets =
-              SortCallTargets(T.get());
+              GetSortedValueDataFromCallTargets(T.get());
           uint64_t Sum;
           findIndirectCallFunctionSamples(I, Sum);
           annotateValueSite(*I.getParent()->getParent()->getParent(), I,
@@ -1373,6 +1446,8 @@ void SampleProfileLoader::propagateWeights(Function &F) {
         }
       }
     }
+
+    misexpect::verifyMisExpect(TI, Weights, TI->getContext());
 
     uint64_t TempWeight;
     // Only set weights if there is at least one non-zero weight.
@@ -1566,6 +1641,7 @@ bool SampleProfileLoader::doInitialization(Module &M) {
   Reader = std::move(ReaderOrErr.get());
   Reader->collectFuncsToUse(M);
   ProfileIsValid = (Reader->read() == sampleprof_error::success);
+  PSL = Reader->getProfileSymbolList();
 
   if (!RemappingFilename.empty()) {
     // Apply profile remappings to the loaded profile data if requested.
@@ -1594,7 +1670,7 @@ ModulePass *llvm::createSampleProfileLoaderPass(StringRef Name) {
 
 bool SampleProfileLoader::runOnModule(Module &M, ModuleAnalysisManager *AM,
                                       ProfileSummaryInfo *_PSI) {
-  FunctionSamples::GUIDToFuncNameMapper Mapper(M);
+  GUIDToFuncNameMapper Mapper(M, *Reader, GUIDToFuncNameMap);
   if (!ProfileIsValid)
     return false;
 
@@ -1651,17 +1727,21 @@ bool SampleProfileLoaderLegacyPass::runOnModule(Module &M) {
 }
 
 bool SampleProfileLoader::runOnFunction(Function &F, ModuleAnalysisManager *AM) {
-  
+
   DILocation2SampleMap.clear();
   // By default the entry count is initialized to -1, which will be treated
   // conservatively by getEntryCount as the same as unknown (None). This is
   // to avoid newly added code to be treated as cold. If we have samples
   // this will be overwritten in emitAnnotations.
+  //
+  // PSL -- profile symbol list include all the symbols in sampled binary.
   // If ProfileSampleAccurate is true or F has profile-sample-accurate
-  // attribute, initialize the entry count to 0 so callsites or functions
-  // unsampled will be treated as cold.
+  // attribute, and if there is no profile symbol list read in, initialize
+  // all the function entry counts to 0; if there is profile symbol list, only
+  // initialize the entry count to 0 when current function is in the list.
   uint64_t initialEntryCount =
-      (ProfileSampleAccurate || F.hasFnAttribute("profile-sample-accurate"))
+      ((ProfileSampleAccurate || F.hasFnAttribute("profile-sample-accurate")) &&
+       (!PSL || PSL->contains(F.getName())))
           ? 0
           : -1;
   F.setEntryCount(ProfileCount(initialEntryCount, Function::PCT_Real));
@@ -1672,7 +1752,7 @@ bool SampleProfileLoader::runOnFunction(Function &F, ModuleAnalysisManager *AM) 
             .getManager();
     ORE = &FAM.getResult<OptimizationRemarkEmitterAnalysis>(F);
   } else {
-    OwnedORE = make_unique<OptimizationRemarkEmitter>(&F);
+    OwnedORE = std::make_unique<OptimizationRemarkEmitter>(&F);
     ORE = OwnedORE.get();
   }
   Samples = Reader->getSamplesFor(F);

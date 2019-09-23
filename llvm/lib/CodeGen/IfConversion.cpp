@@ -912,6 +912,12 @@ void IfConverter::AnalyzeBranches(BBInfo &BBI) {
   BBI.BrCond.clear();
   BBI.IsBrAnalyzable =
       !TII->analyzeBranch(*BBI.BB, BBI.TrueBB, BBI.FalseBB, BBI.BrCond);
+  if (!BBI.IsBrAnalyzable) {
+    BBI.TrueBB = nullptr;
+    BBI.FalseBB = nullptr;
+    BBI.BrCond.clear();
+  }
+
   SmallVector<MachineOperand, 4> RevCond(BBI.BrCond.begin(), BBI.BrCond.end());
   BBI.IsBrReversible = (RevCond.size() == 0) ||
       !TII->reverseBranchCondition(RevCond);
@@ -1200,7 +1206,7 @@ void IfConverter::AnalyzeBlock(
           //   \ /
           //  TailBB
           // Note TailBB can be empty.
-          Tokens.push_back(llvm::make_unique<IfcvtToken>(
+          Tokens.push_back(std::make_unique<IfcvtToken>(
               BBI, ICDiamond, TNeedSub | FNeedSub, Dups, Dups2,
               (bool) TrueBBICalc.ClobbersPred, (bool) FalseBBICalc.ClobbersPred));
           Enqueued = true;
@@ -1218,7 +1224,7 @@ void IfConverter::AnalyzeBlock(
           //        / \ /   \
           //  FalseBB TrueBB FalseBB
           //
-          Tokens.push_back(llvm::make_unique<IfcvtToken>(
+          Tokens.push_back(std::make_unique<IfcvtToken>(
               BBI, ICForkedDiamond, TNeedSub | FNeedSub, Dups, Dups2,
               (bool) TrueBBICalc.ClobbersPred, (bool) FalseBBICalc.ClobbersPred));
           Enqueued = true;
@@ -1238,7 +1244,7 @@ void IfConverter::AnalyzeBlock(
       //   |  /
       //   FBB
       Tokens.push_back(
-          llvm::make_unique<IfcvtToken>(BBI, ICTriangle, TNeedSub, Dups));
+          std::make_unique<IfcvtToken>(BBI, ICTriangle, TNeedSub, Dups));
       Enqueued = true;
     }
 
@@ -1247,7 +1253,7 @@ void IfConverter::AnalyzeBlock(
                            TrueBBI.ExtraCost2, Prediction) &&
         FeasibilityAnalysis(TrueBBI, BBI.BrCond, true, true)) {
       Tokens.push_back(
-          llvm::make_unique<IfcvtToken>(BBI, ICTriangleRev, TNeedSub, Dups));
+          std::make_unique<IfcvtToken>(BBI, ICTriangleRev, TNeedSub, Dups));
       Enqueued = true;
     }
 
@@ -1263,7 +1269,7 @@ void IfConverter::AnalyzeBlock(
       //   |
       //   FBB
       Tokens.push_back(
-          llvm::make_unique<IfcvtToken>(BBI, ICSimple, TNeedSub, Dups));
+          std::make_unique<IfcvtToken>(BBI, ICSimple, TNeedSub, Dups));
       Enqueued = true;
     }
 
@@ -1275,7 +1281,7 @@ void IfConverter::AnalyzeBlock(
                              FalseBBI.NonPredSize + FalseBBI.ExtraCost,
                              FalseBBI.ExtraCost2, Prediction.getCompl()) &&
           FeasibilityAnalysis(FalseBBI, RevCond, true)) {
-        Tokens.push_back(llvm::make_unique<IfcvtToken>(BBI, ICTriangleFalse,
+        Tokens.push_back(std::make_unique<IfcvtToken>(BBI, ICTriangleFalse,
                                                        FNeedSub, Dups));
         Enqueued = true;
       }
@@ -1287,7 +1293,7 @@ void IfConverter::AnalyzeBlock(
                            FalseBBI.ExtraCost2, Prediction.getCompl()) &&
         FeasibilityAnalysis(FalseBBI, RevCond, true, true)) {
         Tokens.push_back(
-            llvm::make_unique<IfcvtToken>(BBI, ICTriangleFRev, FNeedSub, Dups));
+            std::make_unique<IfcvtToken>(BBI, ICTriangleFRev, FNeedSub, Dups));
         Enqueued = true;
       }
 
@@ -1297,7 +1303,7 @@ void IfConverter::AnalyzeBlock(
                              FalseBBI.ExtraCost2, Prediction.getCompl()) &&
           FeasibilityAnalysis(FalseBBI, RevCond)) {
         Tokens.push_back(
-            llvm::make_unique<IfcvtToken>(BBI, ICSimpleFalse, FNeedSub, Dups));
+            std::make_unique<IfcvtToken>(BBI, ICSimpleFalse, FNeedSub, Dups));
         Enqueued = true;
       }
     }
@@ -1758,9 +1764,15 @@ bool IfConverter::IfConvertDiamondCommon(
   if (!BBI1->IsBrAnalyzable)
     verifySameBranchInstructions(&MBB1, &MBB2);
 #endif
-  BBI1->NonPredSize -= TII->removeBranch(*BBI1->BB);
-  // Remove duplicated instructions.
+  // Remove duplicated instructions from the tail of MBB1: any branch
+  // instructions, and the common instructions counted by NumDups2.
   DI1 = MBB1.end();
+  while (DI1 != MBB1.begin()) {
+    MachineBasicBlock::iterator Prev = std::prev(DI1);
+    if (!Prev->isBranch() && !Prev->isDebugInstr())
+      break;
+    DI1 = Prev;
+  }
   for (unsigned i = 0; i != NumDups2; ) {
     // NumDups2 only counted non-dbg_value instructions, so this won't
     // run off the head of the list.
@@ -1815,7 +1827,7 @@ bool IfConverter::IfConvertDiamondCommon(
       for (const MachineOperand &MO : FI.operands()) {
         if (!MO.isReg())
           continue;
-        unsigned Reg = MO.getReg();
+        Register Reg = MO.getReg();
         if (!Reg)
           continue;
         if (MO.isDef()) {
@@ -1983,7 +1995,7 @@ static bool MaySpeculate(const MachineInstr &MI,
   for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg())
       continue;
-    unsigned Reg = MO.getReg();
+    Register Reg = MO.getReg();
     if (!Reg)
       continue;
     if (MO.isDef() && !LaterRedefs.count(Reg))

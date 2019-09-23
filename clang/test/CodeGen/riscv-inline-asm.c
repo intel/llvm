@@ -26,3 +26,21 @@ void test_K() {
 // CHECK: call void asm sideeffect "", "K"(i32 0)
   asm volatile ("" :: "K"(0));
 }
+
+float f;
+double d;
+void test_f() {
+// CHECK-LABEL: define void @test_f()
+// CHECK: [[FLT_ARG:%[a-zA-Z_0-9]+]] = load float, float* @f
+// CHECK: call void asm sideeffect "", "f"(float [[FLT_ARG]])
+  asm volatile ("" :: "f"(f));
+// CHECK: [[FLT_ARG:%[a-zA-Z_0-9]+]] = load double, double* @d
+// CHECK: call void asm sideeffect "", "f"(double [[FLT_ARG]])
+  asm volatile ("" :: "f"(d));
+}
+
+void test_A(int *p) {
+// CHECK-LABEL: define void @test_A(i32* %p)
+// CHECK: call void asm sideeffect "", "*A"(i32* %p)
+  asm volatile("" :: "A"(*p));
+}

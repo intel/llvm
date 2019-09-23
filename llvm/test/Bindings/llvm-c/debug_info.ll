@@ -3,7 +3,7 @@
 ; CHECK: ; ModuleID = 'debuginfo.c'
 ; CHECK-NEXT: source_filename = "debuginfo.c"
 
-; CHECK:      define i64 @foo(i64, i64, <10 x i64>) !dbg !20 {
+; CHECK:      define i64 @foo(i64 %0, i64 %1, <10 x i64> %2) !dbg !20 {
 ; CHECK-NEXT: entry:
 ; CHECK-NEXT:   call void @llvm.dbg.declare(metadata i64 0, metadata !27, metadata !DIExpression()), !dbg !32
 ; CHECK-NEXT:   call void @llvm.dbg.declare(metadata i64 0, metadata !28, metadata !DIExpression()), !dbg !32
@@ -18,7 +18,7 @@
 ; CHECK:      ; Function Attrs: nounwind readnone speculatable
 ; CHECK-NEXT: declare void @llvm.dbg.value(metadata, metadata, metadata) #0
 
-; CHECK:      attributes #0 = { nounwind readnone speculatable }
+; CHECK:      attributes #0 = { nounwind readnone speculatable willreturn }
 
 ; CHECK:      !llvm.dbg.cu = !{!0}
 ; CHECK-NEXT: !FooType = !{!16}

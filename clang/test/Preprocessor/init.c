@@ -7580,6 +7580,11 @@
 //
 // PPC32-LINUX-NOT: _CALL_LINUX
 //
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc-unknown-linux-gnu -target-feature +spe < /dev/null | FileCheck -match-full-lines -check-prefix PPC32-SPE %s
+//
+// PPC32-SPE:#define __NO_FPRS__ 1
+// PPC32-SPE:#define __SPE__ 1
+//
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc-apple-darwin8 < /dev/null | FileCheck -match-full-lines -check-prefix PPC-DARWIN %s
 //
 // PPC-DARWIN:#define _ARCH_PPC 1
@@ -9599,6 +9604,7 @@
 // X86-64-DECLSPEC: #define __declspec{{.*}}
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=sparc64-none-none < /dev/null | FileCheck -match-full-lines -check-prefix SPARCV9 %s
+// SPARCV9:#define __BIGGEST_ALIGNMENT__ 16
 // SPARCV9:#define __INT64_TYPE__ long int
 // SPARCV9:#define __INTMAX_C_SUFFIX__ L
 // SPARCV9:#define __INTMAX_TYPE__ long int

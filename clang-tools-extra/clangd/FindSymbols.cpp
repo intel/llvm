@@ -8,9 +8,9 @@
 #include "FindSymbols.h"
 
 #include "AST.h"
-#include "ClangdUnit.h"
 #include "FuzzyMatch.h"
 #include "Logger.h"
+#include "ParsedAST.h"
 #include "Quality.h"
 #include "SourceCode.h"
 #include "index/Index.h"
@@ -138,7 +138,7 @@ namespace {
 llvm::Optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
   auto &SM = Ctx.getSourceManager();
 
-  SourceLocation NameLoc = findNameLoc(&ND);
+  SourceLocation NameLoc = spellingLocIfSpelled(findName(&ND), SM);
   // getFileLoc is a good choice for us, but we also need to make sure
   // sourceLocToPosition won't switch files, so we call getSpellingLoc on top of
   // that to make sure it does not switch files.
@@ -176,14 +176,14 @@ llvm::Optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
   return SI;
 }
 
-/// A helper class to build an outline for the parse AST. It traverse the AST
+/// A helper class to build an outline for the parse AST. It traverses the AST
 /// directly instead of using RecursiveASTVisitor (RAV) for three main reasons:
-///    - there is no way to keep RAV from traversing subtrees we're not
+///    - there is no way to keep RAV from traversing subtrees we are not
 ///      interested in. E.g. not traversing function locals or implicit template
 ///      instantiations.
-///    - it's easier to combine results of recursive passes, e.g.
+///    - it's easier to combine results of recursive passes,
 ///    - visiting decls is actually simple, so we don't hit the complicated
-///      cases that RAV mostly helps with (types and expressions, etc.)
+///      cases that RAV mostly helps with (types, expressions, etc.)
 class DocumentOutline {
 public:
   DocumentOutline(ParsedAST &AST) : AST(AST) {}

@@ -31,6 +31,9 @@ __clang__::fallthrough: __has_cpp_attribute(__clang__::fallthrough)
 // CHECK: _Clang::fallthrough: 201603L
 CXX11(_Clang::fallthrough)
 
+// CHECK: __nodiscard__: 201907L
+CXX11(__nodiscard__)
+
 // CHECK: __gnu__::__const__: 1
 CXX11(__gnu__::__const__)
 
@@ -63,7 +66,7 @@ CXX11(unlikely)
 // CHECK: maybe_unused: 201603L
 // ITANIUM: no_unique_address: 201803L
 // WINDOWS: no_unique_address: 0
-// CHECK: nodiscard: 201603L
+// CHECK: nodiscard: 201907L
 // CHECK: noreturn: 200809L
 // FIXME(201803L) CHECK: unlikely: 0
 

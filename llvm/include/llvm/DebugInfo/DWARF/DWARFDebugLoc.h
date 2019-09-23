@@ -29,19 +29,19 @@ public:
     /// The ending address of the instruction range.
     uint64_t End;
     /// The location of the variable within the specified range.
-    SmallVector<char, 4> Loc;
+    SmallVector<uint8_t, 4> Loc;
   };
 
   /// A list of locations that contain one variable.
   struct LocationList {
     /// The beginning offset where this location list is stored in the debug_loc
     /// section.
-    unsigned Offset;
+    uint64_t Offset;
     /// All the locations in which the variable is stored.
     SmallVector<Entry, 2> Entries;
     /// Dump this list on OS.
-    void dump(raw_ostream &OS, bool IsLittleEndian, unsigned AddressSize,
-              const MCRegisterInfo *MRI, DWARFUnit *U, uint64_t BaseAddress,
+    void dump(raw_ostream &OS, uint64_t BaseAddress, bool IsLittleEndian,
+              unsigned AddressSize, const MCRegisterInfo *MRI, DWARFUnit *U,
               unsigned Indent) const;
   };
 
@@ -68,8 +68,8 @@ public:
   /// Return the location list at the given offset or nullptr.
   LocationList const *getLocationListAtOffset(uint64_t Offset) const;
 
-  Optional<LocationList> parseOneLocationList(DWARFDataExtractor Data,
-                                              uint32_t *Offset);
+  static Expected<LocationList>
+  parseOneLocationList(const DWARFDataExtractor &Data, uint64_t *Offset);
 };
 
 class DWARFDebugLoclists {
@@ -78,11 +78,11 @@ public:
     uint8_t Kind;
     uint64_t Value0;
     uint64_t Value1;
-    SmallVector<char, 4> Loc;
+    SmallVector<uint8_t, 4> Loc;
   };
 
   struct LocationList {
-    unsigned Offset;
+    uint64_t Offset;
     SmallVector<Entry, 2> Entries;
     void dump(raw_ostream &OS, uint64_t BaseAddr, bool IsLittleEndian,
               unsigned AddressSize, const MCRegisterInfo *RegInfo,
@@ -106,8 +106,9 @@ public:
   /// Return the location list at the given offset or nullptr.
   LocationList const *getLocationListAtOffset(uint64_t Offset) const;
 
-  static Optional<LocationList>
-  parseOneLocationList(DataExtractor Data, unsigned *Offset, unsigned Version);
+  static Expected<LocationList> parseOneLocationList(const DataExtractor &Data,
+                                                     uint64_t *Offset,
+                                                     unsigned Version);
 };
 
 } // end namespace llvm

@@ -10,6 +10,7 @@
 
 #include "../utils/ASTUtils.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/AST/CXXInheritance.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
@@ -243,7 +244,7 @@ void IdentifierNamingCheck::registerMatchers(MatchFinder *Finder) {
 void IdentifierNamingCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
   ModuleExpanderPP->addPPCallbacks(
-      llvm::make_unique<IdentifierNamingCheckPPCallbacks>(ModuleExpanderPP,
+      std::make_unique<IdentifierNamingCheckPPCallbacks>(ModuleExpanderPP,
                                                           this));
 }
 
@@ -577,6 +578,15 @@ static StyleKind findStyleKind(
   if (const auto *Decl = dyn_cast<CXXMethodDecl>(D)) {
     if (Decl->isMain() || !Decl->isUserProvided() ||
         Decl->size_overridden_methods() > 0)
+      return SK_Invalid;
+
+    // If this method has the same name as any base method, this is likely
+    // necessary even if it's not an override. e.g. CRTP.
+    auto FindHidden = [&](const CXXBaseSpecifier *S, clang::CXXBasePath &P) {
+      return CXXRecordDecl::FindOrdinaryMember(S, P, Decl->getDeclName());
+    };
+    CXXBasePaths UnusedPaths;
+    if (Decl->getParent()->lookupInBases(FindHidden, UnusedPaths))
       return SK_Invalid;
 
     if (Decl->isConstexpr() && NamingStyles[SK_ConstexprMethod])

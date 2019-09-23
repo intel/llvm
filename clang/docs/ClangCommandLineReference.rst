@@ -1147,8 +1147,6 @@ Flags allowing the state of the preprocessor to be dumped in various ways.
 .. option:: -d<arg>
 .. program:: clang
 
-.. option:: -dA
-
 .. option:: -dD
 
 Print macro definitions in -E mode in addition to normal output
@@ -1944,6 +1942,14 @@ Perform ThinLTO importing using provided function summary index
 
 .. option:: -ftime-report
 
+.. option:: -ftime-trace
+
+Turn on time profiler
+
+.. option:: -ftime-trace-granularity=<arg>
+
+Minimum time granularity (in microseconds) traced by time profiler
+
 .. option:: -ftls-model=<arg>
 
 .. option:: -ftrap-function=<arg>
@@ -2004,7 +2010,7 @@ Use the given vector functions library
 
 Enable the loop vectorization passes
 
-.. option:: -fverbose-asm, -fno-verbose-asm
+.. option:: -fverbose-asm, -fno-verbose-asm, -dA
 
 .. option:: -fvisibility-inlines-hidden
 

@@ -196,6 +196,25 @@ static bool DiagnoseUnusedComparison(Sema &S, const Expr *E) {
   return true;
 }
 
+static bool DiagnoseNoDiscard(Sema &S, const WarnUnusedResultAttr *A,
+                              SourceLocation Loc, SourceRange R1,
+                              SourceRange R2, bool IsCtor) {
+  if (!A)
+    return false;
+  StringRef Msg = A->getMessage();
+
+  if (Msg.empty()) {
+    if (IsCtor)
+      return S.Diag(Loc, diag::warn_unused_constructor) << A << R1 << R2;
+    return S.Diag(Loc, diag::warn_unused_result) << A << R1 << R2;
+  }
+
+  if (IsCtor)
+    return S.Diag(Loc, diag::warn_unused_constructor_msg) << A << Msg << R1
+                                                          << R2;
+  return S.Diag(Loc, diag::warn_unused_result_msg) << A << Msg << R1 << R2;
+}
+
 void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
   if (const LabelStmt *Label = dyn_cast_or_null<LabelStmt>(S))
     return DiagnoseUnusedExprResult(Label->getSubStmt());
@@ -254,14 +273,19 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
     return;
 
   E = WarnExpr;
+  if (const auto *Cast = dyn_cast<CastExpr>(E))
+    if (Cast->getCastKind() == CK_NoOp ||
+        Cast->getCastKind() == CK_ConstructorConversion)
+      E = Cast->getSubExpr()->IgnoreImpCasts();
+
   if (const CallExpr *CE = dyn_cast<CallExpr>(E)) {
     if (E->getType()->isVoidType())
       return;
 
-    if (const Attr *A = CE->getUnusedResultAttr(Context)) {
-      Diag(Loc, diag::warn_unused_result) << A << R1 << R2;
+    if (DiagnoseNoDiscard(*this, cast_or_null<WarnUnusedResultAttr>(
+                                     CE->getUnusedResultAttr(Context)),
+                          Loc, R1, R2, /*isCtor=*/false))
       return;
-    }
 
     // If the callee has attribute pure, const, or warn_unused_result, warn with
     // a more specific message to make it clear what is happening. If the call
@@ -279,9 +303,24 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
         return;
       }
     }
+  } else if (const auto *CE = dyn_cast<CXXConstructExpr>(E)) {
+    if (const CXXConstructorDecl *Ctor = CE->getConstructor()) {
+      const auto *A = Ctor->getAttr<WarnUnusedResultAttr>();
+      A = A ? A : Ctor->getParent()->getAttr<WarnUnusedResultAttr>();
+      if (DiagnoseNoDiscard(*this, A, Loc, R1, R2, /*isCtor=*/true))
+        return;
+    }
+  } else if (const auto *ILE = dyn_cast<InitListExpr>(E)) {
+    if (const TagDecl *TD = ILE->getType()->getAsTagDecl()) {
+
+      if (DiagnoseNoDiscard(*this, TD->getAttr<WarnUnusedResultAttr>(), Loc, R1,
+                            R2, /*isCtor=*/false))
+        return;
+    }
   } else if (ShouldSuppress)
     return;
 
+  E = WarnExpr;
   if (const ObjCMessageExpr *ME = dyn_cast<ObjCMessageExpr>(E)) {
     if (getLangOpts().ObjCAutoRefCount && ME->isDelegateInitCall()) {
       Diag(Loc, diag::err_arc_unused_init_message) << R1;
@@ -289,10 +328,9 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
     }
     const ObjCMethodDecl *MD = ME->getMethodDecl();
     if (MD) {
-      if (const auto *A = MD->getAttr<WarnUnusedResultAttr>()) {
-        Diag(Loc, diag::warn_unused_result) << A << R1 << R2;
+      if (DiagnoseNoDiscard(*this, MD->getAttr<WarnUnusedResultAttr>(), Loc, R1,
+                            R2, /*isCtor=*/false))
         return;
-      }
     }
   } else if (const PseudoObjectExpr *POE = dyn_cast<PseudoObjectExpr>(E)) {
     const Expr *Source = POE->getSyntacticForm();
@@ -4306,7 +4344,8 @@ void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
 
 void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
                                     CapturedRegionKind Kind,
-                                    ArrayRef<CapturedParamNameType> Params) {
+                                    ArrayRef<CapturedParamNameType> Params,
+                                    unsigned OpenMPCaptureLevel) {
   CapturedDecl *CD = nullptr;
   RecordDecl *RD = CreateCapturedStmtRecordDecl(CD, Loc, Params.size());
 
@@ -4351,7 +4390,7 @@ void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
     CD->setContextParam(ParamNum, Param);
   }
   // Enter the capturing scope for this captured region.
-  PushCapturedRegionScope(CurScope, CD, RD, Kind);
+  PushCapturedRegionScope(CurScope, CD, RD, Kind, OpenMPCaptureLevel);
 
   if (CurScope)
     PushDeclContext(CurScope, CD);

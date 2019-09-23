@@ -1,11 +1,9 @@
-// KEEP-ALL: "-mdisable-fp-elim"
-// KEEP-ALL-NOT: "-momit-leaf-frame-pointer"
-
-// KEEP-NON-LEAF: "-mdisable-fp-elim"
-// KEEP-NON-LEAF: "-momit-leaf-frame-pointer"
-
-// KEEP-NONE-NOT: "-mdisable-fp-elim"
-// KEEP-NONE-NOT: "-momit-leaf-frame-pointer"
+// KEEP-ALL-NOT:  warning:
+// KEEP-ALL:      "-mframe-pointer=all"
+// KEEP-NON-LEAF-NOT: warning:
+// KEEP-NON-LEAF: "-mframe-pointer=non-leaf"
+// KEEP-NONE-NOT: warning:
+// KEEP-NONE:     "-mframe-pointer=none"
 
 // On Linux x86, omit frame pointer when optimization is enabled.
 // RUN: %clang -### -target i386-linux -S -fomit-frame-pointer %s 2>&1 | \
@@ -30,6 +28,13 @@
 // RUN: %clang -### -target i386-linux -S -O1 -momit-leaf-frame-pointer %s 2>&1 | \
 // RUN:   FileCheck --check-prefix=KEEP-NONE %s
 
+// fno-omit-frame-pointer -momit-leaf-frame-pointer can be overwritten by
+// fomit-frame-pointer later on the command without warning
+// RUN: %clang -### -target i386-linux -S -O1 -fno-omit-frame-pointer -momit-leaf-frame-pointer -fomit-frame-pointer %s 2>&1 | \
+// RUN:   FileCheck --check-prefix=KEEP-NONE %s
+
+// RUN: %clang -### -target i386-linux -S -O1 -fno-omit-frame-pointer -momit-leaf-frame-pointer %s 2>&1 | \
+// RUN:   FileCheck --check-prefix=KEEP-NON-LEAF %s
 // Explicit or default -fomit-frame-pointer wins over -mno-omit-leaf-frame-pointer.
 // RUN: %clang -### -target i386 -S %s -fomit-frame-pointer -mno-omit-leaf-frame-pointer 2>&1 | \
 // RUN:   FileCheck --check-prefix=KEEP-NONE %s
@@ -73,20 +78,17 @@
 // RUN: %clang -### -target armv7s-apple-ios -fomit-frame-pointer %s 2>&1 | \
 // RUN:   FileCheck --check-prefix=WARN-OMIT-7S %s
 // WARN-OMIT-7S: warning: optimization flag '-fomit-frame-pointer' is not supported for target 'armv7s'
-// WARN-OMIT-7S: "-mdisable-fp-elim"
-// WARN-OMIT-7S-NOT: "-momit-leaf-frame-pointer"
+// WARN-OMIT-7S: "-mframe-pointer=all"
 
 // RUN: %clang -### -target armv7k-apple-watchos -fomit-frame-pointer %s 2>&1 | \
 // RUN:   FileCheck --check-prefix=WARN-OMIT-7K %s
 // WARN-OMIT-7K: warning: optimization flag '-fomit-frame-pointer' is not supported for target 'armv7k'
-// WARN-OMIT-7K: "-mdisable-fp-elim"
-// WARN-OMIT-7K-NOT: "-momit-leaf-frame-pointer"
+// WARN-OMIT-7K: "-mframe-pointer=all"
 
 // RUN: %clang -### -target armv7s-apple-ios8.0 -momit-leaf-frame-pointer %s 2>&1 | \
 // RUN:   FileCheck --check-prefix=WARN-OMIT-LEAF-7S %s
 // WARN-OMIT-LEAF-7S-NOT: warning: optimization flag '-momit-leaf-frame-pointer' is not supported for target 'armv7s'
-// WARN-OMIT-LEAF-7S: "-mdisable-fp-elim"
-// WARN-OMIT-LEAF-7S: "-momit-leaf-frame-pointer"
+// WARN-OMIT-LEAF-7S: "-mframe-pointer=non-leaf"
 
 // On the PS4, we default to omitting the frame pointer on leaf functions
 // RUN: %clang -### -target x86_64-scei-ps4 -S %s 2>&1 | \

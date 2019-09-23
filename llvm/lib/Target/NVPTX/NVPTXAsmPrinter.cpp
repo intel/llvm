@@ -282,7 +282,7 @@ bool NVPTXAsmPrinter::lowerOperand(const MachineOperand &MO,
 }
 
 unsigned NVPTXAsmPrinter::encodeVirtualRegister(unsigned Reg) {
-  if (TargetRegisterInfo::isVirtualRegister(Reg)) {
+  if (Register::isVirtualRegister(Reg)) {
     const TargetRegisterClass *RC = MRI->getRegClass(Reg);
 
     DenseMap<unsigned, unsigned> &RegMap = VRegMapping[RC];
@@ -434,7 +434,7 @@ bool NVPTXAsmPrinter::isLoopHeaderOfNoUnroll(
   return false;
 }
 
-void NVPTXAsmPrinter::EmitBasicBlockStart(const MachineBasicBlock &MBB) const {
+void NVPTXAsmPrinter::EmitBasicBlockStart(const MachineBasicBlock &MBB) {
   AsmPrinter::EmitBasicBlockStart(MBB);
   if (isLoopHeaderOfNoUnroll(MBB))
     OutStreamer->EmitRawText(StringRef("\t.pragma \"nounroll\";\n"));
@@ -507,8 +507,8 @@ const MCSymbol *NVPTXAsmPrinter::getFunctionFrameSymbol() const {
 }
 
 void NVPTXAsmPrinter::emitImplicitDef(const MachineInstr *MI) const {
-  unsigned RegNo = MI->getOperand(0).getReg();
-  if (TargetRegisterInfo::isVirtualRegister(RegNo)) {
+  Register RegNo = MI->getOperand(0).getReg();
+  if (Register::isVirtualRegister(RegNo)) {
     OutStreamer->AddComment(Twine("implicit-def: ") +
                             getVirtualRegisterName(RegNo));
   } else {
@@ -1653,7 +1653,7 @@ void NVPTXAsmPrinter::setAndEmitFunctionVirtualRegisters(
   // We use the per class virtual register number in the ptx output.
   unsigned int numVRs = MRI->getNumVirtRegs();
   for (unsigned i = 0; i < numVRs; i++) {
-    unsigned int vr = TRI->index2VirtReg(i);
+    unsigned int vr = Register::index2VirtReg(i);
     const TargetRegisterClass *RC = MRI->getRegClass(vr);
     DenseMap<unsigned, unsigned> &regmap = VRegMapping[RC];
     int n = regmap.size();
@@ -2212,7 +2212,7 @@ void NVPTXAsmPrinter::printOperand(const MachineInstr *MI, int opNum,
   const MachineOperand &MO = MI->getOperand(opNum);
   switch (MO.getType()) {
   case MachineOperand::MO_Register:
-    if (TargetRegisterInfo::isPhysicalRegister(MO.getReg())) {
+    if (Register::isPhysicalRegister(MO.getReg())) {
       if (MO.getReg() == NVPTX::VRDepot)
         O << DEPOTNAME << getFunctionNumber();
       else

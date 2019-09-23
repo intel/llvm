@@ -67,7 +67,7 @@ static std::unique_ptr<lto::LTO> createLTO() {
   lto::ThinBackend backend;
   if (config->thinLTOJobs != -1U)
     backend = lto::createInProcessThinBackend(config->thinLTOJobs);
-  return llvm::make_unique<lto::LTO>(std::move(c), backend,
+  return std::make_unique<lto::LTO>(std::move(c), backend,
                                      config->ltoPartitions);
 }
 
@@ -105,6 +105,7 @@ void BitcodeCompiler::add(BitcodeFile &f) {
     // be removed.
     r.Prevailing = !objSym.isUndefined() && sym->getFile() == &f;
     r.VisibleToRegularObj = config->relocatable || sym->isUsedInRegularObj ||
+                            sym->isNoStrip() ||
                             (r.Prevailing && sym->isExported());
     if (r.Prevailing)
       undefine(sym);
@@ -137,8 +138,8 @@ std::vector<StringRef> BitcodeCompiler::compile() {
 
   checkError(ltoObj->run(
       [&](size_t task) {
-        return llvm::make_unique<lto::NativeObjectStream>(
-            llvm::make_unique<raw_svector_ostream>(buf[task]));
+        return std::make_unique<lto::NativeObjectStream>(
+            std::make_unique<raw_svector_ostream>(buf[task]));
       },
       cache));
 

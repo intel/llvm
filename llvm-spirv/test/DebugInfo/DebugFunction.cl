@@ -1,10 +1,10 @@
-// Check for 2 thigs:
+// Check for 2 things:
 // - After round trip translation function definition has !dbg metadata attached
 //   specifically if -gline-tables-only was used for Clang
 // - Parent operand of DebugFunction is DebugCompileUnit, not an OpString, even
 //   if in LLVM IR it points to a DIFile instead of DICompileUnit.
 
-// RUN: %clang_cc1 %s -cl-std=c++ -emit-llvm-bc -triple spir -debug-info-kind=line-tables-only -O0 -o - | llvm-spirv -o %t.spv
+// RUN: %clang_cc1 %s -cl-std=clc++ -emit-llvm-bc -triple spir -debug-info-kind=line-tables-only -O0 -o - | llvm-spirv -o %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 

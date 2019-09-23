@@ -422,6 +422,10 @@ struct ClientCapabilities {
   /// The content format that should be used for Hover requests.
   /// textDocument.hover.contentEncoding
   MarkupKind HoverContentFormat = MarkupKind::PlainText;
+
+  /// The client supports testing for validity of rename operations
+  /// before execution.
+  bool RenamePrepareSupport = false;
 };
 bool fromJSON(const llvm::json::Value &, ClientCapabilities &);
 
@@ -869,6 +873,12 @@ struct ApplyWorkspaceEditParams {
 };
 llvm::json::Value toJSON(const ApplyWorkspaceEditParams &);
 
+struct ApplyWorkspaceEditResponse {
+  bool applied = true;
+  llvm::Optional<std::string> failureReason;
+};
+bool fromJSON(const llvm::json::Value &, ApplyWorkspaceEditResponse &);
+
 struct TextDocumentPositionParams {
   /// The text document.
   TextDocumentIdentifier textDocument;
@@ -1195,7 +1205,7 @@ llvm::json::Value toJSON(const FileStatus &FStatus);
 /// specific line of the text document.
 struct SemanticHighlightingInformation {
   /// The line these highlightings belong to.
-  int Line;
+  int Line = 0;
   /// The base64 encoded string of highlighting tokens.
   std::string Tokens;
 };

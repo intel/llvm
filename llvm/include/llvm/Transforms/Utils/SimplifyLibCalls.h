@@ -126,6 +126,12 @@ private:
   /// Erase an instruction from its parent with our eraser.
   void eraseFromParent(Instruction *I);
 
+  /// Replace an instruction with a value and erase it from its parent.
+  void substituteInParent(Instruction *I, Value *With) {
+    replaceAllUsesWith(I, With);
+    eraseFromParent(I);
+  }
+
   Value *foldMallocMemset(CallInst *Memset, IRBuilder<> &B);
 
 public:
@@ -167,9 +173,10 @@ private:
   Value *optimizeMemCmp(CallInst *CI, IRBuilder<> &B);
   Value *optimizeBCmp(CallInst *CI, IRBuilder<> &B);
   Value *optimizeMemCmpBCmpCommon(CallInst *CI, IRBuilder<> &B);
-  Value *optimizeMemCpy(CallInst *CI, IRBuilder<> &B);
-  Value *optimizeMemMove(CallInst *CI, IRBuilder<> &B);
-  Value *optimizeMemSet(CallInst *CI, IRBuilder<> &B);
+  Value *optimizeMemPCpy(CallInst *CI, IRBuilder<> &B);
+  Value *optimizeMemCpy(CallInst *CI, IRBuilder<> &B, bool isIntrinsic = false);
+  Value *optimizeMemMove(CallInst *CI, IRBuilder<> &B, bool isIntrinsic = false);
+  Value *optimizeMemSet(CallInst *CI, IRBuilder<> &B, bool isIntrinsic = false);
   Value *optimizeRealloc(CallInst *CI, IRBuilder<> &B);
   Value *optimizeWcslen(CallInst *CI, IRBuilder<> &B);
   // Wrapper for all String/Memory Library Call Optimizations

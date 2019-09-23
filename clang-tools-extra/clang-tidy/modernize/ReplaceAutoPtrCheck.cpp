@@ -24,7 +24,7 @@ namespace {
 static const char AutoPtrTokenId[] = "AutoPrTokenId";
 static const char AutoPtrOwnershipTransferId[] = "AutoPtrOwnershipTransferId";
 
-/// \brief Matches expressions that are lvalues.
+/// Matches expressions that are lvalues.
 ///
 /// In the following example, a[0] matches expr(isLValue()):
 /// \code
@@ -140,7 +140,7 @@ void ReplaceAutoPtrCheck::registerPPCallbacks(const SourceManager &SM,
   // benign.
   if (!getLangOpts().CPlusPlus)
     return;
-  Inserter = llvm::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
+  Inserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
                                                        IncludeStyle);
   PP->addPPCallbacks(Inserter->CreatePPCallbacks());
 }

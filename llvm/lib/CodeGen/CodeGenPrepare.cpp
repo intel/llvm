@@ -344,7 +344,7 @@ class TypePromotionTransaction;
     // Get the DominatorTree, building if necessary.
     DominatorTree &getDT(Function &F) {
       if (!DT)
-        DT = llvm::make_unique<DominatorTree>(F);
+        DT = std::make_unique<DominatorTree>(F);
       return *DT;
     }
 
@@ -424,7 +424,7 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
     TLI = SubtargetInfo->getTargetLowering();
     TRI = SubtargetInfo->getRegisterInfo();
   }
-  TLInfo = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  TLInfo = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
   TTI = &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
   LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
   BPI.reset(new BranchProbabilityInfo(F, *LI));
@@ -1682,10 +1682,11 @@ static bool OptimizeExtractBits(BinaryOperator *ShiftI, ConstantInt *CI,
     TheUse = InsertedShift;
   }
 
-  // If we removed all uses, nuke the shift.
+  // If we removed all uses, or there are none, nuke the shift.
   if (ShiftI->use_empty()) {
     salvageDebugInfo(*ShiftI);
     ShiftI->eraseFromParent();
+    MadeChange = true;
   }
 
   return MadeChange;
@@ -2024,17 +2025,18 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT
   /// Only dup the ReturnInst if the CallInst is likely to be emitted as a tail
   /// call.
   const Function *F = BB->getParent();
-  SmallVector<CallInst*, 4> TailCalls;
+  SmallVector<BasicBlock*, 4> TailCallBBs;
   if (PN) {
     for (unsigned I = 0, E = PN->getNumIncomingValues(); I != E; ++I) {
       // Look through bitcasts.
       Value *IncomingVal = PN->getIncomingValue(I)->stripPointerCasts();
       CallInst *CI = dyn_cast<CallInst>(IncomingVal);
+      BasicBlock *PredBB = PN->getIncomingBlock(I);
       // Make sure the phi value is indeed produced by the tail call.
-      if (CI && CI->hasOneUse() && CI->getParent() == PN->getIncomingBlock(I) &&
+      if (CI && CI->hasOneUse() && CI->getParent() == PredBB &&
           TLI->mayBeEmittedAsTailCall(CI) &&
           attributesPermitTailCall(F, CI, RetI, *TLI))
-        TailCalls.push_back(CI);
+        TailCallBBs.push_back(PredBB);
     }
   } else {
     SmallPtrSet<BasicBlock*, 4> VisitedBBs;
@@ -2052,24 +2054,20 @@ bool CodeGenPrepare::dupRetToEnableTailCallOpts(BasicBlock *BB, bool &ModifiedDT
       CallInst *CI = dyn_cast<CallInst>(&*RI);
       if (CI && CI->use_empty() && TLI->mayBeEmittedAsTailCall(CI) &&
           attributesPermitTailCall(F, CI, RetI, *TLI))
-        TailCalls.push_back(CI);
+        TailCallBBs.push_back(*PI);
     }
   }
 
   bool Changed = false;
-  for (unsigned i = 0, e = TailCalls.size(); i != e; ++i) {
-    CallInst *CI = TailCalls[i];
-    CallSite CS(CI);
-
+  for (auto const &TailCallBB : TailCallBBs) {
     // Make sure the call instruction is followed by an unconditional branch to
     // the return block.
-    BasicBlock *CallBB = CI->getParent();
-    BranchInst *BI = dyn_cast<BranchInst>(CallBB->getTerminator());
+    BranchInst *BI = dyn_cast<BranchInst>(TailCallBB->getTerminator());
     if (!BI || !BI->isUnconditional() || BI->getSuccessor(0) != BB)
       continue;
 
-    // Duplicate the return into CallBB.
-    (void)FoldReturnIntoUncondBranch(RetI, BB, CallBB);
+    // Duplicate the return into TailCallBB.
+    (void)FoldReturnIntoUncondBranch(RetI, BB, TailCallBB);
     ModifiedDT = Changed = true;
     ++NumRetsDup;
   }
@@ -2683,26 +2681,26 @@ private:
 
 void TypePromotionTransaction::setOperand(Instruction *Inst, unsigned Idx,
                                           Value *NewVal) {
-  Actions.push_back(llvm::make_unique<TypePromotionTransaction::OperandSetter>(
+  Actions.push_back(std::make_unique<TypePromotionTransaction::OperandSetter>(
       Inst, Idx, NewVal));
 }
 
 void TypePromotionTransaction::eraseInstruction(Instruction *Inst,
                                                 Value *NewVal) {
   Actions.push_back(
-      llvm::make_unique<TypePromotionTransaction::InstructionRemover>(
+      std::make_unique<TypePromotionTransaction::InstructionRemover>(
           Inst, RemovedInsts, NewVal));
 }
 
 void TypePromotionTransaction::replaceAllUsesWith(Instruction *Inst,
                                                   Value *New) {
   Actions.push_back(
-      llvm::make_unique<TypePromotionTransaction::UsesReplacer>(Inst, New));
+      std::make_unique<TypePromotionTransaction::UsesReplacer>(Inst, New));
 }
 
 void TypePromotionTransaction::mutateType(Instruction *Inst, Type *NewTy) {
   Actions.push_back(
-      llvm::make_unique<TypePromotionTransaction::TypeMutator>(Inst, NewTy));
+      std::make_unique<TypePromotionTransaction::TypeMutator>(Inst, NewTy));
 }
 
 Value *TypePromotionTransaction::createTrunc(Instruction *Opnd,
@@ -2732,7 +2730,7 @@ Value *TypePromotionTransaction::createZExt(Instruction *Inst,
 void TypePromotionTransaction::moveBefore(Instruction *Inst,
                                           Instruction *Before) {
   Actions.push_back(
-      llvm::make_unique<TypePromotionTransaction::InstructionMoveBefore>(
+      std::make_unique<TypePromotionTransaction::InstructionMoveBefore>(
           Inst, Before));
 }
 
@@ -4793,8 +4791,8 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
                       << " for " << *MemoryInst << "\n");
     if (SunkAddr->getType() != Addr->getType())
       SunkAddr = Builder.CreatePointerCast(SunkAddr, Addr->getType());
-  } else if (AddrSinkUsingGEPs ||
-             (!AddrSinkUsingGEPs.getNumOccurrences() && TM && TTI->useAA())) {
+  } else if (AddrSinkUsingGEPs || (!AddrSinkUsingGEPs.getNumOccurrences() &&
+                                   TM && SubtargetInfo->addrSinkUsingGEPs())) {
     // By default, we use the GEP-based method when AA is used later. This
     // prevents new inttoptr/ptrtoint pairs from degrading AA capabilities.
     LLVM_DEBUG(dbgs() << "CGP: SINKING nonlocal addrmode: " << AddrMode
@@ -6193,35 +6191,49 @@ bool CodeGenPrepare::tryToSinkFreeOperands(Instruction *I) {
 
   // OpsToSink can contain multiple uses in a use chain (e.g.
   // (%u1 with %u1 = shufflevector), (%u2 with %u2 = zext %u1)). The dominating
-  // uses must come first, which means they are sunk first, temporarily creating
-  // invalid IR. This will be fixed once their dominated users are sunk and
-  // updated.
+  // uses must come first, so we process the ops in reverse order so as to not
+  // create invalid IR.
   BasicBlock *TargetBB = I->getParent();
   bool Changed = false;
   SmallVector<Use *, 4> ToReplace;
-  for (Use *U : OpsToSink) {
+  for (Use *U : reverse(OpsToSink)) {
     auto *UI = cast<Instruction>(U->get());
     if (UI->getParent() == TargetBB || isa<PHINode>(UI))
       continue;
     ToReplace.push_back(U);
   }
 
-  SmallPtrSet<Instruction *, 4> MaybeDead;
+  SetVector<Instruction *> MaybeDead;
+  DenseMap<Instruction *, Instruction *> NewInstructions;
+  Instruction *InsertPoint = I;
   for (Use *U : ToReplace) {
     auto *UI = cast<Instruction>(U->get());
     Instruction *NI = UI->clone();
+    NewInstructions[UI] = NI;
     MaybeDead.insert(UI);
     LLVM_DEBUG(dbgs() << "Sinking " << *UI << " to user " << *I << "\n");
-    NI->insertBefore(I);
+    NI->insertBefore(InsertPoint);
+    InsertPoint = NI;
     InsertedInsts.insert(NI);
-    U->set(NI);
+
+    // Update the use for the new instruction, making sure that we update the
+    // sunk instruction uses, if it is part of a chain that has already been
+    // sunk.
+    Instruction *OldI = cast<Instruction>(U->getUser());
+    if (NewInstructions.count(OldI))
+      NewInstructions[OldI]->setOperand(U->getOperandNo(), NI);
+    else
+      U->set(NI);
     Changed = true;
   }
 
   // Remove instructions that are dead after sinking.
-  for (auto *I : MaybeDead)
-    if (!I->hasNUsesOrMore(1))
+  for (auto *I : MaybeDead) {
+    if (!I->hasNUsesOrMore(1)) {
+      LLVM_DEBUG(dbgs() << "Removing dead instruction: " << *I << "\n");
       I->eraseFromParent();
+    }
+  }
 
   return Changed;
 }
@@ -7106,7 +7118,6 @@ bool CodeGenPrepare::optimizeBlock(BasicBlock &BB, bool &ModifiedDT) {
     for (auto &I : reverse(BB)) {
       if (makeBitReverse(I, *DL, *TLI)) {
         MadeBitReverse = MadeChange = true;
-        ModifiedDT = true;
         break;
       }
     }

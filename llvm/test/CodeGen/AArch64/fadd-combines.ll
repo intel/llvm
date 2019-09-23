@@ -146,28 +146,51 @@ define float @fadd_const_multiuse_fmf(float %x) {
   ret float %a3
 }
 
-; DAGCombiner transforms this into: (x + 59.0) + (x + 17.0).
-; The machine combiner transforms this into a chain of 3 dependent adds:
-; ((x + 59.0) + 17.0) + x
-
-define float @fadd_const_multiuse_attr(float %x) #0 {
+; DAGCombiner transforms this into: (x + 17.0) + (x + 59.0).
+define float @fadd_const_multiuse_attr(float %x) {
 ; CHECK-LABEL: fadd_const_multiuse_attr:
 ; CHECK:       // %bb.0:
-; CHECK-DAG:     mov  [[W59:w[0-9]+]], #1114374144
 ; CHECK-DAG:     mov  [[W17:w[0-9]+]], #1109917696
-; CHECK-NEXT:    fmov [[FP59:s[0-9]+]], [[W59]]
+; CHECK-DAG:     mov  [[W59:w[0-9]+]], #1114374144
 ; CHECK-NEXT:    fmov [[FP17:s[0-9]+]], [[W17]]
-; CHECK-NEXT:    fadd [[TMP1:s[0-9]+]], s0, [[FP59]]
-; CHECK-NEXT:    fadd [[TMP2:s[0-9]+]], [[FP17]], [[TMP1]]
-; CHECK-NEXT:    fadd s0, s0, [[TMP2]]
+; CHECK-NEXT:    fmov [[FP59:s[0-9]+]], [[W59]]
+; CHECK-NEXT:    fadd [[TMP1:s[0-9]+]], s0, [[FP17]]
+; CHECK-NEXT:    fadd [[TMP2:s[0-9]+]], s0, [[FP59]]
+; CHECK-NEXT:    fadd s0, [[TMP1]], [[TMP2]]
 ; CHECK-NEXT:    ret
-  %a1 = fadd float %x, 42.0
-  %a2 = fadd float %a1, 17.0
-  %a3 = fadd float %a1, %a2
+  %a1 = fadd fast float %x, 42.0
+  %a2 = fadd fast float %a1, 17.0
+  %a3 = fadd fast float %a1, %a2
   ret float %a3
 }
 
-attributes #0 = { "unsafe-fp-math"="true" }
+; PR32939 - https://bugs.llvm.org/show_bug.cgi?id=32939
+
+define double @fmul2_negated(double %a, double %b, double %c) {
+; CHECK-LABEL: fmul2_negated:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    fadd d1, d1, d1
+; CHECK-NEXT:    fmul d1, d1, d2
+; CHECK-NEXT:    fsub d0, d0, d1
+; CHECK-NEXT:    ret
+  %mul = fmul double %b, 2.0
+  %mul1 = fmul double %mul, %c
+  %sub = fsub double %a, %mul1
+  ret double %sub
+}
+
+define <2 x double> @fmul2_negated_vec(<2 x double> %a, <2 x double> %b, <2 x double> %c) {
+; CHECK-LABEL: fmul2_negated_vec:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    fadd v1.2d, v1.2d, v1.2d
+; CHECK-NEXT:    fmul v1.2d, v1.2d, v2.2d
+; CHECK-NEXT:    fsub v0.2d, v0.2d, v1.2d
+; CHECK-NEXT:    ret
+  %mul = fmul <2 x double> %b, <double 2.0, double 2.0>
+  %mul1 = fmul <2 x double> %mul, %c
+  %sub = fsub <2 x double> %a, %mul1
+  ret <2 x double> %sub
+}
 
 declare void @use(double)
 

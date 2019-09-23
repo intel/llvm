@@ -444,24 +444,19 @@ void Value::replaceUsesOutsideBlock(Value *New, BasicBlock *BB) {
          "replaceUses of value with new value of different type!");
   assert(BB && "Basic block that may contain a use of 'New' must be defined\n");
 
-  use_iterator UI = use_begin(), E = use_end();
-  for (; UI != E;) {
-    Use &U = *UI;
-    ++UI;
-    auto *Usr = dyn_cast<Instruction>(U.getUser());
-    if (Usr && Usr->getParent() == BB)
-      continue;
-    U.set(New);
-  }
+  replaceUsesWithIf(New, [BB](Use &U) {
+    auto *I = dyn_cast<Instruction>(U.getUser());
+    // Don't replace if it's an instruction in the BB basic block.
+    return !I || I->getParent() != BB;
+  });
 }
 
 namespace {
 // Various metrics for how much to strip off of pointers.
 enum PointerStripKind {
   PSK_ZeroIndices,
-  PSK_ZeroIndicesAndAliases,
-  PSK_ZeroIndicesAndAliasesSameRepresentation,
-  PSK_ZeroIndicesAndAliasesAndInvariantGroups,
+  PSK_ZeroIndicesSameRepresentation,
+  PSK_ZeroIndicesAndInvariantGroups,
   PSK_InBoundsConstantIndices,
   PSK_InBounds
 };
@@ -479,10 +474,9 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
   do {
     if (auto *GEP = dyn_cast<GEPOperator>(V)) {
       switch (StripKind) {
-      case PSK_ZeroIndicesAndAliases:
-      case PSK_ZeroIndicesAndAliasesSameRepresentation:
-      case PSK_ZeroIndicesAndAliasesAndInvariantGroups:
       case PSK_ZeroIndices:
+      case PSK_ZeroIndicesSameRepresentation:
+      case PSK_ZeroIndicesAndInvariantGroups:
         if (!GEP->hasAllZeroIndices())
           return V;
         break;
@@ -498,15 +492,11 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
       V = GEP->getPointerOperand();
     } else if (Operator::getOpcode(V) == Instruction::BitCast) {
       V = cast<Operator>(V)->getOperand(0);
-    } else if (StripKind != PSK_ZeroIndicesAndAliasesSameRepresentation &&
+    } else if (StripKind != PSK_ZeroIndicesSameRepresentation &&
                Operator::getOpcode(V) == Instruction::AddrSpaceCast) {
       // TODO: If we know an address space cast will not change the
       //       representation we could look through it here as well.
       V = cast<Operator>(V)->getOperand(0);
-    } else if (auto *GA = dyn_cast<GlobalAlias>(V)) {
-      if (StripKind == PSK_ZeroIndices || GA->isInterposable())
-        return V;
-      V = GA->getAliasee();
     } else {
       if (const auto *Call = dyn_cast<CallBase>(V)) {
         if (const Value *RV = Call->getReturnedArgOperand()) {
@@ -516,7 +506,7 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
         // The result of launder.invariant.group must alias it's argument,
         // but it can't be marked with returned attribute, that's why it needs
         // special case.
-        if (StripKind == PSK_ZeroIndicesAndAliasesAndInvariantGroups &&
+        if (StripKind == PSK_ZeroIndicesAndInvariantGroups &&
             (Call->getIntrinsicID() == Intrinsic::launder_invariant_group ||
              Call->getIntrinsicID() == Intrinsic::strip_invariant_group)) {
           V = Call->getArgOperand(0);
@@ -533,16 +523,11 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
 } // end anonymous namespace
 
 const Value *Value::stripPointerCasts() const {
-  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliases>(this);
+  return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this);
 }
 
 const Value *Value::stripPointerCastsSameRepresentation() const {
-  return stripPointerCastsAndOffsets<
-      PSK_ZeroIndicesAndAliasesSameRepresentation>(this);
-}
-
-const Value *Value::stripPointerCastsNoFollowAliases() const {
-  return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this);
+  return stripPointerCastsAndOffsets<PSK_ZeroIndicesSameRepresentation>(this);
 }
 
 const Value *Value::stripInBoundsConstantOffsets() const {
@@ -550,8 +535,7 @@ const Value *Value::stripInBoundsConstantOffsets() const {
 }
 
 const Value *Value::stripPointerCastsAndInvariantGroups() const {
-  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliasesAndInvariantGroups>(
-      this);
+  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndInvariantGroups>(this);
 }
 
 const Value *
@@ -650,6 +634,19 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       }
       CanBeNull = true;
     }
+  } else if (auto *IP = dyn_cast<IntToPtrInst>(this)) {
+    if (MDNode *MD = IP->getMetadata(LLVMContext::MD_dereferenceable)) {
+      ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
+      DerefBytes = CI->getLimitedValue();
+    }
+    if (DerefBytes == 0) {
+      if (MDNode *MD =
+              IP->getMetadata(LLVMContext::MD_dereferenceable_or_null)) {
+        ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
+        DerefBytes = CI->getLimitedValue();
+      }
+      CanBeNull = true;
+    }
   } else if (auto *AI = dyn_cast<AllocaInst>(this)) {
     if (!AI->isArrayAllocation()) {
       DerefBytes = DL.getTypeStoreSize(AI->getAllocatedType());
@@ -672,11 +669,13 @@ unsigned Value::getPointerAlignment(const DataLayout &DL) const {
   unsigned Align = 0;
   if (auto *GO = dyn_cast<GlobalObject>(this)) {
     if (isa<Function>(GO)) {
+      MaybeAlign FunctionPtrAlign = DL.getFunctionPtrAlign();
+      unsigned Align = FunctionPtrAlign ? FunctionPtrAlign->value() : 0;
       switch (DL.getFunctionPtrAlignType()) {
       case DataLayout::FunctionPtrAlignType::Independent:
-        return DL.getFunctionPtrAlign();
+        return Align;
       case DataLayout::FunctionPtrAlignType::MultipleOfFunctionAlign:
-        return std::max(DL.getFunctionPtrAlign(), GO->getAlignment());
+        return std::max(Align, GO->getAlignment());
       }
     }
     Align = GO->getAlignment();
@@ -710,9 +709,11 @@ unsigned Value::getPointerAlignment(const DataLayout &DL) const {
       if (AllocatedType->isSized())
         Align = DL.getPrefTypeAlignment(AllocatedType);
     }
-  } else if (const auto *Call = dyn_cast<CallBase>(this))
-    Align = Call->getAttributes().getRetAlignment();
-  else if (const LoadInst *LI = dyn_cast<LoadInst>(this))
+  } else if (const auto *Call = dyn_cast<CallBase>(this)) {
+    Align = Call->getRetAlignment();
+    if (Align == 0 && Call->getCalledFunction())
+      Align = Call->getCalledFunction()->getAttributes().getRetAlignment();
+  } else if (const LoadInst *LI = dyn_cast<LoadInst>(this))
     if (MDNode *MD = LI->getMetadata(LLVMContext::MD_align)) {
       ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
       Align = CI->getLimitedValue();

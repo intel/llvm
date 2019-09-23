@@ -10,10 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/MC/MCXCOFFStreamer.h"
+#include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCObjectWriter.h"
+#include "llvm/MC/MCSymbolXCOFF.h"
+#include "llvm/MC/MCXCOFFStreamer.h"
 #include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
@@ -32,7 +34,20 @@ bool MCXCOFFStreamer::EmitSymbolAttribute(MCSymbol *Symbol,
 
 void MCXCOFFStreamer::EmitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                                        unsigned ByteAlignment) {
-  report_fatal_error("Emiting common symbols not implemented for XCOFF.");
+  getAssembler().registerSymbol(*Symbol);
+  Symbol->setExternal(cast<MCSymbolXCOFF>(Symbol)->getStorageClass() !=
+                      XCOFF::C_HIDEXT);
+  Symbol->setCommon(Size, ByteAlignment);
+
+  // Need to add this symbol to the current Fragment which will belong to the
+  // containing CSECT.
+  auto *F = dyn_cast_or_null<MCDataFragment>(getCurrentFragment());
+  assert(F && "Expected a valid section with a fragment set.");
+  Symbol->setFragment(F);
+
+  // Emit the alignment and storage for the variable to the section.
+  EmitValueToAlignment(ByteAlignment);
+  EmitZeros(Size);
 }
 
 void MCXCOFFStreamer::EmitZerofill(MCSection *Section, MCSymbol *Symbol,
@@ -56,4 +71,10 @@ MCStreamer *llvm::createXCOFFStreamer(MCContext &Context,
   if (RelaxAll)
     S->getAssembler().setRelaxAll(true);
   return S;
+}
+
+void MCXCOFFStreamer::EmitXCOFFLocalCommonSymbol(MCSymbol *Symbol,
+                                                 uint64_t Size,
+                                                 unsigned ByteAlignment) {
+  EmitCommonSymbol(Symbol, Size, ByteAlignment);
 }

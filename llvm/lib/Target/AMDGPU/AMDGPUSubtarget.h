@@ -75,6 +75,7 @@ protected:
   bool HasFminFmaxLegacy;
   bool EnablePromoteAlloca;
   bool HasTrigReducedRange;
+  unsigned MaxWavesPerEU;
   int LocalMemorySize;
   unsigned WavefrontSize;
 
@@ -223,7 +224,9 @@ public:
   /// subtarget.
   virtual unsigned getMinWavesPerEU() const = 0;
 
-  unsigned getMaxWavesPerEU() const { return 10; }
+  /// \returns Maximum number of waves per execution unit supported by the
+  /// subtarget without any kind of limitation.
+  unsigned getMaxWavesPerEU() const { return MaxWavesPerEU; }
 
   /// Creates value range metadata on an workitemid.* inrinsic call or load.
   bool makeLIDRangeMetadata(Instruction *I) const;
@@ -245,6 +248,9 @@ public:
 
 class GCNSubtarget : public AMDGPUGenSubtargetInfo,
                      public AMDGPUSubtarget {
+
+  using AMDGPUSubtarget::getMaxWavesPerEU;
+
 public:
   enum TrapHandlerAbi {
     TrapHandlerAbiNone = 0,
@@ -362,6 +368,7 @@ protected:
   bool CaymanISA;
   bool CFALUBug;
   bool LDSMisalignedBug;
+  bool HasMFMAInlineLiteralBug;
   bool HasVertexCache;
   short TexVTXClauseSize;
   bool ScalarizeGlobal;
@@ -416,7 +423,7 @@ public:
     return CallLoweringInfo.get();
   }
 
-  const InstructionSelector *getInstructionSelector() const override {
+  InstructionSelector *getInstructionSelector() const override {
     return InstSelector.get();
   }
 
@@ -544,6 +551,10 @@ public:
     return GFX9Insts;
   }
 
+  bool hasScalarPackInsts() const {
+    return GFX9Insts;
+  }
+
   TrapHandlerAbi getTrapHandlerAbi() const {
     return isAmdHsaOS() ? TrapHandlerAbiHsa : TrapHandlerAbiNone;
   }
@@ -609,6 +620,11 @@ public:
 
   bool supportsMinMaxDenormModes() const {
     return getGeneration() >= AMDGPUSubtarget::GFX9;
+  }
+
+  /// \returns If target supports S_DENORM_MODE.
+  bool hasDenormModeInst() const {
+    return getGeneration() >= AMDGPUSubtarget::GFX10;
   }
 
   bool useFlatForGlobal() const {
@@ -881,12 +897,6 @@ public:
     return AMDGPU::IsaInfo::getMaxWavesPerCU(this, FlatWorkGroupSize);
   }
 
-  /// \returns Maximum number of waves per execution unit supported by the
-  /// subtarget without any kind of limitation.
-  unsigned getMaxWavesPerEU() const {
-    return AMDGPU::IsaInfo::getMaxWavesPerEU();
-  }
-
   /// \returns Number of waves per work group supported by the subtarget and
   /// limited by given \p FlatWorkGroupSize.
   unsigned getWavesPerWorkGroup(unsigned FlatWorkGroupSize) const {
@@ -944,6 +954,14 @@ public:
     return HasDPP;
   }
 
+  bool hasDPPBroadcasts() const {
+    return HasDPP && getGeneration() < GFX10;
+  }
+
+  bool hasDPPWavefrontShifts() const {
+    return HasDPP && getGeneration() < GFX10;
+  }
+
   bool hasDPP8() const {
     return HasDPP8;
   }
@@ -972,6 +990,10 @@ public:
 
   bool hasSGPRInitBug() const {
     return SGPRInitBug;
+  }
+
+  bool hasMFMAInlineLiteralBug() const {
+    return HasMFMAInlineLiteralBug;
   }
 
   bool has12DWordStoreHazard() const {
@@ -1035,6 +1057,13 @@ public:
   /// Return the maximum number of waves per SIMD for kernels using \p VGPRs
   /// VGPRs
   unsigned getOccupancyWithNumVGPRs(unsigned VGPRs) const;
+
+  /// Return occupancy for the given function. Used LDS and a number of
+  /// registers if provided.
+  /// Note, occupancy can be affected by the scratch allocation as well, but
+  /// we do not have enough information to compute it.
+  unsigned computeOccupancy(const MachineFunction &MF, unsigned LDSSize = 0,
+                            unsigned NumSGPRs = 0, unsigned NumVGPRs = 0) const;
 
   /// \returns true if the flat_scratch register should be initialized with the
   /// pointer to the wave's scratch memory rather than a size and offset.

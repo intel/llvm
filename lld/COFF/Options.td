@@ -43,6 +43,8 @@ def lib : F<"lib">,
     HelpText<"Act like lib.exe; must be first argument if present">;
 def libpath : P<"libpath", "Additional library search path">;
 def linkrepro : P<"linkrepro", "Dump linker invocation and input files for debugging">;
+def lldignoreenv : F<"lldignoreenv">,
+    HelpText<"Ignore environment variables like %LIB%">;
 def lldltocache : P<"lldltocache", "Path to ThinLTO cached object file directory">;
 def lldltocachepolicy : P<"lldltocachepolicy", "Pruning policy for the ThinLTO cache">;
 def lldsavetemps : F<"lldsavetemps">,
@@ -162,6 +164,8 @@ def help : F<"help">;
 def help_q : Flag<["/??", "-??", "/?", "-?"], "">, Alias<help>;
 
 // LLD extensions
+def end_lib : F<"end-lib">,
+  HelpText<"End a grouping of objects that should be treated as if they were together in an archive">;
 def exclude_all_symbols : F<"exclude-all-symbols">;
 def export_all_symbols : F<"export-all-symbols">;
 defm demangle : B<"demangle",
@@ -176,6 +180,8 @@ def pdb_source_path : P<"pdbsourcepath",
                         "Base path used to make relative source file path absolute in PDB">;
 def rsp_quoting : Joined<["--"], "rsp-quoting=">,
   HelpText<"Quoting style for response files, 'windows' (default) or 'posix'">;
+def start_lib : F<"start-lib">,
+  HelpText<"Start a grouping of objects that should be treated as if they were together in an archive">;
 def thinlto_emit_imports_files :
     F<"thinlto-emit-imports-files">,
     HelpText<"Emit .imports files with -thinlto-index-only">;
@@ -191,6 +197,9 @@ def thinlto_object_suffix_replace : P<
 def thinlto_prefix_replace: P<
     "thinlto-prefix-replace",
     "'old;new' replace old prefix with new prefix in ThinLTO outputs">;
+def lto_obj_path : P<
+    "lto-obj-path",
+    "output native object for merged LTO unit to this path">;
 def dash_dash_version : Flag<["--"], "version">,
   HelpText<"Print version information">;
 defm threads: B<"threads",

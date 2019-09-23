@@ -8,6 +8,8 @@ function(llvm_update_compile_flags name)
     set(update_src_props ON)
   endif()
 
+  list(APPEND LLVM_COMPILE_CFLAGS " ${LLVM_COMPILE_FLAGS}")
+
   # LLVM_REQUIRES_EH is an internal flag that individual targets can use to
   # force EH
   if(LLVM_REQUIRES_EH OR LLVM_ENABLE_EH)
@@ -28,6 +30,8 @@ function(llvm_update_compile_flags name)
     elseif(MSVC)
       list(APPEND LLVM_COMPILE_DEFINITIONS _HAS_EXCEPTIONS=0)
       list(APPEND LLVM_COMPILE_FLAGS "/EHs-c-")
+    elseif (CMAKE_CXX_COMPILER_ID MATCHES "XL")
+      list(APPEND LLVM_COMPILE_FLAGS "-qnoeh")
     endif()
   endif()
 
@@ -41,6 +45,8 @@ function(llvm_update_compile_flags name)
       list(APPEND LLVM_COMPILE_FLAGS "-fno-rtti")
     elseif (MSVC)
       list(APPEND LLVM_COMPILE_FLAGS "/GR-")
+    elseif (CMAKE_CXX_COMPILER_ID MATCHES "XL")
+      list(APPEND LLVM_COMPILE_FLAGS "-qnortti")
     endif ()
   elseif(MSVC)
     list(APPEND LLVM_COMPILE_FLAGS "/GR")
@@ -50,6 +56,7 @@ function(llvm_update_compile_flags name)
   #   - LLVM_COMPILE_FLAGS is list.
   #   - PROPERTY COMPILE_FLAGS is string.
   string(REPLACE ";" " " target_compile_flags " ${LLVM_COMPILE_FLAGS}")
+  string(REPLACE ";" " " target_compile_cflags " ${LLVM_COMPILE_CFLAGS}")
 
   if(update_src_props)
     foreach(fn ${sources})
@@ -57,6 +64,10 @@ function(llvm_update_compile_flags name)
       if("${suf}" STREQUAL ".cpp")
         set_property(SOURCE ${fn} APPEND_STRING PROPERTY
           COMPILE_FLAGS "${target_compile_flags}")
+      endif()
+      if("${suf}" STREQUAL ".c")
+        set_property(SOURCE ${fn} APPEND_STRING PROPERTY
+          COMPILE_FLAGS "${target_compile_cflags}")
       endif()
     endforeach()
   else()
@@ -444,6 +455,9 @@ function(llvm_add_library name)
     list(APPEND objlibs ${obj_name})
 
     set_target_properties(${obj_name} PROPERTIES FOLDER "Object Libraries")
+    if(ARG_DEPENDS)
+      add_dependencies(${obj_name} ${ARG_DEPENDS})
+    endif()
   endif()
 
   if(ARG_SHARED AND ARG_STATIC)
@@ -1682,7 +1696,7 @@ function(llvm_codesign name)
         XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS ${ARG_ENTITLEMENTS}
       )
     endif()
-  elseif(APPLE)
+  elseif(APPLE AND CMAKE_HOST_SYSTEM_NAME MATCHES Darwin)
     if(NOT CMAKE_CODESIGN)
       set(CMAKE_CODESIGN xcrun codesign)
     endif()
@@ -1728,7 +1742,7 @@ function(llvm_setup_rpath name)
 
   if (APPLE)
     set(_install_name_dir INSTALL_NAME_DIR "@rpath")
-    set(_install_rpath "@loader_path/../lib" ${extra_libdir})
+    set(_install_rpath "@loader_path/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
   elseif(UNIX)
     set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
     if(${CMAKE_SYSTEM_NAME} MATCHES "(FreeBSD|DragonFly)")

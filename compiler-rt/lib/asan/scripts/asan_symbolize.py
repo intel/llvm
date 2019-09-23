@@ -21,12 +21,14 @@ script itself.
 """
 import argparse
 import bisect
+import errno
 import getopt
 import logging
 import os
 import re
 import subprocess
 import sys
+from distutils.spawn import find_executable
 
 symbolizers = {}
 demangle = False
@@ -41,7 +43,7 @@ def fix_filename(file_name):
   if fix_filename_patterns:
     for path_to_cut in fix_filename_patterns:
       file_name = re.sub('.*' + path_to_cut, '', file_name)
-  file_name = re.sub('.*asan_[a-z_]*.cc:[0-9]*', '_asan_rtl_', file_name)
+  file_name = re.sub('.*asan_[a-z_]*.(cc|cpp):[0-9]*', '_asan_rtl_', file_name)
   file_name = re.sub('.*crtstuff.c:0', '???:0', file_name)
   return file_name
 
@@ -153,6 +155,7 @@ class Addr2LineSymbolizer(Symbolizer):
     addr2line_tool = 'addr2line'
     if binutils_prefix:
       addr2line_tool = binutils_prefix + addr2line_tool
+    logging.debug('addr2line binary is %s' % find_executable(addr2line_tool))
     cmd = [addr2line_tool, '-fi']
     if demangle:
       cmd += ['--demangle']
@@ -174,14 +177,43 @@ class Addr2LineSymbolizer(Symbolizer):
       is_first_frame = True
       while True:
         function_name = self.pipe.stdout.readline().rstrip()
+        logging.debug("read function_name='%s' from addr2line" % function_name)
+        # If llvm-symbolizer is installed as addr2line, older versions of
+        # llvm-symbolizer will print -1 when presented with -1 and not print
+        # a second line. In that case we will block for ever trying to read the
+        # file name. This also happens for non-existent files, in which case GNU
+        # addr2line exits immediate, but llvm-symbolizer does not (see
+        # https://llvm.org/PR42754).
+        if function_name == '-1':
+          logging.debug("got function '-1' -> no more input")
+          break
         file_name = self.pipe.stdout.readline().rstrip()
+        logging.debug("read file_name='%s' from addr2line" % file_name)
         if is_first_frame:
           is_first_frame = False
-        elif function_name in ['', '??']:
-          assert file_name == function_name
+        elif function_name == '??':
+          assert file_name == '??:0', file_name
+          logging.debug("got function '??' -> no more input")
           break
-        lines.append((function_name, file_name));
-    except Exception:
+        elif not function_name:
+          assert not file_name, file_name
+          logging.debug("got empty function name -> no more input")
+          break
+        if not function_name and not file_name:
+          logging.debug("got empty function and file name -> unknown function")
+          function_name = '??'
+          file_name = '??:0'
+        lines.append((function_name, file_name))
+    except IOError as e:
+      # EPIPE happens if addr2line exits early (which some implementations do
+      # if an invalid file is passed).
+      if e.errno == errno.EPIPE:
+        logging.debug("addr2line exited early (broken pipe), returncode=%d" % self.pipe.poll())
+      else:
+        logging.debug("unexpected I/O exception communicating with addr2line", exc_info=e)
+      lines.append(('??', '??:0'))
+    except Exception as e:
+      logging.debug("got unknown exception communicating with addr2line", exc_info=e)
       lines.append(('??', '??:0'))
     return ['%s in %s %s' % (addr, function, fix_filename(file)) for (function, file) in lines]
 
@@ -431,10 +463,13 @@ class SymbolizationLoop(object):
     assert result
     return result
 
-  def get_symbolized_lines(self, symbolized_lines):
+  def get_symbolized_lines(self, symbolized_lines, inc_frame_counter=True):
     if not symbolized_lines:
+      if inc_frame_counter:
+        self.frame_no += 1
       return [self.current_line]
     else:
+      assert inc_frame_counter
       result = []
       for symbolized_frame in symbolized_lines:
         result.append('    #%s %s' % (str(self.frame_no), symbolized_frame.rstrip()))
@@ -463,15 +498,18 @@ class SymbolizationLoop(object):
         '^( *#([0-9]+) *)(0x[0-9a-f]+) *(?:in *.+)? *\((.*)\+(0x[0-9a-f]+)\)')
     match = re.match(stack_trace_line_format, line)
     if not match:
-      return [self.current_line]
+      logging.debug('Line "{}" does not match regex'.format(line))
+      # Not a frame line so don't increment the frame counter.
+      return self.get_symbolized_lines(None, inc_frame_counter=False)
     logging.debug(line)
     _, frameno_str, addr, binary, offset = match.groups()
+
     if not self.using_module_map and not os.path.isabs(binary):
       # Do not try to symbolicate if the binary is just the module file name
       # and a module map is unavailable.
       # FIXME(dliew): This is currently necessary for reports on Darwin that are
       # partially symbolicated by `atos`.
-      return [self.current_line]
+      return self.get_symbolized_lines(None)
     arch = ""
     # Arch can be embedded in the filename, e.g.: "libabc.dylib:x86_64h"
     colon_pos = binary.rfind(":")
@@ -490,7 +528,7 @@ class SymbolizationLoop(object):
     if binary is None:
       # The binary filter has told us this binary can't be symbolized.
       logging.debug('Skipping symbolication of binary "%s"', original_binary)
-      return [self.current_line]
+      return self.get_symbolized_lines(None)
     symbolized_line = self.symbolize_address(addr, binary, offset, arch)
     if not symbolized_line:
       if original_binary != binary:
@@ -756,7 +794,9 @@ def get_uuid_from_binary(path_to_binary, arch=None):
     uuid = split_uuid_line[1]
     break
   if uuid is None:
-    raise GetUUIDFromBinaryException('Failed to retrieve UUID')
+    logging.error('Failed to retrieve UUID from binary {}'.format(path_to_binary))
+    logging.error('otool output was:\n{}'.format(output_str))
+    raise GetUUIDFromBinaryException('Failed to retrieve UUID from binary "{}"'.format(path_to_binary))
   else:
     # Update cache
     _get_uuid_from_binary_cache[cache_key] = uuid
@@ -788,7 +828,7 @@ class ModuleMap(object):
   def modules(self):
     return set(self._module_name_to_description_map.values())
 
-  def get_module_path_for_symbolication(self, module_name, proxy):
+  def get_module_path_for_symbolication(self, module_name, proxy, validate_uuid):
     module_desc = self.find_module_by_name(module_name)
     if module_desc is None:
       return None
@@ -797,15 +837,19 @@ class ModuleMap(object):
     module_desc = proxy.filter_module_desc(module_desc)
     if module_desc is None:
       return None
-    try:
-      uuid = get_uuid_from_binary(module_desc.module_path_for_symbolization, arch = module_desc.arch)
-      if uuid != module_desc.uuid:
-        logging.warning("Detected UUID mismatch {} != {}".format(uuid, module_desc.uuid))
-        # UUIDs don't match. Tell client to not symbolize this.
+    if validate_uuid:
+      logging.debug('Validating UUID of {}'.format(module_desc.module_path_for_symbolization))
+      try:
+        uuid = get_uuid_from_binary(module_desc.module_path_for_symbolization, arch = module_desc.arch)
+        if uuid != module_desc.uuid:
+          logging.warning("Detected UUID mismatch {} != {}".format(uuid, module_desc.uuid))
+          # UUIDs don't match. Tell client to not symbolize this.
+          return None
+      except GetUUIDFromBinaryException as e:
+        logging.error('Failed to get binary from UUID: %s', str(e))
         return None
-    except GetUUIDFromBinaryException as e:
-      logging.error('Failed to binary from UUID: %s', str(e))
-      return None
+    else:
+      logging.warning('Skipping validation of UUID of {}'.format(module_desc.module_path_for_symbolization))
     return module_desc.module_path_for_symbolization
 
   @staticmethod
@@ -888,10 +932,16 @@ class SysRootFilterPlugIn(AsanSymbolizerPlugIn):
 class ModuleMapPlugIn(AsanSymbolizerPlugIn):
   def __init__(self):
     self._module_map = None
+    self._uuid_validation = True
   def register_cmdline_args(self, parser):
     parser.add_argument('--module-map',
                         help='Path to text file containing module map'
                         'output. See print_module_map ASan option.')
+    parser.add_argument('--skip-uuid-validation',
+                        default=False,
+                        action='store_true',
+                        help='Skips validating UUID of modules using otool.')
+
   def process_cmdline_args(self, pargs):
     if not pargs.module_map:
       return False
@@ -900,7 +950,9 @@ class ModuleMapPlugIn(AsanSymbolizerPlugIn):
       msg = 'Failed to find module map'
       logging.error(msg)
       raise Exception(msg)
+    self._uuid_validation = not pargs.skip_uuid_validation
     return True
+
   def filter_binary_path(self, binary_path):
     if os.path.isabs(binary_path):
       # This is a binary path so transform into
@@ -908,7 +960,11 @@ class ModuleMapPlugIn(AsanSymbolizerPlugIn):
       module_name = os.path.basename(binary_path)
     else:
       module_name = binary_path
-    return self._module_map.get_module_path_for_symbolication(module_name, self.proxy)
+    return self._module_map.get_module_path_for_symbolication(
+      module_name,
+      self.proxy,
+      self._uuid_validation
+    )
 
 def add_logging_args(parser):
   parser.add_argument('--log-dest',

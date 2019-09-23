@@ -65,7 +65,7 @@ cl::opt<bool>
 cl::opt<bool>
     ELFCommons("common",
                cl::desc("Print common symbols in the ELF file.  When using "
-                        "Berkely format, this is added to bss."),
+                        "Berkeley format, this is added to bss."),
                cl::init(false), cl::cat(SizeCat));
 
 static cl::list<std::string>
@@ -105,17 +105,6 @@ static cl::extrahelp
 static bool HadError = false;
 
 static std::string ToolName;
-
-/// If ec is not success, print the error and return true.
-static bool error(std::error_code ec) {
-  if (!ec)
-    return false;
-
-  HadError = true;
-  errs() << ToolName << ": error reading file: " << ec.message() << ".\n";
-  errs().flush();
-  return true;
-}
 
 static bool error(Twine Message) {
   HadError = true;
@@ -397,11 +386,14 @@ static void printObjectSectionSizes(ObjectFile *Obj) {
       uint64_t size = Section.getSize();
       total += size;
 
-      StringRef name;
-      if (error(Section.getName(name)))
+      Expected<StringRef> name_or_err = Section.getName();
+      if (!name_or_err) {
+        error(name_or_err.takeError(), Obj->getFileName());
         return;
+      }
+
       uint64_t addr = Section.getAddress();
-      max_name_len = std::max(max_name_len, name.size());
+      max_name_len = std::max(max_name_len, name_or_err->size());
       max_size_len = std::max(max_size_len, getNumLengthAsString(size));
       max_addr_len = std::max(max_addr_len, getNumLengthAsString(addr));
     }
@@ -431,14 +423,16 @@ static void printObjectSectionSizes(ObjectFile *Obj) {
     for (const SectionRef &Section : Obj->sections()) {
       if (!considerForSize(Obj, Section))
         continue;
-      StringRef name;
-      if (error(Section.getName(name)))
+
+      Expected<StringRef> name_or_err = Section.getName();
+      if (!name_or_err) {
+        error(name_or_err.takeError(), Obj->getFileName());
         return;
+      }
+
       uint64_t size = Section.getSize();
       uint64_t addr = Section.getAddress();
-      std::string namestr = name;
-
-      outs() << format(fmt.str().c_str(), namestr.c_str(), size, addr);
+      outs() << format(fmt.str().c_str(), name_or_err->str().c_str(), size, addr);
     }
 
     if (ELFCommons) {
@@ -850,7 +844,7 @@ static void printFileSectionSizes(StringRef file) {
     outs() << "\n";
 }
 
-static void printBerkelyTotals() {
+static void printBerkeleyTotals() {
   std::string fmtbuf;
   raw_string_ostream fmt(fmtbuf);
   const char *radix_fmt = getRadixFmt();
@@ -895,7 +889,7 @@ int main(int argc, char **argv) {
   MoreThanOneFile = InputFilenames.size() > 1;
   llvm::for_each(InputFilenames, printFileSectionSizes);
   if (OutputFormat == berkeley && TotalSizes)
-    printBerkelyTotals();
+    printBerkeleyTotals();
 
   if (HadError)
     return 1;

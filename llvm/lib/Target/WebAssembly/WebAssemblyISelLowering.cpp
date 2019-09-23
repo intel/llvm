@@ -337,8 +337,8 @@ static MachineBasicBlock *LowerFPToInt(MachineInstr &MI, DebugLoc DL,
                                        bool Float64, unsigned LoweredOpcode) {
   MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
 
-  unsigned OutReg = MI.getOperand(0).getReg();
-  unsigned InReg = MI.getOperand(1).getReg();
+  Register OutReg = MI.getOperand(0).getReg();
+  Register InReg = MI.getOperand(1).getReg();
 
   unsigned Abs = Float64 ? WebAssembly::ABS_F64 : WebAssembly::ABS_F32;
   unsigned FConst = Float64 ? WebAssembly::CONST_F64 : WebAssembly::CONST_F32;
@@ -396,9 +396,9 @@ static MachineBasicBlock *LowerFPToInt(MachineInstr &MI, DebugLoc DL,
   // For unsigned numbers, we have to do a separate comparison with zero.
   if (IsUnsigned) {
     Tmp1 = MRI.createVirtualRegister(MRI.getRegClass(InReg));
-    unsigned SecondCmpReg =
+    Register SecondCmpReg =
         MRI.createVirtualRegister(&WebAssembly::I32RegClass);
-    unsigned AndReg = MRI.createVirtualRegister(&WebAssembly::I32RegClass);
+    Register AndReg = MRI.createVirtualRegister(&WebAssembly::I32RegClass);
     BuildMI(BB, DL, TII.get(FConst), Tmp1)
         .addFPImm(cast<ConstantFP>(ConstantFP::get(Ty, 0.0)));
     BuildMI(BB, DL, TII.get(GE), SecondCmpReg).addReg(Tmp0).addReg(Tmp1);
@@ -569,7 +569,7 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = MVT::i32;
     Info.ptrVal = I.getArgOperand(0);
     Info.offset = 0;
-    Info.align = 4;
+    Info.align = Align(4);
     // atomic.notify instruction does not really load the memory specified with
     // this argument, but MachineMemOperand should either be load or store, so
     // we set this to a load.
@@ -583,7 +583,7 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = MVT::i32;
     Info.ptrVal = I.getArgOperand(0);
     Info.offset = 0;
-    Info.align = 4;
+    Info.align = Align(4);
     Info.flags = MachineMemOperand::MOVolatile | MachineMemOperand::MOLoad;
     return true;
   case Intrinsic::wasm_atomic_wait_i64:
@@ -591,7 +591,7 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.memVT = MVT::i64;
     Info.ptrVal = I.getArgOperand(0);
     Info.offset = 0;
-    Info.align = 8;
+    Info.align = Align(8);
     Info.flags = MachineMemOperand::MOVolatile | MachineMemOperand::MOLoad;
     return true;
   default:
@@ -623,7 +623,8 @@ static bool callingConvSupported(CallingConv::ID CallConv) {
          CallConv == CallingConv::Cold ||
          CallConv == CallingConv::PreserveMost ||
          CallConv == CallingConv::PreserveAll ||
-         CallConv == CallingConv::CXX_FAST_TLS;
+         CallConv == CallingConv::CXX_FAST_TLS ||
+         CallConv == CallingConv::WASM_EmscriptenInvoke;
 }
 
 SDValue
@@ -644,13 +645,36 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
   if (CLI.IsPatchPoint)
     fail(DL, DAG, "WebAssembly doesn't support patch point yet");
 
-  // Fail if tail calls are required but not enabled
-  if (!Subtarget->hasTailCall()) {
-    if ((CallConv == CallingConv::Fast && CLI.IsTailCall &&
-         MF.getTarget().Options.GuaranteedTailCallOpt) ||
-        (CLI.CS && CLI.CS.isMustTailCall()))
-      fail(DL, DAG, "WebAssembly 'tail-call' feature not enabled");
-    CLI.IsTailCall = false;
+  if (CLI.IsTailCall) {
+    bool MustTail = CLI.CS && CLI.CS.isMustTailCall();
+    if (Subtarget->hasTailCall() && !CLI.IsVarArg) {
+      // Do not tail call unless caller and callee return types match
+      const Function &F = MF.getFunction();
+      const TargetMachine &TM = getTargetMachine();
+      Type *RetTy = F.getReturnType();
+      SmallVector<MVT, 4> CallerRetTys;
+      SmallVector<MVT, 4> CalleeRetTys;
+      computeLegalValueVTs(F, TM, RetTy, CallerRetTys);
+      computeLegalValueVTs(F, TM, CLI.RetTy, CalleeRetTys);
+      bool TypesMatch = CallerRetTys.size() == CalleeRetTys.size() &&
+                        std::equal(CallerRetTys.begin(), CallerRetTys.end(),
+                                   CalleeRetTys.begin());
+      if (!TypesMatch) {
+        // musttail in this case would be an LLVM IR validation failure
+        assert(!MustTail);
+        CLI.IsTailCall = false;
+      }
+    } else {
+      CLI.IsTailCall = false;
+      if (MustTail) {
+        if (CLI.IsVarArg) {
+          // The return would pop the argument buffer
+          fail(DL, DAG, "WebAssembly does not support varargs tail calls");
+        } else {
+          fail(DL, DAG, "WebAssembly 'tail-call' feature not enabled");
+        }
+      }
+    }
   }
 
   SmallVectorImpl<ISD::InputArg> &Ins = CLI.Ins;
@@ -659,6 +683,16 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   SmallVectorImpl<ISD::OutputArg> &Outs = CLI.Outs;
   SmallVectorImpl<SDValue> &OutVals = CLI.OutVals;
+
+  // The generic code may have added an sret argument. If we're lowering an
+  // invoke function, the ABI requires that the function pointer be the first
+  // argument, so we may have to swap the arguments.
+  if (CallConv == CallingConv::WASM_EmscriptenInvoke && Outs.size() >= 2 &&
+      Outs[0].Flags.isSRet()) {
+    std::swap(Outs[0], Outs[1]);
+    std::swap(OutVals[0], OutVals[1]);
+  }
+
   unsigned NumFixedArgs = 0;
   for (unsigned I = 0; I < Outs.size(); ++I) {
     const ISD::OutputArg &Out = Outs[I];
@@ -881,7 +915,7 @@ SDValue WebAssemblyTargetLowering::LowerFormalArguments(
   // the buffer is passed as an argument.
   if (IsVarArg) {
     MVT PtrVT = getPointerTy(MF.getDataLayout());
-    unsigned VarargVreg =
+    Register VarargVreg =
         MF.getRegInfo().createVirtualRegister(getRegClassFor(PtrVT));
     MFI->setVarargBufferVreg(VarargVreg);
     Chain = DAG.getCopyToReg(
@@ -1022,8 +1056,9 @@ SDValue WebAssemblyTargetLowering::LowerRETURNADDR(SDValue Op,
     return SDValue();
 
   unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  MakeLibCallOptions CallOptions;
   return makeLibCall(DAG, RTLIB::RETURN_ADDRESS, Op.getValueType(),
-                     {DAG.getConstant(Depth, DL, MVT::i32)}, false, DL)
+                     {DAG.getConstant(Depth, DL, MVT::i32)}, CallOptions, DL)
       .first;
 }
 
@@ -1037,7 +1072,7 @@ SDValue WebAssemblyTargetLowering::LowerFRAMEADDR(SDValue Op,
 
   DAG.getMachineFunction().getFrameInfo().setFrameAddressIsTaken(true);
   EVT VT = Op.getValueType();
-  unsigned FP =
+  Register FP =
       Subtarget->getRegisterInfo()->getFrameRegister(DAG.getMachineFunction());
   return DAG.getCopyFromReg(DAG.getEntryNode(), SDLoc(Op), FP, VT);
 }
@@ -1414,11 +1449,6 @@ SDValue WebAssemblyTargetLowering::LowerShift(SDValue Op,
 
   // Only manually lower vector shifts
   assert(Op.getSimpleValueType().isVector());
-
-  // Expand all vector shifts until V8 fixes its implementation
-  // TODO: remove this once V8 is fixed
-  if (!Subtarget->hasUnimplementedSIMD128())
-    return unrollVectorShift(Op, DAG);
 
   // Unroll non-splat vector shifts
   BuildVectorSDNode *ShiftVec;

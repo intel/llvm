@@ -147,7 +147,7 @@ llvm::Error AllTUsToolExecutor::execute(
   return llvm::Error::success();
 }
 
-static llvm::cl::opt<unsigned> ExecutorConcurrency(
+llvm::cl::opt<unsigned> ExecutorConcurrency(
     "execute-concurrency",
     llvm::cl::desc("The number of threads used to process all files in "
                    "parallel. Set to 0 for hardware concurrency. "
@@ -162,7 +162,7 @@ public:
       return make_string_error(
           "[AllTUsToolExecutorPlugin] Please provide a directory/file path in "
           "the compilation database.");
-    return llvm::make_unique<AllTUsToolExecutor>(std::move(OptionsParser),
+    return std::make_unique<AllTUsToolExecutor>(std::move(OptionsParser),
                                                  ExecutorConcurrency);
   }
 };

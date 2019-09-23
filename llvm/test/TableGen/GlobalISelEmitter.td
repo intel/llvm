@@ -1,6 +1,6 @@
-// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -optimize-match-table=false %s -o %T/non-optimized.cpp
-// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -optimize-match-table=true  %s -o %T/optimized.cpp
-// RUN: llvm-tblgen -gen-global-isel -I %p/../../include %s -o %T/default.cpp
+// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -I %p/Common -optimize-match-table=false %s -o %T/non-optimized.cpp
+// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -I %p/Common -optimize-match-table=true  %s -o %T/optimized.cpp
+// RUN: llvm-tblgen -gen-global-isel -I %p/../../include -I %p/Common %s -o %T/default.cpp
 
 // RUN: FileCheck %s --check-prefixes=CHECK,R19C,R19N -input-file=%T/non-optimized.cpp
 // RUN: FileCheck %s --check-prefixes=CHECK,R19C,R19O -input-file=%T/optimized.cpp
@@ -23,28 +23,12 @@
 // RUN: diff %T/default.cpp %T/optimized.cpp
 
 include "llvm/Target/Target.td"
+include "GlobalISelEmitterCommon.td"
 
 //===- Define the necessary boilerplate for our test target. --------------===//
 
-def MyTargetISA : InstrInfo;
-def MyTarget : Target { let InstructionSet = MyTargetISA; }
-
 let TargetPrefix = "mytarget" in {
 def int_mytarget_nop : Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
-}
-
-def R0 : Register<"r0"> { let Namespace = "MyTarget"; }
-def GPR32 : RegisterClass<"MyTarget", [i32], 32, (add R0)>;
-def GPR32Op : RegisterOperand<GPR32>;
-def F0 : Register<"f0"> { let Namespace = "MyTarget"; }
-def FPR32 : RegisterClass<"MyTarget", [f32], 32, (add F0)>;
-
-class I<dag OOps, dag IOps, list<dag> Pat>
-  : Instruction {
-  let Namespace = "MyTarget";
-  let OutOperandList = OOps;
-  let InOperandList = IOps;
-  let Pattern = Pat;
 }
 
 def complex : Operand<i32>, ComplexPattern<i32, 2, "SelectComplexPattern", []> {
@@ -112,9 +96,9 @@ def HasC : Predicate<"Subtarget->hasC()"> { let RecomputePerFunction = 1; }
 // CHECK-NEXT:  computeAvailableModuleFeatures(const MyTargetSubtarget *Subtarget) const {
 // CHECK-NEXT:    PredicateBitset Features;
 // CHECK-NEXT:    if (Subtarget->hasA())
-// CHECK-NEXT:      Features[Feature_HasABit] = 1;
+// CHECK-NEXT:      Features.set(Feature_HasABit);
 // CHECK-NEXT:    if (Subtarget->hasB())
-// CHECK-NEXT:      Features[Feature_HasBBit] = 1;
+// CHECK-NEXT:      Features.set(Feature_HasBBit);
 // CHECK-NEXT:    return Features;
 // CHECK-NEXT:  }
 
@@ -122,7 +106,7 @@ def HasC : Predicate<"Subtarget->hasC()"> { let RecomputePerFunction = 1; }
 // CHECK-NEXT:  computeAvailableFunctionFeatures(const MyTargetSubtarget *Subtarget, const MachineFunction *MF) const {
 // CHECK-NEXT:    PredicateBitset Features;
 // CHECK-NEXT:    if (Subtarget->hasC())
-// CHECK-NEXT:      Features[Feature_HasCBit] = 1;
+// CHECK-NEXT:      Features.set(Feature_HasCBit);
 // CHECK-NEXT:    return Features;
 // CHECK-NEXT:  }
 
@@ -995,8 +979,6 @@ def LOAD : I<(outs GPR32:$dst), (ins GPR32:$src1),
 // NOOPT-NEXT:    // GIR_Coverage, 23,
 // NOOPT-NEXT:    GIR_Done,
 // NOOPT-NEXT:  // Label [[LABEL_NUM]]: @[[LABEL]]
-
-def p0 : PtrValueType <i32, 0>;
 
 def : Pat<(load GPR32:$src),
           (p0 (LOAD GPR32:$src))>;

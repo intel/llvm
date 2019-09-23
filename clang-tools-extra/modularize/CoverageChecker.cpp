@@ -58,6 +58,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Driver/Options.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
@@ -105,7 +106,7 @@ class CoverageCheckerConsumer : public ASTConsumer {
 public:
   CoverageCheckerConsumer(CoverageChecker &Checker, Preprocessor &PP) {
     // PP takes ownership.
-    PP.addPPCallbacks(llvm::make_unique<CoverageCheckerCallbacks>(Checker));
+    PP.addPPCallbacks(std::make_unique<CoverageCheckerCallbacks>(Checker));
   }
 };
 
@@ -116,7 +117,7 @@ public:
 protected:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
     StringRef InFile) override {
-    return llvm::make_unique<CoverageCheckerConsumer>(Checker,
+    return std::make_unique<CoverageCheckerConsumer>(Checker,
       CI.getPreprocessor());
   }
 
@@ -129,8 +130,8 @@ public:
   CoverageCheckerFrontendActionFactory(CoverageChecker &Checker)
     : Checker(Checker) {}
 
-  CoverageCheckerAction *create() override {
-    return new CoverageCheckerAction(Checker);
+  std::unique_ptr<FrontendAction> create() override {
+    return std::make_unique<CoverageCheckerAction>(Checker);
   }
 
 private:
@@ -154,7 +155,7 @@ std::unique_ptr<CoverageChecker> CoverageChecker::createCoverageChecker(
     StringRef ModuleMapPath, std::vector<std::string> &IncludePaths,
     ArrayRef<std::string> CommandLine, clang::ModuleMap *ModuleMap) {
 
-  return llvm::make_unique<CoverageChecker>(ModuleMapPath, IncludePaths,
+  return std::make_unique<CoverageChecker>(ModuleMapPath, IncludePaths,
                                             CommandLine, ModuleMap);
 }
 

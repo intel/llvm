@@ -56,6 +56,7 @@ bool llvm::isTriviallyVectorizable(Intrinsic::ID ID) {
   case Intrinsic::smul_fix:
   case Intrinsic::smul_fix_sat:
   case Intrinsic::umul_fix:
+  case Intrinsic::umul_fix_sat:
   case Intrinsic::sqrt: // Begin floating-point.
   case Intrinsic::sin:
   case Intrinsic::cos:
@@ -98,6 +99,7 @@ bool llvm::hasVectorInstrinsicScalarOpd(Intrinsic::ID ID,
   case Intrinsic::smul_fix:
   case Intrinsic::smul_fix_sat:
   case Intrinsic::umul_fix:
+  case Intrinsic::umul_fix_sat:
     return (ScalarOpdIdx == 2);
   default:
     return false;
@@ -964,6 +966,10 @@ void InterleavedAccessInfo::analyzeInterleaving(
         // instructions that precede it.
         if (isInterleaved(A)) {
           InterleaveGroup<Instruction> *StoreGroup = getInterleaveGroup(A);
+
+          LLVM_DEBUG(dbgs() << "LV: Invalidated store group due to "
+                               "dependence between " << *A << " and "<< *B << '\n');
+
           StoreGroups.remove(StoreGroup);
           releaseGroup(StoreGroup);
         }

@@ -108,13 +108,23 @@ def SDT_ARMIntShiftParts : SDTypeProfile<2, 3, [SDTCisSameAs<0, 1>,
 
 // TODO Add another operand for 'Size' so that we can re-use this node when we
 // start supporting *TP versions.
-def SDT_ARMWhileLoop : SDTypeProfile<0, 2, [SDTCisVT<0, i32>,
-                                            SDTCisVT<1, OtherVT>]>;
+def SDT_ARMLoLoop : SDTypeProfile<0, 2, [SDTCisVT<0, i32>,
+                                         SDTCisVT<1, OtherVT>]>;
 
 def ARMSmlald        : SDNode<"ARMISD::SMLALD", SDT_LongMac>;
 def ARMSmlaldx       : SDNode<"ARMISD::SMLALDX", SDT_LongMac>;
 def ARMSmlsld        : SDNode<"ARMISD::SMLSLD", SDT_LongMac>;
 def ARMSmlsldx       : SDNode<"ARMISD::SMLSLDX", SDT_LongMac>;
+
+def SDT_ARMCSel      : SDTypeProfile<1, 3,
+                                   [SDTCisSameAs<0, 1>,
+                                    SDTCisSameAs<0, 2>,
+                                    SDTCisInt<3>,
+                                    SDTCisVT<3, i32>]>;
+
+def ARMcsinv         : SDNode<"ARMISD::CSINV", SDT_ARMCSel, [SDNPOptInGlue]>;
+def ARMcsneg         : SDNode<"ARMISD::CSNEG", SDT_ARMCSel, [SDNPOptInGlue]>;
+def ARMcsinc         : SDNode<"ARMISD::CSINC", SDT_ARMCSel, [SDNPOptInGlue]>;
 
 def SDT_MulHSR       : SDTypeProfile<1, 3, [SDTCisVT<0,i32>,
                                             SDTCisSameAs<0, 1>,
@@ -194,6 +204,7 @@ def ARMrrx           : SDNode<"ARMISD::RRX"     , SDTIntUnaryOp, [SDNPInGlue ]>;
 def ARMaddc          : SDNode<"ARMISD::ADDC",  SDTBinaryArithWithFlags,
                               [SDNPCommutative]>;
 def ARMsubc          : SDNode<"ARMISD::SUBC",  SDTBinaryArithWithFlags>;
+def ARMlsls          : SDNode<"ARMISD::LSLS",  SDTBinaryArithWithFlags>;
 def ARMadde          : SDNode<"ARMISD::ADDE",  SDTBinaryArithWithFlagsInOut>;
 def ARMsube          : SDNode<"ARMISD::SUBE",  SDTBinaryArithWithFlagsInOut>;
 
@@ -265,8 +276,16 @@ def ARMvshruImm  : SDNode<"ARMISD::VSHRuIMM", SDTARMVSHIMM>;
 def ARMvshls     : SDNode<"ARMISD::VSHLs", SDTARMVSH>;
 def ARMvshlu     : SDNode<"ARMISD::VSHLu", SDTARMVSH>;
 
-def ARMWLS : SDNode<"ARMISD::WLS", SDT_ARMWhileLoop,
-                    [SDNPHasChain]>;
+def SDTARMVCMP    : SDTypeProfile<1, 3, [SDTCisInt<0>, SDTCisSameAs<1, 2>,
+                                         SDTCisInt<3>]>;
+def SDTARMVCMPZ   : SDTypeProfile<1, 2, [SDTCisInt<2>]>;
+
+def ARMvcmp      : SDNode<"ARMISD::VCMP", SDTARMVCMP>;
+def ARMvcmpz     : SDNode<"ARMISD::VCMPZ", SDTARMVCMPZ>;
+
+def ARMWLS      : SDNode<"ARMISD::WLS", SDT_ARMLoLoop, [SDNPHasChain]>;
+def ARMLE       : SDNode<"ARMISD::LE", SDT_ARMLoLoop, [SDNPHasChain]>;
+def ARMLoopDec  : SDNode<"ARMISD::LOOP_DEC", SDTIntBinOp, [SDNPHasChain]>;
 
 //===----------------------------------------------------------------------===//
 // ARM Flag Definitions.
@@ -2361,6 +2380,12 @@ let isCall = 1,
   def BMOVPCB_CALL : ARMPseudoInst<(outs), (ins arm_bl_target:$func),
                                8, IIC_Br, [(ARMcall_nolink tglobaladdr:$func)]>,
                       Requires<[IsARM]>, Sched<[WriteBr]>;
+
+  // push lr before the call
+  def BL_PUSHLR : ARMPseudoInst<(outs), (ins GPRlr:$ra, arm_bl_target:$func),
+                  4, IIC_Br,
+                  []>,
+             Requires<[IsARM]>, Sched<[WriteBr]>;
 }
 
 let isBranch = 1, isTerminator = 1 in {
