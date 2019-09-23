@@ -104,6 +104,7 @@ if( NOT OpenCL_LIBRARIES )
                ${OPENCL_ICD_LOADER_WDK}
     STEP_TARGETS      configure,build,install
     DEPENDS           ocl-headers
+    BUILD_BYPRODUCTS ${OpenCL_LIBRARIES}
   )
 else()
   file(GLOB ICD_LOADER_SRC "${OpenCL_LIBRARIES}*")
