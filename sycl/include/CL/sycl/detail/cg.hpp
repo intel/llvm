@@ -134,7 +134,7 @@ public:
 class HostKernelBase {
 public:
   // The method executes lambda stored using NDRange passed.
-  virtual void call(const NDRDescT &NDRDesc) = 0;
+  virtual void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) = 0;
   // Return pointer to the lambda object.
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
@@ -149,7 +149,7 @@ class HostKernel : public HostKernelBase {
 
 public:
   HostKernel(KernelType Kernel) : MKernel(Kernel) {}
-  void call(const NDRDescT &NDRDesc) override {
+  void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) override {
     // adjust ND range for serial host:
     NDRDescT AdjustedRange;
     bool Adjust = false;
@@ -167,7 +167,11 @@ public:
       Adjust = true;
     }
     const NDRDescT &R = Adjust ? AdjustedRange : NDRDesc;
+    if (HPI)
+      HPI->start();
     runOnHost(R);
+    if (HPI)
+      HPI->end();
   }
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
