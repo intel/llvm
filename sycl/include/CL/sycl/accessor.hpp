@@ -194,8 +194,17 @@ protected:
   constexpr static bool IsAccessReadWrite =
       AccessMode == access::mode::read_write;
 
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  using RefType =
+      typename std::conditional<AS == access::address_space::constant_space,
+                                const DataT &, DataT &>::type;
+  using PtrType =
+      typename std::conditional<AS == access::address_space::constant_space,
+                                const DataT *, DataT *>::type;
+#else
   using RefType = DataT &;
   using PtrType = DataT *;
+#endif
 
   using AccType =
       accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>;
@@ -682,9 +691,18 @@ class accessor :
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using RefType = DataT &;
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  using RefType = typename std::conditional<
+      AS == access::address_space::constant_space,
+      const DataT &, DataT &>::type;
+  using PtrType =
+      typename std::conditional<AS == access::address_space::constant_space,
+                                const DataT *, DataT *>::type;
+#else
+  using RefType = DataT &;
   using PtrType = DataT *;
+#endif
 
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
 
@@ -1019,9 +1037,19 @@ class accessor<DataT, Dimensions, AccessMode, access::target::local,
   using AccessorSubscript =
       typename AccessorCommonT::template AccessorSubscript<Dims>;
 
-  using RefType = DataT &;
   using ConcreteASPtrType = typename detail::PtrValueType<DataT, AS>::type *;
+
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  using RefType =
+      typename std::conditional<AS == access::address_space::constant_space,
+                                const DataT &, DataT &>::type;
+  using PtrType =
+      typename std::conditional<AS == access::address_space::constant_space,
+                                const DataT *, DataT *>::type;
+#else
+  using RefType = DataT &;
   using PtrType = DataT *;
+#endif
 
 #ifdef __SYCL_DEVICE_ONLY__
   detail::LocalAccessorBaseDevice<AdjustedDim> impl;

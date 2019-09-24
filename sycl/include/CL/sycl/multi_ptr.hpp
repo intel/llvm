@@ -79,9 +79,21 @@ public:
     return *this;
   }
 
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  using ReturnPtr =
+      typename std::conditional<Space == access::address_space::constant_space,
+                                const ElementType *, ElementType *>::type;
+  using ReturnRef =
+      typename std::conditional<Space == access::address_space::constant_space,
+                                const ElementType &, ElementType &>::type;
+  using ReturnConstRef =
+      typename std::conditional<Space == access::address_space::constant_space,
+                                const ElementType &, ElementType &>::type;
+#else
   using ReturnPtr = ElementType *;
   using ReturnRef = ElementType &;
   using ReturnConstRef = const ElementType &;
+#endif
 
   ReturnRef operator*() const {
     return *reinterpret_cast<ReturnPtr>(m_Pointer);
@@ -301,6 +313,13 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  template <access::address_space _Space = Space,
+            typename = typename std::enable_if<
+                _Space == Space &&
+                Space == access::address_space::constant_space>::type>
+  multi_ptr(const ElementType *pointer) : m_Pointer((pointer_t)(pointer)) {}
+#endif
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
   ~multi_ptr() = default;
@@ -367,11 +386,18 @@ public:
           Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  using ReturnPtr =
+      typename std::conditional<Space == access::address_space::constant_space,
+                                const void *, void *>::type;
+#else
+  using ReturnPtr = void *;
+#endif
   // Returns the underlying OpenCL C pointer
   pointer_t get() const { return m_Pointer; }
 
   // Implicit conversion to the underlying pointer type
-  operator void*() const { return reinterpret_cast<void *>(m_Pointer); };
+  operator ReturnPtr() const { return reinterpret_cast<ReturnPtr>(m_Pointer); };
 
   // Explicit conversion to a multi_ptr<ElementType>
   template <typename ElementType>
@@ -417,6 +443,11 @@ public:
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
+  template <access::address_space _Space = Space,
+            typename = typename std::enable_if<
+                _Space == Space &&
+                Space == access::address_space::constant_space>::type>
+  multi_ptr(const void *pointer) : m_Pointer((pointer_t)(pointer)) {}
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
   ~multi_ptr() = default;
@@ -543,6 +574,14 @@ template <typename ElementType, access::address_space Space>
 multi_ptr<ElementType, Space> make_ptr(ElementType *pointer) {
   return multi_ptr<ElementType, Space>(pointer);
 }
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+template <typename ElementType, access::address_space Space,
+          typename = typename std::enable_if<
+              Space == access::address_space::constant_space>::type>
+multi_ptr<ElementType, Space> make_ptr(const ElementType *pointer) {
+  return multi_ptr<ElementType, Space>(pointer);
+}
+#endif
 #endif
 
 template <typename ElementType, access::address_space Space>
