@@ -258,7 +258,7 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::CTLZ_ZERO_UNDEF, MVT::i32, Promote);
   setOperationAction(ISD::CTLZ, MVT::i64, Legal);
 
-  // On arch13 we have native support for a 64-bit CTPOP.
+  // On z15 we have native support for a 64-bit CTPOP.
   if (Subtarget.hasMiscellaneousExtensions3()) {
     setOperationAction(ISD::CTPOP, MVT::i32, Promote);
     setOperationAction(ISD::CTPOP, MVT::i64, Legal);
@@ -300,14 +300,14 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   // Handle prefetches with PFD or PFDRL.
   setOperationAction(ISD::PREFETCH, MVT::Other, Custom);
 
-  for (MVT VT : MVT::vector_valuetypes()) {
+  for (MVT VT : MVT::fixedlen_vector_valuetypes()) {
     // Assume by default that all vector operations need to be expanded.
     for (unsigned Opcode = 0; Opcode < ISD::BUILTIN_OP_END; ++Opcode)
       if (getOperationAction(Opcode, VT) == Legal)
         setOperationAction(Opcode, VT, Expand);
 
     // Likewise all truncating stores and extending loads.
-    for (MVT InnerVT : MVT::vector_valuetypes()) {
+    for (MVT InnerVT : MVT::fixedlen_vector_valuetypes()) {
       setTruncStoreAction(VT, InnerVT, Expand);
       setLoadExtAction(ISD::SEXTLOAD, VT, InnerVT, Expand);
       setLoadExtAction(ISD::ZEXTLOAD, VT, InnerVT, Expand);
@@ -333,7 +333,7 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   }
 
   // Handle integer vector types.
-  for (MVT VT : MVT::integer_vector_valuetypes()) {
+  for (MVT VT : MVT::integer_fixedlen_vector_valuetypes()) {
     if (isTypeLegal(VT)) {
       // These operations have direct equivalents.
       setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Legal);
@@ -2549,12 +2549,12 @@ static SDValue emitCmp(SelectionDAG &DAG, const SDLoc &DL, Comparison &C) {
   }
   if (C.Opcode == SystemZISD::ICMP)
     return DAG.getNode(SystemZISD::ICMP, DL, MVT::i32, C.Op0, C.Op1,
-                       DAG.getConstant(C.ICmpType, DL, MVT::i32));
+                       DAG.getTargetConstant(C.ICmpType, DL, MVT::i32));
   if (C.Opcode == SystemZISD::TM) {
     bool RegisterOnly = (bool(C.CCMask & SystemZ::CCMASK_TM_MIXED_MSB_0) !=
                          bool(C.CCMask & SystemZ::CCMASK_TM_MIXED_MSB_1));
     return DAG.getNode(SystemZISD::TM, DL, MVT::i32, C.Op0, C.Op1,
-                       DAG.getConstant(RegisterOnly, DL, MVT::i32));
+                       DAG.getTargetConstant(RegisterOnly, DL, MVT::i32));
   }
   return DAG.getNode(C.Opcode, DL, MVT::i32, C.Op0, C.Op1);
 }
@@ -2592,10 +2592,10 @@ static void lowerGR128Binary(SelectionDAG &DAG, const SDLoc &DL, EVT VT,
 // in CCValid, so other values can be ignored.
 static SDValue emitSETCC(SelectionDAG &DAG, const SDLoc &DL, SDValue CCReg,
                          unsigned CCValid, unsigned CCMask) {
-  SDValue Ops[] = { DAG.getConstant(1, DL, MVT::i32),
-                    DAG.getConstant(0, DL, MVT::i32),
-                    DAG.getConstant(CCValid, DL, MVT::i32),
-                    DAG.getConstant(CCMask, DL, MVT::i32), CCReg };
+  SDValue Ops[] = {DAG.getConstant(1, DL, MVT::i32),
+                   DAG.getConstant(0, DL, MVT::i32),
+                   DAG.getTargetConstant(CCValid, DL, MVT::i32),
+                   DAG.getTargetConstant(CCMask, DL, MVT::i32), CCReg};
   return DAG.getNode(SystemZISD::SELECT_CCMASK, DL, MVT::i32, Ops);
 }
 
@@ -2757,9 +2757,10 @@ SDValue SystemZTargetLowering::lowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
 
   Comparison C(getCmp(DAG, CmpOp0, CmpOp1, CC, DL));
   SDValue CCReg = emitCmp(DAG, DL, C);
-  return DAG.getNode(SystemZISD::BR_CCMASK, DL, Op.getValueType(),
-                     Op.getOperand(0), DAG.getConstant(C.CCValid, DL, MVT::i32),
-                     DAG.getConstant(C.CCMask, DL, MVT::i32), Dest, CCReg);
+  return DAG.getNode(
+      SystemZISD::BR_CCMASK, DL, Op.getValueType(), Op.getOperand(0),
+      DAG.getTargetConstant(C.CCValid, DL, MVT::i32),
+      DAG.getTargetConstant(C.CCMask, DL, MVT::i32), Dest, CCReg);
 }
 
 // Return true if Pos is CmpOp and Neg is the negative of CmpOp,
@@ -2810,8 +2811,9 @@ SDValue SystemZTargetLowering::lowerSELECT_CC(SDValue Op,
   }
 
   SDValue CCReg = emitCmp(DAG, DL, C);
-  SDValue Ops[] = {TrueOp, FalseOp, DAG.getConstant(C.CCValid, DL, MVT::i32),
-                   DAG.getConstant(C.CCMask, DL, MVT::i32), CCReg};
+  SDValue Ops[] = {TrueOp, FalseOp,
+                   DAG.getTargetConstant(C.CCValid, DL, MVT::i32),
+                   DAG.getTargetConstant(C.CCMask, DL, MVT::i32), CCReg};
 
   return DAG.getNode(SystemZISD::SELECT_CCMASK, DL, Op.getValueType(), Ops);
 }
@@ -3898,11 +3900,8 @@ SDValue SystemZTargetLowering::lowerPREFETCH(SDValue Op,
   bool IsWrite = cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue();
   unsigned Code = IsWrite ? SystemZ::PFD_WRITE : SystemZ::PFD_READ;
   auto *Node = cast<MemIntrinsicSDNode>(Op.getNode());
-  SDValue Ops[] = {
-    Op.getOperand(0),
-    DAG.getConstant(Code, DL, MVT::i32),
-    Op.getOperand(1)
-  };
+  SDValue Ops[] = {Op.getOperand(0), DAG.getTargetConstant(Code, DL, MVT::i32),
+                   Op.getOperand(1)};
   return DAG.getMemIntrinsicNode(SystemZISD::PREFETCH, DL,
                                  Node->getVTList(), Ops,
                                  Node->getMemoryVT(), Node->getMemOperand());
@@ -4244,7 +4243,7 @@ static SDValue getPermuteNode(SelectionDAG &DAG, const SDLoc &DL,
   Op1 = DAG.getNode(ISD::BITCAST, DL, InVT, Op1);
   SDValue Op;
   if (P.Opcode == SystemZISD::PERMUTE_DWORDS) {
-    SDValue Op2 = DAG.getConstant(P.Operand, DL, MVT::i32);
+    SDValue Op2 = DAG.getTargetConstant(P.Operand, DL, MVT::i32);
     Op = DAG.getNode(SystemZISD::PERMUTE_DWORDS, DL, InVT, Op0, Op1, Op2);
   } else if (P.Opcode == SystemZISD::PACK) {
     MVT OutVT = MVT::getVectorVT(MVT::getIntegerVT(P.Operand * 8),
@@ -4269,7 +4268,8 @@ static SDValue getGeneralPermuteNode(SelectionDAG &DAG, const SDLoc &DL,
   unsigned StartIndex, OpNo0, OpNo1;
   if (isShlDoublePermute(Bytes, StartIndex, OpNo0, OpNo1))
     return DAG.getNode(SystemZISD::SHL_DOUBLE, DL, MVT::v16i8, Ops[OpNo0],
-                       Ops[OpNo1], DAG.getConstant(StartIndex, DL, MVT::i32));
+                       Ops[OpNo1],
+                       DAG.getTargetConstant(StartIndex, DL, MVT::i32));
 
   // Fall back on VPERM.  Construct an SDNode for the permute vector.
   SDValue IndexNodes[SystemZ::VectorBytes];
@@ -4767,7 +4767,7 @@ SDValue SystemZTargetLowering::lowerVECTOR_SHUFFLE(SDValue Op,
       return DAG.getNode(SystemZISD::REPLICATE, DL, VT, Op0.getOperand(Index));
     // Otherwise keep it as a vector-to-vector operation.
     return DAG.getNode(SystemZISD::SPLAT, DL, VT, Op.getOperand(0),
-                       DAG.getConstant(Index, DL, MVT::i32));
+                       DAG.getTargetConstant(Index, DL, MVT::i32));
   }
 
   GeneralShuffle GS(VT);
@@ -6057,8 +6057,8 @@ SDValue SystemZTargetLowering::combineBR_CCMASK(
   if (combineCCMask(CCReg, CCValidVal, CCMaskVal))
     return DAG.getNode(SystemZISD::BR_CCMASK, SDLoc(N), N->getValueType(0),
                        Chain,
-                       DAG.getConstant(CCValidVal, SDLoc(N), MVT::i32),
-                       DAG.getConstant(CCMaskVal, SDLoc(N), MVT::i32),
+                       DAG.getTargetConstant(CCValidVal, SDLoc(N), MVT::i32),
+                       DAG.getTargetConstant(CCMaskVal, SDLoc(N), MVT::i32),
                        N->getOperand(3), CCReg);
   return SDValue();
 }
@@ -6079,10 +6079,9 @@ SDValue SystemZTargetLowering::combineSELECT_CCMASK(
 
   if (combineCCMask(CCReg, CCValidVal, CCMaskVal))
     return DAG.getNode(SystemZISD::SELECT_CCMASK, SDLoc(N), N->getValueType(0),
-                       N->getOperand(0),
-                       N->getOperand(1),
-                       DAG.getConstant(CCValidVal, SDLoc(N), MVT::i32),
-                       DAG.getConstant(CCMaskVal, SDLoc(N), MVT::i32),
+                       N->getOperand(0), N->getOperand(1),
+                       DAG.getTargetConstant(CCValidVal, SDLoc(N), MVT::i32),
+                       DAG.getTargetConstant(CCMaskVal, SDLoc(N), MVT::i32),
                        CCReg);
   return SDValue();
 }
@@ -6678,7 +6677,7 @@ SystemZTargetLowering::emitSelect(MachineInstr &MI,
       std::next(MachineBasicBlock::iterator(LastMI)), MBB->end());
   createPHIsForSelects(MIItBegin, MIItEnd, StartMBB, FalseMBB, MBB);
 
-  StartMBB->erase(MIItBegin, MIItEnd);
+  MBB->erase(MIItBegin, MIItEnd);
   return JoinMBB;
 }
 

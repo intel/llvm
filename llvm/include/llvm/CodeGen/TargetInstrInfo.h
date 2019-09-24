@@ -22,6 +22,7 @@
 #include "llvm/CodeGen/MachineCombinerPattern.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineOutliner.h"
@@ -659,6 +660,50 @@ public:
                                      int *BytesAdded = nullptr) const {
     return insertBranch(MBB, DestBB, nullptr, ArrayRef<MachineOperand>(), DL,
                         BytesAdded);
+  }
+
+  /// Object returned by analyzeLoopForPipelining. Allows software pipelining
+  /// implementations to query attributes of the loop being pipelined and to
+  /// apply target-specific updates to the loop once pipelining is complete.
+  class PipelinerLoopInfo {
+  public:
+    virtual ~PipelinerLoopInfo();
+    /// Return true if the given instruction should not be pipelined and should
+    /// be ignored. An example could be a loop comparison, or induction variable
+    /// update with no users being pipelined.
+    virtual bool shouldIgnoreForPipelining(const MachineInstr *MI) const = 0;
+
+    /// Create a condition to determine if the trip count of the loop is greater
+    /// than TC.
+    ///
+    /// If the trip count is statically known to be greater than TC, return
+    /// true. If the trip count is statically known to be not greater than TC,
+    /// return false. Otherwise return nullopt and fill out Cond with the test
+    /// condition.
+    virtual Optional<bool>
+    createTripCountGreaterCondition(int TC, MachineBasicBlock &MBB,
+                                    SmallVectorImpl<MachineOperand> &Cond) = 0;
+
+    /// Modify the loop such that the trip count is
+    /// OriginalTC + TripCountAdjust.
+    virtual void adjustTripCount(int TripCountAdjust) = 0;
+
+    /// Called when the loop's preheader has been modified to NewPreheader.
+    virtual void setPreheader(MachineBasicBlock *NewPreheader) = 0;
+
+    /// Called when the loop is being removed. Any instructions in the preheader
+    /// should be removed.
+    ///
+    /// Once this function is called, no other functions on this object are
+    /// valid; the loop has been removed.
+    virtual void disposed() = 0;
+  };
+
+  /// Analyze loop L, which must be a single-basic-block loop, and if the
+  /// conditions can be understood enough produce a PipelinerLoopInfo object.
+  virtual std::unique_ptr<PipelinerLoopInfo>
+  analyzeLoopForPipelining(MachineBasicBlock *LoopBB) const {
+    return nullptr;
   }
 
   /// Analyze the loop code, return true if it cannot be understoo. Upon
@@ -1636,6 +1681,28 @@ public:
   /// to prevent register allocator to insert spills before such instructions.
   virtual bool isBasicBlockPrologue(const MachineInstr &MI) const {
     return false;
+  }
+
+  /// During PHI eleimination lets target to make necessary checks and
+  /// insert the copy to the PHI destination register in a target specific
+  /// manner.
+  virtual MachineInstr *createPHIDestinationCopy(
+      MachineBasicBlock &MBB, MachineBasicBlock::iterator InsPt,
+      const DebugLoc &DL, Register Src, Register Dst) const {
+    return BuildMI(MBB, InsPt, DL, get(TargetOpcode::COPY), Dst)
+        .addReg(Src);
+  }
+
+  /// During PHI eleimination lets target to make necessary checks and
+  /// insert the copy to the PHI destination register in a target specific
+  /// manner.
+  virtual MachineInstr *createPHISourceCopy(MachineBasicBlock &MBB,
+                                            MachineBasicBlock::iterator InsPt,
+                                            const DebugLoc &DL, Register Src,
+                                            Register SrcSubReg,
+                                            Register Dst) const {
+    return BuildMI(MBB, InsPt, DL, get(TargetOpcode::COPY), Dst)
+        .addReg(Src, 0, SrcSubReg);
   }
 
   /// Returns a \p outliner::OutlinedFunction struct containing target-specific

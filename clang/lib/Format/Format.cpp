@@ -165,6 +165,7 @@ template <> struct ScalarEnumerationTraits<FormatStyle::BraceBreakingStyle> {
     IO.enumCase(Value, "Mozilla", FormatStyle::BS_Mozilla);
     IO.enumCase(Value, "Stroustrup", FormatStyle::BS_Stroustrup);
     IO.enumCase(Value, "Allman", FormatStyle::BS_Allman);
+    IO.enumCase(Value, "Whitesmiths", FormatStyle::BS_Whitesmiths);
     IO.enumCase(Value, "GNU", FormatStyle::BS_GNU);
     IO.enumCase(Value, "WebKit", FormatStyle::BS_WebKit);
     IO.enumCase(Value, "Custom", FormatStyle::BS_Custom);
@@ -653,6 +654,19 @@ static FormatStyle expandPresets(const FormatStyle &Style) {
     Expanded.BraceWrapping.AfterObjCDeclaration = true;
     Expanded.BraceWrapping.AfterStruct = true;
     Expanded.BraceWrapping.AfterUnion = true;
+    Expanded.BraceWrapping.AfterExternBlock = true;
+    Expanded.BraceWrapping.BeforeCatch = true;
+    Expanded.BraceWrapping.BeforeElse = true;
+    break;
+  case FormatStyle::BS_Whitesmiths:
+    Expanded.BraceWrapping.AfterCaseLabel = true;
+    Expanded.BraceWrapping.AfterClass = true;
+    Expanded.BraceWrapping.AfterControlStatement = true;
+    Expanded.BraceWrapping.AfterEnum = true;
+    Expanded.BraceWrapping.AfterFunction = true;
+    Expanded.BraceWrapping.AfterNamespace = true;
+    Expanded.BraceWrapping.AfterObjCDeclaration = true;
+    Expanded.BraceWrapping.AfterStruct = true;
     Expanded.BraceWrapping.AfterExternBlock = true;
     Expanded.BraceWrapping.BeforeCatch = true;
     Expanded.BraceWrapping.BeforeElse = true;
@@ -1417,22 +1431,29 @@ public:
 
     checkEmptyNamespace(AnnotatedLines);
 
-    for (auto &Line : AnnotatedLines) {
-      if (Line->Affected) {
-        cleanupRight(Line->First, tok::comma, tok::comma);
-        cleanupRight(Line->First, TT_CtorInitializerColon, tok::comma);
-        cleanupRight(Line->First, tok::l_paren, tok::comma);
-        cleanupLeft(Line->First, tok::comma, tok::r_paren);
-        cleanupLeft(Line->First, TT_CtorInitializerComma, tok::l_brace);
-        cleanupLeft(Line->First, TT_CtorInitializerColon, tok::l_brace);
-        cleanupLeft(Line->First, TT_CtorInitializerColon, tok::equal);
-      }
-    }
+    for (auto *Line : AnnotatedLines)
+      cleanupLine(Line);
 
     return {generateFixes(), 0};
   }
 
 private:
+  void cleanupLine(AnnotatedLine *Line) {
+    for (auto *Child : Line->Children) {
+      cleanupLine(Child);
+    }
+
+    if (Line->Affected) {
+      cleanupRight(Line->First, tok::comma, tok::comma);
+      cleanupRight(Line->First, TT_CtorInitializerColon, tok::comma);
+      cleanupRight(Line->First, tok::l_paren, tok::comma);
+      cleanupLeft(Line->First, tok::comma, tok::r_paren);
+      cleanupLeft(Line->First, TT_CtorInitializerComma, tok::l_brace);
+      cleanupLeft(Line->First, TT_CtorInitializerColon, tok::l_brace);
+      cleanupLeft(Line->First, TT_CtorInitializerColon, tok::equal);
+    }
+  }
+
   bool containsOnlyComments(const AnnotatedLine &Line) {
     for (FormatToken *Tok = Line.First; Tok != nullptr; Tok = Tok->Next) {
       if (Tok->isNot(tok::comment))

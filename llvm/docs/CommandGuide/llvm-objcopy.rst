@@ -131,11 +131,11 @@ multiple file formats.
 
 .. option:: --version, -V
 
-  Display the version of this program.
+ Display the version of the :program:`llvm-objcopy` executable.
 
 .. option:: @<FILE>
 
-  Read command-line options and commands from response file `<FILE>`.
+ Read command-line options and commands from response file `<FILE>`.
 
 COFF-SPECIFIC OPTIONS
 ---------------------
@@ -182,8 +182,8 @@ them.
 
 .. option:: --allow-broken-links
 
- Allow llvm-objcopy to remove sections even if it would leave invalid section
- references. Any invalid sh_link fields will be set to zero.
+ Allow :program:`llvm-objcopy` to remove sections even if it would leave invalid
+ section references. Any invalid sh_link fields will be set to zero.
 
 .. option:: --build-id-link-dir <dir>
 

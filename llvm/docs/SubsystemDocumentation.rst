@@ -14,7 +14,6 @@ For API clients and LLVM developers.
    BlockFrequencyTerminology
    BranchWeightMetadata
    Bugpoint
-   BugpointRedesign
    CodeGenerator
    ExceptionHandling
    AddingConstrainedIntrinsics
@@ -44,7 +43,6 @@ For API clients and LLVM developers.
    TypeMetadata
    TransformMetadata
    FaultMaps
-   MIRLangRef
    Coroutines
    GlobalISel
    XRay
@@ -55,6 +53,7 @@ For API clients and LLVM developers.
    SpeculativeLoadHardening
    StackSafetyAnalysis
    LoopTerminology
+   DependenceGraphs/index
 
 :doc:`WritingAnLLVMPass`
    Information on how to write LLVM transformations and analyses.
@@ -66,10 +65,6 @@ For API clients and LLVM developers.
    The design and implementation of the LLVM code generator.  Useful if you are
    working on retargetting LLVM to a new architecture, designing a new codegen
    pass, or enhancing existing components.
-
-:doc:`Machine IR (MIR) Format Reference Manual <MIRLangRef>`
-   A reference manual for the MIR serialization format, which is used to test
-   LLVM's code generation passes.
 
 :doc:`TableGen <TableGen/index>`
    Describes the TableGen tool, which is used heavily by the LLVM code
@@ -104,9 +99,6 @@ For API clients and LLVM developers.
 :doc:`Bugpoint`
    Automatic bug finder and test-case reducer description and usage
    information.
-
-:doc:`BugpointRedesign`
-   Design doc for a redesign of the Bugpoint tool.
 
 :doc:`BitCodeFormat`
    This describes the file format and encoding used for LLVM "bc" files.
@@ -208,3 +200,7 @@ For API clients and LLVM developers.
 
 :doc:`LoopTerminology`
   A document describing Loops and associated terms as used in LLVM.
+
+:doc:`Dependence Graphs <DependenceGraphs/index>`
+  A description of the design of the various dependence graphs such as
+  the DDG (Data Dependence Graph).

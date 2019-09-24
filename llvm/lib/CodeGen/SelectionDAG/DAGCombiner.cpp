@@ -806,7 +806,7 @@ static char isNegatibleForFree(SDValue Op, bool LegalOperations,
     return 0;
 
   // Don't recurse exponentially.
-  if (Depth > 6)
+  if (Depth > SelectionDAG::MaxRecursionDepth)
     return 0;
 
   switch (Op.getOpcode()) {
@@ -913,7 +913,8 @@ static SDValue GetNegatedExpression(SDValue Op, SelectionDAG &DAG,
   if (Op.getOpcode() == ISD::FNEG)
     return Op.getOperand(0);
 
-  assert(Depth <= 6 && "GetNegatedExpression doesn't match isNegatibleForFree");
+  assert(Depth <= SelectionDAG::MaxRecursionDepth &&
+         "GetNegatedExpression doesn't match isNegatibleForFree");
   const TargetOptions &Options = DAG.getTarget().Options;
   const SDNodeFlags Flags = Op->getFlags();
 
@@ -3381,6 +3382,18 @@ SDValue DAGCombiner::visitSUB(SDNode *N) {
         ShAmtC->getAPIntValue() == (N1.getScalarValueSizeInBits() - 1)) {
       SDValue SRA = DAG.getNode(ISD::SRA, DL, VT, N1.getOperand(0), ShAmt);
       return DAG.getNode(ISD::ADD, DL, VT, N0, SRA);
+    }
+  }
+
+  if (TLI.isOperationLegalOrCustom(ISD::ADDCARRY, VT)) {
+    // (sub Carry, X)  ->  (addcarry (sub 0, X), 0, Carry)
+    if (SDValue Carry = getAsCarry(TLI, N0)) {
+      SDValue X = N1;
+      SDValue Zero = DAG.getConstant(0, DL, VT);
+      SDValue NegX = DAG.getNode(ISD::SUB, DL, VT, Zero, X);
+      return DAG.getNode(ISD::ADDCARRY, DL,
+                         DAG.getVTList(VT, Carry.getValueType()), NegX, Zero,
+                         Carry);
     }
   }
 
@@ -16832,12 +16845,12 @@ SDValue DAGCombiner::scalarizeExtractedVectorLoad(SDNode *EVE, EVT InVecVT,
   SDValue From[] = { SDValue(EVE, 0), SDValue(OriginalLoad, 1) };
   SDValue To[] = { Load, Chain };
   DAG.ReplaceAllUsesOfValuesWith(From, To, 2);
-  // Since we're explicitly calling ReplaceAllUses, add the new node to the
-  // worklist explicitly as well.
-  AddToWorklist(Load.getNode());
-  AddUsersToWorklist(Load.getNode()); // Add users too
   // Make sure to revisit this node to clean it up; it will usually be dead.
   AddToWorklist(EVE);
+  // Since we're explicitly calling ReplaceAllUses, add the new node to the
+  // worklist explicitly as well.
+  AddUsersToWorklist(Load.getNode()); // Add users too
+  AddToWorklist(Load.getNode());
   ++OpsNarrowed;
   return SDValue(EVE, 0);
 }

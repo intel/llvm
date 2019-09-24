@@ -51,6 +51,7 @@ Clang-Tidy Checks
    bugprone-forwarding-reference-overload
    bugprone-inaccurate-erase
    bugprone-incorrect-roundings
+   bugprone-infinite-loop
    bugprone-integer-division
    bugprone-lambda-function-name
    bugprone-macro-parentheses
@@ -325,6 +326,7 @@ Clang-Tidy Checks
    objc-avoid-nserror-init
    objc-avoid-spinlock
    objc-forbidden-subclassing
+   objc-missing-hash
    objc-property-declaration
    objc-super-self
    openmp-exception-escape

@@ -374,8 +374,8 @@ public:
       return true;
     // Given only Imm, ensuring that the actually specified constant is either
     // a signed or unsigned 64-bit number is unfortunately impossible.
-    bool IsInRange = isRV64() ? true : isInt<32>(Imm) || isUInt<32>(Imm);
-    return IsConstantImm && IsInRange && VK == RISCVMCExpr::VK_RISCV_None;
+    return IsConstantImm && VK == RISCVMCExpr::VK_RISCV_None &&
+           (isRV64() || (isInt<32>(Imm) || isUInt<32>(Imm)));
   }
 
   bool isUImmLog2XLen() const {
@@ -986,11 +986,11 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
 static bool matchRegisterNameHelper(bool IsRV32E, Register &RegNo,
                                     StringRef Name) {
   RegNo = MatchRegisterName(Name);
-  if (RegNo == 0)
+  if (RegNo == RISCV::NoRegister)
     RegNo = MatchRegisterAltName(Name);
   if (IsRV32E && RegNo >= RISCV::X16 && RegNo <= RISCV::X31)
-    RegNo = 0;
-  return RegNo == 0;
+    RegNo = RISCV::NoRegister;
+  return RegNo == RISCV::NoRegister;
 }
 
 bool RISCVAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
@@ -1036,7 +1036,7 @@ OperandMatchResultTy RISCVAsmParser::parseRegister(OperandVector &Operands,
     Register RegNo;
     matchRegisterNameHelper(isRV32E(), RegNo, Name);
 
-    if (RegNo == 0) {
+    if (RegNo == RISCV::NoRegister) {
       if (HadParens)
         getLexer().UnLex(LParen);
       return MatchOperand_NoMatch;

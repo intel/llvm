@@ -394,7 +394,7 @@ bool TargetInstrInfo::getStackSlotRange(const TargetRegisterClass *RC,
   if (BitOffset < 0 || BitOffset % 8)
     return false;
 
-  Size = BitSize /= 8;
+  Size = BitSize / 8;
   Offset = (unsigned)BitOffset / 8;
 
   assert(TRI->getSpillSize(*RC) >= (Offset + Size) && "bad subregister range");
@@ -1257,3 +1257,5 @@ bool TargetInstrInfo::getInsertSubregInputs(
   InsertedReg.SubIdx = (unsigned)MOSubIdx.getImm();
   return true;
 }
+
+TargetInstrInfo::PipelinerLoopInfo::~PipelinerLoopInfo() {}

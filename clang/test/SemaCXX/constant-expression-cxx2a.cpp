@@ -6,6 +6,10 @@ namespace std {
   struct type_info;
 };
 
+// Helper to print out values for debugging.
+constexpr void not_defined();
+template<typename T> constexpr void print(T) { not_defined(); }
+
 namespace ThreeWayComparison {
   struct A {
     int n;
@@ -219,15 +223,19 @@ static_assert(for_range_init());
 namespace Virtual {
   struct NonZeroOffset { int padding = 123; };
 
+  constexpr void assert(bool b) { if (!b) throw 0; }
+
   // Ensure that we pick the right final overrider during construction.
   struct A {
     virtual constexpr char f() const { return 'A'; }
     char a = f();
+    constexpr ~A() { assert(f() == 'A'); }
   };
   struct NoOverrideA : A {};
   struct B : NonZeroOffset, NoOverrideA {
     virtual constexpr char f() const { return 'B'; }
     char b = f();
+    constexpr ~B() { assert(f() == 'B'); }
   };
   struct NoOverrideB : B {};
   struct C : NonZeroOffset, A {
@@ -236,12 +244,15 @@ namespace Virtual {
     char c = ((A*)this)->f();
     char ba = pba->f();
     constexpr C(A *pba) : pba(pba) {}
+    constexpr ~C() { assert(f() == 'C'); }
   };
   struct D : NonZeroOffset, NoOverrideB, C { // expected-warning {{inaccessible}}
     virtual constexpr char f() const { return 'D'; }
     char d = f();
     constexpr D() : C((B*)this) {}
+    constexpr ~D() { assert(f() == 'D'); }
   };
+  constexpr int n = (D(), 0);
   constexpr D d;
   static_assert(((B&)d).a == 'A');
   static_assert(((C&)d).a == 'A');
@@ -416,7 +427,7 @@ namespace TypeId {
 
 namespace Union {
   struct Base {
-    int y; // expected-note {{here}}
+    int y; // expected-note 2{{here}}
   };
   struct A : Base {
     int x;
@@ -489,13 +500,15 @@ namespace Union {
   constexpr A return_uninit_struct() {
     B b = {.b = 1};
     b.a.x = 2;
-    return b.a;
+    return b.a; // expected-note {{in call to 'A(b.a)'}} expected-note {{subobject of type 'int' is not initialized}}
   }
-  // FIXME: It's unclear that this should be valid. Copying a B involves
-  // copying the object representation of the union, but copying an A invokes a
-  // copy constructor that copies the object elementwise, and reading from
-  // b.a.y is undefined.
-  static_assert(return_uninit_struct().x == 2);
+  // Note that this is rejected even though return_uninit() is accepted, and
+  // return_uninit() copies the same stuff wrapped in a union.
+  //
+  // Copying a B involves copying the object representation of the union, but
+  // copying an A invokes a copy constructor that copies the object
+  // elementwise, and reading from b.a.y is undefined.
+  static_assert(return_uninit_struct().x == 2); // expected-error {{constant expression}} expected-note {{in call}}
   constexpr B return_init_all() {
     B b = {.b = 1};
     b.a.x = 2;
@@ -547,4 +560,196 @@ namespace TwosComplementShifts {
   static_assert(-2 >> 1 == -1);
   static_assert(-3 >> 1 == -2);
   static_assert(-4 >> 1 == -2);
+}
+
+namespace Uninit {
+  constexpr int f(bool init) {
+    int a;
+    if (init)
+      a = 1;
+    return a; // expected-note {{read of uninitialized object}}
+  }
+  static_assert(f(true) == 1);
+  static_assert(f(false) == 1); // expected-error {{constant expression}} expected-note {{in call}}
+
+  struct X {
+    int n; // expected-note {{declared here}}
+    constexpr X(bool init) {
+      if (init) n = 123;
+    }
+  };
+  constinit X x1(true);
+  constinit X x2(false); // expected-error {{constant initializer}} expected-note {{constinit}} expected-note {{subobject of type 'int' is not initialized}}
+
+  struct Y {
+    struct Z { int n; }; // expected-note {{here}}
+    Z z1;
+    Z z2;
+    Z z3;
+    // OK: the lifetime of z1 (and its members) start before the initializer of
+    // z2 runs.
+    constexpr Y() : z2{ (z1.n = 1, z1.n + 1) } { z3.n = 3; }
+    // Not OK: z3 is not in its lifetime when the initializer of z2 runs.
+    constexpr Y(int) : z2{
+      (z3.n = 1, // expected-note {{assignment to object outside its lifetime}}
+       z3.n + 1) // expected-warning {{uninitialized}}
+    } { z1.n = 3; }
+    constexpr Y(int, int) : z2{} {}
+  };
+  // FIXME: This is working around clang not implementing DR2026. With that
+  // fixed, we should be able to test this without the injected copy.
+  constexpr Y copy(Y y) { return y; } // expected-note {{in call to 'Y(y)'}} expected-note {{subobject of type 'int' is not initialized}}
+  constexpr Y y1 = copy(Y());
+  static_assert(y1.z1.n == 1 && y1.z2.n == 2 && y1.z3.n == 3);
+
+  constexpr Y y2 = copy(Y(0)); // expected-error {{constant expression}} expected-note {{in call}}
+
+  static_assert(Y(0,0).z2.n == 0);
+  static_assert(Y(0,0).z1.n == 0); // expected-error {{constant expression}} expected-note {{read of uninitialized object}}
+  static_assert(Y(0,0).z3.n == 0); // expected-error {{constant expression}} expected-note {{read of uninitialized object}}
+
+  static_assert(copy(Y(0,0)).z2.n == 0); // expected-error {{constant expression}} expected-note {{in call}}
+
+  constexpr unsigned char not_even_unsigned_char() {
+    unsigned char c;
+    return c; // expected-note {{read of uninitialized object}}
+  }
+  constexpr unsigned char x = not_even_unsigned_char(); // expected-error {{constant expression}} expected-note {{in call}}
+
+  constexpr int switch_var(int n) {
+    switch (n) {
+    case 1:
+      int a;
+      a = n;
+      return a;
+
+    case 2:
+      a = n;
+      return a;
+    }
+  }
+  constexpr int s1 = switch_var(1);
+  constexpr int s2 = switch_var(2);
+  static_assert(s1 == 1 && s2 == 2);
+
+  constexpr bool switch_into_init_stmt() {
+    switch (1) {
+      if (int n; false) {
+        for (int m; false;) {
+        case 1:
+          n = m = 1;
+          return n == 1 && m == 1;
+        }
+      }
+    }
+  }
+  static_assert(switch_into_init_stmt());
+}
+
+namespace dtor {
+  void lifetime_extension() {
+    struct X { constexpr ~X() {} };
+    X &&a = X();
+  }
+
+  template<typename T> constexpr T &&ref(T &&t) { return (T&&)t; }
+
+  struct Buf {
+    char buf[64];
+    int n = 0;
+    constexpr void operator+=(char c) { buf[n++] = c; }
+    constexpr bool operator==(const char *str) const {
+      return str[n] == 0 && __builtin_memcmp(str, buf, n) == 0;
+    }
+    constexpr bool operator!=(const char *str) const { return !operator==(str); }
+  };
+
+  struct A {
+    constexpr A(Buf &buf, char c) : buf(buf), c(c) { buf += c; }
+    constexpr ~A() { buf += c; }
+    constexpr operator bool() const { return true; }
+    Buf &buf;
+    char c;
+  };
+
+  constexpr bool dtor_calls_dtor() {
+    union U {
+      constexpr U(Buf &buf) : u(buf, 'u') { buf += 'U'; }
+      constexpr ~U() { u.buf += 'U'; }
+      A u, v;
+    };
+
+    struct B : A {
+      A c, &&d, e;
+      union {
+        A f;
+      };
+      U u;
+      constexpr B(Buf &buf)
+          : A(buf, 'a'), c(buf, 'c'), d(ref(A(buf, 'd'))), e(A(buf, 'e')), f(buf, 'f'), u(buf) {
+        buf += 'b';
+      }
+      constexpr ~B() {
+        buf += 'b';
+      }
+    };
+
+    Buf buf;
+    {
+      B b(buf);
+      if (buf != "acddefuUb")
+        return false;
+    }
+    if (buf != "acddefuUbbUeca")
+      return false;
+    return true;
+  }
+  static_assert(dtor_calls_dtor());
+
+  constexpr void abnormal_termination(Buf &buf) {
+    struct Indestructible {
+      constexpr ~Indestructible(); // not defined
+    };
+
+    A a(buf, 'a');
+    A(buf, 'b');
+    int n = 0;
+    for (A &&c = A(buf, 'c'); A d = A(buf, 'd'); A(buf, 'e')) {
+      switch (A f(buf, 'f'); A g = A(buf, 'g')) { // expected-warning {{boolean}}
+      case false: {
+        A x(buf, 'x');
+      }
+
+      case true: {
+        A h(buf, 'h');
+        switch (n++) {
+        case 0:
+          break;
+        case 1:
+          continue;
+        case 2:
+          return;
+        }
+        break;
+      }
+
+      default:
+        Indestructible indest;
+      }
+
+      A j = (A(buf, 'i'), A(buf, 'j'));
+    }
+  }
+
+  constexpr bool check_abnormal_termination() {
+    Buf buf = {};
+    abnormal_termination(buf);
+    return buf ==
+      "abbc"
+        "dfgh" /*break*/ "hgfijijeed"
+        "dfgh" /*continue*/ "hgfeed"
+        "dfgh" /*return*/ "hgfd"
+      "ca";
+  }
+  static_assert(check_abnormal_termination());
 }

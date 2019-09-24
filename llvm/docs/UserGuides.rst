@@ -18,16 +18,9 @@ intermediate LLVM representation.
    HowToBuildWithPGO
    HowToCrossCompileBuiltinsOnArm
    HowToCrossCompileLLVM
-   GettingStarted
-   GettingStartedVS
-   FAQ
-   Lexicon
-   HowToAddABuilder
    yaml2obj
    MarkdownQuickstartTemplate
    Phabricator
-   tutorial/index
-   ReleaseNotes
    Passes
    YamlIO
    GetElementPtr
@@ -41,11 +34,6 @@ intermediate LLVM representation.
    Docker
    BuildingADistribution
    Remarks
-
-:doc:`GettingStarted`
-   Discusses how to get up and running quickly with the LLVM infrastructure.
-   Everything from unpacking and compilation of the distribution to execution
-   of some tools.
 
 :doc:`CMake`
    An addendum to the main Getting Started guide for those using the `CMake
@@ -63,22 +51,8 @@ intermediate LLVM representation.
 :doc:`HowToCrossCompileLLVM`
    Notes on cross-building and testing LLVM/Clang.
 
-:doc:`GettingStartedVS`
-   An addendum to the main Getting Started guide for those using Visual Studio
-   on Windows.
-
-:doc:`tutorial/index`
-   Tutorials about using LLVM. Includes a tutorial about making a custom
-   language with LLVM.
-
 :doc:`Passes`
    A list of optimizations and analyses implemented in LLVM.
-
-:doc:`FAQ`
-   A list of common questions and problems and their solutions.
-
-:doc:`Release notes for the current release <ReleaseNotes>`
-   This describes new features, known bugs, and other limitations.
 
 :doc:`TestSuiteGuide`
   Describes how to compile and run the test-suite benchmarks.
@@ -87,12 +61,6 @@ intermediate LLVM representation.
    Instructions for building the clang front-end from source.
 
    .. __: http://clang.llvm.org/get_started.html
-
-:doc:`Lexicon`
-   Definition of acronyms, terms and concepts used in LLVM.
-
-:doc:`HowToAddABuilder`
-   Instructions for adding new builder to LLVM buildbot master.
 
 :doc:`YamlIO`
    A reference guide for using LLVM's YAML I/O library.

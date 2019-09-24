@@ -70,14 +70,14 @@ USAGE: llvm-ar [options] [-]<operation>[modifiers] [relpos] [count] <archive> [f
        llvm-ar -M [<mri-script]
 
 OPTIONS:
-  --format              - Archive format to create
+  --format              - archive format to create
     =default            -   default
     =gnu                -   gnu
     =darwin             -   darwin
     =bsd                -   bsd
-  --plugin=<string>     - Ignored for compatibility
-  --help                - Display available options
-  --version             - Display the version of this program
+  --plugin=<string>     - ignored for compatibility
+  -h --help             - display this help and exit
+  --version             - print the version and exit
   @<file>               - read options from <file>
 
 OPERATIONS:
@@ -116,10 +116,19 @@ void printHelpMessage() {
     outs() << ArHelp;
 }
 
+static unsigned MRILineNumber;
+static bool ParsingMRIScript;
+
 // Show the error message and exit.
 LLVM_ATTRIBUTE_NORETURN static void fail(Twine Error) {
-  WithColor::error(errs(), ToolName) << Error << "\n";
-  printHelpMessage();
+  if (ParsingMRIScript) {
+    WithColor::error(errs(), ToolName)
+        << "script line " << MRILineNumber << ": " << Error << "\n";
+  } else {
+    WithColor::error(errs(), ToolName) << Error << "\n";
+    printHelpMessage();
+  }
+
   exit(1);
 }
 
@@ -927,8 +936,7 @@ static int performOperation(ArchiveOperation Operation,
   if (!EC) {
     Error Err = Error::success();
     object::Archive Archive(Buf.get()->getMemBufferRef(), Err);
-    EC = errorToErrorCode(std::move(Err));
-    failIfError(EC, "error loading '" + ArchiveName + "': " + EC.message());
+    failIfError(std::move(Err), "unable to load '" + ArchiveName + "'");
     if (Archive.isThin())
       CompareFullPath = true;
     performOperation(Operation, &Archive, std::move(Buf.get()), NewMembers);
@@ -959,8 +967,10 @@ static void runMRIScript() {
   const MemoryBuffer &Ref = *Buf.get();
   bool Saved = false;
   std::vector<NewArchiveMember> NewMembers;
+  ParsingMRIScript = true;
 
   for (line_iterator I(Ref, /*SkipBlanks*/ false), E; I != E; ++I) {
+    ++MRILineNumber;
     StringRef Line = *I;
     Line = Line.split(';').first;
     Line = Line.split('*').first;
@@ -1022,7 +1032,9 @@ static void runMRIScript() {
       fail("unknown command: " + CommandStr);
     }
   }
-
+  
+  ParsingMRIScript = false;
+  
   // Nothing to do if not saved.
   if (Saved)
     performOperation(ReplaceOrInsert, &NewMembers);
@@ -1030,7 +1042,7 @@ static void runMRIScript() {
 }
 
 static bool handleGenericOption(StringRef arg) {
-  if (arg == "-help" || arg == "--help") {
+  if (arg == "h" || arg.startswith("-h") || arg == "--help") {
     printHelpMessage();
     return true;
   }
