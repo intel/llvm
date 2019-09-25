@@ -9,6 +9,11 @@
 // CHK-TOOLS-INTELFPGA: clang{{.*}} "-debug-info-kind=limited" {{.*}} "-dependency-file"
 // CHK-TOOLS-INTELFPGA: aoc{{.*}} "-dep-files={{.*}}"
 
+/// -fintelfpga implies -g but -g0 should override
+// RUN:   %clang++ -### -target x86_64-unknown-linux-gnu -g0 -fsycl -fintelfpga %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-TOOLS-INTELFPGA-G0 %s
+// CHK-TOOLS-INTELFPGA-G0-NOT: clang{{.*}} "-debug-info-kind=limited"
+
 /// -fintelfpga -fsycl-link tests
 // RUN:  touch %t.o
 // RUN:  %clang++ -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -fsycl-link %t.o 2>&1 \

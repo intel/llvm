@@ -402,7 +402,11 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
   // Use of -fintelfpga implies -g and -MMD
   if (Args.hasArg(options::OPT_fintelfpga)) {
     DAL->AddFlagArg(0, Opts.getOption(options::OPT_MMD));
-    DAL->AddFlagArg(0, Opts.getOption(options::OPT_g_Flag));
+    // if any -gN option is provided, use that.
+    if (Arg *A = Args.getLastArg(options::OPT_gN_Group))
+      DAL->append(A);
+    else
+      DAL->AddFlagArg(0, Opts.getOption(options::OPT_g_Flag));
   }
 
 // Add a default value of -mlinker-version=, if one was given and the user
