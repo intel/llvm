@@ -148,8 +148,9 @@ namespace pi {
 
 namespace RT = cl::sycl::detail::pi;
 
-#define PI_ASSERT(cond, msg) \
-  RT::assertion((cond), "assert: " msg);
+#define PI_ASSERT(PI_ASSERT_context, cond, msg)                                \
+  RT::assertion((cond),                                                        \
+                "assert: " PI_ASSERT_context ":" STRINGIFY_LINE(__LINE__) msg);
 
 #define PI_TRACE(func) RT::Trace<decltype(func)>(func, #func)
 
@@ -177,7 +178,7 @@ namespace RT = cl::sycl::detail::pi;
 template<class To, class From>
 To pi::cast(From value) {
   // TODO: see if more sanity checks are possible.
-  PI_ASSERT(sizeof(From) == sizeof(To), "cast failed size check");
+  PI_ASSERT("pi.hpp", sizeof(From) == sizeof(To), "cast failed size check");
   return (To)(value);
 }
 

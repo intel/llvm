@@ -17,6 +17,7 @@
 #include <CL/sycl.hpp>
 #include <cstring>
 #include <iostream>
+
 using namespace cl::sycl;
 struct Data {
   unsigned int local_id;
@@ -46,8 +47,8 @@ void check(queue &Queue, const int G, const int L, const char *SpvFile) {
     int Err;
     cl_program ClProgram = clCreateProgramWithIL(Queue.get_context().get(),
                                                  Spv.data(), Spv.size(), &Err);
-    CHECK_OCL_CODE(Err);
-    CHECK_OCL_CODE(
+    CHECK_OCL_CODE("sub_group test common_ocl.cpp", Err);
+    CHECK_OCL_CODE("sub_group test common_ocl.cpp",
         clBuildProgram(ClProgram, 0, nullptr, nullptr, nullptr, nullptr));
     program Prog(Queue.get_context(), ClProgram);
     Queue.submit([&](handler &cgh) {

@@ -80,7 +80,8 @@ pi_result OCL(piextDeviceSelectBinary)(
 
 pi_result OCL(piQueueCreate)(pi_context context, pi_device device,
                              pi_queue_properties properties, pi_queue *queue) {
-  PI_ASSERT(queue, "piQueueCreate failed, queue argument is null");
+  PI_ASSERT("pi_opencl.cpp", queue,
+            "piQueueCreate failed, queue argument is null");
 
   cl_platform_id curPlatform;
   cl_int ret_err = clGetDeviceInfo(cast<cl_device_id>(device),
@@ -230,7 +231,7 @@ pi_result OCL(piSamplerCreate)(pi_context context,
     } else if (sampler_properties[i] == PI_SAMPLER_INFO_FILTER_MODE) {
       filterMode = static_cast<pi_sampler_filter_mode>(sampler_properties[++i]);
     } else {
-      PI_ASSERT(false, "Cannot recognize sampler property");
+      PI_ASSERT("pi_opencl.cpp", false, "Cannot recognize sampler property");
     }
   }
 
@@ -259,7 +260,7 @@ pi_result OCL(piextGetDeviceFunctionPointer)(pi_device device,
   // TODO: once we have check that device supports corresponding extension,
   // we can insert an assertion that func_ptr is not nullptr. For now, let's
   // just return an error if failed to query such function
-  // PI_ASSERT(
+  // PI_ASSERT("pi_opencl.cpp",
   //     func_ptr != nullptr,
   //     "Failed to get address of clGetDeviceFunctionPointerINTEL function");
 

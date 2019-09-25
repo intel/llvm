@@ -106,7 +106,7 @@ template<typename Exception>
 void PiCall::check(RT::PiResult Result) {
   m_Result = Result;
   // TODO: remove dependency on CHECK_OCL_CODE_THROW.
-  CHECK_OCL_CODE_THROW(Result, Exception);
+  CHECK_OCL_CODE_THROW("pi.cpp", Result, Exception);
 }
 
 template void PiCall::check<cl::sycl::runtime_error>(RT::PiResult);

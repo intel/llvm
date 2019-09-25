@@ -61,7 +61,7 @@ int main() {
     if (Err == CL_INVALID_OPERATION)
       return 0;
 
-    CHECK_OCL_CODE(Err);
+    CHECK_OCL_CODE("sampler basic test sampler.cpp", Err);
     B = sycl::sampler(ClSampler, Queue.get_context());
   } else {
     // Host sampler

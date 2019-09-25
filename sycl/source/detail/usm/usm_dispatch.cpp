@@ -200,25 +200,25 @@ void USMDispatcher::setKernelIndirectAccess(pi_kernel Kernel, pi_queue Queue) {
       cl_bool TrueVal = CL_TRUE;
 
       if (mEmulated) {
-        CHECK_OCL_CODE(mEmulator->setKernelExecInfo(
+        CHECK_OCL_CODE("usm_dispatch.cpp", mEmulator->setKernelExecInfo(
             CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
             sizeof(cl_bool), &TrueVal));
-        CHECK_OCL_CODE(mEmulator->setKernelExecInfo(
+        CHECK_OCL_CODE("usm_dispatch.cpp", mEmulator->setKernelExecInfo(
             CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
             sizeof(cl_bool), &TrueVal));
-        CHECK_OCL_CODE(mEmulator->setKernelExecInfo(
+        CHECK_OCL_CODE("usm_dispatch.cpp", mEmulator->setKernelExecInfo(
             CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
             sizeof(cl_bool), &TrueVal));
-        CHECK_OCL_CODE(
+        CHECK_OCL_CODE("usm_dispatch.cpp",
             mEmulator->setKernelIndirectUSMExecInfo(CLQueue, CLKernel));
       } else {
-        CHECK_OCL_CODE(clSetKernelExecInfo(
+        CHECK_OCL_CODE("usm_dispatch.cpp", clSetKernelExecInfo(
             CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_HOST_ACCESS_INTEL,
             sizeof(cl_bool), &TrueVal));
-        CHECK_OCL_CODE(clSetKernelExecInfo(
+        CHECK_OCL_CODE("usm_dispatch.cpp", clSetKernelExecInfo(
             CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_DEVICE_ACCESS_INTEL,
             sizeof(cl_bool), &TrueVal));
-        CHECK_OCL_CODE(clSetKernelExecInfo(
+        CHECK_OCL_CODE("usm_dispatch.cpp", clSetKernelExecInfo(
             CLKernel, CL_KERNEL_EXEC_INFO_INDIRECT_SHARED_ACCESS_INTEL,
             sizeof(cl_bool), &TrueVal));
       }

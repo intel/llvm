@@ -74,15 +74,15 @@ int main() {
       cl_program clProgram =
           clCreateProgramWithSource(clContext, 1, SrcString, &SrcStringSize, &Error);
 
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       Error = clBuildProgram(clProgram, 1, &clDevice, NULL, NULL, NULL);
 
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       cl_kernel clKernel = clCreateKernel(clProgram, "test", &Error);
 
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       buffer<int, 1> BufA(AMem, cl::sycl::range<1>(NSize));
       buffer<int, 1> BufB(BufA, NSize / 2, NSize / 2);
@@ -139,15 +139,15 @@ int main() {
       cl_program clProgram =
           clCreateProgramWithSource(clContext, 1, SrcString, &SrcStringSize, &Error);
 
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       Error = clBuildProgram(clProgram, 1, &clDevice, NULL, NULL, NULL);
 
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       cl_kernel clKernel = clCreateKernel(clProgram, "test", &Error);
 
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       buffer<int, 1> BufA(AMem, cl::sycl::range<1>(NSize));
       buffer<int, 1> BufB(BufA, 0, NSize / 4);
@@ -218,17 +218,17 @@ int main() {
       cl_program clProgram =
           clCreateProgramWithSource(clContext, 1, SrcString, &SrcStringSize, &Error);
 
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       Error = clBuildProgram(clProgram, 1, &clDevice, NULL, NULL, NULL);
 
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       cl_kernel clKernel1 = clCreateKernel(clProgram, "test1", &Error);
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       cl_kernel clKernel2 = clCreateKernel(clProgram, "test2", &Error);
-      CHECK_OCL_CODE(Error);
+      CHECK_OCL_CODE("buffer basic test subbuffer_interop.cpp", Error);
 
       buffer<int, 1> BufA(AMem, cl::sycl::range<1>(NSize));
       buffer<int, 1> BufB(BufA, 0, NSize / 2);

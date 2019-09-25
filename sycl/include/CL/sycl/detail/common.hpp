@@ -34,48 +34,55 @@ static inline std::string codeToString(cl_int code){
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
-#define OCL_ERROR_REPORT                                                       \
-  "OpenCL API failed. " /*__FILE__*/                                           \
-  /* TODO: replace __FILE__ to report only relative path*/                     \
-  /* ":" STRINGIFY_LINE(__LINE__) ": " */                                      \
+#define OCL_ERROR_REPORT(OCL_error_context)                                    \
+  "OpenCL API failed. " OCL_error_context                                      \
+   ":" STRINGIFY_LINE(__LINE__) ": "                                           \
                                "OpenCL API returns: "
 
 #ifndef SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
-#define REPORT_OCL_ERR_TO_STREAM(expr)                                         \
-{                                                                              \
-  auto code = expr;                                                            \
-  if (code != CL_SUCCESS) {                                                    \
-    std::cerr << OCL_ERROR_REPORT << codeToString(code) << std::endl;          \
-  }                                                                            \
-}
+#define REPORT_OCL_ERR_TO_STREAM(OCL_error_context, expr)                      \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != CL_SUCCESS) {                                                  \
+      std::cerr << OCL_ERROR_REPORT(OCL_error_context) << codeToString(code)   \
+                << std::endl;                                                  \
+    }                                                                          \
+  }
 #endif
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <CL/sycl/exception.hpp>
 
-#define REPORT_OCL_ERR_TO_EXC(expr, exc)                                       \
+#define REPORT_OCL_ERR_TO_EXC(OCL_error_context, expr, exc)                    \
 {                                                                              \
   auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    throw exc(OCL_ERROR_REPORT + codeToString(code), code);                    \
+    throw exc(OCL_ERROR_REPORT(OCL_error_context) + codeToString(code), code); \
   }                                                                            \
 }
-#define REPORT_OCL_ERR_TO_EXC_THROW(code, exc) REPORT_OCL_ERR_TO_EXC(code, exc)
-#define REPORT_OCL_ERR_TO_EXC_BASE(code)                                       \
-  REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
+#define REPORT_OCL_ERR_TO_EXC_THROW(OCL_error_context, code, exc)              \
+  REPORT_OCL_ERR_TO_EXC(OCL_error_context, code, exc)
+#define REPORT_OCL_ERR_TO_EXC_BASE(OCL_error_context, code)                    \
+  REPORT_OCL_ERR_TO_EXC(OCL_error_context, code, cl::sycl::runtime_error)
 #else
-#define REPORT_OCL_ERR_TO_EXC_BASE(code) REPORT_OCL_ERR_TO_STREAM(code)
+#define REPORT_OCL_ERR_TO_EXC_BASE(OCL_error_context, code)                    \
+  REPORT_OCL_ERR_TO_STREAM(OCL_error_context, code)
 #endif
 
 #ifdef SYCL_SUPPRESS_OCL_ERROR_REPORT
-#define CHECK_OCL_CODE(X) (void)(X)
-#define CHECK_OCL_CODE_THROW(X, EXC) (void)(X)
-#define CHECK_OCL_CODE_NO_EXC(X) (void)(X)
+#define CHECK_OCL_CODE(OCL_error_context, X) (void)(OCL_error_context, X)
+#define CHECK_OCL_CODE_THROW(OCL_error_context, X, EXC)                        \
+  \
+  (void)(OCL_error_context, X)
+#define CHECK_OCL_CODE_NO_EXC(OCL_error_context, X) (void)(OCL_error_context, X)
 #else
-#define CHECK_OCL_CODE(X) REPORT_OCL_ERR_TO_EXC_BASE(X)
-#define CHECK_OCL_CODE_THROW(X, EXC) REPORT_OCL_ERR_TO_EXC_THROW(X, EXC)
-#define CHECK_OCL_CODE_NO_EXC(X) REPORT_OCL_ERR_TO_STREAM(X)
+#define CHECK_OCL_CODE(OCL_error_context, X)                                   \
+  REPORT_OCL_ERR_TO_EXC_BASE(OCL_error_context, X)
+#define CHECK_OCL_CODE_THROW(OCL_error_context, X, EXC)                        \
+  REPORT_OCL_ERR_TO_EXC_THROW(OCL_error_context, X, EXC)
+#define CHECK_OCL_CODE_NO_EXC(OCL_error_context, X)                            \
+  REPORT_OCL_ERR_TO_STREAM(OCL_error_context, X)
 #endif
 
 #ifndef __has_attribute

@@ -39,13 +39,13 @@ int main() {
     cl_int Err;
     cl_program ClProgram = clCreateProgramWithSource(ClContext, CountSources,
                                                      Sources, nullptr, &Err);
-    CHECK_OCL_CODE(Err);
+    CHECK_OCL_CODE("kernel basic test kernel_interop.cpp", Err);
 
     Err = clBuildProgram(ClProgram, 0, nullptr, nullptr, nullptr, nullptr);
-    CHECK_OCL_CODE(Err);
+    CHECK_OCL_CODE("kernel basic test kernel_interop.cpp", Err);
 
     cl_kernel ClKernel = clCreateKernel(ClProgram, "foo1", &Err);
-    CHECK_OCL_CODE(Err);
+    CHECK_OCL_CODE("kernel basic test kernel_interop.cpp", Err);
 
     // Try to create kernel with another context
     bool Pass = false;
@@ -61,9 +61,12 @@ int main() {
     kernel Kernel(ClKernel, Context);
 
 
-    CHECK_OCL_CODE(clReleaseKernel(ClKernel));
-    CHECK_OCL_CODE(clReleaseContext(ClContext));
-    CHECK_OCL_CODE(clReleaseProgram(ClProgram));
+    CHECK_OCL_CODE("kernel basic test kernel_interop.cpp",
+                   clReleaseKernen(ClKernel));
+    CHECK_OCL_CODE("kernel basic test kernel_interop.cpp",
+                   clReleaseContext(ClContext));
+    CHECK_OCL_CODE("kernel basic test kernel_interop.cpp",
+                   clReleaseProgram(ClProgram));
 
   }
   return 0;

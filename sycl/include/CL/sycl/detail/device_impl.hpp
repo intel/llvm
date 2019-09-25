@@ -112,7 +112,7 @@ public:
   ~device_impl_pi() {
     if (!m_isRootDevice) {
       // TODO catch an exception and put it to list of asynchronous exceptions
-      CHECK_OCL_CODE_NO_EXC(RT::piDeviceRelease(m_device));
+      CHECK_OCL_CODE_NO_EXC("device_impl.hpp", RT::piDeviceRelease(m_device));
     }
   }
 

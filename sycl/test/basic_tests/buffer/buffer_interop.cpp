@@ -29,7 +29,7 @@ int main() {
     cl_mem OpenCLBuffer = clCreateBuffer(
         MyQueue.get_context().get(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
         Size * sizeof(int), Init, &Error);
-    CHECK_OCL_CODE(Error);
+    CHECK_OCL_CODE("buffer basic test buffer_interop.cpp", Error);
     buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
 
     if (Buffer.get_range() != InteropRange) {
@@ -67,7 +67,7 @@ int main() {
     }
 
     Error = clReleaseMemObject(OpenCLBuffer);
-    CHECK_OCL_CODE(Error);
+    CHECK_OCL_CODE("buffer basic test buffer_interop.cpp", Error);
 
     for (size_t i = 0; i < Size; ++i) {
       if (Result[i] != 20) {
@@ -90,7 +90,7 @@ int main() {
     cl_mem OpenCLBuffer = clCreateBuffer(
         MyQueue.get_context().get(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
         Size * sizeof(int), Init, &Error);
-    CHECK_OCL_CODE(Error);
+    CHECK_OCL_CODE("buffer basic test buffer_interop.cpp", Error);
     {
       buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
       Buffer.set_final_data(Result);
@@ -102,7 +102,7 @@ int main() {
       });
     }
     Error = clReleaseMemObject(OpenCLBuffer);
-    CHECK_OCL_CODE(Error);
+    CHECK_OCL_CODE("buffer basic test buffer_interop.cpp", Error);
     for (size_t i = 0; i < Size; ++i) {
       if (Result[i] != 10) {
         std::cout << " array[" << i << "] is " << Result[i] << " expected "
@@ -123,7 +123,7 @@ int main() {
     cl_mem OpenCLBuffer = clCreateBuffer(
         MyQueue.get_context().get(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
         Size * sizeof(int), Init, &Error);
-    CHECK_OCL_CODE(Error);
+    CHECK_OCL_CODE("buffer basic test buffer_interop.cpp", Error);
     buffer<int, 1> Buffer{OpenCLBuffer, MyQueue.get_context()};
 
     MyQueue.submit([&](handler &CGH) {
@@ -141,7 +141,7 @@ int main() {
       }
     }
     Error = clReleaseMemObject(OpenCLBuffer);
-    CHECK_OCL_CODE(Error);
+    CHECK_OCL_CODE("buffer basic test buffer_interop.cpp", Error);
   }
   return Failed;
 }
