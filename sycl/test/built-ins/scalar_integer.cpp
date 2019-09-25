@@ -303,6 +303,39 @@ int main() {
     assert(r == 0x10);
   }
 
+  // mul_hi with negative result w/ carry
+  {
+    s::cl_int r{0};
+    {
+      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class mul_hiSI1SI2>([=]() {
+          AccR[0] = s::mul_hi(s::cl_int{-0x10000000}, s::cl_int{0x00000100});
+        }); // -2^28 * 2^8 = -2^36 -> -0x10 (FFFFFFF0) 00000000.
+      });
+    }
+    assert(r == -0x10);
+  }
+
+  // mul_hi with negative result w/o carry
+  {
+    s::cl_int r{0};
+    {
+      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class mul_hiSI1SI3>([=]() {
+          AccR[0] = s::mul_hi(s::cl_int{-0x10000000}, s::cl_int{0x00000101});
+        }); // -2^28 * (2^8 + 1) = -2^36 - 2^28 -> -0x11 (FFFFFFEF) -0x10000000
+            // (F0000000).
+      });
+    }
+    assert(r == -0x11);
+  }
+
   // rotate
   {
     s::cl_int r{ 0 };
