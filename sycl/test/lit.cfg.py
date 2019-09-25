@@ -5,6 +5,7 @@ import platform
 import re
 import subprocess
 import tempfile
+from distutils.spawn import find_executable
 
 import lit.formats
 import lit.util
@@ -138,6 +139,16 @@ config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 path = config.environment['PATH']
 path = os.path.pathsep.join((config.llvm_tools_dir, path))
 config.environment['PATH'] = path
+
+# Device AOT compilation tools aren't part of the SYCL project,
+# so they need to be pre-installed on the machine
+aot_tools = ["ioc64", "ocloc", "aoc"]
+for aot_tool in aot_tools:
+    if find_executable(aot_tool) != None:
+        print("Found AOT device compiler " + aot_tool)
+        config.available_features.add(aot_tool)
+    else:
+        print("Could not find AOT device compiler " + aot_tool)
 
 # Set timeout for test = 10 mins
 try:
