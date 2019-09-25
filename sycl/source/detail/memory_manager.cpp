@@ -463,7 +463,7 @@ void MemoryManager::unmap(SYCLMemObjI *SYCLMemObj, void *Mem,
       DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent));
 }
 
-void MemoryManager::copy_usm(void *SrcMem, QueueImplPtr SrcQueue, size_t Len,
+void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue, size_t Len,
                              void *DstMem, std::vector<RT::PiEvent> DepEvents,
                              bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
   sycl::context Context = SrcQueue->get_context();
