@@ -1244,7 +1244,7 @@ def err_pragma_cannot_end_force_cuda_host_device : Error<
 
 // SYCL loop pragmas and attributes support
 // * Intel FPGA attribute ivdep, ii, max_concurrency support
-// * clang::unroll attribute support
+// * clang::loop_unroll attribute support
 def err_loop_attr_on_non_loop : Error<
   "%select{clang|intelfpga}0 loop attributes must be applied to for, while, or do statements">;
 

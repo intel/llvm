@@ -7,7 +7,7 @@
 // CHECK: ![[COUNT]] = distinct !{![[COUNT]], ![[COUNT_A:[0-9]+]]}
 // CHECK-NEXT: ![[COUNT_A]] = !{!"llvm.loop.unroll.count", i32 8}
 void count() {
-  [[clang::unroll(8)]]
+  [[clang::loop_unroll(8)]]
   for (int i = 0; i < 1000; ++i);
 }
 
@@ -15,7 +15,7 @@ void count() {
 // CHECK-NEXT: ![[DISABLE_A]] = !{!"llvm.loop.unroll.disable"}
 void disable() {
   int i = 1000;
-  [[clang::unroll(1)]]
+  [[clang::loop_unroll(1)]]
   while (i--);
 }
 
@@ -23,7 +23,7 @@ void disable() {
 // CHECK-NEXT: ![[ENABLE_A]] = !{!"llvm.loop.unroll.enable"}
 void enable() {
   int i = 1000;
-  [[clang::unroll]]
+  [[clang::loop_unroll]]
   do {} while (i--);
 }
 
