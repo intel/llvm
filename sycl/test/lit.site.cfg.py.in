@@ -4,6 +4,7 @@ import sys
 
 config.clang = "@CLANG_IN_BUILD@"
 config.clangxx = "@CLANGXX_IN_BUILD@"
+config.clang_cl = "@CLANGCL_IN_BUILD@"
 config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
 config.llvm_build_libs_dir = "@LLVM_BUILD_LIBRARY_DIRS@"

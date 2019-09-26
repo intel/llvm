@@ -500,6 +500,12 @@
 // CHECK-LINK-SYCL: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-SYCL: "-defaultlib:sycl.lib"
 
+/// Check sycld.lib is chosen with /MDd and /MTd
+// RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+// RUN:  %clang_cl -fsycl /MTd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+// CHECK-LINK-SYCL-DEBUG: "{{.*}}link{{(.exe)?}}"
+// CHECK-LINK-SYCL-DEBUG: "-defaultlib:sycld.lib"
+
 /// ###########################################################################
 
 /// test behaviors of -foffload-static-lib=<lib>
