@@ -223,8 +223,17 @@ static bool recursiveType(const StructType *ST, const Type *Ty) {
              StructTy->element_end();
     }
 
-    if (auto *PtrTy = dyn_cast<PointerType>(Ty))
-      return Run(PtrTy->getPointerElementType());
+    if (auto *PtrTy = dyn_cast<PointerType>(Ty)) {
+      Type *ElTy = PtrTy->getPointerElementType();
+      if (auto *FTy = dyn_cast<FunctionType>(ElTy)) {
+        // If we have a function pointer, then argument types and return type of
+        // the referenced function also need to be checked
+        return Run(FTy->getReturnType()) ||
+               any_of(FTy->param_begin(), FTy->param_end(), Run);
+      }
+
+      return Run(ElTy);
+    }
 
     if (auto *ArrayTy = dyn_cast<ArrayType>(Ty))
       return Run(ArrayTy->getArrayElementType());
