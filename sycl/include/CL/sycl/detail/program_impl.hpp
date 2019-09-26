@@ -172,6 +172,9 @@ public:
     return pi::cast<cl_program>(Program);
   }
 
+  RT::PiProgram &getHandleRef() { return Program; }
+  const RT::PiProgram &getHandleRef() const { return Program; }
+
   bool is_host() const { return Context.is_host(); }
 
   template <typename KernelT>

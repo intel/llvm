@@ -241,6 +241,39 @@ pi_result OCL(piSamplerCreate)(pi_context context,
   return error_code;
 }
 
+pi_result OCL(piextGetDeviceFunctionPointer)(pi_device device,
+                                             pi_program program,
+                                             const char *func_name,
+                                             pi_uint64 *function_pointer_ret) {
+  pi_platform platform;
+  PI_CALL(piDeviceGetInfo(device, PI_DEVICE_INFO_PLATFORM, sizeof(platform),
+                          &platform, nullptr));
+  using FuncT =
+      cl_int(CL_API_CALL *)(cl_device_id, cl_program, const char *, cl_ulong *);
+
+  // TODO: add check that device supports corresponding extension
+  FuncT func_ptr =
+      reinterpret_cast<FuncT>(clGetExtensionFunctionAddressForPlatform(
+          cast<cl_platform_id>(platform),
+          "clGetDeviceFunctionPointerINTEL"));
+  // TODO: once we have check that device supports corresponding extension,
+  // we can insert an assertion that func_ptr is not nullptr. For now, let's
+  // just return an error if failed to query such function
+  // PI_ASSERT(
+  //     func_ptr != nullptr,
+  //     "Failed to get address of clGetDeviceFunctionPointerINTEL function");
+
+  if (!func_ptr) {
+    if (function_pointer_ret)
+      *function_pointer_ret = 0;
+    return PI_INVALID_DEVICE;
+  }
+
+  return PI_CALL_RESULT(func_ptr(cast<cl_device_id>(device),
+                                 cast<cl_program>(program), func_name,
+                                 function_pointer_ret));
+}
+
 // Forward calls to OpenCL RT.
 #define _PI_CL(pi_api, ocl_api)                     \
 decltype(::pi_api) * pi_api##OclPtr =               \
@@ -256,6 +289,7 @@ _PI_CL(piDevicePartition,    clCreateSubDevices)
 _PI_CL(piDeviceRetain,       clRetainDevice)
 _PI_CL(piDeviceRelease,      clReleaseDevice)
 _PI_CL(piextDeviceSelectBinary, OCL(piextDeviceSelectBinary))
+_PI_CL(piextGetDeviceFunctionPointer, OCL(piextGetDeviceFunctionPointer))
   // Context
 _PI_CL(piContextCreate,     clCreateContext)
 _PI_CL(piContextGetInfo,    clGetContextInfo)
