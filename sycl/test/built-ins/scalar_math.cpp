@@ -620,19 +620,5 @@ int main() {
     assert(i == -1); // tgamma of -2.4 is ~-1.1080299470333461
   }
 
-  // nan
-  {
-    s::cl_double r{ 0 };
-    {
-      s::buffer<s::cl_double, 1> BufR(&r, s::range<1>(1));
-      s::queue myQueue;
-      myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-        cgh.single_task<class nanIS1>([=]() { AccR[0] = s::nan(1LLU); });
-      });
-    }
-    assert(std::isnan(r));
-  }
-
   return 0;
 }

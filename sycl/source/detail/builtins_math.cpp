@@ -561,10 +561,14 @@ MAKE_1V_2P(modf, s::cl_double, s::cl_double, s::cl_double)
 MAKE_1V_2P(modf, s::cl_half, s::cl_half, s::cl_half)
 
 // nan
-s::cl_float nan(s::cl_uint nancode) __NOEXC { return d::quiet_NaN<float>(); }
-s::cl_double nan(s::cl_ulong nancode) __NOEXC { return d::quiet_NaN<double>(); }
+s::cl_float nan(s::cl_uint nancode) __NOEXC {
+  return d::quiet_NaN<s::cl_float>();
+}
+s::cl_double nan(s::cl_ulong nancode) __NOEXC {
+  return d::quiet_NaN<s::cl_double>();
+}
 s::cl_half nan(s::cl_ushort nancode) __NOEXC {
-  return s::cl_half(d::quiet_NaN<float>());
+  return s::cl_half(d::quiet_NaN<s::cl_float>());
 }
 MAKE_1V(nan, s::cl_float, s::cl_uint)
 MAKE_1V(nan, s::cl_double, s::cl_ulong)

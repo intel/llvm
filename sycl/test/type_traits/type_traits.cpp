@@ -1,0 +1,196 @@
+// RUN: %clangxx -fsycl %s -o %t.out
+//==-------------- type_traits.cpp - SYCL type_traits test -----------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <CL/sycl.hpp>
+
+#include <type_traits>
+
+using namespace std;
+
+namespace s = cl::sycl;
+namespace d = cl::sycl::detail;
+
+template <typename T, bool Expected = true> void test_is_integral() {
+  static_assert(d::is_integral<T>::value == Expected, "");
+}
+
+template <typename T, bool Expected = true> void test_is_floating_point() {
+  static_assert(d::is_floating_point<T>::value == Expected, "");
+}
+
+template <typename T, bool Expected = true> void test_is_arithmetic() {
+  static_assert(d::is_arithmetic<T>::value == Expected, "");
+}
+
+template <typename T, typename TL, typename CheckedT, bool Expected = true>
+void test_make_type_t() {
+  static_assert(is_same<d::make_type_t<T, TL>, CheckedT>::value == Expected,
+                "");
+}
+
+template <typename T, typename CheckedT, bool Expected = true>
+void test_make_larger_t() {
+  static_assert(is_same<d::make_larger_t<T>, CheckedT>::value == Expected, "");
+}
+
+template <typename T, typename T2, typename CheckedT, bool Expected = true>
+void test_change_base_type_t() {
+  static_assert(
+      is_same<d::change_base_type_t<T, T2>, CheckedT>::value == Expected, "");
+}
+
+template <typename T, typename CheckedT, bool Expected = true>
+void test_get_base_type_t() {
+  static_assert(is_same<d::get_base_type_t<T>, CheckedT>::value == Expected,
+                "");
+}
+
+template <typename T, typename CheckedT, bool Expected = true>
+void test_nan_types() {
+  static_assert((sizeof(d::get_base_type_t<d::nan_return_t<T>>) ==
+                 sizeof(d::nan_argument_base_t<T>)) == Expected,
+                "");
+}
+
+template <typename T, typename CheckedT, bool Expected = true>
+void test_make_signed_t() {
+  static_assert(is_same<d::make_signed_t<T>, CheckedT>::value == Expected, "");
+}
+
+template <typename T, typename CheckedT, bool Expected = true>
+void test_make_unsigned_t() {
+  static_assert(is_same<d::make_unsigned_t<T>, CheckedT>::value == Expected,
+                "");
+}
+
+template <typename T, bool Expected = true> void test_is_pointer() {
+  static_assert(d::is_pointer<T>::value == Expected, "");
+}
+
+template <typename T, typename CheckedT, bool Expected = true>
+void test_remove_pointer_t() {
+  static_assert(is_same<d::remove_pointer_t<T>, CheckedT>::value == Expected,
+                "");
+}
+
+template <typename T, typename SpaceList, bool Expected = true>
+void test_is_address_space_compliant() {
+  static_assert(d::is_address_space_compliant<T, SpaceList>::value == Expected,
+                "");
+}
+
+int main() {
+  test_is_pointer<int *>();
+  test_is_pointer<float *>();
+  test_is_pointer<s::constant_ptr<int>>();
+  test_is_pointer<s::constant_ptr<float>>();
+  test_is_pointer<s::int2 *>();
+  test_is_pointer<s::float2 *>();
+  test_is_pointer<s::constant_ptr<s::int2>>();
+  test_is_pointer<s::constant_ptr<s::float2>>();
+
+  test_remove_pointer_t<int *, int>();
+  test_remove_pointer_t<float *, float>();
+  test_remove_pointer_t<s::constant_ptr<int>, int>();
+  test_remove_pointer_t<s::constant_ptr<float>, float>();
+  test_remove_pointer_t<s::int2 *, s::int2>();
+  test_remove_pointer_t<s::float2 *, s::float2>();
+  test_remove_pointer_t<s::constant_ptr<s::int2>, s::int2>();
+  test_remove_pointer_t<s::constant_ptr<s::float2>, s::float2>();
+
+  test_is_address_space_compliant<int *, d::gvl::nonconst_address_space_list>();
+  test_is_address_space_compliant<float *,
+                                  d::gvl::nonconst_address_space_list>();
+  test_is_address_space_compliant<s::constant_ptr<int>,
+                                  d::gvl::nonconst_address_space_list, false>();
+  test_is_address_space_compliant<s::constant_ptr<float>,
+                                  d::gvl::nonconst_address_space_list, false>();
+  test_is_address_space_compliant<s::int2 *,
+                                  d::gvl::nonconst_address_space_list>();
+  test_is_address_space_compliant<s::float2 *,
+                                  d::gvl::nonconst_address_space_list>();
+  test_is_address_space_compliant<s::constant_ptr<s::int2>,
+                                  d::gvl::nonconst_address_space_list, false>();
+  test_is_address_space_compliant<s::constant_ptr<s::float2>,
+                                  d::gvl::nonconst_address_space_list, false>();
+
+  test_is_integral<int>();
+  test_is_integral<s::int2>();
+  test_is_integral<float, false>();
+  test_is_integral<s::float2, false>();
+  test_is_integral<half, false>();
+  test_is_integral<s::half2, false>();
+
+  test_is_floating_point<int, false>();
+  test_is_floating_point<s::int2, false>();
+  test_is_floating_point<float>();
+  test_is_floating_point<s::float2>();
+  test_is_floating_point<half>();
+  test_is_floating_point<s::half2>();
+
+  test_is_arithmetic<int>();
+  test_is_arithmetic<s::int2>();
+  test_is_arithmetic<float>();
+  test_is_arithmetic<s::float2>();
+  test_is_arithmetic<half>();
+  test_is_arithmetic<s::half2>();
+
+  test_make_type_t<int, d::gtl::scalar_unsigned_int_list, unsigned int>();
+  test_make_type_t<s::cl_int, d::gtl::scalar_float_list, s::cl_float>();
+  test_make_type_t<s::cl_int3, d::gtl::scalar_unsigned_int_list, s::cl_uint3>();
+  test_make_type_t<s::cl_int3, d::gtl::scalar_float_list, s::cl_float3>();
+
+  test_make_larger_t<half, float>();
+  test_make_larger_t<s::half3, s::float3>();
+  test_make_larger_t<float, double>();
+  test_make_larger_t<s::float3, s::double3>();
+  test_make_larger_t<double, void>();
+  test_make_larger_t<s::double3, void>();
+  test_make_larger_t<int32_t, int64_t>();
+  test_make_larger_t<s::vec<int32_t, 8>, s::vec<int64_t, 8>>();
+  test_make_larger_t<int64_t, void>();
+  test_make_larger_t<s::vec<int64_t, 8>, void>();
+
+  test_change_base_type_t<int, float, float>();
+  test_change_base_type_t<s::int2, float, s::float2>();
+  test_change_base_type_t<long, float, float>();
+  test_change_base_type_t<s::long2, float, s::float2>();
+
+  test_get_base_type_t<s::int2, int>();
+  test_get_base_type_t<int, int>();
+
+  test_nan_types<s::ushort, s::ushort>();
+  test_nan_types<s::uint, s::uint>();
+  test_nan_types<s::ulong, s::ulong>();
+  test_nan_types<s::ulonglong, s::ulonglong>();
+  test_nan_types<s::ushort2, s::ushort2>();
+  test_nan_types<s::uint2, s::uint2>();
+  test_nan_types<s::ulong2, s::ulong2>();
+  test_nan_types<s::ulonglong2, s::ulonglong2>();
+
+  test_make_signed_t<int, int>();
+  test_make_signed_t<const int, const int>();
+  test_make_signed_t<unsigned int, int>();
+  test_make_signed_t<const unsigned int, const int>();
+  test_make_signed_t<s::int2, s::int2>();
+  test_make_signed_t<const s::int2, const s::int2>();
+  test_make_signed_t<s::uint2, s::int2>();
+  test_make_signed_t<const s::uint2, const s::int2>();
+
+  test_make_unsigned_t<int, unsigned int>();
+  test_make_unsigned_t<const int, const unsigned int>();
+  test_make_unsigned_t<unsigned int, unsigned int>();
+  test_make_unsigned_t<const unsigned int, const unsigned int>();
+  test_make_unsigned_t<s::int2, s::uint2>();
+  test_make_unsigned_t<const s::int2, const s::uint2>();
+  test_make_unsigned_t<s::uint2, s::uint2>();
+  test_make_unsigned_t<const s::uint2, const s::uint2>();
+
+  return 0;
+}
