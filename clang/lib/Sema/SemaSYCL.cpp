@@ -1412,7 +1412,9 @@ void SYCLIntegrationHeader::emitFwdDecl(raw_ostream &O, const Decl *D) {
       break;
     }
     ++NamespaceCnt;
-    NSStr.insert(0, Twine("namespace " + Twine(NS->getName()) + " { ").str());
+    const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
+    NSStr.insert(
+        0, Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
     DC = NS->getDeclContext();
   }
   O << NSStr;
