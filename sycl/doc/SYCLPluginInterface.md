@@ -1,5 +1,4 @@
-# The SYCL Runtime Plugin Interface.
-
+#The SYCL Runtime Plugin Interface.
 
 ## Overview
 The SYCL Runtime Plugin Interface (PI) is the interface layer between
@@ -41,12 +40,45 @@ once before any actual offload is attempted.
 
 ### Plugin discovery
 
-Plugins are physically dynamic libraries stored somewhere in the system where
-the SYCL runtime runs. TBD - design and describe the process in details.
+Plugins are physically dynamic libraries or shared objects.
+The process to discover plugins will follow the following guidelines.
+
+The SYCL Runtime will search for plugins at env LD_LIBRARY_PATH location on
+Linux and env LIB on Windows, with names in the format of libpiXXX.so and
+query them. An extension to the search mechanism is to use a configuration file
+which lists all the available plugins and their locations. 
+This file can be stored along with SYCL Runtime.
+Plugins should expose the information of supported PI API version as a constant
+string, so it can be read without loading the library.
+The user can select/disable a specifc plugin with an environment variable.
+The Plugin Interface queries the plugins on the supported PI version and check
+for compatibility.
+The Plugin Interface then queries each plugin for all Interface Functions
+corresponding function pointers and populate a list of these pointers for
+each plugin. As an extension, the plugin can provide a populated function
+pointer table/struct for each device attached to the plugin.
+A trace mechanism should be provided to log the discovery/connection/device
+enumeration process. Eg: Display all the plugins being discovered, their
+information and supported PI version. List attached devices and their properties.
+
+ TBD - design and describe the process in detail.
 
 #### Plugin binary interface
-TBD - list and describe all the symbols plugin must export in order to be picked
-up by the SYCL runtime for offload.
+Currently the plugins should export all the symbols that are present in the file
+pi.h. In the future, this document will list the minimum set of Interface APIs
+to be supported by Plugins. This will also require adding functionality to SYCL
+Runtime to work with such limited functionality plugins.
+
+TBD - list and describe all the symbols that a plugin must export in order to
+be picked up by the SYCL runtime for offload.
+
+#### Connection to a Plugin
+Plugin selection can be forced via environment variable: SYCL_PI_USE.
+Default is OpenCL Plugin. The connection is established when PI is forwarding
+the PI API calls needed to run the program to the selected plugin.
+There is pi.def file that lists all PI API to query/connect each API entries.
+The Plugin interface will have to check that the supported PI API version info
+is in sync with the actual API entries being available in plugins.
 
 #### OpenCL plugin
 
@@ -60,8 +92,16 @@ TBD describe the nested OpenCL implementation discovery process performed by
 the OpenCL plugin
 
 ### Device enumeration by plugins
+After the compatible plugins are loaded, the trace will show all available
+devices from each plugin. Similarly, the trace can be extended to show the
+underlying API calls that each PI plugin call is being directed to.
 
-TBD
+TBD Describe the exact API calls to enable device enumeration feature.
+
+### Plugin Unloading
+The plugins not chosen to be connected to will be unloaded.
+
+TBD Unloading a connected plugin.
 
 ## PI API Specification
 
