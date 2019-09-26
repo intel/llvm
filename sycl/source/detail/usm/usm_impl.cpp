@@ -8,6 +8,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/aligned_allocator.hpp>
+#include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/usm.hpp>
@@ -26,16 +27,17 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    alloc Kind) {
   void *RetVal = nullptr;
   if (Ctxt.is_host()) {
-    if (Alignment) {
-      aligned_allocator<char> Alloc(Alignment);
-      try {
-        RetVal = Alloc.allocate(Size);
-      } catch (const std::bad_alloc &) {
-        // Conform with Specification behavior
-        RetVal = nullptr;
-      }
-    } else {
-      RetVal = ::malloc(Size);
+    if (!Alignment) {
+      // worst case default
+      Alignment = 128;
+    }
+
+    aligned_allocator<char> Alloc(Alignment);
+    try {
+      RetVal = Alloc.allocate(Size);
+    } catch (const std::bad_alloc &) {
+      // Conform with Specification behavior
+      RetVal = nullptr;
     }
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
@@ -69,16 +71,17 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind) {
   void *RetVal = nullptr;
   if (Ctxt.is_host()) {
-    if (Alignment) {
-      aligned_allocator<char> Alloc(Alignment);
-      try {
-        RetVal = Alloc.allocate(Size);
-      } catch (const std::bad_alloc &) {
-        // Conform with Specification behavior
-        RetVal = nullptr;
-      }
-    } else {
-      RetVal = ::malloc(Size);
+    if (!Alignment) {
+      // worst case default
+      Alignment = 128;
+    }
+
+    aligned_allocator<char> Alloc(Alignment);
+    try {
+      RetVal = Alloc.allocate(Size);
+    } catch (const std::bad_alloc &) {
+      // Conform with Specification behavior
+      RetVal = nullptr;
     }
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
@@ -118,7 +121,8 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   
 void free(void *Ptr, const context &Ctxt) {
   if (Ctxt.is_host()) {
-    ::free(Ptr);
+    // need to use alignedFree here for Windows
+    detail::OSUtil::alignedFree(Ptr);
   } else {
     std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
     std::shared_ptr<USMDispatcher> Dispatch = CtxImpl->getUSMDispatch();
