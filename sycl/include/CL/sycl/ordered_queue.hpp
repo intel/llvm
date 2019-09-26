@@ -105,11 +105,11 @@ public:
   }
 
   event memset(void* ptr, int value, size_t count) {
-    return impl->memset(ptr, value, count);
+    return impl->memset(impl, ptr, value, count);
   }
 
   event memcpy(void* dest, const void* src, size_t count) {
-    return impl->memcpy(dest, src, count);
+    return impl->memcpy(impl, dest, src, count);
   }
 
 private:

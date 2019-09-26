@@ -463,29 +463,41 @@ void MemoryManager::unmap(SYCLMemObjI *SYCLMemObj, void *Mem,
       DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent));
 }
 
-void MemoryManager::copy_usm(void *SrcMem, QueueImplPtr SrcQueue, size_t Len,
+void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue, size_t Len,
                              void *DstMem, std::vector<RT::PiEvent> DepEvents,
                              bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
-  RT::PiQueue Queue = UseExclusiveQueue
-    ? SrcQueue->getExclusiveQueueHandleRef()
-    : SrcQueue->getHandleRef();
-
   sycl::context Context = SrcQueue->get_context();
-  std::shared_ptr<usm::USMDispatcher> USMDispatch =
-    getSyclObjImpl(Context)->getUSMDispatch();
-  PI_CHECK(USMDispatch->enqueueMemcpy(Queue,
-    /* blocking */ false, DstMem, SrcMem, Len, DepEvents.size(),
-    &DepEvents[0], &OutEvent));
+
+  if (Context.is_host()) {
+    std::memcpy(DstMem, SrcMem, Len);
+  } else {
+    RT::PiQueue Queue = UseExclusiveQueue
+                            ? SrcQueue->getExclusiveQueueHandleRef()
+                            : SrcQueue->getHandleRef();
+
+    std::shared_ptr<usm::USMDispatcher> USMDispatch =
+        getSyclObjImpl(Context)->getUSMDispatch();
+    PI_CHECK(USMDispatch->enqueueMemcpy(Queue,
+                                        /* blocking */ false, DstMem, SrcMem,
+                                        Len, DepEvents.size(), &DepEvents[0],
+                                        &OutEvent));
+  }
 }
 
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern, std::vector<RT::PiEvent> DepEvents,
                              RT::PiEvent &OutEvent) {
   sycl::context Context = Queue->get_context();
-  std::shared_ptr<usm::USMDispatcher> USMDispatch =
-    getSyclObjImpl(Context)->getUSMDispatch();
-  PI_CHECK(USMDispatch->enqueueMemset(Queue->getHandleRef(),
-    Mem, Pattern, Length, DepEvents.size(), &DepEvents[0], &OutEvent));
+
+  if (Context.is_host()) {
+    std::memset(Mem, Pattern, Length);
+  } else {
+    std::shared_ptr<usm::USMDispatcher> USMDispatch =
+        getSyclObjImpl(Context)->getUSMDispatch();
+    PI_CHECK(USMDispatch->enqueueMemset(Queue->getHandleRef(), Mem, Pattern,
+                                        Length, DepEvents.size(), &DepEvents[0],
+                                        &OutEvent));
+  }
 }
 
 } // namespace detail
