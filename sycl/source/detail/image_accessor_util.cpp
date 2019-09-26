@@ -16,8 +16,8 @@ namespace detail {
 // For Nearest Filtering mode, process cl_float4 Coordinates and return the
 // appropriate Pixel Coordinates based on Addressing Mode.
 cl_int4 getPixelCoordNearestFiltMode(cl_float4 Coorduvw,
-                                     addressing_mode SmplAddrMode,
-                                     range<3> ImgRange) {
+                                     const addressing_mode SmplAddrMode,
+                                     const range<3> ImgRange) {
   cl_int4 Coordijk(0);
   cl_int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
   switch (SmplAddrMode) {
@@ -91,15 +91,14 @@ cl_int4 getPixelCoordNearestFiltMode(cl_float4 Coorduvw,
 // The caller of this function should use these values to create the 8 pixel
 // coordinates and multiplication coefficients.
 cl_int8 getPixelCoordLinearFiltMode(cl_float4 Coorduvw,
-                                    addressing_mode SmplAddrMode,
-                                    range<3> ImgRange, cl_float4 &Retabc) {
+                                    const addressing_mode SmplAddrMode,
+                                    const range<3> ImgRange, cl_float4 &Retabc) {
   cl_int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
   cl_int4 Ci0j0k0(0);
   cl_int4 Ci1j1k1(0);
   cl_int4 Int_uvwsubhalf = cl::sycl::floor(Coorduvw - 0.5f).convert<cl_int>();
 
   switch (SmplAddrMode) {
-
   case addressing_mode::mirrored_repeat: {
     cl_float4 Temp;
     Temp = (cl::sycl::rint(Coorduvw * 0.5f)) * 2.0f;
@@ -172,7 +171,7 @@ bool isOutOfRange(const cl_int4 PixelCoord, const addressing_mode SmplAddrMode,
   return (CheckWidth || CheckHeight || CheckDepth);
 }
 
-cl_float4 getBorderColor(image_channel_order ImgChannelOrder) {
+cl_float4 getBorderColor(const image_channel_order ImgChannelOrder) {
 
   cl_float4 BorderColor(0.0f);
   switch (ImgChannelOrder) {

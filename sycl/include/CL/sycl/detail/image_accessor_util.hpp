@@ -74,20 +74,21 @@ convertToFloat4(vec<T, 4> Coords) {
 // ptr.
 template <typename T>
 detail::enable_if_t<std::is_integral<T>::value, size_t>
-getImageOffset(const T &Coords, id<3> ImgPitch, const uint8_t ElementSize) {
+getImageOffset(const T &Coords, const id<3> ImgPitch,
+               const uint8_t ElementSize) {
   return Coords * ElementSize;
 }
 
 template <typename T>
 detail::enable_if_t<std::is_integral<T>::value, size_t>
-getImageOffset(const vec<T, 2> &Coords, id<3> ImgPitch,
+getImageOffset(const vec<T, 2> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
   return Coords.x() * ElementSize + Coords.y() * ImgPitch[0];
 }
 
 template <typename T>
 detail::enable_if_t<std::is_integral<T>::value, size_t>
-getImageOffset(const vec<T, 4> &Coords, id<3> ImgPitch,
+getImageOffset(const vec<T, 4> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
   return Coords.x() * ElementSize + Coords.y() * ImgPitch[0] +
          Coords.z() * ImgPitch[1];
@@ -95,20 +96,21 @@ getImageOffset(const vec<T, 4> &Coords, id<3> ImgPitch,
 
 // Process cl_float4 Coordinates and return the appropriate Pixel Coordinates to
 // read from based on Addressing Mode for Nearest filter mode.
-cl_int4 getPixelCoordNearestFiltMode(cl_float4, addressing_mode, range<3>);
+cl_int4 getPixelCoordNearestFiltMode(cl_float4, const addressing_mode,
+                                     const range<3>);
 
 // Process cl_float4 Coordinates and return the appropriate Pixel Coordinates to
 // read from based on Addressing Mode for Linear filter mode.
-cl_int8 getPixelCoordLinearFiltMode(cl_float4, addressing_mode, range<3>,
-                                    cl_float4 &);
+cl_int8 getPixelCoordLinearFiltMode(cl_float4, const addressing_mode,
+                                    const range<3>, cl_float4 &);
 
 // Check if PixelCoord are out of range for Sampler with clamp adressing mode.
-bool isOutOfRange(cl_int4 PixelCoord, addressing_mode SmplAddrMode,
-                  range<3> ImgRange);
+bool isOutOfRange(const cl_int4 PixelCoord, const addressing_mode SmplAddrMode,
+                  const range<3> ImgRange);
 
 // Get Border Color for the image_channel_order, the border color values are
 // only used when the sampler has clamp addressing mode.
-cl_float4 getBorderColor(image_channel_order ImgChannelOrder);
+cl_float4 getBorderColor(const image_channel_order ImgChannelOrder);
 
 // Reads data from a pixel at Ptr location, based on the number of Channels in
 // Order and returns the data.
@@ -572,7 +574,6 @@ convertWriteData(const vec<cl_float, 4> WriteData,
       PixelData.x() =
           (PixelData.x() << 10) | (PixelData.y() << 5) | PixelData.z();
       return PixelData.convert<ChannelType>();
-      ;
     }
   case image_channel_type::unorm_int_101010:
     // min(convert_ushort_sat_rte(f * 1023.0f), 0x3ff)
@@ -585,7 +586,6 @@ convertWriteData(const vec<cl_float, 4> WriteData,
       PixelData.x() =
           (PixelData.x() << 20) | (PixelData.y() << 10) | PixelData.z();
       return PixelData.convert<ChannelType>();
-      ;
     }
   case image_channel_type::signed_int8:
   case image_channel_type::signed_int16:
@@ -767,10 +767,10 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
 // the Spec.(convertReadData)
 // Possible DataT are cl_int4, cl_uint4, cl_float4, cl_half4;
 template <typename DataT>
-DataT ReadPixelData(cl_int4 PixelCoord, id<3> ImgPitch,
-                    image_channel_type ImageChannelType,
-                    image_channel_order ImageChannelOrder, void *BasePtr,
-                    uint8_t ElementSize) {
+DataT ReadPixelData(const cl_int4 PixelCoord, const id<3> ImgPitch,
+                    const image_channel_type ImageChannelType,
+                    const image_channel_order ImageChannelOrder,
+                    void *BasePtr, const uint8_t ElementSize) {
   DataT Color(0);
   auto Ptr = static_cast<unsigned char *>(BasePtr) +
              getImageOffset(PixelCoord, ImgPitch,
@@ -863,14 +863,14 @@ DataT ReadPixelData(cl_int4 PixelCoord, id<3> ImgPitch,
 // Checks if the PixelCoord is out-of-range, and returns appropriate border or
 // color value at the PixelCoord.
 template <typename DataT>
-DataT getColor(cl_int4 PixelCoord, addressing_mode SmplAddrMode,
-               range<3> ImgRange, id<3> ImgPitch,
-               image_channel_type ImgChannelType,
-               image_channel_order ImgChannelOrder, void *BasePtr,
-               uint8_t ElementSize) {
+DataT getColor(const cl_int4 PixelCoord, const addressing_mode SmplAddrMode,
+               const range<3> ImgRange, const id<3> ImgPitch,
+               const image_channel_type ImgChannelType,
+               const image_channel_order ImgChannelOrder, void *BasePtr,
+               const uint8_t ElementSize) {
   DataT RetData;
   if (isOutOfRange(PixelCoord, SmplAddrMode, ImgRange)) {
-    cl_float4 BorderColor = (getBorderColor(ImgChannelOrder));
+    cl_float4 BorderColor = getBorderColor(ImgChannelOrder);
     RetData = BorderColor.convert<typename TryToGetElementType<DataT>::type>();
   } else {
     RetData = ReadPixelData<DataT>(PixelCoord, ImgPitch, ImgChannelType,
@@ -883,14 +883,15 @@ DataT getColor(cl_int4 PixelCoord, addressing_mode SmplAddrMode,
 // Steps:
 // 1. Computes the 8 coordinates using all combinations of i0/i1,j0/j1,k0/k1.
 // 2. Calls getColor() on each Coordinate.(Ci*j*k*)
-// 3. Computes the return Color Value using a,b,c and the Color values. 
+// 3. Computes the return Color Value using a,b,c and the Color values.
 template <typename DataT>
-DataT ReadPixelDataLinearFiltMode(cl_int8 CoordValues, cl_float4 abc,
-                                  addressing_mode SmplAddrMode,
-                                  range<3> ImgRange, id<3> ImgPitch,
-                                  image_channel_type ImgChannelType,
-                                  image_channel_order ImgChannelOrder,
-                                  void *BasePtr, uint8_t ElementSize) {
+DataT ReadPixelDataLinearFiltMode(const cl_int8 CoordValues,
+                                  const cl_float4 abc,
+                                  const addressing_mode SmplAddrMode,
+                                  const range<3> ImgRange, id<3> ImgPitch,
+                                  const image_channel_type ImgChannelType,
+                                  const image_channel_order ImgChannelOrder,
+                                  void *BasePtr, const uint8_t ElementSize) {
   cl_int i0 = CoordValues.s0(), j0 = CoordValues.s1(), k0 = CoordValues.s2(),
          i1 = CoordValues.s4(), j1 = CoordValues.s5(), k1 = CoordValues.s6();
   cl_float a = abc.x();
@@ -898,41 +899,40 @@ DataT ReadPixelDataLinearFiltMode(cl_int8 CoordValues, cl_float4 abc,
   cl_float c = abc.z();
   cl_float4 RetData;
 
+  auto getColorInFloat =
+      [&](cl_int4 V) {
+        DataT Res = getColor<DataT>(V, SmplAddrMode,
+                                    ImgRange, ImgPitch, ImgChannelType,
+                                    ImgChannelOrder, BasePtr, ElementSize);
+        return Res.template convert<cl_float>();
+      };
+
   // Get Color Values at each Coordinate.
-  DataT Ci0j0k0 =
-      getColor<DataT>(cl_int4{i0, j0, k0, 0}, SmplAddrMode, ImgRange, ImgPitch,
-                      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
-  DataT Ci1j0k0 =
-      getColor<DataT>(cl_int4{i1, j0, k0, 0}, SmplAddrMode, ImgRange, ImgPitch,
-                      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
-  DataT Ci0j1k0 =
-      getColor<DataT>(cl_int4{i0, j1, k0, 0}, SmplAddrMode, ImgRange, ImgPitch,
-                      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
-  DataT Ci1j1k0 =
-      getColor<DataT>(cl_int4{i1, j1, k0, 0}, SmplAddrMode, ImgRange, ImgPitch,
-                      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
-  DataT Ci0j0k1 =
-      getColor<DataT>(cl_int4{i0, j0, k1, 0}, SmplAddrMode, ImgRange, ImgPitch,
-                      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
-  DataT Ci1j0k1 =
-      getColor<DataT>(cl_int4{i1, j0, k1, 0}, SmplAddrMode, ImgRange, ImgPitch,
-                      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
-  DataT Ci0j1k1 =
-      getColor<DataT>(cl_int4{i0, j1, k1, 0}, SmplAddrMode, ImgRange, ImgPitch,
-                      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
-  DataT Ci1j1k1 =
-      getColor<DataT>(cl_int4{i1, j1, k1, 0}, SmplAddrMode, ImgRange, ImgPitch,
-                      ImgChannelType, ImgChannelOrder, BasePtr, ElementSize);
+  cl_float4 Ci0j0k0 = getColorInFloat(cl_int4{i0, j0, k0, 0});
+  
+  cl_float4 Ci1j0k0 = getColorInFloat(cl_int4{i1, j0, k0, 0});
+  
+  cl_float4 Ci0j1k0 = getColorInFloat(cl_int4{i0, j1, k0, 0});
+  
+  cl_float4 Ci1j1k0 = getColorInFloat(cl_int4{i1, j1, k0, 0});
+  
+  cl_float4 Ci0j0k1 = getColorInFloat(cl_int4{i0, j0, k1, 0});
+  
+  cl_float4 Ci1j0k1 = getColorInFloat(cl_int4{i1, j0, k1, 0});
+  
+  cl_float4 Ci0j1k1 = getColorInFloat(cl_int4{i0, j1, k1, 0});
+  
+  cl_float4 Ci1j1k1 = getColorInFloat(cl_int4{i1, j1, k1, 0});
 
   RetData =
-      ((1 - a) * (1 - b) * (1 - c) * Ci0j0k0.template convert<cl_float>()) +
-      (a * (1 - b) * (1 - c) * Ci1j0k0.template convert<cl_float>()) +
-      ((1 - a) * b * (1 - c) * Ci0j1k0.template convert<cl_float>()) +
-      (a * b * (1 - c) * Ci1j1k0.template convert<cl_float>()) +
-      ((1 - a) * (1 - b) * c * Ci0j0k1.template convert<cl_float>()) +
-      (a * (1 - b) * c * Ci1j0k1.template convert<cl_float>()) +
-      ((1 - a) * b * c * Ci0j1k1.template convert<cl_float>()) +
-      (a * b * c * Ci1j1k1.template convert<cl_float>());
+      ((1 - a) * (1 - b) * (1 - c) * Ci0j0k0) +
+      (a * (1 - b) * (1 - c) * Ci1j0k0) +
+      ((1 - a) * b * (1 - c) * Ci0j1k0) +
+      (a * b * (1 - c) * Ci1j1k0) +
+      ((1 - a) * (1 - b) * c * Ci0j0k1) +
+      (a * (1 - b) * c * Ci1j0k1) +
+      ((1 - a) * b * c * Ci0j1k1) +
+      (a * b * c * Ci1j1k1);
 
   // For 2D image:k0 = 0, k1 = 0, c = 0.5
   // RetData = (1 – a) * (1 – b) * Ci0j0 + a * (1 – b) * Ci1j0 +
@@ -1049,8 +1049,7 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
   switch (SmplFiltMode) {
   case filtering_mode::nearest: {
     // Get Pixel Coordinates in integers that will be read from in the Image.
-    cl_int4 PixelCoord;
-    PixelCoord =
+    cl_int4 PixelCoord =
         getPixelCoordNearestFiltMode(FloatCoorduvw, SmplAddrMode, ImgRange);
 
     // Return Border Color for out-of-range coordinates when Sampler has
@@ -1062,13 +1061,12 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
     break;
   }
   case filtering_mode::linear: {
-    cl_int8 CoordValues;
     cl_float4 Retabc;
     // Get Pixel Coordinates in integers that will be read from in the Image.
     // Return i0,j0,k0,0,i1,j1,k1,0 to form 8 coordinates in a 3D image and
     // multiplication factors a,b,c
-    CoordValues = getPixelCoordLinearFiltMode(FloatCoorduvw, SmplAddrMode,
-                                              ImgRange, Retabc);
+    cl_int8 CoordValues = getPixelCoordLinearFiltMode(
+        FloatCoorduvw, SmplAddrMode, ImgRange, Retabc);
 
     // Find the 8 coordinates with the values in CoordValues.
     // Computes the Color Value to return.
