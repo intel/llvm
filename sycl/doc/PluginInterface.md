@@ -1,6 +1,5 @@
 # The DPC++ Runtime Plugin Interface.
 
-
 ## Overview
 The DPC++ Runtime Plugin Interface (PI) is the interface layer between
 device-agnostic part of the DPC++ runtime and the device-specific runtime layers
@@ -41,12 +40,57 @@ once before any actual offload is attempted.
 
 ### Plugin discovery
 
-Plugins are physically dynamic libraries stored somewhere in the system where
-the DPC++ runtime runs. TBD - design and describe the process in details.
+Plugins are physically dynamic libraries or shared objects.
+The process to discover plugins will follow the following guidelines.
+
+The SYCL Runtime will read the names of the plugins from a configuration file 
+at a predetermined location (TBD - Add this location). These plugins are
+searched at locations in env LD_LIBRARY_PATH on Linux and env PATH on Windows.
+(TBD - Extend to search the plugins at a path relative to the SYCL Runtime
+installation directory by using DT_RPATH on Linux. Similar functionality can be
+achieved on Windows using SetDllDirectory. This will help avoiding extra setting
+of LD_LIBRARY_PATH.)
+To avoid any issues with read-only access, an environment variable SYCL_PI_CONFIG
+can be set to point to the configuration file which lists the Plugin names. The
+enviroment variable if set overrides the predetermined location's config file.
+These Plugins will then be searched in LD_LIBRARY_PATH locations.
+It is the developer's responsibility to include the plugin names from the
+predetermined location's config file to enable discovery of all plugins.
+(TBD - Extend to support search in DT_RPATH as above.)
+A trace mechanism is provided to log the discovery/ binding/ device
+enumeration process. Eg: Display all the plugins being discovered, their
+information and supported PI version. List attached devices and their properties.
+
+ TBD - design and describe the process in detail.
 
 #### Plugin binary interface
-TBD - list and describe all the symbols plugin must export in order to be picked
-up by the DPC++ runtime for offload.
+Plugins should implement all the Interface APIs required for the PI Version
+it supports. It will export a function that will return the function pointer
+table that contains the list of implemented Interface Function pointers in a
+predetermined order defined in pi.h.
+In the future, this document will list the minimum set of Interface APIs
+to be supported by Plugins. This will also require adding functionality to SYCL
+Runtime to work with such limited functionality plugins.
+
+ TBD - list and describe the symbols that a plugin must implement in order to
+ be picked up by the SYCL runtime for offload.
+
+#### Binding a Plugin
+Plugins expose the information of supported PI API version.
+The Plugin Interface queries the plugins on the supported PI version and checks
+for compatibility.(TBD - Extend to support version compatibility checks without
+loading the library. Eg: Changing the plugin name to reflect the supported
+Plugin Interface version.)
+The Plugin Loader then queries each plugin for the Function Pointer Table
+and populates a list of the PI API Function Pointers for each plugin.
+The user can select/disable a specific plugin with an environment variable,
+SYCL_PI_USE. (TBD - Describe the semantics in a separate section for EV and
+trace.)
+The information of compatible plugins (with the Function Pointer Table) is
+stored in the associated platforms during platform object construction.
+The PI API calls are forwarded using this information.
+There is pi.def/pi.h file that lists all PI API names that can be called by the
+Plugin Interface.
 
 #### OpenCL plugin
 
@@ -56,12 +100,20 @@ OpenCL implementations. They can be installed either in the standard Khronos
 ICD-compatible way (e.g. listed in files under /etc/OpenCL/vendors on
 Linux) or not, and the OpenCL plugin can hook up with both.
 
-TBD describe the nested OpenCL implementation discovery process performed by
+TBD - describe the nested OpenCL implementation discovery process performed by
 the OpenCL plugin
 
 ### Device enumeration by plugins
+After the compatible plugins are loaded, the trace will show all available
+devices from each plugin. Similarly, the trace can be extended to show the
+underlying API calls that each PI plugin call is being directed to.
 
-TBD
+TBD - Describe the exact API calls to enable device enumeration feature.
+
+### Plugin Unloading
+The plugins not chosen to be connected to will be unloaded.
+
+TBD - Unloading a bound plugin.
 
 ## PI API Specification
 
