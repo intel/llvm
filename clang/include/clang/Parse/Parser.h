@@ -2554,13 +2554,13 @@ private:
   /// \return false if error happens.
   bool ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs);
 
-  /// Parses intelfpga:: loop attributes if the language is SYCL
-  bool MaybeParseIntelFPGALoopAttributes(ParsedAttributes &Attrs) {
-    if (getLangOpts().SYCLIsDevice)
-      return ParseIntelFPGALoopAttributes(Attrs);
+  /// Parses intelfpga:: and clang:: loop attributes if the language is SYCL
+  bool MaybeParseSYCLLoopAttributes(ParsedAttributes &Attrs) {
+    if (getLangOpts().SYCLIsDevice || getLangOpts().SYCLIsHost)
+      return ParseSYCLLoopAttributes(Attrs);
     return true;
   }
-  bool ParseIntelFPGALoopAttributes(ParsedAttributes &Attrs);
+  bool ParseSYCLLoopAttributes(ParsedAttributes &Attrs);
 
   void ParseNullabilityTypeSpecifiers(ParsedAttributes &attrs);
   VersionTuple ParseVersionTuple(SourceRange &Range);

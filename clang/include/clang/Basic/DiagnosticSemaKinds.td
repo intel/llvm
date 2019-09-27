@@ -127,14 +127,16 @@ def err_attribute_argument_not_power_of_two : Error<
   "%0 attribute argument must be a constant power of two greater than zero">;
 def err_intel_fpga_memory_arg_invalid : Error<
   "%0 attribute requires either no argument or one of: %1">;
-def err_intel_fpga_loop_attr_duplication : Error<
-  "duplicate Intel FPGA loop attribute '%0'">;
 def err_intel_fpga_merge_dir_invalid : Error<
   "merge direction must be 'depth' or 'width'">;
 def err_intel_fpga_reg_limitations : Error <
   "Illegal %select{argument of type %1 |field in argument}0 to __builtin_intel_fpga_reg.">;
 def illegal_type_declared_here : Note<
   "Field with illegal type declared here">;
+def err_sycl_loop_attr_duplication : Error<
+  "duplicate %select{unroll|Intel FPGA}0 loop attribute '%1'">;
+def err_loop_unroll_compatibility : Error<
+  "incompatible loop unroll instructions: '%0' and '%1'">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
