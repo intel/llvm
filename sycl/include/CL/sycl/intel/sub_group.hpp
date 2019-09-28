@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
@@ -118,30 +119,30 @@ struct sub_group {
 
 
   template <typename T>
-  using EnableIfIsArithmetic = detail::enable_if_t<
-    detail::is_arithmetic<T>::value, T>;
+  using EnableIfIsScalarArithmetic = detail::enable_if_t<
+    !is_vec<T>::value && detail::is_arithmetic<T>::value, T>;
 
   /* --- collectives --- */
 
   template <typename T>
-  T broadcast(EnableIfIsArithmetic<T> x, id<1> local_id) const {
+  T broadcast(EnableIfIsScalarArithmetic<T> x, id<1> local_id) const {
     return __spirv_GroupBroadcast<T>(__spv::Scope::Subgroup, x,
                                             local_id.get(0));
   }
 
   template <typename T, class BinaryOperation>
-  T reduce(EnableIfIsArithmetic<T> x) const {
+  T reduce(EnableIfIsScalarArithmetic<T> x) const {
     return BinaryOperation::template calc<T, __spv::GroupOperation::Reduce>(x);
   }
 
   template <typename T, class BinaryOperation>
-  T exclusive_scan(EnableIfIsArithmetic<T> x) const {
+  T exclusive_scan(EnableIfIsScalarArithmetic<T> x) const {
     return BinaryOperation::template
         calc<T, __spv::GroupOperation::ExclusiveScan>(x);
   }
 
   template <typename T, class BinaryOperation>
-  T inclusive_scan(EnableIfIsArithmetic<T> x) const {
+  T inclusive_scan(EnableIfIsScalarArithmetic<T> x) const {
     return BinaryOperation::template
         calc<T, __spv::GroupOperation::InclusiveScan>(x);
   }
@@ -150,7 +151,7 @@ struct sub_group {
   /* indices in [0 , sub - group size ) */
 
   template <typename T>
-  EnableIfIsArithmetic<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle(T x, id<1> local_id) const {
     return __spirv_SubgroupShuffleINTEL(x, local_id.get(0));
   }
@@ -163,7 +164,7 @@ struct sub_group {
   }
 
   template <typename T>
-  EnableIfIsArithmetic<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_down(T x, uint32_t delta) const {
     return shuffle_down(x, x, delta);
   }
@@ -175,7 +176,7 @@ struct sub_group {
   }
 
   template <typename T>
-  EnableIfIsArithmetic<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_up(T x, uint32_t delta) const {
     return shuffle_up(x, x, delta);
   }
@@ -187,7 +188,7 @@ struct sub_group {
   }
 
   template <typename T>
-  EnableIfIsArithmetic<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_xor(T x, id<1> value) const {
     return __spirv_SubgroupShuffleXorINTEL(x, (uint32_t)value.get(0));
   }
@@ -202,7 +203,7 @@ struct sub_group {
   /* --- two - input shuffles --- */
   /* indices in [0 , 2* sub - group size ) */
   template <typename T>
-  EnableIfIsArithmetic<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle(T x, T y, id<1> local_id) const {
     return __spirv_SubgroupShuffleDownINTEL(
         x, y, local_id.get(0) - get_local_id().get(0));
@@ -217,7 +218,7 @@ struct sub_group {
   }
 
   template <typename T>
-  EnableIfIsArithmetic<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_down(T current, T next, uint32_t delta) const {
     return __spirv_SubgroupShuffleDownINTEL(current, next, delta);
   }
@@ -230,7 +231,7 @@ struct sub_group {
   }
 
   template <typename T>
-  EnableIfIsArithmetic<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_up(T previous, T current, uint32_t delta) const {
     return __spirv_SubgroupShuffleUpINTEL(previous, current, delta);
   }
