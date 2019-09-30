@@ -156,6 +156,7 @@ add_custom_target( sycl-toolchain
           llvm-link
           llvm-objcopy
           opt
+          sycl-split
   COMMENT "Building SYCL compiler toolchain..."
 )
 
