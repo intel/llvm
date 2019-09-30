@@ -52,6 +52,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstring>
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv>
 #endif
@@ -579,11 +580,16 @@ public:
     return Result;
   }
 
-  template <typename asT>
-  typename std::enable_if<sizeof(asT) == sizeof(DataType), asT>::type
-  as() const {
+  template <typename asT> asT as() const {
+    static_assert((sizeof(*this) == sizeof(asT)),
+                  "The new SYCL vec type must have the same storage size in "
+                  "bytes as this SYCL vec");
+    static_assert(
+        detail::is_contained<asT, detail::gtl::vector_basic_list>::value,
+        "asT must be SYCL vec of a different element type and "
+        "number of elements specified by asT");
     asT Result;
-    *static_cast<DataType *>(static_cast<void *>(&Result.m_Data)) = m_Data;
+    std::memcpy(&Result.m_Data, &m_Data, sizeof(decltype(Result.m_Data)));
     return Result;
   }
 
