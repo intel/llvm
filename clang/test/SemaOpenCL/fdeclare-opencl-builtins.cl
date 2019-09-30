@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 %s -triple spir -verify -pedantic -fsyntax-only -cl-std=CL -fdeclare-opencl-builtins -DNO_HEADER
-// RUN: %clang_cc1 %s -triple spir -verify -pedantic -fsyntax-only -cl-std=CL -fdeclare-opencl-builtins -finclude-default-header
-// RUN: %clang_cc1 %s -triple spir -verify -pedantic -fsyntax-only -cl-std=CL1.2 -fdeclare-opencl-builtins -DNO_HEADER
-// RUN: %clang_cc1 %s -triple spir -verify -pedantic -fsyntax-only -cl-std=CL1.2 -fdeclare-opencl-builtins -finclude-default-header
-// RUN: %clang_cc1 %s -triple spir -verify -pedantic -fsyntax-only -cl-std=CL2.0 -fdeclare-opencl-builtins -DNO_HEADER
-// RUN: %clang_cc1 %s -triple spir -verify -pedantic -fsyntax-only -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header
+// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL -fdeclare-opencl-builtins -DNO_HEADER
+// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL -fdeclare-opencl-builtins -finclude-default-header
+// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL1.2 -fdeclare-opencl-builtins -DNO_HEADER
+// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL1.2 -fdeclare-opencl-builtins -finclude-default-header
+// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL2.0 -fdeclare-opencl-builtins -DNO_HEADER
+// RUN: %clang_cc1 %s -triple spir -verify -pedantic -Wconversion -Werror -fsyntax-only -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header
 
 #if __OPENCL_C_VERSION__ >= CL_VERSION_2_0
 // expected-no-diagnostics
@@ -71,6 +71,8 @@ kernel void basic_image_readonly(read_only image2d_t image_read_only_image2d) {
   resf = read_imagef(image_read_only_image2d, i2);
   res = read_imageh(image_read_only_image2d, i2);
   res = read_imageh(image_read_only_image2d, sampler, i2);
+
+  int imgWidth = get_image_width(image_read_only_image2d);
 }
 
 #if __OPENCL_C_VERSION__ >= CL_VERSION_2_0
@@ -79,6 +81,8 @@ kernel void basic_image_readwrite(read_write image3d_t image_read_write_image3d)
   int4 i4;
 
   write_imageh(image_read_write_image3d, i4, h4);
+
+  int imgDepth = get_image_depth(image_read_write_image3d);
 }
 #endif // __OPENCL_C_VERSION__ >= CL_VERSION_2_0
 
@@ -95,6 +99,7 @@ kernel void basic_subgroup(global uint *out) {
   out[0] = get_sub_group_size();
 #if __OPENCL_C_VERSION__ < CL_VERSION_2_0
 // expected-error@-2{{implicit declaration of function 'get_sub_group_size' is invalid in OpenCL}}
+// expected-error@-3{{implicit conversion changes signedness: 'int' to 'uint' (aka 'unsigned int')}}
 #endif
 }
 

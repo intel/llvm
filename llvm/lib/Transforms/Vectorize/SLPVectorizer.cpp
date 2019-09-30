@@ -1124,7 +1124,7 @@ public:
   /// Checks if the instruction is marked for deletion.
   bool isDeleted(Instruction *I) const { return DeletedInstructions.count(I); }
 
-  /// Marks values for later deletion.
+  /// Marks values operands for later deletion by replacing them with Undefs.
   void eraseInstructions(ArrayRef<Value *> AV);
 
   ~BoUpSLP();
@@ -1498,13 +1498,14 @@ private:
   /// This is required to ensure that there are no incorrect collisions in the
   /// AliasCache, which can happen if a new instruction is allocated at the
   /// same address as a previously deleted instruction.
-  void eraseInstruction(Instruction *I) {
-    DeletedInstructions.insert(I);
+  void eraseInstruction(Instruction *I, bool ReplaceOpsWithUndef = false) {
+    auto It = DeletedInstructions.try_emplace(I, ReplaceOpsWithUndef).first;
+    It->getSecond() = It->getSecond() && ReplaceOpsWithUndef;
   }
 
   /// Temporary store for deleted instructions. Instructions will be deleted
   /// eventually when the BoUpSLP is destructed.
-  SmallPtrSet<Instruction *, 8> DeletedInstructions;
+  DenseMap<Instruction *, bool> DeletedInstructions;
 
   /// A list of values that need to extracted out of the tree.
   /// This list holds pairs of (Internal Scalar : External User). External User
@@ -2062,18 +2063,26 @@ template <> struct DOTGraphTraits<BoUpSLP *> : public DefaultDOTGraphTraits {
 } // end namespace llvm
 
 BoUpSLP::~BoUpSLP() {
-  for (auto *I : DeletedInstructions)
-    I->dropAllReferences();
-  for (auto *I : DeletedInstructions) {
-    assert(I->use_empty() && "trying to erase instruction with users.");
-    I->eraseFromParent();
+  for (const auto &Pair : DeletedInstructions) {
+    // Replace operands of ignored instructions with Undefs in case if they were
+    // marked for deletion.
+    if (Pair.getSecond()) {
+      Value *Undef = UndefValue::get(Pair.getFirst()->getType());
+      Pair.getFirst()->replaceAllUsesWith(Undef);
+    }
+    Pair.getFirst()->dropAllReferences();
+  }
+  for (const auto &Pair : DeletedInstructions) {
+    assert(Pair.getFirst()->use_empty() &&
+           "trying to erase instruction with users.");
+    Pair.getFirst()->eraseFromParent();
   }
 }
 
 void BoUpSLP::eraseInstructions(ArrayRef<Value *> AV) {
   for (auto *V : AV) {
     if (auto *I = dyn_cast<Instruction>(V))
-      eraseInstruction(I);
+      eraseInstruction(I, /*ReplaceWithUndef=*/true);
   };
 }
 
@@ -3973,11 +3982,10 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       if (getTreeEntry(PO))
         ExternalUses.push_back(ExternalUser(PO, cast<User>(VecPtr), 0));
 
-      unsigned Alignment = LI->getAlignment();
+      MaybeAlign Alignment = MaybeAlign(LI->getAlignment());
       LI = Builder.CreateLoad(VecTy, VecPtr);
-      if (!Alignment) {
-        Alignment = DL->getABITypeAlignment(ScalarLoadTy);
-      }
+      if (!Alignment)
+        Alignment = MaybeAlign(DL->getABITypeAlignment(ScalarLoadTy));
       LI->setAlignment(Alignment);
       Value *V = propagateMetadata(LI, E->Scalars);
       if (IsReorder) {

@@ -3093,7 +3093,7 @@ void CodeGenFunction::EmitDelegateCallArg(CallArgList &args,
   // Deactivate the cleanup for the callee-destructed param that was pushed.
   if (hasAggregateEvaluationKind(type) && !CurFuncIsThunk &&
       type->getAs<RecordType>()->getDecl()->isParamDestroyedInCallee() &&
-      type.isDestructedType()) {
+      param->needsDestruction(getContext())) {
     EHScopeStack::stable_iterator cleanup =
         CalleeDestructedParamCleanups.lookup(cast<ParmVarDecl>(param));
     assert(cleanup.isValid() &&
@@ -3841,7 +3841,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       AI = CreateTempAlloca(ArgStruct, "argmem");
     }
     auto Align = CallInfo.getArgStructAlignment();
-    AI->setAlignment(Align.getQuantity());
+    AI->setAlignment(llvm::MaybeAlign(Align.getQuantity()));
     AI->setUsedWithInAlloca(true);
     assert(AI->isUsedWithInAlloca() && !AI->isStaticAlloca());
     ArgMemory = Address(AI, Align);

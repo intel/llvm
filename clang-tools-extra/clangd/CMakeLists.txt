@@ -56,6 +56,7 @@ add_clang_library(clangDaemon
   FuzzyMatch.cpp
   GlobalCompilationDatabase.cpp
   Headers.cpp
+  HeaderSourceSwitch.cpp
   IncludeFixer.cpp
   JSONTransport.cpp
   Logger.cpp
@@ -116,25 +117,6 @@ add_clang_library(clangDaemon
   clangSema
   clangSerialization
   clangTidy
-  clangTidyAndroidModule
-  clangTidyAbseilModule
-  clangTidyBoostModule
-  clangTidyBugproneModule
-  clangTidyCERTModule
-  clangTidyCppCoreGuidelinesModule
-  clangTidyFuchsiaModule
-  clangTidyGoogleModule
-  clangTidyHICPPModule
-  clangTidyLinuxKernelModule
-  clangTidyLLVMModule
-  clangTidyMiscModule
-  clangTidyModernizeModule
-  clangTidyObjCModule
-  clangTidyOpenMPModule
-  clangTidyPerformanceModule
-  clangTidyPortabilityModule
-  clangTidyReadabilityModule
-  clangTidyZirconModule
   clangTooling
   clangToolingCore
   clangToolingInclusions
@@ -142,6 +124,7 @@ add_clang_library(clangDaemon
   clangToolingSyntax
   ${LLVM_PTHREAD_LIB}
   ${CLANGD_ATOMIC_LIB}
+  ${ALL_CLANG_TIDY_CHECKS}
   )
 
 add_subdirectory(refactor/tweaks)

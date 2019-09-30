@@ -45,7 +45,8 @@ def mve_shift_imm : AsmOperandClass {
   let RenderMethod = "addImmOperands";
   let DiagnosticString = "operand must be an immediate in the range [1,32]";
 }
-def long_shift : Operand<i32> {
+def long_shift : Operand<i32>,
+                 ImmLeaf<i32, [{ return Imm > 0 && Imm <= 32; }]> {
   let ParserMatchClass = mve_shift_imm;
   let DecoderMethod = "DecodeLongShiftOperand";
 }
@@ -4085,7 +4086,7 @@ def t2LDRpci_pic : PseudoInst<(outs rGPR:$dst), (ins i32imm:$addr, pclabel:$cp),
 
 // Pseudo isntruction that combines movs + predicated rsbmi
 // to implement integer ABS
-let usesCustomInserter = 1, Defs = [CPSR] in {
+let usesCustomInserter = 1, Defs = [CPSR], hasNoSchedulingInfo = 1 in {
 def t2ABS : PseudoInst<(outs rGPR:$dst), (ins rGPR:$src),
                        NoItinerary, []>, Requires<[IsThumb2]>;
 }
@@ -5087,6 +5088,7 @@ def t2BF_LabelPseudo
   : t2PseudoInst<(outs ), (ins pclabel:$cp), 0, NoItinerary, []> {
   let isTerminator = 1;
   let Predicates = [IsThumb2, HasV8_1MMainline, HasLOB];
+  let hasNoSchedulingInfo = 1;
 }
 
 def t2BFi : t2BF<(ins bflabel_u4:$b_label, bflabel_s16:$label, pred:$p),

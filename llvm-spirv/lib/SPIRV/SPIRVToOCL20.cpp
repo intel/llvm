@@ -283,7 +283,7 @@ Instruction *SPIRVToOCL20::visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) {
                                                       ->getParent()
                                                       ->getEntryBlock()
                                                       .getFirstInsertionPt()));
-        PExpected->setAlignment(CI->getType()->getScalarSizeInBits() / 8);
+        PExpected->setAlignment(MaybeAlign(CI->getType()->getScalarSizeInBits() / 8));
         new StoreInst(Args[1], PExpected, PInsertBefore);
         unsigned AddrSpc = SPIRAS_Generic;
         Type *PtrTyAS =

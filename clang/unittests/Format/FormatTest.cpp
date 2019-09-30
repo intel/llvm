@@ -6901,6 +6901,74 @@ TEST_F(FormatTest, UnderstandsFunctionRefQualification) {
                Spaces);
   verifyFormat("Deleted &operator=( const Deleted & ) &;", Spaces);
   verifyFormat("SomeType MemberFunction( const Deleted & ) &;", Spaces);
+
+  FormatStyle BreakTemplate = getLLVMStyle();
+  BreakTemplate.AlwaysBreakTemplateDeclarations = FormatStyle::BTDS_Yes;
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  int &foo(const std::string &str) & noexcept {}\n"
+               "};",
+               BreakTemplate);
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  int &foo(const std::string &str) && noexcept {}\n"
+               "};",
+               BreakTemplate);
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  int &foo(const std::string &str) const & noexcept {}\n"
+               "};",
+               BreakTemplate);
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  int &foo(const std::string &str) const & noexcept {}\n"
+               "};",
+               BreakTemplate);
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  auto foo(const std::string &str) && noexcept -> int & {}\n"
+               "};",
+               BreakTemplate);
+
+  FormatStyle AlignLeftBreakTemplate = getLLVMStyle();
+  AlignLeftBreakTemplate.AlwaysBreakTemplateDeclarations =
+      FormatStyle::BTDS_Yes;
+  AlignLeftBreakTemplate.PointerAlignment = FormatStyle::PAS_Left;
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  int& foo(const std::string& str) & noexcept {}\n"
+               "};",
+               AlignLeftBreakTemplate);
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  int& foo(const std::string& str) && noexcept {}\n"
+               "};",
+               AlignLeftBreakTemplate);
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  int& foo(const std::string& str) const & noexcept {}\n"
+               "};",
+               AlignLeftBreakTemplate);
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  int& foo(const std::string& str) const & noexcept {}\n"
+               "};",
+               AlignLeftBreakTemplate);
+
+  verifyFormat("struct f {\n"
+               "  template <class T>\n"
+               "  auto foo(const std::string& str) && noexcept -> int& {}\n"
+               "};",
+               AlignLeftBreakTemplate);
 }
 
 TEST_F(FormatTest, UnderstandsNewAndDelete) {
@@ -12463,7 +12531,7 @@ TEST_F(FormatTest, ParsesConfiguration) {
 
   Style.IncludeStyle.IncludeCategories.clear();
   std::vector<tooling::IncludeStyle::IncludeCategory> ExpectedCategories = {
-      {"abc/.*", 2}, {".*", 1}};
+      {"abc/.*", 2, 0}, {".*", 1, 0}};
   CHECK_PARSE("IncludeCategories:\n"
               "  - Regex: abc/.*\n"
               "    Priority: 2\n"

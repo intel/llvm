@@ -2398,6 +2398,8 @@ def err_constexpr_var_non_literal : Error<
   "constexpr variable cannot have non-literal type %0">;
 def err_constexpr_var_requires_const_init : Error<
   "constexpr variable %0 must be initialized by a constant expression">;
+def err_constexpr_var_requires_const_destruction : Error<
+  "constexpr variable %0 must have constant destruction">;
 def err_constexpr_redecl_mismatch : Error<
   "%select{non-constexpr|constexpr|consteval}1 declaration of %0"
   " follows %select{non-constexpr|constexpr|consteval}2 declaration">;
@@ -3032,6 +3034,10 @@ def warn_gnu_inline_attribute_requires_inline : Warning<
   "'gnu_inline' attribute requires function to be marked 'inline',"
   " attribute ignored">,
   InGroup<IgnoredAttributes>;
+def warn_gnu_inline_cplusplus_without_extern : Warning<
+  "'gnu_inline' attribute without 'extern' in C++ treated as externally"
+  " available, this changed in Clang 10">,
+  InGroup<DiagGroup<"gnu-inline-cpp-without-extern">>;
 def err_attribute_vecreturn_only_vector_member : Error<
   "the vecreturn attribute can only be used on a class or structure with one member, which must be a vector">;
 def err_attribute_vecreturn_only_pod_record : Error<
@@ -9476,9 +9482,12 @@ def warn_omp_declare_target_after_first_use : Warning<
   InGroup<OpenMPTarget>;
 def err_omp_declare_variant_incompat_attributes : Error<
   "'#pragma omp declare variant' is not compatible with any target-specific attributes">;
-def err_omp_declare_variant_after_used : Error<
+def warn_omp_declare_variant_after_used : Warning<
   "'#pragma omp declare variant' cannot be applied for function after first "
-  "usage">;
+  "usage; the original function might be used">, InGroup<SourceUsesOpenMP>;
+def warn_omp_declare_variant_after_emitted : Warning<
+  "'#pragma omp declare variant' cannot be applied to the function that was defined already;"
+  " the original function might be used">, InGroup<SourceUsesOpenMP>;
 def err_omp_declare_variant_noproto : Error<
   "function with '#pragma omp declare variant' must have a prototype">;
 def note_omp_declare_variant_specified_here : Note<

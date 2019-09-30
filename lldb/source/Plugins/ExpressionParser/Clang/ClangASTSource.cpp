@@ -108,8 +108,7 @@ void ClangASTSource::InstallASTContext(clang::ASTContext &ast_context,
     } while (false);
 
     do {
-      auto *modules_decl_vendor = llvm::cast<ClangModulesDeclVendor>(
-          m_target->GetClangModulesDeclVendor());
+      auto *modules_decl_vendor = m_target->GetClangModulesDeclVendor();
 
       if (!modules_decl_vendor)
         break;
@@ -130,8 +129,6 @@ void ClangASTSource::InstallASTContext(clang::ASTContext &ast_context,
                          *scratch_ast_context->getFileManager(),
                          scratch_ast_context->GetOriginMap()});
     }
-    while (false)
-      ;
 
     m_merger_up =
         std::make_unique<clang::ExternalASTMerger>(target, sources);

@@ -30,7 +30,9 @@ add_library(LLVMExegesis
   RegisterAliasing.cpp
   RegisterValue.cpp
   SchedClassResolution.cpp
+  SnippetFile.cpp
   SnippetGenerator.cpp
+  SnippetRepetitor.cpp
   Target.cpp
   Uops.cpp
   )

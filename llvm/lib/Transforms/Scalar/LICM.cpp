@@ -963,7 +963,7 @@ bool llvm::hoistRegion(DomTreeNode *N, AliasAnalysis *AA, LoopInfo *LI,
 
     // Now that we've finished hoisting make sure that LI and DT are still
     // valid.
-#ifndef NDEBUG
+#ifdef EXPENSIVE_CHECKS
   if (Changed) {
     assert(DT->verify(DominatorTree::VerificationLevel::Fast) &&
            "Dominator tree verification failed");
@@ -2109,7 +2109,7 @@ bool llvm::promoteLoopAccessesToScalars(
       SomePtr->getName() + ".promoted", Preheader->getTerminator());
   if (SawUnorderedAtomic)
     PreheaderLoad->setOrdering(AtomicOrdering::Unordered);
-  PreheaderLoad->setAlignment(Alignment);
+  PreheaderLoad->setAlignment(MaybeAlign(Alignment));
   PreheaderLoad->setDebugLoc(DL);
   if (AATags)
     PreheaderLoad->setAAMetadata(AATags);
