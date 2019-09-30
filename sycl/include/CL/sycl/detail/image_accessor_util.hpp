@@ -894,10 +894,6 @@ DataT ReadPixelDataLinearFiltMode(const cl_int8 CoordValues,
                                   void *BasePtr, const uint8_t ElementSize) {
   cl_int i0 = CoordValues.s0(), j0 = CoordValues.s1(), k0 = CoordValues.s2(),
          i1 = CoordValues.s4(), j1 = CoordValues.s5(), k1 = CoordValues.s6();
-  cl_float a = abc.x();
-  cl_float b = abc.y();
-  cl_float c = abc.z();
-  cl_float4 RetData;
 
   auto getColorInFloat =
       [&](cl_int4 V) {
@@ -924,15 +920,21 @@ DataT ReadPixelDataLinearFiltMode(const cl_int8 CoordValues,
   
   cl_float4 Ci1j1k1 = getColorInFloat(cl_int4{i1, j1, k1, 0});
 
-  RetData =
-      ((1 - a) * (1 - b) * (1 - c) * Ci0j0k0) +
-      (a * (1 - b) * (1 - c) * Ci1j0k0) +
-      ((1 - a) * b * (1 - c) * Ci0j1k0) +
-      (a * b * (1 - c) * Ci1j1k0) +
-      ((1 - a) * (1 - b) * c * Ci0j0k1) +
-      (a * (1 - b) * c * Ci1j0k1) +
-      ((1 - a) * b * c * Ci0j1k1) +
-      (a * b * c * Ci1j1k1);
+  cl_float a = abc.x();
+  cl_float b = abc.y();
+  cl_float c = abc.z();
+
+  Ci0j0k0 = (1 - a) * (1 - b) * (1 - c) * Ci0j0k0;
+  Ci1j0k0 = a * (1 - b) * (1 - c) * Ci1j0k0;
+  Ci0j1k0 = (1 - a) * b * (1 - c) * Ci0j1k0;
+  Ci1j1k0 = a * b * (1 - c) * Ci1j1k0;
+  Ci0j0k1 = (1 - a) * (1 - b) * c * Ci0j0k1;
+  Ci1j0k1 = a * (1 - b) * c * Ci1j0k1;
+  Ci0j1k1 = (1 - a) * b * c * Ci0j1k1;
+  Ci1j1k1 = a * b * c * Ci1j1k1;
+
+  cl_float4 RetData = Ci0j0k0 + Ci1j0k0 + Ci0j1k0 + Ci1j1k0 + Ci0j0k1 +
+                      Ci1j0k1 + Ci0j1k1 + Ci1j1k1;
 
   // For 2D image:k0 = 0, k1 = 0, c = 0.5
   // RetData = (1 – a) * (1 – b) * Ci0j0 + a * (1 – b) * Ci1j0 +
