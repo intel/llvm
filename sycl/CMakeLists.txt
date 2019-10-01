@@ -149,6 +149,7 @@ add_subdirectory(source)
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
   DEPENDS ${SYCL_RT_LIBS}
+          pi_opencl
           clang
           clang-offload-wrapper
           clang-offload-bundler
@@ -173,6 +174,7 @@ option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
 
+add_subdirectory( plugins )
 add_subdirectory(tools)
 
 if(SYCL_INCLUDE_TESTS)
