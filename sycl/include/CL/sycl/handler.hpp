@@ -1059,7 +1059,39 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  // copy memory pointed by accessor to the memory pointed by another accessor
+  static id<1> getDelinearizedIndex(const range<1> Range, const size_t Index) {
+    return {Index};
+  }
+
+  static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
+    size_t x = Index / Range[1];
+    size_t y = Index % Range[1];
+    return {x, y};
+  }
+
+  static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
+    size_t x = Index / (Range[1] * Range[2]);
+    size_t y = (Index / Range[2]) % Range[1];
+    size_t z = Index % Range[2];
+    return {x, y, z};
+  }
+
+  // Checks whether it is possible to copy the source shape to the destination
+  // shape(the shapes are described by the accessor ranges) by using
+  // copying by regions of memory and not copying element by element
+  // Shapes can be 1, 2 or 3 dimensional rectangles.
+  template <int Dims_Src, int Dims_Dst>
+  static bool IsCopyingRectRegionAvailable(const range<Dims_Src> Src,
+                                         const range<Dims_Dst> Dst) {
+    if (Dims_Src > Dims_Dst)
+      return false;
+    for (size_t I = 0; I < Dims_Src; ++I)
+      if (Src[I] > Dst[I])
+        return false;
+    return true;
+  }
+
+// copy memory pointed by accessor to the memory pointed by another accessor
   template <
       typename T_Src, int Dims_Src, access::mode AccessMode_Src,
       access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
@@ -1076,21 +1108,32 @@ public:
                   "Invalid source accessor target for the copy method.");
     static_assert(isValidTargetForExplicitOp(AccessTarget_Dst),
                   "Invalid destination accessor target for the copy method.");
-#ifndef __SYCL_DEVICE_ONLY__
-    if (MIsHost) {
-      range<Dims_Src> Range = Dst.get_range();
+    // TODO replace to get_size() when it will provide correct values.
+    assert(
+        (Dst.get_range().size() * sizeof(T_Dst) >=
+         Src.get_range().size() * sizeof(T_Src)) &&
+        "dest must have at least as many bytes as the range accessed by src.");
+    if (MIsHost ||
+        !IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range())) {
+      range<Dims_Src> CopyRange = Src.get_range();
+      size_t Range = 1;
+      for (size_t I = 0; I < Dims_Src; ++I)
+        Range *= CopyRange[I];
+      range<1> LinearizedRange(Range);
       parallel_for< class __copyAcc2Acc< T_Src, Dims_Src, AccessMode_Src,
                                          AccessTarget_Src, T_Dst, Dims_Dst,
                                          AccessMode_Dst, AccessTarget_Dst,
                                          IsPlaceholder_Src,
                                          IsPlaceholder_Dst>>
-                                         (Range, [=](id<Dims_Src> Index) {
-        Dst[Index] = Src[Index];
+                                         (LinearizedRange, [=](id<1> Id) {
+        size_t Index = Id[0];
+        id<Dims_Src> SrcIndex = getDelinearizedIndex(Src.get_range(), Index);
+        id<Dims_Dst> DstIndex = getDelinearizedIndex(Dst.get_range(), Index);
+        Dst[DstIndex] = Src[SrcIndex];
       });
 
       return;
     }
-#endif
     MCGType = detail::CG::COPY_ACC_TO_ACC;
 
     detail::AccessorBaseHost *AccBaseSrc = (detail::AccessorBaseHost *)&Src;
