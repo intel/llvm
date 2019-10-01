@@ -10,6 +10,7 @@
 #include <cstdarg>
 #include <iostream>
 #include <map>
+#include <string>
 
 namespace cl {
 namespace sycl {
@@ -37,22 +38,55 @@ std::string platformInfoToString(pi_platform_info info) {
 // Check for manually selected BE at run-time.
 bool useBackend(Backend TheBackend) {
   static const char *GetEnv = std::getenv("SYCL_BE");
-  static const Backend Use =
-    std::map<std::string, Backend>{
-      { "PI_OPENCL", SYCL_BE_PI_OPENCL },
-      { "PI_OTHER",  SYCL_BE_PI_OTHER }
+  static const Backend Use = std::map<std::string, Backend>{
+      {"PI_OPENCL", SYCL_BE_PI_OPENCL}, {"PI_OTHER", SYCL_BE_PI_OTHER}
       // Any other value would yield PI_OPENCL (current default)
-    }[ GetEnv ? GetEnv : "PI_OPENCL"];
+  }[GetEnv ? GetEnv : "PI_OPENCL"];
   return TheBackend == Use;
 }
 
 // Definitions of the PI dispatch entries, they will be initialized
 // at their first use with piInitialize.
-#define _PI_API(api) decltype(::api) * api = nullptr;
+#define _PI_API(api) decltype(::api) *api = nullptr;
 #include <CL/sycl/detail/pi.def>
 
-// TODO: implement real plugins (ICD-like?)
-// For now this has the effect of redirecting to built-in PI OpenCL plugin.
+// Find the plugin at the appropriate location and return the location in
+// PluginPath
+// TODO: Change the function appropriately when there are multiple plugins.
+bool findPlugin(std::string &PluginPath) {
+  // TODO: Based on final design discussions, change the location where the
+  // plugin must be searched; how to identify the plugins etc. Currently the
+  // search is done for libpi_opencl.so file in LD_LIBRARY_PATH env only.
+  PluginPath = PLUGIN_NAME;
+  return true;
+}
+
+// Load the Plugin by calling the OS dependent library loading call.
+// Return the handle to the Library.
+void *loadPlugin(std::string PluginPath) { return loadOsLibrary(PluginPath.c_str()); }
+
+// Binds all the PI Interface APIs to Plugin Library Function Addresses.
+// TODO: Remove the 'OclPtr' extension to PI_API.
+bool bindPlugin(void *Library) {
+#define STRINGIZE(x) #x
+
+#define _PI_API(api)                                                           \
+  decltype(&api) api##_ptr = ((decltype(&api))(                                \
+      getOsLibraryFuncAddress(Library, STRINGIZE(api##OclPtr))));              \
+  if (!api##_ptr)                                                              \
+    return false;                                                              \
+  api = *api##_ptr;
+#include <CL/sycl/detail/pi.def>
+
+#undef STRINGIZE
+#undef _PI_API
+  return true;
+}
+
+// Load the plugin based on SYCL_BE.
+// TODO: Currently only accepting OpenCL plugins. Edit it to identify and load
+// other kinds of plugins, do the required changes in the findPlugin, loadPlugin
+// and bindPlugin functions.
 void initialize() {
   static bool Initialized = false;
   if (Initialized) {
@@ -61,10 +95,19 @@ void initialize() {
   if (!useBackend(SYCL_BE_PI_OPENCL)) {
     die("Unknown SYCL_BE");
   }
-  #define _PI_API(api)                          \
-    extern decltype(::api) * api##OclPtr; \
-    api = api##OclPtr;
-  #include <CL/sycl/detail/pi.def>
+
+  std::string PluginPath;
+  if (!findPlugin(PluginPath))
+    die("Plugin Not Found.");
+
+  void *Library = loadPlugin(PluginPath);
+  if (!Library) {
+    die("Failed to load plugin. Check if plugin is present.");
+  }
+
+  if (!bindPlugin(Library)) {
+    die("Failed to bind PI APIs to the plugin.");
+  }
 
   Initialized = true;
 }
@@ -74,7 +117,7 @@ void initialize() {
 //       but for now it is useful to see every failure.
 //
 [[noreturn]] void die(const char *Message) {
-  std::cerr << "pi_die: " << Message << std::endl;
+  std::cout << "pi_die: " << Message << std::endl;
   std::terminate();
 }
 
@@ -102,8 +145,7 @@ RT::PiResult PiCall::get(RT::PiResult Result) {
   m_Result = Result;
   return Result;
 }
-template<typename Exception>
-void PiCall::check(RT::PiResult Result) {
+template <typename Exception> void PiCall::check(RT::PiResult Result) {
   m_Result = Result;
   // TODO: remove dependency on CHECK_OCL_CODE_THROW.
   CHECK_OCL_CODE_THROW(Result, Exception);

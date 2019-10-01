@@ -13,6 +13,15 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
+#include <cassert>
+
+// Function to load the shared library
+// Implementation is OS dependent. 
+void* loadOsLibrary(const char* library);
+
+// Function to Function Address corresponding to a symbol in the shared library,
+// Implementation is OS dependent.
+void* getOsLibraryFuncAddress(void*, const char*);
 
 namespace cl {
 namespace sycl {
@@ -25,6 +34,12 @@ namespace pi {
     SYCL_BE_PI_OPENCL,
     SYCL_BE_PI_OTHER
   };
+
+#ifdef SYCL_RT_OS_WINDOWS
+#define PLUGIN_NAME "pi_opencl"
+#else
+#define PLUGIN_NAME "libpi_opencl"
+#endif
 
   // Check for manually selected BE at run-time.
   bool useBackend(Backend Backend);
@@ -177,7 +192,7 @@ namespace RT = cl::sycl::detail::pi;
 template<class To, class From>
 To pi::cast(From value) {
   // TODO: see if more sanity checks are possible.
-  PI_ASSERT(sizeof(From) == sizeof(To), "cast failed size check");
+  assert(sizeof(From) == sizeof(To) && "cast failed size check");
   return (To)(value);
 }
 

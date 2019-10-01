@@ -139,10 +139,12 @@ install(DIRECTORY "${sycl_inc_dir}/." DESTINATION "${LLVM_INST_INC_DIRECTORY}" C
 
 # SYCL runtime library
 add_subdirectory(source)
+add_subdirectory(plugins)
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
   DEPENDS sycl
+  	  pi_opencl
           clang
           clang-offload-wrapper
           clang-offload-bundler

@@ -4,6 +4,14 @@
 #cmake_policy(SET CMP0057 NEW)
 #include(AddLLVM)
 
+if (WIN32)
+    set(OS_PLUGIN_INTERFACE 
+	    detail/windows_pi.cpp)
+else ()
+    set(OS_PLUGIN_INTERFACE 
+	    detail/linux_pi.cpp)
+endif ()
+
 add_library(sycl SHARED
   "${sycl_inc_dir}/CL/sycl.hpp"
   "detail/builtins_common.cpp"
@@ -12,7 +20,6 @@ add_library(sycl SHARED
   "detail/builtins_math.cpp"
   "detail/builtins_relational.cpp"
   "detail/pi.cpp"
-  "detail/pi_opencl.cpp"
   "detail/common.cpp"
   "detail/context_impl.cpp"
   "detail/device_impl.cpp"
@@ -56,8 +63,9 @@ add_library(sycl SHARED
   "sampler.cpp"
   "stream.cpp"
   "spirv_ops.cpp"
+  "${OS_PLUGIN_INTERFACE}"
 )
-
+#To-Do: Remove dependency on icd loader ad opencl headers.
 add_dependencies(sycl
   ocl-icd
   ocl-headers
@@ -73,7 +81,9 @@ target_include_directories(sycl PRIVATE "${sycl_inc_dir}")
 target_link_libraries(sycl
     PRIVATE OpenCL::Headers
     PRIVATE ${OpenCL_LIBRARIES}
+    PRIVATE ${CMAKE_DL_LIBS}
 )
+
 if (SYCL_USE_LIBCXX)
     if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
         (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
