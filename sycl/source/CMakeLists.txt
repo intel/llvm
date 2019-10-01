@@ -8,6 +8,7 @@ function(add_sycl_rt_library LIB_NAME)
 
   add_library(${LIB_NAME} SHARED ${ARGN})
 
+  #To-Do: Remove dependency on icd loader and opencl headers.
   add_dependencies(${LIB_NAME}
     ocl-icd
     ocl-headers
@@ -23,30 +24,11 @@ function(add_sycl_rt_library LIB_NAME)
   target_link_libraries(${LIB_NAME}
       PRIVATE OpenCL::Headers
       PRIVATE ${OpenCL_LIBRARIES}
+      PRIVATE ${CMAKE_DL_LIBS}
   )
-  if (SYCL_USE_LIBCXX)
-      if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-          (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-          target_compile_options(${LIB_NAME} PRIVATE -nostdinc++)
-          if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-              message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                                  "SYCL_LIBCXX_LIBRARY_PATH should be set")
-          endif()
-          target_include_directories(${LIB_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-          target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-      else()
-          message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
-      endif()
-  else()
 
-# Workaround for bug in GCC version 5 and higher.
-# More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
-        CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
-    target_link_libraries(${LIB_NAME} PRIVATE gcc_s gcc)
-    endif()
+  add_common_options(${LIB_NAME})
 
-  endif()
 endfunction(add_sycl_rt_library)
 
 set(SYCL_SOURCES
@@ -57,7 +39,6 @@ set(SYCL_SOURCES
     "detail/builtins_math.cpp"
     "detail/builtins_relational.cpp"
     "detail/pi.cpp"
-    "detail/pi_opencl.cpp"
     "detail/common.cpp"
     "detail/context_impl.cpp"
     "detail/device_impl.cpp"
@@ -101,6 +82,8 @@ set(SYCL_SOURCES
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
+    "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
+    "$<$<PLATFORM_ID:Linux>:detail/linux_pi.cpp>"
 )
 
 add_sycl_rt_library(sycl ${SYCL_SOURCES})
