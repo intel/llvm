@@ -150,11 +150,6 @@ cl_int Command::enqueue() {
   return CL_SUCCESS;
 }
 
-Requirement *Command::storeRequirement(Requirement *ReqToStore) {
-  MStoredRequirements.push_back(*ReqToStore);
-  return &MStoredRequirements.back();
-}
-
 cl_int AllocaCommand::enqueueImp() {
   std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
@@ -399,13 +394,11 @@ void ExecCGCommand::flushStreams() {
   }
 }
 
-cl_int UpdateRequirementCommand::enqueueImp() {
+cl_int UpdateHostRequirementCommand::enqueueImp() {
   std::vector<RT::PiEvent> RawEvents;
   RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
-
   RT::PiEvent &Event = MEvent->getHandleRef();
-
   Command::waitForEvents(MQueue, RawEvents, Event);
 
   assert(MAllocaForReq && "Expected valid alloca command");
@@ -414,13 +407,13 @@ cl_int UpdateRequirementCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
-void UpdateRequirementCommand::printDot(std::ostream &Stream) const {
+void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#f1337f\", label=\"";
 
   Stream << "ID = " << this << "\n";
   Stream << "UPDATE REQ ON " << deviceToString(MQueue->get_device()) << "\\n";
   Stream << "Is sub buffer: " << std::boolalpha
-         << (MStoredRequirements.back().MOffsetInBytes != 0) << "\\n";
+         << (MStoredRequirement.MOffsetInBytes != 0) << "\\n";
 
   Stream << "\"];" << std::endl;
 

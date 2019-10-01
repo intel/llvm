@@ -145,9 +145,9 @@ private:
                                    const QueueImplPtr &Queue,
                                    bool UseExclusiveQueue = false);
 
-    UpdateRequirementCommand *insertUpdateReqCmd(MemObjRecord *Record,
-                                                 Requirement *Req,
-                                                 const QueueImplPtr &Queue);
+    UpdateHostRequirementCommand *
+    insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,
+                           const QueueImplPtr &Queue);
 
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                        QueueImplPtr Context);

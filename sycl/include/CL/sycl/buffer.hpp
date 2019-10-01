@@ -264,18 +264,16 @@ private:
       : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset){};
 
   template <typename Type, int N>
-  size_t getOffsetInBytes(id<N> offset, range<N> range) {
+  size_t getOffsetInBytes(const id<N> &offset, const range<N> &range) {
     return detail::getLinearIndex(offset, range) * sizeof(Type);
   }
 
-  bool isOutOfBounds(id<dimensions> offset, range<dimensions> newRange,
+  bool isOutOfBounds(const id<dimensions> &offset,
+                     const range<dimensions> &newRange,
                      const range<dimensions> &parentRange) {
-    for (int I = 0; I < dimensions; ++I)
-      newRange[I] += offset[I];
-
     bool outOfBounds = false;
-    for (int I = 0; I < dimensions; ++I)
-      outOfBounds |= newRange[I] > parentRange[I];
+    for (int i = 0; i < dimensions; ++i)
+      outOfBounds |= newRange[i] + offset[i] > parentRange[i];
 
     return outOfBounds;
   }
@@ -296,8 +294,7 @@ private:
     // where Col is a number of columns of original buffer
     if (offset[1])
       return newRange[0] == 1;
-    else
-      return newRange[1] == parentRange[1];
+    return newRange[1] == parentRange[1];
   }
 
   bool isContiguousRegion(const id<3> &offset, const range<3> &newRange,
@@ -312,10 +309,9 @@ private:
     // where Row and Col are numbers of rows and columns of original buffer
     if (offset[2])
       return newRange[0] == 1 && newRange[1] == 1;
-    else if (offset[1])
+    if (offset[1])
       return newRange[0] == 1 && newRange[2] == parentRange[2];
-    else
-      return newRange[1] == parentRange[1] && newRange[2] == parentRange[2];
+    return newRange[1] == parentRange[1] && newRange[2] == parentRange[2];
   }
 };
 } // namespace sycl

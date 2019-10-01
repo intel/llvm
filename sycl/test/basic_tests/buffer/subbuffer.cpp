@@ -21,8 +21,9 @@
 #include <vector>
 
 void checkHostAccessor(cl::sycl::queue &q) {
-  std::size_t size = q.get_device().
-      get_info<cl::sycl::info::device::mem_base_addr_align>() / 8;
+  std::size_t size =
+      q.get_device().get_info<cl::sycl::info::device::mem_base_addr_align>() /
+      8;
   size /= sizeof(int);
   size *= 2;
   std::vector<int> data(size);
@@ -117,7 +118,7 @@ void checkExceptions() {
   try {
     cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 0},
                                      /*size*/ cl::sycl::range<2>{2, 2}};
-    assert(!"non contiguous region exception wasn't caugth");
+    assert(!"non contiguous region exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -125,7 +126,7 @@ void checkExceptions() {
   try {
     cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 2},
                                      /*size*/ cl::sycl::range<2>{2, 6}};
-    assert(!"non contiguous region exception wasn't caugth");
+    assert(!"non contiguous region exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -134,7 +135,7 @@ void checkExceptions() {
     cl::sycl::buffer<int, 3> sub_buf{buf3d,
                                      /*offset*/ cl::sycl::range<3>{0, 2, 1},
                                      /*size*/ cl::sycl::range<3>{1, 2, 3}};
-    assert(!"non contiguous region exception wasn't caugth");
+    assert(!"non contiguous region exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -143,7 +144,7 @@ void checkExceptions() {
     cl::sycl::buffer<int, 3> sub_buf{buf3d,
                                      /*offset*/ cl::sycl::range<3>{0, 0, 0},
                                      /*size*/ cl::sycl::range<3>{2, 3, 4}};
-    assert(!"non contiguous region exception wasn't caugth");
+    assert(!"non contiguous region exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -152,7 +153,7 @@ void checkExceptions() {
   try {
     cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 2},
                                      /*size*/ cl::sycl::range<2>{2, 8}};
-    assert(!"out of bounds exception wasn't caugth");
+    assert(!"out of bounds exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -161,7 +162,7 @@ void checkExceptions() {
     cl::sycl::buffer<int, 3> sub_buf{buf3d,
                                      /*offset*/ cl::sycl::range<3>{1, 1, 1},
                                      /*size*/ cl::sycl::range<3>{1, 1, 4}};
-    assert(!"out of bounds exception wasn't caugth");
+    assert(!"out of bounds exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -170,7 +171,7 @@ void checkExceptions() {
     cl::sycl::buffer<int, 3> sub_buf{buf3d,
                                      /*offset*/ cl::sycl::range<3>{3, 3, 0},
                                      /*size*/ cl::sycl::range<3>{1, 2, 4}};
-    assert(!"out of bounds exception wasn't caugth");
+    assert(!"out of bounds exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -181,7 +182,7 @@ void checkExceptions() {
                                      /*size*/ cl::sycl::range<2>{2, 8}};
     cl::sycl::buffer<int, 2> sub_sub_buf(sub_buf, cl::sycl::range<2>{0, 0},
                                          /*size*/ cl::sycl::range<2>{0, 0});
-    assert(!"invalid subbuffer exception wasn't caugth");
+    assert(!"invalid subbuffer exception wasn't caught");
   } catch (const cl::sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
@@ -191,5 +192,7 @@ int main() {
   cl::sycl::queue q;
   check1DSubBuffer(q);
   checkHostAccessor(q);
+  // TODO! Uncomment once SYCL-CTS are fixed
+  // checkExceptions();
   return 0;
 }

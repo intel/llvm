@@ -141,7 +141,7 @@ int main() {
 
     std::vector<char> data(sub_buf_size + offset, 8);
     std::vector<char> expected_data(sub_buf_size + offset, 8);
-    int val = 0xdeaddead;
+    int val = 0xaabbccdd;
     int *ptr = reinterpret_cast<int *>(&expected_data[offset]);
     for (std::size_t i = 0; i < sub_buf_size / sizeof(int); ++i) {
       *(ptr + i) = val;
@@ -237,7 +237,7 @@ int main() {
     std::vector<char> data(buf_col * buf_row, 8);
     std::vector<char> expected_data(buf_col * buf_row, 8);
 
-    int val = 0xdeaddead;
+    int val = 0xaabbccdd;
     int *ptr = reinterpret_cast<int *>(
         &expected_data[offset_rows * buf_col + offset_cols]);
     for (int i = 0; i < buf_col * subbuffer_rows / sizeof(int); ++i) {

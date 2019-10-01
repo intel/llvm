@@ -56,7 +56,7 @@ public:
   // Ptr must be a pointer returned by allocateHostMem.
   virtual void releaseHostMem(void *Ptr) = 0;
 
-  // Returns size of object
+  // Returns size of object in bytes
   virtual size_t getSize() = 0;
 
 protected:

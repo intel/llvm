@@ -100,8 +100,6 @@ public:
 
   virtual void printDot(std::ostream &Stream) const = 0;
 
-  Requirement *storeRequirement(Requirement *ReqToStore);
-
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
@@ -112,7 +110,6 @@ protected:
   std::vector<RT::PiEvent> prepareEvents(ContextImplPtr Context);
 
   bool MUseExclusiveQueue = false;
-  std::vector<Requirement> MStoredRequirements;
 
   // Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
@@ -297,13 +294,15 @@ private:
   std::unique_ptr<detail::CG> MCommandGroup;
 };
 
-// The main purpose of this class is to update host requirements
-class UpdateRequirementCommand : public Command {
+class UpdateHostRequirementCommand : public Command {
 public:
-  UpdateRequirementCommand(QueueImplPtr Queue, Requirement *Req,
-                           AllocaCommandBase *AllocaForReq)
+  UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement *Req,
+                               AllocaCommandBase *AllocaForReq)
       : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
-        MReqToUpdate(Req), MAllocaForReq(AllocaForReq) {}
+        MReqToUpdate(Req), MAllocaForReq(AllocaForReq),
+        MStoredRequirement(*Req) {}
+
+  Requirement *getStoreRequirement() { return &MStoredRequirement; }
 
 private:
   cl_int enqueueImp() override;
@@ -311,6 +310,7 @@ private:
 
   Requirement *MReqToUpdate = nullptr;
   AllocaCommandBase *MAllocaForReq = nullptr;
+  Requirement MStoredRequirement;
 };
 
 } // namespace detail

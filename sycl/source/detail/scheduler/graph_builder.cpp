@@ -28,7 +28,6 @@ namespace detail {
 // information can be used to prove that executing two kernels that
 // work on different parts of the memory object in parallel is legal.
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
-  // Cast everything to 1D array of bytes
   return (LHS->MOffsetInBytes + LHS->MAccessRange.size() * LHS->MElemSize >=
           RHS->MOffsetInBytes) ||
          (RHS->MOffsetInBytes + RHS->MAccessRange.size() * RHS->MElemSize >=
@@ -39,9 +38,7 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
 // and should be treated as sub buffer (i.e. Access range != Memory range).
 // In this case we can call clCreateSubBuffer for such sub buffers.
 static bool IsSuitableSubReq(const Requirement *Req) {
-  return (Req->MUsedFromSourceKernel &&
-          Req->MAccessRange != Req->MMemoryRange) ||
-         Req->MOffsetInBytes;
+  return Req->MUsedFromSourceKernel || Req->MOffsetInBytes;
 }
 
 Scheduler::GraphBuilder::GraphBuilder() {
@@ -156,65 +153,58 @@ void Scheduler::GraphBuilder::AddNodeToLeafs(MemObjRecord *Record, Command *Cmd,
     Record->MWriteLeafs.push_back(Cmd);
 }
 
-UpdateRequirementCommand *Scheduler::GraphBuilder::insertUpdateReqCmd(
+UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue) {
   AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Queue);
   assert(AllocaCmd && "There must be alloca for requirement!");
-  UpdateRequirementCommand *updateCommand =
-      new UpdateRequirementCommand(Queue, Req, AllocaCmd);
+  UpdateHostRequirementCommand *UpdateCommand =
+      new UpdateHostRequirementCommand(Queue, Req, AllocaCmd);
   // Need copy of requirement because after host accessor destructor call
   // dependencies become invalid if requirement is stored by pointer.
-  Requirement *StoredReq = updateCommand->storeRequirement(Req);
+  Requirement *StoredReq = UpdateCommand->getStoreRequirement();
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
-  for (Command *Dep : Deps)
-    updateCommand->addDep({Dep, StoredReq, AllocaCmd});
-  AllocaCmd->addUser(updateCommand);
+  for (Command *Dep : Deps) {
+    UpdateCommand->addDep({Dep, StoredReq, AllocaCmd});
+    Dep->addUser(UpdateCommand);
+  }
   // access::mode::read_write is always used here regardless requieremnt
   // access mode because this node shouldn't be skipped.
   UpdateLeafs(Deps, Record, access::mode::read_write);
-  AddNodeToLeafs(Record, updateCommand, access::mode::read_write);
-  return updateCommand;
+  AddNodeToLeafs(Record, UpdateCommand, access::mode::read_write);
+  return UpdateCommand;
 }
 
 MemCpyCommand *
 Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
                                          const QueueImplPtr &Queue,
                                          bool UseExclusiveQueue) {
-  // Creation of full requirement is not needed any more
-  // since it can be found or created after 'getOrCreateAllocaForReq' function
-  // call in which full requirement for whole buffer is always forced.
-
   std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
   QueueImplPtr SrcQueue = (*Deps.begin())->getQueue();
-  // ForceFullReq is used to distinguish sub buffer requirement from buffer
-  // requirement
-  bool ForceFullReq = !Req->MOffsetInBytes;
-  AllocaCommandBase *AllocaCmdDst =
-      getOrCreateAllocaForReq(Record, Req, Queue, ForceFullReq);
 
+  AllocaCommandBase *AllocaCmdDst = getOrCreateAllocaForReq(Record, Req, Queue);
   if (!AllocaCmdDst)
     throw runtime_error("Out of host memory");
   Deps.insert(AllocaCmdDst);
   // Get parrent alloca of sub buffer to perform full copy of whole buffer
-  if (!ForceFullReq) {
-    if (AllocaSubBufCommand *SubBufAlloca =
-            dynamic_cast<AllocaSubBufCommand *>(AllocaCmdDst))
-      AllocaCmdDst = SubBufAlloca->getParentAlloca();
+  if (Req->MOffsetInBytes) {
+    if (AllocaCmdDst->getType() == Command::CommandType::ALLOCA_SUB_BUF)
+      AllocaCmdDst =
+          static_cast<AllocaSubBufCommand *>(AllocaCmdDst)->getParentAlloca();
     else
       assert(
           !"Inappropriate alloca command. AllocaSubBufCommand was expected.");
   }
 
   AllocaCommandBase *AllocaCmdSrc =
-      getOrCreateAllocaForReq(Record, Req, SrcQueue, ForceFullReq);
+      getOrCreateAllocaForReq(Record, Req, SrcQueue);
   if (!AllocaCmdSrc)
-    throw runtime_error("Out of host memory");
+    throw runtime_error("Cannot find buffer allocation");
   // Get parrent alloca of sub buffer to perform full copy of whole buffer
-  if (!ForceFullReq) {
-    if (AllocaSubBufCommand *SubBufAlloca =
-            dynamic_cast<AllocaSubBufCommand *>(AllocaCmdSrc))
-      AllocaCmdSrc = SubBufAlloca->getParentAlloca();
+  if (Req->MOffsetInBytes) {
+    if (AllocaCmdSrc->getType() == Command::CommandType::ALLOCA_SUB_BUF)
+      AllocaCmdSrc =
+          static_cast<AllocaSubBufCommand *>(AllocaCmdSrc)->getParentAlloca();
     else
       assert(
           !"Inappropriate alloca command. AllocaSubBufCommand was expected.");
@@ -300,12 +290,12 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
       getOrCreateAllocaForReq(Record, Req, SrcQueue);
   Requirement *SrcReq = SrcAllocaCmd->getAllocationReq();
   if (SrcQueue->is_host()) {
-    UpdateRequirementCommand *UPDCMD =
-        insertUpdateReqCmd(Record, Req, SrcQueue);
-    RetEvent = UPDCMD->getEvent();
+    UpdateHostRequirementCommand *UpdateCmd =
+        insertUpdateHostReqCmd(Record, Req, SrcQueue);
+    RetEvent = UpdateCmd->getEvent();
     if (MPrintOptionsArray[AfterAddHostAcc])
       printGraphAsDot("after_addHostAccessor");
-    return UPDCMD;
+    return UpdateCmd;
   }
 
   // Prepare "user" event that will block second operation(unmap of copy) until
@@ -575,10 +565,12 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
   auto IsSuitableAlloca = [&Queue, Req](AllocaCommandBase *AllocaCmd) {
     bool Res = AllocaCmd->getQueue()->get_context() == Queue->get_context();
-    if (IsSuitableSubReq(Req))
-      Res &= AllocaCmd->getAllocationReq()->MOffsetInBytes ==
-                 Req->MOffsetInBytes &&
-             AllocaCmd->getAllocationReq()->MMemoryRange == Req->MMemoryRange;
+    if (IsSuitableSubReq(Req)) {
+      auto TmpReq = AllocaCmd->getAllocationReq();
+      Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
+      Res &= TmpReq->MMemoryRange.size() * TmpReq->MElemSize ==
+             Req->MMemoryRange.size() * Req->MElemSize;
+    }
     return Res;
   };
   const auto It = std::find_if(Record->MAllocaCommands.begin(),
@@ -612,11 +604,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                                     /*Working with bytes*/ sizeof(char),
                                     /*MOffsetInBytes*/ 0);
 
-      auto *ParentAlloca =
-          getOrCreateAllocaForReq(Record, &ParentRequirement, Queue, true);
+      auto *ParentAlloca = new AllocaCommand(Queue, ParentRequirement);
+      Record->MAllocaCommands.push_back(ParentAlloca);
       AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca);
-      UpdateLeafs(findDepsForReq(Record, Req, Queue), Record,
-                  access::mode::read_write);
     } else
       AllocaCmd = new AllocaCommand(Queue, FullReq);
 
