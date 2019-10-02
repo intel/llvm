@@ -1176,14 +1176,11 @@ static std::string eraseAnonNamespace(std::string S) {
 
 // Creates a mangled kernel name for given kernel name type
 static std::string constructKernelName(QualType KernelNameType,
-                                       ASTContext &AC) {
-  std::unique_ptr<MangleContext> MC(AC.createMangleContext());
-
+                                       MangleContext &MC) {
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
 
-  MC->mangleTypeName(KernelNameType, Out);
-
+  MC.mangleTypeName(KernelNameType, Out);
   return Out.str();
 }
 
@@ -1209,7 +1206,8 @@ static std::string constructKernelName(QualType KernelNameType,
 //   }
 //
 //
-void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc) {
+void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
+                                 MangleContext &MC) {
   CXXRecordDecl *LE = getKernelObjectType(KernelCallerFunc);
   assert(LE && "invalid kernel caller");
 
@@ -1223,7 +1221,7 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc) {
   assert(TemplateArgs && "No template argument info");
   QualType KernelNameType = TypeName::getFullyQualifiedType(
       TemplateArgs->get(0).getAsType(), getASTContext(), true);
-  std::string Name = constructKernelName(KernelNameType, getASTContext());
+  std::string Name = constructKernelName(KernelNameType, MC);
 
   // TODO Maybe don't emit integration header inside the Sema?
   populateIntHeader(getSyclIntegrationHeader(), Name, KernelNameType, LE);

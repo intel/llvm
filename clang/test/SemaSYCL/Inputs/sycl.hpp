@@ -161,6 +161,22 @@ public:
   void use(void) const {}
 };
 
+class event {};
+class queue {
+public:
+  template <typename T>
+  event submit(T cgf) { return event{}; }
+};
+#define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
+class handler {
+public:
+  template <typename KernelName, typename KernelType>
+  ATTR_SYCL_KERNEL void single_task(KernelType kernelFunc) {}
+
+  template <typename KernelType>
+  ATTR_SYCL_KERNEL void single_task(KernelType kernelFunc) {}
+};
+
 } // namespace sycl
 } // namespace cl
 
