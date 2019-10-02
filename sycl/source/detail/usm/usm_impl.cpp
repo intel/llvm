@@ -172,12 +172,30 @@ void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
 // single form
 
 void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind) {
-  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind);
+  void* RetVal = nullptr;
+
+  if (Kind == alloc::host) {
+    RetVal = detail::usm::alignedAlloc(0, Size, Ctxt, Kind);
+  }
+  else {
+    RetVal = detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind);
+  }
+
+  return RetVal;
 }
 
 void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
                     const context &Ctxt, alloc Kind) {
-  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind);
+  void* RetVal = nullptr;
+
+  if (Kind == alloc::host) {
+    RetVal = detail::usm::alignedAlloc(Alignment, Size, Ctxt, Kind);
+  }
+  else {
+    RetVal = detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind);
+  }
+
+  return RetVal;
 }
 
 } // namespace sycl
