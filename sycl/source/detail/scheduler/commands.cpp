@@ -486,6 +486,9 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
   case detail::CG::FILL_USM:
     Stream << "CG type: fill usm\\n";
     break;
+  case detail::CG::PREFETCH_USM:
+    Stream << "CG type: prefetch usm\\n";
+    break;
   default:
     Stream << "CG type: unknown\\n";
     break;
@@ -783,6 +786,12 @@ cl_int ExecCGCommand::enqueueImp() {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
         Fill->getFill(), std::move(RawEvents), Event);
+    return CL_SUCCESS;
+  }
+  case CG::CGTYPE::PREFETCH_USM: {
+    CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
+    MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
+        Prefetch->getLength(), std::move(RawEvents), Event);
     return CL_SUCCESS;
   }
   case CG::CGTYPE::NONE:

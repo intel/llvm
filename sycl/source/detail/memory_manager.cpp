@@ -500,6 +500,21 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   }
 }
 
+void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
+                                std::vector<RT::PiEvent> DepEvents,
+                                RT::PiEvent &OutEvent) {
+  sycl::context Context = Queue->get_context();
+
+  if (Context.is_host()) {
+    // TODO: Potentially implement prefetch on the host.
+  } else {
+    std::shared_ptr<usm::USMDispatcher> USMDispatch =
+      getSyclObjImpl(Context)->getUSMDispatch();
+    PI_CHECK(USMDispatch->enqueuePrefetch(Queue->getHandleRef(),
+      Mem, Length, DepEvents.size(), &DepEvents[0], &OutEvent));
+  }
+}
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl

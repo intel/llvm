@@ -49,6 +49,9 @@ public:
                             void *ParamValue, size_t *ParamValueSizeRet);
   void memAdvise(pi_queue Queue, const void *Ptr, size_t Length, int Advice,
                  pi_event *Event);
+  pi_result enqueuePrefetch(pi_queue Queue, void *Ptr, size_t Size,
+                            pi_uint32 NumEventsInWaitList,
+                            const pi_event *EventWaitList, pi_event *Event);
 
 private:
   bool mEmulated = false;

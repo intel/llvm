@@ -397,6 +397,12 @@ private:
           std::move(MAccStorage), std::move(MSharedPtrStorage),
           std::move(MRequirements), std::move(MEvents)));
       break;
+    case detail::CG::PREFETCH_USM:
+      CommandGroup.reset(new detail::CGPrefetchUSM(
+          MDstPtr, MLength, std::move(MArgsStorage),
+          std::move(MAccStorage), std::move(MSharedPtrStorage),
+          std::move(MRequirements), std::move(MEvents)));
+      break;
     case detail::CG::NONE:
       throw runtime_error("Command group submitted without a kernel or a "
                           "explicit memory operation.");
@@ -1162,6 +1168,13 @@ public:
     MPattern.push_back((char)Value);
     MLength = Count;
     MCGType = detail::CG::FILL_USM;
+  }
+
+  // Prefetch the memory pointed to by the pointer.
+  void prefetch(const void *Ptr, size_t Count) {
+    MDstPtr = const_cast<void *>(Ptr);
+    MLength = Count;
+    MCGType = detail::CG::PREFETCH_USM;
   }
 };
 } // namespace sycl
