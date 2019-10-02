@@ -3997,7 +3997,7 @@ static bool handleIncDec(EvalInfo &Info, const Expr *E, const LValue &LVal,
 /// Build an lvalue for the object argument of a member function call.
 static bool EvaluateObjectArgument(EvalInfo &Info, const Expr *Object,
                                    LValue &This) {
-  if (Object->getType()->isPointerType())
+  if (Object->getType()->isPointerType() && Object->isRValue())
     return EvaluatePointer(Object, This, Info);
 
   if (Object->isGLValue())
@@ -5258,7 +5258,9 @@ static bool HandleUnionActiveMemberChange(EvalInfo &Info, const Expr *LHSExpr,
     //   -- If E is of the form A.B, S(E) contains the elements of S(A)...
     if (auto *ME = dyn_cast<MemberExpr>(E)) {
       auto *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
-      if (!FD)
+      // Note that we can't implicitly start the lifetime of a reference,
+      // so we don't need to proceed any further if we reach one.
+      if (!FD || FD->getType()->isReferenceType())
         break;
 
       //    ... and also contains A.B if B names a union member
@@ -6254,7 +6256,7 @@ class BufferToAPValueConverter {
 #define NON_CANONICAL_UNLESS_DEPENDENT(Class, Base)                            \
   case Type::Class:                                                            \
     llvm_unreachable("either dependent or not canonical!");
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     }
     llvm_unreachable("Unhandled Type::TypeClass");
   }
@@ -6489,6 +6491,12 @@ public:
   bool VisitExprWithCleanups(const ExprWithCleanups *E) {
     FullExpressionRAII Scope(Info);
     return StmtVisitorTy::Visit(E->getSubExpr()) && Scope.destroy();
+  }
+
+  // Temporaries are registered when created, so we don't care about
+  // CXXBindTemporaryExpr.
+  bool VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *E) {
+    return StmtVisitorTy::Visit(E->getSubExpr());
   }
 
   bool VisitCXXReinterpretCastExpr(const CXXReinterpretCastExpr *E) {
@@ -8446,13 +8454,6 @@ namespace {
     bool VisitCXXInheritedCtorInitExpr(const CXXInheritedCtorInitExpr *E);
     bool VisitCXXConstructExpr(const CXXConstructExpr *E, QualType T);
     bool VisitCXXStdInitializerListExpr(const CXXStdInitializerListExpr *E);
-
-    // Temporaries are registered when created, so we don't care about
-    // CXXBindTemporaryExpr.
-    bool VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *E) {
-      return Visit(E->getSubExpr());
-    }
-
     bool VisitBinCmp(const BinaryOperator *E);
   };
 }
@@ -9636,7 +9637,7 @@ EvaluateBuiltinClassifyType(QualType T, const LangOptions &LangOpts) {
 #define DEPENDENT_TYPE(ID, BASE) case Type::ID:
 #define NON_CANONICAL_TYPE(ID, BASE) case Type::ID:
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(ID, BASE) case Type::ID:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
   case Type::Auto:
   case Type::DeducedTemplateSpecialization:
       llvm_unreachable("unexpected non-canonical or dependent type");

@@ -30,6 +30,11 @@ int foo(void);
 #pragma omp declare variant(foo) match(implementation={vendor}) // expected-error {{expected '(' after 'vendor'}} expected-error {{expected vendor identifier in 'vendor' context selector of 'implementation' selector set of 'omp declare variant' directive}} expected-error {{expected ')'}} expected-note {{to match this '('}}
 #pragma omp declare variant(foo) match(implementation={vendor(}) // expected-error {{expected vendor identifier in 'vendor' context selector of 'implementation' selector set of 'omp declare variant' directive}} expected-error {{expected ')'}} expected-note {{to match this '('}}
 #pragma omp declare variant(foo) match(implementation={vendor()}) // expected-error {{expected vendor identifier in 'vendor' context selector of 'implementation' selector set of 'omp declare variant' directive}}
+#pragma omp declare variant(foo) match(implementation={vendor(score ibm)}) // expected-error {{expected '(' after 'score'}} expected-warning {{missing ':' after context selector score clause - ignoring}}
+#pragma omp declare variant(foo) match(implementation={vendor(score( ibm)}) // expected-error {{expected ')'}} expected-error {{use of undeclared identifier 'ibm'}} expected-error {{expected vendor identifier in 'vendor' context selector of 'implementation' selector set of 'omp declare variant' directive}} expected-warning {{missing ':' after context selector score clause - ignoring}} expected-note {{to match this '('}}
+#pragma omp declare variant(foo) match(implementation={vendor(score(2 ibm)}) // expected-error 2 {{expected ')'}} expected-error {{expected vendor identifier in 'vendor' context selector of 'implementation' selector set of 'omp declare variant' directive}} expected-warning {{missing ':' after context selector score clause - ignoring}} expected-note 2 {{to match this '('}}
+#pragma omp declare variant(foo) match(implementation={vendor(score(foo()) ibm)}) // expected-warning {{missing ':' after context selector score clause - ignoring}} expected-error {{expression is not an integer constant expression}}
+#pragma omp declare variant(foo) match(implementation={vendor(score(5): ibm)})
 int bar(void);
 
 // expected-error@+2 {{'#pragma omp declare variant' can only be applied to functions}}
@@ -79,9 +84,13 @@ int bar() {
 // expected-warning@+1 {{'#pragma omp declare variant' cannot be applied for function after first usage; the original function might be used}}
 #pragma omp declare variant(after_use_variant) match(xxx={})
 int after_use(void);
-// expected-warning@+1 {{#pragma omp declare variant' cannot be applied to the function that was defined already; the original function might be used}}
 #pragma omp declare variant(after_use_variant) match(xxx={})
 int defined(void) { return 0; }
+int defined1(void) { return 0; }
+// expected-warning@+1 {{#pragma omp declare variant' cannot be applied to the function that was defined already; the original function might be used}}
+#pragma omp declare variant(after_use_variant) match(xxx={})
+int defined1(void);
+
 
 int diff_cc_variant(void);
 // expected-error@+1 {{function with '#pragma omp declare variant' has a different calling convention}}

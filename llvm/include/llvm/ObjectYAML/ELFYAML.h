@@ -131,6 +131,7 @@ struct Section {
     RawContent,
     Relocation,
     NoBits,
+    Hash,
     Verdef,
     Verneed,
     StackSizes,
@@ -218,6 +219,17 @@ struct NoBitsSection : Section {
   static bool classof(const Section *S) {
     return S->Kind == SectionKind::NoBits;
   }
+};
+
+struct HashSection : Section {
+  Optional<yaml::BinaryRef> Content;
+  Optional<llvm::yaml::Hex64> Size;
+  Optional<std::vector<uint32_t>> Bucket;
+  Optional<std::vector<uint32_t>> Chain;
+
+  HashSection() : Section(SectionKind::Hash) {}
+
+  static bool classof(const Section *S) { return S->Kind == SectionKind::Hash; }
 };
 
 struct VernauxEntry {

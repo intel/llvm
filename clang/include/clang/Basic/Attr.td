@@ -3524,19 +3524,27 @@ def OMPAllocateDecl : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
-def OMPDeclareVariant : Attr {
+def OMPDeclareVariant : InheritableAttr {
   let Spellings = [Pragma<"omp", "declare variant">];
   let Subjects = SubjectList<[Function]>;
   let SemaHandler = 0;
   let HasCustomParsing = 1;
+  let InheritEvenIfAlreadyPresent = 1;
   let Documentation = [OMPDeclareVariantDocs];
   let Args = [
     ExprArgument<"VariantFuncRef">,
+    ExprArgument<"Score">,
     EnumArgument<"CtxSelectorSet", "CtxSelectorSetType",
                  [ "", "implementation"
                  ],
                  [
                    "CtxSetUnknown", "CtxSetImplementation"
+                 ]>,
+    EnumArgument<"CtxScore", "ScoreType",
+                 [ "", "score"
+                 ],
+                 [
+                   "ScoreUnknown", "ScoreSpecified"
                  ]>,
     EnumArgument<"CtxSelector", "CtxSelectorType",
                  [ "", "vendor"
@@ -3547,6 +3555,13 @@ def OMPDeclareVariant : Attr {
     StringArgument<"ImplVendor", 1>
   ];
   let AdditionalMembers = [{
+    void printScore(raw_ostream & OS, const PrintingPolicy &Policy) const {
+      if (const Expr *E = getScore()) {
+        OS << "score(";
+        E->printPretty(OS, nullptr, Policy);
+        OS << "):";
+      }
+    }
     void printPrettyPragma(raw_ostream & OS, const PrintingPolicy &Policy)
         const {
       assert(getCtxSelectorSet() != CtxSetUnknown &&
@@ -3564,6 +3579,7 @@ def OMPDeclareVariant : Attr {
         switch (getCtxSelector()) {
         case CtxVendor:
           OS << "vendor(";
+          printScore(OS, Policy);
           OS << getImplVendor();
           OS << ")";
           break;

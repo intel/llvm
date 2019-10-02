@@ -9,6 +9,7 @@
 #include "../ClangTidy.h"
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
+#include "AvoidSpinlockCheck.h"
 #include "DispatchOnceNonstaticCheck.h"
 
 namespace clang {
@@ -18,6 +19,8 @@ namespace darwin {
 class DarwinModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
+    CheckFactories.registerCheck<AvoidSpinlockCheck>(
+        "darwin-avoid-spinlock");
     CheckFactories.registerCheck<DispatchOnceNonstaticCheck>(
         "darwin-dispatch-once-nonstatic");
   }
@@ -27,7 +30,7 @@ public:
 
 // Register the DarwinTidyModule using this statically initialized variable.
 static ClangTidyModuleRegistry::Add<darwin::DarwinModule>
-    X("misc-module", "Adds miscellaneous lint checks.");
+    X("darwin-module", "Adds Darwin-specific lint checks.");
 
 // This anchor is used to force the linker to link in the generated object file
 // and thus register the DarwinModule.

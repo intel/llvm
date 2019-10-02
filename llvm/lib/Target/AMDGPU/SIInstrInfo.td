@@ -84,7 +84,7 @@ def SDTtbuffer_load : SDTypeProfile<1, 8,
    SDTCisVT<4, i32>,    // soffset(SGPR)
    SDTCisVT<5, i32>,    // offset(imm)
    SDTCisVT<6, i32>,    // format(imm)
-   SDTCisVT<7, i32>,    // cachecontrol(imm)
+   SDTCisVT<7, i32>,    // cachepolicy, swizzled buffer(imm)
    SDTCisVT<8, i1>      // idxen(imm)
   ]>;
 
@@ -102,7 +102,7 @@ def SDTtbuffer_store : SDTypeProfile<0, 9,
      SDTCisVT<4, i32>,    // soffset(SGPR)
      SDTCisVT<5, i32>,    // offset(imm)
      SDTCisVT<6, i32>,    // format(imm)
-     SDTCisVT<7, i32>,    // cachecontrol(imm)
+     SDTCisVT<7, i32>,    // cachepolicy, swizzled buffer(imm)
      SDTCisVT<8, i1>      // idxen(imm)
     ]>;
 
@@ -119,7 +119,7 @@ def SDTBufferLoad : SDTypeProfile<1, 7,
      SDTCisVT<3, i32>,   // voffset(VGPR)
      SDTCisVT<4, i32>,   // soffset(SGPR)
      SDTCisVT<5, i32>,   // offset(imm)
-     SDTCisVT<6, i32>,   // cachepolicy(imm)
+     SDTCisVT<6, i32>,   // cachepolicy, swizzled buffer(imm)
      SDTCisVT<7, i1>]>;  // idxen(imm)
 
 def SIbuffer_load : SDNode <"AMDGPUISD::BUFFER_LOAD", SDTBufferLoad,
@@ -145,7 +145,7 @@ def SDTBufferStore : SDTypeProfile<0, 8,
      SDTCisVT<3, i32>,   // voffset(VGPR)
      SDTCisVT<4, i32>,   // soffset(SGPR)
      SDTCisVT<5, i32>,   // offset(imm)
-     SDTCisVT<6, i32>,   // cachepolicy(imm)
+     SDTCisVT<6, i32>,   // cachepolicy, swizzled buffer(imm)
      SDTCisVT<7, i1>]>;  // idxen(imm)
 
 def SIbuffer_store : SDNode <"AMDGPUISD::BUFFER_STORE", SDTBufferStore,
@@ -689,6 +689,10 @@ def as_i32imm: SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(N->getSExtValue(), SDLoc(N), MVT::i32);
 }]>;
 
+def as_i32timm: SDNodeXForm<timm, [{
+  return CurDAG->getTargetConstant(N->getSExtValue(), SDLoc(N), MVT::i32);
+}]>;
+
 def as_i64imm: SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(N->getSExtValue(), SDLoc(N), MVT::i64);
 }]>;
@@ -727,6 +731,10 @@ def SIMM16bit : ImmLeaf <i32,
 def UIMM16bit : ImmLeaf <i32,
   [{return isUInt<16>(Imm);}]
 >;
+
+def i64imm_32bit : ImmLeaf<i64, [{
+  return (Imm & 0xffffffffULL) == static_cast<uint64_t>(Imm);
+}]>;
 
 class InlineImm <ValueType vt> : PatLeaf <(vt imm), [{
   return isInlineImmediate(N);
@@ -1027,6 +1035,7 @@ def DLC : NamedOperandBit<"DLC", NamedMatchClass<"DLC">>;
 def GLC : NamedOperandBit<"GLC", NamedMatchClass<"GLC">>;
 def SLC : NamedOperandBit<"SLC", NamedMatchClass<"SLC">>;
 def TFE : NamedOperandBit<"TFE", NamedMatchClass<"TFE">>;
+def SWZ : NamedOperandBit<"SWZ", NamedMatchClass<"SWZ">>;
 def UNorm : NamedOperandBit<"UNorm", NamedMatchClass<"UNorm">>;
 def DA : NamedOperandBit<"DA", NamedMatchClass<"DA">>;
 def R128A16 : NamedOperandBit<"R128A16", NamedMatchClass<"R128A16">>;

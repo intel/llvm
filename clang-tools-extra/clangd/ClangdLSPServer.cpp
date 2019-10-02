@@ -700,7 +700,7 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
       WorkspaceEdit WE;
       WE.changes.emplace();
       for (const auto &It : R->ApplyEdits) {
-        (*WE.changes)[URI::create(It.first()).toString()] =
+        (*WE.changes)[URI::createFile(It.first()).toString()] =
             It.second.asTextEdits();
       }
       // ApplyEdit will take care of calling Reply().
@@ -1038,10 +1038,16 @@ void ClangdLSPServer::onGoToDeclaration(
 void ClangdLSPServer::onSwitchSourceHeader(
     const TextDocumentIdentifier &Params,
     Callback<llvm::Optional<URIForFile>> Reply) {
-  if (auto Result = Server->switchSourceHeader(Params.uri.file()))
-    Reply(URIForFile::canonicalize(*Result, Params.uri.file()));
-  else
-    Reply(llvm::None);
+  Server->switchSourceHeader(
+      Params.uri.file(),
+      [Reply = std::move(Reply),
+       Params](llvm::Expected<llvm::Optional<clangd::Path>> Path) mutable {
+        if (!Path)
+          return Reply(Path.takeError());
+        if (*Path)
+          Reply(URIForFile::canonicalize(**Path, Params.uri.file()));
+        return Reply(llvm::None);
+      });
 }
 
 void ClangdLSPServer::onDocumentHighlight(
