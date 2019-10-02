@@ -540,6 +540,9 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
   if (!FD->hasAttr<OpenCLKernelAttr>())
     return;
 
+  if (getLangOpts().SYCLIsDevice)
+    Fn->addFnAttr("module-id", Fn->getParent()->getModuleIdentifier());
+
   llvm::LLVMContext &Context = getLLVMContext();
 
   CGM.GenOpenCLArgMetadata(Fn, FD, this);
