@@ -34,11 +34,11 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
           LHS->MOffsetInBytes);
 }
 
-// The function checks if current requirement is used from OpenCL kernel
-// and should be treated as sub buffer (i.e. Access range != Memory range).
-// In this case we can call clCreateSubBuffer for such sub buffers.
+// The function checks if current requirement is requirement for sub buffer
 static bool IsSuitableSubReq(const Requirement *Req) {
-  return Req->MUsedFromSourceKernel || Req->MOffsetInBytes;
+  return Req->MMemoryRange.size() * Req->MElemSize !=
+             Req->MSYCLMemObj->getSize() &&
+         Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER;
 }
 
 Scheduler::GraphBuilder::GraphBuilder() {
@@ -187,7 +187,7 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
     throw runtime_error("Out of host memory");
   Deps.insert(AllocaCmdDst);
   // Get parrent alloca of sub buffer to perform full copy of whole buffer
-  if (Req->MOffsetInBytes) {
+  if (IsSuitableSubReq(Req)) {
     if (AllocaCmdDst->getType() == Command::CommandType::ALLOCA_SUB_BUF)
       AllocaCmdDst =
           static_cast<AllocaSubBufCommand *>(AllocaCmdDst)->getParentAlloca();
@@ -201,7 +201,7 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
   if (!AllocaCmdSrc)
     throw runtime_error("Cannot find buffer allocation");
   // Get parrent alloca of sub buffer to perform full copy of whole buffer
-  if (Req->MOffsetInBytes) {
+  if (IsSuitableSubReq(Req)) {
     if (AllocaCmdSrc->getType() == Command::CommandType::ALLOCA_SUB_BUF)
       AllocaCmdSrc =
           static_cast<AllocaSubBufCommand *>(AllocaCmdSrc)->getParentAlloca();
@@ -568,8 +568,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     if (IsSuitableSubReq(Req)) {
       auto TmpReq = AllocaCmd->getAllocationReq();
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
-      Res &= TmpReq->MMemoryRange.size() * TmpReq->MElemSize ==
-             Req->MMemoryRange.size() * Req->MElemSize;
+      Res &= TmpReq->MSYCLMemObj->getSize() == Req->MSYCLMemObj->getSize();
     }
     return Res;
   };
@@ -586,8 +585,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
   Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
                       Req->MMemoryRange, access::mode::read_write,
-                      Req->MSYCLMemObj, Req->MDims, Req->MElemSize,
-                      Req->MOffsetInBytes);
+                      Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
 
   Requirement *SearchReq = ForceFullReq ? &FullReq : Req;
 
@@ -601,12 +599,13 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       Requirement ParentRequirement(/*Offset*/ {0, 0, 0}, ParentRange,
                                     ParentRange, access::mode::read_write,
                                     Req->MSYCLMemObj, /*Dims*/ 1,
-                                    /*Working with bytes*/ sizeof(char),
-                                    /*MOffsetInBytes*/ 0);
+                                    /*Working with bytes*/ sizeof(char));
 
-      auto *ParentAlloca = new AllocaCommand(Queue, ParentRequirement);
-      Record->MAllocaCommands.push_back(ParentAlloca);
+      auto *ParentAlloca =
+          getOrCreateAllocaForReq(Record, &ParentRequirement, Queue, true);
       AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca);
+      UpdateLeafs(findDepsForReq(Record, Req, Queue), Record,
+                  access::mode::read_write);
     } else
       AllocaCmd = new AllocaCommand(Queue, FullReq);
 

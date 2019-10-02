@@ -265,7 +265,6 @@ private:
       case access::target::global_buffer:
       case access::target::constant_buffer: {
         detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
-        AccImpl->MUsedFromSourceKernel = IsKernelCreatedFromSource;
         MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
         if (!IsKernelCreatedFromSource) {
           // Dimensionality of the buffer is 1 when dimensionality of the

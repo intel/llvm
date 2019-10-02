@@ -56,15 +56,21 @@ void checkHostAccessor(cl::sycl::queue &q) {
 }
 
 void check1DSubBuffer(cl::sycl::queue &q) {
-  std::size_t size = 256, offset = 32, subbuf_size = 10,
-              offset_inside_subbuf = 3, subbuffer_access_range = 10;
+  std::size_t size =
+      q.get_device().get_info<cl::sycl::info::device::mem_base_addr_align>() /
+      8;
+  size /= sizeof(int);
+  size *= 2;
+
+  std::size_t offset = size / 2, subbuf_size = 10, offset_inside_subbuf = 3,
+              subbuffer_access_range = 10;
   std::vector<int> vec(size);
   std::vector<int> vec2(subbuf_size, 0);
   std::iota(vec.begin(), vec.end(), 0);
 
   try {
     cl::sycl::buffer<int, 1> buf(vec.data(), size);
-    cl::sycl::buffer<int, 1> buf2(vec2.data(), size);
+    cl::sycl::buffer<int, 1> buf2(vec2.data(), subbuf_size);
     cl::sycl::buffer<int, 1> subbuf(buf, cl::sycl::id<1>(offset),
                                     cl::sycl::range<1>(subbuf_size));
 
