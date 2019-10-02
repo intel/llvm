@@ -52,7 +52,8 @@ typedef cl_uint cl_mem_info_intel;
 #define CL_MEM_ALLOC_TYPE_INTEL 0x419A
 #define CL_MEM_ALLOC_BASE_PTR_INTEL 0x419B
 #define CL_MEM_ALLOC_SIZE_INTEL 0x419C
-#define CL_MEM_ALLOC_INFO_TBD0_INTEL 0x419D /* reserved for future */
+#define CL_MEM_ALLOC_INFO_DEVICE_INTEL 0x419D
+/* CL_MEM_ALLOC_FLAGS_INTEL - defined above */
 #define CL_MEM_ALLOC_INFO_TBD1_INTEL 0x419E /* reserved for future */
 #define CL_MEM_ALLOC_INFO_TBD2_INTEL 0x419F /* reserved for future */
 
