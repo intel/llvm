@@ -12,47 +12,13 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
+#include <CL/sycl/intel/functional.hpp>
 #ifndef __SYCL_DEVICE_ONLY__
 
 namespace cl {
 namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
 namespace intel {
-
-template <typename T = void> struct minimum {
-  T operator()(const T &lhs, const T &rhs) const {
-    return (lhs <= rhs) ? lhs : rhs;
-  }
-};
-
-template <> struct minimum<void> {
-  template <typename T> T operator()(const T &lhs, const T &rhs) const {
-    return (lhs <= rhs) ? lhs : rhs;
-  }
-};
-
-template <typename T = void> struct maximum {
-  T operator()(const T &lhs, const T &rhs) const {
-    return (lhs >= rhs) ? lhs : rhs;
-  }
-};
-
-template <> struct maximum<void> {
-  template <typename T> T operator()(const T &lhs, const T &rhs) const {
-    return (lhs >= rhs) ? lhs : rhs;
-  }
-};
-
-template <typename T = void> struct plus {
-  T operator()(const T &lhs, const T &rhs) const { return lhs + rhs; }
-};
-
-template <> struct plus<void> {
-  template <typename T> T operator()(const T &lhs, const T &rhs) const {
-    return lhs + rhs;
-  }
-};
-
 struct sub_group {
   /* --- common interface members --- */
 
