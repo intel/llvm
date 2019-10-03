@@ -12,16 +12,13 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
+#include <CL/sycl/intel/functional.hpp>
 #ifndef __SYCL_DEVICE_ONLY__
 
 namespace cl {
 namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
 namespace intel {
-struct minimum {};
-struct maximum {};
-struct plus {};
-
 struct sub_group {
   /* --- common interface members --- */
 
@@ -64,15 +61,33 @@ struct sub_group {
     throw runtime_error("Subgroups are not supported on host device. ");
   }
 
-  template <typename T, class BinaryOperation> T reduce(T x) const {
+  template <typename T, class BinaryOperation>
+  T reduce(T x, BinaryOperation op) const {
     throw runtime_error("Subgroups are not supported on host device. ");
   }
 
-  template <typename T, class BinaryOperation> T exclusive_scan(T x) const {
+  template <typename T, class BinaryOperation>
+  T reduce(T x, T init, BinaryOperation op) const {
     throw runtime_error("Subgroups are not supported on host device. ");
   }
 
-  template <typename T, class BinaryOperation> T inclusive_scan(T x) const {
+  template <typename T, class BinaryOperation>
+  T exclusive_scan(T x, BinaryOperation op) const {
+    throw runtime_error("Subgroups are not supported on host device. ");
+  }
+
+  template <typename T, class BinaryOperation>
+  T exclusive_scan(T x, T init, BinaryOperation op) const {
+    throw runtime_error("Subgroups are not supported on host device. ");
+  }
+
+  template <typename T, class BinaryOperation>
+  T inclusive_scan(T x, BinaryOperation op) const {
+    throw runtime_error("Subgroups are not supported on host device. ");
+  }
+
+  template <typename T, class BinaryOperation>
+  T inclusive_scan(T x, BinaryOperation op, T init) const {
     throw runtime_error("Subgroups are not supported on host device. ");
   }
 

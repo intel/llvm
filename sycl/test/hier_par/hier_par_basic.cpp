@@ -264,6 +264,45 @@ int main() {
       passed &= verify(3, range_length, ptr1,
                        [&](int i) -> int { return N_ITER * (1 + i + 5); });
     }
+    {
+      // Testcase5
+      // - flexible range different from the physical one is used,
+      // get_logical_local_range and get_physical_local_range apis are tested
+      const int wi_chunk = 2;
+      constexpr size_t range_length =
+          N_WG * WG_SIZE_GREATER_THAN_PHYSICAL * wi_chunk;
+      std::unique_ptr<int[]> data(new int[range_length]);
+      int *ptr = data.get();
+
+      std::memset(ptr, 0, range_length * sizeof(ptr[0]));
+      buffer<int, 1> buf(ptr, range<1>(range_length));
+      myQueue.submit([&](handler &cgh) {
+        auto dev_ptr = buf.get_access<access::mode::read_write>(cgh);
+
+        cgh.parallel_for_work_group<class hpar_ranges>(
+            range<1>(N_WG), range<1>(WG_SIZE_PHYSICAL), [=](group<1> g) {
+              for (int cnt = 0; cnt < N_ITER; cnt++) {
+                g.parallel_for_work_item(
+                    range<1>(WG_SIZE_GREATER_THAN_PHYSICAL), [&](h_item<1> i) {
+                      size_t wg_offset = WG_SIZE_GREATER_THAN_PHYSICAL *
+                                         wi_chunk * g.get_id(0);
+                      size_t wi_offset =
+                          wg_offset +
+                          i.get_logical_local_id().get(0) * wi_chunk;
+                      dev_ptr[wi_offset + 0] += i.get_logical_local_range()[0];
+                      dev_ptr[wi_offset + 1] += i.get_physical_local_range()[0];
+                    });
+              }
+            });
+      });
+      auto ptr1 = buf.get_access<access::mode::read>().get_pointer();
+      passed &= verify(5, range_length, ptr1, [&](int i) -> int {
+        int gold =
+            i % 2 == 0 ? WG_SIZE_GREATER_THAN_PHYSICAL : WG_SIZE_PHYSICAL;
+        gold *= N_ITER;
+        return gold;
+      });
+    }
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return 2;

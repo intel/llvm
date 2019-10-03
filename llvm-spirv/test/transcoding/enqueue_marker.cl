@@ -11,6 +11,6 @@ kernel void test_enqueue_marker(global int *out) {
   clk_event_t waitlist, evt;
 
   // CHECK-SPIRV: EnqueueMarker
-  // CHECK-LLVM: _Z14enqueue_marker9ocl_queuejPK12ocl_clkeventPS0_
+  // CHECK-LLVM: _Z14enqueue_marker9ocl_queuejPU3AS4K12ocl_clkeventPU3AS4S0_
   *out = enqueue_marker(queue, 1, &waitlist, &evt);
 }

@@ -401,7 +401,11 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
   // Use of -fintelfpga implies -g and -MMD
   if (Args.hasArg(options::OPT_fintelfpga)) {
     DAL->AddFlagArg(0, Opts.getOption(options::OPT_MMD));
-    DAL->AddFlagArg(0, Opts.getOption(options::OPT_g_Flag));
+    // if any -gN option is provided, use that.
+    if (Arg *A = Args.getLastArg(options::OPT_gN_Group))
+      DAL->append(A);
+    else
+      DAL->AddFlagArg(0, Opts.getOption(options::OPT_g_Flag));
   }
 
 // Add a default value of -mlinker-version=, if one was given and the user
@@ -1684,7 +1688,7 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     llvm::Triple T;
     if (AV == "gen" || AV == "all")
       HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_gen"),
-                                         "ocloc", "-?"));
+                                         "ocloc", "--help"));
     if (AV == "fpga" || AV == "all")
       HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_fpga"),
                                          "aoc", "-help"));
@@ -1703,14 +1707,17 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     llvm::outs() << "Emitting help information for " << std::get<1>(HA) << '\n'
         << "Use triple of '" << std::get<0>(HA).normalize() <<
         "' to enable ahead of time compilation\n";
-    // do not run the tools with -###.
-    if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH))
-      continue;
     std::vector<StringRef> ToolArgs = { std::get<1>(HA), std::get<2>(HA) };
-    StringRef ExecPath(C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
+    SmallString<128> ExecPath(
+        C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
     auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
     if (ToolBinary.getError()) {
       C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
+      continue;
+    }
+    // do not run the tools with -###.
+    if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
+      llvm::errs() << "\"" << ExecPath << "\" \"" << ToolArgs[1] << "\"\n";
       continue;
     }
     // Run the Tool.
@@ -5011,9 +5018,13 @@ InputInfo Driver::BuildJobsForActionNoCache(
       bool IsMSVCEnv =
           C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
       if (C.getInputArgs().hasArg(options::OPT_foffload_static_lib_EQ) &&
-          UI.DependentOffloadKind != Action::OFK_Host &&
-          ((JA->getType() == types::TY_Object && !IsMSVCEnv) ||
-           (JA->getType() == types::TY_Archive && IsMSVCEnv))) {
+          ((JA->getType() == types::TY_Archive && IsMSVCEnv) ||
+           (UI.DependentOffloadKind != Action::OFK_Host &&
+            (JA->getType() == types::TY_Object && !IsMSVCEnv)))) {
+        // Host part of the unbundled static archive is not used.
+        if (UI.DependentOffloadKind == Action::OFK_Host &&
+            JA->getType() == types::TY_Archive && IsMSVCEnv)
+          continue;
         std::string TmpFileName =
            C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
                                           "txt");
@@ -5235,7 +5246,12 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
 
   // Output to a temporary file?
   if ((!AtTopLevel && !isSaveTempsEnabled() &&
-       !C.getArgs().hasArg(options::OPT__SLASH_Fo)) ||
+       (!C.getArgs().hasArg(options::OPT__SLASH_Fo) ||
+        // FIXME - The use of /Fo is limited when offloading is enabled.  When
+        // compiling to exe use of /Fo does not produce the named obj
+        (C.getArgs().hasArg(options::OPT__SLASH_Fo) &&
+         (!JA.isOffloading(Action::OFK_None) ||
+          JA.getOffloadingHostActiveKinds() > Action::OFK_Host)))) ||
       CCGenDiagnostics) {
     StringRef Name = llvm::sys::path::filename(BaseInput);
     std::pair<StringRef, StringRef> Split = Name.split('.');

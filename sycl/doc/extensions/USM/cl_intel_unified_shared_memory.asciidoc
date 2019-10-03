@@ -58,7 +58,7 @@ If you are interested in using this feature in your software product, please let
 == Version
 
 Built On: {docdate} +
-Revision: E
+Revision: G
 
 == Dependencies
 
@@ -201,7 +201,6 @@ Bitfield type and bits describing optional allocation properties for a Unified S
 ----
 typedef cl_bitfield cl_mem_alloc_flags_intel;
 
-#define CL_MEM_ALLOC_DEFAULT_INTEL                      0
 #define CL_MEM_ALLOC_WRITE_COMBINED_INTEL               (1 << 0)
 ----
 
@@ -215,9 +214,10 @@ typedef cl_uint cl_mem_info_intel;
 #define CL_MEM_ALLOC_TYPE_INTEL         0x419A
 #define CL_MEM_ALLOC_BASE_PTR_INTEL     0x419B
 #define CL_MEM_ALLOC_SIZE_INTEL         0x419C
-#define CL_MEM_ALLOC_INFO_TBD0_INTEL    0x419D  /* reserved for future */
-#define CL_MEM_ALLOC_INFO_TBD1_INTEL    0x419E  /* reserved for future */
-#define CL_MEM_ALLOC_INFO_TBD2_INTEL    0x419F  /* reserved for future */
+#define CL_MEM_ALLOC_INFO_DEVICE_INTEL  0x419D
+/* CL_MEM_ALLOC_FLAGS_INTEL - defined above */
+#define CL_MEM_ALLOC_INFO_TBD0_INTEL    0x419E  /* reserved for future */
+#define CL_MEM_ALLOC_INFO_TBD1_INTEL    0x419F  /* reserved for future */
 ----
 
 Enumeration type and values describing the type of Unified Shared Memory allocation.  Returned by *clGetMemAllocInfoINTEL* when _param_name_ is `CL_MEM_ALLOC_TYPE_INTEL`:
@@ -506,11 +506,13 @@ void*   clSharedMemAllocINTEL(
 ----
 
 allocates Unified Shared Memory with shared ownership between the host and the specified OpenCL device.
-If the specified OpenCL device supports cross-device access capabilities, the allocation is also accessible to other OpenCL devices in the context that have the same cross-device access capabilities.
+If the specified OpenCL device supports cross-device access capabilities, the allocation is also accessible by other OpenCL devices in the context that have the same cross-device access capabilities.
 
 _context_ is a valid OpenCL context used to allocate the Unified Shared Memory.
 
-_device_ is a valid OpenCL device ID to associate with the allocation.
+_device_ is an optional OpenCL device ID to associate with the allocation.
+If _device_ is `NULL` then the allocation is not associated with any device.
+Allocations with no associated device are accessible by the host and OpenCL devices in the context that have cross-device access capabilities.
 
 _properties_ is an optional list of allocation properties and their corresponding values.
 The list is terminated with the special property `0`.
@@ -575,9 +577,6 @@ The table below describes allocation properties that may be passed to control al
     | Flags specifying allocation and usage information.
       This is a bitfield type that may be set to any combination of the following values:
       
-      `CL_MEM_ALLOC_DEFAULT_INTEL`:
-      Use the default allocation behavior.
-
       `CL_MEM_ALLOC_WRITE_COMBINED_INTEL`:
       Request write combined (WC) memory.
       Write combined memory may improve performance in some cases, however write combined memory must be used with care since it may hurt performance in other cases or use different coherency protocols than non-write combined memory.
@@ -605,7 +604,6 @@ _context_ is a valid OpenCL context to query for information about the Unified S
 
 _ptr_ is a pointer into a Unified Shared Memory allocation to query.
 _ptr_ need not be a value returned by *clHostMemAllocINTEL*, *clDeviceMemAllocINTEL*, or *clSharedMemAllocINTEL*, but the query may be faster if it is.
-TBD: What if _ptr_ is `NULL` or is not a pointer into a Unified Shared Memory allocation?
 
 _param_name_ specifies the information to query.
 The list of supported _param_name_ values and the information returned in _param_value_ is described in the <<cl_mem_info_intel,Unified Memory Allocation Queries>> table.
@@ -637,16 +635,27 @@ Otherwise, it will return one of the following error values:
         Returns `CL_MEM_TYPE_HOST_INTEL` for allocations made by *clHostMemAllocINTEL* .
         Returns `CL_MEM_TYPE_DEVICE_INTEL` for allocations made by *clDeviceMemAllocINTEL*.
         Returns `CL_MEM_TYPE_SHARED_INTEL` for allocations made by *clSharedMemAllocINTEL*.
-        Returns `CL_MEM_TYPE_UNKNOWN_INTEL` if the type of the Unified Shared Memory allocation cannot be determined, or if _ptr_ does not point into a Unified Shared Memory Allocation.
-| `CL_MEM_ALLOC_FLAGS_INTEL`
-  | cl_mem_alloc_flags_intel
-      | Returns allocation flags for the Unified Shared Memory allocation.
+        Returns `CL_MEM_TYPE_UNKNOWN_INTEL` if the type of the Unified Shared Memory allocation cannot be determined or if _ptr_ does not point into a Unified Shared Memory allocation.
 | `CL_MEM_ALLOC_BASE_PTR_INTEL`
   | void*
       | Returns the base address of the Unified Shared Memory allocation.
+
+        Returns `NULL` for `CL_MEM_TYPE_UNKNOWN_INTEL` allocations.
 | `CL_MEM_ALLOC_SIZE_INTEL`
   | size_t
       | Returns the size in bytes of the Unified Shared Memory allocation.
+
+        Returns `0` for `CL_MEM_TYPE_UNKNOWN_INTEL` allocations.
+| `CL_MEM_ALLOC_DEVICE_INTEL`
+  | cl_device_id
+      | Returns the device associated with the Unified Shared Memory allocation.
+
+        Returns `NULL` for `CL_MEM_TYPE_HOST_INTEL` allocations, for  `CL_MEM_TYPE_SHARED_INTEL` allocations with no associated device, and for `CL_MEM_TYPE_UNKNOWN_INTEL` allocations.
+| `CL_MEM_ALLOC_FLAGS_INTEL`
+  | cl_mem_alloc_flags_intel
+      | Returns allocation flags for the Unified Shared Memory allocation.
+
+        Returns `0` if no allocation flags were specified for the Unified Shared Memory allocation and for `CL_MEM_TYPE_UNKNOWN_INTEL` allocations.
 
 |====
 
@@ -952,10 +961,8 @@ The _flags_ argument was folded into the _properties_ in revision C.
 . What should behavior be for `clGetMemAllocInfoINTEL` if the passed-in _ptr_ is `NULL` or doesn't point into a USM allocation?
 +
 --
-*UNRESOLVED*:
-This could be an error, either `CL_INVALID_MEM_OBJECT` or some new error code.
-This could be valid when querying for `CL_MEM_ALLOC_TYPE_INTEL` (returning `CL_MEM_TYPE_UNKNOWN_INTEL`), but an error for other queries.
-We could spec behavior for all queries, meaning this is not an error. 
+`RESOLVED`:
+The behavior was defined for all queries for this case in revision G.
 --
 
 . Do we want separate "memset" APIs to set to different sized "value", such as 8-bits, 16-bits?, 32-bits, or others?  Do we want to go back to a "fill" API?
@@ -1010,14 +1017,27 @@ This depends how frequently the migrate APIs are called.
 . Could the _device_ argument to *clSharedMemAllocINTEL* be `NULL` if there is no need to associate the shared allocation to a specific device?
 +
 --
-*UNRESOLVED*:
+`RESOLVED`:
+Yes, this case is documented in revision G.
 --
 
 . Should we allow querying the associated device for a USM allocation using *clGetMemAllocInfoINTEL*?
 +
 --
+`RESOLVED`:
+This query was added in revision G.
+--
+
+. Should we add explicit mem alloc flags for `CACHED` and `UNCACHED`?
++
+--
 *UNRESOLVED*:
-If we added this we'd need to specify what happens for host allocations or shared allocations with no associated device.
+--
+
+. At least for HOST and SHARED allocations, should have separate mem alloc flags for the host and the device?
++
+--
+*UNRESOLVED*:
 --
 
 == TODO
@@ -1040,6 +1060,8 @@ If we added this we'd need to specify what happens for host allocations or share
 |C|2019-06-18|Ben Ashbaugh|Moved flags argument into properties.
 |D|2019-07-19|Ben Ashbaugh|Editorial fixes.
 |E|2019-07-22|Ben Ashbaugh|Allocation properties should be const.
+|F|2019-07-26|Ben Ashbaugh|Removed DEFAULT mem alloc flag.
+|G|2019-08-23|Ben Ashbaugh|Added mem alloc query for associated device.
 |========================================
 
 //************************************************************************

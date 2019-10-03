@@ -332,42 +332,69 @@ CheckForIncompatibleAttributes(Sema &S,
   }
 }
 
-
-template <typename FPGALoopAttrT> static void
-CheckForDuplicationFPGALoopAttribute(Sema &S,
-                                     const SmallVectorImpl<const Attr *>
-                                     &Attrs, SourceRange Range) {
-  const FPGALoopAttrT *LoopFPGAAttr = nullptr;
+template <typename LoopAttrT>
+static void CheckForDuplicationSYCLLoopAttribute(
+    Sema &S, const SmallVectorImpl<const Attr *> &Attrs, SourceRange Range,
+    bool isIntelFPGAAttr = true) {
+  const LoopAttrT *LoopAttr = nullptr;
 
   for (const auto *I : Attrs) {
-    if (LoopFPGAAttr) {
-      if (isa<FPGALoopAttrT>(I)) {
+    if (LoopAttr) {
+      if (isa<LoopAttrT>(I)) {
         SourceLocation Loc = Range.getBegin();
         // Cannot specify same type of attribute twice.
-        S.Diag(Loc, diag::err_intel_fpga_loop_attr_duplication)
-          << LoopFPGAAttr->getName();
+        S.Diag(Loc, diag::err_sycl_loop_attr_duplication)
+            << isIntelFPGAAttr << LoopAttr->getName();
       }
     }
-    if (isa<FPGALoopAttrT>(I))
-      LoopFPGAAttr = cast<FPGALoopAttrT>(I);
+    if (isa<LoopAttrT>(I))
+      LoopAttr = cast<LoopAttrT>(I);
   }
 }
 
-static void
-CheckForIncompatibleFPGALoopAttributes(Sema &S,
-                                       const SmallVectorImpl<const Attr *>
-                                       &Attrs, SourceRange Range) {
-  CheckForDuplicationFPGALoopAttribute<SYCLIntelFPGAIVDepAttr>(S, Attrs, Range);
-  CheckForDuplicationFPGALoopAttribute<SYCLIntelFPGAIIAttr>(S, Attrs, Range);
-  CheckForDuplicationFPGALoopAttribute<
-    SYCLIntelFPGAMaxConcurrencyAttr>(S, Attrs, Range);
+static void CheckForIncompatibleSYCLLoopAttributes(
+    Sema &S, const SmallVectorImpl<const Attr *> &Attrs, SourceRange Range) {
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAIVDepAttr>(S, Attrs, Range);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAIIAttr>(S, Attrs, Range);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAMaxConcurrencyAttr>(
+      S, Attrs, Range);
+  CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, Range,
+                                                           false);
 }
 
-static Attr *handleOpenCLUnrollHint(Sema &S, Stmt *St, const ParsedAttr &A,
-                                    SourceRange Range) {
+void CheckForIncompatibleUnrollHintAttributes(
+    Sema &S, const SmallVectorImpl<const Attr *> &Attrs, SourceRange Range) {
+
+  // This check is entered after it was analyzed that there are no duplicating
+  // pragmas and loop attributes. So, let's perform check that there are no
+  // conflicting pragma unroll and unroll attribute for the loop.
+  const LoopUnrollHintAttr *AttrUnroll = nullptr;
+  const LoopHintAttr *PragmaUnroll = nullptr;
+  for (const auto *I : Attrs) {
+    if (auto *LH = dyn_cast<LoopUnrollHintAttr>(I))
+      AttrUnroll = LH;
+    if (auto *LH = dyn_cast<LoopHintAttr>(I)) {
+      LoopHintAttr::OptionType Opt = LH->getOption();
+      if (Opt == LoopHintAttr::Unroll || Opt == LoopHintAttr::UnrollCount)
+        PragmaUnroll = LH;
+    }
+  }
+
+  if (AttrUnroll && PragmaUnroll) {
+    PrintingPolicy Policy(S.Context.getLangOpts());
+    SourceLocation Loc = Range.getBegin();
+    S.Diag(Loc, diag::err_loop_unroll_compatibility)
+        << PragmaUnroll->getDiagnosticName(Policy)
+        << AttrUnroll->getDiagnosticName();
+  }
+}
+
+template <typename LoopUnrollAttrT>
+static Attr *handleLoopUnrollHint(Sema &S, Stmt *St, const ParsedAttr &A,
+                                  SourceRange Range) {
   // Although the feature was introduced only in OpenCL C v2.0 s6.11.5, it's
   // useful for OpenCL 1.x too and doesn't require HW support.
-  // opencl_unroll_hint can have 0 arguments (compiler
+  // opencl_unroll_hint or clang::unroll can have 0 arguments (compiler
   // determines unrolling factor) or 1 argument (the unroll factor provided
   // by the user).
 
@@ -401,7 +428,7 @@ static Attr *handleOpenCLUnrollHint(Sema &S, Stmt *St, const ParsedAttr &A,
     UnrollFactor = Val;
   }
 
-  return OpenCLUnrollHintAttr::CreateImplicit(S.Context, UnrollFactor);
+  return LoopUnrollAttrT::CreateImplicit(S.Context, UnrollFactor);
 }
 
 static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
@@ -424,7 +451,9 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
   case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
     return handleIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(S, St, A);
   case ParsedAttr::AT_OpenCLUnrollHint:
-    return handleOpenCLUnrollHint(S, St, A, Range);
+    return handleLoopUnrollHint<OpenCLUnrollHintAttr>(S, St, A, Range);
+  case ParsedAttr::AT_LoopUnrollHint:
+    return handleLoopUnrollHint<LoopUnrollHintAttr>(S, St, A, Range);
   case ParsedAttr::AT_Suppress:
     return handleSuppressAttr(S, St, A, Range);
   default:
@@ -446,7 +475,8 @@ StmtResult Sema::ProcessStmtAttributes(Stmt *S,
   }
 
   CheckForIncompatibleAttributes(*this, Attrs);
-  CheckForIncompatibleFPGALoopAttributes(*this, Attrs, Range);
+  CheckForIncompatibleSYCLLoopAttributes(*this, Attrs, Range);
+  CheckForIncompatibleUnrollHintAttributes(*this, Attrs, Range);
 
   if (Attrs.empty())
     return S;

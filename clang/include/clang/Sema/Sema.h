@@ -11573,7 +11573,7 @@ public:
     KernelCallVariadicFunction
  };
   DeviceDiagBuilder SYCLDiagIfDeviceCode(SourceLocation Loc, unsigned DiagID);
-  void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc);
+  void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void MarkDevice(void);
   bool CheckSYCLCall(SourceLocation Loc, FunctionDecl *Callee);
 };

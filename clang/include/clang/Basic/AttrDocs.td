@@ -3080,6 +3080,16 @@ s6.11.5 for details.
   }];
 }
 
+def LoopUnrollHintDocs : Documentation {
+  let Category = DocCatStmt;
+  let Content = [{
+Loop unrolling optimization hint can be specified with CXX11 attribute
+``[[clang::loop_unroll]]``. The attribute is placed immediately before a for,
+while, do-while, or c++11 range-based for loop. This attribute can be
+used to specify full unrolling or partial unrolling by a specified amount.
+  }];
+}
+
 def IntelReqdSubGroupSizeDocs : Documentation {
   let Category = DocCatStmt;
   let Content = [{

@@ -11,6 +11,8 @@
 #include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 
+#include <chrono>
+
 namespace cl {
 namespace sycl {
 namespace detail {
@@ -81,6 +83,15 @@ event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
   PI_CALL(RT::piEventRetain(m_Event));
 }
 
+event_impl::event_impl(std::shared_ptr<cl::sycl::detail::queue_impl> Queue) {
+  if (Queue->is_host() &&
+      Queue->has_property<property::queue::enable_profiling>()) {
+    m_HostProfilingInfo.reset(new HostProfilingInfo());
+    if (!m_HostProfilingInfo)
+      throw runtime_error("Out of host memory");
+  }
+}
+
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
 
@@ -110,8 +121,9 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
     return get_event_profiling_info<
         info::event_profiling::command_submit>::_(this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
-  return (cl_ulong)0;
+  if (!m_HostProfilingInfo)
+    throw invalid_object_error("Profiling info is not available.");
+  return m_HostProfilingInfo->getStartTime();
 }
 
 template <>
@@ -121,8 +133,9 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
     return get_event_profiling_info<info::event_profiling::command_start>::_(
         this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
-  return (cl_ulong)0;
+  if (!m_HostProfilingInfo)
+    throw invalid_object_error("Profiling info is not available.");
+  return m_HostProfilingInfo->getStartTime();
 }
 
 template <>
@@ -132,8 +145,9 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
     return get_event_profiling_info<info::event_profiling::command_end>::_(
         this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
-  return (cl_ulong)0;
+  if (!m_HostProfilingInfo)
+    throw invalid_object_error("Profiling info is not available.");
+  return m_HostProfilingInfo->getEndTime();
 }
 
 template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
@@ -141,8 +155,7 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
     return get_event_info<info::event::reference_count>::_(
         this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
-  return (cl_ulong)0;
+  return 0;
 }
 
 template <>
@@ -152,9 +165,17 @@ event_impl::get_info<info::event::command_execution_status>() const {
     return get_event_info<info::event::command_execution_status>::_(
         this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
   return info::event_command_status::complete;
 }
+
+static uint64_t getTimestamp() {
+  auto ts = std::chrono::high_resolution_clock::now().time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(ts).count();
+}
+
+void HostProfilingInfo::start() { StartTime = getTimestamp(); }
+
+void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 } // namespace detail
 } // namespace sycl

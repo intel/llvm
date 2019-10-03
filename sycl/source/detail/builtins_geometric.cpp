@@ -125,49 +125,56 @@ s::cl_half4 cross(s::cl_half4 p0, s::cl_half4 p1) __NOEXC {
 }
 
 // FMul
-cl_float FMul(s::cl_float p0, s::cl_float p1) { return __FMul(p0, p1); }
-cl_double FMul(s::cl_double p0, s::cl_double p1) { return __FMul(p0, p1); }
-cl_float FMul(s::cl_half p0, s::cl_half p1) { return __FMul(p0, p1); }
+s::cl_float FMul(s::cl_float p0, s::cl_float p1) { return __FMul(p0, p1); }
+s::cl_double FMul(s::cl_double p0, s::cl_double p1) { return __FMul(p0, p1); }
+s::cl_float FMul(s::cl_half p0, s::cl_half p1) { return __FMul(p0, p1); }
 
 // Dot
 MAKE_GEO_1V_2V_RS(Dot, __FMul_impl, s::cl_float, s::cl_float, s::cl_float)
-MAKE_GEO_1V_2V_RS(Dot, __FMul_impl, s::cl_double, s::cl_double,
-                  s::cl_double)
+MAKE_GEO_1V_2V_RS(Dot, __FMul_impl, s::cl_double, s::cl_double, s::cl_double)
 MAKE_GEO_1V_2V_RS(Dot, __FMul_impl, s::cl_half, s::cl_half, s::cl_half)
 
 // length
-cl_float length(s::cl_float p) { return __length(p); }
-cl_double length(s::cl_double p) { return __length(p); }
-cl_half length(s::cl_half p) { return __length(p); }
-cl_float length(s::cl_float2 p) { return __length(p); }
-cl_float length(s::cl_float3 p) { return __length(p); }
-cl_float length(s::cl_float4 p) { return __length(p); }
-cl_double length(s::cl_double2 p) { return __length(p); }
-cl_double length(s::cl_double3 p) { return __length(p); }
-cl_double length(s::cl_double4 p) { return __length(p); }
-cl_half length(s::cl_half2 p) { return __length(p); }
-cl_half length(s::cl_half3 p) { return __length(p); }
-cl_half length(s::cl_half4 p) { return __length(p); }
+s::cl_float length(s::cl_float p) { return __length(p); }
+s::cl_double length(s::cl_double p) { return __length(p); }
+s::cl_half length(s::cl_half p) { return __length(p); }
+s::cl_float length(s::cl_float2 p) { return __length(p); }
+s::cl_float length(s::cl_float3 p) { return __length(p); }
+s::cl_float length(s::cl_float4 p) { return __length(p); }
+s::cl_double length(s::cl_double2 p) { return __length(p); }
+s::cl_double length(s::cl_double3 p) { return __length(p); }
+s::cl_double length(s::cl_double4 p) { return __length(p); }
+s::cl_half length(s::cl_half2 p) { return __length(p); }
+s::cl_half length(s::cl_half3 p) { return __length(p); }
+s::cl_half length(s::cl_half4 p) { return __length(p); }
 
 // distance
-cl_float distance(s::cl_float p0, s::cl_float p1) { return length(p0 - p1); }
-cl_float distance(s::cl_float2 p0, s::cl_float2 p1) { return length(p0 - p1); }
-cl_float distance(s::cl_float3 p0, s::cl_float3 p1) { return length(p0 - p1); }
-cl_float distance(s::cl_float4 p0, s::cl_float4 p1) { return length(p0 - p1); }
-cl_double distance(s::cl_double p0, s::cl_double p1) { return length(p0 - p1); }
-cl_double distance(s::cl_double2 p0, s::cl_double2 p1) {
+s::cl_float distance(s::cl_float p0, s::cl_float p1) { return length(p0 - p1); }
+s::cl_float distance(s::cl_float2 p0, s::cl_float2 p1) {
   return length(p0 - p1);
 }
-cl_double distance(s::cl_double3 p0, s::cl_double3 p1) {
+s::cl_float distance(s::cl_float3 p0, s::cl_float3 p1) {
   return length(p0 - p1);
 }
-cl_double distance(s::cl_double4 p0, s::cl_double4 p1) {
+s::cl_float distance(s::cl_float4 p0, s::cl_float4 p1) {
   return length(p0 - p1);
 }
-cl_half distance(s::cl_half p0, s::cl_half p1) { return length(p0 - p1); }
-cl_half distance(s::cl_half2 p0, s::cl_half2 p1) { return length(p0 - p1); }
-cl_half distance(s::cl_half3 p0, s::cl_half3 p1) { return length(p0 - p1); }
-cl_half distance(s::cl_half4 p0, s::cl_half4 p1) { return length(p0 - p1); }
+s::cl_double distance(s::cl_double p0, s::cl_double p1) {
+  return length(p0 - p1);
+}
+s::cl_double distance(s::cl_double2 p0, s::cl_double2 p1) {
+  return length(p0 - p1);
+}
+s::cl_double distance(s::cl_double3 p0, s::cl_double3 p1) {
+  return length(p0 - p1);
+}
+s::cl_double distance(s::cl_double4 p0, s::cl_double4 p1) {
+  return length(p0 - p1);
+}
+s::cl_half distance(s::cl_half p0, s::cl_half p1) { return length(p0 - p1); }
+s::cl_half distance(s::cl_half2 p0, s::cl_half2 p1) { return length(p0 - p1); }
+s::cl_half distance(s::cl_half3 p0, s::cl_half3 p1) { return length(p0 - p1); }
+s::cl_half distance(s::cl_half4 p0, s::cl_half4 p1) { return length(p0 - p1); }
 
 // normalize
 s::cl_float normalize(s::cl_float p) { return __normalize(p); }
@@ -184,10 +191,10 @@ s::cl_half3 normalize(s::cl_half3 p) { return __normalize(p); }
 s::cl_half4 normalize(s::cl_half4 p) { return __normalize(p); }
 
 // fast_length
-cl_float fast_length(s::cl_float p) { return __fast_length(p); }
-cl_float fast_length(s::cl_float2 p) { return __fast_length(p); }
-cl_float fast_length(s::cl_float3 p) { return __fast_length(p); }
-cl_float fast_length(s::cl_float4 p) { return __fast_length(p); }
+s::cl_float fast_length(s::cl_float p) { return __fast_length(p); }
+s::cl_float fast_length(s::cl_float2 p) { return __fast_length(p); }
+s::cl_float fast_length(s::cl_float3 p) { return __fast_length(p); }
+s::cl_float fast_length(s::cl_float4 p) { return __fast_length(p); }
 
 // fast_normalize
 s::cl_float fast_normalize(s::cl_float p) {
@@ -201,16 +208,16 @@ s::cl_float3 fast_normalize(s::cl_float3 p) { return __fast_normalize(p); }
 s::cl_float4 fast_normalize(s::cl_float4 p) { return __fast_normalize(p); }
 
 // fast_distance
-cl_float fast_distance(s::cl_float p0, s::cl_float p1) {
+s::cl_float fast_distance(s::cl_float p0, s::cl_float p1) {
   return fast_length(p0 - p1);
 }
-cl_float fast_distance(s::cl_float2 p0, s::cl_float2 p1) {
+s::cl_float fast_distance(s::cl_float2 p0, s::cl_float2 p1) {
   return fast_length(p0 - p1);
 }
-cl_float fast_distance(s::cl_float3 p0, s::cl_float3 p1) {
+s::cl_float fast_distance(s::cl_float3 p0, s::cl_float3 p1) {
   return fast_length(p0 - p1);
 }
-cl_float fast_distance(s::cl_float4 p0, s::cl_float4 p1) {
+s::cl_float fast_distance(s::cl_float4 p0, s::cl_float4 p1) {
   return fast_length(p0 - p1);
 }
 

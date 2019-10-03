@@ -29,6 +29,7 @@ def do_configure(args):
                  "-DOpenCL_LIBRARY={}".format(icd_loader_lib),
                  "-DLLVM_BUILD_TOOLS=OFF",
                  "-DSYCL_ENABLE_WERROR=ON",
+                 "-DLLVM_ENABLE_ASSERTIONS=ON",
                  llvm_dir]
 
     print(cmake_cmd)

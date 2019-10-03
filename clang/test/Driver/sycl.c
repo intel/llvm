@@ -22,15 +22,19 @@
 // DEFAULT-PHASES-NOT: linker
 
 // -fsycl-help tests
+// RUN: mkdir -p %t-sycl-dir
+// RUN: touch %t-sycl-dir/aoc
+// RUN: chmod +x %t-sycl-dir/aoc
 // Test with a bad argument is expected to fail
 // RUN: not %clang -fsycl-help=foo %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-BADARG
 // RUN: %clang -### -fsycl-help=gen %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-GEN
-// RUN: %clang -### -fsycl-help=fpga %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-FPGA
+// RUN: env PATH=%t-sycl-dir %clang -### -fsycl-help=fpga %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-FPGA,SYCL-HELP-FPGA-OUT -DDIR=%t-sycl-dir
 // RUN: %clang -### -fsycl-help=x86_64 %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-CPU
 // RUN: %clang -### -fsycl-help %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-GEN,SYCL-HELP-FPGA,SYCL-HELP-CPU
 // SYCL-HELP-BADARG: unsupported argument 'foo' to option 'fsycl-help='
 // SYCL-HELP-GEN: Emitting help information for ocloc
 // SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-{{.*}}-sycldevice' to enable ahead of time compilation
+// SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help"
 // SYCL-HELP-FPGA: Emitting help information for aoc
 // SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-{{.*}}-sycldevice' to enable ahead of time compilation
 // SYCL-HELP-CPU: Emitting help information for ioc64
