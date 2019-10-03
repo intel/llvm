@@ -65,7 +65,6 @@ public:
     BackendJobClass,
     AssembleJobClass,
     LinkJobClass,
-    IfsMergeJobClass,
     LipoJobClass,
     DsymutilJobClass,
     VerifyDebugInfoJobClass,
@@ -488,17 +487,6 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == AssembleJobClass;
-  }
-};
-
-class IfsMergeJobAction : public JobAction {
-  void anchor() override;
-
-public:
-  IfsMergeJobAction(ActionList &Inputs, types::ID Type);
-
-  static bool classof(const Action *A) {
-    return A->getKind() == IfsMergeJobClass;
   }
 };
 

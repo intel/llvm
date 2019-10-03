@@ -26,12 +26,18 @@ cl::OptionCategory
 static cl::list<std::string>
     SelectedCombiners("combiners", cl::desc("Emit the specified combiners"),
                       cl::cat(GICombinerEmitterCat), cl::CommaSeparated);
+static cl::opt<bool> ShowExpansions(
+    "gicombiner-show-expansions",
+    cl::desc("Use C++ comments to indicate occurence of code expansion"),
+    cl::cat(GICombinerEmitterCat));
+
 namespace {
 class GICombinerEmitter {
   StringRef Name;
   Record *Combiner;
 public:
-  explicit GICombinerEmitter(RecordKeeper &RK, StringRef Name);
+  explicit GICombinerEmitter(RecordKeeper &RK, StringRef Name,
+                             Record *Combiner);
   ~GICombinerEmitter() {}
 
   StringRef getClassName() const {
@@ -41,8 +47,9 @@ public:
 
 };
 
-GICombinerEmitter::GICombinerEmitter(RecordKeeper &RK, StringRef Name)
-    : Name(Name), Combiner(RK.getDef(Name)) {}
+GICombinerEmitter::GICombinerEmitter(RecordKeeper &RK, StringRef Name,
+                                     Record *Combiner)
+    : Name(Name), Combiner(Combiner) {}
 
 void GICombinerEmitter::run(raw_ostream &OS) {
   NamedRegionTimer T("Emit", "Time spent emitting the combiner",
@@ -87,8 +94,12 @@ void EmitGICombiner(RecordKeeper &RK, raw_ostream &OS) {
 
   if (SelectedCombiners.empty())
     PrintFatalError("No combiners selected with -combiners");
-  for (const auto &Combiner : SelectedCombiners)
-    GICombinerEmitter(RK, Combiner).run(OS);
+  for (const auto &Combiner : SelectedCombiners) {
+    Record *CombinerDef = RK.getDef(Combiner);
+    if (!CombinerDef)
+      PrintFatalError("Could not find " + Combiner);
+    GICombinerEmitter(RK, Combiner, CombinerDef).run(OS);
+  }
 }
 
 } // namespace llvm
