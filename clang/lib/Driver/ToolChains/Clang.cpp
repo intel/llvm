@@ -6638,7 +6638,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   SmallString<128> Triples;
   Triples += "-targets=";
   auto DepInfo = UA.getDependentActionsInfo();
-  for (unsigned I = 0; I < DepInfo.size(); ++I) {
+  for (unsigned I = 0, J = 0; I < DepInfo.size(); ++I) {
     auto &Dep = DepInfo[I];
     // FPGA device triples are 'transformed' for the bundler when creating
     // aocx or aocr type bundles.  Also, we only do a specific target
@@ -6664,8 +6664,14 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         Triples += Dep.DependentToolChain->getTriple().normalize();
       }
       continue;
+    } else if (Input.getType() == types::TY_Archive) {
+      // Do not extract host part if we are unbundling archive on Windows
+      // because it is not needed. Static offload libraries are added to the
+      // host link command just as normal libraries.
+      if (Dep.DependentOffloadKind == Action::OFK_Host)
+        continue;
     }
-    if (I)
+    if (J++)
       Triples += ',';
     Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Triples += '-';

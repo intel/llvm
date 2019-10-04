@@ -144,7 +144,7 @@ public:
   };
 
   usm_allocator();
-  usm_allocator(const context *ctxt, const device *dev);
+  usm_allocator(const context &ctxt, const device &dev);
   usm_allocator(const usm_allocator &other);
      
   // Construct an object

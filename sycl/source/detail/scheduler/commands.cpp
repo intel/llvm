@@ -125,7 +125,7 @@ std::vector<RT::PiEvent> Command::prepareEvents(ContextImplPtr Context) {
 Command::Command(CommandType Type, QueueImplPtr Queue, bool UseExclusiveQueue)
     : MQueue(std::move(Queue)), MUseExclusiveQueue(UseExclusiveQueue),
       MType(Type), MEnqueued(false) {
-  MEvent.reset(new detail::event_impl());
+  MEvent.reset(new detail::event_impl(MQueue));
   MEvent->setCommand(this);
   MEvent->setContextImpl(detail::getSyclObjImpl(MQueue->get_context()));
 }
@@ -550,7 +550,7 @@ void DispatchNativeKernel(void *Blob) {
   void **NextArg = (void **)Blob + 1;
   for (detail::Requirement *Req : HostTask->MRequirements)
     Req->MData = *(NextArg++);
-  HostTask->MHostKernel->call(HostTask->MNDRDesc);
+  HostTask->MHostKernel->call(HostTask->MNDRDesc, nullptr);
 }
 
 cl_int ExecCGCommand::enqueueImp() {
@@ -702,7 +702,8 @@ cl_int ExecCGCommand::enqueueImp() {
         }
       if (!RawEvents.empty())
         PI_CALL(RT::piEventsWait(RawEvents.size(), &RawEvents[0]));
-      ExecKernel->MHostKernel->call(NDRDesc);
+      ExecKernel->MHostKernel->call(NDRDesc,
+                                    getEvent()->getHostProfilingInfo());
       return CL_SUCCESS;
     }
 

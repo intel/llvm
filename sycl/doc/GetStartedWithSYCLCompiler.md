@@ -82,14 +82,14 @@ git clone https://github.com/intel/llvm -b sycl
 mkdir %SYCL_HOME%\build
 cd %SYCL_HOME%\build
 
-cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86"^
--DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl"^
--DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl"^
--DLLVM_EXTERNAL_SYCL_SOURCE_DIR="%SYCL_HOME%\llvm\sycl"^
--DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR="%SYCL_HOME%\llvm\llvm-spirv"^
--DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_FLAGS="/GS"^
--DCMAKE_CXX_FLAGS="/GS" -DCMAKE_EXE_LINKER_FLAGS="/NXCompat /DynamicBase"^
--DCMAKE_SHARED_LINKER_FLAGS="/NXCompat /DynamicBase"^
+cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" ^
+-DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" ^
+-DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" ^
+-DLLVM_EXTERNAL_SYCL_SOURCE_DIR="%SYCL_HOME%\llvm\sycl" ^
+-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR="%SYCL_HOME%\llvm\llvm-spirv" ^
+-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_FLAGS="/GS" ^
+-DCMAKE_CXX_FLAGS="/GS" -DCMAKE_EXE_LINKER_FLAGS="/NXCompat /DynamicBase" ^
+-DCMAKE_SHARED_LINKER_FLAGS="/NXCompat /DynamicBase" ^
 "%SYCL_HOME%\llvm\llvm"
 
 ninja sycl-toolchain
@@ -117,25 +117,57 @@ should be used.
 To run SYCL  applications on OpenCL devices, OpenCL implementation(s) must be
 present in the system.
 
-To execute SYCL tests on Intel devices following runtimes should be installed:
+Please, refer to [the Release Notes](../ReleaseNotes.md) for recommended Intel
+runtime versions.
+
+The `GPU` runtime that is needed to run SYCL application on Intel `GPU` devices
+can be downloaded from the following web pages:
+
+* Linux: [Intel&reg; Graphics Compute Runtime for
+   OpenCL&trade;](https://github.com/intel/compute-runtime/releases)
+
+* Windows: [Intel&reg; Download
+   Center](https://downloadcenter.intel.com/product/80939/Graphics-Drivers)
+
+
+To install Intel `CPU` runtime for OpenCL devices the corresponding runtime
+asset/archive should be downloaded from
+[SYCL Compiler and Runtime updates](../ReleaseNotes.md) and installed using
+the following procedure.
 
 **Linux**
 
-* Intel GPU [Intel&reg; Graphics Compute Runtime for
-   OpenCL&trade;](https://github.com/intel/compute-runtime/releases)
-* Intel CPU - [Experimental Intel&reg; CPU Runtime for OpenCL&trade; Applications
-   with SYCL support](https://github.com/intel/llvm/releases)
-* Intel FPGA - TBD.
-
+1) Extract the archive. For example, for the archive
+`oclcpu_rt_<new_version>.tar.gz` you would run the following commands
+```bash
+mkdir -p /opt/intel/oclcpuexp
+cd /opt/intel/oclcpuexp
+tar -zxvf oclcpu_rt_<new_version>.tar.gz
+```
+2) Create ICD file pointing to the new runtime
+```bash
+echo /opt/intel/oclcpuexp/x64/libintelocl.so > /etc/OpenCL/vendors/intel_expcpu.icd
+```
+3) Configure library paths
+```bash
+echo /opt/intel/oclcpuexp/x64 > /etc/ld.so.conf.d/libintelopenclexp.conf
+ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
+```
 **Windows**
-* OpenCL&trade; runtime for Intel GPU [Intel&reg; Download
-   Center](https://downloadcenter.intel.com/product/80939/Graphics-Drivers)
+1) If you need `GPU` as well, then update/install it first. Do it **before**
+installing `CPU` runtime as `GPU` runtime installer may re-write some important
+files or settings and make existing `CPU` runtime not working properly.
 
-* The experimental Intel&reg; CPU Runtime for OpenCL&trade; Applications with
-  SYCL support on Windows will be available soon.
+2) Extract the archive to some folder. For example, to `c:\oclcpu_rt_<new_version>`.
 
-Please, refer to [the Release Notes](../ReleaseNotes.md) for recommended Intel
-runtime versions.
+3) Run `Command Prompt` as `Administrator`. To do that click `Start` button,
+type `Command Prompt`, click the Right mouse button on it, then click
+`Run As Administrator`, then click `Yes` to confirm.
+
+4) In the opened windows run `install.bat` provided with the extracted files
+to install runtime to the system and setup environment variables. So, if the
+extracted files are in `c:\oclcpu_rt_<new_version>\` folder, then type the
+command: `c:\oclcpu_rt_<new_version>\install.bat`
 
 ## Test SYCL toolchain
 
@@ -166,8 +198,8 @@ Follow Khronos SYCL-CTS instructions from
 file to obtain test sources and instructions how build and execute the tests.
 
 To configure testing of "Intel SYCL" toochain set
-`SYCL_IMPLEMENTATION=Intel_SYCL` and `Intel_SYCL_ROOT=<path to the SYCL installation>`
-CMake variables.
+`SYCL_IMPLEMENTATION=Intel_SYCL` and
+`Intel_SYCL_ROOT=<path to the SYCL installation>` CMake variables.
 
 **Linux**
 ```bash
@@ -261,9 +293,9 @@ and run following command:
 clang++ -fsycl simple-sycl-app.cpp -o simple-sycl-app.exe
 ```
 
-This `simple-sycl-app.exe` application doesn't specify SYCL device for execution,
-so SYCL runtime will use `default_selector` logic to select one of accelerators
-available in the system or SYCL host device.
+This `simple-sycl-app.exe` application doesn't specify SYCL device for
+execution, so SYCL runtime will use `default_selector` logic to select one
+of accelerators available in the system or SYCL host device.
 
 **Linux & Windows**
 ```bash

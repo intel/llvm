@@ -1,3 +1,108 @@
+# September'19 release notes
+
+Release notes for commit d4efd2ae3a708fc995e61b7da9c7419dac900372
+
+## New features
+- Added support for `reqd_work_group_size` attribute. [68578d7]
+- SYCL task graph can now be printed to file in json format.
+  See [SYCL ENV VARIABLES](doc/SYCLEnvironmentVariables.md) for information how
+  to enable it. [c615566]
+- Added support for
+  [`cl::sycl::intel::fpga_reg`](doc/extensions/IntelFPGA/FPGAReg.md) and
+  [`cl::sycl::intel::fpga_selector`](doc/extensions/IntelFPGA/FPGASelector.md)
+  extensions. [e438d2b]
+
+## Improvements
+- `clCreateCommandQueue` or `clCreateCommandQueueWithProperties` is used
+  depending on version of OpenCL implementation. [3511e3d]
+- Added support querying kernel for `compile_sub_group_size`. [bb7cb34]
+  This resolves intel/llvm#367
+- If device image is in SPIRV format and SPIRV is not supported by OpenCL
+  implementation exception is thrown. [09e328f]
+- Added support for USM pointer to `cl::sycl::handler::set_arg` method.
+  [df410a5]
+- Added support for `-fsycl-help=arg` compiler option which can be used to emit
+  help message from corresponding offline compiler. [0e44dd2]
+- Added `-reuse-exe` compiler option which can be used to avoid recompilaton of
+  device code (SPIRV) if it has not been changed from the previous compilation
+  and all options are the same. This work for Intel FPGA AOT compilation.
+  [2934fd8]
+- SYCL math builtins now work with regular pointers. [24fa42b]
+- Made SYCL specific options available when using clang-cl. [f5a7522]
+- USM now works on pre-context basis, so now it's possible to have two
+  `cl::sycl::context` objects with USM feature enabled. [e339962]
+- `"-fms-compatibility"` and `"-fdelayed-template-parsing"` are not passed
+  implicitly when `-fsycl` is used on MSVC. [9c3d98d]
+- Implemented `cl::sycl::vec::convert` method, host device now supports all
+  rounding modes while other devices support automatic rounding mode. [fe3bbf9]
+- `cl::sycl::image` now uses internal aligned_allocator instead of standard one.
+  [d7380f5]
+- `cl::sycl::program` class now throws exception containing build log in case
+  of build failure.
+
+## Bug fixes
+- Fixed issue that prevented from using lambda functions in kernels. [1b83ae9]
+- Fixed crash happening when `cl::sycl::event` methods's are called for manually
+  constructed (not obtained from `cl::sycl::queue::submit`) `cl::sycl::event`.
+  [90333c3]
+- Fixed problem with functions called from inializer list are being considered
+  as device code. [071b581]
+- Asynchronous error handler is now called in `cl::sycl::queue` destructor as
+  the SYCL specification requires. [0182f72]
+- Fixed race condition which could happen if multiple host accessors to the same
+  buffer are created simultaneously. [0c61c8c]
+- Fixed problem preventing from using template type with template parameters as
+  a kernel name. [45194f7]
+- Fixed bug with offset passed to `cl::sycl::handler::parallel_for` methods was
+  ignored in case of host device or when item is an argument of a lambda.
+  [0caeeae]
+- Fixed crash which happened when `-fsycl` was used with no source file
+  provided. [c291fd3]
+- Resolved problem with using bool type as a kernel name. [07b4f09]
+- Fixed crash which could happen if sycl objects are used during global objects
+  destruction. [fff31fa]
+- Fixed incorrect behavior of host version of `cl::sycl::abs_diff` function in
+  case if `x - y < 0` and `x` and `y` are unsigned types. [35fc029]
+- Aligned the type of exception being thrown if no device of requested type is
+  available with the SYCL specification. Now it throws
+  `cl::sycl::runtime_error`. [9d5faab]
+- `cl::sycl::accessor` can now be created from `cl::sycl::buffer` which was
+  constructed with non-default allocator. [8535b24]
+- Programs that failed to build (JIT compile) are not cached anymore. [d4efd2a]
+- Partial initialization of a constant static array now works correctly.
+  [4e52d44]
+- Fixed casting from derived class to base in case of multiple inheritance.
+  [76e223c]
+- Fixed compilation of relational operations with pointer. [4541a7f]
+- Fixed representation of long long int in `cl::sycl::vec` class on Windows.
+  [336cb82]
+- `cl::sycl::stream` class has gained support for printing nan and inf values
+  [b63a96f] This resolves intel/llvm#500
+- Fixed bug that prevented from using aliases as non-type template parameters
+  (such as int) and full template specialization in kernel names. [a784071]
+- Crash when using stl allocator with `cl::sycl::buffer` and `cl::sycl::image`
+  classes is fixed. [d7380f5]
+
+## Prerequisites
+### Linux
+- Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
+  support version
+  [2019.8.8.0.0822_rel](https://github.com/intel/llvm/releases/download/2019-09/oclcpuexp-2019.8.8.0.0822_rel.tar.gz)
+  is recommended OpenCL CPU RT prerequisite for the SYCL compiler
+- The Intel(R) Graphics Compute Runtime for OpenCL(TM) version
+  [19.34.13890](https://github.com/intel/compute-runtime/releases/tag/19.34.13890)
+  is recommended OpenCL GPU RT prerequisite for the SYCL compiler.
+### Windows
+- Experimental Intel(R) CPU Runtime for OpenCL(TM) Applications with SYCL
+  support version
+  [2019.9.9.0.0901](https://github.com/intel/llvm/releases/download/2019-09/win-oclcpuexp-2019.9.9.0.0901.zip)
+  is recommended OpenCL CPU RT prerequisite for the SYCL compiler
+- The Intel(R) Graphics Compute Runtime for OpenCL(TM) version
+  [100.7158](https://downloadmirror.intel.com/29058/a08/igfx_win10_100.7158.exe)
+  is recommended OpenCL GPU RT prerequisite for the SYCL compiler.
+
+Please, see the runtime installation guide [here](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedWithSYCLCompiler.md#install-low-level-runtime)
+
 # August'19 release notes
 
 Release notes for commit c557eb740d55e828fcf74b28d2b686c928e45318.

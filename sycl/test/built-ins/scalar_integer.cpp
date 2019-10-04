@@ -303,6 +303,39 @@ int main() {
     assert(r == 0x10);
   }
 
+  // mul_hi with negative result w/ carry
+  {
+    s::cl_int r{0};
+    {
+      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class mul_hiSI1SI2>([=]() {
+          AccR[0] = s::mul_hi(s::cl_int{-0x10000000}, s::cl_int{0x00000100});
+        }); // -2^28 * 2^8 = -2^36 -> -0x10 (FFFFFFF0) 00000000.
+      });
+    }
+    assert(r == -0x10);
+  }
+
+  // mul_hi with negative result w/o carry
+  {
+    s::cl_int r{0};
+    {
+      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class mul_hiSI1SI3>([=]() {
+          AccR[0] = s::mul_hi(s::cl_int{-0x10000000}, s::cl_int{0x00000101});
+        }); // -2^28 * (2^8 + 1) = -2^36 - 2^28 -> -0x11 (FFFFFFEF) -0x10000000
+            // (F0000000).
+      });
+    }
+    assert(r == -0x11);
+  }
+
   // rotate
   {
     s::cl_int r{ 0 };
@@ -337,18 +370,29 @@ int main() {
   }
   // sub_sat
   {
-    s::cl_int r{ 0 };
-    {
-      s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
-      s::queue myQueue;
-      myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-        cgh.single_task<class sub_satSI1SI1>([=]() {
-          AccR[0] = s::sub_sat(s::cl_int{ 10 }, s::cl_int(0x80000000));
-        }); // 10 - (-2^31(minimum value)) = saturates on Maximum value
-      });
-    }
-    assert(r == 0x7FFFFFFF);
+    auto TestSubSat = [](s::cl_int x, s::cl_int y) {
+      s::cl_int r{ 0 };
+      {
+        s::buffer<s::cl_int, 1> BufR(&r, s::range<1>(1));
+        s::queue myQueue;
+        myQueue.submit([&](s::handler &cgh) {
+          auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+          cgh.single_task<class sub_satSI1SI1>([=]() {
+            AccR[0] = s::sub_sat(x, y);
+          });
+        });
+      }
+      return r;
+    };
+    // 10 - (-2^31(minimum value)) = saturates on Maximum value
+    s::cl_int r1 = TestSubSat(10, 0x80000000);
+    assert(r1 == 0x7FFFFFFF);
+    s::cl_int r2 = TestSubSat(0x7FFFFFFF, 0xFFFFFFFF);
+    assert(r2 == 0x7FFFFFFF);
+    s::cl_int r3 = TestSubSat(0x80000000, 0x00000001);
+    assert(r3 == 0x80000000);
+    s::cl_int r4 = TestSubSat(10499, 30678);
+    assert(r4 == -20179);
   }
 
   // upsample - 1

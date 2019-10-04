@@ -105,11 +105,11 @@ public:
   }
 
   event memset(void* Ptr, int Value, size_t Count) {
-    return impl->memset(Ptr, Value, Count);
+    return impl->memset(impl, Ptr, Value, Count);
   }
 
   event memcpy(void* Dest, const void* Src, size_t Count) {
-    return impl->memcpy(Dest, Src, Count);
+    return impl->memcpy(impl, Dest, Src, Count);
   }
 
   event mem_advise(const void *Ptr, size_t Length, int Advice) {

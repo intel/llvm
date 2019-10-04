@@ -2,13 +2,13 @@
 
 // Test for Intel FPGA loop attributes applied not to a loop
 void foo() {
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while or do statements}}
+  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
   [[intelfpga::ivdep]] int a[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while or do statements}}
+  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
   [[intelfpga::ivdep(2)]] int b[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while or do statements}}
+  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
   [[intelfpga::ii(2)]] int c[10];
-  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while or do statements}}
+  // expected-error@+1 {{intelfpga loop attributes must be applied to for, while, or do statements}}
   [[intelfpga::max_concurrency(2)]] int d[10];
 }
 

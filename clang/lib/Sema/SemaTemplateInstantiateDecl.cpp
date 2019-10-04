@@ -17,6 +17,7 @@
 #include "clang/AST/DependentDiagnostic.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/Mangle.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Sema/Initialization.h"
@@ -5583,6 +5584,8 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
 /// Performs template instantiation for all implicit template
 /// instantiations we have seen until this point.
 void Sema::PerformPendingInstantiations(bool LocalOnly) {
+  std::unique_ptr<MangleContext> MangleCtx(
+      getASTContext().createMangleContext());
   while (!PendingLocalImplicitInstantiations.empty() ||
          (!LocalOnly && !PendingInstantiations.empty())) {
     PendingImplicitInstantiation Inst;
@@ -5601,7 +5604,8 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
                                 TSK_ExplicitInstantiationDefinition;
       if (Function->isMultiVersion()) {
         getASTContext().forEachMultiversionedFunctionVersion(
-            Function, [this, Inst, DefinitionRequired](FunctionDecl *CurFD) {
+            Function, [this, Inst, DefinitionRequired,
+                       MangleCtx = move(MangleCtx)](FunctionDecl *CurFD) {
               InstantiateFunctionDefinition(/*FIXME:*/ Inst.second, CurFD, true,
                                             DefinitionRequired, true);
               if (CurFD->isDefined()) {
@@ -5610,7 +5614,7 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
                 // so we are checking for SYCL kernel attribute after instantination.
                 if (getLangOpts().SYCLIsDevice &&
                         CurFD->hasAttr<SYCLKernelAttr>()) {
-                  ConstructOpenCLKernel(CurFD);
+                  ConstructOpenCLKernel(CurFD, *MangleCtx);
                 }
                 CurFD->setInstantiationIsPending(false);
               }
@@ -5624,7 +5628,7 @@ void Sema::PerformPendingInstantiations(bool LocalOnly) {
           // so we are checking for SYCL kernel attribute after instantination.
           if (getLangOpts().SYCLIsDevice &&
                   Function->hasAttr<SYCLKernelAttr>()) {
-              ConstructOpenCLKernel(Function);
+            ConstructOpenCLKernel(Function, *MangleCtx);
           }
           Function->setInstantiationIsPending(false);
         }

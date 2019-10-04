@@ -121,7 +121,7 @@ public:
                     void *MappedPtr, std::vector<RT::PiEvent> DepEvents,
                     bool UseExclusiveQueue, RT::PiEvent &OutEvent);
 
-  static void copy_usm(void *SrcMem, QueueImplPtr Queue, size_t Len,
+  static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
                        void *DstMem, std::vector<RT::PiEvent> DepEvents,
                        bool UseExclusiveQueue, RT::PiEvent &OutEvent);
 

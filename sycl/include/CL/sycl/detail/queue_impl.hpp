@@ -221,8 +221,10 @@ public:
     return m_PropList.get_property<propertyT>();
   }
 
-  event memset(void *Ptr, int Value, size_t Count);
-  event memcpy(void *Dest, const void *Src, size_t Count);
+  event memset(std::shared_ptr<queue_impl> Impl, void *Ptr, int Value,
+               size_t Count);
+  event memcpy(std::shared_ptr<queue_impl> Impl, void *Dest, const void *Src,
+               size_t Count);
   event mem_advise(const void *Ptr, size_t Length, int Advice);
 
 private:

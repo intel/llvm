@@ -335,7 +335,8 @@ void types::getCompilationPhases(const clang::driver::Driver &Driver,
                   [](phases::ID Phase) { return Phase <= phases::Compile; });
 
   else if (DAL.getLastArg(options::OPT_S) ||
-           DAL.getLastArg(options::OPT_emit_llvm))
+           DAL.getLastArg(options::OPT_emit_llvm) ||
+           DAL.getLastArg(options::OPT_sycl_device_only))
     llvm::copy_if(PhaseList, std::back_inserter(P),
                   [](phases::ID Phase) { return Phase <= phases::Backend; });
 
