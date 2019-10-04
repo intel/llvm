@@ -5,3 +5,4 @@
 ; Check llvm-profdata shows the correct file size.
 ; CHECK: [[FILESIZE:.*]]
 ; CHECK: [[FILESIZE]]
+; UNSUPPORTED: system-windows
