@@ -1644,6 +1644,8 @@ public:
   QualType BuildAddressSpaceAttr(QualType &T, Expr *AddrSpace,
                                  SourceLocation AttrLoc);
 
+  bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
+
   bool CheckFunctionReturnType(QualType T, SourceLocation Loc);
 
   /// Build a function type.
