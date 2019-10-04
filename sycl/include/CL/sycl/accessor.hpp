@@ -699,7 +699,7 @@ class accessor :
 
   detail::AccessorImplDevice<AdjustedDim> impl;
 
-  PtrType MData;
+  ConcreteASPtrType MData;
 
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
@@ -715,7 +715,7 @@ class accessor :
       MData += Offset[0];
   }
 
-  PtrType getQualifiedPtr() const { return MData; }
+  ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
 public:
   // Default constructor for objects later initialized with __init member.
@@ -1030,9 +1030,9 @@ public:
       : impl(detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 private:
-  PtrType getQualifiedPtr() const { return MData; }
+  ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
-  PtrType MData;
+  ConcreteASPtrType MData;
 
 #else
 
