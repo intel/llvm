@@ -583,5 +583,14 @@
 // FO-CHECK: clang{{.*}} "-include" "[[HEADER]]" {{.*}} "-o" "[[OUTPUT2:.+\.obj]]"
 // FO-CHECK: clang-offload-bundler{{.*}} "-outputs=somefile.obj" "-inputs=[[OUTPUT1]],[[OUTPUT2]]"
 
+/// passing of a library should not trigger the unbundler
+// RUN: touch %t.a
+// RUN: touch %t.lib
+// RUN: %clang -ccc-print-phases -fsycl %t.a %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
+// RUN: %clang_cl -ccc-print-phases -fsycl %t.lib %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
+// LIB-UNBUNDLE-CHECK-NOT: clang-offload-unbundler
+
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc
