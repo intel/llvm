@@ -253,6 +253,7 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
   // If any timers were active but haven't been destroyed yet, print their
   // results now.  This happens in -disable-free mode.
   llvm::TimerGroup::printAll(llvm::errs());
+  llvm::TimerGroup::clearAll();
 
   if (llvm::timeTraceProfilerEnabled()) {
     SmallString<128> Path(Clang->getFrontendOpts().OutputFile);
@@ -270,9 +271,6 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
     llvm::timeTraceProfilerCleanup();
 
     llvm::errs() << "Time trace json-file dumped to " << Path.str() << "\n";
-    llvm::errs()
-        << "Use chrome://tracing or Speedscope App "
-           "(https://www.speedscope.app) for flamegraph visualization\n";
   }
 
   // Our error handler depends on the Diagnostics object, which we're

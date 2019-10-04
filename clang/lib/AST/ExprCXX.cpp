@@ -124,6 +124,8 @@ CXXNewExpr::CXXNewExpr(bool IsGlobalNew, FunctionDecl *OperatorNew,
 
   if (ArraySize) {
     if (Expr *SizeExpr = *ArraySize) {
+      if (SizeExpr->isValueDependent())
+        ExprBits.ValueDependent = true;
       if (SizeExpr->isInstantiationDependent())
         ExprBits.InstantiationDependent = true;
       if (SizeExpr->containsUnexpandedParameterPack())
@@ -134,6 +136,8 @@ CXXNewExpr::CXXNewExpr(bool IsGlobalNew, FunctionDecl *OperatorNew,
   }
 
   if (Initializer) {
+    if (Initializer->isValueDependent())
+      ExprBits.ValueDependent = true;
     if (Initializer->isInstantiationDependent())
       ExprBits.InstantiationDependent = true;
     if (Initializer->containsUnexpandedParameterPack())
@@ -143,6 +147,8 @@ CXXNewExpr::CXXNewExpr(bool IsGlobalNew, FunctionDecl *OperatorNew,
   }
 
   for (unsigned I = 0; I != PlacementArgs.size(); ++I) {
+    if (PlacementArgs[I]->isValueDependent())
+      ExprBits.ValueDependent = true;
     if (PlacementArgs[I]->isInstantiationDependent())
       ExprBits.InstantiationDependent = true;
     if (PlacementArgs[I]->containsUnexpandedParameterPack())
@@ -1210,6 +1216,11 @@ CXXRecordDecl *LambdaExpr::getLambdaClass() const {
 CXXMethodDecl *LambdaExpr::getCallOperator() const {
   CXXRecordDecl *Record = getLambdaClass();
   return Record->getLambdaCallOperator();
+}
+
+FunctionTemplateDecl *LambdaExpr::getDependentCallOperator() const {
+  CXXRecordDecl *Record = getLambdaClass();
+  return Record->getDependentLambdaCallOperator();
 }
 
 TemplateParameterList *LambdaExpr::getTemplateParameterList() const {

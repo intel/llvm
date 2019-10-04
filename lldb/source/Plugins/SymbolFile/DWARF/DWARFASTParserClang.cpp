@@ -148,22 +148,23 @@ TypeSP DWARFASTParserClang::ParseTypeFromDWO(const DWARFDIE &die, Log *log) {
   die.GetDeclContext(decl_context);
   TypeMap dwo_types;
 
-  // The type in the Clang module must have the same langage as the current CU.
+  // The type in the Clang module must have the same language as the current CU.
   LanguageSet languages;
   languages.Insert(die.GetCU()->GetLanguageType());
-  if (!dwo_module_sp->GetSymbolFile()->FindTypes(decl_context, languages, true,
-                                                 dwo_types)) {
+  dwo_module_sp->GetSymbolFile()->FindTypes(decl_context, languages, dwo_types);
+  if (dwo_types.Empty()) {
     if (!IsClangModuleFwdDecl(die))
       return TypeSP();
 
-    // Since this this type is defined in one of the Clang modules imported by
-    // this symbol file, search all of them.
+    // Since this type is defined in one of the Clang modules imported
+    // by this symbol file, search all of them.
     auto &sym_file = die.GetCU()->GetSymbolFileDWARF();
     for (const auto &name_module : sym_file.getExternalTypeModules()) {
       if (!name_module.second)
         continue;
-      if (name_module.second->GetSymbolFile()->FindTypes(
-              decl_context, languages, true, dwo_types))
+      name_module.second->GetSymbolFile()->FindTypes(decl_context,
+                                                     languages, dwo_types);
+      if (dwo_types.GetSize())
         break;
     }
   }
@@ -690,6 +691,8 @@ TypeSP DWARFASTParserClang::ParseTypeFromDWARF(const SymbolContext &sc,
         type_sp = unique_ast_entry_up->m_type_sp;
         if (type_sp) {
           dwarf->GetDIEToType()[die.GetDIE()] = type_sp.get();
+          LinkDeclContextToDIE(
+              GetCachedClangDeclContextForDIE(unique_ast_entry_up->m_die), die);
           return type_sp;
         }
       }
@@ -2183,15 +2186,16 @@ bool DWARFASTParserClang::CompleteTypeFromDWARF(const DWARFDIE &die,
   return false;
 }
 
-std::vector<DWARFDIE> DWARFASTParserClang::GetDIEForDeclContext(
+void DWARFASTParserClang::EnsureAllDIEsInDeclContextHaveBeenParsed(
     lldb_private::CompilerDeclContext decl_context) {
-  std::vector<DWARFDIE> result;
   auto opaque_decl_ctx =
       (clang::DeclContext *)decl_context.GetOpaqueDeclContext();
   for (auto it = m_decl_ctx_to_die.find(opaque_decl_ctx);
-       it != m_decl_ctx_to_die.end() && it->first == opaque_decl_ctx; it++)
-    result.push_back(it->second);
-  return result;
+       it != m_decl_ctx_to_die.end() && it->first == opaque_decl_ctx;
+       it = m_decl_ctx_to_die.erase(it))
+    for (DWARFDIE decl = it->second.GetFirstChild(); decl;
+         decl = decl.GetSibling())
+      GetClangDeclForDIE(decl);
 }
 
 CompilerDecl DWARFASTParserClang::GetDeclForUIDFromDWARF(const DWARFDIE &die) {
@@ -3276,6 +3280,8 @@ DWARFASTParser::ParseChildArrayInfo(const DWARFDIE &parent_die,
         array_info.element_orders.push_back(num_elements);
       }
     } break;
+    default:
+      break;
     }
   }
   return array_info;

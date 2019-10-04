@@ -43,7 +43,7 @@ public:
 
   bool IsValid() const override { return GetValue() && GetValue() != Py_None; }
 
-  void Dump(Stream &s, bool pretty_print = true) const override;
+  void Serialize(llvm::json::OStream &s) const override;
 
 private:
   DISALLOW_COPY_AND_ASSIGN(StructuredPythonObject);
@@ -455,7 +455,6 @@ class PythonFile : public PythonObject {
 public:
   PythonFile();
   PythonFile(File &file, const char *mode);
-  PythonFile(const char *path, const char *mode);
   PythonFile(PyRefType type, PyObject *o);
 
   ~PythonFile() override;
@@ -469,7 +468,7 @@ public:
 
   static uint32_t GetOptionsFromMode(llvm::StringRef mode);
 
-  bool GetUnderlyingFile(File &file) const;
+  lldb::FileUP GetUnderlyingFile() const;
 };
 
 } // namespace lldb_private

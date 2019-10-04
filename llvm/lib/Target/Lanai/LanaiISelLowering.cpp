@@ -145,8 +145,8 @@ LanaiTargetLowering::LanaiTargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::XOR);
 
   // Function alignments
-  setMinFunctionAlignment(llvm::Align(4));
-  setPrefFunctionAlignment(llvm::Align(4));
+  setMinFunctionAlignment(Align(4));
+  setPrefFunctionAlignment(Align(4));
 
   setJumpIsExpensive(true);
 
@@ -212,10 +212,11 @@ SDValue LanaiTargetLowering::LowerOperation(SDValue Op,
 //                       Lanai Inline Assembly Support
 //===----------------------------------------------------------------------===//
 
-unsigned LanaiTargetLowering::getRegisterByName(const char *RegName, EVT /*VT*/,
-                                                SelectionDAG & /*DAG*/) const {
+Register LanaiTargetLowering::getRegisterByName(
+  const char *RegName, EVT /*VT*/,
+  const MachineFunction & /*MF*/) const {
   // Only unallocatable registers should be matched here.
-  unsigned Reg = StringSwitch<unsigned>(RegName)
+  Register Reg = StringSwitch<unsigned>(RegName)
                      .Case("pc", Lanai::PC)
                      .Case("sp", Lanai::SP)
                      .Case("fp", Lanai::FP)

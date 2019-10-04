@@ -67,10 +67,19 @@ template <> struct ScalarEnumerationTraits<FormatStyle::LanguageKind> {
 
 template <> struct ScalarEnumerationTraits<FormatStyle::LanguageStandard> {
   static void enumeration(IO &IO, FormatStyle::LanguageStandard &Value) {
-    IO.enumCase(Value, "Cpp03", FormatStyle::LS_Cpp03);
-    IO.enumCase(Value, "C++03", FormatStyle::LS_Cpp03);
-    IO.enumCase(Value, "Cpp11", FormatStyle::LS_Cpp11);
-    IO.enumCase(Value, "C++11", FormatStyle::LS_Cpp11);
+    IO.enumCase(Value, "c++03", FormatStyle::LS_Cpp03);
+    IO.enumCase(Value, "C++03", FormatStyle::LS_Cpp03); // Legacy alias
+    IO.enumCase(Value, "Cpp03", FormatStyle::LS_Cpp03); // Legacy alias
+
+    IO.enumCase(Value, "c++11", FormatStyle::LS_Cpp11);
+    IO.enumCase(Value, "C++11", FormatStyle::LS_Cpp11); // Legacy alias
+
+    IO.enumCase(Value, "c++14", FormatStyle::LS_Cpp14);
+    IO.enumCase(Value, "c++17", FormatStyle::LS_Cpp17);
+    IO.enumCase(Value, "c++20", FormatStyle::LS_Cpp20);
+
+    IO.enumCase(Value, "Latest", FormatStyle::LS_Latest);
+    IO.enumCase(Value, "Cpp11", FormatStyle::LS_Latest); // Legacy alias
     IO.enumCase(Value, "Auto", FormatStyle::LS_Auto);
   }
 };
@@ -165,6 +174,7 @@ template <> struct ScalarEnumerationTraits<FormatStyle::BraceBreakingStyle> {
     IO.enumCase(Value, "Mozilla", FormatStyle::BS_Mozilla);
     IO.enumCase(Value, "Stroustrup", FormatStyle::BS_Stroustrup);
     IO.enumCase(Value, "Allman", FormatStyle::BS_Allman);
+    IO.enumCase(Value, "Whitesmiths", FormatStyle::BS_Whitesmiths);
     IO.enumCase(Value, "GNU", FormatStyle::BS_GNU);
     IO.enumCase(Value, "WebKit", FormatStyle::BS_WebKit);
     IO.enumCase(Value, "Custom", FormatStyle::BS_Custom);
@@ -657,6 +667,19 @@ static FormatStyle expandPresets(const FormatStyle &Style) {
     Expanded.BraceWrapping.BeforeCatch = true;
     Expanded.BraceWrapping.BeforeElse = true;
     break;
+  case FormatStyle::BS_Whitesmiths:
+    Expanded.BraceWrapping.AfterCaseLabel = true;
+    Expanded.BraceWrapping.AfterClass = true;
+    Expanded.BraceWrapping.AfterControlStatement = true;
+    Expanded.BraceWrapping.AfterEnum = true;
+    Expanded.BraceWrapping.AfterFunction = true;
+    Expanded.BraceWrapping.AfterNamespace = true;
+    Expanded.BraceWrapping.AfterObjCDeclaration = true;
+    Expanded.BraceWrapping.AfterStruct = true;
+    Expanded.BraceWrapping.AfterExternBlock = true;
+    Expanded.BraceWrapping.BeforeCatch = true;
+    Expanded.BraceWrapping.BeforeElse = true;
+    break;
   case FormatStyle::BS_GNU:
     Expanded.BraceWrapping = {true, true, true, true, true, true, true, true,
                               true, true, true, true, true, true, true, true};
@@ -720,9 +743,9 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.ForEachMacros.push_back("Q_FOREACH");
   LLVMStyle.ForEachMacros.push_back("BOOST_FOREACH");
   LLVMStyle.IncludeStyle.IncludeCategories = {
-      {"^\"(llvm|llvm-c|clang|clang-c)/", 2},
-      {"^(<|\"(gtest|gmock|isl|json)/)", 3},
-      {".*", 1}};
+      {"^\"(llvm|llvm-c|clang|clang-c)/", 2, 0},
+      {"^(<|\"(gtest|gmock|isl|json)/)", 3, 0},
+      {".*", 1, 0}};
   LLVMStyle.IncludeStyle.IncludeIsMainRegex = "(Test)?$";
   LLVMStyle.IncludeStyle.IncludeBlocks = tooling::IncludeStyle::IBS_Preserve;
   LLVMStyle.IndentCaseLabels = false;
@@ -742,7 +765,7 @@ FormatStyle getLLVMStyle(FormatStyle::LanguageKind Language) {
   LLVMStyle.ObjCSpaceBeforeProtocolList = true;
   LLVMStyle.PointerAlignment = FormatStyle::PAS_Right;
   LLVMStyle.SpacesBeforeTrailingComments = 1;
-  LLVMStyle.Standard = FormatStyle::LS_Cpp11;
+  LLVMStyle.Standard = FormatStyle::LS_Latest;
   LLVMStyle.UseTab = FormatStyle::UT_Never;
   LLVMStyle.ReflowComments = true;
   LLVMStyle.SpacesInParentheses = false;
@@ -804,8 +827,10 @@ FormatStyle getGoogleStyle(FormatStyle::LanguageKind Language) {
   GoogleStyle.AlwaysBreakTemplateDeclarations = FormatStyle::BTDS_Yes;
   GoogleStyle.ConstructorInitializerAllOnOneLineOrOnePerLine = true;
   GoogleStyle.DerivePointerAlignment = true;
-  GoogleStyle.IncludeStyle.IncludeCategories = {
-      {"^<ext/.*\\.h>", 2}, {"^<.*\\.h>", 1}, {"^<.*", 2}, {".*", 3}};
+  GoogleStyle.IncludeStyle.IncludeCategories = {{"^<ext/.*\\.h>", 2, 0},
+                                                {"^<.*\\.h>", 1, 0},
+                                                {"^<.*", 2, 0},
+                                                {".*", 3, 0}};
   GoogleStyle.IncludeStyle.IncludeIsMainRegex = "([-_](test|unittest))?$";
   GoogleStyle.IncludeStyle.IncludeBlocks = tooling::IncludeStyle::IBS_Regroup;
   GoogleStyle.IndentCaseLabels = true;
@@ -1383,7 +1408,7 @@ private:
                                    : FormatStyle::PAS_Right;
     if (Style.Standard == FormatStyle::LS_Auto)
       Style.Standard = hasCpp03IncompatibleFormat(AnnotatedLines)
-                           ? FormatStyle::LS_Cpp11
+                           ? FormatStyle::LS_Latest
                            : FormatStyle::LS_Cpp03;
     BinPackInconclusiveFunctions =
         HasBinPackedFunction || !HasOnePerLineFunction;
@@ -1417,22 +1442,29 @@ public:
 
     checkEmptyNamespace(AnnotatedLines);
 
-    for (auto &Line : AnnotatedLines) {
-      if (Line->Affected) {
-        cleanupRight(Line->First, tok::comma, tok::comma);
-        cleanupRight(Line->First, TT_CtorInitializerColon, tok::comma);
-        cleanupRight(Line->First, tok::l_paren, tok::comma);
-        cleanupLeft(Line->First, tok::comma, tok::r_paren);
-        cleanupLeft(Line->First, TT_CtorInitializerComma, tok::l_brace);
-        cleanupLeft(Line->First, TT_CtorInitializerColon, tok::l_brace);
-        cleanupLeft(Line->First, TT_CtorInitializerColon, tok::equal);
-      }
-    }
+    for (auto *Line : AnnotatedLines)
+      cleanupLine(Line);
 
     return {generateFixes(), 0};
   }
 
 private:
+  void cleanupLine(AnnotatedLine *Line) {
+    for (auto *Child : Line->Children) {
+      cleanupLine(Child);
+    }
+
+    if (Line->Affected) {
+      cleanupRight(Line->First, tok::comma, tok::comma);
+      cleanupRight(Line->First, TT_CtorInitializerColon, tok::comma);
+      cleanupRight(Line->First, tok::l_paren, tok::comma);
+      cleanupLeft(Line->First, tok::comma, tok::r_paren);
+      cleanupLeft(Line->First, TT_CtorInitializerComma, tok::l_brace);
+      cleanupLeft(Line->First, TT_CtorInitializerColon, tok::l_brace);
+      cleanupLeft(Line->First, TT_CtorInitializerColon, tok::equal);
+    }
+  }
+
   bool containsOnlyComments(const AnnotatedLine &Line) {
     for (FormatToken *Tok = Line.First; Tok != nullptr; Tok = Tok->Next) {
       if (Tok->isNot(tok::comment))
@@ -1750,6 +1782,7 @@ struct IncludeDirective {
   StringRef Text;
   unsigned Offset;
   int Category;
+  int Priority;
 };
 
 struct JavaImportDirective {
@@ -1801,6 +1834,28 @@ FindCursorIndex(const SmallVectorImpl<IncludeDirective> &Includes,
   return std::make_pair(CursorIndex, OffsetToEOL);
 }
 
+// Replace all "\r\n" with "\n".
+std::string replaceCRLF(const std::string &Code) {
+  std::string NewCode;
+  size_t Pos = 0, LastPos = 0;
+
+  do {
+    Pos = Code.find("\r\n", LastPos);
+    if (Pos == LastPos) {
+      LastPos++;
+      continue;
+    }
+    if (Pos == std::string::npos) {
+      NewCode += Code.substr(LastPos);
+      break;
+    }
+    NewCode += Code.substr(LastPos, Pos - LastPos) + "\n";
+    LastPos = Pos + 2;
+  } while (Pos != std::string::npos);
+
+  return NewCode;
+}
+
 // Sorts and deduplicate a block of includes given by 'Includes' alphabetically
 // adding the necessary replacement to 'Replaces'. 'Includes' must be in strict
 // source order.
@@ -1813,6 +1868,7 @@ static void sortCppIncludes(const FormatStyle &Style,
                             ArrayRef<tooling::Range> Ranges, StringRef FileName,
                             StringRef Code, tooling::Replacements &Replaces,
                             unsigned *Cursor) {
+  tooling::IncludeCategoryManager Categories(Style.IncludeStyle, FileName);
   unsigned IncludesBeginOffset = Includes.front().Offset;
   unsigned IncludesEndOffset =
       Includes.back().Offset + Includes.back().Text.size();
@@ -1820,11 +1876,12 @@ static void sortCppIncludes(const FormatStyle &Style,
   if (!affectsRange(Ranges, IncludesBeginOffset, IncludesEndOffset))
     return;
   SmallVector<unsigned, 16> Indices;
-  for (unsigned i = 0, e = Includes.size(); i != e; ++i)
+  for (unsigned i = 0, e = Includes.size(); i != e; ++i) {
     Indices.push_back(i);
+  }
   llvm::stable_sort(Indices, [&](unsigned LHSI, unsigned RHSI) {
-    return std::tie(Includes[LHSI].Category, Includes[LHSI].Filename) <
-           std::tie(Includes[RHSI].Category, Includes[RHSI].Filename);
+    return std::tie(Includes[LHSI].Priority, Includes[LHSI].Filename) <
+           std::tie(Includes[RHSI].Priority, Includes[RHSI].Filename);
   });
   // The index of the include on which the cursor will be put after
   // sorting/deduplicating.
@@ -1872,7 +1929,8 @@ static void sortCppIncludes(const FormatStyle &Style,
 
   // If the #includes are out of order, we generate a single replacement fixing
   // the entire range of blocks. Otherwise, no replacement is generated.
-  if (result == Code.substr(IncludesBeginOffset, IncludesBlockSize))
+  if (replaceCRLF(result) ==
+      replaceCRLF(Code.substr(IncludesBeginOffset, IncludesBlockSize)))
     return;
 
   auto Err = Replaces.add(tooling::Replacement(
@@ -1939,9 +1997,12 @@ tooling::Replacements sortCppIncludes(const FormatStyle &Style, StringRef Code,
         int Category = Categories.getIncludePriority(
             IncludeName,
             /*CheckMainHeader=*/!MainIncludeFound && FirstIncludeBlock);
+        int Priority = Categories.getSortIncludePriority(
+            IncludeName, !MainIncludeFound && FirstIncludeBlock);
         if (Category == 0)
           MainIncludeFound = true;
-        IncludesInBlock.push_back({IncludeName, Line, Prev, Category});
+        IncludesInBlock.push_back(
+            {IncludeName, Line, Prev, Category, Priority});
       } else if (!IncludesInBlock.empty() && !EmptyLineSkipped) {
         sortCppIncludes(Style, IncludesInBlock, Ranges, FileName, Code,
                         Replaces, Cursor);
@@ -2037,7 +2098,8 @@ static void sortJavaImports(const FormatStyle &Style,
 
   // If the imports are out of order, we generate a single replacement fixing
   // the entire block. Otherwise, no replacement is generated.
-  if (result == Code.substr(Imports.front().Offset, ImportsBlockSize))
+  if (replaceCRLF(result) ==
+      replaceCRLF(Code.substr(Imports.front().Offset, ImportsBlockSize)))
     return;
 
   auto Err = Replaces.add(tooling::Replacement(FileName, Imports.front().Offset,
@@ -2327,7 +2389,7 @@ reformat(const FormatStyle &Style, StringRef Code,
 
   auto Env =
       std::make_unique<Environment>(Code, FileName, Ranges, FirstStartColumn,
-                                     NextStartColumn, LastStartColumn);
+                                    NextStartColumn, LastStartColumn);
   llvm::Optional<std::string> CurrentCode = None;
   tooling::Replacements Fixes;
   unsigned Penalty = 0;
@@ -2402,14 +2464,18 @@ tooling::Replacements sortUsingDeclarations(const FormatStyle &Style,
 
 LangOptions getFormattingLangOpts(const FormatStyle &Style) {
   LangOptions LangOpts;
-  FormatStyle::LanguageStandard LexingStd =
-      Style.Standard == FormatStyle::LS_Auto ? FormatStyle::LS_Cpp11
-                                             : Style.Standard;
+
+  FormatStyle::LanguageStandard LexingStd = Style.Standard;
+  if (LexingStd == FormatStyle::LS_Auto)
+    LexingStd = FormatStyle::LS_Latest;
+  if (LexingStd == FormatStyle::LS_Latest)
+    LexingStd = FormatStyle::LS_Cpp20;
   LangOpts.CPlusPlus = 1;
   LangOpts.CPlusPlus11 = LexingStd >= FormatStyle::LS_Cpp11;
-  LangOpts.CPlusPlus14 = LexingStd >= FormatStyle::LS_Cpp11;
-  LangOpts.CPlusPlus17 = LexingStd >= FormatStyle::LS_Cpp11;
-  LangOpts.CPlusPlus2a = LexingStd >= FormatStyle::LS_Cpp11;
+  LangOpts.CPlusPlus14 = LexingStd >= FormatStyle::LS_Cpp14;
+  LangOpts.CPlusPlus17 = LexingStd >= FormatStyle::LS_Cpp17;
+  LangOpts.CPlusPlus2a = LexingStd >= FormatStyle::LS_Cpp20;
+
   LangOpts.LineComment = 1;
   bool AlternativeOperators = Style.isCpp();
   LangOpts.CXXOperatorNames = AlternativeOperators ? 1 : 0;

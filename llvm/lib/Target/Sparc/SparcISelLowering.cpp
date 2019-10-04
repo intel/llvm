@@ -1016,9 +1016,9 @@ SparcTargetLowering::LowerCall_32(TargetLowering::CallLoweringInfo &CLI,
 
 // FIXME? Maybe this could be a TableGen attribute on some registers and
 // this table could be generated automatically from RegInfo.
-unsigned SparcTargetLowering::getRegisterByName(const char* RegName, EVT VT,
-                                               SelectionDAG &DAG) const {
-  unsigned Reg = StringSwitch<unsigned>(RegName)
+Register SparcTargetLowering::getRegisterByName(const char* RegName, EVT VT,
+                                                const MachineFunction &MF) const {
+  Register Reg = StringSwitch<unsigned>(RegName)
     .Case("i0", SP::I0).Case("i1", SP::I1).Case("i2", SP::I2).Case("i3", SP::I3)
     .Case("i4", SP::I4).Case("i5", SP::I5).Case("i6", SP::I6).Case("i7", SP::I7)
     .Case("o0", SP::O0).Case("o1", SP::O1).Case("o2", SP::O2).Case("o3", SP::O3)
@@ -1438,7 +1438,7 @@ SparcTargetLowering::SparcTargetLowering(const TargetMachine &TM,
       setOperationAction(Op, MVT::v2i32, Expand);
     }
     // Truncating/extending stores/loads are also not supported.
-    for (MVT VT : MVT::integer_vector_valuetypes()) {
+    for (MVT VT : MVT::integer_fixedlen_vector_valuetypes()) {
       setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i32, Expand);
       setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i32, Expand);
       setLoadExtAction(ISD::EXTLOAD, VT, MVT::v2i32, Expand);
@@ -1805,7 +1805,7 @@ SparcTargetLowering::SparcTargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
 
-  setMinFunctionAlignment(llvm::Align(4));
+  setMinFunctionAlignment(Align(4));
 
   computeRegisterProperties(Subtarget->getRegisterInfo());
 }
@@ -2244,7 +2244,7 @@ SDValue SparcTargetLowering::LowerF128Compare(SDValue LHS, SDValue RHS,
     return DAG.getNode(SPISD::CMPICC, DL, MVT::Glue, Result, RHS);
   }
   case SPCC::FCC_UL : {
-    SDValue Mask   = DAG.getTargetConstant(1, DL, Result.getValueType());
+    SDValue Mask   = DAG.getConstant(1, DL, Result.getValueType());
     Result = DAG.getNode(ISD::AND, DL, Result.getValueType(), Result, Mask);
     SDValue RHS    = DAG.getTargetConstant(0, DL, Result.getValueType());
     SPCC = SPCC::ICC_NE;
@@ -2277,14 +2277,14 @@ SDValue SparcTargetLowering::LowerF128Compare(SDValue LHS, SDValue RHS,
     return DAG.getNode(SPISD::CMPICC, DL, MVT::Glue, Result, RHS);
   }
   case SPCC::FCC_LG :  {
-    SDValue Mask   = DAG.getTargetConstant(3, DL, Result.getValueType());
+    SDValue Mask   = DAG.getConstant(3, DL, Result.getValueType());
     Result = DAG.getNode(ISD::AND, DL, Result.getValueType(), Result, Mask);
     SDValue RHS    = DAG.getTargetConstant(0, DL, Result.getValueType());
     SPCC = SPCC::ICC_NE;
     return DAG.getNode(SPISD::CMPICC, DL, MVT::Glue, Result, RHS);
   }
   case SPCC::FCC_UE : {
-    SDValue Mask   = DAG.getTargetConstant(3, DL, Result.getValueType());
+    SDValue Mask   = DAG.getConstant(3, DL, Result.getValueType());
     Result = DAG.getNode(ISD::AND, DL, Result.getValueType(), Result, Mask);
     SDValue RHS    = DAG.getTargetConstant(0, DL, Result.getValueType());
     SPCC = SPCC::ICC_E;

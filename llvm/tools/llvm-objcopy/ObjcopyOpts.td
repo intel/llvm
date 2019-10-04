@@ -1,8 +1,7 @@
 include "CommonOpts.td"
 
 defm binary_architecture
-    : Eq<"binary-architecture", "Used when transforming an architecture-less "
-                                "format (such as binary) to another format">;
+    : Eq<"binary-architecture", "Ignored for compatibility">;
 def B : JoinedOrSeparate<["-"], "B">,
         Alias<binary_architecture>,
         HelpText<"Alias for --binary-architecture">;
@@ -75,6 +74,10 @@ defm add_section
     : Eq<"add-section",
          "Make a section named <section> with the contents of <file>.">,
       MetaVarName<"section=file">;
+
+defm set_section_alignment
+    : Eq<"set-section-alignment", "Set alignment for a given section.">,
+      MetaVarName<"section=align">;
 
 defm set_section_flags
     : Eq<"set-section-flags",

@@ -4347,7 +4347,9 @@ static void handleGlobalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
   const auto *FD = cast<FunctionDecl>(D);
-  if (!FD->getReturnType()->isVoidType()) {
+  if (!FD->getReturnType()->isVoidType() &&
+      !FD->getReturnType()->getAs<AutoType>() &&
+      !FD->getReturnType()->isInstantiationDependentType()) {
     SourceRange RTRange = FD->getReturnTypeSourceRange();
     S.Diag(FD->getTypeSpecStartLoc(), diag::err_kern_type_not_void_return)
         << FD->getType()
@@ -4376,6 +4378,9 @@ static void handleGNUInlineAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     S.Diag(AL.getLoc(), diag::warn_gnu_inline_attribute_requires_inline);
     return;
   }
+
+  if (S.LangOpts.CPlusPlus && Fn->getStorageClass() != SC_Extern)
+    S.Diag(AL.getLoc(), diag::warn_gnu_inline_cplusplus_without_extern);
 
   D->addAttr(::new (S.Context) GNUInlineAttr(S.Context, AL));
 }

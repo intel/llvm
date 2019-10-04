@@ -425,7 +425,8 @@ namespace llvm {
       // Tests Types Of a FP Values for scalar types.
       VFPCLASSS,
 
-      // Broadcast scalar to vector.
+      // Broadcast (splat) scalar or element 0 of a vector. If the operand is
+      // a vector, this node may change the vector length as part of the splat.
       VBROADCAST,
       // Broadcast mask to vector.
       VBROADCASTM,
@@ -613,6 +614,9 @@ namespace llvm {
 
       // extract_vector_elt, store.
       VEXTRACT_STORE,
+
+      // scalar broadcast from memory
+      VBROADCAST_LOAD,
 
       // Store FP control world into i16 memory.
       FNSTCW16m,
@@ -1150,8 +1154,8 @@ namespace llvm {
       return nullptr; // nothing to do, move along.
     }
 
-    unsigned getRegisterByName(const char* RegName, EVT VT,
-                               SelectionDAG &DAG) const override;
+    Register getRegisterByName(const char* RegName, EVT VT,
+                               const MachineFunction &MF) const override;
 
     /// If a physical register, this returns the register that receives the
     /// exception address on entry to an EH pad.
@@ -1202,6 +1206,10 @@ namespace llvm {
     unsigned getNumRegistersForCallingConv(LLVMContext &Context,
                                            CallingConv::ID CC,
                                            EVT VT) const override;
+
+    unsigned getVectorTypeBreakdownForCallingConv(
+        LLVMContext &Context, CallingConv::ID CC, EVT VT, EVT &IntermediateVT,
+        unsigned &NumIntermediates, MVT &RegisterVT) const override;
 
     bool isIntDivCheap(EVT VT, AttributeList Attr) const override;
 

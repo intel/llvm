@@ -240,12 +240,12 @@ bool HexagonTargetLowering::mayBeEmittedAsTailCall(const CallInst *CI) const {
   return true;
 }
 
-unsigned  HexagonTargetLowering::getRegisterByName(const char* RegName, EVT VT,
-                                              SelectionDAG &DAG) const {
+Register HexagonTargetLowering::getRegisterByName(const char* RegName, EVT VT,
+                                                  const MachineFunction &) const {
   // Just support r19, the linux kernel uses it.
-  unsigned Reg = StringSwitch<unsigned>(RegName)
+  Register Reg = StringSwitch<Register>(RegName)
                      .Case("r19", Hexagon::R19)
-                     .Default(0);
+                     .Default(Register());
   if (Reg)
     return Reg;
 
@@ -1235,9 +1235,9 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
       Subtarget(ST) {
   auto &HRI = *Subtarget.getRegisterInfo();
 
-  setPrefLoopAlignment(llvm::Align(16));
-  setMinFunctionAlignment(llvm::Align(4));
-  setPrefFunctionAlignment(llvm::Align(16));
+  setPrefLoopAlignment(Align(16));
+  setMinFunctionAlignment(Align(4));
+  setPrefFunctionAlignment(Align(16));
   setStackPointerRegisterToSaveRestore(HRI.getStackRegister());
   setBooleanContents(TargetLoweringBase::UndefinedBooleanContent);
   setBooleanVectorContents(TargetLoweringBase::UndefinedBooleanContent);
@@ -1439,12 +1439,12 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
     ISD::CONCAT_VECTORS,        ISD::VECTOR_SHUFFLE
   };
 
-  for (MVT VT : MVT::vector_valuetypes()) {
+  for (MVT VT : MVT::fixedlen_vector_valuetypes()) {
     for (unsigned VectExpOp : VectExpOps)
       setOperationAction(VectExpOp, VT, Expand);
 
     // Expand all extending loads and truncating stores:
-    for (MVT TargetVT : MVT::vector_valuetypes()) {
+    for (MVT TargetVT : MVT::fixedlen_vector_valuetypes()) {
       if (TargetVT == VT)
         continue;
       setLoadExtAction(ISD::EXTLOAD, TargetVT, VT, Expand);
@@ -1864,26 +1864,33 @@ bool HexagonTargetLowering::isShuffleMaskLegal(ArrayRef<int> Mask,
 
 TargetLoweringBase::LegalizeTypeAction
 HexagonTargetLowering::getPreferredVectorAction(MVT VT) const {
-  if (VT.getVectorNumElements() == 1)
+  unsigned VecLen = VT.getVectorNumElements();
+  MVT ElemTy = VT.getVectorElementType();
+
+  if (VecLen == 1 || VT.isScalableVector())
     return TargetLoweringBase::TypeScalarizeVector;
 
-  // Always widen vectors of i1.
-  MVT ElemTy = VT.getVectorElementType();
-  if (ElemTy == MVT::i1)
-    return TargetLoweringBase::TypeWidenVector;
-
   if (Subtarget.useHVXOps()) {
+    unsigned HwLen = Subtarget.getVectorLength();
     // If the size of VT is at least half of the vector length,
     // widen the vector. Note: the threshold was not selected in
     // any scientific way.
     ArrayRef<MVT> Tys = Subtarget.getHVXElementTypes();
     if (llvm::find(Tys, ElemTy) != Tys.end()) {
-      unsigned HwWidth = 8*Subtarget.getVectorLength();
+      unsigned HwWidth = 8*HwLen;
       unsigned VecWidth = VT.getSizeInBits();
       if (VecWidth >= HwWidth/2 && VecWidth < HwWidth)
         return TargetLoweringBase::TypeWidenVector;
     }
+    // Split vectors of i1 that correspond to (byte) vector pairs.
+    if (ElemTy == MVT::i1 && VecLen == 2*HwLen)
+      return TargetLoweringBase::TypeSplitVector;
   }
+
+  // Always widen (remaining) vectors of i1.
+  if (ElemTy == MVT::i1)
+    return TargetLoweringBase::TypeWidenVector;
+
   return TargetLoweringBase::TypeSplitVector;
 }
 
@@ -2666,7 +2673,8 @@ HexagonTargetLowering::LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG)
     DoDefault = true;
 
   if (!AlignLoads) {
-    if (allowsMemoryAccess(Ctx, DL, LN->getMemoryVT(), *LN->getMemOperand()))
+    if (allowsMemoryAccessForAlignment(Ctx, DL, LN->getMemoryVT(),
+                                       *LN->getMemOperand()))
       return Op;
     DoDefault = true;
   }
@@ -2674,7 +2682,8 @@ HexagonTargetLowering::LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG)
     // The PartTy is the equivalent of "getLoadableTypeOfSize(HaveAlign)".
     MVT PartTy = HaveAlign <= 8 ? MVT::getIntegerVT(8 * HaveAlign)
                                 : MVT::getVectorVT(MVT::i8, HaveAlign);
-    DoDefault = allowsMemoryAccess(Ctx, DL, PartTy, *LN->getMemOperand());
+    DoDefault =
+        allowsMemoryAccessForAlignment(Ctx, DL, PartTy, *LN->getMemOperand());
   }
   if (DoDefault) {
     std::pair<SDValue, SDValue> P = expandUnalignedLoad(LN, DAG);

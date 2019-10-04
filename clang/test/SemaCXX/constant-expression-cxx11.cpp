@@ -1108,6 +1108,11 @@ namespace MemberPointer {
   static_assert((int Derived::*)(int Mid<0>::*)&Mid<0>::n !=
                 (int Derived::*)(int Mid<1>::*)&Mid<1>::n, "");
   static_assert(&Mid<0>::n == (int Mid<0>::*)&Base::n, "");
+
+  constexpr int apply(const A &a, int (A::*f)() const) {
+    return (a.*f)();
+  }
+  static_assert(apply(A(2), &A::f) == 5, "");
 }
 
 namespace ArrayBaseDerived {
@@ -1889,9 +1894,10 @@ namespace ConstexprConstructorRecovery {
       };
       constexpr X() noexcept {};
   protected:
-      E val{0}; // expected-error {{cannot initialize a member subobject of type 'ConstexprConstructorRecovery::X::E' with an rvalue of type 'int'}}
+      E val{0}; // expected-error {{cannot initialize a member subobject of type 'ConstexprConstructorRecovery::X::E' with an rvalue of type 'int'}} expected-note {{here}}
   };
-  constexpr X x{};
+  // FIXME: We should avoid issuing this follow-on diagnostic.
+  constexpr X x{}; // expected-error {{constant expression}} expected-note {{not initialized}}
 }
 
 namespace Lifetime {
@@ -2036,7 +2042,7 @@ namespace BadDefaultInit {
   // here is bogus (we discard the k(k) initializer because the parameter 'k'
   // has been marked invalid).
   struct B { // expected-note 2{{candidate}}
-    constexpr B( // expected-error {{must initialize all members}} expected-note {{candidate}}
+    constexpr B( // expected-warning {{initialize all members}} expected-note {{candidate}}
         int k = X<B().k>::n) : // expected-error {{no matching constructor}}
       k(k) {}
     int k; // expected-note {{not initialized}}

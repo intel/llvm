@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "TableGenBackends.h"
+
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -1596,6 +1598,13 @@ CreateSemanticSpellings(const std::vector<FlattenedSpelling> &Spellings,
   std::string Ret("  enum Spelling {\n");
   std::set<std::string> Uniques;
   unsigned Idx = 0;
+
+  // If we have a need to have this many spellings we likely need to add an
+  // extra bit to the SpellingIndex in AttributeCommonInfo, then increase the
+  // value of SpellingNotCalculated there and here.
+  assert(Spellings.size() < 15 &&
+         "Too many spellings, would step on SpellingNotCalculated in "
+         "AttributeCommonInfo");
   for (auto I = Spellings.begin(), E = Spellings.end(); I != E; ++I, ++Idx) {
     const FlattenedSpelling &S = *I;
     const std::string &Variety = S.variety();
@@ -1629,6 +1638,7 @@ CreateSemanticSpellings(const std::vector<FlattenedSpelling> &Spellings,
     // enumerator.
     Ret += "    " + EnumName + " = " + llvm::utostr(Idx);
   }
+  Ret += ",\n  SpellingNotCalculated = 15\n";
   Ret += "\n  };\n\n";
   return Ret;
 }
@@ -2211,10 +2221,8 @@ static void emitClangAttrThisIsaIdentifierArgList(RecordKeeper &Records,
   OS << "#endif // CLANG_ATTR_THIS_ISA_IDENTIFIER_ARG_LIST\n\n";
 }
 
-namespace clang {
-
 // Emits the class definitions for attributes.
-void EmitClangAttrClass(RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitClangAttrClass(RecordKeeper &Records, raw_ostream &OS) {
   emitSourceFileHeader("Attribute classes' definitions", OS);
 
   OS << "#ifndef LLVM_CLANG_ATTR_CLASSES_INC\n";
@@ -2341,7 +2349,7 @@ void EmitClangAttrClass(RecordKeeper &Records, raw_ostream &OS) {
       OS << ", SourceRange Range, AttributeCommonInfo::Syntax Syntax";
       if (!ElideSpelling)
         OS << ", " << R.getName()
-           << "Attr::Spelling Spelling = "
+           << "Attr::Spelling S = "
               "static_cast<Spelling>(SpellingNotCalculated)";
       OS << ") {\n";
       OS << "    AttributeCommonInfo I(Range, ";
@@ -2353,7 +2361,7 @@ void EmitClangAttrClass(RecordKeeper &Records, raw_ostream &OS) {
 
       OS << ", Syntax";
       if (!ElideSpelling)
-        OS << ", Spelling";
+        OS << ", S";
       OS << ");\n";
       OS << "    return Create";
       if (Implicit)
@@ -2483,7 +2491,7 @@ void EmitClangAttrClass(RecordKeeper &Records, raw_ostream &OS) {
 }
 
 // Emits the class method definitions for attributes.
-void EmitClangAttrImpl(RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitClangAttrImpl(RecordKeeper &Records, raw_ostream &OS) {
   emitSourceFileHeader("Attribute classes' member function definitions", OS);
 
   std::vector<Record*> Attrs = Records.getAllDerivedDefinitions("Attr");
@@ -2547,8 +2555,6 @@ void EmitClangAttrImpl(RecordKeeper &Records, raw_ostream &OS) {
         "const PrintingPolicy &Policy) const {\n";
   EmitFunc("printPretty(OS, Policy)");
 }
-
-} // end namespace clang
 
 static void emitAttrList(raw_ostream &OS, StringRef Class,
                          const std::vector<Record*> &AttrList) {

@@ -982,7 +982,7 @@ void ASTContext::PrintStats() const {
   unsigned counts[] = {
 #define TYPE(Name, Parent) 0,
 #define ABSTRACT_TYPE(Name, Parent)
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     0 // Extra
   };
 
@@ -1002,7 +1002,7 @@ void ASTContext::PrintStats() const {
   TotalBytes += counts[Idx] * sizeof(Name##Type);                       \
   ++Idx;
 #define ABSTRACT_TYPE(Name, Parent)
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
 
   llvm::errs() << "Total bytes = " << TotalBytes << "\n";
 
@@ -1814,7 +1814,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   case Type::Class:                                                            \
   assert(!T->isDependentType() && "should not see dependent types here");      \
   return getTypeInfo(cast<Class##Type>(T)->desugar().getTypePtr());
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     llvm_unreachable("Should not see dependent types");
 
   case Type::FunctionNoProto:
@@ -2448,7 +2448,7 @@ structHasUniqueObjectRepresentations(const ASTContext &Context,
       // have tail padding, so just make sure there isn't an error.
       if (!isStructEmpty(Base.getType())) {
         llvm::Optional<int64_t> Size = structHasUniqueObjectRepresentations(
-            Context, Base.getType()->getAs<RecordType>()->getDecl());
+            Context, Base.getType()->castAs<RecordType>()->getDecl());
         if (!Size)
           return llvm::None;
         Bases.emplace_back(Base.getType(), Size.getValue());
@@ -2539,7 +2539,7 @@ bool ASTContext::hasUniqueObjectRepresentations(QualType Ty) const {
   }
 
   if (Ty->isRecordType()) {
-    const RecordDecl *Record = Ty->getAs<RecordType>()->getDecl();
+    const RecordDecl *Record = Ty->castAs<RecordType>()->getDecl();
 
     if (Record->isInvalidDecl())
       return false;
@@ -3227,7 +3227,7 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
 #define TYPE(Class, Base)
 #define ABSTRACT_TYPE(Class, Base)
 #define NON_CANONICAL_TYPE(Class, Base) case Type::Class:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     llvm_unreachable("didn't desugar past all non-canonical types?");
 
   // These types should never be variably-modified.
@@ -5684,7 +5684,7 @@ static FloatingRank getFloatingRank(QualType T) {
     return getFloatingRank(CT->getElementType());
 
   assert(T->getAs<BuiltinType>() && "getFloatingRank(): not a floating type");
-  switch (T->getAs<BuiltinType>()->getKind()) {
+  switch (T->castAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("getFloatingRank(): not a floating type");
   case BuiltinType::Float16:    return Float16Rank;
   case BuiltinType::Half:       return HalfRank;
@@ -6322,14 +6322,14 @@ std::string ASTContext::getObjCEncodingForBlock(const BlockExpr *Expr) const {
 
   const BlockDecl *Decl = Expr->getBlockDecl();
   QualType BlockTy =
-      Expr->getType()->getAs<BlockPointerType>()->getPointeeType();
+      Expr->getType()->castAs<BlockPointerType>()->getPointeeType();
+  QualType BlockReturnTy = BlockTy->castAs<FunctionType>()->getReturnType();
   // Encode result type.
   if (getLangOpts().EncodeExtendedBlockSig)
-    getObjCEncodingForMethodParameter(
-        Decl::OBJC_TQ_None, BlockTy->getAs<FunctionType>()->getReturnType(), S,
-        true /*Extended*/);
+    getObjCEncodingForMethodParameter(Decl::OBJC_TQ_None, BlockReturnTy, S,
+                                      true /*Extended*/);
   else
-    getObjCEncodingForType(BlockTy->getAs<FunctionType>()->getReturnType(), S);
+    getObjCEncodingForType(BlockReturnTy, S);
   // Compute size of all parameters.
   // Start with computing size of a pointer in number of bytes.
   // FIXME: There might(should) be a better way of doing this computation!
@@ -7129,7 +7129,7 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string &S,
   case Type::KIND:
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(KIND, BASE) \
   case Type::KIND:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     llvm_unreachable("@encode for dependent type!");
   }
   llvm_unreachable("bad type kind!");
@@ -7912,7 +7912,7 @@ Qualifiers::GC ASTContext::getObjCGCAttrKind(QualType Ty) const {
     if (Ty->isObjCObjectPointerType() || Ty->isBlockPointerType())
       return Qualifiers::Strong;
     else if (Ty->isPointerType())
-      return getObjCGCAttrKind(Ty->getAs<PointerType>()->getPointeeType());
+      return getObjCGCAttrKind(Ty->castAs<PointerType>()->getPointeeType());
   } else {
     // It's not valid to set GC attributes on anything that isn't a
     // pointer.
@@ -7949,8 +7949,8 @@ bool ASTContext::areCompatibleVectorTypes(QualType FirstVec,
 
   // Treat Neon vector types and most AltiVec vector types as if they are the
   // equivalent GCC vector types.
-  const auto *First = FirstVec->getAs<VectorType>();
-  const auto *Second = SecondVec->getAs<VectorType>();
+  const auto *First = FirstVec->castAs<VectorType>();
+  const auto *Second = SecondVec->castAs<VectorType>();
   if (First->getNumElements() == Second->getNumElements() &&
       hasSameType(First->getElementType(), Second->getElementType()) &&
       First->getVectorKind() != VectorType::AltiVecPixel &&
@@ -8003,15 +8003,11 @@ ASTContext::ProtocolCompatibleWithProtocol(ObjCProtocolDecl *lProto,
 
 /// ObjCQualifiedClassTypesAreCompatible - compare  Class<pr,...> and
 /// Class<pr1, ...>.
-bool ASTContext::ObjCQualifiedClassTypesAreCompatible(QualType lhs,
-                                                      QualType rhs) {
-  const auto *lhsQID = lhs->getAs<ObjCObjectPointerType>();
-  const auto *rhsOPT = rhs->getAs<ObjCObjectPointerType>();
-  assert((lhsQID && rhsOPT) && "ObjCQualifiedClassTypesAreCompatible");
-
-  for (auto *lhsProto : lhsQID->quals()) {
+bool ASTContext::ObjCQualifiedClassTypesAreCompatible(
+    const ObjCObjectPointerType *lhs, const ObjCObjectPointerType *rhs) {
+  for (auto *lhsProto : lhs->quals()) {
     bool match = false;
-    for (auto *rhsProto : rhsOPT->quals()) {
+    for (auto *rhsProto : rhs->quals()) {
       if (ProtocolCompatibleWithProtocol(lhsProto, rhsProto)) {
         match = true;
         break;
@@ -8025,8 +8021,9 @@ bool ASTContext::ObjCQualifiedClassTypesAreCompatible(QualType lhs,
 
 /// ObjCQualifiedIdTypesAreCompatible - We know that one of lhs/rhs is an
 /// ObjCQualifiedIDType.
-bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
-                                                   bool compare) {
+bool ASTContext::ObjCQualifiedIdTypesAreCompatible(
+    const ObjCObjectPointerType *lhs, const ObjCObjectPointerType *rhs,
+    bool compare) {
   // Allow id<P..> and an 'id' or void* type in all cases.
   if (lhs->isVoidPointerType() ||
       lhs->isObjCIdType() || lhs->isObjCClassType())
@@ -8035,16 +8032,12 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
            rhs->isObjCIdType() || rhs->isObjCClassType())
     return true;
 
-  if (const ObjCObjectPointerType *lhsQID = lhs->getAsObjCQualifiedIdType()) {
-    const auto *rhsOPT = rhs->getAs<ObjCObjectPointerType>();
-
-    if (!rhsOPT) return false;
-
-    if (rhsOPT->qual_empty()) {
+  if (lhs->isObjCQualifiedIdType()) {
+    if (rhs->qual_empty()) {
       // If the RHS is a unqualified interface pointer "NSString*",
       // make sure we check the class hierarchy.
-      if (ObjCInterfaceDecl *rhsID = rhsOPT->getInterfaceDecl()) {
-        for (auto *I : lhsQID->quals()) {
+      if (ObjCInterfaceDecl *rhsID = rhs->getInterfaceDecl()) {
+        for (auto *I : lhs->quals()) {
           // when comparing an id<P> on lhs with a static type on rhs,
           // see if static class implements all of id's protocols, directly or
           // through its super class and categories.
@@ -8056,13 +8049,13 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
       return true;
     }
     // Both the right and left sides have qualifiers.
-    for (auto *lhsProto : lhsQID->quals()) {
+    for (auto *lhsProto : lhs->quals()) {
       bool match = false;
 
       // when comparing an id<P> on lhs with a static type on rhs,
       // see if static class implements all of id's protocols, directly or
       // through its super class and categories.
-      for (auto *rhsProto : rhsOPT->quals()) {
+      for (auto *rhsProto : rhs->quals()) {
         if (ProtocolCompatibleWithProtocol(lhsProto, rhsProto) ||
             (compare && ProtocolCompatibleWithProtocol(rhsProto, lhsProto))) {
           match = true;
@@ -8071,8 +8064,8 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
       }
       // If the RHS is a qualified interface pointer "NSString<P>*",
       // make sure we check the class hierarchy.
-      if (ObjCInterfaceDecl *rhsID = rhsOPT->getInterfaceDecl()) {
-        for (auto *I : lhsQID->quals()) {
+      if (ObjCInterfaceDecl *rhsID = rhs->getInterfaceDecl()) {
+        for (auto *I : lhs->quals()) {
           // when comparing an id<P> on lhs with a static type on rhs,
           // see if static class implements all of id's protocols, directly or
           // through its super class and categories.
@@ -8089,13 +8082,11 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
     return true;
   }
 
-  const ObjCObjectPointerType *rhsQID = rhs->getAsObjCQualifiedIdType();
-  assert(rhsQID && "One of the LHS/RHS should be id<x>");
+  assert(rhs->isObjCQualifiedIdType() && "One of the LHS/RHS should be id<x>");
 
-  if (const ObjCObjectPointerType *lhsOPT =
-        lhs->getAsObjCInterfacePointerType()) {
+  if (lhs->getInterfaceType()) {
     // If both the right and left sides have qualifiers.
-    for (auto *lhsProto : lhsOPT->quals()) {
+    for (auto *lhsProto : lhs->quals()) {
       bool match = false;
 
       // when comparing an id<P> on rhs with a static type on lhs,
@@ -8103,7 +8094,7 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
       // through its super class and categories.
       // First, lhs protocols in the qualifier list must be found, direct
       // or indirect in rhs's qualifier list or it is a mismatch.
-      for (auto *rhsProto : rhsQID->quals()) {
+      for (auto *rhsProto : rhs->quals()) {
         if (ProtocolCompatibleWithProtocol(lhsProto, rhsProto) ||
             (compare && ProtocolCompatibleWithProtocol(rhsProto, lhsProto))) {
           match = true;
@@ -8116,17 +8107,17 @@ bool ASTContext::ObjCQualifiedIdTypesAreCompatible(QualType lhs, QualType rhs,
 
     // Static class's protocols, or its super class or category protocols
     // must be found, direct or indirect in rhs's qualifier list or it is a mismatch.
-    if (ObjCInterfaceDecl *lhsID = lhsOPT->getInterfaceDecl()) {
+    if (ObjCInterfaceDecl *lhsID = lhs->getInterfaceDecl()) {
       llvm::SmallPtrSet<ObjCProtocolDecl *, 8> LHSInheritedProtocols;
       CollectInheritedProtocols(lhsID, LHSInheritedProtocols);
       // This is rather dubious but matches gcc's behavior. If lhs has
       // no type qualifier and its class has no static protocol(s)
       // assume that it is mismatch.
-      if (LHSInheritedProtocols.empty() && lhsOPT->qual_empty())
+      if (LHSInheritedProtocols.empty() && lhs->qual_empty())
         return false;
       for (auto *lhsProto : LHSInheritedProtocols) {
         bool match = false;
-        for (auto *rhsProto : rhsQID->quals()) {
+        for (auto *rhsProto : rhs->quals()) {
           if (ProtocolCompatibleWithProtocol(lhsProto, rhsProto) ||
               (compare && ProtocolCompatibleWithProtocol(rhsProto, lhsProto))) {
             match = true;
@@ -8171,14 +8162,11 @@ bool ASTContext::canAssignObjCInterfaces(const ObjCObjectPointerType *LHSOPT,
   };
 
   if (LHS->isObjCQualifiedId() || RHS->isObjCQualifiedId()) {
-    return finish(ObjCQualifiedIdTypesAreCompatible(QualType(LHSOPT,0),
-                                                    QualType(RHSOPT,0),
-                                                    false));
+    return finish(ObjCQualifiedIdTypesAreCompatible(LHSOPT, RHSOPT, false));
   }
 
   if (LHS->isObjCQualifiedClass() && RHS->isObjCQualifiedClass()) {
-    return finish(ObjCQualifiedClassTypesAreCompatible(QualType(LHSOPT,0),
-                                                       QualType(RHSOPT,0)));
+    return finish(ObjCQualifiedClassTypesAreCompatible(LHSOPT, RHSOPT));
   }
 
   // If we have 2 user-defined types, fall into that path.
@@ -8227,8 +8215,8 @@ bool ASTContext::canAssignObjCInterfacesInBlockPointer(
 
   if (LHSOPT->isObjCQualifiedIdType() || RHSOPT->isObjCQualifiedIdType())
     return finish(ObjCQualifiedIdTypesAreCompatible(
-        QualType(BlockReturnType ? LHSOPT : RHSOPT, 0),
-        QualType(BlockReturnType ? RHSOPT : LHSOPT, 0), false));
+        (BlockReturnType ? LHSOPT : RHSOPT),
+        (BlockReturnType ? RHSOPT : LHSOPT), false));
 
   const ObjCInterfaceType* LHS = LHSOPT->getInterfaceType();
   const ObjCInterfaceType* RHS = RHSOPT->getInterfaceType();
@@ -8952,7 +8940,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(Class, Base) case Type::Class:
 #define NON_CANONICAL_TYPE(Class, Base) case Type::Class:
 #define DEPENDENT_TYPE(Class, Base) case Type::Class:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     llvm_unreachable("Non-canonical and dependent types shouldn't get here");
 
   case Type::Auto:
@@ -8972,8 +8960,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   case Type::Pointer:
   {
     // Merge two pointer types, while trying to preserve typedef info
-    QualType LHSPointee = LHS->getAs<PointerType>()->getPointeeType();
-    QualType RHSPointee = RHS->getAs<PointerType>()->getPointeeType();
+    QualType LHSPointee = LHS->castAs<PointerType>()->getPointeeType();
+    QualType RHSPointee = RHS->castAs<PointerType>()->getPointeeType();
     if (Unqualified) {
       LHSPointee = LHSPointee.getUnqualifiedType();
       RHSPointee = RHSPointee.getUnqualifiedType();
@@ -8991,8 +8979,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   case Type::BlockPointer:
   {
     // Merge two block pointer types, while trying to preserve typedef info
-    QualType LHSPointee = LHS->getAs<BlockPointerType>()->getPointeeType();
-    QualType RHSPointee = RHS->getAs<BlockPointerType>()->getPointeeType();
+    QualType LHSPointee = LHS->castAs<BlockPointerType>()->getPointeeType();
+    QualType RHSPointee = RHS->castAs<BlockPointerType>()->getPointeeType();
     if (Unqualified) {
       LHSPointee = LHSPointee.getUnqualifiedType();
       RHSPointee = RHSPointee.getUnqualifiedType();
@@ -9024,8 +9012,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   case Type::Atomic:
   {
     // Merge two pointer types, while trying to preserve typedef info
-    QualType LHSValue = LHS->getAs<AtomicType>()->getValueType();
-    QualType RHSValue = RHS->getAs<AtomicType>()->getValueType();
+    QualType LHSValue = LHS->castAs<AtomicType>()->getValueType();
+    QualType RHSValue = RHS->castAs<AtomicType>()->getValueType();
     if (Unqualified) {
       LHSValue = LHSValue.getUnqualifiedType();
       RHSValue = RHSValue.getUnqualifiedType();
@@ -9284,8 +9272,8 @@ QualType ASTContext::mergeObjCGCQualifiers(QualType LHS, QualType RHS) {
   }
 
   if (LHSCan->isObjCObjectPointerType() && RHSCan->isObjCObjectPointerType()) {
-    QualType LHSBaseQT = LHS->getAs<ObjCObjectPointerType>()->getPointeeType();
-    QualType RHSBaseQT = RHS->getAs<ObjCObjectPointerType>()->getPointeeType();
+    QualType LHSBaseQT = LHS->castAs<ObjCObjectPointerType>()->getPointeeType();
+    QualType RHSBaseQT = RHS->castAs<ObjCObjectPointerType>()->getPointeeType();
     QualType ResQT = mergeObjCGCQualifiers(LHSBaseQT, RHSBaseQT);
     if (ResQT == LHSBaseQT)
       return LHS;
@@ -9936,25 +9924,10 @@ static GVALinkage basicGVALinkageForVariable(const ASTContext &Context,
     return StrongLinkage;
 
   case TSK_ExplicitSpecialization:
-    if (Context.getTargetInfo().getCXXABI().isMicrosoft()) {
-      // If this is a fully specialized constexpr variable template, pretend it
-      // was marked inline. MSVC 14.21.27702 headers define _Is_integral in a
-      // header this way, and we don't want to emit non-discardable definitions
-      // of these variables in every TU that includes <type_traits>. This
-      // behavior is non-conforming, since another TU could use an extern
-      // template declaration for this variable, but for constexpr variables,
-      // it's unlikely for a user to want to do that. This behavior can be
-      // removed if the headers change to explicitly mark such variable template
-      // specializations inline.
-      if (isa<VarTemplateSpecializationDecl>(VD) && VD->isConstexpr())
-        return GVA_DiscardableODR;
-
-      // Use ODR linkage for static data members of fully specialized templates
-      // to prevent duplicate definition errors with MSVC.
-      if (VD->isStaticDataMember())
-        return GVA_StrongODR;
-    }
-    return StrongLinkage;
+    return Context.getTargetInfo().getCXXABI().isMicrosoft() &&
+                   VD->isStaticDataMember()
+               ? GVA_StrongODR
+               : StrongLinkage;
 
   case TSK_ExplicitInstantiationDefinition:
     return GVA_StrongODR;
@@ -10100,7 +10073,7 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
     return false;
 
   // Variables that have destruction with side-effects are required.
-  if (VD->getType().isDestructedType())
+  if (VD->needsDestruction(*this))
     return true;
 
   // Variables that have initialization with side-effects are required.
@@ -10583,8 +10556,7 @@ QualType ASTContext::getCorrespondingSaturatedType(QualType Ty) const {
 
   if (Ty->isSaturatedFixedPointType()) return Ty;
 
-  const auto &BT = Ty->getAs<BuiltinType>();
-  switch (BT->getKind()) {
+  switch (Ty->castAs<BuiltinType>()->getKind()) {
     default:
       llvm_unreachable("Not a fixed point type!");
     case BuiltinType::ShortAccum:

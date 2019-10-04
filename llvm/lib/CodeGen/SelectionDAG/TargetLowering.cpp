@@ -585,7 +585,7 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
     SDValue Op, const APInt &DemandedBits, const APInt &DemandedElts,
     SelectionDAG &DAG, unsigned Depth) const {
   // Limit search depth.
-  if (Depth >= 6)
+  if (Depth >= SelectionDAG::MaxRecursionDepth)
     return SDValue();
 
   // Ignore UNDEFs.
@@ -798,12 +798,15 @@ bool TargetLowering::SimplifyDemandedBits(
   } else if (OriginalDemandedBits == 0 || OriginalDemandedElts == 0) {
     // Not demanding any bits/elts from Op.
     return TLO.CombineTo(Op, TLO.DAG.getUNDEF(VT));
-  } else if (Depth >= 6) { // Limit search depth.
+  } else if (Depth >= SelectionDAG::MaxRecursionDepth) {
+    // Limit search depth.
     return false;
   }
 
   KnownBits Known2, KnownOut;
   switch (Op.getOpcode()) {
+  case ISD::TargetConstant:
+    llvm_unreachable("Can't simplify this node");
   case ISD::SCALAR_TO_VECTOR: {
     if (!DemandedElts[0])
       return TLO.CombineTo(Op, TLO.DAG.getUNDEF(VT));
@@ -905,6 +908,21 @@ bool TargetLowering::SimplifyDemandedBits(
         Known.One &= KnownBase.One;
         Known.Zero &= KnownBase.Zero;
     }
+    break;
+  }
+  case ISD::EXTRACT_SUBVECTOR: {
+    // If index isn't constant, assume we need all the source vector elements.
+    SDValue Src = Op.getOperand(0);
+    ConstantSDNode *SubIdx = dyn_cast<ConstantSDNode>(Op.getOperand(1));
+    unsigned NumSrcElts = Src.getValueType().getVectorNumElements();
+    APInt SrcElts = APInt::getAllOnesValue(NumSrcElts);
+    if (SubIdx && SubIdx->getAPIntValue().ule(NumSrcElts - NumElts)) {
+      // Offset the demanded elts by the subvector index.
+      uint64_t Idx = SubIdx->getZExtValue();
+      SrcElts = DemandedElts.zextOrSelf(NumSrcElts).shl(Idx);
+    }
+    if (SimplifyDemandedBits(Src, DemandedBits, SrcElts, Known, TLO, Depth + 1))
+      return true;
     break;
   }
   case ISD::CONCAT_VECTORS: {
@@ -1270,7 +1288,7 @@ bool TargetLowering::SimplifyDemandedBits(
       // out) are never demanded.
       // TODO - support non-uniform vector amounts.
       if (Op0.getOpcode() == ISD::SRL) {
-        if ((DemandedBits & APInt::getLowBitsSet(BitWidth, ShAmt)) == 0) {
+        if (!DemandedBits.intersects(APInt::getLowBitsSet(BitWidth, ShAmt))) {
           if (ConstantSDNode *SA2 =
                   isConstOrConstSplat(Op0.getOperand(1), DemandedElts)) {
             if (SA2->getAPIntValue().ult(BitWidth)) {
@@ -1377,7 +1395,8 @@ bool TargetLowering::SimplifyDemandedBits(
       if (Op0.getOpcode() == ISD::SHL) {
         if (ConstantSDNode *SA2 =
                 isConstOrConstSplat(Op0.getOperand(1), DemandedElts)) {
-          if ((DemandedBits & APInt::getHighBitsSet(BitWidth, ShAmt)) == 0) {
+          if (!DemandedBits.intersects(
+                  APInt::getHighBitsSet(BitWidth, ShAmt))) {
             if (SA2->getAPIntValue().ult(BitWidth)) {
               unsigned C1 = SA2->getZExtValue();
               unsigned Opc = ISD::SRL;
@@ -2091,7 +2110,7 @@ bool TargetLowering::SimplifyDemandedVectorElts(
   }
 
   // Limit search depth.
-  if (Depth >= 6)
+  if (Depth >= SelectionDAG::MaxRecursionDepth)
     return false;
 
   SDLoc DL(Op);
@@ -2570,8 +2589,9 @@ void TargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
 }
 
 void TargetLowering::computeKnownBitsForTargetInstr(
-    Register R, KnownBits &Known, const APInt &DemandedElts,
-    const MachineRegisterInfo &MRI, unsigned Depth) const {
+    GISelKnownBits &Analysis, Register R, KnownBits &Known,
+    const APInt &DemandedElts, const MachineRegisterInfo &MRI,
+    unsigned Depth) const {
   Known.resetAll();
 }
 
@@ -5314,6 +5334,246 @@ verifyReturnAddressArgumentIsConstant(SDValue Op, SelectionDAG &DAG) const {
   return false;
 }
 
+char TargetLowering::isNegatibleForFree(SDValue Op, SelectionDAG &DAG,
+                                        bool LegalOperations, bool ForCodeSize,
+                                        unsigned Depth) const {
+  // fneg is removable even if it has multiple uses.
+  if (Op.getOpcode() == ISD::FNEG)
+    return 2;
+
+  // Don't allow anything with multiple uses unless we know it is free.
+  EVT VT = Op.getValueType();
+  const SDNodeFlags Flags = Op->getFlags();
+  const TargetOptions &Options = DAG.getTarget().Options;
+  if (!Op.hasOneUse() && !(Op.getOpcode() == ISD::FP_EXTEND &&
+                           isFPExtFree(VT, Op.getOperand(0).getValueType())))
+    return 0;
+
+  // Don't recurse exponentially.
+  if (Depth > SelectionDAG::MaxRecursionDepth)
+    return 0;
+
+  switch (Op.getOpcode()) {
+  case ISD::ConstantFP: {
+    if (!LegalOperations)
+      return 1;
+
+    // Don't invert constant FP values after legalization unless the target says
+    // the negated constant is legal.
+    return isOperationLegal(ISD::ConstantFP, VT) ||
+           isFPImmLegal(neg(cast<ConstantFPSDNode>(Op)->getValueAPF()), VT,
+                        ForCodeSize);
+  }
+  case ISD::BUILD_VECTOR: {
+    // Only permit BUILD_VECTOR of constants.
+    if (llvm::any_of(Op->op_values(), [&](SDValue N) {
+          return !N.isUndef() && !isa<ConstantFPSDNode>(N);
+        }))
+      return 0;
+    if (!LegalOperations)
+      return 1;
+    if (isOperationLegal(ISD::ConstantFP, VT) &&
+        isOperationLegal(ISD::BUILD_VECTOR, VT))
+      return 1;
+    return llvm::all_of(Op->op_values(), [&](SDValue N) {
+      return N.isUndef() ||
+             isFPImmLegal(neg(cast<ConstantFPSDNode>(N)->getValueAPF()), VT,
+                          ForCodeSize);
+    });
+  }
+  case ISD::FADD:
+    if (!Options.NoSignedZerosFPMath && !Flags.hasNoSignedZeros())
+      return 0;
+
+    // After operation legalization, it might not be legal to create new FSUBs.
+    if (LegalOperations && !isOperationLegalOrCustom(ISD::FSUB, VT))
+      return 0;
+
+    // fold (fneg (fadd A, B)) -> (fsub (fneg A), B)
+    if (char V = isNegatibleForFree(Op.getOperand(0), DAG, LegalOperations,
+                                    ForCodeSize, Depth + 1))
+      return V;
+    // fold (fneg (fadd A, B)) -> (fsub (fneg B), A)
+    return isNegatibleForFree(Op.getOperand(1), DAG, LegalOperations,
+                              ForCodeSize, Depth + 1);
+  case ISD::FSUB:
+    // We can't turn -(A-B) into B-A when we honor signed zeros.
+    if (!Options.NoSignedZerosFPMath && !Flags.hasNoSignedZeros())
+      return 0;
+
+    // fold (fneg (fsub A, B)) -> (fsub B, A)
+    return 1;
+
+  case ISD::FMUL:
+  case ISD::FDIV:
+    // fold (fneg (fmul X, Y)) -> (fmul (fneg X), Y) or (fmul X, (fneg Y))
+    if (char V = isNegatibleForFree(Op.getOperand(0), DAG, LegalOperations,
+                                    ForCodeSize, Depth + 1))
+      return V;
+
+    // Ignore X * 2.0 because that is expected to be canonicalized to X + X.
+    if (auto *C = isConstOrConstSplatFP(Op.getOperand(1)))
+      if (C->isExactlyValue(2.0) && Op.getOpcode() == ISD::FMUL)
+        return 0;
+
+    return isNegatibleForFree(Op.getOperand(1), DAG, LegalOperations,
+                              ForCodeSize, Depth + 1);
+
+  case ISD::FMA:
+  case ISD::FMAD: {
+    if (!Options.NoSignedZerosFPMath && !Flags.hasNoSignedZeros())
+      return 0;
+
+    // fold (fneg (fma X, Y, Z)) -> (fma (fneg X), Y, (fneg Z))
+    // fold (fneg (fma X, Y, Z)) -> (fma X, (fneg Y), (fneg Z))
+    char V2 = isNegatibleForFree(Op.getOperand(2), DAG, LegalOperations,
+                                 ForCodeSize, Depth + 1);
+    if (!V2)
+      return 0;
+
+    // One of Op0/Op1 must be cheaply negatible, then select the cheapest.
+    char V0 = isNegatibleForFree(Op.getOperand(0), DAG, LegalOperations,
+                                 ForCodeSize, Depth + 1);
+    char V1 = isNegatibleForFree(Op.getOperand(1), DAG, LegalOperations,
+                                 ForCodeSize, Depth + 1);
+    char V01 = std::max(V0, V1);
+    return V01 ? std::max(V01, V2) : 0;
+  }
+
+  case ISD::FP_EXTEND:
+  case ISD::FP_ROUND:
+  case ISD::FSIN:
+    return isNegatibleForFree(Op.getOperand(0), DAG, LegalOperations,
+                              ForCodeSize, Depth + 1);
+  }
+
+  return 0;
+}
+
+SDValue TargetLowering::getNegatedExpression(SDValue Op, SelectionDAG &DAG,
+                                             bool LegalOperations,
+                                             bool ForCodeSize,
+                                             unsigned Depth) const {
+  // fneg is removable even if it has multiple uses.
+  if (Op.getOpcode() == ISD::FNEG)
+    return Op.getOperand(0);
+
+  assert(Depth <= SelectionDAG::MaxRecursionDepth &&
+         "getNegatedExpression doesn't match isNegatibleForFree");
+  const SDNodeFlags Flags = Op->getFlags();
+
+  switch (Op.getOpcode()) {
+  case ISD::ConstantFP: {
+    APFloat V = cast<ConstantFPSDNode>(Op)->getValueAPF();
+    V.changeSign();
+    return DAG.getConstantFP(V, SDLoc(Op), Op.getValueType());
+  }
+  case ISD::BUILD_VECTOR: {
+    SmallVector<SDValue, 4> Ops;
+    for (SDValue C : Op->op_values()) {
+      if (C.isUndef()) {
+        Ops.push_back(C);
+        continue;
+      }
+      APFloat V = cast<ConstantFPSDNode>(C)->getValueAPF();
+      V.changeSign();
+      Ops.push_back(DAG.getConstantFP(V, SDLoc(Op), C.getValueType()));
+    }
+    return DAG.getBuildVector(Op.getValueType(), SDLoc(Op), Ops);
+  }
+  case ISD::FADD:
+    assert((DAG.getTarget().Options.NoSignedZerosFPMath ||
+            Flags.hasNoSignedZeros()) &&
+           "Expected NSZ fp-flag");
+
+    // fold (fneg (fadd A, B)) -> (fsub (fneg A), B)
+    if (isNegatibleForFree(Op.getOperand(0), DAG, LegalOperations, ForCodeSize,
+                           Depth + 1))
+      return DAG.getNode(ISD::FSUB, SDLoc(Op), Op.getValueType(),
+                         getNegatedExpression(Op.getOperand(0), DAG,
+                                              LegalOperations, ForCodeSize,
+                                              Depth + 1),
+                         Op.getOperand(1), Flags);
+    // fold (fneg (fadd A, B)) -> (fsub (fneg B), A)
+    return DAG.getNode(ISD::FSUB, SDLoc(Op), Op.getValueType(),
+                       getNegatedExpression(Op.getOperand(1), DAG,
+                                            LegalOperations, ForCodeSize,
+                                            Depth + 1),
+                       Op.getOperand(0), Flags);
+  case ISD::FSUB:
+    // fold (fneg (fsub 0, B)) -> B
+    if (ConstantFPSDNode *N0CFP =
+            isConstOrConstSplatFP(Op.getOperand(0), /*AllowUndefs*/ true))
+      if (N0CFP->isZero())
+        return Op.getOperand(1);
+
+    // fold (fneg (fsub A, B)) -> (fsub B, A)
+    return DAG.getNode(ISD::FSUB, SDLoc(Op), Op.getValueType(),
+                       Op.getOperand(1), Op.getOperand(0), Flags);
+
+  case ISD::FMUL:
+  case ISD::FDIV:
+    // fold (fneg (fmul X, Y)) -> (fmul (fneg X), Y)
+    if (isNegatibleForFree(Op.getOperand(0), DAG, LegalOperations, ForCodeSize,
+                           Depth + 1))
+      return DAG.getNode(Op.getOpcode(), SDLoc(Op), Op.getValueType(),
+                         getNegatedExpression(Op.getOperand(0), DAG,
+                                              LegalOperations, ForCodeSize,
+                                              Depth + 1),
+                         Op.getOperand(1), Flags);
+
+    // fold (fneg (fmul X, Y)) -> (fmul X, (fneg Y))
+    return DAG.getNode(
+        Op.getOpcode(), SDLoc(Op), Op.getValueType(), Op.getOperand(0),
+        getNegatedExpression(Op.getOperand(1), DAG, LegalOperations,
+                             ForCodeSize, Depth + 1),
+        Flags);
+
+  case ISD::FMA:
+  case ISD::FMAD: {
+    assert((DAG.getTarget().Options.NoSignedZerosFPMath ||
+            Flags.hasNoSignedZeros()) &&
+           "Expected NSZ fp-flag");
+
+    SDValue Neg2 = getNegatedExpression(Op.getOperand(2), DAG, LegalOperations,
+                                        ForCodeSize, Depth + 1);
+
+    char V0 = isNegatibleForFree(Op.getOperand(0), DAG, LegalOperations,
+                                 ForCodeSize, Depth + 1);
+    char V1 = isNegatibleForFree(Op.getOperand(1), DAG, LegalOperations,
+                                 ForCodeSize, Depth + 1);
+    if (V0 >= V1) {
+      // fold (fneg (fma X, Y, Z)) -> (fma (fneg X), Y, (fneg Z))
+      SDValue Neg0 = getNegatedExpression(
+          Op.getOperand(0), DAG, LegalOperations, ForCodeSize, Depth + 1);
+      return DAG.getNode(Op.getOpcode(), SDLoc(Op), Op.getValueType(), Neg0,
+                         Op.getOperand(1), Neg2, Flags);
+    }
+
+    // fold (fneg (fma X, Y, Z)) -> (fma X, (fneg Y), (fneg Z))
+    SDValue Neg1 = getNegatedExpression(Op.getOperand(1), DAG, LegalOperations,
+                                        ForCodeSize, Depth + 1);
+    return DAG.getNode(Op.getOpcode(), SDLoc(Op), Op.getValueType(),
+                       Op.getOperand(0), Neg1, Neg2, Flags);
+  }
+
+  case ISD::FP_EXTEND:
+  case ISD::FSIN:
+    return DAG.getNode(Op.getOpcode(), SDLoc(Op), Op.getValueType(),
+                       getNegatedExpression(Op.getOperand(0), DAG,
+                                            LegalOperations, ForCodeSize,
+                                            Depth + 1));
+  case ISD::FP_ROUND:
+    return DAG.getNode(ISD::FP_ROUND, SDLoc(Op), Op.getValueType(),
+                       getNegatedExpression(Op.getOperand(0), DAG,
+                                            LegalOperations, ForCodeSize,
+                                            Depth + 1),
+                       Op.getOperand(1));
+  }
+
+  llvm_unreachable("Unknown code");
+}
+
 //===----------------------------------------------------------------------===//
 // Legalization Utilities
 //===----------------------------------------------------------------------===//
@@ -6888,24 +7148,19 @@ void TargetLowering::expandSADDSUBO(
 
   SDValue Zero = DAG.getConstant(0, dl, LHS.getValueType());
 
-  //   LHSSign -> LHS >= 0
-  //   RHSSign -> RHS >= 0
-  //   SumSign -> Result >= 0
-  //
-  //   Add:
-  //   Overflow -> (LHSSign == RHSSign) && (LHSSign != SumSign)
-  //   Sub:
-  //   Overflow -> (LHSSign != RHSSign) && (LHSSign != SumSign)
-  SDValue LHSSign = DAG.getSetCC(dl, OType, LHS, Zero, ISD::SETGE);
-  SDValue RHSSign = DAG.getSetCC(dl, OType, RHS, Zero, ISD::SETGE);
-  SDValue SignsMatch = DAG.getSetCC(dl, OType, LHSSign, RHSSign,
-                                    IsAdd ? ISD::SETEQ : ISD::SETNE);
+  // For an addition, the result should be less than one of the operands (LHS)
+  // if and only if the other operand (RHS) is negative, otherwise there will
+  // be overflow.
+  // For a subtraction, the result should be less than one of the operands
+  // (LHS) if and only if the other operand (RHS) is (non-zero) positive,
+  // otherwise there will be overflow.
+  SDValue ResultLowerThanLHS = DAG.getSetCC(dl, OType, Result, LHS, ISD::SETLT);
+  SDValue ConditionRHS =
+      DAG.getSetCC(dl, OType, RHS, Zero, IsAdd ? ISD::SETLT : ISD::SETGT);
 
-  SDValue SumSign = DAG.getSetCC(dl, OType, Result, Zero, ISD::SETGE);
-  SDValue SumSignNE = DAG.getSetCC(dl, OType, LHSSign, SumSign, ISD::SETNE);
-
-  SDValue Cmp = DAG.getNode(ISD::AND, dl, OType, SignsMatch, SumSignNE);
-  Overflow = DAG.getBoolExtOrTrunc(Cmp, dl, ResultType, ResultType);
+  Overflow = DAG.getBoolExtOrTrunc(
+      DAG.getNode(ISD::XOR, dl, OType, ConditionRHS, ResultLowerThanLHS), dl,
+      ResultType, ResultType);
 }
 
 bool TargetLowering::expandMULO(SDNode *Node, SDValue &Result,

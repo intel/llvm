@@ -29,8 +29,8 @@
 using namespace lldb_private;
 using namespace lldb;
 
-void StructuredPythonObject::Dump(Stream &s, bool pretty_print) const {
-  s << "Python Obj: 0x" << GetValue();
+void StructuredPythonObject::Serialize(llvm::json::OStream &s) const {
+  s.value(llvm::formatv("Python Obj: {0:X}", GetValue()).str());
 }
 
 // PythonObject
@@ -949,11 +949,6 @@ PythonFile::PythonFile() : PythonObject() {}
 
 PythonFile::PythonFile(File &file, const char *mode) { Reset(file, mode); }
 
-PythonFile::PythonFile(const char *path, const char *mode) {
-  lldb_private::File file;
-  FileSystem::Instance().Open(file, FileSpec(path), GetOptionsFromMode(mode));
-  Reset(file, mode);
-}
 
 PythonFile::PythonFile(PyRefType type, PyObject *o) { Reset(type, o); }
 
@@ -1036,17 +1031,19 @@ uint32_t PythonFile::GetOptionsFromMode(llvm::StringRef mode) {
       .Default(0);
 }
 
-bool PythonFile::GetUnderlyingFile(File &file) const {
+FileUP PythonFile::GetUnderlyingFile() const {
   if (!IsValid())
-    return false;
+    return nullptr;
 
-  file.Close();
   // We don't own the file descriptor returned by this function, make sure the
   // File object knows about that.
-  file.SetDescriptor(PyObject_AsFileDescriptor(m_py_obj), false);
   PythonString py_mode = GetAttributeValue("mode").AsType<PythonString>();
-  file.SetOptions(PythonFile::GetOptionsFromMode(py_mode.GetString()));
-  return file.IsValid();
+  auto options = PythonFile::GetOptionsFromMode(py_mode.GetString());
+  auto file = std::make_unique<File>(PyObject_AsFileDescriptor(m_py_obj),
+                                     options, false);
+  if (!file->IsValid())
+    return nullptr;
+  return file;
 }
 
 #endif

@@ -1082,20 +1082,19 @@ StringRef RedirectingFileSystem::getExternalContentsPrefixDir() const {
   return ExternalContentsPrefixDir;
 }
 
-#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-LLVM_DUMP_METHOD void RedirectingFileSystem::dump() const {
+void RedirectingFileSystem::dump(raw_ostream &OS) const {
   for (const auto &Root : Roots)
-    dumpEntry(Root.get());
+    dumpEntry(OS, Root.get());
 }
 
-LLVM_DUMP_METHOD void
-RedirectingFileSystem::dumpEntry(RedirectingFileSystem::Entry *E,
-                                 int NumSpaces) const {
+void RedirectingFileSystem::dumpEntry(raw_ostream &OS,
+                                      RedirectingFileSystem::Entry *E,
+                                      int NumSpaces) const {
   StringRef Name = E->getName();
   for (int i = 0, e = NumSpaces; i < e; ++i)
-    dbgs() << " ";
-  dbgs() << "'" << Name.str().c_str() << "'"
-         << "\n";
+    OS << " ";
+  OS << "'" << Name.str().c_str() << "'"
+     << "\n";
 
   if (E->getKind() == RedirectingFileSystem::EK_Directory) {
     auto *DE = dyn_cast<RedirectingFileSystem::RedirectingDirectoryEntry>(E);
@@ -1103,9 +1102,12 @@ RedirectingFileSystem::dumpEntry(RedirectingFileSystem::Entry *E,
 
     for (std::unique_ptr<Entry> &SubEntry :
          llvm::make_range(DE->contents_begin(), DE->contents_end()))
-      dumpEntry(SubEntry.get(), NumSpaces + 2);
+      dumpEntry(OS, SubEntry.get(), NumSpaces + 2);
   }
 }
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+LLVM_DUMP_METHOD void RedirectingFileSystem::dump() const { dump(dbgs()); }
 #endif
 
 /// A helper class to hold the common YAML parsing state.
@@ -1221,7 +1223,7 @@ class llvm::vfs::RedirectingFileSystemParser {
     }
 
     auto *DE =
-        dyn_cast<RedirectingFileSystem::RedirectingDirectoryEntry>(ParentEntry);
+        cast<RedirectingFileSystem::RedirectingDirectoryEntry>(ParentEntry);
     DE->addContent(std::move(E));
     return DE->getLastContent();
   }
@@ -1232,9 +1234,7 @@ class llvm::vfs::RedirectingFileSystemParser {
     StringRef Name = SrcE->getName();
     switch (SrcE->getKind()) {
     case RedirectingFileSystem::EK_Directory: {
-      auto *DE =
-          dyn_cast<RedirectingFileSystem::RedirectingDirectoryEntry>(SrcE);
-      assert(DE && "Must be a directory");
+      auto *DE = cast<RedirectingFileSystem::RedirectingDirectoryEntry>(SrcE);
       // Empty directories could be present in the YAML as a way to
       // describe a file for a current directory after some of its subdir
       // is parsed. This only leads to redundant walks, ignore it.
@@ -1246,11 +1246,10 @@ class llvm::vfs::RedirectingFileSystemParser {
       break;
     }
     case RedirectingFileSystem::EK_File: {
-      auto *FE = dyn_cast<RedirectingFileSystem::RedirectingFileEntry>(SrcE);
-      assert(FE && "Must be a file");
       assert(NewParentE && "Parent entry must exist");
-      auto *DE = dyn_cast<RedirectingFileSystem::RedirectingDirectoryEntry>(
-          NewParentE);
+      auto *FE = cast<RedirectingFileSystem::RedirectingFileEntry>(SrcE);
+      auto *DE =
+          cast<RedirectingFileSystem::RedirectingDirectoryEntry>(NewParentE);
       DE->addContent(
           std::make_unique<RedirectingFileSystem::RedirectingFileEntry>(
               Name, FE->getExternalContentsPath(), FE->getUseName()));

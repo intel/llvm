@@ -73,6 +73,7 @@ class Constant;
 class FastISel;
 class FunctionLoweringInfo;
 class GlobalValue;
+class GISelKnownBits;
 class IntrinsicInst;
 struct KnownBits;
 class LLVMContext;
@@ -836,9 +837,9 @@ public:
     PointerUnion<const Value *, const PseudoSourceValue *> ptrVal;
 
     int          offset = 0;       // offset off of ptrVal
-    unsigned     size = 0;         // the size of the memory location
+    uint64_t     size = 0;         // the size of the memory location
                                    // (taken from memVT if zero)
-    MaybeAlign align = Align(1);   // alignment
+    MaybeAlign align = Align::None(); // alignment
 
     MachineMemOperand::Flags flags = MachineMemOperand::MONone;
     IntrinsicInfo() = default;
@@ -1470,11 +1471,30 @@ public:
     return false;
   }
 
+  /// This function returns true if the memory access is aligned or if the
+  /// target allows this specific unaligned memory access. If the access is
+  /// allowed, the optional final parameter returns if the access is also fast
+  /// (as defined by the target).
+  bool allowsMemoryAccessForAlignment(
+      LLVMContext &Context, const DataLayout &DL, EVT VT,
+      unsigned AddrSpace = 0, unsigned Alignment = 1,
+      MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+      bool *Fast = nullptr) const;
+
+  /// Return true if the memory access of this type is aligned or if the target
+  /// allows this specific unaligned access for the given MachineMemOperand.
+  /// If the access is allowed, the optional final parameter returns if the
+  /// access is also fast (as defined by the target).
+  bool allowsMemoryAccessForAlignment(LLVMContext &Context,
+                                      const DataLayout &DL, EVT VT,
+                                      const MachineMemOperand &MMO,
+                                      bool *Fast = nullptr) const;
+
   /// Return true if the target supports a memory access of this type for the
   /// given address space and alignment. If the access is allowed, the optional
   /// final parameter returns if the access is also fast (as defined by the
   /// target).
-  bool
+  virtual bool
   allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
                      unsigned AddrSpace = 0, unsigned Alignment = 1,
                      MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
@@ -1577,18 +1597,18 @@ public:
   }
 
   /// Return the minimum stack alignment of an argument.
-  llvm::Align getMinStackArgumentAlignment() const {
+  Align getMinStackArgumentAlignment() const {
     return MinStackArgumentAlignment;
   }
 
   /// Return the minimum function alignment.
-  llvm::Align getMinFunctionAlignment() const { return MinFunctionAlignment; }
+  Align getMinFunctionAlignment() const { return MinFunctionAlignment; }
 
   /// Return the preferred function alignment.
-  llvm::Align getPrefFunctionAlignment() const { return PrefFunctionAlignment; }
+  Align getPrefFunctionAlignment() const { return PrefFunctionAlignment; }
 
   /// Return the preferred loop alignment.
-  virtual llvm::Align getPrefLoopAlignment(MachineLoop *ML = nullptr) const {
+  virtual Align getPrefLoopAlignment(MachineLoop *ML = nullptr) const {
     return PrefLoopAlignment;
   }
 
@@ -2101,24 +2121,24 @@ protected:
   }
 
   /// Set the target's minimum function alignment.
-  void setMinFunctionAlignment(llvm::Align Align) {
-    MinFunctionAlignment = Align;
+  void setMinFunctionAlignment(Align Alignment) {
+    MinFunctionAlignment = Alignment;
   }
 
   /// Set the target's preferred function alignment.  This should be set if
   /// there is a performance benefit to higher-than-minimum alignment
-  void setPrefFunctionAlignment(llvm::Align Align) {
-    PrefFunctionAlignment = Align;
+  void setPrefFunctionAlignment(Align Alignment) {
+    PrefFunctionAlignment = Alignment;
   }
 
   /// Set the target's preferred loop alignment. Default alignment is one, it
   /// means the target does not care about loop alignment. The target may also
   /// override getPrefLoopAlignment to provide per-loop values.
-  void setPrefLoopAlignment(llvm::Align Align) { PrefLoopAlignment = Align; }
+  void setPrefLoopAlignment(Align Alignment) { PrefLoopAlignment = Alignment; }
 
   /// Set the minimum stack alignment of an argument.
-  void setMinStackArgumentAlignment(llvm::Align Align) {
-    MinStackArgumentAlignment = Align;
+  void setMinStackArgumentAlignment(Align Alignment) {
+    MinStackArgumentAlignment = Alignment;
   }
 
   /// Set the maximum atomic operation size supported by the
@@ -2680,18 +2700,18 @@ private:
   Sched::Preference SchedPreferenceInfo;
 
   /// The minimum alignment that any argument on the stack needs to have.
-  llvm::Align MinStackArgumentAlignment;
+  Align MinStackArgumentAlignment;
 
   /// The minimum function alignment (used when optimizing for size, and to
   /// prevent explicitly provided alignment from leading to incorrect code).
-  llvm::Align MinFunctionAlignment;
+  Align MinFunctionAlignment;
 
   /// The preferred function alignment (used when alignment unspecified and
   /// optimizing for speed).
-  llvm::Align PrefFunctionAlignment;
+  Align PrefFunctionAlignment;
 
   /// The preferred loop alignment (in log2 bot in bytes).
-  llvm::Align PrefLoopAlignment;
+  Align PrefLoopAlignment;
 
   /// Size in bits of the maximum atomics size the backend supports.
   /// Accesses larger than this will be expanded by AtomicExpandPass.
@@ -3148,7 +3168,8 @@ public:
   /// or one and return them in the KnownZero/KnownOne bitsets. The DemandedElts
   /// argument allows us to only collect the known bits that are shared by the
   /// requested vector elements. This is for GISel.
-  virtual void computeKnownBitsForTargetInstr(Register R, KnownBits &Known,
+  virtual void computeKnownBitsForTargetInstr(GISelKnownBits &Analysis,
+                                              Register R, KnownBits &Known,
                                               const APInt &DemandedElts,
                                               const MachineRegisterInfo &MRI,
                                               unsigned Depth = 0) const;
@@ -3364,6 +3385,18 @@ public:
       const SmallVectorImpl<MachineBasicBlock *> &Exits) const {
     llvm_unreachable("Not Implemented");
   }
+
+  /// Return 1 if we can compute the negated form of the specified expression
+  /// for the same cost as the expression itself, or 2 if we can compute the
+  /// negated form more cheaply than the expression itself. Else return 0.
+  virtual char isNegatibleForFree(SDValue Op, SelectionDAG &DAG,
+                                  bool LegalOperations, bool ForCodeSize,
+                                  unsigned Depth = 0) const;
+
+  /// If isNegatibleForFree returns true, return the newly negated expression.
+  virtual SDValue getNegatedExpression(SDValue Op, SelectionDAG &DAG,
+                                       bool LegalOperations, bool ForCodeSize,
+                                       unsigned Depth = 0) const;
 
   //===--------------------------------------------------------------------===//
   // Lowering methods - These methods must be implemented by targets so that
@@ -3650,8 +3683,8 @@ public:
   /// Return the register ID of the name passed in. Used by named register
   /// global variables extension. There is no target-independent behaviour
   /// so the default action is to bail.
-  virtual unsigned getRegisterByName(const char* RegName, EVT VT,
-                                     SelectionDAG &DAG) const {
+  virtual Register getRegisterByName(const char* RegName, EVT VT,
+                                     const MachineFunction &MF) const {
     report_fatal_error("Named registers not implemented for this target");
   }
 

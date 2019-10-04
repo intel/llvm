@@ -28,7 +28,10 @@ std::vector<uint64_t> getValidAlignments() {
   return Out;
 }
 
-TEST(AlignmentTest, AlignDefaultCTor) { EXPECT_EQ(Align().value(), 1ULL); }
+TEST(AlignmentTest, AlignDefaultCTor) {
+  EXPECT_EQ(Align().value(), 1ULL);
+  EXPECT_EQ(Align::None().value(), 1ULL);
+}
 
 TEST(AlignmentTest, MaybeAlignDefaultCTor) {
   EXPECT_FALSE(MaybeAlign().hasValue());
@@ -222,6 +225,29 @@ TEST(AlignmentTest, AlignComparisons) {
     EXPECT_EQ(std::max(A, B), B);
     EXPECT_EQ(std::min(A, B), A);
   }
+}
+
+TEST(AlignmentTest, Max) {
+  // We introduce std::max here to test ADL.
+  using std::max;
+
+  // Uses llvm::max.
+  EXPECT_EQ(max(MaybeAlign(), Align(2)), Align(2));
+  EXPECT_EQ(max(Align(2), MaybeAlign()), Align(2));
+
+  EXPECT_EQ(max(MaybeAlign(1), Align(2)), Align(2));
+  EXPECT_EQ(max(Align(2), MaybeAlign(1)), Align(2));
+
+  EXPECT_EQ(max(MaybeAlign(2), Align(2)), Align(2));
+  EXPECT_EQ(max(Align(2), MaybeAlign(2)), Align(2));
+
+  EXPECT_EQ(max(MaybeAlign(4), Align(2)), Align(4));
+  EXPECT_EQ(max(Align(2), MaybeAlign(4)), Align(4));
+
+  // Uses std::max.
+  EXPECT_EQ(max(Align(2), Align(4)), Align(4));
+  EXPECT_EQ(max(MaybeAlign(2), MaybeAlign(4)), MaybeAlign(4));
+  EXPECT_EQ(max(MaybeAlign(), MaybeAlign()), MaybeAlign());
 }
 
 TEST(AlignmentTest, AssumeAligned) {

@@ -20,6 +20,7 @@
 #include "BenchmarkResult.h"
 #include "LlvmState.h"
 #include "MCInstrDescView.h"
+#include "SnippetRepetitor.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/Support/Error.h"
 #include <cstdlib>
@@ -28,13 +29,6 @@
 
 namespace llvm {
 namespace exegesis {
-
-// A class representing failures that happened during Benchmark, they are used
-// to report informations to the user.
-class BenchmarkFailure : public llvm::StringError {
-public:
-  BenchmarkFailure(const llvm::Twine &S);
-};
 
 // Common code for all benchmark modes.
 class BenchmarkRunner {
@@ -46,6 +40,7 @@ public:
 
   InstructionBenchmark runConfiguration(const BenchmarkCode &Configuration,
                                         unsigned NumRepetitions,
+                                        const SnippetRepetitor &Repetitor,
                                         bool DumpObjectToDisk) const;
 
   // Scratch space to run instructions that touch memory.
@@ -84,7 +79,7 @@ private:
 
   llvm::Expected<std::string>
   writeObjectFile(const BenchmarkCode &Configuration,
-                  llvm::ArrayRef<llvm::MCInst> Code) const;
+                  const FillFunction &Fill) const;
 
   const std::unique_ptr<ScratchSpace> Scratch;
 };

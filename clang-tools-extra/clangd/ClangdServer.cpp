@@ -11,12 +11,14 @@
 #include "FindSymbols.h"
 #include "Format.h"
 #include "FormattedString.h"
+#include "HeaderSourceSwitch.h"
 #include "Headers.h"
 #include "Logger.h"
 #include "ParsedAST.h"
 #include "Preamble.h"
 #include "Protocol.h"
 #include "SemanticHighlighting.h"
+#include "SemanticSelection.h"
 #include "SourceCode.h"
 #include "TUScheduler.h"
 #include "Trace.h"
@@ -125,8 +127,8 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
       // critical paths.
       WorkScheduler(
           CDB, Opts.AsyncThreadsCount, Opts.StorePreamblesInMemory,
-          std::make_unique<UpdateIndexCallbacks>(
-              DynamicIdx.get(), DiagConsumer, Opts.SemanticHighlighting),
+          std::make_unique<UpdateIndexCallbacks>(DynamicIdx.get(), DiagConsumer,
+                                                 Opts.SemanticHighlighting),
           Opts.UpdateDebounce, Opts.RetentionPolicy) {
   // Adds an index to the stack, at higher priority than existing indexes.
   auto AddIndex = [&](SymbolIndex *Idx) {
@@ -447,61 +449,24 @@ void ClangdServer::locateSymbolAt(PathRef File, Position Pos,
   WorkScheduler.runWithAST("Definitions", File, std::move(Action));
 }
 
-llvm::Optional<Path> ClangdServer::switchSourceHeader(PathRef Path) {
-
-  llvm::StringRef SourceExtensions[] = {".cpp", ".c", ".cc", ".cxx",
-                                        ".c++", ".m", ".mm"};
-  llvm::StringRef HeaderExtensions[] = {".h", ".hh", ".hpp", ".hxx", ".inc"};
-
-  llvm::StringRef PathExt = llvm::sys::path::extension(Path);
-
-  // Lookup in a list of known extensions.
-  auto SourceIter =
-      llvm::find_if(SourceExtensions, [&PathExt](PathRef SourceExt) {
-        return SourceExt.equals_lower(PathExt);
-      });
-  bool IsSource = SourceIter != std::end(SourceExtensions);
-
-  auto HeaderIter =
-      llvm::find_if(HeaderExtensions, [&PathExt](PathRef HeaderExt) {
-        return HeaderExt.equals_lower(PathExt);
-      });
-
-  bool IsHeader = HeaderIter != std::end(HeaderExtensions);
-
-  // We can only switch between the known extensions.
-  if (!IsSource && !IsHeader)
-    return None;
-
-  // Array to lookup extensions for the switch. An opposite of where original
-  // extension was found.
-  llvm::ArrayRef<llvm::StringRef> NewExts;
-  if (IsSource)
-    NewExts = HeaderExtensions;
-  else
-    NewExts = SourceExtensions;
-
-  // Storage for the new path.
-  llvm::SmallString<128> NewPath = llvm::StringRef(Path);
-
-  // Instance of vfs::FileSystem, used for file existence checks.
-  auto FS = FSProvider.getFileSystem();
-
-  // Loop through switched extension candidates.
-  for (llvm::StringRef NewExt : NewExts) {
-    llvm::sys::path::replace_extension(NewPath, NewExt);
-    if (FS->exists(NewPath))
-      return NewPath.str().str(); // First str() to convert from SmallString to
-                                  // StringRef, second to convert from StringRef
-                                  // to std::string
-
-    // Also check NewExt in upper-case, just in case.
-    llvm::sys::path::replace_extension(NewPath, NewExt.upper());
-    if (FS->exists(NewPath))
-      return NewPath.str().str();
-  }
-
-  return None;
+void ClangdServer::switchSourceHeader(
+    PathRef Path, Callback<llvm::Optional<clangd::Path>> CB) {
+  // We want to return the result as fast as possible, stragety is:
+  //  1) use the file-only heuristic, it requires some IO but it is much
+  //     faster than building AST, but it only works when .h/.cc files are in
+  //     the same directory.
+  //  2) if 1) fails, we use the AST&Index approach, it is slower but supports
+  //     different code layout.
+  if (auto CorrespondingFile =
+          getCorrespondingHeaderOrSource(Path, FSProvider.getFileSystem()))
+    return CB(std::move(CorrespondingFile));
+  auto Action = [Path, CB = std::move(CB),
+                 this](llvm::Expected<InputsAndAST> InpAST) mutable {
+    if (!InpAST)
+      return CB(InpAST.takeError());
+    CB(getCorrespondingHeaderOrSource(Path, InpAST->AST, Index));
+  };
+  WorkScheduler.runWithAST("SwitchHeaderSource", Path, std::move(Action));
 }
 
 llvm::Expected<tooling::Replacements>
@@ -618,6 +583,17 @@ void ClangdServer::symbolInfo(PathRef File, Position Pos,
       };
 
   WorkScheduler.runWithAST("SymbolInfo", File, std::move(Action));
+}
+
+void ClangdServer::semanticRanges(PathRef File, Position Pos,
+                                  Callback<std::vector<Range>> CB) {
+  auto Action =
+      [Pos, CB = std::move(CB)](llvm::Expected<InputsAndAST> InpAST) mutable {
+        if (!InpAST)
+          return CB(InpAST.takeError());
+        CB(clangd::getSemanticRanges(InpAST->AST, Pos));
+      };
+  WorkScheduler.runWithAST("SemanticRanges", File, std::move(Action));
 }
 
 std::vector<std::pair<Path, std::size_t>>

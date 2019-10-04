@@ -25,8 +25,8 @@ add_lldb_library(lldbUtility
   Environment.cpp
   Event.cpp
   FileSpec.cpp
+  GDBRemote.cpp
   IOObject.cpp
-  JSON.cpp
   LLDBAssert.cpp
   Listener.cpp
   Log.cpp
@@ -44,7 +44,6 @@ add_lldb_library(lldbUtility
   Status.cpp
   Stream.cpp
   StreamCallback.cpp
-  StreamGDBRemote.cpp
   StreamString.cpp
   StringExtractor.cpp
   StringExtractorGDBRemote.cpp

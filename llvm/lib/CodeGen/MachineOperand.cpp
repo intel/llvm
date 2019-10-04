@@ -429,12 +429,10 @@ static void printCFIRegister(unsigned DwarfReg, raw_ostream &OS,
     return;
   }
 
-  int Reg = TRI->getLLVMRegNum(DwarfReg, true);
-  if (Reg == -1) {
+  if (Optional<unsigned> Reg = TRI->getLLVMRegNum(DwarfReg, true))
+    OS << printReg(*Reg, TRI);
+  else
     OS << "<badreg>";
-    return;
-  }
-  OS << printReg(Reg, TRI);
 }
 
 static void printIRBlockReference(raw_ostream &OS, const BasicBlock &BB,
@@ -1065,17 +1063,6 @@ void MachineMemOperand::refineAlignment(const MachineMemOperand *MMO) {
 /// actual memory reference.
 uint64_t MachineMemOperand::getAlignment() const {
   return MinAlign(getBaseAlignment(), getOffset());
-}
-
-void MachineMemOperand::print(raw_ostream &OS) const {
-  ModuleSlotTracker DummyMST(nullptr);
-  print(OS, DummyMST);
-}
-
-void MachineMemOperand::print(raw_ostream &OS, ModuleSlotTracker &MST) const {
-  SmallVector<StringRef, 0> SSNs;
-  LLVMContext Ctx;
-  print(OS, MST, SSNs, Ctx, nullptr, nullptr);
 }
 
 void MachineMemOperand::print(raw_ostream &OS, ModuleSlotTracker &MST,

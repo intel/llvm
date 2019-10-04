@@ -670,6 +670,14 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj,
     }
   }
 
+  if (!Config.SetSectionAlignment.empty()) {
+    for (SectionBase &Sec : Obj.sections()) {
+      auto I = Config.SetSectionAlignment.find(Sec.Name);
+      if (I != Config.SetSectionAlignment.end())
+        Sec.Align = I->second;
+    }
+  }
+
   if (!Config.SetSectionFlags.empty()) {
     for (auto &Sec : Obj.sections()) {
       const auto Iter = Config.SetSectionFlags.find(Sec.Name);
@@ -710,7 +718,7 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj,
     Obj.addSection<GnuDebugLinkSection>(Config.AddGnuDebugLink,
                                         Config.GnuDebugLinkCRC32);
 
-  for (const NewSymbolInfo &SI : Config.SymbolsToAdd) {
+  for (const NewSymbolInfo &SI : Config.ELF->SymbolsToAdd) {
     SectionBase *Sec = Obj.findSection(SI.SectionName);
     uint64_t Value = Sec ? Sec->Addr + SI.Value : SI.Value;
     Obj.SymbolTable->addSymbol(
@@ -737,7 +745,7 @@ Error executeObjcopyOnIHex(const CopyConfig &Config, MemoryBuffer &In,
   IHexReader Reader(&In);
   std::unique_ptr<Object> Obj = Reader.create();
   const ElfType OutputElfType =
-      getOutputElfType(Config.OutputArch.getValueOr(Config.BinaryArch));
+    getOutputElfType(Config.OutputArch.getValueOr(MachineInfo()));
   if (Error E = handleArgs(Config, *Obj, Reader, OutputElfType))
     return E;
   return writeOutput(Config, *Obj, Out, OutputElfType);
@@ -746,14 +754,14 @@ Error executeObjcopyOnIHex(const CopyConfig &Config, MemoryBuffer &In,
 Error executeObjcopyOnRawBinary(const CopyConfig &Config, MemoryBuffer &In,
                                 Buffer &Out) {
   uint8_t NewSymbolVisibility =
-      Config.NewSymbolVisibility.getValueOr((uint8_t)ELF::STV_DEFAULT);
-  BinaryReader Reader(Config.BinaryArch, &In, NewSymbolVisibility);
+      Config.ELF->NewSymbolVisibility.getValueOr((uint8_t)ELF::STV_DEFAULT);
+  BinaryReader Reader(&In, NewSymbolVisibility);
   std::unique_ptr<Object> Obj = Reader.create();
 
   // Prefer OutputArch (-O<format>) if set, otherwise fallback to BinaryArch
   // (-B<arch>).
   const ElfType OutputElfType =
-      getOutputElfType(Config.OutputArch.getValueOr(Config.BinaryArch));
+      getOutputElfType(Config.OutputArch.getValueOr(MachineInfo()));
   if (Error E = handleArgs(Config, *Obj, Reader, OutputElfType))
     return E;
   return writeOutput(Config, *Obj, Out, OutputElfType);

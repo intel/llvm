@@ -221,7 +221,10 @@ enum IIT_Info {
   IIT_STRUCT8 = 40,
   IIT_F128 = 41,
   IIT_VEC_ELEMENT = 42,
-  IIT_SCALABLE_VEC = 43
+  IIT_SCALABLE_VEC = 43,
+  IIT_SUBDIVIDE2_ARG = 44,
+  IIT_SUBDIVIDE4_ARG = 45,
+  IIT_VEC_OF_BITCASTS_TO_INT = 46
 };
 
 static void EncodeFixedValueType(MVT::SimpleValueType VT,
@@ -293,6 +296,12 @@ static void EncodeFixedType(Record *R, std::vector<unsigned char> &ArgCodes,
       Sig.push_back(IIT_PTR_TO_ELT);
     else if (R->isSubClassOf("LLVMVectorElementType"))
       Sig.push_back(IIT_VEC_ELEMENT);
+    else if (R->isSubClassOf("LLVMSubdivide2VectorType"))
+      Sig.push_back(IIT_SUBDIVIDE2_ARG);
+    else if (R->isSubClassOf("LLVMSubdivide4VectorType"))
+      Sig.push_back(IIT_SUBDIVIDE4_ARG);
+    else if (R->isSubClassOf("LLVMVectorOfBitcastsToInt"))
+      Sig.push_back(IIT_VEC_OF_BITCASTS_TO_INT);
     else
       Sig.push_back(IIT_ARG);
     return Sig.push_back((Number << 3) | 7 /*IITDescriptor::AK_MatchType*/);

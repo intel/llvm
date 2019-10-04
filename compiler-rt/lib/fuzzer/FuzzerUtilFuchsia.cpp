@@ -305,12 +305,19 @@ void CrashHandler(zx_handle_t *Event) {
 
 } // namespace
 
-bool Mprotect(void *Ptr, size_t Size, bool AllowReadWrite) {
-  return false;  // UNIMPLEMENTED
-}
-
 // Platform specific functions.
 void SetSignalHandler(const FuzzingOptions &Options) {
+  // Make sure information from libFuzzer and the sanitizers are easy to
+  // reassemble. `__sanitizer_log_write` has the added benefit of ensuring the
+  // DSO map is always available for the symbolizer.
+  // A uint64_t fits in 20 chars, so 64 is plenty.
+  char Buf[64];
+  memset(Buf, 0, sizeof(Buf));
+  snprintf(Buf, sizeof(Buf), "==%lu== INFO: libFuzzer starting.\n", GetPid());
+  if (EF->__sanitizer_log_write)
+    __sanitizer_log_write(Buf, sizeof(Buf));
+  Printf("%s", Buf);
+
   // Set up alarm handler if needed.
   if (Options.UnitTimeoutSec > 0) {
     std::thread T(AlarmHandler, Options.UnitTimeoutSec / 2 + 1);

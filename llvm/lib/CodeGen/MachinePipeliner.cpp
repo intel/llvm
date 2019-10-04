@@ -326,7 +326,7 @@ bool MachinePipeliner::canPipelineLoop(MachineLoop &L) {
 
   LI.LoopInductionVar = nullptr;
   LI.LoopCompare = nullptr;
-  if (TII->analyzeLoop(L, LI.LoopInductionVar, LI.LoopCompare)) {
+  if (!TII->analyzeLoopForPipelining(L.getTopBlock())) {
     LLVM_DEBUG(
         dbgs() << "Unable to analyzeLoop, can NOT pipeline current Loop\n");
     NumFailLoop++;
@@ -557,10 +557,7 @@ void SwingSchedulerDAG::schedule() {
   // The experimental code generator can't work if there are InstChanges.
   if (ExperimentalCodeGen && NewInstrChanges.empty()) {
     PeelingModuloScheduleExpander MSE(MF, MS, &LIS);
-    // Experimental code generation isn't complete yet, but it can partially
-    // validate the code it generates against the original
-    // ModuloScheduleExpander.
-    MSE.validateAgainstModuloScheduleExpander();
+    MSE.expand();
   } else {
     ModuloScheduleExpander MSE(MF, MS, LIS, std::move(NewInstrChanges));
     MSE.expand();
@@ -700,7 +697,7 @@ void SwingSchedulerDAG::addLoopCarriedDependences(AliasAnalysis *AA) {
               TII->getMemOperandWithOffset(MI, BaseOp2, Offset2, TRI)) {
             if (BaseOp1->isIdenticalTo(*BaseOp2) &&
                 (int)Offset1 < (int)Offset2) {
-              assert(TII->areMemAccessesTriviallyDisjoint(LdMI, MI, AA) &&
+              assert(TII->areMemAccessesTriviallyDisjoint(LdMI, MI) &&
                      "What happened to the chain edge?");
               SDep Dep(Load, SDep::Barrier);
               Dep.setLatency(1);

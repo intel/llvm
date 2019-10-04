@@ -133,7 +133,7 @@ file formats.
 
 .. option:: --version
 
- Display the version of this program.
+ Display the version of the :program:`llvm-readobj` executable.
 
 .. option:: @<FILE>
 
@@ -144,9 +144,9 @@ ELF SPECIFIC OPTIONS
 
 The following options are implemented only for the ELF file format.
 
-.. option:: --arm-attributes
+.. option:: --arch-specific, -A
 
- Display the ARM attributes section. Only applicable for ARM architectures.
+ Display architecture-specific information, e.g. the ARM attributes section on ARM.
 
 .. option:: --demangle, -C
 

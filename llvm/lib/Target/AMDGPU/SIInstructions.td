@@ -43,8 +43,8 @@ multiclass V_INTERP_P1_F32_m : VINTRP_m <
   (outs VINTRPDst:$vdst),
   (ins VGPR_32:$vsrc, Attr:$attr, AttrChan:$attrchan),
   "v_interp_p1_f32$vdst, $vsrc, $attr$attrchan",
-  [(set f32:$vdst, (AMDGPUinterp_p1 f32:$vsrc, (i32 imm:$attrchan),
-                                               (i32 imm:$attr)))]
+  [(set f32:$vdst, (AMDGPUinterp_p1 f32:$vsrc, (i32 timm:$attrchan),
+                                               (i32 timm:$attr)))]
 >;
 
 let OtherPredicates = [has32BankLDS] in {
@@ -66,8 +66,8 @@ defm V_INTERP_P2_F32 : VINTRP_m <
   (outs VINTRPDst:$vdst),
   (ins VGPR_32:$src0, VGPR_32:$vsrc, Attr:$attr, AttrChan:$attrchan),
   "v_interp_p2_f32$vdst, $vsrc, $attr$attrchan",
-  [(set f32:$vdst, (AMDGPUinterp_p2 f32:$src0, f32:$vsrc, (i32 imm:$attrchan),
-                                                          (i32 imm:$attr)))]>;
+  [(set f32:$vdst, (AMDGPUinterp_p2 f32:$src0, f32:$vsrc, (i32 timm:$attrchan),
+                                                          (i32 timm:$attr)))]>;
 
 } // End DisableEncoding = "$src0", Constraints = "$src0 = $vdst"
 
@@ -76,8 +76,8 @@ defm V_INTERP_MOV_F32 : VINTRP_m <
   (outs VINTRPDst:$vdst),
   (ins InterpSlot:$vsrc, Attr:$attr, AttrChan:$attrchan),
   "v_interp_mov_f32$vdst, $vsrc, $attr$attrchan",
-  [(set f32:$vdst, (AMDGPUinterp_mov (i32 imm:$vsrc), (i32 imm:$attrchan),
-                                     (i32 imm:$attr)))]>;
+  [(set f32:$vdst, (AMDGPUinterp_mov (i32 imm:$vsrc), (i32 timm:$attrchan),
+                                     (i32 timm:$attr)))]>;
 
 } // End Uses = [M0, EXEC]
 
@@ -349,7 +349,8 @@ def SI_INIT_M0 : SPseudoInstSI <(outs), (ins SSrc_b32:$src)> {
 }
 
 def SI_INIT_EXEC : SPseudoInstSI <
-  (outs), (ins i64imm:$src), []> {
+  (outs), (ins i64imm:$src),
+  [(int_amdgcn_init_exec (i64 timm:$src))]> {
   let Defs = [EXEC];
   let usesCustomInserter = 1;
   let isAsCheapAsAMove = 1;
@@ -365,10 +366,18 @@ def SI_INIT_EXEC_LO : SPseudoInstSI <
   let WaveSizePredicate = isWave32;
 }
 
+// FIXME: Wave32 version
 def SI_INIT_EXEC_FROM_INPUT : SPseudoInstSI <
-  (outs), (ins SSrc_b32:$input, i32imm:$shift), []> {
+  (outs), (ins SSrc_b32:$input, i32imm:$shift),
+  [(int_amdgcn_init_exec_from_input i32:$input, (i32 timm:$shift))]> {
   let Defs = [EXEC];
   let usesCustomInserter = 1;
+}
+
+def : GCNPat <
+  (int_amdgcn_init_exec timm:$src),
+  (SI_INIT_EXEC_LO (as_i32imm imm:$src))> {
+  let WaveSizePredicate = isWave32;
 }
 
 // Return for returning shaders to a shader variant epilog.
@@ -609,23 +618,6 @@ def : GCNPat <
   (SI_PC_ADD_REL_OFFSET $ptr_lo, (i32 0))
 >;
 
-def : GCNPat <
-  (int_amdgcn_init_exec i64:$src),
-  (SI_INIT_EXEC (as_i64imm $src))> {
-  let WaveSizePredicate = isWave64;
-}
-
-def : GCNPat <
-  (int_amdgcn_init_exec i64:$src),
-  (SI_INIT_EXEC_LO (as_i32imm $src))> {
-  let WaveSizePredicate = isWave32;
-}
-
-def : GCNPat <
-  (int_amdgcn_init_exec_from_input i32:$input, i32:$shift),
-  (SI_INIT_EXEC_FROM_INPUT (i32 $input), (as_i32imm $shift))
->;
-
 def : GCNPat<
   (AMDGPUtrap timm:$trapid),
   (S_TRAP $trapid)
@@ -743,22 +735,22 @@ def : GCNPat <
 
 def : GCNPat <
   (i32 (fp_to_sint f16:$src)),
-  (V_CVT_I32_F32_e32 (V_CVT_F32_F16_e32 $src))
+  (V_CVT_I32_F32_e32 (V_CVT_F32_F16_e32 VSrc_b32:$src))
 >;
 
 def : GCNPat <
   (i32 (fp_to_uint f16:$src)),
-  (V_CVT_U32_F32_e32 (V_CVT_F32_F16_e32 $src))
+  (V_CVT_U32_F32_e32 (V_CVT_F32_F16_e32 VSrc_b32:$src))
 >;
 
 def : GCNPat <
   (f16 (sint_to_fp i32:$src)),
-  (V_CVT_F16_F32_e32 (V_CVT_F32_I32_e32 $src))
+  (V_CVT_F16_F32_e32 (V_CVT_F32_I32_e32 VSrc_b32:$src))
 >;
 
 def : GCNPat <
   (f16 (uint_to_fp i32:$src)),
-  (V_CVT_F16_F32_e32 (V_CVT_F32_U32_e32 $src))
+  (V_CVT_F16_F32_e32 (V_CVT_F32_U32_e32 VSrc_b32:$src))
 >;
 
 //===----------------------------------------------------------------------===//
@@ -1109,6 +1101,11 @@ def : GCNPat <
 >;
 
 def : GCNPat <
+  (fneg (f16 VGPR_32:$src)),
+  (V_XOR_B32_e32 (S_MOV_B32 (i32 0x00008000)), VGPR_32:$src)
+>;
+
+def : GCNPat <
   (fabs (f16 SReg_32:$src)),
   (S_AND_B32 SReg_32:$src, (S_MOV_B32 (i32 0x00007fff)))
 >;
@@ -1116,6 +1113,11 @@ def : GCNPat <
 def : GCNPat <
   (fneg (fabs (f16 SReg_32:$src))),
   (S_OR_B32 SReg_32:$src, (S_MOV_B32 (i32 0x00008000))) // Set sign bit
+>;
+
+def : GCNPat <
+  (fneg (fabs (f16 VGPR_32:$src))),
+  (V_OR_B32_e32 (S_MOV_B32 (i32 0x00008000)), VGPR_32:$src) // Set sign bit
 >;
 
 def : GCNPat <
@@ -1609,7 +1611,7 @@ def : GCNPat <
   (V_CVT_F16_F32_e32 (
       V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                         /*src1mod*/(i32 0), /*src1*/(i32 CONST.FP32_NEG_ONE),
-                        $src))
+                        SSrc_i1:$src))
 >;
 
 def : GCNPat <
@@ -1617,35 +1619,35 @@ def : GCNPat <
   (V_CVT_F16_F32_e32 (
       V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                         /*src1mod*/(i32 0), /*src1*/(i32 CONST.FP32_ONE),
-                        $src))
+                        SSrc_i1:$src))
 >;
 
 def : GCNPat <
   (f32 (sint_to_fp i1:$src)),
   (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                         /*src1mod*/(i32 0), /*src1*/(i32 CONST.FP32_NEG_ONE),
-                        $src)
+                        SSrc_i1:$src)
 >;
 
 def : GCNPat <
   (f32 (uint_to_fp i1:$src)),
   (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                         /*src1mod*/(i32 0), /*src1*/(i32 CONST.FP32_ONE),
-                        $src)
+                        SSrc_i1:$src)
 >;
 
 def : GCNPat <
   (f64 (sint_to_fp i1:$src)),
   (V_CVT_F64_I32_e32 (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                                         /*src1mod*/(i32 0), /*src1*/(i32 -1),
-                                        $src))
+                                        SSrc_i1:$src))
 >;
 
 def : GCNPat <
   (f64 (uint_to_fp i1:$src)),
   (V_CVT_F64_U32_e32 (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                                         /*src1mod*/(i32 0), /*src1*/(i32 1),
-                                        $src))
+                                        SSrc_i1:$src))
 >;
 
 //===----------------------------------------------------------------------===//

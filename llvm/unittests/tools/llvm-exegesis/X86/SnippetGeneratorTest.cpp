@@ -11,6 +11,7 @@
 #include "LlvmState.h"
 #include "MCInstrDescView.h"
 #include "RegisterAliasing.h"
+#include "TestBase.h"
 #include "Uops.h"
 #include "X86InstrInfo.h"
 
@@ -34,23 +35,11 @@ using testing::UnorderedElementsAre;
 MATCHER(IsInvalid, "") { return !arg.isValid(); }
 MATCHER(IsReg, "") { return arg.isReg(); }
 
-class X86SnippetGeneratorTest : public ::testing::Test {
+class X86SnippetGeneratorTest : public X86TestBase {
 protected:
-  X86SnippetGeneratorTest()
-      : State("x86_64-unknown-linux", "haswell"),
-        MCInstrInfo(State.getInstrInfo()), MCRegisterInfo(State.getRegInfo()) {}
+  X86SnippetGeneratorTest() : InstrInfo(State.getInstrInfo()) {}
 
-  static void SetUpTestCase() {
-    LLVMInitializeX86TargetInfo();
-    LLVMInitializeX86TargetMC();
-    LLVMInitializeX86Target();
-    LLVMInitializeX86AsmPrinter();
-    InitializeX86ExegesisTarget();
-  }
-
-  const LLVMState State;
-  const llvm::MCInstrInfo &MCInstrInfo;
-  const llvm::MCRegisterInfo &MCRegisterInfo;
+  const llvm::MCInstrInfo &InstrInfo;
 };
 
 template <typename SnippetGeneratorT>
@@ -61,7 +50,8 @@ protected:
   std::vector<CodeTemplate> checkAndGetCodeTemplates(unsigned Opcode) {
     randomGenerator().seed(0); // Initialize seed.
     const Instruction &Instr = State.getIC().getInstr(Opcode);
-    auto CodeTemplateOrError = Generator.generateCodeTemplates(Instr);
+    auto CodeTemplateOrError = Generator.generateCodeTemplates(
+        Instr, State.getRATC().emptyRegisters());
     EXPECT_FALSE(CodeTemplateOrError.takeError()); // Valid configuration.
     return std::move(CodeTemplateOrError.get());
   }
@@ -85,10 +75,10 @@ TEST_F(LatencySnippetGeneratorTest, ImplicitSelfDependencyThroughImplicitReg) {
   // - hasAliasingImplicitRegisters (execution is always serial)
   // - hasAliasingRegisters
   const unsigned Opcode = llvm::X86::ADC16i16;
-  EXPECT_THAT(MCInstrInfo.get(Opcode).getImplicitDefs()[0], llvm::X86::AX);
-  EXPECT_THAT(MCInstrInfo.get(Opcode).getImplicitDefs()[1], llvm::X86::EFLAGS);
-  EXPECT_THAT(MCInstrInfo.get(Opcode).getImplicitUses()[0], llvm::X86::AX);
-  EXPECT_THAT(MCInstrInfo.get(Opcode).getImplicitUses()[1], llvm::X86::EFLAGS);
+  EXPECT_THAT(InstrInfo.get(Opcode).getImplicitDefs()[0], llvm::X86::AX);
+  EXPECT_THAT(InstrInfo.get(Opcode).getImplicitDefs()[1], llvm::X86::EFLAGS);
+  EXPECT_THAT(InstrInfo.get(Opcode).getImplicitUses()[0], llvm::X86::AX);
+  EXPECT_THAT(InstrInfo.get(Opcode).getImplicitUses()[1], llvm::X86::EFLAGS);
   const auto CodeTemplates = checkAndGetCodeTemplates(Opcode);
   ASSERT_THAT(CodeTemplates, SizeIs(1));
   const auto &CT = CodeTemplates[0];
@@ -111,7 +101,7 @@ TEST_F(LatencySnippetGeneratorTest, ImplicitSelfDependencyThroughTiedRegs) {
   // - hasTiedRegisters (execution is always serial)
   // - hasAliasingRegisters
   const unsigned Opcode = llvm::X86::ADD16ri;
-  EXPECT_THAT(MCInstrInfo.get(Opcode).getImplicitDefs()[0], llvm::X86::EFLAGS);
+  EXPECT_THAT(InstrInfo.get(Opcode).getImplicitDefs()[0], llvm::X86::EFLAGS);
   const auto CodeTemplates = checkAndGetCodeTemplates(Opcode);
   ASSERT_THAT(CodeTemplates, SizeIs(1));
   const auto &CT = CodeTemplates[0];
@@ -146,6 +136,26 @@ TEST_F(LatencySnippetGeneratorTest, ImplicitSelfDependencyThroughExplicitRegs) {
               AnyOf(ElementsAre(IsReg(), IsInvalid(), IsReg()),
                     ElementsAre(IsReg(), IsReg(), IsInvalid())))
       << "Op0 is either set to Op1 or to Op2";
+}
+
+TEST_F(LatencySnippetGeneratorTest,
+       ImplicitSelfDependencyThroughExplicitRegsForbidAll) {
+  // - VXORPSrr
+  // - Op0 Explicit Def RegClass(VR128)
+  // - Op1 Explicit Use RegClass(VR128)
+  // - Op2 Explicit Use RegClass(VR128)
+  // - Var0 [Op0]
+  // - Var1 [Op1]
+  // - Var2 [Op2]
+  // - hasAliasingRegisters
+  const unsigned Opcode = llvm::X86::VXORPSrr;
+  randomGenerator().seed(0); // Initialize seed.
+  const Instruction &Instr = State.getIC().getInstr(Opcode);
+  auto AllRegisters = State.getRATC().emptyRegisters();
+  AllRegisters.flip();
+  auto Error = Generator.generateCodeTemplates(Instr, AllRegisters).takeError();
+  EXPECT_TRUE((bool)Error);
+  llvm::consumeError(std::move(Error));
 }
 
 TEST_F(LatencySnippetGeneratorTest, DependencyThroughOtherOpcode) {
@@ -323,7 +333,31 @@ TEST_F(UopsSnippetGeneratorTest, MemoryUse) {
   EXPECT_EQ(IT.VariableValues[5].getReg(), 0u);
 }
 
-TEST_F(UopsSnippetGeneratorTest, MemoryUse_Movsb) {
+class FakeSnippetGenerator : public SnippetGenerator {
+public:
+  FakeSnippetGenerator(const LLVMState &State) : SnippetGenerator(State) {}
+
+  Instruction createInstruction(unsigned Opcode) {
+    return State.getIC().getInstr(Opcode);
+  }
+
+private:
+  llvm::Expected<std::vector<CodeTemplate>>
+  generateCodeTemplates(const Instruction &, const BitVector &) const override {
+    return llvm::make_error<llvm::StringError>("not implemented",
+                                               llvm::inconvertibleErrorCode());
+  }
+};
+
+using FakeSnippetGeneratorTest = SnippetGeneratorTest<FakeSnippetGenerator>;
+
+testing::Matcher<const RegisterValue &> IsRegisterValue(unsigned Reg,
+                                                        llvm::APInt Value) {
+  return testing::AllOf(testing::Field(&RegisterValue::Register, Reg),
+                        testing::Field(&RegisterValue::Value, Value));
+}
+
+TEST_F(FakeSnippetGeneratorTest, MemoryUse_Movsb) {
   // MOVSB writes to scratch memory register.
   // - MOVSB
   // - Op0 Explicit Use Memory RegClass(GR8)
@@ -342,33 +376,11 @@ TEST_F(UopsSnippetGeneratorTest, MemoryUse_Movsb) {
   // - hasAliasingRegisters
   const unsigned Opcode = llvm::X86::MOVSB;
   const Instruction &Instr = State.getIC().getInstr(Opcode);
-  auto Error = Generator.generateCodeTemplates(Instr).takeError();
+  auto Error =
+      Generator.generateConfigurations(Instr, State.getRATC().emptyRegisters())
+          .takeError();
   EXPECT_TRUE((bool)Error);
   llvm::consumeError(std::move(Error));
-}
-
-class FakeSnippetGenerator : public SnippetGenerator {
-public:
-  FakeSnippetGenerator(const LLVMState &State) : SnippetGenerator(State) {}
-
-  Instruction createInstruction(unsigned Opcode) {
-    return State.getIC().getInstr(Opcode);
-  }
-
-private:
-  llvm::Expected<std::vector<CodeTemplate>>
-  generateCodeTemplates(const Instruction &Instr) const override {
-    return llvm::make_error<llvm::StringError>("not implemented",
-                                               llvm::inconvertibleErrorCode());
-  }
-};
-
-using FakeSnippetGeneratorTest = SnippetGeneratorTest<FakeSnippetGenerator>;
-
-testing::Matcher<const RegisterValue &> IsRegisterValue(unsigned Reg,
-                                                        llvm::APInt Value) {
-  return testing::AllOf(testing::Field(&RegisterValue::Register, Reg),
-                        testing::Field(&RegisterValue::Value, Value));
 }
 
 TEST_F(FakeSnippetGeneratorTest, ComputeRegisterInitialValuesAdd16ri) {

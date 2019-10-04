@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "../Target.h"
 
+#include "../Error.h"
 #include "../Latency.h"
 #include "../SnippetGenerator.h"
 #include "../Uops.h"
@@ -112,9 +113,11 @@ static Error isInvalidMemoryInstr(const Instruction &Instr) {
   case X86II::RawFrmImm8:
     return Error::success();
   case X86II::AddRegFrm:
-    return (Instr.Description->Opcode == X86::POP16r || Instr.Description->Opcode == X86::POP32r ||
-            Instr.Description->Opcode == X86::PUSH16r || Instr.Description->Opcode == X86::PUSH32r)
-               ? make_error<BenchmarkFailure>(
+    return (Instr.Description->Opcode == X86::POP16r ||
+            Instr.Description->Opcode == X86::POP32r ||
+            Instr.Description->Opcode == X86::PUSH16r ||
+            Instr.Description->Opcode == X86::PUSH32r)
+               ? make_error<Failure>(
                      "unsupported opcode: unsupported memory access")
                : Error::success();
   // These access memory and are handled.
@@ -140,19 +143,17 @@ static Error isInvalidMemoryInstr(const Instruction &Instr) {
   case X86II::RawFrmSrc:
   case X86II::RawFrmDst:
   case X86II::RawFrmDstSrc:
-    return make_error<BenchmarkFailure>(
-        "unsupported opcode: non uniform memory access");
+    return make_error<Failure>("unsupported opcode: non uniform memory access");
   }
 }
 
 static llvm::Error IsInvalidOpcode(const Instruction &Instr) {
   const auto OpcodeName = Instr.Name;
   if ((Instr.Description->TSFlags & X86II::FormMask) == X86II::Pseudo)
-    return llvm::make_error<BenchmarkFailure>(
-        "unsupported opcode: pseudo instruction");
+    return llvm::make_error<Failure>("unsupported opcode: pseudo instruction");
   if (OpcodeName.startswith("POPF") || OpcodeName.startswith("PUSHF") ||
       OpcodeName.startswith("ADJCALLSTACK"))
-    return llvm::make_error<BenchmarkFailure>(
+    return llvm::make_error<Failure>(
         "unsupported opcode: Push/Pop/AdjCallStack");
   if (llvm::Error Error = isInvalidMemoryInstr(Instr))
     return Error;
@@ -160,14 +161,14 @@ static llvm::Error IsInvalidOpcode(const Instruction &Instr) {
   for (const Operand &Op : Instr.Operands)
     if (Op.isExplicit() &&
         Op.getExplicitOperandInfo().OperandType == llvm::MCOI::OPERAND_PCREL)
-      return llvm::make_error<BenchmarkFailure>(
+      return llvm::make_error<Failure>(
           "unsupported opcode: PC relative operand");
   // We do not handle second-form X87 instructions. We only handle first-form
   // ones (_Fp), see comment in X86InstrFPStack.td.
   for (const Operand &Op : Instr.Operands)
     if (Op.isReg() && Op.isExplicit() &&
         Op.getExplicitOperandInfo().RegClass == llvm::X86::RSTRegClassID)
-      return llvm::make_error<BenchmarkFailure>(
+      return llvm::make_error<Failure>(
           "unsupported second-form X87 instruction");
   return llvm::Error::success();
 }
@@ -182,25 +183,27 @@ public:
   using LatencySnippetGenerator::LatencySnippetGenerator;
 
   llvm::Expected<std::vector<CodeTemplate>>
-  generateCodeTemplates(const Instruction &Instr) const override;
+  generateCodeTemplates(const Instruction &Instr,
+                        const BitVector &ForbiddenRegisters) const override;
 };
 } // namespace
 
 llvm::Expected<std::vector<CodeTemplate>>
 X86LatencySnippetGenerator::generateCodeTemplates(
-    const Instruction &Instr) const {
+    const Instruction &Instr, const BitVector &ForbiddenRegisters) const {
   if (auto E = IsInvalidOpcode(Instr))
     return std::move(E);
 
   switch (getX86FPFlags(Instr)) {
   case llvm::X86II::NotFP:
-    return LatencySnippetGenerator::generateCodeTemplates(Instr);
+    return LatencySnippetGenerator::generateCodeTemplates(Instr,
+                                                          ForbiddenRegisters);
   case llvm::X86II::ZeroArgFP:
   case llvm::X86II::OneArgFP:
   case llvm::X86II::SpecialFP:
   case llvm::X86II::CompareFP:
   case llvm::X86II::CondMovFP:
-    return llvm::make_error<BenchmarkFailure>("Unsupported x87 Instruction");
+    return llvm::make_error<Failure>("Unsupported x87 Instruction");
   case llvm::X86II::OneArgFPRW:
   case llvm::X86II::TwoArgFP:
     // These are instructions like
@@ -219,23 +222,25 @@ public:
   using UopsSnippetGenerator::UopsSnippetGenerator;
 
   llvm::Expected<std::vector<CodeTemplate>>
-  generateCodeTemplates(const Instruction &Instr) const override;
+  generateCodeTemplates(const Instruction &Instr,
+                        const BitVector &ForbiddenRegisters) const override;
 };
 } // namespace
 
 llvm::Expected<std::vector<CodeTemplate>>
 X86UopsSnippetGenerator::generateCodeTemplates(
-    const Instruction &Instr) const {
+    const Instruction &Instr, const BitVector &ForbiddenRegisters) const {
   if (auto E = IsInvalidOpcode(Instr))
     return std::move(E);
 
   switch (getX86FPFlags(Instr)) {
   case llvm::X86II::NotFP:
-    return UopsSnippetGenerator::generateCodeTemplates(Instr);
+    return UopsSnippetGenerator::generateCodeTemplates(Instr,
+                                                       ForbiddenRegisters);
   case llvm::X86II::ZeroArgFP:
   case llvm::X86II::OneArgFP:
   case llvm::X86II::SpecialFP:
-    return llvm::make_error<BenchmarkFailure>("Unsupported x87 Instruction");
+    return llvm::make_error<Failure>("Unsupported x87 Instruction");
   case llvm::X86II::OneArgFPRW:
   case llvm::X86II::TwoArgFP:
     // These are instructions like
@@ -432,6 +437,8 @@ private:
 
   unsigned getScratchMemoryRegister(const llvm::Triple &TT) const override;
 
+  unsigned getLoopCounterRegister(const llvm::Triple &) const override;
+
   unsigned getMaxMemoryAccessSize() const override { return 64; }
 
   void randomizeMCOperand(const Instruction &Instr, const Variable &Var,
@@ -440,6 +447,9 @@ private:
 
   void fillMemoryOperands(InstructionTemplate &IT, unsigned Reg,
                           unsigned Offset) const override;
+
+  void decrementLoopCounterAndLoop(MachineBasicBlock &MBB,
+                                   const llvm::MCInstrInfo &MII) const override;
 
   std::vector<llvm::MCInst> setRegTo(const llvm::MCSubtargetInfo &STI,
                                      unsigned Reg,
@@ -472,6 +482,12 @@ private:
 // prefix.
 const unsigned ExegesisX86Target::kUnavailableRegisters[4] = {X86::AH, X86::BH,
                                                               X86::CH, X86::DH};
+
+// We're using one of R8-R15 because these registers are never hardcoded in
+// instructions (e.g. MOVS writes to EDI, ESI, EDX), so they have less
+// conflicts.
+constexpr const unsigned kLoopCounterReg = X86::R8;
+
 } // namespace
 
 void ExegesisX86Target::addTargetSpecificPasses(
@@ -488,6 +504,14 @@ ExegesisX86Target::getScratchMemoryRegister(const llvm::Triple &TT) const {
     return 0;
   }
   return TT.isOSWindows() ? llvm::X86::RCX : llvm::X86::RDI;
+}
+
+unsigned
+ExegesisX86Target::getLoopCounterRegister(const llvm::Triple &TT) const {
+  if (!TT.isArch64Bit()) {
+    return 0;
+  }
+  return kLoopCounterReg;
 }
 
 void ExegesisX86Target::randomizeMCOperand(
@@ -532,6 +556,17 @@ void ExegesisX86Target::fillMemoryOperands(InstructionTemplate &IT,
   SetOp(MemOpIdx + 2, MCOperand::createReg(0));      // IndexReg
   SetOp(MemOpIdx + 3, MCOperand::createImm(Offset)); // Disp
   SetOp(MemOpIdx + 4, MCOperand::createReg(0));      // Segment
+}
+
+void ExegesisX86Target::decrementLoopCounterAndLoop(
+    MachineBasicBlock &MBB, const llvm::MCInstrInfo &MII) const {
+  BuildMI(&MBB, DebugLoc(), MII.get(X86::ADD64ri8))
+      .addDef(kLoopCounterReg)
+      .addUse(kLoopCounterReg)
+      .addImm(-1);
+  BuildMI(&MBB, DebugLoc(), MII.get(X86::JCC_1))
+      .addMBB(&MBB)
+      .addImm(X86::COND_NE);
 }
 
 std::vector<llvm::MCInst>

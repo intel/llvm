@@ -364,7 +364,7 @@ private:
 #define TYPE(CLASS, PARENT) void mangleType(const CLASS##Type *T, \
                                             Qualifiers Quals, \
                                             SourceRange Range);
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
 #undef ABSTRACT_TYPE
 #undef NON_CANONICAL_TYPE
 #undef TYPE
@@ -615,6 +615,8 @@ void MicrosoftCXXNameMangler::mangleMemberDataPointer(const CXXRecordDecl *RD,
   case MSInheritanceAttr::Keyword_multiple_inheritance:    Code = '0'; break;
   case MSInheritanceAttr::Keyword_virtual_inheritance:     Code = 'F'; break;
   case MSInheritanceAttr::Keyword_unspecified_inheritance: Code = 'G'; break;
+  case MSInheritanceAttr::SpellingNotCalculated:
+    llvm_unreachable("not reachable");
   }
 
   Out << '$' << Code;
@@ -646,6 +648,8 @@ MicrosoftCXXNameMangler::mangleMemberFunctionPointer(const CXXRecordDecl *RD,
   case MSInheritanceAttr::Keyword_multiple_inheritance:    Code = 'H'; break;
   case MSInheritanceAttr::Keyword_virtual_inheritance:     Code = 'I'; break;
   case MSInheritanceAttr::Keyword_unspecified_inheritance: Code = 'J'; break;
+  case MSInheritanceAttr::SpellingNotCalculated:
+    llvm_unreachable("not reachable");
   }
 
   // If non-virtual, mangle the name.  If virtual, mangle as a virtual memptr
@@ -1937,7 +1941,7 @@ void MicrosoftCXXNameMangler::mangleType(QualType T, SourceRange Range,
   case Type::CLASS: \
     mangleType(cast<CLASS##Type>(ty), Quals, Range); \
     break;
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
 #undef ABSTRACT_TYPE
 #undef NON_CANONICAL_TYPE
 #undef TYPE

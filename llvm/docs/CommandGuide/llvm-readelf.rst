@@ -28,9 +28,9 @@ OPTIONS
 
  Display the address-significance table.
 
-.. option:: --arm-attributes
+.. option:: --arch-specific, -A
 
- Display the ARM attributes section. Only applicable for ARM architectures.
+ Display architecture-specific information, e.g. the ARM attributes section on ARM.
 
 .. option:: --color
 
@@ -181,7 +181,7 @@ OPTIONS
 
 .. option:: --version
 
- Display the version of this program.
+ Display the version of the :program:`llvm-readelf` executable.
 
 .. option:: --version-info, -V
 

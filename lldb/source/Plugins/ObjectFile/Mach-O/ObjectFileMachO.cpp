@@ -2554,8 +2554,8 @@ size_t ObjectFileMachO::ParseSymtab() {
           "dyld_shared_cache_", /* DYLD_SHARED_CACHE_BASE_NAME */
           header_arch.GetArchitectureName(), ".development");
 
-      FileSpec dsc_nondevelopment_filespec(dsc_path, false);
-      FileSpec dsc_development_filespec(dsc_path_development, false);
+      FileSpec dsc_nondevelopment_filespec(dsc_path);
+      FileSpec dsc_development_filespec(dsc_path_development);
       FileSpec dsc_filespec;
 
       UUID dsc_uuid;
@@ -3001,11 +3001,11 @@ size_t ObjectFileMachO::ParseSymtab() {
                                   // second is the directory for the source
                                   // file so you end up with a path that looks
                                   // like "/tmp/src//tmp/src/"
-                                  FileSpec so_dir(so_path, false);
+                                  FileSpec so_dir(so_path);
                                   if (!FileSystem::Instance().Exists(so_dir)) {
                                     so_dir.SetFile(
                                         &full_so_path[double_slash_pos + 1],
-                                        false);
+                                        FileSpec::Style::native);
                                     if (FileSystem::Instance().Exists(so_dir)) {
                                       // Trim off the incorrect path
                                       full_so_path.erase(0,
@@ -6271,22 +6271,23 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
             buffer.PutHex32(segment.flags);
           }
 
-          File core_file;
           std::string core_file_path(outfile.GetPath());
-          error = FileSystem::Instance().Open(core_file, outfile,
-                                              File::eOpenOptionWrite |
-                                                  File::eOpenOptionTruncate |
-                                                  File::eOpenOptionCanCreate);
-          if (error.Success()) {
+          auto core_file = FileSystem::Instance().Open(
+              outfile, File::eOpenOptionWrite | File::eOpenOptionTruncate |
+                           File::eOpenOptionCanCreate);
+          if (!core_file) {
+            error = core_file.takeError();
+          } else {
             // Read 1 page at a time
             uint8_t bytes[0x1000];
             // Write the mach header and load commands out to the core file
             size_t bytes_written = buffer.GetString().size();
-            error = core_file.Write(buffer.GetString().data(), bytes_written);
+            error = core_file.get()->Write(buffer.GetString().data(),
+                                           bytes_written);
             if (error.Success()) {
               // Now write the file data for all memory segments in the process
               for (const auto &segment : segment_load_commands) {
-                if (core_file.SeekFromStart(segment.fileoff) == -1) {
+                if (core_file.get()->SeekFromStart(segment.fileoff) == -1) {
                   error.SetErrorStringWithFormat(
                       "unable to seek to offset 0x%" PRIx64 " in '%s'",
                       segment.fileoff, core_file_path.c_str());
@@ -6311,7 +6312,7 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
 
                   if (bytes_read == bytes_to_read) {
                     size_t bytes_written = bytes_read;
-                    error = core_file.Write(bytes, bytes_written);
+                    error = core_file.get()->Write(bytes, bytes_written);
                     bytes_left -= bytes_read;
                     addr += bytes_read;
                   } else {
@@ -6319,7 +6320,7 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
                     // be zero filled
                     memset(bytes, 0, bytes_to_read);
                     size_t bytes_written = bytes_to_read;
-                    error = core_file.Write(bytes, bytes_written);
+                    error = core_file.get()->Write(bytes, bytes_written);
                     bytes_left -= bytes_to_read;
                     addr += bytes_to_read;
                   }

@@ -177,9 +177,9 @@ Status NativeProcessWindows::Detach() {
     else
       LLDB_LOG(log, "Detaching process error: {0}", error);
   } else {
-    error.SetErrorStringWithFormat("error: process {0} in state = {1}, but "
-                                   "cannot detach it in this state.",
-                                   GetID(), state);
+    error.SetErrorStringWithFormatv("error: process {0} in state = {1}, but "
+                                    "cannot detach it in this state.",
+                                    GetID(), state);
     LLDB_LOG(log, "error: {0}", error);
   }
   return error;
@@ -431,13 +431,34 @@ NativeProcessWindows::OnDebugException(bool first_chance,
   ExceptionResult result = ExceptionResult::SendToApplication;
   switch (record.GetExceptionCode()) {
   case DWORD(STATUS_SINGLE_STEP):
-  case STATUS_WX86_SINGLE_STEP:
-    StopThread(record.GetThreadID(), StopReason::eStopReasonTrace);
+  case STATUS_WX86_SINGLE_STEP: {
+    uint32_t wp_id = LLDB_INVALID_INDEX32;
+    if (NativeThreadWindows *thread = GetThreadByID(record.GetThreadID())) {
+      NativeRegisterContextWindows &reg_ctx = thread->GetRegisterContext();
+      Status error =
+          reg_ctx.GetWatchpointHitIndex(wp_id, record.GetExceptionAddress());
+      if (error.Fail())
+        LLDB_LOG(log,
+                 "received error while checking for watchpoint hits, pid = "
+                 "{0}, error = {1}",
+                 thread->GetID(), error);
+      if (wp_id != LLDB_INVALID_INDEX32) {
+        addr_t wp_addr = reg_ctx.GetWatchpointAddress(wp_id);
+        addr_t wp_hit_addr = reg_ctx.GetWatchpointHitAddress(wp_id);
+        std::string desc =
+            formatv("{0} {1} {2}", wp_addr, wp_id, wp_hit_addr).str();
+        StopThread(record.GetThreadID(), StopReason::eStopReasonWatchpoint,
+                   desc);
+      }
+    }
+    if (wp_id == LLDB_INVALID_INDEX32)
+      StopThread(record.GetThreadID(), StopReason::eStopReasonTrace);
+
     SetState(eStateStopped, true);
 
     // Continue the debugger.
     return ExceptionResult::MaskException;
-
+  }
   case DWORD(STATUS_BREAKPOINT):
   case STATUS_WX86_BREAKPOINT:
     if (FindSoftwareBreakpoint(record.GetExceptionAddress())) {
@@ -479,7 +500,7 @@ NativeProcessWindows::OnDebugException(bool first_chance,
       return ExceptionResult::BreakInDebugger;
     }
 
-    // Fall through
+    LLVM_FALLTHROUGH;
   default:
     LLDB_LOG(log,
              "Debugger thread reported exception {0:x} at address {1:x} "
@@ -513,8 +534,16 @@ NativeProcessWindows::OnDebugException(bool first_chance,
 
 void NativeProcessWindows::OnCreateThread(const HostThread &new_thread) {
   llvm::sys::ScopedLock lock(m_mutex);
-  m_threads.push_back(
-      std::make_unique<NativeThreadWindows>(*this, new_thread));
+
+  auto thread = std::make_unique<NativeThreadWindows>(*this, new_thread);
+  thread->GetRegisterContext().ClearAllHardwareWatchpoints();
+  for (const auto &pair : GetWatchpointMap()) {
+    const NativeWatchpoint &wp = pair.second;
+    thread->SetWatchpoint(wp.m_addr, wp.m_size, wp.m_watch_flags,
+                          wp.m_hardware);
+  }
+
+  m_threads.push_back(std::move(thread));
 }
 
 void NativeProcessWindows::OnExitThread(lldb::tid_t thread_id,

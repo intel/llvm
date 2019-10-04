@@ -63,10 +63,10 @@ std::unique_ptr<Module> parseMIR(LLVMContext &Context,
 
   M->setDataLayout(TM.createDataLayout());
 
-  MachineModuleInfo *MMI = new MachineModuleInfo(&TM);
-  if (MIR->parseMachineFunctions(*M, *MMI))
+  MachineModuleInfoWrapperPass *MMIWP = new MachineModuleInfoWrapperPass(&TM);
+  if (MIR->parseMachineFunctions(*M, MMIWP->getMMI()))
     return nullptr;
-  PM.add(MMI);
+  PM.add(MMIWP);
 
   return M;
 }
@@ -309,8 +309,8 @@ TEST(LiveIntervalTest, MoveUndefUse) {
 
 TEST(LiveIntervalTest, MoveUpValNos) {
   // handleMoveUp() had a bug where it would reuse the value number of the
-  // destination segment, even though we have no guarntee that this valno wasn't
-  // used in other segments.
+  // destination segment, even though we have no guarantee that this valno
+  // wasn't used in other segments.
   liveIntervalTest(R"MIR(
     successors: %bb.1, %bb.2
     %0 = IMPLICIT_DEF

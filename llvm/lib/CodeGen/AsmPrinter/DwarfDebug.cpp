@@ -198,54 +198,8 @@ bool DebugLocDwarfExpression::isFrameRegister(const TargetRegisterInfo &TRI,
   return false;
 }
 
-bool DbgVariable::isBlockByrefVariable() const {
-  assert(getVariable() && "Invalid complex DbgVariable!");
-  return getVariable()->getType()->isBlockByrefStruct();
-}
-
 const DIType *DbgVariable::getType() const {
-  DIType *Ty = getVariable()->getType();
-  // FIXME: isBlockByrefVariable should be reformulated in terms of complex
-  // addresses instead.
-  if (Ty->isBlockByrefStruct()) {
-    /* Byref variables, in Blocks, are declared by the programmer as
-       "SomeType VarName;", but the compiler creates a
-       __Block_byref_x_VarName struct, and gives the variable VarName
-       either the struct, or a pointer to the struct, as its type.  This
-       is necessary for various behind-the-scenes things the compiler
-       needs to do with by-reference variables in blocks.
-
-       However, as far as the original *programmer* is concerned, the
-       variable should still have type 'SomeType', as originally declared.
-
-       The following function dives into the __Block_byref_x_VarName
-       struct to find the original type of the variable.  This will be
-       passed back to the code generating the type for the Debug
-       Information Entry for the variable 'VarName'.  'VarName' will then
-       have the original type 'SomeType' in its debug information.
-
-       The original type 'SomeType' will be the type of the field named
-       'VarName' inside the __Block_byref_x_VarName struct.
-
-       NOTE: In order for this to not completely fail on the debugger
-       side, the Debug Information Entry for the variable VarName needs to
-       have a DW_AT_location that tells the debugger how to unwind through
-       the pointers and __Block_byref_x_VarName struct to find the actual
-       value of the variable.  The function addBlockByrefType does this.  */
-    DIType *subType = Ty;
-    uint16_t tag = Ty->getTag();
-
-    if (tag == dwarf::DW_TAG_pointer_type)
-      subType = cast<DIDerivedType>(Ty)->getBaseType();
-
-    auto Elements = cast<DICompositeType>(subType)->getElements();
-    for (unsigned i = 0, N = Elements.size(); i < N; ++i) {
-      auto *DT = cast<DIDerivedType>(Elements[i]);
-      if (getName() == DT->getName())
-        return DT->getBaseType();
-    }
-  }
-  return Ty;
+  return getVariable()->getType();
 }
 
 /// Get .debug_loc entry for the instruction range starting at MI.
@@ -1144,7 +1098,7 @@ void DwarfDebug::finalizeModuleInfo() {
         // 2.17.3).
         U.addUInt(U.getUnitDie(), dwarf::DW_AT_low_pc, dwarf::DW_FORM_addr, 0);
       else
-        U.setBaseAddress(TheCU.getRanges().front().getStart());
+        U.setBaseAddress(TheCU.getRanges().front().Begin);
       U.attachRangesOrLowHighPC(U.getUnitDie(), TheCU.takeRanges());
     }
 
@@ -1803,6 +1757,9 @@ void DwarfDebug::beginFunctionImpl(const MachineFunction *MF) {
   if (SP->getUnit()->getEmissionKind() == DICompileUnit::NoDebug)
     return;
 
+  SectionLabels.insert(std::make_pair(&Asm->getFunctionBegin()->getSection(),
+                                      Asm->getFunctionBegin()));
+
   DwarfCompileUnit &CU = getOrCreateDwarfCompileUnit(SP->getUnit());
 
   // Set DwarfDwarfCompileUnitID in MCContext to the Compile Unit this function
@@ -1850,7 +1807,7 @@ void DwarfDebug::endFunctionImpl(const MachineFunction *MF) {
   collectEntityInfo(TheCU, SP, Processed);
 
   // Add the range of this function to the list of ranges for the CU.
-  TheCU.addRange(RangeSpan(Asm->getFunctionBegin(), Asm->getFunctionEnd()));
+  TheCU.addRange({Asm->getFunctionBegin(), Asm->getFunctionEnd()});
 
   // Under -gmlt, skip building the subprogram if there are no inlined
   // subroutines inside it. But with -fdebug-info-for-profiling, the subprogram
@@ -2032,9 +1989,10 @@ static dwarf::PubIndexEntryDescriptor computeIndexValue(DwarfUnit *CU,
   case dwarf::DW_TAG_union_type:
   case dwarf::DW_TAG_enumeration_type:
     return dwarf::PubIndexEntryDescriptor(
-        dwarf::GIEK_TYPE, CU->getLanguage() != dwarf::DW_LANG_C_plus_plus
-                              ? dwarf::GIEL_STATIC
-                              : dwarf::GIEL_EXTERNAL);
+        dwarf::GIEK_TYPE,
+        dwarf::isCPlusPlus((dwarf::SourceLanguage)CU->getLanguage())
+            ? dwarf::GIEL_EXTERNAL
+            : dwarf::GIEL_STATIC);
   case dwarf::DW_TAG_typedef:
   case dwarf::DW_TAG_base_type:
   case dwarf::DW_TAG_subrange_type:
@@ -2367,12 +2325,12 @@ void DwarfDebug::emitDebugLoc() {
           Asm->OutStreamer->AddComment("DW_LLE_offset_pair");
           Asm->OutStreamer->EmitIntValue(dwarf::DW_LLE_offset_pair, 1);
           Asm->OutStreamer->AddComment("  starting offset");
-          Asm->EmitLabelDifferenceAsULEB128(Entry.BeginSym, Base);
+          Asm->EmitLabelDifferenceAsULEB128(Entry.Begin, Base);
           Asm->OutStreamer->AddComment("  ending offset");
-          Asm->EmitLabelDifferenceAsULEB128(Entry.EndSym, Base);
+          Asm->EmitLabelDifferenceAsULEB128(Entry.End, Base);
         } else {
-          Asm->EmitLabelDifference(Entry.BeginSym, Base, Size);
-          Asm->EmitLabelDifference(Entry.EndSym, Base, Size);
+          Asm->EmitLabelDifference(Entry.Begin, Base, Size);
+          Asm->EmitLabelDifference(Entry.End, Base, Size);
         }
 
         emitDebugLocEntryLocation(Entry, CU);
@@ -2388,12 +2346,12 @@ void DwarfDebug::emitDebugLoc() {
         Asm->OutStreamer->AddComment("DW_LLE_startx_length");
         Asm->emitInt8(dwarf::DW_LLE_startx_length);
         Asm->OutStreamer->AddComment("  start idx");
-        Asm->EmitULEB128(AddrPool.getIndex(Entry.BeginSym));
+        Asm->EmitULEB128(AddrPool.getIndex(Entry.Begin));
         Asm->OutStreamer->AddComment("  length");
-        Asm->EmitLabelDifferenceAsULEB128(Entry.EndSym, Entry.BeginSym);
+        Asm->EmitLabelDifferenceAsULEB128(Entry.End, Entry.Begin);
       } else {
-        Asm->OutStreamer->EmitSymbolValue(Entry.BeginSym, Size);
-        Asm->OutStreamer->EmitSymbolValue(Entry.EndSym, Size);
+        Asm->OutStreamer->EmitSymbolValue(Entry.Begin, Size);
+        Asm->OutStreamer->EmitSymbolValue(Entry.End, Size);
       }
 
       emitDebugLocEntryLocation(Entry, CU);
@@ -2428,9 +2386,9 @@ void DwarfDebug::emitDebugLocDWO() {
       // Ideally/in v5, this could use SectionLabels to reuse existing addresses
       // in the address pool to minimize object size/relocations.
       Asm->emitInt8(dwarf::DW_LLE_startx_length);
-      unsigned idx = AddrPool.getIndex(Entry.BeginSym);
+      unsigned idx = AddrPool.getIndex(Entry.Begin);
       Asm->EmitULEB128(idx);
-      Asm->EmitLabelDifference(Entry.EndSym, Entry.BeginSym, 4);
+      Asm->EmitLabelDifference(Entry.End, Entry.Begin, 4);
 
       emitDebugLocEntryLocation(Entry, List.CU);
     }
@@ -2555,8 +2513,8 @@ void DwarfDebug::emitDebugARanges() {
     unsigned TupleSize = PtrSize * 2;
 
     // 7.20 in the Dwarf specs requires the table to be aligned to a tuple.
-    unsigned Padding = offsetToAlignment(sizeof(int32_t) + ContentSize,
-                                         llvm::Align(TupleSize));
+    unsigned Padding =
+        offsetToAlignment(sizeof(int32_t) + ContentSize, Align(TupleSize));
 
     ContentSize += Padding;
     ContentSize += (List.size() + 1) * TupleSize;
@@ -2612,7 +2570,7 @@ static void emitRangeList(DwarfDebug &DD, AsmPrinter *Asm,
   auto Size = Asm->MAI->getCodePointerSize();
 
   for (const RangeSpan &Range : List.getRanges())
-    SectionRanges[&Range.getStart()->getSection()].push_back(&Range);
+    SectionRanges[&Range.Begin->getSection()].push_back(&Range);
 
   const DwarfCompileUnit &CU = List.getCU();
   const MCSymbol *CUBase = CU.getBaseAddress();
@@ -2628,11 +2586,8 @@ static void emitRangeList(DwarfDebug &DD, AsmPrinter *Asm,
     if (!Base && (P.second.size() > 1 || DwarfVersion < 5) &&
         (CU.getCUNode()->getRangesBaseAddress() || DwarfVersion >= 5)) {
       BaseIsSet = true;
-      // FIXME/use care: This may not be a useful base address if it's not
-      // the lowest address/range in this object.
-      Base = P.second.front()->getStart();
+      Base = DD.getSectionLabel(&P.second.front()->Begin->getSection());
       if (DwarfVersion >= 5) {
-        Base = DD.getSectionLabel(&Base->getSection());
         Asm->OutStreamer->AddComment("DW_RLE_base_addressx");
         Asm->OutStreamer->EmitIntValue(dwarf::DW_RLE_base_addressx, 1);
         Asm->OutStreamer->AddComment("  base address index");
@@ -2650,8 +2605,8 @@ static void emitRangeList(DwarfDebug &DD, AsmPrinter *Asm,
     }
 
     for (const auto *RS : P.second) {
-      const MCSymbol *Begin = RS->getStart();
-      const MCSymbol *End = RS->getEnd();
+      const MCSymbol *Begin = RS->Begin;
+      const MCSymbol *End = RS->End;
       assert(Begin && "Range without a begin symbol?");
       assert(End && "Range without an end symbol?");
       if (Base) {
@@ -3073,10 +3028,6 @@ void DwarfDebug::addAccelType(const DICompileUnit &CU, StringRef Name,
 
 uint16_t DwarfDebug::getDwarfVersion() const {
   return Asm->OutStreamer->getContext().getDwarfVersion();
-}
-
-void DwarfDebug::addSectionLabel(const MCSymbol *Sym) {
-  SectionLabels.insert(std::make_pair(&Sym->getSection(), Sym));
 }
 
 const MCSymbol *DwarfDebug::getSectionLabel(const MCSection *S) {

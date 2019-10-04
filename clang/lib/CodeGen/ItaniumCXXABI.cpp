@@ -350,7 +350,7 @@ public:
     // If we have the only definition, we don't need a thread wrapper if we
     // will emit the value as a constant.
     if (isUniqueGVALinkage(getContext().GetGVALinkageForVariable(VD)))
-      return !VD->getType().isDestructedType() && InitDecl->evaluateValue();
+      return !VD->needsDestruction(getContext()) && InitDecl->evaluateValue();
 
     // Otherwise, we need a thread wrapper unless we know that every
     // translation unit will emit the value as a constant. We rely on
@@ -360,7 +360,8 @@ public:
   }
 
   bool usesThreadWrapperFunction(const VarDecl *VD) const override {
-    return !isEmittedWithConstantInitializer(VD);
+    return !isEmittedWithConstantInitializer(VD) ||
+           VD->needsDestruction(getContext());
   }
   LValue EmitThreadLocalVarDeclLValue(CodeGenFunction &CGF, const VarDecl *VD,
                                       QualType LValType) override;
@@ -579,8 +580,8 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
 
   const FunctionProtoType *FPT =
     MPT->getPointeeType()->getAs<FunctionProtoType>();
-  const CXXRecordDecl *RD =
-    cast<CXXRecordDecl>(MPT->getClass()->getAs<RecordType>()->getDecl());
+  auto *RD =
+      cast<CXXRecordDecl>(MPT->getClass()->castAs<RecordType>()->getDecl());
 
   llvm::FunctionType *FTy = CGM.getTypes().GetFunctionType(
       CGM.getTypes().arrangeCXXMethodType(RD, FPT, /*FD=*/nullptr));
@@ -1142,7 +1143,7 @@ void ItaniumCXXABI::emitVirtualObjectDelete(CodeGenFunction &CGF,
 
     // Grab the vtable pointer as an intptr_t*.
     auto *ClassDecl =
-        cast<CXXRecordDecl>(ElementType->getAs<RecordType>()->getDecl());
+        cast<CXXRecordDecl>(ElementType->castAs<RecordType>()->getDecl());
     llvm::Value *VTable =
         CGF.GetVTablePtr(Ptr, CGF.IntPtrTy->getPointerTo(), ClassDecl);
 
@@ -1345,7 +1346,7 @@ llvm::Value *ItaniumCXXABI::EmitTypeid(CodeGenFunction &CGF,
                                        Address ThisPtr,
                                        llvm::Type *StdTypeInfoPtrTy) {
   auto *ClassDecl =
-      cast<CXXRecordDecl>(SrcRecordTy->getAs<RecordType>()->getDecl());
+      cast<CXXRecordDecl>(SrcRecordTy->castAs<RecordType>()->getDecl());
   llvm::Value *Value =
       CGF.GetVTablePtr(ThisPtr, StdTypeInfoPtrTy->getPointerTo(), ClassDecl);
 
@@ -1411,7 +1412,7 @@ llvm::Value *ItaniumCXXABI::EmitDynamicCastToVoid(CodeGenFunction &CGF,
   llvm::Type *DestLTy = CGF.ConvertType(DestTy);
 
   auto *ClassDecl =
-      cast<CXXRecordDecl>(SrcRecordTy->getAs<RecordType>()->getDecl());
+      cast<CXXRecordDecl>(SrcRecordTy->castAs<RecordType>()->getDecl());
   // Get the vtable pointer.
   llvm::Value *VTable = CGF.GetVTablePtr(ThisAddr, PtrDiffLTy->getPointerTo(),
       ClassDecl);
@@ -2606,7 +2607,7 @@ void ItaniumCXXABI::EmitThreadLocalInitFuncs(
     llvm::GlobalValue *Init = nullptr;
     bool InitIsInitFunc = false;
     bool HasConstantInitialization = false;
-    if (isEmittedWithConstantInitializer(VD)) {
+    if (!usesThreadWrapperFunction(VD)) {
       HasConstantInitialization = true;
     } else if (VD->hasDefinition()) {
       InitIsInitFunc = true;
@@ -3099,8 +3100,8 @@ static bool CanUseSingleInheritance(const CXXRecordDecl *RD) {
     return false;
 
   // Check that the class is dynamic iff the base is.
-  const CXXRecordDecl *BaseDecl =
-    cast<CXXRecordDecl>(Base->getType()->getAs<RecordType>()->getDecl());
+  auto *BaseDecl =
+      cast<CXXRecordDecl>(Base->getType()->castAs<RecordType>()->getDecl());
   if (!BaseDecl->isEmpty() &&
       BaseDecl->isDynamicClass() != RD->isDynamicClass())
     return false;
@@ -3127,7 +3128,7 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(Class, Base) case Type::Class:
 #define NON_CANONICAL_TYPE(Class, Base) case Type::Class:
 #define DEPENDENT_TYPE(Class, Base) case Type::Class:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     llvm_unreachable("Non-canonical and dependent types shouldn't get here");
 
   case Type::LValueReference:
@@ -3373,7 +3374,7 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(Class, Base) case Type::Class:
 #define NON_CANONICAL_TYPE(Class, Base) case Type::Class:
 #define DEPENDENT_TYPE(Class, Base) case Type::Class:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     llvm_unreachable("Non-canonical and dependent types shouldn't get here");
 
   // GCC treats vector types as fundamental types.
@@ -3563,8 +3564,8 @@ static unsigned ComputeVMIClassTypeInfoFlags(const CXXBaseSpecifier *Base,
 
   unsigned Flags = 0;
 
-  const CXXRecordDecl *BaseDecl =
-    cast<CXXRecordDecl>(Base->getType()->getAs<RecordType>()->getDecl());
+  auto *BaseDecl =
+      cast<CXXRecordDecl>(Base->getType()->castAs<RecordType>()->getDecl());
 
   if (Base->isVirtual()) {
     // Mark the virtual base as seen.
@@ -3662,8 +3663,8 @@ void ItaniumRTTIBuilder::BuildVMIClassTypeInfo(const CXXRecordDecl *RD) {
     // The __base_type member points to the RTTI for the base type.
     Fields.push_back(ItaniumRTTIBuilder(CXXABI).BuildTypeInfo(Base.getType()));
 
-    const CXXRecordDecl *BaseDecl =
-      cast<CXXRecordDecl>(Base.getType()->getAs<RecordType>()->getDecl());
+    auto *BaseDecl =
+        cast<CXXRecordDecl>(Base.getType()->castAs<RecordType>()->getDecl());
 
     int64_t OffsetFlags = 0;
 

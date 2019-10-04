@@ -580,10 +580,10 @@ char ASanGlobalsMetadataWrapperPass::ID = 0;
 
 /// AddressSanitizer: instrument the code in module to find memory bugs.
 struct AddressSanitizer {
-  AddressSanitizer(Module &M, GlobalsMetadata &GlobalsMD,
+  AddressSanitizer(Module &M, const GlobalsMetadata *GlobalsMD,
                    bool CompileKernel = false, bool Recover = false,
                    bool UseAfterScope = false)
-      : UseAfterScope(UseAfterScope || ClUseAfterScope), GlobalsMD(GlobalsMD) {
+      : UseAfterScope(UseAfterScope || ClUseAfterScope), GlobalsMD(*GlobalsMD) {
     this->Recover = ClRecover.getNumOccurrences() > 0 ? ClRecover : Recover;
     this->CompileKernel =
         ClEnableKasan.getNumOccurrences() > 0 ? ClEnableKasan : CompileKernel;
@@ -692,7 +692,7 @@ private:
   FunctionCallee AsanMemmove, AsanMemcpy, AsanMemset;
   InlineAsm *EmptyAsm;
   Value *LocalDynamicShadow = nullptr;
-  GlobalsMetadata GlobalsMD;
+  const GlobalsMetadata &GlobalsMD;
   DenseMap<const AllocaInst *, bool> ProcessedAllocas;
 };
 
@@ -722,7 +722,7 @@ public:
         getAnalysis<ASanGlobalsMetadataWrapperPass>().getGlobalsMD();
     const TargetLibraryInfo *TLI =
         &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
-    AddressSanitizer ASan(*F.getParent(), GlobalsMD, CompileKernel, Recover,
+    AddressSanitizer ASan(*F.getParent(), &GlobalsMD, CompileKernel, Recover,
                           UseAfterScope);
     return ASan.instrumentFunction(F, TLI);
   }
@@ -735,10 +735,10 @@ private:
 
 class ModuleAddressSanitizer {
 public:
-  ModuleAddressSanitizer(Module &M, GlobalsMetadata &GlobalsMD,
+  ModuleAddressSanitizer(Module &M, const GlobalsMetadata *GlobalsMD,
                          bool CompileKernel = false, bool Recover = false,
                          bool UseGlobalsGC = true, bool UseOdrIndicator = false)
-      : GlobalsMD(GlobalsMD), UseGlobalsGC(UseGlobalsGC && ClUseGlobalsGC),
+      : GlobalsMD(*GlobalsMD), UseGlobalsGC(UseGlobalsGC && ClUseGlobalsGC),
         // Enable aliases as they should have no downside with ODR indicators.
         UsePrivateAlias(UseOdrIndicator || ClUsePrivateAlias),
         UseOdrIndicator(UseOdrIndicator || ClUseOdrIndicator),
@@ -798,7 +798,7 @@ private:
   }
   int GetAsanVersion(const Module &M) const;
 
-  GlobalsMetadata GlobalsMD;
+  const GlobalsMetadata &GlobalsMD;
   bool CompileKernel;
   bool Recover;
   bool UseGlobalsGC;
@@ -845,7 +845,7 @@ public:
   bool runOnModule(Module &M) override {
     GlobalsMetadata &GlobalsMD =
         getAnalysis<ASanGlobalsMetadataWrapperPass>().getGlobalsMD();
-    ModuleAddressSanitizer ASanModule(M, GlobalsMD, CompileKernel, Recover,
+    ModuleAddressSanitizer ASanModule(M, &GlobalsMD, CompileKernel, Recover,
                                       UseGlobalGC, UseOdrIndicator);
     return ASanModule.instrumentModule(M);
   }
@@ -1048,7 +1048,7 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
     if (!II.isLifetimeStartOrEnd())
       return;
     // Found lifetime intrinsic, add ASan instrumentation if necessary.
-    ConstantInt *Size = dyn_cast<ConstantInt>(II.getArgOperand(0));
+    auto *Size = cast<ConstantInt>(II.getArgOperand(0));
     // If size argument is undefined, don't do anything.
     if (Size->isMinusOne()) return;
     // Check that size doesn't saturate uint64_t and can
@@ -1171,7 +1171,7 @@ PreservedAnalyses AddressSanitizerPass::run(Function &F,
   Module &M = *F.getParent();
   if (auto *R = MAM.getCachedResult<ASanGlobalsMetadataAnalysis>(M)) {
     const TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
-    AddressSanitizer Sanitizer(M, *R, CompileKernel, Recover, UseAfterScope);
+    AddressSanitizer Sanitizer(M, R, CompileKernel, Recover, UseAfterScope);
     if (Sanitizer.instrumentFunction(F, TLI))
       return PreservedAnalyses::none();
     return PreservedAnalyses::all();
@@ -1193,7 +1193,7 @@ ModuleAddressSanitizerPass::ModuleAddressSanitizerPass(bool CompileKernel,
 PreservedAnalyses ModuleAddressSanitizerPass::run(Module &M,
                                                   AnalysisManager<Module> &AM) {
   GlobalsMetadata &GlobalsMD = AM.getResult<ASanGlobalsMetadataAnalysis>(M);
-  ModuleAddressSanitizer Sanitizer(M, GlobalsMD, CompileKernel, Recover,
+  ModuleAddressSanitizer Sanitizer(M, &GlobalsMD, CompileKernel, Recover,
                                    UseGlobalGC, UseOdrIndicator);
   if (Sanitizer.instrumentModule(M))
     return PreservedAnalyses::none();
@@ -1790,7 +1790,7 @@ void ModuleAddressSanitizer::createInitializerPoisonCalls(
     // Must have a function or null ptr.
     if (Function *F = dyn_cast<Function>(CS->getOperand(1))) {
       if (F->getName() == kAsanModuleCtorName) continue;
-      ConstantInt *Priority = dyn_cast<ConstantInt>(CS->getOperand(0));
+      auto *Priority = cast<ConstantInt>(CS->getOperand(0));
       // Don't instrument CTORs that will run before asan.module_ctor.
       if (Priority->getLimitedValue() <= GetCtorAndDtorPriority(TargetTriple))
         continue;
@@ -2899,18 +2899,19 @@ void FunctionStackPoisoner::copyArgsPassedByValToAllocas() {
   for (Argument &Arg : F.args()) {
     if (Arg.hasByValAttr()) {
       Type *Ty = Arg.getType()->getPointerElementType();
-      unsigned Align = Arg.getParamAlignment();
-      if (Align == 0) Align = DL.getABITypeAlignment(Ty);
+      unsigned Alignment = Arg.getParamAlignment();
+      if (Alignment == 0)
+        Alignment = DL.getABITypeAlignment(Ty);
 
       AllocaInst *AI = IRB.CreateAlloca(
           Ty, nullptr,
           (Arg.hasName() ? Arg.getName() : "Arg" + Twine(Arg.getArgNo())) +
               ".byval");
-      AI->setAlignment(Align);
+      AI->setAlignment(Align(Alignment));
       Arg.replaceAllUsesWith(AI);
 
       uint64_t AllocSize = DL.getTypeAllocSize(Ty);
-      IRB.CreateMemCpy(AI, Align, &Arg, Align, AllocSize);
+      IRB.CreateMemCpy(AI, Alignment, &Arg, Alignment, AllocSize);
     }
   }
 }
@@ -2941,7 +2942,7 @@ Value *FunctionStackPoisoner::createAllocaForLayout(
   }
   assert((ClRealignStack & (ClRealignStack - 1)) == 0);
   size_t FrameAlignment = std::max(L.FrameAlignment, (size_t)ClRealignStack);
-  Alloca->setAlignment(FrameAlignment);
+  Alloca->setAlignment(MaybeAlign(FrameAlignment));
   return IRB.CreatePointerCast(Alloca, IntptrTy);
 }
 
@@ -2950,7 +2951,7 @@ void FunctionStackPoisoner::createDynamicAllocasInitStorage() {
   IRBuilder<> IRB(dyn_cast<Instruction>(FirstBB.begin()));
   DynamicAllocaLayout = IRB.CreateAlloca(IntptrTy, nullptr);
   IRB.CreateStore(Constant::getNullValue(IntptrTy), DynamicAllocaLayout);
-  DynamicAllocaLayout->setAlignment(32);
+  DynamicAllocaLayout->setAlignment(Align(32));
 }
 
 void FunctionStackPoisoner::processDynamicAllocas() {
@@ -3297,7 +3298,7 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(AllocaInst *AI) {
 
   // Insert new alloca with new NewSize and Align params.
   AllocaInst *NewAlloca = IRB.CreateAlloca(IRB.getInt8Ty(), NewSize);
-  NewAlloca->setAlignment(Align);
+  NewAlloca->setAlignment(MaybeAlign(Align));
 
   // NewAddress = Address + Align
   Value *NewAddress = IRB.CreateAdd(IRB.CreatePtrToInt(NewAlloca, IntptrTy),

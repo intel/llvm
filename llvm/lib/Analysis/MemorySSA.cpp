@@ -873,6 +873,7 @@ template <class AliasAnalysisType> class ClobberWalker {
         if (!DefChainEnd)
           for (auto *MA : def_chain(const_cast<MemoryAccess *>(Target)))
             DefChainEnd = MA;
+        assert(DefChainEnd && "Failed to find dominating phi/liveOnEntry");
 
         // If any of the terminated paths don't dominate the phi we'll try to
         // optimize, we need to figure out what they are and quit.
@@ -1736,8 +1737,14 @@ MemoryUseOrDef *MemorySSA::createNewAccess(Instruction *I,
   // FIXME: Replace this special casing with a more accurate modelling of
   // assume's control dependency.
   if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I))
-    if (II->getIntrinsicID() == Intrinsic::assume || isa<DbgInfoIntrinsic>(II))
+    if (II->getIntrinsicID() == Intrinsic::assume)
       return nullptr;
+
+  // Using a nonstandard AA pipelines might leave us with unexpected modref
+  // results for I, so add a check to not model instructions that may not read
+  // from or write to memory. This is necessary for correctness.
+  if (!I->mayReadFromMemory() && !I->mayWriteToMemory())
+    return nullptr;
 
   bool Def, Use;
   if (Template) {

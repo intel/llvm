@@ -963,7 +963,7 @@ bool llvm::hoistRegion(DomTreeNode *N, AliasAnalysis *AA, LoopInfo *LI,
 
     // Now that we've finished hoisting make sure that LI and DT are still
     // valid.
-#ifndef NDEBUG
+#ifdef EXPENSIVE_CHECKS
   if (Changed) {
     assert(DT->verify(DominatorTree::VerificationLevel::Fast) &&
            "Dominator tree verification failed");
@@ -1383,8 +1383,7 @@ static Instruction *CloneInstructionInExitBlock(
   if (!I.getName().empty())
     New->setName(I.getName() + ".le");
 
-  MemoryAccess *OldMemAcc;
-  if (MSSAU && (OldMemAcc = MSSAU->getMemorySSA()->getMemoryAccess(&I))) {
+  if (MSSAU && MSSAU->getMemorySSA()->getMemoryAccess(&I)) {
     // Create a new MemoryAccess and let MemorySSA set its defining access.
     MemoryAccess *NewMemAcc = MSSAU->createMemoryAccessInBB(
         New, nullptr, New->getParent(), MemorySSA::Beginning);
@@ -2109,15 +2108,14 @@ bool llvm::promoteLoopAccessesToScalars(
       SomePtr->getName() + ".promoted", Preheader->getTerminator());
   if (SawUnorderedAtomic)
     PreheaderLoad->setOrdering(AtomicOrdering::Unordered);
-  PreheaderLoad->setAlignment(Alignment);
+  PreheaderLoad->setAlignment(MaybeAlign(Alignment));
   PreheaderLoad->setDebugLoc(DL);
   if (AATags)
     PreheaderLoad->setAAMetadata(AATags);
   SSA.AddAvailableValue(Preheader, PreheaderLoad);
 
-  MemoryAccess *PreheaderLoadMemoryAccess;
   if (MSSAU) {
-    PreheaderLoadMemoryAccess = MSSAU->createMemoryAccessInBB(
+    MemoryAccess *PreheaderLoadMemoryAccess = MSSAU->createMemoryAccessInBB(
         PreheaderLoad, nullptr, PreheaderLoad->getParent(), MemorySSA::End);
     MemoryUse *NewMemUse = cast<MemoryUse>(PreheaderLoadMemoryAccess);
     MSSAU->insertUse(NewMemUse, /*RenameUses=*/true);

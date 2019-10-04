@@ -461,7 +461,7 @@ static AllocaInst *createAllocaReplacement(AllocaInst *OldAlloca, Type *NewTy) {
   auto NewAlloca = new AllocaInst(
       NewTy, OldAlloca->getType()->getAddressSpace(), OldAlloca->getArraySize(),
       "new." + OldAlloca->getName(), OldAlloca);
-  NewAlloca->setAlignment(OldAlloca->getAlignment());
+  NewAlloca->setAlignment(MaybeAlign(OldAlloca->getAlignment()));
   return NewAlloca;
 }
 

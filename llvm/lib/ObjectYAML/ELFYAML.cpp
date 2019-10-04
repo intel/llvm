@@ -221,6 +221,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_EM>::enumeration(
   ECase(EM_LANAI);
   ECase(EM_BPF);
 #undef ECase
+  IO.enumFallback<Hex16>(Value);
 }
 
 void ScalarEnumerationTraits<ELFYAML::ELF_ELFCLASS>::enumeration(
@@ -650,8 +651,12 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
   case ELF::EM_BPF:
 #include "llvm/BinaryFormat/ELFRelocs/BPF.def"
     break;
+  case ELF::EM_PPC64:
+#include "llvm/BinaryFormat/ELFRelocs/PowerPC64.def"
+    break;
   default:
-    llvm_unreachable("Unsupported architecture");
+    // Nothing to do.
+    break;
   }
 #undef ELF_RELOC
   IO.enumFallback<Hex32>(Value);
@@ -1012,6 +1017,21 @@ static void sectionMapping(IO &IO, ELFYAML::RawContentSection &Section) {
   IO.mapOptional("Info", Section.Info);
 }
 
+static void sectionMapping(IO &IO, ELFYAML::StackSizesSection &Section) {
+  commonSectionMapping(IO, Section);
+  IO.mapOptional("Content", Section.Content);
+  IO.mapOptional("Size", Section.Size);
+  IO.mapOptional("Entries", Section.Entries);
+}
+
+static void sectionMapping(IO &IO, ELFYAML::HashSection &Section) {
+  commonSectionMapping(IO, Section);
+  IO.mapOptional("Content", Section.Content);
+  IO.mapOptional("Bucket", Section.Bucket);
+  IO.mapOptional("Chain", Section.Chain);
+  IO.mapOptional("Size", Section.Size);
+}
+
 static void sectionMapping(IO &IO, ELFYAML::NoBitsSection &Section) {
   commonSectionMapping(IO, Section);
   IO.mapOptional("Size", Section.Size, Hex64(0));
@@ -1111,6 +1131,11 @@ void MappingTraits<std::unique_ptr<ELFYAML::Section>>::mapping(
       Section.reset(new ELFYAML::NoBitsSection());
     sectionMapping(IO, *cast<ELFYAML::NoBitsSection>(Section.get()));
     break;
+  case ELF::SHT_HASH:
+    if (!IO.outputting())
+      Section.reset(new ELFYAML::HashSection());
+    sectionMapping(IO, *cast<ELFYAML::HashSection>(Section.get()));
+    break;
   case ELF::SHT_MIPS_ABIFLAGS:
     if (!IO.outputting())
       Section.reset(new ELFYAML::MipsABIFlags());
@@ -1137,20 +1162,77 @@ void MappingTraits<std::unique_ptr<ELFYAML::Section>>::mapping(
     sectionMapping(IO, *cast<ELFYAML::SymtabShndxSection>(Section.get()));
     break;
   default:
-    if (!IO.outputting())
-      Section.reset(new ELFYAML::RawContentSection());
-    sectionMapping(IO, *cast<ELFYAML::RawContentSection>(Section.get()));
+    if (!IO.outputting()) {
+      StringRef Name;
+      IO.mapOptional("Name", Name, StringRef());
+      Name = ELFYAML::dropUniqueSuffix(Name);
+
+      if (ELFYAML::StackSizesSection::nameMatches(Name))
+        Section = std::make_unique<ELFYAML::StackSizesSection>();
+      else
+        Section = std::make_unique<ELFYAML::RawContentSection>();
+    }
+
+    if (auto S = dyn_cast<ELFYAML::RawContentSection>(Section.get()))
+      sectionMapping(IO, *S);
+    else
+      sectionMapping(IO, *cast<ELFYAML::StackSizesSection>(Section.get()));
   }
 }
 
 StringRef MappingTraits<std::unique_ptr<ELFYAML::Section>>::validate(
     IO &io, std::unique_ptr<ELFYAML::Section> &Section) {
-  const auto *RawSection = dyn_cast<ELFYAML::RawContentSection>(Section.get());
-  if (!RawSection)
+  if (const auto *RawSection =
+          dyn_cast<ELFYAML::RawContentSection>(Section.get())) {
+    if (RawSection->Size && RawSection->Content &&
+        (uint64_t)(*RawSection->Size) < RawSection->Content->binary_size())
+      return "Section size must be greater than or equal to the content size";
     return {};
-  if (RawSection->Size && RawSection->Content &&
-      (uint64_t)(*RawSection->Size) < RawSection->Content->binary_size())
-    return "Section size must be greater than or equal to the content size";
+  }
+
+  if (const auto *SS = dyn_cast<ELFYAML::StackSizesSection>(Section.get())) {
+    if (!SS->Entries && !SS->Content && !SS->Size)
+      return ".stack_sizes: one of Content, Entries and Size must be specified";
+
+    if (SS->Size && SS->Content &&
+        (uint64_t)(*SS->Size) < SS->Content->binary_size())
+      return ".stack_sizes: Size must be greater than or equal to the content "
+             "size";
+
+    // We accept Content, Size or both together when there are no Entries.
+    if (!SS->Entries)
+      return {};
+
+    if (SS->Size)
+      return ".stack_sizes: Size and Entries cannot be used together";
+    if (SS->Content)
+      return ".stack_sizes: Content and Entries cannot be used together";
+    return {};
+  }
+
+  if (const auto *HS = dyn_cast<ELFYAML::HashSection>(Section.get())) {
+    if (!HS->Content && !HS->Bucket && !HS->Chain && !HS->Size)
+      return "one of \"Content\", \"Size\", \"Bucket\" or \"Chain\" must be "
+             "specified";
+
+    if (HS->Content || HS->Size) {
+      if (HS->Size && HS->Content &&
+          (uint64_t)*HS->Size < HS->Content->binary_size())
+        return "\"Size\" must be greater than or equal to the content "
+               "size";
+
+      if (HS->Bucket)
+        return "\"Bucket\" cannot be used with \"Content\" or \"Size\"";
+      if (HS->Chain)
+        return "\"Chain\" cannot be used with \"Content\" or \"Size\"";
+      return {};
+    }
+
+    if ((HS->Bucket && !HS->Chain) || (!HS->Bucket && HS->Chain))
+      return "\"Bucket\" and \"Chain\" must be used together";
+    return {};
+  }
+
   return {};
 }
 
@@ -1178,6 +1260,13 @@ struct NormalizedMips64RelType {
 };
 
 } // end anonymous namespace
+
+void MappingTraits<ELFYAML::StackSizeEntry>::mapping(
+    IO &IO, ELFYAML::StackSizeEntry &E) {
+  assert(IO.getContext() && "The IO context is not initialized");
+  IO.mapOptional("Address", E.Address, Hex64(0));
+  IO.mapRequired("Size", E.Size);
+}
 
 void MappingTraits<ELFYAML::DynamicEntry>::mapping(IO &IO,
                                                    ELFYAML::DynamicEntry &Rel) {
