@@ -12,8 +12,8 @@
 #include <CL/sycl/builtins.hpp>
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/queue.hpp>
 #include <CL/sycl/ordered_queue.hpp>
+#include <CL/sycl/queue.hpp>
 
 namespace cl {
 namespace sycl {

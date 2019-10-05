@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/common_info.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
 namespace cl {

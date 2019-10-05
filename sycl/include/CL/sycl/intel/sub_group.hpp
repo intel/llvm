@@ -13,9 +13,9 @@
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/intel/functional.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
-#include <CL/sycl/intel/functional.hpp>
 #include <type_traits>
 #ifdef __SYCL_DEVICE_ONLY__
 

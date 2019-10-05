@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/event_info.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <cassert>

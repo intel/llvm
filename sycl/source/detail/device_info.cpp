@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/detail/device_impl.hpp>
+#include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/platform_util.hpp>
 #include <CL/sycl/device.hpp>
