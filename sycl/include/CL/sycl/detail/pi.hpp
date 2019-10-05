@@ -67,8 +67,8 @@ namespace pi {
   To cast(From value);
 
   // Forward declarations of the PI dispatch entries.
-  #define _PI_API(api) __SYCL_EXPORTED extern decltype(::api) * api;
-  #include <CL/sycl/detail/pi.def>
+#define _PI_API(api) __SYCL_EXPORTED extern decltype(::api) *(api);
+#include <CL/sycl/detail/pi.def>
 
   // Performs PI one-time initialization.
   void initialize();
