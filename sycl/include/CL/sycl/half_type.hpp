@@ -127,9 +127,9 @@ template <> struct hash<half> {
 
 #define SYCL_HLF_MAX_EXP 16
 
-#define SYCL_HLF_MIN_10_EXP -4
+#define SYCL_HLF_MIN_10_EXP (-4)
 
-#define SYCL_HLF_MIN_EXP -13
+#define SYCL_HLF_MIN_EXP (-13)
 
 #define SYCL_HLF_MANT_DIG 11
 
