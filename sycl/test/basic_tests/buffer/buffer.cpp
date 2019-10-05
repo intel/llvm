@@ -643,6 +643,13 @@ int main() {
     b.set_final_data(voidPtr);
   }
 
+  {
+    std::allocator<float8> buf_alloc;
+    cl::sycl::shared_ptr_class<float8> data(new float8[8]);
+    cl::sycl::buffer<float8, 1, std::allocator<float8>>
+        b(data, cl::sycl::range<1>(8), buf_alloc);
+  }
+
   // TODO tests with mutex property
   return failed;
 }
