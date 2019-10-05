@@ -89,7 +89,11 @@ public:
         Devices.size(), Devices.data(),
         LinkOptions.c_str(), Programs.size(),
         Programs.data(), nullptr, nullptr, &Err), Err));
-      PI_CHECK_THROW(Err, compile_program_error);
+
+      if (Err != PI_SUCCESS) {
+        throw compile_program_error("Program link error:\n" +
+                                    ProgramManager::getProgramBuildLog(Program));
+      }
     }
   }
 
@@ -234,7 +238,11 @@ public:
           detail::getSyclObjImpl(Context)->getHandleRef(),
           Devices.size(), Devices.data(), LinkOptions.c_str(),
           1, &Program, nullptr, nullptr, &Err), Err));
-      PI_CHECK_THROW(Err, compile_program_error);
+
+      if (Err != PI_SUCCESS) {
+        throw compile_program_error("Program link error:\n" +
+                                    ProgramManager::getProgramBuildLog(Program));
+      }
       this->LinkOptions = LinkOptions;
       BuildOptions = LinkOptions;
     }
