@@ -9,8 +9,8 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
-#include <CL/sycl/event.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
+#include <CL/sycl/event.hpp>
 
 #include <CL/sycl/stl.hpp>
 

@@ -10,9 +10,9 @@
 //
 #pragma once
 
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/common.hpp>
 
 namespace cl {
 namespace sycl {

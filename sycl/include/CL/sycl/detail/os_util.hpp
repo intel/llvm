@@ -10,8 +10,8 @@
 
 #pragma once
 
-#include <stdlib.h>
 #include <cstdint>
+#include <stdlib.h>
 
 #ifdef _WIN32
 #define SYCL_RT_OS_WINDOWS
