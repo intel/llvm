@@ -953,6 +953,8 @@ namespace {
                           bool AllowInjectedClassName = false);
 
     const LoopHintAttr *TransformLoopHintAttr(const LoopHintAttr *LH);
+    const SYCLIntelFPGAIVDepAttr *
+    TransformSYCLIntelFPGAIVDepAttr(const SYCLIntelFPGAIVDepAttr *IV);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1341,6 +1343,21 @@ TemplateInstantiator::TransformLoopHintAttr(const LoopHintAttr *LH) {
   // non-type template parameter.
   return LoopHintAttr::CreateImplicit(getSema().Context, LH->getOption(),
                                       LH->getState(), TransformedExpr, *LH);
+}
+
+const SYCLIntelFPGAIVDepAttr *
+TemplateInstantiator::TransformSYCLIntelFPGAIVDepAttr(
+    const SYCLIntelFPGAIVDepAttr *IVDep) {
+
+  Expr *Expr1 = IVDep->getSafelenExpr()
+                    ? getDerived().TransformExpr(IVDep->getSafelenExpr()).get()
+                    : nullptr;
+  Expr *Expr2 = IVDep->getArrayExpr()
+                    ? getDerived().TransformExpr(IVDep->getArrayExpr()).get()
+                    : nullptr;
+
+  auto *Attr = getSema().BuildSYCLIntelFPGAIVDepAttr(*IVDep, Expr1, Expr2);
+  return Attr;
 }
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(

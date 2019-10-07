@@ -10127,6 +10127,17 @@ def err_sycl_attibute_cannot_be_applied_here
             "|class member function"
             "|function with a raw pointer return type"
             "|function with a raw pointer parameter type}1">;
+def err_ivdep_duplicate_arg : Error<
+  "duplicate argument to 'ivdep'. attribute requires one or both of a safelen "
+  "and array">;
+def err_ivdep_unknown_arg : Error<
+  "unknown argument to 'ivdep'. Expected integer or array variable">;
+def err_ivdep_declrefexpr_arg : Error<
+  "invalid declaration reference argument to 'ivdep'. Expected integer or array"
+  " variable">;
+def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
+  "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
+  InGroup<IgnoredAttributes>;
 
 def err_preserve_field_info_not_field : Error<
   "__builtin_preserve_field_info argument %0 not a field access">;

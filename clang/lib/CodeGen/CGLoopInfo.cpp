@@ -400,6 +400,78 @@ MDNode *LoopInfo::createFullUnrollMetadata(const LoopAttributes &Attrs,
   return LoopID;
 }
 
+void LoopInfoStack::addSYCLIVDepInfo(llvm::LLVMContext &Ctx, unsigned SafeLen,
+                                     const ValueDecl *Array) {
+  // If there is a global that beats this one out, don't add/change anything.
+  if (StagedAttrs.GlobalIVDepInfo &&
+      (StagedAttrs.GlobalIVDepInfo->SafeLen == 0 ||
+       (SafeLen != 0 && StagedAttrs.GlobalIVDepInfo->SafeLen >= SafeLen)))
+    return;
+
+  if (!Array) {
+    // Updating the global setting.
+    if (!StagedAttrs.GlobalIVDepInfo)
+      StagedAttrs.GlobalIVDepInfo = LoopAttributes::IVDepInfo{SafeLen};
+    else
+      StagedAttrs.GlobalIVDepInfo->SafeLen = SafeLen;
+
+    // Remove any array collections that don't have a greater safelen than the
+    // global.
+    StagedAttrs.ArraySYCLIVDepInfo.erase(
+        llvm::remove_if(StagedAttrs.ArraySYCLIVDepInfo,
+                        [SafeLen](const auto &A) {
+                          return !A.IsSafeLenGreaterOrEqual(SafeLen);
+                        }),
+        StagedAttrs.ArraySYCLIVDepInfo.end());
+    return;
+  }
+
+  auto SafeLenItr = llvm::find_if(
+      StagedAttrs.ArraySYCLIVDepInfo,
+      [SafeLen](const auto &Info) { return Info.SafeLen == SafeLen; });
+  auto ArrayItr =
+      llvm::find_if(StagedAttrs.ArraySYCLIVDepInfo,
+                    [Array](const auto &Info) { return Info.HasArray(Array); });
+
+  if (ArrayItr != StagedAttrs.ArraySYCLIVDepInfo.end()) {
+    // Ensure that the current array's safelen is greater than the existing one.
+    // Otherwise, there is nothing to do. We've already been checked against
+    // the global safelen.
+    if (ArrayItr->IsSafeLenGreaterOrEqual(SafeLen))
+      return;
+
+    // We know this exists, so no need to check the result of find_if, but
+    // remove the last array.
+    ArrayItr->EraseArray(Array);
+  }
+
+  // Add us to the new safelen version.
+  if (SafeLenItr != StagedAttrs.ArraySYCLIVDepInfo.end()) {
+    SafeLenItr->Arrays.emplace_back(Array, MDNode::getDistinct(Ctx, {}));
+    return;
+  }
+
+  StagedAttrs.ArraySYCLIVDepInfo.emplace_back(SafeLen, Array,
+                                              MDNode::getDistinct(Ctx, {}));
+}
+
+static void
+EmitIVDepLoopMetadata(LLVMContext &Ctx,
+                      llvm::SmallVectorImpl<llvm::Metadata *> &LoopProperties,
+                      const LoopAttributes::IVDepInfo &I) {
+  if (I.Arrays.empty())
+    return;
+  SmallVector<llvm::Metadata *, 4> MD;
+  MD.push_back(MDString::get(Ctx, "llvm.loop.parallel_access_indices"));
+  std::transform(I.Arrays.begin(), I.Arrays.end(), std::back_inserter(MD),
+                 [](const auto &Pair) { return Pair.second; });
+
+  if (I.SafeLen != 0)
+    MD.push_back(ConstantAsMetadata::get(
+        ConstantInt::get(llvm::Type::getInt32Ty(Ctx), I.SafeLen)));
+  LoopProperties.push_back(MDNode::get(Ctx, MD));
+}
+
 MDNode *LoopInfo::createMetadata(
     const LoopAttributes &Attrs,
     llvm::ArrayRef<llvm::Metadata *> AdditionalLoopProperties,
@@ -423,22 +495,11 @@ MDNode *LoopInfo::createMetadata(
         Ctx, {MDString::get(Ctx, "llvm.loop.parallel_accesses"), AccGroup}));
   }
 
-  // Setting ivdep attribute
-  if (Attrs.SYCLIVDepEnable) {
-    LLVMContext &Ctx = Header->getContext();
-    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.ivdep.enable")};
-    LoopProperties.push_back(MDNode::get(Ctx, Vals));
-  }
-
-  // Setting ivdep attribute with safelen
-  if (Attrs.SYCLIVDepSafelen > 0) {
-    LLVMContext &Ctx = Header->getContext();
-    Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.ivdep.safelen"),
-        ConstantAsMetadata::get(ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
-                                                 Attrs.SYCLIVDepSafelen))};
-    LoopProperties.push_back(MDNode::get(Ctx, Vals));
-  }
+  LLVMContext &Ctx = Header->getContext();
+  if (Attrs.GlobalIVDepInfo.hasValue())
+    EmitIVDepLoopMetadata(Ctx, LoopProperties, *Attrs.GlobalIVDepInfo);
+  for (const auto &I : Attrs.ArraySYCLIVDepInfo)
+    EmitIVDepLoopMetadata(Ctx, LoopProperties, I);
 
   // Setting ii attribute with an initiation interval
   if (Attrs.SYCLIInterval > 0) {
@@ -469,8 +530,7 @@ LoopAttributes::LoopAttributes(bool IsParallel)
       UnrollEnable(LoopAttributes::Unspecified),
       UnrollAndJamEnable(LoopAttributes::Unspecified),
       VectorizePredicateEnable(LoopAttributes::Unspecified), VectorizeWidth(0),
-      InterleaveCount(0), SYCLIVDepEnable(false), SYCLIVDepSafelen(0),
-      SYCLIInterval(0), SYCLMaxConcurrencyEnable(false),
+      InterleaveCount(0), SYCLIInterval(0), SYCLMaxConcurrencyEnable(false),
       SYCLMaxConcurrencyNThreads(0), UnrollCount(0), UnrollAndJamCount(0),
       DistributeEnable(LoopAttributes::Unspecified), PipelineDisabled(false),
       PipelineInitiationInterval(0) {}
@@ -478,8 +538,8 @@ LoopAttributes::LoopAttributes(bool IsParallel)
 void LoopAttributes::clear() {
   IsParallel = false;
   VectorizeWidth = 0;
-  SYCLIVDepEnable = false;
-  SYCLIVDepSafelen = 0;
+  GlobalIVDepInfo.reset();
+  ArraySYCLIVDepInfo.clear();
   SYCLIInterval = 0;
   SYCLMaxConcurrencyEnable = false;
   SYCLMaxConcurrencyNThreads = 0;
@@ -508,8 +568,8 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
   }
 
   if (!Attrs.IsParallel && Attrs.VectorizeWidth == 0 &&
-      Attrs.InterleaveCount == 0 && Attrs.SYCLIVDepEnable == false &&
-      Attrs.SYCLIVDepSafelen == 0 && Attrs.SYCLIInterval == 0 &&
+      Attrs.InterleaveCount == 0 && !Attrs.GlobalIVDepInfo.hasValue() &&
+      Attrs.ArraySYCLIVDepInfo.empty() && Attrs.SYCLIInterval == 0 &&
       Attrs.SYCLMaxConcurrencyEnable == false && Attrs.UnrollCount == 0 &&
       Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
       Attrs.PipelineInitiationInterval == 0 &&
@@ -821,11 +881,14 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       continue;
 
     if (IntelFPGAIVDep) {
-      unsigned ValueInt = IntelFPGAIVDep->getSafelen();
-      if (ValueInt == 0)
-        setSYCLIVDepEnable();
-      else if (ValueInt > 0)
-        setSYCLIVDepSafelen(ValueInt);
+      const ValueDecl *Array = nullptr;
+      if (IntelFPGAIVDep->getArrayExpr())
+        Array =
+            cast<ValueDecl>(cast<DeclRefExpr>(IntelFPGAIVDep->getArrayExpr())
+                                ->getDecl()
+                                ->getCanonicalDecl());
+      addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
+                       Array);
     }
 
     if (IntelFPGAII) {
@@ -881,4 +944,53 @@ void LoopInfoStack::InsertHelper(Instruction *I) const {
       }
     return;
   }
+}
+
+void LoopInfo::CollectIVDepMetadata(
+    const ValueDecl *Array, llvm::SmallVectorImpl<llvm::Metadata *> &MD) const {
+  if (Parent)
+    Parent->CollectIVDepMetadata(Array, MD);
+
+  auto ArrayIVDep =
+      llvm::find_if(Attrs.ArraySYCLIVDepInfo,
+                    [Array](const auto &Info) { return Info.HasArray(Array); });
+
+  // If this array is associated with an array, use this one.
+  if (ArrayIVDep != Attrs.ArraySYCLIVDepInfo.end()) {
+    MD.push_back(ArrayIVDep->GetArrayPairItr(Array)->second);
+    return;
+  }
+
+  if (!Attrs.GlobalIVDepInfo)
+    return;
+
+  auto GlobalArrayPairItr = Attrs.GlobalIVDepInfo->GetArrayPairItr(Array);
+  if (GlobalArrayPairItr == Attrs.GlobalIVDepInfo->Arrays.end()) {
+    Attrs.GlobalIVDepInfo->Arrays.emplace_back(
+        Array, MDNode::getDistinct(Header->getContext(), {}));
+    GlobalArrayPairItr = std::prev(Attrs.GlobalIVDepInfo->Arrays.end());
+  }
+  MD.push_back(GlobalArrayPairItr->second);
+}
+
+void LoopInfo::AddIVDepMetadata(const ValueDecl *Array,
+                                llvm::Instruction *GEP) const {
+  llvm::SmallVector<llvm::Metadata *, 4> MD;
+  CollectIVDepMetadata(Array, MD);
+
+  if (MD.size() == 1)
+    GEP->setMetadata("llvm.index.group", cast<llvm::MDNode>(MD.front()));
+  else if (!MD.empty())
+    GEP->setMetadata("llvm.index.group", MDNode::get(Header->getContext(), MD));
+}
+
+void LoopInfoStack::addIVDepMetadata(const ValueDecl *Array,
+                                     llvm::Instruction *GEP) {
+  assert(isa<llvm::GetElementPtrInst>(GEP) && "Only GEP instructions can be "
+                                              "annotated with IVDep attribute "
+                                              "index groups");
+  if (!hasInfo())
+    return;
+  const LoopInfo &L = getInfo();
+  L.AddIVDepMetadata(Array, GEP);
 }

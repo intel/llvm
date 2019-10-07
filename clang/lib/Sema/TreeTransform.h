@@ -370,6 +370,8 @@ public:
 #define ATTR(X)
 #define PRAGMA_SPELLING_ATTR(X)                                                \
   const X##Attr *Transform##X##Attr(const X##Attr *R) { return R; }
+#define DEPENDENT_STMT_ATTR(X)                                                 \
+  const X##Attr *Transform##X##Attr(const X##Attr *R) { return R; }
 #include "clang/Basic/AttrList.inc"
 
   /// Transform the given expression.
@@ -1275,6 +1277,8 @@ public:
   StmtResult RebuildAttributedStmt(SourceLocation AttrLoc,
                                    ArrayRef<const Attr*> Attrs,
                                    Stmt *SubStmt) {
+    if (SemaRef.CheckRebuiltAttributedStmtAttributes(Attrs))
+      return StmtError();
     return SemaRef.ActOnAttributedStmt(AttrLoc, Attrs, SubStmt);
   }
 
@@ -6779,6 +6783,9 @@ const Attr *TreeTransform<Derived>::TransformAttr(const Attr *R) {
 // Transform attributes with a pragma spelling by calling TransformXXXAttr.
 #define ATTR(X)
 #define PRAGMA_SPELLING_ATTR(X)                                                \
+  case attr::X:                                                                \
+    return getDerived().Transform##X##Attr(cast<X##Attr>(R));
+#define DEPENDENT_STMT_ATTR(X)                                                 \
   case attr::X:                                                                \
     return getDerived().Transform##X##Attr(cast<X##Attr>(R));
 #include "clang/Basic/AttrList.inc"

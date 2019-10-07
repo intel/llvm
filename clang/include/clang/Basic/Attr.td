@@ -490,6 +490,9 @@ class Attr {
   // content. Eg) It parses 3 args, but semantically takes 4 args.  Opts out of
   // common attribute error checking.
   bit HasCustomParsing = 0;
+  // Set to true if the attribute is a type attribute that has custom
+  // TreeTransform logic in order to handle template transformations.
+  bit HasCustomTypeTransform = 0;
   // Set to true if all of the attribute's arguments should be parsed in an
   // unevaluated context.
   bit ParseArgumentsAsUnevaluated = 0;
@@ -1505,11 +1508,41 @@ def Mode : Attr {
 
 def SYCLIntelFPGAIVDep : Attr {
   let Spellings = [CXX11<"intelfpga","ivdep">];
-  let Args = [IntArgument<"Safelen">];
+  let Args = [
+    ExprArgument<"SafelenExpr">, ExprArgument<"ArrayExpr">,
+    UnsignedArgument<"SafelenValue">
+  ];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let HasCustomTypeTransform = 1;
   let AdditionalMembers = [{
     static const char *getName() {
       return "ivdep";
+    }
+    bool isDependent() const {
+      return (getSafelenExpr() &&
+              getSafelenExpr()->isInstantiationDependent()) ||
+             (getArrayExpr() && getArrayExpr()->isInstantiationDependent());
+    }
+
+    const VarDecl *getArrayDecl() const {
+      return getArrayExpr()
+                 ? cast<VarDecl>(cast<DeclRefExpr>(getArrayExpr())->getDecl())
+                       ->getCanonicalDecl()
+                 : nullptr;
+    }
+
+    bool isInf() const {
+      return !getSafelenExpr();
+    }
+
+    static bool SafelenCompare(const SYCLIntelFPGAIVDepAttr *LHS,
+                               const SYCLIntelFPGAIVDepAttr *RHS) {
+      // INF < INF is false, !INF < INF is true.
+      if (!RHS->getSafelenExpr())
+        return false;
+      if (!LHS->getSafelenExpr())
+        return true;
+      return LHS->getSafelenValue() > RHS->getSafelenValue();
     }
   }];
   let Documentation = [SYCLIntelFPGAIVDepAttrDocs];

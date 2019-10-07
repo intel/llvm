@@ -128,6 +128,161 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
   return FPGALoopAttrT::CreateImplicit(S.Context, SafeInterval);
 }
 
+static bool checkSYCLIntelFPGAIVDepSafeLen(Sema &S, llvm::APSInt &Value,
+                                           Expr *E) {
+  if (!Value.isStrictlyPositive())
+    return S.Diag(E->getExprLoc(),
+                  diag::err_attribute_requires_positive_integer)
+           << "'ivdep'" << /* positive */ 0;
+  return false;
+}
+
+enum class IVDepExprResult {
+  Invalid,
+  Null,
+  Dependent,
+  Array,
+  SafeLen,
+};
+
+static IVDepExprResult HandleFPGAIVDepAttrExpr(Sema &S, Expr *E,
+                                               unsigned &SafelenValue) {
+  if (!E)
+    return IVDepExprResult::Null;
+
+  if (E->isInstantiationDependent())
+    return IVDepExprResult::Dependent;
+
+  llvm::APSInt ArgVal;
+
+  if (E->isIntegerConstantExpr(ArgVal, S.getASTContext())) {
+    if (checkSYCLIntelFPGAIVDepSafeLen(S, ArgVal, E))
+      return IVDepExprResult::Invalid;
+    SafelenValue = ArgVal.getZExtValue();
+    return IVDepExprResult::SafeLen;
+  }
+
+  if (isa<DeclRefExpr>(E)) {
+    if (!cast<DeclRefExpr>(E)->getType()->isArrayType()) {
+      S.Diag(E->getExprLoc(), diag::err_ivdep_declrefexpr_arg);
+      return IVDepExprResult::Invalid;
+    }
+    return IVDepExprResult::Array;
+  }
+
+  S.Diag(E->getExprLoc(), diag::err_ivdep_unknown_arg);
+  return IVDepExprResult::Invalid;
+}
+
+// Note: At the time of this call, we don't know the order of the expressions,
+// so we name them vaguely until we can figure it out.
+SYCLIntelFPGAIVDepAttr *
+Sema::BuildSYCLIntelFPGAIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
+                                  Expr *Expr2) {
+  unsigned SafelenValue = 0;
+  IVDepExprResult E1 = HandleFPGAIVDepAttrExpr(*this, Expr1, SafelenValue);
+  IVDepExprResult E2 = HandleFPGAIVDepAttrExpr(*this, Expr2, SafelenValue);
+
+  if (E1 == IVDepExprResult::Invalid || E2 == IVDepExprResult::Invalid)
+    return nullptr;
+
+  if (E1 == E2 && E1 != IVDepExprResult::Dependent &&
+      E1 != IVDepExprResult::Null) {
+    Diag(Expr2->getExprLoc(), diag::err_ivdep_duplicate_arg);
+    return nullptr;
+  }
+
+  // Try to put Safelen in the 1st one so codegen can count on the ordering.
+  Expr *SafeLenExpr;
+  Expr *ArrayExpr;
+  if (E1 == IVDepExprResult::SafeLen) {
+    SafeLenExpr = Expr1;
+    ArrayExpr = Expr2;
+  } else {
+    SafeLenExpr = Expr2;
+    ArrayExpr = Expr1;
+  }
+
+  return new (Context)
+      SYCLIntelFPGAIVDepAttr(Context, CI, SafeLenExpr, ArrayExpr, SafelenValue);
+}
+
+static void
+CheckRedundantSYCLIntelFPGAIVDepAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
+  // Skip SEMA if we're in a template, this will be diagnosed later.
+  if (S.getCurLexicalContext()->isDependentContext())
+    return;
+
+  SmallVector<const SYCLIntelFPGAIVDepAttr *, 8> FilteredAttrs;
+  // Filter down to just non-dependent ivdeps.
+  llvm::transform(Attrs, std::back_inserter(FilteredAttrs), [](const Attr *A) {
+    if (const auto *IVDep = dyn_cast_or_null<const SYCLIntelFPGAIVDepAttr>(A))
+      return IVDep->isDependent() ? nullptr : IVDep;
+    return static_cast<const SYCLIntelFPGAIVDepAttr *>(nullptr);
+  });
+  FilteredAttrs.erase(
+      std::remove(FilteredAttrs.begin(), FilteredAttrs.end(),
+                  static_cast<const SYCLIntelFPGAIVDepAttr *>(nullptr)),
+      FilteredAttrs.end());
+  if (FilteredAttrs.empty())
+    return;
+
+  SmallVector<const SYCLIntelFPGAIVDepAttr *, 8> SortedAttrs(FilteredAttrs);
+  llvm::stable_sort(SortedAttrs, SYCLIntelFPGAIVDepAttr::SafelenCompare);
+
+  // Find the maximum without an array expression, which ends up in the 2nd
+  // expr.
+  const auto *GlobalMaxItr =
+      llvm::find_if(SortedAttrs, [](const SYCLIntelFPGAIVDepAttr *A) {
+        return !A->getArrayExpr();
+      });
+  const SYCLIntelFPGAIVDepAttr *GlobalMax =
+      GlobalMaxItr == SortedAttrs.end() ? nullptr : *GlobalMaxItr;
+
+  for (const auto *A : FilteredAttrs) {
+    if (A == GlobalMax)
+      continue;
+
+    if (GlobalMax && !SYCLIntelFPGAIVDepAttr::SafelenCompare(A, GlobalMax)) {
+      S.Diag(A->getLocation(), diag::warn_ivdep_redundant)
+          << !GlobalMax->isInf() << GlobalMax->getSafelenValue() << !A->isInf()
+          << A->getSafelenValue();
+      S.Diag(GlobalMax->getLocation(), diag::note_previous_attribute);
+      continue;
+    }
+
+    if (!A->getArrayExpr())
+      continue;
+
+    const VarDecl *ArrayDecl = A->getArrayDecl();
+    auto Other = llvm::find_if(SortedAttrs,
+                               [ArrayDecl](const SYCLIntelFPGAIVDepAttr *A) {
+                                 return ArrayDecl == A->getArrayDecl();
+                               });
+    assert(Other != SortedAttrs.end() && "Should find at least itself");
+
+    // Diagnose if lower/equal to the lowest with this array.
+    if (*Other != A && !SYCLIntelFPGAIVDepAttr::SafelenCompare(A, *Other)) {
+      S.Diag(A->getLocation(), diag::warn_ivdep_redundant)
+          << !(*Other)->isInf() << (*Other)->getSafelenValue() << !A->isInf()
+          << A->getSafelenValue();
+      S.Diag((*Other)->getLocation(), diag::note_previous_attribute);
+    }
+  }
+}
+
+static Attr *handleIntelFPGAIVDepAttr(Sema &S, const ParsedAttr &A) {
+  unsigned NumArgs = A.getNumArgs();
+  if (NumArgs > 2) {
+    S.Diag(A.getLoc(), diag::err_attribute_too_many_arguments) << A << 2;
+    return nullptr;
+  }
+
+  return S.BuildSYCLIntelFPGAIVDepAttr(
+      A, NumArgs >= 1 ? A.getArgAsExpr(0) : nullptr,
+      NumArgs == 2 ? A.getArgAsExpr(1) : nullptr);
+}
+
 static Attr *handleLoopHintAttr(Sema &S, Stmt *St, const ParsedAttr &A,
                                 SourceRange) {
   IdentifierLoc *PragmaNameLoc = A.getArgAsIdent(0);
@@ -354,12 +509,12 @@ static void CheckForDuplicationSYCLLoopAttribute(
 
 static void CheckForIncompatibleSYCLLoopAttributes(
     Sema &S, const SmallVectorImpl<const Attr *> &Attrs, SourceRange Range) {
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAIVDepAttr>(S, Attrs, Range);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAIIAttr>(S, Attrs, Range);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAMaxConcurrencyAttr>(
       S, Attrs, Range);
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, Range,
                                                            false);
+  CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -445,7 +600,7 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
   case ParsedAttr::AT_LoopHint:
     return handleLoopHintAttr(S, St, A, Range);
   case ParsedAttr::AT_SYCLIntelFPGAIVDep:
-    return handleIntelFPGALoopAttr<SYCLIntelFPGAIVDepAttr>(S, St, A);
+    return handleIntelFPGAIVDepAttr(S, A);
   case ParsedAttr::AT_SYCLIntelFPGAII:
     return handleIntelFPGALoopAttr<SYCLIntelFPGAIIAttr>(S, St, A);
   case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
@@ -482,4 +637,8 @@ StmtResult Sema::ProcessStmtAttributes(Stmt *S,
     return S;
 
   return ActOnAttributedStmt(Range.getBegin(), Attrs, S);
+}
+bool Sema::CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs) {
+  CheckRedundantSYCLIntelFPGAIVDepAttrs(*this, Attrs);
+  return false;
 }
