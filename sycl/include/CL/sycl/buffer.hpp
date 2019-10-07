@@ -129,7 +129,8 @@ public:
   buffer(buffer<T, dimensions, AllocatorT> &b, const id<dimensions> &baseIndex,
          const range<dimensions> &subRange)
       : impl(b.impl), Range(subRange),
-        OffsetInBytes(getOffsetInBytes<T>(baseIndex, b.Range)) {
+        OffsetInBytes(getOffsetInBytes<T>(baseIndex, b.Range)),
+        IsSubBuffer(true) {
     if (b.is_sub_buffer())
       throw cl::sycl::invalid_object_error(
           "Cannot create sub buffer from sub buffer.");
@@ -222,7 +223,7 @@ public:
 
   void set_write_back(bool flag = true) { impl->set_write_back(flag); }
 
-  bool is_sub_buffer() const { return OffsetInBytes != 0; }
+  bool is_sub_buffer() const { return IsSubBuffer; }
 
   template <typename ReinterpretT, int ReinterpretDim>
   buffer<ReinterpretT, ReinterpretDim, AllocatorT>
@@ -234,7 +235,7 @@ public:
           "represented by the type and range of this SYCL buffer");
 
     return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
-        impl, reinterpretRange, OffsetInBytes);
+        impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
   template <typename propertyT> bool has_property() const {
@@ -257,11 +258,14 @@ private:
   // Offset field specifies the origin of the sub buffer inside the parent
   // buffer
   size_t OffsetInBytes = 0;
+  bool IsSubBuffer = false;
 
   // Reinterpret contructor
   buffer(shared_ptr_class<detail::buffer_impl<AllocatorT>> Impl,
-         range<dimensions> reinterpretRange, size_t reinterpretOffset)
-      : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset){};
+         range<dimensions> reinterpretRange, size_t reinterpretOffset,
+         bool isSubBuffer)
+      : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset),
+        IsSubBuffer(isSubBuffer){};
 
   template <typename Type, int N>
   size_t getOffsetInBytes(const id<N> &offset, const range<N> &range) {

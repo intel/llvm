@@ -186,7 +186,7 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
   if (!AllocaCmdDst)
     throw runtime_error("Out of host memory");
   Deps.insert(AllocaCmdDst);
-  // Get parrent alloca of sub buffer to perform full copy of whole buffer
+  // Get parent allocation of sub buffer to perform full copy of whole buffer
   if (IsSuitableSubReq(Req)) {
     if (AllocaCmdDst->getType() == Command::CommandType::ALLOCA_SUB_BUF)
       AllocaCmdDst =
@@ -200,7 +200,7 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
       getOrCreateAllocaForReq(Record, Req, SrcQueue);
   if (!AllocaCmdSrc)
     throw runtime_error("Cannot find buffer allocation");
-  // Get parrent alloca of sub buffer to perform full copy of whole buffer
+  // Get parent allocation of sub buffer to perform full copy of whole buffer
   if (IsSuitableSubReq(Req)) {
     if (AllocaCmdSrc->getType() == Command::CommandType::ALLOCA_SUB_BUF)
       AllocaCmdSrc =
