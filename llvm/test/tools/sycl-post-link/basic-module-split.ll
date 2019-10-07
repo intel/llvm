@@ -1,10 +1,10 @@
-; RUN: sycl-split -S %s -o %out
+; RUN: sycl-post-link -S %s -o %out
 ; RUN: FileCheck %s -input-file=%out_0.ll --check-prefixes CHECK-TU0,CHECK
 ; RUN: FileCheck %s -input-file=%out_1.ll --check-prefixes CHECK-TU1,CHECK
 ; RUN: FileCheck %s -input-file=%out_0.txt --check-prefixes CHECK-TU0-TXT
 ; RUN: FileCheck %s -input-file=%out_1.txt --check-prefixes CHECK-TU1-TXT
-; ModuleID = 'basic-sycl-split.ll'
-source_filename = "basic-sycl-split.ll"
+; ModuleID = 'basic-module-split.ll'
+source_filename = "basic-module-split.ll"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux-sycldevice"
 
@@ -32,7 +32,7 @@ entry:
 
 ; CHECK-TU0: call spir_func i32 @{{.*}}bar{{.*}}(i32 1)
 
-define dso_local spir_func void @_Z3foov() #1 {
+define dso_local spir_func void @_Z3foov() {
 entry:
   %a = alloca i32, align 4
   %call = call spir_func i32 @_Z3barIiET_S0_(i32 1)
@@ -45,7 +45,7 @@ entry:
 ; CHECK-TU1-NOT: define {{.*}} spir_func i32 @{{.*}}bar{{.*}}(i32 %arg)
 
 ; Function Attrs: nounwind
-define linkonce_odr dso_local spir_func i32 @_Z3barIiET_S0_(i32 %arg) #2 comdat {
+define linkonce_odr dso_local spir_func i32 @_Z3barIiET_S0_(i32 %arg) comdat {
 entry:
   %arg.addr = alloca i32, align 4
   store i32 %arg, i32* %arg.addr, align 4
@@ -70,7 +70,7 @@ entry:
 ; CHECK-TU1-NOT: define dso_local spir_func void @{{.*}}foo1{{.*}}()
 
 ; Function Attrs: nounwind
-define dso_local spir_func void @_Z4foo1v() #2 {
+define dso_local spir_func void @_Z4foo1v() {
 entry:
   %a = alloca i32, align 4
   store i32 2, i32* %a, align 4
@@ -84,7 +84,7 @@ entry:
 
 ; CHECK-TU1: call spir_func void @{{.*}}foo2{{.*}}()
 
-define dso_local spir_kernel void @_ZTSZ4mainE10TU1_kernel() #3 {
+define dso_local spir_kernel void @_ZTSZ4mainE10TU1_kernel() #1 {
 entry:
   call spir_func void @_Z4foo2v()
   ret void
@@ -94,7 +94,7 @@ entry:
 ; CHECK-TU1: define dso_local spir_func void @{{.*}}foo2{{.*}}()
 
 ; Function Attrs: nounwind
-define dso_local spir_func void @_Z4foo2v() #2 {
+define dso_local spir_func void @_Z4foo2v() {
 entry:
   %a = alloca i32, align 4
 ; CHECK-TU1: %0 = load i32, i32 addrspace(4)* getelementptr inbounds ([1 x i32], [1 x i32] addrspace(4)* addrspacecast ([1 x i32] addrspace(1)* @{{.*}}GV{{.*}} to [1 x i32] addrspace(4)*), i64 0, i64 0), align 4
@@ -104,10 +104,8 @@ entry:
   ret void
 }
 
-attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "module-id"="TU1.cpp" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #3 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "module-id"="TU2.cpp" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { "sycl-module-id"="TU1.cpp" }
+attributes #1 = { "sycl-module-id"="TU2.cpp" }
 
 ; Metadata is saved in both modules.
 ; CHECK: !opencl.spir.version = !{!0, !0}

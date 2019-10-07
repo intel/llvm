@@ -6,8 +6,8 @@ set(LLVM_LINK_COMPONENTS
   Support
   )
 
-add_llvm_tool(sycl-split
-  sycl-split.cpp
+add_llvm_tool(sycl-post-link
+  sycl-post-link.cpp
 
   DEPENDS
   intrinsics_gen

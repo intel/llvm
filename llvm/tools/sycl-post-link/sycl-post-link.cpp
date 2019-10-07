@@ -1,4 +1,4 @@
-//===- sycl-split.cpp - SYCL module splitter tool -------------------------===//
+//===- sycl-post-link.cpp - SYCL post-link device code processing tool ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -27,37 +27,36 @@
 
 using namespace llvm;
 
-cl::OptionCategory ExtractCat("sycl-split Options");
+cl::OptionCategory ExtractCat{"sycl-post-link Options"};
 
 // InputFilename - The filename to read from.
-static cl::opt<std::string> InputFilename(cl::Positional,
-                                          cl::desc("<input bitcode file>"),
-                                          cl::init("-"),
-                                          cl::value_desc("filename"));
+static cl::opt<std::string> InputFilename{
+    cl::Positional, cl::desc("<input bitcode file>"), cl::init("-"),
+    cl::value_desc("filename")};
 
-static cl::opt<std::string> BaseOutputFilename(
+static cl::opt<std::string> BaseOutputFilename{
     "o",
     cl::desc("Specify base output filename, output filenames will be saved "
              "into out_0.bc, out_1.bc, ..., out_0.txt, out_1.txt, ...."),
-    cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat));
+    cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat)};
 
-static cl::opt<std::string> OutputIRFilesList(
+static cl::opt<std::string> OutputIRFilesList{
     "ir-files-list", cl::desc("Specify output filename for IR files list"),
-    cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat));
+    cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat)};
 
-static cl::opt<std::string> OutputTxtFilesList(
+static cl::opt<std::string> OutputTxtFilesList{
     "txt-files-list", cl::desc("Specify output filename for txt files list"),
-    cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat));
+    cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat)};
 
-static cl::opt<bool> Force("f", cl::desc("Enable binary output on terminals"),
-                           cl::cat(ExtractCat));
+static cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
+                           cl::cat(ExtractCat)};
 
-static cl::opt<bool> OutputAssembly("S",
+static cl::opt<bool> OutputAssembly{"S",
                                     cl::desc("Write output as LLVM assembly"),
-                                    cl::Hidden, cl::cat(ExtractCat));
+                                    cl::Hidden, cl::cat(ExtractCat)};
 
 static void error(const Twine &Msg) {
-  errs() << "sycl-split: " << Msg << '\n';
+  errs() << "sycl-post-link: " << Msg << '\n';
   exit(1);
 }
 
@@ -68,7 +67,7 @@ static void error(std::error_code EC, const Twine &Prefix) {
 
 static void writeToFile(std::string Filename, std::string Content) {
   std::error_code EC;
-  raw_fd_ostream OS(Filename, EC, sys::fs::OpenFlags::OF_None);
+  raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
   error(EC, "error opening the file '" + Filename + "'");
   OS.write(Content.data(), Content.size());
   OS.close();
@@ -78,12 +77,10 @@ static void collectKernelsSet(
     Module &M,
     std::map<std::string, std::vector<Function *>> &ResKernelsSet) {
   for (auto &F : M.functions()) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
-
-    if (F.hasFnAttribute("module-id")) {
-      Attribute Id = F.getFnAttribute("module-id");
-      std::string Val = Id.getValueAsString();
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+        F.hasFnAttribute("sycl-module-id")) {
+      auto Id = F.getFnAttribute("sycl-module-id");
+      auto Val = Id.getValueAsString();
       ResKernelsSet[Val].push_back(&F);
     }
   }
@@ -112,16 +109,14 @@ splitModule(Module &M,
       Workqueue.pop_back();
       for (auto &BB : *F) {
         for (auto &I : BB) {
-          CallBase *CB = dyn_cast<CallBase>(&I);
-          if (!CB)
-            continue;
-          Function *CF = CB->getCalledFunction();
-          if (!CF)
-            continue;
-          if (CF->isDeclaration() || GVs.count(CF))
-            continue;
-          GVs.insert(CF);
-          Workqueue.push_back(CF);
+          if (CallBase *CB = dyn_cast<CallBase>(&I)) {
+            if (Function *CF = CB->getCalledFunction()) {
+              if (!CF->isDeclaration() && !GVs.count(CF)) {
+                GVs.insert(CF);
+                Workqueue.push_back(CF);
+              }
+            }
+          }
         }
       }
     }
@@ -183,7 +178,7 @@ static void saveResults(std::vector<std::unique_ptr<Module>> &ResModules,
                                  std::to_string(NumOfFile) +
                                  ((OutputAssembly) ? ".ll" : ".bc");
 
-    raw_fd_ostream Out(CurOutFileName, EC, sys::fs::OF_None);
+    raw_fd_ostream Out{CurOutFileName, EC, sys::fs::OF_None};
     error(EC, "error opening the file '" + CurOutFileName + "'");
 
     // TODO: Use the new PassManager instead?
@@ -215,21 +210,20 @@ static void saveResults(std::vector<std::unique_ptr<Module>> &ResModules,
 }
 
 int main(int argc, char **argv) {
-  InitLLVM X(argc, argv);
+  InitLLVM X{argc, argv};
 
   LLVMContext Context;
   cl::HideUnrelatedOptions(ExtractCat);
   cl::ParseCommandLineOptions(
       argc, argv,
-      "SYCL-specific module splitter.\n"
-      "Splits fully linked module into smaller ones. Groups kernels\n"
-      "using function attribute 'module-id' , i.e. kernels \n"
-      "with same values in the 'module-id' attribute will be put into the \n"
-      "same module. For each produced module generates a text file contains \n"
-      "names of spir kernels presented in this module. Optionally can generate "
-      "\n"
-      "lists of probuced files. Usage: \n"
-      "sycl-split -S linked.ll -ir-files-list=ir.txt \\\n"
+      "SYCL post-link device code processing tool.\n"
+      "Splits a fully linked module into smaller ones. Groups kernels\n"
+      "using function attribute 'sycl-module-id', i.e. kernels with the same\n"
+      "values of the 'sycl-module-id' attribute will be put into the same\n"
+      "module. For each produced module a text file containing the names of\n"
+      "all spir kernels in it is generated. Optionally can generate lists of\n"
+      "produced files. Usage:\n"
+      "sycl-post-link -S linked.ll -ir-files-list=ir.txt \\\n"
       "-txt-files-list=files.txt -o out \\\n"
       "This command will produce several llvm IR files: out_0.ll, "
       "out_1.ll...,\n"
