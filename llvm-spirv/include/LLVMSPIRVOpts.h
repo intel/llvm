@@ -71,8 +71,9 @@ public:
 
   TranslatorOpts() = default;
 
-  TranslatorOpts(VersionNumber Max, const ExtensionsStatusMap &Map = {})
-      : MaxVersion(Max), ExtStatusMap(Map) {}
+  TranslatorOpts(VersionNumber Max, const ExtensionsStatusMap &Map = {},
+                 bool ArgNameMD = false)
+      : MaxVersion(Max), ExtStatusMap(Map), GenKernelArgNameMD(ArgNameMD) {}
 
   bool isAllowedToUseVersion(VersionNumber RequestedVersion) const {
     return RequestedVersion <= MaxVersion;
@@ -88,15 +89,22 @@ public:
 
   VersionNumber getMaxVersion() const { return MaxVersion; }
 
+  bool isGenArgNameMDEnabled() const { return GenKernelArgNameMD; }
+
   void enableAllExtensions() {
 #define EXT(X) ExtStatusMap[ExtensionID::X] = true;
 #include "LLVMSPIRVExtensions.inc"
 #undef EXT
   }
 
+  void enableGenArgNameMD() { GenKernelArgNameMD = true; }
+
 private:
+  // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
   ExtensionsStatusMap ExtStatusMap;
+  // SPIR-V to LLVM translation options
+  bool GenKernelArgNameMD;
 };
 
 } // namespace SPIRV

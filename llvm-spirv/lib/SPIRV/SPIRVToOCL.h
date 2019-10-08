@@ -49,7 +49,7 @@
 namespace SPIRV {
 class SPIRVToOCL : public ModulePass, public InstVisitor<SPIRVToOCL> {
 protected:
-  SPIRVToOCL() : ModulePass(ID), M(nullptr), Ctx(nullptr) {}
+  SPIRVToOCL(char &ID) : ModulePass(ID), M(nullptr), Ctx(nullptr) {}
 
 public:
   virtual bool runOnModule(Module &M) = 0;
@@ -132,8 +132,6 @@ public:
   /// Transform __spirv_Opcode to ocl-version specific builtin name
   /// using separate maps for OpenCL 1.2 and OpenCL 2.0
   virtual Instruction *mutateAtomicName(CallInst *CI, Op OC) = 0;
-
-  static char ID;
 
 protected:
   Module *M;

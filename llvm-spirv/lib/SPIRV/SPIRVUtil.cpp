@@ -461,13 +461,14 @@ bool getSPIRVBuiltin(const std::string &OrigName, spv::BuiltIn &B) {
   return getByName(R.str(), B);
 }
 
-// Enqueue kernel, kernel query and pipe built-ins are not mangled
+// Enqueue kernel, kernel query, pipe and address space cast built-ins
+// are not mangled.
 bool isNonMangledOCLBuiltin(const StringRef &Name) {
   if (!Name.startswith("__"))
     return false;
 
   return isEnqueueKernelBI(Name) || isKernelQueryBI(Name) ||
-         isPipeBI(Name.drop_front(2));
+         isPipeOrAddressSpaceCastBI(Name.drop_front(2));
 }
 
 bool oclIsBuiltin(const StringRef &Name, std::string *DemangledName,
@@ -1391,10 +1392,12 @@ bool eraseUselessFunctions(Module *M) {
 }
 
 // The mangling algorithm follows OpenCL pipe built-ins clang 3.8 CodeGen rules.
-static SPIR::MangleError manglePipeBuiltin(const SPIR::FunctionDescriptor &Fd,
-                                           std::string &MangledName) {
-  assert(OCLUtil::isPipeBI(Fd.Name) &&
-         "Method is expected to be called only for pipe builtins!");
+static SPIR::MangleError
+manglePipeOrAddressSpaceCastBuiltin(const SPIR::FunctionDescriptor &Fd,
+                                    std::string &MangledName) {
+  assert(OCLUtil::isPipeOrAddressSpaceCastBI(Fd.Name) &&
+         "Method is expected to be called only for pipe and address space cast "
+         "builtins!");
   if (Fd.isNull()) {
     MangledName.assign(SPIR::FunctionDescriptor::nullString());
     return SPIR::MANGLE_NULL_FUNC_DESCRIPTOR;
@@ -1443,8 +1446,8 @@ std::string mangleBuiltin(const std::string &UniqName,
   SPIR::NameMangler Mangler(SPIR::SPIR20);
   Mangler.mangle(FD, MangledName);
 #else
-  if (OCLUtil::isPipeBI(BtnInfo->getUnmangledName())) {
-    manglePipeBuiltin(FD, MangledName);
+  if (OCLUtil::isPipeOrAddressSpaceCastBI(BtnInfo->getUnmangledName())) {
+    manglePipeOrAddressSpaceCastBuiltin(FD, MangledName);
   } else {
     SPIR::NameMangler Mangler(SPIR::SPIR20);
     Mangler.mangle(FD, MangledName);

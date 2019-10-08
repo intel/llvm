@@ -777,7 +777,7 @@ bool isSamplerTy(Type *Ty) {
   return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
 }
 
-bool isPipeBI(const StringRef MangledName) {
+bool isPipeOrAddressSpaceCastBI(const StringRef MangledName) {
   return MangledName == "write_pipe_2" || MangledName == "read_pipe_2" ||
          MangledName == "write_pipe_2_bl" || MangledName == "read_pipe_2_bl" ||
          MangledName == "write_pipe_4" || MangledName == "read_pipe_4" ||
@@ -796,7 +796,9 @@ bool isPipeBI(const StringRef MangledName) {
          MangledName == "sub_group_reserve_write_pipe" ||
          MangledName == "sub_group_reserve_read_pipe" ||
          MangledName == "sub_group_commit_write_pipe" ||
-         MangledName == "sub_group_commit_read_pipe";
+         MangledName == "sub_group_commit_read_pipe" ||
+         MangledName == "to_global" || MangledName == "to_local" ||
+         MangledName == "to_private";
 }
 
 bool isEnqueueKernelBI(const StringRef MangledName) {
