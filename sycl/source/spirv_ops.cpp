@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/exception.hpp>
 #include <CL/sycl/detail/platform_util.hpp>
+#include <CL/sycl/exception.hpp>
 #include <atomic>
 
 // This operation is NOP on HOST as all operations there are blocking and

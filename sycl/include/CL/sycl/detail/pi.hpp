@@ -10,9 +10,9 @@
 //
 #pragma once
 
+#include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/common.hpp>
 
 namespace cl {
 namespace sycl {
@@ -67,8 +67,8 @@ namespace pi {
   To cast(From value);
 
   // Forward declarations of the PI dispatch entries.
-  #define _PI_API(api) __SYCL_EXPORTED extern decltype(::api) * api;
-  #include <CL/sycl/detail/pi.def>
+#define _PI_API(api) __SYCL_EXPORTED extern decltype(::api) *(api);
+#include <CL/sycl/detail/pi.def>
 
   // Performs PI one-time initialization.
   void initialize();

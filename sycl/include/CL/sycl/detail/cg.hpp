@@ -340,7 +340,8 @@ public:
     UPDATE_HOST,
     RUN_ON_HOST_INTEL,
     COPY_USM,
-    FILL_USM
+    FILL_USM,
+    PREFETCH_USM
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -527,6 +528,26 @@ public:
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
   int getFill() { return MPattern[0]; }
+};
+
+// The class which represents "prefetch" command group for USM pointers.
+class CGPrefetchUSM : public CG {
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGPrefetchUSM(void *DstPtr, size_t Length,
+                std::vector<std::vector<char>> ArgsStorage,
+                std::vector<detail::AccessorImplPtr> AccStorage,
+                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+                std::vector<Requirement *> Requirements,
+                std::vector<detail::EventImplPtr> Events)
+      : CG(PREFETCH_USM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
+        MDst(DstPtr), MLength(Length) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
 };
 
 } // namespace detail

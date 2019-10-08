@@ -13,9 +13,9 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/aligned_allocator.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <CL/sycl/handler.hpp>

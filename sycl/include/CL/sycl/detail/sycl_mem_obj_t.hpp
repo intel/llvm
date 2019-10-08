@@ -101,6 +101,11 @@ public:
   }
 
   size_t get_size() const { return MSizeInBytes; }
+  size_t get_count() const {
+    auto constexpr AllocatorValueSize =
+        sizeof(allocator_value_type_t<AllocatorT>);
+    return (get_size() + AllocatorValueSize - 1) / AllocatorValueSize;
+  }
 
   template <typename propertyT> bool has_property() const {
     return MProps.has_property<propertyT>();
@@ -112,16 +117,11 @@ public:
 
   AllocatorT get_allocator() const { return MAllocator; }
 
-  void *allocateHostMem() override {
-    size_t AllocatorValueSize = sizeof(allocator_value_type_t<AllocatorT>);
-    size_t AllocationSize = get_size() / AllocatorValueSize;
-    AllocationSize += (get_size() % AllocatorValueSize) ? 1 : 0;
-    return MAllocator.allocate(AllocationSize);
-  }
+  void *allocateHostMem() override { return MAllocator.allocate(get_count()); }
 
   void releaseHostMem(void *Ptr) override {
     if (Ptr)
-      MAllocator.deallocate(allocator_pointer_t<AllocatorT>(Ptr), get_size());
+      MAllocator.deallocate(allocator_pointer_t<AllocatorT>(Ptr), get_count());
   }
 
   void releaseMem(ContextImplPtr Context, void *MemAllocation) override {

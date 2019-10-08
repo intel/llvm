@@ -10,9 +10,9 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/intel/functional.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
-#include <CL/sycl/intel/functional.hpp>
 #ifndef __SYCL_DEVICE_ONLY__
 
 namespace cl {

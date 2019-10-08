@@ -10,8 +10,8 @@
 
 #include <CL/cl.h>
 #include <CL/cl_usm_ext.h>
-#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/os_util.hpp>
+#include <CL/sycl/detail/pi.hpp>
 
 #include <map>
 #include <mutex>

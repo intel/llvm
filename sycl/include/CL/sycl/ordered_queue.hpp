@@ -112,6 +112,12 @@ public:
     return impl->memcpy(impl, dest, src, count);
   }
 
+  event prefetch(const void* Ptr, size_t Count) {
+    return submit([=](handler &cgh) {
+        cgh.prefetch(Ptr, Count);
+    });
+  }
+
 private:
   std::shared_ptr<detail::queue_impl> impl;
   template <class Obj>

@@ -5859,8 +5859,12 @@ bool clang::driver::isOptimizationLevelFast(const ArgList &Args) {
 }
 
 bool clang::driver::isObjectFile(std::string FileName) {
-  return (llvm::sys::path::has_extension(FileName) &&
-      types::lookupTypeForExtension(
-          llvm::sys::path::extension(FileName).drop_front()) ==
-          types::TY_Object);
+  if (llvm::sys::path::has_extension(FileName)) {
+    std::string Ext(llvm::sys::path::extension(FileName).drop_front());
+    // We cannot rely on lookupTypeForExtension solely as that has 'lib'
+    // marked as an object.
+    return (Ext != "lib" &&
+            types::lookupTypeForExtension(Ext) == types::TY_Object);
+  }
+  return false;
 }

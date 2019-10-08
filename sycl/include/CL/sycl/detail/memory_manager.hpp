@@ -129,6 +129,10 @@ public:
                        int Pattern, std::vector<RT::PiEvent> DepEvents,
                        RT::PiEvent &OutEvent);
 
+  static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
+                           std::vector<RT::PiEvent> DepEvents,
+                           RT::PiEvent &OutEvent);
+
 };
 } // namespace detail
 } // namespace sycl
