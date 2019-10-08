@@ -733,13 +733,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           C.getInputArgs().getLastArg(options::OPT_fsycl_link_targets_EQ);
   Arg *SYCLAddTargets =
           C.getInputArgs().getLastArg(options::OPT_fsycl_add_targets_EQ);
-  bool SomeSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
+  bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
   bool SYCLLink = C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ);
   bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
 
   // Start SYCL options conjunction checks
   // -fsycl*targets option must come with -fsycl
-  if (SomeSYCLTargetsOption && !HasValidSYCLRuntime) {
+  if (HasSYCLTargetsOption && !HasValidSYCLRuntime) {
     std::string SYCLTargetsType;
     // Checks priority: -fsycl-targets, -fsycl-link-targets,
     // -fsycl-add-targets
@@ -769,8 +769,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       << SYCLTargets->getSpelling()
       << C.getInputArgs().getLastArg(options::OPT_fintelfpga)->getSpelling();
 
-  if (SomeSYCLTargetsOption) {
-    llvm::StringMap<StringRef> FoundNormalizedTriples;
+  llvm::StringMap<StringRef> FoundNormalizedTriples;
+  llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
+  if (HasSYCLTargetsOption) {
     // At this point, we know we have a valid combination
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
@@ -778,6 +779,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (SYCLTargetsValues->getNumValues()) {
         for (const char *Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(Val);
+          if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR()) {
+            Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
+            continue;
+          }
           std::string NormalizedName = TT.normalize();
 
           // Make sure we don't have a duplicate triple.
@@ -788,26 +793,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             continue;
           }
 
-          // Store the current triple so that we can check for duplicates in the
-          // following iterations.
-          FoundNormalizedTriples[NormalizedName] = Val;
-
-          // If the specified target is invalid, emit a diagnostic.
-          if (TT.getArch() == llvm::Triple::UnknownArch ||
-              !(TT.getArch() == llvm::Triple::spir ||
-                TT.getArch() == llvm::Triple::spir64))
-            Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
-          else {
-            const ToolChain *HostTC =
-                C.getSingleOffloadToolChain<Action::OFK_Host>();
-            // Use the SYCL and host triples as the key into
-            // getOffloadingDeviceToolChain, because the device toolchain we
-            // create depends on both.
-            auto SYCLTC = &getOffloadingDeviceToolChain(C.getInputArgs(), TT,
-                                                        *HostTC,
-                                                        Action::OFK_SYCL);
-            C.addOffloadDeviceToolChain(SYCLTC, Action::OFK_SYCL);
-          }
+          // Store the current triple so that we can check for duplicates in
+          // the following iterations.
+          FoundNormalizedTriples[NormalizedName] = NormalizedName;
+          UniqueSYCLTriplesVec.push_back(TT);
         }
       } else
         Diag(clang::diag::warn_drv_empty_joined_argument)
@@ -828,6 +817,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           std::pair<StringRef, StringRef> I = Val.split(':');
           if (!I.first.empty() && !I.second.empty()) {
             llvm::Triple TT(I.first);
+            if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR()) {
+              Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
+              continue;
+            }
             std::string NormalizedName = TT.normalize();
 
             // Make sure we don't have a duplicate triple.
@@ -839,22 +832,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             // Store the current triple so that we can check for duplicates in
             // the following iterations.
             FoundNormalizedTriples[NormalizedName] = NormalizedName;
-
-            // If the specified target is invalid, emit a diagnostic.
-            if (TT.getArch() == llvm::Triple::UnknownArch ||
-                !(TT.getArch() == llvm::Triple::spir ||
-                  TT.getArch() == llvm::Triple::spir64))
-              Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
-            else {
-              const ToolChain *HostTC =
-                  C.getSingleOffloadToolChain<Action::OFK_Host>();
-              // Use the SYCL and host triples as the key into
-              // getOffloadingDeviceToolChain, because the device toolchain we
-              // create depends on both.
-              auto *SYCLDeviceTC = &getOffloadingDeviceToolChain(
-                  C.getInputArgs(), TT, *HostTC, Action::OFK_SYCL);
-              C.addOffloadDeviceToolChain(SYCLDeviceTC, Action::OFK_SYCL);
-            }
+            UniqueSYCLTriplesVec.push_back(TT);
           } else {
             // No colon found, do not use the input
             C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
@@ -869,8 +847,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
     // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
     if (HasValidSYCLRuntime) {
-      const ToolChain *HostTC =
-          C.getSingleOffloadToolChain<Action::OFK_Host>();
       llvm::Triple TT(TargetTriple);
       if (SYCLfpga) {
         // Triple for -fintelfpga is spir64_fpga-unknown-<os>-sycldevice.
@@ -885,13 +861,17 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);
       }
-      // Use the SYCL and host triples as the key into
-      // getOffloadingDeviceToolChain, because the device toolchain we create
-      // depends on both.
-      auto SYCLTC = &getOffloadingDeviceToolChain(C.getInputArgs(), TT, *HostTC,
-                                                  Action::OFK_SYCL);
-      C.addOffloadDeviceToolChain(SYCLTC, Action::OFK_SYCL);
+      UniqueSYCLTriplesVec.push_back(TT);
     }
+  }
+  // We'll need to use the SYCL and host triples as the key into
+  // getOffloadingDeviceToolChain, because the device toolchains we're
+  // going to create will depend on both.
+  const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+  for (auto &TT : UniqueSYCLTriplesVec) {
+    auto SYCLTC = &getOffloadingDeviceToolChain(C.getInputArgs(), TT, *HostTC,
+                                                Action::OFK_SYCL);
+    C.addOffloadDeviceToolChain(SYCLTC, Action::OFK_SYCL);
   }
 
   //
