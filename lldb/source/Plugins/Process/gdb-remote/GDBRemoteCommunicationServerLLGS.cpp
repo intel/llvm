@@ -462,7 +462,8 @@ GetRegistersAsJSON(NativeThreadProtocol &thread) {
     WriteRegisterValueInHexFixedWidth(stream, reg_ctx, *reg_info_p,
                                       &reg_value, lldb::eByteOrderBig);
 
-    register_object.try_emplace(llvm::to_string(reg_num), stream.GetString());
+    register_object.try_emplace(llvm::to_string(reg_num),
+                                stream.GetString().str());
   }
 
   return register_object;
@@ -492,7 +493,7 @@ static const char *GetStopReasonString(StopReason stop_reason) {
   return nullptr;
 }
 
-static llvm::Expected<json::Value>
+static llvm::Expected<json::Array>
 GetJSONThreadsInfo(NativeProcessProtocol &process, bool abridged) {
   Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PROCESS | LIBLLDB_LOG_THREAD));
 
@@ -659,12 +660,12 @@ GDBRemoteCommunicationServerLLGS::SendStopReplyPacketForThread(
     // thread otherwise this packet has all the info it needs.
     if (thread_index > 1) {
       const bool threads_with_valid_stop_info_only = true;
-      llvm::Expected<json::Value> threads_info = GetJSONThreadsInfo(
+      llvm::Expected<json::Array> threads_info = GetJSONThreadsInfo(
           *m_debugged_process_up, threads_with_valid_stop_info_only);
       if (threads_info) {
         response.PutCString("jstopinfo:");
         StreamString unescaped_response;
-        unescaped_response.AsRawOstream() << *threads_info;
+        unescaped_response.AsRawOstream() << std::move(*threads_info);
         response.PutStringAsRawHex8(unescaped_response.GetData());
         response.PutChar(';');
       } else {
