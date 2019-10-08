@@ -36,8 +36,7 @@ device get_device_info<device, info::device::parent_device>::_(
     throw invalid_object_error(
         "No parent for device because it is not a subdevice");
 
-  return createSyclObjFromImpl<device>(
-    std::make_shared<device_impl_pi>(result));
+  return createSyclObjFromImpl<device>(std::make_shared<device_impl>(result));
 }
 
 vector_class<info::fp_config> read_fp_bitfield(cl_device_fp_config bits) {

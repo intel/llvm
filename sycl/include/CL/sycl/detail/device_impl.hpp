@@ -11,7 +11,6 @@
 #include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
-#include <algorithm>
 #include <memory>
 
 namespace cl {
@@ -21,100 +20,141 @@ namespace sycl {
 class platform;
 
 namespace detail {
-// TODO: 4.6.4 Partitioning into multiple SYCL devices
-// TODO: 4.6.4.2 Device information descriptors
+
+// Forward declaration
+class platform_impl;
+class platform_impl_pi;
+
 // TODO: Make code thread-safe
 class device_impl {
 public:
+  /// Constructs a SYCL device instance as a host device.
   device_impl();
-  explicit device_impl(RT::PiDevice Device) : MDevice(Device) {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piDeviceGetInfo(
-      MDevice, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &MType, 0));
+  /// Constructs a SYCL device instance using the provided
+  /// PI device instance.
+  explicit device_impl(RT::PiDevice Device);
 
-    RT::PiDevice parent;
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piDeviceGetInfo(
-      MDevice, PI_DEVICE_INFO_PARENT, sizeof(RT::PiDevice), &parent, 0));
+  ~device_impl();
 
-    MIsRootDevice = (nullptr == parent);
-    if (!MIsRootDevice) {
-      // TODO catch an exception and put it to list of asynchronous exceptions
-      PI_CALL(RT::piDeviceRetain(MDevice));
-    }
-  }
-  ~device_impl() {
-    if (!MIsRootDevice && MIsHostDevice) {
-      // TODO catch an exception and put it to list of asynchronous exceptions
-      CHECK_OCL_CODE_NO_EXC(RT::piDeviceRelease(MDevice));
-    }
-  }
+  /// Get instance of OpenCL device
+  ///
+  /// @return a valid cl_device_id instance in accordance with the requirements
+  /// described in 4.3.1.
+  cl_device_id get() const;
 
-  cl_device_id get() const {
-    if (MIsHostDevice)
-      throw invalid_object_error("This instance of device is a host instance");
-
-    if (!MIsRootDevice) {
-      // TODO catch an exception and put it to list of asynchronous exceptions
-      PI_CALL(RT::piDeviceRetain(MDevice));
-    }
-    // TODO: check that device is an OpenCL interop one
-    return pi::cast<cl_device_id>(MDevice);
-  }
-
-  // Returns underlying native device object (if any) w/o reference count
-  // modification. Caller must ensure the returned object lives on stack only.
-  // It can also be safely passed to the underlying native runtime API.
-  // Warning. Returned reference will be invalid if device_impl was destroyed.
-  //
+  /// Get reference to PI device
+  ///
+  /// For host device an exception is thrown
+  ///
+  /// @return non-constant reference to PI device
   RT::PiDevice &getHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance");
+
     return MDevice;
   }
+
+  /// Get constant reference to PI device
+  ///
+  /// For host device an exception is thrown
+  ///
+  /// @return constant reference to PI device
   const RT::PiDevice &getHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance");
+
     return MDevice;
   }
 
+  /// Check if SYCL device is a host device
+  ///
+  /// @return true if SYCL device is a host device
   bool is_host() const { return MIsHostDevice; }
 
+  /// Check if device is a CPU device
+  ///
+  /// @return true if SYCL device is a CPU device
   bool is_cpu() const { return (MType == PI_DEVICE_TYPE_CPU); }
 
+  /// Check if device is a GPU device
+  ///
+  /// @return true if SYCL device is a GPU device
   bool is_gpu() const { return (MType == PI_DEVICE_TYPE_GPU); }
 
-  bool is_accelerator() const {
-    return (MType == PI_DEVICE_TYPE_ACC);
-  }
+  /// Check if device is an accelerator device
+  ///
+  /// @return true if SYCL device is an accelerator device
+  bool is_accelerator() const { return (MType == PI_DEVICE_TYPE_ACC); }
 
-  platform get_platform() const {
-    if (MIsHostDevice)
-      return platform();
+  /// Get associated SYCL platform
+  ///
+  /// If this SYCL device is an OpenCL device then the SYCL platform
+  /// must encapsulate the OpenCL cl_plaform_id associated with the
+  /// underlying OpenCL cl_device_id of this SYCL device. If this SYCL device
+  /// is a host device then the SYCL platform must be a host platform.
+  /// The value returned must be equal to that returned
+  /// by get_info<info::device::platform>().
+  ///
+  /// @return The associated SYCL platform.
+  platform get_platform() const;
 
-    RT::PiPlatform plt;
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piDeviceGetInfo(
-      MDevice, PI_DEVICE_INFO_PLATFORM, sizeof(plt), &plt, 0));
-
-    // TODO: this possibly will violate common reference semantics,
-    // particularly, equality comparison may fail for two consecutive
-    // get_platform() on the same device, as it compares impl objects.
-    return createSyclObjFromImpl<platform>(
-      std::make_shared<platform_impl_pi>(plt));
-  }
-
-  vector_class<device> create_sub_devices(size_t nbSubDev) const;
-
-  vector_class<device>
-  create_sub_devices(const vector_class<size_t> &counts) const;
+  /// Check SYCL extension support by device
+  ///
+  /// @param ExtensionName is a name of queried extension.
+  /// @return true if SYCL device supports the extension.
+  bool has_extension(const string_class &ExtensionName) const;
 
   vector_class<device>
-  create_sub_devices(info::partition_affinity_domain affinityDomain) const;
+  create_sub_devices(const cl_device_partition_property *Properties,
+                     size_t SubDevicesCount) const;
 
-  static vector_class<device>
-  get_devices(info::device_type deviceType = info::device_type::all);
+  /// Partition device into sub devices
+  ///
+  /// If this SYCL device does not support info::partition_property::partition_equally
+  /// a feature_not_supported exception must be thrown.
+  ///
+  /// @param ComputeUnits is a desired count of compute units in each sub device.
+  /// @return A vector class of sub devices partitioned equally from this
+  /// SYCL device based on the ComputeUnits parameter.
+  vector_class<device> create_sub_devices(size_t ComputeUnits) const;
 
+  /// Partition device into sub devices
+  ///
+  /// If this SYCL device does not support info::partition_property::partition_by_counts
+  /// a feature_not_supported exception must be thrown.
+  ///
+  /// @param Counts is a vector_class of desired compute units in sub devices.
+  /// @return a vector_class of sub devices partitioned from this SYCL device
+  /// by count sizes based on the Counts parameter.
+  vector_class<device>
+  create_sub_devices(const vector_class<size_t> &Counts) const;
+
+  /// Partition device into sub devices
+  ///
+  /// If this SYCL device does not support info::partition_property::partition_by_affinity_domain
+  /// or the SYCL device does not support info::affinity_domain provided
+  /// a feature_not_supported exception must be thrown.
+  ///
+  /// @param AffinityDomain is one of the values described in Table 4.20 of SYCL Spec
+  /// @return a vector class of sub devices partitioned from this SYCL device
+  /// by affinity domain based on the AffinityDomain parameter
+  vector_class<device>
+  create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
+
+  /// Check if desired partition property supported by device
+  ///
+  /// @param Prop is one of info::partition_property::(partition_equally,
+  /// partition_by_counts, partition_by_affinity_domain)
+  /// @return true if Prop is supported by device.
+  bool is_partition_supported(info::partition_property Prop) const;
+
+  /// Queries this SYCL device for information requested by the template parameter param
+  ///
+  /// Specializations of info::param_traits must be defined in accordance
+  /// with the info parameters in Table 4.20 of SYCL Spec to facilitate
+  /// returning the type associated with the param parameter.
+  ///
+  /// @return device info of type described in Table 4.20.
   template <info::device param>
   typename info::param_traits<info::device, param>::return_type
   get_info() const {
@@ -126,54 +166,20 @@ public:
         param>::_(this->getHandleRef());
   }
 
-  bool is_partition_supported(info::partition_property Prop) const {
-    auto SupportedProperties = get_info<info::device::partition_properties>();
-    return std::find(SupportedProperties.begin(), SupportedProperties.end(),
-                     Prop) != SupportedProperties.end();
-  }
-
+  /// Check if affinity partitioning by specified domain is supported by device
+  ///
+  /// @param AffinityDomain is one of the values described in Table 4.20 of SYCL Spec
+  /// @return true if AffinityDomain is supported by device.
   bool
-  is_affinity_supported(info::partition_affinity_domain AffinityDomain) const {
-    auto SupportedDomains =
-        get_info<info::device::partition_affinity_domains>();
-    return std::find(SupportedDomains.begin(), SupportedDomains.end(),
-                     AffinityDomain) != SupportedDomains.end();
-  }
+  is_affinity_supported(info::partition_affinity_domain AffinityDomain) const;
 
-  bool has_extension(const string_class &extension_name) const {
-    if (MIsHostDevice)
-      return false;
-
-    string_class all_extension_names =
-        get_device_info<string_class, info::device::extensions>::_(MDevice);
-    return (all_extension_names.find(extension_name) != std::string::npos);
-  }
-
-  vector_class<device>
-  create_sub_devices(const cl_device_partition_property *Properties,
-                     size_t SubDevicesCount) const;
 private:
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
   bool MIsRootDevice = false;
   bool MIsHostDevice;
-};
-
-// TODO: 4.6.4 Partitioning into multiple SYCL devices
-// TODO: 4.6.4.2 Device information descriptors
-// TODO: Make code thread-safe
-class device_impl_pi : public device_impl {
-public:
-
-
-
-
-
-
-
-
-
 }; // class device_impl
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl
