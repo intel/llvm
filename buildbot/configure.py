@@ -30,6 +30,7 @@ def do_configure(args):
                  "-DLLVM_BUILD_TOOLS=OFF",
                  "-DSYCL_ENABLE_WERROR=ON",
                  "-DLLVM_ENABLE_ASSERTIONS=ON",
+                 "-DLLVM_TARGETS_TO_BUILD=X86",
                  llvm_dir]
 
     print(cmake_cmd)
