@@ -307,7 +307,12 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     std::string Filename(II.getFilename());
     if (II.getType() == types::TY_Tempfilelist)
       ForeachInputs.push_back(II);
-    CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
+    // Add any FPGA library lists.  These come in as special tempfile lists.
+    if (II.getType() == types::TY_TempAOCOfilelist)
+      CmdArgs.push_back(Args.MakeArgString(Twine("-library-list=") +
+          Filename));
+    else
+      CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
   CmdArgs.push_back("-sycl");
 
