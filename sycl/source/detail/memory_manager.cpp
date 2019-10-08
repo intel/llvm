@@ -175,27 +175,18 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   for (size_t I = 0; I < 3; ++I)
     SizeInBytes *= Range[I];
 
-  return allocateSubBufferObject(TargetContext, ParentMemObj, Offset,
-                                 SizeInBytes);
-}
-
-void *MemoryManager::allocateSubBufferObject(ContextImplPtr TargetContext,
-                                             void *ParentMemObj,
-                                             const size_t Offset,
-                                             const size_t Size) {
-
   RT::PiResult Error = PI_SUCCESS;
   // TODO replace with pi_buffer_region
-  cl_buffer_region Region{Offset, Size};
+  cl_buffer_region Region{Offset, SizeInBytes};
   RT::PiMem NewMem;
-  // TODO: An asyncronous exception is thrown if OffsetInBytes %
-  // CL_DEVICE_MEM_BASE_ADDR_ALIGN != 0 which is caught by SYCL runtime. As a
-  // result, after PI_CALL cl_mem for sub buffer equals to nullptr, which will
-  // cause segmentation fault in kernel execution.
-  PI_CALL((NewMem = RT::piMemBufferPartition(
-               pi::cast<RT::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
-               PI_BUFFER_CREATE_TYPE_REGION, &Region, &Error),
-           Error));
+  PI_CALL_RESULT((NewMem = RT::piMemBufferPartition(
+                      pi::cast<RT::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
+                      PI_BUFFER_CREATE_TYPE_REGION, &Region, &Error),
+                  Error));
+  if (Error == PI_MISALIGNED_SUB_BUFFER_OFFSET)
+    throw invalid_object_error(
+        "Specified offset of the sub-buffer being constructed is not a "
+        "multiple of the memory base address alignment");
   return NewMem;
 }
 

@@ -94,10 +94,6 @@ public:
   static void *allocateBufferObject(ContextImplPtr TargetContext, void *UserPtr,
                                     bool HostPtrReadOnly, const size_t Size);
 
-  static void *allocateSubBufferObject(ContextImplPtr TargetContext,
-                                       void *ParentPtr, const size_t Offset,
-                                       const size_t Size);
-
   // Copies memory between: host and device, host and host,
   // device and device if memory objects bound to the one context.
   static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,

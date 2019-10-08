@@ -412,8 +412,12 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
 
   Stream << "ID = " << this << "\n";
   Stream << "UPDATE REQ ON " << deviceToString(MQueue->get_device()) << "\\n";
-  Stream << "Is sub buffer: " << std::boolalpha
-         << (MStoredRequirement.MOffsetInBytes != 0) << "\\n";
+  bool IsReqOnBuffer = MStoredRequirement.MSYCLMemObj->getType() ==
+                       SYCLMemObjI::MemObjType::BUFFER;
+  Stream << "TYPE: " << (IsReqOnBuffer ? "Buffer" : "Image") << "\\n";
+  if (IsReqOnBuffer)
+    Stream << "Is sub buffer: " << std::boolalpha
+           << MStoredRequirement.MIsSubBuffer << "\\n";
 
   Stream << "\"];" << std::endl;
 

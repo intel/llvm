@@ -63,10 +63,12 @@ class AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
-                   int Dims, int ElemSize, int OffsetInBytes = 0)
+                   int Dims, int ElemSize, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false)
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
-        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes) {}
+        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
+        MIsSubBuffer(IsSubBuffer) {}
 
   ~AccessorImplHost() {
     if (BlockingEvent)
@@ -76,7 +78,8 @@ public:
       : MOffset(Other.MOffset), MAccessRange(Other.MAccessRange),
         MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
-        MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes) {}
+        MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
+        MIsSubBuffer(Other.MIsSubBuffer) {}
 
   id<3> MOffset;
   // The size of accessing region.
@@ -90,6 +93,7 @@ public:
   unsigned int MDims;
   unsigned int MElemSize;
   unsigned int MOffsetInBytes;
+  bool MIsSubBuffer;
 
   void *MData = nullptr;
 
@@ -102,10 +106,11 @@ class AccessorBaseHost {
 public:
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
-                   int Dims, int ElemSize, int OffsetInBytes = 0) {
-    impl = std::make_shared<AccessorImplHost>(Offset, AccessRange, MemoryRange,
-                                              AccessMode, SYCLMemObject, Dims,
-                                              ElemSize, OffsetInBytes);
+                   int Dims, int ElemSize, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false) {
+    impl = std::make_shared<AccessorImplHost>(
+        Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
+        ElemSize, OffsetInBytes, IsSubBuffer);
   }
 
 protected:

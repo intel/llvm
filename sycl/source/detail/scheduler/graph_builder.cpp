@@ -36,9 +36,7 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
 
 // The function checks if current requirement is requirement for sub buffer
 static bool IsSuitableSubReq(const Requirement *Req) {
-  return Req->MMemoryRange.size() * Req->MElemSize !=
-             Req->MSYCLMemObj->getSize() &&
-         Req->MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER;
+  return Req->MIsSubBuffer;
 }
 
 Scheduler::GraphBuilder::GraphBuilder() {
@@ -161,14 +159,14 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
       new UpdateHostRequirementCommand(Queue, Req, AllocaCmd);
   // Need copy of requirement because after host accessor destructor call
   // dependencies become invalid if requirement is stored by pointer.
-  Requirement *StoredReq = UpdateCommand->getStoreRequirement();
+  Requirement *StoredReq = UpdateCommand->getStoredRequirement();
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
   for (Command *Dep : Deps) {
     UpdateCommand->addDep({Dep, StoredReq, AllocaCmd});
     Dep->addUser(UpdateCommand);
   }
-  // access::mode::read_write is always used here regardless requieremnt
+  // access::mode::read_write is always used here regardless of requieremnt
   // access mode because this node shouldn't be skipped.
   UpdateLeafs(Deps, Record, access::mode::read_write);
   AddNodeToLeafs(Record, UpdateCommand, access::mode::read_write);

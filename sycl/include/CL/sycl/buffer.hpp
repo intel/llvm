@@ -291,7 +291,7 @@ private:
   bool isContiguousRegion(const id<2> &offset, const range<2> &newRange,
                           const range<2> &parentRange) {
     // For 2D sub buffer there are 2 cases:
-    // 1) Offset {Any, Any}  | a peace of any line of a buffer
+    // 1) Offset {Any, Any}  | a piece of any line of a buffer
     //    Range  {1,   Any}  |
     // 2) Offset {Any, 0  }  | any number of full lines
     //    Range  {Any, Col}  |
@@ -304,7 +304,7 @@ private:
   bool isContiguousRegion(const id<3> &offset, const range<3> &newRange,
                           const range<3> &parentRange) {
     // For 3D sub buffer there are 3 cases:
-    // 1) Offset {Any, Any, Any}  | a peace of any line in any slice of a buffer
+    // 1) Offset {Any, Any, Any}  | a piece of any line in any slice of a buffer
     //    Range  {1,   1,   Any}  |
     // 2) Offset {Any, Any, 0  }  | any number of full lines in any slice
     //    Range  {1,   Any, Col}  |

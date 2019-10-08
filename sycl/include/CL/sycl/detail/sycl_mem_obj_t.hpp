@@ -100,7 +100,7 @@ public:
       : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent) {
   }
 
-  size_t getSize() override { return MSizeInBytes; }
+  size_t getSize() const override { return MSizeInBytes; }
   size_t get_count() const {
     auto constexpr AllocatorValueSize =
         sizeof(allocator_value_type_t<AllocatorT>);

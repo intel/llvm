@@ -755,7 +755,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            BufferRef.OffsetInBytes) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     detail::EventImplPtr Event =
         detail::Scheduler::getInstance().addHostAccessor(
             AccessorBaseHost::impl.get());
@@ -777,7 +777,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
   }
 #endif
@@ -797,7 +797,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     detail::EventImplPtr Event =
         detail::Scheduler::getInstance().addHostAccessor(
             AccessorBaseHost::impl.get());
@@ -819,7 +819,7 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
   }
 #endif
@@ -838,7 +838,8 @@ public:
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(BufferRef).get(),
-                         Dimensions, sizeof(DataT), BufferRef.OffsetInBytes) {
+                         Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+                         BufferRef.IsSubBuffer) {
     detail::EventImplPtr Event =
         detail::Scheduler::getInstance().addHostAccessor(
             AccessorBaseHost::impl.get());
@@ -860,7 +861,8 @@ public:
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(BufferRef).get(),
-                         Dimensions, sizeof(DataT), BufferRef.OffsetInBytes) {
+                         Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+                         BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
   }
 #endif

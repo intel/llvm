@@ -57,7 +57,7 @@ public:
   virtual void releaseHostMem(void *Ptr) = 0;
 
   // Returns size of object in bytes
-  virtual size_t getSize() = 0;
+  virtual size_t getSize() const = 0;
 
 protected:
   // Pointer to the record that contains the memory commands. This is managed

@@ -302,7 +302,7 @@ public:
         MReqToUpdate(Req), MAllocaForReq(AllocaForReq),
         MStoredRequirement(*Req) {}
 
-  Requirement *getStoreRequirement() { return &MStoredRequirement; }
+  Requirement *getStoredRequirement() { return &MStoredRequirement; }
 
 private:
   cl_int enqueueImp() override;
