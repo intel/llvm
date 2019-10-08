@@ -324,7 +324,7 @@ void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
   CmdArgs.push_back(
       C.getArgs().MakeArgString(Twine("-OUT:") + Output.getFilename()));
 
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("lib"));
+  SmallString<128> ExecPath(getToolChain().GetProgramPath("lib.exe"));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, None));
 }
