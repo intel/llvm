@@ -11,4 +11,4 @@ int main() {
 }
 // CHECK: define spir_kernel void @{{.*}}kernel{{.*}}() #[[KERN_ATTR:[0-9]+]]
 
-// CHECK: #[[KERN_ATTR]] = { {{.*}}"module-id"="{{.*}}module-id.cpp"{{.*}} }
+// CHECK: #[[KERN_ATTR]] = { {{.*}}"sycl-module-id"="{{.*}}module-id.cpp"{{.*}} }
