@@ -143,40 +143,40 @@ function(cxx_link_system_libraries target)
   target_add_link_flags_if_supported(${target} PRIVATE "/nodefaultlib")
 
   if (LIBCXX_HAS_SYSTEM_LIB)
-    target_link_libraries(${target} PUBLIC System)
+    target_link_libraries(${target} PRIVATE System)
   endif()
 
   if (LIBCXX_HAS_PTHREAD_LIB)
-    target_link_libraries(${target} PUBLIC pthread)
+    target_link_libraries(${target} PRIVATE pthread)
   endif()
 
   if (LIBCXX_HAS_C_LIB)
-    target_link_libraries(${target} PUBLIC c)
+    target_link_libraries(${target} PRIVATE c)
   endif()
 
   if (LIBCXX_HAS_M_LIB)
-    target_link_libraries(${target} PUBLIC m)
+    target_link_libraries(${target} PRIVATE m)
   endif()
 
   if (LIBCXX_HAS_RT_LIB)
-    target_link_libraries(${target} PUBLIC rt)
+    target_link_libraries(${target} PRIVATE rt)
   endif()
 
   if (LIBCXX_USE_COMPILER_RT)
     find_compiler_rt_library(builtins LIBCXX_BUILTINS_LIBRARY)
     if (LIBCXX_BUILTINS_LIBRARY)
-      target_link_libraries(${target} PUBLIC "${LIBCXX_BUILTINS_LIBRARY}")
+      target_link_libraries(${target} PRIVATE "${LIBCXX_BUILTINS_LIBRARY}")
     endif()
   elseif (LIBCXX_HAS_GCC_S_LIB)
-    target_link_libraries(${target} PUBLIC gcc_s)
+    target_link_libraries(${target} PRIVATE gcc_s)
   endif()
 
   if (LIBCXX_HAVE_CXX_ATOMICS_WITH_LIB)
-    target_link_libraries(${target} PUBLIC atomic)
+    target_link_libraries(${target} PRIVATE atomic)
   endif()
 
   if (MINGW)
-    target_link_libraries(${target} PUBLIC "${MINGW_LIBRARIES}")
+    target_link_libraries(${target} PRIVATE "${MINGW_LIBRARIES}")
   endif()
 
   if (LIBCXX_TARGETING_MSVC)
@@ -186,13 +186,13 @@ function(cxx_link_system_libraries target)
       set(LIB_SUFFIX "")
     endif()
 
-    target_link_libraries(${target} PUBLIC ucrt${LIB_SUFFIX}) # Universal C runtime
-    target_link_libraries(${target} PUBLIC vcruntime${LIB_SUFFIX}) # C++ runtime
-    target_link_libraries(${target} PUBLIC msvcrt${LIB_SUFFIX}) # C runtime startup files
-    target_link_libraries(${target} PUBLIC msvcprt${LIB_SUFFIX}) # C++ standard library. Required for exception_ptr internals.
+    target_link_libraries(${target} PRIVATE ucrt${LIB_SUFFIX}) # Universal C runtime
+    target_link_libraries(${target} PRIVATE vcruntime${LIB_SUFFIX}) # C++ runtime
+    target_link_libraries(${target} PRIVATE msvcrt${LIB_SUFFIX}) # C runtime startup files
+    target_link_libraries(${target} PRIVATE msvcprt${LIB_SUFFIX}) # C++ standard library. Required for exception_ptr internals.
     # Required for standards-complaint wide character formatting functions
     # (e.g. `printfw`/`scanfw`)
-    target_link_libraries(${target} PUBLIC iso_stdio_wide_specifiers)
+    target_link_libraries(${target} PRIVATE iso_stdio_wide_specifiers)
   endif()
 endfunction()
 
@@ -230,14 +230,8 @@ if (LIBCXX_ENABLE_SHARED)
       SOVERSION     "${LIBCXX_ABI_VERSION}"
       DEFINE_SYMBOL ""
   )
-  cxx_add_basic_build_flags(cxx_shared)
+  cxx_add_common_build_flags(cxx_shared)
   cxx_set_common_defines(cxx_shared)
-  cxx_add_warning_flags(cxx_shared)
-  cxx_add_windows_flags(cxx_shared)
-  cxx_add_config_site(cxx_shared)
-  cxx_add_exception_flags(cxx_shared)
-  cxx_add_rtti_flags(cxx_shared)
-  cxx_add_module_flags(cxx_shared)
 
   # Link against LLVM libunwind
   if (LIBCXXABI_USE_LLVM_UNWINDER)
@@ -337,14 +331,8 @@ if (LIBCXX_ENABLE_STATIC)
       LINK_FLAGS    "${LIBCXX_LINK_FLAGS}"
       OUTPUT_NAME   "c++"
   )
-  cxx_add_basic_build_flags(cxx_static)
+  cxx_add_common_build_flags(cxx_static)
   cxx_set_common_defines(cxx_static)
-  cxx_add_warning_flags(cxx_static)
-  cxx_add_windows_flags(cxx_static)
-  cxx_add_config_site(cxx_static)
-  cxx_add_exception_flags(cxx_static)
-  cxx_add_rtti_flags(cxx_static)
-  cxx_add_module_flags(cxx_static)
 
   if (LIBCXX_HERMETIC_STATIC_LIBRARY)
     # If the hermetic library doesn't define the operator new/delete functions
@@ -402,17 +390,19 @@ if (LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY)
     target_link_libraries(cxx_experimental cxx_static)
   endif()
 
-  set(experimental_flags "${LIBCXX_COMPILE_FLAGS}")
-  check_flag_supported(-std=c++14)
-  if (NOT MSVC AND LIBCXX_SUPPORTS_STD_EQ_CXX14_FLAG)
-    string(REPLACE "-std=c++11" "-std=c++14" experimental_flags "${LIBCXX_COMPILE_FLAGS}")
-  endif()
   set_target_properties(cxx_experimental
     PROPERTIES
-      COMPILE_FLAGS "${experimental_flags}"
+      COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS}"
       OUTPUT_NAME   "c++experimental"
   )
+  cxx_add_common_build_flags(cxx_experimental)
+  # Overwrite the previously-set Standard flag with -std=c++14 if supported
+  check_flag_supported(-std=c++14)
+  if (NOT MSVC AND LIBCXX_SUPPORTS_STD_EQ_CXX14_FLAG)
+    target_compile_options(cxx_experimental PRIVATE "-std=c++14")
+  endif()
 endif()
+
 
 if (LIBCXX_BUILD_EXTERNAL_THREAD_LIBRARY)
   file(GLOB LIBCXX_EXTERNAL_THREADING_SUPPORT_SOURCES ../test/support/external_threads.cpp)
