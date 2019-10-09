@@ -113,11 +113,11 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
   if (nullptr != Record)
     return Record;
 
-  MemObject->MRecord.reset(new MemObjRecord{
-    /*MAllocaCommands*/ {},
-    /*MReadLeafs*/ {},
-    /*MWriteLeafs*/ {},
-    /*MMemModified*/ false});
+  MemObject->MRecord.reset(new MemObjRecord{/*MAllocaCommands*/ {},
+                                            /*MReadLeafs*/ {},
+                                            /*MWriteLeafs*/ {},
+                                            Queue->get_context_impl(),
+                                            /*MMemModified*/ false});
 
   MMemObjs.push_back(MemObject);
   return MemObject->MRecord.get();
@@ -153,7 +153,8 @@ void Scheduler::GraphBuilder::AddNodeToLeafs(MemObjRecord *Record, Command *Cmd,
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue) {
-  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Queue);
+  AllocaCommandBase *AllocaCmd =
+      findAllocaForReq(Record, Req, Queue->get_context_impl());
   assert(AllocaCmd && "There must be alloca for requirement!");
   UpdateHostRequirementCommand *UpdateCommand =
       new UpdateHostRequirementCommand(Queue, Req, AllocaCmd);
@@ -221,6 +222,7 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
   }
   UpdateLeafs(Deps, Record, access::mode::read_write);
   AddNodeToLeafs(Record, MemCpyCmd, access::mode::read_write);
+  Record->MCurContext = Queue->get_context_impl();
   return MemCpyCmd;
 }
 
@@ -239,12 +241,12 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
     return nullptr;
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, HostQueue);
-  QueueImplPtr SrcQueue = (*Deps.begin())->getQueue();
-  AllocaCommandBase *SrcAllocaCmd = findAllocaForReq(Record, Req, SrcQueue);
+  AllocaCommandBase *SrcAllocaCmd =
+      findAllocaForReq(Record, Req, Record->MCurContext);
 
-  std::unique_ptr<MemCpyCommandHost> MemCpyCmdUniquePtr(
-      new MemCpyCommandHost(*SrcAllocaCmd->getAllocationReq(), SrcAllocaCmd,
-                            Req, std::move(SrcQueue), std::move(HostQueue)));
+  std::unique_ptr<MemCpyCommandHost> MemCpyCmdUniquePtr(new MemCpyCommandHost(
+      *SrcAllocaCmd->getAllocationReq(), SrcAllocaCmd, Req,
+      SrcAllocaCmd->getQueue(), std::move(HostQueue)));
 
   if (!MemCpyCmdUniquePtr)
     throw runtime_error("Out of host memory");
@@ -291,6 +293,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     UpdateHostRequirementCommand *UpdateCmd =
         insertUpdateHostReqCmd(Record, Req, SrcQueue);
     RetEvent = UpdateCmd->getEvent();
+    Record->MCurContext = SrcQueue->get_context_impl();
     if (MPrintOptionsArray[AfterAddHostAcc])
       printGraphAsDot("after_addHostAccessor");
     return UpdateCmd;
@@ -298,7 +301,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   // Prepare "user" event that will block second operation(unmap of copy) until
   // host accessor is destructed.
-  ContextImplPtr SrcContext = detail::getSyclObjImpl(SrcQueue->get_context());
+  ContextImplPtr SrcContext = SrcQueue->get_context_impl();
   Req->BlockingEvent.reset(new detail::event_impl());
   Req->BlockingEvent->setContextImpl(SrcContext);
   RT::PiEvent &Event = Req->BlockingEvent->getHandleRef();
@@ -560,9 +563,9 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
 // The function searches for the alloca command matching context and
 // requirement.
 AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
-    MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
-  auto IsSuitableAlloca = [&Queue, Req](AllocaCommandBase *AllocaCmd) {
-    bool Res = AllocaCmd->getQueue()->get_context() == Queue->get_context();
+    MemObjRecord *Record, Requirement *Req, const ContextImplPtr &Context) {
+  auto IsSuitableAlloca = [&Context, Req](AllocaCommandBase *AllocaCmd) {
+    bool Res = AllocaCmd->getQueue()->get_context_impl() == Context;
     if (IsSuitableSubReq(Req)) {
       auto TmpReq = AllocaCmd->getAllocationReq();
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
@@ -587,7 +590,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 
   Requirement *SearchReq = ForceFullReq ? &FullReq : Req;
 
-  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, SearchReq, Queue);
+  AllocaCommandBase *AllocaCmd =
+      findAllocaForReq(Record, SearchReq, Queue->get_context_impl());
 
   if (!AllocaCmd) {
     if (!ForceFullReq && IsSuitableSubReq(Req)) {
@@ -644,36 +648,26 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
     bool ForceFullReq = !IsSuitableSubReq(Req);
-    AllocaCommandBase *AllocaCmd = nullptr;
     markModifiedIfWrite(Record, Req);
+
+    // If there is alloca command we need to check if the latest memory is in
+    // required context.
+    if (Record->MAllocaCommands.size()) {
+      if (Queue->get_context_impl() != Record->MCurContext) {
+        // Cannot directly copy memory from OpenCL device to OpenCL device -
+        // create two copies: device->host and host->device.
+        if (!Queue->is_host() && !Record->MCurContext->is_host())
+          insertMemCpyCmd(Record, Req,
+                          Scheduler::getInstance().getDefaultHostQueue());
+        insertMemCpyCmd(Record, Req, Queue);
+      }
+    }
+    AllocaCommandBase *AllocaCmd =
+        getOrCreateAllocaForReq(Record, Req, Queue, ForceFullReq);
     std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
 
-    // If no actions on memory record were performed, we need to create
-    // first command.
-    if (!Deps.empty()) {
-      // If contexts of dependency and new command don't match insert
-      // memcpy command.
-      for (const Command *Dep : Deps)
-        if (Dep->getQueue()->get_context() != Queue->get_context()) {
-          // Cannot directly copy memory from OpenCL device to OpenCL device -
-          // create to copies device->host and host->device.
-          if (!Dep->getQueue()->is_host() && !Queue->is_host())
-            insertMemCpyCmd(Record, Req,
-                            Scheduler::getInstance().getDefaultHostQueue());
-          insertMemCpyCmd(Record, Req, Queue);
-          // Need to search for dependencies again as we modified the graph.
-          Deps = findDepsForReq(Record, Req, Queue);
-          break;
-        }
-      AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, ForceFullReq);
-    } else {
-      AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, ForceFullReq);
-      Deps = findDepsForReq(Record, Req, Queue);
-    }
-
-    for (Command *Dep : Deps) {
+    for (Command *Dep : Deps)
       NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd});
-    }
   }
 
   // Set new command as user for dependencies and update leafs.
