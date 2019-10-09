@@ -65,7 +65,7 @@ add_library(sycl SHARED
   "spirv_ops.cpp"
   "${OS_PLUGIN_INTERFACE}"
 )
-#To-Do: Remove dependency on icd loader ad opencl headers.
+#To-Do: Remove dependency on icd loader and opencl headers.
 add_dependencies(sycl
   ocl-icd
   ocl-headers

@@ -38,7 +38,7 @@ namespace pi {
 #ifdef SYCL_RT_OS_WINDOWS
 #define PLUGIN_NAME "pi_opencl"
 #else
-#define PLUGIN_NAME "libpi_opencl"
+#define PLUGIN_NAME "libpi_opencl.so"
 #endif
 
   // Check for manually selected BE at run-time.

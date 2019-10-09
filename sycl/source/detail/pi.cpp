@@ -117,7 +117,7 @@ void initialize() {
 //       but for now it is useful to see every failure.
 //
 [[noreturn]] void die(const char *Message) {
-  std::cout << "pi_die: " << Message << std::endl;
+  std::cerr << "pi_die: " << Message << std::endl;
   std::terminate();
 }
 

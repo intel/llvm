@@ -14,7 +14,7 @@ namespace PI = cl::sycl::detail::pi;
 
 extern "C" {
 
-// Convinience macro makes source code search easier
+// Convenience macro makes source code search easier
 #define OCL(pi_api) Ocl##pi_api
 
 // Example of a PI interface that does not map exactly to an OpenCL one.
@@ -58,7 +58,7 @@ pi_result OCL(piextDeviceSelectBinary)(
 
   // TODO dummy implementation.
   // Real implementaion will use the same mechanism OpenCL ICD dispatcher
-  // uses. Somthing like:
+  // uses. Something like:
   //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_INVALID_CONTEXT);
   //     return context->dispatch->piextDeviceSelectIR(
   //       ctx, images, num_images, selected_image);
