@@ -13,6 +13,11 @@
 // RUN:   %clang_cl -### -fsycl -fsycl-targets=aaa-bbb-ccc-ddd %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET %s
 // CHK-INVALID-TARGET: error: SYCL target is invalid: 'aaa-bbb-ccc-ddd'
+// RUN:   %clang -### -fsycl -fsycl-add-targets=dummy-target:dummy-file %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET-ADD %s
+// RUN:   %clang_cl -### -fsycl -fsycl-add-targets=dummy-target:dummy-file %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-INVALID-TARGET-ADD %s
+// CHK-INVALID-TARGET-ADD: error: SYCL target is invalid: 'dummy-target'
 
 /// ###########################################################################
 
@@ -40,6 +45,12 @@
 // RUN:   %clang_cl -### -fsycl-targets=spir64-unknown-linux-sycldevice  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // CHK-NO-FSYCL: error: The option -fsycl-targets must be used in conjunction with -fsycl to enable offloading.
+// RUN:   %clang -### -fsycl-link-targets=spir64-unknown-linux-sycldevice  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK %s
+// CHK-NO-FSYCL-LINK: error: The option -fsycl-link-targets must be used in conjunction with -fsycl to enable offloading.
+// RUN:   %clang -### -fsycl-add-targets=spir64-unknown-linux-sycldevice  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-ADD %s
+// CHK-NO-FSYCL-ADD: error: The option -fsycl-add-targets must be used in conjunction with -fsycl to enable offloading.
 
 /// ###########################################################################
 
