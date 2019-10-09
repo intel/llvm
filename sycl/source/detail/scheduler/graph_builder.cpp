@@ -163,7 +163,7 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
   for (Command *Dep : Deps) {
-    UpdateCommand->addDep({Dep, StoredReq, AllocaCmd});
+    UpdateCommand->addDep(DepDesc{Dep, StoredReq, AllocaCmd});
     Dep->addUser(UpdateCommand);
   }
   // access::mode::read_write is always used here regardless of requieremnt
