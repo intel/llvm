@@ -65,7 +65,8 @@ public:
     ALLOCA_SUB_BUF,
     RELEASE,
     MAP_MEM_OBJ,
-    UNMAP_MEM_OBJ
+    UNMAP_MEM_OBJ,
+    UPDATE_REQUIREMENT
   };
 
   Command(CommandType Type, QueueImplPtr Queue, bool UseExclusiveQueue = false);
@@ -104,6 +105,8 @@ protected:
   QueueImplPtr MQueue;
   std::vector<EventImplPtr> MDepsEvents;
 
+  void waitForEvents(QueueImplPtr Queue, std::vector<RT::PiEvent> &RawEvents,
+                     RT::PiEvent &Event);
   std::vector<RT::PiEvent> prepareEvents(ContextImplPtr Context);
 
   bool MUseExclusiveQueue = false;
@@ -187,6 +190,7 @@ public:
   }
 
   void printDot(std::ostream &Stream) const override;
+  AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
 
 private:
   cl_int enqueueImp() override final;
@@ -288,6 +292,25 @@ private:
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
   std::unique_ptr<detail::CG> MCommandGroup;
+};
+
+class UpdateHostRequirementCommand : public Command {
+public:
+  UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement *Req,
+                               AllocaCommandBase *AllocaForReq)
+      : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
+        MReqToUpdate(Req), MAllocaForReq(AllocaForReq),
+        MStoredRequirement(*Req) {}
+
+  Requirement *getStoredRequirement() { return &MStoredRequirement; }
+
+private:
+  cl_int enqueueImp() override;
+  void printDot(std::ostream &Stream) const override;
+
+  Requirement *MReqToUpdate = nullptr;
+  AllocaCommandBase *MAllocaForReq = nullptr;
+  Requirement MStoredRequirement;
 };
 
 } // namespace detail

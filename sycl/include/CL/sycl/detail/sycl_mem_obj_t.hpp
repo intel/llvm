@@ -100,11 +100,11 @@ public:
       : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent) {
   }
 
-  size_t get_size() const { return MSizeInBytes; }
+  size_t getSize() const override { return MSizeInBytes; }
   size_t get_count() const {
     auto constexpr AllocatorValueSize =
         sizeof(allocator_value_type_t<AllocatorT>);
-    return (get_size() + AllocatorValueSize - 1) / AllocatorValueSize;
+    return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
 
   template <typename propertyT> bool has_property() const {

@@ -129,11 +129,12 @@ private:
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
 
     // Add new command to leafs if needed.
-    void AddNodeToLeafs(MemObjRecord *Record, Command *Cmd, Requirement *Req);
+    void AddNodeToLeafs(MemObjRecord *Record, Command *Cmd,
+                        access::mode AccessMode);
 
     // Removes commands from leafs.
     void UpdateLeafs(const std::set<Command *> &Cmds, MemObjRecord *Record,
-                     Requirement *Req);
+                     access::mode AccessMode);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 
@@ -143,6 +144,10 @@ private:
     MemCpyCommand *insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
                                    const QueueImplPtr &Queue,
                                    bool UseExclusiveQueue = false);
+
+    UpdateHostRequirementCommand *
+    insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,
+                           const QueueImplPtr &Queue);
 
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
                                        QueueImplPtr Context);
