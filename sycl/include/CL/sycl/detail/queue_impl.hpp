@@ -80,6 +80,10 @@ public:
 
   context get_context() const { return m_Context; }
 
+  ContextImplPtr get_context_impl() const {
+    return detail::getSyclObjImpl(m_Context);
+  }
+
   device get_device() const { return m_Device; }
 
   bool is_host() const { return m_HostQueue; }

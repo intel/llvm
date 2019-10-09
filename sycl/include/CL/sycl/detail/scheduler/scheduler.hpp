@@ -41,6 +41,9 @@ struct MemObjRecord {
   // Contains latest write commands working with memory object.
   std::vector<Command *> MWriteLeafs;
 
+  // The context which has the latest state of the memory object.
+  ContextImplPtr MCurContext;
+
   // The flag indicates that the content of the memory object was/will be
   // modified. Used while deciding if copy back needed.
   bool MMemModified;
@@ -154,7 +157,7 @@ private:
 
     // Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record, Requirement *Req,
-                                        QueueImplPtr Queue);
+                                        const ContextImplPtr &Context);
     // Searches for suitable alloca in memory record.
     // If none found, creates new one.
     AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
