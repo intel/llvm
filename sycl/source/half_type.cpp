@@ -66,7 +66,7 @@ static uint16_t float2Half(const float &Val) {
   uint16_t Ret = 0;
   Ret |= Sign;
   Ret |= Exp16 << 10;
-  Ret |= Frac16;
+  Ret += Frac16;// Add the carry bit from operation Frac16 += 1;
 
   return Ret;
 }
