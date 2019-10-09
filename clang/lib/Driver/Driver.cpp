@@ -740,12 +740,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Start SYCL options conjunction checks
   // -fsycl*targets option must come with -fsycl
   if (HasSYCLTargetsOption && !HasValidSYCLRuntime) {
-    std::string SYCLTargetsType;
     // Checks priority: -fsycl-targets, -fsycl-link-targets,
     // -fsycl-add-targets
-    SYCLTargetsType = SYCLTargets ? "-" : "-link-";
+    std::string SYCLTargetsType = SYCLTargets ? "-" : "";
     if (SYCLTargetsType.empty())
-      SYCLTargetsType = "-add-";
+      SYCLTargetsType = SYCLLinkTargets ? "-link-" : "-add-";
     // Further checks for (-fsycl*targets && -fsycl) won't be needed
     Diag(clang::diag::err_drv_expecting_fsycl_with_fsycl_targets)
         << SYCLTargetsType;
@@ -818,7 +817,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           if (!I.first.empty() && !I.second.empty()) {
             llvm::Triple TT(I.first);
             if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR()) {
-              Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
+              Diag(clang::diag::err_drv_invalid_sycl_target) << I.first;
               continue;
             }
             std::string NormalizedName = TT.normalize();
