@@ -19,10 +19,6 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dryrun", help="Don't write any output",
-                        action="store_true", default=False)
-    parser.add_argument("--rename", action="store_true", default=False,
-                        help="Rename the output as input so we can replace it")
     parser.add_argument("--input", help="Path to libc++ library", required=True)
     parser.add_argument("--output", help="Path to libc++ linker script",
                         required=True)
@@ -38,10 +34,6 @@ def main():
 
     # Generate the linker script contents.
     contents = "INPUT(%s)" % ' '.join([libcxx] + public_libs)
-
-    if args.dryrun:
-        print("GENERATING SCRIPT: '%s' as file %s" % (contents, args.output))
-        return 0
 
     # Remove the existing libc++ symlink if it exists.
     if os.path.islink(args.output):
