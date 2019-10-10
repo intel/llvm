@@ -293,7 +293,7 @@ public:
 
     return MemoryManager::allocateMemImage(
         std::move(Context), this, UserPtr, BaseT::MHostPtrReadOnly,
-        BaseT::get_size(), Desc, Format, BaseT::MInteropEvent,
+        BaseT::getSize(), Desc, Format, BaseT::MInteropEvent,
         BaseT::MInteropContext, OutEventToWait);
   }
 

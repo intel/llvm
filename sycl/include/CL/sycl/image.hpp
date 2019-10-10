@@ -215,7 +215,7 @@ public:
   }
 
   // Returns the size of the image storage in bytes
-  size_t get_size() const { return impl->get_size(); }
+  size_t get_size() const { return impl->getSize(); }
 
   // Returns the total number of elements in the image
   size_t get_count() const { return impl->get_count(); }

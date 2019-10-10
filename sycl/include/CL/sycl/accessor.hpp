@@ -699,7 +699,7 @@ class accessor :
 
   detail::AccessorImplDevice<AdjustedDim> impl;
 
-  PtrType MData;
+  ConcreteASPtrType MData;
 
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
@@ -715,7 +715,7 @@ class accessor :
       MData += Offset[0];
   }
 
-  PtrType getQualifiedPtr() const { return MData; }
+  ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
 public:
   // Default constructor for objects later initialized with __init member.
@@ -748,14 +748,14 @@ public:
                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>* = nullptr>
   accessor(buffer<DataT, 1, AllocatorT> &BufferRef)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.MemRange) {
+      : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            detail::convertToArrayOfN<3, 1>(BufferRef.MemRange), AccessMode,
-            detail::getSyclObjImpl(BufferRef).get(), AdjustedDim,
-            sizeof(DataT)) {
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     detail::EventImplPtr Event =
         detail::Scheduler::getInstance().addHostAccessor(
             AccessorBaseHost::impl.get());
@@ -769,15 +769,15 @@ public:
                                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf)),
                                handler> &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.MemRange) {
+      : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
   }
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            detail::convertToArrayOfN<3, 1>(BufferRef.MemRange), AccessMode,
-            detail::getSyclObjImpl(BufferRef).get(), Dimensions,
-            sizeof(DataT)) {
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
   }
 #endif
@@ -789,15 +789,15 @@ public:
                 * = nullptr>
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.MemRange) {
+      : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
   }
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            detail::convertToArrayOfN<3, 1>(BufferRef.MemRange), AccessMode,
-            detail::getSyclObjImpl(BufferRef).get(), Dimensions,
-            sizeof(DataT)) {
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     detail::EventImplPtr Event =
         detail::Scheduler::getInstance().addHostAccessor(
             AccessorBaseHost::impl.get());
@@ -811,15 +811,15 @@ public:
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
            handler &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.MemRange) {
+      : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
   }
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            detail::convertToArrayOfN<3, 1>(BufferRef.MemRange), AccessMode,
-            detail::getSyclObjImpl(BufferRef).get(), Dimensions,
-            sizeof(DataT)) {
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
   }
 #endif
@@ -831,14 +831,15 @@ public:
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
            range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(AccessOffset, AccessRange, BufferRef.MemRange) {
+      : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
                          detail::convertToArrayOfN<3, 1>(AccessRange),
-                         detail::convertToArrayOfN<3, 1>(BufferRef.MemRange),
+                         detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(BufferRef).get(),
-                         Dimensions, sizeof(DataT)) {
+                         Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+                         BufferRef.IsSubBuffer) {
     detail::EventImplPtr Event =
         detail::Scheduler::getInstance().addHostAccessor(
             AccessorBaseHost::impl.get());
@@ -853,14 +854,15 @@ public:
            handler &CommandGroupHandler, range<Dimensions> AccessRange,
            id<Dimensions> AccessOffset = {})
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(AccessOffset, AccessRange, BufferRef.MemRange) {
+      : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
                          detail::convertToArrayOfN<3, 1>(AccessRange),
-                         detail::convertToArrayOfN<3, 1>(BufferRef.MemRange),
+                         detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(BufferRef).get(),
-                         Dimensions, sizeof(DataT)) {
+                         Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
+                         BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
   }
 #endif
@@ -1030,9 +1032,9 @@ public:
       : impl(detail::InitializedVal<AdjustedDim, range>::template get<0>()) {}
 
 private:
-  PtrType getQualifiedPtr() const { return MData; }
+  ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
-  PtrType MData;
+  ConcreteASPtrType MData;
 
 #else
 

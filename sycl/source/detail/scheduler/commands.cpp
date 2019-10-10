@@ -122,6 +122,19 @@ std::vector<RT::PiEvent> Command::prepareEvents(ContextImplPtr Context) {
   return Result;
 }
 
+void Command::waitForEvents(QueueImplPtr Queue,
+                            std::vector<RT::PiEvent> &RawEvents,
+                            RT::PiEvent &Event) {
+  if (!RawEvents.empty()) {
+    if (Queue->is_host()) {
+      PI_CALL(RT::piEventsWait(RawEvents.size(), &RawEvents[0]));
+    } else {
+      PI_CALL(RT::piEnqueueEventsWait(Queue->getHandleRef(), RawEvents.size(),
+                                      &RawEvents[0], &Event));
+    }
+  }
+}
+
 Command::Command(CommandType Type, QueueImplPtr Queue, bool UseExclusiveQueue)
     : MQueue(std::move(Queue)), MUseExclusiveQueue(UseExclusiveQueue),
       MType(Type), MEnqueued(false) {
@@ -170,9 +183,11 @@ cl_int AllocaSubBufCommand::enqueueImp() {
   std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
   RT::PiEvent &Event = MEvent->getHandleRef();
-  MMemAllocation = MemoryManager::createSubBuffer(
-      pi::cast<RT::PiMem>(MParentAlloca->getMemAllocation()), MReq.MElemSize,
-      MReq.MOffset, MReq.MAccessRange, std::move(RawEvents), Event);
+
+  MMemAllocation = MemoryManager::allocateMemSubBuffer(
+      detail::getSyclObjImpl(MQueue->get_context()),
+      MParentAlloca->getMemAllocation(), MReq.MElemSize, MReq.MOffsetInBytes,
+      MReq.MAccessRange, std::move(RawEvents), Event);
   return CL_SUCCESS;
 }
 
@@ -183,7 +198,7 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
   Stream << "ALLOCA SUB BUF ON " << deviceToString(MQueue->get_device())
          << "\\n";
   Stream << " MemObj : " << this->MReq.MSYCLMemObj << "\\n";
-  Stream << " Offset : " << this->MReq.MOffset[0] << "\\n";
+  Stream << " Offset : " << this->MReq.MOffsetInBytes << "\\n";
   Stream << " Access range : " << this->MReq.MAccessRange[0] << "\\n";
   Stream << "\"];" << std::endl;
 
@@ -211,8 +226,7 @@ cl_int ReleaseCommand::enqueueImp() {
                            MAllocaCmd->getMemAllocation(), std::move(RawEvents),
                            Event);
   else
-    PI_CALL(RT::piEnqueueEventsWait(MQueue->getHandleRef(), RawEvents.size(),
-                                    &RawEvents[0], &Event));
+    Command::waitForEvents(MQueue, RawEvents, Event);
 
   return CL_SUCCESS;
 }
@@ -329,15 +343,7 @@ cl_int MemCpyCommand::enqueueImp() {
   if (MDstReq.MAccessMode == access::mode::discard_read_write ||
       MDstReq.MAccessMode == access::mode::discard_write ||
       MSrcAlloca->getMemAllocation() == MDstAlloca->getMemAllocation()) {
-
-    if (!RawEvents.empty()) {
-      if (Queue->is_host()) {
-        PI_CALL(RT::piEventsWait(RawEvents.size(), &RawEvents[0]));
-      } else {
-        PI_CALL(RT::piEnqueueEventsWait(
-            Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event));
-      }
-    }
+    Command::waitForEvents(Queue, RawEvents, Event);
   } else {
     MemoryManager::copy(
         MSrcAlloca->getSYCLMemObj(), MSrcAlloca->getMemAllocation(), MSrcQueue,
@@ -388,6 +394,44 @@ void ExecCGCommand::flushStreams() {
   }
 }
 
+cl_int UpdateHostRequirementCommand::enqueueImp() {
+  std::vector<RT::PiEvent> RawEvents;
+  RawEvents =
+      Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
+  RT::PiEvent &Event = MEvent->getHandleRef();
+  Command::waitForEvents(MQueue, RawEvents, Event);
+
+  assert(MAllocaForReq && "Expected valid alloca command");
+  assert(MReqToUpdate && "Expected valid requirement");
+  MReqToUpdate->MData = MAllocaForReq->getMemAllocation();
+  return CL_SUCCESS;
+}
+
+void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#f1337f\", label=\"";
+
+  Stream << "ID = " << this << "\n";
+  Stream << "UPDATE REQ ON " << deviceToString(MQueue->get_device()) << "\\n";
+  bool IsReqOnBuffer = MStoredRequirement.MSYCLMemObj->getType() ==
+                       SYCLMemObjI::MemObjType::BUFFER;
+  Stream << "TYPE: " << (IsReqOnBuffer ? "Buffer" : "Image") << "\\n";
+  if (IsReqOnBuffer)
+    Stream << "Is sub buffer: " << std::boolalpha
+           << MStoredRequirement.MIsSubBuffer << "\\n";
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(
+                  Dep.MAllocaCmd->getAllocationReq()->MAccessMode)
+           << "\\n"
+           << "MemObj: " << Dep.MAllocaCmd->getSYCLMemObj() << " \" ]"
+           << std::endl;
+  }
+}
+
 MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
                                      AllocaCommandBase *SrcAlloca,
                                      Requirement *DstAcc, QueueImplPtr SrcQueue,
@@ -410,15 +454,7 @@ cl_int MemCpyCommandHost::enqueueImp() {
   // empty node instead of memcpy.
   if (MDstReq.MAccessMode == access::mode::discard_read_write ||
       MDstReq.MAccessMode == access::mode::discard_write) {
-
-    if (!RawEvents.empty()) {
-      if (Queue->is_host()) {
-        PI_CALL(RT::piEventsWait(RawEvents.size(), &RawEvents[0]));
-      } else {
-        PI_CALL(RT::piEnqueueEventsWait(
-            Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event));
-      }
-    }
+    Command::waitForEvents(Queue, RawEvents, Event);
     return CL_SUCCESS;
   }
 

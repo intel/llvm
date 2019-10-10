@@ -149,7 +149,7 @@ public:
 
     return MemoryManager::allocateMemBuffer(
         std::move(Context), this, UserPtr, BaseT::MHostPtrReadOnly,
-        BaseT::get_size(), BaseT::MInteropEvent, BaseT::MInteropContext,
+        BaseT::getSize(), BaseT::MInteropEvent, BaseT::MInteropContext,
         OutEventToWait);
   }
 

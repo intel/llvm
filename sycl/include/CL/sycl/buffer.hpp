@@ -38,7 +38,7 @@ public:
 
   buffer(const range<dimensions> &bufferRange,
          const property_list &propList = {})
-      : Range(bufferRange), MemRange(bufferRange) {
+      : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList);
@@ -46,7 +46,7 @@ public:
 
   buffer(const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
-      : Range(bufferRange), MemRange(bufferRange) {
+      : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         allocator);
@@ -54,7 +54,7 @@ public:
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
          const property_list &propList = {})
-      : Range(bufferRange), MemRange(bufferRange) {
+      : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList);
@@ -62,7 +62,7 @@ public:
 
   buffer(T *hostData, const range<dimensions> &bufferRange,
          AllocatorT allocator, const property_list &propList = {})
-      : Range(bufferRange), MemRange(bufferRange) {
+      : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList, allocator);
@@ -72,7 +72,7 @@ public:
   buffer(EnableIfSameNonConstIterators<T, _T> const *hostData,
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
-      : Range(bufferRange), MemRange(bufferRange) {
+      : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList);
@@ -80,9 +80,9 @@ public:
 
   template <typename _T = T>
   buffer(EnableIfSameNonConstIterators<T, _T> const *hostData,
-         const range<dimensions> &bufferRange,
-         AllocatorT allocator, const property_list &propList = {})
-      : Range(bufferRange), MemRange(bufferRange) {
+         const range<dimensions> &bufferRange, AllocatorT allocator,
+         const property_list &propList = {})
+      : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList, allocator);
@@ -91,7 +91,7 @@ public:
   buffer(const shared_ptr_class<T> &hostData,
          const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
-      : Range(bufferRange), MemRange(bufferRange) {
+      : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList, allocator);
@@ -100,7 +100,7 @@ public:
   buffer(const shared_ptr_class<T> &hostData,
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
-      : Range(bufferRange), MemRange(bufferRange) {
+      : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList);
@@ -110,8 +110,7 @@ public:
             typename = EnableIfOneDimension<N>>
   buffer(InputIterator first, InputIterator last, AllocatorT allocator,
          const property_list &propList = {})
-      : Range(range<1>(std::distance(first, last))),
-        MemRange(range<1>(std::distance(first, last))) {
+      : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         first, last, get_count() * sizeof(T),
         detail::getNextPowerOfTwo(sizeof(T)), propList, allocator);
@@ -121,8 +120,7 @@ public:
             typename = EnableIfOneDimension<N>>
   buffer(InputIterator first, InputIterator last,
          const property_list &propList = {})
-      : Range(range<1>(std::distance(first, last))),
-        MemRange(range<1>(std::distance(first, last))) {
+      : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         first, last, get_count() * sizeof(T),
         detail::getNextPowerOfTwo(sizeof(T)), propList);
@@ -130,12 +128,25 @@ public:
 
   buffer(buffer<T, dimensions, AllocatorT> &b, const id<dimensions> &baseIndex,
          const range<dimensions> &subRange)
-      : impl(b.impl), Range(subRange), MemRange(b.MemRange), IsSubBuffer(true),
-        Offset(baseIndex + b.Offset) {}
+      : impl(b.impl), Range(subRange),
+        OffsetInBytes(getOffsetInBytes<T>(baseIndex, b.Range)),
+        IsSubBuffer(true) {
+    if (b.is_sub_buffer())
+      throw cl::sycl::invalid_object_error(
+          "Cannot create sub buffer from sub buffer.");
+    // TODO: SYCL CTS are failed because not appropriate offset and range
+    // are passed to this constructor which causes a throw of exception.
+    // Some changes need to be done there.
+    // if (isOutOfBounds(baseIndex, subRange, b.Range))
+    //   throw cl::sycl::invalid_object_error("Out-of-bounds size");
+    // if (!isContiguousRegion(baseIndex, subRange, b.Range))
+    //   throw cl::sycl::invalid_object_error("Non-contiguous region");
+  }
 
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
   buffer(cl_mem MemObject, const context &SyclContext,
-         event AvailableEvent = {}) : Range{0}, MemRange{0} {
+         event AvailableEvent = {})
+      : Range{0} {
 
     size_t BufSize = 0;
     PI_CALL(detail::RT::piMemGetInfo(
@@ -143,7 +154,6 @@ public:
         sizeof(size_t), &BufSize, nullptr));
 
     Range[0] = BufSize / sizeof(T);
-    MemRange[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
         MemObject, SyclContext, BufSize, AvailableEvent);
   }
@@ -178,9 +188,6 @@ public:
             access::target target = access::target::global_buffer>
   accessor<T, dimensions, mode, target, access::placeholder::false_t>
   get_access(handler &commandGroupHandler) {
-    if (IsSubBuffer)
-      return impl->template get_access<T, dimensions, mode, target>(
-          *this, commandGroupHandler, Range, Offset);
     return impl->template get_access<T, dimensions, mode, target>(
         *this, commandGroupHandler);
   }
@@ -189,9 +196,6 @@ public:
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t>
   get_access() {
-    if (IsSubBuffer)
-      return impl->template get_access<T, dimensions, mode>(*this, Range,
-                                                            Offset);
     return impl->template get_access<T, dimensions, mode>(*this);
   }
 
@@ -222,9 +226,7 @@ public:
   bool is_sub_buffer() const { return IsSubBuffer; }
 
   template <typename ReinterpretT, int ReinterpretDim>
-  typename std::enable_if<
-      ReinterpretDim == dimensions,
-      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
+  buffer<ReinterpretT, ReinterpretDim, AllocatorT>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != get_size())
       throw cl::sycl::invalid_object_error(
@@ -232,33 +234,8 @@ public:
           "reinterpreted SYCL buffer does not equal the total size in bytes "
           "represented by the type and range of this SYCL buffer");
 
-    // This is not the best approach since for now it works only for
-    // 1D subbuffers. Other cases are not supported for now.
-    id<ReinterpretDim> NewOffset{};
-    NewOffset[ReinterpretDim - 1] =
-        Offset[dimensions - 1] * sizeof(T) / sizeof(ReinterpretT);
-
     return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
-        impl, reinterpretRange, MemRange, NewOffset, IsSubBuffer);
-  }
-
-  template <typename ReinterpretT, int ReinterpretDim>
-  typename std::enable_if<
-      ReinterpretDim != dimensions,
-      buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
-  reinterpret(range<ReinterpretDim> reinterpretRange) const {
-    if (sizeof(ReinterpretT) * reinterpretRange.size() != get_size())
-      throw cl::sycl::invalid_object_error(
-          "Total size in bytes represented by the type and range of the "
-          "reinterpreted SYCL buffer does not equal the total size in bytes "
-          "represented by the type and range of this SYCL buffer");
-
-    id<ReinterpretDim> NewOffset{};
-    NewOffset[ReinterpretDim - 1] =
-        Offset[dimensions - 1] * sizeof(T) / sizeof(ReinterpretT);
-
-    return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
-        impl, reinterpretRange, reinterpretRange, NewOffset, IsSubBuffer);
+        impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
   template <typename propertyT> bool has_property() const {
@@ -278,21 +255,68 @@ private:
             access::target target, access::placeholder isPlaceholder>
   friend class accessor;
   range<dimensions> Range;
-  // If this buffer is subbuffer - this range represents range of the parent
+  // Offset field specifies the origin of the sub buffer inside the parent
   // buffer
-  range<dimensions> MemRange;
+  size_t OffsetInBytes = 0;
   bool IsSubBuffer = false;
-  // If this buffer is sub-buffer - offset field specifies the origin of the
-  // sub-buffer inside the parent buffer
-  id<dimensions> Offset;
 
   // Reinterpret contructor
   buffer(shared_ptr_class<detail::buffer_impl<AllocatorT>> Impl,
-         range<dimensions> reinterpretRange,
-         range<dimensions> reinterpretMemRange,
-         id<dimensions> reinterpretOffset, bool isSubBuffer)
-      : impl(Impl), Range(reinterpretRange), MemRange(reinterpretMemRange),
-        IsSubBuffer(isSubBuffer), Offset(reinterpretOffset){};
+         range<dimensions> reinterpretRange, size_t reinterpretOffset,
+         bool isSubBuffer)
+      : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset),
+        IsSubBuffer(isSubBuffer){};
+
+  template <typename Type, int N>
+  size_t getOffsetInBytes(const id<N> &offset, const range<N> &range) {
+    return detail::getLinearIndex(offset, range) * sizeof(Type);
+  }
+
+  bool isOutOfBounds(const id<dimensions> &offset,
+                     const range<dimensions> &newRange,
+                     const range<dimensions> &parentRange) {
+    bool outOfBounds = false;
+    for (int i = 0; i < dimensions; ++i)
+      outOfBounds |= newRange[i] + offset[i] > parentRange[i];
+
+    return outOfBounds;
+  }
+
+  bool isContiguousRegion(const id<1> &offset, const range<1> &newRange,
+                          const range<1> &parentRange) {
+    // 1D sub buffer always has contiguous region
+    return true;
+  }
+
+  bool isContiguousRegion(const id<2> &offset, const range<2> &newRange,
+                          const range<2> &parentRange) {
+    // For 2D sub buffer there are 2 cases:
+    // 1) Offset {Any, Any}  | a piece of any line of a buffer
+    //    Range  {1,   Any}  |
+    // 2) Offset {Any, 0  }  | any number of full lines
+    //    Range  {Any, Col}  |
+    // where Col is a number of columns of original buffer
+    if (offset[1])
+      return newRange[0] == 1;
+    return newRange[1] == parentRange[1];
+  }
+
+  bool isContiguousRegion(const id<3> &offset, const range<3> &newRange,
+                          const range<3> &parentRange) {
+    // For 3D sub buffer there are 3 cases:
+    // 1) Offset {Any, Any, Any}  | a piece of any line in any slice of a buffer
+    //    Range  {1,   1,   Any}  |
+    // 2) Offset {Any, Any, 0  }  | any number of full lines in any slice
+    //    Range  {1,   Any, Col}  |
+    // 3) Offset {Any, 0,   0  }  | any number of slices
+    //    Range  {Any, Row, Col}  |
+    // where Row and Col are numbers of rows and columns of original buffer
+    if (offset[2])
+      return newRange[0] == 1 && newRange[1] == 1;
+    if (offset[1])
+      return newRange[0] == 1 && newRange[2] == parentRange[2];
+    return newRange[1] == parentRange[1] && newRange[2] == parentRange[2];
+  }
 };
 } // namespace sycl
 } // namespace cl
