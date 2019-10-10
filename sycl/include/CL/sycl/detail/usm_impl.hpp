@@ -19,8 +19,8 @@ namespace usm {
 void *alignedAlloc(size_t Alignment, size_t Bytes, const context &Ctxt,
                    const device &Dev, cl::sycl::usm::alloc Kind);
 
-void *alignedAlloc(size_t Alignment, size_t Bytes, const context &Ctxt,
-                   cl::sycl::usm::alloc Kind);
+void *alignedAllocHost(size_t Alignment, size_t Bytes, const context &Ctxt,
+                       cl::sycl::usm::alloc Kind);
 
 void free(void *Ptr, const context &Ctxt);
 
