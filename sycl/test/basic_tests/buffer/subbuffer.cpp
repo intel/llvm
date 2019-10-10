@@ -198,7 +198,6 @@ int main() {
   cl::sycl::queue q;
   check1DSubBuffer(q);
   checkHostAccessor(q);
-  // TODO! Uncomment once SYCL-CTS are fixed
-  // checkExceptions();
+  checkExceptions();
   return 0;
 }

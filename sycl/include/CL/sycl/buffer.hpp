@@ -134,13 +134,12 @@ public:
     if (b.is_sub_buffer())
       throw cl::sycl::invalid_object_error(
           "Cannot create sub buffer from sub buffer.");
-    // TODO: SYCL CTS are failed because not appropriate offset and range
-    // are passed to this constructor which causes a throw of exception.
-    // Some changes need to be done there.
-    // if (isOutOfBounds(baseIndex, subRange, b.Range))
-    //   throw cl::sycl::invalid_object_error("Out-of-bounds size");
-    // if (!isContiguousRegion(baseIndex, subRange, b.Range))
-    //   throw cl::sycl::invalid_object_error("Non-contiguous region");
+    if (isOutOfBounds(baseIndex, subRange, b.Range))
+      throw cl::sycl::invalid_object_error(
+          "Requested sub-buffer size exceeds the size of the parent buffer");
+    if (!isContiguousRegion(baseIndex, subRange, b.Range))
+      throw cl::sycl::invalid_object_error(
+          "Requested sub-buffer region is not contiguous");
   }
 
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
