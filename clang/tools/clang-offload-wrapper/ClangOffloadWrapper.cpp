@@ -1,4 +1,4 @@
-//===-- clang-offload-wrapper/ClangOffloadWrapper.cpp ---------------------===//
+//===-- clang-offload-wrapper/ClangOffloadWrapper.cpp -----------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,7 +14,6 @@
 ///
 //===----------------------------------------------------------------------===//
 
-
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IndexedMap.h"
@@ -28,10 +27,13 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <cassert>
@@ -94,7 +96,7 @@ static cl::opt<bool> Verbose("v", cl::desc("verbose output"),
                              cl::cat(ClangOffloadWrapperCategory));
 
 static cl::list<std::string> Inputs(cl::Positional, cl::OneOrMore,
-                                    cl::desc("<input  files>"),
+                                    cl::desc("<input files>"),
                                     cl::cat(ClangOffloadWrapperCategory));
 
 // Binary image formats supported by this tool. The support basically means
@@ -376,14 +378,12 @@ private:
     return PointerType::getUnqual(getBinDescTy());
   }
 
-  MemoryBuffer *loadFile(llvm::StringRef Name) {
+  Expected<MemoryBuffer *> loadFile(llvm::StringRef Name) {
     auto InputOrErr = MemoryBuffer::getFileOrSTDIN(Name);
 
-    if (auto EC = InputOrErr.getError()) {
-      errs() << "error: can't read file " << Name << ": " << EC.message()
-             << "\n";
-      exit(1);
-    }
+    if (auto EC = InputOrErr.getError())
+      return createFileError(Name, EC);
+
     AutoGcBufs.emplace_back(std::move(InputOrErr.get()));
     return AutoGcBufs.back().get();
   }
@@ -469,7 +469,8 @@ private:
     return ConstantExpr::getGetElementPtr(Var->getValueType(), Var, ZeroZero);
   }
 
-  GlobalVariable *createBinDesc(OffloadKind Kind, SameKindPack &Pack) {
+  Expected<GlobalVariable *> createBinDesc(OffloadKind Kind,
+                                           SameKindPack &Pack) {
     const std::string OffloadKindTag =
         (Twine(".") + offloadKindToString(Kind) + Twine("_offloading.")).str();
 
@@ -517,7 +518,10 @@ private:
         // no manifest - zero out the fields
         FMnf = std::make_pair(NullPtr, NullPtr);
       } else {
-        MemoryBuffer *Mnf = loadFile(Img.Manif);
+        Expected<MemoryBuffer *> MnfOrErr = loadFile(Img.Manif);
+        if (!MnfOrErr)
+          return MnfOrErr.takeError();
+        MemoryBuffer *Mnf = *MnfOrErr;
         FMnf = addArrayToModule(
             makeArrayRef(Mnf->getBufferStart(), Mnf->getBufferSize()),
             Twine(OffloadKindTag) + Twine(ImgId) + Twine(".manifest"));
@@ -526,7 +530,10 @@ private:
         errs() << "error: image file name missing\n";
         exit(1);
       }
-      MemoryBuffer *Bin = loadFile(Img.File);
+      Expected<MemoryBuffer *> BinOrErr = loadFile(Img.File);
+      if (!BinOrErr)
+        return BinOrErr.takeError();
+      MemoryBuffer *Bin = *BinOrErr;
       std::pair<Constant *, Constant *> Fbin = addDeviceImageToModule(
           makeArrayRef(Bin->getBufferStart(), Bin->getBufferSize()),
           Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind, Img.Tgt);
@@ -601,7 +608,8 @@ private:
     // Get UnregFuncName function declaration.
     auto *UnRegFuncTy =
         FunctionType::get(Type::getVoidTy(C), {getBinDescPtrTy()}, false);
-    FunctionCallee UnRegFunc = M.getOrInsertFunction(UnregFuncName, UnRegFuncTy);
+    FunctionCallee UnRegFunc =
+        M.getOrInsertFunction(UnregFuncName, UnRegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
@@ -613,23 +621,25 @@ private:
   }
 
 public:
-  BinaryWrapper(const StringRef &Target) : M("offload.wrapper.object", C) {
+  BinaryWrapper(StringRef Target) : M("offload.wrapper.object", C) {
     M.setTargetTriple(Target);
   }
 
-  const Module &wrap() {
+  Expected<const Module *> wrap() {
     for (auto &X : Packs) {
       OffloadKind Kind = X.first;
       SameKindPack *Pack = X.second.get();
-      auto *Desc = createBinDesc(Kind, *Pack);
-      assert(Desc && "no binary descriptor");
+      Expected<GlobalVariable *> DescOrErr = createBinDesc(Kind, *Pack);
+      if (!DescOrErr)
+        return DescOrErr.takeError();
 
       if (EmitRegFuncs) {
+        GlobalVariable *Desc = *DescOrErr;
         createRegisterFunction(Kind, Desc);
         createUnregisterFunction(Kind, Desc);
       }
     }
-    return M;
+    return &M;
   }
 };
 
@@ -811,8 +821,14 @@ int main(int argc, const char **argv) {
     cl::PrintHelpMessage();
     return 0;
   }
+
+  auto reportError = [argv](Error E) {
+    logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
+  };
+
   if (Target.empty()) {
-    errs() << "error: no target specified\n";
+    reportError(
+        createStringError(errc::invalid_argument, "no target specified"));
     return 1;
   }
 
@@ -838,13 +854,16 @@ int main(int argc, const char **argv) {
       // cur option is not an input - create and image instance using current
       // state
       if (CurInputPair.size() > 2) {
-        errs() << "too many inputs for a single binary image, <binary file> "
-                  "<manifest file>{opt}expected\n";
+        reportError(
+            createStringError(errc::invalid_argument,
+                              "too many inputs for a single binary image, "
+                              "<binary file> <manifest file>{opt}expected"));
         return 1;
       }
       if (CurInputPair.size() != 0) {
         if (Knd == OffloadKind::Unknown) {
-          errs() << "error: offload model not set\n";
+          reportError(createStringError(errc::invalid_argument,
+                                        "offload model not set"));
           return 1;
         }
         StringRef File = CurInputPair[0];
@@ -876,15 +895,29 @@ int main(int argc, const char **argv) {
     }
   } while (ID != -1);
 
-  // Create the bitcode file to write the resulting code to.
+  // Create the output file to write the resulting bitcode to.
   std::error_code EC;
-  raw_fd_ostream OutF(Output, EC, sys::fs::F_None);
+  ToolOutputFile Out(Output, EC, sys::fs::OF_None);
   if (EC) {
-    errs() << "error: unable to open output file: " << EC.message() << ".\n";
+    reportError(createFileError(Output, EC));
     return 1;
   }
-  // Create a wrapper for device binaries and write its bitcode to the file.
-  WriteBitcodeToFile(Wr.wrap(), OutF);
 
+  // Create a wrapper for device binaries.
+  Expected<const Module *> ModOrErr = Wr.wrap();
+  if (!ModOrErr) {
+    reportError(ModOrErr.takeError());
+    return 1;
+  }
+
+  // And write its bitcode to the file.
+  WriteBitcodeToFile(**ModOrErr, Out.os());
+  if (Out.os().has_error()) {
+    reportError(createFileError(Output, Out.os().error()));
+    return 1;
+  }
+
+  // Success.
+  Out.keep();
   return 0;
 }
