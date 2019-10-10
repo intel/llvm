@@ -1835,6 +1835,27 @@ loads).
   }];
 }
 
+def IntelFPGAKernelArgsRestrictDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "kernel_args_restrict";
+  let Content = [{
+The attribute ``intelfpga::kernel_args_restrict`` is legal on device functions.
+When applied to a device function that is invoked as a device kernel, the
+attribute is a hint to the compiler that no pointer argument to the kernel which
+is defined through an accessor (not USM), will alias any other pointer kernel
+argument that was defined through an accessor.  This effect is equivalent to
+annotating restrict on all kernel pointer arguments in an OpenCL or SPIR-V
+kernel.  If ``intelfpga::kernel_args_restrict`` is applied to a function called
+from a device kernel, propagation of the attribute to any caller(s), including
+up to a kernel boundary, is implementation defined and not guaranteed through
+this extension.  The attribute forms an unchecked assertion, in that
+implementations can assume maximal no-aliasing between kernel arguments, and do
+not need to check/confirm the pre-condition in any way.  If a user applies
+``intelfpga::kernel_args_restrict`` to a kernel, but there is in fact aliasing
+between kernel pointer arguments at runtime, the behavior is undefined.
+  }];
+}
+
 def SYCLIntelFPGAIVDepAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "ivdep";

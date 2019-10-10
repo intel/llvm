@@ -208,6 +208,11 @@ namespace {
       return chunkIndex == declarator.getNumTypeObjects();
     }
 
+    bool isProcessingLambdaExpr() const {
+      return declarator.isFunctionDeclarator() &&
+             declarator.getContext() == DeclaratorContext::LambdaExprContext;
+    }
+
     unsigned getCurrentChunkIndex() const {
       return chunkIndex;
     }
@@ -7570,7 +7575,8 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     switch (attr.getKind()) {
     default:
       // A C++11 attribute on a declarator chunk must appertain to a type.
-      if (attr.isCXX11Attribute() && TAL == TAL_DeclChunk) {
+      if (attr.isCXX11Attribute() && TAL == TAL_DeclChunk &&
+          (!state.isProcessingLambdaExpr() || !attr.isAllowedOnLambdas())) {
         state.getSema().Diag(attr.getLoc(), diag::err_attribute_not_type_attr)
             << attr;
         attr.setUsedAsTypeAttr();
