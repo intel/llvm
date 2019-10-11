@@ -286,6 +286,15 @@ private:
       case access::target::local: {
         detail::LocalAccessorBaseHost *LAcc =
             static_cast<detail::LocalAccessorBaseHost *>(Ptr);
+        // Stream implementation creates local accessor with size per work item
+        // in work group. Number of work items is not available during stream
+        // construction, that is why size of the accessor is updated here using
+        // information about number of work items in the work group.
+        if (detail::getSyclObjImpl(*LAcc)->PerWI) {
+          auto LocalAccImpl = detail::getSyclObjImpl(*LAcc);
+          LocalAccImpl->resize(MNDRDesc.LocalSize.size(),
+                               MNDRDesc.GlobalSize.size());
+        }
         range<3> &Size = LAcc->getSize();
         const int Dims = LAcc->getNumOfDims();
         int SizeInBytes = LAcc->getElementSize();
@@ -526,6 +535,7 @@ private:
   friend class detail::image_accessor;
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
+  friend class detail::stream_impl;
 
 public:
   handler(const handler &) = delete;

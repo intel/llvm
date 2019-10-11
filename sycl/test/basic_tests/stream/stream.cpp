@@ -208,7 +208,7 @@ int main() {
     Queue.submit([&](handler &CGH) {
       stream Out(1024, 80, CGH);
       CGH.parallel_for<class stream_string>(
-          range<1>(10), [=](id<1> i) { Out << "Hello, World!\n"; });
+          range<1>(10), [=](id<1> i) { Out << "Hello, World!" << endl; });
     });
     Queue.wait();
 // CHECK-NEXT: Hello, World!
@@ -237,7 +237,7 @@ int main() {
 // CHECK-NEXT: nd_item(global_id: {1, 2, 3}, local_id: {1, 0, 1})
 
     Queue.submit([&](handler &CGH) {
-      stream Out(1024, 80, CGH);
+      stream Out(1024, 200, CGH);
       CGH.parallel_for_work_group<class stream_h_item>(
           range<3>(1, 1, 1), range<3>(1, 1, 1), [=](group<3> Group) {
             Group.parallel_for_work_item(
@@ -253,10 +253,10 @@ int main() {
     // Multiple streams in command group
     Queue.submit([&](handler &CGH) {
       stream Out1(1024, 80, CGH);
-      stream Out2(500, 10, CGH);
+      stream Out2(500, 20, CGH);
       CGH.parallel_for<class multiple_streams>(range<1>(2), [=](id<1> i) {
-        Out1 << "Hello, World!\n";
-        Out2 << "Hello, World!\n";
+        Out1 << "Hello, World!" << endl;
+        Out2 << "Hello, World!" << endl;
       });
     });
     Queue.wait();
@@ -270,7 +270,7 @@ int main() {
     Queue.submit([&](handler &CGH) {
       stream Out(10, 10, CGH);
       CGH.parallel_for<class full_stream_buffer>(
-          range<1>(2), [=](id<1> i) { Out << "aaaaaaaaa\n"; });
+          range<1>(2), [=](id<1> i) { Out << "aaaaaaaaa" << endl; });
     });
     Queue.wait();
   }
