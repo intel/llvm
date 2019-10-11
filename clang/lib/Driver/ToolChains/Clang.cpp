@@ -6640,83 +6640,134 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                   const char *LinkingOutput) const {
   // Construct offload-wrapper command.  Also calls llc to generate the
   // object that is fed to the linker from the wrapper generated bc file
-  assert(isa<OffloadWrappingJobAction>(JA) && "Expecting wrapping job!");
+  assert(isa<OffloadWrapperJobAction>(JA) && "Expecting wrapping job!");
 
-  // The wrapper command looks like this:
-  // clang-offload-wrapper
-  //   -o=<outputfile>.bc
-  //   -host=x86_64-pc-linux-gnu -kind=sycl
-  //   -format=spirv <inputfile1>.spv <manifest1>(optional)
-  //   -format=spirv <inputfile2>.spv <manifest2>(optional)
-  //  ...
-  ArgStringList WrapperArgs;
+  Action::OffloadKind OffloadingKind = JA.getOffloadingDeviceKind();
+  if (OffloadingKind == Action::OFK_SYCL) {
+    // The wrapper command looks like this:
+    // clang-offload-wrapper
+    //   -o=<outputfile>.bc
+    //   -host=x86_64-pc-linux-gnu -kind=sycl
+    //   -format=spirv <inputfile1>.spv <manifest1>(optional)
+    //   -format=spirv <inputfile2>.spv <manifest2>(optional)
+    //  ...
+    ArgStringList WrapperArgs;
 
-  std::string OutTmpName = C.getDriver().GetTemporaryPath("wrapper", "bc");
-  const char * WrapperFileName =
-      C.addTempFile(C.getArgs().MakeArgString(OutTmpName));
-  SmallString<128> OutOpt("-o=");
-  OutOpt += WrapperFileName;
-  WrapperArgs.push_back(C.getArgs().MakeArgString(OutOpt));
+    std::string OutTmpName = C.getDriver().GetTemporaryPath("wrapper", "bc");
+    const char *WrapperFileName =
+        C.addTempFile(C.getArgs().MakeArgString(OutTmpName));
+    SmallString<128> OutOpt("-o=");
+    OutOpt += WrapperFileName;
+    WrapperArgs.push_back(C.getArgs().MakeArgString(OutOpt));
 
-  SmallString<128> HostTripleOpt("-host=");
-  HostTripleOpt += getToolChain().getAuxTriple()->str();
-  WrapperArgs.push_back(C.getArgs().MakeArgString(HostTripleOpt));
+    SmallString<128> HostTripleOpt("-host=");
+    HostTripleOpt += getToolChain().getAuxTriple()->str();
+    WrapperArgs.push_back(C.getArgs().MakeArgString(HostTripleOpt));
 
-  llvm::Triple TT = getToolChain().getTriple();
-  SmallString<128> TargetTripleOpt = TT.getArchName();
-  // When wrapping an FPGA device binary, we need to be sure to apply the
-  // appropriate triple that corresponds (fpga_aoc[xr]-intel-<os>-sycldevice)
-  // to the target triple setting.
-  if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
-      TCArgs.hasArg(options::OPT_fsycl_link_EQ)) {
-    auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ);
-    TT.setArchName((A->getValue() == StringRef("early")) ? "fpga_aocr"
-                                                         : "fpga_aocx");
-    TT.setVendorName("intel");
-    TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-    TT.setEnvironment(llvm::Triple::SYCLDevice);
-    TargetTripleOpt = TT.str();
-  }
-  WrapperArgs.push_back(
-      C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
+    llvm::Triple TT = getToolChain().getTriple();
+    SmallString<128> TargetTripleOpt = TT.getArchName();
+    // When wrapping an FPGA device binary, we need to be sure to apply the
+    // appropriate triple that corresponds (fpga_aoc[xr]-intel-<os>-sycldevice)
+    // to the target triple setting.
+    if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
+        TCArgs.hasArg(options::OPT_fsycl_link_EQ)) {
+      auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ);
+      TT.setArchName((A->getValue() == StringRef("early")) ? "fpga_aocr"
+                                                           : "fpga_aocx");
+      TT.setVendorName("intel");
+      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+      TT.setEnvironment(llvm::Triple::SYCLDevice);
+      TargetTripleOpt = TT.str();
+    }
+    WrapperArgs.push_back(
+        C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
 
-  // TODO forcing offload kind is a simplification which assumes wrapper used
-  // only with SYCL. Device binary format (-format=xxx) option should also come
-  // from the command line and/or the native compiler. Should be fixed together
-  // with supporting AOT in the driver.
-  // If format is not set, the default is "none" which means runtime must try
-  // to determine it automatically.
-  StringRef Kind = Action::GetOffloadKindName(JA.getOffloadingDeviceKind());
-  WrapperArgs.push_back(
-      C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
+    // TODO forcing offload kind is a simplification which assumes wrapper used
+    // only with SYCL. Device binary format (-format=xxx) option should also
+    // come from the command line and/or the native compiler. Should be fixed
+    // together with supporting AOT in the driver. If format is not set, the
+    // default is "none" which means runtime must try to determine it
+    // automatically.
+    StringRef Kind = Action::GetOffloadKindName(OffloadingKind);
+    WrapperArgs.push_back(
+        C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
-  for (auto I : Inputs) {
-    WrapperArgs.push_back(I.getFilename());
-  }
+    for (const InputInfo &I : Inputs) {
+      assert(I.isFilename() && "Invalid input.");
+      WrapperArgs.push_back(I.getFilename());
+    }
 
-  C.addCommand(std::make_unique<Command>(JA, *this,
-      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      WrapperArgs, None));
+    C.addCommand(std::make_unique<Command>(
+        JA, *this,
+        TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+        WrapperArgs, None));
 
-  // Construct llc command.
-  // The output is an object file
-  ArgStringList LlcArgs{"-filetype=obj", "-o",  Output.getFilename(),
-                        WrapperFileName};
-  llvm::Reloc::Model RelocationModel;
-  unsigned PICLevel;
-  bool IsPIE;
-  std::tie(RelocationModel, PICLevel, IsPIE) =
-      ParsePICArgs(getToolChain(), TCArgs);
-  if (PICLevel > 0) {
+    // Construct llc command.
+    // The output is an object file
+    ArgStringList LlcArgs{"-filetype=obj", "-o", Output.getFilename(),
+                          WrapperFileName};
+    llvm::Reloc::Model RelocationModel;
+    unsigned PICLevel;
+    bool IsPIE;
+    std::tie(RelocationModel, PICLevel, IsPIE) =
+        ParsePICArgs(getToolChain(), TCArgs);
+    if (PICLevel > 0) {
       LlcArgs.push_back("-relocation-model=pic");
-  }
-  if (IsPIE) {
+    }
+    if (IsPIE) {
       LlcArgs.push_back("-enable-pie");
+    }
+    SmallString<128> LlcPath(C.getDriver().Dir);
+    llvm::sys::path::append(LlcPath, "llc");
+    const char *Llc = C.getArgs().MakeArgString(LlcPath);
+    C.addCommand(std::make_unique<Command>(JA, *this, Llc, LlcArgs, None));
+    return;
   }
-  SmallString<128> LlcPath(C.getDriver().Dir);
-  llvm::sys::path::append(LlcPath, "llc");
-  const char *Llc = C.getArgs().MakeArgString(LlcPath);
-  C.addCommand(std::make_unique<Command>(JA, *this, Llc, LlcArgs, None));
+
+  ArgStringList CmdArgs;
+
+  const llvm::Triple &Triple = getToolChain().getEffectiveTriple();
+
+  // Add the "effective" target triple.
+  CmdArgs.push_back("-host");
+  CmdArgs.push_back(TCArgs.MakeArgString(Triple.getTriple()));
+
+  // Add the output file name.
+  assert(Output.isFilename() && "Invalid output.");
+  CmdArgs.push_back("-o");
+  CmdArgs.push_back(TCArgs.MakeArgString(Output.getFilename()));
+
+  assert(JA.getInputs().size() == Inputs.size() &&
+         "Not have inputs for all dependence actions??");
+
+  // Add offload targets and inputs.
+  for (unsigned I = 0; I < Inputs.size(); ++I) {
+    // Get input's Offload Kind and ToolChain.
+    const auto *OA = cast<OffloadAction>(JA.getInputs()[I]);
+    assert(OA->hasSingleDeviceDependence(/*DoNotConsiderHostActions=*/true) &&
+           "Expected one device dependence!");
+    Action::OffloadKind DeviceKind = Action::OFK_None;
+    const ToolChain *DeviceTC = nullptr;
+    OA->doOnEachDependence([&](Action *A, const ToolChain *TC, const char *) {
+      DeviceKind = A->getOffloadingDeviceKind();
+      DeviceTC = TC;
+    });
+
+    // And add it to the offload targets.
+    CmdArgs.push_back(C.getArgs().MakeArgString(
+        Twine("-kind=") + Action::GetOffloadKindName(DeviceKind)));
+    CmdArgs.push_back(TCArgs.MakeArgString(Twine("-target=") +
+                                           DeviceTC->getTriple().normalize()));
+
+    // Add input.
+    assert(Inputs[I].isFilename() && "Invalid input.");
+    CmdArgs.push_back(TCArgs.MakeArgString(Inputs[I].getFilename()));
+  }
+
+  C.addCommand(std::make_unique<Command>(
+      JA, *this,
+      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
+      CmdArgs, Inputs));
 }
 
 // Begin SPIRVTranslator

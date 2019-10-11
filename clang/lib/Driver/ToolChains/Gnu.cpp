@@ -531,7 +531,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         P = ToolChain.GetFilePath(crtbegin);
       }
       CmdArgs.push_back(Args.MakeArgString(P));
-	  }
+    }
 
     // Add crtfastmath.o if available and fast math is enabled.
     ToolChain.AddFastMathRuntimeIfAvailable(Args, CmdArgs);
@@ -683,9 +683,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crtn.o")));
     }
   }
-
-  // Add OpenMP offloading linker script args if required.
-  AddOpenMPLinkerScript(getToolChain(), C, Output, Inputs, Args, CmdArgs, JA);
 
   // Add HIP offloading linker script args if required.
   AddHIPLinkerScript(getToolChain(), C, Output, Inputs, Args, CmdArgs, JA,

@@ -353,7 +353,7 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::OffloadUnbundlingJobClass:
     return getOffloadBundler();
 
-  case Action::OffloadWrappingJobClass:
+  case Action::OffloadWrapperJobClass:
     return getOffloadWrapper();
 
   case Action::SPIRVTranslatorJobClass:

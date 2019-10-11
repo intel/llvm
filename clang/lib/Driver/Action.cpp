@@ -41,7 +41,7 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-bundler";
   case OffloadUnbundlingJobClass:
     return "clang-offload-unbundler";
-  case OffloadWrappingJobClass:
+  case OffloadWrapperJobClass:
     return "clang-offload-wrapper";
   case SPIRVTranslatorJobClass:
     return "llvm-spirv";
@@ -422,11 +422,15 @@ void OffloadUnbundlingJobAction::anchor() {}
 OffloadUnbundlingJobAction::OffloadUnbundlingJobAction(ActionList &Inputs)
     : JobAction(OffloadUnbundlingJobClass, Inputs, Inputs.back()->getType()) {}
 
-void OffloadWrappingJobAction::anchor() {}
+void OffloadWrapperJobAction::anchor() {}
 
-OffloadWrappingJobAction::OffloadWrappingJobAction(Action *Input,
-                                                   types::ID Type)
-    : JobAction(OffloadWrappingJobClass, Input, Type) {}
+OffloadWrapperJobAction::OffloadWrapperJobAction(ActionList &Inputs,
+                                                 types::ID Type)
+  : JobAction(OffloadWrapperJobClass, Inputs, Type) {}
+
+OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input,
+                                                 types::ID Type)
+    : JobAction(OffloadWrapperJobClass, Input, Type) {}
 
 void SPIRVTranslatorJobAction::anchor() {}
 
