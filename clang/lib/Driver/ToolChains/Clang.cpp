@@ -4961,12 +4961,35 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fuse-line-directives");
 
   // -fms-compatibility=0 is default.
-  if (Args.hasFlag(options::OPT_fms_compatibility,
-                   options::OPT_fno_ms_compatibility,
-                   (IsWindowsMSVC &&
-                    Args.hasFlag(options::OPT_fms_extensions,
-                                 options::OPT_fno_ms_extensions, true))))
+  bool IsMSVCCompat = Args.hasFlag(
+      options::OPT_fms_compatibility, options::OPT_fno_ms_compatibility,
+      (IsWindowsMSVC && Args.hasFlag(options::OPT_fms_extensions,
+                                     options::OPT_fno_ms_extensions, true)));
+  if (IsMSVCCompat)
     CmdArgs.push_back("-fms-compatibility");
+
+  // Handle -fgcc-version, if present.
+  VersionTuple GNUCVer;
+  if (Arg *A = Args.getLastArg(options::OPT_fgnuc_version_EQ)) {
+    // Check that the version has 1 to 3 components and the minor and patch
+    // versions fit in two decimal digits.
+    StringRef Val = A->getValue();
+    Val = Val.empty() ? "0" : Val; // Treat "" as 0 or disable.
+    bool Invalid = GNUCVer.tryParse(Val);
+    unsigned Minor = GNUCVer.getMinor().getValueOr(0);
+    unsigned Patch = GNUCVer.getSubminor().getValueOr(0);
+    if (Invalid || GNUCVer.getBuild() || Minor >= 100 || Patch >= 100) {
+      D.Diag(diag::err_drv_invalid_value)
+          << A->getAsString(Args) << A->getValue();
+    }
+  } else if (!IsMSVCCompat) {
+    // Imitate GCC 4.2.1 by default if -fms-compatibility is not in effect.
+    GNUCVer = VersionTuple(4, 2, 1);
+  }
+  if (!GNUCVer.empty()) {
+    CmdArgs.push_back(
+        Args.MakeArgString("-fgnuc-version=" + GNUCVer.getAsString()));
+  }
 
   VersionTuple MSVT = TC.computeMSVCVersion(&D, Args);
   if (!MSVT.empty())
@@ -5564,9 +5587,30 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }
 
-  bool WholeProgramVTables =
-      Args.hasFlag(options::OPT_fwhole_program_vtables,
-                   options::OPT_fno_whole_program_vtables, false);
+  bool VirtualFunctionElimination =
+      Args.hasFlag(options::OPT_fvirtual_function_elimination,
+                   options::OPT_fno_virtual_function_elimination, false);
+  if (VirtualFunctionElimination) {
+    // VFE requires full LTO (currently, this might be relaxed to allow ThinLTO
+    // in the future).
+    if (D.getLTOMode() != LTOK_Full)
+      D.Diag(diag::err_drv_argument_only_allowed_with)
+          << "-fvirtual-function-elimination"
+          << "-flto=full";
+
+    CmdArgs.push_back("-fvirtual-function-elimination");
+  }
+
+  // VFE requires whole-program-vtables, and enables it by default.
+  bool WholeProgramVTables = Args.hasFlag(
+      options::OPT_fwhole_program_vtables,
+      options::OPT_fno_whole_program_vtables, VirtualFunctionElimination);
+  if (VirtualFunctionElimination && !WholeProgramVTables) {
+    D.Diag(diag::err_drv_argument_not_allowed_with)
+        << "-fno-whole-program-vtables"
+        << "-fvirtual-function-elimination";
+  }
+
   if (WholeProgramVTables) {
     if (!D.isUsingLTO())
       D.Diag(diag::err_drv_argument_only_allowed_with)

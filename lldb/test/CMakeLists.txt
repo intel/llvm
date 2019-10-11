@@ -3,6 +3,12 @@
 
 add_subdirectory(API)
 
+# Configure and create module cache directories.
+set(LLDB_TEST_MODULE_CACHE_LLDB "${LLDB_TEST_BUILD_DIRECTORY}/module-cache-lldb" CACHE PATH "The Clang module cache used by the Clang embedded in LLDB while running tests.")
+set(LLDB_TEST_MODULE_CACHE_CLANG "${LLDB_TEST_BUILD_DIRECTORY}/module-cache-clang" CACHE PATH "The Clang module cache used by the Clang while building tests.")
+file(MAKE_DIRECTORY ${LLDB_TEST_MODULE_CACHE_LLDB})
+file(MAKE_DIRECTORY ${LLDB_TEST_MODULE_CACHE_CLANG})
+
 # LLVM_BUILD_MODE is used in lit.site.cfg
 if (CMAKE_CFG_INTDIR STREQUAL ".")
   set(LLVM_BUILD_MODE ".")
@@ -17,8 +23,6 @@ endif()
 get_property(LLDB_DOTEST_ARGS GLOBAL PROPERTY LLDB_DOTEST_ARGS_PROPERTY)
 set(dotest_args_replacement ${LLVM_BUILD_MODE})
 
-set(LLDB_TEST_MODULE_CACHE_LLDB "${LLDB_TEST_BUILD_DIRECTORY}/module-cache-lldb" CACHE PATH "The Clang module cache used by the Clang embedded in LLDB while running tests.")
-set(LLDB_TEST_MODULE_CACHE_CLANG "${LLDB_TEST_BUILD_DIRECTORY}/module-cache-clang" CACHE PATH "The Clang module cache used by the Clang while building tests.")
 
 if(LLDB_BUILT_STANDALONE)
   # In paths to our build-tree, replace CMAKE_CFG_INTDIR with our configuration name placeholder.
@@ -58,8 +62,13 @@ add_lldb_test_dependency(
   llvm-mc
   llvm-objcopy
   llvm-readobj
-  llvm-strip
   )
+
+# Since llvm-strip is a symlink created by add_custom_target, it
+# doesn't expose an export target when building standalone.
+if(NOT LLDB_BUILT_STANDALONE)
+  add_lldb_test_dependency(llvm-strip)
+endif()
 
 if(TARGET lld)
   add_lldb_test_dependency(lld)
@@ -78,32 +87,40 @@ if(NOT LLDB_BUILT_STANDALONE)
   )
 endif()
 
-# the value is not canonicalized within LLVM
+# These values are not canonicalized within LLVM.
 llvm_canonicalize_cmake_booleans(
   LLDB_DISABLE_PYTHON
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_SHARED_LIBS
   LLDB_IS_64_BITS)
 
+# Configure the top level test suite.
+configure_lit_site_cfg(
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
+  MAIN_CONFIG
+  ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py)
+
+# Configure the Shell test suite.
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/Shell/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/Shell/lit.site.cfg.py
   MAIN_CONFIG
   ${CMAKE_CURRENT_SOURCE_DIR}/Shell/lit.cfg.py)
+
+# Configure the Unit test suite.
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg.py
   MAIN_CONFIG
   ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.cfg.py)
-configure_lit_site_cfg(
-  ${CMAKE_CURRENT_SOURCE_DIR}/API/lit.site.cfg.in
-  ${CMAKE_CURRENT_BINARY_DIR}/API/lit.site.cfg)
-configure_lit_site_cfg(
-  ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
-  ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
-  MAIN_CONFIG
-  ${CMAKE_CURRENT_SOURCE_DIR}/Shell/lit.cfg.py)
 
+# Configure the API test suite.
+configure_lit_site_cfg(
+  ${CMAKE_CURRENT_SOURCE_DIR}/API/lit.site.cfg.py.in
+  ${CMAKE_CURRENT_BINARY_DIR}/API/lit.site.cfg.py
+  MAIN_CONFIG
+  ${CMAKE_CURRENT_SOURCE_DIR}/API/lit.cfg.py)
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/Shell/lit-lldb-init.in
   ${CMAKE_CURRENT_BINARY_DIR}/Shell/lit-lldb-init)

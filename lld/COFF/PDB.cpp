@@ -59,12 +59,13 @@
 #include "llvm/Support/ScopedPrinter.h"
 #include <memory>
 
-using namespace lld;
-using namespace lld::coff;
 using namespace llvm;
 using namespace llvm::codeview;
 
 using llvm::object::coff_section;
+
+namespace lld {
+namespace coff {
 
 static ExitOnError exitOnErr;
 
@@ -513,16 +514,15 @@ static bool equals_path(StringRef path1, StringRef path2) {
   return path1.equals(path2);
 #endif
 }
-
 // Find by name an OBJ provided on the command line
-static ObjFile *findObjByName(StringRef fileNameOnly) {
-  SmallString<128> currentPath;
-
+static ObjFile *findObjWithPrecompSignature(StringRef fileNameOnly,
+                                            uint32_t precompSignature) {
   for (ObjFile *f : ObjFile::instances) {
     StringRef currentFileName = sys::path::filename(f->getName());
 
-    // Compare based solely on the file name (link.exe behavior)
-    if (equals_path(currentFileName, fileNameOnly))
+    if (f->pchSignature.hasValue() &&
+        f->pchSignature.getValue() == precompSignature &&
+        equals_path(fileNameOnly, currentFileName))
       return f;
   }
   return nullptr;
@@ -559,21 +559,14 @@ Expected<const CVIndexMap &> PDBLinker::aquirePrecompObj(ObjFile *file) {
 
   // link.exe requires that a precompiled headers object must always be provided
   // on the command-line, even if that's not necessary.
-  auto precompFile = findObjByName(precompFileName);
+  auto precompFile =
+      findObjWithPrecompSignature(precompFileName, precomp.Signature);
   if (!precompFile)
     return createFileError(
-        precompFileName.str(),
-        make_error<pdb::PDBError>(pdb::pdb_error_code::external_cmdline_ref));
+        precomp.getPrecompFilePath().str(),
+        make_error<pdb::PDBError>(pdb::pdb_error_code::no_matching_pch));
 
   addObjFile(precompFile, &indexMap);
-
-  if (!precompFile->pchSignature)
-    fatal(precompFile->getName() + " is not a precompiled headers object");
-
-  if (precomp.getSignature() != precompFile->pchSignature.getValueOr(0))
-    return createFileError(
-        precomp.getPrecompFilePath().str(),
-        make_error<pdb::PDBError>(pdb::pdb_error_code::signature_out_of_date));
 
   return indexMap;
 }
@@ -1597,7 +1590,7 @@ void PDBLinker::addImportFilesToPDB(ArrayRef<OutputSection *> outputSections) {
 }
 
 // Creates a PDB file.
-void coff::createPDB(SymbolTable *symtab,
+void createPDB(SymbolTable *symtab,
                      ArrayRef<OutputSection *> outputSections,
                      ArrayRef<uint8_t> sectionTable,
                      llvm::codeview::DebugInfo *buildId) {
@@ -1798,7 +1791,7 @@ static bool findLineTable(const SectionChunk *c, uint32_t addr,
 // Use CodeView line tables to resolve a file and line number for the given
 // offset into the given chunk and return them, or {"", 0} if a line table was
 // not found.
-std::pair<StringRef, uint32_t> coff::getFileLineCodeView(const SectionChunk *c,
+std::pair<StringRef, uint32_t> getFileLineCodeView(const SectionChunk *c,
                                                          uint32_t addr) {
   ExitOnError exitOnErr;
 
@@ -1833,3 +1826,6 @@ std::pair<StringRef, uint32_t> coff::getFileLineCodeView(const SectionChunk *c,
   StringRef filename = exitOnErr(getFileName(cVStrTab, checksums, *nameIndex));
   return {filename, *lineNumber};
 }
+
+} // namespace coff
+} // namespace lld
