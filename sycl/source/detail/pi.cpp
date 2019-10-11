@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/pi_offsets.h>
 #include <cstdarg>
 #include <iostream>
 #include <map>
@@ -48,6 +49,7 @@ bool useBackend(Backend TheBackend) {
 
 // Definitions of the PI dispatch entries, they will be initialized
 // at their first use with piInitialize.
+// ::api are defined in pi.h as Functions.
 #define _PI_API(api) decltype(::api) *api = nullptr;
 #include <CL/sycl/detail/pi.def>
 
@@ -68,21 +70,28 @@ void *loadPlugin(const std::string &PluginPath) {
   return loadOsLibrary(PluginPath);
 }
 
+void *(*PluginInitFuncPtr)(char *);
+
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
-// TODO: Remove the 'OclPtr' extension to PI_API.
-// TODO: Change the functionality such that a single getOsLibraryFuncAddress
-// call is done to get all Interface API mapping. The plugin interface also
-// needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
-// Currently, we bind to a singe plugin.
+// TODO: The plugin interface needs to setup infrastructure to route PI_CALLs to
+// the appropriate plugins. Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library) {
+  decltype(PluginInitFuncPtr) InitializeFunction =
+      (decltype(PluginInitFuncPtr))(
+          getOsLibraryFuncAddress(Library, "initialize_pi_opencl"));
+  char *SupportedVersion;
+  // FuncTable is a list of all Interface Function pointers, where each
+  // Interface Function is located at a predetermined offset.
+  void *FuncTable = InitializeFunction(SupportedVersion);
+
 #define STRINGIZE(x) #x
 
+// At the predetermined "api"_Offset from the FunctionTable, the function
+// pointer for "api" is stored. So we dereference the location to get the
+// function pointer.
 #define _PI_API(api)                                                           \
-  decltype(&api) api##_ptr = ((decltype(&api))(                                \
-      getOsLibraryFuncAddress(Library, STRINGIZE(api##OclPtr))));              \
-  if (!api##_ptr)                                                              \
-    return false;                                                              \
-  api = *api##_ptr;
+  api = *((decltype(&api))((char *)FuncTable + (api##_Offset)));
+
 #include <CL/sycl/detail/pi.def>
 
 #undef STRINGIZE
