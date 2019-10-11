@@ -223,8 +223,7 @@ define <4 x i32> @trunc_packus_v4i64_v4i32(<4 x i64> %a0) {
 ; AVX512F-LABEL: trunc_packus_v4i64_v4i32:
 ; AVX512F:       # %bb.0:
 ; AVX512F-NEXT:    # kill: def $ymm0 killed $ymm0 def $zmm0
-; AVX512F-NEXT:    vpbroadcastq {{.*#+}} ymm1 = [4294967295,4294967295,4294967295,4294967295]
-; AVX512F-NEXT:    vpminsq %zmm1, %zmm0, %zmm0
+; AVX512F-NEXT:    vpminsq {{.*}}(%rip){1to8}, %zmm0, %zmm0
 ; AVX512F-NEXT:    vpxor %xmm1, %xmm1, %xmm1
 ; AVX512F-NEXT:    vpmaxsq %zmm1, %zmm0, %zmm0
 ; AVX512F-NEXT:    vpmovqd %zmm0, %ymm0
@@ -243,8 +242,7 @@ define <4 x i32> @trunc_packus_v4i64_v4i32(<4 x i64> %a0) {
 ; AVX512BW-LABEL: trunc_packus_v4i64_v4i32:
 ; AVX512BW:       # %bb.0:
 ; AVX512BW-NEXT:    # kill: def $ymm0 killed $ymm0 def $zmm0
-; AVX512BW-NEXT:    vpbroadcastq {{.*#+}} ymm1 = [4294967295,4294967295,4294967295,4294967295]
-; AVX512BW-NEXT:    vpminsq %zmm1, %zmm0, %zmm0
+; AVX512BW-NEXT:    vpminsq {{.*}}(%rip){1to8}, %zmm0, %zmm0
 ; AVX512BW-NEXT:    vpxor %xmm1, %xmm1, %xmm1
 ; AVX512BW-NEXT:    vpmaxsq %zmm1, %zmm0, %zmm0
 ; AVX512BW-NEXT:    vpmovqd %zmm0, %ymm0
@@ -1660,10 +1658,9 @@ define <8 x i8> @trunc_packus_v8i64_v8i8(<8 x i64> %a0) {
 ;
 ; AVX512-LABEL: trunc_packus_v8i64_v8i8:
 ; AVX512:       # %bb.0:
-; AVX512-NEXT:    vpminsq {{.*}}(%rip){1to8}, %zmm0, %zmm0
 ; AVX512-NEXT:    vpxor %xmm1, %xmm1, %xmm1
 ; AVX512-NEXT:    vpmaxsq %zmm1, %zmm0, %zmm0
-; AVX512-NEXT:    vpmovqb %zmm0, %xmm0
+; AVX512-NEXT:    vpmovusqb %zmm0, %xmm0
 ; AVX512-NEXT:    vzeroupper
 ; AVX512-NEXT:    retq
   %1 = icmp slt <8 x i64> %a0, <i64 255, i64 255, i64 255, i64 255, i64 255, i64 255, i64 255, i64 255>
@@ -2792,10 +2789,9 @@ define <8 x i8> @trunc_packus_v8i32_v8i8(<8 x i32> %a0) {
 ;
 ; AVX512VL-LABEL: trunc_packus_v8i32_v8i8:
 ; AVX512VL:       # %bb.0:
-; AVX512VL-NEXT:    vpminsd {{.*}}(%rip){1to8}, %ymm0, %ymm0
 ; AVX512VL-NEXT:    vpxor %xmm1, %xmm1, %xmm1
 ; AVX512VL-NEXT:    vpmaxsd %ymm1, %ymm0, %ymm0
-; AVX512VL-NEXT:    vpmovdb %ymm0, %xmm0
+; AVX512VL-NEXT:    vpmovusdb %ymm0, %xmm0
 ; AVX512VL-NEXT:    vzeroupper
 ; AVX512VL-NEXT:    retq
 ;
@@ -2811,10 +2807,9 @@ define <8 x i8> @trunc_packus_v8i32_v8i8(<8 x i32> %a0) {
 ;
 ; AVX512BWVL-LABEL: trunc_packus_v8i32_v8i8:
 ; AVX512BWVL:       # %bb.0:
-; AVX512BWVL-NEXT:    vpminsd {{.*}}(%rip){1to8}, %ymm0, %ymm0
 ; AVX512BWVL-NEXT:    vpxor %xmm1, %xmm1, %xmm1
 ; AVX512BWVL-NEXT:    vpmaxsd %ymm1, %ymm0, %ymm0
-; AVX512BWVL-NEXT:    vpmovdb %ymm0, %xmm0
+; AVX512BWVL-NEXT:    vpmovusdb %ymm0, %xmm0
 ; AVX512BWVL-NEXT:    vzeroupper
 ; AVX512BWVL-NEXT:    retq
   %1 = icmp slt <8 x i32> %a0, <i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255>

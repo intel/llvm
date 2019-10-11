@@ -2547,6 +2547,8 @@ class OffloadingActionBuilder final {
     /// compilation.
     bool CompileHostOnly = false;
     bool CompileDeviceOnly = false;
+    bool EmitLLVM = false;
+    bool EmitAsm = false;
 
     /// List of GPU architectures to use in this compilation.
     SmallVector<CudaArch, 4> GpuArchList;
@@ -2562,6 +2564,10 @@ class OffloadingActionBuilder final {
 
     /// Flag for -fgpu-rdc.
     bool Relocatable = false;
+
+    /// Default GPU architecture if there's no one specified.
+    CudaArch DefaultCudaArch = CudaArch::UNKNOWN;
+
   public:
     CudaActionBuilderBase(Compilation &C, DerivedArgList &Args,
                           const Driver::InputList &Inputs,
@@ -2714,6 +2720,8 @@ class OffloadingActionBuilder final {
       CompileDeviceOnly = PartialCompilationArg &&
                           PartialCompilationArg->getOption().matches(
                               options::OPT_cuda_device_only);
+      EmitLLVM = Args.getLastArg(options::OPT_emit_llvm);
+      EmitAsm = Args.getLastArg(options::OPT_S);
 
       // Collect all cuda_gpu_arch parameters, removing duplicates.
       std::set<CudaArch> GpuArchs;
@@ -2750,7 +2758,7 @@ class OffloadingActionBuilder final {
       // supported GPUs.  sm_20 code should work correctly, if
       // suboptimally, on all newer GPUs.
       if (GpuArchList.empty())
-        GpuArchList.push_back(CudaArch::SM_20);
+        GpuArchList.push_back(DefaultCudaArch);
 
       return Error;
     }
@@ -2762,7 +2770,9 @@ class OffloadingActionBuilder final {
   public:
     CudaActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs)
-        : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_Cuda) {}
+        : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_Cuda) {
+      DefaultCudaArch = CudaArch::SM_20;
+    }
 
     ActionBuilderReturnCode
     getDeviceDependences(OffloadAction::DeviceDependences &DA,
@@ -2877,7 +2887,9 @@ class OffloadingActionBuilder final {
   public:
     HIPActionBuilder(Compilation &C, DerivedArgList &Args,
                      const Driver::InputList &Inputs)
-        : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_HIP) {}
+        : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_HIP) {
+      DefaultCudaArch = CudaArch::GFX803;
+    }
 
     bool canUseBundlerUnbundler() const override { return true; }
 
@@ -2900,7 +2912,8 @@ class OffloadingActionBuilder final {
       assert(!CompileHostOnly &&
              "Not expecting CUDA actions in host-only compilation.");
 
-      if (!Relocatable && CurPhase == phases::Backend) {
+      if (!Relocatable && CurPhase == phases::Backend && !EmitLLVM &&
+          !EmitAsm) {
         // If we are in backend phase, we attempt to generate the fat binary.
         // We compile each arch to IR and use a link action to generate code
         // object containing ISA. Then we use a special "link" action to create
@@ -2968,7 +2981,8 @@ class OffloadingActionBuilder final {
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                AssociatedOffloadKind);
 
-      return ABRT_Success;
+      return (CompileDeviceOnly && CurPhase == FinalPhase) ? ABRT_Ignore_Host
+                                                           : ABRT_Success;
     }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {

@@ -20,14 +20,15 @@
 ;}
 
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc -o - -spirv-text --spirv-ext=+SPV_INTEL_subgroups | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_subgroups
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Capability SubgroupShuffleINTEL
 ; CHECK-SPIRV: Capability SubgroupBufferBlockIOINTEL
 ; CHECK-SPIRV: Capability SubgroupImageBlockIOINTEL
+; CHECK-SPIRV: Extension "SPV_INTEL_subgroups"
 ; CHECK-SPIRV: Extension "cl_intel_subgroups"
 ; CHECK-SPIRV: Extension "cl_intel_subgroups_short"
 
