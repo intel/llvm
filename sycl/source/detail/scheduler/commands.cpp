@@ -585,7 +585,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
 // So in order to ensure the correctness we update all the kernel
 // parameters accordingly.
 // Initially we keep the order of NDRDescT as it provided by the user, this
-// simplifies overall handling and do the reverse only when the
+// simplifies overall handling and do the reverse only when
 // the kernel is enqueued.
 static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   if (NDR.Dims > 1) {
