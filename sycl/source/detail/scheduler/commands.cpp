@@ -578,6 +578,23 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   NDR.set(NDR.Dims, nd_range<3>(NDR.NumWorkGroups * WGSize, WGSize));
 }
 
+// We have the following mapping between dimensions with SPIRV builtins:
+// 1D: id[0] -> x
+// 2D: id[0] -> y, id[1] -> x
+// 3D: id[0] -> z, id[1] -> y, id[2] -> x
+// So in order to ensure the correctness we update all the kernel
+// parameters accordingly.
+// Initially we keep the order of NDRDescT as it provided by the user, this
+// simplifies overall handling and do the reverse only when
+// the kernel is enqueued.
+static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
+  if (NDR.Dims > 1) {
+    std::swap(NDR.GlobalSize[0], NDR.GlobalSize[NDR.Dims - 1]);
+    std::swap(NDR.LocalSize[0], NDR.LocalSize[NDR.Dims - 1]);
+    std::swap(NDR.GlobalOffset[0], NDR.GlobalOffset[NDR.Dims - 1]);
+  }
+}
+
 // The function initialize accessors and calls lambda.
 // The function is used as argument to piEnqueueNativeKernel which requires
 // that the passed function takes one void* argument.
@@ -803,10 +820,15 @@ cl_int ExecCGCommand::enqueueImp() {
         getSyclObjImpl(Context)->getUSMDispatch();
     USMDispatch->setKernelIndirectAccess(Kernel, MQueue->getHandleRef());
 
+    // Remember this information before the range dimensions are reversed
+    const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
+    ReverseRangeDimensionsForKernel(NDRDesc);
+
     PI_CALL(RT::piEnqueueKernelLaunch(
         MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0],
-        NDRDesc.LocalSize[0] ? &NDRDesc.LocalSize[0] : nullptr,
+        HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr,
         RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0], &Event));
 
