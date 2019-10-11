@@ -6720,23 +6720,24 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   SmallString<128> HostTripleOpt("-host=");
   HostTripleOpt += getToolChain().getAuxTriple()->str();
   WrapperArgs.push_back(C.getArgs().MakeArgString(HostTripleOpt));
+
+  llvm::Triple TT = getToolChain().getTriple();
+  SmallString<128> TargetTripleOpt = TT.getArchName();
   // When wrapping an FPGA device binary, we need to be sure to apply the
   // appropriate triple that corresponds (fpga_aoc[xr]-intel-<os>-sycldevice)
   // to the target triple setting.
-  if (getToolChain().getTriple().getSubArch() ==
-          llvm::Triple::SPIRSubArch_fpga &&
+  if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
       TCArgs.hasArg(options::OPT_fsycl_link_EQ)) {
-    llvm::Triple TT;
     auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ);
     TT.setArchName((A->getValue() == StringRef("early")) ? "fpga_aocr"
                                                          : "fpga_aocx");
     TT.setVendorName("intel");
     TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
     TT.setEnvironment(llvm::Triple::SYCLDevice);
-    SmallString<128> TargetTripleOpt("-target=");
-    TargetTripleOpt += TT.str();
-    WrapperArgs.push_back(C.getArgs().MakeArgString(TargetTripleOpt));
+    TargetTripleOpt = TT.str();
   }
+  WrapperArgs.push_back(
+      C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
 
   // TODO forcing offload kind is a simplification which assumes wrapper used
   // only with SYCL. Device binary format (-format=xxx) option should also come
