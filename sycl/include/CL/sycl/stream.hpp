@@ -22,6 +22,7 @@ enum class stream_manipulator {
   noshowpos,
   showpos,
   endl,
+  flush,
   fixed,
   scientific,
   hexfloat,
@@ -43,6 +44,8 @@ constexpr stream_manipulator noshowpos = stream_manipulator::noshowpos;
 constexpr stream_manipulator showpos = stream_manipulator::showpos;
 
 constexpr stream_manipulator endl = stream_manipulator::endl;
+
+constexpr stream_manipulator flush = stream_manipulator::flush;
 
 constexpr stream_manipulator fixed = stream_manipulator::fixed;
 
@@ -104,6 +107,18 @@ public:
 
   bool operator!=(const stream &LHS) const;
 
+  ~stream() {
+    // Flush data to global buffer in stream destruction if flush buffer is not
+    // empty. This could be necessary if user hasn't flushed data himself and
+    // kernel execution is finished
+    // NOTE: In the current implementation user should explicitly flush data on
+    // the host device. Data is not flushed automatically after kernel execution
+    // because of the missing feature in scheduler.
+    if (Offset) {
+      flushBuffer(GlobalOffset, GlobalBuf, FlushBufs, WIOffset, Offset);
+    }
+  }
+
 private:
 #ifdef __SYCL_DEVICE_ONLY__
   char padding[sizeof(std::shared_ptr<detail::stream_impl>)];
@@ -113,15 +128,39 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
 
-  // Accessor to stream buffer
-  mutable detail::stream_impl::AccessorType Acc;
+  // Accessor to the global stream buffer. Global buffer contains all output
+  // from the kernel.
+  mutable detail::stream_impl::GlobalBufAccessorT GlobalBuf;
 
-  // Atomic accessor to the offset variable. It represents an offset in the
-  // stream buffer.
-  mutable detail::stream_impl::OffsetAccessorType OffsetAcc;
-  mutable stream_manipulator Manipulator = defaultfloat;
+  // Atomic accessor to the global offset variable. It represents an offset in
+  // the global stream buffer. Since work items will flush data to global buffer
+  // in parallel we need atomic access to this offset.
+  mutable detail::stream_impl::GlobalOffsetAccessorT GlobalOffset;
+
+  // Accessor to the pool of flush buffers. Flush buffer contains output from
+  // work item in the work group. One flush buffer per work item in the work
+  // group.
+  mutable detail::stream_impl::FlushBufAccessorT FlushBufs;
+
+  // Each work item in the work group writes to its own flush buffer in the
+  // pool. This accessor is used to atomically get offset of the flush buffer in
+  // the pool for each work item in the work group. This approach is used
+  // because currently it is not possible to get work item id in the work group
+  // without id object, which is passed to the kernel.
+  mutable detail::stream_impl::LocalOffsetAccessorT WIOffsetAcc;
+
+  mutable detail::stream_impl::GlobalOffsetAccessorT FlushSize;
+
+  // Offset of the WI's flush buffer in the pool.
+  mutable unsigned WIOffset = 0;
+
+  // Offset in the flush buffer
+  mutable unsigned Offset = 0;
+
+  mutable size_t FlushBufferSize;
 
   // Fields and methods to work with manipulators
+  mutable stream_manipulator Manipulator = defaultfloat;
 
   // Type used for format flags
   using FmtFlags = unsigned int;
@@ -186,6 +225,19 @@ private:
     }
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init() {
+    // Calculate work item id inside work group, this should be done once, that
+    // is why this is done in _init method, call to __init method is generated
+    // by frontend. As a result each work item will write to its own flush
+    // buffer.
+    FlushBufferSize = FlushSize[0].load();
+    WIOffsetAcc[0].store(0);
+    detail::workGroupBarrier();
+    WIOffset = WIOffsetAcc[0].fetch_add(FlushBufferSize);
+  }
+#endif
+
   friend const stream &operator<<(const stream &, const char);
   friend const stream &operator<<(const stream &, const char *);
   template <typename ValueType>
@@ -195,7 +247,9 @@ private:
   friend const stream &operator<<(const stream &, const float &);
   friend const stream &operator<<(const stream &, const double &);
   friend const stream &operator<<(const stream &, const half &);
+
   friend const stream &operator<<(const stream &, const stream_manipulator);
+
   friend const stream &operator<<(const stream &Out,
                                   const __precision_manipulator__ &RHS);
 
@@ -236,20 +290,22 @@ private:
 
 // Character
 inline const stream &operator<<(const stream &Out, const char C) {
-  unsigned Cur;
-  if (!detail::updateOffset(Out.OffsetAcc, Out.Acc, 1, Cur))
+  if (Out.Offset >= Out.FlushBufferSize ||
+      Out.WIOffset + Out.Offset + 1 > Out.FlushBufs.get_count())
     return Out;
-  Out.Acc[Cur] = C;
+  Out.FlushBufs[Out.WIOffset + Out.Offset] = C;
+  ++Out.Offset;
   return Out;
 }
 
 // String
 inline const stream &operator<<(const stream &Out, const char *Str) {
-  unsigned Len;
-  for (Len = 0; Str[Len] != '\0'; Len++)
+  unsigned Len = 0;
+  for (; Str[Len] != '\0'; Len++)
     ;
 
-  detail::write(Out.OffsetAcc, Out.Acc, Len, Str);
+  detail::write(Out.FlushBufs, Out.FlushBufferSize, Out.WIOffset, Out.Offset,
+                Str, Len);
   return Out;
 }
 
@@ -264,27 +320,30 @@ template <typename ValueType>
 inline typename std::enable_if<std::is_integral<ValueType>::value,
                                const stream &>::type
 operator<<(const stream &Out, const ValueType &RHS) {
-  detail::writeIntegral(Out.OffsetAcc, Out.Acc, Out.get_flags(),
-                        Out.get_width(), RHS);
+  detail::writeIntegral(Out.FlushBufs, Out.FlushBufferSize, Out.WIOffset,
+                        Out.Offset, Out.get_flags(), Out.get_width(), RHS);
   return Out;
 }
 
 // Floating points
 
 inline const stream &operator<<(const stream &Out, const float &RHS) {
-  detail::writeFloatingPoint<float>(Out.OffsetAcc, Out.Acc, Out.get_flags(),
+  detail::writeFloatingPoint<float>(Out.FlushBufs, Out.FlushBufferSize,
+                                    Out.WIOffset, Out.Offset, Out.get_flags(),
                                     Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
 
 inline const stream &operator<<(const stream &Out, const double &RHS) {
-  detail::writeFloatingPoint<double>(Out.OffsetAcc, Out.Acc, Out.get_flags(),
+  detail::writeFloatingPoint<double>(Out.FlushBufs, Out.FlushBufferSize,
+                                     Out.WIOffset, Out.Offset, Out.get_flags(),
                                      Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
 
 inline const stream &operator<<(const stream &Out, const half &RHS) {
-  detail::writeFloatingPoint<half>(Out.OffsetAcc, Out.Acc, Out.get_flags(),
+  detail::writeFloatingPoint<half>(Out.FlushBufs, Out.FlushBufferSize,
+                                   Out.WIOffset, Out.Offset, Out.get_flags(),
                                    Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
@@ -303,7 +362,8 @@ const stream &operator<<(const stream &Out, const T *RHS) {
   detail::FmtFlags Flags = Out.get_flags();
   Flags &= ~detail::BaseField;
   Flags |= detail::Hex | detail::ShowBase;
-  detail::writeIntegral(Out.OffsetAcc, Out.Acc, Flags, Out.get_width(),
+  detail::writeIntegral(Out.FlushBufs, Out.FlushBufferSize, Out.WIOffset,
+                        Out.Offset, Flags, Out.get_width(),
                         reinterpret_cast<size_t>(RHS));
   return Out;
 }
@@ -312,13 +372,13 @@ const stream &operator<<(const stream &Out, const T *RHS) {
 
 inline const stream &operator<<(const stream &Out,
                                 const __precision_manipulator__ &RHS) {
-  Out.Width = RHS.precision();
+  Out.Precision = RHS.precision();
   return Out;
 }
 
 inline const stream &operator<<(const stream &Out,
                                 const __width_manipulator__ &RHS) {
-  Out.Precision = RHS.width();
+  Out.Width = RHS.width();
   return Out;
 }
 
@@ -327,6 +387,12 @@ inline const stream &operator<<(const stream &Out,
   switch (RHS) {
   case stream_manipulator::endl:
     Out << '\n';
+    flushBuffer(Out.GlobalOffset, Out.GlobalBuf, Out.FlushBufs, Out.WIOffset,
+                Out.Offset);
+    break;
+  case stream_manipulator::flush:
+    flushBuffer(Out.GlobalOffset, Out.GlobalBuf, Out.FlushBufs, Out.WIOffset,
+                Out.Offset);
     break;
   default:
     Out.set_manipulator(RHS);
@@ -339,7 +405,8 @@ inline const stream &operator<<(const stream &Out,
 
 template <typename T, int VectorLength>
 const stream &operator<<(const stream &Out, const vec<T, VectorLength> &RHS) {
-  detail::writeVec<T, VectorLength>(Out.OffsetAcc, Out.Acc, Out.get_flags(),
+  detail::writeVec<T, VectorLength>(Out.FlushBufs, Out.FlushBufferSize,
+                                    Out.WIOffset, Out.Offset, Out.get_flags(),
                                     Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
@@ -348,49 +415,56 @@ const stream &operator<<(const stream &Out, const vec<T, VectorLength> &RHS) {
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out, const id<Dimensions> &RHS) {
-  detail::writeArray<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
+  detail::writeArray<Dimensions>(Out.FlushBufs, Out.FlushBufferSize,
+                                 Out.WIOffset, Out.Offset, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const range<Dimensions> &RHS) {
-  detail::writeArray<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
+  detail::writeArray<Dimensions>(Out.FlushBufs, Out.FlushBufferSize,
+                                 Out.WIOffset, Out.Offset, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const item<Dimensions> &RHS) {
-  detail::writeItem<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
+  detail::writeItem<Dimensions>(Out.FlushBufs, Out.FlushBufferSize,
+                                Out.WIOffset, Out.Offset, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const nd_range<Dimensions> &RHS) {
-  detail::writeNDRange<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
+  detail::writeNDRange<Dimensions>(Out.FlushBufs, Out.FlushBufferSize,
+                                   Out.WIOffset, Out.Offset, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const nd_item<Dimensions> &RHS) {
-  detail::writeNDItem<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
+  detail::writeNDItem<Dimensions>(Out.FlushBufs, Out.FlushBufferSize,
+                                  Out.WIOffset, Out.Offset, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const group<Dimensions> &RHS) {
-  detail::writeGroup<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
+  detail::writeGroup<Dimensions>(Out.FlushBufs, Out.FlushBufferSize,
+                                 Out.WIOffset, Out.Offset, RHS);
   return Out;
 }
 
 template <int Dimensions>
 inline const stream &operator<<(const stream &Out,
                                 const h_item<Dimensions> &RHS) {
-  detail::writeHItem<Dimensions>(Out.OffsetAcc, Out.Acc, RHS);
+  detail::writeHItem<Dimensions>(Out.FlushBufs, Out.FlushBufferSize,
+                                 Out.WIOffset, Out.Offset, RHS);
   return Out;
 }
 

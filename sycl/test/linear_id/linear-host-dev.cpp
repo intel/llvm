@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
       // CHECK-NEXT: 3
       // CHECK-NEXT: 4
       // CHECK-NEXT: 5
-      out << item.get_linear_id() << "\n";
+      out << item.get_linear_id() << cl::sycl::endl;
     });
   });
 

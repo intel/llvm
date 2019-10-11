@@ -63,6 +63,10 @@ public:
   /// sampler class.
   static bool isSyclSamplerType(const QualType &Ty);
 
+  /// Checks whether given clang type is a full specialization of the SYCL
+  /// stream class.
+  static bool isSyclStreamType(const QualType &Ty);
+
   /// Checks whether given clang type is a standard SYCL API class with given
   /// name.
   /// \param Ty    the clang type being checked
@@ -770,7 +774,7 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
         // All special SYCL objects must have __init method
         CXXMethodDecl *InitMethod = getInitMethod(CRD);
         assert(InitMethod &&
-               "The accessor/sampler must have the __init method");
+               "The accessor/sampler/stream must have the __init method");
         unsigned NumParams = InitMethod->getNumParams();
         llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
         auto KFP = KernelFuncParam;
@@ -780,7 +784,9 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
               S.Context, NestedNameSpecifierLoc(), SourceLocation(), *KFP,
               false, DeclarationNameInfo(), ParamType, VK_LValue);
         }
-        std::advance(KernelFuncParam, NumParams - 1);
+
+        if (NumParams)
+          std::advance(KernelFuncParam, NumParams - 1);
 
         DeclAccessPair FieldDAP = DeclAccessPair::make(Field, AS_none);
         // [kernel_obj or wrapper object].special_obj
@@ -909,6 +915,11 @@ static CompoundStmt *CreateOpenCLKernelBody(Sema &S,
               DeclarationNameInfo(Field->getDeclName(), SourceLocation()),
               nullptr, Field->getType(), VK_LValue, OK_Ordinary, NOUR_None);
           getExprForWrappedAccessorInit(CRD, Lhs);
+          if (Util::isSyclStreamType(FieldType)) {
+            // Generate call to the __init method of the stream class after
+            // initializing accessors wrapped by this stream object
+            getExprForSpecialSYCLObj(FieldType, Field, CRD, KernelObjCloneRef);
+          }
         }
       } else {
         llvm_unreachable("Unsupported field type");
@@ -1712,6 +1723,10 @@ bool Util::isSyclAccessorType(const QualType &Ty) {
 
 bool Util::isSyclSamplerType(const QualType &Ty) {
   return isSyclType(Ty, "sampler");
+}
+
+bool Util::isSyclStreamType(const QualType &Ty) {
+  return isSyclType(Ty, "stream");
 }
 
 bool Util::isSyclType(const QualType &Ty, StringRef Name, bool Tmpl) {
