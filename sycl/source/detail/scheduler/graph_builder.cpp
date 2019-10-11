@@ -579,20 +579,13 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
 // The function searches for the alloca command matching context and
 // requirement. If none exists, new command will be created.
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
-    MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue,
-    bool ForceFullReq) {
-
-  Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
-                      Req->MMemoryRange, access::mode::read_write,
-                      Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
-
-  Requirement *SearchReq = ForceFullReq ? &FullReq : Req;
+    MemObjRecord *Record, Requirement *Req, QueueImplPtr Queue) {
 
   AllocaCommandBase *AllocaCmd =
-      findAllocaForReq(Record, SearchReq, Queue->get_context_impl());
+      findAllocaForReq(Record, Req, Queue->get_context_impl());
 
   if (!AllocaCmd) {
-    if (!ForceFullReq && IsSuitableSubReq(Req)) {
+    if (IsSuitableSubReq(Req)) {
       // Get parent requirement. It's hard to get right parents' range
       // so full parent requirement has range represented in bytes
       range<3> ParentRange{Req->MSYCLMemObj->getSize(), 1, 1};
@@ -602,12 +595,16 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                                     /*Working with bytes*/ sizeof(char));
 
       auto *ParentAlloca =
-          getOrCreateAllocaForReq(Record, &ParentRequirement, Queue, true);
+          getOrCreateAllocaForReq(Record, &ParentRequirement, Queue);
       AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca);
       UpdateLeafs(findDepsForReq(Record, Req, Queue), Record,
                   access::mode::read_write);
-    } else
+    } else {
+      Requirement FullReq(/*Offset*/ {0, 0, 0}, Req->MMemoryRange,
+                          Req->MMemoryRange, access::mode::read_write,
+                          Req->MSYCLMemObj, Req->MDims, Req->MElemSize);
       AllocaCmd = new AllocaCommand(Queue, FullReq);
+    }
 
     Record->MAllocaCommands.push_back(AllocaCmd);
     Record->MWriteLeafs.push_back(AllocaCmd);
@@ -645,7 +642,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
   for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
-    bool ForceFullReq = !IsSuitableSubReq(Req);
     markModifiedIfWrite(Record, Req);
 
     // If there is alloca command we need to check if the latest memory is in
@@ -660,8 +656,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
         insertMemCpyCmd(Record, Req, Queue);
       }
     }
-    AllocaCommandBase *AllocaCmd =
-        getOrCreateAllocaForReq(Record, Req, Queue, ForceFullReq);
+    AllocaCommandBase *AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue);
     std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
 
     for (Command *Dep : Deps)
