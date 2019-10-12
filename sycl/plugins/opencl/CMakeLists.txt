@@ -1,4 +1,4 @@
-#To-Do:
+#TODO:
 #1. Figure out why CMP0057 has to be set. Should have been taken care of earlier in the build
 #2. Use AddLLVM to modify the build and access config options
 #cmake_policy(SET CMP0057 NEW)
@@ -6,7 +6,9 @@
 
 # Plugin for OpenCL
 # Create Shared library for libpi_opencl.so.
-#To-DO: remove dependency on pi.hpp in sycl project.
+#TODO: remove dependency on pi.hpp in sycl project.
+#TODO: Currently, the pi.hpp header is common between sycl and plugin library sources. 
+#This can be changed by copying the pi.hpp file in the plugins project.
 add_library(pi_opencl SHARED
   "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
   "pi_opencl.cpp"
@@ -37,7 +39,7 @@ if (SYCL_USE_LIBCXX)
                                 "SYCL_LIBCXX_LIBRARY_PATH should be set")
         endif()
         target_include_directories(pi_opencl PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-        target_link_libraries(pi_opencl PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
+        target_link_libraries(pi_opencl PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -nodefaultlibs -lc++ -lc)
     else()
         message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
     endif()

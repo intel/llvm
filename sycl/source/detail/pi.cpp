@@ -63,10 +63,14 @@ bool findPlugin(std::string &PluginPath) {
 
 // Load the Plugin by calling the OS dependent library loading call.
 // Return the handle to the Library.
-void *loadPlugin(std::string PluginPath) { return loadOsLibrary(PluginPath.c_str()); }
+void *loadPlugin(const std::string &PluginPath) { return loadOsLibrary(PluginPath); }
 
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
 // TODO: Remove the 'OclPtr' extension to PI_API.
+// TODO: Change the functionality such that a single getOsLibraryFuncAddress
+// call is done to get all Interface API mapping. The plugin interface also
+// needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
+// Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library) {
 #define STRINGIZE(x) #x
 

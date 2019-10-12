@@ -1,11 +1,12 @@
 #include <windows.h>
 #include <winreg.h>
+#include <string>
 
-void *loadOsLibrary(const char *PluginPath) {
+void *loadOsLibrary(const std::string &PluginPath) {
   // TODO: Check if the option RTLD_NOW is correct.
-  return (void *)LoadLibraryA(PluginPath);
+  return (void *)LoadLibraryA(PluginPath.c_str());
 }
 
-void *getOsLibraryFuncAddress(void *Library, const char *FunctionName) {
-  return GetProcAddress((HMODULE)Library, FunctionName);
+void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
+  return GetProcAddress((HMODULE)Library, FunctionName.c_str());
 }
