@@ -45,7 +45,7 @@ namespace SPIRV {
 
 class SPIRVToOCL12 : public SPIRVToOCL {
 public:
-  SPIRVToOCL12() {
+  SPIRVToOCL12() : SPIRVToOCL(ID) {
     initializeSPIRVToOCL12Pass(*PassRegistry::getPassRegistry());
   }
   bool runOnModule(Module &M) override;
@@ -74,18 +74,18 @@ public:
   Instruction *visitCallSPIRVAtomicUMinUMax(CallInst *CI, Op OC);
 
   /// Transform __spirv_OpAtomicLoad to atomic_add(*ptr, 0)
-  Instruction *visitCallSPIRVAtomicLoad(CallInst *CI, Op OC);
+  Instruction *visitCallSPIRVAtomicLoad(CallInst *CI);
 
   /// Transform __spirv_OpAtomicStore to atomic_xchg(*ptr, value)
-  Instruction *visitCallSPIRVAtomicStore(CallInst *CI, Op OC);
+  Instruction *visitCallSPIRVAtomicStore(CallInst *CI);
 
   /// Transform __spirv_OpAtomicFlagClear to atomic_xchg(*ptr, 0)
   /// with ignoring the result
-  Instruction *visitCallSPIRVAtomicFlagClear(CallInst *CI, Op OC);
+  Instruction *visitCallSPIRVAtomicFlagClear(CallInst *CI);
 
   /// Transform __spirv_OpAtomicFlagTestAndTest to
   /// (bool)atomic_xchg(*ptr, 1)
-  Instruction *visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI, Op OC);
+  Instruction *visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI);
 
   /// Transform __spirv_OpAtomicCompareExchange and
   /// __spirv_OpAtomicCompareExchangeWeak into atomic_cmpxchg. There is no
@@ -97,14 +97,22 @@ public:
 
   /// Transform atomic builtin name into correct ocl-dependent name
   Instruction *mutateAtomicName(CallInst *CI, Op OC) override;
+
+  /// Transform SPIR-V atomic instruction opcode into OpenCL 1.2 builtin name.
+  /// Depending on the type, the return name starts with "atomic_" for 32-bit
+  /// types or with "atom_" for 64-bit types, as specified by
+  /// cl_khr_int64_base_atomics and cl_khr_int64_extended_atomics extensions.
+  std::string mapAtomicName(Op OC, Type *Ty);
+
+  static char ID;
 };
+
+char SPIRVToOCL12::ID = 0;
 
 bool SPIRVToOCL12::runOnModule(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
   visit(*M);
-
-  translateMangledAtomicTypeName();
 
   eraseUselessFunctions(&Module);
 
@@ -186,7 +194,7 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
         Args.resize(1);
-        return OCLSPIRVBuiltinMap::rmap(OC);
+        return mapAtomicName(OC, CI->getType());
       },
       &Attrs);
 }
@@ -205,7 +213,7 @@ CallInst *SPIRVToOCL12::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
         auto StartIdx = Ptr + 1;
         auto StopIdx = StartIdx + ArgsToRemove;
         Args.erase(Args.begin() + StartIdx, Args.begin() + StopIdx);
-        return OCL12SPIRVBuiltinMap::rmap(OC);
+        return mapAtomicName(OC, CI->getType());
       },
       &Attrs);
 }
@@ -217,13 +225,13 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicUMinUMax(CallInst *CI, Op OC) {
       [=](CallInst *, std::vector<Value *> &Args) {
         std::swap(Args[1], Args[3]);
         Args.resize(2);
-        return OCL12SPIRVBuiltinMap::rmap(OC == OpAtomicUMin ? OpAtomicSMin
-                                                             : OpAtomicSMax);
+        return mapAtomicName(OC == OpAtomicUMin ? OpAtomicSMin : OpAtomicSMax,
+                             CI->getType());
       },
       &Attrs);
 }
 
-Instruction *SPIRVToOCL12::visitCallSPIRVAtomicLoad(CallInst *CI, Op OC) {
+Instruction *SPIRVToOCL12::visitCallSPIRVAtomicLoad(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
@@ -233,12 +241,12 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicLoad(CallInst *CI, Op OC) {
         // Emit this builtin via call of atomic_add(*p, 0).
         Type *ptrElemTy = Args[0]->getType()->getPointerElementType();
         Args.push_back(Constant::getNullValue(ptrElemTy));
-        return OCL12SPIRVBuiltinMap::rmap(OpAtomicIAdd);
+        return mapAtomicName(OpAtomicIAdd, ptrElemTy);
       },
       &Attrs);
 }
 
-Instruction *SPIRVToOCL12::visitCallSPIRVAtomicStore(CallInst *CI, Op OC) {
+Instruction *SPIRVToOCL12::visitCallSPIRVAtomicStore(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
@@ -248,12 +256,12 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicStore(CallInst *CI, Op OC) {
         // The type of the value pointed to by Pointer (1st argument)
         // must be the same as Result Type.
         RetTy = Args[0]->getType()->getPointerElementType();
-        return OCL12SPIRVBuiltinMap::rmap(OpAtomicExchange);
+        return mapAtomicName(OpAtomicExchange, RetTy);
       },
       [=](CallInst *CI) -> Instruction * { return CI; }, &Attrs);
 }
 
-Instruction *SPIRVToOCL12::visitCallSPIRVAtomicFlagClear(CallInst *CI, Op OC) {
+Instruction *SPIRVToOCL12::visitCallSPIRVAtomicFlagClear(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
@@ -261,13 +269,12 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicFlagClear(CallInst *CI, Op OC) {
         Args.resize(1);
         Args.push_back(getInt32(M, 0));
         RetTy = Type::getInt32Ty(M->getContext());
-        return OCL12SPIRVBuiltinMap::rmap(OpAtomicExchange);
+        return mapAtomicName(OpAtomicExchange, RetTy);
       },
       [=](CallInst *CI) -> Instruction * { return CI; }, &Attrs);
 }
 
-Instruction *SPIRVToOCL12::visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI,
-                                                              Op OC) {
+Instruction *SPIRVToOCL12::visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
@@ -275,7 +282,7 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI,
         Args.resize(1);
         Args.push_back(getInt32(M, 1));
         RetTy = Type::getInt32Ty(M->getContext());
-        return OCL12SPIRVBuiltinMap::rmap(OpAtomicExchange);
+        return mapAtomicName(OpAtomicExchange, RetTy);
       },
       [=](CallInst *CI) -> Instruction * {
         return BitCastInst::Create(Instruction::Trunc, CI,
@@ -295,7 +302,9 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) {
         // has Value and Comparator in different order than ocl functions
         // both of them are translated into atomic_cmpxchg
         std::swap(Args[1], Args[2]);
-        return OCL12SPIRVBuiltinMap::rmap(OpAtomicCompareExchange);
+        // Type of return value, pointee of the pointer operand, other operands,
+        // all match, and should be integer scalar types.
+        return mapAtomicName(OpAtomicCompareExchange, CI->getType());
       },
       &Attrs);
 }
@@ -304,16 +313,16 @@ Instruction *SPIRVToOCL12::visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) {
   Instruction *NewCI = nullptr;
   switch (OC) {
   case OpAtomicLoad:
-    NewCI = visitCallSPIRVAtomicLoad(CI, OC);
+    NewCI = visitCallSPIRVAtomicLoad(CI);
     break;
   case OpAtomicStore:
-    NewCI = visitCallSPIRVAtomicStore(CI, OC);
+    NewCI = visitCallSPIRVAtomicStore(CI);
     break;
   case OpAtomicFlagClear:
-    NewCI = visitCallSPIRVAtomicFlagClear(CI, OC);
+    NewCI = visitCallSPIRVAtomicFlagClear(CI);
     break;
   case OpAtomicFlagTestAndSet:
-    NewCI = visitCallSPIRVAtomicFlagTestAndSet(CI, OC);
+    NewCI = visitCallSPIRVAtomicFlagTestAndSet(CI);
     break;
   case OpAtomicUMin:
   case OpAtomicUMax:
@@ -338,6 +347,12 @@ Instruction *SPIRVToOCL12::mutateAtomicName(CallInst *CI, Op OC) {
         return OCL12SPIRVBuiltinMap::rmap(OC);
       },
       &Attrs);
+}
+
+std::string SPIRVToOCL12::mapAtomicName(Op OC, Type *Ty) {
+  std::string Prefix = Ty->isIntegerTy(64) ? kOCLBuiltinName::AtomPrefix
+                                           : kOCLBuiltinName::AtomicPrefix;
+  return Prefix += OCL12SPIRVBuiltinMap::rmap(OC);
 }
 
 } // namespace SPIRV

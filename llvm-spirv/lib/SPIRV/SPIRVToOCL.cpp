@@ -56,8 +56,6 @@ static cl::opt<std::string>
                        cl::desc("Specify version of OCL builtins to translate "
                                 "to (CL1.2, CL2.0, CL2.1)"));
 
-char SPIRVToOCL::ID = 0;
-
 void SPIRVToOCL::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
   auto F = CI.getCalledFunction();

@@ -56,6 +56,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
@@ -663,10 +664,20 @@ SPIRVInstruction *LLVMToSPIRV::transBinaryInst(BinaryOperator *B,
 }
 
 SPIRVInstruction *LLVMToSPIRV::transCmpInst(CmpInst *Cmp, SPIRVBasicBlock *BB) {
-  auto Op0 = transValue(Cmp->getOperand(0), BB);
-  SPIRVInstruction *BI = BM->addCmpInst(
-      transBoolOpCode(Op0, CmpMap::map(Cmp->getPredicate())),
-      transType(Cmp->getType()), Op0, transValue(Cmp->getOperand(1), BB), BB);
+  auto *Op0 = Cmp->getOperand(0);
+  SPIRVValue *TOp0 = transValue(Op0, BB);
+  SPIRVValue *TOp1 = transValue(Cmp->getOperand(1), BB);
+  // TODO: once the translator supports SPIR-V 1.4, update the condition below:
+  // if (/* */->isPointerTy() && /* it is not allowed to use SPIR-V 1.4 */)
+  if (Op0->getType()->isPointerTy()) {
+    unsigned AS = cast<PointerType>(Op0->getType())->getAddressSpace();
+    SPIRVType *Ty = transType(getSizetType(AS));
+    TOp0 = BM->addUnaryInst(OpConvertPtrToU, Ty, TOp0, BB);
+    TOp1 = BM->addUnaryInst(OpConvertPtrToU, Ty, TOp1, BB);
+  }
+  SPIRVInstruction *BI =
+      BM->addCmpInst(transBoolOpCode(TOp0, CmpMap::map(Cmp->getPredicate())),
+                     transType(Cmp->getType()), TOp0, TOp1, BB);
   return BI;
 }
 
@@ -714,6 +725,11 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return transFunctionDecl(F);
 
   if (auto GV = dyn_cast<GlobalVariable>(V)) {
+    if (GV->getName() == "llvm.global.annotations") {
+      transGlobalAnnotation(GV);
+      return nullptr;
+    }
+
     llvm::PointerType *Ty = GV->getType();
     // Though variables with common linkage type are initialized by 0,
     // they can be represented in SPIR-V as uninitialized variables with
@@ -1207,6 +1223,11 @@ void addIntelFPGADecorations(
     return;
 
   for (const auto &I : Decorations) {
+    // Such decoration already exists on a type, skip it
+    if (E->hasDecorate(I.first, /*Index=*/0, /*Result=*/nullptr)) {
+      continue;
+    }
+
     switch (I.first) {
     case DecorationUserSemantic:
       E->addDecorate(new SPIRVDecorateUserSemanticAttr(E, I.second));
@@ -1319,6 +1340,15 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
     return BM->addUnaryInst(OpBitReverse, Ty, Op, BB);
   }
+  case Intrinsic::ctlz:
+  case Intrinsic::cttz: {
+    SPIRVWord ExtOp = II->getIntrinsicID() == Intrinsic::ctlz ? OpenCLLIB::Clz
+                                                              : OpenCLLIB::Ctz;
+    SPIRVType *Ty = transType(II->getType());
+    std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
+    return BM->addExtInst(Ty, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
+  }
   case Intrinsic::fmuladd: {
     // For llvm.fmuladd.* fusion is not guaranteed. If a fused multiply-add
     // is required the corresponding llvm.fma.* intrinsic function should be
@@ -1395,9 +1425,8 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     if (!GEP)
       return nullptr;
     Constant *C = cast<Constant>(GEP->getOperand(0));
-    // TODO: Refactor to use getConstantStringInfo()
-    StringRef AnnotationString =
-        cast<ConstantDataArray>(C->getOperand(0))->getAsCString();
+    StringRef AnnotationString;
+    getConstantStringInfo(C, AnnotationString);
 
     if (AnnotationString == kOCLBuiltinName::FPGARegIntel) {
       if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_reg))
@@ -1419,9 +1448,8 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
 
     GetElementPtrInst *GEP = cast<GetElementPtrInst>(II->getArgOperand(1));
     Constant *C = cast<Constant>(GEP->getOperand(0));
-    // TODO: Refactor to use getConstantStringInfo()
-    StringRef AnnotationString =
-        cast<ConstantDataArray>(C->getOperand(0))->getAsString();
+    StringRef AnnotationString;
+    getConstantStringInfo(C, AnnotationString);
 
     std::vector<std::pair<Decoration, std::string>> Decorations;
     if (BB->getModule()->isAllowedToUseExtension(
@@ -1433,8 +1461,7 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
     // If we didn't find any IntelFPGA-specific decorations, let's add the whole
     // annotation string as UserSemantic Decoration
     if (Decorations.empty()) {
-      SV->addDecorate(new SPIRVDecorateUserSemanticAttr(
-          SV, AnnotationString.substr(0, AnnotationString.size() - 1)));
+      SV->addDecorate(new SPIRVDecorateUserSemanticAttr(SV, AnnotationString));
     } else {
       addIntelFPGADecorations(SV, Decorations);
     }
@@ -1443,9 +1470,8 @@ SPIRVValue *LLVMToSPIRV::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::ptr_annotation: {
     GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
     Constant *C = dyn_cast<Constant>(GEP->getOperand(0));
-    // TODO: Refactor to use getConstantStringInfo()
-    StringRef AnnotationString =
-        dyn_cast<ConstantDataArray>(C->getOperand(0))->getAsCString();
+    StringRef AnnotationString;
+    getConstantStringInfo(C, AnnotationString);
 
     // Strip all bitcast and addrspace casts from the pointer argument:
     //   llvm annotation intrinsic only takes i8*, so the original pointer
@@ -1599,6 +1625,40 @@ SPIRVWord LLVMToSPIRV::transFunctionControlMask(Function *F) {
           FCM |= Mask;
       });
   return FCM;
+}
+
+void LLVMToSPIRV::transGlobalAnnotation(GlobalVariable *V) {
+  SPIRVDBG(dbgs() << "[transGlobalAnnotation] " << *V << '\n');
+
+  // @llvm.global.annotations is an array that contains structs with 4 fields.
+  // Get the array of structs with metadata
+  ConstantArray *CA = cast<ConstantArray>(V->getOperand(0));
+  for (Value *Op : CA->operands()) {
+    ConstantStruct *CS = cast<ConstantStruct>(Op);
+    // The first field of the struct contains a pointer to annotated variable
+    Value *AnnotatedVar = CS->getOperand(0)->stripPointerCasts();
+    SPIRVValue *SV = transValue(AnnotatedVar, nullptr);
+
+    // The second field contains a pointer to a global annotation string
+    GlobalVariable *GV =
+        cast<GlobalVariable>(CS->getOperand(1)->stripPointerCasts());
+
+    StringRef AnnotationString;
+    getConstantStringInfo(GV, AnnotationString);
+
+    std::vector<std::pair<Decoration, std::string>> Decorations;
+    if (BM->isAllowedToUseExtension(
+            ExtensionID::SPV_INTEL_fpga_memory_attributes))
+      Decorations = tryParseIntelFPGAAnnotationString(AnnotationString);
+
+    // If we didn't find any IntelFPGA-specific decorations, let's
+    // add the whole annotation string as UserSemantic Decoration
+    if (Decorations.empty()) {
+      SV->addDecorate(new SPIRVDecorateUserSemanticAttr(SV, AnnotationString));
+    } else {
+      addIntelFPGADecorations(SV, Decorations);
+    }
+  }
 }
 
 bool LLVMToSPIRV::transGlobalVariables() {
@@ -1760,9 +1820,9 @@ bool LLVMToSPIRV::translate() {
   return true;
 }
 
-llvm::IntegerType *LLVMToSPIRV::getSizetType() {
+llvm::IntegerType *LLVMToSPIRV::getSizetType(unsigned AS) {
   return IntegerType::getIntNTy(M->getContext(),
-                                M->getDataLayout().getPointerSizeInBits());
+                                M->getDataLayout().getPointerSizeInBits(AS));
 }
 
 void LLVMToSPIRV::oclGetMutatedArgumentTypesByBuiltin(

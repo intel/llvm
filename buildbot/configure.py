@@ -18,6 +18,8 @@ def do_configure(args):
     else:
       icd_loader_lib = os.path.join(args.obj_dir, "OpenCL-ICD-Loader", "build", "OpenCL.lib")
 
+    install_dir = os.path.join(args.obj_dir, "install")
+
     cmake_cmd = ["cmake",
                  "-G", "Ninja",
                  "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
@@ -30,6 +32,7 @@ def do_configure(args):
                  "-DLLVM_BUILD_TOOLS=OFF",
                  "-DSYCL_ENABLE_WERROR=ON",
                  "-DLLVM_ENABLE_ASSERTIONS=ON",
+                 "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
                  llvm_dir]
 
     print(cmake_cmd)
