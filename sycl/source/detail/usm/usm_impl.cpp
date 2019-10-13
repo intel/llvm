@@ -23,8 +23,8 @@ using alloc = cl::sycl::usm::alloc;
 namespace detail {
 namespace usm {
 
-void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
-                   alloc Kind) {
+void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
+                       alloc Kind) {
   void *RetVal = nullptr;
   if (Ctxt.is_host()) {
     if (!Alignment) {
@@ -118,7 +118,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   }
   return RetVal;
 }
-  
+
 void free(void *Ptr, const context &Ctxt) {
   if (Ctxt.is_host()) {
     // need to use alignedFree here for Windows
@@ -153,7 +153,7 @@ void free(void *ptr, const context &Ctxt) {
 // Restricted USM
 ///
 void *malloc_host(size_t Size, const context &Ctxt) {
-  return detail::usm::alignedAlloc(0, Size, Ctxt, alloc::host);
+  return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host);
 }
 
 void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt) {
@@ -161,7 +161,7 @@ void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt) {
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt) {
-  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, alloc::host);
+  return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host);
 }
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
@@ -172,12 +172,28 @@ void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
 // single form
 
 void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind) {
-  return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind);
+  void *RetVal = nullptr;
+
+  if (Kind == alloc::host) {
+    RetVal = detail::usm::alignedAllocHost(0, Size, Ctxt, Kind);
+  } else {
+    RetVal = detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind);
+  }
+
+  return RetVal;
 }
 
 void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
                     const context &Ctxt, alloc Kind) {
-  return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind);
+  void *RetVal = nullptr;
+
+  if (Kind == alloc::host) {
+    RetVal = detail::usm::alignedAllocHost(Alignment, Size, Ctxt, Kind);
+  } else {
+    RetVal = detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind);
+  }
+
+  return RetVal;
 }
 
 } // namespace sycl
