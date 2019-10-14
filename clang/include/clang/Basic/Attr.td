@@ -1091,6 +1091,12 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
   let LangOpts = [SYCLIsDevice];
   let Documentation = [SYCLDeviceIndirectlyCallableDocs];
 }
+def SYCLIntelKernelArgsRestrict : InheritableAttr {
+  let Spellings = [ CXX11<"intel", "kernel_args_restrict"> ];
+  let Subjects = SubjectList<[ FunctionLike ], ErrorDiag>;
+  let LangOpts = [ SYCLIsDevice, SYCLIsHost ];
+  let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
+}
 
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];

@@ -1835,6 +1835,43 @@ loads).
   }];
 }
 
+def SYCLIntelKernelArgsRestrictDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "kernel_args_restrict";
+  let Content = [{
+The attribute ``intel::kernel_args_restrict`` is legal on device functions, and
+can be ignored on non-device functions. When applied to a function, lambda, or
+function call operator (of a functor), the attribute is a hint to the compiler
+equivalent to specifying the C99 restrict attribute on all pointer arguments or
+the pointer member of any accessors, which are a function argument, lambda
+capture, or functor member, of the callable to which the attribute was
+applied. This effect is equivalent to annotating restrict on **all** kernel
+pointer arguments in an OpenCL or SPIR-V kernel.
+
+If ``intel::kernel_args_restrict`` is applied to a function called from a device
+kernel, propagation of the attribute to any caller(s), including up to a kernel
+boundary, is implementation defined and not guaranteed through this
+extension. The attribute forms an unchecked assertion, in that implementations
+do not need to check/confirm the pre-condition in any way. If a user applies
+``inte::_kernel_args_restrict`` to a kernel, but there is in fact aliasing
+between kernel pointer arguments at runtime, the behavior is undefined.
+
+The attribute-token ``intel::kernel_args_restrict`` shall appear at most once in
+each attribute-list and no attribute-argument-clause shall be present. The
+attribute may be applied to the function-type in a function declaration. The
+first declaration of a function shall specify the
+``intel::kernel_args_restrict`` attribute if any declaration of that function
+specifies the ``intel::kernel_args_restrict`` attribute. If a function is
+declared with the ``intel::kernel_args_restrict`` attribute in one translation
+unit and the same function is declared without the
+``intel::kernel_args_restrict`` attribute in another translation unit, the
+program is ill-formed and no diagnostic is required.
+
+The ``intel::kernel_args_restrict`` attribute has an effect when applied to a
+function, and no effect otherwise.
+  }];
+}
+
 def SYCLIntelFPGAIVDepAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "ivdep";

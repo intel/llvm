@@ -6752,6 +6752,13 @@ static void handleMSAllocatorAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // Top Level Sema Entry Points
 //===----------------------------------------------------------------------===//
 
+static bool IsDeclLambdaCallOperator(Decl *D) {
+  if (const auto *MD = dyn_cast<CXXMethodDecl>(D))
+    return MD->getParent()->isLambda() &&
+           MD->getOverloadedOperator() == OverloadedOperatorKind::OO_Call;
+  return false;
+}
+
 /// ProcessDeclAttribute - Apply the specific attribute to the specified decl if
 /// the attribute applies to decls.  If the attribute is a type attribute, just
 /// silently ignore it if a GNU attribute.
@@ -6763,7 +6770,8 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
 
   // Ignore C++11 attributes on declarator chunks: they appertain to the type
   // instead.
-  if (AL.isCXX11Attribute() && !IncludeCXX11Attributes)
+  if (AL.isCXX11Attribute() && !IncludeCXX11Attributes &&
+      (!IsDeclLambdaCallOperator(D) || !AL.isAllowedOnLambdas()))
     return;
 
   // Unknown attributes are automatically warned on. Target-specific attributes
@@ -7515,6 +7523,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_RenderScriptKernel:
     handleSimpleAttribute<RenderScriptKernelAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelKernelArgsRestrict:
+    handleSimpleAttribute<SYCLIntelKernelArgsRestrictAttr>(S, D, AL);
     break;
   // XRay attributes.
   case ParsedAttr::AT_XRayInstrument:
