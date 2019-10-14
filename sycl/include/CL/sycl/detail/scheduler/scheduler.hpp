@@ -81,7 +81,7 @@ public:
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
-private:
+protected:
   Scheduler();
   static Scheduler instance;
 
@@ -193,10 +193,11 @@ private:
     // Wait for the command, associated with Event passed, is completed.
     static void waitForEvent(EventImplPtr Event);
 
-    // Enqueue the command passed to the underlying device.
-    // Returns pointer to command which failed to enqueue, so this command
-    // with all commands that depend on it can be rescheduled.
-    static Command *enqueueCommand(Command *Cmd);
+    // Enqueue the command passed and all it's dependencies to the underlying
+    // device. Returns true is the command is successfully enqueued. Sets
+    // EnqueueResult to the specific status otherwise.
+    static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
+                               BlockingT Blocking = NON_BLOCKING);
   };
 
   void waitForRecordToFinish(MemObjRecord *Record);

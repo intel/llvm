@@ -32,6 +32,23 @@ class AllocaCommand;
 class AllocaCommandBase;
 class ReleaseCommand;
 
+enum BlockingT { NON_BLOCKING = 0, BLOCKING };
+
+// The struct represents the result of command enqueueing
+struct EnqueueResultT {
+  enum ResultT { SUCCESS, BLOCKED, FAILED };
+  EnqueueResultT(ResultT Result = SUCCESS, Command *Cmd = nullptr,
+                 cl_int ErrCode = CL_SUCCESS)
+      : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
+  // Indicates result of enqueueing
+  ResultT MResult;
+  // Pointer to the command failed to enqueue
+  Command *MCmd;
+  // Error code which is set when enqueueing fails
+  cl_int MErrCode;
+};
+
+
 // DepDesc represents dependency between two commands
 struct DepDesc {
   DepDesc(Command *DepCommand, Requirement *Req, AllocaCommandBase *AllocaCmd)
@@ -85,9 +102,11 @@ public:
   // Return type of the command, e.g. Allocate, MemoryCopy.
   CommandType getType() const { return MType; }
 
-  // The method checks if the command is enqueued, call enqueueImp if not and
-  // returns CL_SUCCESS on success.
-  cl_int enqueue();
+  // The method checks if the command is enqueued, waits for it to be unblocked
+  // if "Blocking" argument is true, then calls enqueueImp.
+  // Returns true if the command is enqueued. Sets EnqueueResult to the specific
+  // status otherwise.
+  bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking);
 
   bool isFinished();
 
@@ -116,12 +135,20 @@ protected:
   virtual cl_int enqueueImp() = 0;
 
 public:
-  std::vector<DepDesc> MDeps;
-  std::vector<Command *> MUsers;
-
-private:
+  // The type of the command
   CommandType MType;
+  // Indicates whether the command is enqueued or not
   std::atomic<bool> MEnqueued;
+  // Contains list of dependencies(edges)
+  std::vector<DepDesc> MDeps;
+  // Contains list of commands that depend on the command
+  std::vector<Command *> MUsers;
+  // Mutex used to protect enqueueing from race conditions
+  std::mutex MEnqueueMtx;
+  // Indicates whether the command can be blocked from enqueueing
+  bool MIsBlockable = false;
+  // Indicates whether the command is blocked from enqueueing
+  std::atomic<bool> MCanEnqueue;
 };
 
 // The command does nothing during enqueue. The task can be used to implement
