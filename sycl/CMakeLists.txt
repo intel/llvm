@@ -159,9 +159,23 @@ add_custom_target( sycl-toolchain
   COMMENT "Building SYCL compiler toolchain..."
 )
 
-add_subdirectory( test )
-add_subdirectory( unittests )
-add_subdirectory( tools )
+if (NOT DEFINED LLVM_INCLUDE_TESTS)
+  set(LLVM_INCLUDE_TESTS ON)
+endif()
+
+option(SYCL_INCLUDE_TESTS
+  "Generate build targets for the SYCL unit tests."
+  ${LLVM_INCLUDE_TESTS})
+
+add_subdirectory(tools)
+
+if(SYCL_INCLUDE_TESTS)
+  if(EXISTS ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include/gtest/gtest.h)
+    add_subdirectory(unittests)
+    list(APPEND SYCL_TEST_DEPS SYCLUnitTests)
+  endif()
+  add_subdirectory(test)
+endif()
 
 # Package deploy support
 # Listed here are component names contributing the package
