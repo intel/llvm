@@ -29,6 +29,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -138,6 +139,12 @@ static cl::list<std::string>
             cl::cat(ClangOffloadWrapperCategory),
             cl::cat(ClangOffloadWrapperCategory));
 
+/// Sets the name of the file containing offload function entries
+static cl::list<std::string> Entries(
+    "entries", cl::ZeroOrMore,
+    cl::desc("File listing all offload function entries, SYCL offload only"),
+    cl::value_desc("filename"), cl::cat(ClangOffloadWrapperCategory));
+
 /// Specifies the target triple of the host wrapper.
 static cl::opt<std::string>
     Target("host", cl::Required,
@@ -219,8 +226,9 @@ public:
   public:
     Image(const llvm::StringRef File_, const llvm::StringRef Manif_,
           const llvm::StringRef Tgt_, BinaryImageFormat Fmt_,
-          const llvm::StringRef Opts_)
-        : File(File_), Manif(Manif_), Tgt(Tgt_), Fmt(Fmt_), Opts(Opts_) {}
+          const llvm::StringRef Opts_, const llvm::StringRef EntriesFile_)
+        : File(File_), Manif(Manif_), Tgt(Tgt_), Fmt(Fmt_), Opts(Opts_),
+          EntriesFile(EntriesFile_) {}
 
     /// Name of the file with actual contents
     const llvm::StringRef File;
@@ -232,6 +240,8 @@ public:
     const BinaryImageFormat Fmt;
     /// Build options
     const llvm::StringRef Opts;
+    /// File listing contained entries
+    const llvm::StringRef EntriesFile;
 
     friend raw_ostream &operator<<(raw_ostream &Out, const Image &Img);
   };
@@ -258,13 +268,15 @@ private:
   llvm::SmallVector<std::unique_ptr<MemoryBuffer>, 4> AutoGcBufs;
 
 public:
-  void addImage(const OffloadKind Kind, const llvm::StringRef File,
-                const llvm::StringRef Manif, const llvm::StringRef Tgt,
-                const BinaryImageFormat Fmt, const llvm::StringRef Opts) {
+  void addImage(const OffloadKind Kind, llvm::StringRef File,
+                llvm::StringRef Manif, llvm::StringRef Tgt,
+                const BinaryImageFormat Fmt, llvm::StringRef Opts,
+                llvm::StringRef EntriesFile) {
     std::unique_ptr<SameKindPack> &Pack = Packs[Kind];
     if (!Pack)
       Pack.reset(new SameKindPack());
-    Pack->emplace_back(std::make_unique<Image>(File, Manif, Tgt, Fmt, Opts));
+    Pack->emplace_back(
+        std::make_unique<Image>(File, Manif, Tgt, Fmt, Opts, EntriesFile));
   }
 
 private:
@@ -511,6 +523,52 @@ private:
     return ConstantExpr::getGetElementPtr(Var->getValueType(), Var, ZeroZero);
   }
 
+  // Creates an array of __tgt_offload_entry that contains function info
+  // for the given image. Returns a pair of pointers to the beginning and end
+  // of the array, or a pair of nullptrs in case the entries file wasn't
+  // specified.
+  Expected<std::pair<Constant *, Constant *>>
+  addSYCLOffloadEntriesToModule(StringRef EntriesFile) {
+    if (EntriesFile.empty()) {
+      auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
+      return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
+    }
+
+    auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
+    auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0u);
+    auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
+    Constant *ZeroZero[] = {Zero, Zero};
+    Constant *OneZero[] = {ConstantInt::get(getSizeTTy(), 1u), Zero};
+
+    Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
+    if (!MBOrErr)
+      return MBOrErr.takeError();
+    MemoryBuffer *MB = *MBOrErr;
+
+    std::vector<Constant *> EntriesInits;
+    // Only the name field is used for SYCL now, others are for future OpenMP
+    // compatibility and new SYCL features
+    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
+      EntriesInits.push_back(ConstantStruct::get(
+          getEntryTy(), NullPtr,
+          addStringToModule(*LI, "__sycl_offload_entry_name"), Zero, i32Zero,
+          i32Zero));
+
+    auto *Arr = ConstantArray::get(
+        ArrayType::get(getEntryTy(), EntriesInits.size()), EntriesInits);
+    auto *Entries = new GlobalVariable(M, Arr->getType(), true,
+                                       GlobalVariable::InternalLinkage, Arr,
+                                       "__sycl_offload_entries_arr");
+    if (Verbose)
+      errs() << "  global added: " << Entries->getName() << "\n";
+
+    auto *EntriesB = ConstantExpr::getGetElementPtr(Entries->getValueType(),
+                                                    Entries, ZeroZero);
+    auto *EntriesE = ConstantExpr::getGetElementPtr(Entries->getValueType(),
+                                                    Entries, OneZero);
+    return std::pair<Constant *, Constant *>(EntriesB, EntriesE);
+  }
+
   /// Creates binary descriptor for the given device images. Binary descriptor
   /// is an object that is passed to the offloading runtime at program startup
   /// and it describes all device images available in the executable or shared
@@ -588,9 +646,11 @@ private:
         errs() << "  global added: " << EntriesStop->getName() << "\n";
       }
     } else {
+      // Host entry table is not used in SYCL
       EntriesB = Constant::getNullValue(getEntryPtrTy());
       EntriesE = Constant::getNullValue(getEntryPtrTy());
     }
+
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
     auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
     Constant *ZeroZero[] = {Zero, Zero};
@@ -637,11 +697,19 @@ private:
           makeArrayRef(Bin->getBufferStart(), Bin->getBufferSize()),
           Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind, Img.Tgt);
 
-      if (Kind == OffloadKind::SYCL)
+      if (Kind == OffloadKind::SYCL) {
+        // For SYCL image offload entries are defined here, by wrapper, so
+        // those are created per image
+        Expected<std::pair<Constant *, Constant *>> EntriesOrErr =
+            addSYCLOffloadEntriesToModule(Img.EntriesFile);
+        if (!EntriesOrErr)
+          return EntriesOrErr.takeError();
+        std::pair<Constant *, Constant *> ImageEntriesPtrs = *EntriesOrErr;
         ImagesInits.push_back(ConstantStruct::get(
             getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt, Fopt, FMnf.first,
-            FMnf.second, Fbin.first, Fbin.second, EntriesB, EntriesE));
-      else
+            FMnf.second, Fbin.first, Fbin.second, ImageEntriesPtrs.first,
+            ImageEntriesPtrs.second));
+      } else
         ImagesInits.push_back(ConstantStruct::get(
             getDeviceImageTy(), Fbin.first, Fbin.second, EntriesB, EntriesE));
       ImgId++;
@@ -957,11 +1025,12 @@ int main(int argc, const char **argv) {
   llvm::StringRef Tgt = "";
   BinaryImageFormat Fmt = BinaryImageFormat::none;
   llvm::StringRef Opts = "";
+  llvm::StringRef EntriesFile = "";
   llvm::SmallVector<llvm::StringRef, 2> CurInputPair;
 
   ListArgsSequencer<decltype(Inputs), decltype(Kinds), decltype(Formats),
-                    decltype(Targets), decltype(Options)>
-      ArgSeq((size_t)argc, Inputs, Kinds, Formats, Targets, Options);
+                    decltype(Targets), decltype(Options), decltype(Entries)>
+      ArgSeq((size_t)argc, Inputs, Kinds, Formats, Targets, Options, Entries);
   int ID = -1;
 
   do {
@@ -985,7 +1054,7 @@ int main(int argc, const char **argv) {
         }
         StringRef File = CurInputPair[0];
         StringRef Manif = CurInputPair.size() > 1 ? CurInputPair[1] : "";
-        Wr.addImage(Knd, File, Manif, Tgt, Fmt, Opts);
+        Wr.addImage(Knd, File, Manif, Tgt, Fmt, Opts, EntriesFile);
         CurInputPair.clear();
       }
     }
@@ -1006,6 +1075,9 @@ int main(int argc, const char **argv) {
       break;
     case 4: // Options
       Opts = *(ArgSeq.template get<4>());
+      break;
+    case 5: // Entries
+      EntriesFile = *(ArgSeq.template get<5>());
       break;
     default:
       llvm_unreachable("bad option class ID");
