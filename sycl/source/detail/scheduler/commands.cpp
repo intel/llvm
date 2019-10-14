@@ -424,9 +424,7 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   for (const auto &Dep : MDeps) {
     Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
            << " [ label = \"Access mode: "
-           << accessModeToString(
-                  Dep.MAllocaCmd->getAllocationReq()->MAccessMode)
-           << "\\n"
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
            << "MemObj: " << Dep.MAllocaCmd->getSYCLMemObj() << " \" ]"
            << std::endl;
   }
