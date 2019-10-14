@@ -283,7 +283,7 @@ public:
                     RT::PiEvent &OutEventToWait) override {
     void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : nullptr;
 
-    RT::PiMemImageDesc Desc = getImageDesc((bool)UserPtr);
+    RT::PiMemImageDesc Desc = getImageDesc(static_cast<bool>(UserPtr));
     assert(checkImageDesc(Desc, Context, UserPtr) &&
            "The check an image desc failed.");
 
@@ -385,8 +385,8 @@ private:
     // TODO handle cases with IMAGE1D_ARRAY and IMAGE2D_ARRAY
     Desc.image_array_size = 0;
     // Pitches must be 0 if host ptr is not provided.
-    Desc.image_row_pitch = InitFromHostPtr ? MRowPitch: 0;
-    Desc.image_slice_pitch = InitFromHostPtr ? MSlicePitch: 0;
+    Desc.image_row_pitch = InitFromHostPtr ? MRowPitch : 0;
+    Desc.image_slice_pitch = InitFromHostPtr ? MSlicePitch : 0;
 
     Desc.num_mip_levels = 0;
     Desc.num_samples = 0;

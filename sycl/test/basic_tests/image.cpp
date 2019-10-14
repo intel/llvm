@@ -25,7 +25,7 @@ int main() {
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
 
   constexpr auto SYCLRead = sycl::access::mode::read;
-  constexpr auto SYCLWrite = cl::sycl::access::mode::write;
+  constexpr auto SYCLWrite = sycl::access::mode::write;
 
   const sycl::range<2> Img1Size(4, 4);
   const sycl::range<2> Img2Size(4, 4);
