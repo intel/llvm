@@ -66,7 +66,8 @@ public:
     RELEASE,
     MAP_MEM_OBJ,
     UNMAP_MEM_OBJ,
-    UPDATE_REQUIREMENT
+    UPDATE_REQUIREMENT,
+    EMPTY_TASK
   };
 
   Command(CommandType Type, QueueImplPtr Queue, bool UseExclusiveQueue = false);
@@ -121,6 +122,23 @@ public:
 private:
   CommandType MType;
   std::atomic<bool> MEnqueued;
+};
+
+// The command does nothing during enqueue. The task can be used to implement
+// lock in the graph, or to merge several nodes into one.
+class EmptyCommand : public Command {
+public:
+  EmptyCommand(QueueImplPtr Queue, Requirement *Req)
+      : Command(CommandType::EMPTY_TASK, std::move(Queue)),
+        MStoredRequirement(*Req) {}
+
+  Requirement *getStoredRequirement() { return &MStoredRequirement; }
+
+private:
+  cl_int enqueueImp() override { return CL_SUCCESS; }
+  void printDot(std::ostream &Stream) const override;
+
+  Requirement MStoredRequirement;
 };
 
 // The command enqueues release instance of memory allocated on Host or

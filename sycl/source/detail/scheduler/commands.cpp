@@ -467,6 +467,23 @@ cl_int MemCpyCommandHost::enqueueImp() {
   return CL_SUCCESS;
 }
 
+void EmptyCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
+
+  Stream << "ID = " << this << "\n";
+  Stream << "EMPTY NODE"
+         << "\\n";
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MReq->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MReq->MSYCLMemObj << " \" ]" << std::endl;
+  }
+}
+
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
 
