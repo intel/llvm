@@ -3,7 +3,6 @@
 #include <string>
 
 void *loadOsLibrary(const std::string &PluginPath) {
-  // TODO: Check if the option RTLD_NOW is correct.
   return (void *)LoadLibraryA(PluginPath.c_str());
 }
 

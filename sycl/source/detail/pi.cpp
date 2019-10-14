@@ -38,10 +38,11 @@ std::string platformInfoToString(pi_platform_info info) {
 // Check for manually selected BE at run-time.
 bool useBackend(Backend TheBackend) {
   static const char *GetEnv = std::getenv("SYCL_BE");
-  static const Backend Use = std::map<std::string, Backend>{
-      {"PI_OPENCL", SYCL_BE_PI_OPENCL}, {"PI_OTHER", SYCL_BE_PI_OTHER}
-      // Any other value would yield PI_OPENCL (current default)
-  }[GetEnv ? GetEnv : "PI_OPENCL"];
+  // Current default backend as SYCL_BE_PI_OPENCL
+  // Valid values of GetEnv are "PI_OPENCL" and "PI_OTHER"
+  std::string StringGetEnv = (GetEnv ? GetEnv : "PI_OPENCL");
+  static const Backend Use =
+      (StringGetEnv == "PI_OTHER" ? SYCL_BE_PI_OTHER : SYCL_BE_PI_OPENCL);
   return TheBackend == Use;
 }
 
@@ -53,17 +54,19 @@ bool useBackend(Backend TheBackend) {
 // Find the plugin at the appropriate location and return the location in
 // PluginPath
 // TODO: Change the function appropriately when there are multiple plugins.
-bool findPlugin(std::string &PluginPath) {
+std::string findPlugin() {
   // TODO: Based on final design discussions, change the location where the
   // plugin must be searched; how to identify the plugins etc. Currently the
-  // search is done for libpi_opencl.so file in LD_LIBRARY_PATH env only.
-  PluginPath = PLUGIN_NAME;
-  return true;
+  // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
+  // env only.
+  return PLUGIN_NAME;
 }
 
 // Load the Plugin by calling the OS dependent library loading call.
 // Return the handle to the Library.
-void *loadPlugin(const std::string &PluginPath) { return loadOsLibrary(PluginPath); }
+void *loadPlugin(const std::string &PluginPath) {
+  return loadOsLibrary(PluginPath);
+}
 
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
 // TODO: Remove the 'OclPtr' extension to PI_API.
@@ -100,17 +103,20 @@ void initialize() {
     die("Unknown SYCL_BE");
   }
 
-  std::string PluginPath;
-  if (!findPlugin(PluginPath))
+  std::string PluginPath = findPlugin();
+  if (PluginPath.empty())
     die("Plugin Not Found.");
 
   void *Library = loadPlugin(PluginPath);
   if (!Library) {
-    die("Failed to load plugin. Check if plugin is present.");
+    std::string Message =
+        "Check if plugin is present. Failed to load plugin: " + PluginPath;
+    die(Message.c_str());
   }
 
   if (!bindPlugin(Library)) {
-    die("Failed to bind PI APIs to the plugin.");
+    std::string Message = "Failed to bind PI APIs to the plugin: " + PluginPath;
+    die(Message.c_str());
   }
 
   Initialized = true;

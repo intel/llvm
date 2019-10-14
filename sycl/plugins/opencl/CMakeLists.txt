@@ -10,7 +10,7 @@
 #TODO: Currently, the pi.hpp header is common between sycl and plugin library sources. 
 #This can be changed by copying the pi.hpp file in the plugins project.
 add_library(pi_opencl SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
+  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
   "pi_opencl.cpp"
   )
 

@@ -184,7 +184,7 @@ namespace RT = cl::sycl::detail::pi;
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To pi::cast(From value) {
   // TODO: see if more sanity checks are possible.
-  assert(sizeof(From) == sizeof(To) && "cast failed size check");
+  PI_ASSERT(sizeof(From) == sizeof(To), "cast failed size check");
   return (To)(value);
 }
 
