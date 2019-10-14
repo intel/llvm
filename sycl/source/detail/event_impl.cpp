@@ -95,11 +95,11 @@ event_impl::event_impl(std::shared_ptr<cl::sycl::detail::queue_impl> Queue) {
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
 
-  if (m_Event || m_HostEvent)
+  if (m_Event)
     // presence of m_Event means the command has been enqueued, so no need to
     // go via the slow path event waiting in the scheduler
     waitInternal();
-  else
+  else if (m_Command)
     detail::Scheduler::getInstance().waitForEvent(std::move(Self));
 }
 
