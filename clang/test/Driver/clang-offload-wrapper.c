@@ -35,6 +35,7 @@
 // CHECK-HELP: {{.*}}  --build-opts=<string>    - build options passed to the offload runtime
 // CHECK-HELP: {{.*}}  --desc-name=<name>       - Specifies offload descriptor symbol name: '.<offload kind>.<name>', and makes it globally visible
 // CHECK-HELP: {{.*}}  --emit-reg-funcs         - Emit [un-]registration functions
+// CHECK-HELP: {{.*}}  --entries=<filename>     - File listing all offload function entries, SYCL offload only
 // CHECK-HELP: {{.*}}  --format=<value>         - device binary image formats:
 // CHECK-HELP: {{.*}}    =none                  -   not set
 // CHECK-HELP: {{.*}}    =native                -   unknown or native
@@ -158,6 +159,18 @@
 // CHECK-IR2:   ret void
 
 // CHECK-IR2: declare void @__UNREGFUNC__
+
+// -------
+// Check option's effects: -entries
+//
+// RUN: echo 'Content of device file' > %t.tgt
+// RUN: echo -e 'entryA\nentryB' > %t.txt
+// RUN: clang-offload-wrapper -host=x86_64-pc-linux-gnu -kind=sycl -entries=%t.txt %t.tgt -o - | llvm-dis | FileCheck %s --check-prefix CHECK-IR3
+// CHECK-IR3: source_filename = "offload.wrapper.object"
+// CHECK-IR3: @__sycl_offload_entry_name = internal unnamed_addr constant [7 x i8] c"entryA\00"
+// CHECK-IR3: @__sycl_offload_entry_name.1 = internal unnamed_addr constant [7 x i8] c"entryB\00"
+// CHECK-IR3: @__sycl_offload_entries_arr = internal constant [2 x %__tgt_offload_entry] [%__tgt_offload_entry { i8* null, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @__sycl_offload_entry_name, i64 0, i64 0), i64 0, i32 0, i32 0 }, %__tgt_offload_entry { i8* null, i8* getelementptr inbounds ([7 x i8], [7 x i8]* @__sycl_offload_entry_name.1, i64 0, i64 0), i64 0, i32 0, i32 0 }]
+// CHECK-IR3: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__tgt_device_image] [%__tgt_device_image { {{.*}}, %__tgt_offload_entry* getelementptr inbounds ([2 x %__tgt_offload_entry], [2 x %__tgt_offload_entry]* @__sycl_offload_entries_arr, i64 0, i64 0), %__tgt_offload_entry* getelementptr inbounds ([2 x %__tgt_offload_entry], [2 x %__tgt_offload_entry]* @__sycl_offload_entries_arr, i64 1, i64 0) }]
 
 // -------
 // Check that device image can be extracted from the wrapper object by the clang-offload-bundler tool.
