@@ -608,8 +608,11 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       AllocaCmd = new AllocaSubBufCommand(Queue, *Req, ParentAlloca);
       UpdateLeafs(findDepsForReq(Record, Req, Queue), Record,
                   access::mode::read_write);
-    } else
-      AllocaCmd = new AllocaCommand(Queue, FullReq);
+    } else {
+      // Can reuse user data for the first allocation
+      bool InitFromUserData = Record->MAllocaCommands.empty();
+      AllocaCmd = new AllocaCommand(Queue, FullReq, InitFromUserData);
+    }
 
     Record->MAllocaCommands.push_back(AllocaCmd);
     Record->MWriteLeafs.push_back(AllocaCmd);

@@ -164,8 +164,7 @@ protected:
 // underlying framework.
 class AllocaCommand : public AllocaCommandBase {
 public:
-  AllocaCommand(QueueImplPtr Queue, Requirement Req,
-                bool InitFromUserData = true)
+  AllocaCommand(QueueImplPtr Queue, Requirement Req, bool InitFromUserData)
       : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), Req),
         MInitFromUserData(InitFromUserData) {
     addDep(DepDesc(nullptr, &MReq, this));

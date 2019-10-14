@@ -97,6 +97,7 @@ namespace pi {
   }
 
   template<> inline void print<> (PiPlatform val) { std::cout << "pi_platform : " << val; }
+  template<> inline void print<> (void *val) { std::cout << "void *: " << std::hex << val; }
   template<> inline void print<> (PiResult val) {
     std::cout << "pi_result : ";
     if (val == PI_SUCCESS)

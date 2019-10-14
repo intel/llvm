@@ -127,8 +127,8 @@ void *MemoryManager::allocateBufferObject(ContextImplPtr TargetContext,
 
   RT::PiResult Error = PI_SUCCESS;
   RT::PiMem NewMem;
-  PI_CALL((NewMem = RT::piMemBufferCreate(
-      TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &Error), Error));
+  NewMem = PI_TRACE(RT::piMemBufferCreate)(
+      TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &Error);
   return NewMem;
 }
 
