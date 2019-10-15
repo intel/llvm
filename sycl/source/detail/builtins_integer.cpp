@@ -153,10 +153,11 @@ template <typename T> inline T __s_long_mad_hi(T a, T b, T c) {
 template <typename T> inline T __s_mad_sat(T a, T b, T c) {
   using UPT = typename d::make_larger<T>::type;
   UPT mul = UPT(a) * UPT(b);
+  UPT res = mul + UPT(c);
   const UPT max = d::max_v<T>();
   const UPT min = d::min_v<T>();
-  mul = std::min(std::max(mul, min), max);
-  return __s_add_sat(T(mul), c);
+  res = std::min(std::max(res, min), max);
+  return T(res);
 }
 
 template <typename T> inline T __s_long_mad_sat(T a, T b, T c) {
