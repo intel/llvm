@@ -263,15 +263,15 @@ public:
       for (const auto &E : Symbols) {
         const MangledSymbol &Symbol = E.second;
         for (auto Name : Symbol.Names) {
-          OS << "  "
+          OS << "  \""
              << (Symbol.ParentName.empty() || Instance.getLangOpts().CPlusPlus
                      ? ""
                      : (Symbol.ParentName + "."))
-             << Name << ": { Type: ";
+             << Name << "\" : { Type: ";
           switch (Symbol.Type) {
           default:
             llvm_unreachable(
-                "clang -emit-iterface-stubs: Unexpected symbol type.");
+                "clang -emit-interface-stubs: Unexpected symbol type.");
           case llvm::ELF::STT_NOTYPE:
             OS << "NoType";
             break;
