@@ -155,6 +155,8 @@ public:
   bool MIsBlockable = false;
   // Indicates whether the command is blocked from enqueueing
   std::atomic<bool> MCanEnqueue;
+
+  const char *MBlockReason = "Unknown";
 };
 
 // The command does nothing during enqueue. The task can be used to implement
@@ -193,8 +195,10 @@ private:
 
 class AllocaCommandBase : public Command {
 public:
-  AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req)
-      : Command(Type, Queue), MReleaseCmd(Queue, this),
+  AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req,
+                    AllocaCommandBase *LinkedAllocaCmd)
+      : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
+        MLeaderAlloca(nullptr == LinkedAllocaCmd), MReleaseCmd(Queue, this),
         MRequirement(std::move(Req)) {
     MRequirement.MAccessMode = access::mode::read_write;
   }
@@ -207,10 +211,24 @@ public:
 
   const Requirement *getRequirement() const final { return &MRequirement; }
 
+  void *MMemAllocation = nullptr;
+
+  // Alloca command linked with current command.
+  // Device and host alloca commands can be linked, so they may share the same
+  // memory. Only one allocation from a pair can be accessed at a time. Alloca
+  // commands associcated with such allocation is "active". In order to switch
+  // "active" status between alloca commands map/unmap operations are used.
+  AllocaCommandBase *MLinkedAllocaCmd = nullptr;
+  // Indicates that current alloca is active one.
+  bool MActive = true;
+
+  // Indicates that the command owns memory allocation in case of connected
+  // alloca command
+  bool MLeaderAlloca = true;
+
 protected:
   ReleaseCommand MReleaseCmd;
   Requirement MRequirement;
-  void *MMemAllocation = nullptr;
 };
 
 // The command enqueues allocation of instance of memory object on Host or
@@ -218,9 +236,10 @@ protected:
 class AllocaCommand : public AllocaCommandBase {
 public:
   AllocaCommand(QueueImplPtr Queue, Requirement Req,
-                bool InitFromUserData = true)
-      : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue),
-                          std::move(Req)),
+                bool InitFromUserData = true,
+                AllocaCommandBase *LinkedAllocaCmd = nullptr)
+      : AllocaCommandBase(CommandType::ALLOCA, std::move(Queue), std::move(Req),
+                          LinkedAllocaCmd),
         MInitFromUserData(InitFromUserData) {
     addDep(DepDesc(nullptr, getRequirement(), this));
   }
@@ -240,7 +259,8 @@ public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                       AllocaCommandBase *ParentAlloca)
       : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
-                          std::move(Req)),
+                          std::move(Req),
+                          /*LinkedAllocaCmd*/ nullptr),
         MParentAlloca(ParentAlloca) {
     addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
   }
@@ -251,7 +271,7 @@ public:
 private:
   cl_int enqueueImp() final;
 
-  AllocaCommandBase *MParentAlloca;
+  AllocaCommandBase *MParentAlloca = nullptr;
 };
 
 class MapMemObject : public Command {
@@ -295,10 +315,6 @@ public:
                 QueueImplPtr SrcQueue, QueueImplPtr DstQueue,
                 bool UseExclusiveQueue = false);
 
-  void setAccessorToUpdate(Requirement *AccToUpdate) {
-    MAccToUpdate = AccToUpdate;
-  }
-
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
 
@@ -310,7 +326,6 @@ private:
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
   AllocaCommandBase *MDstAllocaCmd = nullptr;
-  Requirement *MAccToUpdate = nullptr;
 };
 
 // The command enqueues memory copy between two instances of memory object.

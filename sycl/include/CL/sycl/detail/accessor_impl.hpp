@@ -20,6 +20,8 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
+class Command;
+
 // The class describes a requirement to access a SYCL memory object such as
 // sycl::buffer and sycl::image. For example, each accessor used in a kernel,
 // except one with access target "local", adds such requirement for the command
@@ -70,10 +72,8 @@ public:
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
         MIsSubBuffer(IsSubBuffer) {}
 
-  ~AccessorImplHost() {
-    if (BlockingEvent)
-      BlockingEvent->setComplete();
-  }
+  ~AccessorImplHost();
+
   AccessorImplHost(const AccessorImplHost &Other)
       : MOffset(Other.MOffset), MAccessRange(Other.MAccessRange),
         MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
@@ -97,7 +97,7 @@ public:
 
   void *MData = nullptr;
 
-  EventImplPtr BlockingEvent;
+  Command *MBlockedCmd = nullptr;
 };
 
 using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;

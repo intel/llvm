@@ -36,10 +36,6 @@ event_impl::~event_impl() {
   }
 }
 
-void event_impl::setComplete() {
-  PI_CALL(RT::piEventSetStatus, m_Event, CL_COMPLETE);
-}
-
 void event_impl::waitInternal() const {
   if (!m_HostEvent) {
     PI_CALL(RT::piEventsWait, 1, &m_Event);

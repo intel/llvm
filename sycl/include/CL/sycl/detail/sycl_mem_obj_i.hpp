@@ -38,11 +38,12 @@ public:
   // point to event that should be waited before using the memory.
   // InitFromUserData indicates that the returned memory should be intialized
   // with the data provided by user(if any). Usually it should happen on the
-  // first allocation of memory for the buffer.
+  // first allocation of memory for the memory object.
+  // Non null HostPtr requires allocation to be made USE_HOST_PTR property.
   // Method returns a pointer to host allocation if Context is host one and
   // cl_mem obect if not.
   virtual void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                            RT::PiEvent &InteropEvent) = 0;
+                            void *HostPtr, RT::PiEvent &InteropEvent) = 0;
 
   // Should be used for memory object created without use_host_ptr property.
   virtual void *allocateHostMem() = 0;

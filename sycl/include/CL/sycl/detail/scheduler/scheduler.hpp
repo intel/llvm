@@ -71,7 +71,16 @@ public:
   // sycl::image destructors.
   void removeMemoryObject(detail::SYCLMemObjI *MemObj);
 
+  // Creates nodes in the graph, that update Req with the pointer to the host
+  // memory which contains the latest data of the memory object. New operations
+  // with the same memory object that have side effects are blocked until
+  // releaseHostAccessor is called.
+  // Returns an event which indicates when thsese nodes are completed and host
+  // accessor is ready for using.
   EventImplPtr addHostAccessor(Requirement *Req);
+
+  // Unblocks operations with the memory object.
+  void releaseHostAccessor(Requirement *Req);
 
   // Returns an instance of the scheduler object.
   static Scheduler &getInstance();
@@ -101,7 +110,7 @@ protected:
                              QueueImplPtr HostQueue);
 
     Command *addCopyBack(Requirement *Req);
-    Command *addHostAccessor(Requirement *Req, EventImplPtr &RetEvent);
+    Command *addHostAccessor(Requirement *Req);
 
     // [Provisional] Optimizes the whole graph.
     void optimize();
@@ -142,18 +151,20 @@ protected:
     std::vector<SYCLMemObjI *> MMemObjs;
 
   private:
-    // The method inserts memory copy operation from the context where the
-    // memory current lives to the context bound to Queue.
-    MemCpyCommand *insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
-                                   const QueueImplPtr &Queue,
-                                   bool UseExclusiveQueue = false);
+    // The method inserts required command to make so the latest state for the
+    // memory object Record refers to resides in the context which is bound to
+    // the Queue. Can insert copy/map/unmap operations depending on the source
+    // and destination.
+    Command *insertMemoryMove(MemObjRecord *Record, Requirement *Req,
+                             const QueueImplPtr &Queue,
+                             bool UseExclusiveQueue = false);
 
     UpdateHostRequirementCommand *
     insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,
                            const QueueImplPtr &Queue);
 
     std::set<Command *> findDepsForReq(MemObjRecord *Record, Requirement *Req,
-                                       QueueImplPtr Context);
+                                       const ContextImplPtr &Context);
 
     // Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record, Requirement *Req,

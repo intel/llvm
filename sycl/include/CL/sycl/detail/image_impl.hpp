@@ -280,8 +280,14 @@ public:
   size_t get_count() const { return MRange.size(); }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    RT::PiEvent &OutEventToWait) override {
-    void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : nullptr;
+                    void *HostPtr, RT::PiEvent &OutEventToWait) override {
+
+    assert(!(InitFromUserData && HostPtr) &&
+           "Cannot init from user data and reuse host ptr provided "
+           "simultaneously");
+
+    void *UserPtr = HostPtr;
+    UserPtr = InitFromUserData ? BaseT::getUserPtr() : UserPtr;
 
     RT::PiMemImageDesc Desc = getImageDesc(UserPtr != nullptr);
     assert(checkImageDesc(Desc, Context, UserPtr) &&
