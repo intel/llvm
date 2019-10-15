@@ -64,35 +64,45 @@
     return __SYCL_ACCESS_RETURN;                                    \
   }
 
+#define __SYCL_SCALAR_ACCESS(_COND, _NAME, _INDEX)                             \
+  template <int N = getNumElements()>                                          \
+  typename std::enable_if<(_COND), DataT &>::type _NAME() {                    \
+    return (*__SYCL_ACCESS_RETURN)[_INDEX];                                    \
+  }                                                                            \
+  template <int N = getNumElements()>                                          \
+  typename std::enable_if<(_COND), const DataT &>::type _NAME() const {        \
+    return (*__SYCL_ACCESS_RETURN)[_INDEX];                                    \
+  }
+
 //__swizzled_vec__ XYZW_ACCESS() const;
-__SYCL_ACCESS(N <= 4, x, 0)
-__SYCL_ACCESS(N == 2 || N == 3 || N == 4, y, 1)
-__SYCL_ACCESS(N == 3 || N == 4, z, 2)
-__SYCL_ACCESS(N == 4, w, 3)
+__SYCL_SCALAR_ACCESS(N <= 4, x, 0)
+__SYCL_SCALAR_ACCESS(N == 2 || N == 3 || N == 4, y, 1)
+__SYCL_SCALAR_ACCESS(N == 3 || N == 4, z, 2)
+__SYCL_SCALAR_ACCESS(N == 4, w, 3)
 
 //__swizzled_vec__ RGBA_ACCESS() const;
-__SYCL_ACCESS(N == 4, r, 0)
-__SYCL_ACCESS(N == 4, g, 1)
-__SYCL_ACCESS(N == 4, b, 2)
-__SYCL_ACCESS(N == 4, a, 3)
+__SYCL_SCALAR_ACCESS(N == 4, r, 0)
+__SYCL_SCALAR_ACCESS(N == 4, g, 1)
+__SYCL_SCALAR_ACCESS(N == 4, b, 2)
+__SYCL_SCALAR_ACCESS(N == 4, a, 3)
 
 //__swizzled_vec__ INDEX_ACCESS() const;
-__SYCL_ACCESS(N > 0, s0, 0)
-__SYCL_ACCESS(N > 1, s1, 1)
-__SYCL_ACCESS(N > 2, s2, 2)
-__SYCL_ACCESS(N > 2, s3, 3)
-__SYCL_ACCESS(N > 4, s4, 4)
-__SYCL_ACCESS(N > 4, s5, 5)
-__SYCL_ACCESS(N > 4, s6, 6)
-__SYCL_ACCESS(N > 4, s7, 7)
-__SYCL_ACCESS(N == 16, s8, 8)
-__SYCL_ACCESS(N == 16, s9, 9)
-__SYCL_ACCESS(N == 16, sA, 10)
-__SYCL_ACCESS(N == 16, sB, 11)
-__SYCL_ACCESS(N == 16, sC, 12)
-__SYCL_ACCESS(N == 16, sD, 13)
-__SYCL_ACCESS(N == 16, sE, 14)
-__SYCL_ACCESS(N == 16, sF, 15)
+__SYCL_SCALAR_ACCESS(N > 0, s0, 0)
+__SYCL_SCALAR_ACCESS(N > 1, s1, 1)
+__SYCL_SCALAR_ACCESS(N > 2, s2, 2)
+__SYCL_SCALAR_ACCESS(N > 2, s3, 3)
+__SYCL_SCALAR_ACCESS(N > 4, s4, 4)
+__SYCL_SCALAR_ACCESS(N > 4, s5, 5)
+__SYCL_SCALAR_ACCESS(N > 4, s6, 6)
+__SYCL_SCALAR_ACCESS(N > 4, s7, 7)
+__SYCL_SCALAR_ACCESS(N == 16, s8, 8)
+__SYCL_SCALAR_ACCESS(N == 16, s9, 9)
+__SYCL_SCALAR_ACCESS(N == 16, sA, 10)
+__SYCL_SCALAR_ACCESS(N == 16, sB, 11)
+__SYCL_SCALAR_ACCESS(N == 16, sC, 12)
+__SYCL_SCALAR_ACCESS(N == 16, sD, 13)
+__SYCL_SCALAR_ACCESS(N == 16, sE, 14)
+__SYCL_SCALAR_ACCESS(N == 16, sF, 15)
 
 #ifdef SYCL_SIMPLE_SWIZZLES
 //__swizzled_vec__ XYZW_SWIZZLE() const;
