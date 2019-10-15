@@ -144,7 +144,7 @@ add_subdirectory(plugins)
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
   DEPENDS sycl
-  	  pi_opencl
+          pi_opencl
           clang
           clang-offload-wrapper
           clang-offload-bundler
