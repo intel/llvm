@@ -6,13 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This utility splits an input module into smaller ones.
+// This source is a collection of utilities run on device code's LLVM IR before
+// handing off to back-end for further compilation or emitting SPIRV. The
+// utilities are:
+// - module splitter to split a big input module into smaller ones
 //
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/IR/IRPrintingPasses.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -36,14 +40,20 @@ static cl::opt<std::string> InputFilename{
 
 static cl::opt<std::string> BaseOutputFilename{
     "o",
-    cl::desc("Specify base output filename, output filenames will be saved "
+    cl::desc("Specify base output filename. E.g. if base is 'out', then output "
+             "filenames will be saved "
              "into out_0.bc, out_1.bc, ..., out_0.txt, out_1.txt, ...."),
     cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat)};
 
+// Module splitter produces multiple IR files. IR files list is a file list
+// with prodced IR modules files names.
 static cl::opt<std::string> OutputIRFilesList{
     "ir-files-list", cl::desc("Specify output filename for IR files list"),
     cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat)};
 
+// Module splitter produces multiple TXT files. These files contain kernel names
+// list presented in a produced module. TXT files list is a file list
+// with produced TXT files names.
 static cl::opt<std::string> OutputTxtFilesList{
     "txt-files-list", cl::desc("Specify output filename for txt files list"),
     cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat)};
@@ -54,6 +64,10 @@ static cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
 static cl::opt<bool> OutputAssembly{"S",
                                     cl::desc("Write output as LLVM assembly"),
                                     cl::Hidden, cl::cat(ExtractCat)};
+
+static cl::opt<bool> OneKernelPerModule{
+    "one-kernel", cl::desc("Emit a separate module for each kernel"),
+    cl::init(false), cl::cat(ExtractCat)};
 
 static void error(const Twine &Msg) {
   errs() << "sycl-post-link: " << Msg << '\n';
@@ -74,18 +88,28 @@ static void writeToFile(std::string Filename, std::string Content) {
 }
 
 static void collectKernelsSet(
-    Module &M,
-    std::map<std::string, std::vector<Function *>> &ResKernelsSet) {
+    Module &M, std::map<std::string, std::vector<Function *>> &ResKernelsSet) {
   for (auto &F : M.functions()) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
-        F.hasFnAttribute("sycl-module-id")) {
-      auto Id = F.getFnAttribute("sycl-module-id");
-      auto Val = Id.getValueAsString();
-      ResKernelsSet[Val].push_back(&F);
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      if (OneKernelPerModule) {
+        ResKernelsSet[F.getName()].push_back(&F);
+      } else if (F.hasFnAttribute("sycl-module-id")) {
+        auto Id = F.getFnAttribute("sycl-module-id");
+        auto Val = Id.getValueAsString();
+        ResKernelsSet[Val].push_back(&F);
+      }
     }
   }
 }
 
+// Splits input LLVM IR module M into smaller ones.
+// Input parameter KernelsSet is a map containing groups of kernels with same
+// values in the sycl-module-id attribute. For each group of kernels a separate
+// IR module will be produced.
+// ResModules and ResSymbolsLists are output parameters.
+// Result modules are stored into
+// ResModules vector. For each result module set of kernel names is collected.
+// Sets of kernel names are stored into ResSymbolsLists.
 static void
 splitModule(Module &M,
             std::map<std::string, std::vector<Function *>> &KernelsSet,
@@ -107,17 +131,13 @@ splitModule(Module &M,
     while (!Workqueue.empty()) {
       Function *F = &*Workqueue.back();
       Workqueue.pop_back();
-      for (auto &BB : *F) {
-        for (auto &I : BB) {
-          if (CallBase *CB = dyn_cast<CallBase>(&I)) {
-            if (Function *CF = CB->getCalledFunction()) {
-              if (!CF->isDeclaration() && !GVs.count(CF)) {
-                GVs.insert(CF);
-                Workqueue.push_back(CF);
-              }
+      for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
+        if (CallBase *CB = dyn_cast<CallBase>(&*I))
+          if (Function *CF = CB->getCalledFunction())
+            if (!CF->isDeclaration() && !GVs.count(CF)) {
+              GVs.insert(CF);
+              Workqueue.push_back(CF);
             }
-          }
-        }
       }
     }
 
@@ -163,17 +183,20 @@ splitModule(Module &M,
 
     // Save results.
     ResModules.push_back(std::move(MClone));
-    ResSymbolsLists.push_back(SymbolsList);
+    ResSymbolsLists.push_back(std::move(SymbolsList));
   }
 }
 
+// Saves specified collections of llvm IR modules and corresponding lists of
+// kernel names to files. Saves IR files list and TXT files list if user
+// specified corresponding filenames.
 static void saveResults(std::vector<std::unique_ptr<Module>> &ResModules,
                         std::vector<std::string> &ResSymbolsLists) {
   int NumOfFile = 0;
-  std::error_code EC;
   std::string IRFilesList;
   std::string TxtFilesList;
   for (size_t I = 0; I < ResModules.size(); ++I) {
+    std::error_code EC;
     std::string CurOutFileName = BaseOutputFilename + "_" +
                                  std::to_string(NumOfFile) +
                                  ((OutputAssembly) ? ".ll" : ".bc");
@@ -217,19 +240,25 @@ int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(
       argc, argv,
       "SYCL post-link device code processing tool.\n"
-      "Splits a fully linked module into smaller ones. Groups kernels\n"
-      "using function attribute 'sycl-module-id', i.e. kernels with the same\n"
-      "values of the 'sycl-module-id' attribute will be put into the same\n"
-      "module. For each produced module a text file containing the names of\n"
-      "all spir kernels in it is generated. Optionally can generate lists of\n"
-      "produced files. Usage:\n"
-      "sycl-post-link -S linked.ll -ir-files-list=ir.txt \\\n"
-      "-txt-files-list=files.txt -o out \\\n"
-      "This command will produce several llvm IR files: out_0.ll, "
-      "out_1.ll...,\n"
-      "several text files containing spir kernel names out_0.txt, "
-      "out_1.txt,...,\n"
-      "and two filelists in ir.txt and files.txt.\n");
+      "This is a collection of utilities run on device code's LLVM IR before\n"
+      "handing off to back-end for further compilation or emitting SPIRV.\n"
+      "The utilities are:\n"
+      "- Module splitter to split a big input module into smaller ones.\n"
+      "  Groups kernels using function attribute 'sycl-module-id', i.e.\n"
+      "  kernels with the same values of the 'sycl-module-id' attribute will\n"
+      "  be put into the same module. If --one-kernel option is specified,\n"
+      "  one module per kernel will be emitted.\n"
+      "  For each produced module a text file\n"
+      "  containing the names of all spir kernels in it is generated.\n"
+      "  Optionally can generate lists produced files.\n"
+      "  Usage:\n"
+      "  sycl-post-link -S linked.ll -ir-files-list=ir.txt \\\n"
+      "  -txt-files-list=files.txt -o out \\\n"
+      "  This command will produce several llvm IR files: out_0.ll, "
+      "  out_1.ll...,\n"
+      "  several text files containing spir kernel names out_0.txt, "
+      "  out_1.txt,...,\n"
+      "  and two filelists in ir.txt and files.txt.\n");
 
   SMDiagnostic Err;
   std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
