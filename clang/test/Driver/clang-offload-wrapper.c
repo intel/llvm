@@ -40,7 +40,7 @@
 // CHECK-HELP: {{.*}}    =native                -   unknown or native
 // CHECK-HELP: {{.*}}    =spirv                 -   SPIRV binary
 // CHECK-HELP: {{.*}}    =llvmbc                -   LLVMIR bitcode
-// CHECK-HELP: {{.*}}  --host=<triple>          - wrapper object target triple
+// CHECK-HELP: {{.*}}  --host=<triple>          - Target triple for the output module
 // CHECK-HELP: {{.*}}  --kind=<value>           - offload kind:
 // CHECK-HELP: {{.*}}    =unknown               -   unknown
 // CHECK-HELP: {{.*}}    =host                  -   host
@@ -69,64 +69,64 @@
 // RUN:     -kind=openmp -target=tg2                -format=native %t3.tgt %t1_mf.txt \
 // RUN:     -kind=sycl   -target=tg1 -build-opts=-g -format spirv  %t1.tgt            \
 // RUN:                  -target=tg2 -build-opts=   -format native %t2.tgt            \
-// RUN:   -o - | llvm-dis | FileCheck %s --check-prefix CHECK-IR
+// RUN:   -o %t.wrapper.bc
+// RUN: llvm-dis %t.wrapper.bc -o - | FileCheck %s --check-prefix CHECK-IR
 
-// CHECK-IR: source_filename = "offload.wrapper.object"
 // CHECK-IR: target triple = "x86_64-pc-linux-gnu"
 
-// CHECK-IR: [[ENTRYTY:%.+]] = type { i8*, i8*, i64, i32, i32 }
-// CHECK-IR: [[IMGTY:%.+]] = type { i16, i8, i8, i8*, i8*, i8*, i8*, i8*, i8*, [[ENTRYTY]]*, [[ENTRYTY]]* }
-// CHECK-IR: [[DESCTY:%.+]] = type { i16, i16, [[IMGTY]]*, [[ENTRYTY]]*, [[ENTRYTY]]* }
-// CHECK-IR: [[OMP_ENTRIESB:@.+]] = external constant [[ENTRYTY]]
-// CHECK-IR: [[OMP_ENTRIESE:@.+]] = external constant [[ENTRYTY]]
+// CHECK-IR-DAG: [[ENTTY:%.+]] = type { i8*, i8*, i{{32|64}}, i32, i32 }
+// CHECK-IR-DAG: [[IMAGETY:%.+]] = type { i8*, i8*, [[ENTTY]]*, [[ENTTY]]* }
+// CHECK-IR-DAG: [[DESCTY:%.+]] = type { i32, [[IMAGETY]]*, [[ENTTY]]*, [[ENTTY]]* }
 
-// CHECK-IR: [[OMP_TGT0:@.+]] = internal unnamed_addr constant [4 x i8] c"tg2\00"
-// CHECK-IR: [[OMP_OPTS0:@.+]] = internal unnamed_addr constant [1 x i8] zeroinitializer
-// CHECK-IR: [[OMP_MANIF0:@.+]] = internal unnamed_addr constant [26 x i8] c"Content of manifest file1\0A"
-// CHECK-IR: [[OMP_BIN0:@.+]] = internal unnamed_addr constant [24 x i8] c"Content of device file3\0A"
+// CHECK-IR-DAG: [[SYCL_IMAGETY:%.+]] = type { i16, i8, i8, i8*, i8*, i8*, i8*, i8*, i8*, [[ENTTY]]*, [[ENTTY]]* }
+// CHECK-IR-DAG: [[SYCL_DESCTY:%.+]] = type { i16, i16, [[SYCL_IMAGETY]]*, [[ENTTY]]*, [[ENTTY]]* }
 
-// CHECK-IR: [[OMP_IMGS:@.+]] = internal unnamed_addr constant [1 x [[IMGTY]]] [{{.+}} { i16 1, i8 2, i8 1, i8* [[GEP:getelementptr inbounds]] ([4 x i8], [4 x i8]* [[OMP_TGT0]], i64 0, i64 0), i8* [[GEP]] ([1 x i8], [1 x i8]* [[OMP_OPTS0]], i64 0, i64 0), i8* [[GEP]] ([26 x i8], [26 x i8]* [[OMP_MANIF0]], i64 0, i64 0), i8* [[GEP]] ([26 x i8], [26 x i8]* [[OMP_MANIF0]], i64 1, i64 0), i8* [[GEP]] ([24 x i8], [24 x i8]* [[OMP_BIN0]], i64 0, i64 0), i8* [[GEP]] ([24 x i8], [24 x i8]* [[OMP_BIN0]], i64 1, i64 0), [[ENTRYTY]]* [[OMP_ENTRIESB]], [[ENTRYTY]]* [[OMP_ENTRIESE]] }]
+// CHECK-IR: [[ENTBEGIN:@.+]] = external hidden constant [[ENTTY]]
+// CHECK-IR: [[ENTEND:@.+]] = external hidden constant [[ENTTY]]
 
-// CHECK-IR: [[OMP_DESC:@.+]] = internal constant [[DESCTY]] { i16 1, i16 1, [[IMGTY]]* [[GEP]] ([1 x [[IMGTY]]], [1 x [[IMGTY]]]* [[OMP_IMGS]], i64 0, i64 0), [[ENTRYTY]]* [[OMP_ENTRIESB]], [[ENTRYTY]]* [[OMP_ENTRIESE]] }
+// CHECK-IR: [[DUMMY:@.+]] = hidden constant [0 x [[ENTTY]]] zeroinitializer, section "omp_offloading_entries"
+
+// CHECK-IR: [[OMP_BIN:@.+]] = internal unnamed_addr constant [[OMP_BINTY:\[[0-9]+ x i8\]]] c"Content of device file3{{.+}}"
+
+// CHECK-IR: [[OMP_IMAGES:@.+]] = internal unnamed_addr constant [1 x [[IMAGETY]]] [{{.+}} { i8* getelementptr inbounds ([[OMP_BINTY]], [[OMP_BINTY]]* [[OMP_BIN]], i64 0, i64 0), i8* getelementptr inbounds ([[OMP_BINTY]], [[OMP_BINTY]]* [[OMP_BIN]], i64 1, i64 0), [[ENTTY]]* [[ENTBEGIN]], [[ENTTY]]* [[ENTEND]] }]
+
+// CHECK-IR: [[OMP_DESC:@.+]] = internal constant [[DESCTY]] { i32 1, [[IMAGETY]]* getelementptr inbounds ([1 x [[IMAGETY]]], [1 x [[IMAGETY]]]* [[OMP_IMAGES]], i64 0, i64 0), [[ENTTY]]* [[ENTBEGIN]], [[ENTTY]]* [[ENTEND]] }
 
 // CHECK-IR: [[SYCL_TGT0:@.+]] = internal unnamed_addr constant [4 x i8] c"tg1\00"
 // CHECK-IR: [[SYCL_OPTS0:@.+]] = internal unnamed_addr constant [3 x i8] c"-g\00"
-// CHECK-IR: [[SYCL_BIN0:@.+]] = internal unnamed_addr constant [24 x i8] c"Content of device file1\0A"
+// CHECK-IR: [[SYCL_BIN0:@.+]] = internal unnamed_addr constant [[SYCL_BIN0TY:\[[0-9]+ x i8\]]] c"Content of device file1{{.+}}"
 
 // CHECK-IR: [[SYCL_TGT1:@.+]] = internal unnamed_addr constant [4 x i8] c"tg2\00"
 // CHECK-IR: [[SYCL_OPTS1:@.+]] = internal unnamed_addr constant [1 x i8] zeroinitializer
-// CHECK-IR: [[SYCL_BIN1:@.+]] = internal unnamed_addr constant [24 x i8] c"Content of device file2\0A"
+// CHECK-IR: [[SYCL_BIN1:@.+]] = internal unnamed_addr constant  [[SYCL_BIN1TY:\[[0-9]+ x i8\]]] c"Content of device file2{{.+}}"
 
-// CHECK-IR: [[SYCL_IMGS:@.+]] = internal unnamed_addr constant [2 x [[IMGTY]]] [{{.+}} { i16 1, i8 4, i8 2, i8* [[GEP]] ([4 x i8], [4 x i8]* [[SYCL_TGT0]], i64 0, i64 0), i8* [[GEP]] ([3 x i8], [3 x i8]* [[SYCL_OPTS0]], i64 0, i64 0), i8* null, i8* null, i8* [[GEP]] ([24 x i8], [24 x i8]* [[SYCL_BIN0]], i64 0, i64 0), i8* [[GEP]] ([24 x i8], [24 x i8]* [[SYCL_BIN0]], i64 1, i64 0), [[ENTRYTY]]* null, [[ENTRYTY]]* null }, [[IMGTY]] { i16 1, i8 4, i8 1, i8* [[GEP]] ([4 x i8], [4 x i8]* [[SYCL_TGT1]], i64 0, i64 0), i8* [[GEP]] ([1 x i8], [1 x i8]* [[SYCL_OPTS1]], i64 0, i64 0), i8* null, i8* null, i8* [[GEP]] ([24 x i8], [24 x i8]* [[SYCL_BIN1]], i64 0, i64 0), i8* [[GEP]] ([24 x i8], [24 x i8]* [[SYCL_BIN1]], i64 1, i64 0), [[ENTRYTY]]* null, [[ENTRYTY]]* null }]
+// CHECK-IR: [[SYCL_IMAGES:@.+]] = internal unnamed_addr constant [2 x [[SYCL_IMAGETY]]] [{{.+}} { i16 1, i8 4, i8 2, i8* getelementptr inbounds ([4 x i8], [4 x i8]* [[SYCL_TGT0]], i64 0, i64 0), i8* getelementptr inbounds ([3 x i8], [3 x i8]* [[SYCL_OPTS0]], i64 0, i64 0), i8* null, i8* null, i8* getelementptr inbounds ([[SYCL_BIN0TY]], [[SYCL_BIN0TY]]* [[SYCL_BIN0]], i64 0, i64 0), i8* getelementptr inbounds ([[SYCL_BIN0TY]], [[SYCL_BIN0TY]]* [[SYCL_BIN0]], i64 1, i64 0), [[ENTTY]]* null, [[ENTTY]]* null }, [[SYCL_IMAGETY]] { i16 1, i8 4, i8 1, i8* getelementptr inbounds ([4 x i8], [4 x i8]* [[SYCL_TGT1]], i64 0, i64 0), i8* getelementptr inbounds ([1 x i8], [1 x i8]* [[SYCL_OPTS1]], i64 0, i64 0), i8* null, i8* null, i8* getelementptr inbounds ([[SYCL_BIN1TY]], [[SYCL_BIN1TY]]* [[SYCL_BIN1]], i64 0, i64 0), i8* getelementptr inbounds ([[SYCL_BIN1TY]], [[SYCL_BIN1TY]]* [[SYCL_BIN1]], i64 1, i64 0), [[ENTTY]]* null, [[ENTTY]]* null }]
 
-// CHECK-IR: [[SYCL_DESC:@.+]] = internal constant [[DESCTY]] { i16 1, i16 2, [[IMGTY]]* [[GEP]] ([2 x [[IMGTY]]], [2 x [[IMGTY]]]* [[SYCL_IMGS]], i64 0, i64 0), [[ENTRYTY]]* null, [[ENTRYTY]]* null }
+// CHECK-IR: [[SYCL_DESC:@.+]] = internal constant [[SYCL_DESCTY]] { i16 1, i16 2, [[SYCL_IMAGETY]]* getelementptr inbounds ([2 x [[SYCL_IMAGETY]]], [2 x [[SYCL_IMAGETY]]]* [[SYCL_IMAGES]], i64 0, i64 0), [[ENTTY]]* null, [[ENTTY]]* null }
 
-// CHECK-IR: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 0, void ()* [[OMP_REGF:@.+]], i8* null }, { i32, void ()*, i8* } { i32 0, void ()* @.sycl_offloading.descriptor_reg, i8* null }]
+// CHECK-IR: @llvm.global_ctors = appending global [2 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 0, void ()* [[OMP_REGFN:@.+]], i8* null }, { i32, void ()*, i8* } { i32 0, void ()* [[SYCL_REGFN:@.+]], i8* null }]
 
-// CHECK-IR: @llvm.global_dtors = appending global [2 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 0, void ()* [[OMP_UNREGF:@.+]], i8* null }, { i32, void ()*, i8* } { i32 0, void ()* @.sycl_offloading.descriptor_unreg, i8* null }]
+// CHECK-IR: @llvm.global_dtors = appending global [2 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 0, void ()* [[OMP_UNREGFN:@.+]], i8* null }, { i32, void ()*, i8* } { i32 0, void ()* [[SYCL_UNREGFN:@.+]], i8* null }]
 
-// CHECK-IR: define internal void [[OMP_REGF]]() section ".text.startup" {
-// CHECK-IR: entry:
+// CHECK-IR: define internal void [[OMP_REGFN]]()
 // CHECK-IR:   call void @__tgt_register_lib([[DESCTY]]* [[OMP_DESC]])
 // CHECK-IR:   ret void
-// CHECK-IR: }
+
 // CHECK-IR: declare void @__tgt_register_lib([[DESCTY]]*)
-// CHECK-IR: define internal void [[OMP_UNREGF]]() section ".text.startup" {
-// CHECK-IR: entry:
+
+// CHECK-IR: define internal void [[OMP_UNREGFN]]()
 // CHECK-IR:   call void @__tgt_unregister_lib([[DESCTY]]* [[OMP_DESC]])
 // CHECK-IR:   ret void
-// CHECK-IR: }
+
 // CHECK-IR: declare void @__tgt_unregister_lib([[DESCTY]]*)
-// CHECK-IR: define internal void @.sycl_offloading.descriptor_reg() section ".text.startup" {
-// CHECK-IR: entry:
-// CHECK-IR:   call void @__tgt_register_lib([[DESCTY]]* [[SYCL_DESC]])
+
+// CHECK-IR: define internal void [[SYCL_REGFN]]()
+// CHECK-IR:   call void @__tgt_register_lib([[DESCTY]]* bitcast ([[SYCL_DESCTY]]* [[SYCL_DESC]] to [[DESCTY]]*))
 // CHECK-IR:   ret void
-// CHECK-IR: }
-// CHECK-IR: define internal void @.sycl_offloading.descriptor_unreg() section ".text.startup" {
-// CHECK-IR: entry:
-// CHECK-IR:   call void @__tgt_unregister_lib([[DESCTY]]* [[SYCL_DESC]])
+
+// CHECK-IR: define internal void [[SYCL_UNREGFN]]()
+// CHECK-IR:   call void @__tgt_unregister_lib([[DESCTY]]* bitcast ([[SYCL_DESCTY]]* [[SYCL_DESC]] to [[DESCTY]]*))
 // CHECK-IR:   ret void
-// CHECK-IR: }
 
 // -------
 // Check options' effects: -emit-reg-funcs, -desc-name
