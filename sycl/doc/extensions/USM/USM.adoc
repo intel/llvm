@@ -528,9 +528,9 @@ float* a = static_cast<float*>(malloc_shared(10*sizeof(float), dev, ctxt));
 float* b = static_cast<float*>(malloc_shared(10*sizeof(float), dev, ctxt));
 float* c = static_cast<float*>(malloc_shared(10*sizeof(float), dev, ctxt));
 
-queue Q;
-auto e = Q.submit([&](handler& cgh) {
-  cgh.parallel_for<class vec_add>(range<1> {10}, [=](id<1> i) {
+auto e = q.submit([&](handler& cgh) {
+  cgh.parallel_for<class vec_add>(range<1> {10}, [=](id<1> ID) {
+    size_t i = ID[0];
     c[i] = a[i] + b[i];
   });
 });

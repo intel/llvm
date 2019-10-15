@@ -233,6 +233,8 @@ int main() {
   assert(bitwise_comparison_fp16(0.0, 0));
   // -0
   assert(bitwise_comparison_fp16(-0.0, 32768));
+  // 1.9999f
+  assert(bitwise_comparison_fp16(1.9999f, 0x4000));
   // nan
   assert(bitwise_comparison_fp16(0.0 / 0.0, 32256));
   assert(bitwise_comparison_fp16(-0.0 / 0.0, 32256));

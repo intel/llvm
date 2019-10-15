@@ -109,7 +109,7 @@ public:
       usm::alloc AllocT = AllocKind,
       typename std::enable_if<AllocT == usm::alloc::host, int>::type = 0>
   pointer allocate(size_t Size) {
-    auto Result = reinterpret_cast<pointer>(detail::usm::alignedAlloc(
+    auto Result = reinterpret_cast<pointer>(detail::usm::alignedAllocHost(
         getAlignment(), Size * sizeof(value_type), mContext, AllocKind));
     if (!Result) {
       throw memory_allocation_error();

@@ -167,10 +167,8 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     UpdateCommand->addDep(DepDesc{Dep, StoredReq, AllocaCmd});
     Dep->addUser(UpdateCommand);
   }
-  // access::mode::read_write is always used here regardless of requieremnt
-  // access mode because this node shouldn't be skipped.
-  UpdateLeafs(Deps, Record, access::mode::read_write);
-  AddNodeToLeafs(Record, UpdateCommand, access::mode::read_write);
+  UpdateLeafs(Deps, Record, Req->MAccessMode);
+  AddNodeToLeafs(Record, UpdateCommand, Req->MAccessMode);
   return UpdateCommand;
 }
 
