@@ -526,16 +526,15 @@ getFramePointerKind(const ArgList &Args, const llvm::Triple &Triple) {
 }
 
 /// Add a CC1 option to specify the debug compilation directory.
-static void addDebugCompDirArg(const ArgList &Args, ArgStringList &CmdArgs) {
+static void addDebugCompDirArg(const ArgList &Args, ArgStringList &CmdArgs,
+                               const llvm::vfs::FileSystem &VFS) {
   if (Arg *A = Args.getLastArg(options::OPT_fdebug_compilation_dir)) {
     CmdArgs.push_back("-fdebug-compilation-dir");
     CmdArgs.push_back(A->getValue());
-  } else {
-    SmallString<128> cwd;
-    if (!llvm::sys::fs::current_path(cwd)) {
-      CmdArgs.push_back("-fdebug-compilation-dir");
-      CmdArgs.push_back(Args.MakeArgString(cwd));
-    }
+  } else if (llvm::ErrorOr<std::string> CWD =
+                 VFS.getCurrentWorkingDirectory()) {
+    CmdArgs.push_back("-fdebug-compilation-dir");
+    CmdArgs.push_back(Args.MakeArgString(*CWD));
   }
 }
 
@@ -815,13 +814,8 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
     else
       OutputFilename = llvm::sys::path::filename(Output.getBaseInput());
     SmallString<128> CoverageFilename = OutputFilename;
-    if (llvm::sys::path::is_relative(CoverageFilename)) {
-      SmallString<128> Pwd;
-      if (!llvm::sys::fs::current_path(Pwd)) {
-        llvm::sys::path::append(Pwd, CoverageFilename);
-        CoverageFilename.swap(Pwd);
-      }
-    }
+    if (llvm::sys::path::is_relative(CoverageFilename))
+      (void)D.getVFS().makeAbsolute(CoverageFilename);
     llvm::sys::path::replace_extension(CoverageFilename, "gcno");
 
     CmdArgs.push_back("-coverage-notes-file");
@@ -1949,13 +1943,14 @@ void Clang::DumpCompilationDatabase(Compilation &C, StringRef Filename,
     CompilationDatabase = std::move(File);
   }
   auto &CDB = *CompilationDatabase;
-  SmallString<128> Buf;
-  if (llvm::sys::fs::current_path(Buf))
-    Buf = ".";
-  CDB << "{ \"directory\": \"" << escape(Buf) << "\"";
+  auto CWD = D.getVFS().getCurrentWorkingDirectory();
+  if (!CWD)
+    CWD = ".";
+  CDB << "{ \"directory\": \"" << escape(*CWD) << "\"";
   CDB << ", \"file\": \"" << escape(Input.getFilename()) << "\"";
   CDB << ", \"output\": \"" << escape(Output.getFilename()) << "\"";
   CDB << ", \"arguments\": [\"" << escape(D.ClangExecutable) << "\"";
+  SmallString<128> Buf;
   Buf = "-x";
   Buf += types::getTypeName(Input.getType());
   CDB << ", \"" << escape(Buf) << "\"";
@@ -2789,6 +2784,10 @@ static void RenderModulesOptions(Compilation &C, const Driver &D,
           std::string("-fprebuilt-module-path=") + A->getValue()));
       A->claim();
     }
+    if (Args.hasFlag(options::OPT_fmodules_validate_input_files_content,
+                     options::OPT_fno_modules_validate_input_files_content,
+                     false))
+      CmdArgs.push_back("-fvalidate-ast-input-files-content");
   }
 
   // -fmodule-name specifies the module that is currently being built (or
@@ -4456,7 +4455,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fno-autolink");
 
   // Add in -fdebug-compilation-dir if necessary.
-  addDebugCompDirArg(Args, CmdArgs);
+  addDebugCompDirArg(Args, CmdArgs, D.getVFS());
 
   addDebugPrefixMapArg(D, Args, CmdArgs);
 
@@ -4984,6 +4983,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool HaveModules =
       Std && (Std->containsValue("c++2a") || Std->containsValue("c++latest"));
   RenderModulesOptions(C, D, Args, Input, Output, CmdArgs, HaveModules);
+
+  if (Args.hasFlag(options::OPT_fpch_validate_input_files_content,
+                   options::OPT_fno_pch_validate_input_files_content, false))
+    CmdArgs.push_back("-fvalidate-ast-input-files-content");
 
   Args.AddLastArg(CmdArgs, options::OPT_fexperimental_new_pass_manager,
                   options::OPT_fno_experimental_new_pass_manager);
@@ -6266,7 +6269,7 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
     DebugInfoKind = (WantDebug ? codegenoptions::LimitedDebugInfo
                                : codegenoptions::NoDebugInfo);
     // Add the -fdebug-compilation-dir flag if needed.
-    addDebugCompDirArg(Args, CmdArgs);
+    addDebugCompDirArg(Args, CmdArgs, C.getDriver().getVFS());
 
     addDebugPrefixMapArg(getToolChain().getDriver(), Args, CmdArgs);
 

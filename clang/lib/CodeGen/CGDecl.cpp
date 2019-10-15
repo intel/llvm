@@ -446,6 +446,8 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
     var->addAttribute("data-section", SA->getName());
   if (auto *SA = D.getAttr<PragmaClangRodataSectionAttr>())
     var->addAttribute("rodata-section", SA->getName());
+  if (auto *SA = D.getAttr<PragmaClangRelroSectionAttr>())
+    var->addAttribute("relro-section", SA->getName());
 
   if (const SectionAttr *SA = D.getAttr<SectionAttr>())
     var->setSection(SA->getName());

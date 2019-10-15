@@ -1209,6 +1209,17 @@ define <2 x i32> @test_shl_zext_bool_vec(<2 x i1> %t) {
   ret <2 x i32> %shl
 }
 
+define i32 @test_shl_zext_bool_not_constant(i1 %cmp, i32 %shamt) {
+; CHECK-LABEL: @test_shl_zext_bool_not_constant(
+; CHECK-NEXT:    [[CONV3:%.*]] = zext i1 [[CMP:%.*]] to i32
+; CHECK-NEXT:    [[SHL:%.*]] = shl i32 [[CONV3]], [[SHAMT:%.*]]
+; CHECK-NEXT:    ret i32 [[SHL]]
+;
+  %conv3 = zext i1 %cmp to i32
+  %shl = shl i32 %conv3, %shamt
+  ret i32 %shl
+}
+
 define i64 @shl_zext(i32 %t) {
 ; CHECK-LABEL: @shl_zext(
 ; CHECK-NEXT:    [[TMP1:%.*]] = shl i32 [[T:%.*]], 8

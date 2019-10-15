@@ -540,7 +540,8 @@ public:
     PCSK_BSS          = 1,
     PCSK_Data         = 2,
     PCSK_Rodata       = 3,
-    PCSK_Text         = 4
+    PCSK_Text         = 4,
+    PCSK_Relro        = 5
    };
 
   enum PragmaClangSectionAction {
@@ -561,6 +562,7 @@ public:
    PragmaClangSection PragmaClangBSSSection;
    PragmaClangSection PragmaClangDataSection;
    PragmaClangSection PragmaClangRodataSection;
+   PragmaClangSection PragmaClangRelroSection;
    PragmaClangSection PragmaClangTextSection;
 
   enum PragmaMsStackAction {
@@ -6177,7 +6179,16 @@ public:
                                            CXXConversionDecl *Conv,
                                            Expr *Src);
 
-  // ParseObjCStringLiteral - Parse Objective-C string literals.
+  /// Check whether the given expression is a valid constraint expression.
+  /// A diagnostic is emitted if it is not, and false is returned.
+  bool CheckConstraintExpression(Expr *CE);
+
+  bool CalculateConstraintSatisfaction(ConceptDecl *NamedConcept,
+                                       MultiLevelTemplateArgumentList &MLTAL,
+                                       Expr *ConstraintExpr,
+                                       bool &IsSatisfied);
+
+    // ParseObjCStringLiteral - Parse Objective-C string literals.
   ExprResult ParseObjCStringLiteral(SourceLocation *AtLocs,
                                     ArrayRef<Expr *> Strings);
 
@@ -6848,9 +6859,9 @@ public:
 
   ExprResult
   CheckConceptTemplateId(const CXXScopeSpec &SS,
-                         const DeclarationNameInfo &NameInfo,
-                         ConceptDecl *Template,
-                         SourceLocation TemplateLoc,
+                         SourceLocation TemplateKWLoc,
+                         SourceLocation ConceptNameLoc, NamedDecl *FoundDecl,
+                         ConceptDecl *NamedConcept,
                          const TemplateArgumentListInfo *TemplateArgs);
 
   void diagnoseMissingTemplateArguments(TemplateName Name, SourceLocation Loc);
@@ -7769,6 +7780,15 @@ public:
       /// member).
       DefiningSynthesizedFunction,
 
+      // We are checking the constraints associated with a constrained entity or
+      // the constraint expression of a concept. This includes the checks that
+      // atomic constraints have the type 'bool' and that they can be constant
+      // evaluated.
+      ConstraintsCheck,
+
+      // We are substituting template arguments into a constraint expression.
+      ConstraintSubstitution,
+
       /// Added for Template instantiation observation.
       /// Memoization means we are _not_ instantiating a template because
       /// it is already instantiated (but we entered a context where we
@@ -8029,6 +8049,23 @@ public:
                           ArrayRef<TemplateArgument> TemplateArgs,
                           SourceRange InstantiationRange);
 
+    struct ConstraintsCheck {};
+    /// \brief Note that we are checking the constraints associated with some
+    /// constrained entity (a concept declaration or a template with associated
+    /// constraints).
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          ConstraintsCheck, TemplateDecl *Template,
+                          ArrayRef<TemplateArgument> TemplateArgs,
+                          SourceRange InstantiationRange);
+
+    struct ConstraintSubstitution {};
+    /// \brief Note that we are checking a constraint expression associated
+    /// with a template declaration or as part of the satisfaction check of a
+    /// concept.
+    InstantiatingTemplate(Sema &SemaRef, SourceLocation PointOfInstantiation,
+                          ConstraintSubstitution, TemplateDecl *Template,
+                          sema::TemplateDeductionInfo &DeductionInfo,
+                          SourceRange InstantiationRange);
 
     /// Note that we have finished instantiating this template.
     void Clear();
