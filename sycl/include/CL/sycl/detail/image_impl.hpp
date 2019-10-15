@@ -283,7 +283,7 @@ public:
                     RT::PiEvent &OutEventToWait) override {
     void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : nullptr;
 
-    RT::PiMemImageDesc Desc = getImageDesc(static_cast<bool>(UserPtr));
+    RT::PiMemImageDesc Desc = getImageDesc(UserPtr != nullptr);
     assert(checkImageDesc(Desc, Context, UserPtr) &&
            "The check an image desc failed.");
 
