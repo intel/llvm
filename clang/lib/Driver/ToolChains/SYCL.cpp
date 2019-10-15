@@ -416,15 +416,14 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
                              Action::OffloadKind DeviceOffloadKind) const {
   DerivedArgList *DAL =
       HostTC.TranslateArgs(Args, BoundArch, DeviceOffloadKind);
-  if (!DAL)
+
+  if (!DAL) {
     DAL = new DerivedArgList(Args.getBaseArgs());
-
-  const OptTable &Opts = getDriver().getOpts();
-
-  for (Arg *A : Args) {
-    DAL->append(A);
+    for (Arg *A : Args)
+      DAL->append(A);
   }
 
+  const OptTable &Opts = getDriver().getOpts();
   if (!BoundArch.empty()) {
     DAL->eraseArg(options::OPT_march_EQ);
     DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_march_EQ),
