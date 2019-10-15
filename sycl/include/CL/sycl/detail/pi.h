@@ -251,12 +251,12 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// to map the image type onto the device target triple
 ///
 #define PI_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
-/// SPIR-V 32-bit image <-> 32-bit OpenCL device
+/// SPIR-V 32-bit image <-> "spir", 32-bit OpenCL device
 #define PI_DEVICE_BINARY_TARGET_SPIRV32 "spir"
-/// SPIR-V 64-bit image <-> 64-bit OpenCL device
+/// SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
 #define PI_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
 /// Device-specific binary images produced from SPIR-V 64-bit <->
-/// various triples for specific 64-bit OpenCL devices
+/// various "spir64_*" triples for specific 64-bit OpenCL devices
 #define PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
 #define PI_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
 #define PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
