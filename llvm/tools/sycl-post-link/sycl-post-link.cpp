@@ -131,8 +131,8 @@ splitModule(Module &M,
     while (!Workqueue.empty()) {
       Function *F = &*Workqueue.back();
       Workqueue.pop_back();
-      for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-        if (CallBase *CB = dyn_cast<CallBase>(&*I))
+      for (auto &I : instructions(F)) {
+        if (CallBase *CB = dyn_cast<CallBase>(&I))
           if (Function *CF = CB->getCalledFunction())
             if (!CF->isDeclaration() && !GVs.count(CF)) {
               GVs.insert(CF);
