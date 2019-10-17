@@ -362,6 +362,7 @@ int main() {
   translation units.
 - SYCL host device is not fully supported.
 - SYCL works only with OpenCL implementations supporting out-of-order queues.
+- On Windows linking SYCL applications with `/MTd` flag is known to cause crashes.
 
 # Find More
 

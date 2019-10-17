@@ -862,6 +862,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         TT.setVendor(llvm::Triple::UnknownVendor);
         TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);
+        if (IsCLMode())
+          TT.setObjectFormat(llvm::Triple::COFF);
       }
       UniqueSYCLTriplesVec.push_back(TT);
     }
@@ -3554,6 +3556,8 @@ class OffloadingActionBuilder final {
         TT.setVendor(llvm::Triple::UnknownVendor);
         TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);
+        if (C.getDriver().IsCLMode())
+          TT.setObjectFormat(llvm::Triple::COFF);
         SYCLTripleList.push_back(TT);
       }
 

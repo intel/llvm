@@ -112,17 +112,24 @@
 /// action.  The same graph should be generated when no -fsycl-targets is used
 /// The same phase graph will be used with -fsycl-use-bitcode
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-PHASES %s
+// RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
+// RUN:   %clang_cl -ccc-print-phases -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice-coff %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-use-bitcode %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-PHASES %s
+// RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
+// RUN:   %clang_cl -ccc-print-phases -fsycl -fno-sycl-use-bitcode %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-use-bitcode %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-PHASES %s
+// RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
+// RUN:   %clang_cl -ccc-print-phases -fsycl -fsycl-use-bitcode %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c, (host-sycl)
 // CHK-PHASES: 1: preprocessor, {0}, cpp-output, (host-sycl)
 // CHK-PHASES: 2: input, "[[INPUT]]", c, (device-sycl)
 // CHK-PHASES: 3: preprocessor, {2}, cpp-output, (device-sycl)
 // CHK-PHASES: 4: compiler, {3}, sycl-header, (device-sycl)
-// CHK-PHASES: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-{{.*}}-sycldevice)" {4}, cpp-output
+// CHK-PHASES-DEFAULT-MODE: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-{{.*}}-sycldevice)" {4}, cpp-output
+// CHK-PHASES-CL-MODE: 5: offload, "host-sycl (x86_64-pc-windows-msvc)" {1}, "device-sycl (spir64-unknown-{{.*}}-sycldevice-coff)" {4}, cpp-output
 // CHK-PHASES: 6: compiler, {5}, ir, (host-sycl)
 // CHK-PHASES: 7: backend, {6}, assembler, (host-sycl)
 // CHK-PHASES: 8: assembler, {7}, object, (host-sycl)
@@ -132,7 +139,8 @@
 // CHK-PHASES: 12: assembler, {11}, object, (device-sycl)
 // CHK-PHASES: 13: linker, {12}, spirv, (device-sycl)
 // CHK-PHASES: 14: clang-offload-wrapper, {13}, object, (device-sycl)
-// CHK-PHASES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64-unknown-linux-sycldevice)" {14}, image
+// CHK-PHASES-DEFAULT-MODE: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {9}, "device-sycl (spir64-unknown-{{.*}}-sycldevice)" {14}, image
+// CHK-PHASES-CL-MODE: 15: offload, "host-sycl (x86_64-pc-windows-msvc)" {9}, "device-sycl (spir64-unknown-{{.*}}-sycldevice-coff)" {14}, image
 
 /// ###########################################################################
 
@@ -491,6 +499,12 @@
 // RUN: %clang_cl -fsycl %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL %s
 // CHECK-LINK-SYCL: "{{.*}}link{{(.exe)?}}"
 // CHECK-LINK-SYCL: "-defaultlib:sycl.lib"
+
+/// Check sycld.lib is chosen with /MDd and /MTd
+// RUN:  %clang_cl -fsycl /MDd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+// RUN:  %clang_cl -fsycl /MTd %s -o %t -### 2>&1 | FileCheck -check-prefix=CHECK-LINK-SYCL-DEBUG %s
+// CHECK-LINK-SYCL-DEBUG: "{{.*}}link{{(.exe)?}}"
+// CHECK-LINK-SYCL-DEBUG: "-defaultlib:sycld.lib"
 
 /// ###########################################################################
 

@@ -162,8 +162,7 @@ private:
     // If none found, creates new one.
     AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
                                                Requirement *Req,
-                                               QueueImplPtr Queue,
-                                               bool ForceFullReq = false);
+                                               QueueImplPtr Queue);
 
     void markModifiedIfWrite(MemObjRecord *Record,
                              Requirement *Req);

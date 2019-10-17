@@ -283,7 +283,7 @@ public:
                     RT::PiEvent &OutEventToWait) override {
     void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : nullptr;
 
-    RT::PiMemImageDesc Desc = getImageDesc();
+    RT::PiMemImageDesc Desc = getImageDesc(UserPtr != nullptr);
     assert(checkImageDesc(Desc, Context, UserPtr) &&
            "The check an image desc failed.");
 
@@ -376,7 +376,7 @@ private:
     return PI_MEM_TYPE_IMAGE3D;
   }
 
-  RT::PiMemImageDesc getImageDesc() {
+  RT::PiMemImageDesc getImageDesc(bool InitFromHostPtr) {
     RT::PiMemImageDesc Desc;
     Desc.image_type = getImageType();
     Desc.image_width = MRange[0];
@@ -384,8 +384,9 @@ private:
     Desc.image_depth = Dimensions > 2 ? MRange[2] : 1;
     // TODO handle cases with IMAGE1D_ARRAY and IMAGE2D_ARRAY
     Desc.image_array_size = 0;
-    Desc.image_row_pitch = MRowPitch;
-    Desc.image_slice_pitch = MSlicePitch;
+    // Pitches must be 0 if host ptr is not provided.
+    Desc.image_row_pitch = InitFromHostPtr ? MRowPitch : 0;
+    Desc.image_slice_pitch = InitFromHostPtr ? MSlicePitch : 0;
 
     Desc.num_mip_levels = 0;
     Desc.num_samples = 0;

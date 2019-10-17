@@ -24,6 +24,9 @@ int main() {
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
 
+  constexpr auto SYCLRead = sycl::access::mode::read;
+  constexpr auto SYCLWrite = sycl::access::mode::write;
+
   const sycl::range<2> Img1Size(4, 4);
   const sycl::range<2> Img2Size(4, 4);
 
@@ -35,8 +38,6 @@ int main() {
     sycl::image<2> Img2(Img2HostData.data(), ChanOrder, ChanType, Img2Size);
     TestQueue Q{sycl::default_selector()};
     Q.submit([&](sycl::handler &CGH) {
-      constexpr auto SYCLRead = sycl::access::mode::read;
-      constexpr auto SYCLWrite = cl::sycl::access::mode::write;
 
       auto Img1Acc = Img1.get_access<sycl::float4, SYCLRead>(CGH);
       auto Img2Acc = Img2.get_access<sycl::float4, SYCLWrite>(CGH);
@@ -61,6 +62,16 @@ int main() {
         return 1;
       }
     }
+
+  {
+    const sycl::range<1> ImgPitch(4 * 4 * 4 * 2);
+    sycl::image<2> Img(ChanOrder, ChanType, Img1Size, ImgPitch);
+    TestQueue Q{sycl::default_selector()};
+    Q.submit([&](sycl::handler &CGH) {
+      auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);
+      CGH.single_task<class EmptyKernel>([=]() { ImgAcc.get_size(); });
+    });
+  }
 
   std::cout << "Success" << std::endl;
   return 0;
