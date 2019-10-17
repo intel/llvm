@@ -19,7 +19,7 @@ add_dependencies(pi_opencl
   ocl-headers
 )
 
-add_dependencies(sycl pi_opencl)
+add_dependencies(sycl-toolchain pi_opencl)
 
 set_target_properties(pi_opencl PROPERTIES LINKER_LANGUAGE CXX)
 
@@ -32,29 +32,7 @@ target_link_libraries( pi_opencl
     PRIVATE ${OpenCL_LIBRARIES}
 )
 
-if (SYCL_USE_LIBCXX)
-    if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-        (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-        target_compile_options(pi_opencl PRIVATE -nostdinc++)
-        if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-            message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                                "SYCL_LIBCXX_LIBRARY_PATH should be set")
-        endif()
-        target_include_directories(pi_opencl PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-        target_link_libraries(pi_opencl PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -nodefaultlibs -lc++ -lc)
-    else()
-        message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
-    endif()
-else()
-
-# Workaround for bug in GCC version 5 and higher.
-# More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
-    CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
-  target_link_libraries(pi_opencl PRIVATE gcc_s gcc)
-endif()
-
-endif()
+add_libcxxsupport_gccworkaround(pi_opencl)
 
 install(TARGETS pi_opencl
     LIBRARY DESTINATION "lib" COMPONENT pi_opencl
