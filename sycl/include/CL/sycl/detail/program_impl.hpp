@@ -207,8 +207,14 @@ public:
     // TODO Check for existence of kernel
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-      create_cl_program_with_il(M);
-      build(BuildOptions);
+      // If there are no build options, program can be safely cached
+      if (BuildOptions.empty()) {
+        Program = ProgramManager::getInstance().getBuiltOpenCLProgram(M, Context);
+        PI_CALL(RT::piProgramRetain(Program));
+      } else {
+        create_cl_program_with_il(M);
+        build(BuildOptions);
+      }
     }
     State = program_state::linked;
   }
