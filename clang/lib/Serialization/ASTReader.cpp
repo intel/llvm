@@ -9345,9 +9345,11 @@ ASTReader::ReadTemplateParameterList(ModuleFile &F,
   while (NumParams--)
     Params.push_back(ReadDeclAs<NamedDecl>(F, Record, Idx));
 
-  // TODO: Concepts
+  bool HasRequiresClause = Record[Idx++];
+  Expr *RequiresClause = HasRequiresClause ? ReadExpr(F) : nullptr;
+
   TemplateParameterList *TemplateParams = TemplateParameterList::Create(
-      getContext(), TemplateLoc, LAngleLoc, Params, RAngleLoc, nullptr);
+      getContext(), TemplateLoc, LAngleLoc, Params, RAngleLoc, RequiresClause);
   return TemplateParams;
 }
 
@@ -12497,6 +12499,7 @@ void OMPClauseReader::VisitOMPIfClause(OMPIfClause *C) {
 }
 
 void OMPClauseReader::VisitOMPFinalClause(OMPFinalClause *C) {
+  VisitOMPClauseWithPreInit(C);
   C->setCondition(Record.readSubExpr());
   C->setLParenLoc(Record.readSourceLocation());
 }
@@ -12993,6 +12996,7 @@ void OMPClauseReader::VisitOMPThreadLimitClause(OMPThreadLimitClause *C) {
 }
 
 void OMPClauseReader::VisitOMPPriorityClause(OMPPriorityClause *C) {
+  VisitOMPClauseWithPreInit(C);
   C->setPriority(Record.readSubExpr());
   C->setLParenLoc(Record.readSourceLocation());
 }

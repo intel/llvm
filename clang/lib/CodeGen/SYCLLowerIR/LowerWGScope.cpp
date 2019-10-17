@@ -784,7 +784,7 @@ Value *spirv::createWGLocalVariable(Module &M, Type *T, const Twine &Name) {
       );
   G->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
   const DataLayout &DL = M.getDataLayout();
-  G->setAlignment(DL.getPreferredAlignment(G));
+  G->setAlignment(MaybeAlign(DL.getPreferredAlignment(G)));
   LocalMemUsed += DL.getTypeStoreSize(G->getValueType());
   LLVM_DEBUG(llvm::dbgs() << "Local AS Var created: " << G->getName() << "\n");
   LLVM_DEBUG(llvm::dbgs() << "  Local mem used: " << LocalMemUsed << "B\n");
@@ -822,7 +822,7 @@ Value *spirv::genLinearLocalID(Instruction &Before) {
                            asUInt(spirv::AddrSpace::Global) // AddressSpace
     );
     unsigned Align = M.getDataLayout().getPreferredAlignment(G);
-    G->setAlignment(Align);
+    G->setAlignment(MaybeAlign(Align));
   }
   Value *Res = new LoadInst(G, "", &Before);
   return Res;
