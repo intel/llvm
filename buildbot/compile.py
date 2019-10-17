@@ -17,6 +17,13 @@ def do_compile(args):
 
     subprocess.check_call(make_cmd, cwd=args.obj_dir)
 
+    install_dir = os.path.join(args.obj_dir, "install")
+    if not os.path.isdir(install_dir):
+        os.makedirs(install_dir)
+
+    install_cmd = ["ninja", "deploy-sycl-toolchain"]
+    subprocess.check_call(install_cmd, cwd=args.obj_dir)
+
     ret = True
     return ret
 
