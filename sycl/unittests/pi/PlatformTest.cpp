@@ -6,58 +6,74 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <gtest/gtest.h>
-#include <memory>
+#include <vector>
+
+namespace {
 
 using namespace cl::sycl;
 
-namespace pi {
 class PlatformTest : public ::testing::Test {
 protected:
+  std::vector<pi_platform> _platforms;
 
-constexpr static size_t out_string_size =
-    8192u; // Using values from OpenCL CTS clGetPlatforms test
+  PlatformTest() : _platforms{} { detail::pi::initialize(); };
 
-  PlatformTest() { detail::pi::initialize(); }
+  ~PlatformTest() override = default;
 
-  ~PlatformTest() = default;
+  void SetUp() {
+    ASSERT_NO_FATAL_FAILURE(Test::SetUp());
+
+    const static char *platform_count_key = "PiPlatformCount";
+
+    pi_uint32 platform_count = 0u;
+
+    // Initialize the logged number of platforms before the following assertion.
+    RecordProperty(platform_count_key, platform_count);
+
+    ASSERT_EQ(RT::piPlatformsGet(0, 0, &platform_count), PI_SUCCESS);
+
+    // Overwrite previous log value with queried number of platforms.
+    RecordProperty(platform_count_key, platform_count);
+
+    if (platform_count == 0u) {
+      std::cout
+          << "WARNING: piPlatformsGet does not find any PI platforms.\n";
+
+      // Do not call into OpenCL below as a platform count of 0 might fail with
+      // OpenCL implementations if the platforms pointer is not `nullptr`.
+      return;
+    }
+
+    _platforms.resize(platform_count, nullptr);
+
+    ASSERT_EQ(RT::piPlatformsGet(_platforms.size(), _platforms.data(), nullptr),
+              PI_SUCCESS);
+  }
 };
 
 TEST_F(PlatformTest, piPlatformsGet) {
-  pi_uint32 platformCount = 0;
-
-  ASSERT_EQ(PI_CALL_RESULT(RT::piPlatformsGet(0, 0, &platformCount)),
-            PI_SUCCESS)
-      << "piPlatformsGet failed";
-
-  ASSERT_GT(platformCount, 0u) << "piPlatformsGet found 0 platforms.\n";
-
-  std::vector<pi_platform> platforms(platformCount);
-
-  ASSERT_EQ(PI_CALL_RESULT(
-                RT::piPlatformsGet(platformCount, platforms.data(), nullptr)),
-            PI_SUCCESS)
-      << "piPlatformsGet failed with nullptr for return size.\n";
+  // The PlatformTest::SetUp method is called to prepare for this test case
+  // implicitly tests the calls to `piPlatformsGet`.
 }
 
 TEST_F(PlatformTest, piPlatformGetInfo) {
-  auto get_info_test = [](char *out_string, pi_platform platform,
-                          _pi_platform_info info) {
-
-    auto info_name = detail::pi::platformInfoToString(info);
-
+  auto get_info_test = [](pi_platform platform, _pi_platform_info info) {
     size_t reported_string_length = 0;
-    memset(out_string, 0, out_string_size);
+    EXPECT_EQ(RT::piPlatformGetInfo(platform, info, 0u, nullptr,
+                                    &reported_string_length),
+              PI_SUCCESS);
 
-    ASSERT_EQ(PI_CALL_RESULT(RT::piPlatformGetInfo(platform, info,
-                                                   out_string_size, out_string,
-                                                   &reported_string_length)),
+    // Create a larger result string to catch overwrites.
+    std::vector<char> param_value(reported_string_length * 2u, '\0');
+    EXPECT_EQ(RT::piPlatformGetInfo(platform, info, param_value.size(),
+                                    param_value.data(), 0u),
               PI_SUCCESS)
-        << "piPlatformGetInfo for " << info_name << " failed.\n";
+        << "piPlatformGetInfo for " << RT::platformInfoToString(info)
+        << " failed.\n";
 
-    auto returned_string_length = strlen(out_string) + 1;
+    const auto returned_string_length = strlen(param_value.data()) + 1;
 
     EXPECT_EQ(returned_string_length, reported_string_length)
         << "Returned string length " << returned_string_length
@@ -65,21 +81,12 @@ TEST_F(PlatformTest, piPlatformGetInfo) {
         << ".\n";
   };
 
-  pi_uint32 platformCount = 0;
-  PI_CALL(RT::piPlatformsGet(0, 0, &platformCount));
-  std::vector<pi_platform> platforms(platformCount);
-  PI_CALL(RT::piPlatformsGet(platformCount, platforms.data(), nullptr));
-
-  auto out_string_buffer = std::unique_ptr<char[]>(new char[out_string_size]);
-  auto out_string = out_string_buffer.get();
-
-  for (auto i = 0u; i < platformCount; ++i) {
-    const auto &platform = platforms[i];
-    get_info_test(out_string, platform, PI_PLATFORM_INFO_NAME);
-    get_info_test(out_string, platform, PI_PLATFORM_INFO_VENDOR);
-    get_info_test(out_string, platform, PI_PLATFORM_INFO_PROFILE);
-    get_info_test(out_string, platform, PI_PLATFORM_INFO_VERSION);
-    get_info_test(out_string, platform, PI_PLATFORM_INFO_EXTENSIONS);
+  for (const auto &platform : _platforms) {
+    get_info_test(platform, PI_PLATFORM_INFO_NAME);
+    get_info_test(platform, PI_PLATFORM_INFO_VENDOR);
+    get_info_test(platform, PI_PLATFORM_INFO_PROFILE);
+    get_info_test(platform, PI_PLATFORM_INFO_VERSION);
+    get_info_test(platform, PI_PLATFORM_INFO_EXTENSIONS);
   }
 }
-} // Namespace
+} // namespace
