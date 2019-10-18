@@ -6832,7 +6832,7 @@ void SPIRCheck::ConstructJob(Compilation &C, const JobAction &JA,
   // Construct llvm-no-spir-kernel command.
   assert(isa<SPIRCheckJobAction>(JA) && "Expecting SPIR Check job!");
 
-  // The translator command looks like this:
+  // The spir check command looks like this:
   // llvm-no-spir-kernel <file>.bc
   // Upon success, we just move ahead.  Error means the check failed and
   // we need to exit.  The expected output is the input as this is just an
