@@ -32,7 +32,7 @@ target_link_libraries( pi_opencl
     PRIVATE ${OpenCL_LIBRARIES}
 )
 
-add_libcxxsupport_gccworkaround(pi_opencl)
+add_common_options(pi_opencl)
 
 install(TARGETS pi_opencl
     LIBRARY DESTINATION "lib" COMPONENT pi_opencl

@@ -27,7 +27,7 @@ function(add_sycl_rt_library LIB_NAME)
       PRIVATE ${CMAKE_DL_LIBS}
   )
 
-  add_libcxxsupport_gccworkaround(${LIB_NAME})
+  add_common_options(${LIB_NAME})
 
 endfunction(add_sycl_rt_library)
 

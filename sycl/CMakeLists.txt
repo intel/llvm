@@ -144,8 +144,9 @@ if (MSVC)
 endif()
 
 # This function allows building multiple libraries with the same options.
-# Currently used by sycl and plugins library. 
-function( add_libcxxsupport_gccworkaround LIB_NAME)
+# Currently used by sycl and plugins library.
+# Currently handles linking with libcxx support and gcc workaround
+function( add_common_options LIB_NAME)
   if (SYCL_USE_LIBCXX)
       if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
           (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
@@ -169,7 +170,7 @@ function( add_libcxxsupport_gccworkaround LIB_NAME)
     endif()
 
   endif()
-endfunction(add_libcxxsupport_gccworkaround)	
+endfunction(add_common_options)
 
 # SYCL runtime library
 add_subdirectory( source )
