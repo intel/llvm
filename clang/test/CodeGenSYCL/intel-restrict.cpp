@@ -52,6 +52,17 @@ int foo(int X) {
       foostr<decltype(AccA), decltype(AccB)> f(AccA, AccB);
       cgh.single_task<class kernel_restrict_struct>(f);
     });
+
+    // CHECK: define {{.*}} spir_kernel {{.*}}kernel_restrict_other_params{{.*}}(i32 addrspace(1)* noalias %{{.*}} i32 addrspace(1)* noalias %{{.*}}, i32 %_arg_9)
+    int num = 42;
+    Q.submit([&](cl::sycl::handler& cgh) {
+      auto AccA = BufA.get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      auto AccB = BufB.get_access<sycl_read_write, sycl_global_buffer>(cgh);
+      cgh.single_task<class kernel_restrict_other_params>(
+          [=]() [[intel::kernel_args_restrict]] {
+            AccB[0] = AccA[0] = num;
+          });
+    });
   }
   return B[0];
 }
