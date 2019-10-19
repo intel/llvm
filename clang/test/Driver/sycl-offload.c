@@ -761,5 +761,10 @@
 // RUN:   | FileCheck -check-prefix=LIB-UNBUNDLE-CHECK %s
 // LIB-UNBUNDLE-CHECK-NOT: clang-offload-unbundler
 
+/// Options should not be duplicated in AOT calls
+// RUN: %clang -fsycl -### -fsycl-targets=spir64_fpga -Xsycl-target-backend "-DBLAH" %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=DUP-OPT %s
+// DUP-OPT-NOT: aoc{{.*}} "-DBLAH" {{.*}} "-DBLAH"
+
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc

@@ -143,11 +143,39 @@ Command::Command(CommandType Type, QueueImplPtr Queue, bool UseExclusiveQueue)
   MEvent->setContextImpl(detail::getSyclObjImpl(MQueue->get_context()));
 }
 
-cl_int Command::enqueue() {
-  bool Expected = false;
-  if (MEnqueued.compare_exchange_strong(Expected, true))
-    return enqueueImp();
-  return CL_SUCCESS;
+bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
+  // Exit if already enqueued
+  if (MEnqueued)
+    return true;
+
+  // If the command is blocked from enqueueing
+  if (MIsBlockable && !MCanEnqueue) {
+    // Exit if enqueue type is not blocking
+    if (!Blocking) {
+      EnqueueResult = EnqueueResultT(EnqueueResultT::BLOCKED, this);
+      return false;
+    }
+    // Wait if blocking
+    while (!MCanEnqueue)
+      ;
+  }
+
+  std::lock_guard<std::mutex> Lock(MEnqueueMtx);
+
+  // Exit if the command is already enqueued
+  if (MEnqueued)
+    return true;
+
+  cl_int Res = enqueueImp();
+
+  if (CL_SUCCESS != Res)
+    EnqueueResult = EnqueueResultT(EnqueueResultT::FAILED, this, Res);
+  else
+    // Consider the command is successfully enqueued if return code is
+    // CL_SUCCESS
+    MEnqueued = true;
+
+  return static_cast<bool>(MEnqueued);
 }
 
 cl_int AllocaCommand::enqueueImp() {
