@@ -50,8 +50,9 @@ class Run(object):
         self.failure_count = 0
         self.hit_max_failures = False
 
-        one_year = 365 * 24 * 60 * 60  # days * hours * minutes * seconds
-        timeout = self.timeout or one_year
+        # Larger timeouts (one year, positive infinity) don't work on Windows.
+        one_week = 7 * 24 * 60 * 60  # days * hours * minutes * seconds
+        timeout = self.timeout or one_week
 
         start = time.time()
         deadline = start + timeout
@@ -65,7 +66,7 @@ class Run(object):
 
         return end - start
 
-    def _consume_test_result(self, pool_result):
+    def _consume_test_result(self, test, result):
         """Test completion callback for lit.worker.run_one_test
 
         Updates the test result status in the parent process. Each task in the
@@ -79,17 +80,15 @@ class Run(object):
         if self.hit_max_failures:
             return
 
-        (test_index, test_with_result) = pool_result
         # Update the parent process copy of the test. This includes the result,
         # XFAILS, REQUIRES, and UNSUPPORTED statuses.
-        assert self.tests[test_index].file_path == test_with_result.file_path, \
-                "parent and child disagree on test path"
-        self.tests[test_index] = test_with_result
-        self.progress_callback(test_with_result)
+        test.setResult(result)
+
+        self.progress_callback(test)
 
         # If we've finished all the tests or too many tests have failed, notify
         # the main thread that we've stopped testing.
-        self.failure_count += (test_with_result.result.code == lit.Test.FAIL)
+        self.failure_count += (result.code == lit.Test.FAIL)
         if self.lit_config.maxFailures and \
                 self.failure_count == self.lit_config.maxFailures:
             self.hit_max_failures = True
@@ -100,9 +99,9 @@ class SerialRun(Run):
 
     def _execute(self, deadline):
         # TODO(yln): ignores deadline
-        for test_index, test in enumerate(self.tests):
-            lit.worker._execute_test(test, self.lit_config)
-            self._consume_test_result((test_index, test))
+        for test in self.tests:
+            result = lit.worker._execute_test(test, self.lit_config)
+            self._consume_test_result(test, result)
             if self.hit_max_failures:
                 break
 
@@ -137,9 +136,9 @@ class ParallelRun(Run):
 
         try:
             async_results = [pool.apply_async(lit.worker.run_one_test,
-                                              args=(test_index, test),
-                                              callback=self._consume_test_result)
-                             for test_index, test in enumerate(self.tests)]
+                                              args=(test,),
+                                              callback=lambda r,t=test: self._consume_test_result(t, r))
+                             for test in self.tests]
             pool.close()
 
             # Wait for all results to come in. The callback that runs in the

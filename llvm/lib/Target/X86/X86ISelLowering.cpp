@@ -20923,11 +20923,11 @@ static SDValue LowerVSETCC(SDValue Op, const X86Subtarget &Subtarget,
   return Result;
 }
 
-// Try to select this as a KORTEST+SETCC if possible.
-static SDValue EmitKORTEST(SDValue Op0, SDValue Op1, ISD::CondCode CC,
-                           const SDLoc &dl, SelectionDAG &DAG,
-                           const X86Subtarget &Subtarget,
-                           SDValue &X86CC) {
+// Try to select this as a KORTEST+SETCC or KTEST+SETCC if possible.
+static SDValue EmitAVX512Test(SDValue Op0, SDValue Op1, ISD::CondCode CC,
+                              const SDLoc &dl, SelectionDAG &DAG,
+                              const X86Subtarget &Subtarget,
+                              SDValue &X86CC) {
   // Only support equality comparisons.
   if (CC != ISD::SETEQ && CC != ISD::SETNE)
     return SDValue();
@@ -20951,6 +20951,21 @@ static SDValue EmitKORTEST(SDValue Op0, SDValue Op1, ISD::CondCode CC,
     X86Cond = CC == ISD::SETEQ ? X86::COND_B : X86::COND_AE;
   } else
     return SDValue();
+
+  // If the input is an AND, we can combine it's operands into the KTEST.
+  bool KTestable = false;
+  if (Subtarget.hasDQI() && (VT == MVT::v8i1 || VT == MVT::v16i1))
+    KTestable = true;
+  if (Subtarget.hasBWI() && (VT == MVT::v32i1 || VT == MVT::v64i1))
+    KTestable = true;
+  if (!isNullConstant(Op1))
+    KTestable = false;
+  if (KTestable && Op0.getOpcode() == ISD::AND && Op0.hasOneUse()) {
+    SDValue LHS = Op0.getOperand(0);
+    SDValue RHS = Op0.getOperand(1);
+    X86CC = DAG.getTargetConstant(X86Cond, dl, MVT::i8);
+    return DAG.getNode(X86ISD::KTEST, dl, MVT::i32, LHS, RHS);
+  }
 
   // If the input is an OR, we can combine it's operands into the KORTEST.
   SDValue LHS = Op0;
@@ -20988,9 +21003,9 @@ SDValue X86TargetLowering::emitFlagsForSetcc(SDValue Op0, SDValue Op1,
       return PTEST;
   }
 
-  // Try to lower using KORTEST.
-  if (SDValue KORTEST = EmitKORTEST(Op0, Op1, CC, dl, DAG, Subtarget, X86CC))
-    return KORTEST;
+  // Try to lower using KORTEST or KTEST.
+  if (SDValue Test = EmitAVX512Test(Op0, Op1, CC, dl, DAG, Subtarget, X86CC))
+    return Test;
 
   // Look for X == 0, X == 1, X != 0, or X != 1.  We can simplify some forms of
   // these.
@@ -33020,6 +33035,7 @@ static SDValue combineX86ShufflesRecursively(
   SmallVector<SDValue, 2> OpInputs;
   APInt OpUndef, OpZero;
   APInt OpDemandedElts = APInt::getAllOnesValue(VT.getVectorNumElements());
+  bool IsOpVariableMask = isTargetShuffleVariableMask(Op.getOpcode());
   if (!getTargetShuffleInputs(Op, OpDemandedElts, OpInputs, OpMask, OpUndef,
                               OpZero, DAG, Depth, false))
     return SDValue();
@@ -33141,7 +33157,7 @@ static SDValue combineX86ShufflesRecursively(
                          SDLoc(Root));
 
   assert(!Ops.empty() && "Shuffle with no inputs detected");
-  HasVariableMask |= isTargetShuffleVariableMask(Op.getOpcode());
+  HasVariableMask |= IsOpVariableMask;
 
   // Update the list of shuffle nodes that have been combined so far.
   SmallVector<const SDNode *, 16> CombinedNodes(SrcNodes.begin(),
