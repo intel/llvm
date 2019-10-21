@@ -1841,12 +1841,12 @@ def SYCLIntelKernelArgsRestrictDocs : Documentation {
   let Content = [{
 The attribute ``intel::kernel_args_restrict`` is legal on device functions, and
 can be ignored on non-device functions. When applied to a function, lambda, or
-function call operator (of a functor), the attribute is a hint to the compiler
-equivalent to specifying the C99 restrict attribute on all pointer arguments or
-the pointer member of any accessors, which are a function argument, lambda
-capture, or functor member, of the callable to which the attribute was
-applied. This effect is equivalent to annotating restrict on **all** kernel
-pointer arguments in an OpenCL or SPIR-V kernel.
+function call operator (of a function object), the attribute is a hint to the
+compiler equivalent to specifying the C99 restrict attribute on all pointer
+arguments or the pointer member of any accessors, which are a function argument,
+lambda capture, or function object member, of the callable to which the
+attribute was applied. This effect is equivalent to annotating restrict on
+**all** kernel pointer arguments in an OpenCL or SPIR-V kernel.
 
 If ``intel::kernel_args_restrict`` is applied to a function called from a device
 kernel, the attribute is ignored and it is not propagated to a kernel.
