@@ -5,7 +5,7 @@
 void func_ignore() {}
 
 
-struct Functor {
+struct FuncObj {
   [[intel::kernel_args_restrict]]
   void operator()() {}
 };
@@ -19,7 +19,7 @@ int main() {
   // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel1
   // CHECK:       SYCLIntelKernelArgsRestrictAttr
   kernel<class test_kernel1>(
-      Functor());
+      FuncObj());
 
   // CHECK-LABEL: FunctionDecl {{.*}} _ZTSZ4mainE12test_kernel2
   // CHECK:       SYCLIntelKernelArgsRestrictAttr
