@@ -20,11 +20,11 @@
 #include "AMDGPU.h"
 #include "AMDGPUSubtarget.h"
 #include "AMDGPUTargetMachine.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIDefines.h"
 #include "SIInstrInfo.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIRegisterInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
@@ -35,6 +35,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/LegacyDivergenceAnalysis.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/DAGCombine.h"
@@ -44,6 +45,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
@@ -2685,6 +2687,15 @@ SDValue SITargetLowering::LowerCall(CallLoweringInfo &CLI,
   bool IsSibCall = false;
   bool IsThisReturn = false;
   MachineFunction &MF = DAG.getMachineFunction();
+
+  if (Callee.isUndef() || isNullConstant(Callee)) {
+    if (!CLI.IsTailCall) {
+      for (unsigned I = 0, E = CLI.Ins.size(); I != E; ++I)
+        InVals.push_back(DAG.getUNDEF(CLI.Ins[I].VT));
+    }
+
+    return Chain;
+  }
 
   if (IsVarArg) {
     return lowerUnhandledCall(CLI, InVals,

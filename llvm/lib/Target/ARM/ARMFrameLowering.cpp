@@ -76,7 +76,7 @@ skipAlignedDPRCS2Spills(MachineBasicBlock::iterator MI,
                         unsigned NumAlignedDPRCS2Regs);
 
 ARMFrameLowering::ARMFrameLowering(const ARMSubtarget &sti)
-    : TargetFrameLowering(StackGrowsDown, sti.getStackAlignment(), 0, 4),
+    : TargetFrameLowering(StackGrowsDown, sti.getStackAlignment(), 0, Align(4)),
       STI(sti) {}
 
 bool ARMFrameLowering::keepFramePointer(const MachineFunction &MF) const {
@@ -2128,10 +2128,16 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
     AFI->setLRIsSpilledForFarJump(true);
   }
   AFI->setLRIsSpilled(SavedRegs.test(ARM::LR));
+}
+
+void ARMFrameLowering::getCalleeSaves(const MachineFunction &MF,
+                                      BitVector &SavedRegs) const {
+  TargetFrameLowering::getCalleeSaves(MF, SavedRegs);
 
   // If we have the "returned" parameter attribute which guarantees that we
   // return the value which was passed in r0 unmodified (e.g. C++ 'structors),
   // record that fact for IPRA.
+  const ARMFunctionInfo *AFI = MF.getInfo<ARMFunctionInfo>();
   if (AFI->getPreservesR0())
     SavedRegs.set(ARM::R0);
 }

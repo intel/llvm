@@ -55,12 +55,12 @@ public:
 private:
   StackDirection StackDir;
   Align StackAlignment;
-  unsigned TransientStackAlignment;
+  Align TransientStackAlignment;
   int LocalAreaOffset;
   bool StackRealignable;
 public:
   TargetFrameLowering(StackDirection D, Align StackAl, int LAO,
-                      unsigned TransAl = 1, bool StackReal = true)
+                      Align TransAl = Align::None(), bool StackReal = true)
       : StackDir(D), StackAlignment(StackAl), TransientStackAlignment(TransAl),
         LocalAreaOffset(LAO), StackRealignable(StackReal) {}
 
@@ -96,7 +96,7 @@ public:
   /// calls.
   ///
   unsigned getTransientStackAlignment() const {
-    return TransientStackAlignment;
+    return TransientStackAlignment.value();
   }
 
   /// isStackRealignable - This method returns whether the stack can be
@@ -282,6 +282,11 @@ public:
     return getFrameIndexReference(MF, FI, FrameReg);
   }
 
+  /// Returns the callee-saved registers as computed by determineCalleeSaves
+  /// in the BitVector \p SavedRegs.
+  virtual void getCalleeSaves(const MachineFunction &MF,
+                                  BitVector &SavedRegs) const;
+
   /// This method determines which of the registers reported by
   /// TargetRegisterInfo::getCalleeSavedRegs() should actually get saved.
   /// The default implementation checks populates the \p SavedRegs bitset with
@@ -289,6 +294,9 @@ public:
   /// this function to save additional registers.
   /// This method also sets up the register scavenger ensuring there is a free
   /// register or a frameindex available.
+  /// This method should not be called by any passes outside of PEI, because
+  /// it may change state passed in by \p MF and \p RS. The preferred
+  /// interface outside PEI is getCalleeSaves.
   virtual void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                                     RegScavenger *RS = nullptr) const;
 
@@ -367,17 +375,7 @@ public:
 
   /// Check if given function is safe for not having callee saved registers.
   /// This is used when interprocedural register allocation is enabled.
-  static bool isSafeForNoCSROpt(const Function &F) {
-    if (!F.hasLocalLinkage() || F.hasAddressTaken() ||
-        !F.hasFnAttribute(Attribute::NoRecurse))
-      return false;
-    // Function should not be optimized as tail call.
-    for (const User *U : F.users())
-      if (auto CS = ImmutableCallSite(U))
-        if (CS.isTailCall())
-          return false;
-    return true;
-  }
+  static bool isSafeForNoCSROpt(const Function &F);
 
   /// Check if the no-CSR optimisation is profitable for the given function.
   virtual bool isProfitableForNoCSROpt(const Function &F) const {

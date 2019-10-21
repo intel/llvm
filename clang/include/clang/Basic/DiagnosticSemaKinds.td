@@ -5771,6 +5771,9 @@ def note_precedence_silence : Note<
 def warn_precedence_conditional : Warning<
   "operator '?:' has lower precedence than '%0'; '%0' will be evaluated first">,
   InGroup<Parentheses>;
+def warn_precedence_bitwise_conditional : Warning<
+  "operator '?:' has lower precedence than '%0'; '%0' will be evaluated first">,
+  InGroup<BitwiseConditionalParentheses>;
 def note_precedence_conditional_first : Note<
   "place parentheses around the '?:' expression to evaluate it first">;
 
@@ -8358,7 +8361,10 @@ def warn_comparison_always : Warning<
   InGroup<TautologicalCompare>;
 def warn_comparison_bitwise_always : Warning<
   "bitwise comparison always evaluates to %select{false|true}0">,
-  InGroup<TautologicalCompare>;
+  InGroup<TautologicalBitwiseCompare>, DefaultIgnore;
+def warn_comparison_bitwise_or : Warning<
+  "bitwise or with non-zero value always evaluates to true">,
+  InGroup<TautologicalBitwiseCompare>, DefaultIgnore;
 def warn_tautological_overlap_comparison : Warning<
   "overlapping comparisons always evaluate to %select{false|true}0">,
   InGroup<TautologicalOverlapCompare>, DefaultIgnore;
