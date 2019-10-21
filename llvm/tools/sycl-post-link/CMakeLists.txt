@@ -4,6 +4,7 @@ set(LLVM_LINK_COMPONENTS
   IPO
   IRReader
   Support
+  TransformUtils
   )
 
 add_llvm_tool(sycl-post-link
