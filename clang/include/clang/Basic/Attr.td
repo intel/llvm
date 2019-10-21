@@ -1093,7 +1093,7 @@ def SYCLDeviceIndirectlyCallable : InheritableAttr {
 }
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Spellings = [ CXX11<"intel", "kernel_args_restrict"> ];
-  let Subjects = SubjectList<[ FunctionLike ], ErrorDiag>;
+  let Subjects = SubjectList<[Function], ErrorDiag>;
   let LangOpts = [ SYCLIsDevice, SYCLIsHost ];
   let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
 }

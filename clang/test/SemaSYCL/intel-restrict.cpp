@@ -4,7 +4,6 @@
 [[intel::kernel_args_restrict]] // expected-warning{{'kernel_args_restrict' attribute ignored}}
 void func_ignore() {}
 
-
 struct FuncObj {
   [[intel::kernel_args_restrict]]
   void operator()() {}
@@ -13,6 +12,9 @@ struct FuncObj {
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
+#ifdef CHECKDIAG
+  [[intel::kernel_args_restrict]] int invalid = 42; // expected-error{{'kernel_args_restrict' attribute only applies to functions}}
+#endif
 }
 
 int main() {
