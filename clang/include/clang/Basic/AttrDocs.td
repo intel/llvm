@@ -1849,11 +1849,11 @@ applied. This effect is equivalent to annotating restrict on **all** kernel
 pointer arguments in an OpenCL or SPIR-V kernel.
 
 If ``intel::kernel_args_restrict`` is applied to a function called from a device
-kernel, propagation of the attribute to any caller(s), including up to a kernel
-boundary, is implementation defined and not guaranteed through this
-extension. The attribute forms an unchecked assertion, in that implementations
+kernel, the attribute is ignored and it is not propagated to a kernel.
+
+The attribute forms an unchecked assertion, in that implementations
 do not need to check/confirm the pre-condition in any way. If a user applies
-``inte::_kernel_args_restrict`` to a kernel, but there is in fact aliasing
+``intel::_kernel_args_restrict`` to a kernel, but there is in fact aliasing
 between kernel pointer arguments at runtime, the behavior is undefined.
 
 The attribute-token ``intel::kernel_args_restrict`` shall appear at most once in
