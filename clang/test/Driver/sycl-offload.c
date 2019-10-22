@@ -238,9 +238,13 @@
 /// Check separate compilation with offloading - unbundling actions
 // RUN:   touch %t.o
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -lsomelib -fsycl-targets=spir64-unknown-linux-sycldevice %t.o 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-UBACTIONS %s
+// RUN:   | FileCheck -DINPUT=%t.o -check-prefix=CHK-UBACTIONS %s
+// RUN:   mkdir -p %t_dir
+// RUN:   touch %t_dir/dummy
+// RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -lsomelib -fsycl-targets=spir64-unknown-linux-sycldevice %t_dir/dummy 2>&1 \
+// RUN:   | FileCheck -DINPUT=%t_dir/dummy -check-prefix=CHK-UBACTIONS %s
 // CHK-UBACTIONS: 0: input, "somelib", object, (host-sycl)
-// CHK-UBACTIONS: 1: input, "[[INPUT:.+\.o]]", object, (host-sycl)
+// CHK-UBACTIONS: 1: input, "[[INPUT]]", object, (host-sycl)
 // CHK-UBACTIONS: 2: clang-offload-unbundler, {1}, object, (host-sycl)
 // CHK-UBACTIONS: 3: linker, {0, 2}, image, (host-sycl)
 // CHK-UBACTIONS: 4: linker, {2}, spirv, (device-sycl)
