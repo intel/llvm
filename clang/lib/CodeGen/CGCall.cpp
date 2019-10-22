@@ -2412,7 +2412,10 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
           }
         }
 
-        if (Arg->getType().isRestrictQualified())
+        if (Arg->getType().isRestrictQualified() ||
+            (CurCodeDecl &&
+             CurCodeDecl->hasAttr<SYCLIntelKernelArgsRestrictAttr>() &&
+             Arg->getType()->isPointerType()))
           AI->addAttr(llvm::Attribute::NoAlias);
 
         // LLVM expects swifterror parameters to be used in very restricted

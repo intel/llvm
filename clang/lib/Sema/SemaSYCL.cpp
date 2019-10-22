@@ -411,12 +411,14 @@ public:
   // Attributes applied to SYCLKernel are also included
   void CollectPossibleKernelAttributes(FunctionDecl *SYCLKernel,
                                        llvm::SmallPtrSet<Attr *, 4> &Attrs) {
+    typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
     llvm::SmallPtrSet<FunctionDecl *, 16> Visited;
-    llvm::SmallVector<FunctionDecl *, 16> WorkList;
-    WorkList.push_back(SYCLKernel);
+    llvm::SmallVector<ChildParentPair, 16> WorkList;
+    WorkList.push_back({SYCLKernel, nullptr});
 
     while (!WorkList.empty()) {
-      FunctionDecl *FD = WorkList.back();
+      FunctionDecl *FD = WorkList.back().first;
+      FunctionDecl *ParentFD = WorkList.back().second;
       WorkList.pop_back();
       if (!Visited.insert(FD).second)
         continue; // We've already seen this Decl
@@ -425,6 +427,18 @@ public:
         Attrs.insert(A);
       else if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
         Attrs.insert(A);
+      else if (auto *A = FD->getAttr<SYCLIntelKernelArgsRestrictAttr>()) {
+        // Allow the intel::kernel_args_restrict only on the lambda (function
+        // object) function, that is called directly from a kernel (i.e. the one
+        // passed to the parallel_for function). Emit a warning and ignore all
+        // other cases.
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        } else {
+          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
+          FD->dropAttr<SYCLIntelKernelArgsRestrictAttr>();
+        }
+      }
 
       // TODO: vec_len_hint should be handled here
 
@@ -436,7 +450,7 @@ public:
         if (auto *Callee = dyn_cast<FunctionDecl>(CI->getDecl())) {
           Callee = Callee->getCanonicalDecl();
           if (!Visited.count(Callee))
-            WorkList.push_back(Callee);
+            WorkList.push_back({Callee, FD});
         }
       }
     }
@@ -1294,6 +1308,10 @@ void Sema::MarkDevice(void) {
             } else {
               SYCLKernel->addAttr(A);
             }
+            break;
+          }
+          case attr::Kind::SYCLIntelKernelArgsRestrict: {
+            SYCLKernel->addAttr(A);
             break;
           }
           // TODO: vec_len_hint should be handled here
