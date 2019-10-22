@@ -201,6 +201,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-resource-headers
      opencl-headers
      sycl-headers
+     sycl
 )
 
 # Use it as fake dependency in order to force another command(s) to execute.
