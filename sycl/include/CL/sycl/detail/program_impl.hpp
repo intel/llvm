@@ -183,7 +183,7 @@ public:
     // TODO Check for existence of kernel
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-      create_cl_program_with_il(M);
+      create_pi_program_with_il(M, KernelInfo<KernelT>::getName());
       compile(CompileOptions);
     }
     State = program_state::compiled;
@@ -206,7 +206,7 @@ public:
     // TODO Check for existence of kernel
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-      create_cl_program_with_il(M);
+      create_pi_program_with_il(M, KernelInfo<KernelT>::getName());
       build(BuildOptions);
     }
     State = program_state::linked;
@@ -251,7 +251,8 @@ public:
     if (is_host()) {
       return true;
     }
-    return has_cl_kernel(KernelInfo<KernelT>::getName());
+    return ProgramManager::programContainsKernel(
+        Program, KernelInfo<KernelT>::getName());
   }
 #endif
 
@@ -260,7 +261,7 @@ public:
     if (is_host()) {
       return false;
     }
-    return has_cl_kernel(KernelName);
+    return ProgramManager::programContainsKernel(Program, KernelName);
   }
 
   template <typename KernelT>
@@ -340,9 +341,11 @@ private:
     }
   }
 
-  void create_cl_program_with_il(OSModuleHandle M) {
+  void create_pi_program_with_il(OSModuleHandle M,
+                                 const string_class &KernelName) {
     assert(!Program && "This program already has an encapsulated PI program");
-    Program = ProgramManager::getInstance().createOpenCLProgram(M, Context);
+    Program =
+        ProgramManager::getInstance().createPIProgram(M, Context, KernelName);
   }
 
   void create_cl_program_with_source(const string_class &Source) {
@@ -392,24 +395,6 @@ private:
       PiDevices.push_back(getSyclObjImpl(Device)->getHandleRef());
     }
     return PiDevices;
-  }
-
-  bool has_cl_kernel(const string_class &KernelName) const {
-    size_t Size;
-    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_KERNEL_NAMES, 0,
-                                 nullptr, &Size));
-    string_class ClResult(Size, ' ');
-    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_KERNEL_NAMES,
-                                 ClResult.size(), &ClResult[0], nullptr));
-    // Get rid of the null terminator
-    ClResult.pop_back();
-    vector_class<string_class> KernelNames(split_string(ClResult, ';'));
-    for (const auto &Name : KernelNames) {
-      if (Name == KernelName) {
-        return true;
-      }
-    }
-    return false;
   }
 
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const {

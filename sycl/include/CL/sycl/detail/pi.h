@@ -295,7 +295,7 @@ struct pi_device_binary_struct {
   const unsigned char *BinaryStart;
   /// Pointer to the target code end
   const unsigned char *BinaryEnd;
-  /// the offload entry table (not used, for compatibility with OpenMP)
+  /// the offload entry table
   _pi_offload_entry EntriesBegin;
   _pi_offload_entry EntriesEnd;
 };
@@ -423,11 +423,10 @@ pi_result piDevicePartition(
 /// Selects the most appropriate device binary based on runtime information
 /// and the IR characteristics.
 ///
-pi_result piextDeviceSelectBinary(
-  pi_device           device,
-  pi_device_binary *  binaries,
-  pi_uint32           num_binaries,
-  pi_device_binary *  selected_binary);
+pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *binaries,
+                                  pi_uint32 num_binaries,
+                                  const char *kernel_name,
+                                  pi_device_binary *selected_binary);
 
 /// Retrieves a device function pointer to a user-defined function
 /// \arg \c function_name. \arg \c function_pointer_ret is set to 0 if query

@@ -57,7 +57,7 @@ public:
   RT::PiContext &getHandleRef();
   const RT::PiContext &getHandleRef() const;
 
-  std::map<OSModuleHandle, RT::PiProgram> &getCachedPrograms() {
+  std::map<OSModuleHandle, std::vector<RT::PiProgram>> &getCachedPrograms() {
     return m_CachedPrograms;
   }
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &
@@ -73,7 +73,7 @@ private:
   platform m_Platform;
   bool m_OpenCLInterop;
   bool m_HostContext;
-  std::map<OSModuleHandle, RT::PiProgram> m_CachedPrograms;
+  std::map<OSModuleHandle, std::vector<RT::PiProgram>> m_CachedPrograms;
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> m_CachedKernels;
   std::shared_ptr<usm::USMDispatcher> m_USMDispatch;
 };

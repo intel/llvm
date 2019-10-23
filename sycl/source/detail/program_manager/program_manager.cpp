@@ -83,23 +83,29 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
   return Program;
 }
 
-RT::PiProgram ProgramManager::getBuiltOpenCLProgram(OSModuleHandle M,
-                                                    const context &Context) {
+RT::PiProgram
+ProgramManager::getBuiltOpenCLProgram(OSModuleHandle M, const context &Context,
+                                      const string_class &KernelName) {
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
-  std::map<OSModuleHandle, RT::PiProgram> &CachedPrograms =
+  std::map<OSModuleHandle, std::vector<RT::PiProgram>> &CachedPrograms =
       Ctx->getCachedPrograms();
   auto It = CachedPrograms.find(M);
-  if (It != CachedPrograms.end())
-    return It->second;
+  if (It != CachedPrograms.end()) {
+    for (auto Prg : It->second) {
+      if (programContainsKernel(Prg, KernelName))
+        return Prg;
+    }
+  }
 
   DeviceImage *Img = nullptr;
   using PiProgramT = remove_pointer_t<RT::PiProgram>;
   unique_ptr_class<PiProgramT, decltype(RT::piProgramRelease)> ProgramManaged(
-      loadProgram(M, Context, &Img), RT::piProgramRelease);
+      loadProgram(M, Context, KernelName, &Img), RT::piProgramRelease);
 
   build(ProgramManaged.get(), Img->BuildOptions);
   RT::PiProgram Program = ProgramManaged.release();
-  CachedPrograms[M] = Program;
+  std::vector<RT::PiProgram> &OSModulePrograms = CachedPrograms[M];
+  OSModulePrograms.push_back(Program);
 
   return Program;
 }
@@ -111,7 +117,7 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
               << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
   }
-  RT::PiProgram Program = getBuiltOpenCLProgram(M, Context);
+  RT::PiProgram Program = getBuiltOpenCLProgram(M, Context, KernelName);
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &CachedKernels =
       Ctx->getCachedKernels();
@@ -156,6 +162,24 @@ string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program) {
            "':\n" + string_class(DeviceBuildInfo.data());
   }
   return Log;
+}
+
+bool ProgramManager::programContainsKernel(const RT::PiProgram Program,
+                                           const string_class &KernelName) {
+  size_t Size;
+  PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_KERNEL_NAMES, 0, nullptr,
+                               &Size));
+  string_class ClResult(Size, ' ');
+  PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_KERNEL_NAMES,
+                               ClResult.size(), &ClResult[0], nullptr));
+  // Get rid of the null terminator
+  ClResult.pop_back();
+  vector_class<string_class> KernelNames(split_string(ClResult, ';'));
+  for (const auto &Name : KernelNames) {
+    if (Name == KernelName)
+      return true;
+  }
+  return false;
 }
 
 void ProgramManager::build(RT::PiProgram Program, const string_class &Options,
@@ -255,6 +279,7 @@ static bool is_device_binary_type_supported(const context &C,
 
 RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
                                           const context &Context,
+                                          const string_class &KernelName,
                                           DeviceImage **I) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
@@ -324,7 +349,8 @@ RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
     std::vector<DeviceImage *> *Imgs = (ImgIt->second).get();
 
     PI_CALL(RT::piextDeviceSelectBinary(getFirstDevice(Ctx), Imgs->data(),
-                                        (cl_uint)Imgs->size(), &Img));
+                                        (cl_uint)Imgs->size(),
+                                        KernelName.c_str(), &Img));
 
     if (DbgProgMgr > 0) {
       std::cerr << "available device images:\n";
