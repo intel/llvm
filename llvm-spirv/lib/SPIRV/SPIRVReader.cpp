@@ -1476,10 +1476,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpStore: {
     SPIRVStore *BS = static_cast<SPIRVStore *>(BV);
-    StoreInst *SI = new StoreInst(transValue(BS->getSrc(), F, BB),
-                                  transValue(BS->getDst(), F, BB),
-                                  BS->SPIRVMemoryAccess::isVolatile(),
-                                  BS->SPIRVMemoryAccess::getAlignment(), BB);
+    StoreInst *SI = new StoreInst(
+        transValue(BS->getSrc(), F, BB), transValue(BS->getDst(), F, BB),
+        BS->SPIRVMemoryAccess::isVolatile(),
+        MaybeAlign(BS->SPIRVMemoryAccess::getAlignment()), BB);
     if (BS->SPIRVMemoryAccess::isNonTemporal())
       transNonTemporalMetadata(SI);
     return mapValue(BV, SI);
