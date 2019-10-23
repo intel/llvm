@@ -84,12 +84,13 @@ context_impl::~context_impl() {
     PI_CALL(piContextRelease)(MContext);
   }
   // Release all programs and kernels created with this context
-  for (auto ProgIt : MCachedPrograms) {
-    RT::PiProgram ToBeDeleted = ProgIt.second;
-    for (auto KernIt : MCachedKernels[ToBeDeleted]) {
-      PI_CALL(piKernelRelease)(KernIt.second);
+  for (auto &ProgVecIt : MCachedPrograms) {
+    for (auto ProgIt : ProgVecIt.second) {
+      RT::PiProgram ToBeDeleted = ProgIt;
+      for (auto KernIt : MCachedKernels[ToBeDeleted])
+        PI_CALL(piKernelRelease)(KernIt.second);
+      PI_CALL(piProgramRelease)(ToBeDeleted);
     }
-    PI_CALL(piProgramRelease)(ToBeDeleted);
   }
 }
 

@@ -48,11 +48,13 @@ public:
   // Returns the single instance of the program manager for the entire process.
   // Can only be called after staticInit is done.
   static ProgramManager &getInstance();
-  RT::PiProgram createOpenCLProgram(OSModuleHandle M, const context &Context,
-                                 DeviceImage **I = nullptr) {
-    return loadProgram(M, Context, I);
+  RT::PiProgram createPIProgram(OSModuleHandle M, const context &Context,
+                                const string_class &KernelName,
+                                DeviceImage **I = nullptr) {
+    return loadProgram(M, Context, KernelName, I);
   }
-  RT::PiProgram getBuiltOpenCLProgram(OSModuleHandle M, const context &Context);
+  RT::PiProgram getBuiltOpenCLProgram(OSModuleHandle M, const context &Context,
+                                      const string_class &KernelName);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName);
   RT::PiProgram getClProgramFromClKernel(RT::PiKernel Kernel);
@@ -61,9 +63,12 @@ public:
   void debugDumpBinaryImages() const;
   void debugDumpBinaryImage(const DeviceImage *Img) const;
   static string_class getProgramBuildLog(const RT::PiProgram &Program);
+  static bool programContainsKernel(const RT::PiProgram Program,
+                                    const string_class &KernelName);
 
 private:
   RT::PiProgram loadProgram(OSModuleHandle M, const context &Context,
+                            const string_class &KernelName,
                             DeviceImage **I = nullptr);
   void build(RT::PiProgram Program, const string_class &Options = "",
              std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());

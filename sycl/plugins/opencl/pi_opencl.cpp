@@ -68,10 +68,36 @@ pi_result OCL(piDevicesGet)(pi_platform platform, pi_device_type device_type,
   return cast<pi_result>(result);
 }
 
-pi_result OCL(piextDeviceSelectBinary)(
-    pi_device device, // TODO: does this need to be context?
-    pi_device_binary *images, pi_uint32 num_images,
-    pi_device_binary *selected_image) {
+// Entry type, matches OpenMP for compatibility, used in binary selection
+struct __tgt_offload_entry {
+  void *addr;
+  char *name;
+  size_t size;
+  int32_t flags;
+  int32_t reserved;
+};
+
+static bool imageContainsKernel(pi_device_binary image,
+                                const char *kernel_name) {
+  const auto *EntriesB =
+      static_cast<__tgt_offload_entry *>(image->EntriesBegin);
+  const auto *EntriesE = static_cast<__tgt_offload_entry *>(image->EntriesEnd);
+  // If the entry table is empty, assume that the image contains the kernel
+  if (EntriesB == EntriesE)
+    return true;
+
+  for (const auto *EntriesIt = EntriesB; EntriesIt != EntriesE; ++EntriesIt) {
+    if (strcmp(EntriesIt->name, kernel_name) == 0)
+      return true;
+  }
+  return false;
+}
+
+pi_result OCL(piextDeviceSelectBinary)(pi_device device,
+                                       pi_device_binary *images,
+                                       pi_uint32 num_images,
+                                       const char *kernel_name,
+                                       pi_device_binary *selected_image) {
 
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled
@@ -125,11 +151,14 @@ pi_result OCL(piextDeviceSelectBinary)(
   pi_device_binary fallback = nullptr;
   for (size_t i = 0; i < num_images; ++i) {
     if (strcmp(images[i]->DeviceTargetSpec, image_target) == 0) {
+      if (!imageContainsKernel(images[i], kernel_name))
+        continue;
       *selected_image = images[i];
       return PI_SUCCESS;
     }
     if (strcmp(images[i]->DeviceTargetSpec, PI_DEVICE_BINARY_TARGET_SPIRV64) ==
-        0)
+            0 &&
+        imageContainsKernel(images[i], kernel_name))
       fallback = images[i];
   }
   // Points to a spirv image, if such indeed was found
