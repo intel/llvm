@@ -605,6 +605,24 @@ public:
     return this;
   }
 
+  // ext_vector_type is used as an underlying type for sycl::vec on device.
+  // The problem is that for clang vector types the return of operator[] is a
+  // temporary and not a reference to the element in the vector. In practice
+  // reinterpret_cast<DataT *>(&m_Data)[i]; is working. According to
+  // http://llvm.org/docs/GetElementPtr.html#can-gep-index-into-vector-elements
+  // this is not disallowed now. But could probably be disallowed in the future.
+  // That is why tests are added to check that behavior of the compiler has
+  // not changed.
+  //
+  // Implement operator [] in the same way for host and device.
+  // TODO: change host side implementation when underlying type for host side
+  // will be changed to std::array.
+  const DataT &operator[](int i) const {
+    return reinterpret_cast<const DataT *>(&m_Data)[i];
+  }
+
+  DataT &operator[](int i) { return reinterpret_cast<DataT *>(&m_Data)[i]; }
+
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
   // Indexer used in the swizzles.def
