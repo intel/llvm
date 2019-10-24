@@ -727,28 +727,27 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       options::OPT_fno_sycl, false) &&
       !C.getInputArgs().hasArg(options::OPT_sycl_device_only));
 
-  Arg *SYCLTargets =
-          C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
+  // A mechanism for retrieving SYCL-specific options, erroring out
+  // if SYCL offloading wasn't enabled prior to that
+  auto getArgRequiringSYCLRuntime = [&](OptSpecifier OptId) -> Arg * {
+    Arg *SYCLArg = C.getInputArgs().getLastArg(OptId);
+    if (SYCLArg && !HasValidSYCLRuntime) {
+      Diag(clang::diag::err_drv_expecting_fsycl_with_sycl_opt)
+          // Dropping the '=' symbol, which would otherwise pollute
+          // the diagnostics for the most of options
+          << SYCLArg->getSpelling().split('=').first;
+      return nullptr;
+    }
+    return SYCLArg;
+  };
+  Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
   Arg *SYCLLinkTargets =
-          C.getInputArgs().getLastArg(options::OPT_fsycl_link_targets_EQ);
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_link_targets_EQ);
   Arg *SYCLAddTargets =
-          C.getInputArgs().getLastArg(options::OPT_fsycl_add_targets_EQ);
-  bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
-  bool SYCLLink = C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ);
-  bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_add_targets_EQ);
+  Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
+  Arg *SYCLfpga = getArgRequiringSYCLRuntime(options::OPT_fintelfpga);
 
-  // Start SYCL options conjunction checks
-  // -fsycl*targets option must come with -fsycl
-  if (HasSYCLTargetsOption && !HasValidSYCLRuntime) {
-    // Checks priority: -fsycl-targets, -fsycl-link-targets,
-    // -fsycl-add-targets
-    std::string SYCLTargetsType = SYCLTargets ? "-" : "";
-    if (SYCLTargetsType.empty())
-      SYCLTargetsType = SYCLLinkTargets ? "-link-" : "-add-";
-    // Further checks for (-fsycl*targets && -fsycl) won't be needed
-    Diag(clang::diag::err_drv_expecting_fsycl_with_fsycl_targets)
-        << SYCLTargetsType;
-  }
   // -fsycl-targets cannot be used with -fsycl-link-targets
   if (SYCLTargets && SYCLLinkTargets)
     Diag(clang::diag::err_drv_option_conflict) << SYCLTargets->getSpelling()
@@ -768,6 +767,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       << SYCLTargets->getSpelling()
       << C.getInputArgs().getLastArg(options::OPT_fintelfpga)->getSpelling();
 
+  bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
   if (HasSYCLTargetsOption) {
