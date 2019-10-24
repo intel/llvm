@@ -46,11 +46,17 @@
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // CHK-NO-FSYCL: error: The option -fsycl-targets must be used in conjunction with -fsycl to enable offloading.
 // RUN:   %clang -### -fsycl-link-targets=spir64-unknown-linux-sycldevice  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK %s
-// CHK-NO-FSYCL-LINK: error: The option -fsycl-link-targets must be used in conjunction with -fsycl to enable offloading.
+// RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK-TGTS %s
+// CHK-NO-FSYCL-LINK-TGTS: error: The option -fsycl-link-targets must be used in conjunction with -fsycl to enable offloading.
 // RUN:   %clang -### -fsycl-add-targets=spir64-unknown-linux-sycldevice  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-ADD %s
 // CHK-NO-FSYCL-ADD: error: The option -fsycl-add-targets must be used in conjunction with -fsycl to enable offloading.
+// RUN:   %clang -### -fsycl-link  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK %s
+// CHK-NO-FSYCL-LINK: error: The option -fsycl-link must be used in conjunction with -fsycl to enable offloading.
+// RUN:   %clang -### -fintelfpga  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-FINTELFPGA %s
+// CHK-NO-FSYCL-FINTELFPGA: error: The option -fintelfpga must be used in conjunction with -fsycl to enable offloading.
 
 /// ###########################################################################
 
