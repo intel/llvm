@@ -50,7 +50,6 @@ namespace llvm {
 // Pass initialization functions need to be declared before inclusion of
 // PassSupport.h.
 class PassRegistry;
-class ModulePass;
 void initializeLLVMToSPIRVPass(PassRegistry &);
 void initializeOCL20ToSPIRVPass(PassRegistry &);
 void initializeOCL21ToSPIRVPass(PassRegistry &);
@@ -64,6 +63,8 @@ void initializeSPIRVRegularizeLLVMPass(PassRegistry &);
 void initializeSPIRVToOCL12Pass(PassRegistry &);
 void initializeSPIRVToOCL20Pass(PassRegistry &);
 void initializePreprocessMetadataPass(PassRegistry &);
+
+class ModulePass;
 } // namespace llvm
 
 #include "llvm/IR/Module.h"

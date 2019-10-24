@@ -208,8 +208,8 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
           // According to the spec, OpLine for an OpBranch/OpBranchConditional
           // must precede the merge instruction and not the branch instruction
           auto *VPrev = static_cast<SPIRVInstruction *>(V)->getPrevious();
-          if (VPrev->getOpCode() == OpLoopMerge ||
-              VPrev->getOpCode() == OpLoopControlINTEL) {
+          if (VPrev && (VPrev->getOpCode() == OpLoopMerge ||
+                        VPrev->getOpCode() == OpLoopControlINTEL)) {
             assert(V->getOpCode() == OpBranch ||
                    V->getOpCode() == OpBranchConditional);
             V = VPrev;
