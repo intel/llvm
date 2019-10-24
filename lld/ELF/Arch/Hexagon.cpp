@@ -19,8 +19,9 @@ using namespace llvm;
 using namespace llvm::object;
 using namespace llvm::support::endian;
 using namespace llvm::ELF;
-using namespace lld;
-using namespace lld::elf;
+
+namespace lld {
+namespace elf {
 
 namespace {
 class Hexagon final : public TargetInfo {
@@ -102,13 +103,13 @@ RelExpr Hexagon::getRelExpr(RelType type, const Symbol &s,
   case R_HEX_LO16:
     return R_ABS;
   case R_HEX_B9_PCREL:
-  case R_HEX_B9_PCREL_X:
   case R_HEX_B13_PCREL:
   case R_HEX_B15_PCREL:
-  case R_HEX_B15_PCREL_X:
   case R_HEX_6_PCREL_X:
   case R_HEX_32_PCREL:
     return R_PC;
+  case R_HEX_B9_PCREL_X:
+  case R_HEX_B15_PCREL_X:
   case R_HEX_B22_PCREL:
   case R_HEX_PLT_B22_PCREL:
   case R_HEX_B22_PCREL_X:
@@ -241,15 +242,18 @@ void Hexagon::relocateOne(uint8_t *loc, RelType type, uint64_t val) const {
     or32le(loc, applyMask(0x0fff3fff, val >> 6));
     break;
   case R_HEX_B9_PCREL:
+    checkInt(loc, val, 11, type);
     or32le(loc, applyMask(0x003000fe, val >> 2));
     break;
   case R_HEX_B9_PCREL_X:
     or32le(loc, applyMask(0x003000fe, val & 0x3f));
     break;
   case R_HEX_B13_PCREL:
+    checkInt(loc, val, 15, type);
     or32le(loc, applyMask(0x00202ffe, val >> 2));
     break;
   case R_HEX_B15_PCREL:
+    checkInt(loc, val, 17, type);
     or32le(loc, applyMask(0x00df20fe, val >> 2));
     break;
   case R_HEX_B15_PCREL_X:
@@ -257,6 +261,7 @@ void Hexagon::relocateOne(uint8_t *loc, RelType type, uint64_t val) const {
     break;
   case R_HEX_B22_PCREL:
   case R_HEX_PLT_B22_PCREL:
+    checkInt(loc, val, 22, type);
     or32le(loc, applyMask(0x1ff3ffe, val >> 2));
     break;
   case R_HEX_B22_PCREL_X:
@@ -318,7 +323,10 @@ RelType Hexagon::getDynRel(RelType type) const {
   return R_HEX_NONE;
 }
 
-TargetInfo *elf::getHexagonTargetInfo() {
+TargetInfo *getHexagonTargetInfo() {
   static Hexagon target;
   return &target;
 }
+
+} // namespace elf
+} // namespace lld

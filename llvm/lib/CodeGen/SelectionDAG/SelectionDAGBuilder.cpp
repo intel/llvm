@@ -3538,16 +3538,31 @@ void SelectionDAGBuilder::visitExtractElement(const User &I) {
 void SelectionDAGBuilder::visitShuffleVector(const User &I) {
   SDValue Src1 = getValue(I.getOperand(0));
   SDValue Src2 = getValue(I.getOperand(1));
+  Constant *MaskV = cast<Constant>(I.getOperand(2));
   SDLoc DL = getCurSDLoc();
-
-  SmallVector<int, 8> Mask;
-  ShuffleVectorInst::getShuffleMask(cast<Constant>(I.getOperand(2)), Mask);
-  unsigned MaskNumElts = Mask.size();
-
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   EVT VT = TLI.getValueType(DAG.getDataLayout(), I.getType());
   EVT SrcVT = Src1.getValueType();
   unsigned SrcNumElts = SrcVT.getVectorNumElements();
+
+  if (MaskV->isNullValue() && VT.isScalableVector()) {
+    // Canonical splat form of first element of first input vector.
+    SDValue FirstElt = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL,
+                                   SrcVT.getScalarType(), Src1,
+                                   DAG.getConstant(0, DL, 
+                                   TLI.getVectorIdxTy(DAG.getDataLayout())));
+    setValue(&I, DAG.getNode(ISD::SPLAT_VECTOR, DL, VT, FirstElt));
+    return;
+  }
+
+  // For now, we only handle splats for scalable vectors.
+  // The DAGCombiner will perform a BUILD_VECTOR -> SPLAT_VECTOR transformation
+  // for targets that support a SPLAT_VECTOR for non-scalable vector types.
+  assert(!VT.isScalableVector() && "Unsupported scalable vector shuffle");
+
+  SmallVector<int, 8> Mask;
+  ShuffleVectorInst::getShuffleMask(MaskV, Mask);
+  unsigned MaskNumElts = Mask.size();
 
   if (SrcNumElts == MaskNumElts) {
     setValue(&I, DAG.getVectorShuffle(VT, DL, Src1, Src2, Mask));
@@ -4672,10 +4687,11 @@ void SelectionDAGBuilder::visitAtomicLoad(const LoadInst &I) {
       L = DAG.getPtrExtOrTrunc(L, dl, VT);
 
     setValue(&I, L);
-    if (!I.isUnordered()) {
-      SDValue OutChain = L.getValue(1);
+    SDValue OutChain = L.getValue(1);
+    if (!I.isUnordered())
       DAG.setRoot(OutChain);
-    }
+    else
+      PendingLoads.push_back(OutChain);
     return;
   }
   
@@ -4973,12 +4989,11 @@ static SDValue expandExp(const SDLoc &dl, SDValue Op, SelectionDAG &DAG,
     // Put the exponent in the right bit position for later addition to the
     // final result:
     //
-    //   #define LOG2OFe 1.4426950f
-    //   t0 = Op * LOG2OFe
+    // t0 = Op * log2(e)
 
     // TODO: What fast-math-flags should be set here?
     SDValue t0 = DAG.getNode(ISD::FMUL, dl, MVT::f32, Op,
-                             getF32Constant(DAG, 0x3fb8aa3b, dl));
+                             DAG.getConstantFP(numbers::log2ef, dl, MVT::f32));
     return getLimitedPrecisionExp2(t0, dl, DAG);
   }
 
@@ -4996,10 +5011,11 @@ static SDValue expandLog(const SDLoc &dl, SDValue Op, SelectionDAG &DAG,
       LimitFloatPrecision > 0 && LimitFloatPrecision <= 18) {
     SDValue Op1 = DAG.getNode(ISD::BITCAST, dl, MVT::i32, Op);
 
-    // Scale the exponent by log(2) [0.69314718f].
+    // Scale the exponent by log(2).
     SDValue Exp = GetExponent(DAG, Op1, TLI, dl);
-    SDValue LogOfExponent = DAG.getNode(ISD::FMUL, dl, MVT::f32, Exp,
-                                        getF32Constant(DAG, 0x3f317218, dl));
+    SDValue LogOfExponent =
+        DAG.getNode(ISD::FMUL, dl, MVT::f32, Exp,
+                    DAG.getConstantFP(numbers::ln2f, dl, MVT::f32));
 
     // Get the significand and build it into a floating-point number with
     // exponent of 1.
@@ -5518,8 +5534,9 @@ bool SelectionDAGBuilder::EmitFuncArgumentDbgValue(
           Expr, Offset, RegAndSize.second);
         if (!FragmentExpr)
           continue;
+        assert(!IsDbgDeclare && "DbgDeclare operand is not in memory?");
         FuncInfo.ArgDbgValues.push_back(
-          BuildMI(MF, DL, TII->get(TargetOpcode::DBG_VALUE), IsDbgDeclare,
+          BuildMI(MF, DL, TII->get(TargetOpcode::DBG_VALUE), false,
                   RegAndSize.first, Variable, *FragmentExpr));
         Offset += RegAndSize.second;
       }
@@ -5553,8 +5570,10 @@ bool SelectionDAGBuilder::EmitFuncArgumentDbgValue(
   assert(Variable->isValidLocationForIntrinsic(DL) &&
          "Expected inlined-at fields to agree");
   IsIndirect = (Op->isReg()) ? IsIndirect : true;
+  if (IsIndirect)
+    Expr = DIExpression::append(Expr, {dwarf::DW_OP_deref});
   FuncInfo.ArgDbgValues.push_back(
-      BuildMI(MF, DL, TII->get(TargetOpcode::DBG_VALUE), IsIndirect,
+      BuildMI(MF, DL, TII->get(TargetOpcode::DBG_VALUE), false,
               *Op, Variable, Expr));
 
   return true;
@@ -6103,12 +6122,16 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
   case Intrinsic::experimental_constrained_log:
   case Intrinsic::experimental_constrained_log10:
   case Intrinsic::experimental_constrained_log2:
+  case Intrinsic::experimental_constrained_lrint:
+  case Intrinsic::experimental_constrained_llrint:
   case Intrinsic::experimental_constrained_rint:
   case Intrinsic::experimental_constrained_nearbyint:
   case Intrinsic::experimental_constrained_maxnum:
   case Intrinsic::experimental_constrained_minnum:
   case Intrinsic::experimental_constrained_ceil:
   case Intrinsic::experimental_constrained_floor:
+  case Intrinsic::experimental_constrained_lround:
+  case Intrinsic::experimental_constrained_llround:
   case Intrinsic::experimental_constrained_round:
   case Intrinsic::experimental_constrained_trunc:
     visitConstrainedFPIntrinsic(cast<ConstrainedFPIntrinsic>(I));
@@ -6383,29 +6406,11 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     DAG.setRoot(Res);
     return;
   }
-  case Intrinsic::objectsize: {
-    // If we don't know by now, we're never going to know.
-    ConstantInt *CI = dyn_cast<ConstantInt>(I.getArgOperand(1));
-
-    assert(CI && "Non-constant type in __builtin_object_size?");
-
-    SDValue Arg = getValue(I.getCalledValue());
-    EVT Ty = Arg.getValueType();
-
-    if (CI->isZero())
-      Res = DAG.getConstant(-1ULL, sdl, Ty);
-    else
-      Res = DAG.getConstant(0, sdl, Ty);
-
-    setValue(&I, Res);
-    return;
-  }
+  case Intrinsic::objectsize:
+    llvm_unreachable("llvm.objectsize.* should have been lowered already");
 
   case Intrinsic::is_constant:
-    // If this wasn't constant-folded away by now, then it's not a
-    // constant.
-    setValue(&I, DAG.getConstant(0, sdl, MVT::i1));
-    return;
+    llvm_unreachable("llvm.is.constant.* should have been lowered already");
 
   case Intrinsic::annotation:
   case Intrinsic::ptr_annotation:
@@ -6934,6 +6939,12 @@ void SelectionDAGBuilder::visitConstrainedFPIntrinsic(
   case Intrinsic::experimental_constrained_log2:
     Opcode = ISD::STRICT_FLOG2;
     break;
+  case Intrinsic::experimental_constrained_lrint:
+    Opcode = ISD::STRICT_LRINT;
+    break;
+  case Intrinsic::experimental_constrained_llrint:
+    Opcode = ISD::STRICT_LLRINT;
+    break;
   case Intrinsic::experimental_constrained_rint:
     Opcode = ISD::STRICT_FRINT;
     break;
@@ -6951,6 +6962,12 @@ void SelectionDAGBuilder::visitConstrainedFPIntrinsic(
     break;
   case Intrinsic::experimental_constrained_floor:
     Opcode = ISD::STRICT_FFLOOR;
+    break;
+  case Intrinsic::experimental_constrained_lround:
+    Opcode = ISD::STRICT_LROUND;
+    break;
+  case Intrinsic::experimental_constrained_llround:
+    Opcode = ISD::STRICT_LLROUND;
     break;
   case Intrinsic::experimental_constrained_round:
     Opcode = ISD::STRICT_FROUND;
@@ -9092,7 +9109,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
       // Certain targets (such as MIPS), may have a different ABI alignment
       // for a type depending on the context. Give the target a chance to
       // specify the alignment it wants.
-      unsigned OriginalAlignment = getABIAlignmentForCallingConv(ArgTy, DL);
+      const Align OriginalAlignment(getABIAlignmentForCallingConv(ArgTy, DL));
 
       if (Args[i].Ty->isPointerTy()) {
         Flags.setPointer();
@@ -9147,7 +9164,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
           FrameAlign = Args[i].Alignment;
         else
           FrameAlign = getByValTypeAlignment(ElementTy, DL);
-        Flags.setByValAlign(FrameAlign);
+        Flags.setByValAlign(Align(FrameAlign));
       }
       if (Args[i].IsNest)
         Flags.setNest();
@@ -9203,7 +9220,7 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
         if (NumParts > 1 && j == 0)
           MyFlags.Flags.setSplit();
         else if (j != 0) {
-          MyFlags.Flags.setOrigAlign(1);
+          MyFlags.Flags.setOrigAlign(Align::None());
           if (j == NumParts - 1)
             MyFlags.Flags.setSplitEnd();
         }
@@ -9590,8 +9607,8 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
       // Certain targets (such as MIPS), may have a different ABI alignment
       // for a type depending on the context. Give the target a chance to
       // specify the alignment it wants.
-      unsigned OriginalAlignment =
-          TLI->getABIAlignmentForCallingConv(ArgTy, DL);
+      const Align OriginalAlignment(
+          TLI->getABIAlignmentForCallingConv(ArgTy, DL));
 
       if (Arg.getType()->isPointerTy()) {
         Flags.setPointer();
@@ -9651,7 +9668,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
           FrameAlign = Arg.getParamAlignment();
         else
           FrameAlign = TLI->getByValTypeAlignment(ElementTy, DL);
-        Flags.setByValAlign(FrameAlign);
+        Flags.setByValAlign(Align(FrameAlign));
       }
       if (Arg.hasAttribute(Attribute::Nest))
         Flags.setNest();
@@ -9674,7 +9691,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
           MyFlags.Flags.setSplit();
         // if it isn't first piece, alignment must be 1
         else if (i > 0) {
-          MyFlags.Flags.setOrigAlign(1);
+          MyFlags.Flags.setOrigAlign(Align::None());
           if (i == NumRegs - 1)
             MyFlags.Flags.setSplitEnd();
         }

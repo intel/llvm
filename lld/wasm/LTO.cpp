@@ -36,9 +36,9 @@
 #include <vector>
 
 using namespace llvm;
-using namespace lld;
-using namespace lld::wasm;
 
+namespace lld {
+namespace wasm {
 static std::unique_ptr<lto::LTO> createLTO() {
   lto::Config c;
   c.Options = initTargetOptionsFromCodeGenFlags();
@@ -77,9 +77,8 @@ BitcodeCompiler::~BitcodeCompiler() = default;
 
 static void undefine(Symbol *s) {
   if (auto f = dyn_cast<DefinedFunction>(s))
-    replaceSymbol<UndefinedFunction>(f, f->getName(), f->getName(),
-                                     defaultModule, 0,
-                                     f->getFile(), f->signature);
+    replaceSymbol<UndefinedFunction>(f, f->getName(), "", "", 0, f->getFile(),
+                                     f->signature);
   else if (isa<DefinedData>(s))
     replaceSymbol<UndefinedData>(s, s->getName(), 0, s->getFile());
   else
@@ -165,3 +164,6 @@ std::vector<StringRef> BitcodeCompiler::compile() {
 
   return ret;
 }
+
+} // namespace wasm
+} // namespace lld

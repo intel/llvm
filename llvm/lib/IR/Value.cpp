@@ -455,6 +455,7 @@ namespace {
 // Various metrics for how much to strip off of pointers.
 enum PointerStripKind {
   PSK_ZeroIndices,
+  PSK_ZeroIndicesAndAliases,
   PSK_ZeroIndicesSameRepresentation,
   PSK_ZeroIndicesAndInvariantGroups,
   PSK_InBoundsConstantIndices,
@@ -475,6 +476,7 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
     if (auto *GEP = dyn_cast<GEPOperator>(V)) {
       switch (StripKind) {
       case PSK_ZeroIndices:
+      case PSK_ZeroIndicesAndAliases:
       case PSK_ZeroIndicesSameRepresentation:
       case PSK_ZeroIndicesAndInvariantGroups:
         if (!GEP->hasAllZeroIndices())
@@ -497,6 +499,8 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
       // TODO: If we know an address space cast will not change the
       //       representation we could look through it here as well.
       V = cast<Operator>(V)->getOperand(0);
+    } else if (StripKind == PSK_ZeroIndicesAndAliases && isa<GlobalAlias>(V)) {
+      V = cast<GlobalAlias>(V)->getAliasee();
     } else {
       if (const auto *Call = dyn_cast<CallBase>(V)) {
         if (const Value *RV = Call->getReturnedArgOperand()) {
@@ -524,6 +528,10 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
 
 const Value *Value::stripPointerCasts() const {
   return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this);
+}
+
+const Value *Value::stripPointerCastsAndAliases() const {
+  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliases>(this);
 }
 
 const Value *Value::stripPointerCastsSameRepresentation() const {
@@ -663,22 +671,21 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
   return DerefBytes;
 }
 
-unsigned Value::getPointerAlignment(const DataLayout &DL) const {
+MaybeAlign Value::getPointerAlignment(const DataLayout &DL) const {
   assert(getType()->isPointerTy() && "must be pointer");
   if (auto *GO = dyn_cast<GlobalObject>(this)) {
     if (isa<Function>(GO)) {
       const MaybeAlign FunctionPtrAlign = DL.getFunctionPtrAlign();
-      const unsigned Align = FunctionPtrAlign ? FunctionPtrAlign->value() : 0;
       switch (DL.getFunctionPtrAlignType()) {
       case DataLayout::FunctionPtrAlignType::Independent:
-        return Align;
+        return FunctionPtrAlign;
       case DataLayout::FunctionPtrAlignType::MultipleOfFunctionAlign:
-        return std::max(Align, GO->getAlignment());
+        return std::max(FunctionPtrAlign, MaybeAlign(GO->getAlignment()));
       }
       llvm_unreachable("Unhandled FunctionPtrAlignType");
     }
-    const unsigned Align = GO->getAlignment();
-    if (!Align) {
+    const MaybeAlign Alignment(GO->getAlignment());
+    if (!Alignment) {
       if (auto *GVar = dyn_cast<GlobalVariable>(GO)) {
         Type *ObjectType = GVar->getValueType();
         if (ObjectType->isSized()) {
@@ -686,42 +693,43 @@ unsigned Value::getPointerAlignment(const DataLayout &DL) const {
           // it the preferred alignment. Otherwise, we have to assume that it
           // may only have the minimum ABI alignment.
           if (GVar->isStrongDefinitionForLinker())
-            return DL.getPreferredAlignment(GVar);
+            return MaybeAlign(DL.getPreferredAlignment(GVar));
           else
-            return DL.getABITypeAlignment(ObjectType);
+            return Align(DL.getABITypeAlignment(ObjectType));
         }
       }
     }
-    return Align;
+    return Alignment;
   } else if (const Argument *A = dyn_cast<Argument>(this)) {
-    const unsigned Align = A->getParamAlignment();
-    if (!Align && A->hasStructRetAttr()) {
+    const MaybeAlign Alignment(A->getParamAlignment());
+    if (!Alignment && A->hasStructRetAttr()) {
       // An sret parameter has at least the ABI alignment of the return type.
       Type *EltTy = cast<PointerType>(A->getType())->getElementType();
       if (EltTy->isSized())
-        return DL.getABITypeAlignment(EltTy);
+        return Align(DL.getABITypeAlignment(EltTy));
     }
-    return Align;
+    return Alignment;
   } else if (const AllocaInst *AI = dyn_cast<AllocaInst>(this)) {
-    const unsigned Align = AI->getAlignment();
-    if (!Align) {
+    const MaybeAlign Alignment(AI->getAlignment());
+    if (!Alignment) {
       Type *AllocatedType = AI->getAllocatedType();
       if (AllocatedType->isSized())
-        return DL.getPrefTypeAlignment(AllocatedType);
+        return MaybeAlign(DL.getPrefTypeAlignment(AllocatedType));
     }
-    return Align;
+    return Alignment;
   } else if (const auto *Call = dyn_cast<CallBase>(this)) {
-    const unsigned Align = Call->getRetAlignment();
-    if (!Align && Call->getCalledFunction())
-      return Call->getCalledFunction()->getAttributes().getRetAlignment();
-    return Align;
+    const MaybeAlign Alignment(Call->getRetAlignment());
+    if (!Alignment && Call->getCalledFunction())
+      return MaybeAlign(
+          Call->getCalledFunction()->getAttributes().getRetAlignment());
+    return Alignment;
   } else if (const LoadInst *LI = dyn_cast<LoadInst>(this)) {
     if (MDNode *MD = LI->getMetadata(LLVMContext::MD_align)) {
       ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
-      return CI->getLimitedValue();
+      return MaybeAlign(CI->getLimitedValue());
     }
   }
-  return 0;
+  return llvm::None;
 }
 
 const Value *Value::DoPHITranslation(const BasicBlock *CurBB,

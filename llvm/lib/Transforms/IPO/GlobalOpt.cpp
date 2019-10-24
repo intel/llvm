@@ -497,8 +497,8 @@ static GlobalVariable *SRAGlobal(GlobalVariable *GV, const DataLayout &DL) {
       // had 256 byte alignment for example, something might depend on that:
       // propagate info to each field.
       uint64_t FieldOffset = Layout.getElementOffset(i);
-      unsigned NewAlign = (unsigned)MinAlign(StartAlignment, FieldOffset);
-      if (NewAlign > DL.getABITypeAlignment(STy->getElementType(i)))
+      Align NewAlign(MinAlign(StartAlignment, FieldOffset));
+      if (NewAlign > Align(DL.getABITypeAlignment(STy->getElementType(i))))
         NGV->setAlignment(NewAlign);
 
       // Copy over the debug info for the variable.
@@ -513,7 +513,7 @@ static GlobalVariable *SRAGlobal(GlobalVariable *GV, const DataLayout &DL) {
     NewGlobals.reserve(NumElements);
     auto ElTy = STy->getElementType();
     uint64_t EltSize = DL.getTypeAllocSize(ElTy);
-    unsigned EltAlign = DL.getABITypeAlignment(ElTy);
+    Align EltAlign(DL.getABITypeAlignment(ElTy));
     uint64_t FragmentSizeInBits = DL.getTypeAllocSizeInBits(ElTy);
     for (unsigned i = 0, e = NumElements; i != e; ++i) {
       Constant *In = Init->getAggregateElement(i);
@@ -532,7 +532,7 @@ static GlobalVariable *SRAGlobal(GlobalVariable *GV, const DataLayout &DL) {
       // Calculate the known alignment of the field.  If the original aggregate
       // had 256 byte alignment for example, something might depend on that:
       // propagate info to each field.
-      unsigned NewAlign = (unsigned)MinAlign(StartAlignment, EltSize*i);
+      Align NewAlign(MinAlign(StartAlignment, EltSize * i));
       if (NewAlign > EltAlign)
         NGV->setAlignment(NewAlign);
       transferSRADebugInfo(GV, NGV, FragmentSizeInBits * i, FragmentSizeInBits,
@@ -891,8 +891,8 @@ OptimizeGlobalAddressOfMalloc(GlobalVariable *GV, CallInst *CI, Type *AllocTy,
   while (!GV->use_empty()) {
     if (StoreInst *SI = dyn_cast<StoreInst>(GV->user_back())) {
       // The global is initialized when the store to it occurs.
-      new StoreInst(ConstantInt::getTrue(GV->getContext()), InitBool, false, 0,
-                    SI->getOrdering(), SI->getSyncScopeID(), SI);
+      new StoreInst(ConstantInt::getTrue(GV->getContext()), InitBool, false,
+                    None, SI->getOrdering(), SI->getSyncScopeID(), SI);
       SI->eraseFromParent();
       continue;
     }
@@ -909,7 +909,7 @@ OptimizeGlobalAddressOfMalloc(GlobalVariable *GV, CallInst *CI, Type *AllocTy,
       // Replace the cmp X, 0 with a use of the bool value.
       // Sink the load to where the compare was, if atomic rules allow us to.
       Value *LV = new LoadInst(InitBool->getValueType(), InitBool,
-                               InitBool->getName() + ".val", false, 0,
+                               InitBool->getName() + ".val", false, None,
                                LI->getOrdering(), LI->getSyncScopeID(),
                                LI->isUnordered() ? (Instruction *)ICI : LI);
       InitBoolUsed = true;
@@ -1716,7 +1716,7 @@ static bool TryToShrinkGlobalToBoolean(GlobalVariable *GV, Constant *OtherVal) {
           assert(LI->getOperand(0) == GV && "Not a copy!");
           // Insert a new load, to preserve the saved value.
           StoreVal = new LoadInst(NewGV->getValueType(), NewGV,
-                                  LI->getName() + ".b", false, 0,
+                                  LI->getName() + ".b", false, None,
                                   LI->getOrdering(), LI->getSyncScopeID(), LI);
         } else {
           assert((isa<CastInst>(StoredVal) || isa<SelectInst>(StoredVal)) &&
@@ -1726,15 +1726,15 @@ static bool TryToShrinkGlobalToBoolean(GlobalVariable *GV, Constant *OtherVal) {
         }
       }
       StoreInst *NSI =
-          new StoreInst(StoreVal, NewGV, false, 0, SI->getOrdering(),
+          new StoreInst(StoreVal, NewGV, false, None, SI->getOrdering(),
                         SI->getSyncScopeID(), SI);
       NSI->setDebugLoc(SI->getDebugLoc());
     } else {
       // Change the load into a load of bool then a select.
       LoadInst *LI = cast<LoadInst>(UI);
-      LoadInst *NLI =
-          new LoadInst(NewGV->getValueType(), NewGV, LI->getName() + ".b",
-                       false, 0, LI->getOrdering(), LI->getSyncScopeID(), LI);
+      LoadInst *NLI = new LoadInst(NewGV->getValueType(), NewGV,
+                                   LI->getName() + ".b", false, None,
+                                   LI->getOrdering(), LI->getSyncScopeID(), LI);
       Instruction *NSI;
       if (IsOneZero)
         NSI = new ZExtInst(NLI, LI->getType(), "", LI);

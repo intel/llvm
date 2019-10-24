@@ -882,6 +882,27 @@ exit:
   ret void
 }
 
+define void @fastmathflags_vector_phi(i1 %cond, <4 x float> %f1, <4 x float> %f2, <2 x double> %d1, <2 x double> %d2, <8 x half> %h1, <8 x half> %h2) {
+entry:
+  br i1 %cond, label %L1, label %L2
+L1:
+  br label %exit
+L2:
+  br label %exit
+exit:
+  %p.nnan = phi nnan <4 x float> [ %f1, %L1 ], [ %f2, %L2 ]
+  ; CHECK: %p.nnan = phi nnan <4 x float> [ %f1, %L1 ], [ %f2, %L2 ]
+  %p.ninf = phi ninf <2 x double> [ %d1, %L1 ], [ %d2, %L2 ]
+  ; CHECK: %p.ninf = phi ninf <2 x double> [ %d1, %L1 ], [ %d2, %L2 ]
+  %p.contract = phi contract <8 x half> [ %h1, %L1 ], [ %h2, %L2 ]
+  ; CHECK: %p.contract = phi contract <8 x half> [ %h1, %L1 ], [ %h2, %L2 ]
+  %p.nsz.reassoc = phi reassoc nsz <4 x float> [ %f1, %L1 ], [ %f2, %L2 ]
+  ; CHECK: %p.nsz.reassoc = phi reassoc nsz <4 x float> [ %f1, %L1 ], [ %f2, %L2 ]
+  %p.fast = phi fast <8 x half> [ %h2, %L1 ], [ %h1, %L2 ]
+  ; CHECK: %p.fast = phi fast <8 x half> [ %h2, %L1 ], [ %h1, %L2 ]
+  ret void
+}
+
 ; Check various fast math flags and floating-point types on calls.
 
 declare float @fmf1()
@@ -1372,10 +1393,7 @@ exit:
   ; CHECK: select <2 x i1> <i1 true, i1 false>, <2 x i8> <i8 2, i8 3>, <2 x i8> <i8 3, i8 2>
 
   call void @f.nobuiltin() builtin
-  ; CHECK: call void @f.nobuiltin() #43
-
-  call void @f.strictfp() strictfp
-  ; CHECK: call void @f.strictfp() #44
+  ; CHECK: call void @f.nobuiltin() #44
 
   call fastcc noalias i32* @f.noalias() noinline
   ; CHECK: call fastcc noalias i32* @f.noalias() #12
@@ -1752,6 +1770,13 @@ define i8** @constexpr() {
   ret i8** getelementptr inbounds ({ [4 x i8*], [4 x i8*] }, { [4 x i8*], [4 x i8*] }* null, i32 0, inrange i32 1, i32 2)
 }
 
+define void @instructions.strictfp() strictfp {
+  call void @f.strictfp() strictfp
+  ; CHECK: call void @f.strictfp() #43
+
+  ret void
+}
+
 ; immarg attribute
 declare void @llvm.test.immarg.intrinsic(i32 immarg)
 ; CHECK: declare void @llvm.test.immarg.intrinsic(i32 immarg)
@@ -1808,8 +1833,8 @@ declare void @byval_named_type(%named_type* byval(%named_type))
 ; CHECK: attributes #40 = { inaccessiblemem_or_argmemonly nounwind willreturn }
 ; CHECK: attributes #41 = { writeonly }
 ; CHECK: attributes #42 = { speculatable }
-; CHECK: attributes #43 = { builtin }
-; CHECK: attributes #44 = { strictfp }
+; CHECK: attributes #43 = { strictfp }
+; CHECK: attributes #44 = { builtin }
 
 ;; Metadata
 

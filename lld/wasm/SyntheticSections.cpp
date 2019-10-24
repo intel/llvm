@@ -22,10 +22,10 @@
 using namespace llvm;
 using namespace llvm::wasm;
 
-using namespace lld;
-using namespace lld::wasm;
+namespace lld {
+namespace wasm {
 
-OutStruct lld::wasm::out;
+OutStruct out;
 
 namespace {
 
@@ -273,8 +273,12 @@ void GlobalSection::writeBody() {
     global.InitExpr.Opcode = WASM_OPCODE_I32_CONST;
     if (auto *d = dyn_cast<DefinedData>(sym))
       global.InitExpr.Value.Int32 = d->getVirtualAddress();
-    else if (auto *f = cast<FunctionSymbol>(sym))
+    else if (auto *f = dyn_cast<FunctionSymbol>(sym))
       global.InitExpr.Value.Int32 = f->getTableIndex();
+    else {
+      assert(isa<UndefinedData>(sym));
+      global.InitExpr.Value.Int32 = 0;
+    }
     writeGlobal(os, global);
   }
   for (const DefinedData *sym : dataAddressGlobals) {
@@ -360,6 +364,12 @@ void ElemSection::writeBody() {
     ++tableIndex;
   }
 }
+
+DataCountSection::DataCountSection(ArrayRef<OutputSegment *> segments)
+    : SyntheticSection(llvm::wasm::WASM_SEC_DATACOUNT),
+      numSegments(std::count_if(
+          segments.begin(), segments.end(),
+          [](OutputSegment *const segment) { return !segment->isBss; })) {}
 
 void DataCountSection::writeBody() {
   writeUleb128(bodyOutputStream, numSegments, "data count");
@@ -567,3 +577,6 @@ void RelocSection::writeBody() {
   writeUleb128(bodyOutputStream, count, "reloc count");
   sec->writeRelocations(bodyOutputStream);
 }
+
+} // namespace wasm
+} // namespace lld

@@ -52,7 +52,9 @@ void WebAssemblyInstPrinter::printInst(const MCInst *MI, raw_ostream &OS,
 
   // Print any additional variadic operands.
   const MCInstrDesc &Desc = MII.get(MI->getOpcode());
-  if (Desc.isVariadic())
+  if (Desc.isVariadic()) {
+    if (Desc.getNumOperands() == 0 && MI->getNumOperands() > 0)
+      OS << "\t";
     for (auto I = Desc.getNumOperands(), E = MI->getNumOperands(); I < E; ++I) {
       // FIXME: For CALL_INDIRECT_VOID, don't print a leading comma, because
       // we have an extra flags operand which is not currently printed, for
@@ -63,6 +65,7 @@ void WebAssemblyInstPrinter::printInst(const MCInst *MI, raw_ostream &OS,
         OS << ", ";
       printOperand(MI, I, OS);
     }
+  }
 
   // Print any added annotation.
   printAnnotation(OS, Annot);
@@ -269,9 +272,21 @@ void WebAssemblyInstPrinter::printWebAssemblyP2AlignOperand(const MCInst *MI,
 void WebAssemblyInstPrinter::printWebAssemblySignatureOperand(const MCInst *MI,
                                                               unsigned OpNo,
                                                               raw_ostream &O) {
-  auto Imm = static_cast<unsigned>(MI->getOperand(OpNo).getImm());
-  if (Imm != wasm::WASM_TYPE_NORESULT)
-    O << WebAssembly::anyTypeToString(Imm);
+  const MCOperand &Op = MI->getOperand(OpNo);
+  if (Op.isImm()) {
+    auto Imm = static_cast<unsigned>(Op.getImm());
+    if (Imm != wasm::WASM_TYPE_NORESULT)
+      O << WebAssembly::anyTypeToString(Imm);
+  } else {
+    auto Expr = cast<MCSymbolRefExpr>(Op.getExpr());
+    auto *Sym = cast<MCSymbolWasm>(&Expr->getSymbol());
+    if (Sym->getSignature()) {
+      O << WebAssembly::signatureToString(Sym->getSignature());
+    } else {
+      // Disassembler does not currently produce a signature
+      O << "unknown_type";
+    }
+  }
 }
 
 // We have various enums representing a subset of these types, use this

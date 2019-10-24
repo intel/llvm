@@ -82,11 +82,11 @@ let Predicates = [HasSVE] in {
   defm SDIVR_ZPmZ : sve_int_bin_pred_arit_2_div<0b110, "sdivr">;
   defm UDIVR_ZPmZ : sve_int_bin_pred_arit_2_div<0b111, "udivr">;
 
-  defm SDOT_ZZZ : sve_intx_dot<0b0, "sdot">;
-  defm UDOT_ZZZ : sve_intx_dot<0b1, "udot">;
+  defm SDOT_ZZZ : sve_intx_dot<0b0, "sdot", int_aarch64_sve_sdot>;
+  defm UDOT_ZZZ : sve_intx_dot<0b1, "udot", int_aarch64_sve_udot>;
 
-  defm SDOT_ZZZI : sve_intx_dot_by_indexed_elem<0b0, "sdot">;
-  defm UDOT_ZZZI : sve_intx_dot_by_indexed_elem<0b1, "udot">;
+  defm SDOT_ZZZI : sve_intx_dot_by_indexed_elem<0b0, "sdot", int_aarch64_sve_sdot_lane>;
+  defm UDOT_ZZZI : sve_intx_dot_by_indexed_elem<0b1, "udot", int_aarch64_sve_udot_lane>;
 
   defm SXTB_ZPmZ : sve_int_un_pred_arit_0_h<0b000, "sxtb">;
   defm UXTB_ZPmZ : sve_int_un_pred_arit_0_h<0b001, "uxtb">;
@@ -187,7 +187,7 @@ let Predicates = [HasSVE] in {
   defm FCPY_ZPmI : sve_int_dup_fpimm_pred<"fcpy">;
 
   // Splat scalar register (unpredicated, GPR or vector + element index)
-  defm DUP_ZR  : sve_int_perm_dup_r<"dup">;
+  defm DUP_ZR  : sve_int_perm_dup_r<"dup", AArch64dup>;
   defm DUP_ZZI : sve_int_perm_dup_i<"dup">;
 
   // Splat scalar register (predicated)
@@ -211,10 +211,10 @@ let Predicates = [HasSVE] in {
   defm REV_PP : sve_int_perm_reverse_p<"rev">;
   defm REV_ZZ : sve_int_perm_reverse_z<"rev">;
 
-  defm SUNPKLO_ZZ : sve_int_perm_unpk<0b00, "sunpklo">;
-  defm SUNPKHI_ZZ : sve_int_perm_unpk<0b01, "sunpkhi">;
-  defm UUNPKLO_ZZ : sve_int_perm_unpk<0b10, "uunpklo">;
-  defm UUNPKHI_ZZ : sve_int_perm_unpk<0b11, "uunpkhi">;
+  defm SUNPKLO_ZZ : sve_int_perm_unpk<0b00, "sunpklo", AArch64sunpklo>;
+  defm SUNPKHI_ZZ : sve_int_perm_unpk<0b01, "sunpkhi", AArch64sunpkhi>;
+  defm UUNPKLO_ZZ : sve_int_perm_unpk<0b10, "uunpklo", AArch64uunpklo>;
+  defm UUNPKHI_ZZ : sve_int_perm_unpk<0b11, "uunpkhi", AArch64uunpkhi>;
 
   defm PUNPKLO_PP : sve_int_perm_punpk<0b0, "punpklo", int_aarch64_sve_punpklo>;
   defm PUNPKHI_PP : sve_int_perm_punpk<0b1, "punpkhi", int_aarch64_sve_punpkhi>;

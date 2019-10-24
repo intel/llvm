@@ -2654,7 +2654,7 @@ void CodeViewDebug::emitLocalVariable(const FunctionInfo &FI,
           (bool(Flags & LocalSymFlags::IsParameter)
                ? (EncFP == FI.EncodedParamFramePtrReg)
                : (EncFP == FI.EncodedLocalFramePtrReg))) {
-        DefRangeFramePointerRelSym::Header DRHdr;
+        DefRangeFramePointerRelHeader DRHdr;
         DRHdr.Offset = Offset;
         OS.EmitCVDefRangeDirective(DefRange.Ranges, DRHdr);
       } else {
@@ -2664,7 +2664,7 @@ void CodeViewDebug::emitLocalVariable(const FunctionInfo &FI,
                         (DefRange.StructOffset
                          << DefRangeRegisterRelSym::OffsetInParentShift);
         }
-        DefRangeRegisterRelSym::Header DRHdr;
+        DefRangeRegisterRelHeader DRHdr;
         DRHdr.Register = Reg;
         DRHdr.Flags = RegRelFlags;
         DRHdr.BasePointerOffset = Offset;
@@ -2673,13 +2673,13 @@ void CodeViewDebug::emitLocalVariable(const FunctionInfo &FI,
     } else {
       assert(DefRange.DataOffset == 0 && "unexpected offset into register");
       if (DefRange.IsSubfield) {
-        DefRangeSubfieldRegisterSym::Header DRHdr;
+        DefRangeSubfieldRegisterHeader DRHdr;
         DRHdr.Register = DefRange.CVRegister;
         DRHdr.MayHaveNoName = 0;
         DRHdr.OffsetInParent = DefRange.StructOffset;
         OS.EmitCVDefRangeDirective(DefRange.Ranges, DRHdr);
       } else {
-        DefRangeRegisterSym::Header DRHdr;
+        DefRangeRegisterHeader DRHdr;
         DRHdr.Register = DefRange.CVRegister;
         DRHdr.MayHaveNoName = 0;
         OS.EmitCVDefRangeDirective(DefRange.Ranges, DRHdr);
@@ -2858,6 +2858,14 @@ void CodeViewDebug::endFunctionImpl(const MachineFunction *MF) {
   CurFn = nullptr;
 }
 
+// Usable locations are valid with non-zero line numbers. A line number of zero
+// corresponds to optimized code that doesn't have a distinct source location.
+// In this case, we try to use the previous or next source location depending on
+// the context.
+static bool isUsableDebugLoc(DebugLoc DL) {
+  return DL && DL.getLine() != 0;
+}
+
 void CodeViewDebug::beginInstruction(const MachineInstr *MI) {
   DebugHandlerBase::beginInstruction(MI);
 
@@ -2869,19 +2877,21 @@ void CodeViewDebug::beginInstruction(const MachineInstr *MI) {
   // If the first instruction of a new MBB has no location, find the first
   // instruction with a location and use that.
   DebugLoc DL = MI->getDebugLoc();
-  if (!DL && MI->getParent() != PrevInstBB) {
+  if (!isUsableDebugLoc(DL) && MI->getParent() != PrevInstBB) {
     for (const auto &NextMI : *MI->getParent()) {
       if (NextMI.isDebugInstr())
         continue;
       DL = NextMI.getDebugLoc();
-      if (DL)
+      if (isUsableDebugLoc(DL))
         break;
     }
+    // FIXME: Handle the case where the BB has no valid locations. This would
+    // probably require doing a real dataflow analysis.
   }
   PrevInstBB = MI->getParent();
 
   // If we still don't have a debug location, don't record a location.
-  if (!DL)
+  if (!isUsableDebugLoc(DL))
     return;
 
   maybeRecordLocation(DL, Asm->MF);

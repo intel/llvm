@@ -703,6 +703,14 @@ let IntrProperties = [IntrInaccessibleMemOnly, IntrWillReturn] in {
                                                          [ LLVMMatchType<0>,
                                                            llvm_metadata_ty,
                                                            llvm_metadata_ty ]>;
+  def int_experimental_constrained_lrint : Intrinsic<[ llvm_anyint_ty ],
+                                                     [ llvm_anyfloat_ty,
+                                                       llvm_metadata_ty,
+                                                       llvm_metadata_ty ]>;
+  def int_experimental_constrained_llrint : Intrinsic<[ llvm_anyint_ty ],
+                                                      [ llvm_anyfloat_ty,
+                                                        llvm_metadata_ty,
+                                                        llvm_metadata_ty ]>;
   def int_experimental_constrained_maxnum : Intrinsic<[ llvm_anyfloat_ty ],
                                                       [ LLVMMatchType<0>,
                                                         LLVMMatchType<0>,
@@ -721,6 +729,12 @@ let IntrProperties = [IntrInaccessibleMemOnly, IntrWillReturn] in {
                                                      [ LLVMMatchType<0>,
                                                        llvm_metadata_ty,
                                                        llvm_metadata_ty ]>;
+  def int_experimental_constrained_lround : Intrinsic<[ llvm_anyint_ty ],
+                                                      [ llvm_anyfloat_ty,
+                                                        llvm_metadata_ty ]>;
+  def int_experimental_constrained_llround : Intrinsic<[ llvm_anyint_ty ],
+                                                       [ llvm_anyfloat_ty,
+                                                         llvm_metadata_ty ]>;
   def int_experimental_constrained_round : Intrinsic<[ llvm_anyfloat_ty ],
                                                      [ LLVMMatchType<0>,
                                                       llvm_metadata_ty,
@@ -1067,7 +1081,7 @@ def int_donothing : Intrinsic<[], [], [IntrNoMem, IntrWillReturn]>;
 // which specify that infinite loops must be preserved.
 def int_sideeffect : Intrinsic<[], [], [IntrInaccessibleMemOnly, IntrWillReturn]>;
 
-// Intrisics to support half precision floating point format
+// Intrinsics to support half precision floating point format
 let IntrProperties = [IntrNoMem, IntrWillReturn] in {
 def int_convert_to_fp16   : Intrinsic<[llvm_i16_ty], [llvm_anyfloat_ty]>;
 def int_convert_from_fp16 : Intrinsic<[llvm_anyfloat_ty], [llvm_i16_ty]>;

@@ -21,6 +21,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ProfileData/ProfileCommon.h"
 #include "llvm/ProfileData/SampleProf.h"
+#include "llvm/Support/Compression.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/ErrorOr.h"
@@ -72,21 +73,58 @@ SampleProfileWriter::write(const StringMap<FunctionSamples> &ProfileMap) {
   return sampleprof_error::success;
 }
 
-/// Return the current position and prepare to use it as the start
-/// position of a section.
-uint64_t SampleProfileWriterExtBinaryBase::markSectionStart() {
-  return OutputStream->tell();
+SecHdrTableEntry &
+SampleProfileWriterExtBinaryBase::getEntryInLayout(SecType Type) {
+  auto SecIt = std::find_if(
+      SectionHdrLayout.begin(), SectionHdrLayout.end(),
+      [=](const auto &Entry) -> bool { return Entry.Type == Type; });
+  return *SecIt;
 }
 
-/// Add a new section into section header table. Return the position
-/// of SectionEnd.
-uint64_t
-SampleProfileWriterExtBinaryBase::addNewSection(SecType Sec,
+/// Return the current position and prepare to use it as the start
+/// position of a section.
+uint64_t SampleProfileWriterExtBinaryBase::markSectionStart(SecType Type) {
+  uint64_t SectionStart = OutputStream->tell();
+  auto &Entry = getEntryInLayout(Type);
+  // Use LocalBuf as a temporary output for writting data.
+  if (hasSecFlag(Entry, SecFlagCompress))
+    LocalBufStream.swap(OutputStream);
+  return SectionStart;
+}
+
+std::error_code SampleProfileWriterExtBinaryBase::compressAndOutput() {
+  if (!llvm::zlib::isAvailable())
+    return sampleprof_error::zlib_unavailable;
+  std::string &UncompressedStrings =
+      static_cast<raw_string_ostream *>(LocalBufStream.get())->str();
+  if (UncompressedStrings.size() == 0)
+    return sampleprof_error::success;
+  auto &OS = *OutputStream;
+  SmallString<128> CompressedStrings;
+  llvm::Error E = zlib::compress(UncompressedStrings, CompressedStrings,
+                                 zlib::BestSizeCompression);
+  if (E)
+    return sampleprof_error::compress_failed;
+  encodeULEB128(UncompressedStrings.size(), OS);
+  encodeULEB128(CompressedStrings.size(), OS);
+  OS << CompressedStrings.str();
+  UncompressedStrings.clear();
+  return sampleprof_error::success;
+}
+
+/// Add a new section into section header table.
+std::error_code
+SampleProfileWriterExtBinaryBase::addNewSection(SecType Type,
                                                 uint64_t SectionStart) {
-  uint64_t SectionEnd = OutputStream->tell();
-  SecHdrTable.push_back(
-      {Sec, 0, SectionStart - FileStart, SectionEnd - SectionStart});
-  return SectionEnd;
+  auto Entry = getEntryInLayout(Type);
+  if (hasSecFlag(Entry, SecFlagCompress)) {
+    LocalBufStream.swap(OutputStream);
+    if (std::error_code EC = compressAndOutput())
+      return EC;
+  }
+  SecHdrTable.push_back({Type, Entry.Flags, SectionStart - FileStart,
+                         OutputStream->tell() - SectionStart});
+  return sampleprof_error::success;
 }
 
 std::error_code SampleProfileWriterExtBinaryBase::write(
@@ -94,6 +132,8 @@ std::error_code SampleProfileWriterExtBinaryBase::write(
   if (std::error_code EC = writeHeader(ProfileMap))
     return EC;
 
+  std::string LocalBuf;
+  LocalBufStream = std::make_unique<raw_string_ostream>(LocalBuf);
   if (std::error_code EC = writeSections(ProfileMap))
     return EC;
 
@@ -103,30 +143,70 @@ std::error_code SampleProfileWriterExtBinaryBase::write(
   return sampleprof_error::success;
 }
 
+std::error_code
+SampleProfileWriterExtBinary::writeSample(const FunctionSamples &S) {
+  uint64_t Offset = OutputStream->tell();
+  StringRef Name = S.getName();
+  FuncOffsetTable[Name] = Offset - SecLBRProfileStart;
+  encodeULEB128(S.getHeadSamples(), *OutputStream);
+  return writeBody(S);
+}
+
+std::error_code SampleProfileWriterExtBinary::writeFuncOffsetTable() {
+  auto &OS = *OutputStream;
+
+  // Write out the table size.
+  encodeULEB128(FuncOffsetTable.size(), OS);
+
+  // Write out FuncOffsetTable.
+  for (auto entry : FuncOffsetTable) {
+    writeNameIdx(entry.first);
+    encodeULEB128(entry.second, OS);
+  }
+  return sampleprof_error::success;
+}
+
 std::error_code SampleProfileWriterExtBinary::writeSections(
     const StringMap<FunctionSamples> &ProfileMap) {
-  uint64_t SectionStart = markSectionStart();
+  uint64_t SectionStart = markSectionStart(SecProfSummary);
   computeSummary(ProfileMap);
   if (auto EC = writeSummary())
     return EC;
-  SectionStart = addNewSection(SecProfSummary, SectionStart);
+  if (std::error_code EC = addNewSection(SecProfSummary, SectionStart))
+    return EC;
 
   // Generate the name table for all the functions referenced in the profile.
+  SectionStart = markSectionStart(SecNameTable);
   for (const auto &I : ProfileMap) {
     addName(I.first());
     addNames(I.second);
   }
   writeNameTable();
-  SectionStart = addNewSection(SecNameTable, SectionStart);
+  if (std::error_code EC = addNewSection(SecNameTable, SectionStart))
+    return EC;
 
+  SectionStart = markSectionStart(SecLBRProfile);
+  SecLBRProfileStart = OutputStream->tell();
   if (std::error_code EC = writeFuncProfiles(ProfileMap))
     return EC;
-  SectionStart = addNewSection(SecLBRProfile, SectionStart);
+  if (std::error_code EC = addNewSection(SecLBRProfile, SectionStart))
+    return EC;
 
+  if (ProfSymList && ProfSymList->toCompress())
+    setToCompressSection(SecProfileSymbolList);
+
+  SectionStart = markSectionStart(SecProfileSymbolList);
   if (ProfSymList && ProfSymList->size() > 0)
     if (std::error_code EC = ProfSymList->write(*OutputStream))
       return EC;
-  addNewSection(SecProfileSymbolList, SectionStart);
+  if (std::error_code EC = addNewSection(SecProfileSymbolList, SectionStart))
+    return EC;
+
+  SectionStart = markSectionStart(SecFuncOffsetTable);
+  if (std::error_code EC = writeFuncOffsetTable())
+    return EC;
+  if (std::error_code EC = addNewSection(SecFuncOffsetTable, SectionStart))
+    return EC;
 
   return sampleprof_error::success;
 }
@@ -308,12 +388,29 @@ std::error_code SampleProfileWriterBinary::writeHeader(
   return sampleprof_error::success;
 }
 
+void SampleProfileWriterExtBinaryBase::setToCompressAllSections() {
+  for (auto &Entry : SectionHdrLayout)
+    addSecFlags(Entry, SecFlagCompress);
+}
+
+void SampleProfileWriterExtBinaryBase::setToCompressSection(SecType Type) {
+  addSectionFlags(Type, SecFlagCompress);
+}
+
+void SampleProfileWriterExtBinaryBase::addSectionFlags(SecType Type,
+                                                       SecFlags Flags) {
+  for (auto &Entry : SectionHdrLayout) {
+    if (Entry.Type == Type)
+      addSecFlags(Entry, Flags);
+  }
+}
+
 void SampleProfileWriterExtBinaryBase::allocSecHdrTable() {
   support::endian::Writer Writer(*OutputStream, support::little);
 
-  Writer.write(static_cast<uint64_t>(SectionLayout.size()));
+  Writer.write(static_cast<uint64_t>(SectionHdrLayout.size()));
   SecHdrTableOffset = OutputStream->tell();
-  for (uint32_t i = 0; i < SectionLayout.size(); i++) {
+  for (uint32_t i = 0; i < SectionHdrLayout.size(); i++) {
     Writer.write(static_cast<uint64_t>(-1));
     Writer.write(static_cast<uint64_t>(-1));
     Writer.write(static_cast<uint64_t>(-1));
@@ -335,16 +432,17 @@ std::error_code SampleProfileWriterExtBinaryBase::writeSecHdrTable() {
     IndexMap.insert({static_cast<uint32_t>(SecHdrTable[i].Type), i});
   }
 
-  // Write the sections in the order specified in SectionLayout.
-  // That is the sections order Reader will see. Note that the
-  // sections order in which Reader expects to read may be different
-  // from the order in which Writer is able to write, so we need
-  // to adjust the order in SecHdrTable to be consistent with
-  // SectionLayout when we write SecHdrTable to the memory.
-  for (uint32_t i = 0; i < SectionLayout.size(); i++) {
-    uint32_t idx = IndexMap[static_cast<uint32_t>(SectionLayout[i])];
+  // Write the section header table in the order specified in
+  // SectionHdrLayout. That is the sections order Reader will see.
+  // Note that the sections order in which Reader expects to read
+  // may be different from the order in which Writer is able to
+  // write, so we need to adjust the order in SecHdrTable to be
+  // consistent with SectionHdrLayout when we write SecHdrTable
+  // to the memory.
+  for (uint32_t i = 0; i < SectionHdrLayout.size(); i++) {
+    uint32_t idx = IndexMap[static_cast<uint32_t>(SectionHdrLayout[i].Type)];
     Writer.write(static_cast<uint64_t>(SecHdrTable[idx].Type));
-    Writer.write(static_cast<uint64_t>(SecHdrTable[idx].Flag));
+    Writer.write(static_cast<uint64_t>(SecHdrTable[idx].Flags));
     Writer.write(static_cast<uint64_t>(SecHdrTable[idx].Offset));
     Writer.write(static_cast<uint64_t>(SecHdrTable[idx].Size));
   }
@@ -362,7 +460,6 @@ std::error_code SampleProfileWriterExtBinaryBase::writeHeader(
   FileStart = OS.tell();
   writeMagicIdent(Format);
 
-  initSectionLayout();
   allocSecHdrTable();
   return sampleprof_error::success;
 }

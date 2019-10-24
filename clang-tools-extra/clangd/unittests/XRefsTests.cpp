@@ -462,7 +462,14 @@ TEST(LocateSymbol, All) {
     if (!T.ranges("def").empty())
       WantDef = T.range("def");
 
-    auto AST = TestTU::withCode(T.code()).build();
+    TestTU TU;
+    TU.Code = T.code();
+
+    // FIXME: Auto-completion in a template requires disabling delayed template
+    // parsing.
+    TU.ExtraArgs.push_back("-fno-delayed-template-parsing");
+
+    auto AST = TU.build();
     auto Results = locateSymbolAt(AST, T.point());
 
     if (!WantDecl) {
@@ -2277,7 +2284,8 @@ TEST(GetNonLocalDeclRefs, All) {
       if (const auto *ND = llvm::dyn_cast<NamedDecl>(D))
         Names.push_back(ND->getQualifiedNameAsString());
     }
-    EXPECT_THAT(Names, UnorderedElementsAreArray(C.ExpectedDecls));
+    EXPECT_THAT(Names, UnorderedElementsAreArray(C.ExpectedDecls))
+        << File.code();
   }
 }
 

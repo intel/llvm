@@ -2287,6 +2287,14 @@ def PragmaClangRodataSection : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def PragmaClangRelroSection : InheritableAttr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  let Spellings = [];
+  let Args = [StringArgument<"Name">];
+  let Subjects = SubjectList<[GlobalVar], ErrorDiag>;
+  let Documentation = [Undocumented];
+}
+
 def PragmaClangTextSection : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
@@ -3576,7 +3584,7 @@ def OMPDeclareVariant : InheritableAttr {
                  [
                    "CtxUnknown", "CtxVendor"
                  ]>,
-    StringArgument<"ImplVendor", 1>
+    VariadicStringArgument<"ImplVendors">
   ];
   let AdditionalMembers = [{
     void printScore(raw_ostream & OS, const PrintingPolicy &Policy) const {
@@ -3604,7 +3612,11 @@ def OMPDeclareVariant : InheritableAttr {
         case CtxVendor:
           OS << "vendor(";
           printScore(OS, Policy);
-          OS << getImplVendor();
+          if (implVendors_size() > 0) {
+            OS << *implVendors(). begin();
+            for (StringRef VendorName : llvm::drop_begin(implVendors(), 1))
+              OS << ", " << VendorName;
+          }
           OS << ")";
           break;
         case CtxUnknown:

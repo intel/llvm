@@ -239,9 +239,11 @@ static bool updateOperand(FoldCandidate &Fold,
 
   if ((Fold.isImm() || Fold.isFI() || Fold.isGlobal()) && Fold.needsShrink()) {
     MachineBasicBlock *MBB = MI->getParent();
-    auto Liveness = MBB->computeRegisterLiveness(&TRI, AMDGPU::VCC, MI);
-    if (Liveness != MachineBasicBlock::LQR_Dead)
+    auto Liveness = MBB->computeRegisterLiveness(&TRI, AMDGPU::VCC, MI, 16);
+    if (Liveness != MachineBasicBlock::LQR_Dead) {
+      LLVM_DEBUG(dbgs() << "Not shrinking " << MI << " due to vcc liveness\n");
       return false;
+    }
 
     MachineRegisterInfo &MRI = MBB->getParent()->getRegInfo();
     int Op32 = Fold.getShrinkOpcode();
@@ -511,18 +513,6 @@ void SIFoldOperands::foldOperand(
   if (UseOp.isReg() && OpToFold.isReg()) {
     if (UseOp.isImplicit() || UseOp.getSubReg() != AMDGPU::NoSubRegister)
       return;
-
-    // Don't fold subregister extracts into tied operands, only if it is a full
-    // copy since a subregister use tied to a full register def doesn't really
-    // make sense. e.g. don't fold:
-    //
-    // %1 = COPY %0:sub1
-    // %2<tied3> = V_MAC_{F16, F32} %3, %4, %1<tied0>
-    //
-    //  into
-    // %2<tied3> = V_MAC_{F16, F32} %3, %4, %0:sub1<tied0>
-    if (UseOp.isTied() && OpToFold.getSubReg() != AMDGPU::NoSubRegister)
-      return;
   }
 
   // Special case for REG_SEQUENCE: We can't fold literals into
@@ -581,13 +571,17 @@ void SIFoldOperands::foldOperand(
 
   if (FoldingImmLike && UseMI->isCopy()) {
     Register DestReg = UseMI->getOperand(0).getReg();
-    const TargetRegisterClass *DestRC = Register::isVirtualRegister(DestReg)
-                                            ? MRI->getRegClass(DestReg)
-                                            : TRI->getPhysRegClass(DestReg);
+
+    // Don't fold into a copy to a physical register. Doing so would interfere
+    // with the register coalescer's logic which would avoid redundant
+    // initalizations.
+    if (DestReg.isPhysical())
+      return;
+
+    const TargetRegisterClass *DestRC =  MRI->getRegClass(DestReg);
 
     Register SrcReg = UseMI->getOperand(1).getReg();
-    if (Register::isVirtualRegister(DestReg) &&
-        Register::isVirtualRegister(SrcReg)) {
+    if (SrcReg.isVirtual()) { // XXX - This can be an assert?
       const TargetRegisterClass * SrcRC = MRI->getRegClass(SrcReg);
       if (TRI->isSGPRClass(SrcRC) && TRI->hasVectorRegisters(DestRC)) {
         MachineRegisterInfo::use_iterator NextUse;
@@ -1343,6 +1337,8 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
 
   for (MachineBasicBlock *MBB : depth_first(&MF)) {
     MachineBasicBlock::iterator I, Next;
+
+    MachineOperand *CurrentKnownM0Val = nullptr;
     for (I = MBB->begin(); I != MBB->end(); I = Next) {
       Next = std::next(I);
       MachineInstr &MI = *I;
@@ -1355,6 +1351,25 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
         if (IsIEEEMode || (!HasNSZ && !MI.getFlag(MachineInstr::FmNsz)) ||
             !tryFoldOMod(MI))
           tryFoldClamp(MI);
+
+        // Saw an unknown clobber of m0, so we no longer know what it is.
+        if (CurrentKnownM0Val && MI.modifiesRegister(AMDGPU::M0, TRI))
+          CurrentKnownM0Val = nullptr;
+        continue;
+      }
+
+      // Specially track simple redefs of m0 to the same value in a block, so we
+      // can erase the later ones.
+      if (MI.getOperand(0).getReg() == AMDGPU::M0) {
+        MachineOperand &NewM0Val = MI.getOperand(1);
+        if (CurrentKnownM0Val && CurrentKnownM0Val->isIdenticalTo(NewM0Val)) {
+          MI.eraseFromParent();
+          continue;
+        }
+
+        // We aren't tracking other physical registers
+        CurrentKnownM0Val = (NewM0Val.isReg() && NewM0Val.getReg().isPhysical()) ?
+          nullptr : &NewM0Val;
         continue;
       }
 

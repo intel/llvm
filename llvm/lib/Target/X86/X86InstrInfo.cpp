@@ -480,7 +480,7 @@ static bool regIsPICBase(unsigned BaseReg, const MachineRegisterInfo &MRI) {
 }
 
 bool X86InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                                     AliasAnalysis *AA) const {
+                                                     AAResults *AA) const {
   switch (MI.getOpcode()) {
   default:
     // This function should only be called for opcodes with the ReMaterializable
@@ -7638,12 +7638,17 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI) const {
 
     return ParamLoadedValue(*Op, Expr);;
   }
+  case X86::MOV32ri:
+  case X86::MOV64ri:
+  case X86::MOV64ri32:
+    return ParamLoadedValue(MI.getOperand(1), Expr);
   case X86::XOR32rr: {
     if (MI.getOperand(1).getReg() == MI.getOperand(2).getReg())
       return ParamLoadedValue(MachineOperand::CreateImm(0), Expr);
     return None;
   }
   default:
+    assert(!MI.isMoveImmediate() && "Unexpected MoveImm instruction");
     return TargetInstrInfo::describeLoadedValue(MI);
   }
 }

@@ -192,7 +192,7 @@ static void GetProcessEnviron(::pid_t pid, ProcessInstanceInfo &process_info) {
   auto BufferOrError = getProcFile(pid, "environ");
   if (!BufferOrError)
     return;
- 
+
   std::unique_ptr<llvm::MemoryBuffer> Environ = std::move(*BufferOrError);
   llvm::StringRef Rest = Environ->getBuffer();
   while (!Rest.empty()) {

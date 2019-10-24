@@ -1264,9 +1264,10 @@ CGOpenMPRuntime::CGOpenMPRuntime(CodeGenModule &CGM, StringRef FirstSeparator,
   loadOffloadInfoMetadata();
 }
 
-static bool tryEmitAlias(CodeGenModule &CGM, const GlobalDecl &NewGD,
-                         const GlobalDecl &OldGD, llvm::GlobalValue *OrigAddr,
-                         bool IsForDefinition) {
+bool CGOpenMPRuntime::tryEmitDeclareVariant(const GlobalDecl &NewGD,
+                                            const GlobalDecl &OldGD,
+                                            llvm::GlobalValue *OrigAddr,
+                                            bool IsForDefinition) {
   // Emit at least a definition for the aliasee if the the address of the
   // original function is requested.
   if (IsForDefinition || OrigAddr)
@@ -1327,8 +1328,8 @@ void CGOpenMPRuntime::clear() {
     StringRef MangledName = CGM.getMangledName(Pair.second.second);
     llvm::GlobalValue *Addr = CGM.GetGlobalValue(MangledName);
     // If not able to emit alias, just emit original declaration.
-    (void)tryEmitAlias(CGM, Pair.second.first, Pair.second.second, Addr,
-                       /*IsForDefinition=*/false);
+    (void)tryEmitDeclareVariant(Pair.second.first, Pair.second.second, Addr,
+                                /*IsForDefinition=*/false);
   }
 }
 
@@ -1696,18 +1697,23 @@ llvm::Value *CGOpenMPRuntime::getThreadID(CodeGenFunction &CGF,
       return ThreadID;
   }
   // If exceptions are enabled, do not use parameter to avoid possible crash.
-  if (!CGF.EHStack.requiresLandingPad() || !CGF.getLangOpts().Exceptions ||
-      !CGF.getLangOpts().CXXExceptions ||
-      CGF.Builder.GetInsertBlock() == CGF.AllocaInsertPt->getParent()) {
-    if (auto *OMPRegionInfo =
-            dyn_cast_or_null<CGOpenMPRegionInfo>(CGF.CapturedStmtInfo)) {
-      if (OMPRegionInfo->getThreadIDVariable()) {
-        // Check if this an outlined function with thread id passed as argument.
-        LValue LVal = OMPRegionInfo->getThreadIDVariableLValue(CGF);
+  if (auto *OMPRegionInfo =
+          dyn_cast_or_null<CGOpenMPRegionInfo>(CGF.CapturedStmtInfo)) {
+    if (OMPRegionInfo->getThreadIDVariable()) {
+      // Check if this an outlined function with thread id passed as argument.
+      LValue LVal = OMPRegionInfo->getThreadIDVariableLValue(CGF);
+      llvm::BasicBlock *TopBlock = CGF.AllocaInsertPt->getParent();
+      if (!CGF.EHStack.requiresLandingPad() || !CGF.getLangOpts().Exceptions ||
+          !CGF.getLangOpts().CXXExceptions ||
+          CGF.Builder.GetInsertBlock() == TopBlock ||
+          !isa<llvm::Instruction>(LVal.getPointer()) ||
+          cast<llvm::Instruction>(LVal.getPointer())->getParent() == TopBlock ||
+          cast<llvm::Instruction>(LVal.getPointer())->getParent() ==
+              CGF.Builder.GetInsertBlock()) {
         ThreadID = CGF.EmitLoadOfScalar(LVal, Loc);
         // If value loaded in entry block, cache it and use it everywhere in
         // function.
-        if (CGF.Builder.GetInsertBlock() == CGF.AllocaInsertPt->getParent()) {
+        if (CGF.Builder.GetInsertBlock() == TopBlock) {
           auto &Elem = OpenMPLocThreadIDMap.FindAndConstruct(CGF.CurFn);
           Elem.second.ThreadID = ThreadID;
         }
@@ -3074,14 +3080,16 @@ void CGOpenMPRuntime::emitParallelCall(CodeGenFunction &CGF, SourceLocation Loc,
     CGF.EmitRuntimeCall(
         RT.createRuntimeFunction(OMPRTL__kmpc_serialized_parallel), Args);
 
-    // OutlinedFn(&GTid, &zero, CapturedStruct);
-    Address ZeroAddr = CGF.CreateDefaultAlignTempAlloca(CGF.Int32Ty,
-                                                        /*Name*/ ".zero.addr");
-    CGF.InitTempAlloca(ZeroAddr, CGF.Builder.getInt32(/*C*/ 0));
+    // OutlinedFn(&GTid, &zero_bound, CapturedStruct);
+    Address ThreadIDAddr = RT.emitThreadIDAddress(CGF, Loc);
+    Address ZeroAddrBound =
+        CGF.CreateDefaultAlignTempAlloca(CGF.Int32Ty,
+                                         /*Name=*/".bound.zero.addr");
+    CGF.InitTempAlloca(ZeroAddrBound, CGF.Builder.getInt32(/*C*/ 0));
     llvm::SmallVector<llvm::Value *, 16> OutlinedFnArgs;
     // ThreadId for serialized parallels is 0.
-    OutlinedFnArgs.push_back(ZeroAddr.getPointer());
-    OutlinedFnArgs.push_back(ZeroAddr.getPointer());
+    OutlinedFnArgs.push_back(ThreadIDAddr.getPointer());
+    OutlinedFnArgs.push_back(ZeroAddrBound.getPointer());
     OutlinedFnArgs.append(CapturedVars.begin(), CapturedVars.end());
     RT.emitOutlinedFunctionCall(CGF, Loc, OutlinedFn, OutlinedFnArgs);
 
@@ -4005,157 +4013,6 @@ void CGOpenMPRuntime::OffloadEntriesInfoManagerTy::
     Action(E.getKey(), E.getValue());
 }
 
-llvm::Function *
-CGOpenMPRuntime::createOffloadingBinaryDescriptorRegistration() {
-  // If we don't have entries or if we are emitting code for the device, we
-  // don't need to do anything.
-  if (CGM.getLangOpts().OpenMPIsDevice || OffloadEntriesInfoManager.empty())
-    return nullptr;
-
-  llvm::Module &M = CGM.getModule();
-  ASTContext &C = CGM.getContext();
-
-  // Get list of devices we care about
-  const std::vector<llvm::Triple> &Devices = CGM.getLangOpts().OMPTargetTriples;
-
-  // We should be creating an offloading descriptor only if there are devices
-  // specified.
-  assert(!Devices.empty() && "No OpenMP offloading devices??");
-
-  // Create the external variables that will point to the begin and end of the
-  // host entries section. These will be defined by the linker.
-  llvm::Type *OffloadEntryTy =
-      CGM.getTypes().ConvertTypeForMem(getTgtOffloadEntryQTy());
-  auto *HostEntriesBegin = new llvm::GlobalVariable(
-      M, OffloadEntryTy, /*isConstant=*/true,
-      llvm::GlobalValue::ExternalLinkage, /*Initializer=*/nullptr,
-      "__start_omp_offloading_entries");
-  HostEntriesBegin->setVisibility(llvm::GlobalValue::HiddenVisibility);
-  auto *HostEntriesEnd = new llvm::GlobalVariable(
-      M, OffloadEntryTy, /*isConstant=*/true,
-      llvm::GlobalValue::ExternalLinkage,
-      /*Initializer=*/nullptr, "__stop_omp_offloading_entries");
-  HostEntriesEnd->setVisibility(llvm::GlobalValue::HiddenVisibility);
-
-  // Create all device images
-  auto *DeviceImageTy = cast<llvm::StructType>(
-      CGM.getTypes().ConvertTypeForMem(getTgtDeviceImageQTy()));
-  ConstantInitBuilder DeviceImagesBuilder(CGM);
-  ConstantArrayBuilder DeviceImagesEntries =
-      DeviceImagesBuilder.beginArray(DeviceImageTy);
-
-  for (const llvm::Triple &Device : Devices) {
-    StringRef T = Device.getTriple();
-    std::string BeginName = getName({"omp_offloading", "img_start", ""});
-    auto *ImgBegin = new llvm::GlobalVariable(
-        M, CGM.Int8Ty, /*isConstant=*/true,
-        llvm::GlobalValue::ExternalWeakLinkage,
-        /*Initializer=*/nullptr, Twine(BeginName).concat(T));
-    std::string EndName = getName({"omp_offloading", "img_end", ""});
-    auto *ImgEnd = new llvm::GlobalVariable(
-        M, CGM.Int8Ty, /*isConstant=*/true,
-        llvm::GlobalValue::ExternalWeakLinkage,
-        /*Initializer=*/nullptr, Twine(EndName).concat(T));
-
-    llvm::Constant *Data[] = {ImgBegin, ImgEnd, HostEntriesBegin,
-                              HostEntriesEnd};
-    createConstantGlobalStructAndAddToParent(CGM, getTgtDeviceImageQTy(), Data,
-                                             DeviceImagesEntries);
-  }
-
-  // Create device images global array.
-  std::string ImagesName = getName({"omp_offloading", "device_images"});
-  llvm::GlobalVariable *DeviceImages =
-      DeviceImagesEntries.finishAndCreateGlobal(ImagesName,
-                                                CGM.getPointerAlign(),
-                                                /*isConstant=*/true);
-  DeviceImages->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-
-  // This is a Zero array to be used in the creation of the constant expressions
-  llvm::Constant *Index[] = {llvm::Constant::getNullValue(CGM.Int32Ty),
-                             llvm::Constant::getNullValue(CGM.Int32Ty)};
-
-  // Create the target region descriptor.
-  llvm::Constant *Data[] = {
-      llvm::ConstantInt::get(CGM.Int32Ty, Devices.size()),
-      llvm::ConstantExpr::getGetElementPtr(DeviceImages->getValueType(),
-                                           DeviceImages, Index),
-      HostEntriesBegin, HostEntriesEnd};
-  std::string Descriptor = getName({"omp_offloading", "descriptor"});
-  llvm::GlobalVariable *Desc = createGlobalStruct(
-      CGM, getTgtBinaryDescriptorQTy(), /*IsConstant=*/true, Data, Descriptor);
-
-  // Emit code to register or unregister the descriptor at execution
-  // startup or closing, respectively.
-
-  llvm::Function *UnRegFn;
-  {
-    FunctionArgList Args;
-    ImplicitParamDecl DummyPtr(C, C.VoidPtrTy, ImplicitParamDecl::Other);
-    Args.push_back(&DummyPtr);
-
-    CodeGenFunction CGF(CGM);
-    // Disable debug info for global (de-)initializer because they are not part
-    // of some particular construct.
-    CGF.disableDebugInfo();
-    const auto &FI =
-        CGM.getTypes().arrangeBuiltinFunctionDeclaration(C.VoidTy, Args);
-    llvm::FunctionType *FTy = CGM.getTypes().GetFunctionType(FI);
-    std::string UnregName = getName({"omp_offloading", "descriptor_unreg"});
-    UnRegFn = CGM.CreateGlobalInitOrDestructFunction(FTy, UnregName, FI);
-    CGF.StartFunction(GlobalDecl(), C.VoidTy, UnRegFn, FI, Args);
-    CGF.EmitRuntimeCall(createRuntimeFunction(OMPRTL__tgt_unregister_lib),
-                        Desc);
-    CGF.FinishFunction();
-  }
-  llvm::Function *RegFn;
-  {
-    CodeGenFunction CGF(CGM);
-    // Disable debug info for global (de-)initializer because they are not part
-    // of some particular construct.
-    CGF.disableDebugInfo();
-    const auto &FI = CGM.getTypes().arrangeNullaryFunction();
-    llvm::FunctionType *FTy = CGM.getTypes().GetFunctionType(FI);
-
-    // Encode offload target triples into the registration function name. It
-    // will serve as a comdat key for the registration/unregistration code for
-    // this particular combination of offloading targets.
-    SmallVector<StringRef, 4U> RegFnNameParts(Devices.size() + 2U);
-    RegFnNameParts[0] = "omp_offloading";
-    RegFnNameParts[1] = "descriptor_reg";
-    llvm::transform(Devices, std::next(RegFnNameParts.begin(), 2),
-                    [](const llvm::Triple &T) -> const std::string& {
-                      return T.getTriple();
-                    });
-    llvm::sort(std::next(RegFnNameParts.begin(), 2), RegFnNameParts.end());
-    std::string Descriptor = getName(RegFnNameParts);
-    RegFn = CGM.CreateGlobalInitOrDestructFunction(FTy, Descriptor, FI);
-    CGF.StartFunction(GlobalDecl(), C.VoidTy, RegFn, FI, FunctionArgList());
-    CGF.EmitRuntimeCall(createRuntimeFunction(OMPRTL__tgt_register_lib), Desc);
-    // Create a variable to drive the registration and unregistration of the
-    // descriptor, so we can reuse the logic that emits Ctors and Dtors.
-    ImplicitParamDecl RegUnregVar(C, C.getTranslationUnitDecl(),
-                                  SourceLocation(), nullptr, C.CharTy,
-                                  ImplicitParamDecl::Other);
-    CGM.getCXXABI().registerGlobalDtor(CGF, RegUnregVar, UnRegFn, Desc);
-    CGF.FinishFunction();
-  }
-  if (CGM.supportsCOMDAT()) {
-    // It is sufficient to call registration function only once, so create a
-    // COMDAT group for registration/unregistration functions and associated
-    // data. That would reduce startup time and code size. Registration
-    // function serves as a COMDAT group key.
-    llvm::Comdat *ComdatKey = M.getOrInsertComdat(RegFn->getName());
-    RegFn->setLinkage(llvm::GlobalValue::LinkOnceAnyLinkage);
-    RegFn->setVisibility(llvm::GlobalValue::HiddenVisibility);
-    RegFn->setComdat(ComdatKey);
-    UnRegFn->setComdat(ComdatKey);
-    DeviceImages->setComdat(ComdatKey);
-    Desc->setComdat(ComdatKey);
-  }
-  return RegFn;
-}
-
 void CGOpenMPRuntime::createOffloadEntry(
     llvm::Constant *ID, llvm::Constant *Addr, uint64_t Size, int32_t Flags,
     llvm::GlobalValue::LinkageTypes Linkage) {
@@ -4196,8 +4053,9 @@ void CGOpenMPRuntime::createOffloadEntriesAndInfoMetadata() {
   // Right now we only generate metadata for function that contain target
   // regions.
 
-  // If we do not have entries, we don't need to do anything.
-  if (OffloadEntriesInfoManager.empty())
+  // If we are in simd mode or there are no entries, we don't need to do
+  // anything.
+  if (CGM.getLangOpts().OpenMPSimd || OffloadEntriesInfoManager.empty())
     return;
 
   llvm::Module &M = CGM.getModule();
@@ -6847,6 +6705,9 @@ emitNumTeamsForTargetDirective(CodeGenFunction &CGF,
   case OMPD_declare_mapper:
   case OMPD_taskloop:
   case OMPD_taskloop_simd:
+  case OMPD_master_taskloop:
+  case OMPD_master_taskloop_simd:
+  case OMPD_parallel_master_taskloop:
   case OMPD_requires:
   case OMPD_unknown:
     break;
@@ -7153,6 +7014,9 @@ emitNumThreadsForTargetDirective(CodeGenFunction &CGF,
   case OMPD_declare_mapper:
   case OMPD_taskloop:
   case OMPD_taskloop_simd:
+  case OMPD_master_taskloop:
+  case OMPD_master_taskloop_simd:
+  case OMPD_parallel_master_taskloop:
   case OMPD_requires:
   case OMPD_unknown:
     break;
@@ -8924,6 +8788,9 @@ getNestedDistributeDirective(ASTContext &Ctx, const OMPExecutableDirective &D) {
     case OMPD_declare_mapper:
     case OMPD_taskloop:
     case OMPD_taskloop_simd:
+    case OMPD_master_taskloop:
+    case OMPD_master_taskloop_simd:
+    case OMPD_parallel_master_taskloop:
     case OMPD_requires:
     case OMPD_unknown:
       llvm_unreachable("Unexpected directive.");
@@ -9681,6 +9548,9 @@ void CGOpenMPRuntime::scanForTargetRegionsFunctions(const Stmt *S,
     case OMPD_declare_mapper:
     case OMPD_taskloop:
     case OMPD_taskloop_simd:
+    case OMPD_master_taskloop:
+    case OMPD_master_taskloop_simd:
+    case OMPD_parallel_master_taskloop:
     case OMPD_requires:
     case OMPD_unknown:
       llvm_unreachable("Unknown target directive for OpenMP device codegen.");
@@ -10022,17 +9892,6 @@ llvm::Function *CGOpenMPRuntime::emitRequiresDirectiveRegFun() {
   return RequiresRegFn;
 }
 
-llvm::Function *CGOpenMPRuntime::emitRegistrationFunction() {
-  // If we have offloading in the current module, we need to emit the entries
-  // now and register the offloading descriptor.
-  createOffloadEntriesAndInfoMetadata();
-
-  // Create and register the offloading binary descriptors. This is the main
-  // entity that captures all the information about offloading in the current
-  // compilation unit.
-  return createOffloadingBinaryDescriptorRegistration();
-}
-
 void CGOpenMPRuntime::emitTeamsCall(CodeGenFunction &CGF,
                                     const OMPExecutableDirective &D,
                                     SourceLocation Loc,
@@ -10307,6 +10166,9 @@ void CGOpenMPRuntime::emitTargetDataStandAloneCall(
     case OMPD_declare_mapper:
     case OMPD_taskloop:
     case OMPD_taskloop_simd:
+    case OMPD_master_taskloop:
+    case OMPD_master_taskloop_simd:
+    case OMPD_parallel_master_taskloop:
     case OMPD_target:
     case OMPD_target_simd:
     case OMPD_target_teams_distribute:
@@ -11172,7 +11034,8 @@ template <>
 bool checkContext<OMPDeclareVariantAttr::CtxSetImplementation,
                   OMPDeclareVariantAttr::CtxVendor>(
     const OMPDeclareVariantAttr *A) {
-  return !A->getImplVendor().compare("llvm");
+  return llvm::all_of(A->implVendors(),
+                      [](StringRef S) { return !S.compare_lower("llvm"); });
 }
 
 static bool greaterCtxScore(ASTContext &Ctx, const Expr *LHS, const Expr *RHS) {
@@ -11186,7 +11049,7 @@ static bool greaterCtxScore(ASTContext &Ctx, const Expr *LHS, const Expr *RHS) {
     return false;
   llvm::APSInt LHSVal = LHS->EvaluateKnownConstInt(Ctx);
   llvm::APSInt RHSVal = RHS->EvaluateKnownConstInt(Ctx);
-  return llvm::APSInt::compareValues(LHSVal, RHSVal) <= 0;
+  return llvm::APSInt::compareValues(LHSVal, RHSVal) >= 0;
 }
 
 namespace {
@@ -11249,7 +11112,7 @@ static const FunctionDecl *getDeclareVariantFunction(ASTContext &Ctx,
     }
     // If the attribute matches the context, find the attribute with the highest
     // score.
-    if (SelectedAttr && (!TopMostAttr || Comparer(TopMostAttr, SelectedAttr)))
+    if (SelectedAttr && (!TopMostAttr || !Comparer(TopMostAttr, SelectedAttr)))
       TopMostAttr = SelectedAttr;
   }
   if (!TopMostAttr)
@@ -11272,7 +11135,7 @@ bool CGOpenMPRuntime::emitDeclareVariant(GlobalDecl GD, bool IsForDefinition) {
   if (NewFD == D)
     return false;
   GlobalDecl NewGD = GD.getWithDecl(NewFD);
-  if (tryEmitAlias(CGM, NewGD, GD, Orig, IsForDefinition)) {
+  if (tryEmitDeclareVariant(NewGD, GD, Orig, IsForDefinition)) {
     DeferredVariantFunction.erase(D);
     return true;
   }
@@ -11520,10 +11383,6 @@ bool CGOpenMPSIMDRuntime::emitTargetGlobalVariable(GlobalDecl GD) {
 
 bool CGOpenMPSIMDRuntime::emitTargetGlobal(GlobalDecl GD) {
   return false;
-}
-
-llvm::Function *CGOpenMPSIMDRuntime::emitRegistrationFunction() {
-  return nullptr;
 }
 
 void CGOpenMPSIMDRuntime::emitTeamsCall(CodeGenFunction &CGF,

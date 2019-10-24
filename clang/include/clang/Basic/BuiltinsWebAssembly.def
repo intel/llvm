@@ -49,6 +49,16 @@ BUILTIN(__builtin_wasm_atomic_wait_i32, "ii*iLLi", "n")
 BUILTIN(__builtin_wasm_atomic_wait_i64, "iLLi*LLiLLi", "n")
 BUILTIN(__builtin_wasm_atomic_notify, "Uii*Ui", "n")
 
+// Trapping fp-to-int conversions
+BUILTIN(__builtin_wasm_trunc_s_i32_f32, "if", "nc")
+BUILTIN(__builtin_wasm_trunc_u_i32_f32, "if", "nc")
+BUILTIN(__builtin_wasm_trunc_s_i32_f64, "id", "nc")
+BUILTIN(__builtin_wasm_trunc_u_i32_f64, "id", "nc")
+BUILTIN(__builtin_wasm_trunc_s_i64_f32, "LLif", "nc")
+BUILTIN(__builtin_wasm_trunc_u_i64_f32, "LLif", "nc")
+BUILTIN(__builtin_wasm_trunc_s_i64_f64, "LLid", "nc")
+BUILTIN(__builtin_wasm_trunc_u_i64_f64, "LLid", "nc")
+
 // Saturating fp-to-int conversions
 TARGET_BUILTIN(__builtin_wasm_trunc_saturate_s_i32_f32, "if", "nc", "nontrapping-fptoint")
 TARGET_BUILTIN(__builtin_wasm_trunc_saturate_u_i32_f32, "if", "nc", "nontrapping-fptoint")
@@ -60,6 +70,8 @@ TARGET_BUILTIN(__builtin_wasm_trunc_saturate_s_i64_f64, "LLid", "nc", "nontrappi
 TARGET_BUILTIN(__builtin_wasm_trunc_saturate_u_i64_f64, "LLid", "nc", "nontrapping-fptoint")
 
 // SIMD builtins
+TARGET_BUILTIN(__builtin_wasm_swizzle_v8x16, "V16cV16cV16c", "nc", "unimplemented-simd128")
+
 TARGET_BUILTIN(__builtin_wasm_extract_lane_s_i8x16, "iV16cIi", "nc", "simd128")
 TARGET_BUILTIN(__builtin_wasm_extract_lane_u_i8x16, "iV16cIi", "nc", "unimplemented-simd128")
 TARGET_BUILTIN(__builtin_wasm_extract_lane_s_i16x8, "iV8sIi", "nc", "simd128")

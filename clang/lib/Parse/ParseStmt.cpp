@@ -188,7 +188,7 @@ Retry:
       // Try to limit which sets of keywords should be included in typo
       // correction based on what the next token is.
       StatementFilterCCC CCC(Next);
-      if (TryAnnotateName(/*IsAddressOfOperand*/ false, &CCC) == ANK_Error) {
+      if (TryAnnotateName(&CCC) == ANK_Error) {
         // Handle errors here by skipping up to the next semicolon or '}', and
         // eat the semicolon if that's what stopped us.
         SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
@@ -221,6 +221,8 @@ Retry:
         Decl =
             ParseDeclaration(DeclaratorContext::BlockContext, DeclEnd, Attrs);
       }
+      if (Attrs.Range.getBegin().isValid())
+        DeclStart = Attrs.Range.getBegin();
       return Actions.ActOnDeclStmt(Decl, DeclStart, DeclEnd);
     }
 

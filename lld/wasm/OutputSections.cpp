@@ -20,9 +20,17 @@
 
 using namespace llvm;
 using namespace llvm::wasm;
-using namespace lld;
-using namespace lld::wasm;
 
+namespace lld {
+
+// Returns a string, e.g. "FUNCTION(.text)".
+std::string toString(const wasm::OutputSection &sec) {
+  if (!sec.name.empty())
+    return (sec.getSectionName() + "(" + sec.name + ")").str();
+  return sec.getSectionName();
+}
+
+namespace wasm {
 static StringRef sectionTypeToString(uint32_t sectionType) {
   switch (sectionType) {
   case WASM_SEC_CUSTOM:
@@ -56,13 +64,6 @@ static StringRef sectionTypeToString(uint32_t sectionType) {
   default:
     fatal("invalid section type");
   }
-}
-
-// Returns a string, e.g. "FUNCTION(.text)".
-std::string lld::toString(const OutputSection &sec) {
-  if (!sec.name.empty())
-    return (sec.getSectionName() + "(" + sec.name + ")").str();
-  return sec.getSectionName();
 }
 
 StringRef OutputSection::getSectionName() const {
@@ -127,8 +128,11 @@ void CodeSection::writeRelocations(raw_ostream &os) const {
 
 void DataSection::finalizeContents() {
   raw_string_ostream os(dataSectionHeader);
+  unsigned segmentCount =
+      std::count_if(segments.begin(), segments.end(),
+                    [](OutputSegment *segment) { return !segment->isBss; });
 
-  writeUleb128(os, segments.size(), "data segment count");
+  writeUleb128(os, segmentCount, "data segment count");
   os.flush();
   bodySize = dataSectionHeader.size();
 
@@ -136,6 +140,8 @@ void DataSection::finalizeContents() {
          "Currenly only a single data segment is supported in PIC mode");
 
   for (OutputSegment *segment : segments) {
+    if (segment->isBss)
+      continue;
     raw_string_ostream os(segment->header);
     writeUleb128(os, segment->initFlags, "init flags");
     if (segment->initFlags & WASM_SEGMENT_HAS_MEMINDEX)
@@ -180,6 +186,8 @@ void DataSection::writeTo(uint8_t *buf) {
   memcpy(buf, dataSectionHeader.data(), dataSectionHeader.size());
 
   for (const OutputSegment *segment : segments) {
+    if (segment->isBss)
+      continue;
     // Write data segment header
     uint8_t *segStart = buf + segment->sectionOffset;
     memcpy(segStart, segment->header.data(), segment->header.size());
@@ -202,6 +210,13 @@ void DataSection::writeRelocations(raw_ostream &os) const {
   for (const OutputSegment *seg : segments)
     for (const InputChunk *c : seg->inputSegments)
       c->writeRelocations(os);
+}
+
+bool DataSection::isNeeded() const {
+  for (const OutputSegment *seg : segments)
+    if (!seg->isBss)
+      return true;
+  return false;
 }
 
 void CustomSection::finalizeContents() {
@@ -248,3 +263,6 @@ void CustomSection::writeRelocations(raw_ostream &os) const {
   for (const InputSection *s : inputSections)
     s->writeRelocations(os);
 }
+
+} // namespace wasm
+} // namespace lld

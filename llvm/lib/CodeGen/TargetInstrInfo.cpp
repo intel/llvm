@@ -143,7 +143,7 @@ TargetInstrInfo::ReplaceTailWithBranchTo(MachineBasicBlock::iterator Tail,
   while (Tail != MBB->end()) {
     auto MI = Tail++;
     if (MI->isCall())
-      MBB->getParent()->updateCallSiteInfo(&*MI);
+      MBB->getParent()->eraseCallSiteInfo(&*MI);
     MBB->erase(MI);
   }
 
@@ -880,7 +880,7 @@ void TargetInstrInfo::genAlternativeCodeSequence(
 }
 
 bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
-    const MachineInstr &MI, AliasAnalysis *AA) const {
+    const MachineInstr &MI, AAResults *AA) const {
   const MachineFunction &MF = *MI.getMF();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
 
@@ -1129,9 +1129,6 @@ TargetInstrInfo::describeLoadedValue(const MachineInstr &MI) const {
 
   if (isCopyInstr(MI, SrcRegOp, DestRegOp)) {
     Op = SrcRegOp;
-    return ParamLoadedValue(*Op, Expr);
-  } else if (MI.isMoveImmediate()) {
-    Op = &MI.getOperand(1);
     return ParamLoadedValue(*Op, Expr);
   }
 

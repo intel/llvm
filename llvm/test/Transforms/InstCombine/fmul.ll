@@ -991,3 +991,131 @@ define double @fmul_negated_constant_expression(double %x) {
   %r = fmul double %x, fsub (double -0.000000e+00, double bitcast (i64 ptrtoint (i8** getelementptr inbounds ({ [2 x i8*] }, { [2 x i8*] }* @g, i64 0, inrange i32 0, i64 2) to i64) to double))
   ret double %r
 }
+
+define float @negate_if_true(float %x, i1 %cond) {
+; CHECK-LABEL: @negate_if_true(
+; CHECK-NEXT:    [[TMP1:%.*]] = fneg float [[X:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[COND:%.*]], float [[TMP1]], float [[X]]
+; CHECK-NEXT:    ret float [[TMP2]]
+;
+  %sel = select i1 %cond, float -1.0, float 1.0
+  %r = fmul float %sel, %x
+  ret float %r
+}
+
+define float @negate_if_false(float %x, i1 %cond) {
+; CHECK-LABEL: @negate_if_false(
+; CHECK-NEXT:    [[TMP1:%.*]] = fneg arcp float [[X:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = select arcp i1 [[COND:%.*]], float [[X]], float [[TMP1]]
+; CHECK-NEXT:    ret float [[TMP2]]
+;
+  %sel = select i1 %cond, float 1.0, float -1.0
+  %r = fmul arcp float %sel, %x
+  ret float %r
+}
+
+define <2 x double> @negate_if_true_commute(<2 x double> %px, i1 %cond) {
+; CHECK-LABEL: @negate_if_true_commute(
+; CHECK-NEXT:    [[X:%.*]] = fdiv <2 x double> <double 4.200000e+01, double 4.200000e+01>, [[PX:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = fneg ninf <2 x double> [[X]]
+; CHECK-NEXT:    [[TMP2:%.*]] = select ninf i1 [[COND:%.*]], <2 x double> [[TMP1]], <2 x double> [[X]]
+; CHECK-NEXT:    ret <2 x double> [[TMP2]]
+;
+  %x = fdiv <2 x double> <double 42.0, double 42.0>, %px  ; thwart complexity-based canonicalization
+  %sel = select i1 %cond, <2 x double> <double -1.0, double -1.0>, <2 x double> <double 1.0, double 1.0>
+  %r = fmul ninf <2 x double> %x, %sel
+  ret <2 x double> %r
+}
+
+define <2 x double> @negate_if_false_commute(<2 x double> %px, <2 x i1> %cond) {
+; CHECK-LABEL: @negate_if_false_commute(
+; CHECK-NEXT:    [[X:%.*]] = fdiv <2 x double> <double 4.200000e+01, double 5.100000e+00>, [[PX:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = fneg <2 x double> [[X]]
+; CHECK-NEXT:    [[TMP2:%.*]] = select <2 x i1> [[COND:%.*]], <2 x double> [[X]], <2 x double> [[TMP1]]
+; CHECK-NEXT:    ret <2 x double> [[TMP2]]
+;
+  %x = fdiv <2 x double> <double 42.0, double 5.1>, %px  ; thwart complexity-based canonicalization
+  %sel = select <2 x i1> %cond, <2 x double> <double 1.0, double 1.0>, <2 x double> <double -1.0, double -1.0>
+  %r = fmul <2 x double> %x, %sel
+  ret <2 x double> %r
+}
+
+; Negative test
+
+define float @negate_if_true_extra_use(float %x, i1 %cond) {
+; CHECK-LABEL: @negate_if_true_extra_use(
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], float -1.000000e+00, float 1.000000e+00
+; CHECK-NEXT:    call void @use_f32(float [[SEL]])
+; CHECK-NEXT:    [[R:%.*]] = fmul float [[SEL]], [[X:%.*]]
+; CHECK-NEXT:    ret float [[R]]
+;
+  %sel = select i1 %cond, float -1.0, float 1.0
+  call void @use_f32(float %sel)
+  %r = fmul float %sel, %x
+  ret float %r
+}
+
+; Negative test
+
+define <2 x double> @negate_if_true_wrong_constant(<2 x double> %px, i1 %cond) {
+; CHECK-LABEL: @negate_if_true_wrong_constant(
+; CHECK-NEXT:    [[X:%.*]] = fdiv <2 x double> <double 4.200000e+01, double 4.200000e+01>, [[PX:%.*]]
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[COND:%.*]], <2 x double> <double -1.000000e+00, double 0.000000e+00>, <2 x double> <double 1.000000e+00, double 1.000000e+00>
+; CHECK-NEXT:    [[R:%.*]] = fmul <2 x double> [[X]], [[SEL]]
+; CHECK-NEXT:    ret <2 x double> [[R]]
+;
+  %x = fdiv <2 x double> <double 42.0, double 42.0>, %px  ; thwart complexity-based canonicalization
+  %sel = select i1 %cond, <2 x double> <double -1.0, double 0.0>, <2 x double> <double 1.0, double 1.0>
+  %r = fmul <2 x double> %x, %sel
+  ret <2 x double> %r
+}
+
+; X *fast (C ? 1.0 : 0.0) -> C ? X : 0.0
+define float @fmul_select(float %x, i1 %c) {
+; CHECK-LABEL: @fmul_select(
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C:%.*]], float 1.000000e+00, float 0.000000e+00
+; CHECK-NEXT:    [[MUL:%.*]] = fmul fast float [[SEL]], [[X:%.*]]
+; CHECK-NEXT:    ret float [[MUL]]
+;
+  %sel = select i1 %c, float 1.0, float 0.0
+  %mul = fmul fast float %sel, %x
+  ret float %mul
+}
+
+; X *fast (C ? 1.0 : 0.0) -> C ? X : 0.0
+define <2 x float> @fmul_select_vec(<2 x float> %x, i1 %c) {
+; CHECK-LABEL: @fmul_select_vec(
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C:%.*]], <2 x float> <float 1.000000e+00, float 1.000000e+00>, <2 x float> zeroinitializer
+; CHECK-NEXT:    [[MUL:%.*]] = fmul fast <2 x float> [[SEL]], [[X:%.*]]
+; CHECK-NEXT:    ret <2 x float> [[MUL]]
+;
+  %sel = select i1 %c, <2 x float> <float 1.0, float 1.0>, <2 x float> zeroinitializer
+  %mul = fmul fast <2 x float> %sel, %x
+  ret <2 x float> %mul
+}
+
+; Without fast math flags we can't optimize X * (C ? 1.0 : 0.0) -> C ? X : 0.0
+define float @fmul_select_strict(float %x, i1 %c) {
+; CHECK-LABEL: @fmul_select_strict(
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C:%.*]], float 1.000000e+00, float 0.000000e+00
+; CHECK-NEXT:    [[MUL:%.*]] = fmul float [[SEL]], [[X:%.*]]
+; CHECK-NEXT:    ret float [[MUL]]
+;
+  %sel = select i1 %c, float 1.0, float 0.0
+  %mul = fmul float %sel, %x
+  ret float %mul
+}
+
+; sqrt(X) *fast (C ? sqrt(X) : 1.0) -> C ? X : sqrt(X)
+define double @fmul_sqrt_select(double %x, i1 %c) {
+; CHECK-LABEL: @fmul_sqrt_select(
+; CHECK-NEXT:    [[SQR:%.*]] = call double @llvm.sqrt.f64(double [[X:%.*]])
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C:%.*]], double [[SQR]], double 1.000000e+00
+; CHECK-NEXT:    [[MUL:%.*]] = fmul fast double [[SQR]], [[SEL]]
+; CHECK-NEXT:    ret double [[MUL]]
+;
+  %sqr = call double @llvm.sqrt.f64(double %x)
+  %sel = select i1 %c, double %sqr, double 1.0
+  %mul = fmul fast double %sqr, %sel
+  ret double %mul
+}

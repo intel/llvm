@@ -518,6 +518,7 @@ private:
                                 DIExpression::FragmentInfo Fragment,
                                 ValueOrMetadata *Desc);
   void verifyFnArgs(const DbgVariableIntrinsic &I);
+  void verifyNotEntryValue(const DbgVariableIntrinsic &I);
 
   /// Module-level debug info verification...
   void verifyCompileUnits();
@@ -4213,8 +4214,10 @@ void Verifier::visitInstruction(Instruction &I) {
     visitMDNode(*N);
   }
 
-  if (auto *DII = dyn_cast<DbgVariableIntrinsic>(&I))
+  if (auto *DII = dyn_cast<DbgVariableIntrinsic>(&I)) {
     verifyFragmentExpression(*DII);
+    verifyNotEntryValue(*DII);
+  }
 
   InstsInThisBlock.insert(&I);
 }
@@ -4308,12 +4311,16 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::experimental_constrained_log:
   case Intrinsic::experimental_constrained_log10:
   case Intrinsic::experimental_constrained_log2:
+  case Intrinsic::experimental_constrained_lrint:
+  case Intrinsic::experimental_constrained_llrint:
   case Intrinsic::experimental_constrained_rint:
   case Intrinsic::experimental_constrained_nearbyint:
   case Intrinsic::experimental_constrained_maxnum:
   case Intrinsic::experimental_constrained_minnum:
   case Intrinsic::experimental_constrained_ceil:
   case Intrinsic::experimental_constrained_floor:
+  case Intrinsic::experimental_constrained_lround:
+  case Intrinsic::experimental_constrained_llround:
   case Intrinsic::experimental_constrained_round:
   case Intrinsic::experimental_constrained_trunc:
     visitConstrainedFPIntrinsic(cast<ConstrainedFPIntrinsic>(Call));
@@ -4766,6 +4773,31 @@ void Verifier::visitConstrainedFPIntrinsic(ConstrainedFPIntrinsic &FPI) {
     HasRoundingMD = true;
     break;
 
+  case Intrinsic::experimental_constrained_lrint:
+  case Intrinsic::experimental_constrained_llrint: {
+    Assert((NumOperands == 3), "invalid arguments for constrained FP intrinsic",
+           &FPI);
+    Type *ValTy = FPI.getArgOperand(0)->getType();
+    Type *ResultTy = FPI.getType();
+    Assert(!ValTy->isVectorTy() && !ResultTy->isVectorTy(),
+           "Intrinsic does not support vectors", &FPI);
+    HasExceptionMD = true;
+    HasRoundingMD = true;
+  } 
+    break;
+
+  case Intrinsic::experimental_constrained_lround:
+  case Intrinsic::experimental_constrained_llround: {
+    Assert((NumOperands == 2), "invalid arguments for constrained FP intrinsic",
+           &FPI);
+    Type *ValTy = FPI.getArgOperand(0)->getType();
+    Type *ResultTy = FPI.getType();
+    Assert(!ValTy->isVectorTy() && !ResultTy->isVectorTy(),
+           "Intrinsic does not support vectors", &FPI);
+    HasExceptionMD = true;
+    break;
+  } 
+
   case Intrinsic::experimental_constrained_fma:
     Assert((NumOperands == 5), "invalid arguments for constrained FP intrinsic",
            &FPI);
@@ -5016,6 +5048,16 @@ void Verifier::verifyFnArgs(const DbgVariableIntrinsic &I) {
   DebugFnArgs[ArgNo - 1] = Var;
   AssertDI(!Prev || (Prev == Var), "conflicting debug info for argument", &I,
            Prev, Var);
+}
+
+void Verifier::verifyNotEntryValue(const DbgVariableIntrinsic &I) {
+  DIExpression *E = dyn_cast_or_null<DIExpression>(I.getRawExpression());
+
+  // We don't know whether this intrinsic verified correctly.
+  if (!E || !E->isValid())
+    return;
+
+  AssertDI(!E->isEntryValue(), "Entry values are only allowed in MIR", &I);
 }
 
 void Verifier::verifyCompileUnits() {

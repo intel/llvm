@@ -1903,6 +1903,9 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
     MI.eraseFromParent();
     return Legalized;
   }
+  case TargetOpcode::G_SADDO:
+  case TargetOpcode::G_SSUBO:
+    return lowerSADDO_SSUBO(MI);
   case TargetOpcode::G_SMULO:
   case TargetOpcode::G_UMULO: {
     // Generate G_UMULH/G_SMULH to check for overflow and a normal G_MUL for the
@@ -2247,6 +2250,10 @@ LegalizerHelper::lower(MachineInstr &MI, unsigned TypeIdx, LLT Ty) {
     return lowerShuffleVector(MI);
   case G_DYN_STACKALLOC:
     return lowerDynStackAlloc(MI);
+  case G_EXTRACT:
+    return lowerExtract(MI);
+  case G_INSERT:
+    return lowerInsert(MI);
   }
 }
 
@@ -2763,6 +2770,65 @@ LegalizerHelper::fewerElementsVectorUnmergeValues(MachineInstr &MI,
 }
 
 LegalizerHelper::LegalizeResult
+LegalizerHelper::fewerElementsVectorBuildVector(MachineInstr &MI,
+                                                unsigned TypeIdx,
+                                                LLT NarrowTy) {
+  assert(TypeIdx == 0 && "not a vector type index");
+  Register DstReg = MI.getOperand(0).getReg();
+  LLT DstTy = MRI.getType(DstReg);
+  LLT SrcTy = DstTy.getElementType();
+
+  int DstNumElts = DstTy.getNumElements();
+  int NarrowNumElts = NarrowTy.getNumElements();
+  int NumConcat = (DstNumElts + NarrowNumElts - 1) / NarrowNumElts;
+  LLT WidenedDstTy = LLT::vector(NarrowNumElts * NumConcat, SrcTy);
+
+  SmallVector<Register, 8> ConcatOps;
+  SmallVector<Register, 8> SubBuildVector;
+
+  Register UndefReg;
+  if (WidenedDstTy != DstTy)
+    UndefReg = MIRBuilder.buildUndef(SrcTy).getReg(0);
+
+  // Create a G_CONCAT_VECTORS of NarrowTy pieces, padding with undef as
+  // necessary.
+  //
+  // %3:_(<3 x s16>) = G_BUILD_VECTOR %0, %1, %2
+  //   -> <2 x s16>
+  //
+  // %4:_(s16) = G_IMPLICIT_DEF
+  // %5:_(<2 x s16>) = G_BUILD_VECTOR %0, %1
+  // %6:_(<2 x s16>) = G_BUILD_VECTOR %2, %4
+  // %7:_(<4 x s16>) = G_CONCAT_VECTORS %5, %6
+  // %3:_(<3 x s16>) = G_EXTRACT %7, 0
+  for (int I = 0; I != NumConcat; ++I) {
+    for (int J = 0; J != NarrowNumElts; ++J) {
+      int SrcIdx = NarrowNumElts * I + J;
+
+      if (SrcIdx < DstNumElts) {
+        Register SrcReg = MI.getOperand(SrcIdx + 1).getReg();
+        SubBuildVector.push_back(SrcReg);
+      } else
+        SubBuildVector.push_back(UndefReg);
+    }
+
+    auto BuildVec = MIRBuilder.buildBuildVector(NarrowTy, SubBuildVector);
+    ConcatOps.push_back(BuildVec.getReg(0));
+    SubBuildVector.clear();
+  }
+
+  if (DstTy == WidenedDstTy)
+    MIRBuilder.buildConcatVectors(DstReg, ConcatOps);
+  else {
+    auto Concat = MIRBuilder.buildConcatVectors(WidenedDstTy, ConcatOps);
+    MIRBuilder.buildExtract(DstReg, Concat, 0);
+  }
+
+  MI.eraseFromParent();
+  return Legalized;
+}
+
+LegalizerHelper::LegalizeResult
 LegalizerHelper::reduceLoadStoreWidth(MachineInstr &MI, unsigned TypeIdx,
                                       LLT NarrowTy) {
   // FIXME: Don't know how to handle secondary types yet.
@@ -2937,6 +3003,8 @@ LegalizerHelper::fewerElementsVector(MachineInstr &MI, unsigned TypeIdx,
     return fewerElementsVectorPhi(MI, TypeIdx, NarrowTy);
   case G_UNMERGE_VALUES:
     return fewerElementsVectorUnmergeValues(MI, TypeIdx, NarrowTy);
+  case G_BUILD_VECTOR:
+    return fewerElementsVectorBuildVector(MI, TypeIdx, NarrowTy);
   case G_LOAD:
   case G_STORE:
     return reduceLoadStoreWidth(MI, TypeIdx, NarrowTy);
@@ -4096,6 +4164,114 @@ LegalizerHelper::lowerDynStackAlloc(MachineInstr &MI) {
   MIRBuilder.buildCopy(SPReg, SPTmp);
   MIRBuilder.buildCopy(Dst, SPTmp);
 
+  MI.eraseFromParent();
+  return Legalized;
+}
+
+LegalizerHelper::LegalizeResult
+LegalizerHelper::lowerExtract(MachineInstr &MI) {
+  Register Dst = MI.getOperand(0).getReg();
+  Register Src = MI.getOperand(1).getReg();
+  unsigned Offset = MI.getOperand(2).getImm();
+
+  LLT DstTy = MRI.getType(Dst);
+  LLT SrcTy = MRI.getType(Src);
+
+  if (DstTy.isScalar() &&
+      (SrcTy.isScalar() ||
+       (SrcTy.isVector() && DstTy == SrcTy.getElementType()))) {
+    LLT SrcIntTy = SrcTy;
+    if (!SrcTy.isScalar()) {
+      SrcIntTy = LLT::scalar(SrcTy.getSizeInBits());
+      Src = MIRBuilder.buildBitcast(SrcIntTy, Src).getReg(0);
+    }
+
+    if (Offset == 0)
+      MIRBuilder.buildTrunc(Dst, Src);
+    else {
+      auto ShiftAmt = MIRBuilder.buildConstant(SrcIntTy, Offset);
+      auto Shr = MIRBuilder.buildLShr(SrcIntTy, Src, ShiftAmt);
+      MIRBuilder.buildTrunc(Dst, Shr);
+    }
+
+    MI.eraseFromParent();
+    return Legalized;
+  }
+
+  return UnableToLegalize;
+}
+
+LegalizerHelper::LegalizeResult LegalizerHelper::lowerInsert(MachineInstr &MI) {
+  Register Dst = MI.getOperand(0).getReg();
+  Register Src = MI.getOperand(1).getReg();
+  Register InsertSrc = MI.getOperand(2).getReg();
+  uint64_t Offset = MI.getOperand(3).getImm();
+
+  LLT DstTy = MRI.getType(Src);
+  LLT InsertTy = MRI.getType(InsertSrc);
+
+  if (InsertTy.isScalar() &&
+      (DstTy.isScalar() ||
+       (DstTy.isVector() && DstTy.getElementType() == InsertTy))) {
+    LLT IntDstTy = DstTy;
+    if (!DstTy.isScalar()) {
+      IntDstTy = LLT::scalar(DstTy.getSizeInBits());
+      Src = MIRBuilder.buildBitcast(IntDstTy, Src).getReg(0);
+    }
+
+    Register ExtInsSrc = MIRBuilder.buildZExt(IntDstTy, InsertSrc).getReg(0);
+    if (Offset != 0) {
+      auto ShiftAmt = MIRBuilder.buildConstant(IntDstTy, Offset);
+      ExtInsSrc = MIRBuilder.buildShl(IntDstTy, ExtInsSrc, ShiftAmt).getReg(0);
+    }
+
+    APInt MaskVal = ~APInt::getBitsSet(DstTy.getSizeInBits(), Offset,
+                                       InsertTy.getSizeInBits());
+
+    auto Mask = MIRBuilder.buildConstant(IntDstTy, MaskVal);
+    auto MaskedSrc = MIRBuilder.buildAnd(IntDstTy, Src, Mask);
+    auto Or = MIRBuilder.buildOr(IntDstTy, MaskedSrc, ExtInsSrc);
+
+    MIRBuilder.buildBitcast(Dst, Or);
+    MI.eraseFromParent();
+    return Legalized;
+  }
+
+  return UnableToLegalize;
+}
+
+LegalizerHelper::LegalizeResult
+LegalizerHelper::lowerSADDO_SSUBO(MachineInstr &MI) {
+  Register Dst0 = MI.getOperand(0).getReg();
+  Register Dst1 = MI.getOperand(1).getReg();
+  Register LHS = MI.getOperand(2).getReg();
+  Register RHS = MI.getOperand(3).getReg();
+  const bool IsAdd = MI.getOpcode() == TargetOpcode::G_SADDO;
+
+  LLT Ty = MRI.getType(Dst0);
+  LLT BoolTy = MRI.getType(Dst1);
+
+  if (IsAdd)
+    MIRBuilder.buildAdd(Dst0, LHS, RHS);
+  else
+    MIRBuilder.buildSub(Dst0, LHS, RHS);
+
+  // TODO: If SADDSAT/SSUBSAT is legal, compare results to detect overflow.
+
+  auto Zero = MIRBuilder.buildConstant(Ty, 0);
+
+  // For an addition, the result should be less than one of the operands (LHS)
+  // if and only if the other operand (RHS) is negative, otherwise there will
+  // be overflow.
+  // For a subtraction, the result should be less than one of the operands
+  // (LHS) if and only if the other operand (RHS) is (non-zero) positive,
+  // otherwise there will be overflow.
+  auto ResultLowerThanLHS =
+      MIRBuilder.buildICmp(CmpInst::ICMP_SLT, BoolTy, Dst0, LHS);
+  auto ConditionRHS = MIRBuilder.buildICmp(
+      IsAdd ? CmpInst::ICMP_SLT : CmpInst::ICMP_SGT, BoolTy, RHS, Zero);
+
+  MIRBuilder.buildXor(Dst1, ConditionRHS, ResultLowerThanLHS);
   MI.eraseFromParent();
   return Legalized;
 }

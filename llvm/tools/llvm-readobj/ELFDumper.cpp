@@ -302,7 +302,7 @@ public:
   void getSectionNameIndex(const Elf_Sym *Symbol, const Elf_Sym *FirstSym,
                            StringRef &SectionName,
                            unsigned &SectionIndex) const;
-  std::string getStaticSymbolName(uint32_t Index) const;
+  Expected<std::string> getStaticSymbolName(uint32_t Index) const;
   std::string getDynamicString(uint64_t Value) const;
   StringRef getSymbolVersionByIndex(StringRef StrTab,
                                     uint32_t VersionSymbolIndex,
@@ -754,17 +754,22 @@ static std::string maybeDemangle(StringRef Name) {
 }
 
 template <typename ELFT>
-std::string ELFDumper<ELFT>::getStaticSymbolName(uint32_t Index) const {
+Expected<std::string>
+ELFDumper<ELFT>::getStaticSymbolName(uint32_t Index) const {
   const ELFFile<ELFT> *Obj = ObjF->getELFFile();
-  StringRef StrTable = unwrapOrError(
-      ObjF->getFileName(), Obj->getStringTableForSymtab(*DotSymtabSec));
-  Elf_Sym_Range Syms =
-      unwrapOrError(ObjF->getFileName(), Obj->symbols(DotSymtabSec));
-  if (Index >= Syms.size())
-    reportError(createError("Invalid symbol index"), ObjF->getFileName());
-  const Elf_Sym *Sym = &Syms[Index];
-  return maybeDemangle(
-      unwrapOrError(ObjF->getFileName(), Sym->getName(StrTable)));
+  Expected<const typename ELFT::Sym *> SymOrErr =
+      Obj->getSymbol(DotSymtabSec, Index);
+  if (!SymOrErr)
+    return SymOrErr.takeError();
+
+  Expected<StringRef> StrTabOrErr = Obj->getStringTableForSymtab(*DotSymtabSec);
+  if (!StrTabOrErr)
+    return StrTabOrErr.takeError();
+
+  Expected<StringRef> NameOrErr = (*SymOrErr)->getName(*StrTabOrErr);
+  if (!NameOrErr)
+    return NameOrErr.takeError();
+  return maybeDemangle(*NameOrErr);
 }
 
 template <typename ELFT>
@@ -3963,9 +3968,21 @@ void GNUStyle<ELFT>::printHashHistogram(const ELFFile<ELFT> *Obj) {
     // Go over all buckets and and note chain lengths of each bucket (total
     // unique chain lengths).
     for (size_t B = 0; B < NBucket; B++) {
-      for (size_t C = Buckets[B]; C > 0 && C < NChain; C = Chains[C])
+      std::vector<bool> Visited(NChain);
+      for (size_t C = Buckets[B]; C < NChain; C = Chains[C]) {
+        if (C == ELF::STN_UNDEF)
+          break;
+        if (Visited[C]) {
+          reportWarning(
+              createError(".hash section is invalid: bucket " + Twine(C) +
+                          ": a cycle was detected in the linked chain"),
+              this->FileName);
+          break;
+        }
+        Visited[C] = true;
         if (MaxChain <= ++ChainLen[B])
           MaxChain++;
+      }
       TotalSyms += ChainLen[B];
     }
 
@@ -4047,7 +4064,7 @@ void GNUStyle<ELFT>::printCGProfile(const ELFFile<ELFT> *Obj) {
 
 template <class ELFT>
 void GNUStyle<ELFT>::printAddrsig(const ELFFile<ELFT> *Obj) {
-    OS << "GNUStyle::printAddrsig not implemented\n";
+  reportError(createError("--addrsig: not implemented"), this->FileName);
 }
 
 static StringRef getGenericNoteTypeName(const uint32_t NT) {
@@ -4877,8 +4894,16 @@ void DumpStyle<ELFT>::printRelocatableStackSizes(
     if (SectionType != ELF::SHT_RELA && SectionType != ELF::SHT_REL)
       continue;
 
-    SectionRef Contents = *Sec.getRelocatedSection();
-    const Elf_Shdr *ContentsSec = Obj->getSection(Contents.getRawDataRefImpl());
+    Expected<section_iterator> RelSecOrErr = Sec.getRelocatedSection();
+    if (!RelSecOrErr)
+      reportError(createStringError(object_error::parse_failed,
+                                    "%s: failed to get a relocated section: %s",
+                                    SectionName.data(),
+                                    toString(RelSecOrErr.takeError()).c_str()),
+                  Obj->getFileName());
+
+    const Elf_Shdr *ContentsSec =
+        Obj->getSection((*RelSecOrErr)->getRawDataRefImpl());
     Expected<StringRef> ContentsSectionNameOrErr =
         EF->getSectionName(ContentsSec);
     if (!ContentsSectionNameOrErr) {
@@ -5590,15 +5615,9 @@ void LLVMStyle<ELFT>::printProgramHeaders(const ELFO *Obj) {
 template <class ELFT>
 void LLVMStyle<ELFT>::printVersionSymbolSection(const ELFFile<ELFT> *Obj,
                                                 const Elf_Shdr *Sec) {
-  DictScope SS(W, "Version symbols");
+  ListScope SS(W, "VersionSymbols");
   if (!Sec)
     return;
-
-  StringRef SecName = unwrapOrError(this->FileName, Obj->getSectionName(Sec));
-  W.printNumber("Section Name", SecName, Sec->sh_name);
-  W.printHex("Address", Sec->sh_addr);
-  W.printHex("Offset", Sec->sh_offset);
-  W.printNumber("Link", Sec->sh_link);
 
   const uint8_t *VersymBuf =
       reinterpret_cast<const uint8_t *>(Obj->base() + Sec->sh_offset);
@@ -5606,7 +5625,6 @@ void LLVMStyle<ELFT>::printVersionSymbolSection(const ELFFile<ELFT> *Obj,
   StringRef StrTable = Dumper->getDynamicStringTable();
 
   // Same number of entries in the dynamic symbol table (DT_SYMTAB).
-  ListScope Syms(W, "Symbols");
   for (const Elf_Sym &Sym : Dumper->dynamic_symbols()) {
     DictScope S(W, "Symbol");
     const Elf_Versym *Versym = reinterpret_cast<const Elf_Versym *>(VersymBuf);
@@ -5621,7 +5639,7 @@ void LLVMStyle<ELFT>::printVersionSymbolSection(const ELFFile<ELFT> *Obj,
 template <class ELFT>
 void LLVMStyle<ELFT>::printVersionDefinitionSection(const ELFFile<ELFT> *Obj,
                                                     const Elf_Shdr *Sec) {
-  DictScope SD(W, "SHT_GNU_verdef");
+  ListScope SD(W, "VersionDefinitions");
   if (!Sec)
     return;
 
@@ -5669,7 +5687,7 @@ void LLVMStyle<ELFT>::printVersionDefinitionSection(const ELFFile<ELFT> *Obj,
 template <class ELFT>
 void LLVMStyle<ELFT>::printVersionDependencySection(const ELFFile<ELFT> *Obj,
                                                     const Elf_Shdr *Sec) {
-  DictScope SD(W, "SHT_GNU_verneed");
+  ListScope SD(W, "VersionRequirements");
   if (!Sec)
     return;
 
@@ -5723,12 +5741,33 @@ void LLVMStyle<ELFT>::printCGProfile(const ELFFile<ELFT> *Obj) {
                           this->dumper()->getDotCGProfileSec()));
   for (const Elf_CGProfile &CGPE : CGProfile) {
     DictScope D(W, "CGProfileEntry");
-    W.printNumber("From", this->dumper()->getStaticSymbolName(CGPE.cgp_from),
-                  CGPE.cgp_from);
-    W.printNumber("To", this->dumper()->getStaticSymbolName(CGPE.cgp_to),
-                  CGPE.cgp_to);
+    W.printNumber(
+        "From",
+        unwrapOrError(this->FileName,
+                      this->dumper()->getStaticSymbolName(CGPE.cgp_from)),
+        CGPE.cgp_from);
+    W.printNumber(
+        "To",
+        unwrapOrError(this->FileName,
+                      this->dumper()->getStaticSymbolName(CGPE.cgp_to)),
+        CGPE.cgp_to);
     W.printNumber("Weight", CGPE.cgp_weight);
   }
+}
+
+static Expected<std::vector<uint64_t>> toULEB128Array(ArrayRef<uint8_t> Data) {
+  std::vector<uint64_t> Ret;
+  const uint8_t *Cur = Data.begin();
+  const uint8_t *End = Data.end();
+  while (Cur != End) {
+    unsigned Size;
+    const char *Err;
+    Ret.push_back(decodeULEB128(Cur, &Size, End, &Err));
+    if (Err)
+      return createError(Err);
+    Cur += Size;
+  }
+  return Ret;
 }
 
 template <class ELFT>
@@ -5739,18 +5778,20 @@ void LLVMStyle<ELFT>::printAddrsig(const ELFFile<ELFT> *Obj) {
   ArrayRef<uint8_t> Contents = unwrapOrError(
       this->FileName,
       Obj->getSectionContents(this->dumper()->getDotAddrsigSec()));
-  const uint8_t *Cur = Contents.begin();
-  const uint8_t *End = Contents.end();
-  while (Cur != End) {
-    unsigned Size;
-    const char *Err;
-    uint64_t SymIndex = decodeULEB128(Cur, &Size, End, &Err);
-    if (Err)
-      reportError(createError(Err), this->FileName);
+  Expected<std::vector<uint64_t>> V = toULEB128Array(Contents);
+  if (!V) {
+    reportWarning(V.takeError(), this->FileName);
+    return;
+  }
 
-    W.printNumber("Sym", this->dumper()->getStaticSymbolName(SymIndex),
-                  SymIndex);
-    Cur += Size;
+  for (uint64_t Sym : *V) {
+    Expected<std::string> NameOrErr = this->dumper()->getStaticSymbolName(Sym);
+    if (NameOrErr) {
+      W.printNumber("Sym", *NameOrErr, Sym);
+      continue;
+    }
+    reportWarning(NameOrErr.takeError(), this->FileName);
+    W.printNumber("Sym", "<?>", Sym);
   }
 }
 
