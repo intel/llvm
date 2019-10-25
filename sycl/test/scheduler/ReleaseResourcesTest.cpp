@@ -48,10 +48,10 @@ int main() {
   return Failed;
 }
 
-// CHECK: PI ---> (m_Context = RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &Err), Err)
+// CHECK: PI ---> RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &m_Context)
 // CHECK: PI ---> RT::piQueueCreate(Context, Device, CreationFlags, &Queue)
 // CHECK: PI ---> pi::piProgramCreate(Context, Data, DataLen, &Program)
-// CHECK: PI ---> (Kernel = RT::piKernelCreate( Program, KernelName.c_str(), &Err), Err)
+// CHECK: PI ---> RT::piKernelCreate(Program, KernelName.c_str(), &Kernel)
 // CHECK: PI ---> RT::piQueueRelease(m_CommandQueue)
 // CHECK: PI ---> RT::piContextRelease(m_Context)
 // CHECK: PI ---> RT::piKernelRelease(KernIt.second)

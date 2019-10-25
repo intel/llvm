@@ -35,10 +35,8 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  RT::PiResult Err;
-  PI_CALL((m_Context =
-      RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &Err),
-      Err));
+  PI_CALL(
+      RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &m_Context));
 
   m_USMDispatch.reset(new usm::USMDispatcher(m_Platform.get(), DeviceIds));
 }

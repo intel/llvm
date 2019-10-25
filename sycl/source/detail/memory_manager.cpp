@@ -106,12 +106,10 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
       HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY :
       PI_MEM_FLAGS_HOST_PTR_USE;
 
-  RT::PiResult Error = PI_SUCCESS;
   RT::PiMem NewMem;
-  PI_CALL((NewMem = RT::piMemImageCreate(TargetContext->getHandleRef(),
+  PI_CALL(RT::piMemImageCreate(TargetContext->getHandleRef(),
                                          CreationFlags, &Format, &Desc, UserPtr,
-                                         &Error),
-           Error));
+                                         &NewMem));
   return NewMem;
 }
 
@@ -125,10 +123,9 @@ void *MemoryManager::allocateBufferObject(ContextImplPtr TargetContext,
       HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY :
       PI_MEM_FLAGS_HOST_PTR_USE;
 
-  RT::PiResult Error = PI_SUCCESS;
   RT::PiMem NewMem;
-  PI_CALL((NewMem = RT::piMemBufferCreate(
-      TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &Error), Error));
+  PI_CALL(RT::piMemBufferCreate(
+      TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &NewMem));
   return NewMem;
 }
 
@@ -179,10 +176,9 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   // TODO replace with pi_buffer_region
   cl_buffer_region Region{Offset, SizeInBytes};
   RT::PiMem NewMem;
-  PI_CALL_RESULT((NewMem = RT::piMemBufferPartition(
-                      pi::cast<RT::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
-                      PI_BUFFER_CREATE_TYPE_REGION, &Region, &Error),
-                  Error));
+  Error = PI_CALL_RESULT(RT::piMemBufferPartition(
+              pi::cast<RT::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
+              PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem));
   if (Error == PI_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
         "Specified offset of the sub-buffer being constructed is not a "
@@ -454,12 +450,11 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   AccessOffset[0] *= ElementSize;
   AccessRange[0] *= ElementSize;
 
-  RT::PiResult Error = PI_SUCCESS;
   void *MappedPtr;
-  PI_CALL((MappedPtr = RT::piEnqueueMemBufferMap(
+  PI_CALL(RT::piEnqueueMemBufferMap(
       Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags,
       AccessOffset[0], AccessRange[0], DepEvents.size(),
-      DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &Error), Error));
+      DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &MappedPtr));
   return MappedPtr;
 }
 
