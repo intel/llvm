@@ -42,12 +42,12 @@ export SYCL_HOME=/export/home/sycl_workspace
 mkdir $SYCL_HOME
 ```
 
-**Windows**
+**Windows (64-bit)**
 
 Open a developer command prompt using one of two methods:
 
-- Click start menu and search for "Developer Command Prompt for VS XX", where
-  XX is a version of installed Visual Studio.
+- Click start menu and search for "**x64** Native Tools Command Prompt for VS XXXX", where
+  XXXX is a version of installed Visual Studio.
 - Ctrl-R, write "cmd", click enter, then run
   `"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x64`
 
@@ -75,7 +75,7 @@ $SYCL_HOME/llvm/llvm
 make -j`nproc` sycl-toolchain
 ```
 
-**Windows**
+**Windows (64-bit)**
 ```bat
 cd %SYCL_HOME%
 git clone https://github.com/intel/llvm -b sycl
@@ -153,7 +153,7 @@ echo /opt/intel/oclcpuexp/x64/libintelocl.so > /etc/OpenCL/vendors/intel_expcpu.
 echo /opt/intel/oclcpuexp/x64 > /etc/ld.so.conf.d/libintelopenclexp.conf
 ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
 ```
-**Windows**
+**Windows (64-bit)**
 1) If you need `GPU` as well, then update/install it first. Do it **before**
 installing `CPU` runtime as `GPU` runtime installer may re-write some important
 files or settings and make existing `CPU` runtime not working properly.
@@ -180,7 +180,7 @@ To verify that built SYCL toolchain is working correctly, run:
 make -j`nproc` check-all
 ```
 
-**Windows**
+**Windows (64-bit)**
 ```bat
 ninja check-all
 ```
@@ -206,7 +206,7 @@ To configure testing of "Intel SYCL" toochain set
 cmake -DIntel_SYCL_ROOT=$SYCL_HOME/deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```
 
-**Windows**
+**Windows (64-bit)**
 ```bat
 cmake -DIntel_SYCL_ROOT=%SYCL_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```
@@ -281,7 +281,7 @@ export PATH=$SYCL_HOME/build/bin:$PATH
 export LD_LIBRARY_PATH=$SYCL_HOME/build/lib:$LD_LIBRARY_PATH
 ```
 
-**Windows**
+**Windows (64-bit)**
 ```bat
 set PATH=%SYCL_HOME%\build\bin;%PATH%
 set LIB=%SYCL_HOME%\build\lib;%LIB%
@@ -361,6 +361,7 @@ int main() {
 - SYCL device compiler fails if the same kernel was used in different
   translation units.
 - SYCL host device is not fully supported.
+- 32-bit host/target is not supported.
 - SYCL works only with OpenCL implementations supporting out-of-order queues.
 - On Windows linking SYCL applications with `/MTd` flag is known to cause crashes.
 
