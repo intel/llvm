@@ -9,8 +9,8 @@
 // REQUIRES: ioc64, ocloc, aoc
 
 // Produce object file, spirv
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-linux-sycldevice,spir64_gen-unknown-linux-sycldevice,spir64_fpga-unknown-linux-sycldevice %s -c -o %t.o
-// RUN: %clangxx -fsycl -fsycl-link-targets=spir64_x86_64-unknown-linux-sycldevice,spir64_gen-unknown-linux-sycldevice,spir64_fpga-unknown-linux-sycldevice %t.o -o %t.spv
+// RUN: %clangxx -fsycl %s -c -o %t.o
+// RUN: %clangxx -fsycl -fsycl-link-targets=spir64-unknown-linux-sycldevice %t.o -o %t.spv
 // AOT-compile device binary images
 // RUN: ioc64 -cmd=build -binary=%t.spv -ir=%t_cpu.ir -device=cpu
 // RUN: ocloc -file %t.spv -spirv_input -output %t_gen.out -output_no_suffix -device cfl
