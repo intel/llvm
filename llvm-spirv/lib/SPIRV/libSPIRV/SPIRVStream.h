@@ -44,6 +44,7 @@
 #include "SPIRVExtInst.h"
 #include "SPIRVModule.h"
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <iostream>
 #include <iterator>

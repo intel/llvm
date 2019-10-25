@@ -3309,7 +3309,7 @@ class OffloadingActionBuilder final {
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
         SYCLDeviceActions.clear();
 
-        std::string InputName = IA->getInputArg().getValue();
+        std::string InputName = IA->getInputArg().getAsString(Args);
         // Objects should already be consumed with -foffload-static-lib
         if (Args.hasArg(options::OPT_foffload_static_lib_EQ) &&
             IA->getType() == types::TY_Object && isObjectFile(InputName))
@@ -3791,7 +3791,7 @@ public:
     if (CanUseBundler && isa<InputAction>(HostAction) &&
         InputArg->getOption().getKind() == llvm::opt::Option::InputClass &&
         !types::isSrcFile(HostAction->getType())) {
-      std::string InputName = InputArg->getValue();
+      std::string InputName = InputArg->getAsString(Args);
       // Do not create an unbundling action for an object when we know a fat
       // static library is being used.  A separate unbundling action is created
       // for all objects and the fat static library.
@@ -5963,12 +5963,13 @@ bool clang::driver::isOptimizationLevelFast(const ArgList &Args) {
 }
 
 bool clang::driver::isObjectFile(std::string FileName) {
-  if (llvm::sys::path::has_extension(FileName)) {
-    std::string Ext(llvm::sys::path::extension(FileName).drop_front());
-    // We cannot rely on lookupTypeForExtension solely as that has 'lib'
-    // marked as an object.
-    return (Ext != "lib" &&
-            types::lookupTypeForExtension(Ext) == types::TY_Object);
-  }
-  return false;
+  if (!llvm::sys::path::has_extension(FileName))
+    // Any file with no extension should be considered an Object. Take into
+    // account -lsomelib library filenames.
+    return FileName.rfind("-l", 0) != 0;
+  std::string Ext(llvm::sys::path::extension(FileName).drop_front());
+  // We cannot rely on lookupTypeForExtension solely as that has 'lib'
+  // marked as an object.
+  return (Ext != "lib" &&
+          types::lookupTypeForExtension(Ext) == types::TY_Object);
 }
