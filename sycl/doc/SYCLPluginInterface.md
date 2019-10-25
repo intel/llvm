@@ -120,12 +120,12 @@ These APIs match semantics of the corresponding OpenCL APIs exactly.
 For example:
 
 ```
-pi_program piclProgramCreateWithSource(
+pi_result piclProgramCreateWithSource(
   pi_context        context,
   pi_uint32         count,
   const char **     strings,
   const size_t *    lengths,
-  pi_result *       errcode);
+  pi_program *      ret_program);
 ```
 
 ### PI Extension mechanism
