@@ -53,15 +53,15 @@ template <typename T>
 using iterator_to_const_type_t =
     std::is_const<typename std::remove_pointer<iterator_pointer_t<T>>::type>;
 
-template <class...> using requirements_list = void;
+template <class...> using void_t = void;
 
 // TODO Align with C++ named requirements: LegacyOutputIterator
 // https://en.cppreference.com/w/cpp/named_req/OutputIterator
 template <typename T>
 using output_iterator_requirements =
-    requirements_list<iterator_category_t<T>,
-                      decltype(*std::declval<T>() =
-                                   std::declval<iterator_value_type_t<T>>())>;
+    void_t<iterator_category_t<T>,
+           decltype(*std::declval<T>() =
+                        std::declval<iterator_value_type_t<T>>())>;
 
 template <typename, typename = void> struct is_output_iterator {
   static constexpr bool value = false;
