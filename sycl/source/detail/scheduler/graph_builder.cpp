@@ -303,9 +303,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   Req->BlockingEvent.reset(new detail::event_impl());
   Req->BlockingEvent->setContextImpl(SrcContext);
   RT::PiEvent &Event = Req->BlockingEvent->getHandleRef();
-  RT::PiResult Error = PI_SUCCESS;
-  PI_CALL((Event = RT::piEventCreate(
-      SrcContext->getHandleRef(), &Error), Error));
+  PI_CALL(RT::piEventCreate(SrcContext->getHandleRef(), &Event));
 
   // In case of memory is 1 dimensional and located on OpenCL device we
   // can use map/unmap operation.

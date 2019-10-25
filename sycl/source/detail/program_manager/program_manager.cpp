@@ -68,12 +68,11 @@ static RT::PiProgram createBinaryProgram(const RT::PiContext Context,
 #endif
 
   RT::PiDevice Device = getFirstDevice(Context);
-  RT::PiResult Err = PI_SUCCESS;
   pi_int32 BinaryStatus = CL_SUCCESS;
   RT::PiProgram Program;
-  PI_CALL((Program = RT::piclProgramCreateWithBinary(
+  PI_CALL(RT::piclProgramCreateWithBinary(
       Context, 1 /*one binary*/, &Device,
-      &DataLen, &Data, &BinaryStatus, &Err), Err));
+      &DataLen, &Data, &BinaryStatus, &Program));
   return Program;
 }
 
@@ -120,9 +119,7 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
   std::map<string_class, RT::PiKernel> &KernelsCache = CachedKernels[Program];
   RT::PiKernel &Kernel = KernelsCache[KernelName];
   if (!Kernel) {
-    RT::PiResult Err = PI_SUCCESS;
-    PI_CALL((Kernel = RT::piKernelCreate(
-        Program, KernelName.c_str(), &Err), Err));
+    PI_CALL(RT::piKernelCreate(Program, KernelName.c_str(), &Kernel));
   }
   return Kernel;
 }
