@@ -40,5 +40,5 @@ int main() {
 
 // CHECK: PI ---> RT::piEnqueueMemBufferWrite( Queue, DstMem, CL_FALSE, DstOffset[0], DstAccessRange[0], SrcMem + SrcOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent)
 // CHECK-NOT: PI ---> RT::piEnqueueMemBufferWrite( Queue, DstMem, CL_FALSE, DstOffset[0], DstAccessRange[0], SrcMem + SrcOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent)
-// CHECK-NOT: PI ---> (MappedPtr = RT::piEnqueueMemBufferMap( Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags, AccessOffset[0], AccessRange[0], DepEvents.size(), DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &Error), Error)
+// CHECK-NOT: PI ---> RT::piEnqueueMemBufferMap( Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags, AccessOffset[0], AccessRange[0], DepEvents.size(), DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &MappedPtr)
 // CHECK-NOT: PI ---> RT::piEnqueueMemUnmap( UseExclusiveQueue ? Queue->getExclusiveQueueHandleRef() : Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), MappedPtr, DepEvents.size(), DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent)
