@@ -36,7 +36,7 @@ public:
       detail::void_t<detail::enable_if_t<std::is_convertible<
                          detail::remove_pointer_t<decltype(
                              std::declval<Container>().data())> (*)[],
-                         T (*)[]>::value>,
+                         const T (*)[]>::value>,
                      decltype(std::declval<Container>().size())>;
   template <class It>
   using EnableIfItInputIterator = detail::enable_if_t<
@@ -350,6 +350,30 @@ private:
     return newRange[1] == parentRange[1] && newRange[2] == parentRange[2];
   }
 };
+
+#ifdef __cpp_deduction_guides
+template <class InputIterator, class AllocatorT>
+buffer(InputIterator, InputIterator, AllocatorT, const property_list & = {})
+    ->buffer<typename std::iterator_traits<InputIterator>::value_type, 1,
+             AllocatorT>;
+template <class InputIterator>
+buffer(InputIterator, InputIterator, const property_list & = {})
+    ->buffer<typename std::iterator_traits<InputIterator>::value_type, 1>;
+template <class Container, class AllocatorT>
+buffer(Container &, AllocatorT, const property_list & = {})
+    ->buffer<typename Container::value_type, 1, AllocatorT>;
+template <class Container>
+buffer(Container &, const property_list & = {})
+    ->buffer<typename Container::value_type, 1>;
+template <class T, int dimensions, class AllocatorT>
+buffer(const T *, const range<dimensions> &, AllocatorT,
+       const property_list & = {})
+    ->buffer<T, dimensions, AllocatorT>;
+template <class T, int dimensions>
+buffer(const T *, const range<dimensions> &, const property_list & = {})
+    ->buffer<T, dimensions>;
+#endif // __cpp_deduction_guides
+
 } // namespace sycl
 } // namespace cl
 
