@@ -6878,6 +6878,7 @@ Value *CodeGenFunction::EmitARMMVEBuiltinExpr(unsigned BuiltinID,
     return ToReturn;
   }
   }
+  llvm_unreachable("unknown custom codegen type.");
 }
 
 static Value *EmitAArch64TblBuiltinExpr(CodeGenFunction &CGF, unsigned BuiltinID,
