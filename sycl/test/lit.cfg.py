@@ -57,10 +57,9 @@ elif platform.system() == "Darwin":
     # FIXME: surely there is a more elegant way to instantiate the Xcode directories.
     if 'CPATH' in os.environ:
         config.environment['CPATH'] = os.path.pathsep.join((os.environ['CPATH'], "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"))
-        config.environment['CPATH'] = os.path.pathsep.join((config.environment['CPATH'], "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/"))
     else:
         config.environment['CPATH'] = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"
-        config.environment['CPATH'] = os.path.pathsep.join((config.environment['CPATH'], "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/"))
+    config.environment['CPATH'] = os.path.pathsep.join((config.environment['CPATH'], "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/"))
     config.environment['DYLD_LIBRARY_PATH'] = config.llvm_build_libs_dir
 
 # propagate the environment variable OCL_ICD_FILANEMES to use proper runtime.
