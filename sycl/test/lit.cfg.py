@@ -40,7 +40,8 @@ if platform.system() == "Linux":
         config.environment['LD_LIBRARY_PATH'] = os.path.pathsep.join((config.environment['LD_LIBRARY_PATH'], config.llvm_build_libs_dir))
     else:
         config.environment['LD_LIBRARY_PATH'] = config.llvm_build_libs_dir
-else:
+
+elif platform.system() == "Windows":
     config.available_features.add('windows')
     if 'LIB' in os.environ:
         config.environment['LIB'] = os.path.pathsep.join((config.environment['LIB'], config.llvm_build_libs_dir))
@@ -51,6 +52,16 @@ else:
         config.environment['PATH'] = os.path.pathsep.join((config.environment['PATH'], config.llvm_build_bins_dir))
     else:
         config.environment['PATH'] = config.llvm_build_bins_dir
+
+elif platform.system() == "Darwin":
+    # FIXME: surely there is a more elegant way to instantiate the Xcode directories.
+    if 'CPATH' in os.environ:
+        config.environment['CPATH'] = os.path.pathsep.join((os.environ['CPATH'], "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"))
+        config.environment['CPATH'] = os.path.pathsep.join((config.environment['CPATH'], "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/"))
+    else:
+        config.environment['CPATH'] = "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"
+        config.environment['CPATH'] = os.path.pathsep.join((config.environment['CPATH'], "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/"))
+    config.environment['DYLD_LIBRARY_PATH'] = config.llvm_build_libs_dir
 
 # propagate the environment variable OCL_ICD_FILANEMES to use proper runtime.
 if 'OCL_ICD_FILENAMES' in os.environ:
