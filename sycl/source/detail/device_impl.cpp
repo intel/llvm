@@ -14,7 +14,7 @@ namespace sycl {
 namespace detail {
 
 vector_class<device>
-device_impl_pi::create_sub_devices(
+device_impl::create_sub_devices(
   const cl_device_partition_property *Properties,
   size_t SubDevicesCount) const {
 
@@ -41,7 +41,12 @@ device_impl_pi::create_sub_devices(
 }
 
 vector_class<device>
-device_impl_pi::create_sub_devices(size_t ComputeUnits) const {
+device_impl::create_sub_devices(size_t ComputeUnits) const {
+
+  // TODO: implement host device partitioning
+  if (MIsHostDevice)
+    throw runtime_error(
+        "Partitioning to subdevices of the host device is not implemented yet");
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
     throw cl::sycl::feature_not_supported();
@@ -55,7 +60,12 @@ device_impl_pi::create_sub_devices(size_t ComputeUnits) const {
 }
 
 vector_class<device>
-device_impl_pi::create_sub_devices(const vector_class<size_t> &Counts) const {
+device_impl::create_sub_devices(const vector_class<size_t> &Counts) const {
+
+  // TODO: implement host device partitioning
+  if (MIsHostDevice)
+    throw runtime_error(
+        "Partitioning to subdevices of the host device is not implemented yet");
 
   if (!is_partition_supported(
           info::partition_property::partition_by_counts)) {
@@ -70,8 +80,13 @@ device_impl_pi::create_sub_devices(const vector_class<size_t> &Counts) const {
 }
 
 vector_class<device>
-device_impl_pi::create_sub_devices(
+device_impl::create_sub_devices(
   info::partition_affinity_domain AffinityDomain) const {
+
+  // TODO: implement host device partitioning
+  if (MIsHostDevice)
+    throw runtime_error(
+        "Partitioning to subdevices of the host device is not implemented yet");
 
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain) ||
