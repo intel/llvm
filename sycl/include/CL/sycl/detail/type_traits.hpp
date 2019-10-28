@@ -23,15 +23,33 @@ namespace sycl {
 template <typename ElementType, access::address_space Space> class multi_ptr;
 
 namespace detail {
+template <typename T, typename R> struct copy_cv_qualifiers;
 
-// Contains a type that is the base type for a scalar or vector type
-template <typename T> struct get_base_type { using type = T; };
+template <typename T, typename R>
+using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
 
-template <typename T, int N> struct get_base_type<vec<T, N>> {
+template <int V> using int_constant = std::integral_constant<int, V>;
+
+// vector_size
+// scalars are interpreted as a vector of 1 length.
+template <typename T> struct vector_size_impl : int_constant<1> {};
+template <typename T, int N>
+struct vector_size_impl<vec<T, N>> : int_constant<N> {};
+template <typename T>
+struct vector_size : vector_size_impl<remove_cv_t<remove_reference_t<T>>> {};
+
+// vector_element
+template <typename T> struct vector_element_impl;
+template <typename T>
+using vector_element_impl_t = typename vector_element_impl<T>::type;
+template <typename T> struct vector_element_impl { using type = T; };
+template <typename T, int N> struct vector_element_impl<vec<T, N>> {
   using type = T;
 };
-
-template <typename T> using get_base_type_t = typename get_base_type<T>::type;
+template <typename T> struct vector_element {
+  using type = copy_cv_qualifiers_t<T, vector_element_impl_t<remove_cv_t<T>>>;
+};
+template <class T> using vector_element_t = typename vector_element<T>::type;
 
 // change_base_type_t
 template <typename T, typename B> struct change_base_type { using type = B; };
@@ -66,11 +84,7 @@ template <typename T, typename R> struct copy_cv_qualifiers {
   using type = typename copy_cv_qualifiers_impl<T, remove_cv_t<R>>::type;
 };
 
-template <typename T, typename R>
-using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
-
 // make_signed with support SYCL vec class
-
 template <typename T, typename Enable = void> struct make_signed_impl;
 
 template <typename T>
@@ -85,7 +99,7 @@ struct make_signed_impl<
 template <typename T>
 struct make_signed_impl<
     T, enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
-  using base_type = make_signed_impl_t<get_base_type_t<T>>;
+  using base_type = make_signed_impl_t<vector_element_t<T>>;
   using type = change_base_type_t<T, base_type>;
 };
 
@@ -119,7 +133,7 @@ struct make_unsigned_impl<
 template <typename T>
 struct make_unsigned_impl<
     T, enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
-  using base_type = make_unsigned_impl_t<get_base_type_t<T>>;
+  using base_type = make_unsigned_impl_t<vector_element_t<T>>;
   using type = change_base_type_t<T, base_type>;
 };
 
@@ -141,11 +155,11 @@ template <typename T> using make_unsigned_t = typename make_unsigned<T>::type;
 // Checks that sizeof base type of T equal N and T satisfies S<T>::value
 template <typename T, int N, template <typename> class S>
 using is_gen_based_on_type_sizeof =
-    bool_constant<S<T>::value && (sizeof(get_base_type_t<T>) == N)>;
+    bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
 
 // is_integral
 template <typename T>
-struct is_integral : std::is_integral<get_base_type_t<T>> {};
+struct is_integral : std::is_integral<vector_element_t<T>> {};
 
 // is_floating_point
 template <typename T>
@@ -155,7 +169,7 @@ template <> struct is_floating_point_impl<half> : std::true_type {};
 
 template <typename T>
 struct is_floating_point
-    : is_floating_point_impl<remove_cv_t<get_base_type_t<T>>> {};
+    : is_floating_point_impl<remove_cv_t<vector_element_t<T>>> {};
 
 // is_arithmetic
 template <typename T>
@@ -264,7 +278,7 @@ struct make_larger_impl<
 };
 
 template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
-  using base_type = get_base_type_t<vec<T, N>>;
+  using base_type = vector_element_t<vec<T, N>>;
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
   static constexpr bool found = !std::is_same<upper_type, void>::value;

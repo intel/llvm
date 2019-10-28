@@ -46,14 +46,14 @@ void test_change_base_type_t() {
 }
 
 template <typename T, typename CheckedT, bool Expected = true>
-void test_get_base_type_t() {
-  static_assert(is_same<d::get_base_type_t<T>, CheckedT>::value == Expected,
+void test_vector_element_t() {
+  static_assert(is_same<d::vector_element_t<T>, CheckedT>::value == Expected,
                 "");
 }
 
 template <typename T, typename CheckedT, bool Expected = true>
 void test_nan_types() {
-  static_assert((sizeof(d::get_base_type_t<d::nan_return_t<T>>) ==
+  static_assert((sizeof(d::vector_element_t<d::nan_return_t<T>>) ==
                  sizeof(d::nan_argument_base_t<T>)) == Expected,
                 "");
 }
@@ -83,6 +83,15 @@ template <typename T, typename SpaceList, bool Expected = true>
 void test_is_address_space_compliant() {
   static_assert(d::is_address_space_compliant<T, SpaceList>::value == Expected,
                 "");
+}
+
+template <typename T, int Checked, bool Expected = true>
+void test_vector_size() {
+  static_assert((d::vector_size<T>::value == Checked) == Expected, "");
+}
+
+template <bool Expected, typename... Args> void test_is_same_vector_size() {
+  static_assert(d::is_same_vector_size<Args...>::value == Expected, "");
 }
 
 int main() {
@@ -162,8 +171,14 @@ int main() {
   test_change_base_type_t<long, float, float>();
   test_change_base_type_t<s::long2, float, s::float2>();
 
-  test_get_base_type_t<s::int2, int>();
-  test_get_base_type_t<int, int>();
+  test_vector_element_t<int, int>();
+  test_vector_element_t<const int, const int>();
+  test_vector_element_t<volatile int, volatile int>();
+  test_vector_element_t<const volatile int, const volatile int>();
+  test_vector_element_t<s::int2, int>();
+  test_vector_element_t<const s::int2, const int>();
+  test_vector_element_t<volatile s::int2, volatile int>();
+  test_vector_element_t<const volatile s::int2, const volatile int>();
 
   test_nan_types<s::ushort, s::ushort>();
   test_nan_types<s::uint, s::uint>();
@@ -191,6 +206,25 @@ int main() {
   test_make_unsigned_t<const s::int2, const s::uint2>();
   test_make_unsigned_t<s::uint2, s::uint2>();
   test_make_unsigned_t<const s::uint2, const s::uint2>();
+
+  test_vector_size<int, 1>();
+  test_vector_size<float, 1>();
+  test_vector_size<double, 1>();
+  test_vector_size<s::int2, 2>();
+  test_vector_size<s::float3, 3>();
+  test_vector_size<s::double4, 4>();
+  test_vector_size<s::vec<int, 1>, 1>();
+
+  test_is_same_vector_size<true, int>();
+  test_is_same_vector_size<true, s::int2>();
+  test_is_same_vector_size<true, int, float>();
+  test_is_same_vector_size<false, int, s::float2>();
+  test_is_same_vector_size<true, s::int2, s::float2>();
+  test_is_same_vector_size<false, s::int2, float>();
+  test_is_same_vector_size<true, s::constant_ptr<int>>();
+  test_is_same_vector_size<true, s::constant_ptr<s::int2>>();
+  test_is_same_vector_size<true, s::constant_ptr<s::int2>, s::int2>();
+  test_is_same_vector_size<false, s::constant_ptr<s::int2>, float>();
 
   return 0;
 }
