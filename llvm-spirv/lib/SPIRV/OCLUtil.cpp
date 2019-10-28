@@ -536,6 +536,8 @@ public:
       addUnsignedArg(0);
       UnmangledName.erase(0, 1);
     } else if (UnmangledName.find("s_") == 0) {
+      if (UnmangledName == "s_upsample")
+        addUnsignedArg(1);
       UnmangledName.erase(0, 2);
     } else if (UnmangledName.find("u_") == 0) {
       addUnsignedArg(-1);

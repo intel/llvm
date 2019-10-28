@@ -177,6 +177,11 @@ static int convertLLVMToSPIRV(const SPIRV::TranslatorOpts &Opts) {
   return 0;
 }
 
+static bool isFileEmpty(const std::string &FileName) {
+  std::ifstream File(FileName);
+  return File && File.peek() == EOF;
+}
+
 static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
   std::ifstream IFS(InputFile, std::ios::binary);
@@ -358,6 +363,11 @@ int main(int Ac, char **Av) {
   PrettyStackTraceProgram X(Ac, Av);
 
   cl::ParseCommandLineOptions(Ac, Av, "LLVM/SPIR-V translator");
+
+  if (InputFile != "-" && isFileEmpty(InputFile)) {
+    errs() << "Can't translate, file is empty\n";
+    return -1;
+  }
 
   SPIRV::TranslatorOpts::ExtensionsStatusMap ExtensionsStatus;
   // ExtensionsStatus will be properly initialized and update according to
