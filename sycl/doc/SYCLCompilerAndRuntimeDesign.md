@@ -217,16 +217,14 @@ and understands mnemonics designating a particular code form, for example
 architecture).  User can specify desired code format using the target-specific
 option mechanism, similar to OpenMP.
 
-`-Xsycl-target-backend=<triple> "<arg>,<arg>"`
+`-Xsycl-target-backend=<triple> "arg1 arg2 ..."`
 
 For example, to support offload to Gen9/vISA3.3, the following options would be used:
 
 `-fsycl -fsycl-targets=spir64_gen-unknown-<os>-sycldevice -Xsycl-target-backend "-device skl"`
 
-The `<arg>` parameter is passed by the driver directly to the SYCL device
-compiler for the corresponding target w/o parsing it. For each target there is
-some default code form which is generated in the absence of overriding via the
-`-Xsycl-target-backend` option.
+The driver passes the `-device skl` parameter directly to the Gen device backend compiler
+without parsing it.
 
 **TBD:** Having multiple code forms for the same target in the fat binary might
 mean invoking device compiler multiple times. Multiple invocations are not
