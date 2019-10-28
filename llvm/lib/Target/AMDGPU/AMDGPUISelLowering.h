@@ -326,10 +326,6 @@ public:
   }
 
   AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *) const override;
-
-  bool SelectFlatOffset(bool IsSigned, SelectionDAG &DAG, SDNode *N,
-                        SDValue Addr, SDValue &VAddr, SDValue &Offset,
-                        SDValue &SLC) const;
 };
 
 namespace AMDGPUISD {
@@ -480,9 +476,6 @@ enum NodeType : unsigned {
   BUILD_VERTICAL_VECTOR,
   /// Pointer to the start of the shader's constant data.
   CONST_DATA_PTR,
-  INTERP_MOV,
-  INTERP_P1,
-  INTERP_P2,
   INTERP_P1LL_F16,
   INTERP_P1LV_F16,
   INTERP_P2_F16,

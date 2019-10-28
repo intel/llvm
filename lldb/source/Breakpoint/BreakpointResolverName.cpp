@@ -250,8 +250,7 @@ void BreakpointResolverName::AddNameLookup(ConstString name,
 
 Searcher::CallbackReturn
 BreakpointResolverName::SearchCallback(SearchFilter &filter,
-                                       SymbolContext &context, Address *addr,
-                                       bool containing) {
+                                       SymbolContext &context, Address *addr) {
   SymbolContextList func_list;
   // SymbolContextList sym_list;
 
@@ -272,7 +271,6 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
   bool filter_by_language = (m_language != eLanguageTypeUnknown);
   const bool include_symbols = !filter_by_cu;
   const bool include_inlines = true;
-  const bool append = true;
 
   switch (m_match_type) {
   case Breakpoint::Exact:
@@ -281,7 +279,7 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
         const size_t start_func_idx = func_list.GetSize();
         context.module_sp->FindFunctions(
             lookup.GetLookupName(), nullptr, lookup.GetNameTypeMask(),
-            include_symbols, include_inlines, append, func_list);
+            include_symbols, include_inlines, func_list);
 
         const size_t end_func_idx = func_list.GetSize();
 
@@ -295,7 +293,7 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
       context.module_sp->FindFunctions(
           m_regex,
           !filter_by_cu, // include symbols only if we aren't filtering by CU
-          include_inlines, append, func_list);
+          include_inlines, func_list);
     }
     break;
   case Breakpoint::Glob:

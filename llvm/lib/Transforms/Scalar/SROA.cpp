@@ -959,14 +959,16 @@ private:
       std::tie(UsedI, I) = Uses.pop_back_val();
 
       if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
-        Size = std::max(Size, DL.getTypeStoreSize(LI->getType()));
+        Size = std::max(Size,
+                        DL.getTypeStoreSize(LI->getType()).getFixedSize());
         continue;
       }
       if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
         Value *Op = SI->getOperand(0);
         if (Op == UsedI)
           return SI;
-        Size = std::max(Size, DL.getTypeStoreSize(Op->getType()));
+        Size = std::max(Size,
+                        DL.getTypeStoreSize(Op->getType()).getFixedSize());
         continue;
       }
 
@@ -1197,7 +1199,7 @@ static bool isSafePHIToSpeculate(PHINode &PN) {
   // TODO: Allow recursive phi users.
   // TODO: Allow stores.
   BasicBlock *BB = PN.getParent();
-  unsigned MaxAlign = 0;
+  MaybeAlign MaxAlign;
   uint64_t APWidth = DL.getIndexTypeSizeInBits(PN.getType());
   APInt MaxSize(APWidth, 0);
   bool HaveLoad = false;
@@ -1219,7 +1221,7 @@ static bool isSafePHIToSpeculate(PHINode &PN) {
         return false;
 
     uint64_t Size = DL.getTypeStoreSize(LI->getType());
-    MaxAlign = std::max(MaxAlign, LI->getAlignment());
+    MaxAlign = std::max(MaxAlign, MaybeAlign(LI->getAlignment()));
     MaxSize = MaxSize.ult(Size) ? APInt(APWidth, Size) : MaxSize;
     HaveLoad = true;
   }
@@ -1338,11 +1340,11 @@ static bool isSafeSelectToSpeculate(SelectInst &SI) {
     // Both operands to the select need to be dereferenceable, either
     // absolutely (e.g. allocas) or at this point because we can see other
     // accesses to it.
-    if (!isSafeToLoadUnconditionally(TValue, LI->getType(), LI->getAlignment(),
-                                     DL, LI))
+    if (!isSafeToLoadUnconditionally(TValue, LI->getType(),
+                                     MaybeAlign(LI->getAlignment()), DL, LI))
       return false;
-    if (!isSafeToLoadUnconditionally(FValue, LI->getType(), LI->getAlignment(),
-                                     DL, LI))
+    if (!isSafeToLoadUnconditionally(FValue, LI->getType(),
+                                     MaybeAlign(LI->getAlignment()), DL, LI))
       return false;
   }
 

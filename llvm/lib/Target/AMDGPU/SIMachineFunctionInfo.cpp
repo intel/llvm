@@ -189,7 +189,7 @@ unsigned SIMachineFunctionInfo::addPrivateSegmentBuffer(
   const SIRegisterInfo &TRI) {
   ArgInfo.PrivateSegmentBuffer =
     ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
-    getNextUserSGPR(), AMDGPU::sub0, &AMDGPU::SReg_128RegClass));
+    getNextUserSGPR(), AMDGPU::sub0, &AMDGPU::SGPR_128RegClass));
   NumUserSGPRs += 4;
   return ArgInfo.PrivateSegmentBuffer.getRegister();
 }
@@ -501,7 +501,7 @@ void yaml::SIMachineFunctionInfo::mappingImpl(yaml::IO &YamlIO) {
 bool SIMachineFunctionInfo::initializeBaseYamlFields(
   const yaml::SIMachineFunctionInfo &YamlMFI) {
   ExplicitKernArgSize = YamlMFI.ExplicitKernArgSize;
-  MaxKernArgAlign = YamlMFI.MaxKernArgAlign;
+  MaxKernArgAlign = assumeAligned(YamlMFI.MaxKernArgAlign);
   LDSSize = YamlMFI.LDSSize;
   HighBitsOf32BitAddress = YamlMFI.HighBitsOf32BitAddress;
   IsEntryFunction = YamlMFI.IsEntryFunction;

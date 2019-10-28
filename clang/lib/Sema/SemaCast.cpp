@@ -1304,6 +1304,7 @@ TryCastResult TryLValueToRValueCast(Sema &Self, Expr *SrcExpr,
   bool DerivedToBase;
   bool ObjCConversion;
   bool ObjCLifetimeConversion;
+  bool FunctionConversion;
   QualType FromType = SrcExpr->getType();
   QualType ToType = R->getPointeeType();
   if (CStyle) {
@@ -1313,7 +1314,7 @@ TryCastResult TryLValueToRValueCast(Sema &Self, Expr *SrcExpr,
 
   Sema::ReferenceCompareResult RefResult = Self.CompareReferenceRelationship(
       SrcExpr->getBeginLoc(), ToType, FromType, DerivedToBase, ObjCConversion,
-      ObjCLifetimeConversion);
+      ObjCLifetimeConversion, FunctionConversion);
   if (RefResult != Sema::Ref_Compatible) {
     if (CStyle || RefResult == Sema::Ref_Incompatible)
       return TC_NotApplicable;
@@ -2832,11 +2833,6 @@ void CastOperation::CheckBuiltinBitCast() {
     Self.Diag(OpRange.getBegin(), diag::err_bit_cast_non_trivially_copyable)
         << 0;
     SrcExpr = ExprError();
-    return;
-  }
-
-  if (Self.Context.hasSameUnqualifiedType(DestType, SrcType)) {
-    Kind = CK_NoOp;
     return;
   }
 

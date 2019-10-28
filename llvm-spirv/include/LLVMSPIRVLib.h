@@ -63,6 +63,8 @@ void initializeSPIRVRegularizeLLVMPass(PassRegistry &);
 void initializeSPIRVToOCL12Pass(PassRegistry &);
 void initializeSPIRVToOCL20Pass(PassRegistry &);
 void initializePreprocessMetadataPass(PassRegistry &);
+
+class ModulePass;
 } // namespace llvm
 
 #include "llvm/IR/Module.h"

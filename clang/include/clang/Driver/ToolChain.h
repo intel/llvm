@@ -136,6 +136,7 @@ private:
   mutable std::unique_ptr<Tool> Clang;
   mutable std::unique_ptr<Tool> Assemble;
   mutable std::unique_ptr<Tool> Link;
+  mutable std::unique_ptr<Tool> IfsMerge;
   mutable std::unique_ptr<Tool> OffloadBundler;
   mutable std::unique_ptr<Tool> OffloadWrapper;
   mutable std::unique_ptr<Tool> SPIRVTranslator;
@@ -145,6 +146,7 @@ private:
   Tool *getClang() const;
   Tool *getAssemble() const;
   Tool *getLink() const;
+  Tool *getIfsMerge() const;
   Tool *getClangAs() const;
   Tool *getOffloadBundler() const;
   Tool *getOffloadWrapper() const;

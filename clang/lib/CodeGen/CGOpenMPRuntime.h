@@ -291,6 +291,17 @@ protected:
   /// default location.
   virtual unsigned getDefaultLocationReserved2Flags() const { return 0; }
 
+  /// Tries to emit declare variant function for \p OldGD from \p NewGD.
+  /// \param OrigAddr LLVM IR value for \p OldGD.
+  /// \param IsForDefinition true, if requested emission for the definition of
+  /// \p OldGD.
+  /// \returns true, was able to emit a definition function for \p OldGD, which
+  /// points to \p NewGD.
+  virtual bool tryEmitDeclareVariant(const GlobalDecl &NewGD,
+                                     const GlobalDecl &OldGD,
+                                     llvm::GlobalValue *OrigAddr,
+                                     bool IsForDefinition);
+
   /// Returns default flags for the barriers depending on the directive, for
   /// which this barier is going to be emitted.
   static unsigned getDefaultFlagsForBarriers(OpenMPDirectiveKind Kind);
@@ -660,14 +671,6 @@ private:
   /// Flag for keeping track of weather a device routine has been emitted.
   /// Device routines are specific to the
   bool HasEmittedDeclareTargetRegion = false;
-
-  /// Creates and registers offloading binary descriptor for the current
-  /// compilation unit. The function that does the registration is returned.
-  llvm::Function *createOffloadingBinaryDescriptorRegistration();
-
-  /// Creates all the offload entries in the current compilation unit
-  /// along with the associated metadata.
-  void createOffloadEntriesAndInfoMetadata();
 
   /// Loads all the offload entries information from the host IR
   /// metadata.
@@ -1481,10 +1484,9 @@ public:
   /// requires directives was used in the current module.
   llvm::Function *emitRequiresDirectiveRegFun();
 
-  /// Creates the offloading descriptor in the event any target region
-  /// was emitted in the current module and return the function that registers
-  /// it.
-  virtual llvm::Function *emitRegistrationFunction();
+  /// Creates all the offload entries in the current compilation unit
+  /// along with the associated metadata.
+  void createOffloadEntriesAndInfoMetadata();
 
   /// Emits code for teams call of the \a OutlinedFn with
   /// variables captured in a record which address is stored in \a
@@ -2155,11 +2157,6 @@ public:
   /// if it was emitted successfully.
   /// \param GD Global to scan.
   bool emitTargetGlobal(GlobalDecl GD) override;
-
-  /// Creates the offloading descriptor in the event any target region
-  /// was emitted in the current module and return the function that registers
-  /// it.
-  llvm::Function *emitRegistrationFunction() override;
 
   /// Emits code for teams call of the \a OutlinedFn with
   /// variables captured in a record which address is stored in \a

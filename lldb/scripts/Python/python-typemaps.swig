@@ -1,7 +1,6 @@
 /* Typemap definitions, to allow SWIG to properly handle 'char**' data types. */
 
 %typemap(in) char ** {
-  using namespace lldb_private;
   /* Check if is a list  */
   if (PythonList::Check($input)) {
     PythonList list(PyRefType::Borrowed, $input);
@@ -30,7 +29,6 @@
 %typemap(typecheck) char ** {
   /* Check if is a list  */
   $1 = 1;
-  using namespace lldb_private;
   if (PythonList::Check($input)) {
     PythonList list(PyRefType::Borrowed, $input);
     int size = list.GetSize();
@@ -55,7 +53,6 @@
   int i;
   len = 0;
   while ($1[len]) len++;
-  using namespace lldb_private;
   PythonList list(len);
   for (i = 0; i < len; i++)
     list.SetItemAtIndex(i, PythonString($1[i]));
@@ -64,7 +61,6 @@
 
 
 %typemap(in) lldb::tid_t {
-  using namespace lldb_private;
   if (PythonInteger::Check($input))
   {
     PythonInteger py_int(PyRefType::Borrowed, $input);
@@ -78,7 +74,6 @@
 }
 
 %typemap(in) lldb::StateType {
-  using namespace lldb_private;
   if (PythonInteger::Check($input))
   {
     PythonInteger py_int(PyRefType::Borrowed, $input);
@@ -122,12 +117,12 @@
 %typemap(argout) (char *dst, size_t dst_len) {
    Py_XDECREF($result);   /* Blow away any previous result */
    if (result == 0) {
-      lldb_private::PythonString string("");
+      PythonString string("");
       $result = string.release();
       Py_INCREF($result);
    } else {
       llvm::StringRef ref(static_cast<const char*>($1), result);
-      lldb_private::PythonString string(ref);
+      PythonString string(ref);
       $result = string.release();
    }
    free($1);
@@ -142,7 +137,6 @@
 // Ditto for SBProcess::PutSTDIN(const char *src, size_t src_len).
 %typemap(in) (const char *cstr, uint32_t cstr_len),
              (const char *src, size_t src_len) {
-   using namespace lldb_private;
    if (PythonString::Check($input)) {
       PythonString str(PyRefType::Borrowed, $input);
       $1 = (char*)str.GetString().data();
@@ -166,7 +160,6 @@
 // For SBProcess::WriteMemory, SBTarget::GetInstructions and SBDebugger::DispatchInput.
 %typemap(in) (const void *buf, size_t size),
              (const void *data, size_t data_len) {
-   using namespace lldb_private;
    if (PythonString::Check($input)) {
       PythonString str(PyRefType::Borrowed, $input);
       $1 = (void*)str.GetString().data();
@@ -214,7 +207,7 @@
       $result = Py_None;
       Py_INCREF($result);
    } else {
-      lldb_private::PythonBytes bytes(static_cast<const uint8_t*>($1), result);
+      PythonBytes bytes(static_cast<const uint8_t*>($1), result);
       $result = bytes.release();
    }
    free($1);
@@ -372,76 +365,81 @@ bool SetNumberFromPyObject<double>(double &number, PyObject *obj) {
   $1 = $1 || PyCallable_Check(reinterpret_cast<PyObject*>($input));
 }
 
-// FIXME both of these paths wind up calling fdopen() with no provision for ever calling
-// fclose() on the result.  SB interfaces that use FILE* should be deprecated for scripting
-// use and this typemap should eventually be removed.
-%typemap(in) FILE * {
-   using namespace lldb_private;
-   if ($input == Py_None)
-      $1 = nullptr;
-   else if (!lldb_private::PythonFile::Check($input)) {
-      int fd = PyObject_AsFileDescriptor($input);
-      PythonObject py_input(PyRefType::Borrowed, $input);
-      PythonString py_mode = py_input.GetAttributeValue("mode").AsType<PythonString>();
 
-      if (-1 != fd && py_mode.IsValid()) {
-         FILE *f;
-         if ((f = fdopen(fd, py_mode.GetString().str().c_str())))
-            $1 = f;
-         else
-            PyErr_SetString(PyExc_TypeError, strerror(errno));
-      } else {
-         PyErr_SetString(PyExc_TypeError,"not a file-like object");
-         return nullptr;
-      }
-   }
-   else
-   {
-      PythonFile py_file(PyRefType::Borrowed, $input);
-      lldb::FileUP file = py_file.GetUnderlyingFile();
-      if (!file)
-         return nullptr;
-      $1 = file->TakeStreamAndClear();
-    }
+%typemap(in) lldb::FileSP {
+  PythonFile py_file(PyRefType::Borrowed, $input);
+  if (!py_file) {
+    PyErr_SetString(PyExc_TypeError, "not a file");
+    return nullptr;
+  }
+  auto sp = unwrapOrSetPythonException(py_file.ConvertToFile());
+  if (!sp)
+    return nullptr;
+  $1 = sp;
 }
 
-%typemap(out) FILE * {
-   // TODO: This is gross. We should find a way to fetch the mode flags from the
-   // lldb_private::File object.
-   char mode[4] = {0};
-%#ifdef __APPLE__
-   int i = 0;
-   if ($1)
-   {
-       short flags = $1->_flags;
+%typemap(in) lldb::FileSP FORCE_IO_METHODS {
+  PythonFile py_file(PyRefType::Borrowed, $input);
+  if (!py_file) {
+    PyErr_SetString(PyExc_TypeError, "not a file");
+    return nullptr;
+  }
+  auto sp = unwrapOrSetPythonException(py_file.ConvertToFileForcingUseOfScriptingIOMethods());
+  if (!sp)
+    return nullptr;
+  $1 = sp;
+}
 
-       if (flags & __SRD)
-          mode[i++] = 'r';
-       else if (flags & __SWR)
-          mode[i++] = 'w';
-       else // if (flags & __SRW)
-          mode[i++] = 'a';
-    }
-%#else
-   // There's no portable way to get the mode here. We just return a mode which
-   // permits both reads and writes and count on the operating system to return
-   // an error when an invalid operation is attempted.
-   mode[0] = 'r';
-   mode[1] = '+';
-%#endif
-   using namespace lldb_private;
-   NativeFile file($1, false);
-   PythonFile py_file(file, mode);
-   $result = py_file.release();
-   if (!$result)
-   {
-       $result = Py_None;
-       Py_INCREF(Py_None);
-   }
+%typemap(in) lldb::FileSP BORROWED {
+  PythonFile py_file(PyRefType::Borrowed, $input);
+  if (!py_file) {
+    PyErr_SetString(PyExc_TypeError, "not a file");
+    return nullptr;
+  }
+  auto sp = unwrapOrSetPythonException(py_file.ConvertToFile(/*borrowed=*/true));
+  if (!sp)
+    return nullptr;
+  $1 = sp;
+}
+
+%typemap(in) lldb::FileSP BORROWED_FORCE_IO_METHODS {
+  PythonFile py_file(PyRefType::Borrowed, $input);
+  if (!py_file) {
+    PyErr_SetString(PyExc_TypeError, "not a file");
+    return nullptr;
+  }
+  auto sp = unwrapOrSetPythonException(py_file.ConvertToFileForcingUseOfScriptingIOMethods(/*borrowed=*/true));
+  if (!sp)
+    return nullptr;
+  $1 = sp;
+}
+
+%typecheck(SWIG_TYPECHECK_POINTER) lldb::FileSP {
+  if (PythonFile::Check($input)) {
+    $1 = 1;
+  } else {
+    PyErr_Clear();
+    $1 = 0;
+  }
+}
+
+%typemap(out) lldb::FileSP {
+  $result = nullptr;
+  lldb::FileSP &sp = $1;
+  if (sp) {
+    PythonFile pyfile = unwrapOrSetPythonException(PythonFile::FromFile(*sp));
+    if (!pyfile.IsValid())
+      return nullptr;
+    $result = pyfile.release();
+  }
+  if (!$result)
+  {
+      $result = Py_None;
+      Py_INCREF(Py_None);
+  }
 }
 
 %typemap(in) (const char* string, int len) {
-    using namespace lldb_private;
     if ($input == Py_None)
     {
         $1 = NULL;

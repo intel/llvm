@@ -140,6 +140,7 @@ typedef struct user_fpregs elf_fpregset_t;
 #include <linux/serial.h>
 #include <sys/msg.h>
 #include <sys/ipc.h>
+#include <crypt.h>
 #endif // SANITIZER_LINUX && !SANITIZER_ANDROID
 
 #if SANITIZER_ANDROID
@@ -229,7 +230,7 @@ namespace __sanitizer {
   // has been removed from glibc 2.28.
 #if defined(__aarch64__) || defined(__s390x__) || defined (__mips64) \
   || defined(__powerpc64__) || defined(__arch64__) || defined(__sparcv9) \
-  || defined(__x86_64__)
+  || defined(__x86_64__) || (defined(__riscv) && __riscv_xlen == 64)
 #define SIZEOF_STRUCT_USTAT 32
 #elif defined(__arm__) || defined(__i386__) || defined(__mips__) \
   || defined(__powerpc__) || defined(__s390__) || defined(__sparc__)
@@ -240,6 +241,7 @@ namespace __sanitizer {
   unsigned struct_ustat_sz = SIZEOF_STRUCT_USTAT;
   unsigned struct_rlimit64_sz = sizeof(struct rlimit64);
   unsigned struct_statvfs64_sz = sizeof(struct statvfs64);
+  unsigned struct_crypt_data_sz = sizeof(struct crypt_data);
 #endif // SANITIZER_LINUX && !SANITIZER_ANDROID
 
 #if SANITIZER_LINUX && !SANITIZER_ANDROID
@@ -1126,8 +1128,11 @@ CHECK_SIZE_AND_OFFSET(ipc_perm, uid);
 CHECK_SIZE_AND_OFFSET(ipc_perm, gid);
 CHECK_SIZE_AND_OFFSET(ipc_perm, cuid);
 CHECK_SIZE_AND_OFFSET(ipc_perm, cgid);
-#if !defined(__aarch64__) || !SANITIZER_LINUX || __GLIBC_PREREQ (2, 21)
+#if (!defined(__aarch64__) || !SANITIZER_LINUX || __GLIBC_PREREQ (2, 21)) && \
+    !defined(__arm__)
 /* On aarch64 glibc 2.20 and earlier provided incorrect mode field.  */
+/* On Arm newer glibc provide a different mode field, it's hard to detect
+   so just disable the check.  */
 CHECK_SIZE_AND_OFFSET(ipc_perm, mode);
 #endif
 

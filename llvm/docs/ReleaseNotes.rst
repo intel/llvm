@@ -41,7 +41,20 @@ Non-comprehensive list of changes in this release
    for adding a new subsection.
 
 * The ISD::FP_ROUND_INREG opcode and related code was removed from SelectionDAG.
-* Enabled MemorySSA as a loop dependency.
+* Enabled MemorySSA as a loop dependency. Since
+  `r370957 <https://reviews.llvm.org/rL370957>`_
+  (`D58311 <https://reviews.llvm.org/D58311>`_ ``[MemorySSA & LoopPassManager]
+  Enable MemorySSA as loop dependency. Update tests.``), the MemorySSA analysis
+  is being preserved and used by a series of loop passes. The most significant
+  use is in LICM, where the instruction hoisting and sinking relies on aliasing
+  information provided by MemorySSA vs previously creating an AliasSetTracker.
+  The LICM step of promoting variables to scalars still relies on the creation
+  of an AliasSetTracker, but its use is reduced to only be enabled for loops
+  with a small number of overall memory instructions. This choice was motivated
+  by experimental results showing compile and run time benefits or replacing the
+  AliasSetTracker usage with MemorySSA without any performance penalties.
+  The fact that MemorySSA is now preserved by and available in a series of loop
+  passes, also opens up opportunities for its use in those respective passes.
 
 .. NOTE
    If you would like to document a larger change, then you can add a
@@ -52,6 +65,23 @@ Non-comprehensive list of changes in this release
    -------------------
 
    Makes programs 10x faster by doing Special New Thing.
+
+* As per :ref:`LLVM Language Reference Manual <i_getelementptr>`,
+  ``getelementptr inbounds`` can not change the null status of a pointer,
+  meaning it can not produce non-null pointer given null base pointer, and
+  likewise given non-null base pointer it can not produce null pointer; if it
+  does, the result is a :ref:`poison value <poisonvalues>`.
+  Since `r369789 <https://reviews.llvm.org/rL369789>`_
+  (`D66608 <https://reviews.llvm.org/D66608>`_ ``[InstCombine] icmp eq/ne (gep
+  inbounds P, Idx..), null -> icmp eq/ne P, null``) LLVM uses that for
+  transformations. If the original source violates these requirements this
+  may result in code being miscompiled. If you are using Clang front-end,
+  Undefined Behaviour Sanitizer ``-fsanitize=pointer-overflow`` check
+  will now catch such cases.
+
+* The Loop Idiom Recognition (``-loop-idiom``) pass has learned to recognize
+  ``bcmp`` pattern, and convert it into a call to ``bcmp`` (or ``memcmp``)
+  function.
 
 Changes to the LLVM IR
 ----------------------

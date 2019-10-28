@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ClangdLSPServer.h"
+#include "Context.h"
 #include "Diagnostics.h"
 #include "DraftStore.h"
 #include "FormattedString.h"
@@ -371,16 +372,6 @@ private:
 
   llvm::StringMap<std::function<void(llvm::json::Value)>> Notifications;
   llvm::StringMap<std::function<void(llvm::json::Value, ReplyOnce)>> Calls;
-  // The maximum number of callbacks held in clangd.
-  //
-  // We bound the maximum size to the pending map to prevent memory leakage
-  // for cases where LSP clients don't reply for the request.
-  static constexpr int MaxReplayCallbacks = 100;
-  mutable std::mutex CallMutex;
-  int NextCallID = 0; /* GUARDED_BY(CallMutex) */
-  std::deque<std::pair</*RequestID*/ int,
-                       /*ReplyHandler*/ Callback<llvm::json::Value>>>
-      ReplyCallbacks; /* GUARDED_BY(CallMutex) */
 
   // Method calls may be cancelled by ID, so keep track of their state.
   // This needs a mutex: handlers may finish on a different thread, and that's
@@ -432,6 +423,19 @@ private:
     }));
   }
 
+  // The maximum number of callbacks held in clangd.
+  //
+  // We bound the maximum size to the pending map to prevent memory leakage
+  // for cases where LSP clients don't reply for the request.
+  // This has to go after RequestCancellers and RequestCancellersMutex since it
+  // can contain a callback that has a cancelable context.
+  static constexpr int MaxReplayCallbacks = 100;
+  mutable std::mutex CallMutex;
+  int NextCallID = 0; /* GUARDED_BY(CallMutex) */
+  std::deque<std::pair</*RequestID*/ int,
+                       /*ReplyHandler*/ Callback<llvm::json::Value>>>
+      ReplyCallbacks; /* GUARDED_BY(CallMutex) */
+
   ClangdLSPServer &Server;
 };
 constexpr int ClangdLSPServer::MessageHandler::MaxReplayCallbacks;
@@ -462,10 +466,6 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
         break;
       }
   }
-  llvm::Optional<WithContextValue> WithOffsetEncoding;
-  if (NegotiatedOffsetEncoding)
-    WithOffsetEncoding.emplace(kCurrentOffsetEncoding,
-                               *NegotiatedOffsetEncoding);
 
   ClangdServerOpts.SemanticHighlighting =
       Params.capabilities.SemanticHighlighting;
@@ -487,8 +487,18 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   }
   CDB.emplace(BaseCDB.get(), Params.initializationOptions.fallbackFlags,
               ClangdServerOpts.ResourceDir);
-  Server.emplace(*CDB, FSProvider, static_cast<DiagnosticsConsumer &>(*this),
-                 ClangdServerOpts);
+  {
+    // Switch caller's context with LSPServer's background context. Since we
+    // rather want to propagate information from LSPServer's context into the
+    // Server, CDB, etc.
+    WithContext MainContext(BackgroundContext.clone());
+    llvm::Optional<WithContextValue> WithOffsetEncoding;
+    if (NegotiatedOffsetEncoding)
+      WithOffsetEncoding.emplace(kCurrentOffsetEncoding,
+                                 *NegotiatedOffsetEncoding);
+    Server.emplace(*CDB, FSProvider, static_cast<DiagnosticsConsumer &>(*this),
+                   ClangdServerOpts);
+  }
   applyConfiguration(Params.initializationOptions.ConfigSettings);
 
   CCOpts.EnableSnippets = Params.capabilities.CompletionSnippets;
@@ -1045,7 +1055,7 @@ void ClangdLSPServer::onSwitchSourceHeader(
         if (!Path)
           return Reply(Path.takeError());
         if (*Path)
-          Reply(URIForFile::canonicalize(**Path, Params.uri.file()));
+          return Reply(URIForFile::canonicalize(**Path, Params.uri.file()));
         return Reply(llvm::None);
       });
 }
@@ -1181,9 +1191,9 @@ ClangdLSPServer::ClangdLSPServer(
     llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
     llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
     const ClangdServer::Options &Opts)
-    : Transp(Transp), MsgHandler(new MessageHandler(*this)),
-      FSProvider(FSProvider), CCOpts(CCOpts),
-      SupportedSymbolKinds(defaultSymbolKinds()),
+    : BackgroundContext(Context::current().clone()), Transp(Transp),
+      MsgHandler(new MessageHandler(*this)), FSProvider(FSProvider),
+      CCOpts(CCOpts), SupportedSymbolKinds(defaultSymbolKinds()),
       SupportedCompletionItemKinds(defaultCompletionItemKinds()),
       UseDirBasedCDB(UseDirBasedCDB),
       CompileCommandsDir(std::move(CompileCommandsDir)), ClangdServerOpts(Opts),
@@ -1221,7 +1231,11 @@ ClangdLSPServer::ClangdLSPServer(
   // clang-format on
 }
 
-ClangdLSPServer::~ClangdLSPServer() { IsBeingDestroyed = true; }
+ClangdLSPServer::~ClangdLSPServer() { IsBeingDestroyed = true;
+  // Explicitly destroy ClangdServer first, blocking on threads it owns.
+  // This ensures they don't access any other members.
+  Server.reset();
+}
 
 bool ClangdLSPServer::run() {
   // Run the Language Server loop.
@@ -1231,8 +1245,6 @@ bool ClangdLSPServer::run() {
     CleanExit = false;
   }
 
-  // Destroy ClangdServer to ensure all worker threads finish.
-  Server.reset();
   return CleanExit && ShutdownRequestReceived;
 }
 

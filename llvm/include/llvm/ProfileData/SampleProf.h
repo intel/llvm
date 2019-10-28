@@ -120,6 +120,7 @@ enum SecType {
   SecProfSummary = 1,
   SecNameTable = 2,
   SecProfileSymbolList = 3,
+  SecFuncOffsetTable = 4,
   // marker for the first type of profile.
   SecFuncProfileFirst = 32,
   SecLBRProfile = SecFuncProfileFirst
@@ -135,6 +136,8 @@ static inline std::string getSecName(SecType Type) {
     return "NameTableSection";
   case SecProfileSymbolList:
     return "ProfileSymbolListSection";
+  case SecFuncOffsetTable:
+    return "FuncOffsetTableSection";
   case SecLBRProfile:
     return "LBRProfileSection";
   }
@@ -145,10 +148,24 @@ static inline std::string getSecName(SecType Type) {
 // and SampleProfileExtBinaryBaseWriter.
 struct SecHdrTableEntry {
   SecType Type;
-  uint64_t Flag;
+  uint64_t Flags;
   uint64_t Offset;
   uint64_t Size;
 };
+
+enum SecFlags { SecFlagInValid = 0, SecFlagCompress = (1 << 0) };
+
+static inline void addSecFlags(SecHdrTableEntry &Entry, uint64_t Flags) {
+  Entry.Flags |= Flags;
+}
+
+static inline void removeSecFlags(SecHdrTableEntry &Entry, uint64_t Flags) {
+  Entry.Flags &= ~Flags;
+}
+
+static inline bool hasSecFlag(SecHdrTableEntry &Entry, SecFlags Flag) {
+  return Entry.Flags & Flag;
+}
 
 /// Represents the relative location of an instruction.
 ///
@@ -643,9 +660,9 @@ public:
   unsigned size() { return Syms.size(); }
 
   void setToCompress(bool TC) { ToCompress = TC; }
+  bool toCompress() { return ToCompress; }
 
-  std::error_code read(uint64_t CompressSize, uint64_t UncompressSize,
-                       const uint8_t *Data);
+  std::error_code read(const uint8_t *Data, uint64_t ListSize);
   std::error_code write(raw_ostream &OS);
   void dump(raw_ostream &OS = dbgs()) const;
 

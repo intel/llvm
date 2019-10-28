@@ -484,7 +484,7 @@ static bool checkOpenCLBlockArgs(Sema &S, Expr *BlockArg) {
   const BlockPointerType *BPT =
       cast<BlockPointerType>(BlockArg->getType().getCanonicalType());
   ArrayRef<QualType> Params =
-      BPT->getPointeeType()->getAs<FunctionProtoType>()->getParamTypes();
+      BPT->getPointeeType()->castAs<FunctionProtoType>()->getParamTypes();
   unsigned ArgCounter = 0;
   bool IllegalParams = false;
   // Iterate through the block parameters until either one is found that is not
@@ -583,7 +583,7 @@ static bool checkOpenCLEnqueueVariadicArgs(Sema &S, CallExpr *TheCall,
   const BlockPointerType *BPT =
       cast<BlockPointerType>(BlockArg->getType().getCanonicalType());
   unsigned NumBlockParams =
-      BPT->getPointeeType()->getAs<FunctionProtoType>()->getNumParams();
+      BPT->getPointeeType()->castAs<FunctionProtoType>()->getNumParams();
   unsigned TotalNumArgs = TheCall->getNumArgs();
 
   // For each argument passed to the block, a corresponding uint needs to
@@ -676,7 +676,7 @@ static bool SemaOpenCLBuiltinEnqueueKernel(Sema &S, CallExpr *TheCall) {
     // we have a block type, check the prototype
     const BlockPointerType *BPT =
         cast<BlockPointerType>(Arg3->getType().getCanonicalType());
-    if (BPT->getPointeeType()->getAs<FunctionProtoType>()->getNumParams() > 0) {
+    if (BPT->getPointeeType()->castAs<FunctionProtoType>()->getNumParams() > 0) {
       S.Diag(Arg3->getBeginLoc(),
              diag::err_opencl_enqueue_kernel_blocks_no_args);
       return true;
@@ -1550,6 +1550,11 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
         if (CheckAArch64BuiltinFunctionCall(BuiltinID, TheCall))
           return ExprError();
         break;
+      case llvm::Triple::bpfeb:
+      case llvm::Triple::bpfel:
+        if (CheckBPFBuiltinFunctionCall(BuiltinID, TheCall))
+          return ExprError();
+        break;
       case llvm::Triple::hexagon:
         if (CheckHexagonBuiltinFunctionCall(BuiltinID, TheCall))
           return ExprError();
@@ -1948,6 +1953,40 @@ bool Sema::CheckAArch64BuiltinFunctionCall(unsigned BuiltinID,
   }
 
   return SemaBuiltinConstantArgRange(TheCall, i, l, u + l);
+}
+
+bool Sema::CheckBPFBuiltinFunctionCall(unsigned BuiltinID,
+                                       CallExpr *TheCall) {
+  assert(BuiltinID == BPF::BI__builtin_preserve_field_info &&
+         "unexpected ARM builtin");
+
+  if (checkArgCount(*this, TheCall, 2))
+    return true;
+
+  // The first argument needs to be a record field access.
+  // If it is an array element access, we delay decision
+  // to BPF backend to check whether the access is a
+  // field access or not.
+  Expr *Arg = TheCall->getArg(0);
+  if (Arg->getType()->getAsPlaceholderType() ||
+      (Arg->IgnoreParens()->getObjectKind() != OK_BitField &&
+       !dyn_cast<MemberExpr>(Arg->IgnoreParens()) &&
+       !dyn_cast<ArraySubscriptExpr>(Arg->IgnoreParens()))) {
+    Diag(Arg->getBeginLoc(), diag::err_preserve_field_info_not_field)
+        << 1 << Arg->getSourceRange();
+    return true;
+  }
+
+  // The second argument needs to be a constant int
+  llvm::APSInt Value;
+  if (!TheCall->getArg(1)->isIntegerConstantExpr(Value, Context)) {
+    Diag(Arg->getBeginLoc(), diag::err_preserve_field_info_not_const)
+        << 2 << Arg->getSourceRange();
+    return true;
+  }
+
+  TheCall->setType(Context.UnsignedIntTy);
+  return false;
 }
 
 bool Sema::CheckHexagonBuiltinCpu(unsigned BuiltinID, CallExpr *TheCall) {
@@ -4734,7 +4773,7 @@ ExprResult Sema::BuildAtomicExpr(SourceRange CallRange, SourceRange ExprRange,
           << Ptr->getSourceRange();
       return ExprError();
     }
-    ValType = AtomTy->getAs<AtomicType>()->getValueType();
+    ValType = AtomTy->castAs<AtomicType>()->getValueType();
   } else if (Form != Load && Form != LoadCopy) {
     if (ValType.isConstQualified()) {
       Diag(ExprRange.getBegin(), diag::err_atomic_op_needs_non_const_pointer)
@@ -5543,7 +5582,7 @@ static bool checkVAStartABI(Sema &S, unsigned BuiltinID, Expr *Fn) {
   if (IsX64 || IsAArch64) {
     CallingConv CC = CC_C;
     if (const FunctionDecl *FD = S.getCurFunctionDecl())
-      CC = FD->getType()->getAs<FunctionType>()->getCallConv();
+      CC = FD->getType()->castAs<FunctionType>()->getCallConv();
     if (IsMSVAStart) {
       // Don't allow this in System V ABI functions.
       if (CC == CC_X86_64SysV || (!IsWindows && CC != CC_Win64))
@@ -5673,7 +5712,7 @@ bool Sema::SemaBuiltinVAStart(unsigned BuiltinID, CallExpr *TheCall) {
                return false;
              if (!Type->isEnumeralType())
                return true;
-             const EnumDecl *ED = Type->getAs<EnumType>()->getDecl();
+             const EnumDecl *ED = Type->castAs<EnumType>()->getDecl();
              return !(ED &&
                       Context.typesAreCompatible(ED->getPromotionType(), Type));
            }()) {
@@ -6094,6 +6133,12 @@ bool Sema::SemaBuiltinAssumeAligned(CallExpr *TheCall) {
     if (!Result.isPowerOf2())
       return Diag(TheCall->getBeginLoc(), diag::err_alignment_not_power_of_two)
              << Arg->getSourceRange();
+
+    // Alignment calculations can wrap around if it's greater than 2**29.
+    unsigned MaximumAlignment = 536870912;
+    if (Result > MaximumAlignment)
+      Diag(TheCall->getBeginLoc(), diag::warn_assume_aligned_too_great)
+          << Arg->getSourceRange() << MaximumAlignment;
   }
 
   if (NumArgs > 2) {
@@ -10826,7 +10871,7 @@ static bool AnalyzeBitFieldAssignment(Sema &S, FieldDecl *Bitfield, Expr *Init,
      return false;
 
   if (BitfieldType->isEnumeralType()) {
-    EnumDecl *BitfieldEnumDecl = BitfieldType->getAs<EnumType>()->getDecl();
+    EnumDecl *BitfieldEnumDecl = BitfieldType->castAs<EnumType>()->getDecl();
     // If the underlying enum type was not explicitly specified as an unsigned
     // type and the enum contain only positive values, MSVC++ will cause an
     // inconsistency by storing this as a signed type.
@@ -11454,7 +11499,7 @@ static void DiagnoseIntInBoolContext(Sema &S, Expr *E) {
         (RHS->getValue() == 0 || RHS->getValue() == 1))
       // Do not diagnose common idioms.
       return;
-    if (LHS->getValue() != 0 && LHS->getValue() != 0)
+    if (LHS->getValue() != 0 && RHS->getValue() != 0)
       S.Diag(ExprLoc, diag::warn_integer_constants_in_conditional_always_true);
   }
 }
@@ -11965,6 +12010,13 @@ static void AnalyzeImplicitConversions(Sema &S, Expr *OrigE, SourceLocation CC,
 
   if (E->isTypeDependent() || E->isValueDependent())
     return;
+
+  if (const auto *UO = dyn_cast<UnaryOperator>(E))
+    if (UO->getOpcode() == UO_Not &&
+        UO->getSubExpr()->isKnownToHaveBooleanValue())
+      S.Diag(UO->getBeginLoc(), diag::warn_bitwise_negation_bool)
+          << OrigE->getSourceRange() << T->isBooleanType()
+          << FixItHint::CreateReplacement(UO->getBeginLoc(), "!");
 
   // For conditional operators, we analyze the arguments as if they
   // were being fed directly into the output.

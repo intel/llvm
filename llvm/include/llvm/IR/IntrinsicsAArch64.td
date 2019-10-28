@@ -775,9 +775,29 @@ let TargetPrefix = "aarch64" in {  // All intrinsics start with "llvm.aarch64.".
                  llvm_anyvector_ty],
                 [IntrNoMem]>;
 
+  class AdvSIMD_SVE_Unpack_Intrinsic
+   : Intrinsic<[llvm_anyvector_ty],
+               [LLVMSubdivide2VectorType<0>],
+               [IntrNoMem]>;
+
   class AdvSIMD_SVE_PUNPKHI_Intrinsic
     : Intrinsic<[LLVMHalfElementsVectorType<0>],
                 [llvm_anyvector_ty],
+                [IntrNoMem]>;
+
+  class AdvSIMD_SVE_DOT_Intrinsic
+    : Intrinsic<[llvm_anyvector_ty],
+                [LLVMMatchType<0>,
+                 LLVMSubdivide4VectorType<0>,
+                 LLVMSubdivide4VectorType<0>],
+                [IntrNoMem]>;
+
+  class AdvSIMD_SVE_DOT_Indexed_Intrinsic
+    : Intrinsic<[llvm_anyvector_ty],
+                [LLVMMatchType<0>,
+                 LLVMSubdivide4VectorType<0>,
+                 LLVMSubdivide4VectorType<0>,
+                 llvm_i32_ty],
                 [IntrNoMem]>;
 
   // This class of intrinsics are not intended to be useful within LLVM IR but
@@ -799,11 +819,27 @@ let TargetPrefix = "aarch64" in {  // All intrinsics start with "llvm.aarch64.".
 def int_aarch64_sve_abs : AdvSIMD_Merged1VectorArg_Intrinsic;
 def int_aarch64_sve_neg : AdvSIMD_Merged1VectorArg_Intrinsic;
 
+def int_aarch64_sve_sdot      : AdvSIMD_SVE_DOT_Intrinsic;
+def int_aarch64_sve_sdot_lane : AdvSIMD_SVE_DOT_Indexed_Intrinsic;
+
+def int_aarch64_sve_udot      : AdvSIMD_SVE_DOT_Intrinsic;
+def int_aarch64_sve_udot_lane : AdvSIMD_SVE_DOT_Indexed_Intrinsic;
+
 //
 // Counting bits
 //
 
 def int_aarch64_sve_cnt : AdvSIMD_SVE_CNT_Intrinsic;
+
+//
+// Permutations and selection
+//
+
+def int_aarch64_sve_sunpkhi   : AdvSIMD_SVE_Unpack_Intrinsic;
+def int_aarch64_sve_sunpklo   : AdvSIMD_SVE_Unpack_Intrinsic;
+
+def int_aarch64_sve_uunpkhi   : AdvSIMD_SVE_Unpack_Intrinsic;
+def int_aarch64_sve_uunpklo   : AdvSIMD_SVE_Unpack_Intrinsic;
 
 //
 // Floating-point comparisons

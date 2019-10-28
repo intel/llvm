@@ -273,12 +273,16 @@ namespace llvm {
       case Intrinsic::experimental_constrained_log:
       case Intrinsic::experimental_constrained_log10:
       case Intrinsic::experimental_constrained_log2:
+      case Intrinsic::experimental_constrained_lrint:
+      case Intrinsic::experimental_constrained_llrint:
       case Intrinsic::experimental_constrained_rint:
       case Intrinsic::experimental_constrained_nearbyint:
       case Intrinsic::experimental_constrained_maxnum:
       case Intrinsic::experimental_constrained_minnum:
       case Intrinsic::experimental_constrained_ceil:
       case Intrinsic::experimental_constrained_floor:
+      case Intrinsic::experimental_constrained_lround:
+      case Intrinsic::experimental_constrained_llround:
       case Intrinsic::experimental_constrained_round:
       case Intrinsic::experimental_constrained_trunc:
         return true;
@@ -407,11 +411,11 @@ namespace llvm {
       setArgOperand(ARG_DEST, Ptr);
     }
 
-    void setDestAlignment(unsigned Align) {
+    void setDestAlignment(unsigned Alignment) {
       removeParamAttr(ARG_DEST, Attribute::Alignment);
-      if (Align > 0)
-        addParamAttr(ARG_DEST,
-                     Attribute::getWithAlignment(getContext(), Align));
+      if (Alignment > 0)
+        addParamAttr(ARG_DEST, Attribute::getWithAlignment(getContext(),
+                                                           Align(Alignment)));
     }
 
     void setLength(Value *L) {
@@ -456,11 +460,12 @@ namespace llvm {
       BaseCL::setArgOperand(ARG_SOURCE, Ptr);
     }
 
-    void setSourceAlignment(unsigned Align) {
+    void setSourceAlignment(unsigned Alignment) {
       BaseCL::removeParamAttr(ARG_SOURCE, Attribute::Alignment);
-      if (Align > 0)
-        BaseCL::addParamAttr(ARG_SOURCE, Attribute::getWithAlignment(
-                                             BaseCL::getContext(), Align));
+      if (Alignment > 0)
+        BaseCL::addParamAttr(ARG_SOURCE,
+                             Attribute::getWithAlignment(BaseCL::getContext(),
+                                                         Align(Alignment)));
     }
   };
 

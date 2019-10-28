@@ -2198,6 +2198,18 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, unsigned &Scale,
     MinOffset = -256;
     MaxOffset = 255;
     break;
+  case AArch64::LDR_PXI:
+  case AArch64::STR_PXI:
+    Scale = Width = 2;
+    MinOffset = -256;
+    MaxOffset = 255;
+    break;
+  case AArch64::LDR_ZXI:
+  case AArch64::STR_ZXI:
+    Scale = Width = 16;
+    MinOffset = -256;
+    MaxOffset = 255;
+    break;
   case AArch64::ST2GOffset:
   case AArch64::STZ2GOffset:
     Scale = 16;
@@ -3340,11 +3352,23 @@ MachineInstr *AArch64InstrInfo::foldMemoryOperandImpl(
   return nullptr;
 }
 
+static bool isSVEScaledImmInstruction(unsigned Opcode) {
+  switch (Opcode) {
+  case AArch64::LDR_ZXI:
+  case AArch64::STR_ZXI:
+  case AArch64::LDR_PXI:
+  case AArch64::STR_PXI:
+    return true;
+  default:
+    return false;
+  }
+}
+
 int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
                                     StackOffset &SOffset,
                                     bool *OutUseUnscaledOp,
                                     unsigned *OutUnscaledOp,
-                                    int *EmittableOffset) {
+                                    int64_t *EmittableOffset) {
   // Set output values in case of early exit.
   if (EmittableOffset)
     *EmittableOffset = 0;
@@ -3383,9 +3407,13 @@ int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
     llvm_unreachable("unhandled opcode in isAArch64FrameOffsetLegal");
 
   // Construct the complete offset.
+  bool IsMulVL = isSVEScaledImmInstruction(MI.getOpcode());
+  int64_t Offset =
+      IsMulVL ? (SOffset.getScalableBytes()) : (SOffset.getBytes());
+
   const MachineOperand &ImmOpnd =
       MI.getOperand(AArch64InstrInfo::getLoadStoreImmIdx(MI.getOpcode()));
-  int Offset = SOffset.getBytes() + ImmOpnd.getImm() * Scale;
+  Offset += ImmOpnd.getImm() * Scale;
 
   // If the offset doesn't match the scale, we rewrite the instruction to
   // use the unscaled instruction instead. Likewise, if we have a negative
@@ -3402,7 +3430,7 @@ int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
          "Cannot have remainder when using unscaled op");
 
   assert(MinOff < MaxOff && "Unexpected Min/Max offsets");
-  int NewOffset = Offset / Scale;
+  int64_t NewOffset = Offset / Scale;
   if (MinOff <= NewOffset && NewOffset <= MaxOff)
     Offset = Remainder;
   else {
@@ -3417,9 +3445,14 @@ int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
   if (OutUnscaledOp && UnscaledOp)
     *OutUnscaledOp = *UnscaledOp;
 
-  SOffset = StackOffset(Offset, MVT::i8);
+  if (IsMulVL)
+    SOffset = StackOffset(Offset, MVT::nxv1i8) +
+              StackOffset(SOffset.getBytes(), MVT::i8);
+  else
+    SOffset = StackOffset(Offset, MVT::i8) +
+              StackOffset(SOffset.getScalableBytes(), MVT::nxv1i8);
   return AArch64FrameOffsetCanUpdate |
-         (Offset == 0 ? AArch64FrameOffsetIsLegal : 0);
+         (SOffset ? 0 : AArch64FrameOffsetIsLegal);
 }
 
 bool llvm::rewriteAArch64FrameIndex(MachineInstr &MI, unsigned FrameRegIdx,
@@ -3438,7 +3471,7 @@ bool llvm::rewriteAArch64FrameIndex(MachineInstr &MI, unsigned FrameRegIdx,
     return true;
   }
 
-  int NewOffset;
+  int64_t NewOffset;
   unsigned UnscaledOp;
   bool UseUnscaledOp;
   int Status = isAArch64FrameOffsetLegal(MI, Offset, &UseUnscaledOp,
@@ -3806,8 +3839,8 @@ static bool getFMAPatterns(MachineInstr &Root,
     Found |= Match(AArch64::FMULv4i16_indexed, 2, MCP::FMLSv4i16_indexed_OP2) ||
              Match(AArch64::FMULv4f16, 2, MCP::FMLSv4f16_OP2);
 
-    Found |= Match(AArch64::FMULv4i16_indexed, 1, MCP::FMLSv2i32_indexed_OP1) ||
-             Match(AArch64::FMULv4f16, 1, MCP::FMLSv2f32_OP1);
+    Found |= Match(AArch64::FMULv4i16_indexed, 1, MCP::FMLSv4i16_indexed_OP1) ||
+             Match(AArch64::FMULv4f16, 1, MCP::FMLSv4f16_OP1);
     break;
   case AArch64::FSUBv8f16:
     Found |= Match(AArch64::FMULv8i16_indexed, 2, MCP::FMLSv8i16_indexed_OP2) ||
@@ -3888,6 +3921,7 @@ bool AArch64InstrInfo::isThroughputPattern(
   case MachineCombinerPattern::FMLAv4f32_OP2:
   case MachineCombinerPattern::FMLAv4i32_indexed_OP1:
   case MachineCombinerPattern::FMLAv4i32_indexed_OP2:
+  case MachineCombinerPattern::FMLSv4i16_indexed_OP1:
   case MachineCombinerPattern::FMLSv4i16_indexed_OP2:
   case MachineCombinerPattern::FMLSv8i16_indexed_OP1:
   case MachineCombinerPattern::FMLSv8i16_indexed_OP2:
@@ -3895,6 +3929,7 @@ bool AArch64InstrInfo::isThroughputPattern(
   case MachineCombinerPattern::FMLSv1i64_indexed_OP2:
   case MachineCombinerPattern::FMLSv2i32_indexed_OP2:
   case MachineCombinerPattern::FMLSv2i64_indexed_OP2:
+  case MachineCombinerPattern::FMLSv4f16_OP1:
   case MachineCombinerPattern::FMLSv4f16_OP2:
   case MachineCombinerPattern::FMLSv8f16_OP1:
   case MachineCombinerPattern::FMLSv8f16_OP2:
@@ -4497,6 +4532,26 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
                            FMAInstKind::Indexed);
     break;
 
+  case MachineCombinerPattern::FMLSv4f16_OP1:
+  case MachineCombinerPattern::FMLSv4i16_indexed_OP1: {
+    RC = &AArch64::FPR64RegClass;
+    Register NewVR = MRI.createVirtualRegister(RC);
+    MachineInstrBuilder MIB1 =
+        BuildMI(MF, Root.getDebugLoc(), TII->get(AArch64::FNEGv4f16), NewVR)
+            .add(Root.getOperand(2));
+    InsInstrs.push_back(MIB1);
+    InstrIdxForVirtReg.insert(std::make_pair(NewVR, 0));
+    if (Pattern == MachineCombinerPattern::FMLSv4f16_OP1) {
+      Opc = AArch64::FMLAv4f16;
+      MUL = genFusedMultiply(MF, MRI, TII, Root, InsInstrs, 1, Opc, RC,
+                             FMAInstKind::Accumulator, &NewVR);
+    } else {
+      Opc = AArch64::FMLAv4i16_indexed;
+      MUL = genFusedMultiply(MF, MRI, TII, Root, InsInstrs, 1, Opc, RC,
+                             FMAInstKind::Indexed, &NewVR);
+    }
+    break;
+  }
   case MachineCombinerPattern::FMLSv4f16_OP2:
     RC = &AArch64::FPR64RegClass;
     Opc = AArch64::FMLSv4f16;
@@ -4525,18 +4580,25 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
     break;
 
   case MachineCombinerPattern::FMLSv8f16_OP1:
+  case MachineCombinerPattern::FMLSv8i16_indexed_OP1: {
     RC = &AArch64::FPR128RegClass;
-    Opc = AArch64::FMLSv8f16;
-    MUL = genFusedMultiply(MF, MRI, TII, Root, InsInstrs, 1, Opc, RC,
-                           FMAInstKind::Accumulator);
+    Register NewVR = MRI.createVirtualRegister(RC);
+    MachineInstrBuilder MIB1 =
+        BuildMI(MF, Root.getDebugLoc(), TII->get(AArch64::FNEGv8f16), NewVR)
+            .add(Root.getOperand(2));
+    InsInstrs.push_back(MIB1);
+    InstrIdxForVirtReg.insert(std::make_pair(NewVR, 0));
+    if (Pattern == MachineCombinerPattern::FMLSv8f16_OP1) {
+      Opc = AArch64::FMLAv8f16;
+      MUL = genFusedMultiply(MF, MRI, TII, Root, InsInstrs, 1, Opc, RC,
+                             FMAInstKind::Accumulator, &NewVR);
+    } else {
+      Opc = AArch64::FMLAv8i16_indexed;
+      MUL = genFusedMultiply(MF, MRI, TII, Root, InsInstrs, 1, Opc, RC,
+                             FMAInstKind::Indexed, &NewVR);
+    }
     break;
-  case MachineCombinerPattern::FMLSv8i16_indexed_OP1:
-    RC = &AArch64::FPR128RegClass;
-    Opc = AArch64::FMLSv8i16_indexed;
-    MUL = genFusedMultiply(MF, MRI, TII, Root, InsInstrs, 1, Opc, RC,
-                           FMAInstKind::Indexed);
-    break;
-
+  }
   case MachineCombinerPattern::FMLSv8f16_OP2:
     RC = &AArch64::FPR128RegClass;
     Opc = AArch64::FMLSv8f16;

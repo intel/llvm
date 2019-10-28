@@ -203,6 +203,10 @@ public:
   LegalizeResult fewerElementsVectorUnmergeValues(MachineInstr &MI,
                                                   unsigned TypeIdx,
                                                   LLT NarrowTy);
+  LegalizeResult fewerElementsVectorBuildVector(MachineInstr &MI,
+                                                unsigned TypeIdx,
+                                                LLT NarrowTy);
+
   LegalizeResult
   reduceLoadStoreWidth(MachineInstr &MI, unsigned TypeIdx, LLT NarrowTy);
 
@@ -230,6 +234,9 @@ public:
   LegalizeResult lowerUnmergeValues(MachineInstr &MI);
   LegalizeResult lowerShuffleVector(MachineInstr &MI);
   LegalizeResult lowerDynStackAlloc(MachineInstr &MI);
+  LegalizeResult lowerExtract(MachineInstr &MI);
+  LegalizeResult lowerInsert(MachineInstr &MI);
+  LegalizeResult lowerSADDO_SSUBO(MachineInstr &MI);
 
 private:
   MachineRegisterInfo &MRI;

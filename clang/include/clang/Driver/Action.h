@@ -65,13 +65,14 @@ public:
     BackendJobClass,
     AssembleJobClass,
     LinkJobClass,
+    IfsMergeJobClass,
     LipoJobClass,
     DsymutilJobClass,
     VerifyDebugInfoJobClass,
     VerifyPCHJobClass,
     OffloadBundlingJobClass,
     OffloadUnbundlingJobClass,
-    OffloadWrappingJobClass,
+    OffloadWrapperJobClass,
     SPIRVTranslatorJobClass,
     SPIRCheckJobClass,
     BackendCompileJobClass,
@@ -490,6 +491,17 @@ public:
   }
 };
 
+class IfsMergeJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  IfsMergeJobAction(ActionList &Inputs, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == IfsMergeJobClass;
+  }
+};
+
 class LinkJobAction : public JobAction {
   void anchor() override;
 
@@ -618,14 +630,15 @@ public:
   }
 };
 
-class OffloadWrappingJobAction : public JobAction {
+class OffloadWrapperJobAction : public JobAction {
   void anchor() override;
 
 public:
-  OffloadWrappingJobAction(Action *Input, types::ID OutputType);
+  OffloadWrapperJobAction(ActionList &Inputs, types::ID Type);
+  OffloadWrapperJobAction(Action *Input, types::ID OutputType);
 
   static bool classof(const Action *A) {
-    return A->getKind() == OffloadWrappingJobClass;
+    return A->getKind() == OffloadWrapperJobClass;
   }
 };
 

@@ -85,6 +85,54 @@ unsigned int atomic_notify(int *addr, unsigned int count) {
   // WEBASSEMBLY64: call i32 @llvm.wasm.atomic.notify(i32* %{{.*}}, i32 %{{.*}})
 }
 
+int trunc_s_i32_f32(float f) {
+  return __builtin_wasm_trunc_s_i32_f32(f);
+  // WEBASSEMBLY: call i32 @llvm.wasm.trunc.signed.i32.f32(float %f)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+int trunc_u_i32_f32(float f) {
+  return __builtin_wasm_trunc_u_i32_f32(f);
+  // WEBASSEMBLY: call i32 @llvm.wasm.trunc.unsigned.i32.f32(float %f)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+int trunc_s_i32_f64(double f) {
+  return __builtin_wasm_trunc_s_i32_f64(f);
+  // WEBASSEMBLY: call i32 @llvm.wasm.trunc.signed.i32.f64(double %f)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+int trunc_u_i32_f64(double f) {
+  return __builtin_wasm_trunc_u_i32_f64(f);
+  // WEBASSEMBLY: call i32 @llvm.wasm.trunc.unsigned.i32.f64(double %f)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+long long trunc_s_i64_f32(float f) {
+  return __builtin_wasm_trunc_s_i64_f32(f);
+  // WEBASSEMBLY: call i64 @llvm.wasm.trunc.signed.i64.f32(float %f)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+long long trunc_u_i64_f32(float f) {
+  return __builtin_wasm_trunc_u_i64_f32(f);
+  // WEBASSEMBLY: call i64 @llvm.wasm.trunc.unsigned.i64.f32(float %f)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+long long trunc_s_i64_f64(double f) {
+  return __builtin_wasm_trunc_s_i64_f64(f);
+  // WEBASSEMBLY: call i64 @llvm.wasm.trunc.signed.i64.f64(double %f)
+  // WEBASSEMBLY-NEXT: ret
+}
+
+long long trunc_u_i64_f64(double f) {
+  return __builtin_wasm_trunc_u_i64_f64(f);
+  // WEBASSEMBLY: call i64 @llvm.wasm.trunc.unsigned.i64.f64(double %f)
+  // WEBASSEMBLY-NEXT: ret
+}
+
 int trunc_saturate_s_i32_f32(float f) {
   return __builtin_wasm_trunc_saturate_s_i32_f32(f);
   // WEBASSEMBLY: call i32 @llvm.wasm.trunc.saturate.signed.i32.f32(float %f)
@@ -156,7 +204,6 @@ double max_f64(double x, double y) {
   // WEBASSEMBLY: call double @llvm.maximum.f64(double %x, double %y)
   // WEBASSEMBLY-NEXT: ret
 }
-
 
 int extract_lane_s_i8x16(i8x16 v) {
   return __builtin_wasm_extract_lane_s_i8x16(v, 13);
@@ -538,4 +585,10 @@ i32x4 widen_high_u_i32x4_i16x8(i16x8 v) {
   return __builtin_wasm_widen_high_u_i32x4_i16x8(v);
   // WEBASSEMBLY: call <4 x i32> @llvm.wasm.widen.high.unsigned.v4i32.v8i16(<8 x i16> %v)
   // WEBASSEMBLY: ret
+}
+
+i8x16 swizzle_v8x16(i8x16 x, i8x16 y) {
+  return __builtin_wasm_swizzle_v8x16(x, y);
+  // WEBASSEMBLY: call <16 x i8> @llvm.wasm.swizzle(<16 x i8> %x, <16 x i8> %y)
+  // WEBASSEMBLY-NEXT: ret
 }

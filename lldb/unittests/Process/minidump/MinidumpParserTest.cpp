@@ -252,10 +252,10 @@ Streams:
 
 TEST_F(MinidumpParserTest, GetExceptionStream) {
   SetUpData("linux-x86_64.dmp");
-  const MinidumpExceptionStream *exception_stream =
+  const llvm::minidump::ExceptionStream *exception_stream =
       parser->GetExceptionStream();
   ASSERT_NE(nullptr, exception_stream);
-  ASSERT_EQ(11UL, exception_stream->exception_record.exception_code);
+  ASSERT_EQ(11UL, exception_stream->ExceptionRecord.ExceptionCode);
 }
 
 void check_mem_range_exists(MinidumpParser &parser, const uint64_t range_start,
@@ -338,6 +338,7 @@ void check_region(MinidumpParser &parser, lldb::addr_t addr, lldb::addr_t start,
                   MemoryRegionInfo::OptionalBool exec,
                   MemoryRegionInfo::OptionalBool mapped,
                   ConstString name = ConstString()) {
+  SCOPED_TRACE(addr);
   auto range_info = parser.GetMemoryRegionInfo(addr);
   EXPECT_EQ(start, range_info.GetRange().GetRangeBase());
   EXPECT_EQ(end, range_info.GetRange().GetRangeEnd());
@@ -364,7 +365,53 @@ constexpr auto no = MemoryRegionInfo::eNo;
 constexpr auto unknown = MemoryRegionInfo::eDontKnow;
 
 TEST_F(MinidumpParserTest, GetMemoryRegionInfo) {
-  SetUpData("fizzbuzz_wow64.dmp");
+  ASSERT_THAT_ERROR(SetUpFromYaml(R"(
+--- !minidump
+Streams:
+  - Type:            MemoryInfoList
+    Memory Ranges:
+      - Base Address:    0x0000000000000000
+        Allocation Protect: [  ]
+        Region Size:     0x0000000000010000
+        State:           [ MEM_FREE ]
+        Protect:         [ PAGE_NO_ACCESS ]
+        Type:            [  ]
+      - Base Address:    0x0000000000010000
+        Allocation Protect: [ PAGE_READ_WRITE ]
+        Region Size:     0x0000000000010000
+        State:           [ MEM_COMMIT ]
+        Type:            [ MEM_MAPPED ]
+      - Base Address:    0x0000000000020000
+        Allocation Protect: [ PAGE_READ_WRITE ]
+        Region Size:     0x0000000000010000
+        State:           [ MEM_COMMIT ]
+        Type:            [ MEM_MAPPED ]
+      - Base Address:    0x0000000000030000
+        Allocation Protect: [ PAGE_READ_WRITE ]
+        Region Size:     0x0000000000001000
+        State:           [ MEM_COMMIT ]
+        Type:            [ MEM_MAPPED ]
+      - Base Address:    0x0000000000040000
+        Allocation Protect: [ PAGE_EXECUTE_WRITE_COPY ]
+        Region Size:     0x0000000000001000
+        State:           [ MEM_COMMIT ]
+        Protect:         [ PAGE_READ_ONLY ]
+        Type:            [ MEM_IMAGE ]
+      - Base Address:    0x000000007FFE0000
+        Allocation Protect: [ PAGE_READ_ONLY ]
+        Region Size:     0x0000000000001000
+        State:           [ MEM_COMMIT ]
+        Type:            [ MEM_PRIVATE ]
+      - Base Address:    0x000000007FFE1000
+        Allocation Base: 0x000000007FFE0000
+        Allocation Protect: [ PAGE_READ_ONLY ]
+        Region Size:     0x000000000000F000
+        State:           [ MEM_RESERVE ]
+        Protect:         [ PAGE_NO_ACCESS ]
+        Type:            [ MEM_PRIVATE ]
+...
+)"),
+                    llvm::Succeeded());
 
   check_region(*parser, 0x00000000, 0x00010000, no, no, no, no);
   check_region(*parser, 0x00010000, 0x00020000, yes, yes, no, yes);

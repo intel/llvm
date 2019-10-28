@@ -5085,7 +5085,7 @@ SwitchLookupTable::SwitchLookupTable(
   Array->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
   // Set the alignment to that of an array items. We will be only loading one
   // value out of it.
-  Array->setAlignment(DL.getPrefTypeAlignment(ValueType));
+  Array->setAlignment(Align(DL.getPrefTypeAlignment(ValueType)));
   Kind = ArrayKind;
 }
 
@@ -5314,7 +5314,7 @@ static bool SwitchToLookupTable(SwitchInst *SI, IRBuilder<> &Builder,
 
   // Figure out the corresponding result for each case value and phi node in the
   // common destination, as well as the min and max case values.
-  assert(!empty(SI->cases()));
+  assert(!SI->cases().empty());
   SwitchInst::CaseIt CI = SI->case_begin();
   ConstantInt *MinCaseVal = CI->getCaseValue();
   ConstantInt *MaxCaseVal = CI->getCaseValue();

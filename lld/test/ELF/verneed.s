@@ -117,33 +117,27 @@
 # CHECK-NEXT: 0x000000006FFFFFFE VERNEED              [[VERNEED]]
 # CHECK-NEXT: 0x000000006FFFFFFF VERNEEDNUM           2
 
-# CHECK:      Version symbols {
-# CHECK-NEXT:    Section Name: .gnu.version
-# CHECK-NEXT:    Address: [[VERSYM]]
-# CHECK-NEXT:    Offset: [[VERSYM_OFFSET]]
-# CHECK-NEXT:    Link: 1
-# CHECK-NEXT:    Symbols [
-# CHECK-NEXT:      Symbol {
-# CHECK-NEXT:        Version: 0
-# CHECK-NEXT:        Name:
-# CHECK-NEXT:      }
-# CHECK-NEXT:      Symbol {
-# CHECK-NEXT:        Version: 2
-# CHECK-NEXT:        Name: f1@v3
-# CHECK-NEXT:      }
-# CHECK-NEXT:      Symbol {
-# CHECK-NEXT:        Version: 3
-# CHECK-NEXT:        Name: f2@v2
-# CHECK-NEXT:      }
-# CHECK-NEXT:      Symbol {
-# CHECK-NEXT:        Version: 4
-# CHECK-NEXT:        Name: g1@v1
-# CHECK-NEXT:      }
-# CHECK-NEXT:    ]
-# CHECK-NEXT:  }
-# CHECK-NEXT:  SHT_GNU_verdef {
-# CHECK-NEXT:  }
-# CHECK-NEXT:  SHT_GNU_verneed {
+# CHECK:      VersionSymbols [
+# CHECK-NEXT:    Symbol {
+# CHECK-NEXT:      Version: 0
+# CHECK-NEXT:      Name:
+# CHECK-NEXT:    }
+# CHECK-NEXT:    Symbol {
+# CHECK-NEXT:      Version: 2
+# CHECK-NEXT:      Name: f1@v3
+# CHECK-NEXT:    }
+# CHECK-NEXT:    Symbol {
+# CHECK-NEXT:      Version: 3
+# CHECK-NEXT:      Name: f2@v2
+# CHECK-NEXT:    }
+# CHECK-NEXT:    Symbol {
+# CHECK-NEXT:      Version: 4
+# CHECK-NEXT:      Name: g1@v1
+# CHECK-NEXT:    }
+# CHECK-NEXT:  ]
+# CHECK-NEXT:  VersionDefinitions [
+# CHECK-NEXT:  ]
+# CHECK-NEXT:  VersionRequirements [
 # CHECK-NEXT:    Dependency {
 # CHECK-NEXT:      Version: 1
 # CHECK-NEXT:      Count: 2
@@ -176,7 +170,7 @@
 # CHECK-NEXT:        }
 # CHECK-NEXT:      ]
 # CHECK-NEXT:    }
-# CHECK-NEXT:  }
+# CHECK-NEXT:  ]
 
 .globl _start
 _start:

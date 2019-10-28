@@ -17,6 +17,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/OpenMPClause.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtCXX.h"
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/SourceLocation.h"
 
@@ -1087,10 +1088,22 @@ public:
     // This relies on the loop form is already checked by Sema.
     const Stmt *Body =
         getInnermostCapturedStmt()->getCapturedStmt()->IgnoreContainers();
-    Body = cast<ForStmt>(Body)->getBody();
+    if (auto *For = dyn_cast<ForStmt>(Body)) {
+      Body = For->getBody();
+    } else {
+      assert(isa<CXXForRangeStmt>(Body) &&
+             "Expected canonical for loop or range-based for loop.");
+      Body = cast<CXXForRangeStmt>(Body)->getBody();
+    }
     for (unsigned Cnt = 1; Cnt < CollapsedNum; ++Cnt) {
       Body = Body->IgnoreContainers();
-      Body = cast<ForStmt>(Body)->getBody();
+      if (auto *For = dyn_cast<ForStmt>(Body)) {
+        Body = For->getBody();
+      } else {
+        assert(isa<CXXForRangeStmt>(Body) &&
+               "Expected canonical for loop or range-based for loop.");
+        Body = cast<CXXForRangeStmt>(Body)->getBody();
+      }
     }
     return Body;
   }
@@ -1151,6 +1164,9 @@ public:
            T->getStmtClass() == OMPParallelForSimdDirectiveClass ||
            T->getStmtClass() == OMPTaskLoopDirectiveClass ||
            T->getStmtClass() == OMPTaskLoopSimdDirectiveClass ||
+           T->getStmtClass() == OMPMasterTaskLoopDirectiveClass ||
+           T->getStmtClass() == OMPMasterTaskLoopSimdDirectiveClass ||
+           T->getStmtClass() == OMPParallelMasterTaskLoopDirectiveClass ||
            T->getStmtClass() == OMPDistributeDirectiveClass ||
            T->getStmtClass() == OMPTargetParallelForDirectiveClass ||
            T->getStmtClass() == OMPDistributeParallelForDirectiveClass ||
@@ -3103,6 +3119,211 @@ public:
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == OMPTaskLoopSimdDirectiveClass;
+  }
+};
+
+/// This represents '#pragma omp master taskloop' directive.
+///
+/// \code
+/// #pragma omp master taskloop private(a,b) grainsize(val) num_tasks(num)
+/// \endcode
+/// In this example directive '#pragma omp master taskloop' has clauses
+/// 'private' with the variables 'a' and 'b', 'grainsize' with expression 'val'
+/// and 'num_tasks' with expression 'num'.
+///
+class OMPMasterTaskLoopDirective : public OMPLoopDirective {
+  friend class ASTStmtReader;
+  /// Build directive with the given start and end location.
+  ///
+  /// \param StartLoc Starting location of the directive kind.
+  /// \param EndLoc Ending location of the directive.
+  /// \param CollapsedNum Number of collapsed nested loops.
+  /// \param NumClauses Number of clauses.
+  ///
+  OMPMasterTaskLoopDirective(SourceLocation StartLoc, SourceLocation EndLoc,
+                             unsigned CollapsedNum, unsigned NumClauses)
+      : OMPLoopDirective(this, OMPMasterTaskLoopDirectiveClass,
+                         OMPD_master_taskloop, StartLoc, EndLoc, CollapsedNum,
+                         NumClauses) {}
+
+  /// Build an empty directive.
+  ///
+  /// \param CollapsedNum Number of collapsed nested loops.
+  /// \param NumClauses Number of clauses.
+  ///
+  explicit OMPMasterTaskLoopDirective(unsigned CollapsedNum,
+                                      unsigned NumClauses)
+      : OMPLoopDirective(this, OMPMasterTaskLoopDirectiveClass,
+                         OMPD_master_taskloop, SourceLocation(),
+                         SourceLocation(), CollapsedNum, NumClauses) {}
+
+public:
+  /// Creates directive with a list of \a Clauses.
+  ///
+  /// \param C AST context.
+  /// \param StartLoc Starting location of the directive kind.
+  /// \param EndLoc Ending Location of the directive.
+  /// \param CollapsedNum Number of collapsed loops.
+  /// \param Clauses List of clauses.
+  /// \param AssociatedStmt Statement, associated with the directive.
+  /// \param Exprs Helper expressions for CodeGen.
+  ///
+  static OMPMasterTaskLoopDirective *
+  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation EndLoc,
+         unsigned CollapsedNum, ArrayRef<OMPClause *> Clauses,
+         Stmt *AssociatedStmt, const HelperExprs &Exprs);
+
+  /// Creates an empty directive with the place
+  /// for \a NumClauses clauses.
+  ///
+  /// \param C AST context.
+  /// \param CollapsedNum Number of collapsed nested loops.
+  /// \param NumClauses Number of clauses.
+  ///
+  static OMPMasterTaskLoopDirective *CreateEmpty(const ASTContext &C,
+                                                 unsigned NumClauses,
+                                                 unsigned CollapsedNum,
+                                                 EmptyShell);
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == OMPMasterTaskLoopDirectiveClass;
+  }
+};
+
+/// This represents '#pragma omp master taskloop simd' directive.
+///
+/// \code
+/// #pragma omp master taskloop simd private(a,b) grainsize(val) num_tasks(num)
+/// \endcode
+/// In this example directive '#pragma omp master taskloop simd' has clauses
+/// 'private' with the variables 'a' and 'b', 'grainsize' with expression 'val'
+/// and 'num_tasks' with expression 'num'.
+///
+class OMPMasterTaskLoopSimdDirective : public OMPLoopDirective {
+  friend class ASTStmtReader;
+  /// Build directive with the given start and end location.
+  ///
+  /// \param StartLoc Starting location of the directive kind.
+  /// \param EndLoc Ending location of the directive.
+  /// \param CollapsedNum Number of collapsed nested loops.
+  /// \param NumClauses Number of clauses.
+  ///
+  OMPMasterTaskLoopSimdDirective(SourceLocation StartLoc, SourceLocation EndLoc,
+                                 unsigned CollapsedNum, unsigned NumClauses)
+      : OMPLoopDirective(this, OMPMasterTaskLoopSimdDirectiveClass,
+                         OMPD_master_taskloop_simd, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
+
+  /// Build an empty directive.
+  ///
+  /// \param CollapsedNum Number of collapsed nested loops.
+  /// \param NumClauses Number of clauses.
+  ///
+  explicit OMPMasterTaskLoopSimdDirective(unsigned CollapsedNum,
+                                          unsigned NumClauses)
+      : OMPLoopDirective(this, OMPMasterTaskLoopSimdDirectiveClass,
+                         OMPD_master_taskloop_simd, SourceLocation(),
+                         SourceLocation(), CollapsedNum, NumClauses) {}
+
+public:
+  /// Creates directive with a list of \p Clauses.
+  ///
+  /// \param C AST context.
+  /// \param StartLoc Starting location of the directive kind.
+  /// \param EndLoc Ending Location of the directive.
+  /// \param CollapsedNum Number of collapsed loops.
+  /// \param Clauses List of clauses.
+  /// \param AssociatedStmt Statement, associated with the directive.
+  /// \param Exprs Helper expressions for CodeGen.
+  ///
+  static OMPMasterTaskLoopSimdDirective *
+  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation EndLoc,
+         unsigned CollapsedNum, ArrayRef<OMPClause *> Clauses,
+         Stmt *AssociatedStmt, const HelperExprs &Exprs);
+
+  /// Creates an empty directive with the place for \p NumClauses clauses.
+  ///
+  /// \param C AST context.
+  /// \param CollapsedNum Number of collapsed nested loops.
+  /// \param NumClauses Number of clauses.
+  ///
+  static OMPMasterTaskLoopSimdDirective *CreateEmpty(const ASTContext &C,
+                                                     unsigned NumClauses,
+                                                     unsigned CollapsedNum,
+                                                     EmptyShell);
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == OMPMasterTaskLoopSimdDirectiveClass;
+  }
+};
+
+/// This represents '#pragma omp parallel master taskloop' directive.
+///
+/// \code
+/// #pragma omp parallel master taskloop private(a,b) grainsize(val)
+/// num_tasks(num)
+/// \endcode
+/// In this example directive '#pragma omp parallel master taskloop' has clauses
+/// 'private' with the variables 'a' and 'b', 'grainsize' with expression 'val'
+/// and 'num_tasks' with expression 'num'.
+///
+class OMPParallelMasterTaskLoopDirective : public OMPLoopDirective {
+  friend class ASTStmtReader;
+  /// Build directive with the given start and end location.
+  ///
+  /// \param StartLoc Starting location of the directive kind.
+  /// \param EndLoc Ending location of the directive.
+  /// \param CollapsedNum Number of collapsed nested loops.
+  /// \param NumClauses Number of clauses.
+  ///
+  OMPParallelMasterTaskLoopDirective(SourceLocation StartLoc,
+                                     SourceLocation EndLoc,
+                                     unsigned CollapsedNum, unsigned NumClauses)
+      : OMPLoopDirective(this, OMPParallelMasterTaskLoopDirectiveClass,
+                         OMPD_parallel_master_taskloop, StartLoc, EndLoc,
+                         CollapsedNum, NumClauses) {}
+
+  /// Build an empty directive.
+  ///
+  /// \param CollapsedNum Number of collapsed nested loops.
+  /// \param NumClauses Number of clauses.
+  ///
+  explicit OMPParallelMasterTaskLoopDirective(unsigned CollapsedNum,
+                                              unsigned NumClauses)
+      : OMPLoopDirective(this, OMPParallelMasterTaskLoopDirectiveClass,
+                         OMPD_parallel_master_taskloop, SourceLocation(),
+                         SourceLocation(), CollapsedNum, NumClauses) {}
+
+public:
+  /// Creates directive with a list of \a Clauses.
+  ///
+  /// \param C AST context.
+  /// \param StartLoc Starting location of the directive kind.
+  /// \param EndLoc Ending Location of the directive.
+  /// \param CollapsedNum Number of collapsed loops.
+  /// \param Clauses List of clauses.
+  /// \param AssociatedStmt Statement, associated with the directive.
+  /// \param Exprs Helper expressions for CodeGen.
+  ///
+  static OMPParallelMasterTaskLoopDirective *
+  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation EndLoc,
+         unsigned CollapsedNum, ArrayRef<OMPClause *> Clauses,
+         Stmt *AssociatedStmt, const HelperExprs &Exprs);
+
+  /// Creates an empty directive with the place
+  /// for \a NumClauses clauses.
+  ///
+  /// \param C AST context.
+  /// \param CollapsedNum Number of collapsed nested loops.
+  /// \param NumClauses Number of clauses.
+  ///
+  static OMPParallelMasterTaskLoopDirective *CreateEmpty(const ASTContext &C,
+                                                         unsigned NumClauses,
+                                                         unsigned CollapsedNum,
+                                                         EmptyShell);
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == OMPParallelMasterTaskLoopDirectiveClass;
   }
 };
 

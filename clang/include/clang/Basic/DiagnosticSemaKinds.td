@@ -2542,8 +2542,6 @@ def note_private_extern : Note<
   "use __attribute__((visibility(\"hidden\"))) attribute instead">;
 
 // C++ Concepts
-def err_concept_initialized_with_non_bool_type : Error<
-  "constraint expression must be of type 'bool' but is of type %0">;
 def err_concept_decls_may_only_appear_in_global_namespace_scope : Error<
   "concept declarations may only appear in global or namespace scope">;
 def err_concept_no_parameters : Error<
@@ -2555,9 +2553,14 @@ def err_concept_no_associated_constraints : Error<
   "concept cannot have associated constraints">;
 def err_concept_not_implemented : Error<
   "sorry, unimplemented concepts feature %0 used">;
+def err_non_constant_constraint_expression : Error<
+  "substitution into constraint expression resulted in a non-constant "
+  "expression">;
+def err_non_bool_atomic_constraint : Error<
+  "atomic constraint must be of type 'bool' (found %0)">;
 
-def err_template_different_associated_constraints : Error<
-  "associated constraints differ in template redeclaration">;
+def err_template_different_requires_clause : Error<
+  "requires clause differs in template redeclaration">;
 
 // C++11 char16_t/char32_t
 def warn_cxx98_compat_unicode_type : Warning<
@@ -2879,6 +2882,10 @@ def err_alignment_dependent_typedef_name : Error<
 
 def err_attribute_aligned_too_great : Error<
   "requested alignment must be %0 bytes or smaller">;
+def warn_assume_aligned_too_great
+    : Warning<"requested alignment must be %0 bytes or smaller; maximum "
+              "alignment assumed">,
+      InGroup<DiagGroup<"builtin-assume-aligned-alignment">>;
 def warn_redeclaration_without_attribute_prev_attribute_ignored : Warning<
   "%q0 redeclared without %1 attribute: previous %1 ignored">,
   InGroup<MicrosoftInconsistentDllImport>;
@@ -3428,7 +3435,7 @@ def warn_address_of_reference_bool_conversion : Warning<
   InGroup<UndefinedBoolConversion>;
 
 def warn_xor_used_as_pow : Warning<
-  "result of '%0' is %1; did you mean an exponentiation?">,
+  "result of '%0' is %1; did you mean exponentiation?">,
   InGroup<XorUsedAsPow>;
 def warn_xor_used_as_pow_base_extra : Warning<
   "result of '%0' is %1; did you mean '%2' (%3)?">,
@@ -3788,7 +3795,8 @@ def note_ovl_too_many_candidates : Note<
     "pass -fshow-overloads=all to show them">;
 
 def select_ovl_candidate_kind : TextSubstitution<
-  "%select{function|function|constructor|"
+  "%select{function|function|function (with reversed parameter order)|"
+    "constructor|"
     "constructor (the implicit default constructor)|"
     "constructor (the implicit copy constructor)|"
     "constructor (the implicit move constructor)|"
@@ -4009,6 +4017,13 @@ def err_ovl_ambiguous_oper_unary : Error<
   "use of overloaded operator '%0' is ambiguous (operand type %1)">;
 def err_ovl_ambiguous_oper_binary : Error<
   "use of overloaded operator '%0' is ambiguous (with operand types %1 and %2)">;
+def ext_ovl_ambiguous_oper_binary_reversed : ExtWarn<
+  "ISO C++20 considers use of overloaded operator '%0' (with operand types %1 "
+  "and %2) to be ambiguous despite there being a unique best viable function">,
+  InGroup<DiagGroup<"ambiguous-reversed-operator">>, SFINAEFailure;
+def note_ovl_ambiguous_oper_binary_reversed_candidate : Note<
+  "ambiguity is between a regular call to this operator and a call with the "
+  "argument order reversed">;
 def err_ovl_no_viable_oper : Error<"no viable overloaded '%0'">;
 def note_assign_lhs_incomplete : Note<"type %0 is incomplete">;
 def err_ovl_deleted_oper : Error<
@@ -4016,6 +4031,9 @@ def err_ovl_deleted_oper : Error<
 def err_ovl_deleted_special_oper : Error<
   "object of type %0 cannot be %select{constructed|copied|moved|assigned|"
   "assigned|destroyed}1 because its %sub{select_special_member_kind}1 is implicitly deleted">;
+def err_ovl_rewrite_equalequal_not_bool : Error<
+  "return type %0 of selected 'operator==' function for rewritten "
+  "'%1' comparison is not 'bool'">;
 def err_ovl_no_viable_subscript :
     Error<"no viable overloaded operator[] for type %0">;
 def err_ovl_no_oper :
@@ -4518,6 +4536,10 @@ def note_prior_template_arg_substitution : Note<
   " template parameter%1 %2">;
 def note_template_default_arg_checking : Note<
   "while checking a default template argument used here">;
+def note_concept_specialization_here : Note<
+  "while checking the satisfaction of concept '%0' requested here">;
+def note_constraint_substitution_here : Note<
+  "while substituting template arguments into constraint expression here">;
 def note_instantiation_contexts_suppressed : Note<
   "(skipping %0 context%s0 in backtrace; use -ftemplate-backtrace-limit=0 to "
   "see all)">;
@@ -5749,6 +5771,9 @@ def note_precedence_silence : Note<
 def warn_precedence_conditional : Warning<
   "operator '?:' has lower precedence than '%0'; '%0' will be evaluated first">,
   InGroup<Parentheses>;
+def warn_precedence_bitwise_conditional : Warning<
+  "operator '?:' has lower precedence than '%0'; '%0' will be evaluated first">,
+  InGroup<BitwiseConditionalParentheses>;
 def note_precedence_conditional_first : Note<
   "place parentheses around the '?:' expression to evaluate it first">;
 
@@ -6664,7 +6689,8 @@ def note_member_declared_here : Note<
 def note_member_first_declared_here : Note<
   "member %0 first declared here">;
 def warn_bitwise_negation_bool : Warning<
-  "bitwise negation of a boolean expression; did you mean logical negation?">,
+  "bitwise negation of a boolean expression%select{;| always evaluates to 'true';}0 "
+  "did you mean logical negation?">,
   InGroup<DiagGroup<"bool-operation">>;
 def err_decrement_bool : Error<"cannot decrement expression of type bool">;
 def warn_increment_bool : Warning<
@@ -6675,6 +6701,26 @@ def ext_increment_bool : ExtWarn<
   DefaultError, InGroup<IncrementBool>;
 def err_increment_decrement_enum : Error<
   "cannot %select{decrement|increment}0 expression of enum type %1">;
+
+def warn_deprecated_increment_decrement_volatile : Warning<
+  "%select{decrement|increment}0 of object of volatile-qualified type %1 "
+  "is deprecated">, InGroup<DeprecatedVolatile>;
+def warn_deprecated_simple_assign_volatile : Warning<
+  "use of result of assignment to object of volatile-qualified type %0 "
+  "is deprecated">, InGroup<DeprecatedVolatile>;
+def warn_deprecated_compound_assign_volatile : Warning<
+  "compound assignment to object of volatile-qualified type %0 is deprecated">,
+  InGroup<DeprecatedVolatile>;
+def warn_deprecated_volatile_return : Warning<
+  "volatile-qualified return type %0 is deprecated">,
+  InGroup<DeprecatedVolatile>;
+def warn_deprecated_volatile_param : Warning<
+  "volatile-qualified parameter type %0 is deprecated">,
+  InGroup<DeprecatedVolatile>;
+def warn_deprecated_volatile_structured_binding : Warning<
+  "volatile qualifier in structured binding declaration is deprecated">,
+  InGroup<DeprecatedVolatile>;
+
 def err_catch_incomplete_ptr : Error<
   "cannot catch pointer to incomplete type %0">;
 def err_catch_incomplete_ref : Error<
@@ -8079,6 +8125,31 @@ def note_vbase_moved_here : Note<
   "%select{%1 is a virtual base class of base class %2 declared here|"
   "virtual base class %1 declared here}0">;
 
+// C++20 defaulted comparisons
+// This corresponds to values of Sema::DefaultedComparisonKind.
+def select_defaulted_comparison_kind : TextSubstitution<
+  "%select{<ERROR>|equality|three-way|equality|relational}0 comparison "
+  "operator">;
+def ext_defaulted_comparison : ExtWarn<
+  "defaulted comparison operators are a C++20 extension">, InGroup<CXX2a>;
+def warn_cxx17_compat_defaulted_comparison : Warning<
+  "defaulted comparison operators are incompatible with C++ standards "
+  "before C++20">, InGroup<CXXPre2aCompat>, DefaultIgnore;
+def err_defaulted_comparison_template : Error<
+  "comparison operator template cannot be defaulted">;
+def err_defaulted_comparison_out_of_class : Error<
+  "%sub{select_defaulted_comparison_kind}0 can only be defaulted in a class "
+  "definition">;
+def err_defaulted_comparison_param : Error<
+  "invalid parameter type for defaulted %sub{select_defaulted_comparison_kind}0"
+  "%diff{; found $, expected $|}1,2">;
+def err_defaulted_comparison_non_const : Error<
+  "defaulted member %sub{select_defaulted_comparison_kind}0 must be "
+  "const-qualified">;
+def err_defaulted_comparison_return_type_not_bool : Error<
+  "return type for defaulted %sub{select_defaulted_comparison_kind}0 "
+  "must be 'bool', not %1">;
+
 def ext_implicit_exception_spec_mismatch : ExtWarn<
   "function previously declared with an %select{explicit|implicit}0 exception "
   "specification redeclared with an %select{implicit|explicit}0 exception "
@@ -8315,7 +8386,10 @@ def warn_comparison_always : Warning<
   InGroup<TautologicalCompare>;
 def warn_comparison_bitwise_always : Warning<
   "bitwise comparison always evaluates to %select{false|true}0">,
-  InGroup<TautologicalCompare>;
+  InGroup<TautologicalBitwiseCompare>, DefaultIgnore;
+def warn_comparison_bitwise_or : Warning<
+  "bitwise or with non-zero value always evaluates to true">,
+  InGroup<TautologicalBitwiseCompare>, DefaultIgnore;
 def warn_tautological_overlap_comparison : Warning<
   "overlapping comparisons always evaluate to %select{false|true}0">,
   InGroup<TautologicalOverlapCompare>, DefaultIgnore;
@@ -9955,6 +10029,8 @@ def err_std_compare_type_not_supported : Error<
    "member '%2' is missing|"
    "the type is not trivially copyable|"
    "the type does not have the expected form}1">;
+def note_rewriting_operator_as_spaceship : Note<
+  "while rewriting comparison as call to 'operator<=>' declared here">;
 
 // Memory Tagging Extensions (MTE) diagnostics
 def err_memtag_arg_null_or_pointer : Error<
@@ -10013,6 +10089,11 @@ def err_sycl_attibute_cannot_be_applied_here
             "|class member function"
             "|function with a raw pointer return type"
             "|function with a raw pointer parameter type}1">;
+
+def err_preserve_field_info_not_field : Error<
+  "__builtin_preserve_field_info argument %0 not a field access">;
+def err_preserve_field_info_not_const: Error<
+  "__builtin_preserve_field_info argument %0 not a constant">;
 
 def err_bit_cast_non_trivially_copyable : Error<
   "__builtin_bit_cast %select{source|destination}0 type must be trivially copyable">;

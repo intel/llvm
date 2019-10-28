@@ -418,11 +418,10 @@ PlatformDarwin::GetSoftwareBreakpointTrapOpcode(Target &target,
 
   llvm::Triple::ArchType machine = target.GetArchitecture().GetMachine();
   switch (machine) {
+  case llvm::Triple::aarch64_32:
   case llvm::Triple::aarch64: {
-    // TODO: fix this with actual darwin breakpoint opcode for arm64.
-    // right now debugging uses the Z packets with GDB remote so this is not
-    // needed, but the size needs to be correct...
-    static const uint8_t g_arm64_breakpoint_opcode[] = {0xFE, 0xDE, 0xFF, 0xE7};
+    // 'brk #0' or 0xd4200000 in BE byte order
+    static const uint8_t g_arm64_breakpoint_opcode[] = {0x00, 0x00, 0x20, 0xD4};
     trap_opcode = g_arm64_breakpoint_opcode;
     trap_opcode_size = sizeof(g_arm64_breakpoint_opcode);
   } break;
@@ -1506,7 +1505,8 @@ void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
     Target *target, std::vector<std::string> &options, SDKType sdk_type) {
   const std::vector<std::string> apple_arguments = {
       "-x",       "objective-c++", "-fobjc-arc",
-      "-fblocks", "-D_ISO646_H",   "-D__ISO646_H"};
+      "-fblocks", "-D_ISO646_H",   "-D__ISO646_H",
+      "-fgnuc-version=4.2.1"};
 
   options.insert(options.end(), apple_arguments.begin(), apple_arguments.end());
 
