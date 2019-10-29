@@ -6907,14 +6907,18 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   InputInfo Input = Inputs.front();
   const char *TypeArg = types::getTypeTempSuffix(Input.getType());
   const char *InputFileName = Input.getFilename();
+  bool IsMSVCEnv =
+      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
 
-  // For objects, we have initial support for fat archives (archives which
+  // For Linux, we have initial support for fat archives (archives which
   // contain bundled objects). We will perform partial linking against the
-  // object and specific offload target archives which will be sent to the
-  // unbundler to produce a list of target objects.
-  if (!C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-      Input.getType() == types::TY_Object &&
-      TCArgs.hasArg(options::OPT_foffload_static_lib_EQ)) {
+  // specific offload target archives which will be sent to the unbundler to
+  // produce a list of target objects.
+  // FIXME: This should be a separate job in the toolchain.
+  if (!IsMSVCEnv && (Input.getType() == types::TY_Archive ||
+       Input.getType() == types::TY_WholeArchive ||
+       Input.getType() == types::TY_Object) &&
+      TCArgs.hasArg(options::OPT_offload_lib_Group)) {
     TypeArg = "oo";
     ArgStringList LinkArgs;
     LinkArgs.push_back("-r");
@@ -6924,14 +6928,27 @@ void OffloadBundler::ConstructJobMultipleOutputs(
           llvm::sys::path::stem(Input.getFilename()).str() + "-prelink", "o");
     InputFileName = C.addTempFile(C.getArgs().MakeArgString(TmpName));
     LinkArgs.push_back(InputFileName);
-    // Input files consist of fat libraries and the object(s) to be unbundled.
-    for (const auto &I : Inputs)
-      LinkArgs.push_back(I.getFilename());
+    const ToolChain *HTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    // Add crt objects
+    LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crt1.o")));
+    LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crti.o")));
     // Add -L<dir> search directories.
     TCArgs.AddAllArgs(LinkArgs, options::OPT_L);
-    for (const auto &A :
-            TCArgs.getAllArgValues(options::OPT_foffload_static_lib_EQ))
-      LinkArgs.push_back(TCArgs.MakeArgString(A));
+
+    // TODO - We can potentially go through the args and add the known linker
+    // pass through args of --whole-archive and --no-whole-archive.  This
+    // would allow for support for usages of -Wl,--whole-archive
+    // -foffload-static-lib=<lib> -Wl,--no-whole-archive
+    // Input files consist of fat libraries and the object(s) to be unbundled.
+    for (const auto &I : Inputs) {
+      if (I.getType() == types::TY_WholeArchive)
+        LinkArgs.push_back("--whole-archive");
+      LinkArgs.push_back(I.getFilename());
+      if (I.getType() == types::TY_WholeArchive)
+        LinkArgs.push_back("--no-whole-archive");
+    }
+    // Add crt objects
+    LinkArgs.push_back(TCArgs.MakeArgString(HTC->GetFilePath("crtn.o")));
     const char *Exec = TCArgs.MakeArgString(getToolChain().GetLinkerPath());
     C.addCommand(std::make_unique<Command>(JA, *this, Exec, LinkArgs, Inputs));
   } else if (Input.getType() == types::TY_FPGA_AOCX ||
@@ -6944,8 +6961,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       TypeArg = "aoo";
   }
   if (Input.getType() == types::TY_FPGA_AOCO ||
-      (C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment() &&
-       Input.getType() == types::TY_Archive))
+      (IsMSVCEnv && (Input.getType() == types::TY_Archive ||
+        Input.getType() == types::TY_WholeArchive)))
     TypeArg = "aoo";
 
   // Get the type.
@@ -6980,9 +6997,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       }
       continue;
     } else if (Input.getType() == types::TY_Archive ||
+               Input.getType() == types::TY_WholeArchive ||
                (Input.getType() == types::TY_Object &&
-                TCArgs.hasArg(options::OPT_fintelfpga) &&
-                TCArgs.hasArg(options::OPT_fsycl_link_EQ))) {
+               ((!IsMSVCEnv && TCArgs.hasArg(options::OPT_offload_lib_Group)) ||
+                (TCArgs.hasArg(options::OPT_fintelfpga) &&
+                 TCArgs.hasArg(options::OPT_fsycl_link_EQ))))) {
       // Do not extract host part if we are unbundling archive on Windows
       // because it is not needed. Static offload libraries are added to the
       // host link command just as normal libraries.  Do not extract the host

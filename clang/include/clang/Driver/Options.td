@@ -197,6 +197,8 @@ def u_Group : OptionGroup<"<u group>">, Group<Link_Group>, DocFlatten;
 def reserved_lib_Group : OptionGroup<"<reserved libs group>">,
                          Flags<[Unsupported]>;
 
+def offload_lib_Group : OptionGroup<"<offload libs group>">;
+
 // Temporary groups for clang options which we know we don't support,
 // but don't want to verbosely warn the user about.
 def clang_ignored_f_Group : OptionGroup<"<clang ignored f group>">,
@@ -1666,7 +1668,8 @@ def fobjc_nonfragile_abi : Flag<["-"], "fobjc-nonfragile-abi">, Group<f_Group>;
 def fno_objc_nonfragile_abi : Flag<["-"], "fno-objc-nonfragile-abi">, Group<f_Group>;
 
 def fobjc_sender_dependent_dispatch : Flag<["-"], "fobjc-sender-dependent-dispatch">, Group<f_Group>;
-def foffload_static_lib_EQ : CommaJoined<["-"], "foffload-static-lib=">, Flags<[DriverOption, CoreOption]>;
+def foffload_static_lib_EQ : CommaJoined<["-"], "foffload-static-lib=">, Flags<[DriverOption, CoreOption]>, Group<offload_lib_Group>;
+def foffload_whole_static_lib_EQ : CommaJoined<["-"], "foffload-whole-static-lib=">, Flags<[DriverOption, CoreOption]>, Group<offload_lib_Group>;
 def fomit_frame_pointer : Flag<["-"], "fomit-frame-pointer">, Group<f_Group>;
 def fopenmp : Flag<["-"], "fopenmp">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused]>,
   HelpText<"Parse OpenMP pragmas and generate parallel code.">;

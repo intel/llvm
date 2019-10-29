@@ -365,6 +365,9 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-defaultlib:") + A->getValue()));
+  for (const auto *A : Args.filtered(options::OPT_foffload_whole_static_lib_EQ))
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("-wholearchive:") + A->getValue()));
 
   if (!llvm::sys::Process::GetEnv("LIB")) {
     // If the VC environment hasn't been configured (perhaps because the user
