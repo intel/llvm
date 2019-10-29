@@ -3536,15 +3536,6 @@ class OffloadingActionBuilder final {
       Arg *SYCLAddTargets = Args.getLastArg(options::OPT_fsycl_add_targets_EQ);
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                               options::OPT_fno_sycl, false);
-
-      // Add additional check for -fintelfpga, which if set will add the fpga
-      // specific target triple.  There is a check done earlier for the setting
-      // of both options, so we can freely just check argument contents.
-      if (!SYCLTargets && C.getInputArgs().hasArg(options::OPT_fintelfpga)) {
-        SYCLTargets = Args.MakeJoinedArg(nullptr,
-            C.getDriver().getOpts().getOption(options::OPT_fsycl_targets_EQ),
-            Args.MakeArgString("spir64_fpga-unknown-linux-sycldevice"));
-      }
       if (SYCLTargets || SYCLAddTargets) {
         if (SYCLTargets) {
           llvm::StringMap<StringRef> FoundNormalizedTriples;
@@ -3581,7 +3572,11 @@ class OffloadingActionBuilder final {
       } else if (HasValidSYCLRuntime) {
         // Only -fsycl is provided without -fsycl-*targets.
         llvm::Triple TT;
-        TT.setArch(llvm::Triple::spir64);
+        // -fsycl -fintelfpga implies spir64_fpga
+        if (C.getInputArgs().hasArg(options::OPT_fintelfpga))
+          TT.setArchName("spir64_fpga");
+        else
+          TT.setArch(llvm::Triple::spir64);
         TT.setVendor(llvm::Triple::UnknownVendor);
         TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);

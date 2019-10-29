@@ -32,7 +32,7 @@
 
 /// -fintelfpga -fsycl-link clang-cl specific
 // RUN:  touch %t.obj
-// RUN:  %clang_cl -### -clang:-target -clang:x86_64-pc-windows-msvc -fsycl -fintelfpga -fsycl-link %t.obj 2>&1 \
+// RUN:  %clang_cl -### -fsycl -fintelfpga -fsycl-link %t.obj 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-LINK-WIN %s
 // CHK-FPGA-LINK-WIN: clang-offload-bundler{{.*}} "-type=o" "-targets=host-x86_64-pc-windows-msvc,sycl-spir64_fpga-unknown-{{.*}}-sycldevice{{.*}}" "-inputs=[[INPUT:.+\.obj]]" "-outputs=[[OUTPUT1:.+\.obj]],[[OUTPUT2:.+\.obj]]" "-unbundle"
 // CHK-FPGA-LINK-WIN: llvm-link{{.*}} "[[OUTPUT2]]" "-o" "[[OUTPUT3:.+\.bc]]"
