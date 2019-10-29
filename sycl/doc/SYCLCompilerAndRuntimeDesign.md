@@ -221,7 +221,7 @@ option mechanism, similar to OpenMP.
 
 For example, to support offload to Gen9/vISA3.3, the following options would be used:
 
-`-fsycl -fsycl-targets=spir64_gen-unknown-<os>-sycldevice -Xsycl-target-backend "-device skl"`
+`-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend "-device skl"`
 
 The driver passes the `-device skl` parameter directly to the Gen device backend compiler
 without parsing it.
