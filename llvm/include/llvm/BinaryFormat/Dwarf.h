@@ -117,9 +117,10 @@ enum LocationAtom {
 #include "llvm/BinaryFormat/Dwarf.def"
   DW_OP_lo_user = 0xe0,
   DW_OP_hi_user = 0xff,
-  DW_OP_LLVM_fragment = 0x1000,   ///< Only used in LLVM metadata.
-  DW_OP_LLVM_convert = 0x1001,    ///< Only used in LLVM metadata.
-  DW_OP_LLVM_tag_offset = 0x1002, ///< Only used in LLVM metadata.
+  DW_OP_LLVM_fragment = 0x1000,    ///< Only used in LLVM metadata.
+  DW_OP_LLVM_convert = 0x1001,     ///< Only used in LLVM metadata.
+  DW_OP_LLVM_tag_offset = 0x1002,  ///< Only used in LLVM metadata.
+  DW_OP_LLVM_entry_value = 0x1003, ///< Only used in LLVM metadata.
 };
 
 enum TypeKind : uint8_t {
@@ -308,8 +309,14 @@ enum MacroEntryType {
 };
 
 /// DWARF v5 range list entry encoding values.
-enum RangeListEntries {
+enum RnglistEntries {
 #define HANDLE_DW_RLE(ID, NAME) DW_RLE_##NAME = ID,
+#include "llvm/BinaryFormat/Dwarf.def"
+};
+
+/// DWARF v5 loc list entry encoding values.
+enum LoclistEntries {
+#define HANDLE_DW_LLE(ID, NAME) DW_LLE_##NAME = ID,
 #include "llvm/BinaryFormat/Dwarf.def"
 };
 
@@ -346,19 +353,6 @@ enum Constants {
   DW_EH_PE_funcrel = 0x40,
   DW_EH_PE_aligned = 0x50,
   DW_EH_PE_indirect = 0x80
-};
-
-/// Constants for location lists in DWARF v5.
-enum LocationListEntry : unsigned char {
-  DW_LLE_end_of_list = 0x00,
-  DW_LLE_base_addressx = 0x01,
-  DW_LLE_startx_endx = 0x02,
-  DW_LLE_startx_length = 0x03,
-  DW_LLE_offset_pair = 0x04,
-  DW_LLE_default_location = 0x05,
-  DW_LLE_base_address = 0x06,
-  DW_LLE_start_end = 0x07,
-  DW_LLE_start_length = 0x08
 };
 
 /// Constants for the DW_APPLE_PROPERTY_attributes attribute.
@@ -475,6 +469,7 @@ StringRef LNStandardString(unsigned Standard);
 StringRef LNExtendedString(unsigned Encoding);
 StringRef MacinfoString(unsigned Encoding);
 StringRef RangeListEncodingString(unsigned Encoding);
+StringRef LocListEncodingString(unsigned Encoding);
 StringRef CallFrameString(unsigned Encoding, Triple::ArchType Arch);
 StringRef ApplePropertyString(unsigned);
 StringRef UnitTypeString(unsigned);

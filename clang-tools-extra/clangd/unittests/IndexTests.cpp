@@ -83,20 +83,15 @@ TEST(RelationSlab, Lookup) {
   SymbolID D{"D"};
 
   RelationSlab::Builder Builder;
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, B});
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, C});
-  Builder.insert(Relation{B, index::SymbolRole::RelationBaseOf, D});
-  Builder.insert(Relation{C, index::SymbolRole::RelationBaseOf, D});
-  Builder.insert(Relation{B, index::SymbolRole::RelationChildOf, A});
-  Builder.insert(Relation{C, index::SymbolRole::RelationChildOf, A});
-  Builder.insert(Relation{D, index::SymbolRole::RelationChildOf, B});
-  Builder.insert(Relation{D, index::SymbolRole::RelationChildOf, C});
+  Builder.insert(Relation{A, RelationKind::BaseOf, B});
+  Builder.insert(Relation{A, RelationKind::BaseOf, C});
+  Builder.insert(Relation{B, RelationKind::BaseOf, D});
+  Builder.insert(Relation{C, RelationKind::BaseOf, D});
 
   RelationSlab Slab = std::move(Builder).build();
-  EXPECT_THAT(
-      Slab.lookup(A, index::SymbolRole::RelationBaseOf),
-      UnorderedElementsAre(Relation{A, index::SymbolRole::RelationBaseOf, B},
-                           Relation{A, index::SymbolRole::RelationBaseOf, C}));
+  EXPECT_THAT(Slab.lookup(A, RelationKind::BaseOf),
+              UnorderedElementsAre(Relation{A, RelationKind::BaseOf, B},
+                                   Relation{A, RelationKind::BaseOf, C}));
 }
 
 TEST(RelationSlab, Duplicates) {
@@ -105,14 +100,13 @@ TEST(RelationSlab, Duplicates) {
   SymbolID C{"C"};
 
   RelationSlab::Builder Builder;
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, B});
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, C});
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, B});
+  Builder.insert(Relation{A, RelationKind::BaseOf, B});
+  Builder.insert(Relation{A, RelationKind::BaseOf, C});
+  Builder.insert(Relation{A, RelationKind::BaseOf, B});
 
   RelationSlab Slab = std::move(Builder).build();
-  EXPECT_THAT(Slab, UnorderedElementsAre(
-                        Relation{A, index::SymbolRole::RelationBaseOf, B},
-                        Relation{A, index::SymbolRole::RelationBaseOf, C}));
+  EXPECT_THAT(Slab, UnorderedElementsAre(Relation{A, RelationKind::BaseOf, B},
+                                         Relation{A, RelationKind::BaseOf, C}));
 }
 
 TEST(SwapIndexTest, OldIndexRecycled) {
@@ -411,6 +405,16 @@ TEST(MergeIndexTest, Refs) {
               ElementsAre(Pair(
                   _, ElementsAre(AnyOf(FileURI("unittest:///test.cc"),
                                        FileURI("unittest:///test2.cc"))))));
+}
+
+TEST(MergeIndexTest, NonDocumentation) {
+  Symbol L, R;
+  L.ID = R.ID = SymbolID("x");
+  L.Definition.FileURI = "file:/x.h";
+  R.Documentation = "Forward declarations because x.h is too big to include";
+
+  Symbol M = mergeSymbol(L, R);
+  EXPECT_EQ(M.Documentation, "");
 }
 
 MATCHER_P2(IncludeHeaderWithRef, IncludeHeader, References, "") {

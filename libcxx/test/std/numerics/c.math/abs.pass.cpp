@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 #include "test_macros.h"
@@ -34,9 +35,9 @@ void test_abs()
 
 void test_big()
 {
-    long long int big_value = std::numeric_limits<long long int>::max(); // a value to big for ints to store
+    long long int big_value = std::numeric_limits<long long int>::max(); // a value too big for ints to store
     long long int negative_big_value = -big_value;
-    assert(std::abs(negative_big_value) == big_value); // make sure it doesnt get casted to a smaller type
+    assert(std::abs(negative_big_value) == big_value); // make sure it doesn't get casted to a smaller type
 }
 
 // The following is helpful to keep in mind:
@@ -75,4 +76,3 @@ int main(int, char**)
 
     return 0;
 }
-

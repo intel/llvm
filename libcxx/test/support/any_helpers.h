@@ -26,7 +26,7 @@ namespace std { namespace experimental {} }
 template <class T>
   struct IsSmallObject
     : public std::integral_constant<bool
-        , sizeof(T) <= (sizeof(void*)*3)
+        , sizeof(T) <= sizeof(std::any) - sizeof(void*)
           && std::alignment_of<void*>::value
              % std::alignment_of<T>::value == 0
           && std::is_nothrow_move_constructible<T>::value
@@ -414,10 +414,10 @@ struct large_tracked_t {
       : arg_types(&makeArgumentID<std::initializer_list<int>, Args...>()) {}
 
   TypeID const* arg_types;
-  int dummy[10];
+  int dummy[sizeof(std::any) / sizeof(int) + 1];
 };
 
-static_assert(!IsSmallObject<large_tracked_t>::value, "must be small");
+static_assert(!IsSmallObject<large_tracked_t>::value, "must not be small");
 
 
 template <class Type, class ...Args>

@@ -131,8 +131,8 @@ static Value *createTypeUserStub(Value *OldValUser, Value *NewVal) {
   if (auto *Store = dyn_cast<StoreInst>(OldInst)) {
     Value *DestPtr = UndefValue::get(PointerType::getUnqual(NewTy));
     auto SI = new StoreInst(UndefType, DestPtr, Store->isVolatile(),
-                            Store->getAlignment(), Store->getOrdering(),
-                            Store->getSyncScopeID());
+                            MaybeAlign(Store->getAlignment()),
+                            Store->getOrdering(), Store->getSyncScopeID());
     return SI;
   }
 
@@ -299,10 +299,10 @@ static void collectTypeReplacementData(Type *OldTy, Type *NewTy,
               UndefValue::get(NewVal->getType()->getPointerElementType());
           auto *&NewValUser = VMap[OldValUser];
           if (!NewValUser) {
-            NewValUser =
-                new StoreInst(UndefType, UndefValue::get(NewVal->getType()),
-                              Store->isVolatile(), Store->getAlignment(),
-                              Store->getOrdering(), Store->getSyncScopeID());
+            NewValUser = new StoreInst(
+                UndefType, UndefValue::get(NewVal->getType()),
+                Store->isVolatile(), MaybeAlign(Store->getAlignment()),
+                Store->getOrdering(), Store->getSyncScopeID());
             WorkList.push(std::make_pair(OldValUser, NewValUser));
           }
           UOpMap[cast<User>(NewValUser)].push_back(

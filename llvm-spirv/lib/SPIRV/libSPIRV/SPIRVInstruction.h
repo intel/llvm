@@ -1313,8 +1313,10 @@ public:
     (void)Ty;
     (void)MTy;
     (void)STy;
-    assert(Ty->isTypeFloat() && "Invalid result type for OpMatrixTimesScalar");
-    assert(MTy->isTypeFloat() && "Invalid Matrix type for OpMatrixTimesScalar");
+    assert(Ty && Ty->isTypeFloat() &&
+           "Invalid result type for OpMatrixTimesScalar");
+    assert(MTy && MTy->isTypeFloat() &&
+           "Invalid Matrix type for OpMatrixTimesScalar");
     assert(STy->isTypeFloat() && "Invalid Scalar type for OpMatrixTimesScalar");
     assert(Ty == MTy && Ty == STy && "Mismatch float type");
   }

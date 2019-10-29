@@ -165,23 +165,44 @@ public:
     void
     SkipLLDBInitFiles (bool b);
 
-    void
-    SetInputFileHandle (FILE *f, bool transfer_ownership);
+    %pythoncode %{
+        def SetOutputFileHandle(self, file, transfer_ownership):
+            "DEPRECATED, use SetOutputFile"
+            if file is None:
+                import sys
+                file = sys.stdout
+            self.SetOutputFile(SBFile.Create(file, borrow=True))
 
-    void
-    SetOutputFileHandle (FILE *f, bool transfer_ownership);
+        def SetInputFileHandle(self, file, transfer_ownership):
+            "DEPRECATED, use SetInputFile"
+            if file is None:
+                import sys
+                file = sys.stdin
+            self.SetInputFile(SBFile.Create(file, borrow=True))
 
-    void
-    SetErrorFileHandle (FILE *f, bool transfer_ownership);
+        def SetErrorFileHandle(self, file, transfer_ownership):
+            "DEPRECATED, use SetErrorFile"
+            if file is None:
+                import sys
+                file = sys.stderr
+            self.SetErrorFile(SBFile.Create(file, borrow=True))
+    %}
 
-    FILE *
-    GetInputFileHandle ();
 
-    FILE *
-    GetOutputFileHandle ();
+    %extend {
 
-    FILE *
-    GetErrorFileHandle ();
+        lldb::FileSP GetInputFileHandle() {
+            return self->GetInputFile().GetFile();
+        }
+
+        lldb::FileSP GetOutputFileHandle() {
+            return self->GetOutputFile().GetFile();
+        }
+
+        lldb::FileSP GetErrorFileHandle() {
+            return self->GetErrorFile().GetFile();
+        }
+    }
 
     SBError
     SetInputFile (SBFile file);
@@ -191,6 +212,15 @@ public:
 
     SBError
     SetErrorFile (SBFile file);
+
+    SBError
+    SetInputFile (FileSP file);
+
+    SBError
+    SetOutputFile (FileSP file);
+
+    SBError
+    SetErrorFile (FileSP file);
 
     SBFile
     GetInputFile ();
@@ -213,8 +243,14 @@ public:
     void
     HandleProcessEvent (const lldb::SBProcess &process,
                         const lldb::SBEvent &event,
-                        FILE *out,
-                        FILE *err);
+                        SBFile out,
+                        SBFile err);
+
+    void
+    HandleProcessEvent (const lldb::SBProcess &process,
+                        const lldb::SBEvent &event,
+                        FileSP BORROWED,
+                        FileSP BORROWED);
 
     lldb::SBTarget
     CreateTarget (const char *filename,

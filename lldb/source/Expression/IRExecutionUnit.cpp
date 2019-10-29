@@ -669,7 +669,7 @@ FindBestAlternateMangledName(ConstString demangled,
   std::vector<ConstString> param_matches;
   for (size_t i = 0; i < alternates.size(); i++) {
     ConstString alternate_mangled_name = alternates[i];
-    Mangled mangled(alternate_mangled_name, true);
+    Mangled mangled(alternate_mangled_name);
     ConstString demangled = mangled.GetDemangledName(lang_type);
 
     CPlusPlusLanguage::MethodName alternate_cpp_name(demangled);
@@ -717,7 +717,7 @@ void IRExecutionUnit::CollectCandidateCPlusPlusNames(
     ConstString name = C_spec.name;
 
     if (CPlusPlusLanguage::IsCPPMangledName(name.GetCString())) {
-      Mangled mangled(name, true);
+      Mangled mangled(name);
       ConstString demangled =
           mangled.GetDemangledName(lldb::eLanguageTypeC_plus_plus);
 
@@ -854,7 +854,6 @@ lldb::addr_t IRExecutionUnit::FindInSymbols(
       sc.module_sp->FindFunctions(spec.name, nullptr, spec.mask,
                                   true,  // include_symbols
                                   false, // include_inlines
-                                  true,  // append
                                   sc_list);
     }
 
@@ -870,7 +869,6 @@ lldb::addr_t IRExecutionUnit::FindInSymbols(
       sc.target_sp->GetImages().FindFunctions(spec.name, spec.mask,
                                               true,  // include_symbols
                                               false, // include_inlines
-                                              true,  // append
                                               sc_list);
     }
 

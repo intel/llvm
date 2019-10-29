@@ -973,7 +973,7 @@ void CXXNameMangler::mangleUnscopedTemplateName(
     assert(!AdditionalAbiTags &&
            "template template param cannot have abi tags");
     mangleTemplateParameter(TTP->getDepth(), TTP->getIndex());
-  } else if (isa<BuiltinTemplateDecl>(ND)) {
+  } else if (isa<BuiltinTemplateDecl>(ND) || isa<ConceptDecl>(ND)) {
     mangleUnscopedName(ND, AdditionalAbiTags);
   } else {
     mangleUnscopedName(ND->getTemplatedDecl(), AdditionalAbiTags);
@@ -1932,7 +1932,7 @@ void CXXNameMangler::mangleTemplatePrefix(const TemplateDecl *ND,
     mangleTemplateParameter(TTP->getDepth(), TTP->getIndex());
   } else {
     manglePrefix(getEffectiveDeclContext(ND), NoFunction);
-    if (isa<BuiltinTemplateDecl>(ND))
+    if (isa<BuiltinTemplateDecl>(ND) || isa<ConceptDecl>(ND))
       mangleUnqualifiedName(ND, nullptr);
     else
       mangleUnqualifiedName(ND->getTemplatedDecl(), nullptr);
@@ -4132,6 +4132,17 @@ recurse:
     break;
   }
 
+  case Expr::CXXRewrittenBinaryOperatorClass: {
+    // The mangled form represents the original syntax.
+    CXXRewrittenBinaryOperator::DecomposedForm Decomposed =
+        cast<CXXRewrittenBinaryOperator>(E)->getDecomposedForm();
+    mangleOperatorName(BinaryOperator::getOverloadedOperator(Decomposed.Opcode),
+                       /*Arity=*/2);
+    mangleExpression(Decomposed.LHS);
+    mangleExpression(Decomposed.RHS);
+    break;
+  }
+
   case Expr::ConditionalOperatorClass: {
     const ConditionalOperator *CO = cast<ConditionalOperator>(E);
     mangleOperatorName(OO_Conditional, /*Arity=*/3);
@@ -4208,6 +4219,18 @@ recurse:
   case Expr::ParenExprClass:
     mangleExpression(cast<ParenExpr>(E)->getSubExpr(), Arity);
     break;
+
+
+  case Expr::ConceptSpecializationExprClass: {
+    //  <expr-primary> ::= L <mangled-name> E # external name
+    Out << "L_Z";
+    auto *CSE = cast<ConceptSpecializationExpr>(E);
+    mangleTemplateName(CSE->getNamedConcept(),
+                       CSE->getTemplateArguments().data(),
+                       CSE->getTemplateArguments().size());
+    Out << 'E';
+    break;
+  }
 
   case Expr::DeclRefExprClass:
     mangleDeclRefExpr(cast<DeclRefExpr>(E)->getDecl());
@@ -4315,8 +4338,11 @@ recurse:
   }
 
   case Expr::GNUNullExprClass:
-    // FIXME: should this really be mangled the same as nullptr?
-    // fallthrough
+    // Mangle as if an integer literal 0.
+    Out << 'L';
+    mangleType(E->getType());
+    Out << "0E";
+    break;
 
   case Expr::CXXNullPtrLiteralExprClass: {
     Out << "LDnE";

@@ -17,6 +17,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Use.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/Casting.h"
 #include <cassert>
@@ -523,6 +524,16 @@ public:
         static_cast<const Value *>(this)->stripPointerCasts());
   }
 
+  /// Strip off pointer casts, all-zero GEPs, address space casts, and aliases.
+  ///
+  /// Returns the original uncasted value.  If this is called on a non-pointer
+  /// value, it returns 'this'.
+  const Value *stripPointerCastsAndAliases() const;
+  Value *stripPointerCastsAndAliases() {
+    return const_cast<Value *>(
+        static_cast<const Value *>(this)->stripPointerCastsAndAliases());
+  }
+
   /// Strip off pointer casts, all-zero GEPs and address space casts
   /// but ensures the representation of the result stays the same.
   ///
@@ -621,7 +632,7 @@ public:
   ///
   /// Returns an alignment which is either specified explicitly, e.g. via
   /// align attribute of a function argument, or guaranteed by DataLayout.
-  unsigned getPointerAlignment(const DataLayout &DL) const;
+  MaybeAlign getPointerAlignment(const DataLayout &DL) const;
 
   /// Translate PHI node to its predecessor from the given basic block.
   ///

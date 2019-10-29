@@ -1,6 +1,7 @@
 // REQUIRES: native-run
 // UNSUPPORTED: arm, aarch64
 // RUN: %clang_builtins %s %librt -o %t && %run %t
+// REQUIRES: librt_has_clear_cache
 //===-- clear_cache_test.c - Test clear_cache -----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -48,7 +49,7 @@ int main()
 #if !defined(_WIN32)
     uint8_t *execution_buffer = mmap(0, kSize,
                                      PROT_READ | PROT_WRITE | PROT_EXEC,
-                                     MAP_ANON | MAP_PRIVATE, 0, 0);
+                                     MAP_ANON | MAP_PRIVATE, -1, 0);
     if (execution_buffer == MAP_FAILED)
       return 1;
 #else

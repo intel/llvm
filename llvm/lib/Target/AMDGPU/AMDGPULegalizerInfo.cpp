@@ -48,6 +48,12 @@ static LegalityPredicate isMultiple32(unsigned TypeIdx,
   };
 }
 
+static LegalityPredicate sizeIs(unsigned TypeIdx, unsigned Size) {
+  return [=](const LegalityQuery &Query) {
+    return Query.Types[TypeIdx].getSizeInBits() == Size;
+  };
+}
+
 static LegalityPredicate isSmallOddVector(unsigned TypeIdx) {
   return [=](const LegalityQuery &Query) {
     const LLT Ty = Query.Types[TypeIdx];
@@ -55,6 +61,14 @@ static LegalityPredicate isSmallOddVector(unsigned TypeIdx) {
            Ty.getNumElements() % 2 != 0 &&
            Ty.getElementType().getSizeInBits() < 32 &&
            Ty.getSizeInBits() % 32 != 0;
+  };
+}
+
+static LegalityPredicate isWideVec16(unsigned TypeIdx) {
+  return [=](const LegalityQuery &Query) {
+    const LLT Ty = Query.Types[TypeIdx];
+    const LLT EltTy = Ty.getScalarType();
+    return EltTy.getSizeInBits() == 16 && Ty.getNumElements() > 2;
   };
 }
 
@@ -273,11 +287,14 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .widenScalarToNextPow2(0)
     .scalarize(0);
 
-  getActionDefinitionsBuilder({G_UADDO, G_SADDO, G_USUBO, G_SSUBO,
+  getActionDefinitionsBuilder({G_UADDO, G_USUBO,
                                G_UADDE, G_SADDE, G_USUBE, G_SSUBE})
     .legalFor({{S32, S1}})
     .clampScalar(0, S32, S32)
     .scalarize(0); // TODO: Implement.
+
+  getActionDefinitionsBuilder({G_SADDO, G_SSUBO})
+    .lower();
 
   getActionDefinitionsBuilder(G_BITCAST)
     // Don't worry about the size constraint.
@@ -319,6 +336,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .legalFor({S32, S64});
   auto &TrigActions = getActionDefinitionsBuilder({G_FSIN, G_FCOS})
     .customFor({S32, S64});
+  auto &FDIVActions = getActionDefinitionsBuilder(G_FDIV)
+    .customFor({S32, S64});
 
   if (ST.has16BitInsts()) {
     if (ST.hasVOP3PInsts())
@@ -327,6 +346,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       FPOpActions.legalFor({S16});
 
     TrigActions.customFor({S16});
+    FDIVActions.customFor({S16});
   }
 
   auto &MinNumMaxNum = getActionDefinitionsBuilder({
@@ -355,6 +375,10 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .clampScalar(0, ST.has16BitInsts() ? S16 : S32, S64);
 
   TrigActions
+    .scalarize(0)
+    .clampScalar(0, ST.has16BitInsts() ? S16 : S32, S64);
+
+  FDIVActions
     .scalarize(0)
     .clampScalar(0, ST.has16BitInsts() ? S16 : S32, S64);
 
@@ -418,11 +442,14 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .scalarize(0);
 
   // TODO: Split s1->s64 during regbankselect for VALU.
-  getActionDefinitionsBuilder({G_SITOFP, G_UITOFP})
+  auto &IToFP = getActionDefinitionsBuilder({G_SITOFP, G_UITOFP})
     .legalFor({{S32, S32}, {S64, S32}, {S16, S32}, {S32, S1}, {S16, S1}, {S64, S1}})
     .lowerFor({{S32, S64}})
-    .customFor({{S64, S64}})
-    .scalarize(0);
+    .customFor({{S64, S64}});
+  if (ST.has16BitInsts())
+    IToFP.legalFor({{S16, S16}});
+  IToFP.clampScalar(1, S32, S64)
+       .scalarize(0);
 
   auto &FPToI = getActionDefinitionsBuilder({G_FPTOSI, G_FPTOUI})
     .legalFor({{S32, S32}, {S32, S64}, {S32, S16}});
@@ -831,6 +858,9 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
   getActionDefinitionsBuilder(G_ATOMICRMW_FADD)
     .legalFor({{S32, LocalPtr}});
 
+  getActionDefinitionsBuilder(G_ATOMIC_CMPXCHG_WITH_SUCCESS)
+    .lower();
+
   // TODO: Pointer types, any 32-bit or 64-bit vector
   getActionDefinitionsBuilder(G_SELECT)
     .legalForCartesianProduct({S32, S64, S16, V2S32, V2S16, V4S16,
@@ -904,6 +934,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
 
     // FIXME: Doesn't handle extract of illegal sizes.
     getActionDefinitionsBuilder(Op)
+      .lowerIf(all(typeIs(LitTyIdx, S16), sizeIs(BigTyIdx, 32)))
+      // FIXME: Multiples of 16 should not be legal.
       .legalIf([=](const LegalityQuery &Query) {
           const LLT BigTy = Query.Types[BigTyIdx];
           const LLT LitTy = Query.Types[LitTyIdx];
@@ -931,7 +963,8 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .legalForCartesianProduct(AllS32Vectors, {S32})
     .legalForCartesianProduct(AllS64Vectors, {S64})
     .clampNumElements(0, V16S32, V32S32)
-    .clampNumElements(0, V2S64, V16S64);
+    .clampNumElements(0, V2S64, V16S64)
+    .fewerElementsIf(isWideVec16(0), changeTo(0, V2S16));
 
   if (ST.hasScalarPackInsts())
     BuildVector.legalFor({V2S16, S32});
@@ -973,7 +1006,7 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
       return false;
     };
 
-    getActionDefinitionsBuilder(Op)
+    auto &Builder = getActionDefinitionsBuilder(Op)
       .widenScalarToNextPow2(LitTyIdx, /*Min*/ 16)
       // Clamp the little scalar to s8-s256 and make it a power of 2. It's not
       // worth considering the multiples of 64 since 2*192 and 2*384 are not
@@ -992,25 +1025,36 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
         [=](const LegalityQuery &Query) { return notValidElt(Query, 1); },
         scalarize(1))
       .clampScalar(BigTyIdx, S32, S1024)
-      .lowerFor({{S16, V2S16}})
-      .widenScalarIf(
+      .lowerFor({{S16, V2S16}});
+
+    if (Op == G_MERGE_VALUES) {
+      Builder.widenScalarIf(
+        // TODO: Use 16-bit shifts if legal for 8-bit values?
         [=](const LegalityQuery &Query) {
-          const LLT &Ty = Query.Types[BigTyIdx];
-          return !isPowerOf2_32(Ty.getSizeInBits()) &&
-                 Ty.getSizeInBits() % 16 != 0;
+          const LLT Ty = Query.Types[LitTyIdx];
+          return Ty.getSizeInBits() < 32;
         },
-        [=](const LegalityQuery &Query) {
-          // Pick the next power of 2, or a multiple of 64 over 128.
-          // Whichever is smaller.
-          const LLT &Ty = Query.Types[BigTyIdx];
-          unsigned NewSizeInBits = 1 << Log2_32_Ceil(Ty.getSizeInBits() + 1);
-          if (NewSizeInBits >= 256) {
-            unsigned RoundedTo = alignTo<64>(Ty.getSizeInBits() + 1);
-            if (RoundedTo < NewSizeInBits)
-              NewSizeInBits = RoundedTo;
-          }
-          return std::make_pair(BigTyIdx, LLT::scalar(NewSizeInBits));
-        })
+        changeTo(LitTyIdx, S32));
+    }
+
+    Builder.widenScalarIf(
+      [=](const LegalityQuery &Query) {
+        const LLT Ty = Query.Types[BigTyIdx];
+        return !isPowerOf2_32(Ty.getSizeInBits()) &&
+          Ty.getSizeInBits() % 16 != 0;
+      },
+      [=](const LegalityQuery &Query) {
+        // Pick the next power of 2, or a multiple of 64 over 128.
+        // Whichever is smaller.
+        const LLT &Ty = Query.Types[BigTyIdx];
+        unsigned NewSizeInBits = 1 << Log2_32_Ceil(Ty.getSizeInBits() + 1);
+        if (NewSizeInBits >= 256) {
+          unsigned RoundedTo = alignTo<64>(Ty.getSizeInBits() + 1);
+          if (RoundedTo < NewSizeInBits)
+            NewSizeInBits = RoundedTo;
+        }
+        return std::make_pair(BigTyIdx, LLT::scalar(NewSizeInBits));
+      })
       .legalIf([=](const LegalityQuery &Query) {
           const LLT &BigTy = Query.Types[BigTyIdx];
           const LLT &LitTy = Query.Types[LitTyIdx];
@@ -1070,6 +1114,8 @@ bool AMDGPULegalizerInfo::legalizeCustom(MachineInstr &MI,
     return legalizeLoad(MI, MRI, B, Observer);
   case TargetOpcode::G_FMAD:
     return legalizeFMad(MI, MRI, B);
+  case TargetOpcode::G_FDIV:
+    return legalizeFDIV(MI, MRI, B);
   default:
     return false;
   }
@@ -1773,9 +1819,80 @@ bool AMDGPULegalizerInfo::legalizePreloadedArgIntrin(
   return false;
 }
 
-bool AMDGPULegalizerInfo::legalizeFDIVFast(MachineInstr &MI,
-                                           MachineRegisterInfo &MRI,
-                                           MachineIRBuilder &B) const {
+bool AMDGPULegalizerInfo::legalizeFDIV(MachineInstr &MI,
+                                       MachineRegisterInfo &MRI,
+                                       MachineIRBuilder &B) const {
+  B.setInstr(MI);
+
+  if (legalizeFastUnsafeFDIV(MI, MRI, B))
+    return true;
+
+  return false;
+}
+
+bool AMDGPULegalizerInfo::legalizeFastUnsafeFDIV(MachineInstr &MI,
+                                                 MachineRegisterInfo &MRI,
+                                                 MachineIRBuilder &B) const {
+  Register Res = MI.getOperand(0).getReg();
+  Register LHS = MI.getOperand(1).getReg();
+  Register RHS = MI.getOperand(2).getReg();
+
+  uint16_t Flags = MI.getFlags();
+
+  LLT ResTy = MRI.getType(Res);
+  LLT S32 = LLT::scalar(32);
+  LLT S64 = LLT::scalar(64);
+
+  const MachineFunction &MF = B.getMF();
+  bool Unsafe =
+    MF.getTarget().Options.UnsafeFPMath || MI.getFlag(MachineInstr::FmArcp);
+
+  if (!MF.getTarget().Options.UnsafeFPMath && ResTy == S64)
+    return false;
+
+  if (!Unsafe && ResTy == S32 && ST.hasFP32Denormals())
+    return false;
+
+  if (auto CLHS = getConstantFPVRegVal(LHS, MRI)) {
+    // 1 / x -> RCP(x)
+    if (CLHS->isExactlyValue(1.0)) {
+      B.buildIntrinsic(Intrinsic::amdgcn_rcp, Res, false)
+        .addUse(RHS)
+        .setMIFlags(Flags);
+
+      MI.eraseFromParent();
+      return true;
+    }
+
+    // -1 / x -> RCP( FNEG(x) )
+    if (CLHS->isExactlyValue(-1.0)) {
+      auto FNeg = B.buildFNeg(ResTy, RHS, Flags);
+      B.buildIntrinsic(Intrinsic::amdgcn_rcp, Res, false)
+        .addUse(FNeg.getReg(0))
+        .setMIFlags(Flags);
+
+      MI.eraseFromParent();
+      return true;
+    }
+  }
+
+  // x / y -> x * (1.0 / y)
+  if (Unsafe) {
+    auto RCP = B.buildIntrinsic(Intrinsic::amdgcn_rcp, {ResTy}, false)
+      .addUse(RHS)
+      .setMIFlags(Flags);
+    B.buildFMul(Res, LHS, RCP, Flags);
+
+    MI.eraseFromParent();
+    return true;
+  }
+
+  return false;
+}
+
+bool AMDGPULegalizerInfo::legalizeFDIVFastIntrin(MachineInstr &MI,
+                                                 MachineRegisterInfo &MRI,
+                                                 MachineIRBuilder &B) const {
   B.setInstr(MI);
   Register Res = MI.getOperand(0).getReg();
   Register LHS = MI.getOperand(2).getReg();
@@ -1992,7 +2109,7 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
     return legalizePreloadedArgIntrin(MI, MRI, B,
                                       AMDGPUFunctionArgInfo::DISPATCH_ID);
   case Intrinsic::amdgcn_fdiv_fast:
-    return legalizeFDIVFast(MI, MRI, B);
+    return legalizeFDIVFastIntrin(MI, MRI, B);
   case Intrinsic::amdgcn_is_shared:
     return legalizeIsAddrSpace(MI, MRI, B, AMDGPUAS::LOCAL_ADDRESS);
   case Intrinsic::amdgcn_is_private:

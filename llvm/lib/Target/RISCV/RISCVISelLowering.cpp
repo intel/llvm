@@ -1796,6 +1796,63 @@ static SDValue unpackF64OnRV32DSoftABI(SelectionDAG &DAG, SDValue Chain,
   return DAG.getNode(RISCVISD::BuildPairF64, DL, MVT::f64, Lo, Hi);
 }
 
+// FastCC has less than 1% performance improvement for some particular
+// benchmark. But theoretically, it may has benenfit for some cases.
+static bool CC_RISCV_FastCC(unsigned ValNo, MVT ValVT, MVT LocVT,
+                            CCValAssign::LocInfo LocInfo,
+                            ISD::ArgFlagsTy ArgFlags, CCState &State) {
+
+  if (LocVT == MVT::i32 || LocVT == MVT::i64) {
+    // X5 and X6 might be used for save-restore libcall.
+    static const MCPhysReg GPRList[] = {
+        RISCV::X10, RISCV::X11, RISCV::X12, RISCV::X13, RISCV::X14,
+        RISCV::X15, RISCV::X16, RISCV::X17, RISCV::X7,  RISCV::X28,
+        RISCV::X29, RISCV::X30, RISCV::X31};
+    if (unsigned Reg = State.AllocateReg(GPRList)) {
+      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      return false;
+    }
+  }
+
+  if (LocVT == MVT::f32) {
+    static const MCPhysReg FPR32List[] = {
+        RISCV::F10_F, RISCV::F11_F, RISCV::F12_F, RISCV::F13_F, RISCV::F14_F,
+        RISCV::F15_F, RISCV::F16_F, RISCV::F17_F, RISCV::F0_F,  RISCV::F1_F,
+        RISCV::F2_F,  RISCV::F3_F,  RISCV::F4_F,  RISCV::F5_F,  RISCV::F6_F,
+        RISCV::F7_F,  RISCV::F28_F, RISCV::F29_F, RISCV::F30_F, RISCV::F31_F};
+    if (unsigned Reg = State.AllocateReg(FPR32List)) {
+      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      return false;
+    }
+  }
+
+  if (LocVT == MVT::f64) {
+    static const MCPhysReg FPR64List[] = {
+        RISCV::F10_D, RISCV::F11_D, RISCV::F12_D, RISCV::F13_D, RISCV::F14_D,
+        RISCV::F15_D, RISCV::F16_D, RISCV::F17_D, RISCV::F0_D,  RISCV::F1_D,
+        RISCV::F2_D,  RISCV::F3_D,  RISCV::F4_D,  RISCV::F5_D,  RISCV::F6_D,
+        RISCV::F7_D,  RISCV::F28_D, RISCV::F29_D, RISCV::F30_D, RISCV::F31_D};
+    if (unsigned Reg = State.AllocateReg(FPR64List)) {
+      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      return false;
+    }
+  }
+
+  if (LocVT == MVT::i32 || LocVT == MVT::f32) {
+    unsigned Offset4 = State.AllocateStack(4, 4);
+    State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset4, LocVT, LocInfo));
+    return false;
+  }
+
+  if (LocVT == MVT::i64 || LocVT == MVT::f64) {
+    unsigned Offset5 = State.AllocateStack(8, 8);
+    State.addLoc(CCValAssign::getMem(ValNo, ValVT, Offset5, LocVT, LocInfo));
+    return false;
+  }
+
+  return true; // CC didn't match.
+}
+
 // Transform physical registers into virtual registers.
 SDValue RISCVTargetLowering::LowerFormalArguments(
     SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
@@ -1835,7 +1892,11 @@ SDValue RISCVTargetLowering::LowerFormalArguments(
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-  analyzeInputArgs(MF, CCInfo, Ins, /*IsRet=*/false);
+
+  if (CallConv == CallingConv::Fast)
+    CCInfo.AnalyzeFormalArguments(Ins, CC_RISCV_FastCC);
+  else
+    analyzeInputArgs(MF, CCInfo, Ins, /*IsRet=*/false);
 
   for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
     CCValAssign &VA = ArgLocs[i];
@@ -2035,7 +2096,11 @@ SDValue RISCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   // Analyze the operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState ArgCCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-  analyzeOutputArgs(MF, ArgCCInfo, Outs, /*IsRet=*/false, &CLI);
+
+  if (CallConv == CallingConv::Fast)
+    ArgCCInfo.AnalyzeCallOperands(Outs, CC_RISCV_FastCC);
+  else
+    analyzeOutputArgs(MF, ArgCCInfo, Outs, /*IsRet=*/false, &CLI);
 
   // Check if it's really possible to do a tail call.
   if (IsTailCall)
@@ -2182,6 +2247,16 @@ SDValue RISCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
     Glue = Chain.getValue(1);
   }
 
+  // Validate that none of the argument registers have been marked as
+  // reserved, if so report an error. Do the same for the return address if this
+  // is not a tailcall.
+  validateCCReservedRegs(RegsToPass, MF);
+  if (!IsTailCall &&
+      MF.getSubtarget<RISCVSubtarget>().isRegisterReservedByUser(RISCV::X1))
+    MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported{
+        MF.getFunction(),
+        "Return address register required, but has been reserved."});
+
   // If the callee is a GlobalAddress/ExternalSymbol node, turn it into a
   // TargetGlobalAddress/TargetExternalSymbol node so that legalize won't
   // split it and then direct call can be matched by PseudoCALL.
@@ -2297,6 +2372,9 @@ RISCVTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
                                  const SmallVectorImpl<ISD::OutputArg> &Outs,
                                  const SmallVectorImpl<SDValue> &OutVals,
                                  const SDLoc &DL, SelectionDAG &DAG) const {
+  const MachineFunction &MF = DAG.getMachineFunction();
+  const RISCVSubtarget &STI = MF.getSubtarget<RISCVSubtarget>();
+
   // Stores the assignment of the return value to a location.
   SmallVector<CCValAssign, 16> RVLocs;
 
@@ -2326,6 +2404,13 @@ RISCVTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
       Register RegLo = VA.getLocReg();
       assert(RegLo < RISCV::X31 && "Invalid register pair");
       Register RegHi = RegLo + 1;
+
+      if (STI.isRegisterReservedByUser(RegLo) ||
+          STI.isRegisterReservedByUser(RegHi))
+        MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported{
+            MF.getFunction(),
+            "Return value register required, but has been reserved."});
+
       Chain = DAG.getCopyToReg(Chain, DL, RegLo, Lo, Glue);
       Glue = Chain.getValue(1);
       RetOps.push_back(DAG.getRegister(RegLo, MVT::i32));
@@ -2336,6 +2421,11 @@ RISCVTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
       // Handle a 'normal' return.
       Val = convertValVTToLocVT(DAG, Val, VA, DL);
       Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), Val, Glue);
+
+      if (STI.isRegisterReservedByUser(VA.getLocReg()))
+        MF.getFunction().getContext().diagnose(DiagnosticInfoUnsupported{
+            MF.getFunction(),
+            "Return value register required, but has been reserved."});
 
       // Guarantee that all emitted copies are stuck together.
       Glue = Chain.getValue(1);
@@ -2373,6 +2463,19 @@ RISCVTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   }
 
   return DAG.getNode(RISCVISD::RET_FLAG, DL, MVT::Other, RetOps);
+}
+
+void RISCVTargetLowering::validateCCReservedRegs(
+    const SmallVectorImpl<std::pair<llvm::Register, llvm::SDValue>> &Regs,
+    MachineFunction &MF) const {
+  const Function &F = MF.getFunction();
+  const RISCVSubtarget &STI = MF.getSubtarget<RISCVSubtarget>();
+
+  if (std::any_of(std::begin(Regs), std::end(Regs), [&STI](auto Reg) {
+        return STI.isRegisterReservedByUser(Reg.first);
+      }))
+    F.getContext().diagnose(DiagnosticInfoUnsupported{
+        F, "Argument register required, but has been reserved."});
 }
 
 const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {

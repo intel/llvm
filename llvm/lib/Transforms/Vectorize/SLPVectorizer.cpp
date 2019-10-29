@@ -618,6 +618,15 @@ public:
   /// vectorizable. We do not vectorize such trees.
   bool isTreeTinyAndNotFullyVectorizable() const;
 
+  /// Assume that a legal-sized 'or'-reduction of shifted/zexted loaded values
+  /// can be load combined in the backend. Load combining may not be allowed in
+  /// the IR optimizer, so we do not want to alter the pattern. For example,
+  /// partially transforming a scalar bswap() pattern into vector code is
+  /// effectively impossible for the backend to undo.
+  /// TODO: If load combining is allowed in the IR optimizer, this analysis
+  ///       may not be necessary.
+  bool isLoadCombineReductionCandidate(unsigned ReductionOpcode) const;
+
   OptimizationRemarkEmitter *getORE() { return ORE; }
 
   /// This structure holds any data we need about the edges being traversed
@@ -3284,6 +3293,43 @@ bool BoUpSLP::isFullyVectorizableTinyTree() const {
   return true;
 }
 
+bool BoUpSLP::isLoadCombineReductionCandidate(unsigned RdxOpcode) const {
+  if (RdxOpcode != Instruction::Or)
+    return false;
+
+  unsigned NumElts = VectorizableTree[0]->Scalars.size();
+  Value *FirstReduced = VectorizableTree[0]->Scalars[0];
+
+  // Look past the reduction to find a source value. Arbitrarily follow the
+  // path through operand 0 of any 'or'. Also, peek through optional
+  // shift-left-by-constant.
+  Value *ZextLoad = FirstReduced;
+  while (match(ZextLoad, m_Or(m_Value(), m_Value())) ||
+         match(ZextLoad, m_Shl(m_Value(), m_Constant())))
+    ZextLoad = cast<BinaryOperator>(ZextLoad)->getOperand(0);
+
+  // Check if the input to the reduction is an extended load.
+  Value *LoadPtr;
+  if (!match(ZextLoad, m_ZExt(m_Load(m_Value(LoadPtr)))))
+    return false;
+
+  // Require that the total load bit width is a legal integer type.
+  // For example, <8 x i8> --> i64 is a legal integer on a 64-bit target.
+  // But <16 x i8> --> i128 is not, so the backend probably can't reduce it.
+  Type *SrcTy = LoadPtr->getType()->getPointerElementType();
+  unsigned LoadBitWidth = SrcTy->getIntegerBitWidth() * NumElts;
+  LLVMContext &Context = FirstReduced->getContext();
+  if (!TTI->isTypeLegal(IntegerType::get(Context, LoadBitWidth)))
+    return false;
+
+  // Everything matched - assume that we can fold the whole sequence using
+  // load combining.
+  LLVM_DEBUG(dbgs() << "SLP: Assume load combining for scalar reduction of "
+             << *(cast<Instruction>(FirstReduced)) << "\n");
+
+  return true;
+}
+
 bool BoUpSLP::isTreeTinyAndNotFullyVectorizable() const {
   // We can vectorize the tree if its size is greater than or equal to the
   // minimum size specified by the MinTreeSize command line option.
@@ -5237,7 +5283,7 @@ bool SLPVectorizerPass::runImpl(Function &F, ScalarEvolution *SE_,
 
   // If the target claims to have no vector registers don't attempt
   // vectorization.
-  if (!TTI->getNumberOfRegisters(true))
+  if (!TTI->getNumberOfRegisters(TTI->getRegisterClassForType(true)))
     return false;
 
   // Don't vectorize when the attribute NoImplicitFloat is used.
@@ -6374,6 +6420,8 @@ public:
       }
       if (V.isTreeTinyAndNotFullyVectorizable())
         break;
+      if (V.isLoadCombineReductionCandidate(ReductionData.getOpcode()))
+        break;
 
       V.computeMinimumValueSizes();
 
@@ -6981,10 +7029,16 @@ bool SLPVectorizerPass::vectorizeGEPIndices(BasicBlock *BB, BoUpSLP &R) {
     LLVM_DEBUG(dbgs() << "SLP: Analyzing a getelementptr list of length "
                       << Entry.second.size() << ".\n");
 
-    // We process the getelementptr list in chunks of 16 (like we do for
-    // stores) to minimize compile-time.
-    for (unsigned BI = 0, BE = Entry.second.size(); BI < BE; BI += 16) {
-      auto Len = std::min<unsigned>(BE - BI, 16);
+    // Process the GEP list in chunks suitable for the target's supported
+    // vector size. If a vector register can't hold 1 element, we are done.
+    unsigned MaxVecRegSize = R.getMaxVecRegSize();
+    unsigned EltSize = R.getVectorElementSize(Entry.second[0]);
+    if (MaxVecRegSize < EltSize)
+      continue;
+
+    unsigned MaxElts = MaxVecRegSize / EltSize;
+    for (unsigned BI = 0, BE = Entry.second.size(); BI < BE; BI += MaxElts) {
+      auto Len = std::min<unsigned>(BE - BI, MaxElts);
       auto GEPList = makeArrayRef(&Entry.second[BI], Len);
 
       // Initialize a set a candidate getelementptrs. Note that we use a

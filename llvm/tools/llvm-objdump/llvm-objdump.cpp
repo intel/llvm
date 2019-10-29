@@ -37,6 +37,7 @@
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/MCTargetOptions.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/COFFImportFile.h"
@@ -342,14 +343,27 @@ static StringRef ToolName;
 
 typedef std::vector<std::tuple<uint64_t, StringRef, uint8_t>> SectionSymbolsTy;
 
-static bool shouldKeep(object::SectionRef S) {
+namespace {
+struct FilterResult {
+  // True if the section should not be skipped.
+  bool Keep;
+
+  // True if the index counter should be incremented, even if the section should
+  // be skipped. For example, sections may be skipped if they are not included
+  // in the --section flag, but we still want those to count toward the section
+  // count.
+  bool IncrementIndex;
+};
+} // namespace
+
+static FilterResult checkSectionFilter(object::SectionRef S) {
   if (FilterSections.empty())
-    return true;
+    return {/*Keep=*/true, /*IncrementIndex=*/true};
 
   Expected<StringRef> SecNameOrErr = S.getName();
   if (!SecNameOrErr) {
     consumeError(SecNameOrErr.takeError());
-    return false;
+    return {/*Keep=*/false, /*IncrementIndex=*/false};
   }
   StringRef SecName = *SecNameOrErr;
 
@@ -357,11 +371,26 @@ static bool shouldKeep(object::SectionRef S) {
   // no name (such as the section with index 0) here.
   if (!SecName.empty())
     FoundSectionSet.insert(SecName);
-  return is_contained(FilterSections, SecName);
+
+  // Only show the section if it's in the FilterSections list, but always
+  // increment so the indexing is stable.
+  return {/*Keep=*/is_contained(FilterSections, SecName),
+          /*IncrementIndex=*/true};
 }
 
-SectionFilter ToolSectionFilter(object::ObjectFile const &O) {
-  return SectionFilter([](object::SectionRef S) { return shouldKeep(S); }, O);
+SectionFilter ToolSectionFilter(object::ObjectFile const &O, uint64_t *Idx) {
+  // Start at UINT64_MAX so that the first index returned after an increment is
+  // zero (after the unsigned wrap).
+  if (Idx)
+    *Idx = UINT64_MAX;
+  return SectionFilter(
+      [Idx](object::SectionRef S) {
+        FilterResult Result = checkSectionFilter(S);
+        if (Idx != nullptr && Result.IncrementIndex)
+          *Idx += 1;
+        return Result.Keep;
+      },
+      O);
 }
 
 std::string getFileNameForError(const object::Archive::Child &C,
@@ -965,9 +994,18 @@ static size_t countSkippableZeroBytes(ArrayRef<uint8_t> Buf) {
 static std::map<SectionRef, std::vector<RelocationRef>>
 getRelocsMap(object::ObjectFile const &Obj) {
   std::map<SectionRef, std::vector<RelocationRef>> Ret;
+  uint64_t I = (uint64_t)-1;
   for (SectionRef Sec : Obj.sections()) {
-    section_iterator Relocated = Sec.getRelocatedSection();
-    if (Relocated == Obj.section_end() || !shouldKeep(*Relocated))
+    ++I;
+    Expected<section_iterator> RelocatedOrErr = Sec.getRelocatedSection();
+    if (!RelocatedOrErr)
+      reportError(Obj.getFileName(),
+                  "section (" + Twine(I) +
+                      "): failed to get a relocated section: " +
+                      toString(RelocatedOrErr.takeError()));
+
+    section_iterator Relocated = *RelocatedOrErr;
+    if (Relocated == Obj.section_end() || !checkSectionFilter(*Relocated).Keep)
       continue;
     std::vector<RelocationRef> &V = Ret[*Relocated];
     for (const RelocationRef &R : Sec.relocations())
@@ -1502,8 +1540,9 @@ static void disassembleObject(const ObjectFile *Obj, bool InlineRelocs) {
                 "no register info for target " + TripleName);
 
   // Set up disassembler.
+  MCTargetOptions MCOptions;
   std::unique_ptr<const MCAsmInfo> AsmInfo(
-      TheTarget->createMCAsmInfo(*MRI, TripleName));
+      TheTarget->createMCAsmInfo(*MRI, TripleName, MCOptions));
   if (!AsmInfo)
     reportError(Obj->getFileName(),
                 "no assembly info for target " + TripleName);
@@ -1578,11 +1617,17 @@ void printRelocations(const ObjectFile *Obj) {
   // sections. Usually, there is an only one relocation section for
   // each relocated section.
   MapVector<SectionRef, std::vector<SectionRef>> SecToRelSec;
-  for (const SectionRef &Section : ToolSectionFilter(*Obj)) {
+  uint64_t Ndx;
+  for (const SectionRef &Section : ToolSectionFilter(*Obj, &Ndx)) {
     if (Section.relocation_begin() == Section.relocation_end())
       continue;
-    const SectionRef TargetSec = *Section.getRelocatedSection();
-    SecToRelSec[TargetSec].push_back(Section);
+    Expected<section_iterator> SecOrErr = Section.getRelocatedSection();
+    if (!SecOrErr)
+      reportError(Obj->getFileName(),
+                  "section (" + Twine(Ndx) +
+                      "): unable to get a relocation target: " +
+                      toString(SecOrErr.takeError()));
+    SecToRelSec[**SecOrErr].push_back(Section);
   }
 
   for (std::pair<SectionRef, std::vector<SectionRef>> &P : SecToRelSec) {
@@ -1650,38 +1695,57 @@ static bool shouldDisplayLMA(const ObjectFile *Obj) {
   return ShowLMA;
 }
 
+static size_t getMaxSectionNameWidth(const ObjectFile *Obj) {
+  // Default column width for names is 13 even if no names are that long.
+  size_t MaxWidth = 13;
+  for (const SectionRef &Section : ToolSectionFilter(*Obj)) {
+    StringRef Name = unwrapOrError(Section.getName(), Obj->getFileName());
+    MaxWidth = std::max(MaxWidth, Name.size());
+  }
+  return MaxWidth;
+}
+
 void printSectionHeaders(const ObjectFile *Obj) {
+  size_t NameWidth = getMaxSectionNameWidth(Obj);
+  size_t AddressWidth = 2 * Obj->getBytesInAddress();
   bool HasLMAColumn = shouldDisplayLMA(Obj);
   if (HasLMAColumn)
     outs() << "Sections:\n"
-              "Idx Name          Size     VMA              LMA              "
-              "Type\n";
+              "Idx "
+           << left_justify("Name", NameWidth) << " Size     "
+           << left_justify("VMA", AddressWidth) << " "
+           << left_justify("LMA", AddressWidth) << " Type\n";
   else
     outs() << "Sections:\n"
-              "Idx Name          Size     VMA          Type\n";
+              "Idx "
+           << left_justify("Name", NameWidth) << " Size     "
+           << left_justify("VMA", AddressWidth) << " Type\n";
 
-  for (const SectionRef &Section : ToolSectionFilter(*Obj)) {
+  uint64_t Idx;
+  for (const SectionRef &Section : ToolSectionFilter(*Obj, &Idx)) {
     StringRef Name = unwrapOrError(Section.getName(), Obj->getFileName());
     uint64_t VMA = Section.getAddress();
     if (shouldAdjustVA(Section))
       VMA += AdjustVMA;
 
     uint64_t Size = Section.getSize();
-    bool Text = Section.isText();
-    bool Data = Section.isData();
-    bool BSS = Section.isBSS();
-    std::string Type = (std::string(Text ? "TEXT " : "") +
-                        (Data ? "DATA " : "") + (BSS ? "BSS" : ""));
+
+    std::string Type = Section.isText() ? "TEXT" : "";
+    if (Section.isData())
+      Type += Type.empty() ? "DATA" : " DATA";
+    if (Section.isBSS())
+      Type += Type.empty() ? "BSS" : " BSS";
 
     if (HasLMAColumn)
-      outs() << format("%3d %-13s %08" PRIx64 " %016" PRIx64 " %016" PRIx64
-                       " %s\n",
-                       (unsigned)Section.getIndex(), Name.str().c_str(), Size,
-                       VMA, getELFSectionLMA(Section), Type.c_str());
+      outs() << format("%3" PRIu64 " %-*s %08" PRIx64 " ", Idx, NameWidth,
+                       Name.str().c_str(), Size)
+             << format_hex_no_prefix(VMA, AddressWidth) << " "
+             << format_hex_no_prefix(getELFSectionLMA(Section), AddressWidth)
+             << " " << Type << "\n";
     else
-      outs() << format("%3d %-13s %08" PRIx64 " %016" PRIx64 " %s\n",
-                       (unsigned)Section.getIndex(), Name.str().c_str(), Size,
-                       VMA, Type.c_str());
+      outs() << format("%3" PRIu64 " %-*s %08" PRIx64 " ", Idx, NameWidth,
+                       Name.str().c_str(), Size)
+             << format_hex_no_prefix(VMA, AddressWidth) << " " << Type << "\n";
   }
   outs() << "\n";
 }
