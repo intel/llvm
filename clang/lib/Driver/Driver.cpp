@@ -851,21 +851,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
     if (HasValidSYCLRuntime) {
       llvm::Triple TT(TargetTriple);
-      if (SYCLfpga) {
+      // TODO: Use 'unknown' for OS as devices do not have any OS.
+      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+      TT.setVendor(llvm::Triple::UnknownVendor);
+      TT.setEnvironment(llvm::Triple::SYCLDevice);
+
+      if (IsCLMode())
+        TT.setObjectFormat(llvm::Triple::COFF);
+      if (SYCLfpga)
         // Triple for -fintelfpga is spir64_fpga-unknown-<os>-sycldevice.
-        // TODO: Use 'unknown' for OS as devices do not have any OS.
         TT.setArchName("spir64_fpga");
-        TT.setVendor(llvm::Triple::UnknownVendor);
-        TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-        TT.setEnvironment(llvm::Triple::SYCLDevice);
-      } else {
+      else
         TT.setArch(llvm::Triple::spir64);
-        TT.setVendor(llvm::Triple::UnknownVendor);
-        TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-        TT.setEnvironment(llvm::Triple::SYCLDevice);
-        if (IsCLMode())
-          TT.setObjectFormat(llvm::Triple::COFF);
-      }
+
       UniqueSYCLTriplesVec.push_back(TT);
     }
   }
