@@ -48,13 +48,12 @@ public:
   // Returns the single instance of the program manager for the entire process.
   // Can only be called after staticInit is done.
   static ProgramManager &getInstance();
-  RT::PiProgram createPIProgram(OSModuleHandle M, const context &Context,
-                                const string_class &KernelName,
-                                DeviceImage **I = nullptr) {
-    return loadProgram(M, Context, KernelName, I);
-  }
-  RT::PiProgram getBuiltOpenCLProgram(OSModuleHandle M, const context &Context,
-                                      const string_class &KernelName);
+  RT::PiProgram createPIProgramWithKernelName(OSModuleHandle M,
+                                              const context &Context,
+                                              const string_class &KernelName,
+                                              DeviceImage **I = nullptr);
+  RT::PiProgram getBuiltPIProgram(OSModuleHandle M, const context &Context,
+                                  const string_class &KernelName);
   RT::PiKernel getOrCreateKernel(OSModuleHandle M, const context &Context,
                                   const string_class &KernelName);
   RT::PiProgram getClProgramFromClKernel(RT::PiKernel Kernel);
@@ -63,31 +62,44 @@ public:
   void debugDumpBinaryImages() const;
   void debugDumpBinaryImage(const DeviceImage *Img) const;
   static string_class getProgramBuildLog(const RT::PiProgram &Program);
-  static bool programContainsKernel(const RT::PiProgram Program,
-                                    const string_class &KernelName);
 
 private:
-  RT::PiProgram loadProgram(OSModuleHandle M, const context &Context,
-                            const string_class &KernelName,
-                            DeviceImage **I = nullptr);
-  void build(RT::PiProgram Program, const string_class &Options = "",
-             std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());
-
-  ProgramManager() = default;
+  ProgramManager();
   ~ProgramManager() = default;
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
+  RT::PiProgram loadProgram(std::vector<DeviceImage *> &Imgs,
+                            const context &Context, DeviceImage **I = nullptr);
+  void build(RT::PiProgram Program, const string_class &Options = "",
+             std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());
+  // Provides a new kernel set id for grouping kernel names together
+  KernelSetId getNextKernelSetId();
+  KernelSetId getKernelSetId(OSModuleHandle M,
+                             const string_class &KernelName) const;
+  // Returns the format of the binary image
+  RT::PiDeviceBinaryType getFormat(DeviceImage *Img);
+
+  using KernelToImgsMap =
+      std::map<KernelSetId, std::unique_ptr<std::vector<DeviceImage *>>>;
   /// Keeps all available device executable images added via \ref addImages.
-  /// Organizes the images as a map from a module handle (.exe .dll) to the
-  /// vector of images coming from the module.
+  /// Organizes the images as a map from a module handle (.exe .dll) to another
+  /// map from a set of kernels to the vector of images containing them and
+  /// coming from the module.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::map<OSModuleHandle, std::unique_ptr<std::vector<DeviceImage *>>>
-      m_DeviceImages;
+  std::map<OSModuleHandle, KernelToImgsMap> m_DeviceImages;
+
+  /// Maps kernel names to their set id (the sets are disjoint).
+  /// Access must be guarded by the \ref Sync::getGlobalLock()
+  std::map<string_class, KernelSetId> m_KernelSets;
+
   /// Keeps device images not bound to a particular module. Program manager
   /// allocated memory for these images, so they are auto-freed in destructor.
   /// No image can out-live the Program manager.
   std::vector<std::unique_ptr<DeviceImage, ImageDeleter>> m_OrphanDeviceImages;
+
+  /// Path to spirv file specified with an environment variable.
+  string_class SpvFile;
 };
 } // namespace detail
 } // namespace sycl

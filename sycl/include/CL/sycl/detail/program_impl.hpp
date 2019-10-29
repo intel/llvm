@@ -183,10 +183,9 @@ public:
   template <typename KernelT>
   void compile_with_kernel_type(string_class CompileOptions = "") {
     throw_if_state_is_not(program_state::none);
-    // TODO Check for existence of kernel
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-      create_pi_program_with_il(M, KernelInfo<KernelT>::getName());
+      create_cl_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
       compile(CompileOptions);
     }
     State = program_state::compiled;
@@ -206,16 +205,16 @@ public:
   template <typename KernelT>
   void build_with_kernel_type(string_class BuildOptions = "") {
     throw_if_state_is_not(program_state::none);
-    // TODO Check for existence of kernel
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
       // If there are no build options, program can be safely cached
       if (is_cacheable_with_options(BuildOptions)) {
         IsProgramAndKernelCachingAllowed = true;
-        Program = ProgramManager::getInstance().getBuiltOpenCLProgram(M, Context, KernelInfo<KernelT>::getName());
+        Program = ProgramManager::getInstance().getBuiltPIProgram(
+            M, Context, KernelInfo<KernelT>::getName());
         PI_CALL(piProgramRetain)(Program);
       } else {
-        create_pi_program_with_il(M, KernelInfo<KernelT>::getName());
+        create_cl_program_with_kernel_name(M, KernelInfo<KernelT>::getName());
         build(BuildOptions);
       }
     }
@@ -259,8 +258,7 @@ public:
     if (is_host()) {
       return true;
     }
-    return ProgramManager::programContainsKernel(
-        Program, KernelInfo<KernelT>::getName());
+    return has_cl_kernel(KernelInfo<KernelT>::getName());
   }
 #endif
 
@@ -269,7 +267,7 @@ public:
     if (is_host()) {
       return false;
     }
-    return ProgramManager::programContainsKernel(Program, KernelName);
+    return has_cl_kernel(KernelName);
   }
 
   template <typename KernelT>
@@ -349,11 +347,11 @@ private:
     }
   }
 
-  void create_pi_program_with_il(OSModuleHandle M,
-                                 const string_class &KernelName) {
+  void create_cl_program_with_kernel_name(OSModuleHandle M,
+                                          string_class KernelName) {
     assert(!Program && "This program already has an encapsulated PI program");
-    Program =
-        ProgramManager::getInstance().createPIProgram(M, Context, KernelName);
+    Program = ProgramManager::getInstance().createPIProgramWithKernelName(
+        M, Context, KernelName);
   }
 
   void create_cl_program_with_source(const string_class &Source) {
@@ -411,6 +409,24 @@ private:
   static bool
   is_cacheable_with_options(const string_class &Options) {
     return Options.empty();
+  }
+
+  bool has_cl_kernel(const string_class &KernelName) const {
+    size_t Size;
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES, 0,
+                                 nullptr, &Size);
+    string_class ClResult(Size, ' ');
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES,
+                                 ClResult.size(), &ClResult[0], nullptr);
+    // Get rid of the null terminator
+    ClResult.pop_back();
+    vector_class<string_class> KernelNames(split_string(ClResult, ';'));
+    for (const auto &Name : KernelNames) {
+      if (Name == KernelName) {
+        return true;
+      }
+    }
+    return false;
   }
 
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const {

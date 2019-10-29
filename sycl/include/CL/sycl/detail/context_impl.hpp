@@ -105,7 +105,7 @@ public:
   /// Gets cached programs.
   ///
   /// @return a map of cached programs.
-  std::map<OSModuleHandle, std::vector<RT::PiProgram>> &getCachedPrograms() {
+  std::map<KernelSetId, RT::PiProgram> &getCachedPrograms() {
     return MCachedPrograms;
   }
 
@@ -128,7 +128,7 @@ private:
   platform MPlatform;
   bool MPluginInterop;
   bool MHostContext;
-  std::map<OSModuleHandle, std::vector<RT::PiProgram>> MCachedPrograms;
+  std::map<KernelSetId, RT::PiProgram> MCachedPrograms;
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> MCachedKernels;
   std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
 };

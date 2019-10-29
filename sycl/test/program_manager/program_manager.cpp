@@ -31,17 +31,17 @@ int main() {
 
   string_class KernelNameStr = detail::KernelInfo<KernelNameT>::getName();
   const detail::RT::PiProgram ClProgramFirst =
-      PM.getBuiltOpenCLProgram(M, ContextFirst, KernelNameStr);
+      PM.getBuiltPIProgram(M, ContextFirst, KernelNameStr);
   const detail::RT::PiProgram ClProgramSecond =
-      PM.getBuiltOpenCLProgram(M, ContextSecond, KernelNameStr);
+      PM.getBuiltPIProgram(M, ContextSecond, KernelNameStr);
   // The check what getBuiltOpenCLProgram returns unique cl_program for unique
   // context
   assert(ClProgramFirst != ClProgramSecond);
   for (size_t i = 0; i < 10; ++i) {
     const detail::RT::PiProgram ClProgramFirstNew =
-        PM.getBuiltOpenCLProgram(M, ContextFirst, KernelNameStr);
+        PM.getBuiltPIProgram(M, ContextFirst, KernelNameStr);
     const detail::RT::PiProgram ClProgramSecondNew =
-        PM.getBuiltOpenCLProgram(M, ContextSecond, KernelNameStr);
+        PM.getBuiltPIProgram(M, ContextSecond, KernelNameStr);
     // The check what getBuiltOpenCLProgram returns the same program for the
     // same context each time
     assert(ClProgramFirst == ClProgramFirstNew);

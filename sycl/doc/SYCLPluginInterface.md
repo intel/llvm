@@ -98,7 +98,6 @@ pi_result piextDeviceSelectBinary(
   pi_device           device,
   pi_device_binary *  binaries,
   pi_uint32           num_binaries,
-  const char *        kernel_name,
   pi_device_binary *  selected_binary);
 ```
 

@@ -229,8 +229,16 @@ typedef _pi_sampler_addressing_mode pi_sampler_addressing_mode;
 typedef _pi_sampler_filter_mode     pi_sampler_filter_mode;
 typedef _pi_sampler_info            pi_sampler_info;
 
-// Opaque data type for compatibility with OpenMP.
-typedef void * _pi_offload_entry;
+// Entry type, matches OpenMP for compatibility
+struct _pi_offload_entry_struct {
+  void *addr;
+  char *name;
+  size_t size;
+  int32_t flags;
+  int32_t reserved;
+};
+
+typedef _pi_offload_entry_struct * _pi_offload_entry;
 
 /// Types of device binary.
 typedef uint8_t pi_device_binary_type;
@@ -440,10 +448,11 @@ pi_result piDevicePartition(
 /// Selects the most appropriate device binary based on runtime information
 /// and the IR characteristics.
 ///
-pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *binaries,
-                                  pi_uint32 num_binaries,
-                                  const char *kernel_name,
-                                  pi_device_binary *selected_binary);
+pi_result piextDeviceSelectBinary(
+  pi_device           device,
+  pi_device_binary *  binaries,
+  pi_uint32           num_binaries,
+  pi_device_binary *  selected_binary);
 
 /// Retrieves a device function pointer to a user-defined function
 /// \arg \c function_name. \arg \c function_pointer_ret is set to 0 if query

@@ -246,6 +246,14 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
   return LinearIndex;
 }
 
+// Kernel set id, used to group kernel names together based on their
+// distribution
+// among device images
+using KernelSetId = size_t;
+// Reserved for kernels contained within the SPIRV file specified with
+// SYCL_USE_KERNEL_SPV (for program caching only)
+const KernelSetId SpvFileKernelSet = 0;
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl

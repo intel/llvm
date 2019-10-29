@@ -32,6 +32,8 @@ namespace detail {
 
 static constexpr int DbgProgMgr = 0;
 
+static const std::string UseSpvEnv{"SYCL_USE_KERNEL_SPV"};
+
 ProgramManager &ProgramManager::getInstance() {
   // The singleton ProgramManager instance, uses the "magic static" idiom.
   static ProgramManager Instance;
@@ -85,29 +87,35 @@ static RT::PiProgram createSpirvProgram(const RT::PiContext Context,
   return Program;
 }
 
+RT::PiProgram ProgramManager::createPIProgramWithKernelName(
+    OSModuleHandle M, const context &Context, const string_class &KernelName,
+    DeviceImage **I) {
+  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+  KernelSetId KSId = getKernelSetId(M, KernelName);
+  return loadProgram(*m_DeviceImages[M][KSId], Context, I);
+}
+
 RT::PiProgram
-ProgramManager::getBuiltOpenCLProgram(OSModuleHandle M, const context &Context,
-                                      const string_class &KernelName) {
+ProgramManager::getBuiltPIProgram(OSModuleHandle M, const context &Context,
+                                  const string_class &KernelName) {
+  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+  KernelSetId KSId = getKernelSetId(M, KernelName);
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
-  std::map<OSModuleHandle, std::vector<RT::PiProgram>> &CachedPrograms =
+  std::map<KernelSetId, RT::PiProgram> &CachedPrograms =
       Ctx->getCachedPrograms();
-  auto It = CachedPrograms.find(M);
-  if (It != CachedPrograms.end()) {
-    for (auto Prg : It->second) {
-      if (programContainsKernel(Prg, KernelName))
-        return Prg;
-    }
-  }
+  auto It = CachedPrograms.find(KSId);
+  if (It != CachedPrograms.end())
+    return It->second;
 
   DeviceImage *Img = nullptr;
   using PiProgramT = remove_pointer_t<RT::PiProgram>;
   unique_ptr_class<PiProgramT, decltype(&::piProgramRelease)> ProgramManaged(
-      loadProgram(M, Context, KernelName, &Img), RT::PluginInformation.PiFunctionTable.piProgramRelease);
+      loadProgram(*m_DeviceImages[M][KSId], Context, &Img),
+      RT::PluginInformation.PiFunctionTable.piProgramRelease);
 
   build(ProgramManaged.get(), Img->BuildOptions);
   RT::PiProgram Program = ProgramManaged.release();
-  std::vector<RT::PiProgram> &OSModulePrograms = CachedPrograms[M];
-  OSModulePrograms.push_back(Program);
+  CachedPrograms[KSId] = Program;
 
   return Program;
 }
@@ -119,7 +127,7 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
               << getRawSyclObjImpl(Context) << ", " << KernelName << ")\n";
   }
-  RT::PiProgram Program = getBuiltOpenCLProgram(M, Context, KernelName);
+  RT::PiProgram Program = getBuiltPIProgram(M, Context, KernelName);
   std::shared_ptr<context_impl> Ctx = getSyclObjImpl(Context);
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &CachedKernels =
       Ctx->getCachedKernels();
@@ -165,22 +173,62 @@ string_class ProgramManager::getProgramBuildLog(const RT::PiProgram &Program) {
   return Log;
 }
 
-bool ProgramManager::programContainsKernel(const RT::PiProgram Program,
-                                           const string_class &KernelName) {
-  size_t Size;
-  PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES, 0, nullptr,
-                               &Size);
-  string_class ClResult(Size, ' ');
-  PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES,
-                               ClResult.size(), &ClResult[0], nullptr);
-  // Get rid of the null terminator
-  ClResult.pop_back();
-  vector_class<string_class> KernelNames(split_string(ClResult, ';'));
-  for (const auto &Name : KernelNames) {
-    if (Name == KernelName)
-      return true;
+struct ImageDeleter {
+  void operator()(DeviceImage *I) {
+    delete[] I->BinaryStart;
+    delete I;
   }
-  return false;
+};
+
+ProgramManager::ProgramManager() {
+  const char *SpvFileC = std::getenv(UseSpvEnv.c_str());
+  // If a SPIRV file is specified with an environment variable,
+  // register the corresponding image
+  if (SpvFileC)
+    SpvFile = SpvFileC;
+  if (!SpvFile.empty()) {
+    // The env var requests that the program is loaded from a SPIRV file on disk
+    std::ifstream File(SpvFile, std::ios::binary);
+
+    if (!File.is_open())
+      throw runtime_error(std::string("Can't open file specified via ") +
+                          UseSpvEnv + ": " + SpvFile);
+    File.seekg(0, std::ios::end);
+    size_t Size = File.tellg();
+    auto *Data = new unsigned char[Size];
+    File.seekg(0);
+    File.read(reinterpret_cast<char *>(Data), Size);
+    File.close();
+
+    if (!File.good()) {
+      delete[] Data;
+      throw runtime_error(std::string("read from ") + SpvFile +
+                          std::string(" failed"));
+    }
+    DeviceImage *Img = new DeviceImage();
+    Img->Version = PI_DEVICE_BINARY_VERSION;
+    Img->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
+    Img->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
+    Img->BuildOptions = "";
+    Img->ManifestStart = nullptr;
+    Img->ManifestEnd = nullptr;
+    Img->BinaryStart = Data;
+    Img->BinaryEnd = Data + Size;
+    Img->EntriesBegin = nullptr;
+    Img->EntriesEnd = nullptr;
+    // TODO the environment variable name implies that the only binary format
+    // it accepts is SPIRV but that is not the case, should be aligned?
+    Img->Format = getFormat(Img);
+
+    std::unique_ptr<DeviceImage, ImageDeleter> ImgPtr(Img, ImageDeleter());
+    m_OrphanDeviceImages.emplace_back(std::move(ImgPtr));
+
+    m_DeviceImages[OSUtil::ExeModuleHandle][SpvFileKernelSet].reset(
+        new std::vector<DeviceImage *>({Img}));
+
+    if (DbgProgMgr > 0)
+      std::cerr << "loaded device image from " << SpvFile << "\n";
+  }
 }
 
 void ProgramManager::build(RT::PiProgram Program, const string_class &Options,
@@ -215,11 +263,30 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary Img = &(DeviceBinary->DeviceBinaries[I]);
     OSModuleHandle M = OSUtil::getOSModuleHandle(Img);
-    auto &Imgs = m_DeviceImages[M];
-
-    if (Imgs == nullptr)
-      Imgs.reset(new std::vector<DeviceImage *>());
-    Imgs->push_back(Img);
+    const _pi_offload_entry EntriesB = Img->EntriesBegin;
+    const _pi_offload_entry EntriesE = Img->EntriesEnd;
+    assert(EntriesB != EntriesE && "Image with no entries?");
+    // The kernel sets for any pair of images are either disjoint or identical,
+    // look up the kernel set using the first kernel name...
+    auto KSIdIt = m_KernelSets.find(EntriesB->name);
+    if (KSIdIt != m_KernelSets.end()) {
+      for (_pi_offload_entry EntriesIt = EntriesB + 1; EntriesIt != EntriesE;
+           ++EntriesIt)
+        assert(m_KernelSets[EntriesIt->name] == KSIdIt->second &&
+               "Kernel sets are not disjoint");
+      auto &Imgs = m_DeviceImages[M][KSIdIt->second];
+      assert(Imgs && "Device image vector should have been already created");
+      Imgs->push_back(Img);
+      continue;
+    }
+    // ... or create the set first if it hasn't been
+    KernelSetId KSId = getNextKernelSetId();
+    for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+         ++EntriesIt) {
+      auto Result = m_KernelSets.insert(std::make_pair(EntriesIt->name, KSId));
+      assert(Result.second && "Kernel sets are not disjoint");
+    }
+    m_DeviceImages[M][KSId].reset(new std::vector<DeviceImage *>({Img}));
   }
 }
 
@@ -235,23 +302,21 @@ void ProgramManager::debugDumpBinaryImage(const DeviceImage *Img) const {
             << (Img->BuildOptions ? Img->BuildOptions : "NULL") << "\n";
   std::cerr << "    Bin size : "
             << ((intptr_t)Img->BinaryEnd - (intptr_t)Img->BinaryStart) << "\n";
+  std::cerr << "    Entries  : ";
+  for (_pi_offload_entry EntriesIt = Img->EntriesBegin;
+       EntriesIt != Img->EntriesEnd; ++EntriesIt)
+    std::cerr << EntriesIt->name << " ";
+  std::cerr << "\n";
 }
 
 void ProgramManager::debugDumpBinaryImages() const {
-  for (const auto &ModImgvec : m_DeviceImages) {
-    std::cerr << "  ++++++ Module: " << ModImgvec.first << "\n";
-    for (const auto *Img : *(ModImgvec.second)) {
-      debugDumpBinaryImage(Img);
-    }
+  for (const auto &ImgMapIt : m_DeviceImages) {
+    std::cerr << "  ++++++ Module: " << ImgMapIt.first << "\n";
+    for (const auto &ImgVecIt : ImgMapIt.second)
+      for (const auto &Img : *ImgVecIt.second)
+        debugDumpBinaryImage(Img);
   }
 }
-
-struct ImageDeleter {
-  void operator()(DeviceImage *I) {
-    delete[] I->BinaryStart;
-    delete I;
-  }
-};
 
 static bool is_device_binary_type_supported(const context &C,
                                             RT::PiDeviceBinaryType Format) {
@@ -277,87 +342,42 @@ static bool is_device_binary_type_supported(const context &C,
   return false;
 }
 
-RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
+RT::PiProgram ProgramManager::loadProgram(std::vector<DeviceImage *> &Imgs,
                                           const context &Context,
-                                          const string_class &KernelName,
                                           DeviceImage **I) {
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+  assert(Imgs.size() > 0 &&
+         "Loading a program from an empty vector of images?");
 
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::loadProgram(" << M << ","
-              << getRawSyclObjImpl(Context) << ")\n";
+    std::cerr << ">>> ProgramManager::loadProgram({";
+    for (const auto &Img : Imgs)
+      std::cerr << Img << " ";
+    std::cerr << "}," << getRawSyclObjImpl(Context) << ")\n";
   }
 
   const RT::PiContext &Ctx = getRawSyclObjImpl(Context)->getHandleRef();
   DeviceImage *Img = nullptr;
-  bool UseKernelSpv = false;
-  const std::string UseSpvEnv("SYCL_USE_KERNEL_SPV");
 
-  if (const char *Spv = std::getenv(UseSpvEnv.c_str())) {
-    // The env var requests that the program is loaded from a SPIRV file on disk
-    UseKernelSpv = true;
-    std::string Fname(Spv);
-    std::ifstream File(Fname, std::ios::binary);
+  // TODO: There may be cases with cl::sycl::program class usage in source code
+  // that will result in a multi-device context. This case needs to be handled
+  // here or at the program_impl class level
 
-    if (!File.is_open()) {
-      throw runtime_error(std::string("Can't open file specified via ") +
-                          UseSpvEnv + ": " + Fname);
-    }
-    File.seekg(0, std::ios::end);
-    size_t Size = File.tellg();
-    auto *Data = new unsigned char[Size];
-    File.seekg(0);
-    File.read(reinterpret_cast<char *>(Data), Size);
-    File.close();
+  // Ask the native runtime under the given context to choose the device image
+  // it prefers.
+  if (Imgs.size() > 1) {
+    PI_CALL(piextDeviceSelectBinary)(getFirstDevice(Ctx), Imgs.data(),
+                                        (cl_uint)Imgs.size(), &Img);
+	}
+  else
+    Img = Imgs[0];
 
-    if (!File.good()) {
-      delete[] Data;
-      throw runtime_error(std::string("read from ") + Fname +
-                          std::string(" failed"));
-    }
-    Img = new DeviceImage();
-    Img->Version = PI_DEVICE_BINARY_VERSION;
-    Img->Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
-    Img->Format = PI_DEVICE_BINARY_TYPE_NONE;
-    Img->DeviceTargetSpec = PI_DEVICE_BINARY_TARGET_UNKNOWN;
-    Img->BuildOptions = "";
-    Img->ManifestStart = nullptr;
-    Img->ManifestEnd = nullptr;
-    Img->BinaryStart = Data;
-    Img->BinaryEnd = Data + Size;
-    Img->EntriesBegin = nullptr;
-    Img->EntriesEnd = nullptr;
-
-    std::unique_ptr<DeviceImage, ImageDeleter> ImgPtr(Img, ImageDeleter());
-    m_OrphanDeviceImages.emplace_back(std::move(ImgPtr));
-
-    if (DbgProgMgr > 0) {
-      std::cerr << "loaded device image from " << Fname << "\n";
-    }
-  } else {
-    // TODO: There may be cases with cl::sycl::program class usage in source
-    // code that will result in a multi-device context. This case needs to be
-    // handled here or at the program_impl class level
-
-    // Take all device images in module M and ask the native runtime under the
-    // given context to choose one it prefers.
-    auto ImgIt = m_DeviceImages.find(M);
-
-    if (ImgIt == m_DeviceImages.end()) {
-      throw runtime_error("No device program image found");
-    }
-    std::vector<DeviceImage *> *Imgs = (ImgIt->second).get();
-
-    PI_CALL(piextDeviceSelectBinary)(getFirstDevice(Ctx), Imgs->data(),
-                                     (cl_uint)Imgs->size(), KernelName.c_str(), &Img);
-
-    if (DbgProgMgr > 0) {
-      std::cerr << "available device images:\n";
-      debugDumpBinaryImages();
-      std::cerr << "selected device image: " << Img << "\n";
-      debugDumpBinaryImage(Img);
-    }
+  if (DbgProgMgr > 0) {
+    std::cerr << "available device images:\n";
+    debugDumpBinaryImages();
+    std::cerr << "selected device image: " << Img << "\n";
+    debugDumpBinaryImage(Img);
   }
+
   // perform minimal sanity checks on the device image and the descriptor
   if (Img->BinaryEnd < Img->BinaryStart) {
     throw runtime_error("Malformed device program image descriptor");
@@ -366,46 +386,20 @@ RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
     throw runtime_error("Invalid device program image: size is zero");
   }
   size_t ImgSize = static_cast<size_t>(Img->BinaryEnd - Img->BinaryStart);
-  auto Format = pi::cast<RT::PiDeviceBinaryType>(Img->Format);
 
-  // Determine the format of the image if not set already
-  if (Format == PI_DEVICE_BINARY_TYPE_NONE) {
-    struct {
-      RT::PiDeviceBinaryType Fmt;
-      const uint32_t Magic;
-    } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
-                {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
-    if (ImgSize >= sizeof(Fmts[0].Magic)) {
-      std::remove_const<decltype(Fmts[0].Magic)>::type Hdr = 0;
-      std::copy(Img->BinaryStart, Img->BinaryStart + sizeof(Hdr),
-                reinterpret_cast<char *>(&Hdr));
+  // TODO if the binary image is a part of the fat binary, the clang
+  //   driver should have set proper format option to the
+  //   clang-offload-wrapper. The fix depends on AOT compilation
+  //   implementation, so will be implemented together with it.
+  //   Img->Format can't be updated as it is inside of the in-memory
+  //   OS module binary.
+  auto Format = getFormat(Img);
+  // auto Format = Img->Format;
+  // if (Format == PI_DEVICE_BINARY_TYPE_NONE)
+  //   throw runtime_error("Image format not set");
 
-      for (const auto &Fmt : Fmts) {
-        if (Hdr == Fmt.Magic) {
-          Format = Fmt.Fmt;
-
-          // Image binary format wasn't set but determined above - update it;
-          if (UseKernelSpv) {
-            Img->Format = Format;
-          } else {
-            // TODO the binary image is a part of the fat binary, the clang
-            //   driver should have set proper format option to the
-            //   clang-offload-wrapper. The fix depends on AOT compilation
-            //   implementation, so will be implemented together with it.
-            //   Img->Format can't be updated as it is inside of the in-memory
-            //   OS module binary.
-            // throw runtime_error("Image format not set");
-          }
-          if (DbgProgMgr > 1) {
-            std::cerr << "determined image format: " << (int)Format << "\n";
-          }
-          break;
-        }
-      }
-    }
-  }
   // Dump program image if requested
-  if (std::getenv("SYCL_DUMP_IMAGES") && !UseKernelSpv) {
+  if (std::getenv("SYCL_DUMP_IMAGES") && SpvFile.empty()) {
     std::string Fname("sycl_");
     Fname += Img->DeviceTargetSpec;
     std::string Ext;
@@ -442,6 +436,51 @@ RT::PiProgram ProgramManager::loadProgram(OSModuleHandle M,
     std::cerr << "created native program: " << Res << "\n";
   }
   return Res;
+}
+
+KernelSetId ProgramManager::getNextKernelSetId() {
+  // No need for atomic, should be guarded by the caller
+  static KernelSetId Result = SpvFileKernelSet;
+  return ++Result;
+}
+
+KernelSetId
+ProgramManager::getKernelSetId(OSModuleHandle M,
+                               const string_class &KernelName) const {
+  if (!SpvFile.empty() && M == OSUtil::ExeModuleHandle)
+    return SpvFileKernelSet;
+  auto KSIdIt = m_KernelSets.find(KernelName);
+  assert(KSIdIt != m_KernelSets.end() && "Looking up unregistered kernel name");
+  return KSIdIt->second;
+}
+
+RT::PiDeviceBinaryType ProgramManager::getFormat(DeviceImage *Img) {
+  assert(Img && "Null device image pointer");
+  if (Img->Format != PI_DEVICE_BINARY_TYPE_NONE)
+    return Img->Format;
+
+  struct {
+    RT::PiDeviceBinaryType Fmt;
+    const uint32_t Magic;
+  } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
+              {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
+
+  size_t ImgSize = static_cast<size_t>(Img->BinaryEnd - Img->BinaryStart);
+  if (ImgSize >= sizeof(Fmts[0].Magic)) {
+    std::remove_const<decltype(Fmts[0].Magic)>::type Hdr = 0;
+    std::copy(Img->BinaryStart, Img->BinaryStart + sizeof(Hdr),
+              reinterpret_cast<char *>(&Hdr));
+
+    for (const auto &Fmt : Fmts) {
+      if (Hdr == Fmt.Magic) {
+        if (DbgProgMgr > 1)
+          std::cerr << "determined image format: " << (int)Fmt.Fmt << "\n";
+        return Fmt.Fmt;
+      }
+    }
+  }
+
+  return PI_DEVICE_BINARY_TYPE_NONE;
 }
 
 } // namespace detail
