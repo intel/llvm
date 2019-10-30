@@ -201,15 +201,15 @@ template <typename dataT>
 extern int32_t __spirv_ReadPipe(RPipeTy<dataT> Pipe, dataT *Data,
                                 int32_t Size, int32_t Alignment) noexcept;
 template <typename dataT>
-extern int32_t __spirv_WritePipe(WPipeTy<dataT> Pipe, dataT *Data,
+extern int32_t __spirv_WritePipe(WPipeTy<dataT> Pipe, const dataT *Data,
                                  int32_t Size, int32_t Alignment) noexcept;
 template <typename dataT>
 extern void __spirv_ReadPipeBlockingINTEL(RPipeTy<dataT> Pipe, dataT *Data,
                                           int32_t Size,
                                           int32_t Alignment) noexcept;
 template <typename dataT>
-extern void __spirv_WritePipeBlockingINTEL(WPipeTy<dataT> Pipe, dataT *Data,
-                                           int32_t Size,
+extern void __spirv_WritePipeBlockingINTEL(WPipeTy<dataT> Pipe,
+                                           const dataT *Data, int32_t Size,
                                            int32_t Alignment) noexcept;
 template <typename dataT>
 extern RPipeTy<dataT> __spirv_CreatePipeFromPipeStorage_read(

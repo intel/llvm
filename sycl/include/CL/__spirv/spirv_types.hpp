@@ -58,10 +58,10 @@ inline constexpr MemorySemanticsMask operator|(MemorySemanticsMask a,
 
 #ifdef __SYCL_DEVICE_ONLY__
 // OpenCL pipe types
-template<typename dataT>
-using RPipeTy = __read_only __pipe const dataT;
-template<typename dataT>
-using WPipeTy = __write_only __pipe const dataT;
+template <typename dataT>
+using RPipeTy = __attribute__((pipe("read_only"))) const dataT;
+template <typename dataT>
+using WPipeTy = __attribute__((pipe("write_only"))) const dataT;
 
 // Struct representing layout of pipe storage
 struct ConstantPipeStorage {
