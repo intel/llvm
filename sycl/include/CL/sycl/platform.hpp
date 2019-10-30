@@ -13,7 +13,7 @@
 
 // 4.6.2 Platform class
 #include <utility>
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 // TODO: make code thread-safe
 

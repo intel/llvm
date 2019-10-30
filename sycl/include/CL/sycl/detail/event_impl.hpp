@@ -15,7 +15,7 @@
 
 #include <cassert>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 class context;
 namespace detail {

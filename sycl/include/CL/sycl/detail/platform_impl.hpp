@@ -14,7 +14,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 // Forward declaration

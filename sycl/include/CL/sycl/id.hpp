@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/range.hpp>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;

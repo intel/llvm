@@ -29,7 +29,7 @@
 #include <memory>
 #include <type_traits>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 // Forward declarations
 template <typename DataT, int Dimensions, access::mode AccessMode,

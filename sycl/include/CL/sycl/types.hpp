@@ -45,6 +45,7 @@
 #endif // __HAS_EXT_VECTOR_TYPE__
 
 #include <CL/sycl/aliases.hpp>
+#include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
@@ -60,7 +61,7 @@
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 enum class rounding_mode { automatic, rte, rtz, rtp, rtn };
@@ -1837,7 +1838,7 @@ using __half16_vec_t = half_vec<16>;
 
 #define GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on

@@ -15,13 +15,13 @@
 // types of parameters to kernel functions
 
 // Forward declaration
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 template <typename T, int N> class vec;
 } // namespace sycl
 } // namespace cl
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
 namespace gtl {

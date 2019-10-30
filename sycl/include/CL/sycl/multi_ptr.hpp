@@ -13,7 +13,7 @@
 #include <cassert>
 #include <cstddef>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 // Forward declaration
 template <typename dataT, int dimensions, access::mode accessMode,

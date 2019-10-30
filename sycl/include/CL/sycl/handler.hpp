@@ -59,7 +59,7 @@ template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
           cl::sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 // Forward declaration

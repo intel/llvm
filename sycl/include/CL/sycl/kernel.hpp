@@ -14,7 +14,7 @@
 
 #include <memory>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 // Forward declaration
 class program;

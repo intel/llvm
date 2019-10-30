@@ -1638,6 +1638,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
 
+  O << "#include <CL/sycl/detail/defines.hpp>\n";
   O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
 
   O << "\n";
@@ -1651,7 +1652,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "\n";
 
-  O << "namespace cl {\n";
+  O << "__SYCL_INLINE namespace cl {\n";
   O << "namespace sycl {\n";
   O << "namespace detail {\n";
 

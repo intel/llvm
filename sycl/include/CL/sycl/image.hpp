@@ -16,7 +16,7 @@
 #include <CL/sycl/types.hpp>
 #include <cstddef>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 enum class image_channel_order : unsigned int {

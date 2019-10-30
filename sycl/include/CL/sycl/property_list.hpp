@@ -13,7 +13,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 
 // HOW TO ADD NEW PROPERTY INSTRUCTION:

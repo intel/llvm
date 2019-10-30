@@ -8,10 +8,12 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines.hpp>
+
 #include <functional>
 #include <mutex>
 
-namespace cl {
+__SYCL_INLINE namespace cl {
 namespace sycl {
 namespace detail {
   /// Represents a reference to value with appropriate lock acquired.
