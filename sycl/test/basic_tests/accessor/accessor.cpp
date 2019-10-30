@@ -13,10 +13,6 @@
 #include <CL/sycl.hpp>
 #include <cassert>
 
-namespace sycl {
-using namespace cl::sycl;
-}
-
 struct IdxID1 {
   int x;
 

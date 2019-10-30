@@ -40,3 +40,7 @@
 #include <CL/sycl/types.hpp>
 #include <CL/sycl/usm.hpp>
 #include <CL/sycl/version.hpp>
+
+#ifndef __SYCL_DISABLE_NAMESPACE_ALIAS__
+namespace sycl = cl::sycl;
+#endif

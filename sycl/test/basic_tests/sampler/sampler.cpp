@@ -15,10 +15,6 @@
 #include <CL/sycl/context.hpp>
 #include <cassert>
 
-namespace sycl {
-using namespace cl::sycl;
-}
-
 int main() {
   // Check constructor from enums
   sycl::sampler A(sycl::coordinate_normalization_mode::unnormalized,
