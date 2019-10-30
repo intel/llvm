@@ -1876,7 +1876,7 @@ def IntelFPGAPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";
   let Content = [{
-This attribute applies to a type to indicate that it's is a pipe type.
+This attribute applies to a type to indicate that it is a pipe type.
 It requires a string argument that specifies if the pipe is read only or
 write only. Expected to be used only in SYCL headers.
   }];
