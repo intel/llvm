@@ -3148,7 +3148,7 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
 
       T = SemaRef.Context.IntTy;
       D.setInvalidType(true);
-    } else if (!HaveTrailing &&
+    } else if (Auto && !HaveTrailing &&
                D.getContext() != DeclaratorContext::LambdaExprContext) {
       // If there was a trailing return type, we already got
       // warn_cxx98_compat_trailing_return_type in the parser.
@@ -8017,16 +8017,15 @@ static void assignInheritanceModel(Sema &S, CXXRecordDecl *RD) {
       break;
     }
 
-    SourceRange Loc = 
-    S.ImplicitMSInheritanceAttrLoc.isValid()
-                                 ? S.ImplicitMSInheritanceAttrLoc
-                                 : RD->getSourceRange();
-  RD->addAttr(MSInheritanceAttr::CreateImplicit(
-      S.getASTContext(),
-      /*BestCase=*/S.MSPointerToMemberRepresentationMethod ==
-          LangOptions::PPTMK_BestCase,
-      Loc, AttributeCommonInfo::AS_Microsoft, IM));
-  S.Consumer.AssignInheritanceModel(RD);
+    SourceRange Loc = S.ImplicitMSInheritanceAttrLoc.isValid()
+                          ? S.ImplicitMSInheritanceAttrLoc
+                          : RD->getSourceRange();
+    RD->addAttr(MSInheritanceAttr::CreateImplicit(
+        S.getASTContext(),
+        /*BestCase=*/S.MSPointerToMemberRepresentationMethod ==
+            LangOptions::PPTMK_BestCase,
+        Loc, AttributeCommonInfo::AS_Microsoft, IM));
+    S.Consumer.AssignInheritanceModel(RD);
   }
 }
 
