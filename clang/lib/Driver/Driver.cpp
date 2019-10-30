@@ -5123,6 +5123,9 @@ InputInfo Driver::BuildJobsForActionNoCache(
       InputInfo CurI;
       bool IsMSVCEnv =
           C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+      bool IsFPGAObjLink = (JA->getType() == types::TY_Object &&
+          C.getInputArgs().hasArg(options::OPT_fintelfpga) &&
+          C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
       if (C.getInputArgs().hasArg(options::OPT_foffload_static_lib_EQ) &&
           ((JA->getType() == types::TY_Archive && IsMSVCEnv) ||
            (UI.DependentOffloadKind != Action::OFK_Host &&
@@ -5133,10 +5136,7 @@ InputInfo Driver::BuildJobsForActionNoCache(
           continue;
         // Host part of the unbundled object when -fintelfpga -fsycl-link is
         // enabled is not used
-        if (UI.DependentOffloadKind == Action::OFK_Host &&
-            JA->getType() == types::TY_Object &&
-            C.getInputArgs().hasArg(options::OPT_fintelfpga) &&
-            C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ))
+        if (UI.DependentOffloadKind == Action::OFK_Host && IsFPGAObjLink)
           continue;
         std::string TmpFileName =
            C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
@@ -5173,12 +5173,9 @@ InputInfo Driver::BuildJobsForActionNoCache(
                         C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
         CurI = InputInfo(TI, TmpFile, TmpFile);
       } else {
-        // Host part of the unbundled object when -fintelfpga -fsycl-link is
-        // enabled is not used
-        if (UI.DependentOffloadKind == Action::OFK_Host &&
-            JA->getType() == types::TY_Object &&
-            C.getInputArgs().hasArg(options::OPT_fintelfpga) &&
-            C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ))
+        // Host part of the unbundled object is not used  when -fintelfpga
+        // -fsycl-link is enabled
+        if (UI.DependentOffloadKind == Action::OFK_Host && IsFPGAObjLink)
           continue;
         std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
           UI.DependentOffloadKind,
