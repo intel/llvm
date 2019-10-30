@@ -227,7 +227,7 @@ extern __ocl_event_t
 OpGroupAsyncCopyGlobalToLocal(__spv::Scope Execution, dataT *Dest, dataT *Src,
                               size_t NumElements, size_t Stride,
                               __ocl_event_t E) noexcept {
-  for (int i = 0; i < NumElements; i++) {
+  for (size_t i = 0; i < NumElements; i++) {
     Dest[i] = Src[i * Stride];
   }
   // A real instance of the class is not needed, return dummy pointer.
@@ -239,7 +239,7 @@ extern __ocl_event_t
 OpGroupAsyncCopyLocalToGlobal(__spv::Scope Execution, dataT *Dest, dataT *Src,
                               size_t NumElements, size_t Stride,
                               __ocl_event_t E) noexcept {
-  for (int i = 0; i < NumElements; i++) {
+  for (size_t i = 0; i < NumElements; i++) {
     Dest[i * Stride] = Src[i];
   }
   // A real instance of the class is not needed, return dummy pointer.
