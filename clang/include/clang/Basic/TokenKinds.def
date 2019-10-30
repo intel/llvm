@@ -576,7 +576,6 @@ KEYWORD(vec_step                    , KEYOPENCLC | KEYALTIVEC | KEYZVECTOR)
 KEYWORD(__builtin_omp_required_simd_align, KEYALL)
 
 KEYWORD(pipe                        , KEYOPENCLC | KEYOPENCLCXX)
-KEYWORD(__pipe                      , KEYSYCL)
 
 // Borland Extensions.
 KEYWORD(__pascal                    , KEYALL)
