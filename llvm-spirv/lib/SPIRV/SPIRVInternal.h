@@ -98,6 +98,7 @@ template <> inline void SPIRVMap<unsigned, Op>::init() {
   _SPIRV_OP(BitCast, Bitcast)
   _SPIRV_OP(AddrSpaceCast, GenericCastToPtr)
   _SPIRV_OP(GetElementPtr, AccessChain)
+  _SPIRV_OP(FNeg, FNegate)
   /*Binary*/
   _SPIRV_OP(And, BitwiseAnd)
   _SPIRV_OP(Or, BitwiseOr)

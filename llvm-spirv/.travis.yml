@@ -3,8 +3,8 @@ language: cpp
 os:
   - linux
 
-# Use Ubuntu 16.04 LTS (Xenial) as the Linux testing environment.
-dist: xenial
+# Use Ubuntu 18.04 LTS (Bionic) as the Linux testing environment.
+dist: bionic
 sudo: false
 
 git:
@@ -13,20 +13,27 @@ git:
 branches:
   only:
     - master
+    - /llvm_release_\d+$/
+# From https://docs.travis-ci.com/user/customizing-the-build/#safelisting-or-blocklisting-branches
+# "Note that safelisting also prevents tagged commits from being built.
+#  If you consistently tag your builds in the format v1.3 you can safelist them
+#  all with regular expressions, for example /^v\d+\.\d+(\.\d+)?(-\S*)?$/."
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
 
 addons:
   apt:
     sources:
-    - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main'
+    - sourceline: 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main'
       key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
-    - sourceline: 'deb https://packages.lunarg.com/vulkan xenial main'
+    - sourceline: 'deb https://packages.lunarg.com/vulkan bionic main'
       key_url: 'http://packages.lunarg.com/lunarg-signing-key-pub.asc'
     packages:
-    - llvm-9-tools
-    - llvm-9-dev
-    - clang-format-9
-    - clang-tidy-9
-    - libclang-9-dev
+    - llvm-10-tools
+    - llvm-10-dev
+    - clang-format-10
+    - clang-tidy-10
+    - libclang-10-dev
+    - lldb-10
     - spirv-tools
 
 compiler:
@@ -69,13 +76,11 @@ matrix:
 
 script:
   - |
-    pyenv global 3.7
-  - |
     if [ $BUILD_EXTERNAL == "0" ]; then
       mkdir llvm-spirv
       mv * llvm-spirv
-      git clone https://git.llvm.org/git/llvm.git/ --depth 1
-      mv llvm-spirv llvm/tools/llvm-spirv
+      git clone https://github.com/llvm/llvm-project --depth 1
+      mv llvm-spirv llvm-project/llvm-spirv
     fi
   - |
     if [ $TRAVIS_OS_NAME == "osx" ]; then
@@ -92,14 +97,15 @@ script:
           -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
           -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
           -DLLVM_BUILD_TOOLS=ON \
-          -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-9/build/utils/lit/lit.py" \
+          -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-10/build/utils/lit/lit.py" \
           -DLLVM_INCLUDE_TESTS=ON \
           -DCMAKE_INSTALL_PREFIX=../install/ \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
           -G "Unix Makefiles"
       fi
     else
-      cmake ../llvm/ \
+      BUILDDIR=$(pwd)
+      cmake ../llvm-project/llvm/ \
         -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
         -DBUILD_SHARED_LIBS=${SHARED_LIBS} \
         -DLLVM_BUILD_TOOLS=ON \
@@ -108,12 +114,15 @@ script:
         -DSPIRV_SKIP_CLANG_BUILD=ON \
         -DSPIRV_SKIP_DEBUG_INFO_TESTS=ON \
         -DLLVM_LIT_ARGS="-sv --no-progress-bar" \
+        -DLLVM_EXTERNAL_PROJECTS="llvm-spirv" \
+        -DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=${BUILDDIR}/../llvm-project/llvm-spirv \
+        -DLLVM_ENABLE_PROJECTS="llvm-spirv" \
         -G "Unix Makefiles"
-      ln -s /usr/lib/llvm-9/bin/clang bin/
+      ln -s /usr/lib/llvm-10/bin/clang bin/
     fi
   - if [ $CHECK_FORMAT == "1" ]; then
       cd ..;
-      ln -s /usr/share/clang/clang-format-9/clang-format-diff.py utils/;
+      ln -s /usr/share/clang/clang-format-10/clang-format-diff.py utils/;
       ./utils/check_code_format.sh;
     elif [ $CHECK_TIDY == "1" ]; then
       cd ..;
@@ -123,32 +132,40 @@ script:
       make $MAKE_TARGETS && make $MAKE_TEST_TARGET && if [ $BUILD_EXTERNAL == "1" ]; then make install; fi
     fi
 
-after_success:
-  # Create tarball for deployment
-  - if [[ "${BUILD_EXTERNAL}" == "1" && "${SHARED_LIBS}" == "ON" && "${repo_token}" != "" ]]; then
-      export TAG=dev-build;
-      export TARBALL=SPIRV-LLVM-Translator-${TAG}-${TRAVIS_OS_NAME}-${BUILD_TYPE}.zip;
-      cd ../install;
-      echo ${TRAVIS_COMMIT} > version.txt;
-      find . -print | zip -@ ${TARBALL};
-    fi
-
 before_deploy:
-  # Tag the current master top of the tree as "latest".
   # Travis CI relies on the tag name to push to the correct release.
-  - git config --global user.name "Travis CI"
-  - git config --global user.email "builds@travis-ci.org"
-  - git tag -f ${TAG}
-  - git push -f https://${repo_token}@github.com/${TRAVIS_REPO_SLUG} --tags
+  # Tag the current master top of the tree as "dev-build".
+  # We must be very careful with "git push -f" and allow it ONLY
+  # for the "dev-build" tag!
+  - if [[ "${TRAVIS_BRANCH}" == "master" && -z "${TRAVIS_TAG}" ]]; then
+      export TRAVIS_TAG=dev-build;
+      git config --global user.name "Travis CI";
+      git config --global user.email "builds@travis-ci.org";
+      git tag -f ${TRAVIS_TAG};
+      git push -f https://${repo_token}@github.com/${TRAVIS_REPO_SLUG} --tags;
+    fi
+  # Create tarball for deployment
+  - echo ${TRAVIS_COMMIT} > ../install/version.txt;
+  - export TARBALL=SPIRV-LLVM-Translator-${TRAVIS_TAG}-${TRAVIS_OS_NAME}-${BUILD_TYPE}.zip;
+  - cd ../install && find . -print | zip -@ ${TARBALL};
 
 deploy:
-  provider: releases
-  api_key: ${repo_token}
-  on:
-    branch: master
-    condition: ${BUILD_EXTERNAL} == 1 && ${SHARED_LIBS} == ON && ${repo_token}
-  file: ${TARBALL}
-  name: Latest development build $(date -u +'%F %R %Z')
-  skip_cleanup: true
-  overwrite: true
-  prerelease: true
+  - provider: releases
+    api_key: ${repo_token}
+    on:
+      tags: true
+      condition: ${BUILD_EXTERNAL} == 1 && ${SHARED_LIBS} == ON && ${repo_token}
+    file: ${TARBALL}
+    skip_cleanup: true
+    overwrite: false
+  - provider: releases
+    api_key: ${repo_token}
+    on:
+      tags: false
+      branch: master
+      condition: ${BUILD_EXTERNAL} == 1 && ${SHARED_LIBS} == ON && ${repo_token}
+    file: ${TARBALL}
+    name: Latest development build $(date -u +'%F %R %Z')
+    skip_cleanup: true
+    overwrite: true
+    prerelease: true
