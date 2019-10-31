@@ -374,6 +374,10 @@ public:
                                                      SPIRVId TheVector,
                                                      SPIRVId TheScalar,
                                                      SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addVectorTimesMatrixInst(SPIRVType *TheType,
+                                                     SPIRVId TheVector,
+                                                     SPIRVId TheMatrix,
+                                                     SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addMatrixTimesScalarInst(SPIRVType *TheType,
                                                      SPIRVId TheMatrix,
                                                      SPIRVId TheScalar,

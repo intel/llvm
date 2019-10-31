@@ -725,11 +725,6 @@ SPIRVValue *LLVMToSPIRV::transValueWithoutDecoration(Value *V,
     return transFunctionDecl(F);
 
   if (auto GV = dyn_cast<GlobalVariable>(V)) {
-    if (GV->getName() == "llvm.global.annotations") {
-      transGlobalAnnotation(GV);
-      return nullptr;
-    }
-
     llvm::PointerType *Ty = GV->getType();
     // Though variables with common linkage type are initialized by 0,
     // they can be represented in SPIR-V as uninitialized variables with
@@ -1663,7 +1658,9 @@ void LLVMToSPIRV::transGlobalAnnotation(GlobalVariable *V) {
 
 bool LLVMToSPIRV::transGlobalVariables() {
   for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
-    if (!transValue(&(*I), nullptr))
+    if ((*I).getName() == "llvm.global.annotations")
+      transGlobalAnnotation(&(*I));
+    else if (!transValue(&(*I), nullptr))
       return false;
   }
   return true;

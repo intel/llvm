@@ -1269,6 +1269,65 @@ protected:
   SPIRVId Scalar;
 };
 
+class SPIRVVectorTimesMatrix : public SPIRVInstruction {
+public:
+  static const Op OC = OpVectorTimesMatrix;
+  static const SPIRVWord FixedWordCount = 4;
+
+  // Complete constructor
+  SPIRVVectorTimesMatrix(SPIRVType *TheType, SPIRVId TheId, SPIRVId TheVector,
+                         SPIRVId TheMatrix, SPIRVBasicBlock *BB)
+      : SPIRVInstruction(5, OC, TheType, TheId, BB), Vector(TheVector),
+        Matrix(TheMatrix) {
+    validate();
+    assert(BB && "Invalid BB");
+  }
+
+  // Incomplete constructor
+  SPIRVVectorTimesMatrix()
+      : SPIRVInstruction(OC), Vector(SPIRVID_INVALID), Matrix(SPIRVID_INVALID) {
+  }
+
+  SPIRVValue *getVector() const { return getValue(Vector); }
+  SPIRVValue *getMatrix() const { return getValue(Matrix); }
+
+  std::vector<SPIRVValue *> getOperands() override {
+    std::vector<SPIRVId> Operands;
+    Operands.push_back(Vector);
+    Operands.push_back(Matrix);
+    return getValues(Operands);
+  }
+
+  void setWordCount(SPIRVWord FixedWordCount) override {
+    SPIRVEntry::setWordCount(FixedWordCount);
+  }
+
+  _SPIRV_DEF_ENCDEC4(Type, Id, Vector, Matrix)
+
+  void validate() const override {
+    SPIRVInstruction::validate();
+    if (getValue(Vector)->isForward() || getValue(Matrix)->isForward())
+      return;
+
+    SPIRVType *Ty = getType()->getScalarType();
+    SPIRVType *MTy = getValueType(Matrix)->getScalarType();
+    SPIRVType *VTy = getValueType(Vector)->getScalarType();
+
+    (void)Ty;
+    (void)MTy;
+    (void)VTy;
+    assert(Ty->isTypeFloat() && "Invalid result type for OpVectorTimesMatrix");
+    assert(VTy->isTypeFloat() && "Invalid Vector type for OpVectorTimesMatrix");
+    assert(MTy->isTypeFloat() && "Invalid Matrix type for OpVectorTimesMatrix");
+
+    assert(Ty == MTy && Ty == VTy && "Mismatch float type");
+  }
+
+private:
+  SPIRVId Vector;
+  SPIRVId Matrix;
+};
+
 class SPIRVMatrixTimesScalar : public SPIRVInstruction {
 public:
   static const Op OC = OpMatrixTimesScalar;

@@ -373,6 +373,10 @@ public:
                                              SPIRVId TheVector,
                                              SPIRVId TheScalar,
                                              SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addVectorTimesMatrixInst(SPIRVType *TheType,
+                                             SPIRVId TheVector,
+                                             SPIRVId TheScalar,
+                                             SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addMatrixTimesScalarInst(SPIRVType *TheType,
                                              SPIRVId TheMatrix,
                                              SPIRVId TheScalar,
@@ -1069,6 +1073,14 @@ SPIRVModuleImpl::addVectorTimesScalarInst(SPIRVType *TheType, SPIRVId TheVector,
                                           SPIRVBasicBlock *BB) {
   return BB->addInstruction(
       new SPIRVVectorTimesScalar(TheType, getId(), TheVector, TheScalar, BB));
+}
+
+SPIRVInstruction *
+SPIRVModuleImpl::addVectorTimesMatrixInst(SPIRVType *TheType, SPIRVId TheVector,
+                                          SPIRVId TheMatrix,
+                                          SPIRVBasicBlock *BB) {
+  return BB->addInstruction(
+      new SPIRVVectorTimesMatrix(TheType, getId(), TheVector, TheMatrix, BB));
 }
 
 SPIRVInstruction *
