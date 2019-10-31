@@ -129,7 +129,7 @@ void free(void *Ptr, const context &Ctxt) {
     pi_context C = CtxImpl->getHandleRef();
     pi_result Error = Dispatch->memFree(C, Ptr);
 
-    PI_CHECK(Error);
+    RT::piCheckResult(Error);
   }
 }
 

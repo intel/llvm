@@ -118,6 +118,16 @@ template <> inline void print<>(PiResult val) {
     std::cout << val;
 }
 
+template <> inline void print<>(std::nullptr_t val) { print<void *>(val); }
+
+template <typename Exception> inline void piCheckThrow(PiResult pi_result) {
+  CHECK_OCL_CODE_THROW(pi_result, Exception);
+}
+
+inline void piCheckResult(PiResult pi_result) {
+  piCheckThrow<cl::sycl::runtime_error>(pi_result);
+}
+
 inline void printArgs(void) {}
 template <typename Arg0, typename... Args>
 void printArgs(Arg0 arg0, Args... args) {
@@ -137,17 +147,15 @@ public:
       std::cout << "---> " << FnName << "(";
   }
 
-  template <typename... Args>
-  typename std::result_of<FnType(Args...)>::type operator()(Args... args) {
+  template <typename... Args> PiResult operator()(Args... args) {
     if (m_TraceEnabled)
       printArgs(args...);
 
-    initialize();
     auto r = m_FnPtr(args...);
 
     if (m_TraceEnabled) {
       std::cout << ") ---> ";
-      std::cout << (print(r), "") << "\n";
+      std::cout << (print(r), "") << std::endl;
     }
     return r;
   }
@@ -165,24 +173,29 @@ namespace RT = cl::sycl::detail::pi;
 #define PI_TRACE(func) RT::Trace<decltype(func)>(func, #func)
 
 // This does the call, the trace and the check for no errors.
-#define PI_CALL(pi)                                                            \
-  RT::initialize(), RT::PiCall(#pi).check<cl::sycl::runtime_error>(            \
-                        RT::cast<detail::RT::PiResult>(pi))
+// Need to call initialize so that the ptrs are updated and then stored.
+#define PI_CALL(pi, ...)                                                       \
+  {                                                                            \
+    RT::initialize();                                                          \
+    RT::piCheckResult(PI_TRACE(pi)(__VA_ARGS__));                              \
+  }
 
 // This does the trace, the call, and returns the result
-#define PI_CALL_RESULT(pi)                                                     \
-  RT::PiCall(#pi).get(detail::RT::cast<detail::RT::PiResult>(pi))
+// There should have been a single call to PI_CALL before this macro is used. It
+// enables calling initialize before the PI_TRACE function is called.
+#define PI_CALL_RESULT(pi, ...) PI_TRACE(pi)(__VA_ARGS__)
 
-// This does the check for no errors and possibly throws
-#define PI_CHECK(pi)                                                           \
-  RT::PiCall().check<cl::sycl::runtime_error>(                                 \
-      RT::cast<detail::RT::PiResult>(pi))
+// RT::PiCall(#pi).get(detail::RT::cast<detail::RT::PiResult>(pi))
 
-// This does the check for no errors and possibly throws x
-#define PI_CHECK_THROW(pi, x)                                                  \
-  RT::PiCall().check<x>(RT::cast<detail::RT::PiResult>(pi))
+// Trace an openCL calls to the device, call, check and return the result.
+// Note that this does not print the arguments of the function call.
+// No initialise required.
+#define PI_TRACE_OCL_CALL(ocl, ...)                                            \
+  PI_TRACE(&ocl);                                                              \
+  RT::piCheckResult(RT::cast<RT::PiResult>(ocl(__VA_ARGS__)))
 
-// Want all the needed casts be explicit, do not define conversion operators.
+// Want all the needed casts be explicit, do not define conversion
+// operators.
 template <class To, class From> To pi::cast(From value) {
   // TODO: see if more sanity checks are possible.
   PI_ASSERT(sizeof(From) == sizeof(To), "cast failed size check");
