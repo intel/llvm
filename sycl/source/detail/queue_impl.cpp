@@ -22,9 +22,9 @@ namespace detail {
 template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
   if (!is_host())
-    PI_CALL(RT::piQueueGetInfo(m_CommandQueue,
+    PI_CALL(RT::piQueueGetInfo,m_CommandQueue,
                                PI_QUEUE_INFO_REFERENCE_COUNT,
-                               sizeof(result), &result, nullptr));
+                               sizeof(result), &result, nullptr);
   return result;
 }
 

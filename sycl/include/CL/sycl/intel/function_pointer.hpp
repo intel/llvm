@@ -80,10 +80,10 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
   device_func_ptr_holder_t FPtr = 0;
   // FIXME: return value must be checked here, but since we cannot yet check
   // if corresponding extension is supported, let's silently ignore it here.
-  PI_CALL_RESULT(RT::piextGetDeviceFunctionPointer(
+  PI_CALL(RT::piextGetDeviceFunctionPointer,
       detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
       detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
-      FuncName, &FPtr));
+      FuncName, &FPtr);
 
   return FPtr;
 }

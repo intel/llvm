@@ -29,9 +29,9 @@ device get_device_info<device, info::device::parent_device>::_(
   RT::PiDevice dev) {
 
   typename sycl_to_pi<device>::type result;
-  PI_CALL(RT::piDeviceGetInfo(
+  PI_CALL(RT::piDeviceGetInfo,
     dev, pi::cast<RT::PiDeviceInfo>(info::device::parent_device),
-    sizeof(result), &result, NULL));
+    sizeof(result), &result, nullptr);
   if (result == nullptr)
     throw invalid_object_error(
         "No parent for device because it is not a subdevice");
