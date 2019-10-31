@@ -13,15 +13,16 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.h>
+
 #include <cassert>
 #include <string>
 
 // Function to load the shared library
 // Implementation is OS dependent.
-void *loadOsLibrary(const std::string &library);
+void *loadOsLibrary(const std::string &Library);
 
 // Function to get Address of a symbol defined in the shared
-// library, Implementation is OS dependent.
+// library, implementation is OS dependent.
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 
 namespace cl {

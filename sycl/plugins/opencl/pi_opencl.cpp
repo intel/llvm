@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "CL/opencl.h"
 #include <CL/sycl/detail/pi.h>
+
 #include <cassert>
 #include <cstring>
 #include <string>
@@ -142,19 +143,19 @@ pi_result OCL(piQueueCreate)(pi_context context, pi_device device,
   cl_platform_id curPlatform;
   cl_int ret_err =
       clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_PLATFORM,
-                      sizeof(cl_platform_id), &curPlatform, NULL);
+                      sizeof(cl_platform_id), &curPlatform, nullptr);
 
   CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
 
   size_t platVerSize;
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, NULL,
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, nullptr,
                               &platVerSize);
 
   CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
 
   std::string platVer(platVerSize, '\0');
   ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, platVerSize,
-                              &platVer.front(), NULL);
+                              &platVer.front(), nullptr);
 
   CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
 
@@ -181,7 +182,7 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
   size_t deviceCount;
 
   cl_int ret_err = clGetContextInfo(cast<cl_context>(context),
-                                    CL_CONTEXT_DEVICES, 0, NULL, &deviceCount);
+                                    CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
 
   std::vector<cl_device_id> devicesInCtx(deviceCount);
 
@@ -193,22 +194,22 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
 
   ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
                              deviceCount * sizeof(cl_device_id),
-                             devicesInCtx.data(), NULL);
+                             devicesInCtx.data(), nullptr);
 
   CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
 
   cl_platform_id curPlatform;
   ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
-                            sizeof(cl_platform_id), &curPlatform, NULL);
+                            sizeof(cl_platform_id), &curPlatform, nullptr);
 
   CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
 
   size_t devVerSize;
   ret_err =
-      clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, NULL, &devVerSize);
+      clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, nullptr, &devVerSize);
   std::string devVer(devVerSize, '\0');
   ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, devVerSize,
-                              &devVer.front(), NULL);
+                              &devVer.front(), nullptr);
 
   CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
 
@@ -225,10 +226,10 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
 
   size_t extSize;
   ret_err =
-      clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, NULL, &extSize);
+      clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, nullptr, &extSize);
   std::string extStr(extSize, '\0');
   ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, extSize,
-                              &extStr.front(), NULL);
+                              &extStr.front(), nullptr);
 
   if (ret_err != CL_SUCCESS ||
       extStr.find("cl_khr_il_program") == std::string::npos) {
