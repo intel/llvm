@@ -88,19 +88,20 @@ pi_result OCL(piextDeviceSelectBinary)(
   const char *image_target = nullptr;
   // Get the type of the device
   cl_device_type device_type;
-  cl_int ret_err = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
-                                   sizeof(cl_device_type), &device_type, nullptr);
+  cl_int ret_err =
+      clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
+                      sizeof(cl_device_type), &device_type, nullptr);
   if (ret_err != CL_SUCCESS) {
     *selected_image = nullptr;
     return cast<pi_result>(ret_err);
   }
 
   switch (device_type) {
-  // TODO: Factor out vendor specifics into a separate source
-  // E.g. sycl/source/detail/vendor/intel/detail/pi_opencl.cpp?
+    // TODO: Factor out vendor specifics into a separate source
+    // E.g. sycl/source/detail/vendor/intel/detail/pi_opencl.cpp?
 
-  // We'll attempt to find an image that was AOT-compiled
-  // from a SPIR-V image into an image specific for:
+    // We'll attempt to find an image that was AOT-compiled
+    // from a SPIR-V image into an image specific for:
 
   case CL_DEVICE_TYPE_CPU: // OpenCL 64-bit CPU
     image_target = PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
@@ -181,8 +182,8 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
 
   size_t deviceCount;
 
-  cl_int ret_err = clGetContextInfo(cast<cl_context>(context),
-                                    CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
+  cl_int ret_err = clGetContextInfo(
+      cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
 
   std::vector<cl_device_id> devicesInCtx(deviceCount);
 
@@ -205,8 +206,8 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
   CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
 
   size_t devVerSize;
-  ret_err =
-      clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, nullptr, &devVerSize);
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, nullptr,
+                              &devVerSize);
   std::string devVer(devVerSize, '\0');
   ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, devVerSize,
                               &devVer.front(), nullptr);
@@ -225,8 +226,8 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
   }
 
   size_t extSize;
-  ret_err =
-      clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, nullptr, &extSize);
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, nullptr,
+                              &extSize);
   std::string extStr(extSize, '\0');
   ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, extSize,
                               &extStr.front(), nullptr);
@@ -330,9 +331,10 @@ pi_result OCL(piContextCreate)(
                        void *user_data1),
     void *user_data, pi_context *retcontext) {
   pi_result ret = PI_INVALID_OPERATION;
-  *retcontext = cast<pi_context>(clCreateContext(
-      properties, cast<cl_uint>(num_devices), cast<const cl_device_id*>(devices),
-      pfn_notify, user_data, cast<cl_int *>(&ret)));
+  *retcontext = cast<pi_context>(
+      clCreateContext(properties, cast<cl_uint>(num_devices),
+                      cast<const cl_device_id *>(devices), pfn_notify,
+                      user_data, cast<cl_int *>(&ret)));
 
   return ret;
 }
@@ -467,10 +469,10 @@ _PI_CL(piDeviceRelease, clReleaseDevice)
 _PI_CL(piextDeviceSelectBinary, OCL(piextDeviceSelectBinary))
 _PI_CL(piextGetDeviceFunctionPointer, OCL(piextGetDeviceFunctionPointer))
 // Context
-_PI_CL(piContextCreate,     OCL(piContextCreate))
-_PI_CL(piContextGetInfo,    clGetContextInfo)
-_PI_CL(piContextRetain,     clRetainContext)
-_PI_CL(piContextRelease,    clReleaseContext)
+_PI_CL(piContextCreate, OCL(piContextCreate))
+_PI_CL(piContextGetInfo, clGetContextInfo)
+_PI_CL(piContextRetain, clRetainContext)
+_PI_CL(piContextRelease, clReleaseContext)
 // Queue
 _PI_CL(piQueueCreate, OCL(piQueueCreate))
 _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
@@ -478,35 +480,35 @@ _PI_CL(piQueueFinish, clFinish)
 _PI_CL(piQueueRetain, clRetainCommandQueue)
 _PI_CL(piQueueRelease, clReleaseCommandQueue)
 // Memory
-_PI_CL(piMemBufferCreate,    OCL(piMemBufferCreate))
-_PI_CL(piMemImageCreate,     OCL(piMemImageCreate))
-_PI_CL(piMemGetInfo,         clGetMemObjectInfo)
-_PI_CL(piMemImageGetInfo,    clGetImageInfo)
-_PI_CL(piMemRetain,          clRetainMemObject)
-_PI_CL(piMemRelease,         clReleaseMemObject)
+_PI_CL(piMemBufferCreate, OCL(piMemBufferCreate))
+_PI_CL(piMemImageCreate, OCL(piMemImageCreate))
+_PI_CL(piMemGetInfo, clGetMemObjectInfo)
+_PI_CL(piMemImageGetInfo, clGetImageInfo)
+_PI_CL(piMemRetain, clRetainMemObject)
+_PI_CL(piMemRelease, clReleaseMemObject)
 _PI_CL(piMemBufferPartition, OCL(piMemBufferPartition))
 // Program
-_PI_CL(piProgramCreate,             OCL(piProgramCreate))
+_PI_CL(piProgramCreate, OCL(piProgramCreate))
 _PI_CL(piclProgramCreateWithSource, OCL(piclProgramCreateWithSource))
 _PI_CL(piclProgramCreateWithBinary, OCL(piclProgramCreateWithBinary))
-_PI_CL(piProgramGetInfo,            clGetProgramInfo)
-_PI_CL(piProgramCompile,            clCompileProgram)
-_PI_CL(piProgramBuild,              clBuildProgram)
-_PI_CL(piProgramLink,               OCL(piProgramLink))
-_PI_CL(piProgramGetBuildInfo,       clGetProgramBuildInfo)
-_PI_CL(piProgramRetain,             clRetainProgram)
-_PI_CL(piProgramRelease,            clReleaseProgram)
+_PI_CL(piProgramGetInfo, clGetProgramInfo)
+_PI_CL(piProgramCompile, clCompileProgram)
+_PI_CL(piProgramBuild, clBuildProgram)
+_PI_CL(piProgramLink, OCL(piProgramLink))
+_PI_CL(piProgramGetBuildInfo, clGetProgramBuildInfo)
+_PI_CL(piProgramRetain, clRetainProgram)
+_PI_CL(piProgramRelease, clReleaseProgram)
 // Kernel
-_PI_CL(piKernelCreate,          OCL(piKernelCreate))
-_PI_CL(piKernelSetArg,          clSetKernelArg)
-_PI_CL(piKernelGetInfo,         clGetKernelInfo)
-_PI_CL(piKernelGetGroupInfo,    clGetKernelWorkGroupInfo)
+_PI_CL(piKernelCreate, OCL(piKernelCreate))
+_PI_CL(piKernelSetArg, clSetKernelArg)
+_PI_CL(piKernelGetInfo, clGetKernelInfo)
+_PI_CL(piKernelGetGroupInfo, clGetKernelWorkGroupInfo)
 _PI_CL(piKernelGetSubGroupInfo, clGetKernelSubGroupInfo)
 _PI_CL(piKernelRetain, clRetainKernel)
 _PI_CL(piKernelRelease, clReleaseKernel)
 // Event
-_PI_CL(piEventCreate,           OCL(piEventCreate))
-_PI_CL(piEventGetInfo,          clGetEventInfo)
+_PI_CL(piEventCreate, OCL(piEventCreate))
+_PI_CL(piEventGetInfo, clGetEventInfo)
 _PI_CL(piEventGetProfilingInfo, clGetEventProfilingInfo)
 _PI_CL(piEventsWait, clWaitForEvents)
 _PI_CL(piEventSetCallback, clSetEventCallback)

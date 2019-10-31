@@ -22,8 +22,8 @@ template <info::event_profiling Param> struct get_event_profiling_info {
   static RetType _(RT::PiEvent Event) {
     RetType Result = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piEventGetProfilingInfo(
-        Event, cl_profiling_info(Param), sizeof(Result), &Result, nullptr));
+    PI_CALL(RT::piEventGetProfilingInfo,
+        Event, cl_profiling_info(Param), sizeof(Result), &Result, nullptr);
     return Result;
   }
 };
@@ -34,8 +34,8 @@ template <info::event Param> struct get_event_info {
   static RetType _(RT::PiEvent Event) {
     RetType Result = (RetType)0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piEventGetInfo(
-        Event, cl_profiling_info(Param), sizeof(Result), &Result, nullptr));
+    PI_CALL(RT::piEventGetInfo,
+        Event, cl_profiling_info(Param), sizeof(Result), &Result, nullptr);
     return Result;
   }
 };

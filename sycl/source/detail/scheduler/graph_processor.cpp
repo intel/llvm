@@ -47,7 +47,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
 
   RT::PiEvent &CLEvent = Cmd->getEvent()->getHandleRef();
   if (CLEvent)
-    PI_CALL(RT::piEventsWait(1, &CLEvent));
+    PI_CALL(RT::piEventsWait, 1, &CLEvent);
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
