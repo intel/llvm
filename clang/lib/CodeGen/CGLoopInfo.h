@@ -61,44 +61,48 @@ struct LoopAttributes {
   /// Value for llvm.loop.interleave.count metadata.
   unsigned InterleaveCount;
 
-  // Struct to contain the IVDep info.
-  struct IVDepInfo {
+  // IVDepInfo represents a group of arrays that have the same IVDep safelen to
+  // them. The arrays contained in it will later be referred to from the same
+  // "llvm.loop.parallel_access_indices" metadata node.
+  struct SYCLIVDepInfo {
     unsigned SafeLen;
     mutable llvm::SmallVector<std::pair<const ValueDecl *, llvm::MDNode *>, 4>
         Arrays;
-    IVDepInfo(unsigned SL) : SafeLen(SL) {}
-    IVDepInfo(unsigned SL, const ValueDecl *A, llvm::MDNode *MD) : SafeLen(SL) {
+    SYCLIVDepInfo(unsigned SL) : SafeLen(SL) {}
+    SYCLIVDepInfo(unsigned SL, const ValueDecl *A, llvm::MDNode *MD) : SafeLen(SL) {
       Arrays.emplace_back(A, MD);
     }
 
-    bool HasArray(const ValueDecl *Array) const {
-      return Arrays.end() != GetArrayPairItr(Array);
+    bool hasArray(const ValueDecl *Array) const {
+      return Arrays.end() != getArrayPairItr(Array);
     }
 
-    decltype(Arrays)::iterator GetArrayPairItr(const ValueDecl *Array) {
+    decltype(Arrays)::iterator getArrayPairItr(const ValueDecl *Array) {
       return find_if(Arrays,
                      [Array](const auto &Pair) { return Pair.first == Array; });
     }
 
-    decltype(Arrays)::iterator GetArrayPairItr(const ValueDecl *Array) const {
+    decltype(Arrays)::iterator getArrayPairItr(const ValueDecl *Array) const {
       return find_if(Arrays,
                      [Array](const auto &Pair) { return Pair.first == Array; });
     }
 
-    void EraseArray(const ValueDecl *Array) {
-      assert(HasArray(Array) && "Precondition of EraseArray is HasArray");
-      Arrays.erase(GetArrayPairItr(Array));
+    void eraseArray(const ValueDecl *Array) {
+      assert(hasArray(Array) && "Precondition of EraseArray is HasArray");
+      Arrays.erase(getArrayPairItr(Array));
     }
 
-    bool IsSafeLenGreaterOrEqual(unsigned OtherSL) const {
+    bool isSafeLenGreaterOrEqual(unsigned OtherSL) const {
       return SafeLen == 0 || (OtherSL != 0 && SafeLen >= OtherSL);
     }
   };
 
-  // Value for llvm.loop.parallel_access_indices metadata, for the global item.
-  llvm::Optional<IVDepInfo> GlobalIVDepInfo;
-  // Value for llvm.loop.parallel_access_indices metadata, for array specifications.
-  llvm::SmallVector<IVDepInfo, 4> ArraySYCLIVDepInfo;
+  // Value for llvm.loop.parallel_access_indices metadata, for the arrays that
+  // weren't put into a specific ivdep item.
+  llvm::Optional<SYCLIVDepInfo> GlobalSYCLIVDepInfo;
+  // Value for llvm.loop.parallel_access_indices metadata, for array
+  // specifications.
+  llvm::SmallVector<SYCLIVDepInfo, 4> ArraySYCLIVDepInfo;
 
   /// Value for llvm.loop.ii.count metadata.
   unsigned SYCLIInterval;

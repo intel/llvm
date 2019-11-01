@@ -1356,8 +1356,7 @@ TemplateInstantiator::TransformSYCLIntelFPGAIVDepAttr(
                     ? getDerived().TransformExpr(IVDep->getArrayExpr()).get()
                     : nullptr;
 
-  auto *Attr = getSema().BuildSYCLIntelFPGAIVDepAttr(*IVDep, Expr1, Expr2);
-  return Attr;
+  return getSema().BuildSYCLIntelFPGAIVDepAttr(*IVDep, Expr1, Expr2);
 }
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(

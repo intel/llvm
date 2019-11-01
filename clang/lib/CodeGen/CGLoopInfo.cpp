@@ -403,24 +403,24 @@ MDNode *LoopInfo::createFullUnrollMetadata(const LoopAttributes &Attrs,
 void LoopInfoStack::addSYCLIVDepInfo(llvm::LLVMContext &Ctx, unsigned SafeLen,
                                      const ValueDecl *Array) {
   // If there is a global that beats this one out, don't add/change anything.
-  if (StagedAttrs.GlobalIVDepInfo &&
-      (StagedAttrs.GlobalIVDepInfo->SafeLen == 0 ||
-       (SafeLen != 0 && StagedAttrs.GlobalIVDepInfo->SafeLen >= SafeLen)))
+  if (StagedAttrs.GlobalSYCLIVDepInfo &&
+      (StagedAttrs.GlobalSYCLIVDepInfo->SafeLen == 0 ||
+       (SafeLen != 0 && StagedAttrs.GlobalSYCLIVDepInfo->SafeLen >= SafeLen)))
     return;
 
   if (!Array) {
     // Updating the global setting.
-    if (!StagedAttrs.GlobalIVDepInfo)
-      StagedAttrs.GlobalIVDepInfo = LoopAttributes::IVDepInfo{SafeLen};
+    if (!StagedAttrs.GlobalSYCLIVDepInfo)
+      StagedAttrs.GlobalSYCLIVDepInfo = LoopAttributes::SYCLIVDepInfo{SafeLen};
     else
-      StagedAttrs.GlobalIVDepInfo->SafeLen = SafeLen;
+      StagedAttrs.GlobalSYCLIVDepInfo->SafeLen = SafeLen;
 
     // Remove any array collections that don't have a greater safelen than the
     // global.
     StagedAttrs.ArraySYCLIVDepInfo.erase(
         llvm::remove_if(StagedAttrs.ArraySYCLIVDepInfo,
                         [SafeLen](const auto &A) {
-                          return !A.IsSafeLenGreaterOrEqual(SafeLen);
+                          return !A.isSafeLenGreaterOrEqual(SafeLen);
                         }),
         StagedAttrs.ArraySYCLIVDepInfo.end());
     return;
@@ -431,21 +431,21 @@ void LoopInfoStack::addSYCLIVDepInfo(llvm::LLVMContext &Ctx, unsigned SafeLen,
       [SafeLen](const auto &Info) { return Info.SafeLen == SafeLen; });
   auto ArrayItr =
       llvm::find_if(StagedAttrs.ArraySYCLIVDepInfo,
-                    [Array](const auto &Info) { return Info.HasArray(Array); });
+                    [Array](const auto &Info) { return Info.hasArray(Array); });
 
   if (ArrayItr != StagedAttrs.ArraySYCLIVDepInfo.end()) {
     // Ensure that the current array's safelen is greater than the existing one.
     // Otherwise, there is nothing to do. We've already been checked against
     // the global safelen.
-    if (ArrayItr->IsSafeLenGreaterOrEqual(SafeLen))
+    if (ArrayItr->isSafeLenGreaterOrEqual(SafeLen))
       return;
 
     // We know this exists, so no need to check the result of find_if, but
     // remove the last array.
-    ArrayItr->EraseArray(Array);
+    ArrayItr->eraseArray(Array);
   }
 
-  // Add us to the new safelen version.
+  // Add this to the new safelen version.
   if (SafeLenItr != StagedAttrs.ArraySYCLIVDepInfo.end()) {
     SafeLenItr->Arrays.emplace_back(Array, MDNode::getDistinct(Ctx, {}));
     return;
@@ -458,7 +458,7 @@ void LoopInfoStack::addSYCLIVDepInfo(llvm::LLVMContext &Ctx, unsigned SafeLen,
 static void
 EmitIVDepLoopMetadata(LLVMContext &Ctx,
                       llvm::SmallVectorImpl<llvm::Metadata *> &LoopProperties,
-                      const LoopAttributes::IVDepInfo &I) {
+                      const LoopAttributes::SYCLIVDepInfo &I) {
   if (I.Arrays.empty())
     return;
   SmallVector<llvm::Metadata *, 4> MD;
@@ -496,8 +496,8 @@ MDNode *LoopInfo::createMetadata(
   }
 
   LLVMContext &Ctx = Header->getContext();
-  if (Attrs.GlobalIVDepInfo.hasValue())
-    EmitIVDepLoopMetadata(Ctx, LoopProperties, *Attrs.GlobalIVDepInfo);
+  if (Attrs.GlobalSYCLIVDepInfo.hasValue())
+    EmitIVDepLoopMetadata(Ctx, LoopProperties, *Attrs.GlobalSYCLIVDepInfo);
   for (const auto &I : Attrs.ArraySYCLIVDepInfo)
     EmitIVDepLoopMetadata(Ctx, LoopProperties, I);
 
@@ -538,7 +538,7 @@ LoopAttributes::LoopAttributes(bool IsParallel)
 void LoopAttributes::clear() {
   IsParallel = false;
   VectorizeWidth = 0;
-  GlobalIVDepInfo.reset();
+  GlobalSYCLIVDepInfo.reset();
   ArraySYCLIVDepInfo.clear();
   SYCLIInterval = 0;
   SYCLMaxConcurrencyEnable = false;
@@ -568,7 +568,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
   }
 
   if (!Attrs.IsParallel && Attrs.VectorizeWidth == 0 &&
-      Attrs.InterleaveCount == 0 && !Attrs.GlobalIVDepInfo.hasValue() &&
+      Attrs.InterleaveCount == 0 && !Attrs.GlobalSYCLIVDepInfo.hasValue() &&
       Attrs.ArraySYCLIVDepInfo.empty() && Attrs.SYCLIInterval == 0 &&
       Attrs.SYCLMaxConcurrencyEnable == false && Attrs.UnrollCount == 0 &&
       Attrs.UnrollAndJamCount == 0 && !Attrs.PipelineDisabled &&
@@ -953,22 +953,22 @@ void LoopInfo::CollectIVDepMetadata(
 
   auto ArrayIVDep =
       llvm::find_if(Attrs.ArraySYCLIVDepInfo,
-                    [Array](const auto &Info) { return Info.HasArray(Array); });
+                    [Array](const auto &Info) { return Info.hasArray(Array); });
 
   // If this array is associated with an array, use this one.
   if (ArrayIVDep != Attrs.ArraySYCLIVDepInfo.end()) {
-    MD.push_back(ArrayIVDep->GetArrayPairItr(Array)->second);
+    MD.push_back(ArrayIVDep->getArrayPairItr(Array)->second);
     return;
   }
 
-  if (!Attrs.GlobalIVDepInfo)
+  if (!Attrs.GlobalSYCLIVDepInfo)
     return;
 
-  auto GlobalArrayPairItr = Attrs.GlobalIVDepInfo->GetArrayPairItr(Array);
-  if (GlobalArrayPairItr == Attrs.GlobalIVDepInfo->Arrays.end()) {
-    Attrs.GlobalIVDepInfo->Arrays.emplace_back(
+  auto GlobalArrayPairItr = Attrs.GlobalSYCLIVDepInfo->getArrayPairItr(Array);
+  if (GlobalArrayPairItr == Attrs.GlobalSYCLIVDepInfo->Arrays.end()) {
+    Attrs.GlobalSYCLIVDepInfo->Arrays.emplace_back(
         Array, MDNode::getDistinct(Header->getContext(), {}));
-    GlobalArrayPairItr = std::prev(Attrs.GlobalIVDepInfo->Arrays.end());
+    GlobalArrayPairItr = std::prev(Attrs.GlobalSYCLIVDepInfo->Arrays.end());
   }
   MD.push_back(GlobalArrayPairItr->second);
 }

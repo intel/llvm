@@ -207,6 +207,23 @@ Sema::BuildSYCLIntelFPGAIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
       SYCLIntelFPGAIVDepAttr(Context, CI, SafeLenExpr, ArrayExpr, SafelenValue);
 }
 
+// Filters out any attributes from the list that are either not the specified
+// type, or whose function isDependent returns true.
+template <typename T>
+static void FilterAttributeList(ArrayRef<const Attr *> Attrs,
+                    SmallVectorImpl<const T *> &FilteredAttrs) {
+
+  llvm::transform(Attrs, std::back_inserter(FilteredAttrs), [](const Attr *A) {
+    if (const auto *Cast = dyn_cast_or_null<const T>(A))
+      return Cast->isDependent() ? nullptr : Cast;
+    return static_cast<const T*>(nullptr);
+  });
+  FilteredAttrs.erase(
+      std::remove(FilteredAttrs.begin(), FilteredAttrs.end(),
+                  static_cast<const T*>(nullptr)),
+      FilteredAttrs.end());
+}
+
 static void
 CheckRedundantSYCLIntelFPGAIVDepAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
   // Skip SEMA if we're in a template, this will be diagnosed later.
@@ -215,15 +232,7 @@ CheckRedundantSYCLIntelFPGAIVDepAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
 
   SmallVector<const SYCLIntelFPGAIVDepAttr *, 8> FilteredAttrs;
   // Filter down to just non-dependent ivdeps.
-  llvm::transform(Attrs, std::back_inserter(FilteredAttrs), [](const Attr *A) {
-    if (const auto *IVDep = dyn_cast_or_null<const SYCLIntelFPGAIVDepAttr>(A))
-      return IVDep->isDependent() ? nullptr : IVDep;
-    return static_cast<const SYCLIntelFPGAIVDepAttr *>(nullptr);
-  });
-  FilteredAttrs.erase(
-      std::remove(FilteredAttrs.begin(), FilteredAttrs.end(),
-                  static_cast<const SYCLIntelFPGAIVDepAttr *>(nullptr)),
-      FilteredAttrs.end());
+  FilterAttributeList(Attrs, FilteredAttrs);
   if (FilteredAttrs.empty())
     return;
 
