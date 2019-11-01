@@ -1872,7 +1872,7 @@ function, and no effect otherwise.
   }];
 }
 
-def IntelFPGAPipeDocs : Documentation {
+def SYCLFPGAPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";
   let Content = [{

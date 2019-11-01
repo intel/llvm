@@ -1694,11 +1694,11 @@ def IntelFPGASimpleDualPort : Attr {
   let Documentation = [IntelFPGASimpleDualPortAttrDocs];
 }
 
-def IntelFPGAPipe : TypeAttr {
+def SYCLFPGAPipe : TypeAttr {
   let Spellings = [GNU<"pipe">];
   let Args = [StringArgument<"Mode">];
   let LangOpts = [SYCLIsDevice];
-  let Documentation = [IntelFPGAPipeDocs];
+  let Documentation = [SYCLFPGAPipeDocs];
 }
 
 def Naked : InheritableAttr {

@@ -1509,7 +1509,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     // AttributedType nodes for them.
     break;
 
-  case attr::IntelFPGAPipe:
+  case attr::SYCLFPGAPipe:
     OS << "pipe";
     break;
 
