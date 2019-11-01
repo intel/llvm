@@ -221,7 +221,7 @@ private:
   createFullUnrollMetadata(const LoopAttributes &Attrs,
                            llvm::ArrayRef<llvm::Metadata *> LoopProperties,
                            bool &HasUserTransforms);
-  void CollectIVDepMetadata(const ValueDecl *Array,
+  void collectIVDepMetadata(const ValueDecl *Array,
                             llvm::SmallVectorImpl<llvm::Metadata *> &MD) const;
   /// @}
 

@@ -9,6 +9,7 @@
 #include "CGLoopInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Attr.h"
+#include "clang/AST/Decl.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
@@ -946,10 +947,10 @@ void LoopInfoStack::InsertHelper(Instruction *I) const {
   }
 }
 
-void LoopInfo::CollectIVDepMetadata(
+void LoopInfo::collectIVDepMetadata(
     const ValueDecl *Array, llvm::SmallVectorImpl<llvm::Metadata *> &MD) const {
   if (Parent)
-    Parent->CollectIVDepMetadata(Array, MD);
+    Parent->collectIVDepMetadata(Array, MD);
 
   auto ArrayIVDep =
       llvm::find_if(Attrs.ArraySYCLIVDepInfo,
@@ -976,7 +977,7 @@ void LoopInfo::CollectIVDepMetadata(
 void LoopInfo::AddIVDepMetadata(const ValueDecl *Array,
                                 llvm::Instruction *GEP) const {
   llvm::SmallVector<llvm::Metadata *, 4> MD;
-  CollectIVDepMetadata(Array, MD);
+  collectIVDepMetadata(Array, MD);
 
   if (MD.size() == 1)
     GEP->setMetadata("llvm.index.group", cast<llvm::MDNode>(MD.front()));
