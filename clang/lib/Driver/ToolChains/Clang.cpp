@@ -3724,6 +3724,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     Args.AddLastArg(CmdArgs, options::OPT_fthinlto_index_EQ);
   }
 
+  if (Args.getLastArg(options::OPT_fthin_link_bitcode_EQ))
+    Args.AddLastArg(CmdArgs, options::OPT_fthin_link_bitcode_EQ);
+
   if (Args.getLastArg(options::OPT_save_temps_EQ))
     Args.AddLastArg(CmdArgs, options::OPT_save_temps_EQ);
 
@@ -5441,6 +5444,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-unnamed-lambda");
   }
 
+  if (IsHIP)
+    CmdArgs.push_back("-fcuda-allow-variadic-functions");
+
   // OpenMP offloading device jobs take the argument -fopenmp-host-ir-file-path
   // to specify the result of the compile phase on the host, so the meaningful
   // device declarations can be identified. Also, -fopenmp-is-device is passed
@@ -5531,7 +5537,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fwhole-program-vtables");
   }
 
-  bool DefaultsSplitLTOUnit = WholeProgramVTables || Sanitize.needsLTO();
+  bool DefaultsSplitLTOUnit =
+      (WholeProgramVTables || Sanitize.needsLTO()) &&
+      (D.getLTOMode() == LTOK_Full || TC.canSplitThinLTOUnit());
   bool SplitLTOUnit =
       Args.hasFlag(options::OPT_fsplit_lto_unit,
                    options::OPT_fno_split_lto_unit, DefaultsSplitLTOUnit);

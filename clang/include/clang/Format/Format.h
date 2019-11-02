@@ -706,6 +706,32 @@ struct FormatStyle {
     ///   };
     /// \endcode
     BS_Allman,
+    /// Like ``Allman`` but always indent braces and line up code with braces.
+    /// \code
+    ///    try
+    ///     {
+    ///     foo();
+    ///     }
+    ///   catch ()
+    ///     {
+    ///     }
+    ///   void foo() { bar(); }
+    ///   class foo
+    ///     {
+    ///     };
+    ///   if (foo())
+    ///     {
+    ///     }
+    ///   else
+    ///     {
+    ///     }
+    ///   enum X : int
+    ///     {
+    ///     A,
+    ///     B
+    ///     };
+    /// \endcode
+    BS_Whitesmiths,
     /// Always break before braces and add an extra level of indentation to
     /// braces of control statements, not to those of class, function
     /// or other definitions.
@@ -733,32 +759,6 @@ struct FormatStyle {
     ///     B
     ///   };
     /// \endcode
-    BS_Whitesmiths,
-    /// Like ``Allman`` but always indent braces and line up code with braces.
-    /// \code
-    ///    try
-    ///     {
-    ///     foo();
-    ///     }
-    ///   catch ()
-    ///     {
-    ///     }
-    ///   void foo() { bar(); }
-    ///   class foo
-    ///     {
-    ///     };
-    ///   if (foo())
-    ///     {
-    ///     }
-    ///   else
-    ///     {
-    ///     }
-    ///   enum X : int
-    ///     {
-    ///     A,
-    ///     B
-    ///     };
-    /// \endcode
     BS_GNU,
     /// Like ``Attach``, but break before functions.
     /// \code
@@ -782,7 +782,7 @@ struct FormatStyle {
   /// The brace breaking style to use.
   BraceBreakingStyle BreakBeforeBraces;
 
-  // Different ways to wrap braces after control statements.
+  /// Different ways to wrap braces after control statements.
   enum BraceWrappingAfterControlStatementStyle {
     /// Never wrap braces after a control statement.
     /// \code
@@ -1077,6 +1077,16 @@ struct FormatStyle {
   bool BreakAfterJavaFieldAnnotations;
 
   /// Allow breaking string literals when formatting.
+  /// \code
+  ///    true:
+  ///    const char* x = "veryVeryVeryVeryVeryVe"
+  ///                    "ryVeryVeryVeryVeryVery"
+  ///                    "VeryLongString";
+  ///
+  ///    false:
+  ///    const char* x =
+  ///      "veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongString";
+  /// \endcode
   bool BreakStringLiterals;
 
   /// The column limit.
@@ -1985,7 +1995,6 @@ struct FormatStyle {
     /// Latest: Parse and format using the latest supported language version.
     /// 'Cpp11' is an alias for LS_Latest for historical reasons.
     LS_Latest,
-
     /// Auto: Automatic detection based on the input.
     /// Parse using the latest language version. Format based on detected input.
     LS_Auto,

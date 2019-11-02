@@ -92,6 +92,7 @@ entry:
 ; Function Attrs: argmemonly nounwind
 declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
 
+; CHECK-LLVM: void @_Z3fooi(i32 %a)
 ; Function Attrs: nounwind
 define spir_func void @_Z3fooi(i32 %a) #3 {
 entry:
@@ -104,6 +105,7 @@ entry:
   ret void
 }
 
+; CHECK-LLVM: void @_Z3barc(i8 signext %b)
 ; Function Attrs: nounwind
 define spir_func void @_Z3barc(i8 signext %b) #3 {
 entry:
@@ -119,6 +121,7 @@ entry:
   ret void
 }
 
+; CHECK-LLVM: void @_Z3bazi(i32 %c)
 ; Function Attrs: nounwind
 define spir_func void @_Z3bazi(i32 %c) #3 {
 entry:

@@ -9,3 +9,4 @@
 #pragma once
 #include <CL/sycl/intel/fpga_device_selector.hpp>
 #include <CL/sycl/intel/fpga_reg.hpp>
+#include <CL/sycl/intel/pipes.hpp>

@@ -1544,7 +1544,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpVmeImageINTEL:
   case OpLine:
-  case OpSelectionMerge:   // OpenCL Compiler does not use this instruction
+  case OpSelectionMerge: // OpenCL Compiler does not use this instruction
     return nullptr;
 
   case OpLoopMerge:        // Will be translated after all other function's
@@ -1585,6 +1585,48 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     NewVec->takeName(Scalar);
     auto Scale = Builder.CreateFMul(Vector, NewVec, "scale");
     return mapValue(BV, Scale);
+  }
+
+  case OpVectorTimesMatrix: {
+    auto *VTM = static_cast<SPIRVVectorTimesMatrix *>(BV);
+    IRBuilder<> Builder(BB);
+    Value *Mat = transValue(VTM->getMatrix(), F, BB);
+    Value *Vec = transValue(VTM->getVector(), F, BB);
+
+    // Vec is of N elements.
+    // Mat is of M columns and N rows.
+    // Mat consists of vectors: V_1, V_2, ..., V_M
+    //
+    // The product is:
+    //
+    //                |------- M ----------|
+    // Result = sum ( {Vec_1, Vec_1, ..., Vec_1} * {V_1_1, V_2_1, ..., V_M_1},
+    //                {Vec_2, Vec_2, ..., Vec_2} * {V_1_2, V_2_2, ..., V_M_2},
+    //                ...
+    //                {Vec_N, Vec_N, ..., Vec_N} * {V_1_N, V_2_N, ..., V_M_N});
+
+    unsigned M = Mat->getType()->getArrayNumElements();
+
+    VectorType *VTy =
+        VectorType::get(Vec->getType()->getVectorElementType(), M);
+    auto ETy = VTy->getElementType();
+    unsigned N = Vec->getType()->getVectorNumElements();
+    Value *V = Builder.CreateVectorSplat(M, ConstantFP::get(ETy, 0.0));
+
+    for (unsigned Idx = 0; Idx != N; ++Idx) {
+      Value *S = Builder.CreateExtractElement(Vec, Builder.getInt32(Idx));
+      Value *Lhs = Builder.CreateVectorSplat(M, S);
+      Value *Rhs = UndefValue::get(VTy);
+      for (unsigned Idx2 = 0; Idx2 != M; ++Idx2) {
+        Value *Vx = Builder.CreateExtractValue(Mat, Idx2);
+        Value *Vxi = Builder.CreateExtractElement(Vx, Builder.getInt32(Idx));
+        Rhs = Builder.CreateInsertElement(Rhs, Vxi, Builder.getInt32(Idx2));
+      }
+      Value *Mul = Builder.CreateFMul(Lhs, Rhs);
+      V = Builder.CreateFAdd(V, Mul);
+    }
+
+    return mapValue(BV, V);
   }
 
   case OpMatrixTimesScalar: {
