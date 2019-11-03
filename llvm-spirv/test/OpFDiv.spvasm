@@ -5,7 +5,7 @@
                OpCapability Addresses
                OpCapability Kernel
                OpMemoryModel Physical32 OpenCL
-               OpEntryPoint Kernel %1 "testFRem"
+               OpEntryPoint Kernel %1 "testFDiv"
                OpName %a "a"
                OpName %b "b"
                OpName %r1 "r1"
@@ -32,24 +32,24 @@
           %a = OpFunctionParameter %float
           %b = OpFunctionParameter %float
           %6 = OpLabel
-         %r1 = OpFRem %float %a %b
-         %r2 = OpFRem %float %a %b
-         %r3 = OpFRem %float %a %b
-         %r4 = OpFRem %float %a %b
-         %r5 = OpFRem %float %a %b
-         %r6 = OpFRem %float %a %b
-         %r7 = OpFRem %float %a %b
-         %r8 = OpFRem %float %a %b
-         %r9 = OpFRem %float %a %b
+         %r1 = OpFDiv %float %a %b
+         %r2 = OpFDiv %float %a %b
+         %r3 = OpFDiv %float %a %b
+         %r4 = OpFDiv %float %a %b
+         %r5 = OpFDiv %float %a %b
+         %r6 = OpFDiv %float %a %b
+         %r7 = OpFDiv %float %a %b
+         %r8 = OpFDiv %float %a %b
+         %r9 = OpFDiv %float %a %b
                OpReturn
                OpFunctionEnd
 
-; CHECK: %r1 = frem float %a, %b
-; CHECK: %r2 = frem float %a, %b
-; CHECK: %r3 = frem nnan float %a, %b
-; CHECK: %r4 = frem ninf float %a, %b
-; CHECK: %r5 = frem nsz float %a, %b
-; CHECK: %r6 = frem arcp float %a, %b
-; CHECK: %r7 = frem fast float %a, %b
-; CHECK: %r8 = frem nnan ninf float %a, %b
-; CHECK: %r9 = frem fast float %a, %b
+; CHECK: %r1 = fdiv float %a, %b
+; CHECK: %r2 = fdiv float %a, %b
+; CHECK: %r3 = fdiv nnan float %a, %b
+; CHECK: %r4 = fdiv ninf float %a, %b
+; CHECK: %r5 = fdiv nsz float %a, %b
+; CHECK: %r6 = fdiv arcp float %a, %b
+; CHECK: %r7 = fdiv fast float %a, %b
+; CHECK: %r8 = fdiv nnan ninf float %a, %b
+; CHECK: %r9 = fdiv fast float %a, %b

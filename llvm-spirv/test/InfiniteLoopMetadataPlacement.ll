@@ -45,6 +45,7 @@ while.body:                                       ; preds = %while.cond
   br i1 %cmp, label %if.then, label %if.else
 
 if.then:                                          ; preds = %while.body
+  call spir_func void @_Z1fv() #0
   br label %while.end
 
 if.else:                                          ; preds = %while.body
@@ -71,6 +72,12 @@ while.end:                                        ; preds = %if.then
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %6) #2
   %7 = bitcast i32* %i to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %7) #2
+  ret void
+}
+
+; Function Attrs: nounwind
+define spir_func void @_Z1fv() #0 {
+entry:
   ret void
 }
 
