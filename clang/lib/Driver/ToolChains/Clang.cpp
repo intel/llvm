@@ -6611,10 +6611,15 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         Triples += Dep.DependentToolChain->getTriple().normalize();
       }
       continue;
-    } else if (Input.getType() == types::TY_Archive) {
+    } else if (Input.getType() == types::TY_Archive ||
+               (Input.getType() == types::TY_Object &&
+                TCArgs.hasArg(options::OPT_fintelfpga) &&
+                TCArgs.hasArg(options::OPT_fsycl_link_EQ))) {
       // Do not extract host part if we are unbundling archive on Windows
       // because it is not needed. Static offload libraries are added to the
-      // host link command just as normal libraries.
+      // host link command just as normal libraries.  Do not extract the host
+      // part from -fintelfpga -fsycl-link unbundles either, as the full obj
+      // is used in the final link
       if (Dep.DependentOffloadKind == Action::OFK_Host)
         continue;
     }

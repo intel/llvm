@@ -3848,7 +3848,12 @@ public:
     }
 
     // Do not use unbundler if the Host does not depend on device action.
-    if (OffloadKind == Action::OFK_None && CanUseBundler)
+    // Now that we have unbundled the object, when doing -fsycl-link we
+    // want to continue the host link with the input object
+    if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
+        (Args.hasArg(options::OPT_fintelfpga) &&
+         Args.hasArg(options::OPT_fsycl_link_EQ) &&
+         HostAction->getType() == types::TY_Object))
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
         HostAction = UA->getInputs().back();
 
@@ -5113,6 +5118,9 @@ InputInfo Driver::BuildJobsForActionNoCache(
       InputInfo CurI;
       bool IsMSVCEnv =
           C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
+      bool IsFPGAObjLink = (JA->getType() == types::TY_Object &&
+          C.getInputArgs().hasArg(options::OPT_fintelfpga) &&
+          C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
       if (C.getInputArgs().hasArg(options::OPT_foffload_static_lib_EQ) &&
           ((JA->getType() == types::TY_Archive && IsMSVCEnv) ||
            (UI.DependentOffloadKind != Action::OFK_Host &&
@@ -5120,6 +5128,10 @@ InputInfo Driver::BuildJobsForActionNoCache(
         // Host part of the unbundled static archive is not used.
         if (UI.DependentOffloadKind == Action::OFK_Host &&
             JA->getType() == types::TY_Archive && IsMSVCEnv)
+          continue;
+        // Host part of the unbundled object when -fintelfpga -fsycl-link is
+        // enabled is not used
+        if (UI.DependentOffloadKind == Action::OFK_Host && IsFPGAObjLink)
           continue;
         std::string TmpFileName =
            C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput),
@@ -5156,6 +5168,10 @@ InputInfo Driver::BuildJobsForActionNoCache(
                         C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
         CurI = InputInfo(TI, TmpFile, TmpFile);
       } else {
+        // Host part of the unbundled object is not used  when -fintelfpga
+        // -fsycl-link is enabled
+        if (UI.DependentOffloadKind == Action::OFK_Host && IsFPGAObjLink)
+          continue;
         std::string OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
           UI.DependentOffloadKind,
           UI.DependentToolChain->getTriple().normalize(),
