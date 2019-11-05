@@ -4289,8 +4289,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // Unbundler only handles objects.
       if (auto *IA = dyn_cast<InputAction>(LI)) {
         std::string FileName = IA->getInputArg().getAsString(Args);
-        if (IA->getType() == types::TY_Object &&
-            !isObjectFile(FileName))
+        if ((IA->getType() == types::TY_Object && !isObjectFile(FileName)) ||
+            IA->getInputArg().getOption().hasFlag(options::LinkerInput))
           // Pass the Input along to linker.
           TempLinkerInputs.push_back(LI);
         else
