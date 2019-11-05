@@ -58,7 +58,7 @@
 // CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr-intel-{{linux|windows}}-sycldevice" "-inputs=[[INPUT]]" "-outputs=[[OUTPUT2:.+\.aocr]]" "-unbundle"
 // CHK-FPGA-LINK-LIB-IMAGE: aoc{{.*}} "-o" "[[OUTPUT3:.+\.aocx]]" "[[OUTPUT2]]" "-sycl"
 // CHK-FPGA-LINK-LIB-EARLY: aoc{{.*}} "-o" "[[OUTPUT4:.+\.aocr]]" "[[OUTPUT2]]" "-sycl" "-rtl"
-// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=fpga_aocx-intel-{{linux|windows}}-sycldevice" "-kind=sycl" "[[OUTPUT3]]"
+// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-{{linux|windows}}-sycldevice" "-kind=sycl" "[[OUTPUT3]]"
 // CHK-FPGA-LINK-LIB-EARLY: clang-offload-wrapper{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=fpga_aocr-intel-{{linux|windows}}-sycldevice" "-kind=sycl" "[[OUTPUT4]]"
 // CHK-FPGA-LINK-LIB: llc{{.*}} "-filetype=obj" "-o" "[[OUTPUT5:.+\.o]]"
 // CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-x86_64-unknown-linux-gnu" "-inputs=[[INPUT]]" "-outputs=[[OUTPUT1:.+\.txt]]" "-unbundle"
@@ -78,6 +78,33 @@
 // CHK-FPGA: llc{{.*}} "-filetype=obj" "-o" "[[FINALLINK3:.+\.o]]" "[[OUTPUT6]]"
 // CHK-FPGA: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-x86_64-unknown-linux-gnu" {{.*}} "-outputs=[[FINALLINK4:.+\.txt]]" "-unbundle"
 // CHK-FPGA: {{link|ld}}{{.*}} "@[[FINALLINK4]]" "[[FINALLINK2]]" "[[FINALLINK]]" "[[FINALLINK3]]"
+
+/// -fintelfpga with AOCX library
+// Create the dummy archive
+// RUN:  echo "Dummy AOCX image" > %t.aocx
+// RUN:  echo "void foo() {}" > %t.c
+// RUN:  %clang -c %t.c
+// RUN:  clang-offload-wrapper -o %t-aocx.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aocx-intel-linux-sycldevice %t.aocx
+// RUN:  llc -filetype=obj -o %t-aocx.o %t-aocx.bc
+// RUN:  llvm-ar crv %t_aocx.a %t.o %t-aocx.o
+// RUN:  %clang++ -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
+// RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-PHASES,CHK-FPGA-AOCX-PHASES-DEFAULT %s
+// RUN:  %clang_cl -fsycl -fintelfpga %t_aocx.a -ccc-print-phases 2>&1 \
+// RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX-PHASES,CHK-FPGA-AOCX-PHASES-CL %s
+// CHK-FPGA-AOCX-PHASES: 0: input, "{{.*}}", object, (host-sycl)
+// CHK-FPGA-AOCX-PHASES: 1: linker, {0}, image, (host-sycl)
+// CHK-FPGA-AOCX-PHASES: 2: linker, {}, spirv, (device-sycl)
+// CHK-FPGA-AOCX-PHASES: 3: backend-compiler, {2}, fpga-aocx, (device-sycl)
+// CHK-FPGA-AOCX-PHASES: 4: clang-offload-wrapper, {3}, object, (device-sycl)
+// CHK-FPGA-AOCX-PHASES-DEFAULT: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-{{linux|windows}}-sycldevice)" {4}, image
+// CHK-FPGA-AOCX-PHASES-CL: 5: offload, "host-sycl (x86_64-pc-windows-msvc)" {1}, "device-sycl (spir64_fpga-unknown-{{linux|windows}}-sycldevice-coff)" {4}, image
+
+// RUN:  %clang++ -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %t_aocx.a -### 2>&1 \
+// RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCX %s
+// CHK-FPGA-AOCX: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocx-intel-{{linux|windows}}-sycldevice" "-inputs=[[LIBINPUT:.+\.a]]" "-outputs=[[BUNDLEOUT:.+\.aocx]]" "-unbundle"
+// CHK-FPGA-AOCX: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=spir64_fpga" "-kind=sycl" "[[BUNDLEOUT]]"
+// CHK-FPGA-AOCX: llc{{.*}} "-filetype=obj" "-o" "[[LLCOUT:.+\.o]]" "[[WRAPOUT]]"
+// CHK-FPGA-AOCX: ld{{.*}} "[[LIBINPUT]]" "[[LLCOUT]]"
 
 /// -fintelfpga -fsycl-link from source
 // RUN: touch %t.cpp
