@@ -163,12 +163,6 @@ void zoo() {
   [[intelfpga::ivdep(4)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  [[intelfpga::ivdep(a, 2)]]
-  // expected-warning@-1 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 4 >= safelen 2}}
-  // expected-note@+1 {{previous attribute is here}}
-  [[intelfpga::ivdep(a, 4)]]
-  for (int i = 0; i != 10; ++i)
-    a[i] = 0;
 
   // no diagnostics are expected
   [[intelfpga::ivdep(a)]]

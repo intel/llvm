@@ -61,7 +61,7 @@ struct LoopAttributes {
   /// Value for llvm.loop.interleave.count metadata.
   unsigned InterleaveCount;
 
-  // IVDepInfo represents a group of arrays that have the same IVDep safelen to
+  // SYCLIVDepInfo represents a group of arrays that have the same IVDep safelen to
   // them. The arrays contained in it will later be referred to from the same
   // "llvm.loop.parallel_access_indices" metadata node.
   struct SYCLIVDepInfo {
@@ -150,7 +150,7 @@ public:
   llvm::MDNode *getAccessGroup() const { return AccGroup; }
 
   // Recursively adds the metadata for this Array onto this GEP.
-  void AddIVDepMetadata(const ValueDecl *Array, llvm::Instruction *GEP) const;
+  void addIVDepMetadata(const ValueDecl *Array, llvm::Instruction *GEP) const;
 
   /// Create the loop's metadata. Must be called after its nested loops have
   /// been processed.

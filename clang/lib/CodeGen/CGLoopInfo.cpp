@@ -976,7 +976,7 @@ void LoopInfo::collectIVDepMetadata(
   MD.push_back(GlobalArrayPairItr->second);
 }
 
-void LoopInfo::AddIVDepMetadata(const ValueDecl *Array,
+void LoopInfo::addIVDepMetadata(const ValueDecl *Array,
                                 llvm::Instruction *GEP) const {
   llvm::SmallVector<llvm::Metadata *, 4> MD;
   collectIVDepMetadata(Array, MD);
@@ -995,5 +995,5 @@ void LoopInfoStack::addIVDepMetadata(const ValueDecl *Array,
   if (!hasInfo())
     return;
   const LoopInfo &L = getInfo();
-  L.AddIVDepMetadata(Array, GEP);
+  L.addIVDepMetadata(Array, GEP);
 }
