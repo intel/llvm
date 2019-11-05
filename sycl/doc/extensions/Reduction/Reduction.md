@@ -110,7 +110,7 @@ The semantics of this proposal have been carefully chosen to permit implementati
 
 ## Hierarchical Reduction
 
-The simplest way to implement this proposal is to use built-in work-group reductions, followed by an atomic update to global memory.
+A simple way to implement this proposal is as a hierarchical reduction, combining results from work-items in the same work-group before combining results from different work-groups.  For example, on devices with OpenCL 2.0 support this could be achieved using built-in work-group reductions, followed by an atomic update to global memory.
 
 ```c++
 __kernel void dot_product(__global float* a, __global float* b, __global float* sum)
