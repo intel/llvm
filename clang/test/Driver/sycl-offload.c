@@ -585,6 +585,16 @@
 
 /// ###########################################################################
 
+// RUN: touch %t.a
+// RUN: %clang -fsycl -foffload-static-lib=%t.a -o output_name -lstdc++ -z relro -### %s 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC4
+// FOFFLOAD_STATIC_LIB_SRC4: ld{{(.exe)?}}" "-r" "-o" {{.*}} "[[INPUT:.+\.a]]"
+// FOFFLOAD_STATIC_LIB_SRC4: clang-offload-bundler{{.*}} "-type=oo"
+// FOFFLOAD_STATIC_LIB_SRC4: llvm-link{{.*}} "@{{.*}}"
+// FOFFLOAD_STATIC_LIB_SRC4: ld{{(.exe)?}}" {{.*}} "-o" "output_name" {{.*}} "-lstdc++" "-z" "relro"
+
+/// ###########################################################################
+
 /// Check -Xsycl-target-backend triggers error when multiple triples are used.
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga-unknown-linux-sycldevice,spir_fpga-unknown-linux-sycldevice -Xsycl-target-backend -DFOO %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-AMBIGUOUS-ERROR %s
