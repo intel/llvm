@@ -49,16 +49,16 @@ Where `llvm_build_dir` is the LLVM build directory.
 
 ### LLVM in-tree build
 
-The translator can be built as a regular LLVM subproject. To do that you need to clone it to `llvm/projects` or `llvm/tools` directory. 
+The translator can be built as a regular LLVM subproject. To do that you need to clone it into the `llvm/projects` or `llvm/tools` directory.
 ```
-git clone http://llvm.org/git/llvm.git
-cd llvm/projects
+git clone https://github.com/llvm/llvm-project.git
+cd llvm-project/llvm/projects
 git clone https://github.com/KhronosGroup/SPIRV-LLVM-Translator.git
 ```
-Run(re-run) cmake as usually for LLVM. After that you should have `llvm-spirv` and `check-llvm-spirv` targets available.
+Run (or re-run) cmake as usual for LLVM. After that you should have `llvm-spirv` and `check-llvm-spirv` targets available.
 ```
-mkdir llvm/build && cd llvm/build 
-cmake ..
+mkdir llvm-project/build && cd llvm-project/build
+cmake ../llvm
 make llvm-spirv -j`nproc`
 ```
 

@@ -365,15 +365,15 @@ SDValue DAGTypeLegalizer::PromoteIntRes_BITCAST(SDNode *N) {
                      CreateStackStoreLoad(InOp, OutVT));
 }
 
-// Helper for BSWAP/BITREVERSE promotion to ensure we can fit the shift amount
+// Helper for BSWAP/BITREVERSE promotion to ensure we can fit any shift amount
 // in the VT returned by getShiftAmountTy and to return a safe VT if we can't.
-static EVT getShiftAmountTyForConstant(unsigned Val, EVT VT,
-                                       const TargetLowering &TLI,
+static EVT getShiftAmountTyForConstant(EVT VT, const TargetLowering &TLI,
                                        SelectionDAG &DAG) {
   EVT ShiftVT = TLI.getShiftAmountTy(VT, DAG.getDataLayout());
-  // If the value won't fit in the prefered type, just use something safe. It
-  // will be legalized when the shift is expanded.
-  if ((Log2_32(Val) + 1) > ShiftVT.getScalarSizeInBits())
+  // If any possible shift value won't fit in the prefered type, just use
+  // something safe. It will be legalized when the shift is expanded.
+  if (!ShiftVT.isVector() &&
+      ShiftVT.getSizeInBits() < Log2_32_Ceil(VT.getSizeInBits()))
     ShiftVT = MVT::i32;
   return ShiftVT;
 }
@@ -385,7 +385,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_BSWAP(SDNode *N) {
   SDLoc dl(N);
 
   unsigned DiffBits = NVT.getScalarSizeInBits() - OVT.getScalarSizeInBits();
-  EVT ShiftVT = getShiftAmountTyForConstant(DiffBits, NVT, TLI, DAG);
+  EVT ShiftVT = getShiftAmountTyForConstant(NVT, TLI, DAG);
   return DAG.getNode(ISD::SRL, dl, NVT, DAG.getNode(ISD::BSWAP, dl, NVT, Op),
                      DAG.getConstant(DiffBits, dl, ShiftVT));
 }
@@ -397,7 +397,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_BITREVERSE(SDNode *N) {
   SDLoc dl(N);
 
   unsigned DiffBits = NVT.getScalarSizeInBits() - OVT.getScalarSizeInBits();
-  EVT ShiftVT = getShiftAmountTyForConstant(DiffBits, NVT, TLI, DAG);
+  EVT ShiftVT = getShiftAmountTyForConstant(NVT, TLI, DAG);
   return DAG.getNode(ISD::SRL, dl, NVT,
                      DAG.getNode(ISD::BITREVERSE, dl, NVT, Op),
                      DAG.getConstant(DiffBits, dl, ShiftVT));
@@ -1058,8 +1058,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_XMULO(SDNode *N, unsigned ResNo) {
   if (N->getOpcode() == ISD::UMULO) {
     // Unsigned overflow occurred if the high part is non-zero.
     unsigned Shift = SmallVT.getScalarSizeInBits();
-    EVT ShiftTy = getShiftAmountTyForConstant(Shift, Mul.getValueType(),
-                                              TLI, DAG);
+    EVT ShiftTy = getShiftAmountTyForConstant(Mul.getValueType(), TLI, DAG);
     SDValue Hi = DAG.getNode(ISD::SRL, DL, Mul.getValueType(), Mul,
                              DAG.getConstant(Shift, DL, ShiftTy));
     Overflow = DAG.getSetCC(DL, N->getValueType(1), Hi,
@@ -2643,6 +2642,21 @@ void DAGTypeLegalizer::ExpandIntRes_LLRINT(SDNode *N, SDValue &Lo,
 
 void DAGTypeLegalizer::ExpandIntRes_LOAD(LoadSDNode *N,
                                          SDValue &Lo, SDValue &Hi) {
+  if (N->isAtomic()) {
+    // It's typical to have larger CAS than atomic load instructions.
+    SDLoc dl(N);
+    EVT VT = N->getMemoryVT();
+    SDVTList VTs = DAG.getVTList(VT, MVT::i1, MVT::Other);
+    SDValue Zero = DAG.getConstant(0, dl, VT);
+    SDValue Swap = DAG.getAtomicCmpSwap(
+        ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, dl,
+        VT, VTs, N->getOperand(0),
+        N->getOperand(1), Zero, Zero, N->getMemOperand());
+    ReplaceValueWith(SDValue(N, 0), Swap.getValue(0));
+    ReplaceValueWith(SDValue(N, 1), Swap.getValue(2));
+    return;
+  }
+  
   if (ISD::isNormalLoad(N)) {
     ExpandRes_NormalLoad(N, Lo, Hi);
     return;
@@ -3889,6 +3903,16 @@ SDValue DAGTypeLegalizer::ExpandIntOp_SINT_TO_FP(SDNode *N) {
 }
 
 SDValue DAGTypeLegalizer::ExpandIntOp_STORE(StoreSDNode *N, unsigned OpNo) {
+  if (N->isAtomic()) {
+    // It's typical to have larger CAS than atomic store instructions.
+    SDLoc dl(N);
+    SDValue Swap = DAG.getAtomic(ISD::ATOMIC_SWAP, dl,
+                                 N->getMemoryVT(),
+                                 N->getOperand(0), N->getOperand(2),
+                                 N->getOperand(1),
+                                 N->getMemOperand());
+    return Swap.getValue(1);
+  }
   if (ISD::isNormalStore(N))
     return ExpandOp_NormalStore(N, OpNo);
 
