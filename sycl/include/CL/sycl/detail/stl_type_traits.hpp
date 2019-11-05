@@ -16,14 +16,9 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-template <bool V> using bool_constant = std::integral_constant<bool, V>;
-
-template <typename T>
-using allocator_value_type_t = typename std::allocator_traits<T>::value_type;
-
-template <typename T>
-using allocator_pointer_t = typename std::allocator_traits<T>::pointer;
-
+// Type traits identical to those in std in newer versions. Can be removed when
+// SYCL requires a newer version of the C++ standard.
+// C++14
 template <bool B, class T = void>
 using enable_if_t = typename std::enable_if<B, T>::type;
 
@@ -40,6 +35,18 @@ using remove_reference_t = typename std::remove_reference<T>::type;
 
 template <typename T> using add_pointer_t = typename std::add_pointer<T>::type;
 
+// C++17
+template <bool V> using bool_constant = std::integral_constant<bool, V>;
+
+template <class...> using void_t = void;
+
+// Custom type traits
+template <typename T>
+using allocator_value_type_t = typename std::allocator_traits<T>::value_type;
+
+template <typename T>
+using allocator_pointer_t = typename std::allocator_traits<T>::pointer;
+
 template <typename T>
 using iterator_category_t = typename std::iterator_traits<T>::iterator_category;
 
@@ -52,8 +59,6 @@ using iterator_pointer_t = typename std::iterator_traits<T>::pointer;
 template <typename T>
 using iterator_to_const_type_t =
     std::is_const<typename std::remove_pointer<iterator_pointer_t<T>>::type>;
-
-template <class...> using void_t = void;
 
 // TODO Align with C++ named requirements: LegacyOutputIterator
 // https://en.cppreference.com/w/cpp/named_req/OutputIterator
