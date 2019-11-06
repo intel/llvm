@@ -17,6 +17,11 @@
 #include <cassert>
 #include <string>
 
+namespace cl {
+namespace sycl {
+namespace detail {
+namespace pi {
+
 // Function to load the shared library
 // Implementation is OS dependent.
 void *loadOsLibrary(const std::string &Library);
@@ -25,10 +30,6 @@ void *loadOsLibrary(const std::string &Library);
 // library, implementation is OS dependent.
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 
-namespace cl {
-namespace sycl {
-namespace detail {
-namespace pi {
 // For selection of SYCL RT back-end, now manually through the "SYCL_BE"
 // environment variable.
 //
@@ -80,8 +81,11 @@ void assertion(bool Condition, const char *Message = nullptr);
 template <class To, class From> To cast(From value);
 
 // Forward declarations of the PI dispatch entries.
-#define _PI_API(api) __SYCL_EXPORTED extern decltype(::api) *(api);
-#include <CL/sycl/detail/pi.def>
+//#define _PI_API(api) __SYCL_EXPORTED extern decltype(::api) *(api);
+//#include <CL/sycl/detail/pi.def>
+
+// Holds the PluginInformation for the plugin that is bound.
+extern pi_plugin PluginInformation;
 
 // Performs PI one-time initialization.
 void initialize();
@@ -163,7 +167,9 @@ namespace RT = cl::sycl::detail::pi;
 
 #define PI_ASSERT(cond, msg) RT::assertion((cond), "assert: " msg);
 
-#define PI_TRACE(func) RT::Trace<decltype(func)>(func, #func)
+#define PI_TRACE(func) RT::Trace<decltype(func)>(RT::PluginInformation.func, #func)
+
+#define PI_TRACE_ONLY(func) RT::Trace<decltype(func)>(func, #func)
 
 // Use this macro to initialize the Plugin, call the API, do the trace 
 // and the check for no errors.
