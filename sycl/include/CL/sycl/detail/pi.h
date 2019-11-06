@@ -377,6 +377,16 @@ typedef _pi_image_desc     pi_image_desc;
 // TODO: describe interfaces in Doxygen format
 //
 
+struct _pi_plugin;
+typedef _pi_plugin pi_plugin;
+
+// PI Plugin Initialise.
+// Must be implemented by a plugin.
+// Plugin will read the PIVersion,
+// populate the PluginVersion and update targets field and populate the PIFunctionTable with the function pointers for the APIs supported by PIVersion.
+// The pointers are in a predetermined order in pi.def file. 
+pi_result piPluginInit(pi_plugin *plugin_info);
+
 //
 // Platform
 //
@@ -902,6 +912,19 @@ pi_result piEnqueueMemUnmap(
   pi_uint32        num_events_in_wait_list,
   const pi_event * event_wait_list,
   pi_event *       event);
+
+struct _pi_plugin{
+  // PI version supported by host passed to the plugin. The Plugin this
+  // way knows the number of APIs it can write into the PIFunctionTable.
+  const char PiVersion[4] = "1.1";
+  char PluginVersion[4] = "1.1"; // Plugin edits this.
+  // TODO: what is this field for?
+  char *Targets;
+  struct FunctionPointers {
+#define _PI_API(api) decltype(::api) *api;
+#include <CL/sycl/detail/pi.def>
+  } PiFunctionTable;
+};
 
 #ifdef __cplusplus
 } // extern "C"

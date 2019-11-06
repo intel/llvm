@@ -48,8 +48,10 @@ bool useBackend(Backend TheBackend) {
 
 // Definitions of the PI dispatch entries, they will be initialized
 // at their first use with piInitialize.
-#define _PI_API(api) decltype(::api) *api = nullptr;
-#include <CL/sycl/detail/pi.def>
+//#define _PI_API(api) decltype(::api) *api = nullptr;
+//#include <CL/sycl/detail/pi.def>
+
+pi_plugin PluginInformation;
 
 // Find the plugin at the appropriate location and return the location.
 // TODO: Change the function appropriately when there are multiple plugins.
@@ -74,18 +76,27 @@ void *loadPlugin(const std::string &PluginPath) {
 // needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
 // Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library) {
-#define STRINGIZE(x) #x
 
-#define _PI_API(api)                                                           \
-  decltype(&api) api##_ptr = ((decltype(&api))(                                \
-      getOsLibraryFuncAddress(Library, STRINGIZE(api##OclPtr))));              \
-  if (!api##_ptr)                                                              \
-    return false;                                                              \
-  api = *api##_ptr;
-#include <CL/sycl/detail/pi.def>
+  decltype(::piPluginInit) *PluginInitializeFunction =
+      (decltype(&::piPluginInit))(
+          getOsLibraryFuncAddress(Library, "piPluginInit"));
+  // FuncTable is a list of all Interface Function pointers, where each
+  // Interface Function is located at a predetermined offset.
+  int err = PluginInitializeFunction(&PluginInformation);
+ 
+  // TODO: Check err code. 
+ 
+  // At the predetermined api's offset from the FunctionTable, the function
+  // pointer for "api" is stored. So we dereference the location to get the
+  // function pointer.
 
-#undef STRINGIZE
-#undef _PI_API
+//#define _PI_API(api)                                                   \
+  api = ((decltype(api))(PluginInformation.PiFunctionTable.api));
+
+//#include <CL/sycl/detail/pi.def>
+
+// #undef _PI_API
+
   return true;
 }
 
