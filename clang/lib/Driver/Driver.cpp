@@ -850,20 +850,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
     // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
     if (HasValidSYCLRuntime) {
-      llvm::Triple TT(TargetTriple);
-      // TODO: Use 'unknown' for OS as devices do not have any OS.
-      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-      TT.setVendor(llvm::Triple::UnknownVendor);
-      TT.setEnvironment(llvm::Triple::SYCLDevice);
-
-      if (IsCLMode())
-        TT.setObjectFormat(llvm::Triple::COFF);
-      if (SYCLfpga)
-        // Triple for -fintelfpga is spir64_fpga-unknown-<os>-sycldevice.
-        TT.setArchName("spir64_fpga");
-      else
-        TT.setArch(llvm::Triple::spir64);
-
+      // Triple for -fintelfpga is spir64_fpga-unknown-unknown-sycldevice.
+      const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
+      auto TT = MakeSYCLDeviceTriple(SYCLTargetArch);
       UniqueSYCLTriplesVec.push_back(TT);
     }
   }
@@ -1703,12 +1692,14 @@ void Driver::PrintHelp(bool ShowHidden) const {
                       /*ShowAllAliases=*/false);
 }
 
-llvm::Triple makeDeviceTriple(StringRef subArch) {
+llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
   llvm::Triple TT;
-  TT.setArchName(subArch);
+  TT.setArchName(TargetArch);
   TT.setVendor(llvm::Triple::UnknownVendor);
   TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
   TT.setEnvironment(llvm::Triple::SYCLDevice);
+  if (IsCLMode())
+    TT.setObjectFormat(llvm::Triple::COFF);
   return TT;
 }
 
@@ -1721,13 +1712,13 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     StringRef AV(A->getValue());
     llvm::Triple T;
     if (AV == "gen" || AV == "all")
-      HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_gen"),
+      HelpArgs.push_back(std::make_tuple(MakeSYCLDeviceTriple("spir64_gen"),
                                          "ocloc", "--help"));
     if (AV == "fpga" || AV == "all")
-      HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_fpga"),
-                                         "aoc", "-help"));
+      HelpArgs.push_back(
+          std::make_tuple(MakeSYCLDeviceTriple("spir64_fpga"), "aoc", "-help"));
     if (AV == "x86_64" || AV == "all")
-      HelpArgs.push_back(std::make_tuple(makeDeviceTriple("spir64_x86_64"),
+      HelpArgs.push_back(std::make_tuple(MakeSYCLDeviceTriple("spir64_x86_64"),
                                          "ioc64", "-help"));
     if (HelpArgs.empty()) {
       C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
@@ -3568,18 +3559,11 @@ class OffloadingActionBuilder final {
           }
         }
       } else if (HasValidSYCLRuntime) {
-        // Only -fsycl is provided without -fsycl-*targets.
-        llvm::Triple TT;
+        // -fsycl is provided without -fsycl-*targets.
+        bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
         // -fsycl -fintelfpga implies spir64_fpga
-        if (C.getInputArgs().hasArg(options::OPT_fintelfpga))
-          TT.setArchName("spir64_fpga");
-        else
-          TT.setArch(llvm::Triple::spir64);
-        TT.setVendor(llvm::Triple::UnknownVendor);
-        TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-        TT.setEnvironment(llvm::Triple::SYCLDevice);
-        if (C.getDriver().IsCLMode())
-          TT.setObjectFormat(llvm::Triple::COFF);
+        const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
+        llvm::Triple TT = C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch);
         SYCLTripleList.push_back(TT);
       }
 
