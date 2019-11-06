@@ -496,6 +496,11 @@ bool get_device_info_host<
   throw runtime_error("Sub-group feature is not supported on HOST device.");
 }
 
+template <>
+bool get_device_info_host<info::device::kernel_kernel_pipe_support>() {
+  return false;
+}
+
 } // namespace detail
 } // namespace sycl
 } // namespace cl
