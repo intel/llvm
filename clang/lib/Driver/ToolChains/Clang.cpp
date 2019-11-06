@@ -5493,11 +5493,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         llvm::Triple T(Tgts->getValue(i));
         TargetInfo += T.getTriple();
       }
-    } else {
+    } else
       // Use the default.
-      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple());
-      TargetInfo += TT.normalize();
-    }
+      TargetInfo += C.getDriver().MakeSYCLDeviceTriple().normalize();
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }
 

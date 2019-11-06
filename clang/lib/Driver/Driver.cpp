@@ -3563,8 +3563,8 @@ class OffloadingActionBuilder final {
         bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
         // -fsycl -fintelfpga implies spir64_fpga
         const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
-        llvm::Triple TT = C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch);
-        SYCLTripleList.push_back(TT);
+        SYCLTripleList.push_back(
+            C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch));
       }
 
       // Set the FPGA output type based on command line (-fsycl-link).
