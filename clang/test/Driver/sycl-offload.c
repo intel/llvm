@@ -182,6 +182,11 @@
 // CHK-PHASES-LIB: 15: clang-offload-wrapper, {14}, object, (device-sycl)
 // CHK-PHASES-LIB: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-linux-sycldevice)" {15}, image
 
+/// Compilation check with -lstdc++ (treated differently than regular lib)
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -lstdc++ -fsycl -fsycl-targets=spir64-unknown-linux-sycldevice %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-LIB-STDCXX %s
+// CHK-LIB-STDCXX: ld{{.*}} "-lstdc++"
+
 /// ###########################################################################
 
 /// Check the phases when using and multiple source files
