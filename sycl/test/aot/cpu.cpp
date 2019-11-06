@@ -1,6 +1,6 @@
 // REQUIRES: ioc64
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-linux-sycldevice %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
