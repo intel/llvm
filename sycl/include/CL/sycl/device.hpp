@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
@@ -20,17 +19,26 @@ namespace cl {
 namespace sycl {
 // Forward declarations
 class device_selector;
+namespace detail {
+class device_impl;
+}
 
-// TODO: 4.6.4 Partitioning into multiple SYCL devices
-// TODO: 4.6.4.2 Device information descriptors
-// TODO: Make code thread-safe
 class device {
 public:
+  /// Constructs a SYCL device instance as a host device.
   device();
 
-  explicit device(cl_device_id deviceId);
+  /// Constructs a SYCL device instance from an OpenCL cl_device_id
+  /// in accordance with the requirements described in 4.3.1.
+  ///
+  /// @param DeviceId is OpenCL device represented with cl_device_id
+  explicit device(cl_device_id DeviceId);
 
-  explicit device(const device_selector &deviceSelector);
+  /// Constructs a SYCL device instance using the device selected
+  /// by the DeviceSelector provided.
+  ///
+  /// @param deviceSelector SYCL device selector to be used (see 4.6.1.1).
+  explicit device(const device_selector &DeviceSelector);
 
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
 
@@ -44,61 +52,108 @@ public:
 
   device &operator=(device &&rhs) = default;
 
-  cl_device_id get() const { return impl->get(); }
+  /// Get instance of device
+  ///
+  /// @return a valid cl_device_id instance in accordance with the requirements described in 4.3.1.
+  cl_device_id get() const;
 
-  bool is_host() const { return impl->is_host(); }
+  /// Check if device is a host device
+  ///
+  /// @return true if SYCL device is a host device
+  bool is_host() const;
 
-  bool is_cpu() const { return impl->is_cpu(); }
+  /// Check if device is a CPU device
+  ///
+  /// @return true if SYCL device is a CPU device
+  bool is_cpu() const;
 
-  bool is_gpu() const { return impl->is_gpu(); }
+  /// Check if device is a GPU device
+  ///
+  /// @return true if SYCL device is a GPU device
+  bool is_gpu() const;
 
-  bool is_accelerator() const { return impl->is_accelerator(); }
+  /// Check if device is an accelerator device
+  ///
+  /// @return true if SYCL device is an accelerator device
+  bool is_accelerator() const;
 
-  platform get_platform() const { return impl->get_platform(); }
+  /// Get associated SYCL platform
+  ///
+  /// If this SYCL device is an OpenCL device then the SYCL platform
+  /// must encapsulate the OpenCL cl_plaform_id associated with the
+  /// underlying OpenCL cl_device_id of this SYCL device. If this SYCL device
+  /// is a host device then the SYCL platform must be a host platform.
+  /// The value returned must be equal to that returned by get_info<info::device::platform>().
+  ///
+  /// @return The associated SYCL platform.
+  platform get_platform() const;
 
-  // Available only when prop == info::partition_property::partition_equally
+  /// Partition device into sub devices
+  ///
+  /// Available only when prop is info::partition_property::partition_equally.
+  /// If this SYCL device does not support info::partition_property::partition_equally
+  /// a feature_not_supported exception must be thrown.
+  ///
+  /// @param ComputeUnits is a desired count of compute units in each sub device.
+  /// @return A vector class of sub devices partitioned from this SYCL device equally based on the ComputeUnits parameter.
   template <info::partition_property prop>
-  typename std::enable_if<(prop == info::partition_property::partition_equally),
-                          vector_class<device>>::type
-  create_sub_devices(size_t ComputeUnits) const {
-    return impl->create_sub_devices(ComputeUnits);
-  }
+  vector_class<device> create_sub_devices(size_t ComputeUnits) const;
 
-  // Available only when prop == info::partition_property::partition_by_counts
+  /// Partition device into sub devices
+  ///
+  /// Available only when prop is info::partition_property::partition_by_counts.
+  /// If this SYCL device does not support info::partition_property::partition_by_counts
+  /// a feature_not_supported exception must be thrown.
+  ///
+  /// @param Counts is a vector_class of desired compute units in sub devices.
+  /// @return a vector_class of sub devices partitioned from this SYCL device by count sizes based on the Counts parameter.
   template <info::partition_property prop>
-  typename std::enable_if<(prop ==
-                           info::partition_property::partition_by_counts),
-                          vector_class<device>>::type
-  create_sub_devices(const vector_class<size_t> &Counts) const {
-    return impl->create_sub_devices(Counts);
-  }
+  vector_class<device>
+  create_sub_devices(const vector_class<size_t> &Counts) const;
 
-  // Available only when prop ==
-  // info::partition_property::partition_by_affinity_domain
+  /// Partition device into sub devices
+  ///
+  /// Available only when prop is info::partition_property::partition_by_affinity_domain.
+  /// If this SYCL device does not support info::partition_property::partition_by_affinity_domain
+  /// or the SYCL device does not support info::affinity_domain provided
+  /// a feature_not_supported exception must be thrown.
+  ///
+  /// @param AffinityDomain is one of the values described in Table 4.20 of SYCL Spec
+  /// @return a vector class of sub devices partitioned from this SYCL device by affinity domain based on the AffinityDomain parameter
   template <info::partition_property prop>
-  typename std::enable_if<
-      (prop == info::partition_property::partition_by_affinity_domain),
-      vector_class<device>>::type
-  create_sub_devices(info::partition_affinity_domain AffinityDomain) const {
-    return impl->create_sub_devices(AffinityDomain);
-  }
+  vector_class<device>
+  create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
 
+  /// Queries this SYCL device for information requested by the template parameter param
+  ///
+  /// Specializations of info::param_traits must be defined in accordance with the info
+  /// parameters in Table 4.20 of SYCL Spec to facilitate returning the type
+  /// associated with the param parameter.
+  ///
+  /// @return device info of type described in Table 4.20.
   template <info::device param>
   typename info::param_traits<info::device, param>::return_type
-  get_info() const {
-    return impl->get_info<param>();
-  }
+  get_info() const;
 
-  bool has_extension(const string_class &extension_name) const {
-    return impl->has_extension(extension_name);
-  }
+  /// Check SYCL extension support by device
+  ///
+  /// @extension_name is a name of queried extension.
+  /// @return true if SYCL device supports the extension.
+  bool has_extension(const string_class &extension_name) const;
 
+  /// Query available SYCL devices
+  ///
+  /// The returned vector_class must contain a single SYCL device
+  /// that is a host device, permitted by the deviceType parameter
+  ///
+  /// @deviceType is one of the values described in A.3 of SYCL Spec
+  /// @return a vector_class containing all SYCL devices available in the system of the device type specified
   static vector_class<device>
   get_devices(info::device_type deviceType = info::device_type::all);
 
 private:
-  std::shared_ptr<detail::device_impl> impl;
-  device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
+  shared_ptr_class<detail::device_impl> impl;
+  device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -111,9 +166,9 @@ private:
 
 namespace std {
 template <> struct hash<cl::sycl::device> {
-  size_t operator()(const cl::sycl::device &d) const {
-    return hash<std::shared_ptr<cl::sycl::detail::device_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(d));
+  size_t operator()(const cl::sycl::device &Device) const {
+    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::device_impl>>()(
+        cl::sycl::detail::getSyclObjImpl(Device));
   }
 };
 } // namespace std

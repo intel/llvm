@@ -28,6 +28,7 @@
 
 #include <CL/sycl/stl.hpp>
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <type_traits>

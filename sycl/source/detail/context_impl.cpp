@@ -61,8 +61,7 @@ context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
 
   for (auto Dev : DeviceIds) {
     m_Devices.emplace_back(
-        createSyclObjFromImpl<device>(
-            std::make_shared<device_impl_pi>(Dev)));
+        createSyclObjFromImpl<device>(std::make_shared<device_impl>(Dev)));
   }
   // TODO What if m_Devices if empty? m_Devices[0].get_platform()
   m_Platform = platform(m_Devices[0].get_platform());

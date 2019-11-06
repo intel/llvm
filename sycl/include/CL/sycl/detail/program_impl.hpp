@@ -16,6 +16,7 @@
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <memory>
 

@@ -8,6 +8,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/program_manager/program_manager.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
@@ -16,6 +17,7 @@
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <cstdlib>
 #include <fstream>
@@ -168,8 +170,8 @@ void ProgramManager::build(RT::PiProgram Program, const string_class &Options,
   const char *Opts = std::getenv("SYCL_PROGRAM_BUILD_OPTIONS");
 
   for (const auto &DeviceId : Devices) {
-    if (!createSyclObjFromImpl<device>(std::make_shared<device_impl_pi>(DeviceId)).
-            get_info<info::device::is_compiler_available>()) {
+    if (!createSyclObjFromImpl<device>(std::make_shared<device_impl>(DeviceId))
+             .get_info<info::device::is_compiler_available>()) {
       throw feature_not_supported(
           "Online compilation is not supported by this device");
     }

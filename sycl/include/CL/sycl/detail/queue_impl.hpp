@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
@@ -56,7 +57,7 @@ public:
     PI_CALL(RT::piQueueGetInfo(m_CommandQueue, PI_QUEUE_INFO_DEVICE,
                                sizeof(Device), &Device, nullptr));
     m_Device =
-        createSyclObjFromImpl<device>(std::make_shared<device_impl_pi>(Device));
+        createSyclObjFromImpl<device>(std::make_shared<device_impl>(Device));
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(RT::piQueueRetain(m_CommandQueue));
