@@ -1696,7 +1696,7 @@ llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
   llvm::Triple TT;
   TT.setArchName(TargetArch);
   TT.setVendor(llvm::Triple::UnknownVendor);
-  TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+  TT.setOS(llvm::Triple::UnknownOS);
   TT.setEnvironment(llvm::Triple::SYCLDevice);
   if (IsCLMode())
     TT.setObjectFormat(llvm::Triple::COFF);
