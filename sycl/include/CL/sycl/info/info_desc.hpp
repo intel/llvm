@@ -121,7 +121,8 @@ enum class device : cl_device_info {
   sub_group_independent_forward_progress =
       CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS,
   sub_group_sizes = CL_DEVICE_SUB_GROUP_SIZES_INTEL,
-  partition_type_property
+  partition_type_property,
+  kernel_kernel_pipe_support
 };
 
 enum class device_type : pi_uint64 {

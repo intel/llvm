@@ -289,6 +289,27 @@ struct get_device_info<vector_class<size_t>,
   }
 };
 
+// Specialization for kernel to kernel pipes.
+// Here we step away from OpenCL, since there is no appropriate cl_device_info
+// enum for global pipes feature.
+template <>
+struct get_device_info<bool, info::device::kernel_kernel_pipe_support> {
+  static bool _(RT::PiDevice dev) {
+    // We claim, that all Intel FPGA devices support kernel to kernel pipe
+    // feature (at least at the scope of SYCL_INTEL_data_flow_pipes extension).
+    platform plt = get_device_info<platform, info::device::platform>::_(dev);
+    string_class platform_name = plt.get_info<info::platform::name>();
+    if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
+        platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")
+      return true;
+
+    // TODO: a better way is to query for supported SPIR-V capabilities when
+    // it's started to be possible. Also, if a device's backend supports
+    // SPIR-V 1.1 (where Pipe Storage feature was defined), than it supports
+    // the feature as well.
+    return false;
+  }
+};
 
 // SYCL host device information
 
