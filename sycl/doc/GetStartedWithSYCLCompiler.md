@@ -242,6 +242,22 @@ cmake -DIntel_SYCL_ROOT=$SYCL_HOME/deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 cmake -DIntel_SYCL_ROOT=%SYCL_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
 ```
 
+### Build Doxygen documentation
+
+Building Doxygen documentation is similar to building the product itself. First,
+you need to install requirements:
+- doxygen
+- graphviz
+
+Then you'll need to add the following options to your CMake configuration
+command:
+```
+-DLLVM_ENABLE_DOXYGEN=ON
+```
+
+After CMake cache is generated, build the documentation with `doxygen-sycl`
+target. It will be put to `/path/to/build/tools/sycl/doc/html` directory.
+
 ## Run simple SYCL application
 
 A simple SYCL program consists of following parts:
