@@ -167,7 +167,9 @@ namespace RT = cl::sycl::detail::pi;
 
 #define PI_ASSERT(cond, msg) RT::assertion((cond), "assert: " msg);
 
-#define PI_TRACE(func) RT::Trace<decltype(func)>(RT::PluginInformation.func, #func)
+#define PI_TRACE(func)                                                         \
+  RT::Trace<decltype(&::func)>(RT::PluginInformation.PiFunctionTable.func,     \
+                               #func)
 
 #define PI_TRACE_ONLY(func) RT::Trace<decltype(func)>(func, #func)
 

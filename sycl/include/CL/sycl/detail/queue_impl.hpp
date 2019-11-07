@@ -54,25 +54,25 @@ public:
 
     RT::PiDevice Device = nullptr;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piQueueGetInfo, m_CommandQueue, PI_QUEUE_INFO_DEVICE,
+    PI_CALL(piQueueGetInfo, m_CommandQueue, PI_QUEUE_INFO_DEVICE,
             sizeof(Device), &Device, nullptr);
     m_Device =
         createSyclObjFromImpl<device>(std::make_shared<device_impl>(Device));
 
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piQueueRetain, m_CommandQueue);
+    PI_CALL(piQueueRetain, m_CommandQueue);
   }
 
   ~queue_impl() {
     throw_asynchronous();
     if (m_OpenCLInterop) {
-      PI_CALL(RT::piQueueRelease, m_CommandQueue);
+      PI_CALL(piQueueRelease, m_CommandQueue);
     }
   }
 
   cl_command_queue get() {
     if (m_OpenCLInterop) {
-      PI_CALL(RT::piQueueRetain, m_CommandQueue);
+      PI_CALL(piQueueRetain, m_CommandQueue);
       return pi::cast<cl_command_queue>(m_CommandQueue);
     }
     throw invalid_object_error(
@@ -160,8 +160,8 @@ public:
     RT::PiQueue Queue;
     RT::PiContext Context = detail::getSyclObjImpl(m_Context)->getHandleRef();
     RT::PiDevice Device = detail::getSyclObjImpl(m_Device)->getHandleRef();
-    RT::PiResult Error = PI_CALL_RESULT(RT::piQueueCreate, Context, Device,
-                                        CreationFlags, &Queue);
+    RT::PiResult Error =
+        PI_CALL_RESULT(piQueueCreate, Context, Device, CreationFlags, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
@@ -193,7 +193,7 @@ public:
     m_QueueNumber %= MaxNumQueues;
     size_t FreeQueueNum = m_QueueNumber++;
 
-    PI_CALL(RT::piQueueFinish, m_Queues[FreeQueueNum]);
+    PI_CALL(piQueueFinish, m_Queues[FreeQueueNum]);
     return m_Queues[FreeQueueNum];
   }
 
