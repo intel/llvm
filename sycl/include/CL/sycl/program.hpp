@@ -22,7 +22,6 @@ namespace sycl {
 // Forward declarations
 class context;
 class device;
-class kernel;
 namespace detail {
 class program_impl;
 }

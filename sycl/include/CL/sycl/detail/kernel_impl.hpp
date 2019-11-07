@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
