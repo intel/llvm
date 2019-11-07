@@ -2764,9 +2764,11 @@ void EmitClangAttrList(RecordKeeper &Records, raw_ostream &OS) {
   // Add defaulting macro definitions.
   Hierarchy.emitDefaultDefines(OS);
   emitDefaultDefine(OS, "PRAGMA_SPELLING_ATTR", nullptr);
+  emitDefaultDefine(OS, "DEPENDENT_STMT_ATTR", nullptr);
 
   std::vector<Record *> Attrs = Records.getAllDerivedDefinitions("Attr");
   std::vector<Record *> PragmaAttrs;
+  std::vector<Record *> DependentStmtAttrs;
   for (auto *Attr : Attrs) {
     if (!Attr->getValueAsBit("ASTNode"))
       continue;
@@ -2774,6 +2776,9 @@ void EmitClangAttrList(RecordKeeper &Records, raw_ostream &OS) {
     // Add the attribute to the ad-hoc groups.
     if (AttrHasPragmaSpelling(Attr))
       PragmaAttrs.push_back(Attr);
+
+    if (Attr->getValueAsBit("HasCustomTypeTransform"))
+      DependentStmtAttrs.push_back(Attr);
 
     // Place it in the hierarchy.
     Hierarchy.classifyAttr(Attr);
@@ -2784,6 +2789,7 @@ void EmitClangAttrList(RecordKeeper &Records, raw_ostream &OS) {
 
   // Emit the ad hoc groups.
   emitAttrList(OS, "PRAGMA_SPELLING_ATTR", PragmaAttrs);
+  emitAttrList(OS, "DEPENDENT_STMT_ATTR", DependentStmtAttrs);
 
   // Emit the attribute ranges.
   OS << "#ifdef ATTR_RANGE\n";
@@ -2792,6 +2798,7 @@ void EmitClangAttrList(RecordKeeper &Records, raw_ostream &OS) {
   OS << "#endif\n";
 
   Hierarchy.emitUndefs(OS);
+  OS << "#undef DEPENDENT_STMT_ATTR\n";
   OS << "#undef PRAGMA_SPELLING_ATTR\n";
 }
 

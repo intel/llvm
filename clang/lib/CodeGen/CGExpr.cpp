@@ -3412,12 +3412,23 @@ static QualType getFixedSizeElementType(const ASTContext &ctx,
   return eltType;
 }
 
+static void AddIVDepMetadata(CodeGenFunction &CGF, const ValueDecl *ArrayDecl,
+                             llvm::Value *EltPtr) {
+  if (!ArrayDecl)
+    return;
+
+  // Only handle actual GEPs, ConstantExpr GEPs don't have metadata.
+  if (auto *GEP = dyn_cast<llvm::GetElementPtrInst>(EltPtr))
+    CGF.LoopStack.addIVDepMetadata(ArrayDecl, GEP);
+}
+
 static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
                                      ArrayRef<llvm::Value *> indices,
                                      QualType eltType, bool inbounds,
                                      bool signedIndices, SourceLocation loc,
                                      QualType *arrayType = nullptr,
-                                     const llvm::Twine &name = "arrayidx") {
+                                     const llvm::Twine &name = "arrayidx",
+                                     const ValueDecl *arrayDecl = nullptr) {
   // All the indices except that last must be zero.
 #ifndef NDEBUG
   for (auto idx : indices.drop_back())
@@ -3442,6 +3453,7 @@ static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
     eltPtr = emitArraySubscriptGEP(
         CGF, addr.getPointer(), indices, inbounds, signedIndices,
         loc, name);
+    AddIVDepMetadata(CGF, arrayDecl, eltPtr);
   } else {
     // Remember the original array subscript for bpf target
     unsigned idx = LastIndex->getZExtValue();
@@ -3586,12 +3598,18 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
       ArrayLV = EmitLValue(Array);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
 
+    const ValueDecl *ArrayDecl = nullptr;
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(Array->IgnoreParenCasts()))
+      ArrayDecl = DRE->getDecl();
+    else if (const auto *ME = dyn_cast<MemberExpr>(Array->IgnoreParenCasts()))
+      ArrayDecl = ME->getMemberDecl();
+
     // Propagate the alignment from the array itself to the result.
     QualType arrayType = Array->getType();
     Addr = emitArraySubscriptGEP(
         *this, ArrayLV.getAddress(), {CGM.getSize(CharUnits::Zero()), Idx},
         E->getType(), !getLangOpts().isSignedOverflowDefined(), SignedIndices,
-        E->getExprLoc(), &arrayType);
+        E->getExprLoc(), &arrayType, "arrayidx", ArrayDecl);
     EltBaseInfo = ArrayLV.getBaseInfo();
     EltTBAAInfo = CGM.getTBAAInfoForSubobject(ArrayLV, E->getType());
   } else {

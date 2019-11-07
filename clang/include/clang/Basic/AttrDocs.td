@@ -1878,8 +1878,19 @@ def SYCLIntelFPGAIVDepAttrDocs : Documentation {
   let Content = [{
 This attribute applies to a loop. If no additional arguments are provided, it
 indicates that the backend may assume that the loop carries no dependences.
-If a safelen is provided then the backend may assume that all loop carried
+If a safelen is provided then the backend may assume that all loop-carried
 dependences have a dependence distance of at least that length.
+If an array variable is provided then the backend may assume that there are
+no loop-carried dependences for this particular array within this loop.
+If both an array variable and a safelen are specified, the backend may assume
+that all loop-carried dependences for this particular array have a dependence
+distance of at least that length.
+Multiple ivdep attributes can be applied to the same loop, but only the greatest
+possible safelen will be chosen for each array, including the case where safelen
+is unspecified and is therefore considered infinite.
+In case of ivdep being applied both w/o an array variable and for a particular
+array, the array variables that were not designated a separate ivdep will receive
+the no-array ivdep's safelen, with the correspondent treatment by the backend.
   }];
 }
 
