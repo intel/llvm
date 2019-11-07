@@ -10,6 +10,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/program_impl.hpp>
+#include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
@@ -61,7 +62,7 @@ public:
 
   template <typename kernelT>
   void compile_with_kernel_type(string_class compileOptions = "") {
-    impl->compile_with_kernel_type<kernelT>(compileOptions);
+    impl->compile_with_kernel_type(detail::KernelInfo<kernelT>::getName(), compileOptions);
   }
 
   void compile_with_source(string_class kernelSource,
@@ -69,7 +70,7 @@ public:
 
   template <typename kernelT>
   void build_with_kernel_type(string_class buildOptions = "") {
-    impl->build_with_kernel_type<kernelT>(buildOptions);
+    impl->build_with_kernel_type(detail::KernelInfo<kernelT>::getName(), buildOptions);
   }
 
   void build_with_source(string_class kernelSource,
@@ -78,13 +79,13 @@ public:
   void link(string_class linkOptions = "");
 
   template <typename kernelT> bool has_kernel() const {
-    return impl->has_kernel<kernelT>();
+    return has_kernel(detail::KernelInfo<kernelT>::getName(), /*IsCreatedFromSource*/ false);
   }
 
   bool has_kernel(string_class kernelName) const;
 
   template <typename kernelT> kernel get_kernel() const {
-    return impl->get_kernel<kernelT>(impl);
+    return get_kernel(detail::KernelInfo<kernelT>::getName(), /*IsCreatedFromSource*/false);
   }
 
   kernel get_kernel(string_class kernelName) const;
@@ -109,6 +110,10 @@ public:
 
 private:
   program(std::shared_ptr<detail::program_impl> impl);
+
+  kernel get_kernel(string_class kernelName, bool IsCreatedFromSource) const;
+
+  bool has_kernel(string_class kernelName, bool IsCreatedFromSource) const;
 
   std::shared_ptr<detail::program_impl> impl;
 };

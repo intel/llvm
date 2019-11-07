@@ -181,8 +181,8 @@ public:
 
   bool is_host() const { return Context->is_host(); }
 
-  template <typename KernelT>
-  void compile_with_kernel_type(string_class CompileOptions = "") {
+  void compile_with_kernel_type(string_class KernelName,
+                                string_class CompileOptions = "") {
     throw_if_state_is_not(program_state::none);
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
@@ -203,8 +203,8 @@ public:
     State = program_state::compiled;
   }
 
-  template <typename KernelT>
-  void build_with_kernel_type(string_class BuildOptions = "") {
+  void build_with_kernel_type(string_class KernelName,
+                              string_class BuildOptions = "") {
     throw_if_state_is_not(program_state::none);
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
@@ -248,54 +248,25 @@ public:
     State = program_state::linked;
   }
 
-  template <typename KernelT>
-  bool has_kernel() const
-#ifdef __SYCL_DEVICE_ONLY__
-      ;
-#else
-  {
+  bool has_kernel(string_class KernelName, bool IsCreatedFromSource) const {
     throw_if_state_is(program_state::none);
     if (is_host()) {
-      return true;
-    }
-    return has_cl_kernel(KernelInfo<KernelT>::getName());
-  }
-#endif
-
-  bool has_kernel(string_class KernelName) const {
-    throw_if_state_is(program_state::none);
-    if (is_host()) {
-      return false;
+      return !IsCreatedFromSource;
     }
     return has_cl_kernel(KernelName);
   }
 
-  template <typename KernelT>
-  kernel get_kernel(std::shared_ptr<program_impl> PtrToSelf) const
-#ifdef __SYCL_DEVICE_ONLY__
-      ;
-#else
-  {
+  kernel get_kernel(string_class KernelName,
+                    std::shared_ptr<program_impl> PtrToSelf,
+                    bool IsCreatedFromSource) const {
     throw_if_state_is(program_state::none);
     if (is_host()) {
       return createSyclObjFromImpl<kernel>(
           std::make_shared<kernel_impl>(Context, PtrToSelf));
     }
     return createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
-        get_pi_kernel(KernelInfo<KernelT>::getName()), Context, PtrToSelf,
-        /*IsCreatedFromSource*/ false));
-  }
-#endif
-
-  kernel get_kernel(string_class KernelName,
-                    std::shared_ptr<program_impl> PtrToSelf) const {
-    throw_if_state_is(program_state::none);
-    if (is_host()) {
-      throw invalid_object_error("This instance of program is a host instance");
-    }
-    return createSyclObjFromImpl<kernel>(
-        std::make_shared<kernel_impl>(get_pi_kernel(KernelName), Context,
-                                      PtrToSelf, /*IsCreatedFromSource*/ true));
+        get_pi_kernel(KernelName), Context, PtrToSelf,
+        /*IsCreatedFromSource*/ IsCreatedFromSource));
   }
 
   template <info::program param>

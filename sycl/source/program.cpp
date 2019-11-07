@@ -51,11 +51,19 @@ void program::build_with_source(string_class kernelSource,
 void program::link(string_class linkOptions) { impl->link(linkOptions); }
 
 bool program::has_kernel(string_class kernelName) const {
-  return impl->has_kernel(kernelName);
+  return has_kernel(kernelName, /*IsCreatedFromSource*/ true);
+}
+
+bool program::has_kernel(string_class kernelName, bool IsCreatedFromSource) const {
+  return impl->has_kernel(kernelName, IsCreatedFromSource);
 }
 
 kernel program::get_kernel(string_class kernelName) const {
-  return impl->get_kernel(kernelName, impl);
+  return get_kernel(kernelName, /*IsCreatedFromSource*/ true);
+}
+
+kernel program::get_kernel(string_class kernelName, bool IsCreatedFromSource) const {
+  return impl->get_kernel(kernelName, impl, IsCreatedFromSource);
 }
 
 template <info::program param>
