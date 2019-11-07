@@ -18,9 +18,13 @@
 __SYCL_INLINE namespace cl {
 namespace sycl {
 
+// Forward declarations
 class context;
 class device;
 class kernel;
+/*namespace detail {
+class program_impl;
+}*/
 
 class program {
   template <class Obj>
@@ -31,26 +35,13 @@ class program {
 public:
   program() = delete;
 
-  explicit program(const context &context)
-      : impl(std::make_shared<detail::program_impl>(
-            detail::getSyclObjImpl(context))) {}
+  explicit program(const context &context);
 
-  program(const context &context, vector_class<device> deviceList)
-      : impl(std::make_shared<detail::program_impl>(
-            detail::getSyclObjImpl(context), deviceList)) {}
+  program(const context &context, vector_class<device> deviceList);
 
-  program(vector_class<program> programList, string_class linkOptions = "") {
-    std::vector<std::shared_ptr<detail::program_impl>> impls;
-    for (auto &x : programList) {
-      impls.push_back(detail::getSyclObjImpl(x));
-    }
-    impl = std::make_shared<detail::program_impl>(impls, linkOptions);
-  }
+  program(vector_class<program> programList, string_class linkOptions = "");
 
-  program(const context &context, cl_program clProgram)
-      : impl(std::make_shared<detail::program_impl>(
-            detail::getSyclObjImpl(context),
-            detail::pi::cast<detail::RT::PiProgram>(clProgram))) {}
+  program(const context &context, cl_program clProgram);
 
   program(const program &rhs) = default;
 
@@ -60,13 +51,13 @@ public:
 
   program &operator=(program &&rhs) = default;
 
-  bool operator==(const program &rhs) const { return impl == rhs.impl; }
+  bool operator==(const program &rhs) const;
 
-  bool operator!=(const program &rhs) const { return !operator==(rhs); }
+  bool operator!=(const program &rhs) const;
 
-  cl_program get() const { return impl->get(); }
+  cl_program get() const;
 
-  bool is_host() const { return impl->is_host(); }
+  bool is_host() const;
 
   template <typename kernelT>
   void compile_with_kernel_type(string_class compileOptions = "") {
@@ -74,9 +65,7 @@ public:
   }
 
   void compile_with_source(string_class kernelSource,
-                           string_class compileOptions = "") {
-    impl->compile_with_source(kernelSource, compileOptions);
-  }
+                           string_class compileOptions = "");
 
   template <typename kernelT>
   void build_with_kernel_type(string_class buildOptions = "") {
@@ -84,54 +73,42 @@ public:
   }
 
   void build_with_source(string_class kernelSource,
-                         string_class buildOptions = "") {
-    impl->build_with_source(kernelSource, buildOptions);
-  }
+                         string_class buildOptions = "");
 
-  void link(string_class linkOptions = "") { impl->link(linkOptions); }
+  void link(string_class linkOptions = "");
 
   template <typename kernelT> bool has_kernel() const {
     return impl->has_kernel<kernelT>();
   }
 
-  bool has_kernel(string_class kernelName) const {
-    return impl->has_kernel(kernelName);
-  }
+  bool has_kernel(string_class kernelName) const;
 
   template <typename kernelT> kernel get_kernel() const {
     return impl->get_kernel<kernelT>(impl);
   }
 
-  kernel get_kernel(string_class kernelName) const {
-    return impl->get_kernel(kernelName, impl);
-  }
+  kernel get_kernel(string_class kernelName) const;
 
   template <info::program param>
   typename info::param_traits<info::program, param>::return_type
-  get_info() const {
-    return impl->get_info<param>();
-  }
+  get_info() const;
 
-  vector_class<vector_class<char>> get_binaries() const {
-    return impl->get_binaries();
-  }
+  vector_class<vector_class<char>> get_binaries() const;
 
-  context get_context() const { return impl->get_context(); }
+  context get_context() const;
 
-  vector_class<device> get_devices() const { return impl->get_devices(); }
+  vector_class<device> get_devices() const;
 
-  string_class get_compile_options() const {
-    return impl->get_compile_options();
-  }
+  string_class get_compile_options() const;
 
-  string_class get_link_options() const { return impl->get_link_options(); }
+  string_class get_link_options() const;
 
-  string_class get_build_options() const { return impl->get_build_options(); }
+  string_class get_build_options() const;
 
-  program_state get_state() const { return impl->get_state(); }
+  program_state get_state() const;
 
 private:
-  program(std::shared_ptr<detail::program_impl> impl) : impl(impl) {}
+  program(std::shared_ptr<detail::program_impl> impl);
 
   std::shared_ptr<detail::program_impl> impl;
 };
