@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+
 #include <cstdarg>
+#include <cstring>
 #include <iostream>
 #include <map>
 #include <string>
@@ -77,26 +79,20 @@ void *loadPlugin(const std::string &PluginPath) {
 // Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library) {
 
-  decltype(::piPluginInit) *PluginInitializeFunction =
-      (decltype(&::piPluginInit))(
-          getOsLibraryFuncAddress(Library, "piPluginInit"));
-  // FuncTable is a list of all Interface Function pointers, where each
-  // Interface Function is located at a predetermined offset.
+  decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
+      &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
   int err = PluginInitializeFunction(&PluginInformation);
- 
-  // TODO: Check err code. 
- 
-  // At the predetermined api's offset from the FunctionTable, the function
-  // pointer for "api" is stored. So we dereference the location to get the
-  // function pointer.
+  int CompareVersions =
+      strcmp(PluginInformation.PiVersion, PluginInformation.PluginVersion);
 
-//#define _PI_API(api)                                                   \
-  api = ((decltype(api))(PluginInformation.PiFunctionTable.api));
-
-//#include <CL/sycl/detail/pi.def>
-
-// #undef _PI_API
-
+  // CompareVersions >= 0, Plugin Interface supports same/higher PI version as
+  // the Plugin.
+  // TODO: When Plugin supports lower version of PI, check for backward
+  // compatibility.
+  assert((CompareVersions >= 0) && "Plugin Interface supports lower PI version "
+                                   "than Plugin. Update library.");
+  // Reaching here means CompareVersions>=0, make sure err is PI_SUCCESS.
+  assert((err == PI_SUCCESS) && "Unexpected error when binding to Plugin.");
   return true;
 }
 

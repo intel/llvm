@@ -23,7 +23,7 @@ bool event_impl::is_host() const { return m_HostEvent || !m_OpenCLInterop; }
 
 cl_event event_impl::get() const {
   if (m_OpenCLInterop) {
-    PI_CALL(RT::piEventRetain, m_Event);
+    PI_CALL(piEventRetain, m_Event);
     return pi::cast<cl_event>(m_Event);
   }
   throw invalid_object_error(
@@ -32,17 +32,17 @@ cl_event event_impl::get() const {
 
 event_impl::~event_impl() {
   if (m_Event) {
-    PI_CALL(RT::piEventRelease, m_Event);
+    PI_CALL(piEventRelease, m_Event);
   }
 }
 
 void event_impl::setComplete() {
-  PI_CALL(RT::piEventSetStatus, m_Event, CL_COMPLETE);
+  PI_CALL(piEventSetStatus, m_Event, CL_COMPLETE);
 }
 
 void event_impl::waitInternal() const {
   if (!m_HostEvent) {
-    PI_CALL(RT::piEventsWait, 1, &m_Event);
+    PI_CALL(piEventsWait, 1, &m_Event);
   }
   // Waiting of host events is NOP so far as all operations on host device
   // are blocking.
@@ -72,7 +72,7 @@ event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
   }
 
   RT::PiContext TempContext;
-  PI_CALL(RT::piEventGetInfo, m_Event, CL_EVENT_CONTEXT, sizeof(RT::PiContext),
+  PI_CALL(piEventGetInfo, m_Event, CL_EVENT_CONTEXT, sizeof(RT::PiContext),
           &TempContext, nullptr);
   if (m_Context->getHandleRef() != TempContext) {
     throw cl::sycl::invalid_parameter_error(
@@ -80,7 +80,7 @@ event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
         "clEvent.");
   }
 
-  PI_CALL(RT::piEventRetain, m_Event);
+  PI_CALL(piEventRetain, m_Event);
 }
 
 event_impl::event_impl(std::shared_ptr<cl::sycl::detail::queue_impl> Queue) {

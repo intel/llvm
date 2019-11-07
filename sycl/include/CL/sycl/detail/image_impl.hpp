@@ -231,7 +231,7 @@ public:
       : BaseT(MemObject, SyclContext, std::move(AvailableEvent)),
         MRange(InitializedVal<Dimensions, range>::template get<0>()) {
     RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
-    PI_CALL(RT::piMemGetInfo, Mem, CL_MEM_SIZE, sizeof(size_t),
+    PI_CALL(piMemGetInfo, Mem, CL_MEM_SIZE, sizeof(size_t),
             &(BaseT::MSizeInBytes), nullptr);
 
     RT::PiMemImageFormat Format;
@@ -342,7 +342,7 @@ public:
 private:
   template <typename T> void getImageInfo(RT::PiMemImageInfo Info, T &Dest) {
     RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
-    PI_CALL(RT::piMemImageGetInfo, Mem, Info, sizeof(T), &Dest, nullptr);
+    PI_CALL(piMemImageGetInfo, Mem, Info, sizeof(T), &Dest, nullptr);
   }
 
   template <info::device Param>

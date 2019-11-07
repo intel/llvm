@@ -23,7 +23,7 @@ namespace detail {
 
 static void waitForEvents(const std::vector<RT::PiEvent> &Events) {
   if (!Events.empty())
-    PI_CALL(RT::piEventsWait, Events.size(), &Events[0]);
+    PI_CALL(piEventsWait, Events.size(), &Events[0]);
 }
 
 void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
@@ -50,7 +50,7 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
     return;
   }
 
-  PI_CALL(RT::piMemRelease, pi::cast<RT::PiMem>(MemAllocation));
+  PI_CALL(piMemRelease, pi::cast<RT::PiMem>(MemAllocation));
 }
 
 void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
@@ -106,7 +106,7 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
                                      : PI_MEM_FLAGS_HOST_PTR_USE;
 
   RT::PiMem NewMem;
-  PI_CALL(RT::piMemImageCreate, TargetContext->getHandleRef(), CreationFlags,
+  PI_CALL(piMemImageCreate, TargetContext->getHandleRef(), CreationFlags,
           &Format, &Desc, UserPtr, &NewMem);
   return NewMem;
 }
@@ -121,8 +121,8 @@ void *MemoryManager::allocateBufferObject(ContextImplPtr TargetContext,
                                      : PI_MEM_FLAGS_HOST_PTR_USE;
 
   RT::PiMem NewMem;
-  PI_CALL(RT::piMemBufferCreate, TargetContext->getHandleRef(), CreationFlags,
-          Size, UserPtr, &NewMem);
+  PI_CALL(piMemBufferCreate, TargetContext->getHandleRef(), CreationFlags, Size,
+          UserPtr, &NewMem);
   return NewMem;
 }
 
@@ -174,7 +174,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   cl_buffer_region Region{Offset, SizeInBytes};
   RT::PiMem NewMem;
   Error = PI_CALL_RESULT(
-      RT::piMemBufferPartition, pi::cast<RT::PiMem>(ParentMemObj),
+      piMemBufferPartition, pi::cast<RT::PiMem>(ParentMemObj),
       PI_MEM_FLAGS_ACCESS_RW, PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == PI_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
@@ -206,7 +206,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
     SrcSize[0] *= SrcElemSize;
 
     if (1 == DimDst && 1 == DimSrc) {
-      PI_CALL(RT::piEnqueueMemBufferWrite, Queue, DstMem,
+      PI_CALL(piEnqueueMemBufferWrite, Queue, DstMem,
               /*blocking_write=*/CL_FALSE, DstOffset[0], DstAccessRange[0],
               SrcMem + SrcOffset[0], DepEvents.size(), &DepEvents[0],
               &OutEvent);
@@ -215,7 +215,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
       size_t BufferSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
       size_t HostRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
       size_t HostSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
-      PI_CALL(RT::piEnqueueMemBufferWriteRect, Queue, DstMem,
+      PI_CALL(piEnqueueMemBufferWriteRect, Queue, DstMem,
               /*blocking_write=*/CL_FALSE, &DstOffset[0], &SrcOffset[0],
               &DstAccessRange[0], BufferRowPitch, BufferSlicePitch,
               HostRowPitch, HostSlicePitch, SrcMem, DepEvents.size(),
@@ -224,7 +224,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
   } else {
     size_t InputRowPitch = (1 == DimDst) ? 0 : DstSize[0];
     size_t InputSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
-    PI_CALL(RT::piEnqueueMemImageWrite, Queue, DstMem,
+    PI_CALL(piEnqueueMemImageWrite, Queue, DstMem,
             /*blocking_write=*/CL_FALSE, &DstOffset[0], &DstAccessRange[0],
             InputRowPitch, InputSlicePitch, SrcMem, DepEvents.size(),
             &DepEvents[0], &OutEvent);
@@ -253,7 +253,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
     DstSize[0] *= DstElemSize;
 
     if (1 == DimDst && 1 == DimSrc) {
-      PI_CALL(RT::piEnqueueMemBufferRead, Queue, SrcMem,
+      PI_CALL(piEnqueueMemBufferRead, Queue, SrcMem,
               /*blocking_read=*/CL_FALSE, SrcOffset[0], SrcAccessRange[0],
               DstMem + DstOffset[0], DepEvents.size(), &DepEvents[0],
               &OutEvent);
@@ -263,7 +263,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 
       size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
       size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
-      PI_CALL(RT::piEnqueueMemBufferReadRect, Queue, SrcMem,
+      PI_CALL(piEnqueueMemBufferReadRect, Queue, SrcMem,
               /*blocking_read=*/CL_FALSE, &SrcOffset[0], &DstOffset[0],
               &SrcAccessRange[0], BufferRowPitch, BufferSlicePitch,
               HostRowPitch, HostSlicePitch, DstMem, DepEvents.size(),
@@ -272,7 +272,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
   } else {
     size_t RowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
     size_t SlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
-    PI_CALL(RT::piEnqueueMemImageRead, Queue, SrcMem, CL_FALSE, &SrcOffset[0],
+    PI_CALL(piEnqueueMemImageRead, Queue, SrcMem, CL_FALSE, &SrcOffset[0],
             &SrcAccessRange[0], RowPitch, SlicePitch, DstMem, DepEvents.size(),
             &DepEvents[0], &OutEvent);
   }
@@ -299,7 +299,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
     DstSize[0] *= DstElemSize;
 
     if (1 == DimDst && 1 == DimSrc) {
-      PI_CALL(RT::piEnqueueMemBufferCopy, Queue, SrcMem, DstMem, SrcOffset[0],
+      PI_CALL(piEnqueueMemBufferCopy, Queue, SrcMem, DstMem, SrcOffset[0],
               DstOffset[0], SrcAccessRange[0], DepEvents.size(), &DepEvents[0],
               &OutEvent);
     } else {
@@ -309,13 +309,13 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       size_t DstRowPitch = (1 == DimDst) ? 0 : DstSize[0];
       size_t DstSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
 
-      PI_CALL(RT::piEnqueueMemBufferCopyRect, Queue, SrcMem, DstMem,
-              &SrcOffset[0], &DstOffset[0], &SrcAccessRange[0], SrcRowPitch,
-              SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
-              &DepEvents[0], &OutEvent);
+      PI_CALL(piEnqueueMemBufferCopyRect, Queue, SrcMem, DstMem, &SrcOffset[0],
+              &DstOffset[0], &SrcAccessRange[0], SrcRowPitch, SrcSlicePitch,
+              DstRowPitch, DstSlicePitch, DepEvents.size(), &DepEvents[0],
+              &OutEvent);
     }
   } else {
-    PI_CALL(RT::piEnqueueMemImageCopy, Queue, SrcMem, DstMem, &SrcOffset[0],
+    PI_CALL(piEnqueueMemImageCopy, Queue, SrcMem, DstMem, &SrcOffset[0],
             &DstOffset[0], &SrcAccessRange[0], DepEvents.size(), &DepEvents[0],
             &OutEvent);
   }
@@ -399,7 +399,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
 
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
     if (Dim == 1) {
-      PI_CALL(RT::piEnqueueMemBufferFill, Queue->getHandleRef(),
+      PI_CALL(piEnqueueMemBufferFill, Queue->getHandleRef(),
               pi::cast<RT::PiMem>(Mem), Pattern, PatternSize,
               Offset[0] * ElementSize, Range[0] * ElementSize, DepEvents.size(),
               &DepEvents[0], &OutEvent);
@@ -408,7 +408,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     assert(!"Not supported configuration of fill requested");
     throw runtime_error("Not supported configuration of fill requested");
   } else {
-    PI_CALL(RT::piEnqueueMemImageFill, Queue->getHandleRef(),
+    PI_CALL(piEnqueueMemImageFill, Queue->getHandleRef(),
             pi::cast<RT::PiMem>(Mem), Pattern, &Offset[0], &Range[0],
             DepEvents.size(), &DepEvents[0], &OutEvent);
   }
@@ -448,7 +448,7 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   AccessRange[0] *= ElementSize;
 
   void *MappedPtr;
-  PI_CALL(RT::piEnqueueMemBufferMap, Queue->getHandleRef(),
+  PI_CALL(piEnqueueMemBufferMap, Queue->getHandleRef(),
           pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags, AccessOffset[0],
           AccessRange[0], DepEvents.size(),
           DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &MappedPtr);
@@ -460,7 +460,7 @@ void MemoryManager::unmap(SYCLMemObjI *SYCLMemObj, void *Mem,
                           std::vector<RT::PiEvent> DepEvents,
                           bool UseExclusiveQueue, RT::PiEvent &OutEvent) {
 
-  PI_CALL(RT::piEnqueueMemUnmap,
+  PI_CALL(piEnqueueMemUnmap,
           UseExclusiveQueue ? Queue->getExclusiveQueueHandleRef()
                             : Queue->getHandleRef(),
           pi::cast<RT::PiMem>(Mem), MappedPtr, DepEvents.size(),

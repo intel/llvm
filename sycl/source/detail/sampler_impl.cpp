@@ -23,19 +23,19 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 
   RT::PiSampler Sampler = pi::cast<RT::PiSampler>(clSampler);
   m_contextToSampler[syclContext] = Sampler;
-  PI_CALL(RT::piSamplerRetain, Sampler);
-  PI_CALL(RT::piSamplerGetInfo, Sampler, PI_SAMPLER_INFO_NORMALIZED_COORDS,
+  PI_CALL(piSamplerRetain, Sampler);
+  PI_CALL(piSamplerGetInfo, Sampler, PI_SAMPLER_INFO_NORMALIZED_COORDS,
           sizeof(pi_bool), &m_CoordNormMode, nullptr);
-  PI_CALL(RT::piSamplerGetInfo, Sampler, PI_SAMPLER_INFO_ADDRESSING_MODE,
+  PI_CALL(piSamplerGetInfo, Sampler, PI_SAMPLER_INFO_ADDRESSING_MODE,
           sizeof(pi_sampler_addressing_mode), &m_AddrMode, nullptr);
-  PI_CALL(RT::piSamplerGetInfo, Sampler, PI_SAMPLER_INFO_FILTER_MODE,
+  PI_CALL(piSamplerGetInfo, Sampler, PI_SAMPLER_INFO_FILTER_MODE,
           sizeof(pi_sampler_filter_mode), &m_FiltMode, nullptr);
 }
 
 sampler_impl::~sampler_impl() {
   for (auto &Iter : m_contextToSampler) {
     // TODO catch an exception and add it to the list of asynchronous exceptions
-    PI_CALL(RT::piSamplerRelease, Iter.second);
+    PI_CALL(piSamplerRelease, Iter.second);
   }
 }
 
@@ -54,8 +54,9 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
 
   RT::PiResult errcode_ret = PI_SUCCESS;
   RT::PiSampler resultSampler = nullptr;
-  errcode_ret = PI_CALL_RESULT(RT::piSamplerCreate,
-           getSyclObjImpl(Context)->getHandleRef(), sprops, &resultSampler);
+  errcode_ret =
+      PI_CALL_RESULT(piSamplerCreate, getSyclObjImpl(Context)->getHandleRef(),
+                     sprops, &resultSampler);
 
   if (errcode_ret == PI_INVALID_OPERATION)
     throw feature_not_supported("Images are not supported by this device.");

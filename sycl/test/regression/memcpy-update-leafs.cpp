@@ -38,7 +38,7 @@ int main() {
   return 0;
 }
 
-// CHECK: ---> RT::piEnqueueMemBufferWrite
-// CHECK-NOT: ---> RT::piEnqueueMemBufferWrite
-// CHECK-NOT: ---> RT::piEnqueueMemBufferMap
-// CHECK-NOT: ---> RT::piEnqueueMemUnmap
+// CHECK: ---> piEnqueueMemBufferWrite
+// CHECK-NOT: ---> piEnqueueMemBufferWrite
+// CHECK-NOT: ---> piEnqueueMemBufferMap
+// CHECK-NOT: ---> piEnqueueMemUnmap
