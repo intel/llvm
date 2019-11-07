@@ -852,8 +852,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (HasValidSYCLRuntime) {
       // Triple for -fintelfpga is spir64_fpga-unknown-unknown-sycldevice.
       const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
-      auto TT = MakeSYCLDeviceTriple(SYCLTargetArch);
-      UniqueSYCLTriplesVec.push_back(TT);
+      UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(SYCLTargetArch));
     }
   }
   // We'll need to use the SYCL and host triples as the key into
