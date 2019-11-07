@@ -503,6 +503,23 @@ private:
   pointer_t m_Pointer;
 };
 
+#ifdef __cpp_deduction_guides
+template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+          class T>
+multi_ptr(
+    accessor<T, dimensions, Mode, access::target::global_buffer, isPlaceholder>)
+    ->multi_ptr<T, access::address_space::global_space>;
+template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+          class T>
+multi_ptr(accessor<T, dimensions, Mode, access::target::constant_buffer,
+                   isPlaceholder>)
+    ->multi_ptr<T, access::address_space::constant_space>;
+template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+          class T>
+multi_ptr(accessor<T, dimensions, Mode, access::target::local, isPlaceholder>)
+    ->multi_ptr<T, access::address_space::local_space>;
+#endif
+
 template <typename ElementType, access::address_space Space>
 multi_ptr<ElementType, Space>
 make_ptr(typename multi_ptr<ElementType, Space>::pointer_t pointer) {
