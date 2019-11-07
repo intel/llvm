@@ -1067,6 +1067,13 @@ private:
   template <typename T1, int T2> friend class vec;
 };
 
+#ifdef __cpp_deduction_guides
+// all compilers supporting deduction guides also support fold expressions
+template <class T, class... U,
+          class = detail::enable_if_t<(std::is_same<T, U>::value && ...)>>
+vec(T, U...)->vec<T, sizeof...(U) + 1>;
+#endif
+
 namespace detail {
 
 // SwizzleOP represents expression templates that operate on vec.
