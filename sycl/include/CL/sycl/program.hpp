@@ -9,9 +9,9 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/program_impl.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/kernel.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <memory>
@@ -23,9 +23,11 @@ namespace sycl {
 class context;
 class device;
 class kernel;
-/*namespace detail {
+namespace detail {
 class program_impl;
-}*/
+}
+
+enum class program_state { none, compiled, linked };
 
 class program {
   template <class Obj>
@@ -62,7 +64,7 @@ public:
 
   template <typename kernelT>
   void compile_with_kernel_type(string_class compileOptions = "") {
-    impl->compile_with_kernel_type(detail::KernelInfo<kernelT>::getName(), compileOptions);
+    compile_with_kernel_type(detail::KernelInfo<kernelT>::getName(), compileOptions);
   }
 
   void compile_with_source(string_class kernelSource,
@@ -70,7 +72,7 @@ public:
 
   template <typename kernelT>
   void build_with_kernel_type(string_class buildOptions = "") {
-    impl->build_with_kernel_type(detail::KernelInfo<kernelT>::getName(), buildOptions);
+    build_with_kernel_type(detail::KernelInfo<kernelT>::getName(), buildOptions);
   }
 
   void build_with_source(string_class kernelSource,
@@ -114,6 +116,10 @@ private:
   kernel get_kernel(string_class kernelName, bool IsCreatedFromSource) const;
 
   bool has_kernel(string_class kernelName, bool IsCreatedFromSource) const;
+
+  void compile_with_kernel_type(string_class KernelName, string_class compileOptions = "");
+
+  void build_with_kernel_type(string_class KernelName, string_class buildOptions = "");
 
   std::shared_ptr<detail::program_impl> impl;
 };

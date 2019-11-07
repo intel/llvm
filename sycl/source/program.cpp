@@ -48,6 +48,16 @@ void program::build_with_source(string_class kernelSource,
   impl->build_with_source(kernelSource, buildOptions);
 }
 
+void program::compile_with_kernel_type(string_class KernelName,
+                                       string_class compileOptions) {
+    impl->compile_with_kernel_type(KernelName, compileOptions);
+}
+
+void program::build_with_kernel_type(string_class KernelName,
+                                     string_class buildOptions) {
+    impl->build_with_kernel_type(KernelName, buildOptions);
+}
+
 void program::link(string_class linkOptions) { impl->link(linkOptions); }
 
 bool program::has_kernel(string_class kernelName) const {

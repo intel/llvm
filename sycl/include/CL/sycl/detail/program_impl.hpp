@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/program_manager/program_manager.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/program.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <algorithm>
@@ -24,9 +25,6 @@
 
 __SYCL_INLINE namespace cl {
 namespace sycl {
-
-enum class program_state { none, compiled, linked };
-
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
