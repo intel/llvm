@@ -80,7 +80,7 @@ static std::string accessModeToString(access::mode Mode) {
 
 void EventCompletionClbk(RT::PiEvent, pi_int32, void *data) {
   // TODO: Handle return values. Store errors to async handler.
-  PI_CALL(RT::piEventSetStatus, pi::cast<RT::PiEvent>(data), CL_COMPLETE);
+  PI_CALL(piEventSetStatus, pi::cast<RT::PiEvent>(data), CL_COMPLETE);
 }
 
 // Method prepares PI event's from list sycl::event's
@@ -107,8 +107,8 @@ std::vector<RT::PiEvent> Command::prepareEvents(ContextImplPtr Context) {
       GlueEvent->setContextImpl(Context);
 
       RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-      PI_CALL(RT::piEventCreate, Context->getHandleRef(), &GlueEventHandle);
-      PI_CALL(RT::piEventSetCallback, Event->getHandleRef(), CL_COMPLETE,
+      PI_CALL(piEventCreate, Context->getHandleRef(), &GlueEventHandle);
+      PI_CALL(piEventSetCallback, Event->getHandleRef(), CL_COMPLETE,
               EventCompletionClbk,
               /*data=*/GlueEventHandle);
       GlueEvents.push_back(std::move(GlueEvent));
@@ -126,9 +126,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
                             RT::PiEvent &Event) {
   if (!RawEvents.empty()) {
     if (Queue->is_host()) {
-      PI_CALL(RT::piEventsWait, RawEvents.size(), &RawEvents[0]);
+      PI_CALL(piEventsWait, RawEvents.size(), &RawEvents[0]);
     } else {
-      PI_CALL(RT::piEnqueueEventsWait, Queue->getHandleRef(), RawEvents.size(),
+      PI_CALL(piEnqueueEventsWait, Queue->getHandleRef(), RawEvents.size(),
               &RawEvents[0], &Event);
     }
   }
@@ -820,7 +820,7 @@ cl_int ExecCGCommand::enqueueImp() {
       }
 
       if (!RawEvents.empty())
-        PI_CALL(RT::piEventsWait, RawEvents.size(), &RawEvents[0]);
+        PI_CALL(piEventsWait, RawEvents.size(), &RawEvents[0]);
       DispatchNativeKernel((void *)ArgsBlob.data());
       return CL_SUCCESS;
     }
@@ -844,7 +844,7 @@ cl_int ExecCGCommand::enqueueImp() {
     }
 
     pi_result Error = PI_CALL_RESULT(
-        RT::piEnqueueNativeKernel, MQueue->getHandleRef(), DispatchNativeKernel,
+        piEnqueueNativeKernel, MQueue->getHandleRef(), DispatchNativeKernel,
         (void *)ArgsBlob.data(), ArgsBlob.size() * sizeof(ArgsBlob[0]),
         Buffers.size(), Buffers.data(),
         const_cast<const void **>(MemLocs.data()), RawEvents.size(),
@@ -874,7 +874,7 @@ cl_int ExecCGCommand::enqueueImp() {
           Req->MData = AllocaCmd->getMemAllocation();
         }
       if (!RawEvents.empty())
-        PI_CALL(RT::piEventsWait, RawEvents.size(), &RawEvents[0]);
+        PI_CALL(piEventsWait, RawEvents.size(), &RawEvents[0]);
       ExecKernel->MHostKernel->call(NDRDesc,
                                     getEvent()->getHostProfilingInfo());
       return CL_SUCCESS;
@@ -897,20 +897,18 @@ cl_int ExecCGCommand::enqueueImp() {
         Requirement *Req = (Requirement *)(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
         cl_mem MemArg = (cl_mem)AllocaCmd->getMemAllocation();
-
-        PI_CALL(RT::piKernelSetArg, Kernel, Arg.MIndex, sizeof(cl_mem),
-                &MemArg);
+        PI_CALL(piKernelSetArg, Kernel, Arg.MIndex, sizeof(cl_mem), &MemArg);
         break;
       }
       case kernel_param_kind_t::kind_std_layout: {
-        PI_CALL(RT::piKernelSetArg, Kernel, Arg.MIndex, Arg.MSize, Arg.MPtr);
+        PI_CALL(piKernelSetArg, Kernel, Arg.MIndex, Arg.MSize, Arg.MPtr);
         break;
       }
       case kernel_param_kind_t::kind_sampler: {
         sampler *SamplerPtr = (sampler *)Arg.MPtr;
         RT::PiSampler Sampler =
             detail::getSyclObjImpl(*SamplerPtr)->getOrCreateSampler(Context);
-        PI_CALL(RT::piKernelSetArg, Kernel, Arg.MIndex, sizeof(cl_sampler),
+        PI_CALL(piKernelSetArg, Kernel, Arg.MIndex, sizeof(cl_sampler),
                 &Sampler);
         break;
       }
@@ -943,8 +941,8 @@ cl_int ExecCGCommand::enqueueImp() {
 
     ReverseRangeDimensionsForKernel(NDRDesc);
 
-    PI_CALL(RT::piEnqueueKernelLaunch, MQueue->getHandleRef(), Kernel,
-            NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+    PI_CALL(piEnqueueKernelLaunch, MQueue->getHandleRef(), Kernel, NDRDesc.Dims,
+            &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
             HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr, RawEvents.size(),
             RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
 

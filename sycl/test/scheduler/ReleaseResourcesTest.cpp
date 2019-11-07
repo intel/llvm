@@ -48,11 +48,11 @@ int main() {
   return Failed;
 }
 
-// CHECK:---> RT::piContextCreate
-// CHECK:---> RT::piQueueCreate
-// CHECK:---> RT::piProgramCreate
-// CHECK:---> RT::piKernelCreate
-// CHECK:---> RT::piQueueRelease
-// CHECK:---> RT::piContextRelease
-// CHECK:---> RT::piKernelRelease
-// CHECK:---> RT::piProgramRelease
+// CHECK:---> piContextCreate
+// CHECK:---> piQueueCreate
+// CHECK:---> piProgramCreate
+// CHECK:---> piKernelCreate
+// CHECK:---> piQueueRelease
+// CHECK:---> piContextRelease
+// CHECK:---> piKernelRelease
+// CHECK:---> piProgramRelease

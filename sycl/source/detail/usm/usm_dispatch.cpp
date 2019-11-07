@@ -378,13 +378,13 @@ pi_result USMDispatcher::enqueuePrefetch(pi_queue Queue, void *Ptr, size_t Size,
   if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
     if (mEmulated) {
       // Prefetch is a hint, so ignoring it is always safe.
-      RetVal = PI_CALL_RESULT(RT::piEnqueueEventsWait,
-          Queue, NumEventsInWaitList, EventWaitList, Event);
+      RetVal = PI_CALL_RESULT(piEnqueueEventsWait, Queue, NumEventsInWaitList,
+                              EventWaitList, Event);
     } else {
       // TODO: Replace this with real prefetch support when the driver enables
       // it.
-      RetVal = PI_CALL_RESULT(RT::piEnqueueEventsWait,
-          Queue, NumEventsInWaitList, EventWaitList, Event);
+      RetVal = PI_CALL_RESULT(piEnqueueEventsWait, Queue, NumEventsInWaitList,
+                              EventWaitList, Event);
     }
   }
 

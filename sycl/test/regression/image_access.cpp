@@ -42,5 +42,5 @@ int main() {
   return 0;
 }
 
-// CHECK:---> RT::piMemImageCreate
-// CHECK:---> RT::piEnqueueMemImageRead
+// CHECK:---> piMemImageCreate
+// CHECK:---> piEnqueueMemImageRead

@@ -32,7 +32,9 @@ protected:
     // Initialize the logged number of platforms before the following assertion.
     RecordProperty(platform_count_key, platform_count);
 
-    ASSERT_EQ(RT::piPlatformsGet(0, 0, &platform_count), PI_SUCCESS);
+    ASSERT_EQ(RT::PluginInformation.PiFunctionTable.piPlatformsGet(
+                  0, 0, &platform_count),
+              PI_SUCCESS);
 
     // Overwrite previous log value with queried number of platforms.
     RecordProperty(platform_count_key, platform_count);
@@ -48,7 +50,8 @@ protected:
 
     _platforms.resize(platform_count, nullptr);
 
-    ASSERT_EQ(RT::piPlatformsGet(_platforms.size(), _platforms.data(), nullptr),
+    ASSERT_EQ(RT::PluginInformation.PiFunctionTable.piPlatformsGet(
+                  _platforms.size(), _platforms.data(), nullptr),
               PI_SUCCESS);
   }
 };
@@ -61,14 +64,14 @@ TEST_F(PlatformTest, piPlatformsGet) {
 TEST_F(PlatformTest, piPlatformGetInfo) {
   auto get_info_test = [](pi_platform platform, _pi_platform_info info) {
     size_t reported_string_length = 0;
-    EXPECT_EQ(RT::piPlatformGetInfo(platform, info, 0u, nullptr,
-                                    &reported_string_length),
+    EXPECT_EQ(RT::PluginInformation.PiFunctionTable.piPlatformGetInfo(
+                  platform, info, 0u, nullptr, &reported_string_length),
               PI_SUCCESS);
 
     // Create a larger result string to catch overwrites.
     std::vector<char> param_value(reported_string_length * 2u, '\0');
-    EXPECT_EQ(RT::piPlatformGetInfo(platform, info, param_value.size(),
-                                    param_value.data(), 0u),
+    EXPECT_EQ(RT::PluginInformation.PiFunctionTable.piPlatformGetInfo(
+                  platform, info, param_value.size(), param_value.data(), 0u),
               PI_SUCCESS)
         << "piPlatformGetInfo for " << RT::platformInfoToString(info)
         << " failed.\n";

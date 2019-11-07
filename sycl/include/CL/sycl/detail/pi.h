@@ -344,21 +344,21 @@ typedef _pi_event *       pi_event;
 typedef _pi_sampler *     pi_sampler;
 
 typedef struct {
-          pi_image_channel_order image_channel_order;
-          pi_image_channel_type  image_channel_data_type;
+  pi_image_channel_order image_channel_order;
+  pi_image_channel_type image_channel_data_type;
 } _pi_image_format;
 
 typedef struct {
-          pi_mem_type image_type;
-          size_t image_width;
-          size_t image_height;
-          size_t image_depth;
-          size_t image_array_size;
-          size_t image_row_pitch;
-          size_t image_slice_pitch;
-          pi_uint32 num_mip_levels;
-          pi_uint32 num_samples;
-          pi_mem buffer;
+  pi_mem_type image_type;
+  size_t image_width;
+  size_t image_height;
+  size_t image_depth;
+  size_t image_array_size;
+  size_t image_row_pitch;
+  size_t image_slice_pitch;
+  pi_uint32 num_mip_levels;
+  pi_uint32 num_samples;
+  pi_mem buffer;
 } _pi_image_desc;
 
 typedef _pi_image_format   pi_image_format;
@@ -382,9 +382,10 @@ typedef _pi_plugin pi_plugin;
 
 // PI Plugin Initialise.
 // Must be implemented by a plugin.
-// Plugin will read the PIVersion,
-// populate the PluginVersion and update targets field and populate the PIFunctionTable with the function pointers for the APIs supported by PIVersion.
-// The pointers are in a predetermined order in pi.def file. 
+// Plugin will check the PI version of Plugin Interface,
+// populate the PI Version it supports, update targets field and populate
+// PiFunctionTable with Supported APIs. The pointers are in a predetermined
+// order in pi.def file.
 pi_result piPluginInit(pi_plugin *plugin_info);
 
 //
@@ -913,12 +914,12 @@ pi_result piEnqueueMemUnmap(
   const pi_event * event_wait_list,
   pi_event *       event);
 
-struct _pi_plugin{
-  // PI version supported by host passed to the plugin. The Plugin this
-  // way knows the number of APIs it can write into the PIFunctionTable.
+struct _pi_plugin {
+  // PI version supported by host passed to the plugin. The Plugin
+  // checks and writes the appropriate Function Pointers in
+  // PIFunctionTable.
   const char PiVersion[4] = "1.1";
   char PluginVersion[4] = "1.1"; // Plugin edits this.
-  // TODO: what is this field for?
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;
