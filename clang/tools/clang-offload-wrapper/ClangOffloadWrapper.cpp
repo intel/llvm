@@ -11,7 +11,6 @@
 /// as input and creates wrapper bitcode file containing target binaries
 /// packaged as data. Wrapper bitcode also includes initialization code which
 /// registers target binaries in offloading runtime at program startup.
-/// TODO Add Windows support.
 ///
 //===----------------------------------------------------------------------===//
 
