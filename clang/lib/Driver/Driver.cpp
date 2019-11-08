@@ -3759,6 +3759,10 @@ public:
     if (!IsValid)
       return true;
 
+    // An FPGA AOCX input does not have a host dependence to the unbundler
+    if (HostAction->getType() == types::TY_FPGA_AOCX)
+      return false;
+
     // If we are supporting bundling/unbundling and the current action is an
     // input action of non-source file, we replace the host action by the
     // unbundling action. The bundler tool has the logic to detect if an input
@@ -3830,11 +3834,14 @@ public:
 
     // Do not use unbundler if the Host does not depend on device action.
     // Now that we have unbundled the object, when doing -fsycl-link we
-    // want to continue the host link with the input object
+    // want to continue the host link with the input object.
+    // For unbundling of an FPGA AOCX binary, we want to link with the original
+    // FPGA device archive.
     if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
         (Args.hasArg(options::OPT_fintelfpga) &&
-         Args.hasArg(options::OPT_fsycl_link_EQ) &&
-         HostAction->getType() == types::TY_Object))
+         ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
+          HostAction->getType() == types::TY_Object) ||
+          HostAction->getType() == types::TY_FPGA_AOCX)))
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
         HostAction = UA->getInputs().back();
 

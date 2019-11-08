@@ -6692,6 +6692,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TT.setVendorName("intel");
       TT.setEnvironment(llvm::Triple::SYCLDevice);
       TargetTripleOpt = TT.str();
+      // When wrapping an FPGA aocx binary to archive, do not emit registration
+      // functions
+      if (A->getValue() == StringRef("image"))
+        WrapperArgs.push_back(C.getArgs().MakeArgString("--emit-reg-funcs=0"));
     }
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
