@@ -135,34 +135,6 @@ void assertion(bool Condition, const char *Message) {
     die(Message);
 }
 
-bool PiCall::m_TraceEnabled = (std::getenv("SYCL_PI_TRACE") != nullptr);
-
-// Emits trace before the start of PI call
-PiCall::PiCall(const char *Trace) {
-  if (m_TraceEnabled && Trace) {
-    std::cerr << "PI ---> " << Trace << std::endl;
-  }
-}
-// Emits trace after the end of PI call
-PiCall::~PiCall() {
-  if (m_TraceEnabled) {
-    std::cerr << "PI <--- " << m_Result << std::endl;
-  }
-}
-// Records and returns the result of PI call
-RT::PiResult PiCall::get(RT::PiResult Result) {
-  m_Result = Result;
-  return Result;
-}
-template <typename Exception> void PiCall::check(RT::PiResult Result) {
-  m_Result = Result;
-  // TODO: remove dependency on CHECK_OCL_CODE_THROW.
-  CHECK_OCL_CODE_THROW(Result, Exception);
-}
-
-template void PiCall::check<cl::sycl::runtime_error>(RT::PiResult);
-template void PiCall::check<cl::sycl::compile_program_error>(RT::PiResult);
-
 } // namespace pi
 } // namespace detail
 } // namespace sycl
