@@ -1,10 +1,13 @@
 // REQUIRES: system-windows
-// Test the integrated header file name generation.  Name should match the
+// Test the integration header file name generation.  Name should match the
 // actual path name and not the environment variable setting
 // RUN: mkdir -p %t_DiRnAmE
 // invoke the compiler overriding output temp location
-// RUN: env TMPDIR=%t_dirname TEMP=%t_dirname TMP=%t_dirname  \
+// RUN: TMP=%t_dirname  \
 // RUN: %clang_cl -### -fsycl %s 2>&1 | \
+// RUN: FileCheck --check-prefix=CHECK-HEADER %s
+// RUN: TMP=%t_dirname  \
+// RUN: %clang -### -fsycl %s 2>&1 | \
 // RUN: FileCheck --check-prefix=CHECK-HEADER %s
 // CHECK-HEADER: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]"
 // CHECK-HEADER-NOT: clang{{.*}} "-include" "[[HEADER]]"
