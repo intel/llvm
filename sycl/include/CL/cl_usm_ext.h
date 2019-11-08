@@ -52,10 +52,10 @@ typedef cl_uint cl_mem_info_intel;
 #define CL_MEM_ALLOC_TYPE_INTEL 0x419A
 #define CL_MEM_ALLOC_BASE_PTR_INTEL 0x419B
 #define CL_MEM_ALLOC_SIZE_INTEL 0x419C
-#define CL_MEM_ALLOC_INFO_DEVICE_INTEL 0x419D
+#define CL_MEM_ALLOC_DEVICE_INTEL 0x419D
 /* CL_MEM_ALLOC_FLAGS_INTEL - defined above */
-#define CL_MEM_ALLOC_INFO_TBD1_INTEL 0x419E /* reserved for future */
-#define CL_MEM_ALLOC_INFO_TBD2_INTEL 0x419F /* reserved for future */
+#define CL_MEM_ALLOC_INFO_TBD0_INTEL 0x419E /* reserved for future */
+#define CL_MEM_ALLOC_INFO_TBD1_INTEL 0x419F /* reserved for future */
 
 typedef cl_uint cl_unified_shared_memory_type_intel;
 
@@ -90,31 +90,32 @@ typedef cl_uint cl_mem_advice_intel;
 #define CL_COMMAND_MEMADVISE_INTEL 0x4207
 
 extern CL_API_ENTRY void *CL_API_CALL
-clHostMemAllocINTEL(cl_context context, cl_mem_properties_intel *properties,
+clHostMemAllocINTEL(cl_context context,
+                    const cl_mem_properties_intel *properties,
                     size_t size, cl_uint alignment, cl_int *errcode_ret);
 
 typedef CL_API_ENTRY void *(CL_API_CALL *clHostMemAllocINTEL_fn)(
-    cl_context context, cl_mem_properties_intel *properties, size_t size,
+    cl_context context, const cl_mem_properties_intel *properties, size_t size,
     cl_uint alignment, cl_int *errcode_ret);
 
 extern CL_API_ENTRY void *CL_API_CALL
 clDeviceMemAllocINTEL(cl_context context, cl_device_id device,
-                      cl_mem_properties_intel *properties, // TBD: needed?
+                      const cl_mem_properties_intel *properties, // TBD: needed?
                       size_t size, cl_uint alignment, cl_int *errcode_ret);
 
 typedef CL_API_ENTRY void *(CL_API_CALL *clDeviceMemAllocINTEL_fn)(
     cl_context context, cl_device_id device,
-    cl_mem_properties_intel *properties, // TBD: needed?
+    const cl_mem_properties_intel *properties, // TBD: needed?
     size_t size, cl_uint alignment, cl_int *errcode_ret);
 
 extern CL_API_ENTRY void *CL_API_CALL
 clSharedMemAllocINTEL(cl_context context, cl_device_id device,
-                      cl_mem_properties_intel *properties, // TBD: needed?
+                      const cl_mem_properties_intel *properties, // TBD: needed?
                       size_t size, cl_uint alignment, cl_int *errcode_ret);
 
 typedef CL_API_ENTRY void *(CL_API_CALL *clSharedMemAllocINTEL_fn)(
     cl_context context, cl_device_id device,
-    cl_mem_properties_intel *properties, // TBD: needed?
+    const cl_mem_properties_intel *properties, // TBD: needed?
     size_t size, cl_uint alignment, cl_int *errcode_ret);
 
 extern CL_API_ENTRY cl_int CL_API_CALL
