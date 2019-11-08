@@ -5493,15 +5493,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         llvm::Triple T(Tgts->getValue(i));
         TargetInfo += T.getTriple();
       }
-    } else {
+    } else
       // Use the default.
-      llvm::Triple TT(Triple);
-      TT.setArch(llvm::Triple::spir64);
-      TT.setVendor(llvm::Triple::UnknownVendor);
-      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-      TT.setEnvironment(llvm::Triple::SYCLDevice);
-      TargetInfo += TT.normalize();
-    }
+      TargetInfo += C.getDriver().MakeSYCLDeviceTriple().normalize();
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }
 
@@ -6592,7 +6586,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         TT.setArchName(Input.getType() == types::TY_FPGA_AOCX ? "fpga_aocx"
                                                               : "fpga_aocr");
         TT.setVendorName("intel");
-        TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+        TT.setOS(getToolChain().getTriple().getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);
         Triples += "sycl-";
         Triples += TT.normalize();
@@ -6696,7 +6690,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TT.setArchName((A->getValue() == StringRef("early")) ? "fpga_aocr"
                                                            : "fpga_aocx");
       TT.setVendorName("intel");
-      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
       TT.setEnvironment(llvm::Triple::SYCLDevice);
       TargetTripleOpt = TT.str();
     }

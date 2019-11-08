@@ -33,9 +33,9 @@
 // RUN: %clang -### -fsycl-help %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-GEN,SYCL-HELP-FPGA,SYCL-HELP-CPU
 // SYCL-HELP-BADARG: unsupported argument 'foo' to option 'fsycl-help='
 // SYCL-HELP-GEN: Emitting help information for ocloc
-// SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-{{.*}}-sycldevice' to enable ahead of time compilation
+// SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-unknown-sycldevice' to enable ahead of time compilation
 // SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help"
 // SYCL-HELP-FPGA: Emitting help information for aoc
-// SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-{{.*}}-sycldevice' to enable ahead of time compilation
+// SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown-sycldevice' to enable ahead of time compilation
 // SYCL-HELP-CPU: Emitting help information for ioc64
-// SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-{{.*}}-sycldevice' to enable ahead of time compilation
+// SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown-sycldevice' to enable ahead of time compilation

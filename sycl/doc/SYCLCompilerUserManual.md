@@ -10,7 +10,7 @@ your application.
     General enabling option for SYCL compilation mode.  This option enables
     offload compilation for a given target using the `-fsycl-targets` option.
     When the `-fsycl-targets` option is not provided, the default triple is
-    `spir64-unknown-[linux,windows]-sycldevice`.
+    `spir64-unknown-unknown-sycldevice`.
 
 **`-fsycl-targets=<value>`**
 
