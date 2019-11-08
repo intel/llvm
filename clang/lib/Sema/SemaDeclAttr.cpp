@@ -2856,9 +2856,41 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(::new (S.Context) WeakImportAttr(S.Context, AL));
 }
 
-// Handles reqd_work_group_size and work_group_size_hint.
+// Checks correctness of mutual usage of different work_group_size attributes:
+// reqd_work_group_size, max_work_group_size. Values of reqd_work_group_size
+// arguments shall be equal or less than values coming from max_work_group_size.
+static bool checkWorkGroupSizeValues(Sema &S, Decl *D, const ParsedAttr &Attr,
+                                     uint32_t WGSize[3]) {
+  if (const SYCLIntelMaxWorkGroupSizeAttr *A =
+      D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+    if (!(WGSize[0] <= A->getXDim() && WGSize[1] <= A->getYDim() &&
+          WGSize[2] <= A->getZDim())) {
+      S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << Attr << A->getSpelling();
+      D->setInvalidDecl();
+      return false;
+    }
+  }
+
+  if (const ReqdWorkGroupSizeAttr *A = D->getAttr<ReqdWorkGroupSizeAttr>()) {
+    if (!(WGSize[0] >= A->getXDim() && WGSize[1] >= A->getYDim() &&
+          WGSize[2] >= A->getZDim())) {
+      S.Diag(Attr.getLoc(), diag::err_conflicting_sycl_function_attributes)
+          << Attr << A->getSpelling();
+      D->setInvalidDecl();
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Handles reqd_work_group_size, work_group_size_hint and max_work_group_size
 template <typename WorkGroupAttr>
 static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (D->isInvalidDecl())
+    return;
+
   uint32_t WGSize[3];
   for (unsigned i = 0; i < 3; ++i) {
     const Expr *E = AL.getArgAsExpr(i);
@@ -2871,6 +2903,9 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     }
   }
+
+  if (!checkWorkGroupSizeValues(S, D, AL, WGSize))
+    return;
 
   WorkGroupAttr *Existing = D->getAttr<WorkGroupAttr>();
   if (Existing && !(Existing->getXDim() == WGSize[0] &&
@@ -7442,6 +7477,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_ReqdWorkGroupSize:
     handleWorkGroupSize<ReqdWorkGroupSizeAttr>(S, D, AL);
     break;
+  case ParsedAttr::AT_SYCLIntelMaxWorkGroupSize:
+    handleWorkGroupSize<SYCLIntelMaxWorkGroupSizeAttr>(S, D, AL);
+    break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
     handleSubGroupSize(S, D, AL);
     break;
@@ -7914,6 +7952,9 @@ void Sema::ProcessDeclAttributeList(Scope *S, Decl *D,
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<WorkGroupSizeHintAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<VecTypeHintAttr>()) {

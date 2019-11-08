@@ -428,7 +428,6 @@ public:
         Attrs.insert(A);
       if (auto *A = FD->getAttr<ReqdWorkGroupSizeAttr>())
         Attrs.insert(A);
-
       // Allow the following kernel attributes only on lambda functions and
       // function objects that are called directly from a kernel (i.e. the one
       // passed to the parallel_for function). For all other cases,
@@ -447,6 +446,14 @@ public:
         } else {
           SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
           FD->dropAttr<SYCLIntelNumSimdWorkItemsAttr>();
+        }
+      }
+      if (auto *A = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+        if (ParentFD == SYCLKernel) {
+          Attrs.insert(A);
+        } else {
+          SemaRef.Diag(A->getLocation(), diag::warn_attribute_ignored) << A;
+          FD->dropAttr<SYCLIntelMaxWorkGroupSizeAttr>();
         }
       }
 
@@ -1348,7 +1355,8 @@ void Sema::MarkDevice(void) {
           break;
         }
         case attr::Kind::SYCLIntelKernelArgsRestrict:
-        case attr::Kind::SYCLIntelNumSimdWorkItems: {
+        case attr::Kind::SYCLIntelNumSimdWorkItems:
+        case attr::Kind::SYCLIntelMaxWorkGroupSize: {
           SYCLKernel->addAttr(A);
           break;
         }
