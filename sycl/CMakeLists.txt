@@ -198,6 +198,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      llvm-link
      llvm-objcopy
      opt
+     sycl-post-link
      clang-resource-headers
      opencl-headers
      sycl-headers
