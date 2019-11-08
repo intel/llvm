@@ -86,23 +86,8 @@ template <class To, class From> To cast(From value);
 // Performs PI one-time initialization.
 void initialize();
 
-// The PiCall helper structure facilitates performing a call to PI.
-// It holds utilities to do the tracing and to check the returned result.
-// TODO: implement a more mature and controllable tracing of PI calls.
-class PiCall {
-  PiResult m_Result;
-  static bool m_TraceEnabled;
-
-public:
-  explicit PiCall(const char *Trace = nullptr);
-  ~PiCall();
-  PiResult get(PiResult Result);
-  template <typename Exception> void check(PiResult Result);
-};
-
 // The run-time tracing of PI calls.
-// TODO: replace PiCall completely with this one (PiTrace)
-//
+// Print functions used by Trace class.
 template <typename T> inline void print(T val) {
   std::cout << "<unknown> : " << val;
 }
@@ -110,6 +95,7 @@ template <typename T> inline void print(T val) {
 template <> inline void print<>(PiPlatform val) {
   std::cout << "pi_platform : " << val;
 }
+
 template <> inline void print<>(PiResult val) {
   std::cout << "pi_result : ";
   if (val == PI_SUCCESS)
@@ -118,15 +104,8 @@ template <> inline void print<>(PiResult val) {
     std::cout << val;
 }
 
+// cout does not resolve a nullptr.
 template <> inline void print<>(std::nullptr_t val) { print<void *>(val); }
-
-template <typename Exception> inline void piCheckThrow(PiResult pi_result) {
-  CHECK_OCL_CODE_THROW(pi_result, Exception);
-}
-
-inline void piCheckResult(PiResult pi_result) {
-  piCheckThrow<cl::sycl::runtime_error>(pi_result);
-}
 
 inline void printArgs(void) {}
 template <typename Arg0, typename... Args>
@@ -134,6 +113,20 @@ void printArgs(Arg0 arg0, Args... args) {
   std::cout << std::endl << "       ";
   print(arg0);
   printArgs(std::forward<Args>(args)...);
+}
+
+// Utility function to check return from piXXX calls.
+// Throws if pi_result is Exception.
+// TODO: Absorb this utility in Trace Class
+template <typename Exception> inline void piCheckThrow(PiResult pi_result) {
+  CHECK_OCL_CODE_THROW(pi_result, Exception);
+}
+
+// Utility function to check if return from piXXX call is
+// cl::sycl::runtime_error. Throws if it is.
+// TODO: Absorb this utility in Trace Class
+inline void piCheckResult(PiResult pi_result) {
+  piCheckThrow<cl::sycl::runtime_error>(pi_result);
 }
 
 template <typename FnType> class Trace {
@@ -184,8 +177,6 @@ namespace RT = cl::sycl::detail::pi;
 // There should have been a single call to PI_CALL before this macro is used. It
 // enables calling initialize before the PI_TRACE function is called.
 #define PI_CALL_RESULT(pi, ...) PI_TRACE(pi)(__VA_ARGS__)
-
-// RT::PiCall(#pi).get(detail::RT::cast<detail::RT::PiResult>(pi))
 
 // Trace an openCL calls to the device, call, check and return the result.
 // Note that this does not print the arguments of the function call.
