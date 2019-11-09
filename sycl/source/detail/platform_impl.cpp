@@ -6,8 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/device.hpp>
+
+#include <algorithm>
 
 namespace cl {
 namespace sycl {
@@ -69,11 +72,10 @@ platform_impl_pi::get_devices(info::device_type deviceType) const {
 
   std::for_each(pi_devices.begin(), pi_devices.end(),
                 [&res](const RT::PiDevice &a_pi_device) {
-    device sycl_device =
-      detail::createSyclObjFromImpl<device>(
-        std::make_shared<device_impl_pi>(a_pi_device));
-    res.push_back(sycl_device);
-  });
+                  device sycl_device = detail::createSyclObjFromImpl<device>(
+                      std::make_shared<device_impl>(a_pi_device));
+                  res.push_back(sycl_device);
+                });
   return res;
 }
 

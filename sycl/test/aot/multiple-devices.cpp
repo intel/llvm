@@ -10,7 +10,7 @@
 
 // 1-command compilation case
 // Targeting CPU, GPU, FPGA
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-linux-sycldevice,spir64_gen-unknown-linux-sycldevice,spir64_fpga-unknown-linux-sycldevice -Xsycl-target-backend=spir64_gen-unknown-linux-sycldevice "-device skl" %s -o %t_all.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice,spir64_gen-unknown-unknown-sycldevice,spir64_fpga-unknown-unknown-sycldevice -Xsycl-target-backend=spir64_gen-unknown-unknown-sycldevice "-device skl" %s -o %t_all.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t_all.out
 // RUN: %CPU_RUN_PLACEHOLDER %t_all.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_all.out
@@ -19,7 +19,7 @@
 // Produce object file, spirv, device images to combine these differently
 // at link-time, thus testing various AOT-compiled images configurations
 // RUN: %clangxx -fsycl %s -c -o %t.o
-// RUN: %clangxx -fsycl -fsycl-link-targets=spir64-unknown-linux-sycldevice %t.o -o %t.spv
+// RUN: %clangxx -fsycl -fsycl-link-targets=spir64-unknown-unknown-sycldevice %t.o -o %t.spv
 // AOT-compile device binary images
 // RUN: ioc64 -cmd=build -binary=%t.spv -ir=%t_cpu.ir -device=cpu
 // RUN: ocloc -file %t.spv -spirv_input -output %t_gen.out -output_no_suffix -device cfl

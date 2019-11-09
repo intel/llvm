@@ -1,5 +1,6 @@
 ; REQUIRES: spirv-as
 ; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
                OpCapability Addresses
                OpCapability Kernel
@@ -7,6 +8,23 @@
                OpEntryPoint Kernel %1 "testFRem"
                OpName %a "a"
                OpName %b "b"
+               OpName %r1 "r1"
+               OpName %r2 "r2"
+               OpName %r3 "r3"
+               OpName %r4 "r4"
+               OpName %r5 "r5"
+               OpName %r6 "r6"
+               OpName %r7 "r7"
+               OpName %r8 "r8"
+               OpName %r9 "r9"
+               OpDecorate %r2 FPFastMathMode None
+               OpDecorate %r3 FPFastMathMode NotNaN
+               OpDecorate %r4 FPFastMathMode NotInf
+               OpDecorate %r5 FPFastMathMode NSZ
+               OpDecorate %r6 FPFastMathMode AllowRecip
+               OpDecorate %r7 FPFastMathMode Fast
+               OpDecorate %r8 FPFastMathMode NotNaN|NotInf
+               OpDecorate %r9 FPFastMathMode NotNaN|Fast
        %void = OpTypeVoid
       %float = OpTypeFloat 32
           %5 = OpTypeFunction %void %float %float
@@ -14,8 +32,24 @@
           %a = OpFunctionParameter %float
           %b = OpFunctionParameter %float
           %6 = OpLabel
-          %7 = OpFRem %float %a %b
+         %r1 = OpFRem %float %a %b
+         %r2 = OpFRem %float %a %b
+         %r3 = OpFRem %float %a %b
+         %r4 = OpFRem %float %a %b
+         %r5 = OpFRem %float %a %b
+         %r6 = OpFRem %float %a %b
+         %r7 = OpFRem %float %a %b
+         %r8 = OpFRem %float %a %b
+         %r9 = OpFRem %float %a %b
                OpReturn
                OpFunctionEnd
 
-; CHECK: frem float %a, %b
+; CHECK: %r1 = frem float %a, %b
+; CHECK: %r2 = frem float %a, %b
+; CHECK: %r3 = frem nnan float %a, %b
+; CHECK: %r4 = frem ninf float %a, %b
+; CHECK: %r5 = frem nsz float %a, %b
+; CHECK: %r6 = frem arcp float %a, %b
+; CHECK: %r7 = frem fast float %a, %b
+; CHECK: %r8 = frem nnan ninf float %a, %b
+; CHECK: %r9 = frem fast float %a, %b

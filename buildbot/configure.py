@@ -29,7 +29,7 @@ def do_configure(args):
                  "-DLLVM_ENABLE_PROJECTS=clang;sycl;llvm-spirv",
                  "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
                  "-DOpenCL_LIBRARY={}".format(icd_loader_lib),
-                 "-DLLVM_BUILD_TOOLS=OFF",
+                 "-DLLVM_BUILD_TOOLS=ON",
                  "-DSYCL_ENABLE_WERROR=ON",
                  "-DLLVM_ENABLE_ASSERTIONS=ON",
                  "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),

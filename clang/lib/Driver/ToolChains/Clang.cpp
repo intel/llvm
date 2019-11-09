@@ -5493,15 +5493,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         llvm::Triple T(Tgts->getValue(i));
         TargetInfo += T.getTriple();
       }
-    } else {
+    } else
       // Use the default.
-      llvm::Triple TT(Triple);
-      TT.setArch(llvm::Triple::spir64);
-      TT.setVendor(llvm::Triple::UnknownVendor);
-      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
-      TT.setEnvironment(llvm::Triple::SYCLDevice);
-      TargetInfo += TT.normalize();
-    }
+      TargetInfo += C.getDriver().MakeSYCLDeviceTriple().normalize();
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }
 
@@ -6592,7 +6586,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         TT.setArchName(Input.getType() == types::TY_FPGA_AOCX ? "fpga_aocx"
                                                               : "fpga_aocr");
         TT.setVendorName("intel");
-        TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
+        TT.setOS(getToolChain().getTriple().getOS());
         TT.setEnvironment(llvm::Triple::SYCLDevice);
         Triples += "sycl-";
         Triples += TT.normalize();
@@ -6604,10 +6598,15 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         Triples += Dep.DependentToolChain->getTriple().normalize();
       }
       continue;
-    } else if (Input.getType() == types::TY_Archive) {
+    } else if (Input.getType() == types::TY_Archive ||
+               (Input.getType() == types::TY_Object &&
+                TCArgs.hasArg(options::OPT_fintelfpga) &&
+                TCArgs.hasArg(options::OPT_fsycl_link_EQ))) {
       // Do not extract host part if we are unbundling archive on Windows
       // because it is not needed. Static offload libraries are added to the
-      // host link command just as normal libraries.
+      // host link command just as normal libraries.  Do not extract the host
+      // part from -fintelfpga -fsycl-link unbundles either, as the full obj
+      // is used in the final link
       if (Dep.DependentOffloadKind == Action::OFK_Host)
         continue;
     }
@@ -6691,9 +6690,12 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TT.setArchName((A->getValue() == StringRef("early")) ? "fpga_aocr"
                                                            : "fpga_aocx");
       TT.setVendorName("intel");
-      TT.setOS(llvm::Triple(llvm::sys::getProcessTriple()).getOS());
       TT.setEnvironment(llvm::Triple::SYCLDevice);
       TargetTripleOpt = TT.str();
+      // When wrapping an FPGA aocx binary to archive, do not emit registration
+      // functions
+      if (A->getValue() == StringRef("image"))
+        WrapperArgs.push_back(C.getArgs().MakeArgString("--emit-reg-funcs=0"));
     }
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));

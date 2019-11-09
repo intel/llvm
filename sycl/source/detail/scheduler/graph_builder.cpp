@@ -712,6 +712,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
           if (UserCmd->MDeps.empty())
             RemoveQueue.push(UserCmd);
         }
+        CandidateCommand->getEvent()->setCommand(nullptr);
         delete CandidateCommand;
       }
     }

@@ -217,13 +217,13 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr SrcQueue,
       PI_CALL(RT::piEnqueueMemBufferWrite(
           Queue, DstMem,
           /*blocking_write=*/CL_FALSE, DstOffset[0], DstAccessRange[0],
-          SrcMem + DstOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent));
+          SrcMem + SrcOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent));
     } else {
-      size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
-      size_t BufferSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
+      size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSize[0];
+      size_t BufferSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
 
-      size_t HostRowPitch = (1 == DimDst) ? 0 : DstSize[0];
-      size_t HostSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
+      size_t HostRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];
+      size_t HostSlicePitch = (3 == DimSrc) ? SrcSize[0] * SrcSize[1] : 0;
       PI_CALL(RT::piEnqueueMemBufferWriteRect(
           Queue, DstMem,
           /*blocking_write=*/CL_FALSE, &DstOffset[0], &SrcOffset[0],
@@ -266,7 +266,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
     if (1 == DimDst && 1 == DimSrc) {
       PI_CALL(RT::piEnqueueMemBufferRead(
           Queue, SrcMem,
-          /*blocking_read=*/CL_FALSE, DstOffset[0], DstAccessRange[0],
+          /*blocking_read=*/CL_FALSE, SrcOffset[0], SrcAccessRange[0],
           DstMem + DstOffset[0], DepEvents.size(), &DepEvents[0], &OutEvent));
     } else {
       size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSize[0];

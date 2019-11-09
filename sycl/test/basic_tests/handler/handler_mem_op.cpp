@@ -14,6 +14,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <numeric>
 
 using namespace cl::sycl;
 
@@ -22,8 +23,10 @@ template <typename T> struct point {
   point(T x, T y) : x(x), y(y) {}
   point(T v) : x(v), y(v) {}
   point() : x(0), y(0) {}
-  bool operator==(const T &rhs) { return rhs == x && rhs == y; }
-  bool operator==(const point<T> &rhs) { return rhs.x == x && rhs.y == y; }
+  bool operator==(const T &rhs) const { return rhs == x && rhs == y; }
+  bool operator==(const point<T> &rhs) const {
+    return rhs.x == x && rhs.y == y;
+  }
   T x;
   T y;
 };
@@ -38,6 +41,12 @@ template <typename T> void test_copy_acc_acc();
 template <typename T> void test_update_host();
 template <typename T> void test_2D_copy_acc_acc();
 template <typename T> void test_3D_copy_acc_acc();
+template <typename T> void test_1D2D_copy_acc_acc();
+template <typename T> void test_1D3D_copy_acc_acc();
+template <typename T> void test_2D1D_copy_acc_acc();
+template <typename T> void test_2D3D_copy_acc_acc();
+template <typename T> void test_3D1D_copy_acc_acc();
+template <typename T> void test_3D2D_copy_acc_acc();
 
 int main() {
   // handler.fill
@@ -126,6 +135,59 @@ int main() {
     test_3D_copy_acc_acc<point<float>>();
   }
 
+  // handler.copy(acc, acc) 1D to 2D
+  {
+    test_1D2D_copy_acc_acc<int>();
+    test_1D2D_copy_acc_acc<int>();
+    test_1D2D_copy_acc_acc<point<int>>();
+    test_1D2D_copy_acc_acc<point<int>>();
+    test_1D2D_copy_acc_acc<point<float>>();
+  }
+
+  // handler.copy(acc, acc) 1D to 3D
+  {
+    test_1D3D_copy_acc_acc<int>();
+    test_1D3D_copy_acc_acc<int>();
+    test_1D3D_copy_acc_acc<point<int>>();
+    test_1D3D_copy_acc_acc<point<int>>();
+    test_1D3D_copy_acc_acc<point<float>>();
+  }
+
+  // handler.copy(acc, acc) 2D to 1D
+  {
+    test_2D1D_copy_acc_acc<int>();
+    test_2D1D_copy_acc_acc<int>();
+    test_2D1D_copy_acc_acc<point<int>>();
+    test_2D1D_copy_acc_acc<point<int>>();
+    test_2D1D_copy_acc_acc<point<float>>();
+  }
+
+  // handler.copy(acc, acc) 2D to 3D
+  {
+    test_2D3D_copy_acc_acc<int>();
+    test_2D3D_copy_acc_acc<int>();
+    test_2D3D_copy_acc_acc<point<int>>();
+    test_2D3D_copy_acc_acc<point<int>>();
+    test_2D3D_copy_acc_acc<point<float>>();
+  }
+
+  // handler.copy(acc, acc) 3D to 1D
+  {
+    test_3D1D_copy_acc_acc<int>();
+    test_3D1D_copy_acc_acc<int>();
+    test_3D1D_copy_acc_acc<point<int>>();
+    test_3D1D_copy_acc_acc<point<int>>();
+    test_3D1D_copy_acc_acc<point<float>>();
+  }
+
+  // handler.copy(acc, acc) 3D to 2D
+  {
+    test_3D2D_copy_acc_acc<int>();
+    test_3D2D_copy_acc_acc<int>();
+    test_3D2D_copy_acc_acc<point<int>>();
+    test_3D2D_copy_acc_acc<point<int>>();
+    test_3D2D_copy_acc_acc<point<float>>();
+  }
   std::cout << "finish" << std::endl;
   return 0;
 }
@@ -364,4 +426,124 @@ template <typename T> void test_3D_copy_acc_acc() {
       }
     }
   }
+}
+
+template <typename T> void test_1D2D_copy_acc_acc() {
+  const size_t Size = 20;
+  std::vector<T> Data(Size);
+  std::iota(Data.begin(), Data.end(), 0);
+  std::vector<T> Values(Size, T{});
+  {
+    buffer<T, 1> BufferFrom(&Data[0], range<1>(Size));
+    buffer<T, 2> BufferTo(&Values[0], range<2>(Size / 2, 2));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 1, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh, range<1>(Size));
+      accessor<T, 2, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh, range<2>(Size / 2, 2));
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Data == Values);
+}
+
+template <typename T> void test_1D3D_copy_acc_acc() {
+  const size_t Size = 20;
+  std::vector<T> Data(Size);
+  std::iota(Data.begin(), Data.end(), 0);
+  std::vector<T> Values(Size, T{});
+  {
+    buffer<T, 1> BufferFrom(&Data[0], range<1>(Size));
+    buffer<T, 3> BufferTo(&Values[0], range<3>(Size / 4, 2, 2));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 1, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh, range<1>(Size));
+      accessor<T, 3, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh, range<3>(Size / 4, 2, 2));
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Data == Values);
+}
+
+template <typename T> void test_2D1D_copy_acc_acc() {
+  const size_t Size = 20;
+  std::vector<T> Data(Size);
+  std::iota(Data.begin(), Data.end(), 0);
+  std::vector<T> Values(Size, T{});
+  {
+    buffer<T, 2> BufferFrom(&Data[0], range<2>(Size / 2, 2));
+    buffer<T, 1> BufferTo(&Values[0], range<1>(Size));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 2, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh, range<2>(Size / 2, 2));
+      accessor<T, 1, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh, range<1>(Size));
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Data == Values);
+}
+
+template <typename T> void test_2D3D_copy_acc_acc() {
+  const size_t Size = 20;
+  std::vector<T> Data(Size);
+  std::iota(Data.begin(), Data.end(), 0);
+  std::vector<T> Values(Size, T{});
+  {
+    buffer<T, 2> BufferFrom(&Data[0], range<2>(Size / 2, 2));
+    buffer<T, 3> BufferTo(&Values[0], range<3>(Size / 4, 2, 2));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 2, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh, range<2>(Size / 2, 2));
+      accessor<T, 3, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh, range<3>(Size / 4, 2, 2));
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Data == Values);
+}
+
+template <typename T> void test_3D1D_copy_acc_acc() {
+  const size_t Size = 20;
+  std::vector<T> Data(Size);
+  std::iota(Data.begin(), Data.end(), 0);
+  std::vector<T> Values(Size, T{});
+  {
+    buffer<T, 3> BufferFrom(&Data[0], range<3>(Size / 4, 2, 2));
+    buffer<T, 1> BufferTo(&Values[0], range<1>(Size));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 3, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh, range<3>(Size / 4, 2, 2));
+      accessor<T, 1, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh, range<1>(Size));
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Data == Values);
+}
+
+template <typename T> void test_3D2D_copy_acc_acc() {
+  const size_t Size = 20;
+  std::vector<T> Data(Size);
+  std::iota(Data.begin(), Data.end(), 0);
+  std::vector<T> Values(Size, T{});
+  {
+    buffer<T, 3> BufferFrom(&Data[0], range<3>(Size / 4, 2, 2));
+    buffer<T, 2> BufferTo(&Values[0], range<2>(Size / 2, 2));
+    queue Queue;
+    Queue.submit([&](handler &Cgh) {
+      accessor<T, 3, access::mode::read, access::target::global_buffer>
+          AccessorFrom(BufferFrom, Cgh, range<3>(Size / 4, 2, 2));
+      accessor<T, 2, access::mode::write, access::target::global_buffer>
+          AccessorTo(BufferTo, Cgh, range<2>(Size / 2, 2));
+      Cgh.copy(AccessorFrom, AccessorTo);
+    });
+  }
+  assert(Data == Values);
 }

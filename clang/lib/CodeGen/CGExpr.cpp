@@ -3412,12 +3412,23 @@ static QualType getFixedSizeElementType(const ASTContext &ctx,
   return eltType;
 }
 
+static void AddIVDepMetadata(CodeGenFunction &CGF, const ValueDecl *ArrayDecl,
+                             llvm::Value *EltPtr) {
+  if (!ArrayDecl)
+    return;
+
+  // Only handle actual GEPs, ConstantExpr GEPs don't have metadata.
+  if (auto *GEP = dyn_cast<llvm::GetElementPtrInst>(EltPtr))
+    CGF.LoopStack.addIVDepMetadata(ArrayDecl, GEP);
+}
+
 static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
                                      ArrayRef<llvm::Value *> indices,
                                      QualType eltType, bool inbounds,
                                      bool signedIndices, SourceLocation loc,
                                      QualType *arrayType = nullptr,
-                                     const llvm::Twine &name = "arrayidx") {
+                                     const llvm::Twine &name = "arrayidx",
+                                     const ValueDecl *arrayDecl = nullptr) {
   // All the indices except that last must be zero.
 #ifndef NDEBUG
   for (auto idx : indices.drop_back())
@@ -3442,6 +3453,7 @@ static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
     eltPtr = emitArraySubscriptGEP(
         CGF, addr.getPointer(), indices, inbounds, signedIndices,
         loc, name);
+    AddIVDepMetadata(CGF, arrayDecl, eltPtr);
   } else {
     // Remember the original array subscript for bpf target
     unsigned idx = LastIndex->getZExtValue();
@@ -3586,12 +3598,18 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
       ArrayLV = EmitLValue(Array);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
 
+    const ValueDecl *ArrayDecl = nullptr;
+    if (const auto *DRE = dyn_cast<DeclRefExpr>(Array->IgnoreParenCasts()))
+      ArrayDecl = DRE->getDecl();
+    else if (const auto *ME = dyn_cast<MemberExpr>(Array->IgnoreParenCasts()))
+      ArrayDecl = ME->getMemberDecl();
+
     // Propagate the alignment from the array itself to the result.
     QualType arrayType = Array->getType();
     Addr = emitArraySubscriptGEP(
         *this, ArrayLV.getAddress(), {CGM.getSize(CharUnits::Zero()), Idx},
         E->getType(), !getLangOpts().isSignedOverflowDefined(), SignedIndices,
-        E->getExprLoc(), &arrayType);
+        E->getExprLoc(), &arrayType, "arrayidx", ArrayDecl);
     EltBaseInfo = ArrayLV.getBaseInfo();
     EltTBAAInfo = CGM.getTBAAInfoForSubobject(ArrayLV, E->getType());
   } else {
@@ -4279,10 +4297,35 @@ EmitConditionalOperatorLValue(const AbstractConditionalOperator *expr) {
   EmitBlock(contBlock);
 
   if (lhs && rhs) {
-    llvm::PHINode *phi = Builder.CreatePHI(lhs->getPointer()->getType(),
-                                           2, "cond-lvalue");
-    phi->addIncoming(lhs->getPointer(), lhsBlock);
-    phi->addIncoming(rhs->getPointer(), rhsBlock);
+    llvm::Value *lhsPtr = lhs->getPointer();
+    llvm::Value *rhsPtr = rhs->getPointer();
+    if (rhsPtr->getType() != lhsPtr->getType()) {
+      if (!getLangOpts().SYCLIsDevice)
+        llvm_unreachable(
+            "Unable to find a common address space for two pointers.");
+
+      auto CastToAS = [](llvm::Value *V, llvm::BasicBlock *BB, unsigned AS) {
+        auto *Ty = cast<llvm::PointerType>(V->getType());
+        if (Ty->getAddressSpace() == AS)
+          return V;
+        llvm::IRBuilder<> Builder(BB->getTerminator());
+        auto *TyAS = llvm::PointerType::get(Ty->getElementType(), AS);
+        return Builder.CreatePointerBitCastOrAddrSpaceCast(V, TyAS);
+      };
+
+      // Language rules define if it is legal to cast from one address space
+      // to another, and which address space we should use as a "common
+      // denominator". In SYCL, generic address space overlaps with all other
+      // address spaces.
+      unsigned GenericAS =
+          getContext().getTargetAddressSpace(LangAS::opencl_generic);
+
+      lhsPtr = CastToAS(lhsPtr, lhsBlock, GenericAS);
+      rhsPtr = CastToAS(rhsPtr, rhsBlock, GenericAS);
+    }
+    llvm::PHINode *phi = Builder.CreatePHI(lhsPtr->getType(), 2, "cond-lvalue");
+    phi->addIncoming(lhsPtr, lhsBlock);
+    phi->addIncoming(rhsPtr, rhsBlock);
     Address result(phi, std::min(lhs->getAlignment(), rhs->getAlignment()));
     AlignmentSource alignSource =
       std::max(lhs->getBaseInfo().getAlignmentSource(),
