@@ -1,6 +1,7 @@
 set(LLVM_LINK_COMPONENTS
   BinaryFormat
   Option
+  ProfileData
   Support
   )
 
@@ -43,6 +44,7 @@ add_clang_library(clangDriver
   ToolChains/Cuda.cpp
   ToolChains/Darwin.cpp
   ToolChains/DragonFly.cpp
+  ToolChains/Flang.cpp
   ToolChains/FreeBSD.cpp
   ToolChains/Fuchsia.cpp
   ToolChains/Gnu.cpp

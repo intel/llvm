@@ -750,6 +750,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(noRecurse);
   KEYWORD(returnDoesNotAlias);
   KEYWORD(noInline);
+  KEYWORD(alwaysInline);
   KEYWORD(calls);
   KEYWORD(callee);
   KEYWORD(hotness);
@@ -837,6 +838,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   } while (false)
 
   INSTKEYWORD(fneg,  FNeg);
+  INSTKEYWORD(freeze, Freeze);
 
   INSTKEYWORD(add,   Add);  INSTKEYWORD(fadd,   FAdd);
   INSTKEYWORD(sub,   Sub);  INSTKEYWORD(fsub,   FSub);

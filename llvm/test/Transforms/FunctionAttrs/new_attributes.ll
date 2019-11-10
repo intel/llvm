@@ -1,9 +1,9 @@
-; RUN: opt < %s -attributor -attributor-disable=false -attributor-max-iterations=0 -S | FileCheck %s
-; RUN: opt < %s -attributor -attributor-disable=false -attributor-max-iterations=1 -S | FileCheck %s
-; RUN: opt < %s -attributor -attributor-disable=false -attributor-max-iterations=2 -S | FileCheck %s
-; RUN: opt < %s -attributor -attributor-disable=false -attributor-max-iterations=3 -S | FileCheck %s
-; RUN: opt < %s -attributor -attributor-disable=false -attributor-max-iterations=4 -S | FileCheck %s
-; RUN: opt < %s -attributor -attributor-disable=false -attributor-max-iterations=2147483647 -S | FileCheck %s
+; RUN: opt < %s -attributor -attributor-annotate-decl-cs -attributor-disable=false -attributor-max-iterations=0 -S | FileCheck %s
+; RUN: opt < %s -attributor -attributor-annotate-decl-cs -attributor-disable=false -attributor-max-iterations=1 -S | FileCheck %s
+; RUN: opt < %s -attributor -attributor-annotate-decl-cs -attributor-disable=false -attributor-max-iterations=2 -S | FileCheck %s
+; RUN: opt < %s -attributor -attributor-annotate-decl-cs -attributor-disable=false -attributor-max-iterations=3 -S | FileCheck %s
+; RUN: opt < %s -attributor -attributor-annotate-decl-cs -attributor-disable=false -attributor-max-iterations=4 -S | FileCheck %s
+; RUN: opt < %s -attributor -attributor-annotate-decl-cs -attributor-disable=false -attributor-max-iterations=2147483647 -S | FileCheck %s
 
 ; CHECK-NOT: Function
 ; CHECK: declare i32 @foo1()
@@ -20,7 +20,7 @@ declare i32 @foo3()
 ; CHECK-NEXT:   %1 = call i32 @foo1()
 ; CHECK-NEXT:   %2 = call i32 @foo2()
 ; CHECK-NEXT:   %3 = call i32 @foo3()
-; CHECK-NEXT:   ret i32 1
+; CHECK-NEXT:   ret i32 undef
 ; CHECK-NEXT: }
 define internal i32 @bar() {
   %1 = call i32 @foo1()

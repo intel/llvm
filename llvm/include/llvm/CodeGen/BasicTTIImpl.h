@@ -326,7 +326,9 @@ public:
   }
 
   unsigned getEstimatedNumberOfCaseClusters(const SwitchInst &SI,
-                                            unsigned &JumpTableSize) {
+                                            unsigned &JumpTableSize,
+                                            ProfileSummaryInfo *PSI,
+                                            BlockFrequencyInfo *BFI) {
     /// Try to find the estimated number of clusters. Note that the number of
     /// clusters identified in this function could be different from the actual
     /// numbers found in lowering. This function ignore switches that are
@@ -374,7 +376,7 @@ public:
           (MaxCaseVal - MinCaseVal)
               .getLimitedValue(std::numeric_limits<uint64_t>::max() - 1) + 1;
       // Check whether a range of clusters is dense enough for a jump table
-      if (TLI->isSuitableForJumpTable(&SI, N, Range)) {
+      if (TLI->isSuitableForJumpTable(&SI, N, Range, PSI, BFI)) {
         JumpTableSize = Range;
         return 1;
       }
@@ -506,6 +508,13 @@ public:
                                 TargetLibraryInfo *LibInfo,
                                 HardwareLoopInfo &HWLoopInfo) {
     return BaseT::isHardwareLoopProfitable(L, SE, AC, LibInfo, HWLoopInfo);
+  }
+
+  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
+                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
+                                   DominatorTree *DT,
+                                   const LoopAccessInfo *LAI) {
+    return BaseT::preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LAI);
   }
 
   int getInstructionLatency(const Instruction *I) {

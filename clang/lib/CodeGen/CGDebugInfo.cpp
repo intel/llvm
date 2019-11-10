@@ -46,6 +46,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/TimeProfiler.h"
 using namespace clang;
 using namespace clang::CodeGen;
 
@@ -1608,7 +1609,7 @@ llvm::DISubprogram *CGDebugInfo::CreateCXXMemberFunction(
 
   // We're checking for deleted C++ special member functions
   // [Ctors,Dtors, Copy/Move]
-  auto checkAttrDeleted = [&SPFlags](const auto *Method) {
+  auto checkAttrDeleted = [&](const auto *Method) {
     if (Method->getCanonicalDecl()->isDeleted())
       SPFlags |= llvm::DISubprogram::SPFlagDeleted;
   };
@@ -2599,8 +2600,8 @@ llvm::DIType *CGDebugInfo::CreateTypeDefinition(const ObjCInterfaceType *Ty,
           SourceLocation Loc = PD->getLocation();
           llvm::DIFile *PUnit = getOrCreateFile(Loc);
           unsigned PLine = getLineNumber(Loc);
-          ObjCMethodDecl *Getter = PD->getGetterMethodDecl();
-          ObjCMethodDecl *Setter = PD->getSetterMethodDecl();
+          ObjCMethodDecl *Getter = PImpD->getGetterMethodDecl();
+          ObjCMethodDecl *Setter = PImpD->getSetterMethodDecl();
           PropertyNode = DBuilder.createObjCProperty(
               PD->getName(), PUnit, PLine,
               hasDefaultGetterName(PD, Getter)
@@ -2967,6 +2968,13 @@ void CGDebugInfo::completeUnusedClass(const CXXRecordDecl &D) {
 llvm::DIType *CGDebugInfo::getOrCreateType(QualType Ty, llvm::DIFile *Unit) {
   if (Ty.isNull())
     return nullptr;
+
+  llvm::TimeTraceScope TimeScope("DebugType", [&]() {
+    std::string Name;
+    llvm::raw_string_ostream OS(Name);
+    Ty.print(OS, getPrintingPolicy());
+    return Name;
+  });
 
   // Unwrap the type as needed for debug information.
   Ty = UnwrapTypeForDebugInfo(Ty, CGM.getContext());
@@ -3482,6 +3490,38 @@ llvm::DISubprogram *CGDebugInfo::getFunctionDeclaration(const Decl *D) {
   return nullptr;
 }
 
+llvm::DISubprogram *CGDebugInfo::getObjCMethodDeclaration(
+    const Decl *D, llvm::DISubroutineType *FnType, unsigned LineNo,
+    llvm::DINode::DIFlags Flags, llvm::DISubprogram::DISPFlags SPFlags) {
+  if (!D || DebugKind <= codegenoptions::DebugLineTablesOnly)
+    return nullptr;
+
+  if (CGM.getCodeGenOpts().DwarfVersion < 5)
+    return nullptr;
+
+  // Starting with DWARF V5 method declarations are emitted as children of
+  // the interface type.
+  const auto *OMD = dyn_cast<ObjCMethodDecl>(D);
+  if (!OMD)
+    return nullptr;
+  auto *ID = dyn_cast_or_null<ObjCInterfaceDecl>(D->getDeclContext());
+  if (!ID)
+    ID = OMD->getClassInterface();
+  if (!ID)
+    return nullptr;
+  QualType QTy(ID->getTypeForDecl(), 0);
+  auto It = TypeCache.find(QTy.getAsOpaquePtr());
+  if (It == TypeCache.end())
+    return nullptr;
+  auto *InterfaceType = cast<llvm::DICompositeType>(It->second);
+  llvm::DISubprogram *FD = DBuilder.createFunction(
+      InterfaceType, getObjCMethodName(OMD), StringRef(),
+      InterfaceType->getFile(), LineNo, FnType, LineNo, Flags, SPFlags);
+  DBuilder.finalizeSubprogram(FD);
+  ObjCMethodCache[ID].push_back(FD);
+  return FD;
+}
+
 // getOrCreateFunctionType - Construct type. If it is a c++ method, include
 // implicit parameter "this".
 llvm::DISubroutineType *CGDebugInfo::getOrCreateFunctionType(const Decl *D,
@@ -3624,6 +3664,12 @@ void CGDebugInfo::EmitFunctionStart(GlobalDecl GD, SourceLocation Loc,
 
   unsigned LineNo = getLineNumber(Loc);
   unsigned ScopeLine = getLineNumber(ScopeLoc);
+  llvm::DISubroutineType *DIFnType = getOrCreateFunctionType(D, FnType, Unit);
+  llvm::DISubprogram *Decl = nullptr;
+  if (D)
+    Decl = isa<ObjCMethodDecl>(D)
+               ? getObjCMethodDeclaration(D, DIFnType, LineNo, Flags, SPFlags)
+               : getFunctionDeclaration(D);
 
   // FIXME: The function declaration we're constructing here is mostly reusing
   // declarations from CXXMethodDecl and not constructing new ones for arbitrary
@@ -3631,9 +3677,8 @@ void CGDebugInfo::EmitFunctionStart(GlobalDecl GD, SourceLocation Loc,
   // all subprograms instead of the actual context since subprogram definitions
   // are emitted as CU level entities by the backend.
   llvm::DISubprogram *SP = DBuilder.createFunction(
-      FDContext, Name, LinkageName, Unit, LineNo,
-      getOrCreateFunctionType(D, FnType, Unit), ScopeLine, FlagsForDef,
-      SPFlagsForDef, TParamsArray.get(), getFunctionDeclaration(D));
+      FDContext, Name, LinkageName, Unit, LineNo, DIFnType, ScopeLine,
+      FlagsForDef, SPFlagsForDef, TParamsArray.get(), Decl);
   Fn->setSubprogram(SP);
   // We might get here with a VarDecl in the case we're generating
   // code for the initialization of globals. Do not record these decls
@@ -3650,26 +3695,6 @@ void CGDebugInfo::EmitFunctionStart(GlobalDecl GD, SourceLocation Loc,
       if (FD->hasBody() && !FD->param_empty())
         SPDefCache[FD].reset(SP);
 
-  if (CGM.getCodeGenOpts().DwarfVersion >= 5) {
-    // Starting with DWARF V5 method declarations are emitted as children of
-    // the interface type.
-    if (const auto *OMD = dyn_cast_or_null<ObjCMethodDecl>(D)) {
-      const ObjCInterfaceDecl *ID = OMD->getClassInterface();
-      QualType QTy(ID->getTypeForDecl(), 0);
-      auto It = TypeCache.find(QTy.getAsOpaquePtr());
-      if (It != TypeCache.end()) {
-        llvm::DICompositeType *InterfaceDecl =
-            cast<llvm::DICompositeType>(It->second);
-        llvm::DISubprogram *FD = DBuilder.createFunction(
-            InterfaceDecl, Name, LinkageName, Unit, LineNo,
-            getOrCreateFunctionType(D, FnType, Unit), ScopeLine, Flags, SPFlags,
-            TParamsArray.get());
-        DBuilder.finalizeSubprogram(FD);
-        ObjCMethodCache[ID].push_back(FD);
-      }
-    }
-  }
-
   // Push the function onto the lexical block stack.
   LexicalBlockStack.emplace_back(SP);
 
@@ -3685,6 +3710,15 @@ void CGDebugInfo::EmitFunctionDecl(GlobalDecl GD, SourceLocation Loc,
   const Decl *D = GD.getDecl();
   if (!D)
     return;
+
+  llvm::TimeTraceScope TimeScope("DebugFunction", [&]() {
+    std::string Name;
+    llvm::raw_string_ostream OS(Name);
+    if (const NamedDecl *ND = dyn_cast<NamedDecl>(D))
+      ND->getNameForDiagnostic(OS, getPrintingPolicy(),
+                               /*Qualified=*/true);
+    return Name;
+  });
 
   llvm::DINode::DIFlags Flags = llvm::DINode::FlagZero;
   llvm::DIFile *Unit = getOrCreateFile(Loc);
@@ -4406,6 +4440,14 @@ void CGDebugInfo::EmitGlobalVariable(llvm::GlobalVariable *Var,
   if (D->hasAttr<NoDebugAttr>())
     return;
 
+  llvm::TimeTraceScope TimeScope("DebugGlobalVariable", [&]() {
+    std::string Name;
+    llvm::raw_string_ostream OS(Name);
+    D->getNameForDiagnostic(OS, getPrintingPolicy(),
+                            /*Qualified=*/true);
+    return Name;
+  });
+
   // If we already created a DIGlobalVariable for this declaration, just attach
   // it to the llvm::GlobalVariable.
   auto Cached = DeclCache.find(D->getCanonicalDecl());
@@ -4466,6 +4508,14 @@ void CGDebugInfo::EmitGlobalVariable(const ValueDecl *VD, const APValue &Init) {
   assert(DebugKind >= codegenoptions::LimitedDebugInfo);
   if (VD->hasAttr<NoDebugAttr>())
     return;
+  llvm::TimeTraceScope TimeScope("DebugConstGlobalVariable", [&]() {
+    std::string Name;
+    llvm::raw_string_ostream OS(Name);
+    VD->getNameForDiagnostic(OS, getPrintingPolicy(),
+                             /*Qualified=*/true);
+    return Name;
+  });
+
   auto Align = getDeclAlignIfRequired(VD, CGM.getContext());
   // Create the descriptor for the variable.
   llvm::DIFile *Unit = getOrCreateFile(VD->getLocation());

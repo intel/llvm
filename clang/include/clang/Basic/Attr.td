@@ -3612,12 +3612,6 @@ def OMPDeclareVariant : InheritableAttr {
                  [
                    "CtxSetUnknown", "CtxSetImplementation"
                  ]>,
-    EnumArgument<"CtxScore", "ScoreType",
-                 [ "", "score"
-                 ],
-                 [
-                   "ScoreUnknown", "ScoreSpecified"
-                 ]>,
     EnumArgument<"CtxSelector", "CtxSelectorType",
                  [ "", "vendor"
                  ],
