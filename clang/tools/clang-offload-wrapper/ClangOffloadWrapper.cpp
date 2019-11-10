@@ -11,7 +11,6 @@
 /// as input and creates wrapper bitcode file containing target binaries
 /// packaged as data. Wrapper bitcode also includes initialization code which
 /// registers target binaries in offloading runtime at program startup.
-/// TODO Add Windows support.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -874,6 +873,9 @@ private:
   int Cur = -1;
 
   /// Class IDs of all options from all lists. Filled in the constructor.
+  /// Can also be seen as a map from command line position to the option class
+  /// ID. If there is no option participating in one of the sequenced lists at
+  /// given position, then it is mapped to -1 marker value.
   std::unique_ptr<std::vector<int>> OptListIDs;
 
   using tuple_of_iters_t = std::tuple<typename Tys::iterator...>;
@@ -894,8 +896,11 @@ public:
   /// Args - the cl::list objects to sequence elements of
   ListArgsSequencer(size_t Sz, Tys &... Args)
       : Prevs(Args.end()...), Iters(Args.begin()...) {
-    assert(Sz >= sizeof...(Tys));
+    // make OptListIDs big enough to hold IDs of all options coming from the
+    // command line and initialize all IDs to default class -1
     OptListIDs.reset(new std::vector<int>(Sz, -1));
+    // map command line positions where sequenced options occur to appropriate
+    // class IDs
     addLists<sizeof...(Tys) - 1, 0>(Args...);
   }
 
@@ -942,9 +947,12 @@ private:
 
   /// Does the actual sequencing of options found in given list.
   template <int ID, typename T> void addListImpl(T &L) {
+    // iterate via all occurences of an option of given list class
     for (auto It = L.begin(); It != L.end(); It++) {
+      // calculate its sequential position in the command line
       unsigned Pos = L.getPosition(It - L.begin());
       assert((*OptListIDs)[Pos] == -1);
+      // ... and fill the corresponding spot in the list with the class ID
       (*OptListIDs)[Pos] = ID;
     }
   }
