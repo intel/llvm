@@ -2903,6 +2903,31 @@ static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
                  IntelReqdSubGroupSizeAttr(S.Context, AL, SGSize));
 }
 
+// Handles num_simd_work_items.
+static void handleNumSimdWorkItemsAttr(Sema &S, Decl *D,
+                                       const ParsedAttr &Attr) {
+  if (D->isInvalidDecl())
+    return;
+
+  uint32_t NumSimdWorkItems = 0;
+  const Expr *E = Attr.getArgAsExpr(0);
+  if (!checkUInt32Argument(S, Attr, E, NumSimdWorkItems, 0,
+                           /*StrictlyUnsigned=*/true))
+    return;
+
+  if (NumSimdWorkItems == 0) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_argument_is_zero)
+      << Attr << E->getSourceRange();
+    return;
+  }
+
+  if (D->getAttr<SYCLIntelNumSimdWorkItemsAttr>())
+    S.Diag(Attr.getLoc(), diag::warn_duplicate_attribute) << Attr;
+
+  D->addAttr(::new (S.Context) SYCLIntelNumSimdWorkItemsAttr(
+        S.Context, Attr, NumSimdWorkItems));
+}
+
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!AL.hasParsedType()) {
     S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
@@ -7322,6 +7347,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
     handleSubGroupSize(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLIntelNumSimdWorkItems:
+    handleNumSimdWorkItemsAttr(S, D, AL);
     break;
   case ParsedAttr::AT_VecTypeHint:
     handleVecTypeHint(S, D, AL);

@@ -154,7 +154,8 @@ public:
     // to the call operator declaration.
     auto ParsedAttr = getParsedKind();
     if (ParsedAttr == AT_SYCLIntelKernelArgsRestrict ||
-        (ParsedAttr == AT_ReqdWorkGroupSize && isCXX11Attribute()))
+        (ParsedAttr == AT_ReqdWorkGroupSize && isCXX11Attribute()) ||
+        ParsedAttr == AT_SYCLIntelNumSimdWorkItems)
       return true;
 
     return false;
