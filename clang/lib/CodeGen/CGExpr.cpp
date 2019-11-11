@@ -3412,61 +3412,6 @@ static QualType getFixedSizeElementType(const ASTContext &ctx,
   return eltType;
 }
 
-/// Given an array base, check whether its member access belongs to a record
-/// with preserve_access_index attribute or not.
-static bool IsPreserveAIArrayBase(CodeGenFunction &CGF, const Expr *ArrayBase) {
-  if (!ArrayBase || !CGF.getDebugInfo())
-    return false;
-
-  const auto *ImplicitCast = dyn_cast<ImplicitCastExpr>(ArrayBase);
-  if (!ImplicitCast)
-    return false;
-
-  // Only support base as either a MemberExpr or DeclRefExpr.
-  // DeclRefExpr to cover cases like:
-  //    struct s { int a; int b[10]; };
-  //    struct s *p;
-  //    p[1].a
-  // p[1] will generate a DeclRefExpr and p[1].a is a MemberExpr.
-  // p->b[5] is a MemberExpr example.
-  const Expr *E = ImplicitCast->getSubExpr();
-  const auto *MemberCast = dyn_cast<MemberExpr>(E);
-  if (MemberCast)
-    return MemberCast->getMemberDecl()->hasAttr<BPFPreserveAccessIndexAttr>();
-
-  const auto *DeclRefCast = dyn_cast<DeclRefExpr>(E);
-  if (DeclRefCast) {
-    const VarDecl *VarDef = dyn_cast<VarDecl>(DeclRefCast->getDecl());
-    if (!VarDef)
-      return false;
-
-    const auto *PtrT = dyn_cast<PointerType>(VarDef->getType().getTypePtr());
-    if (!PtrT)
-      return false;
-    const auto *PointeeT = PtrT->getPointeeType().getTypePtr();
-
-    // Peel off typedef's
-    const auto *TypedefT = dyn_cast<TypedefType>(PointeeT);
-    while (TypedefT) {
-      PointeeT = TypedefT->desugar().getTypePtr();
-      TypedefT = dyn_cast<TypedefType>(PointeeT);
-    }
-
-    // Not a typedef any more, it should be an elaborated type.
-    const auto ElaborateT = dyn_cast<ElaboratedType>(PointeeT);
-    if (!ElaborateT)
-      return false;
-
-    const auto *RecT = dyn_cast<RecordType>(ElaborateT->desugar().getTypePtr());
-    if (!RecT)
-      return false;
-
-    return RecT->getDecl()->hasAttr<BPFPreserveAccessIndexAttr>();
-  }
-
-  return false;
-}
-
 static void AddIVDepMetadata(CodeGenFunction &CGF, const ValueDecl *ArrayDecl,
                              llvm::Value *EltPtr) {
   if (!ArrayDecl)
@@ -3482,7 +3427,6 @@ static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
                                      QualType eltType, bool inbounds,
                                      bool signedIndices, SourceLocation loc,
                                      QualType *arrayType = nullptr,
-                                     const Expr *Base = nullptr,
                                      const llvm::Twine &name = "arrayidx",
                                      const ValueDecl *arrayDecl = nullptr) {
   // All the indices except that last must be zero.
@@ -3505,8 +3449,7 @@ static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
 
   llvm::Value *eltPtr;
   auto LastIndex = dyn_cast<llvm::ConstantInt>(indices.back());
-  if (!LastIndex ||
-      (!CGF.IsInPreservedAIRegion && !IsPreserveAIArrayBase(CGF, Base))) {
+  if (!CGF.IsInPreservedAIRegion || !LastIndex) {
     eltPtr = emitArraySubscriptGEP(
         CGF, addr.getPointer(), indices, inbounds, signedIndices,
         loc, name);
@@ -3667,7 +3610,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     Addr = emitArraySubscriptGEP(
         *this, ArrayLV.getAddress(), {CGM.getSize(CharUnits::Zero()), Idx},
         E->getType(), !getLangOpts().isSignedOverflowDefined(), SignedIndices,
-        E->getExprLoc(), &arrayType, E->getBase(), "arrayidx", ArrayDecl);
+        E->getExprLoc(), &arrayType, "arrayidx", ArrayDecl);
     EltBaseInfo = ArrayLV.getBaseInfo();
     EltTBAAInfo = CGM.getTBAAInfoForSubobject(ArrayLV, E->getType());
   } else {
@@ -3677,8 +3620,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     QualType ptrType = E->getBase()->getType();
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, E->getType(),
                                  !getLangOpts().isSignedOverflowDefined(),
-                                 SignedIndices, E->getExprLoc(), &ptrType,
-                                 E->getBase());
+                                 SignedIndices, E->getExprLoc(), &ptrType);
   }
 
   LValue LV = MakeAddrLValue(Addr, E->getType(), EltBaseInfo, EltTBAAInfo);
@@ -4079,13 +4021,12 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
     const CGBitFieldInfo &Info = RL.getBitFieldInfo(field);
     Address Addr = base.getAddress();
     unsigned Idx = RL.getLLVMFieldNo(field);
-    const RecordDecl *rec = field->getParent();
-    if (!IsInPreservedAIRegion &&
-        (!getDebugInfo() || !rec->hasAttr<BPFPreserveAccessIndexAttr>())) {
+    if (!IsInPreservedAIRegion) {
       if (Idx != 0)
         // For structs, we GEP to the field that the record layout suggests.
         Addr = Builder.CreateStructGEP(Addr, Idx, field->getName());
     } else {
+      const RecordDecl *rec = field->getParent();
       llvm::DIType *DbgInfo = getDebugInfo()->getOrCreateRecordType(
           getContext().getRecordType(rec), rec->getLocation());
       Addr = Builder.CreatePreserveStructAccessIndex(Addr, Idx,
@@ -4168,8 +4109,7 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
       addr = Address(Builder.CreateLaunderInvariantGroup(addr.getPointer()),
                      addr.getAlignment());
 
-    if (IsInPreservedAIRegion ||
-        (getDebugInfo() && rec->hasAttr<BPFPreserveAccessIndexAttr>())) {
+    if (IsInPreservedAIRegion) {
       // Remember the original union field index
       llvm::DIType *DbgInfo = getDebugInfo()->getOrCreateRecordType(
           getContext().getRecordType(rec), rec->getLocation());
@@ -4183,8 +4123,7 @@ LValue CodeGenFunction::EmitLValueForField(LValue base,
       addr = Builder.CreateElementBitCast(
           addr, CGM.getTypes().ConvertTypeForMem(FieldType), field->getName());
   } else {
-    if (!IsInPreservedAIRegion &&
-        (!getDebugInfo() || !rec->hasAttr<BPFPreserveAccessIndexAttr>()))
+    if (!IsInPreservedAIRegion)
       // For structs, we GEP to the field that the record layout suggests.
       addr = emitAddrOfFieldStorage(*this, addr, field);
     else
