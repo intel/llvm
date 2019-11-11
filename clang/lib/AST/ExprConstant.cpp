@@ -1039,10 +1039,13 @@ namespace {
     /// cleanups would have had a side-effect, note that as an unmodeled
     /// side-effect and return false. Otherwise, return true.
     bool discardCleanups() {
-      for (Cleanup &C : CleanupStack)
-        if (C.hasSideEffect())
-          if (!noteSideEffect())
-            return false;
+      for (Cleanup &C : CleanupStack) {
+        if (C.hasSideEffect() && !noteSideEffect()) {
+          CleanupStack.clear();
+          return false;
+        }
+      }
+      CleanupStack.clear();
       return true;
     }
 
@@ -10590,8 +10593,24 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
     return false;
   }
 
-  case Builtin::BI__builtin_is_constant_evaluated:
+  case Builtin::BI__builtin_is_constant_evaluated: {
+    const auto *Callee = Info.CurrentCall->getCallee();
+    if (Info.InConstantContext && !Info.CheckingPotentialConstantExpression &&
+        (Info.CallStackDepth == 1 ||
+         (Info.CallStackDepth == 2 && Callee->isInStdNamespace() &&
+          Callee->getIdentifier() &&
+          Callee->getIdentifier()->isStr("is_constant_evaluated")))) {
+      // FIXME: Find a better way to avoid duplicated diagnostics.
+      if (Info.EvalStatus.Diag)
+        Info.report((Info.CallStackDepth == 1) ? E->getExprLoc()
+                                               : Info.CurrentCall->CallLoc,
+                    diag::warn_is_constant_evaluated_always_true_constexpr)
+            << (Info.CallStackDepth == 1 ? "__builtin_is_constant_evaluated"
+                                         : "std::is_constant_evaluated");
+    }
+
     return Success(Info.InConstantContext, E);
+  }
 
   case Builtin::BI__builtin_ctz:
   case Builtin::BI__builtin_ctzl:
@@ -14340,27 +14359,41 @@ bool Expr::EvaluateWithSubstitution(APValue &Value, ASTContext &Ctx,
     assert(MD && "Don't provide `this` for non-methods.");
     assert(!MD->isStatic() && "Don't provide `this` for static methods.");
 #endif
-    if (EvaluateObjectArgument(Info, This, ThisVal))
+    if (!This->isValueDependent() &&
+        EvaluateObjectArgument(Info, This, ThisVal) &&
+        !Info.EvalStatus.HasSideEffects)
       ThisPtr = &ThisVal;
-    if (Info.EvalStatus.HasSideEffects)
-      return false;
+
+    // Ignore any side-effects from a failed evaluation. This is safe because
+    // they can't interfere with any other argument evaluation.
+    Info.EvalStatus.HasSideEffects = false;
   }
 
   ArgVector ArgValues(Args.size());
   for (ArrayRef<const Expr*>::iterator I = Args.begin(), E = Args.end();
        I != E; ++I) {
     if ((*I)->isValueDependent() ||
-        !Evaluate(ArgValues[I - Args.begin()], Info, *I))
+        !Evaluate(ArgValues[I - Args.begin()], Info, *I) ||
+        Info.EvalStatus.HasSideEffects)
       // If evaluation fails, throw away the argument entirely.
       ArgValues[I - Args.begin()] = APValue();
-    if (Info.EvalStatus.HasSideEffects)
-      return false;
+
+    // Ignore any side-effects from a failed evaluation. This is safe because
+    // they can't interfere with any other argument evaluation.
+    Info.EvalStatus.HasSideEffects = false;
   }
+
+  // Parameter cleanups happen in the caller and are not part of this
+  // evaluation.
+  Info.discardCleanups();
+  Info.EvalStatus.HasSideEffects = false;
 
   // Build fake call to Callee.
   CallStackFrame Frame(Info, Callee->getLocation(), Callee, ThisPtr,
                        ArgValues.data());
-  return Evaluate(Value, Info, this) && Info.discardCleanups() &&
+  // FIXME: Missing ExprWithCleanups in enable_if conditions?
+  FullExpressionRAII Scope(Info);
+  return Evaluate(Value, Info, this) && Scope.destroy() &&
          !Info.EvalStatus.HasSideEffects;
 }
 

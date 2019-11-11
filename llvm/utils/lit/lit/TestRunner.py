@@ -17,7 +17,7 @@ try:
 except ImportError:
     from io import StringIO
 
-from lit.ShCommands import GlobItem
+from lit.ShCommands import GlobItem, Command
 import lit.ShUtil as ShUtil
 import lit.Test as Test
 import lit.util
@@ -234,7 +234,9 @@ def quote_windows_command(seq):
     return ''.join(result)
 
 # args are from 'export' or 'env' command.
-# Returns copy of args without those commands or their arguments.
+# Skips the command, and parses its arguments.
+# Modifies env accordingly.
+# Returns copy of args without the command or its arguments.
 def updateEnv(env, args):
     arg_idx_next = len(args)
     unset_next_env_var = False
@@ -259,6 +261,27 @@ def updateEnv(env, args):
             break
         env.env[key] = val
     return args[arg_idx_next:]
+
+def executeBuiltinCd(cmd, shenv):
+    """executeBuiltinCd - Change the current directory."""
+    if len(cmd.args) != 2:
+        raise InternalShellError("'cd' supports only one argument")
+    newdir = cmd.args[1]
+    # Update the cwd in the parent environment.
+    if os.path.isabs(newdir):
+        shenv.cwd = newdir
+    else:
+        shenv.cwd = os.path.realpath(os.path.join(shenv.cwd, newdir))
+    # The cd builtin always succeeds. If the directory does not exist, the
+    # following Popen calls will fail instead.
+    return ShellCommandResult(cmd, "", "", 0, False)
+
+def executeBuiltinExport(cmd, shenv):
+    """executeBuiltinExport - Set an environment variable."""
+    if len(cmd.args) != 2:
+        raise InternalShellError("'export' supports only one argument")
+    updateEnv(shenv, cmd.args)
+    return ShellCommandResult(cmd, "", "", 0, False)
 
 def executeBuiltinEcho(cmd, shenv):
     """Interpret a redirected echo command"""
@@ -319,9 +342,8 @@ def executeBuiltinEcho(cmd, shenv):
     for (name, mode, f, path) in opened_files:
         f.close()
 
-    if not is_redirected:
-        return stdout.getvalue()
-    return ""
+    output = "" if is_redirected else stdout.getvalue()
+    return ShellCommandResult(cmd, output, "", 0, False)
 
 def executeBuiltinMkdir(cmd, cmd_shenv):
     """executeBuiltinMkdir - Create new directories."""
@@ -456,6 +478,10 @@ def executeBuiltinRm(cmd, cmd_shenv):
             exitCode = 1
     return ShellCommandResult(cmd, "", stderr.getvalue(), exitCode, False)
 
+def executeBuiltinColon(cmd, cmd_shenv):
+    """executeBuiltinColon - Discard arguments and exit with status 0."""
+    return ShellCommandResult(cmd, "", "", 0, False)
+
 def processRedirects(cmd, stdin_source, cmd_shenv, opened_files):
     """Return the standard fds for cmd after applying redirects
 
@@ -581,64 +607,6 @@ def _executeShCmd(cmd, shenv, results, timeoutHelper):
         raise ValueError('Unknown shell command: %r' % cmd.op)
     assert isinstance(cmd, ShUtil.Pipeline)
 
-    # Handle shell builtins first.
-    if cmd.commands[0].args[0] == 'cd':
-        if len(cmd.commands) != 1:
-            raise ValueError("'cd' cannot be part of a pipeline")
-        if len(cmd.commands[0].args) != 2:
-            raise ValueError("'cd' supports only one argument")
-        newdir = cmd.commands[0].args[1]
-        # Update the cwd in the parent environment.
-        if os.path.isabs(newdir):
-            shenv.cwd = newdir
-        else:
-            shenv.cwd = os.path.realpath(os.path.join(shenv.cwd, newdir))
-        # The cd builtin always succeeds. If the directory does not exist, the
-        # following Popen calls will fail instead.
-        return 0
-
-    # Handle "echo" as a builtin if it is not part of a pipeline. This greatly
-    # speeds up tests that construct input files by repeatedly echo-appending to
-    # a file.
-    # FIXME: Standardize on the builtin echo implementation. We can use a
-    # temporary file to sidestep blocking pipe write issues.
-    if cmd.commands[0].args[0] == 'echo' and len(cmd.commands) == 1:
-        output = executeBuiltinEcho(cmd.commands[0], shenv)
-        results.append(ShellCommandResult(cmd.commands[0], output, "", 0,
-                                          False))
-        return 0
-
-    if cmd.commands[0].args[0] == 'export':
-        if len(cmd.commands) != 1:
-            raise ValueError("'export' cannot be part of a pipeline")
-        if len(cmd.commands[0].args) != 2:
-            raise ValueError("'export' supports only one argument")
-        updateEnv(shenv, cmd.commands[0].args)
-        return 0
-
-    if cmd.commands[0].args[0] == 'mkdir':
-        if len(cmd.commands) != 1:
-            raise InternalShellError(cmd.commands[0], "Unsupported: 'mkdir' "
-                                     "cannot be part of a pipeline")
-        cmdResult = executeBuiltinMkdir(cmd.commands[0], shenv)
-        results.append(cmdResult)
-        return cmdResult.exitCode
-
-    if cmd.commands[0].args[0] == 'rm':
-        if len(cmd.commands) != 1:
-            raise InternalShellError(cmd.commands[0], "Unsupported: 'rm' "
-                                     "cannot be part of a pipeline")
-        cmdResult = executeBuiltinRm(cmd.commands[0], shenv)
-        results.append(cmdResult)
-        return cmdResult.exitCode
-
-    if cmd.commands[0].args[0] == ':':
-        if len(cmd.commands) != 1:
-            raise InternalShellError(cmd.commands[0], "Unsupported: ':' "
-                                     "cannot be part of a pipeline")
-        results.append(ShellCommandResult(cmd.commands[0], '', '', 0, False))
-        return 0;
-
     procs = []
     default_stdin = subprocess.PIPE
     stderrTempFiles = []
@@ -646,6 +614,12 @@ def _executeShCmd(cmd, shenv, results, timeoutHelper):
     named_temp_files = []
     builtin_commands = set(['cat', 'diff'])
     builtin_commands_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "builtin_commands")
+    inproc_builtins = {'cd': executeBuiltinCd,
+                       'export': executeBuiltinExport,
+                       'echo': executeBuiltinEcho,
+                       'mkdir': executeBuiltinMkdir,
+                       'rm': executeBuiltinRm,
+                       ':': executeBuiltinColon}
     # To avoid deadlock, we use a single stderr stream for piped
     # output. This is null until we have seen some output using
     # stderr.
@@ -653,15 +627,79 @@ def _executeShCmd(cmd, shenv, results, timeoutHelper):
         # Reference the global environment by default.
         cmd_shenv = shenv
         args = list(j.args)
-        if j.args[0] == 'env':
-            # Create a copy of the global environment and modify it for this one
-            # command. There might be multiple envs in a pipeline:
-            #   env FOO=1 llc < %s | env BAR=2 llvm-mc | FileCheck %s
-            cmd_shenv = ShellEnvironment(shenv.cwd, shenv.env)
-            args = updateEnv(cmd_shenv, j.args)
-            if not args:
-                raise InternalShellError(j,
-                                         "Error: 'env' requires a subcommand")
+        not_args = []
+        not_count = 0
+        not_crash = False
+        while True:
+            if args[0] == 'env':
+                # Create a copy of the global environment and modify it for
+                # this one command. There might be multiple envs in a pipeline,
+                # and there might be multiple envs in a command (usually when
+                # one comes from a substitution):
+                #   env FOO=1 llc < %s | env BAR=2 llvm-mc | FileCheck %s
+                #   env FOO=1 %{another_env_plus_cmd} | FileCheck %s
+                if cmd_shenv is shenv:
+                    cmd_shenv = ShellEnvironment(shenv.cwd, shenv.env)
+                args = updateEnv(cmd_shenv, args)
+                if not args:
+                    raise InternalShellError(j, "Error: 'env' requires a"
+                                                " subcommand")
+            elif args[0] == 'not':
+                not_args.append(args.pop(0))
+                not_count += 1
+                if args and args[0] == '--crash':
+                    not_args.append(args.pop(0))
+                    not_crash = True
+                if not args:
+                    raise InternalShellError(j, "Error: 'not' requires a"
+                                                " subcommand")
+            else:
+                break
+
+        # Handle in-process builtins.
+        #
+        # Handle "echo" as a builtin if it is not part of a pipeline. This
+        # greatly speeds up tests that construct input files by repeatedly
+        # echo-appending to a file.
+        # FIXME: Standardize on the builtin echo implementation. We can use a
+        # temporary file to sidestep blocking pipe write issues.
+        inproc_builtin = inproc_builtins.get(args[0], None)
+        if inproc_builtin and (args[0] != 'echo' or len(cmd.commands) == 1):
+            # env calling an in-process builtin is useless, so we take the safe
+            # approach of complaining.
+            if not cmd_shenv is shenv:
+                raise InternalShellError(j, "Error: 'env' cannot call '{}'"
+                                            .format(args[0]))
+            if not_crash:
+                raise InternalShellError(j, "Error: 'not --crash' cannot call"
+                                            " '{}'".format(args[0]))
+            if len(cmd.commands) != 1:
+                raise InternalShellError(j, "Unsupported: '{}' cannot be part"
+                                            " of a pipeline".format(args[0]))
+            result = inproc_builtin(Command(args, j.redirects), cmd_shenv)
+            if not_count % 2:
+                result.exitCode = int(not result.exitCode)
+            result.command.args = j.args;
+            results.append(result)
+            return result.exitCode
+
+        # Resolve any out-of-process builtin command before adding back 'not'
+        # commands.
+        if args[0] in builtin_commands:
+            args.insert(0, sys.executable)
+            cmd_shenv.env['PYTHONPATH'] = \
+                os.path.dirname(os.path.abspath(__file__))
+            args[1] = os.path.join(builtin_commands_dir, args[1] + ".py")
+
+        # We had to search through the 'not' commands to find all the 'env'
+        # commands and any other in-process builtin command.  We don't want to
+        # reimplement 'not' and its '--crash' here, so just push all 'not'
+        # commands back to be called as external commands.  Because this
+        # approach effectively moves all 'env' commands up front, it relies on
+        # the assumptions that (1) environment variables are not intended to be
+        # relevant to 'not' commands and (2) the 'env' command should always
+        # blindly pass along the status it receives from any command it calls.
+        args = not_args + args
 
         stdin, stdout, stderr = processRedirects(j, default_stdin, cmd_shenv,
                                                  opened_files)
@@ -684,17 +722,15 @@ def _executeShCmd(cmd, shenv, results, timeoutHelper):
 
         # Resolve the executable path ourselves.
         executable = None
-        is_builtin_cmd = args[0] in builtin_commands;
-        if not is_builtin_cmd:
-            # For paths relative to cwd, use the cwd of the shell environment.
-            if args[0].startswith('.'):
-                exe_in_cwd = os.path.join(cmd_shenv.cwd, args[0])
-                if os.path.isfile(exe_in_cwd):
-                    executable = exe_in_cwd
-            if not executable:
-                executable = lit.util.which(args[0], cmd_shenv.env['PATH'])
-            if not executable:
-                raise InternalShellError(j, '%r: command not found' % args[0])
+        # For paths relative to cwd, use the cwd of the shell environment.
+        if args[0].startswith('.'):
+            exe_in_cwd = os.path.join(cmd_shenv.cwd, args[0])
+            if os.path.isfile(exe_in_cwd):
+                executable = exe_in_cwd
+        if not executable:
+            executable = lit.util.which(args[0], cmd_shenv.env['PATH'])
+        if not executable:
+            raise InternalShellError(j, '%r: command not found' % args[0])
 
         # Replace uses of /dev/null with temporary files.
         if kAvoidDevNull:
@@ -713,11 +749,6 @@ def _executeShCmd(cmd, shenv, results, timeoutHelper):
 
         # Expand all glob expressions
         args = expand_glob_expressions(args, cmd_shenv.cwd)
-        if is_builtin_cmd:
-            args.insert(0, sys.executable)
-            cmd_shenv.env['PYTHONPATH'] = \
-                os.path.dirname(os.path.abspath(__file__))
-            args[1] = os.path.join(builtin_commands_dir ,args[1] + ".py")
 
         # On Windows, do our own command line quoting for better compatibility
         # with some core utility distributions.

@@ -58,6 +58,8 @@ class DS_Real <DS_Pseudo ds> :
 
   let isPseudo = 0;
   let isCodeGenOnly = 0;
+  let DS = 1;
+  let UseNamedOperandTable = 1;
 
   // copy relevant pseudo op flags
   let SubtargetPredicate = ds.SubtargetPredicate;
@@ -1075,7 +1077,7 @@ defm DS_MAX_SRC2_F64        : DS_Real_gfx6_gfx7_gfx10<0x0d3>;
 class DS_Real_vi <bits<8> op, DS_Pseudo ds> :
   DS_Real <ds>,
   SIMCInstr <ds.Mnemonic, SIEncodingFamily.VI> {
-  let AssemblerPredicates = [isGFX8GFX9];
+  let AssemblerPredicate = isGFX8GFX9;
   let DecoderNamespace = "GFX8";
 
   // encoding

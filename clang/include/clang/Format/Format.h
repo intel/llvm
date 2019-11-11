@@ -708,7 +708,7 @@ struct FormatStyle {
     BS_Allman,
     /// Like ``Allman`` but always indent braces and line up code with braces.
     /// \code
-    ///    try
+    ///   try
     ///     {
     ///     foo();
     ///     }
@@ -850,6 +850,7 @@ struct FormatStyle {
     ///   {};
     /// \endcode
     bool AfterClass;
+
     /// Wrap control statements (``if``/``for``/``while``/``switch``/..).
     BraceWrappingAfterControlStatementStyle AfterControlStatement;
     /// Wrap enum definitions.
@@ -1160,6 +1161,7 @@ struct FormatStyle {
   /// \endcode
   bool CompactNamespaces;
 
+  // clang-format off
   /// If the constructor initializers don't fit on a line, put each
   /// initializer on its own line.
   /// \code
@@ -1177,6 +1179,7 @@ struct FormatStyle {
   ///   }
   /// \endcode
   bool ConstructorInitializerAllOnOneLineOrOnePerLine;
+  // clang-format on
 
   /// The number of characters to use for indentation of constructor
   /// initializer lists as well as inheritance lists.
@@ -1305,8 +1308,9 @@ struct FormatStyle {
 
   /// Indent case labels one level from the switch statement.
   ///
-  /// When ``false``, use the same indentation level as for the switch statement.
-  /// Switch statement body is always indented one level more than case labels.
+  /// When ``false``, use the same indentation level as for the switch
+  /// statement. Switch statement body is always indented one level more than
+  /// case labels.
   /// \code
   ///    false:                                 true:
   ///    switch (fool) {                vs.     switch (fool) {
@@ -1452,6 +1456,7 @@ struct FormatStyle {
   /// The JavaScriptQuoteStyle to use for JavaScript strings.
   JavaScriptQuoteStyle JavaScriptQuotes;
 
+  // clang-format off
   /// Whether to wrap JavaScript import/export statements.
   /// \code{.js}
   ///    true:
@@ -1465,6 +1470,7 @@ struct FormatStyle {
   ///    import {VeryLongImportsAreAnnoying, VeryLongImportsAreAnnoying, VeryLongImportsAreAnnoying,} from "some/module.js"
   /// \endcode
   bool JavaScriptWrapImports;
+  // clang-format on
 
   /// If true, the empty line at the start of blocks is kept.
   /// \code
@@ -1746,6 +1752,7 @@ struct FormatStyle {
   /// \endcode
   std::vector<RawStringFormat> RawStringFormats;
 
+  // clang-format off
   /// If ``true``, clang-format will attempt to re-flow comments.
   /// \code
   ///    false:
@@ -1759,6 +1766,7 @@ struct FormatStyle {
   ///     * information */
   /// \endcode
   bool ReflowComments;
+  // clang-format on
 
   /// If ``true``, clang-format will sort ``#includes``.
   /// \code
@@ -1965,7 +1973,8 @@ struct FormatStyle {
   bool SpacesInParentheses;
 
   /// If ``true``, spaces will be inserted after ``[`` and before ``]``.
-  /// Lambdas or unspecified size array declarations will not be affected.
+  /// Lambdas without arguments or unspecified size array declarations will not
+  /// be affected.
   /// \code
   ///    true:                                  false:
   ///    int a[ 5 ];                    vs.     int a[5];
@@ -1982,26 +1991,29 @@ struct FormatStyle {
   /// The correct way to spell a specific language version is e.g. ``c++11``.
   /// The historical aliases ``Cpp03`` and ``Cpp11`` are deprecated.
   enum LanguageStandard {
-    /// c++03: Parse and format as C++03.
-    LS_Cpp03,
-    /// c++11: Parse and format as C++11.
-    LS_Cpp11,
-    /// c++14: Parse and format as C++14.
-    LS_Cpp14,
-    /// c++17: Parse and format as C++17.
-    LS_Cpp17,
-    /// c++20: Parse and format as C++20.
-    LS_Cpp20,
-    /// Latest: Parse and format using the latest supported language version.
-    /// 'Cpp11' is an alias for LS_Latest for historical reasons.
+    /// Parse and format as C++03.
+    /// ``Cpp03`` is a deprecated alias for ``c++03``
+    LS_Cpp03, // c++03
+    /// Parse and format as C++11.
+    LS_Cpp11, // c++11
+    /// Parse and format as C++14.
+    LS_Cpp14, // c++14
+    /// Parse and format as C++17.
+    LS_Cpp17, // c++17
+    /// Parse and format as C++20.
+    LS_Cpp20, // c++20
+    /// Parse and format using the latest supported language version.
+    /// ``Cpp11`` is a deprecated alias for ``Latest``
     LS_Latest,
-    /// Auto: Automatic detection based on the input.
-    /// Parse using the latest language version. Format based on detected input.
+    /// Automatic detection based on the input.
     LS_Auto,
   };
 
-  /// Format compatible with this standard, e.g. use ``A<A<int> >``
-  /// instead of ``A<A<int>>`` for ``LS_Cpp03``.
+  /// Parse and format C++ constructs compatible with this standard.
+  /// \code
+  ///    c++03:                                 latest:
+  ///    vector<set<int> > x;           vs.     vector<set<int>> x;
+  /// \endcode
   LanguageStandard Standard;
 
   /// The number of columns used for tab stops.
@@ -2289,8 +2301,7 @@ tooling::Replacements reformat(const FormatStyle &Style, StringRef Code,
 /// a non-recoverable syntax error.
 tooling::Replacements reformat(const FormatStyle &Style, StringRef Code,
                                ArrayRef<tooling::Range> Ranges,
-                               StringRef FileName,
-                               bool *IncompleteFormat);
+                               StringRef FileName, bool *IncompleteFormat);
 
 /// Clean up any erroneous/redundant code in the given \p Ranges in \p
 /// Code.
@@ -2401,6 +2412,6 @@ inline StringRef getLanguageName(FormatStyle::LanguageKind Language) {
 namespace std {
 template <>
 struct is_error_code_enum<clang::format::ParseError> : std::true_type {};
-}
+} // namespace std
 
 #endif // LLVM_CLANG_FORMAT_FORMAT_H

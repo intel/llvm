@@ -385,15 +385,20 @@ static void addExceptionArgs(const ArgList &Args, types::ID InputType,
     CmdArgs.push_back("-fexceptions");
 }
 
-static bool ShouldDisableAutolink(const ArgList &Args, const ToolChain &TC) {
+static bool ShouldEnableAutolink(const ArgList &Args, const ToolChain &TC,
+                                 const JobAction &JA) {
   bool Default = true;
   if (TC.getTriple().isOSDarwin()) {
     // The native darwin assembler doesn't support the linker_option directives,
     // so we disable them if we think the .s file will be passed to it.
     Default = TC.useIntegratedAs();
   }
-  return !Args.hasFlag(options::OPT_fautolink, options::OPT_fno_autolink,
-                       Default);
+  // The linker_option directives are intended for host compilation.
+  if (JA.isDeviceOffloading(Action::OFK_Cuda) ||
+      JA.isDeviceOffloading(Action::OFK_HIP))
+    Default = false;
+  return Args.hasFlag(options::OPT_fautolink, options::OPT_fno_autolink,
+                      Default);
 }
 
 static bool ShouldDisableDwarfDirectory(const ArgList &Args,
@@ -2241,9 +2246,18 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   bool AssociativeMath = false;
   bool ReciprocalMath = false;
   bool SignedZeros = true;
-  bool TrappingMath = true;
+  bool TrappingMath = false; // Implemented via -ffp-exception-behavior
+  bool TrappingMathPresent = false; // Is trapping-math in args, and not
+                                    // overriden by ffp-exception-behavior?
+  bool RoundingFPMath = false;
+  bool RoundingMathPresent = false; // Is rounding-math in args?
+  // -ffp-model values: strict, fast, precise
+  StringRef FPModel = "";
+  // -ffp-exception-behavior options: strict, maytrap, ignore
+  StringRef FPExceptionBehavior = "";
   StringRef DenormalFPMath = "";
   StringRef FPContract = "";
+  bool StrictFPModel = false;
 
   if (const Arg *A = Args.getLastArg(options::OPT_flimited_precision_EQ)) {
     CmdArgs.push_back("-mlimit-float-precision");
@@ -2251,7 +2265,82 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   }
 
   for (const Arg *A : Args) {
-    switch (A->getOption().getID()) {
+    auto optID = A->getOption().getID();
+    bool PreciseFPModel = false;
+    switch (optID) {
+    default:
+      break;
+    case options::OPT_ffp_model_EQ: {
+      StringRef Val = A->getValue();
+      if (OFastEnabled && !Val.equals("fast")) {
+          // Only -ffp-model=fast is compatible with OFast, ignore.
+        D.Diag(clang::diag::warn_drv_overriding_flag_option)
+          << Args.MakeArgString("-ffp-model=" + Val)
+          << "-Ofast";
+        break;
+      }
+      StrictFPModel = false;
+      PreciseFPModel = true;
+      // ffp-model= is a Driver option, it is entirely rewritten into more
+      // granular options before being passed into cc1.
+      // Use the gcc option in the switch below.
+      if (!FPModel.empty() && !FPModel.equals(Val)) {
+        D.Diag(clang::diag::warn_drv_overriding_flag_option)
+          << Args.MakeArgString("-ffp-model=" + FPModel)
+          << Args.MakeArgString("-ffp-model=" + Val);
+        FPContract = "";
+      }
+      if (Val.equals("fast")) {
+        if (!FPContract.empty() && !FPContract.equals("fast"))
+          // FPContract has already been set to something else
+          // so warn about the override.
+          D.Diag(clang::diag::warn_drv_overriding_flag_option)
+            << Args.MakeArgString("-ffp-contract=" + FPContract)
+            << "-ffp-contract=fast";
+        optID = options::OPT_ffast_math;
+        FPModel = Val;
+        FPContract = "fast";
+      } else if (Val.equals("precise")) {
+        if (!FPContract.empty() && !FPContract.equals("fast"))
+          D.Diag(clang::diag::warn_drv_overriding_flag_option)
+            << Args.MakeArgString("-ffp-contract=" + FPContract)
+            << "-ffp-contract=fast";
+        optID = options::OPT_ffp_contract;
+        FPModel = Val;
+        FPContract = "fast";
+        PreciseFPModel = true;
+      } else if (Val.equals("strict")) {
+        StrictFPModel = true;
+        if (!FPContract.empty() && !FPContract.equals("strict"))
+          D.Diag(clang::diag::warn_drv_overriding_flag_option)
+            << Args.MakeArgString("-ffp-contract=" + FPContract)
+            << "-ffp-contract=strict";
+        optID = options::OPT_frounding_math;
+        FPExceptionBehavior = "strict";
+        FPModel = Val;
+        // -ffp-model=strict also enables fno-fast-math
+        HonorINFs = true;
+        HonorNaNs = true;
+        // Turning on -ffast-math (with either flag) removes the need for
+        // MathErrno. However, turning *off* -ffast-math merely restores the
+        // toolchain default (which may be false).
+        MathErrno = TC.IsMathErrnoDefault();
+        AssociativeMath = false;
+        ReciprocalMath = false;
+        SignedZeros = true;
+        TrappingMath = true;
+        RoundingFPMath = true;
+        // -fno_fast_math restores default denormal and fpcontract handling
+        DenormalFPMath = "";
+        FPContract = "";
+      } else
+        D.Diag(diag::err_drv_unsupported_option_argument)
+            << A->getOption().getName() << Val;
+      break;
+      }
+    }
+
+    switch (optID) {
     // If this isn't an FP option skip the claim below
     default: continue;
 
@@ -2268,19 +2357,71 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     case options::OPT_fno_reciprocal_math:  ReciprocalMath = false;   break;
     case options::OPT_fsigned_zeros:        SignedZeros = true;       break;
     case options::OPT_fno_signed_zeros:     SignedZeros = false;      break;
-    case options::OPT_ftrapping_math:       TrappingMath = true;      break;
-    case options::OPT_fno_trapping_math:    TrappingMath = false;     break;
+    case options::OPT_ftrapping_math:
+      TrappingMath = true;
+      TrappingMathPresent = true;
+      FPExceptionBehavior = "strict";
+      break;
+    case options::OPT_fno_trapping_math:
+      TrappingMath = false;
+      TrappingMathPresent = true;
+      FPExceptionBehavior = "ignore";
+      break;
+    case options::OPT_frounding_math:
+      // The default setting for frounding-math is True and ffast-math
+      // sets fno-rounding-math, but we only want to use constrained
+      // floating point intrinsics if the option is specifically requested.
+      RoundingFPMath = true;
+      RoundingMathPresent = true;
+      break;
+    case options::OPT_fno_rounding_math:
+      RoundingFPMath = false;
+      RoundingMathPresent = false;
+      break;
 
     case options::OPT_fdenormal_fp_math_EQ:
       DenormalFPMath = A->getValue();
       break;
 
-    // Validate and pass through -fp-contract option.
+    // Validate and pass through -ffp-contract option.
     case options::OPT_ffp_contract: {
       StringRef Val = A->getValue();
-      if (Val == "fast" || Val == "on" || Val == "off")
+      if (PreciseFPModel) {
+        // -ffp-model=precise enables ffp-contract=fast as a side effect
+        // the FPContract value has already been set to a string literal
+        // and the Val string isn't a pertinent value.
+        ;
+      } else if (Val.equals("fast") || Val.equals("on") || Val.equals("off"))
         FPContract = Val;
       else
+        D.Diag(diag::err_drv_unsupported_option_argument)
+           << A->getOption().getName() << Val;
+      break;
+    }
+
+    // Validate and pass through -ffp-model option.
+    case options::OPT_ffp_model_EQ:
+      // This should only occur in the error case
+      // since the optID has been replaced by a more granular
+      // floating point option.
+      break;
+
+    // Validate and pass through -ffp-exception-behavior option.
+    case options::OPT_ffp_exception_behavior_EQ: {
+      StringRef Val = A->getValue();
+      if (!TrappingMathPresent && !FPExceptionBehavior.empty() &&
+          !FPExceptionBehavior.equals(Val))
+        // Warn that previous value of option is overridden.
+        D.Diag(clang::diag::warn_drv_overriding_flag_option)
+          << Args.MakeArgString("-ffp-exception-behavior=" + FPExceptionBehavior)
+          << Args.MakeArgString("-ffp-exception-behavior=" + Val);
+      TrappingMathPresent = false;
+      if (Val.equals("ignore") || Val.equals("maytrap"))
+        FPExceptionBehavior = Val;
+      else if (Val.equals("strict")) {
+        FPExceptionBehavior = Val;
+        TrappingMath = TrappingMathPresent = true;
+      } else
         D.Diag(diag::err_drv_unsupported_option_argument)
             << A->getOption().getName() << Val;
       break;
@@ -2300,12 +2441,14 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       ReciprocalMath = true;
       SignedZeros = false;
       TrappingMath = false;
+      FPExceptionBehavior = "";
       break;
     case options::OPT_fno_unsafe_math_optimizations:
       AssociativeMath = false;
       ReciprocalMath = false;
       SignedZeros = true;
       TrappingMath = true;
+      FPExceptionBehavior = "strict";
       // -fno_unsafe_math_optimizations restores default denormal handling
       DenormalFPMath = "";
       break;
@@ -2323,6 +2466,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       ReciprocalMath = true;
       SignedZeros = false;
       TrappingMath = false;
+      RoundingFPMath = false;
       // If fast-math is set then set the fp-contract mode to fast.
       FPContract = "fast";
       break;
@@ -2336,11 +2480,30 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       AssociativeMath = false;
       ReciprocalMath = false;
       SignedZeros = true;
-      TrappingMath = true;
+      TrappingMath = false;
+      RoundingFPMath = false;
       // -fno_fast_math restores default denormal and fpcontract handling
       DenormalFPMath = "";
       FPContract = "";
       break;
+    }
+    if (StrictFPModel) {
+      // If -ffp-model=strict has been specified on command line but
+      // subsequent options conflict then emit warning diagnostic.
+      if (HonorINFs && HonorNaNs &&
+        !AssociativeMath && !ReciprocalMath &&
+        SignedZeros && TrappingMath && RoundingFPMath &&
+        DenormalFPMath.empty() && FPContract.empty())
+        // OK: Current Arg doesn't conflict with -ffp-model=strict
+        ;
+      else {
+        StrictFPModel = false;
+        FPModel = "";
+        D.Diag(clang::diag::warn_drv_overriding_flag_option)
+            << "-ffp-model=strict" <<
+            ((A->getNumValues() == 0) ?  A->getSpelling()
+            : Args.MakeArgString(A->getSpelling() + A->getValue()));
+      }
     }
 
     // If we handled this option claim it
@@ -2369,7 +2532,11 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (ReciprocalMath)
     CmdArgs.push_back("-freciprocal-math");
 
-  if (!TrappingMath)
+  if (TrappingMath) {
+    // FP Exception Behavior is also set to strict
+    assert(FPExceptionBehavior.equals("strict"));
+    CmdArgs.push_back("-ftrapping-math");
+  } else if (TrappingMathPresent)
     CmdArgs.push_back("-fno-trapping-math");
 
   if (!DenormalFPMath.empty())
@@ -2379,14 +2546,37 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (!FPContract.empty())
     CmdArgs.push_back(Args.MakeArgString("-ffp-contract=" + FPContract));
 
+  if (!RoundingFPMath)
+    CmdArgs.push_back(Args.MakeArgString("-fno-rounding-math"));
+
+  if (RoundingFPMath && RoundingMathPresent)
+    CmdArgs.push_back(Args.MakeArgString("-frounding-math"));
+
+  if (!FPExceptionBehavior.empty())
+    CmdArgs.push_back(Args.MakeArgString("-ffp-exception-behavior=" +
+                      FPExceptionBehavior));
+
   ParseMRecip(D, Args, CmdArgs);
 
   // -ffast-math enables the __FAST_MATH__ preprocessor macro, but check for the
   // individual features enabled by -ffast-math instead of the option itself as
   // that's consistent with gcc's behaviour.
   if (!HonorINFs && !HonorNaNs && !MathErrno && AssociativeMath &&
-      ReciprocalMath && !SignedZeros && !TrappingMath)
+      ReciprocalMath && !SignedZeros && !TrappingMath && !RoundingFPMath) {
     CmdArgs.push_back("-ffast-math");
+    if (FPModel.equals("fast")) {
+      if (FPContract.equals("fast"))
+        // All set, do nothing.
+        ;
+      else if (FPContract.empty())
+        // Enable -ffp-contract=fast
+        CmdArgs.push_back(Args.MakeArgString("-ffp-contract=fast"));
+      else
+        D.Diag(clang::diag::warn_drv_overriding_flag_option)
+          << "-ffp-model=fast"
+          << Args.MakeArgString("-ffp-contract=" + FPContract);
+    }
+  }
 
   // Handle __FINITE_MATH_ONLY__ similarly.
   if (!HonorINFs && !HonorNaNs)
@@ -3157,7 +3347,6 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
   // This avoids having to monkey around further in cc1 other than to disable
   // codeview if not running in a Windows environment. Perhaps even that
   // decision should be made in the driver as well though.
-  unsigned DWARFVersion = 0;
   llvm::DebuggerKind DebuggerTuning = TC.getDefaultDebuggerTuning();
 
   bool SplitDWARFInlining =
@@ -3210,11 +3399,16 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
   }
 
   // If a -gdwarf argument appeared, remember it.
-  if (const Arg *A =
-          Args.getLastArg(options::OPT_gdwarf_2, options::OPT_gdwarf_3,
-                          options::OPT_gdwarf_4, options::OPT_gdwarf_5))
-    if (checkDebugInfoOption(A, Args, D, TC))
-      DWARFVersion = DwarfVersionNum(A->getSpelling());
+  const Arg *GDwarfN = Args.getLastArg(
+      options::OPT_gdwarf_2, options::OPT_gdwarf_3, options::OPT_gdwarf_4,
+      options::OPT_gdwarf_5, options::OPT_gdwarf);
+  bool EmitDwarf = false;
+  if (GDwarfN) {
+    if (checkDebugInfoOption(GDwarfN, Args, D, TC))
+      EmitDwarf = true;
+    else
+      GDwarfN = nullptr;
+  }
 
   if (const Arg *A = Args.getLastArg(options::OPT_gcodeview)) {
     if (checkDebugInfoOption(A, Args, D, TC))
@@ -3223,16 +3417,34 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
 
   // If the user asked for debug info but did not explicitly specify -gcodeview
   // or -gdwarf, ask the toolchain for the default format.
-  if (!EmitCodeView && DWARFVersion == 0 &&
+  if (!EmitCodeView && !EmitDwarf &&
       DebugInfoKind != codegenoptions::NoDebugInfo) {
     switch (TC.getDefaultDebugFormat()) {
     case codegenoptions::DIF_CodeView:
       EmitCodeView = true;
       break;
     case codegenoptions::DIF_DWARF:
-      DWARFVersion = TC.GetDefaultDwarfVersion();
+      EmitDwarf = true;
       break;
     }
+  }
+
+  unsigned DWARFVersion = 0;
+  unsigned DefaultDWARFVersion = ParseDebugDefaultVersion(TC, Args);
+  if (EmitDwarf) {
+    // Start with the platform default DWARF version
+    DWARFVersion = TC.GetDefaultDwarfVersion();
+    assert(DWARFVersion && "toolchain default DWARF version must be nonzero");
+
+    // If the user specified a default DWARF version, that takes precedence
+    // over the platform default.
+    if (DefaultDWARFVersion)
+      DWARFVersion = DefaultDWARFVersion;
+
+    // Override with a user-specified DWARF version
+    if (GDwarfN)
+      if (auto ExplicitVersion = DwarfVersionNum(GDwarfN->getSpelling()))
+        DWARFVersion = ExplicitVersion;
   }
 
   // -gline-directives-only supported only for the DWARF debug info.
@@ -3308,6 +3520,12 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
     }
   }
 
+  // Omit inline line tables if requested.
+  if (Args.hasFlag(options::OPT_gno_inline_line_tables,
+                   options::OPT_ginline_line_tables, false)) {
+    CmdArgs.push_back("-gno-inline-line-tables");
+  }
+
   // Adjust the debug info kind for the given toolchain.
   TC.adjustDebugInfoKind(DebugInfoKind, Args);
 
@@ -3350,6 +3568,10 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-generate-arange-section");
   }
+
+  if (Args.hasFlag(options::OPT_fforce_dwarf_frame,
+                   options::OPT_fno_force_dwarf_frame, false))
+    CmdArgs.push_back("-fforce-dwarf-frame");
 
   if (Args.hasFlag(options::OPT_fdebug_types_section,
                    options::OPT_fno_debug_types_section, false)) {
@@ -4448,7 +4670,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (ShouldDisableDwarfDirectory(Args, TC))
     CmdArgs.push_back("-fno-dwarf-directory-asm");
 
-  if (ShouldDisableAutolink(Args, TC))
+  if (!ShouldEnableAutolink(Args, TC, JA))
     CmdArgs.push_back("-fno-autolink");
 
   // Add in -fdebug-compilation-dir if necessary.
@@ -4667,6 +4889,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (TC.SupportsProfiling())
     Args.AddLastArg(CmdArgs, options::OPT_mfentry);
+
+  if (TC.SupportsProfiling())
+    Args.AddLastArg(CmdArgs, options::OPT_mnop_mcount);
 
   if (Args.getLastArg(options::OPT_fapple_kext) ||
       (Args.hasArg(options::OPT_mkernel) && types::isCXX(InputType)))
@@ -6270,6 +6495,11 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
     if (WantDebug)
       DwarfVersion = DwarfVersionNum(A->getSpelling());
   }
+
+  unsigned DefaultDwarfVersion = ParseDebugDefaultVersion(getToolChain(), Args);
+  if (DwarfVersion == 0)
+    DwarfVersion = DefaultDwarfVersion;
+
   if (DwarfVersion == 0)
     DwarfVersion = getToolChain().GetDefaultDwarfVersion();
 

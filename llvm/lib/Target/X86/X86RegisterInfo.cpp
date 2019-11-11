@@ -523,6 +523,12 @@ BitVector X86RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // Set the floating point control register as reserved.
   Reserved.set(X86::FPCW);
 
+  // Set the floating point status register as reserved.
+  Reserved.set(X86::FPSW);
+
+  // Set the SIMD floating point control register as reserved.
+  Reserved.set(X86::MXCSR);
+
   // Set the stack-pointer register and its aliases as reserved.
   for (MCSubRegIterator I(X86::RSP, this, /*IncludeSelf=*/true); I.isValid();
        ++I)

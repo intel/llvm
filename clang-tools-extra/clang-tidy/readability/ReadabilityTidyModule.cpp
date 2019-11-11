@@ -23,10 +23,12 @@
 #include "InconsistentDeclarationParameterNameCheck.h"
 #include "IsolateDeclarationCheck.h"
 #include "MagicNumbersCheck.h"
+#include "MakeMemberFunctionConstCheck.h"
 #include "MisleadingIndentationCheck.h"
 #include "MisplacedArrayIndexCheck.h"
 #include "NamedParameterCheck.h"
 #include "NonConstParameterCheck.h"
+#include "RedundantAccessSpecifiersCheck.h"
 #include "RedundantControlFlowCheck.h"
 #include "RedundantDeclarationCheck.h"
 #include "RedundantFunctionPtrDereferenceCheck.h"
@@ -78,10 +80,14 @@ public:
         "readability-isolate-declaration");
     CheckFactories.registerCheck<MagicNumbersCheck>(
         "readability-magic-numbers");
+    CheckFactories.registerCheck<MakeMemberFunctionConstCheck>(
+        "readability-make-member-function-const");
     CheckFactories.registerCheck<MisleadingIndentationCheck>(
         "readability-misleading-indentation");
     CheckFactories.registerCheck<MisplacedArrayIndexCheck>(
         "readability-misplaced-array-index");
+    CheckFactories.registerCheck<RedundantAccessSpecifiersCheck>(
+        "readability-redundant-access-specifiers");
     CheckFactories.registerCheck<RedundantFunctionPtrDereferenceCheck>(
         "readability-redundant-function-ptr-dereference");
     CheckFactories.registerCheck<RedundantMemberInitCheck>(

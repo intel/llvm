@@ -13,26 +13,8 @@
 .. contents::
    :local:
 
-==================
 OpenMP Support
-==================
-
-Clang supports the following OpenMP 5.0 features (see also `OpenMP implementation details`_):
-
-* The `reduction`-based clauses in the `task` and `target`-based directives.
-
-* Support relational-op != (not-equal) as one of the canonical forms of random
-  access iterator.
-
-* Support for mapping of the lambdas in target regions.
-
-* Parsing/sema analysis for the requires directive.
-
-* Nested declare target directives.
-
-* Make the `this` pointer implicitly mapped as `map(this[:1])`.
-
-* The `close` *map-type-modifier*.
+==============
 
 Clang fully supports OpenMP 4.5. Clang supports offloading to X86_64, AArch64,
 PPC64[LE] and has `basic support for Cuda devices`_.
@@ -44,8 +26,10 @@ PPC64[LE] and has `basic support for Cuda devices`_.
 In addition, the LLVM OpenMP runtime `libomp` supports the OpenMP Tools
 Interface (OMPT) on x86, x86_64, AArch64, and PPC64 on Linux, Windows, and macOS.
 
+For the list of supported features from OpenMP 5.0 see `OpenMP implementation details`_.
+
 General improvements
---------------------
+====================
 - New collapse clause scheme to avoid expensive remainder operations.
   Compute loop index variables after collapsing a loop nest via the
   collapse clause by replacing the expensive remainder operation with
@@ -58,9 +42,16 @@ General improvements
   value of threads or as specified by the `thread_limit` clause if
   present). For the `for` construct, the schedule is static with chunk
   size of one.
-  
+
 - Simplified SPMD code generation for `distribute parallel for` when
   the new default schedules are applicable.
+
+- When using the collapse clause on a loop nest the default behavior
+  is to automatically extend the representation of the loop counter to
+  64 bits for the cases where the sizes of the collapsed loops are not
+  known at compile time. To prevent this conservative choice and use
+  at most 32 bits, compile your program with the
+  `-fopenmp-optimistic-collapse`.
 
 .. _basic support for Cuda devices:
 
@@ -78,12 +69,6 @@ supporting some OpenMP features. The non-SPMD mode is the most generic mode and
 supports all currently available OpenMP features. The compiler will always
 attempt to use the SPMD mode wherever possible. SPMD mode will not be used if:
 
-   - The target region contains an `if()` clause that refers to a `parallel`
-     directive.
-
-   - The target region contains a `parallel` directive with a `num_threads()`
-     clause.
-
    - The target region contains user code (other than OpenMP-specific
      directives) in between the `target` and the `parallel` directives.
 
@@ -97,15 +82,6 @@ performance and can be activated using the `-fopenmp-cuda-mode` flag. In
 are stored in the global memory. In `Cuda` mode local variables are not shared
 between the threads and it is user responsibility to share the required data
 between the threads in the parallel regions.
-
-Collapsed loop nest counter
----------------------------
-
-When using the collapse clause on a loop nest the default behavior is to
-automatically extend the representation of the loop counter to 64 bits for
-the cases where the sizes of the collapsed loops are not known at compile
-time. To prevent this conservative choice and use at most 32 bits,
-compile your program with the `-fopenmp-optimistic-collapse`.
 
 
 Features not supported or with limited support for Cuda devices
@@ -133,7 +109,7 @@ Features not supported or with limited support for Cuda devices
 .. _OpenMP implementation details:
 
 OpenMP 5.0 Implementation Details
----------------------------------
+=================================
 
 The following table provides a quick overview over various OpenMP 5.0 features
 and their implementation status. Please contact *openmp-dev* at
@@ -147,11 +123,11 @@ implementation.
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | loop extension               | #pragma omp loop (directive)                                 | :none:`unclaimed`        |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
-| loop extension               | collapse imperfectly nested loop                             | :none:`unclaimed`        |                                                                       |
+| loop extension               | collapse imperfectly nested loop                             | :good:`done`             |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | loop extension               | collapse non-rectangular nested loop                         | :good:`done`             |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
-| loop extension               | C++ range-base for loop                                      | :none:`unclaimed`        |                                                                       |
+| loop extension               | C++ range-base for loop                                      | :good:`done`             |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | loop extension               | clause: nosimd for SIMD directives                           | :none:`unclaimed`        |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
@@ -181,11 +157,11 @@ implementation.
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | task extension               | master taskloop                                              | :good:`done`             |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
-| task extension               | parallel master taskloop                                     | :none:`done`             |                                                                       |
+| task extension               | parallel master taskloop                                     | :good:`done`             |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
-| task extension               | master taskloop simd                                         | :none:`done`             |                                                                       |
+| task extension               | master taskloop simd                                         | :good:`done`             |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
-| task extension               | parallel master taskloop simd                                | :none:`unclaimed`        |                                                                       |
+| task extension               | parallel master taskloop simd                                | :good:`done`             |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | SIMD extension               | atomic and critical constructs inside SIMD code              | :none:`unclaimed`        |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
@@ -197,13 +173,13 @@ implementation.
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | device extension             | OMP_TARGET_OFFLOAD environment variable                      | :good:`done`             | D50522                                                                |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
-| device extension             | support full 'defaultmap' functionality                      | :part:`worked on`        |                                                                       |
+| device extension             | support full 'defaultmap' functionality                      | :part:`worked on`        | D69204                                                                |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | device extension             | device specific functions                                    | :none:`unclaimed`        |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | device extension             | clause: device_type                                          | :good:`done`             |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
-| device extension             | clause: in_reduction                                         | :none:`unclaimed`        | r308768                                                               |
+| device extension             | clause: in_reduction                                         | :part:`worked on`        | r308768                                                               |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | device extension             | omp_get_device_num()                                         | :part:`worked on`        | D54342                                                                |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
@@ -234,6 +210,8 @@ implementation.
 | device extension             | map(replicate) or map(local) when requires unified_shared_me | :part:`worked on`        | D55719,D55892                                                         |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | device extension             | teams construct on the host device                           | :part:`worked on`        | Clang part is done, r371553.                                          |
++------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
+| device extension             | support non-contiguous array sections for target update      | :part:`worked on`        |                                                                       |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+
 | atomic extension             | hints for the atomic construct                               | :part:`worked on`        | D51233                                                                |
 +------------------------------+--------------------------------------------------------------+--------------------------+-----------------------------------------------------------------------+

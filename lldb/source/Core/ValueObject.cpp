@@ -100,6 +100,8 @@ ValueObject::ValueObject(ValueObject &parent)
       m_did_calculate_complete_objc_class_type(false),
       m_is_synthetic_children_generated(
           parent.m_is_synthetic_children_generated) {
+  m_data.SetByteOrder(parent.GetDataExtractor().GetByteOrder());
+  m_data.SetAddressByteSize(parent.GetDataExtractor().GetAddressByteSize());
   m_manager->ManageObject(this);
 }
 
@@ -126,6 +128,14 @@ ValueObject::ValueObject(ExecutionContextScope *exe_scope,
       m_is_getting_summary(false),
       m_did_calculate_complete_objc_class_type(false),
       m_is_synthetic_children_generated(false) {
+  if (exe_scope) {
+    TargetSP target_sp(exe_scope->CalculateTarget());
+    if (target_sp) {
+      const ArchSpec &arch = target_sp->GetArchitecture();
+      m_data.SetByteOrder(arch.GetByteOrder());
+      m_data.SetAddressByteSize(arch.GetAddressByteSize());
+    }
+  }
   m_manager = new ValueObjectManager();
   m_manager->ManageObject(this);
 }
@@ -579,6 +589,10 @@ ValueObjectSP ValueObject::GetChildMemberWithName(ConstString name,
 
   std::vector<uint32_t> child_indexes;
   bool omit_empty_base_classes = true;
+
+  if (!GetCompilerType().IsValid())
+    return ValueObjectSP();
+
   const size_t num_child_indexes =
       GetCompilerType().GetIndexOfChildMemberWithName(
           name.GetCString(), omit_empty_base_classes, child_indexes);
@@ -2023,15 +2037,14 @@ bool ValueObject::GetBaseClassPath(Stream &s) {
     bool parent_had_base_class =
         GetParent() && GetParent()->GetBaseClassPath(s);
     CompilerType compiler_type = GetCompilerType();
-    std::string cxx_class_name;
-    bool this_had_base_class =
-        ClangASTContext::GetCXXClassName(compiler_type, cxx_class_name);
-    if (this_had_base_class) {
+    llvm::Optional<std::string> cxx_class_name =
+        ClangASTContext::GetCXXClassName(compiler_type);
+    if (cxx_class_name) {
       if (parent_had_base_class)
         s.PutCString("::");
-      s.PutCString(cxx_class_name);
+      s.PutCString(cxx_class_name.getValue());
     }
-    return parent_had_base_class || this_had_base_class;
+    return parent_had_base_class || cxx_class_name;
   }
   return false;
 }

@@ -35,7 +35,7 @@
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
-#if defined(__APPLE__) && (defined(__ppc__) || defined(__powerpc__))
+#if defined(__APPLE__) && (!defined(__x86_64__))
 #include <mach/host_info.h>
 #include <mach/mach.h>
 #include <mach/mach_host.h>
@@ -265,14 +265,12 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
     unsigned Exynos = (Variant << 12) | Part;
     switch (Exynos) {
     default:
-      // Default by falling through to Exynos M1.
+      // Default by falling through to Exynos M3.
       LLVM_FALLTHROUGH;
-
-    case 0x1001:
-      return "exynos-m1";
-
-    case 0x4001:
-      return "exynos-m2";
+    case 0x1002:
+      return "exynos-m3";
+    case 0x1003:
+      return "exynos-m4";
     }
   }
 
@@ -1221,6 +1219,33 @@ StringRef sys::getHostCPUName() {
   std::unique_ptr<llvm::MemoryBuffer> P = getProcCpuinfoContent();
   StringRef Content = P ? P->getBuffer() : "";
   return detail::getHostCPUNameForS390x(Content);
+}
+#elif defined(__APPLE__) && defined(__aarch64__)
+StringRef sys::getHostCPUName() {
+  return "cyclone";
+}
+#elif defined(__APPLE__) && defined(__arm__)
+StringRef sys::getHostCPUName() {
+  host_basic_info_data_t hostInfo;
+  mach_msg_type_number_t infoCount;
+
+  infoCount = HOST_BASIC_INFO_COUNT;
+  mach_port_t hostPort = mach_host_self();
+  host_info(hostPort, HOST_BASIC_INFO, (host_info_t)&hostInfo,
+            &infoCount);
+  mach_port_deallocate(mach_task_self(), hostPort);
+
+  if (hostInfo.cpu_type != CPU_TYPE_ARM) {
+    assert(false && "CPUType not equal to ARM should not be possible on ARM");
+    return "generic";
+  }
+  switch (hostInfo.cpu_subtype) {
+    case CPU_SUBTYPE_ARM_V7S:
+      return "swift";
+    default:;
+    }
+  
+  return "generic";
 }
 #else
 StringRef sys::getHostCPUName() { return "generic"; }

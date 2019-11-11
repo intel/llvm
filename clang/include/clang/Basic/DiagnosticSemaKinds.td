@@ -6596,10 +6596,10 @@ def err_downcast_from_inaccessible_base : Error<
 def err_upcast_to_inaccessible_base : Error<
   "cannot cast %0 to its %select{private|protected}2 base class %1">;
 def err_bad_dynamic_cast_not_ref_or_ptr : Error<
-  "%0 is not a reference or pointer">;
-def err_bad_dynamic_cast_not_class : Error<"%0 is not a class">;
+  "invalid target type %0 for dynamic_cast; target type must be a reference or pointer type to a defined class">;
+def err_bad_dynamic_cast_not_class : Error<"%0 is not a class type">;
 def err_bad_dynamic_cast_incomplete : Error<"%0 is an incomplete type">;
-def err_bad_dynamic_cast_not_ptr : Error<"%0 is not a pointer">;
+def err_bad_dynamic_cast_not_ptr : Error<"cannot use dynamic_cast to convert from %0 to %1">;
 def err_bad_dynamic_cast_not_polymorphic : Error<"%0 is not polymorphic">;
 
 // Other C++ expressions
@@ -8963,7 +8963,7 @@ def err_unknown_any_function : Error<
   "function %0 with unknown type must be given a function type">;
 
 def err_filter_expression_integral : Error<
-  "filter expression type should be an integral value not %0">;
+  "filter expression has non-integral type %0">;
 
 def err_non_asm_stmt_in_naked_function : Error<
   "non-ASM statement in naked function is not supported">;

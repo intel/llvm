@@ -107,11 +107,11 @@ static void DumpTargetInfo(uint32_t target_idx, Target *target,
     const uint32_t start_frame = 0;
     const uint32_t num_frames = 1;
     const uint32_t num_frames_with_source = 1;
-    const bool     stop_format = false;
+    const bool stop_format = false;
     process_sp->GetStatus(strm);
     process_sp->GetThreadStatus(strm, only_threads_with_stop_reason,
-                                start_frame, num_frames,
-                                num_frames_with_source, stop_format);
+                                start_frame, num_frames, num_frames_with_source,
+                                stop_format);
   }
 }
 
@@ -398,8 +398,8 @@ protected:
         debugger.GetTargetList().SetSelectedTarget(target_sp.get());
         if (must_set_platform_path) {
           ModuleSpec main_module_spec(file_spec);
-          ModuleSP module_sp = target_sp->GetOrCreateModule(main_module_spec,
-                                                          true /* notify */);
+          ModuleSP module_sp =
+              target_sp->GetOrCreateModule(main_module_spec, true /* notify */);
           if (module_sp)
             module_sp->SetPlatformFileSpec(remote_file);
         }
@@ -1420,12 +1420,13 @@ static size_t DumpModuleObjfileHeaders(Stream &strm, ModuleList &module_list) {
 }
 
 static void DumpModuleSymtab(CommandInterpreter &interpreter, Stream &strm,
-                             Module *module, SortOrder sort_order) {
+                             Module *module, SortOrder sort_order,
+                             Mangled::NamePreference name_preference) {
   if (!module)
     return;
   if (Symtab *symtab = module->GetSymtab())
     symtab->Dump(&strm, interpreter.GetExecutionContext().GetTargetPtr(),
-                 sort_order);
+                 sort_order, name_preference);
 }
 
 static void DumpModuleSections(CommandInterpreter &interpreter, Stream &strm,
@@ -1970,6 +1971,11 @@ public:
       const int short_option = m_getopt_table[option_idx].val;
 
       switch (short_option) {
+      case 'm':
+        m_prefer_mangled.SetCurrentValue(true);
+        m_prefer_mangled.SetOptionWasSet();
+        break;
+
       case 's':
         m_sort_order = (SortOrder)OptionArgParser::ToOptionEnum(
             option_arg, GetDefinitions()[option_idx].enum_values,
@@ -1984,6 +1990,7 @@ public:
 
     void OptionParsingStarting(ExecutionContext *execution_context) override {
       m_sort_order = eSortOrderNone;
+      m_prefer_mangled.Clear();
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
@@ -1991,12 +1998,16 @@ public:
     }
 
     SortOrder m_sort_order;
+    OptionValueBoolean m_prefer_mangled = {false, false};
   };
 
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target *target = &GetSelectedTarget();
     uint32_t num_dumped = 0;
+    Mangled::NamePreference name_preference =
+        (m_options.m_prefer_mangled ? Mangled::ePreferMangled
+                                    : Mangled::ePreferDemangled);
 
     uint32_t addr_byte_size = target->GetArchitecture().GetAddressByteSize();
     result.GetOutputStream().SetAddressByteSize(addr_byte_size);
@@ -2022,7 +2033,7 @@ protected:
           DumpModuleSymtab(
               m_interpreter, result.GetOutputStream(),
               target->GetImages().GetModulePointerAtIndexUnlocked(image_idx),
-              m_options.m_sort_order);
+              m_options.m_sort_order, name_preference);
         }
       } else {
         result.AppendError("the target has no associated executable images");
@@ -2050,7 +2061,7 @@ protected:
                 break;
               num_dumped++;
               DumpModuleSymtab(m_interpreter, result.GetOutputStream(), module,
-                               m_options.m_sort_order);
+                               m_options.m_sort_order, name_preference);
             }
           }
         } else
@@ -3139,18 +3150,17 @@ protected:
             Address base_addr(objfile->GetBaseAddress());
             if (base_addr.IsValid()) {
               if (target && !target->GetSectionLoadList().IsEmpty()) {
-                lldb::addr_t load_addr =
-                    base_addr.GetLoadAddress(target);
+                lldb::addr_t load_addr = base_addr.GetLoadAddress(target);
                 if (load_addr == LLDB_INVALID_ADDRESS) {
                   base_addr.Dump(&strm, target,
-                                   Address::DumpStyleModuleWithFileAddress,
-                                   Address::DumpStyleFileAddress);
+                                 Address::DumpStyleModuleWithFileAddress,
+                                 Address::DumpStyleFileAddress);
                 } else {
                   if (format_char == 'o') {
                     // Show the offset of slide for the image
-                    strm.Printf(
-                        "0x%*.*" PRIx64, addr_nibble_width, addr_nibble_width,
-                        load_addr - base_addr.GetFileAddress());
+                    strm.Printf("0x%*.*" PRIx64, addr_nibble_width,
+                                addr_nibble_width,
+                                load_addr - base_addr.GetFileAddress());
                   } else {
                     // Show the load address of the image
                     strm.Printf("0x%*.*" PRIx64, addr_nibble_width,
@@ -3452,8 +3462,7 @@ protected:
       }
 
       UnwindPlanSP of_unwind_augmented_sp =
-          func_unwinders_sp->GetObjectFileAugmentedUnwindPlan(*target,
-                                                              *thread);
+          func_unwinders_sp->GetObjectFileAugmentedUnwindPlan(*target, *thread);
       if (of_unwind_augmented_sp) {
         result.GetOutputStream().Printf("object file augmented UnwindPlan:\n");
         of_unwind_augmented_sp->Dump(result.GetOutputStream(), thread.get(),
@@ -3751,7 +3760,7 @@ public:
       break;
     }
 
-    return true;
+    return false;
   }
 
   bool LookupInModule(CommandInterpreter &interpreter, Module *module,
@@ -4450,8 +4459,7 @@ public:
           error.SetErrorStringWithFormat(
               "invalid boolean value '%s' passed for -G option",
               option_arg.str().c_str());
-      }
-      break;
+      } break;
       case 'l':
         if (option_arg.getAsInteger(0, m_line_start)) {
           error.SetErrorStringWithFormat("invalid start line number: \"%s\"",
@@ -4655,48 +4663,47 @@ protected:
       }
     }
 
-      if (specifier_up)
-        new_hook_sp->SetSpecifier(specifier_up.release());
+    if (specifier_up)
+      new_hook_sp->SetSpecifier(specifier_up.release());
 
-      // Next see if any of the thread options have been entered:
+    // Next see if any of the thread options have been entered:
 
-      if (m_options.m_thread_specified) {
-        ThreadSpec *thread_spec = new ThreadSpec();
+    if (m_options.m_thread_specified) {
+      ThreadSpec *thread_spec = new ThreadSpec();
 
-        if (m_options.m_thread_id != LLDB_INVALID_THREAD_ID) {
-          thread_spec->SetTID(m_options.m_thread_id);
-        }
-
-        if (m_options.m_thread_index != UINT32_MAX)
-          thread_spec->SetIndex(m_options.m_thread_index);
-
-        if (!m_options.m_thread_name.empty())
-          thread_spec->SetName(m_options.m_thread_name.c_str());
-
-        if (!m_options.m_queue_name.empty())
-          thread_spec->SetQueueName(m_options.m_queue_name.c_str());
-
-        new_hook_sp->SetThreadSpecifier(thread_spec);
+      if (m_options.m_thread_id != LLDB_INVALID_THREAD_ID) {
+        thread_spec->SetTID(m_options.m_thread_id);
       }
-      
-      new_hook_sp->SetAutoContinue(m_options.m_auto_continue);
-      if (m_options.m_use_one_liner) {
-        // Use one-liners.
-        for (auto cmd : m_options.m_one_liner)
-          new_hook_sp->GetCommandPointer()->AppendString(
-            cmd.c_str());
-        result.AppendMessageWithFormat("Stop hook #%" PRIu64 " added.\n",
-                                       new_hook_sp->GetID());
-      } else {
-        m_stop_hook_sp = new_hook_sp;
-        m_interpreter.GetLLDBCommandsFromIOHandler(
-            "> ",     // Prompt
-            *this,    // IOHandlerDelegate
-            true,     // Run IOHandler in async mode
-            nullptr); // Baton for the "io_handler" that will be passed back
-                      // into our IOHandlerDelegate functions
-      }
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+
+      if (m_options.m_thread_index != UINT32_MAX)
+        thread_spec->SetIndex(m_options.m_thread_index);
+
+      if (!m_options.m_thread_name.empty())
+        thread_spec->SetName(m_options.m_thread_name.c_str());
+
+      if (!m_options.m_queue_name.empty())
+        thread_spec->SetQueueName(m_options.m_queue_name.c_str());
+
+      new_hook_sp->SetThreadSpecifier(thread_spec);
+    }
+
+    new_hook_sp->SetAutoContinue(m_options.m_auto_continue);
+    if (m_options.m_use_one_liner) {
+      // Use one-liners.
+      for (auto cmd : m_options.m_one_liner)
+        new_hook_sp->GetCommandPointer()->AppendString(cmd.c_str());
+      result.AppendMessageWithFormat("Stop hook #%" PRIu64 " added.\n",
+                                     new_hook_sp->GetID());
+    } else {
+      m_stop_hook_sp = new_hook_sp;
+      m_interpreter.GetLLDBCommandsFromIOHandler(
+          "> ",     // Prompt
+          *this,    // IOHandlerDelegate
+          true,     // Run IOHandler in async mode
+          nullptr); // Baton for the "io_handler" that will be passed back
+                    // into our IOHandlerDelegate functions
+    }
+    result.SetStatus(eReturnStatusSuccessFinishNoResult);
 
     return result.Succeeded();
   }
@@ -4751,7 +4758,7 @@ protected:
         }
       }
     }
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 };
@@ -4798,7 +4805,7 @@ protected:
         }
       }
     }
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    result.SetStatus(eReturnStatusSuccessFinishNoResult);
     return result.Succeeded();
   }
 

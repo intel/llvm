@@ -1170,9 +1170,11 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::UDIVREM, MVT::i32, Expand);
   }
 
-  if (Subtarget->isTargetWindows() && Subtarget->getTargetTriple().isOSMSVCRT())
-    for (auto &VT : {MVT::f32, MVT::f64})
-      setOperationAction(ISD::FPOWI, VT, Custom);
+  if (Subtarget->getTargetTriple().isOSMSVCRT()) {
+    // MSVCRT doesn't have powi; fall back to pow
+    setLibcallName(RTLIB::POWI_F32, nullptr);
+    setLibcallName(RTLIB::POWI_F64, nullptr);
+  }
 
   setOperationAction(ISD::GlobalAddress, MVT::i32,   Custom);
   setOperationAction(ISD::ConstantPool,  MVT::i32,   Custom);
@@ -9093,58 +9095,6 @@ static void ReplaceCMP_SWAP_64Results(SDNode *N,
   Results.push_back(SDValue(CmpSwap, 2));
 }
 
-static SDValue LowerFPOWI(SDValue Op, const ARMSubtarget &Subtarget,
-                          SelectionDAG &DAG) {
-  const auto &TLI = DAG.getTargetLoweringInfo();
-
-  assert(Subtarget.getTargetTriple().isOSMSVCRT() &&
-         "Custom lowering is MSVCRT specific!");
-
-  SDLoc dl(Op);
-  SDValue Val = Op.getOperand(0);
-  MVT Ty = Val->getSimpleValueType(0);
-  SDValue Exponent = DAG.getNode(ISD::SINT_TO_FP, dl, Ty, Op.getOperand(1));
-  SDValue Callee = DAG.getExternalSymbol(Ty == MVT::f32 ? "powf" : "pow",
-                                         TLI.getPointerTy(DAG.getDataLayout()));
-
-  TargetLowering::ArgListTy Args;
-  TargetLowering::ArgListEntry Entry;
-
-  Entry.Node = Val;
-  Entry.Ty = Val.getValueType().getTypeForEVT(*DAG.getContext());
-  Entry.IsZExt = true;
-  Args.push_back(Entry);
-
-  Entry.Node = Exponent;
-  Entry.Ty = Exponent.getValueType().getTypeForEVT(*DAG.getContext());
-  Entry.IsZExt = true;
-  Args.push_back(Entry);
-
-  Type *LCRTy = Val.getValueType().getTypeForEVT(*DAG.getContext());
-
-  // In the in-chain to the call is the entry node  If we are emitting a
-  // tailcall, the chain will be mutated if the node has a non-entry input
-  // chain.
-  SDValue InChain = DAG.getEntryNode();
-  SDValue TCChain = InChain;
-
-  const Function &F = DAG.getMachineFunction().getFunction();
-  bool IsTC = TLI.isInTailCallPosition(DAG, Op.getNode(), TCChain) &&
-              F.getReturnType() == LCRTy;
-  if (IsTC)
-    InChain = TCChain;
-
-  TargetLowering::CallLoweringInfo CLI(DAG);
-  CLI.setDebugLoc(dl)
-      .setChain(InChain)
-      .setCallee(CallingConv::ARM_AAPCS_VFP, LCRTy, Callee, std::move(Args))
-      .setTailCall(IsTC);
-  std::pair<SDValue, SDValue> CI = TLI.LowerCallTo(CLI);
-
-  // Return the chain (the DAG root) if it is a tail call
-  return !CI.second.getNode() ? DAG.getRoot() : CI.first;
-}
-
 SDValue ARMTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   LLVM_DEBUG(dbgs() << "Lowering node: "; Op.dump());
   switch (Op.getOpcode()) {
@@ -9234,7 +9184,6 @@ SDValue ARMTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     llvm_unreachable("Don't know how to custom lower this!");
   case ISD::FP_ROUND: return LowerFP_ROUND(Op, DAG);
   case ISD::FP_EXTEND: return LowerFP_EXTEND(Op, DAG);
-  case ISD::FPOWI: return LowerFPOWI(Op, *Subtarget, DAG);
   case ARMISD::WIN__DBZCHK: return SDValue();
   }
 }
@@ -14856,6 +14805,36 @@ int ARMTargetLowering::getScalingFactorCost(const DataLayout &DL,
     return 0;
   }
   return -1;
+}
+
+/// isFMAFasterThanFMulAndFAdd - Return true if an FMA operation is faster
+/// than a pair of fmul and fadd instructions. fmuladd intrinsics will be
+/// expanded to FMAs when this method returns true, otherwise fmuladd is
+/// expanded to fmul + fadd.
+///
+/// ARM supports both fused and unfused multiply-add operations; we already
+/// lower a pair of fmul and fadd to the latter so it's not clear that there
+/// would be a gain or that the gain would be worthwhile enough to risk
+/// correctness bugs.
+///
+/// For MVE, we set this to true as it helps simplify the need for some
+/// patterns (and we don't have the non-fused floating point instruction).
+bool ARMTargetLowering::isFMAFasterThanFMulAndFAdd(EVT VT) const {
+  if (!Subtarget->hasMVEFloatOps())
+    return false;
+
+  if (!VT.isSimple())
+    return false;
+
+  switch (VT.getSimpleVT().SimpleTy) {
+  case MVT::v4f32:
+  case MVT::v8f16:
+    return true;
+  default:
+    break;
+  }
+
+  return false;
 }
 
 static bool isLegalT1AddressImmediate(int64_t V, EVT VT) {
