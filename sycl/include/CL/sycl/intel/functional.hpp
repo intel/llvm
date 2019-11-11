@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <functional>
 
 namespace cl {
 namespace sycl {
@@ -14,37 +15,30 @@ namespace intel {
 
 template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {
-    return (lhs <= rhs) ? lhs : rhs;
+    return std::less<T>()(lhs, rhs) ? lhs : rhs;
   }
 };
 
 template <> struct minimum<void> {
   template <typename T> T operator()(const T &lhs, const T &rhs) const {
-    return (lhs <= rhs) ? lhs : rhs;
+    return std::less<T>()(lhs, rhs) ? lhs : rhs;
   }
 };
 
 template <typename T = void> struct maximum {
   T operator()(const T &lhs, const T &rhs) const {
-    return (lhs >= rhs) ? lhs : rhs;
+    return std::greater<T>()(lhs, rhs) ? lhs : rhs;
   }
 };
 
 template <> struct maximum<void> {
   template <typename T> T operator()(const T &lhs, const T &rhs) const {
-    return (lhs >= rhs) ? lhs : rhs;
+    return std::greater<T>()(lhs, rhs) ? lhs : rhs;
   }
 };
 
-template <typename T = void> struct plus {
-  T operator()(const T &lhs, const T &rhs) const { return lhs + rhs; }
-};
-
-template <> struct plus<void> {
-  template <typename T> T operator()(const T &lhs, const T &rhs) const {
-    return lhs + rhs;
-  }
-};
+template <typename T = void>
+using plus = std::plus<T>;
 
 } // namespace intel
 } // namespace sycl
