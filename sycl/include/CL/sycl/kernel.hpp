@@ -26,9 +26,7 @@ class kernel {
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
 public:
-  kernel(cl_kernel clKernel, const context &syclContext)
-      : impl(std::make_shared<detail::kernel_impl>(
-            detail::pi::cast<detail::RT::PiKernel>(clKernel), syclContext)) {}
+  kernel(cl_kernel clKernel, const context &syclContext);
 
   kernel(const kernel &rhs) = default;
 
@@ -38,46 +36,38 @@ public:
 
   kernel &operator=(kernel &&rhs) = default;
 
-  bool operator==(const kernel &rhs) const { return impl == rhs.impl; }
+  bool operator==(const kernel &rhs) const;
 
-  bool operator!=(const kernel &rhs) const { return !operator==(rhs); }
+  bool operator!=(const kernel &rhs) const;
 
-  cl_kernel get() const { return impl->get(); }
+  cl_kernel get() const;
 
-  bool is_host() const { return impl->is_host(); }
+  bool is_host() const;
 
-  context get_context() const { return impl->get_context(); }
+  context get_context() const;
 
   program get_program() const;
 
   template <info::kernel param>
   typename info::param_traits<info::kernel, param>::return_type
-  get_info() const {
-    return impl->get_info<param>();
-  }
+  get_info() const;
 
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
-  get_work_group_info(const device &dev) const {
-    return impl->get_work_group_info<param>(dev);
-  }
+  get_work_group_info(const device &dev) const;
 
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &dev) const {
-    return impl->get_sub_group_info<param>(dev);
-  }
+  get_sub_group_info(const device &dev) const;
 
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &dev,
                      typename info::param_traits<info::kernel_sub_group,
-                                                 param>::input_type val) const {
-    return impl->get_sub_group_info<param>(dev, val);
-  }
+                                                 param>::input_type val) const;
 
 private:
-  kernel(std::shared_ptr<detail::kernel_impl> impl) : impl(impl) {}
+  kernel(std::shared_ptr<detail::kernel_impl> impl);
 
   std::shared_ptr<detail::kernel_impl> impl;
 };

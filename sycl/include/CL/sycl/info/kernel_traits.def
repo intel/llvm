@@ -1,0 +1,9 @@
+PARAM_TRAITS_SPEC(kernel, function_name, string_class)
+PARAM_TRAITS_SPEC(kernel, num_args, cl_uint)
+PARAM_TRAITS_SPEC(kernel, reference_count, cl_uint)
+PARAM_TRAITS_SPEC(kernel, attributes, string_class)
+// Shilei: The following two traits are not covered in the current version of
+// CTS (SYCL-1.2.1/master)
+PARAM_TRAITS_SPEC(kernel, context, cl::sycl::context)
+PARAM_TRAITS_SPEC(kernel, program, cl::sycl::program)
+
