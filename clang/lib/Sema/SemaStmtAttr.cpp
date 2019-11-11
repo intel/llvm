@@ -187,9 +187,9 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
 
     if (!E->isIntegerConstantExpr(ArgVal, getASTContext())) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_type)
-          << (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency
-                  ? "'max_concurrency'"
-                  : "'ii'")
+          << (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAII
+                  ? "'ii'"
+                  : "'max_concurrency'")
           << AANT_ArgumentIntegerConstant << E->getSourceRange();
       return nullptr;
     }
@@ -202,7 +202,7 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
             << "'ii'" << /* positive */ 0;
         return nullptr;
       }
-    } else {
+    } else { /* AT_SYCLIntelFPGAMaxConcurrency */
       if (Val < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << "'max_concurrency'" << /* non-negative */ 1;
