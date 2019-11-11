@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/error_handling/error_handling.hpp>
+
 #include "CL/sycl/access/access.hpp"
 #include <CL/cl.h>
 #include <CL/sycl/detail/clusm.hpp>
@@ -940,11 +942,19 @@ cl_int ExecCGCommand::enqueueImp() {
 
     ReverseRangeDimensionsForKernel(NDRDesc);
 
-    PI_CALL(piEnqueueKernelLaunch)(
+    pi_result Error = PI_CALL_NOCHECK(piEnqueueKernelLaunch)(
         MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0], HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr,
         RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
 
+    if (PI_SUCCESS != Error) {
+      // If we have got non-success error code, let's analyze it to emit nice
+      // exception explaining what was wrong
+      pi_device Device =
+          detail::getSyclObjImpl(MQueue->get_device())->getHandleRef();
+      return detail::enqueue_kernel_launch::handleError(Error, Device, Kernel,
+                                                        NDRDesc);
+    }
     return PI_SUCCESS;
   }
   case CG::CGTYPE::COPY_USM: {
