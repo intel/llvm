@@ -167,9 +167,15 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return initial_count;
 
+  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+
   auto binary = llvm::object::createBinary(file.GetPath());
-  if (!binary)
+
+  if (!binary) {
+    LLDB_LOG_ERROR(log, binary.takeError(),
+                   "Failed to create binary for file ({1}): {0}", file);
     return initial_count;
+  }
 
   if (!binary->getBinary()->isCOFF() &&
       !binary->getBinary()->isCOFFImportFile())
@@ -242,11 +248,8 @@ bool ObjectFilePECOFF::CreateBinary() {
 
   auto binary = llvm::object::createBinary(m_file.GetPath());
   if (!binary) {
-    LLDB_LOGF(log,
-              "ObjectFilePECOFF::CreateBinary() - failed to create binary "
-              "for file (%s): %s",
-              m_file ? m_file.GetPath().c_str() : "<NULL>",
-              errorToErrorCode(binary.takeError()).message().c_str());
+    LLDB_LOG_ERROR(log, binary.takeError(),
+                   "Failed to create binary for file ({1}): {0}", m_file);
     return false;
   }
 
@@ -564,7 +567,10 @@ DataExtractor ObjectFilePECOFF::ReadImageData(uint32_t offset, size_t size) {
 DataExtractor ObjectFilePECOFF::ReadImageDataByRVA(uint32_t rva, size_t size) {
   if (m_file) {
     Address addr = GetAddress(rva);
-    rva = addr.GetSection()->GetFileOffset() + addr.GetOffset();
+    SectionSP sect = addr.GetSection();
+    if (!sect)
+      return {};
+    rva = sect->GetFileOffset() + addr.GetOffset();
   }
 
   return ReadImageData(rva, size);
@@ -797,6 +803,7 @@ void ObjectFilePECOFF::CreateSections(SectionList &unified_section_list) {
         /*file_offset*/ 0, m_coff_header_opt.header_size,
         m_coff_header_opt.sect_alignment,
         /*flags*/ 0);
+    header_sp->SetPermissions(ePermissionsReadable);
     m_sections_up->AddSection(header_sp);
     unified_section_list.AddSection(header_sp);
 
@@ -918,6 +925,15 @@ void ObjectFilePECOFF::CreateSections(SectionList &unified_section_list) {
               .size, // Size in bytes of this section as found in the file
           m_coff_header_opt.sect_alignment, // Section alignment
           m_sect_headers[idx].flags));      // Flags for this section
+
+      uint32_t permissions = 0;
+      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_MEM_EXECUTE)
+        permissions |= ePermissionsExecutable;
+      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_MEM_READ)
+        permissions |= ePermissionsReadable;
+      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_MEM_WRITE)
+        permissions |= ePermissionsWritable;
+      section_sp->SetPermissions(permissions);
 
       m_sections_up->AddSection(section_sp);
       unified_section_list.AddSection(section_sp);

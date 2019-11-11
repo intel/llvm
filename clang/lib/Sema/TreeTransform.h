@@ -4570,7 +4570,7 @@ QualType TreeTransform<Derived>::TransformDecayedType(TypeLocBuilder &TLB,
 
 /// Helper to deduce addr space of a pointee type in OpenCL mode.
 /// If the type is updated it will be overwritten in PointeeType param.
-static void deduceOpenCLPointeeAddrSpace(Sema &SemaRef, QualType &PointeeType) {
+inline void deduceOpenCLPointeeAddrSpace(Sema &SemaRef, QualType &PointeeType) {
   if (PointeeType.getAddressSpace() == LangAS::Default)
     PointeeType = SemaRef.Context.getAddrSpaceQualType(PointeeType,
                                                        LangAS::opencl_generic);
@@ -8311,6 +8311,18 @@ StmtResult TreeTransform<Derived>::TransformOMPParallelMasterTaskLoopDirective(
   DeclarationNameInfo DirName;
   getDerived().getSema().StartOpenMPDSABlock(
       OMPD_parallel_master_taskloop, DirName, nullptr, D->getBeginLoc());
+  StmtResult Res = getDerived().TransformOMPExecutableDirective(D);
+  getDerived().getSema().EndOpenMPDSABlock(Res.get());
+  return Res;
+}
+
+template <typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformOMPParallelMasterTaskLoopSimdDirective(
+    OMPParallelMasterTaskLoopSimdDirective *D) {
+  DeclarationNameInfo DirName;
+  getDerived().getSema().StartOpenMPDSABlock(
+      OMPD_parallel_master_taskloop_simd, DirName, nullptr, D->getBeginLoc());
   StmtResult Res = getDerived().TransformOMPExecutableDirective(D);
   getDerived().getSema().EndOpenMPDSABlock(Res.get());
   return Res;

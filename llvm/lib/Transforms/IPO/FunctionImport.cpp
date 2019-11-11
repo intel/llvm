@@ -231,7 +231,8 @@ selectCallee(const ModuleSummaryIndex &Index,
           return false;
         }
 
-        if (Summary->instCount() > Threshold) {
+        if ((Summary->instCount() > Threshold) &&
+            !Summary->fflags().AlwaysInline) {
           Reason = FunctionImporter::ImportFailureReason::TooLarge;
           return false;
         }
@@ -280,7 +281,8 @@ updateValueInfoForIndirectCalls(const ModuleSummaryIndex &Index, ValueInfo VI) {
 }
 
 static void computeImportForReferencedGlobals(
-    const FunctionSummary &Summary, const GVSummaryMapTy &DefinedGVSummaries,
+    const FunctionSummary &Summary, const ModuleSummaryIndex &Index,
+    const GVSummaryMapTy &DefinedGVSummaries,
     FunctionImporter::ImportMapTy &ImportList,
     StringMap<FunctionImporter::ExportSetTy> *ExportLists) {
   for (auto &VI : Summary.refs()) {
@@ -303,16 +305,28 @@ static void computeImportForReferencedGlobals(
              RefSummary->modulePath() != Summary.modulePath();
     };
 
+    auto MarkExported = [&](const ValueInfo &VI, const GlobalValueSummary *S) {
+      if (ExportLists)
+        (*ExportLists)[S->modulePath()].insert(VI.getGUID());
+    };
+
     for (auto &RefSummary : VI.getSummaryList())
       if (isa<GlobalVarSummary>(RefSummary.get()) &&
-          canImportGlobalVar(RefSummary.get()) &&
+          Index.canImportGlobalVar(RefSummary.get(), /* AnalyzeRefs */ true) &&
           !LocalNotInModule(RefSummary.get())) {
         auto ILI = ImportList[RefSummary->modulePath()].insert(VI.getGUID());
         // Only update stat if we haven't already imported this variable.
         if (ILI.second)
           NumImportedGlobalVarsThinLink++;
-        if (ExportLists)
-          (*ExportLists)[RefSummary->modulePath()].insert(VI.getGUID());
+        MarkExported(VI, RefSummary.get());
+        // Promote referenced functions and variables. We don't promote
+        // objects referenced by writeonly variable initializer, because
+        // we convert such variables initializers to "zeroinitializer".
+        // See processGlobalForThinLTO.
+        if (!Index.isWriteOnly(cast<GlobalVarSummary>(RefSummary.get())))
+          for (const auto &VI : RefSummary->refs())
+            for (const auto &RefFn : VI.getSummaryList())
+              MarkExported(VI, RefFn.get());
         break;
       }
   }
@@ -351,8 +365,8 @@ static void computeImportForFunction(
     FunctionImporter::ImportMapTy &ImportList,
     StringMap<FunctionImporter::ExportSetTy> *ExportLists,
     FunctionImporter::ImportThresholdsTy &ImportThresholds) {
-  computeImportForReferencedGlobals(Summary, DefinedGVSummaries, ImportList,
-                                    ExportLists);
+  computeImportForReferencedGlobals(Summary, Index, DefinedGVSummaries,
+                                    ImportList, ExportLists);
   static int ImportCount = 0;
   for (auto &Edge : Summary.calls()) {
     ValueInfo VI = Edge.first;
@@ -462,7 +476,8 @@ static void computeImportForFunction(
       CalleeSummary = CalleeSummary->getBaseObject();
       ResolvedCalleeSummary = cast<FunctionSummary>(CalleeSummary);
 
-      assert(ResolvedCalleeSummary->instCount() <= NewThreshold &&
+      assert((ResolvedCalleeSummary->fflags().AlwaysInline ||
+	     (ResolvedCalleeSummary->instCount() <= NewThreshold)) &&
              "selectCallee() didn't honor the threshold");
 
       auto ExportModulePath = ResolvedCalleeSummary->modulePath();
@@ -864,6 +879,7 @@ void llvm::computeDeadSymbolsWithConstProp(
           GVS->setWriteOnly(false);
         }
   }
+  Index.setWithAttributePropagation();
 }
 
 /// Compute the set of summaries needed for a ThinLTO backend compilation of

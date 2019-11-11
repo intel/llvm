@@ -421,6 +421,9 @@ SDValue SelectionDAGLegalize::ExpandINSERT_VECTOR_ELT(SDValue Vec, SDValue Val,
 }
 
 SDValue SelectionDAGLegalize::OptimizeFloatStore(StoreSDNode* ST) {
+  if (!ISD::isNormalStore(ST))
+    return SDValue();
+
   LLVM_DEBUG(dbgs() << "Optimizing float store operations\n");
   // Turn 'store float 1.0, Ptr' -> 'store int 0x12345678, Ptr'
   // FIXME: We shouldn't do this for TargetConstantFP's.
@@ -1013,6 +1016,16 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     Action = TLI.getOperationAction(Node->getOpcode(),
                                     Node->getOperand(0).getValueType());
     break;
+  case ISD::STRICT_LRINT:
+  case ISD::STRICT_LLRINT:
+  case ISD::STRICT_LROUND:
+  case ISD::STRICT_LLROUND:
+    // These pseudo-ops are the same as the other STRICT_ ops except
+    // they are registered with setOperationAction() using the input type
+    // instead of the output type.
+    Action = TLI.getStrictFPOperationAction(Node->getOpcode(),
+                                            Node->getOperand(1).getValueType());
+    break;
   case ISD::SIGN_EXTEND_INREG: {
     EVT InnerType = cast<VTSDNode>(Node->getOperand(1))->getVT();
     Action = TLI.getOperationAction(Node->getOpcode(), InnerType);
@@ -1104,16 +1117,6 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
       LegalizeOp(NewVal.getNode());
       return;
     }
-    break;
-  case ISD::STRICT_LRINT:
-  case ISD::STRICT_LLRINT:
-  case ISD::STRICT_LROUND:
-  case ISD::STRICT_LLROUND:
-    // These pseudo-ops are the same as the other STRICT_ ops except
-    // they are registered with setOperationAction() using the input type
-    // instead of the output type.
-    Action = TLI.getStrictFPOperationAction(Node->getOpcode(),
-                                            Node->getOperand(1).getValueType());
     break;
   case ISD::SADDSAT:
   case ISD::UADDSAT:
@@ -3958,11 +3961,31 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
                                       RTLIB::ROUND_PPCF128));
     break;
   case ISD::FPOWI:
-  case ISD::STRICT_FPOWI:
+  case ISD::STRICT_FPOWI: {
+    RTLIB::Libcall LC;
+    switch (Node->getSimpleValueType(0).SimpleTy) {
+    default: llvm_unreachable("Unexpected request for libcall!");
+    case MVT::f32: LC = RTLIB::POWI_F32; break;
+    case MVT::f64: LC = RTLIB::POWI_F64; break;
+    case MVT::f80: LC = RTLIB::POWI_F80; break;
+    case MVT::f128: LC = RTLIB::POWI_F128; break;
+    case MVT::ppcf128: LC = RTLIB::POWI_PPCF128; break;
+    }
+    if (!TLI.getLibcallName(LC)) {
+      // Some targets don't have a powi libcall; use pow instead.
+      SDValue Exponent = DAG.getNode(ISD::SINT_TO_FP, SDLoc(Node),
+                                     Node->getValueType(0),
+                                     Node->getOperand(1));
+      Results.push_back(DAG.getNode(ISD::FPOW, SDLoc(Node),
+                                    Node->getValueType(0), Node->getOperand(0),
+                                    Exponent));
+      break;
+    }
     Results.push_back(ExpandFPLibCall(Node, RTLIB::POWI_F32, RTLIB::POWI_F64,
                                       RTLIB::POWI_F80, RTLIB::POWI_F128,
                                       RTLIB::POWI_PPCF128));
     break;
+  }
   case ISD::FPOW:
   case ISD::STRICT_FPOW:
     if (CanUseFiniteLibCall && DAG.getLibInfo().has(LibFunc_pow_finite))

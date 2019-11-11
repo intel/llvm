@@ -280,7 +280,7 @@ int X86TTIImpl::getArithmeticInstrCost(
                                     TargetTransformInfo::OP_None,
                                     TargetTransformInfo::OP_None);
 
-    if (ISD == ISD::UREM)
+    else // UREM
       return getArithmeticInstrCost(Instruction::And, Ty, Op1Info, Op2Info,
                                     TargetTransformInfo::OP_None,
                                     TargetTransformInfo::OP_None);
@@ -2534,6 +2534,11 @@ int X86TTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *ValTy,
   // We use the Intel Architecture Code Analyzer(IACA) to measure the throughput
   // and make it as the cost.
 
+  static const CostTblEntry SLMCostTblPairWise[] = {
+    { ISD::FADD,  MVT::v2f64,   3 },
+    { ISD::ADD,   MVT::v2i64,   5 },
+  };
+
   static const CostTblEntry SSE2CostTblPairWise[] = {
     { ISD::FADD,  MVT::v2f64,   2 },
     { ISD::FADD,  MVT::v4f32,   4 },
@@ -2557,6 +2562,11 @@ int X86TTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *ValTy,
     { ISD::ADD,   MVT::v8i32,   5 },
     { ISD::ADD,   MVT::v16i16,  6 },
     { ISD::ADD,   MVT::v32i8,   4 },
+  };
+
+  static const CostTblEntry SLMCostTblNoPairWise[] = {
+    { ISD::FADD,  MVT::v2f64,   3 },
+    { ISD::ADD,   MVT::v2i64,   5 },
   };
 
   static const CostTblEntry SSE2CostTblNoPairWise[] = {
@@ -2595,6 +2605,10 @@ int X86TTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *ValTy,
   if (VT.isSimple()) {
     MVT MTy = VT.getSimpleVT();
     if (IsPairwise) {
+      if (ST->isSLM())
+        if (const auto *Entry = CostTableLookup(SLMCostTblPairWise, ISD, MTy))
+          return Entry->Cost;
+
       if (ST->hasAVX())
         if (const auto *Entry = CostTableLookup(AVX1CostTblPairWise, ISD, MTy))
           return Entry->Cost;
@@ -2603,6 +2617,10 @@ int X86TTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *ValTy,
         if (const auto *Entry = CostTableLookup(SSE2CostTblPairWise, ISD, MTy))
           return Entry->Cost;
     } else {
+      if (ST->isSLM())
+        if (const auto *Entry = CostTableLookup(SLMCostTblNoPairWise, ISD, MTy))
+          return Entry->Cost;
+
       if (ST->hasAVX())
         if (const auto *Entry = CostTableLookup(AVX1CostTblNoPairWise, ISD, MTy))
           return Entry->Cost;
@@ -2618,6 +2636,10 @@ int X86TTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *ValTy,
   MVT MTy = LT.second;
 
   if (IsPairwise) {
+    if (ST->isSLM())
+      if (const auto *Entry = CostTableLookup(SLMCostTblPairWise, ISD, MTy))
+        return LT.first * Entry->Cost;
+
     if (ST->hasAVX())
       if (const auto *Entry = CostTableLookup(AVX1CostTblPairWise, ISD, MTy))
         return LT.first * Entry->Cost;
@@ -2626,6 +2648,10 @@ int X86TTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *ValTy,
       if (const auto *Entry = CostTableLookup(SSE2CostTblPairWise, ISD, MTy))
         return LT.first * Entry->Cost;
   } else {
+    if (ST->isSLM())
+      if (const auto *Entry = CostTableLookup(SLMCostTblNoPairWise, ISD, MTy))
+        return LT.first * Entry->Cost;
+
     if (ST->hasAVX())
       if (const auto *Entry = CostTableLookup(AVX1CostTblNoPairWise, ISD, MTy))
         return LT.first * Entry->Cost;
@@ -2634,6 +2660,24 @@ int X86TTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *ValTy,
       if (const auto *Entry = CostTableLookup(SSE2CostTblNoPairWise, ISD, MTy))
         return LT.first * Entry->Cost;
   }
+
+  // FIXME: These assume a naive kshift+binop lowering, which is probably
+  // conservative in most cases.
+  // FIXME: This doesn't cost large types like v128i1 correctly.
+  static const CostTblEntry AVX512BoolReduction[] = {
+    { ISD::AND,  MVT::v2i1,   3 },
+    { ISD::AND,  MVT::v4i1,   5 },
+    { ISD::AND,  MVT::v8i1,   7 },
+    { ISD::AND,  MVT::v16i1,  9 },
+    { ISD::AND,  MVT::v32i1, 11 },
+    { ISD::AND,  MVT::v64i1, 13 },
+    { ISD::OR,   MVT::v2i1,   3 },
+    { ISD::OR,   MVT::v4i1,   5 },
+    { ISD::OR,   MVT::v8i1,   7 },
+    { ISD::OR,   MVT::v16i1,  9 },
+    { ISD::OR,   MVT::v32i1, 11 },
+    { ISD::OR,   MVT::v64i1, 13 },
+  };
 
   static const CostTblEntry AVX2BoolReduction[] = {
     { ISD::AND,  MVT::v16i16,  2 }, // vpmovmskb + cmp
@@ -2666,6 +2710,9 @@ int X86TTIImpl::getArithmeticReductionCost(unsigned Opcode, Type *ValTy,
 
   // Handle bool allof/anyof patterns.
   if (!IsPairwise && ValTy->getVectorElementType()->isIntegerTy(1)) {
+    if (ST->hasAVX512())
+      if (const auto *Entry = CostTableLookup(AVX512BoolReduction, ISD, MTy))
+        return LT.first * Entry->Cost;
     if (ST->hasAVX2())
       if (const auto *Entry = CostTableLookup(AVX2BoolReduction, ISD, MTy))
         return LT.first * Entry->Cost;
@@ -3444,10 +3491,9 @@ X86TTIImpl::enableMemCmpExpansion(bool OptSize, bool IsZeroCmp) const {
     // version is not as fast for three way compare (see #33329).
     const unsigned PreferredWidth = ST->getPreferVectorWidth();
     if (PreferredWidth >= 512 && ST->hasAVX512()) Options.LoadSizes.push_back(64);
-    if (PreferredWidth >= 256 && ST->hasAVX2()) Options.LoadSizes.push_back(32);
+    if (PreferredWidth >= 256 && ST->hasAVX()) Options.LoadSizes.push_back(32);
     if (PreferredWidth >= 128 && ST->hasSSE2()) Options.LoadSizes.push_back(16);
-    // All GPR and vector loads can be unaligned. SIMD compare requires integer
-    // vectors (SSE2/AVX2).
+    // All GPR and vector loads can be unaligned.
     Options.AllowOverlappingLoads = true;
   }
   if (ST->is64Bit()) {

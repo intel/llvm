@@ -194,9 +194,10 @@ int TargetTransformInfo::getIntrinsicCost(
 }
 
 unsigned
-TargetTransformInfo::getEstimatedNumberOfCaseClusters(const SwitchInst &SI,
-                                                      unsigned &JTSize) const {
-  return TTIImpl->getEstimatedNumberOfCaseClusters(SI, JTSize);
+TargetTransformInfo::getEstimatedNumberOfCaseClusters(
+    const SwitchInst &SI, unsigned &JTSize, ProfileSummaryInfo *PSI,
+    BlockFrequencyInfo *BFI) const {
+  return TTIImpl->getEstimatedNumberOfCaseClusters(SI, JTSize, PSI, BFI);
 }
 
 int TargetTransformInfo::getUserCost(const User *U,
@@ -240,6 +241,12 @@ bool TargetTransformInfo::isHardwareLoopProfitable(
   Loop *L, ScalarEvolution &SE, AssumptionCache &AC,
   TargetLibraryInfo *LibInfo, HardwareLoopInfo &HWLoopInfo) const {
   return TTIImpl->isHardwareLoopProfitable(L, SE, AC, LibInfo, HWLoopInfo);
+}
+
+bool TargetTransformInfo::preferPredicateOverEpilogue(Loop *L, LoopInfo *LI,
+    ScalarEvolution &SE, AssumptionCache &AC, TargetLibraryInfo *TLI,
+    DominatorTree *DT, const LoopAccessInfo *LAI) const {
+  return TTIImpl->preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LAI);
 }
 
 void TargetTransformInfo::getUnrollingPreferences(

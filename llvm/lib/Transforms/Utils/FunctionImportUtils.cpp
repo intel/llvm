@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/InstIterator.h"
 using namespace llvm;
 
@@ -238,17 +239,32 @@ void FunctionImportGlobalProcessing::processGlobalForThinLTO(GlobalValue &GV) {
   // If global value dead stripping is not enabled in summary then
   // propagateConstants hasn't been run. We can't internalize GV
   // in such case.
-  if (!GV.isDeclaration() && VI && ImportIndex.withGlobalValueDeadStripping()) {
+  if (!GV.isDeclaration() && VI && ImportIndex.withAttributePropagation()) {
     if (GlobalVariable *V = dyn_cast<GlobalVariable>(&GV)) {
       // We can have more than one local with the same GUID, in the case of
       // same-named locals in different but same-named source files that were
       // compiled in their respective directories (so the source file name
       // and resulting GUID is the same). Find the one in this module.
-      auto* GVS = dyn_cast<GlobalVarSummary>(
-          ImportIndex.findSummaryInModule(VI, M.getModuleIdentifier()));
-      // At this stage "maybe" is "definitely"
-      if (GVS && (GVS->maybeReadOnly() || GVS->maybeWriteOnly()))
+      // Handle the case where there is no summary found in this module. That
+      // can happen in the distributed ThinLTO backend, because the index only
+      // contains summaries from the source modules if they are being imported.
+      // We might have a non-null VI and get here even in that case if the name
+      // matches one in this module (e.g. weak or appending linkage).
+      auto* GVS = dyn_cast_or_null<GlobalVarSummary>(
+          ImportIndex.findSummaryInModule(VI, M.getModuleIdentifier()));      
+      if (GVS &&
+          (ImportIndex.isReadOnly(GVS) || ImportIndex.isWriteOnly(GVS))) {
         V->addAttribute("thinlto-internalize");
+        // Objects referenced by writeonly GV initializer should not be 
+        // promoted, because there is no any kind of read access to them
+        // on behalf of this writeonly GV. To avoid promotion we convert
+        // GV initializer to 'zeroinitializer'. This effectively drops
+        // references in IR module (not in combined index), so we can
+        // ignore them when computing import. We do not export references
+        // of writeonly object. See computeImportForReferencedGlobals
+        if (ImportIndex.isWriteOnly(GVS) && GVS->refs().size())
+          V->setInitializer(Constant::getNullValue(V->getValueType()));
+      }
     }
   }
 

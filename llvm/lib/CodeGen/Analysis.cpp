@@ -567,12 +567,16 @@ bool llvm::attributesPermitTailCall(const Function *F, const Instruction *I,
   AttrBuilder CalleeAttrs(cast<CallInst>(I)->getAttributes(),
                           AttributeList::ReturnIndex);
 
-  // NoAlias and NonNull are completely benign as far as calling convention
+  // Following attributes are completely benign as far as calling convention
   // goes, they shouldn't affect whether the call is a tail call.
   CallerAttrs.removeAttribute(Attribute::NoAlias);
   CalleeAttrs.removeAttribute(Attribute::NoAlias);
   CallerAttrs.removeAttribute(Attribute::NonNull);
   CalleeAttrs.removeAttribute(Attribute::NonNull);
+  CallerAttrs.removeAttribute(Attribute::Dereferenceable);
+  CalleeAttrs.removeAttribute(Attribute::Dereferenceable);
+  CallerAttrs.removeAttribute(Attribute::DereferenceableOrNull);
+  CalleeAttrs.removeAttribute(Attribute::DereferenceableOrNull);
 
   if (CallerAttrs.contains(Attribute::ZExt)) {
     if (!CalleeAttrs.contains(Attribute::ZExt))
@@ -611,6 +615,22 @@ bool llvm::attributesPermitTailCall(const Function *F, const Instruction *I,
   return CallerAttrs == CalleeAttrs;
 }
 
+/// Check whether B is a bitcast of a pointer type to another pointer type,
+/// which is equal to A.
+static bool isPointerBitcastEqualTo(const Value *A, const Value *B) {
+  assert(A && B && "Expected non-null inputs!");
+
+  auto *BitCastIn = dyn_cast<BitCastInst>(B);
+
+  if (!BitCastIn)
+    return false;
+
+  if (!A->getType()->isPointerTy() || !B->getType()->isPointerTy())
+    return false;
+
+  return A == BitCastIn->getOperand(0);
+}
+
 bool llvm::returnTypeIsEligibleForTailCall(const Function *F,
                                            const Instruction *I,
                                            const ReturnInst *Ret,
@@ -643,7 +663,8 @@ bool llvm::returnTypeIsEligibleForTailCall(const Function *F,
           TLI.getLibcallName(RTLIB::MEMMOVE) == StringRef("memmove")) ||
          (IID == Intrinsic::memset &&
           TLI.getLibcallName(RTLIB::MEMSET) == StringRef("memset"))) &&
-        RetVal == Call->getArgOperand(0))
+        (RetVal == Call->getArgOperand(0) ||
+         isPointerBitcastEqualTo(RetVal, Call->getArgOperand(0))))
       return true;
   }
 

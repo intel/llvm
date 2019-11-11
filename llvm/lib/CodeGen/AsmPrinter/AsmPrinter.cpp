@@ -935,7 +935,7 @@ AsmPrinter::CFIMoveType AsmPrinter::needsCFIMoves() const {
       MF->getFunction().needsUnwindTableEntry())
     return CFI_M_EH;
 
-  if (MMI->hasDebugInfo())
+  if (MMI->hasDebugInfo() || MF->getTarget().Options.ForceDwarfFrameSection)
     return CFI_M_Debug;
 
   return CFI_M_None;
@@ -1489,8 +1489,6 @@ bool AsmPrinter::doFinalization(Module &M) {
       OutStreamer->EmitSymbolAttribute(getSymbol(&GO), MCSA_WeakReference);
     }
   }
-
-  OutStreamer->AddBlankLine();
 
   // Print aliases in topological order, that is, for each alias a = b,
   // b must be printed before a.

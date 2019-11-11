@@ -72,6 +72,7 @@ public:
       : Target(&Target), Offset(Offset), Addend(Addend), K(K) {}
 
   OffsetT getOffset() const { return Offset; }
+  void setOffset(OffsetT Offset) { this->Offset = Offset; }
   Kind getKind() const { return K; }
   void setKind(Kind K) { this->K = K; }
   bool isRelocation() const { return K >= FirstRelocation; }
@@ -130,7 +131,6 @@ private:
   uint64_t IsAbsolute : 1;
 };
 
-using BlockOrdinal = unsigned;
 using SectionOrdinal = unsigned;
 
 /// An Addressable with content and edges.
@@ -139,10 +139,9 @@ class Block : public Addressable {
 
 private:
   /// Create a zero-fill defined addressable.
-  Block(Section &Parent, BlockOrdinal Ordinal, JITTargetAddress Size,
-        JITTargetAddress Address, uint64_t Alignment, uint64_t AlignmentOffset)
-      : Addressable(Address, true), Parent(Parent), Size(Size),
-        Ordinal(Ordinal) {
+  Block(Section &Parent, JITTargetAddress Size, JITTargetAddress Address,
+        uint64_t Alignment, uint64_t AlignmentOffset)
+      : Addressable(Address, true), Parent(Parent), Size(Size) {
     assert(isPowerOf2_64(Alignment) && "Alignment must be power of 2");
     assert(AlignmentOffset < Alignment &&
            "Alignment offset cannot exceed alignment");
@@ -153,10 +152,10 @@ private:
   }
 
   /// Create a defined addressable for the given content.
-  Block(Section &Parent, BlockOrdinal Ordinal, StringRef Content,
-        JITTargetAddress Address, uint64_t Alignment, uint64_t AlignmentOffset)
+  Block(Section &Parent, StringRef Content, JITTargetAddress Address,
+        uint64_t Alignment, uint64_t AlignmentOffset)
       : Addressable(Address, true), Parent(Parent), Data(Content.data()),
-        Size(Content.size()), Ordinal(Ordinal) {
+        Size(Content.size()) {
     assert(isPowerOf2_64(Alignment) && "Alignment must be power of 2");
     assert(AlignmentOffset < Alignment &&
            "Alignment offset cannot exceed alignment");
@@ -178,9 +177,6 @@ public:
 
   /// Return the parent section for this block.
   Section &getSection() const { return Parent; }
-
-  /// Return the ordinal for this block.
-  BlockOrdinal getOrdinal() const { return Ordinal; }
 
   /// Returns true if this is a zero-fill block.
   ///
@@ -208,14 +204,31 @@ public:
   /// Get the alignment for this content.
   uint64_t getAlignment() const { return 1ull << P2Align; }
 
+  /// Set the alignment for this content.
+  void setAlignment(uint64_t Alignment) {
+    assert(isPowerOf2_64(Alignment) && "Alignment must be a power of two");
+    P2Align = Alignment ? countTrailingZeros(Alignment) : 0;
+  }
+
   /// Get the alignment offset for this content.
   uint64_t getAlignmentOffset() const { return AlignmentOffset; }
+
+  /// Set the alignment offset for this content.
+  void setAlignmentOffset(uint64_t AlignmentOffset) {
+    assert(AlignmentOffset < (1ull << P2Align) &&
+           "Alignment offset can't exceed alignment");
+    this->AlignmentOffset = AlignmentOffset;
+  }
 
   /// Add an edge to this block.
   void addEdge(Edge::Kind K, Edge::OffsetT Offset, Symbol &Target,
                Edge::AddendT Addend) {
     Edges.push_back(Edge(K, Offset, Target, Addend));
   }
+
+  /// Add an edge by copying an existing one. This is typically used when
+  /// moving edges between blocks.
+  void addEdge(const Edge &E) { Edges.push_back(E); }
 
   /// Return the list of edges attached to this content.
   iterator_range<edge_iterator> edges() {
@@ -233,6 +246,10 @@ public:
   /// Returns true if the list of edges is empty.
   bool edges_empty() const { return Edges.empty(); }
 
+  /// Remove the edge pointed to by the given iterator.
+  /// Invalidates all iterators that point to or past the given one.
+  void removeEdge(const_edge_iterator I) { Edges.erase(I); }
+
 private:
   static constexpr uint64_t MaxAlignmentOffset = (1ULL << 57) - 1;
 
@@ -241,7 +258,6 @@ private:
   Section &Parent;
   const char *Data = nullptr;
   size_t Size = 0;
-  BlockOrdinal Ordinal = 0;
   std::vector<Edge> Edges;
 };
 
@@ -287,6 +303,7 @@ private:
          JITTargetAddress Size, Linkage L, Scope S, bool IsLive,
          bool IsCallable)
       : Name(Name), Base(&Base), Offset(Offset), Size(Size) {
+    assert(Offset <= MaxOffset && "Offset out of range");
     setLinkage(L);
     setScope(S);
     setLive(IsLive);
@@ -334,6 +351,7 @@ private:
                                   JITTargetAddress Size, bool IsCallable,
                                   bool IsLive) {
     assert(SymStorage && "Storage cannot be null");
+    assert(Offset < Base.getSize() && "Symbol offset is outside block");
     auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
     new (Sym) Symbol(Base, Offset, StringRef(), Size, Linkage::Strong,
                      Scope::Local, IsLive, IsCallable);
@@ -345,6 +363,7 @@ private:
                                    JITTargetAddress Size, Linkage L, Scope S,
                                    bool IsLive, bool IsCallable) {
     assert(SymStorage && "Storage cannot be null");
+    assert(Offset < Base.getSize() && "Symbol offset is outside block");
     assert(!Name.empty() && "Name cannot be empty");
     auto *Sym = reinterpret_cast<Symbol *>(SymStorage);
     new (Sym) Symbol(Base, Offset, Name, Size, L, S, IsLive, IsCallable);
@@ -484,6 +503,13 @@ private:
     // note: Size and IsCallable fields left unchanged.
   }
 
+  void setBlock(Block &B) { Base = &B; }
+
+  void setOffset(uint64_t NewOffset) {
+    assert(NewOffset <= MaxOffset && "Offset out of range");
+    Offset = NewOffset;
+  }
+
   static constexpr uint64_t MaxOffset = (1ULL << 59) - 1;
 
   // FIXME: A char* or SymbolStringPtr may pack better.
@@ -532,6 +558,16 @@ public:
   /// Returns the ordinal for this section.
   SectionOrdinal getOrdinal() const { return SecOrdinal; }
 
+  /// Returns an iterator over the blocks defined in this section.
+  iterator_range<block_iterator> blocks() {
+    return make_range(Blocks.begin(), Blocks.end());
+  }
+
+  /// Returns an iterator over the blocks defined in this section.
+  iterator_range<const_block_iterator> blocks() const {
+    return make_range(Blocks.begin(), Blocks.end());
+  }
+
   /// Returns an iterator over the symbols defined in this section.
   iterator_range<symbol_iterator> symbols() {
     return make_range(Symbols.begin(), Symbols.end());
@@ -548,9 +584,6 @@ public:
   /// Return true if this section contains no symbols.
   bool symbols_empty() const { return Symbols.empty(); }
 
-  /// Returns the ordinal for the next block.
-  BlockOrdinal getNextBlockOrdinal() { return NextBlockOrdinal++; }
-
 private:
   void addSymbol(Symbol &Sym) {
     assert(!Symbols.count(&Sym) && "Symbol is already in this section");
@@ -562,10 +595,20 @@ private:
     Symbols.erase(&Sym);
   }
 
+  void addBlock(Block &B) {
+    assert(!Blocks.count(&B) && "Block is already in this section");
+    Blocks.insert(&B);
+  }
+
+  void removeBlock(Block &B) {
+    assert(Blocks.count(&B) && "Block is not in this section");
+    Blocks.erase(&B);
+  }
+
   StringRef Name;
   sys::Memory::ProtectionFlags Prot;
   SectionOrdinal SecOrdinal = 0;
-  BlockOrdinal NextBlockOrdinal = 0;
+  BlockSet Blocks;
   SymbolSet Symbols;
 };
 
@@ -633,12 +676,11 @@ private:
   template <typename... ArgTs> Block &createBlock(ArgTs &&... Args) {
     Block *B = reinterpret_cast<Block *>(Allocator.Allocate<Block>());
     new (B) Block(std::forward<ArgTs>(Args)...);
-    Blocks.insert(B);
+    B->getSection().addBlock(*B);
     return *B;
   }
 
   void destroyBlock(Block &B) {
-    Blocks.erase(&B);
     B.~Block();
     Allocator.Deallocate(&B);
   }
@@ -648,68 +690,101 @@ private:
     Allocator.Deallocate(&S);
   }
 
+  static iterator_range<Section::block_iterator> getSectionBlocks(Section &S) {
+    return S.blocks();
+  }
+
+  static iterator_range<Section::const_block_iterator>
+  getSectionConstBlocks(Section &S) {
+    return S.blocks();
+  }
+
+  static iterator_range<Section::symbol_iterator>
+  getSectionSymbols(Section &S) {
+    return S.symbols();
+  }
+
+  static iterator_range<Section::const_symbol_iterator>
+  getSectionConstSymbols(Section &S) {
+    return S.symbols();
+  }
+
 public:
   using external_symbol_iterator = ExternalSymbolSet::iterator;
-
-  using block_iterator = BlockSet::iterator;
 
   using section_iterator = pointee_iterator<SectionList::iterator>;
   using const_section_iterator = pointee_iterator<SectionList::const_iterator>;
 
-  template <typename SectionItrT, typename SymbolItrT, typename T>
-  class defined_symbol_iterator_impl
+  template <typename OuterItrT, typename InnerItrT, typename T,
+            iterator_range<InnerItrT> getInnerRange(
+                typename OuterItrT::reference)>
+  class nested_collection_iterator
       : public iterator_facade_base<
-            defined_symbol_iterator_impl<SectionItrT, SymbolItrT, T>,
+            nested_collection_iterator<OuterItrT, InnerItrT, T, getInnerRange>,
             std::forward_iterator_tag, T> {
   public:
-    defined_symbol_iterator_impl() = default;
+    nested_collection_iterator() = default;
 
-    defined_symbol_iterator_impl(SectionItrT SecI, SectionItrT SecE)
-        : SecI(SecI), SecE(SecE),
-          SymI(SecI != SecE ? SecI->symbols().begin() : SymbolItrT()) {
-      moveToNextSymbolOrEnd();
+    nested_collection_iterator(OuterItrT OuterI, OuterItrT OuterE)
+        : OuterI(OuterI), OuterE(OuterE),
+          InnerI(getInnerBegin(OuterI, OuterE)) {
+      moveToNonEmptyInnerOrEnd();
     }
 
-    bool operator==(const defined_symbol_iterator_impl &RHS) const {
-      return (SecI == RHS.SecI) && (SymI == RHS.SymI);
+    bool operator==(const nested_collection_iterator &RHS) const {
+      return (OuterI == RHS.OuterI) && (InnerI == RHS.InnerI);
     }
 
     T operator*() const {
-      assert(SymI != SecI->symbols().end() && "Dereferencing end?");
-      return *SymI;
+      assert(InnerI != getInnerRange(*OuterI).end() && "Dereferencing end?");
+      return *InnerI;
     }
 
-    defined_symbol_iterator_impl operator++() {
-      ++SymI;
-      moveToNextSymbolOrEnd();
+    nested_collection_iterator operator++() {
+      ++InnerI;
+      moveToNonEmptyInnerOrEnd();
       return *this;
     }
 
   private:
-    void moveToNextSymbolOrEnd() {
-      while (SecI != SecE && SymI == SecI->symbols().end()) {
-        ++SecI;
-        SymI = SecI == SecE ? SymbolItrT() : SecI->symbols().begin();
+    static InnerItrT getInnerBegin(OuterItrT OuterI, OuterItrT OuterE) {
+      return OuterI != OuterE ? getInnerRange(*OuterI).begin() : InnerItrT();
+    }
+
+    void moveToNonEmptyInnerOrEnd() {
+      while (OuterI != OuterE && InnerI == getInnerRange(*OuterI).end()) {
+        ++OuterI;
+        InnerI = getInnerBegin(OuterI, OuterE);
       }
     }
 
-    SectionItrT SecI, SecE;
-    SymbolItrT SymI;
+    OuterItrT OuterI, OuterE;
+    InnerItrT InnerI;
   };
 
   using defined_symbol_iterator =
-      defined_symbol_iterator_impl<const_section_iterator,
-                                   Section::symbol_iterator, Symbol *>;
+      nested_collection_iterator<const_section_iterator,
+                                 Section::symbol_iterator, Symbol *,
+                                 getSectionSymbols>;
 
-  using const_defined_symbol_iterator = defined_symbol_iterator_impl<
-      const_section_iterator, Section::const_symbol_iterator, const Symbol *>;
+  using const_defined_symbol_iterator =
+      nested_collection_iterator<const_section_iterator,
+                                 Section::const_symbol_iterator, const Symbol *,
+                                 getSectionConstSymbols>;
+
+  using block_iterator = nested_collection_iterator<const_section_iterator,
+                                                    Section::block_iterator,
+                                                    Block *, getSectionBlocks>;
+
+  using const_block_iterator =
+      nested_collection_iterator<const_section_iterator,
+                                 Section::const_block_iterator, const Block *,
+                                 getSectionConstBlocks>;
 
   LinkGraph(std::string Name, unsigned PointerSize,
             support::endianness Endianness)
       : Name(std::move(Name)), PointerSize(PointerSize),
         Endianness(Endianness) {}
-
-  ~LinkGraph();
 
   /// Returns the name of this graph (usually the name of the original
   /// underlying MemoryBuffer).
@@ -732,16 +807,44 @@ public:
   Block &createContentBlock(Section &Parent, StringRef Content,
                             uint64_t Address, uint64_t Alignment,
                             uint64_t AlignmentOffset) {
-    return createBlock(Parent, Parent.getNextBlockOrdinal(), Content, Address,
-                       Alignment, AlignmentOffset);
+    return createBlock(Parent, Content, Address, Alignment, AlignmentOffset);
   }
 
   /// Create a zero-fill block.
   Block &createZeroFillBlock(Section &Parent, uint64_t Size, uint64_t Address,
                              uint64_t Alignment, uint64_t AlignmentOffset) {
-    return createBlock(Parent, Parent.getNextBlockOrdinal(), Size, Address,
-                       Alignment, AlignmentOffset);
+    return createBlock(Parent, Size, Address, Alignment, AlignmentOffset);
   }
+
+  /// Cache type for the splitBlock function.
+  using SplitBlockCache = Optional<SmallVector<Symbol *, 8>>;
+
+  /// Splits block B at the given index which must be greater than zero.
+  /// If SplitIndex == B.getSize() then this function is a no-op and returns B.
+  /// If SplitIndex < B.getSize() then this function returns a new block
+  /// covering the range [ 0, SplitIndex ), and B is modified to cover the range
+  /// [ SplitIndex, B.size() ).
+  ///
+  /// The optional Cache parameter can be used to speed up repeated calls to
+  /// splitBlock for a single block. If the value is None the cache will be
+  /// treated as uninitialized and splitBlock will populate it. Otherwise it
+  /// is assumed to contain the list of Symbols pointing at B, sorted in
+  /// descending order of offset.
+  ///
+  /// Notes:
+  ///
+  /// 1. The newly introduced block will have a new ordinal which will be
+  ///    higher than any other ordinals in the section. Clients are responsible
+  ///    for re-assigning block ordinals to restore a compatible order if
+  ///    needed.
+  ///
+  /// 2. The cache is not automatically updated if new symbols are introduced
+  ///    between calls to splitBlock. Any newly introduced symbols may be
+  ///    added to the cache manually (descending offset order must be
+  ///    preserved), or the cache can be set to None and rebuilt by
+  ///    splitBlock on the next call.
+  Block &splitBlock(Block &B, size_t SplitIndex,
+                    SplitBlockCache *Cache = nullptr);
 
   /// Add an external symbol.
   /// Some formats (e.g. ELF) allow Symbols to have sizes. For Symbols whose
@@ -769,9 +872,8 @@ public:
                           uint64_t Alignment, bool IsLive) {
     auto &Sym = Symbol::constructCommon(
         Allocator.Allocate<Symbol>(),
-        createBlock(Section, Section.getNextBlockOrdinal(), Address, Size,
-                    Alignment, 0),
-        Name, Size, S, IsLive);
+        createBlock(Section, Address, Size, Alignment, 0), Name, Size, S,
+        IsLive);
     Section.addSymbol(Sym);
     return Sym;
   }
@@ -811,6 +913,16 @@ public:
     return nullptr;
   }
 
+  iterator_range<block_iterator> blocks() {
+    return make_range(block_iterator(Sections.begin(), Sections.end()),
+                      block_iterator(Sections.end(), Sections.end()));
+  }
+
+  iterator_range<const_block_iterator> blocks() const {
+    return make_range(const_block_iterator(Sections.begin(), Sections.end()),
+                      const_block_iterator(Sections.end(), Sections.end()));
+  }
+
   iterator_range<external_symbol_iterator> external_symbols() {
     return make_range(ExternalSymbols.begin(), ExternalSymbols.end());
   }
@@ -828,10 +940,6 @@ public:
     return make_range(
         const_defined_symbol_iterator(Sections.begin(), Sections.end()),
         const_defined_symbol_iterator(Sections.end(), Sections.end()));
-  }
-
-  iterator_range<block_iterator> blocks() {
-    return make_range(Blocks.begin(), Blocks.end());
   }
 
   /// Turn a defined symbol into an external one.
@@ -881,7 +989,7 @@ public:
 
   /// Remove a block.
   void removeBlock(Block &B) {
-    Blocks.erase(&B);
+    B.getSection().removeBlock(B);
     destroyBlock(B);
   }
 
@@ -902,10 +1010,148 @@ private:
   std::string Name;
   unsigned PointerSize;
   support::endianness Endianness;
-  BlockSet Blocks;
   SectionList Sections;
   ExternalSymbolSet ExternalSymbols;
   ExternalSymbolSet AbsoluteSymbols;
+};
+
+/// Enables easy lookup of blocks by addresses.
+class BlockAddressMap {
+public:
+  using AddrToBlockMap = std::map<JITTargetAddress, Block *>;
+  using const_iterator = AddrToBlockMap::const_iterator;
+
+  /// A block predicate that always adds all blocks.
+  static bool includeAllBlocks(const Block &B) { return true; }
+
+  /// A block predicate that always includes blocks with non-null addresses.
+  static bool includeNonNull(const Block &B) { return B.getAddress(); }
+
+  BlockAddressMap() = default;
+
+  /// Add a block to the map. Returns an error if the block overlaps with any
+  /// existing block.
+  template <typename PredFn = decltype(includeAllBlocks)>
+  Error addBlock(Block &B, PredFn Pred = includeAllBlocks) {
+    if (!Pred(B))
+      return Error::success();
+
+    auto I = AddrToBlock.upper_bound(B.getAddress());
+
+    // If we're not at the end of the map, check for overlap with the next
+    // element.
+    if (I != AddrToBlock.end()) {
+      if (B.getAddress() + B.getSize() > I->second->getAddress())
+        return overlapError(B, *I->second);
+    }
+
+    // If we're not at the start of the map, check for overlap with the previous
+    // element.
+    if (I != AddrToBlock.begin()) {
+      auto &PrevBlock = *std::prev(I)->second;
+      if (PrevBlock.getAddress() + PrevBlock.getSize() > B.getAddress())
+        return overlapError(B, PrevBlock);
+    }
+
+    AddrToBlock.insert(I, std::make_pair(B.getAddress(), &B));
+    return Error::success();
+  }
+
+  /// Add a block to the map without checking for overlap with existing blocks.
+  /// The client is responsible for ensuring that the block added does not
+  /// overlap with any existing block.
+  void addBlockWithoutChecking(Block &B) { AddrToBlock[B.getAddress()] = &B; }
+
+  /// Add a range of blocks to the map. Returns an error if any block in the
+  /// range overlaps with any other block in the range, or with any existing
+  /// block in the map.
+  template <typename BlockPtrRange,
+            typename PredFn = decltype(includeAllBlocks)>
+  Error addBlocks(BlockPtrRange &&Blocks, PredFn Pred = includeAllBlocks) {
+    for (auto *B : Blocks)
+      if (auto Err = addBlock(*B, Pred))
+        return Err;
+    return Error::success();
+  }
+
+  /// Add a range of blocks to the map without checking for overlap with
+  /// existing blocks. The client is responsible for ensuring that the block
+  /// added does not overlap with any existing block.
+  template <typename BlockPtrRange>
+  void addBlocksWithoutChecking(BlockPtrRange &&Blocks) {
+    for (auto *B : Blocks)
+      addBlockWithoutChecking(*B);
+  }
+
+  /// Iterates over (Address, Block*) pairs in ascending order of address.
+  const_iterator begin() const { return AddrToBlock.begin(); }
+  const_iterator end() const { return AddrToBlock.end(); }
+
+  /// Returns the block starting at the given address, or nullptr if no such
+  /// block exists.
+  Block *getBlockAt(JITTargetAddress Addr) const {
+    auto I = AddrToBlock.find(Addr);
+    if (I == AddrToBlock.end())
+      return nullptr;
+    return I->second;
+  }
+
+  /// Returns the block covering the given address, or nullptr if no such block
+  /// exists.
+  Block *getBlockCovering(JITTargetAddress Addr) const {
+    auto I = AddrToBlock.upper_bound(Addr);
+    if (I == AddrToBlock.begin())
+      return nullptr;
+    auto *B = std::prev(I)->second;
+    if (Addr < B->getAddress() + B->getSize())
+      return B;
+    return nullptr;
+  }
+
+private:
+  Error overlapError(Block &NewBlock, Block &ExistingBlock) {
+    auto NewBlockEnd = NewBlock.getAddress() + NewBlock.getSize();
+    auto ExistingBlockEnd =
+        ExistingBlock.getAddress() + ExistingBlock.getSize();
+    return make_error<JITLinkError>(
+        "Block at " +
+        formatv("{0:x16} -- {1:x16}", NewBlock.getAddress(), NewBlockEnd) +
+        " overlaps " +
+        formatv("{0:x16} -- {1:x16}", ExistingBlock.getAddress(),
+                ExistingBlockEnd));
+  }
+
+  AddrToBlockMap AddrToBlock;
+};
+
+/// A map of addresses to Symbols.
+class SymbolAddressMap {
+public:
+  using SymbolVector = SmallVector<Symbol *, 1>;
+
+  /// Add a symbol to the SymbolAddressMap.
+  void addSymbol(Symbol &Sym) {
+    AddrToSymbols[Sym.getAddress()].push_back(&Sym);
+  }
+
+  /// Add all symbols in a given range to the SymbolAddressMap.
+  template <typename SymbolPtrCollection>
+  void addSymbols(SymbolPtrCollection &&Symbols) {
+    for (auto *Sym : Symbols)
+      addSymbol(*Sym);
+  }
+
+  /// Returns the list of symbols that start at the given address, or nullptr if
+  /// no such symbols exist.
+  const SymbolVector *getSymbolsAt(JITTargetAddress Addr) const {
+    auto I = AddrToSymbols.find(Addr);
+    if (I == AddrToSymbols.end())
+      return nullptr;
+    return &I->second;
+  }
+
+private:
+  std::map<JITTargetAddress, SymbolVector> AddrToSymbols;
 };
 
 /// A function for mutating LinkGraphs.
