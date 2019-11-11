@@ -361,9 +361,9 @@ void USMDispatcher::memAdvise(pi_queue Queue, const void *Ptr, size_t Length,
       // Enable once this is supported in the driver
       auto CLAdvice = *reinterpret_cast<cl_mem_advice_intel *>(&Advice);
       // TODO: Implement a PI call for this openCL API
-      RT::piCheckResult(RT::cast<RT::PiResult>(pfn_clEnqueueMemAdviseINTEL,
+      RT::piCheckResult(RT::cast<RT::PiResult>(pfn_clEnqueueMemAdviseINTEL(
           CLQueue, Ptr, Length, CLAdvice, 0, nullptr,
-          reinterpret_cast<cl_event *>(Event)));
+          reinterpret_cast<cl_event *>(Event))));
       */
     }
   }
@@ -378,13 +378,13 @@ pi_result USMDispatcher::enqueuePrefetch(pi_queue Queue, void *Ptr, size_t Size,
   if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
     if (mEmulated) {
       // Prefetch is a hint, so ignoring it is always safe.
-      RetVal = PI_CALL_RESULT(piEnqueueEventsWait, Queue, NumEventsInWaitList,
-                              EventWaitList, Event);
+      RetVal = PI_CALL_NOCHECK(piEnqueueEventsWait)(Queue, NumEventsInWaitList,
+                                                    EventWaitList, Event);
     } else {
       // TODO: Replace this with real prefetch support when the driver enables
       // it.
-      RetVal = PI_CALL_RESULT(piEnqueueEventsWait, Queue, NumEventsInWaitList,
-                              EventWaitList, Event);
+      RetVal = PI_CALL_NOCHECK(piEnqueueEventsWait)(Queue, NumEventsInWaitList,
+                                                    EventWaitList, Event);
     }
   }
 

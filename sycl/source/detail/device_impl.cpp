@@ -20,18 +20,18 @@ device_impl::device_impl() : MIsHostDevice(true) {}
 device_impl::device_impl(RT::PiDevice Device)
     : MDevice(Device), MIsHostDevice(false) {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piDeviceGetInfo, MDevice, PI_DEVICE_INFO_TYPE,
-          sizeof(RT::PiDeviceType), &MType, nullptr);
+  PI_CALL(piDeviceGetInfo)
+  (MDevice, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &MType, nullptr);
 
   RT::PiDevice parent = nullptr;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piDeviceGetInfo, MDevice, PI_DEVICE_INFO_PARENT, sizeof(RT::PiDevice),
-          &parent, nullptr);
+  PI_CALL(piDeviceGetInfo)
+  (MDevice, PI_DEVICE_INFO_PARENT, sizeof(RT::PiDevice), &parent, nullptr);
 
   MIsRootDevice = (nullptr == parent);
   if (!MIsRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piDeviceRetain, MDevice);
+    PI_CALL(piDeviceRetain)(MDevice);
   }
 }
 
@@ -56,7 +56,7 @@ cl_device_id device_impl::get() const {
 
   if (!MIsRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piDeviceRetain, MDevice);
+    PI_CALL(piDeviceRetain)(MDevice);
   }
   // TODO: check that device is an OpenCL interop one
   return pi::cast<cl_device_id>(MDevice);
@@ -68,8 +68,8 @@ platform device_impl::get_platform() const {
 
   RT::PiPlatform plt = nullptr; // TODO catch an exception and put it to list of
                       // asynchronous exceptions
-  PI_CALL(piDeviceGetInfo, MDevice, PI_DEVICE_INFO_PLATFORM, sizeof(plt), &plt,
-          nullptr);
+  PI_CALL(piDeviceGetInfo)
+  (MDevice, PI_DEVICE_INFO_PLATFORM, sizeof(plt), &plt, nullptr);
 
   // TODO: this possibly will violate common reference semantics,
   // particularly, equality comparison may fail for two consecutive
@@ -100,8 +100,9 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
 
   vector_class<RT::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
-  PI_CALL(piDevicePartition, MDevice, Properties, SubDevicesCount,
-          SubDevices.data(), &ReturnedSubDevices);
+  PI_CALL(piDevicePartition)
+  (MDevice, Properties, SubDevicesCount, SubDevices.data(),
+   &ReturnedSubDevices);
   // TODO: check that returned number of sub-devices matches what was
   // requested, otherwise this walk below is wrong.
   //

@@ -38,13 +38,13 @@ public:
         IsCreatedFromSource(IsCreatedFromSource) {
 
     RT::PiContext Context = nullptr;
-    PI_CALL(piKernelGetInfo, Kernel, CL_KERNEL_CONTEXT, sizeof(Context),
-            &Context, nullptr);
+    PI_CALL(piKernelGetInfo)
+    (Kernel, CL_KERNEL_CONTEXT, sizeof(Context), &Context, nullptr);
     auto ContextImpl = detail::getSyclObjImpl(SyclContext);
     if (ContextImpl->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(
           "Input context must be the same as the context of cl_kernel");
-    PI_CALL(piKernelRetain, Kernel);
+    PI_CALL(piKernelRetain)(Kernel);
   }
 
   // Host kernel constructor
@@ -55,7 +55,7 @@ public:
   ~kernel_impl() {
     // TODO catch an exception and put it to list of asynchronous exceptions
     if (!is_host()) {
-      PI_CALL(piKernelRelease, Kernel);
+      PI_CALL(piKernelRelease)(Kernel);
     }
   }
 
@@ -63,7 +63,7 @@ public:
     if (is_host()) {
       throw invalid_object_error("This instance of kernel is a host instance");
     }
-    PI_CALL(piKernelRetain, Kernel);
+    PI_CALL(piKernelRetain)(Kernel);
     return pi::cast<cl_kernel>(Kernel);
   }
 
