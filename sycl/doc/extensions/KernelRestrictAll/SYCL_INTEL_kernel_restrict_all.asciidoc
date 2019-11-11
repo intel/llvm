@@ -1,0 +1,131 @@
+= SYCL_INTEL_kernel_restrict_all
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
+
+This document describes an extension that adds a function type attribute which has the same effect as adding the C99 `restrict` attribute to all pointer arguments when applied to a kernel function.
+
+
+== Name Strings
+
++SYCL_INTEL_kernel_restrict_all+
+
+== Notice
+
+Copyright (c) 2019 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Contact
+Michael Kinsner, Intel (michael 'dot' kinsner 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-5.
+
+== Overview
+
+This extension adds a function type attribute that has the same effect as adding the C99 (or equivalently OpenCL C kernel language) `restrict` attribute to all pointers and the pointer member of any accessors, that are function arguments, lambda captures, or functor members, of the callable to which the attribute was applied.  The attribute can be applied to kernel lambdas, function call operators of a functor, or arbitrary functions (the effect on arbitrary functions, if any, is implementaton defined), to provide the compiler with additional information for optimization.
+
+A new attribute is added by this extension because there is no clear location on which to manually annotate C99 `restrict` on lambda captures, functor members, or accessors.
+
+== Add new paragraphs to end of section 6.7 (Attributes)
+
+The attribute `intel::kernel_args_restrict` is legal on device functions, and can be ignored on non-device functions.  When applied to a lambda or function call operator (of a functor) that defines a kernel, the attribute is a hint to the compiler equivalent to specifying the C99 `restrict` attribute on all pointer arguments or the pointer member of any accessors, which are a function argument, lambda capture, or functor member, of the callable to which the attribute was applied.  This effect is equivalent to annotating `restrict` on *all* kernel pointer arguments in an OpenCL or SPIR-V kernel, if the callable is a kernel.  If `intel::kernel_args_restrict` is applied to a function called from a device kernel, the effect is implementation defined.  The attribute forms an unchecked assertion, in that implementations do not need to check/confirm the pre-condition in any way.  If a user applies `intel::kernel_args_restrict` to a kernel, but there is in fact aliasing between kernel pointer arguments at runtime, the behavior is undefined.
+
+The attribute-token `intel::kernel_args_restrict` shall appear at most once in each _attribute-list_ and no _attribute-argument-clause_ shall be present. The attribute may be applied to the _function-type_ in a function declaration. The first declaration of a function shall specify the `intel::kernel_args_restrict` attribute if any declaration of that function specifies the `intel::kernel_args_restrict` attribute. If a function is declared with the `intel::kernel_args_restrict` attribute in one translation unit and the same function is declared without the `intel::kernel_args_restrict` attribute in another translation unit, the program is ill-formed and no diagnostic is required.
+
+The `intel::kernel_args_restrict` attribute has an effect when applied to a function, and no effect otherwise.
+
+== Example uses
+
+[source,c++,Restrict on lambda,linenums]
+----
+  Q.submit([&](handler &cgh) {
+    auto acc1 = out_buf_1.get_access<access::mode::write>(cgh);
+    auto acc2 = out_buf_2.get_access<access::mode::write>(cgh);
+    cgh.parallel_for<class lambda_foo>(
+      range<1>(N), [=](id<1> wiid) [[intel::kernel_args_restrict]]  {
+        int id = wiid[0];
+        acc1[id]=id;
+        acc2[id]=id*2;
+      });
+  });
+----
+
+[source,c++,Restrict on functor,linenums]
+----
+class functor_foo {
+    ...
+    void operator()(item<1> item) [[intel::kernel_args_restrict]]
+    {
+      int id = item[0];
+      buf1_m[id]=id;
+      buf2_m[id]=id*2;
+    }
+};
+----
+
+
+
+== Issues
+
+None.
+
+//. Title
+//+
+//--
+//*RESOLUTION*: Description
+//--
+
+
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2019-11-11|Michael Kinsner|*Initial public working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
