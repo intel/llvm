@@ -1659,6 +1659,9 @@ public:
   SYCLIntelFPGAIVDepAttr *
   BuildSYCLIntelFPGAIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
                               Expr *Expr2);
+  template <typename FPGALoopAttrT>
+  FPGALoopAttrT *BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
+                                            Expr *E);
 
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 

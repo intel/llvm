@@ -952,6 +952,11 @@ namespace {
     const LoopHintAttr *TransformLoopHintAttr(const LoopHintAttr *LH);
     const SYCLIntelFPGAIVDepAttr *
     TransformSYCLIntelFPGAIVDepAttr(const SYCLIntelFPGAIVDepAttr *IV);
+    const SYCLIntelFPGAIIAttr *
+    TransformSYCLIntelFPGAIIAttr(const SYCLIntelFPGAIIAttr *II);
+    const SYCLIntelFPGAMaxConcurrencyAttr *
+    TransformSYCLIntelFPGAMaxConcurrencyAttr(
+        const SYCLIntelFPGAMaxConcurrencyAttr *MC);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1354,6 +1359,27 @@ TemplateInstantiator::TransformSYCLIntelFPGAIVDepAttr(
                     : nullptr;
 
   return getSema().BuildSYCLIntelFPGAIVDepAttr(*IVDep, Expr1, Expr2);
+}
+
+const SYCLIntelFPGAIIAttr *TemplateInstantiator::TransformSYCLIntelFPGAIIAttr(
+    const SYCLIntelFPGAIIAttr *II) {
+  Expr *TransformedExpr =
+      II->getIntervalExpr()
+          ? getDerived().TransformExpr(II->getIntervalExpr()).get()
+          : nullptr;
+  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAIIAttr>(
+      *II, TransformedExpr);
+}
+
+const SYCLIntelFPGAMaxConcurrencyAttr *
+TemplateInstantiator::TransformSYCLIntelFPGAMaxConcurrencyAttr(
+    const SYCLIntelFPGAMaxConcurrencyAttr *MC) {
+  Expr *TransformedExpr =
+      MC->getNThreadsExpr()
+          ? getDerived().TransformExpr(MC->getNThreadsExpr()).get()
+          : nullptr;
+  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(
+      *MC, TransformedExpr);
 }
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(

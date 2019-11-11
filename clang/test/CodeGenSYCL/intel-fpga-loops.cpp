@@ -2,6 +2,8 @@
 
 // CHECK: br label %for.cond, !llvm.loop ![[MD_A:[0-9]+]]
 // CHECK: br label %for.cond, !llvm.loop ![[MD_B:[0-9]+]]
+// CHECK: br label %for.cond, !llvm.loop ![[MD_C:[0-9]+]]
+// CHECK: br label %for.cond, !llvm.loop ![[MD_D:[0-9]+]]
 
 // CHECK: ![[MD_A]] = distinct !{![[MD_A]], ![[MD_ii:[0-9]+]]}
 // CHECK-NEXT: ![[MD_ii]] = !{!"llvm.loop.ii.count", i32 2}
@@ -21,6 +23,26 @@ void zoo() {
     a[i] = 0;
 }
 
+// CHECK: ![[MD_C]] = distinct !{![[MD_C]], ![[MD_ii_2:[0-9]+]]}
+// CHECK-NEXT: ![[MD_ii_2]] = !{!"llvm.loop.ii.count", i32 4}
+template <int A>
+void boo() {
+  int a[10];
+  [[intelfpga::ii(A)]]
+  for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+}
+
+// CHECK: ![[MD_D]] = distinct !{![[MD_D]], ![[MD_max_concurrency_2:[0-9]+]]}
+// CHECK-NEXT: ![[MD_max_concurrency_2]] = !{!"llvm.loop.max_concurrency.count", i32 0}
+template <int B>
+void foo() {
+  int a[10];
+  [[intelfpga::max_concurrency(B)]]
+  for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
@@ -30,6 +52,8 @@ int main() {
   kernel_single_task<class kernel_function>([]() {
     goo();
     zoo();
+    boo<4>();
+    foo<0>();
   });
   return 0;
 }

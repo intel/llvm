@@ -74,8 +74,7 @@ static Attr *handleSuppressAttr(Sema &S, Stmt *St, const ParsedAttr &A,
 }
 
 template <typename FPGALoopAttrT>
-static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
-
+static Attr *handleIntelFPGALoopAttr(Sema &S, const ParsedAttr &A) {
   if(S.LangOpts.SYCLIsHost)
     return nullptr;
 
@@ -93,39 +92,7 @@ static Attr *handleIntelFPGALoopAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
     }
   }
 
-  unsigned SafeInterval = 0;
-
-  if (NumArgs == 1) {
-    Expr *E = A.getArgAsExpr(0);
-    llvm::APSInt ArgVal(32);
-
-    if (!E->isIntegerConstantExpr(ArgVal, S.Context)) {
-      S.Diag(A.getLoc(), diag::err_attribute_argument_type)
-        << A << AANT_ArgumentIntegerConstant << E->getSourceRange();
-      return nullptr;
-    }
-
-    int Val = ArgVal.getSExtValue();
-
-    if (A.getKind() != ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency) {
-      if (Val <= 0) {
-        S.Diag(A.getRange().getBegin(),
-            diag::warn_attribute_requires_positive_integer)
-          << A << /* positive */ 0;
-        return nullptr;
-      }
-    } else {
-      if (Val < 0) {
-        S.Diag(A.getRange().getBegin(),
-            diag::warn_attribute_requires_positive_integer)
-          << A << /* non-negative */ 1;
-        return nullptr;
-      }
-    }
-    SafeInterval = Val;
-  }
-
-  return FPGALoopAttrT::CreateImplicit(S.Context, SafeInterval);
+  return S.BuildSYCLIntelFPGALoopAttr<FPGALoopAttrT>(A, A.getArgAsExpr(0));
 }
 
 static bool checkSYCLIntelFPGAIVDepSafeLen(Sema &S, llvm::APSInt &Value,
@@ -207,6 +174,52 @@ Sema::BuildSYCLIntelFPGAIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
       SYCLIntelFPGAIVDepAttr(Context, CI, SafeLenExpr, ArrayExpr, SafelenValue);
 }
 
+template <typename FPGALoopAttrT>
+FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
+                                                Expr *E) {
+
+  unsigned SafeInterval = 0;
+  Expr *SafeExpr = nullptr;
+  if (E->isInstantiationDependent()) {
+    SafeExpr = E;
+  } else {
+    llvm::APSInt ArgVal(32);
+
+    if (!E->isIntegerConstantExpr(ArgVal, getASTContext())) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_type)
+          << (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency
+                  ? "'max_concurrency'"
+                  : "'ii'")
+          << AANT_ArgumentIntegerConstant << E->getSourceRange();
+      return nullptr;
+    }
+
+    int Val = ArgVal.getSExtValue();
+
+    if (A.getParsedKind() != ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency) {
+      if (Val <= 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency
+                    ? "'max_concurrency'"
+                    : "'ii'")
+            << /* positive */ 0;
+        return nullptr;
+      }
+    } else {
+      if (Val < 0) {
+        Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+            << (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency
+                    ? "'max_concurrency'"
+                    : "'ii'")
+            << /* non-negative */ 1;
+        return nullptr;
+      }
+    }
+    SafeInterval = Val;
+  }
+
+  return new (Context) FPGALoopAttrT(Context, A, SafeExpr, SafeInterval);
+}
 // Filters out any attributes from the list that are either not the specified
 // type, or whose function isDependent returns true.
 template <typename T>
@@ -611,9 +624,9 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
   case ParsedAttr::AT_SYCLIntelFPGAIVDep:
     return handleIntelFPGAIVDepAttr(S, A);
   case ParsedAttr::AT_SYCLIntelFPGAII:
-    return handleIntelFPGALoopAttr<SYCLIntelFPGAIIAttr>(S, St, A);
+    return handleIntelFPGALoopAttr<SYCLIntelFPGAIIAttr>(S, A);
   case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
-    return handleIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(S, St, A);
+    return handleIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(S, A);
   case ParsedAttr::AT_OpenCLUnrollHint:
     return handleLoopUnrollHint<OpenCLUnrollHintAttr>(S, St, A, Range);
   case ParsedAttr::AT_LoopUnrollHint:
