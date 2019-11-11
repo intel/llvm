@@ -1444,6 +1444,68 @@ private:
   SPIRVId Vector;
 };
 
+class SPIRVMatrixTimesMatrix : public SPIRVInstruction {
+public:
+  static const Op OC = OpMatrixTimesMatrix;
+  static const SPIRVWord FixedWordCount = 4;
+
+  // Complete constructor
+  SPIRVMatrixTimesMatrix(SPIRVType *TheType, SPIRVId TheId, SPIRVId M1,
+                         SPIRVId M2, SPIRVBasicBlock *BB)
+      : SPIRVInstruction(5, OC, TheType, TheId, BB), LeftMatrix(M1),
+        RightMatrix(M2) {
+    validate();
+    assert(BB && "Invalid BB");
+  }
+
+  // Incomplete constructor
+  SPIRVMatrixTimesMatrix()
+      : SPIRVInstruction(OC), LeftMatrix(SPIRVID_INVALID),
+        RightMatrix(SPIRVID_INVALID) {}
+
+  SPIRVValue *getLeftMatrix() const { return getValue(LeftMatrix); }
+
+  SPIRVValue *getRightMatrix() const { return getValue(RightMatrix); }
+
+  std::vector<SPIRVValue *> getOperands() override {
+    std::vector<SPIRVId> Operands;
+    Operands.push_back(LeftMatrix);
+    Operands.push_back(RightMatrix);
+    return getValues(Operands);
+  }
+
+  void setWordCount(SPIRVWord FixedWordCount) override {
+    SPIRVEntry::setWordCount(FixedWordCount);
+  }
+
+  _SPIRV_DEF_ENCDEC4(Type, Id, LeftMatrix, RightMatrix)
+
+  void validate() const override {
+    SPIRVInstruction::validate();
+    if (getValue(LeftMatrix)->isForward() || getValue(RightMatrix)->isForward())
+      return;
+
+    SPIRVType *Ty = getType()->getScalarType();
+    SPIRVType *LMTy = getValueType(LeftMatrix)->getScalarType();
+    SPIRVType *RMTy = getValueType(RightMatrix)->getScalarType();
+
+    (void)Ty;
+    (void)LMTy;
+    (void)RMTy;
+    assert(Ty->isTypeFloat() && "Invalid result type for OpMatrixTimesMatrix");
+    assert(LMTy->isTypeFloat() &&
+           "Invalid Matrix type for OpMatrixTimesMatrix");
+    assert(RMTy->isTypeFloat() &&
+           "Invalid Matrix type for OpMatrixTimesMatrix");
+
+    assert(Ty == LMTy && Ty == RMTy && "Mismatch float type");
+  }
+
+private:
+  SPIRVId LeftMatrix;
+  SPIRVId RightMatrix;
+};
+
 class SPIRVUnary : public SPIRVInstTemplateBase {
 protected:
   void validate() const override {

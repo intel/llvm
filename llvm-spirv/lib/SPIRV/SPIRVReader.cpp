@@ -1716,6 +1716,79 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, V);
   }
 
+  case OpMatrixTimesMatrix: {
+    auto *MTM = static_cast<SPIRVMatrixTimesMatrix *>(BV);
+    IRBuilder<> Builder(BB);
+    Value *M1 = transValue(MTM->getLeftMatrix(), F, BB);
+    Value *M2 = transValue(MTM->getRightMatrix(), F, BB);
+
+    // Each matrix consists of a list of columns.
+    // M1 (the left matrix) is of C1 columns and R1 rows.
+    // M1 consists of a list of vectors: V_1, V_2, ..., V_C1
+    // where V_x are vectors of size R1.
+    //
+    // M2 (the right matrix) is of C2 columns and R2 rows.
+    // M2 consists of a list of vectors: U_1, U_2, ..., U_C2
+    // where U_x are vectors of size R2.
+    //
+    // Now M1 * M2 requires C1 == R2.
+    // The result is a matrix of C2 columns and R1 rows.
+    // That is, consists of C2 vectors of size R1.
+    //
+    // M1 * M2 algorithm is as below:
+    //
+    // Result = { dot_product(U_1, M1),
+    //            dot_product(U_2, M1),
+    //            ...
+    //            dot_product(U_C2, M1) };
+    // where
+    // dot_product (U, M) is defined as:
+    //
+    //                 |-------- C1 ------|
+    // Result = sum ( {U[1], U[1], ..., U[1]} * V_1,
+    //                {U[2], U[2], ..., U[2]} * V_2,
+    //                ...
+    //                {U[R2], U[R2], ..., U[R2]} * V_C1 );
+    // Note that C1 == R2
+    // sum is defined as vector sum.
+
+    unsigned C1 = M1->getType()->getArrayNumElements();
+    unsigned C2 = M2->getType()->getArrayNumElements();
+    VectorType *V1Ty =
+        cast<VectorType>(cast<ArrayType>(M1->getType())->getElementType());
+    VectorType *V2Ty =
+        cast<VectorType>(cast<ArrayType>(M2->getType())->getElementType());
+    unsigned R1 = V1Ty->getVectorNumElements();
+    unsigned R2 = V2Ty->getVectorNumElements();
+    auto ETy = V1Ty->getElementType();
+
+    assert(C1 == R2 && "Unmatched matrix");
+
+    auto VTy = VectorType::get(ETy, R1);
+    auto ResultTy = ArrayType::get(VTy, C2);
+
+    Value *Res = UndefValue::get(ResultTy);
+
+    for (unsigned Idx = 0; Idx != C2; ++Idx) {
+      Value *U = Builder.CreateExtractValue(M2, Idx);
+
+      // Calculate dot_product(U, M1)
+      Value *Dot = Builder.CreateVectorSplat(R1, ConstantFP::get(ETy, 0.0));
+
+      for (unsigned Idx2 = 0; Idx2 != R2; ++Idx2) {
+        Value *Ux = Builder.CreateExtractElement(U, Builder.getInt32(Idx2));
+        Value *Lhs = Builder.CreateVectorSplat(R1, Ux);
+        Value *Rhs = Builder.CreateExtractValue(M1, Idx2);
+        Value *Mul = Builder.CreateFMul(Lhs, Rhs);
+        Dot = Builder.CreateFAdd(Dot, Mul);
+      }
+
+      Res = Builder.CreateInsertValue(Res, Dot, Idx);
+    }
+
+    return mapValue(BV, Res);
+  }
+
   case OpCopyObject: {
     SPIRVCopyObject *CO = static_cast<SPIRVCopyObject *>(BV);
     AllocaInst *AI =
