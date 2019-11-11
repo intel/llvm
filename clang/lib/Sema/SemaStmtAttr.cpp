@@ -196,22 +196,16 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
 
     int Val = ArgVal.getSExtValue();
 
-    if (A.getParsedKind() != ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency) {
+    if (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAII) {
       if (Val <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency
-                    ? "'max_concurrency'"
-                    : "'ii'")
-            << /* positive */ 0;
+            << "'ii'" << /* positive */ 0;
         return nullptr;
       }
     } else {
       if (Val < 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-            << (A.getParsedKind() == ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency
-                    ? "'max_concurrency'"
-                    : "'ii'")
-            << /* non-negative */ 1;
+            << "'max_concurrency'" << /* non-negative */ 1;
         return nullptr;
       }
     }
