@@ -748,11 +748,11 @@ public:
                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>* = nullptr>
   accessor(buffer<DataT, 1, AllocatorT> &BufferRef)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
+            detail::convertToArrayOfN<3, 1>(range<1>{1}),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
@@ -771,12 +771,12 @@ public:
                                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf)),
                                handler> &CommandGroupHandler)
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
   }
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
+            detail::convertToArrayOfN<3, 1>(range<1>{1}),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
@@ -875,9 +875,9 @@ public:
 
   constexpr bool is_placeholder() const { return IsPlaceH; }
 
-  size_t get_size() const { return getMemoryRange().size() * sizeof(DataT); }
+  size_t get_size() const { return getAccessRange().size() * sizeof(DataT); }
 
-  size_t get_count() const { return getMemoryRange().size(); }
+  size_t get_count() const { return getAccessRange().size(); }
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dimensions> get_range() const {

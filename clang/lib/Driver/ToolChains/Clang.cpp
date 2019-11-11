@@ -5649,12 +5649,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Host-side SYCL compilation receives the integration header file as
     // Inputs[1].  Include the header with -include
     if (!IsSYCLOffloadDevice && SYCLDeviceInput) {
+      SmallString<128> RealPath;
+      // Fixup the header path name in case there are discrepancies in the
+      // string used for the temporary directory environment variable and
+      // actual path expectations.
+      llvm::sys::fs::real_path(SYCLDeviceInput->getFilename(), RealPath);
       CmdArgs.push_back("-include");
-      CmdArgs.push_back(SYCLDeviceInput->getFilename());
+      CmdArgs.push_back(Args.MakeArgString(RealPath));
       // When creating dependency information, filter out the generated
       // header file.
       CmdArgs.push_back("-dependency-filter");
-      CmdArgs.push_back(SYCLDeviceInput->getFilename());
+      CmdArgs.push_back(Args.MakeArgString(RealPath));
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");

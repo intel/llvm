@@ -6103,6 +6103,66 @@ static void HandleAddressSpaceTypeAttribute(QualType &Type,
   }
 }
 
+static void HandleSYCLFPGAPipeAttribute(QualType &Type, const ParsedAttr &Attr,
+                                        TypeProcessingState &State) {
+  Sema &S = State.getSema();
+  ASTContext &Ctx = S.Context;
+
+  // Check the attribute arguments.
+  if (Attr.getNumArgs() != 1) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_wrong_number_arguments)
+        << Attr << 1;
+    Attr.setInvalid();
+    return;
+  }
+
+  if (!Attr.isArgExpr(0)) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_argument_type)
+        << Attr << AANT_ArgumentString;
+    Attr.setInvalid();
+    return;
+  }
+
+  StringRef Str;
+  if (auto *SL = dyn_cast<StringLiteral>(Attr.getArgAsExpr(0))) {
+    Str = SL->getString();
+  } else {
+    S.Diag(Attr.getLoc(), diag::err_attribute_argument_type)
+        << Attr << AANT_ArgumentString;
+    Attr.setInvalid();
+    return;
+  }
+
+  bool isReadOnlyPipe;
+  if (Str == "write_only")
+    isReadOnlyPipe = false;
+  else if (Str == "read_only")
+    isReadOnlyPipe = true;
+  else {
+    S.Diag(Attr.getLoc(), diag::err_pipe_attribute_arg_not_allowed) << Str;
+    Attr.setInvalid();
+    return;
+  }
+
+  auto *PipeAttr = ::new (Ctx) SYCLFPGAPipeAttr(Ctx, Attr, Str);
+
+  // Apply pipe qualifiers just to the equivalent type, as the expression is not
+  // value dependent (not templated).
+  QualType EquivType = isReadOnlyPipe
+                           ? S.BuildReadPipeType(Type, Attr.getLoc())
+                           : S.BuildWritePipeType(Type, Attr.getLoc());
+  if (EquivType.isNull()) {
+    Attr.setInvalid();
+    return;
+  }
+
+  QualType T = State.getAttributedType(PipeAttr, Type, EquivType);
+  if (!T.isNull())
+    Type = T;
+  else
+    Attr.setInvalid();
+}
+
 /// handleObjCOwnershipTypeAttr - Process an objc_ownership
 /// attribute on the specified type.
 ///
@@ -7668,6 +7728,10 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       break;
     case ParsedAttr::AT_OpenCLAccess:
       HandleOpenCLAccessAttr(type, attr, state.getSema());
+      attr.setUsedAsTypeAttr();
+      break;
+    case ParsedAttr::AT_SYCLFPGAPipe:
+      HandleSYCLFPGAPipeAttribute(type, attr, state);
       attr.setUsedAsTypeAttr();
       break;
     case ParsedAttr::AT_LifetimeBound:

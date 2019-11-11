@@ -1735,6 +1735,13 @@ def IntelFPGASimpleDualPort : Attr {
   let Documentation = [IntelFPGASimpleDualPortAttrDocs];
 }
 
+def SYCLFPGAPipe : TypeAttr {
+  let Spellings = [GNU<"pipe">];
+  let Args = [StringArgument<"Mode">];
+  let LangOpts = [SYCLIsDevice];
+  let Documentation = [SYCLFPGAPipeDocs];
+}
+
 def Naked : InheritableAttr {
   let Spellings = [GCC<"naked">, Declspec<"naked">];
   let Subjects = SubjectList<[Function]>;
