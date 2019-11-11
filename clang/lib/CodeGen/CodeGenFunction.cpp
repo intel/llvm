@@ -587,6 +587,14 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
     Fn->setMetadata("intel_reqd_sub_group_size",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
+
+  if (const SYCLIntelNumSimdWorkItemsAttr *A =
+      FD->getAttr<SYCLIntelNumSimdWorkItemsAttr>()) {
+    llvm::Metadata *AttrMDArgs[] = {
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getNumber()))};
+    Fn->setMetadata("num_simd_work_items",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
 }
 
 /// Determine whether the function F ends with a return stmt.

@@ -1885,6 +1885,17 @@ function, and no effect otherwise.
   }];
 }
 
+def SYCLIntelNumSimdWorkItemsAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "num_simd_work_items (IntelFPGA)";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the number of work
+items that should be processed in parallel. Valid values are positive integers.
+If ``intelfpga::num_simd_work_items`` is applied to a function called from a
+device kernel, the attribute is ignored and it is not propagated to a kernel.
+  }];
+}
+
 def SYCLFPGAPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";

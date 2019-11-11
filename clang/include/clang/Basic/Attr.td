@@ -1109,6 +1109,15 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
   let Documentation = [ SYCLIntelKernelArgsRestrictDocs ];
 }
 
+def SYCLIntelNumSimdWorkItems : InheritableAttr {
+  let Spellings = [CXX11<"intelfpga","num_simd_work_items">];
+  let Args = [UnsignedArgument<"Number">];
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelNumSimdWorkItemsAttrDocs];
+  let PragmaAttributeSupport = 0;
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [Keyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
