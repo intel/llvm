@@ -178,6 +178,7 @@ add_subdirectory( source )
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target( sycl-toolchain
   DEPENDS ${SYCL_RT_LIBS}
+          pi_opencl
           clang
           clang-offload-wrapper
           clang-offload-bundler
@@ -236,6 +237,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      opencl-headers
      sycl-headers
      sycl
+     pi_opencl
 )
 
 # Use it as fake dependency in order to force another command(s) to execute.
