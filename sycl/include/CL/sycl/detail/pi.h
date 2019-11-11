@@ -448,15 +448,15 @@ pi_result piextGetDeviceFunctionPointer(
 //
 pi_result piContextCreate(
   const cl_context_properties * properties, // TODO: untie from OpenCL
-  pi_uint32         num_devices,
-  const pi_device * devices,
-  void (*           pfn_notify)(
-    const char * errinfo,
-    const void * private_info,
-    size_t       cb,
-    void *       user_data),
-  void *            user_data,
-  pi_context *       retcontext);
+  pi_uint32        		num_devices,
+  const pi_device * 		devices,
+  void (*pfn_notify)(
+    const char 		      * errinfo,
+    const void 		      * private_info,
+    size_t       		cb,
+    void *       		user_data),
+  void *            		user_data,
+  pi_context *       		ret_context);
 
 pi_result piContextGetInfo(
   pi_context         context,
