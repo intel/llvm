@@ -35,8 +35,8 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  PI_CALL(piContextCreate, nullptr, DeviceIds.size(), DeviceIds.data(), nullptr,
-          nullptr, &m_Context);
+  PI_CALL(piContextCreate)
+  (nullptr, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &m_Context);
 
   m_USMDispatch.reset(new usm::USMDispatcher(m_Platform.get(), DeviceIds));
 }
@@ -49,12 +49,14 @@ context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
   vector_class<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextGetInfo, m_Context, PI_CONTEXT_INFO_NUM_DEVICES,
-          sizeof(DevicesNum), &DevicesNum, nullptr);
+  PI_CALL(piContextGetInfo)
+  (m_Context, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
+   nullptr);
   DeviceIds.resize(DevicesNum);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextGetInfo, m_Context, PI_CONTEXT_INFO_DEVICES,
-          sizeof(RT::PiDevice) * DevicesNum, &DeviceIds[0], nullptr);
+  PI_CALL(piContextGetInfo)
+  (m_Context, PI_CONTEXT_INFO_DEVICES, sizeof(RT::PiDevice) * DevicesNum,
+   &DeviceIds[0], nullptr);
 
   for (auto Dev : DeviceIds) {
     m_Devices.emplace_back(
@@ -63,13 +65,13 @@ context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
   // TODO What if m_Devices if empty? m_Devices[0].get_platform()
   m_Platform = platform(m_Devices[0].get_platform());
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextRetain, m_Context);
+  PI_CALL(piContextRetain)(m_Context);
 }
 
 cl_context context_impl::get() const {
   if (m_OpenCLInterop) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piContextRetain, m_Context);
+    PI_CALL(piContextRetain)(m_Context);
     return pi::cast<cl_context>(m_Context);
   }
   throw invalid_object_error(
@@ -83,15 +85,15 @@ vector_class<device> context_impl::get_devices() const { return m_Devices; }
 context_impl::~context_impl() {
   if (m_OpenCLInterop) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piContextRelease, m_Context);
+    PI_CALL(piContextRelease)(m_Context);
   }
   // Release all programs and kernels created with this context
   for (auto ProgIt : m_CachedPrograms) {
     RT::PiProgram ToBeDeleted = ProgIt.second;
     for (auto KernIt : m_CachedKernels[ToBeDeleted]) {
-      PI_CALL(piKernelRelease, KernIt.second);
+      PI_CALL(piKernelRelease)(KernIt.second);
     }
-    PI_CALL(piProgramRelease, ToBeDeleted);
+    PI_CALL(piProgramRelease)(ToBeDeleted);
   }
 }
 
