@@ -1993,6 +1993,17 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
+def SYCLIntelMaxGlobalWorkDimAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "max_global_work_dim (IntelFPGA)";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the largest valid global
+work dimension that will be accepted when running the kernel on a device. Valid
+values are non-negative integers. A kernel with max_global_work_dim(0) must be
+invoked with a 'single_task'.
+  }];
+}
+
 def SYCLFPGAPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";
