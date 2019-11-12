@@ -8,7 +8,7 @@
 
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/detail/kernel_impl.hpp>
 
 namespace cl {
 namespace sycl {

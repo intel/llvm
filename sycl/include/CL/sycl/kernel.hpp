@@ -8,8 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/stl.hpp>
+#include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 
 #include <memory>
 
@@ -18,6 +19,9 @@ namespace sycl {
 // Forward declaration
 class program;
 class context;
+namespace detail {
+class kernel_impl;
+}
 
 class kernel {
   template <class Obj>
