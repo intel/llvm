@@ -265,15 +265,21 @@ public:
   /// on Windows.
   static bool isSEHInstruction(const MachineInstr &MI);
 
+  Optional<DestSourcePair> isAddImmediate(const MachineInstr &MI,
+                                          int64_t &Offset) const override;
+
+  Optional<ParamLoadedValue>
+  describeLoadedValue(const MachineInstr &MI) const override;
+
 #define GET_INSTRINFO_HELPER_DECLS
 #include "AArch64GenInstrInfo.inc"
 
 protected:
-  /// If the specific machine instruction is a instruction that moves/copies
-  /// value from one register to another register return true along with
-  /// @Source machine operand and @Destination machine operand.
-  bool isCopyInstrImpl(const MachineInstr &MI, const MachineOperand *&Source,
-                       const MachineOperand *&Destination) const override;
+  /// If the specific machine instruction is an instruction that moves/copies
+  /// value from one register to another register return destination and source
+  /// registers as machine operands.
+  Optional<DestSourcePair>
+  isCopyInstrImpl(const MachineInstr &MI) const override;
 
 private:
   /// Sets the offsets on outlined instructions in \p MBB which use SP

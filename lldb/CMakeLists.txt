@@ -43,7 +43,7 @@ endif()
 if (NOT LLDB_DISABLE_PYTHON)
   execute_process(
     COMMAND ${PYTHON_EXECUTABLE}
-        -c "import distutils.sysconfig; print(distutils.sysconfig.get_python_lib(False, False, ''))"
+        -c "import distutils.sysconfig; print(distutils.sysconfig.get_python_lib(True, False, ''))"
     OUTPUT_VARIABLE LLDB_PYTHON_DEFAULT_RELATIVE_PATH
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
@@ -93,10 +93,9 @@ endif()
 
 if (NOT LLDB_DISABLE_PYTHON)
   get_target_property(lldb_scripts_dir swig_wrapper BINARY_DIR)
-  get_target_property(liblldb_build_dir liblldb LIBRARY_OUTPUT_DIRECTORY)
 
   if(LLDB_BUILD_FRAMEWORK)
-    set(lldb_python_build_path "${liblldb_build_dir}/LLDB.framework/Resources/Python/lldb")
+    set(lldb_python_build_path "${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework/Resources/Python/lldb")
   else()
     set(lldb_python_build_path "${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${LLDB_PYTHON_RELATIVE_PATH}/lldb")
   endif()
@@ -188,7 +187,7 @@ if (NOT LLDB_DISABLE_PYTHON)
   endfunction()
 
   if(LLDB_BUILD_FRAMEWORK)
-    set(LIBLLDB_SYMLINK_DEST "${liblldb_build_dir}/LLDB.framework/LLDB")
+    set(LIBLLDB_SYMLINK_DEST "${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework/LLDB")
   else()
     set(LIBLLDB_SYMLINK_DEST "${LLVM_SHLIB_OUTPUT_INTDIR}/liblldb${CMAKE_SHARED_LIBRARY_SUFFIX}")
   endif()
@@ -216,18 +215,21 @@ if (NOT LLDB_DISABLE_PYTHON)
   # Ensure we do the python post-build step when building lldb.
   add_dependencies(lldb finish_swig)
 
-  if(NOT LLDB_BUILD_FRAMEWORK)
-    # Install the LLDB python module
-    add_custom_target(lldb-python-scripts)
-    add_dependencies(lldb-python-scripts finish_swig)
-    install(DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${LLDB_PYTHON_RELATIVE_PATH}/
-            DESTINATION ${LLDB_PYTHON_RELATIVE_PATH}
-            COMPONENT lldb-python-scripts)
-    if (NOT LLVM_ENABLE_IDE)
-      add_llvm_install_targets(install-lldb-python-scripts
-                               COMPONENT lldb-python-scripts
-                               DEPENDS lldb-python-scripts)
-    endif()
+  # Install the LLDB python module
+  if(LLDB_BUILD_FRAMEWORK)
+    set(LLDB_PYTHON_INSTALL_PATH ${LLDB_FRAMEWORK_INSTALL_DIR}/LLDB.framework/Resources/Python)
+  else()
+    set(LLDB_PYTHON_INSTALL_PATH ${LLDB_PYTHON_RELATIVE_PATH})
+  endif()
+  add_custom_target(lldb-python-scripts)
+  add_dependencies(lldb-python-scripts finish_swig)
+  install(DIRECTORY ${lldb_python_build_path}/../
+          DESTINATION ${LLDB_PYTHON_INSTALL_PATH}
+          COMPONENT lldb-python-scripts)
+  if (NOT LLVM_ENABLE_IDE)
+    add_llvm_install_targets(install-lldb-python-scripts
+                             COMPONENT lldb-python-scripts
+                             DEPENDS lldb-python-scripts)
   endif()
 
   # Add a Post-Build Event to copy the custom Python DLL to the lldb binaries dir so that Windows can find it when launching

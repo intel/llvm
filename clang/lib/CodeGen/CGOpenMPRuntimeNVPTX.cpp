@@ -806,6 +806,7 @@ static bool hasNestedSPMDDirective(ASTContext &Ctx,
     case OMPD_master_taskloop:
     case OMPD_master_taskloop_simd:
     case OMPD_parallel_master_taskloop:
+    case OMPD_parallel_master_taskloop_simd:
     case OMPD_requires:
     case OMPD_unknown:
       llvm_unreachable("Unexpected directive.");
@@ -880,6 +881,7 @@ static bool supportsSPMDExecutionMode(ASTContext &Ctx,
   case OMPD_master_taskloop:
   case OMPD_master_taskloop_simd:
   case OMPD_parallel_master_taskloop:
+  case OMPD_parallel_master_taskloop_simd:
   case OMPD_requires:
   case OMPD_unknown:
     break;
@@ -1047,6 +1049,7 @@ static bool hasNestedLightweightDirective(ASTContext &Ctx,
     case OMPD_master_taskloop:
     case OMPD_master_taskloop_simd:
     case OMPD_parallel_master_taskloop:
+    case OMPD_parallel_master_taskloop_simd:
     case OMPD_requires:
     case OMPD_unknown:
       llvm_unreachable("Unexpected directive.");
@@ -1127,6 +1130,7 @@ static bool supportsLightweightRuntime(ASTContext &Ctx,
   case OMPD_master_taskloop:
   case OMPD_master_taskloop_simd:
   case OMPD_parallel_master_taskloop:
+  case OMPD_parallel_master_taskloop_simd:
   case OMPD_requires:
   case OMPD_unknown:
     break;
@@ -4950,7 +4954,8 @@ void CGOpenMPRuntimeNVPTX::checkArchForUnifiedAddressing(
     const OMPRequiresDecl *D) {
   for (const OMPClause *Clause : D->clauselists()) {
     if (Clause->getClauseKind() == OMPC_unified_shared_memory) {
-      switch (getCudaArch(CGM)) {
+      CudaArch Arch = getCudaArch(CGM);
+      switch (Arch) {
       case CudaArch::SM_20:
       case CudaArch::SM_21:
       case CudaArch::SM_30:
@@ -4962,10 +4967,14 @@ void CGOpenMPRuntimeNVPTX::checkArchForUnifiedAddressing(
       case CudaArch::SM_53:
       case CudaArch::SM_60:
       case CudaArch::SM_61:
-      case CudaArch::SM_62:
-        CGM.Error(Clause->getBeginLoc(),
-                  "Target architecture does not support unified addressing");
+      case CudaArch::SM_62: {
+        SmallString<256> Buffer;
+        llvm::raw_svector_ostream Out(Buffer);
+        Out << "Target architecture " << CudaArchToString(Arch)
+            << " does not support unified addressing";
+        CGM.Error(Clause->getBeginLoc(), Out.str());
         return;
+      }
       case CudaArch::SM_70:
       case CudaArch::SM_72:
       case CudaArch::SM_75:

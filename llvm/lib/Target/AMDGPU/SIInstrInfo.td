@@ -225,7 +225,6 @@ class SDGlobalAtomicNoRtn<string opcode, ValueType ty> : SDNode <opcode,
   [SDNPMemOperand, SDNPHasChain, SDNPMayLoad, SDNPMayStore]
 >;
 
-def SIglobal_atomic_fadd    : SDGlobalAtomicNoRtn <"AMDGPUISD::ATOMIC_FADD", f32>;
 def SIglobal_atomic_pk_fadd : SDGlobalAtomicNoRtn <"AMDGPUISD::ATOMIC_PK_FADD", v2f16>;
 
 def SIpc_add_rel_offset : SDNode<"AMDGPUISD::PC_ADD_REL_OFFSET",
@@ -324,7 +323,7 @@ defm atomic_load_fmax_#as : binary_atomic_op<SIatomic_fmax, 0>;
 
 def atomic_fadd_global_noret : PatFrag<
   (ops node:$ptr, node:$value),
-  (SIglobal_atomic_fadd node:$ptr, node:$value)> {
+  (atomic_load_fadd node:$ptr, node:$value)> {
   // FIXME: Move this
   let MemoryVT = f32;
   let IsAtomic = 1;
@@ -1381,7 +1380,7 @@ multiclass EXP_m<bit done, SDPatternOperator node> {
       def _si : EXP_Helper<done>,
                 SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.SI>,
                 EXPe {
-        let AssemblerPredicates = [isGFX6GFX7];
+        let AssemblerPredicate = isGFX6GFX7;
         let DecoderNamespace = "GFX6GFX7";
         let DisableDecoder = DisableSIDecoder;
       }
@@ -1389,7 +1388,7 @@ multiclass EXP_m<bit done, SDPatternOperator node> {
       def _vi : EXP_Helper<done>,
                 SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.VI>,
                 EXPe_vi {
-        let AssemblerPredicates = [isGFX8GFX9];
+        let AssemblerPredicate = isGFX8GFX9;
         let DecoderNamespace = "GFX8";
         let DisableDecoder = DisableVIDecoder;
       }
@@ -1397,7 +1396,7 @@ multiclass EXP_m<bit done, SDPatternOperator node> {
       def _gfx10 : EXP_Helper<done>,
                 SIMCInstr <"exp"#!if(done, "_done", ""), SIEncodingFamily.GFX10>,
                 EXPe {
-        let AssemblerPredicates = [isGFX10Plus];
+        let AssemblerPredicate = isGFX10Plus;
         let DecoderNamespace = "GFX10";
         let DisableDecoder = DisableSIDecoder;
       }

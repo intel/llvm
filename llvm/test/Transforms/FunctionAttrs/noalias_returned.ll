@@ -1,4 +1,4 @@
-; RUN: opt -S -passes=attributor -aa-pipeline='basic-aa' -attributor-disable=false -attributor-max-iterations-verify -attributor-max-iterations=3 < %s | FileCheck %s
+; RUN: opt -S -passes=attributor -aa-pipeline='basic-aa' -attributor-disable=false -attributor-max-iterations-verify -attributor-annotate-decl-cs -attributor-max-iterations=3 < %s | FileCheck %s
 
 ; TEST 1 - negative.
 
@@ -153,7 +153,7 @@ define i8* @test8(i32* %0) nounwind uwtable {
 ; TEST 9
 ; Simple Argument Test
 define internal void @test9(i8* %a, i8* %b) {
-; CHECK: define internal void @test9(i8* noalias nocapture readnone %a, i8* nocapture readnone %b)
+; CHECK: define internal void @test9(i8* noalias nocapture nofree readnone %a, i8* nocapture nofree readnone %b)
   ret void
 }
 define void @test9_helper(i8* %a, i8* %b) {
@@ -168,6 +168,8 @@ define void @test9_helper(i8* %a, i8* %b) {
 
 declare void @test10_helper_1(i8* %a)
 define void @test10_helper_2(i8* noalias %a) {
+; CHECK:   tail call void @test10_helper_1(i8* %a)
+  tail call void @test10_helper_1(i8* %a)
   ret void
 }
 define void @test10(i8* noalias %a) {
@@ -204,7 +206,7 @@ define void @test12_1() {
 ; CHECK-NEXT:    tail call void @use_nocapture(i8* noalias nonnull align 4 dereferenceable(1) [[A]])
 ; CHECK-NEXT:    tail call void @use_nocapture(i8* noalias nonnull align 4 dereferenceable(1) [[A]])
 ; CHECK-NEXT:    tail call void @use_nocapture(i8* noalias nocapture [[B]])
-; CHECK-NEXT:    tail call void @use_nocapture(i8* noalias [[B]])
+; CHECK-NEXT:    tail call void @use_nocapture(i8* noalias nocapture [[B]])
 ; CHECK-NEXT:    ret void
 ;
   %A = alloca i8, align 4
@@ -221,10 +223,10 @@ define void @test12_2(){
 ; CHECK-NEXT:    [[A:%.*]] = tail call noalias i8* @malloc(i64 4)
 ; FIXME: This should be @use_nocapture(i8* noalias [[A]])
 ; CHECK-NEXT:    tail call void @use_nocapture(i8* nocapture [[A]])
-; FIXME: This should be @use_nocapture(i8* noalias [[A]])
-; CHECK-NEXT:    tail call void @use_nocapture(i8* [[A]])
+; FIXME: This should be @use_nocapture(i8* noalias nocapture [[A]])
+; CHECK-NEXT:    tail call void @use_nocapture(i8* nocapture [[A]])
 ; CHECK-NEXT:    tail call void @use(i8* [[A]])
-; CHECK-NEXT:    tail call void @use_nocapture(i8* [[A]])
+; CHECK-NEXT:    tail call void @use_nocapture(i8* nocapture [[A]])
 ; CHECK-NEXT:    ret void
 ;
   %A = tail call noalias i8* @malloc(i64 4)
@@ -239,7 +241,7 @@ declare void @two_args(i8* nocapture , i8* nocapture)
 define void @test12_3(){
 ; CHECK-LABEL: @test12_3(
   %A = tail call noalias i8* @malloc(i64 4)
-; CHECK: tail call void @two_args(i8* nocapture %A, i8* %A)
+; CHECK: tail call void @two_args(i8* nocapture %A, i8* nocapture %A)
   tail call void @two_args(i8* %A, i8* %A)
   ret void
 }
@@ -252,17 +254,17 @@ define void @test12_4(){
   %A_1 = getelementptr i8, i8* %A, i64 1
   %B_0 = getelementptr i8, i8* %B, i64 0
 
-; CHECK: tail call void @two_args(i8* noalias %A, i8* noalias %B)
+; CHECK: tail call void @two_args(i8* noalias nocapture %A, i8* noalias nocapture %B)
   tail call void @two_args(i8* %A, i8* %B)
 
-; CHECK: tail call void @two_args(i8* %A, i8* nocapture %A_0)
+; CHECK: tail call void @two_args(i8* nocapture %A, i8* nocapture %A_0)
   tail call void @two_args(i8* %A, i8* %A_0)
 
-; CHECK: tail call void @two_args(i8* %A, i8* %A_1)
+; CHECK: tail call void @two_args(i8* nocapture %A, i8* nocapture %A_1)
   tail call void @two_args(i8* %A, i8* %A_1)
 
-; FIXME: This should be @two_args(i8* noalias %A_0, i8* noalias %B_0)
-; CHECK: tail call void @two_args(i8* %A_0, i8* nocapture %B_0)
+; FIXME: This should be @two_args(i8* noalias nocapture %A_0, i8* noalias nocapture %B_0)
+; CHECK: tail call void @two_args(i8* nocapture %A_0, i8* nocapture %B_0)
   tail call void @two_args(i8* %A_0, i8* %B_0)
   ret void
 }

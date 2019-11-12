@@ -6708,6 +6708,7 @@ emitNumTeamsForTargetDirective(CodeGenFunction &CGF,
   case OMPD_master_taskloop:
   case OMPD_master_taskloop_simd:
   case OMPD_parallel_master_taskloop:
+  case OMPD_parallel_master_taskloop_simd:
   case OMPD_requires:
   case OMPD_unknown:
     break;
@@ -7017,6 +7018,7 @@ emitNumThreadsForTargetDirective(CodeGenFunction &CGF,
   case OMPD_master_taskloop:
   case OMPD_master_taskloop_simd:
   case OMPD_parallel_master_taskloop:
+  case OMPD_parallel_master_taskloop_simd:
   case OMPD_requires:
   case OMPD_unknown:
     break;
@@ -8791,6 +8793,7 @@ getNestedDistributeDirective(ASTContext &Ctx, const OMPExecutableDirective &D) {
     case OMPD_master_taskloop:
     case OMPD_master_taskloop_simd:
     case OMPD_parallel_master_taskloop:
+    case OMPD_parallel_master_taskloop_simd:
     case OMPD_requires:
     case OMPD_unknown:
       llvm_unreachable("Unexpected directive.");
@@ -9551,6 +9554,7 @@ void CGOpenMPRuntime::scanForTargetRegionsFunctions(const Stmt *S,
     case OMPD_master_taskloop:
     case OMPD_master_taskloop_simd:
     case OMPD_parallel_master_taskloop:
+    case OMPD_parallel_master_taskloop_simd:
     case OMPD_requires:
     case OMPD_unknown:
       llvm_unreachable("Unknown target directive for OpenMP device codegen.");
@@ -10169,6 +10173,7 @@ void CGOpenMPRuntime::emitTargetDataStandAloneCall(
     case OMPD_master_taskloop:
     case OMPD_master_taskloop_simd:
     case OMPD_parallel_master_taskloop:
+    case OMPD_parallel_master_taskloop_simd:
     case OMPD_target:
     case OMPD_target_simd:
     case OMPD_target_teams_distribute:
@@ -11039,40 +11044,10 @@ bool checkContext<OMPDeclareVariantAttr::CtxSetImplementation,
 }
 
 static bool greaterCtxScore(ASTContext &Ctx, const Expr *LHS, const Expr *RHS) {
-  // If both scores are unknown, choose the very first one.
-  if (!LHS && !RHS)
-    return true;
-  // If only one is known, return this one.
-  if (LHS && !RHS)
-    return true;
-  if (!LHS && RHS)
-    return false;
   llvm::APSInt LHSVal = LHS->EvaluateKnownConstInt(Ctx);
   llvm::APSInt RHSVal = RHS->EvaluateKnownConstInt(Ctx);
   return llvm::APSInt::compareValues(LHSVal, RHSVal) >= 0;
 }
-
-namespace {
-/// Comparator for the priority queue for context selector.
-class OMPDeclareVariantAttrComparer
-    : public std::greater<const OMPDeclareVariantAttr *> {
-private:
-  ASTContext &Ctx;
-
-public:
-  OMPDeclareVariantAttrComparer(ASTContext &Ctx) : Ctx(Ctx) {}
-  bool operator()(const OMPDeclareVariantAttr *LHS,
-                  const OMPDeclareVariantAttr *RHS) const {
-    const Expr *LHSExpr = nullptr;
-    const Expr *RHSExpr = nullptr;
-    if (LHS->getCtxScore() == OMPDeclareVariantAttr::ScoreSpecified)
-      LHSExpr = LHS->getScore();
-    if (RHS->getCtxScore() == OMPDeclareVariantAttr::ScoreSpecified)
-      RHSExpr = RHS->getScore();
-    return greaterCtxScore(Ctx, LHSExpr, RHSExpr);
-  }
-};
-} // anonymous namespace
 
 /// Finds the variant function that matches current context with its context
 /// selector.
@@ -11083,13 +11058,7 @@ static const FunctionDecl *getDeclareVariantFunction(ASTContext &Ctx,
   // Iterate through all DeclareVariant attributes and check context selectors.
   auto &&Comparer = [&Ctx](const OMPDeclareVariantAttr *LHS,
                            const OMPDeclareVariantAttr *RHS) {
-    const Expr *LHSExpr = nullptr;
-    const Expr *RHSExpr = nullptr;
-    if (LHS->getCtxScore() == OMPDeclareVariantAttr::ScoreSpecified)
-      LHSExpr = LHS->getScore();
-    if (RHS->getCtxScore() == OMPDeclareVariantAttr::ScoreSpecified)
-      RHSExpr = RHS->getScore();
-    return greaterCtxScore(Ctx, LHSExpr, RHSExpr);
+    return greaterCtxScore(Ctx, LHS->getScore(), RHS->getScore());
   };
   const OMPDeclareVariantAttr *TopMostAttr = nullptr;
   for (const auto *A : FD->specific_attrs<OMPDeclareVariantAttr>()) {

@@ -385,6 +385,9 @@ public:
                                              SPIRVId TheMatrix,
                                              SPIRVId TheVector,
                                              SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addMatrixTimesMatrixInst(SPIRVType *TheType, SPIRVId M1,
+                                             SPIRVId M2,
+                                             SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
                                  SPIRVBasicBlock *) override;
   SPIRVInstruction *addVariable(SPIRVType *, bool, SPIRVLinkageTypeKind,
@@ -1097,6 +1100,13 @@ SPIRVModuleImpl::addMatrixTimesVectorInst(SPIRVType *TheType, SPIRVId TheMatrix,
                                           SPIRVBasicBlock *BB) {
   return BB->addInstruction(
       new SPIRVMatrixTimesVector(TheType, getId(), TheMatrix, TheVector, BB));
+}
+
+SPIRVInstruction *
+SPIRVModuleImpl::addMatrixTimesMatrixInst(SPIRVType *TheType, SPIRVId M1,
+                                          SPIRVId M2, SPIRVBasicBlock *BB) {
+  return BB->addInstruction(
+      new SPIRVMatrixTimesMatrix(TheType, getId(), M1, M2, BB));
 }
 
 SPIRVInstruction *

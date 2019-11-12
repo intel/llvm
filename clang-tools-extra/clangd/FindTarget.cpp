@@ -674,10 +674,14 @@ private:
       return refInDecl(D);
     if (auto *E = N.get<Expr>())
       return refInExpr(E);
-    if (auto *NNSL = N.get<NestedNameSpecifierLoc>())
-      return {ReferenceLoc{NNSL->getPrefix(), NNSL->getLocalBeginLoc(), false,
-                           explicitReferenceTargets(DynTypedNode::create(
-                               *NNSL->getNestedNameSpecifier()))}};
+    if (auto *NNSL = N.get<NestedNameSpecifierLoc>()) {
+      // (!) 'DeclRelation::Alias' ensures we do not loose namespace aliases.
+      return {ReferenceLoc{
+          NNSL->getPrefix(), NNSL->getLocalBeginLoc(), false,
+          explicitReferenceTargets(
+              DynTypedNode::create(*NNSL->getNestedNameSpecifier()),
+              DeclRelation::Alias)}};
+    }
     if (const TypeLoc *TL = N.get<TypeLoc>())
       return refInTypeLoc(*TL);
     if (const CXXCtorInitializer *CCI = N.get<CXXCtorInitializer>()) {
@@ -727,6 +731,10 @@ void findExplicitReferences(const Decl *D,
                             llvm::function_ref<void(ReferenceLoc)> Out) {
   assert(D);
   ExplicitReferenceColletor(Out).TraverseDecl(const_cast<Decl *>(D));
+}
+void findExplicitReferences(const ASTContext &AST,
+                            llvm::function_ref<void(ReferenceLoc)> Out) {
+  ExplicitReferenceColletor(Out).TraverseAST(const_cast<ASTContext &>(AST));
 }
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, DeclRelation R) {

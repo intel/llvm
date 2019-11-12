@@ -40,12 +40,15 @@ enum ID : unsigned;
 }
 
 class AssumptionCache;
+class BlockFrequencyInfo;
 class BranchInst;
 class Function;
 class GlobalValue;
 class IntrinsicInst;
 class LoadInst;
+class LoopAccessInfo;
 class Loop;
+class ProfileSummaryInfo;
 class SCEV;
 class ScalarEvolution;
 class StoreInst;
@@ -297,7 +300,9 @@ public:
   /// \p JTSize Set a jump table size only when \p SI is suitable for a jump
   /// table.
   unsigned getEstimatedNumberOfCaseClusters(const SwitchInst &SI,
-                                            unsigned &JTSize) const;
+                                            unsigned &JTSize,
+                                            ProfileSummaryInfo *PSI,
+                                            BlockFrequencyInfo *BFI) const;
 
   /// Estimate the cost of a given IR user when lowered.
   ///
@@ -513,6 +518,13 @@ public:
                                 AssumptionCache &AC,
                                 TargetLibraryInfo *LibInfo,
                                 HardwareLoopInfo &HWLoopInfo) const;
+
+  /// Query the target whether it would be prefered to create a predicated vector
+  /// loop, which can avoid the need to emit a scalar epilogue loop.
+  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
+                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
+                                   DominatorTree *DT,
+                                   const LoopAccessInfo *LAI) const;
 
   /// @}
 
@@ -1177,7 +1189,9 @@ public:
                                const User *U) = 0;
   virtual int getMemcpyCost(const Instruction *I) = 0;
   virtual unsigned getEstimatedNumberOfCaseClusters(const SwitchInst &SI,
-                                                    unsigned &JTSize) = 0;
+                                                    unsigned &JTSize,
+                                                    ProfileSummaryInfo *PSI,
+                                                    BlockFrequencyInfo *BFI) = 0;
   virtual int
   getUserCost(const User *U, ArrayRef<const Value *> Operands) = 0;
   virtual bool hasBranchDivergence() = 0;
@@ -1195,6 +1209,12 @@ public:
                                         AssumptionCache &AC,
                                         TargetLibraryInfo *LibInfo,
                                         HardwareLoopInfo &HWLoopInfo) = 0;
+  virtual bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI,
+                                           ScalarEvolution &SE,
+                                           AssumptionCache &AC,
+                                           TargetLibraryInfo *TLI,
+                                           DominatorTree *DT,
+                                           const LoopAccessInfo *LAI) = 0;
   virtual bool isLegalAddImmediate(int64_t Imm) = 0;
   virtual bool isLegalICmpImmediate(int64_t Imm) = 0;
   virtual bool isLegalAddressingMode(Type *Ty, GlobalValue *BaseGV,
@@ -1465,6 +1485,12 @@ public:
                                 HardwareLoopInfo &HWLoopInfo) override {
     return Impl.isHardwareLoopProfitable(L, SE, AC, LibInfo, HWLoopInfo);
   }
+  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
+                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
+                                   DominatorTree *DT,
+                                   const LoopAccessInfo *LAI) override {
+    return Impl.preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LAI);
+  }
   bool isLegalAddImmediate(int64_t Imm) override {
     return Impl.isLegalAddImmediate(Imm);
   }
@@ -1678,8 +1704,10 @@ public:
     return Impl.getMaxInterleaveFactor(VF);
   }
   unsigned getEstimatedNumberOfCaseClusters(const SwitchInst &SI,
-                                            unsigned &JTSize) override {
-    return Impl.getEstimatedNumberOfCaseClusters(SI, JTSize);
+                                            unsigned &JTSize,
+                                            ProfileSummaryInfo *PSI,
+                                            BlockFrequencyInfo *BFI) override {
+    return Impl.getEstimatedNumberOfCaseClusters(SI, JTSize, PSI, BFI);
   }
   unsigned
   getArithmeticInstrCost(unsigned Opcode, Type *Ty, OperandValueKind Opd1Info,

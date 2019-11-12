@@ -283,7 +283,7 @@ enum {
   SourceIdx       = 2,
   LineIdx         = 3,
   ColumnIdx       = 4,
-  OperandCount    = 4
+  OperandCount    = 5
 };
 }
 
