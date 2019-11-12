@@ -655,11 +655,15 @@ int main() {
     cl::sycl::buffer<char, 1> Buf_1(Size);
     cl::sycl::buffer<char, 1> Buf_2(Size / 2);
 
-    auto AccA = Buf_1.get_access<cl::sycl::access::mode::read_write>(Size / 2);
-    auto AccB = Buf_2.get_access<cl::sycl::access::mode::read_write>(Size / 2);
-    assert(AccA.get_size() == AccB.get_size());
-    assert(AccA.get_range() == AccB.get_range());
-    assert(AccA.get_count() == AccB.get_count());
+    {
+      auto AccA =
+          Buf_1.get_access<cl::sycl::access::mode::read_write>(Size / 2);
+      auto AccB =
+          Buf_2.get_access<cl::sycl::access::mode::read_write>(Size / 2);
+      assert(AccA.get_size() == AccB.get_size());
+      assert(AccA.get_range() == AccB.get_range());
+      assert(AccA.get_count() == AccB.get_count());
+    }
 
     auto AH0 = accessor<char, 0, access::mode::read_write,
                         access::target::host_buffer>(Buf_1);
