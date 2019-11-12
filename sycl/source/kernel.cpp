@@ -13,13 +13,13 @@
 namespace cl {
 namespace sycl {
 
-kernel::kernel(cl_kernel clKernel, const context &syclContext)
+kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
-        detail::pi::cast<detail::RT::PiKernel>(clKernel), syclContext)) {}
+        detail::pi::cast<detail::RT::PiKernel>(ClKernel), SyclContext)) {}
 
-bool kernel::operator==(const kernel &rhs) const { return impl == rhs.impl; }
+bool kernel::operator==(const kernel &RHS) const { return impl == RHS.impl; }
 
-bool kernel::operator!=(const kernel &rhs) const { return !operator==(rhs); }
+bool kernel::operator!=(const kernel &RHS) const { return !operator==(RHS); }
 
 cl_kernel kernel::get() const { return impl->get(); }
 
@@ -82,7 +82,7 @@ kernel::get_sub_group_info(const device &dev,
 #undef PARAM_TRAITS_SPEC
 #undef PARAM_TRAITS_SPEC_WITH_INPUT
 
-kernel::kernel(std::shared_ptr<detail::kernel_impl> impl) : impl(impl) {}
+kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
 program kernel::get_program() const { return impl->get_program(); }
 

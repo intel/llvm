@@ -26,19 +26,19 @@ class kernel {
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
 public:
-  kernel(cl_kernel clKernel, const context &syclContext);
+  kernel(cl_kernel ClKernel, const context &SyclContext);
 
-  kernel(const kernel &rhs) = default;
+  kernel(const kernel &RHS) = default;
 
-  kernel(kernel &&rhs) = default;
+  kernel(kernel &&RHS) = default;
 
-  kernel &operator=(const kernel &rhs) = default;
+  kernel &operator=(const kernel &RHS) = default;
 
-  kernel &operator=(kernel &&rhs) = default;
+  kernel &operator=(kernel &&RHS) = default;
 
-  bool operator==(const kernel &rhs) const;
+  bool operator==(const kernel &RHS) const;
 
-  bool operator!=(const kernel &rhs) const;
+  bool operator!=(const kernel &RHS) const;
 
   cl_kernel get() const;
 
@@ -54,20 +54,20 @@ public:
 
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
-  get_work_group_info(const device &dev) const;
+  get_work_group_info(const device &Device) const;
 
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &dev) const;
+  get_sub_group_info(const device &Device) const;
 
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &dev,
+  get_sub_group_info(const device &Device,
                      typename info::param_traits<info::kernel_sub_group,
-                                                 param>::input_type val) const;
+                                                 param>::input_type Value) const;
 
 private:
-  kernel(std::shared_ptr<detail::kernel_impl> impl);
+  kernel(std::shared_ptr<detail::kernel_impl> Impl);
 
   std::shared_ptr<detail::kernel_impl> impl;
 };
@@ -76,9 +76,9 @@ private:
 
 namespace std {
 template <> struct hash<cl::sycl::kernel> {
-  size_t operator()(const cl::sycl::kernel &k) const {
+  size_t operator()(const cl::sycl::kernel &Kernel) const {
     return hash<std::shared_ptr<cl::sycl::detail::kernel_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(k));
+        cl::sycl::detail::getSyclObjImpl(Kernel));
   }
 };
 } // namespace std

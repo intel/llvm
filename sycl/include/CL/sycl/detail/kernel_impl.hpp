@@ -44,13 +44,13 @@ public:
     if (is_host()) {
       throw invalid_object_error("This instance of kernel is a host instance");
     }
-    PI_CALL(RT::piKernelRetain, Kernel);
-    return pi::cast<cl_kernel>(Kernel);
+    PI_CALL(RT::piKernelRetain, MKernel);
+    return pi::cast<cl_kernel>(MKernel);
   }
 
-  bool is_host() const { return Context.is_host(); }
+  bool is_host() const { return MContext.is_host(); }
 
-  context get_context() const { return Context; }
+  context get_context() const { return MContext; }
 
   program get_program() const;
 
@@ -73,16 +73,16 @@ public:
       typename info::param_traits<info::kernel_sub_group, param>::input_type
           Value) const;
 
-  RT::PiKernel &getHandleRef() { return Kernel; }
-  const RT::PiKernel &getHandleRef() const { return Kernel; }
+  RT::PiKernel &getHandleRef() { return MKernel; }
+  const RT::PiKernel &getHandleRef() const { return MKernel; }
 
   bool isCreatedFromSource() const;
 
 private:
-  RT::PiKernel Kernel;
-  context Context;
-  std::shared_ptr<program_impl> ProgramImpl;
-  bool IsCreatedFromSource = true;
+  RT::PiKernel MKernel;
+  context MContext;
+  std::shared_ptr<program_impl> MProgramImpl;
+  bool MIsCreatedFromSource = true;
 };
 
 } // namespace detail

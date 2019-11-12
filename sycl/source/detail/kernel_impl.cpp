@@ -26,8 +26,8 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext)
 kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
                          std::shared_ptr<program_impl> ProgramImpl,
                          bool IsCreatedFromSource)
-    : Kernel(Kernel), Context(SyclContext), ProgramImpl(ProgramImpl),
-      IsCreatedFromSource(IsCreatedFromSource) {
+    : MKernel(Kernel), MContext(SyclContext), MProgramImpl(ProgramImpl),
+      MIsCreatedFromSource(IsCreatedFromSource) {
 
   RT::PiContext Context = nullptr;
   PI_CALL(RT::piKernelGetInfo, Kernel, CL_KERNEL_CONTEXT, sizeof(Context),
@@ -36,7 +36,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
   if (ContextImpl->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel");
-  PI_CALL(RT::piKernelRetain, Kernel);
+  PI_CALL(RT::piKernelRetain, MKernel);
 }
 
 kernel_impl::kernel_impl(const context &SyclContext,
@@ -46,12 +46,12 @@ kernel_impl::kernel_impl(const context &SyclContext,
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host()) {
-    PI_CALL(RT::piKernelRelease, Kernel);
+    PI_CALL(RT::piKernelRelease, MKernel);
   }
 }
 
 program kernel_impl::get_program() const {
-  return createSyclObjFromImpl<program>(ProgramImpl);
+  return createSyclObjFromImpl<program>(MProgramImpl);
 }
 
 template <info::kernel param>
@@ -152,7 +152,7 @@ bool kernel_impl::isCreatedFromSource() const {
   // kernel SecondKernel = kernel(ClKernel, Context);
   // clReleaseKernel(ClKernel);
   // FirstKernel.isCreatedFromSource() != FirstKernel.isCreatedFromSource();
-  return IsCreatedFromSource;
+  return MIsCreatedFromSource;
 }
 
 } // namespace detail
