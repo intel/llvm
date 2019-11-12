@@ -87,7 +87,7 @@ public:
     RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
     RT::PiContext Context = nullptr;
     PI_CALL(RT::piMemGetInfo, Mem, CL_MEM_CONTEXT, sizeof(Context), &Context,
-                             nullptr);
+            nullptr);
 
     if (MInteropContext->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(
@@ -225,7 +225,7 @@ public:
     releaseHostMem(MShadowCopy);
 
     if (MOpenCLInterop)
-      PI_CALL(RT::piMemRelease,pi::cast<RT::PiMem>(MInteropMemObject));
+      PI_CALL(RT::piMemRelease, pi::cast<RT::PiMem>(MInteropMemObject));
   }
 
   bool useHostPtr() {

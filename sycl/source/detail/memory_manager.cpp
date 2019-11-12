@@ -102,14 +102,12 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
   // Create read_write mem object by default to handle arbitrary uses.
   RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
-    CreationFlags |=
-      HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY :
-      PI_MEM_FLAGS_HOST_PTR_USE;
+    CreationFlags |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
+                                     : PI_MEM_FLAGS_HOST_PTR_USE;
 
   RT::PiMem NewMem;
-  PI_CALL(RT::piMemImageCreate,TargetContext->getHandleRef(),
-                                         CreationFlags, &Format, &Desc, UserPtr,
-                                         &NewMem);
+  PI_CALL(RT::piMemImageCreate, TargetContext->getHandleRef(), CreationFlags,
+          &Format, &Desc, UserPtr, &NewMem);
   return NewMem;
 }
 
@@ -119,13 +117,12 @@ void *MemoryManager::allocateBufferObject(ContextImplPtr TargetContext,
   // Create read_write mem object by default to handle arbitrary uses.
   RT::PiMemFlags CreationFlags = PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
-    CreationFlags |=
-      HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY :
-      PI_MEM_FLAGS_HOST_PTR_USE;
+    CreationFlags |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
+                                     : PI_MEM_FLAGS_HOST_PTR_USE;
 
   RT::PiMem NewMem;
-  PI_CALL(RT::piMemBufferCreate,
-      TargetContext->getHandleRef(), CreationFlags, Size, UserPtr, &NewMem);
+  PI_CALL(RT::piMemBufferCreate, TargetContext->getHandleRef(), CreationFlags,
+          Size, UserPtr, &NewMem);
   return NewMem;
 }
 
@@ -176,9 +173,9 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   // TODO replace with pi_buffer_region
   cl_buffer_region Region{Offset, SizeInBytes};
   RT::PiMem NewMem;
-  Error = PI_CALL_RESULT(RT::piMemBufferPartition,
-              pi::cast<RT::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
-              PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
+  Error = PI_CALL_RESULT(
+      RT::piMemBufferPartition, pi::cast<RT::PiMem>(ParentMemObj),
+      PI_MEM_FLAGS_ACCESS_RW, PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == PI_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
         "Specified offset of the sub-buffer being constructed is not a "
@@ -312,10 +309,10 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       size_t DstRowPitch = (1 == DimDst) ? 0 : DstSize[0];
       size_t DstSlicePitch = (3 == DimDst) ? DstSize[0] * DstSize[1] : 0;
 
-      PI_CALL(RT::piEnqueueMemBufferCopyRect, Queue, SrcMem, DstMem, &SrcOffset[0],
-              &DstOffset[0], &SrcAccessRange[0], SrcRowPitch, SrcSlicePitch,
-              DstRowPitch, DstSlicePitch, DepEvents.size(), &DepEvents[0],
-              &OutEvent);
+      PI_CALL(RT::piEnqueueMemBufferCopyRect, Queue, SrcMem, DstMem,
+              &SrcOffset[0], &DstOffset[0], &SrcAccessRange[0], SrcRowPitch,
+              SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
+              &DepEvents[0], &OutEvent);
     }
   } else {
     PI_CALL(RT::piEnqueueMemImageCopy, Queue, SrcMem, DstMem, &SrcOffset[0],
@@ -451,10 +448,10 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   AccessRange[0] *= ElementSize;
 
   void *MappedPtr;
-  PI_CALL(RT::piEnqueueMemBufferMap,
-      Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags,
-      AccessOffset[0], AccessRange[0], DepEvents.size(),
-      DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &MappedPtr);
+  PI_CALL(RT::piEnqueueMemBufferMap, Queue->getHandleRef(),
+          pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags, AccessOffset[0],
+          AccessRange[0], DepEvents.size(),
+          DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &MappedPtr);
   return MappedPtr;
 }
 
@@ -486,9 +483,9 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     std::shared_ptr<usm::USMDispatcher> USMDispatch =
         getSyclObjImpl(Context)->getUSMDispatch();
     RT::piCheckResult(USMDispatch->enqueueMemcpy(Queue,
-                                        /* blocking */ false, DstMem, SrcMem,
-                                        Len, DepEvents.size(), &DepEvents[0],
-                                        &OutEvent));
+                                                 /* blocking */ false, DstMem,
+                                                 SrcMem, Len, DepEvents.size(),
+                                                 &DepEvents[0], &OutEvent));
   }
 }
 
@@ -502,9 +499,9 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   } else {
     std::shared_ptr<usm::USMDispatcher> USMDispatch =
         getSyclObjImpl(Context)->getUSMDispatch();
-    RT::piCheckResult(USMDispatch->enqueueMemset(Queue->getHandleRef(), Mem, Pattern,
-                                        Length, DepEvents.size(), &DepEvents[0],
-                                        &OutEvent));
+    RT::piCheckResult(
+        USMDispatch->enqueueMemset(Queue->getHandleRef(), Mem, Pattern, Length,
+                                   DepEvents.size(), &DepEvents[0], &OutEvent));
   }
 }
 
@@ -518,9 +515,9 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   } else {
     std::shared_ptr<usm::USMDispatcher> USMDispatch =
         getSyclObjImpl(Context)->getUSMDispatch();
-    RT::piCheckResult(USMDispatch->enqueuePrefetch(Queue->getHandleRef(), Mem, Length,
-                                          DepEvents.size(), &DepEvents[0],
-                                          &OutEvent));
+    RT::piCheckResult(USMDispatch->enqueuePrefetch(Queue->getHandleRef(), Mem,
+                                                   Length, DepEvents.size(),
+                                                   &DepEvents[0], &OutEvent));
   }
 }
 

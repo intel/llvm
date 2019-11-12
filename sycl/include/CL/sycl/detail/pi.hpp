@@ -115,15 +115,15 @@ void printArgs(Arg0 arg0, Args... args) {
   printArgs(std::forward<Args>(args)...);
 }
 
-// Utility function to check return from piXXX calls.
-// Throws if pi_result is Exception.
+// Utility function to check return from pi calls.
+// Throws if pi_result is not a PI_SUCCESS.
 // TODO: Absorb this utility in Trace Class
 template <typename Exception> inline void piCheckThrow(PiResult pi_result) {
   CHECK_OCL_CODE_THROW(pi_result, Exception);
 }
 
-// Utility function to check if return from piXXX call is
-// cl::sycl::runtime_error. Throws if it is.
+// Utility function to check if return from pi call is
+// PI_SUCCESS. If is it not, throw a cl::sycl::runtime_error.
 // TODO: Absorb this utility in Trace Class
 inline void piCheckResult(PiResult pi_result) {
   piCheckThrow<cl::sycl::runtime_error>(pi_result);
@@ -165,25 +165,20 @@ namespace RT = cl::sycl::detail::pi;
 
 #define PI_TRACE(func) RT::Trace<decltype(func)>(func, #func)
 
-// This does the call, the trace and the check for no errors.
-// Need to call initialize so that the ptrs are updated and then stored.
+// Use this macro to initialize the Plugin, call the API, do the trace 
+// and the check for no errors.
 #define PI_CALL(pi, ...)                                                       \
   {                                                                            \
     RT::initialize();                                                          \
     RT::piCheckResult(PI_TRACE(pi)(__VA_ARGS__));                              \
   }
 
-// This does the trace, the call, and returns the result
+// Use this macro to call the API, do the trace and returns the result.
+// To check the result use piCheckResult or piCheckThrow. 
 // There should have been a single call to PI_CALL before this macro is used. It
 // enables calling initialize before the PI_TRACE function is called.
+// TODO: Remove this dependency to PI_CALL.
 #define PI_CALL_RESULT(pi, ...) PI_TRACE(pi)(__VA_ARGS__)
-
-// Trace an openCL calls to the device, call, check and return the result.
-// Note that this does not print the arguments of the function call.
-// No initialise required.
-#define PI_TRACE_OCL_CALL(ocl, ...)                                            \
-  PI_TRACE(&ocl);                                                              \
-  RT::piCheckResult(RT::cast<RT::PiResult>(ocl(__VA_ARGS__)))
 
 // Want all the needed casts be explicit, do not define conversion
 // operators.
