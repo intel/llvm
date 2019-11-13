@@ -245,13 +245,12 @@ private:
 
 class MapMemObject : public Command {
 public:
-  MapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
-               Requirement *DstAcc, QueueImplPtr Queue);
+  MapMemObject(AllocaCommandBase *SrcAlloca, Requirement *Req, void **DstPtr,
+               QueueImplPtr Queue);
 
-  Requirement MSrcReq;
   AllocaCommandBase *MSrcAlloca = nullptr;
-  Requirement *MDstAcc = nullptr;
-  Requirement MDstReq;
+  void **MDstPtr = nullptr;
+  Requirement MReq;
 
   void printDot(std::ostream &Stream) const override;
 
@@ -261,18 +260,17 @@ private:
 
 class UnMapMemObject : public Command {
 public:
-  UnMapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
-                 Requirement *DstAcc, QueueImplPtr Queue,
-                 bool UseExclusiveQueue = false);
+  UnMapMemObject(AllocaCommandBase *DstAlloca, Requirement *Req, void **SrcPtr,
+                 QueueImplPtr Queue, bool UseExclusiveQueue = false);
 
   void printDot(std::ostream &Stream) const override;
 
 private:
   cl_int enqueueImp() override;
 
-  Requirement MSrcReq;
-  AllocaCommandBase *MSrcAlloca = nullptr;
-  Requirement *MDstAcc = nullptr;
+  AllocaCommandBase *MDstAlloca = nullptr;
+  Requirement MReq;
+  void **MSrcPtr = nullptr;
 };
 
 // The command enqueues memory copy between two instances of memory object.
@@ -304,14 +302,14 @@ private:
 class MemCpyCommandHost : public Command {
 public:
   MemCpyCommandHost(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
-                    Requirement *DstAcc, QueueImplPtr SrcQueue,
+                    Requirement DstReq, void **DstPtr, QueueImplPtr SrcQueue,
                     QueueImplPtr DstQueue);
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
   AllocaCommandBase *MSrcAlloca = nullptr;
   Requirement MDstReq;
-  Requirement *MDstAcc = nullptr;
+  void **MDstPtr = nullptr;
 
   void printDot(std::ostream &Stream) const override;
 
@@ -341,21 +339,20 @@ private:
 
 class UpdateHostRequirementCommand : public Command {
 public:
-  UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement *Req,
-                               AllocaCommandBase *AllocaForReq)
+  UpdateHostRequirementCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd,
+                               Requirement *Req, void **DstPtr)
       : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
-        MReqToUpdate(Req), MAllocaForReq(AllocaForReq),
-        MStoredRequirement(*Req) {}
+        MDstPtr(DstPtr), MAllocaCmd(AllocaCmd), MReq(*Req) {}
 
-  Requirement *getStoredRequirement() { return &MStoredRequirement; }
+  Requirement *getStoredRequirement() { return &MReq; }
 
 private:
   cl_int enqueueImp() override;
   void printDot(std::ostream &Stream) const override;
 
-  Requirement *MReqToUpdate = nullptr;
-  AllocaCommandBase *MAllocaForReq = nullptr;
-  Requirement MStoredRequirement;
+  void **MDstPtr = nullptr;
+  AllocaCommandBase *MAllocaCmd = nullptr;
+  Requirement MReq;
 };
 
 } // namespace detail

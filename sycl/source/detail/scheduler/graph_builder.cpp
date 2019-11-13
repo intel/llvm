@@ -157,7 +157,7 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
       findAllocaForReq(Record, Req, Queue->get_context_impl());
   assert(AllocaCmd && "There must be alloca for requirement!");
   UpdateHostRequirementCommand *UpdateCommand =
-      new UpdateHostRequirementCommand(Queue, Req, AllocaCmd);
+      new UpdateHostRequirementCommand(Queue, AllocaCmd, Req, &Req->MData);
   // Need copy of requirement because after host accessor destructor call
   // dependencies become invalid if requirement is stored by pointer.
   Requirement *StoredReq = UpdateCommand->getStoredRequirement();
@@ -243,7 +243,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
       findAllocaForReq(Record, Req, Record->MCurContext);
 
   std::unique_ptr<MemCpyCommandHost> MemCpyCmdUniquePtr(new MemCpyCommandHost(
-      *SrcAllocaCmd->getAllocationReq(), SrcAllocaCmd, Req,
+      *SrcAllocaCmd->getAllocationReq(), SrcAllocaCmd, *Req, &Req->MData,
       SrcAllocaCmd->getQueue(), std::move(HostQueue)));
 
   if (!MemCpyCmdUniquePtr)
@@ -286,7 +286,6 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   AllocaCommandBase *SrcAllocaCmd =
       getOrCreateAllocaForReq(Record, Req, SrcQueue);
-  Requirement *SrcReq = SrcAllocaCmd->getAllocationReq();
   if (SrcQueue->is_host()) {
     UpdateHostRequirementCommand *UpdateCmd =
         insertUpdateHostReqCmd(Record, Req, SrcQueue);
@@ -313,7 +312,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
       Req->MSYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
 
     std::unique_ptr<MapMemObject> MapCmdUniquePtr(
-        new MapMemObject(*SrcReq, SrcAllocaCmd, Req, SrcQueue));
+        new MapMemObject(SrcAllocaCmd, Req, &Req->MData, SrcQueue));
 
     /*
     [SYCL] Use exclusive queues for blocked commands.
@@ -442,19 +441,19 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     */
 
     std::unique_ptr<UnMapMemObject> UnMapCmdUniquePtr(new UnMapMemObject(
-        *SrcReq, SrcAllocaCmd, Req, SrcQueue, /*UseExclusiveQueue*/ true));
+        SrcAllocaCmd, Req, &Req->MData, SrcQueue, /*UseExclusiveQueue*/ true));
 
     if (!MapCmdUniquePtr || !UnMapCmdUniquePtr)
       throw runtime_error("Out of host memory");
 
     MapMemObject *MapCmd = MapCmdUniquePtr.release();
     for (Command *Dep : Deps) {
-      MapCmd->addDep(DepDesc{Dep, &MapCmd->MDstReq, SrcAllocaCmd});
+      MapCmd->addDep(DepDesc{Dep, &MapCmd->MReq, SrcAllocaCmd});
       Dep->addUser(MapCmd);
     }
 
     Command *UnMapCmd = UnMapCmdUniquePtr.release();
-    UnMapCmd->addDep(DepDesc{MapCmd, &MapCmd->MDstReq, SrcAllocaCmd});
+    UnMapCmd->addDep(DepDesc{MapCmd, &MapCmd->MReq, SrcAllocaCmd});
     MapCmd->addUser(UnMapCmd);
 
     UpdateLeafs(Deps, Record, Req->MAccessMode);

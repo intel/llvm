@@ -274,24 +274,22 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-MapMemObject::MapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
-                           Requirement *DstAcc, QueueImplPtr Queue)
+MapMemObject::MapMemObject(AllocaCommandBase *SrcAlloca, Requirement *Req,
+                           void **DstPtr, QueueImplPtr Queue)
     : Command(CommandType::MAP_MEM_OBJ, std::move(Queue)),
-      MSrcReq(std::move(SrcReq)), MSrcAlloca(SrcAlloca), MDstAcc(DstAcc),
-      MDstReq(*DstAcc) {}
+      MSrcAlloca(SrcAlloca), MDstPtr(DstPtr), MReq(*Req) {}
 
 cl_int MapMemObject::enqueueImp() {
   std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
-  assert(MDstReq.MDims == 1);
+  assert(MReq.MDims == 1);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
   void *MappedPtr = MemoryManager::map(
       MSrcAlloca->getSYCLMemObj(), MSrcAlloca->getMemAllocation(), MQueue,
-      MDstReq.MAccessMode, MDstReq.MDims, MDstReq.MMemoryRange,
-      MDstReq.MAccessRange, MDstReq.MOffset, MDstReq.MElemSize,
-      std::move(RawEvents), Event);
-  MDstAcc->MData = MappedPtr;
+      MReq.MAccessMode, MReq.MDims, MReq.MMemoryRange, MReq.MAccessRange,
+      MReq.MOffset, MReq.MElemSize, std::move(RawEvents), Event);
+  *MDstPtr = MappedPtr;
   return CL_SUCCESS;
 }
 
@@ -311,19 +309,19 @@ void MapMemObject::printDot(std::ostream &Stream) const {
   }
 }
 
-UnMapMemObject::UnMapMemObject(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
-                               Requirement *DstAcc, QueueImplPtr Queue,
+UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAlloca, Requirement *Req,
+                               void **SrcPtr, QueueImplPtr Queue,
                                bool UseExclusiveQueue)
     : Command(CommandType::UNMAP_MEM_OBJ, std::move(Queue), UseExclusiveQueue),
-      MSrcReq(std::move(SrcReq)), MSrcAlloca(SrcAlloca), MDstAcc(DstAcc) {}
+      MDstAlloca(DstAlloca), MReq(*Req), MSrcPtr(SrcPtr) {}
 
 cl_int UnMapMemObject::enqueueImp() {
   std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
   RT::PiEvent &Event = MEvent->getHandleRef();
-  MemoryManager::unmap(MSrcAlloca->getSYCLMemObj(),
-                       MSrcAlloca->getMemAllocation(), MQueue, MDstAcc->MData,
+  MemoryManager::unmap(MDstAlloca->getSYCLMemObj(),
+                       MDstAlloca->getMemAllocation(), MQueue, *MSrcPtr,
                        std::move(RawEvents), MUseExclusiveQueue, Event);
   return CL_SUCCESS;
 }
@@ -427,9 +425,10 @@ cl_int UpdateHostRequirementCommand::enqueueImp() {
   RT::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, RawEvents, Event);
 
-  assert(MAllocaForReq && "Expected valid alloca command");
-  assert(MReqToUpdate && "Expected valid requirement");
-  MReqToUpdate->MData = MAllocaForReq->getMemAllocation();
+  assert(MAllocaCmd && "Expected valid alloca command");
+  assert(MAllocaCmd->getMemAllocation() && "Expected valid source pointer");
+  assert(MDstPtr && "Expected valid target pointer");
+  *MDstPtr = MAllocaCmd->getMemAllocation();
   return CL_SUCCESS;
 }
 
@@ -438,12 +437,11 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
 
   Stream << "ID = " << this << "\n";
   Stream << "UPDATE REQ ON " << deviceToString(MQueue->get_device()) << "\\n";
-  bool IsReqOnBuffer = MStoredRequirement.MSYCLMemObj->getType() ==
-                       SYCLMemObjI::MemObjType::BUFFER;
+  bool IsReqOnBuffer =
+      MReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER;
   Stream << "TYPE: " << (IsReqOnBuffer ? "Buffer" : "Image") << "\\n";
   if (IsReqOnBuffer)
-    Stream << "Is sub buffer: " << std::boolalpha
-           << MStoredRequirement.MIsSubBuffer << "\\n";
+    Stream << "Is sub buffer: " << std::boolalpha << MReq.MIsSubBuffer << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -458,11 +456,12 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
 
 MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
                                      AllocaCommandBase *SrcAlloca,
-                                     Requirement *DstAcc, QueueImplPtr SrcQueue,
+                                     Requirement DstReq, void **DstPtr,
+                                     QueueImplPtr SrcQueue,
                                      QueueImplPtr DstQueue)
     : Command(CommandType::COPY_MEMORY, std::move(DstQueue)),
       MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)), MSrcAlloca(SrcAlloca),
-      MDstReq(*DstAcc), MDstAcc(DstAcc) {
+      MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
   if (!MSrcQueue->is_host())
     MEvent->setContextImpl(detail::getSyclObjImpl(MSrcQueue->get_context()));
 }
@@ -485,7 +484,7 @@ cl_int MemCpyCommandHost::enqueueImp() {
   MemoryManager::copy(
       MSrcAlloca->getSYCLMemObj(), MSrcAlloca->getMemAllocation(), MSrcQueue,
       MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-      MSrcReq.MOffset, MSrcReq.MElemSize, MDstAcc->MData, MQueue, MDstReq.MDims,
+      MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
       MDstReq.MElemSize, std::move(RawEvents), MUseExclusiveQueue, Event);
   return CL_SUCCESS;
