@@ -317,7 +317,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
 
   // Depending on output file designations, set the report folder
   SmallString<128> ReportOptArg;
-  if (Arg *FinalOutput = Args.getLastArg(options::OPT_o)) {
+  if (Arg *FinalOutput = Args.getLastArg(options::OPT_o, options::OPT__SLASH_o,
+        options::OPT__SLASH_Fe)) {
     SmallString<128> FN(FinalOutput->getValue());
     llvm::sys::path::replace_extension(FN, "prj");
     const char * FolderName = Args.MakeArgString(FN);
