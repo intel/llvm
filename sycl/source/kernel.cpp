@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/kernel_impl.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
-#include <CL/sycl/detail/kernel_impl.hpp>
 
 namespace cl {
 namespace sycl {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
-        detail::pi::cast<detail::RT::PiKernel>(ClKernel), SyclContext)) {}
+          detail::pi::cast<detail::RT::PiKernel>(ClKernel), SyclContext)) {}
 
 bool kernel::operator==(const kernel &RHS) const { return impl == RHS.impl; }
 
@@ -27,16 +27,14 @@ bool kernel::is_host() const { return impl->is_host(); }
 
 context kernel::get_context() const { return impl->get_context(); }
 
-
 template <info::kernel param>
 typename info::param_traits<info::kernel, param>::return_type
 kernel::get_info() const {
   return impl->get_info<param>();
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type) \
-    template \
-    ret_type kernel::get_info<info::param_type::param>() const;
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+  template ret_type kernel::get_info<info::param_type::param>() const;
 
 #include <CL/sycl/info/kernel_traits.def>
 
@@ -48,9 +46,9 @@ kernel::get_work_group_info(const device &dev) const {
   return impl->get_work_group_info<param>(dev);
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type) \
-    template \
-    ret_type kernel::get_work_group_info<info::param_type::param>(const device &) const;
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+  template ret_type kernel::get_work_group_info<info::param_type::param>(      \
+      const device &) const;
 
 #include <CL/sycl/info/kernel_work_group_traits.def>
 
@@ -64,18 +62,19 @@ kernel::get_sub_group_info(const device &dev) const {
 
 template <info::kernel_sub_group param>
 typename info::param_traits<info::kernel_sub_group, param>::return_type
-kernel::get_sub_group_info(const device &dev,
-                    typename info::param_traits<info::kernel_sub_group,
-                                                param>::input_type val) const {
+kernel::get_sub_group_info(
+    const device &dev,
+    typename info::param_traits<info::kernel_sub_group, param>::input_type val)
+    const {
   return impl->get_sub_group_info<param>(dev, val);
 }
 
-#define PARAM_TRAITS_SPEC(param_type, param, ret_type) \
-    template \
-    ret_type kernel::get_sub_group_info<info::param_type::param>(const device &) const;
-#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type) \
-    template \
-    ret_type kernel::get_sub_group_info<info::param_type::param>(const device &, in_type) const;
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+  template ret_type kernel::get_sub_group_info<info::param_type::param>(       \
+      const device &) const;
+#define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
+  template ret_type kernel::get_sub_group_info<info::param_type::param>(       \
+      const device &, in_type) const;
 
 #include <CL/sycl/info/kernel_sub_group_traits.def>
 

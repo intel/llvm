@@ -267,9 +267,9 @@ PARAM_TRAITS_SPEC(event_profiling, command_submit, cl_ulong)
 PARAM_TRAITS_SPEC(event_profiling, command_start, cl_ulong)
 PARAM_TRAITS_SPEC(event_profiling, command_end, cl_ulong)
 
+#include <CL/sycl/info/kernel_sub_group_traits.def>
 #include <CL/sycl/info/kernel_traits.def>
 #include <CL/sycl/info/kernel_work_group_traits.def>
-#include <CL/sycl/info/kernel_sub_group_traits.def>
 
 PARAM_TRAITS_SPEC(platform, profile, string_class)
 PARAM_TRAITS_SPEC(platform, version, string_class)

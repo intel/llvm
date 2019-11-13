@@ -30,7 +30,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
       MIsCreatedFromSource(IsCreatedFromSource) {
 
   RT::PiContext Context = nullptr;
-  PI_CALL(RT::piKernelGetInfo, Kernel, CL_KERNEL_CONTEXT, sizeof(Context),
+  PI_CALL(RT::piKernelGetInfo, MKernel, CL_KERNEL_CONTEXT, sizeof(Context),
           &Context, nullptr);
   auto ContextImpl = detail::getSyclObjImpl(SyclContext);
   if (ContextImpl->getHandleRef() != Context)
@@ -41,7 +41,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
 
 kernel_impl::kernel_impl(const context &SyclContext,
                          std::shared_ptr<program_impl> ProgramImpl)
-    : Context(SyclContext), ProgramImpl(ProgramImpl) {}
+    : MContext(SyclContext), MProgramImpl(ProgramImpl) {}
 
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions

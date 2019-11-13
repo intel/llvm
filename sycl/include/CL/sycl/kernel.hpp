@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/stl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/stl.hpp>
 
 #include <memory>
 
@@ -80,7 +80,8 @@ public:
   /// @return a valid SYCL program
   program get_program() const;
 
-  /// Query information from the kernel object using the info::kernel_info descriptor.
+  /// Query information from the kernel object using the info::kernel_info
+  /// descriptor.
   ///
   /// Valid template parameters are described in Table 4.84 of the SYCL
   /// specification.
@@ -107,9 +108,10 @@ public:
   /// info::kernel_sub_group descriptor for a specific device.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &Device,
-                     typename info::param_traits<info::kernel_sub_group,
-                                                 param>::input_type Value) const;
+  get_sub_group_info(
+      const device &Device,
+      typename info::param_traits<info::kernel_sub_group, param>::input_type
+          Value) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.

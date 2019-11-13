@@ -89,7 +89,8 @@ public:
   /// @return a valid SYCL program
   program get_program() const;
 
-  /// Query information from the kernel object using the info::kernel_info descriptor.
+  /// Query information from the kernel object using the info::kernel_info
+  /// descriptor.
   ///
   /// Valid template parameters are described in Table 4.84 of the SYCL
   /// specification.
@@ -127,10 +128,12 @@ public:
   RT::PiKernel &getHandleRef() { return MKernel; }
   /// Get a constant reference to a raw kernel object.
   ///
-  /// @return a constant reference to ai valid PiKernel instance with raw kernel object.
+  /// @return a constant reference to ai valid PiKernel instance with raw kernel
+  /// object.
   const RT::PiKernel &getHandleRef() const { return MKernel; }
 
-  /// Check if kernel was created from a program that had been created from source.
+  /// Check if kernel was created from a program that had been created from
+  /// source.
   ///
   /// @return true if kernel was created from source.
   bool isCreatedFromSource() const;
