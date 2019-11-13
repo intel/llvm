@@ -846,6 +846,7 @@ cl_int ExecCGCommand::enqueueImp() {
             getSyclObjImpl(Context)->getUSMDispatch();
         auto PtrToPtr = reinterpret_cast<intptr_t*>(Arg.MPtr);
         auto DerefPtr = reinterpret_cast<void*>(*PtrToPtr);
+        assert(USMDispatch != nullptr && "USM dispatcher is not available");
         pi::cast<RT::PiResult>(
             USMDispatch->setKernelArgMemPointer(Kernel, Arg.MIndex, DerefPtr));
         break;
@@ -861,6 +862,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     std::shared_ptr<usm::USMDispatcher> USMDispatch =
         getSyclObjImpl(Context)->getUSMDispatch();
+    assert(USMDispatch != nullptr && "USM dispatcher is not available");
     USMDispatch->setKernelIndirectAccess(Kernel, MQueue->getHandleRef());
 
     // Remember this information before the range dimensions are reversed

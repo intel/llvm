@@ -94,8 +94,8 @@ def getDeviceCount(device_type):
     return 0
 
 
-cpu_run_substitute = "echo"
-cpu_run_on_linux_substitute = "echo "
+cpu_run_substitute = "true"
+cpu_run_on_linux_substitute = "true "
 cpu_check_substitute = ""
 cpu_check_on_linux_substitute = ""
 if getDeviceCount("cpu"):
@@ -111,8 +111,8 @@ config.substitutions.append( ('%CPU_RUN_ON_LINUX_PLACEHOLDER',  cpu_run_on_linux
 config.substitutions.append( ('%CPU_CHECK_PLACEHOLDER',  cpu_check_substitute) )
 config.substitutions.append( ('%CPU_CHECK_ON_LINUX_PLACEHOLDER',  cpu_check_on_linux_substitute) )
 
-gpu_run_substitute = "echo"
-gpu_run_on_linux_substitute = "echo "
+gpu_run_substitute = "true"
+gpu_run_on_linux_substitute = "true "
 gpu_check_substitute = ""
 gpu_check_on_linux_substitute = ""
 if getDeviceCount("gpu"):
@@ -128,7 +128,7 @@ config.substitutions.append( ('%GPU_RUN_ON_LINUX_PLACEHOLDER',  gpu_run_on_linux
 config.substitutions.append( ('%GPU_CHECK_PLACEHOLDER',  gpu_check_substitute) )
 config.substitutions.append( ('%GPU_CHECK_ON_LINUX_PLACEHOLDER',  gpu_check_on_linux_substitute) )
 
-acc_run_substitute = "echo"
+acc_run_substitute = "true"
 acc_check_substitute = ""
 if getDeviceCount("accelerator"):
     print("Found available accelerator device")

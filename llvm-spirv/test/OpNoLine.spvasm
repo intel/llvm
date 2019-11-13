@@ -4,15 +4,15 @@
                OpCapability Addresses
                OpCapability Kernel
                OpMemoryModel Physical32 OpenCL
-               OpEntryPoint Kernel %1 "testNop"
+               OpEntryPoint Kernel %1 "testNoLine"
        %void = OpTypeVoid
        %uint = OpTypeInt 32 0
           %5 = OpTypeFunction %void
           %1 = OpFunction %void None %5
           %6 = OpLabel
-               OpNop
+               OpNoLine
                OpReturn
                OpFunctionEnd
 
-; CHECK-LABEL: @testNop
+; CHECK-LABEL: @testNoLine
 ; CHECK-NEXT: ret

@@ -9,21 +9,32 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/exception.hpp>
 
+#ifdef SYCL_RT_OS_POSIX_SUPPORT
+#include <cstdlib>
+#endif
+
 #if defined(SYCL_RT_OS_LINUX)
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif // _GNU_SOURCE
 
+#include <cstdio>
 #include <link.h>
-#include <stdio.h>
 #include <sys/sysinfo.h>
 
 #elif defined(SYCL_RT_OS_WINDOWS)
 
 #include <Windows.h>
 #include <malloc.h>
-#endif
+
+#elif defined(SYCL_RT_OS_DARWIN)
+
+#include <dlfcn.h>
+#include <sys/sysctl.h>
+#include <sys/types.h>
+
+#endif // SYCL_RT_OS
 
 namespace cl {
 namespace sycl {
@@ -73,15 +84,23 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
   auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
   if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
-     // Expect the caller to check for zero and take
-     // necessary action
-     return 0;
+    // Expect the caller to check for zero and take
+    // necessary action
+    return 0;
   }
   if (PhModule == GetModuleHandleA(nullptr))
     return OSUtil::ExeModuleHandle;
   return reinterpret_cast<OSModuleHandle>(PhModule);
 }
-#endif // SYCL_RT_OS_WINDOWS
+
+#elif defined(SYCL_RT_OS_DARWIN)
+OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
+  Dl_info Res;
+  dladdr(VirtAddr, &Res);
+  return reinterpret_cast<OSModuleHandle>(Res.dli_fbase);
+}
+
+#endif // SYCL_RT_OS
 
 size_t OSUtil::getOSMemSize() {
 #if defined(SYCL_RT_OS_LINUX)
@@ -93,19 +112,27 @@ size_t OSUtil::getOSMemSize() {
   MemInfo.dwLength = sizeof(MemInfo);
   GlobalMemoryStatusEx(&MemInfo);
   return static_cast<size_t>(MemInfo.ullTotalPhys);
-#endif
+#elif defined(SYCL_RT_OS_DARWIN)
+  int64_t Size = 0;
+  sysctlbyname("hw.memsize", &Size, nullptr, nullptr, 0);
+  return static_cast<size_t>(Size);
+#endif // SYCL_RT_OS
 }
 
 void *OSUtil::alignedAlloc(size_t Alignment, size_t NumBytes) {
 #if defined(SYCL_RT_OS_LINUX)
   return aligned_alloc(Alignment, NumBytes);
+#elif defined(SYCL_RT_OS_POSIX_SUPPORT)
+  void *Addr = nullptr;
+  int ReturnCode = posix_memalign(&Addr, Alignment, NumBytes);
+  return (ReturnCode == 0) ? Addr : nullptr;
 #elif defined(SYCL_RT_OS_WINDOWS)
   return _aligned_malloc(NumBytes, Alignment);
 #endif
 }
 
 void OSUtil::alignedFree(void *Ptr) {
-#if defined(SYCL_RT_OS_LINUX)
+#if defined(SYCL_RT_OS_LINUX) || defined(SYCL_RT_OS_POSIX_SUPPORT)
   free(Ptr);
 #elif defined(SYCL_RT_OS_WINDOWS)
   _aligned_free(Ptr);

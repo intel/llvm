@@ -24,6 +24,11 @@
 #elif __linux__
 // Linux platform
 #define SYCL_RT_OS_LINUX
+#define SYCL_RT_OS_POSIX_SUPPORT
+#elif defined(__APPLE__) && defined(__MACH__)
+// Apple OSX
+#define SYCL_RT_OS_DARWIN
+#define SYCL_RT_OS_POSIX_SUPPORT
 #else
 #error "Unsupported compiler or OS"
 #endif // _WIN32
@@ -41,7 +46,7 @@
 #define __SYCL_EXPORTED __declspec(dllimport)
 #endif
 
-#elif defined(SYCL_RT_OS_LINUX)
+#elif defined(SYCL_RT_OS_POSIX_SUPPORT)
 
 #define DLL_LOCAL __attribute__((visibility("hidden")))
 #define __SYCL_EXPORTED
