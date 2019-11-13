@@ -793,5 +793,12 @@
 // RUN:  | FileCheck -check-prefix=DUP-OPT %s
 // DUP-OPT-NOT: aoc{{.*}} "-DBLAH" {{.*}} "-DBLAH"
 
+/// passing of only a library should not create a device link
+// RUN: %clang -ccc-print-phases -fsycl -lsomelib 2>&1 \
+// RUN:  | FileCheck -check-prefix=LIB-NODEVICE %s
+// LIB-NODEVICE: 0: input, "somelib", object, (host-sycl)
+// LIB-NODEVICE: 1: linker, {0}, image, (host-sycl)
+// LIB-NODEVICE-NOT: linker, {{.*}}, spirv, (device-sycl)
+
 // TODO: SYCL specific fail - analyze and enable
 // XFAIL: windows-msvc

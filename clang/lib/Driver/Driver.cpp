@@ -3414,6 +3414,9 @@ class OffloadingActionBuilder final {
           ++TC;
           continue;
         }
+        // Current list is empty, nothing to process.
+        if (LI.empty())
+          continue;
 
         // Perform a check for device kernels.  This is done for FPGA when an
         // aocx or aocr based file is found.
