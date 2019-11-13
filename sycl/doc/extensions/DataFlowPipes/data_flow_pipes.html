@@ -604,8 +604,8 @@ This document is better viewed when rendered as html with asciidoctor.  GitHub d
 <h2 id="_version">Version</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Built On: 2019-09-13<br>
-Revision: 1</p>
+<p>Built On: 2019-11-13<br>
+Revision: 2</p>
 </div>
 </div>
 </div>
@@ -644,7 +644,7 @@ Revision: 1</p>
 <p>FIFOs are fundamental in spatial architectures where different kernels or subsets of a kernel are executing on different regions of an accelerator.  FIFOs provide a mechanism to pass ordered data between processing regions.  This has multiple benefits, including simplifying decomposition of a problem into smaller more independent units, decoupling processing rates and hiding burst characteristics of data, and simplifying implementation details such as frequency critical paths on some architectures.</p>
 </div>
 <div class="paragraph">
-<p>This extension adds support for pipes to SYCL.  It does not expose the full OpenCL or SPIR-V pipe feature sets (e.g. pipe reservations and dynamic connectivity), and instead focuses on the functionality required to enable performance on spatial architectures - specifically point-to-point FIFO communication between compute units (of some definition) that may be executing concurrently.  The extension aligns much more closely with OpenCL 2.2 program pipes than with OpenCL 2.0 kernel argument-based pipes, and can effectively leverage the program pipe representation in SPIR-V.</p>
+<p>This extension adds support for pipes to SYCL.  It does not expose the full OpenCL or SPIR-V pipe feature sets (e.g. pipe reservations and dynamic connectivity), and instead focuses on the functionality required to enable performance on spatial architectures - specifically point-to-point FIFO communication between compute units (of some definition) that may be executing concurrently.  The extension aligns much more closely with OpenCL 2.2 program pipes than with OpenCL 2.0 kernel argument-based pipes, and can effectively leverage the program pipe representation in SPIR-V.  Like the relation to OpenCL and SPIR-V, this extension also does not align with the pipes definition published in the provisional SYCL 2.2 specification, which has been deprecated and was not finalized.</p>
 </div>
 <div class="paragraph">
 <p>This extension enables four classes of pipe connectivity:</p>
@@ -706,7 +706,7 @@ Revision: 1</p>
 <p><strong>FIFO ordering:</strong> Data is only accessible (readable) in FIFO order, specifically the program order of data written to the pipe from the perspective of a single work-item.</p>
 </li>
 <li>
-<p><strong>Capacity:</strong> To avoid deadlock with some programming patterns that use pipes, a user must be able to define or reason about a minimum capacity, in number of data words.  Capacity is the number of outstanding words that can be written to a pipe but not yet read from it.  More specifically capacity is the number of data words that can be written to the pipe, assuming that the pipe is initialized with no contained data words and that no read operations from the pipe occur, without non-blocking writes returning a "failed" status (which does not affect pipe contents or state) or blocking calls blocking indefinitely.  Compilers cannot in general infer such requirements, which depend on algorithm and accelerator characteristics, as well as host program architecture and behavior.</p>
+<p><strong>Capacity:</strong> To avoid deadlock with some programming patterns that use pipes, a user must be able to define or reason about a minimum capacity, in number of data words.  Capacity is the number of outstanding words that can be written to a pipe but not yet read from it.  More specifically capacity is the number of data words that can be written to the pipe, assuming that the pipe is initialized with no contained data word(s) and that no read operations from the pipe occur, without non-blocking writes returning a "failed" status (which does not affect pipe contents or state) or blocking calls blocking indefinitely.  Compilers cannot in general infer such requirements, which depend on algorithm and accelerator characteristics, as well as host program architecture and behavior.</p>
 </li>
 <li>
 <p><strong>Implicit control information:</strong> Pipes provide implicit control information based on availability of data in a pipe, and also the ordering of data within a pipe.  Non-blocking calls return a status indicating whether the operation was successful (was capacity in the pipe to write data, or data was available to read).  Unsuccessful non-blocking pipe reads or writes do not impact the state or content of a pipe.  Blocking calls wait until there is available capacity to commit data, or until data is available to be read.  In all of these cases the pipe indirectly conveys side channel control information to the program, which can be used for flow control or many other purposes by an application.  This implicit side channel of control information is a fundamental property of many spatial architectures and protocols, and is a primary reason that pipes are important on architectures like FPGA - they map to the hardware and spatial algorithm decompositions efficiently.</p>
@@ -744,7 +744,7 @@ Revision: 1</p>
 <p>The ability for a device compiler to infer static connectivity within and between kernels is the primary objective of this extension.  Everything else leads to poor performance that is difficult for a user to comprehend and correct.</p>
 </div>
 <div class="paragraph">
-<p>This extension is based on (2) above, and specifically uses type (template specializations of the pipe class) to identify a pipe.  Writes to or reads from the same pipe type are accesses to the same pipe.  This approach guarantees that a device compiler can infer static connectivity of pipes by leveraging the C++ type system.</p>
+<p>This extension is based on (2) above, and specifically uses type (template specializations of the <code>pipe</code> class) to identify a pipe.  Writes to or reads from the same pipe type are accesses to the same pipe.  This approach guarantees that a device compiler can infer static connectivity of pipes by leveraging the C++ type system.</p>
 </div>
 <div class="paragraph">
 <p>A pipe type is a specialization of the pipe class:</p>
@@ -757,15 +757,15 @@ Revision: 1</p>
 3
 4
 </pre></td>
-  <td class="code"><pre><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="class">name</span>,
-          <span class="keyword">class</span> <span class="class">dataT</span>,
+  <td class="code"><pre><span class="keyword">template</span> &lt;<span class="keyword">typename</span> name,
+          <span class="keyword">typename</span> dataT,
           size_t min_capacity = <span class="integer">0</span>&gt;
 <span class="keyword">class</span> <span class="class">pipe</span>;</pre></td>
 </tr></table></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>The combined set of the three template parameters forms the type of a pipe.  Any uses of a read/write method on that type operate on the same pipe.</p>
+<p>The combined set of the three template parameters forms the type of a pipe.  Any uses of a read/write member function on that type operate on the same pipe.</p>
 </div>
 <div class="paragraph">
 <p>A difference in any of the three template parameters identifies a different pipe.  For example, all of the pipes in the following snip are different:</p>
@@ -786,13 +786,13 @@ Revision: 1</p>
 </div>
 </div>
 <div class="paragraph">
-<p>The interface methods of a pipe are static, and instances of a pipe class cannot be instantiated.  Allowing instances of pipe objects, when their type defines connectivity, would introduce an error prone secondary mechanism of reference.</p>
+<p>The interface of a pipe is through static member functions, and instances of a pipe class cannot be instantiated.  Allowing instances of pipe objects, when their type defines connectivity, would introduce an error prone secondary mechanism of reference.</p>
 </div>
 <div class="paragraph">
 <p>The first template parameter, <code>name</code>, can be any type, and is typically expected to be a user defined class in a user namespace.  The type only needs to be forward declared, and not defined.</p>
 </div>
 <div class="paragraph">
-<p>Above this basic mechanism of C++ type being used to identify a pipe, additional layers can be built on top to contain the type in an object that can be passed by value.  Because such mechanisms (e.g. Boost.Hana:type) can layer on top of the fundamental type-based mechanism described here, those mechanisms are not included in the extension specification.</p>
+<p>Above this basic mechanism of C++ type being used to identify a pipe, additional layers can be built on top to contain the type in an object that can be passed by value.  Because such mechanisms (e.g. <code>boost.hana:type</code>) can layer on top of the fundamental type-based mechanism described here, those mechanisms are not included in the extension specification.</p>
 </div>
 </div>
 </div>
@@ -822,6 +822,8 @@ Revision: 1</p>
 18
 19
 20
+21
+22
 </pre></td>
   <td class="code"><pre><span class="comment">// It is highly recommended to declare the type at a scope visible to all uses.</span>
 <span class="comment">// Defining a type alias (like shown here) is the recommended practice for users</span>
@@ -832,6 +834,7 @@ myQueue.submit([&amp;](handler&amp; cgh) {
   <span class="directive">auto</span> read_acc = readBuf.get_access&lt;access::mode::read&gt;(cgh);
 
   cgh.parallel_for&lt;<span class="keyword">class</span> <span class="class">foo</span>&gt;(range&lt;<span class="integer">1</span>&gt; { <span class="integer">1024</span> }, [=](id&lt;<span class="integer">1</span>&gt; idx) {
+    <span class="comment">// Note: The ordering of work-item IDs writing to the pipe is not defined</span>
     my_pipe::write( read_add[idx] );
   });
 });
@@ -840,6 +843,7 @@ myQueue.submit([&amp;](handler&amp; cgh) {
   <span class="directive">auto</span> write_acc = writeBuf.get_access&lt;access::mode::write&gt;(cgh);
 
   cgh.parallel_for&lt;<span class="keyword">class</span> <span class="class">bar</span>&gt;(range&lt;<span class="integer">1</span>&gt; { <span class="integer">1024</span> }, [=](id&lt;<span class="integer">1</span>&gt; idx) {
+    <span class="comment">// Note: The ordering of work-item IDs reading from the pipe is not defined</span>
     write_acc[idx] = my_pipe::read();
   });
 });</pre></td>
@@ -849,10 +853,10 @@ myQueue.submit([&amp;](handler&amp; cgh) {
 </div>
 </div>
 <div class="sect1">
-<h2 id="_readwrite_methods_and_pipe_template_parameters">Read/write methods, and pipe template parameters</h2>
+<h2 id="_readwrite_member_functions_and_pipe_template_parameters">Read/write member functions, and pipe template parameters</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The pipe class exposes static methods for writing a data word to a pipe, and for reading a data word from a pipe.  A data word in this context is the data type that the pipe contains (<code>dataT</code> pipe template argument).</p>
+<p>The pipe class exposes static member functions for writing a data word to a pipe, and for reading a data word from a pipe.  A data word in this context is the data type that the pipe contains (<code>dataT</code> pipe template argument).</p>
 </div>
 <div class="paragraph">
 <p>Blocking and non-blocking forms of the read and write members are defined, with the form chosen based on overload resolution.</p>
@@ -873,8 +877,8 @@ myQueue.submit([&amp;](handler&amp; cgh) {
 11
 12
 </pre></td>
-  <td class="code"><pre><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="class">name</span>,
-          <span class="keyword">class</span> <span class="class">dataT</span>,
+  <td class="code"><pre><span class="keyword">template</span> &lt;<span class="keyword">typename</span> name,
+          <span class="keyword">typename</span> dataT,
           size_t min_capacity = <span class="integer">0</span>&gt;
 <span class="keyword">class</span> <span class="class">pipe</span> {
   <span class="comment">// Blocking</span>
@@ -889,7 +893,7 @@ myQueue.submit([&amp;](handler&amp; cgh) {
 </div>
 </div>
 <div class="paragraph">
-<p>The read and write methods may be invoked within device code, or within a SYCL host program.  Some interfaces may not be available on all devices/implementations, but the pipe definition itself does not gate availability.  Instead, implementations should error if an unsupported pipe is used.  See section <a href="#device_queries">[device_queries]</a> for information on querying the availability of specific pipe features relative to a device.</p>
+<p>The read and write member functions may be invoked within device code, or within a SYCL host program.  Some interfaces may not be available on all devices/implementations, but the pipe definition itself does not gate availability.  Instead, implementations should error if an unsupported pipe is used.  See section <a href="#device_queries">[device_queries]</a> for information on querying the availability of specific pipe features relative to a device.</p>
 </div>
 <div class="paragraph">
 <p>The template parameters of the device type are defined as:</p>
@@ -1021,7 +1025,7 @@ myQueue.submit([&amp;](handler&amp; cgh) {
 <h2 id="_host_pipe_mapunmap">Host pipe map/unmap</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Pipes expose two additional static member functions that are available within host code, and which map to the OpenCL C host pipe extension map/unmap interface.  These methods provide higher bandwidth or otherwise more efficient communication on some platforms, by allowing block transfers of larger data sets.</p>
+<p>Pipes expose two additional static member functions that are available within host code, and which map to the OpenCL C host pipe extension map/unmap interface.  These member functions provide higher bandwidth or otherwise more efficient communication on some platforms, by allowing block transfers of larger data sets.</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1036,8 +1040,8 @@ myQueue.submit([&amp;](handler&amp; cgh) {
 8
 9
 </pre></td>
-  <td class="code"><pre><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="class">name</span>,
-          <span class="keyword">class</span> <span class="class">dataT</span>,
+  <td class="code"><pre><span class="keyword">template</span> &lt;<span class="keyword">typename</span> name,
+          <span class="keyword">typename</span> dataT,
           size_t min_capacity = <span class="integer">0</span>&gt;
 <span class="keyword">class</span> <span class="class">pipe</span> {
   <span class="keyword">template</span> &lt;pipe_property::writeable host_writeable&gt;
@@ -1049,7 +1053,7 @@ myQueue.submit([&amp;](handler&amp; cgh) {
 </div>
 </div>
 <div class="paragraph">
-<p>For a pipe to be used for Kernel &#8660; host program communication, the pipe type must be readable and writeable because the host program will perform one of those operations, and a kernel will perform the other.  A pipe communicating between host and kernel is unidirectional, in that the host (and likewise kernel) will either read or write, but not both.  The <code>map</code> method is therefore templated on the type of operation that the host will perform, using the <em>host_writeable</em> template parameter.</p>
+<p>For a pipe to be used for Kernel &#8660; host program communication, the pipe type must be readable and writeable because the host program will perform one of those operations, and a kernel will perform the other.  A pipe communicating between host and kernel is unidirectional, in that the host (and likewise kernel) will either read or write, but not both.  The <code>map</code> member function is therefore templated on the type of operation that the host will perform, using the <em>host_writeable</em> template parameter.</p>
 </div>
 <div class="paragraph">
 <p>If <em>host_writeable</em> is true, then the host program writes to the pipe and the kernel also accessing the pipe must read from it.  If <em>host_writeable</em> is false, then the host program reads from the pipe, and the kernel accessing the pipe must write to it.</p>
@@ -1121,7 +1125,7 @@ dataT* map(size_t requested_size, size_t &amp;mapped_size);</code></p></td>
 <p>A pipe accessed by the host can communicate with a kernel in exactly one program executing on one device.  If two instances of a kernel are launched to different devices, or if a kernel is compiled into more than one program object and both are enqueued, then the runtime is required to throw a synchronous <code>cl::sycl::kernel_error</code> exception.  The intent of this restriction is that accesses to a pipe on the host provide a point to point link with a kernel executing on a specific device without ambiguity, arbitration, broadcasts, or synchronization across devices.</p>
 </div>
 <div class="paragraph">
-<p>The data lifetime rules for pipes apply also to host accessible pipes.  Specifically: data in a pipe exists within an instance of a program object on a device (programming bitstream lifetime on FPGA devices).  Invocation of a kernel from a different program object destroys all data stored in pipes within the program object associated with the previous kernel(s) executed on the device, and also destroys any data in pipes being accessed by the host that were communicating with kernel(s) in the program object.</p>
+<p>The data lifetime rules for pipes apply also to host accessible pipes.  Specifically: data in a pipe exists within an instance of a program object on a device (programming bitstream lifetime on FPGA devices).  Invocation of a kernel from a different program object might destroy all data stored in pipes within the program object associated with the previous kernel(s) executed on the device, and also might destroy any data in pipes being accessed by the host that were communicating with kernel(s) in the program object.</p>
 </div>
 <div class="sect3">
 <h4 id="_allowed">Allowed:</h4>
@@ -1275,8 +1279,8 @@ my_pipe::write(<span class="integer">5</span>);
 16
 17
 </pre></td>
-  <td class="code"><pre><span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="class">name</span>,
-          <span class="keyword">class</span> <span class="class">dataT</span>,
+  <td class="code"><pre><span class="keyword">template</span> &lt;<span class="keyword">typename</span> name,
+          <span class="keyword">typename</span> dataT,
           size_t min_capacity = <span class="integer">0</span>&gt;
 <span class="keyword">class</span> <span class="class">kernel_readable_io_pipe</span> {
   <span class="directive">public</span>:
@@ -1284,8 +1288,8 @@ my_pipe::write(<span class="integer">5</span>);
     <span class="directive">static</span> dataT read( <span class="predefined-type">bool</span> &amp;success_code );  <span class="comment">// Non-blocking</span>
 };
 
-<span class="keyword">template</span> &lt;<span class="keyword">class</span> <span class="class">name</span>,
-          <span class="keyword">class</span> <span class="class">dataT</span>,
+<span class="keyword">template</span> &lt;<span class="keyword">typename</span> name,
+          <span class="keyword">typename</span> dataT,
           size_t min_capacity = <span class="integer">0</span>&gt;
 <span class="keyword">class</span> <span class="class">kernel_writeable_io_pipe</span> {
   <span class="directive">public</span>:
@@ -1352,7 +1356,7 @@ my_pipe::write(<span class="integer">5</span>);
 <p>There are no guarantees on pipe operation side effect latency.  Writes to a pipe will eventually be visible to read operations on the pipe, without a synchronization point, but that visibility is not guaranteed to be by the time that the next instruction is executed by a writing work-item, for example.  There may be arbitrary latency between a write to a pipe and visibility of the data on a read endpoint of the pipe.  Likewise, there may be arbitrary latency between a read from a pipe, and visibility at a write endpoint that there is capacity available to write to (assuming that capacity was full prior to the read).</p>
 </li>
 <li>
-<p>Data in a pipe exists within an instance of a program object on a device (programming bitstream lifetime on FPGA devices).  Invocation of a kernel from a different program object destroys all data stored in pipes within the program object associated with the previous kernel(s) executed on the device.  Different devices using the same SYCL program object maintain independent pipe state and data.</p>
+<p>Data in a pipe is only guaranteed to exist within an instance of a program object on a device (programming bitstream lifetime on FPGA devices).  Invocation of a kernel from a different program object might destroy all data stored in pipes within the program object associated with the previous kernel(s) executed on the device.  Different devices using the same SYCL program object maintain independent pipe state and data.</p>
 </li>
 </ol>
 </div>
@@ -1693,7 +1697,7 @@ pipe_memcpy&lt;<span class="integer">2</span>&gt;(d2, s2, N);</pre></td>
 </div>
 </li>
 <li>
-<p>Arbitration is allowed by default (more than one read or write endpoint) within a single kernel.  Should there be an additional pipe template parameter to disable arbitration, as part of the type?  Downsides are that restriction as part of the type requires compiler support, since the pipe and read/write methods are stateless, and adding additional parameters to the type increases likelihood of accidentally creating two pipes with slightly different parameterizations.</p>
+<p>Arbitration is allowed by default (more than one read or write endpoint) within a single kernel.  Should there be an additional pipe template parameter to disable arbitration, as part of the type?  Downsides are that restriction as part of the type requires compiler support, since the pipe and read/write member functions are stateless, and adding additional parameters to the type increases likelihood of accidentally creating two pipes with slightly different parameterizations.</p>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
@@ -1703,7 +1707,7 @@ pipe_memcpy&lt;<span class="integer">2</span>&gt;(d2, s2, N);</pre></td>
 </div>
 </li>
 <li>
-<p>Pipe types effectively link globally.  There is no way to scope a type to only apply in a restricted region of code, with the same type elsewhere forming a different pipe.  Namespaces can make this very manageable, and in fact the global linking is a key feature, but adding as an issue to make sure that this is well understood.</p>
+<p>Pipe types effectively link globally, if the name type is at a global scope.  There is no way to scope a type to only apply in a restricted region of code aside from a namespace scope, with the same type elsewhere forming a different pipe.  Namespaces can make this very manageable, but adding as an issue to make sure that this is well understood.</p>
 <div class="openblock">
 <div class="content">
 <div class="paragraph">
@@ -1761,6 +1765,12 @@ pipe_memcpy&lt;<span class="integer">2</span>&gt;(d2, s2, N);</pre></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Michael Kinsner</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Initial public working draft</strong></p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2019-11-13</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Michael Kinsner</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Incorporate feedback</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -1768,7 +1778,7 @@ pipe_memcpy&lt;<span class="integer">2</span>&gt;(d2, s2, N);</pre></td>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2019-09-13 09:20:36 EDT
+Last updated 2019-11-13 10:07:19 EST
 </div>
 </div>
 </body>
