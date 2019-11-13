@@ -12,8 +12,6 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <memory>
-
 namespace cl {
 namespace sycl {
 // Forward declaration
@@ -117,7 +115,7 @@ private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
 
-  std::shared_ptr<detail::kernel_impl> impl;
+  shared_ptr_class<detail::kernel_impl> impl;
 };
 } // namespace sycl
 } // namespace cl
