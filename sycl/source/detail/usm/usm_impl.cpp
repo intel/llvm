@@ -141,8 +141,7 @@ void *malloc_device(size_t Size, const device &Dev, const context &Ctxt) {
 }
 
 void *malloc_device(size_t Size, const queue &Q) {
-  return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
-                                   alloc::device);
+  return malloc_device(Size, Q.get_device(), Q.get_context());
 }
 
 void *aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
@@ -151,18 +150,15 @@ void *aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
 }
 
 void *aligned_alloc_device(size_t Alignment, size_t Size, const queue &Q) {
-  return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
-                                   Q.get_device(), alloc::device);
+  return aligned_alloc_device(Alignment, Size, Q.get_device(), Q.get_context());
 }
 
 void free(void *ptr, const context &Ctxt) {
   return detail::usm::free(ptr, Ctxt);
 }
 
-void free(void *ptr, const queue &Q) {
-  return detail::usm::free(ptr, Q.get_context());
-}
-  
+void free(void *ptr, const queue &Q) { return free(ptr, Q.get_context()); }
+
 ///
 // Restricted USM
 ///
@@ -171,7 +167,7 @@ void *malloc_host(size_t Size, const context &Ctxt) {
 }
 
 void *malloc_host(size_t Size, const queue &Q) {
-  return detail::usm::alignedAllocHost(0, Size, Q.get_context(), alloc::host);
+  return malloc_host(Size, Q.get_context());
 }
 
 void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt) {
@@ -179,8 +175,7 @@ void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt) {
 }
 
 void *malloc_shared(size_t Size, const queue &Q) {
-  return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
-                                   alloc::shared);
+  return malloc_shared(Size, Q.get_device(), Q.get_context());
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt) {
@@ -188,8 +183,7 @@ void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt) {
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q) {
-  return detail::usm::alignedAllocHost(Alignment, Size, Q.get_context(),
-                                       alloc::host);
+  return aligned_alloc_host(Alignment, Size, Q.get_context());
 }  
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
@@ -198,8 +192,7 @@ void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
 }
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const queue &Q) {
-  return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
-                                   Q.get_device(), alloc::shared);
+  return aligned_alloc_shared(Alignment, Size, Q.get_device(), Q.get_context());
 }
 
 // single form
