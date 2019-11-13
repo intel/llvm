@@ -145,7 +145,7 @@ public:
     submit([&](handler &cgh) {
       cgh.template parallel_for<KernelName, KernelType, Dims>(
           NumWorkItems, WorkItemOffset, KernelFunc);
-      });
+    });
   }
 
   // parallel_for version with a kernel represented as a lambda + nd_range that

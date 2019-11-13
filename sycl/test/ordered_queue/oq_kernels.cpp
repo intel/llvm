@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out -lOpenCL
+// RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -57,11 +58,10 @@ int main() {
 
   q.wait();
 
-  int error = 0;
   for (int i = 0; i < N; i++) {
     if (A[i] != 6)
-      error = 1;
+      return 1;
   }
 
-  return error;
+  return 0;
 }
