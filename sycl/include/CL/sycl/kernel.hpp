@@ -30,6 +30,13 @@ class kernel {
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
 public:
+  /// Constructs a SYCL kernel instance from an OpenCL cl_kernel
+  ///
+  /// The requirements for this constructor are described in section 4.3.1
+  /// of the SYCL specification.
+  ///
+  /// @param ClKernel is a valid OpenCL cl_kernel instance
+  /// @param SyclContext is a valid SYCL context
   kernel(cl_kernel ClKernel, const context &SyclContext);
 
   kernel(const kernel &RHS) = default;
@@ -44,26 +51,60 @@ public:
 
   bool operator!=(const kernel &RHS) const;
 
+  /// Get a valid OpenCL interoperability kernel
+  ///
+  /// The requirements for this method are described in section 4.3.1
+  /// of the SYCL specification.
+  ///
+  /// @return a valid cl_kernel instance
   cl_kernel get() const;
 
+  /// Check if this kernel is a SYCL host device kernel
+  ///
+  /// @return true if a kernel is a valid SYCL host device kernel
   bool is_host() const;
 
+  /// Get the context that this kernel is defined for.
+  ///
+  /// The value returned must be equal to that returned by
+  /// get_info<info::kernel::context>().
+  ///
+  /// @return a valid SYCL context
   context get_context() const;
 
+  /// Get the program that this kernel is defined for.
+  ///
+  /// The value returned must be equal to that returned by
+  /// get_info<info::kernel::program>().
+  ///
+  /// @return a valid SYCL program
   program get_program() const;
 
+  /// Query information from the kernel object using the info::kernel_info descriptor.
+  ///
+  /// Valid template parameters are described in Table 4.84 of the SYCL
+  /// specification.
   template <info::kernel param>
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
 
+  /// Query information from the work-group from a kernel using the
+  /// info::kernel_work_group descriptor for a specific device.
+  ///
+  /// Valid template parameters are described in Table 4.85 of the SYCL
+  /// specification.
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
   get_work_group_info(const device &Device) const;
 
+  /// Query information from the sub-group from a kernel using the
+  /// info::kernel_sub_group descriptor for a specific device.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
 
+  /// Query information from the sub-group from a kernel using the
+  /// info::kernel_sub_group descriptor for a specific device.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device,
@@ -71,6 +112,7 @@ public:
                                                  param>::input_type Value) const;
 
 private:
+  /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
 
   std::shared_ptr<detail::kernel_impl> impl;

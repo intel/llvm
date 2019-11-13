@@ -28,18 +28,38 @@ class program_impl;
 
 class kernel_impl {
 public:
+  /// Constructs a SYCL kernel instance from a PiKernel
+  ///
+  /// @param Kernel is a valid PiKernel instance
+  /// @param SyclContext is a valid SYCL context
   kernel_impl(RT::PiKernel Kernel, const context &SyclContext);
 
+  /// Constructs a SYCL kernel instance from a SYCL program
+  ///
+  /// @param Kernel is a valid PiKernel instance
+  /// @param SyclContext is a valid SYCL context
+  /// @param ProgramImpl is a valid instance of program_impl
+  /// @param IsCreatedFromSource is a flag that indicates whether program
+  /// is created from source code
   kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
               std::shared_ptr<program_impl> ProgramImpl,
               bool IsCreatedFromSource);
 
-  // Host kernel constructor
+  /// Constructs a SYCL kernel for host device
+  ///
+  /// @param SyclContext is a valid SYCL context
+  /// @param ProgramImpl is a valid instance of program_impl
   kernel_impl(const context &SyclContext,
               std::shared_ptr<program_impl> ProgramImpl);
 
   ~kernel_impl();
 
+  /// Get a valid OpenCL interoperability kernel
+  ///
+  /// The requirements for this method are described in section 4.3.1
+  /// of the SYCL specification.
+  ///
+  /// @return a valid cl_kernel instance
   cl_kernel get() const {
     if (is_host()) {
       throw invalid_object_error("This instance of kernel is a host instance");
@@ -48,24 +68,52 @@ public:
     return pi::cast<cl_kernel>(MKernel);
   }
 
+  /// Check if this kernel is a SYCL host device kernel
+  ///
+  /// @return true if a kernel is a valid SYCL host device kernel
   bool is_host() const { return MContext.is_host(); }
 
+  /// Get the context that this kernel is defined for.
+  ///
+  /// The value returned must be equal to that returned by
+  /// get_info<info::kernel::context>().
+  ///
+  /// @return a valid SYCL context
   context get_context() const { return MContext; }
 
+  /// Get the program that this kernel is defined for.
+  ///
+  /// The value returned must be equal to that returned by
+  /// get_info<info::kernel::program>().
+  ///
+  /// @return a valid SYCL program
   program get_program() const;
 
+  /// Query information from the kernel object using the info::kernel_info descriptor.
+  ///
+  /// Valid template parameters are described in Table 4.84 of the SYCL
+  /// specification.
   template <info::kernel param>
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
 
+  /// Query information from the work-group from a kernel using the
+  /// info::kernel_work_group descriptor for a specific device.
+  ///
+  /// Valid template parameters are described in Table 4.85 of the SYCL
+  /// specification.
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
   get_work_group_info(const device &Device) const;
 
+  /// Query information from the sub-group from a kernel using the
+  /// info::kernel_sub_group descriptor for a specific device.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
 
+  /// Query information from the sub-group from a kernel using the
+  /// info::kernel_sub_group descriptor for a specific device.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(
@@ -73,9 +121,18 @@ public:
       typename info::param_traits<info::kernel_sub_group, param>::input_type
           Value) const;
 
+  /// Get a reference to a raw kernel object.
+  ///
+  /// @return a reference to ai valid PiKernel instance with raw kernel object.
   RT::PiKernel &getHandleRef() { return MKernel; }
+  /// Get a constant reference to a raw kernel object.
+  ///
+  /// @return a constant reference to ai valid PiKernel instance with raw kernel object.
   const RT::PiKernel &getHandleRef() const { return MKernel; }
 
+  /// Check if kernel was created from a program that had been created from source.
+  ///
+  /// @return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
 private:
