@@ -386,7 +386,7 @@ Return value:: Returns a pointer to the newly allocated `host` memory on success
 
 [source,cpp]
 ----
-void* sycl::aligned_alloc_host(size_t alignment, size_t size, const sycl::queue& ctxt);
+void* sycl::aligned_alloc_host(size_t alignment, size_t size, const sycl::queue& q);
 ----
 
 Parameters::
