@@ -788,6 +788,16 @@ Value *InstCombiner::SimplifySelectsFeedingBinaryOp(BinaryOperator &I,
       else if (True && !False)
         False = Builder.CreateBinOp(Opcode, C, F);
     }
+  } else if (LHSIsSelect && LHS->hasOneUse()) {
+    // (A ? B : C) op Y -> A ? (B op Y) : (C op Y)
+    Cond = A;
+    True = SimplifyBinOp(Opcode, B, RHS, FMF, Q);
+    False = SimplifyBinOp(Opcode, C, RHS, FMF, Q);
+  } else if (RHSIsSelect && RHS->hasOneUse()) {
+    // X op (D ? E : F) -> D ? (X op E) : (X op F)
+    Cond = D;
+    True = SimplifyBinOp(Opcode, LHS, E, FMF, Q);
+    False = SimplifyBinOp(Opcode, LHS, F, FMF, Q);
   }
 
   if (!True || !False)
@@ -1533,11 +1543,13 @@ Instruction *InstCombiner::foldVectorBinop(BinaryOperator &Inst) {
       // If this is a widening shuffle, we must be able to extend with undef
       // elements. If the original binop does not produce an undef in the high
       // lanes, then this transform is not safe.
+      // Similarly for undef lanes due to the shuffle mask, we can only
+      // transform binops that preserve undef.
       // TODO: We could shuffle those non-undef constant values into the
       //       result by using a constant vector (rather than an undef vector)
       //       as operand 1 of the new binop, but that might be too aggressive
       //       for target-independent shuffle creation.
-      if (I >= SrcVecNumElts) {
+      if (I >= SrcVecNumElts || ShMask[I] < 0) {
         Constant *MaybeUndef =
             ConstOp1 ? ConstantExpr::get(Opcode, UndefScalar, CElt)
                      : ConstantExpr::get(Opcode, CElt, UndefScalar);
@@ -3117,6 +3129,15 @@ Instruction *InstCombiner::visitLandingPadInst(LandingPadInst &LI) {
     LI.setCleanup(CleanupFlag);
     return &LI;
   }
+
+  return nullptr;
+}
+
+Instruction *InstCombiner::visitFreeze(FreezeInst &I) {
+  Value *Op0 = I.getOperand(0);
+
+  if (Value *V = SimplifyFreezeInst(Op0, SQ.getWithInstruction(&I)))
+    return replaceInstUsesWith(I, V);
 
   return nullptr;
 }

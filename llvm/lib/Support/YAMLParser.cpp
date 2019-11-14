@@ -178,10 +178,10 @@ namespace {
 /// others) before the SimpleKey's Tok.
 struct SimpleKey {
   TokenQueueT::iterator Tok;
-  unsigned Column;
-  unsigned Line;
-  unsigned FlowLevel;
-  bool IsRequired;
+  unsigned Column = 0;
+  unsigned Line = 0;
+  unsigned FlowLevel = 0;
+  bool IsRequired = false;
 
   bool operator ==(const SimpleKey &Other) {
     return Tok == Other.Tok;
@@ -2288,8 +2288,8 @@ Document::Document(Stream &S) : stream(S), Root(nullptr) {
 bool Document::skip()  {
   if (stream.scanner->failed())
     return false;
-  if (!Root)
-    getRoot();
+  if (!Root && !getRoot())
+    return false;
   Root->skip();
   Token &T = peekNext();
   if (T.Kind == Token::TK_StreamEnd)

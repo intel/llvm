@@ -389,7 +389,8 @@ TEST(MergeIndexTest, Refs) {
   RefsRequest Request;
   Request.IDs = {Foo.ID};
   RefSlab::Builder Results;
-  Merge.refs(Request, [&](const Ref &O) { Results.insert(Foo.ID, O); });
+  EXPECT_FALSE(
+      Merge.refs(Request, [&](const Ref &O) { Results.insert(Foo.ID, O); }));
   EXPECT_THAT(
       std::move(Results).build(),
       ElementsAre(Pair(
@@ -400,7 +401,8 @@ TEST(MergeIndexTest, Refs) {
 
   Request.Limit = 1;
   RefSlab::Builder Results2;
-  Merge.refs(Request, [&](const Ref &O) { Results2.insert(Foo.ID, O); });
+  EXPECT_TRUE(
+      Merge.refs(Request, [&](const Ref &O) { Results2.insert(Foo.ID, O); }));
   EXPECT_THAT(std::move(Results2).build(),
               ElementsAre(Pair(
                   _, ElementsAre(AnyOf(FileURI("unittest:///test.cc"),
@@ -408,13 +410,20 @@ TEST(MergeIndexTest, Refs) {
 }
 
 TEST(MergeIndexTest, NonDocumentation) {
+  using index::SymbolKind;
   Symbol L, R;
   L.ID = R.ID = SymbolID("x");
   L.Definition.FileURI = "file:/x.h";
   R.Documentation = "Forward declarations because x.h is too big to include";
+  for (auto ClassLikeKind :
+       {SymbolKind::Class, SymbolKind::Struct, SymbolKind::Union}) {
+    L.SymInfo.Kind = ClassLikeKind;
+    EXPECT_EQ(mergeSymbol(L, R).Documentation, "");
+  }
 
-  Symbol M = mergeSymbol(L, R);
-  EXPECT_EQ(M.Documentation, "");
+  L.SymInfo.Kind = SymbolKind::Function;
+  R.Documentation = "Documentation from non-class symbols should be included";
+  EXPECT_EQ(mergeSymbol(L, R).Documentation, R.Documentation);
 }
 
 MATCHER_P2(IncludeHeaderWithRef, IncludeHeader, References, "") {

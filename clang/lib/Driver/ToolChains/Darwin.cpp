@@ -58,6 +58,7 @@ llvm::Triple::ArchType darwin::getArchTypeForMachOArchName(StringRef Str) {
       .Cases("armv7", "armv7em", "armv7k", "armv7m", llvm::Triple::arm)
       .Cases("armv7s", "xscale", llvm::Triple::arm)
       .Case("arm64", llvm::Triple::aarch64)
+      .Case("arm64_32", llvm::Triple::aarch64_32)
       .Case("r600", llvm::Triple::r600)
       .Case("amdgcn", llvm::Triple::amdgcn)
       .Case("nvptx", llvm::Triple::nvptx)
@@ -832,6 +833,9 @@ StringRef MachO::getMachOArchName(const ArgList &Args) const {
   default:
     return getDefaultUniversalArchName();
 
+  case llvm::Triple::aarch64_32:
+    return "arm64_32";
+
   case llvm::Triple::aarch64:
     return "arm64";
 
@@ -1062,7 +1066,6 @@ StringRef Darwin::getPlatformFamily() const {
 
 StringRef Darwin::getSDKName(StringRef isysroot) {
   // Assume SDK has path: SOME_PATH/SDKs/PlatformXX.YY.sdk
-  llvm::sys::path::const_iterator SDKDir;
   auto BeginSDK = llvm::sys::path::begin(isysroot);
   auto EndSDK = llvm::sys::path::end(isysroot);
   for (auto IT = BeginSDK; IT != EndSDK; ++IT) {
@@ -1641,7 +1644,7 @@ inferDeploymentTargetFromArch(DerivedArgList &Args, const Darwin &Toolchain,
   if (MachOArchName == "armv7" || MachOArchName == "armv7s" ||
       MachOArchName == "arm64")
     OSTy = llvm::Triple::IOS;
-  else if (MachOArchName == "armv7k")
+  else if (MachOArchName == "armv7k" || MachOArchName == "arm64_32")
     OSTy = llvm::Triple::WatchOS;
   else if (MachOArchName != "armv6m" && MachOArchName != "armv7m" &&
            MachOArchName != "armv7em")
