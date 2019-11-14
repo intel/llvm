@@ -85,11 +85,11 @@ public:
         Programs.push_back(Prg->Program);
       }
       RT::PiResult Err = PI_SUCCESS;
-      PI_CALL_RESULT((Program = RT::piProgramLink(
+      Err = PI_CALL_RESULT(RT::piProgramLink(
         detail::getSyclObjImpl(Context)->getHandleRef(),
         Devices.size(), Devices.data(),
         LinkOptions.c_str(), Programs.size(),
-        Programs.data(), nullptr, nullptr, &Err), Err));
+        Programs.data(), nullptr, nullptr, &Program));
       PI_CHECK_THROW(Err, compile_program_error);
     }
   }
@@ -237,10 +237,10 @@ public:
           info::device::is_linker_available>(Devices);
       vector_class<RT::PiDevice> Devices(get_pi_devices());
       RT::PiResult Err;
-      PI_CALL_RESULT((Program = RT::piProgramLink(
+      Err = PI_CALL_RESULT(RT::piProgramLink(
           detail::getSyclObjImpl(Context)->getHandleRef(),
           Devices.size(), Devices.data(), LinkOptions.c_str(),
-          1, &Program, nullptr, nullptr, &Err), Err));
+          1, &Program, nullptr, nullptr, &Program));
       PI_CHECK_THROW(Err, compile_program_error);
       this->LinkOptions = LinkOptions;
       BuildOptions = LinkOptions;
@@ -354,12 +354,11 @@ private:
 
   void create_cl_program_with_source(const string_class &Source) {
     assert(!Program && "This program already has an encapsulated cl_program");
-    RT::PiResult Err;
     const char *Src = Source.c_str();
     size_t Size = Source.size();
-    PI_CALL((Program = RT::piclProgramCreateWithSource(
+    PI_CALL(RT::piclProgramCreateWithSource(
         detail::getSyclObjImpl(Context)->getHandleRef(),
-        1, &Src, &Size, &Err), Err));
+        1, &Src, &Size, &Program));
   }
 
   void compile(const string_class &Options) {
@@ -422,8 +421,8 @@ private:
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const {
     RT::PiKernel Kernel;
     RT::PiResult Err;
-    Err = PI_CALL_RESULT((Kernel = RT::piKernelCreate(
-        Program, KernelName.c_str(), &Err), Err));
+    Err = PI_CALL_RESULT(
+        RT::piKernelCreate(Program, KernelName.c_str(), &Kernel));
     if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
           "This instance of program does not contain the kernel requested");

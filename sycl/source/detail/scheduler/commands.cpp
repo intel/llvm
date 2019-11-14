@@ -101,14 +101,13 @@ std::vector<RT::PiEvent> Command::prepareEvents(ContextImplPtr Context) {
 
     // If contexts don't match - connect them using user event
     if (EventContext != Context && !Context->is_host()) {
-      RT::PiResult Error = PI_SUCCESS;
 
       EventImplPtr GlueEvent(new detail::event_impl());
       GlueEvent->setContextImpl(Context);
 
       RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
-      PI_CALL((GlueEventHandle = RT::piEventCreate(
-          Context->getHandleRef(), &Error), Error));
+      PI_CALL(RT::piEventCreate(
+          Context->getHandleRef(), &GlueEventHandle));
       PI_CALL(RT::piEventSetCallback(
           Event->getHandleRef(), CL_COMPLETE, EventCompletionClbk,
           /*data=*/GlueEventHandle));

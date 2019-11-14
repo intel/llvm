@@ -88,19 +88,20 @@ pi_result OCL(piextDeviceSelectBinary)(
   const char *image_target = nullptr;
   // Get the type of the device
   cl_device_type device_type;
-  cl_int ret_err = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
-                                   sizeof(cl_device_type), &device_type, nullptr);
+  cl_int ret_err =
+      clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
+                      sizeof(cl_device_type), &device_type, nullptr);
   if (ret_err != CL_SUCCESS) {
     *selected_image = nullptr;
     return cast<pi_result>(ret_err);
   }
 
   switch (device_type) {
-  // TODO: Factor out vendor specifics into a separate source
-  // E.g. sycl/source/detail/vendor/intel/detail/pi_opencl.cpp?
+    // TODO: Factor out vendor specifics into a separate source
+    // E.g. sycl/source/detail/vendor/intel/detail/pi_opencl.cpp?
 
-  // We'll attempt to find an image that was AOT-compiled
-  // from a SPIR-V image into an image specific for:
+    // We'll attempt to find an image that was AOT-compiled
+    // from a SPIR-V image into an image specific for:
 
   case CL_DEVICE_TYPE_CPU: // OpenCL 64-bit CPU
     image_target = PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
@@ -181,8 +182,8 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
 
   size_t deviceCount;
 
-  cl_int ret_err = clGetContextInfo(cast<cl_context>(context),
-                                    CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
+  cl_int ret_err = clGetContextInfo(
+      cast<cl_context>(context), CL_CONTEXT_DEVICES, 0, nullptr, &deviceCount);
 
   std::vector<cl_device_id> devicesInCtx(deviceCount);
 
@@ -205,8 +206,8 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
   CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
 
   size_t devVerSize;
-  ret_err =
-      clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, nullptr, &devVerSize);
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, nullptr,
+                              &devVerSize);
   std::string devVer(devVerSize, '\0');
   ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, devVerSize,
                               &devVer.front(), nullptr);
@@ -225,8 +226,8 @@ pi_result OCL(piProgramCreate)(pi_context context, const void *il,
   }
 
   size_t extSize;
-  ret_err =
-      clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, nullptr, &extSize);
+  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, nullptr,
+                              &extSize);
   std::string extStr(extSize, '\0');
   ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, extSize,
                               &extStr.front(), nullptr);
@@ -323,6 +324,134 @@ pi_result OCL(piextGetDeviceFunctionPointer)(pi_device device,
                                   function_pointer_ret));
 }
 
+pi_result OCL(piContextCreate)(
+    const cl_context_properties *properties, // TODO: untie from OpenCL
+    pi_uint32 num_devices, const pi_device *devices,
+    void (*pfn_notify)(const char *errinfo, const void *private_info, size_t cb,
+                       void *user_data1),
+    void *user_data, pi_context *retcontext) {
+  pi_result ret = PI_INVALID_OPERATION;
+  *retcontext = cast<pi_context>(
+      clCreateContext(properties, cast<cl_uint>(num_devices),
+                      cast<const cl_device_id *>(devices), pfn_notify,
+                      user_data, cast<cl_int *>(&ret)));
+
+  return ret;
+}
+
+pi_result OCL(piMemBufferCreate)(pi_context context, pi_mem_flags flags,
+                                 size_t size, void *host_ptr, pi_mem *ret_mem) {
+  pi_result ret_err = PI_INVALID_OPERATION;
+  *ret_mem = cast<pi_mem>(clCreateBuffer(cast<cl_context>(context),
+                                         cast<cl_mem_flags>(flags), size,
+                                         host_ptr, cast<cl_int *>(&ret_err)));
+
+  return ret_err;
+}
+
+pi_result OCL(piMemImageCreate)(pi_context context, pi_mem_flags flags,
+                                const pi_image_format *image_format,
+                                const pi_image_desc *image_desc, void *host_ptr,
+                                pi_mem *ret_mem) {
+  pi_result ret_err = PI_INVALID_OPERATION;
+  *ret_mem = cast<pi_mem>(
+      clCreateImage(cast<cl_context>(context), cast<cl_mem_flags>(flags),
+                    cast<const cl_image_format *>(image_format),
+                    cast<const cl_image_desc *>(image_desc), host_ptr,
+                    cast<cl_int *>(&ret_err)));
+
+  return ret_err;
+}
+
+pi_result OCL(piMemBufferPartition)(pi_mem buffer, pi_mem_flags flags,
+                                    pi_buffer_create_type buffer_create_type,
+                                    void *buffer_create_info, pi_mem *ret_mem) {
+
+  pi_result ret_err = PI_INVALID_OPERATION;
+  *ret_mem = cast<pi_mem>(
+      clCreateSubBuffer(cast<cl_mem>(buffer), cast<cl_mem_flags>(flags),
+                        cast<cl_buffer_create_type>(buffer_create_type),
+                        buffer_create_info, cast<cl_int *>(&ret_err)));
+  return ret_err;
+}
+
+pi_result OCL(piclProgramCreateWithSource)(pi_context context, pi_uint32 count,
+                                           const char **strings,
+                                           const size_t *lengths,
+                                           pi_program *ret_program) {
+
+  pi_result ret_err = PI_INVALID_OPERATION;
+  *ret_program = cast<pi_program>(
+      clCreateProgramWithSource(cast<cl_context>(context), cast<cl_uint>(count),
+                                strings, lengths, cast<cl_int *>(&ret_err)));
+  return ret_err;
+}
+
+pi_result OCL(piclProgramCreateWithBinary)(
+    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
+    const size_t *lengths, const unsigned char **binaries,
+    pi_int32 *binary_status, pi_program *ret_program) {
+
+  pi_result ret_err = PI_INVALID_OPERATION;
+  *ret_program = cast<pi_program>(clCreateProgramWithBinary(
+      cast<cl_context>(context), cast<cl_uint>(num_devices),
+      cast<const cl_device_id *>(device_list), lengths, binaries,
+      cast<cl_int *>(binary_status), cast<cl_int *>(&ret_err)));
+  return ret_err;
+}
+
+pi_result OCL(piProgramLink)(pi_context context, pi_uint32 num_devices,
+                             const pi_device *device_list, const char *options,
+                             pi_uint32 num_input_programs,
+                             const pi_program *input_programs,
+                             void (*pfn_notify)(pi_program program,
+                                                void *user_data),
+                             void *user_data, pi_program *ret_program) {
+
+  pi_result ret_err = PI_INVALID_OPERATION;
+  *ret_program = cast<pi_program>(
+      clLinkProgram(cast<cl_context>(context), cast<cl_uint>(num_devices),
+                    cast<const cl_device_id *>(device_list), options,
+                    cast<cl_uint>(num_input_programs),
+                    cast<const cl_program *>(input_programs),
+                    cast<void (*)(cl_program, void *)>(pfn_notify), user_data,
+                    cast<cl_int *>(&ret_err)));
+  return ret_err;
+}
+
+pi_result OCL(piKernelCreate)(pi_program program, const char *kernel_name,
+                              pi_kernel *ret_kernel) {
+
+  pi_result ret_err = PI_INVALID_OPERATION;
+  *ret_kernel = cast<pi_kernel>(clCreateKernel(
+      cast<cl_program>(program), kernel_name, cast<cl_int *>(&ret_err)));
+  return ret_err;
+}
+
+pi_result OCL(piEventCreate)(pi_context context, pi_event *ret_event) {
+
+  pi_result ret_err = PI_INVALID_OPERATION;
+  *ret_event = cast<pi_event>(
+      clCreateUserEvent(cast<cl_context>(context), cast<cl_int *>(&ret_err)));
+  return ret_err;
+}
+
+pi_result OCL(piEnqueueMemBufferMap)(
+    pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
+    cl_map_flags map_flags, // TODO: untie from OpenCL
+    size_t offset, size_t size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event, void **ret_map) {
+
+  pi_result ret_err = PI_INVALID_OPERATION;
+  *ret_map = cast<void *>(clEnqueueMapBuffer(
+      cast<cl_command_queue>(command_queue), cast<cl_mem>(buffer),
+      cast<cl_bool>(blocking_map), map_flags, offset, size,
+      cast<cl_uint>(num_events_in_wait_list),
+      cast<const cl_event *>(event_wait_list), cast<cl_event *>(event),
+      cast<cl_int *>(&ret_err)));
+  return ret_err;
+}
+
 // TODO: Remove the 'OclPtr' extension used with the PI_APIs.
 // Forward calls to OpenCL RT.
 #define _PI_CL(pi_api, ocl_api)                                                \
@@ -340,7 +469,7 @@ _PI_CL(piDeviceRelease, clReleaseDevice)
 _PI_CL(piextDeviceSelectBinary, OCL(piextDeviceSelectBinary))
 _PI_CL(piextGetDeviceFunctionPointer, OCL(piextGetDeviceFunctionPointer))
 // Context
-_PI_CL(piContextCreate, clCreateContext)
+_PI_CL(piContextCreate, OCL(piContextCreate))
 _PI_CL(piContextGetInfo, clGetContextInfo)
 _PI_CL(piContextRetain, clRetainContext)
 _PI_CL(piContextRelease, clReleaseContext)
@@ -351,26 +480,26 @@ _PI_CL(piQueueFinish, clFinish)
 _PI_CL(piQueueRetain, clRetainCommandQueue)
 _PI_CL(piQueueRelease, clReleaseCommandQueue)
 // Memory
-_PI_CL(piMemBufferCreate, clCreateBuffer)
-_PI_CL(piMemImageCreate, clCreateImage)
+_PI_CL(piMemBufferCreate, OCL(piMemBufferCreate))
+_PI_CL(piMemImageCreate, OCL(piMemImageCreate))
 _PI_CL(piMemGetInfo, clGetMemObjectInfo)
 _PI_CL(piMemImageGetInfo, clGetImageInfo)
 _PI_CL(piMemRetain, clRetainMemObject)
 _PI_CL(piMemRelease, clReleaseMemObject)
-_PI_CL(piMemBufferPartition, clCreateSubBuffer)
+_PI_CL(piMemBufferPartition, OCL(piMemBufferPartition))
 // Program
 _PI_CL(piProgramCreate, OCL(piProgramCreate))
-_PI_CL(piclProgramCreateWithSource, clCreateProgramWithSource)
-_PI_CL(piclProgramCreateWithBinary, clCreateProgramWithBinary)
+_PI_CL(piclProgramCreateWithSource, OCL(piclProgramCreateWithSource))
+_PI_CL(piclProgramCreateWithBinary, OCL(piclProgramCreateWithBinary))
 _PI_CL(piProgramGetInfo, clGetProgramInfo)
 _PI_CL(piProgramCompile, clCompileProgram)
 _PI_CL(piProgramBuild, clBuildProgram)
-_PI_CL(piProgramLink, clLinkProgram)
+_PI_CL(piProgramLink, OCL(piProgramLink))
 _PI_CL(piProgramGetBuildInfo, clGetProgramBuildInfo)
 _PI_CL(piProgramRetain, clRetainProgram)
 _PI_CL(piProgramRelease, clReleaseProgram)
 // Kernel
-_PI_CL(piKernelCreate, clCreateKernel)
+_PI_CL(piKernelCreate, OCL(piKernelCreate))
 _PI_CL(piKernelSetArg, clSetKernelArg)
 _PI_CL(piKernelGetInfo, clGetKernelInfo)
 _PI_CL(piKernelGetGroupInfo, clGetKernelWorkGroupInfo)
@@ -378,7 +507,7 @@ _PI_CL(piKernelGetSubGroupInfo, clGetKernelSubGroupInfo)
 _PI_CL(piKernelRetain, clRetainKernel)
 _PI_CL(piKernelRelease, clReleaseKernel)
 // Event
-_PI_CL(piEventCreate, clCreateUserEvent)
+_PI_CL(piEventCreate, OCL(piEventCreate))
 _PI_CL(piEventGetInfo, clGetEventInfo)
 _PI_CL(piEventGetProfilingInfo, clGetEventProfilingInfo)
 _PI_CL(piEventsWait, clWaitForEvents)
@@ -406,7 +535,7 @@ _PI_CL(piEnqueueMemImageRead, clEnqueueReadImage)
 _PI_CL(piEnqueueMemImageWrite, clEnqueueWriteImage)
 _PI_CL(piEnqueueMemImageCopy, clEnqueueCopyImage)
 _PI_CL(piEnqueueMemImageFill, clEnqueueFillImage)
-_PI_CL(piEnqueueMemBufferMap, clEnqueueMapBuffer)
+_PI_CL(piEnqueueMemBufferMap, OCL(piEnqueueMemBufferMap))
 _PI_CL(piEnqueueMemUnmap, clEnqueueUnmapMemObject)
 
 #undef _PI_CL
