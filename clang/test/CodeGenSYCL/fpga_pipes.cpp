@@ -6,9 +6,9 @@
 class SomePipe;
 void foo() {
   using Pipe = cl::sycl::pipe<SomePipe, int>;
-  // CHECK: %WPipe = alloca %opencl.pipe_wo_t
+  // CHECK: %{{.*}} = alloca %opencl.pipe_wo_t
   Pipe::write(42);
-  // CHECK: %RPipe = alloca %opencl.pipe_ro_t
+  // CHECK: %{{.*}} = alloca %opencl.pipe_ro_t
   int a = Pipe::read();
 }
 
