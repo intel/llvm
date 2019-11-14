@@ -140,14 +140,24 @@ void *malloc_device(size_t Size, const device &Dev, const context &Ctxt) {
   return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device);
 }
 
+void *malloc_device(size_t Size, const queue &Q) {
+  return malloc_device(Size, Q.get_device(), Q.get_context());
+}
+
 void *aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
                            const context &Ctxt) {
   return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::device);
 }
 
+void *aligned_alloc_device(size_t Alignment, size_t Size, const queue &Q) {
+  return aligned_alloc_device(Alignment, Size, Q.get_device(), Q.get_context());
+}
+
 void free(void *ptr, const context &Ctxt) {
   return detail::usm::free(ptr, Ctxt);
 }
+
+void free(void *ptr, const queue &Q) { return free(ptr, Q.get_context()); }
 
 ///
 // Restricted USM
@@ -156,17 +166,33 @@ void *malloc_host(size_t Size, const context &Ctxt) {
   return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host);
 }
 
+void *malloc_host(size_t Size, const queue &Q) {
+  return malloc_host(Size, Q.get_context());
+}
+
 void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt) {
   return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared);
+}
+
+void *malloc_shared(size_t Size, const queue &Q) {
+  return malloc_shared(Size, Q.get_device(), Q.get_context());
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt) {
   return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host);
 }
 
+void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q) {
+  return aligned_alloc_host(Alignment, Size, Q.get_context());
+}  
+
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
                            const context &Ctxt) {
   return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::shared);
+}
+
+void *aligned_alloc_shared(size_t Alignment, size_t Size, const queue &Q) {
+  return aligned_alloc_shared(Alignment, Size, Q.get_device(), Q.get_context());
 }
 
 // single form
@@ -183,6 +209,10 @@ void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind) {
   return RetVal;
 }
 
+void *malloc(size_t Size, const queue &Q, alloc Kind) {
+  return malloc(Size, Q.get_device(), Q.get_context(), Kind);
+}
+
 void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
                     const context &Ctxt, alloc Kind) {
   void *RetVal = nullptr;
@@ -194,6 +224,10 @@ void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
   }
 
   return RetVal;
+}
+
+void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind) {
+  return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind);
 }
 
 } // namespace sycl
