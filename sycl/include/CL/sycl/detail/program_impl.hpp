@@ -205,7 +205,7 @@ public:
       // If there are no build options, program can be safely cached
       if (BuildOptions.empty()) {
         Program = ProgramManager::getInstance().getBuiltOpenCLProgram(M, Context);
-        PI_CALL(RT::piProgramRetain(Program));
+        PI_CALL(RT::piProgramRetain, Program);
       } else {
         create_cl_program_with_il(M);
         build(BuildOptions);

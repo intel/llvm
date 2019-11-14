@@ -349,14 +349,14 @@ void USMDispatcher::memAdvise(pi_queue Queue, const void *Ptr, size_t Length,
     if (mEmulated) {
       // memAdvise does nothing here
       // TODO: Implement a PI call for this openCL API
-      RT::piCheckResult(RT::cast<RT::PiResult>(clEnqueueMarkerWithWaitList, CLQueue, 0, nullptr,
-                        reinterpret_cast<cl_event *>(Event)));
+      RT::piCheckResult(RT::cast<RT::PiResult>(clEnqueueMarkerWithWaitList(
+          CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event))));
     } else {
       // Temporary until driver supports
       // memAdvise doesn't do anything on an iGPU anyway
       // TODO: Implement a PI call for this openCL API
-      RT::piCheckResult(RT::cast<RT::PiResult>(clEnqueueMarkerWithWaitList, CLQueue, 0, nullptr,
-                        reinterpret_cast<cl_event *>(Event)));
+      RT::piCheckResult(RT::cast<RT::PiResult>(clEnqueueMarkerWithWaitList(
+          CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event))));
       /*
       // Enable once this is supported in the driver
       auto CLAdvice = *reinterpret_cast<cl_mem_advice_intel *>(&Advice);
