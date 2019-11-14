@@ -3414,8 +3414,8 @@ class OffloadingActionBuilder final {
           ++TC;
           continue;
         }
-        // Current list is empty, nothing to process.
         if (LI.empty())
+          // Current list is empty, nothing to process.
           continue;
 
         // Perform a check for device kernels.  This is done for FPGA when an
