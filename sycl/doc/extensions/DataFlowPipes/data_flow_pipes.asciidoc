@@ -133,7 +133,7 @@ The interface of a pipe is through static member functions, and instances of a p
 
 The first template parameter, `name`, can be any type, and is typically expected to be a user defined class in a user namespace.  The type only needs to be forward declared, and not defined.
 
-Above this basic mechanism of {cpp} type being used to identify a pipe, additional layers can be built on top to contain the type in an object that can be passed by value.  Because such mechanisms (e.g. `boost.hana:type`) can layer on top of the fundamental type-based mechanism described here, those mechanisms are not included in the extension specification.
+Above this basic mechanism of {cpp} type being used to identify a pipe, additional layers can be built on top to contain the type in an object that can be passed by value.  Because such mechanisms (e.g. `boost::hana::type`) can layer on top of the fundamental type-based mechanism described here, those mechanisms are not included in the extension specification.
 
 == Simple example of an inter-kernel pipe
 
