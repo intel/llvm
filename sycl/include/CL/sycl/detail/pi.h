@@ -530,11 +530,11 @@ pi_result piMemRelease(
   pi_mem mem);
 
 pi_result piMemBufferPartition(
-    pi_mem 			buffer,
-    pi_mem_flags 		flags,
-    pi_buffer_create_type 	buffer_create_type,
-    void *			buffer_create_info,
-    pi_mem *			ret_mem);
+    pi_mem                    buffer,
+    pi_mem_flags              flags,
+    pi_buffer_create_type     buffer_create_type,
+    void *                    buffer_create_info,
+    pi_mem *                  ret_mem);
 //
 // Program
 //
