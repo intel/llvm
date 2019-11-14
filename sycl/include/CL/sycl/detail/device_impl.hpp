@@ -74,17 +74,19 @@ public:
   /// Check if device is a CPU device
   ///
   /// @return true if SYCL device is a CPU device
-  bool is_cpu() const { return (MType == PI_DEVICE_TYPE_CPU); }
+  bool is_cpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_CPU)); }
 
   /// Check if device is a GPU device
   ///
   /// @return true if SYCL device is a GPU device
-  bool is_gpu() const { return (MType == PI_DEVICE_TYPE_GPU); }
+  bool is_gpu() const { return (!is_host() && (MType == PI_DEVICE_TYPE_GPU)); }
 
   /// Check if device is an accelerator device
   ///
   /// @return true if SYCL device is an accelerator device
-  bool is_accelerator() const { return (MType == PI_DEVICE_TYPE_ACC); }
+  bool is_accelerator() const {
+    return (!is_host() && (MType == PI_DEVICE_TYPE_ACC));
+  }
 
   /// Get associated SYCL platform
   ///
