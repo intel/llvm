@@ -54,7 +54,7 @@ public:
 
   ~kernel_impl();
 
-  /// Get a valid OpenCL interoperability kernel
+  /// Gets a valid OpenCL interoperability kernel
   ///
   /// The requirements for this method are described in section 4.3.1
   /// of the SYCL specification.
@@ -124,11 +124,11 @@ public:
 
   /// Get a reference to a raw kernel object.
   ///
-  /// @return a reference to ai valid PiKernel instance with raw kernel object.
+  /// @return a reference to a valid PiKernel instance with raw kernel object.
   RT::PiKernel &getHandleRef() { return MKernel; }
   /// Get a constant reference to a raw kernel object.
   ///
-  /// @return a constant reference to ai valid PiKernel instance with raw kernel
+  /// @return a constant reference to a valid PiKernel instance with raw kernel
   /// object.
   const RT::PiKernel &getHandleRef() const { return MKernel; }
 
