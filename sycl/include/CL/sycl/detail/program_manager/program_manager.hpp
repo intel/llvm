@@ -73,11 +73,13 @@ private:
                             const context &Context, DeviceImage **I = nullptr);
   void build(RT::PiProgram Program, const string_class &Options = "",
              std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());
-  // Provides a new kernel set id for grouping kernel names together
+  /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId();
+  /// Returns the kernel set associated with the kernel, handles some special
+  /// cases (when reading images from file or using images with no entry info)
   KernelSetId getKernelSetId(OSModuleHandle M,
                              const string_class &KernelName) const;
-  // Returns the format of the binary image
+  /// Returns the format of the binary image
   RT::PiDeviceBinaryType getFormat(DeviceImage *Img);
 
   using KernelToImgsMap =

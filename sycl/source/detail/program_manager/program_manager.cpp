@@ -223,7 +223,7 @@ ProgramManager::ProgramManager() {
     std::unique_ptr<DeviceImage, ImageDeleter> ImgPtr(Img, ImageDeleter());
     m_OrphanDeviceImages.emplace_back(std::move(ImgPtr));
 
-    m_DeviceImages[OSUtil::ExeModuleHandle][SpvFileKernelSet].reset(
+    m_DeviceImages[OSUtil::ExeModuleHandle][SpvFileKSId].reset(
         new std::vector<DeviceImage *>({Img}));
 
     if (DbgProgMgr > 0)
@@ -265,28 +265,39 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     OSModuleHandle M = OSUtil::getOSModuleHandle(Img);
     const _pi_offload_entry EntriesB = Img->EntriesBegin;
     const _pi_offload_entry EntriesE = Img->EntriesEnd;
-    assert(EntriesB != EntriesE && "Image with no entries?");
-    // The kernel sets for any pair of images are either disjoint or identical,
-    // look up the kernel set using the first kernel name...
-    auto KSIdIt = m_KernelSets.find(EntriesB->name);
-    if (KSIdIt != m_KernelSets.end()) {
-      for (_pi_offload_entry EntriesIt = EntriesB + 1; EntriesIt != EntriesE;
-           ++EntriesIt)
-        assert(m_KernelSets[EntriesIt->name] == KSIdIt->second &&
-               "Kernel sets are not disjoint");
-      auto &Imgs = m_DeviceImages[M][KSIdIt->second];
-      assert(Imgs && "Device image vector should have been already created");
-      Imgs->push_back(Img);
+    // Use the entry information if it's available
+    if (EntriesB != EntriesE) {
+      // The kernel sets for any pair of images are either disjoint or
+      // identical, look up the kernel set using the first kernel name...
+      auto KSIdIt = m_KernelSets.find(EntriesB->name);
+      if (KSIdIt != m_KernelSets.end()) {
+        for (_pi_offload_entry EntriesIt = EntriesB + 1; EntriesIt != EntriesE;
+             ++EntriesIt)
+          assert(m_KernelSets[EntriesIt->name] == KSIdIt->second &&
+                 "Kernel sets are not disjoint");
+        auto &Imgs = m_DeviceImages[M][KSIdIt->second];
+        assert(Imgs && "Device image vector should have been already created");
+        Imgs->push_back(Img);
+        continue;
+      }
+      // ... or create the set first if it hasn't been
+      KernelSetId KSId = getNextKernelSetId();
+      for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+           ++EntriesIt) {
+        auto Result =
+            m_KernelSets.insert(std::make_pair(EntriesIt->name, KSId));
+        assert(Result.second && "Kernel sets are not disjoint");
+      }
+      m_DeviceImages[M][KSId].reset(new std::vector<DeviceImage *>({Img}));
       continue;
     }
-    // ... or create the set first if it hasn't been
-    KernelSetId KSId = getNextKernelSetId();
-    for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         ++EntriesIt) {
-      auto Result = m_KernelSets.insert(std::make_pair(EntriesIt->name, KSId));
-      assert(Result.second && "Kernel sets are not disjoint");
-    }
-    m_DeviceImages[M][KSId].reset(new std::vector<DeviceImage *>({Img}));
+    // Otherwise assume that the image contains all kernels associated with the
+    // module
+    auto &Imgs = m_DeviceImages[M][UniversalKSId];
+    if (!Imgs)
+      Imgs.reset(new std::vector<DeviceImage *>({Img}));
+    else
+      Imgs->push_back(Img);
   }
 }
 
@@ -367,8 +378,7 @@ RT::PiProgram ProgramManager::loadProgram(std::vector<DeviceImage *> &Imgs,
   if (Imgs.size() > 1) {
     PI_CALL(piextDeviceSelectBinary)(getFirstDevice(Ctx), Imgs.data(),
                                         (cl_uint)Imgs.size(), &Img);
-	}
-  else
+  } else
     Img = Imgs[0];
 
   if (DbgProgMgr > 0) {
@@ -440,18 +450,30 @@ RT::PiProgram ProgramManager::loadProgram(std::vector<DeviceImage *> &Imgs,
 
 KernelSetId ProgramManager::getNextKernelSetId() {
   // No need for atomic, should be guarded by the caller
-  static KernelSetId Result = SpvFileKernelSet;
+  static KernelSetId Result = LastKSId;
   return ++Result;
 }
 
 KernelSetId
 ProgramManager::getKernelSetId(OSModuleHandle M,
                                const string_class &KernelName) const {
+  // If the env var instructs to use image from a file,
+  // return the kernel set associated with it
   if (!SpvFile.empty() && M == OSUtil::ExeModuleHandle)
-    return SpvFileKernelSet;
+    return SpvFileKSId;
   auto KSIdIt = m_KernelSets.find(KernelName);
-  assert(KSIdIt != m_KernelSets.end() && "Looking up unregistered kernel name");
-  return KSIdIt->second;
+  // If the kernel has been assigned to a kernel set, return it
+  if (KSIdIt != m_KernelSets.end())
+    return KSIdIt->second;
+  // If no kernel set was found check if there are images without entries (those
+  // are assumed to contain all kernels)
+  auto ImgMapIt = m_DeviceImages.find(M);
+  assert(ImgMapIt != m_DeviceImages.end() &&
+         "No image map for the current module?");
+  if (ImgMapIt->second.find(UniversalKSId) != ImgMapIt->second.end())
+    return UniversalKSId;
+
+  throw runtime_error("No kernel named " + KernelName + " was found");
 }
 
 RT::PiDeviceBinaryType ProgramManager::getFormat(DeviceImage *Img) {

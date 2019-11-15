@@ -247,12 +247,15 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
 }
 
 // Kernel set id, used to group kernel names together based on their
-// distribution
-// among device images
+// distribution among device images
 using KernelSetId = size_t;
-// Reserved for kernels contained within the SPIRV file specified with
-// SYCL_USE_KERNEL_SPV (for program caching only)
-const KernelSetId SpvFileKernelSet = 0;
+// For kernels contained within the SPIRV file specified with an environment
+// variable
+const KernelSetId SpvFileKSId = 0;
+// Kernel set containing all kernels, for images without entry information
+// (assumed to contain all kernels associated with the OS module)
+const KernelSetId UniversalKSId = 1;
+const KernelSetId LastKSId = UniversalKSId;
 
 } // namespace detail
 } // namespace sycl
