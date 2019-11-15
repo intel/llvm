@@ -1104,8 +1104,7 @@ static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
 /// \param H           the integration header object
 /// \param Name        kernel name
 /// \param NameType    type representing kernel name (first template argument
-/// of
-///                      single_task, parallel_for, etc)
+/// of single_task, parallel_for, etc)
 /// \param KernelObjTy kernel object type
 static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
                               QualType NameType, CXXRecordDecl *KernelObjTy) {
@@ -1260,7 +1259,15 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   assert(TemplateArgs && "No template argument info");
   QualType KernelNameType = TypeName::getFullyQualifiedType(
       TemplateArgs->get(0).getAsType(), getASTContext(), true);
-  std::string Name = constructKernelName(KernelNameType, MC);
+
+  std::string Name;
+  // TODO SYCLIntegrationHeader also computes a unique stable name. It should
+  // probably lose this responsibility and only use the name provided here.
+  if (getLangOpts().SYCLUnnamedLambda)
+    Name = PredefinedExpr::ComputeName(
+        getASTContext(), PredefinedExpr::UniqueStableNameExpr, KernelNameType);
+  else
+    Name = constructKernelName(KernelNameType, MC);
 
   // TODO Maybe don't emit integration header inside the Sema?
   populateIntHeader(getSyclIntegrationHeader(), Name, KernelNameType, LE);
