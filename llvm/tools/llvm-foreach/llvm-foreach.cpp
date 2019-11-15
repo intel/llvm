@@ -24,7 +24,9 @@
 using namespace llvm;
 
 static cl::list<std::string> InputFileLists{
-    "in-file-list", cl::OneOrMore, cl::desc("<input list of file names>"),
+    "in-file-list", cl::OneOrMore,
+    cl::desc("Input list of file names, file names must be delimited by a "
+             "newline character."),
     cl::value_desc("filename")};
 
 static cl::list<std::string> InputCommandArgs{
@@ -34,7 +36,7 @@ static cl::list<std::string> InputCommandArgs{
 static cl::list<std::string> Replaces{
     "in-replace", cl::OneOrMore,
     cl::desc("Specify input path in input command, this will be replaced with "
-             "names read from corresponding input list of files;"),
+             "names read from corresponding input list of files."),
     cl::value_desc("R")};
 
 static cl::opt<std::string> OutReplace{
@@ -122,7 +124,7 @@ int main(int argc, char **argv) {
   // Emit an error if user requested replace output file in the command but
   // replace string is not found.
   if (!OutReplace.empty() && OutReplaceArg.ArgNum < 0)
-    error("Couldn't find replace string for output in the command");
+    error("Couldn't find replace string for output in the command.");
 
   // Make sure that specified program exists, emit an error if not.
   std::string Prog =
@@ -167,7 +169,7 @@ int main(int argc, char **argv) {
         llvm::sys::path::append(PathPrefix, TempFileNameBase + "-%%%%%%");
         EC = sys::fs::createUniqueFile(PathPrefix, Path);
       }
-      error(EC, "Could not create a file for command output");
+      error(EC, "Could not create a file for command output.");
 
       ResOutArg = (Twine(OutReplaceArg.Prefix) + Twine(Path) +
                    Twine(OutReplaceArg.Postfix))
