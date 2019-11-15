@@ -160,5 +160,14 @@ size_t getOffsetForId(range<dimensions> Range, id<dimensions> Id,
   return offset;
 }
 } // namespace detail
+
+// C++ feature test macros are supported by all supported compilers
+// with the exception of MSVC 1914. It doesn't support deduction guides.
+#ifdef __cpp_deduction_guides
+id(size_t)->id<1>;
+id(size_t, size_t)->id<2>;
+id(size_t, size_t, size_t)->id<3>;
+#endif
+
 } // namespace sycl
 } // namespace cl

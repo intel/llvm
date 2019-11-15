@@ -134,5 +134,11 @@ public:
 #undef __SYCL_GEN_OPT
 };
 
+#ifdef __cpp_deduction_guides
+range(size_t)->range<1>;
+range(size_t, size_t)->range<2>;
+range(size_t, size_t, size_t)->range<3>;
+#endif
+
 } // namespace sycl
 } // namespace cl
