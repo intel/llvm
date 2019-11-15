@@ -556,7 +556,7 @@ int main() {
       std::vector<int> data2(10, -2);
       {
         buffer<int, 1> a(data1.data(), range<1>(10));
-        buffer<int, 1> b(data2.data(), range<1>(10));
+        buffer<int, 1> b(data2);
 
         program prog(myQueue.get_context());
         prog.build_with_source("kernel void override_source(global int* Acc) "
@@ -581,7 +581,7 @@ int main() {
     std::vector<int> data2(10, -2);
     {
       buffer<int, 1> a(data1.data(), range<1>(10));
-      buffer<int, 1> b(data2.data(), range<1>(10));
+      buffer<int, 1> b(data2);
       accessor<int, 1, access::mode::read_write, access::target::global_buffer,
                access::placeholder::true_t>
           A(a);
@@ -609,7 +609,7 @@ int main() {
       std::vector<int> data2(10, -2);
       {
         buffer<int, 1> a(data1.data(), range<1>(10));
-        buffer<int, 1> b(data2.data(), range<1>(10));
+        buffer<int, 1> b(data2);
         accessor<int, 1, access::mode::read_write,
                  access::target::global_buffer, access::placeholder::true_t>
             A(a);
