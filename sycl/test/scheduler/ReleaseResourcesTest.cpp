@@ -48,11 +48,11 @@ int main() {
   return Failed;
 }
 
-// CHECK: PI ---> (m_Context = RT::piContextCreate(0, DeviceIds.size(), DeviceIds.data(), 0, 0, &Err), Err)
-// CHECK: PI ---> RT::piQueueCreate(Context, Device, CreationFlags, &Queue)
-// CHECK: PI ---> pi::piProgramCreate(Context, Data, DataLen, &Program)
-// CHECK: PI ---> (Kernel = RT::piKernelCreate( Program, KernelName.c_str(), &Err), Err)
-// CHECK: PI ---> RT::piQueueRelease(m_CommandQueue)
-// CHECK: PI ---> RT::piContextRelease(m_Context)
-// CHECK: PI ---> RT::piKernelRelease(KernIt.second)
-// CHECK: PI ---> RT::piProgramRelease(ToBeDeleted)
+// CHECK:---> RT::piContextCreate
+// CHECK:---> RT::piQueueCreate
+// CHECK:---> RT::piProgramCreate
+// CHECK:---> RT::piKernelCreate
+// CHECK:---> RT::piQueueRelease
+// CHECK:---> RT::piContextRelease
+// CHECK:---> RT::piKernelRelease
+// CHECK:---> RT::piProgramRelease

@@ -24,15 +24,15 @@ template <info::kernel Param> struct get_kernel_info<string_class, Param> {
   static string_class _(RT::PiKernel Kernel) {
     size_t ResultSize;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piKernelGetInfo(
-        Kernel, cl_kernel_info(Param), 0, nullptr, &ResultSize));
+    PI_CALL(RT::piKernelGetInfo,
+        Kernel, cl_kernel_info(Param), 0, nullptr, &ResultSize);
     if (ResultSize == 0) {
       return "";
     }
     vector_class<char> Result(ResultSize);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piKernelGetInfo(
-        Kernel, cl_kernel_info(Param), ResultSize, Result.data(), nullptr));
+    PI_CALL(RT::piKernelGetInfo,
+        Kernel, cl_kernel_info(Param), ResultSize, Result.data(), nullptr);
     return string_class(Result.data());
   }
 };
@@ -41,8 +41,8 @@ template <info::kernel Param> struct get_kernel_info<cl_uint, Param> {
   static cl_uint _(RT::PiKernel Kernel) {
     cl_uint Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piKernelGetInfo(
-        Kernel, cl_kernel_info(Param), sizeof(cl_uint), &Result, nullptr));
+    PI_CALL(RT::piKernelGetInfo,
+        Kernel, cl_kernel_info(Param), sizeof(cl_uint), &Result, nullptr);
     return Result;
   }
 };
@@ -54,9 +54,9 @@ struct get_kernel_work_group_info {
   static T _(RT::PiKernel Kernel, RT::PiDevice Device) {
     T Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piKernelGetGroupInfo(
+    PI_CALL(RT::piKernelGetGroupInfo,
         Kernel, Device, cl_kernel_work_group_info(Param),
-        sizeof(T), &Result, nullptr));
+        sizeof(T), &Result, nullptr);
     return Result;
   }
 };
@@ -66,9 +66,9 @@ struct get_kernel_work_group_info<cl::sycl::range<3>, Param> {
   static cl::sycl::range<3> _(RT::PiKernel Kernel, RT::PiDevice Device) {
     size_t Result[3];
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piKernelGetGroupInfo(
+    PI_CALL(RT::piKernelGetGroupInfo,
         Kernel, Device, cl_kernel_work_group_info(Param),
-        sizeof(size_t) * 3, Result, nullptr));
+        sizeof(size_t) * 3, Result, nullptr);
     return cl::sycl::range<3>(Result[0], Result[1], Result[2]);
   }
 };
@@ -109,9 +109,9 @@ struct get_kernel_sub_group_info {
   static TOut _(RT::PiKernel Kernel, RT::PiDevice Device) {
     TOut Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piKernelGetSubGroupInfo(
+    PI_CALL(RT::piKernelGetSubGroupInfo,
         Kernel, Device, cl_kernel_sub_group_info(Param), 0, nullptr,
-        sizeof(TOut), &Result, nullptr));
+        sizeof(TOut), &Result, nullptr);
     return Result;
   }
 };
@@ -121,9 +121,9 @@ struct get_kernel_sub_group_info_with_input {
   static TOut _(RT::PiKernel Kernel, RT::PiDevice Device, TIn In) {
     TOut Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piKernelGetSubGroupInfo(
+    PI_CALL(RT::piKernelGetSubGroupInfo,
         Kernel, Device, cl_kernel_sub_group_info(Param), sizeof(TIn), &In,
-        sizeof(TOut), &Result, nullptr));
+        sizeof(TOut), &Result, nullptr);
     return Result;
   }
 };
@@ -135,9 +135,9 @@ struct get_kernel_sub_group_info_with_input<cl::sycl::range<3>, Param,
                               size_t In) {
     size_t Result[3];
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piKernelGetSubGroupInfo(
+    PI_CALL(RT::piKernelGetSubGroupInfo,
         Kernel, Device, cl_kernel_sub_group_info(Param), sizeof(size_t),
-        &In, sizeof(size_t) * 3, Result, nullptr));
+        &In, sizeof(size_t) * 3, Result, nullptr);
     return cl::sycl::range<3>(Result[0], Result[1], Result[2]);
   }
 };
@@ -150,9 +150,9 @@ struct get_kernel_sub_group_info_with_input<size_t, Param,
     size_t Input[3] = {In[0], In[1], In[2]};
     size_t Result;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(RT::piKernelGetSubGroupInfo(
+    PI_CALL(RT::piKernelGetSubGroupInfo,
         Kernel, Device, cl_kernel_sub_group_info(Param), sizeof(size_t) * 3,
-        Input, sizeof(size_t), &Result, nullptr));
+        Input, sizeof(size_t), &Result, nullptr);
     return Result;
   }
 };

@@ -989,7 +989,8 @@ static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
 // Fields of kernel object must be initialized with SYCL kernel arguments so
 // in the following function we extract types of kernel object fields and add it
 // to the array with kernel parameters descriptors.
-static void buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
+// Returns true if all arguments are successfully built.
+static bool buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
                         SmallVectorImpl<ParamDesc> &ParamDescs) {
   const LambdaCapture *Cpt = KernelObj->captures_begin();
   auto CreateAndAddPrmDsc = [&](const FieldDecl *Fld, const QualType &ArgType) {
@@ -1040,6 +1041,7 @@ static void buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
             }
           };
 
+  bool AllArgsAreValid = true;
   // Run through kernel object fields and create corresponding kernel
   // parameters descriptors. There are a several possible cases:
   //   - Kernel object field is a SYCL special object (SYCL accessor or SYCL
@@ -1054,17 +1056,22 @@ static void buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
     QualType ArgTy = Fld->getType();
     if (Util::isSyclAccessorType(ArgTy) || Util::isSyclSamplerType(ArgTy)) {
       createSpecialSYCLObjParamDesc(Fld, ArgTy);
-    } else if (ArgTy->isStructureOrClassType()) {
+    } else if (!ArgTy->isStandardLayoutType()) {
       // SYCL v1.2.1 s4.8.10 p5:
       // C++ non-standard layout values must not be passed as arguments to a
       // kernel that is compiled for a device.
-      if (!ArgTy->isStandardLayoutType()) {
-        const DeclaratorDecl *V =
-            Cpt ? cast<DeclaratorDecl>(Cpt->getCapturedVar())
-                : cast<DeclaratorDecl>(Fld);
-        KernelObj->getASTContext().getDiagnostics().Report(
-            V->getLocation(), diag::err_sycl_non_std_layout_type);
-      }
+      const auto &DiagLocation =
+          Cpt ? Cpt->getLocation() : cast<DeclaratorDecl>(Fld)->getLocation();
+
+      Context.getDiagnostics().Report(DiagLocation,
+                                      diag::err_sycl_non_std_layout_type);
+
+      // Set the flag and continue processing so we can emit error for each
+      // invalid argument.
+      AllArgsAreValid = false;
+    } else if (ArgTy->isStructureOrClassType()) {
+      assert(ArgTy->isStandardLayoutType());
+
       CreateAndAddPrmDsc(Fld, ArgTy);
 
       // Create descriptors for each accessor field in the class or struct
@@ -1077,22 +1084,27 @@ static void buildArgTys(ASTContext &Context, CXXRecordDecl *KernelObj,
       PointeeTy = Context.getQualifiedType(PointeeTy.getUnqualifiedType(),
                                            Quals);
       QualType ModTy = Context.getPointerType(PointeeTy);
-      
+
       CreateAndAddPrmDsc(Fld, ModTy);
     } else if (ArgTy->isScalarType()) {
       CreateAndAddPrmDsc(Fld, ArgTy);
     } else {
       llvm_unreachable("Unsupported kernel parameter type");
     }
+
+    // Update capture iterator as we process arguments
+    if (Cpt && Cpt != KernelObj->captures_end())
+      ++Cpt;
   }
+
+  return AllArgsAreValid;
 }
 
 /// Adds necessary data describing given kernel to the integration header.
 /// \param H           the integration header object
 /// \param Name        kernel name
 /// \param NameType    type representing kernel name (first template argument
-/// of
-///                      single_task, parallel_for, etc)
+/// of single_task, parallel_for, etc)
 /// \param KernelObjTy kernel object type
 static void populateIntHeader(SYCLIntegrationHeader &H, const StringRef Name,
                               QualType NameType, CXXRecordDecl *KernelObjTy) {
@@ -1238,7 +1250,8 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 
   // Build list of kernel arguments
   llvm::SmallVector<ParamDesc, 16> ParamDescs;
-  buildArgTys(getASTContext(), LE, ParamDescs);
+  if (!buildArgTys(getASTContext(), LE, ParamDescs))
+    return;
 
   // Extract name from kernel caller parameters and mangle it.
   const TemplateArgumentList *TemplateArgs =
@@ -1246,7 +1259,15 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   assert(TemplateArgs && "No template argument info");
   QualType KernelNameType = TypeName::getFullyQualifiedType(
       TemplateArgs->get(0).getAsType(), getASTContext(), true);
-  std::string Name = constructKernelName(KernelNameType, MC);
+
+  std::string Name;
+  // TODO SYCLIntegrationHeader also computes a unique stable name. It should
+  // probably lose this responsibility and only use the name provided here.
+  if (getLangOpts().SYCLUnnamedLambda)
+    Name = PredefinedExpr::ComputeName(
+        getASTContext(), PredefinedExpr::UniqueStableNameExpr, KernelNameType);
+  else
+    Name = constructKernelName(KernelNameType, MC);
 
   // TODO Maybe don't emit integration header inside the Sema?
   populateIntHeader(getSyclIntegrationHeader(), Name, KernelNameType, LE);

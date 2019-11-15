@@ -3853,8 +3853,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
 
     bool IsMSVC = AuxT.isWindowsMSVCEnvironment();
-    if (types::isCXX(Input.getType()))
-      CmdArgs.push_back(IsMSVC ? "-std=c++14" : "-std=c++11");
     if (IsMSVC) {
       CmdArgs.push_back("-fms-extensions");
       CmdArgs.push_back("-fms-compatibility");

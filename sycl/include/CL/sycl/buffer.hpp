@@ -30,7 +30,18 @@ public:
   using allocator_type = AllocatorT;
   template <int dims>
   using EnableIfOneDimension = typename std::enable_if<1 == dims>::type;
-
+  // using same requirement for contiguous container as std::span
+  template <class Container>
+  using EnableIfContiguous =
+      detail::void_t<detail::enable_if_t<std::is_convertible<
+                         detail::remove_pointer_t<decltype(
+                             std::declval<Container>().data())> (*)[],
+                         const T (*)[]>::value>,
+                     decltype(std::declval<Container>().size())>;
+  template <class It>
+  using EnableIfItInputIterator = detail::enable_if_t<
+      std::is_convertible<typename std::iterator_traits<It>::iterator_category,
+                          std::input_iterator_tag>::value>;
   template <typename ItA, typename ItB>
   using EnableIfSameNonConstIterators =
       typename std::enable_if<std::is_same<ItA, ItB>::value &&
@@ -107,7 +118,8 @@ public:
   }
 
   template <class InputIterator, int N = dimensions,
-            typename = EnableIfOneDimension<N>>
+            typename = EnableIfOneDimension<N>,
+            typename = EnableIfItInputIterator<InputIterator>>
   buffer(InputIterator first, InputIterator last, AllocatorT allocator,
          const property_list &propList = {})
       : Range(range<1>(std::distance(first, last))) {
@@ -117,7 +129,8 @@ public:
   }
 
   template <class InputIterator, int N = dimensions,
-            typename = EnableIfOneDimension<N>>
+            typename = EnableIfOneDimension<N>,
+            typename = EnableIfItInputIterator<InputIterator>>
   buffer(InputIterator first, InputIterator last,
          const property_list &propList = {})
       : Range(range<1>(std::distance(first, last))) {
@@ -125,6 +138,26 @@ public:
         first, last, get_count() * sizeof(T),
         detail::getNextPowerOfTwo(sizeof(T)), propList);
   }
+
+  // This constructor is a prototype for a future SYCL specification
+  template <class Container, int N = dimensions,
+            typename = EnableIfOneDimension<N>,
+            typename = EnableIfContiguous<Container>>
+  buffer(Container &container, AllocatorT allocator,
+         const property_list &propList = {})
+      : Range(range<1>(container.size())) {
+    impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
+        container.data(), container.data() + container.size(),
+        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        allocator);
+  }
+
+  // This constructor is a prototype for a future SYCL specification
+  template <class Container, int N = dimensions,
+            typename = EnableIfOneDimension<N>,
+            typename = EnableIfContiguous<Container>>
+  buffer(Container &container, const property_list &propList = {})
+      : buffer(container, {}, propList) {}
 
   buffer(buffer<T, dimensions, AllocatorT> &b, const id<dimensions> &baseIndex,
          const range<dimensions> &subRange)
@@ -134,13 +167,12 @@ public:
     if (b.is_sub_buffer())
       throw cl::sycl::invalid_object_error(
           "Cannot create sub buffer from sub buffer.");
-    // TODO: SYCL CTS are failed because not appropriate offset and range
-    // are passed to this constructor which causes a throw of exception.
-    // Some changes need to be done there.
-    // if (isOutOfBounds(baseIndex, subRange, b.Range))
-    //   throw cl::sycl::invalid_object_error("Out-of-bounds size");
-    // if (!isContiguousRegion(baseIndex, subRange, b.Range))
-    //   throw cl::sycl::invalid_object_error("Non-contiguous region");
+    if (isOutOfBounds(baseIndex, subRange, b.Range))
+      throw cl::sycl::invalid_object_error(
+          "Requested sub-buffer size exceeds the size of the parent buffer");
+    if (!isContiguousRegion(baseIndex, subRange, b.Range))
+      throw cl::sycl::invalid_object_error(
+          "Requested sub-buffer region is not contiguous");
   }
 
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
@@ -149,9 +181,9 @@ public:
       : Range{0} {
 
     size_t BufSize = 0;
-    PI_CALL(detail::RT::piMemGetInfo(
+    PI_CALL(detail::RT::piMemGetInfo,
         detail::pi::cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
-        sizeof(size_t), &BufSize, nullptr));
+        sizeof(size_t), &BufSize, nullptr);
 
     Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl<AllocatorT>>(
@@ -318,6 +350,30 @@ private:
     return newRange[1] == parentRange[1] && newRange[2] == parentRange[2];
   }
 };
+
+#ifdef __cpp_deduction_guides
+template <class InputIterator, class AllocatorT>
+buffer(InputIterator, InputIterator, AllocatorT, const property_list & = {})
+    ->buffer<typename std::iterator_traits<InputIterator>::value_type, 1,
+             AllocatorT>;
+template <class InputIterator>
+buffer(InputIterator, InputIterator, const property_list & = {})
+    ->buffer<typename std::iterator_traits<InputIterator>::value_type, 1>;
+template <class Container, class AllocatorT>
+buffer(Container &, AllocatorT, const property_list & = {})
+    ->buffer<typename Container::value_type, 1, AllocatorT>;
+template <class Container>
+buffer(Container &, const property_list & = {})
+    ->buffer<typename Container::value_type, 1>;
+template <class T, int dimensions, class AllocatorT>
+buffer(const T *, const range<dimensions> &, AllocatorT,
+       const property_list & = {})
+    ->buffer<T, dimensions, AllocatorT>;
+template <class T, int dimensions>
+buffer(const T *, const range<dimensions> &, const property_list & = {})
+    ->buffer<T, dimensions>;
+#endif // __cpp_deduction_guides
+
 } // namespace sycl
 } // namespace cl
 

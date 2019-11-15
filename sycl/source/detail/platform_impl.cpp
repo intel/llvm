@@ -21,12 +21,12 @@ platform_impl_pi::get_platforms() {
   vector_class<platform> platforms;
 
   pi_uint32 num_platforms = 0;
-  PI_CALL(RT::piPlatformsGet(0, 0, &num_platforms));
+  PI_CALL(RT::piPlatformsGet, 0, nullptr, &num_platforms);
   info::device_type forced_type = detail::get_forced_type();
 
   if (num_platforms) {
     vector_class<RT::PiPlatform> pi_platforms(num_platforms);
-    PI_CALL(RT::piPlatformsGet(num_platforms, pi_platforms.data(), 0));
+    PI_CALL(RT::piPlatformsGet, num_platforms, pi_platforms.data(), nullptr);
 
     for (pi_uint32 i = 0; i < num_platforms; i++) {
 
@@ -66,9 +66,8 @@ platform_impl_pi::get_devices(info::device_type deviceType) const {
 
   vector_class<RT::PiDevice> pi_devices(num_devices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(RT::piDevicesGet(
-    m_platform, pi::cast<RT::PiDeviceType>(deviceType), num_devices,
-    pi_devices.data(), 0));
+  PI_CALL(RT::piDevicesGet, m_platform, pi::cast<RT::PiDeviceType>(deviceType),
+          num_devices, pi_devices.data(), nullptr);
 
   std::for_each(pi_devices.begin(), pi_devices.end(),
                 [&res](const RT::PiDevice &a_pi_device) {

@@ -43,8 +43,8 @@ ordered_queue::ordered_queue(cl_command_queue clQueue,
                              const async_handler &asyncHandler) {
   cl_command_queue_properties reportedProps;
   RT::PiQueue m_CommandQueue = detail::pi::cast<detail::RT::PiQueue>(clQueue);
-  PI_CALL(RT::piQueueGetInfo(m_CommandQueue, PI_QUEUE_INFO_DEVICE,
-                             sizeof(reportedProps), &reportedProps, nullptr));
+  PI_CALL(RT::piQueueGetInfo, m_CommandQueue, PI_QUEUE_INFO_DEVICE,
+          sizeof(reportedProps), &reportedProps, nullptr);
   if (reportedProps & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
     throw runtime_error(
         "Failed to build a sycl ordered queue from a cl OOO queue.");

@@ -86,13 +86,13 @@ public:
 
     RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
     RT::PiContext Context = nullptr;
-    PI_CALL(RT::piMemGetInfo(Mem, CL_MEM_CONTEXT, sizeof(Context), &Context,
-                             nullptr));
+    PI_CALL(RT::piMemGetInfo, Mem, CL_MEM_CONTEXT, sizeof(Context), &Context,
+            nullptr);
 
     if (MInteropContext->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(
           "Input context must be the same as the context of cl_mem");
-    PI_CALL(RT::piMemRetain(Mem));
+    PI_CALL(RT::piMemRetain, Mem);
   }
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
@@ -225,7 +225,7 @@ public:
     releaseHostMem(MShadowCopy);
 
     if (MOpenCLInterop)
-      PI_CALL(RT::piMemRelease(pi::cast<RT::PiMem>(MInteropMemObject)));
+      PI_CALL(RT::piMemRelease, pi::cast<RT::PiMem>(MInteropMemObject));
   }
 
   bool useHostPtr() {
