@@ -301,6 +301,7 @@ pi_result USMDispatcher::enqueueMigrateMem(pi_queue Queue, const void *Ptr,
           CLQueue, NumEventsInWaitList,
           reinterpret_cast<const cl_event *>(EventWaitList),
           reinterpret_cast<cl_event *>(Event)));
+      pi::piCheckResult(RetVal);
     } else {
       RetVal = pi::cast<pi_result>(pfn_clEnqueueMigrateMemINTEL(
           CLQueue, Ptr, Size, Flags, NumEventsInWaitList,
@@ -347,17 +348,20 @@ void USMDispatcher::memAdvise(pi_queue Queue, const void *Ptr, size_t Length,
 
     if (mEmulated) {
       // memAdvise does nothing here
-      PI_CHECK(clEnqueueMarkerWithWaitList(
-          CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event)));
+      // TODO: Implement a PI call for this openCL API
+      RT::piCheckResult(RT::cast<RT::PiResult>(clEnqueueMarkerWithWaitList(
+          CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event))));
     } else {
       // Temporary until driver supports
       // memAdvise doesn't do anything on an iGPU anyway
-      PI_CHECK(clEnqueueMarkerWithWaitList(
-                 CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event)));
+      // TODO: Implement a PI call for this openCL API
+      RT::piCheckResult(RT::cast<RT::PiResult>(clEnqueueMarkerWithWaitList(
+          CLQueue, 0, nullptr, reinterpret_cast<cl_event *>(Event))));
       /*
       // Enable once this is supported in the driver
       auto CLAdvice = *reinterpret_cast<cl_mem_advice_intel *>(&Advice);
-      PI_CHECK(pfn_clEnqueueMemAdviseINTEL(
+      // TODO: Implement a PI call for this openCL API
+      RT::piCheckResult(RT::cast<RT::PiResult>(pfn_clEnqueueMemAdviseINTEL,
           CLQueue, Ptr, Length, CLAdvice, 0, nullptr,
           reinterpret_cast<cl_event *>(Event)));
       */
@@ -374,13 +378,13 @@ pi_result USMDispatcher::enqueuePrefetch(pi_queue Queue, void *Ptr, size_t Size,
   if (pi::useBackend(pi::Backend::SYCL_BE_PI_OPENCL)) {
     if (mEmulated) {
       // Prefetch is a hint, so ignoring it is always safe.
-      RetVal = PI_CALL_RESULT(RT::piEnqueueEventsWait(
-          Queue, NumEventsInWaitList, EventWaitList, Event));
+      RetVal = PI_CALL_RESULT(RT::piEnqueueEventsWait,
+          Queue, NumEventsInWaitList, EventWaitList, Event);
     } else {
       // TODO: Replace this with real prefetch support when the driver enables
       // it.
-      RetVal = PI_CALL_RESULT(RT::piEnqueueEventsWait(
-          Queue, NumEventsInWaitList, EventWaitList, Event));
+      RetVal = PI_CALL_RESULT(RT::piEnqueueEventsWait,
+          Queue, NumEventsInWaitList, EventWaitList, Event);
     }
   }
 

@@ -23,7 +23,7 @@ bool event_impl::is_host() const { return m_HostEvent || !m_OpenCLInterop; }
 
 cl_event event_impl::get() const {
   if (m_OpenCLInterop) {
-    PI_CALL(RT::piEventRetain(m_Event));
+    PI_CALL(RT::piEventRetain, m_Event);
     return pi::cast<cl_event>(m_Event);
   }
   throw invalid_object_error(
@@ -32,17 +32,17 @@ cl_event event_impl::get() const {
 
 event_impl::~event_impl() {
   if (m_Event) {
-    PI_CALL(RT::piEventRelease(m_Event));
+    PI_CALL(RT::piEventRelease, m_Event);
   }
 }
 
 void event_impl::setComplete() {
-  PI_CALL(RT::piEventSetStatus(m_Event, CL_COMPLETE));
+  PI_CALL(RT::piEventSetStatus, m_Event, CL_COMPLETE);
 }
 
 void event_impl::waitInternal() const {
   if (!m_HostEvent) {
-    PI_CALL(RT::piEventsWait(1, &m_Event));
+    PI_CALL(RT::piEventsWait, 1, &m_Event);
   }
   // Waiting of host events is NOP so far as all operations on host device
   // are blocking.
@@ -60,8 +60,8 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 }
 
 event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
-    : m_Context(detail::getSyclObjImpl(SyclContext)),
-      m_OpenCLInterop(true), m_HostEvent(false) {
+    : m_Context(detail::getSyclObjImpl(SyclContext)), m_OpenCLInterop(true),
+      m_HostEvent(false) {
 
   m_Event = pi::cast<RT::PiEvent>(CLEvent);
 
@@ -72,15 +72,15 @@ event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
   }
 
   RT::PiContext TempContext;
-  PI_CALL(RT::piEventGetInfo(
-      m_Event, CL_EVENT_CONTEXT, sizeof(RT::PiContext), &TempContext, nullptr));
+  PI_CALL(RT::piEventGetInfo, m_Event, CL_EVENT_CONTEXT, sizeof(RT::PiContext),
+          &TempContext, nullptr);
   if (m_Context->getHandleRef() != TempContext) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.");
   }
 
-  PI_CALL(RT::piEventRetain(m_Event));
+  PI_CALL(RT::piEventRetain, m_Event);
 }
 
 event_impl::event_impl(std::shared_ptr<cl::sycl::detail::queue_impl> Queue) {
@@ -118,8 +118,8 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
   if (!m_HostEvent) {
-    return get_event_profiling_info<
-        info::event_profiling::command_submit>::_(this->getHandleRef());
+    return get_event_profiling_info<info::event_profiling::command_submit>::_(
+        this->getHandleRef());
   }
   if (!m_HostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.");

@@ -42,5 +42,5 @@ int main() {
   return 0;
 }
 
-// CHECK: PI ---> RT::piMemImageCreate(TargetContext->getHandleRef(), CreationFlags, &Format, &Desc, UserPtr, &NewMem)
-// CHECK: PI ---> RT::piEnqueueMemImageRead( Queue, SrcMem, CL_FALSE, &SrcOffset[0], &SrcAccessRange[0], RowPitch, SlicePitch, DstMem, DepEvents.size(), &DepEvents[0], &OutEvent)
+// CHECK:---> RT::piMemImageCreate
+// CHECK:---> RT::piEnqueueMemImageRead
