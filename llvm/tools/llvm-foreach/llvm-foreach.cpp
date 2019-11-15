@@ -23,9 +23,9 @@
 
 using namespace llvm;
 
-static cl::list<std::string> InputFileLists{"in-file-list", cl::OneOrMore,
-                                            cl::desc("<input list of files>"),
-                                            cl::value_desc("filename")};
+static cl::list<std::string> InputFileLists{
+    "in-file-list", cl::OneOrMore, cl::desc("<input list of file names>"),
+    cl::value_desc("filename")};
 
 static cl::list<std::string> InputCommandArgs{
     cl::Positional, cl::OneOrMore, cl::desc("<command>"),
@@ -43,11 +43,11 @@ static cl::opt<std::string> OutReplace{
              "name of temporary file created for writing command's outputs."),
     cl::init(""), cl::value_desc("R")};
 
-static cl::opt<std::string> OutFilesExt{
-    "out-ext",
-    cl::desc("Specify extenstion for output files; If unspecified, assume "
-             ".out"),
-    cl::init("out"), cl::value_desc("R")};
+static cl::opt<std::string> OutDirectory{
+    "out-dir",
+    cl::desc("Specify directory for output files; If unspecified, assume "
+             "system temporary directory."),
+    cl::init(""), cl::value_desc("R")};
 
 // Emit list of produced files for better integration with other tools.
 static cl::opt<std::string> OutputFileList{
@@ -65,7 +65,6 @@ static void error(std::error_code EC, const Twine &Prefix) {
 }
 
 int main(int argc, char **argv) {
-
   cl::ParseCommandLineOptions(
       argc, argv,
       "llvm-foreach: Execute specified command as many times as\n"
@@ -81,10 +80,13 @@ int main(int argc, char **argv) {
     error("Number of input file lists and input path replaces don't match.");
 
   std::vector<std::unique_ptr<MemoryBuffer>> MBs;
-  for (auto &InputFileList : InputFileLists)
-    MBs.push_back(ExitOnErr(
-        errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFileList))));
-
+  std::vector<line_iterator> LineIterators;
+  for (auto &InputFileList : InputFileLists) {
+    std::unique_ptr<MemoryBuffer> MB = ExitOnErr(
+        errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputFileList)));
+    LineIterators.push_back(line_iterator(*MB));
+    MBs.push_back(std::move(MB));
+  }
 
   SmallVector<StringRef, 8> Args(InputCommandArgs.begin(),
                                  InputCommandArgs.end());
@@ -92,80 +94,88 @@ int main(int argc, char **argv) {
   if (Args.empty())
     error("No command?");
 
+  struct ArgumentReplace {
+    int ArgNum = -1;
+    std::string Prefix;
+    std::string Postfix;
+  };
+  auto CreateArgumentReplace = [](int ArgNum, StringRef Arg,
+                                  StringRef Replace) -> ArgumentReplace {
+    std::string Prefix = Arg.substr(/*Start*/ 0, Arg.find(Replace));
+    std::string Postfix = Arg.substr(Arg.find_last_of(Replace) + 1);
+    return {ArgNum, Prefix, Postfix};
+  };
+
   // Find args to replace with filenames from input list.
-  std::vector<int> InReplaceArgs;
-  int OutReplaceArg = -1;
+  std::vector<ArgumentReplace> InReplaceArgs;
+  ArgumentReplace OutReplaceArg;
   for (size_t i = 0; i < Args.size(); ++i) {
-    StringRef PossibleReplace;
-    if (Args[i].contains("=")) {
-      std::pair<StringRef, StringRef> Split = Args[i].split("=");
-      PossibleReplace = Split.second;
-    } else
-      PossibleReplace = Args[i];
-
     for (auto &Replace : Replaces)
-      if (PossibleReplace == Replace)
-        InReplaceArgs.push_back(i);
+      if (Args[i].contains(Replace)) {
+        InReplaceArgs.push_back(CreateArgumentReplace(i, Args[i], Replace));
+      }
 
-    if (PossibleReplace == OutReplace)
-      OutReplaceArg = i;
+    if (!OutReplace.empty() && Args[i].contains(OutReplace))
+      OutReplaceArg = CreateArgumentReplace(i, Args[i], OutReplace);
   }
 
   // Emit an error if user requested replace output file in the command but
   // replace string is not found.
-  if (!OutReplace.empty() && OutReplaceArg < 0)
+  if (!OutReplace.empty() && OutReplaceArg.ArgNum < 0)
     error("Couldn't find replace string for output in the command");
 
   // Make sure that specified program exists, emit an error if not.
   std::string Prog =
       ExitOnErr(errorOrToExpected(sys::findProgramByName(Args[0])));
 
-  std::vector<line_iterator> LineIterators;
-  for (auto &MB : MBs)
-    LineIterators.push_back(line_iterator(*MB));
-
+  std::vector<std::vector<std::string>> FileLists(LineIterators.size());
+  int PrevNumOfLines = 0;
+  for (size_t i = 0; i < FileLists.size(); ++i) {
+    int NumOfLines = 0;
+    for (; !LineIterators[i].is_at_eof(); ++LineIterators[i]) {
+      FileLists[i].push_back(LineIterators[i]->str());
+      NumOfLines++;
+    }
+    if (i != 0 && NumOfLines != PrevNumOfLines)
+      error("All input file lists must have same number of lines!");
+    PrevNumOfLines = NumOfLines;
+  }
 
   std::error_code EC;
-  // TODO: find a way to check that all file lists have same number of lines
-  line_iterator LI = LineIterators[0];
-  std::vector<std::string> FileNames(LineIterators.size());
   std::string ResOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
-  std::string FileList = "";
-  for (; !LI.is_at_eof(); ++LI) {
-    for (int i = 0; i < FileNames.size(); ++i) {
-      FileNames[i] = (LineIterators[i]->str());
-      ++LineIterators[i];
-    }
-
-    for (int i = 0; i < InReplaceArgs.size(); ++i) {
-      if (Args[InReplaceArgs[i]].contains("=")) {
-        std::pair<StringRef, StringRef> Split =
-            Args[InReplaceArgs[i]].split("=");
-        ResInArgs[i] =
-            Twine((Split.first) + Twine("=") + Twine(FileNames[i])).str();
-        Args[InReplaceArgs[i]] = ResInArgs[i];
-      } else
-        ResInArgs[i] = FileNames[i];
-      Args[InReplaceArgs[i]] = ResInArgs[i];
+  std::string ResFileList = "";
+  for (size_t j = 0; j != FileLists[0].size(); ++j) {
+    for (size_t i = 0; i < InReplaceArgs.size(); ++i) {
+      ArgumentReplace CurReplace = InReplaceArgs[i];
+      ResInArgs[i] = (Twine(CurReplace.Prefix) + Twine(FileLists[i][j]) +
+                      Twine(CurReplace.Postfix))
+                         .str();
+      Args[CurReplace.ArgNum] = ResInArgs[i];
     }
 
     SmallString<128> Path;
     if (!OutReplace.empty()) {
-      // Create a temporary file for command result. Add file name to output
+      // Create a file for command result. Add file name to output
       // file list if needed.
       std::string TempFileNameBase = sys::path::stem(OutReplace);
-      EC = sys::fs::createTemporaryFile(TempFileNameBase, OutFilesExt, Path);
-      error(EC, "Could not create a temporary file");
-      if (Args[OutReplaceArg].contains("=")) {
-        std::pair<StringRef, StringRef> Split = Args[OutReplaceArg].split("=");
-        ResOutArg = (Twine(Split.first) + Twine("=") + Twine(Path)).str();
-      } else
-        ResOutArg = Path;
-      Args[OutReplaceArg] = ResOutArg;
+      if (OutDirectory.empty())
+        EC =
+            sys::fs::createTemporaryFile(TempFileNameBase, /*Suffix*/ "", Path);
+      else {
+        SmallString<128> PathPrefix(OutDirectory);
+        llvm::sys::path::append(PathPrefix, TempFileNameBase + "-%%%%%%");
+        EC = sys::fs::createUniqueFile(PathPrefix, Path);
+      }
+      error(EC, "Could not create a file for command output");
+
+      ResOutArg = (Twine(OutReplaceArg.Prefix) + Twine(Path) +
+                   Twine(OutReplaceArg.Postfix))
+                      .str();
+      Args[OutReplaceArg.ArgNum] = ResOutArg;
 
       if (!OutputFileList.empty())
-        FileList = (Twine(FileList) + Twine(Path) + Twine("\n")).str();
+        ResFileList = (Twine(ResFileList) + Twine(Path) + Twine("\n")).str();
     }
 
     std::string ErrMsg;
@@ -173,7 +183,7 @@ int main(int argc, char **argv) {
     int Result =
         sys::ExecuteAndWait(Prog, Args, /*Env=*/None, /*Redirects=*/None,
                             /*SecondsToWait=*/0, /*MemoryLimit=*/0, &ErrMsg);
-    if (Result < 0)
+    if (Result != 0)
       error(ErrMsg);
   }
 
@@ -181,7 +191,7 @@ int main(int argc, char **argv) {
   if (!OutputFileList.empty()) {
     raw_fd_ostream OS{OutputFileList, EC, sys::fs::OpenFlags::OF_None};
     error(EC, "error opening the file '" + OutputFileList + "'");
-    OS.write(FileList.data(), FileList.size());
+    OS.write(ResFileList.data(), ResFileList.size());
     OS.close();
   }
 
