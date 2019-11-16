@@ -574,6 +574,9 @@ if(MSVC)
   # Set this variable to OFF here so it can't be set with a command-line
   # argument.
   set (LLVM_LINK_LLVM_DYLIB OFF)
+  if (BUILD_SHARED_LIBS)
+    message(FATAL_ERROR "BUILD_SHARED_LIBS options is not supported on Windows.")
+  endif()
 else()
   option(LLVM_LINK_LLVM_DYLIB "Link tools against the libllvm dynamic library" OFF)
   option(LLVM_BUILD_LLVM_C_DYLIB "Build libllvm-c re-export library (Darwin only)" OFF)
@@ -582,6 +585,10 @@ else()
     set(LLVM_BUILD_LLVM_DYLIB_default ON)
   endif()
   option(LLVM_BUILD_LLVM_DYLIB "Build libllvm dynamic library" ${LLVM_BUILD_LLVM_DYLIB_default})
+endif()
+
+if (LLVM_LINK_LLVM_DYLIB AND BUILD_SHARED_LIBS)
+  message(FATAL_ERROR "Cannot enable BUILD_SHARED_LIBS with LLVM_LINK_LLVM_DYLIB.  We recommend disabling BUILD_SHARED_LIBS.")
 endif()
 
 option(LLVM_OPTIMIZED_TABLEGEN "Force TableGen to be built with optimization" OFF)

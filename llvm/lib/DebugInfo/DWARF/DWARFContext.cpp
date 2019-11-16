@@ -306,14 +306,13 @@ static void dumpLoclistsSection(raw_ostream &OS, DIDumpOptions DumpOpts,
     if (DumpOffset) {
       if (DumpOffset >= Offset && DumpOffset < EndOffset) {
         Offset = *DumpOffset;
-        Loc.dumpLocationList(&Offset, OS, /*BaseAddr=*/0, MRI, nullptr,
+        Loc.dumpLocationList(&Offset, OS, /*BaseAddr=*/None, MRI, nullptr,
                              DumpOpts, /*Indent=*/0);
         OS << "\n";
         return;
       }
     } else {
-      Loc.dumpRange(Offset, EndOffset - Offset, OS, /*BaseAddr=*/0, MRI,
-                    DumpOpts);
+      Loc.dumpRange(Offset, EndOffset - Offset, OS, MRI, DumpOpts);
     }
     Offset = EndOffset;
   }
@@ -409,12 +408,11 @@ void DWARFContext::dump(
     if (*Off) {
       uint64_t Offset = **Off;
       Loc.dumpLocationList(&Offset, OS,
-                           /*BaseAddr=*/0, getRegisterInfo(), nullptr, DumpOpts,
-                           /*Indent=*/0);
+                           /*BaseAddr=*/None, getRegisterInfo(), nullptr,
+                           DumpOpts, /*Indent=*/0);
       OS << "\n";
     } else {
-      Loc.dumpRange(0, Data.getData().size(), OS, /*BaseAddr=*/0,
-                    getRegisterInfo(), DumpOpts);
+      Loc.dumpRange(0, Data.getData().size(), OS, getRegisterInfo(), DumpOpts);
     }
   }
 
@@ -736,13 +734,14 @@ const DWARFDebugLoc *DWARFContext::getDebugLoc() {
   if (Loc)
     return Loc.get();
 
-  Loc.reset(new DWARFDebugLoc);
   // Assume all units have the same address byte size.
-  if (getNumCompileUnits()) {
-    DWARFDataExtractor LocData(*DObj, DObj->getLocSection(), isLittleEndian(),
-                               getUnitAtIndex(0)->getAddressByteSize());
-    Loc->parse(LocData);
-  }
+  auto LocData =
+      getNumCompileUnits()
+          ? DWARFDataExtractor(*DObj, DObj->getLocSection(), isLittleEndian(),
+                               getUnitAtIndex(0)->getAddressByteSize())
+          : DWARFDataExtractor("", isLittleEndian(), 0);
+  Loc.reset(new DWARFDebugLoc(std::move(LocData)));
+  Loc->parse();
   return Loc.get();
 }
 
