@@ -43,6 +43,7 @@ set(SYCL_SOURCES
     "detail/builtins_relational.cpp"
     "detail/pi.cpp"
     "detail/common.cpp"
+    "detail/config.cpp"
     "detail/context_impl.cpp"
     "detail/device_impl.cpp"
     "detail/device_info.cpp"
