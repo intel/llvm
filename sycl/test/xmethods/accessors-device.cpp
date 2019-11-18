@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl-device-only -c -fno-color-diagnostics -Xclang -ast-dump %s | FileCheck %s
+// UNSUPPORTED: windows
 #include <CL/sycl/accessor.hpp>
 
 typedef cl::sycl::accessor<int, 1, cl::sycl::access::mode::read> dummy;
