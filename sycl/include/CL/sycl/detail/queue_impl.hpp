@@ -95,28 +95,26 @@ public:
   template <typename T>
   event submit(T cgf, std::shared_ptr<queue_impl> self,
                std::shared_ptr<queue_impl> second_queue) {
-    event Event;
     try {
-      Event = submit_impl(cgf, self);
+      return submit_impl(cgf, self);
     } catch (...) {
       {
         std::lock_guard<mutex_class> guard(m_Mutex);
         m_Exceptions.PushBack(std::current_exception());
       }
-      Event = second_queue->submit(cgf, second_queue);
+      return second_queue->submit(cgf, second_queue);
     }
-    return Event;
   }
 
   template <typename T> event submit(T cgf, std::shared_ptr<queue_impl> self) {
-    event Event;
     try {
-      Event = submit_impl(cgf, self);
+      return submit_impl(cgf, self);
     } catch (...) {
       std::lock_guard<mutex_class> guard(m_Mutex);
       m_Exceptions.PushBack(std::current_exception());
+      return event(
+          createSyclObjFromImpl<event>(std::make_shared<event_impl>(self)));
     }
-    return Event;
   }
 
   void wait() {
