@@ -16,11 +16,19 @@ class Functor {
   }
 };
 
+namespace pi = cl::sycl::detail::pi;
+
 int main() {
   cl::sycl::queue q;
   cl::sycl::program prog(q.get_context());
   prog.build_with_kernel_type<Functor>();
 
   auto *ctx = cl::sycl::detail::getRawSyclObjImpl(prog.get_context());
-  return ctx->getCachedPrograms().size() != 1;
+
+  auto *clProg = cl::sycl::detail::getSyclObjImpl(prog)->getHandleRef();
+
+  assert(ctx->getCachedPrograms().size() == 1);
+  assert(ctx->getCachedPrograms().begin()->second == pi::cast<pi_program>(clProg));
+
+  return 0;
 }
