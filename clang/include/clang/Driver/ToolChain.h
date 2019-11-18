@@ -142,6 +142,7 @@ private:
   mutable std::unique_ptr<Tool> OffloadWrapper;
   mutable std::unique_ptr<Tool> SPIRVTranslator;
   mutable std::unique_ptr<Tool> SPIRCheck;
+  mutable std::unique_ptr<Tool> SYCLPostLink;
   mutable std::unique_ptr<Tool> BackendCompiler;
 
   Tool *getClang() const;
@@ -154,6 +155,7 @@ private:
   Tool *getOffloadWrapper() const;
   Tool *getSPIRVTranslator() const;
   Tool *getSPIRCheck() const;
+  Tool *getSYCLPostLink() const;
   Tool *getBackendCompiler() const;
 
   mutable std::unique_ptr<SanitizerArgs> SanitizerArguments;

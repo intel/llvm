@@ -24,6 +24,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -226,10 +227,29 @@ static void saveResults(std::vector<std::unique_ptr<Module>> &ResModules,
     ++NumOfFile;
   }
 
-  if (OutputIRFilesList != "-")
+  if (OutputIRFilesList != "-") {
+    // TODO: Figure out what can be added to output list if there are no kernels
+    // in the input module
+    // Just pass input module to next tools if there was nothing to split
+    if (IRFilesList.empty())
+      IRFilesList =
+          (Twine(InputFilename) + Twine("\n")).str();
     writeToFile(OutputIRFilesList, IRFilesList);
-  if (OutputTxtFilesList != "-")
+  }
+  if (OutputTxtFilesList != "-") {
+    // TODO: Figure out what can be added to output list if there are no kernels
+    // in the input module
+    if (TxtFilesList.empty()) {
+      // Just create an empty temporary file if there was nothing to split
+      std::string TempFileNameBase = sys::path::stem(BaseOutputFilename);
+      SmallString<128> Path;
+      std::error_code EC =
+          sys::fs::createTemporaryFile(TempFileNameBase, "txt", Path);
+      error(EC, "Could not create a file for command output.");
+      TxtFilesList = (Twine(Path) + Twine("\n")).str();
+    }
     writeToFile(OutputTxtFilesList, TxtFilesList);
+  }
 }
 
 int main(int argc, char **argv) {

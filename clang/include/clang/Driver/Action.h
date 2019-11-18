@@ -75,6 +75,7 @@ public:
     OffloadWrapperJobClass,
     SPIRVTranslatorJobClass,
     SPIRCheckJobClass,
+    SYCLPostLinkJobClass,
     BackendCompileJobClass,
 
     JobClassFirst = PreprocessJobClass,
@@ -664,6 +665,17 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == SPIRCheckJobClass;
+  }
+};
+
+class SYCLPostLinkJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  SYCLPostLinkJobAction(Action *Input, types::ID OutputType);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == SYCLPostLinkJobClass;
   }
 };
 
