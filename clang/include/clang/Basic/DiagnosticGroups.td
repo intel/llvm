@@ -1120,3 +1120,6 @@ def CTADMaybeUnsupported : DiagGroup<"ctad-maybe-unsupported">;
 def FortifySource : DiagGroup<"fortify-source">;
 
 def IntelFPGA : DiagGroup<"intel-fpga">;
+
+// Register reservation.
+def FixedRegs : DiagGroup<"fixed-registers">;
