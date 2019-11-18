@@ -3398,7 +3398,6 @@ defm whole_file : BooleanFFlag<"whole-file">, Group<gfortran_Group>;
 
 def sycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
-def sycl : Flag<["--"], "sycl">, Alias<sycl_device_only>, Flags<[CoreOption]>;
 
 def reuse_exe_EQ : Joined<["-"], "reuse-exe=">,
   HelpText<"Speed up FPGA aoc compile if the device code in <exe> is unchanged.">,

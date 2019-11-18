@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -std=c++11 -I %S/Inputs -fsycl-is-device -ast-dump %s | FileCheck %s
-// RUN: %clang -I %S/Inputs --sycl -Xclang -fsycl-int-header=%t.h %s -c -o kernel.spv
+// RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s -c -o kernel.spv
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=INT-HEADER
 
 // INT-HEADER:{ kernel_param_kind_t::kind_pointer, 8, 0 },
