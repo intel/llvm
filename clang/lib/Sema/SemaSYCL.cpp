@@ -16,6 +16,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Analysis/CallGraph.h"
 #include "clang/Basic/Attributes.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
