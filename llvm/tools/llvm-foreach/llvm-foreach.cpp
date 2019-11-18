@@ -51,6 +51,12 @@ static cl::opt<std::string> OutDirectory{
              "system temporary directory."),
     cl::init(""), cl::value_desc("R")};
 
+static cl::opt<std::string> OutFilesExt{
+    "out-ext",
+    cl::desc("Specify extenstion for output files; If unspecified, assume "
+             ".out"),
+    cl::init("out"), cl::value_desc("R")};
+
 // Emit list of produced files for better integration with other tools.
 static cl::opt<std::string> OutputFileList{
     "out-file-list", cl::desc("Specify filename for list of outputs."),
@@ -162,11 +168,11 @@ int main(int argc, char **argv) {
       // file list if needed.
       std::string TempFileNameBase = sys::path::stem(OutReplace);
       if (OutDirectory.empty())
-        EC =
-            sys::fs::createTemporaryFile(TempFileNameBase, /*Suffix*/ "", Path);
+        EC = sys::fs::createTemporaryFile(TempFileNameBase, OutFilesExt, Path);
       else {
         SmallString<128> PathPrefix(OutDirectory);
-        llvm::sys::path::append(PathPrefix, TempFileNameBase + "-%%%%%%");
+        llvm::sys::path::append(PathPrefix,
+                                TempFileNameBase + "-%%%%%%." + OutFilesExt);
         EC = sys::fs::createUniqueFile(PathPrefix, Path);
       }
       error(EC, "Could not create a file for command output.");

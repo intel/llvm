@@ -4,12 +4,12 @@
 ; RUN: echo 'Content of second file' > %t2.tgt
 ; RUN: echo "%t1.tgt" > %t.list
 ; RUN: echo "%t2.tgt" >> %t.list
-; RUN: llvm-foreach --in-replace="{}" %t.list "echo {}" > %t.res
+; RUN: llvm-foreach --in-replace="{}" --in-file-list=%t.list -- echo "{}" > %t.res
 ; RUN: FileCheck < %t.res %s
 ; CHECK: [[FIRST:.+1.tgt]]
 ; CHECK: [[SECOND:.+2.tgt]]
 ;
-; RUN: llvm-foreach --in-replace="{}" --out-replace=%t.out --in-file-list=%t.list --out-file-list=%t.out.list -- copy "{}" %t.out
+; RUN: llvm-foreach --in-replace="{}" --out-replace=%t --out-ext=out --in-file-list=%t.list --out-file-list=%t.out.list -- copy "{}" %t
 ; RUN: FileCheck < %t.out.list %s --check-prefix=CHECK-LIST
 ; CHECK-LIST: [[FIRST:.+\.out]]
 ; CHECK-LIST: [[SECOND:.+\.out]]

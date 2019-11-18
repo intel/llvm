@@ -9,10 +9,10 @@
 ; CHECK: [[FIRST:.+1.tgt]]
 ; CHECK: [[SECOND:.+2.tgt]]
 ;
-; RUN: llvm-foreach --in-replace="{}" --out-replace=%t.out --in-file-list=%t.list --out-file-list=%t.out.list -- cp "{}" %t.out
+; RUN: llvm-foreach --in-replace="{}" --out-replace=%t --out-ext=out --in-file-list=%t.list --out-file-list=%t.out.list -- cp "{}" %t
 ; RUN: FileCheck < %t.out.list %s --check-prefix=CHECK-LIST
-; CHECK-LIST: [[FIRST:.+\.tmp]]
-; CHECK-LIST: [[SECOND:.+\.tmp]]
+; CHECK-LIST: [[FIRST:.+\.out]]
+; CHECK-LIST: [[SECOND:.+\.out]]
 ; RUN: llvm-foreach --in-replace="{}" --in-file-list=%t.out.list -- FileCheck --input-file="{}" %s --check-prefix=CHECK-CONTENT
 ; CHECK-CONTENT: Content of
 
