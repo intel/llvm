@@ -764,13 +764,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // -fsycl-link-targets is not allowed with -fsycl-link
   if (SYCLLinkTargets && SYCLLink)
     Diag(clang::diag::err_drv_option_conflict)
-      << C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)->getSpelling()
-      << SYCLLinkTargets->getSpelling();
+        << SYCLLink->getSpelling() << SYCLLinkTargets->getSpelling();
   // -fsycl-targets cannot be used with -fintelfpga
   if (SYCLTargets && SYCLfpga)
     Diag(clang::diag::err_drv_option_conflict)
-      << SYCLTargets->getSpelling()
-      << C.getInputArgs().getLastArg(options::OPT_fintelfpga)->getSpelling();
+        << SYCLTargets->getSpelling() << SYCLfpga->getSpelling();
 
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
