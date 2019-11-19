@@ -103,33 +103,32 @@ int main(int argc, char **argv) {
     error("No command?");
 
   struct ArgumentReplace {
-    int ArgNum = -1;
-    std::string Prefix;
-    std::string Postfix;
-  };
-  auto CreateArgumentReplace = [](int ArgNum, StringRef Arg,
-                                  StringRef Replace) -> ArgumentReplace {
-    std::string Prefix = Arg.substr(/*Start*/ 0, Arg.find(Replace));
-    std::string Postfix = Arg.substr(Arg.find_last_of(Replace) + 1);
-    return {ArgNum, Prefix, Postfix};
+    size_t ArgNum = 0;
+    // Index in argument string where replace length starts.
+    size_t Start = 0;
+    size_t ReplaceLen = 0;
   };
 
   // Find args to replace with filenames from input list.
   std::vector<ArgumentReplace> InReplaceArgs;
   ArgumentReplace OutReplaceArg;
-  for (size_t i = 0; i < Args.size(); ++i) {
-    for (auto &Replace : Replaces)
-      if (Args[i].contains(Replace)) {
-        InReplaceArgs.push_back(CreateArgumentReplace(i, Args[i], Replace));
-      }
+  for (size_t i = 1; i < Args.size(); ++i) {
+    for (auto &Replace : Replaces) {
+      size_t ReplaceStart = Args[i].find(Replace);
+      if (ReplaceStart != StringRef::npos)
+        InReplaceArgs.push_back({i, ReplaceStart, Replace.size()});
+    }
 
-    if (!OutReplace.empty() && Args[i].contains(OutReplace))
-      OutReplaceArg = CreateArgumentReplace(i, Args[i], OutReplace);
+    if (!OutReplace.empty() && Args[i].contains(OutReplace)) {
+      size_t ReplaceStart = Args[i].find(OutReplace);
+      if (ReplaceStart != StringRef::npos)
+        OutReplaceArg = {i, ReplaceStart, OutReplace.size()};
+    }
   }
 
   // Emit an error if user requested replace output file in the command but
   // replace string is not found.
-  if (!OutReplace.empty() && OutReplaceArg.ArgNum < 0)
+  if (!OutReplace.empty() && OutReplaceArg.ArgNum == 0)
     error("Couldn't find replace string for output in the command.");
 
   // Make sure that specified program exists, emit an error if not.
@@ -137,27 +136,32 @@ int main(int argc, char **argv) {
       ExitOnErr(errorOrToExpected(sys::findProgramByName(Args[0])));
 
   std::vector<std::vector<std::string>> FileLists(LineIterators.size());
-  int PrevNumOfLines = 0;
+  size_t PrevNumOfLines = 0;
   for (size_t i = 0; i < FileLists.size(); ++i) {
-    int NumOfLines = 0;
     for (; !LineIterators[i].is_at_eof(); ++LineIterators[i]) {
       FileLists[i].push_back(LineIterators[i]->str());
-      NumOfLines++;
     }
-    if (i != 0 && NumOfLines != PrevNumOfLines)
+    if (i != 0 && FileLists[i].size() != PrevNumOfLines)
       error("All input file lists must have same number of lines!");
-    PrevNumOfLines = NumOfLines;
+    PrevNumOfLines = FileLists[i].size();
   }
 
   std::error_code EC;
+  raw_fd_ostream OS{OutputFileList, EC, sys::fs::OpenFlags::OF_None};
+  if (!OutputFileList.empty())
+    error(EC, "error opening the file '" + OutputFileList + "'");
+
   std::string ResOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
   std::string ResFileList = "";
   for (size_t j = 0; j != FileLists[0].size(); ++j) {
     for (size_t i = 0; i < InReplaceArgs.size(); ++i) {
       ArgumentReplace CurReplace = InReplaceArgs[i];
-      ResInArgs[i] = (Twine(CurReplace.Prefix) + Twine(FileLists[i][j]) +
-                      Twine(CurReplace.Postfix))
+      std::string OriginalString = InputCommandArgs[CurReplace.ArgNum];
+      ResInArgs[i] = (Twine(OriginalString.substr(0, CurReplace.Start)) +
+                      Twine(FileLists[i][j]) +
+                      Twine(OriginalString.substr(CurReplace.Start +
+                                                  CurReplace.ReplaceLen)))
                          .str();
       Args[CurReplace.ArgNum] = ResInArgs[i];
     }
@@ -171,19 +175,26 @@ int main(int argc, char **argv) {
         EC = sys::fs::createTemporaryFile(TempFileNameBase, OutFilesExt, Path);
       else {
         SmallString<128> PathPrefix(OutDirectory);
+        // "CreateUniqueFile" functions accepts "Model" - special string with
+        // substring containing sequence of "%" symbols. In the resulting
+        // filename "%" symbols sequence from "Model" string will be replaced
+        // with random chars to make it unique.
         llvm::sys::path::append(PathPrefix,
                                 TempFileNameBase + "-%%%%%%." + OutFilesExt);
         EC = sys::fs::createUniqueFile(PathPrefix, Path);
       }
       error(EC, "Could not create a file for command output.");
 
-      ResOutArg = (Twine(OutReplaceArg.Prefix) + Twine(Path) +
-                   Twine(OutReplaceArg.Postfix))
-                      .str();
+      std::string OriginalString = InputCommandArgs[OutReplaceArg.ArgNum];
+      ResOutArg =
+          (Twine(OriginalString.substr(0, OutReplaceArg.Start)) + Twine(Path) +
+           Twine(OriginalString.substr(OutReplaceArg.Start +
+                                       OutReplaceArg.ReplaceLen)))
+              .str();
       Args[OutReplaceArg.ArgNum] = ResOutArg;
 
       if (!OutputFileList.empty())
-        ResFileList = (Twine(ResFileList) + Twine(Path) + Twine("\n")).str();
+        OS << Path << "\n";
     }
 
     std::string ErrMsg;
@@ -195,11 +206,7 @@ int main(int argc, char **argv) {
       error(ErrMsg);
   }
 
-  // Save file list if needed.
   if (!OutputFileList.empty()) {
-    raw_fd_ostream OS{OutputFileList, EC, sys::fs::OpenFlags::OF_None};
-    error(EC, "error opening the file '" + OutputFileList + "'");
-    OS.write(ResFileList.data(), ResFileList.size());
     OS.close();
   }
 
