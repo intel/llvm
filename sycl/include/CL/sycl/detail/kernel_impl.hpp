@@ -61,9 +61,9 @@ public:
   ///
   /// @return a valid cl_kernel instance
   cl_kernel get() const {
-    if (is_host()) {
+    if (is_host())
       throw invalid_object_error("This instance of kernel is a host instance");
-    }
+
     PI_CALL(RT::piKernelRetain, MKernel);
     return pi::cast<cl_kernel>(MKernel);
   }
@@ -142,7 +142,7 @@ private:
   RT::PiKernel MKernel;
   context MContext;
   std::shared_ptr<program_impl> MProgramImpl;
-  bool MIsCreatedFromSource = true;
+  bool MCreatedFromSource = true;
 };
 
 } // namespace detail

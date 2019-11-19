@@ -17,10 +17,6 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
           detail::pi::cast<detail::RT::PiKernel>(ClKernel), SyclContext)) {}
 
-bool kernel::operator==(const kernel &RHS) const { return impl == RHS.impl; }
-
-bool kernel::operator!=(const kernel &RHS) const { return !operator==(RHS); }
-
 cl_kernel kernel::get() const { return impl->get(); }
 
 bool kernel::is_host() const { return impl->is_host(); }

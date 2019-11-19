@@ -26,8 +26,9 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext)
 kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
                          std::shared_ptr<program_impl> ProgramImpl,
                          bool IsCreatedFromSource)
-    : MKernel(Kernel), MContext(SyclContext), MProgramImpl(ProgramImpl),
-      MIsCreatedFromSource(IsCreatedFromSource) {
+    : MKernel(Kernel), MContext(SyclContext),
+      MProgramImpl(std::move(ProgramImpl)),
+      MCreatedFromSource(IsCreatedFromSource) {
 
   RT::PiContext Context = nullptr;
   PI_CALL(RT::piKernelGetInfo, MKernel, CL_KERNEL_CONTEXT, sizeof(Context),
@@ -41,7 +42,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
 
 kernel_impl::kernel_impl(const context &SyclContext,
                          std::shared_ptr<program_impl> ProgramImpl)
-    : MContext(SyclContext), MProgramImpl(ProgramImpl) {}
+    : MContext(SyclContext), MProgramImpl(std::move(ProgramImpl)) {}
 
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -152,7 +153,7 @@ bool kernel_impl::isCreatedFromSource() const {
   // kernel SecondKernel = kernel(ClKernel, Context);
   // clReleaseKernel(ClKernel);
   // FirstKernel.isCreatedFromSource() != FirstKernel.isCreatedFromSource();
-  return MIsCreatedFromSource;
+  return MCreatedFromSource;
 }
 
 } // namespace detail

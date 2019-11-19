@@ -12,6 +12,8 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <memory>
+
 namespace cl {
 namespace sycl {
 // Forward declaration
@@ -22,11 +24,6 @@ class kernel_impl;
 }
 
 class kernel {
-  template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
 public:
   /// Constructs a SYCL kernel instance from an OpenCL cl_kernel
   ///
@@ -45,9 +42,9 @@ public:
 
   kernel &operator=(kernel &&RHS) = default;
 
-  bool operator==(const kernel &RHS) const;
+  bool operator==(const kernel &RHS) const { return impl == RHS.impl; }
 
-  bool operator!=(const kernel &RHS) const;
+  bool operator!=(const kernel &RHS) const { return !operator==(RHS); }
 
   /// Get a valid OpenCL interoperability kernel
   ///
@@ -116,6 +113,11 @@ private:
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
 
   shared_ptr_class<detail::kernel_impl> impl;
+
+  template <class Obj>
+  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 } // namespace sycl
 } // namespace cl
