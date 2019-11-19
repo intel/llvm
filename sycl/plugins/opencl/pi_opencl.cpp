@@ -20,7 +20,13 @@
     return cast<pi_result>(reterr);                                            \
   }
 
-const char SupportedVersion[] = "1.1";
+#define STRING_HELPER(a) #a
+#define STRINGIZE(a,b) STRING_HELPER(a.b)
+const char SupportedVersion[] = STRINGIZE(_PI_H_VERSION_MAJOR,_PI_H_VERSION_MINOR);
+#undef STRING_HELPER
+#undef STRINGIZE
+
+
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value) {
   // TODO: see if more sanity checks are possible.

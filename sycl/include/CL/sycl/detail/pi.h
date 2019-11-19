@@ -381,7 +381,6 @@ struct _pi_plugin;
 typedef _pi_plugin pi_plugin;
 
 // PI Plugin Initialise.
-// Must be implemented by a plugin.
 // Plugin will check the PI version of Plugin Interface,
 // populate the PI Version it supports, update targets field and populate
 // PiFunctionTable with Supported APIs. The pointers are in a predetermined
@@ -914,18 +913,26 @@ pi_result piEnqueueMemUnmap(
   const pi_event * event_wait_list,
   pi_event *       event);
 
-struct _pi_plugin {
+
+#define STRING_HELPER(a) #a
+#define STRINGIZE(a,b) STRING_HELPER(a.b)
+
+struct pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
   // checks and writes the appropriate Function Pointers in
   // PIFunctionTable.
-  const char PiVersion[4] = "1.1";
-  char PluginVersion[4] = "1.1"; // Plugin edits this.
+  const char PiVersion[4] = STRINGIZE(_PI_H_VERSION_MAJOR,_PI_H_VERSION_MINOR);
+  char PluginVersion[4] =
+      STRINGIZE(_PI_H_VERSION_MAJOR,_PI_H_VERSION_MINOR); // Plugin edits this.
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;
 #include <CL/sycl/detail/pi.def>
   } PiFunctionTable;
 };
+
+#undef STRING_HELPER
+#undef STRINGIZE
 
 #ifdef __cplusplus
 } // extern "C"
