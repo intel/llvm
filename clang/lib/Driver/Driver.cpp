@@ -299,7 +299,7 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
 
   // -S only runs up to the backend.
   } else if ((PhaseArg = DAL.getLastArg(options::OPT_S)) ||
-             (PhaseArg = DAL.getLastArg(options::OPT_sycl_device_only))) {
+             (PhaseArg = DAL.getLastArg(options::OPT_fsycl_device_only))) {
     FinalPhase = phases::Backend;
 
   // -c compilation only runs up to the assembler.
@@ -730,7 +730,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Use of -fsycl-device-only overrides -fsycl.
   bool HasValidSYCLRuntime = (C.getInputArgs().hasFlag(options::OPT_fsycl,
       options::OPT_fno_sycl, false) &&
-      !C.getInputArgs().hasArg(options::OPT_sycl_device_only));
+      !C.getInputArgs().hasArg(options::OPT_fsycl_device_only));
 
   // A mechanism for retrieving SYCL-specific options, erroring out
   // if SYCL offloading wasn't enabled prior to that
@@ -1201,7 +1201,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     T.setObjectFormat(llvm::Triple::COFF);
     TargetTriple = T.str();
   }
-  if (Args.hasArg(options::OPT_sycl_device_only)) {
+  if (Args.hasArg(options::OPT_fsycl_device_only)) {
     // -fsycl-device-only implies spir arch and SYCL Device
     llvm::Triple T(TargetTriple);
     // FIXME: defaults to spir64, should probably have a way to set spir
@@ -4486,7 +4486,7 @@ Action *Driver::ConstructPhaseAction(
           Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
-    if (Args.hasArg(options::OPT_sycl_device_only)) {
+    if (Args.hasArg(options::OPT_fsycl_device_only)) {
       if (Args.hasFlag(options::OPT_fsycl_use_bitcode,
                        options::OPT_fno_sycl_use_bitcode, true))
         return C.MakeAction<BackendJobAction>(Input, types::TY_LLVM_BC);
