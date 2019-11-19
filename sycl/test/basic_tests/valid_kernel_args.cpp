@@ -10,7 +10,7 @@
 // RUN: %clangxx -fsyntax-only %s
 
 // Check that the test can be compiled with device compiler as well.
-// RUN: %clangxx --sycl -fsyntax-only %s
+// RUN: %clangxx -fsycl-device-only -fsyntax-only %s
 
 #include <CL/sycl.hpp>
 
