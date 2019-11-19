@@ -188,7 +188,7 @@ Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
         AllocaCmdDst, *AllocaCmdDst->getRequirement(),
         &AllocaCmdSrc->MMemAllocation, AllocaCmdDst->getQueue()));
 
-    std::swap(AllocaCmdSrc->MActive, AllocaCmdDst->MActive);
+    std::swap(AllocaCmdSrc->MIsActive, AllocaCmdDst->MIsActive);
 
     return UnMapCmdUPtr.release();
   }
@@ -197,7 +197,7 @@ Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
       AllocaCmdSrc, *AllocaCmdSrc->getRequirement(),
       &AllocaCmdDst->MMemAllocation, AllocaCmdSrc->getQueue()));
 
-  std::swap(AllocaCmdSrc->MActive, AllocaCmdDst->MActive);
+  std::swap(AllocaCmdSrc->MIsActive, AllocaCmdDst->MIsActive);
 
   return MapCmdUPtr.release();
 }
@@ -245,7 +245,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     NewCmd = insertMapUnmapForLinkedCmds(AllocaCmdSrc, AllocaCmdDst);
   } else {
 
-    if (AllocaCmdDst->MLinkedAllocaCmd && !AllocaCmdDst->MActive) {
+    if (AllocaCmdDst->MLinkedAllocaCmd && !AllocaCmdDst->MIsActive) {
       NewCmd = insertMapUnmapForLinkedCmds(AllocaCmdSrc, AllocaCmdDst);
       const Requirement *NewReq = NewCmd->getRequirement();
       for (Command *Dep : Deps) {
@@ -259,7 +259,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
     }
 
     // Full copy of buffer is needed to avoid loss of data that may be caused
-    // by copying specific range form host to device and backwards.
+    // by copying specific range from host to device and backwards.
     NewCmd = new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
                                *AllocaCmdDst->getRequirement(), AllocaCmdDst,
                                AllocaCmdSrc->getQueue(),
@@ -339,8 +339,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req) {
   Command *UpdateHostAccCmd = insertUpdateHostReqCmd(Record, Req, HostQueue);
 
   // Need empty command to be blocked until host accessor is destructed
-  std::unique_ptr<EmptyCommand> EmptyCmdUPtr(new EmptyCommand(HostQueue, *Req));
-  EmptyCommand *EmptyCmd = EmptyCmdUPtr.release();
+  EmptyCommand *EmptyCmd = new EmptyCommand(HostQueue, *Req);
   EmptyCmd->addDep(
       DepDesc{UpdateHostAccCmd, EmptyCmd->getRequirement(), SrcAllocaCmd});
   UpdateHostAccCmd->addUser(EmptyCmd);
@@ -524,9 +523,9 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         // always be active here. Also if the "follower" command is a device one
         // we have to change current context to the device one.
         if (Queue->is_host()) {
-          AllocaCmd->MActive = false;
+          AllocaCmd->MIsActive = false;
         } else {
-          LinkedAllocaCmd->MActive = false;
+          LinkedAllocaCmd->MIsActive = false;
           Record->MCurContext = Queue->get_context_impl();
         }
       }

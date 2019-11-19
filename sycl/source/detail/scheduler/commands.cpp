@@ -191,7 +191,7 @@ cl_int AllocaCommand::enqueueImp() {
   RT::PiEvent &Event = MEvent->getHandleRef();
 
   void *HostPtr = nullptr;
-  if (!MLeaderAlloca) {
+  if (!MIsLeaderAlloca) {
 
     if (MQueue->is_host()) {
       // Do not need make allocation if we have linked device allocation
@@ -286,10 +286,9 @@ cl_int ReleaseCommand::enqueueImp() {
 
     // There is no actual memory allocation if a host alloca command is created
     // being linked to a device allocation.
-    SkipRelease |= CurAllocaIsHost && !MAllocaCmd->MLeaderAlloca;
+    SkipRelease |= CurAllocaIsHost && !MAllocaCmd->MIsLeaderAlloca;
 
-    NeedUnmap |= !CurAllocaIsHost && !MAllocaCmd->MActive;
-    NeedUnmap |= CurAllocaIsHost && MAllocaCmd->MActive;
+    NeedUnmap |= CurAllocaIsHost == MAllocaCmd->MIsActive;
   }
 
   if (NeedUnmap) {
@@ -310,7 +309,7 @@ cl_int ReleaseCommand::enqueueImp() {
                          std::move(RawEvents), /*MUseExclusiveQueue*/ false,
                          MapEvent);
 
-    std::swap(MAllocaCmd->MActive, MAllocaCmd->MLinkedAllocaCmd->MActive);
+    std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     RawEvents.push_back(MapEvent);
   }
 

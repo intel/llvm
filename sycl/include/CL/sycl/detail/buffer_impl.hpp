@@ -149,12 +149,11 @@ public:
            "Cannot init from user data and reuse host ptr provided "
            "simultaneously");
 
-    void *UserPtr = HostPtr;
-    UserPtr = InitFromUserData ? BaseT::getUserPtr() : UserPtr;
+    void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : HostPtr;
 
-    if (nullptr == UserPtr && BaseT::useHostPtr() && Context->is_host())
-      throw sycl::runtime_error("Internal error. Allocating memory on the host "
-                                "while having use_host_ptr property");
+    assert(!(nullptr == UserPtr && BaseT::useHostPtr() && Context->is_host()) &&
+           "Internal error. Allocating memory on the host "
+           "while having use_host_ptr property");
 
     return MemoryManager::allocateMemBuffer(
         std::move(Context), this, UserPtr, BaseT::MHostPtrReadOnly,

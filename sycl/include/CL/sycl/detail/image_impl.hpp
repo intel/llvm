@@ -286,8 +286,7 @@ public:
            "Cannot init from user data and reuse host ptr provided "
            "simultaneously");
 
-    void *UserPtr = HostPtr;
-    UserPtr = InitFromUserData ? BaseT::getUserPtr() : UserPtr;
+    void *UserPtr = InitFromUserData ? BaseT::getUserPtr() : UserPtr;
 
     RT::PiMemImageDesc Desc = getImageDesc(UserPtr != nullptr);
     assert(checkImageDesc(Desc, Context, UserPtr) &&

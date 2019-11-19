@@ -198,7 +198,7 @@ public:
   AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req,
                     AllocaCommandBase *LinkedAllocaCmd)
       : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
-        MLeaderAlloca(nullptr == LinkedAllocaCmd), MReleaseCmd(Queue, this),
+        MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MReleaseCmd(Queue, this),
         MRequirement(std::move(Req)) {
     MRequirement.MAccessMode = access::mode::read_write;
   }
@@ -216,15 +216,15 @@ public:
   // Alloca command linked with current command.
   // Device and host alloca commands can be linked, so they may share the same
   // memory. Only one allocation from a pair can be accessed at a time. Alloca
-  // commands associcated with such allocation is "active". In order to switch
+  // commands associated with such allocation is "active". In order to switch
   // "active" status between alloca commands map/unmap operations are used.
   AllocaCommandBase *MLinkedAllocaCmd = nullptr;
   // Indicates that current alloca is active one.
-  bool MActive = true;
+  bool MIsActive = true;
 
   // Indicates that the command owns memory allocation in case of connected
   // alloca command
-  bool MLeaderAlloca = true;
+  bool MIsLeaderAlloca = true;
 
 protected:
   ReleaseCommand MReleaseCmd;
