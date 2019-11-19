@@ -81,6 +81,8 @@ void assertion(bool Condition, const char *Message = nullptr);
 template <class To, class From> To cast(From value);
 
 // Holds the PluginInformation for the plugin that is bound.
+// TODO: Move this into sycl::platform. Currenlty, we have only a single Plugin
+// connection possible.
 extern pi_plugin PluginInformation;
 
 // Performs PI one-time initialization.
@@ -134,7 +136,6 @@ inline void piCheckResult(PiResult pi_result) {
 template <typename FnType, size_t FnOffset> class Trace {
 private:
   FnType m_FnPtr;
-  // PiResult m_FnCallResult;
   std::string m_FnName;
 
 public:
@@ -151,22 +152,8 @@ public:
       std::cout << ") ---> ";
       std::cout << (print(r), "") << std::endl;
     }
-    // m_FnCallResult = r;
     return r;
   }
-
-  // PiResult getResult() { return m_FnCallResult; }
-
-  // operator PiResult() { return (this->getResult()); }
-
-  // template <typename Exception = cl::sycl::runtime_error>
-  // void checkResultThrow() {
-  //  CHECK_OCL_CODE_THROW(m_FnCallResult, Exception);
-  //}
-
-  // TODO: Implement and use this where PI Calls are done in destructor and the
-  // user cannot use checkResultThrow().
-  // void checkResultPrint();
 };
 
 template <typename FnType, size_t FnOffset>
@@ -197,25 +184,26 @@ namespace RT = cl::sycl::detail::pi;
 
 #define PI_ASSERT(cond, msg) RT::assertion((cond), "assert: " msg);
 
-// To change the exception type, use:
-// PI_CALL_CHECK(pi).template operator()<compile_program_error>(__VA_ARGS__)
+// Use this macro to call the API, trace the call, check the return and throw a
+// runtime_error exception.
+// Usage: PI_CALL(pi)(Args);
+// Note: To change the exception type, use:
+// PI_CALL(pi).template operator()<compile_program_error>(__VA_ARGS__)
 // Or
-// auto piresult = PI_CALL_NOCHECK(pi)(args);
+// auto Err = PI_CALL_NOCHECK(pi)(args);
 // RT::piCheckThrow<Exception>(Err);
-
 #define PI_CALL(pi)                                                            \
   RT::TraceCheck<decltype(&::pi),                                              \
                  (offsetof(_pi_plugin::FunctionPointers, pi))>()
 
+// Use this macro to call the API, trace the call and return the result.
+// To check the result use piCheckResult or piCheckThrow.
+// Usage:
+// PiResult Err = PI_CALL_NOCHECK(pi)(args);
+// RT::piCheckResult(Err); <- Checks Result and throws a runtime error
+// exception.
 #define PI_CALL_NOCHECK(pi)                                                    \
   RT::Trace<decltype(&::pi), (offsetof(_pi_plugin::FunctionPointers, pi))>()
-
-// Use this macro to call the API, do the trace and returns the result.
-// To check the result use piCheckResult or piCheckThrow.
-// There should have been a single call to PI_CALL before this macro is used. It
-// enables calling initialize before the PI_TRACE function is called.
-// TODO: Remove this dependency to PI_CALL.
-// #define PI_CALL_NOCHECK(pi)( ...) PI_CALL_NOCHECK(pi)(__VA_ARGS__)
 
 // Want all the needed casts be explicit, do not define conversion
 // operators.

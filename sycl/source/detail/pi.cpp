@@ -49,11 +49,8 @@ bool useBackend(Backend TheBackend) {
   return TheBackend == Use;
 }
 
-// Definitions of the PI dispatch entries, they will be initialized
-// at their first use with piInitialize.
-//#define _PI_API(api) decltype(::api) *api = nullptr;
-//#include <CL/sycl/detail/pi.def>
-
+// TODO: Move this global structure into sycl::platform object,
+// associate each plugin with a platform.
 pi_plugin PluginInformation;
 
 // Find the plugin at the appropriate location and return the location.
