@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/force_device.hpp>
 #include <CL/sycl/detail/platform_impl.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/platform.hpp>
-#include <CL/sycl/detail/force_device.hpp>
 
 namespace cl {
 namespace sycl {
@@ -19,7 +19,7 @@ platform::platform() : impl(std::make_shared<detail::platform_impl_host>()) {}
 
 platform::platform(cl_platform_id platform_id)
     : impl(std::make_shared<detail::platform_impl_pi>(
-             detail::pi::pi_cast<detail::RT::PiPlatform>(platform_id))) {}
+             detail::pi::cast<detail::RT::PiPlatform>(platform_id))) {}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();

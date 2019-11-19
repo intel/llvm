@@ -18,6 +18,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -103,14 +104,6 @@ char SystemZElimCompare::ID = 0;
 
 } // end anonymous namespace
 
-// Return true if CC is live out of MBB.
-static bool isCCLiveOut(MachineBasicBlock &MBB) {
-  for (auto SI = MBB.succ_begin(), SE = MBB.succ_end(); SI != SE; ++SI)
-    if ((*SI)->isLiveIn(SystemZ::CC))
-      return true;
-  return false;
-}
-
 // Returns true if MI is an instruction whose output equals the value in Reg.
 static bool preservesValueOf(MachineInstr &MI, unsigned Reg) {
   switch (MI.getOpcode()) {
@@ -152,7 +145,7 @@ Reference SystemZElimCompare::getRegReferences(MachineInstr &MI, unsigned Reg) {
   for (unsigned I = 0, E = MI.getNumOperands(); I != E; ++I) {
     const MachineOperand &MO = MI.getOperand(I);
     if (MO.isReg()) {
-      if (unsigned MOReg = MO.getReg()) {
+      if (Register MOReg = MO.getReg()) {
         if (TRI->regsOverlap(MOReg, Reg)) {
           if (MO.isUse())
             Ref.Use = true;
@@ -378,11 +371,8 @@ bool SystemZElimCompare::adjustCCMasksForInstr(
   }
 
   // CC is now live after MI.
-  if (!ConvOpc) {
-    int CCDef = MI.findRegisterDefOperandIdx(SystemZ::CC, false, true, TRI);
-    assert(CCDef >= 0 && "Couldn't find CC set");
-    MI.getOperand(CCDef).setIsDead(false);
-  }
+  if (!ConvOpc)
+    MI.clearRegisterDeads(SystemZ::CC);
 
   // Check if MI lies before Compare.
   bool BeforeCmp = false;
@@ -525,9 +515,9 @@ bool SystemZElimCompare::fuseCompareOperations(
   // SrcReg2 is the register if the source operand is a register,
   // 0 if the source operand is immediate, and the base register
   // if the source operand is memory (index is not supported).
-  unsigned SrcReg = Compare.getOperand(0).getReg();
-  unsigned SrcReg2 =
-      Compare.getOperand(1).isReg() ? Compare.getOperand(1).getReg() : 0;
+  Register SrcReg = Compare.getOperand(0).getReg();
+  Register SrcReg2 =
+    Compare.getOperand(1).isReg() ? Compare.getOperand(1).getReg() : Register();
   MachineBasicBlock::iterator MBBI = Compare, MBBE = Branch;
   for (++MBBI; MBBI != MBBE; ++MBBI)
     if (MBBI->modifiesRegister(SrcReg, TRI) ||
@@ -598,7 +588,9 @@ bool SystemZElimCompare::processBlock(MachineBasicBlock &MBB) {
   // Walk backwards through the block looking for comparisons, recording
   // all CC users as we go.  The subroutines can delete Compare and
   // instructions before it.
-  bool CompleteCCUsers = !isCCLiveOut(MBB);
+  LivePhysRegs LiveRegs(*TRI);
+  LiveRegs.addLiveOuts(MBB);
+  bool CompleteCCUsers = !LiveRegs.contains(SystemZ::CC);
   SmallVector<MachineInstr *, 4> CCUsers;
   MachineBasicBlock::iterator MBBI = MBB.end();
   while (MBBI != MBB.begin()) {

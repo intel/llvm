@@ -92,14 +92,13 @@ unsigned rbit(unsigned a) {
 
 void prefetch(int i) {
   __builtin_arm_prefetch(&i, 0, 1);
-// CHECK: call {{.*}} @llvm.prefetch(i8* %{{.*}}, i32 0, i32 3, i32 1)
+  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* %{{.*}}, i32 0, i32 3, i32 1)
 
   __builtin_arm_prefetch(&i, 1, 1);
-// CHECK: call {{.*}} @llvm.prefetch(i8* %{{.*}}, i32 1, i32 3, i32 1)
-
+  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* %{{.*}}, i32 1, i32 3, i32 1)
 
   __builtin_arm_prefetch(&i, 1, 0);
-// CHECK: call {{.*}} @llvm.prefetch(i8* %{{.*}}, i32 1, i32 3, i32 0)
+  // CHECK: call {{.*}} @llvm.prefetch.p0i8(i8* %{{.*}}, i32 1, i32 3, i32 0)
 }
 
 void ldc(const void *i) {
@@ -255,6 +254,21 @@ void wsrp(void *v) {
   // CHECK: [[V0:[%A-Za-z0-9.]+]] = ptrtoint i8* %v to i32
   // CHECK-NEXT: call void @llvm.write_register.i32(metadata ![[M2]], i32 [[V0]])
   __builtin_arm_wsrp("sysreg", v);
+}
+
+unsigned int cls(uint32_t v) {
+  // CHECK: call i32 @llvm.arm.cls(i32 %v)
+  return __builtin_arm_cls(v);
+}
+
+unsigned int clsl(unsigned long v) {
+  // CHECK: call i32 @llvm.arm.cls(i32 %v)
+  return __builtin_arm_cls(v);
+}
+
+unsigned int clsll(uint64_t v) {
+  // CHECK: call i32 @llvm.arm.cls64(i64 %v)
+  return __builtin_arm_cls64(v);
 }
 
 // CHECK: ![[M0]] = !{!"cp1:2:c3:c4:5"}

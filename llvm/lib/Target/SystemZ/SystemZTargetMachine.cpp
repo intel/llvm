@@ -154,7 +154,7 @@ SystemZTargetMachine::SystemZTargetMachine(const Target &T, const Triple &TT,
           getEffectiveRelocModel(RM),
           getEffectiveSystemZCodeModel(CM, getEffectiveRelocModel(RM), JIT),
           OL),
-      TLOF(llvm::make_unique<TargetLoweringObjectFileELF>()),
+      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
       Subtarget(TT, CPU, FS, *this) {
   initAsmInfo();
 }
@@ -176,13 +176,15 @@ public:
   ScheduleDAGInstrs *
   createPostMachineScheduler(MachineSchedContext *C) const override {
     return new ScheduleDAGMI(C,
-                             llvm::make_unique<SystemZPostRASchedStrategy>(C),
+                             std::make_unique<SystemZPostRASchedStrategy>(C),
                              /*RemoveKillFlags=*/true);
   }
 
   void addIRPasses() override;
   bool addInstSelector() override;
   bool addILPOpts() override;
+  void addPostRewrite() override;
+  void addPostRegAlloc() override;
   void addPreSched2() override;
   void addPreEmitPass() override;
 };
@@ -212,9 +214,18 @@ bool SystemZPassConfig::addILPOpts() {
   return true;
 }
 
-void SystemZPassConfig::addPreSched2() {
-  addPass(createSystemZExpandPseudoPass(getSystemZTargetMachine()));
+void SystemZPassConfig::addPostRewrite() {
+  addPass(createSystemZPostRewritePass(getSystemZTargetMachine()));
+}
 
+void SystemZPassConfig::addPostRegAlloc() {
+  // PostRewrite needs to be run at -O0 also (in which case addPostRewrite()
+  // is not called).
+  if (getOptLevel() == CodeGenOpt::None)
+    addPass(createSystemZPostRewritePass(getSystemZTargetMachine()));
+}
+
+void SystemZPassConfig::addPreSched2() {
   if (getOptLevel() != CodeGenOpt::None)
     addPass(&IfConverterID);
 }

@@ -81,6 +81,7 @@ namespace {
     bool replaceIVUserWithLoopInvariant(Instruction *UseInst);
 
     bool eliminateOverflowIntrinsic(WithOverflowInst *WO);
+    bool eliminateSaturatingIntrinsic(SaturatingInst *SI);
     bool eliminateTrunc(TruncInst *TI);
     bool eliminateIVUser(Instruction *UseInst, Instruction *IVOperand);
     bool makeIVComparisonInvariant(ICmpInst *ICmp, Value *IVOperand);
@@ -477,6 +478,25 @@ bool SimplifyIndvar::eliminateOverflowIntrinsic(WithOverflowInst *WO) {
   return true;
 }
 
+bool SimplifyIndvar::eliminateSaturatingIntrinsic(SaturatingInst *SI) {
+  const SCEV *LHS = SE->getSCEV(SI->getLHS());
+  const SCEV *RHS = SE->getSCEV(SI->getRHS());
+  if (!willNotOverflow(SE, SI->getBinaryOp(), SI->isSigned(), LHS, RHS))
+    return false;
+
+  BinaryOperator *BO = BinaryOperator::Create(
+      SI->getBinaryOp(), SI->getLHS(), SI->getRHS(), SI->getName(), SI);
+  if (SI->isSigned())
+    BO->setHasNoSignedWrap();
+  else
+    BO->setHasNoUnsignedWrap();
+
+  SI->replaceAllUsesWith(BO);
+  DeadInsts.emplace_back(SI);
+  Changed = true;
+  return true;
+}
+
 bool SimplifyIndvar::eliminateTrunc(TruncInst *TI) {
   // It is always legal to replace
   //   icmp <pred> i32 trunc(iv), n
@@ -521,20 +541,19 @@ bool SimplifyIndvar::eliminateTrunc(TruncInst *TI) {
     if (isa<Instruction>(U) &&
         !DT->isReachableFromEntry(cast<Instruction>(U)->getParent()))
       continue;
-    if (ICmpInst *ICI = dyn_cast<ICmpInst>(U)) {
-      if (ICI->getOperand(0) == TI && L->isLoopInvariant(ICI->getOperand(1))) {
-        assert(L->contains(ICI->getParent()) && "LCSSA form broken?");
-        // If we cannot get rid of trunc, bail.
-        if (ICI->isSigned() && !DoesSExtCollapse)
-          return false;
-        if (ICI->isUnsigned() && !DoesZExtCollapse)
-          return false;
-        // For equality, either signed or unsigned works.
-        ICmpUsers.push_back(ICI);
-      } else
-        return false;
-    } else
+    ICmpInst *ICI = dyn_cast<ICmpInst>(U);
+    if (!ICI) return false;
+    assert(L->contains(ICI->getParent()) && "LCSSA form broken?");
+    if (!(ICI->getOperand(0) == TI && L->isLoopInvariant(ICI->getOperand(1))) &&
+        !(ICI->getOperand(1) == TI && L->isLoopInvariant(ICI->getOperand(0))))
       return false;
+    // If we cannot get rid of trunc, bail.
+    if (ICI->isSigned() && !DoesSExtCollapse)
+      return false;
+    if (ICI->isUnsigned() && !DoesZExtCollapse)
+      return false;
+    // For equality, either signed or unsigned works.
+    ICmpUsers.push_back(ICI);
   }
 
   auto CanUseZExt = [&](ICmpInst *ICI) {
@@ -557,7 +576,8 @@ bool SimplifyIndvar::eliminateTrunc(TruncInst *TI) {
   };
   // Replace all comparisons against trunc with comparisons against IV.
   for (auto *ICI : ICmpUsers) {
-    auto *Op1 = ICI->getOperand(1);
+    bool IsSwapped = L->isLoopInvariant(ICI->getOperand(0));
+    auto *Op1 = IsSwapped ? ICI->getOperand(0) : ICI->getOperand(1);
     Instruction *Ext = nullptr;
     // For signed/unsigned predicate, replace the old comparison with comparison
     // of immediate IV against sext/zext of the invariant argument. If we can
@@ -566,6 +586,7 @@ bool SimplifyIndvar::eliminateTrunc(TruncInst *TI) {
     // TODO: If we see a signed comparison which can be turned into unsigned,
     // we can do it here for canonicalization purposes.
     ICmpInst::Predicate Pred = ICI->getPredicate();
+    if (IsSwapped) Pred = ICmpInst::getSwappedPredicate(Pred);
     if (CanUseZExt(ICI)) {
       assert(DoesZExtCollapse && "Unprofitable zext?");
       Ext = new ZExtInst(Op1, IVTy, "zext", ICI);
@@ -611,6 +632,10 @@ bool SimplifyIndvar::eliminateIVUser(Instruction *UseInst,
 
   if (auto *WO = dyn_cast<WithOverflowInst>(UseInst))
     if (eliminateOverflowIntrinsic(WO))
+      return true;
+
+  if (auto *SI = dyn_cast<SaturatingInst>(UseInst))
+    if (eliminateSaturatingIntrinsic(SI))
       return true;
 
   if (auto *TI = dyn_cast<TruncInst>(UseInst))

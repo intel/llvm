@@ -31,7 +31,11 @@ static Optional<object::SectionRef>
 getSectionByName(const object::ObjectFile &Obj, StringRef SecName) {
   for (const object::SectionRef &Section : Obj.sections()) {
     StringRef SectionName;
-    Section.getName(SectionName);
+    if (Expected<StringRef> NameOrErr = Section.getName())
+      SectionName = *NameOrErr;
+    else
+      consumeError(NameOrErr.takeError());
+
     SectionName = SectionName.substr(SectionName.find_first_not_of("._"));
     if (SectionName != SecName)
       continue;
@@ -57,7 +61,8 @@ bool DwarfStreamer::init(Triple TheTriple) {
   if (!MRI)
     return error(Twine("no register info for target ") + TripleName, Context);
 
-  MAI.reset(TheTarget->createMCAsmInfo(*MRI, TripleName));
+  MCTargetOptions MCOptions = InitMCTargetOptionsFromFlags();
+  MAI.reset(TheTarget->createMCAsmInfo(*MRI, TripleName, MCOptions));
   if (!MAI)
     return error("no asm info for target " + TripleName, Context);
 
@@ -69,7 +74,6 @@ bool DwarfStreamer::init(Triple TheTriple) {
   if (!MSTI)
     return error("no subtarget info for target " + TripleName, Context);
 
-  MCTargetOptions MCOptions = InitMCTargetOptionsFromFlags();
   MAB = TheTarget->createMCAsmBackend(*MSTI, *MRI, MCOptions);
   if (!MAB)
     return error("no asm backend for target " + TripleName, Context);
@@ -87,7 +91,7 @@ bool DwarfStreamer::init(Triple TheTriple) {
     MIP = TheTarget->createMCInstPrinter(TheTriple, MAI->getAssemblerDialect(),
                                          *MAI, *MII, *MRI);
     MS = TheTarget->createAsmStreamer(
-        *MC, llvm::make_unique<formatted_raw_ostream>(OutFile), true, true, MIP,
+        *MC, std::make_unique<formatted_raw_ostream>(OutFile), true, true, MIP,
         std::unique_ptr<MCCodeEmitter>(MCE), std::unique_ptr<MCAsmBackend>(MAB),
         true);
     break;
@@ -256,7 +260,7 @@ void DwarfStreamer::emitAppleTypes(
 /// Emit the swift_ast section stored in \p Buffers.
 void DwarfStreamer::emitSwiftAST(StringRef Buffer) {
   MCSection *SwiftASTSection = MOFI->getDwarfSwiftASTSection();
-  SwiftASTSection->setAlignment(1 << 5);
+  SwiftASTSection->setAlignment(Align(32));
   MS->SwitchSection(SwiftASTSection);
   MS->EmitBytes(Buffer);
 }
@@ -335,7 +339,7 @@ void DwarfStreamer::emitUnitRangesEntries(CompileUnit &Unit,
         sizeof(int8_t);   // Segment Size (in bytes)
 
     unsigned TupleSize = AddressSize * 2;
-    unsigned Padding = OffsetToAlignment(HeaderSize, TupleSize);
+    unsigned Padding = offsetToAlignment(HeaderSize, Align(TupleSize));
 
     Asm->EmitLabelDifference(EndLabel, BeginLabel, 4); // Arange length
     Asm->OutStreamer->EmitLabel(BeginLabel);
@@ -395,6 +399,9 @@ void DwarfStreamer::emitLocationsForUnit(
   MS->SwitchSection(MC->getObjectFileInfo()->getDwarfLocSection());
 
   unsigned AddressSize = Unit.getOrigUnit().getAddressByteSize();
+  uint64_t BaseAddressMarker = (AddressSize == 8)
+                                   ? std::numeric_limits<uint64_t>::max()
+                                   : std::numeric_limits<uint32_t>::max();
   const DWARFSection &InputSec = Dwarf.getDWARFObj().getLocSection();
   DataExtractor Data(InputSec.Data, Dwarf.isLittleEndian(), AddressSize);
   DWARFUnit &OrigUnit = Unit.getOrigUnit();
@@ -405,7 +412,7 @@ void DwarfStreamer::emitLocationsForUnit(
 
   SmallVector<uint8_t, 32> Buffer;
   for (const auto &Attr : Attributes) {
-    uint32_t Offset = Attr.first.get();
+    uint64_t Offset = Attr.first.get();
     Attr.first.set(LocSectionSize);
     // This is the quantity to add to the old location address to get
     // the correct address for the new one.
@@ -414,11 +421,20 @@ void DwarfStreamer::emitLocationsForUnit(
       uint64_t Low = Data.getUnsigned(&Offset, AddressSize);
       uint64_t High = Data.getUnsigned(&Offset, AddressSize);
       LocSectionSize += 2 * AddressSize;
+      // End of list entry.
       if (Low == 0 && High == 0) {
         Asm->OutStreamer->EmitIntValue(0, AddressSize);
         Asm->OutStreamer->EmitIntValue(0, AddressSize);
         break;
       }
+      // Base address selection entry.
+      if (Low == BaseAddressMarker) {
+        Asm->OutStreamer->EmitIntValue(BaseAddressMarker, AddressSize);
+        Asm->OutStreamer->EmitIntValue(High + Attr.second, AddressSize);
+        LocPcOffset = 0;
+        continue;
+      }
+      // Location list entry.
       Asm->OutStreamer->EmitIntValue(Low + LocPcOffset, AddressSize);
       Asm->OutStreamer->EmitIntValue(High + LocPcOffset, AddressSize);
       uint64_t Length = Data.getU16(&Offset);
@@ -584,7 +600,7 @@ void DwarfStreamer::emitLineTableForUnit(MCDwarfLineTableParams Params,
 
 /// Copy the debug_line over to the updated binary while unobfuscating the file
 /// names and directories.
-void DwarfStreamer::translateLineTable(DataExtractor Data, uint32_t Offset) {
+void DwarfStreamer::translateLineTable(DataExtractor Data, uint64_t Offset) {
   MS->SwitchSection(MC->getObjectFileInfo()->getDwarfLineSection());
   StringRef Contents = Data.getData();
 
@@ -592,7 +608,7 @@ void DwarfStreamer::translateLineTable(DataExtractor Data, uint32_t Offset) {
   // length fields that will need to be updated when we change the length of
   // the files and directories in there.
   unsigned UnitLength = Data.getU32(&Offset);
-  unsigned UnitEnd = Offset + UnitLength;
+  uint64_t UnitEnd = Offset + UnitLength;
   MCSymbol *BeginLabel = MC->createTempSymbol();
   MCSymbol *EndLabel = MC->createTempSymbol();
   unsigned Version = Data.getU16(&Offset);
@@ -615,7 +631,7 @@ void DwarfStreamer::translateLineTable(DataExtractor Data, uint32_t Offset) {
   Offset += 4;
   LineSectionSize += 4;
 
-  uint32_t AfterHeaderLengthOffset = Offset;
+  uint64_t AfterHeaderLengthOffset = Offset;
   // Skip to the directories.
   Offset += (Version >= 4) ? 5 : 4;
   unsigned OpcodeBase = Data.getU8(&Offset);
@@ -645,7 +661,7 @@ void DwarfStreamer::translateLineTable(DataExtractor Data, uint32_t Offset) {
     Asm->emitInt8(0);
     LineSectionSize += Translated.size() + 1;
 
-    uint32_t OffsetBeforeLEBs = Offset;
+    uint64_t OffsetBeforeLEBs = Offset;
     Asm->EmitULEB128(Data.getULEB128(&Offset));
     Asm->EmitULEB128(Data.getULEB128(&Offset));
     Asm->EmitULEB128(Data.getULEB128(&Offset));

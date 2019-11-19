@@ -91,7 +91,24 @@ public:
                     const char *LinkingOutput) const override;
 };
 
-}
+} // end namespace gen
+
+namespace x86_64 {
+
+class LLVM_LIBRARY_VISIBILITY BackendCompiler : public Tool {
+public:
+  BackendCompiler(const ToolChain &TC)
+      : Tool("x86_64::BackendCompiler", "x86_64 compiler", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+} // end namespace x86_64
 
 } // end namespace SYCL
 } // end namespace tools

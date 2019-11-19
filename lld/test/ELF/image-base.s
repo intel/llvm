@@ -44,11 +44,11 @@ _start:
 # CHECK-NEXT:   }
 # CHECK-NEXT:   ProgramHeader {
 # CHECK-NEXT:     Type: PT_LOAD (0x1)
-# CHECK-NEXT:     Offset: 0x1000
-# CHECK-NEXT:     VirtualAddress: 0x1001000
-# CHECK-NEXT:     PhysicalAddress: 0x1001000
-# CHECK-NEXT:     FileSize: 4096
-# CHECK-NEXT:     MemSize: 4096
+# CHECK-NEXT:     Offset: 0x120
+# CHECK-NEXT:     VirtualAddress: 0x1001120
+# CHECK-NEXT:     PhysicalAddress: 0x1001120
+# CHECK-NEXT:     FileSize: 1
+# CHECK-NEXT:     MemSize: 1
 # CHECK-NEXT:     Flags [ (0x5)
 # CHECK-NEXT:       PF_R (0x4)
 # CHECK-NEXT:       PF_X (0x1)

@@ -71,7 +71,7 @@
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicTypeMap.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicType.h"
 
 #include <utility>
 
@@ -173,11 +173,12 @@ public:
 class IteratorChecker
     : public Checker<check::PreCall, check::PostCall,
                      check::PostStmt<MaterializeTemporaryExpr>, check::Bind,
-                     check::LiveSymbols, check::DeadSymbols> {
+                     check::LiveSymbols, check::DeadSymbols, eval::Call> {
 
   std::unique_ptr<BugType> OutOfRangeBugType;
   std::unique_ptr<BugType> MismatchedBugType;
   std::unique_ptr<BugType> InvalidatedBugType;
+  std::unique_ptr<BugType> DebugMsgBugType;
 
   void handleComparison(CheckerContext &C, const Expr *CE, const SVal &RetVal,
                         const SVal &LVal, const SVal &RVal,
@@ -236,7 +237,35 @@ class IteratorChecker
                            ExplodedNode *ErrNode) const;
   void reportInvalidatedBug(const StringRef &Message, const SVal &Val,
                             CheckerContext &C, ExplodedNode *ErrNode) const;
+  template <typename Getter>
+  void analyzerContainerDataField(const CallExpr *CE, CheckerContext &C,
+                                  Getter get) const;
+  void analyzerContainerBegin(const CallExpr *CE, CheckerContext &C) const;
+  void analyzerContainerEnd(const CallExpr *CE, CheckerContext &C) const;
+  template <typename Getter>
+  void analyzerIteratorDataField(const CallExpr *CE, CheckerContext &C,
+                                 Getter get, SVal Default) const;
+  void analyzerIteratorPosition(const CallExpr *CE, CheckerContext &C) const;
+  void analyzerIteratorContainer(const CallExpr *CE, CheckerContext &C) const;
+  void analyzerIteratorValidity(const CallExpr *CE, CheckerContext &C) const;
+  ExplodedNode *reportDebugMsg(llvm::StringRef Msg, CheckerContext &C) const;
 
+  typedef void (IteratorChecker::*FnCheck)(const CallExpr *,
+                                           CheckerContext &) const;
+
+  CallDescriptionMap<FnCheck> Callbacks = {
+    {{0, "clang_analyzer_container_begin", 1},
+     &IteratorChecker::analyzerContainerBegin},
+    {{0, "clang_analyzer_container_end", 1},
+     &IteratorChecker::analyzerContainerEnd},
+    {{0, "clang_analyzer_iterator_position", 1},
+     &IteratorChecker::analyzerIteratorPosition},
+    {{0, "clang_analyzer_iterator_container", 1},
+     &IteratorChecker::analyzerIteratorContainer},
+    {{0, "clang_analyzer_iterator_validity", 1},
+     &IteratorChecker::analyzerIteratorValidity},
+  };
+  
 public:
   IteratorChecker();
 
@@ -244,11 +273,12 @@ public:
     CK_IteratorRangeChecker,
     CK_MismatchedIteratorChecker,
     CK_InvalidatedIteratorChecker,
+    CK_DebugIteratorModeling,
     CK_NumCheckKinds
   };
 
   DefaultBool ChecksEnabled[CK_NumCheckKinds];
-  CheckName CheckNames[CK_NumCheckKinds];
+  CheckerNameRef CheckNames[CK_NumCheckKinds];
 
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
   void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
@@ -259,6 +289,7 @@ public:
                      CheckerContext &C) const;
   void checkLiveSymbols(ProgramStateRef State, SymbolReaper &SR) const;
   void checkDeadSymbols(SymbolReaper &SR, CheckerContext &C) const;
+  bool evalCall(const CallEvent &Call, CheckerContext &C) const;
 };
 } // namespace
 
@@ -356,13 +387,14 @@ bool isZero(ProgramStateRef State, const NonLoc &Val);
 
 IteratorChecker::IteratorChecker() {
   OutOfRangeBugType.reset(
-      new BugType(this, "Iterator out of range", "Misuse of STL APIs",
-                  /*SuppressOnSink=*/true));
+      new BugType(this, "Iterator out of range", "Misuse of STL APIs"));
   MismatchedBugType.reset(
       new BugType(this, "Iterator(s) mismatched", "Misuse of STL APIs",
                   /*SuppressOnSink=*/true));
   InvalidatedBugType.reset(
-      new BugType(this, "Iterator invalidated", "Misuse of STL APIs",
+      new BugType(this, "Iterator invalidated", "Misuse of STL APIs"));
+  DebugMsgBugType.reset(
+      new BugType(this, "Checking analyzer assumptions", "debug",
                   /*SuppressOnSink=*/true));
 }
 
@@ -406,13 +438,15 @@ void IteratorChecker::checkPreCall(const CallEvent &Call,
       } else if (isRandomIncrOrDecrOperator(Func->getOverloadedOperator())) {
         if (const auto *InstCall = dyn_cast<CXXInstanceCall>(&Call)) {
           // Check for out-of-range incrementions and decrementions
-          if (Call.getNumArgs() >= 1) {
+          if (Call.getNumArgs() >= 1 &&
+              Call.getArgExpr(0)->getType()->isIntegralOrEnumerationType()) {
             verifyRandomIncrOrDecr(C, Func->getOverloadedOperator(),
                                    InstCall->getCXXThisVal(),
                                    Call.getArgSVal(0));
           }
         } else {
-          if (Call.getNumArgs() >= 2) {
+          if (Call.getNumArgs() >= 2 &&
+              Call.getArgExpr(1)->getType()->isIntegralOrEnumerationType()) {
             verifyRandomIncrOrDecr(C, Func->getOverloadedOperator(),
                                    Call.getArgSVal(0), Call.getArgSVal(1));
           }
@@ -565,7 +599,8 @@ void IteratorChecker::checkPostCall(const CallEvent &Call,
   if (Func->isOverloadedOperator()) {
     const auto Op = Func->getOverloadedOperator();
     if (isAssignmentOperator(Op)) {
-      const auto *InstCall = dyn_cast<CXXInstanceCall>(&Call);
+      // Overloaded 'operator=' must be a non-static member function.
+      const auto *InstCall = cast<CXXInstanceCall>(&Call);
       if (cast<CXXMethodDecl>(Func)->isMoveAssignmentOperator()) {
         handleAssign(C, InstCall->getCXXThisVal(), Call.getOriginExpr(),
                      Call.getArgSVal(0));
@@ -590,14 +625,16 @@ void IteratorChecker::checkPostCall(const CallEvent &Call,
       return;
     } else if (isRandomIncrOrDecrOperator(Func->getOverloadedOperator())) {
       if (const auto *InstCall = dyn_cast<CXXInstanceCall>(&Call)) {
-        if (Call.getNumArgs() >= 1) {
+        if (Call.getNumArgs() >= 1 &&
+              Call.getArgExpr(0)->getType()->isIntegralOrEnumerationType()) {
           handleRandomIncrOrDecr(C, Func->getOverloadedOperator(),
                                  Call.getReturnValue(),
                                  InstCall->getCXXThisVal(), Call.getArgSVal(0));
           return;
         }
       } else {
-        if (Call.getNumArgs() >= 2) {
+        if (Call.getNumArgs() >= 2 &&
+              Call.getArgExpr(1)->getType()->isIntegralOrEnumerationType()) {
           handleRandomIncrOrDecr(C, Func->getOverloadedOperator(),
                                  Call.getReturnValue(), Call.getArgSVal(0),
                                  Call.getArgSVal(1));
@@ -923,7 +960,7 @@ void IteratorChecker::verifyDereference(CheckerContext &C,
   auto State = C.getState();
   const auto *Pos = getIteratorPosition(State, Val);
   if (Pos && isPastTheEnd(State, *Pos)) {
-    auto *N = C.generateNonFatalErrorNode(State);
+    auto *N = C.generateErrorNode(State);
     if (!N)
       return;
     reportOutOfRangeBug("Past-the-end iterator dereferenced.", Val, C, N);
@@ -935,7 +972,7 @@ void IteratorChecker::verifyAccess(CheckerContext &C, const SVal &Val) const {
   auto State = C.getState();
   const auto *Pos = getIteratorPosition(State, Val);
   if (Pos && !Pos->isValid()) {
-    auto *N = C.generateNonFatalErrorNode(State);
+    auto *N = C.generateErrorNode(State);
     if (!N) {
       return;
     }
@@ -1043,14 +1080,14 @@ void IteratorChecker::verifyRandomIncrOrDecr(CheckerContext &C,
   // The result may be the past-end iterator of the container, but any other
   // out of range position is undefined behaviour
   if (isAheadOfRange(State, advancePosition(C, Op, *Pos, Value))) {
-    auto *N = C.generateNonFatalErrorNode(State);
+    auto *N = C.generateErrorNode(State);
     if (!N)
       return;
     reportOutOfRangeBug("Iterator decremented ahead of its valid range.", LHS,
                         C, N);
   }
   if (isBehindPastTheEnd(State, advancePosition(C, Op, *Pos, Value))) {
-    auto *N = C.generateNonFatalErrorNode(State);
+    auto *N = C.generateErrorNode(State);
     if (!N)
       return;
     reportOutOfRangeBug("Iterator incremented behind the past-the-end "
@@ -1587,7 +1624,8 @@ IteratorPosition IteratorChecker::advancePosition(CheckerContext &C,
 void IteratorChecker::reportOutOfRangeBug(const StringRef &Message,
                                           const SVal &Val, CheckerContext &C,
                                           ExplodedNode *ErrNode) const {
-  auto R = llvm::make_unique<BugReport>(*OutOfRangeBugType, Message, ErrNode);
+  auto R = std::make_unique<PathSensitiveBugReport>(*OutOfRangeBugType, Message,
+                                                    ErrNode);
   R->markInteresting(Val);
   C.emitReport(std::move(R));
 }
@@ -1596,7 +1634,8 @@ void IteratorChecker::reportMismatchedBug(const StringRef &Message,
                                           const SVal &Val1, const SVal &Val2,
                                           CheckerContext &C,
                                           ExplodedNode *ErrNode) const {
-  auto R = llvm::make_unique<BugReport>(*MismatchedBugType, Message, ErrNode);
+  auto R = std::make_unique<PathSensitiveBugReport>(*MismatchedBugType, Message,
+                                                    ErrNode);
   R->markInteresting(Val1);
   R->markInteresting(Val2);
   C.emitReport(std::move(R));
@@ -1606,7 +1645,8 @@ void IteratorChecker::reportMismatchedBug(const StringRef &Message,
                                           const SVal &Val, const MemRegion *Reg,
                                           CheckerContext &C,
                                           ExplodedNode *ErrNode) const {
-  auto R = llvm::make_unique<BugReport>(*MismatchedBugType, Message, ErrNode);
+  auto R = std::make_unique<PathSensitiveBugReport>(*MismatchedBugType, Message,
+                                                    ErrNode);
   R->markInteresting(Val);
   R->markInteresting(Reg);
   C.emitReport(std::move(R));
@@ -1615,9 +1655,128 @@ void IteratorChecker::reportMismatchedBug(const StringRef &Message,
 void IteratorChecker::reportInvalidatedBug(const StringRef &Message,
                                            const SVal &Val, CheckerContext &C,
                                            ExplodedNode *ErrNode) const {
-  auto R = llvm::make_unique<BugReport>(*InvalidatedBugType, Message, ErrNode);
+  auto R = std::make_unique<PathSensitiveBugReport>(*InvalidatedBugType,
+                                                    Message, ErrNode);
   R->markInteresting(Val);
   C.emitReport(std::move(R));
+}
+
+bool IteratorChecker::evalCall(const CallEvent &Call,
+                                     CheckerContext &C) const {
+  if (!ChecksEnabled[CK_DebugIteratorModeling])
+    return false;
+
+  const auto *CE = dyn_cast_or_null<CallExpr>(Call.getOriginExpr());
+  if (!CE)
+    return false;
+
+  const FnCheck *Handler = Callbacks.lookup(Call);
+  if (!Handler)
+    return false;
+
+  (this->**Handler)(CE, C);
+  return true;
+}
+
+template <typename Getter>
+void IteratorChecker::analyzerContainerDataField(const CallExpr *CE,
+                                                 CheckerContext &C,
+                                                 Getter get) const {
+  if (CE->getNumArgs() == 0) {
+    reportDebugMsg("Missing container argument", C);
+    return;
+  }
+
+  auto State = C.getState();
+  const MemRegion *Cont = C.getSVal(CE->getArg(0)).getAsRegion();
+  if (Cont) {
+    const auto *Data = getContainerData(State, Cont);
+    if (Data) {
+      SymbolRef Field = get(Data);
+      if (Field) {
+        State = State->BindExpr(CE, C.getLocationContext(),
+                                nonloc::SymbolVal(Field));
+        C.addTransition(State);
+        return;
+      }
+    }
+  }
+
+  auto &BVF = C.getSValBuilder().getBasicValueFactory();
+  State = State->BindExpr(CE, C.getLocationContext(),
+                   nonloc::ConcreteInt(BVF.getValue(llvm::APSInt::get(0))));
+}
+
+void IteratorChecker::analyzerContainerBegin(const CallExpr *CE,
+                                             CheckerContext &C) const {
+  analyzerContainerDataField(CE, C, [](const ContainerData *D) {
+      return D->getBegin();
+    });
+}
+
+void IteratorChecker::analyzerContainerEnd(const CallExpr *CE,
+                                             CheckerContext &C) const {
+  analyzerContainerDataField(CE, C, [](const ContainerData *D) {
+      return D->getEnd();
+    });
+}
+
+template <typename Getter>
+void IteratorChecker::analyzerIteratorDataField(const CallExpr *CE,
+                                                CheckerContext &C,
+                                                Getter get,
+                                                SVal Default) const {
+  if (CE->getNumArgs() == 0) {
+    reportDebugMsg("Missing iterator argument", C);
+    return;
+  }
+
+  auto State = C.getState();
+  SVal V = C.getSVal(CE->getArg(0));
+  const auto *Pos = getIteratorPosition(State, V);
+  if (Pos) {
+    State = State->BindExpr(CE, C.getLocationContext(), get(Pos));
+  } else {
+    State = State->BindExpr(CE, C.getLocationContext(), Default);
+  }
+  C.addTransition(State);
+}
+
+void IteratorChecker::analyzerIteratorPosition(const CallExpr *CE,
+                                               CheckerContext &C) const {
+  auto &BVF = C.getSValBuilder().getBasicValueFactory();
+  analyzerIteratorDataField(CE, C, [](const IteratorPosition *P) {
+      return nonloc::SymbolVal(P->getOffset());
+    }, nonloc::ConcreteInt(BVF.getValue(llvm::APSInt::get(0))));
+}
+
+void IteratorChecker::analyzerIteratorContainer(const CallExpr *CE,
+                                               CheckerContext &C) const {
+  auto &BVF = C.getSValBuilder().getBasicValueFactory();
+  analyzerIteratorDataField(CE, C, [](const IteratorPosition *P) {
+      return loc::MemRegionVal(P->getContainer());
+    }, loc::ConcreteInt(BVF.getValue(llvm::APSInt::get(0))));
+}
+
+void IteratorChecker::analyzerIteratorValidity(const CallExpr *CE,
+                                               CheckerContext &C) const {
+  auto &BVF = C.getSValBuilder().getBasicValueFactory();
+  analyzerIteratorDataField(CE, C, [&BVF](const IteratorPosition *P) {
+      return
+        nonloc::ConcreteInt(BVF.getValue(llvm::APSInt::get((P->isValid()))));
+    }, nonloc::ConcreteInt(BVF.getValue(llvm::APSInt::get(0))));
+}
+
+ExplodedNode *IteratorChecker::reportDebugMsg(llvm::StringRef Msg,
+                                              CheckerContext &C) const {
+  ExplodedNode *N = C.generateNonFatalErrorNode();
+  if (!N)
+    return nullptr;
+
+  auto &BR = C.getBugReporter();
+  BR.emitReport(std::make_unique<PathSensitiveBugReport>(*DebugMsgBugType,
+                                                         Msg, N));
+  return N;
 }
 
 namespace {
@@ -2373,13 +2532,12 @@ bool ento::shouldRegisterIteratorModeling(const LangOptions &LO) {
     auto *checker = Mgr.getChecker<IteratorChecker>();                         \
     checker->ChecksEnabled[IteratorChecker::CK_##name] = true;                 \
     checker->CheckNames[IteratorChecker::CK_##name] =                          \
-        Mgr.getCurrentCheckName();                                             \
+        Mgr.getCurrentCheckerName();                                           \
   }                                                                            \
                                                                                \
-  bool ento::shouldRegister##name(const LangOptions &LO) {                     \
-    return true;                                                               \
-  }
+  bool ento::shouldRegister##name(const LangOptions &LO) { return true; }
 
 REGISTER_CHECKER(IteratorRangeChecker)
 REGISTER_CHECKER(MismatchedIteratorChecker)
 REGISTER_CHECKER(InvalidatedIteratorChecker)
+REGISTER_CHECKER(DebugIteratorModeling)

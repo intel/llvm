@@ -203,7 +203,7 @@ namespace NoReturnSingleSuccessor {
 // CHECK-LABEL: int test1(int *x)
 // CHECK: 1: 1
 // CHECK-NEXT: 2: return
-// CHECK-NEXT: ~B() (Implicit destructor)
+// CHECK-NEXT: ~NoReturnSingleSuccessor::B() (Implicit destructor)
 // CHECK-NEXT: Preds (1)
 // CHECK-NEXT: Succs (1): B0
   int test1(int *x) {
@@ -477,7 +477,7 @@ void test_lifetime_extended_temporaries() {
 // WARNINGS-NEXT:    1:  (CXXConstructExpr, struct pr37688_deleted_union_destructor::A)
 // ANALYZER-NEXT:    1:  (CXXConstructExpr, [B1.2], struct pr37688_deleted_union_destructor::A)
 // CHECK-NEXT:    2: pr37688_deleted_union_destructor::A a;
-// CHECK-NEXT:    3: [B1.2].~A() (Implicit destructor)
+// CHECK-NEXT:    3: [B1.2].~pr37688_deleted_union_destructor::A() (Implicit destructor)
 // CHECK-NEXT:    Preds (1): B2
 // CHECK-NEXT:    Succs (1): B0
 // CHECK:  [B0 (EXIT)]
@@ -498,6 +498,75 @@ void foo() {
 }
 } // end namespace pr37688_deleted_union_destructor
 
+
+namespace return_statement_expression {
+int unknown();
+
+// CHECK-LABEL: int foo()
+// CHECK:       [B6 (ENTRY)]
+// CHECK-NEXT:    Succs (1): B5
+// CHECK:       [B1]
+// CHECK-NEXT:    1: 0
+// CHECK-NEXT:    2: return [B1.1];
+// CHECK-NEXT:    Preds (1): B5
+// CHECK-NEXT:    Succs (1): B0
+// CHECK:       [B2]
+// CHECK-NEXT:    1: 0
+// CHECK-NEXT:    2: ({ ... ; [B2.1] })
+// CHECK-NEXT:    3: return [B2.2];
+// CHECK-NEXT:    Preds (1): B4
+// CHECK-NEXT:    Succs (1): B0
+// FIXME: Why do we have [B3] at all?
+// CHECK:       [B3]
+// CHECK-NEXT:    Succs (1): B4
+// CHECK:       [B4]
+// CHECK-NEXT:    1: 0
+// CHECK-NEXT:    2: [B4.1] (ImplicitCastExpr, IntegralToBoolean, _Bool)
+// CHECK-NEXT:    T: while [B4.2]
+// CHECK-NEXT:    Preds (2): B3 B5
+// CHECK-NEXT:    Succs (2): NULL B2
+// CHECK:       [B5]
+// CHECK-NEXT:    1: unknown
+// CHECK-NEXT:    2: [B5.1] (ImplicitCastExpr, FunctionToPointerDecay, int (*)(void))
+// CHECK-NEXT:    3: [B5.2]()
+// CHECK-NEXT:    4: [B5.3] (ImplicitCastExpr, IntegralToBoolean, _Bool)
+// CHECK-NEXT:    T: if [B5.4]
+// CHECK-NEXT:    Preds (1): B6
+// CHECK-NEXT:    Succs (2): B4 B1
+// CHECK:       [B0 (EXIT)]
+// CHECK-NEXT:    Preds (2): B1 B2
+int foo() {
+  if (unknown())
+    return ({
+      while (0)
+        ;
+      0;
+    });
+  else
+    return 0;
+}
+} // namespace statement_expression_in_return
+
+// CHECK-LABEL: int overlap_compare(int x)
+// CHECK: [B2]
+// CHECK-NEXT:   1: 1
+// CHECK-NEXT:   2: return [B2.1];
+// CHECK-NEXT:   Preds (1): B3(Unreachable)
+// CHECK-NEXT:   Succs (1): B0
+// CHECK: [B3]
+// CHECK-NEXT:   1: x
+// CHECK-NEXT:   2: [B3.1] (ImplicitCastExpr, LValueToRValue, int)
+// CHECK-NEXT:   3: 5
+// CHECK-NEXT:   4: [B3.2] > [B3.3]
+// CHECK-NEXT:   T: if [B4.5] && [B3.4]
+// CHECK-NEXT:   Preds (1): B4
+// CHECK-NEXT:   Succs (2): B2(Unreachable) B1
+int overlap_compare(int x) {
+  if (x == -1 && x > 5)
+    return 1;
+
+  return 2;
+}
 
 // CHECK-LABEL: template<> int *PR18472<int>()
 // CHECK: [B2 (ENTRY)]
@@ -522,4 +591,3 @@ template <class T> T *PR18472() {
 void PR18472_helper() {
   PR18472<int>();
 }
-

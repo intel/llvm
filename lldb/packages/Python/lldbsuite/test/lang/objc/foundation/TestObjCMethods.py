@@ -8,9 +8,7 @@ from __future__ import print_function
 
 import os
 import os.path
-import time
 import lldb
-import string
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
@@ -193,7 +191,7 @@ class FoundationTestCase(TestBase):
             "expression self->non_existent_member",
             COMMAND_FAILED_AS_EXPECTED,
             error=True,
-            startstr="error: 'MyString' does not have a member named 'non_existent_member'")
+            substrs=["error:", "'MyString' does not have a member named 'non_existent_member'"])
 
         # Use expression parser.
         self.runCmd("expression self->str")

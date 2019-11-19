@@ -579,15 +579,18 @@ inside bundles. The top level BUNDLE instruction must have the correct set of
 register MachineOperand's that represent the cumulative inputs and outputs of
 the bundled MIs.
 
-Packing / bundling of MachineInstr's should be done as part of the register
-allocation super-pass. More specifically, the pass which determines what MIs
-should be bundled together must be done after code generator exits SSA form
-(i.e. after two-address pass, PHI elimination, and copy coalescing).  Bundles
-should only be finalized (i.e. adding BUNDLE MIs and input and output register
-MachineOperands) after virtual registers have been rewritten into physical
-registers. This requirement eliminates the need to add virtual register operands
-to BUNDLE instructions which would effectively double the virtual register def
-and use lists.
+Packing / bundling of MachineInstrs for VLIW architectures should
+generally be done as part of the register allocation super-pass. More
+specifically, the pass which determines what MIs should be bundled
+together should be done after code generator exits SSA form
+(i.e. after two-address pass, PHI elimination, and copy coalescing).
+Such bundles should be finalized (i.e. adding BUNDLE MIs and input and
+output register MachineOperands) after virtual registers have been
+rewritten into physical registers. This eliminates the need to add
+virtual register operands to BUNDLE instructions which would
+effectively double the virtual register def and use lists. Bundles may
+use virtual registers and be formed in SSA form, but may not be
+appropriate for all use cases.
 
 .. _MC Layer:
 
@@ -1614,20 +1617,6 @@ and stack sizes (unsigned LEB128). The stack size values only include the space
 allocated in the function prologue. Functions with dynamic stack allocations are
 not included.
 
-Emitting remark diagnostics in the object file
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A section containing metadata on remark diagnostics will be emitted when
--remarks-section is passed. The section contains:
-
-* a magic number: "REMARKS\\0"
-* the version number: a little-endian uint64_t
-* the total size of the string table (the size itself excluded):
-  little-endian uint64_t
-* a list of null-terminated strings
-* the absolute file path to the serialized remark diagnostics: a
-  null-terminated string.
-
 VLIW Packetizer
 ---------------
 
@@ -1880,7 +1869,7 @@ Here is the table:
 :raw-html:`<td class="no"></td> <!-- ARM -->`
 :raw-html:`<td class="no"></td> <!-- Hexagon -->`
 :raw-html:`<td class="no"></td> <!-- MSP430 -->`
-:raw-html:`<td class="no"></td> <!-- Mips -->`
+:raw-html:`<td class="yes"></td> <!-- Mips -->`
 :raw-html:`<td class="no"></td> <!-- NVPTX -->`
 :raw-html:`<td class="no"></td> <!-- PowerPC -->`
 :raw-html:`<td class="no"></td> <!-- Sparc -->`
@@ -1895,7 +1884,7 @@ Here is the table:
 :raw-html:`<td class="yes"></td> <!-- ARM -->`
 :raw-html:`<td class="no"></td> <!-- Hexagon -->`
 :raw-html:`<td class="no"></td> <!-- MSP430 -->`
-:raw-html:`<td class="no"></td> <!-- Mips -->`
+:raw-html:`<td class="yes"></td> <!-- Mips -->`
 :raw-html:`<td class="na"></td> <!-- NVPTX -->`
 :raw-html:`<td class="no"></td> <!-- PowerPC -->`
 :raw-html:`<td class="yes"></td> <!-- SystemZ -->`
@@ -1910,7 +1899,7 @@ Here is the table:
 :raw-html:`<td class="yes"></td> <!-- ARM -->`
 :raw-html:`<td class="yes"></td> <!-- Hexagon -->`
 :raw-html:`<td class="unknown"></td> <!-- MSP430 -->`
-:raw-html:`<td class="no"></td> <!-- Mips -->`
+:raw-html:`<td class="yes"></td> <!-- Mips -->`
 :raw-html:`<td class="yes"></td> <!-- NVPTX -->`
 :raw-html:`<td class="yes"></td> <!-- PowerPC -->`
 :raw-html:`<td class="unknown"></td> <!-- Sparc -->`
@@ -1940,7 +1929,7 @@ Here is the table:
 :raw-html:`<td class="no"></td> <!-- ARM -->`
 :raw-html:`<td class="no"></td> <!-- Hexagon -->`
 :raw-html:`<td class="no"></td> <!-- MSP430 -->`
-:raw-html:`<td class="no"></td> <!-- Mips -->`
+:raw-html:`<td class="yes"></td> <!-- Mips -->`
 :raw-html:`<td class="na"></td> <!-- NVPTX -->`
 :raw-html:`<td class="no"></td> <!-- PowerPC -->`
 :raw-html:`<td class="no"></td> <!-- Sparc -->`
@@ -1955,7 +1944,7 @@ Here is the table:
 :raw-html:`<td class="yes"></td> <!-- ARM -->`
 :raw-html:`<td class="yes"></td> <!-- Hexagon -->`
 :raw-html:`<td class="unknown"></td> <!-- MSP430 -->`
-:raw-html:`<td class="no"></td> <!-- Mips -->`
+:raw-html:`<td class="yes"></td> <!-- Mips -->`
 :raw-html:`<td class="no"></td> <!-- NVPTX -->`
 :raw-html:`<td class="yes"></td> <!-- PowerPC -->`
 :raw-html:`<td class="unknown"></td> <!-- Sparc -->`
@@ -2075,15 +2064,16 @@ Tail call optimization
 ----------------------
 
 Tail call optimization, callee reusing the stack of the caller, is currently
-supported on x86/x86-64 and PowerPC. It is performed if:
+supported on x86/x86-64, PowerPC, and WebAssembly. It is performed on x86/x86-64
+and PowerPC if:
 
 * Caller and callee have the calling convention ``fastcc``, ``cc 10`` (GHC
-  calling convention) or ``cc 11`` (HiPE calling convention).
+  calling convention), ``cc 11`` (HiPE calling convention), or ``tailcc``.
 
 * The call is a tail call - in tail position (ret immediately follows call and
   ret uses value of call or is void).
 
-* Option ``-tailcallopt`` is enabled.
+* Option ``-tailcallopt`` is enabled or the calling convention is ``tailcc``.
 
 * Platform-specific constraints are met.
 
@@ -2102,6 +2092,15 @@ PowerPC constraints:
 
 * On ppc32/64 GOT/PIC only module-local calls (visibility = hidden or protected)
   are supported.
+
+WebAssembly constraints:
+
+* No variable argument lists are used
+
+* The 'tail-call' target attribute is enabled.
+
+* The caller and callee's return types must match. The caller cannot
+  be void unless the callee is, too.
 
 Example:
 

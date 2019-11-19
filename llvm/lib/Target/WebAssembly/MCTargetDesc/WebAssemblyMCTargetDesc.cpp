@@ -35,8 +35,9 @@ using namespace llvm;
 #include "WebAssemblyGenRegisterInfo.inc"
 
 static MCAsmInfo *createMCAsmInfo(const MCRegisterInfo & /*MRI*/,
-                                  const Triple &TT) {
-  return new WebAssemblyMCAsmInfo(TT);
+                                  const Triple &TT,
+                                  const MCTargetOptions &Options) {
+  return new WebAssemblyMCAsmInfo(TT, Options);
 }
 
 static MCInstrInfo *createMCInstrInfo() {
@@ -146,8 +147,8 @@ wasm::ValType WebAssembly::toValType(const MVT &Ty) {
   case MVT::v4f32:
   case MVT::v2f64:
     return wasm::ValType::V128;
-  case MVT::ExceptRef:
-    return wasm::ValType::EXCEPT_REF;
+  case MVT::exnref:
+    return wasm::ValType::EXNREF;
   default:
     llvm_unreachable("unexpected type");
   }

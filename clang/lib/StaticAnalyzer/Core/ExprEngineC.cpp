@@ -100,6 +100,10 @@ void ExprEngine::VisitBinaryOperator(const BinaryOperator* B,
       SVal Result = evalBinOp(state, Op, LeftV, RightV, B->getType());
       if (!Result.isUnknown()) {
         state = state->BindExpr(B, LCtx, Result);
+      } else {
+        // If we cannot evaluate the operation escape the operands.
+        state = escapeValue(state, LeftV, PSK_EscapeOther);
+        state = escapeValue(state, RightV, PSK_EscapeOther);
       }
 
       Bldr.generateNode(B, *it, state);
@@ -376,9 +380,9 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
       case CK_Dependent:
       case CK_ArrayToPointerDecay:
       case CK_BitCast:
+      case CK_LValueToRValueBitCast:
       case CK_AddressSpaceConversion:
       case CK_BooleanToSignedIntegral:
-      case CK_NullToPointer:
       case CK_IntegralToPointer:
       case CK_PointerToIntegral: {
         SVal V = state->getSVal(Ex, LCtx);
@@ -500,6 +504,12 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
                                          currBldrCtx->blockCount());
         }
         state = state->BindExpr(CastE, LCtx, val);
+        Bldr.generateNode(CastE, Pred, state);
+        continue;
+      }
+      case CK_NullToPointer: {
+        SVal V = svalBuilder.makeNull();
+        state = state->BindExpr(CastE, LCtx, V);
         Bldr.generateNode(CastE, Pred, state);
         continue;
       }
@@ -840,8 +850,7 @@ VisitOffsetOfExpr(const OffsetOfExpr *OOE,
   if (OOE->EvaluateAsInt(Result, getContext())) {
     APSInt IV = Result.Val.getInt();
     assert(IV.getBitWidth() == getContext().getTypeSize(OOE->getType()));
-    assert(OOE->getType()->isBuiltinType());
-    assert(OOE->getType()->getAs<BuiltinType>()->isInteger());
+    assert(OOE->getType()->castAs<BuiltinType>()->isInteger());
     assert(IV.isSigned() == OOE->getType()->isSignedIntegerType());
     SVal X = svalBuilder.makeIntVal(IV);
     B.generateNode(OOE, Pred,

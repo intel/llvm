@@ -542,7 +542,7 @@ Instruction *InstCombiner::FoldPHIArgLoadIntoPHI(PHINode &PN) {
   // visitLoadInst will propagate an alignment onto the load when TD is around,
   // and if TD isn't around, we can't handle the mixed case.
   bool isVolatile = FirstLI->isVolatile();
-  unsigned LoadAlignment = FirstLI->getAlignment();
+  MaybeAlign LoadAlignment(FirstLI->getAlignment());
   unsigned LoadAddrSpace = FirstLI->getPointerAddressSpace();
 
   // We can't sink the load if the loaded value could be modified between the
@@ -574,10 +574,10 @@ Instruction *InstCombiner::FoldPHIArgLoadIntoPHI(PHINode &PN) {
 
     // If some of the loads have an alignment specified but not all of them,
     // we can't do the transformation.
-    if ((LoadAlignment != 0) != (LI->getAlignment() != 0))
+    if ((LoadAlignment.hasValue()) != (LI->getAlignment() != 0))
       return nullptr;
 
-    LoadAlignment = std::min(LoadAlignment, LI->getAlignment());
+    LoadAlignment = std::min(LoadAlignment, MaybeAlign(LI->getAlignment()));
 
     // If the PHI is of volatile loads and the load block has multiple
     // successors, sinking it would remove a load of the volatile value from
@@ -1002,6 +1002,11 @@ Instruction *InstCombiner::SliceUpIllegalIntegerPHI(PHINode &FirstPhi) {
       if (UserI->getOpcode() != Instruction::LShr ||
           !UserI->hasOneUse() || !isa<TruncInst>(UserI->user_back()) ||
           !isa<ConstantInt>(UserI->getOperand(1)))
+        return nullptr;
+
+      // Bail on out of range shifts.
+      unsigned SizeInBits = UserI->getType()->getScalarSizeInBits();
+      if (cast<ConstantInt>(UserI->getOperand(1))->getValue().uge(SizeInBits))
         return nullptr;
 
       unsigned Shift = cast<ConstantInt>(UserI->getOperand(1))->getZExtValue();

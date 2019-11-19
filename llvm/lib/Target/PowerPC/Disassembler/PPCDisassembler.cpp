@@ -86,12 +86,6 @@ static DecodeStatus DecodeCRRCRegisterClass(MCInst &Inst, uint64_t RegNo,
   return decodeRegisterClass(Inst, RegNo, CRRegs);
 }
 
-static DecodeStatus DecodeCRRC0RegisterClass(MCInst &Inst, uint64_t RegNo,
-                                            uint64_t Address,
-                                            const void *Decoder) {
-  return decodeRegisterClass(Inst, RegNo, CRRegs);
-}
-
 static DecodeStatus DecodeCRBITRCRegisterClass(MCInst &Inst, uint64_t RegNo,
                                             uint64_t Address,
                                             const void *Decoder) {
@@ -171,12 +165,6 @@ static DecodeStatus DecodeQFRCRegisterClass(MCInst &Inst, uint64_t RegNo,
                                             uint64_t Address,
                                             const void *Decoder) {
   return decodeRegisterClass(Inst, RegNo, QFRegs);
-}
-
-static DecodeStatus DecodeSPE4RCRegisterClass(MCInst &Inst, uint64_t RegNo,
-                                            uint64_t Address,
-                                            const void *Decoder) {
-  return decodeRegisterClass(Inst, RegNo, RRegs);
 }
 
 static DecodeStatus DecodeSPERCRegisterClass(MCInst &Inst, uint64_t RegNo,

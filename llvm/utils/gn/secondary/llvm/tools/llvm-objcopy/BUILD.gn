@@ -54,11 +54,14 @@ executable("llvm-objcopy") {
     "COFF/Reader.cpp",
     "COFF/Writer.cpp",
     "CopyConfig.cpp",
+    "ELF/ELFConfig.cpp",
     "ELF/ELFObjcopy.cpp",
     "ELF/Object.cpp",
+    "MachO/MachOLayoutBuilder.cpp",
     "MachO/MachOObjcopy.cpp",
     "MachO/MachOReader.cpp",
     "MachO/MachOWriter.cpp",
+    "MachO/Object.cpp",
     "llvm-objcopy.cpp",
   ]
 }

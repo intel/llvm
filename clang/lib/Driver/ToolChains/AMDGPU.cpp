@@ -31,7 +31,7 @@ void amdgpu::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("-shared");
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
-  C.addCommand(llvm::make_unique<Command>(JA, *this, Args.MakeArgString(Linker),
+  C.addCommand(std::make_unique<Command>(JA, *this, Args.MakeArgString(Linker),
                                           CmdArgs, Inputs));
 }
 
@@ -40,6 +40,17 @@ void amdgpu::getAMDGPUTargetFeatures(const Driver &D,
                                      std::vector<StringRef> &Features) {
   if (const Arg *dAbi = Args.getLastArg(options::OPT_mamdgpu_debugger_abi))
     D.Diag(diag::err_drv_clang_unsupported) << dAbi->getAsString(Args);
+
+  if (Args.getLastArg(options::OPT_mwavefrontsize64)) {
+    Features.push_back("-wavefrontsize16");
+    Features.push_back("-wavefrontsize32");
+    Features.push_back("+wavefrontsize64");
+  }
+  if (Args.getLastArg(options::OPT_mno_wavefrontsize64)) {
+    Features.push_back("-wavefrontsize16");
+    Features.push_back("+wavefrontsize32");
+    Features.push_back("-wavefrontsize64");
+  }
 
   handleTargetFeaturesGroup(
     Args, Features, options::OPT_m_amdgpu_Features_Group);

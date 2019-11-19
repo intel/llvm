@@ -11,39 +11,20 @@ add_clang_tool(clang-tidy
 add_dependencies(clang-tidy
   clang-resource-headers
   )
-target_link_libraries(clang-tidy
+clang_target_link_libraries(clang-tidy
   PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
-  clangTidy
-  clangTidyAndroidModule
-  clangTidyAbseilModule
-  clangTidyBoostModule
-  clangTidyBugproneModule
-  clangTidyCERTModule
-  clangTidyCppCoreGuidelinesModule
-  clangTidyFuchsiaModule
-  clangTidyGoogleModule
-  clangTidyHICPPModule
-  clangTidyLLVMModule
-  clangTidyMiscModule
-  clangTidyModernizeModule
-  clangTidyObjCModule
-  clangTidyOpenMPModule
-  clangTidyPerformanceModule
-  clangTidyPortabilityModule
-  clangTidyReadabilityModule
-  clangTidyZirconModule
   clangTooling
   clangToolingCore
   )
-
-if(CLANG_ENABLE_STATIC_ANALYZER)
-  target_link_libraries(clang-tidy PRIVATE
-    clangTidyMPIModule
+target_link_libraries(clang-tidy
+  PRIVATE
+  clangTidy
+  ${ALL_CLANG_TIDY_CHECKS}
   )
-endif()
+
 
 install(PROGRAMS clang-tidy-diff.py
   DESTINATION share/clang

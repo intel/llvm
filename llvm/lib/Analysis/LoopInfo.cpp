@@ -359,6 +359,45 @@ bool Loop::isAuxiliaryInductionVariable(PHINode &AuxIndVar,
   return SE.isLoopInvariant(IndDesc.getStep(), this);
 }
 
+BranchInst *Loop::getLoopGuardBranch() const {
+  if (!isLoopSimplifyForm())
+    return nullptr;
+
+  BasicBlock *Preheader = getLoopPreheader();
+  BasicBlock *Latch = getLoopLatch();
+  assert(Preheader && Latch &&
+         "Expecting a loop with valid preheader and latch");
+
+  // Loop should be in rotate form.
+  if (!isLoopExiting(Latch))
+    return nullptr;
+
+  // Disallow loops with more than one unique exit block, as we do not verify
+  // that GuardOtherSucc post dominates all exit blocks.
+  BasicBlock *ExitFromLatch = getUniqueExitBlock();
+  if (!ExitFromLatch)
+    return nullptr;
+
+  BasicBlock *ExitFromLatchSucc = ExitFromLatch->getUniqueSuccessor();
+  if (!ExitFromLatchSucc)
+    return nullptr;
+
+  BasicBlock *GuardBB = Preheader->getUniquePredecessor();
+  if (!GuardBB)
+    return nullptr;
+
+  assert(GuardBB->getTerminator() && "Expecting valid guard terminator");
+
+  BranchInst *GuardBI = dyn_cast<BranchInst>(GuardBB->getTerminator());
+  if (!GuardBI || GuardBI->isUnconditional())
+    return nullptr;
+
+  BasicBlock *GuardOtherSucc = (GuardBI->getSuccessor(0) == Preheader)
+                                   ? GuardBI->getSuccessor(1)
+                                   : GuardBI->getSuccessor(0);
+  return (GuardOtherSucc == ExitFromLatchSucc) ? GuardBI : nullptr;
+}
+
 bool Loop::isCanonical(ScalarEvolution &SE) const {
   InductionDescriptor IndDesc;
   if (!getInductionDescriptor(SE, IndDesc))
@@ -432,8 +471,11 @@ bool Loop::isLoopSimplifyForm() const {
 bool Loop::isSafeToClone() const {
   // Return false if any loop blocks contain indirectbrs, or there are any calls
   // to noduplicate functions.
+  // FIXME: it should be ok to clone CallBrInst's if we correctly update the
+  // operand list to reflect the newly cloned labels.
   for (BasicBlock *BB : this->blocks()) {
-    if (isa<IndirectBrInst>(BB->getTerminator()))
+    if (isa<IndirectBrInst>(BB->getTerminator()) ||
+        isa<CallBrInst>(BB->getTerminator()))
       return false;
 
     for (Instruction &I : *BB)
@@ -1036,7 +1078,7 @@ void LoopInfoWrapperPass::verifyAnalysis() const {
 
 void LoopInfoWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<DominatorTreeWrapperPass>();
+  AU.addRequiredTransitive<DominatorTreeWrapperPass>();
 }
 
 void LoopInfoWrapperPass::print(raw_ostream &OS, const Module *) const {

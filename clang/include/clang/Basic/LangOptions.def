@@ -111,6 +111,7 @@ BENIGN_LANGOPT(DollarIdents   , 1, 1, "'$' in identifiers")
 BENIGN_LANGOPT(AsmPreprocessor, 1, 0, "preprocessor in asm mode")
 LANGOPT(GNUMode           , 1, 1, "GNU extensions")
 LANGOPT(GNUKeywords       , 1, 1, "GNU keywords")
+VALUE_LANGOPT(GNUCVersion , 32, 0, "GNU C compatibility version")
 BENIGN_LANGOPT(ImplicitInt, 1, !C99 && !CPlusPlus, "C89 implicit 'int'")
 LANGOPT(Digraphs          , 1, 0, "digraphs")
 BENIGN_LANGOPT(HexFloats  , 1, C99, "C99 hexadecimal float constants")
@@ -119,7 +120,8 @@ LANGOPT(AppleKext         , 1, 0, "Apple kext support")
 BENIGN_LANGOPT(PascalStrings, 1, 0, "Pascal string support")
 LANGOPT(WritableStrings   , 1, 0, "writable string support")
 LANGOPT(ConstStrings      , 1, 0, "const-qualified string support")
-LANGOPT(LaxVectorConversions , 1, 1, "lax vector conversions")
+ENUM_LANGOPT(LaxVectorConversions, LaxVectorConversionKind, 2,
+             LaxVectorConversionKind::All, "lax vector conversions")
 LANGOPT(AltiVec           , 1, 0, "AltiVec-style vector initializers")
 LANGOPT(ZVector           , 1, 0, "System z vector extensions")
 LANGOPT(Exceptions        , 1, 0, "exception handling")
@@ -128,6 +130,7 @@ LANGOPT(CXXExceptions     , 1, 0, "C++ exceptions")
 LANGOPT(DWARFExceptions   , 1, 0, "dwarf exception handling")
 LANGOPT(SjLjExceptions    , 1, 0, "setjmp-longjump exception handling")
 LANGOPT(SEHExceptions     , 1, 0, "SEH .xdata exception handling")
+LANGOPT(WasmExceptions    , 1, 0, "WebAssembly exception handling")
 LANGOPT(ExternCNoUnwind   , 1, 0, "Assume extern C functions don't unwind")
 LANGOPT(TraditionalCPP    , 1, 0, "traditional CPP emulation")
 LANGOPT(RTTI              , 1, 1, "run-time type information")
@@ -171,6 +174,8 @@ VALUE_LANGOPT(PackStruct  , 32, 0,
 VALUE_LANGOPT(MaxTypeAlign  , 32, 0,
               "default maximum alignment for types")
 VALUE_LANGOPT(AlignDouble            , 1, 0, "Controls if doubles should be aligned to 8 bytes (x86 only)")
+VALUE_LANGOPT(LongDoubleSize        , 32, 0, "width of long double")
+LANGOPT(PPCIEEELongDouble            , 1, 0, "use IEEE 754 quadruple-precision for long double")
 COMPATIBLE_VALUE_LANGOPT(PICLevel    , 2, 0, "__PIC__ level")
 COMPATIBLE_VALUE_LANGOPT(PIE         , 1, 0, "is pie")
 LANGOPT(ROPI                         , 1, 0, "Read-only position independence")
@@ -195,8 +200,9 @@ LANGOPT(ShortEnums        , 1, 0, "short enum types")
 
 LANGOPT(OpenCL            , 1, 0, "OpenCL")
 LANGOPT(OpenCLVersion     , 32, 0, "OpenCL C version")
-LANGOPT(OpenCLCPlusPlus   , 1, 0, "OpenCL C++")
-LANGOPT(OpenCLCPlusPlusVersion     , 32, 0, "OpenCL C++ version")
+LANGOPT(OpenCLCPlusPlus   , 1, 0, "C++ for OpenCL")
+LANGOPT(OpenCLCPlusPlusVersion     , 32, 0, "C++ for OpenCL version")
+ENUM_LANGOPT(SYCLVersion, SYCLVersionList, 4, SYCLVersionList::undefined, "Version of the SYCL standard used")
 LANGOPT(NativeHalfType    , 1, 0, "Native half type support")
 LANGOPT(NativeHalfArgsAndReturns, 1, 0, "Native half args and returns")
 LANGOPT(HalfArgsAndReturns, 1, 0, "half args and returns")
@@ -219,10 +225,14 @@ LANGOPT(CUDAAllowVariadicFunctions, 1, 0, "allowing variadic functions in CUDA d
 LANGOPT(CUDAHostDeviceConstexpr, 1, 1, "treating unattributed constexpr functions as __host__ __device__")
 LANGOPT(CUDADeviceApproxTranscendentals, 1, 0, "using approximate transcendental functions")
 LANGOPT(GPURelocatableDeviceCode, 1, 0, "generate relocatable device code")
+LANGOPT(GPUAllowDeviceInit, 1, 0, "allowing device side global init functions for HIP")
 
 LANGOPT(SYCLIsDevice      , 1, 0, "Generate code for SYCL device")
 LANGOPT(SYCLIsHost        , 1, 0, "SYCL host compilation")
 LANGOPT(SYCLAllowFuncPtr  , 1, 0, "Allow function pointers in SYCL device code")
+LANGOPT(SYCLUnnamedLambda , 1, 0, "Allow unnamed lambda SYCL kernels")
+
+LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 
 LANGOPT(SizedDeallocation , 1, 0, "sized deallocation")
 LANGOPT(AlignedAllocation , 1, 0, "aligned allocation")
@@ -248,6 +258,8 @@ LANGOPT(SinglePrecisionConstants , 1, 0, "treating double-precision floating poi
 LANGOPT(FastRelaxedMath , 1, 0, "OpenCL fast relaxed math")
 /// FP_CONTRACT mode (on/off/fast).
 ENUM_LANGOPT(DefaultFPContractMode, FPContractModeKind, 2, FPC_Off, "FP contraction type")
+ENUM_LANGOPT(FPRoundingMode, FPRoundingModeKind, 3, FPR_ToNearest, "FP Rounding Mode type")
+ENUM_LANGOPT(FPExceptionMode, FPExceptionModeKind, 2, FPE_Ignore, "FP Exception Behavior Mode type")
 LANGOPT(NoBitFieldTypeAlign , 1, 0, "bit-field type alignment")
 LANGOPT(HexagonQdsp6Compat , 1, 0, "hexagon-qdsp6 backward compatibility")
 LANGOPT(ObjCAutoRefCount , 1, 0, "Objective-C automated reference counting")
@@ -288,6 +300,10 @@ BENIGN_LANGOPT(ConstexprCallDepth, 32, 512,
                "maximum constexpr call depth")
 BENIGN_LANGOPT(ConstexprStepLimit, 32, 1048576,
                "maximum constexpr evaluation steps")
+BENIGN_LANGOPT(EnableNewConstInterp, 1, 0,
+               "enable the experimental new constant interpreter")
+BENIGN_LANGOPT(ForceNewConstInterp, 1, 0,
+               "force the use of the experimental new constant interpreter")
 BENIGN_LANGOPT(BracketDepth, 32, 256,
                "maximum bracket nesting depth")
 BENIGN_LANGOPT(NumLargeByValueCopy, 32, 0,

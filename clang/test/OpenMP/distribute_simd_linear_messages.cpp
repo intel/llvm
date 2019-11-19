@@ -1,8 +1,16 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 extern int omp_default_mem_alloc;
+
+void xxx(int argc) {
+  int i;
+#pragma omp distribute simd linear(i)
+  for (i = 0; i < 10; ++i)
+    ;
+}
+
 namespace X {
   int x;
 };

@@ -68,8 +68,8 @@ public:
   bool shouldFavorPostInc() const;
 
   // L1 cache prefetch.
-  unsigned getPrefetchDistance() const;
-  unsigned getCacheLineSize() const;
+  unsigned getPrefetchDistance() const override;
+  unsigned getCacheLineSize() const override;
 
   /// @}
 
@@ -112,8 +112,9 @@ public:
             unsigned ScalarizationCostPassed = UINT_MAX);
   unsigned getAddressComputationCost(Type *Tp, ScalarEvolution *SE,
             const SCEV *S);
-  unsigned getMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
-            unsigned AddressSpace, const Instruction *I = nullptr);
+  unsigned getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
+                           unsigned AddressSpace,
+                           const Instruction *I = nullptr);
   unsigned getMaskedMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
             unsigned AddressSpace);
   unsigned getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,

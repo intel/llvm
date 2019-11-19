@@ -92,8 +92,6 @@ namespace {
 using namespace cl;
 
 OptionCategory DwarfDumpCategory("Specific Options");
-static opt<bool> Help("h", desc("Alias for -help"), Hidden,
-                      cat(DwarfDumpCategory));
 static list<std::string>
     InputFilenames(Positional, desc("<input object files or .dSYM bundles>"),
                    ZeroOrMore, cat(DwarfDumpCategory));
@@ -141,10 +139,9 @@ static list<std::string>
               "-name option can be used instead."),
          value_desc("name"), cat(DwarfDumpCategory));
 static alias FindAlias("f", desc("Alias for -find."), aliasopt(Find));
-static opt<bool>
-    IgnoreCase("ignore-case",
-               desc("Ignore case distinctions in when searching by name."),
-               value_desc("i"), cat(DwarfDumpCategory));
+static opt<bool> IgnoreCase("ignore-case",
+                            desc("Ignore case distinctions when searching."),
+                            value_desc("i"), cat(DwarfDumpCategory));
 static alias IgnoreCaseAlias("i", desc("Alias for -ignore-case."),
                              aliasopt(IgnoreCase));
 static list<std::string> Name(
@@ -160,12 +157,11 @@ static opt<uint64_t>
                 "available file, function, block and line table details."),
            value_desc("address"), cat(DwarfDumpCategory));
 static opt<std::string>
-    OutputFilename("out-file", cl::init("-"),
+    OutputFilename("o", cl::init("-"),
                    cl::desc("Redirect output to the specified file."),
-                   cl::value_desc("filename"));
-static alias OutputFilenameAlias("o", desc("Alias for -out-file."),
-                                 aliasopt(OutputFilename),
-                                 cat(DwarfDumpCategory));
+                   cl::value_desc("filename"), cat(DwarfDumpCategory));
+static alias OutputFilenameAlias("out-file", desc("Alias for -o."),
+                                 aliasopt(OutputFilename));
 static opt<bool>
     UseRegex("regex",
              desc("Treat any <pattern> strings as regular expressions when "
@@ -175,14 +171,14 @@ static alias RegexAlias("x", desc("Alias for -regex"), aliasopt(UseRegex));
 static opt<bool>
     ShowChildren("show-children",
                  desc("Show a debug info entry's children when selectively "
-                      "printing with the =<offset> option."),
+                      "printing entries."),
                  cat(DwarfDumpCategory));
 static alias ShowChildrenAlias("c", desc("Alias for -show-children."),
                                aliasopt(ShowChildren));
 static opt<bool>
     ShowParents("show-parents",
                 desc("Show a debug info entry's parents when selectively "
-                     "printing with the =<offset> option."),
+                     "printing entries."),
                 cat(DwarfDumpCategory));
 static alias ShowParentsAlias("p", desc("Alias for -show-parents."),
                               aliasopt(ShowParents));
@@ -224,6 +220,8 @@ static opt<bool> Verbose("verbose",
                          cat(DwarfDumpCategory));
 static alias VerboseAlias("v", desc("Alias for -verbose."), aliasopt(Verbose),
                           cat(DwarfDumpCategory));
+static cl::extrahelp
+    HelpResponse("\nPass @FILE as argument to read options from FILE.\n");
 } // namespace
 /// @}
 //===----------------------------------------------------------------------===//
@@ -577,11 +575,6 @@ int main(int argc, char **argv) {
       "pretty-print DWARF debug information in object files"
       " and debug info archives.\n");
 
-  if (Help) {
-    PrintHelpMessage(/*Hidden =*/false, /*Categorized =*/true);
-    return 0;
-  }
-
   // FIXME: Audit interactions between these two options and make them
   //        compatible.
   if (Diff && Verbose) {
@@ -591,7 +584,7 @@ int main(int argc, char **argv) {
   }
 
   std::error_code EC;
-  ToolOutputFile OutputFile(OutputFilename, EC, sys::fs::OF_None);
+  ToolOutputFile OutputFile(OutputFilename, EC, sys::fs::OF_Text);
   error("Unable to open output file" + OutputFilename, EC);
   // Don't remove output file if we exit with an error.
   OutputFile.keep();

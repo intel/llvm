@@ -1,0 +1,89 @@
+119734787 65536 393230 11 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability GenericPointer
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 1 2
+3 Source 3 200000
+4 Name 5 "load"
+3 Name 6 "obj"
+4 Name 7 "order"
+4 Name 8 "scope"
+4 Name 9 "entry"
+4 Name 10 "call"
+6 Decorate 5 LinkageAttributes "load" Export
+4 TypeInt 2 32 0
+4 TypePointer 3 8 2
+6 TypeFunction 4 2 3 2 2
+
+
+5 Function 2 5 0 4
+3 FunctionParameter 3 6
+3 FunctionParameter 2 7
+3 FunctionParameter 2 8
+
+2 Label 9
+6 AtomicLoad 2 10 6 8 7
+2 ReturnValue 10
+
+1 FunctionEnd
+
+; RUN: llvm-spirv %s -to-binary -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s
+
+; CHECK: define spir_func i32 @load(i32 addrspace(4)* %obj, i32 %order, i32 %scope) #0 {
+; CHECK: entry:
+; CHECK:   %call1 = call spir_func i32 @__translate_spirv_memory_scope(i32 %scope)
+; CHECK:   %call2 = call spir_func i32 @__translate_spirv_memory_order(i32 %order)
+; CHECK:   %call = call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(i32 addrspace(4)* %obj, i32 %call2, i32 %call1)
+; CHECK:   ret i32 %call
+; CHECK: }
+
+; CHECK: define private spir_func i32 @__translate_spirv_memory_scope(i32 %key) {
+; CHECK: entry:
+; CHECK:   switch i32 %key, label %default [
+; CHECK:     i32 4, label %case.4
+; CHECK:     i32 2, label %case.2
+; CHECK:     i32 1, label %case.1
+; CHECK:     i32 0, label %case.0
+; CHECK:     i32 3, label %case.3
+; CHECK:   ]
+; CHECK: default:
+; CHECK:   unreachable
+; CHECK: case.4:
+; CHECK:   ret i32 0
+; CHECK: case.2:
+; CHECK:   ret i32 1
+; CHECK: case.1:
+; CHECK:   ret i32 2
+; CHECK: case.0:
+; CHECK:   ret i32 3
+; CHECK: case.3:
+; CHECK:   ret i32 4
+; CHECK: }
+
+; CHECK: define private spir_func i32 @__translate_spirv_memory_order(i32 %key) {
+; CHECK: entry:
+; CHECK:   switch i32 %key, label %default [
+; CHECK:     i32 0, label %case.0
+; CHECK:     i32 2, label %case.2
+; CHECK:     i32 4, label %case.4
+; CHECK:     i32 8, label %case.8
+; CHECK:     i32 16, label %case.16
+; CHECK:   ]
+; CHECK: default:
+; CHECK:   unreachable
+; CHECK: case.0:
+; CHECK:   ret i32 0
+; CHECK: case.2:
+; CHECK:   ret i32 2
+; CHECK: case.4:
+; CHECK:   ret i32 3
+; CHECK: case.8:
+; CHECK:   ret i32 4
+; CHECK: case.16:
+; CHECK:   ret i32 5
+; CHECK: }

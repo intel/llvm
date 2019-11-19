@@ -53,6 +53,7 @@ endif()
 
 add_llvm_library(LLVMSupport
   AArch64TargetParser.cpp
+  ABIBreak.cpp
   ARMTargetParser.cpp
   AMDGPUMetadata.cpp
   APFloat.cpp
@@ -89,6 +90,7 @@ add_llvm_library(LLVMSupport
   Error.cpp
   ErrorHandling.cpp
   FileCheck.cpp
+  FileCollector.cpp
   FileUtilities.cpp
   FileOutputBuffer.cpp
   FoldingSet.cpp
@@ -101,7 +103,6 @@ add_llvm_library(LLVMSupport
   IntEqClasses.cpp
   IntervalMap.cpp
   ItaniumManglingCanonicalizer.cpp
-  JamCRC.cpp
   JSON.cpp
   KnownBits.cpp
   LEB128.cpp
@@ -169,7 +170,6 @@ add_llvm_library(LLVMSupport
   Errno.cpp
   Host.cpp
   Memory.cpp
-  Mutex.cpp
   Path.cpp
   Process.cpp
   Program.cpp

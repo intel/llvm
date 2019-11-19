@@ -11,7 +11,9 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
+#include <CL/sycl/intel/functional.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
 #include <type_traits>
@@ -20,70 +22,76 @@
 namespace cl {
 namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
-namespace intel {
-template <typename>
 
-struct is_vec : std::false_type {};
+namespace detail {
+
+template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
 struct is_vec<cl::sycl::vec<T, N>> : std::true_type {};
 
-struct minimum {
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
-      !std::is_floating_point<T>::value && std::is_signed<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupSMin(__spv::Scope::Subgroup, O, x);
-  }
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
+    !detail::is_floating_point<T>::value && std::is_signed<T>::value, T>::type
+calc(T x, intel::minimum<T> op) {
+  return __spirv_GroupSMin(__spv::Scope::Subgroup, O, x);
+}
 
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
-      !std::is_floating_point<T>::value && std::is_unsigned<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupUMin(__spv::Scope::Subgroup, O, x);
-  }
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
+    !detail::is_floating_point<T>::value && std::is_unsigned<T>::value, T>::type
+calc(T x, intel::minimum<T> op) {
+  return __spirv_GroupUMin(__spv::Scope::Subgroup, O, x);
+}
 
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<std::is_floating_point<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupFMin(__spv::Scope::Subgroup, O, x);
-  }
-};
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<detail::is_floating_point<T>::value, T>::type
+calc(T x, intel::minimum<T> op) {
+  return __spirv_GroupFMin(__spv::Scope::Subgroup, O, x);
+}
 
-struct maximum {
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
-      !std::is_floating_point<T>::value && std::is_signed<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupSMax(__spv::Scope::Subgroup, O, x);
-  }
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
+    !detail::is_floating_point<T>::value && std::is_signed<T>::value, T>::type
+calc(T x, intel::maximum<T> op) {
+  return __spirv_GroupSMax(__spv::Scope::Subgroup, O, x);
+}
 
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
-      !std::is_floating_point<T>::value && std::is_unsigned<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupUMax(__spv::Scope::Subgroup, O, x);
-  }
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
+    !detail::is_floating_point<T>::value && std::is_unsigned<T>::value, T>::type
+calc(T x, intel::maximum<T> op) {
+  return __spirv_GroupUMax(__spv::Scope::Subgroup, O, x);
+}
 
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<std::is_floating_point<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupFMax(__spv::Scope::Subgroup, O, x);
-  }
-};
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<detail::is_floating_point<T>::value, T>::type
+calc(T x, intel::maximum<T> op) {
+  return __spirv_GroupFMax(__spv::Scope::Subgroup, O, x);
+}
 
-struct plus {
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<
-      !std::is_floating_point<T>::value && std::is_integral<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupIAdd<T>(__spv::Scope::Subgroup, O, x);
-  }
-  template <typename T, __spv::GroupOperation O>
-  static typename std::enable_if<std::is_floating_point<T>::value, T>::type
-  calc(T x) {
-    return __spirv_GroupFAdd<T>(__spv::Scope::Subgroup, O, x);
-  }
-};
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<
+    !detail::is_floating_point<T>::value && std::is_integral<T>::value, T>::type
+calc(T x, intel::plus<T> op) {
+  return __spirv_GroupIAdd<T>(__spv::Scope::Subgroup, O, x);
+}
+
+template <typename T, __spv::GroupOperation O>
+static typename std::enable_if<detail::is_floating_point<T>::value, T>::type
+calc(T x, intel::plus<T> op) {
+  return __spirv_GroupFAdd<T>(__spv::Scope::Subgroup, O, x);
+}
+
+template <typename T, __spv::GroupOperation O,
+          template <typename> class BinaryOperation>
+static T calc(T x, BinaryOperation<void>) {
+  return calc<T, O>(x, BinaryOperation<T>());
+}
+
+} // namespace detail
+
+namespace intel {
+
 struct sub_group {
   /* --- common interface members --- */
 
@@ -116,90 +124,109 @@ struct sub_group {
     return __spirv_GroupAll(__spv::Scope::Subgroup, predicate);
   }
 
+
+  template <typename T>
+  using EnableIfIsScalarArithmetic = detail::enable_if_t<
+    !detail::is_vec<T>::value && detail::is_arithmetic<T>::value, T>;
+
   /* --- collectives --- */
 
   template <typename T>
-  T broadcast(typename std::enable_if<std::is_arithmetic<T>::value, T>::type x,
-              id<1> local_id) const {
+  T broadcast(EnableIfIsScalarArithmetic<T> x, id<1> local_id) const {
     return __spirv_GroupBroadcast<T>(__spv::Scope::Subgroup, x,
                                             local_id.get(0));
   }
 
   template <typename T, class BinaryOperation>
-  T reduce(
-      typename std::enable_if<std::is_arithmetic<T>::value, T>::type x) const {
-    return BinaryOperation::template calc<T, __spv::GroupOperation::Reduce>(x);
+  EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
+    return detail::calc<T, __spv::GroupOperation::Reduce>(x, op);
   }
 
   template <typename T, class BinaryOperation>
-  T exclusive_scan(
-      typename std::enable_if<std::is_arithmetic<T>::value, T>::type x) const {
-    return BinaryOperation::template
-        calc<T, __spv::GroupOperation::ExclusiveScan>(x);
+  EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
+    return op(init, reduce(x, op));
   }
 
   template <typename T, class BinaryOperation>
-  T inclusive_scan(
-      typename std::enable_if<std::is_arithmetic<T>::value, T>::type x) const {
-    return BinaryOperation::template
-        calc<T, __spv::GroupOperation::InclusiveScan>(x);
+  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
+    return detail::calc<T, __spv::GroupOperation::ExclusiveScan>(x, op);
   }
 
-  template <typename T>
-  using EnableIfIsArithmeticOrHalf = typename std::enable_if<
-      (std::is_arithmetic<T>::value ||
-       std::is_same<typename std::remove_const<T>::type, half>::value),
-      T>::type;
+  template <typename T, class BinaryOperation>
+  EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
+                                         BinaryOperation op) const {
+    if (get_local_id().get(0) == 0) {
+      x = op(init, x);
+    }
+    T scan = exclusive_scan(x, op);
+    if (get_local_id().get(0) == 0) {
+      scan = init;
+    }
+    return scan;
+  }
 
+  template <typename T, class BinaryOperation>
+  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
+    return detail::calc<T, __spv::GroupOperation::InclusiveScan>(x, op);
+  }
+
+  template <typename T, class BinaryOperation>
+  EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
+                                         T init) const {
+    if (get_local_id().get(0) == 0) {
+      x = op(init, x);
+    }
+    return inclusive_scan(x, op);
+  }
 
   /* --- one - input shuffles --- */
   /* indices in [0 , sub - group size ) */
 
   template <typename T>
-  EnableIfIsArithmeticOrHalf<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle(T x, id<1> local_id) const {
     return __spirv_SubgroupShuffleINTEL(x, local_id.get(0));
   }
 
   template <typename T>
-  typename std::enable_if<is_vec<T>::value, T>::type
+  typename std::enable_if<detail::is_vec<T>::value, T>::type
   shuffle(T x, id<1> local_id) const {
     return __spirv_SubgroupShuffleINTEL((typename T::vector_t)x,
                                                local_id.get(0));
   }
 
   template <typename T>
-  EnableIfIsArithmeticOrHalf<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_down(T x, uint32_t delta) const {
     return shuffle_down(x, x, delta);
   }
 
   template <typename T>
-  typename std::enable_if<is_vec<T>::value, T>::type
+  typename std::enable_if<detail::is_vec<T>::value, T>::type
   shuffle_down(T x, uint32_t delta) const {
     return shuffle_down(x, x, delta);
   }
 
   template <typename T>
-  EnableIfIsArithmeticOrHalf<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_up(T x, uint32_t delta) const {
     return shuffle_up(x, x, delta);
   }
 
   template <typename T>
-  typename std::enable_if<is_vec<T>::value, T>::type
+  typename std::enable_if<detail::is_vec<T>::value, T>::type
   shuffle_up(T x, uint32_t delta) const {
     return shuffle_up(x, x, delta);
   }
 
   template <typename T>
-  EnableIfIsArithmeticOrHalf<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_xor(T x, id<1> value) const {
     return __spirv_SubgroupShuffleXorINTEL(x, (uint32_t)value.get(0));
   }
 
   template <typename T>
-  typename std::enable_if<is_vec<T>::value, T>::type
+  typename std::enable_if<detail::is_vec<T>::value, T>::type
   shuffle_xor(T x, id<1> value) const {
     return __spirv_SubgroupShuffleXorINTEL((typename T::vector_t)x,
                                                   (uint32_t)value.get(0));
@@ -208,14 +235,14 @@ struct sub_group {
   /* --- two - input shuffles --- */
   /* indices in [0 , 2* sub - group size ) */
   template <typename T>
-  EnableIfIsArithmeticOrHalf<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle(T x, T y, id<1> local_id) const {
     return __spirv_SubgroupShuffleDownINTEL(
         x, y, local_id.get(0) - get_local_id().get(0));
   }
 
   template <typename T>
-  typename std::enable_if<is_vec<T>::value, T>::type
+  typename std::enable_if<detail::is_vec<T>::value, T>::type
   shuffle(T x, T y, id<1> local_id) const {
     return __spirv_SubgroupShuffleDownINTEL(
         (typename T::vector_t)x, (typename T::vector_t)y,
@@ -223,26 +250,26 @@ struct sub_group {
   }
 
   template <typename T>
-  EnableIfIsArithmeticOrHalf<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_down(T current, T next, uint32_t delta) const {
     return __spirv_SubgroupShuffleDownINTEL(current, next, delta);
   }
 
   template <typename T>
-  typename std::enable_if<is_vec<T>::value, T>::type
+  typename std::enable_if<detail::is_vec<T>::value, T>::type
   shuffle_down(T current, T next, uint32_t delta) const {
     return __spirv_SubgroupShuffleDownINTEL(
         (typename T::vector_t)current, (typename T::vector_t)next, delta);
   }
 
   template <typename T>
-  EnableIfIsArithmeticOrHalf<T>
+  EnableIfIsScalarArithmetic<T>
   shuffle_up(T previous, T current, uint32_t delta) const {
     return __spirv_SubgroupShuffleUpINTEL(previous, current, delta);
   }
 
   template <typename T>
-  typename std::enable_if<is_vec<T>::value, T>::type
+  typename std::enable_if<detail::is_vec<T>::value, T>::type
   shuffle_up(T previous, T current, uint32_t delta) const {
     return __spirv_SubgroupShuffleUpINTEL(
         (typename T::vector_t)previous, (typename T::vector_t)current, delta);
@@ -336,9 +363,8 @@ struct sub_group {
   /* --- synchronization functions --- */
   void barrier(access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
-    uint32_t flags = detail::getSPIRVMemorySemanticsMask(
-        accessSpace, __spv::MemorySemanticsMask::SubgroupMemory);
-    __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Workgroup,
+    uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
+    __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
                            flags);
   }
 

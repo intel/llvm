@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/detail/device_impl.hpp>
+#include <CL/sycl/detail/device_info.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/platform_util.hpp>
 #include <CL/sycl/device.hpp>
@@ -29,15 +29,14 @@ device get_device_info<device, info::device::parent_device>::_(
   RT::PiDevice dev) {
 
   typename sycl_to_pi<device>::type result;
-  PI_CALL(RT::piDeviceGetInfo(
-    dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::parent_device),
-    sizeof(result), &result, NULL));
+  PI_CALL(RT::piDeviceGetInfo,
+    dev, pi::cast<RT::PiDeviceInfo>(info::device::parent_device),
+    sizeof(result), &result, nullptr);
   if (result == nullptr)
     throw invalid_object_error(
         "No parent for device because it is not a subdevice");
 
-  return createSyclObjFromImpl<device>(
-    std::make_shared<device_impl_pi>(result));
+  return createSyclObjFromImpl<device>(std::make_shared<device_impl>(result));
 }
 
 vector_class<info::fp_config> read_fp_bitfield(cl_device_fp_config bits) {
@@ -495,6 +494,11 @@ bool get_device_info_host<
     info::device::sub_group_independent_forward_progress>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.");
+}
+
+template <>
+bool get_device_info_host<info::device::kernel_kernel_pipe_support>() {
+  return false;
 }
 
 } // namespace detail

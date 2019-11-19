@@ -9,12 +9,17 @@
 #include "Context.h"
 #include "Protocol.h"
 #include "SourceCode.h"
+#include "TestTU.h"
+#include "clang/Basic/LangOptions.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Format/Format.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Testing/Support/Annotations.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <tuple>
 
 namespace clang {
 namespace clangd {
@@ -27,6 +32,8 @@ using ::testing::UnorderedElementsAreArray;
 MATCHER_P2(Pos, Line, Col, "") {
   return arg.line == int(Line) && arg.character == int(Col);
 }
+
+MATCHER_P(MacroName, Name, "") { return arg.Name == Name; }
 
 /// A helper to make tests easier to read.
 Position position(int line, int character) {
@@ -306,6 +313,60 @@ TEST(SourceCodeTests, SourceLocationInMainFile) {
   }
 }
 
+TEST(SourceCodeTests, GetBeginningOfIdentifier) {
+  std::string Preamble = R"cpp(
+struct Bar { int func(); };
+#define MACRO(X) void f() { X; }
+Bar* bar;
+  )cpp";
+  // First ^ is the expected beginning, last is the search position.
+  for (const std::string &Text : std::vector<std::string>{
+           "int ^f^oo();", // inside identifier
+           "int ^foo();",  // beginning of identifier
+           "int ^foo^();", // end of identifier
+           "int foo(^);",  // non-identifier
+           "^int foo();",  // beginning of file (can't back up)
+           "int ^f0^0();", // after a digit (lexing at N-1 is wrong)
+           "/^/ comments", // non-interesting token
+           "void f(int abc) { abc ^ ++; }",    // whitespace
+           "void f(int abc) { ^abc^++; }",     // range of identifier
+           "void f(int abc) { ++^abc^; }",     // range of identifier
+           "void f(int abc) { ++^abc; }",      // range of identifier
+           "void f(int abc) { ^+^+abc; }",     // range of operator
+           "void f(int abc) { ^abc^ ++; }",    // range of identifier
+           "void f(int abc) { abc ^++^; }",    // range of operator
+           "void f(int abc) { ^++^ abc; }",    // range of operator
+           "void f(int abc) { ++ ^abc^; }",    // range of identifier
+           "void f(int abc) { ^++^/**/abc; }", // range of operator
+           "void f(int abc) { ++/**/^abc; }",  // range of identifier
+           "void f(int abc) { ^abc^/**/++; }", // range of identifier
+           "void f(int abc) { abc/**/^++; }",  // range of operator
+           "void f() {^ }", // outside of identifier and operator
+           "int ^λλ^λ();",  // UTF-8 handled properly when backing up
+
+           // identifier in macro arg
+           "MACRO(bar->^func())",  // beginning of identifier
+           "MACRO(bar->^fun^c())", // inside identifier
+           "MACRO(bar->^func^())", // end of identifier
+           "MACRO(^bar->func())",  // begin identifier
+           "MACRO(^bar^->func())", // end identifier
+           "^MACRO(bar->func())",  // beginning of macro name
+           "^MAC^RO(bar->func())", // inside macro name
+           "^MACRO^(bar->func())", // end of macro name
+       }) {
+    std::string WithPreamble = Preamble + Text;
+    Annotations TestCase(WithPreamble);
+    auto AST = TestTU::withCode(TestCase.code()).build();
+    const auto &SourceMgr = AST.getSourceManager();
+    SourceLocation Actual = getBeginningOfIdentifier(
+        TestCase.points().back(), SourceMgr, AST.getASTContext().getLangOpts());
+    Position ActualPos = offsetToPosition(
+        TestCase.code(),
+        SourceMgr.getFileOffset(SourceMgr.getSpellingLoc(Actual)));
+    EXPECT_EQ(TestCase.points().front(), ActualPos) << Text;
+  }
+}
+
 TEST(SourceCodeTests, CollectIdentifiers) {
   auto Style = format::getLLVMStyle();
   auto IDs = collectIdentifiers(R"cpp(
@@ -396,12 +457,248 @@ TEST(SourceCodeTests, VisibleNamespaces) {
               "c::d",
           },
       },
+      {
+          "",
+          {""},
+      },
+      {
+          R"cpp(
+            // Parse until EOF
+            namespace bar{})cpp",
+          {""},
+      },
   };
   for (const auto& Case : Cases) {
     EXPECT_EQ(Case.second,
               visibleNamespaces(Case.first, format::getLLVMStyle()))
         << Case.first;
   }
+}
+
+TEST(SourceCodeTests, GetMacros) {
+  Annotations Code(R"cpp(
+     #define MACRO 123
+     int abc = MA^CRO;
+   )cpp");
+  TestTU TU = TestTU::withCode(Code.code());
+  auto AST = TU.build();
+  auto Loc = getBeginningOfIdentifier(Code.point(), AST.getSourceManager(),
+                                      AST.getASTContext().getLangOpts());
+  auto Result = locateMacroAt(Loc, AST.getPreprocessor());
+  ASSERT_TRUE(Result);
+  EXPECT_THAT(*Result, MacroName("MACRO"));
+}
+
+TEST(SourceCodeTests, IsInsideMainFile){
+  TestTU TU;
+  TU.HeaderCode = R"cpp(
+    #define DEFINE_CLASS(X) class X {};
+    #define DEFINE_YY DEFINE_CLASS(YY)
+
+    class Header1 {};
+    DEFINE_CLASS(Header2)
+    class Header {};
+  )cpp";
+  TU.Code = R"cpp(
+    class Main1 {};
+    DEFINE_CLASS(Main2)
+    DEFINE_YY
+    class Main {};
+  )cpp";
+  TU.ExtraArgs.push_back("-DHeader=Header3");
+  TU.ExtraArgs.push_back("-DMain=Main3");
+  auto AST = TU.build();
+  const auto& SM = AST.getSourceManager();
+  auto DeclLoc = [&AST](llvm::StringRef Name) {
+    return findDecl(AST, Name).getLocation();
+  };
+  for (const auto *HeaderDecl : {"Header1", "Header2", "Header3"})
+    EXPECT_FALSE(isInsideMainFile(DeclLoc(HeaderDecl), SM));
+
+  for (const auto *MainDecl : {"Main1", "Main2", "Main3", "YY"})
+    EXPECT_TRUE(isInsideMainFile(DeclLoc(MainDecl), SM));
+}
+
+// Test for functions toHalfOpenFileRange and getHalfOpenFileRange
+TEST(SourceCodeTests, HalfOpenFileRange) {
+  // Each marked range should be the file range of the decl with the same name
+  // and each name should be unique.
+  Annotations Test(R"cpp(
+    #define FOO(X, Y) int Y = ++X
+    #define BAR(X) X + 1
+    #define ECHO(X) X
+
+    #define BUZZ BAZZ(ADD)
+    #define BAZZ(m) m(1)
+    #define ADD(a) int f = a + 1;
+    template<typename T>
+    class P {};
+
+    int main() {
+      $a[[P<P<P<P<P<int>>>>> a]];
+      $b[[int b = 1]];
+      $c[[FOO(b, c)]]; 
+      $d[[FOO(BAR(BAR(b)), d)]];
+      // FIXME: We might want to select everything inside the outer ECHO.
+      ECHO(ECHO($e[[int) ECHO(e]]));
+      // Shouldn't crash.
+      $f[[BUZZ]];
+    }
+  )cpp");
+
+  ParsedAST AST = TestTU::withCode(Test.code()).build();
+  llvm::errs() << Test.code();
+  const SourceManager &SM = AST.getSourceManager();
+  const LangOptions &LangOpts = AST.getASTContext().getLangOpts();
+  // Turn a SourceLocation into a pair of positions
+  auto SourceRangeToRange = [&SM](SourceRange SrcRange) {
+    return Range{sourceLocToPosition(SM, SrcRange.getBegin()),
+                 sourceLocToPosition(SM, SrcRange.getEnd())};
+  };
+  auto CheckRange = [&](llvm::StringRef Name) {
+    const NamedDecl &Decl = findUnqualifiedDecl(AST, Name);
+    auto FileRange = toHalfOpenFileRange(SM, LangOpts, Decl.getSourceRange());
+    SCOPED_TRACE("Checking range: " + Name);
+    ASSERT_NE(FileRange, llvm::None);
+    Range HalfOpenRange = SourceRangeToRange(*FileRange);
+    EXPECT_EQ(HalfOpenRange, Test.ranges(Name)[0]);
+  };
+
+  CheckRange("a");
+  CheckRange("b");
+  CheckRange("c");
+  CheckRange("d");
+  CheckRange("e");
+  CheckRange("f");
+}
+
+TEST(SourceCodeTests, HalfOpenFileRangePathologicalPreprocessor) {
+  const char *Case = R"cpp(
+#define MACRO while(1)
+    void test() {
+[[#include "Expand.inc"
+        br^eak]];
+    }
+  )cpp";
+  Annotations Test(Case);
+  auto TU = TestTU::withCode(Test.code());
+  TU.AdditionalFiles["Expand.inc"] = "MACRO\n";
+  auto AST = TU.build();
+
+  const auto &Func = cast<FunctionDecl>(findDecl(AST, "test"));
+  const auto &Body = cast<CompoundStmt>(Func.getBody());
+  const auto &Loop = cast<WhileStmt>(*Body->child_begin());
+  llvm::Optional<SourceRange> Range = toHalfOpenFileRange(
+      AST.getSourceManager(), AST.getASTContext().getLangOpts(),
+      Loop->getSourceRange());
+  ASSERT_TRUE(Range) << "Failed to get file range";
+  EXPECT_EQ(AST.getSourceManager().getFileOffset(Range->getBegin()),
+            Test.llvm::Annotations::range().Begin);
+  EXPECT_EQ(AST.getSourceManager().getFileOffset(Range->getEnd()),
+            Test.llvm::Annotations::range().End);
+}
+
+TEST(SourceCodeTests, IncludeHashLoc) {
+  const char *Case = R"cpp(
+$foo^#include "foo.inc"
+#define HEADER "bar.inc"
+  $bar^#  include HEADER
+  )cpp";
+  Annotations Test(Case);
+  auto TU = TestTU::withCode(Test.code());
+  TU.AdditionalFiles["foo.inc"] = "int foo;\n";
+  TU.AdditionalFiles["bar.inc"] = "int bar;\n";
+  auto AST = TU.build();
+  const auto& SM = AST.getSourceManager();
+
+  FileID Foo = SM.getFileID(findDecl(AST, "foo").getLocation());
+  EXPECT_EQ(SM.getFileOffset(includeHashLoc(Foo, SM)),
+            Test.llvm::Annotations::point("foo"));
+  FileID Bar = SM.getFileID(findDecl(AST, "bar").getLocation());
+  EXPECT_EQ(SM.getFileOffset(includeHashLoc(Bar, SM)),
+            Test.llvm::Annotations::point("bar"));
+}
+
+TEST(SourceCodeTests, GetEligiblePoints) {
+  constexpr struct {
+    const char *Code;
+    const char *FullyQualifiedName;
+    const char *EnclosingNamespace;
+  } Cases[] = {
+      {R"cpp(// FIXME: We should also mark positions before and after
+                 //declarations/definitions as eligible.
+              namespace ns1 {
+              namespace a { namespace ns2 {} }
+              namespace ns2 {^
+              void foo();
+              namespace {}
+              void bar() {}
+              namespace ns3 {}
+              class T {};
+              ^}
+              using namespace ns2;
+              })cpp",
+       "ns1::ns2::symbol", "ns1::ns2::"},
+      {R"cpp(
+              namespace ns1 {^
+              namespace a { namespace ns2 {} }
+              namespace b {}
+              namespace ns {}
+              ^})cpp",
+       "ns1::ns2::symbol", "ns1::"},
+      {R"cpp(
+              namespace x {
+              namespace a { namespace ns2 {} }
+              namespace b {}
+              namespace ns {}
+              }^)cpp",
+       "ns1::ns2::symbol", ""},
+      {R"cpp(
+              namespace ns1 {
+              namespace ns2 {^^}
+              namespace b {}
+              namespace ns2 {^^}
+              }
+              namespace ns1 {namespace ns2 {^^}})cpp",
+       "ns1::ns2::symbol", "ns1::ns2::"},
+      {R"cpp(
+              namespace ns1 {^
+              namespace ns {}
+              namespace b {}
+              namespace ns {}
+              ^}
+              namespace ns1 {^namespace ns {}^})cpp",
+       "ns1::ns2::symbol", "ns1::"},
+  };
+  for (auto Case : Cases) {
+    Annotations Test(Case.Code);
+
+    auto Res = getEligiblePoints(Test.code(), Case.FullyQualifiedName,
+                                 format::getLLVMStyle());
+    EXPECT_THAT(Res.EligiblePoints, testing::ElementsAreArray(Test.points()))
+        << Test.code();
+    EXPECT_EQ(Res.EnclosingNamespace, Case.EnclosingNamespace) << Test.code();
+  }
+}
+
+TEST(SourceCodeTests, IdentifierRanges) {
+  Annotations Code(R"cpp(
+   class [[Foo]] {};
+   // Foo
+   /* Foo */
+   void f([[Foo]]* foo1) {
+     [[Foo]] foo2;
+     auto S = [[Foo]]();
+// cross-line identifier is not supported.
+F\
+o\
+o foo2;
+   }
+  )cpp");
+  LangOptions LangOpts;
+  LangOpts.CPlusPlus = true;
+  EXPECT_EQ(Code.ranges(),
+            collectIdentifierRanges("Foo", Code.code(), LangOpts));
 }
 
 } // namespace

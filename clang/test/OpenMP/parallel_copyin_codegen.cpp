@@ -19,6 +19,7 @@
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -std=c++11 -DLAMBDA -triple x86_64-linux -emit-llvm %s -o - | FileCheck -check-prefix=TLS-LAMBDA %s
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -fblocks -DBLOCKS -triple x86_64-linux -emit-llvm %s -o - | FileCheck -check-prefix=TLS-BLOCKS %s
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -std=c++11 -DARRAY -triple x86_64-linux-gnu -emit-llvm %s -o - | FileCheck -check-prefix=TLS-ARRAY %s
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -DNESTED -triple x86_64-linux -emit-llvm %s -o - | FileCheck %s -check-prefix=NESTED
 
 // RUN: %clang_cc1 -verify -fopenmp-simd -x c++ -triple x86_64-linux -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY1 %s
 // RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-linux -emit-pch -o %t %s
@@ -28,7 +29,7 @@
 // RUN: %clang_cc1 -verify -fopenmp-simd -x c++ -std=c++11 -DARRAY -triple x86_64-linux-gnu -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY1 %s
 // SIMD-ONLY1-NOT: {{__kmpc|__tgt}}
 // expected-no-diagnostics
-#ifndef ARRAY
+#if !defined(ARRAY) && !defined(NESTED)
 #ifndef HEADER
 #define HEADER
 
@@ -100,8 +101,7 @@ int main() {
   // LAMBDA: define{{.*}} internal{{.*}} void [[OUTER_LAMBDA]](
   // LAMBDA: call {{.*}}void {{.+}} @__kmpc_fork_call({{.+}}, i32 0, {{.+}}* [[OMP_REGION:@.+]] to {{.+}})
 
-  // TLS-LAMBDA:     [[G_CPY_VAL:%.+]] = call{{( cxx_fast_tlscc)?}} i{{[0-9]+}}* [[G_CTOR:@.+]]()
-  // TLS-LAMBDA:     call {{.*}}void {{.+}} @__kmpc_fork_call({{.+}}, i32 1, {{.+}}* [[OMP_REGION:@.+]] to {{.+}}, i32* [[G_CPY_VAL]])
+  // TLS-LAMBDA:     call {{.*}}void {{.+}} @__kmpc_fork_call({{.+}}, i32 1, {{.+}}* [[OMP_REGION:@.+]] to {{.+}}, i32* @g)
 
 #pragma omp parallel copyin(g)
   {
@@ -119,14 +119,12 @@ int main() {
     // LAMBDA: [[DONE]]
 
     // TLS-LAMBDA-DAG: [[G_CAPTURE_SRC:%.+]] = load i{{[0-9]+}}*, i{{[0-9]+}}** %
-    // TLS-LAMBDA-DAG: [[G_CAPTURE_DST:%.+]] = call{{( cxx_fast_tlscc)?}} i{{[0-9]+}}* [[G_CTOR]]()
     // TLS-LAMBDA-DAG: [[G_CAPTURE_SRCC:%.+]] = ptrtoint i{{[0-9]+}}* [[G_CAPTURE_SRC]] to i{{[0-9]+}}
-    // TLS-LAMBDA-DAG: [[G_CAPTURE_DSTC:%.+]] = ptrtoint i{{[0-9]+}}* [[G_CAPTURE_DST]] to i{{[0-9]+}}
-    // TLS-LAMBDA: icmp ne i{{[0-9]+}} {{%.+}}, {{%.+}}
+    // TLS-LAMBDA: icmp ne i{{[0-9]+}} {{%.+}}, ptrtoint (i{{[0-9]+}}* @g to i{{[0-9]+}})
     // TLS-LAMBDA: br i1 %{{.+}}, label %[[NOT_MASTER:.+]], label %[[DONE:.+]]
     // TLS-LAMBDA: [[NOT_MASTER]]
     // TLS-LAMBDA: load i{{[0-9]+}}, i{{[0-9]+}}* [[G_CAPTURE_SRC]],
-    // TLS-LAMBDA: store volatile i{{[0-9]+}} %{{.+}}, i{{[0-9]+}}* [[G_CAPTURE_DST]], align 128
+    // TLS-LAMBDA: store volatile i{{[0-9]+}} %{{.+}}, i{{[0-9]+}}* @g, align 128
     // TLS-LAMBDA: [[DONE]]
 
     // LAMBDA: call {{.*}}void @__kmpc_barrier(
@@ -135,18 +133,13 @@ int main() {
     // LAMBDA: call{{.*}} void [[INNER_LAMBDA:@.+]](%{{.+}}*
     // TLS-LAMBDA: call{{.*}} void [[INNER_LAMBDA:@.+]](%{{.+}}*
 
-    // TLS-LAMBDA:     define {{.*}}i{{[0-9]+}}* [[G_CTOR]]()
-    // TLS-LAMBDA:     ret i{{[0-9]+}}* [[G]]
-    // TLS-LAMBDA:     }
-
     [&]() {
       // LAMBDA: define {{.+}} void [[INNER_LAMBDA]](%{{.+}}* [[ARG_PTR:%.+]])
       // LAMBDA: store %{{.+}}* [[ARG_PTR]], %{{.+}}** [[ARG_PTR_REF:%.+]],
       g = 2;
       // LAMBDA: [[ARG_PTR:%.+]] = load %{{.+}}*, %{{.+}}** [[ARG_PTR_REF]]
 
-      // TLS-LAMBDA: [[G_CAPTURE_DST:%.+]] = call{{( cxx_fast_tlscc)?}} i{{[0-9]+}}* [[G_CTOR]]()
-      // TLS-LAMBDA: store volatile i{{[0-9]+}} 2, i{{[0-9]+}}* [[G_CAPTURE_DST]], align 128
+      // TLS-LAMBDA: store volatile i{{[0-9]+}} 2, i{{[0-9]+}}* @g, align 128
     }();
   }
   }();
@@ -163,8 +156,7 @@ int main() {
   // BLOCKS: define{{.*}} internal{{.*}} void {{.+}}(i8*
   // BLOCKS: call {{.*}}void {{.+}} @__kmpc_fork_call({{.+}}, i32 0, {{.+}}* [[OMP_REGION:@.+]] to {{.+}})
 
-  // TLS-BLOCKS:     [[G_CPY_VAL:%.+]] = call{{( cxx_fast_tlscc)?}} i{{[0-9]+}}* [[G_CTOR:@.+]]()
-  // TLS-BLOCKS:     call {{.*}}void {{.+}} @__kmpc_fork_call({{.+}}, i32 1, {{.+}}* [[OMP_REGION:@.+]] to {{.+}}, i32* [[G_CPY_VAL]])
+  // TLS-BLOCKS:     call {{.*}}void {{.+}} @__kmpc_fork_call({{.+}}, i32 1, {{.+}}* [[OMP_REGION:@.+]] to {{.+}}, i32* @g)
 
 #pragma omp parallel copyin(g)
   {
@@ -182,14 +174,12 @@ int main() {
     // BLOCKS: [[DONE]]
 
     // TLS-BLOCKS-DAG: [[G_CAPTURE_SRC:%.+]] = load i{{[0-9]+}}*, i{{[0-9]+}}** %
-    // TLS-BLOCKS-DAG: [[G_CAPTURE_DST:%.+]] = call{{( cxx_fast_tlscc)?}} i{{[0-9]+}}* [[G_CTOR]]()
     // TLS-BLOCKS-DAG: [[G_CAPTURE_SRCC:%.+]] = ptrtoint i{{[0-9]+}}* [[G_CAPTURE_SRC]] to i{{[0-9]+}}
-    // TLS-BLOCKS-DAG: [[G_CAPTURE_DSTC:%.+]] = ptrtoint i{{[0-9]+}}* [[G_CAPTURE_DST]] to i{{[0-9]+}}
-    // TLS-BLOCKS: icmp ne i{{[0-9]+}} {{%.+}}, {{%.+}}
+    // TLS-BLOCKS: icmp ne i{{[0-9]+}} {{%.+}}, ptrtoint (i{{[0-9]+}}* @g to i{{[0-9]+}})
     // TLS-BLOCKS: br i1 %{{.+}}, label %[[NOT_MASTER:.+]], label %[[DONE:.+]]
     // TLS-BLOCKS: [[NOT_MASTER]]
     // TLS-BLOCKS: load i{{[0-9]+}}, i{{[0-9]+}}* [[G_CAPTURE_SRC]],
-    // TLS-BLOCKS: store volatile i{{[0-9]+}} %{{.+}}, i{{[0-9]+}}* [[G_CAPTURE_DST]], align 128
+    // TLS-BLOCKS: store volatile i{{[0-9]+}} %{{.+}}, i{{[0-9]+}}* @g, align 128
     // TLS-BLOCKS: [[DONE]]
 
     // BLOCKS: call {{.*}}void @__kmpc_barrier(
@@ -199,14 +189,10 @@ int main() {
     // BLOCKS-NOT: [[G]]{{[[^:word:]]}}
     // BLOCKS: call {{.*}}void {{%.+}}(i8
 
-    // TLS-BLOCKS: [[G_CAPTURE_DST:%.+]] = call{{( cxx_fast_tlscc)?}} i{{[0-9]+}}* [[G_CTOR]]()
-    // TLS-BLOCKS: store volatile i{{[0-9]+}} 1, i{{[0-9]+}}* [[G_CAPTURE_DST]]
+    // TLS-BLOCKS: store volatile i{{[0-9]+}} 1, i{{[0-9]+}}* @g
     // TLS-BLOCKS-NOT: [[G]]{{[[^:word:]]}}
     // TLS-BLOCKS: call {{.*}}void {{%.+}}(i8
 
-    // TLS-BLOCKS:     define {{.*}}i{{[0-9]+}}* [[G_CTOR]]()
-    // TLS-BLOCKS:     ret i{{[0-9]+}}* [[G]]
-    // TLS-BLOCKS:     }
     ^{
       // BLOCKS: define {{.+}} void {{@.+}}(i8*
       // TLS-BLOCKS: define {{.+}} void {{@.+}}(i8*
@@ -218,8 +204,7 @@ int main() {
       // BLOCKS: ret
 
       // TLS-BLOCKS-NOT: [[G]]{{[[^:word:]]}}
-      // TLS-BLOCKS: [[G_CAPTURE_DST:%.+]] = call{{( cxx_fast_tlscc)?}} i{{[0-9]+}}* [[G_CTOR]]()
-      // TLS-BLOCKS: store volatile i{{[0-9]+}} 2, i{{[0-9]+}}* [[G_CAPTURE_DST]]
+      // TLS-BLOCKS: store volatile i{{[0-9]+}} 2, i{{[0-9]+}}* @g
       // TLS-BLOCKS-NOT: [[G]]{{[[^:word:]]}}
       // TLS-BLOCKS: ret
     }();
@@ -239,8 +224,8 @@ int main() {
     vec[0] = t_var;
     s_arr[0] = var;
   }
-#pragma omp parallel copyin(t_var)
-  {}
+#pragma omp parallel copyin(t_var) default(none)
+  ++t_var;
   return tmain<int>();
 #endif
 }
@@ -363,6 +348,7 @@ int main() {
 // TLS-CHECK: [[DONE]]
 
 // CHECK: call {{.*}}void @__kmpc_barrier(%{{.+}}* [[IMPLICIT_BARRIER_LOC]], i32 [[GTID]])
+// CHECK: add nsw i32 %{{.+}}, 1
 // CHECK: ret void
 
 // TLS-CHECK: [[GTID_ADDR:%.+]] = load i32*, i32** [[GTID_ADDR_ADDR]],
@@ -492,7 +478,7 @@ int main() {
 // TLS-CHECK: ret void
 
 #endif
-#else
+#elif defined(ARRAY)
 // ARRAY-LABEL: array_func
 // TLS-ARRAY-LABEL: array_func
 
@@ -521,6 +507,25 @@ void array_func() {
 #pragma omp parallel copyin(a, s)
   ;
 }
-#endif
+#elif defined(NESTED)
+int t_init();
+int t = t_init();
+#pragma omp threadprivate(t)
+// NESTED: foo
+void foo() {
+  // NESTED: call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(%struct.ident_t* @{{.+}}, i32 0, void (i32*, i32*, ...)* bitcast (void (i32*, i32*)* [[OUTLINED:@.+]] to void (i32*, i32*, ...)*))
+#pragma omp parallel
+#pragma omp parallel copyin(t)
+  ++t;
+}
+// NESTED: define {{.*}}void [[OUTLINED]](
+// NESTED: [[T:%.+]] = call i32* [[THRP_T:@.+]]()
+// NESTED:  call void (%struct.ident_t*, i32, void (i32*, i32*, ...)*, ...) @__kmpc_fork_call(%struct.ident_t* @{{.+}}, i32 1, void (i32*, i32*, ...)* bitcast (void (i32*, i32*, i32*)* [[OUTLINED1:@.+]] to void (i32*, i32*, ...)*), i32* [[T]])
 
+// NESTED: define {{.*}}void [[OUTLINED1]](
+// NESTED: [[T_MASTER:%.+]] = load i32*, i32** %
+// NESTED: [[T:%.+]] = call i32* [[THRP_T]]()
+// NESTED: [[T_MASTER_VAL:%.+]] = load i32, i32* [[T_MASTER]],
+// NESTED: store i32 [[T_MASTER_VAL]], i32* [[T]],
+#endif // NESTED
 

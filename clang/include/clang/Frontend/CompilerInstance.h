@@ -124,14 +124,7 @@ class CompilerInstance : public ModuleLoader {
   /// The module provider.
   std::shared_ptr<PCHContainerOperations> ThePCHContainerOperations;
 
-  /// The dependency file generator.
-  std::unique_ptr<DependencyFileGenerator> TheDependencyFileGenerator;
-
   std::vector<std::shared_ptr<DependencyCollector>> DependencyCollectors;
-
-  /// The set of top-level modules that has already been loaded,
-  /// along with the module map
-  llvm::DenseMap<const IdentifierInfo *, Module *> KnownModules;
 
   /// The set of top-level modules that has already been built on the
   /// fly as part of this overall compilation action.
@@ -157,6 +150,12 @@ class CompilerInstance : public ModuleLoader {
 
   /// One or more modules failed to build.
   bool ModuleBuildFailed = false;
+
+  /// The stream for verbose output if owned, otherwise nullptr.
+  std::unique_ptr<raw_ostream> OwnedVerboseOutputStream;
+
+  /// The stream for verbose output.
+  raw_ostream *VerboseOutputStream = &llvm::errs();
 
   /// Holds information about the output file.
   ///
@@ -219,9 +218,6 @@ public:
   ///
   /// \param Act - The action to execute.
   /// \return - True on success.
-  //
-  // FIXME: This function should take the stream to write any debugging /
-  // verbose output to as an argument.
   //
   // FIXME: Eliminate the llvm_shutdown requirement, that should either be part
   // of the context or else not CompilerInstance specific.
@@ -350,6 +346,21 @@ public:
     assert(Diagnostics && Diagnostics->getClient() &&
            "Compiler instance has no diagnostic client!");
     return *Diagnostics->getClient();
+  }
+
+  /// }
+  /// @name VerboseOutputStream
+  /// }
+
+  /// Replace the current stream for verbose output.
+  void setVerboseOutputStream(raw_ostream &Value);
+
+  /// Replace the current stream for verbose output.
+  void setVerboseOutputStream(std::unique_ptr<raw_ostream> Value);
+
+  /// Get the current stream for verbose output.
+  raw_ostream &getVerboseOutputStream() {
+    return *VerboseOutputStream;
   }
 
   /// }
@@ -661,7 +672,6 @@ public:
       InMemoryModuleCache &ModuleCache, ASTContext &Context,
       const PCHContainerReader &PCHContainerRdr,
       ArrayRef<std::shared_ptr<ModuleFileExtension>> Extensions,
-      DependencyFileGenerator *DependencyFile,
       ArrayRef<std::shared_ptr<DependencyCollector>> DependencyCollectors,
       void *DeserializationListener, bool OwnDeserializationListener,
       bool Preamble, bool UseGlobalModuleIndex);

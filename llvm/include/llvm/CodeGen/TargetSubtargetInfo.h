@@ -106,11 +106,9 @@ public:
   // us do things like a dedicated avx512 selector).  However, we might want
   // to also specialize selectors by MachineFunction, which would let us be
   // aware of optsize/optnone and such.
-  virtual const InstructionSelector *getInstructionSelector() const {
+  virtual InstructionSelector *getInstructionSelector() const {
     return nullptr;
   }
-
-  virtual unsigned getHwMode() const { return 0; }
 
   /// Target can subclass this hook to select a different DAG scheduler.
   virtual RegisterScheduler::FunctionPassCtor
@@ -193,6 +191,9 @@ public:
   /// for preRA scheduling with the source level scheduler.
   virtual bool enableMachineSchedDefaultSched() const { return true; }
 
+  /// True if the subtarget should run MachinePipeliner
+  virtual bool enableMachinePipeliner() const { return true; };
+
   /// True if the subtarget should enable joining global copies.
   ///
   /// By default this is enabled if the machine scheduler is enabled, but
@@ -204,6 +205,10 @@ public:
   /// By default this queries the PostRAScheduling bit in the scheduling model
   /// which is the preferred way to influence this.
   virtual bool enablePostRAScheduler() const;
+
+  /// True if the subtarget should run a machine scheduler after register
+  /// allocation.
+  virtual bool enablePostRAMachineScheduler() const;
 
   /// True if the subtarget should run the atomic expansion pass.
   virtual bool enableAtomicExpand() const;
@@ -271,6 +276,12 @@ public:
   /// scheduling, DAGCombine, etc.).
   virtual bool useAA() const;
 
+  /// \brief Sink addresses into blocks using GEP instructions rather than
+  /// pointer casts and arithmetic.
+  virtual bool addrSinkUsingGEPs() const {
+    return useAA();
+  }
+
   /// Enable the use of the early if conversion pass.
   virtual bool enableEarlyIfConversion() const { return false; }
 
@@ -288,6 +299,14 @@ public:
 
   /// This is called after a .mir file was loaded.
   virtual void mirFileLoaded(MachineFunction &MF) const;
+
+  /// True if the register allocator should use the allocation orders exactly as
+  /// written in the tablegen descriptions, false if it should allocate
+  /// the specified physical register later if is it callee-saved.
+  virtual bool ignoreCSRForAllocationOrder(const MachineFunction &MF,
+                                           unsigned PhysReg) const {
+    return false;
+  }
 };
 
 } // end namespace llvm

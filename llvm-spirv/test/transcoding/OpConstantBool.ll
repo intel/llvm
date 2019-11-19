@@ -5,9 +5,13 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; CHECK-LLVM-LABEL: @f
 ; CHECK-LLVM: ret i1 true
+; CHECK-LLVM-LABEL: @f2
+; CHECK-LLVM: ret i1 false
 
 ; CHECK-SPIRV: 3 ConstantTrue
+; CHECK-SPIRV: 3 ConstantFalse
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"
@@ -16,6 +20,12 @@ target triple = "spir-unknown-unknown"
 define spir_func zeroext i1 @f() #0 {
 entry:
   ret i1 true
+}
+
+; Function Attrs: nounwind
+define spir_func zeroext i1 @f2() #0 {
+entry:
+  ret i1 false
 }
 
 ; Function Attrs: nounwind

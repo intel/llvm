@@ -487,6 +487,7 @@ enum PlatformType {
   PLATFORM_TVOS = 3,
   PLATFORM_WATCHOS = 4,
   PLATFORM_BRIDGEOS = 5,
+  PLATFORM_MACCATALYST = 6,
   PLATFORM_IOSSIMULATOR = 7,
   PLATFORM_TVOSSIMULATOR = 8,
   PLATFORM_WATCHOSSIMULATOR = 9
@@ -579,6 +580,11 @@ struct section_64 {
   uint32_t reserved2;
   uint32_t reserved3;
 };
+
+inline bool isVirtualSection(uint8_t type) {
+  return (type == MachO::S_ZEROFILL || type == MachO::S_GB_ZEROFILL ||
+          type == MachO::S_THREAD_LOCAL_ZEROFILL);
+}
 
 struct fvmlib {
   uint32_t name;

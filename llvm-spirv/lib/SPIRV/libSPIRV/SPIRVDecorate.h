@@ -61,6 +61,7 @@ public:
   SPIRVDecorateGeneric(Op OC);
 
   SPIRVWord getLiteral(size_t) const;
+  std::vector<SPIRVWord> getVecLiteral() const;
   Decoration getDecorateKind() const;
   size_t getLiteralCount() const;
   /// Compare for kind and literal only.
@@ -84,15 +85,15 @@ public:
     switch (Dec) {
     case DecorationSpecId:
       if (getModule()->hasCapability(CapabilityKernel))
-        return SPIRV_1_1;
+        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
       else
-        return SPIRV_1_0;
+        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
 
     case DecorationMaxByteOffset:
-      return SPIRV_1_1;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
 
     default:
-      return SPIRV_1_0;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
     }
   }
 
@@ -140,7 +141,20 @@ public:
     switch (Dec) {
     case DecorationNoSignedWrap:
     case DecorationNoUnsignedWrap:
-      return getSet(SPV_KHR_no_integer_wrap_decoration);
+      return getSet(ExtensionID::SPV_KHR_no_integer_wrap_decoration);
+    case DecorationRegisterINTEL:
+    case DecorationMemoryINTEL:
+    case DecorationNumbanksINTEL:
+    case DecorationBankwidthINTEL:
+    case DecorationMaxPrivateCopiesINTEL:
+    case DecorationSinglepumpINTEL:
+    case DecorationDoublepumpINTEL:
+    case DecorationMaxReplicatesINTEL:
+    case DecorationSimpleDualPortINTEL:
+    case DecorationMergeINTEL:
+      return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
+    case DecorationReferencedIndirectlyINTEL:
+      return getSet(ExtensionID::SPV_INTEL_function_pointers);
     default:
       return SPIRVExtSet();
     }
@@ -221,6 +235,24 @@ public:
   // Incomplete constructor
   SPIRVMemberDecorate()
       : SPIRVDecorateGeneric(OC), MemberNumber(SPIRVWORD_MAX) {}
+
+  SPIRVExtSet getRequiredExtensions() const override {
+    switch (Dec) {
+    case DecorationRegisterINTEL:
+    case DecorationMemoryINTEL:
+    case DecorationNumbanksINTEL:
+    case DecorationBankwidthINTEL:
+    case DecorationMaxPrivateCopiesINTEL:
+    case DecorationSinglepumpINTEL:
+    case DecorationDoublepumpINTEL:
+    case DecorationMaxReplicatesINTEL:
+    case DecorationSimpleDualPortINTEL:
+    case DecorationMergeINTEL:
+      return getSet(ExtensionID::SPV_INTEL_fpga_memory_attributes);
+    default:
+      return SPIRVExtSet();
+    }
+  }
 
   SPIRVWord getMemberNumber() const { return MemberNumber; }
   std::pair<SPIRVWord, Decoration> getPair() const {
@@ -373,6 +405,49 @@ public:
       : SPIRVDecorateStrAttrBase(TheTarget, AnnotateString) {}
 };
 
+class SPIRVDecorateMergeINTELAttr : public SPIRVDecorate {
+public:
+  // Complete constructor for MergeINTEL decoration
+  SPIRVDecorateMergeINTELAttr(SPIRVEntry *TheTarget, const std::string &Name,
+                              const std::string &Direction)
+      : SPIRVDecorate(DecorationMergeINTEL, TheTarget) {
+    for (auto &I : getVec(Name))
+      Literals.push_back(I);
+    for (auto &I : getVec(Direction))
+      Literals.push_back(I);
+    WordCount += Literals.size();
+  }
+
+  static void encodeLiterals(SPIRVEncoder &Encoder,
+                             const std::vector<SPIRVWord> &Literals) {
+#ifdef _SPIRV_SUPPORT_TEXT_FMT
+    if (SPIRVUseTextFormat) {
+      std::string FirstString = getString(Literals.cbegin(), Literals.cend());
+      Encoder << FirstString;
+      Encoder.OS << " ";
+      Encoder << getString(Literals.cbegin() + getVec(FirstString).size(),
+                           Literals.cend());
+    } else
+#endif
+      Encoder << Literals;
+  }
+
+  static void decodeLiterals(SPIRVDecoder &Decoder,
+                             std::vector<SPIRVWord> &Literals) {
+#ifdef _SPIRV_SUPPORT_TEXT_FMT
+    if (SPIRVUseTextFormat) {
+      std::string Name;
+      Decoder >> Name;
+      std::string Direction;
+      Decoder >> Direction;
+      std::string Buf = Name + ':' + Direction;
+      std::copy_n(getVec(Buf).begin(), Literals.size(), Literals.begin());
+    } else
+#endif
+      Decoder >> Literals;
+  }
+};
+
 template <Decoration D>
 class SPIRVMemberDecorateStrAttrBase : public SPIRVMemberDecorate {
 public:
@@ -407,6 +482,22 @@ public:
                                       const std::string &AnnotateString)
       : SPIRVMemberDecorateStrAttrBase(TheTarget, MemberNumber,
                                        AnnotateString) {}
+};
+
+class SPIRVMemberDecorateMergeINTELAttr : public SPIRVMemberDecorate {
+public:
+  // Complete constructor for MergeINTEL decoration
+  SPIRVMemberDecorateMergeINTELAttr(SPIRVEntry *TheTarget,
+                                    SPIRVWord MemberNumber,
+                                    const std::string &Name,
+                                    const std::string &Direction)
+      : SPIRVMemberDecorate(DecorationMergeINTEL, MemberNumber, TheTarget) {
+    for (auto &I : getVec(Name))
+      Literals.push_back(I);
+    for (auto &I : getVec(Direction))
+      Literals.push_back(I);
+    WordCount += Literals.size();
+  }
 };
 
 } // namespace SPIRV

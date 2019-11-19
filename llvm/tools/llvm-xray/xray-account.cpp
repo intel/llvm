@@ -421,15 +421,13 @@ static CommandRegistration Unused(&Account, []() -> Error {
   }
 
   std::error_code EC;
-  raw_fd_ostream OS(AccountOutput, EC, sys::fs::OpenFlags::F_Text);
+  raw_fd_ostream OS(AccountOutput, EC, sys::fs::OpenFlags::OF_Text);
   if (EC)
     return make_error<StringError>(
         Twine("Cannot open file '") + AccountOutput + "' for writing.", EC);
 
   const auto &FunctionAddresses = Map.getFunctionAddresses();
-  symbolize::LLVMSymbolizer::Options Opts(
-      symbolize::FunctionNameKind::LinkageName, true, true, false, "");
-  symbolize::LLVMSymbolizer Symbolizer(Opts);
+  symbolize::LLVMSymbolizer Symbolizer;
   llvm::xray::FuncIdConversionHelper FuncIdHelper(AccountInstrMap, Symbolizer,
                                                   FunctionAddresses);
   xray::LatencyAccountant FCA(FuncIdHelper, AccountDeduceSiblingCalls);

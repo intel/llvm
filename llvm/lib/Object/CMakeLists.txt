@@ -21,7 +21,10 @@ add_llvm_library(LLVMObject
   RelocationResolver.cpp
   SymbolicFile.cpp
   SymbolSize.cpp
+  TapiFile.cpp
+  TapiUniversal.cpp
   WasmObjectFile.cpp
+  WindowsMachineFlag.cpp
   WindowsResource.cpp
   XCOFFObjectFile.cpp
 

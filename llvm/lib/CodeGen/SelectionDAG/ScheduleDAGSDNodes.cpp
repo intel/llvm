@@ -115,7 +115,7 @@ static void CheckForPhysRegDependency(SDNode *Def, SDNode *User, unsigned Op,
     return;
 
   unsigned Reg = cast<RegisterSDNode>(User->getOperand(1))->getReg();
-  if (TargetRegisterInfo::isVirtualRegister(Reg))
+  if (Register::isVirtualRegister(Reg))
     return;
 
   unsigned ResNo = User->getOperand(2).getResNo();
@@ -528,7 +528,7 @@ void ScheduleDAGSDNodes::AddSchedEdges() {
 /// are input.  This SUnit graph is similar to the SelectionDAG, but
 /// excludes nodes that aren't interesting to scheduling, and represents
 /// glued together nodes with a single SUnit.
-void ScheduleDAGSDNodes::BuildSchedGraph(AliasAnalysis *AA) {
+void ScheduleDAGSDNodes::BuildSchedGraph(AAResults *AA) {
   // Cluster certain nodes which should be scheduled together.
   ClusterNodes();
   // Populate the SUnits array.
@@ -656,7 +656,7 @@ void ScheduleDAGSDNodes::computeOperandLatency(SDNode *Def, SDNode *Use,
   if (Latency > 1 && Use->getOpcode() == ISD::CopyToReg &&
       !BB->succ_empty()) {
     unsigned Reg = cast<RegisterSDNode>(Use->getOperand(1))->getReg();
-    if (TargetRegisterInfo::isVirtualRegister(Reg))
+    if (Register::isVirtualRegister(Reg))
       // This copy is a liveout value. It is likely coalesced, so reduce the
       // latency so not to penalize the def.
       // FIXME: need target specific adjustment here?
@@ -808,7 +808,7 @@ EmitPhysRegCopy(SUnit *SU, DenseMap<SUnit*, unsigned> &VRBaseMap,
     } else {
       // Copy from physical register.
       assert(I->getReg() && "Unknown physical register!");
-      unsigned VRBase = MRI.createVirtualRegister(SU->CopyDstRC);
+      Register VRBase = MRI.createVirtualRegister(SU->CopyDstRC);
       bool isNew = VRBaseMap.insert(std::make_pair(SU, VRBase)).second;
       (void)isNew; // Silence compiler warning.
       assert(isNew && "Node emitted out of order - early");
@@ -853,14 +853,20 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     if (Before == After)
       return nullptr;
 
+    MachineInstr *MI;
     if (Before == BB->end()) {
       // There were no prior instructions; the new ones must start at the
       // beginning of the block.
-      return &Emitter.getBlock()->instr_front();
+      MI = &Emitter.getBlock()->instr_front();
     } else {
       // Return first instruction after the pre-existing instructions.
-      return &*std::next(Before);
+      MI = &*std::next(Before);
     }
+
+    if (MI->isCall() && DAG->getTarget().Options.EnableDebugEntryValues)
+      MF.addCallArgsForwardingRegs(MI, DAG->getSDCallSiteInfo(Node));
+
+    return MI;
   };
 
   // If this is the first BB, emit byval parameter dbg_value's.
@@ -903,6 +909,11 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
       // Remember the source order of the inserted instruction.
       if (HasDbg)
         ProcessSourceNode(N, DAG, Emitter, VRBaseMap, Orders, Seen, NewInsn);
+
+      if (MDNode *MD = DAG->getHeapAllocSite(N))
+        if (NewInsn && NewInsn->isCall())
+          NewInsn->setHeapAllocMarker(MF, MD);
+
       GluedNodes.pop_back();
     }
     auto NewInsn =
@@ -911,6 +922,11 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     if (HasDbg)
       ProcessSourceNode(SU->getNode(), DAG, Emitter, VRBaseMap, Orders, Seen,
                         NewInsn);
+
+    if (MDNode *MD = DAG->getHeapAllocSite(SU->getNode())) {
+      if (NewInsn && NewInsn->isCall())
+        NewInsn->setHeapAllocMarker(MF, MD);
+    }
   }
 
   // Insert all the dbg_values which have not already been inserted in source

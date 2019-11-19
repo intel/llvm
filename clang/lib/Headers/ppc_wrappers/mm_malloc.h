@@ -10,6 +10,8 @@
 #ifndef _MM_MALLOC_H_INCLUDED
 #define _MM_MALLOC_H_INCLUDED
 
+#if defined(__linux__) && defined(__ppc64__)
+
 #include <stdlib.h>
 
 /* We can't depend on <stdlib.h> since the prototype of posix_memalign
@@ -25,12 +27,8 @@ _mm_malloc (size_t size, size_t alignment)
 {
   /* PowerPC64 ELF V2 ABI requires quadword alignment.  */
   size_t vec_align = sizeof (__vector float);
-  /* Linux GLIBC malloc alignment is at least 2 X ptr size.  */
-  size_t malloc_align = (sizeof (void *) + sizeof (void *));
   void *ptr;
 
-  if (alignment == malloc_align && alignment == vec_align)
-    return malloc (size);
   if (alignment < vec_align)
     alignment = vec_align;
   if (posix_memalign (&ptr, alignment, size) == 0)
@@ -44,5 +42,9 @@ _mm_free (void * ptr)
 {
   free (ptr);
 }
+
+#else
+#include_next <mm_malloc.h>
+#endif
 
 #endif /* _MM_MALLOC_H_INCLUDED */

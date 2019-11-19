@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 //
 // This pass lowers all occurrences of i1 values (with a vreg_1 register class)
-// to lane masks (64-bit scalar registers). The pass assumes machine SSA form
-// and a wave-level control flow graph.
+// to lane masks (32 / 64-bit scalar registers). The pass assumes machine SSA
+// form and a wave-level control flow graph.
 //
 // Before this pass, values that are semantically i1 and are defined and used
 // within the same basic block are already represented as lane masks in scalar
@@ -50,12 +50,21 @@ public:
   static char ID;
 
 private:
+  bool IsWave32 = false;
   MachineFunction *MF = nullptr;
   MachineDominatorTree *DT = nullptr;
   MachinePostDominatorTree *PDT = nullptr;
   MachineRegisterInfo *MRI = nullptr;
   const GCNSubtarget *ST = nullptr;
   const SIInstrInfo *TII = nullptr;
+
+  unsigned ExecReg;
+  unsigned MovOp;
+  unsigned AndOp;
+  unsigned OrOp;
+  unsigned XorOp;
+  unsigned AndN2Op;
+  unsigned OrN2Op;
 
   DenseSet<unsigned> ConstrainRegs;
 
@@ -85,6 +94,11 @@ private:
                            unsigned DstReg, unsigned PrevReg, unsigned CurReg);
   MachineBasicBlock::iterator
   getSaluInsertionAtEnd(MachineBasicBlock &MBB) const;
+
+  bool isVreg1(unsigned Reg) const {
+    return Register::isVirtualRegister(Reg) &&
+           MRI->getRegClass(Reg) == &AMDGPU::VReg_1RegClass;
+  }
 
   bool isLaneMaskReg(unsigned Reg) const {
     return TII->getRegisterInfo().isSGPRReg(*MRI, Reg) &&
@@ -411,8 +425,10 @@ FunctionPass *llvm::createSILowerI1CopiesPass() {
 }
 
 static unsigned createLaneMaskReg(MachineFunction &MF) {
+  const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-  return MRI.createVirtualRegister(&AMDGPU::SReg_64RegClass);
+  return MRI.createVirtualRegister(ST.isWave32() ? &AMDGPU::SReg_32RegClass
+                                                 : &AMDGPU::SReg_64RegClass);
 }
 
 static unsigned insertUndefLaneMask(MachineBasicBlock &MBB) {
@@ -442,17 +458,45 @@ bool SILowerI1Copies::runOnMachineFunction(MachineFunction &TheMF) {
 
   ST = &MF->getSubtarget<GCNSubtarget>();
   TII = ST->getInstrInfo();
+  IsWave32 = ST->isWave32();
+
+  if (IsWave32) {
+    ExecReg = AMDGPU::EXEC_LO;
+    MovOp = AMDGPU::S_MOV_B32;
+    AndOp = AMDGPU::S_AND_B32;
+    OrOp = AMDGPU::S_OR_B32;
+    XorOp = AMDGPU::S_XOR_B32;
+    AndN2Op = AMDGPU::S_ANDN2_B32;
+    OrN2Op = AMDGPU::S_ORN2_B32;
+  } else {
+    ExecReg = AMDGPU::EXEC;
+    MovOp = AMDGPU::S_MOV_B64;
+    AndOp = AMDGPU::S_AND_B64;
+    OrOp = AMDGPU::S_OR_B64;
+    XorOp = AMDGPU::S_XOR_B64;
+    AndN2Op = AMDGPU::S_ANDN2_B64;
+    OrN2Op = AMDGPU::S_ORN2_B64;
+  }
 
   lowerCopiesFromI1();
   lowerPhis();
   lowerCopiesToI1();
 
   for (unsigned Reg : ConstrainRegs)
-    MRI->constrainRegClass(Reg, &AMDGPU::SReg_64_XEXECRegClass);
+    MRI->constrainRegClass(Reg, &AMDGPU::SReg_1_XEXECRegClass);
   ConstrainRegs.clear();
 
   return true;
 }
+
+#ifndef NDEBUG
+static bool isVRegCompatibleReg(const SIRegisterInfo &TRI,
+                                const MachineRegisterInfo &MRI,
+                                Register Reg) {
+  unsigned Size = TRI.getRegSizeInBits(Reg, MRI);
+  return Size == 1 || Size == 32;
+}
+#endif
 
 void SILowerI1Copies::lowerCopiesFromI1() {
   SmallVector<MachineInstr *, 4> DeadCopies;
@@ -462,22 +506,19 @@ void SILowerI1Copies::lowerCopiesFromI1() {
       if (MI.getOpcode() != AMDGPU::COPY)
         continue;
 
-      unsigned DstReg = MI.getOperand(0).getReg();
-      unsigned SrcReg = MI.getOperand(1).getReg();
-      if (!TargetRegisterInfo::isVirtualRegister(SrcReg) ||
-          MRI->getRegClass(SrcReg) != &AMDGPU::VReg_1RegClass)
+      Register DstReg = MI.getOperand(0).getReg();
+      Register SrcReg = MI.getOperand(1).getReg();
+      if (!isVreg1(SrcReg))
         continue;
 
-      if (isLaneMaskReg(DstReg) ||
-          (TargetRegisterInfo::isVirtualRegister(DstReg) &&
-           MRI->getRegClass(DstReg) == &AMDGPU::VReg_1RegClass))
+      if (isLaneMaskReg(DstReg) || isVreg1(DstReg))
         continue;
 
       // Copy into a 32-bit vector register.
       LLVM_DEBUG(dbgs() << "Lower copy from i1: " << MI);
       DebugLoc DL = MI.getDebugLoc();
 
-      assert(TII->getRegisterInfo().getRegSizeInBits(DstReg, *MRI) == 32);
+      assert(isVRegCompatibleReg(TII->getRegisterInfo(), *MRI, DstReg));
       assert(!MI.getOperand(0).getSubReg());
 
       ConstrainRegs.insert(SrcReg);
@@ -500,7 +541,7 @@ void SILowerI1Copies::lowerPhis() {
   MachineSSAUpdater SSAUpdater(*MF);
   LoopFinder LF(*DT, *PDT);
   PhiIncomingAnalysis PIA(*PDT);
-  SmallVector<MachineInstr *, 4> DeadPhis;
+  SmallVector<MachineInstr *, 4> Vreg1Phis;
   SmallVector<MachineBasicBlock *, 4> IncomingBlocks;
   SmallVector<unsigned, 4> IncomingRegs;
   SmallVector<unsigned, 4> IncomingUpdated;
@@ -509,117 +550,117 @@ void SILowerI1Copies::lowerPhis() {
 #endif
 
   for (MachineBasicBlock &MBB : *MF) {
-    LF.initialize(MBB);
-
     for (MachineInstr &MI : MBB.phis()) {
-      unsigned DstReg = MI.getOperand(0).getReg();
-      if (MRI->getRegClass(DstReg) != &AMDGPU::VReg_1RegClass)
-        continue;
+      if (isVreg1(MI.getOperand(0).getReg()))
+        Vreg1Phis.push_back(&MI);
+    }
+  }
 
-      LLVM_DEBUG(dbgs() << "Lower PHI: " << MI);
-
-      MRI->setRegClass(DstReg, &AMDGPU::SReg_64RegClass);
-
-      // Collect incoming values.
-      for (unsigned i = 1; i < MI.getNumOperands(); i += 2) {
-        assert(i + 1 < MI.getNumOperands());
-        unsigned IncomingReg = MI.getOperand(i).getReg();
-        MachineBasicBlock *IncomingMBB = MI.getOperand(i + 1).getMBB();
-        MachineInstr *IncomingDef = MRI->getUniqueVRegDef(IncomingReg);
-
-        if (IncomingDef->getOpcode() == AMDGPU::COPY) {
-          IncomingReg = IncomingDef->getOperand(1).getReg();
-          assert(isLaneMaskReg(IncomingReg));
-          assert(!IncomingDef->getOperand(1).getSubReg());
-        } else if (IncomingDef->getOpcode() == AMDGPU::IMPLICIT_DEF) {
-          continue;
-        } else {
-          assert(IncomingDef->isPHI() || PhiRegisters.count(IncomingReg));
-        }
-
-        IncomingBlocks.push_back(IncomingMBB);
-        IncomingRegs.push_back(IncomingReg);
-      }
-
-#ifndef NDEBUG
-      PhiRegisters.insert(DstReg);
-#endif
-
-      // Phis in a loop that are observed outside the loop receive a simple but
-      // conservatively correct treatment.
-      MachineBasicBlock *PostDomBound = &MBB;
-      for (MachineInstr &Use : MRI->use_instructions(DstReg)) {
-        PostDomBound =
-            PDT->findNearestCommonDominator(PostDomBound, Use.getParent());
-      }
-
-      unsigned FoundLoopLevel = LF.findLoop(PostDomBound);
-
-      SSAUpdater.Initialize(DstReg);
-
-      if (FoundLoopLevel) {
-        LF.addLoopEntries(FoundLoopLevel, SSAUpdater, IncomingBlocks);
-
-        for (unsigned i = 0; i < IncomingRegs.size(); ++i) {
-          IncomingUpdated.push_back(createLaneMaskReg(*MF));
-          SSAUpdater.AddAvailableValue(IncomingBlocks[i],
-                                       IncomingUpdated.back());
-        }
-
-        for (unsigned i = 0; i < IncomingRegs.size(); ++i) {
-          MachineBasicBlock &IMBB = *IncomingBlocks[i];
-          buildMergeLaneMasks(
-              IMBB, getSaluInsertionAtEnd(IMBB), {}, IncomingUpdated[i],
-              SSAUpdater.GetValueInMiddleOfBlock(&IMBB), IncomingRegs[i]);
-        }
-      } else {
-        // The phi is not observed from outside a loop. Use a more accurate
-        // lowering.
-        PIA.analyze(MBB, IncomingBlocks);
-
-        for (MachineBasicBlock *MBB : PIA.predecessors())
-          SSAUpdater.AddAvailableValue(MBB, insertUndefLaneMask(*MBB));
-
-        for (unsigned i = 0; i < IncomingRegs.size(); ++i) {
-          MachineBasicBlock &IMBB = *IncomingBlocks[i];
-          if (PIA.isSource(IMBB)) {
-            IncomingUpdated.push_back(0);
-            SSAUpdater.AddAvailableValue(&IMBB, IncomingRegs[i]);
-          } else {
-            IncomingUpdated.push_back(createLaneMaskReg(*MF));
-            SSAUpdater.AddAvailableValue(&IMBB, IncomingUpdated.back());
-          }
-        }
-
-        for (unsigned i = 0; i < IncomingRegs.size(); ++i) {
-          if (!IncomingUpdated[i])
-            continue;
-
-          MachineBasicBlock &IMBB = *IncomingBlocks[i];
-          buildMergeLaneMasks(
-              IMBB, getSaluInsertionAtEnd(IMBB), {}, IncomingUpdated[i],
-              SSAUpdater.GetValueInMiddleOfBlock(&IMBB), IncomingRegs[i]);
-        }
-      }
-
-      unsigned NewReg = SSAUpdater.GetValueInMiddleOfBlock(&MBB);
-      if (NewReg != DstReg) {
-        MRI->replaceRegWith(NewReg, DstReg);
-
-        // Ensure that DstReg has a single def and mark the old PHI node for
-        // deletion.
-        MI.getOperand(0).setReg(NewReg);
-        DeadPhis.push_back(&MI);
-      }
-
-      IncomingBlocks.clear();
-      IncomingRegs.clear();
-      IncomingUpdated.clear();
+  MachineBasicBlock *PrevMBB = nullptr;
+  for (MachineInstr *MI : Vreg1Phis) {
+    MachineBasicBlock &MBB = *MI->getParent();
+    if (&MBB != PrevMBB) {
+      LF.initialize(MBB);
+      PrevMBB = &MBB;
     }
 
-    for (MachineInstr *MI : DeadPhis)
+    LLVM_DEBUG(dbgs() << "Lower PHI: " << *MI);
+
+    Register DstReg = MI->getOperand(0).getReg();
+    MRI->setRegClass(DstReg, IsWave32 ? &AMDGPU::SReg_32RegClass
+                                      : &AMDGPU::SReg_64RegClass);
+
+    // Collect incoming values.
+    for (unsigned i = 1; i < MI->getNumOperands(); i += 2) {
+      assert(i + 1 < MI->getNumOperands());
+      Register IncomingReg = MI->getOperand(i).getReg();
+      MachineBasicBlock *IncomingMBB = MI->getOperand(i + 1).getMBB();
+      MachineInstr *IncomingDef = MRI->getUniqueVRegDef(IncomingReg);
+
+      if (IncomingDef->getOpcode() == AMDGPU::COPY) {
+        IncomingReg = IncomingDef->getOperand(1).getReg();
+        assert(isLaneMaskReg(IncomingReg) || isVreg1(IncomingReg));
+        assert(!IncomingDef->getOperand(1).getSubReg());
+      } else if (IncomingDef->getOpcode() == AMDGPU::IMPLICIT_DEF) {
+        continue;
+      } else {
+        assert(IncomingDef->isPHI() || PhiRegisters.count(IncomingReg));
+      }
+
+      IncomingBlocks.push_back(IncomingMBB);
+      IncomingRegs.push_back(IncomingReg);
+    }
+
+#ifndef NDEBUG
+    PhiRegisters.insert(DstReg);
+#endif
+
+    // Phis in a loop that are observed outside the loop receive a simple but
+    // conservatively correct treatment.
+    std::vector<MachineBasicBlock *> DomBlocks = {&MBB};
+    for (MachineInstr &Use : MRI->use_instructions(DstReg))
+      DomBlocks.push_back(Use.getParent());
+
+    MachineBasicBlock *PostDomBound =
+        PDT->findNearestCommonDominator(DomBlocks);
+    unsigned FoundLoopLevel = LF.findLoop(PostDomBound);
+
+    SSAUpdater.Initialize(DstReg);
+
+    if (FoundLoopLevel) {
+      LF.addLoopEntries(FoundLoopLevel, SSAUpdater, IncomingBlocks);
+
+      for (unsigned i = 0; i < IncomingRegs.size(); ++i) {
+        IncomingUpdated.push_back(createLaneMaskReg(*MF));
+        SSAUpdater.AddAvailableValue(IncomingBlocks[i],
+                                     IncomingUpdated.back());
+      }
+
+      for (unsigned i = 0; i < IncomingRegs.size(); ++i) {
+        MachineBasicBlock &IMBB = *IncomingBlocks[i];
+        buildMergeLaneMasks(
+            IMBB, getSaluInsertionAtEnd(IMBB), {}, IncomingUpdated[i],
+            SSAUpdater.GetValueInMiddleOfBlock(&IMBB), IncomingRegs[i]);
+      }
+    } else {
+      // The phi is not observed from outside a loop. Use a more accurate
+      // lowering.
+      PIA.analyze(MBB, IncomingBlocks);
+
+      for (MachineBasicBlock *MBB : PIA.predecessors())
+        SSAUpdater.AddAvailableValue(MBB, insertUndefLaneMask(*MBB));
+
+      for (unsigned i = 0; i < IncomingRegs.size(); ++i) {
+        MachineBasicBlock &IMBB = *IncomingBlocks[i];
+        if (PIA.isSource(IMBB)) {
+          IncomingUpdated.push_back(0);
+          SSAUpdater.AddAvailableValue(&IMBB, IncomingRegs[i]);
+        } else {
+          IncomingUpdated.push_back(createLaneMaskReg(*MF));
+          SSAUpdater.AddAvailableValue(&IMBB, IncomingUpdated.back());
+        }
+      }
+
+      for (unsigned i = 0; i < IncomingRegs.size(); ++i) {
+        if (!IncomingUpdated[i])
+          continue;
+
+        MachineBasicBlock &IMBB = *IncomingBlocks[i];
+        buildMergeLaneMasks(
+            IMBB, getSaluInsertionAtEnd(IMBB), {}, IncomingUpdated[i],
+            SSAUpdater.GetValueInMiddleOfBlock(&IMBB), IncomingRegs[i]);
+      }
+    }
+
+    unsigned NewReg = SSAUpdater.GetValueInMiddleOfBlock(&MBB);
+    if (NewReg != DstReg) {
+      MRI->replaceRegWith(NewReg, DstReg);
       MI->eraseFromParent();
-    DeadPhis.clear();
+    }
+
+    IncomingBlocks.clear();
+    IncomingRegs.clear();
+    IncomingUpdated.clear();
   }
 }
 
@@ -636,9 +677,8 @@ void SILowerI1Copies::lowerCopiesToI1() {
           MI.getOpcode() != AMDGPU::COPY)
         continue;
 
-      unsigned DstReg = MI.getOperand(0).getReg();
-      if (!TargetRegisterInfo::isVirtualRegister(DstReg) ||
-          MRI->getRegClass(DstReg) != &AMDGPU::VReg_1RegClass)
+      Register DstReg = MI.getOperand(0).getReg();
+      if (!isVreg1(DstReg))
         continue;
 
       if (MRI->use_empty(DstReg)) {
@@ -648,16 +688,17 @@ void SILowerI1Copies::lowerCopiesToI1() {
 
       LLVM_DEBUG(dbgs() << "Lower Other: " << MI);
 
-      MRI->setRegClass(DstReg, &AMDGPU::SReg_64RegClass);
+      MRI->setRegClass(DstReg, IsWave32 ? &AMDGPU::SReg_32RegClass
+                                        : &AMDGPU::SReg_64RegClass);
       if (MI.getOpcode() == AMDGPU::IMPLICIT_DEF)
         continue;
 
       DebugLoc DL = MI.getDebugLoc();
-      unsigned SrcReg = MI.getOperand(1).getReg();
+      Register SrcReg = MI.getOperand(1).getReg();
       assert(!MI.getOperand(1).getSubReg());
 
-      if (!TargetRegisterInfo::isVirtualRegister(SrcReg) ||
-          !isLaneMaskReg(SrcReg)) {
+      if (!Register::isVirtualRegister(SrcReg) ||
+          (!isLaneMaskReg(SrcReg) && !isVreg1(SrcReg))) {
         assert(TII->getRegisterInfo().getRegSizeInBits(SrcReg, *MRI) == 32);
         unsigned TmpReg = createLaneMaskReg(*MF);
         BuildMI(MBB, MI, DL, TII->get(AMDGPU::V_CMP_NE_U32_e64), TmpReg)
@@ -669,12 +710,12 @@ void SILowerI1Copies::lowerCopiesToI1() {
 
       // Defs in a loop that are observed outside the loop must be transformed
       // into appropriate bit manipulation.
-      MachineBasicBlock *PostDomBound = &MBB;
-      for (MachineInstr &Use : MRI->use_instructions(DstReg)) {
-        PostDomBound =
-            PDT->findNearestCommonDominator(PostDomBound, Use.getParent());
-      }
+      std::vector<MachineBasicBlock *> DomBlocks = {&MBB};
+      for (MachineInstr &Use : MRI->use_instructions(DstReg))
+        DomBlocks.push_back(Use.getParent());
 
+      MachineBasicBlock *PostDomBound =
+          PDT->findNearestCommonDominator(DomBlocks);
       unsigned FoundLoopLevel = LF.findLoop(PostDomBound);
       if (FoundLoopLevel) {
         SSAUpdater.Initialize(DstReg);
@@ -701,13 +742,13 @@ bool SILowerI1Copies::isConstantLaneMask(unsigned Reg, bool &Val) const {
       break;
 
     Reg = MI->getOperand(1).getReg();
-    if (!TargetRegisterInfo::isVirtualRegister(Reg))
+    if (!Register::isVirtualRegister(Reg))
       return false;
     if (!isLaneMaskReg(Reg))
       return false;
   }
 
-  if (MI->getOpcode() != AMDGPU::S_MOV_B64)
+  if (MI->getOpcode() != MovOp)
     return false;
 
   if (!MI->getOperand(1).isImm())
@@ -782,10 +823,10 @@ void SILowerI1Copies::buildMergeLaneMasks(MachineBasicBlock &MBB,
     if (PrevVal == CurVal) {
       BuildMI(MBB, I, DL, TII->get(AMDGPU::COPY), DstReg).addReg(CurReg);
     } else if (CurVal) {
-      BuildMI(MBB, I, DL, TII->get(AMDGPU::COPY), DstReg).addReg(AMDGPU::EXEC);
+      BuildMI(MBB, I, DL, TII->get(AMDGPU::COPY), DstReg).addReg(ExecReg);
     } else {
-      BuildMI(MBB, I, DL, TII->get(AMDGPU::S_XOR_B64), DstReg)
-          .addReg(AMDGPU::EXEC)
+      BuildMI(MBB, I, DL, TII->get(XorOp), DstReg)
+          .addReg(ExecReg)
           .addImm(-1);
     }
     return;
@@ -798,9 +839,9 @@ void SILowerI1Copies::buildMergeLaneMasks(MachineBasicBlock &MBB,
       PrevMaskedReg = PrevReg;
     } else {
       PrevMaskedReg = createLaneMaskReg(*MF);
-      BuildMI(MBB, I, DL, TII->get(AMDGPU::S_ANDN2_B64), PrevMaskedReg)
+      BuildMI(MBB, I, DL, TII->get(AndN2Op), PrevMaskedReg)
           .addReg(PrevReg)
-          .addReg(AMDGPU::EXEC);
+          .addReg(ExecReg);
     }
   }
   if (!CurConstant) {
@@ -809,9 +850,9 @@ void SILowerI1Copies::buildMergeLaneMasks(MachineBasicBlock &MBB,
       CurMaskedReg = CurReg;
     } else {
       CurMaskedReg = createLaneMaskReg(*MF);
-      BuildMI(MBB, I, DL, TII->get(AMDGPU::S_AND_B64), CurMaskedReg)
+      BuildMI(MBB, I, DL, TII->get(AndOp), CurMaskedReg)
           .addReg(CurReg)
-          .addReg(AMDGPU::EXEC);
+          .addReg(ExecReg);
     }
   }
 
@@ -822,12 +863,12 @@ void SILowerI1Copies::buildMergeLaneMasks(MachineBasicBlock &MBB,
     BuildMI(MBB, I, DL, TII->get(AMDGPU::COPY), DstReg)
         .addReg(PrevMaskedReg);
   } else if (PrevConstant && PrevVal) {
-    BuildMI(MBB, I, DL, TII->get(AMDGPU::S_ORN2_B64), DstReg)
+    BuildMI(MBB, I, DL, TII->get(OrN2Op), DstReg)
         .addReg(CurMaskedReg)
-        .addReg(AMDGPU::EXEC);
+        .addReg(ExecReg);
   } else {
-    BuildMI(MBB, I, DL, TII->get(AMDGPU::S_OR_B64), DstReg)
+    BuildMI(MBB, I, DL, TII->get(OrOp), DstReg)
         .addReg(PrevMaskedReg)
-        .addReg(CurMaskedReg ? CurMaskedReg : (unsigned)AMDGPU::EXEC);
+        .addReg(CurMaskedReg ? CurMaskedReg : ExecReg);
   }
 }

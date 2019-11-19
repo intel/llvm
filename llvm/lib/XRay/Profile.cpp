@@ -49,9 +49,9 @@ struct BlockHeader {
 };
 
 static Expected<BlockHeader> readBlockHeader(DataExtractor &Extractor,
-                                             uint32_t &Offset) {
+                                             uint64_t &Offset) {
   BlockHeader H;
-  uint32_t CurrentOffset = Offset;
+  uint64_t CurrentOffset = Offset;
   H.Size = Extractor.getU32(&Offset);
   if (Offset == CurrentOffset)
     return make_error<StringError>(
@@ -76,7 +76,7 @@ static Expected<BlockHeader> readBlockHeader(DataExtractor &Extractor,
 }
 
 static Expected<std::vector<Profile::FuncID>> readPath(DataExtractor &Extractor,
-                                                       uint32_t &Offset) {
+                                                       uint64_t &Offset) {
   // We're reading a sequence of int32_t's until we find a 0.
   std::vector<Profile::FuncID> Path;
   auto CurrentOffset = Offset;
@@ -94,7 +94,7 @@ static Expected<std::vector<Profile::FuncID>> readPath(DataExtractor &Extractor,
 }
 
 static Expected<Profile::Data> readData(DataExtractor &Extractor,
-                                        uint32_t &Offset) {
+                                        uint64_t &Offset) {
   // We expect a certain number of elements for Data:
   //   - A 64-bit CallCount
   //   - A 64-bit CumulativeLocalTime counter
@@ -260,10 +260,9 @@ Profile mergeProfilesByStack(const Profile &L, const Profile &R) {
 }
 
 Expected<Profile> loadProfile(StringRef Filename) {
-  int Fd;
-  if (auto EC = sys::fs::openFileForRead(Filename, Fd))
-    return make_error<StringError>(
-        Twine("Cannot read profile from '") + Filename + "'", EC);
+  Expected<sys::fs::file_t> FdOrErr = sys::fs::openNativeFileForRead(Filename);
+  if (!FdOrErr)
+    return FdOrErr.takeError();
 
   uint64_t FileSize;
   if (auto EC = sys::fs::file_size(Filename, FileSize))
@@ -272,14 +271,16 @@ Expected<Profile> loadProfile(StringRef Filename) {
 
   std::error_code EC;
   sys::fs::mapped_file_region MappedFile(
-      Fd, sys::fs::mapped_file_region::mapmode::readonly, FileSize, 0, EC);
+      *FdOrErr, sys::fs::mapped_file_region::mapmode::readonly, FileSize, 0,
+      EC);
+  sys::fs::closeFile(*FdOrErr);
   if (EC)
     return make_error<StringError>(
         Twine("Cannot mmap profile '") + Filename + "'", EC);
   StringRef Data(MappedFile.data(), MappedFile.size());
 
   Profile P;
-  uint32_t Offset = 0;
+  uint64_t Offset = 0;
   DataExtractor Extractor(Data, true, 8);
 
   // For each block we get from the file:

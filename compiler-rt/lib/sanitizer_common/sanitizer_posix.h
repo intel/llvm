@@ -55,11 +55,15 @@ uptr internal_unlink(const char *path);
 uptr internal_rename(const char *oldpath, const char *newpath);
 uptr internal_lseek(fd_t fd, OFF_T offset, int whence);
 
+#if SANITIZER_NETBSD
+uptr internal_ptrace(int request, int pid, void *addr, int data);
+#else
 uptr internal_ptrace(int request, int pid, void *addr, void *data);
+#endif
 uptr internal_waitpid(int pid, int *status, int options);
 
 int internal_fork();
-int internal_forkpty(int *amaster);
+fd_t internal_spawn(const char *argv[], pid_t *pid);
 
 int internal_sysctl(const int *name, unsigned int namelen, void *oldp,
                     uptr *oldlenp, const void *newp, uptr newlen);

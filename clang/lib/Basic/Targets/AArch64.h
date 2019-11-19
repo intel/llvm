@@ -28,13 +28,15 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   enum FPUModeEnum { FPUMode, NeonMode = (1 << 0), SveMode = (1 << 1) };
 
   unsigned FPU;
-  unsigned CRC;
-  unsigned Crypto;
-  unsigned Unaligned;
-  unsigned HasFullFP16;
-  unsigned HasDotProd;
-  unsigned HasFP16FML;
-  unsigned HasMTE;
+  bool HasCRC;
+  bool HasCrypto;
+  bool HasUnaligned;
+  bool HasFullFP16;
+  bool HasDotProd;
+  bool HasFP16FML;
+  bool HasMTE;
+  bool HasTME;
+
   llvm::AArch64::ArchKind ArchKind;
 
   static const Builtin::Info BuiltinInfo[];
@@ -58,6 +60,12 @@ public:
   void getTargetDefinesARMV81A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefinesARMV82A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV83A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV84A(const LangOptions &Opts,
+                               MacroBuilder &Builder) const;
+  void getTargetDefinesARMV85A(const LangOptions &Opts,
                                MacroBuilder &Builder) const;
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
@@ -123,8 +131,6 @@ public:
   MicrosoftARM64TargetInfo(const llvm::Triple &Triple,
                            const TargetOptions &Opts);
 
-  void getVisualStudioDefines(const LangOptions &Opts,
-                              MacroBuilder &Builder) const;
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
   TargetInfo::CallingConvKind

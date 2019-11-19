@@ -202,6 +202,9 @@ namespace ARMII {
     AddrMode_i12    = 16,
     AddrMode5FP16   = 17,  // i8 * 2
     AddrModeT2_ldrex = 18, // i8 * 4, with unscaled offset in MCInst
+    AddrModeT2_i7s4 = 19, // i7 * 4
+    AddrModeT2_i7s2 = 20, // i7 * 2
+    AddrModeT2_i7   = 21, // i7 * 1
   };
 
   inline static const char *AddrModeToString(AddrMode addrmode) {
@@ -225,6 +228,9 @@ namespace ARMII {
     case AddrModeT2_i8s4: return "AddrModeT2_i8s4";
     case AddrMode_i12:    return "AddrMode_i12";
     case AddrModeT2_ldrex:return "AddrModeT2_ldrex";
+    case AddrModeT2_i7s4: return "AddrModeT2_i7s4";
+    case AddrModeT2_i7s2: return "AddrModeT2_i7s2";
+    case AddrModeT2_i7:   return "AddrModeT2_i7";
     }
   }
 
@@ -386,6 +392,9 @@ namespace ARMII {
     // suffix on the mnemonic (when not in an IT block) or preclude it (when
     // in an IT block).
     ThumbArithFlagSetting = 1 << 19,
+
+    // Whether an instruction can be included in an MVE tail-predicated loop.
+    ValidForTailPredication = 1 << 20,
 
     //===------------------------------------------------------------------===//
     // Code domain.

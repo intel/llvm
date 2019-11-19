@@ -16,15 +16,14 @@ Sections:
     Flags:           [ SHF_ALLOC ]
     Content:        "c3c3c3c3"
 
-# CHECK: SectionHeaderCount: 5
+# CHECK: SectionHeaderCount: 4
 
 # CHECK: Name: .bar
 # CHECK: SectionData (
 # CHECK-NEXT:   0000: C3C3C3C3
 # CHECK-NEXT: )
-# CHECK: Name: .symtab
 # CHECK: Name: .strtab
 # CHECK: Name: .shstrtab
 
-#BAD-FORMAT: Bad format for --rename-section: missing '='
-#MULTIPLE-RENAMES: Multiple renames of section .foo
+#BAD-FORMAT: bad format for --rename-section: missing '='
+#MULTIPLE-RENAMES: multiple renames of section '.foo'

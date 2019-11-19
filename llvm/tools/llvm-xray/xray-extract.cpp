@@ -80,15 +80,13 @@ static CommandRegistration Unused(&Extract, []() -> Error {
                       InstrumentationMapOrError.takeError());
 
   std::error_code EC;
-  raw_fd_ostream OS(ExtractOutput, EC, sys::fs::OpenFlags::F_Text);
+  raw_fd_ostream OS(ExtractOutput, EC, sys::fs::OpenFlags::OF_Text);
   if (EC)
     return make_error<StringError>(
         Twine("Cannot open file '") + ExtractOutput + "' for writing.", EC);
   const auto &FunctionAddresses =
       InstrumentationMapOrError->getFunctionAddresses();
-  symbolize::LLVMSymbolizer::Options Opts(
-      symbolize::FunctionNameKind::LinkageName, true, true, false, "");
-  symbolize::LLVMSymbolizer Symbolizer(Opts);
+  symbolize::LLVMSymbolizer Symbolizer;
   llvm::xray::FuncIdConversionHelper FuncIdHelper(ExtractInput, Symbolizer,
                                                   FunctionAddresses);
   exportAsYAML(*InstrumentationMapOrError, OS, FuncIdHelper);

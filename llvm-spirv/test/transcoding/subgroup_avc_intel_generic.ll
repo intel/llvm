@@ -39,7 +39,7 @@
 ; }
 
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_device_side_avc_motion_estimation -o - -spirv-text | FileCheck %s
 
 ; The test checks several (not all) 'cl_intel_device_side_avc_motion_estimation'
 ; extension built-ins.

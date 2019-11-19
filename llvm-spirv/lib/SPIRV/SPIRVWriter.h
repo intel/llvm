@@ -47,14 +47,10 @@
 #include "SPIRVBasicBlock.h"
 #include "SPIRVEntry.h"
 #include "SPIRVEnum.h"
-#include "SPIRVExtInst.h"
 #include "SPIRVFunction.h"
 #include "SPIRVInstruction.h"
-#include "SPIRVInternal.h"
-#include "SPIRVMDWalker.h"
 #include "SPIRVModule.h"
 #include "SPIRVType.h"
-#include "SPIRVUtil.h"
 #include "SPIRVValue.h"
 
 #include "llvm/Analysis/CallGraph.h"
@@ -92,7 +88,6 @@ public:
   // Translation functions
   bool transAddressingMode();
   bool transAlign(Value *V, SPIRVValue *BV);
-  std::vector<SPIRVValue *> transArguments(CallInst *, SPIRVBasicBlock *);
   std::vector<SPIRVWord> transArguments(CallInst *, SPIRVBasicBlock *,
                                         SPIRVEntry *);
   bool transSourceLanguage();
@@ -100,8 +95,9 @@ public:
   bool transBuiltinSet();
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
+  SPIRVValue *transDirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
+  SPIRVValue *transIndirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   bool transDecoration(Value *V, SPIRVValue *BV);
-  SPIRVWord transFunctionControlMask(CallInst *);
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
   bool transGlobalVariables();
@@ -114,6 +110,7 @@ public:
   SPIRVValue *transConstant(Value *V);
   SPIRVValue *transValue(Value *V, SPIRVBasicBlock *BB,
                          bool CreateForward = true);
+  void transGlobalAnnotation(GlobalVariable *V);
   SPIRVValue *transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                           bool CreateForward = true);
 
@@ -135,7 +132,7 @@ private:
   SPIRVValue *mapValue(Value *V, SPIRVValue *BV);
   SPIRVType *getSPIRVType(Type *T) { return TypeMap[T]; }
   SPIRVErrorLog &getErrorLog() { return BM->getErrorLog(); }
-  llvm::IntegerType *getSizetType();
+  llvm::IntegerType *getSizetType(unsigned AS = 0);
   std::vector<SPIRVValue *> transValue(const std::vector<Value *> &Values,
                                        SPIRVBasicBlock *BB);
   std::vector<SPIRVWord> transValue(const std::vector<Value *> &Values,
@@ -175,9 +172,6 @@ private:
   SPIRV::SPIRVInstruction *transUnaryInst(UnaryInstruction *U,
                                           SPIRVBasicBlock *BB);
 
-  /// Add a 32 bit integer constant.
-  /// \return Id of the constant.
-  SPIRVId addInt32(int);
   void transFunction(Function *I);
   SPIRV::SPIRVLinkageTypeKind transLinkageType(const GlobalValue *GV);
 

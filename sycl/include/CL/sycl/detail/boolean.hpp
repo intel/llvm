@@ -43,15 +43,14 @@ template <> struct Assigner<0> {
   }
 };
 
-template <int N> struct alignas(N == 3 ? 4 : N) Boolean {
+template <int N> struct Boolean {
   static_assert(((N == 2) || (N == 3) || (N == 4) || (N == 8) || (N == 16)),
                 "Invalid size");
 
   using element_type = bool;
 
 #ifdef __SYCL_DEVICE_ONLY__
-  using DataType =
-      element_type __attribute__((ext_vector_type(N)));
+  using DataType = element_type __attribute__((ext_vector_type(N)));
   using vector_t = DataType;
 #else
   using DataType = element_type[N];
@@ -100,10 +99,10 @@ template <int N> struct alignas(N == 3 ? 4 : N) Boolean {
 
 private:
   template <int Num> friend struct Assigner;
-  DataType value;
+  alignas(VectorAlignment<bool, N>::value) DataType value;
 };
 
-template <> struct alignas(1) Boolean<1> {
+template <> struct Boolean<1> {
 
   using element_type = bool;
 
@@ -136,7 +135,7 @@ template <> struct alignas(1) Boolean<1> {
   }
 
 private:
-  DataType value;
+  alignas(1) DataType value;
 };
 
 } // namespace detail

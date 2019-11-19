@@ -14,7 +14,6 @@
 #ifndef LLVM_LIB_TARGET_POWERPC_PPCISELLOWERING_H
 #define LLVM_LIB_TARGET_POWERPC_PPCISELLOWERING_H
 
-#include "PPC.h"
 #include "PPCInstrInfo.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -51,6 +50,9 @@ namespace llvm {
       /// FSEL - Traditional three-operand fsel node.
       ///
       FSEL,
+
+      /// XSMAXCDP, XSMINCDP - C-type min/max instructions.
+      XSMAXCDP, XSMINCDP,
 
       /// FCFID - The FCFID instruction, taking an f64 operand and producing
       /// and f64 value containing the FP representation of the integer that
@@ -194,6 +196,15 @@ namespace llvm {
 
       /// Direct move of 2 consecutive GPR to a VSX register.
       BUILD_FP128,
+
+      /// BUILD_SPE64 and EXTRACT_SPE are analogous to BUILD_PAIR and
+      /// EXTRACT_ELEMENT but take f64 arguments instead of i64, as i64 is
+      /// unsupported for this target.
+      /// Merge 2 GPRs to a single SPE register.
+      BUILD_SPE64,
+
+      /// Extract SPE register component, second argument is high or low.
+      EXTRACT_SPE,
 
       /// Extract a subvector from signed integer vector and convert to FP.
       /// It is primarily used to convert a (widened) illegal integer vector
@@ -404,8 +415,9 @@ namespace llvm {
       /// representation.
       QBFLT,
 
-      /// Custom extend v4f32 to v2f64.
-      FP_EXTEND_LH,
+      /// FP_EXTEND_HALF(VECTOR, IDX) - Custom extend upper (IDX=0) half or
+      /// lower (IDX=1) half of v4f32 to v2f64.
+      FP_EXTEND_HALF,
 
       /// CHAIN = STBRX CHAIN, GPRC, Ptr, Type - This is a
       /// byte-swapping store instruction.  It byte-swaps the low "Type" bits of
@@ -448,14 +460,28 @@ namespace llvm {
       /// an xxswapd.
       LXVD2X,
 
+      /// VSRC, CHAIN = LOAD_VEC_BE CHAIN, Ptr - Occurs only for little endian.
+      /// Maps directly to one of lxvd2x/lxvw4x/lxvh8x/lxvb16x depending on
+      /// the vector type to load vector in big-endian element order.
+      LOAD_VEC_BE,
+
       /// VSRC, CHAIN = LD_VSX_LH CHAIN, Ptr - This is a floating-point load of a
       /// v2f32 value into the lower half of a VSR register.
       LD_VSX_LH,
+
+      /// VSRC, CHAIN = LD_SPLAT, CHAIN, Ptr - a splatting load memory
+      /// instructions such as LXVDSX, LXVWSX.
+      LD_SPLAT,
 
       /// CHAIN = STXVD2X CHAIN, VSRC, Ptr - Occurs only for little endian.
       /// Maps directly to an stxvd2x instruction that will be preceded by
       /// an xxswapd.
       STXVD2X,
+
+      /// CHAIN = STORE_VEC_BE CHAIN, VSRC, Ptr - Occurs only for little endian.
+      /// Maps directly to one of stxvd2x/stxvw4x/stxvh8x/stxvb16x depending on
+      /// the vector type to store vector in big-endian element order.
+      STORE_VEC_BE,
 
       /// Store scalar integers from VSR.
       ST_VSR_SCAL_INT,
@@ -555,9 +581,11 @@ namespace llvm {
     bool isXXINSERTWMask(ShuffleVectorSDNode *N, unsigned &ShiftElts,
                          unsigned &InsertAtByte, bool &Swap, bool IsLE);
 
-    /// getVSPLTImmediate - Return the appropriate VSPLT* immediate to splat the
-    /// specified isSplatShuffleMask VECTOR_SHUFFLE mask.
-    unsigned getVSPLTImmediate(SDNode *N, unsigned EltSize, SelectionDAG &DAG);
+    /// getSplatIdxForPPCMnemonics - Return the splat index as a value that is
+    /// appropriate for PPC mnemonics (which have a big endian bias - namely
+    /// elements are counted from the left of the vector register).
+    unsigned getSplatIdxForPPCMnemonics(SDNode *N, unsigned EltSize,
+                                        SelectionDAG &DAG);
 
     /// get_VSPLTI_elt - If this is a build_vector of constants which can be
     /// formed by using a vspltis[bhw] instruction of the specified element
@@ -626,6 +654,8 @@ namespace llvm {
       return true;
     }
 
+    bool preferIncOfAddToSubOfNot(EVT VT) const override;
+
     bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
       return VT.isScalarInteger();
     }
@@ -658,6 +688,11 @@ namespace llvm {
                                    SDValue &Offset,
                                    ISD::MemIndexedMode &AM,
                                    SelectionDAG &DAG) const override;
+
+    /// SelectAddressEVXRegReg - Given the specified addressed, check to see if
+    /// it can be more efficiently represented as [r+imm].
+    bool SelectAddressEVXRegReg(SDValue N, SDValue &Base, SDValue &Index,
+                                SelectionDAG &DAG) const;
 
     /// SelectAddressRegReg - Given the specified addressed, check to see if it
     /// can be more efficiently represented as [r+imm]. If \p EncodingAlignment
@@ -701,8 +736,8 @@ namespace llvm {
     SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
                           SmallVectorImpl<SDNode *> &Created) const override;
 
-    unsigned getRegisterByName(const char* RegName, EVT VT,
-                               SelectionDAG &DAG) const override;
+    Register getRegisterByName(const char* RegName, EVT VT,
+                               const MachineFunction &MF) const override;
 
     void computeKnownBitsForTargetNode(const SDValue Op,
                                        KnownBits &Known,
@@ -710,7 +745,7 @@ namespace llvm {
                                        const SelectionDAG &DAG,
                                        unsigned Depth = 0) const override;
 
-    unsigned getPrefLoopAlignment(MachineLoop *ML) const override;
+    Align getPrefLoopAlignment(MachineLoop *ML) const override;
 
     bool shouldInsertFencesForAtomic(const Instruction *I) const override {
       return true;
@@ -819,6 +854,18 @@ namespace llvm {
       return true;
     }
 
+    bool isDesirableToTransformToIntegerOp(unsigned Opc,
+                                           EVT VT) const override {
+      // Only handle float load/store pair because float(fpr) load/store
+      // instruction has more cycles than integer(gpr) load/store in PPC.
+      if (Opc != ISD::LOAD && Opc != ISD::STORE)
+        return false;
+      if (VT != MVT::f32 && VT != MVT::f64)
+        return false;
+
+      return true; 
+    }
+
     // Returns true if the address of the global is stored in TOC entry.
     bool isAccessedAsGotIndirect(SDValue N) const;
 
@@ -847,10 +894,10 @@ namespace llvm {
 
     /// Is unaligned memory access allowed for the given type, and is it fast
     /// relative to software emulation.
-    bool allowsMisalignedMemoryAccesses(EVT VT,
-                                        unsigned AddrSpace,
-                                        unsigned Align = 1,
-                                        bool *Fast = nullptr) const override;
+    bool allowsMisalignedMemoryAccesses(
+        EVT VT, unsigned AddrSpace, unsigned Align = 1,
+        MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+        bool *Fast = nullptr) const override;
 
     /// isFMAFasterThanFMulAndFAdd - Return true if an FMA operation is faster
     /// than a pair of fmul and fadd instructions. fmuladd intrinsics will be
@@ -908,14 +955,6 @@ namespace llvm {
     const MCExpr *getPICJumpTableRelocBaseExpr(const MachineFunction *MF,
                                                unsigned JTI,
                                                MCContext &Ctx) const override;
-
-    unsigned getNumRegistersForCallingConv(LLVMContext &Context,
-                                           CallingConv:: ID CC,
-                                           EVT VT) const override;
-
-    MVT getRegisterTypeForCallingConv(LLVMContext &Context,
-                                      CallingConv:: ID CC,
-                                      EVT VT) const override;
 
   private:
     struct ReuseLoadInfo {
@@ -990,6 +1029,8 @@ namespace llvm {
                                          SDValue Chain, SDValue &LROpOut,
                                          SDValue &FPOpOut,
                                          const SDLoc &dl) const;
+
+    SDValue getTOCEntry(SelectionDAG &DAG, const SDLoc &dl, SDValue GA) const;
 
     SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
@@ -1148,6 +1189,8 @@ namespace llvm {
     SDValue combineSetCC(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineABS(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue combineVSelect(SDNode *N, DAGCombinerInfo &DCI) const;
+    SDValue combineVReverseMemOP(ShuffleVectorSDNode *SVN, LSBaseSDNode *LSBase,
+                                 DAGCombinerInfo &DCI) const;
 
     /// ConvertSETCCToSubtract - looks at SETCC that compares ints. It replaces
     /// SETCC with integer subtraction when (1) there is a legal way of doing it

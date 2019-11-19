@@ -1,5 +1,7 @@
-// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -target-feature +exception-handling -emit-llvm -o - -std=c++11 | FileCheck %s
-// RUN: %clang_cc1 %s -triple wasm64-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -target-feature +exception-handling -emit-llvm -o - -std=c++11 | FileCheck %s
+// REQUIRES: webassembly-registered-target
+// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -fwasm-exceptions -target-feature +exception-handling -emit-llvm -o - -std=c++11 | FileCheck %s
+// RUN: %clang_cc1 %s -triple wasm64-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -fwasm-exceptions -target-feature +exception-handling -emit-llvm -o - -std=c++11 | FileCheck %s
+// RUN: %clang_cc1 %s -triple wasm32-unknown-unknown -fms-extensions -fexceptions -fcxx-exceptions -fwasm-exceptions -target-feature +exception-handling -S -o - -std=c++11 | FileCheck %s --check-prefix=ASSEMBLY
 
 void may_throw();
 void dont_throw() noexcept;
@@ -191,7 +193,7 @@ void test5() {
 // CHECK-NEXT:   call void @__clang_call_terminate(i8* %[[EXN]]) {{.*}} [ "funclet"(token %[[CLEANUPPAD1]]) ]
 // CHECK-NEXT:   unreachable
 
-// CHECK-LABEL: define {{.*}} void @__clang_call_terminate(i8*)
+// CHECK-LABEL: define {{.*}} void @__clang_call_terminate(i8* %0)
 // CHECK-NEXT:   call i8* @__cxa_begin_catch(i8* %{{.*}})
 // CHECK-NEXT:   call void @_ZSt9terminatev()
 // CHECK-NEXT:   unreachable
@@ -382,3 +384,11 @@ void test8() {
 // CHECK:   cleanupret from %[[CLEANUPPAD1]] unwind to caller
 
 // CHECK:   unreachable
+
+// Here we only check if the command enables wasm exception handling in the
+// backend so that exception handling instructions can be generated in .s file.
+
+// ASSEMBLY: try
+// ASSEMBLY: catch
+// ASSEMBLY: rethrow
+// ASSEMBLY: end_try

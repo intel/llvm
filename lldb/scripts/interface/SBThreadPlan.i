@@ -38,6 +38,9 @@ public:
    ~SBThreadPlan ();
 
     bool
+    IsValid();
+
+    bool
     IsValid() const;
 
     explicit operator bool() const;
@@ -89,11 +92,6 @@ public:
     bool
     IsPlanStale();
 
-    bool
-    IsValid();
-
-    explicit operator bool() const;
-
     SBThreadPlan
     QueueThreadPlanForStepOverRange (SBAddress &start_address,
                                      lldb::addr_t range_size);
@@ -110,6 +108,14 @@ public:
 
     SBThreadPlan
     QueueThreadPlanForStepScripted(const char *script_class_name);
+
+    SBThreadPlan
+    QueueThreadPlanForStepScripted(const char *script_class_name,
+                                   SBError &error);
+    SBThreadPlan
+    QueueThreadPlanForStepScripted(const char *script_class_name,
+                                   SBStructuredData &args_data,
+                                   SBError &error);
 
 
 protected:

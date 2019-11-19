@@ -38,7 +38,7 @@ WebAssemblyInstrInfo::WebAssemblyInstrInfo(const WebAssemblySubtarget &STI)
       RI(STI.getTargetTriple()) {}
 
 bool WebAssemblyInstrInfo::isReallyTriviallyReMaterializable(
-    const MachineInstr &MI, AliasAnalysis *AA) const {
+    const MachineInstr &MI, AAResults *AA) const {
   switch (MI.getOpcode()) {
   case WebAssembly::CONST_I32:
   case WebAssembly::CONST_I64:
@@ -60,7 +60,7 @@ void WebAssemblyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   // exist. However we need to handle both here.
   auto &MRI = MBB.getParent()->getRegInfo();
   const TargetRegisterClass *RC =
-      TargetRegisterInfo::isVirtualRegister(DestReg)
+      Register::isVirtualRegister(DestReg)
           ? MRI.getRegClass(DestReg)
           : MRI.getTargetRegisterInfo()->getMinimalPhysRegClass(DestReg);
 
@@ -75,6 +75,8 @@ void WebAssemblyInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     CopyOpcode = WebAssembly::COPY_F64;
   else if (RC == &WebAssembly::V128RegClass)
     CopyOpcode = WebAssembly::COPY_V128;
+  else if (RC == &WebAssembly::EXNREFRegClass)
+    CopyOpcode = WebAssembly::COPY_EXNREF;
   else
     llvm_unreachable("Unexpected register class");
 
@@ -192,7 +194,7 @@ unsigned WebAssemblyInstrInfo::insertBranch(
   MachineFunction &MF = *MBB.getParent();
   auto &MRI = MF.getRegInfo();
   bool IsBrOnExn = Cond[1].isReg() && MRI.getRegClass(Cond[1].getReg()) ==
-                                          &WebAssembly::EXCEPT_REFRegClass;
+                                          &WebAssembly::EXNREFRegClass;
 
   if (Cond[0].getImm()) {
     if (IsBrOnExn) {
@@ -222,7 +224,7 @@ bool WebAssemblyInstrInfo::reverseBranchCondition(
   MachineFunction &MF = *Cond[1].getParent()->getParent()->getParent();
   auto &MRI = MF.getRegInfo();
   if (Cond[1].isReg() &&
-      MRI.getRegClass(Cond[1].getReg()) == &WebAssembly::EXCEPT_REFRegClass)
+      MRI.getRegClass(Cond[1].getReg()) == &WebAssembly::EXNREFRegClass)
     return true;
 
   Cond.front() = MachineOperand::CreateImm(!Cond.front().getImm());

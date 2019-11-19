@@ -16,7 +16,9 @@
 #include "llvm/Testing/Support/Error.h"
 
 using namespace lldb_private;
-using namespace llvm;
+using llvm::APInt;
+using llvm::Failed;
+using llvm::Succeeded;
 
 template <typename T>
 bool checkInequality(T c1, T c2) {
@@ -272,7 +274,7 @@ TEST(ScalarTest, APIntConstructor) {
   }
 
   Scalar B(APInt(64, 42));
-  EXPECT_EQ(B.GetType(), Scalar::e_slonglong);
+  EXPECT_EQ(B.GetType(), Scalar::GetBestTypeForBitSize(64, true));
   Scalar C(APInt(128, 96));
   EXPECT_EQ(C.GetType(), Scalar::e_sint128);
   Scalar D(APInt(256, 156));

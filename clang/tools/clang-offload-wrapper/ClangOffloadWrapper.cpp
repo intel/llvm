@@ -1,4 +1,4 @@
-//===-- clang-offload-wrapper/ClangOffloadWrapper.cpp ---------------------===//
+//===-- clang-offload-wrapper/ClangOffloadWrapper.cpp -----------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,17 +8,14 @@
 ///
 /// \file
 /// Implementation of the offload wrapper tool. It takes offload target binaries
-/// as input and creates wrapper bitcode from them which, after linking with the
-/// offload application, provides access to the binaries.
-/// TODO Add Windows support.
+/// as input and creates wrapper bitcode file containing target binaries
+/// packaged as data. Wrapper bitcode also includes initialization code which
+/// registers target binaries in offloading runtime at program startup.
 ///
 //===----------------------------------------------------------------------===//
 
-
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/IndexedMap.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -28,10 +25,14 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <cassert>
@@ -76,8 +77,6 @@ template <> struct DenseMapInfo<OffloadKind> {
 };
 } // namespace llvm
 
-namespace {
-
 static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden);
 
 // Mark all our options with this category, everything else (except for -version
@@ -94,7 +93,7 @@ static cl::opt<bool> Verbose("v", cl::desc("verbose output"),
                              cl::cat(ClangOffloadWrapperCategory));
 
 static cl::list<std::string> Inputs(cl::Positional, cl::OneOrMore,
-                                    cl::desc("<input  files>"),
+                                    cl::desc("<input files>"),
                                     cl::cat(ClangOffloadWrapperCategory));
 
 // Binary image formats supported by this tool. The support basically means
@@ -139,11 +138,17 @@ static cl::list<std::string>
             cl::cat(ClangOffloadWrapperCategory),
             cl::cat(ClangOffloadWrapperCategory));
 
+/// Sets the name of the file containing offload function entries
+static cl::list<std::string> Entries(
+    "entries", cl::ZeroOrMore,
+    cl::desc("File listing all offload function entries, SYCL offload only"),
+    cl::value_desc("filename"), cl::cat(ClangOffloadWrapperCategory));
+
 /// Specifies the target triple of the host wrapper.
-static cl::opt<std::string> Target("host", cl::Optional,
-                                   cl::desc("wrapper object target triple"),
-                                   cl::value_desc("triple"),
-                                   cl::cat(ClangOffloadWrapperCategory));
+static cl::opt<std::string>
+    Target("host", cl::Required,
+           cl::desc("Target triple for the output module"),
+           cl::value_desc("triple"), cl::cat(ClangOffloadWrapperCategory));
 
 static cl::opt<bool> EmitRegFuncs("emit-reg-funcs", cl::NotHidden,
                                   cl::init(true), cl::Optional,
@@ -202,6 +207,8 @@ static StringRef formatToString(BinaryImageFormat Fmt) {
   return "<ERROR>";
 }
 
+namespace {
+
 struct OffloadKindToUint {
   using argument_type = OffloadKind;
   unsigned operator()(argument_type Kind) const {
@@ -218,8 +225,9 @@ public:
   public:
     Image(const llvm::StringRef File_, const llvm::StringRef Manif_,
           const llvm::StringRef Tgt_, BinaryImageFormat Fmt_,
-          const llvm::StringRef Opts_)
-        : File(File_), Manif(Manif_), Tgt(Tgt_), Fmt(Fmt_), Opts(Opts_) {}
+          const llvm::StringRef Opts_, const llvm::StringRef EntriesFile_)
+        : File(File_), Manif(Manif_), Tgt(Tgt_), Fmt(Fmt_), Opts(Opts_),
+          EntriesFile(EntriesFile_) {}
 
     /// Name of the file with actual contents
     const llvm::StringRef File;
@@ -231,6 +239,8 @@ public:
     const BinaryImageFormat Fmt;
     /// Build options
     const llvm::StringRef Opts;
+    /// File listing contained entries
+    const llvm::StringRef EntriesFile;
 
     friend raw_ostream &operator<<(raw_ostream &Out, const Image &Img);
   };
@@ -245,25 +255,38 @@ private:
   StructType *ImageTy = nullptr;
   StructType *DescTy = nullptr;
 
+  // SYCL image and binary descriptor types have diverged from libomptarget
+  // definitions, but presumably they will converge in future. So, these SYCL
+  // specific types should be removed if/when this happens.
+  StructType *SyclImageTy = nullptr;
+  StructType *SyclDescTy = nullptr;
+
   /// Records all added device binary images per offload kind.
   llvm::DenseMap<OffloadKind, std::unique_ptr<SameKindPack>> Packs;
   /// Records all created memory buffers for safe auto-gc
   llvm::SmallVector<std::unique_ptr<MemoryBuffer>, 4> AutoGcBufs;
 
 public:
-  void addImage(const OffloadKind Kind, const llvm::StringRef File,
-                const llvm::StringRef Manif, const llvm::StringRef Tgt,
-                const BinaryImageFormat Fmt, const llvm::StringRef Opts) {
+  void addImage(const OffloadKind Kind, llvm::StringRef File,
+                llvm::StringRef Manif, llvm::StringRef Tgt,
+                const BinaryImageFormat Fmt, llvm::StringRef Opts,
+                llvm::StringRef EntriesFile) {
     std::unique_ptr<SameKindPack> &Pack = Packs[Kind];
     if (!Pack)
       Pack.reset(new SameKindPack());
-    Pack->emplace_back(llvm::make_unique<Image>(File, Manif, Tgt, Fmt, Opts));
+    Pack->emplace_back(
+        std::make_unique<Image>(File, Manif, Tgt, Fmt, Opts, EntriesFile));
   }
 
 private:
   IntegerType *getSizeTTy() {
-    auto PtrSize = M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(C));
-    return PtrSize == 8 ? Type::getInt64Ty(C) : Type::getInt32Ty(C);
+    switch (M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(C))) {
+    case 4u:
+      return Type::getInt32Ty(C);
+    case 8u:
+      return Type::getInt64Ty(C);
+    }
+    llvm_unreachable("unsupported pointer type size");
   }
 
   // struct __tgt_offload_entry {
@@ -275,22 +298,53 @@ private:
   // };
   StructType *getEntryTy() {
     if (!EntryTy)
-      EntryTy = StructType::create(
-          {
-              Type::getInt8PtrTy(C), // addr
-              Type::getInt8PtrTy(C), // name
-              getSizeTTy(),          // size
-              Type::getInt32Ty(C),   // flags
-              Type::getInt32Ty(C)    // reserved
-          },
-          "__tgt_offload_entry");
+      EntryTy = StructType::create("__tgt_offload_entry", Type::getInt8PtrTy(C),
+                                   Type::getInt8PtrTy(C), getSizeTTy(),
+                                   Type::getInt32Ty(C), Type::getInt32Ty(C));
     return EntryTy;
   }
 
   PointerType *getEntryPtrTy() { return PointerType::getUnqual(getEntryTy()); }
 
+  // struct __tgt_device_image {
+  //   void *ImageStart;
+  //   void *ImageEnd;
+  //   __tgt_offload_entry *EntriesBegin;
+  //   __tgt_offload_entry *EntriesEnd;
+  // };
+  StructType *getDeviceImageTy() {
+    if (!ImageTy)
+      ImageTy = StructType::create("__tgt_device_image", Type::getInt8PtrTy(C),
+                                   Type::getInt8PtrTy(C), getEntryPtrTy(),
+                                   getEntryPtrTy());
+    return ImageTy;
+  }
+
+  PointerType *getDeviceImagePtrTy() {
+    return PointerType::getUnqual(getDeviceImageTy());
+  }
+
+  // struct __tgt_bin_desc {
+  //   int32_t NumDeviceImages;
+  //   __tgt_device_image *DeviceImages;
+  //   __tgt_offload_entry *HostEntriesBegin;
+  //   __tgt_offload_entry *HostEntriesEnd;
+  // };
+  StructType *getBinDescTy() {
+    if (!DescTy)
+      DescTy = StructType::create("__tgt_bin_desc", Type::getInt32Ty(C),
+                                  getDeviceImagePtrTy(), getEntryPtrTy(),
+                                  getEntryPtrTy());
+    return DescTy;
+  }
+
+  PointerType *getBinDescPtrTy() {
+    return PointerType::getUnqual(getBinDescTy());
+  }
+
   const uint16_t DeviceImageStructVersion = 1;
 
+  // SYCL specific image descriptor type.
   //  struct __tgt_device_image {
   //    /// version of this structure - for backward compatibility;
   //    /// all modifications which change order/type/offsets of existing fields
@@ -319,9 +373,9 @@ private:
   //    __tgt_offload_entry *EntriesEnd;
   //  };
   //
-  StructType *getDeviceImageTy() {
-    if (!ImageTy) {
-      ImageTy = StructType::create(
+  StructType *getSyclDeviceImageTy() {
+    if (!SyclImageTy) {
+      SyclImageTy = StructType::create(
           {
               Type::getInt16Ty(C),   // Version
               Type::getInt8Ty(C),    // OffloadKind
@@ -337,15 +391,16 @@ private:
           },
           "__tgt_device_image");
     }
-    return ImageTy;
+    return SyclImageTy;
   }
 
-  PointerType *getDeviceImagePtrTy() {
-    return PointerType::getUnqual(getDeviceImageTy());
+  PointerType *getSyclDeviceImagePtrTy() {
+    return PointerType::getUnqual(getSyclDeviceImageTy());
   }
 
   const uint16_t BinDescStructVersion = 1;
 
+  // SYCL specific binary descriptor type.
   // struct __tgt_bin_desc {
   //   /// version of this structure - for backward compatibility;
   //   /// all modifications which change order/type/offsets of existing fields
@@ -357,55 +412,65 @@ private:
   //   __tgt_offload_entry *HostEntriesBegin;
   //   __tgt_offload_entry *HostEntriesEnd;
   // };
-  StructType *getBinDescTy() {
-    if (!DescTy) {
-      DescTy = StructType::create(
+  StructType *getSyclBinDescTy() {
+    if (!SyclDescTy) {
+      SyclDescTy = StructType::create(
           {
-              Type::getInt16Ty(C),   // Version
-              Type::getInt16Ty(C),   // NumDeviceImages
-              getDeviceImagePtrTy(), // DeviceImages
-              getEntryPtrTy(),       // HostEntriesBegin
-              getEntryPtrTy()        // HostEntriesEnd
+              Type::getInt16Ty(C),       // Version
+              Type::getInt16Ty(C),       // NumDeviceImages
+              getSyclDeviceImagePtrTy(), // DeviceImages
+              getEntryPtrTy(),           // HostEntriesBegin
+              getEntryPtrTy()            // HostEntriesEnd
           },
           "__tgt_bin_desc");
     }
-    return DescTy;
+    return SyclDescTy;
   }
 
-  PointerType *getBinDescPtrTy() {
-    return PointerType::getUnqual(getBinDescTy());
+  PointerType *getSyclBinDescPtrTy() {
+    return PointerType::getUnqual(getSyclBinDescTy());
   }
 
-  MemoryBuffer *loadFile(llvm::StringRef Name) {
+  Expected<MemoryBuffer *> loadFile(llvm::StringRef Name) {
     auto InputOrErr = MemoryBuffer::getFileOrSTDIN(Name);
 
-    if (auto EC = InputOrErr.getError()) {
-      errs() << "error: can't read file " << Name << ": " << EC.message()
-             << "\n";
-      exit(1);
-    }
+    if (auto EC = InputOrErr.getError())
+      return createFileError(Name, EC);
+
     AutoGcBufs.emplace_back(std::move(InputOrErr.get()));
     return AutoGcBufs.back().get();
   }
 
-  // Adds given buffer as a global variable into the module and, depending on
-  // the StartEnd flag, returns either a pair of pointers to the beginning
-  // and end of the variable or a <pointer to the beginning, size> pair. The
-  // input memory buffer must outlive 'this' object.
-  std::pair<Constant *, Constant *>
-  addMemBufToModule(Module &M, MemoryBuffer *Buf, const Twine &Name) {
-    auto *Buf1 = ConstantDataArray::get(
-        C, makeArrayRef(Buf->getBufferStart(), Buf->getBufferSize()));
-    auto *Var = new GlobalVariable(M, Buf1->getType(), true,
-                                   GlobalVariable::InternalLinkage, Buf1, Name);
+  // Adds a global readonly variable that is initialized by given data to the
+  // module.
+  GlobalVariable *addGlobalArrayVariable(const Twine &Name,
+                                         ArrayRef<char> Initializer,
+                                         const Twine &Section = "") {
+    auto *Arr = ConstantDataArray::get(C, Initializer);
+    auto *Var = new GlobalVariable(M, Arr->getType(), /*isConstant*/ true,
+                                   GlobalVariable::InternalLinkage, Arr, Name);
     if (Verbose)
       errs() << "  global added: " << Var->getName() << "\n";
     Var->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+
+    SmallVector<char, 32u> NameBuf;
+    auto SectionName = Section.toStringRef(NameBuf);
+    if (!SectionName.empty())
+      Var->setSection(SectionName);
+    return Var;
+  }
+
+  // Adds given buffer as a global variable into the module and returns a pair
+  // of pointers that point to the beginning and end of the variable.
+  std::pair<Constant *, Constant *>
+  addArrayToModule(ArrayRef<char> Buf, const Twine &Name,
+                   const Twine &Section = "") {
+    auto *Var = addGlobalArrayVariable(Name, Buf, Section);
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
     Constant *ZeroZero[] = {Zero, Zero};
     auto *ImageB =
         ConstantExpr::getGetElementPtr(Var->getValueType(), Var, ZeroZero);
-    auto *Size = ConstantInt::get(getSizeTTy(), Buf->getBufferSize());
+    auto *Size = ConstantInt::get(getSizeTTy(), Buf.size());
 
     Constant *ZeroSize[] = {Zero, Size};
     auto *ImageE =
@@ -413,14 +478,41 @@ private:
     return std::make_pair(ImageB, ImageE);
   }
 
+  // Creates all necessary data objects for the given image and returns a pair
+  // of pointers that point to the beginning and end of the global variable that
+  // contains the image data.
+  std::pair<Constant *, Constant *>
+  addDeviceImageToModule(ArrayRef<char> Buf, const Twine &Name,
+                         OffloadKind Kind, StringRef TargetTriple) {
+    // Do not bother adding 'size' section if target triple was not provided
+    // since we anyway won't be able to construct what bundler expects to see in
+    // the fat object.
+    if (!TargetTriple.empty()) {
+      // Create global data object for the image size.
+      size_t BufSize = Buf.size();
+      addGlobalArrayVariable(
+          Name + ".size",
+          makeArrayRef(reinterpret_cast<char *>(&BufSize), sizeof(BufSize)),
+          "__CLANG_OFFLOAD_BUNDLE_SIZE__" + offloadKindToString(Kind) + "-" +
+              TargetTriple);
+    }
+
+    // Create global variable for the image data.
+    return addArrayToModule(Buf, Name,
+                            TargetTriple.empty()
+                                ? ""
+                                : "__CLANG_OFFLOAD_BUNDLE__" +
+                                      offloadKindToString(Kind) + "-" +
+                                      TargetTriple);
+  }
+
   // Creates a global variable of const char* type and creates an
-  // initializer that initializes it with given null-terminated string.
-  // Returns a link-time constant pointer (constant expr) to that variable.
-  Constant *addStringToModule(Module &M, const std::string &Str,
-                              const Twine &Name) {
-    Constant *Arr =
-        ConstantDataArray::get(C, makeArrayRef(Str.c_str(), Str.size() + 1));
-    auto *Var = new GlobalVariable(M, Arr->getType(), true,
+  // initializer that initializes it with given string (with added null
+  // terminator). Returns a link-time constant pointer (constant expr) to that
+  // variable.
+  Constant *addStringToModule(StringRef Str, const Twine &Name) {
+    auto *Arr = ConstantDataArray::getString(C, Str);
+    auto *Var = new GlobalVariable(M, Arr->getType(), /*isConstant*/ true,
                                    GlobalVariable::InternalLinkage, Arr, Name);
     if (Verbose)
       errs() << "  global added: " << Var->getName() << "\n";
@@ -430,33 +522,140 @@ private:
     return ConstantExpr::getGetElementPtr(Var->getValueType(), Var, ZeroZero);
   }
 
-  GlobalVariable *createBinDesc(OffloadKind Kind, SameKindPack &Pack) {
+  // Creates an array of __tgt_offload_entry that contains function info
+  // for the given image. Returns a pair of pointers to the beginning and end
+  // of the array, or a pair of nullptrs in case the entries file wasn't
+  // specified.
+  Expected<std::pair<Constant *, Constant *>>
+  addSYCLOffloadEntriesToModule(StringRef EntriesFile) {
+    if (EntriesFile.empty()) {
+      auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
+      return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
+    }
+
+    auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
+    auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0u);
+    auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
+    Constant *ZeroZero[] = {Zero, Zero};
+    Constant *OneZero[] = {ConstantInt::get(getSizeTTy(), 1u), Zero};
+
+    Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
+    if (!MBOrErr)
+      return MBOrErr.takeError();
+    MemoryBuffer *MB = *MBOrErr;
+
+    std::vector<Constant *> EntriesInits;
+    // Only the name field is used for SYCL now, others are for future OpenMP
+    // compatibility and new SYCL features
+    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
+      EntriesInits.push_back(ConstantStruct::get(
+          getEntryTy(), NullPtr,
+          addStringToModule(*LI, "__sycl_offload_entry_name"), Zero, i32Zero,
+          i32Zero));
+
+    auto *Arr = ConstantArray::get(
+        ArrayType::get(getEntryTy(), EntriesInits.size()), EntriesInits);
+    auto *Entries = new GlobalVariable(M, Arr->getType(), true,
+                                       GlobalVariable::InternalLinkage, Arr,
+                                       "__sycl_offload_entries_arr");
+    if (Verbose)
+      errs() << "  global added: " << Entries->getName() << "\n";
+
+    auto *EntriesB = ConstantExpr::getGetElementPtr(Entries->getValueType(),
+                                                    Entries, ZeroZero);
+    auto *EntriesE = ConstantExpr::getGetElementPtr(Entries->getValueType(),
+                                                    Entries, OneZero);
+    return std::pair<Constant *, Constant *>(EntriesB, EntriesE);
+  }
+
+  /// Creates binary descriptor for the given device images. Binary descriptor
+  /// is an object that is passed to the offloading runtime at program startup
+  /// and it describes all device images available in the executable or shared
+  /// library. It is defined as follows
+  ///
+  /// __attribute__((visibility("hidden")))
+  /// extern __tgt_offload_entry *__start_omp_offloading_entries;
+  /// __attribute__((visibility("hidden")))
+  /// extern __tgt_offload_entry *__stop_omp_offloading_entries;
+  ///
+  /// static const char Image0[] = { <Bufs.front() contents> };
+  ///  ...
+  /// static const char ImageN[] = { <Bufs.back() contents> };
+  ///
+  /// static const __tgt_device_image Images[] = {
+  ///   {
+  ///     Image0,                            /*ImageStart*/
+  ///     Image0 + sizeof(Image0),           /*ImageEnd*/
+  ///     __start_omp_offloading_entries,    /*EntriesBegin*/
+  ///     __stop_omp_offloading_entries      /*EntriesEnd*/
+  ///   },
+  ///   ...
+  ///   {
+  ///     ImageN,                            /*ImageStart*/
+  ///     ImageN + sizeof(ImageN),           /*ImageEnd*/
+  ///     __start_omp_offloading_entries,    /*EntriesBegin*/
+  ///     __stop_omp_offloading_entries      /*EntriesEnd*/
+  ///   }
+  /// };
+  ///
+  /// static const __tgt_bin_desc BinDesc = {
+  ///   sizeof(Images) / sizeof(Images[0]),  /*NumDeviceImages*/
+  ///   Images,                              /*DeviceImages*/
+  ///   __start_omp_offloading_entries,      /*HostEntriesBegin*/
+  ///   __stop_omp_offloading_entries        /*HostEntriesEnd*/
+  /// };
+  ///
+  /// Global variable that represents BinDesc is returned.
+  Expected<GlobalVariable *> createBinDesc(OffloadKind Kind,
+                                           SameKindPack &Pack) {
     const std::string OffloadKindTag =
         (Twine(".") + offloadKindToString(Kind) + Twine("_offloading.")).str();
 
     Constant *EntriesB = nullptr, *EntriesE = nullptr;
 
     if (Kind != OffloadKind::SYCL) {
-      EntriesB = new GlobalVariable(
-          M, getEntryTy(), true, GlobalValue::ExternalLinkage, nullptr,
-          Twine(OffloadKindTag) + Twine("entries_begin"));
-      EntriesE = new GlobalVariable(
-          M, getEntryTy(), true, GlobalValue::ExternalLinkage, nullptr,
-          Twine(OffloadKindTag) + Twine("entries_end"));
+      // Create external begin/end symbols for the offload entries table.
+      auto *EntriesStart = new GlobalVariable(
+          M, getEntryTy(), /*isConstant*/ true, GlobalValue::ExternalLinkage,
+          /*Initializer*/ nullptr, "__start_omp_offloading_entries");
+      EntriesStart->setVisibility(GlobalValue::HiddenVisibility);
+      auto *EntriesStop = new GlobalVariable(
+          M, getEntryTy(), /*isConstant*/ true, GlobalValue::ExternalLinkage,
+          /*Initializer*/ nullptr, "__stop_omp_offloading_entries");
+      EntriesStop->setVisibility(GlobalValue::HiddenVisibility);
+
+      // We assume that external begin/end symbols that we have created above
+      // will be defined by the linker. But linker will do that only if linker
+      // inputs have section with "omp_offloading_entries" name which is not
+      // guaranteed. So, we just create dummy zero sized object in the offload
+      // entries section to force linker to define those symbols.
+      auto *DummyInit =
+          ConstantAggregateZero::get(ArrayType::get(getEntryTy(), 0u));
+      auto *DummyEntry = new GlobalVariable(
+          M, DummyInit->getType(), true, GlobalVariable::ExternalLinkage,
+          DummyInit, "__dummy.omp_offloading.entry");
+      DummyEntry->setSection("omp_offloading_entries");
+      DummyEntry->setVisibility(GlobalValue::HiddenVisibility);
+
+      EntriesB = EntriesStart;
+      EntriesE = EntriesStop;
 
       if (Verbose) {
-        errs() << "  global added: " << EntriesB->getName() << "\n";
-        errs() << "  global added: " << EntriesE->getName() << "\n";
+        errs() << "  global added: " << EntriesStart->getName() << "\n";
+        errs() << "  global added: " << EntriesStop->getName() << "\n";
       }
     } else {
+      // Host entry table is not used in SYCL
       EntriesB = Constant::getNullValue(getEntryPtrTy());
       EntriesE = Constant::getNullValue(getEntryPtrTy());
     }
+
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
     auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
     Constant *ZeroZero[] = {Zero, Zero};
 
-    SmallVector<Constant *, 4> ImagesInits;
+    // Create initializer for the images array.
+    SmallVector<Constant *, 4u> ImagesInits;
     unsigned ImgId = 0;
 
     for (const auto &ImgPtr : Pack) {
@@ -469,79 +668,113 @@ private:
       auto *Fknd = ConstantInt::get(Type::getInt8Ty(C), Kind);
       auto *Ffmt = ConstantInt::get(Type::getInt8Ty(C), Img.Fmt);
       auto *Ftgt = addStringToModule(
-          M, Img.Tgt, Twine(OffloadKindTag) + Twine("target.") + Twine(ImgId));
+          Img.Tgt, Twine(OffloadKindTag) + Twine("target.") + Twine(ImgId));
       auto *Fopt = addStringToModule(
-          M, Img.Opts, Twine(OffloadKindTag) + Twine("opts.") + Twine(ImgId));
+          Img.Opts, Twine(OffloadKindTag) + Twine("opts.") + Twine(ImgId));
       std::pair<Constant *, Constant *> FMnf;
 
       if (Img.Manif.empty()) {
         // no manifest - zero out the fields
         FMnf = std::make_pair(NullPtr, NullPtr);
       } else {
-        MemoryBuffer *Mnf = loadFile(Img.Manif);
-        FMnf = addMemBufToModule(
-            M, Mnf, Twine(OffloadKindTag) + Twine(ImgId) + Twine(".manifest"));
+        Expected<MemoryBuffer *> MnfOrErr = loadFile(Img.Manif);
+        if (!MnfOrErr)
+          return MnfOrErr.takeError();
+        MemoryBuffer *Mnf = *MnfOrErr;
+        FMnf = addArrayToModule(
+            makeArrayRef(Mnf->getBufferStart(), Mnf->getBufferSize()),
+            Twine(OffloadKindTag) + Twine(ImgId) + Twine(".manifest"));
       }
-      if (Img.File.empty()) {
-        errs() << "error: image file name missing\n";
-        exit(1);
-      }
-      MemoryBuffer *Bin = loadFile(Img.File);
-      std::pair<Constant *, Constant *> Fbin = addMemBufToModule(
-          M, Bin, Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"));
+      if (Img.File.empty())
+        return createStringError(errc::invalid_argument,
+                                 "image file name missing");
+      Expected<MemoryBuffer *> BinOrErr = loadFile(Img.File);
+      if (!BinOrErr)
+        return BinOrErr.takeError();
+      MemoryBuffer *Bin = *BinOrErr;
+      std::pair<Constant *, Constant *> Fbin = addDeviceImageToModule(
+          makeArrayRef(Bin->getBufferStart(), Bin->getBufferSize()),
+          Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind, Img.Tgt);
 
-      ImagesInits.push_back(ConstantStruct::get(
-          getDeviceImageTy(),
-          {Fver, Fknd, Ffmt, Ftgt, Fopt, FMnf.first, FMnf.second, Fbin.first,
-           Fbin.second, EntriesB, EntriesE}));
+      if (Kind == OffloadKind::SYCL) {
+        // For SYCL image offload entries are defined here, by wrapper, so
+        // those are created per image
+        Expected<std::pair<Constant *, Constant *>> EntriesOrErr =
+            addSYCLOffloadEntriesToModule(Img.EntriesFile);
+        if (!EntriesOrErr)
+          return EntriesOrErr.takeError();
+        std::pair<Constant *, Constant *> ImageEntriesPtrs = *EntriesOrErr;
+        ImagesInits.push_back(ConstantStruct::get(
+            getSyclDeviceImageTy(), Fver, Fknd, Ffmt, Ftgt, Fopt, FMnf.first,
+            FMnf.second, Fbin.first, Fbin.second, ImageEntriesPtrs.first,
+            ImageEntriesPtrs.second));
+      } else
+        ImagesInits.push_back(ConstantStruct::get(
+            getDeviceImageTy(), Fbin.first, Fbin.second, EntriesB, EntriesE));
       ImgId++;
     }
-    auto *ImagesData = ConstantArray::get(
-        ArrayType::get(getDeviceImageTy(), ImagesInits.size()), ImagesInits);
 
-    auto *Images = new GlobalVariable(
-        M, ImagesData->getType(), true, GlobalValue::InternalLinkage,
-        ImagesData, Twine(OffloadKindTag) + Twine("device_images"));
+    // Then create images array.
+    auto *ImagesData =
+        Kind == OffloadKind::SYCL
+            ? ConstantArray::get(
+                  ArrayType::get(getSyclDeviceImageTy(), ImagesInits.size()),
+                  ImagesInits)
+            : ConstantArray::get(
+                  ArrayType::get(getDeviceImageTy(), ImagesInits.size()),
+                  ImagesInits);
+
+    auto *Images =
+        new GlobalVariable(M, ImagesData->getType(), /*isConstant*/ true,
+                           GlobalValue::InternalLinkage, ImagesData,
+                           Twine(OffloadKindTag) + "device_images");
     if (Verbose)
       errs() << "  global added: " << Images->getName() << "\n";
     Images->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
 
     auto *ImagesB = ConstantExpr::getGetElementPtr(Images->getValueType(),
                                                    Images, ZeroZero);
-    Constant *Version =
-        ConstantInt::get(Type::getInt16Ty(C), BinDescStructVersion);
-    Constant *NumImages =
-        ConstantInt::get(Type::getInt16Ty(C), ImagesInits.size());
-    auto *DescInit = ConstantStruct::get(
-        getBinDescTy(), {Version, NumImages, ImagesB, EntriesB, EntriesE});
+
+    // And finally create the binary descriptor object.
+    auto *DescInit =
+        Kind == OffloadKind::SYCL
+            ? ConstantStruct::get(
+                  getSyclBinDescTy(),
+                  ConstantInt::get(Type::getInt16Ty(C), BinDescStructVersion),
+                  ConstantInt::get(Type::getInt16Ty(C), ImagesInits.size()),
+                  ImagesB, EntriesB, EntriesE)
+            : ConstantStruct::get(
+                  getBinDescTy(),
+                  ConstantInt::get(Type::getInt32Ty(C), ImagesInits.size()),
+                  ImagesB, EntriesB, EntriesE);
 
     GlobalValue::LinkageTypes Lnk = DescriptorName.getNumOccurrences() > 0
                                         ? GlobalValue::ExternalLinkage
                                         : GlobalValue::InternalLinkage;
-    auto *Res =
-        new GlobalVariable(M, DescInit->getType(), true, Lnk, DescInit,
-                           Twine(OffloadKindTag) + Twine(DescriptorName));
+    auto *Res = new GlobalVariable(
+        M, DescInit->getType(), /*isConstant*/ true, Lnk, DescInit,
+        Twine(OffloadKindTag) + Twine(DescriptorName));
     if (Verbose)
       errs() << "  global added: " << Res->getName() << "\n";
     return Res;
   }
 
   void createRegisterFunction(OffloadKind Kind, GlobalVariable *BinDesc) {
-    const std::string OffloadKindTag =
-        (Twine(".") + offloadKindToString(Kind) + Twine("_offloading.")).str();
-    auto *FuncTy = FunctionType::get(Type::getVoidTy(C), {}, false);
-    auto *Func = Function::Create(FuncTy, GlobalValue::InternalLinkage,
-                                  OffloadKindTag + "descriptor_reg", &M);
+    auto *FuncTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *Func =
+        Function::Create(FuncTy, GlobalValue::InternalLinkage,
+                         offloadKindToString(Kind) + ".descriptor_reg", &M);
     Func->setSection(".text.startup");
 
     // Get RegFuncName function declaration.
-    auto *RegFuncTy =
-        FunctionType::get(Type::getVoidTy(C), {getBinDescPtrTy()}, false);
-    FunctionCallee RegFunc = M.getOrInsertFunction(RegFuncName, RegFuncTy);
+    auto *RegFuncTy = FunctionType::get(Type::getVoidTy(C), getBinDescPtrTy(),
+                                        /*isVarArg*/ false);
+    FunctionCallee RegFuncC = M.getOrInsertFunction(RegFuncName, RegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
-    Builder.CreateCall(RegFunc, {BinDesc});
+    Builder.CreateCall(RegFuncC,
+                       Builder.CreatePointerCast(BinDesc, getBinDescPtrTy()));
     Builder.CreateRetVoid();
 
     // Add this function to constructors.
@@ -549,21 +782,22 @@ private:
   }
 
   void createUnregisterFunction(OffloadKind Kind, GlobalVariable *BinDesc) {
-    const std::string OffloadKindTag =
-        (Twine(".") + offloadKindToString(Kind) + Twine("_offloading.")).str();
-    auto *FuncTy = FunctionType::get(Type::getVoidTy(C), {}, false);
-    auto *Func = Function::Create(FuncTy, GlobalValue::InternalLinkage,
-                                  OffloadKindTag + "descriptor_unreg", &M);
+    auto *FuncTy = FunctionType::get(Type::getVoidTy(C), /*isVarArg*/ false);
+    auto *Func =
+        Function::Create(FuncTy, GlobalValue::InternalLinkage,
+                         offloadKindToString(Kind) + ".descriptor_unreg", &M);
     Func->setSection(".text.startup");
 
     // Get UnregFuncName function declaration.
-    auto *UnRegFuncTy =
-        FunctionType::get(Type::getVoidTy(C), {getBinDescPtrTy()}, false);
-    FunctionCallee UnRegFunc = M.getOrInsertFunction(UnregFuncName, UnRegFuncTy);
+    auto *UnRegFuncTy = FunctionType::get(Type::getVoidTy(C), getBinDescPtrTy(),
+                                          /*isVarArg*/ false);
+    FunctionCallee UnRegFuncC =
+        M.getOrInsertFunction(UnregFuncName, UnRegFuncTy);
 
     // Construct function body
     IRBuilder<> Builder(BasicBlock::Create(C, "entry", Func));
-    Builder.CreateCall(UnRegFunc, {BinDesc});
+    Builder.CreateCall(UnRegFuncC,
+                       Builder.CreatePointerCast(BinDesc, getBinDescPtrTy()));
     Builder.CreateRetVoid();
 
     // Add this function to global destructors.
@@ -571,23 +805,25 @@ private:
   }
 
 public:
-  BinaryWrapper(const StringRef &Target) : M("offload.wrapper.object", C) {
+  BinaryWrapper(StringRef Target) : M("offload.wrapper.object", C) {
     M.setTargetTriple(Target);
   }
 
-  const Module &wrap() {
+  Expected<const Module *> wrap() {
     for (auto &X : Packs) {
       OffloadKind Kind = X.first;
       SameKindPack *Pack = X.second.get();
-      auto *Desc = createBinDesc(Kind, *Pack);
-      assert(Desc && "no binary descriptor");
+      Expected<GlobalVariable *> DescOrErr = createBinDesc(Kind, *Pack);
+      if (!DescOrErr)
+        return DescOrErr.takeError();
 
       if (EmitRegFuncs) {
+        GlobalVariable *Desc = *DescOrErr;
         createRegisterFunction(Kind, Desc);
         createUnregisterFunction(Kind, Desc);
       }
     }
-    return M;
+    return &M;
   }
 };
 
@@ -637,6 +873,9 @@ private:
   int Cur = -1;
 
   /// Class IDs of all options from all lists. Filled in the constructor.
+  /// Can also be seen as a map from command line position to the option class
+  /// ID. If there is no option participating in one of the sequenced lists at
+  /// given position, then it is mapped to -1 marker value.
   std::unique_ptr<std::vector<int>> OptListIDs;
 
   using tuple_of_iters_t = std::tuple<typename Tys::iterator...>;
@@ -657,8 +896,11 @@ public:
   /// Args - the cl::list objects to sequence elements of
   ListArgsSequencer(size_t Sz, Tys &... Args)
       : Prevs(Args.end()...), Iters(Args.begin()...) {
-    assert(Sz >= sizeof...(Tys));
+    // make OptListIDs big enough to hold IDs of all options coming from the
+    // command line and initialize all IDs to default class -1
     OptListIDs.reset(new std::vector<int>(Sz, -1));
+    // map command line positions where sequenced options occur to appropriate
+    // class IDs
     addLists<sizeof...(Tys) - 1, 0>(Args...);
   }
 
@@ -705,9 +947,12 @@ private:
 
   /// Does the actual sequencing of options found in given list.
   template <int ID, typename T> void addListImpl(T &L) {
+    // iterate via all occurences of an option of given list class
     for (auto It = L.begin(); It != L.end(); It++) {
+      // calculate its sequential position in the command line
       unsigned Pos = L.getPosition(It - L.begin());
       assert((*OptListIDs)[Pos] == -1);
+      // ... and fill the corresponding spot in the list with the class ID
       (*OptListIDs)[Pos] = ID;
     }
   }
@@ -769,8 +1014,14 @@ int main(int argc, const char **argv) {
     cl::PrintHelpMessage();
     return 0;
   }
-  if (Target.empty()) {
-    errs() << "error: no target specified\n";
+
+  auto reportError = [argv](Error E) {
+    logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
+  };
+
+  if (Triple(Target).getArch() == Triple::UnknownArch) {
+    reportError(createStringError(
+        errc::invalid_argument, "'" + Target + "': unsupported target triple"));
     return 1;
   }
 
@@ -782,11 +1033,12 @@ int main(int argc, const char **argv) {
   llvm::StringRef Tgt = "";
   BinaryImageFormat Fmt = BinaryImageFormat::none;
   llvm::StringRef Opts = "";
+  llvm::StringRef EntriesFile = "";
   llvm::SmallVector<llvm::StringRef, 2> CurInputPair;
 
   ListArgsSequencer<decltype(Inputs), decltype(Kinds), decltype(Formats),
-                    decltype(Targets), decltype(Options)>
-      ArgSeq((size_t)argc, Inputs, Kinds, Formats, Targets, Options);
+                    decltype(Targets), decltype(Options), decltype(Entries)>
+      ArgSeq((size_t)argc, Inputs, Kinds, Formats, Targets, Options, Entries);
   int ID = -1;
 
   do {
@@ -796,18 +1048,21 @@ int main(int argc, const char **argv) {
       // cur option is not an input - create and image instance using current
       // state
       if (CurInputPair.size() > 2) {
-        errs() << "too many inputs for a single binary image, <binary file> "
-                  "<manifest file>{opt}expected\n";
+        reportError(
+            createStringError(errc::invalid_argument,
+                              "too many inputs for a single binary image, "
+                              "<binary file> <manifest file>{opt}expected"));
         return 1;
       }
       if (CurInputPair.size() != 0) {
         if (Knd == OffloadKind::Unknown) {
-          errs() << "error: offload model not set\n";
+          reportError(createStringError(errc::invalid_argument,
+                                        "offload model not set"));
           return 1;
         }
         StringRef File = CurInputPair[0];
         StringRef Manif = CurInputPair.size() > 1 ? CurInputPair[1] : "";
-        Wr.addImage(Knd, File, Manif, Tgt, Fmt, Opts);
+        Wr.addImage(Knd, File, Manif, Tgt, Fmt, Opts, EntriesFile);
         CurInputPair.clear();
       }
     }
@@ -829,20 +1084,37 @@ int main(int argc, const char **argv) {
     case 4: // Options
       Opts = *(ArgSeq.template get<4>());
       break;
+    case 5: // Entries
+      EntriesFile = *(ArgSeq.template get<5>());
+      break;
     default:
       llvm_unreachable("bad option class ID");
     }
   } while (ID != -1);
 
-  // Create the bitcode file to write the resulting code to.
+  // Create the output file to write the resulting bitcode to.
   std::error_code EC;
-  raw_fd_ostream OutF(Output, EC, sys::fs::F_None);
+  ToolOutputFile Out(Output, EC, sys::fs::OF_None);
   if (EC) {
-    errs() << "error: unable to open output file: " << EC.message() << ".\n";
+    reportError(createFileError(Output, EC));
     return 1;
   }
-  // Create a wrapper for device binaries and write its bitcode to the file.
-  WriteBitcodeToFile(Wr.wrap(), OutF);
 
+  // Create a wrapper for device binaries.
+  Expected<const Module *> ModOrErr = Wr.wrap();
+  if (!ModOrErr) {
+    reportError(ModOrErr.takeError());
+    return 1;
+  }
+
+  // And write its bitcode to the file.
+  WriteBitcodeToFile(**ModOrErr, Out.os());
+  if (Out.os().has_error()) {
+    reportError(createFileError(Output, Out.os().error()));
+    return 1;
+  }
+
+  // Success.
+  Out.keep();
   return 0;
 }

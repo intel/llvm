@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if defined(__i386__) || defined(_M_IX86)
+
 #include "lldb/Host/windows/HostThreadWindows.h"
 #include "lldb/Host/windows/windows.h"
 #include "lldb/Utility/RegisterValue.h"
@@ -265,9 +267,7 @@ bool RegisterContextWindows_x86::WriteRegister(const RegisterInfo *reg_info,
   }
 
   // Physically update the registers in the target process.
-  TargetThreadWindows &wthread = static_cast<TargetThreadWindows &>(m_thread);
-  return ::SetThreadContext(
-      wthread.GetHostThread().GetNativeThread().GetSystemHandle(), &m_context);
+  return ApplyAllRegisterValues();
 }
 
 bool RegisterContextWindows_x86::ReadRegisterHelper(
@@ -282,3 +282,5 @@ bool RegisterContextWindows_x86::ReadRegisterHelper(
   reg_value.SetUInt32(value);
   return true;
 }
+
+#endif // defined(__i386__) || defined(_M_IX86)

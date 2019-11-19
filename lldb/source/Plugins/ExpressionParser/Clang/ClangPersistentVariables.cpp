@@ -9,6 +9,7 @@
 #include "ClangPersistentVariables.h"
 
 #include "lldb/Core/Value.h"
+#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Log.h"
@@ -22,8 +23,7 @@ using namespace lldb;
 using namespace lldb_private;
 
 ClangPersistentVariables::ClangPersistentVariables()
-    : lldb_private::PersistentExpressionState(LLVMCastKind::eKindClang),
-      m_next_persistent_variable_id(0) {}
+    : lldb_private::PersistentExpressionState(LLVMCastKind::eKindClang) {}
 
 ExpressionVariableSP ClangPersistentVariables::CreatePersistentVariable(
     const lldb::ValueObjectSP &valobj_sp) {
@@ -42,14 +42,41 @@ void ClangPersistentVariables::RemovePersistentVariable(
     lldb::ExpressionVariableSP variable) {
   RemoveVariable(variable);
 
-  const char *name = variable->GetName().AsCString();
+  // Check if the removed variable was the last one that was created. If yes,
+  // reuse the variable id for the next variable.
 
-  if (*name != '$')
+  // Nothing to do if we have not assigned a variable id so far.
+  if (m_next_persistent_variable_id == 0)
     return;
-  name++;
 
-  if (strtoul(name, nullptr, 0) == m_next_persistent_variable_id - 1)
+  llvm::StringRef name = variable->GetName().GetStringRef();
+  // Remove the prefix from the variable that only the indes is left.
+  if (!name.consume_front(GetPersistentVariablePrefix(false)))
+    return;
+
+  // Check if the variable contained a variable id.
+  uint32_t variable_id;
+  if (name.getAsInteger(10, variable_id))
+    return;
+  // If it's the most recent variable id that was assigned, make sure that this
+  // variable id will be used for the next persistent variable.
+  if (variable_id == m_next_persistent_variable_id - 1)
     m_next_persistent_variable_id--;
+}
+
+llvm::Optional<CompilerType>
+ClangPersistentVariables::GetCompilerTypeFromPersistentDecl(
+    ConstString type_name) {
+  CompilerType compiler_type;
+  if (clang::TypeDecl *tdecl = llvm::dyn_cast_or_null<clang::TypeDecl>(
+          GetPersistentDecl(type_name))) {
+    compiler_type.SetCompilerType(
+        ClangASTContext::GetASTContext(&tdecl->getASTContext()),
+        reinterpret_cast<lldb::opaque_compiler_type_t>(
+            const_cast<clang::Type *>(tdecl->getTypeForDecl())));
+    return compiler_type;
+  }
+  return llvm::None;
 }
 
 void ClangPersistentVariables::RegisterPersistentDecl(ConstString name,

@@ -7,19 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "DWARFDebugAranges.h"
-
-#include <assert.h>
-#include <stdio.h>
-
-#include <algorithm>
-
-#include "lldb/Utility/Log.h"
-#include "lldb/Utility/Stream.h"
-#include "lldb/Utility/Timer.h"
-
+#include "DWARFDebugArangeSet.h"
 #include "DWARFUnit.h"
-#include "DWARFDebugInfo.h"
-#include "SymbolFileDWARF.h"
+#include "lldb/Utility/Log.h"
+#include "lldb/Utility/Timer.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -75,8 +66,8 @@ void DWARFDebugAranges::Dump(Log *log) const {
   for (size_t i = 0; i < num_entries; ++i) {
     const RangeToDIE::Entry *entry = m_aranges.GetEntryAtIndex(i);
     if (entry)
-      log->Printf("0x%8.8x: [0x%" PRIx64 " - 0x%" PRIx64 ")", entry->data,
-                  entry->GetRangeBase(), entry->GetRangeEnd());
+      LLDB_LOGF(log, "0x%8.8x: [0x%" PRIx64 " - 0x%" PRIx64 ")", entry->data,
+                entry->GetRangeBase(), entry->GetRangeEnd());
   }
 }
 

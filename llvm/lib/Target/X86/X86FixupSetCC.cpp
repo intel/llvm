@@ -54,8 +54,8 @@ private:
   // output.
   bool isSetCCr(unsigned Opode);
 
-  MachineRegisterInfo *MRI;
-  const X86InstrInfo *TII;
+  MachineRegisterInfo *MRI = nullptr;
+  const X86InstrInfo *TII = nullptr;
 
   enum { SearchBound = 16 };
 
@@ -136,8 +136,8 @@ bool X86FixupSetCCPass::runOnMachineFunction(MachineFunction &MF) {
       const TargetRegisterClass *RC = MF.getSubtarget<X86Subtarget>().is64Bit()
                                           ? &X86::GR32RegClass
                                           : &X86::GR32_ABCDRegClass;
-      unsigned ZeroReg = MRI->createVirtualRegister(RC);
-      unsigned InsertReg = MRI->createVirtualRegister(RC);
+      Register ZeroReg = MRI->createVirtualRegister(RC);
+      Register InsertReg = MRI->createVirtualRegister(RC);
 
       // Initialize a register with 0. This must go before the eflags def
       BuildMI(MBB, FlagsDefMI, MI.getDebugLoc(), TII->get(X86::MOV32r0),

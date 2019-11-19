@@ -121,6 +121,33 @@ void VirtualInheritanceFnPtrCall() {
 }
 } // namespace pr37399
 
+namespace pr43803 {
+// This case is interesting because it exercises conversion between member
+// pointer types when emitting constants.
+
+struct B;
+struct C { int B::*option; };
+extern const C table[3];
+struct A {
+  int x, y;
+  // Test the indirect case.
+  struct {
+    int z;
+  };
+};
+struct B : A {};
+const C table[] = {
+    {&B::x},
+    {&B::y},
+    {&B::z},
+};
+
+// CHECK: @"?table@pr43803@@3QBUC@1@B" = dso_local constant [3 x %"struct.pr43803::C"]
+// CHECK-SAME: [%"struct.pr43803::C" { { i32, i32, i32 } zeroinitializer, [4 x i8] undef },
+// CHECK-SAME:  %"struct.pr43803::C" { { i32, i32, i32 } { i32 4, i32 0, i32 0 }, [4 x i8] undef },
+// CHECK-SAME:  %"struct.pr43803::C" { { i32, i32, i32 } { i32 8, i32 0, i32 0 }, [4 x i8] undef }]
+}
+
 struct PR26313_Y;
 typedef void (PR26313_Y::*PR26313_FUNC)();
 struct PR26313_X {
@@ -390,7 +417,7 @@ bool nullTestDataUnspecified(int Unspecified::*mp) {
 
 // Pass this large type indirectly.
 // X64-LABEL: define dso_local zeroext i1 @"?nullTestDataUnspecified@@
-// X64:             ({ i32, i32, i32 }*)
+// X64:             ({ i32, i32, i32 }* %0)
 }
 
 bool nullTestFunctionUnspecified(void (Unspecified::*mp)()) {
@@ -564,7 +591,7 @@ bool unspecFuncMemptrEq(void (Unspecified::*l)(), void (Unspecified::*r)()) {
 // CHECK: }
 
 // X64-LABEL: define dso_local zeroext i1 @"?unspecFuncMemptrEq@@
-// X64:             ({ i8*, i32, i32, i32 }*, { i8*, i32, i32, i32 }*)
+// X64:             ({ i8*, i32, i32, i32 }* %0, { i8*, i32, i32, i32 }* %1)
 }
 
 bool unspecFuncMemptrNeq(void (Unspecified::*l)(), void (Unspecified::*r)()) {
@@ -609,7 +636,7 @@ bool unspecDataMemptrEq(int Unspecified::*l, int Unspecified::*r) {
 // CHECK: }
 
 // X64-LABEL: define dso_local zeroext i1 @"?unspecDataMemptrEq@@
-// X64:             ({ i32, i32, i32 }*, { i32, i32, i32 }*)
+// X64:             ({ i32, i32, i32 }* %0, { i32, i32, i32 }* %1)
 }
 
 void (Multiple::*convertB2FuncToMultiple(void (B2::*mp)()))() {

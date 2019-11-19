@@ -1,6 +1,4 @@
-LEVEL = ../../../make
-
 OBJC_SOURCES := dynamic-value.m
-LDFLAGS = $(CFLAGS) -lobjc -framework Foundation
+LD_EXTRAS := -lobjc -framework Foundation
 
-include $(LEVEL)/Makefile.rules
+include Makefile.rules

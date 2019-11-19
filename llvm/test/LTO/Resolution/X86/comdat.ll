@@ -22,7 +22,7 @@
 ; RUN:  -r=%t2.o,a25,px
 ; RUN: llvm-dis %t3.o.0.2.internalize.bc -o - | FileCheck %s
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 $c1 = comdat any
@@ -70,7 +70,7 @@ bb11:
 ; CHECK-DAG: @a23 = alias i32 (i8*), i32 (i8*)* @f1.2{{$}}
 ; CHECK-DAG: @a24 = alias i16, bitcast (i32 (i8*)* @f1.2 to i16*)
 
-; CHECK:      define weak_odr dso_local i32 @f1(i8*) comdat($c1) {
+; CHECK:      define weak_odr dso_local i32 @f1(i8* %0) comdat($c1) {
 ; CHECK-NEXT: bb10:
 ; CHECK-NEXT:   br label %bb11{{$}}
 ; CHECK:      bb11:

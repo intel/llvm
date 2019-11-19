@@ -1,6 +1,8 @@
 llvm-profdata - Profile data tool
 =================================
 
+.. program:: llvm-profdata
+
 SYNOPSIS
 --------
 
@@ -121,6 +123,14 @@ OPTIONS
 
  Use N threads to perform profile merging. When N=0, llvm-profdata auto-detects
  an appropriate number of threads to use. This is the default.
+
+.. option:: -failure-mode=[any|all]
+
+ Set the failure mode. There are two options: 'any' causes the merge command to
+ fail if any profiles are invalid, and 'all' causes the merge command to fail
+ only if all profiles are invalid. If 'all' is set, information from any
+ invalid profiles is excluded from the final merged product. The default
+ failure mode is 'any'.
 
 EXAMPLES
 ^^^^^^^^
@@ -270,7 +280,6 @@ overlap.
 
 Here is an example, if *base profile file* has counts of {400, 600}, and
 *test profile file* has matched counts of {60000, 40000}. The *overlap* is 80%.
-
 
 OPTIONS
 ^^^^^^^

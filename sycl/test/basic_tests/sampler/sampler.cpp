@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -37,7 +37,7 @@ int main() {
              B.get_coordinate_normalization_mode() &&
          A.get_filtering_mode() == B.get_filtering_mode());
 
-  // Check assigment operator
+  // Check assignment operator
   if (!Queue.is_host()) {
     // OpenCL sampler
     cl_int Err = CL_SUCCESS;
@@ -57,9 +57,12 @@ int main() {
         clCreateSampler(Queue.get_context().get(), true, CL_ADDRESS_REPEAT,
                         CL_FILTER_LINEAR, &Err);
 #endif
+    // If device doesn't support sampler - skip it
+    if (Err == CL_INVALID_OPERATION)
+      return 0;
+
     CHECK_OCL_CODE(Err);
     B = sycl::sampler(ClSampler, Queue.get_context());
-
   } else {
     // Host sampler
     B = sycl::sampler(sycl::coordinate_normalization_mode::normalized,
@@ -75,7 +78,7 @@ int main() {
   sycl::hash_class<cl::sycl::sampler> Hasher;
   assert(Hasher(A) != Hasher(B));
 
-  // Check move assigment
+  // Check move assignment
   sycl::sampler C(B);
   A = std::move(B);
   assert(Hasher(C) == Hasher(A));

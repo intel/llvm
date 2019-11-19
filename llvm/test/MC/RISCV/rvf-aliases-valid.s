@@ -7,13 +7,13 @@
 # RUN: llvm-mc %s -triple=riscv64 -mattr=+f \
 # RUN:     | FileCheck -check-prefix=CHECK-ALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+f < %s \
-# RUN:     | llvm-objdump -d -mattr=+f -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d -mattr=+f -M no-aliases - \
 # RUN:     | FileCheck -check-prefix=CHECK-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+f < %s \
 # RUN:     | llvm-objdump -d -mattr=+f - \
 # RUN:     | FileCheck -check-prefix=CHECK-ALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 -mattr=+f < %s \
-# RUN:     | llvm-objdump -d -mattr=+f -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d -mattr=+f -M no-aliases - \
 # RUN:     | FileCheck -check-prefix=CHECK-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv64 -mattr=+f < %s \
 # RUN:     | llvm-objdump -d -mattr=+f - \
@@ -54,6 +54,18 @@ fscsr x6, x7
 # CHECK-INST: csrrw  zero, fcsr, t3
 # CHECK-ALIAS: fscsr t3
 fscsr x28
+
+# These are obsolete aliases of frcsr/fscsr. They are accepted by the assembler
+# but the disassembler should always print them as the equivalent, new aliases.
+# CHECK-INST: csrrs t4, fcsr, zero
+# CHECK-ALIAS: frcsr t4
+frsr x29
+# CHECK-INST: csrrw t5, fcsr, t6
+# CHECK-ALIAS: fscsr t5, t6
+fssr x30, x31
+# CHECK-INST: csrrw zero, fcsr, s0
+# CHECK-ALIAS: fscsr s0
+fssr x8
 
 # CHECK-INST: csrrs t4, frm, zero
 # CHECK-ALIAS: frrm t4

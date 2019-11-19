@@ -1,9 +1,9 @@
 // REQUIRES: systemz-registered-target
 // RUN: %clang_cc1 -target-cpu z14 -triple s390x-linux-gnu \
-// RUN: -O -fzvector -fno-lax-vector-conversions \
+// RUN: -O -fzvector -flax-vector-conversions=none \
 // RUN: -Wall -Wno-unused -Werror -emit-llvm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -target-cpu z14 -triple s390x-linux-gnu \
-// RUN: -O -fzvector -fno-lax-vector-conversions \
+// RUN: -O -fzvector -flax-vector-conversions=none \
 // RUN: -Wall -Wno-unused -Werror -S %s -o - | FileCheck %s --check-prefix=CHECK-ASM
 
 #include <vecintrin.h>
@@ -125,6 +125,16 @@ void test_core(void) {
   vul = vec_bperm_u128(vuc, vuc);
   // CHECK: call <2 x i64> @llvm.s390.vbperm(<16 x i8> %{{.*}}, <16 x i8> %{{.*}})
   // CHECK-ASM: vbperm
+
+  vf = vec_revb(vf);
+  // CHECK-ASM: vperm
+  vd = vec_revb(vd);
+  // CHECK-ASM: vperm
+
+  vf = vec_reve(vf);
+  // CHECK-ASM: vperm
+  vd = vec_reve(vd);
+  // CHECK-ASM: {{vperm|vpdi}}
 
   vf = vec_sel(vf, vf, vui);
   // CHECK-ASM: vsel

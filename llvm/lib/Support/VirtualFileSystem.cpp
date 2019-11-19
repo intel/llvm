@@ -56,8 +56,10 @@
 using namespace llvm;
 using namespace llvm::vfs;
 
+using llvm::sys::fs::file_t;
 using llvm::sys::fs::file_status;
 using llvm::sys::fs::file_type;
+using llvm::sys::fs::kInvalidFile;
 using llvm::sys::fs::perms;
 using llvm::sys::fs::UniqueID;
 
@@ -170,15 +172,15 @@ namespace {
 class RealFile : public File {
   friend class RealFileSystem;
 
-  int FD;
+  file_t FD;
   Status S;
   std::string RealName;
 
-  RealFile(int FD, StringRef NewName, StringRef NewRealPathName)
-      : FD(FD), S(NewName, {}, {}, {}, {}, {},
-                  llvm::sys::fs::file_type::status_error, {}),
+  RealFile(file_t RawFD, StringRef NewName, StringRef NewRealPathName)
+      : FD(RawFD), S(NewName, {}, {}, {}, {}, {},
+                     llvm::sys::fs::file_type::status_error, {}),
         RealName(NewRealPathName.str()) {
-    assert(FD >= 0 && "Invalid or inactive file descriptor");
+    assert(FD != kInvalidFile && "Invalid or inactive file descriptor");
   }
 
 public:
@@ -198,7 +200,7 @@ public:
 RealFile::~RealFile() { close(); }
 
 ErrorOr<Status> RealFile::status() {
-  assert(FD != -1 && "cannot stat closed file");
+  assert(FD != kInvalidFile && "cannot stat closed file");
   if (!S.isStatusKnown()) {
     file_status RealStatus;
     if (std::error_code EC = sys::fs::status(FD, RealStatus))
@@ -215,14 +217,14 @@ ErrorOr<std::string> RealFile::getName() {
 ErrorOr<std::unique_ptr<MemoryBuffer>>
 RealFile::getBuffer(const Twine &Name, int64_t FileSize,
                     bool RequiresNullTerminator, bool IsVolatile) {
-  assert(FD != -1 && "cannot get buffer for closed file");
+  assert(FD != kInvalidFile && "cannot get buffer for closed file");
   return MemoryBuffer::getOpenFile(FD, Name, FileSize, RequiresNullTerminator,
                                    IsVolatile);
 }
 
 std::error_code RealFile::close() {
-  std::error_code EC = sys::Process::SafelyCloseFileDescriptor(FD);
-  FD = -1;
+  std::error_code EC = sys::fs::closeFile(FD);
+  FD = kInvalidFile;
   return EC;
 }
 
@@ -293,12 +295,13 @@ ErrorOr<Status> RealFileSystem::status(const Twine &Path) {
 
 ErrorOr<std::unique_ptr<File>>
 RealFileSystem::openFileForRead(const Twine &Name) {
-  int FD;
   SmallString<256> RealName, Storage;
-  if (std::error_code EC = sys::fs::openFileForRead(
-          adjustPath(Name, Storage), FD, sys::fs::OF_None, &RealName))
-    return EC;
-  return std::unique_ptr<File>(new RealFile(FD, Name.str(), RealName.str()));
+  Expected<file_t> FDOrErr = sys::fs::openNativeFileForRead(
+      adjustPath(Name, Storage), sys::fs::OF_None, &RealName);
+  if (!FDOrErr)
+    return errorToErrorCode(FDOrErr.takeError());
+  return std::unique_ptr<File>(
+      new RealFile(*FDOrErr, Name.str(), RealName.str()));
 }
 
 llvm::ErrorOr<std::string> RealFileSystem::getCurrentWorkingDirectory() const {
@@ -346,7 +349,7 @@ IntrusiveRefCntPtr<FileSystem> vfs::getRealFileSystem() {
 }
 
 std::unique_ptr<FileSystem> vfs::createPhysicalFileSystem() {
-  return llvm::make_unique<RealFileSystem>(false);
+  return std::make_unique<RealFileSystem>(false);
 }
 
 namespace {
@@ -751,7 +754,7 @@ bool InMemoryFileSystem::addFile(const Twine &P, time_t ModificationTime,
           ResolvedUser, ResolvedGroup, 0, sys::fs::file_type::directory_file,
           NewDirectoryPerms);
       Dir = cast<detail::InMemoryDirectory>(Dir->addChild(
-          Name, llvm::make_unique<detail::InMemoryDirectory>(std::move(Stat))));
+          Name, std::make_unique<detail::InMemoryDirectory>(std::move(Stat))));
       continue;
     }
 
@@ -891,7 +894,7 @@ class InMemoryDirIterator : public llvm::vfs::detail::DirIterImpl {
     if (I != E) {
       SmallString<256> Path(RequestedDirName);
       llvm::sys::path::append(Path, I->second->getFileName());
-      sys::fs::file_type Type;
+      sys::fs::file_type Type = sys::fs::file_type::type_unknown;
       switch (I->second->getKind()) {
       case detail::IME_File:
       case detail::IME_HardLink:
@@ -986,6 +989,16 @@ std::error_code InMemoryFileSystem::isLocal(const Twine &Path, bool &Result) {
 // RedirectingFileSystem implementation
 //===-----------------------------------------------------------------------===/
 
+RedirectingFileSystem::RedirectingFileSystem(IntrusiveRefCntPtr<FileSystem> FS)
+    : ExternalFS(std::move(FS)) {
+  if (ExternalFS)
+    if (auto ExternalWorkingDirectory =
+            ExternalFS->getCurrentWorkingDirectory()) {
+      WorkingDirectory = *ExternalWorkingDirectory;
+      ExternalFSValidWD = true;
+    }
+}
+
 // FIXME: reuse implementation common with OverlayFSDirIterImpl as these
 // iterators are conceptually similar.
 class llvm::vfs::VFSFromYamlDirIterImpl
@@ -1032,12 +1045,27 @@ public:
 
 llvm::ErrorOr<std::string>
 RedirectingFileSystem::getCurrentWorkingDirectory() const {
-  return ExternalFS->getCurrentWorkingDirectory();
+  return WorkingDirectory;
 }
 
 std::error_code
 RedirectingFileSystem::setCurrentWorkingDirectory(const Twine &Path) {
-  return ExternalFS->setCurrentWorkingDirectory(Path);
+  // Don't change the working directory if the path doesn't exist.
+  if (!exists(Path))
+    return errc::no_such_file_or_directory;
+
+  // Always change the external FS but ignore its result.
+  if (ExternalFS) {
+    auto EC = ExternalFS->setCurrentWorkingDirectory(Path);
+    ExternalFSValidWD = !static_cast<bool>(EC);
+  }
+
+  SmallString<128> AbsolutePath;
+  Path.toVector(AbsolutePath);
+  if (std::error_code EC = makeAbsolute(AbsolutePath))
+    return EC;
+  WorkingDirectory = AbsolutePath.str();
+  return {};
 }
 
 std::error_code RedirectingFileSystem::isLocal(const Twine &Path,
@@ -1050,7 +1078,7 @@ directory_iterator RedirectingFileSystem::dir_begin(const Twine &Dir,
   ErrorOr<RedirectingFileSystem::Entry *> E = lookupPath(Dir);
   if (!E) {
     EC = E.getError();
-    if (IsFallthrough && EC == errc::no_such_file_or_directory)
+    if (shouldUseExternalFS() && EC == errc::no_such_file_or_directory)
       return ExternalFS->dir_begin(Dir, EC);
     return {};
   }
@@ -1068,7 +1096,7 @@ directory_iterator RedirectingFileSystem::dir_begin(const Twine &Dir,
   auto *D = cast<RedirectingFileSystem::RedirectingDirectoryEntry>(*E);
   return directory_iterator(std::make_shared<VFSFromYamlDirIterImpl>(
       Dir, D->contents_begin(), D->contents_end(),
-      /*IterateExternalFS=*/IsFallthrough, *ExternalFS, EC));
+      /*IterateExternalFS=*/shouldUseExternalFS(), *ExternalFS, EC));
 }
 
 void RedirectingFileSystem::setExternalContentsPrefixDir(StringRef PrefixDir) {
@@ -1079,20 +1107,19 @@ StringRef RedirectingFileSystem::getExternalContentsPrefixDir() const {
   return ExternalContentsPrefixDir;
 }
 
-#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-LLVM_DUMP_METHOD void RedirectingFileSystem::dump() const {
+void RedirectingFileSystem::dump(raw_ostream &OS) const {
   for (const auto &Root : Roots)
-    dumpEntry(Root.get());
+    dumpEntry(OS, Root.get());
 }
 
-LLVM_DUMP_METHOD void
-RedirectingFileSystem::dumpEntry(RedirectingFileSystem::Entry *E,
-                                 int NumSpaces) const {
+void RedirectingFileSystem::dumpEntry(raw_ostream &OS,
+                                      RedirectingFileSystem::Entry *E,
+                                      int NumSpaces) const {
   StringRef Name = E->getName();
   for (int i = 0, e = NumSpaces; i < e; ++i)
-    dbgs() << " ";
-  dbgs() << "'" << Name.str().c_str() << "'"
-         << "\n";
+    OS << " ";
+  OS << "'" << Name.str().c_str() << "'"
+     << "\n";
 
   if (E->getKind() == RedirectingFileSystem::EK_Directory) {
     auto *DE = dyn_cast<RedirectingFileSystem::RedirectingDirectoryEntry>(E);
@@ -1100,9 +1127,12 @@ RedirectingFileSystem::dumpEntry(RedirectingFileSystem::Entry *E,
 
     for (std::unique_ptr<Entry> &SubEntry :
          llvm::make_range(DE->contents_begin(), DE->contents_end()))
-      dumpEntry(SubEntry.get(), NumSpaces + 2);
+      dumpEntry(OS, SubEntry.get(), NumSpaces + 2);
   }
 }
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+LLVM_DUMP_METHOD void RedirectingFileSystem::dump() const { dump(dbgs()); }
 #endif
 
 /// A helper class to hold the common YAML parsing state.
@@ -1206,7 +1236,7 @@ class llvm::vfs::RedirectingFileSystemParser {
 
     // ... or create a new one
     std::unique_ptr<RedirectingFileSystem::Entry> E =
-        llvm::make_unique<RedirectingFileSystem::RedirectingDirectoryEntry>(
+        std::make_unique<RedirectingFileSystem::RedirectingDirectoryEntry>(
             Name, Status("", getNextVirtualUniqueID(),
                          std::chrono::system_clock::now(), 0, 0, 0,
                          file_type::directory_file, sys::fs::all_all));
@@ -1218,7 +1248,7 @@ class llvm::vfs::RedirectingFileSystemParser {
     }
 
     auto *DE =
-        dyn_cast<RedirectingFileSystem::RedirectingDirectoryEntry>(ParentEntry);
+        cast<RedirectingFileSystem::RedirectingDirectoryEntry>(ParentEntry);
     DE->addContent(std::move(E));
     return DE->getLastContent();
   }
@@ -1229,9 +1259,7 @@ class llvm::vfs::RedirectingFileSystemParser {
     StringRef Name = SrcE->getName();
     switch (SrcE->getKind()) {
     case RedirectingFileSystem::EK_Directory: {
-      auto *DE =
-          dyn_cast<RedirectingFileSystem::RedirectingDirectoryEntry>(SrcE);
-      assert(DE && "Must be a directory");
+      auto *DE = cast<RedirectingFileSystem::RedirectingDirectoryEntry>(SrcE);
       // Empty directories could be present in the YAML as a way to
       // describe a file for a current directory after some of its subdir
       // is parsed. This only leads to redundant walks, ignore it.
@@ -1243,13 +1271,12 @@ class llvm::vfs::RedirectingFileSystemParser {
       break;
     }
     case RedirectingFileSystem::EK_File: {
-      auto *FE = dyn_cast<RedirectingFileSystem::RedirectingFileEntry>(SrcE);
-      assert(FE && "Must be a file");
       assert(NewParentE && "Parent entry must exist");
-      auto *DE = dyn_cast<RedirectingFileSystem::RedirectingDirectoryEntry>(
-          NewParentE);
+      auto *FE = cast<RedirectingFileSystem::RedirectingFileEntry>(SrcE);
+      auto *DE =
+          cast<RedirectingFileSystem::RedirectingDirectoryEntry>(NewParentE);
       DE->addContent(
-          llvm::make_unique<RedirectingFileSystem::RedirectingFileEntry>(
+          std::make_unique<RedirectingFileSystem::RedirectingFileEntry>(
               Name, FE->getExternalContentsPath(), FE->getUseName()));
       break;
     }
@@ -1420,12 +1447,12 @@ class llvm::vfs::RedirectingFileSystemParser {
     std::unique_ptr<RedirectingFileSystem::Entry> Result;
     switch (Kind) {
     case RedirectingFileSystem::EK_File:
-      Result = llvm::make_unique<RedirectingFileSystem::RedirectingFileEntry>(
+      Result = std::make_unique<RedirectingFileSystem::RedirectingFileEntry>(
           LastComponent, std::move(ExternalContentsPath), UseExternalName);
       break;
     case RedirectingFileSystem::EK_Directory:
       Result =
-          llvm::make_unique<RedirectingFileSystem::RedirectingDirectoryEntry>(
+          std::make_unique<RedirectingFileSystem::RedirectingDirectoryEntry>(
               LastComponent, std::move(EntryArrayContents),
               Status("", getNextVirtualUniqueID(),
                      std::chrono::system_clock::now(), 0, 0, 0,
@@ -1444,7 +1471,7 @@ class llvm::vfs::RedirectingFileSystemParser {
       std::vector<std::unique_ptr<RedirectingFileSystem::Entry>> Entries;
       Entries.push_back(std::move(Result));
       Result =
-          llvm::make_unique<RedirectingFileSystem::RedirectingDirectoryEntry>(
+          std::make_unique<RedirectingFileSystem::RedirectingDirectoryEntry>(
               *I, std::move(Entries),
               Status("", getNextVirtualUniqueID(),
                      std::chrono::system_clock::now(), 0, 0, 0,
@@ -1570,7 +1597,7 @@ RedirectingFileSystem::create(std::unique_ptr<MemoryBuffer> Buffer,
   RedirectingFileSystemParser P(Stream);
 
   std::unique_ptr<RedirectingFileSystem> FS(
-      new RedirectingFileSystem(std::move(ExternalFS)));
+      new RedirectingFileSystem(ExternalFS));
 
   if (!YAMLFilePath.empty()) {
     // Use the YAML path from -ivfsoverlay to compute the dir to be prefixed
@@ -1699,7 +1726,7 @@ ErrorOr<Status> RedirectingFileSystem::status(const Twine &Path,
 ErrorOr<Status> RedirectingFileSystem::status(const Twine &Path) {
   ErrorOr<RedirectingFileSystem::Entry *> Result = lookupPath(Path);
   if (!Result) {
-    if (IsFallthrough &&
+    if (shouldUseExternalFS() &&
         Result.getError() == llvm::errc::no_such_file_or_directory) {
       return ExternalFS->status(Path);
     }
@@ -1737,7 +1764,7 @@ ErrorOr<std::unique_ptr<File>>
 RedirectingFileSystem::openFileForRead(const Twine &Path) {
   ErrorOr<RedirectingFileSystem::Entry *> E = lookupPath(Path);
   if (!E) {
-    if (IsFallthrough &&
+    if (shouldUseExternalFS() &&
         E.getError() == llvm::errc::no_such_file_or_directory) {
       return ExternalFS->openFileForRead(Path);
     }
@@ -1760,7 +1787,7 @@ RedirectingFileSystem::openFileForRead(const Twine &Path) {
   Status S = getRedirectedFileStatus(Path, F->useExternalName(UseExternalNames),
                                      *ExternalStatus);
   return std::unique_ptr<File>(
-      llvm::make_unique<FileWithFixedStatus>(std::move(*Result), S));
+      std::make_unique<FileWithFixedStatus>(std::move(*Result), S));
 }
 
 std::error_code
@@ -1768,7 +1795,7 @@ RedirectingFileSystem::getRealPath(const Twine &Path,
                                    SmallVectorImpl<char> &Output) const {
   ErrorOr<RedirectingFileSystem::Entry *> Result = lookupPath(Path);
   if (!Result) {
-    if (IsFallthrough &&
+    if (shouldUseExternalFS() &&
         Result.getError() == llvm::errc::no_such_file_or_directory) {
       return ExternalFS->getRealPath(Path, Output);
     }
@@ -1781,8 +1808,8 @@ RedirectingFileSystem::getRealPath(const Twine &Path,
   }
   // Even if there is a directory entry, fall back to ExternalFS if allowed,
   // because directories don't have a single external contents path.
-  return IsFallthrough ? ExternalFS->getRealPath(Path, Output)
-                       : llvm::errc::invalid_argument;
+  return shouldUseExternalFS() ? ExternalFS->getRealPath(Path, Output)
+                               : llvm::errc::invalid_argument;
 }
 
 IntrusiveRefCntPtr<FileSystem>
@@ -2046,7 +2073,7 @@ std::error_code VFSFromYamlDirIterImpl::incrementContent(bool IsFirstTime) {
   while (Current != End) {
     SmallString<128> PathStr(Dir);
     llvm::sys::path::append(PathStr, (*Current)->getName());
-    sys::fs::file_type Type;
+    sys::fs::file_type Type = sys::fs::file_type::type_unknown;
     switch ((*Current)->getKind()) {
     case RedirectingFileSystem::EK_Directory:
       Type = sys::fs::file_type::directory_file;

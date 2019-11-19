@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <map>
@@ -60,26 +60,18 @@ public:
   void addImages(pi_device_binaries DeviceImages);
   void debugDumpBinaryImages() const;
   void debugDumpBinaryImage(const DeviceImage *Img) const;
+  static string_class getProgramBuildLog(const RT::PiProgram &Program);
 
 private:
   RT::PiProgram loadProgram(OSModuleHandle M, const context &Context,
                             DeviceImage **I = nullptr);
-  void build(RT::PiProgram &Program, const string_class &Options = "",
+  void build(RT::PiProgram Program, const string_class &Options = "",
              std::vector<RT::PiDevice> Devices = std::vector<RT::PiDevice>());
-
-  struct ContextAndModuleLess {
-    bool operator()(const std::pair<context, OSModuleHandle> &LHS,
-                    const std::pair<context, OSModuleHandle> &RHS) const;
-  };
 
   ProgramManager() = default;
   ~ProgramManager() = default;
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
-
-  std::map<std::pair<context, OSModuleHandle>, RT::PiProgram, ContextAndModuleLess>
-      m_CachedSpirvPrograms;
-  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> m_CachedKernels;
 
   /// Keeps all available device executable images added via \ref addImages.
   /// Organizes the images as a map from a module handle (.exe .dll) to the

@@ -841,19 +841,11 @@ define <8 x double> @shuffle_v8f64_f511235a(<8 x double> %a, <8 x double> %b) {
 }
 
 define <8 x double> @shuffle_v8f64_1z2z5z6z(<8 x double> %a, <8 x double> %b) {
-; AVX512F-LABEL: shuffle_v8f64_1z2z5z6z:
-; AVX512F:       # %bb.0:
-; AVX512F-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
-; AVX512F-NEXT:    vmovapd {{.*#+}} zmm2 = [1,8,2,8,5,8,6,8]
-; AVX512F-NEXT:    vpermt2pd %zmm1, %zmm2, %zmm0
-; AVX512F-NEXT:    retq
-;
-; AVX512F-32-LABEL: shuffle_v8f64_1z2z5z6z:
-; AVX512F-32:       # %bb.0:
-; AVX512F-32-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
-; AVX512F-32-NEXT:    vmovapd {{.*#+}} zmm2 = [1,0,8,0,2,0,8,0,5,0,8,0,6,0,8,0]
-; AVX512F-32-NEXT:    vpermt2pd %zmm1, %zmm2, %zmm0
-; AVX512F-32-NEXT:    retl
+; ALL-LABEL: shuffle_v8f64_1z2z5z6z:
+; ALL:       # %bb.0:
+; ALL-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
+; ALL-NEXT:    vshufpd {{.*#+}} zmm0 = zmm0[1],zmm1[0],zmm0[2],zmm1[2],zmm0[5],zmm1[4],zmm0[6],zmm1[6]
+; ALL-NEXT:    ret{{[l|q]}}
   %shuffle = shufflevector <8 x double> %a, <8 x double> <double 0.000000e+00, double undef, double undef, double undef, double undef, double undef, double undef, double undef>, <8 x i32> <i32 1, i32 8, i32 2, i32 8, i32 5, i32 8, i32 6, i32 8>
   ret <8 x double> %shuffle
 }
@@ -1767,8 +1759,8 @@ define <8 x double> @shuffle_v8f64_0z2z4z6z(<8 x double> %a, <8 x double> %b) {
 ;
 ; ALL-LABEL: shuffle_v8f64_0z2z4z6z:
 ; ALL:       # %bb.0:
-; ALL-NEXT:    vxorps %xmm1, %xmm1, %xmm1
-; ALL-NEXT:    vunpcklpd {{.*#+}} zmm0 = zmm0[0],zmm1[0],zmm0[2],zmm1[2],zmm0[4],zmm1[4],zmm0[6],zmm1[6]
+; ALL-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
+; ALL-NEXT:    vshufpd {{.*#+}} zmm0 = zmm0[0],zmm1[0],zmm0[2],zmm1[2],zmm0[4],zmm1[4],zmm0[6],zmm1[6]
 ; ALL-NEXT:    ret{{[l|q]}}
   %shuffle = shufflevector <8 x double> %a, <8 x double> zeroinitializer, <8 x i32><i32 0, i32 8, i32 2, i32 8, i32 4, i32 8, i32 6, i32 8>
   ret <8 x double> %shuffle
@@ -1809,8 +1801,8 @@ define <8 x double> @shuffle_v8f64_z9zbzdzf(<8 x double> %a, <8 x double> %b) {
 ;
 ; ALL-LABEL: shuffle_v8f64_z9zbzdzf:
 ; ALL:       # %bb.0:
-; ALL-NEXT:    vxorps %xmm0, %xmm0, %xmm0
-; ALL-NEXT:    vunpckhpd {{.*#+}} zmm0 = zmm0[1],zmm1[1],zmm0[3],zmm1[3],zmm0[5],zmm1[5],zmm0[7],zmm1[7]
+; ALL-NEXT:    vxorpd %xmm0, %xmm0, %xmm0
+; ALL-NEXT:    vshufpd {{.*#+}} zmm0 = zmm0[0],zmm1[1],zmm0[2],zmm1[3],zmm0[4],zmm1[5],zmm0[6],zmm1[7]
 ; ALL-NEXT:    ret{{[l|q]}}
   %shuffle = shufflevector <8 x double> zeroinitializer, <8 x double> %b, <8 x i32><i32 0, i32 9, i32 0, i32 11, i32 0, i32 13, i32 0, i32 15>
   ret <8 x double> %shuffle
@@ -1849,7 +1841,7 @@ define <8 x double> @test_vshuff64x2_512(<8 x double> %x, <8 x double> %x1) noun
 define <8 x double> @test_vshuff64x2_512_maskz(<8 x double> %x, <8 x double> %x1, <8 x i1> %mask) nounwind {
 ; ALL-LABEL: test_vshuff64x2_512_maskz:
 ; ALL:       # %bb.0:
-; ALL-NEXT:    vpmovzxwq {{.*#+}} zmm2 = xmm2[0],zero,zero,zero,xmm2[1],zero,zero,zero,xmm2[2],zero,zero,zero,xmm2[3],zero,zero,zero,xmm2[4],zero,zero,zero,xmm2[5],zero,zero,zero,xmm2[6],zero,zero,zero,xmm2[7],zero,zero,zero
+; ALL-NEXT:    vpmovsxwq %xmm2, %zmm2
 ; ALL-NEXT:    vpsllq $63, %zmm2, %zmm2
 ; ALL-NEXT:    vptestmq %zmm2, %zmm2, %k1
 ; ALL-NEXT:    vshuff64x2 {{.*#+}} zmm0 {%k1} {z} = zmm0[0,1,4,5],zmm1[2,3,0,1]
@@ -1862,7 +1854,7 @@ define <8 x double> @test_vshuff64x2_512_maskz(<8 x double> %x, <8 x double> %x1
 define <8 x i64> @test_vshufi64x2_512_mask(<8 x i64> %x, <8 x i64> %x1, <8 x i1> %mask) nounwind {
 ; ALL-LABEL: test_vshufi64x2_512_mask:
 ; ALL:       # %bb.0:
-; ALL-NEXT:    vpmovzxwq {{.*#+}} zmm2 = xmm2[0],zero,zero,zero,xmm2[1],zero,zero,zero,xmm2[2],zero,zero,zero,xmm2[3],zero,zero,zero,xmm2[4],zero,zero,zero,xmm2[5],zero,zero,zero,xmm2[6],zero,zero,zero,xmm2[7],zero,zero,zero
+; ALL-NEXT:    vpmovsxwq %xmm2, %zmm2
 ; ALL-NEXT:    vpsllq $63, %zmm2, %zmm2
 ; ALL-NEXT:    vptestmq %zmm2, %zmm2, %k1
 ; ALL-NEXT:    vshufi64x2 {{.*#+}} zmm0 {%k1} = zmm0[0,1,4,5],zmm1[2,3,0,1]
@@ -1891,7 +1883,7 @@ define <8 x double> @test_vshuff64x2_512_mem(<8 x double> %x, <8 x double> *%ptr
 define <8 x double> @test_vshuff64x2_512_mem_mask(<8 x double> %x, <8 x double> *%ptr, <8 x i1> %mask) nounwind {
 ; AVX512F-LABEL: test_vshuff64x2_512_mem_mask:
 ; AVX512F:       # %bb.0:
-; AVX512F-NEXT:    vpmovzxwq {{.*#+}} zmm1 = xmm1[0],zero,zero,zero,xmm1[1],zero,zero,zero,xmm1[2],zero,zero,zero,xmm1[3],zero,zero,zero,xmm1[4],zero,zero,zero,xmm1[5],zero,zero,zero,xmm1[6],zero,zero,zero,xmm1[7],zero,zero,zero
+; AVX512F-NEXT:    vpmovsxwq %xmm1, %zmm1
 ; AVX512F-NEXT:    vpsllq $63, %zmm1, %zmm1
 ; AVX512F-NEXT:    vptestmq %zmm1, %zmm1, %k1
 ; AVX512F-NEXT:    vshuff64x2 {{.*#+}} zmm0 {%k1} = zmm0[0,1,4,5],mem[2,3,0,1]
@@ -1899,7 +1891,7 @@ define <8 x double> @test_vshuff64x2_512_mem_mask(<8 x double> %x, <8 x double> 
 ;
 ; AVX512F-32-LABEL: test_vshuff64x2_512_mem_mask:
 ; AVX512F-32:       # %bb.0:
-; AVX512F-32-NEXT:    vpmovzxwq {{.*#+}} zmm1 = xmm1[0],zero,zero,zero,xmm1[1],zero,zero,zero,xmm1[2],zero,zero,zero,xmm1[3],zero,zero,zero,xmm1[4],zero,zero,zero,xmm1[5],zero,zero,zero,xmm1[6],zero,zero,zero,xmm1[7],zero,zero,zero
+; AVX512F-32-NEXT:    vpmovsxwq %xmm1, %zmm1
 ; AVX512F-32-NEXT:    vpsllq $63, %zmm1, %zmm1
 ; AVX512F-32-NEXT:    vptestmq %zmm1, %zmm1, %k1
 ; AVX512F-32-NEXT:    movl {{[0-9]+}}(%esp), %eax
@@ -1914,7 +1906,7 @@ define <8 x double> @test_vshuff64x2_512_mem_mask(<8 x double> %x, <8 x double> 
 define <8 x double> @test_vshuff64x2_512_mem_maskz(<8 x double> %x, <8 x double> *%ptr, <8 x i1> %mask) nounwind {
 ; AVX512F-LABEL: test_vshuff64x2_512_mem_maskz:
 ; AVX512F:       # %bb.0:
-; AVX512F-NEXT:    vpmovzxwq {{.*#+}} zmm1 = xmm1[0],zero,zero,zero,xmm1[1],zero,zero,zero,xmm1[2],zero,zero,zero,xmm1[3],zero,zero,zero,xmm1[4],zero,zero,zero,xmm1[5],zero,zero,zero,xmm1[6],zero,zero,zero,xmm1[7],zero,zero,zero
+; AVX512F-NEXT:    vpmovsxwq %xmm1, %zmm1
 ; AVX512F-NEXT:    vpsllq $63, %zmm1, %zmm1
 ; AVX512F-NEXT:    vptestmq %zmm1, %zmm1, %k1
 ; AVX512F-NEXT:    vshuff64x2 {{.*#+}} zmm0 {%k1} {z} = zmm0[0,1,4,5],mem[2,3,0,1]
@@ -1922,7 +1914,7 @@ define <8 x double> @test_vshuff64x2_512_mem_maskz(<8 x double> %x, <8 x double>
 ;
 ; AVX512F-32-LABEL: test_vshuff64x2_512_mem_maskz:
 ; AVX512F-32:       # %bb.0:
-; AVX512F-32-NEXT:    vpmovzxwq {{.*#+}} zmm1 = xmm1[0],zero,zero,zero,xmm1[1],zero,zero,zero,xmm1[2],zero,zero,zero,xmm1[3],zero,zero,zero,xmm1[4],zero,zero,zero,xmm1[5],zero,zero,zero,xmm1[6],zero,zero,zero,xmm1[7],zero,zero,zero
+; AVX512F-32-NEXT:    vpmovsxwq %xmm1, %zmm1
 ; AVX512F-32-NEXT:    vpsllq $63, %zmm1, %zmm1
 ; AVX512F-32-NEXT:    vptestmq %zmm1, %zmm1, %k1
 ; AVX512F-32-NEXT:    movl {{[0-9]+}}(%esp), %eax
@@ -1973,8 +1965,7 @@ define <8 x double> @shuffle_v8f64_uuu2301(<8 x double> %a0, <8 x double> %a1) {
 define <8 x i64> @shuffle_v8i64_0zzzzzzz(<8 x i64> %a) {
 ; ALL-LABEL: shuffle_v8i64_0zzzzzzz:
 ; ALL:       # %bb.0:
-; ALL-NEXT:    vxorps %xmm1, %xmm1, %xmm1
-; ALL-NEXT:    vblendps {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,3]
+; ALL-NEXT:    vmovq {{.*#+}} xmm0 = xmm0[0],zero
 ; ALL-NEXT:    ret{{[l|q]}}
   %shuffle = shufflevector <8 x i64> %a, <8 x i64> zeroinitializer, <8 x i32> <i32 0, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8>
   ret <8 x i64> %shuffle
@@ -1983,8 +1974,7 @@ define <8 x i64> @shuffle_v8i64_0zzzzzzz(<8 x i64> %a) {
 define <8 x double> @shuffle_v8f64_0zzzzzzz(<8 x double> %a) {
 ; ALL-LABEL: shuffle_v8f64_0zzzzzzz:
 ; ALL:       # %bb.0:
-; ALL-NEXT:    vxorps %xmm1, %xmm1, %xmm1
-; ALL-NEXT:    vblendps {{.*#+}} xmm0 = xmm0[0,1],xmm1[2,3]
+; ALL-NEXT:    vmovq {{.*#+}} xmm0 = xmm0[0],zero
 ; ALL-NEXT:    ret{{[l|q]}}
   %shuffle = shufflevector <8 x double> %a, <8 x double> zeroinitializer, <8 x i32> <i32 0, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8>
   ret <8 x double> %shuffle
@@ -2254,13 +2244,21 @@ define <8 x double> @shuffle_v2f64_v8f64_01010101(<2 x double> %a) {
 
 ;FIXME: compressp
 define <4 x double> @test_v8f64_2346 (<8 x double> %v) {
-; ALL-LABEL: test_v8f64_2346:
-; ALL:       # %bb.0:
-; ALL-NEXT:    vextractf128 $1, %ymm0, %xmm1
-; ALL-NEXT:    vextractf64x4 $1, %zmm0, %ymm0
-; ALL-NEXT:    vpermpd {{.*#+}} ymm0 = ymm0[0,1,0,2]
-; ALL-NEXT:    vblendps {{.*#+}} ymm0 = ymm1[0,1,2,3],ymm0[4,5,6,7]
-; ALL-NEXT:    ret{{[l|q]}}
+; AVX512F-LABEL: test_v8f64_2346:
+; AVX512F:       # %bb.0:
+; AVX512F-NEXT:    vbroadcasti64x4 {{.*#+}} zmm1 = [2,3,4,6,2,3,4,6]
+; AVX512F-NEXT:    # zmm1 = mem[0,1,2,3,0,1,2,3]
+; AVX512F-NEXT:    vpermq %zmm0, %zmm1, %zmm0
+; AVX512F-NEXT:    # kill: def $ymm0 killed $ymm0 killed $zmm0
+; AVX512F-NEXT:    retq
+;
+; AVX512F-32-LABEL: test_v8f64_2346:
+; AVX512F-32:       # %bb.0:
+; AVX512F-32-NEXT:    vbroadcasti64x4 {{.*#+}} zmm1 = [2,0,3,0,4,0,6,0,2,0,3,0,4,0,6,0]
+; AVX512F-32-NEXT:    # zmm1 = mem[0,1,2,3,0,1,2,3]
+; AVX512F-32-NEXT:    vpermq %zmm0, %zmm1, %zmm0
+; AVX512F-32-NEXT:    # kill: def $ymm0 killed $ymm0 killed $zmm0
+; AVX512F-32-NEXT:    retl
   %res = shufflevector <8 x double> %v, <8 x double> undef, <4 x i32> <i32 2, i32 3, i32 4, i32 6>
   ret <4 x double> %res
 }
@@ -2280,13 +2278,21 @@ define <2 x double> @test_v8f64_34 (<8 x double> %v) {
 
 ; FIXME: vpcompress
 define <4 x i64> @test_v8i64_1257 (<8 x i64> %v) {
-; ALL-LABEL: test_v8i64_1257:
-; ALL:       # %bb.0:
-; ALL-NEXT:    vextractf64x4 $1, %zmm0, %ymm1
-; ALL-NEXT:    vpermpd {{.*#+}} ymm1 = ymm1[0,1,1,3]
-; ALL-NEXT:    vpermpd {{.*#+}} ymm0 = ymm0[1,2,2,3]
-; ALL-NEXT:    vblendps {{.*#+}} ymm0 = ymm0[0,1,2,3],ymm1[4,5,6,7]
-; ALL-NEXT:    ret{{[l|q]}}
+; AVX512F-LABEL: test_v8i64_1257:
+; AVX512F:       # %bb.0:
+; AVX512F-NEXT:    vbroadcasti64x4 {{.*#+}} zmm1 = [1,2,5,7,1,2,5,7]
+; AVX512F-NEXT:    # zmm1 = mem[0,1,2,3,0,1,2,3]
+; AVX512F-NEXT:    vpermq %zmm0, %zmm1, %zmm0
+; AVX512F-NEXT:    # kill: def $ymm0 killed $ymm0 killed $zmm0
+; AVX512F-NEXT:    retq
+;
+; AVX512F-32-LABEL: test_v8i64_1257:
+; AVX512F-32:       # %bb.0:
+; AVX512F-32-NEXT:    vbroadcasti64x4 {{.*#+}} zmm1 = [1,0,2,0,5,0,7,0,1,0,2,0,5,0,7,0]
+; AVX512F-32-NEXT:    # zmm1 = mem[0,1,2,3,0,1,2,3]
+; AVX512F-32-NEXT:    vpermq %zmm0, %zmm1, %zmm0
+; AVX512F-32-NEXT:    # kill: def $ymm0 killed $ymm0 killed $zmm0
+; AVX512F-32-NEXT:    retl
   %res = shufflevector <8 x i64> %v, <8 x i64> undef, <4 x i32> <i32 1, i32 2, i32 5, i32 7>
   ret <4 x i64> %res
 }

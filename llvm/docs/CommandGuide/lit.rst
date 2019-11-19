@@ -1,6 +1,8 @@
 lit - LLVM Integrated Tester
 ============================
 
+.. program:: lit
+
 SYNOPSIS
 --------
 
@@ -36,6 +38,11 @@ Finally, :program:`lit` also supports additional options for only running a
 subset of the options specified on the command line, see
 :ref:`selection-options` for more information.
 
+:program:`lit` parses options from the environment variable ``LIT_OPTS`` after
+parsing options from the command line.  ``LIT_OPTS`` is primarily useful for
+supplementing or overriding the command-line options supplied to :program:`lit`
+by ``check`` targets defined by a project's build system.
+
 Users interested in the :program:`lit` architecture or designing a
 :program:`lit` testing implementation should see :ref:`lit-infrastructure`.
 
@@ -46,7 +53,7 @@ GENERAL OPTIONS
 
  Show the :program:`lit` help message.
 
-.. option:: -j N, --threads=N
+.. option:: -j N, --workers=N
 
  Run ``N`` tests in parallel.  By default, this is automatically chosen to
  match the number of detected available CPUs.

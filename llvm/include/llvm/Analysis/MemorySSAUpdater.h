@@ -31,6 +31,7 @@
 #ifndef LLVM_ANALYSIS_MEMORYSSAUPDATER_H
 #define LLVM_ANALYSIS_MEMORYSSAUPDATER_H
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -98,7 +99,7 @@ public:
   /// load a
   /// Where a mayalias b, *does* require RenameUses be set to true.
   void insertDef(MemoryDef *Def, bool RenameUses = false);
-  void insertUse(MemoryUse *Use);
+  void insertUse(MemoryUse *Use, bool RenameUses = false);
   /// Update the MemoryPhi in `To` following an edge deletion between `From` and
   /// `To`. If `To` becomes unreachable, a call to removeBlocks should be made.
   void removeEdge(BasicBlock *From, BasicBlock *To);
@@ -243,7 +244,7 @@ public:
   /// Deleted blocks still have successor info, but their predecessor edges and
   /// Phi nodes may already be updated. Instructions in DeadBlocks should be
   /// deleted after this call.
-  void removeBlocks(const SmallPtrSetImpl<BasicBlock *> &DeadBlocks);
+  void removeBlocks(const SmallSetVector<BasicBlock *, 8> &DeadBlocks);
 
   /// Instruction I will be changed to an unreachable. Remove all accesses in
   /// I's block that follow I (inclusive), and update the Phis in the blocks'
@@ -274,6 +275,7 @@ private:
   getPreviousDefRecursive(BasicBlock *,
                           DenseMap<BasicBlock *, TrackingVH<MemoryAccess>> &);
   MemoryAccess *recursePhi(MemoryAccess *Phi);
+  MemoryAccess *tryRemoveTrivialPhi(MemoryPhi *Phi);
   template <class RangeType>
   MemoryAccess *tryRemoveTrivialPhi(MemoryPhi *Phi, RangeType &Operands);
   void tryRemoveTrivialPhis(ArrayRef<WeakVH> UpdatedPHIs);
@@ -287,8 +289,14 @@ private:
   // not necessarily be MemoryPhis themselves, they may be MemoryDefs. As such,
   // the map is between MemoryPhis and MemoryAccesses, where the MemoryAccesses
   // may be MemoryPhis or MemoryDefs and not MemoryUses.
+  // If CloneWasSimplified = true, the clone was exact. Otherwise, assume that
+  // the clone involved simplifications that may have: (1) turned a MemoryUse
+  // into an instruction that MemorySSA has no representation for, or (2) turned
+  // a MemoryDef into a MemoryUse or an instruction that MemorySSA has no
+  // representation for. No other cases are supported.
   void cloneUsesAndDefs(BasicBlock *BB, BasicBlock *NewBB,
-                        const ValueToValueMapTy &VMap, PhiToDefMap &MPhiMap);
+                        const ValueToValueMapTy &VMap, PhiToDefMap &MPhiMap,
+                        bool CloneWasSimplified = false);
   template <typename Iter>
   void privateUpdateExitBlocksForClonedLoop(ArrayRef<BasicBlock *> ExitBlocks,
                                             Iter ValuesBegin, Iter ValuesEnd,

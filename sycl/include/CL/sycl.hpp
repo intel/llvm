@@ -21,10 +21,10 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
+#include <CL/sycl/intel/function_pointer.hpp>
 #include <CL/sycl/intel/sub_group.hpp>
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/kernel.hpp>
-#include <CL/sycl/macro.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/nd_range.hpp>
@@ -33,6 +33,7 @@
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/program.hpp>
 #include <CL/sycl/queue.hpp>
+#include <CL/sycl/ordered_queue.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/sampler.hpp>
 #include <CL/sycl/stream.hpp>

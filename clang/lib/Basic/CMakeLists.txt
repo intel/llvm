@@ -50,6 +50,7 @@ add_clang_library(clangBasic
   FixedPoint.cpp
   IdentifierTable.cpp
   LangOptions.cpp
+  LangStandards.cpp
   Module.cpp
   ObjCRuntime.cpp
   OpenMPKinds.cpp
@@ -59,6 +60,7 @@ add_clang_library(clangBasic
   Sanitizers.cpp
   SourceLocation.cpp
   SourceManager.cpp
+  Stack.cpp
   TargetInfo.cpp
   Targets.cpp
   Targets/AArch64.cpp

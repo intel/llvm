@@ -30,7 +30,7 @@ namespace {
 std::error_code CreateNewFile(const llvm::Twine &path) {
   int fd = 0;
   if (std::error_code ec = llvm::sys::fs::openFileForWrite(
-          path, fd, llvm::sys::fs::CD_CreateAlways, llvm::sys::fs::F_Text))
+          path, fd, llvm::sys::fs::CD_CreateAlways, llvm::sys::fs::OF_Text))
     return ec;
 
   return llvm::sys::Process::SafelyCloseFileDescriptor(fd);
@@ -191,8 +191,8 @@ int main(int argc, const char **argv) {
       for (auto I = Files.begin(), E = Files.end(); I != E; ++I) {
         OS << "  {\n";
         OS << "    \"FilePath\": \"" << *I << "\",\n";
-        const auto *Entry = FileMgr.getFile(*I);
-        auto ID = SM.translateFile(Entry);
+        const auto Entry = FileMgr.getFile(*I);
+        auto ID = SM.translateFile(*Entry);
         std::string Content;
         llvm::raw_string_ostream ContentStream(Content);
         Rewrite.getEditBuffer(ID).write(ContentStream);

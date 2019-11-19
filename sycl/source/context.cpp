@@ -12,6 +12,7 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/exception.hpp>
+#include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/stl.hpp>
 

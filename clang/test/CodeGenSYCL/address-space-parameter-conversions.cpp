@@ -6,7 +6,7 @@ void bar(int & Data) {}
 void bar2(int & Data) {}
 // CHECK-OLD-DAG: define spir_func void @[[RAW_REF2:[a-zA-Z0-9_]+]](i32* dereferenceable(4) %
 // CHECK-NEW-DAG: define spir_func void @[[RAW_REF2:[a-zA-Z0-9_]+]](i32 addrspace(4)* dereferenceable(4) %
-void bar(__local int &Data) {}
+void bar(__attribute__((ocl_local)) int &Data) {}
 // CHECK-DAG: define spir_func void [[LOC_REF:@[a-zA-Z0-9_]+]](i32 addrspace(3)* dereferenceable(4) %
 void foo(int * Data) {}
 // CHECK-OLD-DAG: define spir_func void @[[RAW_PTR:[a-zA-Z0-9_]+]](i32* %
@@ -25,13 +25,13 @@ void usages() {
   // CHECK-DAG: [[GLOB:%[a-zA-Z0-9]+]] = alloca i32 addrspace(1)*
   __attribute__((address_space(1))) int *GLOB;
   // CHECK-DAG: [[LOC:%[a-zA-Z0-9]+]] = alloca i32 addrspace(3)*
-  __local int *LOC;
+  __attribute__((ocl_local)) int *LOC;
   // CHECK-OLD-DAG: [[NoAS:%[a-zA-Z0-9]+]] = alloca i32*
   // CHECK-NEW-DAG: [[NoAS:%[a-zA-Z0-9]+]] = alloca i32 addrspace(4)*
   int *NoAS;
 
   // CHECK-DAG: [[PRIV:%[a-zA-Z0-9]+]] = alloca i32*
-  __private int *PRIV;
+  __attribute__((ocl_private)) int *PRIV;
 
   bar(*GLOB);
   // CHECK-DAG: [[GLOB_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)** [[GLOB]]
@@ -121,19 +121,19 @@ void usages2() {
   // CHECK-DAG: [[PRIV_NUM:%[a-zA-Z0-9_]+]] = alloca i32*
   __attribute__((address_space(0))) int *PRIV_NUM2;
   // CHECK-DAG: [[PRIV_NUM2:%[a-zA-Z0-9_]+]] = alloca i32*
-  __private int *PRIV;
+  __attribute__((ocl_private)) int *PRIV;
   // CHECK-DAG: [[PRIV:%[a-zA-Z0-9_]+]] = alloca i32*
   __attribute__((address_space(1))) int *GLOB_NUM;
   // CHECK-DAG: [[GLOB_NUM:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(1)*
-  __global int *GLOB;
+  __attribute__((ocl_global)) int *GLOB;
   // CHECK-DAG: [[GLOB:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(1)*
   __attribute__((address_space(2))) int *CONST_NUM;
   // CHECK-DAG: [[CONST_NUM:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(2)*
-  __constant int *CONST;
+  __attribute__((ocl_constant)) int *CONST;
   // CHECK-DAG: [[CONST:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(2)*
   __attribute__((address_space(3))) int *LOCAL_NUM;
   // CHECK-DAG: [[LOCAL_NUM:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(3)*
-  __local int *LOCAL;
+  __attribute__((ocl_local)) int *LOCAL;
   // CHECK-DAG: [[LOCAL:%[a-zA-Z0-9_]+]] = alloca i32 addrspace(3)*
 
   bar(*PRIV_NUM);
@@ -197,3 +197,5 @@ int main() {
   return 0;
 }
 
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows-msvc

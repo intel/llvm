@@ -41,6 +41,8 @@ FormatTokenLexer::FormatTokenLexer(const SourceManager &SourceMgr, FileID ID,
     Macros.insert({&IdentTable.get(StatementMacro), TT_StatementMacro});
   for (const std::string &TypenameMacro : Style.TypenameMacros)
     Macros.insert({&IdentTable.get(TypenameMacro), TT_TypenameMacro});
+  for (const std::string &NamespaceMacro : Style.NamespaceMacros)
+    Macros.insert({&IdentTable.get(NamespaceMacro), TT_NamespaceMacro});
 }
 
 ArrayRef<FormatToken *> FormatTokenLexer::lex() {
@@ -77,6 +79,8 @@ void FormatTokenLexer::tryMergePreviousTokens() {
     if (tryMergeCSharpDoubleQuestion())
       return;
     if (tryMergeCSharpNullConditionals())
+      return;
+    if (tryTransformCSharpForEach())
       return;
     static const tok::TokenKind JSRightArrow[] = {tok::equal, tok::greater};
     if (tryMergeTokens(JSRightArrow, TT_JsFatArrow))
@@ -249,6 +253,21 @@ bool FormatTokenLexer::tryMergeCSharpNullConditionals() {
                 Question->TokenText.end() - Identifier->TokenText.begin());
   Identifier->ColumnWidth += Question->ColumnWidth;
   Tokens.erase(Tokens.end() - 1);
+  return true;
+}
+
+// In C# transform identifier foreach into kw_foreach
+bool FormatTokenLexer::tryTransformCSharpForEach() {
+  if (Tokens.size() < 1)
+    return false;
+  auto &Identifier = *(Tokens.end() - 1);
+  if (!Identifier->is(tok::identifier))
+    return false;
+  if (Identifier->TokenText != "foreach")
+    return false;
+
+  Identifier->Type = TT_ForEachMacro;
+  Identifier->Tok.setKind(tok::kw_for);
   return true;
 }
 
@@ -655,7 +674,8 @@ FormatToken *FormatTokenLexer::getNextToken() {
         ++Column;
         break;
       case '\t':
-        Column += Style.TabWidth - Column % Style.TabWidth;
+        Column +=
+            Style.TabWidth - (Style.TabWidth ? Column % Style.TabWidth : 0);
         break;
       case '\\':
         if (i + 1 == e || (Text[i + 1] != '\r' && Text[i + 1] != '\n'))

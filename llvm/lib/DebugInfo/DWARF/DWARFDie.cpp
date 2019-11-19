@@ -21,6 +21,7 @@
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/FormatAdapters.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/WithColor.h"
@@ -90,51 +91,56 @@ static void dumpLocation(raw_ostream &OS, DWARFFormValue &FormValue,
     return;
   }
 
-  FormValue.dump(OS, DumpOpts);
   if (FormValue.isFormClass(DWARFFormValue::FC_SectionOffset)) {
-    uint32_t Offset = *FormValue.getAsSectionOffset();
+    uint64_t Offset = *FormValue.getAsSectionOffset();
+    uint64_t BaseAddr = 0;
+    if (Optional<object::SectionedAddress> BA = U->getBaseAddress())
+      BaseAddr = BA->Address;
+    auto LLDumpOpts = DumpOpts;
+    LLDumpOpts.Verbose = false;
+
     if (!U->isDWOUnit() && !U->getLocSection()->Data.empty()) {
       DWARFDebugLoc DebugLoc;
       DWARFDataExtractor Data(Obj, *U->getLocSection(), Ctx.isLittleEndian(),
                               Obj.getAddressSize());
-      auto LL = DebugLoc.parseOneLocationList(Data, &Offset);
-      if (LL) {
-        uint64_t BaseAddr = 0;
-        if (Optional<object::SectionedAddress> BA = U->getBaseAddress())
-          BaseAddr = BA->Address;
-        LL->dump(OS, Ctx.isLittleEndian(), Obj.getAddressSize(), MRI, U,
-                 BaseAddr, Indent);
-      } else
-        OS << "error extracting location list.";
+
+      FormValue.dump(OS, DumpOpts);
+      OS << ": ";
+
+      if (Expected<DWARFDebugLoc::LocationList> LL =
+              DebugLoc.parseOneLocationList(Data, &Offset)) {
+        LL->dump(OS, BaseAddr, Ctx.isLittleEndian(), Obj.getAddressSize(), MRI,
+                 U, LLDumpOpts, Indent);
+      } else {
+        OS << '\n';
+        OS.indent(Indent);
+        OS << formatv("error extracting location list: {0}",
+                      fmt_consume(LL.takeError()));
+      }
       return;
     }
 
     bool UseLocLists = !U->isDWOUnit();
-    StringRef LoclistsSectionData =
-        UseLocLists ? Obj.getLoclistsSection().Data : U->getLocSectionData();
+    auto Data =
+        UseLocLists
+            ? DWARFDataExtractor(Obj, Obj.getLoclistsSection(),
+                                 Ctx.isLittleEndian(), Obj.getAddressSize())
+            : DWARFDataExtractor(U->getLocSectionData(), Ctx.isLittleEndian(),
+                                 Obj.getAddressSize());
 
-    if (!LoclistsSectionData.empty()) {
-      DataExtractor Data(LoclistsSectionData, Ctx.isLittleEndian(),
-                         Obj.getAddressSize());
-
+    if (!Data.getData().empty()) {
       // Old-style location list were used in DWARF v4 (.debug_loc.dwo section).
       // Modern locations list (.debug_loclists) are used starting from v5.
       // Ideally we should take the version from the .debug_loclists section
       // header, but using CU's version for simplicity.
-      auto LL = DWARFDebugLoclists::parseOneLocationList(
-          Data, &Offset, UseLocLists ? U->getVersion() : 4);
-
-      uint64_t BaseAddr = 0;
-      if (Optional<object::SectionedAddress> BA = U->getBaseAddress())
-        BaseAddr = BA->Address;
-
-      if (LL)
-        LL->dump(OS, BaseAddr, Ctx.isLittleEndian(), Obj.getAddressSize(), MRI,
-                 U, Indent);
-      else
-        OS << "error extracting location list.";
+      DWARFDebugLoclists::dumpLocationList(
+          Data, &Offset, UseLocLists ? U->getVersion() : 4, OS, BaseAddr, MRI,
+          U, LLDumpOpts, Indent);
     }
+    return;
   }
+
+  FormValue.dump(OS, DumpOpts);
 }
 
 /// Dump the name encoded in the type tag.
@@ -264,7 +270,7 @@ static void dumpTypeName(raw_ostream &OS, const DWARFDie &D) {
 }
 
 static void dumpAttribute(raw_ostream &OS, const DWARFDie &Die,
-                          uint32_t *OffsetPtr, dwarf::Attribute Attr,
+                          uint64_t *OffsetPtr, dwarf::Attribute Attr,
                           dwarf::Form Form, unsigned Indent,
                           DIDumpOptions DumpOpts) {
   if (!Die.isValid())
@@ -568,8 +574,8 @@ void DWARFDie::dump(raw_ostream &OS, unsigned Indent,
   if (!isValid())
     return;
   DWARFDataExtractor debug_info_data = U->getDebugInfoExtractor();
-  const uint32_t Offset = getOffset();
-  uint32_t offset = Offset;
+  const uint64_t Offset = getOffset();
+  uint64_t offset = Offset;
   if (DumpOpts.ShowParents) {
     DIDumpOptions ParentDumpOpts = DumpOpts;
     ParentDumpOpts.ShowParents = false;
@@ -581,7 +587,7 @@ void DWARFDie::dump(raw_ostream &OS, unsigned Indent,
     uint32_t abbrCode = debug_info_data.getULEB128(&offset);
     if (DumpOpts.ShowAddresses)
       WithColor(OS, HighlightColor::Address).get()
-          << format("\n0x%8.8x: ", Offset);
+          << format("\n0x%8.8" PRIx64 ": ", Offset);
 
     if (abbrCode) {
       auto AbbrevDecl = getAbbreviationDeclarationPtr();
@@ -663,7 +669,7 @@ iterator_range<DWARFDie::attribute_iterator> DWARFDie::attributes() const {
 }
 
 DWARFDie::attribute_iterator::attribute_iterator(DWARFDie D, bool End)
-    : Die(D), AttrValue(0), Index(0) {
+    : Die(D), Index(0) {
   auto AbbrDecl = Die.getAbbreviationDeclarationPtr();
   assert(AbbrDecl && "Must have abbreviation declaration");
   if (End) {
@@ -685,7 +691,7 @@ void DWARFDie::attribute_iterator::updateForIndex(
     AttrValue.Attr = AbbrDecl.getAttrByIndex(Index);
     // Add the previous byte size of any previous attribute value.
     AttrValue.Offset += AttrValue.ByteSize;
-    uint32_t ParseOffset = AttrValue.Offset;
+    uint64_t ParseOffset = AttrValue.Offset;
     auto U = Die.getDwarfUnit();
     assert(U && "Die must have valid DWARF unit");
     AttrValue.Value = DWARFFormValue::createFromUnit(
@@ -693,7 +699,7 @@ void DWARFDie::attribute_iterator::updateForIndex(
     AttrValue.ByteSize = ParseOffset - AttrValue.Offset;
   } else {
     assert(Index == NumAttrs && "Indexes should be [0, NumAttrs) only");
-    AttrValue.clear();
+    AttrValue = {};
   }
 }
 
@@ -733,6 +739,7 @@ bool DWARFAttribute::mayHaveLocationDescription(dwarf::Attribute Attr) {
   case DW_AT_call_data_value:
   // Extensions.
   case DW_AT_GNU_call_site_value:
+  case DW_AT_GNU_call_site_target:
     return true;
   default:
     return false;

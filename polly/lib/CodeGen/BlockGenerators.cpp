@@ -1061,7 +1061,7 @@ Value *VectorBlockGenerator::generateStrideOneLoad(
   LoadInst *VecLoad =
       Builder.CreateLoad(VectorPtr, Load->getName() + "_p_vec_full");
   if (!Aligned)
-    VecLoad->setAlignment(8);
+    VecLoad->setAlignment(Align(8));
 
   if (NegativeStride) {
     SmallVector<Constant *, 16> Indices;
@@ -1089,7 +1089,7 @@ Value *VectorBlockGenerator::generateStrideZeroLoad(
       Builder.CreateLoad(VectorPtr, Load->getName() + "_p_splat_one");
 
   if (!Aligned)
-    ScalarLoad->setAlignment(8);
+    ScalarLoad->setAlignment(Align(8));
 
   Constant *SplatVector = Constant::getNullValue(
       VectorType::get(Builder.getInt32Ty(), getVectorWidth()));
@@ -1209,7 +1209,7 @@ void VectorBlockGenerator::copyStore(
     StoreInst *Store = Builder.CreateStore(Vector, VectorPtr);
 
     if (!Aligned)
-      Store->setAlignment(8);
+      Store->setAlignment(Align(8));
   } else {
     for (unsigned i = 0; i < ScalarMaps.size(); i++) {
       Value *Scalar = Builder.CreateExtractElement(Vector, Builder.getInt32(i));

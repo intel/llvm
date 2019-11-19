@@ -8,35 +8,30 @@ Getting Started with the LLVM System
 Overview
 ========
 
-Welcome to the LLVM project! In order to get started, you first need to know
-some basic information.
+Welcome to the LLVM project!
 
-First, the LLVM project has multiple components. The core of the project is
+The LLVM project has multiple components. The core of the project is
 itself called "LLVM". This contains all of the tools, libraries, and header
-files needed to process an intermediate representation and convert it into
-object files.  It contains an assembler, disassembler, bitcode analyzer and
+files needed to process intermediate representations and converts it into
+object files.  Tools include an assembler, disassembler, bitcode analyzer, and
 bitcode optimizer.  It also contains basic regression tests.
 
-Another piece is the `Clang <http://clang.llvm.org/>`_ front end.  This
+C-like languages use the `Clang <http://clang.llvm.org/>`_ front end.  This
 component compiles C, C++, Objective C, and Objective C++ code into LLVM bitcode
 -- and from there into object files, using LLVM.
 
-There are other components as well:
+Other components include:
 the `libc++ C++ standard library <https://libcxx.llvm.org>`_,
 the `LLD linker <https://lld.llvm.org>`_, and more.
 
-Getting Started Quickly (A Summary)
-===================================
+Getting the Source Code and Building LLVM
+=========================================
 
-The LLVM Getting Started documentation may be out of date.  So, the `Clang
-Getting Started <http://clang.llvm.org/get_started.html>`_ page might also be a
-good place to start.
+The LLVM Getting Started documentation may be out of date.  The `Clang
+Getting Started <http://clang.llvm.org/get_started.html>`_ page might have more
+accurate information.
 
-Here's the short story for getting up and running quickly with LLVM:
-
-#. Read the documentation.
-#. Read the documentation.
-#. Remember that you were warned twice about reading the documentation.
+This is an example workflow and configuration to get and build the LLVM source:
 
 #. Checkout LLVM (including related subprojects like Clang):
 
@@ -90,12 +85,12 @@ Here's the short story for getting up and running quickly with LLVM:
      * CMake will generate build targets for each tool and library, and most
        LLVM sub-projects generate their own ``check-<project>`` target.
 
-     * Running a serial build will be *slow*.  Make sure you run a parallel
-       build. That's already done by default in Ninja; for ``make``, use
-       ``make -j NNN`` (with an appropriate value of NNN, e.g. number of CPUs
-       you have.)
+     * Running a serial build will be *slow*.  To improve speed, try running a
+       parallel build. That's done by default in Ninja; for ``make``, use
+       ``make -j NNN`` (NNN is the number of parallel jobs, use e.g. number of
+       CPUs you have.)
 
-   * For more information see `CMake <CMake.html>`_
+   * For more information see `CMake <CMake.html>`__
 
    * If you get an "internal compiler error (ICE)" or test failures, see
      `below`_.
@@ -122,6 +117,7 @@ OS                 Arch                  Compilers
 Linux              x86\ :sup:`1`         GCC, Clang
 Linux              amd64                 GCC, Clang
 Linux              ARM                   GCC, Clang
+Linux              Mips                  GCC, Clang
 Linux              PowerPC               GCC, Clang
 Solaris            V9 (Ultrasparc)       GCC
 FreeBSD            x86\ :sup:`1`         GCC, Clang
@@ -169,10 +165,11 @@ uses the package and provides other details.
 =========================================================== ============ ==========================================
 Package                                                     Version      Notes
 =========================================================== ============ ==========================================
-`GNU Make <http://savannah.gnu.org/projects/make>`_         3.79, 3.79.1 Makefile/build processor
+`CMake <http://cmake.org/>`__                               >=3.4.3      Makefile/workspace generator
 `GCC <http://gcc.gnu.org/>`_                                >=5.1.0      C/C++ compiler\ :sup:`1`
 `python <http://www.python.org/>`_                          >=2.7        Automated test suite\ :sup:`2`
 `zlib <http://zlib.net>`_                                   >=1.2.3.4    Compression library\ :sup:`3`
+`GNU Make <http://savannah.gnu.org/projects/make>`_         3.79, 3.79.1 Makefile/build processor\ :sup:`4`
 =========================================================== ============ ==========================================
 
 .. note::
@@ -184,6 +181,7 @@ Package                                                     Version      Notes
       ``llvm/test`` directory.
    #. Optional, adds compression / uncompression capabilities to selected LLVM
       tools.
+   #. Optional, you can use any other build tool supported by CMake.
 
 Additionally, your compilation host is expected to have the usual plethora of
 Unix utilities. Specifically:
@@ -233,15 +231,6 @@ popular host toolchains for specific minimum versions in our build systems:
 * GCC 5.1
 * Visual Studio 2017
 
-The below versions currently soft-error as we transition to the new compiler
-versions listed above. The LLVM codebase is currently known to compile correctly
-with the following compilers, though this will change in the near future:
-
-* Clang 3.1
-* Apple Clang 3.1
-* GCC 4.8
-* Visual Studio 2015 (Update 3)
-
 Anything older than these toolchains *may* work, but will require forcing the
 build system with a special option and is not really a supported host platform.
 Also note that older versions of these compilers have often crashed or
@@ -275,7 +264,7 @@ Getting a Modern Host C++ Toolchain
 This section mostly applies to Linux and older BSDs. On macOS, you should
 have a sufficiently modern Xcode, or you will likely need to upgrade until you
 do. Windows does not have a "system compiler", so you must install either Visual
-Studio 2015 or a recent version of mingw64. FreeBSD 10.0 and newer have a modern
+Studio 2017 or a recent version of mingw64. FreeBSD 10.0 and newer have a modern
 Clang as the system compiler.
 
 However, some Linux distributions and some other or older BSDs sometimes have
@@ -525,6 +514,26 @@ through all the steps of committing _without_ actually doing the commit, and
 tell you what it would have done. That can be useful if you're unsure whether
 the right thing will happen.
 
+Reverting a change when using Git
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you're using Git and need to revert a patch, Git needs to be supplied a
+commit hash, not an svn revision. To make things easier, you can use
+``git llvm revert`` to revert with either an SVN revision or a Git hash instead.
+
+Additionally, you can first run with ``git llvm revert -n`` to print which Git
+commands will run, without doing anything.
+
+Running ``git llvm revert`` will only revert things in your local repository. To
+push the revert upstream, you still need to run ``git llvm push`` as described
+earlier.
+
+.. code-block:: console
+
+  % git llvm revert rNNNNNN       # Revert by SVN id
+  % git llvm revert abcdef123456  # Revert by Git commit hash
+  % git llvm revert -n rNNNNNN    # Print the commands without doing anything
+
 Checkout via SVN (deprecated)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -578,6 +587,11 @@ used by people developing LLVM.
 | CMAKE_INSTALL_PREFIX    | Specifies the install directory to target when     |
 |                         | running the install action of the build files.     |
 +-------------------------+----------------------------------------------------+
+| PYTHON_EXECUTABLE       | Forces CMake to use a specific Python version by   |
+|                         | passing a path to a Python interpreter. By default |
+|                         | the Python version of the interpreter in your PATH |
+|                         | is used.                                           |
++-------------------------+----------------------------------------------------+
 | LLVM_TARGETS_TO_BUILD   | A semicolon delimited list controlling which       |
 |                         | targets will be built and linked into llvm.        |
 |                         | The default list is defined as                     |
@@ -608,7 +622,8 @@ used by people developing LLVM.
 |                         | default set of LLVM components that can be         |
 |                         | overridden with ``LLVM_DYLIB_COMPONENTS``. The     |
 |                         | default contains most of LLVM and is defined in    |
-|                         | ``tools/llvm-shlib/CMakelists.txt``.               |
+|                         | ``tools/llvm-shlib/CMakelists.txt``. This option is|
+|                         | not avialable on Windows.                          |
 +-------------------------+----------------------------------------------------+
 | LLVM_OPTIMIZED_TABLEGEN | Builds a release tablegen that gets used during    |
 |                         | the LLVM build. This can dramatically speed up     |

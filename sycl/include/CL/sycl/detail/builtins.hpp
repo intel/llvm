@@ -29,7 +29,7 @@
 
 #define MAKE_CALL_ARG1(call, prefix)                                           \
   template <typename R, typename T1>                                           \
-  ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {                             \
+  inline ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {                      \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
     using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     extern Ret PPCAT(prefix, call)(Arg1);                                      \
@@ -40,7 +40,7 @@
 
 #define MAKE_CALL_ARG2(call, prefix)                                           \
   template <typename R, typename T1, typename T2>                              \
-  ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {                      \
+  inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {               \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
     using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
@@ -53,7 +53,7 @@
 
 #define MAKE_CALL_ARG3(call, prefix)                                           \
   template <typename R, typename T1, typename T2, typename T3>                 \
-  ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2, T3 t3) __NOEXC {               \
+  inline ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2, T3 t3) __NOEXC {        \
     using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
     using Arg1 = cl::sycl::detail::ConvertToOpenCLType_t<T1>;                  \
     using Arg2 = cl::sycl::detail::ConvertToOpenCLType_t<T2>;                  \
@@ -180,6 +180,7 @@ MAKE_CALL_ARG2(u_rhadd, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG3(s_clamp, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG3(u_clamp, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG1(clz, __FUNC_PREFIX_OCL)
+MAKE_CALL_ARG1(ctz, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG3(s_mad_hi, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG3(u_mad_hi, __FUNC_PREFIX_OCL)
 MAKE_CALL_ARG3(u_mad_sat, __FUNC_PREFIX_OCL)

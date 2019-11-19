@@ -131,6 +131,20 @@ static bool areEquivalentExpr(const Expr *Left, const Expr *Right) {
   case Stmt::BinaryOperatorClass:
     return cast<BinaryOperator>(Left)->getOpcode() ==
            cast<BinaryOperator>(Right)->getOpcode();
+  case Stmt::UnaryExprOrTypeTraitExprClass:
+    const auto *LeftUnaryExpr =
+        cast<UnaryExprOrTypeTraitExpr>(Left);
+    const auto *RightUnaryExpr =
+        cast<UnaryExprOrTypeTraitExpr>(Right);
+    if (LeftUnaryExpr->isArgumentType() && RightUnaryExpr->isArgumentType())
+      return LeftUnaryExpr->getArgumentType() ==
+             RightUnaryExpr->getArgumentType();
+    else if (!LeftUnaryExpr->isArgumentType() &&
+             !RightUnaryExpr->isArgumentType())
+      return areEquivalentExpr(LeftUnaryExpr->getArgumentExpr(),
+                               RightUnaryExpr->getArgumentExpr());
+
+    return false;
   }
 }
 
@@ -478,7 +492,7 @@ canOverloadedOperatorArgsBeModified(const FunctionDecl *OperatorDecl,
   // These functions must be declared const in order to not be able to modify
   // the instance of the class they are called through.
   if (ParamCount == 1 &&
-      !OperatorDecl->getType()->getAs<FunctionType>()->isConst())
+      !OperatorDecl->getType()->castAs<FunctionType>()->isConst())
     return true;
 
   if (isNonConstReferenceType(OperatorDecl->getParamDecl(0)->getType()))
@@ -523,10 +537,11 @@ static bool retrieveRelationalIntegerConstantExpr(
     if (canOverloadedOperatorArgsBeModified(OverloadedFunctionDecl, false))
       return false;
 
-    if (!OverloadedOperatorExpr->getArg(1)->isIntegerConstantExpr(
-            Value, *Result.Context))
-      return false;
-
+    if (const auto *Arg = OverloadedOperatorExpr->getArg(1)) {
+      if (!Arg->isValueDependent() &&
+          !Arg->isIntegerConstantExpr(Value, *Result.Context))
+        return false;
+    }
     Symbol = OverloadedOperatorExpr->getArg(0);
     OperandExpr = OverloadedOperatorExpr;
     Opcode = BinaryOperator::getOverloadedOpcode(OverloadedOperatorExpr->getOperator());
@@ -554,10 +569,14 @@ static bool areSidesBinaryConstExpressions(const BinaryOperator *&BinOp, const A
   if (!LhsBinOp || !RhsBinOp)
     return false;
 
-  if ((LhsBinOp->getLHS()->isIntegerConstantExpr(*AstCtx) ||
-       LhsBinOp->getRHS()->isIntegerConstantExpr(*AstCtx)) &&
-      (RhsBinOp->getLHS()->isIntegerConstantExpr(*AstCtx) ||
-       RhsBinOp->getRHS()->isIntegerConstantExpr(*AstCtx)))
+  auto IsIntegerConstantExpr = [AstCtx](const Expr *E) {
+    return !E->isValueDependent() && E->isIntegerConstantExpr(*AstCtx);
+  };
+
+  if ((IsIntegerConstantExpr(LhsBinOp->getLHS()) ||
+       IsIntegerConstantExpr(LhsBinOp->getRHS())) &&
+      (IsIntegerConstantExpr(RhsBinOp->getLHS()) ||
+       IsIntegerConstantExpr(RhsBinOp->getRHS())))
     return true;
   return false;
 }
@@ -579,12 +598,14 @@ static bool retrieveConstExprFromBothSides(const BinaryOperator *&BinOp,
   const auto *BinOpLhs = cast<BinaryOperator>(BinOp->getLHS());
   const auto *BinOpRhs = cast<BinaryOperator>(BinOp->getRHS());
 
-  LhsConst = BinOpLhs->getLHS()->isIntegerConstantExpr(*AstCtx)
-                 ? BinOpLhs->getLHS()
-                 : BinOpLhs->getRHS();
-  RhsConst = BinOpRhs->getLHS()->isIntegerConstantExpr(*AstCtx)
-                 ? BinOpRhs->getLHS()
-                 : BinOpRhs->getRHS();
+  auto IsIntegerConstantExpr = [AstCtx](const Expr *E) {
+    return !E->isValueDependent() && E->isIntegerConstantExpr(*AstCtx);
+  };
+
+  LhsConst = IsIntegerConstantExpr(BinOpLhs->getLHS()) ? BinOpLhs->getLHS()
+                                                       : BinOpLhs->getRHS();
+  RhsConst = IsIntegerConstantExpr(BinOpRhs->getLHS()) ? BinOpRhs->getLHS()
+                                                       : BinOpRhs->getRHS();
 
   if (!LhsConst || !RhsConst)
     return false;
@@ -597,23 +618,62 @@ static bool retrieveConstExprFromBothSides(const BinaryOperator *&BinOp,
   return true;
 }
 
+static bool isSameRawIdentifierToken(const Token &T1, const Token &T2,
+                        const SourceManager &SM) {
+  if (T1.getKind() != T2.getKind())
+    return false;
+  if (T1.isNot(tok::raw_identifier))
+    return true;
+  if (T1.getLength() != T2.getLength())
+    return false;
+  return StringRef(SM.getCharacterData(T1.getLocation()), T1.getLength()) ==
+         StringRef(SM.getCharacterData(T2.getLocation()), T2.getLength());
+}
+
+bool isTokAtEndOfExpr(SourceRange ExprSR, Token T, const SourceManager &SM) {
+  return SM.getExpansionLoc(ExprSR.getEnd()) == T.getLocation();
+}
+
+/// Returns true if both LhsEpxr and RhsExpr are
+/// macro expressions and they are expanded
+/// from different macros.
 static bool areExprsFromDifferentMacros(const Expr *LhsExpr,
                                         const Expr *RhsExpr,
                                         const ASTContext *AstCtx) {
   if (!LhsExpr || !RhsExpr)
     return false;
-
-  SourceLocation LhsLoc = LhsExpr->getExprLoc();
-  SourceLocation RhsLoc = RhsExpr->getExprLoc();
-
-  if (!LhsLoc.isMacroID() || !RhsLoc.isMacroID())
+  SourceRange Lsr = LhsExpr->getSourceRange();
+  SourceRange Rsr = RhsExpr->getSourceRange();
+  if (!Lsr.getBegin().isMacroID() || !Rsr.getBegin().isMacroID())
     return false;
 
   const SourceManager &SM = AstCtx->getSourceManager();
   const LangOptions &LO = AstCtx->getLangOpts();
 
-  return !(Lexer::getImmediateMacroName(LhsLoc, SM, LO) ==
-          Lexer::getImmediateMacroName(RhsLoc, SM, LO));
+  std::pair<FileID, unsigned> LsrLocInfo =
+      SM.getDecomposedLoc(SM.getExpansionLoc(Lsr.getBegin()));
+  std::pair<FileID, unsigned> RsrLocInfo =
+      SM.getDecomposedLoc(SM.getExpansionLoc(Rsr.getBegin()));
+  const llvm::MemoryBuffer *MB = SM.getBuffer(LsrLocInfo.first);
+
+  const char *LTokenPos = MB->getBufferStart() + LsrLocInfo.second;
+  const char *RTokenPos = MB->getBufferStart() + RsrLocInfo.second;
+  Lexer LRawLex(SM.getLocForStartOfFile(LsrLocInfo.first), LO,
+                MB->getBufferStart(), LTokenPos, MB->getBufferEnd());
+  Lexer RRawLex(SM.getLocForStartOfFile(RsrLocInfo.first), LO,
+                MB->getBufferStart(), RTokenPos, MB->getBufferEnd());
+
+  Token LTok, RTok;
+  do { // Compare the expressions token-by-token.
+    LRawLex.LexFromRawLexer(LTok);
+    RRawLex.LexFromRawLexer(RTok);
+  } while (!LTok.is(tok::eof) && !RTok.is(tok::eof) &&
+           isSameRawIdentifierToken(LTok, RTok, SM) &&
+           !isTokAtEndOfExpr(Lsr, LTok, SM) &&
+           !isTokAtEndOfExpr(Rsr, RTok, SM));
+  return (!isTokAtEndOfExpr(Lsr, LTok, SM) ||
+          !isTokAtEndOfExpr(Rsr, RTok, SM)) ||
+         !isSameRawIdentifierToken(LTok, RTok, SM);
 }
 
 static bool areExprsMacroAndNonMacro(const Expr *&LhsExpr,

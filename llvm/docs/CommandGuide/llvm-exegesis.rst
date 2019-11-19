@@ -1,6 +1,8 @@
 llvm-exegesis - LLVM Machine Instruction Benchmark
 ==================================================
 
+.. program:: llvm-exegesis
+
 SYNOPSIS
 --------
 
@@ -164,7 +166,6 @@ Note that the scheduling class names will be resolved only when
 :program:`llvm-exegesis` is compiled in debug mode, else only the class id will
 be shown. This does not invalidate any of the analysis results though.
 
-
 OPTIONS
 -------
 
@@ -194,10 +195,22 @@ OPTIONS
  to specify at least one of the `-analysis-clusters-output-file=` and
  `-analysis-inconsistencies-output-file=`.
 
-.. option:: -num-repetitions=<Number of repetition>
+.. option:: -num-repetitions=<Number of repetitions>
 
  Specify the number of repetitions of the asm snippet.
  Higher values lead to more accurate measurements but lengthen the benchmark.
+
+.. option:: -max-configs-per-opcode=<value>
+
+ Specify the maximum configurations that can be generated for each opcode.
+ By default this is `1`, meaning that we assume that a single measurement is
+ enough to characterize an opcode. This might not be true of all instructions:
+ for example, the performance characteristics of the LEA instruction on X86
+ depends on the value of assigned registers and immediates. Setting a value of
+ `-max-configs-per-opcode` larger than `1` allows `llvm-exegesis` to explore
+ more configurations to discover if some register or immediate assignments
+ lead to different performance characteristics.
+
 
 .. option:: -benchmarks-file=</path/to/file>
 

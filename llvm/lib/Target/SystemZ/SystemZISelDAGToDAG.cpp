@@ -346,6 +346,11 @@ public:
       : SelectionDAGISel(TM, OptLevel) {}
 
   bool runOnMachineFunction(MachineFunction &MF) override {
+    const Function &F = MF.getFunction();
+    if (F.getFnAttribute("mnop-mcount").getValueAsString() == "true" &&
+        F.getFnAttribute("fentry-call").getValueAsString() != "true")
+      report_fatal_error("mnop-mcount only supported with fentry-call");
+
     Subtarget = &MF.getSubtarget<SystemZSubtarget>();
     return SelectionDAGISel::runOnMachineFunction(MF);
   }
@@ -1146,7 +1151,7 @@ void SystemZDAGToDAGISel::loadVectorConstant(
   SDLoc DL(Node);
   SmallVector<SDValue, 2> Ops;
   for (unsigned OpVal : VCI.OpVals)
-    Ops.push_back(CurDAG->getConstant(OpVal, DL, MVT::i32));
+    Ops.push_back(CurDAG->getTargetConstant(OpVal, DL, MVT::i32));
   SDValue Op = CurDAG->getNode(VCI.Opcode, DL, VCI.VecVT, Ops);
 
   if (VCI.VecVT == VT.getSimpleVT())
@@ -1480,6 +1485,23 @@ void SystemZDAGToDAGISel::Select(SDNode *Node) {
         Node->getOperand(0).getOpcode() != ISD::Constant)
       if (auto *Op1 = dyn_cast<ConstantSDNode>(Node->getOperand(1))) {
         uint64_t Val = Op1->getZExtValue();
+        // Don't split the operation if we can match one of the combined
+        // logical operations provided by miscellaneous-extensions-3.
+        if (Subtarget->hasMiscellaneousExtensions3()) {
+          unsigned ChildOpcode = Node->getOperand(0).getOpcode();
+          // Check whether this expression matches NAND/NOR/NXOR.
+          if (Val == (uint64_t)-1 && Opcode == ISD::XOR)
+            if (ChildOpcode == ISD::AND || ChildOpcode == ISD::OR ||
+                ChildOpcode == ISD::XOR)
+              break;
+          // Check whether this expression matches OR-with-complement.
+          if (Opcode == ISD::OR && ChildOpcode == ISD::XOR) {
+            auto Op0 = Node->getOperand(0);
+            if (auto *Op0Op1 = dyn_cast<ConstantSDNode>(Op0->getOperand(1)))
+              if (Op0Op1->getZExtValue() == (uint64_t)-1)
+                break;
+          }
+        }
         if (!SystemZ::isImmLF(Val) && !SystemZ::isImmHF(Val)) {
           splitLargeImmediate(Opcode, Node, Node->getOperand(0),
                               Val - uint32_t(Val), uint32_t(Val));
@@ -1533,8 +1555,8 @@ void SystemZDAGToDAGISel::Select(SDNode *Node) {
       uint64_t ConstCCMask =
         cast<ConstantSDNode>(CCMask.getNode())->getZExtValue();
       // Invert the condition.
-      CCMask = CurDAG->getConstant(ConstCCValid ^ ConstCCMask, SDLoc(Node),
-                                   CCMask.getValueType());
+      CCMask = CurDAG->getTargetConstant(ConstCCValid ^ ConstCCMask,
+                                         SDLoc(Node), CCMask.getValueType());
       SDValue Op4 = Node->getOperand(4);
       SDNode *UpdatedNode =
         CurDAG->UpdateNodeOperands(Node, Op1, Op0, CCValid, CCMask, Op4);

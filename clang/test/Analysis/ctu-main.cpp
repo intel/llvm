@@ -1,16 +1,16 @@
 // RUN: rm -rf %t && mkdir %t
 // RUN: mkdir -p %t/ctudir
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu \
+// RUN: %clang_cc1 -std=c++14 -triple x86_64-pc-linux-gnu \
 // RUN:   -emit-pch -o %t/ctudir/ctu-other.cpp.ast %S/Inputs/ctu-other.cpp
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu \
+// RUN: %clang_cc1 -std=c++14 -triple x86_64-pc-linux-gnu \
 // RUN:   -emit-pch -o %t/ctudir/ctu-chain.cpp.ast %S/Inputs/ctu-chain.cpp
 // RUN: cp %S/Inputs/ctu-other.cpp.externalDefMap.txt %t/ctudir/externalDefMap.txt
-// RUN: %clang_analyze_cc1 -triple x86_64-pc-linux-gnu \
+// RUN: %clang_analyze_cc1 -std=c++14 -triple x86_64-pc-linux-gnu \
 // RUN:   -analyzer-checker=core,debug.ExprInspection \
 // RUN:   -analyzer-config experimental-enable-naive-ctu-analysis=true \
 // RUN:   -analyzer-config ctu-dir=%t/ctudir \
 // RUN:   -verify %s
-// RUN: %clang_analyze_cc1 -triple x86_64-pc-linux-gnu \
+// RUN: %clang_analyze_cc1 -std=c++14 -triple x86_64-pc-linux-gnu \
 // RUN:   -analyzer-checker=core,debug.ExprInspection \
 // RUN:   -analyzer-config experimental-enable-naive-ctu-analysis=true \
 // RUN:   -analyzer-config ctu-dir=%t/ctudir \
@@ -45,12 +45,18 @@ public:
 class mycls {
 public:
   int fcl(int x);
+  virtual int fvcl(int x);
   static int fscl(int x);
 
   class embed_cls2 {
   public:
     int fecl2(int x);
   };
+};
+
+class derived : public mycls {
+public:
+  virtual int fvcl(int x) override;
 };
 
 namespace chns {
@@ -98,6 +104,31 @@ union U {
 };
 extern U extU;
 
+void test_virtual_functions(mycls* obj) {
+  // The dynamic type is known.
+  clang_analyzer_eval(mycls().fvcl(1) == 8);   // expected-warning{{TRUE}}
+  clang_analyzer_eval(derived().fvcl(1) == 9); // expected-warning{{TRUE}}
+  // We cannot decide about the dynamic type.
+  clang_analyzer_eval(obj->fvcl(1) == 8);      // expected-warning{{FALSE}} expected-warning{{TRUE}}
+}
+
+class TestAnonUnionUSR {
+public:
+  inline float f(int value) {
+    union {
+      float f;
+      int i;
+    };
+    i = value;
+    return f;
+  }
+  static const int Test;
+};
+
+extern int testImportOfIncompleteDefaultParmDuringImport(int);
+
+extern int testImportOfDelegateConstructor(int);
+
 int main() {
   clang_analyzer_eval(f(3) == 2); // expected-warning{{TRUE}}
   clang_analyzer_eval(f(4) == 3); // expected-warning{{TRUE}}
@@ -116,7 +147,7 @@ int main() {
   clang_analyzer_eval(fun_using_anon_struct(8) == 8); // expected-warning{{TRUE}}
 
   clang_analyzer_eval(other_macro_diag(1) == 1); // expected-warning{{TRUE}}
-  // expected-warning@Inputs/ctu-other.cpp:80{{REACHABLE}}
+  // expected-warning@Inputs/ctu-other.cpp:93{{REACHABLE}}
   MACRODIAG(); // expected-warning{{REACHABLE}}
 
   clang_analyzer_eval(extInt == 2); // expected-warning{{TRUE}}
@@ -130,4 +161,10 @@ int main() {
   clang_analyzer_eval(extSubSCN.a == 1); // expected-warning{{TRUE}}
   // clang_analyzer_eval(extSCC.a == 7); // TODO
   clang_analyzer_eval(extU.a == 4); // expected-warning{{TRUE}}
+
+  clang_analyzer_eval(TestAnonUnionUSR::Test == 5); // expected-warning{{TRUE}}
+
+  clang_analyzer_eval(testImportOfIncompleteDefaultParmDuringImport(9) == 9); // expected-warning{{TRUE}}
+
+  clang_analyzer_eval(testImportOfDelegateConstructor(10) == 10); // expected-warning{{TRUE}}
 }

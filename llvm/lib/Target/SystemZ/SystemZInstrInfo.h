@@ -100,11 +100,18 @@ enum BranchType {
 
   // An instruction that decrements a 64-bit register and branches if
   // the result is nonzero.
-  BranchCTG
+  BranchCTG,
+
+  // An instruction representing an asm goto statement.
+  AsmGoto
 };
 
 // Information about a branch instruction.
-struct Branch {
+class Branch {
+  // The target of the branch. In case of INLINEASM_BR, this is nullptr.
+  const MachineOperand *Target;
+
+public:
   // The type of the branch.
   BranchType Type;
 
@@ -114,12 +121,15 @@ struct Branch {
   // CCMASK_<N> is set if the branch should be taken when CC == N.
   unsigned CCMask;
 
-  // The target of the branch.
-  const MachineOperand *Target;
-
   Branch(BranchType type, unsigned ccValid, unsigned ccMask,
          const MachineOperand *target)
-    : Type(type), CCValid(ccValid), CCMask(ccMask), Target(target) {}
+    : Target(target), Type(type), CCValid(ccValid), CCMask(ccMask) {}
+
+  bool isIndirect() { return Target != nullptr && Target->isReg(); }
+  bool hasMBBTarget() { return Target != nullptr && Target->isMBB(); }
+  MachineBasicBlock *getMBBTarget() {
+    return hasMBBTarget() ? Target->getMBB() : nullptr;
+  }
 };
 
 // Kinds of fused compares in compare-and-* instructions.  Together with type
@@ -141,6 +151,11 @@ enum FusedCompareType {
 
 } // end namespace SystemZII
 
+namespace SystemZ {
+int getTwoOperandOpcode(uint16_t Opcode);
+int getTargetMemOpcode(uint16_t Opcode);
+}
+
 class SystemZInstrInfo : public SystemZGenInstrInfo {
   const SystemZRegisterInfo RI;
   SystemZSubtarget &STI;
@@ -155,8 +170,6 @@ class SystemZInstrInfo : public SystemZGenInstrInfo {
                        unsigned HighOpcode) const;
   void expandLOCPseudo(MachineInstr &MI, unsigned LowOpcode,
                        unsigned HighOpcode) const;
-  void expandLOCRPseudo(MachineInstr &MI, unsigned LowOpcode,
-                        unsigned HighOpcode) const;
   void expandZExtPseudo(MachineInstr &MI, unsigned LowOpcode,
                         unsigned Size) const;
   void expandLoadStackGuard(MachineInstr *MI) const;
@@ -248,7 +261,8 @@ public:
   foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
                         ArrayRef<unsigned> Ops,
                         MachineBasicBlock::iterator InsertPt, int FrameIndex,
-                        LiveIntervals *LIS = nullptr) const override;
+                        LiveIntervals *LIS = nullptr,
+                        VirtRegMap *VRM = nullptr) const override;
   MachineInstr *foldMemoryOperandImpl(
       MachineFunction &MF, MachineInstr &MI, ArrayRef<unsigned> Ops,
       MachineBasicBlock::iterator InsertPt, MachineInstr &LoadMI,
@@ -314,8 +328,7 @@ public:
   // memory addresses and false otherwise.
   bool
   areMemAccessesTriviallyDisjoint(const MachineInstr &MIa,
-                                  const MachineInstr &MIb,
-                                  AliasAnalysis *AA = nullptr) const override;
+                                  const MachineInstr &MIb) const override;
 };
 
 } // end namespace llvm

@@ -56,7 +56,11 @@ enum OperandType {
   OPERAND_GENERIC_5 = 11,
   OPERAND_LAST_GENERIC = 11,
 
-  OPERAND_FIRST_TARGET = 12,
+  OPERAND_FIRST_GENERIC_IMM = 12,
+  OPERAND_GENERIC_IMM_0 = 12,
+  OPERAND_LAST_GENERIC_IMM = 12,
+
+  OPERAND_FIRST_TARGET = 13,
 };
 
 }
@@ -103,6 +107,16 @@ public:
     assert(isGenericType() && "non-generic types don't have an index");
     return OperandType - MCOI::OPERAND_FIRST_GENERIC;
   }
+
+  bool isGenericImm() const {
+    return OperandType >= MCOI::OPERAND_FIRST_GENERIC_IMM &&
+           OperandType <= MCOI::OPERAND_LAST_GENERIC_IMM;
+  }
+
+  unsigned getGenericImmIndex() const {
+    assert(isGenericImm() && "non-generic immediates don't have an index");
+    return OperandType - MCOI::OPERAND_FIRST_GENERIC_IMM;
+  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -115,7 +129,8 @@ namespace MCID {
 /// not use these directly.  These all correspond to bitfields in the
 /// MCInstrDesc::Flags field.
 enum Flag {
-  Variadic = 0,
+  PreISelOpcode = 0,
+  Variadic,
   HasOptionalDef,
   Pseudo,
   Return,
@@ -134,6 +149,7 @@ enum Flag {
   FoldableAsLoad,
   MayLoad,
   MayStore,
+  MayRaiseFPException,
   Predicable,
   NotDuplicable,
   UnmodeledSideEffects,
@@ -227,6 +243,10 @@ public:
   /// Return flags of this instruction.
   uint64_t getFlags() const { return Flags; }
 
+  /// \returns true if this instruction is emitted before instruction selection
+  /// and should be legalized/regbankselected/selected.
+  bool isPreISelOpcode() const { return Flags & (1ULL << MCID::PreISelOpcode); }
+
   /// Return true if this instruction can have a variable number of
   /// operands.  In this case, the variable operands will be after the normal
   /// operands but before the implicit definitions and uses (if any are
@@ -284,7 +304,7 @@ public:
   /// block.  The TargetInstrInfo::AnalyzeBranch method can be used to get more
   /// information about this branch.
   bool isConditionalBranch() const {
-    return isBranch() & !isBarrier() & !isIndirectBranch();
+    return isBranch() && !isBarrier() && !isIndirectBranch();
   }
 
   /// Return true if this is a branch which always
@@ -292,7 +312,7 @@ public:
   /// TargetInstrInfo::AnalyzeBranch method can be used to get more information
   /// about this branch.
   bool isUnconditionalBranch() const {
-    return isBranch() & isBarrier() & !isIndirectBranch();
+    return isBranch() && isBarrier() && !isIndirectBranch();
   }
 
   /// Return true if this is a branch or an instruction which directly
@@ -402,6 +422,11 @@ public:
   /// instructions, they may store a modified value based on their operands, or
   /// may not actually modify anything, for example.
   bool mayStore() const { return Flags & (1ULL << MCID::MayStore); }
+
+  /// Return true if this instruction may raise a floating-point exception.
+  bool mayRaiseFPException() const {
+    return Flags & (1ULL << MCID::MayRaiseFPException);
+  }
 
   /// Return true if this instruction has side
   /// effects that are not modeled by other flags.  This does not return true

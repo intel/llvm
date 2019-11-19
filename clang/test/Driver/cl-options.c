@@ -8,13 +8,16 @@
 // c: -c
 
 // RUN: %clang_cl /C -### -- %s 2>&1 | FileCheck -check-prefix=C %s
-// C: error: invalid argument '-C' only allowed with '/E, /P or /EP'
+// C: error: invalid argument '/C' only allowed with '/E, /P or /EP'
 
 // RUN: %clang_cl /C /P -### -- %s 2>&1 | FileCheck -check-prefix=C_P %s
 // C_P: "-E"
 // C_P: "-C"
 
-// RUN: %clang_cl /d1reportAllClassLayout -### -- %s 2>&1 | FileCheck -check-prefix=d1reportAllClassLayout %s
+// RUN: %clang_cl /d1reportAllClassLayout -### /c /WX -- %s 2>&1 | \
+// RUN:     FileCheck -check-prefix=d1reportAllClassLayout %s
+// d1reportAllClassLayout-NOT: warning:
+// d1reportAllClassLayout-NOT: error:
 // d1reportAllClassLayout: -fdump-record-layouts
 
 // RUN: %clang_cl /Dfoo=bar /D bar=baz /DMYDEF#value /DMYDEF2=foo#bar /DMYDEF3#a=b /DMYDEF4# \
@@ -157,33 +160,29 @@
 
 // RUN: %clang_cl /Os --target=i686-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Os %s
 // RUN: %clang_cl /Os --target=x86_64-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Os %s
-// Os-NOT: -mdisable-fp-elim
-// Os: -momit-leaf-frame-pointer
+// Os: -mframe-pointer=none
 // Os: -Os
 
 // RUN: %clang_cl /Ot --target=i686-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Ot %s
 // RUN: %clang_cl /Ot --target=x86_64-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Ot %s
-// Ot-NOT: -mdisable-fp-elim
-// Ot: -momit-leaf-frame-pointer
+// Ot: -mframe-pointer=none
 // Ot: -O2
 
 // RUN: %clang_cl /Ox --target=i686-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Ox %s
 // RUN: %clang_cl /Ox --target=x86_64-pc-windows-msvc -### -- %s 2>&1 | FileCheck -check-prefix=Ox %s
-// Ox-NOT: -mdisable-fp-elim
-// Ox: -momit-leaf-frame-pointer
+// Ox: -mframe-pointer=none
 // Ox: -O2
 
 // RUN: %clang_cl --target=i686-pc-win32 /O2sy- -### -- %s 2>&1 | FileCheck -check-prefix=PR24003 %s
-// PR24003: -mdisable-fp-elim
-// PR24003: -momit-leaf-frame-pointer
+// PR24003: -mframe-pointer=all
 // PR24003: -Os
 
 // RUN: %clang_cl --target=i686-pc-win32 -Werror /Oy- /O2 -### -- %s 2>&1 | FileCheck -check-prefix=Oy_2 %s
-// Oy_2: -momit-leaf-frame-pointer
+// Oy_2: -mframe-pointer=all
 // Oy_2: -O2
 
 // RUN: %clang_cl --target=aarch64-pc-windows-msvc -Werror /Oy- /O2 -### -- %s 2>&1 | FileCheck -check-prefix=Oy_aarch64 %s
-// Oy_aarch64: -mdisable-fp-elim
+// Oy_aarch64: -mframe-pointer=all
 // Oy_aarch64: -O2
 
 // RUN: %clang_cl --target=i686-pc-win32 -Werror /O2 /O2 -### -- %s 2>&1 | FileCheck -check-prefix=O2O2 %s
@@ -192,7 +191,7 @@
 // RUN: %clang_cl /Zs -Werror /Oy -- %s 2>&1
 
 // RUN: %clang_cl --target=i686-pc-win32 -Werror /Oy- -### -- %s 2>&1 | FileCheck -check-prefix=Oy_ %s
-// Oy_: -mdisable-fp-elim
+// Oy_: -mframe-pointer=all
 
 // RUN: %clang_cl /Qvec -### -- %s 2>&1 | FileCheck -check-prefix=Qvec %s
 // Qvec: -vectorize-loops
@@ -211,11 +210,11 @@
 
 // /source-charset: should warn on everything except UTF-8.
 // RUN: %clang_cl /source-charset:utf-16 -### -- %s 2>&1 | FileCheck -check-prefix=source-charset-utf-16 %s
-// source-charset-utf-16: invalid value 'utf-16'
+// source-charset-utf-16: invalid value 'utf-16' in '/source-charset:utf-16'
 
 // /execution-charset: should warn on everything except UTF-8.
 // RUN: %clang_cl /execution-charset:utf-16 -### -- %s 2>&1 | FileCheck -check-prefix=execution-charset-utf-16 %s
-// execution-charset-utf-16: invalid value 'utf-16'
+// execution-charset-utf-16: invalid value 'utf-16' in '/execution-charset:utf-16'
 //
 // RUN: %clang_cl /Umymacro -### -- %s 2>&1 | FileCheck -check-prefix=U %s
 // RUN: %clang_cl /U mymacro -### -- %s 2>&1 | FileCheck -check-prefix=U %s
@@ -378,6 +377,9 @@
 // RUN:    /Zc:rvalueCast \
 // RUN:    /Zc:ternary \
 // RUN:    /Zc:wchar_t \
+// RUN:    /ZH:MD5 \
+// RUN:    /ZH:SHA1 \
+// RUN:    /ZH:SHA_256 \
 // RUN:    /Zm \
 // RUN:    /Zo \
 // RUN:    /Zo- \
@@ -595,9 +597,14 @@
 // NOCFGUARD-NOT: -cfguard
 
 // RUN: %clang_cl /guard:cf -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARD %s
-// RUN: %clang_cl /guard:cf,nochecks -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARD %s
-// RUN: %clang_cl /guard:nochecks -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARD %s
 // CFGUARD: -cfguard
+// CFGUARD-NOT: -cfguard-no-checks
+
+// RUN: %clang_cl /guard:cf,nochecks -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARDNOCHECKS %s
+// CFGUARDNOCHECKS: -cfguard-no-checks
+
+// RUN: %clang_cl /guard:nochecks -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARDNOCHECKSINVALID %s
+// CFGUARDNOCHECKSINVALID: invalid value 'nochecks' in '/guard:'
 
 // RUN: %clang_cl /guard:foo -### -- %s 2>&1 | FileCheck -check-prefix=CFGUARDINVALID %s
 // CFGUARDINVALID: invalid value 'foo' in '/guard:'
@@ -619,6 +626,7 @@
 // RUN:     -fno-coverage-mapping \
 // RUN:     -fdiagnostics-color \
 // RUN:     -fno-diagnostics-color \
+// RUN:     -fdebug-compilation-dir . \
 // RUN:     -fdiagnostics-parseable-fixits \
 // RUN:     -fdiagnostics-absolute-paths \
 // RUN:     -ferror-limit=10 \
@@ -650,6 +658,8 @@
 // RUN:     -fcs-profile-generate \
 // RUN:     -fcs-profile-generate=dir \
 // RUN:     -ftime-trace \
+// RUN:     -ftrivial-auto-var-init=zero \
+// RUN:     -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang \
 // RUN:     --version \
 // RUN:     -Werror /Zs -- %s 2>&1
 

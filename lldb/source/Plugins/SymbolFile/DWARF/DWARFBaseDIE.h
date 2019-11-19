@@ -12,14 +12,15 @@
 #include "lldb/Core/dwarf.h"
 #include "lldb/lldb-types.h"
 
-struct DIERef;
+#include "llvm/Support/Error.h"
+
+class DIERef;
 class DWARFASTParser;
 class DWARFAttributes;
 class DWARFUnit;
 class DWARFDebugInfoEntry;
 class DWARFDeclContext;
 class SymbolFileDWARF;
-class DWARFDIE;
 
 class DWARFBaseDIE {
 public:
@@ -54,9 +55,9 @@ public:
 
   DWARFDebugInfoEntry *GetDIE() const { return m_die; }
 
-  DIERef GetDIERef() const;
+  llvm::Optional<DIERef> GetDIERef() const;
 
-  lldb_private::TypeSystem *GetTypeSystem() const;
+  llvm::Expected<lldb_private::TypeSystem &> GetTypeSystem() const;
 
   DWARFASTParser *GetDWARFParser() const;
 
@@ -100,8 +101,6 @@ public:
   lldb::LanguageType GetLanguage() const;
 
   lldb::ModuleSP GetModule() const;
-
-  lldb_private::CompileUnit *GetLLDBCompileUnit() const;
 
   // Getting attribute values from the DIE.
   //

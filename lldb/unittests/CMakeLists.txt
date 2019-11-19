@@ -1,5 +1,6 @@
 add_custom_target(LLDBUnitTests)
 set_target_properties(LLDBUnitTests PROPERTIES FOLDER "lldb tests")
+add_dependencies(lldb-test-deps LLDBUnitTests)
 
 include_directories(${LLDB_SOURCE_ROOT})
 include_directories(${LLDB_PROJECT_ROOT}/unittests)
@@ -78,6 +79,6 @@ add_subdirectory(tools)
 add_subdirectory(UnwindAssembly)
 add_subdirectory(Utility)
 
-if(LLDB_CAN_USE_DEBUGSERVER AND NOT SKIP_TEST_DEBUGSERVER)
+if(LLDB_CAN_USE_DEBUGSERVER AND LLDB_TOOL_DEBUGSERVER_BUILD AND NOT LLDB_USE_SYSTEM_DEBUGSERVER)
   add_subdirectory(debugserver)
 endif()

@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify | FileCheck %s
 // RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify -cl-std=CL1.1 | FileCheck %s
 // RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify -cl-std=CL1.2 | FileCheck %s
-// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify -cl-std=c++ | FileCheck %s --check-prefix=CHECK20
+// RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -internal-isystem ../../lib/Headers -include opencl-c.h -emit-llvm -o - %s -verify -cl-std=clc++ | FileCheck %s --check-prefix=CHECK20
 
 // Test including the default header as a module.
 // The module should be compiled only once and loaded from cache afterwards.
@@ -71,6 +71,18 @@ char f(char x) {
 void test_image3dwo(write_only image3d_t img) {
   write_imagef(img, (0), (0.0f));
 }
+#endif //__OPENCL_C_VERSION__
+
+#if defined(__OPENCL_CPP_VERSION__)
+// Test old atomic overloaded with generic addr space.
+void test_atomics(__generic volatile unsigned int* a) {
+  atomic_add(a, 1);
+}
+#endif
+
+// Verify that ATOMIC_VAR_INIT is defined.
+#if defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+global atomic_int z = ATOMIC_VAR_INIT(99);
 #endif //__OPENCL_C_VERSION__
 
 // Verify that non-builtin cl_intel_planar_yuv extension is defined from

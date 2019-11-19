@@ -3,7 +3,6 @@
 <plist version="1.0">
 <dict>
  <key>clang_version</key>
-<string>clang version 8.0.0 </string>
  <key>diagnostics</key>
  <array>
   <dict>
@@ -192,7 +191,7 @@
         </dict>
         <dict>
          <key>line</key><integer>11</integer>
-         <key>col</key><integer>14</integer>
+         <key>col</key><integer>9</integer>
          <key>file</key><integer>0</integer>
         </dict>
        </array>
@@ -516,7 +515,7 @@
         </dict>
         <dict>
          <key>line</key><integer>11</integer>
-         <key>col</key><integer>14</integer>
+         <key>col</key><integer>9</integer>
          <key>file</key><integer>0</integer>
         </dict>
        </array>
@@ -2140,7 +2139,6 @@
  </array>
  <key>files</key>
  <array>
-   <string>/clang/test/Analysis/cxx-for-range.cpp</string>
  </array>
 </dict>
 </plist>

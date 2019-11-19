@@ -4,55 +4,237 @@ The SYCL* Compiler compiles C++\-based SYCL source files with code for both CPU
 and a wide range of compute accelerators. The compiler uses Khronos*
 OpenCL&trade; API to offload computations to accelerators.
 
-# Before You Begin
+# Table of contents
 
-OpenCL runtime for CPU and/or GPU:
+* [Prerequisites](#prerequisites)
+  * [Create SYCL workspace](#create-sycl-workspace)
+* [Build SYCL toolchain](#build-sycl-toolchain)
+  * [Build SYCL toolchain with libc++ library](#build-sycl-toolchain-with-libc-library)
+* [Use SYCL toolchain](#use-sycl-toolchain)
+  * [Install low level runtime](#install-low-level-runtime)
+  * [Test SYCL toolchain](#test-sycl-toolchain)
+  * [Run simple SYCL application](#run-simple-sycl-application)
+* [C++ standard](#c-standard)
+* [Known Issues and Limitations](#known-issues-and-limitations)
+* [Find More](#find-more)
 
-   a. OpenCL runtime for GPU: follow instructions on
-[github.com/intel/compute-runtime/releases](https://github.com/intel/compute-runtime/releases)
-to install.
+# Prerequisites
 
-   b. Experimental Intel&reg; CPU Runtime for OpenCL&trade; Applications with
-SYCL support: follow the instructions under
-[SYCL* Compiler and Runtimes](https://github.com/intel/llvm/releases/tag/2019-07)
+* `git` - https://git-scm.com/downloads
+* `cmake` version 3.2 or later - http://www.cmake.org/download/
+* `python` - https://www.python.org/downloads/release/python-2716/
+* C++ compiler
+  * Linux: `GCC` version 5.1.0 or later (including libstdc++) -
+    https://gcc.gnu.org/install/
+  * Windows: `Visual Studio` version 15.7 preview 4 or later -
+    https://visualstudio.microsoft.com/downloads/
 
-# Build the SYCL compiler and runtime
+## Create SYCL workspace
 
-Download the LLVM* repository with SYCL support to your local machine folder
-e.g. `$HOME/sycl` (assuming environment var `$SYCL_HOME`) folder using
-following command:
+Throughout this document `SYCL_HOME` denotes the path to the local directory
+created as SYCL workspace. It might be useful to create an environment variable
+with the same name.
+
+**Linux**
 
 ```bash
-git clone https://github.com/intel/llvm -b sycl $HOME/sycl
+export SYCL_HOME=/export/home/sycl_workspace
+mkdir $SYCL_HOME
 ```
 
-Build the SYCL compiler and runtime following instruction below:
+**Windows (64-bit)**
 
+Open a developer command prompt using one of two methods:
+
+- Click start menu and search for "**x64** Native Tools Command Prompt for VS XXXX", where
+  XXXX is a version of installed Visual Studio.
+- Ctrl-R, write "cmd", click enter, then run
+  `"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x64`
+
+```bat
+set SYCL_HOME=%USERPROFILE%\sycl_workspace
+mkdir %SYCL_HOME%
+```
+
+# Build SYCL toolchain
+
+**Linux**
 ```bash
+cd $SYCL_HOME
+git clone https://github.com/intel/llvm -b sycl
 mkdir $SYCL_HOME/build
 cd $SYCL_HOME/build
-cmake -DCMAKE_BUILD_TYPE=Release \
+
+cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" \
 -DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" \
--DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$SYCL_HOME/sycl \
--DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$SYCL_HOME/llvm-spirv \
 -DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" \
-$SYCL_HOME/llvm
+-DLLVM_EXTERNAL_SYCL_SOURCE_DIR=$SYCL_HOME/llvm/sycl \
+-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR=$SYCL_HOME/llvm/llvm-spirv \
+$SYCL_HOME/llvm/llvm
+
 make -j`nproc` sycl-toolchain
 ```
 
-After the build completed, the SYCL compiler/include/libraries can be found
-under `$SYCL_HOME/build` directory.
+**Windows (64-bit)**
+```bat
+cd %SYCL_HOME%
+git clone https://github.com/intel/llvm -b sycl
+mkdir %SYCL_HOME%\build
+cd %SYCL_HOME%\build
 
-# Test the SYCL compiler and runtime
+cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD="X86" ^
+-DLLVM_EXTERNAL_PROJECTS="llvm-spirv;sycl" ^
+-DLLVM_ENABLE_PROJECTS="clang;llvm-spirv;sycl" ^
+-DLLVM_EXTERNAL_SYCL_SOURCE_DIR="%SYCL_HOME%\llvm\sycl" ^
+-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR="%SYCL_HOME%\llvm\llvm-spirv" ^
+-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
+"%SYCL_HOME%\llvm\llvm"
 
-Run LIT testing using the command below after building SYCL compiler and runtime.
+ninja sycl-toolchain
+```
 
+TODO: add instructions how to deploy built SYCL toolchain.
+
+## Build SYCL toolchain with libc++ library
+
+There is experimental support for building and linking SYCL runtime with
+libc++ library instead of libstdc++. To enable it the following CMake options
+should be used.
+
+**Linux**
+```
+-DSYCL_USE_LIBCXX=ON \
+-DSYCL_LIBCXX_INCLUDE_PATH=<path to libc++ headers> \
+-DSYCL_LIBCXX_LIBRARY_PATH=<path to libc++ and libc++abi libraries>
+```
+
+# Use SYCL toolchain
+
+## Install low level runtime
+
+To run SYCL  applications on OpenCL devices, OpenCL implementation(s) must be
+present in the system.
+
+Please, refer to [the Release Notes](../ReleaseNotes.md) for recommended Intel
+runtime versions.
+
+The `GPU` runtime that is needed to run SYCL application on Intel `GPU` devices
+can be downloaded from the following web pages:
+
+* Linux: [Intel&reg; Graphics Compute Runtime for
+   OpenCL&trade;](https://github.com/intel/compute-runtime/releases)
+
+* Windows: [Intel&reg; Download
+   Center](https://downloadcenter.intel.com/product/80939/Graphics-Drivers)
+
+
+To install Intel `CPU` runtime for OpenCL devices the corresponding runtime
+asset/archive should be downloaded from
+[SYCL Compiler and Runtime updates](../ReleaseNotes.md) and installed using
+the following procedure.
+
+Intel `CPU` runtime for OpenCL depends on Threading Building Blocks library
+which should be downloaded from [Threading Building Blocks (TBB)
+ GitHub repository](https://github.com/intel/tbb) and installed following
+procedure below.
+
+**Linux**
+
+1) Extract the archive. For example, for the archive
+`oclcpu_rt_<new_version>.tar.gz` you would run the following commands
+```bash
+mkdir -p /opt/intel/oclcpuexp
+cd /opt/intel/oclcpuexp
+tar -zxvf oclcpu_rt_<new_version>.tar.gz
+```
+2) Create ICD file pointing to the new runtime
+```bash
+echo /opt/intel/oclcpuexp/x64/libintelocl.so > /etc/OpenCL/vendors/intel_expcpu.icd
+```
+
+3) Extract TBB libraries. For example, for the archive tbb2019_<version>oss_lin.tgz
+
+```bash
+mkdir -p /opt/intel/tbb
+cd /opt/intel/tbb
+tar -zxvf tbb2019_<version>oss_lin.tgz
+```
+
+4) Copy files from or create symbolic links to TBB libraries in OpenCL RT folder:
+```bash
+ln -s /opt/intel/tbb/lib/intel64/gcc4.8/libtbb.so /opt/intel/oclcpuexp/x64/libtbb.so
+ln -s /opt/intel/tbb/lib/intel64/gcc4.8/libtbbmalloc.so
+  /opt/intel/oclcpuexp/x64/libtbbmalloc.so
+```
+
+5) Configure library paths
+```bash
+echo /opt/intel/oclcpuexp/x64 > /etc/ld.so.conf.d/libintelopenclexp.conf
+ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
+```
+**Windows (64-bit)**
+1) If you need `GPU` as well, then update/install it first. Do it **before**
+installing `CPU` runtime as `GPU` runtime installer may re-write some important
+files or settings and make existing `CPU` runtime not working properly.
+
+2) Extract the archive to some folder. For example, to `c:\oclcpu_rt_<new_version>`
+and `c:\tbb2019_<version>oss`.
+
+3) Run `Command Prompt` as `Administrator`. To do that click `Start` button,
+type `Command Prompt`, click the Right mouse button on it, then click
+`Run As Administrator`, then click `Yes` to confirm.
+
+4) In the opened windows run `install.bat` provided with the extracted files
+to install runtime to the system and setup environment variables. So, if the
+extracted files are in `c:\oclcpu_rt_<new_version>\` folder, then type the
+command:
+```bash
+c:\oclcpu_rt_<new_version>\install.bat c:\tbb2019_<version>oss\bin\intel64\vc14
+```
+
+## Test SYCL toolchain
+
+### Run regression tests
+
+To verify that built SYCL toolchain is working correctly, run:
+
+**Linux**
 ```bash
 make -j`nproc` check-all
 ```
-If no OpenCL GPU/CPU runtimes are available, the corresponding LIT tests are skipped
 
-# Creating a simple SYCL program
+**Windows (64-bit)**
+```bat
+ninja check-all
+```
+
+If no OpenCL GPU/CPU runtimes are available, the corresponding tests are
+skipped.
+
+### Run Khronos SYCL conformance test suite (optional)
+
+Khronos SYCL conformance test suite (CTS) is intended to validate SYCL
+implementation conformance to Khronos SYCL specification.
+
+Follow Khronos SYCL-CTS instructions from
+[README](https://github.com/KhronosGroup/SYCL-CTS#sycl-121-conformance-test-suite)
+file to obtain test sources and instructions how build and execute the tests.
+
+To configure testing of "Intel SYCL" toochain set
+`SYCL_IMPLEMENTATION=Intel_SYCL` and
+`Intel_SYCL_ROOT=<path to the SYCL installation>` CMake variables.
+
+**Linux**
+```bash
+cmake -DIntel_SYCL_ROOT=$SYCL_HOME/deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
+```
+
+**Windows (64-bit)**
+```bat
+cmake -DIntel_SYCL_ROOT=%SYCL_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
+```
+
+## Run simple SYCL application
 
 A simple SYCL program consists of following parts:
 1. Header section
@@ -66,7 +248,6 @@ A simple SYCL program consists of following parts:
 Creating a file `simple-sycl-app.cpp` with the following C++ SYCL code in it:
 
 ```c++
-
 #include <CL/sycl.hpp>
 
 int main() {
@@ -115,30 +296,43 @@ int main() {
 
 ```
 
-# Build and Test a simple SYCL program
+To build simple-sycl-app put `bin` and `lib` to PATHs:
 
-To build simple-sycl-app run following command:
+**Linux**
+```bash
+export PATH=$SYCL_HOME/build/bin:$PATH
+export LD_LIBRARY_PATH=$SYCL_HOME/build/lib:$LD_LIBRARY_PATH
+```
 
-   ```console
-   clang++ -std=c++11 -fsycl simple-sycl-app.cpp -o simple-sycl-app -lOpenCL
-   ```
+**Windows (64-bit)**
+```bat
+set PATH=%SYCL_HOME%\build\bin;%PATH%
+set LIB=%SYCL_HOME%\build\lib;%LIB%
+```
 
-This `simple-sycl-app` application doesn't specify SYCL device for execution,
-so SYCL runtime will first try to execute on OpenCL GPU device first, if OpenCL
-GPU device is not found, it will try to run OpenCL CPU device; and if OpenCL
-CPU device is also not available, SYCL runtime will run on SYCL host device.
+and run following command:
 
-To run the `simple-sycl-app`:
+```bash
+clang++ -fsycl simple-sycl-app.cpp -o simple-sycl-app.exe
+```
 
-    LD_LIBRARY_PATH=$SYCL_HOME/build/lib ./simple-sycl-app
-    The results are correct!
+This `simple-sycl-app.exe` application doesn't specify SYCL device for
+execution, so SYCL runtime will use `default_selector` logic to select one
+of accelerators available in the system or SYCL host device.
+
+**Linux & Windows**
+```bash
+./simple-sycl-app.exe
+The results are correct!
+```
 
 NOTE: SYCL developer can specify SYCL device for execution using device
-selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`) as
+selectors (e.g. `cl::sycl::cpu_selector`, `cl::sycl::gpu_selector`,
+[Intel FPGA selector(s)](extensions/IntelFPGA/FPGASelector.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
 
-# Code the program for a specific GPU
+## Code the program for a specific GPU
 
 To specify OpenCL device SYCL provides the abstract `cl::sycl::device_selector`
 class which the can be used to define how the runtime should select the best
@@ -167,7 +361,7 @@ int main() {
       const std::string DeviceName = Device.get_info<device::name>();
       const std::string DeviceVendor = Device.get_info<device::vendor>();
 
-      return Device.is_gpu() && DeviceName.find("HD Graphics NEO") ? 1 : -1;
+      return Device.is_gpu() && (DeviceName.find("HD Graphics NEO") != std::string::npos);
     }
   };
 
@@ -182,16 +376,18 @@ int main() {
 
 ```
 
+# C++ standard
+- Minimally support C++ standard is c++11 on Linux and c++14 on Windows.
 
-# Known Issues or Limitations
+# Known Issues and Limitations
 
 - SYCL device compiler fails if the same kernel was used in different
   translation units.
 - SYCL host device is not fully supported.
+- 32-bit host/target is not supported.
 - SYCL works only with OpenCL implementations supporting out-of-order queues.
-
+- On Windows linking SYCL applications with `/MTd` flag is known to cause crashes.
 
 # Find More
 
 SYCL 1.2.1 specification: [www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf](https://www.khronos.org/registry/SYCL/specs/sycl-1.2.1.pdf)
-

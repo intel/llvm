@@ -248,11 +248,11 @@ public:
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
   bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                         AliasAnalysis *AA) const override;
+                                         AAResults *AA) const override;
   unsigned isStoreToStackSlot(const MachineInstr &MI,
                               int &FrameIndex) const override;
 
-  bool findCommutedOpIndices(MachineInstr &MI, unsigned &SrcOpIdx1,
+  bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
                              unsigned &SrcOpIdx2) const override;
 
   void insertNoop(MachineBasicBlock &MBB,
@@ -357,6 +357,21 @@ public:
                             unsigned SrcReg2, int Mask, int Value,
                             const MachineRegisterInfo *MRI) const override;
 
+
+  /// Return true if get the base operand, byte offset of an instruction and
+  /// the memory width. Width is the size of memory that is being
+  /// loaded/stored (e.g. 1, 2, 4, 8).
+  bool getMemOperandWithOffsetWidth(const MachineInstr &LdSt,
+                                    const MachineOperand *&BaseOp,
+                                    int64_t &Offset, unsigned &Width,
+                                    const TargetRegisterInfo *TRI) const;
+
+  /// Return true if two MIs access different memory addresses and false
+  /// otherwise
+  bool
+  areMemAccessesTriviallyDisjoint(const MachineInstr &MIa,
+                                  const MachineInstr &MIb) const override;
+
   /// GetInstSize - Return the number of bytes of code the specified
   /// instruction may be.  This returns the maximum number of bytes.
   ///
@@ -407,6 +422,16 @@ public:
 
   bool convertToImmediateForm(MachineInstr &MI,
                               MachineInstr **KilledDef = nullptr) const;
+  bool foldFrameOffset(MachineInstr &MI) const;
+  bool isADDIInstrEligibleForFolding(MachineInstr &ADDIMI, int64_t &Imm) const;
+  bool isADDInstrEligibleForFolding(MachineInstr &ADDMI) const;
+  bool isImmInstrEligibleForFolding(MachineInstr &MI, unsigned &BaseReg,
+                                    unsigned &XFormOpcode,
+                                    int64_t &OffsetOfImmInstr,
+                                    ImmInstrInfo &III) const;
+  bool isValidToBeChangedReg(MachineInstr *ADDMI, unsigned Index,
+                             MachineInstr *&ADDIMI, int64_t &OffsetAddi,
+                             int64_t OffsetImm) const;
 
   /// Fixup killed/dead flag for register \p RegNo between instructions [\p
   /// StartMI, \p EndMI]. Some PostRA transformations may violate register
@@ -423,8 +448,13 @@ public:
   void replaceInstrOperandWithImm(MachineInstr &MI, unsigned OpNo,
                                   int64_t Imm) const;
 
-  bool instrHasImmForm(const MachineInstr &MI, ImmInstrInfo &III,
+  bool instrHasImmForm(unsigned Opc, bool IsVFReg, ImmInstrInfo &III,
                        bool PostRA) const;
+
+  // In PostRA phase, try to find instruction defines \p Reg before \p MI.
+  // \p SeenIntermediate is set to true if uses between DefMI and \p MI exist.
+  MachineInstr *getDefMIPostRA(unsigned Reg, MachineInstr &MI,
+                               bool &SeenIntermediateUse) const;
 
   /// getRegNumForOperand - some operands use different numbering schemes
   /// for the same registers. For example, a VSX instruction may have any of
@@ -457,6 +487,22 @@ public:
     }
     return Reg;
   }
+
+  /// Check \p Opcode is BDNZ (Decrement CTR and branch if it is still nonzero).
+  bool isBDNZ(unsigned Opcode) const;
+
+  /// Find the hardware loop instruction used to set-up the specified loop.
+  /// On PPC, we have two instructions used to set-up the hardware loop
+  /// (MTCTRloop, MTCTR8loop) with corresponding endloop (BDNZ, BDNZ8)
+  /// instructions to indicate the end of a loop.
+  MachineInstr *
+  findLoopInstr(MachineBasicBlock &PreHeader,
+                SmallPtrSet<MachineBasicBlock *, 8> &Visited) const;
+
+  /// Analyze loop L, which must be a single-basic-block loop, and if the
+  /// conditions can be understood enough produce a PipelinerLoopInfo object.
+  std::unique_ptr<TargetInstrInfo::PipelinerLoopInfo>
+  analyzeLoopForPipelining(MachineBasicBlock *LoopBB) const override;
 };
 
 }

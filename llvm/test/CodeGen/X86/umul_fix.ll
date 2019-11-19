@@ -25,8 +25,8 @@ define i32 @func(i32 %x, i32 %y) nounwind {
 ; X86-NEXT:    mull {{[0-9]+}}(%esp)
 ; X86-NEXT:    shrdl $2, %edx, %eax
 ; X86-NEXT:    retl
-  %tmp = call i32 @llvm.umul.fix.i32(i32 %x, i32 %y, i32 2);
-  ret i32 %tmp;
+  %tmp = call i32 @llvm.umul.fix.i32(i32 %x, i32 %y, i32 2)
+  ret i32 %tmp
 }
 
 define i64 @func2(i64 %x, i64 %y) nounwind {
@@ -60,16 +60,17 @@ define i64 @func2(i64 %x, i64 %y) nounwind {
 ; X86-NEXT:    addl %ebp, %eax
 ; X86-NEXT:    adcl %edi, %edx
 ; X86-NEXT:    imull {{[0-9]+}}(%esp), %esi
-; X86-NEXT:    addl %esi, %edx
-; X86-NEXT:    shldl $30, %eax, %edx
+; X86-NEXT:    addl %edx, %esi
+; X86-NEXT:    shldl $30, %eax, %esi
 ; X86-NEXT:    shldl $30, %ecx, %eax
+; X86-NEXT:    movl %esi, %edx
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    popl %edi
 ; X86-NEXT:    popl %ebx
 ; X86-NEXT:    popl %ebp
 ; X86-NEXT:    retl
-  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 2);
-  ret i64 %tmp;
+  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 2)
+  ret i64 %tmp
 }
 
 define i4 @func3(i4 %x, i4 %y) nounwind {
@@ -95,8 +96,8 @@ define i4 @func3(i4 %x, i4 %y) nounwind {
 ; X86-NEXT:    shrb $2, %al
 ; X86-NEXT:    # kill: def $al killed $al killed $eax
 ; X86-NEXT:    retl
-  %tmp = call i4 @llvm.umul.fix.i4(i4 %x, i4 %y, i32 2);
-  ret i4 %tmp;
+  %tmp = call i4 @llvm.umul.fix.i4(i4 %x, i4 %y, i32 2)
+  ret i4 %tmp
 }
 
 define <4 x i32> @vec(<4 x i32> %x, <4 x i32> %y) nounwind {
@@ -152,8 +153,8 @@ define <4 x i32> @vec(<4 x i32> %x, <4 x i32> %y) nounwind {
 ; X86-NEXT:    popl %ebx
 ; X86-NEXT:    popl %ebp
 ; X86-NEXT:    retl $4
-  %tmp = call <4 x i32> @llvm.umul.fix.v4i32(<4 x i32> %x, <4 x i32> %y, i32 2);
-  ret <4 x i32> %tmp;
+  %tmp = call <4 x i32> @llvm.umul.fix.v4i32(<4 x i32> %x, <4 x i32> %y, i32 2)
+  ret <4 x i32> %tmp
 }
 
 ; These result in regular integer multiplication
@@ -169,8 +170,8 @@ define i32 @func4(i32 %x, i32 %y) nounwind {
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    imull {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    retl
-  %tmp = call i32 @llvm.umul.fix.i32(i32 %x, i32 %y, i32 0);
-  ret i32 %tmp;
+  %tmp = call i32 @llvm.umul.fix.i32(i32 %x, i32 %y, i32 0)
+  ret i32 %tmp
 }
 
 define i64 @func5(i64 %x, i64 %y) nounwind {
@@ -193,8 +194,8 @@ define i64 @func5(i64 %x, i64 %y) nounwind {
 ; X86-NEXT:    addl %esi, %edx
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    retl
-  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 0);
-  ret i64 %tmp;
+  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 0)
+  ret i64 %tmp
 }
 
 define i4 @func6(i4 %x, i4 %y) nounwind {
@@ -215,8 +216,8 @@ define i4 @func6(i4 %x, i4 %y) nounwind {
 ; X86-NEXT:    andb $15, %cl
 ; X86-NEXT:    mulb %cl
 ; X86-NEXT:    retl
-  %tmp = call i4 @llvm.umul.fix.i4(i4 %x, i4 %y, i32 0);
-  ret i4 %tmp;
+  %tmp = call i4 @llvm.umul.fix.i4(i4 %x, i4 %y, i32 0)
+  ret i4 %tmp
 }
 
 define <4 x i32> @vec2(<4 x i32> %x, <4 x i32> %y) nounwind {
@@ -251,8 +252,8 @@ define <4 x i32> @vec2(<4 x i32> %x, <4 x i32> %y) nounwind {
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    popl %edi
 ; X86-NEXT:    retl $4
-  %tmp = call <4 x i32> @llvm.umul.fix.v4i32(<4 x i32> %x, <4 x i32> %y, i32 0);
-  ret <4 x i32> %tmp;
+  %tmp = call <4 x i32> @llvm.umul.fix.v4i32(<4 x i32> %x, <4 x i32> %y, i32 0)
+  ret <4 x i32> %tmp
 }
 
 define i64 @func7(i64 %x, i64 %y) nounwind {
@@ -291,8 +292,8 @@ define i64 @func7(i64 %x, i64 %y) nounwind {
 ; X86-NEXT:    popl %ebx
 ; X86-NEXT:    popl %ebp
 ; X86-NEXT:    retl
-  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 32);
-  ret i64 %tmp;
+  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 32)
+  ret i64 %tmp
 }
 
 define i64 @func8(i64 %x, i64 %y) nounwind {
@@ -318,30 +319,29 @@ define i64 @func8(i64 %x, i64 %y) nounwind {
 ; X86-NEXT:    movl %eax, %ebx
 ; X86-NEXT:    movl %ecx, %eax
 ; X86-NEXT:    mull %esi
-; X86-NEXT:    movl %edx, %ecx
-; X86-NEXT:    addl %ebx, %ecx
+; X86-NEXT:    addl %edx, %ebx
 ; X86-NEXT:    adcl $0, %edi
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    mull %ebp
-; X86-NEXT:    movl %edx, %ebx
+; X86-NEXT:    movl %edx, %ecx
 ; X86-NEXT:    movl %eax, %ebp
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    mull %esi
-; X86-NEXT:    addl %ecx, %eax
+; X86-NEXT:    addl %ebx, %eax
 ; X86-NEXT:    adcl %edi, %edx
-; X86-NEXT:    adcl $0, %ebx
+; X86-NEXT:    adcl $0, %ecx
 ; X86-NEXT:    addl %ebp, %edx
-; X86-NEXT:    adcl $0, %ebx
-; X86-NEXT:    shldl $1, %edx, %ebx
+; X86-NEXT:    adcl $0, %ecx
+; X86-NEXT:    shldl $1, %edx, %ecx
 ; X86-NEXT:    shrdl $31, %edx, %eax
-; X86-NEXT:    movl %ebx, %edx
+; X86-NEXT:    movl %ecx, %edx
 ; X86-NEXT:    popl %esi
 ; X86-NEXT:    popl %edi
 ; X86-NEXT:    popl %ebx
 ; X86-NEXT:    popl %ebp
 ; X86-NEXT:    retl
-  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 63);
-  ret i64 %tmp;
+  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 63)
+  ret i64 %tmp
 }
 
 define i64 @func9(i64 %x, i64 %y) nounwind {
@@ -388,6 +388,6 @@ define i64 @func9(i64 %x, i64 %y) nounwind {
 ; X86-NEXT:    popl %ebx
 ; X86-NEXT:    popl %ebp
 ; X86-NEXT:    retl
-  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 64);
-  ret i64 %tmp;
+  %tmp = call i64 @llvm.umul.fix.i64(i64 %x, i64 %y, i32 64)
+  ret i64 %tmp
 }

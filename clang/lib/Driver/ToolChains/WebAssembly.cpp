@@ -8,6 +8,7 @@
 
 #include "WebAssembly.h"
 #include "CommonArgs.h"
+#include "clang/Config/config.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
@@ -88,7 +89,7 @@ void wasm::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
 
-  C.addCommand(llvm::make_unique<Command>(JA, *this, Linker, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this, Linker, CmdArgs, Inputs));
 }
 
 WebAssembly::WebAssembly(const Driver &D, const llvm::Triple &Triple,
@@ -140,7 +141,7 @@ void WebAssembly::addClangTargetOptions(const ArgList &DriverArgs,
                          options::OPT_fno_use_init_array, true))
     CC1Args.push_back("-fuse-init-array");
 
-  // '-pthread' implies '-target-feature +atomics'
+  // '-pthread' implies atomics, bulk-memory, mutable-globals, and sign-ext
   if (DriverArgs.hasFlag(options::OPT_pthread, options::OPT_no_pthread,
                          false)) {
     if (DriverArgs.hasFlag(options::OPT_mno_atomics, options::OPT_matomics,
@@ -148,8 +149,49 @@ void WebAssembly::addClangTargetOptions(const ArgList &DriverArgs,
       getDriver().Diag(diag::err_drv_argument_not_allowed_with)
           << "-pthread"
           << "-mno-atomics";
+    if (DriverArgs.hasFlag(options::OPT_mno_bulk_memory,
+                           options::OPT_mbulk_memory, false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-pthread"
+          << "-mno-bulk-memory";
+    if (DriverArgs.hasFlag(options::OPT_mno_mutable_globals,
+                           options::OPT_mmutable_globals, false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-pthread"
+          << "-mno-mutable-globals";
+    if (DriverArgs.hasFlag(options::OPT_mno_sign_ext, options::OPT_msign_ext,
+                           false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-pthread"
+          << "-mno-sign-ext";
     CC1Args.push_back("-target-feature");
     CC1Args.push_back("+atomics");
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+bulk-memory");
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+mutable-globals");
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+sign-ext");
+  }
+
+  if (DriverArgs.getLastArg(options::OPT_fwasm_exceptions)) {
+    // '-fwasm-exceptions' is not compatible with '-mno-exception-handling'
+    if (DriverArgs.hasFlag(options::OPT_mno_exception_handing,
+                           options::OPT_mexception_handing, false))
+      getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+          << "-fwasm-exceptions"
+          << "-mno-exception-handling";
+    // '-fwasm-exceptions' is not compatible with
+    // '-mllvm -enable-emscripten-cxx-exceptions'
+    for (const Arg *A : DriverArgs.filtered(options::OPT_mllvm)) {
+      if (StringRef(A->getValue(0)) == "-enable-emscripten-cxx-exceptions")
+        getDriver().Diag(diag::err_drv_argument_not_allowed_with)
+            << "-fwasm-exceptions"
+            << "-mllvm -enable-emscripten-cxx-exceptions";
+    }
+    // '-fwasm-exceptions' implies exception-handling
+    CC1Args.push_back("-target-feature");
+    CC1Args.push_back("+exception-handling");
   }
 }
 
@@ -170,14 +212,39 @@ WebAssembly::GetCXXStdlibType(const ArgList &Args) const {
 
 void WebAssembly::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                             ArgStringList &CC1Args) const {
-  if (!DriverArgs.hasArg(options::OPT_nostdinc)) {
-    if (getTriple().getOS() != llvm::Triple::UnknownOS) {
-      const std::string MultiarchTriple =
-          getMultiarchTriple(getDriver(), getTriple(), getDriver().SysRoot);
-      addSystemInclude(DriverArgs, CC1Args, getDriver().SysRoot + "/include/" + MultiarchTriple);
-    }
-    addSystemInclude(DriverArgs, CC1Args, getDriver().SysRoot + "/include");
+  if (DriverArgs.hasArg(clang::driver::options::OPT_nostdinc))
+    return;
+
+  const Driver &D = getDriver();
+
+  if (!DriverArgs.hasArg(options::OPT_nobuiltininc)) {
+    SmallString<128> P(D.ResourceDir);
+    llvm::sys::path::append(P, "include");
+    addSystemInclude(DriverArgs, CC1Args, P);
   }
+
+  if (DriverArgs.hasArg(options::OPT_nostdlibinc))
+    return;
+
+  // Check for configure-time C include directories.
+  StringRef CIncludeDirs(C_INCLUDE_DIRS);
+  if (CIncludeDirs != "") {
+    SmallVector<StringRef, 5> dirs;
+    CIncludeDirs.split(dirs, ":");
+    for (StringRef dir : dirs) {
+      StringRef Prefix =
+          llvm::sys::path::is_absolute(dir) ? StringRef(D.SysRoot) : "";
+      addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
+    }
+    return;
+  }
+
+  if (getTriple().getOS() != llvm::Triple::UnknownOS) {
+    const std::string MultiarchTriple =
+        getMultiarchTriple(D, getTriple(), D.SysRoot);
+    addSystemInclude(DriverArgs, CC1Args, D.SysRoot + "/include/" + MultiarchTriple);
+  }
+  addSystemInclude(DriverArgs, CC1Args, D.SysRoot + "/include");
 }
 
 void WebAssembly::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
@@ -188,7 +255,8 @@ void WebAssembly::AddClangCXXStdlibIncludeArgs(const ArgList &DriverArgs,
       const std::string MultiarchTriple =
           getMultiarchTriple(getDriver(), getTriple(), getDriver().SysRoot);
       addSystemInclude(DriverArgs, CC1Args,
-                       getDriver().SysRoot + "/include/" + MultiarchTriple + "/c++/v1");
+                       getDriver().SysRoot + "/include/" + MultiarchTriple +
+                           "/c++/v1");
     }
     addSystemInclude(DriverArgs, CC1Args,
                      getDriver().SysRoot + "/include/c++/v1");
@@ -211,7 +279,7 @@ void WebAssembly::AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
 SanitizerMask WebAssembly::getSupportedSanitizers() const {
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
   if (getTriple().isOSEmscripten()) {
-    Res |= SanitizerKind::Vptr;
+    Res |= SanitizerKind::Vptr | SanitizerKind::Leak | SanitizerKind::Address;
   }
   return Res;
 }

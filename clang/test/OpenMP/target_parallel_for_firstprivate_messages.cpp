@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 typedef void **omp_allocator_handle_t;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
@@ -17,6 +17,13 @@ void foo() {
 
 bool foobool(int argc) {
   return argc;
+}
+
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp target parallel for firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
 }
 
 struct S1; // expected-note 2 {{declared here}} expected-note 2 {{forward declaration of 'S1'}}
@@ -76,7 +83,7 @@ template <class I, class C>
 int foomain(int argc, char **argv) {
   I e(4);
   C g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target parallel for firstprivate // expected-error {{expected '(' after 'firstprivate'}}
   for (int k = 0; k < argc; ++k)
@@ -102,7 +109,7 @@ int foomain(int argc, char **argv) {
 #pragma omp target parallel for firstprivate(S1) // expected-error {{'S1' does not refer to a value}}
   for (int k = 0; k < argc; ++k)
     ++k;
-#pragma omp target parallel for firstprivate(a, b) // expected-error {{firstprivate variable with incomplete type 'S1'}}
+#pragma omp target parallel for firstprivate(z, a, b) // expected-error {{firstprivate variable with incomplete type 'S1'}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp target parallel for firstprivate(argv[1]) // expected-error {{expected variable name}}
@@ -136,12 +143,12 @@ int foomain(int argc, char **argv) {
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp parallel private(i)
-#pragma omp target parallel for firstprivate(i) // expected-note {{defined as firstprivate}}
-  for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp target parallel for' directive may not be firstprivate, predetermined as private}}
+#pragma omp target parallel for firstprivate(i) // expected-note 2 {{defined as firstprivate}}
+  for (i = 0; i < argc; ++i) // expected-error 2 {{loop iteration variable in the associated loop of 'omp target parallel for' directive may not be firstprivate, predetermined as private}}
     foo();
 #pragma omp parallel reduction(+ : i)
-#pragma omp target parallel for firstprivate(i) // expected-note {{defined as firstprivate}}
-  for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp target parallel for' directive may not be firstprivate, predetermined as private}}
+#pragma omp target parallel for firstprivate(i) // expected-note 2 {{defined as firstprivate}}
+  for (i = 0; i < argc; ++i) // expected-error 2 {{loop iteration variable in the associated loop of 'omp target parallel for' directive may not be firstprivate, predetermined as private}}
     foo();
   return 0;
 }
@@ -161,7 +168,7 @@ int main(int argc, char **argv) {
   S5 g(5);
   S3 m;
   S6 n(2);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target parallel for firstprivate // expected-error {{expected '(' after 'firstprivate'}}
   for (i = 0; i < argc; ++i)
@@ -187,7 +194,7 @@ int main(int argc, char **argv) {
 #pragma omp target parallel for firstprivate(S1) // expected-error {{'S1' does not refer to a value}}
   for (i = 0; i < argc; ++i)
     foo();
-#pragma omp target parallel for firstprivate(a, b, c, d, f) // expected-error {{firstprivate variable with incomplete type 'S1'}}
+#pragma omp target parallel for firstprivate(z, a, b, c, d, f) // expected-error {{firstprivate variable with incomplete type 'S1'}}
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp target parallel for firstprivate(argv[1]) // expected-error {{expected variable name}}

@@ -22,7 +22,7 @@
 # DSO-NEXT:    }
 # DSO-NEXT:    Symbol {
 # DSO-NEXT:      Name: _Z3bari@@LIBSAMPLE_2.0
-# DSO-NEXT:      Value: 0x1001
+# DSO-NEXT:      Value:
 # DSO-NEXT:      Size: 0
 # DSO-NEXT:      Binding: Global
 # DSO-NEXT:      Type: Function
@@ -31,7 +31,7 @@
 # DSO-NEXT:    }
 # DSO-NEXT:    Symbol {
 # DSO-NEXT:      Name: _Z3fooi@@LIBSAMPLE_1.0
-# DSO-NEXT:      Value: 0x1000
+# DSO-NEXT:      Value:
 # DSO-NEXT:      Size: 0
 # DSO-NEXT:      Binding: Global
 # DSO-NEXT:      Type: Function
@@ -40,7 +40,7 @@
 # DSO-NEXT:    }
 # DSO-NEXT:    Symbol {
 # DSO-NEXT:      Name: _Z3zedi@@LIBSAMPLE_1.0
-# DSO-NEXT:      Value: 0x1002
+# DSO-NEXT:      Value:
 # DSO-NEXT:      Size: 0
 # DSO-NEXT:      Binding: Global (0x1)
 # DSO-NEXT:      Type: Function (0x2)
@@ -49,7 +49,7 @@
 # DSO-NEXT:    }
 # DSO-NEXT:    Symbol {
 # DSO-NEXT:      Name: _ZN3abcC1Ev@@LIBSAMPLE_1.0
-# DSO-NEXT:      Value: 0x1003
+# DSO-NEXT:      Value:
 # DSO-NEXT:      Size: 0
 # DSO-NEXT:      Binding: Global (0x1)
 # DSO-NEXT:      Type: Function (0x2)
@@ -58,7 +58,7 @@
 # DSO-NEXT:    }
 # DSO-NEXT:    Symbol {
 # DSO-NEXT:      Name: _ZN3abcC2Ev@@LIBSAMPLE_1.0
-# DSO-NEXT:      Value: 0x1004
+# DSO-NEXT:      Value:
 # DSO-NEXT:      Size: 0
 # DSO-NEXT:      Binding: Global (0x1)
 # DSO-NEXT:      Type: Function (0x2)
@@ -66,38 +66,32 @@
 # DSO-NEXT:      Section: .text (0x6)
 # DSO-NEXT:    }
 # DSO-NEXT:  ]
-# DSO-NEXT:  Version symbols {
-# DSO-NEXT:    Section Name: .gnu.version
-# DSO-NEXT:    Address: 0x258
-# DSO-NEXT:    Offset: 0x258
-# DSO-NEXT:    Link: 1
-# DSO-NEXT:    Symbols [
-# DSO-NEXT:      Symbol {
-# DSO-NEXT:        Version: 0
-# DSO-NEXT:        Name:
-# DSO-NEXT:      }
-# DSO-NEXT:      Symbol {
-# DSO-NEXT:        Version: 3
-# DSO-NEXT:        Name: _Z3bari@@LIBSAMPLE_2.0
-# DSO-NEXT:      }
-# DSO-NEXT:      Symbol {
-# DSO-NEXT:        Version: 2
-# DSO-NEXT:        Name: _Z3fooi@@LIBSAMPLE_1.0
-# DSO-NEXT:      }
-# DSO-NEXT:      Symbol {
-# DSO-NEXT:        Version: 2
-# DSO-NEXT:        Name: _Z3zedi@@LIBSAMPLE_1.0
-# DSO-NEXT:      }
-# DSO-NEXT:      Symbol {
-# DSO-NEXT:        Version: 2
-# DSO-NEXT:        Name: _ZN3abcC1Ev@@LIBSAMPLE_1.0
-# DSO-NEXT:      }
-# DSO-NEXT:      Symbol {
-# DSO-NEXT:        Version: 2
-# DSO-NEXT:        Name: _ZN3abcC2Ev@@LIBSAMPLE_1.0
-# DSO-NEXT:      }
-# DSO-NEXT:    ]
-# DSO-NEXT:  }
+# DSO-NEXT:  VersionSymbols [
+# DSO-NEXT:    Symbol {
+# DSO-NEXT:      Version: 0
+# DSO-NEXT:      Name:
+# DSO-NEXT:    }
+# DSO-NEXT:    Symbol {
+# DSO-NEXT:      Version: 3
+# DSO-NEXT:      Name: _Z3bari@@LIBSAMPLE_2.0
+# DSO-NEXT:    }
+# DSO-NEXT:    Symbol {
+# DSO-NEXT:      Version: 2
+# DSO-NEXT:      Name: _Z3fooi@@LIBSAMPLE_1.0
+# DSO-NEXT:    }
+# DSO-NEXT:    Symbol {
+# DSO-NEXT:      Version: 2
+# DSO-NEXT:      Name: _Z3zedi@@LIBSAMPLE_1.0
+# DSO-NEXT:    }
+# DSO-NEXT:    Symbol {
+# DSO-NEXT:      Version: 2
+# DSO-NEXT:      Name: _ZN3abcC1Ev@@LIBSAMPLE_1.0
+# DSO-NEXT:    }
+# DSO-NEXT:    Symbol {
+# DSO-NEXT:      Version: 2
+# DSO-NEXT:      Name: _ZN3abcC2Ev@@LIBSAMPLE_1.0
+# DSO-NEXT:    }
+# DSO-NEXT:  ]
 
 .text
 .globl _Z3fooi

@@ -171,8 +171,8 @@ XCoreTargetLowering::XCoreTargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::INTRINSIC_VOID);
   setTargetDAGCombine(ISD::INTRINSIC_W_CHAIN);
 
-  setMinFunctionAlignment(1);
-  setPrefFunctionAlignment(2);
+  setMinFunctionAlignment(Align(2));
+  setPrefFunctionAlignment(Align(4));
 }
 
 bool XCoreTargetLowering::isZExtFree(SDValue Val, EVT VT2) const {
@@ -406,23 +406,16 @@ static bool isWordAligned(SDValue Value, SelectionDAG &DAG)
   return Known.countMinTrailingZeros() >= 2;
 }
 
-SDValue XCoreTargetLowering::
-LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
+SDValue XCoreTargetLowering::LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  LLVMContext &Context = *DAG.getContext();
   LoadSDNode *LD = cast<LoadSDNode>(Op);
   assert(LD->getExtensionType() == ISD::NON_EXTLOAD &&
          "Unexpected extension type");
   assert(LD->getMemoryVT() == MVT::i32 && "Unexpected load EVT");
-  if (allowsMisalignedMemoryAccesses(LD->getMemoryVT(),
-                                     LD->getAddressSpace(),
-                                     LD->getAlignment()))
-    return SDValue();
 
-  auto &TD = DAG.getDataLayout();
-  unsigned ABIAlignment = TD.getABITypeAlignment(
-      LD->getMemoryVT().getTypeForEVT(*DAG.getContext()));
-  // Leave aligned load alone.
-  if (LD->getAlignment() >= ABIAlignment)
+  if (allowsMemoryAccessForAlignment(Context, DAG.getDataLayout(),
+                                     LD->getMemoryVT(), *LD->getMemOperand()))
     return SDValue();
 
   SDValue Chain = LD->getChain();
@@ -469,7 +462,7 @@ LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   }
 
   // Lower to a call to __misaligned_load(BasePtr).
-  Type *IntPtrTy = TD.getIntPtrType(*DAG.getContext());
+  Type *IntPtrTy = DAG.getDataLayout().getIntPtrType(Context);
   TargetLowering::ArgListTy Args;
   TargetLowering::ArgListEntry Entry;
 
@@ -489,23 +482,16 @@ LowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   return DAG.getMergeValues(Ops, DL);
 }
 
-SDValue XCoreTargetLowering::
-LowerSTORE(SDValue Op, SelectionDAG &DAG) const
-{
+SDValue XCoreTargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
+  LLVMContext &Context = *DAG.getContext();
   StoreSDNode *ST = cast<StoreSDNode>(Op);
   assert(!ST->isTruncatingStore() && "Unexpected store type");
   assert(ST->getMemoryVT() == MVT::i32 && "Unexpected store EVT");
-  if (allowsMisalignedMemoryAccesses(ST->getMemoryVT(),
-                                     ST->getAddressSpace(),
-                                     ST->getAlignment())) {
+
+  if (allowsMemoryAccessForAlignment(Context, DAG.getDataLayout(),
+                                     ST->getMemoryVT(), *ST->getMemOperand()))
     return SDValue();
-  }
-  unsigned ABIAlignment = DAG.getDataLayout().getABITypeAlignment(
-      ST->getMemoryVT().getTypeForEVT(*DAG.getContext()));
-  // Leave aligned store alone.
-  if (ST->getAlignment() >= ABIAlignment) {
-    return SDValue();
-  }
+
   SDValue Chain = ST->getChain();
   SDValue BasePtr = ST->getBasePtr();
   SDValue Value = ST->getValue();
@@ -514,7 +500,7 @@ LowerSTORE(SDValue Op, SelectionDAG &DAG) const
   if (ST->getAlignment() == 2) {
     SDValue Low = Value;
     SDValue High = DAG.getNode(ISD::SRL, dl, MVT::i32, Value,
-                                      DAG.getConstant(16, dl, MVT::i32));
+                               DAG.getConstant(16, dl, MVT::i32));
     SDValue StoreLow = DAG.getTruncStore(
         Chain, dl, Low, BasePtr, ST->getPointerInfo(), MVT::i16,
         /* Alignment = */ 2, ST->getMemOperand()->getFlags());
@@ -527,7 +513,7 @@ LowerSTORE(SDValue Op, SelectionDAG &DAG) const
   }
 
   // Lower to a call to __misaligned_store(BasePtr, Value).
-  Type *IntPtrTy = DAG.getDataLayout().getIntPtrType(*DAG.getContext());
+  Type *IntPtrTy = DAG.getDataLayout().getIntPtrType(Context);
   TargetLowering::ArgListTy Args;
   TargetLowering::ArgListEntry Entry;
 
@@ -540,7 +526,7 @@ LowerSTORE(SDValue Op, SelectionDAG &DAG) const
 
   TargetLowering::CallLoweringInfo CLI(DAG);
   CLI.setDebugLoc(dl).setChain(Chain).setCallee(
-      CallingConv::C, Type::getVoidTy(*DAG.getContext()),
+      CallingConv::C, Type::getVoidTy(Context),
       DAG.getExternalSymbol("__misaligned_store",
                             getPointerTy(DAG.getDataLayout())),
       std::move(Args));
@@ -1323,7 +1309,7 @@ SDValue XCoreTargetLowering::LowerCCCArguments(
           llvm_unreachable(nullptr);
         }
       case MVT::i32:
-        unsigned VReg = RegInfo.createVirtualRegister(&XCore::GRRegsRegClass);
+        Register VReg = RegInfo.createVirtualRegister(&XCore::GRRegsRegClass);
         RegInfo.addLiveIn(VA.getLocReg(), VReg);
         ArgIn = DAG.getCopyFromReg(Chain, dl, VReg, RegVT);
         CFRegNode.push_back(ArgIn.getValue(ArgIn->getNumValues() - 1));
@@ -1374,7 +1360,7 @@ SDValue XCoreTargetLowering::LowerCCCArguments(
         offset -= StackSlotSize;
         SDValue FIN = DAG.getFrameIndex(FI, MVT::i32);
         // Move argument from phys reg -> virt reg
-        unsigned VReg = RegInfo.createVirtualRegister(&XCore::GRRegsRegClass);
+        Register VReg = RegInfo.createVirtualRegister(&XCore::GRRegsRegClass);
         RegInfo.addLiveIn(ArgRegs[i], VReg);
         SDValue Val = DAG.getCopyFromReg(Chain, dl, VReg, MVT::i32);
         CFRegNode.push_back(Val.getValue(Val->getNumValues() - 1));
@@ -1792,11 +1778,11 @@ SDValue XCoreTargetLowering::PerformDAGCombine(SDNode *N,
   break;
   case ISD::STORE: {
     // Replace unaligned store of unaligned load with memmove.
-    StoreSDNode *ST  = cast<StoreSDNode>(N);
+    StoreSDNode *ST = cast<StoreSDNode>(N);
     if (!DCI.isBeforeLegalize() ||
-        allowsMisalignedMemoryAccesses(ST->getMemoryVT(),
-                                       ST->getAddressSpace(),
-                                       ST->getAlignment()) ||
+        allowsMemoryAccessForAlignment(*DAG.getContext(), DAG.getDataLayout(),
+                                       ST->getMemoryVT(),
+                                       *ST->getMemOperand()) ||
         ST->isVolatile() || ST->isIndexed()) {
       break;
     }
@@ -1805,12 +1791,7 @@ SDValue XCoreTargetLowering::PerformDAGCombine(SDNode *N,
     unsigned StoreBits = ST->getMemoryVT().getStoreSizeInBits();
     assert((StoreBits % 8) == 0 &&
            "Store size in bits must be a multiple of 8");
-    unsigned ABIAlignment = DAG.getDataLayout().getABITypeAlignment(
-        ST->getMemoryVT().getTypeForEVT(*DCI.DAG.getContext()));
     unsigned Alignment = ST->getAlignment();
-    if (Alignment >= ABIAlignment) {
-      break;
-    }
 
     if (LoadSDNode *LD = dyn_cast<LoadSDNode>(ST->getValue())) {
       if (LD->hasNUsesOfValue(1, 0) && ST->getMemoryVT() == LD->getMemoryVT() &&

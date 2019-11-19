@@ -49,8 +49,6 @@
 
 static const uint8_t g_arm64_breakpoint_opcode[] = {
     0x00, 0x00, 0x20, 0xD4}; // "brk #0", 0xd4200000 in BE byte order
-static const uint8_t g_arm_breakpoint_opcode[] = {
-    0xFE, 0xDE, 0xFF, 0xE7}; // this armv7 insn also works in arm64
 
 // If we need to set one logical watchpoint by using
 // two hardware watchpoint registers, the watchpoint
@@ -69,6 +67,14 @@ void DNBArchMachARM64::Initialize() {
 
   // Register this arch plug-in with the main protocol class
   DNBArchProtocol::RegisterArchPlugin(arch_plugin_info);
+
+  DNBArchPluginInfo arch_plugin_info_32 = {
+      CPU_TYPE_ARM64_32, DNBArchMachARM64::Create,
+      DNBArchMachARM64::GetRegisterSetInfo,
+      DNBArchMachARM64::SoftwareBreakpointOpcode};
+
+  // Register this arch plug-in with the main protocol class
+  DNBArchProtocol::RegisterArchPlugin(arch_plugin_info_32);
 }
 
 DNBArchProtocol *DNBArchMachARM64::Create(MachThread *thread) {
@@ -79,7 +85,7 @@ DNBArchProtocol *DNBArchMachARM64::Create(MachThread *thread) {
 
 const uint8_t *
 DNBArchMachARM64::SoftwareBreakpointOpcode(nub_size_t byte_size) {
-  return g_arm_breakpoint_opcode;
+  return g_arm64_breakpoint_opcode;
 }
 
 uint32_t DNBArchMachARM64::GetCPUType() { return CPU_TYPE_ARM64; }

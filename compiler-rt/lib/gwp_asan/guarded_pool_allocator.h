@@ -13,6 +13,7 @@
 #include "gwp_asan/mutex.h"
 #include "gwp_asan/options.h"
 #include "gwp_asan/random.h"
+#include "gwp_asan/stack_trace_compressor.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -39,25 +40,31 @@ public:
   };
 
   struct AllocationMetadata {
-    // Maximum number of stack trace frames to collect for allocations + frees.
-    // TODO(hctim): Implement stack frame compression, a-la Chromium.
-    // Currently the maximum stack frames is one, as we don't collect traces.
-    static constexpr size_t kMaximumStackFrames = 1;
+    // The number of bytes used to store a compressed stack frame. On 64-bit
+    // platforms, assuming a compression ratio of 50%, this should allow us to
+    // store ~64 frames per trace.
+    static constexpr size_t kStackFrameStorageBytes = 256;
 
-    // Records the given allocation metadata into this struct. In the future,
-    // this will collect the allocation trace as well.
-    void RecordAllocation(uintptr_t Addr, size_t Size);
+    // Maximum number of stack frames to collect on allocation/deallocation. The
+    // actual number of collected frames may be less than this as the stack
+    // frames are compressed into a fixed memory range.
+    static constexpr size_t kMaxTraceLengthToCollect = 128;
 
-    // Record that this allocation is now deallocated. In future, this will
-    // collect the deallocation trace as well.
-    void RecordDeallocation();
+    // Records the given allocation metadata into this struct.
+    void RecordAllocation(uintptr_t Addr, size_t Size,
+                          options::Backtrace_t Backtrace);
+
+    // Record that this allocation is now deallocated.
+    void RecordDeallocation(options::Backtrace_t Backtrace);
 
     struct CallSiteInfo {
-      // The backtrace to the allocation/deallocation. If the first value is
-      // zero, we did not collect a trace.
-      uintptr_t Trace[kMaximumStackFrames] = {};
+      // The compressed backtrace to the allocation/deallocation.
+      uint8_t CompressedTrace[kStackFrameStorageBytes];
       // The thread ID for this trace, or kInvalidThreadID if not available.
       uint64_t ThreadID = kInvalidThreadID;
+      // The size of the compressed trace (in bytes). Zero indicates that no
+      // trace was collected.
+      size_t TraceSize = 0;
     };
 
     // The address of this allocation.
@@ -96,14 +103,11 @@ public:
   ALWAYS_INLINE bool shouldSample() {
     // NextSampleCounter == 0 means we "should regenerate the counter".
     //                   == 1 means we "should sample this allocation".
-    if (UNLIKELY(NextSampleCounter == 0)) {
-      // GuardedPagePoolEnd == 0 if GWP-ASan is disabled.
-      if (UNLIKELY(GuardedPagePoolEnd == 0))
-        return false;
-      NextSampleCounter = (getRandomUnsigned32() % AdjustedSampleRate) + 1;
-    }
+    if (UNLIKELY(ThreadLocals.NextSampleCounter == 0))
+      ThreadLocals.NextSampleCounter =
+          (getRandomUnsigned32() % AdjustedSampleRate) + 1;
 
-    return UNLIKELY(--NextSampleCounter == 0);
+    return UNLIKELY(--ThreadLocals.NextSampleCounter == 0);
   }
 
   // Returns whether the provided pointer is a current sampled allocation that
@@ -135,7 +139,11 @@ public:
   // singleton pointer and call the internal version of this function. This
   // method is never thread safe, and should only be called when fatal errors
   // occur.
-  static void reportError(uintptr_t AccessPtr, Error Error = Error::UNKNOWN);
+  static void reportError(uintptr_t AccessPtr, Error E = Error::UNKNOWN);
+
+  // Get the current thread ID, or kInvalidThreadID if failure. Note: This
+  // implementation is platform-specific.
+  static uint64_t getThreadID();
 
 private:
   static constexpr size_t kInvalidSlotID = SIZE_MAX;
@@ -150,10 +158,6 @@ private:
   void *mapMemory(size_t Size) const;
   void markReadWrite(void *Ptr, size_t Size) const;
   void markInaccessible(void *Ptr, size_t Size) const;
-
-  // Get the current thread ID, or kInvalidThreadID if failure. Note: This
-  // implementation is platform-specific.
-  static uint64_t getThreadID();
 
   // Get the page size from the platform-specific implementation. Only needs to
   // be called once, and the result should be cached in PageSize in this class.
@@ -204,7 +208,7 @@ private:
   // responsible for the error is placed in *Meta.
   Error diagnoseUnknownError(uintptr_t AccessPtr, AllocationMetadata **Meta);
 
-  void reportErrorInternal(uintptr_t AccessPtr, Error Error);
+  void reportErrorInternal(uintptr_t AccessPtr, Error E);
 
   // Cached page size for this system in bytes.
   size_t PageSize = 0;
@@ -237,6 +241,8 @@ private:
   // general) use printf() from the cstdlib as it may malloc(), causing infinite
   // recursion.
   options::Printf_t Printf = nullptr;
+  options::Backtrace_t Backtrace = nullptr;
+  options::PrintBacktrace_t PrintBacktrace = nullptr;
 
   // The adjusted sample rate for allocation sampling. Default *must* be
   // nonzero, as dynamic initialisation may call malloc (e.g. from libstdc++)
@@ -245,9 +251,23 @@ private:
   // GWP-ASan is disabled, we wish to never spend wasted cycles recalculating
   // the sample rate.
   uint32_t AdjustedSampleRate = UINT32_MAX;
-  // Thread-local decrementing counter that indicates that a given allocation
-  // should be sampled when it reaches zero.
-  static TLS_INITIAL_EXEC uint64_t NextSampleCounter;
+
+  // Pack the thread local variables into a struct to ensure that they're in
+  // the same cache line for performance reasons. These are the most touched
+  // variables in GWP-ASan.
+  struct alignas(8) ThreadLocalPackedVariables {
+    constexpr ThreadLocalPackedVariables() {}
+    // Thread-local decrementing counter that indicates that a given allocation
+    // should be sampled when it reaches zero.
+    uint32_t NextSampleCounter = 0;
+    // Guard against recursivity. Unwinders often contain complex behaviour that
+    // may not be safe for the allocator (i.e. the unwinder calls dlopen(),
+    // which calls malloc()). When recursive behaviour is detected, we will
+    // automatically fall back to the supporting allocator to supply the
+    // allocation.
+    bool RecursiveGuard = false;
+  };
+  static TLS_INITIAL_EXEC ThreadLocalPackedVariables ThreadLocals;
 };
 } // namespace gwp_asan
 

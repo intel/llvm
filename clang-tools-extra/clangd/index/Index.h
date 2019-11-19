@@ -24,10 +24,10 @@ namespace clang {
 namespace clangd {
 
 struct FuzzyFindRequest {
-  /// \brief A query string for the fuzzy find. This is matched against symbols'
+  /// A query string for the fuzzy find. This is matched against symbols'
   /// un-qualified identifiers and should not contain qualifiers like "::".
   std::string Query;
-  /// \brief If this is non-empty, symbols must be in at least one of the scopes
+  /// If this is non-empty, symbols must be in at least one of the scopes
   /// (e.g. namespaces) excluding nested scopes. For example, if a scope "xyz::"
   /// is provided, the matched symbols must be defined in namespace xyz but not
   /// namespace xyz::abc.
@@ -37,7 +37,7 @@ struct FuzzyFindRequest {
   /// If set to true, allow symbols from any scope. Scopes explicitly listed
   /// above will be ranked higher.
   bool AnyScope = false;
-  /// \brief The number of top candidates to return. The index may choose to
+  /// The number of top candidates to return. The index may choose to
   /// return more than this, e.g. if it doesn't know which candidates are best.
   llvm::Optional<uint32_t> Limit;
   /// If set to true, only symbols for completion support will be considered.
@@ -73,13 +73,20 @@ struct RefsRequest {
   llvm::Optional<uint32_t> Limit;
 };
 
+struct RelationsRequest {
+  llvm::DenseSet<SymbolID> Subjects;
+  RelationKind Predicate;
+  /// If set, limit the number of relations returned from the index.
+  llvm::Optional<uint32_t> Limit;
+};
+
 /// Interface for symbol indexes that can be used for searching or
 /// matching symbols among a set of symbols based on names or unique IDs.
 class SymbolIndex {
 public:
   virtual ~SymbolIndex() = default;
 
-  /// \brief Matches symbols in the index fuzzily and applies \p Callback on
+  /// Matches symbols in the index fuzzily and applies \p Callback on
   /// each matched symbol before returning.
   /// If returned Symbols are used outside Callback, they must be deep-copied!
   ///
@@ -103,6 +110,14 @@ public:
   virtual void refs(const RefsRequest &Req,
                     llvm::function_ref<void(const Ref &)> Callback) const = 0;
 
+  /// Finds all relations (S, P, O) stored in the index such that S is among
+  /// Req.Subjects and P is Req.Predicate, and invokes \p Callback for (S, O) in
+  /// each.
+  virtual void relations(
+      const RelationsRequest &Req,
+      llvm::function_ref<void(const SymbolID &Subject, const Symbol &Object)>
+          Callback) const = 0;
+
   /// Returns estimated size of index (in bytes).
   virtual size_t estimateMemoryUsage() const = 0;
 };
@@ -123,6 +138,10 @@ public:
               llvm::function_ref<void(const Symbol &)>) const override;
   void refs(const RefsRequest &,
             llvm::function_ref<void(const Ref &)>) const override;
+  void relations(const RelationsRequest &,
+                 llvm::function_ref<void(const SymbolID &, const Symbol &)>)
+      const override;
+
   size_t estimateMemoryUsage() const override;
 
 private:

@@ -15,14 +15,19 @@ foreach(arch ${HWASAN_TEST_ARCH})
   set(HWASAN_ANDROID_FILES_TO_PUSH [])
 
   configure_lit_site_cfg(
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-    ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg)
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py)
   list(APPEND HWASAN_TESTSUITES ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME})
 endforeach()
 
 set(HWASAN_TEST_DEPS ${SANITIZER_COMMON_LIT_TEST_DEPS})
 if(NOT COMPILER_RT_STANDALONE_BUILD)
   list(APPEND HWASAN_TEST_DEPS hwasan)
+  if(COMPILER_RT_HAS_LLD)
+    if (TARGET lld)
+      list(APPEND HWASAN_TEST_DEPS lld)
+    endif()
+  endif()
 endif()
 
 add_lit_testsuite(check-hwasan "Running the HWAddressSanitizer tests"

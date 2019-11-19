@@ -160,6 +160,26 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
       unsigned LineNo = 0;
       unsigned Col = 0;
       for (const Instruction &I : BB) {
+        if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
+          if (II->getIntrinsicID() == Intrinsic::dbg_label) {
+            // SPIR-V doesn't support llvm.dbg.label intrinsic translation
+            continue;
+          }
+          if (II->getIntrinsicID() == Intrinsic::annotation ||
+              II->getIntrinsicID() == Intrinsic::var_annotation ||
+              II->getIntrinsicID() == Intrinsic::ptr_annotation) {
+            // llvm call instruction for llvm .*annotation intrinsics
+            // is translated into SPIR-V instruction only if it represents
+            // call of __builtin_intel_fpga_reg() builtin. In other cases this
+            // instruction is dropped. In these cases debug info for this call
+            // should be skipped too.
+            // TODO: Remove skipping of debug info when *.annotation call will
+            //       be handled in a better way during SPIR-V translation.
+            V = SPIRVWriter->getTranslatedValue(&I);
+            if (!V || V->getOpCode() != OpFPGARegINTEL)
+              continue;
+          }
+        }
         const DebugLoc &DL = I.getDebugLoc();
         if (!DL.get()) {
           if (DbgScope || InlinedAt) { // Emit DebugNoScope
@@ -185,6 +205,15 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
           LineNo = DL.getLine();
           Col = DL.getCol();
           V = SPIRVWriter->getTranslatedValue(&I);
+          // According to the spec, OpLine for an OpBranch/OpBranchConditional
+          // must precede the merge instruction and not the branch instruction
+          auto *VPrev = static_cast<SPIRVInstruction *>(V)->getPrevious();
+          if (VPrev && (VPrev->getOpCode() == OpLoopMerge ||
+                        VPrev->getOpCode() == OpLoopControlINTEL)) {
+            assert(V->getOpCode() == OpBranch ||
+                   V->getOpCode() == OpBranchConditional);
+            V = VPrev;
+          }
           BM->addLine(V, File ? File->getId() : getDebugInfoNone()->getId(),
                       LineNo, Col);
         }
@@ -370,6 +399,10 @@ SPIRVWord mapDebugFlags(DINode::DIFlags DFlags) {
     Flags |= SPIRVDebug::FlagIsLValueReference;
   if (DFlags & DINode::FlagRValueReference)
     Flags |= SPIRVDebug::FlagIsRValueReference;
+  if (DFlags & DINode::FlagTypePassByValue)
+    Flags |= SPIRVDebug::FlagTypePassByValue;
+  if (DFlags & DINode::FlagTypePassByReference)
+    Flags |= SPIRVDebug::FlagTypePassByReference;
   return Flags;
 }
 

@@ -230,17 +230,17 @@ name: vmem_gt_8dw_store
 
 body: |
   bb.0:
-    BUFFER_STORE_DWORD_OFFSET $vgpr3, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFSET $vgpr3, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_DWORDX3_OFFSET $vgpr2_vgpr3_vgpr4, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORDX3_OFFSET $vgpr2_vgpr3_vgpr4, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_DWORDX4_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORDX4_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_DWORDX4_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORDX4_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_FORMAT_XYZ_OFFSET $vgpr2_vgpr3_vgpr4, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_FORMAT_XYZ_OFFSET $vgpr2_vgpr3_vgpr4, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
-    BUFFER_STORE_FORMAT_XYZW_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_FORMAT_XYZW_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
     BUFFER_ATOMIC_CMPSWAP_X2_OFFSET $vgpr2_vgpr3_vgpr4_vgpr5, $sgpr0_sgpr1_sgpr2_sgpr3, 0, 0, 0, implicit $exec
     $vgpr3 = V_MOV_B32_e32 0, implicit $exec
@@ -317,8 +317,9 @@ body: |
     S_BRANCH %bb.3
 
   bb.3:
+    $m0 = S_MOV_B32 $sgpr4
     $vgpr0,implicit $vcc = V_ADD_I32_e32 $vgpr1, $vgpr2, implicit $vcc, implicit $exec
-    $vgpr4 = V_WRITELANE_B32 $sgpr4, $vcc_lo, $vgpr4
+    $vgpr4 = V_WRITELANE_B32 $m0, $vcc_lo, $vgpr4
     S_ENDPGM 0
 
 ...
@@ -514,7 +515,7 @@ body: |
 ...
 ---
 name:            mov_fed_hazard_crash_on_dbg_value
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -553,10 +554,10 @@ body:             |
     dead $sgpr6_sgpr7 = KILL $sgpr4_sgpr5
     $sgpr8 = S_MOV_B32 $sgpr5
     $vgpr0 = V_MOV_B32_e32 killed $sgpr8, implicit $exec
-    BUFFER_STORE_DWORD_OFFSET $vgpr0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr9, 4, 0, 0, 0, 0, implicit $exec :: (store 4 into %ir.A.addr + 4)
+    BUFFER_STORE_DWORD_OFFSET $vgpr0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr9, 4, 0, 0, 0, 0, 0, implicit $exec :: (store 4 into %ir.A.addr + 4)
     $sgpr8 = S_MOV_B32 $sgpr4, implicit killed $sgpr4_sgpr5
     $vgpr0 = V_MOV_B32_e32 killed $sgpr8, implicit $exec
-    BUFFER_STORE_DWORD_OFFSET $vgpr0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr9, 0, 0, 0, 0, 0, implicit $exec :: (store 4 into %ir.A.addr)
+    BUFFER_STORE_DWORD_OFFSET $vgpr0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr9, 0, 0, 0, 0, 0, 0, implicit $exec :: (store 4 into %ir.A.addr)
     S_ENDPGM 0
 
 ...

@@ -27,7 +27,7 @@ entry:
   switch i32 %x, label %sw.default [
   ]
 ; CHECK-LLVM: switch i32 %x, label %sw.default [
-; CHECK-LLVM-NEXT ]
+; CHECK-LLVM-NEXT: ]
 
 sw.default:                                       ; preds = %entry
   ret void

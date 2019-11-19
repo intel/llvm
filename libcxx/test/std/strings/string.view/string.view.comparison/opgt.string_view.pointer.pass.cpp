@@ -9,15 +9,15 @@
 // <string>
 
 // constexpr template<class charT, class traits, class Allocator>
-//   bool operator>(const charT* lhs, basic_string_wiew<charT,traits> rhs);
+//   bool operator>(const charT* lhs, basic_string_view<charT,traits> rhs);
 // constexpr template<class charT, class traits, class Allocator>
-//   bool operator>(basic_string_wiew<charT,traits> lhs, const charT* rhs);
+//   bool operator>(basic_string_view<charT,traits> lhs, const charT* rhs);
 
 #include <string_view>
 #include <cassert>
 
 #include "test_macros.h"
-#include "constexpr_char_traits.hpp"
+#include "constexpr_char_traits.h"
 
 template <class S>
 void

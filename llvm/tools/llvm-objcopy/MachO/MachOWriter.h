@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "../Buffer.h"
+#include "MachOLayoutBuilder.h"
 #include "MachOObjcopy.h"
 #include "Object.h"
 #include "llvm/BinaryFormat/MachO.h"
@@ -22,7 +23,9 @@ class MachOWriter {
   Object &O;
   bool Is64Bit;
   bool IsLittleEndian;
+  uint64_t PageSize;
   Buffer &B;
+  MachOLayoutBuilder LayoutBuilder;
 
   size_t headerSize() const;
   size_t loadCommandsSize() const;
@@ -31,6 +34,8 @@ class MachOWriter {
 
   void writeHeader();
   void writeLoadCommands();
+  template <typename StructType>
+  void writeSectionInLoadCommand(const Section &Sec, uint8_t *&Out);
   void writeSections();
   void writeSymbolTable();
   void writeStringTable();
@@ -39,13 +44,19 @@ class MachOWriter {
   void writeWeakBindInfo();
   void writeLazyBindInfo();
   void writeExportInfo();
+  void writeIndirectSymbolTable();
+  void writeDataInCodeData();
+  void writeFunctionStartsData();
   void writeTail();
 
 public:
-  MachOWriter(Object &O, bool Is64Bit, bool IsLittleEndian, Buffer &B)
-      : O(O), Is64Bit(Is64Bit), IsLittleEndian(IsLittleEndian), B(B) {}
+  MachOWriter(Object &O, bool Is64Bit, bool IsLittleEndian, uint64_t PageSize,
+              Buffer &B)
+      : O(O), Is64Bit(Is64Bit), IsLittleEndian(IsLittleEndian),
+        PageSize(PageSize), B(B), LayoutBuilder(O, Is64Bit, PageSize) {}
 
   size_t totalSize() const;
+  Error finalize();
   Error write();
 };
 

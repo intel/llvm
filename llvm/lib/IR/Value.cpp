@@ -444,15 +444,11 @@ void Value::replaceUsesOutsideBlock(Value *New, BasicBlock *BB) {
          "replaceUses of value with new value of different type!");
   assert(BB && "Basic block that may contain a use of 'New' must be defined\n");
 
-  use_iterator UI = use_begin(), E = use_end();
-  for (; UI != E;) {
-    Use &U = *UI;
-    ++UI;
-    auto *Usr = dyn_cast<Instruction>(U.getUser());
-    if (Usr && Usr->getParent() == BB)
-      continue;
-    U.set(New);
-  }
+  replaceUsesWithIf(New, [BB](Use &U) {
+    auto *I = dyn_cast<Instruction>(U.getUser());
+    // Don't replace if it's an instruction in the BB basic block.
+    return !I || I->getParent() != BB;
+  });
 }
 
 namespace {
@@ -460,8 +456,8 @@ namespace {
 enum PointerStripKind {
   PSK_ZeroIndices,
   PSK_ZeroIndicesAndAliases,
-  PSK_ZeroIndicesAndAliasesSameRepresentation,
-  PSK_ZeroIndicesAndAliasesAndInvariantGroups,
+  PSK_ZeroIndicesSameRepresentation,
+  PSK_ZeroIndicesAndInvariantGroups,
   PSK_InBoundsConstantIndices,
   PSK_InBounds
 };
@@ -479,10 +475,10 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
   do {
     if (auto *GEP = dyn_cast<GEPOperator>(V)) {
       switch (StripKind) {
-      case PSK_ZeroIndicesAndAliases:
-      case PSK_ZeroIndicesAndAliasesSameRepresentation:
-      case PSK_ZeroIndicesAndAliasesAndInvariantGroups:
       case PSK_ZeroIndices:
+      case PSK_ZeroIndicesAndAliases:
+      case PSK_ZeroIndicesSameRepresentation:
+      case PSK_ZeroIndicesAndInvariantGroups:
         if (!GEP->hasAllZeroIndices())
           return V;
         break;
@@ -498,15 +494,13 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
       V = GEP->getPointerOperand();
     } else if (Operator::getOpcode(V) == Instruction::BitCast) {
       V = cast<Operator>(V)->getOperand(0);
-    } else if (StripKind != PSK_ZeroIndicesAndAliasesSameRepresentation &&
+    } else if (StripKind != PSK_ZeroIndicesSameRepresentation &&
                Operator::getOpcode(V) == Instruction::AddrSpaceCast) {
       // TODO: If we know an address space cast will not change the
       //       representation we could look through it here as well.
       V = cast<Operator>(V)->getOperand(0);
-    } else if (auto *GA = dyn_cast<GlobalAlias>(V)) {
-      if (StripKind == PSK_ZeroIndices || GA->isInterposable())
-        return V;
-      V = GA->getAliasee();
+    } else if (StripKind == PSK_ZeroIndicesAndAliases && isa<GlobalAlias>(V)) {
+      V = cast<GlobalAlias>(V)->getAliasee();
     } else {
       if (const auto *Call = dyn_cast<CallBase>(V)) {
         if (const Value *RV = Call->getReturnedArgOperand()) {
@@ -516,7 +510,7 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
         // The result of launder.invariant.group must alias it's argument,
         // but it can't be marked with returned attribute, that's why it needs
         // special case.
-        if (StripKind == PSK_ZeroIndicesAndAliasesAndInvariantGroups &&
+        if (StripKind == PSK_ZeroIndicesAndInvariantGroups &&
             (Call->getIntrinsicID() == Intrinsic::launder_invariant_group ||
              Call->getIntrinsicID() == Intrinsic::strip_invariant_group)) {
           V = Call->getArgOperand(0);
@@ -533,16 +527,15 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
 } // end anonymous namespace
 
 const Value *Value::stripPointerCasts() const {
+  return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this);
+}
+
+const Value *Value::stripPointerCastsAndAliases() const {
   return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliases>(this);
 }
 
 const Value *Value::stripPointerCastsSameRepresentation() const {
-  return stripPointerCastsAndOffsets<
-      PSK_ZeroIndicesAndAliasesSameRepresentation>(this);
-}
-
-const Value *Value::stripPointerCastsNoFollowAliases() const {
-  return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this);
+  return stripPointerCastsAndOffsets<PSK_ZeroIndicesSameRepresentation>(this);
 }
 
 const Value *Value::stripInBoundsConstantOffsets() const {
@@ -550,18 +543,17 @@ const Value *Value::stripInBoundsConstantOffsets() const {
 }
 
 const Value *Value::stripPointerCastsAndInvariantGroups() const {
-  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliasesAndInvariantGroups>(
-      this);
+  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndInvariantGroups>(this);
 }
 
 const Value *
-Value::stripAndAccumulateInBoundsConstantOffsets(const DataLayout &DL,
-                                                 APInt &Offset) const {
-  if (!getType()->isPointerTy())
+Value::stripAndAccumulateConstantOffsets(const DataLayout &DL, APInt &Offset,
+                                         bool AllowNonInbounds) const {
+  if (!getType()->isPtrOrPtrVectorTy())
     return this;
 
-  assert(Offset.getBitWidth() == DL.getIndexSizeInBits(cast<PointerType>(
-                                     getType())->getAddressSpace()) &&
+  unsigned BitWidth = Offset.getBitWidth();
+  assert(BitWidth == DL.getIndexTypeSizeInBits(getType()) &&
          "The offset bit width does not match the DL specification.");
 
   // Even though we don't look through PHI nodes, we could be called on an
@@ -571,27 +563,39 @@ Value::stripAndAccumulateInBoundsConstantOffsets(const DataLayout &DL,
   const Value *V = this;
   do {
     if (auto *GEP = dyn_cast<GEPOperator>(V)) {
-      if (!GEP->isInBounds())
+      // If in-bounds was requested, we do not strip non-in-bounds GEPs.
+      if (!AllowNonInbounds && !GEP->isInBounds())
         return V;
-      APInt GEPOffset(Offset);
+
+      // If one of the values we have visited is an addrspacecast, then
+      // the pointer type of this GEP may be different from the type
+      // of the Ptr parameter which was passed to this function.  This
+      // means when we construct GEPOffset, we need to use the size
+      // of GEP's pointer type rather than the size of the original
+      // pointer type.
+      APInt GEPOffset(DL.getIndexTypeSizeInBits(V->getType()), 0);
       if (!GEP->accumulateConstantOffset(DL, GEPOffset))
         return V;
-      Offset = GEPOffset;
+
+      // Stop traversal if the pointer offset wouldn't fit in the bit-width
+      // provided by the Offset argument. This can happen due to AddrSpaceCast
+      // stripping.
+      if (GEPOffset.getMinSignedBits() > BitWidth)
+        return V;
+
+      Offset += GEPOffset.sextOrTrunc(BitWidth);
       V = GEP->getPointerOperand();
-    } else if (Operator::getOpcode(V) == Instruction::BitCast) {
+    } else if (Operator::getOpcode(V) == Instruction::BitCast ||
+               Operator::getOpcode(V) == Instruction::AddrSpaceCast) {
       V = cast<Operator>(V)->getOperand(0);
     } else if (auto *GA = dyn_cast<GlobalAlias>(V)) {
-      V = GA->getAliasee();
-    } else {
-      if (const auto *Call = dyn_cast<CallBase>(V))
-        if (const Value *RV = Call->getReturnedArgOperand()) {
+      if (!GA->isInterposable())
+        V = GA->getAliasee();
+    } else if (const auto *Call = dyn_cast<CallBase>(V)) {
+        if (const Value *RV = Call->getReturnedArgOperand())
           V = RV;
-          continue;
-        }
-
-      return V;
     }
-    assert(V->getType()->isPointerTy() && "Unexpected operand type!");
+    assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
   } while (Visited.insert(V).second);
 
   return V;
@@ -638,6 +642,19 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       }
       CanBeNull = true;
     }
+  } else if (auto *IP = dyn_cast<IntToPtrInst>(this)) {
+    if (MDNode *MD = IP->getMetadata(LLVMContext::MD_dereferenceable)) {
+      ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
+      DerefBytes = CI->getLimitedValue();
+    }
+    if (DerefBytes == 0) {
+      if (MDNode *MD =
+              IP->getMetadata(LLVMContext::MD_dereferenceable_or_null)) {
+        ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
+        DerefBytes = CI->getLimitedValue();
+      }
+      CanBeNull = true;
+    }
   } else if (auto *AI = dyn_cast<AllocaInst>(this)) {
     if (!AI->isArrayAllocation()) {
       DerefBytes = DL.getTypeStoreSize(AI->getAllocatedType());
@@ -654,21 +671,21 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
   return DerefBytes;
 }
 
-unsigned Value::getPointerAlignment(const DataLayout &DL) const {
+MaybeAlign Value::getPointerAlignment(const DataLayout &DL) const {
   assert(getType()->isPointerTy() && "must be pointer");
-
-  unsigned Align = 0;
   if (auto *GO = dyn_cast<GlobalObject>(this)) {
     if (isa<Function>(GO)) {
+      const MaybeAlign FunctionPtrAlign = DL.getFunctionPtrAlign();
       switch (DL.getFunctionPtrAlignType()) {
       case DataLayout::FunctionPtrAlignType::Independent:
-        return DL.getFunctionPtrAlign();
+        return FunctionPtrAlign;
       case DataLayout::FunctionPtrAlignType::MultipleOfFunctionAlign:
-        return std::max(DL.getFunctionPtrAlign(), GO->getAlignment());
+        return std::max(FunctionPtrAlign, MaybeAlign(GO->getAlignment()));
       }
+      llvm_unreachable("Unhandled FunctionPtrAlignType");
     }
-    Align = GO->getAlignment();
-    if (Align == 0) {
+    const MaybeAlign Alignment(GO->getAlignment());
+    if (!Alignment) {
       if (auto *GVar = dyn_cast<GlobalVariable>(GO)) {
         Type *ObjectType = GVar->getValueType();
         if (ObjectType->isSized()) {
@@ -676,37 +693,43 @@ unsigned Value::getPointerAlignment(const DataLayout &DL) const {
           // it the preferred alignment. Otherwise, we have to assume that it
           // may only have the minimum ABI alignment.
           if (GVar->isStrongDefinitionForLinker())
-            Align = DL.getPreferredAlignment(GVar);
+            return MaybeAlign(DL.getPreferredAlignment(GVar));
           else
-            Align = DL.getABITypeAlignment(ObjectType);
+            return Align(DL.getABITypeAlignment(ObjectType));
         }
       }
     }
+    return Alignment;
   } else if (const Argument *A = dyn_cast<Argument>(this)) {
-    Align = A->getParamAlignment();
-
-    if (!Align && A->hasStructRetAttr()) {
+    const MaybeAlign Alignment(A->getParamAlignment());
+    if (!Alignment && A->hasStructRetAttr()) {
       // An sret parameter has at least the ABI alignment of the return type.
       Type *EltTy = cast<PointerType>(A->getType())->getElementType();
       if (EltTy->isSized())
-        Align = DL.getABITypeAlignment(EltTy);
+        return Align(DL.getABITypeAlignment(EltTy));
     }
+    return Alignment;
   } else if (const AllocaInst *AI = dyn_cast<AllocaInst>(this)) {
-    Align = AI->getAlignment();
-    if (Align == 0) {
+    const MaybeAlign Alignment(AI->getAlignment());
+    if (!Alignment) {
       Type *AllocatedType = AI->getAllocatedType();
       if (AllocatedType->isSized())
-        Align = DL.getPrefTypeAlignment(AllocatedType);
+        return MaybeAlign(DL.getPrefTypeAlignment(AllocatedType));
     }
-  } else if (const auto *Call = dyn_cast<CallBase>(this))
-    Align = Call->getAttributes().getRetAlignment();
-  else if (const LoadInst *LI = dyn_cast<LoadInst>(this))
+    return Alignment;
+  } else if (const auto *Call = dyn_cast<CallBase>(this)) {
+    const MaybeAlign Alignment(Call->getRetAlignment());
+    if (!Alignment && Call->getCalledFunction())
+      return MaybeAlign(
+          Call->getCalledFunction()->getAttributes().getRetAlignment());
+    return Alignment;
+  } else if (const LoadInst *LI = dyn_cast<LoadInst>(this)) {
     if (MDNode *MD = LI->getMetadata(LLVMContext::MD_align)) {
       ConstantInt *CI = mdconst::extract<ConstantInt>(MD->getOperand(0));
-      Align = CI->getLimitedValue();
+      return MaybeAlign(CI->getLimitedValue());
     }
-
-  return Align;
+  }
+  return llvm::None;
 }
 
 const Value *Value::DoPHITranslation(const BasicBlock *CurBB,

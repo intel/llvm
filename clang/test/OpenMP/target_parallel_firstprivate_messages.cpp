@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s -Wuninitialized
 
 typedef void **omp_allocator_handle_t;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
@@ -17,6 +17,13 @@ void foo() {
 
 bool foobool(int argc) {
   return argc;
+}
+
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp target parallel firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
 }
 
 struct S1; // expected-note {{declared here}} expected-note{{forward declaration of 'S1'}}
@@ -72,7 +79,7 @@ int main(int argc, char **argv) {
   const int da[5] = { 0 };
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, z;
   int &j = i;
   static int m;
   #pragma omp target parallel firstprivate // expected-error {{expected '(' after 'firstprivate'}}
@@ -97,7 +104,7 @@ int main(int argc, char **argv) {
   foo();
   #pragma omp target parallel firstprivate(ba) allocate(omp_thread_mem_alloc: ba) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target parallel' directive}}
   foo();
-  #pragma omp target parallel firstprivate(ca)
+  #pragma omp target parallel firstprivate(ca, z)
   foo();
   #pragma omp target parallel firstprivate(da)
   foo();

@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -256,4 +256,46 @@ int main() {
     assert(results[2] == 257);
     assert(results[3] == 258);
   }
+
+  {
+    int FF[8] = {1, 1, 1, 0, 1, 1, 1, 0};
+    {
+      buffer<cl::sycl::int3, 1> b((cl::sycl::int3 *)FF, range<1>(2));
+      queue myQueue;
+      myQueue.submit([&](handler &cgh) {
+        auto B = b.get_access<access::mode::read_write>(cgh);
+        cgh.parallel_for<class test_10>(
+            cl::sycl::range<1>{2},
+            [=](cl::sycl::id<1> ID) { B[ID] = cl::sycl::int3{ID[0]} / B[ID]; });
+      });
+    }
+    assert(FF[0] == 0);
+    assert(FF[1] == 0);
+    assert(FF[2] == 0);
+    assert(FF[4] == 1);
+    assert(FF[5] == 1);
+    assert(FF[6] == 1);
+  }
+  {
+    cl::sycl::int3 result = {0, 0, 0};
+    {
+      buffer<cl::sycl::int3, 1> b(&result, range<1>(1));
+      queue myQueue;
+      myQueue.submit([&](handler &cgh) {
+        auto B = b.get_access<access::mode::write>(cgh);
+        cgh.single_task<class test_11>([=]() {
+          cl::sycl::int3 testVec1 = {2, 2, 2};
+          cl::sycl::int3 testVec2 = {1, 1, 1};
+          B[0] = testVec1 / testVec2;
+        });
+      });
+    }
+    const int r1 = result.x();
+    const int r2 = result.y();
+    const int r3 = result.z();
+    assert(r1 == 2);
+    assert(r2 == 2);
+    assert(r3 == 2);
+  }
+  return 0;
 }

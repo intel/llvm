@@ -47,6 +47,7 @@ void TargetLoweringObjectFile::Initialize(MCContext &ctx,
 
   // Reset various EH DWARF encodings.
   PersonalityEncoding = LSDAEncoding = TTypeEncoding = dwarf::DW_EH_PE_absptr;
+  CallSiteEncoding = dwarf::DW_EH_PE_uleb128;
 }
 
 TargetLoweringObjectFile::~TargetLoweringObjectFile() {
@@ -252,6 +253,7 @@ MCSection *TargetLoweringObjectFile::SectionForGlobal(
     auto Attrs = GVar->getAttributes();
     if ((Attrs.hasAttribute("bss-section") && Kind.isBSS()) ||
         (Attrs.hasAttribute("data-section") && Kind.isData()) ||
+        (Attrs.hasAttribute("relro-section") && Kind.isReadOnlyWithRel()) ||
         (Attrs.hasAttribute("rodata-section") && Kind.isReadOnly()))  {
        return getExplicitSectionGlobal(GO, Kind, TM);
     }

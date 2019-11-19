@@ -88,6 +88,8 @@ static unsigned getDefaultParsingOptions() {
     options |= CXTranslationUnit_IncludeAttributedTypes;
   if (getenv("CINDEXTEST_VISIT_IMPLICIT_ATTRIBUTES"))
     options |= CXTranslationUnit_VisitImplicitAttributes;
+  if (getenv("CINDEXTEST_IGNORE_NONERRORS_FROM_INCLUDED_FILES"))
+    options |= CXTranslationUnit_IgnoreNonErrorsFromIncludedFiles;
 
   return options;
 }
@@ -1051,7 +1053,8 @@ static void PrintCursor(CXCursor Cursor, const char *CommentSchemaFile) {
     if (Cursor.kind == CXCursor_InclusionDirective) {
       CXFile File = clang_getIncludedFile(Cursor);
       CXString Included = clang_getFileName(File);
-      printf(" (%s)", clang_getCString(Included));
+      const char *IncludedString = clang_getCString(Included);
+      printf(" (%s)", IncludedString ? IncludedString : "(null)");
       clang_disposeString(Included);
       
       if (clang_isFileMultipleIncludeGuarded(TU, File))
@@ -2165,6 +2168,34 @@ static int perform_single_file_parse(const char *filename) {
                                     /*unsaved_files=*/NULL,
                                     /*num_unsaved_files=*/0,
                                     CXTranslationUnit_SingleFileParse, &TU);
+  if (Err != CXError_Success) {
+    fprintf(stderr, "Unable to load translation unit!\n");
+    describeLibclangFailure(Err);
+    clang_disposeIndex(Idx);
+    return 1;
+  }
+
+  result = perform_test_load(Idx, TU, /*filter=*/"all", /*prefix=*/NULL, FilteredPrintingVisitor, /*PostVisit=*/NULL,
+                             /*CommentSchemaFile=*/NULL);
+  clang_disposeIndex(Idx);
+  return result;
+}
+
+static int perform_file_retain_excluded_cb(const char *filename) {
+  CXIndex Idx;
+  CXTranslationUnit TU;
+  enum CXErrorCode Err;
+  int result;
+
+  Idx = clang_createIndex(/* excludeDeclsFromPCH */1,
+                          /* displayDiagnostics=*/1);
+
+  Err = clang_parseTranslationUnit2(Idx, filename,
+                                    /*command_line_args=*/NULL,
+                                    /*num_command_line_args=*/0,
+                                    /*unsaved_files=*/NULL,
+                                    /*num_unsaved_files=*/0,
+                                    CXTranslationUnit_RetainExcludedConditionalBlocks, &TU);
   if (Err != CXError_Success) {
     fprintf(stderr, "Unable to load translation unit!\n");
     describeLibclangFailure(Err);
@@ -4642,18 +4673,19 @@ static void printDiagnosticSet(CXDiagnosticSet Diags, unsigned indent) {
     CXFile File;
     CXString FileName, DiagSpelling, DiagOption, DiagCat;
     unsigned line, column, offset;
-    const char *DiagOptionStr = 0, *DiagCatStr = 0;
+    const char *FileNameStr = 0, *DiagOptionStr = 0, *DiagCatStr = 0;
     
     D = clang_getDiagnosticInSet(Diags, i);
     DiagLoc = clang_getDiagnosticLocation(D);
     clang_getExpansionLocation(DiagLoc, &File, &line, &column, &offset);
     FileName = clang_getFileName(File);
+    FileNameStr = clang_getCString(FileName);
     DiagSpelling = clang_getDiagnosticSpelling(D);
-    
+
     printIndent(indent);
     
     fprintf(stderr, "%s:%d:%d: %s: %s",
-            clang_getCString(FileName),
+            FileNameStr ? FileNameStr : "(null)",
             line,
             column,
             getSeverityString(clang_getDiagnosticSeverity(D)),
@@ -4845,6 +4877,8 @@ int cindextest_main(int argc, const char **argv) {
   }
   else if (argc >= 3 && strcmp(argv[1], "-single-file-parse") == 0)
     return perform_single_file_parse(argv[2]);
+  else if (argc >= 3 && strcmp(argv[1], "-retain-excluded-conditional-blocks") == 0)
+    return perform_file_retain_excluded_cb(argv[2]);
   else if (argc >= 4 && strcmp(argv[1], "-test-file-scan") == 0)
     return perform_file_scan(argv[2], argv[3],
                              argc >= 5 ? argv[4] : 0);

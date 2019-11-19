@@ -1,7 +1,8 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -D SG_GPU %s -o %t_gpu.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //==--------- broadcast.cpp - SYCL sub_group broadcast test ----*- C++ -*---==//
 //
@@ -66,6 +67,12 @@ int main() {
   check<long>(Queue);
   check<unsigned long>(Queue);
   check<float>(Queue);
+  // broadcast half type is not supported in OCL CPU RT
+#ifdef SG_GPU
+  if (Queue.get_device().has_extension("cl_khr_fp16")) {
+    check<cl::sycl::half>(Queue);
+  }
+#endif
   if (Queue.get_device().has_extension("cl_khr_fp64")) {
     check<double>(Queue);
   }

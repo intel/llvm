@@ -65,7 +65,7 @@ static cl::opt<bool> ForceSkipUniformRegions(
 static cl::opt<bool>
     RelaxedUniformRegions("structurizecfg-relaxed-uniform-regions", cl::Hidden,
                           cl::desc("Allow relaxed uniform region checks"),
-                          cl::init(false));
+                          cl::init(true));
 
 // Definition of the complex types used in this pass.
 
@@ -628,11 +628,8 @@ void StructurizeCFG::setPhiValues() {
       if (!Dominator.resultIsRememberedBlock())
         Updater.AddAvailableValue(Dominator.result(), Undef);
 
-      for (BasicBlock *FI : From) {
-        int Idx = Phi->getBasicBlockIndex(FI);
-        assert(Idx != -1);
-        Phi->setIncomingValue(Idx, Updater.GetValueAtEndOfBlock(FI));
-      }
+      for (BasicBlock *FI : From)
+        Phi->setIncomingValueForBlock(FI, Updater.GetValueAtEndOfBlock(FI));
     }
 
     DeletedPhis.erase(To);

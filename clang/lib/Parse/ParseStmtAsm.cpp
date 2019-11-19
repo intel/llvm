@@ -144,8 +144,8 @@ void ClangAsmParserCallback::findTokensForString(
 
   // Try to find a token whose offset matches the first token.
   unsigned FirstCharOffset = Str.begin() - AsmString.begin();
-  const unsigned *FirstTokOffset = std::lower_bound(
-      AsmTokOffsets.begin(), AsmTokOffsets.end(), FirstCharOffset);
+  const unsigned *FirstTokOffset =
+      llvm::lower_bound(AsmTokOffsets, FirstCharOffset);
 
   // For now, assert that the start of the string exactly
   // corresponds to the start of a token.
@@ -174,8 +174,7 @@ ClangAsmParserCallback::translateLocation(const llvm::SourceMgr &LSM,
   unsigned Offset = SMLoc.getPointer() - LBuf->getBufferStart();
 
   // Figure out which token that offset points into.
-  const unsigned *TokOffsetPtr =
-      std::lower_bound(AsmTokOffsets.begin(), AsmTokOffsets.end(), Offset);
+  const unsigned *TokOffsetPtr = llvm::lower_bound(AsmTokOffsets, Offset);
   unsigned TokIndex = TokOffsetPtr - AsmTokOffsets.begin();
   unsigned TokOffset = *TokOffsetPtr;
 
@@ -583,7 +582,10 @@ StmtResult Parser::ParseMicrosoftAsmStatement(SourceLocation AsmLoc) {
       llvm::join(TO.Features.begin(), TO.Features.end(), ",");
 
   std::unique_ptr<llvm::MCRegisterInfo> MRI(TheTarget->createMCRegInfo(TT));
-  std::unique_ptr<llvm::MCAsmInfo> MAI(TheTarget->createMCAsmInfo(*MRI, TT));
+  // FIXME: init MCOptions from sanitizer flags here.
+  llvm::MCTargetOptions MCOptions;
+  std::unique_ptr<llvm::MCAsmInfo> MAI(
+      TheTarget->createMCAsmInfo(*MRI, TT, MCOptions));
   // Get the instruction descriptor.
   std::unique_ptr<llvm::MCInstrInfo> MII(TheTarget->createMCInstrInfo());
   std::unique_ptr<llvm::MCObjectFileInfo> MOFI(new llvm::MCObjectFileInfo());
@@ -603,8 +605,6 @@ StmtResult Parser::ParseMicrosoftAsmStatement(SourceLocation AsmLoc) {
   std::unique_ptr<llvm::MCAsmParser> Parser(
       createMCAsmParser(TempSrcMgr, Ctx, *Str.get(), *MAI));
 
-  // FIXME: init MCOptions from sanitizer flags here.
-  llvm::MCTargetOptions MCOptions;
   std::unique_ptr<llvm::MCTargetAsmParser> TargetParser(
       TheTarget->createMCAsmParser(*STI, *Parser, *MII, MCOptions));
 

@@ -13,6 +13,7 @@
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Support/Host.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -135,6 +136,7 @@ void x86::getX86TargetFeatures(const Driver &D, const llvm::Triple &Triple,
     if (ArchType == llvm::Triple::x86_64) {
       Features.push_back("+sse4.2");
       Features.push_back("+popcnt");
+      Features.push_back("+cx16");
     } else
       Features.push_back("+ssse3");
   }

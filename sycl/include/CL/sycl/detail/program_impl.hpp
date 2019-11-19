@@ -16,6 +16,7 @@
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/stl.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <memory>
 
@@ -84,12 +85,11 @@ public:
         Programs.push_back(Prg->Program);
       }
       RT::PiResult Err = PI_SUCCESS;
-      PI_CALL_RESULT((Program = RT::piProgramLink(
-        detail::getSyclObjImpl(Context)->getHandleRef(),
-        Devices.size(), Devices.data(),
-        LinkOptions.c_str(), Programs.size(),
-        Programs.data(), nullptr, nullptr, &Err), Err));
-      PI_CHECK_THROW(Err, compile_program_error);
+      Err = PI_CALL_RESULT(
+          RT::piProgramLink, detail::getSyclObjImpl(Context)->getHandleRef(),
+          Devices.size(), Devices.data(), LinkOptions.c_str(), Programs.size(),
+          Programs.data(), nullptr, nullptr, &Program);
+      RT::piCheckThrow<compile_program_error>(Err);
     }
   }
 
@@ -98,12 +98,11 @@ public:
 
     // TODO handle the case when cl_program build is in progress
     cl_uint NumDevices;
-    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_NUM_DEVICES,
-                                 sizeof(cl_uint), &NumDevices, nullptr));
+    PI_CALL(RT::piProgramGetInfo, Program, CL_PROGRAM_NUM_DEVICES,
+                                 sizeof(cl_uint), &NumDevices, nullptr);
     vector_class<RT::PiDevice> PiDevices(NumDevices);
-    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_DEVICES,
-                                 sizeof(RT::PiDevice) * NumDevices,
-                                 PiDevices.data(), nullptr));
+    PI_CALL(RT::piProgramGetInfo, Program, CL_PROGRAM_DEVICES,
+            sizeof(RT::PiDevice) * NumDevices, PiDevices.data(), nullptr);
     vector_class<device> SyclContextDevices = Context.get_devices();
 
     // Keep only the subset of the devices (associated with context) that
@@ -121,17 +120,14 @@ public:
     RT::PiDevice Device = getSyclObjImpl(Devices[0])->getHandleRef();
     // TODO check build for each device instead
     cl_program_binary_type BinaryType;
-    PI_CALL(RT::piProgramGetBuildInfo(
-        Program, Device, CL_PROGRAM_BINARY_TYPE,
-        sizeof(cl_program_binary_type), &BinaryType, nullptr));
+    PI_CALL(RT::piProgramGetBuildInfo, Program, Device, CL_PROGRAM_BINARY_TYPE,
+            sizeof(cl_program_binary_type), &BinaryType, nullptr);
     size_t Size = 0;
-    PI_CALL(RT::piProgramGetBuildInfo(
-        Program, Device, CL_PROGRAM_BUILD_OPTIONS,
-        0, nullptr, &Size));
+    PI_CALL(RT::piProgramGetBuildInfo, Program, Device,
+            CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &Size);
     std::vector<char> OptionsVector(Size);
-    PI_CALL(RT::piProgramGetBuildInfo(
-        Program, Device, CL_PROGRAM_BUILD_OPTIONS,
-        Size, OptionsVector.data(), nullptr));
+    PI_CALL(RT::piProgramGetBuildInfo, Program, Device,
+            CL_PROGRAM_BUILD_OPTIONS, Size, OptionsVector.data(), nullptr);
     string_class Options(OptionsVector.begin(), OptionsVector.end());
     switch (BinaryType) {
     case CL_PROGRAM_BINARY_TYPE_NONE:
@@ -148,7 +144,7 @@ public:
       LinkOptions = "";
       BuildOptions = Options;
     }
-    PI_CALL(RT::piProgramRetain(Program));
+    PI_CALL(RT::piProgramRetain, Program);
   }
 
   program_impl(const context &Context, RT::PiKernel Kernel)
@@ -159,7 +155,7 @@ public:
   ~program_impl() {
     // TODO catch an exception and put it to list of asynchronous exceptions
     if (!is_host() && Program != nullptr) {
-      PI_CALL(RT::piProgramRelease(Program));
+      PI_CALL(RT::piProgramRelease, Program);
     }
   }
 
@@ -168,9 +164,12 @@ public:
     if (is_host()) {
       throw invalid_object_error("This instance of program is a host instance");
     }
-    PI_CALL(RT::piProgramRetain(Program));
-    return pi::pi_cast<cl_program>(Program);
+    PI_CALL(RT::piProgramRetain, Program);
+    return pi::cast<cl_program>(Program);
   }
+
+  RT::PiProgram &getHandleRef() { return Program; }
+  const RT::PiProgram &getHandleRef() const { return Program; }
 
   bool is_host() const { return Context.is_host(); }
 
@@ -203,8 +202,14 @@ public:
     // TODO Check for existence of kernel
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
-      create_cl_program_with_il(M);
-      build(BuildOptions);
+      // If there are no build options, program can be safely cached
+      if (BuildOptions.empty()) {
+        Program = ProgramManager::getInstance().getBuiltOpenCLProgram(M, Context);
+        PI_CALL(RT::piProgramRetain, Program);
+      } else {
+        create_cl_program_with_il(M);
+        build(BuildOptions);
+      }
     }
     State = program_state::linked;
   }
@@ -227,11 +232,11 @@ public:
           info::device::is_linker_available>(Devices);
       vector_class<RT::PiDevice> Devices(get_pi_devices());
       RT::PiResult Err;
-      PI_CALL_RESULT((Program = RT::piProgramLink(
-          detail::getSyclObjImpl(Context)->getHandleRef(),
-          Devices.size(), Devices.data(), LinkOptions.c_str(),
-          1, &Program, nullptr, nullptr, &Err), Err));
-      PI_CHECK_THROW(Err, compile_program_error);
+      Err = PI_CALL_RESULT(RT::piProgramLink,
+                           detail::getSyclObjImpl(Context)->getHandleRef(),
+                           Devices.size(), Devices.data(), LinkOptions.c_str(),
+                           1, &Program, nullptr, nullptr, &Program);
+      RT::piCheckThrow<compile_program_error>(Err);
       this->LinkOptions = LinkOptions;
       BuildOptions = LinkOptions;
     }
@@ -297,18 +302,16 @@ public:
     vector_class<vector_class<char>> Result;
     if (!is_host()) {
       vector_class<size_t> BinarySizes(Devices.size());
-      PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_BINARY_SIZES,
-                                   sizeof(size_t) * BinarySizes.size(),
-                                   BinarySizes.data(), nullptr));
+      PI_CALL(RT::piProgramGetInfo, Program, CL_PROGRAM_BINARY_SIZES,
+              sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
       vector_class<char *> Pointers;
       for (size_t I = 0; I < BinarySizes.size(); ++I) {
         Result.emplace_back(BinarySizes[I]);
         Pointers.push_back(Result[I].data());
       }
-      PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_BINARIES,
-                                   sizeof(char *) * Pointers.size(),
-                                   Pointers.data(), nullptr));
+      PI_CALL(RT::piProgramGetInfo, Program, CL_PROGRAM_BINARIES,
+              sizeof(char *) * Pointers.size(), Pointers.data(), nullptr);
     }
     return Result;
   }
@@ -344,25 +347,24 @@ private:
 
   void create_cl_program_with_source(const string_class &Source) {
     assert(!Program && "This program already has an encapsulated cl_program");
-    RT::PiResult Err;
     const char *Src = Source.c_str();
     size_t Size = Source.size();
-    PI_CALL((Program = RT::piclProgramCreateWithSource(
-        detail::getSyclObjImpl(Context)->getHandleRef(),
-        1, &Src, &Size, &Err), Err));
+    PI_CALL(RT::piclProgramCreateWithSource,
+            detail::getSyclObjImpl(Context)->getHandleRef(), 1, &Src, &Size,
+            &Program);
   }
 
   void compile(const string_class &Options) {
     check_device_feature_support<
         info::device::is_compiler_available>(Devices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
-    RT::PiResult Err = PI_CALL_RESULT(RT::piProgramCompile(
-        Program, Devices.size(), Devices.data(), Options.c_str(),
-        0, nullptr, nullptr, nullptr, nullptr));
+    RT::PiResult Err = PI_CALL_RESULT(
+        RT::piProgramCompile, Program, Devices.size(), Devices.data(),
+        Options.c_str(), 0, nullptr, nullptr, nullptr, nullptr);
 
     if (Err != PI_SUCCESS) {
-      // TODO make the exception message more descriptive
-      throw compile_program_error("Program compilation error");
+      throw compile_program_error("Program compilation error:\n" +
+                                  ProgramManager::getProgramBuildLog(Program));
     }
     CompileOptions = Options;
     BuildOptions = Options;
@@ -372,13 +374,13 @@ private:
     check_device_feature_support<
         info::device::is_compiler_available>(Devices);
     vector_class<RT::PiDevice> Devices(get_pi_devices());
-    RT::PiResult Err = PI_CALL_RESULT(RT::piProgramBuild(
-        Program, Devices.size(), Devices.data(), Options.c_str(),
-        nullptr, nullptr));
+    RT::PiResult Err =
+        PI_CALL_RESULT(RT::piProgramBuild, Program, Devices.size(),
+                       Devices.data(), Options.c_str(), nullptr, nullptr);
 
     if (Err != PI_SUCCESS) {
-      // TODO make the exception message more descriptive
-      throw compile_program_error("Program build error");
+      throw compile_program_error("Program build error:\n" +
+                                  ProgramManager::getProgramBuildLog(Program));
     }
     BuildOptions = Options;
   }
@@ -393,11 +395,11 @@ private:
 
   bool has_cl_kernel(const string_class &KernelName) const {
     size_t Size;
-    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_KERNEL_NAMES, 0,
-                                 nullptr, &Size));
+    PI_CALL(RT::piProgramGetInfo, Program, CL_PROGRAM_KERNEL_NAMES, 0, nullptr,
+            &Size);
     string_class ClResult(Size, ' ');
-    PI_CALL(RT::piProgramGetInfo(Program, CL_PROGRAM_KERNEL_NAMES,
-                                 ClResult.size(), &ClResult[0], nullptr));
+    PI_CALL(RT::piProgramGetInfo, Program, CL_PROGRAM_KERNEL_NAMES,
+            ClResult.size(), &ClResult[0], nullptr);
     // Get rid of the null terminator
     ClResult.pop_back();
     vector_class<string_class> KernelNames(split_string(ClResult, ';'));
@@ -412,13 +414,13 @@ private:
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const {
     RT::PiKernel Kernel;
     RT::PiResult Err;
-    Err = PI_CALL_RESULT((Kernel = RT::piKernelCreate(
-        Program, KernelName.c_str(), &Err), Err));
+    Err = PI_CALL_RESULT(RT::piKernelCreate, Program, KernelName.c_str(),
+                         &Kernel);
     if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
           "This instance of program does not contain the kernel requested");
     }
-    PI_CHECK(Err);
+    RT::piCheckResult(Err);
     return Kernel;
   }
 

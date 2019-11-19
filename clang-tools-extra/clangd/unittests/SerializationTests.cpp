@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Headers.h"
 #include "index/Index.h"
 #include "index/Serialization.h"
-#include "llvm/Support/SHA1.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -151,9 +152,9 @@ TEST(SerializationTest, YAMLConversions) {
   SymbolID Base = cantFail(SymbolID::fromStr("6481EE7AF2841756"));
   SymbolID Derived = cantFail(SymbolID::fromStr("6512AEC512EA3A2D"));
   ASSERT_TRUE(bool(ParsedYAML->Relations));
-  EXPECT_THAT(*ParsedYAML->Relations,
-              UnorderedElementsAre(
-                  Relation{Base, index::SymbolRole::RelationBaseOf, Derived}));
+  EXPECT_THAT(
+      *ParsedYAML->Relations,
+      UnorderedElementsAre(Relation{Base, RelationKind::BaseOf, Derived}));
 }
 
 std::vector<std::string> YAMLFromSymbols(const SymbolSlab &Slab) {
@@ -206,12 +207,11 @@ TEST(SerializationTest, SrcsTest) {
 
   std::string TestContent("TestContent");
   IncludeGraphNode IGN;
-  IGN.Digest =
-      llvm::SHA1::hash({reinterpret_cast<const uint8_t *>(TestContent.data()),
-                        TestContent.size()});
+  IGN.Digest = digest(TestContent);
   IGN.DirectIncludes = {"inc1", "inc2"};
   IGN.URI = "URI";
-  IGN.IsTU = true;
+  IGN.Flags |= IncludeGraphNode::SourceFlag::IsTU;
+  IGN.Flags |= IncludeGraphNode::SourceFlag::HadErrors;
   IncludeGraph Sources;
   Sources[IGN.URI] = IGN;
   // Write to binary format, and parse again.
@@ -236,10 +236,40 @@ TEST(SerializationTest, SrcsTest) {
     EXPECT_EQ(IGNDeserialized.Digest, IGN.Digest);
     EXPECT_EQ(IGNDeserialized.DirectIncludes, IGN.DirectIncludes);
     EXPECT_EQ(IGNDeserialized.URI, IGN.URI);
-    EXPECT_EQ(IGNDeserialized.IsTU, IGN.IsTU);
+    EXPECT_EQ(IGNDeserialized.Flags, IGN.Flags);
   }
 }
 
+TEST(SerializationTest, CmdlTest) {
+  auto In = readIndexFile(YAML);
+  EXPECT_TRUE(bool(In)) << In.takeError();
+
+  tooling::CompileCommand Cmd;
+  Cmd.Directory = "testdir";
+  Cmd.CommandLine.push_back("cmd1");
+  Cmd.CommandLine.push_back("cmd2");
+  Cmd.Filename = "ignored";
+  Cmd.Heuristic = "ignored";
+  Cmd.Output = "ignored";
+
+  IndexFileOut Out(*In);
+  Out.Format = IndexFileFormat::RIFF;
+  Out.Cmd = &Cmd;
+  {
+    std::string Serialized = llvm::to_string(Out);
+
+    auto In = readIndexFile(Serialized);
+    ASSERT_TRUE(bool(In)) << In.takeError();
+    ASSERT_TRUE(In->Cmd);
+
+    const tooling::CompileCommand &SerializedCmd = In->Cmd.getValue();
+    EXPECT_EQ(SerializedCmd.CommandLine, Cmd.CommandLine);
+    EXPECT_EQ(SerializedCmd.Directory, Cmd.Directory);
+    EXPECT_NE(SerializedCmd.Filename, Cmd.Filename);
+    EXPECT_NE(SerializedCmd.Heuristic, Cmd.Heuristic);
+    EXPECT_NE(SerializedCmd.Output, Cmd.Output);
+  }
+}
 } // namespace
 } // namespace clangd
 } // namespace clang

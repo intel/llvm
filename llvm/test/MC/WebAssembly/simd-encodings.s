@@ -3,10 +3,10 @@
 main:
     .functype main () -> ()
 
-    # CHECK: v128.load 48:p2align=0 # encoding: [0xfd,0x00,0x00,0x30]
+    # CHECK: v128.load 48 # encoding: [0xfd,0x00,0x04,0x30]
     v128.load 48
 
-    # CHECK: v128.store 48:p2align=0 # encoding: [0xfd,0x01,0x00,0x30]
+    # CHECK: v128.store 48 # encoding: [0xfd,0x01,0x04,0x30]
     v128.store 48
 
     # CHECK: v128.const 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
@@ -283,6 +283,18 @@ main:
     # CHECK: i8x16.mul # encoding: [0xfd,0x5d]
     i8x16.mul
 
+    # CHECK: i8x16.min_s # encoding: [0xfd,0x5e]
+    i8x16.min_s
+
+    # CHECK: i8x16.min_u # encoding: [0xfd,0x5f]
+    i8x16.min_u
+
+    # CHECK: i8x16.max_s # encoding: [0xfd,0x60]
+    i8x16.max_s
+
+    # CHECK: i8x16.max_u # encoding: [0xfd,0x61]
+    i8x16.max_u
+
     # CHECK: i16x8.neg # encoding: [0xfd,0x62]
     i16x8.neg
 
@@ -322,6 +334,18 @@ main:
     # CHECK: i16x8.mul # encoding: [0xfd,0x6e]
     i16x8.mul
 
+    # CHECK: i16x8.min_s # encoding: [0xfd,0x6f]
+    i16x8.min_s
+
+    # CHECK: i16x8.min_u # encoding: [0xfd,0x70]
+    i16x8.min_u
+
+    # CHECK: i16x8.max_s # encoding: [0xfd,0x71]
+    i16x8.max_s
+
+    # CHECK: i16x8.max_u # encoding: [0xfd,0x72]
+    i16x8.max_u
+
     # CHECK: i32x4.neg # encoding: [0xfd,0x73]
     i32x4.neg
 
@@ -348,6 +372,18 @@ main:
 
     # CHECK: i32x4.mul # encoding: [0xfd,0x7f]
     i32x4.mul
+
+    # CHECK: i32x4.min_s # encoding: [0xfd,0x80,0x01]
+    i32x4.min_s
+
+    # CHECK: i32x4.min_u # encoding: [0xfd,0x81,0x01]
+    i32x4.min_u
+
+    # CHECK: i32x4.max_s # encoding: [0xfd,0x82,0x01]
+    i32x4.max_s
+
+    # CHECK: i32x4.max_u # encoding: [0xfd,0x83,0x01]
+    i32x4.max_u
 
     # CHECK: i64x2.neg # encoding: [0xfd,0x84,0x01]
     i64x2.neg
@@ -382,6 +418,12 @@ main:
     # CHECK: f32x4.sqrt # encoding: [0xfd,0x97,0x01]
     f32x4.sqrt
 
+    # CHECK: f32x4.qfma # encoding: [0xfd,0x98,0x01]
+    f32x4.qfma
+
+    # CHECK: f32x4.qfms # encoding: [0xfd,0x99,0x01]
+    f32x4.qfms
+
     # CHECK: f32x4.add # encoding: [0xfd,0x9a,0x01]
     f32x4.add
 
@@ -408,6 +450,12 @@ main:
 
     # CHECK: f64x2.sqrt # encoding: [0xfd,0xa2,0x01]
     f64x2.sqrt
+
+    # CHECK: f64x2.qfma # encoding: [0xfd,0xa3,0x01]
+    f64x2.qfma
+
+    # CHECK: f64x2.qfms # encoding: [0xfd,0xa4,0x01]
+    f64x2.qfms
 
     # CHECK: f64x2.add # encoding: [0xfd,0xa5,0x01]
     f64x2.add
@@ -450,5 +498,80 @@ main:
 
     # CHECK: f64x2.convert_i64x2_u # encoding: [0xfd,0xb2,0x01]
     f64x2.convert_i64x2_u
+
+    # CHECK: v8x16.swizzle # encoding: [0xfd,0xc0,0x01]
+    v8x16.swizzle
+
+    # CHECK: v8x16.load_splat 48 # encoding: [0xfd,0xc2,0x01,0x00,0x30]
+    v8x16.load_splat 48
+
+    # CHECK: v16x8.load_splat 48 # encoding: [0xfd,0xc3,0x01,0x01,0x30]
+    v16x8.load_splat 48
+
+    # CHECK: v32x4.load_splat 48 # encoding: [0xfd,0xc4,0x01,0x02,0x30]
+    v32x4.load_splat 48
+
+    # CHECK: v64x2.load_splat 48 # encoding: [0xfd,0xc5,0x01,0x03,0x30]
+    v64x2.load_splat 48
+
+    # CHECK: i8x16.narrow_i16x8_s # encoding: [0xfd,0xc6,0x01]
+    i8x16.narrow_i16x8_s
+
+    # CHECK: i8x16.narrow_i16x8_u # encoding: [0xfd,0xc7,0x01]
+    i8x16.narrow_i16x8_u
+
+    # CHECK: i16x8.narrow_i32x4_s # encoding: [0xfd,0xc8,0x01]
+    i16x8.narrow_i32x4_s
+
+    # CHECK: i16x8.narrow_i32x4_u # encoding: [0xfd,0xc9,0x01]
+    i16x8.narrow_i32x4_u
+
+    # CHECK: i16x8.widen_low_i8x16_s # encoding: [0xfd,0xca,0x01]
+    i16x8.widen_low_i8x16_s
+
+    # CHECK: i16x8.widen_high_i8x16_s # encoding: [0xfd,0xcb,0x01]
+    i16x8.widen_high_i8x16_s
+
+    # CHECK: i16x8.widen_low_i8x16_u # encoding: [0xfd,0xcc,0x01]
+    i16x8.widen_low_i8x16_u
+
+    # CHECK: i16x8.widen_high_i8x16_u # encoding: [0xfd,0xcd,0x01]
+    i16x8.widen_high_i8x16_u
+
+    # CHECK: i32x4.widen_low_i16x8_s # encoding: [0xfd,0xce,0x01]
+    i32x4.widen_low_i16x8_s
+
+    # CHECK: i32x4.widen_high_i16x8_s # encoding: [0xfd,0xcf,0x01]
+    i32x4.widen_high_i16x8_s
+
+    # CHECK: i32x4.widen_low_i16x8_u # encoding: [0xfd,0xd0,0x01]
+    i32x4.widen_low_i16x8_u
+
+    # CHECK: i32x4.widen_high_i16x8_u # encoding: [0xfd,0xd1,0x01]
+    i32x4.widen_high_i16x8_u
+
+    # CHECK: i16x8.load8x8_s 32 # encoding: [0xfd,0xd2,0x01,0x03,0x20]
+    i16x8.load8x8_s 32
+
+    # CHECK: i16x8.load8x8_u 32 # encoding: [0xfd,0xd3,0x01,0x03,0x20]
+    i16x8.load8x8_u 32
+
+    # CHECK: i32x4.load16x4_s 32 # encoding: [0xfd,0xd4,0x01,0x03,0x20]
+    i32x4.load16x4_s 32
+
+    # CHECK: i32x4.load16x4_u 32 # encoding: [0xfd,0xd5,0x01,0x03,0x20]
+    i32x4.load16x4_u 32
+
+    # CHECK: i64x2.load32x2_s 32 # encoding: [0xfd,0xd6,0x01,0x03,0x20]
+    i64x2.load32x2_s 32
+
+    # CHECK: i64x2.load32x2_u 32 # encoding: [0xfd,0xd7,0x01,0x03,0x20]
+    i64x2.load32x2_u 32
+
+    # CHECK: v128.andnot # encoding: [0xfd,0xd8,0x01]
+    v128.andnot
+
+    # CHECK: i32x4.dot_i16x8_s # encoding: [0xfd,0xd9,0x01]
+    i32x4.dot_i16x8_s
 
     end_function

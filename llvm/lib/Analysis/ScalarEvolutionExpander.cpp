@@ -60,12 +60,10 @@ Value *SCEVExpander::ReuseOrCreateCast(Value *V, Type *Ty,
           // instructions that might be inserted before BIP.
           if (BasicBlock::iterator(CI) != IP || BIP == IP) {
             // Create a new cast, and leave the old cast in place in case
-            // it is being used as an insert point. Clear its operand
-            // so that it doesn't hold anything live.
+            // it is being used as an insert point.
             Ret = CastInst::Create(Op, V, Ty, "", &*IP);
             Ret->takeName(CI);
             CI->replaceAllUsesWith(Ret);
-            CI->setOperand(0, UndefValue::get(V->getType()));
             break;
           }
           Ret = CI;
@@ -169,7 +167,8 @@ Value *SCEVExpander::InsertNoopCastOfTo(Value *V, Type *Ty) {
 /// of work to avoid inserting an obviously redundant operation, and hoisting
 /// to an outer loop when the opportunity is there and it is safe.
 Value *SCEVExpander::InsertBinop(Instruction::BinaryOps Opcode,
-                                 Value *LHS, Value *RHS, bool IsSafeToHoist) {
+                                 Value *LHS, Value *RHS,
+                                 SCEV::NoWrapFlags Flags, bool IsSafeToHoist) {
   // Fold a binop with constant operands.
   if (Constant *CLHS = dyn_cast<Constant>(LHS))
     if (Constant *CRHS = dyn_cast<Constant>(RHS))
@@ -188,20 +187,22 @@ Value *SCEVExpander::InsertBinop(Instruction::BinaryOps Opcode,
       if (isa<DbgInfoIntrinsic>(IP))
         ScanLimit++;
 
-      // Conservatively, do not use any instruction which has any of wrap/exact
-      // flags installed.
-      // TODO: Instead of simply disable poison instructions we can be clever
-      //       here and match SCEV to this instruction.
-      auto canGeneratePoison = [](Instruction *I) {
-        if (isa<OverflowingBinaryOperator>(I) &&
-            (I->hasNoSignedWrap() || I->hasNoUnsignedWrap()))
-          return true;
+      auto canGenerateIncompatiblePoison = [&Flags](Instruction *I) {
+        // Ensure that no-wrap flags match.
+        if (isa<OverflowingBinaryOperator>(I)) {
+          if (I->hasNoSignedWrap() != (Flags & SCEV::FlagNSW))
+            return true;
+          if (I->hasNoUnsignedWrap() != (Flags & SCEV::FlagNUW))
+            return true;
+        }
+        // Conservatively, do not use any instruction which has any of exact
+        // flags installed.
         if (isa<PossiblyExactOperator>(I) && I->isExact())
           return true;
         return false;
       };
       if (IP->getOpcode() == (unsigned)Opcode && IP->getOperand(0) == LHS &&
-          IP->getOperand(1) == RHS && !canGeneratePoison(&*IP))
+          IP->getOperand(1) == RHS && !canGenerateIncompatiblePoison(&*IP))
         return &*IP;
       if (IP == BlockBegin) break;
     }
@@ -226,6 +227,10 @@ Value *SCEVExpander::InsertBinop(Instruction::BinaryOps Opcode,
   // If we haven't found this binop, insert it.
   Instruction *BO = cast<Instruction>(Builder.CreateBinOp(Opcode, LHS, RHS));
   BO->setDebugLoc(Loc);
+  if (Flags & SCEV::FlagNUW)
+    BO->setHasNoUnsignedWrap();
+  if (Flags & SCEV::FlagNSW)
+    BO->setHasNoSignedWrap();
   rememberInstruction(BO);
 
   return BO;
@@ -235,9 +240,6 @@ Value *SCEVExpander::InsertBinop(Instruction::BinaryOps Opcode,
 /// division. If so, update S with Factor divided out and return true.
 /// S need not be evenly divisible if a reasonable remainder can be
 /// computed.
-/// TODO: When ScalarEvolution gets a SCEVSDivExpr, this can be made
-/// unnecessary; in its place, just signed-divide Ops[i] by the scale and
-/// check to see if the divide was folded.
 static bool FactorOutConstant(const SCEV *&S, const SCEV *&Remainder,
                               const SCEV *Factor, ScalarEvolution &SE,
                               const DataLayout &DL) {
@@ -737,7 +739,8 @@ Value *SCEVExpander::visitAddExpr(const SCEVAddExpr *S) {
       // Instead of doing a negate and add, just do a subtract.
       Value *W = expandCodeFor(SE.getNegativeSCEV(Op), Ty);
       Sum = InsertNoopCastOfTo(Sum, Ty);
-      Sum = InsertBinop(Instruction::Sub, Sum, W, /*IsSafeToHoist*/ true);
+      Sum = InsertBinop(Instruction::Sub, Sum, W, SCEV::FlagAnyWrap,
+                        /*IsSafeToHoist*/ true);
       ++I;
     } else {
       // A simple add.
@@ -745,7 +748,8 @@ Value *SCEVExpander::visitAddExpr(const SCEVAddExpr *S) {
       Sum = InsertNoopCastOfTo(Sum, Ty);
       // Canonicalize a constant to the RHS.
       if (isa<Constant>(Sum)) std::swap(Sum, W);
-      Sum = InsertBinop(Instruction::Add, Sum, W, /*IsSafeToHoist*/ true);
+      Sum = InsertBinop(Instruction::Add, Sum, W, S->getNoWrapFlags(),
+                        /*IsSafeToHoist*/ true);
       ++I;
     }
   }
@@ -797,9 +801,11 @@ Value *SCEVExpander::visitMulExpr(const SCEVMulExpr *S) {
     if (Exponent & 1)
       Result = P;
     for (uint64_t BinExp = 2; BinExp <= Exponent; BinExp <<= 1) {
-      P = InsertBinop(Instruction::Mul, P, P, /*IsSafeToHoist*/ true);
+      P = InsertBinop(Instruction::Mul, P, P, SCEV::FlagAnyWrap,
+                      /*IsSafeToHoist*/ true);
       if (Exponent & BinExp)
         Result = Result ? InsertBinop(Instruction::Mul, Result, P,
+                                      SCEV::FlagAnyWrap,
                                       /*IsSafeToHoist*/ true)
                         : P;
     }
@@ -817,7 +823,7 @@ Value *SCEVExpander::visitMulExpr(const SCEVMulExpr *S) {
       // Instead of doing a multiply by negative one, just do a negate.
       Prod = InsertNoopCastOfTo(Prod, Ty);
       Prod = InsertBinop(Instruction::Sub, Constant::getNullValue(Ty), Prod,
-                         /*IsSafeToHoist*/ true);
+                         SCEV::FlagAnyWrap, /*IsSafeToHoist*/ true);
       ++I;
     } else {
       // A simple mul.
@@ -829,11 +835,16 @@ Value *SCEVExpander::visitMulExpr(const SCEVMulExpr *S) {
       if (match(W, m_Power2(RHS))) {
         // Canonicalize Prod*(1<<C) to Prod<<C.
         assert(!Ty->isVectorTy() && "vector types are not SCEVable");
+        auto NWFlags = S->getNoWrapFlags();
+        // clear nsw flag if shl will produce poison value.
+        if (RHS->logBase2() == RHS->getBitWidth() - 1)
+          NWFlags = ScalarEvolution::clearFlags(NWFlags, SCEV::FlagNSW);
         Prod = InsertBinop(Instruction::Shl, Prod,
-                           ConstantInt::get(Ty, RHS->logBase2()),
+                           ConstantInt::get(Ty, RHS->logBase2()), NWFlags,
                            /*IsSafeToHoist*/ true);
       } else {
-        Prod = InsertBinop(Instruction::Mul, Prod, W, /*IsSafeToHoist*/ true);
+        Prod = InsertBinop(Instruction::Mul, Prod, W, S->getNoWrapFlags(),
+                           /*IsSafeToHoist*/ true);
       }
     }
   }
@@ -850,11 +861,11 @@ Value *SCEVExpander::visitUDivExpr(const SCEVUDivExpr *S) {
     if (RHS.isPowerOf2())
       return InsertBinop(Instruction::LShr, LHS,
                          ConstantInt::get(Ty, RHS.logBase2()),
-                         /*IsSafeToHoist*/ true);
+                         SCEV::FlagAnyWrap, /*IsSafeToHoist*/ true);
   }
 
   Value *RHS = expandCodeFor(S->getRHS(), Ty);
-  return InsertBinop(Instruction::UDiv, LHS, RHS,
+  return InsertBinop(Instruction::UDiv, LHS, RHS, SCEV::FlagAnyWrap,
                      /*IsSafeToHoist*/ SE.isKnownNonZero(S->getRHS()));
 }
 
@@ -1472,7 +1483,18 @@ Value *SCEVExpander::expandAddRecExprLiterally(const SCEVAddRecExpr *S) {
 }
 
 Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
-  if (!CanonicalMode) return expandAddRecExprLiterally(S);
+  // In canonical mode we compute the addrec as an expression of a canonical IV
+  // using evaluateAtIteration and expand the resulting SCEV expression. This
+  // way we avoid introducing new IVs to carry on the comutation of the addrec
+  // throughout the loop.
+  //
+  // For nested addrecs evaluateAtIteration might need a canonical IV of a
+  // type wider than the addrec itself. Emitting a canonical IV of the
+  // proper type might produce non-legal types, for example expanding an i64
+  // {0,+,2,+,1} addrec would need an i65 canonical IV. To avoid this just fall
+  // back to non-canonical mode for nested addrecs.
+  if (!CanonicalMode || (S->getNumOperands() > 2))
+    return expandAddRecExprLiterally(S);
 
   Type *Ty = SE.getEffectiveSCEVType(S->getType());
   const Loop *L = S->getLoop();
@@ -2080,11 +2102,10 @@ SCEVExpander::getRelatedExistingExpansion(const SCEV *S, const Instruction *At,
   for (BasicBlock *BB : ExitingBlocks) {
     ICmpInst::Predicate Pred;
     Instruction *LHS, *RHS;
-    BasicBlock *TrueBB, *FalseBB;
 
     if (!match(BB->getTerminator(),
                m_Br(m_ICmp(Pred, m_Instruction(LHS), m_Instruction(RHS)),
-                    TrueBB, FalseBB)))
+                    m_BasicBlock(), m_BasicBlock())))
       continue;
 
     if (SE.getSCEV(LHS) == S && SE.DT.dominates(LHS, At))

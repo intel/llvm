@@ -22,22 +22,68 @@ namespace llvm {
 namespace jitlink {
 
 /// Registers all FDEs in the given eh-frame section with the current process.
-Error registerEHFrameSection(const void *EHFrameSectionAddr);
+Error registerEHFrameSection(const void *EHFrameSectionAddr,
+                             size_t EHFrameSectionSize);
 
 /// Deregisters all FDEs in the given eh-frame section with the current process.
-Error deregisterEHFrameSection(const void *EHFrameSectionAddr);
+Error deregisterEHFrameSection(const void *EHFrameSectionAddr,
+                               size_t EHFrameSectionSize);
 
-using StoreFrameAddressFunction = std::function<void(JITTargetAddress)>;
+/// Supports registration/deregistration of EH-frames in a target process.
+class EHFrameRegistrar {
+public:
+  virtual ~EHFrameRegistrar();
+  virtual Error registerEHFrames(JITTargetAddress EHFrameSectionAddr,
+                                 size_t EHFrameSectionSize) = 0;
+  virtual Error deregisterEHFrames(JITTargetAddress EHFrameSectionAddr,
+                                   size_t EHFrameSectionSize) = 0;
+};
 
-/// Creates a pass that records the address of the EH frame section. If no
-/// eh-frame section is found, it will set EHFrameAddr to zero.
+/// Registers / Deregisters EH-frames in the current process.
+class InProcessEHFrameRegistrar final : public EHFrameRegistrar {
+public:
+  /// Get a reference to the InProcessEHFrameRegistrar singleton.
+  static InProcessEHFrameRegistrar &getInstance();
+
+  InProcessEHFrameRegistrar(const InProcessEHFrameRegistrar &) = delete;
+  InProcessEHFrameRegistrar &
+  operator=(const InProcessEHFrameRegistrar &) = delete;
+
+  InProcessEHFrameRegistrar(InProcessEHFrameRegistrar &&) = delete;
+  InProcessEHFrameRegistrar &operator=(InProcessEHFrameRegistrar &&) = delete;
+
+  Error registerEHFrames(JITTargetAddress EHFrameSectionAddr,
+                         size_t EHFrameSectionSize) override {
+    return registerEHFrameSection(
+        jitTargetAddressToPointer<void *>(EHFrameSectionAddr),
+        EHFrameSectionSize);
+  }
+
+  Error deregisterEHFrames(JITTargetAddress EHFrameSectionAddr,
+                           size_t EHFrameSectionSize) override {
+    return deregisterEHFrameSection(
+        jitTargetAddressToPointer<void *>(EHFrameSectionAddr),
+        EHFrameSectionSize);
+  }
+
+private:
+  InProcessEHFrameRegistrar();
+};
+
+using StoreFrameRangeFunction =
+  std::function<void(JITTargetAddress EHFrameSectionAddr,
+                     size_t EHFrameSectionSize)>;
+
+/// Creates a pass that records the address and size of the EH frame section.
+/// If no eh-frame section is found then the address and size will both be given
+/// as zero.
 ///
 /// Authors of JITLinkContexts can use this function to register a post-fixup
-/// pass that records the address of the eh-frame section. This address can
+/// pass that records the range of the eh-frame section. This range can
 /// be used after finalization to register and deregister the frame.
-AtomGraphPassFunction
+LinkGraphPassFunction
 createEHFrameRecorderPass(const Triple &TT,
-                          StoreFrameAddressFunction StoreFrameAddress);
+                          StoreFrameRangeFunction StoreFrameRange);
 
 } // end namespace jitlink
 } // end namespace llvm

@@ -161,11 +161,11 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 !10 = !{!"llvm.loop.max_concurrency.count", i32 2}
 !11 = distinct !{!11, !8, !10}
 
-; CHECK-LLVM: br i1 %cmp, label %for.body, label %for.end, !llvm.loop ![[MD_A:[0-9]+]]
-; CHECK-LLVM: br i1 %cmp{{[0-9]+}}, label %for.body{{[0-9]+}}, label %for.end{{[0-9]+}}, !llvm.loop ![[MD_B:[0-9]+]]
-; CHECK-LLVM: br i1 %cmp{{[0-9]+}}, label %for.body{{[0-9]+}}, label %for.end{{[0-9]+}}, !llvm.loop ![[MD_C:[0-9]+]]
-; CHECK-LLVM: br i1 %cmp{{[0-9]+}}, label %for.body{{[0-9]+}}, label %for.end{{[0-9]+}}, !llvm.loop ![[MD_D:[0-9]+]]
-; CHECK-LLVM: br i1 %cmp{{[0-9]+}}, label %for.body{{[0-9]+}}, label %for.end{{[0-9]+}}, !llvm.loop ![[MD_E:[0-9]+]]
+; CHECK-LLVM: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_A:[0-9]+]]
+; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_B:[0-9]+]]
+; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_C:[0-9]+]]
+; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_D:[0-9]+]]
+; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_E:[0-9]+]]
 
 ; CHECK-LLVM: ![[MD_A]] = distinct !{![[MD_A]], ![[MD_ivdep_enable:[0-9]+]]}
 ; CHECK-LLVM: ![[MD_ivdep_enable]] = !{!"llvm.loop.ivdep.enable"}

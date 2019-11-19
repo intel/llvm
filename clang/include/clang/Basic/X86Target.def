@@ -157,6 +157,10 @@ PROC_ALIAS(SkylakeServer, "skx")
 /// Cascadelake Server microarchitecture based processors.
 PROC_WITH_FEAT(Cascadelake, "cascadelake", PROC_64_BIT, FEATURE_AVX512VNNI)
 
+/// \name Cooperlake Server
+/// Cooperlake Server microarchitecture based processors.
+PROC_WITH_FEAT(Cooperlake, "cooperlake", PROC_64_BIT, FEATURE_AVX512BF16)
+
 /// \name Cannonlake Client
 /// Cannonlake client microarchitecture based processors.
 PROC_WITH_FEAT(Cannonlake, "cannonlake", PROC_64_BIT, FEATURE_AVX512VBMI)
@@ -168,6 +172,10 @@ PROC(IcelakeClient, "icelake-client", PROC_64_BIT)
 /// \name Icelake Server
 /// Icelake server microarchitecture based processors.
 PROC(IcelakeServer, "icelake-server", PROC_64_BIT)
+
+/// \name Tigerlake
+/// Tigerlake microarchitecture based processors.
+PROC(Tigerlake, "tigerlake", PROC_64_BIT)
 
 /// \name Knights Landing
 /// Knights Landing processor.
@@ -292,6 +300,8 @@ FEATURE(FEATURE_GFNI)
 FEATURE(FEATURE_VPCLMULQDQ)
 FEATURE(FEATURE_AVX512VNNI)
 FEATURE(FEATURE_AVX512BITALG)
+FEATURE(FEATURE_AVX512BF16)
+FEATURE(FEATURE_AVX512VP2INTERSECT)
 
 
 // FIXME: When commented out features are supported in LLVM, enable them here.

@@ -1,4 +1,4 @@
-//==-------- array.hpp --- SYCL common iteration object ---------------------==//
+//==-------- array.hpp --- SYCL common iteration object --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/exception.hpp>
 #include <functional>
 #include <stdexcept>
-#include <type_traits>
 
 namespace cl {
 namespace sycl {
@@ -20,27 +20,32 @@ namespace detail {
 
 template <int dimensions = 1> class array {
   static_assert(dimensions >= 1, "Array cannot be 0-dimensional.");
-public:
-  array() : common_array{0} {}
 
+public:
   /* The following constructor is only available in the array struct
    * specialization where: dimensions==1 */
   template <int N = dimensions>
-  array(typename std::enable_if<(N == 1), size_t>::type dim0)
+  array(typename std::enable_if<(N == 1), size_t>::type dim0 = 0)
       : common_array{dim0} {}
 
-  /* The following constructor is only available in the array struct
+  /* The following constructors are only available in the array struct
    * specialization where: dimensions==2 */
   template <int N = dimensions>
   array(typename std::enable_if<(N == 2), size_t>::type dim0, size_t dim1)
       : common_array{dim0, dim1} {}
 
-  /* The following constructor is only available in the array struct
+  template <int N = dimensions, detail::enable_if_t<(N == 2), size_t> = 0>
+  array() : array(0, 0) {}
+
+  /* The following constructors are only available in the array struct
    * specialization where: dimensions==3 */
   template <int N = dimensions>
   array(typename std::enable_if<(N == 3), size_t>::type dim0, size_t dim1,
         size_t dim2)
       : common_array{dim0, dim1, dim2} {}
+
+  template <int N = dimensions, detail::enable_if_t<(N == 3), size_t> = 0>
+  array() : array(0, 0, 0) {}
 
   // Conversion operators to derived classes
   operator cl::sycl::id<dimensions>() const {

@@ -140,7 +140,7 @@ NativeProcessNetBSD::NativeProcessNetBSD(::pid_t pid, int terminal_fd,
                                          NativeDelegate &delegate,
                                          const ArchSpec &arch,
                                          MainLoop &mainloop)
-    : NativeProcessProtocol(pid, terminal_fd, delegate), m_arch(arch) {
+    : NativeProcessELF(pid, terminal_fd, delegate), m_arch(arch) {
   if (m_terminal_fd != -1) {
     Status status = EnsureFDFlags(m_terminal_fd, O_NONBLOCK);
     assert(status.Success());
@@ -195,6 +195,7 @@ void NativeProcessNetBSD::MonitorSIGSTOP(lldb::pid_t pid) {
             SIGSTOP, &info.psi_siginfo);
       }
     }
+    SetState(StateType::eStateStopped, true);
   }
 }
 
@@ -238,12 +239,25 @@ void NativeProcessNetBSD::MonitorSIGTRAP(lldb::pid_t pid) {
     SetState(StateType::eStateStopped, true);
   } break;
   case TRAP_DBREG: {
+    // Find the thread.
+    NativeThreadNetBSD* thread = nullptr;
+    for (const auto &t : m_threads) {
+      if (t->GetID() == info.psi_lwpid) {
+        thread = static_cast<NativeThreadNetBSD *>(t.get());
+        break;
+      }
+    }
+    if (!thread) {
+      LLDB_LOG(log,
+               "thread not found in m_threads, pid = {0}, LWP = {1}",
+               GetID(), info.psi_lwpid);
+      break;
+    }
+
     // If a watchpoint was hit, report it
-    uint32_t wp_index;
-    Status error = static_cast<NativeThreadNetBSD &>(*m_threads[info.psi_lwpid])
-                       .GetRegisterContext()
-                       .GetWatchpointHitIndex(
-                           wp_index, (uintptr_t)info.psi_siginfo.si_addr);
+    uint32_t wp_index = LLDB_INVALID_INDEX32;
+    Status error = thread->GetRegisterContext().GetWatchpointHitIndex(
+        wp_index, (uintptr_t)info.psi_siginfo.si_addr);
     if (error.Fail())
       LLDB_LOG(log,
                "received error while checking for watchpoint hits, pid = "
@@ -258,11 +272,9 @@ void NativeProcessNetBSD::MonitorSIGTRAP(lldb::pid_t pid) {
     }
 
     // If a breakpoint was hit, report it
-    uint32_t bp_index;
-    error = static_cast<NativeThreadNetBSD &>(*m_threads[info.psi_lwpid])
-                .GetRegisterContext()
-                .GetHardwareBreakHitIndex(bp_index,
-                                           (uintptr_t)info.psi_siginfo.si_addr);
+    uint32_t bp_index = LLDB_INVALID_INDEX32;
+    error = thread->GetRegisterContext().GetHardwareBreakHitIndex(
+        bp_index, (uintptr_t)info.psi_siginfo.si_addr);
     if (error.Fail())
       LLDB_LOG(log,
                "received error while checking for hardware "
@@ -328,12 +340,14 @@ Status NativeProcessNetBSD::Resume(const ResumeActionList &resume_actions) {
   }
 
   Status error;
+  int signal =
+      action->signal != LLDB_INVALID_SIGNAL_NUMBER ? action->signal : 0;
 
   switch (action->state) {
   case eStateRunning: {
     // Run the thread, possibly feeding it the signal.
     error = NativeProcessNetBSD::PtraceWrapper(PT_CONTINUE, GetID(), (void *)1,
-                                               action->signal);
+                                               signal);
     if (!error.Success())
       return error;
     for (const auto &thread : m_threads)
@@ -344,7 +358,7 @@ Status NativeProcessNetBSD::Resume(const ResumeActionList &resume_actions) {
   case eStateStepping:
     // Run the thread, possibly feeding it the signal.
     error = NativeProcessNetBSD::PtraceWrapper(PT_STEP, GetID(), (void *)1,
-                                               action->signal);
+                                               signal);
     if (!error.Success())
       return error;
     for (const auto &thread : m_threads)
@@ -647,7 +661,7 @@ NativeThreadNetBSD &NativeProcessNetBSD::AddThread(lldb::tid_t thread_id) {
   if (m_threads.empty())
     SetCurrentThreadID(thread_id);
 
-  m_threads.push_back(llvm::make_unique<NativeThreadNetBSD>(*this, thread_id));
+  m_threads.push_back(std::make_unique<NativeThreadNetBSD>(*this, thread_id));
   return static_cast<NativeThreadNetBSD &>(*m_threads.back());
 }
 

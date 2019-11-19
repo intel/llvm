@@ -38,6 +38,7 @@ int embed_cls::fecl(int x) {
 class mycls {
 public:
   int fcl(int x);
+  virtual int fvcl(int x);
   static int fscl(int x);
 
   class embed_cls2 {
@@ -49,11 +50,23 @@ public:
 int mycls::fcl(int x) {
   return x + 5;
 }
+int mycls::fvcl(int x) {
+  return x + 7;
+}
 int mycls::fscl(int x) {
   return x + 6;
 }
 int mycls::embed_cls2::fecl2(int x) {
   return x - 11;
+}
+
+class derived : public mycls {
+public:
+  virtual int fvcl(int x) override;
+};
+
+int derived::fvcl(int x) {
+  return x + 8;
 }
 
 namespace chns {
@@ -118,3 +131,47 @@ union U {
   const unsigned int b;
 };
 U extU = {.a = 4};
+
+class TestAnonUnionUSR {
+public:
+  inline float f(int value) {
+    union {
+      float f;
+      int i;
+    };
+    i = value;
+    return f;
+  }
+  static const int Test;
+};
+const int TestAnonUnionUSR::Test = 5;
+
+struct DefaultParmContext {
+  static const int I;
+  int f();
+};
+
+int fDefaultParm(int I = DefaultParmContext::I) {
+  return I;
+}
+
+int testImportOfIncompleteDefaultParmDuringImport(int I) {
+  return fDefaultParm(I);
+}
+
+const int DefaultParmContext::I = 0;
+
+int DefaultParmContext::f() {
+  return fDefaultParm();
+}
+
+class TestDelegateConstructor {
+public:
+  TestDelegateConstructor() : TestDelegateConstructor(2) {}
+  TestDelegateConstructor(int) {}
+};
+
+int testImportOfDelegateConstructor(int i) {
+  TestDelegateConstructor TDC;
+  return i;
+}

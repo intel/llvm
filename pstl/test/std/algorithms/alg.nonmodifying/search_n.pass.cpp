@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++98, c++03, c++11, c++14
+
 #include "support/pstl_test_config.h"
 
 #include <execution>
@@ -18,7 +20,7 @@ using namespace TestUtils;
 
 struct test_one_policy
 {
-#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                            \
+#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                             \
     _PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN //dummy specialization by policy type, in case of broken configuration
     template <typename Iterator, typename Size, typename T, typename Predicate>
     void
@@ -67,7 +69,7 @@ test()
             }
             for (auto r : res)
             {
-                Sequence<T> in(n1, [](std::size_t k) { return T(0); });
+                Sequence<T> in(n1, [](std::size_t) { return T(0); });
                 std::size_t i = r, isub = 0;
                 for (; i < n1 & isub < n2; ++i, ++isub)
                     in[i] = value;
@@ -90,7 +92,7 @@ struct test_non_const
     }
 };
 
-int32_t
+int
 main()
 {
     test<int32_t>();

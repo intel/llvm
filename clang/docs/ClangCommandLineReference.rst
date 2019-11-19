@@ -86,8 +86,6 @@ Pass <arg> to the target offloading toolchain identified by <triple>.
 
 Run the static analyzer
 
-.. option:: --analyze-auto
-
 .. option:: --analyzer-no-default-checks
 
 .. option:: --analyzer-output<arg>
@@ -126,7 +124,11 @@ Output path for the plist report
 
 .. option:: -cfguard
 
-Emit tables required for Windows Control Flow Guard.
+Emit tables and checks for Windows Control Flow Guard.
+
+.. option:: -cfguard-no-checks
+
+Emit tables required for Windows Control Flow Guard without checks.
 
 .. option:: -client\_name<arg>
 
@@ -345,6 +347,8 @@ Disable builtin #include directories
 .. option:: -nopie, -no-pie
 
 .. option:: -noprebind
+
+.. option:: -noprofilelib
 
 .. option:: -noseglinkedit
 
@@ -609,6 +613,10 @@ C++ standard library to use
 .. option:: --target=<arg>, -target <arg>
 
 Generate code for the given target
+
+.. option:: --print-supported-cpus
+
+Print supported cpu models for the given target
 
 .. option:: -time
 
@@ -1140,8 +1148,6 @@ Flags allowing the state of the preprocessor to be dumped in various ways.
 .. program:: clang1
 .. option:: -d<arg>
 .. program:: clang
-
-.. option:: -dA
 
 .. option:: -dD
 
@@ -1938,6 +1944,15 @@ Perform ThinLTO importing using provided function summary index
 
 .. option:: -ftime-report
 
+.. option:: -ftime-trace
+
+Turn on time profiler. Results can be analyzed with chrome://tracing or
+`Speedscope App <https://www.speedscope.app>`_ for flamegraph visualization
+
+.. option:: -ftime-trace-granularity=<arg>
+
+Minimum time granularity (in microseconds) traced by time profiler
+
 .. option:: -ftls-model=<arg>
 
 .. option:: -ftrap-function=<arg>
@@ -1998,7 +2013,7 @@ Use the given vector functions library
 
 Enable the loop vectorization passes
 
-.. option:: -fverbose-asm, -fno-verbose-asm
+.. option:: -fverbose-asm, -fno-verbose-asm, -dA
 
 .. option:: -fvisibility-inlines-hidden
 
@@ -2164,6 +2179,8 @@ Link stack frames through backchain on System Z
 
 .. option:: -mcpu=<arg>, -mv5 (equivalent to -mcpu=hexagonv5), -mv55 (equivalent to -mcpu=hexagonv55), -mv60 (equivalent to -mcpu=hexagonv60), -mv62 (equivalent to -mcpu=hexagonv62), -mv65 (equivalent to -mcpu=hexagonv65)
 
+Use -mcpu=? to see a list of supported cpu models.
+
 .. option:: -mcrc, -mno-crc
 
 Allow use of CRC instructions (ARM/Mips only)
@@ -2180,7 +2197,7 @@ Set EABI type, e.g. 4, 5 or gnu (default depends on triple)
 
 .. option:: -mfentry
 
-Insert calls to fentry at function entry (x86 only)
+Insert calls to fentry at function entry (x86/SystemZ only)
 
 .. option:: -mfloat-abi=<arg>
 
@@ -2298,6 +2315,8 @@ The thread model to use, e.g. posix, single (posix by default)
 
 .. option:: -mtune=<arg>
 
+Use -mtune=? to see a list of supported cpu models.
+
 .. option:: -mtvos-version-min=<arg>, -mappletvos-version-min=<arg>
 
 .. option:: -municode<arg>
@@ -2400,6 +2419,10 @@ AMDGPU
 
 CU wavefront execution mode is used if enabled and WGP wavefront execution mode
 is used if disabled (AMDGPU only)
+
+.. option:: -mwavefrontsize64, -mno-wavefrontsize64
+
+Wavefront size 64 is used if enabled and wavefront size 32 if disabled (AMDGPU only)
 
 .. option:: -mxnack, -mno-xnack
 
@@ -2656,6 +2679,8 @@ X86
 .. option:: -mclzero, -mno-clzero
 
 .. option:: -mcx16, -mno-cx16
+
+.. option:: -menqcmd, -mno-enqcmd
 
 .. option:: -mf16c, -mno-f16c
 

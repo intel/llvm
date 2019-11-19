@@ -276,7 +276,7 @@ define i1 @test10(i64* %p) {
 define i1 @test11() {
 ; CHECK-LABEL: @test11(
 ; CHECK-NEXT:    [[POSITIVE:%.*]] = load i32, i32* @g, !range !3
-; CHECK-NEXT:    [[ADD:%.*]] = add i32 [[POSITIVE]], 1
+; CHECK-NEXT:    [[ADD:%.*]] = add nuw nsw i32 [[POSITIVE]], 1
 ; CHECK-NEXT:    [[TEST:%.*]] = icmp sgt i32 [[ADD]], 0
 ; CHECK-NEXT:    br label [[NEXT:%.*]]
 ; CHECK:       next:
@@ -745,10 +745,9 @@ target93:
 define i1 @test17_i1(i1 %a) {
 ; CHECK-LABEL: @test17_i1(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[C:%.*]] = and i1 [[A:%.*]], true
 ; CHECK-NEXT:    br label [[DISPATCH:%.*]]
 ; CHECK:       dispatch:
-; CHECK-NEXT:    br i1 [[A]], label [[TRUE:%.*]], label [[DISPATCH]]
+; CHECK-NEXT:    br i1 [[A:%.*]], label [[TRUE:%.*]], label [[DISPATCH]]
 ; CHECK:       true:
 ; CHECK-NEXT:    ret i1 true
 ;

@@ -33,6 +33,10 @@
 
 namespace llvm {
 
+namespace jitlink {
+class EHFrameRegistrar;
+} // namespace jitlink
+
 namespace object {
 class ObjectFile;
 } // namespace object
@@ -69,6 +73,9 @@ public:
     virtual Error notifyRemovingAllModules() { return Error::success(); }
   };
 
+  using ReturnObjectBufferFunction =
+      std::function<void(std::unique_ptr<MemoryBuffer>)>;
+
   /// Construct an ObjectLinkingLayer with the given NotifyLoaded,
   /// and NotifyEmitted functors.
   ObjectLinkingLayer(ExecutionSession &ES,
@@ -76,6 +83,13 @@ public:
 
   /// Destruct an ObjectLinkingLayer.
   ~ObjectLinkingLayer();
+
+  /// Set an object buffer return function. By default object buffers are
+  /// deleted once the JIT has linked them. If a return function is set then
+  /// it will be called to transfer ownership of the buffer instead.
+  void setReturnObjectBuffer(ReturnObjectBufferFunction ReturnObjectBuffer) {
+    this->ReturnObjectBuffer = std::move(ReturnObjectBuffer);
+  }
 
   /// Add a pass-config modifier.
   ObjectLinkingLayer &addPlugin(std::unique_ptr<Plugin> P) {
@@ -134,13 +148,15 @@ private:
   jitlink::JITLinkMemoryManager &MemMgr;
   bool OverrideObjectFlags = false;
   bool AutoClaimObjectSymbols = false;
+  ReturnObjectBufferFunction ReturnObjectBuffer;
   DenseMap<VModuleKey, AllocPtr> TrackedAllocs;
   std::vector<AllocPtr> UntrackedAllocs;
   std::vector<std::unique_ptr<Plugin>> Plugins;
 };
 
-class LocalEHFrameRegistrationPlugin : public ObjectLinkingLayer::Plugin {
+class EHFrameRegistrationPlugin : public ObjectLinkingLayer::Plugin {
 public:
+  EHFrameRegistrationPlugin(jitlink::EHFrameRegistrar &Registrar);
   Error notifyEmitted(MaterializationResponsibility &MR) override;
   void modifyPassConfig(MaterializationResponsibility &MR, const Triple &TT,
                         jitlink::PassConfiguration &PassConfig) override;
@@ -148,9 +164,16 @@ public:
   Error notifyRemovingAllModules() override;
 
 private:
-  DenseMap<MaterializationResponsibility *, const void *> InProcessLinks;
-  DenseMap<VModuleKey, const void *> TrackedEHFrameAddrs;
-  std::vector<const void *> UntrackedEHFrameAddrs;
+
+  struct EHFrameRange {
+    JITTargetAddress Addr = 0;
+    size_t Size;
+  };
+
+  jitlink::EHFrameRegistrar &Registrar;
+  DenseMap<MaterializationResponsibility *, EHFrameRange> InProcessLinks;
+  DenseMap<VModuleKey, EHFrameRange> TrackedEHFrameRanges;
+  std::vector<EHFrameRange> UntrackedEHFrameRanges;
 };
 
 } // end namespace orc

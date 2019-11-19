@@ -95,7 +95,7 @@ class AtomicScopeOpenCLModel : public AtomicScopeModel {
 public:
   /// The enum values match the pre-defined macros
   /// __OPENCL_MEMORY_SCOPE_*, which are used to define memory_scope_*
-  /// enums in opencl-c.h.
+  /// enums in opencl-c-base.h.
   enum ID {
     WorkGroup = 1,
     Device = 2,
@@ -144,7 +144,7 @@ AtomicScopeModel::create(AtomicScopeModelKind K) {
   case AtomicScopeModelKind::None:
     return std::unique_ptr<AtomicScopeModel>{};
   case AtomicScopeModelKind::OpenCL:
-    return llvm::make_unique<AtomicScopeOpenCLModel>();
+    return std::make_unique<AtomicScopeOpenCLModel>();
   }
   llvm_unreachable("Invalid atomic scope model kind");
 }

@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef __SYCL_DEVICE_ONLY__
-#define __global
-#endif
-
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 
 // Dummy runtime classes to model SYCL API.
@@ -23,6 +19,10 @@ class sampler {
 
 public:
   void use(void) const {}
+};
+
+template <int dimensions = 1>
+class group {
 };
 
 namespace access {
@@ -137,7 +137,7 @@ public:
   _ImplT<dimensions> impl;
 
 private:
-  void __init(__global dataT *Ptr, range<dimensions> AccessRange,
+  void __init(__attribute__((ocl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
 };
 

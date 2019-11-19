@@ -41,10 +41,12 @@
 
 #include "SPIRVInternal.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Path.h"
 
 #include <functional>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 using namespace SPIRV;
 using namespace llvm;
@@ -62,6 +64,18 @@ enum OCLMemFenceKind {
   OCLMF_Local = 1,
   OCLMF_Global = 2,
   OCLMF_Image = 4,
+};
+
+// This enum declares extra constants for OpenCL mem_fence flag. It includes
+// combinations of local/global/image flags.
+enum OCLMemFenceExtendedKind {
+  OCLMFEx_Local = OCLMF_Local,
+  OCLMFEx_Global = OCLMF_Global,
+  OCLMFEx_Local_Global = OCLMF_Global | OCLMF_Local,
+  OCLMFEx_Image = OCLMF_Image,
+  OCLMFEx_Image_Local = OCLMF_Image | OCLMF_Local,
+  OCLMFEx_Image_Global = OCLMF_Image | OCLMF_Global,
+  OCLMFEx_Image_Local_Global = OCLMF_Image | OCLMF_Global | OCLMF_Local,
 };
 
 enum OCLScopeKind {
@@ -93,6 +107,9 @@ enum OCLMemOrderKind {
 
 typedef SPIRVMap<OCLMemFenceKind, MemorySemanticsMask> OCLMemFenceMap;
 
+typedef SPIRVMap<OCLMemFenceExtendedKind, MemorySemanticsMask>
+    OCLMemFenceExtendedMap;
+
 typedef SPIRVMap<OCLMemOrderKind, unsigned, MemorySemanticsMask> OCLMemOrderMap;
 
 typedef SPIRVMap<OCLScopeKind, Scope> OCLMemScopeMap;
@@ -104,6 +121,9 @@ typedef SPIRVMap<std::string, SPIRVFPRoundingModeKind>
     SPIRSPIRVFPRoundingModeMap;
 
 typedef SPIRVMap<std::string, Op, SPIRVInstruction> OCLSPIRVBuiltinMap;
+
+class OCL12Builtin;
+typedef SPIRVMap<std::string, Op, OCL12Builtin> OCL12SPIRVBuiltinMap;
 
 typedef SPIRVMap<std::string, SPIRVBuiltinVariableKind>
     SPIRSPIRVBuiltinVariableMap;
@@ -163,6 +183,7 @@ const static char Dot[] = "dot";
 const static char EnqueueKernel[] = "enqueue_kernel";
 const static char FMax[] = "fmax";
 const static char FMin[] = "fmin";
+const static char FPGARegIntel[] = "__builtin_intel_fpga_reg";
 const static char GetFence[] = "get_fence";
 const static char GetImageArraySize[] = "get_image_array_size";
 const static char GetImageChannelOrder[] = "get_image_channel_order";
@@ -302,6 +323,9 @@ BarrierLiterals getBarrierLiterals(CallInst *CI);
 /// Get number of memory order arguments for atomic builtin function.
 size_t getAtomicBuiltinNumMemoryOrderArgs(StringRef Name);
 
+/// Get number of memory order arguments for spirv atomic builtin function.
+size_t getSPIRVAtomicBuiltinNumMemoryOrderArgs(Op OC);
+
 /// Return true for OpenCL builtins which do compute operations
 /// (like add, sub, min, max, inc, dec, ...) atomically
 bool isComputeAtomicOCLBuiltin(StringRef DemangledName);
@@ -334,7 +358,7 @@ template <typename T> std::string getFullPath(const T *Scope) {
   if (sys::path::is_absolute(Filename))
     return Filename;
   SmallString<16> DirName = Scope->getDirectory();
-  sys::path::append(DirName, Filename);
+  sys::path::append(DirName, sys::path::Style::posix, Filename);
   return DirName.str().str();
 }
 
@@ -392,7 +416,7 @@ bool isPipeStorageInitializer(Instruction *Inst);
 /// Check (isSamplerInitializer || isPipeStorageInitializer)
 bool isSpecialTypeInitializer(Instruction *Inst);
 
-bool isPipeBI(const StringRef MangledName);
+bool isPipeOrAddressSpaceCastBI(const StringRef MangledName);
 bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
 
@@ -403,6 +427,13 @@ bool isSamplerTy(Type *Ty);
 // If so, it applies ContractionOff ExecutionMode to the kernel.
 void checkFpContract(BinaryOperator *B, SPIRVBasicBlock *BB);
 
+template <typename T> std::string toString(const T *Object) {
+  std::string S;
+  llvm::raw_string_ostream RSOS(S);
+  Object->print(RSOS);
+  RSOS.flush();
+  return S;
+}
 } // namespace OCLUtil
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -420,6 +451,22 @@ template <> inline void SPIRVMap<OCLMemFenceKind, MemorySemanticsMask>::init() {
 }
 
 template <>
+inline void SPIRVMap<OCLMemFenceExtendedKind, MemorySemanticsMask>::init() {
+  add(OCLMFEx_Local, MemorySemanticsWorkgroupMemoryMask);
+  add(OCLMFEx_Global, MemorySemanticsCrossWorkgroupMemoryMask);
+  add(OCLMFEx_Local_Global, MemorySemanticsWorkgroupMemoryMask |
+                                MemorySemanticsCrossWorkgroupMemoryMask);
+  add(OCLMFEx_Image, MemorySemanticsImageMemoryMask);
+  add(OCLMFEx_Image_Local,
+      MemorySemanticsWorkgroupMemoryMask | MemorySemanticsImageMemoryMask);
+  add(OCLMFEx_Image_Global,
+      MemorySemanticsCrossWorkgroupMemoryMask | MemorySemanticsImageMemoryMask);
+  add(OCLMFEx_Image_Local_Global, MemorySemanticsWorkgroupMemoryMask |
+                                      MemorySemanticsCrossWorkgroupMemoryMask |
+                                      MemorySemanticsImageMemoryMask);
+}
+
+template <>
 inline void SPIRVMap<OCLMemOrderKind, unsigned, MemorySemanticsMask>::init() {
   add(OCLMO_relaxed, MemorySemanticsMaskNone);
   add(OCLMO_acquire, MemorySemanticsAcquireMask);
@@ -434,6 +481,58 @@ template <> inline void SPIRVMap<OCLScopeKind, Scope>::init() {
   add(OCLMS_device, ScopeDevice);
   add(OCLMS_all_svm_devices, ScopeCrossDevice);
   add(OCLMS_sub_group, ScopeSubgroup);
+}
+
+template <class KeyTy, class ValTy, class Identifier = void>
+Instruction *
+getOrCreateSwitchFunc(StringRef MapName, Value *V,
+                      const SPIRVMap<KeyTy, ValTy, Identifier> &Map,
+                      bool IsReverse, Optional<int> DefaultCase,
+                      Instruction *InsertPoint, Module *M, int KeyMask = 0) {
+  static_assert(std::is_convertible<KeyTy, int>::value &&
+                    std::is_convertible<ValTy, int>::value,
+                "Can map only integer values");
+  Type *Ty = V->getType();
+  assert(Ty && Ty->isIntegerTy() && "Can't map non-integer types");
+  Function *F = getOrCreateFunction(M, Ty, Ty, MapName);
+  if (!F->empty()) // The switch function already exists. just call it.
+    return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
+
+  F->setLinkage(GlobalValue::PrivateLinkage);
+
+  LLVMContext &Ctx = M->getContext();
+  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
+  IRBuilder<> IRB(BB);
+  SwitchInst *SI;
+  F->arg_begin()->setName("key");
+  if (KeyMask) {
+    Value *MaskV = ConstantInt::get(Type::getInt32Ty(Ctx), KeyMask);
+    Value *NewKey = IRB.CreateAnd(MaskV, F->arg_begin());
+    NewKey->setName("key.masked");
+    SI = IRB.CreateSwitch(NewKey, BB);
+  } else {
+    SI = IRB.CreateSwitch(F->arg_begin(), BB);
+  }
+
+  if (!DefaultCase) {
+    BasicBlock *DefaultBB = BasicBlock::Create(Ctx, "default", F);
+    IRBuilder<> DefaultIRB(DefaultBB);
+    DefaultIRB.CreateUnreachable();
+    SI->setDefaultDest(DefaultBB);
+  }
+
+  Map.foreach ([&](int Key, int Val) {
+    if (IsReverse)
+      std::swap(Key, Val);
+    BasicBlock *CaseBB = BasicBlock::Create(Ctx, "case." + Twine(Key), F);
+    IRBuilder<> CaseIRB(CaseBB);
+    CaseIRB.CreateRet(CaseIRB.getInt32(Val));
+    SI->addCase(IRB.getInt32(Key), CaseBB);
+    if (Key == DefaultCase)
+      SI->setDefaultDest(CaseBB);
+  });
+  assert(SI->getDefaultDest() != BB && "Invalid default destination in switch");
+  return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
 }
 
 template <> inline void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
@@ -576,6 +675,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(signbit, SignBitSet)
   _SPIRV_OP(any, Any)
   _SPIRV_OP(all, All)
+  _SPIRV_OP(popcount, BitCount)
   _SPIRV_OP(get_fence, GenericPtrMemSemantics)
   // CL 2.0 kernel enqueue builtins
   _SPIRV_OP(enqueue_marker, EnqueueMarker)
@@ -601,12 +701,11 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(to_global, GenericCastToPtrExplicit)
   _SPIRV_OP(to_local, GenericCastToPtrExplicit)
   _SPIRV_OP(to_private, GenericCastToPtrExplicit)
-  _SPIRV_OP(work_group_barrier, ControlBarrier)
   // CL 2.0 pipe builtins
   _SPIRV_OP(read_pipe_2, ReadPipe)
   _SPIRV_OP(write_pipe_2, WritePipe)
-  _SPIRV_OP(read_pipe_bl_2, ReadPipeBlockingINTEL)
-  _SPIRV_OP(write_pipe_bl_2, WritePipeBlockingINTEL)
+  _SPIRV_OP(read_pipe_2_bl, ReadPipeBlockingINTEL)
+  _SPIRV_OP(write_pipe_2_bl, WritePipeBlockingINTEL)
   _SPIRV_OP(read_pipe_4, ReservedReadPipe)
   _SPIRV_OP(write_pipe_4, ReservedWritePipe)
   _SPIRV_OP(reserve_read_pipe, ReserveReadPipePackets)
@@ -648,6 +747,22 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(intel_sub_group_shuffle_down, SubgroupShuffleDownINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_up, SubgroupShuffleUpINTEL)
   _SPIRV_OP(intel_sub_group_shuffle_xor, SubgroupShuffleXorINTEL)
+#undef _SPIRV_OP
+}
+
+template <> inline void SPIRVMap<std::string, Op, OCL12Builtin>::init() {
+#define _SPIRV_OP(x, y) add(#x, Op##y);
+  _SPIRV_OP(add, AtomicIAdd)
+  _SPIRV_OP(sub, AtomicISub)
+  _SPIRV_OP(xchg, AtomicExchange)
+  _SPIRV_OP(cmpxchg, AtomicCompareExchange)
+  _SPIRV_OP(inc, AtomicIIncrement)
+  _SPIRV_OP(dec, AtomicIDecrement)
+  _SPIRV_OP(min, AtomicSMin)
+  _SPIRV_OP(max, AtomicSMax)
+  _SPIRV_OP(and, AtomicAnd)
+  _SPIRV_OP(or, AtomicOr)
+  _SPIRV_OP(xor, AtomicXor)
 #undef _SPIRV_OP
 }
 

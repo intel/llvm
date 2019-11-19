@@ -38,8 +38,8 @@
 #define signature_TM2_ecx 0x3638784d
 /* NSC:     "Geode by NSC" */
 #define signature_NSC_ebx 0x646f6547
-#define signature_NSC_edx 0x43534e20
-#define signature_NSC_ecx 0x79622065
+#define signature_NSC_edx 0x79622065
+#define signature_NSC_ecx 0x43534e20
 /* NEXGEN:  "NexGenDriven" */
 #define signature_NEXGEN_ebx 0x4778654e
 #define signature_NEXGEN_edx 0x72446e65
@@ -177,6 +177,7 @@
 #define bit_CLDEMOTE         0x02000000
 #define bit_MOVDIRI          0x08000000
 #define bit_MOVDIR64B        0x10000000
+#define bit_ENQCMD           0x20000000
 
 /* Features in %edx for leaf 7 sub-leaf 0 */
 #define bit_AVX5124VNNIW  0x00000004

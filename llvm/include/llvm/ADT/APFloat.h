@@ -147,6 +147,17 @@ struct APFloatBase {
 
   /// \name Floating Point Semantics.
   /// @{
+  enum Semantics {
+    S_IEEEhalf,
+    S_IEEEsingle,
+    S_IEEEdouble,
+    S_x87DoubleExtended,
+    S_IEEEquad,
+    S_PPCDoubleDouble
+  };
+
+  static const llvm::fltSemantics &EnumToSemantics(Semantics S);
+  static Semantics SemanticsToEnum(const llvm::fltSemantics &Sem);
 
   static const fltSemantics &IEEEhalf() LLVM_READNONE;
   static const fltSemantics &IEEEsingle() LLVM_READNONE;
@@ -181,6 +192,11 @@ struct APFloatBase {
   /// IEEE-754R 7: Default exception handling.
   ///
   /// opUnderflow or opOverflow are always returned or-ed with opInexact.
+  ///
+  /// APFloat models this behavior specified by IEEE-754:
+  ///   "For operations producing results in floating-point format, the default
+  ///    result of an operation that signals the invalid operation exception
+  ///    shall be a quiet NaN."
   enum opStatus {
     opOK = 0x00,
     opInvalidOp = 0x01,

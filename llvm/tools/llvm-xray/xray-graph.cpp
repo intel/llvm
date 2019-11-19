@@ -436,9 +436,7 @@ Expected<GraphRenderer> GraphRenderer::Factory::getGraphRenderer() {
 
   const auto &FunctionAddresses = Map.getFunctionAddresses();
 
-  symbolize::LLVMSymbolizer::Options Opts(
-      symbolize::FunctionNameKind::LinkageName, true, true, false, "");
-  symbolize::LLVMSymbolizer Symbolizer(Opts);
+  symbolize::LLVMSymbolizer Symbolizer;
   const auto &Header = Trace.getFileHeader();
 
   llvm::xray::FuncIdConversionHelper FuncIdHelper(InstrMap, Symbolizer,
@@ -508,7 +506,7 @@ static CommandRegistration Unused(&GraphC, []() -> Error {
   auto &GR = *GROrError;
 
   std::error_code EC;
-  raw_fd_ostream OS(GraphOutput, EC, sys::fs::OpenFlags::F_Text);
+  raw_fd_ostream OS(GraphOutput, EC, sys::fs::OpenFlags::OF_Text);
   if (EC)
     return make_error<StringError>(
         Twine("Cannot open file '") + GraphOutput + "' for writing.", EC);

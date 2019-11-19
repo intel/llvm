@@ -19,6 +19,7 @@ set(SOURCES
   CXString.cpp
   CXType.cpp
   Indexing.cpp
+  FatalErrorHandler.cpp
 
   ADDITIONAL_HEADERS
   CIndexDiagnostic.h
@@ -43,6 +44,7 @@ set(LIBS
   clangSema
   clangSerialization
   clangTooling
+  LLVMSupport
 )
 
 if (CLANG_ENABLE_ARCMT)
@@ -89,10 +91,18 @@ else()
   set(output_name "clang")
 endif()
 
-add_clang_library(libclang ${ENABLE_SHARED} ${ENABLE_STATIC}
+# libclang requires headers which need _ALL_SOURCE to build on AIX
+if (UNIX AND ${CMAKE_SYSTEM_NAME} MATCHES "AIX")
+    remove_definitions("-D_XOPEN_SOURCE=700")
+endif()
+
+add_clang_library(libclang ${ENABLE_SHARED} ${ENABLE_STATIC} INSTALL_WITH_TOOLCHAIN
   OUTPUT_NAME ${output_name}
   ${SOURCES}
-  DEPENDS clang-resource-headers
+
+  DEPENDS
+  ClangDriverOptions
+  clang-resource-headers
 
   LINK_LIBS
   ${LIBS}

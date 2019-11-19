@@ -335,30 +335,23 @@ bool SPIRVEntry::hasMemberDecorate(Decoration Kind, size_t Index,
   return true;
 }
 
-std::string SPIRVEntry::getDecorationStringLiteral(Decoration Kind) const {
-  std::vector<SPIRVWord> Literals;
+std::vector<std::string>
+SPIRVEntry::getDecorationStringLiteral(Decoration Kind) const {
   auto Loc = Decorates.find(Kind);
   if (Loc == Decorates.end())
-    return std::string();
+    return {};
 
-  for (SPIRVWord I = 0; I < Loc->second->getLiteralCount(); ++I)
-    Literals.push_back(Loc->second->getLiteral(I));
-
-  return getString(Literals.cbegin(), Literals.cend());
+  return getVecString(Loc->second->getVecLiteral());
 }
 
-std::string
+std::vector<std::string>
 SPIRVEntry::getMemberDecorationStringLiteral(Decoration Kind,
                                              SPIRVWord MemberNumber) const {
-  std::vector<SPIRVWord> Literals;
   auto Loc = MemberDecorates.find({MemberNumber, Kind});
   if (Loc == MemberDecorates.end())
-    return std::string();
+    return {};
 
-  for (SPIRVWord I = 0; I < Loc->second->getLiteralCount(); ++I)
-    Literals.push_back(Loc->second->getLiteral(I));
-
-  return getString(Literals.cbegin(), Literals.cend());
+  return getVecString(Loc->second->getVecLiteral());
 }
 
 // Get literals of all decorations of Kind at Index.

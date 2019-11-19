@@ -50,6 +50,7 @@
 #include "lldb/lldb-private.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/Support/VersionTuple.h"
 
 namespace lldb_private {
@@ -670,8 +671,8 @@ public:
   // The default action is to return an empty data buffer.
   //
   // \return
-  //    A data buffer containing the contents of the AUXV data.
-  virtual const lldb::DataBufferSP GetAuxvData();
+  //    A data extractor containing the contents of the AUXV data.
+  virtual DataExtractor GetAuxvData();
 
   /// Sometimes processes know how to retrieve and load shared libraries. This
   /// is normally done by DynamicLoader plug-ins, but sometimes the connection
@@ -680,10 +681,19 @@ public:
   /// shared library load state.
   ///
   /// \return
-  ///    The number of shared libraries that were loaded
-  virtual size_t LoadModules() { return 0; }
+  ///    A status object indicating if the operation was sucessful or not.
+  virtual llvm::Error LoadModules() {
+    return llvm::make_error<llvm::StringError>("Not implemented.",
+                                               llvm::inconvertibleErrorCode());
+  }
 
-  virtual size_t LoadModules(LoadedModuleInfoList &) { return 0; }
+  /// Query remote GDBServer for a detailed loaded library list
+  /// \return
+  ///    The list of modules currently loaded by the process, or an error.
+  virtual llvm::Expected<LoadedModuleInfoList> GetLoadedModuleList() {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Not implemented");
+  }
 
 protected:
   virtual JITLoaderList &GetJITLoaders();
@@ -1185,6 +1195,9 @@ public:
   ///     Returns the version tuple of the host OS. In case of failure an empty
   ///     VersionTuple is returner.
   virtual llvm::VersionTuple GetHostOSVersion() { return llvm::VersionTuple(); }
+
+  /// \return the macCatalyst version of the host OS.
+  virtual llvm::VersionTuple GetHostMacCatalystVersion() { return {}; }
 
   /// Get the target object pointer for this module.
   ///
@@ -2184,8 +2197,6 @@ public:
   LanguageRuntime *GetLanguageRuntime(lldb::LanguageType language,
                                       bool retry_if_null = true);
 
-  ObjCLanguageRuntime *GetObjCLanguageRuntime(bool retry_if_null = true);
-
   bool IsPossibleDynamicValue(ValueObject &in_value);
 
   bool IsRunning() const;
@@ -2261,6 +2272,8 @@ public:
   void ClearPreResumeAction(PreResumeActionCallback callback, void *baton);
 
   ProcessRunLock &GetRunLock();
+  
+  bool CurrentThreadIsPrivateStateThread();
 
   virtual Status SendEventData(const char *data) {
     Status return_error("Sending an event is not supported for this process.");
@@ -2454,6 +2467,11 @@ public:
   virtual Status GetTraceConfig(lldb::user_id_t uid, TraceOptions &options) {
     return Status("Not implemented");
   }
+
+  // This calls a function of the form "void * (*)(void)".
+  bool CallVoidArgVoidPtrReturn(const Address *address,
+                                lldb::addr_t &returned_func,
+                                bool trap_exceptions = false);
 
 protected:
   void SetState(lldb::EventSP &event_sp);
@@ -2734,7 +2752,7 @@ protected:
   enum { eCanJITDontKnow = 0, eCanJITYes, eCanJITNo } m_can_jit;
   
   std::unique_ptr<UtilityFunction> m_dlopen_utility_func_up;
-  std::once_flag m_dlopen_utility_func_flag_once;
+  llvm::once_flag m_dlopen_utility_func_flag_once;
 
   size_t RemoveBreakpointOpcodesFromBuffer(lldb::addr_t addr, size_t size,
                                            uint8_t *buf) const;

@@ -746,7 +746,7 @@ Constant *llvm::ConstantFoldSelectInstruction(Constant *Cond,
                                                     ConstantInt::get(Ty, i));
       Constant *V2Element = ConstantExpr::getExtractElement(V2,
                                                     ConstantInt::get(Ty, i));
-      Constant *Cond = dyn_cast<Constant>(CondV->getOperand(i));
+      auto *Cond = cast<Constant>(CondV->getOperand(i));
       if (V1Element == V2Element) {
         V = V1Element;
       } else if (isa<UndefValue>(Cond)) {
@@ -787,21 +787,41 @@ Constant *llvm::ConstantFoldSelectInstruction(Constant *Cond,
 
 Constant *llvm::ConstantFoldExtractElementInstruction(Constant *Val,
                                                       Constant *Idx) {
-  if (isa<UndefValue>(Val))  // ee(undef, x) -> undef
-    return UndefValue::get(Val->getType()->getVectorElementType());
-  if (Val->isNullValue())  // ee(zero, x) -> zero
-    return Constant::getNullValue(Val->getType()->getVectorElementType());
-  // ee({w,x,y,z}, undef) -> undef
-  if (isa<UndefValue>(Idx))
+  // extractelt undef, C -> undef
+  // extractelt C, undef -> undef
+  if (isa<UndefValue>(Val) || isa<UndefValue>(Idx))
     return UndefValue::get(Val->getType()->getVectorElementType());
 
-  if (ConstantInt *CIdx = dyn_cast<ConstantInt>(Idx)) {
-    // ee({w,x,y,z}, wrong_value) -> undef
-    if (CIdx->uge(Val->getType()->getVectorNumElements()))
-      return UndefValue::get(Val->getType()->getVectorElementType());
-    return Val->getAggregateElement(CIdx->getZExtValue());
+  auto *CIdx = dyn_cast<ConstantInt>(Idx);
+  if (!CIdx)
+    return nullptr;
+
+  // ee({w,x,y,z}, wrong_value) -> undef
+  if (CIdx->uge(Val->getType()->getVectorNumElements()))
+    return UndefValue::get(Val->getType()->getVectorElementType());
+
+  // ee (gep (ptr, idx0, ...), idx) -> gep (ee (ptr, idx), ee (idx0, idx), ...)
+  if (auto *CE = dyn_cast<ConstantExpr>(Val)) {
+    if (CE->getOpcode() == Instruction::GetElementPtr) {
+      SmallVector<Constant *, 8> Ops;
+      Ops.reserve(CE->getNumOperands());
+      for (unsigned i = 0, e = CE->getNumOperands(); i != e; ++i) {
+        Constant *Op = CE->getOperand(i);
+        if (Op->getType()->isVectorTy()) {
+          Constant *ScalarOp = ConstantExpr::getExtractElement(Op, Idx);
+          if (!ScalarOp)
+            return  nullptr;
+          Ops.push_back(ScalarOp);
+        } else
+          Ops.push_back(Op);
+      }
+      return CE->getWithOperands(Ops, CE->getType()->getVectorElementType(),
+                                 false,
+                                 Ops[0]->getType()->getPointerElementType());
+    }
   }
-  return nullptr;
+
+  return Val->getAggregateElement(CIdx);
 }
 
 Constant *llvm::ConstantFoldInsertElementInstruction(Constant *Val,
@@ -921,43 +941,50 @@ Constant *llvm::ConstantFoldInsertValueInstruction(Constant *Agg,
 Constant *llvm::ConstantFoldUnaryInstruction(unsigned Opcode, Constant *C) {
   assert(Instruction::isUnaryOp(Opcode) && "Non-unary instruction detected");
 
-  // Handle scalar UndefValue. Vectors are always evaluated per element.
-  bool HasScalarUndef = !C->getType()->isVectorTy() && isa<UndefValue>(C);
+  switch (static_cast<Instruction::UnaryOps>(Opcode)) {
+  case Instruction::FNeg: {
+    // Handle scalar UndefValue. Vectors are always evaluated per element.
+    bool HasScalarUndef = !C->getType()->isVectorTy() && isa<UndefValue>(C);
 
-  if (HasScalarUndef) {
-    switch (static_cast<Instruction::UnaryOps>(Opcode)) {
-    case Instruction::FNeg:
+    if (HasScalarUndef) {
       return C; // -undef -> undef
-    case Instruction::UnaryOpsEnd:
-      llvm_unreachable("Invalid UnaryOp");
     }
-  }
 
-  // Constant should not be UndefValue, unless these are vector constants.
-  assert(!HasScalarUndef && "Unexpected UndefValue");
-  // We only have FP UnaryOps right now.
-  assert(!isa<ConstantInt>(C) && "Unexpected Integer UnaryOp");
+    // Constant should not be UndefValue, unless these are vector constants.
+    assert(!HasScalarUndef && "Unexpected UndefValue");
+    assert(!isa<ConstantInt>(C) && "Unexpected Integer UnaryOp");
 
-  if (ConstantFP *CFP = dyn_cast<ConstantFP>(C)) {
-    const APFloat &CV = CFP->getValueAPF();
-    switch (Opcode) {
-    default:
-      break;
-    case Instruction::FNeg:
+    if (ConstantFP *CFP = dyn_cast<ConstantFP>(C)) {
+      const APFloat &CV = CFP->getValueAPF();
       return ConstantFP::get(C->getContext(), neg(CV));
-    }
-  } else if (VectorType *VTy = dyn_cast<VectorType>(C->getType())) {
-    // Fold each element and create a vector constant from those constants.
-    SmallVector<Constant*, 16> Result;
-    Type *Ty = IntegerType::get(VTy->getContext(), 32);
-    for (unsigned i = 0, e = VTy->getNumElements(); i != e; ++i) {
-      Constant *ExtractIdx = ConstantInt::get(Ty, i);
-      Constant *Elt = ConstantExpr::getExtractElement(C, ExtractIdx);
+    } else if (VectorType *VTy = dyn_cast<VectorType>(C->getType())) {
+      // Fold each element and create a vector constant from those constants.
+      SmallVector<Constant*, 16> Result;
+      Type *Ty = IntegerType::get(VTy->getContext(), 32);
+      for (unsigned i = 0, e = VTy->getNumElements(); i != e; ++i) {
+        Constant *ExtractIdx = ConstantInt::get(Ty, i);
+        Constant *Elt = ConstantExpr::getExtractElement(C, ExtractIdx);
 
-      Result.push_back(ConstantExpr::get(Opcode, Elt));
-    }
+        Result.push_back(ConstantExpr::get(Opcode, Elt));
+      }
 
-    return ConstantVector::get(Result);
+      return ConstantVector::get(Result);
+    }
+    break;
+  }
+  case Instruction::Freeze: {
+    if (ConstantFP *CFP = dyn_cast<ConstantFP>(C)) {
+      return CFP;
+    } else if (ConstantInt *CINT = dyn_cast<ConstantInt>(C)) {
+      return CINT;
+    } else if (GlobalVariable *GV = dyn_cast<GlobalVariable>(C)) {
+      // A global variable is neither undef nor poison.
+      return GV;
+    }
+    break;
+  }
+  case Instruction::UnaryOpsEnd:
+    llvm_unreachable("Invalid UnaryOp");
   }
 
   // We don't know how to fold this.
@@ -1125,7 +1152,7 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
             isa<GlobalValue>(CE1->getOperand(0))) {
           GlobalValue *GV = cast<GlobalValue>(CE1->getOperand(0));
 
-          unsigned GVAlign;
+          MaybeAlign GVAlign;
 
           if (Module *TheModule = GV->getParent()) {
             GVAlign = GV->getPointerAlignment(TheModule->getDataLayout());
@@ -1139,19 +1166,19 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
             // increased code size (see https://reviews.llvm.org/D55115)
             // FIXME: This code should be deleted once existing targets have
             // appropriate defaults
-            if (GVAlign == 0U && isa<Function>(GV))
-              GVAlign = 4U;
+            if (!GVAlign && isa<Function>(GV))
+              GVAlign = Align(4);
           } else if (isa<Function>(GV)) {
             // Without a datalayout we have to assume the worst case: that the
             // function pointer isn't aligned at all.
-            GVAlign = 0U;
+            GVAlign = llvm::None;
           } else {
-            GVAlign = GV->getAlignment();
+            GVAlign = MaybeAlign(GV->getAlignment());
           }
 
-          if (GVAlign > 1) {
+          if (GVAlign && *GVAlign > 1) {
             unsigned DstWidth = CI2->getType()->getBitWidth();
-            unsigned SrcWidth = std::min(DstWidth, Log2_32(GVAlign));
+            unsigned SrcWidth = std::min(DstWidth, Log2(*GVAlign));
             APInt BitsNotSet(APInt::getLowBitsSet(DstWidth, SrcWidth));
 
             // If checking bits we know are clear, return zero.

@@ -1293,16 +1293,16 @@ static Value *HandleByValArgument(Value *Arg, Instruction *TheCall,
   }
 
   // Create the alloca.  If we have DataLayout, use nice alignment.
-  unsigned Align = DL.getPrefTypeAlignment(AggTy);
+  Align Alignment(DL.getPrefTypeAlignment(AggTy));
 
   // If the byval had an alignment specified, we *must* use at least that
   // alignment, as it is required by the byval argument (and uses of the
   // pointer inside the callee).
-  Align = std::max(Align, ByValAlignment);
+  Alignment = max(Alignment, MaybeAlign(ByValAlignment));
 
-  Value *NewAlloca = new AllocaInst(AggTy, DL.getAllocaAddrSpace(),
-                                    nullptr, Align, Arg->getName(),
-                                    &*Caller->begin()->begin());
+  Value *NewAlloca =
+      new AllocaInst(AggTy, DL.getAllocaAddrSpace(), nullptr, Alignment,
+                     Arg->getName(), &*Caller->begin()->begin());
   IFI.StaticAllocas.push_back(cast<AllocaInst>(NewAlloca));
 
   // Uses of the argument in the function should use our new alloca
@@ -1405,6 +1405,10 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
   // other.
   DenseMap<const MDNode *, MDNode *> IANodes;
 
+  // Check if we are not generating inline line tables and want to use
+  // the call site location instead.
+  bool NoInlineLineTables = Fn->hasFnAttribute("no-inline-line-tables");
+
   for (; FI != Fn->end(); ++FI) {
     for (BasicBlock::iterator BI = FI->begin(), BE = FI->end();
          BI != BE; ++BI) {
@@ -1416,20 +1420,22 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
         BI->setMetadata(LLVMContext::MD_loop, NewLoopID);
       }
 
-      if (DebugLoc DL = BI->getDebugLoc()) {
-        DebugLoc IDL =
-            inlineDebugLoc(DL, InlinedAtNode, BI->getContext(), IANodes);
-        BI->setDebugLoc(IDL);
-        continue;
-      }
+      if (!NoInlineLineTables)
+        if (DebugLoc DL = BI->getDebugLoc()) {
+          DebugLoc IDL =
+              inlineDebugLoc(DL, InlinedAtNode, BI->getContext(), IANodes);
+          BI->setDebugLoc(IDL);
+          continue;
+        }
 
-      if (CalleeHasDebugInfo)
+      if (CalleeHasDebugInfo && !NoInlineLineTables)
         continue;
 
-      // If the inlined instruction has no line number, make it look as if it
-      // originates from the call location. This is important for
-      // ((__always_inline__, __nodebug__)) functions which must use caller
-      // location for all instructions in their function body.
+      // If the inlined instruction has no line number, or if inline info
+      // is not being generated, make it look as if it originates from the call
+      // location. This is important for ((__always_inline, __nodebug__))
+      // functions which must use caller location for all instructions in their
+      // function body.
 
       // Don't update static allocas, as they may get moved later.
       if (auto *AI = dyn_cast<AllocaInst>(BI))
@@ -1438,6 +1444,19 @@ static void fixupLineNumbers(Function *Fn, Function::iterator FI,
 
       BI->setDebugLoc(TheCallDL);
     }
+
+    // Remove debug info intrinsics if we're not keeping inline info.
+    if (NoInlineLineTables) {
+      BasicBlock::iterator BI = FI->begin();
+      while (BI != FI->end()) {
+        if (isa<DbgInfoIntrinsic>(BI)) {
+          BI = BI->eraseFromParent();
+          continue;
+        }
+        ++BI;
+      }
+    }
+
   }
 }
 
@@ -1499,7 +1518,7 @@ void llvm::updateProfileCallee(
     return;
 
   uint64_t priorEntryCount = CalleeCount.getCount();
-  uint64_t newEntryCount = priorEntryCount;
+  uint64_t newEntryCount;
 
   // Since CallSiteCount is an estimate, it could exceed the original callee
   // count and has to be set to 0 so guard against underflow.
@@ -1507,8 +1526,6 @@ void llvm::updateProfileCallee(
     newEntryCount = 0;
   else
     newEntryCount = priorEntryCount + entryDelta;
-
-  Callee->setEntryCount(newEntryCount);
 
   // During inlining ?
   if (VMap) {
@@ -1518,12 +1535,17 @@ void llvm::updateProfileCallee(
         if (auto *CI = dyn_cast_or_null<CallInst>(Entry.second))
           CI->updateProfWeight(cloneEntryCount, priorEntryCount);
   }
-  for (BasicBlock &BB : *Callee)
-    // No need to update the callsite if it is pruned during inlining.
-    if (!VMap || VMap->count(&BB))
-      for (Instruction &I : BB)
-        if (CallInst *CI = dyn_cast<CallInst>(&I))
-          CI->updateProfWeight(newEntryCount, priorEntryCount);
+
+  if (entryDelta) {
+    Callee->setEntryCount(newEntryCount);
+
+    for (BasicBlock &BB : *Callee)
+      // No need to update the callsite if it is pruned during inlining.
+      if (!VMap || VMap->count(&BB))
+        for (Instruction &I : BB)
+          if (CallInst *CI = dyn_cast<CallInst>(&I))
+            CI->updateProfWeight(newEntryCount, priorEntryCount);
+  }
 }
 
 /// This function inlines the called function into the basic block of the
@@ -1842,6 +1864,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
       // Scan for the block of allocas that we can move over, and move them
       // all at once.
       while (isa<AllocaInst>(I) &&
+             !cast<AllocaInst>(I)->use_empty() &&
              allocaWouldBeStaticInEntry(cast<AllocaInst>(I))) {
         IFI.StaticAllocas.push_back(cast<AllocaInst>(I));
         ++I;

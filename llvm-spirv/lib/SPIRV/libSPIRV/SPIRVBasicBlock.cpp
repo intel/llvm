@@ -70,7 +70,8 @@ SPIRVBasicBlock::addInstruction(SPIRVInstruction *I,
     // If insertion of a new instruction before the one passed to the function
     // is illegal, insertion before the returned instruction is guaranteed
     // to retain correct instruction order in a block
-    if (Pos != InstVec.begin() && isa<OpLoopMerge>(*std::prev(Pos)))
+    if (Pos != InstVec.begin() && (isa<OpLoopMerge>(*std::prev(Pos)) ||
+                                   isa<OpLoopControlINTEL>(*std::prev(Pos))))
       --Pos;
     InstVec.insert(Pos, I);
   } else

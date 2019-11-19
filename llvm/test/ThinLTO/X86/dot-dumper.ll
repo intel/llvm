@@ -21,7 +21,7 @@
 ; PERMODULE-NEXT:    label = "";
 ; PERMODULE-NEXT:    node [style=filled,fillcolor=lightblue];
 ; PERMODULE-NEXT:    M0_[[MAIN_ALIAS:[0-9]+]] [style="dotted,filled",shape="box",label="main_alias",fillcolor="red"]; // alias, dead
-; PERMODULE-NEXT:    M0_[[MAIN:[0-9]+]] [shape="record",label="main|extern (inst: 4, ffl: 00000)}",fillcolor="red"]; // function, dead
+; PERMODULE-NEXT:    M0_[[MAIN:[0-9]+]] [shape="record",label="main|extern (inst: 4, ffl: 000000)}",fillcolor="red"]; // function, dead
 ; PERMODULE-NEXT:    // Edges:
 ; PERMODULE-NEXT:    M0_[[MAIN_ALIAS]] -> M0_[[MAIN]] [style=dotted]; // alias
 ; PERMODULE-NEXT:  }
@@ -40,7 +40,7 @@
 ; COMBINED-NEXT:    label = "dot-dumper{{.*}}1.bc";
 ; COMBINED-NEXT:    node [style=filled,fillcolor=lightblue];
 ; COMBINED-NEXT:    M0_[[MAIN_ALIAS:[0-9]+]] [style="dotted,filled",shape="box",label="main_alias",fillcolor="red"]; // alias, dead
-; COMBINED-NEXT:    M0_[[MAIN:[0-9]+]] [shape="record",label="main|extern (inst: 4, ffl: 00000)}"]; // function
+; COMBINED-NEXT:    M0_[[MAIN:[0-9]+]] [shape="record",label="main|extern (inst: 4, ffl: 000000)}"]; // function
 ; COMBINED-NEXT:    // Edges:
 ; COMBINED-NEXT:    M0_[[MAIN_ALIAS]] -> M0_[[MAIN]] [style=dotted]; // alias
 ; COMBINED-NEXT:  }
@@ -50,10 +50,10 @@
 ; COMBINED-NEXT:    color = lightgrey;
 ; COMBINED-NEXT:    label = "dot-dumper{{.*}}2.bc";
 ; COMBINED-NEXT:    node [style=filled,fillcolor=lightblue];
-; COMBINED-NEXT:    M1_[[FOO:[0-9]+]] [shape="record",label="foo|extern (inst: 4, ffl: 00001)}"]; // function
+; COMBINED-NEXT:    M1_[[FOO:[0-9]+]] [shape="record",label="foo|extern (inst: 4, ffl: 000010)}"]; // function
 ; COMBINED-NEXT:    M1_[[A:[0-9]+]] [shape="Mrecord",label="A|extern}"]; // variable, immutable
 ; COMBINED-NEXT:    M1_[[B:[0-9]+]] [shape="Mrecord",label="B|extern}"]; // variable, immutable
-; COMBINED-NEXT:    M1_{{[0-9]+}} [shape="record",label="bar|extern (inst: 1, ffl: 00000)}",fillcolor="red"]; // function, dead
+; COMBINED-NEXT:    M1_{{[0-9]+}} [shape="record",label="bar|extern (inst: 1, ffl: 000000)}",fillcolor="red"]; // function, dead
 ; COMBINED-NEXT:    // Edges:
 ; COMBINED-NEXT:    M1_[[FOO]] -> M1_[[B]] [style=dashed,color=forestgreen]; // const-ref
 ; COMBINED-NEXT:    M1_[[FOO]] -> M1_[[A]] [style=dashed,color=forestgreen]; // const-ref
@@ -63,7 +63,7 @@
 ; COMBINED-NEXT:  M0_[[MAIN]] -> M1_[[FOO]] // call (hotness : Unknown)
 ; COMBINED-NEXT: }
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 @A = external local_unnamed_addr global i32, align 4

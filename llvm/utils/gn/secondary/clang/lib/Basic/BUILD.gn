@@ -6,6 +6,7 @@ static_library("Basic") {
     "//clang/include/clang/Basic:AttrList",
     "//clang/include/clang/Basic:AttrSubMatchRulesList",
     "//clang/include/clang/Basic:DiagnosticGroups",
+    "//clang/include/clang/Basic:arm_mve_builtins",
     "//clang/include/clang/Basic:diags_tablegen",
     "//clang/include/clang/Basic:version",
   ]
@@ -34,6 +35,7 @@ static_library("Basic") {
     "FixedPoint.cpp",
     "IdentifierTable.cpp",
     "LangOptions.cpp",
+    "LangStandards.cpp",
     "Module.cpp",
     "ObjCRuntime.cpp",
     "OpenMPKinds.cpp",
@@ -43,6 +45,7 @@ static_library("Basic") {
     "Sanitizers.cpp",
     "SourceLocation.cpp",
     "SourceManager.cpp",
+    "Stack.cpp",
     "TargetInfo.cpp",
     "Targets.cpp",
     "Targets/AArch64.cpp",

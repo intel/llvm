@@ -230,7 +230,7 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  1      24    19.00   *                   divps	(%rax), %xmm2
 # CHECK-NEXT:  1      19    19.00                       divss	%xmm0, %xmm2
 # CHECK-NEXT:  1      24    19.00   *                   divss	(%rax), %xmm2
-# CHECK-NEXT:  1      3     1.00    *      *      U     ldmxcsr	(%rax)
+# CHECK-NEXT:  1      3     1.00    *             U     ldmxcsr	(%rax)
 # CHECK-NEXT:  1      1     0.50    *      *      U     maskmovq	%mm0, %mm1
 # CHECK-NEXT:  1      2     1.00                        maxps	%xmm0, %xmm2
 # CHECK-NEXT:  1      7     1.00    *                   maxps	(%rax), %xmm2
@@ -305,7 +305,7 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  1      26    21.00   *                   sqrtps	(%rax), %xmm2
 # CHECK-NEXT:  1      21    21.00                       sqrtss	%xmm0, %xmm2
 # CHECK-NEXT:  1      26    21.00   *                   sqrtss	(%rax), %xmm2
-# CHECK-NEXT:  1      1     1.00    *      *      U     stmxcsr	(%rax)
+# CHECK-NEXT:  1      1     1.00           *      U     stmxcsr	(%rax)
 # CHECK-NEXT:  1      3     1.00                        subps	%xmm0, %xmm2
 # CHECK-NEXT:  1      8     1.00    *                   subps	(%rax), %xmm2
 # CHECK-NEXT:  1      3     1.00                        subss	%xmm0, %xmm2
@@ -337,7 +337,7 @@ xorps       (%rax), %xmm2
 
 # CHECK:      Resource pressure per iteration:
 # CHECK-NEXT: [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    [10]   [11]   [12]   [13]
-# CHECK-NEXT: 15.00   -      -     47.00  184.00 58.50  66.50  58.00   -     9.00   25.00  9.50   9.50   2.00
+# CHECK-NEXT: 15.00   -      -     46.00  183.00 57.50  65.50  58.00   -     9.00   25.00  9.50   9.50   2.00
 
 # CHECK:      Resource pressure by instruction:
 # CHECK-NEXT: [0]    [1]    [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]    [10]   [11]   [12]   [13]   Instructions:
@@ -389,7 +389,7 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  -      -      -     1.00    -     1.00    -     1.00    -      -      -      -      -      -     minss	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50    -      -      -      -      -      -      -     movaps	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -     1.00   1.00    -      -      -     movaps	%xmm0, (%rax)
-# CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50   1.00    -      -      -      -      -      -     movaps	(%rax), %xmm2
+# CHECK-NEXT:  -      -      -      -      -      -      -     1.00    -      -      -      -      -      -     movaps	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50    -      -      -      -      -      -      -     movhlps	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50    -      -      -      -      -      -      -     movlhps	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -     1.00   1.00    -      -      -     movhps	%xmm0, (%rax)
@@ -404,7 +404,7 @@ xorps       (%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50   1.00    -      -      -      -      -      -     movss	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50    -      -      -      -      -      -      -     movups	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -      -      -      -     1.00    -      -     1.00   1.00    -      -      -     movups	%xmm0, (%rax)
-# CHECK-NEXT:  -      -      -     0.50   0.50   0.50   0.50   1.00    -      -      -      -      -      -     movups	(%rax), %xmm2
+# CHECK-NEXT:  -      -      -      -      -      -      -     1.00    -      -      -      -      -      -     movups	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -      -     1.00    -     1.00    -      -      -      -      -      -      -     mulps	%xmm0, %xmm2
 # CHECK-NEXT:  -      -      -      -     1.00    -     1.00   1.00    -      -      -      -      -      -     mulps	(%rax), %xmm2
 # CHECK-NEXT:  -      -      -      -     1.00    -     1.00    -      -      -      -      -      -      -     mulss	%xmm0, %xmm2

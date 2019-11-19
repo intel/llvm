@@ -48,13 +48,8 @@ int vasprintf(char **ret, const char *fmt, va_list ap) {
   size_t buflen;
   va_list ap2;
 
-#if defined(_MSC_VER) || defined(__MINGW64)
-  ap2 = ap;
-  len = _vscprintf(fmt, ap2);
-#else
   va_copy(ap2, ap);
   len = vsnprintf(NULL, 0, fmt, ap2);
-#endif
 
   if (len >= 0 &&
       (buf = (char *)malloc((buflen = (size_t)(len + 1)))) != NULL) {
@@ -197,11 +192,6 @@ int strcasecmp(const char *s1, const char *s2) { return stricmp(s1, s2); }
 
 int strncasecmp(const char *s1, const char *s2, size_t n) {
   return strnicmp(s1, s2, n);
-}
-
-int usleep(uint32_t useconds) {
-  Sleep(useconds / 1000);
-  return 0;
 }
 
 #if _MSC_VER < 1900

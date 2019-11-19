@@ -10,6 +10,7 @@
 #define LLVM_DEBUGINFO_CODEVIEW_TYPERECORDMAPPING_H
 
 #include "llvm/ADT/Optional.h"
+#include "llvm/DebugInfo/CodeView/CVTypeVisitor.h"
 #include "llvm/DebugInfo/CodeView/CodeViewRecordIO.h"
 #include "llvm/DebugInfo/CodeView/TypeVisitorCallbacks.h"
 #include "llvm/Support/Error.h"
@@ -23,9 +24,11 @@ class TypeRecordMapping : public TypeVisitorCallbacks {
 public:
   explicit TypeRecordMapping(BinaryStreamReader &Reader) : IO(Reader) {}
   explicit TypeRecordMapping(BinaryStreamWriter &Writer) : IO(Writer) {}
+  explicit TypeRecordMapping(CodeViewRecordStreamer &Streamer) : IO(Streamer) {}
 
   using TypeVisitorCallbacks::visitTypeBegin;
   Error visitTypeBegin(CVType &Record) override;
+  Error visitTypeBegin(CVType &Record, TypeIndex Index) override;
   Error visitTypeEnd(CVType &Record) override;
 
   Error visitMemberBegin(CVMemberRecord &Record) override;

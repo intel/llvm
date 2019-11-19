@@ -134,20 +134,26 @@ private:
   path_list ProgramPaths;
 
   mutable std::unique_ptr<Tool> Clang;
+  mutable std::unique_ptr<Tool> Flang;
   mutable std::unique_ptr<Tool> Assemble;
   mutable std::unique_ptr<Tool> Link;
+  mutable std::unique_ptr<Tool> IfsMerge;
   mutable std::unique_ptr<Tool> OffloadBundler;
   mutable std::unique_ptr<Tool> OffloadWrapper;
   mutable std::unique_ptr<Tool> SPIRVTranslator;
+  mutable std::unique_ptr<Tool> SPIRCheck;
   mutable std::unique_ptr<Tool> BackendCompiler;
 
   Tool *getClang() const;
+  Tool *getFlang() const;
   Tool *getAssemble() const;
   Tool *getLink() const;
+  Tool *getIfsMerge() const;
   Tool *getClangAs() const;
   Tool *getOffloadBundler() const;
   Tool *getOffloadWrapper() const;
   Tool *getSPIRVTranslator() const;
+  Tool *getSPIRCheck() const;
   Tool *getBackendCompiler() const;
 
   mutable std::unique_ptr<SanitizerArgs> SanitizerArguments;
@@ -551,6 +557,11 @@ public:
   AddClangCXXStdlibIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                                llvm::opt::ArgStringList &CC1Args) const;
 
+  /// AddClangCXXStdlibIsystemArgs - Add the clang -cc1 level arguments to set
+  /// the specified include paths for the C++ standard library.
+  void AddClangCXXStdlibIsystemArgs(const llvm::opt::ArgList &DriverArgs,
+                                    llvm::opt::ArgStringList &CC1Args) const;
+
   /// Returns if the C++ standard library should be linked in.
   /// Note that e.g. -lm should still be linked even if this returns false.
   bool ShouldLinkCXXStdlib(const llvm::opt::ArgList &Args) const;
@@ -600,6 +611,10 @@ public:
   virtual SanitizerMask getDefaultSanitizers() const {
     return SanitizerMask();
   }
+
+  /// Returns true when it's possible to split LTO unit to use whole
+  /// program devirtualization and CFI santiizers.
+  virtual bool canSplitThinLTOUnit() const { return true; }
 };
 
 /// Set a ToolChain's effective triple. Reset it when the registration object

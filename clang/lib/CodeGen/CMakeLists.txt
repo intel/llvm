@@ -1,3 +1,5 @@
+add_subdirectory(SYCLLowerIR)
+
 set(LLVM_LINK_COMPONENTS
   Analysis
   BitReader
@@ -74,6 +76,7 @@ add_clang_library(clangCodeGen
   CGRecordLayoutBuilder.cpp
   CGStmt.cpp
   CGStmtOpenMP.cpp
+  CGSYCLRuntime.cpp
   CGVTT.cpp
   CGVTables.cpp
   CodeGenABITypes.cpp
@@ -102,8 +105,10 @@ add_clang_library(clangCodeGen
   LINK_LIBS
   clangAnalysis
   clangAST
+  clangASTMatchers
   clangBasic
   clangFrontend
   clangLex
   clangSerialization
+  clangSYCLLowerIR
   )

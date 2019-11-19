@@ -22,15 +22,17 @@ enum PartialMappingIdx {
   PM_SGPR128 = 9,
   PM_SGPR256 = 10,
   PM_SGPR512 = 11,
-  PM_VGPR1  = 12,
-  PM_VGPR16 = 16,
-  PM_VGPR32 = 17,
-  PM_VGPR64 = 18,
-  PM_VGPR128 = 19,
-  PM_VGPR256 = 20,
-  PM_VGPR512 = 21,
-  PM_SGPR96 = 22,
-  PM_VGPR96 = 23
+  PM_SGPR1024 = 12,
+  PM_VGPR1  = 13,
+  PM_VGPR16 = 17,
+  PM_VGPR32 = 18,
+  PM_VGPR64 = 19,
+  PM_VGPR128 = 20,
+  PM_VGPR256 = 21,
+  PM_VGPR512 = 22,
+  PM_VGPR1024 = 23,
+  PM_SGPR96 = 24,
+  PM_VGPR96 = 25
 };
 
 const RegisterBankInfo::PartialMapping PartMappings[] {
@@ -45,6 +47,7 @@ const RegisterBankInfo::PartialMapping PartMappings[] {
   {0, 128, SGPRRegBank},
   {0, 256, SGPRRegBank},
   {0, 512, SGPRRegBank},
+  {0, 1024, SGPRRegBank},
 
   {0, 1,  VGPRRegBank}, // VGPR begin
   {0, 16, VGPRRegBank},
@@ -53,8 +56,9 @@ const RegisterBankInfo::PartialMapping PartMappings[] {
   {0, 128, VGPRRegBank},
   {0, 256, VGPRRegBank},
   {0, 512, VGPRRegBank},
+  {0, 1024, VGPRRegBank},
   {0, 96, SGPRRegBank},
-  {0, 96, VGPRRegBank},
+  {0, 96, VGPRRegBank}
 };
 
 const RegisterBankInfo::ValueMapping ValMappings[] {
@@ -65,41 +69,43 @@ const RegisterBankInfo::ValueMapping ValMappings[] {
   {&PartMappings[1], 1},
 
   // SGPRs
-  {&PartMappings[2], 1},
+  {&PartMappings[2], 1}, // 1
   {nullptr, 0}, // Illegal power of 2 sizes
   {nullptr, 0},
   {nullptr, 0},
-  {&PartMappings[3], 1},
-  {&PartMappings[4], 1},
-  {&PartMappings[5], 1},
-  {&PartMappings[6], 1},
-  {&PartMappings[7], 1},
-  {&PartMappings[8], 1},
+  {&PartMappings[3], 1}, // 16
+  {&PartMappings[4], 1}, // 32
+  {&PartMappings[5], 1}, // 64
+  {&PartMappings[6], 1}, // 128
+  {&PartMappings[7], 1}, // 256
+  {&PartMappings[8], 1}, // 512
+  {&PartMappings[9], 1}, // 1024
 
-    // VGPRs
-  {&PartMappings[9], 1},
+  // VGPRs
+  {&PartMappings[10], 1}, // 1
   {nullptr, 0},
   {nullptr, 0},
   {nullptr, 0},
-  {&PartMappings[10], 1},
-  {&PartMappings[11], 1},
-  {&PartMappings[12], 1},
-  {&PartMappings[13], 1},
-  {&PartMappings[14], 1},
-  {&PartMappings[15], 1},
-  {&PartMappings[16], 1},
-  {&PartMappings[17], 1}
+  {&PartMappings[11], 1}, // 16
+  {&PartMappings[12], 1}, // 32
+  {&PartMappings[13], 1}, // 64
+  {&PartMappings[14], 1}, // 128
+  {&PartMappings[15], 1}, // 256
+  {&PartMappings[16], 1}, // 512
+  {&PartMappings[17], 1}, // 1024
+  {&PartMappings[18], 1},
+  {&PartMappings[19], 1}
 };
 
 const RegisterBankInfo::PartialMapping SGPROnly64BreakDown[] {
-     /*32-bit op*/ {0, 32, SGPRRegBank},
-   /*2x32-bit op*/ {0, 32, SGPRRegBank},
-                   {32, 32, SGPRRegBank},
-/*<2x32-bit> op*/  {0, 64, SGPRRegBank},
+  {0, 32, SGPRRegBank}, // 32-bit op
+  {0, 32, SGPRRegBank}, // 2x32-bit op
+  {32, 32, SGPRRegBank},
+  {0, 64, SGPRRegBank}, // <2x32-bit> op
 
-    /*32-bit op*/  {0, 32, VGPRRegBank},
-  /*2x32-bit op*/  {0, 32, VGPRRegBank},
-                   {32, 32, VGPRRegBank},
+  {0, 32, VGPRRegBank}, // 32-bit op
+  {0, 32, VGPRRegBank}, // 2x32-bit op
+  {32, 32, VGPRRegBank},
 };
 
 
@@ -116,7 +122,7 @@ const RegisterBankInfo::ValueMapping ValMappingsSGPR64OnlyVGPR32[] {
 enum ValueMappingIdx {
   SCCStartIdx = 0,
   SGPRStartIdx = 2,
-  VGPRStartIdx = 12
+  VGPRStartIdx = 13
 };
 
 const RegisterBankInfo::ValueMapping *getValueMapping(unsigned BankID,
@@ -160,6 +166,78 @@ const RegisterBankInfo::ValueMapping *getValueMappingSGPR64Only(unsigned BankID,
   assert(BankID == AMDGPU::SGPRRegBankID);
   return &ValMappingsSGPR64OnlyVGPR32[2];
 }
+
+const RegisterBankInfo::PartialMapping LoadSGPROnlyBreakDown[] {
+  /* 256-bit load */    {0, 256, SGPRRegBank},
+  /* 512-bit load */    {0, 512, SGPRRegBank},
+  /* 8 32-bit loads */  {0, 32, VGPRRegBank}, {32, 32, VGPRRegBank},
+                        {64, 32, VGPRRegBank}, {96, 32, VGPRRegBank},
+                        {128, 32, VGPRRegBank}, {160, 32, VGPRRegBank},
+                        {192, 32, VGPRRegBank}, {224, 32, VGPRRegBank},
+  /* 16 32-bit loads */ {0, 32, VGPRRegBank}, {32, 32, VGPRRegBank},
+                        {64, 32, VGPRRegBank}, {96, 32, VGPRRegBank},
+                        {128, 32, VGPRRegBank}, {160, 32, VGPRRegBank},
+                        {192, 32, VGPRRegBank}, {224, 32, VGPRRegBank},
+                        {256, 32, VGPRRegBank}, {288, 32, VGPRRegBank},
+                        {320, 32, VGPRRegBank}, {352, 32, VGPRRegBank},
+                        {384, 32, VGPRRegBank}, {416, 32, VGPRRegBank},
+                        {448, 32, VGPRRegBank}, {480, 32, VGPRRegBank},
+  /* 4 64-bit loads */  {0, 64, VGPRRegBank}, {64, 64, VGPRRegBank},
+                        {128, 64, VGPRRegBank}, {192, 64, VGPRRegBank},
+  /* 8 64-bit loads */  {0, 64, VGPRRegBank}, {64, 64, VGPRRegBank},
+                        {128, 64, VGPRRegBank}, {192, 64, VGPRRegBank},
+                        {256, 64, VGPRRegBank}, {320, 64, VGPRRegBank},
+                        {384, 64, VGPRRegBank}, {448, 64, VGPRRegBank},
+
+  /* FIXME: The generic register bank select does not support complex
+   * break downs where the number of vector elements does not equal the
+   * number of breakdowns.
+   * FIXME: register bank select now tries to handle complex break downs,
+   * but it emits an illegal instruction:
+   * %1:vgpr(<8 x s32>) = G_CONCAT_VECTORS %2:vgpr(s128), %3:vgpr(s128)
+   */
+  /* 2 128-bit loads */ {0, 128, VGPRRegBank}, {128, 128, VGPRRegBank},
+  /* 4 128-bit loads */ {0, 128, VGPRRegBank}, {128, 128, VGPRRegBank},
+                        {256, 128, VGPRRegBank}, {384, 128, VGPRRegBank}
+};
+
+const RegisterBankInfo::ValueMapping ValMappingsLoadSGPROnly[] {
+  /* 256-bit load */     {&LoadSGPROnlyBreakDown[0], 1},
+  /* 512-bit load */     {&LoadSGPROnlyBreakDown[1], 1},
+  /* <8 x i32> load  */  {&LoadSGPROnlyBreakDown[2], 8},
+  /* <16 x i32> load */  {&LoadSGPROnlyBreakDown[10], 16},
+  /* <4 x i64> load */   {&LoadSGPROnlyBreakDown[26], 4},
+  /* <8 x i64> load */   {&LoadSGPROnlyBreakDown[30], 8}
+};
+
+const RegisterBankInfo::ValueMapping *
+getValueMappingLoadSGPROnly(unsigned BankID, LLT SizeTy) {
+  unsigned Size = SizeTy.getSizeInBits();
+  if (Size < 256 || BankID == AMDGPU::SGPRRegBankID)
+    return getValueMapping(BankID, Size);
+
+  assert((Size == 256 || Size == 512) && BankID == AMDGPU::VGPRRegBankID);
+
+  // Default to using the non-split ValueMappings, we will use these if
+  // the register bank is SGPR or if we don't know how to handle the vector
+  // type.
+  unsigned Idx = Size == 256 ? 0 : 1;
+
+  // We need to split this load if it has a vgpr pointer.
+  if (BankID == AMDGPU::VGPRRegBankID) {
+    if (SizeTy == LLT::vector(8, 32))
+      Idx = 2;
+    else if (SizeTy == LLT::vector(16, 32))
+      Idx = 3;
+    else if (SizeTy == LLT::vector(4, 64))
+      Idx = 4;
+    else if (SizeTy == LLT::vector(8, 64))
+      Idx = 5;
+  }
+
+  return &ValMappingsLoadSGPROnly[Idx];
+}
+
 
 } // End AMDGPU namespace.
 } // End llvm namespace.

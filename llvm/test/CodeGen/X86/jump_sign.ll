@@ -48,11 +48,10 @@ define i32 @func_g(i32 %a, i32 %b) nounwind {
 define i32 @func_h(i32 %a, i32 %b) nounwind {
 ; CHECK-LABEL: func_h:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    xorl %edx, %edx
-; CHECK-NEXT:    subl %ecx, %eax
-; CHECK-NEXT:    cmovlel %edx, %eax
+; CHECK-NEXT:    xorl %ecx, %ecx
+; CHECK-NEXT:    subl {{[0-9]+}}(%esp), %eax
+; CHECK-NEXT:    cmovlel %ecx, %eax
 ; CHECK-NEXT:    retl
   %cmp = icmp slt i32 %b, %a
   %sub = sub nsw i32 %a, %b
@@ -91,11 +90,10 @@ define i32 @func_j(i32 %a, i32 %b) nounwind {
 define i32 @func_k(i32 %a, i32 %b) nounwind {
 ; CHECK-LABEL: func_k:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    xorl %edx, %edx
-; CHECK-NEXT:    subl %ecx, %eax
-; CHECK-NEXT:    cmovbel %edx, %eax
+; CHECK-NEXT:    xorl %ecx, %ecx
+; CHECK-NEXT:    subl {{[0-9]+}}(%esp), %eax
+; CHECK-NEXT:    cmovbel %ecx, %eax
 ; CHECK-NEXT:    retl
   %cmp = icmp ult i32 %b, %a
   %sub = sub i32 %a, %b
@@ -108,10 +106,9 @@ define i32 @func_l(i32 %a, i32 %b) nounwind {
 ; CHECK-LABEL: func_l:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %edx
-; CHECK-NEXT:    movl %edx, %eax
-; CHECK-NEXT:    subl %ecx, %eax
-; CHECK-NEXT:    cmovlel %edx, %eax
+; CHECK-NEXT:    movl %ecx, %eax
+; CHECK-NEXT:    subl {{[0-9]+}}(%esp), %eax
+; CHECK-NEXT:    cmovlel %ecx, %eax
 ; CHECK-NEXT:    retl
   %cmp = icmp slt i32 %b, %a
   %sub = sub nsw i32 %a, %b
@@ -139,16 +136,14 @@ define i32 @func_l2(i32 %a, i32 %b) nounwind {
 ; CHECK-LABEL: func_l2:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %edx
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    movl %eax, %ecx
-; CHECK-NEXT:    subl %edx, %ecx
-; CHECK-NEXT:    cmpl %eax, %edx
+; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; CHECK-NEXT:    movl %ecx, %eax
+; CHECK-NEXT:    subl %edx, %eax
 ; CHECK-NEXT:    jne .LBB8_2
 ; CHECK-NEXT:  # %bb.1: # %if.then
-; CHECK-NEXT:    cmovgl %ecx, %eax
-; CHECK-NEXT:    retl
+; CHECK-NEXT:    cmpl %ecx, %edx
+; CHECK-NEXT:    cmovlel %ecx, %eax
 ; CHECK-NEXT:  .LBB8_2: # %if.else
-; CHECK-NEXT:    movl %ecx, %eax
 ; CHECK-NEXT:    retl
   %cmp = icmp eq i32 %b, %a
   %sub = sub nsw i32 %a, %b
@@ -166,9 +161,8 @@ if.else:
 define i32 @func_l3(i32 %a, i32 %b) nounwind {
 ; CHECK-LABEL: func_l3:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    subl %ecx, %eax
+; CHECK-NEXT:    subl {{[0-9]+}}(%esp), %eax
 ; CHECK-NEXT:    jge .LBB9_2
 ; CHECK-NEXT:  # %bb.1: # %if.then
 ; CHECK-NEXT:    retl
@@ -192,11 +186,10 @@ if.else:
 define i32 @func_l4(i32 %a, i32 %b) nounwind {
 ; CHECK-LABEL: func_l4:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    xorl %edx, %edx
-; CHECK-NEXT:    subl %ecx, %eax
-; CHECK-NEXT:    cmovll %edx, %eax
+; CHECK-NEXT:    xorl %ecx, %ecx
+; CHECK-NEXT:    subl {{[0-9]+}}(%esp), %eax
+; CHECK-NEXT:    cmovll %ecx, %eax
 ; CHECK-NEXT:    retl
   %cmp = icmp sgt i32 %b, %a
   %sub = sub i32 %a, %b
@@ -236,13 +229,11 @@ define void @func_o() nounwind uwtable {
 ; CHECK-NEXT:    jne .LBB12_8
 ; CHECK-NEXT:  # %bb.4: # %if.end29
 ; CHECK-NEXT:    movzwl (%eax), %eax
+; CHECK-NEXT:    imull $-13107, %eax, %eax # imm = 0xCCCD
+; CHECK-NEXT:    rorw %ax
 ; CHECK-NEXT:    movzwl %ax, %eax
-; CHECK-NEXT:    imull $52429, %eax, %ecx # imm = 0xCCCD
-; CHECK-NEXT:    shrl $18, %ecx
-; CHECK-NEXT:    andl $-2, %ecx
-; CHECK-NEXT:    leal (%ecx,%ecx,4), %ecx
-; CHECK-NEXT:    cmpw %cx, %ax
-; CHECK-NEXT:    jne .LBB12_5
+; CHECK-NEXT:    cmpl $6554, %eax # imm = 0x199A
+; CHECK-NEXT:    jae .LBB12_5
 ; CHECK-NEXT:  .LBB12_8: # %if.then44
 ; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    testb %al, %al
@@ -312,18 +303,16 @@ define i32 @func_p(i32 %a, i32 %b) nounwind {
 }
 
 ; PR13475
-; If we have sub a, b and cmp b, a and the result of cmp is used
-; by sbb, we should not optimize cmp away.
+; We don't need an explicit cmp here. A sub/neg combo will do.
+
 define i32 @func_q(i32 %a0, i32 %a1, i32 %a2) {
 ; CHECK-LABEL: func_q:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; CHECK-NEXT:    movl %ecx, %edx
-; CHECK-NEXT:    subl %eax, %edx
-; CHECK-NEXT:    cmpl %ecx, %eax
-; CHECK-NEXT:    sbbl %eax, %eax
-; CHECK-NEXT:    xorl %edx, %eax
+; CHECK-NEXT:    subl {{[0-9]+}}(%esp), %eax
+; CHECK-NEXT:    sbbl %ecx, %ecx
+; CHECK-NEXT:    negl %eax
+; CHECK-NEXT:    xorl %ecx, %eax
 ; CHECK-NEXT:    retl
   %t1 = icmp ult i32 %a0, %a1
   %t2 = sub i32 %a1, %a0

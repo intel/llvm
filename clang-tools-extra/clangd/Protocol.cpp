@@ -273,6 +273,12 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R) {
   if (!O)
     return false;
   if (auto *TextDocument = O->getObject("textDocument")) {
+    if (auto *SemanticHighlighting =
+            TextDocument->getObject("semanticHighlightingCapabilities")) {
+      if (auto SemanticHighlightingSupport =
+              SemanticHighlighting->getBoolean("semanticHighlighting"))
+        R.SemanticHighlighting = *SemanticHighlightingSupport;
+    }
     if (auto *Diagnostics = TextDocument->getObject("publishDiagnostics")) {
       if (auto CategorySupport = Diagnostics->getBoolean("categorySupport"))
         R.DiagnosticCategory = *CategorySupport;
@@ -293,6 +299,8 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R) {
             return false;
         }
       }
+      if (auto EditsNearCursor = Completion->getBoolean("editsNearCursor"))
+        R.CompletionFixes = *EditsNearCursor;
     }
     if (auto *CodeAction = TextDocument->getObject("codeAction")) {
       if (CodeAction->getObject("codeActionLiteralSupport"))
@@ -315,12 +323,17 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R) {
       }
     }
     if (auto *Help = TextDocument->getObject("signatureHelp")) {
+      R.HasSignatureHelp = true;
       if (auto *Info = Help->getObject("signatureInformation")) {
         if (auto *Parameter = Info->getObject("parameterInformation")) {
           if (auto OffsetSupport = Parameter->getBoolean("labelOffsetSupport"))
             R.OffsetsInSignatureHelp = *OffsetSupport;
         }
       }
+    }
+    if (auto *Rename = TextDocument->getObject("rename")) {
+      if (auto RenameSupport = Rename->getBoolean("prepareSupport"))
+        R.RenamePrepareSupport = *RenameSupport;
     }
   }
   if (auto *Workspace = O->getObject("workspace")) {
@@ -355,6 +368,14 @@ bool fromJSON(const llvm::json::Value &Params, InitializeParams &R) {
   O.map("trace", R.trace);
   O.map("initializationOptions", R.initializationOptions);
   return true;
+}
+
+llvm::json::Value toJSON(const MessageType &R) {
+  return static_cast<int64_t>(R);
+}
+
+llvm::json::Value toJSON(const ShowMessageParams &R) {
+  return llvm::json::Object{{"type", R.type}, {"message", R.message}};
 }
 
 bool fromJSON(const llvm::json::Value &Params, DidOpenTextDocumentParams &R) {
@@ -402,38 +423,22 @@ bool fromJSON(const llvm::json::Value &Params,
          O.map("text", R.text);
 }
 
-bool fromJSON(const llvm::json::Value &Params, FormattingOptions &R) {
-  llvm::json::ObjectMapper O(Params);
-  return O && O.map("tabSize", R.tabSize) &&
-         O.map("insertSpaces", R.insertSpaces);
-}
-
-llvm::json::Value toJSON(const FormattingOptions &P) {
-  return llvm::json::Object{
-      {"tabSize", P.tabSize},
-      {"insertSpaces", P.insertSpaces},
-  };
-}
-
 bool fromJSON(const llvm::json::Value &Params,
               DocumentRangeFormattingParams &R) {
   llvm::json::ObjectMapper O(Params);
-  return O && O.map("textDocument", R.textDocument) &&
-         O.map("range", R.range) && O.map("options", R.options);
+  return O && O.map("textDocument", R.textDocument) && O.map("range", R.range);
 }
 
 bool fromJSON(const llvm::json::Value &Params,
               DocumentOnTypeFormattingParams &R) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("textDocument", R.textDocument) &&
-         O.map("position", R.position) && O.map("ch", R.ch) &&
-         O.map("options", R.options);
+         O.map("position", R.position) && O.map("ch", R.ch);
 }
 
 bool fromJSON(const llvm::json::Value &Params, DocumentFormattingParams &R) {
   llvm::json::ObjectMapper O(Params);
-  return O && O.map("textDocument", R.textDocument) &&
-         O.map("options", R.options);
+  return O && O.map("textDocument", R.textDocument);
 }
 
 bool fromJSON(const llvm::json::Value &Params, DocumentSymbolParams &R) {
@@ -443,8 +448,8 @@ bool fromJSON(const llvm::json::Value &Params, DocumentSymbolParams &R) {
 
 llvm::json::Value toJSON(const DiagnosticRelatedInformation &DRI) {
   return llvm::json::Object{
-    {"location", DRI.location},
-    {"message", DRI.message},
+      {"location", DRI.location},
+      {"message", DRI.message},
   };
 }
 
@@ -606,6 +611,7 @@ llvm::json::Value toJSON(const Command &C) {
 
 const llvm::StringLiteral CodeAction::QUICKFIX_KIND = "quickfix";
 const llvm::StringLiteral CodeAction::REFACTOR_KIND = "refactor";
+const llvm::StringLiteral CodeAction::INFO_KIND = "info";
 
 llvm::json::Value toJSON(const CodeAction &CA) {
   auto CodeAction = llvm::json::Object{{"title", CA.title}};
@@ -662,6 +668,15 @@ llvm::json::Value toJSON(const TweakArgs &A) {
 
 llvm::json::Value toJSON(const ApplyWorkspaceEditParams &Params) {
   return llvm::json::Object{{"edit", Params.edit}};
+}
+
+bool fromJSON(const llvm::json::Value &Response,
+              ApplyWorkspaceEditResponse &R) {
+  llvm::json::ObjectMapper O(Response);
+  if (!O || !O.map("applied", R.applied))
+    return false;
+  O.map("failureReason", R.failureReason);
+  return true;
 }
 
 bool fromJSON(const llvm::json::Value &Params, TextDocumentPositionParams &R) {
@@ -975,6 +990,8 @@ llvm::json::Value toJSON(const TypeHierarchyItem &I) {
     Result["parents"] = I.parents;
   if (I.children)
     Result["children"] = I.children;
+  if (I.data)
+    Result["data"] = I.data;
   return std::move(Result);
 }
 
@@ -993,8 +1010,16 @@ bool fromJSON(const llvm::json::Value &Params, TypeHierarchyItem &I) {
   O.map("deprecated", I.deprecated);
   O.map("parents", I.parents);
   O.map("children", I.children);
+  O.map("data", I.data);
 
   return true;
+}
+
+bool fromJSON(const llvm::json::Value &Params,
+              ResolveTypeHierarchyItemParams &P) {
+  llvm::json::ObjectMapper O(Params);
+  return O && O.map("item", P.item) && O.map("resolve", P.resolve) &&
+         O.map("direction", P.direction);
 }
 
 bool fromJSON(const llvm::json::Value &Params, ReferenceParams &R) {
@@ -1031,5 +1056,35 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, OffsetEncoding Enc) {
   return OS << toString(Enc);
 }
 
+bool operator==(const SemanticHighlightingInformation &Lhs,
+                const SemanticHighlightingInformation &Rhs) {
+  return Lhs.Line == Rhs.Line && Lhs.Tokens == Rhs.Tokens;
+}
+
+llvm::json::Value toJSON(const SemanticHighlightingInformation &Highlighting) {
+  return llvm::json::Object{{"line", Highlighting.Line},
+                            {"tokens", Highlighting.Tokens}};
+}
+
+llvm::json::Value toJSON(const SemanticHighlightingParams &Highlighting) {
+  return llvm::json::Object{
+      {"textDocument", Highlighting.TextDocument},
+      {"lines", std::move(Highlighting.Lines)},
+  };
+}
+
+bool fromJSON(const llvm::json::Value &Params, SelectionRangeParams &P) {
+  llvm::json::ObjectMapper O(Params);
+  return O && O.map("textDocument", P.textDocument) &&
+         O.map("positions", P.positions);
+}
+
+llvm::json::Value toJSON(const SelectionRange &Out) {
+  if (Out.parent) {
+    return llvm::json::Object{{"range", Out.range},
+                              {"parent", toJSON(*Out.parent)}};
+  }
+  return llvm::json::Object{{"range", Out.range}};
+}
 } // namespace clangd
 } // namespace clang

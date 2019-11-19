@@ -54,6 +54,10 @@ bool recordIsTriviallyDefaultConstructible(const RecordDecl &RecordDecl,
   // Non-C++ records are always trivially constructible.
   if (!ClassDecl)
     return true;
+  // It is impossible to determine whether an ill-formed decl is trivially
+  // constructible.
+  if (RecordDecl.isInvalidDecl())
+    return false;
   // A class with a user-provided default constructor is not trivially
   // constructible.
   if (ClassDecl->hasUserProvidedDefaultConstructor())
@@ -129,6 +133,20 @@ bool isTriviallyDefaultConstructible(QualType Type, const ASTContext &Context) {
 
   // No other types can match.
   return false;
+}
+
+// Based on QualType::isDestructedType.
+bool isTriviallyDestructible(QualType Type) {
+  if (Type.isNull())
+    return false;
+
+  if (Type->isIncompleteType())
+    return false;
+
+  if (Type.getCanonicalType()->isDependentType())
+    return false;
+
+  return Type.isDestructedType() == QualType::DK_none;
 }
 
 bool hasNonTrivialMoveConstructor(QualType Type) {

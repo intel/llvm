@@ -382,7 +382,7 @@ LoadInst *AtomicExpand::convertAtomicLoadToIntegerType(LoadInst *LI) {
   Value *NewAddr = Builder.CreateBitCast(Addr, PT);
 
   auto *NewLI = Builder.CreateLoad(NewTy, NewAddr);
-  NewLI->setAlignment(LI->getAlignment());
+  NewLI->setAlignment(MaybeAlign(LI->getAlignment()));
   NewLI->setVolatile(LI->isVolatile());
   NewLI->setAtomic(LI->getOrdering(), LI->getSyncScopeID());
   LLVM_DEBUG(dbgs() << "Replaced " << *LI << " with " << *NewLI << "\n");
@@ -469,7 +469,7 @@ StoreInst *AtomicExpand::convertAtomicStoreToIntegerType(StoreInst *SI) {
   Value *NewAddr = Builder.CreateBitCast(Addr, PT);
 
   StoreInst *NewSI = Builder.CreateStore(NewVal, NewAddr);
-  NewSI->setAlignment(SI->getAlignment());
+  NewSI->setAlignment(MaybeAlign(SI->getAlignment()));
   NewSI->setVolatile(SI->isVolatile());
   NewSI->setAtomic(SI->getOrdering(), SI->getSyncScopeID());
   LLVM_DEBUG(dbgs() << "Replaced " << *SI << " with " << *NewSI << "\n");
@@ -585,6 +585,10 @@ bool AtomicExpand::tryExpandAtomicRMW(AtomicRMWInst *AI) {
     unsigned MinCASSize = TLI->getMinCmpXchgSizeInBits() / 8;
     unsigned ValueSize = getAtomicOpSize(AI);
     if (ValueSize < MinCASSize) {
+      // TODO: Handle atomicrmw fadd/fsub
+      if (AI->getType()->isFloatingPointTy())
+        return false;
+
       expandPartwordAtomicRMW(AI,
                               TargetLoweringBase::AtomicExpansionKind::CmpXChg);
     } else {
@@ -670,7 +674,7 @@ static PartwordMaskValues createMaskInstrs(IRBuilder<> &Builder, Instruction *I,
 
   Ret.ShiftAmt = Builder.CreateTrunc(Ret.ShiftAmt, Ret.WordType, "ShiftAmt");
   Ret.Mask = Builder.CreateShl(
-      ConstantInt::get(Ret.WordType, (1 << ValueSize * 8) - 1), Ret.ShiftAmt,
+      ConstantInt::get(Ret.WordType, (1 << (ValueSize * 8)) - 1), Ret.ShiftAmt,
       "Mask");
   Ret.Inv_Mask = Builder.CreateNot(Ret.Mask, "Inv_Mask");
 
@@ -1372,7 +1376,7 @@ Value *AtomicExpand::insertRMWCmpXchgLoop(
   Builder.SetInsertPoint(BB);
   LoadInst *InitLoaded = Builder.CreateLoad(ResultTy, Addr);
   // Atomics require at least natural alignment.
-  InitLoaded->setAlignment(ResultTy->getPrimitiveSizeInBits() / 8);
+  InitLoaded->setAlignment(MaybeAlign(ResultTy->getPrimitiveSizeInBits() / 8));
   Builder.CreateBr(LoopBB);
 
   // Start the main loop block now that we've taken care of the preliminaries.
@@ -1707,9 +1711,12 @@ bool AtomicExpand::expandAtomicOpToLibcall(
   // 'expected' argument, if present.
   if (CASExpected) {
     AllocaCASExpected = AllocaBuilder.CreateAlloca(CASExpected->getType());
-    AllocaCASExpected->setAlignment(AllocaAlignment);
+    AllocaCASExpected->setAlignment(MaybeAlign(AllocaAlignment));
+    unsigned AllocaAS =  AllocaCASExpected->getType()->getPointerAddressSpace();
+
     AllocaCASExpected_i8 =
-        Builder.CreateBitCast(AllocaCASExpected, Type::getInt8PtrTy(Ctx));
+      Builder.CreateBitCast(AllocaCASExpected,
+                            Type::getInt8PtrTy(Ctx, AllocaAS));
     Builder.CreateLifetimeStart(AllocaCASExpected_i8, SizeVal64);
     Builder.CreateAlignedStore(CASExpected, AllocaCASExpected, AllocaAlignment);
     Args.push_back(AllocaCASExpected_i8);
@@ -1723,7 +1730,7 @@ bool AtomicExpand::expandAtomicOpToLibcall(
       Args.push_back(IntValue);
     } else {
       AllocaValue = AllocaBuilder.CreateAlloca(ValueOperand->getType());
-      AllocaValue->setAlignment(AllocaAlignment);
+      AllocaValue->setAlignment(MaybeAlign(AllocaAlignment));
       AllocaValue_i8 =
           Builder.CreateBitCast(AllocaValue, Type::getInt8PtrTy(Ctx));
       Builder.CreateLifetimeStart(AllocaValue_i8, SizeVal64);
@@ -1735,9 +1742,10 @@ bool AtomicExpand::expandAtomicOpToLibcall(
   // 'ret' argument.
   if (!CASExpected && HasResult && !UseSizedLibcall) {
     AllocaResult = AllocaBuilder.CreateAlloca(I->getType());
-    AllocaResult->setAlignment(AllocaAlignment);
+    AllocaResult->setAlignment(MaybeAlign(AllocaAlignment));
+    unsigned AllocaAS =  AllocaResult->getType()->getPointerAddressSpace();
     AllocaResult_i8 =
-        Builder.CreateBitCast(AllocaResult, Type::getInt8PtrTy(Ctx));
+      Builder.CreateBitCast(AllocaResult, Type::getInt8PtrTy(Ctx, AllocaAS));
     Builder.CreateLifetimeStart(AllocaResult_i8, SizeVal64);
     Args.push_back(AllocaResult_i8);
   }

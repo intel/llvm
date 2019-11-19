@@ -73,6 +73,7 @@
 #include "clang/AST/DeclFriend.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
@@ -100,6 +101,59 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      const TemplateArgument &Arg1,
                                      const TemplateArgument &Arg2);
+static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
+                                     NestedNameSpecifier *NNS1,
+                                     NestedNameSpecifier *NNS2);
+static bool IsStructurallyEquivalent(const IdentifierInfo *Name1,
+                                     const IdentifierInfo *Name2);
+
+static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
+                                     const DeclarationName Name1,
+                                     const DeclarationName Name2) {
+  if (Name1.getNameKind() != Name2.getNameKind())
+    return false;
+
+  switch (Name1.getNameKind()) {
+
+  case DeclarationName::Identifier:
+    return IsStructurallyEquivalent(Name1.getAsIdentifierInfo(),
+                                    Name2.getAsIdentifierInfo());
+
+  case DeclarationName::CXXConstructorName:
+  case DeclarationName::CXXDestructorName:
+  case DeclarationName::CXXConversionFunctionName:
+    return IsStructurallyEquivalent(Context, Name1.getCXXNameType(),
+                                    Name2.getCXXNameType());
+
+  case DeclarationName::CXXDeductionGuideName: {
+    if (!IsStructurallyEquivalent(
+            Context, Name1.getCXXDeductionGuideTemplate()->getDeclName(),
+            Name2.getCXXDeductionGuideTemplate()->getDeclName()))
+      return false;
+    return IsStructurallyEquivalent(Context,
+                                    Name1.getCXXDeductionGuideTemplate(),
+                                    Name2.getCXXDeductionGuideTemplate());
+  }
+
+  case DeclarationName::CXXOperatorName:
+    return Name1.getCXXOverloadedOperator() == Name2.getCXXOverloadedOperator();
+
+  case DeclarationName::CXXLiteralOperatorName:
+    return IsStructurallyEquivalent(Name1.getCXXLiteralIdentifier(),
+                                    Name2.getCXXLiteralIdentifier());
+
+  case DeclarationName::CXXUsingDirective:
+    return true; // FIXME When do we consider two using directives equal?
+
+  case DeclarationName::ObjCZeroArgSelector:
+  case DeclarationName::ObjCOneArgSelector:
+  case DeclarationName::ObjCMultiArgSelector:
+    return true; // FIXME
+  }
+
+  llvm_unreachable("Unhandled kind of DeclarationName");
+  return true;
+}
 
 /// Determine structural equivalence of two expressions.
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
@@ -107,7 +161,26 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   if (!E1 || !E2)
     return E1 == E2;
 
-  // FIXME: Actually perform a structural comparison!
+  if (auto *DE1 = dyn_cast<DependentScopeDeclRefExpr>(E1)) {
+    auto *DE2 = dyn_cast<DependentScopeDeclRefExpr>(E2);
+    if (!DE2)
+      return false;
+    if (!IsStructurallyEquivalent(Context, DE1->getDeclName(),
+                                  DE2->getDeclName()))
+      return false;
+    return IsStructurallyEquivalent(Context, DE1->getQualifier(),
+                                    DE2->getQualifier());
+  } else if (auto CastE1 = dyn_cast<ImplicitCastExpr>(E1)) {
+    auto *CastE2 = dyn_cast<ImplicitCastExpr>(E2);
+    if (!CastE2)
+      return false;
+    if (!IsStructurallyEquivalent(Context, CastE1->getType(),
+                                  CastE2->getType()))
+      return false;
+    return IsStructurallyEquivalent(Context, CastE1->getSubExpr(),
+                                    CastE2->getSubExpr());
+  }
+  // FIXME: Handle other kind of expressions!
   return true;
 }
 
@@ -162,12 +235,21 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      const TemplateName &N1,
                                      const TemplateName &N2) {
-  if (N1.getKind() != N2.getKind())
+  TemplateDecl *TemplateDeclN1 = N1.getAsTemplateDecl();
+  TemplateDecl *TemplateDeclN2 = N2.getAsTemplateDecl();
+  if (TemplateDeclN1 && TemplateDeclN2) {
+    if (!IsStructurallyEquivalent(Context, TemplateDeclN1, TemplateDeclN2))
+      return false;
+    // If the kind is different we compare only the template decl.
+    if (N1.getKind() != N2.getKind())
+      return true;
+  } else if (TemplateDeclN1 || TemplateDeclN2)
     return false;
+  else if (N1.getKind() != N2.getKind())
+    return false;
+
+  // Check for special case incompatibilities.
   switch (N1.getKind()) {
-  case TemplateName::Template:
-    return IsStructurallyEquivalent(Context, N1.getAsTemplateDecl(),
-                                    N2.getAsTemplateDecl());
 
   case TemplateName::OverloadedTemplate: {
     OverloadedTemplateStorage *OS1 = N1.getAsOverloadedTemplate(),
@@ -186,14 +268,6 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return TN1->getDeclName() == TN2->getDeclName();
   }
 
-  case TemplateName::QualifiedTemplate: {
-    QualifiedTemplateName *QN1 = N1.getAsQualifiedTemplateName(),
-                          *QN2 = N2.getAsQualifiedTemplateName();
-    return IsStructurallyEquivalent(Context, QN1->getDecl(), QN2->getDecl()) &&
-           IsStructurallyEquivalent(Context, QN1->getQualifier(),
-                                    QN2->getQualifier());
-  }
-
   case TemplateName::DependentTemplate: {
     DependentTemplateName *DN1 = N1.getAsDependentTemplateName(),
                           *DN2 = N2.getAsDependentTemplateName();
@@ -208,15 +282,6 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return false;
   }
 
-  case TemplateName::SubstTemplateTemplateParm: {
-    SubstTemplateTemplateParmStorage *TS1 = N1.getAsSubstTemplateTemplateParm(),
-                                     *TS2 = N2.getAsSubstTemplateTemplateParm();
-    return IsStructurallyEquivalent(Context, TS1->getParameter(),
-                                    TS2->getParameter()) &&
-           IsStructurallyEquivalent(Context, TS1->getReplacement(),
-                                    TS2->getReplacement());
-  }
-
   case TemplateName::SubstTemplateTemplateParmPack: {
     SubstTemplateTemplateParmPackStorage
         *P1 = N1.getAsSubstTemplateTemplateParmPack(),
@@ -226,8 +291,16 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
            IsStructurallyEquivalent(Context, P1->getParameterPack(),
                                     P2->getParameterPack());
   }
+
+   case TemplateName::Template:
+   case TemplateName::QualifiedTemplate:
+   case TemplateName::SubstTemplateTemplateParm:
+     // It is sufficient to check value of getAsTemplateDecl.
+     break;
+
   }
-  return false;
+
+  return true;
 }
 
 /// Determine whether two template arguments are equivalent.
@@ -1012,6 +1085,19 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   return true;
 }
 
+/// Determine structural equivalence of two lambda classes.
+static bool
+IsStructurallyEquivalentLambdas(StructuralEquivalenceContext &Context,
+                                CXXRecordDecl *D1, CXXRecordDecl *D2) {
+  assert(D1->isLambda() && D2->isLambda() &&
+         "Must be called on lambda classes");
+  if (!IsStructurallyEquivalent(Context, D1->getLambdaCallOperator(),
+                                D2->getLambdaCallOperator()))
+    return false;
+
+  return true;
+}
+
 /// Determine structural equivalence of two records.
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      RecordDecl *D1, RecordDecl *D2) {
@@ -1091,6 +1177,13 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
       if (D1CXX->hasExternalLexicalStorage() &&
           !D1CXX->isCompleteDefinition()) {
         D1CXX->getASTContext().getExternalSource()->CompleteType(D1CXX);
+      }
+
+      if (D1CXX->isLambda() != D2CXX->isLambda())
+        return false;
+      if (D1CXX->isLambda()) {
+        if (!IsStructurallyEquivalentLambdas(Context, D1CXX, D2CXX))
+          return false;
       }
 
       if (D1CXX->getNumBases() != D2CXX->getNumBases()) {
@@ -1440,6 +1533,18 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
+                                     ConceptDecl *D1,
+                                     ConceptDecl *D2) {
+  // Check template parameters.
+  if (!IsTemplateDeclCommonStructurallyEquivalent(Context, D1, D2))
+    return false;
+
+  // Check the constraint expression.
+  return IsStructurallyEquivalent(Context, D1->getConstraintExpr(),
+                                  D2->getConstraintExpr());
+}
+
+static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      FriendDecl *D1, FriendDecl *D2) {
   if ((D1->getFriendType() && D2->getFriendDecl()) ||
       (D1->getFriendDecl() && D2->getFriendType())) {
@@ -1469,20 +1574,24 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      Decl *D1, Decl *D2) {
   // FIXME: Check for known structural equivalences via a callback of some sort.
 
+  D1 = D1->getCanonicalDecl();
+  D2 = D2->getCanonicalDecl();
+  std::pair<Decl *, Decl *> P{D1, D2};
+
   // Check whether we already know that these two declarations are not
   // structurally equivalent.
-  if (Context.NonEquivalentDecls.count(
-          std::make_pair(D1->getCanonicalDecl(), D2->getCanonicalDecl())))
+  if (Context.NonEquivalentDecls.count(P))
     return false;
 
-  // Determine whether we've already produced a tentative equivalence for D1.
-  Decl *&EquivToD1 = Context.TentativeEquivalences[D1->getCanonicalDecl()];
-  if (EquivToD1)
-    return EquivToD1 == D2->getCanonicalDecl();
+  // Check if a check for these declarations is already pending.
+  // If yes D1 and D2 will be checked later (from DeclsToCheck),
+  // or these are already checked (and equivalent).
+  bool Inserted = Context.VisitedDecls.insert(P).second;
+  if (!Inserted)
+    return true;
 
-  // Produce a tentative equivalence D1 <-> D2, which will be checked later.
-  EquivToD1 = D2->getCanonicalDecl();
-  Context.DeclsToCheck.push_back(D1->getCanonicalDecl());
+  Context.DeclsToCheck.push(P);
+
   return true;
 }
 
@@ -1598,11 +1707,13 @@ bool StructuralEquivalenceContext::IsEquivalent(Decl *D1, Decl *D2) {
   // Ensure that the implementation functions (all static functions in this TU)
   // never call the public ASTStructuralEquivalence::IsEquivalent() functions,
   // because that will wreak havoc the internal state (DeclsToCheck and
-  // TentativeEquivalences members) and can cause faulty behaviour. For
-  // instance, some leaf declarations can be stated and cached as inequivalent
-  // as a side effect of one inequivalent element in the DeclsToCheck list.
+  // VisitedDecls members) and can cause faulty behaviour.
+  // In other words: Do not start a graph search from a new node with the
+  // internal data of another search in progress.
+  // FIXME: Better encapsulation and separation of internal and public
+  // functionality.
   assert(DeclsToCheck.empty());
-  assert(TentativeEquivalences.empty());
+  assert(VisitedDecls.empty());
 
   if (!::IsStructurallyEquivalent(*this, D1, D2))
     return false;
@@ -1612,7 +1723,7 @@ bool StructuralEquivalenceContext::IsEquivalent(Decl *D1, Decl *D2) {
 
 bool StructuralEquivalenceContext::IsEquivalent(QualType T1, QualType T2) {
   assert(DeclsToCheck.empty());
-  assert(TentativeEquivalences.empty());
+  assert(VisitedDecls.empty());
   if (!::IsStructurallyEquivalent(*this, T1, T2))
     return false;
 
@@ -1698,6 +1809,14 @@ bool StructuralEquivalenceContext::CheckKindSpecificEquivalence(
       // Class template/non-class-template mismatch.
       return false;
     }
+  } else if (auto *ConceptDecl1 = dyn_cast<ConceptDecl>(D1)) {
+    if (auto *ConceptDecl2 = dyn_cast<ConceptDecl>(D2)) {
+      if (!::IsStructurallyEquivalent(*this, ConceptDecl1, ConceptDecl2))
+        return false;
+    } else {
+      // Concept/non-concept mismatch.
+      return false;
+    }
   } else if (auto *TTP1 = dyn_cast<TemplateTypeParmDecl>(D1)) {
     if (auto *TTP2 = dyn_cast<TemplateTypeParmDecl>(D2)) {
       if (!::IsStructurallyEquivalent(*this, TTP1, TTP2))
@@ -1763,11 +1882,11 @@ bool StructuralEquivalenceContext::CheckKindSpecificEquivalence(
 bool StructuralEquivalenceContext::Finish() {
   while (!DeclsToCheck.empty()) {
     // Check the next declaration.
-    Decl *D1 = DeclsToCheck.front();
-    DeclsToCheck.pop_front();
+    std::pair<Decl *, Decl *> P = DeclsToCheck.front();
+    DeclsToCheck.pop();
 
-    Decl *D2 = TentativeEquivalences[D1];
-    assert(D2 && "Unrecorded tentative equivalence?");
+    Decl *D1 = P.first;
+    Decl *D2 = P.second;
 
     bool Equivalent =
         CheckCommonEquivalence(D1, D2) && CheckKindSpecificEquivalence(D1, D2);
@@ -1775,8 +1894,8 @@ bool StructuralEquivalenceContext::Finish() {
     if (!Equivalent) {
       // Note that these two declarations are not equivalent (and we already
       // know about it).
-      NonEquivalentDecls.insert(
-          std::make_pair(D1->getCanonicalDecl(), D2->getCanonicalDecl()));
+      NonEquivalentDecls.insert(P);
+
       return true;
     }
   }

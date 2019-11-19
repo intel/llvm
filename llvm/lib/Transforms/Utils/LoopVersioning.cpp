@@ -92,8 +92,8 @@ void LoopVersioning::versionLoop(
   // Create empty preheader for the loop (and after cloning for the
   // non-versioned loop).
   BasicBlock *PH =
-      SplitBlock(RuntimeCheckBB, RuntimeCheckBB->getTerminator(), DT, LI);
-  PH->setName(VersionedLoop->getHeader()->getName() + ".ph");
+      SplitBlock(RuntimeCheckBB, RuntimeCheckBB->getTerminator(), DT, LI,
+                 nullptr, VersionedLoop->getHeader()->getName() + ".ph");
 
   // Clone the loop including the preheader.
   //
@@ -280,8 +280,9 @@ public:
     bool Changed = false;
     for (Loop *L : Worklist) {
       const LoopAccessInfo &LAI = LAA->getInfo(L);
-      if (L->isLoopSimplifyForm() && (LAI.getNumRuntimePointerChecks() ||
-          !LAI.getPSE().getUnionPredicate().isAlwaysTrue())) {
+      if (L->isLoopSimplifyForm() && !LAI.hasConvergentOp() &&
+          (LAI.getNumRuntimePointerChecks() ||
+           !LAI.getPSE().getUnionPredicate().isAlwaysTrue())) {
         LoopVersioning LVer(LAI, L, LI, DT, SE);
         LVer.versionLoop();
         LVer.annotateLoopWithNoAlias();

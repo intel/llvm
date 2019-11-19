@@ -987,14 +987,19 @@ namespace dr684 { // dr684: sup 1454
 }
 #endif
 
-#if __cplusplus >= 201103L
 namespace dr685 { // dr685: yes
   enum E : long { e };
+#if __cplusplus < 201103L
+    // expected-error@-2 {{enumeration types with a fixed underlying type are a C++11 extension}}
+#endif
   void f(int);
   int f(long);
   int a = f(e);
 
   enum G : short { g };
+#if __cplusplus < 201103L
+    // expected-error@-2 {{enumeration types with a fixed underlying type are a C++11 extension}}
+#endif
   int h(short);
   void h(long);
   int b = h(g);
@@ -1007,11 +1012,11 @@ namespace dr685 { // dr685: yes
   void j(long); // expected-note {{candidate}}
   int d = j(g); // expected-error {{ambiguous}}
 
-  int k(short); // expected-note {{candidate}}
-  void k(int); // expected-note {{candidate}}
-  int x = k(g); // expected-error {{ambiguous}}
+  // Valid per dr1601
+  int k(short);
+  void k(int);
+  int x = k(g);
 }
-#endif
 
 namespace dr686 { // dr686: yes
   void f() {
@@ -1130,5 +1135,22 @@ namespace dr692 { // dr692: no
     template<class T, class... U> void f(T*, U...){} // expected-note {{candidate}} expected-error 0-1{{C++11}}
     template<class T> void f(T){} // expected-note {{candidate}}
     template void f(int*); // expected-error {{ambiguous}}
+  }
+}
+
+namespace dr696 { // dr696: yes
+  void f(const int*);
+  void g() {
+    const int N = 10; // expected-note 1+{{here}}
+    struct A {
+      void h() {
+        int arr[N]; (void)arr;
+        f(&N); // expected-error {{declared in enclosing}}
+      }
+    };
+#if __cplusplus >= 201103L
+    (void) [] { int arr[N]; (void)arr; };
+    (void) [] { f(&N); }; // expected-error {{cannot be implicitly captured}} expected-note {{here}}
+#endif
   }
 }

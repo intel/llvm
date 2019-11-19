@@ -2288,7 +2288,7 @@ _mm_adds_epu16(__m128i __a, __m128i __b)
   return (__m128i)__builtin_ia32_paddusw128((__v8hi)__a, (__v8hi)__b);
 }
 
-/// Computes the rounded avarages of corresponding elements of two
+/// Computes the rounded averages of corresponding elements of two
 ///    128-bit unsigned [16 x i8] vectors, saving each result in the
 ///    corresponding element of a 128-bit result vector of [16 x i8].
 ///
@@ -2308,7 +2308,7 @@ _mm_avg_epu8(__m128i __a, __m128i __b)
   return (__m128i)__builtin_ia32_pavgb128((__v16qi)__a, (__v16qi)__b);
 }
 
-/// Computes the rounded avarages of corresponding elements of two
+/// Computes the rounded averages of corresponding elements of two
 ///    128-bit unsigned [8 x i16] vectors, saving each result in the
 ///    corresponding element of a 128-bit result vector of [8 x i16].
 ///
@@ -4029,7 +4029,7 @@ _mm_storeu_si128(__m128i_u *__p, __m128i __b)
 /// \param __b
 ///    A 128-bit integer vector containing the value to be stored.
 static __inline__ void __DEFAULT_FN_ATTRS
-_mm_storeu_si64(void const *__p, __m128i __b)
+_mm_storeu_si64(void *__p, __m128i __b)
 {
   struct __storeu_si64 {
     long long __v;
@@ -4050,7 +4050,7 @@ _mm_storeu_si64(void const *__p, __m128i __b)
 /// \param __b
 ///    A 128-bit integer vector containing the value to be stored.
 static __inline__ void __DEFAULT_FN_ATTRS
-_mm_storeu_si32(void const *__p, __m128i __b)
+_mm_storeu_si32(void *__p, __m128i __b)
 {
   struct __storeu_si32 {
     int __v;
@@ -4071,7 +4071,7 @@ _mm_storeu_si32(void const *__p, __m128i __b)
 /// \param __b
 ///    A 128-bit integer vector containing the value to be stored.
 static __inline__ void __DEFAULT_FN_ATTRS
-_mm_storeu_si16(void const *__p, __m128i __b)
+_mm_storeu_si16(void *__p, __m128i __b)
 {
   struct __storeu_si16 {
     short __v;

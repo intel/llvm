@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file defines the PrinterHelper interface.
+//  This file defines helper types for AST pretty-printing.
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,6 +29,16 @@ public:
   virtual bool handledStmt(Stmt* E, raw_ostream& OS) = 0;
 };
 
+/// Callbacks to use to customize the behavior of the pretty-printer.
+class PrintingCallbacks {
+protected:
+  ~PrintingCallbacks() = default;
+
+public:
+  /// Remap a path to a form suitable for printing.
+  virtual std::string remapPath(StringRef Path) const { return Path; }
+};
+
 /// Describes how types, statements, expressions, and declarations should be
 /// printed.
 ///
@@ -42,7 +52,7 @@ struct PrintingPolicy {
         SuppressScope(false), SuppressUnwrittenScope(false),
         SuppressInitializers(false), ConstantArraySizeAsWritten(false),
         AnonymousTagLocations(true), SuppressStrongLifetime(false),
-        SuppressLifetimeQualifiers(false),
+        SuppressLifetimeQualifiers(false), SuppressTypedefs(false),
         SuppressTemplateArgsInCXXConstructors(false), Bool(LO.Bool),
         Restrict(LO.C99), Alignof(LO.CPlusPlus11), UnderscoreAlignof(LO.C11),
         UseVoidForZeroParams(!LO.CPlusPlus), TerseOutput(false),
@@ -50,8 +60,8 @@ struct PrintingPolicy {
         MSWChar(LO.MicrosoftExt && !LO.WChar), IncludeNewlines(true),
         MSVCFormatting(false), ConstantsAsWritten(false),
         SuppressImplicitBase(false), FullyQualifiedName(false),
-        RemapFilePaths(false), PrintCanonicalTypes(false),
-        SuppressDefinition(false), SuppressDefaultTemplateArguments (false) {}
+        PrintCanonicalTypes(false), SuppressDefinition(false),
+        SuppressDefaultTemplateArguments (false) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -159,6 +169,17 @@ struct PrintingPolicy {
   /// When true, suppress printing of lifetime qualifier in ARC.
   unsigned SuppressLifetimeQualifiers : 1;
 
+  /// When true prints a canonical type instead of an alias. E.g.
+  ///   \code
+  ///   using SizeT = int;
+  ///   template<SizeT N> class C;
+  ///   \endcode
+  /// will be printed as
+  ///   \code
+  ///   template<int N> class C;
+  ///   \endcode
+  unsigned SuppressTypedefs : 1;
+
   /// When true, suppresses printing template arguments in names of C++
   /// constructors.
   unsigned SuppressTemplateArgsInCXXConstructors : 1;
@@ -233,14 +254,8 @@ struct PrintingPolicy {
   /// This is the opposite of SuppressScope and thus overrules it.
   unsigned FullyQualifiedName : 1;
 
-  /// Whether to apply -fdebug-prefix-map to any file paths.
-  unsigned RemapFilePaths : 1;
-
   /// Whether to print types as written or canonically.
   unsigned PrintCanonicalTypes : 1;
-
-  /// When RemapFilePaths is true, this function performs the action.
-  std::function<std::string(StringRef)> remapPath;
 
   /// When true does not print definition of a type. E.g.
   ///   \code
@@ -261,6 +276,9 @@ struct PrintingPolicy {
   ///   template<typename T> class A
   ///   \endcode
   unsigned SuppressDefaultTemplateArguments : 1;
+
+  /// Callbacks to use to allow the behavior of printing to be customized.
+  const PrintingCallbacks *Callbacks = nullptr;
 };
 
 } // end namespace clang

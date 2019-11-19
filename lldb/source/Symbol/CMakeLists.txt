@@ -21,6 +21,7 @@ add_lldb_library(lldbSymbol
   DWARFCallFrameInfo.cpp
   DebugMacros.cpp
   Declaration.cpp
+  DeclVendor.cpp
   FuncUnwinders.cpp
   Function.cpp
   LineEntry.cpp
@@ -41,14 +42,10 @@ add_lldb_library(lldbSymbol
   UnwindTable.cpp
   Variable.cpp
   VariableList.cpp
-  VerifyDecl.cpp
 
   ${PLATFORM_SOURCES}
 
   LINK_LIBS
-    clangAST
-    clangBasic
-    clangFrontend
     lldbCore
     lldbExpression
     lldbHost
@@ -58,6 +55,12 @@ add_lldb_library(lldbSymbol
     lldbPluginSymbolFileDWARF
     lldbPluginSymbolFilePDB
     lldbPluginObjCLanguage
+    lldbPluginObjCRuntime
+
+  CLANG_LIBS
+    clangAST
+    clangBasic
+    clangFrontend
 
   LINK_COMPONENTS
     Support

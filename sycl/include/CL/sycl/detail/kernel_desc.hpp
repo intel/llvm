@@ -23,8 +23,10 @@ class half;
 // half type as _Float16 and it will add _Float16 to integration header if it
 // is used in kernel name template parameters. To avoid errors in host
 // compilation we remove _Float16 from integration header using following macro.
+// Same thing goes about bool type which is defined as _Bool.
 #ifndef __SYCL_DEVICE_ONLY__
 #define _Float16 cl::sycl::detail::half_impl::half
+#define _Bool bool
 #endif
 
 } // namespace half_impl
@@ -51,6 +53,7 @@ struct kernel_param_desc_t {
   int offset;
 };
 
+#ifndef __SYCL_UNNAMED_LAMBDA__
 template <class KernelNameType> struct KernelInfo {
   static constexpr unsigned getNumParams() { return 0; }
   static const kernel_param_desc_t &getParamDesc(int Idx) {
@@ -59,6 +62,29 @@ template <class KernelNameType> struct KernelInfo {
   }
   static constexpr const char *getName() { return ""; }
 };
+#else
+template <char...> struct KernelInfoData; // Should this have dummy impl?
+
+// C++14 like index_sequence and make_index_sequence
+// not needed C++14 members (value_type, size) not implemented
+template <class T, T...> struct integer_sequence {};
+template <size_t... I> using index_sequence = integer_sequence<size_t, I...>;
+template <size_t N>
+using make_index_sequence = __make_integer_seq<integer_sequence, size_t, N>;
+
+template <typename T> struct KernelInfoImpl {
+private:
+  static constexpr auto n = __unique_stable_name(T);
+  template <size_t... I>
+  static KernelInfoData<n[I]...> impl(index_sequence<I...>) {
+    return {};
+  }
+
+public:
+  using type = decltype(impl(make_index_sequence<__builtin_strlen(n)>{}));
+};
+template <typename T> using KernelInfo = typename KernelInfoImpl<T>::type;
+#endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
 } // namespace sycl

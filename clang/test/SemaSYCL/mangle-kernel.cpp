@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux-sycldevice -I %S/Inputs -I %S/../Headers/Inputs/include/ -fsycl-is-device -ast-dump %s | FileCheck %s --check-prefix=CHECK-64
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -aux-triple x86_64-pc-windows-msvc -I %S/Inputs -I %S/../Headers/Inputs/include/ -fsycl-is-device -ast-dump %s | FileCheck %s --check-prefix=CHECK-64-WIN
+// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -aux-triple x86_64-unknown-linux-gnu -I %S/Inputs -I %S/../Headers/Inputs/include/ -fsycl-is-device -ast-dump %s | FileCheck %s --check-prefix=CHECK-64-LIN
 // RUN: %clang_cc1 -triple spir-unknown-linux-sycldevice -I %S/Inputs -I %S/../Headers/Inputs/include/ -fsycl-is-device -ast-dump %s | FileCheck %s --check-prefix=CHECK-32
 #include <sycl.hpp>
 #include <stdlib.h>
@@ -25,5 +26,6 @@ int main() {
 
 // CHECK: _ZTS10SimpleVaddIiE
 // CHECK: _ZTS10SimpleVaddIdE
-// CHECK-64: _ZTS10SimpleVaddImE
+// CHECK-64-WIN: _ZTS10SimpleVaddIyE
+// CHECK-64-LIN: _ZTS10SimpleVaddImE
 // CHECK-32: _ZTS10SimpleVaddIjE

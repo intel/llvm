@@ -11,6 +11,7 @@
 #include "lldb/API/SBCommandInterpreter.h"
 #include "lldb/API/SBCommandReturnObject.h"
 #include "lldb/API/SBDebugger.h"
+#include "lldb/API/SBFile.h"
 #include "lldb/API/SBHostOS.h"
 #include "lldb/API/SBLanguageRuntime.h"
 #include "lldb/API/SBReproducer.h"
@@ -18,8 +19,8 @@
 #include "lldb/API/SBStringList.h"
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
@@ -229,6 +230,7 @@ SBError Driver::ProcessArgs(const opt::InputArgList &args, bool &exiting) {
 
   if (args.hasArg(OPT_no_use_colors)) {
     m_debugger.SetUseColor(false);
+    m_option_data.m_debug_mode = true;
   }
 
   if (auto *arg = args.getLastArg(OPT_file)) {
@@ -260,14 +262,6 @@ SBError Driver::ProcessArgs(const opt::InputArgList &args, bool &exiting) {
   if (auto *arg = args.getLastArg(OPT_script_language)) {
     auto arg_value = arg->getValue();
     m_debugger.SetScriptLanguage(m_debugger.GetScriptingLanguage(arg_value));
-  }
-
-  if (args.hasArg(OPT_no_use_colors)) {
-    m_option_data.m_debug_mode = true;
-  }
-
-  if (args.hasArg(OPT_no_use_colors)) {
-    m_debugger.SetUseColor(false);
   }
 
   if (args.hasArg(OPT_source_quietly)) {
@@ -506,16 +500,16 @@ int Driver::MainLoop() {
   SBCommandReturnObject result;
   sb_interpreter.SourceInitFileInHomeDirectory(result);
   if (m_option_data.m_debug_mode) {
-    result.PutError(m_debugger.GetErrorFileHandle());
-    result.PutOutput(m_debugger.GetOutputFileHandle());
+    result.PutError(m_debugger.GetErrorFile());
+    result.PutOutput(m_debugger.GetOutputFile());
   }
 
   // Source the local .lldbinit file if it exists and we're allowed to source.
   // Here we want to always print the return object because it contains the
   // warning and instructions to load local lldbinit files.
   sb_interpreter.SourceInitFileInCurrentWorkingDirectory(result);
-  result.PutError(m_debugger.GetErrorFileHandle());
-  result.PutOutput(m_debugger.GetOutputFileHandle());
+  result.PutError(m_debugger.GetErrorFile());
+  result.PutOutput(m_debugger.GetOutputFile());
 
   // We allow the user to specify an exit code when calling quit which we will
   // return when exiting.
@@ -581,8 +575,8 @@ int Driver::MainLoop() {
   }
 
   if (m_option_data.m_debug_mode) {
-    result.PutError(m_debugger.GetErrorFileHandle());
-    result.PutOutput(m_debugger.GetOutputFileHandle());
+    result.PutError(m_debugger.GetErrorFile());
+    result.PutOutput(m_debugger.GetOutputFile());
   }
 
   const bool handle_events = true;
@@ -706,6 +700,9 @@ void sigwinch_handler(int signo) {
 }
 
 void sigint_handler(int signo) {
+#ifdef _WIN32 // Restore handler as it is not persistent on Windows
+  signal(SIGINT, sigint_handler);
+#endif
   static std::atomic_flag g_interrupt_sent = ATOMIC_FLAG_INIT;
   if (g_driver != nullptr) {
     if (!g_interrupt_sent.test_and_set()) {
@@ -810,23 +807,9 @@ llvm::Optional<int> InitializeReproducer(opt::InputArgList &input_args) {
   return llvm::None;
 }
 
-int
-#ifdef _MSC_VER
-wmain(int argc, wchar_t const *wargv[])
-#else
-main(int argc, char const *argv[])
-#endif
+int main(int argc, char const *argv[])
 {
-#ifdef _MSC_VER
-  // Convert wide arguments to UTF-8
-  std::vector<std::string> argvStrings(argc);
-  std::vector<const char *> argvPointers(argc);
-  for (int i = 0; i != argc; ++i) {
-    llvm::convertWideToUTF8(wargv[i], argvStrings[i]);
-    argvPointers[i] = argvStrings[i].c_str();
-  }
-  const char **argv = argvPointers.data();
-#endif
+  llvm::InitLLVM IL(argc, argv);
 
   // Print stack trace on crash.
   llvm::StringRef ToolName = llvm::sys::path::filename(argv[0]);
@@ -861,6 +844,25 @@ main(int argc, char const *argv[])
     return 1;
   }
   SBHostOS::ThreadCreated("<lldb.driver.main-thread>");
+
+  // Install llvm's signal handlers up front to prevent lldb's handlers from
+  // being ignored. This is (hopefully) a stopgap workaround.
+  //
+  // When lldb invokes an llvm API that installs signal handlers (e.g.
+  // llvm::sys::RemoveFileOnSignal, possibly via a compiler embedded within
+  // lldb), lldb's signal handlers are overriden if llvm is installing its
+  // handlers for the first time.
+  //
+  // To work around llvm's behavior, force it to install its handlers up front,
+  // and *then* install lldb's handlers. In practice this is used to prevent
+  // lldb test processes from exiting due to IO_ERR when SIGPIPE is received.
+  //
+  // Note that when llvm installs its handlers, it 1) records the old handlers
+  // it replaces and 2) re-installs the old handlers when its new handler is
+  // invoked. That means that a signal not explicitly handled by lldb can fall
+  // back to being handled by llvm's handler the first time it is received,
+  // and then by the default handler the second time it is received.
+  llvm::sys::AddSignalHandler([](void *) -> void {}, nullptr);
 
   signal(SIGINT, sigint_handler);
 #if !defined(_MSC_VER)

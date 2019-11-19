@@ -12,7 +12,15 @@ source_set("tweaks") {
   ]
   include_dirs = [ "../.." ]
   sources = [
+    "AnnotateHighlightings.cpp",
+    "DefineInline.cpp",
+    "DumpAST.cpp",
+    "ExpandAutoType.cpp",
+    "ExpandMacro.cpp",
+    "ExtractFunction.cpp",
+    "ExtractVariable.cpp",
     "RawStringLiteral.cpp",
+    "RemoveUsingNamespace.cpp",
     "SwapIfBranches.cpp",
   ]
 }

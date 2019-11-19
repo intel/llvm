@@ -55,6 +55,9 @@ typedef LanguageRuntime *(*LanguageRuntimeCreateInstance)(
     Process *process, lldb::LanguageType language);
 typedef lldb::CommandObjectSP (*LanguageRuntimeGetCommandObject)(
     CommandInterpreter &interpreter);
+typedef lldb::BreakpointPreconditionSP (
+    *LanguageRuntimeGetExceptionPrecondition)(lldb::LanguageType language,
+                                              bool throw_bp);
 typedef lldb::StructuredDataPluginSP (*StructuredDataPluginCreateInstance)(
     Process &process);
 typedef Status (*StructuredDataFilterLaunchInfo)(ProcessLaunchInfo &launch_info,
@@ -67,7 +70,7 @@ typedef lldb::ProcessSP (*ProcessCreateInstance)(
     const FileSpec *crash_file_path);
 typedef lldb::ScriptInterpreterSP (*ScriptInterpreterCreateInstance)(
     Debugger &debugger);
-typedef SymbolFile *(*SymbolFileCreateInstance)(ObjectFile *obj_file);
+typedef SymbolFile *(*SymbolFileCreateInstance)(lldb::ObjectFileSP objfile_sp);
 typedef SymbolVendor *(*SymbolVendorCreateInstance)(
     const lldb::ModuleSP &module_sp,
     lldb_private::Stream
@@ -99,11 +102,6 @@ typedef lldb::REPLSP (*REPLCreateInstance)(Status &error,
                                            lldb::LanguageType language,
                                            Debugger *debugger, Target *target,
                                            const char *repl_options);
-typedef void (*TypeSystemEnumerateSupportedLanguages)(
-    std::set<lldb::LanguageType> &languages_for_types,
-    std::set<lldb::LanguageType> &languages_for_expressions);
-typedef void (*REPLEnumerateSupportedLanguages)(
-    std::set<lldb::LanguageType> &languages);
 typedef int (*ComparisonFunction)(const void *, const void *);
 typedef void (*DebuggerInitializeCallback)(Debugger &debugger);
 

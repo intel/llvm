@@ -95,7 +95,7 @@ public:
 
     auto *Alloca =
         Builder.CreateAlloca(SrcTy->getPointerElementType(), NumElements);
-    Alloca->setAlignment(Align);
+    Alloca->setAlignment(MaybeAlign(Align));
     Builder.CreateLifetimeStart(Alloca);
     Builder.CreateMemCpy(Alloca, Align, Src, Align, Length, Volatile);
     auto *SecondCpy = Builder.CreateMemCpy(Dest, I.getDestAlignment(), Alloca,

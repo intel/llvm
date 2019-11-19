@@ -19,22 +19,20 @@ using namespace llvm;
 using namespace lldb_private;
 using namespace lldb_private::repro;
 
-struct DummyInfo {
-  static const char *name;
-  static const char *file;
-};
-
-const char *DummyInfo::name = "dummy";
-const char *DummyInfo::file = "dummy.yaml";
-
 class DummyProvider : public repro::Provider<DummyProvider> {
 public:
-  typedef DummyInfo info;
+  struct Info {
+    static const char *name;
+    static const char *file;
+  };
 
   DummyProvider(const FileSpec &directory) : Provider(directory) {}
 
   static char ID;
 };
+
+const char *DummyProvider::Info::name = "dummy";
+const char *DummyProvider::Info::file = "dummy.yaml";
 
 class DummyReproducer : public Reproducer {
 public:
@@ -54,14 +52,19 @@ TEST(ReproducerTest, SetCapture) {
   EXPECT_EQ(nullptr, reproducer.GetLoader());
 
   // Enable capture and check that means we have a generator.
-  EXPECT_THAT_ERROR(reproducer.SetCapture(FileSpec("/bogus/path")),
-                    Succeeded());
+  EXPECT_THAT_ERROR(
+      reproducer.SetCapture(FileSpec("//bogus/path", FileSpec::Style::posix)),
+      Succeeded());
   EXPECT_NE(nullptr, reproducer.GetGenerator());
-  EXPECT_EQ(FileSpec("/bogus/path"), reproducer.GetGenerator()->GetRoot());
-  EXPECT_EQ(FileSpec("/bogus/path"), reproducer.GetReproducerPath());
+  EXPECT_EQ(FileSpec("//bogus/path", FileSpec::Style::posix),
+            reproducer.GetGenerator()->GetRoot());
+  EXPECT_EQ(FileSpec("//bogus/path", FileSpec::Style::posix),
+            reproducer.GetReproducerPath());
 
   // Ensure that we cannot enable replay.
-  EXPECT_THAT_ERROR(reproducer.SetReplay(FileSpec("/bogus/path")), Failed());
+  EXPECT_THAT_ERROR(
+      reproducer.SetReplay(FileSpec("//bogus/path", FileSpec::Style::posix)),
+      Failed());
   EXPECT_EQ(nullptr, reproducer.GetLoader());
 
   // Ensure we can disable the generator again.
@@ -78,36 +81,45 @@ TEST(ReproducerTest, SetReplay) {
   EXPECT_EQ(nullptr, reproducer.GetLoader());
 
   // Expected to fail because we can't load the index.
-  EXPECT_THAT_ERROR(reproducer.SetReplay(FileSpec("/bogus/path")), Failed());
+  EXPECT_THAT_ERROR(
+      reproducer.SetReplay(FileSpec("//bogus/path", FileSpec::Style::posix)),
+      Failed());
   // However the loader should still be set, which we check here.
   EXPECT_NE(nullptr, reproducer.GetLoader());
 
   // Make sure the bogus path is correctly set.
-  EXPECT_EQ(FileSpec("/bogus/path"), reproducer.GetLoader()->GetRoot());
-  EXPECT_EQ(FileSpec("/bogus/path"), reproducer.GetReproducerPath());
+  EXPECT_EQ(FileSpec("//bogus/path", FileSpec::Style::posix),
+            reproducer.GetLoader()->GetRoot());
+  EXPECT_EQ(FileSpec("//bogus/path", FileSpec::Style::posix),
+            reproducer.GetReproducerPath());
 
   // Ensure that we cannot enable replay.
-  EXPECT_THAT_ERROR(reproducer.SetCapture(FileSpec("/bogus/path")), Failed());
+  EXPECT_THAT_ERROR(
+      reproducer.SetCapture(FileSpec("//bogus/path", FileSpec::Style::posix)),
+      Failed());
   EXPECT_EQ(nullptr, reproducer.GetGenerator());
 }
 
 TEST(GeneratorTest, Create) {
   DummyReproducer reproducer;
 
-  EXPECT_THAT_ERROR(reproducer.SetCapture(FileSpec("/bogus/path")),
-                    Succeeded());
+  EXPECT_THAT_ERROR(
+      reproducer.SetCapture(FileSpec("//bogus/path", FileSpec::Style::posix)),
+      Succeeded());
   auto &generator = *reproducer.GetGenerator();
 
   auto *provider = generator.Create<DummyProvider>();
   EXPECT_NE(nullptr, provider);
-  EXPECT_EQ(FileSpec("/bogus/path"), provider->GetRoot());
+  EXPECT_EQ(FileSpec("//bogus/path", FileSpec::Style::posix),
+            provider->GetRoot());
 }
 
 TEST(GeneratorTest, Get) {
   DummyReproducer reproducer;
 
-  EXPECT_THAT_ERROR(reproducer.SetCapture(FileSpec("/bogus/path")),
-                    Succeeded());
+  EXPECT_THAT_ERROR(
+      reproducer.SetCapture(FileSpec("//bogus/path", FileSpec::Style::posix)),
+      Succeeded());
   auto &generator = *reproducer.GetGenerator();
 
   auto *provider = generator.Create<DummyProvider>();
@@ -120,12 +132,14 @@ TEST(GeneratorTest, Get) {
 TEST(GeneratorTest, GetOrCreate) {
   DummyReproducer reproducer;
 
-  EXPECT_THAT_ERROR(reproducer.SetCapture(FileSpec("/bogus/path")),
-                    Succeeded());
+  EXPECT_THAT_ERROR(
+      reproducer.SetCapture(FileSpec("//bogus/path", FileSpec::Style::posix)),
+      Succeeded());
   auto &generator = *reproducer.GetGenerator();
 
   auto &provider = generator.GetOrCreate<DummyProvider>();
-  EXPECT_EQ(FileSpec("/bogus/path"), provider.GetRoot());
+  EXPECT_EQ(FileSpec("//bogus/path", FileSpec::Style::posix),
+            provider.GetRoot());
 
   auto &provider_alt = generator.GetOrCreate<DummyProvider>();
   EXPECT_EQ(&provider, &provider_alt);

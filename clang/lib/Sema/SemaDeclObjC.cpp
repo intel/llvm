@@ -512,7 +512,7 @@ class ObjCInterfaceValidatorCCC final : public CorrectionCandidateCallback {
   }
 
   std::unique_ptr<CorrectionCandidateCallback> clone() override {
-    return llvm::make_unique<ObjCInterfaceValidatorCCC>(*this);
+    return std::make_unique<ObjCInterfaceValidatorCCC>(*this);
   }
 
  private:
@@ -586,7 +586,7 @@ ActOnSuperClassOfClassInterface(Scope *S,
           dyn_cast_or_null<TypedefNameDecl>(PrevDecl)) {
         QualType T = TDecl->getUnderlyingType();
         if (T->isObjCObjectType()) {
-          if (NamedDecl *IDecl = T->getAs<ObjCObjectType>()->getInterface()) {
+          if (NamedDecl *IDecl = T->castAs<ObjCObjectType>()->getInterface()) {
             SuperClassDecl = dyn_cast<ObjCInterfaceDecl>(IDecl);
             SuperClassType = Context.getTypeDeclType(TDecl);
 
@@ -1151,7 +1151,7 @@ Decl *Sema::ActOnCompatibilityAlias(SourceLocation AtLoc,
         dyn_cast_or_null<TypedefNameDecl>(CDeclU)) {
     QualType T = TDecl->getUnderlyingType();
     if (T->isObjCObjectType()) {
-      if (NamedDecl *IDecl = T->getAs<ObjCObjectType>()->getInterface()) {
+      if (NamedDecl *IDecl = T->castAs<ObjCObjectType>()->getInterface()) {
         ClassName = IDecl->getIdentifier();
         CDeclU = LookupSingleName(TUScope, ClassName, ClassLocation,
                                   LookupOrdinaryName,
@@ -1387,7 +1387,7 @@ class ObjCTypeArgOrProtocolValidatorCCC final
   }
 
   std::unique_ptr<CorrectionCandidateCallback> clone() override {
-    return llvm::make_unique<ObjCTypeArgOrProtocolValidatorCCC>(*this);
+    return std::make_unique<ObjCTypeArgOrProtocolValidatorCCC>(*this);
   }
 };
 } // end anonymous namespace
@@ -1587,7 +1587,7 @@ void Sema::actOnObjCTypeArgsOrProtocolQualifiers(
     // add the '*'.
     if (type->getAs<ObjCInterfaceType>()) {
       SourceLocation starLoc = getLocForEndOfToken(loc);
-      D.AddTypeInfo(DeclaratorChunk::getPointer(/*typeQuals=*/0, starLoc,
+      D.AddTypeInfo(DeclaratorChunk::getPointer(/*TypeQuals=*/0, starLoc,
                                                 SourceLocation(),
                                                 SourceLocation(),
                                                 SourceLocation(),
@@ -2275,9 +2275,7 @@ static bool isObjCTypeSubstitutable(ASTContext &Context,
   // stricter definition so it is not substitutable for id<A>.
   if (B->isObjCQualifiedIdType()) {
     return A->isObjCQualifiedIdType() &&
-           Context.ObjCQualifiedIdTypesAreCompatible(QualType(A, 0),
-                                                     QualType(B,0),
-                                                     false);
+           Context.ObjCQualifiedIdTypesAreCompatible(A, B, false);
   }
 
   /*
@@ -2830,6 +2828,9 @@ void Sema::MatchAllMethodDeclarations(const SelectorSet &InsMap,
              "Expected to find the method through lookup as well");
       // ImpMethodDecl may be null as in a @dynamic property.
       if (ImpMethodDecl) {
+        // Skip property accessor function stubs.
+        if (ImpMethodDecl->isSynthesizedAccessorStub())
+          continue;
         if (!WarnCategoryMethodImpl)
           WarnConflictingTypedMethods(ImpMethodDecl, I,
                                       isa<ObjCProtocolDecl>(CDecl));
@@ -2856,6 +2857,9 @@ void Sema::MatchAllMethodDeclarations(const SelectorSet &InsMap,
              "Expected to find the method through lookup as well");
       // ImpMethodDecl may be null as in a @dynamic property.
       if (ImpMethodDecl) {
+        // Skip property accessor function stubs.
+        if (ImpMethodDecl->isSynthesizedAccessorStub())
+          continue;
         if (!WarnCategoryMethodImpl)
           WarnConflictingTypedMethods(ImpMethodDecl, I,
                                       isa<ObjCProtocolDecl>(CDecl));
@@ -3905,6 +3909,25 @@ Decl *Sema::ActOnAtEnd(Scope *S, SourceRange AtEnd, ArrayRef<Decl *> allMethods,
          || isa<ObjCProtocolDecl>(ClassDecl);
   bool checkIdenticalMethods = isa<ObjCImplementationDecl>(ClassDecl);
 
+  // Make synthesized accessor stub functions visible.
+  // ActOnPropertyImplDecl() creates them as not visible in case
+  // they are overridden by an explicit method that is encountered
+  // later.
+  if (auto *OID = dyn_cast<ObjCImplementationDecl>(CurContext)) {
+    for (auto PropImpl : OID->property_impls()) {
+      if (auto *Getter = PropImpl->getGetterMethodDecl())
+        if (Getter->isSynthesizedAccessorStub()) {
+          OID->makeDeclVisibleInContext(Getter);
+          OID->addDecl(Getter);
+        }
+      if (auto *Setter = PropImpl->getSetterMethodDecl())
+        if (Setter->isSynthesizedAccessorStub()) {
+          OID->makeDeclVisibleInContext(Setter);
+          OID->addDecl(Setter);
+        }
+    }
+  }
+
   // FIXME: Remove these and use the ObjCContainerDecl/DeclContext.
   llvm::DenseMap<Selector, const ObjCMethodDecl*> InsMap;
   llvm::DenseMap<Selector, const ObjCMethodDecl*> ClsMap;
@@ -4003,8 +4026,8 @@ Decl *Sema::ActOnAtEnd(Scope *S, SourceRange AtEnd, ArrayRef<Decl *> allMethods,
               continue;
 
           for (const auto *Ext : IDecl->visible_extensions()) {
-            if (ObjCMethodDecl *GetterMethod
-                  = Ext->getInstanceMethod(Property->getGetterName()))
+            if (ObjCMethodDecl *GetterMethod =
+                    Ext->getInstanceMethod(Property->getGetterName()))
               GetterMethod->setPropertyAccessor(true);
             if (!Property->isReadOnly())
               if (ObjCMethodDecl *SetterMethod
@@ -4553,6 +4576,7 @@ Decl *Sema::ActOnMethodDeclaration(
     Diag(MethodLoc, diag::err_missing_method_context);
     return nullptr;
   }
+
   Decl *ClassDecl = cast<ObjCContainerDecl>(CurContext);
   QualType resultDeclType;
 
@@ -4576,7 +4600,7 @@ Decl *Sema::ActOnMethodDeclaration(
   ObjCMethodDecl *ObjCMethod = ObjCMethodDecl::Create(
       Context, MethodLoc, EndLoc, Sel, resultDeclType, ReturnTInfo, CurContext,
       MethodType == tok::minus, isVariadic,
-      /*isPropertyAccessor=*/false,
+      /*isPropertyAccessor=*/false, /*isSynthesizedAccessorStub=*/false,
       /*isImplicitlyDeclared=*/false, /*isDefined=*/false,
       MethodDeclKind == tok::objc_optional ? ObjCMethodDecl::Optional
                                            : ObjCMethodDecl::Required,
@@ -4666,6 +4690,27 @@ Decl *Sema::ActOnMethodDeclaration(
     } else {
       PrevMethod = ImpDecl->getClassMethod(Sel);
       ImpDecl->addClassMethod(ObjCMethod);
+    }
+
+    // If this method overrides a previous @synthesize declaration,
+    // register it with the property.  Linear search through all
+    // properties here, because the autosynthesized stub hasn't been
+    // made visible yet, so it can be overriden by a later
+    // user-specified implementation.
+    for (ObjCPropertyImplDecl *PropertyImpl : ImpDecl->property_impls()) {
+      if (auto *Setter = PropertyImpl->getSetterMethodDecl())
+        if (Setter->getSelector() == Sel &&
+            Setter->isInstanceMethod() == ObjCMethod->isInstanceMethod()) {
+          assert(Setter->isSynthesizedAccessorStub() && "autosynth stub expected");
+          PropertyImpl->setSetterMethodDecl(ObjCMethod);
+        }
+      if (auto *Getter = PropertyImpl->getGetterMethodDecl())
+        if (Getter->getSelector() == Sel &&
+            Getter->isInstanceMethod() == ObjCMethod->isInstanceMethod()) {
+          assert(Getter->isSynthesizedAccessorStub() && "autosynth stub expected");
+          PropertyImpl->setGetterMethodDecl(ObjCMethod);
+          break;
+        }
     }
 
     // Merge information from the @interface declaration into the
@@ -4878,7 +4923,7 @@ VarDecl *Sema::BuildObjCExceptionDecl(TypeSourceInfo *TInfo, QualType T,
   } else if (!T->isObjCObjectPointerType()) {
     Invalid = true;
     Diag(IdLoc, diag::err_catch_param_not_objc_type);
-  } else if (!T->getAs<ObjCObjectPointerType>()->getInterfaceType()) {
+  } else if (!T->castAs<ObjCObjectPointerType>()->getInterfaceType()) {
     Invalid = true;
     Diag(IdLoc, diag::err_catch_param_not_objc_type);
   }
@@ -5063,6 +5108,9 @@ void Sema::DiagnoseUnusedBackingIvarInAccessor(Scope *S,
     const ObjCPropertyDecl *PDecl;
     const ObjCIvarDecl *IV = GetIvarBackingPropertyAccessor(CurMethod, PDecl);
     if (!IV)
+      continue;
+
+    if (CurMethod->isSynthesizedAccessorStub())
       continue;
 
     UnusedBackingIvarChecker Checker(*this, CurMethod, IV);

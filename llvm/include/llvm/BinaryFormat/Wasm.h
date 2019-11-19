@@ -16,6 +16,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 
 namespace llvm {
 namespace wasm {
@@ -224,7 +225,7 @@ enum : unsigned {
   WASM_TYPE_F64 = 0x7C,
   WASM_TYPE_V128 = 0x7B,
   WASM_TYPE_FUNCREF = 0x70,
-  WASM_TYPE_EXCEPT_REF = 0x68,
+  WASM_TYPE_EXNREF = 0x68,
   WASM_TYPE_FUNC = 0x60,
   WASM_TYPE_NORESULT = 0x40, // for blocks with no result values
 };
@@ -242,13 +243,30 @@ enum : unsigned {
 enum : unsigned {
   WASM_OPCODE_END = 0x0b,
   WASM_OPCODE_CALL = 0x10,
+  WASM_OPCODE_LOCAL_GET = 0x20,
   WASM_OPCODE_GLOBAL_GET = 0x23,
+  WASM_OPCODE_GLOBAL_SET = 0x24,
   WASM_OPCODE_I32_STORE = 0x36,
   WASM_OPCODE_I32_CONST = 0x41,
   WASM_OPCODE_I64_CONST = 0x42,
   WASM_OPCODE_F32_CONST = 0x43,
   WASM_OPCODE_F64_CONST = 0x44,
   WASM_OPCODE_I32_ADD = 0x6a,
+};
+
+// Opcodes used in synthetic functions.
+enum : unsigned {
+  WASM_OPCODE_IF = 0x04,
+  WASM_OPCODE_ELSE = 0x05,
+  WASM_OPCODE_DROP = 0x1a,
+  WASM_OPCODE_MISC_PREFIX = 0xfc,
+  WASM_OPCODE_MEMORY_INIT = 0x08,
+  WASM_OPCODE_DATA_DROP = 0x09,
+  WASM_OPCODE_ATOMICS_PREFIX = 0xfe,
+  WASM_OPCODE_ATOMIC_NOTIFY = 0x00,
+  WASM_OPCODE_I32_ATOMIC_WAIT = 0x01,
+  WASM_OPCODE_I32_ATOMIC_STORE = 0x17,
+  WASM_OPCODE_I32_RMW_CMPXCHG = 0x48,
 };
 
 enum : unsigned {
@@ -313,6 +331,7 @@ const unsigned WASM_SYMBOL_VISIBILITY_HIDDEN = 0x4;
 const unsigned WASM_SYMBOL_UNDEFINED = 0x10;
 const unsigned WASM_SYMBOL_EXPORTED = 0x20;
 const unsigned WASM_SYMBOL_EXPLICIT_NAME = 0x40;
+const unsigned WASM_SYMBOL_NO_STRIP = 0x80;
 
 #define WASM_RELOC(name, value) name = value,
 
@@ -329,7 +348,7 @@ enum class ValType {
   F32 = WASM_TYPE_F32,
   F64 = WASM_TYPE_F64,
   V128 = WASM_TYPE_V128,
-  EXCEPT_REF = WASM_TYPE_EXCEPT_REF,
+  EXNREF = WASM_TYPE_EXNREF,
 };
 
 struct WasmSignature {
@@ -364,6 +383,7 @@ inline bool operator!=(const WasmGlobalType &LHS, const WasmGlobalType &RHS) {
 
 std::string toString(WasmSymbolType type);
 std::string relocTypetoString(uint32_t type);
+bool relocTypeHasAddend(uint32_t type);
 
 } // end namespace wasm
 } // end namespace llvm

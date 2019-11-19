@@ -10,6 +10,7 @@
 #define SCUDO_STATS_H_
 
 #include "atomic_helpers.h"
+#include "list.h"
 #include "mutex.h"
 
 #include <string.h>
@@ -17,7 +18,7 @@
 namespace scudo {
 
 // Memory allocator statistics
-enum StatType { StatAllocated, StatMapped, StatCount };
+enum StatType { StatAllocated, StatFree, StatMapped, StatCount };
 
 typedef uptr StatCounters[StatCount];
 
@@ -45,51 +46,41 @@ public:
 
   uptr get(StatType I) const { return atomic_load_relaxed(&StatsArray[I]); }
 
-private:
-  friend class GlobalStats;
-  atomic_uptr StatsArray[StatCount];
   LocalStats *Next;
   LocalStats *Prev;
+
+private:
+  atomic_uptr StatsArray[StatCount];
 };
 
 // Global stats, used for aggregation and querying.
 class GlobalStats : public LocalStats {
 public:
-  void initLinkerInitialized() {
-    Next = this;
-    Prev = this;
-  }
+  void initLinkerInitialized() {}
   void init() {
     memset(this, 0, sizeof(*this));
     initLinkerInitialized();
   }
 
   void link(LocalStats *S) {
-    SpinMutexLock L(&Mutex);
-    S->Next = Next;
-    S->Prev = this;
-    Next->Prev = S;
-    Next = S;
+    ScopedLock L(Mutex);
+    StatsList.push_back(S);
   }
 
   void unlink(LocalStats *S) {
-    SpinMutexLock L(&Mutex);
-    S->Prev->Next = S->Next;
-    S->Next->Prev = S->Prev;
+    ScopedLock L(Mutex);
+    StatsList.remove(S);
     for (uptr I = 0; I < StatCount; I++)
       add(static_cast<StatType>(I), S->get(static_cast<StatType>(I)));
   }
 
   void get(uptr *S) const {
-    memset(S, 0, StatCount * sizeof(uptr));
-    SpinMutexLock L(&Mutex);
-    const LocalStats *Stats = this;
-    for (;;) {
+    ScopedLock L(Mutex);
+    for (uptr I = 0; I < StatCount; I++)
+      S[I] = LocalStats::get(static_cast<StatType>(I));
+    for (const auto &Stats : StatsList) {
       for (uptr I = 0; I < StatCount; I++)
-        S[I] += Stats->get(static_cast<StatType>(I));
-      Stats = Stats->Next;
-      if (Stats == this)
-        break;
+        S[I] += Stats.get(static_cast<StatType>(I));
     }
     // All stats must be non-negative.
     for (uptr I = 0; I < StatCount; I++)
@@ -97,7 +88,8 @@ public:
   }
 
 private:
-  mutable StaticSpinMutex Mutex;
+  mutable HybridMutex Mutex;
+  DoublyLinkedList<LocalStats> StatsList;
 };
 
 } // namespace scudo

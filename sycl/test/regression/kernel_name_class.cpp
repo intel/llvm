@@ -1,8 +1,10 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %clangxx -fsycl %s -o %t.ext.out -fsycl-unnamed-lambda
+// RUN: %CPU_RUN_PLACEHOLDER %t.ext.out
 
 //==-- kernel_name_class.cpp - SYCL kernel naming variants test ------------==//
 //
@@ -65,6 +67,14 @@ struct Wrapper {
       // 1: Kernel class definition
       // 2: Declaration level of the template argument class of the kernel class
       // 3: Definition of the template argument class of the kernel class
+
+      // PD--
+      // bool as kernel name
+      deviceQueue.submit([&](cl::sycl::handler &cgh) {
+        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+        cgh.single_task<bool>([=]() { acc[0] += GOLD; });
+      });
+      ++NumTestCases;
 
       // PI--
       // traditional in-place incomplete type

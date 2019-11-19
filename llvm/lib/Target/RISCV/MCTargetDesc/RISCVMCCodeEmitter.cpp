@@ -15,6 +15,7 @@
 #include "MCTargetDesc/RISCVMCTargetDesc.h"
 #include "Utils/RISCVBaseInfo.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
@@ -88,19 +89,29 @@ MCCodeEmitter *llvm::createRISCVMCCodeEmitter(const MCInstrInfo &MCII,
   return new RISCVMCCodeEmitter(Ctx, MCII);
 }
 
-// Expand PseudoCALL and PseudoTAIL to AUIPC and JALR with relocation types.
-// We expand PseudoCALL and PseudoTAIL while encoding, meaning AUIPC and JALR
-// won't go through RISCV MC to MC compressed instruction transformation. This
-// is acceptable because AUIPC has no 16-bit form and C_JALR have no immediate
-// operand field.  We let linker relaxation deal with it. When linker
-// relaxation enabled, AUIPC and JALR have chance relax to JAL. If C extension
-// is enabled, JAL has chance relax to C_JAL.
+// Expand PseudoCALL(Reg) and PseudoTAIL to AUIPC and JALR with relocation
+// types. We expand PseudoCALL(Reg) and PseudoTAIL while encoding, meaning AUIPC
+// and JALR won't go through RISCV MC to MC compressed instruction
+// transformation. This is acceptable because AUIPC has no 16-bit form and
+// C_JALR have no immediate operand field.  We let linker relaxation deal with
+// it. When linker relaxation enabled, AUIPC and JALR have chance relax to JAL.
+// If C extension is enabled, JAL has chance relax to C_JAL.
 void RISCVMCCodeEmitter::expandFunctionCall(const MCInst &MI, raw_ostream &OS,
                                             SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
   MCInst TmpInst;
-  MCOperand Func = MI.getOperand(0);
-  unsigned Ra = (MI.getOpcode() == RISCV::PseudoTAIL) ? RISCV::X6 : RISCV::X1;
+  MCOperand Func;
+  Register Ra;
+  if (MI.getOpcode() == RISCV::PseudoTAIL) {
+    Func = MI.getOperand(0);
+    Ra = RISCV::X6;
+  } else if (MI.getOpcode() == RISCV::PseudoCALLReg) {
+    Func = MI.getOperand(1);
+    Ra = MI.getOperand(0).getReg();
+  } else {
+    Func = MI.getOperand(0);
+    Ra = RISCV::X1;
+  }
   uint32_t Binary;
 
   assert(Func.isExpr() && "Expected expression");
@@ -118,7 +129,7 @@ void RISCVMCCodeEmitter::expandFunctionCall(const MCInst &MI, raw_ostream &OS,
     // Emit JALR X0, X6, 0
     TmpInst = MCInstBuilder(RISCV::JALR).addReg(RISCV::X0).addReg(Ra).addImm(0);
   else
-    // Emit JALR X1, X1, 0
+    // Emit JALR Ra, Ra, 0
     TmpInst = MCInstBuilder(RISCV::JALR).addReg(Ra).addReg(Ra).addImm(0);
   Binary = getBinaryCodeForInstr(TmpInst, Fixups, STI);
   support::endian::write(OS, Binary, support::little);
@@ -169,7 +180,8 @@ void RISCVMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
   // Get byte count of instruction.
   unsigned Size = Desc.getSize();
 
-  if (MI.getOpcode() == RISCV::PseudoCALL ||
+  if (MI.getOpcode() == RISCV::PseudoCALLReg ||
+      MI.getOpcode() == RISCV::PseudoCALL ||
       MI.getOpcode() == RISCV::PseudoTAIL) {
     expandFunctionCall(MI, OS, Fixups, STI);
     MCNumEmitted += 2;
@@ -255,6 +267,7 @@ unsigned RISCVMCCodeEmitter::getImmOpValue(const MCInst &MI, unsigned OpNo,
     switch (RVExpr->getKind()) {
     case RISCVMCExpr::VK_RISCV_None:
     case RISCVMCExpr::VK_RISCV_Invalid:
+    case RISCVMCExpr::VK_RISCV_32_PCREL:
       llvm_unreachable("Unhandled fixup kind!");
     case RISCVMCExpr::VK_RISCV_TPREL_ADD:
       // tprel_add is only used to indicate that a relocation should be emitted

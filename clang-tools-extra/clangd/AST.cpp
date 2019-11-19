@@ -8,12 +8,17 @@
 
 #include "AST.h"
 
+#include "SourceCode.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/DeclarationName.h"
+#include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Index/USRGeneration.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/Casting.h"
@@ -34,42 +39,49 @@ getTemplateSpecializationArgLocs(const NamedDecl &ND) {
                  llvm::dyn_cast<ClassTemplatePartialSpecializationDecl>(&ND)) {
     if (auto *Args = Cls->getTemplateArgsAsWritten())
       return Args->arguments();
+  } else if (auto *Var =
+                 llvm::dyn_cast<VarTemplatePartialSpecializationDecl>(&ND)) {
+    if (auto *Args = Var->getTemplateArgsAsWritten())
+      return Args->arguments();
   } else if (auto *Var = llvm::dyn_cast<VarTemplateSpecializationDecl>(&ND))
     return Var->getTemplateArgsInfo().arguments();
   // We return None for ClassTemplateSpecializationDecls because it does not
   // contain TemplateArgumentLoc information.
   return llvm::None;
 }
-} // namespace
 
-// Returns true if the complete name of decl \p D is spelled in the source code.
-// This is not the case for:
-//   * symbols formed via macro concatenation, the spelling location will
-//     be "<scratch space>"
-//   * symbols controlled and defined by a compile command-line option
-//     `-DName=foo`, the spelling location will be "<command line>".
-bool isSpelledInSourceCode(const Decl *D) {
-  const auto &SM = D->getASTContext().getSourceManager();
-  auto Loc = D->getLocation();
-  // FIXME: Revisit the strategy, the heuristic is limitted when handling
-  // macros, we should use the location where the whole definition occurs.
-  if (Loc.isMacroID()) {
-    std::string PrintLoc = SM.getSpellingLoc(Loc).printToString(SM);
-    if (llvm::StringRef(PrintLoc).startswith("<scratch") ||
-        llvm::StringRef(PrintLoc).startswith("<command line>"))
-      return false;
-  }
-  return true;
+template <class T>
+bool isTemplateSpecializationKind(const NamedDecl *D,
+                                  TemplateSpecializationKind Kind) {
+  if (const auto *TD = dyn_cast<T>(D))
+    return TD->getTemplateSpecializationKind() == Kind;
+  return false;
 }
 
-bool isImplementationDetail(const Decl *D) { return !isSpelledInSourceCode(D); }
+bool isTemplateSpecializationKind(const NamedDecl *D,
+                                  TemplateSpecializationKind Kind) {
+  return isTemplateSpecializationKind<FunctionDecl>(D, Kind) ||
+         isTemplateSpecializationKind<CXXRecordDecl>(D, Kind) ||
+         isTemplateSpecializationKind<VarDecl>(D, Kind);
+}
 
-SourceLocation findNameLoc(const clang::Decl *D) {
-  const auto &SM = D->getASTContext().getSourceManager();
-  if (!isSpelledInSourceCode(D))
-    // Use the expansion location as spelling location is not interesting.
-    return SM.getExpansionRange(D->getLocation()).getBegin();
-  return SM.getSpellingLoc(D->getLocation());
+} // namespace
+
+bool isImplicitTemplateInstantiation(const NamedDecl *D) {
+  return isTemplateSpecializationKind(D, TSK_ImplicitInstantiation);
+}
+
+bool isExplicitTemplateSpecialization(const NamedDecl *D) {
+  return isTemplateSpecializationKind(D, TSK_ExplicitSpecialization);
+}
+
+bool isImplementationDetail(const Decl *D) {
+  return !isSpelledInSource(D->getLocation(),
+                            D->getASTContext().getSourceManager());
+}
+
+SourceLocation findName(const clang::Decl *D) {
+  return D->getLocation();
 }
 
 std::string printQualifiedName(const NamedDecl &ND) {
@@ -87,10 +99,35 @@ std::string printQualifiedName(const NamedDecl &ND) {
   return QName;
 }
 
+static bool isAnonymous(const DeclarationName &N) {
+  return N.isIdentifier() && !N.getAsIdentifierInfo();
+}
+
+NestedNameSpecifierLoc getQualifierLoc(const NamedDecl &ND) {
+  if (auto *V = llvm::dyn_cast<DeclaratorDecl>(&ND))
+    return V->getQualifierLoc();
+  if (auto *T = llvm::dyn_cast<TagDecl>(&ND))
+    return T->getQualifierLoc();
+  return NestedNameSpecifierLoc();
+}
+
+std::string printUsingNamespaceName(const ASTContext &Ctx,
+                                    const UsingDirectiveDecl &D) {
+  PrintingPolicy PP(Ctx.getLangOpts());
+  std::string Name;
+  llvm::raw_string_ostream Out(Name);
+
+  if (auto *Qual = D.getQualifier())
+    Qual->print(Out, PP);
+  D.getNominatedNamespaceAsWritten()->printName(Out);
+  return Out.str();
+}
+
 std::string printName(const ASTContext &Ctx, const NamedDecl &ND) {
   std::string Name;
   llvm::raw_string_ostream Out(Name);
   PrintingPolicy PP(Ctx.getLangOpts());
+
   // Handle 'using namespace'. They all have the same name - <using-directive>.
   if (auto *UD = llvm::dyn_cast<UsingDirectiveDecl>(&ND)) {
     Out << "using namespace ";
@@ -99,19 +136,27 @@ std::string printName(const ASTContext &Ctx, const NamedDecl &ND) {
     UD->getNominatedNamespaceAsWritten()->printName(Out);
     return Out.str();
   }
-  ND.getDeclName().print(Out, PP);
-  if (!Out.str().empty()) {
-    Out << printTemplateSpecializationArgs(ND);
-    return Out.str();
+
+  if (isAnonymous(ND.getDeclName())) {
+    // Come up with a presentation for an anonymous entity.
+    if (isa<NamespaceDecl>(ND))
+      return "(anonymous namespace)";
+    if (auto *Cls = llvm::dyn_cast<RecordDecl>(&ND))
+      return ("(anonymous " + Cls->getKindName() + ")").str();
+    if (isa<EnumDecl>(ND))
+      return "(anonymous enum)";
+    return "(anonymous)";
   }
-  // The name was empty, so present an anonymous entity.
-  if (isa<NamespaceDecl>(ND))
-    return "(anonymous namespace)";
-  if (auto *Cls = llvm::dyn_cast<RecordDecl>(&ND))
-    return ("(anonymous " + Cls->getKindName() + ")").str();
-  if (isa<EnumDecl>(ND))
-    return "(anonymous enum)";
-  return "(anonymous)";
+
+  // Print nested name qualifier if it was written in the source code.
+  if (auto *Qualifier = getQualifierLoc(ND).getNestedNameSpecifier())
+    Qualifier->print(Out, PP);
+  // Print the name itself.
+  ND.getDeclName().print(Out, PP);
+  // Print template arguments.
+  Out << printTemplateSpecializationArgs(ND);
+
+  return Out.str();
 }
 
 std::string printTemplateSpecializationArgs(const NamedDecl &ND) {
@@ -168,6 +213,37 @@ llvm::Optional<SymbolID> getSymbolID(const IdentifierInfo &II,
     return None;
   return SymbolID(USR);
 }
+
+std::string shortenNamespace(const llvm::StringRef OriginalName,
+                             const llvm::StringRef CurrentNamespace) {
+  llvm::SmallVector<llvm::StringRef, 8> OriginalParts;
+  llvm::SmallVector<llvm::StringRef, 8> CurrentParts;
+  llvm::SmallVector<llvm::StringRef, 8> Result;
+  OriginalName.split(OriginalParts, "::");
+  CurrentNamespace.split(CurrentParts, "::");
+  auto MinLength = std::min(CurrentParts.size(), OriginalParts.size());
+
+  unsigned DifferentAt = 0;
+  while (DifferentAt < MinLength &&
+      CurrentParts[DifferentAt] == OriginalParts[DifferentAt]) {
+    DifferentAt++;
+  }
+
+  for (unsigned i = DifferentAt; i < OriginalParts.size(); ++i) {
+    Result.push_back(OriginalParts[i]);
+  }
+  return join(Result, "::");
+}
+
+std::string printType(const QualType QT, const DeclContext & Context){
+  PrintingPolicy PP(Context.getParentASTContext().getPrintingPolicy());
+  PP.SuppressUnwrittenScope = 1;
+  PP.SuppressTagKeyword = 1;
+  return shortenNamespace(
+      QT.getAsString(PP),
+      printNamespaceScope(Context) );
+}
+
 
 } // namespace clangd
 } // namespace clang

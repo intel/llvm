@@ -14,7 +14,7 @@ struct X {
 
   int& g(int) const; // expected-note 2 {{candidate function}}
   float& g(int); // expected-note 2 {{candidate function}}
-  static double& g(double); // expected-note 2 {{candidate function}}
+  static double& g(double);
 
   void h(int);
 
@@ -114,3 +114,10 @@ namespace b7398190 {
   const S *p;
   int k = p->f(); // expected-error {{no matching member function for call to 'f'}}
 }
+
+void member_call_op_template(int *p) {
+  // Ensure that we don't get confused about relative parameter / argument
+  // indexing here.
+  [](int, int, auto...){}(p, p); // expected-error {{no matching function}} expected-note {{no known conversion}}
+}
+

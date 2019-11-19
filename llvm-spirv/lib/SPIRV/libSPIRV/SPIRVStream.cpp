@@ -235,6 +235,27 @@ SPIRVEntry *SPIRVDecoder::getEntry() {
   IS >> *Entry;
   if (Entry->isEndOfBlock() || OpCode == OpNoLine)
     M.setCurrentLine(nullptr);
+
+  if (OpExtension == OpCode) {
+    auto *OpExt = static_cast<SPIRVExtension *>(Entry);
+    ExtensionID ExtID;
+    bool ExtIsKnown = SPIRVMap<ExtensionID, std::string>::rfind(
+        OpExt->getExtensionName(), &ExtID);
+    if (!M.getErrorLog().checkError(
+            ExtIsKnown, SPIRVEC_InvalidModule,
+            "input SPIR-V module uses unknown extension '" +
+                OpExt->getExtensionName() + "'")) {
+      M.setInvalid();
+    }
+
+    if (!M.getErrorLog().checkError(
+            M.isAllowedToUseExtension(ExtID), SPIRVEC_InvalidModule,
+            "input SPIR-V module uses extension '" + OpExt->getExtensionName() +
+                "' which were disabled by --spirv-ext option")) {
+      M.setInvalid();
+    }
+  }
+
   assert(!IS.bad() && !IS.fail() && "SPIRV stream fails");
   return Entry;
 }

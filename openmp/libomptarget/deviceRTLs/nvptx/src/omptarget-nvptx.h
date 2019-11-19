@@ -15,19 +15,14 @@
 #define __OMPTARGET_NVPTX_H
 
 // std includes
-#include <stdint.h>
+#include <inttypes.h>
+#include <math.h>
 #include <stdlib.h>
 
-#include <inttypes.h>
-
-// cuda includes
-#include <cuda.h>
-#include <math.h>
-
 // local includes
+#include "target_impl.h"
 #include "debug.h"     // debug
 #include "interface.h" // interfaces with omp, compiler, and user
-#include "option.h"    // choices we have
 #include "state-queue.h"
 #include "support.h"
 
@@ -44,24 +39,6 @@
 
 #define BARRIER_COUNTER 0
 #define ORDERED_COUNTER 1
-
-// Macros for Cuda intrinsics
-// In Cuda 9.0, the *_sync() version takes an extra argument 'mask'.
-// Also, __ballot(1) in Cuda 8.0 is replaced with __activemask().
-#if defined(CUDART_VERSION) && CUDART_VERSION >= 9000
-#define __SHFL_SYNC(mask, var, srcLane) __shfl_sync((mask), (var), (srcLane))
-#define __SHFL_DOWN_SYNC(mask, var, delta, width)                              \
-  __shfl_down_sync((mask), (var), (delta), (width))
-#define __ACTIVEMASK() __activemask()
-#else
-#define __SHFL_SYNC(mask, var, srcLane) __shfl((var), (srcLane))
-#define __SHFL_DOWN_SYNC(mask, var, delta, width)                              \
-  __shfl_down((var), (delta), (width))
-#define __ACTIVEMASK() __ballot(1)
-#endif
-
-#define __SYNCTHREADS_N(n) asm volatile("bar.sync %0;" : : "r"(n) : "memory");
-#define __SYNCTHREADS() __SYNCTHREADS_N(0)
 
 // arguments needed for L0 parallelism only.
 class omptarget_nvptx_SharedArgs {
@@ -104,20 +81,6 @@ private:
 extern __device__ __shared__ omptarget_nvptx_SharedArgs
     omptarget_nvptx_globalArgs;
 
-// Data sharing related quantities, need to match what is used in the compiler.
-enum DATA_SHARING_SIZES {
-  // The maximum number of workers in a kernel.
-  DS_Max_Worker_Threads = 992,
-  // The size reserved for data in a shared memory slot.
-  DS_Slot_Size = 256,
-  // The slot size that should be reserved for a working warp.
-  DS_Worker_Warp_Slot_Size = WARPSIZE * DS_Slot_Size,
-  // The maximum number of warps in use
-  DS_Max_Warp_Number = 32,
-  // The size of the preallocated shared memory buffer per team
-  DS_Shared_Memory_Size = 128,
-};
-
 // Data structure to keep in shared memory that traces the current slot, stack,
 // and frame pointer as well as the active threads that didn't exit the current
 // environment.
@@ -125,7 +88,7 @@ struct DataSharingStateTy {
   __kmpc_data_sharing_slot *SlotPtr[DS_Max_Warp_Number];
   void *StackPtr[DS_Max_Warp_Number];
   void * volatile FramePtr[DS_Max_Warp_Number];
-  int32_t ActiveThreads[DS_Max_Warp_Number];
+  __kmpc_impl_lanemask_t ActiveThreads[DS_Max_Warp_Number];
 };
 // Additional worker slot type which is initialized with the default worker slot
 // size of 4*32 bytes.
@@ -361,11 +324,6 @@ private:
   uint64_t cnt;
 };
 
-/// Device envrionment data
-struct omptarget_device_environmentTy {
-  int32_t debug_level;
-};
-
 /// Memory manager for statically allocated memory.
 class omptarget_nvptx_SimpleMemoryManager {
 private:
@@ -381,12 +339,6 @@ public:
   INLINE void Release();
   INLINE const void *Acquire(const void *buf, size_t size);
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// global device envrionment
-////////////////////////////////////////////////////////////////////////////////
-
-extern __device__ omptarget_device_environmentTy omptarget_device_environment;
 
 ////////////////////////////////////////////////////////////////////////////////
 

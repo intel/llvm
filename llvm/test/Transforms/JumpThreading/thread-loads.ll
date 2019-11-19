@@ -32,8 +32,8 @@ bb2:		; preds = %bb1
 
 bb3:		; preds = %bb1
 ; CHECK: bb3:
-; CHECK: %res.01 = phi i32 [ 1, %bb1.thread ], [ 0, %bb1 ]
-; CHECK: ret i32 %res.01
+; CHECK: %res.02 = phi i32 [ 1, %bb1.thread ], [ 0, %bb1 ]
+; CHECK: ret i32 %res.02
 	ret i32 %res.0
 }
 
@@ -71,8 +71,8 @@ bb2:		; preds = %bb1
 
 bb3:		; preds = %bb1
 ; CHECK: bb3:
-; CHECK: %res.01 = phi i32 [ 1, %bb1.thread ], [ 0, %bb1 ]
-; CHECK: ret i32 %res.01
+; CHECK: %res.02 = phi i32 [ 1, %bb1.thread ], [ 0, %bb1 ]
+; CHECK: ret i32 %res.02
 	ret i32 %res.0
 }
 
@@ -496,7 +496,7 @@ declare void @fn3(i64)
 ; merge fully redudant and then we can jump-thread the block with the
 ; store.
 ;
-; CHECK-LABEL: define i32 @phi_translate_partial_redundant_loads(i32, i32*, i32*
+; CHECK-LABEL: define i32 @phi_translate_partial_redundant_loads(i32 %0, i32* %1, i32* %2
 ; CHECK: merge.thread:
 ; CHECK: store
 ; CHECK: br label %left_x

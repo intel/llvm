@@ -34,10 +34,11 @@
 extern "C" {
 #endif // __cplusplus
 
-typedef  int32_t    pi_int32;
+typedef int32_t     pi_int32;
 typedef uint32_t    pi_uint32;
 typedef uint64_t    pi_uint64;
 typedef pi_uint32   pi_bool;
+typedef pi_uint64   pi_bitfield;
 
 //
 // NOTE: prefer to map 1:1 to OpenCL so that no translation is needed
@@ -48,7 +49,16 @@ typedef pi_uint32   pi_bool;
 //
 typedef enum {
   PI_SUCCESS = CL_SUCCESS,
-  PI_RESULT_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME
+  PI_RESULT_INVALID_KERNEL_NAME = CL_INVALID_KERNEL_NAME,
+  PI_INVALID_OPERATION = CL_INVALID_OPERATION,
+  PI_INVALID_QUEUE_PROPERTIES = CL_INVALID_QUEUE_PROPERTIES,
+  PI_INVALID_VALUE = CL_INVALID_VALUE,
+  PI_INVALID_CONTEXT = CL_INVALID_CONTEXT,
+  PI_INVALID_PLATFORM = CL_INVALID_PLATFORM,
+  PI_INVALID_DEVICE = CL_INVALID_DEVICE,
+  PI_INVALID_BINARY = CL_INVALID_BINARY,
+  PI_MISALIGNED_SUB_BUFFER_OFFSET = CL_MISALIGNED_SUB_BUFFER_OFFSET,
+  PI_OUT_OF_HOST_MEMORY = CL_OUT_OF_HOST_MEMORY
 } _pi_result;
 
 typedef enum {
@@ -73,7 +83,8 @@ typedef enum {
   PI_DEVICE_INFO_TYPE           = CL_DEVICE_TYPE,
   PI_DEVICE_INFO_PARENT         = CL_DEVICE_PARENT_DEVICE,
   PI_DEVICE_INFO_PLATFORM       = CL_DEVICE_PLATFORM,
-  PI_DEVICE_INFO_PARTITION_TYPE = CL_DEVICE_PARTITION_TYPE
+  PI_DEVICE_INFO_PARTITION_TYPE = CL_DEVICE_PARTITION_TYPE,
+  PI_DEVICE_INFO_NAME           = CL_DEVICE_NAME
 } _pi_device_info;
 
 // TODO: populate
@@ -88,16 +99,113 @@ typedef enum {
   PI_QUEUE_INFO_REFERENCE_COUNT = CL_QUEUE_REFERENCE_COUNT
 } _pi_queue_info;
 
+typedef enum {
+  PI_IMAGE_INFO_FORMAT       = CL_IMAGE_FORMAT,
+  PI_IMAGE_INFO_ELEMENT_SIZE = CL_IMAGE_ELEMENT_SIZE,
+  PI_IMAGE_INFO_ROW_PITCH    = CL_IMAGE_ROW_PITCH,
+  PI_IMAGE_INFO_SLICE_PITCH  = CL_IMAGE_SLICE_PITCH,
+  PI_IMAGE_INFO_WIDTH        = CL_IMAGE_WIDTH,
+  PI_IMAGE_INFO_HEIGHT       = CL_IMAGE_HEIGHT,
+  PI_IMAGE_INFO_DEPTH        = CL_IMAGE_DEPTH
+} _pi_image_info;
+
+typedef enum {
+  PI_MEM_TYPE_BUFFER         = CL_MEM_OBJECT_BUFFER,
+  PI_MEM_TYPE_IMAGE2D        = CL_MEM_OBJECT_IMAGE2D,
+  PI_MEM_TYPE_IMAGE3D        = CL_MEM_OBJECT_IMAGE3D,
+  PI_MEM_TYPE_IMAGE2D_ARRAY  = CL_MEM_OBJECT_IMAGE2D_ARRAY,
+  PI_MEM_TYPE_IMAGE1D        = CL_MEM_OBJECT_IMAGE1D,
+  PI_MEM_TYPE_IMAGE1D_ARRAY  = CL_MEM_OBJECT_IMAGE1D_ARRAY,
+  PI_MEM_TYPE_IMAGE1D_BUFFER = CL_MEM_OBJECT_IMAGE1D_BUFFER
+} _pi_mem_type;
+
+typedef enum {
+  PI_IMAGE_CHANNEL_ORDER_A         = CL_A,
+  PI_IMAGE_CHANNEL_ORDER_R         = CL_R,
+  PI_IMAGE_CHANNEL_ORDER_RG        = CL_RG,
+  PI_IMAGE_CHANNEL_ORDER_RA        = CL_RA,
+  PI_IMAGE_CHANNEL_ORDER_RGB       = CL_RGB,
+  PI_IMAGE_CHANNEL_ORDER_RGBA      = CL_RGBA,
+  PI_IMAGE_CHANNEL_ORDER_BGRA      = CL_BGRA,
+  PI_IMAGE_CHANNEL_ORDER_ARGB      = CL_ARGB,
+  PI_IMAGE_CHANNEL_ORDER_ABGR      = CL_ABGR,
+  PI_IMAGE_CHANNEL_ORDER_INTENSITY = CL_INTENSITY,
+  PI_IMAGE_CHANNEL_ORDER_LUMINANCE = CL_LUMINANCE,
+  PI_IMAGE_CHANNEL_ORDER_Rx        = CL_Rx,
+  PI_IMAGE_CHANNEL_ORDER_RGx       = CL_RGx,
+  PI_IMAGE_CHANNEL_ORDER_RGBx      = CL_RGBx
+} _pi_image_channel_order;
+
+typedef enum {
+  PI_IMAGE_CHANNEL_TYPE_SNORM_INT8       = CL_SNORM_INT8,
+  PI_IMAGE_CHANNEL_TYPE_SNORM_INT16      = CL_SNORM_INT16,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_INT8       = CL_UNORM_INT8,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_INT16      = CL_UNORM_INT16,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565  = CL_UNORM_SHORT_565,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555  = CL_UNORM_SHORT_555,
+  PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010 = CL_UNORM_INT_101010,
+  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8      = CL_SIGNED_INT8,
+  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16     = CL_SIGNED_INT16,
+  PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32     = CL_SIGNED_INT32,
+  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8    = CL_UNSIGNED_INT8,
+  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16   = CL_UNSIGNED_INT16,
+  PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32   = CL_UNSIGNED_INT32,
+  PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT       = CL_HALF_FLOAT,
+  PI_IMAGE_CHANNEL_TYPE_FLOAT            = CL_FLOAT
+} _pi_image_channel_type;
+
+typedef enum {
+  PI_BUFFER_CREATE_TYPE_REGION = CL_BUFFER_CREATE_TYPE_REGION
+} _pi_buffer_create_type;
+
+typedef pi_bitfield pi_sampler_properties;
+const pi_bool PI_TRUE = CL_TRUE;
+const pi_bool PI_FALSE = CL_FALSE;
+
+typedef enum {
+ PI_SAMPLER_INFO_REFERENCE_COUNT   = CL_SAMPLER_REFERENCE_COUNT,
+ PI_SAMPLER_INFO_CONTEXT           = CL_SAMPLER_CONTEXT,
+ PI_SAMPLER_INFO_NORMALIZED_COORDS = CL_SAMPLER_NORMALIZED_COORDS,
+ PI_SAMPLER_INFO_ADDRESSING_MODE   = CL_SAMPLER_ADDRESSING_MODE,
+ PI_SAMPLER_INFO_FILTER_MODE       = CL_SAMPLER_FILTER_MODE,
+ PI_SAMPLER_INFO_MIP_FILTER_MODE   = CL_SAMPLER_MIP_FILTER_MODE,
+ PI_SAMPLER_INFO_LOD_MIN           = CL_SAMPLER_LOD_MIN,
+ PI_SAMPLER_INFO_LOD_MAX           = CL_SAMPLER_LOD_MAX
+} _pi_sampler_info;
+
+typedef enum {
+  PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT = CL_ADDRESS_MIRRORED_REPEAT,
+  PI_SAMPLER_ADDRESSING_MODE_REPEAT          = CL_ADDRESS_REPEAT,
+  PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE   = CL_ADDRESS_CLAMP_TO_EDGE,
+  PI_SAMPLER_ADDRESSING_MODE_CLAMP           = CL_ADDRESS_CLAMP,
+  PI_SAMPLER_ADDRESSING_MODE_NONE            = CL_ADDRESS_NONE
+} _pi_sampler_addressing_mode;
+
+typedef enum {
+  PI_SAMPLER_FILTER_MODE_NEAREST = CL_FILTER_NEAREST,
+  PI_SAMPLER_FILTER_MODE_LINEAR  = CL_FILTER_LINEAR,
+} _pi_sampler_filter_mode;
+
 // NOTE: this is made 64-bit to match the size of cl_mem_flags to
 // make the translation to OpenCL transparent.
 // TODO: populate
 //
-typedef pi_uint64 pi_mem_flags;
+typedef pi_bitfield pi_mem_flags;
 // Access
-const pi_uint64 PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
+const pi_mem_flags PI_MEM_FLAGS_ACCESS_RW     = CL_MEM_READ_WRITE;
 // Host pointer
-const pi_uint64 PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
-const pi_uint64 PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE  = CL_MEM_USE_HOST_PTR;
+const pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
+
+// NOTE: queue properties is implemented this way to better support bit
+// manipulations
+typedef pi_bitfield pi_queue_properties;
+const pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE =
+        CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+const pi_queue_properties PI_QUEUE_PROFILING_ENABLE = CL_QUEUE_PROFILING_ENABLE;
+const pi_queue_properties PI_QUEUE_ON_DEVICE = CL_QUEUE_ON_DEVICE;
+const pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT =
+        CL_QUEUE_ON_DEVICE_DEFAULT;
 
 typedef _pi_result                  pi_result;
 typedef _pi_platform_info           pi_platform_info;
@@ -105,17 +213,29 @@ typedef _pi_device_type             pi_device_type;
 typedef _pi_device_info             pi_device_info;
 typedef _pi_context_info            pi_context_info;
 typedef _pi_queue_info              pi_queue_info;
+typedef _pi_image_info              pi_image_info;
+typedef _pi_mem_type                pi_mem_type;
+typedef _pi_image_channel_order     pi_image_channel_order;
+typedef _pi_image_channel_type      pi_image_channel_type;
+typedef _pi_buffer_create_type      pi_buffer_create_type;
+typedef _pi_sampler_addressing_mode pi_sampler_addressing_mode;
+typedef _pi_sampler_filter_mode     pi_sampler_filter_mode;
+typedef _pi_sampler_info            pi_sampler_info;
 
 // Opaque data type for compatibility with OpenMP.
 typedef void * _pi_offload_entry;
 
 /// Types of device binary.
 typedef uint8_t pi_device_binary_type;
-static const uint8_t PI_DEVICE_BINARY_TYPE_NONE    = 0; // format is not determined
-static const uint8_t PI_DEVICE_BINARY_TYPE_NATIVE  = 1; // specific to a device
+// format is not determined
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NONE    = 0;
+// specific to a device
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_NATIVE  = 1;
 // portable binary types go next
-static const uint8_t PI_DEVICE_BINARY_TYPE_SPIRV   = 2;        // SPIR-V
-static const uint8_t PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3; // LLVM bitcode
+// SPIR-V
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_SPIRV   = 2;
+// LLVM bitcode
+static const pi_device_binary_type PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3;
 
 // Device binary descriptor version supported by this library.
 static const uint16_t PI_DEVICE_BINARY_VERSION = 1;
@@ -126,9 +246,20 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// Target identification strings for
 /// pi_device_binary_struct.DeviceTargetSpec
 ///
+/// A device type represented by a particular target
+/// triple requires specific binary images. We need
+/// to map the image type onto the device target triple
+///
 #define PI_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
+/// SPIR-V 32-bit image <-> "spir", 32-bit OpenCL device
 #define PI_DEVICE_BINARY_TARGET_SPIRV32 "spir"
-#define PI_DEVICE_BINARY_TARGET_SPIRV64 "spir64";
+/// SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
+#define PI_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
+/// Device-specific binary images produced from SPIR-V 64-bit <->
+/// various "spir64_*" triples for specific 64-bit OpenCL devices
+#define PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
+#define PI_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
+#define PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIRV or LLVMIR), the DeviceTargetSpec field
@@ -145,6 +276,13 @@ struct pi_device_binary_struct {
   /// format of the binary data - SPIRV, LLVMIR bitcode,...
   uint8_t Format;
   /// null-terminated string representation of the device's target architecture
+  /// which holds one of:
+  /// PI_DEVICE_BINARY_TARGET_UNKNOWN - unknown
+  /// PI_DEVICE_BINARY_TARGET_SPIRV32 - general value for 32-bit OpenCL devices
+  /// PI_DEVICE_BINARY_TARGET_SPIRV64 - general value for 64-bit OpenCL devices
+  /// PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 - 64-bit OpenCL CPU device
+  /// PI_DEVICE_BINARY_TARGET_SPIRV64_GEN - GEN GPU device (64-bit OpenCL)
+  /// PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA - 64-bit OpenCL FPGA device
   const char *DeviceTargetSpec;
   /// a null-terminated string; target- and compiler-specific options
   /// which are suggested to use to "build" program at runtime
@@ -204,6 +342,27 @@ typedef _pi_program *     pi_program;
 typedef _pi_kernel *      pi_kernel;
 typedef _pi_event *       pi_event;
 typedef _pi_sampler *     pi_sampler;
+
+typedef struct {
+          pi_image_channel_order image_channel_order;
+          pi_image_channel_type  image_channel_data_type;
+} _pi_image_format;
+
+typedef struct {
+          pi_mem_type image_type;
+          size_t image_width;
+          size_t image_height;
+          size_t image_depth;
+          size_t image_array_size;
+          size_t image_row_pitch;
+          size_t image_slice_pitch;
+          pi_uint32 num_mip_levels;
+          pi_uint32 num_samples;
+          pi_mem buffer;
+} _pi_image_desc;
+
+typedef _pi_image_format   pi_image_format;
+typedef _pi_image_desc     pi_image_desc;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
@@ -265,15 +424,29 @@ pi_result piDevicePartition(
 /// and the IR characteristics.
 ///
 pi_result piextDeviceSelectBinary(
-  pi_device           device, // TODO: does this need to be context?
+  pi_device           device,
   pi_device_binary *  binaries,
   pi_uint32           num_binaries,
   pi_device_binary *  selected_binary);
 
+/// Retrieves a device function pointer to a user-defined function
+/// \arg \c function_name. \arg \c function_pointer_ret is set to 0 if query
+/// failed.
+///
+/// \arg \c program must be built before calling this API. \arg \c device
+/// must present in the list of devices returned by \c get_device method for
+/// \arg \c program.
+///
+pi_result piextGetDeviceFunctionPointer(
+  pi_device        device,
+  pi_program       program,
+  const char *     function_name,
+  pi_uint64 *      function_pointer_ret);
+
 //
 // Context
 //
-pi_context piContextCreate( // TODO: change interface to return error code instead
+pi_result piContextCreate(
   const cl_context_properties * properties, // TODO: untie from OpenCL
   pi_uint32         num_devices,
   const pi_device * devices,
@@ -283,7 +456,7 @@ pi_context piContextCreate( // TODO: change interface to return error code inste
     size_t       cb,
     void *       user_data),
   void *            user_data,
-  pi_result *       result);
+  pi_context *      ret_context);
 
 pi_result piContextGetInfo(
   pi_context         context,
@@ -299,11 +472,11 @@ pi_result piContextRelease(pi_context context);
 //
 // Queue
 //
-pi_queue piQueueCreate( // TODO: change interface to return error code instead
-  pi_context              context,
-  pi_device               device,
-  const cl_queue_properties *    properties, // TODO: untie from OpenCL
-  pi_result *             result);
+pi_result piQueueCreate(
+  pi_context                  context,
+  pi_device                   device,
+  pi_queue_properties         properties,
+  pi_queue *                  queue);
 
 pi_result piQueueGetInfo(
   pi_queue            command_queue,
@@ -321,12 +494,20 @@ pi_result piQueueFinish(pi_queue command_queue);
 //
 // Memory
 //
-pi_mem piMemCreate( // TODO: change interface to return error code
+pi_result piMemBufferCreate(
   pi_context   context,
   pi_mem_flags flags,
   size_t       size,
   void *       host_ptr,
-  pi_result *  errcode_ret);
+  pi_mem *     ret_mem);
+
+pi_result piMemImageCreate(
+  pi_context              context,
+  pi_mem_flags            flags,
+  const pi_image_format * image_format,
+  const pi_image_desc *   image_desc,
+  void *                  host_ptr,
+  pi_mem *                ret_mem);
 
 pi_result piMemGetInfo(
   pi_mem           mem,
@@ -335,34 +516,49 @@ pi_result piMemGetInfo(
   void *           param_value,
   size_t *         param_value_size_ret);
 
-pi_result piMemRetain(pi_mem);
+pi_result piMemImageGetInfo (
+  pi_mem          image,
+  pi_image_info   param_name,
+  size_t          param_value_size,
+  void *          param_value ,
+  size_t *        param_value_size_ret);
 
-pi_result piMemRelease(pi_mem);
+pi_result piMemRetain(
+  pi_mem mem);
+ 
+pi_result piMemRelease(
+  pi_mem mem);
 
+pi_result piMemBufferPartition(
+    pi_mem                    buffer,
+    pi_mem_flags              flags,
+    pi_buffer_create_type     buffer_create_type,
+    void *                    buffer_create_info,
+    pi_mem *                  ret_mem);
 //
 // Program
 //
-pi_program piProgramCreate(  // TODO: change interface to return error code
+pi_result piProgramCreate(
   pi_context    context,
   const void *  il,
   size_t        length,
-  pi_result *   errcode_ret);
+  pi_program *  res_program);
 
-pi_program piclProgramCreateWithBinary( // TODO: change to return pi_result
+pi_result piclProgramCreateWithSource(
+  pi_context        context,
+  pi_uint32         count,
+  const char **     strings,
+  const size_t *    lengths,
+  pi_program *      ret_program);
+
+pi_result piclProgramCreateWithBinary(
   pi_context                     context,
   pi_uint32                      num_devices,
   const pi_device *              device_list,
   const size_t *                 lengths,
   const unsigned char **         binaries,
   pi_int32 *                     binary_status,
-  pi_result *                    errcode_ret);
-
-pi_program piclProgramCreateWithSource( // TODO:  change to return pi_result
-  pi_context        context,
-  pi_uint32         count,
-  const char **     strings,
-  const size_t *    lengths,
-  pi_result *       errcode);
+  pi_program *                   ret_program);
 
 pi_result piProgramGetInfo(
   pi_program          program,
@@ -371,7 +567,7 @@ pi_result piProgramGetInfo(
   void *              param_value,
   size_t *            param_value_size_ret);
 
-pi_program piProgramLink( // TODO: change interface to return error code
+pi_result piProgramLink(
   pi_context          context,
   pi_uint32           num_devices,
   const pi_device *   device_list,
@@ -381,7 +577,7 @@ pi_program piProgramLink( // TODO: change interface to return error code
   void (*  pfn_notify)(pi_program program,
                        void * user_data),
   void *              user_data,
-  pi_result *         errcode_ret);
+  pi_program *        ret_program);
 
 pi_result piProgramCompile(
   pi_program           program,
@@ -417,10 +613,10 @@ pi_result piProgramRelease(pi_program program);
 //
 // Kernel
 //
-pi_kernel piKernelCreate( // TODO: change interface to return error code
+pi_result piKernelCreate(
   pi_program      program,
   const char *    kernel_name,
-  pi_result *     errcode_ret);
+  pi_kernel *     ret_kernel);
 
 pi_result piKernelSetArg(
   pi_kernel    kernel,
@@ -460,9 +656,9 @@ pi_result piKernelRelease(pi_kernel    kernel);
 //
 // Events
 //
-pi_event piEventCreate( // TODO: change to return pi_result
+pi_result piEventCreate(
   pi_context    context,
-  pi_result *   errcode_ret);
+  pi_event *    ret_event);
 
 pi_result piEventGetInfo(
   pi_event         event,
@@ -501,14 +697,14 @@ pi_result piEventRelease(pi_event event);
 //
 // Sampler
 //
-pi_sampler piSamplerCreate(
+pi_result piSamplerCreate(
   pi_context                     context,
-  const cl_sampler_properties *  sampler_properties, // TODO: untie from OpenCL
-  pi_result *                    errcode_ret);
+  const pi_sampler_properties *  sampler_properties,
+  pi_sampler *                   result_sampler);
 
 pi_result piSamplerGetInfo(
   pi_sampler         sampler,
-  cl_sampler_info    param_name, // TODO: untie from OpenCL
+  pi_sampler_info    param_name,
   size_t             param_value_size,
   void *             param_value,
   size_t *           param_value_size_ret);
@@ -531,13 +727,25 @@ pi_result piEnqueueKernelLaunch(
   const pi_event *  event_wait_list,
   pi_event *        event);
 
+pi_result piEnqueueNativeKernel(
+  pi_queue         queue,
+  void             (*user_func)(void *),
+  void *           args,
+  size_t           cb_args,
+  pi_uint32        num_mem_objects,
+  const pi_mem *   mem_list,
+  const void **    args_mem_loc,
+  pi_uint32        num_events_in_wait_list,
+  const pi_event * event_wait_list,
+  pi_event *       event);
+
 pi_result piEnqueueEventsWait(
   pi_queue          command_queue,
   pi_uint32         num_events_in_wait_list,
   const pi_event *  event_wait_list,
   pi_event *        event);
 
-pi_result piEnqueueMemRead(
+pi_result piEnqueueMemBufferRead(
   pi_queue            queue,
   pi_mem              buffer,
   pi_bool             blocking_read,
@@ -548,7 +756,7 @@ pi_result piEnqueueMemRead(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemReadRect(
+pi_result piEnqueueMemBufferReadRect(
   pi_queue            command_queue,
   pi_mem              buffer,
   pi_bool             blocking_read,
@@ -564,7 +772,7 @@ pi_result piEnqueueMemReadRect(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemWrite(
+pi_result piEnqueueMemBufferWrite(
   pi_queue           command_queue,
   pi_mem             buffer,
   pi_bool            blocking_write,
@@ -575,7 +783,7 @@ pi_result piEnqueueMemWrite(
   const pi_event *   event_wait_list,
   pi_event *         event);
 
-pi_result piEnqueueMemWriteRect(
+pi_result piEnqueueMemBufferWriteRect(
   pi_queue            command_queue,
   pi_mem              buffer,
   pi_bool             blocking_write,
@@ -591,7 +799,7 @@ pi_result piEnqueueMemWriteRect(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemCopy(
+pi_result piEnqueueMemBufferCopy(
   pi_queue            command_queue,
   pi_mem              src_buffer,
   pi_mem              dst_buffer,
@@ -602,7 +810,7 @@ pi_result piEnqueueMemCopy(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemCopyRect(
+pi_result piEnqueueMemBufferCopyRect(
   pi_queue            command_queue,
   pi_mem              src_buffer,
   pi_mem              dst_buffer,
@@ -617,7 +825,7 @@ pi_result piEnqueueMemCopyRect(
   const pi_event *    event_wait_list,
   pi_event *          event);
 
-pi_result piEnqueueMemFill(
+pi_result piEnqueueMemBufferFill(
   pi_queue           command_queue,
   pi_mem             buffer,
   const void *       pattern,
@@ -628,7 +836,54 @@ pi_result piEnqueueMemFill(
   const pi_event *   event_wait_list,
   pi_event *         event);
 
-void * piEnqueueMemMap( // TODO: change to return pi_result
+pi_result piEnqueueMemImageRead(
+  pi_queue          command_queue,
+  pi_mem            image,
+  pi_bool           blocking_read,
+  const size_t *    origin,
+  const size_t *    region,
+  size_t            row_pitch,
+  size_t            slice_pitch,
+  void *            ptr,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+pi_result piEnqueueMemImageWrite(
+  pi_queue          command_queue,
+  pi_mem            image,
+  pi_bool           blocking_write,
+  const size_t *    origin,
+  const size_t *    region,
+  size_t            input_row_pitch,
+  size_t            input_slice_pitch,
+  const void *      ptr,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+pi_result piEnqueueMemImageCopy(
+  pi_queue          command_queue,
+  pi_mem            src_image,
+  pi_mem            dst_image,
+  const size_t *    src_origin,
+  const size_t *    dst_origin,
+  const size_t *    region,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+pi_result piEnqueueMemImageFill(
+  pi_queue          command_queue,
+  pi_mem            image,
+  const void *      fill_color,
+  const size_t *    origin,
+  const size_t *    region,
+  pi_uint32         num_events_in_wait_list,
+  const pi_event *  event_wait_list,
+  pi_event *        event);
+
+pi_result piEnqueueMemBufferMap(
   pi_queue          command_queue,
   pi_mem            buffer,
   pi_bool           blocking_map,
@@ -638,7 +893,7 @@ void * piEnqueueMemMap( // TODO: change to return pi_result
   pi_uint32         num_events_in_wait_list,
   const pi_event *  event_wait_list,
   pi_event *        event,
-  pi_result *       errcode_ret);
+  void* *           ret_map);
 
 pi_result piEnqueueMemUnmap(
   pi_queue         command_queue,

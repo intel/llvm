@@ -3,7 +3,7 @@
 // I386: "-S"
 // I386: "-disable-free"
 // I386: "-mrelocation-model" "static"
-// I386: "-mdisable-fp-elim"
+// I386: "-mframe-pointer=all"
 // I386: "-masm-verbose"
 // I386: "-munwind-tables"
 // I386: "-Os"
@@ -318,6 +318,7 @@
 // ANDROID-X86_64: "-target-cpu" "x86-64"
 // ANDROID-X86_64: "-target-feature" "+sse4.2"
 // ANDROID-X86_64: "-target-feature" "+popcnt"
+// ANDROID-X86_64: "-target-feature" "+cx16"
 
 // RUN: %clang -target mips-linux-gnu -### -S %s 2>&1 | \
 // RUN: FileCheck -check-prefix=MIPS %s

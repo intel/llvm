@@ -66,6 +66,8 @@ file_magic llvm::identify_magic(StringRef Magic) {
     // XCOFF format
     if (startswith(Magic, "\x01\xDF"))
       return file_magic::xcoff_object_32;
+    if (startswith(Magic, "\x01\xF7"))
+      return file_magic::xcoff_object_64;
     break;
 
   case 0xDE: // 0x0B17C0DE = BC wraper
@@ -206,6 +208,11 @@ file_magic llvm::identify_magic(StringRef Magic) {
   case 0x64: // x86-64 or ARM64 Windows.
     if (Magic[1] == char(0x86) || Magic[1] == char(0xaa))
       return file_magic::coff_object;
+    break;
+
+  case 0x2d: // YAML '-'
+    if (startswith(Magic, "--- !tapi") || startswith(Magic, "---\narchs:"))
+      return file_magic::tapi_file;
     break;
 
   default:

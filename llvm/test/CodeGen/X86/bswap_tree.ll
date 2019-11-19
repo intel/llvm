@@ -70,3 +70,32 @@ define i32 @test2(i32 %x) nounwind {
   %result = or i32 %or0, %or1
   ret i32 %result
 }
+
+declare i32 @llvm.bswap.i32(i32)
+
+; Match a 32-bit packed halfword bswap, with some subtree
+; already converted to a bswap.
+define i32 @test3(i32 %x) nounwind {
+; CHECK-LABEL: test3:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; CHECK-NEXT:    bswapl %eax
+; CHECK-NEXT:    roll $16, %eax
+; CHECK-NEXT:    retl
+;
+; CHECK64-LABEL: test3:
+; CHECK64:       # %bb.0:
+; CHECK64-NEXT:    movl %edi, %eax
+; CHECK64-NEXT:    bswapl %eax
+; CHECK64-NEXT:    roll $16, %eax
+; CHECK64-NEXT:    retq
+  %byte2 = and i32 %x, 16711680   ; 0x00ff0000
+  %byte3 = and i32 %x, 4278190080 ; 0xff000000
+  %1 = shl  i32 %byte2, 8
+  %2 = lshr i32 %byte3, 8
+  %or = or i32 %1, %2
+  %bswap = call i32 @llvm.bswap.i32(i32 %x)
+  %3 = lshr i32 %bswap, 16
+  %result = or i32 %or, %3
+  ret i32 %result
+}

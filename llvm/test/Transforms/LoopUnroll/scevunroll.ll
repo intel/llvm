@@ -67,12 +67,10 @@ exit2:
 ; SCEV properly unrolls multi-exit loops.
 ;
 ; CHECK-LABEL: @multiExit(
-; CHECK: getelementptr i32, i32* %base, i32 10
+; CHECK: getelementptr i32, i32* %base, i32 %iv
 ; CHECK-NEXT: load i32, i32*
-; CHECK: br i1 false, label %l2.10, label %exit1
-; CHECK: l2.10:
-; CHECK-NOT: br
-; CHECK: ret i32
+; CHECK: br i1 false, label %l2, label %exit1
+; CHECK: br i1 true, label %l1, label %exit2
 define i32 @multiExit(i32* %base) nounwind {
 entry:
   br label %l1
@@ -184,7 +182,7 @@ for.body87:
 ; CHECK: for.body:
 ; CHECK: %b.03 = phi i32 [ 0, %entry ], [ %add, %for.cond ]
 ; CHECK: return:
-; CHECK: %b.03.lcssa = phi i32 [ %b.03, %for.body ], [ 0, %for.cond ]
+; CHECK: %b.03.lcssa = phi i32 [ 8, %for.body ], [ 0, %for.cond ]
 define void @nsw_latch(i32* %a) nounwind {
 entry:
   br label %for.body

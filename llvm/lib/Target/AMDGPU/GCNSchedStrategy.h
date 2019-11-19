@@ -40,6 +40,9 @@ class GCNMaxOccupancySchedStrategy final : public GenericScheduler {
                      const SIRegisterInfo *SRI,
                      unsigned SGPRPressure, unsigned VGPRPressure);
 
+  std::vector<unsigned> Pressure;
+  std::vector<unsigned> MaxPressure;
+
   unsigned SGPRExcessLimit;
   unsigned VGPRExcessLimit;
   unsigned SGPRCriticalLimit;
@@ -89,6 +92,9 @@ class GCNScheduleDAGMILive final : public ScheduleDAGMILive {
 
   // Temporary basic block live-in cache.
   DenseMap<const MachineBasicBlock*, GCNRPTracker::LiveRegSet> MBBLiveIns;
+
+  DenseMap<MachineInstr *, GCNRPTracker::LiveRegSet> BBLiveInMap;
+  DenseMap<MachineInstr *, GCNRPTracker::LiveRegSet> getBBLiveInMap() const;
 
   // Return current region pressure.
   GCNRegPressure getRealRegPressure() const;

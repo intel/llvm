@@ -24,7 +24,6 @@
 #include "lldb/Expression/FunctionCaller.h"
 #include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/ObjectFile.h"
-#include "lldb/Target/CPPLanguageRuntime.h"
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
@@ -39,11 +38,14 @@
 
 #include "Plugins/Process/Utility/HistoryThread.h"
 #include "Plugins/Language/ObjC/NSString.h"
+#include "Plugins/LanguageRuntime/CPlusPlus/CPPLanguageRuntime.h"
 
 #include <vector>
 
 using namespace lldb;
 using namespace lldb_private;
+
+char AppleObjCRuntime::ID = 0;
 
 AppleObjCRuntime::~AppleObjCRuntime() {}
 
@@ -221,11 +223,14 @@ Address *AppleObjCRuntime::GetPrintForDebuggerAddr() {
     SymbolContextList contexts;
     SymbolContext context;
 
-    if ((!modules.FindSymbolsWithNameAndType(ConstString("_NSPrintForDebugger"),
-                                             eSymbolTypeCode, contexts)) &&
-        (!modules.FindSymbolsWithNameAndType(ConstString("_CFPrintForDebugger"),
-                                             eSymbolTypeCode, contexts)))
-      return nullptr;
+    modules.FindSymbolsWithNameAndType(ConstString("_NSPrintForDebugger"),
+                                        eSymbolTypeCode, contexts);
+    if (contexts.IsEmpty()) {
+      modules.FindSymbolsWithNameAndType(ConstString("_CFPrintForDebugger"),
+                                         eSymbolTypeCode, contexts);
+      if (contexts.IsEmpty())
+        return nullptr;
+    }
 
     contexts.GetContextAtIndex(0, context);
 
@@ -442,22 +447,22 @@ bool AppleObjCRuntime::CalculateHasNewLiteralsAndIndexing() {
 
   SymbolContextList sc_list;
 
-  return target.GetImages().FindSymbolsWithNameAndType(
-             s_method_signature, eSymbolTypeCode, sc_list) ||
-         target.GetImages().FindSymbolsWithNameAndType(
-             s_arclite_method_signature, eSymbolTypeCode, sc_list);
+  target.GetImages().FindSymbolsWithNameAndType(s_method_signature,
+                                                eSymbolTypeCode, sc_list);
+  if (sc_list.IsEmpty())
+    target.GetImages().FindSymbolsWithNameAndType(s_arclite_method_signature,
+                                                  eSymbolTypeCode, sc_list);
+  return !sc_list.IsEmpty();
 }
 
 lldb::SearchFilterSP AppleObjCRuntime::CreateExceptionSearchFilter() {
   Target &target = m_process->GetTarget();
 
+  FileSpecList filter_modules;
   if (target.GetArchitecture().GetTriple().getVendor() == llvm::Triple::Apple) {
-    FileSpecList filter_modules;
     filter_modules.Append(std::get<0>(GetExceptionThrowLocation()));
-    return target.GetSearchFilterForModuleList(&filter_modules);
-  } else {
-    return LanguageRuntime::CreateExceptionSearchFilter();
   }
+  return target.GetSearchFilterForModuleList(&filter_modules);
 }
 
 ValueObjectSP AppleObjCRuntime::GetExceptionObjectForThread(
@@ -552,7 +557,7 @@ ThreadSP AppleObjCRuntime::GetBacktraceThreadFromException(
 
   if (pcs.empty()) return ThreadSP();
 
-  ThreadSP new_thread_sp(new HistoryThread(*m_process, 0, pcs, 0, false));
+  ThreadSP new_thread_sp(new HistoryThread(*m_process, 0, pcs));
   m_process->GetExtendedThreadList().AddThread(new_thread_sp);
   return new_thread_sp;
 }

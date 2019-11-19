@@ -21,9 +21,10 @@ TEST(FormattedString, Basic) {
   EXPECT_EQ(S.renderAsPlainText(), "");
   EXPECT_EQ(S.renderAsMarkdown(), "");
 
-  S.appendText("foobar");
-  EXPECT_EQ(S.renderAsPlainText(), "foobar");
-  EXPECT_EQ(S.renderAsMarkdown(), "foobar");
+  S.appendText("foobar  ");
+  S.appendText("baz");
+  EXPECT_EQ(S.renderAsPlainText(), "foobar baz");
+  EXPECT_EQ(S.renderAsMarkdown(), "foobar  baz");
 
   S = FormattedString();
   S.appendInlineCode("foobar");
@@ -42,15 +43,21 @@ TEST(FormattedString, CodeBlocks) {
   FormattedString S;
   S.appendCodeBlock("foobar");
   S.appendCodeBlock("bazqux", "javascript");
+  S.appendText("after");
 
-  EXPECT_EQ(S.renderAsPlainText(), "foobar\n\n\nbazqux");
+  std::string ExpectedText = R"(foobar
+
+bazqux
+
+after)";
+  EXPECT_EQ(S.renderAsPlainText(), ExpectedText);
   std::string ExpectedMarkdown = R"md(```cpp
 foobar
 ```
 ```javascript
 bazqux
 ```
-)md";
+after)md";
   EXPECT_EQ(S.renderAsMarkdown(), ExpectedMarkdown);
 
   S = FormattedString();
@@ -65,7 +72,7 @@ bazqux
   S.appendText("baz");
 
   EXPECT_EQ(S.renderAsPlainText(), "foo bar baz");
-  EXPECT_EQ(S.renderAsMarkdown(), "foo`bar`baz");
+  EXPECT_EQ(S.renderAsMarkdown(), "foo `bar` baz");
 }
 
 TEST(FormattedString, Escaping) {
@@ -150,6 +157,42 @@ TEST(FormattedString, Escaping) {
                                   "foobarbaz ` `` ``` ```` `\nqux\n"
                                   "`````\n");
 }
+
+TEST(FormattedString, MarkdownWhitespace) {
+  // Whitespace should be added as separators between blocks.
+  FormattedString S;
+  S.appendText("foo");
+  S.appendText("bar");
+  EXPECT_EQ(S.renderAsMarkdown(), "foo bar");
+
+  S = FormattedString();
+  S.appendInlineCode("foo");
+  S.appendInlineCode("bar");
+  EXPECT_EQ(S.renderAsMarkdown(), "`foo` `bar`");
+
+  // However, we don't want to add any extra whitespace.
+  S = FormattedString();
+  S.appendText("foo ");
+  S.appendInlineCode("bar");
+  EXPECT_EQ(S.renderAsMarkdown(), "foo `bar`");
+
+  S = FormattedString();
+  S.appendText("foo\n");
+  S.appendInlineCode("bar");
+  EXPECT_EQ(S.renderAsMarkdown(), "foo\n`bar`");
+
+  S = FormattedString();
+  S.appendInlineCode("foo");
+  S.appendText(" bar");
+  EXPECT_EQ(S.renderAsMarkdown(), "`foo` bar");
+
+  S = FormattedString();
+  S.appendText("foo");
+  S.appendCodeBlock("bar");
+  S.appendText("baz");
+  EXPECT_EQ(S.renderAsMarkdown(), "foo\n```cpp\nbar\n```\nbaz");
+}
+
 
 } // namespace
 } // namespace clangd

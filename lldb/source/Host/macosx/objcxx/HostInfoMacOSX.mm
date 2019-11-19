@@ -42,6 +42,11 @@
 #define CPU_TYPE_ARM64 (CPU_TYPE_ARM | CPU_ARCH_ABI64)
 #endif
 
+#ifndef CPU_TYPE_ARM64_32
+#define CPU_ARCH_ABI64_32 0x02000000
+#define CPU_TYPE_ARM64_32 (CPU_TYPE_ARM | CPU_ARCH_ABI64_32)
+#endif
+
 #include <TargetConditionals.h> // for TARGET_OS_TV, TARGET_OS_WATCH
 
 using namespace lldb_private;
@@ -71,22 +76,31 @@ bool HostInfoMacOSX::GetOSKernelDescription(std::string &s) {
   return false;
 }
 
+static void ParseOSVersion(llvm::VersionTuple &version, NSString *Key) {
+  @autoreleasepool {
+    NSDictionary *version_info =
+      [NSDictionary dictionaryWithContentsOfFile:
+       @"/System/Library/CoreServices/SystemVersion.plist"];
+    NSString *version_value = [version_info objectForKey: Key];
+    const char *version_str = [version_value UTF8String];
+    version.tryParse(version_str);
+  }
+}
+
 llvm::VersionTuple HostInfoMacOSX::GetOSVersion() {
   static llvm::VersionTuple g_version;
-
-  if (g_version.empty()) {
-    @autoreleasepool {
-      NSDictionary *version_info = [NSDictionary
-          dictionaryWithContentsOfFile:
-              @"/System/Library/CoreServices/SystemVersion.plist"];
-      NSString *version_value = [version_info objectForKey:@"ProductVersion"];
-      const char *version_str = [version_value UTF8String];
-      g_version.tryParse(version_str);
-    }
-  }
-
+  if (g_version.empty())
+    ParseOSVersion(g_version, @"ProductVersion");
   return g_version;
 }
+
+llvm::VersionTuple HostInfoMacOSX::GetMacCatalystVersion() {
+  static llvm::VersionTuple g_version;
+  if (g_version.empty())
+    ParseOSVersion(g_version, @"iOSSupportVersion");
+  return g_version;
+}
+
 
 FileSpec HostInfoMacOSX::GetProgramFileSpec() {
   static FileSpec g_program_filespec;
@@ -142,9 +156,8 @@ bool HostInfoMacOSX::ComputeSupportExeDirectory(FileSpec &file_spec) {
     FileSystem::Instance().Resolve(support_dir_spec);
     if (!FileSystem::Instance().IsDirectory(support_dir_spec)) {
       Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
-      if (log)
-        log->Printf("HostInfoMacOSX::%s(): failed to find support directory",
-                    __FUNCTION__);
+      LLDB_LOGF(log, "HostInfoMacOSX::%s(): failed to find support directory",
+                __FUNCTION__);
       return false;
     }
 
@@ -249,7 +262,9 @@ void HostInfoMacOSX::ComputeHostArchitectureSupport(ArchSpec &arch_32,
       arch_32.SetArchitecture(eArchTypeMachO, cputype & ~(CPU_ARCH_MASK),
                               cpusubtype32);
 
-      if (cputype == CPU_TYPE_ARM || cputype == CPU_TYPE_ARM64) {
+      if (cputype == CPU_TYPE_ARM || 
+          cputype == CPU_TYPE_ARM64 || 
+          cputype == CPU_TYPE_ARM64_32) {
 // When running on a watch or tv, report the host os correctly
 #if defined(TARGET_OS_TV) && TARGET_OS_TV == 1
         arch_32.GetTriple().setOS(llvm::Triple::TvOS);
@@ -257,6 +272,9 @@ void HostInfoMacOSX::ComputeHostArchitectureSupport(ArchSpec &arch_32,
 #elif defined(TARGET_OS_BRIDGE) && TARGET_OS_BRIDGE == 1
         arch_32.GetTriple().setOS(llvm::Triple::BridgeOS);
         arch_64.GetTriple().setOS(llvm::Triple::BridgeOS);
+#elif defined(TARGET_OS_WATCHOS) && TARGET_OS_WATCHOS == 1
+        arch_32.GetTriple().setOS(llvm::Triple::WatchOS);
+        arch_64.GetTriple().setOS(llvm::Triple::WatchOS);
 #else
         arch_32.GetTriple().setOS(llvm::Triple::IOS);
         arch_64.GetTriple().setOS(llvm::Triple::IOS);

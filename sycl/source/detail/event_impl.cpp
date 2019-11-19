@@ -11,6 +11,8 @@
 #include <CL/sycl/detail/queue_impl.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
 
+#include <chrono>
+
 namespace cl {
 namespace sycl {
 namespace detail {
@@ -21,26 +23,26 @@ bool event_impl::is_host() const { return m_HostEvent || !m_OpenCLInterop; }
 
 cl_event event_impl::get() const {
   if (m_OpenCLInterop) {
-    PI_CALL(RT::piEventRetain(m_Event));
-    return pi::pi_cast<cl_event>(m_Event);
+    PI_CALL(RT::piEventRetain, m_Event);
+    return pi::cast<cl_event>(m_Event);
   }
   throw invalid_object_error(
       "This instance of event doesn't support OpenCL interoperability.");
 }
 
 event_impl::~event_impl() {
-  if (!m_HostEvent) {
-    PI_CALL(RT::piEventRelease(m_Event));
+  if (m_Event) {
+    PI_CALL(RT::piEventRelease, m_Event);
   }
 }
 
 void event_impl::setComplete() {
-  PI_CALL(RT::piEventSetStatus(m_Event, CL_COMPLETE));
+  PI_CALL(RT::piEventSetStatus, m_Event, CL_COMPLETE);
 }
 
 void event_impl::waitInternal() const {
   if (!m_HostEvent) {
-    PI_CALL(RT::piEventsWait(1, &m_Event));
+    PI_CALL(RT::piEventsWait, 1, &m_Event);
   }
   // Waiting of host events is NOP so far as all operations on host device
   // are blocking.
@@ -58,10 +60,10 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 }
 
 event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
-    : m_Context(detail::getSyclObjImpl(SyclContext)),
-      m_OpenCLInterop(true), m_HostEvent(false) {
+    : m_Context(detail::getSyclObjImpl(SyclContext)), m_OpenCLInterop(true),
+      m_HostEvent(false) {
 
-  m_Event = pi::pi_cast<RT::PiEvent>(CLEvent);
+  m_Event = pi::cast<RT::PiEvent>(CLEvent);
 
   if (m_Context->is_host()) {
     throw cl::sycl::invalid_parameter_error(
@@ -70,25 +72,34 @@ event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
   }
 
   RT::PiContext TempContext;
-  PI_CALL(RT::piEventGetInfo(
-      m_Event, CL_EVENT_CONTEXT, sizeof(RT::PiContext), &TempContext, nullptr));
+  PI_CALL(RT::piEventGetInfo, m_Event, CL_EVENT_CONTEXT, sizeof(RT::PiContext),
+          &TempContext, nullptr);
   if (m_Context->getHandleRef() != TempContext) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.");
   }
 
-  PI_CALL(RT::piEventRetain(m_Event));
+  PI_CALL(RT::piEventRetain, m_Event);
+}
+
+event_impl::event_impl(std::shared_ptr<cl::sycl::detail::queue_impl> Queue) {
+  if (Queue->is_host() &&
+      Queue->has_property<property::queue::enable_profiling>()) {
+    m_HostProfilingInfo.reset(new HostProfilingInfo());
+    if (!m_HostProfilingInfo)
+      throw runtime_error("Out of host memory");
+  }
 }
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
 
-  if (m_Event || m_HostEvent)
+  if (m_Event)
     // presence of m_Event means the command has been enqueued, so no need to
     // go via the slow path event waiting in the scheduler
     waitInternal();
-  else
+  else if (m_Command)
     detail::Scheduler::getInstance().waitForEvent(std::move(Self));
 }
 
@@ -107,11 +118,12 @@ template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
   if (!m_HostEvent) {
-    return get_event_profiling_info<
-        info::event_profiling::command_submit>::_(this->getHandleRef());
+    return get_event_profiling_info<info::event_profiling::command_submit>::_(
+        this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
-  return (cl_ulong)0;
+  if (!m_HostProfilingInfo)
+    throw invalid_object_error("Profiling info is not available.");
+  return m_HostProfilingInfo->getStartTime();
 }
 
 template <>
@@ -121,8 +133,9 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
     return get_event_profiling_info<info::event_profiling::command_start>::_(
         this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
-  return (cl_ulong)0;
+  if (!m_HostProfilingInfo)
+    throw invalid_object_error("Profiling info is not available.");
+  return m_HostProfilingInfo->getStartTime();
 }
 
 template <>
@@ -132,8 +145,9 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
     return get_event_profiling_info<info::event_profiling::command_end>::_(
         this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
-  return (cl_ulong)0;
+  if (!m_HostProfilingInfo)
+    throw invalid_object_error("Profiling info is not available.");
+  return m_HostProfilingInfo->getEndTime();
 }
 
 template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
@@ -141,8 +155,7 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
     return get_event_info<info::event::reference_count>::_(
         this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
-  return (cl_ulong)0;
+  return 0;
 }
 
 template <>
@@ -152,9 +165,17 @@ event_impl::get_info<info::event::command_execution_status>() const {
     return get_event_info<info::event::command_execution_status>::_(
         this->getHandleRef());
   }
-  assert(!"Not implemented for host device.");
   return info::event_command_status::complete;
 }
+
+static uint64_t getTimestamp() {
+  auto ts = std::chrono::high_resolution_clock::now().time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(ts).count();
+}
+
+void HostProfilingInfo::start() { StartTime = getTimestamp(); }
+
+void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 } // namespace detail
 } // namespace sycl

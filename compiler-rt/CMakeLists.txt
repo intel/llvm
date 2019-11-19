@@ -80,7 +80,6 @@ if (COMPILER_RT_STANDALONE_BUILD)
   endif()
 
   # Find Python interpreter.
-  set(Python_ADDITIONAL_VERSIONS 2.7 2.6 2.5)
   include(FindPythonInterp)
   if(NOT PYTHONINTERP_FOUND)
     message(FATAL_ERROR "
@@ -255,7 +254,7 @@ if(COMPILER_RT_ENABLE_WERROR)
   append_string_if(COMPILER_RT_HAS_WX_FLAG /WX CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
 endif()
 
-append_string_if(COMPILER_RT_HAS_STD_CXX11_FLAG -std=c++11 CMAKE_CXX_FLAGS)
+append_string_if(COMPILER_RT_HAS_STD_CXX14_FLAG -std=c++14 CMAKE_CXX_FLAGS)
 
 # Emulate C99 and C++11's __func__ for MSVC prior to 2013 CTP.
 if(NOT COMPILER_RT_HAS_FUNC_SYMBOL)
@@ -282,10 +281,19 @@ append_list_if(COMPILER_RT_HAS_FNO_LTO_FLAG -fno-lto SANITIZER_COMMON_CFLAGS)
 
 # The following is a workaround for powerpc64le. This is the only architecture
 # that requires -fno-function-sections to work properly. If lacking, the ASan
-# Linux test function-sections-are-bad.cc fails with the following error:
+# Linux test function-sections-are-bad.cpp fails with the following error:
 # 'undefined symbol: __sanitizer_unaligned_load32'.
 if(DEFINED TARGET_powerpc64le_CFLAGS)
   append_list_if(COMPILER_RT_HAS_FNO_FUNCTION_SECTIONS_FLAG -fno-function-sections TARGET_powerpc64le_CFLAGS)
+endif()
+
+# The following is a workaround for s390x.  This avoids creation of "partial
+# inline" function fragments when building the asan libraries with certain
+# GCC versions.  The presence of those fragments, in particular for the
+# interceptors, changes backtraces seen in asan error cases, which causes
+# testsuite failures.
+if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "s390x")
+  append_list_if(COMPILER_RT_HAS_FNO_PARTIAL_INLINING_FLAG -fno-partial-inlining SANITIZER_COMMON_CFLAGS)
 endif()
 
 if(MSVC)
@@ -305,12 +313,11 @@ if(MSVC)
   endif()
   append_list_if(COMPILER_RT_HAS_Oy_FLAG /Oy- SANITIZER_COMMON_CFLAGS)
   append_list_if(COMPILER_RT_HAS_GS_FLAG /GS- SANITIZER_COMMON_CFLAGS)
-  # VS 2015 (version 1900) added support for thread safe static initialization.
-  # However, ASan interceptors run before CRT initialization, which causes the
-  # new thread safe code to crash. Disable this feature for now.
-  if (MSVC_VERSION GREATER 1899 OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-    list(APPEND SANITIZER_COMMON_CFLAGS /Zc:threadSafeInit-)
-  endif()
+
+  # Disable thread safe initialization for static locals. ASan shouldn't need
+  # it. Thread safe initialization assumes that the CRT has already been
+  # initialized, but ASan initializes before the CRT.
+  list(APPEND SANITIZER_COMMON_CFLAGS /Zc:threadSafeInit-)
 endif()
 
 append_list_if(COMPILER_RT_DEBUG -DSANITIZER_DEBUG=1 SANITIZER_COMMON_CFLAGS)
@@ -328,12 +335,12 @@ if (NOT MSVC)
 endif()
 
 # Determine if we should restrict stack frame sizes.
-# Stack frames on PowerPC and Mips and in debug biuld can be much larger than
+# Stack frames on PowerPC, Mips, SystemZ and in debug build can be much larger than
 # anticipated.
 # FIXME: Fix all sanitizers and add -Wframe-larger-than to
 # SANITIZER_COMMON_FLAGS
 if(COMPILER_RT_HAS_WFRAME_LARGER_THAN_FLAG AND NOT COMPILER_RT_DEBUG
-   AND NOT ${COMPILER_RT_DEFAULT_TARGET_ARCH} MATCHES "powerpc|mips")
+   AND NOT ${COMPILER_RT_DEFAULT_TARGET_ARCH} MATCHES "powerpc|mips|s390x")
   set(SANITIZER_LIMIT_FRAME_SIZE TRUE)
 else()
   set(SANITIZER_LIMIT_FRAME_SIZE FALSE)
@@ -456,24 +463,30 @@ add_subdirectory(include)
 option(COMPILER_RT_USE_LIBCXX
   "Enable compiler-rt to use libc++ from the source tree" ON)
 if(COMPILER_RT_USE_LIBCXX)
-  foreach(path IN ITEMS ${LLVM_MAIN_SRC_DIR}/projects/libcxx
-                        ${LLVM_MAIN_SRC_DIR}/runtimes/libcxx
-                        ${LLVM_MAIN_SRC_DIR}/../libcxx
-                        ${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR})
-    if(IS_DIRECTORY ${path})
-      set(COMPILER_RT_LIBCXX_PATH ${path})
-      break()
-    endif()
-  endforeach()
-  foreach(path IN ITEMS ${LLVM_MAIN_SRC_DIR}/projects/libcxxabi
-                        ${LLVM_MAIN_SRC_DIR}/runtimes/libcxxabi
-                        ${LLVM_MAIN_SRC_DIR}/../libcxxabi
-                        ${LLVM_EXTERNAL_LIBCXXABI_SOURCE_DIR})
-    if(IS_DIRECTORY ${path})
-      set(COMPILER_RT_LIBCXXABI_PATH ${path})
-      break()
-    endif()
-  endforeach()
+  if(LLVM_ENABLE_PROJECTS_USED)
+    # Don't use libcxx if LLVM_ENABLE_PROJECTS does not enable it.
+    set(COMPILER_RT_LIBCXX_PATH ${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR})
+    set(COMPILER_RT_LIBCXXABI_PATH ${LLVM_EXTERNAL_LIBCXXABI_SOURCE_DIR})
+  else()
+    foreach(path IN ITEMS ${LLVM_MAIN_SRC_DIR}/projects/libcxx
+                          ${LLVM_MAIN_SRC_DIR}/runtimes/libcxx
+                          ${LLVM_MAIN_SRC_DIR}/../libcxx
+                          ${LLVM_EXTERNAL_LIBCXX_SOURCE_DIR})
+      if(IS_DIRECTORY ${path})
+        set(COMPILER_RT_LIBCXX_PATH ${path})
+        break()
+      endif()
+    endforeach()
+    foreach(path IN ITEMS ${LLVM_MAIN_SRC_DIR}/projects/libcxxabi
+                          ${LLVM_MAIN_SRC_DIR}/runtimes/libcxxabi
+                          ${LLVM_MAIN_SRC_DIR}/../libcxxabi
+                          ${LLVM_EXTERNAL_LIBCXXABI_SOURCE_DIR})
+      if(IS_DIRECTORY ${path})
+        set(COMPILER_RT_LIBCXXABI_PATH ${path})
+        break()
+      endif()
+    endforeach()
+  endif()
 endif()
 
 set(COMPILER_RT_LLD_PATH ${LLVM_MAIN_SRC_DIR}/tools/lld)
@@ -484,7 +497,7 @@ else()
   if(EXISTS ${COMPILER_RT_LLD_PATH}/ AND LLVM_TOOL_LLD_BUILD)
     set(COMPILER_RT_HAS_LLD TRUE)
   else()
-    set(COMPILER_RT_HAS_LLD FALSE)
+    set(COMPILER_RT_HAS_LLD ${COMPILER_RT_HAS_FUSE_LD_LLD_FLAG})
   endif()
 endif()
 pythonize_bool(COMPILER_RT_HAS_LLD)
@@ -506,3 +519,5 @@ if(COMPILER_RT_INCLUDE_TESTS)
     endif()
   endif()
 endif()
+
+add_subdirectory(tools)

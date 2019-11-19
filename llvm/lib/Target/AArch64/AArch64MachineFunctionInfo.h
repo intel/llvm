@@ -19,6 +19,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/IR/Function.h"
 #include "llvm/MC/MCLinkerOptimizationHint.h"
 #include <cassert>
 
@@ -54,6 +55,7 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
 
   /// Amount of stack frame size used for saving callee-saved registers.
   unsigned CalleeSavedStackSize;
+  bool HasCalleeSavedStackSize = false;
 
   /// Number of TLS accesses using the special (combinable)
   /// _TLS_MODULE_BASE_ symbol.
@@ -95,6 +97,13 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// returned struct in a register. This field holds the virtual register into
   /// which the sret argument is passed.
   unsigned SRetReturnReg = 0;
+  /// SVE stack size (for predicates and data vectors) are maintained here
+  /// rather than in FrameInfo, as the placement and Stack IDs are target
+  /// specific.
+  uint64_t StackSizeSVE = 0;
+
+  /// HasCalculatedStackSizeSVE indicates whether StackSizeSVE is valid.
+  bool HasCalculatedStackSizeSVE = false;
 
   /// Has a value when it is known whether or not the function uses a
   /// redzone, and no value otherwise.
@@ -105,6 +114,12 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// ForwardedMustTailRegParms - A list of virtual and physical registers
   /// that must be forwarded to every musttail call.
   SmallVector<ForwardedRegister, 1> ForwardedMustTailRegParms;
+
+  // Offset from SP-at-entry to the tagged base pointer.
+  // Tagged base pointer is set up to point to the first (lowest address) tagged
+  // stack slot.
+  unsigned TaggedBasePointerOffset;
+
 public:
   AArch64FunctionInfo() = default;
 
@@ -125,6 +140,15 @@ public:
     ArgumentStackToRestore = bytes;
   }
 
+  bool hasCalculatedStackSizeSVE() const { return HasCalculatedStackSizeSVE; }
+
+  void setStackSizeSVE(uint64_t S) {
+    HasCalculatedStackSizeSVE = true;
+    StackSizeSVE = S;
+  }
+
+  uint64_t getStackSizeSVE() const { return StackSizeSVE; }
+
   bool hasStackFrame() const { return HasStackFrame; }
   void setHasStackFrame(bool s) { HasStackFrame = s; }
 
@@ -144,8 +168,55 @@ public:
   void setLocalStackSize(unsigned Size) { LocalStackSize = Size; }
   unsigned getLocalStackSize() const { return LocalStackSize; }
 
-  void setCalleeSavedStackSize(unsigned Size) { CalleeSavedStackSize = Size; }
-  unsigned getCalleeSavedStackSize() const { return CalleeSavedStackSize; }
+  void setCalleeSavedStackSize(unsigned Size) {
+    CalleeSavedStackSize = Size;
+    HasCalleeSavedStackSize = true;
+  }
+
+  // When CalleeSavedStackSize has not been set (for example when
+  // some MachineIR pass is run in isolation), then recalculate
+  // the CalleeSavedStackSize directly from the CalleeSavedInfo.
+  // Note: This information can only be recalculated after PEI
+  // has assigned offsets to the callee save objects.
+  unsigned getCalleeSavedStackSize(const MachineFrameInfo &MFI) const {
+    bool ValidateCalleeSavedStackSize = false;
+
+#ifndef NDEBUG
+    // Make sure the calculated size derived from the CalleeSavedInfo
+    // equals the cached size that was calculated elsewhere (e.g. in
+    // determineCalleeSaves).
+    ValidateCalleeSavedStackSize = HasCalleeSavedStackSize;
+#endif
+
+    if (!HasCalleeSavedStackSize || ValidateCalleeSavedStackSize) {
+      assert(MFI.isCalleeSavedInfoValid() && "CalleeSavedInfo not calculated");
+      if (MFI.getCalleeSavedInfo().empty())
+        return 0;
+
+      int64_t MinOffset = std::numeric_limits<int64_t>::max();
+      int64_t MaxOffset = std::numeric_limits<int64_t>::min();
+      for (const auto &Info : MFI.getCalleeSavedInfo()) {
+        int FrameIdx = Info.getFrameIdx();
+        int64_t Offset = MFI.getObjectOffset(FrameIdx);
+        int64_t ObjSize = MFI.getObjectSize(FrameIdx);
+        MinOffset = std::min<int64_t>(Offset, MinOffset);
+        MaxOffset = std::max<int64_t>(Offset + ObjSize, MaxOffset);
+      }
+
+      unsigned Size = alignTo(MaxOffset - MinOffset, 16);
+      assert((!HasCalleeSavedStackSize || getCalleeSavedStackSize() == Size) &&
+             "Invalid size calculated for callee saves");
+      return Size;
+    }
+
+    return getCalleeSavedStackSize();
+  }
+
+  unsigned getCalleeSavedStackSize() const {
+    assert(HasCalleeSavedStackSize &&
+           "CalleeSavedStackSize has not been calculated");
+    return CalleeSavedStackSize;
+  }
 
   void incNumLocalDynamicTLSAccesses() { ++NumLocalDynamicTLSAccesses; }
   unsigned getNumLocalDynamicTLSAccesses() const {
@@ -222,6 +293,13 @@ public:
 
   SmallVectorImpl<ForwardedRegister> &getForwardedMustTailRegParms() {
     return ForwardedMustTailRegParms;
+  }
+
+  unsigned getTaggedBasePointerOffset() const {
+    return TaggedBasePointerOffset;
+  }
+  void setTaggedBasePointerOffset(unsigned Offset) {
+    TaggedBasePointerOffset = Offset;
   }
 
 private:

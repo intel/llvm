@@ -258,7 +258,8 @@ public:
 
   void EmitDestructorCall(CodeGenFunction &CGF, const CXXDestructorDecl *DD,
                           CXXDtorType Type, bool ForVirtualBase,
-                          bool Delegating, Address This) override;
+                          bool Delegating, Address This,
+                          QualType ThisTy) override;
 
   void emitVTableTypeMetadata(const VPtrInfo &Info, const CXXRecordDecl *RD,
                               llvm::GlobalVariable *VTable);
@@ -296,9 +297,8 @@ public:
 
   llvm::Value *EmitVirtualDestructorCall(CodeGenFunction &CGF,
                                          const CXXDestructorDecl *Dtor,
-                                         CXXDtorType DtorType,
-                                         Address This,
-                                         const CXXMemberCallExpr *CE) override;
+                                         CXXDtorType DtorType, Address This,
+                                         DeleteOrMemberCallExpr E) override;
 
   void adjustCallArgsForDestructorThunk(CodeGenFunction &CGF, GlobalDecl GD,
                                         CallArgList &CallArgs) override {
@@ -352,7 +352,7 @@ public:
             ? llvm::GlobalValue::LinkOnceODRLinkage
             : llvm::GlobalValue::InternalLinkage;
     auto *VDispMap = new llvm::GlobalVariable(
-        CGM.getModule(), VDispMapTy, /*Constant=*/true, Linkage,
+        CGM.getModule(), VDispMapTy, /*isConstant=*/true, Linkage,
         /*Initializer=*/Init, MangledName);
     return VDispMap;
   }
@@ -386,7 +386,9 @@ public:
       ArrayRef<llvm::Function *> CXXThreadLocalInits,
       ArrayRef<const VarDecl *> CXXThreadLocalInitVars) override;
 
-  bool usesThreadWrapperFunction() const override { return false; }
+  bool usesThreadWrapperFunction(const VarDecl *VD) const override {
+    return false;
+  }
   LValue EmitThreadLocalVarDeclLValue(CodeGenFunction &CGF, const VarDecl *VD,
                                       QualType LValType) override;
 
@@ -436,7 +438,7 @@ public:
   friend struct MSRTTIBuilder;
 
   bool isImageRelative() const {
-    return CGM.getTarget().getPointerWidth(/*AddressSpace=*/0) == 64;
+    return CGM.getTarget().getPointerWidth(/*AddrSpace=*/0) == 64;
   }
 
   // 5 routines for constructing the llvm types for MS RTTI structs.
@@ -617,6 +619,9 @@ private:
   llvm::Function *EmitVirtualMemPtrThunk(const CXXMethodDecl *MD,
                                          const MethodVFTableLocation &ML);
 
+  llvm::Constant *EmitMemberDataPointer(const CXXRecordDecl *RD,
+                                        CharUnits offset);
+
 public:
   llvm::Type *ConvertMemberPointerType(const MemberPointerType *MPT) override;
 
@@ -730,7 +735,7 @@ public:
     // which describes the exception.
     llvm::Type *Args[] = {CGM.Int8PtrTy, getThrowInfoType()->getPointerTo()};
     llvm::FunctionType *FTy =
-        llvm::FunctionType::get(CGM.VoidTy, Args, /*IsVarArgs=*/false);
+        llvm::FunctionType::get(CGM.VoidTy, Args, /*isVarArg=*/false);
     llvm::FunctionCallee Throw =
         CGM.CreateRuntimeFunction(FTy, "_CxxThrowException");
     // _CxxThrowException is stdcall on 32-bit x86 platforms.
@@ -844,8 +849,7 @@ void MicrosoftCXXABI::emitVirtualObjectDelete(CodeGenFunction &CGF,
   // CXXMemberCallExpr for dtor call.
   bool UseGlobalDelete = DE->isGlobalDelete();
   CXXDtorType DtorType = UseGlobalDelete ? Dtor_Complete : Dtor_Deleting;
-  llvm::Value *MDThis =
-      EmitVirtualDestructorCall(CGF, Dtor, DtorType, Ptr, /*CE=*/nullptr);
+  llvm::Value *MDThis = EmitVirtualDestructorCall(CGF, Dtor, DtorType, Ptr, DE);
   if (UseGlobalDelete)
     CGF.EmitDeleteCall(DE->getOperatorDelete(), MDThis, ElementType);
 }
@@ -1209,7 +1213,7 @@ static bool hasDefaultCXXMethodCC(ASTContext &Context,
   CallingConv ExpectedCallingConv = Context.getDefaultCallingConvention(
       /*IsVariadic=*/false, /*IsCXXMethod=*/true);
   CallingConv ActualCallingConv =
-      MD->getType()->getAs<FunctionProtoType>()->getCallConv();
+      MD->getType()->castAs<FunctionProtoType>()->getCallConv();
   return ExpectedCallingConv == ActualCallingConv;
 }
 
@@ -1313,7 +1317,7 @@ llvm::GlobalValue::LinkageTypes MicrosoftCXXABI::getCXXDestructorLinkage(
     // The base destructor most closely tracks the user-declared constructor, so
     // we delegate back to the normal declarator case.
     return CGM.getLLVMLinkageForDeclarator(Dtor, Linkage,
-                                           /*isConstantVariable=*/false);
+                                           /*IsConstantVariable=*/false);
   case Dtor_Complete:
     // The complete destructor is like an inline function, but it may be
     // imported and therefore must be exported as well. This requires changing
@@ -1569,7 +1573,8 @@ CGCXXABI::AddedStructorArgs MicrosoftCXXABI::addImplicitConstructorArgs(
 void MicrosoftCXXABI::EmitDestructorCall(CodeGenFunction &CGF,
                                          const CXXDestructorDecl *DD,
                                          CXXDtorType Type, bool ForVirtualBase,
-                                         bool Delegating, Address This) {
+                                         bool Delegating, Address This,
+                                         QualType ThisTy) {
   // Use the base destructor variant in place of the complete destructor variant
   // if the class has no virtual bases. This effectively implements some of the
   // -mconstructor-aliases optimization, but as part of the MS C++ ABI.
@@ -1591,7 +1596,7 @@ void MicrosoftCXXABI::EmitDestructorCall(CodeGenFunction &CGF,
     BaseDtorEndBB = EmitDtorCompleteObjectHandler(CGF);
   }
 
-  CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(),
+  CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(), ThisTy,
                             /*ImplicitParam=*/nullptr,
                             /*ImplicitParamTy=*/QualType(), nullptr);
   if (BaseDtorEndBB) {
@@ -1900,7 +1905,10 @@ CGCallee MicrosoftCXXABI::getVirtualFunctionPointer(CodeGenFunction &CGF,
 
 llvm::Value *MicrosoftCXXABI::EmitVirtualDestructorCall(
     CodeGenFunction &CGF, const CXXDestructorDecl *Dtor, CXXDtorType DtorType,
-    Address This, const CXXMemberCallExpr *CE) {
+    Address This, DeleteOrMemberCallExpr E) {
+  auto *CE = E.dyn_cast<const CXXMemberCallExpr *>();
+  auto *D = E.dyn_cast<const CXXDeleteExpr *>();
+  assert((CE != nullptr) ^ (D != nullptr));
   assert(CE == nullptr || CE->arg_begin() == CE->arg_end());
   assert(DtorType == Dtor_Deleting || DtorType == Dtor_Complete);
 
@@ -1917,8 +1925,15 @@ llvm::Value *MicrosoftCXXABI::EmitVirtualDestructorCall(
       llvm::IntegerType::getInt32Ty(CGF.getLLVMContext()),
       DtorType == Dtor_Deleting);
 
+  QualType ThisTy;
+  if (CE) {
+    ThisTy = CE->getObjectType();
+  } else {
+    ThisTy = D->getDestroyedType();
+  }
+
   This = adjustThisArgumentForVirtualFunctionCall(CGF, GD, This, true);
-  RValue RV = CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(),
+  RValue RV = CGF.EmitCXXDestructorCall(GD, Callee, This.getPointer(), ThisTy,
                                         ImplicitParam, Context.IntTy, CE);
   return RV.getScalarVal();
 }
@@ -2250,7 +2265,7 @@ static void emitGlobalDtorWithTLRegDtor(CodeGenFunction &CGF, const VarDecl &VD,
 
   // extern "C" int __tlregdtor(void (*f)(void));
   llvm::FunctionType *TLRegDtorTy = llvm::FunctionType::get(
-      CGF.IntTy, DtorStub->getType(), /*IsVarArg=*/false);
+      CGF.IntTy, DtorStub->getType(), /*isVarArg=*/false);
 
   llvm::FunctionCallee TLRegDtor = CGF.CGM.CreateRuntimeFunction(
       TLRegDtorTy, "__tlregdtor", llvm::AttributeList(), /*Local=*/true);
@@ -2291,7 +2306,7 @@ void MicrosoftCXXABI::EmitThreadLocalInitFuncs(
   // pointers at start-up time and, eventually, at thread-creation time.
   auto AddToXDU = [&CGM](llvm::Function *InitFunc) {
     llvm::GlobalVariable *InitFuncPtr = new llvm::GlobalVariable(
-        CGM.getModule(), InitFunc->getType(), /*IsConstant=*/true,
+        CGM.getModule(), InitFunc->getType(), /*isConstant=*/true,
         llvm::GlobalVariable::InternalLinkage, InitFunc,
         Twine(InitFunc->getName(), "$initializer$"));
     InitFuncPtr->setSection(".CRT$XDU");
@@ -2340,10 +2355,10 @@ static ConstantAddress getInitThreadEpochPtr(CodeGenModule &CGM) {
     return ConstantAddress(GV, Align);
   auto *GV = new llvm::GlobalVariable(
       CGM.getModule(), CGM.IntTy,
-      /*Constant=*/false, llvm::GlobalVariable::ExternalLinkage,
+      /*isConstant=*/false, llvm::GlobalVariable::ExternalLinkage,
       /*Initializer=*/nullptr, VarName,
       /*InsertBefore=*/nullptr, llvm::GlobalVariable::GeneralDynamicTLSModel);
-  GV->setAlignment(Align.getQuantity());
+  GV->setAlignment(Align.getAsAlign());
   return ConstantAddress(GV, Align);
 }
 
@@ -2486,7 +2501,7 @@ void MicrosoftCXXABI::EmitGuardedInit(CodeGenFunction &CGF, const VarDecl &D,
                                  GV->getLinkage(), Zero, GuardName.str());
     GuardVar->setVisibility(GV->getVisibility());
     GuardVar->setDLLStorageClass(GV->getDLLStorageClass());
-    GuardVar->setAlignment(GuardAlign.getQuantity());
+    GuardVar->setAlignment(GuardAlign.getAsAlign());
     if (GuardVar->isWeakForLinker())
       GuardVar->setComdat(
           CGM.getModule().getOrInsertComdat(GuardVar->getName()));
@@ -2690,7 +2705,11 @@ MicrosoftCXXABI::EmitFullMemberPointer(llvm::Constant *FirstField,
 llvm::Constant *
 MicrosoftCXXABI::EmitMemberDataPointer(const MemberPointerType *MPT,
                                        CharUnits offset) {
-  const CXXRecordDecl *RD = MPT->getMostRecentCXXRecordDecl();
+  return EmitMemberDataPointer(MPT->getMostRecentCXXRecordDecl(), offset);
+}
+
+llvm::Constant *MicrosoftCXXABI::EmitMemberDataPointer(const CXXRecordDecl *RD,
+                                                       CharUnits offset) {
   if (RD->getMSInheritanceModel() ==
       MSInheritanceAttr::Keyword_virtual_inheritance)
     offset -= getContext().getOffsetOfBaseWithVBPtr(RD);
@@ -2714,8 +2733,17 @@ llvm::Constant *MicrosoftCXXABI::EmitMemberPointer(const APValue &MP,
   if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(MPD)) {
     C = EmitMemberFunctionPointer(MD);
   } else {
+    // For a pointer to data member, start off with the offset of the field in
+    // the class in which it was declared, and convert from there if necessary.
+    // For indirect field decls, get the outermost anonymous field and use the
+    // parent class.
     CharUnits FieldOffset = Ctx.toCharUnitsFromBits(Ctx.getFieldOffset(MPD));
-    C = EmitMemberDataPointer(DstTy, FieldOffset);
+    const FieldDecl *FD = dyn_cast<FieldDecl>(MPD);
+    if (!FD)
+      FD = cast<FieldDecl>(*cast<IndirectFieldDecl>(MPD)->chain_begin());
+    const CXXRecordDecl *RD = cast<CXXRecordDecl>(FD->getParent());
+    RD = RD->getMostRecentNonInjectedDecl();
+    C = EmitMemberDataPointer(RD, FieldOffset);
   }
 
   if (!MemberPointerPath.empty()) {
@@ -3400,7 +3428,7 @@ static llvm::GlobalVariable *getTypeInfoVTable(CodeGenModule &CGM) {
   if (auto VTable = CGM.getModule().getNamedGlobal(MangledName))
     return VTable;
   return new llvm::GlobalVariable(CGM.getModule(), CGM.Int8PtrTy,
-                                  /*Constant=*/true,
+                                  /*isConstant=*/true,
                                   llvm::GlobalVariable::ExternalLinkage,
                                   /*Initializer=*/nullptr, MangledName);
 }
@@ -3580,7 +3608,7 @@ llvm::GlobalVariable *MSRTTIBuilder::getClassHierarchyDescriptor() {
 
   // Forward-declare the class hierarchy descriptor
   auto Type = ABI.getClassHierarchyDescriptorType();
-  auto CHD = new llvm::GlobalVariable(Module, Type, /*Constant=*/true, Linkage,
+  auto CHD = new llvm::GlobalVariable(Module, Type, /*isConstant=*/true, Linkage,
                                       /*Initializer=*/nullptr,
                                       MangledName);
   if (CHD->isWeakForLinker())
@@ -3619,7 +3647,7 @@ MSRTTIBuilder::getBaseClassArray(SmallVectorImpl<MSRTTIClass> &Classes) {
   auto *ArrType = llvm::ArrayType::get(PtrType, Classes.size() + 1);
   auto *BCA =
       new llvm::GlobalVariable(Module, ArrType,
-                               /*Constant=*/true, Linkage,
+                               /*isConstant=*/true, Linkage,
                                /*Initializer=*/nullptr, MangledName);
   if (BCA->isWeakForLinker())
     BCA->setComdat(CGM.getModule().getOrInsertComdat(BCA->getName()));
@@ -3661,7 +3689,7 @@ MSRTTIBuilder::getBaseClassDescriptor(const MSRTTIClass &Class) {
   // Forward-declare the base class descriptor.
   auto Type = ABI.getBaseClassDescriptorType();
   auto BCD =
-      new llvm::GlobalVariable(Module, Type, /*Constant=*/true, Linkage,
+      new llvm::GlobalVariable(Module, Type, /*isConstant=*/true, Linkage,
                                /*Initializer=*/nullptr, MangledName);
   if (BCD->isWeakForLinker())
     BCD->setComdat(CGM.getModule().getOrInsertComdat(BCD->getName()));
@@ -3707,7 +3735,7 @@ MSRTTIBuilder::getCompleteObjectLocator(const VPtrInfo &Info) {
 
   // Forward-declare the complete object locator.
   llvm::StructType *Type = ABI.getCompleteObjectLocatorType();
-  auto COL = new llvm::GlobalVariable(Module, Type, /*Constant=*/true, Linkage,
+  auto COL = new llvm::GlobalVariable(Module, Type, /*isConstant=*/true, Linkage,
     /*Initializer=*/nullptr, MangledName);
 
   // Initialize the CompleteObjectLocator.
@@ -3822,7 +3850,7 @@ llvm::Constant *MicrosoftCXXABI::getAddrOfRTTIDescriptor(QualType Type) {
   llvm::StructType *TypeDescriptorType =
       getTypeDescriptorType(TypeInfoString);
   auto *Var = new llvm::GlobalVariable(
-      CGM.getModule(), TypeDescriptorType, /*Constant=*/false,
+      CGM.getModule(), TypeDescriptorType, /*isConstant=*/false,
       getLinkageForRTTI(Type),
       llvm::ConstantStruct::get(TypeDescriptorType, Fields),
       MangledName);
@@ -4061,7 +4089,7 @@ llvm::Constant *MicrosoftCXXABI::getCatchableType(QualType T,
   };
   llvm::StructType *CTType = getCatchableTypeType();
   auto *GV = new llvm::GlobalVariable(
-      CGM.getModule(), CTType, /*Constant=*/true, getLinkageForRTTI(T),
+      CGM.getModule(), CTType, /*isConstant=*/true, getLinkageForRTTI(T),
       llvm::ConstantStruct::get(CTType, Fields), MangledName);
   GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
   GV->setSection(".xdata");
@@ -4179,7 +4207,7 @@ llvm::GlobalVariable *MicrosoftCXXABI::getCatchableTypeArray(QualType T) {
     getMangleContext().mangleCXXCatchableTypeArray(T, NumEntries, Out);
   }
   CTA = new llvm::GlobalVariable(
-      CGM.getModule(), CTAType, /*Constant=*/true, getLinkageForRTTI(T),
+      CGM.getModule(), CTAType, /*isConstant=*/true, getLinkageForRTTI(T),
       llvm::ConstantStruct::get(CTAType, Fields), MangledName);
   CTA->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
   CTA->setSection(".xdata");
@@ -4248,7 +4276,7 @@ llvm::GlobalVariable *MicrosoftCXXABI::getThrowInfo(QualType T) {
       PointerToCatchableTypes                   // CatchableTypeArray
   };
   auto *GV = new llvm::GlobalVariable(
-      CGM.getModule(), TIType, /*Constant=*/true, getLinkageForRTTI(T),
+      CGM.getModule(), TIType, /*isConstant=*/true, getLinkageForRTTI(T),
       llvm::ConstantStruct::get(TIType, Fields), StringRef(MangledName));
   GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
   GV->setSection(".xdata");

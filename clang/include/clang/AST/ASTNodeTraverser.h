@@ -237,6 +237,9 @@ public:
 
     for (const auto &TP : *TPL)
       Visit(TP);
+
+    if (const Expr *RC = TPL->getRequiresClause())
+      Visit(RC);
   }
 
   void
@@ -527,6 +530,11 @@ public:
       dumpTemplateArgumentLoc(
           D->getDefaultArgument(), D->getDefaultArgStorage().getInheritedFrom(),
           D->defaultArgumentWasInherited() ? "inherited from" : "previous");
+  }
+
+  void VisitConceptDecl(const ConceptDecl *D) {
+    dumpTemplateParameters(D->getTemplateParameters());
+    Visit(D->getConstraintExpr());
   }
 
   void VisitUsingShadowDecl(const UsingShadowDecl *D) {

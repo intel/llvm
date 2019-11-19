@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/kernel.hpp>
@@ -57,7 +58,8 @@ class NDRDescT {
   }
 
 public:
-  NDRDescT() = default;
+  NDRDescT()
+      : GlobalSize{0, 0, 0}, LocalSize{0, 0, 0}, NumWorkGroups{0, 0, 0} {}
 
   template <int Dims_> void set(sycl::range<Dims_> NumWorkItems) {
     for (int I = 0; I < Dims_; ++I) {
@@ -132,7 +134,7 @@ public:
 class HostKernelBase {
 public:
   // The method executes lambda stored using NDRange passed.
-  virtual void call(const NDRDescT &NDRDesc) = 0;
+  virtual void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) = 0;
   // Return pointer to the lambda object.
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
@@ -147,7 +149,7 @@ class HostKernel : public HostKernelBase {
 
 public:
   HostKernel(KernelType Kernel) : MKernel(Kernel) {}
-  void call(const NDRDescT &NDRDesc) override {
+  void call(const NDRDescT &NDRDesc, HostProfilingInfo *HPI) override {
     // adjust ND range for serial host:
     NDRDescT AdjustedRange;
     bool Adjust = false;
@@ -159,13 +161,17 @@ public:
       // needed to invoke the kernel and adjust the NDRange descriptor
       // accordingly. For some devices the work group size selection requires
       // access to the device's properties, hence such late "adjustment".
-      range<3> WGsize = {1, 1, 1}; // no better alternative for serial host?
+      range<3> WGsize{1, 1, 1}; // no better alternative for serial host?
       AdjustedRange.set(NDRDesc.Dims,
                         nd_range<3>(NDRDesc.NumWorkGroups * WGsize, WGsize));
       Adjust = true;
     }
     const NDRDescT &R = Adjust ? AdjustedRange : NDRDesc;
+    if (HPI)
+      HPI->start();
     runOnHost(R);
+    if (HPI)
+      HPI->end();
   }
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
@@ -179,61 +185,66 @@ public:
   template <class ArgT = KernelArgType>
   typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
-    size_t XYZ[3] = {0};
-    sycl::id<Dims> ID;
-    for (; XYZ[2] < NDRDesc.GlobalSize[2]; ++XYZ[2]) {
-      XYZ[1] = 0;
-      for (; XYZ[1] < NDRDesc.GlobalSize[1]; ++XYZ[1]) {
-        XYZ[0] = 0;
-        for (; XYZ[0] < NDRDesc.GlobalSize[0]; ++XYZ[0]) {
-          for (int I = 0; I < Dims; ++I)
-            ID[I] = XYZ[I];
-          MKernel(ID);
-        }
-      }
-    }
+    sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
+    for (int I = 0; I < Dims; ++I)
+      Range[I] = NDRDesc.GlobalSize[I];
+
+    detail::NDLoop<Dims>::iterate(
+        Range, [&](const sycl::id<Dims> &ID) { MKernel(ID); });
   }
 
   template <class ArgT = KernelArgType>
   typename std::enable_if<
-      (std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value ||
-       std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value)>::type
+      std::is_same<ArgT, item<Dims, /*Offset=*/false>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
     size_t XYZ[3] = {0};
     sycl::id<Dims> ID;
-    sycl::range<Dims> Range;
+    sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I)
       Range[I] = NDRDesc.GlobalSize[I];
 
-    for (; XYZ[2] < NDRDesc.GlobalSize[2]; ++XYZ[2]) {
-      XYZ[1] = 0;
-      for (; XYZ[1] < NDRDesc.GlobalSize[1]; ++XYZ[1]) {
-        XYZ[0] = 0;
-        for (; XYZ[0] < NDRDesc.GlobalSize[0]; ++XYZ[0]) {
-          for (int I = 0; I < Dims; ++I)
-            ID[I] = XYZ[I];
+    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> ID) {
+      sycl::item<Dims, /*Offset=*/false> Item =
+          IDBuilder::createItem<Dims, false>(Range, ID);
+      MKernel(Item);
+    });
+  }
 
-          sycl::item<Dims, /*Offset=*/false> Item =
-              IDBuilder::createItem<Dims, false>(Range, ID);
-          MKernel(Item);
-        }
-      }
+  template <class ArgT = KernelArgType>
+  typename std::enable_if<
+      std::is_same<ArgT, item<Dims, /*Offset=*/true>>::value>::type
+  runOnHost(const NDRDescT &NDRDesc) {
+    sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
+    sycl::id<Dims> Offset;
+    for (int I = 0; I < Dims; ++I) {
+      Range[I] = NDRDesc.GlobalSize[I];
+      Offset[I] = NDRDesc.GlobalOffset[I];
     }
+
+    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> &ID) {
+      sycl::id<Dims> OffsetID = ID + Offset;
+      sycl::item<Dims, /*Offset=*/true> Item =
+          IDBuilder::createItem<Dims, true>(Range, OffsetID, Offset);
+      MKernel(Item);
+    });
   }
 
   template <class ArgT = KernelArgType>
   typename std::enable_if<std::is_same<ArgT, nd_item<Dims>>::value>::type
   runOnHost(const NDRDescT &NDRDesc) {
-    // TODO add offset logic
-
-    sycl::id<3> GroupSize;
-    for (int I = 0; I < 3; ++I) {
+    sycl::range<Dims> GroupSize(
+        InitializedVal<Dims, range>::template get<0>());
+    for (int I = 0; I < Dims; ++I) {
+      if (NDRDesc.LocalSize[I] == 0 ||
+          NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
+        throw sycl::runtime_error("Invalid local size for global size");
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
-      // TODO supoport case NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0
     }
 
-    sycl::range<Dims> GlobalSize;
-    sycl::range<Dims> LocalSize;
+    sycl::range<Dims> LocalSize(
+        InitializedVal<Dims, range>::template get<0>());
+    sycl::range<Dims> GlobalSize(
+        InitializedVal<Dims, range>::template get<0>());
     sycl::id<Dims> GlobalOffset;
     for (int I = 0; I < Dims; ++I) {
       GlobalOffset[I] = NDRDesc.GlobalOffset[I];
@@ -241,67 +252,47 @@ public:
       GlobalSize[I] = NDRDesc.GlobalSize[I];
     }
 
-    sycl::id<Dims> GlobalID;
-    sycl::id<Dims> LocalID;
+    detail::NDLoop<Dims>::iterate(GroupSize, [&](const id<Dims> &GroupID) {
+      sycl::group<Dims> Group = IDBuilder::createGroup<Dims>(
+          GlobalSize, LocalSize, GroupSize, GroupID);
 
-    size_t GroupXYZ[3] = {0};
-    sycl::id<Dims> GroupID;
-    for (; GroupXYZ[2] < GroupSize[2]; ++GroupXYZ[2]) {
-      GroupXYZ[1] = 0;
-      for (; GroupXYZ[1] < GroupSize[1]; ++GroupXYZ[1]) {
-        GroupXYZ[0] = 0;
-        for (; GroupXYZ[0] < GroupSize[0]; ++GroupXYZ[0]) {
-          for (int I = 0; I < Dims; ++I)
-            GroupID[I] = GroupXYZ[I];
-
-          sycl::group<Dims> Group =
-              IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, GroupID);
-          size_t LocalXYZ[3] = {0};
-          for (; LocalXYZ[2] < NDRDesc.LocalSize[2]; ++LocalXYZ[2]) {
-            LocalXYZ[1] = 0;
-            for (; LocalXYZ[1] < NDRDesc.LocalSize[1]; ++LocalXYZ[1]) {
-              LocalXYZ[0] = 0;
-              for (; LocalXYZ[0] < NDRDesc.LocalSize[0]; ++LocalXYZ[0]) {
-
-                for (int I = 0; I < Dims; ++I) {
-                  GlobalID[I] = GroupXYZ[I] * LocalSize[I] + LocalXYZ[I];
-                  LocalID[I] = LocalXYZ[I];
-                }
-                const sycl::item<Dims, /*Offset=*/true> GlobalItem =
-                    IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
-                                                      GlobalOffset);
-                const sycl::item<Dims, /*Offset=*/false> LocalItem =
-                    IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
-                const sycl::nd_item<Dims> NDItem =
-                    IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-                MKernel(NDItem);
-              }
-            }
-          }
-        }
-      }
-    }
+      detail::NDLoop<Dims>::iterate(LocalSize, [&](const id<Dims> &LocalID) {
+        id<Dims> GlobalID = GroupID * LocalSize + LocalID + GlobalOffset;
+        const sycl::item<Dims, /*Offset=*/true> GlobalItem =
+            IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
+                                              GlobalOffset);
+        const sycl::item<Dims, /*Offset=*/false> LocalItem =
+            IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
+        const sycl::nd_item<Dims> NDItem =
+            IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
+        MKernel(NDItem);
+      });
+    });
   }
 
   template <typename ArgT = KernelArgType>
   enable_if_t<std::is_same<ArgT, cl::sycl::group<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    sycl::id<Dims> NGroups;
+    sycl::range<Dims> NGroups(InitializedVal<Dims, range>::template get<0>());
 
     for (int I = 0; I < Dims; ++I) {
+      if (NDRDesc.LocalSize[I] == 0 ||
+          NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
+        throw sycl::runtime_error("Invalid local size for global size");
       NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
-      assert(NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] == 0);
     }
-    sycl::range<Dims> GlobalSize;
-    sycl::range<Dims> LocalSize;
 
+    sycl::range<Dims> LocalSize(
+      InitializedVal<Dims, range>::template get<0>());
+    sycl::range<Dims> GlobalSize(
+      InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       LocalSize[I] = NDRDesc.LocalSize[I];
       GlobalSize[I] = NDRDesc.GlobalSize[I];
     }
     detail::NDLoop<Dims>::iterate(NGroups, [&](const id<Dims> &GroupID) {
       sycl::group<Dims> Group =
-          IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, GroupID);
+          IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, NGroups, GroupID);
       MKernel(Group);
     });
   }
@@ -315,12 +306,17 @@ class CG {
 public:
   // Type of the command group.
   enum CGTYPE {
+    NONE,
     KERNEL,
     COPY_ACC_TO_PTR,
     COPY_PTR_TO_ACC,
     COPY_ACC_TO_ACC,
     FILL,
-    UPDATE_HOST
+    UPDATE_HOST,
+    RUN_ON_HOST_INTEL,
+    COPY_USM,
+    FILL_USM,
+    PREFETCH_USM
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -335,11 +331,9 @@ public:
 
   CG(CG &&CommandGroup) = default;
 
-  std::vector<Requirement *> getRequirements() const { return MRequirements; }
-
-  std::vector<detail::EventImplPtr> getEvents() const { return MEvents; }
-
   CGTYPE getType() { return MType; }
+
+  virtual ~CG() = default;
 
 private:
   CGTYPE MType;
@@ -351,6 +345,8 @@ private:
   std::vector<detail::AccessorImplPtr> MAccStorage;
   // Storage for shared_ptrs.
   std::vector<std::shared_ptr<const void>> MSharedPtrStorage;
+
+public:
   // List of requirements that specify which memory is needed for the command
   // group to be executed.
   std::vector<Requirement *> MRequirements;
@@ -378,14 +374,27 @@ public:
                std::vector<detail::EventImplPtr> Events,
                std::vector<ArgDesc> Args, std::string KernelName,
                detail::OSModuleHandle OSModuleHandle,
-               std::vector<std::shared_ptr<detail::stream_impl>> Streams)
-      : CG(KERNEL, std::move(ArgsStorage), std::move(AccStorage),
+               std::vector<std::shared_ptr<detail::stream_impl>> Streams,
+               CGTYPE Type)
+      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
-        MStreams(std::move(Streams)) {}
+        MStreams(std::move(Streams)) {
+    assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL) &&
+           "Wrong type of exec kernel CG.");
+
+    if (MNDRDesc.LocalSize.size() > 0) {
+      range<3> Excess = (MNDRDesc.GlobalSize % MNDRDesc.LocalSize);
+      for (int I = 0; I < 3; I++) {
+        if (Excess[I] != 0)
+          throw nd_range_error("Global size is not a multiple of local size",
+              CL_INVALID_WORK_GROUP_SIZE);
+      }
+    }
+  }
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }
@@ -449,6 +458,71 @@ public:
         MPtr((Requirement *)Ptr) {}
 
   Requirement *getReqToUpdate() { return MPtr; }
+};
+
+// The class which represents "copy" command group for USM pointers.
+class CGCopyUSM : public CG {
+  void *MSrc;
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGCopyUSM(void *Src, void *Dst, size_t Length,
+            std::vector<std::vector<char>> ArgsStorage,
+            std::vector<detail::AccessorImplPtr> AccStorage,
+            std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+            std::vector<Requirement *> Requirements,
+            std::vector<detail::EventImplPtr> Events)
+      : CG(COPY_USM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
+        MSrc(Src), MDst(Dst), MLength(Length) {}
+
+  void *getSrc() { return MSrc; }
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+};
+
+// The class which represents "fill" command group for USM pointers.
+class CGFillUSM : public CG {
+  std::vector<char> MPattern;
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGFillUSM(std::vector<char> Pattern, void *DstPtr, size_t Length,
+            std::vector<std::vector<char>> ArgsStorage,
+            std::vector<detail::AccessorImplPtr> AccStorage,
+            std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+            std::vector<Requirement *> Requirements,
+            std::vector<detail::EventImplPtr> Events)
+      : CG(FILL_USM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
+        MPattern(std::move(Pattern)), MDst(DstPtr), MLength(Length) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+  int getFill() { return MPattern[0]; }
+};
+
+// The class which represents "prefetch" command group for USM pointers.
+class CGPrefetchUSM : public CG {
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGPrefetchUSM(void *DstPtr, size_t Length,
+                std::vector<std::vector<char>> ArgsStorage,
+                std::vector<detail::AccessorImplPtr> AccStorage,
+                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+                std::vector<Requirement *> Requirements,
+                std::vector<detail::EventImplPtr> Events)
+      : CG(PREFETCH_USM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events)),
+        MDst(DstPtr), MLength(Length) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
 };
 
 } // namespace detail

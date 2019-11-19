@@ -50,6 +50,7 @@ set(files
   clflushoptintrin.h
   clwbintrin.h
   emmintrin.h
+  enqcmdintrin.h
   f16cintrin.h
   float.h
   fma4intrin.h
@@ -76,6 +77,7 @@ set(files
   mwaitxintrin.h
   nmmintrin.h
   opencl-c.h
+  opencl-c-base.h
   pkuintrin.h
   pmmintrin.h
   pconfigintrin.h
@@ -130,6 +132,10 @@ set(ppc_wrapper_files
   ppc_wrappers/mmintrin.h
   ppc_wrappers/xmmintrin.h
   ppc_wrappers/mm_malloc.h
+  ppc_wrappers/emmintrin.h
+  ppc_wrappers/pmmintrin.h
+  ppc_wrappers/tmmintrin.h
+  ppc_wrappers/smmintrin.h
 )
 
 set(openmp_wrapper_files
@@ -176,6 +182,8 @@ endforeach( f )
 clang_generate_header(-gen-arm-neon arm_neon.td arm_neon.h)
 # Generate arm_fp16.h
 clang_generate_header(-gen-arm-fp16 arm_fp16.td arm_fp16.h)
+# Generate arm_mve.h
+clang_generate_header(-gen-arm-mve-header arm_mve.td arm_mve.h)
 
 add_custom_target(clang-resource-headers ALL DEPENDS ${out_files})
 set_target_properties(clang-resource-headers PROPERTIES

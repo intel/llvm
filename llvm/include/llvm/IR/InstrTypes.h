@@ -154,6 +154,20 @@ public:
   }
 #include "llvm/IR/Instruction.def"
 
+  static UnaryOperator *CreateWithCopiedFlags(UnaryOps Opc,
+                                              Value *V,
+                                              Instruction *CopyO,
+                                              const Twine &Name = "") {
+    UnaryOperator *UO = Create(Opc, V, Name);
+    UO->copyIRFlags(CopyO);
+    return UO;
+  }
+
+  static UnaryOperator *CreateFNegFMF(Value *Op, Instruction *FMFSource,
+                                      const Twine &Name = "") {
+    return CreateWithCopiedFlags(Instruction::FNeg, Op, FMFSource, Name);
+  }
+
   UnaryOps getOpcode() const {
     return static_cast<UnaryOps>(Instruction::getOpcode());
   }
@@ -269,7 +283,7 @@ public:
   static BinaryOperator *CreateFNegFMF(Value *Op, Instruction *FMFSource,
                                        const Twine &Name = "") {
     Value *Zero = ConstantFP::getNegativeZero(Op->getType());
-    return CreateWithCopiedFlags(Instruction::FSub, Zero, Op, FMFSource);
+    return CreateWithCopiedFlags(Instruction::FSub, Zero, Op, FMFSource, Name);
   }
 
   static BinaryOperator *CreateNSW(BinaryOps Opc, Value *V1, Value *V2,
@@ -961,7 +975,7 @@ public:
   static Type* makeCmpResultType(Type* opnd_type) {
     if (VectorType* vt = dyn_cast<VectorType>(opnd_type)) {
       return VectorType::get(Type::getInt1Ty(opnd_type->getContext()),
-                             vt->getNumElements());
+                             vt->getElementCount());
     }
     return Type::getInt1Ty(opnd_type->getContext());
   }
@@ -1023,6 +1037,11 @@ struct OperandBundleUse {
   /// Return true if this is a "funclet" operand bundle.
   bool isFuncletOperandBundle() const {
     return getTagID() == LLVMContext::OB_funclet;
+  }
+
+  /// Return true if this is a "cfguardtarget" operand bundle.
+  bool isCFGuardTargetOperandBundle() const {
+    return getTagID() == LLVMContext::OB_cfguardtarget;
   }
 
 private:
@@ -1553,11 +1572,17 @@ public:
   }
 
   /// Extract the alignment of the return value.
-  unsigned getRetAlignment() const { return Attrs.getRetAlignment(); }
+  unsigned getRetAlignment() const {
+    if (const auto MA = Attrs.getRetAlignment())
+      return MA->value();
+    return 0;
+  }
 
   /// Extract the alignment for a call or parameter (0=unknown).
   unsigned getParamAlignment(unsigned ArgNo) const {
-    return Attrs.getParamAlignment(ArgNo);
+    if (const auto MA = Attrs.getParamAlignment(ArgNo))
+      return MA->value();
+    return 0;
   }
 
   /// Extract the byval type for a call or parameter.

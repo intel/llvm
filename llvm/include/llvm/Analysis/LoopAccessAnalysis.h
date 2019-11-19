@@ -175,8 +175,8 @@ public:
   };
 
   MemoryDepChecker(PredicatedScalarEvolution &PSE, const Loop *L)
-      : PSE(PSE), InnermostLoop(L), AccessIdx(0), MaxSafeRegisterWidth(-1U),
-        FoundNonConstantDistanceDependence(false),
+      : PSE(PSE), InnermostLoop(L), AccessIdx(0), MaxSafeDepDistBytes(0),
+        MaxSafeRegisterWidth(-1U), FoundNonConstantDistanceDependence(false),
         Status(VectorizationSafetyStatus::Safe), RecordDependences(true) {}
 
   /// Register the location (instructions are given increasing numbers)
@@ -522,6 +522,11 @@ public:
   /// no memory dependence cycles.
   bool canVectorizeMemory() const { return CanVecMem; }
 
+  /// Return true if there is a convergent operation in the loop. There may
+  /// still be reported runtime pointer checks that would be required, but it is
+  /// not legal to insert them.
+  bool hasConvergentOp() const { return HasConvergentOp; }
+
   const RuntimePointerChecking *getRuntimePointerChecking() const {
     return PtrRtChecking.get();
   }
@@ -642,6 +647,7 @@ private:
 
   /// Cache the result of analyzeLoop.
   bool CanVecMem;
+  bool HasConvergentOp;
 
   /// Indicator that there are non vectorizable stores to a uniform address.
   bool HasDependenceInvolvingLoopInvariantAddress;
@@ -744,11 +750,11 @@ private:
   DenseMap<Loop *, std::unique_ptr<LoopAccessInfo>> LoopAccessInfoMap;
 
   // The used analysis passes.
-  ScalarEvolution *SE;
-  const TargetLibraryInfo *TLI;
-  AliasAnalysis *AA;
-  DominatorTree *DT;
-  LoopInfo *LI;
+  ScalarEvolution *SE = nullptr;
+  const TargetLibraryInfo *TLI = nullptr;
+  AliasAnalysis *AA = nullptr;
+  DominatorTree *DT = nullptr;
+  LoopInfo *LI = nullptr;
 };
 
 /// This analysis provides dependence information for the memory

@@ -21,6 +21,7 @@
 //===----------------------------------------------------------------------===//
 #include "Representation.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Path.h"
 
 namespace clang {
 namespace doc {
@@ -33,9 +34,9 @@ template <typename T>
 llvm::Expected<std::unique_ptr<Info>>
 reduce(std::vector<std::unique_ptr<Info>> &Values) {
   if (Values.empty())
-    return llvm::make_error<llvm::StringError>(" No values to reduce.\n",
-                                               llvm::inconvertibleErrorCode());
-  std::unique_ptr<Info> Merged = llvm::make_unique<T>(Values[0]->USR);
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "no value to reduce");
+  std::unique_ptr<Info> Merged = std::make_unique<T>(Values[0]->USR);
   T *Tmp = static_cast<T *>(Merged.get());
   for (auto &I : Values)
     Tmp->merge(std::move(*static_cast<T *>(I.get())));
@@ -53,13 +54,15 @@ int getChildIndexIfExists(std::vector<T> &Children, T &ChildToMerge) {
   return -1;
 }
 
-// For References, we don't need to actually merge them, we just don't want
-// duplicates.
 void reduceChildren(std::vector<Reference> &Children,
                     std::vector<Reference> &&ChildrenToMerge) {
   for (auto &ChildToMerge : ChildrenToMerge) {
-    if (getChildIndexIfExists(Children, ChildToMerge) == -1)
+    int mergeIdx = getChildIndexIfExists(Children, ChildToMerge);
+    if (mergeIdx == -1) {
       Children.push_back(std::move(ChildToMerge));
+      continue;
+    }
+    Children[mergeIdx].merge(std::move(ChildToMerge));
   }
 }
 
@@ -93,8 +96,8 @@ void reduceChildren(std::vector<EnumInfo> &Children,
 llvm::Expected<std::unique_ptr<Info>>
 mergeInfos(std::vector<std::unique_ptr<Info>> &Values) {
   if (Values.empty())
-    return llvm::make_error<llvm::StringError>("No info values to merge.\n",
-                                               llvm::inconvertibleErrorCode());
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "no info values to merge");
 
   switch (Values[0]->IT) {
   case InfoType::IT_namespace:
@@ -106,9 +109,23 @@ mergeInfos(std::vector<std::unique_ptr<Info>> &Values) {
   case InfoType::IT_function:
     return reduce<FunctionInfo>(Values);
   default:
-    return llvm::make_error<llvm::StringError>("Unexpected info type.\n",
-                                               llvm::inconvertibleErrorCode());
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "unexpected info type");
   }
+}
+
+bool Reference::mergeable(const Reference &Other) {
+  return RefType == Other.RefType && USR == Other.USR;
+}
+
+void Reference::merge(Reference &&Other) {
+  assert(mergeable(Other));
+  if (Name.empty())
+    Name = Other.Name;
+  if (Path.empty())
+    Path = Other.Path;
+  if (!IsInGlobalNamespace)
+    IsInGlobalNamespace = Other.IsInGlobalNamespace;
 }
 
 void Info::mergeBase(Info &&Other) {
@@ -117,11 +134,16 @@ void Info::mergeBase(Info &&Other) {
     USR = Other.USR;
   if (Name == "")
     Name = Other.Name;
+  if (Path == "")
+    Path = Other.Path;
   if (Namespace.empty())
     Namespace = std::move(Other.Namespace);
   // Unconditionally extend the description, since each decl may have a comment.
   std::move(Other.Description.begin(), Other.Description.end(),
             std::back_inserter(Description));
+  std::sort(Description.begin(), Description.end());
+  auto Last = std::unique(Description.begin(), Description.end());
+  Description.erase(Last, Description.end());
 }
 
 bool Info::mergeable(const Info &Other) {
@@ -134,6 +156,9 @@ void SymbolInfo::merge(SymbolInfo &&Other) {
     DefLoc = std::move(Other.DefLoc);
   // Unconditionally extend the list of locations, since we want all of them.
   std::move(Other.Loc.begin(), Other.Loc.end(), std::back_inserter(Loc));
+  std::sort(Loc.begin(), Loc.end());
+  auto Last = std::unique(Loc.begin(), Loc.end());
+  Loc.erase(Last, Loc.end());
   mergeBase(std::move(Other));
 }
 
@@ -153,6 +178,8 @@ void RecordInfo::merge(RecordInfo &&Other) {
     TagType = Other.TagType;
   if (Members.empty())
     Members = std::move(Other.Members);
+  if (Bases.empty())
+    Bases = std::move(Other.Bases);
   if (Parents.empty())
     Parents = std::move(Other.Parents);
   if (VirtualParents.empty())
@@ -186,6 +213,86 @@ void FunctionInfo::merge(FunctionInfo &&Other) {
   if (Params.empty())
     Params = std::move(Other.Params);
   SymbolInfo::merge(std::move(Other));
+}
+
+llvm::SmallString<16> Info::extractName() const {
+  if (!Name.empty())
+    return Name;
+
+  switch (IT) {
+  case InfoType::IT_namespace:
+    // Cover the case where the project contains a base namespace called
+    // 'GlobalNamespace' (i.e. a namespace at the same level as the global
+    // namespace, which would conflict with the hard-coded global namespace name
+    // below.)
+    if (Name == "GlobalNamespace" && Namespace.empty())
+      return llvm::SmallString<16>("@GlobalNamespace");
+    // The case of anonymous namespaces is taken care of in serialization,
+    // so here we can safely assume an unnamed namespace is the global
+    // one.
+    return llvm::SmallString<16>("GlobalNamespace");
+  case InfoType::IT_record:
+    return llvm::SmallString<16>("@nonymous_record_" +
+                                 toHex(llvm::toStringRef(USR)));
+  case InfoType::IT_enum:
+    return llvm::SmallString<16>("@nonymous_enum_" +
+                                 toHex(llvm::toStringRef(USR)));
+  case InfoType::IT_function:
+    return llvm::SmallString<16>("@nonymous_function_" +
+                                 toHex(llvm::toStringRef(USR)));
+  case InfoType::IT_default:
+    return llvm::SmallString<16>("@nonymous_" + toHex(llvm::toStringRef(USR)));
+  }
+  llvm_unreachable("Invalid InfoType.");
+  return llvm::SmallString<16>("");
+}
+
+// Order is based on the Name attribute: case insensitive order
+bool Index::operator<(const Index &Other) const {
+  // Loop through each character of both strings
+  for (unsigned I = 0; I < Name.size() && I < Other.Name.size(); ++I) {
+    // Compare them after converting both to lower case
+    int D = tolower(Name[I]) - tolower(Other.Name[I]);
+    if (D == 0)
+      continue;
+    return D < 0;
+  }
+  // If both strings have the size it means they would be equal if changed to
+  // lower case. In here, lower case will be smaller than upper case
+  // Example: string < stRing = true
+  // This is the opposite of how operator < handles strings
+  if (Name.size() == Other.Name.size())
+    return Name > Other.Name;
+  // If they are not the same size; the shorter string is smaller
+  return Name.size() < Other.Name.size();
+}
+
+void Index::sort() {
+  std::sort(Children.begin(), Children.end());
+  for (auto &C : Children)
+    C.sort();
+}
+
+ClangDocContext::ClangDocContext(tooling::ExecutionContext *ECtx,
+                                 StringRef ProjectName, bool PublicOnly,
+                                 StringRef OutDirectory, StringRef SourceRoot,
+                                 StringRef RepositoryUrl,
+                                 std::vector<std::string> UserStylesheets,
+                                 std::vector<std::string> JsScripts)
+    : ECtx(ECtx), ProjectName(ProjectName), PublicOnly(PublicOnly),
+      OutDirectory(OutDirectory), UserStylesheets(UserStylesheets),
+      JsScripts(JsScripts) {
+  llvm::SmallString<128> SourceRootDir(SourceRoot);
+  if (SourceRoot.empty())
+    // If no SourceRoot was provided the current path is used as the default
+    llvm::sys::fs::current_path(SourceRootDir);
+  this->SourceRoot = SourceRootDir.str();
+  if (!RepositoryUrl.empty()) {
+    this->RepositoryUrl = RepositoryUrl;
+    if (!RepositoryUrl.empty() && RepositoryUrl.find("http://") != 0 &&
+        RepositoryUrl.find("https://") != 0)
+      this->RepositoryUrl->insert(0, "https://");
+  }
 }
 
 } // namespace doc

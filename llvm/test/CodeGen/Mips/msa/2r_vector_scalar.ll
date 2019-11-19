@@ -1,9 +1,9 @@
 ; Test the MSA intrinsics that are encoded with the 2R instruction format and
 ; convert scalars to vectors.
 
-; RUN: llc -march=mips -mattr=+msa,+fp64 -relocation-model=pic < %s | \
+; RUN: llc -march=mips -mattr=+msa,+fp64,+mips32r2 -relocation-model=pic < %s | \
 ; RUN:   FileCheck %s -check-prefixes=MIPS-ANY,MIPS32
-; RUN: llc -march=mipsel -mattr=+msa,+fp64 -relocation-model=pic < %s | \
+; RUN: llc -march=mipsel -mattr=+msa,+fp64,+mips32r2 -relocation-model=pic < %s | \
 ; RUN:   FileCheck %s -check-prefixes=MIPS-ANY,MIPS32
 ; RUN: llc -march=mips64 -mcpu=mips64r2 -mattr=+msa,+fp64 -relocation-model=pic < %s | \
 ; RUN:   FileCheck %s -check-prefixes=MIPS-ANY,MIPS64
@@ -86,9 +86,8 @@ declare <2 x i64> @llvm.mips.fill.d(i64) nounwind
 ; MIPS-ANY: llvm_mips_fill_d_test:
 ; MIPS32-DAG: lw [[R1:\$[0-9]+]], 0(
 ; MIPS32-DAG: lw [[R2:\$[0-9]+]], 4(
-; MIPS64-DAG: ld [[R1:\$[0-9]+]], %got_disp(llvm_mips_fill_d_ARG1)
-; MIPS32-DAG: ldi.b [[R3:\$w[0-9]+]], 0
-; MIPS32-DAG: insert.w [[R3]][0], [[R1]]
+; MIPS64-DAG: ld [[R1]], %got_disp(llvm_mips_fill_d_ARG1)
+; MIPS32-DAG: insert.w [[R3:\$w[0-9]+]][0], [[R1]]
 ; MIPS32-DAG: insert.w [[R3]][1], [[R2]]
 ; MIPS32-DAG: insert.w [[R3]][2], [[R1]]
 ; MIPS32-DAG: insert.w [[R3]][3], [[R2]]

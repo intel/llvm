@@ -54,7 +54,20 @@ private:
   bool expandAtomicCmpXchg(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MBBI, bool IsMasked,
                            int Width, MachineBasicBlock::iterator &NextMBBI);
+  bool expandAuipcInstPair(MachineBasicBlock &MBB,
+                           MachineBasicBlock::iterator MBBI,
+                           MachineBasicBlock::iterator &NextMBBI,
+                           unsigned FlagsHi, unsigned SecondOpcode);
   bool expandLoadLocalAddress(MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator MBBI,
+                              MachineBasicBlock::iterator &NextMBBI);
+  bool expandLoadAddress(MachineBasicBlock &MBB,
+                         MachineBasicBlock::iterator MBBI,
+                         MachineBasicBlock::iterator &NextMBBI);
+  bool expandLoadTLSIEAddress(MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator MBBI,
+                              MachineBasicBlock::iterator &NextMBBI);
+  bool expandLoadTLSGDAddress(MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator MBBI,
                               MachineBasicBlock::iterator &NextMBBI);
 };
@@ -122,6 +135,12 @@ bool RISCVExpandPseudo::expandMI(MachineBasicBlock &MBB,
     return expandAtomicCmpXchg(MBB, MBBI, true, 32, NextMBBI);
   case RISCV::PseudoLLA:
     return expandLoadLocalAddress(MBB, MBBI, NextMBBI);
+  case RISCV::PseudoLA:
+    return expandLoadAddress(MBB, MBBI, NextMBBI);
+  case RISCV::PseudoLA_TLS_IE:
+    return expandLoadTLSIEAddress(MBB, MBBI, NextMBBI);
+  case RISCV::PseudoLA_TLS_GD:
+    return expandLoadTLSGDAddress(MBB, MBBI, NextMBBI);
   }
 
   return false;
@@ -216,10 +235,10 @@ static void doAtomicBinOpExpansion(const RISCVInstrInfo *TII, MachineInstr &MI,
                                    MachineBasicBlock *LoopMBB,
                                    MachineBasicBlock *DoneMBB,
                                    AtomicRMWInst::BinOp BinOp, int Width) {
-  unsigned DestReg = MI.getOperand(0).getReg();
-  unsigned ScratchReg = MI.getOperand(1).getReg();
-  unsigned AddrReg = MI.getOperand(2).getReg();
-  unsigned IncrReg = MI.getOperand(3).getReg();
+  Register DestReg = MI.getOperand(0).getReg();
+  Register ScratchReg = MI.getOperand(1).getReg();
+  Register AddrReg = MI.getOperand(2).getReg();
+  Register IncrReg = MI.getOperand(3).getReg();
   AtomicOrdering Ordering =
       static_cast<AtomicOrdering>(MI.getOperand(4).getImm());
 
@@ -252,9 +271,9 @@ static void doAtomicBinOpExpansion(const RISCVInstrInfo *TII, MachineInstr &MI,
 }
 
 static void insertMaskedMerge(const RISCVInstrInfo *TII, DebugLoc DL,
-                              MachineBasicBlock *MBB, unsigned DestReg,
-                              unsigned OldValReg, unsigned NewValReg,
-                              unsigned MaskReg, unsigned ScratchReg) {
+                              MachineBasicBlock *MBB, Register DestReg,
+                              Register OldValReg, Register NewValReg,
+                              Register MaskReg, Register ScratchReg) {
   assert(OldValReg != ScratchReg && "OldValReg and ScratchReg must be unique");
   assert(OldValReg != MaskReg && "OldValReg and MaskReg must be unique");
   assert(ScratchReg != MaskReg && "ScratchReg and MaskReg must be unique");
@@ -278,11 +297,11 @@ static void doMaskedAtomicBinOpExpansion(
     MachineBasicBlock *ThisMBB, MachineBasicBlock *LoopMBB,
     MachineBasicBlock *DoneMBB, AtomicRMWInst::BinOp BinOp, int Width) {
   assert(Width == 32 && "Should never need to expand masked 64-bit operations");
-  unsigned DestReg = MI.getOperand(0).getReg();
-  unsigned ScratchReg = MI.getOperand(1).getReg();
-  unsigned AddrReg = MI.getOperand(2).getReg();
-  unsigned IncrReg = MI.getOperand(3).getReg();
-  unsigned MaskReg = MI.getOperand(4).getReg();
+  Register DestReg = MI.getOperand(0).getReg();
+  Register ScratchReg = MI.getOperand(1).getReg();
+  Register AddrReg = MI.getOperand(2).getReg();
+  Register IncrReg = MI.getOperand(3).getReg();
+  Register MaskReg = MI.getOperand(4).getReg();
   AtomicOrdering Ordering =
       static_cast<AtomicOrdering>(MI.getOperand(5).getImm());
 
@@ -375,8 +394,8 @@ bool RISCVExpandPseudo::expandAtomicBinOp(
 }
 
 static void insertSext(const RISCVInstrInfo *TII, DebugLoc DL,
-                       MachineBasicBlock *MBB, unsigned ValReg,
-                       unsigned ShamtReg) {
+                       MachineBasicBlock *MBB, Register ValReg,
+                       Register ShamtReg) {
   BuildMI(MBB, DL, TII->get(RISCV::SLL), ValReg)
       .addReg(ValReg)
       .addReg(ShamtReg);
@@ -417,12 +436,12 @@ bool RISCVExpandPseudo::expandAtomicMinMaxOp(
   DoneMBB->transferSuccessors(&MBB);
   MBB.addSuccessor(LoopHeadMBB);
 
-  unsigned DestReg = MI.getOperand(0).getReg();
-  unsigned Scratch1Reg = MI.getOperand(1).getReg();
-  unsigned Scratch2Reg = MI.getOperand(2).getReg();
-  unsigned AddrReg = MI.getOperand(3).getReg();
-  unsigned IncrReg = MI.getOperand(4).getReg();
-  unsigned MaskReg = MI.getOperand(5).getReg();
+  Register DestReg = MI.getOperand(0).getReg();
+  Register Scratch1Reg = MI.getOperand(1).getReg();
+  Register Scratch2Reg = MI.getOperand(2).getReg();
+  Register AddrReg = MI.getOperand(3).getReg();
+  Register IncrReg = MI.getOperand(4).getReg();
+  Register MaskReg = MI.getOperand(5).getReg();
   bool IsSigned = BinOp == AtomicRMWInst::Min || BinOp == AtomicRMWInst::Max;
   AtomicOrdering Ordering =
       static_cast<AtomicOrdering>(MI.getOperand(IsSigned ? 7 : 6).getImm());
@@ -530,11 +549,11 @@ bool RISCVExpandPseudo::expandAtomicCmpXchg(
   DoneMBB->transferSuccessors(&MBB);
   MBB.addSuccessor(LoopHeadMBB);
 
-  unsigned DestReg = MI.getOperand(0).getReg();
-  unsigned ScratchReg = MI.getOperand(1).getReg();
-  unsigned AddrReg = MI.getOperand(2).getReg();
-  unsigned CmpValReg = MI.getOperand(3).getReg();
-  unsigned NewValReg = MI.getOperand(4).getReg();
+  Register DestReg = MI.getOperand(0).getReg();
+  Register ScratchReg = MI.getOperand(1).getReg();
+  Register AddrReg = MI.getOperand(2).getReg();
+  Register CmpValReg = MI.getOperand(3).getReg();
+  Register NewValReg = MI.getOperand(4).getReg();
   AtomicOrdering Ordering =
       static_cast<AtomicOrdering>(MI.getOperand(IsMasked ? 6 : 5).getImm());
 
@@ -563,7 +582,7 @@ bool RISCVExpandPseudo::expandAtomicCmpXchg(
     //   lr.w dest, (addr)
     //   and scratch, dest, mask
     //   bne scratch, cmpval, done
-    unsigned MaskReg = MI.getOperand(5).getReg();
+    Register MaskReg = MI.getOperand(5).getReg();
     BuildMI(LoopHeadMBB, DL, TII->get(getLRForRMW(Ordering, Width)), DestReg)
         .addReg(AddrReg);
     BuildMI(LoopHeadMBB, DL, TII->get(RISCV::AND), ScratchReg)
@@ -602,14 +621,15 @@ bool RISCVExpandPseudo::expandAtomicCmpXchg(
   return true;
 }
 
-bool RISCVExpandPseudo::expandLoadLocalAddress(
+bool RISCVExpandPseudo::expandAuipcInstPair(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
-    MachineBasicBlock::iterator &NextMBBI) {
+    MachineBasicBlock::iterator &NextMBBI, unsigned FlagsHi,
+    unsigned SecondOpcode) {
   MachineFunction *MF = MBB.getParent();
   MachineInstr &MI = *MBBI;
   DebugLoc DL = MI.getDebugLoc();
 
-  unsigned DestReg = MI.getOperand(0).getReg();
+  Register DestReg = MI.getOperand(0).getReg();
   const MachineOperand &Symbol = MI.getOperand(1);
 
   MachineBasicBlock *NewMBB = MF->CreateMachineBasicBlock(MBB.getBasicBlock());
@@ -621,8 +641,8 @@ bool RISCVExpandPseudo::expandLoadLocalAddress(
   MF->insert(++MBB.getIterator(), NewMBB);
 
   BuildMI(NewMBB, DL, TII->get(RISCV::AUIPC), DestReg)
-      .addDisp(Symbol, 0, RISCVII::MO_PCREL_HI);
-  BuildMI(NewMBB, DL, TII->get(RISCV::ADDI), DestReg)
+      .addDisp(Symbol, 0, FlagsHi);
+  BuildMI(NewMBB, DL, TII->get(SecondOpcode), DestReg)
       .addReg(DestReg)
       .addMBB(NewMBB, RISCVII::MO_PCREL_LO);
 
@@ -640,6 +660,49 @@ bool RISCVExpandPseudo::expandLoadLocalAddress(
   NextMBBI = MBB.end();
   MI.eraseFromParent();
   return true;
+}
+
+bool RISCVExpandPseudo::expandLoadLocalAddress(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+    MachineBasicBlock::iterator &NextMBBI) {
+  return expandAuipcInstPair(MBB, MBBI, NextMBBI, RISCVII::MO_PCREL_HI,
+                             RISCV::ADDI);
+}
+
+bool RISCVExpandPseudo::expandLoadAddress(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+    MachineBasicBlock::iterator &NextMBBI) {
+  MachineFunction *MF = MBB.getParent();
+
+  unsigned SecondOpcode;
+  unsigned FlagsHi;
+  if (MF->getTarget().isPositionIndependent()) {
+    const auto &STI = MF->getSubtarget<RISCVSubtarget>();
+    SecondOpcode = STI.is64Bit() ? RISCV::LD : RISCV::LW;
+    FlagsHi = RISCVII::MO_GOT_HI;
+  } else {
+    SecondOpcode = RISCV::ADDI;
+    FlagsHi = RISCVII::MO_PCREL_HI;
+  }
+  return expandAuipcInstPair(MBB, MBBI, NextMBBI, FlagsHi, SecondOpcode);
+}
+
+bool RISCVExpandPseudo::expandLoadTLSIEAddress(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+    MachineBasicBlock::iterator &NextMBBI) {
+  MachineFunction *MF = MBB.getParent();
+
+  const auto &STI = MF->getSubtarget<RISCVSubtarget>();
+  unsigned SecondOpcode = STI.is64Bit() ? RISCV::LD : RISCV::LW;
+  return expandAuipcInstPair(MBB, MBBI, NextMBBI, RISCVII::MO_TLS_GOT_HI,
+                             SecondOpcode);
+}
+
+bool RISCVExpandPseudo::expandLoadTLSGDAddress(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
+    MachineBasicBlock::iterator &NextMBBI) {
+  return expandAuipcInstPair(MBB, MBBI, NextMBBI, RISCVII::MO_TLS_GD_HI,
+                             RISCV::ADDI);
 }
 
 } // end of anonymous namespace

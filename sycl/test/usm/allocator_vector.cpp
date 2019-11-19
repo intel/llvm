@@ -1,5 +1,8 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t1.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t1.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
+// RUN: %GPU_RUN_PLACEHOLDER %t1.out
+
 //==---- allocator_vector.cpp - Allocator Container test -------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -22,9 +25,10 @@ int main() {
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
-  usm_allocator<int, usm::alloc::host> alloc(&ctxt, &dev);
+  usm_allocator<int, usm::alloc::host> alloc(ctxt, dev);
 
-  std::vector<int, decltype(alloc)> vec(N, alloc);
+  std::vector<int, decltype(alloc)> vec(alloc);
+  vec.resize(N);
 
   for (int i = 0; i < N; i++) {
     vec[i] = i;

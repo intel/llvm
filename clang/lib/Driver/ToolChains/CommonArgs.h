@@ -45,13 +45,6 @@ void AddRunTimeLibs(const ToolChain &TC, const Driver &D,
                     llvm::opt::ArgStringList &CmdArgs,
                     const llvm::opt::ArgList &Args);
 
-void AddOpenMPLinkerScript(const ToolChain &TC, Compilation &C,
-                           const InputInfo &Output,
-                           const InputInfoList &Inputs,
-                           const llvm::opt::ArgList &Args,
-                           llvm::opt::ArgStringList &CmdArgs,
-                           const JobAction &JA);
-
 void AddHIPLinkerScript(const ToolChain &TC, Compilation &C,
                         const InputInfo &Output, const InputInfoList &Inputs,
                         const llvm::opt::ArgList &Args,
@@ -75,6 +68,9 @@ ParsePICArgs(const ToolChain &ToolChain, const llvm::opt::ArgList &Args);
 unsigned ParseFunctionAlignment(const ToolChain &TC,
                                 const llvm::opt::ArgList &Args);
 
+unsigned ParseDebugDefaultVersion(const ToolChain &TC,
+                                  const llvm::opt::ArgList &Args);
+
 void AddAssemblerKPIC(const ToolChain &ToolChain,
                       const llvm::opt::ArgList &Args,
                       llvm::opt::ArgStringList &CmdArgs);
@@ -84,6 +80,7 @@ void addArchSpecificRPath(const ToolChain &TC, const llvm::opt::ArgList &Args,
 /// Returns true, if an OpenMP runtime has been added.
 bool addOpenMPRuntime(llvm::opt::ArgStringList &CmdArgs, const ToolChain &TC,
                       const llvm::opt::ArgList &Args,
+                      bool ForceStaticHostRuntime = false,
                       bool IsOffloadingHost = false, bool GompNeedsRT = false);
 
 llvm::opt::Arg *getLastProfileUseArg(const llvm::opt::ArgList &Args);
@@ -123,6 +120,14 @@ SmallString<128> getStatsFileName(const llvm::opt::ArgList &Args,
 //     otherwise '-print-multi-lib' will not emit them correctly.
 void addMultilibFlag(bool Enabled, const char *const Flag,
                      Multilib::flags_list &Flags);
+
+StringRef getTargetABI(const llvm::opt::ArgList &Args,
+                       const llvm::Triple &Triple);
+
+void getTargetFeatures(const ToolChain &TC, const llvm::Triple &Triple,
+                       const llvm::opt::ArgList &Args,
+                       llvm::opt::ArgStringList &CmdArgs, bool ForAS,
+                       bool ForLTOPlugin = false);
 
 } // end namespace tools
 } // end namespace driver

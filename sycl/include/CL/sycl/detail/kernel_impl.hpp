@@ -10,8 +10,9 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/detail/kernel_info.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
@@ -37,13 +38,13 @@ public:
         IsCreatedFromSource(IsCreatedFromSource) {
 
     RT::PiContext Context = nullptr;
-    PI_CALL(RT::piKernelGetInfo(
-        Kernel, CL_KERNEL_CONTEXT, sizeof(Context), &Context, nullptr));
+    PI_CALL(RT::piKernelGetInfo, Kernel, CL_KERNEL_CONTEXT, sizeof(Context),
+            &Context, nullptr);
     auto ContextImpl = detail::getSyclObjImpl(SyclContext);
     if (ContextImpl->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(
           "Input context must be the same as the context of cl_kernel");
-    PI_CALL(RT::piKernelRetain(Kernel));
+    PI_CALL(RT::piKernelRetain, Kernel);
   }
 
   // Host kernel constructor
@@ -54,7 +55,7 @@ public:
   ~kernel_impl() {
     // TODO catch an exception and put it to list of asynchronous exceptions
     if (!is_host()) {
-      PI_CALL(RT::piKernelRelease(Kernel));
+      PI_CALL(RT::piKernelRelease, Kernel);
     }
   }
 
@@ -62,8 +63,8 @@ public:
     if (is_host()) {
       throw invalid_object_error("This instance of kernel is a host instance");
     }
-    PI_CALL(RT::piKernelRetain(Kernel));
-    return pi::pi_cast<cl_kernel>(Kernel);
+    PI_CALL(RT::piKernelRetain, Kernel);
+    return pi::cast<cl_kernel>(Kernel);
   }
 
   bool is_host() const { return Context.is_host(); }
@@ -93,8 +94,7 @@ public:
     return get_kernel_work_group_info<
         typename info::param_traits<info::kernel_work_group,
                                     param>::return_type,
-        param>::_(this->getHandleRef(),
-                  getSyclObjImpl(Device)->getHandleRef());
+        param>::_(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef());
   }
 
   template <info::kernel_sub_group param>
@@ -104,10 +104,8 @@ public:
       throw runtime_error("Sub-group feature is not supported on HOST device.");
     }
     return get_kernel_sub_group_info<
-        typename info::param_traits<info::kernel_sub_group,
-                                    param>::return_type, param>::_(
-            this->getHandleRef(),
-            getSyclObjImpl(Device)->getHandleRef());
+        typename info::param_traits<info::kernel_sub_group, param>::return_type,
+        param>::_(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef());
   }
 
   template <info::kernel_sub_group param>
@@ -122,9 +120,9 @@ public:
     return get_kernel_sub_group_info_with_input<
         typename info::param_traits<info::kernel_sub_group, param>::return_type,
         param,
-        typename info::param_traits<info::kernel_sub_group, param>::input_type>::_(
-            this->getHandleRef(),
-            getSyclObjImpl(Device)->getHandleRef(), Value);
+        typename info::param_traits<info::kernel_sub_group, param>::
+            input_type>::_(this->getHandleRef(),
+                           getSyclObjImpl(Device)->getHandleRef(), Value);
   }
 
   RT::PiKernel &getHandleRef() { return Kernel; }

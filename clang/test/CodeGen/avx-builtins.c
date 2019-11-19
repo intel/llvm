@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +avx -emit-llvm -o - -Wall -Werror | FileCheck %s
-// RUN: %clang_cc1 -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +avx -fno-signed-char -emit-llvm -o - -Wall -Werror | FileCheck %s
-// RUN: %clang_cc1 -fms-extensions -fms-compatibility -ffreestanding %s -triple=x86_64-windows-msvc -target-feature +avx -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -flax-vector-conversions=none -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +avx -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -flax-vector-conversions=none -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +avx -fno-signed-char -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -flax-vector-conversions=none -fms-extensions -fms-compatibility -ffreestanding %s -triple=x86_64-windows-msvc -target-feature +avx -emit-llvm -o - -Wall -Werror | FileCheck %s
 
 
 #include <immintrin.h>
@@ -105,7 +105,7 @@ __m256d test_mm256_broadcast_sd(double* A) {
   return _mm256_broadcast_sd(A);
 }
 
-__m128d test_mm_broadcast_ss(float* A) {
+__m128 test_mm_broadcast_ss(float* A) {
   // CHECK-LABEL: test_mm_broadcast_ss
   // CHECK: load float, float* %{{.*}}
   // CHECK: insertelement <4 x float> undef, float %{{.*}}, i32 0
@@ -115,7 +115,7 @@ __m128d test_mm_broadcast_ss(float* A) {
   return _mm_broadcast_ss(A);
 }
 
-__m256d test_mm256_broadcast_ss(float* A) {
+__m256 test_mm256_broadcast_ss(float* A) {
   // CHECK-LABEL: test_mm256_broadcast_ss
   // CHECK: load float, float* %{{.*}}
   // CHECK: insertelement <8 x float> undef, float %{{.*}}, i32 0
@@ -1079,11 +1079,13 @@ int test_mm256_extract_epi32(__m256i A) {
   return _mm256_extract_epi32(A, 7);
 }
 
+#if __x86_64__
 long long test_mm256_extract_epi64(__m256i A) {
   // CHECK-LABEL: test_mm256_extract_epi64
   // CHECK: extractelement <4 x i64> %{{.*}}, {{i32|i64}} 3
   return _mm256_extract_epi64(A, 3);
 }
+#endif
 
 __m128d test_mm256_extractf128_pd(__m256d A) {
   // CHECK-LABEL: test_mm256_extractf128_pd
@@ -1157,11 +1159,13 @@ __m256i test_mm256_insert_epi32(__m256i x, int b) {
   return _mm256_insert_epi32(x, b, 5);
 }
 
+#if __x86_64__
 __m256i test_mm256_insert_epi64(__m256i x, long long b) {
   // CHECK-LABEL: test_mm256_insert_epi64
   // CHECK: insertelement <4 x i64> %{{.*}}, i64 %{{.*}}, {{i32|i64}} 2
   return _mm256_insert_epi64(x, b, 2);
 }
+#endif
 
 __m256d test_mm256_insertf128_pd(__m256d A, __m128d B) {
   // CHECK-LABEL: test_mm256_insertf128_pd
@@ -1274,7 +1278,7 @@ __m128 test_mm_maskload_ps(float* A, __m128i B) {
   return _mm_maskload_ps(A, B);
 }
 
-__m256d test_mm256_maskload_ps(float* A, __m256i B) {
+__m256 test_mm256_maskload_ps(float* A, __m256i B) {
   // CHECK-LABEL: test_mm256_maskload_ps
   // CHECK: call <8 x float> @llvm.x86.avx.maskload.ps.256(i8* %{{.*}}, <8 x i32> %{{.*}})
   return _mm256_maskload_ps(A, B);

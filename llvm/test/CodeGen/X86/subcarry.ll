@@ -91,25 +91,25 @@ define %S @sub(%S* nocapture readonly %this, %S %arg.b) local_unnamed_addr {
 ; CHECK-LABEL: sub:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    movq %rdi, %rax
-; CHECK-NEXT:    notq %rdx
-; CHECK-NEXT:    xorl %edi, %edi
-; CHECK-NEXT:    addq (%rsi), %rdx
-; CHECK-NEXT:    setb %dil
-; CHECK-NEXT:    addq $1, %rdx
-; CHECK-NEXT:    adcq 8(%rsi), %rdi
-; CHECK-NEXT:    setb %r10b
-; CHECK-NEXT:    movzbl %r10b, %r10d
+; CHECK-NEXT:    movq (%rsi), %r10
+; CHECK-NEXT:    movq 8(%rsi), %rdi
+; CHECK-NEXT:    subq %rdx, %r10
+; CHECK-NEXT:    setae %dl
+; CHECK-NEXT:    addb $-1, %dl
+; CHECK-NEXT:    adcq $0, %rdi
+; CHECK-NEXT:    setb %dl
+; CHECK-NEXT:    movzbl %dl, %r11d
 ; CHECK-NEXT:    notq %rcx
 ; CHECK-NEXT:    addq %rdi, %rcx
-; CHECK-NEXT:    adcq 16(%rsi), %r10
-; CHECK-NEXT:    setb %dil
-; CHECK-NEXT:    movzbl %dil, %edi
+; CHECK-NEXT:    adcq 16(%rsi), %r11
+; CHECK-NEXT:    setb %dl
+; CHECK-NEXT:    movzbl %dl, %edx
 ; CHECK-NEXT:    notq %r8
-; CHECK-NEXT:    addq %r10, %r8
-; CHECK-NEXT:    adcq 24(%rsi), %rdi
+; CHECK-NEXT:    addq %r11, %r8
+; CHECK-NEXT:    adcq 24(%rsi), %rdx
 ; CHECK-NEXT:    notq %r9
-; CHECK-NEXT:    addq %rdi, %r9
-; CHECK-NEXT:    movq %rdx, (%rax)
+; CHECK-NEXT:    addq %rdx, %r9
+; CHECK-NEXT:    movq %r10, (%rax)
 ; CHECK-NEXT:    movq %rcx, 8(%rax)
 ; CHECK-NEXT:    movq %r8, 16(%rax)
 ; CHECK-NEXT:    movq %r9, 24(%rax)
@@ -161,4 +161,25 @@ entry:
   %39 = insertvalue [4 x i64] %38, i64 %35, 3
   %40 = insertvalue %S undef, [4 x i64] %39, 0
   ret %S %40
+}
+
+declare {i64, i1} @llvm.uadd.with.overflow(i64, i64)
+declare {i64, i1} @llvm.usub.with.overflow(i64, i64)
+
+define i64 @sub_from_carry(i64 %x, i64 %y, i64* %valout, i64 %z) {
+; CHECK-LABEL: sub_from_carry:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movq %rcx, %rax
+; CHECK-NEXT:    negq %rax
+; CHECK-NEXT:    addq %rsi, %rdi
+; CHECK-NEXT:    movq %rdi, (%rdx)
+; CHECK-NEXT:    adcq $0, %rax
+; CHECK-NEXT:    retq
+  %agg = call {i64, i1} @llvm.uadd.with.overflow(i64 %x, i64 %y)
+  %val = extractvalue {i64, i1} %agg, 0
+  %ov = extractvalue {i64, i1} %agg, 1
+  store i64 %val, i64* %valout, align 4
+  %carry = zext i1 %ov to i64
+  %res = sub i64 %carry, %z
+  ret i64 %res
 }

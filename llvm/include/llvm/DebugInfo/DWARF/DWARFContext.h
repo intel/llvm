@@ -75,7 +75,6 @@ class DWARFContext : public DIContext {
 
   DWARFUnitVector DWOUnits;
   std::unique_ptr<DWARFDebugAbbrev> AbbrevDWO;
-  std::unique_ptr<DWARFDebugLoclists> LocDWO;
 
   /// The maximum DWARF version of all units.
   unsigned MaxVersion = 0;
@@ -225,10 +224,10 @@ public:
   DWARFCompileUnit *getDWOCompileUnitForHash(uint64_t Hash);
 
   /// Return the compile unit that includes an offset (relative to .debug_info).
-  DWARFCompileUnit *getCompileUnitForOffset(uint32_t Offset);
+  DWARFCompileUnit *getCompileUnitForOffset(uint64_t Offset);
 
   /// Get a DIE given an exact offset.
-  DWARFDie getDIEForOffset(uint32_t Offset);
+  DWARFDie getDIEForOffset(uint64_t Offset);
 
   unsigned getMaxVersion() {
     // Ensure info units have been parsed to discover MaxVersion
@@ -259,9 +258,6 @@ public:
 
   /// Get a pointer to the parsed dwo abbreviations object.
   const DWARFDebugAbbrev *getDebugAbbrevDWO();
-
-  /// Get a pointer to the parsed DebugLoc object.
-  const DWARFDebugLoclists *getDebugLocDWO();
 
   /// Get a pointer to the parsed DebugAranges object.
   const DWARFDebugAranges *getDebugAranges();
@@ -301,10 +297,10 @@ public:
                       std::function<void(Error)> RecoverableErrorCallback);
 
   DataExtractor getStringExtractor() const {
-    return DataExtractor(DObj->getStringSection(), false, 0);
+    return DataExtractor(DObj->getStrSection(), false, 0);
   }
   DataExtractor getLineStringExtractor() const {
-    return DataExtractor(DObj->getLineStringSection(), false, 0);
+    return DataExtractor(DObj->getLineStrSection(), false, 0);
   }
 
   /// Wraps the returned DIEs for a given address.
@@ -330,6 +326,9 @@ public:
   DIInliningInfo getInliningInfoForAddress(
       object::SectionedAddress Address,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) override;
+
+  std::vector<DILocal>
+  getLocalsForAddress(object::SectionedAddress Address) override;
 
   bool isLittleEndian() const { return DObj->isLittleEndian(); }
   static bool isSupportedVersion(unsigned version) {
@@ -374,6 +373,8 @@ private:
   /// TODO: change input parameter from "uint64_t Address"
   ///       into "SectionedAddress Address"
   DWARFCompileUnit *getCompileUnitForAddress(uint64_t Address);
+  void addLocalsForDie(DWARFCompileUnit *CU, DWARFDie Subprogram, DWARFDie Die,
+                       std::vector<DILocal> &Result);
 };
 
 } // end namespace llvm

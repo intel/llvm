@@ -6,24 +6,26 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "GlobalCompilationDatabase.h"
 #include "Logger.h"
+#include "Path.h"
 #include "index/Background.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/SHA1.h"
+#include <functional>
 
 namespace clang {
 namespace clangd {
 namespace {
-
-using FileDigest = decltype(llvm::SHA1::hash({}));
-
-static FileDigest digest(StringRef Content) {
-  return llvm::SHA1::hash({(const uint8_t *)Content.data(), Content.size()});
-}
 
 std::string getShardPathFromFilePath(llvm::StringRef ShardRoot,
                                      llvm::StringRef FilePath) {
@@ -32,34 +34,6 @@ std::string getShardPathFromFilePath(llvm::StringRef ShardRoot,
                                            "." + llvm::toHex(digest(FilePath)) +
                                            ".idx");
   return ShardRootSS.str();
-}
-
-llvm::Error
-writeAtomically(llvm::StringRef OutPath,
-                llvm::function_ref<void(llvm::raw_ostream &)> Writer) {
-  // Write to a temporary file first.
-  llvm::SmallString<128> TempPath;
-  int FD;
-  auto EC =
-      llvm::sys::fs::createUniqueFile(OutPath + ".tmp.%%%%%%%%", FD, TempPath);
-  if (EC)
-    return llvm::errorCodeToError(EC);
-  // Make sure temp file is destroyed on failure.
-  auto RemoveOnFail =
-      llvm::make_scope_exit([TempPath] { llvm::sys::fs::remove(TempPath); });
-  llvm::raw_fd_ostream OS(FD, /*shouldClose=*/true);
-  Writer(OS);
-  OS.close();
-  if (OS.has_error())
-    return llvm::errorCodeToError(OS.error());
-  // Then move to real location.
-  EC = llvm::sys::fs::rename(TempPath, OutPath);
-  if (EC)
-    return llvm::errorCodeToError(EC);
-  // If everything went well, we already moved the file to another name. So
-  // don't delete the file, as the name might be taken by another file.
-  RemoveOnFail.release();
-  return llvm::ErrorSuccess();
 }
 
 // Uses disk as a storage for index shards. Creates a directory called
@@ -90,7 +64,7 @@ public:
     if (!Buffer)
       return nullptr;
     if (auto I = readIndexFile(Buffer->get()->getBuffer()))
-      return llvm::make_unique<IndexFileIn>(std::move(*I));
+      return std::make_unique<IndexFileIn>(std::move(*I));
     else
       elog("Error while reading shard {0}: {1}", ShardIdentifier,
            I.takeError());
@@ -99,9 +73,12 @@ public:
 
   llvm::Error storeShard(llvm::StringRef ShardIdentifier,
                          IndexFileOut Shard) const override {
-    return writeAtomically(
-        getShardPathFromFilePath(DiskShardRoot, ShardIdentifier),
-        [&Shard](llvm::raw_ostream &OS) { OS << Shard; });
+    auto ShardPath = getShardPathFromFilePath(DiskShardRoot, ShardIdentifier);
+    return llvm::writeFileAtomically(ShardPath + ".tmp.%%%%%%%%", ShardPath,
+                                     [&Shard](llvm::raw_ostream &OS) {
+                                       OS << Shard;
+                                       return llvm::Error::success();
+                                     });
   }
 };
 
@@ -125,12 +102,21 @@ public:
 // Creates and owns IndexStorages for multiple CDBs.
 class DiskBackedIndexStorageManager {
 public:
-  DiskBackedIndexStorageManager()
-      : IndexStorageMapMu(llvm::make_unique<std::mutex>()) {}
+  DiskBackedIndexStorageManager(
+      std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo)
+      : IndexStorageMapMu(std::make_unique<std::mutex>()),
+        GetProjectInfo(std::move(GetProjectInfo)) {
+    llvm::SmallString<128> HomeDir;
+    llvm::sys::path::home_directory(HomeDir);
+    this->HomeDir = HomeDir.str().str();
+  }
 
-  // Creates or fetches to storage from cache for the specified CDB.
-  BackgroundIndexStorage *operator()(llvm::StringRef CDBDirectory) {
+  // Creates or fetches to storage from cache for the specified project.
+  BackgroundIndexStorage *operator()(PathRef File) {
     std::lock_guard<std::mutex> Lock(*IndexStorageMapMu);
+    Path CDBDirectory = HomeDir;
+    if (auto PI = GetProjectInfo(File))
+      CDBDirectory = PI->SourceRoot;
     auto &IndexStorage = IndexStorageMap[CDBDirectory];
     if (!IndexStorage)
       IndexStorage = create(CDBDirectory);
@@ -138,21 +124,28 @@ public:
   }
 
 private:
-  std::unique_ptr<BackgroundIndexStorage> create(llvm::StringRef CDBDirectory) {
-    if (CDBDirectory.empty())
-      return llvm::make_unique<NullStorage>();
-    return llvm::make_unique<DiskBackedIndexStorage>(CDBDirectory);
+  std::unique_ptr<BackgroundIndexStorage> create(PathRef CDBDirectory) {
+    if (CDBDirectory.empty()) {
+      elog("Tried to create storage for empty directory!");
+      return std::make_unique<NullStorage>();
+    }
+    return std::make_unique<DiskBackedIndexStorage>(CDBDirectory);
   }
+
+  Path HomeDir;
 
   llvm::StringMap<std::unique_ptr<BackgroundIndexStorage>> IndexStorageMap;
   std::unique_ptr<std::mutex> IndexStorageMapMu;
+
+  std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo;
 };
 
 } // namespace
 
 BackgroundIndexStorage::Factory
-BackgroundIndexStorage::createDiskBackedStorageFactory() {
-  return DiskBackedIndexStorageManager();
+BackgroundIndexStorage::createDiskBackedStorageFactory(
+    std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo) {
+  return DiskBackedIndexStorageManager(std::move(GetProjectInfo));
 }
 
 } // namespace clangd

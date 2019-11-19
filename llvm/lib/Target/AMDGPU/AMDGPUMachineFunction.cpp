@@ -17,7 +17,6 @@ AMDGPUMachineFunction::AMDGPUMachineFunction(const MachineFunction &MF) :
   MachineFunctionInfo(),
   LocalMemoryObjects(),
   ExplicitKernArgSize(0),
-  MaxKernArgAlign(0),
   LDSSize(0),
   IsEntryFunction(AMDGPU::isEntryFunctionCC(MF.getFunction().getCallingConv())),
   NoSignedZerosFPMath(MF.getTarget().Options.NoSignedZerosFPMath),
@@ -29,13 +28,13 @@ AMDGPUMachineFunction::AMDGPUMachineFunction(const MachineFunction &MF) :
   // except reserved size is not correctly aligned.
   const Function &F = MF.getFunction();
 
-  if (auto *Resolver = MF.getMMI().getResolver()) {
-    if (AMDGPUPerfHintAnalysis *PHA = static_cast<AMDGPUPerfHintAnalysis*>(
-          Resolver->getAnalysisIfAvailable(&AMDGPUPerfHintAnalysisID, true))) {
-      MemoryBound = PHA->isMemoryBound(&F);
-      WaveLimiter = PHA->needsWaveLimiter(&F);
-    }
-  }
+  Attribute MemBoundAttr = F.getFnAttribute("amdgpu-memory-bound");
+  MemoryBound = MemBoundAttr.isStringAttribute() &&
+                MemBoundAttr.getValueAsString() == "true";
+
+  Attribute WaveLimitAttr = F.getFnAttribute("amdgpu-wave-limiter");
+  WaveLimiter = WaveLimitAttr.isStringAttribute() &&
+                WaveLimitAttr.getValueAsString() == "true";
 
   CallingConv::ID CC = F.getCallingConv();
   if (CC == CallingConv::AMDGPU_KERNEL || CC == CallingConv::SPIR_KERNEL)

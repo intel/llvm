@@ -5,9 +5,6 @@ Use lldb Python SBtarget.WatchAddress() API to create a watchpoint for write of 
 from __future__ import print_function
 
 
-import os
-import time
-import re
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -30,9 +27,6 @@ class TargetWatchAddressAPITestCase(TestBase):
         self.violating_func = "do_bad_thing_with_location"
 
     @add_test_categories(['pyapi'])
-    @expectedFailureAll(
-        oslist=["windows"],
-        bugnumber="llvm.org/pr24446: WINDOWS XFAIL TRIAGE - Watchpoints not supported on Windows")
     @expectedFailureNetBSD
     def test_watch_address(self):
         """Exercise SBTarget.WatchAddress() API to set a watchpoint."""

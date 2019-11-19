@@ -19,12 +19,16 @@
 namespace clang {
 namespace clangd {
 
+enum class RelationKind : uint8_t {
+  BaseOf,
+};
+
 /// Represents a relation between two symbols.
 /// For an example "A is a base class of B" may be represented
-/// as { Subject = A, Predicate = RelationBaseOf, Object = B }.
+/// as { Subject = A, Predicate = BaseOf, Object = B }.
 struct Relation {
   SymbolID Subject;
-  index::SymbolRole Predicate;
+  RelationKind Predicate;
   SymbolID Object;
 
   bool operator==(const Relation &Other) const {
@@ -59,7 +63,7 @@ public:
 
   /// Lookup all relations matching the given subject and predicate.
   llvm::iterator_range<iterator> lookup(const SymbolID &Subject,
-                                        index::SymbolRole Predicate) const;
+                                        RelationKind Predicate) const;
 
   /// RelationSlab::Builder is a mutable container that can 'freeze' to
   /// RelationSlab.

@@ -5,7 +5,7 @@
 # GCN: undef %18.sub0:vreg_128 = V_MAC_F32_e32 undef %3:vgpr_32, undef %9:vgpr_32, undef %18.sub0, implicit $exec
 
 name:            mac_invalid_operands
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -91,7 +91,7 @@ body:             |
 # GCN: BUFFER_STORE_DWORD_OFFEN %8.sub1, %0,
 # GCN: BUFFER_STORE_DWORD_OFFEN %7.sub0, %0,
 name:            vreg_does_not_dominate
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -134,10 +134,10 @@ body:             |
     %6.sub2 = COPY %6.sub0
 
   bb.2:
-    BUFFER_STORE_DWORD_OFFEN %6.sub3, %0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 12, 0, 0, 0, 0, implicit $exec
-    BUFFER_STORE_DWORD_OFFEN %6.sub2, %0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 8, 0, 0, 0, 0, implicit $exec
-    BUFFER_STORE_DWORD_OFFEN %6.sub1, %0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 4, 0, 0, 0, 0, implicit $exec
-    BUFFER_STORE_DWORD_OFFEN %6.sub0, %0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFEN %6.sub3, %0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 12, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFEN %6.sub2, %0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 8, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFEN %6.sub1, %0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 4, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFEN %6.sub0, %0, $sgpr0_sgpr1_sgpr2_sgpr3, $sgpr4, 0, 0, 0, 0, 0, 0, implicit $exec
     $sgpr30_sgpr31 = COPY %5
     S_SETPC_B64_return $sgpr30_sgpr31
 

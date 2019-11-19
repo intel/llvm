@@ -615,6 +615,10 @@ public:
   /// the specified recipe.
   void insertBefore(VPRecipeBase *InsertPos);
 
+  /// Unlink this recipe from its current VPBasicBlock and insert it into
+  /// the VPBasicBlock that MovePos lives in, right after MovePos.
+  void moveAfter(VPRecipeBase *MovePos);
+
   /// This method unlinks 'this' from the containing basic block and deletes it.
   ///
   /// \returns an iterator pointing to the element after the erased one
@@ -1263,7 +1267,7 @@ class VPlanPrinter {
 private:
   raw_ostream &OS;
   VPlan &Plan;
-  unsigned Depth;
+  unsigned Depth = 0;
   unsigned TabWidth = 2;
   std::string Indent;
   unsigned BID = 0;

@@ -24,6 +24,10 @@
 #include <cmath>
 using namespace llvm;
 
+static cl::extrahelp FileCheckOptsEnv(
+    "\nOptions are parsed from the environment variable FILECHECK_OPTS and\n"
+    "from the command line.\n");
+
 static cl::opt<std::string>
     CheckFilename(cl::Positional, cl::desc("<check-file>"), cl::Optional);
 
@@ -43,6 +47,10 @@ static cl::alias CheckPrefixesAlias(
 static cl::opt<bool> NoCanonicalizeWhiteSpace(
     "strict-whitespace",
     cl::desc("Do not treat all horizontal whitespace as equivalent"));
+
+static cl::opt<bool> IgnoreCase(
+    "ignore-case",
+    cl::desc("Use case-insensitive matching"));
 
 static cl::list<std::string> ImplicitCheckNot(
     "implicit-check-not",
@@ -93,7 +101,8 @@ static cl::opt<bool> VerboseVerbose(
 static const char * DumpInputEnv = "FILECHECK_DUMP_INPUT_ON_FAILURE";
 
 static cl::opt<bool> DumpInputOnFailure(
-    "dump-input-on-failure", cl::init(std::getenv(DumpInputEnv)),
+    "dump-input-on-failure",
+    cl::init(std::getenv(DumpInputEnv) && *std::getenv(DumpInputEnv)),
     cl::desc("Dump original input to stderr before failing.\n"
              "The value can be also controlled using\n"
              "FILECHECK_DUMP_INPUT_ON_FAILURE environment variable.\n"
@@ -312,8 +321,7 @@ static void BuildInputAnnotations(const std::vector<FileCheckDiag> &Diags,
     Label.flush();
     LabelWidth = std::max((std::string::size_type)LabelWidth, A.Label.size());
 
-    MarkerStyle Marker = GetMarker(DiagItr->MatchTy);
-    A.Marker = Marker;
+    A.Marker = GetMarker(DiagItr->MatchTy);
     A.FoundAndExpectedMatch =
         DiagItr->MatchTy == FileCheckDiag::MatchFoundAndExpected;
 
@@ -332,28 +340,25 @@ static void BuildInputAnnotations(const std::vector<FileCheckDiag> &Diags,
       assert(DiagItr->InputStartLine < DiagItr->InputEndLine &&
              "expected input range not to be inverted");
       A.InputEndCol = UINT_MAX;
-      A.Marker.Note = "";
       Annotations.push_back(A);
       for (unsigned L = DiagItr->InputStartLine + 1, E = DiagItr->InputEndLine;
            L <= E; ++L) {
         // If a range ends before the first column on a line, then it has no
         // characters on that line, so there's nothing to render.
-        if (DiagItr->InputEndCol == 1 && L == E) {
-          Annotations.back().Marker.Note = Marker.Note;
+        if (DiagItr->InputEndCol == 1 && L == E)
           break;
-        }
         InputAnnotation B;
         B.CheckLine = A.CheckLine;
         B.CheckDiagIndex = A.CheckDiagIndex;
         B.Label = A.Label;
         B.InputLine = L;
-        B.Marker = Marker;
+        B.Marker = A.Marker;
         B.Marker.Lead = '~';
+        B.Marker.Note = "";
         B.InputStartCol = 1;
-        if (L != E) {
+        if (L != E)
           B.InputEndCol = UINT_MAX;
-          B.Marker.Note = "";
-        } else
+        else
           B.InputEndCol = DiagItr->InputEndCol;
         B.FoundAndExpectedMatch = A.FoundAndExpectedMatch;
         Annotations.push_back(B);
@@ -554,6 +559,7 @@ int main(int argc, char **argv) {
   Req.VerboseVerbose = VerboseVerbose;
   Req.NoCanonicalizeWhiteSpace = NoCanonicalizeWhiteSpace;
   Req.MatchFullLines = MatchFullLines;
+  Req.IgnoreCase = IgnoreCase;
 
   if (VerboseVerbose)
     Req.Verbose = true;
@@ -596,8 +602,7 @@ int main(int argc, char **argv) {
                             CheckFileText, CheckFile.getBufferIdentifier()),
                         SMLoc());
 
-  std::vector<FileCheckString> CheckStrings;
-  if (FC.ReadCheckFile(SM, CheckFileText, PrefixRE, CheckStrings))
+  if (FC.readCheckFile(SM, CheckFileText, PrefixRE))
     return 2;
 
   // Open the file to check and add it to SourceMgr.
@@ -627,7 +632,7 @@ int main(int argc, char **argv) {
     DumpInput = DumpInputOnFailure ? DumpInputFail : DumpInputNever;
 
   std::vector<FileCheckDiag> Diags;
-  int ExitCode = FC.CheckInput(SM, InputFileText, CheckStrings,
+  int ExitCode = FC.checkInput(SM, InputFileText,
                                DumpInput == DumpInputNever ? nullptr : &Diags)
                      ? EXIT_SUCCESS
                      : 1;

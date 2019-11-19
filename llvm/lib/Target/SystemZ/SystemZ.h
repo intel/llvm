@@ -190,10 +190,10 @@ static inline bool isImmHF(uint64_t Val) {
 FunctionPass *createSystemZISelDag(SystemZTargetMachine &TM,
                                    CodeGenOpt::Level OptLevel);
 FunctionPass *createSystemZElimComparePass(SystemZTargetMachine &TM);
-FunctionPass *createSystemZExpandPseudoPass(SystemZTargetMachine &TM);
 FunctionPass *createSystemZShortenInstPass(SystemZTargetMachine &TM);
 FunctionPass *createSystemZLongBranchPass(SystemZTargetMachine &TM);
 FunctionPass *createSystemZLDCleanupPass(SystemZTargetMachine &TM);
+FunctionPass *createSystemZPostRewritePass(SystemZTargetMachine &TM);
 FunctionPass *createSystemZTDCPass();
 } // end namespace llvm
 

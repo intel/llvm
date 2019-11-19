@@ -217,7 +217,8 @@ public:
     LoopInfo *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
     ScalarEvolution *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
     TargetLibraryInfo *TLI =
-        &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+        &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(
+            *L->getHeader()->getParent());
     const TargetTransformInfo *TTI =
         &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(
             *L->getHeader()->getParent());
@@ -450,7 +451,7 @@ LoopIdiomRecognize::isLegalStore(StoreInst *SI) {
   // turned into a memset of i8 -1, assuming that all the consecutive bytes
   // are stored.  A store of i32 0x01020304 can never be turned into a memset,
   // but it can be turned into memset_pattern if the target supports it.
-  Value *SplatValue = isBytewiseValue(StoredVal);
+  Value *SplatValue = isBytewiseValue(StoredVal, *DL);
   Constant *PatternValue = nullptr;
 
   // Note: memset and memset_pattern on unordered-atomic is yet not supported
@@ -627,7 +628,7 @@ bool LoopIdiomRecognize::processLoopStores(SmallVectorImpl<StoreInst *> &SL,
     Constant *FirstPatternValue = nullptr;
 
     if (For == ForMemset::Yes)
-      FirstSplatValue = isBytewiseValue(FirstStoredVal);
+      FirstSplatValue = isBytewiseValue(FirstStoredVal, *DL);
     else
       FirstPatternValue = getMemSetPatternValue(FirstStoredVal, DL);
 
@@ -660,7 +661,7 @@ bool LoopIdiomRecognize::processLoopStores(SmallVectorImpl<StoreInst *> &SL,
       Constant *SecondPatternValue = nullptr;
 
       if (For == ForMemset::Yes)
-        SecondSplatValue = isBytewiseValue(SecondStoredVal);
+        SecondSplatValue = isBytewiseValue(SecondStoredVal, *DL);
       else
         SecondPatternValue = getMemSetPatternValue(SecondStoredVal, DL);
 
@@ -880,7 +881,7 @@ bool LoopIdiomRecognize::processLoopStridedStore(
     Value *StoredVal, Instruction *TheStore,
     SmallPtrSetImpl<Instruction *> &Stores, const SCEVAddRecExpr *Ev,
     const SCEV *BECount, bool NegStride, bool IsLoopMemset) {
-  Value *SplatValue = isBytewiseValue(StoredVal);
+  Value *SplatValue = isBytewiseValue(StoredVal, *DL);
   Constant *PatternValue = nullptr;
 
   if (!SplatValue)
@@ -961,7 +962,7 @@ bool LoopIdiomRecognize::processLoopStridedStore(
                                             GlobalValue::PrivateLinkage,
                                             PatternValue, ".memset_pattern");
     GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global); // Ok to merge these.
-    GV->setAlignment(16);
+    GV->setAlignment(Align(16));
     Value *PatternPtr = ConstantExpr::getBitCast(GV, Int8PtrTy);
     NewCall = Builder.CreateCall(MSP, {BasePtr, PatternPtr, NumBytes});
   }

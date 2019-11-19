@@ -165,31 +165,50 @@ def adapt_module(module_path, module, check_name, check_name_camel):
     header_added = False
     header_found = False
     check_added = False
+    check_fq_name = module + '-' + check_name
     check_decl = ('    CheckFactories.registerCheck<' + check_name_camel +
-                  '>(\n        "' + module + '-' + check_name + '");\n')
+                  '>(\n        "' + check_fq_name + '");\n')
 
-    for line in lines:
-      if not header_added:
-        match = re.search('#include "(.*)"', line)
-        if match:
-          header_found = True
-          if match.group(1) > check_name_camel:
+    lines = iter(lines)
+    try:
+      while True:
+        line = lines.next()
+        if not header_added:
+          match = re.search('#include "(.*)"', line)
+          if match:
+            header_found = True
+            if match.group(1) > check_name_camel:
+              header_added = True
+              f.write('#include "' + check_name_camel + '.h"\n')
+          elif header_found:
             header_added = True
             f.write('#include "' + check_name_camel + '.h"\n')
-        elif header_found:
-          header_added = True
-          f.write('#include "' + check_name_camel + '.h"\n')
 
-      if not check_added:
-        if line.strip() == '}':
-          check_added = True
-          f.write(check_decl)
-        else:
-          match = re.search('registerCheck<(.*)>', line)
-          if match and match.group(1) > check_name_camel:
+        if not check_added:
+          if line.strip() == '}':
             check_added = True
             f.write(check_decl)
-      f.write(line)
+          else:
+            match = re.search('registerCheck<(.*)> *\( *(?:"([^"]*)")?', line)
+            prev_line = None
+            if match:
+              current_check_name = match.group(2)
+              if current_check_name is None:
+                # If we didn't find the check name on this line, look on the
+                # next one.
+                prev_line = line
+                line = lines.next()
+                match = re.search(' *"([^"]*)"', line)
+                if match:
+                  current_check_name = match.group(1)
+              if current_check_name > check_fq_name:
+                check_added = True
+                f.write(check_decl)
+              if prev_line:
+                f.write(prev_line)
+        f.write(line)
+    except StopIteration:
+      pass
 
 
 # Adds a release notes entry.
@@ -250,7 +269,7 @@ def add_release_notes(module_path, module, check_name):
 # Adds a test for the check.
 def write_test(module_path, module, check_name, test_extension):
   check_name_dashes = module + '-' + check_name
-  filename = os.path.normpath(os.path.join(module_path, '../../test/clang-tidy',
+  filename = os.path.normpath(os.path.join(module_path, '../../test/clang-tidy/checkers',
                                            check_name_dashes + '.' + test_extension))
   print('Creating %s...' % filename)
   with open(filename, 'w') as f:

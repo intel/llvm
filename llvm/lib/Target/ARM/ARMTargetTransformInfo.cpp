@@ -36,6 +36,14 @@ using namespace llvm;
 
 #define DEBUG_TYPE "armtti"
 
+static cl::opt<bool> EnableMaskedLoadStores(
+  "enable-arm-maskedldst", cl::Hidden, cl::init(false),
+  cl::desc("Enable the generation of masked loads and stores"));
+
+static cl::opt<bool> DisableLowOverheadLoops(
+  "disable-arm-loloops", cl::Hidden, cl::init(false),
+  cl::desc("Disable the generation of low-overhead loops"));
+
 bool ARMTTIImpl::areInlineCompatible(const Function *Caller,
                                      const Function *Callee) const {
   const TargetMachine &TM = getTLI()->getTargetMachine();
@@ -162,6 +170,42 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
 
   if (!SrcTy.isSimple() || !DstTy.isSimple())
     return BaseT::getCastInstrCost(Opcode, Dst, Src);
+
+  // The extend of a load is free
+  if (I && isa<LoadInst>(I->getOperand(0))) {
+    static const TypeConversionCostTblEntry LoadConversionTbl[] = {
+        {ISD::SIGN_EXTEND, MVT::i32, MVT::i16, 0},
+        {ISD::ZERO_EXTEND, MVT::i32, MVT::i16, 0},
+        {ISD::SIGN_EXTEND, MVT::i32, MVT::i8, 0},
+        {ISD::ZERO_EXTEND, MVT::i32, MVT::i8, 0},
+        {ISD::SIGN_EXTEND, MVT::i16, MVT::i8, 0},
+        {ISD::ZERO_EXTEND, MVT::i16, MVT::i8, 0},
+        {ISD::SIGN_EXTEND, MVT::i64, MVT::i32, 1},
+        {ISD::ZERO_EXTEND, MVT::i64, MVT::i32, 1},
+        {ISD::SIGN_EXTEND, MVT::i64, MVT::i16, 1},
+        {ISD::ZERO_EXTEND, MVT::i64, MVT::i16, 1},
+        {ISD::SIGN_EXTEND, MVT::i64, MVT::i8, 1},
+        {ISD::ZERO_EXTEND, MVT::i64, MVT::i8, 1},
+    };
+    if (const auto *Entry = ConvertCostTableLookup(
+            LoadConversionTbl, ISD, DstTy.getSimpleVT(), SrcTy.getSimpleVT()))
+      return Entry->Cost;
+
+    static const TypeConversionCostTblEntry MVELoadConversionTbl[] = {
+        {ISD::SIGN_EXTEND, MVT::v4i32, MVT::v4i16, 0},
+        {ISD::ZERO_EXTEND, MVT::v4i32, MVT::v4i16, 0},
+        {ISD::SIGN_EXTEND, MVT::v4i32, MVT::v4i8, 0},
+        {ISD::ZERO_EXTEND, MVT::v4i32, MVT::v4i8, 0},
+        {ISD::SIGN_EXTEND, MVT::v8i16, MVT::v8i8, 0},
+        {ISD::ZERO_EXTEND, MVT::v8i16, MVT::v8i8, 0},
+    };
+    if (SrcTy.isVector() && ST->hasMVEIntegerOps()) {
+      if (const auto *Entry =
+              ConvertCostTableLookup(MVELoadConversionTbl, ISD,
+                                     DstTy.getSimpleVT(), SrcTy.getSimpleVT()))
+        return Entry->Cost;
+    }
+  }
 
   // Some arithmetic, load and store operations have specific instructions
   // to cast up/down their types automatically at no extra cost.
@@ -309,6 +353,31 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
       return Entry->Cost;
   }
 
+  // MVE extend costs, taken from codegen tests. i8->i16 or i16->i32 is one
+  // instruction, i8->i32 is two. i64 zexts are an VAND with a constant, sext
+  // are linearised so take more.
+  static const TypeConversionCostTblEntry MVEVectorConversionTbl[] = {
+    { ISD::SIGN_EXTEND, MVT::v8i16, MVT::v8i8, 1 },
+    { ISD::ZERO_EXTEND, MVT::v8i16, MVT::v8i8, 1 },
+    { ISD::SIGN_EXTEND, MVT::v4i32, MVT::v4i8, 2 },
+    { ISD::ZERO_EXTEND, MVT::v4i32, MVT::v4i8, 2 },
+    { ISD::SIGN_EXTEND, MVT::v2i64, MVT::v2i8, 10 },
+    { ISD::ZERO_EXTEND, MVT::v2i64, MVT::v2i8, 2 },
+    { ISD::SIGN_EXTEND, MVT::v4i32, MVT::v4i16, 1 },
+    { ISD::ZERO_EXTEND, MVT::v4i32, MVT::v4i16, 1 },
+    { ISD::SIGN_EXTEND, MVT::v2i64, MVT::v2i16, 10 },
+    { ISD::ZERO_EXTEND, MVT::v2i64, MVT::v2i16, 2 },
+    { ISD::SIGN_EXTEND, MVT::v2i64, MVT::v2i32, 8 },
+    { ISD::ZERO_EXTEND, MVT::v2i64, MVT::v2i32, 2 },
+  };
+
+  if (SrcTy.isVector() && ST->hasMVEIntegerOps()) {
+    if (const auto *Entry = ConvertCostTableLookup(MVEVectorConversionTbl,
+                                                   ISD, DstTy.getSimpleVT(),
+                                                   SrcTy.getSimpleVT()))
+      return Entry->Cost * ST->getMVEVectorCostFactor();
+  }
+
   // Scalar integer conversion costs.
   static const TypeConversionCostTblEntry ARMIntegerConversionTbl[] = {
     // i16 -> i64 requires two dependent operations.
@@ -328,7 +397,10 @@ int ARMTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
       return Entry->Cost;
   }
 
-  return BaseT::getCastInstrCost(Opcode, Dst, Src);
+  int BaseCost = ST->hasMVEIntegerOps() && Src->isVectorTy()
+                     ? ST->getMVEVectorCostFactor()
+                     : 1;
+  return BaseCost * BaseT::getCastInstrCost(Opcode, Dst, Src);
 }
 
 int ARMTTIImpl::getVectorInstrCost(unsigned Opcode, Type *ValTy,
@@ -339,8 +411,8 @@ int ARMTTIImpl::getVectorInstrCost(unsigned Opcode, Type *ValTy,
       ValTy->isVectorTy() && ValTy->getScalarSizeInBits() <= 32)
     return 3;
 
-  if ((Opcode == Instruction::InsertElement ||
-       Opcode == Instruction::ExtractElement)) {
+  if (ST->hasNEON() && (Opcode == Instruction::InsertElement ||
+                        Opcode == Instruction::ExtractElement)) {
     // Cross-class copies are expensive on many microarchitectures,
     // so assume they are expensive by default.
     if (ValTy->getVectorElementType()->isIntegerTy())
@@ -351,6 +423,17 @@ int ARMTTIImpl::getVectorInstrCost(unsigned Opcode, Type *ValTy,
     if (ValTy->isVectorTy() &&
         ValTy->getScalarSizeInBits() <= 32)
       return std::max(BaseT::getVectorInstrCost(Opcode, ValTy, Index), 2U);
+  }
+
+  if (ST->hasMVEIntegerOps() && (Opcode == Instruction::InsertElement ||
+                                 Opcode == Instruction::ExtractElement)) {
+    // We say MVE moves costs at least the MVEVectorCostFactor, even though
+    // they are scalar instructions. This helps prevent mixing scalar and
+    // vector, to prevent vectorising where we end up just scalarising the
+    // result anyway.
+    return std::max(BaseT::getVectorInstrCost(Opcode, ValTy, Index),
+                    ST->getMVEVectorCostFactor()) *
+           ValTy->getVectorNumElements() / 2;
   }
 
   return BaseT::getVectorInstrCost(Opcode, ValTy, Index);
@@ -381,7 +464,10 @@ int ARMTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
     return LT.first;
   }
 
-  return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, I);
+  int BaseCost = ST->hasMVEIntegerOps() && ValTy->isVectorTy()
+                     ? ST->getMVEVectorCostFactor()
+                     : 1;
+  return BaseCost * BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, I);
 }
 
 int ARMTTIImpl::getAddressComputationCost(Type *Ty, ScalarEvolution *SE,
@@ -393,13 +479,37 @@ int ARMTTIImpl::getAddressComputationCost(Type *Ty, ScalarEvolution *SE,
   unsigned NumVectorInstToHideOverhead = 10;
   int MaxMergeDistance = 64;
 
-  if (Ty->isVectorTy() && SE &&
-      !BaseT::isConstantStridedAccessLessThan(SE, Ptr, MaxMergeDistance + 1))
-    return NumVectorInstToHideOverhead;
+  if (ST->hasNEON()) {
+    if (Ty->isVectorTy() && SE &&
+        !BaseT::isConstantStridedAccessLessThan(SE, Ptr, MaxMergeDistance + 1))
+      return NumVectorInstToHideOverhead;
 
-  // In many cases the address computation is not merged into the instruction
-  // addressing mode.
-  return 1;
+    // In many cases the address computation is not merged into the instruction
+    // addressing mode.
+    return 1;
+  }
+  return BaseT::getAddressComputationCost(Ty, SE, Ptr);
+}
+
+bool ARMTTIImpl::isLegalMaskedLoad(Type *DataTy, MaybeAlign Alignment) {
+  if (!EnableMaskedLoadStores || !ST->hasMVEIntegerOps())
+    return false;
+
+  if (auto *VecTy = dyn_cast<VectorType>(DataTy)) {
+    // Don't support v2i1 yet.
+    if (VecTy->getNumElements() == 2)
+      return false;
+
+    // We don't support extending fp types.
+     unsigned VecWidth = DataTy->getPrimitiveSizeInBits();
+    if (VecWidth != 128 && VecTy->getElementType()->isFloatingPointTy())
+      return false;
+  }
+
+  unsigned EltWidth = DataTy->getScalarSizeInBits();
+  return (EltWidth == 32 && (!Alignment || Alignment >= 4)) ||
+         (EltWidth == 16 && (!Alignment || Alignment >= 2)) ||
+         (EltWidth == 8);
 }
 
 int ARMTTIImpl::getMemcpyCost(const Instruction *I) {
@@ -438,78 +548,96 @@ int ARMTTIImpl::getMemcpyCost(const Instruction *I) {
 
 int ARMTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
                                Type *SubTp) {
-  if (Kind == TTI::SK_Broadcast) {
-    static const CostTblEntry NEONDupTbl[] = {
-        // VDUP handles these cases.
-        {ISD::VECTOR_SHUFFLE, MVT::v2i32, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v2f32, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v2i64, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v2f64, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v4i16, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v8i8,  1},
+  if (ST->hasNEON()) {
+    if (Kind == TTI::SK_Broadcast) {
+      static const CostTblEntry NEONDupTbl[] = {
+          // VDUP handles these cases.
+          {ISD::VECTOR_SHUFFLE, MVT::v2i32, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v2f32, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v2i64, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v2f64, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v4i16, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v8i8, 1},
 
-        {ISD::VECTOR_SHUFFLE, MVT::v4i32, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v4f32, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v8i16, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v16i8, 1}};
+          {ISD::VECTOR_SHUFFLE, MVT::v4i32, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v4f32, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v8i16, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v16i8, 1}};
 
-    std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Tp);
+      std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Tp);
 
-    if (const auto *Entry = CostTableLookup(NEONDupTbl, ISD::VECTOR_SHUFFLE,
-                                            LT.second))
-      return LT.first * Entry->Cost;
+      if (const auto *Entry =
+              CostTableLookup(NEONDupTbl, ISD::VECTOR_SHUFFLE, LT.second))
+        return LT.first * Entry->Cost;
+    }
+    if (Kind == TTI::SK_Reverse) {
+      static const CostTblEntry NEONShuffleTbl[] = {
+          // Reverse shuffle cost one instruction if we are shuffling within a
+          // double word (vrev) or two if we shuffle a quad word (vrev, vext).
+          {ISD::VECTOR_SHUFFLE, MVT::v2i32, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v2f32, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v2i64, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v2f64, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v4i16, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v8i8, 1},
 
-    return BaseT::getShuffleCost(Kind, Tp, Index, SubTp);
+          {ISD::VECTOR_SHUFFLE, MVT::v4i32, 2},
+          {ISD::VECTOR_SHUFFLE, MVT::v4f32, 2},
+          {ISD::VECTOR_SHUFFLE, MVT::v8i16, 2},
+          {ISD::VECTOR_SHUFFLE, MVT::v16i8, 2}};
+
+      std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Tp);
+
+      if (const auto *Entry =
+              CostTableLookup(NEONShuffleTbl, ISD::VECTOR_SHUFFLE, LT.second))
+        return LT.first * Entry->Cost;
+    }
+    if (Kind == TTI::SK_Select) {
+      static const CostTblEntry NEONSelShuffleTbl[] = {
+          // Select shuffle cost table for ARM. Cost is the number of
+          // instructions
+          // required to create the shuffled vector.
+
+          {ISD::VECTOR_SHUFFLE, MVT::v2f32, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v2i64, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v2f64, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v2i32, 1},
+
+          {ISD::VECTOR_SHUFFLE, MVT::v4i32, 2},
+          {ISD::VECTOR_SHUFFLE, MVT::v4f32, 2},
+          {ISD::VECTOR_SHUFFLE, MVT::v4i16, 2},
+
+          {ISD::VECTOR_SHUFFLE, MVT::v8i16, 16},
+
+          {ISD::VECTOR_SHUFFLE, MVT::v16i8, 32}};
+
+      std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Tp);
+      if (const auto *Entry = CostTableLookup(NEONSelShuffleTbl,
+                                              ISD::VECTOR_SHUFFLE, LT.second))
+        return LT.first * Entry->Cost;
+    }
   }
-  if (Kind == TTI::SK_Reverse) {
-    static const CostTblEntry NEONShuffleTbl[] = {
-        // Reverse shuffle cost one instruction if we are shuffling within a
-        // double word (vrev) or two if we shuffle a quad word (vrev, vext).
-        {ISD::VECTOR_SHUFFLE, MVT::v2i32, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v2f32, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v2i64, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v2f64, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v4i16, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v8i8,  1},
+  if (ST->hasMVEIntegerOps()) {
+    if (Kind == TTI::SK_Broadcast) {
+      static const CostTblEntry MVEDupTbl[] = {
+          // VDUP handles these cases.
+          {ISD::VECTOR_SHUFFLE, MVT::v4i32, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v8i16, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v16i8, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v4f32, 1},
+          {ISD::VECTOR_SHUFFLE, MVT::v8f16, 1}};
 
-        {ISD::VECTOR_SHUFFLE, MVT::v4i32, 2},
-        {ISD::VECTOR_SHUFFLE, MVT::v4f32, 2},
-        {ISD::VECTOR_SHUFFLE, MVT::v8i16, 2},
-        {ISD::VECTOR_SHUFFLE, MVT::v16i8, 2}};
+      std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Tp);
 
-    std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Tp);
-
-    if (const auto *Entry = CostTableLookup(NEONShuffleTbl, ISD::VECTOR_SHUFFLE,
-                                            LT.second))
-      return LT.first * Entry->Cost;
-
-    return BaseT::getShuffleCost(Kind, Tp, Index, SubTp);
+      if (const auto *Entry = CostTableLookup(MVEDupTbl, ISD::VECTOR_SHUFFLE,
+                                              LT.second))
+        return LT.first * Entry->Cost * ST->getMVEVectorCostFactor();
+    }
   }
-  if (Kind == TTI::SK_Select) {
-    static const CostTblEntry NEONSelShuffleTbl[] = {
-        // Select shuffle cost table for ARM. Cost is the number of instructions
-        // required to create the shuffled vector.
-
-        {ISD::VECTOR_SHUFFLE, MVT::v2f32, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v2i64, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v2f64, 1},
-        {ISD::VECTOR_SHUFFLE, MVT::v2i32, 1},
-
-        {ISD::VECTOR_SHUFFLE, MVT::v4i32, 2},
-        {ISD::VECTOR_SHUFFLE, MVT::v4f32, 2},
-        {ISD::VECTOR_SHUFFLE, MVT::v4i16, 2},
-
-        {ISD::VECTOR_SHUFFLE, MVT::v8i16, 16},
-
-        {ISD::VECTOR_SHUFFLE, MVT::v16i8, 32}};
-
-    std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Tp);
-    if (const auto *Entry = CostTableLookup(NEONSelShuffleTbl,
-                                            ISD::VECTOR_SHUFFLE, LT.second))
-      return LT.first * Entry->Cost;
-    return BaseT::getShuffleCost(Kind, Tp, Index, SubTp);
-  }
-  return BaseT::getShuffleCost(Kind, Tp, Index, SubTp);
+  int BaseCost = ST->hasMVEIntegerOps() && Tp->isVectorTy()
+                     ? ST->getMVEVectorCostFactor()
+                     : 1;
+  return BaseCost * BaseT::getShuffleCost(Kind, Tp, Index, SubTp);
 }
 
 int ARMTTIImpl::getArithmeticInstrCost(
@@ -563,38 +691,66 @@ int ARMTTIImpl::getArithmeticInstrCost(
     // Multiplication.
   };
 
-  if (ST->hasNEON())
+  if (ST->hasNEON()) {
     if (const auto *Entry = CostTableLookup(CostTbl, ISDOpcode, LT.second))
       return LT.first * Entry->Cost;
 
-  int Cost = BaseT::getArithmeticInstrCost(Opcode, Ty, Op1Info, Op2Info,
-                                           Opd1PropInfo, Opd2PropInfo);
+    int Cost = BaseT::getArithmeticInstrCost(Opcode, Ty, Op1Info, Op2Info,
+                                             Opd1PropInfo, Opd2PropInfo);
 
-  // This is somewhat of a hack. The problem that we are facing is that SROA
-  // creates a sequence of shift, and, or instructions to construct values.
-  // These sequences are recognized by the ISel and have zero-cost. Not so for
-  // the vectorized code. Because we have support for v2i64 but not i64 those
-  // sequences look particularly beneficial to vectorize.
-  // To work around this we increase the cost of v2i64 operations to make them
-  // seem less beneficial.
-  if (LT.second == MVT::v2i64 &&
-      Op2Info == TargetTransformInfo::OK_UniformConstantValue)
-    Cost += 4;
+    // This is somewhat of a hack. The problem that we are facing is that SROA
+    // creates a sequence of shift, and, or instructions to construct values.
+    // These sequences are recognized by the ISel and have zero-cost. Not so for
+    // the vectorized code. Because we have support for v2i64 but not i64 those
+    // sequences look particularly beneficial to vectorize.
+    // To work around this we increase the cost of v2i64 operations to make them
+    // seem less beneficial.
+    if (LT.second == MVT::v2i64 &&
+        Op2Info == TargetTransformInfo::OK_UniformConstantValue)
+      Cost += 4;
 
-  return Cost;
+    return Cost;
+  }
+
+  int BaseCost = ST->hasMVEIntegerOps() && Ty->isVectorTy()
+                     ? ST->getMVEVectorCostFactor()
+                     : 1;
+
+  // The rest of this mostly follows what is done in BaseT::getArithmeticInstrCost,
+  // without treating floats as more expensive that scalars or increasing the
+  // costs for custom operations. The results is also multiplied by the
+  // MVEVectorCostFactor where appropriate.
+  if (TLI->isOperationLegalOrCustomOrPromote(ISDOpcode, LT.second))
+    return LT.first * BaseCost;
+
+  // Else this is expand, assume that we need to scalarize this op.
+  if (Ty->isVectorTy()) {
+    unsigned Num = Ty->getVectorNumElements();
+    unsigned Cost = getArithmeticInstrCost(Opcode, Ty->getScalarType());
+    // Return the cost of multiple scalar invocation plus the cost of
+    // inserting and extracting the values.
+    return BaseT::getScalarizationOverhead(Ty, Args) + Num * Cost;
+  }
+
+  return BaseCost;
 }
 
-int ARMTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
-                                unsigned AddressSpace, const Instruction *I) {
+int ARMTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
+                                MaybeAlign Alignment, unsigned AddressSpace,
+                                const Instruction *I) {
   std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Src);
 
-  if (Src->isVectorTy() && Alignment != 16 &&
+  if (ST->hasNEON() && Src->isVectorTy() &&
+      (Alignment && *Alignment != Align(16)) &&
       Src->getVectorElementType()->isDoubleTy()) {
     // Unaligned loads/stores are extremely inefficient.
     // We need 4 uops for vst.1/vld.1 vs 1uop for vldr/vstr.
     return LT.first * 4;
   }
-  return LT.first;
+  int BaseCost = ST->hasMVEIntegerOps() && Src->isVectorTy()
+                     ? ST->getMVEVectorCostFactor()
+                     : 1;
+  return BaseCost * LT.first;
 }
 
 int ARMTTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
@@ -627,6 +783,266 @@ int ARMTTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
                                            Alignment, AddressSpace,
                                            UseMaskForCond, UseMaskForGaps);
 }
+
+bool ARMTTIImpl::isLoweredToCall(const Function *F) {
+  if (!F->isIntrinsic())
+    BaseT::isLoweredToCall(F);
+
+  // Assume all Arm-specific intrinsics map to an instruction.
+  if (F->getName().startswith("llvm.arm"))
+    return false;
+
+  switch (F->getIntrinsicID()) {
+  default: break;
+  case Intrinsic::powi:
+  case Intrinsic::sin:
+  case Intrinsic::cos:
+  case Intrinsic::pow:
+  case Intrinsic::log:
+  case Intrinsic::log10:
+  case Intrinsic::log2:
+  case Intrinsic::exp:
+  case Intrinsic::exp2:
+    return true;
+  case Intrinsic::sqrt:
+  case Intrinsic::fabs:
+  case Intrinsic::copysign:
+  case Intrinsic::floor:
+  case Intrinsic::ceil:
+  case Intrinsic::trunc:
+  case Intrinsic::rint:
+  case Intrinsic::nearbyint:
+  case Intrinsic::round:
+  case Intrinsic::canonicalize:
+  case Intrinsic::lround:
+  case Intrinsic::llround:
+  case Intrinsic::lrint:
+  case Intrinsic::llrint:
+    if (F->getReturnType()->isDoubleTy() && !ST->hasFP64())
+      return true;
+    if (F->getReturnType()->isHalfTy() && !ST->hasFullFP16())
+      return true;
+    // Some operations can be handled by vector instructions and assume
+    // unsupported vectors will be expanded into supported scalar ones.
+    // TODO Handle scalar operations properly.
+    return !ST->hasFPARMv8Base() && !ST->hasVFP2Base();
+  case Intrinsic::masked_store:
+  case Intrinsic::masked_load:
+  case Intrinsic::masked_gather:
+  case Intrinsic::masked_scatter:
+    return !ST->hasMVEIntegerOps();
+  case Intrinsic::sadd_with_overflow:
+  case Intrinsic::uadd_with_overflow:
+  case Intrinsic::ssub_with_overflow:
+  case Intrinsic::usub_with_overflow:
+  case Intrinsic::sadd_sat:
+  case Intrinsic::uadd_sat:
+  case Intrinsic::ssub_sat:
+  case Intrinsic::usub_sat:
+    return false;
+  }
+
+  return BaseT::isLoweredToCall(F);
+}
+
+bool ARMTTIImpl::isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
+                                          AssumptionCache &AC,
+                                          TargetLibraryInfo *LibInfo,
+                                          HardwareLoopInfo &HWLoopInfo) {
+  // Low-overhead branches are only supported in the 'low-overhead branch'
+  // extension of v8.1-m.
+  if (!ST->hasLOB() || DisableLowOverheadLoops)
+    return false;
+
+  if (!SE.hasLoopInvariantBackedgeTakenCount(L))
+    return false;
+
+  const SCEV *BackedgeTakenCount = SE.getBackedgeTakenCount(L);
+  if (isa<SCEVCouldNotCompute>(BackedgeTakenCount))
+    return false;
+
+  const SCEV *TripCountSCEV =
+    SE.getAddExpr(BackedgeTakenCount,
+                  SE.getOne(BackedgeTakenCount->getType()));
+
+  // We need to store the trip count in LR, a 32-bit register.
+  if (SE.getUnsignedRangeMax(TripCountSCEV).getBitWidth() > 32)
+    return false;
+
+  // Making a call will trash LR and clear LO_BRANCH_INFO, so there's little
+  // point in generating a hardware loop if that's going to happen.
+  auto MaybeCall = [this](Instruction &I) {
+    const ARMTargetLowering *TLI = getTLI();
+    unsigned ISD = TLI->InstructionOpcodeToISD(I.getOpcode());
+    EVT VT = TLI->getValueType(DL, I.getType(), true);
+    if (TLI->getOperationAction(ISD, VT) == TargetLowering::LibCall)
+      return true;
+
+    // Check if an intrinsic will be lowered to a call and assume that any
+    // other CallInst will generate a bl.
+    if (auto *Call = dyn_cast<CallInst>(&I)) {
+      if (isa<IntrinsicInst>(Call)) {
+        if (const Function *F = Call->getCalledFunction())
+          return isLoweredToCall(F);
+      }
+      return true;
+    }
+
+    // FPv5 provides conversions between integer, double-precision,
+    // single-precision, and half-precision formats.
+    switch (I.getOpcode()) {
+    default:
+      break;
+    case Instruction::FPToSI:
+    case Instruction::FPToUI:
+    case Instruction::SIToFP:
+    case Instruction::UIToFP:
+    case Instruction::FPTrunc:
+    case Instruction::FPExt:
+      return !ST->hasFPARMv8Base();
+    }
+
+    // FIXME: Unfortunately the approach of checking the Operation Action does
+    // not catch all cases of Legalization that use library calls. Our
+    // Legalization step categorizes some transformations into library calls as
+    // Custom, Expand or even Legal when doing type legalization. So for now
+    // we have to special case for instance the SDIV of 64bit integers and the
+    // use of floating point emulation.
+    if (VT.isInteger() && VT.getSizeInBits() >= 64) {
+      switch (ISD) {
+      default:
+        break;
+      case ISD::SDIV:
+      case ISD::UDIV:
+      case ISD::SREM:
+      case ISD::UREM:
+      case ISD::SDIVREM:
+      case ISD::UDIVREM:
+        return true;
+      }
+    }
+
+    // Assume all other non-float operations are supported.
+    if (!VT.isFloatingPoint())
+      return false;
+
+    // We'll need a library call to handle most floats when using soft.
+    if (TLI->useSoftFloat()) {
+      switch (I.getOpcode()) {
+      default:
+        return true;
+      case Instruction::Alloca:
+      case Instruction::Load:
+      case Instruction::Store:
+      case Instruction::Select:
+      case Instruction::PHI:
+        return false;
+      }
+    }
+
+    // We'll need a libcall to perform double precision operations on a single
+    // precision only FPU.
+    if (I.getType()->isDoubleTy() && !ST->hasFP64())
+      return true;
+
+    // Likewise for half precision arithmetic.
+    if (I.getType()->isHalfTy() && !ST->hasFullFP16())
+      return true;
+
+    return false;
+  };
+
+  auto IsHardwareLoopIntrinsic = [](Instruction &I) {
+    if (auto *Call = dyn_cast<IntrinsicInst>(&I)) {
+      switch (Call->getIntrinsicID()) {
+      default:
+        break;
+      case Intrinsic::set_loop_iterations:
+      case Intrinsic::test_set_loop_iterations:
+      case Intrinsic::loop_decrement:
+      case Intrinsic::loop_decrement_reg:
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Scan the instructions to see if there's any that we know will turn into a
+  // call or if this loop is already a low-overhead loop.
+  auto ScanLoop = [&](Loop *L) {
+    for (auto *BB : L->getBlocks()) {
+      for (auto &I : *BB) {
+        if (MaybeCall(I) || IsHardwareLoopIntrinsic(I))
+          return false;
+      }
+    }
+    return true;
+  };
+
+  // Visit inner loops.
+  for (auto Inner : *L)
+    if (!ScanLoop(Inner))
+      return false;
+
+  if (!ScanLoop(L))
+    return false;
+
+  // TODO: Check whether the trip count calculation is expensive. If L is the
+  // inner loop but we know it has a low trip count, calculating that trip
+  // count (in the parent loop) may be detrimental.
+
+  LLVMContext &C = L->getHeader()->getContext();
+  HWLoopInfo.CounterInReg = true;
+  HWLoopInfo.IsNestingLegal = false;
+  HWLoopInfo.PerformEntryTest = true;
+  HWLoopInfo.CountType = Type::getInt32Ty(C);
+  HWLoopInfo.LoopDecrement = ConstantInt::get(HWLoopInfo.CountType, 1);
+  return true;
+}
+
+bool ARMTTIImpl::preferPredicateOverEpilogue(Loop *L, LoopInfo *LI,
+                                             ScalarEvolution &SE,
+                                             AssumptionCache &AC,
+                                             TargetLibraryInfo *TLI,
+                                             DominatorTree *DT,
+                                             const LoopAccessInfo *LAI) {
+  // Creating a predicated vector loop is the first step for generating a
+  // tail-predicated hardware loop, for which we need the MVE masked
+  // load/stores instructions:
+  if (!ST->hasMVEIntegerOps())
+    return false;
+
+  HardwareLoopInfo HWLoopInfo(L);
+  if (!HWLoopInfo.canAnalyze(*LI)) {
+    LLVM_DEBUG(dbgs() << "preferPredicateOverEpilogue: hardware-loop is not "
+                         "analyzable.\n");
+    return false;
+  }
+
+  // This checks if we have the low-overhead branch architecture
+  // extension, and if we will create a hardware-loop:
+  if (!isHardwareLoopProfitable(L, SE, AC, TLI, HWLoopInfo)) {
+    LLVM_DEBUG(dbgs() << "preferPredicateOverEpilogue: hardware-loop is not "
+                         "profitable.\n");
+    return false;
+  }
+
+  if (!HWLoopInfo.isHardwareLoopCandidate(SE, *LI, *DT)) {
+    LLVM_DEBUG(dbgs() << "preferPredicateOverEpilogue: hardware-loop is not "
+                         "a candidate.\n");
+    return false;
+  }
+
+  // TODO: to set up a tail-predicated loop, which works by setting up
+  // the total number of elements processed by the loop, we need to
+  // determine the element size here, and if it is uniform for all operations
+  // in the vector loop. This means we will reject narrowing/widening
+  // operations, and don't want to predicate the vector loop, which is
+  // the main prep step for tail-predicated loops.
+
+  return false;
+}
+
 
 void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                          TTI::UnrollingPreferences &UP) {
@@ -673,6 +1089,11 @@ void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
         }
         return;
       }
+      // Don't unroll vectorised loop. MVE does not benefit from it as much as
+      // scalar code.
+      if (I.getType()->isVectorTy())
+        return;
+
       SmallVector<const Value*, 4> Operands(I.value_op_begin(),
                                             I.value_op_end());
       Cost += getUserCost(&I, Operands);
@@ -683,6 +1104,7 @@ void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
 
   UP.Partial = true;
   UP.Runtime = true;
+  UP.UpperBound = true;
   UP.UnrollRemainder = true;
   UP.DefaultUnrollRuntimeCount = 4;
   UP.UnrollAndJam = true;
@@ -692,4 +1114,29 @@ void ARMTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
   // taken cost of the backedge.
   if (Cost < 12)
     UP.Force = true;
+}
+
+bool ARMTTIImpl::useReductionIntrinsic(unsigned Opcode, Type *Ty,
+                                       TTI::ReductionFlags Flags) const {
+  assert(isa<VectorType>(Ty) && "Expected Ty to be a vector type");
+  unsigned ScalarBits = Ty->getScalarSizeInBits();
+  if (!ST->hasMVEIntegerOps())
+    return false;
+
+  switch (Opcode) {
+  case Instruction::FAdd:
+  case Instruction::FMul:
+  case Instruction::And:
+  case Instruction::Or:
+  case Instruction::Xor:
+  case Instruction::Mul:
+  case Instruction::FCmp:
+    return false;
+  case Instruction::ICmp:
+  case Instruction::Add:
+    return ScalarBits < 64 && ScalarBits * Ty->getVectorNumElements() == 128;
+  default:
+    llvm_unreachable("Unhandled reduction opcode");
+  }
+  return false;
 }

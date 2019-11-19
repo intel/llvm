@@ -6,17 +6,17 @@
 
 --- |
   define i8 @test_load_i8(i8* %p1) {
-    %r = load atomic i8, i8* %p1 unordered, align 8
+    %r = load atomic i8, i8* %p1 unordered, align 1
     ret i8 %r
   }
 
   define i16 @test_load_i16(i16* %p1) {
-    %r = load atomic i16, i16* %p1 unordered, align 8
+    %r = load atomic i16, i16* %p1 unordered, align 2
     ret i16 %r
   }
 
   define i32 @test_load_i32(i32* %p1) {
-    %r = load atomic i32, i32* %p1 unordered, align 8
+    %r = load atomic i32, i32* %p1 unordered, align 4
     ret i32 %r
   }
 
@@ -26,7 +26,7 @@
   }
 
   define float @test_load_float(float* %p1) {
-    %r = load atomic float, float* %p1 unordered, align 8
+    %r = load atomic float, float* %p1 unordered, align 4
     ret float %r
   }
 
@@ -46,7 +46,7 @@
   }
 
   define i32* @test_store_i32(i32 %val, i32* %p1) {
-    store atomic i32 %val, i32* %p1 unordered, align 8
+    store atomic i32 %val, i32* %p1 unordered, align 4
     ret i32* %p1
   }
 
@@ -56,12 +56,12 @@
   }
 
   define float* @test_store_float(float %val, float* %p1) {
-    store atomic float %val, float* %p1 unordered, align 8
+    store atomic float %val, float* %p1 unordered, align 4
     ret float* %p1
   }
 
   define float* @test_store_float_vec(float %val, float* %p1) {
-    store atomic float %val, float* %p1 unordered, align 8
+    store atomic float %val, float* %p1 unordered, align 4
     ret float* %p1
   }
 
@@ -101,7 +101,7 @@
 ...
 ---
 name:            test_load_i8
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -139,7 +139,7 @@ body:             |
 ...
 ---
 name:            test_load_i16
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -177,7 +177,7 @@ body:             |
 ...
 ---
 name:            test_load_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -215,7 +215,7 @@ body:             |
 ...
 ---
 name:            test_load_i64
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -253,7 +253,7 @@ body:             |
 ...
 ---
 name:            test_load_float
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -303,7 +303,7 @@ body:             |
 ...
 ---
 name:            test_load_float_vecreg
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -353,7 +353,7 @@ body:             |
 ...
 ---
 name:            test_load_double
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -403,7 +403,7 @@ body:             |
 ...
 ---
 name:            test_load_double_vecreg
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -453,7 +453,7 @@ body:             |
 ...
 ---
 name:            test_store_i32
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -496,7 +496,7 @@ body:             |
 ...
 ---
 name:            test_store_i64
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -539,7 +539,7 @@ body:             |
 ...
 ---
 name:            test_store_float
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -594,7 +594,7 @@ body:             |
 ...
 ---
 name:            test_store_float_vec
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -649,7 +649,7 @@ body:             |
 ...
 ---
 name:            test_store_double
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -705,7 +705,7 @@ body:             |
 ...
 ---
 name:            test_store_double_vec
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -760,7 +760,7 @@ body:             |
 ...
 ---
 name:            test_load_ptr
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 selected:        false
@@ -799,7 +799,7 @@ body:             |
 ...
 ---
 name:            test_store_ptr
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 selected:        false
@@ -838,7 +838,7 @@ body:             |
 ...
 ---
 name:            test_gep_folding
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -882,7 +882,7 @@ body:             |
     %0(p0) = COPY $rdi
     %1(s32) = COPY $esi
     %2(s64) = G_CONSTANT i64 20
-    %3(p0) = G_GEP %0, %2(s64)
+    %3(p0) = G_PTR_ADD %0, %2(s64)
     G_STORE %1(s32), %3(p0) :: (store unordered 4 into %ir.arrayidx)
     %4(s32) = G_LOAD %3(p0) :: (load unordered 4 from %ir.arrayidx)
     $eax = COPY %4(s32)
@@ -891,7 +891,7 @@ body:             |
 ...
 ---
 name:            test_gep_folding_largeGepIndex
-alignment:       4
+alignment:       16
 legalized:       true
 regBankSelected: true
 registers:
@@ -943,7 +943,7 @@ body:             |
     %0(p0) = COPY $rdi
     %1(s32) = COPY $esi
     %2(s64) = G_CONSTANT i64 228719476720
-    %3(p0) = G_GEP %0, %2(s64)
+    %3(p0) = G_PTR_ADD %0, %2(s64)
     G_STORE %1(s32), %3(p0) :: (store unordered 4 into %ir.arrayidx)
     %4(s32) = G_LOAD %3(p0) :: (load unordered 4 from %ir.arrayidx)
     $eax = COPY %4(s32)

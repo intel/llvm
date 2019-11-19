@@ -832,6 +832,9 @@ bool LLParser::ParseSummaryEntry() {
   case lltok::kw_typeid:
     result = ParseTypeIdEntry(SummaryID);
     break;
+  case lltok::kw_typeidCompatibleVTable:
+    result = ParseTypeIdCompatibleVtableEntry(SummaryID);
+    break;
   default:
     result = Error(Lex.getLoc(), "unexpected summary kind");
     break;
@@ -1119,7 +1122,7 @@ bool LLParser::ParseGlobal(const std::string &Name, LocTy NameLoc,
       if (ParseToken(lltok::StringConstant, "expected partition string"))
         return true;
     } else if (Lex.getKind() == lltok::kw_align) {
-      unsigned Alignment;
+      MaybeAlign Alignment;
       if (ParseOptionalAlignment(Alignment)) return true;
       GV->setAlignment(Alignment);
     } else if (Lex.getKind() == lltok::MetadataVar) {
@@ -1226,12 +1229,13 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
       // As a hack, we allow function alignment to be initially parsed as an
       // attribute on a function declaration/definition or added to an attribute
       // group and later moved to the alignment field.
-      unsigned Alignment;
+      MaybeAlign Alignment;
       if (inAttrGrp) {
         Lex.Lex();
-        if (ParseToken(lltok::equal, "expected '=' here") ||
-            ParseUInt32(Alignment))
+        uint32_t Value = 0;
+        if (ParseToken(lltok::equal, "expected '=' here") || ParseUInt32(Value))
           return true;
+        Alignment = Align(Value);
       } else {
         if (ParseOptionalAlignment(Alignment))
           return true;
@@ -1277,12 +1281,14 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_naked: B.addAttribute(Attribute::Naked); break;
     case lltok::kw_nobuiltin: B.addAttribute(Attribute::NoBuiltin); break;
     case lltok::kw_noduplicate: B.addAttribute(Attribute::NoDuplicate); break;
+    case lltok::kw_nofree: B.addAttribute(Attribute::NoFree); break;
     case lltok::kw_noimplicitfloat:
       B.addAttribute(Attribute::NoImplicitFloat); break;
     case lltok::kw_noinline: B.addAttribute(Attribute::NoInline); break;
     case lltok::kw_nonlazybind: B.addAttribute(Attribute::NonLazyBind); break;
     case lltok::kw_noredzone: B.addAttribute(Attribute::NoRedZone); break;
     case lltok::kw_noreturn: B.addAttribute(Attribute::NoReturn); break;
+    case lltok::kw_nosync: B.addAttribute(Attribute::NoSync); break;
     case lltok::kw_nocf_check: B.addAttribute(Attribute::NoCfCheck); break;
     case lltok::kw_norecurse: B.addAttribute(Attribute::NoRecurse); break;
     case lltok::kw_nounwind: B.addAttribute(Attribute::NoUnwind); break;
@@ -1306,6 +1312,8 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
       B.addAttribute(Attribute::SanitizeAddress); break;
     case lltok::kw_sanitize_hwaddress:
       B.addAttribute(Attribute::SanitizeHWAddress); break;
+    case lltok::kw_sanitize_memtag:
+      B.addAttribute(Attribute::SanitizeMemTag); break;
     case lltok::kw_sanitize_thread:
       B.addAttribute(Attribute::SanitizeThread); break;
     case lltok::kw_sanitize_memory:
@@ -1315,6 +1323,7 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
       break;
     case lltok::kw_strictfp: B.addAttribute(Attribute::StrictFP); break;
     case lltok::kw_uwtable: B.addAttribute(Attribute::UWTable); break;
+    case lltok::kw_willreturn: B.addAttribute(Attribute::WillReturn); break;
     case lltok::kw_writeonly: B.addAttribute(Attribute::WriteOnly); break;
 
     // Error handling.
@@ -1595,7 +1604,7 @@ bool LLParser::ParseOptionalParamAttrs(AttrBuilder &B) {
       continue;
     }
     case lltok::kw_align: {
-      unsigned Alignment;
+      MaybeAlign Alignment;
       if (ParseOptionalAlignment(Alignment))
         return true;
       B.addAlignmentAttr(Alignment);
@@ -1627,6 +1636,7 @@ bool LLParser::ParseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_nest:            B.addAttribute(Attribute::Nest); break;
     case lltok::kw_noalias:         B.addAttribute(Attribute::NoAlias); break;
     case lltok::kw_nocapture:       B.addAttribute(Attribute::NoCapture); break;
+    case lltok::kw_nofree:          B.addAttribute(Attribute::NoFree); break;
     case lltok::kw_nonnull:         B.addAttribute(Attribute::NonNull); break;
     case lltok::kw_readnone:        B.addAttribute(Attribute::ReadNone); break;
     case lltok::kw_readonly:        B.addAttribute(Attribute::ReadOnly); break;
@@ -1662,6 +1672,7 @@ bool LLParser::ParseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_returns_twice:
     case lltok::kw_sanitize_address:
     case lltok::kw_sanitize_hwaddress:
+    case lltok::kw_sanitize_memtag:
     case lltok::kw_sanitize_memory:
     case lltok::kw_sanitize_thread:
     case lltok::kw_speculative_load_hardening:
@@ -1711,7 +1722,7 @@ bool LLParser::ParseOptionalReturnAttrs(AttrBuilder &B) {
       continue;
     }
     case lltok::kw_align: {
-      unsigned Alignment;
+      MaybeAlign Alignment;
       if (ParseOptionalAlignment(Alignment))
         return true;
       B.addAlignmentAttr(Alignment);
@@ -1760,6 +1771,7 @@ bool LLParser::ParseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_returns_twice:
     case lltok::kw_sanitize_address:
     case lltok::kw_sanitize_hwaddress:
+    case lltok::kw_sanitize_memtag:
     case lltok::kw_sanitize_memory:
     case lltok::kw_sanitize_thread:
     case lltok::kw_speculative_load_hardening:
@@ -1910,6 +1922,7 @@ void LLParser::ParseOptionalDLLStorageClass(unsigned &Res) {
 ///   ::= 'fastcc'
 ///   ::= 'intel_ocl_bicc'
 ///   ::= 'coldcc'
+///   ::= 'cfguard_checkcc'
 ///   ::= 'x86_stdcallcc'
 ///   ::= 'x86_fastcallcc'
 ///   ::= 'x86_thiscallcc'
@@ -1945,6 +1958,7 @@ void LLParser::ParseOptionalDLLStorageClass(unsigned &Res) {
 ///   ::= 'amdgpu_ps'
 ///   ::= 'amdgpu_cs'
 ///   ::= 'amdgpu_kernel'
+///   ::= 'tailcc'
 ///   ::= 'cc' UINT
 ///
 bool LLParser::ParseOptionalCallingConv(unsigned &CC) {
@@ -1953,6 +1967,7 @@ bool LLParser::ParseOptionalCallingConv(unsigned &CC) {
   case lltok::kw_ccc:            CC = CallingConv::C; break;
   case lltok::kw_fastcc:         CC = CallingConv::Fast; break;
   case lltok::kw_coldcc:         CC = CallingConv::Cold; break;
+  case lltok::kw_cfguard_checkcc: CC = CallingConv::CFGuard_Check; break;
   case lltok::kw_x86_stdcallcc:  CC = CallingConv::X86_StdCall; break;
   case lltok::kw_x86_fastcallcc: CC = CallingConv::X86_FastCall; break;
   case lltok::kw_x86_regcallcc:  CC = CallingConv::X86_RegCall; break;
@@ -1990,6 +2005,7 @@ bool LLParser::ParseOptionalCallingConv(unsigned &CC) {
   case lltok::kw_amdgpu_ps:      CC = CallingConv::AMDGPU_PS; break;
   case lltok::kw_amdgpu_cs:      CC = CallingConv::AMDGPU_CS; break;
   case lltok::kw_amdgpu_kernel:  CC = CallingConv::AMDGPU_KERNEL; break;
+  case lltok::kw_tailcc:         CC = CallingConv::Tail; break;
   case lltok::kw_cc: {
       Lex.Lex();
       return ParseUInt32(CC);
@@ -2057,16 +2073,19 @@ bool LLParser::ParseOptionalFunctionMetadata(Function &F) {
 /// ParseOptionalAlignment
 ///   ::= /* empty */
 ///   ::= 'align' 4
-bool LLParser::ParseOptionalAlignment(unsigned &Alignment) {
-  Alignment = 0;
+bool LLParser::ParseOptionalAlignment(MaybeAlign &Alignment) {
+  Alignment = None;
   if (!EatIfPresent(lltok::kw_align))
     return false;
   LocTy AlignLoc = Lex.getLoc();
-  if (ParseUInt32(Alignment)) return true;
-  if (!isPowerOf2_32(Alignment))
+  uint32_t Value = 0;
+  if (ParseUInt32(Value))
+    return true;
+  if (!isPowerOf2_32(Value))
     return Error(AlignLoc, "alignment is not a power of two");
-  if (Alignment > Value::MaximumAlignment)
+  if (Value > Value::MaximumAlignment)
     return Error(AlignLoc, "huge alignments are not supported yet");
+  Alignment = Align(Value);
   return false;
 }
 
@@ -2103,7 +2122,7 @@ bool LLParser::ParseOptionalDerefAttrBytes(lltok::Kind AttrKind,
 ///
 /// This returns with AteExtraComma set to true if it ate an excess comma at the
 /// end.
-bool LLParser::ParseOptionalCommaAlign(unsigned &Alignment,
+bool LLParser::ParseOptionalCommaAlign(MaybeAlign &Alignment,
                                        bool &AteExtraComma) {
   AteExtraComma = false;
   while (EatIfPresent(lltok::comma)) {
@@ -2541,6 +2560,7 @@ bool LLParser::ParseOptionalOperandBundles(
 ///
 bool LLParser::ParseArgumentList(SmallVectorImpl<ArgInfo> &ArgList,
                                  bool &isVarArg){
+  unsigned CurValID = 0;
   isVarArg = false;
   assert(Lex.getKind() == lltok::lparen);
   Lex.Lex(); // eat the (.
@@ -2564,6 +2584,12 @@ bool LLParser::ParseArgumentList(SmallVectorImpl<ArgInfo> &ArgList,
 
     if (Lex.getKind() == lltok::LocalVar) {
       Name = Lex.getStrVal();
+      Lex.Lex();
+    } else if (Lex.getKind() == lltok::LocalVarID) {
+      if (Lex.getUIntVal() != CurValID)
+        return Error(TypeLoc, "argument expected to be numbered '%" +
+                                  Twine(CurValID) + "'");
+      ++CurValID;
       Lex.Lex();
     }
 
@@ -2592,6 +2618,13 @@ bool LLParser::ParseArgumentList(SmallVectorImpl<ArgInfo> &ArgList,
         Name = Lex.getStrVal();
         Lex.Lex();
       } else {
+        if (Lex.getKind() == lltok::LocalVarID) {
+          if (Lex.getUIntVal() != CurValID)
+            return Error(TypeLoc, "argument expected to be numbered '%" +
+                                      Twine(CurValID) + "'");
+          Lex.Lex();
+        }
+        ++CurValID;
         Name = "";
       }
 
@@ -3083,7 +3116,7 @@ bool LLParser::ParseValID(ValID &ID, PerFunctionState *PFS) {
         ParseToken(lltok::rbrace, "expected end of struct constant"))
       return true;
 
-    ID.ConstantStructElts = make_unique<Constant *[]>(Elts.size());
+    ID.ConstantStructElts = std::make_unique<Constant *[]>(Elts.size());
     ID.UIntVal = Elts.size();
     memcpy(ID.ConstantStructElts.get(), Elts.data(),
            Elts.size() * sizeof(Elts[0]));
@@ -3105,7 +3138,7 @@ bool LLParser::ParseValID(ValID &ID, PerFunctionState *PFS) {
       return true;
 
     if (isPackedStruct) {
-      ID.ConstantStructElts = make_unique<Constant *[]>(Elts.size());
+      ID.ConstantStructElts = std::make_unique<Constant *[]>(Elts.size());
       memcpy(ID.ConstantStructElts.get(), Elts.data(),
              Elts.size() * sizeof(Elts[0]));
       ID.UIntVal = Elts.size();
@@ -3381,7 +3414,8 @@ bool LLParser::ParseValID(ValID &ID, PerFunctionState *PFS) {
   }
  
   // Unary Operators.
-  case lltok::kw_fneg: {
+  case lltok::kw_fneg:
+  case lltok::kw_freeze: {
     unsigned Opc = Lex.getUIntVal();
     Constant *Val;
     Lex.Lex();
@@ -3395,6 +3429,8 @@ bool LLParser::ParseValID(ValID &ID, PerFunctionState *PFS) {
     case Instruction::FNeg:
       if (!Val->getType()->isFPOrFPVectorTy())
         return Error(ID.Loc, "constexpr requires fp operands");
+      break;
+    case Instruction::Freeze:
       break;
     default: llvm_unreachable("Unknown unary operator!");
     }
@@ -5344,7 +5380,7 @@ bool LLParser::ParseFunctionHeader(Function *&Fn, bool isDefine) {
   LocTy BuiltinLoc;
   std::string Section;
   std::string Partition;
-  unsigned Alignment;
+  MaybeAlign Alignment;
   std::string GC;
   GlobalValue::UnnamedAddr UnnamedAddr = GlobalValue::UnnamedAddr::None;
   unsigned AddrSpace = 0;
@@ -5461,7 +5497,7 @@ bool LLParser::ParseFunctionHeader(Function *&Fn, bool isDefine) {
   Fn->setCallingConv(CC);
   Fn->setAttributes(PAL);
   Fn->setUnnamedAddr(UnnamedAddr);
-  Fn->setAlignment(Alignment);
+  Fn->setAlignment(MaybeAlign(Alignment));
   Fn->setSection(Section);
   Fn->setPartition(Partition);
   Fn->setComdat(C);
@@ -5689,6 +5725,7 @@ int LLParser::ParseInstruction(Instruction *&Inst, BasicBlock *BB,
       Inst->setFastMathFlags(FMF);
     return false;
   }
+  case lltok::kw_freeze: return ParseUnaryOp(Inst, PFS, KeywordVal, false);
   // Binary Operators.
   case lltok::kw_add:
   case lltok::kw_sub:
@@ -5767,7 +5804,7 @@ int LLParser::ParseInstruction(Instruction *&Inst, BasicBlock *BB,
     if (Res != 0)
       return Res;
     if (FMF.any()) {
-      if (!Inst->getType()->isFPOrFPVectorTy())
+      if (!isa<FPMathOperator>(Inst))
         return Error(Loc, "fast-math-flags specified for select without "
                           "floating-point scalar or vector return type");
       Inst->setFastMathFlags(FMF);
@@ -5778,7 +5815,19 @@ int LLParser::ParseInstruction(Instruction *&Inst, BasicBlock *BB,
   case lltok::kw_extractelement: return ParseExtractElement(Inst, PFS);
   case lltok::kw_insertelement:  return ParseInsertElement(Inst, PFS);
   case lltok::kw_shufflevector:  return ParseShuffleVector(Inst, PFS);
-  case lltok::kw_phi:            return ParsePHI(Inst, PFS);
+  case lltok::kw_phi: {
+    FastMathFlags FMF = EatFastMathFlagsIfPresent();
+    int Res = ParsePHI(Inst, PFS);
+    if (Res != 0)
+      return Res;
+    if (FMF.any()) {
+      if (!isa<FPMathOperator>(Inst))
+        return Error(Loc, "fast-math-flags specified for phi without "
+                          "floating-point scalar or vector return type");
+      Inst->setFastMathFlags(FMF);
+    }
+    return 0;
+  }
   case lltok::kw_landingpad:     return ParseLandingPad(Inst, PFS);
   // Call.
   case lltok::kw_call:     return ParseCall(Inst, PFS, CallInst::TCK_None);
@@ -6280,16 +6329,14 @@ bool LLParser::ParseCleanupPad(Instruction *&Inst, PerFunctionState &PFS) {
 /// ParseUnaryOp
 ///  ::= UnaryOp TypeAndValue ',' Value
 ///
-/// If IsFP is false, then any integer operand is allowed, if it is true, any fp
-/// operand is allowed.
+/// If IsFP is true, then fp operand is only allowed.
 bool LLParser::ParseUnaryOp(Instruction *&Inst, PerFunctionState &PFS,
                             unsigned Opc, bool IsFP) {
   LocTy Loc; Value *LHS;
   if (ParseTypeAndValue(LHS, Loc, PFS))
     return true;
 
-  bool Valid = IsFP ? LHS->getType()->isFPOrFPVectorTy()
-                    : LHS->getType()->isIntOrIntVectorTy();
+  bool Valid = !IsFP || LHS->getType()->isFPOrFPVectorTy();
 
   if (!Valid)
     return Error(Loc, "invalid operand type for instruction");
@@ -6743,10 +6790,6 @@ bool LLParser::ParseCall(Instruction *&Inst, PerFunctionState &PFS,
       ParseOptionalOperandBundles(BundleList, PFS))
     return true;
 
-  if (FMF.any() && !RetType->isFPOrFPVectorTy())
-    return Error(CallLoc, "fast-math-flags specified for call without "
-                          "floating-point scalar or vector return type");
-
   // If RetType is a non-function pointer type, then this is the short syntax
   // for the call, which means that RetType is just the return type.  Infer the
   // rest of the function argument types from the arguments that are present.
@@ -6809,8 +6852,12 @@ bool LLParser::ParseCall(Instruction *&Inst, PerFunctionState &PFS,
   CallInst *CI = CallInst::Create(Ty, Callee, Args, BundleList);
   CI->setTailCallKind(TCK);
   CI->setCallingConv(CC);
-  if (FMF.any())
+  if (FMF.any()) {
+    if (!isa<FPMathOperator>(CI))
+      return Error(CallLoc, "fast-math-flags specified for call without "
+                   "floating-point scalar or vector return type");
     CI->setFastMathFlags(FMF);
+  }
   CI->setAttributes(PAL);
   ForwardRefAttrGroups[CI] = FwdRefAttrGrps;
   Inst = CI;
@@ -6827,7 +6874,7 @@ bool LLParser::ParseCall(Instruction *&Inst, PerFunctionState &PFS,
 int LLParser::ParseAlloc(Instruction *&Inst, PerFunctionState &PFS) {
   Value *Size = nullptr;
   LocTy SizeLoc, TyLoc, ASLoc;
-  unsigned Alignment = 0;
+  MaybeAlign Alignment;
   unsigned AddrSpace = 0;
   Type *Ty = nullptr;
 
@@ -6888,7 +6935,7 @@ int LLParser::ParseAlloc(Instruction *&Inst, PerFunctionState &PFS) {
 ///       'singlethread'? AtomicOrdering (',' 'align' i32)?
 int LLParser::ParseLoad(Instruction *&Inst, PerFunctionState &PFS) {
   Value *Val; LocTy Loc;
-  unsigned Alignment = 0;
+  MaybeAlign Alignment;
   bool AteExtraComma = false;
   bool isAtomic = false;
   AtomicOrdering Ordering = AtomicOrdering::NotAtomic;
@@ -6937,7 +6984,7 @@ int LLParser::ParseLoad(Instruction *&Inst, PerFunctionState &PFS) {
 ///       'singlethread'? AtomicOrdering (',' 'align' i32)?
 int LLParser::ParseStore(Instruction *&Inst, PerFunctionState &PFS) {
   Value *Val, *Ptr; LocTy Loc, PtrLoc;
-  unsigned Alignment = 0;
+  MaybeAlign Alignment;
   bool AteExtraComma = false;
   bool isAtomic = false;
   AtomicOrdering Ordering = AtomicOrdering::NotAtomic;
@@ -7496,6 +7543,92 @@ bool LLParser::ParseTypeIdSummary(TypeIdSummary &TIS) {
   return false;
 }
 
+static ValueInfo EmptyVI =
+    ValueInfo(false, (GlobalValueSummaryMapTy::value_type *)-8);
+
+/// TypeIdCompatibleVtableEntry
+///   ::= 'typeidCompatibleVTable' ':' '(' 'name' ':' STRINGCONSTANT ','
+///   TypeIdCompatibleVtableInfo
+///   ')'
+bool LLParser::ParseTypeIdCompatibleVtableEntry(unsigned ID) {
+  assert(Lex.getKind() == lltok::kw_typeidCompatibleVTable);
+  Lex.Lex();
+
+  std::string Name;
+  if (ParseToken(lltok::colon, "expected ':' here") ||
+      ParseToken(lltok::lparen, "expected '(' here") ||
+      ParseToken(lltok::kw_name, "expected 'name' here") ||
+      ParseToken(lltok::colon, "expected ':' here") ||
+      ParseStringConstant(Name))
+    return true;
+
+  TypeIdCompatibleVtableInfo &TI =
+      Index->getOrInsertTypeIdCompatibleVtableSummary(Name);
+  if (ParseToken(lltok::comma, "expected ',' here") ||
+      ParseToken(lltok::kw_summary, "expected 'summary' here") ||
+      ParseToken(lltok::colon, "expected ':' here") ||
+      ParseToken(lltok::lparen, "expected '(' here"))
+    return true;
+
+  IdToIndexMapType IdToIndexMap;
+  // Parse each call edge
+  do {
+    uint64_t Offset;
+    if (ParseToken(lltok::lparen, "expected '(' here") ||
+        ParseToken(lltok::kw_offset, "expected 'offset' here") ||
+        ParseToken(lltok::colon, "expected ':' here") || ParseUInt64(Offset) ||
+        ParseToken(lltok::comma, "expected ',' here"))
+      return true;
+
+    LocTy Loc = Lex.getLoc();
+    unsigned GVId;
+    ValueInfo VI;
+    if (ParseGVReference(VI, GVId))
+      return true;
+
+    // Keep track of the TypeIdCompatibleVtableInfo array index needing a
+    // forward reference. We will save the location of the ValueInfo needing an
+    // update, but can only do so once the std::vector is finalized.
+    if (VI == EmptyVI)
+      IdToIndexMap[GVId].push_back(std::make_pair(TI.size(), Loc));
+    TI.push_back({Offset, VI});
+
+    if (ParseToken(lltok::rparen, "expected ')' in call"))
+      return true;
+  } while (EatIfPresent(lltok::comma));
+
+  // Now that the TI vector is finalized, it is safe to save the locations
+  // of any forward GV references that need updating later.
+  for (auto I : IdToIndexMap) {
+    for (auto P : I.second) {
+      assert(TI[P.first].VTableVI == EmptyVI &&
+             "Forward referenced ValueInfo expected to be empty");
+      auto FwdRef = ForwardRefValueInfos.insert(std::make_pair(
+          I.first, std::vector<std::pair<ValueInfo *, LocTy>>()));
+      FwdRef.first->second.push_back(
+          std::make_pair(&TI[P.first].VTableVI, P.second));
+    }
+  }
+
+  if (ParseToken(lltok::rparen, "expected ')' here") ||
+      ParseToken(lltok::rparen, "expected ')' here"))
+    return true;
+
+  // Check if this ID was forward referenced, and if so, update the
+  // corresponding GUIDs.
+  auto FwdRefTIDs = ForwardRefTypeIds.find(ID);
+  if (FwdRefTIDs != ForwardRefTypeIds.end()) {
+    for (auto TIDRef : FwdRefTIDs->second) {
+      assert(!*TIDRef.first &&
+             "Forward referenced type id GUID expected to be 0");
+      *TIDRef.first = GlobalValue::getGUID(Name);
+    }
+    ForwardRefTypeIds.erase(FwdRefTIDs);
+  }
+
+  return false;
+}
+
 /// TypeTestResolution
 ///   ::= 'typeTestRes' ':' '(' 'kind' ':'
 ///         ( 'unsat' | 'byteArray' | 'inline' | 'single' | 'allOnes' ) ','
@@ -7770,9 +7903,13 @@ static const auto FwdVIRef = (GlobalValueSummaryMapTy::value_type *)-8;
 
 static void resolveFwdRef(ValueInfo *Fwd, ValueInfo &Resolved) {
   bool ReadOnly = Fwd->isReadOnly();
+  bool WriteOnly = Fwd->isWriteOnly();
+  assert(!(ReadOnly && WriteOnly));
   *Fwd = Resolved;
   if (ReadOnly)
     Fwd->setReadOnly();
+  if (WriteOnly)
+    Fwd->setWriteOnly();
 }
 
 /// Stores the given Name/GUID and associated summary into the Index.
@@ -7974,7 +8111,7 @@ bool LLParser::ParseFunctionSummary(std::string Name, GlobalValue::GUID GUID,
   if (ParseToken(lltok::rparen, "expected ')' here"))
     return true;
 
-  auto FS = llvm::make_unique<FunctionSummary>(
+  auto FS = std::make_unique<FunctionSummary>(
       GVFlags, InstCount, FFlags, /*EntryCount=*/0, std::move(Refs),
       std::move(Calls), std::move(TypeIdInfo.TypeTests),
       std::move(TypeIdInfo.TypeTestAssumeVCalls),
@@ -8002,8 +8139,10 @@ bool LLParser::ParseVariableSummary(std::string Name, GlobalValue::GUID GUID,
   GlobalValueSummary::GVFlags GVFlags = GlobalValueSummary::GVFlags(
       /*Linkage=*/GlobalValue::ExternalLinkage, /*NotEligibleToImport=*/false,
       /*Live=*/false, /*IsLocal=*/false, /*CanAutoHide=*/false);
-  GlobalVarSummary::GVarFlags GVarFlags(/*ReadOnly*/ false);
+  GlobalVarSummary::GVarFlags GVarFlags(/*ReadOnly*/ false,
+                                        /* WriteOnly */ false);
   std::vector<ValueInfo> Refs;
+  VTableFuncList VTableFuncs;
   if (ParseToken(lltok::colon, "expected ':' here") ||
       ParseToken(lltok::lparen, "expected '(' here") ||
       ParseModuleReference(ModulePath) ||
@@ -8012,19 +8151,30 @@ bool LLParser::ParseVariableSummary(std::string Name, GlobalValue::GUID GUID,
       ParseGVarFlags(GVarFlags))
     return true;
 
-  // Parse optional refs field
-  if (EatIfPresent(lltok::comma)) {
-    if (ParseOptionalRefs(Refs))
-      return true;
+  // Parse optional fields
+  while (EatIfPresent(lltok::comma)) {
+    switch (Lex.getKind()) {
+    case lltok::kw_vTableFuncs:
+      if (ParseOptionalVTableFuncs(VTableFuncs))
+        return true;
+      break;
+    case lltok::kw_refs:
+      if (ParseOptionalRefs(Refs))
+        return true;
+      break;
+    default:
+      return Error(Lex.getLoc(), "expected optional variable summary field");
+    }
   }
 
   if (ParseToken(lltok::rparen, "expected ')' here"))
     return true;
 
   auto GS =
-      llvm::make_unique<GlobalVarSummary>(GVFlags, GVarFlags, std::move(Refs));
+      std::make_unique<GlobalVarSummary>(GVFlags, GVarFlags, std::move(Refs));
 
   GS->setModulePath(ModulePath);
+  GS->setVTableFuncs(std::move(VTableFuncs));
 
   AddGlobalValueToIndex(Name, GUID, (GlobalValue::LinkageTypes)GVFlags.Linkage,
                         ID, std::move(GS));
@@ -8062,7 +8212,7 @@ bool LLParser::ParseAliasSummary(std::string Name, GlobalValue::GUID GUID,
   if (ParseToken(lltok::rparen, "expected ')' here"))
     return true;
 
-  auto AS = llvm::make_unique<AliasSummary>(GVFlags);
+  auto AS = std::make_unique<AliasSummary>(GVFlags);
 
   AS->setModulePath(ModulePath);
 
@@ -8098,6 +8248,8 @@ bool LLParser::ParseFlag(unsigned &Val) {
 ///        [',' 'readOnly' ':' Flag]? [',' 'noRecurse' ':' Flag]?
 ///        [',' 'returnDoesNotAlias' ':' Flag]? ')'
 ///        [',' 'noInline' ':' Flag]? ')'
+///        [',' 'alwaysInline' ':' Flag]? ')'
+
 bool LLParser::ParseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
   assert(Lex.getKind() == lltok::kw_funcFlags);
   Lex.Lex();
@@ -8138,6 +8290,12 @@ bool LLParser::ParseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
       if (ParseToken(lltok::colon, "expected ':'") || ParseFlag(Val))
         return true;
       FFlags.NoInline = Val;
+      break;
+    case lltok::kw_alwaysInline:
+      Lex.Lex();
+      if (ParseToken(lltok::colon, "expected ':'") || ParseFlag(Val))
+        return true;
+      FFlags.AlwaysInline = Val;
       break;
     default:
       return Error(Lex.getLoc(), "expected function flag type");
@@ -8245,6 +8403,67 @@ bool LLParser::ParseHotness(CalleeInfo::HotnessType &Hotness) {
   return false;
 }
 
+/// OptionalVTableFuncs
+///   := 'vTableFuncs' ':' '(' VTableFunc [',' VTableFunc]* ')'
+/// VTableFunc ::= '(' 'virtFunc' ':' GVReference ',' 'offset' ':' UInt64 ')'
+bool LLParser::ParseOptionalVTableFuncs(VTableFuncList &VTableFuncs) {
+  assert(Lex.getKind() == lltok::kw_vTableFuncs);
+  Lex.Lex();
+
+  if (ParseToken(lltok::colon, "expected ':' in vTableFuncs") |
+      ParseToken(lltok::lparen, "expected '(' in vTableFuncs"))
+    return true;
+
+  IdToIndexMapType IdToIndexMap;
+  // Parse each virtual function pair
+  do {
+    ValueInfo VI;
+    if (ParseToken(lltok::lparen, "expected '(' in vTableFunc") ||
+        ParseToken(lltok::kw_virtFunc, "expected 'callee' in vTableFunc") ||
+        ParseToken(lltok::colon, "expected ':'"))
+      return true;
+
+    LocTy Loc = Lex.getLoc();
+    unsigned GVId;
+    if (ParseGVReference(VI, GVId))
+      return true;
+
+    uint64_t Offset;
+    if (ParseToken(lltok::comma, "expected comma") ||
+        ParseToken(lltok::kw_offset, "expected offset") ||
+        ParseToken(lltok::colon, "expected ':'") || ParseUInt64(Offset))
+      return true;
+
+    // Keep track of the VTableFuncs array index needing a forward reference.
+    // We will save the location of the ValueInfo needing an update, but
+    // can only do so once the std::vector is finalized.
+    if (VI == EmptyVI)
+      IdToIndexMap[GVId].push_back(std::make_pair(VTableFuncs.size(), Loc));
+    VTableFuncs.push_back({VI, Offset});
+
+    if (ParseToken(lltok::rparen, "expected ')' in vTableFunc"))
+      return true;
+  } while (EatIfPresent(lltok::comma));
+
+  // Now that the VTableFuncs vector is finalized, it is safe to save the
+  // locations of any forward GV references that need updating later.
+  for (auto I : IdToIndexMap) {
+    for (auto P : I.second) {
+      assert(VTableFuncs[P.first].FuncVI == EmptyVI &&
+             "Forward referenced ValueInfo expected to be empty");
+      auto FwdRef = ForwardRefValueInfos.insert(std::make_pair(
+          I.first, std::vector<std::pair<ValueInfo *, LocTy>>()));
+      FwdRef.first->second.push_back(
+          std::make_pair(&VTableFuncs[P.first].FuncVI, P.second));
+    }
+  }
+
+  if (ParseToken(lltok::rparen, "expected ')' in vTableFuncs"))
+    return true;
+
+  return false;
+}
+
 /// OptionalRefs
 ///   := 'refs' ':' '(' GVReference [',' GVReference]* ')'
 bool LLParser::ParseOptionalRefs(std::vector<ValueInfo> &Refs) {
@@ -8270,10 +8489,11 @@ bool LLParser::ParseOptionalRefs(std::vector<ValueInfo> &Refs) {
     VContexts.push_back(VC);
   } while (EatIfPresent(lltok::comma));
 
-  // Sort value contexts so that ones with readonly ValueInfo are at the end
-  // of VContexts vector. This is needed to match immutableRefCount() behavior.
+  // Sort value contexts so that ones with writeonly
+  // and readonly ValueInfo  are at the end of VContexts vector.
+  // See FunctionSummary::specialRefCounts()
   llvm::sort(VContexts, [](const ValueContext &VC1, const ValueContext &VC2) {
-    return VC1.VI.isReadOnly() < VC2.VI.isReadOnly();
+    return VC1.VI.getAccessSpecifier() < VC2.VI.getAccessSpecifier();
   });
 
   IdToIndexMapType IdToIndexMap;
@@ -8591,24 +8811,41 @@ bool LLParser::ParseGVFlags(GlobalValueSummary::GVFlags &GVFlags) {
 }
 
 /// GVarFlags
-///   ::= 'varFlags' ':' '(' 'readonly' ':' Flag ')'
+///   ::= 'varFlags' ':' '(' 'readonly' ':' Flag
+///                      ',' 'writeonly' ':' Flag ')'
 bool LLParser::ParseGVarFlags(GlobalVarSummary::GVarFlags &GVarFlags) {
   assert(Lex.getKind() == lltok::kw_varFlags);
   Lex.Lex();
 
-  unsigned Flag = 0;
   if (ParseToken(lltok::colon, "expected ':' here") ||
-      ParseToken(lltok::lparen, "expected '(' here") ||
-      ParseToken(lltok::kw_readonly, "expected 'readonly' here") ||
-      ParseToken(lltok::colon, "expected ':' here"))
+      ParseToken(lltok::lparen, "expected '(' here"))
     return true;
 
-  ParseFlag(Flag);
-  GVarFlags.ReadOnly = Flag;
+  auto ParseRest = [this](unsigned int &Val) {
+    Lex.Lex();
+    if (ParseToken(lltok::colon, "expected ':'"))
+      return true;
+    return ParseFlag(Val);
+  };
 
-  if (ParseToken(lltok::rparen, "expected ')' here"))
-    return true;
-  return false;
+  do {
+    unsigned Flag = 0;
+    switch (Lex.getKind()) {
+    case lltok::kw_readonly:
+      if (ParseRest(Flag))
+        return true;
+      GVarFlags.MaybeReadOnly = Flag;
+      break;
+    case lltok::kw_writeonly:
+      if (ParseRest(Flag))
+        return true;
+      GVarFlags.MaybeWriteOnly = Flag;
+      break;
+    default:
+      return Error(Lex.getLoc(), "expected gvar flag type");
+    }
+  } while (EatIfPresent(lltok::comma));
+  return ParseToken(lltok::rparen, "expected ')' here");
 }
 
 /// ModuleReference
@@ -8631,7 +8868,9 @@ bool LLParser::ParseModuleReference(StringRef &ModulePath) {
 /// GVReference
 ///   ::= SummaryID
 bool LLParser::ParseGVReference(ValueInfo &VI, unsigned &GVId) {
-  bool ReadOnly = EatIfPresent(lltok::kw_readonly);
+  bool WriteOnly = false, ReadOnly = EatIfPresent(lltok::kw_readonly);
+  if (!ReadOnly)
+    WriteOnly = EatIfPresent(lltok::kw_writeonly);
   if (ParseToken(lltok::SummaryID, "expected GV ID"))
     return true;
 
@@ -8646,5 +8885,7 @@ bool LLParser::ParseGVReference(ValueInfo &VI, unsigned &GVId) {
 
   if (ReadOnly)
     VI.setReadOnly();
+  if (WriteOnly)
+    VI.setWriteOnly();
   return false;
 }

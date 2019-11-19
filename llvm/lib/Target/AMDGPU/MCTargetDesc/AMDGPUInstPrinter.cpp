@@ -71,17 +71,6 @@ void AMDGPUInstPrinter::printU16ImmDecOperand(const MCInst *MI, unsigned OpNo,
   O << formatDec(MI->getOperand(OpNo).getImm() & 0xffff);
 }
 
-void AMDGPUInstPrinter::printS13ImmDecOperand(const MCInst *MI, unsigned OpNo,
-                                              const MCSubtargetInfo &STI,
-                                              raw_ostream &O) {
-  // GFX10: Address offset is 12-bit signed byte offset.
-  if (AMDGPU::isGFX10(STI)) {
-    O << formatDec(SignExtend32<12>(MI->getOperand(OpNo).getImm()));
-  } else {
-    O << formatDec(SignExtend32<13>(MI->getOperand(OpNo).getImm()));
-  }
-}
-
 void AMDGPUInstPrinter::printU32ImmOperand(const MCInst *MI, unsigned OpNo,
                                            const MCSubtargetInfo &STI,
                                            raw_ostream &O) {
@@ -128,13 +117,25 @@ void AMDGPUInstPrinter::printOffset(const MCInst *MI, unsigned OpNo,
   }
 }
 
-void AMDGPUInstPrinter::printOffsetS13(const MCInst *MI, unsigned OpNo,
-                                       const MCSubtargetInfo &STI,
-                                       raw_ostream &O) {
+void AMDGPUInstPrinter::printFlatOffset(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI,
+                                        raw_ostream &O) {
   uint16_t Imm = MI->getOperand(OpNo).getImm();
   if (Imm != 0) {
     O << ((OpNo == 0)? "offset:" : " offset:");
-    printS13ImmDecOperand(MI, OpNo, STI, O);
+
+    const MCInstrDesc &Desc = MII.get(MI->getOpcode());
+    bool IsFlatSeg = !(Desc.TSFlags & SIInstrFlags::IsNonFlatSeg);
+
+    if (IsFlatSeg) { // Unsigned offset
+      printU16ImmDecOperand(MI, OpNo, O);
+    } else {         // Signed offset
+      if (AMDGPU::isGFX10(STI)) {
+        O << formatDec(SignExtend32<12>(MI->getOperand(OpNo).getImm()));
+      } else {
+        O << formatDec(SignExtend32<13>(MI->getOperand(OpNo).getImm()));
+      }
+    }
   }
 }
 
@@ -193,6 +194,10 @@ void AMDGPUInstPrinter::printGLC(const MCInst *MI, unsigned OpNo,
 void AMDGPUInstPrinter::printSLC(const MCInst *MI, unsigned OpNo,
                                  const MCSubtargetInfo &STI, raw_ostream &O) {
   printNamedBit(MI, OpNo, O, "slc");
+}
+
+void AMDGPUInstPrinter::printSWZ(const MCInst *MI, unsigned OpNo,
+                                 const MCSubtargetInfo &STI, raw_ostream &O) {
 }
 
 void AMDGPUInstPrinter::printTFE(const MCInst *MI, unsigned OpNo,
@@ -277,88 +282,8 @@ void AMDGPUInstPrinter::printFORMAT(const MCInst *MI, unsigned OpNo,
 
 void AMDGPUInstPrinter::printRegOperand(unsigned RegNo, raw_ostream &O,
                                         const MCRegisterInfo &MRI) {
+#if !defined(NDEBUG)
   switch (RegNo) {
-  case AMDGPU::VCC:
-    O << "vcc";
-    return;
-  case AMDGPU::SRC_VCCZ:
-    O << "src_vccz";
-    return;
-  case AMDGPU::SRC_EXECZ:
-    O << "src_execz";
-    return;
-  case AMDGPU::SRC_SCC:
-    O << "src_scc";
-    return;
-  case AMDGPU::EXEC:
-    O << "exec";
-    return;
-  case AMDGPU::M0:
-    O << "m0";
-    return;
-  case AMDGPU::SGPR_NULL:
-    O << "null";
-    return;
-  case AMDGPU::FLAT_SCR:
-    O << "flat_scratch";
-    return;
-  case AMDGPU::XNACK_MASK:
-    O << "xnack_mask";
-    return;
-  case AMDGPU::SRC_SHARED_BASE:
-    O << "src_shared_base";
-    return;
-  case AMDGPU::SRC_SHARED_LIMIT:
-    O << "src_shared_limit";
-    return;
-  case AMDGPU::SRC_PRIVATE_BASE:
-    O << "src_private_base";
-    return;
-  case AMDGPU::SRC_PRIVATE_LIMIT:
-    O << "src_private_limit";
-    return;
-  case AMDGPU::SRC_POPS_EXITING_WAVE_ID:
-    O << "src_pops_exiting_wave_id";
-    return;
-  case AMDGPU::LDS_DIRECT:
-    O << "src_lds_direct";
-    return;
-  case AMDGPU::VCC_LO:
-    O << "vcc_lo";
-    return;
-  case AMDGPU::VCC_HI:
-    O << "vcc_hi";
-    return;
-  case AMDGPU::TBA_LO:
-    O << "tba_lo";
-    return;
-  case AMDGPU::TBA_HI:
-    O << "tba_hi";
-    return;
-  case AMDGPU::TMA_LO:
-    O << "tma_lo";
-    return;
-  case AMDGPU::TMA_HI:
-    O << "tma_hi";
-    return;
-  case AMDGPU::EXEC_LO:
-    O << "exec_lo";
-    return;
-  case AMDGPU::EXEC_HI:
-    O << "exec_hi";
-    return;
-  case AMDGPU::FLAT_SCR_LO:
-    O << "flat_scratch_lo";
-    return;
-  case AMDGPU::FLAT_SCR_HI:
-    O << "flat_scratch_hi";
-    return;
-  case AMDGPU::XNACK_MASK_LO:
-    O << "xnack_mask_lo";
-    return;
-  case AMDGPU::XNACK_MASK_HI:
-    O << "xnack_mask_hi";
-    return;
   case AMDGPU::FP_REG:
   case AMDGPU::SP_REG:
   case AMDGPU::SCRATCH_WAVE_OFFSET_REG:
@@ -369,62 +294,9 @@ void AMDGPUInstPrinter::printRegOperand(unsigned RegNo, raw_ostream &O,
   default:
     break;
   }
+#endif
 
-  // The low 8 bits of the encoding value is the register index, for both VGPRs
-  // and SGPRs.
-  unsigned RegIdx = MRI.getEncodingValue(RegNo) & ((1 << 8) - 1);
-
-  unsigned NumRegs;
-  if (MRI.getRegClass(AMDGPU::VGPR_32RegClassID).contains(RegNo)) {
-    O << 'v';
-    NumRegs = 1;
-  } else  if (MRI.getRegClass(AMDGPU::SGPR_32RegClassID).contains(RegNo)) {
-    O << 's';
-    NumRegs = 1;
-  } else if (MRI.getRegClass(AMDGPU::VReg_64RegClassID).contains(RegNo)) {
-    O <<'v';
-    NumRegs = 2;
-  } else  if (MRI.getRegClass(AMDGPU::SGPR_64RegClassID).contains(RegNo)) {
-    O << 's';
-    NumRegs = 2;
-  } else if (MRI.getRegClass(AMDGPU::VReg_128RegClassID).contains(RegNo)) {
-    O << 'v';
-    NumRegs = 4;
-  } else  if (MRI.getRegClass(AMDGPU::SGPR_128RegClassID).contains(RegNo)) {
-    O << 's';
-    NumRegs = 4;
-  } else if (MRI.getRegClass(AMDGPU::VReg_96RegClassID).contains(RegNo)) {
-    O << 'v';
-    NumRegs = 3;
-  } else if (MRI.getRegClass(AMDGPU::SReg_96RegClassID).contains(RegNo)) {
-    O << 's';
-    NumRegs = 3;
-  } else if (MRI.getRegClass(AMDGPU::VReg_160RegClassID).contains(RegNo)) {
-    O << 'v';
-    NumRegs = 5;
-  } else if (MRI.getRegClass(AMDGPU::VReg_256RegClassID).contains(RegNo)) {
-    O << 'v';
-    NumRegs = 8;
-  } else if (MRI.getRegClass(AMDGPU::SGPR_256RegClassID).contains(RegNo)) {
-    O << 's';
-    NumRegs = 8;
-  } else if (MRI.getRegClass(AMDGPU::VReg_512RegClassID).contains(RegNo)) {
-    O << 'v';
-    NumRegs = 16;
-  } else if (MRI.getRegClass(AMDGPU::SGPR_512RegClassID).contains(RegNo)) {
-    O << 's';
-    NumRegs = 16;
-  } else {
-    O << getRegisterName(RegNo);
-    return;
-  }
-
-  if (NumRegs == 1) {
-    O << RegIdx;
-    return;
-  }
-
-  O << '[' << RegIdx << ':' << (RegIdx + NumRegs - 1) << ']';
+  O << getRegisterName(RegNo);
 }
 
 void AMDGPUInstPrinter::printVOPDst(const MCInst *MI, unsigned OpNo,
@@ -442,6 +314,7 @@ void AMDGPUInstPrinter::printVOPDst(const MCInst *MI, unsigned OpNo,
 
   printOperand(MI, OpNo, STI, O);
 
+  // Print default vcc/vcc_lo operand.
   switch (MI->getOpcode()) {
   default: break;
 
@@ -451,6 +324,12 @@ void AMDGPUInstPrinter::printVOPDst(const MCInst *MI, unsigned OpNo,
   case AMDGPU::V_ADD_CO_CI_U32_sdwa_gfx10:
   case AMDGPU::V_SUB_CO_CI_U32_sdwa_gfx10:
   case AMDGPU::V_SUBREV_CO_CI_U32_sdwa_gfx10:
+  case AMDGPU::V_ADD_CO_CI_U32_dpp_gfx10:
+  case AMDGPU::V_SUB_CO_CI_U32_dpp_gfx10:
+  case AMDGPU::V_SUBREV_CO_CI_U32_dpp_gfx10:
+  case AMDGPU::V_ADD_CO_CI_U32_dpp8_gfx10:
+  case AMDGPU::V_SUB_CO_CI_U32_dpp8_gfx10:
+  case AMDGPU::V_SUBREV_CO_CI_U32_dpp8_gfx10:
     printDefaultVccOperand(1, STI, O);
     break;
   }
@@ -578,12 +457,43 @@ void AMDGPUInstPrinter::printImmediate64(uint64_t Imm,
   }
 }
 
+void AMDGPUInstPrinter::printBLGP(const MCInst *MI, unsigned OpNo,
+                                  const MCSubtargetInfo &STI,
+                                  raw_ostream &O) {
+  unsigned Imm = MI->getOperand(OpNo).getImm();
+  if (!Imm)
+    return;
+
+  O << " blgp:" << Imm;
+}
+
+void AMDGPUInstPrinter::printCBSZ(const MCInst *MI, unsigned OpNo,
+                                  const MCSubtargetInfo &STI,
+                                  raw_ostream &O) {
+  unsigned Imm = MI->getOperand(OpNo).getImm();
+  if (!Imm)
+    return;
+
+  O << " cbsz:" << Imm;
+}
+
+void AMDGPUInstPrinter::printABID(const MCInst *MI, unsigned OpNo,
+                                  const MCSubtargetInfo &STI,
+                                  raw_ostream &O) {
+  unsigned Imm = MI->getOperand(OpNo).getImm();
+  if (!Imm)
+    return;
+
+  O << " abid:" << Imm;
+}
+
 void AMDGPUInstPrinter::printDefaultVccOperand(unsigned OpNo,
                                                const MCSubtargetInfo &STI,
                                                raw_ostream &O) {
   if (OpNo > 0)
     O << ", ";
-  printRegOperand(AMDGPU::VCC, O, MRI);
+  printRegOperand(STI.getFeatureBits()[AMDGPU::FeatureWavefrontSize64] ?
+                  AMDGPU::VCC : AMDGPU::VCC_LO, O, MRI);
   if (OpNo == 0)
     O << ", ";
 }
@@ -591,6 +501,7 @@ void AMDGPUInstPrinter::printDefaultVccOperand(unsigned OpNo,
 void AMDGPUInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
                                      const MCSubtargetInfo &STI,
                                      raw_ostream &O) {
+  // Print default vcc/vcc_lo operand of VOPC.
   const MCInstrDesc &Desc = MII.get(MI->getOpcode());
   if (OpNo == 0 && (Desc.TSFlags & SIInstrFlags::VOPC) &&
       (Desc.hasImplicitDefOfPhysReg(AMDGPU::VCC) ||
@@ -611,6 +522,8 @@ void AMDGPUInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     case AMDGPU::OPERAND_REG_IMM_FP32:
     case AMDGPU::OPERAND_REG_INLINE_C_INT32:
     case AMDGPU::OPERAND_REG_INLINE_C_FP32:
+    case AMDGPU::OPERAND_REG_INLINE_AC_INT32:
+    case AMDGPU::OPERAND_REG_INLINE_AC_FP32:
     case MCOI::OPERAND_IMMEDIATE:
       printImmediate32(Op.getImm(), STI, O);
       break;
@@ -622,6 +535,8 @@ void AMDGPUInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
       break;
     case AMDGPU::OPERAND_REG_INLINE_C_INT16:
     case AMDGPU::OPERAND_REG_INLINE_C_FP16:
+    case AMDGPU::OPERAND_REG_INLINE_AC_INT16:
+    case AMDGPU::OPERAND_REG_INLINE_AC_FP16:
     case AMDGPU::OPERAND_REG_IMM_INT16:
     case AMDGPU::OPERAND_REG_IMM_FP16:
       printImmediate16(Op.getImm(), STI, O);
@@ -636,6 +551,8 @@ void AMDGPUInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
       LLVM_FALLTHROUGH;
     case AMDGPU::OPERAND_REG_INLINE_C_V2FP16:
     case AMDGPU::OPERAND_REG_INLINE_C_V2INT16:
+    case AMDGPU::OPERAND_REG_INLINE_AC_V2FP16:
+    case AMDGPU::OPERAND_REG_INLINE_AC_V2INT16:
       printImmediateV216(Op.getImm(), STI, O);
       break;
     case MCOI::OPERAND_UNKNOWN:
@@ -674,6 +591,7 @@ void AMDGPUInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
     O << "/*INV_OP*/";
   }
 
+  // Print default vcc/vcc_lo operand of v_cndmask_b32_e32.
   switch (MI->getOpcode()) {
   default: break;
 
@@ -681,6 +599,14 @@ void AMDGPUInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   case AMDGPU::V_ADD_CO_CI_U32_e32_gfx10:
   case AMDGPU::V_SUB_CO_CI_U32_e32_gfx10:
   case AMDGPU::V_SUBREV_CO_CI_U32_e32_gfx10:
+  case AMDGPU::V_CNDMASK_B32_dpp_gfx10:
+  case AMDGPU::V_ADD_CO_CI_U32_dpp_gfx10:
+  case AMDGPU::V_SUB_CO_CI_U32_dpp_gfx10:
+  case AMDGPU::V_SUBREV_CO_CI_U32_dpp_gfx10:
+  case AMDGPU::V_CNDMASK_B32_dpp8_gfx10:
+  case AMDGPU::V_ADD_CO_CI_U32_dpp8_gfx10:
+  case AMDGPU::V_SUB_CO_CI_U32_dpp8_gfx10:
+  case AMDGPU::V_SUBREV_CO_CI_U32_dpp8_gfx10:
 
   case AMDGPU::V_CNDMASK_B32_e32_gfx6_gfx7:
   case AMDGPU::V_CNDMASK_B32_e32_vi:
@@ -737,9 +663,11 @@ void AMDGPUInstPrinter::printOperandAndIntInputMods(const MCInst *MI,
   if (InputModifiers & SISrcMods::SEXT)
     O << ')';
 
+  // Print default vcc/vcc_lo operand of VOP2b.
   switch (MI->getOpcode()) {
   default: break;
 
+  case AMDGPU::V_CNDMASK_B32_sdwa_gfx10:
   case AMDGPU::V_ADD_CO_CI_U32_sdwa_gfx10:
   case AMDGPU::V_SUB_CO_CI_U32_sdwa_gfx10:
   case AMDGPU::V_SUBREV_CO_CI_U32_sdwa_gfx10:
@@ -748,6 +676,20 @@ void AMDGPUInstPrinter::printOperandAndIntInputMods(const MCInst *MI,
       printDefaultVccOperand(OpNo, STI, O);
     break;
   }
+}
+
+void AMDGPUInstPrinter::printDPP8(const MCInst *MI, unsigned OpNo,
+                                  const MCSubtargetInfo &STI,
+                                  raw_ostream &O) {
+  if (!AMDGPU::isGFX10(STI))
+    llvm_unreachable("dpp8 is not supported on ASICs earlier than GFX10");
+
+  unsigned Imm = MI->getOperand(OpNo).getImm();
+  O << " dpp8:[" << formatDec(Imm & 0x7);
+  for (size_t i = 1; i < 8; ++i) {
+    O << ',' << formatDec((Imm >> (3 * i)) & 0x7);
+  }
+  O << ']';
 }
 
 void AMDGPUInstPrinter::printDPPCtrl(const MCInst *MI, unsigned OpNo,
@@ -775,21 +717,61 @@ void AMDGPUInstPrinter::printDPPCtrl(const MCInst *MI, unsigned OpNo,
     O << " row_ror:";
     printU4ImmDecOperand(MI, OpNo, O);
   } else if (Imm == DppCtrl::WAVE_SHL1) {
+    if (!AMDGPU::isVI(STI) && !AMDGPU::isGFX9(STI)) {
+      O << " /* wave_shl is not supported starting from GFX10 */";
+      return;
+    }
     O << " wave_shl:1";
   } else if (Imm == DppCtrl::WAVE_ROL1) {
+    if (!AMDGPU::isVI(STI) && !AMDGPU::isGFX9(STI)) {
+      O << " /* wave_rol is not supported starting from GFX10 */";
+      return;
+    }
     O << " wave_rol:1";
   } else if (Imm == DppCtrl::WAVE_SHR1) {
+    if (!AMDGPU::isVI(STI) && !AMDGPU::isGFX9(STI)) {
+      O << " /* wave_shr is not supported starting from GFX10 */";
+      return;
+    }
     O << " wave_shr:1";
   } else if (Imm == DppCtrl::WAVE_ROR1) {
+    if (!AMDGPU::isVI(STI) && !AMDGPU::isGFX9(STI)) {
+      O << " /* wave_ror is not supported starting from GFX10 */";
+      return;
+    }
     O << " wave_ror:1";
   } else if (Imm == DppCtrl::ROW_MIRROR) {
     O << " row_mirror";
   } else if (Imm == DppCtrl::ROW_HALF_MIRROR) {
     O << " row_half_mirror";
   } else if (Imm == DppCtrl::BCAST15) {
+    if (!AMDGPU::isVI(STI) && !AMDGPU::isGFX9(STI)) {
+      O << " /* row_bcast is not supported starting from GFX10 */";
+      return;
+    }
     O << " row_bcast:15";
   } else if (Imm == DppCtrl::BCAST31) {
+    if (!AMDGPU::isVI(STI) && !AMDGPU::isGFX9(STI)) {
+      O << " /* row_bcast is not supported starting from GFX10 */";
+      return;
+    }
     O << " row_bcast:31";
+  } else if ((Imm >= DppCtrl::ROW_SHARE_FIRST) &&
+             (Imm <= DppCtrl::ROW_SHARE_LAST)) {
+    if (!AMDGPU::isGFX10(STI)) {
+      O << " /* row_share is not supported on ASICs earlier than GFX10 */";
+      return;
+    }
+    O << " row_share:";
+    printU4ImmDecOperand(MI, OpNo, O);
+  } else if ((Imm >= DppCtrl::ROW_XMASK_FIRST) &&
+             (Imm <= DppCtrl::ROW_XMASK_LAST)) {
+    if (!AMDGPU::isGFX10(STI)) {
+      O << " /* row_xmask is not supported on ASICs earlier than GFX10 */";
+      return;
+    }
+    O << "row_xmask:";
+    printU4ImmDecOperand(MI, OpNo, O);
   } else {
     O << " /* Invalid dpp_ctrl value */";
   }
@@ -815,6 +797,16 @@ void AMDGPUInstPrinter::printBoundCtrl(const MCInst *MI, unsigned OpNo,
   unsigned Imm = MI->getOperand(OpNo).getImm();
   if (Imm) {
     O << " bound_ctrl:0"; // XXX - this syntax is used in sp3
+  }
+}
+
+void AMDGPUInstPrinter::printFI(const MCInst *MI, unsigned OpNo,
+                                const MCSubtargetInfo &STI,
+                                raw_ostream &O) {
+  using namespace llvm::AMDGPU::DPP;
+  unsigned Imm = MI->getOperand(OpNo).getImm();
+  if (Imm == DPP_FI_1 || Imm == DPP8_FI_1) {
+    O << " fi:1";
   }
 }
 
@@ -1005,6 +997,18 @@ void AMDGPUInstPrinter::printPackedModifier(const MCInst *MI,
 void AMDGPUInstPrinter::printOpSel(const MCInst *MI, unsigned,
                                    const MCSubtargetInfo &STI,
                                    raw_ostream &O) {
+  unsigned Opc = MI->getOpcode();
+  if (Opc == AMDGPU::V_PERMLANE16_B32_gfx10 ||
+      Opc == AMDGPU::V_PERMLANEX16_B32_gfx10) {
+    auto FIN = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src0_modifiers);
+    auto BCN = AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src1_modifiers);
+    unsigned FI = !!(MI->getOperand(FIN).getImm() & SISrcMods::OP_SEL_0);
+    unsigned BC = !!(MI->getOperand(BCN).getImm() & SISrcMods::OP_SEL_0);
+    if (FI || BC)
+      O << " op_sel:[" << FI << ',' << BC << ']';
+    return;
+  }
+
   printPackedModifier(MI, " op_sel:[", SISrcMods::OP_SEL_0, O);
 }
 
@@ -1141,42 +1145,29 @@ void AMDGPUInstPrinter::printSendMsg(const MCInst *MI, unsigned OpNo,
                                      raw_ostream &O) {
   using namespace llvm::AMDGPU::SendMsg;
 
-  const unsigned SImm16 = MI->getOperand(OpNo).getImm();
-  const unsigned Id = SImm16 & ID_MASK_;
-  do {
-      if (Id == ID_INTERRUPT ||
-          (Id == ID_GS_ALLOC_REQ && !AMDGPU::isSI(STI) && !AMDGPU::isCI(STI) &&
-           !AMDGPU::isVI(STI))) {
-      if ((SImm16 & ~ID_MASK_) != 0) // Unused/unknown bits must be 0.
-        break;
-      O << "sendmsg(" << IdSymbolic[Id] << ')';
-      return;
+  const unsigned Imm16 = MI->getOperand(OpNo).getImm();
+
+  uint16_t MsgId;
+  uint16_t OpId;
+  uint16_t StreamId;
+  decodeMsg(Imm16, MsgId, OpId, StreamId);
+
+  if (isValidMsgId(MsgId, STI) &&
+      isValidMsgOp(MsgId, OpId) &&
+      isValidMsgStream(MsgId, OpId, StreamId)) {
+    O << "sendmsg(" << getMsgName(MsgId);
+    if (msgRequiresOp(MsgId)) {
+      O << ", " << getMsgOpName(MsgId, OpId);
+      if (msgSupportsStream(MsgId, OpId)) {
+        O << ", " << StreamId;
+      }
     }
-    if (Id == ID_GS || Id == ID_GS_DONE) {
-      if ((SImm16 & ~(ID_MASK_|OP_GS_MASK_|STREAM_ID_MASK_)) != 0) // Unused/unknown bits must be 0.
-        break;
-      const unsigned OpGs = (SImm16 & OP_GS_MASK_) >> OP_SHIFT_;
-      const unsigned StreamId = (SImm16 & STREAM_ID_MASK_) >> STREAM_ID_SHIFT_;
-      if (OpGs == OP_GS_NOP && Id != ID_GS_DONE) // NOP to be used for GS_DONE only.
-        break;
-      if (OpGs == OP_GS_NOP && StreamId != 0) // NOP does not use/define stream id bits.
-        break;
-      O << "sendmsg(" << IdSymbolic[Id] << ", " << OpGsSymbolic[OpGs];
-      if (OpGs != OP_GS_NOP) {  O << ", " << StreamId; }
-      O << ')';
-      return;
-    }
-    if (Id == ID_SYSMSG) {
-      if ((SImm16 & ~(ID_MASK_|OP_SYS_MASK_)) != 0) // Unused/unknown bits must be 0.
-        break;
-      const unsigned OpSys = (SImm16 & OP_SYS_MASK_) >> OP_SHIFT_;
-      if (! (OP_SYS_FIRST_ <= OpSys && OpSys < OP_SYS_LAST_)) // Unused/unknown.
-        break;
-      O << "sendmsg(" << IdSymbolic[Id] << ", " << OpSysSymbolic[OpSys] << ')';
-      return;
-    }
-  } while (false);
-  O << SImm16; // Unknown simm16 code.
+    O << ')';
+  } else if (encodeMsg(MsgId, OpId, StreamId) == Imm16) {
+    O << "sendmsg(" << MsgId << ", " << OpId << ", " << StreamId << ')';
+  } else {
+    O << Imm16; // Unknown imm16 code.
+  }
 }
 
 static void printSwizzleBitmask(const uint16_t AndMask,
@@ -1317,25 +1308,22 @@ void AMDGPUInstPrinter::printWaitFlag(const MCInst *MI, unsigned OpNo,
 
 void AMDGPUInstPrinter::printHwreg(const MCInst *MI, unsigned OpNo,
                                    const MCSubtargetInfo &STI, raw_ostream &O) {
-  using namespace llvm::AMDGPU::Hwreg;
+  unsigned Id;
+  unsigned Offset;
+  unsigned Width;
 
-  unsigned SImm16 = MI->getOperand(OpNo).getImm();
-  const unsigned Id = (SImm16 & ID_MASK_) >> ID_SHIFT_;
-  const unsigned Offset = (SImm16 & OFFSET_MASK_) >> OFFSET_SHIFT_;
-  const unsigned Width = ((SImm16 & WIDTH_M1_MASK_) >> WIDTH_M1_SHIFT_) + 1;
+  using namespace llvm::AMDGPU::Hwreg;
+  unsigned Val = MI->getOperand(OpNo).getImm();
+  decodeHwreg(Val, Id, Offset, Width);
+  StringRef HwRegName = getHwreg(Id, STI);
 
   O << "hwreg(";
-  unsigned Last = ID_SYMBOLIC_LAST_;
-  if (AMDGPU::isSI(STI) || AMDGPU::isCI(STI) || AMDGPU::isVI(STI))
-    Last = ID_SYMBOLIC_FIRST_GFX9_;
-  else if (AMDGPU::isGFX9(STI))
-    Last = ID_SYMBOLIC_FIRST_GFX10_;
-  if (ID_SYMBOLIC_FIRST_ <= Id && Id < Last && IdSymbolic[Id]) {
-    O << IdSymbolic[Id];
+  if (!HwRegName.empty()) {
+    O << HwRegName;
   } else {
     O << Id;
   }
-  if (Width != WIDTH_M1_DEFAULT_ + 1 || Offset != OFFSET_DEFAULT_) {
+  if (Width != WIDTH_DEFAULT_ || Offset != OFFSET_DEFAULT_) {
     O << ", " << Offset << ", " << Width;
   }
   O << ')';
@@ -1349,7 +1337,7 @@ void AMDGPUInstPrinter::printEndpgm(const MCInst *MI, unsigned OpNo,
     return;
   }
 
-  O << formatDec(Imm);
+  O << ' ' << formatDec(Imm);
 }
 
 #include "AMDGPUGenAsmWriter.inc"

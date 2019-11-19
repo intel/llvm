@@ -40,11 +40,9 @@ template <typename T> struct CaptureProxy {
   operator llvm::unique_function<void(T)>() && {
     assert(!Future.valid() && "conversion to callback called multiple times");
     Future = Promise.get_future();
-    return Bind(
-        [](std::promise<std::shared_ptr<T>> Promise, T Value) {
-          Promise.set_value(std::make_shared<T>(std::move(Value)));
-        },
-        std::move(Promise));
+    return [Promise = std::move(Promise)](T Value) mutable {
+      Promise.set_value(std::make_shared<T>(std::move(Value)));
+    };
   }
 
   ~CaptureProxy() {
@@ -102,7 +100,7 @@ llvm::Expected<std::vector<TextEdit>> runRename(ClangdServer &Server,
                                                 PathRef File, Position Pos,
                                                 llvm::StringRef NewName) {
   llvm::Optional<llvm::Expected<std::vector<TextEdit>>> Result;
-  Server.rename(File, Pos, NewName, capture(Result));
+  Server.rename(File, Pos, NewName, /*WantFormat=*/true, capture(Result));
   return std::move(*Result);
 }
 
@@ -145,6 +143,20 @@ RefSlab getRefs(const SymbolIndex &Index, SymbolID ID) {
   RefSlab::Builder Slab;
   Index.refs(Req, [&](const Ref &S) { Slab.insert(ID, S); });
   return std::move(Slab).build();
+}
+
+llvm::Expected<std::vector<Range>>
+runSemanticRanges(ClangdServer &Server, PathRef File, Position Pos) {
+  llvm::Optional<llvm::Expected<std::vector<Range>>> Result;
+  Server.semanticRanges(File, Pos, capture(Result));
+  return std::move(*Result);
+}
+
+llvm::Expected<llvm::Optional<clangd::Path>>
+runSwitchHeaderSource(ClangdServer &Server, PathRef File) {
+  llvm::Optional<llvm::Expected<llvm::Optional<clangd::Path>>> Result;
+  Server.switchSourceHeader(File, capture(Result));
+  return std::move(*Result);
 }
 
 } // namespace clangd

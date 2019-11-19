@@ -80,7 +80,10 @@ public:
   }
 
   void VisitLambdaExpr(LambdaExpr *LE) {
-    if (CXXMethodDecl *MD = LE->getCallOperator())
+    if (FunctionTemplateDecl *FTD = LE->getDependentCallOperator())
+      for (FunctionDecl *FD : FTD->specializations())
+        G->VisitFunctionDecl(FD);
+    else if (CXXMethodDecl *MD = LE->getCallOperator())
       G->VisitFunctionDecl(MD);
   }
 
@@ -94,6 +97,8 @@ public:
     CXXConstructorDecl *Ctor = E->getConstructor();
     if (FunctionDecl *Def = Ctor->getDefinition())
       addCalledDecl(Def);
+    // TODO: resolve issues raised in review with llorg. See
+    // https://reviews.llvm.org/D65453?vs=on&id=212351&whitespace=ignore-most#1632207
     const auto *ConstructedType = Ctor->getParent();
     if (ConstructedType->hasUserDeclaredDestructor()) {
       CXXDestructorDecl *Dtor = ConstructedType->getDestructor();
@@ -101,6 +106,16 @@ public:
         addCalledDecl(Def);
     }
     VisitChildren(E);
+  }
+
+  // Include the evaluation of the default argument.
+  void VisitCXXDefaultArgExpr(CXXDefaultArgExpr *E) {
+    Visit(E->getExpr());
+  }
+
+  // Include the evaluation of the default initializers in a class.
+  void VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
+    Visit(E->getExpr());
   }
 
   // Adds may-call edges for the ObjC message sends.
@@ -167,13 +182,20 @@ bool CallGraph::includeInGraph(const Decl *D) {
 void CallGraph::addNodeForDecl(Decl* D, bool IsGlobal) {
   assert(D);
 
-  // Allocate a new node, mark it as root, and process it's calls.
+  // Allocate a new node, mark it as root, and process its calls.
   CallGraphNode *Node = getOrInsertNode(D);
 
   // Process all the calls by this function as well.
   CGBuilder builder(this, Node);
   if (Stmt *Body = D->getBody())
     builder.Visit(Body);
+
+  // Include C++ constructor member initializers.
+  if (auto constructor = dyn_cast<CXXConstructorDecl>(D)) {
+    for (CXXCtorInitializer *init : constructor->inits()) {
+      builder.Visit(init->getInit());
+    }
+  }
 }
 
 CallGraphNode *CallGraph::getNode(const Decl *F) const {
@@ -190,7 +212,7 @@ CallGraphNode *CallGraph::getOrInsertNode(Decl *F) {
   if (Node)
     return Node.get();
 
-  Node = llvm::make_unique<CallGraphNode>(F);
+  Node = std::make_unique<CallGraphNode>(F);
   // Make Root node a parent of all functions to make sure all are reachable.
   if (F)
     Root->addCallee(Node.get());

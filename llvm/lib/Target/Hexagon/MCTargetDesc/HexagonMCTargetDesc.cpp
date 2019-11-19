@@ -72,7 +72,6 @@ cl::opt<bool> MV65("mv65", cl::Hidden, cl::desc("Build for Hexagon V65"),
                    cl::init(false));
 cl::opt<bool> MV66("mv66", cl::Hidden, cl::desc("Build for Hexagon V66"),
                    cl::init(false));
-} // namespace
 
 cl::opt<Hexagon::ArchEnum>
     EnableHVX("mhvx",
@@ -86,6 +85,7 @@ cl::opt<Hexagon::ArchEnum>
         clEnumValN(Hexagon::ArchEnum::Generic, "", "")),
       // Sentinel for flag not present.
       cl::init(Hexagon::ArchEnum::NoArch), cl::ValueOptional);
+} // namespace
 
 static cl::opt<bool>
   DisableHVX("mno-hvx", cl::Hidden,
@@ -219,7 +219,8 @@ static MCRegisterInfo *createHexagonMCRegisterInfo(const Triple &TT) {
 }
 
 static MCAsmInfo *createHexagonMCAsmInfo(const MCRegisterInfo &MRI,
-                                         const Triple &TT) {
+                                         const Triple &TT,
+                                         const MCTargetOptions &Options) {
   MCAsmInfo *MAI = new HexagonMCAsmInfo(TT);
 
   // VirtualFP = (R30 + #0).
@@ -264,14 +265,12 @@ createHexagonObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
 }
 
 static void LLVM_ATTRIBUTE_UNUSED clearFeature(MCSubtargetInfo* STI, uint64_t F) {
-  uint64_t FB = STI->getFeatureBits().to_ullong();
-  if (FB & (1ULL << F))
+  if (STI->getFeatureBits()[F])
     STI->ToggleFeature(F);
 }
 
 static bool LLVM_ATTRIBUTE_UNUSED checkFeature(MCSubtargetInfo* STI, uint64_t F) {
-  uint64_t FB = STI->getFeatureBits().to_ullong();
-  return (FB & (1ULL << F)) != 0;
+  return STI->getFeatureBits()[F];
 }
 
 namespace {
@@ -398,7 +397,7 @@ MCSubtargetInfo *Hexagon_MC::createHexagonMCSubtargetInfo(const Triple &TT,
   MCSubtargetInfo *X = createHexagonMCSubtargetInfoImpl(TT, CPUName, ArchFS);
   if (HexagonDisableDuplex) {
     llvm::FeatureBitset Features = X->getFeatureBits();
-    X->setFeatureBits(Features.set(Hexagon::FeatureDuplex, false));
+    X->setFeatureBits(Features.reset(Hexagon::FeatureDuplex));
   }
 
   X->setFeatureBits(completeHVXFeatures(X->getFeatureBits()));

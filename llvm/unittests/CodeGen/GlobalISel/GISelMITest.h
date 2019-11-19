@@ -111,7 +111,7 @@ body: |
 )MIR") + Twine(MIRFunc) + Twine("...\n"))
                             .toNullTerminatedStringRef(S);
   std::unique_ptr<MIRParser> MIR;
-  auto MMI = make_unique<MachineModuleInfo>(&TM);
+  auto MMI = std::make_unique<MachineModuleInfo>(&TM);
   std::unique_ptr<Module> M =
       parseMIR(Context, MIR, TM, MIRString, "func", *MMI);
   return make_pair(std::move(M), std::move(MMI));
@@ -124,7 +124,7 @@ static MachineFunction *getMFFromMMI(const Module *M,
   return MF;
 }
 
-static void collectCopies(SmallVectorImpl<unsigned> &Copies,
+static void collectCopies(SmallVectorImpl<Register> &Copies,
                           MachineFunction *MF) {
   for (auto &MBB : *MF)
     for (MachineInstr &MI : MBB) {
@@ -135,11 +135,12 @@ static void collectCopies(SmallVectorImpl<unsigned> &Copies,
 
 class GISelMITest : public ::testing::Test {
 protected:
-  GISelMITest() : ::testing::Test() {
+  GISelMITest() : ::testing::Test() {}
+  void setUp(StringRef ExtraAssembly = "") {
     TM = createTargetMachine();
     if (!TM)
       return;
-    ModuleMMIPair = createDummyModule(Context, *TM, "");
+    ModuleMMIPair = createDummyModule(Context, *TM, ExtraAssembly);
     MF = getMFFromMMI(ModuleMMIPair.first.get(), ModuleMMIPair.second.get());
     collectCopies(Copies, MF);
     EntryMBB = &*MF->begin();
@@ -152,7 +153,7 @@ protected:
   MachineFunction *MF;
   std::pair<std::unique_ptr<Module>, std::unique_ptr<MachineModuleInfo>>
       ModuleMMIPair;
-  SmallVector<unsigned, 4> Copies;
+  SmallVector<Register, 4> Copies;
   MachineBasicBlock *EntryMBB;
   MachineIRBuilder B;
   MachineRegisterInfo *MRI;
@@ -194,12 +195,11 @@ static inline bool CheckMachineFunction(const MachineFunction &MF,
   SM.AddNewSourceBuffer(MemoryBuffer::getMemBuffer(CheckFileText, "CheckFile"),
                         SMLoc());
   Regex PrefixRE = FC.buildCheckPrefixRegex();
-  std::vector<FileCheckString> CheckStrings;
-  if (FC.ReadCheckFile(SM, CheckFileText, PrefixRE, CheckStrings))
+  if (FC.readCheckFile(SM, CheckFileText, PrefixRE))
     return false;
 
   auto OutBuffer = OutputBuf->getBuffer();
   SM.AddNewSourceBuffer(std::move(OutputBuf), SMLoc());
-  return FC.CheckInput(SM, OutBuffer, CheckStrings);
+  return FC.checkInput(SM, OutBuffer);
 }
 #endif

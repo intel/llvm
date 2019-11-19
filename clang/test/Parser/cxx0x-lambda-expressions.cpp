@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsyntax-only -Wno-unused-value -verify -std=c++11 %s
-// RUN: %clang_cc1 -fsyntax-only -Wno-unused-value -verify -std=c++2a %s
+// RUN: %clang_cc1 -fsyntax-only -Wno-unused-value -verify -std=c++11 -Wno-c99-designator %s
+// RUN: %clang_cc1 -fsyntax-only -Wno-unused-value -verify -std=c++2a -Wno-c99-designator %s
 
 enum E { e };
 
@@ -125,6 +125,19 @@ void PR22122() {
 }
 
 template void PR22122<int>();
+
+namespace PR42778 {
+struct A {
+  template <class F> A(F&&) {}
+};
+
+struct S {
+  void mf() { A{[*this]{}}; }
+#if __cplusplus < 201703L
+  // expected-warning@-2 {{C++17 extension}}
+#endif
+};
+}
 
 struct S {
   template <typename T>

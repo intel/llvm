@@ -5,22 +5,43 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: fmul
-
+; The OpDot operands must be vectors; check that translating dot with
+; scalar arguments does not result in OpDot.
+; CHECK-SPIRV-LABEL: 5 Function
 ; CHECK-SPIRV: 5 FMul
 ; CHECK-SPIRV-NOT: Dot
+; CHECK-SPIRV: FunctionEnd
+
+; CHECK-LLVM-LABEL: @testScalar
+; CHECK-LLVM: fmul
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"
 
 ; Function Attrs: nounwind
-define spir_kernel void @test(float %f) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @testScalar(float %f) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
   %call = tail call spir_func float @_Z3dotff(float %f, float %f) #2
   ret void
 }
 
+; CHECK-SPIRV-LABEL: 5 Function
+; CHECK-SPIRV: Dot
+; CHECK-SPIRV: FunctionEnd
+
+; CHECK-LLVM-LABEL: @testVector
+; CHECK-LLVM: call spir_func float @_Z3dotDv2_fS_
+
+; Function Attrs: nounwind
+define spir_kernel void @testVector(<2 x float> %f) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+entry:
+  %call = tail call spir_func float @_Z3dotDv2_fS_(<2 x float> %f, <2 x float> %f) #2
+  ret void
+}
+
 declare spir_func float @_Z3dotff(float, float) #1
+
+declare spir_func float @_Z3dotDv2_fS_(<2 x float>, <2 x float>) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

@@ -17,6 +17,7 @@
 #include "llvm/ADT/ilist.h"
 #include "llvm/MC/MCFragment.h"
 #include "llvm/MC/SectionKind.h"
+#include "llvm/Support/Alignment.h"
 #include <cassert>
 #include <utility>
 
@@ -37,7 +38,7 @@ template <> struct ilist_alloc_traits<MCFragment> {
 /// current translation unit.  The MCContext class uniques and creates these.
 class MCSection {
 public:
-  enum SectionVariant { SV_COFF = 0, SV_ELF, SV_MachO, SV_Wasm };
+  enum SectionVariant { SV_COFF = 0, SV_ELF, SV_MachO, SV_Wasm, SV_XCOFF };
 
   /// Express the state of bundle locked groups while emitting code.
   enum BundleLockStateType {
@@ -58,7 +59,7 @@ private:
   MCSymbol *Begin;
   MCSymbol *End = nullptr;
   /// The alignment requirement of this section.
-  unsigned Alignment = 1;
+  Align Alignment;
   /// The section index in the assemblers section list.
   unsigned Ordinal = 0;
   /// The index of this section in the layout order.
@@ -117,8 +118,8 @@ public:
   MCSymbol *getEndSymbol(MCContext &Ctx);
   bool hasEnded() const;
 
-  unsigned getAlignment() const { return Alignment; }
-  void setAlignment(unsigned Value) { Alignment = Value; }
+  unsigned getAlignment() const { return Alignment.value(); }
+  void setAlignment(Align Value) { Alignment = Value; }
 
   unsigned getOrdinal() const { return Ordinal; }
   void setOrdinal(unsigned Value) { Ordinal = Value; }

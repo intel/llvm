@@ -15,7 +15,7 @@
 // path lexically_relative(const path& p) const;
 // path lexically_proximate(const path& p) const;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <vector>
 #include <iostream>
@@ -23,8 +23,8 @@
 
 #include "test_macros.h"
 #include "test_iterators.h"
-#include "count_new.hpp"
-#include "filesystem_test_helper.hpp"
+#include "count_new.h"
+#include "filesystem_test_helper.h"
 
 
 int main(int, char**) {
@@ -78,7 +78,7 @@ int main(int, char**) {
     const fs::path proximate_output = p.lexically_proximate(TC.base);
     // [path.gen] lexically_proximate
     // Returns: If the value of lexically_relative(base) is not an empty path,
-    // return it.Otherwise return *this.
+    // return it. Otherwise return *this.
     const fs::path proximate_expected = output.native().empty() ? p
         : output;
     if (!PathEq(proximate_expected, proximate_output))

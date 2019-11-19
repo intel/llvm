@@ -56,8 +56,8 @@ using UnitListTy = std::vector<std::unique_ptr<CompileUnit>>;
 class DwarfLinker {
 public:
   DwarfLinker(raw_fd_ostream &OutFile, BinaryHolder &BinHolder,
-              const LinkOptions &Options)
-      : OutFile(OutFile), BinHolder(BinHolder), Options(Options) {}
+              LinkOptions Options)
+      : OutFile(OutFile), BinHolder(BinHolder), Options(std::move(Options)) {}
 
   /// Link the contents of the DebugMap.
   bool link(const DebugMap &);
@@ -82,12 +82,12 @@ private:
   /// Keeps track of relocations.
   class RelocationManager {
     struct ValidReloc {
-      uint32_t Offset;
+      uint64_t Offset;
       uint32_t Size;
       uint64_t Addend;
       const DebugMapObject::DebugMapEntry *Mapping;
 
-      ValidReloc(uint32_t Offset, uint32_t Size, uint64_t Addend,
+      ValidReloc(uint64_t Offset, uint32_t Size, uint64_t Addend,
                  const DebugMapObject::DebugMapEntry *Mapping)
           : Offset(Offset), Size(Size), Addend(Addend), Mapping(Mapping) {}
 
@@ -132,10 +132,10 @@ private:
                               const DebugMapObject &DMO);
     /// @}
 
-    bool hasValidRelocation(uint32_t StartOffset, uint32_t EndOffset,
+    bool hasValidRelocation(uint64_t StartOffset, uint64_t EndOffset,
                             CompileUnit::DIEInfo &Info);
 
-    bool applyValidRelocs(MutableArrayRef<char> Data, uint32_t BaseOffset,
+    bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                           bool IsLittleEndian);
   };
 
@@ -499,7 +499,7 @@ private:
   /// be uniqued and sorted and there are only few entries expected
   /// per compile unit, which is why this is a std::map.
   std::map<std::string, std::string> ParseableSwiftInterfaces;
-  
+
   bool ModuleCacheHintDisplayed = false;
   bool ArchiveHintDisplayed = false;
 };

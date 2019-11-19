@@ -56,12 +56,12 @@ public:
   /// \name Vector TTI Implementations
   /// @{
 
-  unsigned getNumberOfRegisters(bool Vector);
+  unsigned getNumberOfRegisters(unsigned ClassID) const;
   unsigned getRegisterBitWidth(bool Vector) const;
 
-  unsigned getCacheLineSize() { return 256; }
-  unsigned getPrefetchDistance() { return 2000; }
-  unsigned getMinPrefetchStride() { return 2048; }
+  unsigned getCacheLineSize() const override { return 256; }
+  unsigned getPrefetchDistance() const override { return 2000; }
+  unsigned getMinPrefetchStride() const override { return 2048; }
 
   bool hasDivRemOp(Type *DataType, bool IsSigned);
   bool prefersVectorizedAddressing() { return false; }
@@ -87,7 +87,7 @@ public:
                          const Instruction *I = nullptr);
   int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
   bool isFoldableLoad(const LoadInst *Ld, const Instruction *&FoldedValue);
-  int getMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
+  int getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
                       unsigned AddressSpace, const Instruction *I = nullptr);
 
   int getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,

@@ -54,7 +54,7 @@ struct MCDwarfFile {
   std::string Name;
 
   // The index into the list of directory names for this file name.
-  unsigned DirIndex;
+  unsigned DirIndex = 0;
 
   /// The MD5 checksum, if there is one. Non-owning pointer to data allocated
   /// in MCContext.
@@ -261,6 +261,14 @@ public:
     HasSource = Source.hasValue();
   }
 
+  void resetFileTable() {
+    MCDwarfDirs.clear();
+    MCDwarfFiles.clear();
+    RootFile.Name.clear();
+    resetMD5Usage();
+    HasSource = false;
+  }
+
 private:
   void emitV2FileDirTables(MCStreamer *MCOS) const;
   void emitV5FileDirTables(MCStreamer *MCOS, Optional<MCDwarfLineStr> &LineStr) const;
@@ -326,12 +334,7 @@ public:
     Header.HasSource = Source.hasValue();
   }
 
-  void resetRootFile() {
-    assert(Header.MCDwarfFiles.empty());
-    Header.RootFile.Name.clear();
-    Header.resetMD5Usage();
-    Header.HasSource = false;
-  }
+  void resetFileTable() { Header.resetFileTable(); }
 
   bool hasRootFile() const { return !Header.RootFile.Name.empty(); }
 
@@ -626,7 +629,8 @@ public:
   static void Emit(MCObjectStreamer &streamer, MCAsmBackend *MAB, bool isEH);
   static void EmitAdvanceLoc(MCObjectStreamer &Streamer, uint64_t AddrDelta);
   static void EncodeAdvanceLoc(MCContext &Context, uint64_t AddrDelta,
-                               raw_ostream &OS);
+                               raw_ostream &OS, uint32_t *Offset = nullptr,
+                               uint32_t *Size = nullptr);
 };
 
 } // end namespace llvm

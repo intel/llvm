@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -378,6 +378,25 @@ int main() {
     assert(r2 == 4);
   }
 
+  // ctz
+  {
+    s::cl_int2 r{ 0 };
+    {
+      s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class ctzSI2>([=]() {
+          AccR[0] = s::intel::ctz(s::cl_int2{ 0x7FFFFFF0, 0x7FFFFFF0 });
+        });
+      });
+    }
+    s::cl_int r1 = r.x();
+    s::cl_int r2 = r.y();
+    assert(r1 == 4);
+    assert(r2 == 4);
+  }
+
   // mad_hi
   {
     s::cl_int2 r{ 0 };
@@ -462,22 +481,38 @@ int main() {
 
   // sub_sat
   {
-    s::cl_int2 r{ 0 };
-    {
-      s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
-      s::queue myQueue;
-      myQueue.submit([&](s::handler &cgh) {
-        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-        cgh.single_task<class sub_satSI2SI2>([=]() {
-          AccR[0] = s::sub_sat(s::cl_int2{ 10, 10 },
-                               s::cl_int2{ int(0x80000000), int(0x80000000) });
+    auto TestSubSat = [](s::cl_int2 x, s::cl_int2 y) {
+      s::cl_int2 r{ 0 };
+      {
+        s::buffer<s::cl_int2, 1> BufR(&r, s::range<1>(1));
+        s::queue myQueue;
+        myQueue.submit([&](s::handler &cgh) {
+          auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+          cgh.single_task<class sub_satSI2SI2>([=]() {
+            AccR[0] = s::sub_sat(x, y);
+          });
         });
-      });
-    }
-    s::cl_int r1 = r.x();
-    s::cl_int r2 = r.y();
-    assert(r1 == 0x7FFFFFFF);
-    assert(r2 == 0x7FFFFFFF);
+      }
+      return r;
+    };
+    s::cl_int2 r1 = TestSubSat(s::cl_int2{ 10, 10 },
+                               s::cl_int2{ 0x80000000, 0x80000000 });
+    s::cl_int r1x = r1.x();
+    s::cl_int r1y = r1.y();
+    assert(r1x == 0x7FFFFFFF);
+    assert(r1y == 0x7FFFFFFF);
+    s::cl_int2 r2 = TestSubSat(s::cl_int2{ 0x7FFFFFFF, 0x80000000 },
+                               s::cl_int2{ 0xFFFFFFFF, 0x00000001 });
+    s::cl_int r2x = r2.x();
+    s::cl_int r2y = r2.y();
+    assert(r2x == 0x7FFFFFFF);
+    assert(r2y == 0x80000000);
+    s::cl_int2 r3 = TestSubSat(s::cl_int2{ 10499, 30678 },
+                               s::cl_int2{ 30678, 10499 });
+    s::cl_int r3x = r3.x();
+    s::cl_int r3y = r3.y();
+    assert(r3x == -20179);
+    assert(r3y ==  20179);
   }
 
   // upsample - 1

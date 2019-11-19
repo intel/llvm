@@ -110,6 +110,11 @@ class getVOP3ClampPat<VOPProfile P, SDPatternOperator node> {
                   ret1));
 }
 
+class getVOP3MAIPat<VOPProfile P, SDPatternOperator node> {
+  list<dag> ret = [(set P.DstVT:$vdst, (node P.Src0VT:$src0, P.Src1VT:$src1, P.Src2VT:$src2,
+                                        timm:$cbsz, timm:$abid, timm:$blgp))];
+}
+
 class VOP3Inst<string OpName, VOPProfile P, SDPatternOperator node = null_frag, bit VOP3Only = 0> :
   VOP3_Pseudo<OpName, P,
     !if(P.HasOpSel,
@@ -120,7 +125,9 @@ class VOP3Inst<string OpName, VOPProfile P, SDPatternOperator node = null_frag, 
             getVOP3ModPat<P, node>.ret,
             !if(P.HasIntClamp,
                 getVOP3ClampPat<P, node>.ret,
-                getVOP3Pat<P, node>.ret))),
+                !if (P.IsMAI,
+                    getVOP3MAIPat<P, node>.ret,
+                    getVOP3Pat<P, node>.ret)))),
     VOP3Only, 0, P.HasOpSel> {
 
   let IntClamp = P.HasIntClamp;
@@ -143,24 +150,27 @@ def VOP_F64_F64_F64_F64_VCC : VOPProfile<[f64, f64, f64, f64]> {
 }
 }
 
-class VOP3Features<bit Clamp, bit OpSel, bit Packed> {
+class VOP3Features<bit Clamp, bit OpSel, bit Packed, bit MAI> {
   bit HasClamp = Clamp;
   bit HasOpSel = OpSel;
   bit IsPacked = Packed;
+  bit IsMAI = MAI;
 }
 
-def VOP3_REGULAR : VOP3Features<0, 0, 0>;
-def VOP3_CLAMP   : VOP3Features<1, 0, 0>;
-def VOP3_OPSEL   : VOP3Features<1, 1, 0>;
-def VOP3_PACKED  : VOP3Features<1, 1, 1>;
+def VOP3_REGULAR : VOP3Features<0, 0, 0, 0>;
+def VOP3_CLAMP   : VOP3Features<1, 0, 0, 0>;
+def VOP3_OPSEL   : VOP3Features<1, 1, 0, 0>;
+def VOP3_PACKED  : VOP3Features<1, 1, 1, 0>;
+def VOP3_MAI     : VOP3Features<0, 0, 0, 1>;
 
 class VOP3_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR> : VOPProfile<P.ArgVT> {
 
   let HasClamp = !if(Features.HasClamp, 1, P.HasClamp);
   let HasOpSel = !if(Features.HasOpSel, 1, P.HasOpSel);
+  let IsMAI    = !if(Features.IsMAI,    1, P.IsMAI);
   let IsPacked = !if(Features.IsPacked, 1, P.IsPacked);
 
-  let HasModifiers = !if(Features.IsPacked, 1, P.HasModifiers);
+  let HasModifiers = !if(Features.IsPacked, !if(Features.IsMAI, 0, 1), P.HasModifiers);
 
   // FIXME: Hack to stop printing _e64
   let Outs64 = (outs DstRC.RegClass:$vdst);
@@ -183,7 +193,7 @@ class VOP3b_Profile<ValueType vt> : VOPProfile<[vt, vt, vt, vt]> {
   let HasModifiers = 0;
   let HasClamp = 0;
   let HasOMod = 0;
-  let Outs64 = (outs DstRC:$vdst, SReg_64:$sdst);
+  let Outs64 = (outs DstRC:$vdst, VOPDstS64orS32:$sdst);
   let Asm64 = " $vdst, $sdst, $src0, $src1, $src2";
 }
 
@@ -203,7 +213,7 @@ def VOP3b_I64_I1_I32_I32_I64 : VOPProfile<[i64, i32, i32, i64]> {
   // FIXME: Hack to stop printing _e64
   let DstRC = RegisterOperand<VReg_64>;
 
-  let Outs64 = (outs DstRC:$vdst, SReg_64:$sdst);
+  let Outs64 = (outs DstRC:$vdst, VOPDstS64orS32:$sdst);
   let Asm64 = " $vdst, $sdst, $src0, $src1, $src2$clamp";
 }
 
@@ -294,7 +304,7 @@ def V_MAX_F64 : VOP3Inst <"v_max_f64", VOP3_Profile<VOP_F64_F64_F64>, fmaxnum_li
 } // End SchedRW = [WriteDoubleAdd]
 
 let SchedRW = [WriteQuarterRate32] in {
-def V_MUL_LO_U32 : VOP3Inst <"v_mul_lo_u32", VOP3_Profile<VOP_I32_I32_I32>>;
+def V_MUL_LO_U32 : VOP3Inst <"v_mul_lo_u32", VOP3_Profile<VOP_I32_I32_I32>, mul>;
 def V_MUL_HI_U32 : VOP3Inst <"v_mul_hi_u32", VOP3_Profile<VOP_I32_I32_I32>, mulhu>;
 def V_MUL_LO_I32 : VOP3Inst <"v_mul_lo_i32", VOP3_Profile<VOP_I32_I32_I32>>;
 def V_MUL_HI_I32 : VOP3Inst <"v_mul_hi_i32", VOP3_Profile<VOP_I32_I32_I32>, mulhs>;
@@ -375,34 +385,19 @@ def V_TRIG_PREOP_F64 : VOP3Inst <"v_trig_preop_f64", VOP3_Profile<VOP_F64_F64_I3
 }
 
 let SchedRW = [Write64Bit] in {
-let SubtargetPredicate = isGFX6GFX7GFX10, Predicates = [isGFX6GFX7GFX10] in {
-def V_LSHL_B64 : VOP3Inst <"v_lshl_b64", VOP3_Profile<VOP_PAT_GEN<VOP_I64_I64_I32>>, shl>;
-def V_LSHR_B64 : VOP3Inst <"v_lshr_b64", VOP3_Profile<VOP_PAT_GEN<VOP_I64_I64_I32>>, srl>;
-def V_ASHR_I64 : VOP3Inst <"v_ashr_i64", VOP3_Profile<VOP_PAT_GEN<VOP_I64_I64_I32>>, sra>;
+let SubtargetPredicate = isGFX6GFX7GFX10 in {
+def V_LSHL_B64 : VOP3Inst <"v_lshl_b64", VOP3_Profile<VOP_I64_I64_I32>, shl>;
+def V_LSHR_B64 : VOP3Inst <"v_lshr_b64", VOP3_Profile<VOP_I64_I64_I32>, srl>;
+def V_ASHR_I64 : VOP3Inst <"v_ashr_i64", VOP3_Profile<VOP_I64_I64_I32>, sra>;
 def V_MULLIT_F32 : VOP3Inst <"v_mullit_f32", VOP3_Profile<VOP_F32_F32_F32_F32>>;
-} // End SubtargetPredicate = isGFX6GFX7GFX10, Predicates = [isGFX6GFX7GFX10]
+} // End SubtargetPredicate = isGFX6GFX7GFX10
 
 let SubtargetPredicate = isGFX8Plus in {
-def V_LSHLREV_B64 : VOP3Inst <"v_lshlrev_b64", VOP3_Profile<VOP_I64_I32_I64>>;
-def V_LSHRREV_B64 : VOP3Inst <"v_lshrrev_b64", VOP3_Profile<VOP_I64_I32_I64>>;
-def V_ASHRREV_I64 : VOP3Inst <"v_ashrrev_i64", VOP3_Profile<VOP_I64_I32_I64>>;
+def V_LSHLREV_B64 : VOP3Inst <"v_lshlrev_b64", VOP3_Profile<VOP_I64_I32_I64>, lshl_rev>;
+def V_LSHRREV_B64 : VOP3Inst <"v_lshrrev_b64", VOP3_Profile<VOP_I64_I32_I64>, lshr_rev>;
+def V_ASHRREV_I64 : VOP3Inst <"v_ashrrev_i64", VOP3_Profile<VOP_I64_I32_I64>, ashr_rev>;
 } // End SubtargetPredicate = isGFX8Plus
 } // End SchedRW = [Write64Bit]
-
-let Predicates = [isGFX8Plus] in {
-def : GCNPat <
- (getDivergentFrag<shl>.ret i64:$x, i32:$y),
- (V_LSHLREV_B64 $y, $x)
->;
-def : AMDGPUPat <
- (getDivergentFrag<srl>.ret i64:$x, i32:$y),
- (V_LSHRREV_B64 $y, $x)
->;
-def : AMDGPUPat <
- (getDivergentFrag<sra>.ret i64:$x, i32:$y),
- (V_ASHRREV_I64 $y, $x)
->;
-}
 
 
 let SchedRW = [Write32Bit] in {
@@ -458,13 +453,13 @@ let FPDPRounding = 1 in {
 def V_MAD_F16 : VOP3Inst <"v_mad_f16", VOP3_Profile<VOP_F16_F16_F16_F16>, fmad>;
 let Uses = [M0, EXEC] in {
 def V_INTERP_P2_F16 : VOP3Interp <"v_interp_p2_f16", VOP3_INTERP16<[f16, f32, i32, f32]>,
-       [(set f16:$vdst, (AMDGPUinterp_p2_f16 f32:$src0, (i32 imm:$attrchan),
-                                                        (i32 imm:$attr),
-                                                        (i32 imm:$src0_modifiers),
+       [(set f16:$vdst, (AMDGPUinterp_p2_f16 f32:$src0, (i32 timm:$attrchan),
+                                                        (i32 timm:$attr),
+                                                        (i32 timm:$src0_modifiers),
                                                         (f32 VRegSrc_32:$src2),
-                                                        (i32 imm:$src2_modifiers),
-                                                        (i1 imm:$high),
-                                                        (i1 imm:$clamp)))]>;
+                                                        (i32 timm:$src2_modifiers),
+                                                        (i1 timm:$high),
+                                                        (i1 timm:$clamp)))]>;
 } // End Uses = [M0, EXEC]
 } // End FPDPRounding = 1
 } // End renamedInGFX9 = 1
@@ -483,30 +478,30 @@ def V_INTERP_P2_F16_gfx9 : VOP3Interp <"v_interp_p2_f16_gfx9", VOP3_INTERP16<[f1
 
 let Uses = [M0, EXEC], FPDPRounding = 1 in {
 def V_INTERP_P1LL_F16 : VOP3Interp <"v_interp_p1ll_f16", VOP3_INTERP16<[f32, f32, i32, untyped]>,
-       [(set f32:$vdst, (AMDGPUinterp_p1ll_f16 f32:$src0, (i32 imm:$attrchan),
-                                                          (i32 imm:$attr),
-                                                          (i32 imm:$src0_modifiers),
-                                                          (i1 imm:$high),
-                                                          (i1 imm:$clamp),
-                                                          (i32 imm:$omod)))]>;
+       [(set f32:$vdst, (AMDGPUinterp_p1ll_f16 f32:$src0, (i32 timm:$attrchan),
+                                                          (i32 timm:$attr),
+                                                          (i32 timm:$src0_modifiers),
+                                                          (i1 timm:$high),
+                                                          (i1 timm:$clamp),
+                                                          (i32 timm:$omod)))]>;
 def V_INTERP_P1LV_F16 : VOP3Interp <"v_interp_p1lv_f16", VOP3_INTERP16<[f32, f32, i32, f16]>,
-       [(set f32:$vdst, (AMDGPUinterp_p1lv_f16 f32:$src0, (i32 imm:$attrchan),
-                                                          (i32 imm:$attr),
-                                                          (i32 imm:$src0_modifiers),
+       [(set f32:$vdst, (AMDGPUinterp_p1lv_f16 f32:$src0, (i32 timm:$attrchan),
+                                                          (i32 timm:$attr),
+                                                          (i32 timm:$src0_modifiers),
                                                           (f32 VRegSrc_32:$src2),
-                                                          (i32 imm:$src2_modifiers),
-                                                          (i1 imm:$high),
-                                                          (i1 imm:$clamp),
-                                                          (i32 imm:$omod)))]>;
+                                                          (i32 timm:$src2_modifiers),
+                                                          (i1 timm:$high),
+                                                          (i1 timm:$clamp),
+                                                          (i32 timm:$omod)))]>;
 } // End Uses = [M0, EXEC], FPDPRounding = 1
 
 } // End SubtargetPredicate = Has16BitInsts, isCommutable = 1
 
-let SubtargetPredicate = isGFX8GFX9 in {
+let SubtargetPredicate = isGFX8Plus, Uses = [M0, EXEC] in {
 def V_INTERP_P1_F32_e64  : VOP3Interp <"v_interp_p1_f32", VOP3_INTERP>;
 def V_INTERP_P2_F32_e64  : VOP3Interp <"v_interp_p2_f32", VOP3_INTERP>;
 def V_INTERP_MOV_F32_e64 : VOP3Interp <"v_interp_mov_f32", VOP3_INTERP_MOV>;
-} // End SubtargetPredicate = isGFX8GFX9
+} // End SubtargetPredicate = isGFX8Plus, Uses = [M0, EXEC]
 
 let Predicates = [Has16BitInsts, isGFX6GFX7GFX8GFX9] in {
 
@@ -625,9 +620,35 @@ def : ThreeOp_i32_Pats<xor, add, V_XAD_U32>;
 
 } // End SubtargetPredicate = isGFX9Plus
 
+def VOP3_PERMLANE_Profile : VOP3_Profile<VOPProfile <[i32, i32, i32, i32]>, VOP3_OPSEL> {
+  let Src0RC64 = VRegSrc_32;
+  let Src1RC64 = SCSrc_b32;
+  let Src2RC64 = SCSrc_b32;
+  let InsVOP3OpSel = (ins IntOpSelMods:$src0_modifiers, VRegSrc_32:$src0,
+                          IntOpSelMods:$src1_modifiers, SCSrc_b32:$src1,
+                          IntOpSelMods:$src2_modifiers, SCSrc_b32:$src2,
+                          VGPR_32:$vdst_in, op_sel:$op_sel);
+  let HasClamp = 0;
+  let HasOMod = 0;
+}
+
 let SubtargetPredicate = isGFX10Plus in {
   def V_XOR3_B32 : VOP3Inst <"v_xor3_b32", VOP3_Profile<VOP_I32_I32_I32_I32>>;
   def : ThreeOp_i32_Pats<xor, xor, V_XOR3_B32>;
+
+  let Constraints = "$vdst = $vdst_in", DisableEncoding="$vdst_in" in {
+    def V_PERMLANE16_B32 : VOP3Inst <"v_permlane16_b32", VOP3_PERMLANE_Profile>;
+    def V_PERMLANEX16_B32 : VOP3Inst <"v_permlanex16_b32", VOP3_PERMLANE_Profile>;
+  } // End $vdst = $vdst_in, DisableEncoding $vdst_in
+
+  def : GCNPat<
+    (int_amdgcn_permlane16 i32:$vdst_in, i32:$src0, i32:$src1, i32:$src2, timm:$fi, timm:$bc),
+    (V_PERMLANE16_B32 (as_i1imm $fi), $src0, (as_i1imm $bc), $src1, 0, $src2, $vdst_in)
+  >;
+  def : GCNPat<
+    (int_amdgcn_permlanex16 i32:$vdst_in, i32:$src0, i32:$src1, i32:$src2, timm:$fi, timm:$bc),
+    (V_PERMLANEX16_B32 (as_i1imm $fi), $src0, (as_i1imm $bc), $src1, 0, $src2, $vdst_in)
+  >;
 } // End SubtargetPredicate = isGFX10Plus
 
 //===----------------------------------------------------------------------===//
@@ -749,6 +770,10 @@ defm V_SUB_NC_I32 :
 defm V_ADD_NC_I32 :
   VOP3_Real_gfx10_with_name<0x37f, "V_ADD_I32_gfx9", "v_add_nc_i32">;
 
+defm V_INTERP_P1_F32_e64  : VOP3Interp_Real_gfx10<0x200>;
+defm V_INTERP_P2_F32_e64  : VOP3Interp_Real_gfx10<0x201>;
+defm V_INTERP_MOV_F32_e64 : VOP3Interp_Real_gfx10<0x202>;
+
 defm V_INTERP_P1LL_F16    : VOP3Interp_Real_gfx10<0x342>;
 defm V_INTERP_P1LV_F16    : VOP3Interp_Real_gfx10<0x343>;
 defm V_INTERP_P2_F16      : VOP3Interp_Real_gfx10<0x35a>;
@@ -790,6 +815,8 @@ defm V_MAX_I16         : VOP3_Real_gfx10_with_name<0x30a, "V_MAX_I16_e64", "v_ma
 defm V_MIN_U16         : VOP3_Real_gfx10_with_name<0x30b, "V_MIN_U16_e64", "v_min_u16">;
 defm V_MIN_I16         : VOP3_Real_gfx10_with_name<0x30c, "V_MIN_I16_e64", "v_min_i16">;
 defm V_LSHLREV_B16     : VOP3_Real_gfx10_with_name<0x314, "V_LSHLREV_B16_e64", "v_lshlrev_b16">;
+defm V_PERMLANE16_B32  : VOP3OpSel_Real_gfx10<0x377>;
+defm V_PERMLANEX16_B32 : VOP3OpSel_Real_gfx10<0x378>;
 
 //===----------------------------------------------------------------------===//
 // GFX7, GFX10.
@@ -900,7 +927,7 @@ defm V_DIV_SCALE_F64   : VOP3be_Real_gfx6_gfx7_gfx10<0x16e>;
 // GFX8, GFX9 (VI).
 //===----------------------------------------------------------------------===//
 
-let AssemblerPredicates = [isGFX8GFX9], DecoderNamespace = "GFX8" in {
+let AssemblerPredicate = isGFX8GFX9, DecoderNamespace = "GFX8" in {
 
 multiclass VOP3_Real_vi<bits<10> op> {
   def _vi : VOP3_Real<!cast<VOP_Pseudo>(NAME), SIEncodingFamily.VI>,
@@ -922,9 +949,9 @@ multiclass VOP3Interp_Real_vi<bits<10> op> {
             VOP3Interp_vi <op, !cast<VOP_Pseudo>(NAME).Pfl>;
 }
 
-} // End AssemblerPredicates = [isGFX8GFX9], DecoderNamespace = "GFX8"
+} // End AssemblerPredicate = isGFX8GFX9, DecoderNamespace = "GFX8"
 
-let AssemblerPredicates = [isGFX8Only], DecoderNamespace = "GFX8" in {
+let AssemblerPredicate = isGFX8Only, DecoderNamespace = "GFX8" in {
 
 multiclass VOP3_F16_Real_vi<bits<10> op> {
   def _vi : VOP3_Real<!cast<VOP3_Pseudo>(NAME), SIEncodingFamily.VI>,
@@ -936,9 +963,9 @@ multiclass VOP3Interp_F16_Real_vi<bits<10> op> {
             VOP3Interp_vi <op, !cast<VOP3_Pseudo>(NAME).Pfl>;
 }
 
-} // End AssemblerPredicates = [isGFX8Only], DecoderNamespace = "GFX8"
+} // End AssemblerPredicate = isGFX8Only, DecoderNamespace = "GFX8"
 
-let AssemblerPredicates = [isGFX9Only], DecoderNamespace = "GFX9" in {
+let AssemblerPredicate = isGFX9Only, DecoderNamespace = "GFX9" in {
 
 multiclass VOP3_F16_Real_gfx9<bits<10> op, string OpName, string AsmName> {
   def _gfx9 : VOP3_Real<!cast<VOP3_Pseudo>(OpName), SIEncodingFamily.GFX9>,
@@ -972,7 +999,7 @@ multiclass VOP3_Real_gfx9<bits<10> op, string AsmName> {
             }
 }
 
-} // End AssemblerPredicates = [isGFX9Only], DecoderNamespace = "GFX9"
+} // End AssemblerPredicate = isGFX9Only, DecoderNamespace = "GFX9"
 
 defm V_MAD_U64_U32      : VOP3be_Real_vi <0x1E8>;
 defm V_MAD_I64_I32      : VOP3be_Real_vi <0x1E9>;

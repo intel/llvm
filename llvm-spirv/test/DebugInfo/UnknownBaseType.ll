@@ -1,5 +1,4 @@
 ; REQUIRES: object-emission
-; XFAIL: *
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv -spirv-mem2reg=false

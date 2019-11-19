@@ -54,7 +54,7 @@
 # CHECK-NEXT: ADJCALLSTACKUP32 20, 0, implicit-def dead $esp, implicit-def dead $eflags, implicit-def dead $ssp, implicit $esp, implicit $ssp
 # CHECK-NEXT: RET 0
 name:            test9
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -88,15 +88,15 @@ frameInfo:
 fixedStack:
 stack:
   - { id: 0, name: p, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 1, name: q, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 2, name: s, type: default, offset: 0, size: 8, alignment: 8,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
 constants:

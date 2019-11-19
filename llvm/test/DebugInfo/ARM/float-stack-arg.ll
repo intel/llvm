@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=armv4t-unknown-unknown -start-after=codegenprepare -stop-before=expand-isel-pseudos -o - %s | FileCheck %s
+; RUN: llc -mtriple=armv4t-unknown-unknown -start-after=codegenprepare -stop-before=finalize-isel -o - %s | FileCheck %s
 
 ; Verify that a stack-referencing DBG_VALUE is emitted for p5 at the start of
 ; the function.
@@ -19,7 +19,7 @@
 
 define arm_aapcscc float @fn1(i32 %p1, i32 %p2, i32 %p3, i32 %p4, float returned %p5) #0 !dbg !7 {
 ; CHECK-LABEL: bb.0.entry:
-; CHECK-NEXT: DBG_VALUE %fixed-stack.0, 0, ![[P5]]
+; CHECK-NEXT: DBG_VALUE %fixed-stack.0, $noreg, ![[P5]], !DIExpression(DW_OP_deref)
 entry:
   call void @llvm.dbg.value(metadata float %p5, metadata !17, metadata !DIExpression()), !dbg !18
   ret float %p5, !dbg !19

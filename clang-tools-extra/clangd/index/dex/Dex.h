@@ -26,6 +26,7 @@
 #include "Trigram.h"
 #include "index/Index.h"
 #include "index/MemIndex.h"
+#include "index/Relation.h"
 #include "index/SymbolCollector.h"
 
 namespace clang {
@@ -41,26 +42,33 @@ namespace dex {
 class Dex : public SymbolIndex {
 public:
   // All data must outlive this index.
-  template <typename SymbolRange, typename RefsRange>
-  Dex(SymbolRange &&Symbols, RefsRange &&Refs) : Corpus(0) {
+  template <typename SymbolRange, typename RefsRange, typename RelationsRange>
+  Dex(SymbolRange &&Symbols, RefsRange &&Refs, RelationsRange &&Relations)
+      : Corpus(0) {
     for (auto &&Sym : Symbols)
       this->Symbols.push_back(&Sym);
     for (auto &&Ref : Refs)
       this->Refs.try_emplace(Ref.first, Ref.second);
+    for (auto &&Rel : Relations)
+      this->Relations[std::make_pair(Rel.Subject,
+                                     static_cast<uint8_t>(Rel.Predicate))]
+          .push_back(Rel.Object);
     buildIndex();
   }
   // Symbols and Refs are owned by BackingData, Index takes ownership.
-  template <typename SymbolRange, typename RefsRange, typename Payload>
-  Dex(SymbolRange &&Symbols, RefsRange &&Refs, Payload &&BackingData,
-      size_t BackingDataSize)
-      : Dex(std::forward<SymbolRange>(Symbols), std::forward<RefsRange>(Refs)) {
+  template <typename SymbolRange, typename RefsRange, typename RelationsRange,
+            typename Payload>
+  Dex(SymbolRange &&Symbols, RefsRange &&Refs, RelationsRange &&Relations,
+      Payload &&BackingData, size_t BackingDataSize)
+      : Dex(std::forward<SymbolRange>(Symbols), std::forward<RefsRange>(Refs),
+            std::forward<RelationsRange>(Relations)) {
     KeepAlive = std::shared_ptr<void>(
         std::make_shared<Payload>(std::move(BackingData)), nullptr);
     this->BackingDataSize = BackingDataSize;
   }
 
   /// Builds an index from slabs. The index takes ownership of the slab.
-  static std::unique_ptr<SymbolIndex> build(SymbolSlab, RefSlab);
+  static std::unique_ptr<SymbolIndex> build(SymbolSlab, RefSlab, RelationSlab);
 
   bool
   fuzzyFind(const FuzzyFindRequest &Req,
@@ -71,6 +79,10 @@ public:
 
   void refs(const RefsRequest &Req,
             llvm::function_ref<void(const Ref &)> Callback) const override;
+
+  void relations(const RelationsRequest &Req,
+                 llvm::function_ref<void(const SymbolID &, const Symbol &)>
+                     Callback) const override;
 
   size_t estimateMemoryUsage() const override;
 
@@ -96,6 +108,9 @@ private:
   llvm::DenseMap<Token, PostingList> InvertedIndex;
   dex::Corpus Corpus;
   llvm::DenseMap<SymbolID, llvm::ArrayRef<Ref>> Refs;
+  static_assert(sizeof(RelationKind) == sizeof(uint8_t),
+                "RelationKind should be of same size as a uint8_t");
+  llvm::DenseMap<std::pair<SymbolID, uint8_t>, std::vector<SymbolID>> Relations;
   std::shared_ptr<void> KeepAlive; // poor man's move-only std::any
   // Size of memory retained by KeepAlive.
   size_t BackingDataSize = 0;

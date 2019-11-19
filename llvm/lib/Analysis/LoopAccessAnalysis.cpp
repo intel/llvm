@@ -1189,18 +1189,31 @@ bool llvm::isConsecutiveAccess(Value *A, Value *B, const DataLayout &DL,
 
   unsigned IdxWidth = DL.getIndexSizeInBits(ASA);
   Type *Ty = cast<PointerType>(PtrA->getType())->getElementType();
-  APInt Size(IdxWidth, DL.getTypeStoreSize(Ty));
 
   APInt OffsetA(IdxWidth, 0), OffsetB(IdxWidth, 0);
   PtrA = PtrA->stripAndAccumulateInBoundsConstantOffsets(DL, OffsetA);
   PtrB = PtrB->stripAndAccumulateInBoundsConstantOffsets(DL, OffsetB);
 
+  // Retrieve the address space again as pointer stripping now tracks through
+  // `addrspacecast`.
+  ASA = cast<PointerType>(PtrA->getType())->getAddressSpace();
+  ASB = cast<PointerType>(PtrB->getType())->getAddressSpace();
+  // Check that the address spaces match and that the pointers are valid.
+  if (ASA != ASB)
+    return false;
+
+  IdxWidth = DL.getIndexSizeInBits(ASA);
+  OffsetA = OffsetA.sextOrTrunc(IdxWidth);
+  OffsetB = OffsetB.sextOrTrunc(IdxWidth);
+
+  APInt Size(IdxWidth, DL.getTypeStoreSize(Ty));
+
   //  OffsetDelta = OffsetB - OffsetA;
   const SCEV *OffsetSCEVA = SE.getConstant(OffsetA);
   const SCEV *OffsetSCEVB = SE.getConstant(OffsetB);
   const SCEV *OffsetDeltaSCEV = SE.getMinusSCEV(OffsetSCEVB, OffsetSCEVA);
-  const SCEVConstant *OffsetDeltaC = dyn_cast<SCEVConstant>(OffsetDeltaSCEV);
-  const APInt &OffsetDelta = OffsetDeltaC->getAPInt();
+  const APInt &OffsetDelta = cast<SCEVConstant>(OffsetDeltaSCEV)->getAPInt();
+
   // Check if they are based on the same pointer. That makes the offsets
   // sufficient.
   if (PtrA == PtrB)
@@ -1641,13 +1654,21 @@ bool MemoryDepChecker::areDepsSafe(DepCandidates &AccessSets,
     // Check every access pair.
     while (AI != AE) {
       Visited.insert(*AI);
-      EquivalenceClasses<MemAccessInfo>::member_iterator OI = std::next(AI);
+      bool AIIsWrite = AI->getInt();
+      // Check loads only against next equivalent class, but stores also against
+      // other stores in the same equivalence class - to the same address.
+      EquivalenceClasses<MemAccessInfo>::member_iterator OI =
+          (AIIsWrite ? AI : std::next(AI));
       while (OI != AE) {
         // Check every accessing instruction pair in program order.
         for (std::vector<unsigned>::iterator I1 = Accesses[*AI].begin(),
              I1E = Accesses[*AI].end(); I1 != I1E; ++I1)
-          for (std::vector<unsigned>::iterator I2 = Accesses[*OI].begin(),
-               I2E = Accesses[*OI].end(); I2 != I2E; ++I2) {
+          // Scan all accesses of another equivalence class, but only the next
+          // accesses of the same equivalent class.
+          for (std::vector<unsigned>::iterator
+                   I2 = (OI == AI ? std::next(I1) : Accesses[*OI].begin()),
+                   I2E = (OI == AI ? I1E : Accesses[*OI].end());
+               I2 != I2E; ++I2) {
             auto A = std::make_pair(&*AI, *I1);
             auto B = std::make_pair(&*OI, *I2);
 
@@ -1778,6 +1799,11 @@ void LoopAccessInfo::analyzeLoop(AliasAnalysis *AA, LoopInfo *LI,
   unsigned NumReads = 0;
   unsigned NumReadWrites = 0;
 
+  bool HasComplexMemInst = false;
+
+  // A runtime check is only legal to insert if there are no convergent calls.
+  HasConvergentOp = false;
+
   PtrRtChecking->Pointers.clear();
   PtrRtChecking->Need = false;
 
@@ -1785,8 +1811,25 @@ void LoopAccessInfo::analyzeLoop(AliasAnalysis *AA, LoopInfo *LI,
 
   // For each block.
   for (BasicBlock *BB : TheLoop->blocks()) {
-    // Scan the BB and collect legal loads and stores.
+    // Scan the BB and collect legal loads and stores. Also detect any
+    // convergent instructions.
     for (Instruction &I : *BB) {
+      if (auto *Call = dyn_cast<CallBase>(&I)) {
+        if (Call->isConvergent())
+          HasConvergentOp = true;
+      }
+
+      // With both a non-vectorizable memory instruction and a convergent
+      // operation, found in this loop, no reason to continue the search.
+      if (HasComplexMemInst && HasConvergentOp) {
+        CanVecMem = false;
+        return;
+      }
+
+      // Avoid hitting recordAnalysis multiple times.
+      if (HasComplexMemInst)
+        continue;
+
       // If this is a load, save it. If this instruction can read from memory
       // but is not a load, then we quit. Notice that we don't handle function
       // calls that read or write.
@@ -1805,12 +1848,18 @@ void LoopAccessInfo::analyzeLoop(AliasAnalysis *AA, LoopInfo *LI,
           continue;
 
         auto *Ld = dyn_cast<LoadInst>(&I);
-        if (!Ld || (!Ld->isSimple() && !IsAnnotatedParallel)) {
+        if (!Ld) {
+          recordAnalysis("CantVectorizeInstruction", Ld)
+            << "instruction cannot be vectorized";
+          HasComplexMemInst = true;
+          continue;
+        }
+        if (!Ld->isSimple() && !IsAnnotatedParallel) {
           recordAnalysis("NonSimpleLoad", Ld)
               << "read with atomic ordering or volatile read";
           LLVM_DEBUG(dbgs() << "LAA: Found a non-simple load.\n");
-          CanVecMem = false;
-          return;
+          HasComplexMemInst = true;
+          continue;
         }
         NumLoads++;
         Loads.push_back(Ld);
@@ -1826,15 +1875,15 @@ void LoopAccessInfo::analyzeLoop(AliasAnalysis *AA, LoopInfo *LI,
         if (!St) {
           recordAnalysis("CantVectorizeInstruction", St)
               << "instruction cannot be vectorized";
-          CanVecMem = false;
-          return;
+          HasComplexMemInst = true;
+          continue;
         }
         if (!St->isSimple() && !IsAnnotatedParallel) {
           recordAnalysis("NonSimpleStore", St)
               << "write with atomic ordering or volatile write";
           LLVM_DEBUG(dbgs() << "LAA: Found a non-simple store.\n");
-          CanVecMem = false;
-          return;
+          HasComplexMemInst = true;
+          continue;
         }
         NumStores++;
         Stores.push_back(St);
@@ -1844,6 +1893,11 @@ void LoopAccessInfo::analyzeLoop(AliasAnalysis *AA, LoopInfo *LI,
       }
     } // Next instr.
   } // Next block.
+
+  if (HasComplexMemInst) {
+    CanVecMem = false;
+    return;
+  }
 
   // Now we have two lists that hold the loads and the stores.
   // Next, we find the pointers that they use.
@@ -1962,7 +2016,7 @@ void LoopAccessInfo::analyzeLoop(AliasAnalysis *AA, LoopInfo *LI,
   }
 
   LLVM_DEBUG(
-      dbgs() << "LAA: We can perform a memory runtime check if needed.\n");
+    dbgs() << "LAA: May be able to perform a memory runtime check if needed.\n");
 
   CanVecMem = true;
   if (Accesses.isDependencyCheckNeeded()) {
@@ -1995,6 +2049,15 @@ void LoopAccessInfo::analyzeLoop(AliasAnalysis *AA, LoopInfo *LI,
 
       CanVecMem = true;
     }
+  }
+
+  if (HasConvergentOp) {
+    recordAnalysis("CantInsertRuntimeCheckWithConvergent")
+      << "cannot add control dependency to convergent operation";
+    LLVM_DEBUG(dbgs() << "LAA: We can't vectorize because a runtime check "
+                         "would be needed with a convergent operation\n");
+    CanVecMem = false;
+    return;
   }
 
   if (CanVecMem)
@@ -2036,7 +2099,7 @@ OptimizationRemarkAnalysis &LoopAccessInfo::recordAnalysis(StringRef RemarkName,
       DL = I->getDebugLoc();
   }
 
-  Report = make_unique<OptimizationRemarkAnalysis>(DEBUG_TYPE, RemarkName, DL,
+  Report = std::make_unique<OptimizationRemarkAnalysis>(DEBUG_TYPE, RemarkName, DL,
                                                    CodeRegion);
   return *Report;
 }
@@ -2281,10 +2344,11 @@ void LoopAccessInfo::collectStridedAccess(Value *MemAccess) {
 LoopAccessInfo::LoopAccessInfo(Loop *L, ScalarEvolution *SE,
                                const TargetLibraryInfo *TLI, AliasAnalysis *AA,
                                DominatorTree *DT, LoopInfo *LI)
-    : PSE(llvm::make_unique<PredicatedScalarEvolution>(*SE, *L)),
-      PtrRtChecking(llvm::make_unique<RuntimePointerChecking>(SE)),
-      DepChecker(llvm::make_unique<MemoryDepChecker>(*PSE, L)), TheLoop(L),
+    : PSE(std::make_unique<PredicatedScalarEvolution>(*SE, *L)),
+      PtrRtChecking(std::make_unique<RuntimePointerChecking>(SE)),
+      DepChecker(std::make_unique<MemoryDepChecker>(*PSE, L)), TheLoop(L),
       NumLoads(0), NumStores(0), MaxSafeDepDistBytes(-1), CanVecMem(false),
+      HasConvergentOp(false),
       HasDependenceInvolvingLoopInvariantAddress(false) {
   if (canAnalyzeLoop())
     analyzeLoop(AA, LI, TLI, DT);
@@ -2300,6 +2364,9 @@ void LoopAccessInfo::print(raw_ostream &OS, unsigned Depth) const {
       OS << " with run-time checks";
     OS << "\n";
   }
+
+  if (HasConvergentOp)
+    OS.indent(Depth) << "Has convergent operation in loop\n";
 
   if (Report)
     OS.indent(Depth) << "Report: " << Report->getMsg() << "\n";
@@ -2334,7 +2401,7 @@ const LoopAccessInfo &LoopAccessLegacyAnalysis::getInfo(Loop *L) {
   auto &LAI = LoopAccessInfoMap[L];
 
   if (!LAI)
-    LAI = llvm::make_unique<LoopAccessInfo>(L, SE, TLI, AA, DT, LI);
+    LAI = std::make_unique<LoopAccessInfo>(L, SE, TLI, AA, DT, LI);
 
   return *LAI.get();
 }
@@ -2353,7 +2420,7 @@ void LoopAccessLegacyAnalysis::print(raw_ostream &OS, const Module *M) const {
 bool LoopAccessLegacyAnalysis::runOnFunction(Function &F) {
   SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
   auto *TLIP = getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
-  TLI = TLIP ? &TLIP->getTLI() : nullptr;
+  TLI = TLIP ? &TLIP->getTLI(F) : nullptr;
   AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
   DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();

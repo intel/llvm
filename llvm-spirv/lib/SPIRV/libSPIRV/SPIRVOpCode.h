@@ -146,6 +146,22 @@ inline bool isSubgroupAvcINTELTypeOpCode(Op OpCode) {
   return OpTypeAvcImePayloadINTEL <= OC && OC <= OpTypeAvcSicResultINTEL;
 }
 
+inline bool isSubgroupAvcINTELInstructionOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return OpSubgroupAvcMceGetDefaultInterBaseMultiReferencePenaltyINTEL <= OC &&
+         OC <= OpSubgroupAvcSicGetInterRawSadsINTEL;
+}
+
+inline bool isSubgroupAvcINTELEvaluateOpcode(Op OpCode) {
+  unsigned OC = OpCode;
+  return (OpSubgroupAvcImeEvaluateWithSingleReferenceINTEL <= OC &&
+          OC <= OpSubgroupAvcImeEvaluateWithDualReferenceStreaminoutINTEL) ||
+         (OpSubgroupAvcRefEvaluateWithSingleReferenceINTEL <= OC &&
+          OC <= OpSubgroupAvcRefEvaluateWithMultiReferenceInterlacedINTEL) ||
+         (OpSubgroupAvcSicEvaluateIpeINTEL <= OC &&
+          OC <= OpSubgroupAvcSicEvaluateWithMultiReferenceInterlacedINTEL);
+}
+
 inline bool isTypeOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpTypeVoid <= OC && OC <= OpTypePipe) || OC == OpTypePipeStorage ||

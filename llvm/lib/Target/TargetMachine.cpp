@@ -36,8 +36,8 @@ TargetMachine::TargetMachine(const Target &T, StringRef DataLayoutString,
                              const TargetOptions &Options)
     : TheTarget(T), DL(DataLayoutString), TargetTriple(TT), TargetCPU(CPU),
       TargetFS(FS), AsmInfo(nullptr), MRI(nullptr), MII(nullptr), STI(nullptr),
-      RequireStructuredCFG(false), DefaultOptions(Options), Options(Options) {
-}
+      RequireStructuredCFG(false), O0WantsFastISel(false),
+      DefaultOptions(Options), Options(Options) {}
 
 TargetMachine::~TargetMachine() = default;
 
@@ -63,18 +63,6 @@ void TargetMachine::resetTargetOptions(const Function &F) const {
   RESET_OPTION(NoInfsFPMath, "no-infs-fp-math");
   RESET_OPTION(NoNaNsFPMath, "no-nans-fp-math");
   RESET_OPTION(NoSignedZerosFPMath, "no-signed-zeros-fp-math");
-  RESET_OPTION(NoTrappingFPMath, "no-trapping-math");
-
-  StringRef Denormal =
-    F.getFnAttribute("denormal-fp-math").getValueAsString();
-  if (Denormal == "ieee")
-    Options.FPDenormalMode = FPDenormal::IEEE;
-  else if (Denormal == "preserve-sign")
-    Options.FPDenormalMode = FPDenormal::PreserveSign;
-  else if (Denormal == "positive-zero")
-    Options.FPDenormalMode = FPDenormal::PositiveZero;
-  else
-    Options.FPDenormalMode = DefaultOptions.FPDenormalMode;
 }
 
 /// Returns the code generation relocation model. The choices are static, PIC,
@@ -140,8 +128,8 @@ bool TargetMachine::shouldAssumeDSOLocal(const Module &M,
   // don't assume the variables to be DSO local unless we actually know
   // that for sure. This only has to be done for variables; for functions
   // the linker can insert thunks for calling functions from another DLL.
-  if (TT.isWindowsGNUEnvironment() && GV && GV->isDeclarationForLinker() &&
-      isa<GlobalVariable>(GV))
+  if (TT.isWindowsGNUEnvironment() && TT.isOSBinFormatCOFF() && GV &&
+      GV->isDeclarationForLinker() && isa<GlobalVariable>(GV))
     return false;
 
   // On COFF, don't mark 'extern_weak' symbols as DSO local. If these symbols
@@ -154,7 +142,9 @@ bool TargetMachine::shouldAssumeDSOLocal(const Module &M,
   // Make an exception for windows OS in the triple: Some firmware builds use
   // *-win32-macho triples. This (accidentally?) produced windows relocations
   // without GOT tables in older clang versions; Keep this behaviour.
-  if (TT.isOSBinFormatCOFF() || (TT.isOSWindows() && TT.isOSBinFormatMachO()))
+  // Some JIT users use *-win32-elf triples; these shouldn't use GOT tables
+  // either.
+  if (TT.isOSBinFormatCOFF() || TT.isOSWindows())
     return true;
 
   // Most PIC code sequences that assume that a symbol is local cannot

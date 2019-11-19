@@ -80,9 +80,9 @@ body: |
     ; CHECK: [[C:%[0-9]+]]:sgpr(s32) = G_CONSTANT i32 0
     ; CHECK: [[ICMP:%[0-9]+]]:scc(s1) = G_ICMP intpred(ne), [[COPY]](s32), [[C]]
     ; CHECK: [[ICMP1:%[0-9]+]]:scc(s1) = G_ICMP intpred(ne), [[COPY1]](s32), [[C]]
-    ; CHECK: [[COPY2:%[0-9]+]]:vcc(s1) = COPY [[ICMP]](s1)
-    ; CHECK: [[COPY3:%[0-9]+]]:vcc(s1) = COPY [[ICMP1]](s1)
-    ; CHECK: [[OR:%[0-9]+]]:vcc(s1) = G_OR [[COPY2]], [[COPY3]]
+    ; CHECK: [[COPY2:%[0-9]+]]:sgpr(s1) = COPY [[ICMP]](s1)
+    ; CHECK: [[COPY3:%[0-9]+]]:sgpr(s1) = COPY [[ICMP1]](s1)
+    ; CHECK: [[OR:%[0-9]+]]:scc(s1) = G_OR [[COPY2]], [[COPY3]]
     ; CHECK: S_NOP 0, implicit [[OR]](s1)
       %0:_(s32) = COPY $sgpr0
       %1:_(s32) = COPY $sgpr1
@@ -153,9 +153,7 @@ body:             |
     ; CHECK: [[COPY1:%[0-9]+]]:sgpr(s32) = COPY $sgpr1
     ; CHECK: [[TRUNC:%[0-9]+]]:sgpr(s1) = G_TRUNC [[COPY]](s32)
     ; CHECK: [[TRUNC1:%[0-9]+]]:sgpr(s1) = G_TRUNC [[COPY1]](s32)
-    ; CHECK: [[COPY2:%[0-9]+]]:vcc(s1) = COPY [[TRUNC]](s1)
-    ; CHECK: [[COPY3:%[0-9]+]]:vcc(s1) = COPY [[TRUNC1]](s1)
-    ; CHECK: [[OR:%[0-9]+]]:vcc(s1) = G_OR [[COPY2]], [[COPY3]]
+    ; CHECK: [[OR:%[0-9]+]]:sgpr(s1) = G_OR [[TRUNC]], [[TRUNC1]]
     ; CHECK: S_NOP 0, implicit [[OR]](s1)
     %0:_(s32) = COPY $sgpr0
     %1:_(s32) = COPY $sgpr1
@@ -177,9 +175,8 @@ body:             |
     ; CHECK: [[COPY1:%[0-9]+]]:sgpr(s32) = COPY $sgpr1
     ; CHECK: [[TRUNC:%[0-9]+]]:sgpr(s1) = G_TRUNC [[COPY]](s32)
     ; CHECK: [[ICMP:%[0-9]+]]:scc(s1) = G_ICMP intpred(ne), [[COPY]](s32), [[COPY1]]
-    ; CHECK: [[COPY2:%[0-9]+]]:vcc(s1) = COPY [[TRUNC]](s1)
-    ; CHECK: [[COPY3:%[0-9]+]]:vcc(s1) = COPY [[ICMP]](s1)
-    ; CHECK: [[OR:%[0-9]+]]:vcc(s1) = G_OR [[COPY2]], [[COPY3]]
+    ; CHECK: [[COPY2:%[0-9]+]]:sgpr(s1) = COPY [[ICMP]](s1)
+    ; CHECK: [[OR:%[0-9]+]]:scc(s1) = G_OR [[TRUNC]], [[COPY2]]
     ; CHECK: S_NOP 0, implicit [[OR]](s1)
     %0:_(s32) = COPY $sgpr0
     %1:_(s32) = COPY $sgpr1
@@ -671,4 +668,69 @@ body: |
     %0:_(<4 x s16>) = COPY $vgpr0_vgpr1
     %1:_(<4 x s16>) = COPY $vgpr2_vgpr3
     %2:_(<4 x s16>) = G_OR %0, %1
+...
+
+---
+name: or_v2s16_ss
+legalized: true
+
+body: |
+  bb.0:
+    liveins: $sgpr0, $sgpr1
+    ; CHECK-LABEL: name: or_v2s16_ss
+    ; CHECK: [[COPY:%[0-9]+]]:sgpr(<2 x s16>) = COPY $sgpr0
+    ; CHECK: [[COPY1:%[0-9]+]]:sgpr(<2 x s16>) = COPY $sgpr1
+    ; CHECK: [[OR:%[0-9]+]]:sgpr(<2 x s16>) = G_OR [[COPY]], [[COPY1]]
+    %0:_(<2 x s16>) = COPY $sgpr0
+    %1:_(<2 x s16>) = COPY $sgpr1
+    %2:_(<2 x s16>) = G_OR %0, %1
+...
+
+---
+name: or_v2s16_sv
+legalized: true
+
+body: |
+  bb.0:
+    liveins: $sgpr0, $vgpr0
+    ; CHECK-LABEL: name: or_v2s16_sv
+    ; CHECK: [[COPY:%[0-9]+]]:sgpr(<2 x s16>) = COPY $sgpr0
+    ; CHECK: [[COPY1:%[0-9]+]]:vgpr(<2 x s16>) = COPY $vgpr0
+    ; CHECK: [[OR:%[0-9]+]]:vgpr(<2 x s16>) = G_OR [[COPY]], [[COPY1]]
+    %0:_(<2 x s16>) = COPY $sgpr0
+    %1:_(<2 x s16>) = COPY $vgpr0
+    %2:_(<2 x s16>) = G_OR %0, %1
+...
+
+---
+name: or_v2s16_vs
+legalized: true
+
+body: |
+  bb.0:
+    liveins: $sgpr0, $vgpr0
+    ; CHECK-LABEL: name: or_v2s16_vs
+    ; CHECK: [[COPY:%[0-9]+]]:vgpr(<2 x s16>) = COPY $vgpr0
+    ; CHECK: [[COPY1:%[0-9]+]]:sgpr(<2 x s16>) = COPY $sgpr0
+    ; CHECK: [[COPY2:%[0-9]+]]:vgpr(<2 x s16>) = COPY [[COPY1]](<2 x s16>)
+    ; CHECK: [[OR:%[0-9]+]]:vgpr(<2 x s16>) = G_OR [[COPY]], [[COPY2]]
+    %0:_(<2 x s16>) = COPY $vgpr0
+    %1:_(<2 x s16>) = COPY $sgpr0
+    %2:_(<2 x s16>) = G_OR %0, %1
+...
+
+---
+name: or_v2s16_vv
+legalized: true
+
+body: |
+  bb.0:
+    liveins: $vgpr0, $vgpr1
+    ; CHECK-LABEL: name: or_v2s16_vv
+    ; CHECK: [[COPY:%[0-9]+]]:vgpr(<2 x s16>) = COPY $vgpr0
+    ; CHECK: [[COPY1:%[0-9]+]]:vgpr(<2 x s16>) = COPY $vgpr1
+    ; CHECK: [[OR:%[0-9]+]]:vgpr(<2 x s16>) = G_OR [[COPY]], [[COPY1]]
+    %0:_(<2 x s16>) = COPY $vgpr0
+    %1:_(<2 x s16>) = COPY $vgpr1
+    %2:_(<2 x s16>) = G_OR %0, %1
 ...

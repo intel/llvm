@@ -340,9 +340,7 @@ static void iterateOneModule(PDBFile &File, LinePrinter &P,
   if (ModiStream == kInvalidStreamIndex)
     return;
 
-  auto ModStreamData = MappedBlockStream::createIndexedStream(
-      File.getMsfLayout(), File.getMsfBuffer(), ModiStream,
-      File.getAllocator());
+  auto ModStreamData = File.createIndexedStream(ModiStream);
   ModuleDebugStreamRef ModStream(Modi, std::move(ModStreamData));
   if (auto EC = ModStream.reload()) {
     P.formatLine("Could not parse debug information.");
@@ -459,7 +457,7 @@ BytesOutputStyle::initializeTypes(uint32_t StreamIdx) {
   uint32_t Count = Tpi->getNumTypeRecords();
   auto Offsets = Tpi->getTypeIndexOffsets();
   TypeCollection =
-      llvm::make_unique<LazyRandomTypeCollection>(Types, Count, Offsets);
+      std::make_unique<LazyRandomTypeCollection>(Types, Count, Offsets);
 
   return *TypeCollection;
 }

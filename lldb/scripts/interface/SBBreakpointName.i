@@ -34,8 +34,6 @@ public:
 
   ~SBBreakpointName();
 
-  const lldb::SBBreakpointName &operator=(const lldb::SBBreakpointName &rhs);
-
   // Tests to see if the opaque breakpoint object in this object matches the
   // opaque breakpoint object in "rhs".
   bool operator==(const lldb::SBBreakpointName &rhs);
@@ -85,6 +83,10 @@ public:
   const char *GetQueueName() const;
 
   void SetScriptCallbackFunction(const char *callback_function_name);
+
+  SBError
+  SetScriptCallbackFunction (const char *callback_function_name,
+                             SBStructuredData &extra_args);
 
   void SetCommandLineCommands(SBStringList &commands);
 

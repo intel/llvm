@@ -40,7 +40,7 @@ IO::IO(void *Context) : Ctxt(Context) {}
 
 IO::~IO() = default;
 
-void *IO::getContext() {
+void *IO::getContext() const {
   return Ctxt;
 }
 
@@ -79,7 +79,7 @@ void Input::ScalarHNode::anchor() {}
 void Input::MapHNode::anchor() {}
 void Input::SequenceHNode::anchor() {}
 
-bool Input::outputting() {
+bool Input::outputting() const {
   return false;
 }
 
@@ -87,7 +87,6 @@ bool Input::setCurrentDocument() {
   if (DocIterator != Strm->end()) {
     Node *N = DocIterator->getRoot();
     if (!N) {
-      assert(Strm->failed() && "Root is NULL iff parsing failed");
       EC = make_error_code(errc::invalid_argument);
       return false;
     }
@@ -377,12 +376,12 @@ std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
       // Copy string to permanent storage
       KeyStr = StringStorage.str().copy(StringAllocator);
     }
-    return llvm::make_unique<ScalarHNode>(N, KeyStr);
+    return std::make_unique<ScalarHNode>(N, KeyStr);
   } else if (BlockScalarNode *BSN = dyn_cast<BlockScalarNode>(N)) {
     StringRef ValueCopy = BSN->getValue().copy(StringAllocator);
-    return llvm::make_unique<ScalarHNode>(N, ValueCopy);
+    return std::make_unique<ScalarHNode>(N, ValueCopy);
   } else if (SequenceNode *SQ = dyn_cast<SequenceNode>(N)) {
-    auto SQHNode = llvm::make_unique<SequenceHNode>(N);
+    auto SQHNode = std::make_unique<SequenceHNode>(N);
     for (Node &SN : *SQ) {
       auto Entry = createHNodes(&SN);
       if (EC)
@@ -391,10 +390,10 @@ std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
     }
     return std::move(SQHNode);
   } else if (MappingNode *Map = dyn_cast<MappingNode>(N)) {
-    auto mapHNode = llvm::make_unique<MapHNode>(N);
+    auto mapHNode = std::make_unique<MapHNode>(N);
     for (KeyValueNode &KVN : *Map) {
       Node *KeyNode = KVN.getKey();
-      ScalarNode *Key = dyn_cast<ScalarNode>(KeyNode);
+      ScalarNode *Key = dyn_cast_or_null<ScalarNode>(KeyNode);
       Node *Value = KVN.getValue();
       if (!Key || !Value) {
         if (!Key)
@@ -416,7 +415,7 @@ std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
     }
     return std::move(mapHNode);
   } else if (isa<NullNode>(N)) {
-    return llvm::make_unique<EmptyHNode>(N);
+    return std::make_unique<EmptyHNode>(N);
   } else {
     setError(N, "unknown node kind");
     return nullptr;
@@ -440,13 +439,14 @@ Output::Output(raw_ostream &yout, void *context, int WrapColumn)
 
 Output::~Output() = default;
 
-bool Output::outputting() {
+bool Output::outputting() const {
   return true;
 }
 
 void Output::beginMapping() {
   StateStack.push_back(inMapFirstKey);
-  NeedsNewLine = true;
+  PaddingBeforeContainer = Padding;
+  Padding = "\n";
 }
 
 bool Output::mapTag(StringRef Tag, bool Use) {
@@ -474,7 +474,7 @@ bool Output::mapTag(StringRef Tag, bool Use) {
       }
       // Tags inside maps in sequences should act as keys in the map from a
       // formatting perspective, so we always want a newline in a sequence.
-      NeedsNewLine = true;
+      Padding = "\n";
     }
   }
   return Use;
@@ -482,8 +482,12 @@ bool Output::mapTag(StringRef Tag, bool Use) {
 
 void Output::endMapping() {
   // If we did not map anything, we should explicitly emit an empty map
-  if (StateStack.back() == inMapFirstKey)
+  if (StateStack.back() == inMapFirstKey) {
+    Padding = PaddingBeforeContainer;
+    newLineCheck();
     output("{}");
+    Padding = "\n";
+  }
   StateStack.pop_back();
 }
 
@@ -548,14 +552,19 @@ void Output::endDocuments() {
 
 unsigned Output::beginSequence() {
   StateStack.push_back(inSeqFirstElement);
-  NeedsNewLine = true;
+  PaddingBeforeContainer = Padding;
+  Padding = "\n";
   return 0;
 }
 
 void Output::endSequence() {
   // If we did not emit anything, we should explicitly emit an empty sequence
-  if (StateStack.back() == inSeqFirstElement)
+  if (StateStack.back() == inSeqFirstElement) {
+    Padding = PaddingBeforeContainer;
+    newLineCheck();
     output("[]");
+    Padding = "\n";
+  }
   StateStack.pop_back();
 }
 
@@ -746,7 +755,7 @@ void Output::outputUpToEndOfLine(StringRef s) {
   output(s);
   if (StateStack.empty() || (!inFlowSeqAnyElement(StateStack.back()) &&
                              !inFlowMapAnyKey(StateStack.back())))
-    NeedsNewLine = true;
+    Padding = "\n";
 }
 
 void Output::outputNewLine() {
@@ -759,11 +768,13 @@ void Output::outputNewLine() {
 //
 
 void Output::newLineCheck() {
-  if (!NeedsNewLine)
+  if (Padding != "\n") {
+    output(Padding);
+    Padding = {};
     return;
-  NeedsNewLine = false;
-
+  }
   outputNewLine();
+  Padding = {};
 
   if (StateStack.size() == 0)
     return;
@@ -797,9 +808,9 @@ void Output::paddedKey(StringRef key) {
   output(":");
   const char *spaces = "                ";
   if (key.size() < strlen(spaces))
-    output(&spaces[key.size()]);
+    Padding = &spaces[key.size()];
   else
-    output(" ");
+    Padding = " ";
 }
 
 void Output::flowKey(StringRef Key) {

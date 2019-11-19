@@ -18,6 +18,7 @@
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/LTO/LTO.h"
 #include "llvm/LTO/legacy/LTOCodeGenerator.h"
 #include "llvm/LTO/legacy/LTOModule.h"
 #include "llvm/LTO/legacy/ThinLTOCodeGenerator.h"
@@ -111,7 +112,7 @@ static void lto_initialize() {
     static LLVMContext Context;
     LTOContext = &Context;
     LTOContext->setDiagnosticHandler(
-        llvm::make_unique<LTOToolDiagnosticHandler>(), true);
+        std::make_unique<LTOToolDiagnosticHandler>(), true);
     initialized = true;
   }
 }
@@ -276,8 +277,8 @@ lto_module_t lto_module_create_in_local_context(const void *mem, size_t length,
   llvm::TargetOptions Options = InitTargetOptionsFromCodeGenFlags();
 
   // Create a local context. Ownership will be transferred to LTOModule.
-  std::unique_ptr<LLVMContext> Context = llvm::make_unique<LLVMContext>();
-  Context->setDiagnosticHandler(llvm::make_unique<LTOToolDiagnosticHandler>(),
+  std::unique_ptr<LLVMContext> Context = std::make_unique<LLVMContext>();
+  Context->setDiagnosticHandler(std::make_unique<LTOToolDiagnosticHandler>(),
                                 true);
 
   ErrorOr<std::unique_ptr<LTOModule>> M = LTOModule::createInLocalContext(
@@ -325,10 +326,6 @@ const char* lto_module_get_linkeropts(lto_module_t mod) {
   return unwrap(mod)->getLinkerOpts().data();
 }
 
-const char* lto_module_get_dependent_libraries(lto_module_t mod) {
-    return unwrap(mod)->getDependentLibraries().data();
-}
-
 void lto_codegen_set_diagnostic_handler(lto_code_gen_t cg,
                                         lto_diagnostic_handler_t diag_handler,
                                         void *ctxt) {
@@ -341,7 +338,7 @@ static lto_code_gen_t createCodeGen(bool InLocalContext) {
   TargetOptions Options = InitTargetOptionsFromCodeGenFlags();
 
   LibLTOCodeGenerator *CodeGen =
-      InLocalContext ? new LibLTOCodeGenerator(make_unique<LLVMContext>())
+      InLocalContext ? new LibLTOCodeGenerator(std::make_unique<LLVMContext>())
                      : new LibLTOCodeGenerator();
   CodeGen->setTargetOptions(Options);
   return wrap(CodeGen);
@@ -634,4 +631,30 @@ lto_bool_t thinlto_codegen_set_pic_model(thinlto_code_gen_t cg,
   }
   sLastErrorString = "Unknown PIC model";
   return true;
+}
+
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(lto::InputFile, lto_input_t)
+
+lto_input_t lto_input_create(const void *buffer, size_t buffer_size, const char *path) {
+  return wrap(LTOModule::createInputFile(buffer, buffer_size, path, sLastErrorString));
+}
+
+void lto_input_dispose(lto_input_t input) {
+  delete unwrap(input);
+}
+
+extern unsigned lto_input_get_num_dependent_libraries(lto_input_t input) {
+  return LTOModule::getDependentLibraryCount(unwrap(input));
+}
+
+extern const char *lto_input_get_dependent_library(lto_input_t input,
+                                                   size_t index,
+                                                   size_t *size) {
+  return LTOModule::getDependentLibrary(unwrap(input), index, size);
+}
+
+extern const char *const *lto_runtime_lib_symbols_list(size_t *size) {
+  auto symbols = lto::LTO::getRuntimeLibcallSymbols();
+  *size = symbols.size();
+  return symbols.data();
 }

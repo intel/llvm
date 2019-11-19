@@ -25,7 +25,7 @@ public:
 class DummyCallbackManager : public JITCompileCallbackManager {
 public:
   DummyCallbackManager(ExecutionSession &ES)
-      : JITCompileCallbackManager(llvm::make_unique<DummyTrampolinePool>(), ES,
+      : JITCompileCallbackManager(std::make_unique<DummyTrampolinePool>(), ES,
                                   0) {}
 };
 
@@ -76,9 +76,9 @@ TEST(LegacyCompileOnDemandLayerTest, FindSymbol) {
   };
 
   llvm::orc::LegacyCompileOnDemandLayer<decltype(TestBaseLayer)> COD(
-      ES, TestBaseLayer, GetResolver, SetResolver,
+      AcknowledgeORCv1Deprecation, ES, TestBaseLayer, GetResolver, SetResolver,
       [](Function &F) { return std::set<Function *>{&F}; }, CallbackMgr,
-      [] { return llvm::make_unique<DummyStubsManager>(); }, true);
+      [] { return std::make_unique<DummyStubsManager>(); }, true);
 
   auto Sym = COD.findSymbol("foo", true);
 

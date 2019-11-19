@@ -14,9 +14,10 @@
 #ifndef LLVM_CLANG_CROSSTU_CROSSTRANSLATIONUNIT_H
 #define LLVM_CLANG_CROSSTU_CROSSTRANSLATIONUNIT_H
 
-#include "clang/AST/ASTImporterLookupTable.h"
+#include "clang/AST/ASTImporterSharedState.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Error.h"
@@ -45,7 +46,8 @@ enum class index_error_code {
   failed_to_generate_usr,
   triple_mismatch,
   lang_mismatch,
-  lang_dialect_mismatch
+  lang_dialect_mismatch,
+  load_threshold_reached
 };
 
 class IndexError : public llvm::ErrorInfo<IndexError> {
@@ -134,7 +136,8 @@ public:
   /// A definition with the same declaration will be looked up in the
   /// index file which should be in the \p CrossTUDir directory, called
   /// \p IndexName. In case the declaration is found in the index the
-  /// corresponding AST file will be loaded.
+  /// corresponding AST file will be loaded. If the number of TUs imported
+  /// reaches \p CTULoadTreshold, no loading is performed.
   ///
   /// \return Returns a pointer to the ASTUnit that contains the definition of
   /// the looked up name or an Error.
@@ -151,18 +154,34 @@ public:
   ///        was passed to the constructor.
   ///
   /// \return Returns the resulting definition or an error.
-  llvm::Expected<const FunctionDecl *> importDefinition(const FunctionDecl *FD);
-  llvm::Expected<const VarDecl *> importDefinition(const VarDecl *VD);
+  llvm::Expected<const FunctionDecl *> importDefinition(const FunctionDecl *FD,
+                                                        ASTUnit *Unit);
+  llvm::Expected<const VarDecl *> importDefinition(const VarDecl *VD,
+                                                   ASTUnit *Unit);
 
   /// Get a name to identify a named decl.
-  static std::string getLookupName(const NamedDecl *ND);
+  static llvm::Optional<std::string> getLookupName(const NamedDecl *ND);
 
   /// Emit diagnostics for the user for potential configuration errors.
   void emitCrossTUDiagnostics(const IndexError &IE);
 
+  /// Determine the original source location in the original TU for an
+  /// imported source location.
+  /// \p ToLoc Source location in the imported-to AST.
+  /// \return Source location in the imported-from AST and the corresponding
+  /// ASTUnit object (the AST was loaded from a file using an internal ASTUnit
+  /// object that is returned here).
+  /// If any error happens (ToLoc is a non-imported source location) empty is
+  /// returned.
+  llvm::Optional<std::pair<SourceLocation /*FromLoc*/, ASTUnit *>>
+  getImportedFromSourceLocation(const clang::SourceLocation &ToLoc) const;
+
 private:
-  void lazyInitLookupTable(TranslationUnitDecl *ToTU);
-  ASTImporter &getOrCreateASTImporter(ASTContext &From);
+  using ImportedFileIDMap =
+      llvm::DenseMap<FileID, std::pair<FileID, ASTUnit *>>;
+
+  void lazyInitImporterSharedSt(TranslationUnitDecl *ToTU);
+  ASTImporter &getOrCreateASTImporter(ASTUnit *Unit);
   template <typename T>
   llvm::Expected<const T *> getCrossTUDefinitionImpl(const T *D,
                                                      StringRef CrossTUDir,
@@ -172,16 +191,114 @@ private:
   const T *findDefInDeclContext(const DeclContext *DC,
                                 StringRef LookupName);
   template <typename T>
-  llvm::Expected<const T *> importDefinitionImpl(const T *D);
+  llvm::Expected<const T *> importDefinitionImpl(const T *D, ASTUnit *Unit);
 
-  llvm::StringMap<std::unique_ptr<clang::ASTUnit>> FileASTUnitMap;
-  llvm::StringMap<clang::ASTUnit *> NameASTUnitMap;
-  llvm::StringMap<std::string> NameFileMap;
-  llvm::DenseMap<TranslationUnitDecl *, std::unique_ptr<ASTImporter>>
-      ASTUnitImporterMap;
-  CompilerInstance &CI;
+  using ImporterMapTy =
+      llvm::DenseMap<TranslationUnitDecl *, std::unique_ptr<ASTImporter>>;
+
+  ImporterMapTy ASTUnitImporterMap;
+
   ASTContext &Context;
-  std::unique_ptr<ASTImporterLookupTable> LookupTable;
+  std::shared_ptr<ASTImporterSharedState> ImporterSharedSt;
+  /// Map of imported FileID's (in "To" context) to FileID in "From" context
+  /// and the ASTUnit for the From context.
+  /// This map is used by getImportedFromSourceLocation to lookup a FileID and
+  /// its Preprocessor when knowing only the FileID in the 'To' context. The
+  /// FileID could be imported by any of multiple 'From' ASTImporter objects.
+  /// we do not want to loop over all ASTImporter's to find the one that
+  /// imported the FileID.
+  ImportedFileIDMap ImportedFileIDs;
+
+  /// Functor for loading ASTUnits from AST-dump files.
+  class ASTFileLoader {
+  public:
+    ASTFileLoader(const CompilerInstance &CI);
+    std::unique_ptr<ASTUnit> operator()(StringRef ASTFilePath);
+
+  private:
+    const CompilerInstance &CI;
+  };
+
+  /// Maintain number of AST loads and check for reaching the load limit.
+  class ASTLoadGuard {
+  public:
+    ASTLoadGuard(unsigned Limit) : Limit(Limit) {}
+
+    /// Indicates, whether a new load operation is permitted, it is within the
+    /// threshold.
+    operator bool() const { return Count < Limit; }
+
+    /// Tell that a new AST was loaded successfully.
+    void indicateLoadSuccess() { ++Count; }
+
+  private:
+    /// The number of ASTs actually imported.
+    unsigned Count{0u};
+    /// The limit (threshold) value for number of loaded ASTs.
+    const unsigned Limit;
+  };
+
+  /// Storage and load of ASTUnits, cached access, and providing searchability
+  /// are the concerns of ASTUnitStorage class.
+  class ASTUnitStorage {
+  public:
+    ASTUnitStorage(const CompilerInstance &CI);
+    /// Loads an ASTUnit for a function.
+    ///
+    /// \param FunctionName USR name of the function.
+    /// \param CrossTUDir Path to the directory used to store CTU related files.
+    /// \param IndexName Name of the file inside \p CrossTUDir which maps
+    /// function USR names to file paths. These files contain the corresponding
+    /// AST-dumps.
+    /// \param DisplayCTUProgress Display a message about loading new ASTs.
+    ///
+    /// \return An Expected instance which contains the ASTUnit pointer or the
+    /// error occured during the load.
+    llvm::Expected<ASTUnit *> getASTUnitForFunction(StringRef FunctionName,
+                                                    StringRef CrossTUDir,
+                                                    StringRef IndexName,
+                                                    bool DisplayCTUProgress);
+    /// Identifies the path of the file which can be used to load the ASTUnit
+    /// for a given function.
+    ///
+    /// \param FunctionName USR name of the function.
+    /// \param CrossTUDir Path to the directory used to store CTU related files.
+    /// \param IndexName Name of the file inside \p CrossTUDir which maps
+    /// function USR names to file paths. These files contain the corresponding
+    /// AST-dumps.
+    ///
+    /// \return An Expected instance containing the filepath.
+    llvm::Expected<std::string> getFileForFunction(StringRef FunctionName,
+                                                   StringRef CrossTUDir,
+                                                   StringRef IndexName);
+
+  private:
+    llvm::Error ensureCTUIndexLoaded(StringRef CrossTUDir, StringRef IndexName);
+    llvm::Expected<ASTUnit *> getASTUnitForFile(StringRef FileName,
+                                                bool DisplayCTUProgress);
+
+    template <typename... T> using BaseMapTy = llvm::StringMap<T...>;
+    using OwningMapTy = BaseMapTy<std::unique_ptr<clang::ASTUnit>>;
+    using NonOwningMapTy = BaseMapTy<clang::ASTUnit *>;
+
+    OwningMapTy FileASTUnitMap;
+    NonOwningMapTy NameASTUnitMap;
+
+    using IndexMapTy = BaseMapTy<std::string>;
+    IndexMapTy NameFileMap;
+
+    ASTFileLoader FileAccessor;
+
+    /// Limit the number of loaded ASTs. Used to limit the  memory usage of the
+    /// CrossTranslationUnitContext.
+    /// The ASTUnitStorage has the knowledge about if the AST to load is
+    /// actually loaded or returned from cache. This information is needed to
+    /// maintain the counter.
+    ASTLoadGuard LoadGuard;
+  };
+
+  ASTUnitStorage ASTStorage;
+
 };
 
 } // namespace cross_tu

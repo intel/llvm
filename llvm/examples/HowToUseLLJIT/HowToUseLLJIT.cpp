@@ -1,3 +1,11 @@
+//===-- examples/HowToUseJIT/HowToUseJIT.cpp - An example use of the JIT --===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -12,8 +20,8 @@ using namespace llvm::orc;
 ExitOnError ExitOnErr;
 
 ThreadSafeModule createDemoModule() {
-  auto Context = llvm::make_unique<LLVMContext>();
-  auto M = make_unique<Module>("test", *Context);
+  auto Context = std::make_unique<LLVMContext>();
+  auto M = std::make_unique<Module>("test", *Context);
 
   // Create the add1 function entry and insert this entry into module M.  The
   // function will have a return type of "int" and take an argument of "int".

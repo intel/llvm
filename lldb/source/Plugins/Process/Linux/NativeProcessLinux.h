@@ -21,8 +21,8 @@
 #include "lldb/lldb-types.h"
 
 #include "NativeThreadLinux.h"
+#include "Plugins/Process/POSIX/NativeProcessELF.h"
 #include "ProcessorTrace.h"
-#include "lldb/Host/common/NativeProcessProtocol.h"
 
 namespace lldb_private {
 class Status;
@@ -36,7 +36,7 @@ namespace process_linux {
 /// for debugging.
 ///
 /// Changes in the inferior process state are broadcasted.
-class NativeProcessLinux : public NativeProcessProtocol {
+class NativeProcessLinux : public NativeProcessELF {
 public:
   class Factory : public NativeProcessProtocol::Factory {
   public:
@@ -75,8 +75,6 @@ public:
                         lldb::addr_t &addr) override;
 
   Status DeallocateMemory(lldb::addr_t addr) override;
-
-  lldb::addr_t GetSharedLibraryInfoAddress() override;
 
   size_t UpdateThreads() override;
 

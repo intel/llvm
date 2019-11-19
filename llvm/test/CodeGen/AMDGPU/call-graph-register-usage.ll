@@ -13,14 +13,14 @@ define void @use_vcc() #1 {
 }
 
 ; GCN-LABEL: {{^}}indirect_use_vcc:
-; GCN: v_writelane_b32 v32, s33, 0
-; GCN: v_writelane_b32 v32, s34, 1
-; GCN: v_writelane_b32 v32, s35, 2
+; GCN: v_writelane_b32 v32, s34, 2
+; GCN: v_writelane_b32 v32, s30, 0
+; GCN: v_writelane_b32 v32, s31, 1
 ; GCN: s_swappc_b64
-; GCN: v_readlane_b32 s35, v32, 2
-; GCN: v_readlane_b32 s34, v32, 1
-; GCN: v_readlane_b32 s33, v32, 0
-; GCN: ; NumSgprs: 38
+; GCN: v_readlane_b32 s4, v32, 0
+; GCN: v_readlane_b32 s5, v32, 1
+; GCN: v_readlane_b32 s34, v32, 2
+; GCN: ; NumSgprs: 37
 ; GCN: ; NumVgprs: 33
 define void @indirect_use_vcc() #1 {
   call void @use_vcc()
@@ -29,8 +29,8 @@ define void @indirect_use_vcc() #1 {
 
 ; GCN-LABEL: {{^}}indirect_2level_use_vcc_kernel:
 ; GCN: is_dynamic_callstack = 0
-; CI: ; NumSgprs: 40
-; VI-NOBUG: ; NumSgprs: 42
+; CI: ; NumSgprs: 39
+; VI-NOBUG: ; NumSgprs: 41
 ; VI-BUG: ; NumSgprs: 96
 ; GCN: ; NumVgprs: 33
 define amdgpu_kernel void @indirect_2level_use_vcc_kernel(i32 addrspace(1)* %out) #0 {
@@ -48,8 +48,8 @@ define void @use_flat_scratch() #1 {
 }
 
 ; GCN-LABEL: {{^}}indirect_use_flat_scratch:
-; CI: ; NumSgprs: 40
-; VI: ; NumSgprs: 42
+; CI: ; NumSgprs: 39
+; VI: ; NumSgprs: 41
 ; GCN: ; NumVgprs: 33
 define void @indirect_use_flat_scratch() #1 {
   call void @use_flat_scratch()
@@ -58,8 +58,8 @@ define void @indirect_use_flat_scratch() #1 {
 
 ; GCN-LABEL: {{^}}indirect_2level_use_flat_scratch_kernel:
 ; GCN: is_dynamic_callstack = 0
-; CI: ; NumSgprs: 40
-; VI-NOBUG: ; NumSgprs: 42
+; CI: ; NumSgprs: 39
+; VI-NOBUG: ; NumSgprs: 41
 ; VI-BUG: ; NumSgprs: 96
 ; GCN: ; NumVgprs: 33
 define amdgpu_kernel void @indirect_2level_use_flat_scratch_kernel(i32 addrspace(1)* %out) #0 {
@@ -234,6 +234,34 @@ define amdgpu_kernel void @usage_direct_recursion(i32 %n) #0 {
 define amdgpu_kernel void @count_use_sgpr96_external_call()  {
 entry:
   tail call void asm sideeffect "; sgpr96 $0", "s"(<3 x i32> <i32 10, i32 11, i32 12>) #1
+  call void @external()
+  ret void
+}
+
+; Make sure there's no assert when a sgpr160 is used.
+; GCN-LABEL: {{^}}count_use_sgpr160_external_call
+; GCN: ; sgpr160 s[{{[0-9]+}}:{{[0-9]+}}]
+; CI: NumSgprs: 48
+; VI-NOBUG: NumSgprs: 48
+; VI-BUG: NumSgprs: 96
+; GCN: NumVgprs: 24
+define amdgpu_kernel void @count_use_sgpr160_external_call()  {
+entry:
+  tail call void asm sideeffect "; sgpr160 $0", "s"(<5 x i32> <i32 10, i32 11, i32 12, i32 13, i32 14>) #1
+  call void @external()
+  ret void
+}
+
+; Make sure there's no assert when a vgpr160 is used.
+; GCN-LABEL: {{^}}count_use_vgpr160_external_call
+; GCN: ; vgpr160 v[{{[0-9]+}}:{{[0-9]+}}]
+; CI: NumSgprs: 48
+; VI-NOBUG: NumSgprs: 48
+; VI-BUG: NumSgprs: 96
+; GCN: NumVgprs: 24
+define amdgpu_kernel void @count_use_vgpr160_external_call()  {
+entry:
+  tail call void asm sideeffect "; vgpr160 $0", "v"(<5 x i32> <i32 10, i32 11, i32 12, i32 13, i32 14>) #1
   call void @external()
   ret void
 }

@@ -40,7 +40,7 @@ entry:
   ret void
 }
 
-;CHECK: define spir_func void @new.[[FOO]](i32 addrspace(4)*)
+;CHECK: define spir_func void @new.[[FOO]](i32 addrspace(4)* %{{.*}})
 ; Function Attrs: nounwind
 define spir_func void @_Z3fooPi(i32* %Data) #3 {
 entry:

@@ -1,8 +1,14 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 int foo();
+
+void xxx(int argc) {
+  int x; // expected-note {{initialize the variable 'x' to silence this warning}}
+#pragma omp critical
+  argc = x; // expected-warning {{variable 'x' is uninitialized when used here}}
+}
 
 template<typename T, int N>
 int tmain(int argc, char **argv) { // expected-note {{declared here}}

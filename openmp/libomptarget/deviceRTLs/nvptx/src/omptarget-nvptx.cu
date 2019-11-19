@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "omptarget-nvptx.h"
+#include "target_impl.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // global data tables
@@ -23,12 +24,6 @@ extern __device__
 ////////////////////////////////////////////////////////////////////////////////
 // init entry points
 ////////////////////////////////////////////////////////////////////////////////
-
-INLINE static unsigned smid() {
-  unsigned id;
-  asm("mov.u32 %0, %%smid;" : "=r"(id));
-  return id;
-}
 
 EXTERN void __kmpc_kernel_init_params(void *Ptr) {
   PRINT(LD_IO, "call to __kmpc_kernel_init_params with version %f\n",
@@ -52,7 +47,7 @@ EXTERN void __kmpc_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime) {
   PRINT0(LD_IO, "call to __kmpc_kernel_init for master\n");
 
   // Get a state object from the queue.
-  int slot = smid() % MAX_SM;
+  int slot = __kmpc_impl_smid() % MAX_SM;
   usedSlotIdx = slot;
   omptarget_nvptx_threadPrivateContext =
       omptarget_nvptx_device_State[slot].Dequeue();
@@ -97,7 +92,7 @@ EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime,
                                                   : RuntimeUninitialized);
   int threadId = GetThreadIdInBlock();
   if (threadId == 0) {
-    usedSlotIdx = smid() % MAX_SM;
+    usedSlotIdx = __kmpc_impl_smid() % MAX_SM;
     parallelLevel[0] =
         1 + (GetNumberOfThreadsInBlock() > 1 ? OMP_ACTIVE_PARALLEL_LEVEL : 0);
   } else if (GetLaneId() == 0) {
@@ -106,7 +101,7 @@ EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime,
   }
   if (!RequiresOMPRuntime) {
     // Runtime is not required - exit.
-    __SYNCTHREADS();
+    __kmpc_impl_syncthreads();
     return;
   }
 
@@ -125,8 +120,7 @@ EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime,
     // init team context
     currTeamDescr.InitTeamDescr();
   }
-  // FIXME: use __syncthreads instead when the function copy is fixed in LLVM.
-  __SYNCTHREADS();
+  __kmpc_impl_syncthreads();
 
   omptarget_nvptx_TeamDescr &currTeamDescr = getMyTeamDescriptor();
   omptarget_nvptx_WorkDescr &workDescr = getMyWorkDescriptor();
@@ -168,8 +162,7 @@ EXTERN void __kmpc_spmd_kernel_deinit_v2(int16_t RequiresOMPRuntime) {
   if (!RequiresOMPRuntime)
     return;
 
-  // FIXME: use __syncthreads instead when the function copy is fixed in LLVM.
-  __SYNCTHREADS();
+  __kmpc_impl_syncthreads();
   int threadId = GetThreadIdInBlock();
   if (threadId == 0) {
     // Enqueue omp state object for use by another team.

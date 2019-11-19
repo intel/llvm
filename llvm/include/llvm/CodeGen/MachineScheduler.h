@@ -100,6 +100,7 @@ namespace llvm {
 
 extern cl::opt<bool> ForceTopDown;
 extern cl::opt<bool> ForceBottomUp;
+extern cl::opt<bool> VerifyScheduling;
 
 class LiveIntervals;
 class MachineDominatorTree;
@@ -1008,7 +1009,7 @@ protected:
 ///   initPolicy -> initialize(DAG) -> registerRoots -> pickNode ...
 class PostGenericScheduler : public GenericSchedulerBase {
 protected:
-  ScheduleDAGMI *DAG;
+  ScheduleDAGMI *DAG = nullptr;
   SchedBoundary Top;
   SmallVector<SUnit*, 8> BotRoots;
 

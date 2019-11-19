@@ -33,86 +33,109 @@
 #include <memory>
 using namespace llvm;
 
+cl::OptionCategory ExtractCat("llvm-extract Options");
+
 // InputFilename - The filename to read from.
-static cl::opt<std::string>
-InputFilename(cl::Positional, cl::desc("<input bitcode file>"),
-              cl::init("-"), cl::value_desc("filename"));
+static cl::opt<std::string> InputFilename(cl::Positional,
+                                          cl::desc("<input bitcode file>"),
+                                          cl::init("-"),
+                                          cl::value_desc("filename"));
 
-static cl::opt<std::string>
-OutputFilename("o", cl::desc("Specify output filename"),
-               cl::value_desc("filename"), cl::init("-"));
+static cl::opt<std::string> OutputFilename("o",
+                                           cl::desc("Specify output filename"),
+                                           cl::value_desc("filename"),
+                                           cl::init("-"), cl::cat(ExtractCat));
+
+static cl::opt<bool> Force("f", cl::desc("Enable binary output on terminals"),
+                           cl::cat(ExtractCat));
+
+static cl::opt<bool> DeleteFn("delete",
+                              cl::desc("Delete specified Globals from Module"),
+                              cl::cat(ExtractCat));
 
 static cl::opt<bool>
-Force("f", cl::desc("Enable binary output on terminals"));
-
-static cl::opt<bool>
-DeleteFn("delete", cl::desc("Delete specified Globals from Module"));
-
-static cl::opt<bool>
-    Recursive("recursive",
-              cl::desc("Recursively extract all called functions"));
+    Recursive("recursive", cl::desc("Recursively extract all called functions"),
+              cl::cat(ExtractCat));
 
 // ExtractFuncs - The functions to extract from the module.
 static cl::list<std::string>
-ExtractFuncs("func", cl::desc("Specify function to extract"),
-             cl::ZeroOrMore, cl::value_desc("function"));
+    ExtractFuncs("func", cl::desc("Specify function to extract"),
+                 cl::ZeroOrMore, cl::value_desc("function"),
+                 cl::cat(ExtractCat));
 
 // ExtractRegExpFuncs - The functions, matched via regular expression, to
 // extract from the module.
 static cl::list<std::string>
-ExtractRegExpFuncs("rfunc", cl::desc("Specify function(s) to extract using a "
-                                     "regular expression"),
-                   cl::ZeroOrMore, cl::value_desc("rfunction"));
+    ExtractRegExpFuncs("rfunc",
+                       cl::desc("Specify function(s) to extract using a "
+                                "regular expression"),
+                       cl::ZeroOrMore, cl::value_desc("rfunction"),
+                       cl::cat(ExtractCat));
 
 // ExtractBlocks - The blocks to extract from the module.
-static cl::list<std::string>
-    ExtractBlocks("bb",
-                  cl::desc("Specify <function, basic block> pairs to extract"),
-                  cl::ZeroOrMore, cl::value_desc("function:bb"));
+static cl::list<std::string> ExtractBlocks(
+    "bb",
+    cl::desc(
+        "Specify <function, basic block1[;basic block2...]> pairs to extract.\n"
+        "Each pair will create a function.\n"
+        "If multiple basic blocks are specified in one pair,\n"
+        "the first block in the sequence should dominate the rest.\n"
+        "eg:\n"
+        "  --bb=f:bb1;bb2 will extract one function with both bb1 and bb2;\n"
+        "  --bb=f:bb1 --bb=f:bb2 will extract two functions, one with bb1, one "
+        "with bb2."),
+    cl::ZeroOrMore, cl::value_desc("function:bb1[;bb2...]"),
+    cl::cat(ExtractCat));
 
 // ExtractAlias - The alias to extract from the module.
 static cl::list<std::string>
-ExtractAliases("alias", cl::desc("Specify alias to extract"),
-               cl::ZeroOrMore, cl::value_desc("alias"));
-
+    ExtractAliases("alias", cl::desc("Specify alias to extract"),
+                   cl::ZeroOrMore, cl::value_desc("alias"),
+                   cl::cat(ExtractCat));
 
 // ExtractRegExpAliases - The aliases, matched via regular expression, to
 // extract from the module.
 static cl::list<std::string>
-ExtractRegExpAliases("ralias", cl::desc("Specify alias(es) to extract using a "
-                                        "regular expression"),
-                     cl::ZeroOrMore, cl::value_desc("ralias"));
+    ExtractRegExpAliases("ralias",
+                         cl::desc("Specify alias(es) to extract using a "
+                                  "regular expression"),
+                         cl::ZeroOrMore, cl::value_desc("ralias"),
+                         cl::cat(ExtractCat));
 
 // ExtractGlobals - The globals to extract from the module.
 static cl::list<std::string>
-ExtractGlobals("glob", cl::desc("Specify global to extract"),
-               cl::ZeroOrMore, cl::value_desc("global"));
+    ExtractGlobals("glob", cl::desc("Specify global to extract"),
+                   cl::ZeroOrMore, cl::value_desc("global"),
+                   cl::cat(ExtractCat));
 
 // ExtractRegExpGlobals - The globals, matched via regular expression, to
 // extract from the module...
 static cl::list<std::string>
-ExtractRegExpGlobals("rglob", cl::desc("Specify global(s) to extract using a "
-                                       "regular expression"),
-                     cl::ZeroOrMore, cl::value_desc("rglobal"));
+    ExtractRegExpGlobals("rglob",
+                         cl::desc("Specify global(s) to extract using a "
+                                  "regular expression"),
+                         cl::ZeroOrMore, cl::value_desc("rglobal"),
+                         cl::cat(ExtractCat));
 
-static cl::opt<bool>
-OutputAssembly("S",
-               cl::desc("Write output as LLVM assembly"), cl::Hidden);
+static cl::opt<bool> OutputAssembly("S",
+                                    cl::desc("Write output as LLVM assembly"),
+                                    cl::Hidden, cl::cat(ExtractCat));
 
 static cl::opt<bool> PreserveBitcodeUseListOrder(
     "preserve-bc-uselistorder",
     cl::desc("Preserve use-list order when writing LLVM bitcode."),
-    cl::init(true), cl::Hidden);
+    cl::init(true), cl::Hidden, cl::cat(ExtractCat));
 
 static cl::opt<bool> PreserveAssemblyUseListOrder(
     "preserve-ll-uselistorder",
     cl::desc("Preserve use-list order when writing LLVM assembly."),
-    cl::init(false), cl::Hidden);
+    cl::init(false), cl::Hidden, cl::cat(ExtractCat));
 
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);
 
   LLVMContext Context;
+  cl::HideUnrelatedOptions(ExtractCat);
   cl::ParseCommandLineOptions(argc, argv, "llvm extractor\n");
 
   // Use lazy loading, since we only care about selected global values.
@@ -337,7 +360,7 @@ int main(int argc, char **argv) {
   Passes.add(createStripDeadPrototypesPass());   // Remove dead func decls
 
   std::error_code EC;
-  ToolOutputFile Out(OutputFilename, EC, sys::fs::F_None);
+  ToolOutputFile Out(OutputFilename, EC, sys::fs::OF_None);
   if (EC) {
     errs() << EC.message() << '\n';
     return 1;

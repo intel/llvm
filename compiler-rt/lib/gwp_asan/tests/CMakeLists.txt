@@ -4,10 +4,21 @@ set(GWP_ASAN_UNITTEST_CFLAGS
   ${COMPILER_RT_UNITTEST_CFLAGS}
   ${COMPILER_RT_GTEST_CFLAGS}
   -I${COMPILER_RT_SOURCE_DIR}/lib/
-  -O2)
+  -O2
+  -g)
 
 file(GLOB GWP_ASAN_HEADERS ../*.h)
-file(GLOB GWP_ASAN_UNITTESTS *.cpp)
+set(GWP_ASAN_UNITTESTS
+  optional/printf_sanitizer_common.cpp
+  alignment.cpp
+  backtrace.cpp
+  basic.cpp
+  compression.cpp
+  driver.cpp
+  mutex_test.cpp
+  slot_reuse.cpp
+  thread_contention.cpp)
+
 set(GWP_ASAN_UNIT_TEST_HEADERS
   ${GWP_ASAN_HEADERS}
   harness.h)
@@ -15,10 +26,10 @@ set(GWP_ASAN_UNIT_TEST_HEADERS
 add_custom_target(GwpAsanUnitTests)
 set_target_properties(GwpAsanUnitTests PROPERTIES FOLDER "Compiler-RT Tests")
 
-set(GWP_ASAN_UNITTEST_LINK_FLAGS ${COMPILER_RT_UNITTEST_LINK_FLAGS})
+set(GWP_ASAN_UNITTEST_LINK_FLAGS ${COMPILER_RT_UNITTEST_LINK_FLAGS} -ldl)
 list(APPEND GWP_ASAN_UNITTEST_LINK_FLAGS --driver-mode=g++)
 if(NOT WIN32)
-  list(APPEND GWP_ASAN_UNITTEST_LINK_FLAGS -lpthread)
+  list(APPEND GWP_ASAN_UNITTEST_LINK_FLAGS -pthread)
 endif()
 
 if(COMPILER_RT_DEFAULT_TARGET_ARCH IN_LIST GWP_ASAN_SUPPORTED_ARCH)
@@ -27,11 +38,12 @@ if(COMPILER_RT_DEFAULT_TARGET_ARCH IN_LIST GWP_ASAN_SUPPORTED_ARCH)
 
   set(GWP_ASAN_TEST_RUNTIME RTGwpAsanTest.${arch})
 
-  # RTSanitizerCommonNoTermination(NoLibc) required for __sanitizer::Printf.
   set(GWP_ASAN_TEST_RUNTIME_OBJECTS
     $<TARGET_OBJECTS:RTGwpAsan.${arch}>
+    $<TARGET_OBJECTS:RTGwpAsanBacktraceSanitizerCommon.${arch}>
     $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
-    $<TARGET_OBJECTS:RTSanitizerCommonNoLibc.${arch}>)
+    $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
+    $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>)
 
   add_library(${GWP_ASAN_TEST_RUNTIME} STATIC
     ${GWP_ASAN_TEST_RUNTIME_OBJECTS})

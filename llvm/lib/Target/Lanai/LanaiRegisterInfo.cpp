@@ -155,7 +155,7 @@ void LanaiRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (!HasFP || (needsStackRealignment(MF) && FrameIndex >= 0))
     Offset += MF.getFrameInfo().getStackSize();
 
-  unsigned FrameReg = getFrameRegister(MF);
+  Register FrameReg = getFrameRegister(MF);
   if (FrameIndex >= 0) {
     if (hasBasePointer(MF))
       FrameReg = getBaseRegister();
@@ -258,12 +258,12 @@ bool LanaiRegisterInfo::hasBasePointer(const MachineFunction &MF) const {
 
 unsigned LanaiRegisterInfo::getRARegister() const { return Lanai::RCA; }
 
-unsigned
+Register
 LanaiRegisterInfo::getFrameRegister(const MachineFunction & /*MF*/) const {
   return Lanai::FP;
 }
 
-unsigned LanaiRegisterInfo::getBaseRegister() const { return Lanai::R14; }
+Register LanaiRegisterInfo::getBaseRegister() const { return Lanai::R14; }
 
 const uint32_t *
 LanaiRegisterInfo::getCallPreservedMask(const MachineFunction & /*MF*/,

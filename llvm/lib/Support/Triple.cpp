@@ -70,6 +70,9 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case wasm64:         return "wasm64";
   case renderscript32: return "renderscript32";
   case renderscript64: return "renderscript64";
+  case fpga_aoco:      return "fpga_aoco";
+  case fpga_aocr:      return "fpga_aocr";
+  case fpga_aocx:      return "fpga_aocx";
   }
 
   llvm_unreachable("Invalid ArchType!");
@@ -144,6 +147,10 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
 
   case riscv32:
   case riscv64:     return "riscv";
+
+  case fpga_aoco:
+  case fpga_aocr:
+  case fpga_aocx:      return "fpga";
   }
 }
 
@@ -159,6 +166,7 @@ StringRef Triple::getVendorTypeName(VendorType Kind) {
   case Freescale: return "fsl";
   case IBM: return "ibm";
   case ImaginationTechnologies: return "img";
+  case Intel: return "intel";
   case MipsTechnologies: return "mti";
   case NVIDIA: return "nvidia";
   case CSR: return "csr";
@@ -240,6 +248,7 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case CoreCLR: return "coreclr";
   case Simulator: return "simulator";
   case SYCLDevice: return "sycldevice";
+  case MacABI: return "macabi";
   }
 
   llvm_unreachable("Invalid EnvironmentType!");
@@ -315,6 +324,9 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("wasm64", wasm64)
     .Case("renderscript32", renderscript32)
     .Case("renderscript64", renderscript64)
+    .Case("fpga_aoco", fpga_aoco)
+    .Case("fpga_aocr", fpga_aocr)
+    .Case("fpga_aocx", fpga_aocx)
     .Default(UnknownArch);
 }
 
@@ -443,6 +455,9 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("wasm64", Triple::wasm64)
     .Case("renderscript32", Triple::renderscript32)
     .Case("renderscript64", Triple::renderscript64)
+    .Case("fpga_aoco", Triple::fpga_aoco)
+    .Case("fpga_aocr", Triple::fpga_aocr)
+    .Case("fpga_aocx", Triple::fpga_aocx)
     .Default(Triple::UnknownArch);
 
   // Some architectures require special parsing logic just to compute the
@@ -476,6 +491,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
     .Case("mesa", Triple::Mesa)
     .Case("suse", Triple::SUSE)
     .Case("oe", Triple::OpenEmbedded)
+    .Case("intel", Triple::Intel)
     .Default(Triple::UnknownVendor);
 }
 
@@ -543,6 +559,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
     .StartsWith("coreclr", Triple::CoreCLR)
     .StartsWith("simulator", Triple::Simulator)
     .StartsWith("sycldevice", Triple::SYCLDevice)
+    .StartsWith("macabi", Triple::MacABI)
     .Default(Triple::UnknownEnvironment);
 }
 
@@ -570,6 +587,8 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
         return Triple::SPIRSubArch_fpga;
       else if (SA == "gen")
         return Triple::SPIRSubArch_gen;
+      else if (SA == "x86_64")
+        return Triple::SPIRSubArch_x86_64;
     }
   }
 
@@ -711,6 +730,9 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::tcele:
   case Triple::thumbeb:
   case Triple::xcore:
+  case Triple::fpga_aoco:
+  case Triple::fpga_aocr:
+  case Triple::fpga_aocx:
     return Triple::ELF;
 
   case Triple::ppc:
@@ -1272,6 +1294,9 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::shave:
   case llvm::Triple::wasm32:
   case llvm::Triple::renderscript32:
+  case llvm::Triple::fpga_aoco:
+  case llvm::Triple::fpga_aocr:
+  case llvm::Triple::fpga_aocx:
     return 32;
 
   case llvm::Triple::aarch64:
@@ -1353,6 +1378,9 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::shave:
   case Triple::wasm32:
   case Triple::renderscript32:
+  case Triple::fpga_aoco:
+  case Triple::fpga_aocr:
+  case Triple::fpga_aocx:
     // Already 32-bit.
     break;
 
@@ -1391,6 +1419,9 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::xcore:
   case Triple::sparcel:
   case Triple::shave:
+  case Triple::fpga_aoco:
+  case Triple::fpga_aocr:
+  case Triple::fpga_aocx:
     T.setArch(UnknownArch);
     break;
 

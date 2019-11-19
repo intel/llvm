@@ -1,6 +1,8 @@
 llc - LLVM static compiler
 ==========================
 
+.. program:: llc
+
 SYNOPSIS
 --------
 
@@ -40,6 +42,11 @@ End-user Options
 .. option:: -help
 
  Print a summary of command line options.
+
+.. option:: -o <filename>
+
+ Use ``<filename>`` as the output filename. See the summary above for more
+ details.
 
 .. option:: -O=uint
 
@@ -142,8 +149,8 @@ End-user Options
 
 .. option:: -remarks-section
 
- Emit the .remarks (ELF) / __remarks (MachO) section which contains metadata
- about remark diagnostics.
+ Emit the __remarks (MachO) section which contains metadata about remark
+ diagnostics.
 
 Tuning/Configuration Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -204,5 +211,4 @@ occurs, it will exit with a non-zero value.
 SEE ALSO
 --------
 
-lli
-
+:manpage:`lli(1)`

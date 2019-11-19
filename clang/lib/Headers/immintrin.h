@@ -64,9 +64,8 @@
 #include <vpclmulqdqintrin.h>
 #endif
 
-#if !defined(_MSC_VER) || __has_feature(modules) || defined(__BMI__)
+/* No feature check desired due to internal checks */
 #include <bmiintrin.h>
-#endif
 
 #if !defined(_MSC_VER) || __has_feature(modules) || defined(__BMI2__)
 #include <bmi2intrin.h>
@@ -429,6 +428,10 @@ _storebe_i64(void * __P, long long __D) {
 #if !defined(_MSC_VER) || __has_feature(modules) || \
   (defined(__AVX512VL__) && defined(__AVX512VP2INTERSECT__))
 #include <avx512vlvp2intersectintrin.h>
+#endif
+
+#if !defined(_MSC_VER) || __has_feature(modules) || defined(__ENQCMD__)
+#include <enqcmdintrin.h>
 #endif
 
 #if defined(_MSC_VER) && __has_extension(gnu_asm)

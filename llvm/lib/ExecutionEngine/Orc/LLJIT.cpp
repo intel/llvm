@@ -12,21 +12,6 @@
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/Mangler.h"
 
-namespace {
-
-  // A SimpleCompiler that owns its TargetMachine.
-  class TMOwningSimpleCompiler : public llvm::orc::SimpleCompiler {
-  public:
-    TMOwningSimpleCompiler(std::unique_ptr<llvm::TargetMachine> TM)
-      : llvm::orc::SimpleCompiler(*TM), TM(std::move(TM)) {}
-  private:
-    // FIXME: shared because std::functions (and thus
-    // IRCompileLayer::CompileFunction) are not moveable.
-    std::shared_ptr<llvm::TargetMachine> TM;
-  };
-
-} // end anonymous namespace
-
 namespace llvm {
 namespace orc {
 
@@ -56,7 +41,8 @@ Error LLJIT::defineAbsolute(StringRef Name, JITEvaluatedSymbol Sym) {
 Error LLJIT::addIRModule(JITDylib &JD, ThreadSafeModule TSM) {
   assert(TSM && "Can not add null module");
 
-  if (auto Err = applyDataLayout(*TSM.getModule()))
+  if (auto Err =
+          TSM.withModuleDo([&](Module &M) { return applyDataLayout(M); }))
     return Err;
 
   return CompileLayer->add(JD, std::move(TSM), ES->allocateVModule());
@@ -78,16 +64,45 @@ LLJIT::createObjectLinkingLayer(LLJITBuilderState &S, ExecutionSession &ES) {
 
   // If the config state provided an ObjectLinkingLayer factory then use it.
   if (S.CreateObjectLinkingLayer)
-    return S.CreateObjectLinkingLayer(ES);
+    return S.CreateObjectLinkingLayer(ES, S.JTMB->getTargetTriple());
 
   // Otherwise default to creating an RTDyldObjectLinkingLayer that constructs
   // a new SectionMemoryManager for each object.
-  auto GetMemMgr = []() { return llvm::make_unique<SectionMemoryManager>(); };
-  return llvm::make_unique<RTDyldObjectLinkingLayer>(ES, std::move(GetMemMgr));
+  auto GetMemMgr = []() { return std::make_unique<SectionMemoryManager>(); };
+  auto ObjLinkingLayer =
+      std::make_unique<RTDyldObjectLinkingLayer>(ES, std::move(GetMemMgr));
+
+  if (S.JTMB->getTargetTriple().isOSBinFormatCOFF())
+    ObjLinkingLayer->setOverrideObjectFlagsWithResponsibilityFlags(true);
+
+  // FIXME: Explicit conversion to std::unique_ptr<ObjectLayer> added to silence
+  //        errors from some GCC / libstdc++ bots. Remove this conversion (i.e.
+  //        just return ObjLinkingLayer) once those bots are upgraded.
+  return std::unique_ptr<ObjectLayer>(std::move(ObjLinkingLayer));
+}
+
+Expected<IRCompileLayer::CompileFunction>
+LLJIT::createCompileFunction(LLJITBuilderState &S,
+                             JITTargetMachineBuilder JTMB) {
+
+  /// If there is a custom compile function creator set then use it.
+  if (S.CreateCompileFunction)
+    return S.CreateCompileFunction(std::move(JTMB));
+
+  // Otherwise default to creating a SimpleCompiler, or ConcurrentIRCompiler,
+  // depending on the number of threads requested.
+  if (S.NumCompileThreads > 0)
+    return ConcurrentIRCompiler(std::move(JTMB));
+
+  auto TM = JTMB.createTargetMachine();
+  if (!TM)
+    return TM.takeError();
+
+  return TMOwningSimpleCompiler(std::move(*TM));
 }
 
 LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
-    : ES(S.ES ? std::move(S.ES) : llvm::make_unique<ExecutionSession>()),
+    : ES(S.ES ? std::move(S.ES) : std::make_unique<ExecutionSession>()),
       Main(this->ES->getMainJITDylib()), DL(""), CtorRunner(Main),
       DtorRunner(Main) {
 
@@ -95,26 +110,26 @@ LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
 
   ObjLinkingLayer = createObjectLinkingLayer(S, *ES);
 
-  if (S.NumCompileThreads > 0) {
+  if (auto DLOrErr = S.JTMB->getDefaultDataLayoutForTarget())
+    DL = std::move(*DLOrErr);
+  else {
+    Err = DLOrErr.takeError();
+    return;
+  }
 
-    // Configure multi-threaded.
-
-    if (auto DLOrErr = S.JTMB->getDefaultDataLayoutForTarget())
-      DL = std::move(*DLOrErr);
-    else {
-      Err = DLOrErr.takeError();
+  {
+    auto CompileFunction = createCompileFunction(S, std::move(*S.JTMB));
+    if (!CompileFunction) {
+      Err = CompileFunction.takeError();
       return;
     }
+    CompileLayer = std::make_unique<IRCompileLayer>(
+        *ES, *ObjLinkingLayer, std::move(*CompileFunction));
+  }
 
-    {
-      auto TmpCompileLayer = llvm::make_unique<IRCompileLayer>(
-          *ES, *ObjLinkingLayer, ConcurrentIRCompiler(std::move(*S.JTMB)));
-
-      TmpCompileLayer->setCloneToNewContextOnEmit(true);
-      CompileLayer = std::move(TmpCompileLayer);
-    }
-
-    CompileThreads = llvm::make_unique<ThreadPool>(S.NumCompileThreads);
+  if (S.NumCompileThreads > 0) {
+    CompileLayer->setCloneToNewContextOnEmit(true);
+    CompileThreads = std::make_unique<ThreadPool>(S.NumCompileThreads);
     ES->setDispatchMaterialization(
         [this](JITDylib &JD, std::unique_ptr<MaterializationUnit> MU) {
           // FIXME: Switch to move capture once we have c++14.
@@ -122,20 +137,6 @@ LLJIT::LLJIT(LLJITBuilderState &S, Error &Err)
           auto Work = [SharedMU, &JD]() { SharedMU->doMaterialize(JD); };
           CompileThreads->async(std::move(Work));
         });
-  } else {
-
-    // Configure single-threaded.
-
-    auto TM = S.JTMB->createTargetMachine();
-    if (!TM) {
-      Err = TM.takeError();
-      return;
-    }
-
-    DL = (*TM)->createDataLayout();
-
-    CompileLayer = llvm::make_unique<IRCompileLayer>(
-        *ES, *ObjLinkingLayer, TMOwningSimpleCompiler(std::move(*TM)));
   }
 }
 
@@ -175,10 +176,14 @@ Error LLLazyJITBuilderState::prepareForConstruction() {
 Error LLLazyJIT::addLazyIRModule(JITDylib &JD, ThreadSafeModule TSM) {
   assert(TSM && "Can not add null module");
 
-  if (auto Err = applyDataLayout(*TSM.getModule()))
-    return Err;
+  if (auto Err = TSM.withModuleDo([&](Module &M) -> Error {
+        if (auto Err = applyDataLayout(M))
+          return Err;
 
-  recordCtorDtors(*TSM.getModule());
+        recordCtorDtors(M);
+        return Error::success();
+      }))
+    return Err;
 
   return CODLayer->add(JD, std::move(TSM), ES->allocateVModule());
 }
@@ -221,10 +226,10 @@ LLLazyJIT::LLLazyJIT(LLLazyJITBuilderState &S, Error &Err) : LLJIT(S, Err) {
   }
 
   // Create the transform layer.
-  TransformLayer = llvm::make_unique<IRTransformLayer>(*ES, *CompileLayer);
+  TransformLayer = std::make_unique<IRTransformLayer>(*ES, *CompileLayer);
 
   // Create the COD layer.
-  CODLayer = llvm::make_unique<CompileOnDemandLayer>(
+  CODLayer = std::make_unique<CompileOnDemandLayer>(
       *ES, *TransformLayer, *LCTMgr, std::move(ISMBuilder));
 
   if (S.NumCompileThreads > 0)

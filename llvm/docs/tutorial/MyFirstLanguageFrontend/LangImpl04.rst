@@ -141,10 +141,10 @@ for us:
 
     void InitializeModuleAndPassManager(void) {
       // Open a new module.
-      TheModule = llvm::make_unique<Module>("my cool jit", TheContext);
+      TheModule = std::make_unique<Module>("my cool jit", TheContext);
 
       // Create a new pass manager attached to it.
-      TheFPM = llvm::make_unique<FunctionPassManager>(TheModule.get());
+      TheFPM = std::make_unique<FunctionPassManager>(TheModule.get());
 
       // Do simple "peephole" optimizations and bit-twiddling optzns.
       TheFPM->add(createInstructionCombiningPass());
@@ -259,7 +259,7 @@ adding a global variable ``TheJIT``, and initializing it in
       fprintf(stderr, "ready> ");
       getNextToken();
 
-      TheJIT = llvm::make_unique<KaleidoscopeJIT>();
+      TheJIT = std::make_unique<KaleidoscopeJIT>();
 
       // Run the main "interpreter loop" now.
       MainLoop();
@@ -273,11 +273,11 @@ We also need to setup the data layout for the JIT:
 
     void InitializeModuleAndPassManager(void) {
       // Open a new module.
-      TheModule = llvm::make_unique<Module>("my cool jit", TheContext);
+      TheModule = std::make_unique<Module>("my cool jit", TheContext);
       TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
 
       // Create a new pass manager attached to it.
-      TheFPM = llvm::make_unique<FunctionPassManager>(TheModule.get());
+      TheFPM = std::make_unique<FunctionPassManager>(TheModule.get());
       ...
 
 The KaleidoscopeJIT class is a simple JIT built specifically for these
@@ -318,7 +318,7 @@ look like this:
           TheJIT->removeModule(H);
         }
 
-If parsing and codegen succeeed, the next step is to add the module containing
+If parsing and codegen succeed, the next step is to add the module containing
 the top-level expression to the JIT. We do this by calling addModule, which
 triggers code generation for all the functions in the module, and returns a
 handle that can be used to remove the module from the JIT later. Once the module

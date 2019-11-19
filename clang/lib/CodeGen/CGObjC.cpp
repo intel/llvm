@@ -143,7 +143,7 @@ llvm::Value *CodeGenFunction::EmitObjCCollectionLiteral(const Expr *E,
                             NumElements);
   QualType ElementType = Context.getObjCIdType().withConst();
   QualType ElementArrayType
-    = Context.getConstantArrayType(ElementType, APNumElements,
+    = Context.getConstantArrayType(ElementType, APNumElements, nullptr,
                                    ArrayType::Normal, /*IndexTypeQuals=*/0);
 
   // Allocate the temporary array(s).
@@ -954,8 +954,7 @@ void CodeGenFunction::GenerateObjCGetter(ObjCImplementationDecl *IMP,
                                          const ObjCPropertyImplDecl *PID) {
   llvm::Constant *AtomicHelperFn =
       CodeGenFunction(CGM).GenerateObjCAtomicGetterCopyHelperFunction(PID);
-  const ObjCPropertyDecl *PD = PID->getPropertyDecl();
-  ObjCMethodDecl *OMD = PD->getGetterMethodDecl();
+  ObjCMethodDecl *OMD = PID->getGetterMethodDecl();
   assert(OMD && "Invalid call to generate getter (empty method)");
   StartObjCMethod(OMD, IMP->getClassInterface());
 
@@ -1041,7 +1040,7 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
 
   const ObjCPropertyDecl *prop = propImpl->getPropertyDecl();
   QualType propType = prop->getType();
-  ObjCMethodDecl *getterMethod = prop->getGetterMethodDecl();
+  ObjCMethodDecl *getterMethod = propImpl->getGetterMethodDecl();
 
   ObjCIvarDecl *ivar = propImpl->getPropertyIvarDecl();
 
@@ -1157,7 +1156,7 @@ CodeGenFunction::generateObjCGetterBody(const ObjCImplementationDecl *classImpl,
       // that's not necessarily the same as "on the stack", so
       // we still potentially need objc_memmove_collectable.
       EmitAggregateCopy(/* Dest= */ MakeAddrLValue(ReturnValue, ivarType),
-                        /* Src= */ LV, ivarType, overlapForReturnValue());
+                        /* Src= */ LV, ivarType, getOverlapForReturnValue());
       return;
     }
     case TEK_Scalar: {
@@ -1311,9 +1310,8 @@ void
 CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
                                         const ObjCPropertyImplDecl *propImpl,
                                         llvm::Constant *AtomicHelperFn) {
-  const ObjCPropertyDecl *prop = propImpl->getPropertyDecl();
   ObjCIvarDecl *ivar = propImpl->getPropertyIvarDecl();
-  ObjCMethodDecl *setterMethod = prop->getSetterMethodDecl();
+  ObjCMethodDecl *setterMethod = propImpl->getSetterMethodDecl();
 
   // Just use the setter expression if Sema gave us one and it's
   // non-trivial.
@@ -1490,8 +1488,7 @@ void CodeGenFunction::GenerateObjCSetter(ObjCImplementationDecl *IMP,
                                          const ObjCPropertyImplDecl *PID) {
   llvm::Constant *AtomicHelperFn =
       CodeGenFunction(CGM).GenerateObjCAtomicSetterCopyHelperFunction(PID);
-  const ObjCPropertyDecl *PD = PID->getPropertyDecl();
-  ObjCMethodDecl *OMD = PD->getSetterMethodDecl();
+  ObjCMethodDecl *OMD = PID->getSetterMethodDecl();
   assert(OMD && "Invalid call to generate setter (empty method)");
   StartObjCMethod(OMD, IMP->getClassInterface());
 
@@ -1661,7 +1658,7 @@ void CodeGenFunction::EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S){
 
   QualType ItemsTy =
     getContext().getConstantArrayType(getContext().getObjCIdType(),
-                                      llvm::APInt(32, NumItems),
+                                      llvm::APInt(32, NumItems), nullptr,
                                       ArrayType::Normal, 0);
   Address ItemsPtr = CreateMemTemp(ItemsTy, "items.ptr");
 
@@ -3735,7 +3732,7 @@ void CodeGenModule::emitAtAvailableLinkGuard() {
   llvm::FunctionType *CheckFTy = llvm::FunctionType::get(VoidTy, {}, false);
   llvm::FunctionCallee CFLinkCheckFuncRef = CreateRuntimeFunction(
       CheckFTy, "__clang_at_available_requires_core_foundation_framework",
-      llvm::AttributeList(), /*IsLocal=*/true);
+      llvm::AttributeList(), /*Local=*/true);
   llvm::Function *CFLinkCheckFunc =
       cast<llvm::Function>(CFLinkCheckFuncRef.getCallee()->stripPointerCasts());
   if (CFLinkCheckFunc->empty()) {

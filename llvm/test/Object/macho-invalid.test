@@ -102,7 +102,7 @@ RUN: not llvm-objdump --macho --universal-headers %p/Inputs/macho-invalid-fat 2>
 INVALID-FAT: truncated or malformed fat file (fat_arch_64 structs would extend past the end of the file)
 
 RUN: not llvm-objdump --macho --private-headers -arch all %p/Inputs/macho-invalid-fat.obj.elf-x86_64 2>&1 | FileCheck -check-prefix INVALID-FAT-ELF %s
-INVALID-FAT-ELF: Mach-O universal file: {{.*}}/macho-invalid-fat.obj.elf-x86_64 for architecture x86_64 is not a Mach-O file or an archive file
+INVALID-FAT-ELF: error: '{{.*}}/macho-invalid-fat.obj.elf-x86_64': Mach-O universal file for architecture x86_64 is not a Mach-O file or an archive file
 
 RUN: not llvm-objdump --macho --private-headers %p/Inputs/macho-invalid-segment-fileoff 2>&1 | FileCheck -check-prefix INVALID-SEGMENT-FILEOFF %s
 INVALID-SEGMENT-FILEOFF: macho-invalid-segment-fileoff': truncated or malformed object (load command 0 fileoff field in LC_SEGMENT extends past the end of the file)
@@ -110,8 +110,8 @@ INVALID-SEGMENT-FILEOFF: macho-invalid-segment-fileoff': truncated or malformed 
 RUN: not llvm-nm %p/Inputs/macho-invalid-segment-fileoff 2>&1 | FileCheck -check-prefix INVALID-SEGMENT-FILEOFF-NM %s
 INVALID-SEGMENT-FILEOFF-NM: macho-invalid-segment-fileoff truncated or malformed object (load command 0 fileoff field in LC_SEGMENT extends past the end of the file)
 
-RUN: not llvm-size %p/Inputs/macho-invalid-segment-fileoff 2>&1 | FileCheck -check-prefix INVALID-SEGMENT-FILEOFF-SIZE %s
-INVALID-SEGMENT-FILEOFF-SIZE: macho-invalid-segment-fileoff truncated or malformed object (load command 0 fileoff field in LC_SEGMENT extends past the end of the file)
+RUN: not llvm-size %p/Inputs/macho-invalid-segment-fileoff 2>&1 | FileCheck -DFILE=%p/Inputs/macho-invalid-segment-fileoff -check-prefix INVALID-SEGMENT-FILEOFF-SIZE %s
+INVALID-SEGMENT-FILEOFF-SIZE: error: '[[FILE]]': truncated or malformed object (load command 0 fileoff field in LC_SEGMENT extends past the end of the file)
 
 RUN: not llvm-objdump --macho --private-headers %p/Inputs/macho-invalid-segment-filesize 2>&1 | FileCheck -check-prefix INVALID-SEGMENT-FILESIZE %s
 INVALID-SEGMENT-FILESIZE: macho-invalid-segment-filesize': truncated or malformed object (load command 0 fileoff field plus filesize field in LC_SEGMENT extends past the end of the file)
@@ -491,8 +491,8 @@ INVALID-EXPORT-OVERLAP: macho-invalid-export-overlap': truncated or malformed ob
 RUN: not llvm-objdump --macho --universal-headers %p/Inputs/macho-invalid-fat-header 2>&1 | FileCheck -check-prefix INVALID-FAT-HEADER %s
 INVALID-FAT-HEADER: macho-invalid-fat-header': truncated or malformed fat file (contains zero architecture types)
 
-RUN: not llvm-objdump --macho --universal-headers %p/Inputs/macho-invalid-fat-arch-size 2>&1 | FileCheck -check-prefix INVALID-FAT-ARCH-SIZE %s
-INVALID-FAT-ARCH-SIZE: macho-invalid-fat-arch-size': truncated or malformed fat file (offset plus size of cputype (7) cpusubtype (3) extends past the end of the file)
+RUN: yaml2obj %p/Inputs/macho-invalid-fat-arch-size.yaml -o - | not llvm-objdump --macho --universal-headers - 2>&1 | FileCheck -check-prefix INVALID-FAT-ARCH-SIZE %s
+INVALID-FAT-ARCH-SIZE: '-': truncated or malformed fat file (offset plus size of cputype (7) cpusubtype (3) extends past the end of the file)
 
 RUN: not llvm-objdump --macho --universal-headers %p/Inputs/macho-invalid-fat-arch-bigalign 2>&1 | FileCheck -check-prefix INVALID-FAT-ARCH-BIGALIGN %s
 INVALID-FAT-ARCH-BIGALIGN: macho-invalid-fat-arch-bigalign': truncated or malformed fat file (align (2^212) too large for cputype (7) cpusubtype (3) (maximum 2^15))

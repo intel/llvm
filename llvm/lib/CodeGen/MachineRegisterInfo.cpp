@@ -144,7 +144,7 @@ MachineRegisterInfo::recomputeRegClass(unsigned Reg) {
 }
 
 unsigned MachineRegisterInfo::createIncompleteVirtualRegister(StringRef Name) {
-  unsigned Reg = TargetRegisterInfo::index2VirtReg(getNumVirtRegs());
+  unsigned Reg = Register::index2VirtReg(getNumVirtRegs());
   VRegInfo.grow(Reg);
   RegAllocHints.grow(Reg);
   insertVRegByName(Name, Reg);
@@ -154,7 +154,7 @@ unsigned MachineRegisterInfo::createIncompleteVirtualRegister(StringRef Name) {
 /// createVirtualRegister - Create and return a new virtual register in the
 /// function with the specified register class.
 ///
-unsigned
+Register
 MachineRegisterInfo::createVirtualRegister(const TargetRegisterClass *RegClass,
                                            StringRef Name) {
   assert(RegClass && "Cannot create register without RegClass!");
@@ -169,7 +169,7 @@ MachineRegisterInfo::createVirtualRegister(const TargetRegisterClass *RegClass,
   return Reg;
 }
 
-unsigned MachineRegisterInfo::cloneVirtualRegister(unsigned VReg,
+Register MachineRegisterInfo::cloneVirtualRegister(Register VReg,
                                                    StringRef Name) {
   unsigned Reg = createIncompleteVirtualRegister(Name);
   VRegInfo[Reg].first = VRegInfo[VReg].first;
@@ -184,7 +184,7 @@ void MachineRegisterInfo::setType(unsigned VReg, LLT Ty) {
   VRegToType[VReg] = Ty;
 }
 
-unsigned
+Register
 MachineRegisterInfo::createGenericVirtualRegister(LLT Ty, StringRef Name) {
   // New virtual register number.
   unsigned Reg = createIncompleteVirtualRegister(Name);
@@ -202,7 +202,7 @@ void MachineRegisterInfo::clearVirtRegTypes() { VRegToType.clear(); }
 void MachineRegisterInfo::clearVirtRegs() {
 #ifndef NDEBUG
   for (unsigned i = 0, e = getNumVirtRegs(); i != e; ++i) {
-    unsigned Reg = TargetRegisterInfo::index2VirtReg(i);
+    unsigned Reg = Register::index2VirtReg(i);
     if (!VRegInfo[Reg].second)
       continue;
     verifyUseList(Reg);
@@ -255,7 +255,7 @@ void MachineRegisterInfo::verifyUseList(unsigned Reg) const {
 void MachineRegisterInfo::verifyUseLists() const {
 #ifndef NDEBUG
   for (unsigned i = 0, e = getNumVirtRegs(); i != e; ++i)
-    verifyUseList(TargetRegisterInfo::index2VirtReg(i));
+    verifyUseList(Register::index2VirtReg(i));
   for (unsigned i = 1, e = getTargetRegisterInfo()->getNumRegs(); i != e; ++i)
     verifyUseList(i);
 #endif
@@ -386,7 +386,7 @@ void MachineRegisterInfo::replaceRegWith(unsigned FromReg, unsigned ToReg) {
   for (reg_iterator I = reg_begin(FromReg), E = reg_end(); I != E; ) {
     MachineOperand &O = *I;
     ++I;
-    if (TargetRegisterInfo::isPhysicalRegister(ToReg)) {
+    if (Register::isPhysicalRegister(ToReg)) {
       O.substPhysReg(ToReg, *TRI);
     } else {
       O.setReg(ToReg);
@@ -421,6 +421,13 @@ bool MachineRegisterInfo::hasOneNonDBGUse(unsigned RegNo) const {
   if (UI == use_nodbg_end())
     return false;
   return ++UI == use_nodbg_end();
+}
+
+bool MachineRegisterInfo::hasOneNonDBGUser(unsigned RegNo) const {
+  use_instr_nodbg_iterator UI = use_instr_nodbg_begin(RegNo);
+  if (UI == use_instr_nodbg_end())
+    return false;
+  return ++UI == use_instr_nodbg_end();
 }
 
 /// clearKillFlags - Iterate over all the uses of the given register and
@@ -491,7 +498,7 @@ MachineRegisterInfo::EmitLiveInCopies(MachineBasicBlock *EntryMBB,
 
 LaneBitmask MachineRegisterInfo::getMaxLaneMaskForVReg(unsigned Reg) const {
   // Lane masks are only defined for vregs.
-  assert(TargetRegisterInfo::isVirtualRegister(Reg));
+  assert(Register::isVirtualRegister(Reg));
   const TargetRegisterClass &TRC = *getRegClass(Reg);
   return TRC.getLaneMask();
 }
@@ -510,7 +517,7 @@ void MachineRegisterInfo::freezeReservedRegs(const MachineFunction &MF) {
 }
 
 bool MachineRegisterInfo::isConstantPhysReg(unsigned PhysReg) const {
-  assert(TargetRegisterInfo::isPhysicalRegister(PhysReg));
+  assert(Register::isPhysicalRegister(PhysReg));
 
   const TargetRegisterInfo *TRI = getTargetRegisterInfo();
   if (TRI->isConstantPhysReg(PhysReg))

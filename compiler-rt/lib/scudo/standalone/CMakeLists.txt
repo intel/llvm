@@ -5,6 +5,7 @@ include_directories(../..)
 set(SCUDO_CFLAGS)
 
 list(APPEND SCUDO_CFLAGS
+  -Werror=conversion
   -Wall
   -nostdinc++)
 
@@ -33,34 +34,13 @@ if(ANDROID)
   append_list_if(COMPILER_RT_HAS_Z_GLOBAL -Wl,-z,global SCUDO_LINK_FLAGS)
 endif()
 
-set(SCUDO_SOURCES
-  checksum.cc
-  crc32_hw.cc
-  common.cc
-  flags.cc
-  flags_parser.cc
-  fuchsia.cc
-  linux.cc
-  report.cc
-  secondary.cc
-  string_utils.cc)
-
-# Enable the SSE 4.2 instruction set for crc32_hw.cc, if available.
-if (COMPILER_RT_HAS_MSSE4_2_FLAG)
-  set_source_files_properties(crc32_hw.cc PROPERTIES COMPILE_FLAGS -msse4.2)
-endif()
-
-# Enable the AArch64 CRC32 feature for crc32_hw.cc, if available.
-# Note that it is enabled by default starting with armv8.1-a.
-if (COMPILER_RT_HAS_MCRC_FLAG)
-  set_source_files_properties(crc32_hw.cc PROPERTIES COMPILE_FLAGS -mcrc)
-endif()
-
 set(SCUDO_HEADERS
+  allocator_config.h
   atomic_helpers.h
   bytemap.h
   checksum.h
   chunk.h
+  combined.h
   flags.h
   flags_parser.h
   fuchsia.h
@@ -80,7 +60,44 @@ set(SCUDO_HEADERS
   size_class_map.h
   stats.h
   string_utils.h
-  vector.h)
+  tsd.h
+  tsd_exclusive.h
+  tsd_shared.h
+  vector.h
+  wrappers_c_checks.h
+  wrappers_c.h
+  )
+
+set(SCUDO_SOURCES
+  checksum.cpp
+  crc32_hw.cpp
+  common.cpp
+  flags.cpp
+  flags_parser.cpp
+  fuchsia.cpp
+  linux.cpp
+  report.cpp
+  string_utils.cpp
+  )
+
+# Enable the SSE 4.2 instruction set for crc32_hw.cpp, if available.
+if (COMPILER_RT_HAS_MSSE4_2_FLAG)
+  set_source_files_properties(crc32_hw.cpp PROPERTIES COMPILE_FLAGS -msse4.2)
+endif()
+
+# Enable the AArch64 CRC32 feature for crc32_hw.cpp, if available.
+# Note that it is enabled by default starting with armv8.1-a.
+if (COMPILER_RT_HAS_MCRC_FLAG)
+  set_source_files_properties(crc32_hw.cpp PROPERTIES COMPILE_FLAGS -mcrc)
+endif()
+
+set(SCUDO_SOURCES_C_WRAPPERS
+  wrappers_c.cpp
+  )
+
+set(SCUDO_SOURCES_CXX_WRAPPERS
+  wrappers_cpp.cpp
+  )
 
 if(COMPILER_RT_HAS_SCUDO_STANDALONE)
   add_compiler_rt_object_libraries(RTScudoStandalone
@@ -88,11 +105,28 @@ if(COMPILER_RT_HAS_SCUDO_STANDALONE)
     SOURCES ${SCUDO_SOURCES}
     ADDITIONAL_HEADERS ${SCUDO_HEADERS}
     CFLAGS ${SCUDO_CFLAGS})
+  add_compiler_rt_object_libraries(RTScudoStandaloneCWrappers
+    ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
+    SOURCES ${SCUDO_SOURCES_C_WRAPPERS}
+    ADDITIONAL_HEADERS ${SCUDO_HEADERS}
+    CFLAGS ${SCUDO_CFLAGS})
+  add_compiler_rt_object_libraries(RTScudoStandaloneCxxWrappers
+    ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
+    SOURCES ${SCUDO_SOURCES_CXX_WRAPPERS}
+    ADDITIONAL_HEADERS ${SCUDO_HEADERS}
+    CFLAGS ${SCUDO_CFLAGS})
 
   add_compiler_rt_runtime(clang_rt.scudo_standalone
     STATIC
     ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
-    SOURCES ${SCUDO_SOURCES}
+    SOURCES ${SCUDO_SOURCES} ${SCUDO_SOURCES_C_WRAPPERS}
+    ADDITIONAL_HEADERS ${SCUDO_HEADERS}
+    CFLAGS ${SCUDO_CFLAGS}
+    PARENT_TARGET scudo_standalone)
+  add_compiler_rt_runtime(clang_rt.scudo_standalone_cxx
+    STATIC
+    ARCHS ${SCUDO_STANDALONE_SUPPORTED_ARCH}
+    SOURCES ${SCUDO_SOURCES_CXX_WRAPPERS}
     ADDITIONAL_HEADERS ${SCUDO_HEADERS}
     CFLAGS ${SCUDO_CFLAGS}
     PARENT_TARGET scudo_standalone)

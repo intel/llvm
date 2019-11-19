@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 typedef void **omp_allocator_handle_t;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
@@ -17,6 +17,13 @@ void foo() {
 
 bool foobool(int argc) {
   return argc;
+}
+
+void xxx(int argc) {
+  int fp; // expected-note {{initialize the variable 'fp' to silence this warning}}
+#pragma omp taskloop firstprivate(fp) // expected-warning {{variable 'fp' is uninitialized when used here}}
+  for (int i = 0; i < 10; ++i)
+    ;
 }
 
 struct S1; // expected-note 2 {{declared here}} expected-note 2 {{forward declaration of 'S1'}}
@@ -76,7 +83,7 @@ template <class I, class C>
 int foomain(int argc, char **argv) {
   I e(4);
   C g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp parallel
 #pragma omp taskloop firstprivate // expected-error {{expected '(' after 'firstprivate'}}
@@ -119,7 +126,7 @@ int foomain(int argc, char **argv) {
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel
-#pragma omp taskloop firstprivate(e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{calling a private constructor of class 'S5'}}
+#pragma omp taskloop firstprivate(z, e, g) // expected-error {{calling a private constructor of class 'S4'}} expected-error {{calling a private constructor of class 'S5'}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel
@@ -150,11 +157,11 @@ int foomain(int argc, char **argv) {
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp parallel private(i)
-#pragma omp taskloop firstprivate(i) // expected-note {{defined as firstprivate}}
-  for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp taskloop' directive may not be firstprivate, predetermined as private}}
+#pragma omp taskloop firstprivate(i) // expected-note 2 {{defined as firstprivate}}
+  for (i = 0; i < argc; ++i) // expected-error 2 {{loop iteration variable in the associated loop of 'omp taskloop' directive may not be firstprivate, predetermined as private}}
     foo();
-#pragma omp parallel reduction(+ : i)
-#pragma omp taskloop firstprivate(i) // expected-note {{defined as firstprivate}}
+#pragma omp parallel reduction(+ : i)  // expected-note {{defined as reduction}}
+#pragma omp taskloop firstprivate(i) // expected-note {{defined as firstprivate}} expected-error {{argument of a reduction clause of a parallel construct must not appear in a firstprivate clause on a task construct}}
   for (i = 0; i < argc; ++i) // expected-error {{loop iteration variable in the associated loop of 'omp taskloop' directive may not be firstprivate, predetermined as private}}
     foo();
   return 0;

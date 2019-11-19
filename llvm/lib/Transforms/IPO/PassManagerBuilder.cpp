@@ -654,6 +654,7 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createGlobalsAAWrapperPass());
 
   MPM.add(createFloat2IntPass());
+  MPM.add(createLowerConstantIntrinsicsPass());
 
   addExtensionsToPM(EP_VectorizerStart, MPM);
 
@@ -1016,6 +1017,8 @@ void PassManagerBuilder::populateLTOPassManager(legacy::PassManagerBase &PM) {
   if (VerifyInput)
     PM.add(createVerifierPass());
 
+  addExtensionsToPM(EP_FullLinkTimeOptimizationEarly, PM);
+
   if (OptLevel != 0)
     addLTOOptimizationPasses(PM);
   else {
@@ -1036,6 +1039,8 @@ void PassManagerBuilder::populateLTOPassManager(legacy::PassManagerBase &PM) {
 
   if (OptLevel != 0)
     addLateLTOOptimizationPasses(PM);
+
+  addExtensionsToPM(EP_FullLinkTimeOptimizationLast, PM);
 
   if (VerifyOutput)
     PM.add(createVerifierPass());

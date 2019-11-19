@@ -490,12 +490,6 @@ static bool UpgradeX86IntrinsicFunction(Function *F, StringRef Name,
 static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
   assert(F && "Illegal to upgrade a non-existent Function.");
 
-  // Upgrade intrinsics "clang.arc.use" which doesn't start with "llvm.".
-  if (F->getName() == "clang.arc.use") {
-    NewFn = nullptr;
-    return true;
-  }
-
   // Quickly eliminate it, if it's not a candidate.
   StringRef Name = F->getName();
   if (Name.size() <= 8 || !Name.startswith("llvm."))
@@ -528,7 +522,7 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
                                         F->arg_begin()->getType());
       return true;
     }
-    Regex vldRegex("^arm\\.neon\\.vld([1234]|[234]lane)\\.v[a-z0-9]*$");
+    static const Regex vldRegex("^arm\\.neon\\.vld([1234]|[234]lane)\\.v[a-z0-9]*$");
     if (vldRegex.match(Name)) {
       auto fArgs = F->getFunctionType()->params();
       SmallVector<Type *, 4> Tys(fArgs.begin(), fArgs.end());
@@ -539,7 +533,7 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
                                "llvm." + Name + ".p0i8", F->getParent());
       return true;
     }
-    Regex vstRegex("^arm\\.neon\\.vst([1234]|[234]lane)\\.v[a-z0-9]*$");
+    static const Regex vstRegex("^arm\\.neon\\.vst([1234]|[234]lane)\\.v[a-z0-9]*$");
     if (vstRegex.match(Name)) {
       static const Intrinsic::ID StoreInts[] = {Intrinsic::arm_neon_vst1,
                                                 Intrinsic::arm_neon_vst2,
@@ -599,6 +593,26 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
       rename(F);
       NewFn = Intrinsic::getDeclaration(F->getParent(), Intrinsic::dbg_value);
       return true;
+    }
+    break;
+  }
+  case 'e': {
+    SmallVector<StringRef, 2> Groups;
+    static const Regex R("^experimental.vector.reduce.([a-z]+)\\.[fi][0-9]+");
+    if (R.match(Name, &Groups)) {
+      Intrinsic::ID ID = Intrinsic::not_intrinsic;
+      if (Groups[1] == "fadd")
+        ID = Intrinsic::experimental_vector_reduce_v2_fadd;
+      if (Groups[1] == "fmul")
+        ID = Intrinsic::experimental_vector_reduce_v2_fmul;
+
+      if (ID != Intrinsic::not_intrinsic) {
+        rename(F);
+        auto Args = F->getFunctionType()->params();
+        Type *Tys[] = {F->getFunctionType()->getReturnType(), Args[1]};
+        NewFn = Intrinsic::getDeclaration(F->getParent(), ID, Tys);
+        return true;
+      }
     }
     break;
   }
@@ -744,6 +758,8 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
                         .Cases("clz.ll", "popc.ll", "h2f", true)
                         .Cases("max.i", "max.ll", "max.ui", "max.ull", true)
                         .Cases("min.i", "min.ll", "min.ui", "min.ull", true)
+                        .StartsWith("atomic.load.add.f32.p", true)
+                        .StartsWith("atomic.load.add.f64.p", true)
                         .Default(false);
       if (Expand) {
         NewFn = nullptr;
@@ -762,6 +778,19 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
         rename(F);
         NewFn = Intrinsic::getDeclaration(F->getParent(), Intrinsic::objectsize,
                                           Tys);
+        return true;
+      }
+    }
+    break;
+
+  case 'p':
+    if (Name == "prefetch") {
+      // Handle address space overloading.
+      Type *Tys[] = {F->arg_begin()->getType()};
+      if (F->getName() != Intrinsic::getName(Intrinsic::prefetch, Tys)) {
+        rename(F);
+        NewFn =
+            Intrinsic::getDeclaration(F->getParent(), Intrinsic::prefetch, Tys);
         return true;
       }
     }
@@ -1625,14 +1654,6 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
   if (!NewFn) {
     // Get the Function's name.
     StringRef Name = F->getName();
-
-    // clang.arc.use is an old name for llvm.arc.clang.arc.use. It is dropped
-    // from upgrader because the optimizer now only recognizes intrinsics for
-    // ARC runtime calls.
-    if (Name == "clang.arc.use") {
-      CI->eraseFromParent();
-      return;
-    }
 
     assert(Name.startswith("llvm.") && "Intrinsic doesn't start with 'llvm.'");
     Name = Name.substr(5);
@@ -3406,6 +3427,12 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
       Value *Cmp = Builder.CreateICmpSGE(
           Arg, llvm::Constant::getNullValue(Arg->getType()), "abs.cond");
       Rep = Builder.CreateSelect(Cmp, Arg, Neg, "abs");
+    } else if (IsNVVM && (Name.startswith("atomic.load.add.f32.p") ||
+                          Name.startswith("atomic.load.add.f64.p"))) {
+      Value *Ptr = CI->getArgOperand(0);
+      Value *Val = CI->getArgOperand(1);
+      Rep = Builder.CreateAtomicRMW(AtomicRMWInst::FAdd, Ptr, Val,
+                                    AtomicOrdering::SequentiallyConsistent);
     } else if (IsNVVM && (Name == "max.i" || Name == "max.ll" ||
                           Name == "max.ui" || Name == "max.ull")) {
       Value *Arg0 = CI->getArgOperand(0);
@@ -3467,7 +3494,28 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
     DefaultCase();
     return;
   }
-
+  case Intrinsic::experimental_vector_reduce_v2_fmul: {
+    SmallVector<Value *, 2> Args;
+    if (CI->isFast())
+      Args.push_back(ConstantFP::get(CI->getOperand(0)->getType(), 1.0));
+    else
+      Args.push_back(CI->getOperand(0));
+    Args.push_back(CI->getOperand(1));
+    NewCall = Builder.CreateCall(NewFn, Args);
+    cast<Instruction>(NewCall)->copyFastMathFlags(CI);
+    break;
+  }
+  case Intrinsic::experimental_vector_reduce_v2_fadd: {
+    SmallVector<Value *, 2> Args;
+    if (CI->isFast())
+      Args.push_back(Constant::getNullValue(CI->getOperand(0)->getType()));
+    else
+      Args.push_back(CI->getOperand(0));
+    Args.push_back(CI->getOperand(1));
+    NewCall = Builder.CreateCall(NewFn, Args);
+    cast<Instruction>(NewCall)->copyFastMathFlags(CI);
+    break;
+  }
   case Intrinsic::arm_neon_vld1:
   case Intrinsic::arm_neon_vld2:
   case Intrinsic::arm_neon_vld3:
@@ -3782,7 +3830,9 @@ bool llvm::UpgradeDebugInfo(Module &M) {
   return Modified;
 }
 
-bool llvm::UpgradeRetainReleaseMarker(Module &M) {
+/// This checks for objc retain release marker which should be upgraded. It
+/// returns true if module is modified.
+static bool UpgradeRetainReleaseMarker(Module &M) {
   bool Changed = false;
   const char *MarkerKey = "clang.arc.retainAutoreleasedReturnValueMarker";
   NamedMDNode *ModRetainReleaseMarker = M.getNamedMetadata(MarkerKey);
@@ -3804,6 +3854,127 @@ bool llvm::UpgradeRetainReleaseMarker(Module &M) {
     }
   }
   return Changed;
+}
+
+void llvm::UpgradeARCRuntime(Module &M) {
+  // This lambda converts normal function calls to ARC runtime functions to
+  // intrinsic calls.
+  auto UpgradeToIntrinsic = [&](const char *OldFunc,
+                                llvm::Intrinsic::ID IntrinsicFunc) {
+    Function *Fn = M.getFunction(OldFunc);
+
+    if (!Fn)
+      return;
+
+    Function *NewFn = llvm::Intrinsic::getDeclaration(&M, IntrinsicFunc);
+
+    for (auto I = Fn->user_begin(), E = Fn->user_end(); I != E;) {
+      CallInst *CI = dyn_cast<CallInst>(*I++);
+      if (!CI || CI->getCalledFunction() != Fn)
+        continue;
+
+      IRBuilder<> Builder(CI->getParent(), CI->getIterator());
+      FunctionType *NewFuncTy = NewFn->getFunctionType();
+      SmallVector<Value *, 2> Args;
+
+      // Don't upgrade the intrinsic if it's not valid to bitcast the return
+      // value to the return type of the old function.
+      if (NewFuncTy->getReturnType() != CI->getType() &&
+          !CastInst::castIsValid(Instruction::BitCast, CI,
+                                 NewFuncTy->getReturnType()))
+        continue;
+
+      bool InvalidCast = false;
+
+      for (unsigned I = 0, E = CI->getNumArgOperands(); I != E; ++I) {
+        Value *Arg = CI->getArgOperand(I);
+
+        // Bitcast argument to the parameter type of the new function if it's
+        // not a variadic argument.
+        if (I < NewFuncTy->getNumParams()) {
+          // Don't upgrade the intrinsic if it's not valid to bitcast the argument
+          // to the parameter type of the new function.
+          if (!CastInst::castIsValid(Instruction::BitCast, Arg,
+                                     NewFuncTy->getParamType(I))) {
+            InvalidCast = true;
+            break;
+          }
+          Arg = Builder.CreateBitCast(Arg, NewFuncTy->getParamType(I));
+        }
+        Args.push_back(Arg);
+      }
+
+      if (InvalidCast)
+        continue;
+
+      // Create a call instruction that calls the new function.
+      CallInst *NewCall = Builder.CreateCall(NewFuncTy, NewFn, Args);
+      NewCall->setTailCallKind(cast<CallInst>(CI)->getTailCallKind());
+      NewCall->setName(CI->getName());
+
+      // Bitcast the return value back to the type of the old call.
+      Value *NewRetVal = Builder.CreateBitCast(NewCall, CI->getType());
+
+      if (!CI->use_empty())
+        CI->replaceAllUsesWith(NewRetVal);
+      CI->eraseFromParent();
+    }
+
+    if (Fn->use_empty())
+      Fn->eraseFromParent();
+  };
+
+  // Unconditionally convert a call to "clang.arc.use" to a call to
+  // "llvm.objc.clang.arc.use".
+  UpgradeToIntrinsic("clang.arc.use", llvm::Intrinsic::objc_clang_arc_use);
+
+  // Upgrade the retain release marker. If there is no need to upgrade
+  // the marker, that means either the module is already new enough to contain
+  // new intrinsics or it is not ARC. There is no need to upgrade runtime call.
+  if (!UpgradeRetainReleaseMarker(M))
+    return;
+
+  std::pair<const char *, llvm::Intrinsic::ID> RuntimeFuncs[] = {
+      {"objc_autorelease", llvm::Intrinsic::objc_autorelease},
+      {"objc_autoreleasePoolPop", llvm::Intrinsic::objc_autoreleasePoolPop},
+      {"objc_autoreleasePoolPush", llvm::Intrinsic::objc_autoreleasePoolPush},
+      {"objc_autoreleaseReturnValue",
+       llvm::Intrinsic::objc_autoreleaseReturnValue},
+      {"objc_copyWeak", llvm::Intrinsic::objc_copyWeak},
+      {"objc_destroyWeak", llvm::Intrinsic::objc_destroyWeak},
+      {"objc_initWeak", llvm::Intrinsic::objc_initWeak},
+      {"objc_loadWeak", llvm::Intrinsic::objc_loadWeak},
+      {"objc_loadWeakRetained", llvm::Intrinsic::objc_loadWeakRetained},
+      {"objc_moveWeak", llvm::Intrinsic::objc_moveWeak},
+      {"objc_release", llvm::Intrinsic::objc_release},
+      {"objc_retain", llvm::Intrinsic::objc_retain},
+      {"objc_retainAutorelease", llvm::Intrinsic::objc_retainAutorelease},
+      {"objc_retainAutoreleaseReturnValue",
+       llvm::Intrinsic::objc_retainAutoreleaseReturnValue},
+      {"objc_retainAutoreleasedReturnValue",
+       llvm::Intrinsic::objc_retainAutoreleasedReturnValue},
+      {"objc_retainBlock", llvm::Intrinsic::objc_retainBlock},
+      {"objc_storeStrong", llvm::Intrinsic::objc_storeStrong},
+      {"objc_storeWeak", llvm::Intrinsic::objc_storeWeak},
+      {"objc_unsafeClaimAutoreleasedReturnValue",
+       llvm::Intrinsic::objc_unsafeClaimAutoreleasedReturnValue},
+      {"objc_retainedObject", llvm::Intrinsic::objc_retainedObject},
+      {"objc_unretainedObject", llvm::Intrinsic::objc_unretainedObject},
+      {"objc_unretainedPointer", llvm::Intrinsic::objc_unretainedPointer},
+      {"objc_retain_autorelease", llvm::Intrinsic::objc_retain_autorelease},
+      {"objc_sync_enter", llvm::Intrinsic::objc_sync_enter},
+      {"objc_sync_exit", llvm::Intrinsic::objc_sync_exit},
+      {"objc_arc_annotation_topdown_bbstart",
+       llvm::Intrinsic::objc_arc_annotation_topdown_bbstart},
+      {"objc_arc_annotation_topdown_bbend",
+       llvm::Intrinsic::objc_arc_annotation_topdown_bbend},
+      {"objc_arc_annotation_bottomup_bbstart",
+       llvm::Intrinsic::objc_arc_annotation_bottomup_bbstart},
+      {"objc_arc_annotation_bottomup_bbend",
+       llvm::Intrinsic::objc_arc_annotation_bottomup_bbend}};
+
+  for (auto &I : RuntimeFuncs)
+    UpgradeToIntrinsic(I.first, I.second);
 }
 
 bool llvm::UpgradeModuleFlags(Module &M) {
@@ -3962,4 +4133,24 @@ MDNode *llvm::upgradeInstructionLoopAttachment(MDNode &N) {
     Ops.push_back(upgradeLoopArgument(MD));
 
   return MDTuple::get(T->getContext(), Ops);
+}
+
+std::string llvm::UpgradeDataLayoutString(StringRef DL, StringRef TT) {
+  std::string AddrSpaces = "-p270:32:32-p271:32:32-p272:64:64";
+
+  // If X86, and the datalayout matches the expected format, add pointer size
+  // address spaces to the datalayout.
+  Triple::ArchType Arch = Triple(TT).getArch();
+  if ((Arch != llvm::Triple::x86 && Arch != llvm::Triple::x86_64) ||
+      DL.contains(AddrSpaces))
+    return DL;
+
+  SmallVector<StringRef, 4> Groups;
+  Regex R("(e-m:[a-z](-p:32:32)?)(-[if]64:.*$)");
+  if (!R.match(DL, &Groups))
+    return DL;
+
+  SmallString<1024> Buf;
+  std::string Res = (Groups[1] + AddrSpaces + Groups[3]).toStringRef(Buf).str();
+  return Res;
 }

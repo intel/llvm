@@ -186,12 +186,12 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
 #elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||   \
     defined(__minix) || defined(__DragonFly__) ||                              \
     defined(__FreeBSD_kernel__) || defined(_AIX)
-  StringRef curproc("/proc/curproc/file");
+  const char *curproc = "/proc/curproc/file";
   char exe_path[PATH_MAX];
   // /proc is not mounted by default under FreeBSD, but gives more accurate
   // information than argv[0] when it is.
   if (sys::fs::exists(curproc)) {
-    ssize_t len = readlink(curproc.str().c_str(), exe_path, sizeof(exe_path));
+    ssize_t len = readlink(curproc, exe_path, sizeof(exe_path));
     if (len > 0) {
       // Null terminate the string for realpath. readlink never null
       // terminates its output.
@@ -203,12 +203,12 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
   // If we don't have procfs mounted, fall back to argv[0]
   if (getprogpath(exe_path, argv0) != NULL)
     return exe_path;
-#elif defined(__linux__) || defined(__CYGWIN__)
+#elif defined(__linux__) || defined(__CYGWIN__) || defined(__gnu_hurd__)
   char exe_path[MAXPATHLEN];
-  StringRef aPath("/proc/self/exe");
+  const char *aPath = "/proc/self/exe";
   if (sys::fs::exists(aPath)) {
     // /proc is not always mounted under Linux (chroot for example).
-    ssize_t len = readlink(aPath.str().c_str(), exe_path, sizeof(exe_path));
+    ssize_t len = readlink(aPath, exe_path, sizeof(exe_path));
     if (len < 0)
       return "";
 
@@ -222,20 +222,20 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
     // the program, and not the eventual binary file. Therefore, call realpath
     // so this behaves the same on all platforms.
 #if _POSIX_VERSION >= 200112 || defined(__GLIBC__)
-    char *real_path = realpath(exe_path, NULL);
-    std::string ret = std::string(real_path);
-    free(real_path);
-    return ret;
+    if (char *real_path = realpath(exe_path, NULL)) {
+      std::string ret = std::string(real_path);
+      free(real_path);
+      return ret;
+    }
 #else
     char real_path[MAXPATHLEN];
-    realpath(exe_path, real_path);
-    return std::string(real_path);
+    if (realpath(exe_path, real_path))
+      return std::string(real_path);
 #endif
-  } else {
-    // Fall back to the classical detection.
-    if (getprogpath(exe_path, argv0))
-      return exe_path;
   }
+  // Fall back to the classical detection.
+  if (getprogpath(exe_path, argv0))
+    return exe_path;
 #elif defined(HAVE_DLFCN_H) && defined(HAVE_DLADDR)
   // Use dladdr to get executable path if available.
   Dl_info DLInfo;
@@ -424,6 +424,9 @@ static bool is_local_impl(struct STATVFS &Vfs) {
 #elif defined(__Fuchsia__)
   // Fuchsia doesn't yet support remote filesystem mounts.
   return true;
+#elif defined(__EMSCRIPTEN__)
+  // Emscripten doesn't currently support remote filesystem mounts.
+  return true;
 #elif defined(__HAIKU__)
   // Haiku doesn't expose this information.
   return false;
@@ -440,7 +443,7 @@ static bool is_local_impl(struct STATVFS &Vfs) {
   std::unique_ptr<char[]> Buf;
   int Tries = 3;
   while (Tries--) {
-    Buf = llvm::make_unique<char[]>(BufSize);
+    Buf = std::make_unique<char[]>(BufSize);
     Ret = mntctl(MCTL_QUERY, BufSize, Buf.get());
     if (Ret != 0)
       break;
@@ -691,11 +694,25 @@ std::error_code status(int FD, file_status &Result) {
   return fillStatus(StatRet, Status, Result);
 }
 
+unsigned getUmask() {
+  // Chose arbitary new mask and reset the umask to the old mask.
+  // umask(2) never fails so ignore the return of the second call.
+  unsigned Mask = ::umask(0);
+  (void) ::umask(Mask);
+  return Mask;
+}
+
 std::error_code setPermissions(const Twine &Path, perms Permissions) {
   SmallString<128> PathStorage;
   StringRef P = Path.toNullTerminatedStringRef(PathStorage);
 
   if (::chmod(P.begin(), Permissions))
+    return std::error_code(errno, std::generic_category());
+  return std::error_code();
+}
+
+std::error_code setPermissions(int FD, perms Permissions) {
+  if (::fchmod(FD, Permissions))
     return std::error_code(errno, std::generic_category());
   return std::error_code();
 }
@@ -816,7 +833,10 @@ std::error_code detail::directory_iterator_destruct(detail::DirIterState &it) {
 static file_type direntType(dirent* Entry) {
   // Most platforms provide the file type in the dirent: Linux/BSD/Mac.
   // The DTTOIF macro lets us reuse our status -> type conversion.
-#if defined(_DIRENT_HAVE_D_TYPE) && defined(DTTOIF)
+  // Note that while glibc provides a macro to see if this is supported,
+  // _DIRENT_HAVE_D_TYPE, it's not defined on BSD/Mac, so we test for the
+  // d_type-to-mode_t conversion macro instead.
+#if defined(DTTOIF)
   return typeForMode(DTTOIF(Entry->d_type));
 #else
   // Other platforms such as Solaris require a stat() to get the type.
@@ -867,9 +887,9 @@ static int nativeOpenFlags(CreationDisposition Disp, OpenFlags Flags,
   else if (Access == (FA_Read | FA_Write))
     Result |= O_RDWR;
 
-  // This is for compatibility with old code that assumed F_Append implied
+  // This is for compatibility with old code that assumed OF_Append implied
   // would open an existing file.  See Windows/Path.inc for a longer comment.
-  if (Flags & F_Append)
+  if (Flags & OF_Append)
     Disp = CD_OpenAlways;
 
   if (Disp == CD_CreateNew) {
@@ -884,7 +904,7 @@ static int nativeOpenFlags(CreationDisposition Disp, OpenFlags Flags,
     // Nothing special, just don't add O_CREAT and we get these semantics.
   }
 
-  if (Flags & F_Append)
+  if (Flags & OF_Append)
     Result |= O_APPEND;
 
 #ifdef O_CLOEXEC
@@ -975,9 +995,38 @@ Expected<file_t> openNativeFileForRead(const Twine &Name, OpenFlags Flags,
   return ResultFD;
 }
 
-void closeFile(file_t &F) {
-  ::close(F);
+file_t getStdinHandle() { return 0; }
+file_t getStdoutHandle() { return 1; }
+file_t getStderrHandle() { return 2; }
+
+Expected<size_t> readNativeFile(file_t FD, MutableArrayRef<char> Buf) {
+  ssize_t NumRead =
+      sys::RetryAfterSignal(-1, ::read, FD, Buf.data(), Buf.size());
+  if (ssize_t(NumRead) == -1)
+    return errorCodeToError(std::error_code(errno, std::generic_category()));
+  return NumRead;
+}
+
+Expected<size_t> readNativeFileSlice(file_t FD, MutableArrayRef<char> Buf,
+                                     uint64_t Offset) {
+#ifdef HAVE_PREAD
+  ssize_t NumRead =
+      sys::RetryAfterSignal(-1, ::pread, FD, Buf.data(), Buf.size(), Offset);
+#else
+  if (lseek(FD, Offset, SEEK_SET) == -1)
+    return errorCodeToError(std::error_code(errno, std::generic_category()));
+  ssize_t NumRead =
+      sys::RetryAfterSignal(-1, ::read, FD, Buf.data(), Buf.size());
+#endif
+  if (NumRead == -1)
+    return errorCodeToError(std::error_code(errno, std::generic_category()));
+  return NumRead;
+}
+
+std::error_code closeFile(file_t &F) {
+  file_t TmpF = F;
   F = kInvalidFile;
+  return Process::SafelyCloseFileDescriptor(TmpF);
 }
 
 template <typename T>
@@ -1138,7 +1187,7 @@ namespace fs {
 /// implementation.
 std::error_code copy_file(const Twine &From, const Twine &To) {
   uint32_t Flag = COPYFILE_DATA;
-#if __has_builtin(__builtin_available)
+#if __has_builtin(__builtin_available) && defined(COPYFILE_CLONE)
   if (__builtin_available(macos 10.12, *)) {
     bool IsSymlink;
     if (std::error_code Error = is_symlink_file(From, IsSymlink))

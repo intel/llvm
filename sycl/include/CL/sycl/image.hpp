@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/image_impl.hpp>
+#include <CL/sycl/event.hpp>
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
 #include <cstddef>
@@ -55,7 +56,7 @@ enum class image_channel_type : unsigned int {
 
 using byte = unsigned char;
 
-using image_allocator = std::allocator<byte>;
+using image_allocator = detail::aligned_allocator<byte>;
 
 template <int Dimensions = 1, typename AllocatorT = cl::sycl::image_allocator>
 class image {
@@ -77,7 +78,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
+        const typename std::enable_if<B, range<Dimensions - 1>>::type &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
         Order, Type, Range, Pitch, PropList);
@@ -175,7 +176,10 @@ public:
   }
 
   image(cl_mem ClMemObject, const context &SyclContext,
-        event AvailableEvent = {});
+        event AvailableEvent = {}) {
+    impl = std::make_shared<detail::image_impl<Dimensions, AllocatorT>>(
+        ClMemObject, SyclContext, AvailableEvent);
+  }
 
   /* -- common interface members -- */
 
@@ -211,7 +215,7 @@ public:
   }
 
   // Returns the size of the image storage in bytes
-  size_t get_size() const { return impl->get_size(); }
+  size_t get_size() const { return impl->getSize(); }
 
   // Returns the total number of elements in the image
   size_t get_count() const { return impl->get_count(); }
@@ -235,17 +239,11 @@ public:
   }
 
   template <typename Destination = std::nullptr_t>
-  void set_final_data(Destination FinalData = nullptr) {
-    if (true)
-      throw cl::sycl::feature_not_supported("Feature Not Implemented");
-    return;
+  void set_final_data(Destination finalData = nullptr) {
+    impl->set_final_data(finalData);
   }
 
-  void set_write_back(bool Flag = true) {
-    if (true)
-      throw cl::sycl::feature_not_supported("Feature Not Implemented");
-    return;
-  }
+  void set_write_back(bool flag = true) { impl->set_write_back(flag); }
 
 private:
   shared_ptr_class<detail::image_impl<Dimensions, AllocatorT>> impl;

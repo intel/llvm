@@ -14,24 +14,23 @@
 
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/ObjectFile.h"
+#include "lldb/Utility/Log.h"
 
 using namespace lldb_private;
 
-DIERef DWARFBaseDIE::GetDIERef() const {
+llvm::Optional<DIERef> DWARFBaseDIE::GetDIERef() const {
   if (!IsValid())
-    return DIERef();
+    return llvm::None;
 
-  dw_offset_t cu_offset = m_cu->GetOffset();
-  if (m_cu->GetBaseObjOffset() != DW_INVALID_OFFSET)
-    cu_offset = m_cu->GetBaseObjOffset();
-  return DIERef(m_cu->GetDebugSection(), cu_offset, m_die->GetOffset());
+  return DIERef(m_cu->GetSymbolFileDWARF().GetDwoNum(), m_cu->GetDebugSection(),
+                m_die->GetOffset());
 }
 
 dw_tag_t DWARFBaseDIE::Tag() const {
   if (m_die)
     return m_die->Tag();
   else
-    return 0;
+    return llvm::dwarf::DW_TAG_null;
 }
 
 const char *DWARFBaseDIE::GetTagAsCString() const {
@@ -90,13 +89,6 @@ lldb::ModuleSP DWARFBaseDIE::GetModule() const {
     return lldb::ModuleSP();
 }
 
-lldb_private::CompileUnit *DWARFBaseDIE::GetLLDBCompileUnit() const {
-  if (IsValid())
-    return GetDWARF()->GetCompUnitForDWARFCompUnit(GetCU());
-  else
-    return nullptr;
-}
-
 dw_offset_t DWARFBaseDIE::GetOffset() const {
   if (IsValid())
     return m_die->GetOffset();
@@ -106,24 +98,27 @@ dw_offset_t DWARFBaseDIE::GetOffset() const {
 
 SymbolFileDWARF *DWARFBaseDIE::GetDWARF() const {
   if (m_cu)
-    return m_cu->GetSymbolFileDWARF();
+    return &m_cu->GetSymbolFileDWARF();
   else
     return nullptr;
 }
 
-lldb_private::TypeSystem *DWARFBaseDIE::GetTypeSystem() const {
-  if (m_cu)
-    return m_cu->GetTypeSystem();
-  else
-    return nullptr;
+llvm::Expected<lldb_private::TypeSystem &> DWARFBaseDIE::GetTypeSystem() const {
+  if (!m_cu)
+    return llvm::make_error<llvm::StringError>(
+        "Unable to get TypeSystem, no compilation unit available",
+        llvm::inconvertibleErrorCode());
+  return m_cu->GetTypeSystem();
 }
 
 DWARFASTParser *DWARFBaseDIE::GetDWARFParser() const {
-  lldb_private::TypeSystem *type_system = GetTypeSystem();
-  if (type_system)
-    return type_system->GetDWARFParser();
-  else
+  auto type_system_or_err = GetTypeSystem();
+  if (auto err = type_system_or_err.takeError()) {
+    LLDB_LOG_ERROR(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_SYMBOLS),
+                   std::move(err), "Unable to get DWARFASTParser");
     return nullptr;
+  }
+  return type_system_or_err->GetDWARFParser();
 }
 
 bool DWARFBaseDIE::HasChildren() const {

@@ -13,13 +13,13 @@
 
 class SymbolFileDWARFDwo : public SymbolFileDWARF {
 public:
-  SymbolFileDWARFDwo(lldb::ObjectFileSP objfile, DWARFUnit *dwarf_cu);
+  SymbolFileDWARFDwo(lldb::ObjectFileSP objfile, DWARFCompileUnit &dwarf_cu);
 
   ~SymbolFileDWARFDwo() override = default;
 
-  lldb::CompUnitSP ParseCompileUnit(DWARFUnit *dwarf_cu) override;
+  lldb::CompUnitSP ParseCompileUnit(DWARFCompileUnit &dwarf_cu) override;
 
-  DWARFUnit *GetCompileUnit();
+  DWARFCompileUnit *GetCompileUnit();
 
   DWARFUnit *
   GetDWARFCompileUnit(lldb_private::CompileUnit *comp_unit) override;
@@ -30,7 +30,7 @@ public:
   size_t GetObjCMethodDIEOffsets(lldb_private::ConstString class_name,
                                  DIEArray &method_die_offsets) override;
 
-  lldb_private::TypeSystem *
+  llvm::Expected<lldb_private::TypeSystem &>
   GetTypeSystemForLanguage(lldb::LanguageType language) override;
 
   DWARFDIE
@@ -42,7 +42,9 @@ public:
     return nullptr;
   }
 
-  DWARFUnit *GetBaseCompileUnit() override;
+  DWARFCompileUnit *GetBaseCompileUnit() override { return &m_base_dwarf_cu; }
+
+  llvm::Optional<uint32_t> GetDwoNum() override { return GetID() >> 32; }
 
 protected:
   void LoadSectionData(lldb::SectionType sect_type,
@@ -65,10 +67,12 @@ protected:
       const DWARFDIE &die, lldb_private::ConstString type_name,
       bool must_be_implementation) override;
 
-  SymbolFileDWARF *GetBaseSymbolFile();
+  SymbolFileDWARF &GetBaseSymbolFile();
 
-  lldb::ObjectFileSP m_obj_file_sp;
-  DWARFUnit *m_base_dwarf_cu;
+  DWARFCompileUnit *ComputeCompileUnit();
+
+  DWARFCompileUnit &m_base_dwarf_cu;
+  DWARFCompileUnit *m_cu = nullptr;
 };
 
 #endif // SymbolFileDWARFDwo_SymbolFileDWARFDwo_h_

@@ -38,7 +38,7 @@
 ...
 ---
 name:            CP
-alignment:       2
+alignment:       4
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -66,7 +66,7 @@ frameInfo:
 fixedStack:
 stack:
   - { id: 0, name: res, type: default, offset: -2, size: 2, alignment: 2,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -2, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
 constants:
@@ -76,11 +76,11 @@ constants:
     isTargetSpecific: false
 
 
-#CHECK:  bb.{{.*}} (align 1):
+#CHECK:  bb.{{.*}} (align 2):
 #CHECK:    successors:
 #CHECK:    CONSTPOOL_ENTRY 1, %const{{.*}}, 2
 # We want this block to be 4 byte aligned:
-#CHECK:  bb.{{.*}}.LA (align 2):
+#CHECK:  bb.{{.*}}.LA (align 4):
 
 body:             |
   bb.0.entry:

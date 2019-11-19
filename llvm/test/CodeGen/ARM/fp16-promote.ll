@@ -1,6 +1,6 @@
 ; RUN: llc -asm-verbose=false < %s -mattr=+vfp3,+fp16 | FileCheck -allow-deprecated-dag-overlap %s -check-prefix=CHECK-FP16  --check-prefix=CHECK-VFP -check-prefix=CHECK-ALL
 ; RUN: llc -asm-verbose=false < %s | FileCheck -allow-deprecated-dag-overlap %s -check-prefix=CHECK-LIBCALL --check-prefix=CHECK-VFP -check-prefix=CHECK-ALL --check-prefix=CHECK-LIBCALL-VFP
-; RUN: llc -asm-verbose=false < %s -mattr=-vfp2d16sp | FileCheck -allow-deprecated-dag-overlap %s --check-prefix=CHECK-LIBCALL -check-prefix=CHECK-NOVFP -check-prefix=CHECK-ALL
+; RUN: llc -asm-verbose=false < %s -mattr=-fpregs | FileCheck -allow-deprecated-dag-overlap %s --check-prefix=CHECK-LIBCALL -check-prefix=CHECK-NOVFP -check-prefix=CHECK-ALL
 
 target datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-n32"
 target triple = "armv7---eabihf"
@@ -202,7 +202,7 @@ define i1 @test_fcmp_ueq(half* %p, half* %q) #0 {
 ; CHECK-FP16: vcvtb.f32.f16
 ; CHECK-LIBCALL: bl __aeabi_h2f
 ; CHECK-LIBCALL: bl __aeabi_h2f
-; CHECK-VFP: vcmpe.f32
+; CHECK-VFP: vcmp.f32
 ; CHECK-NOVFP: bl __aeabi_fcmplt
 ; CHECK-FP16: vmrs APSR_nzcv, fpscr
 ; CHECK-VFP: strmi
@@ -493,6 +493,21 @@ define void @test_pow(half* %p, half* %q) #0 {
   %a = load half, half* %p, align 2
   %b = load half, half* %q, align 2
   %r = call half @llvm.pow.f16(half %a, half %b)
+  store half %r, half* %p
+  ret void
+}
+
+; CHECK-FP16-LABEL: test_cbrt:
+; CHECK-FP16: vcvtb.f32.f16
+; CHECK-FP16: bl powf
+; CHECK-FP16: vcvtb.f16.f32
+; CHECK-LIBCALL-LABEL: test_cbrt:
+; CHECK-LIBCALL: bl __aeabi_h2f
+; CHECK-LIBCALL: bl powf
+; CHECK-LIBCALL: bl __aeabi_f2h
+define void @test_cbrt(half* %p) #0 {
+  %a = load half, half* %p, align 2
+  %r = call half @llvm.pow.f16(half %a, half 0x3FD5540000000000)
   store half %r, half* %p
   ret void
 }

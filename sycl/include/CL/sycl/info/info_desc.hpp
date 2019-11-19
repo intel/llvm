@@ -121,7 +121,8 @@ enum class device : cl_device_info {
   sub_group_independent_forward_progress =
       CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS,
   sub_group_sizes = CL_DEVICE_SUB_GROUP_SIZES_INTEL,
-  partition_type_property
+  partition_type_property,
+  kernel_kernel_pipe_support
 };
 
 enum class device_type : pi_uint64 {
@@ -172,8 +173,13 @@ enum class execution_capability : unsigned int {
   exec_native_kernel
 };
 
-// A.4 Queue information desctiptors
+// A.4 Queue information descriptors
 enum class queue : cl_command_queue_info {
+  context = CL_QUEUE_CONTEXT,
+  device = CL_QUEUE_DEVICE,
+  reference_count = CL_QUEUE_REFERENCE_COUNT
+};
+enum class ordered_queue : cl_command_queue_info {
   context = CL_QUEUE_CONTEXT,
   device = CL_QUEUE_DEVICE,
   reference_count = CL_QUEUE_REFERENCE_COUNT
@@ -203,7 +209,8 @@ enum class kernel_sub_group : cl_kernel_sub_group_info {
   sub_group_count_for_ndrange = CL_KERNEL_SUB_GROUP_COUNT_FOR_NDRANGE,
   local_size_for_sub_group_count = CL_KERNEL_LOCAL_SIZE_FOR_SUB_GROUP_COUNT,
   max_num_sub_groups = CL_KERNEL_MAX_NUM_SUB_GROUPS,
-  compile_num_sub_groups = CL_KERNEL_COMPILE_NUM_SUB_GROUPS
+  compile_num_sub_groups = CL_KERNEL_COMPILE_NUM_SUB_GROUPS,
+  compile_sub_group_size = CL_KERNEL_COMPILE_SUB_GROUP_SIZE_INTEL
 };
 
 // A.6 Program information desctiptors
@@ -247,87 +254,7 @@ template <typename T, T param> class param_traits {};
     using input_type = in_type;                                                \
   };
 
-PARAM_TRAITS_SPEC(device, device_type, device_type)
-PARAM_TRAITS_SPEC(device, vendor_id, cl_uint)
-PARAM_TRAITS_SPEC(device, max_compute_units, cl_uint)
-PARAM_TRAITS_SPEC(device, max_work_item_dimensions, cl_uint)
-PARAM_TRAITS_SPEC(device, max_work_item_sizes, id<3>)
-PARAM_TRAITS_SPEC(device, max_work_group_size, size_t)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_char, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_short, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_int, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_long, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_float, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_double, cl_uint)
-PARAM_TRAITS_SPEC(device, preferred_vector_width_half, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_char, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_short, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_int, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_long, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_float, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_double, cl_uint)
-PARAM_TRAITS_SPEC(device, native_vector_width_half, cl_uint)
-PARAM_TRAITS_SPEC(device, max_clock_frequency, cl_uint)
-PARAM_TRAITS_SPEC(device, address_bits, cl_uint)
-PARAM_TRAITS_SPEC(device, max_mem_alloc_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, image_support, bool)
-PARAM_TRAITS_SPEC(device, max_read_image_args, cl_uint)
-PARAM_TRAITS_SPEC(device, max_write_image_args, cl_uint)
-PARAM_TRAITS_SPEC(device, image2d_max_width, size_t)
-PARAM_TRAITS_SPEC(device, image2d_max_height, size_t)
-PARAM_TRAITS_SPEC(device, image3d_max_width, size_t)
-PARAM_TRAITS_SPEC(device, image3d_max_height, size_t)
-PARAM_TRAITS_SPEC(device, image3d_max_depth, size_t)
-PARAM_TRAITS_SPEC(device, image_max_buffer_size, size_t)
-PARAM_TRAITS_SPEC(device, image_max_array_size, size_t)
-PARAM_TRAITS_SPEC(device, max_samplers, cl_uint)
-PARAM_TRAITS_SPEC(device, max_parameter_size, size_t)
-PARAM_TRAITS_SPEC(device, mem_base_addr_align, cl_uint)
-PARAM_TRAITS_SPEC(device, half_fp_config, vector_class<info::fp_config>)
-PARAM_TRAITS_SPEC(device, single_fp_config, vector_class<info::fp_config>)
-PARAM_TRAITS_SPEC(device, double_fp_config, vector_class<info::fp_config>)
-PARAM_TRAITS_SPEC(device, global_mem_cache_type, info::global_mem_cache_type)
-PARAM_TRAITS_SPEC(device, global_mem_cache_line_size, cl_uint)
-PARAM_TRAITS_SPEC(device, global_mem_cache_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, global_mem_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, max_constant_buffer_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, max_constant_args, cl_uint)
-PARAM_TRAITS_SPEC(device, local_mem_type, info::local_mem_type)
-PARAM_TRAITS_SPEC(device, local_mem_size, cl_ulong)
-PARAM_TRAITS_SPEC(device, error_correction_support, bool)
-PARAM_TRAITS_SPEC(device, host_unified_memory, bool)
-PARAM_TRAITS_SPEC(device, profiling_timer_resolution, size_t)
-PARAM_TRAITS_SPEC(device, is_endian_little, bool)
-PARAM_TRAITS_SPEC(device, is_available, bool)
-PARAM_TRAITS_SPEC(device, is_compiler_available, bool)
-PARAM_TRAITS_SPEC(device, is_linker_available, bool)
-PARAM_TRAITS_SPEC(device, execution_capabilities,
-                  vector_class<info::execution_capability>)
-PARAM_TRAITS_SPEC(device, queue_profiling, bool)
-PARAM_TRAITS_SPEC(device, built_in_kernels, vector_class<string_class>)
-PARAM_TRAITS_SPEC(device, platform, cl::sycl::platform)
-PARAM_TRAITS_SPEC(device, name, string_class)
-PARAM_TRAITS_SPEC(device, vendor, string_class)
-PARAM_TRAITS_SPEC(device, driver_version, string_class)
-PARAM_TRAITS_SPEC(device, profile, string_class)
-PARAM_TRAITS_SPEC(device, version, string_class)
-PARAM_TRAITS_SPEC(device, opencl_c_version, string_class)
-PARAM_TRAITS_SPEC(device, extensions, vector_class<string_class>)
-PARAM_TRAITS_SPEC(device, printf_buffer_size, size_t)
-PARAM_TRAITS_SPEC(device, preferred_interop_user_sync, bool)
-PARAM_TRAITS_SPEC(device, parent_device, cl::sycl::device)
-PARAM_TRAITS_SPEC(device, partition_max_sub_devices, cl_uint)
-PARAM_TRAITS_SPEC(device, partition_properties,
-                  vector_class<info::partition_property>)
-PARAM_TRAITS_SPEC(device, partition_affinity_domains,
-                  vector_class<info::partition_affinity_domain>)
-PARAM_TRAITS_SPEC(device, partition_type_property, info::partition_property)
-PARAM_TRAITS_SPEC(device, partition_type_affinity_domain,
-                  info::partition_affinity_domain)
-PARAM_TRAITS_SPEC(device, reference_count, cl_uint)
-PARAM_TRAITS_SPEC(device, max_num_sub_groups, cl_uint)
-PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool)
-PARAM_TRAITS_SPEC(device, sub_group_sizes, vector_class<size_t>)
+#include <CL/sycl/info/device_traits.def>
 
 PARAM_TRAITS_SPEC(context, reference_count, cl_uint)
 PARAM_TRAITS_SPEC(context, platform, cl::sycl::platform)
@@ -364,6 +291,7 @@ PARAM_TRAITS_SPEC_WITH_INPUT(kernel_sub_group, local_size_for_sub_group_count,
                              cl::sycl::range<3>, size_t)
 PARAM_TRAITS_SPEC(kernel_sub_group, max_num_sub_groups, size_t)
 PARAM_TRAITS_SPEC(kernel_sub_group, compile_num_sub_groups, size_t)
+PARAM_TRAITS_SPEC(kernel_sub_group, compile_sub_group_size, size_t)
 
 PARAM_TRAITS_SPEC(platform, profile, string_class)
 PARAM_TRAITS_SPEC(platform, version, string_class)

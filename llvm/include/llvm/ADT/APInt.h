@@ -1109,6 +1109,10 @@ public:
   APInt uadd_sat(const APInt &RHS) const;
   APInt ssub_sat(const APInt &RHS) const;
   APInt usub_sat(const APInt &RHS) const;
+  APInt smul_sat(const APInt &RHS) const;
+  APInt umul_sat(const APInt &RHS) const;
+  APInt sshl_sat(const APInt &RHS) const;
+  APInt ushl_sat(const APInt &RHS) const;
 
   /// Array-indexing support.
   ///
@@ -1245,7 +1249,7 @@ public:
   /// \returns true if *this <= RHS when considered signed.
   bool sle(uint64_t RHS) const { return !sgt(RHS); }
 
-  /// Unsigned greather than comparison
+  /// Unsigned greater than comparison
   ///
   /// Regards both *this and RHS as unsigned quantities and compares them for
   /// the validity of the greater-than relationship.
@@ -1264,7 +1268,7 @@ public:
     return (!isSingleWord() && getActiveBits() > 64) || getZExtValue() > RHS;
   }
 
-  /// Signed greather than comparison
+  /// Signed greater than comparison
   ///
   /// Regards both *this and RHS as signed quantities and compares them for the
   /// validity of the greater-than relationship.
@@ -1341,6 +1345,19 @@ public:
   /// Truncate the APInt to a specified width. It is an error to specify a width
   /// that is greater than or equal to the current width.
   APInt trunc(unsigned width) const;
+
+  /// Truncate to new width with unsigned saturation.
+  ///
+  /// If the APInt, treated as unsigned integer, can be losslessly truncated to
+  /// the new bitwidth, then return truncated APInt. Else, return max value.
+  APInt truncUSat(unsigned width) const;
+
+  /// Truncate to new width with signed saturation.
+  ///
+  /// If this APInt, treated as signed integer, can be losslessly truncated to
+  /// the new bitwidth, then return truncated APInt. Else, return either
+  /// signed min value if the APInt was negative, or signed max value.
+  APInt truncSSat(unsigned width) const;
 
   /// Sign extend to a new width.
   ///
@@ -1467,6 +1484,13 @@ public:
       U.pVal[whichWord(BitPosition)] &= Mask;
   }
 
+  /// Set bottom loBits bits to 0.
+  void clearLowBits(unsigned loBits) {
+    assert(loBits <= BitWidth && "More bits than bitwidth");
+    APInt Keep = getHighBitsSet(BitWidth, BitWidth - loBits);
+    *this &= Keep;
+  }
+
   /// Set the sign bit to 0.
   void clearSignBit() {
     clearBit(BitWidth - 1);
@@ -1496,9 +1520,11 @@ public:
 
   /// Insert the bits from a smaller APInt starting at bitPosition.
   void insertBits(const APInt &SubBits, unsigned bitPosition);
+  void insertBits(uint64_t SubBits, unsigned bitPosition, unsigned numBits);
 
   /// Return an APInt with the extracted bits [bitPosition,bitPosition+numBits).
   APInt extractBits(unsigned numBits, unsigned bitPosition) const;
+  uint64_t extractBitsAsZExtValue(unsigned numBits, unsigned bitPosition) const;
 
   /// @}
   /// \name Value Characterization Functions
@@ -1714,13 +1740,13 @@ public:
     return BitsToDouble(getWord(0));
   }
 
-  /// Converts APInt bits to a double
+  /// Converts APInt bits to a float
   ///
   /// The conversion does not do a translation from integer to float, it just
   /// re-interprets the bits as a float. Note that it is valid to do this on
   /// any bit width. Exactly 32 bits will be translated.
   float bitsToFloat() const {
-    return BitsToFloat(getWord(0));
+    return BitsToFloat(static_cast<uint32_t>(getWord(0)));
   }
 
   /// Converts a double to APInt bits.
@@ -2149,7 +2175,7 @@ inline float RoundAPIntToFloat(const APInt &APIVal) {
 
 /// Converts the given APInt to a float value.
 ///
-/// Treast the APInt as a signed value for conversion purposes.
+/// Treats the APInt as a signed value for conversion purposes.
 inline float RoundSignedAPIntToFloat(const APInt &APIVal) {
   return float(APIVal.signedRoundToDouble());
 }
@@ -2185,7 +2211,7 @@ APInt RoundingSDiv(const APInt &A, const APInt &B, APInt::Rounding RM);
 /// count as an overflow, but here we want to allow values to decrease
 /// and increase as long as they are within the same interval.
 /// Specifically, adding of two negative numbers should not cause an
-/// overflow (as long as the magnitude does not exceed the bith width).
+/// overflow (as long as the magnitude does not exceed the bit width).
 /// On the other hand, given a positive number, adding a negative
 /// number to it can give a negative result, which would cause the
 /// value to go from [-2^BW, 0) to [0, 2^BW). In that sense, zero is
@@ -2207,11 +2233,26 @@ APInt RoundingSDiv(const APInt &A, const APInt &B, APInt::Rounding RM);
 /// coefficients.
 Optional<APInt> SolveQuadraticEquationWrap(APInt A, APInt B, APInt C,
                                            unsigned RangeWidth);
+
+/// Compare two values, and if they are different, return the position of the
+/// most significant bit that is different in the values.
+Optional<unsigned> GetMostSignificantDifferentBit(const APInt &A,
+                                                  const APInt &B);
+
 } // End of APIntOps namespace
 
 // See friend declaration above. This additional declaration is required in
 // order to compile LLVM with IBM xlC compiler.
 hash_code hash_value(const APInt &Arg);
-} // End of llvm namespace
+
+/// StoreIntToMemory - Fills the StoreBytes bytes of memory starting from Dst
+/// with the integer held in IntVal.
+void StoreIntToMemory(const APInt &IntVal, uint8_t *Dst, unsigned StoreBytes);
+
+/// LoadIntFromMemory - Loads the integer stored in the LoadBytes bytes starting
+/// from Src into IntVal, which is assumed to be wide enough and to hold zero.
+void LoadIntFromMemory(APInt &IntVal, uint8_t *Src, unsigned LoadBytes);
+
+} // namespace llvm
 
 #endif

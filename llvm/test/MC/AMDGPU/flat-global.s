@@ -92,7 +92,7 @@ global_load_dword v1, v[3:4], off offset:0
 // VI-ERR: :35: error: not a valid operand.
 
 global_load_dword v1, v[3:4], off offset:4095
-// GFX10-ERR: error: invalid operand for instruction
+// GFX10-ERR: :35: error: expected a 12-bit signed offset
 // GFX9: global_load_dword v1, v[3:4], off offset:4095 ; encoding: [0xff,0x8f,0x50,0xdc,0x03,0x00,0x7f,0x01]
 // VI-ERR: :35: error: not a valid operand.
 
@@ -102,18 +102,18 @@ global_load_dword v1, v[3:4], off offset:-1
 // VI-ERR: :35: error: not a valid operand.
 
 global_load_dword v1, v[3:4], off offset:-4096
-// GFX10-ERR: error: invalid operand for instruction
+// GFX10-ERR: :35: error: expected a 12-bit signed offset
 // GFX9: global_load_dword v1, v[3:4], off offset:-4096 ; encoding: [0x00,0x90,0x50,0xdc,0x03,0x00,0x7f,0x01]
 // VI-ERR: :35: error: not a valid operand.
 
 global_load_dword v1, v[3:4], off offset:4096
-// GFX10-ERR: error: invalid operand for instruction
-// GFX9-ERR: :35: error: invalid operand for instruction
+// GFX10-ERR: :35: error: expected a 12-bit signed offset
+// GFX9-ERR: :35: error: expected a 13-bit signed offset
 // VI-ERR: :35: error: not a valid operand.
 
 global_load_dword v1, v[3:4] off, offset:-4097
-// GFX10-ERR: error: invalid operand for instruction
-// GFX9-ERR: :35: error: invalid operand for instruction
+// GFX10-ERR: :35: error: expected a 12-bit signed offset
+// GFX9-ERR: :35: error: expected a 13-bit signed offset
 // VI-ERR: :35: error: not a valid operand.
 
 global_store_byte v[3:4], v1, off
@@ -526,3 +526,8 @@ global_store_short_d16_hi v[3:4], v1, off
 // GFX10: encoding: [0x00,0x80,0x6c,0xdc,0x03,0x01,0x7d,0x00]
 // GFX9: global_store_short_d16_hi v[3:4], v1, off ; encoding: [0x00,0x80,0x6c,0xdc,0x03,0x01,0x7f,0x00]
 // VI-ERR: instruction not supported on this GPU
+
+global_atomic_add v0, v[1:2], v2, off glc slc
+// GFX10: global_atomic_add v0, v[1:2], v2, off glc slc ; encoding: [0x00,0x80,0xcb,0xdc,0x01,0x02,0x7d,0x00]
+// GFX9: global_atomic_add v0, v[1:2], v2, off glc slc ; encoding: [0x00,0x80,0x0b,0xdd,0x01,0x02,0x7f,0x00]
+// VI-ERR: error: invalid operand for instruction

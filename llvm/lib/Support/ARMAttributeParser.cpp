@@ -73,9 +73,9 @@ ARMAttributeParser::DisplayRoutines[] = {
 
 uint64_t ARMAttributeParser::ParseInteger(const uint8_t *Data,
                                           uint32_t &Offset) {
-  unsigned Length;
-  uint64_t Value = decodeULEB128(Data + Offset, &Length);
-  Offset = Offset + Length;
+  unsigned DecodeLength;
+  uint64_t Value = decodeULEB128(Data + Offset, &DecodeLength);
+  Offset += DecodeLength;
   return Value;
 }
 
@@ -587,9 +587,9 @@ void ARMAttributeParser::nodefaults(AttrType Tag, const uint8_t *Data,
 void ARMAttributeParser::ParseIndexList(const uint8_t *Data, uint32_t &Offset,
                                         SmallVectorImpl<uint8_t> &IndexList) {
   for (;;) {
-    unsigned Length;
-    uint64_t Value = decodeULEB128(Data + Offset, &Length);
-    Offset = Offset + Length;
+    unsigned DecodeLength;
+    uint64_t Value = decodeULEB128(Data + Offset, &DecodeLength);
+    Offset += DecodeLength;
     if (Value == 0)
       break;
     IndexList.push_back(Value);
@@ -599,9 +599,9 @@ void ARMAttributeParser::ParseIndexList(const uint8_t *Data, uint32_t &Offset,
 void ARMAttributeParser::ParseAttributeList(const uint8_t *Data,
                                             uint32_t &Offset, uint32_t Length) {
   while (Offset < Length) {
-    unsigned Length;
-    uint64_t Tag = decodeULEB128(Data + Offset, &Length);
-    Offset += Length;
+    unsigned DecodeLength;
+    uint64_t Tag = decodeULEB128(Data + Offset, &DecodeLength);
+    Offset += DecodeLength;
 
     bool Handled = false;
     for (unsigned AHI = 0, AHE = array_lengthof(DisplayRoutines);
@@ -696,7 +696,7 @@ void ARMAttributeParser::ParseSubsection(const uint8_t *Data, uint32_t Length) {
 }
 
 void ARMAttributeParser::Parse(ArrayRef<uint8_t> Section, bool isLittle) {
-  size_t Offset = 1;
+  uint64_t Offset = 1;
   unsigned SectionNumber = 0;
 
   while (Offset < Section.size()) {
@@ -707,6 +707,12 @@ void ARMAttributeParser::Parse(ArrayRef<uint8_t> Section, bool isLittle) {
     if (SW) {
       SW->startLine() << "Section " << ++SectionNumber << " {\n";
       SW->indent();
+    }
+
+    if (SectionLength == 0 || (SectionLength + Offset) > Section.size()) {
+      errs() << "invalid subsection length " << SectionLength << " at offset "
+             << Offset << "\n";
+      return;
     }
 
     ParseSubsection(Section.data() + Offset, SectionLength);

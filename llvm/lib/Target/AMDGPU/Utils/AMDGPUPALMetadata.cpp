@@ -21,6 +21,8 @@
 #include "SIDefines.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/IR/CallingConv.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/AMDGPUMetadata.h"
 #include "llvm/Support/EndianStream.h"
 
@@ -231,6 +233,29 @@ void AMDGPUPALMetadata::setScratchSize(CallingConv::ID CC, unsigned Val) {
   }
   // Msgpack format.
   getHwStage(CC)[".scratch_memory_size"] = MsgPackDoc.getNode(Val);
+}
+
+// Set the hardware register bit in PAL metadata to enable wave32 on the
+// shader of the given calling convention.
+void AMDGPUPALMetadata::setWave32(unsigned CC) {
+  switch (CC) {
+  case CallingConv::AMDGPU_HS:
+    setRegister(PALMD::R_A2D5_VGT_SHADER_STAGES_EN, S_028B54_HS_W32_EN(1));
+    break;
+  case CallingConv::AMDGPU_GS:
+    setRegister(PALMD::R_A2D5_VGT_SHADER_STAGES_EN, S_028B54_GS_W32_EN(1));
+    break;
+  case CallingConv::AMDGPU_VS:
+    setRegister(PALMD::R_A2D5_VGT_SHADER_STAGES_EN, S_028B54_VS_W32_EN(1));
+    break;
+  case CallingConv::AMDGPU_PS:
+    setRegister(PALMD::R_A1B6_SPI_PS_IN_CONTROL, S_0286D8_PS_W32_EN(1));
+    break;
+  case CallingConv::AMDGPU_CS:
+    setRegister(PALMD::R_2E00_COMPUTE_DISPATCH_INITIATOR,
+                S_00B800_CS_W32_EN(1));
+    break;
+  }
 }
 
 // Convert a register number to name, for display by toString().

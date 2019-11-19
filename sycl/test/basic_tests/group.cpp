@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 
 //==--------------- group.cpp - SYCL group test ----------------------------==//
@@ -25,8 +25,8 @@ int main() {
   assert(one_dim.get_global_range(0) == 8);
   assert((one_dim.get_local_range() == cl::sycl::range<1>{4}));
   assert(one_dim.get_local_range(0) == 4);
-  assert((one_dim.get_group_range() == cl::sycl::range<1>{4}));
-  assert(one_dim.get_group_range(0) == 4);
+  assert((one_dim.get_group_range() == cl::sycl::range<1>{2}));
+  assert(one_dim.get_group_range(0) == 2);
   assert(one_dim[0] == 1);
   assert(one_dim.get_linear_id() == 1);
 
@@ -41,8 +41,8 @@ int main() {
   assert((two_dim.get_local_range() == cl::sycl::range<2>{4, 2}));
   assert(two_dim.get_local_range(0) == 4);
   assert(two_dim.get_local_range(1) == 2);
-  assert((two_dim.get_group_range() == cl::sycl::range<2>{4, 2}));
-  assert(two_dim.get_group_range(0) == 4);
+  assert((two_dim.get_group_range() == cl::sycl::range<2>{2, 2}));
+  assert(two_dim.get_group_range(0) == 2);
   assert(two_dim.get_group_range(1) == 2);
   assert(two_dim[0] == 1);
   assert(two_dim[1] == 1);
@@ -63,9 +63,9 @@ int main() {
   assert(three_dim.get_local_range(0) == 8);
   assert(three_dim.get_local_range(1) == 4);
   assert(three_dim.get_local_range(2) == 2);
-  assert((three_dim.get_group_range() == cl::sycl::range<3>{8, 4, 2}));
-  assert(three_dim.get_group_range(0) == 8);
-  assert(three_dim.get_group_range(1) == 4);
+  assert((three_dim.get_group_range() == cl::sycl::range<3>{2, 2, 2}));
+  assert(three_dim.get_group_range(0) == 2);
+  assert(three_dim.get_group_range(1) == 2);
   assert(three_dim.get_group_range(2) == 2);
   assert(three_dim[0] == 1);
   assert(three_dim[1] == 1);

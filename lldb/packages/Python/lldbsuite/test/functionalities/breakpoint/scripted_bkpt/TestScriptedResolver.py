@@ -6,8 +6,6 @@ from __future__ import print_function
 
 
 import os
-import time
-import re
 import lldb
 import lldbsuite.test.lldbutil as lldbutil
 from lldbsuite.test.decorators import *
@@ -39,6 +37,12 @@ class TestScriptedResolver(TestBase):
             from __get_depth__"""
         self.build()
         self.do_test_cli()
+
+    def test_bad_command_lines(self):
+        """Make sure we get appropriate errors when we give invalid key/value
+           options"""
+        self.build()
+        self.do_test_bad_options()        
 
     def setUp(self):
         # Call super's setUp().
@@ -197,3 +201,15 @@ class TestScriptedResolver(TestBase):
         target = self.make_target_and_import()
 
         lldbutil.run_break_set_by_script(self, "resolver.Resolver", extra_options="-k symbol -v break_on_me")
+
+    def do_test_bad_options(self):
+        target = self.make_target_and_import()
+
+        self.expect("break set -P resolver.Resolver -k a_key", error = True, msg="Missing value at end", 
+           substrs=['Key: "a_key" missing value'])
+        self.expect("break set -P resolver.Resolver -v a_value", error = True, msg="Missing key at end", 
+           substrs=['Value: "a_value" missing matching key'])
+        self.expect("break set -P resolver.Resolver -v a_value -k a_key -v another_value", error = True, msg="Missing key among args", 
+           substrs=['Value: "a_value" missing matching key'])
+        self.expect("break set -P resolver.Resolver -k a_key -k a_key -v another_value", error = True, msg="Missing value among args", 
+           substrs=['Key: "a_key" missing value'])

@@ -162,12 +162,16 @@ bool AMDGPUPromoteAlloca::runOnFunction(Function &F) {
   bool SufficientLDS = hasSufficientLocalMem(F);
   bool Changed = false;
   BasicBlock &EntryBB = *F.begin();
-  for (auto I = EntryBB.begin(), E = EntryBB.end(); I != E; ) {
-    AllocaInst *AI = dyn_cast<AllocaInst>(I);
 
-    ++I;
-    if (AI)
-      Changed |= handleAlloca(*AI, SufficientLDS);
+  SmallVector<AllocaInst *, 16> Allocas;
+  for (Instruction &I : EntryBB) {
+    if (AllocaInst *AI = dyn_cast<AllocaInst>(&I))
+      Allocas.push_back(AI);
+  }
+
+  for (AllocaInst *AI : Allocas) {
+    if (handleAlloca(*AI, SufficientLDS))
+      Changed = true;
   }
 
   return Changed;
@@ -644,7 +648,7 @@ bool AMDGPUPromoteAlloca::hasSufficientLocalMem(const Function &F) {
   // Check how much local memory is being used by global objects
   CurrentLocalMemUsage = 0;
   for (GlobalVariable &GV : Mod->globals()) {
-    if (GV.getType()->getAddressSpace() != AMDGPUAS::LOCAL_ADDRESS)
+    if (GV.getAddressSpace() != AMDGPUAS::LOCAL_ADDRESS)
       continue;
 
     for (const User *U : GV.users()) {
@@ -797,7 +801,7 @@ bool AMDGPUPromoteAlloca::handleAlloca(AllocaInst &I, bool SufficientLDS) {
       GlobalVariable::NotThreadLocal,
       AMDGPUAS::LOCAL_ADDRESS);
   GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-  GV->setAlignment(I.getAlignment());
+  GV->setAlignment(MaybeAlign(I.getAlignment()));
 
   Value *TCntY, *TCntZ;
 

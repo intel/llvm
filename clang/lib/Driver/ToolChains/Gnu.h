@@ -70,6 +70,12 @@ public:
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
+
+private:
+  void constructLLVMARCommand(Compilation &C, const JobAction &JA,
+                              const InputInfo &Output,
+                              const InputInfoList &InputFiles,
+                              const llvm::opt::ArgList &Args) const;
 };
 } // end namespace gnutools
 

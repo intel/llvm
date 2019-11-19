@@ -22,31 +22,45 @@
 
 const char *stringifyErrorCode(cl_int error);
 
-#define OCL_CODE_TO_STR(code)                                                  \
-  std::string(std::to_string(code) + " (" + stringifyErrorCode(code) + ")")
+static inline std::string codeToString(cl_int code){
+  return std::string(std::to_string(code) + " (" +
+         stringifyErrorCode(code) + ")");
+}
+
+#ifdef __SYCL_DEVICE_ONLY__
+// TODO remove this when 'assert' is supported in device code
+#define __SYCL_ASSERT(x)
+#else
+#define __SYCL_ASSERT(x) assert(x)
+#endif // #ifdef __SYCL_DEVICE_ONLY__
 
 #define OCL_ERROR_REPORT                                                       \
-  "OpenCL API failed. " __FILE__                                               \
-  ":" STRINGIFY_LINE(__LINE__) ": "                                            \
+  "OpenCL API failed. " /*__FILE__*/                                           \
+  /* TODO: replace __FILE__ to report only relative path*/                     \
+  /* ":" STRINGIFY_LINE(__LINE__) ": " */                                      \
                                "OpenCL API returns: "
 
 #ifndef SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
-#define REPORT_OCL_ERR_TO_STREAM(code)                                         \
+#define REPORT_OCL_ERR_TO_STREAM(expr)                                         \
+{                                                                              \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::cerr << OCL_ERROR_REPORT << OCL_CODE_TO_STR(code) << std::endl;       \
-  }
+    std::cerr << OCL_ERROR_REPORT << codeToString(code) << std::endl;          \
+  }                                                                            \
+}
 #endif
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <CL/sycl/exception.hpp>
 
-#define REPORT_OCL_ERR_TO_EXC(code, exc)                                       \
+#define REPORT_OCL_ERR_TO_EXC(expr, exc)                                       \
+{                                                                              \
+  auto code = expr;                                                            \
   if (code != CL_SUCCESS) {                                                    \
-    std::string errorMessage(OCL_ERROR_REPORT + OCL_CODE_TO_STR(code));        \
-    std::cerr << errorMessage << std::endl;                                    \
-    throw exc(errorMessage.c_str(), (code));                                   \
-  }
+    throw exc(OCL_ERROR_REPORT + codeToString(code), code);                    \
+  }                                                                            \
+}
 #define REPORT_OCL_ERR_TO_EXC_THROW(code, exc) REPORT_OCL_ERR_TO_EXC(code, exc)
 #define REPORT_OCL_ERR_TO_EXC_BASE(code)                                       \
   REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
@@ -72,6 +86,10 @@ const char *stringifyErrorCode(cl_int error);
 #define ALWAYS_INLINE __attribute__((always_inline))
 #else
 #define ALWAYS_INLINE
+#endif
+
+#ifndef SYCL_EXTERNAL
+#define SYCL_EXTERNAL
 #endif
 
 namespace cl {
@@ -114,27 +132,23 @@ template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
 // Produces N-dimensional object of type T whose all components are initialized
 // to given integer value.
 template <int N, template <int> class T> struct InitializedVal {
-  template <int Val> static T<N> &&get();
+  template <int Val> static T<N> get();
 };
 
 // Specialization for a one-dimensional type.
 template <template <int> class T> struct InitializedVal<1, T> {
-  template <int Val> static T<1> &&get() { return T<1>{Val}; }
+  template <int Val> static T<1> get() { return T<1>{Val}; }
 };
 
 // Specialization for a two-dimensional type.
 template <template <int> class T> struct InitializedVal<2, T> {
-  template <int Val> static T<2> &&get() { return T<2>{Val, Val}; }
+  template <int Val> static T<2> get() { return T<2>{Val, Val}; }
 };
 
 // Specialization for a three-dimensional type.
 template <template <int> class T> struct InitializedVal<3, T> {
-  template <int Val> static T<3> &&get() { return T<3>{Val, Val, Val}; }
+  template <int Val> static T<3> get() { return T<3>{Val, Val, Val}; }
 };
-
-// Fills the lack of enable_if_t in C++11.
-template <bool Cond, typename T = void>
-using enable_if_t = typename std::enable_if<Cond, T>::type;
 
 /// Helper class for the \c NDLoop.
 template <int NDIMS, int DIM, template <int> class LoopBoundTy, typename FuncTy,
@@ -144,9 +158,9 @@ struct NDLoopIterateImpl {
                     const LoopBoundTy<NDIMS> &Stride,
                     const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
                     LoopIndexTy<NDIMS> &Index) {
-
-    for (Index[DIM] = LowerBound[DIM]; Index[DIM] < UpperBound[DIM];
-         Index[DIM] += Stride[DIM]) {
+    constexpr size_t AdjIdx = NDIMS - 1 - DIM;
+    for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
+         Index[AdjIdx] += Stride[AdjIdx]) {
 
       NDLoopIterateImpl<NDIMS, DIM - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
           LowerBound, Stride, UpperBound, f, Index};
@@ -163,8 +177,9 @@ struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
                     const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
                     LoopIndexTy<NDIMS> &Index) {
 
-    for (Index[0] = LowerBound[0]; Index[0] < UpperBound[0];
-         Index[0] += Stride[0]) {
+    constexpr size_t AdjIdx = NDIMS - 1;
+    for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
+         Index[AdjIdx] += Stride[AdjIdx]) {
 
       f(Index);
     }
@@ -176,6 +191,7 @@ struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
 /// over a multi-dimensional space - it allows to avoid generating unnecessary
 /// outer loops like 'for (int z=0; z<1; z++)' in case of 1D and 2D iteration
 /// spaces or writing specializations of the algorithms for 1D, 2D and 3D cases.
+/// Loop is unrolled in a reverse directions, i.e. ID = 0 is the inner-most one.
 template <int NDIMS> struct NDLoop {
   /// Generates ND loop nest with {0,..0} .. \c UpperBound bounds with unit
   /// stride. Applies \c f at each iteration, passing current index of
@@ -188,7 +204,8 @@ template <int NDIMS> struct NDLoop {
         InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
     const LoopBoundTy<NDIMS> Stride =
         InitializedVal<NDIMS, LoopBoundTy>::template get<1>();
-    LoopIndexTy<NDIMS> Index; // initialized down the call stack
+    LoopIndexTy<NDIMS> Index =
+        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
 
     NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
         LowerBound, Stride, UpperBound, f, Index};
@@ -218,6 +235,15 @@ constexpr size_t getNextPowerOfTwoHelper(size_t Var, size_t Offset) {
 // Returns the smallest power of two not less than Var
 constexpr size_t getNextPowerOfTwo(size_t Var) {
   return getNextPowerOfTwoHelper(Var - 1, 1) + 1;
+}
+
+// Returns linear index by given index and range
+template <int Dims, template <int> class T, template <int> class U>
+size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
+  size_t LinearIndex = 0;
+  for (int I = 0; I < Dims; ++I)
+    LinearIndex = LinearIndex * Range[I] + Index[I];
+  return LinearIndex;
 }
 
 } // namespace detail

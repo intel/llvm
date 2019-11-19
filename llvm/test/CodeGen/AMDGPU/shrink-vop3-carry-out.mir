@@ -11,7 +11,7 @@
 # GCN: %29:vgpr_32, %9:sreg_64_xexec = V_ADD_I32_e64 %19, %17, 0, implicit $exec
 # GCN: %24:vgpr_32 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed %9, implicit $exec
 name:            shrink_add_vop3
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -81,11 +81,11 @@ body:             |
     %13 = REG_SEQUENCE killed %5, 17, %12, 18
     %28 = V_LSHL_B64 killed %27, 2, implicit $exec
     %16 = REG_SEQUENCE killed %4, 17, %12, 18
-    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, implicit $exec
-    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, implicit $exec
+    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, 0, implicit $exec
+    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, 0, implicit $exec
     %29, %9 = V_ADD_I32_e64 %19, %17, 0, implicit $exec
     %24 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed %9, implicit $exec
-    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -95,7 +95,7 @@ body:             |
 # GCN: %24:vgpr_32 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed %9, implicit $exec
 
 name:            shrink_sub_vop3
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -165,11 +165,11 @@ body:             |
     %13 = REG_SEQUENCE killed %5, 17, %12, 18
     %28 = V_LSHL_B64 killed %27, 2, implicit $exec
     %16 = REG_SEQUENCE killed %4, 17, %12, 18
-    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, implicit $exec
-    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, implicit $exec
+    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, 0, implicit $exec
+    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, 0, implicit $exec
     %29, %9 = V_SUB_I32_e64 %19, %17, 0, implicit $exec
     %24 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed %9, implicit $exec
-    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -179,7 +179,7 @@ body:             |
 # GCN: %24:vgpr_32 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed %9, implicit $exec
 
 name:            shrink_subrev_vop3
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -249,11 +249,11 @@ body:             |
     %13 = REG_SEQUENCE killed %5, 17, %12, 18
     %28 = V_LSHL_B64 killed %27, 2, implicit $exec
     %16 = REG_SEQUENCE killed %4, 17, %12, 18
-    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, implicit $exec
-    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, implicit $exec
+    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, 0, implicit $exec
+    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, 0, implicit $exec
     %29, %9 = V_SUBREV_I32_e64 %19, %17, 0, implicit $exec
     %24 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed %9, implicit $exec
-    BUFFER_STORE_DWORD_ADDR64 %29, %28, killed %16, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_ADDR64 %29, %28, killed %16, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -262,7 +262,7 @@ body:             |
 # GCN: %29:vgpr_32, $vcc = V_ADDC_U32_e64 %19, %17, %9, 0, implicit $exec
 # GCN: %24:vgpr_32 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed $vcc, implicit $exec
 name: check_addc_src2_vop3
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -332,12 +332,12 @@ body:             |
     %13 = REG_SEQUENCE killed %5, 17, %12, 18
     %28 = V_LSHL_B64 killed %27, 2, implicit $exec
     %16 = REG_SEQUENCE killed %4, 17, %12, 18
-    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, implicit $exec
-    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, implicit $exec
+    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, 0, implicit $exec
+    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, 0, implicit $exec
     %9 = S_MOV_B64 0
     %29, $vcc = V_ADDC_U32_e64 %19, %17, %9, 0, implicit $exec
     %24 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed $vcc, implicit $exec
-    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -347,7 +347,7 @@ body:             |
 # GCN %24 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed $vcc, implicit $exec
 
 name:            shrink_addc_vop3
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -417,12 +417,12 @@ body:             |
     %13 = REG_SEQUENCE killed %5, 17, %12, 18
     %28 = V_LSHL_B64 killed %27, 2, implicit $exec
     %16 = REG_SEQUENCE killed %4, 17, %12, 18
-    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, implicit $exec
-    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, implicit $exec
+    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, 0, implicit $exec
+    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, 0, implicit $exec
     $vcc = S_MOV_B64 0
     %29, $vcc = V_ADDC_U32_e64 %19, %17, $vcc, 0, implicit $exec
     %24 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed $vcc, implicit $exec
-    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -432,7 +432,7 @@ body:             |
 # GCN: %29:vgpr_32 = V_ADDC_U32_e32 %19, %17, implicit-def $vcc, implicit undef $vcc, implicit $exec
 # GCN: %24:vgpr_32 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed $vcc, implicit $exec
 name:            shrink_addc_undef_vcc
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -502,11 +502,11 @@ body:             |
     %13 = REG_SEQUENCE killed %5, 17, %12, 18
     %28 = V_LSHL_B64 killed %27, 2, implicit $exec
     %16 = REG_SEQUENCE killed %4, 17, %12, 18
-    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, implicit $exec
-    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, implicit $exec
+    %17 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 0, 0, 0, 0, 0, 0, implicit $exec
+    %19 = BUFFER_LOAD_DWORD_ADDR64 %28, %13, 0, 4, 0, 0, 0, 0, 0, implicit $exec
     %29, $vcc = V_ADDC_U32_e64 %19, %17, undef $vcc, 0, implicit $exec
     %24 = V_CNDMASK_B32_e64 0, 0, 0, 1, killed $vcc, implicit $exec
-    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_ADDR64 %24, %28, killed %16, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...

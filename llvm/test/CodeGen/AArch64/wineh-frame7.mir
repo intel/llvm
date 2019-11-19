@@ -3,10 +3,8 @@
 # Test that stack probe results in Nop unwind codes in the prologue.  Test
 # save_fplr, save_reg_x and stack_alloc with multiple updates.
 
-# CHECK:      early-clobber $sp = frame-setup STRXpre killed $x28, $sp, -32
-# CHECK-NEXT: frame-setup SEH_SaveReg_X 28, -32
-# CHECK-NEXT: frame-setup STPXi killed $fp, killed $lr, $sp, 2
-# CHECK-NEXT: frame-setup SEH_SaveFPLR 16
+# CHECK:      early-clobber $sp = frame-setup STPXpre killed $fp, killed $lr, $sp, -2
+# CHECK-NEXT: frame-setup SEH_SaveFPLR_X -16
 # CHECK-NEXT: $x15 = frame-setup MOVZXi 56009, 0
 # CHECK-NEXT: frame-setup SEH_Nop
 # CHECK-NEXT: $x15 = frame-setup MOVKXi $x15, 2, 16
@@ -21,10 +19,8 @@
 # CHECK-NEXT: frame-destroy SEH_StackAlloc 2990080
 # CHECK-NEXT: $sp = frame-destroy ADDXri $sp, 3216, 0
 # CHECK-NEXT: frame-destroy SEH_StackAlloc 3216
-# CHECK-NEXT: $fp, $lr = frame-destroy LDPXi $sp, 2
-# CHECK-NEXT: frame-destroy SEH_SaveFPLR 16
-# CHECK-NEXT: early-clobber $sp, $x28 = frame-destroy LDRXpost $sp, 32
-# CHECK-NEXT: frame-destroy SEH_SaveReg_X 28, -32
+# CHECK-NEXT: early-clobber $sp, $fp, $lr = frame-destroy LDPXpost $sp, 2
+# CHECK-NEXT: frame-destroy SEH_SaveFPLR_X -16
 # CHECK-NEXT: frame-destroy SEH_EpilogEnd
 # CHECK-NEXT: RET_ReallyLR implicit killed $w0
 --- |
@@ -78,7 +74,7 @@
 ...
 ---
 name:            '?func@@YAHH@Z'
-alignment:       2
+alignment:       4
 exposesReturnsTwice: false
 legalized:       true
 regBankSelected: true
@@ -110,30 +106,30 @@ frameInfo:
 fixedStack:
 stack:
   - { id: 0, name: retval, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -4, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 1, name: i.addr, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -8, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 2, name: A, type: default, offset: 0, size: 2992772, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -2992780, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 3, name: a, type: default, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -2992784, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 4, name: B, type: default, offset: 0, size: 492, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       local-offset: -2993276, debug-info-variable: '', debug-info-expression: '',
       debug-info-location: '' }
   - { id: 5, name: '', type: spill-slot, offset: 0, size: 8, alignment: 8,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
   - { id: 6, name: '', type: spill-slot, offset: 0, size: 4, alignment: 4,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
 constants:
 body:             |

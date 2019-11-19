@@ -34,6 +34,7 @@ namespace readability {
 class IdentifierNamingCheck : public ClangTidyCheck {
 public:
   IdentifierNamingCheck(StringRef Name, ClangTidyContext *Context);
+  ~IdentifierNamingCheck();
 
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
@@ -64,24 +65,48 @@ public:
     std::string Suffix;
   };
 
-  /// \brief Holds an identifier name check failure, tracking the kind of the
+  /// This enum will be used in %select of the diagnostic message.
+  /// Each value below IgnoreFailureThreshold should have an error message.
+  enum class ShouldFixStatus {
+    ShouldFix,
+    ConflictsWithKeyword, /// The fixup will conflict with a language keyword,
+                          /// so we can't fix it automatically.
+    ConflictsWithMacroDefinition, /// The fixup will conflict with a macro
+                                  /// definition, so we can't fix it
+                                  /// automatically.
+
+    /// Values pass this threshold will be ignored completely
+    /// i.e no message, no fixup.
+    IgnoreFailureThreshold,
+
+    InsideMacro, /// If the identifier was used or declared within a macro we
+                 /// won't offer a fixup for safety reasons.
+  };
+
+  /// Holds an identifier name check failure, tracking the kind of the
   /// identifer, its possible fixup and the starting locations of all the
   /// identifier usages.
   struct NamingCheckFailure {
     std::string KindName;
     std::string Fixup;
 
-    /// \brief Whether the failure should be fixed or not.
+    /// Whether the failure should be fixed or not.
     ///
     /// ie: if the identifier was used or declared within a macro we won't offer
     /// a fixup for safety reasons.
-    bool ShouldFix;
+    bool ShouldFix() const { return FixStatus == ShouldFixStatus::ShouldFix; }
 
-    /// \brief A set of all the identifier usages starting SourceLocation, in
+    bool ShouldNotify() const {
+      return FixStatus < ShouldFixStatus::IgnoreFailureThreshold;
+    }
+
+    ShouldFixStatus FixStatus = ShouldFixStatus::ShouldFix;
+
+    /// A set of all the identifier usages starting SourceLocation, in
     /// their encoded form.
     llvm::DenseSet<unsigned> RawUsageLocs;
 
-    NamingCheckFailure() : ShouldFix(true) {}
+    NamingCheckFailure() = default;
   };
 
   typedef std::pair<SourceLocation, std::string> NamingCheckId;

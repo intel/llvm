@@ -24,7 +24,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/ValueHandle.h"
 
 namespace llvm {
 
@@ -60,8 +59,8 @@ extern cl::opt<bool> RunSLPVectorization;
 struct SLPVectorizerPass : public PassInfoMixin<SLPVectorizerPass> {
   using StoreList = SmallVector<StoreInst *, 8>;
   using StoreListMap = MapVector<Value *, StoreList>;
-  using WeakTrackingVHList = SmallVector<WeakTrackingVH, 8>;
-  using WeakTrackingVHListMap = MapVector<Value *, WeakTrackingVHList>;
+  using GEPList = SmallVector<GetElementPtrInst *, 8>;
+  using GEPListMap = MapVector<Value *, GEPList>;
 
   ScalarEvolution *SE = nullptr;
   TargetTransformInfo *TTI = nullptr;
@@ -114,9 +113,12 @@ private:
 
   /// Try to find horizontal reduction or otherwise vectorize a chain of binary
   /// operators.
+  /// \p Try2WayRdx specializes the analysis to only attempt a 2-element
+  /// reduction.
   bool vectorizeRootInstruction(PHINode *P, Value *V, BasicBlock *BB,
                                 slpvectorizer::BoUpSLP &R,
-                                TargetTransformInfo *TTI);
+                                TargetTransformInfo *TTI,
+                                bool Try2WayRdx = false);
 
   /// Try to vectorize trees that start at insertvalue instructions.
   bool vectorizeInsertValueInst(InsertValueInst *IVI, BasicBlock *BB,
@@ -131,7 +133,7 @@ private:
 
   /// Tries to vectorize constructs started from CmpInst, InsertValueInst or
   /// InsertElementInst instructions.
-  bool vectorizeSimpleInstructions(SmallVectorImpl<WeakVH> &Instructions,
+  bool vectorizeSimpleInstructions(SmallVectorImpl<Instruction *> &Instructions,
                                    BasicBlock *BB, slpvectorizer::BoUpSLP &R);
 
   /// Scan the basic block and look for patterns that are likely to start
@@ -147,7 +149,7 @@ private:
   StoreListMap Stores;
 
   /// The getelementptr instructions in a basic block organized by base pointer.
-  WeakTrackingVHListMap GEPs;
+  GEPListMap GEPs;
 };
 
 } // end namespace llvm

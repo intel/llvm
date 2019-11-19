@@ -959,7 +959,7 @@ public:
   /// as this declaration, or NULL if there is no previous declaration.
   Decl *getPreviousDecl() { return getPreviousDeclImpl(); }
 
-  /// Retrieve the most recent declaration that declares the same entity
+  /// Retrieve the previous declaration that declares the same entity
   /// as this declaration, or NULL if there is no previous declaration.
   const Decl *getPreviousDecl() const {
     return const_cast<Decl *>(this)->getPreviousDeclImpl();
@@ -1440,6 +1440,13 @@ class DeclContext {
     uint64_t NonTrivialToPrimitiveCopy : 1;
     uint64_t NonTrivialToPrimitiveDestroy : 1;
 
+    /// The following bits indicate whether this is or contains a C union that
+    /// is non-trivial to default-initialize, destruct, or copy. These bits
+    /// imply the associated basic non-triviality predicates declared above.
+    uint64_t HasNonTrivialToPrimitiveDefaultInitializeCUnion : 1;
+    uint64_t HasNonTrivialToPrimitiveDestructCUnion : 1;
+    uint64_t HasNonTrivialToPrimitiveCopyCUnion : 1;
+
     /// Indicates whether this struct is destroyed in the callee.
     uint64_t ParamDestroyedInCallee : 1;
 
@@ -1448,7 +1455,7 @@ class DeclContext {
   };
 
   /// Number of non-inherited bits in RecordDeclBitfields.
-  enum { NumRecordDeclBits = 11 };
+  enum { NumRecordDeclBits = 14 };
 
   /// Stores the bits used by OMPDeclareReductionDecl.
   /// If modified NumOMPDeclareReductionDeclBits and the accessor
@@ -1500,7 +1507,9 @@ class DeclContext {
     uint64_t IsExplicitlyDefaulted : 1;
     uint64_t HasImplicitReturnZero : 1;
     uint64_t IsLateTemplateParsed : 1;
-    uint64_t IsConstexpr : 1;
+
+    /// Kind of contexpr specifier as defined by ConstexprSpecKind.
+    uint64_t ConstexprKind : 2;
     uint64_t InstantiationIsPending : 1;
 
     /// Indicates if the function uses __try.
@@ -1528,7 +1537,7 @@ class DeclContext {
   };
 
   /// Number of non-inherited bits in FunctionDeclBitfields.
-  enum { NumFunctionDeclBits = 24 };
+  enum { NumFunctionDeclBits = 25 };
 
   /// Stores the bits used by CXXConstructorDecl. If modified
   /// NumCXXConstructorDeclBits and the accessor
@@ -1545,7 +1554,7 @@ class DeclContext {
     /// exactly 64 bits and thus the width of NumCtorInitializers
     /// will need to be shrunk if some bit is added to NumDeclContextBitfields,
     /// NumFunctionDeclBitfields or CXXConstructorDeclBitfields.
-    uint64_t NumCtorInitializers : 24;
+    uint64_t NumCtorInitializers : 23;
     uint64_t IsInheritingConstructor : 1;
 
     /// Whether this constructor has a trail-allocated explicit specifier.
@@ -1580,6 +1589,9 @@ class DeclContext {
 
     /// True if this method is the getter or setter for an explicit property.
     uint64_t IsPropertyAccessor : 1;
+
+    /// True if this method is a synthesized property accessor stub.
+    uint64_t IsSynthesizedAccessorStub : 1;
 
     /// Method has a definition.
     uint64_t IsDefined : 1;

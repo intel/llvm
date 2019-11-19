@@ -22,10 +22,10 @@
 #include <type_traits>
 #include <variant>
 
-#include "archetypes.hpp"
-#include "test_convertible.hpp"
+#include "archetypes.h"
+#include "test_convertible.h"
 #include "test_macros.h"
-#include "variant_test_helpers.hpp"
+#include "variant_test_helpers.h"
 
 template <class Var, class T, class... Args>
 constexpr auto test_emplace_exists_imp(int) -> decltype(
@@ -111,7 +111,7 @@ void test_basic() {
     assert(std::get<2>(v) == &x);
     assert(&ref2 == &std::get<2>(v));
     // emplace with multiple args
-    auto& ref3 = v.emplace<std::string>(3, 'a');
+    auto& ref3 = v.emplace<std::string>(3u, 'a');
     static_assert(std::is_same_v<std::string&, decltype(ref3)>, "");
     assert(std::get<4>(v) == "aaa");
     assert(&ref3 == &std::get<4>(v));
@@ -145,7 +145,7 @@ void test_basic() {
     assert(&std::get<int &&>(v) == &z);
     assert(&ref4 == &std::get<int &&>(v));
     // emplace with multiple args
-    auto& ref5 = v.emplace<std::string>(3, 'a');
+    auto& ref5 = v.emplace<std::string>(3u, 'a');
     static_assert(std::is_same_v<std::string&, decltype(ref5)>, "");
     assert(std::get<std::string>(v) == "aaa");
     assert(&ref5 == &std::get<std::string>(v));

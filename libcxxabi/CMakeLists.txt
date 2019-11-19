@@ -43,7 +43,9 @@ include(CMakeDependentOption)
 include(HandleCompilerRT)
 
 # Define options.
-option(LIBCXXABI_ENABLE_EXCEPTIONS "Use exceptions." ON)
+option(LIBCXXABI_ENABLE_EXCEPTIONS
+  "Provide support for exceptions in the runtime.
+  When disabled, libc++abi does not support stack unwinding and other exceptions-related features." ON)
 option(LIBCXXABI_ENABLE_ASSERTIONS "Enable assertions independent of build mode." ON)
 option(LIBCXXABI_ENABLE_PEDANTIC "Compile with pedantic enabled." ON)
 option(LIBCXXABI_ENABLE_PIC "Build Position-Independent Code, even in static library" ON)
@@ -75,6 +77,11 @@ set(LIBCXXABI_TARGET_TRIPLE "" CACHE STRING "Target triple for cross compiling."
 set(LIBCXXABI_GCC_TOOLCHAIN "" CACHE PATH "GCC toolchain for cross compiling.")
 set(LIBCXXABI_SYSROOT "" CACHE PATH "Sysroot for cross compiling.")
 set(LIBCXXABI_LIBCXX_LIBRARY_PATH "" CACHE PATH "The path to libc++ library.")
+set(LIBCXXABI_LIBRARY_VERSION "1.0" CACHE STRING
+"Version of libc++abi. This will be reflected in the name of the shared \
+library produced. For example, -DLIBCXXABI_LIBRARY_VERSION=x.y will \
+result in the library being named libc++abi.x.y.dylib, along with the \
+usual symlinks pointing to that.")
 
 # Default to building a shared library so that the default options still test
 # the libc++abi that is being built. There are two problems with testing a

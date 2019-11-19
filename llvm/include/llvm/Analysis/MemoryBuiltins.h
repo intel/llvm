@@ -18,6 +18,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/TargetFolder.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
@@ -57,6 +58,9 @@ class Value;
 /// like).
 bool isAllocationFn(const Value *V, const TargetLibraryInfo *TLI,
                     bool LookThroughBitCast = false);
+bool isAllocationFn(const Value *V,
+                    function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
+                    bool LookThroughBitCast = false);
 
 /// Tests if a value is a call or invoke to a function that returns a
 /// NoAlias pointer (including malloc/calloc/realloc/strdup-like functions).
@@ -66,6 +70,9 @@ bool isNoAliasFn(const Value *V, const TargetLibraryInfo *TLI,
 /// Tests if a value is a call or invoke to a library function that
 /// allocates uninitialized memory (such as malloc).
 bool isMallocLikeFn(const Value *V, const TargetLibraryInfo *TLI,
+                    bool LookThroughBitCast = false);
+bool isMallocLikeFn(const Value *V,
+                    function_ref<const TargetLibraryInfo &(Function &)> GetTLI,
                     bool LookThroughBitCast = false);
 
 /// Tests if a value is a call or invoke to a library function that
@@ -83,6 +90,25 @@ bool isMallocOrCallocLikeFn(const Value *V, const TargetLibraryInfo *TLI,
 bool isAllocLikeFn(const Value *V, const TargetLibraryInfo *TLI,
                    bool LookThroughBitCast = false);
 
+/// Tests if a value is a call or invoke to a library function that
+/// reallocates memory (e.g., realloc).
+bool isReallocLikeFn(const Value *V, const TargetLibraryInfo *TLI,
+                     bool LookThroughBitCast = false);
+
+/// Tests if a function is a call or invoke to a library function that
+/// reallocates memory (e.g., realloc).
+bool isReallocLikeFn(const Function *F, const TargetLibraryInfo *TLI);
+
+/// Tests if a value is a call or invoke to a library function that
+/// allocates memory and throws if an allocation failed (e.g., new).
+bool isOpNewLikeFn(const Value *V, const TargetLibraryInfo *TLI,
+                     bool LookThroughBitCast = false);
+
+/// Tests if a value is a call or invoke to a library function that
+/// allocates memory (strdup, strndup).
+bool isStrdupLikeFn(const Value *V, const TargetLibraryInfo *TLI,
+                     bool LookThroughBitCast = false);
+
 //===----------------------------------------------------------------------===//
 //  malloc Call Utility Functions.
 //
@@ -90,9 +116,13 @@ bool isAllocLikeFn(const Value *V, const TargetLibraryInfo *TLI,
 /// extractMallocCall - Returns the corresponding CallInst if the instruction
 /// is a malloc call.  Since CallInst::CreateMalloc() only creates calls, we
 /// ignore InvokeInst here.
-const CallInst *extractMallocCall(const Value *I, const TargetLibraryInfo *TLI);
-inline CallInst *extractMallocCall(Value *I, const TargetLibraryInfo *TLI) {
-  return const_cast<CallInst*>(extractMallocCall((const Value*)I, TLI));
+const CallInst *
+extractMallocCall(const Value *I,
+                  function_ref<const TargetLibraryInfo &(Function &)> GetTLI);
+inline CallInst *
+extractMallocCall(Value *I,
+                  function_ref<const TargetLibraryInfo &(Function &)> GetTLI) {
+  return const_cast<CallInst *>(extractMallocCall((const Value *)I, GetTLI));
 }
 
 /// getMallocType - Returns the PointerType resulting from the malloc call.
@@ -133,6 +163,9 @@ inline CallInst *extractCallocCall(Value *I, const TargetLibraryInfo *TLI) {
 //===----------------------------------------------------------------------===//
 //  free Call Utility Functions.
 //
+
+/// isLibFreeFunction - Returns true if the function is a builtin free()
+bool isLibFreeFunction(const Function *F, const LibFunc TLIFn);
 
 /// isFreeCall - Returns non-null if the value is a call to the builtin free()
 const CallInst *isFreeCall(const Value *I, const TargetLibraryInfo *TLI);

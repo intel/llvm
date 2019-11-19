@@ -18,7 +18,7 @@
 using namespace llvm;
 
 bool DWARFUnitIndex::Header::parse(DataExtractor IndexData,
-                                   uint32_t *OffsetPtr) {
+                                   uint64_t *OffsetPtr) {
   if (!IndexData.isValidOffsetForDataOfSize(*OffsetPtr, 16))
     return false;
   Version = IndexData.getU32(OffsetPtr);
@@ -45,7 +45,7 @@ bool DWARFUnitIndex::parse(DataExtractor IndexData) {
 }
 
 bool DWARFUnitIndex::parseImpl(DataExtractor IndexData) {
-  uint32_t Offset = 0;
+  uint64_t Offset = 0;
   if (!Header.parse(IndexData, &Offset))
     return false;
 
@@ -54,10 +54,10 @@ bool DWARFUnitIndex::parseImpl(DataExtractor IndexData) {
                       (2 * Header.NumUnits + 1) * 4 * Header.NumColumns))
     return false;
 
-  Rows = llvm::make_unique<Entry[]>(Header.NumBuckets);
+  Rows = std::make_unique<Entry[]>(Header.NumBuckets);
   auto Contribs =
-      llvm::make_unique<Entry::SectionContribution *[]>(Header.NumUnits);
-  ColumnKinds = llvm::make_unique<DWARFSectionKind[]>(Header.NumColumns);
+      std::make_unique<Entry::SectionContribution *[]>(Header.NumUnits);
+  ColumnKinds = std::make_unique<DWARFSectionKind[]>(Header.NumColumns);
 
   // Read Hash Table of Signatures
   for (unsigned i = 0; i != Header.NumBuckets; ++i)
@@ -70,7 +70,7 @@ bool DWARFUnitIndex::parseImpl(DataExtractor IndexData) {
       continue;
     Rows[i].Index = this;
     Rows[i].Contributions =
-        llvm::make_unique<Entry::SectionContribution[]>(Header.NumColumns);
+        std::make_unique<Entry::SectionContribution[]>(Header.NumColumns);
     Contribs[Index - 1] = Rows[i].Contributions.get();
   }
 
@@ -172,8 +172,8 @@ DWARFUnitIndex::getFromOffset(uint32_t Offset) const {
              E2->Contributions[InfoColumn].Offset;
     });
   }
-  auto I = llvm::bsearch(OffsetLookup, [&](Entry *E2) {
-    return Offset < E2->Contributions[InfoColumn].Offset;
+  auto I = partition_point(OffsetLookup, [&](Entry *E2) {
+    return E2->Contributions[InfoColumn].Offset <= Offset;
   });
   if (I == OffsetLookup.begin())
     return nullptr;

@@ -89,14 +89,10 @@ static std::string renderCodeBlock(llvm::StringRef Input,
 } // namespace
 
 void FormattedString::appendText(std::string Text) {
-  // We merge consecutive blocks of text to simplify the overall structure.
-  if (Chunks.empty() || Chunks.back().Kind != ChunkKind::PlainText) {
-    Chunk C;
-    C.Kind = ChunkKind::PlainText;
-    Chunks.push_back(C);
-  }
-  // FIXME: ensure there is a whitespace between the chunks.
-  Chunks.back().Contents += Text;
+  Chunk C;
+  C.Kind = ChunkKind::PlainText;
+  C.Contents = Text;
+  Chunks.push_back(C);
 }
 
 void FormattedString::appendCodeBlock(std::string Code, std::string Language) {
@@ -116,15 +112,20 @@ void FormattedString::appendInlineCode(std::string Code) {
 
 std::string FormattedString::renderAsMarkdown() const {
   std::string R;
+  auto EnsureWhitespace = [&R]() {
+    // Adds a space for nicer rendering.
+    if (!R.empty() && !isWhitespace(R.back()))
+      R += " ";
+  };
   for (const auto &C : Chunks) {
     switch (C.Kind) {
     case ChunkKind::PlainText:
+      if (!C.Contents.empty() && !isWhitespace(C.Contents.front()))
+        EnsureWhitespace();
       R += renderText(C.Contents);
       continue;
     case ChunkKind::InlineCodeBlock:
-      // Make sure we don't glue two backticks together.
-      if (llvm::StringRef(R).endswith("`"))
-        R += " ";
+      EnsureWhitespace();
       R += renderInlineBlock(C.Contents);
       continue;
     case ChunkKind::CodeBlock:
@@ -146,28 +147,30 @@ std::string FormattedString::renderAsPlainText() const {
       return;
     R += " ";
   };
+  Optional<bool> LastWasBlock;
   for (const auto &C : Chunks) {
+    bool IsBlock = C.Kind == ChunkKind::CodeBlock;
+    if (LastWasBlock.hasValue() && (IsBlock || *LastWasBlock))
+      R += "\n\n";
+    LastWasBlock = IsBlock;
+
     switch (C.Kind) {
     case ChunkKind::PlainText:
       EnsureWhitespace();
       R += C.Contents;
-      continue;
+      break;
     case ChunkKind::InlineCodeBlock:
       EnsureWhitespace();
       R += C.Contents;
-      continue;
+      break;
     case ChunkKind::CodeBlock:
-      if (!R.empty())
-        R += "\n\n";
       R += C.Contents;
-      if (!llvm::StringRef(C.Contents).endswith("\n"))
-        R += "\n";
-      continue;
+      break;
     }
-    llvm_unreachable("unhanlded ChunkKind");
+    // Trim trailing whitespace in chunk.
+    while (!R.empty() && isWhitespace(R.back()))
+      R.pop_back();
   }
-  while (!R.empty() && isWhitespace(R.back()))
-    R.pop_back();
   return R;
 }
 

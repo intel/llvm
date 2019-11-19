@@ -46,8 +46,10 @@ struct file_magic {
     pecoff_executable,   ///< PECOFF executable file
     windows_resource,    ///< Windows compiled resource file (.res)
     xcoff_object_32,     ///< 32-bit XCOFF object file
+    xcoff_object_64,     ///< 64-bit XCOFF object file
     wasm_object,         ///< WebAssembly Object file
     pdb,                 ///< Windows PDB debug info file
+    tapi_file,           ///< Text-based Dynamic Library Stub file
   };
 
   bool is_object() const { return V != unknown; }

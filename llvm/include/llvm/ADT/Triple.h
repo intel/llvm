@@ -95,6 +95,9 @@ public:
     wasm64,         // WebAssembly with 64-bit pointers
     renderscript32, // 32-bit RenderScript
     renderscript64, // 64-bit RenderScript
+    fpga_aoco,      // Intel FPGA: unlinked object file
+    fpga_aocr,      // Intel FPGA: linked early image
+    fpga_aocx,      // Intel FPGA: linked image
     LastArchType = renderscript64
   };
   enum SubArchType {
@@ -131,7 +134,8 @@ public:
     MipsSubArch_r6,
 
     SPIRSubArch_fpga,
-    SPIRSubArch_gen
+    SPIRSubArch_gen,
+    SPIRSubArch_x86_64
   };
   enum VendorType {
     UnknownVendor,
@@ -144,6 +148,7 @@ public:
     Freescale,
     IBM,
     ImaginationTechnologies,
+    Intel,
     MipsTechnologies,
     NVIDIA,
     CSR,
@@ -219,7 +224,8 @@ public:
     CoreCLR,
     SYCLDevice,
     Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
-    LastEnvironmentType = Simulator
+    MacABI, // Mac Catalyst variant of Apple's iOS deployment target.
+    LastEnvironmentType = MacABI
   };
   enum ObjectFormatType {
     UnknownObjectFormat,
@@ -493,6 +499,10 @@ public:
     return getEnvironment() == Triple::SYCLDevice;
   }
 
+  bool isMacCatalystEnvironment() const {
+    return getEnvironment() == Triple::MacABI;
+  }
+
   bool isOSNetBSD() const {
     return getOS() == Triple::NetBSD;
   }
@@ -726,6 +736,11 @@ public:
   /// Tests whether the target is 64-bit PowerPC (little and big endian).
   bool isPPC64() const {
     return getArch() == Triple::ppc64 || getArch() == Triple::ppc64le;
+  }
+
+  /// Tests whether the target is RISC-V (32- and 64-bit).
+  bool isRISCV() const {
+    return getArch() == Triple::riscv32 || getArch() == Triple::riscv64;
   }
 
   /// Tests whether the target supports comdat

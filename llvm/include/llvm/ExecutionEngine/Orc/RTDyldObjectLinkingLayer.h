@@ -216,7 +216,7 @@ private:
         : K(std::move(K)),
           Parent(Parent),
           MemMgr(std::move(MemMgr)),
-          PFC(llvm::make_unique<PreFinalizeContents>(
+          PFC(std::make_unique<PreFinalizeContents>(
               std::move(Obj), std::move(Resolver),
               ProcessAllSections)) {
       buildInitialSymbolTable(PFC->Obj);
@@ -234,7 +234,7 @@ private:
 
       JITSymbolResolverAdapter ResolverAdapter(Parent.ES, *PFC->Resolver,
 					       nullptr);
-      PFC->RTDyld = llvm::make_unique<RuntimeDyld>(*MemMgr, ResolverAdapter);
+      PFC->RTDyld = std::make_unique<RuntimeDyld>(*MemMgr, ResolverAdapter);
       PFC->RTDyld->setProcessAllSections(PFC->ProcessAllSections);
 
       Finalized = true;
@@ -338,7 +338,7 @@ private:
                      std::shared_ptr<SymbolResolver> Resolver,
                      bool ProcessAllSections) {
     using LOS = ConcreteLinkedObject<MemoryManagerPtrT>;
-    return llvm::make_unique<LOS>(Parent, std::move(K), std::move(Obj),
+    return std::make_unique<LOS>(Parent, std::move(K), std::move(Obj),
                                   std::move(MemMgr), std::move(Resolver),
                                   ProcessAllSections);
   }
@@ -353,17 +353,27 @@ public:
 
   /// Construct an ObjectLinkingLayer with the given NotifyLoaded,
   ///        and NotifyFinalized functors.
+  LLVM_ATTRIBUTE_DEPRECATED(
+      LegacyRTDyldObjectLinkingLayer(
+          ExecutionSession &ES, ResourcesGetter GetResources,
+          NotifyLoadedFtor NotifyLoaded = NotifyLoadedFtor(),
+          NotifyFinalizedFtor NotifyFinalized = NotifyFinalizedFtor(),
+          NotifyFreedFtor NotifyFreed = NotifyFreedFtor()),
+      "ORCv1 layers (layers with the 'Legacy' prefix) are deprecated. Please "
+      "use "
+      "ORCv2 (see docs/ORCv2.rst)");
+
+  // Legacy layer constructor with deprecation acknowledgement.
   LegacyRTDyldObjectLinkingLayer(
-      ExecutionSession &ES, ResourcesGetter GetResources,
+      ORCv1DeprecationAcknowledgement, ExecutionSession &ES,
+      ResourcesGetter GetResources,
       NotifyLoadedFtor NotifyLoaded = NotifyLoadedFtor(),
       NotifyFinalizedFtor NotifyFinalized = NotifyFinalizedFtor(),
       NotifyFreedFtor NotifyFreed = NotifyFreedFtor())
       : ES(ES), GetResources(std::move(GetResources)),
         NotifyLoaded(std::move(NotifyLoaded)),
         NotifyFinalized(std::move(NotifyFinalized)),
-        NotifyFreed(std::move(NotifyFreed)),
-        ProcessAllSections(false) {
-  }
+        NotifyFreed(std::move(NotifyFreed)), ProcessAllSections(false) {}
 
   /// Set the 'ProcessAllSections' flag.
   ///

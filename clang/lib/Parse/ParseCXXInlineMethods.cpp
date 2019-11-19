@@ -109,7 +109,7 @@ NamedDecl *Parser::ParseCXXInlineMethodDef(
   // the tokens and store them for parsing at the end of the translation unit.
   if (getLangOpts().DelayedTemplateParsing &&
       D.getFunctionDefinitionKind() == FDK_Definition &&
-      !D.getDeclSpec().isConstexprSpecified() &&
+      !D.getDeclSpec().hasConstexprSpecifier() &&
       !(FnD && FnD->getAsFunction() &&
         FnD->getAsFunction()->getReturnType()->getContainedAutoType()) &&
       ((Actions.CurContext->isDependentContext() ||
@@ -986,7 +986,7 @@ public:
     // Put back the original tokens.
     Self.SkipUntil(EndKind, StopAtSemi | StopBeforeMatch);
     if (Toks.size()) {
-      auto Buffer = llvm::make_unique<Token[]>(Toks.size());
+      auto Buffer = std::make_unique<Token[]>(Toks.size());
       std::copy(Toks.begin() + 1, Toks.end(), Buffer.get());
       Buffer[Toks.size() - 1] = Self.Tok;
       Self.PP.EnterTokenStream(std::move(Buffer), Toks.size(), true,
@@ -1058,7 +1058,7 @@ bool Parser::ConsumeAndStoreInitializer(CachedTokens &Toks,
         case CIK_DefaultArgument:
           bool InvalidAsDeclaration = false;
           Result = TryParseParameterDeclarationClause(
-              &InvalidAsDeclaration, /*VersusTemplateArgument=*/true);
+              &InvalidAsDeclaration, /*VersusTemplateArg=*/true);
           // If this is an expression or a declaration with a missing
           // 'typename', assume it's not a declaration.
           if (Result == TPResult::Ambiguous && InvalidAsDeclaration)

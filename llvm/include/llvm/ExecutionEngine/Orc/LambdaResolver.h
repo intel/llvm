@@ -16,6 +16,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
+#include "llvm/ExecutionEngine/OrcV1Deprecation.h"
 #include <memory>
 
 namespace llvm {
@@ -24,7 +25,15 @@ namespace orc {
 template <typename DylibLookupFtorT, typename ExternalLookupFtorT>
 class LambdaResolver : public LegacyJITSymbolResolver {
 public:
-  LambdaResolver(DylibLookupFtorT DylibLookupFtor,
+  LLVM_ATTRIBUTE_DEPRECATED(
+      LambdaResolver(DylibLookupFtorT DylibLookupFtor,
+                     ExternalLookupFtorT ExternalLookupFtor),
+      "ORCv1 utilities (including resolvers) are deprecated and will be "
+      "removed "
+      "in the next release. Please use ORCv2 (see docs/ORCv2.rst)");
+
+  LambdaResolver(ORCv1DeprecationAcknowledgement,
+                 DylibLookupFtorT DylibLookupFtor,
                  ExternalLookupFtorT ExternalLookupFtor)
       : DylibLookupFtor(DylibLookupFtor),
         ExternalLookupFtor(ExternalLookupFtor) {}
@@ -42,13 +51,30 @@ private:
   ExternalLookupFtorT ExternalLookupFtor;
 };
 
+template <typename DylibLookupFtorT, typename ExternalLookupFtorT>
+LambdaResolver<DylibLookupFtorT, ExternalLookupFtorT>::LambdaResolver(
+    DylibLookupFtorT DylibLookupFtor, ExternalLookupFtorT ExternalLookupFtor)
+    : DylibLookupFtor(DylibLookupFtor), ExternalLookupFtor(ExternalLookupFtor) {
+}
+
 template <typename DylibLookupFtorT,
           typename ExternalLookupFtorT>
 std::shared_ptr<LambdaResolver<DylibLookupFtorT, ExternalLookupFtorT>>
 createLambdaResolver(DylibLookupFtorT DylibLookupFtor,
                      ExternalLookupFtorT ExternalLookupFtor) {
   using LR = LambdaResolver<DylibLookupFtorT, ExternalLookupFtorT>;
-  return make_unique<LR>(std::move(DylibLookupFtor),
+  return std::make_unique<LR>(std::move(DylibLookupFtor),
+                         std::move(ExternalLookupFtor));
+}
+
+template <typename DylibLookupFtorT, typename ExternalLookupFtorT>
+std::shared_ptr<LambdaResolver<DylibLookupFtorT, ExternalLookupFtorT>>
+createLambdaResolver(ORCv1DeprecationAcknowledgement,
+                     DylibLookupFtorT DylibLookupFtor,
+                     ExternalLookupFtorT ExternalLookupFtor) {
+  using LR = LambdaResolver<DylibLookupFtorT, ExternalLookupFtorT>;
+  return std::make_unique<LR>(AcknowledgeORCv1Deprecation,
+                         std::move(DylibLookupFtor),
                          std::move(ExternalLookupFtor));
 }
 

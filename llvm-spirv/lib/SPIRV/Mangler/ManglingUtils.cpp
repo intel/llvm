@@ -77,7 +77,20 @@ static const char *PrimitiveNames[PRIMITIVE_NUM] = {
     "kernel_enqueue_flags_t",
     "clk_profiling_info",
     "memory_order",
-    "memory_scope"};
+    "memory_scope",
+    "intel_sub_group_avc_mce_payload_t",
+    "intel_sub_group_avc_ime_payload_t",
+    "intel_sub_group_avc_ref_payload_t",
+    "intel_sub_group_avc_sic_payload_t",
+    "intel_sub_group_avc_mce_result_t",
+    "intel_sub_group_avc_ime_result_t",
+    "intel_sub_group_avc_ref_result_t",
+    "intel_sub_group_avc_sic_result_t",
+    "intel_sub_group_avc_ime_result_single_reference_streamout_t",
+    "intel_sub_group_avc_ime_result_dual_reference_streamout_t",
+    "intel_sub_group_avc_ime_result_single_reference_streamin_t",
+    "intel_sub_group_avc_ime_result_dual_reference_streamin_t"
+};
 
 const char *MangledTypes[PRIMITIVE_NUM] = {
     "b",                                 // BOOL
@@ -144,9 +157,21 @@ const char *MangledTypes[PRIMITIVE_NUM] = {
     "i", // PRIMITIVE_MEMORY_ORDER
     "i", // PRIMITIVE_MEMORY_SCOPE
 #else
-    "12memory_order", // PRIMITIVE_MEMORY_ORDER
-    "12memory_scope"  // PRIMITIVE_MEMORY_SCOPE
+    "12memory_order",  // PRIMITIVE_MEMORY_ORDER
+    "12memory_scope",  // PRIMITIVE_MEMORY_SCOPE
 #endif
+    "37ocl_intel_sub_group_avc_mce_payload_t", // PRIMITIVE_SUB_GROUP_AVC_MCE_PAYLOAD_T
+    "37ocl_intel_sub_group_avc_ime_payload_t", // PRIMITIVE_SUB_GROUP_AVC_IME_PAYLOAD_T
+    "37ocl_intel_sub_group_avc_ref_payload_t", // PRIMITIVE_SUB_GROUP_AVC_REF_PAYLOAD_T
+    "37ocl_intel_sub_group_avc_sic_payload_t", // PRIMITIVE_SUB_GROUP_AVC_SIC_PAYLOAD_T
+    "36ocl_intel_sub_group_avc_mce_result_t",  // PRIMITIVE_SUB_GROUP_AVC_MCE_RESULT_T
+    "36ocl_intel_sub_group_avc_ime_result_t",  // PRIMITIVE_SUB_GROUP_AVC_IME_RESULT_T
+    "36ocl_intel_sub_group_avc_ref_result_t",  // PRIMITIVE_SUB_GROUP_AVC_REF_RESULT_T
+    "36ocl_intel_sub_group_avc_sic_result_t",  // PRIMITIVE_SUB_GROUP_AVC_REF_RESULT_T
+    "63ocl_intel_sub_group_avc_ime_result_single_reference_streamout_t",  // PRIMITIVE_SUB_GROUP_AVC_IME_SINGLE_REF_STREAMOUT_T
+    "61ocl_intel_sub_group_avc_ime_result_dual_reference_streamout_t",    // PRIMITIVE_SUB_GROUP_AVC_IME_DUAL_REF_STREAMOUT_T
+    "55ocl_intel_sub_group_avc_ime_single_reference_streamin_t",          // PRIMITIVE_SUB_GROUP_AVC_IME_SINGLE_REF_STREAMIN_T
+    "53ocl_intel_sub_group_avc_ime_dual_reference_streamin_t"             // PRIMITIVE_SUB_GROUP_AVC_IME_DUAL_REF_STREAMIN_T
 };
 
 const char *ReadableAttribute[ATTR_NUM] = {
@@ -254,10 +279,9 @@ const char *getSPIRVersionAsString(SPIRversion Version) {
     return "SPIR 1.2";
   case SPIR20:
     return "SPIR 2.0";
-  default:
-    assert(false && "Unknown SPIR Version");
-    return "Unknown SPIR Version";
   }
+  assert(false && "Unknown SPIR Version");
+  return "Unknown SPIR Version";
 }
 
 } // namespace SPIR

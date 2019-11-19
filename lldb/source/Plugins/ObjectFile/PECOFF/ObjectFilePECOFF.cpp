@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ObjectFilePECOFF.h"
+#include "PECallFrameInfo.h"
 #include "WindowsMiniDump.h"
 
 #include "lldb/Core/FileSpecList.h"
@@ -88,6 +89,8 @@ static UUID GetCoffUUID(llvm::object::COFFObjectFile *coff_obj) {
   return UUID();
 }
 
+char ObjectFilePECOFF::ID;
+
 void ObjectFilePECOFF::Initialize() {
   PluginManager::RegisterPlugin(
       GetPluginNameStatic(), GetPluginDescriptionStatic(), CreateInstance,
@@ -131,7 +134,7 @@ ObjectFile *ObjectFilePECOFF::CreateInstance(const lldb::ModuleSP &module_sp,
       return nullptr;
   }
 
-  auto objfile_up = llvm::make_unique<ObjectFilePECOFF>(
+  auto objfile_up = std::make_unique<ObjectFilePECOFF>(
       module_sp, data_sp, data_offset, file, file_offset, length);
   if (!objfile_up || !objfile_up->ParseHeader())
     return nullptr;
@@ -148,7 +151,7 @@ ObjectFile *ObjectFilePECOFF::CreateMemoryInstance(
     const lldb::ProcessSP &process_sp, lldb::addr_t header_addr) {
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return nullptr;
-  auto objfile_up = llvm::make_unique<ObjectFilePECOFF>(
+  auto objfile_up = std::make_unique<ObjectFilePECOFF>(
       module_sp, data_sp, process_sp, header_addr);
   if (objfile_up.get() && objfile_up->ParseHeader()) {
     return objfile_up.release();
@@ -164,9 +167,15 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return initial_count;
 
+  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+
   auto binary = llvm::object::createBinary(file.GetPath());
-  if (!binary)
+
+  if (!binary) {
+    LLDB_LOG_ERROR(log, binary.takeError(),
+                   "Failed to create binary for file ({1}): {0}", file);
     return initial_count;
+  }
 
   if (!binary->getBinary()->isCOFF() &&
       !binary->getBinary()->isCOFFImportFile())
@@ -193,7 +202,11 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
     specs.Append(module_spec);
     break;
   case MachineArmNt:
-    spec.SetTriple("arm-pc-windows");
+    spec.SetTriple("armv7-pc-windows");
+    specs.Append(module_spec);
+    break;
+  case MachineArm64:
+    spec.SetTriple("aarch64-pc-windows");
     specs.Append(module_spec);
     break;
   default:
@@ -235,11 +248,8 @@ bool ObjectFilePECOFF::CreateBinary() {
 
   auto binary = llvm::object::createBinary(m_file.GetPath());
   if (!binary) {
-    if (log)
-      log->Printf("ObjectFilePECOFF::CreateBinary() - failed to create binary "
-                  "for file (%s): %s",
-                  m_file ? m_file.GetPath().c_str() : "<NULL>",
-                  errorToErrorCode(binary.takeError()).message().c_str());
+    LLDB_LOG_ERROR(log, binary.takeError(),
+                   "Failed to create binary for file ({1}): {0}", m_file);
     return false;
   }
 
@@ -249,15 +259,14 @@ bool ObjectFilePECOFF::CreateBinary() {
     return false;
 
   m_owningbin = OWNBINType(std::move(*binary));
-  if (log)
-    log->Printf("%p ObjectFilePECOFF::CreateBinary() module = %p (%s), file = "
-                "%s, binary = %p (Bin = %p)",
-                static_cast<void *>(this),
-                static_cast<void *>(GetModule().get()),
-                GetModule()->GetSpecificationDescription().c_str(),
-                m_file ? m_file.GetPath().c_str() : "<NULL>",
-                static_cast<void *>(m_owningbin.getPointer()),
-                static_cast<void *>(m_owningbin->getBinary()));
+  LLDB_LOGF(log,
+            "%p ObjectFilePECOFF::CreateBinary() module = %p (%s), file = "
+            "%s, binary = %p (Bin = %p)",
+            static_cast<void *>(this), static_cast<void *>(GetModule().get()),
+            GetModule()->GetSpecificationDescription().c_str(),
+            m_file ? m_file.GetPath().c_str() : "<NULL>",
+            static_cast<void *>(m_owningbin.getPointer()),
+            static_cast<void *>(m_owningbin->getBinary()));
   return true;
 }
 
@@ -268,11 +277,10 @@ ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
                                    lldb::offset_t file_offset,
                                    lldb::offset_t length)
     : ObjectFile(module_sp, file, file_offset, length, data_sp, data_offset),
-      m_dos_header(), m_coff_header(), m_coff_header_opt(), m_sect_headers(),
+      m_dos_header(), m_coff_header(), m_sect_headers(),
       m_entry_point_address(), m_deps_filespec(), m_owningbin() {
   ::memset(&m_dos_header, 0, sizeof(m_dos_header));
   ::memset(&m_coff_header, 0, sizeof(m_coff_header));
-  ::memset(&m_coff_header_opt, 0, sizeof(m_coff_header_opt));
 }
 
 ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
@@ -280,11 +288,10 @@ ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
                                    const lldb::ProcessSP &process_sp,
                                    addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
-      m_dos_header(), m_coff_header(), m_coff_header_opt(), m_sect_headers(),
+      m_dos_header(), m_coff_header(), m_sect_headers(),
       m_entry_point_address(), m_deps_filespec(), m_owningbin() {
   ::memset(&m_dos_header, 0, sizeof(m_dos_header));
   ::memset(&m_coff_header, 0, sizeof(m_coff_header));
-  ::memset(&m_coff_header_opt, 0, sizeof(m_coff_header_opt));
 }
 
 ObjectFilePECOFF::~ObjectFilePECOFF() {}
@@ -515,7 +522,26 @@ bool ObjectFilePECOFF::ParseCOFFOptionalHeader(lldb::offset_t *offset_ptr) {
   return success;
 }
 
+uint32_t ObjectFilePECOFF::GetRVA(const Address &addr) const {
+  return addr.GetFileAddress() - m_image_base;
+}
+
+Address ObjectFilePECOFF::GetAddress(uint32_t rva) {
+  SectionList *sect_list = GetSectionList();
+  if (!sect_list)
+    return Address(GetFileAddress(rva));
+
+  return Address(GetFileAddress(rva), sect_list);
+}
+
+lldb::addr_t ObjectFilePECOFF::GetFileAddress(uint32_t rva) const {
+  return m_image_base + rva;
+}
+
 DataExtractor ObjectFilePECOFF::ReadImageData(uint32_t offset, size_t size) {
+  if (!size)
+    return {};
+
   if (m_file) {
     // A bit of a hack, but we intend to write to this buffer, so we can't
     // mmap it.
@@ -525,7 +551,7 @@ DataExtractor ObjectFilePECOFF::ReadImageData(uint32_t offset, size_t size) {
   ProcessSP process_sp(m_process_wp.lock());
   DataExtractor data;
   if (process_sp) {
-    auto data_up = llvm::make_unique<DataBufferHeap>(size, 0);
+    auto data_up = std::make_unique<DataBufferHeap>(size, 0);
     Status readmem_error;
     size_t bytes_read =
         process_sp->ReadMemory(m_image_base + offset, data_up->GetBytes(),
@@ -536,6 +562,18 @@ DataExtractor ObjectFilePECOFF::ReadImageData(uint32_t offset, size_t size) {
     }
   }
   return data;
+}
+
+DataExtractor ObjectFilePECOFF::ReadImageDataByRVA(uint32_t rva, size_t size) {
+  if (m_file) {
+    Address addr = GetAddress(rva);
+    SectionSP sect = addr.GetSection();
+    if (!sect)
+      return {};
+    rva = sect->GetFileOffset() + addr.GetOffset();
+  }
+
+  return ReadImageData(rva, size);
 }
 
 // ParseSectionHeaders
@@ -653,7 +691,7 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
             symbol.naux = symtab_data.GetU8(&offset);
             symbols[i].GetMangled().SetValue(ConstString(symbol_name.c_str()));
             if ((int16_t)symbol.sect >= 1) {
-              Address symbol_addr(sect_list->GetSectionAtIndex(symbol.sect - 1),
+              Address symbol_addr(sect_list->FindSectionByID(symbol.sect),
                                   symbol.value);
               symbols[i].GetAddressRef() = symbol_addr;
               symbols[i].SetType(MapSymbolType(symbol.type));
@@ -675,14 +713,8 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
         uint32_t data_start =
             m_coff_header_opt.data_dirs[coff_data_dir_export_table].vmaddr;
 
-        uint32_t address_rva = data_start;
-        if (m_file) {
-          Address address(m_coff_header_opt.image_base + data_start, sect_list);
-          address_rva =
-              address.GetSection()->GetFileOffset() + address.GetOffset();
-        }
-        DataExtractor symtab_data =
-            ReadImageData(address_rva, m_coff_header_opt.data_dirs[0].vmsize);
+        DataExtractor symtab_data = ReadImageDataByRVA(
+            data_start, m_coff_header_opt.data_dirs[0].vmsize);
         lldb::offset_t offset = 0;
 
         // Read export_table header
@@ -737,6 +769,19 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
   return m_symtab_up.get();
 }
 
+std::unique_ptr<CallFrameInfo> ObjectFilePECOFF::CreateCallFrameInfo() {
+  if (coff_data_dir_exception_table >= m_coff_header_opt.data_dirs.size())
+    return {};
+
+  data_directory data_dir_exception =
+      m_coff_header_opt.data_dirs[coff_data_dir_exception_table];
+  if (!data_dir_exception.vmaddr)
+    return {};
+
+  return std::make_unique<PECallFrameInfo>(*this, data_dir_exception.vmaddr,
+                                           data_dir_exception.vmsize);
+}
+
 bool ObjectFilePECOFF::IsStripped() {
   // TODO: determine this for COFF
   return false;
@@ -751,13 +796,16 @@ void ObjectFilePECOFF::CreateSections(SectionList &unified_section_list) {
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
 
-    SectionSP image_sp = std::make_shared<Section>(
-        module_sp, this, ~user_id_t(0), ConstString(), eSectionTypeContainer,
-        m_coff_header_opt.image_base, m_coff_header_opt.image_size,
-        /*file_offset*/ 0, /*file_size*/ 0, m_coff_header_opt.sect_alignment,
+    SectionSP header_sp = std::make_shared<Section>(
+        module_sp, this, ~user_id_t(0), ConstString("PECOFF header"),
+        eSectionTypeOther, m_coff_header_opt.image_base,
+        m_coff_header_opt.header_size,
+        /*file_offset*/ 0, m_coff_header_opt.header_size,
+        m_coff_header_opt.sect_alignment,
         /*flags*/ 0);
-    m_sections_up->AddSection(image_sp);
-    unified_section_list.AddSection(image_sp);
+    header_sp->SetPermissions(ePermissionsReadable);
+    m_sections_up->AddSection(header_sp);
+    unified_section_list.AddSection(header_sp);
 
     const uint32_t nsects = m_sect_headers.size();
     ModuleSP module_sp(GetModule());
@@ -862,15 +910,15 @@ void ObjectFilePECOFF::CreateSections(SectionList &unified_section_list) {
       }
 
       SectionSP section_sp(new Section(
-          image_sp,        // Parent section
           module_sp,       // Module to which this section belongs
           this,            // Object file to which this section belongs
           idx + 1,         // Section ID is the 1 based section index.
           const_sect_name, // Name of this section
           section_type,
-          m_sect_headers[idx].vmaddr, // File VM address == addresses as
-                                      // they are found in the object file
-          m_sect_headers[idx].vmsize, // VM size in bytes of this section
+          m_coff_header_opt.image_base +
+              m_sect_headers[idx].vmaddr, // File VM address == addresses as
+                                          // they are found in the object file
+          m_sect_headers[idx].vmsize,     // VM size in bytes of this section
           m_sect_headers[idx]
               .offset, // Offset to the data for this section in the file
           m_sect_headers[idx]
@@ -878,7 +926,17 @@ void ObjectFilePECOFF::CreateSections(SectionList &unified_section_list) {
           m_coff_header_opt.sect_alignment, // Section alignment
           m_sect_headers[idx].flags));      // Flags for this section
 
-      image_sp->GetChildren().AddSection(std::move(section_sp));
+      uint32_t permissions = 0;
+      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_MEM_EXECUTE)
+        permissions |= ePermissionsExecutable;
+      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_MEM_READ)
+        permissions |= ePermissionsReadable;
+      if (m_sect_headers[idx].flags & llvm::COFF::IMAGE_SCN_MEM_WRITE)
+        permissions |= ePermissionsWritable;
+      section_sp->SetPermissions(permissions);
+
+      m_sections_up->AddSection(section_sp);
+      unified_section_list.AddSection(section_sp);
     }
   }
 }
@@ -911,13 +969,13 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
     return 0;
 
   Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
-  if (log)
-    log->Printf("%p ObjectFilePECOFF::ParseDependentModules() module = %p "
-                "(%s), binary = %p (Bin = %p)",
-                static_cast<void *>(this), static_cast<void *>(module_sp.get()),
-                module_sp->GetSpecificationDescription().c_str(),
-                static_cast<void *>(m_owningbin.getPointer()),
-                static_cast<void *>(m_owningbin->getBinary()));
+  LLDB_LOGF(log,
+            "%p ObjectFilePECOFF::ParseDependentModules() module = %p "
+            "(%s), binary = %p (Bin = %p)",
+            static_cast<void *>(this), static_cast<void *>(module_sp.get()),
+            module_sp->GetSpecificationDescription().c_str(),
+            static_cast<void *>(m_owningbin.getPointer()),
+            static_cast<void *>(m_owningbin->getBinary()));
 
   auto COFFObj =
       llvm::dyn_cast<llvm::object::COFFObjectFile>(m_owningbin->getBinary());
@@ -931,10 +989,10 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
     auto ec = entry.getName(dll_name);
     // Report a bogus entry.
     if (ec != std::error_code()) {
-      if (log)
-        log->Printf("ObjectFilePECOFF::ParseDependentModules() - failed to get "
-                    "import directory entry name: %s",
-                    ec.message().c_str());
+      LLDB_LOGF(log,
+                "ObjectFilePECOFF::ParseDependentModules() - failed to get "
+                "import directory entry name: %s",
+                ec.message().c_str());
       continue;
     }
 
@@ -946,10 +1004,10 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
     dll_specs.GetDirectory().SetString(m_file.GetDirectory().GetCString());
 
     if (!llvm::sys::fs::real_path(dll_specs.GetPath(), dll_fullpath))
-      m_deps_filespec->Append(FileSpec(dll_fullpath));
+      m_deps_filespec->EmplaceBack(dll_fullpath);
     else {
       // Known DLLs or DLL not found in the object file directory.
-      m_deps_filespec->Append(FileSpec(dll_name));
+      m_deps_filespec->EmplaceBack(dll_name);
     }
   }
   return m_deps_filespec->GetSize();
@@ -1201,6 +1259,7 @@ ArchSpec ObjectFilePECOFF::GetArchitecture() {
   case llvm::COFF::IMAGE_FILE_MACHINE_ARM:
   case llvm::COFF::IMAGE_FILE_MACHINE_ARMNT:
   case llvm::COFF::IMAGE_FILE_MACHINE_THUMB:
+  case llvm::COFF::IMAGE_FILE_MACHINE_ARM64:
     ArchSpec arch;
     arch.SetArchitecture(eArchTypeCOFF, machine, LLDB_INVALID_CPUTYPE,
                          IsWindowsSubsystem() ? llvm::Triple::Win32

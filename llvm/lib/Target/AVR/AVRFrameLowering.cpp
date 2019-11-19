@@ -30,7 +30,8 @@
 namespace llvm {
 
 AVRFrameLowering::AVRFrameLowering()
-    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 1, -2) {}
+    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align::None(),
+                          -2) {}
 
 bool AVRFrameLowering::canSimplifyCallFramePseudos(
     const MachineFunction &MF) const {
@@ -323,7 +324,7 @@ static void fixStackStores(MachineBasicBlock &MBB,
            "Invalid register, should be SP!");
     if (insertPushes) {
       // Replace this instruction with a push.
-      unsigned SrcReg = MI.getOperand(2).getReg();
+      Register SrcReg = MI.getOperand(2).getReg();
       bool SrcIsKill = MI.getOperand(2).isKill();
 
       // We can't use PUSHWRr here because when expanded the order of the new
@@ -361,13 +362,12 @@ MachineBasicBlock::iterator AVRFrameLowering::eliminateCallFramePseudoInstr(
     MachineFunction &MF, MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI) const {
   const AVRSubtarget &STI = MF.getSubtarget<AVRSubtarget>();
-  const TargetFrameLowering &TFI = *STI.getFrameLowering();
   const AVRInstrInfo &TII = *STI.getInstrInfo();
 
   // There is nothing to insert when the call frame memory is allocated during
   // function entry. Delete the call frame pseudo and replace all pseudo stores
   // with real store instructions.
-  if (TFI.hasReservedCallFrame(MF)) {
+  if (hasReservedCallFrame(MF)) {
     fixStackStores(MBB, MI, TII, false);
     return MBB.erase(MI);
   }
@@ -381,7 +381,7 @@ MachineBasicBlock::iterator AVRFrameLowering::eliminateCallFramePseudoInstr(
   // For adjcallstackdown we convert it into an 'adiw reg, <amt>' handling
   // the read and write of SP in I/O space.
   if (Amount != 0) {
-    assert(TFI.getStackAlignment() == 1 && "Unsupported stack alignment");
+    assert(getStackAlignment() == 1 && "Unsupported stack alignment");
 
     if (Opcode == TII.getCallFrameSetupOpcode()) {
       fixStackStores(MBB, MI, TII, true);

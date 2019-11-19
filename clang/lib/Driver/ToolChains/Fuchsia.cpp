@@ -51,6 +51,8 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       llvm::sys::path::stem(Exec).equals_lower("ld.lld")) {
     CmdArgs.push_back("-z");
     CmdArgs.push_back("rodynamic");
+    CmdArgs.push_back("-z");
+    CmdArgs.push_back("separate-loadable-segments");
   }
 
   if (!D.SysRoot.empty())
@@ -154,7 +156,7 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-lc");
   }
 
-  C.addCommand(llvm::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));
 }
 
 /// Fuchsia - Fuchsia tool chain which can call as(1) and ld(1) directly.
@@ -192,6 +194,11 @@ Fuchsia::Fuchsia(const Driver &D, const llvm::Triple &Triple,
   // ASan has higher priority because we always want the instrumentated version.
   Multilibs.push_back(Multilib("asan", {}, {}, 2)
                           .flag("+fsanitize=address"));
+  // Use the asan+noexcept variant with ASan and -fno-exceptions.
+  Multilibs.push_back(Multilib("asan+noexcept", {}, {}, 3)
+                          .flag("+fsanitize=address")
+                          .flag("-fexceptions")
+                          .flag("+fno-exceptions"));
   Multilibs.FilterOut([&](const Multilib &M) {
     std::vector<std::string> RD = FilePaths(M);
     return std::all_of(RD.begin(), RD.end(), [&](std::string P) {
@@ -336,5 +343,10 @@ SanitizerMask Fuchsia::getSupportedSanitizers() const {
 }
 
 SanitizerMask Fuchsia::getDefaultSanitizers() const {
-  return SanitizerKind::SafeStack;
+  SanitizerMask Res;
+  if (getTriple().getArch() == llvm::Triple::aarch64)
+    Res |= SanitizerKind::ShadowCallStack;
+  else
+    Res |= SanitizerKind::SafeStack;
+  return Res;
 }

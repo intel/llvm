@@ -29,6 +29,7 @@ class MDNode;
 namespace clang {
 class Attr;
 class ASTContext;
+class ValueDecl;
 namespace CodeGen {
 
 /// Attributes that may be specified on loops.
@@ -51,20 +52,63 @@ struct LoopAttributes {
   /// Value for llvm.loop.unroll_and_jam.* metadata (enable, disable, or full).
   LVEnableState UnrollAndJamEnable;
 
+  /// Value for llvm.loop.vectorize.predicate metadata
+  LVEnableState VectorizePredicateEnable;
+
   /// Value for llvm.loop.vectorize.width metadata.
   unsigned VectorizeWidth;
 
   /// Value for llvm.loop.interleave.count metadata.
   unsigned InterleaveCount;
 
-  /// Value for llvm.loop.ivdep.enable metadata.
-  bool SYCLIVDepEnable;
+  // SYCLIVDepInfo represents a group of arrays that have the same IVDep safelen to
+  // them. The arrays contained in it will later be referred to from the same
+  // "llvm.loop.parallel_access_indices" metadata node.
+  struct SYCLIVDepInfo {
+    unsigned SafeLen;
+    mutable llvm::SmallVector<std::pair<const ValueDecl *, llvm::MDNode *>, 4>
+        Arrays;
+    SYCLIVDepInfo(unsigned SL) : SafeLen(SL) {}
+    SYCLIVDepInfo(unsigned SL, const ValueDecl *A, llvm::MDNode *MD) : SafeLen(SL) {
+      Arrays.emplace_back(A, MD);
+    }
 
-  /// Value for llvm.loop.ivdep.safelen metadata.
-  unsigned SYCLIVDepSafelen;
+    bool hasArray(const ValueDecl *Array) const {
+      return Arrays.end() != getArrayPairItr(Array);
+    }
+
+    decltype(Arrays)::iterator getArrayPairItr(const ValueDecl *Array) {
+      return find_if(Arrays,
+                     [Array](const auto &Pair) { return Pair.first == Array; });
+    }
+
+    decltype(Arrays)::iterator getArrayPairItr(const ValueDecl *Array) const {
+      return find_if(Arrays,
+                     [Array](const auto &Pair) { return Pair.first == Array; });
+    }
+
+    void eraseArray(const ValueDecl *Array) {
+      assert(hasArray(Array) && "Precondition of EraseArray is HasArray");
+      Arrays.erase(getArrayPairItr(Array));
+    }
+
+    bool isSafeLenGreaterOrEqual(unsigned OtherSL) const {
+      return SafeLen == 0 || (OtherSL != 0 && SafeLen >= OtherSL);
+    }
+  };
+
+  // Value for llvm.loop.parallel_access_indices metadata, for the arrays that
+  // weren't put into a specific ivdep item.
+  llvm::Optional<SYCLIVDepInfo> GlobalSYCLIVDepInfo;
+  // Value for llvm.loop.parallel_access_indices metadata, for array
+  // specifications.
+  llvm::SmallVector<SYCLIVDepInfo, 4> ArraySYCLIVDepInfo;
 
   /// Value for llvm.loop.ii.count metadata.
   unsigned SYCLIInterval;
+
+  /// Flag for llvm.loop.max_concurrency.count metadata.
+  bool SYCLMaxConcurrencyEnable;
 
   /// Value for llvm.loop.max_concurrency.count metadata.
   unsigned SYCLMaxConcurrencyNThreads;
@@ -104,6 +148,9 @@ public:
 
   /// Return this loop's access group or nullptr if it does not have one.
   llvm::MDNode *getAccessGroup() const { return AccGroup; }
+
+  // Recursively adds the metadata for this Array onto this GEP.
+  void addIVDepMetadata(const ValueDecl *Array, llvm::Instruction *GEP) const;
 
   /// Create the loop's metadata. Must be called after its nested loops have
   /// been processed.
@@ -174,6 +221,8 @@ private:
   createFullUnrollMetadata(const LoopAttributes &Attrs,
                            llvm::ArrayRef<llvm::Metadata *> LoopProperties,
                            bool &HasUserTransforms);
+  void collectIVDepMetadata(const ValueDecl *Array,
+                            llvm::SmallVectorImpl<llvm::Metadata *> &MD) const;
   /// @}
 
   /// Create a LoopID for this loop, including transformation-unspecific
@@ -249,6 +298,11 @@ public:
     StagedAttrs.UnrollEnable = State;
   }
 
+  /// Set the next pushed vectorize predicate state.
+  void setVectorizePredicateState(const LoopAttributes::LVEnableState &State) {
+    StagedAttrs.VectorizePredicateEnable = State;
+  }
+
   /// Set the next pushed loop unroll_and_jam state.
   void setUnrollAndJamState(const LoopAttributes::LVEnableState &State) {
     StagedAttrs.UnrollAndJamEnable = State;
@@ -260,14 +314,19 @@ public:
   /// Set the interleave count for the next loop pushed.
   void setInterleaveCount(unsigned C) { StagedAttrs.InterleaveCount = C; }
 
-  /// Set flag of ivdep for the next loop pushed.
-  void setSYCLIVDepEnable() { StagedAttrs.SYCLIVDepEnable = true; }
+  /// Add a safelen value for the next loop pushed.
+  void addSYCLIVDepInfo(llvm::LLVMContext &Ctx, unsigned SafeLen,
+                        const ValueDecl *Array);
 
-  /// Set value of safelen count for the next loop pushed.
-  void setSYCLIVDepSafelen(unsigned C) { StagedAttrs.SYCLIVDepSafelen = C; }
+  void addIVDepMetadata(const ValueDecl *Array, llvm::Instruction *GEP);
 
   /// Set value of an initiation interval for the next loop pushed.
   void setSYCLIInterval(unsigned C) { StagedAttrs.SYCLIInterval = C; }
+
+  /// Set flag of max_concurrency for the next loop pushed.
+  void setSYCLMaxConcurrencyEnable() {
+    StagedAttrs.SYCLMaxConcurrencyEnable = true;
+  }
 
   /// Set value of threads for the next loop pushed.
   void setSYCLMaxConcurrencyNThreads(unsigned C) {
@@ -293,11 +352,11 @@ private:
   bool hasInfo() const { return !Active.empty(); }
   /// Return the LoopInfo for the current loop. HasInfo should be called
   /// first to ensure LoopInfo is present.
-  const LoopInfo &getInfo() const { return Active.back(); }
+  const LoopInfo &getInfo() const { return *Active.back(); }
   /// The set of attributes that will be applied to the next pushed loop.
   LoopAttributes StagedAttrs;
   /// Stack of active loops.
-  llvm::SmallVector<LoopInfo, 4> Active;
+  llvm::SmallVector<std::unique_ptr<LoopInfo>, 4> Active;
 };
 
 } // end namespace CodeGen

@@ -306,8 +306,6 @@ TARGET_BUILTIN(__builtin_ia32_stmxcsr, "Ui", "n", "sse")
 TARGET_HEADER_BUILTIN(_mm_getcsr, "Ui", "nh", "xmmintrin.h", ALL_LANGUAGES, "sse")
 TARGET_BUILTIN(__builtin_ia32_cvtss2si, "iV4f", "ncV:128:", "sse")
 TARGET_BUILTIN(__builtin_ia32_cvttss2si, "iV4f", "ncV:128:", "sse")
-TARGET_BUILTIN(__builtin_ia32_storehps, "vV2i*V4f", "nV:128:", "sse")
-TARGET_BUILTIN(__builtin_ia32_storelps, "vV2i*V4f", "nV:128:", "sse")
 TARGET_BUILTIN(__builtin_ia32_movmskps, "iV4f", "nV:128:", "sse")
 TARGET_BUILTIN(__builtin_ia32_sfence, "v", "n", "sse")
 TARGET_HEADER_BUILTIN(_mm_sfence, "v", "nh", "xmmintrin.h", ALL_LANGUAGES, "sse")
@@ -753,8 +751,8 @@ TARGET_BUILTIN(__builtin_ia32_bextri_u32, "UiUiIUi", "nc", "tbm")
 // LWP
 TARGET_BUILTIN(__builtin_ia32_llwpcb, "vv*", "n", "lwp")
 TARGET_BUILTIN(__builtin_ia32_slwpcb, "v*", "n", "lwp")
-TARGET_BUILTIN(__builtin_ia32_lwpins32, "UcUiUiUi", "n", "lwp")
-TARGET_BUILTIN(__builtin_ia32_lwpval32, "vUiUiUi", "n", "lwp")
+TARGET_BUILTIN(__builtin_ia32_lwpins32, "UcUiUiIUi", "n", "lwp")
+TARGET_BUILTIN(__builtin_ia32_lwpval32, "vUiUiIUi", "n", "lwp")
 
 // SHA
 TARGET_BUILTIN(__builtin_ia32_sha1rnds4, "V4iV4iV4iIc", "ncV:128:", "sha")
@@ -1831,6 +1829,8 @@ TARGET_BUILTIN(__builtin_ia32_cvtusi2ss32, "V4fV4fUiIi", "ncV:128:", "avx512f")
 TARGET_BUILTIN(__builtin_ia32_vpmultishiftqb512, "V64cV64cV64c", "ncV:512:", "avx512vbmi")
 TARGET_BUILTIN(__builtin_ia32_vpmultishiftqb128, "V16cV16cV16c", "ncV:128:", "avx512vbmi,avx512vl")
 TARGET_BUILTIN(__builtin_ia32_vpmultishiftqb256, "V32cV32cV32c", "ncV:256:", "avx512vbmi,avx512vl")
+
+// bf16 intrinsics
 TARGET_BUILTIN(__builtin_ia32_cvtne2ps2bf16_128, "V8sV4fV4f", "ncV:128:", "avx512bf16,avx512vl")
 TARGET_BUILTIN(__builtin_ia32_cvtne2ps2bf16_256, "V16sV8fV8f", "ncV:256:", "avx512bf16,avx512vl")
 TARGET_BUILTIN(__builtin_ia32_cvtne2ps2bf16_512, "V32sV16fV16f", "ncV:512:", "avx512bf16")
@@ -1840,9 +1840,11 @@ TARGET_BUILTIN(__builtin_ia32_cvtneps2bf16_512_mask, "V16sV16fV16sUs", "ncV:512:
 TARGET_BUILTIN(__builtin_ia32_dpbf16ps_128, "V4fV4fV4iV4i", "ncV:128:", "avx512bf16,avx512vl")
 TARGET_BUILTIN(__builtin_ia32_dpbf16ps_256, "V8fV8fV8iV8i", "ncV:256:", "avx512bf16,avx512vl")
 TARGET_BUILTIN(__builtin_ia32_dpbf16ps_512, "V16fV16fV16iV16i", "ncV:512:", "avx512bf16")
-TARGET_BUILTIN(__builtin_ia32_vp2intersect_q_512, "vV8LLiV8LLiUc*Uc*", "nV:512:", "avx512vp2intersect")
-TARGET_BUILTIN(__builtin_ia32_vp2intersect_q_256, "vV4LLiV4LLiUc*Uc*", "nV:256:", "avx512vp2intersect,avx512vl")
-TARGET_BUILTIN(__builtin_ia32_vp2intersect_q_128, "vV2LLiV2LLiUc*Uc*", "nV:128:", "avx512vp2intersect,avx512vl")
+TARGET_BUILTIN(__builtin_ia32_cvtsbf162ss_32, "fUs", "nc", "avx512bf16")
+
+TARGET_BUILTIN(__builtin_ia32_vp2intersect_q_512, "vV8OiV8OiUc*Uc*", "nV:512:", "avx512vp2intersect")
+TARGET_BUILTIN(__builtin_ia32_vp2intersect_q_256, "vV4OiV4OiUc*Uc*", "nV:256:", "avx512vp2intersect,avx512vl")
+TARGET_BUILTIN(__builtin_ia32_vp2intersect_q_128, "vV2OiV2OiUc*Uc*", "nV:128:", "avx512vp2intersect,avx512vl")
 TARGET_BUILTIN(__builtin_ia32_vp2intersect_d_512, "vV16iV16iUs*Us*", "nV:512:", "avx512vp2intersect")
 TARGET_BUILTIN(__builtin_ia32_vp2intersect_d_256, "vV8iV8iUc*Uc*", "nV:256:", "avx512vp2intersect,avx512vl")
 TARGET_BUILTIN(__builtin_ia32_vp2intersect_d_128, "vV4iV4iUc*Uc*", "nV:128:", "avx512vp2intersect,avx512vl")
@@ -1893,6 +1895,10 @@ TARGET_BUILTIN(__builtin_ia32_ptwrite32, "vUi", "n", "ptwrite")
 
 // INVPCID
 TARGET_BUILTIN(__builtin_ia32_invpcid, "vUiv*", "nc", "invpcid")
+
+// ENQCMD
+TARGET_BUILTIN(__builtin_ia32_enqcmd, "Ucv*vC*", "n", "enqcmd")
+TARGET_BUILTIN(__builtin_ia32_enqcmds, "Ucv*vC*", "n", "enqcmd")
 
 // MSVC
 TARGET_HEADER_BUILTIN(_BitScanForward, "UcUNi*UNi", "nh", "intrin.h", ALL_MS_LANGUAGES, "")

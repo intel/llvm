@@ -10,7 +10,7 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
-#include <CL/sycl/detail/sycl_mem_obj.hpp>
+#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 
@@ -27,6 +27,7 @@ namespace detail {
 
 template <int Dims> class AccessorImplDevice {
 public:
+  AccessorImplDevice() = default;
   AccessorImplDevice(id<Dims> Offset, range<Dims> AccessRange,
                      range<Dims> MemoryRange)
       : Offset(Offset), AccessRange(AccessRange), MemRange(MemoryRange) {}
@@ -44,7 +45,9 @@ public:
 
 template <int Dims> class LocalAccessorBaseDevice {
 public:
-  LocalAccessorBaseDevice(sycl::range<Dims> Size) : AccessRange(Size) {}
+  LocalAccessorBaseDevice(sycl::range<Dims> Size)
+      : AccessRange(Size),
+        MemRange(InitializedVal<Dims, range>::template get<0>()) {}
   // TODO: Actually we need only one field here, but currently compiler requires
   // all of them.
   range<Dims> AccessRange;
@@ -59,11 +62,13 @@ public:
 class AccessorImplHost {
 public:
   AccessorImplHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, detail::SYCLMemObjT *SYCLMemObject,
-                   int Dims, int ElemSize)
+                   access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
+                   int Dims, int ElemSize, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false)
       : MOffset(Offset), MAccessRange(AccessRange), MMemoryRange(MemoryRange),
         MAccessMode(AccessMode), MSYCLMemObj(SYCLMemObject), MDims(Dims),
-        MElemSize(ElemSize) {}
+        MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
+        MIsSubBuffer(IsSubBuffer) {}
 
   ~AccessorImplHost() {
     if (BlockingEvent)
@@ -73,7 +78,8 @@ public:
       : MOffset(Other.MOffset), MAccessRange(Other.MAccessRange),
         MMemoryRange(Other.MMemoryRange), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
-        MElemSize(Other.MElemSize) {}
+        MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
+        MIsSubBuffer(Other.MIsSubBuffer) {}
 
   id<3> MOffset;
   // The size of accessing region.
@@ -82,10 +88,12 @@ public:
   range<3> MMemoryRange;
   access::mode MAccessMode;
 
-  detail::SYCLMemObjT *MSYCLMemObj;
+  detail::SYCLMemObjI *MSYCLMemObj;
 
   unsigned int MDims;
   unsigned int MElemSize;
+  unsigned int MOffsetInBytes;
+  bool MIsSubBuffer;
 
   void *MData = nullptr;
 
@@ -97,11 +105,12 @@ using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
 class AccessorBaseHost {
 public:
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, detail::SYCLMemObjT *SYCLMemObject,
-                   int Dims, int ElemSize) {
-    impl = std::make_shared<AccessorImplHost>(Offset, AccessRange, MemoryRange,
-                                              AccessMode, SYCLMemObject,
-                                              Dims, ElemSize);
+                   access::mode AccessMode, detail::SYCLMemObjI *SYCLMemObject,
+                   int Dims, int ElemSize, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false) {
+    impl = std::make_shared<AccessorImplHost>(
+        Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject, Dims,
+        ElemSize, OffsetInBytes, IsSubBuffer);
   }
 
 protected:
@@ -109,6 +118,7 @@ protected:
   range<3> &getAccessRange() { return impl->MAccessRange; }
   range<3> &getMemoryRange() { return impl->MMemoryRange; }
   void *getPtr() { return impl->MData; }
+  unsigned int getElemSize() const { return impl->MElemSize; }
 
   const id<3> &getOffset() const { return impl->MOffset; }
   const range<3> &getAccessRange() const { return impl->MAccessRange; }
@@ -131,6 +141,23 @@ public:
   int MDims;
   int MElemSize;
   std::vector<char> MMem;
+
+  bool PerWI = false;
+  size_t LocalMemSize;
+  size_t MaxWGSize;
+  void resize(size_t LocalSize, size_t GlobalSize) {
+    if (GlobalSize != 1 && LocalSize != 1) {
+      // If local size is not specified then work group size is chosen by
+      // runtime. That is why try to allocate based on max work group size or
+      // global size. In the worst case allocate 80% of local memory.
+      size_t MinEstWGSize = LocalSize ? LocalSize : GlobalSize;
+      MinEstWGSize = MinEstWGSize > MaxWGSize ? MaxWGSize : MinEstWGSize;
+      size_t NewSize = MinEstWGSize * MSize[0];
+      MSize[0] =
+          NewSize > 8 * LocalMemSize / 10 ? 8 * LocalMemSize / 10 : NewSize;
+      MMem.resize(NewSize * MElemSize);
+    }
+  }
 };
 
 class LocalAccessorBaseHost {

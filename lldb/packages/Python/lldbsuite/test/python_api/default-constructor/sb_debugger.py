@@ -2,7 +2,6 @@
 Fuzz tests an object after the default construction to make sure it does not crash lldb.
 """
 
-import sys
 import lldb
 
 
@@ -20,7 +19,10 @@ def fuzz_obj(obj):
     obj.GetCommandInterpreter()
     obj.HandleCommand("nothing here")
     listener = obj.GetListener()
-    obj.HandleProcessEvent(lldb.SBProcess(), lldb.SBEvent(), None, None)
+    try:
+        obj.HandleProcessEvent(lldb.SBProcess(), lldb.SBEvent(), None, None)
+    except Exception:
+        pass
     obj.CreateTargetWithFileAndTargetTriple("a.out", "A-B-C")
     obj.CreateTargetWithFileAndArch("b.out", "arm")
     obj.CreateTarget("c.out")

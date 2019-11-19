@@ -1,10 +1,14 @@
-// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope | FileCheck %s --check-prefix=CHECK --check-prefix=LIFETIME
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -fexceptions -fcxx-exceptions -o - -fsanitize-address-use-after-scope | FileCheck %s --check-prefix=CHECK --check-prefix=LIFETIME --check-prefix=OMP45
+// RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=50 %s
+// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 | FileCheck %s --check-prefix=CHECK --check-prefix=OMP5
 // RUN: %clang_cc1 -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -fopenmp -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK --check-prefix=OMP45
 // RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm %s -o - | FileCheck %s --check-prefix=TERM_DEBUG
 // RUN: %clang_cc1 -main-file-name for_codegen.cpp %s -o - -emit-llvm -fprofile-instrument=clang -fprofile-instrument-path=for_codegen-test.profraw | FileCheck %s --check-prefix=PROF-INSTR-PATH
 
 // RUN: %clang_cc1 -verify -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -fexceptions -fcxx-exceptions -o - | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t -fopenmp-version=50 %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - -fopenmp-version=50 | FileCheck --check-prefix SIMD-ONLY0 %s
 // RUN: %clang_cc1 -fopenmp-simd -x c++ -std=c++11 -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -emit-pch -o %t %s
 // RUN: %clang_cc1 -fopenmp-simd -x c++ -triple x86_64-unknown-unknown -fexceptions -fcxx-exceptions -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY0 %s
 // RUN: %clang_cc1 -verify -triple x86_64-apple-darwin10 -fopenmp-simd -fexceptions -fcxx-exceptions -debug-info-kind=line-tables-only -x c++ -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY0 %s
@@ -25,10 +29,159 @@
 
 // CHECK-LABEL: loop_with_counter_collapse
 void loop_with_counter_collapse() {
-  // LIFETIME: call void @llvm.lifetime.end
-  // LIFETIME: call void @llvm.lifetime.end
-  // CHECK: call void @__kmpc_for_static_init_8(%struct.ident_t* @
-  // CHECK: call void @__kmpc_for_static_fini(%struct.ident_t* @
+  // Captured initializations.
+  // CHECK: store i32 0, i32* [[I_TMP:%.+]],
+  // CHECK: [[VAL:%.+]] = load i32, i32* [[I_TMP]],
+  // CHECK: store i32 [[VAL]], i32* [[J_LB_MIN:%.+]],
+  // CHECK: store i32 3, i32* [[I_TMP]],
+  // CHECK: [[VAL:%.+]] = load i32, i32* [[I_TMP]],
+  // CHECK: store i32 [[VAL]], i32* [[J_LB_MAX:%.+]],
+  // CHECK: [[J_LB_MIN_VAL:%.+]] = load i32, i32* [[J_LB_MIN]],
+  // CHECK: [[J_LB_MAX_VAL:%.+]] = load i32, i32* [[J_LB_MAX]],
+  // CHECK: [[CMP:%.+]] = icmp slt i32 [[J_LB_MIN_VAL]], [[J_LB_MAX_VAL]]
+  // CHECK: [[BOOL:%.+]] = zext i1 [[CMP]] to i8
+  // CHECK: store i8 [[BOOL]], i8* [[J_LB_CMP:%.+]],
+  // CHECK: store i32 0, i32* [[I_TMP]],
+  // CHECK: [[VAL:%.+]] = load i32, i32* [[I_TMP]],
+  // CHECK: [[J_UB_MIN_VAL:%.+]] = add nsw i32 4, [[VAL]]
+  // CHECK: store i32 [[J_UB_MIN_VAL]], i32* [[J_UB_MIN:%.+]],
+  // CHECK: store i32 3, i32* [[I_TMP]],
+  // CHECK: [[VAL:%.+]] = load i32, i32* [[I_TMP]],
+  // CHECK: [[J_UB_MAX_VAL:%.+]] = add nsw i32 4, [[VAL]]
+  // CHECK: store i32 [[J_UB_MAX_VAL]], i32* [[J_UB_MAX:%.+]],
+  // CHECK: [[J_UB_MIN_VAL:%.+]] = load i32, i32* [[J_UB_MIN]],
+  // CHECK: [[J_UB_MAX_VAL:%.+]] = load i32, i32* [[J_UB_MAX]],
+  // CHECK: [[CMP:%.+]] = icmp sgt i32 [[J_UB_MIN_VAL]], [[J_UB_MAX_VAL]]
+  // CHECK: [[BOOL:%.+]] = zext i1 [[CMP]] to i8
+  // CHECK: store i8 [[BOOL]], i8* [[J_UB_CMP:%.+]],
+  // CHECK: [[J_UB_CMP_VAL:%.+]] = load i8, i8* [[J_UB_CMP]],
+  // CHECK: [[BOOL:%.+]] = trunc i8 [[J_UB_CMP_VAL]] to i1
+  // CHECK: br i1 [[BOOL]], label %[[TRUE:[^,]+]], label %[[FALSE:[^,]+]]
+  // CHECK: [[TRUE]]:
+  // CHECK: [[J_UB_MIN_VAL:%.+]] = load i32, i32* [[J_UB_MIN]],
+  // CHECK: br label %[[EXIT:[^,]+]]
+  // CHECK: [[FALSE]]:
+  // CHECK: [[J_UB_MAX_VAL:%.+]] = load i32, i32* [[J_UB_MAX]],
+  // CHECK: br label %[[EXIT]]
+  // CHECK: [[EXIT]]:
+  // CHECK: [[J_UB_VAL:%.+]] = phi i32 [ [[J_UB_MIN_VAL]], %[[TRUE]] ], [ [[J_UB_MAX_VAL]], %[[FALSE]] ]
+  // CHECK: store i32 [[J_UB_VAL]], i32* [[J_UB:%.+]],
+  // CHECK: [[J_LB_CMP_VAL:%.+]] = load i8, i8* [[J_LB_CMP]],
+  // CHECK: [[BOOL:%.+]] = trunc i8 [[J_LB_CMP_VAL]] to i1
+  // CHECK: br i1 [[BOOL]], label %[[TRUE:[^,]+]], label %[[FALSE:[^,]+]]
+  // CHECK: [[TRUE]]:
+  // CHECK: [[J_LB_MIN_VAL:%.+]] = load i32, i32* [[J_LB_MIN]],
+  // CHECK: br label %[[EXIT:[^,]+]]
+  // CHECK: [[FALSE]]:
+  // CHECK: [[J_LB_MAX_VAL:%.+]] = load i32, i32* [[J_LB_MAX]],
+  // CHECK: br label %[[EXIT]]
+  // CHECK: [[EXIT]]:
+  // CHECK: [[J_LB_VAL:%.+]] = phi i32 [ [[J_LB_MIN_VAL]], %[[TRUE]] ], [ [[J_LB_MAX_VAL]], %[[FALSE]] ]
+  // CHECK: store i32 [[J_LB_VAL]], i32* [[J_LB:%.+]],
+  // CHECK: [[J_UB_VAL:%.+]] = load i32, i32* [[J_UB]],
+  // CHECK: [[J_LB_VAL:%.+]] = load i32, i32* [[J_LB]],
+  // CHECK: [[SUB:%.+]] = sub nsw i32 [[J_UB_VAL]], [[J_LB_VAL]]
+  // CHECK: [[SUB_ST:%.+]] = sub nsw i32 [[SUB]], 1
+  // CHECK: [[ADD_ST:%.+]] = add nsw i32 [[SUB_ST]], 1
+  // CHECK: [[DIV_ST:%.+]] = sdiv i32 [[ADD_ST]], 1
+  // CHECK: [[CAST:%.+]] = sext i32 [[DIV_ST]] to i64
+  // CHECK: [[MUL:%.+]] = mul nsw i64 4, [[CAST]]
+  // CHECK: [[NUM_ITERS_VAL:%.+]] = sub nsw i64 [[MUL]], 1
+  // CHECK: store i64 [[NUM_ITERS_VAL]], i64* [[NUM_ITERS:%.+]],
+
+  // CHECK: store i64 0, i64* [[LB:%.+]],
+  // CHECK: [[NUM_ITERS_VAL:%.+]] = load i64, i64* [[NUM_ITERS]],
+  // CHECK: store i64 [[NUM_ITERS_VAL]], i64* [[UB:%.+]],
+  // CHECK: store i64 1, i64* [[STRIDE:%.+]],
+  // CHECK: store i32 0, i32* [[IS_LAST:%.+]],
+  // CHECK: call void @__kmpc_for_static_init_8(%struct.ident_t* @{{.+}}, i32 %{{.+}}, i32 34, i32* [[IS_LAST]], i64* [[LB]], i64* [[UB]], i64* [[STRIDE]], i64 1, i64 1)
+  // CHECK: [[UB_VAL:%.+]] = load i64, i64* [[UB]],
+  // CHECK: [[NUM_ITERS_VAL:%.+]] = load i64, i64* [[NUM_ITERS]],
+  // CHECK: [[CMP:%.+]] = icmp sgt i64 [[UB_VAL]], [[NUM_ITERS_VAL]]
+  // CHECK: br i1 [[CMP]], label %[[TRUE:[^,]+]], label %[[FALSE:[^,]+]]
+  // CHECK: [[TRUE]]:
+  // CHECK: [[NUM_ITERS_VAL:%.+]] = load i64, i64* [[NUM_ITERS]],
+  // CHECK: br label %[[DONE:[^,]+]]
+  // CHECK: [[FALSE]]:
+  // CHECK: [[UB_VAL:%.+]] = load i64, i64* [[UB]],
+  // CHECK: br label %[[DONE]]
+  // CHECK: [[DONE]]:
+  // CHECK: [[TOP:%.+]] = phi i64 [ [[NUM_ITERS_VAL]], %[[TRUE]] ], [ [[UB_VAL]], %[[FALSE]] ]
+  // CHECK: store i64 [[TOP]], i64* [[UB]],
+  // CHECK: [[LB_VAL:%.+]] = load i64, i64* [[LB]],
+  // CHECK: store i64 [[LB_VAL]], i64* [[IV:%.+]],
+  // CHECK: br label %[[COND:[^,]+]]
+  // CHECK: [[COND]]:
+  // CHECK: [[IV_VAL:%.+]] = load i64, i64* [[IV]],
+  // CHECK: [[UB_VAL:%.+]] = load i64, i64* [[UB]],
+  // CHECK: [[CMP:%.+]] = icmp sle i64 [[IV_VAL]], [[UB_VAL]]
+  // CHECK: br i1 [[CMP]], label %[[BODY:[^,]+]], label %[[CLEANUP:[^,]+]]
+  // LIFETIME: [[CLEANUP]]:
+  // LIFETIME: br label %[[CLEANUP:[^,]+]]
+  // CHECK: [[BODY]]:
+  // CHECK: [[IV_VAL:%.+]] = load i64, i64* [[IV]],
+  // CHECK: [[J_UB_VAL:%.+]] = load i32, i32* [[J_UB]],
+  // CHECK: [[J_LB_VAL:%.+]] = load i32, i32* [[J_LB]],
+  // CHECK: [[SUB:%.+]] = sub nsw i32 [[J_UB_VAL]], [[J_LB_VAL]]
+  // CHECK: [[SUB_ST:%.+]] = sub nsw i32 [[SUB]], 1
+  // CHECK: [[ADD_ST:%.+]] = add nsw i32 [[SUB_ST]], 1
+  // CHECK: [[DIV_ST:%.+]] = sdiv i32 [[ADD_ST]], 1
+  // CHECK: [[MUL:%.+]] = mul nsw i32 1, [[DIV_ST]]
+  // CHECK: [[CAST:%.+]] = sext i32 [[MUL]] to i64
+  // CHECK: [[DIV:%.+]] = sdiv i64 [[IV_VAL]], [[CAST]]
+  // CHECK: [[MUL:%.+]] = mul nsw i64 [[DIV]], 1
+  // CHECK: [[ADD:%.+]] = add nsw i64 0, [[MUL]]
+  // CHECK: [[CAST:%.+]] = trunc i64 [[ADD]] to i32
+  // CHECK: store i32 [[CAST]], i32* [[I_PRIV:%.+]],
+  // CHECK: [[I_VAL:%.+]] = load i32, i32* [[I_PRIV]],
+  // CHECK: [[CONV:%.+]] = sext i32 [[I_VAL]] to i64
+  // CHECK: [[IV_VAL:%.+]] = load i64, i64* [[IV]],
+  // CHECK: [[IV_VAL1:%.+]] = load i64, i64* [[IV]],
+  // CHECK: [[J_UB_VAL:%.+]] = load i32, i32* [[J_UB]],
+  // CHECK: [[J_LB_VAL:%.+]] = load i32, i32* [[J_LB]],
+  // CHECK: [[SUB:%.+]] = sub nsw i32 [[J_UB_VAL]], [[J_LB_VAL]]
+  // CHECK: [[SUB_ST:%.+]] = sub nsw i32 [[SUB]], 1
+  // CHECK: [[ADD_ST:%.+]] = add nsw i32 [[SUB_ST]], 1
+  // CHECK: [[DIV_ST:%.+]] = sdiv i32 [[ADD_ST]], 1
+  // CHECK: [[MUL:%.+]] = mul nsw i32 1, [[DIV_ST]]
+  // CHECK: [[CAST:%.+]] = sext i32 [[MUL]] to i64
+  // CHECK: [[DIV:%.+]] = sdiv i64 [[IV_VAL1]], [[CAST]]
+  // CHECK: [[J_UB_VAL:%.+]] = load i32, i32* [[J_UB]],
+  // CHECK: [[J_LB_VAL:%.+]] = load i32, i32* [[J_LB]],
+  // CHECK: [[SUB:%.+]] = sub nsw i32 [[J_UB_VAL]], [[J_LB_VAL]]
+  // CHECK: [[SUB_ST:%.+]] = sub nsw i32 [[SUB]], 1
+  // CHECK: [[ADD_ST:%.+]] = add nsw i32 [[SUB_ST]], 1
+  // CHECK: [[DIV_ST:%.+]] = sdiv i32 [[ADD_ST]], 1
+  // CHECK: [[MUL:%.+]] = mul nsw i32 1, [[DIV_ST]]
+  // CHECK: [[CAST:%.+]] = sext i32 [[MUL]] to i64
+  // CHECK: [[MUL:%.+]] = mul nsw i64 [[DIV]], [[CAST]]
+  // CHECK: [[SUB:%.+]] = sub nsw i64 [[IV_VAL]], [[MUL]]
+  // CHECK: [[MUL:%.+]] = mul nsw i64 [[SUB:%.+]], 1
+  // CHECK: [[ADD:%.+]] = add nsw i64 [[CONV]], [[MUL]]
+  // CHECK: [[CAST:%.+]] = trunc i64 [[ADD]] to i32
+  // CHECK: store i32 [[CAST]], i32* [[J_PRIV:%.+]],
+
+  // Check that the loop variable is not out of its boundaries.
+  // CHECK: [[J_VAL:%.+]] = load i32, i32* [[J_PRIV]],
+  // CHECK: [[I_VAL:%.+]] = load i32, i32* [[I_PRIV]],
+  // CHECK: [[J_COND:%.+]] = add nsw i32 4, [[I_VAL]]
+  // CHECK: [[CMP:%.+]] = icmp slt i32 [[J_VAL]], [[J_COND]]
+  // CHECK: br i1 [[CMP]], label %[[NEXT:[^,]+]], label %[[BODY_CONT:[^,]+]]
+  // CHECK: [[NEXT]]:
+
+  // Main body is empty.
+  // CHECK: br label %[[BODY_CONT]]
+  // CHECK: [[BODY_CONT]]:
+  // CHECK: br label %[[INC:[^,]+]]
+  // CHECK: [[INC]]:
+  // CHECK: [[IV_VAL:%.+]] = load i64, i64* [[IV]],
+  // CHECK: [[ADD:%.+]] = add nsw i64 [[IV_VAL]], 1
+  // CHECK: store i64 [[ADD]], i64* [[IV]],
+  // CHECK: br label %[[COND]]
+  // CHECK: [[CLEANUP]]:
+  // CHECK: br label %[[EXIT:[^,]+]]
+  // CHECK: [[EXIT]]:
+  // CHECK: call void @__kmpc_for_static_fini(%struct.ident_t* @{{.+}}, i32 %{{.+}})
   // LIFETIME: call void @llvm.lifetime.end
   // LIFETIME: call void @llvm.lifetime.end
   // LIFETIME: call void @llvm.lifetime.end
@@ -40,7 +193,7 @@ void loop_with_counter_collapse() {
   // LIFETIME: call void @llvm.lifetime.end
   #pragma omp for collapse(2)
   for (int i = 0; i < 4; i++) {
-    for (int j = i; j < 4; j++) {
+    for (int j = i; j < 4 + i; j++) {
     }
   }
 }
@@ -232,7 +385,8 @@ void dynamic1(float *a, float *b, float *c, float *d) {
 void guided7(float *a, float *b, float *c, float *d) {
 // CHECK: [[GTID:%.+]] = call i32 @__kmpc_global_thread_num([[IDENT_T_TY]]* [[DEFAULT_LOC:[@%].+]])
   #pragma omp for schedule(guided, 7)
-// CHECK: call void @__kmpc_dispatch_init_8u([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 36, i64 0, i64 16908287, i64 1, i64 7)
+// OMP45: call void @__kmpc_dispatch_init_8u([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 36, i64 0, i64 16908287, i64 1, i64 7)
+// OMP5: call void @__kmpc_dispatch_init_8u([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 1073741860, i64 0, i64 16908287, i64 1, i64 7)
 //
 // CHECK: [[HASWORK:%.+]] = call i32 @__kmpc_dispatch_next_8u([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32* [[OMP_ISLAST:%[^,]+]], i64* [[OMP_LB:%[^,]+]], i64* [[OMP_UB:%[^,]+]], i64* [[OMP_ST:%[^,]+]])
 // CHECK-NEXT: [[O_CMP:%.+]] = icmp ne i32 [[HASWORK]], 0
@@ -276,7 +430,8 @@ void test_auto(float *a, float *b, float *c, float *d) {
   unsigned int y = 0;
 // CHECK: [[GTID:%.+]] = call i32 @__kmpc_global_thread_num([[IDENT_T_TY]]* [[DEFAULT_LOC:[@%].+]])
   #pragma omp for schedule(auto) collapse(2)
-// CHECK: call void @__kmpc_dispatch_init_8([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 38, i64 0, i64 [[LAST_ITER:%[^,]+]], i64 1, i64 1)
+// OMP45: call void @__kmpc_dispatch_init_8([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 38, i64 0, i64 [[LAST_ITER:%[^,]+]], i64 1, i64 1)
+// OMP5: call void @__kmpc_dispatch_init_8([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 1073741862, i64 0, i64 [[LAST_ITER:%[^,]+]], i64 1, i64 1)
 //
 // CHECK: [[HASWORK:%.+]] = call i32 @__kmpc_dispatch_next_8([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32* [[OMP_ISLAST:%[^,]+]], i64* [[OMP_LB:%[^,]+]], i64* [[OMP_UB:%[^,]+]], i64* [[OMP_ST:%[^,]+]])
 // CHECK-NEXT: [[O_CMP:%.+]] = icmp ne i32 [[HASWORK]], 0
@@ -320,7 +475,8 @@ void runtime(float *a, float *b, float *c, float *d) {
   int x = 0;
 // CHECK: [[GTID:%.+]] = call i32 @__kmpc_global_thread_num([[IDENT_T_TY]]* [[DEFAULT_LOC:[@%].+]])
   #pragma omp for collapse(2) schedule(runtime)
-// CHECK: call void @__kmpc_dispatch_init_4([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 37, i32 0, i32 199, i32 1, i32 1)
+// OMP45: call void @__kmpc_dispatch_init_4([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 37, i32 0, i32 199, i32 1, i32 1)
+// OMP5: call void @__kmpc_dispatch_init_4([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32 1073741861, i32 0, i32 199, i32 1, i32 1)
 //
 // CHECK: [[HASWORK:%.+]] = call i32 @__kmpc_dispatch_next_4([[IDENT_T_TY]]* [[DEFAULT_LOC]], i32 [[GTID]], i32* [[OMP_ISLAST:%[^,]+]], i32* [[OMP_LB:%[^,]+]], i32* [[OMP_UB:%[^,]+]], i32* [[OMP_ST:%[^,]+]])
 // CHECK-NEXT: [[O_CMP:%.+]] = icmp ne i32 [[HASWORK]], 0
@@ -449,13 +605,30 @@ void for_with_references() {
 // CHECK: [[I:%.+]] = alloca i8,
 // CHECK: [[CNT:%.+]] = alloca i8*,
 // CHECK: [[CNT_PRIV:%.+]] = alloca i8,
-// CHECK: call void @__kmpc_for_static_init_4(
+// CHECK: call void @__kmpc_for_static_init_8(
 // CHECK-NOT: load i8, i8* [[CNT]],
 // CHECK: call void @__kmpc_for_static_fini(
   char i = 0;
   char &cnt = i;
-#pragma omp for
+#pragma omp for collapse(2)
   for (cnt = 0; cnt < 2; ++cnt)
+    for (int j = cnt; j < 4 + cnt; j++)
+    k = cnt;
+}
+
+// CHECK-LABEL: for_with_references_dep_cond
+void for_with_references_dep_cond() {
+// CHECK: [[I:%.+]] = alloca i8,
+// CHECK: [[CNT:%.+]] = alloca i8*,
+// CHECK: [[CNT_PRIV:%.+]] = alloca i8,
+// CHECK: call void @__kmpc_for_static_init_8(
+// CHECK-NOT: load i8, i8* [[CNT]],
+// CHECK: call void @__kmpc_for_static_fini(
+  char i = 0;
+  char &cnt = i;
+#pragma omp for collapse(2)
+  for (cnt = 0; cnt < 2; ++cnt)
+    for (int j = 0; j < 4 + cnt; j++)
     k = cnt;
 }
 
@@ -528,13 +701,14 @@ void loop_with_It_plus(It<char> begin, It<char> end) {
 // CHECK: call void @__kmpc_for_static_fini(
 
 void loop_with_stmt_expr() {
-#pragma omp for
+#pragma omp for collapse(2)
   for (int i = __extension__({float b = 0;b; }); i < __extension__({double c = 1;c; }); i += __extension__({char d = 1; d; }))
+    for (int j = i; j < 4 + i; j++)
     ;
 }
 // CHECK-LABEL: loop_with_stmt_expr
 // CHECK: call i32 @__kmpc_global_thread_num(
-// CHECK: call void @__kmpc_for_static_init_4(
+// CHECK: call void @__kmpc_for_static_init_8(
 // CHECK: call void @__kmpc_for_static_fini(
 
 
@@ -557,5 +731,51 @@ T ftemplate() {
 }
 
 int fint(void) { return ftemplate<int>(); }
+
+// Check for imperfectly loop nests codegen.
+#if _OPENMP == 201811
+void first();
+void last();
+void inner_f();
+void inner_l();
+void body_f();
+
+// OMP5-LABEL: imperfectly_nested_loop
+void imperfectly_nested_loop() {
+  // OMP5: call void @__kmpc_for_static_init_4(
+#pragma omp for collapse(3)
+  for (int i = 0; i < 10; ++i) {
+    {
+      int a, d;
+      // OMP5: invoke void @{{.+}}first{{.+}}()
+      first();
+      // OMP5: load i32
+      // OMP5: store i32
+      a = d;
+      for (int j = 0; j < 10; ++j) {
+        int a, d;
+        // OMP5: invoke void @{{.+}}inner_f{{.+}}()
+        inner_f();
+        // OMP5: load i32
+        // OMP5: store i32
+        a = d;
+        for (int k = 0; k < 10; ++k) {
+          int a, d;
+          // OMP5: invoke void @{{.+}}body_f{{.+}}()
+          body_f();
+          // OMP5: load i32
+          // OMP5: store i32
+          a = d;
+        }
+        // OMP5: invoke void @{{.+}}inner_l{{.+}}()
+        inner_l();
+      }
+      // OMP5: invoke void @{{.+}}last{{.+}}()
+      last();
+    }
+  }
+  // OMP5: call void @__kmpc_for_static_fini(
+}
+#endif
 
 #endif // HEADER

@@ -2,8 +2,6 @@
 Tests basic Main Thread Checker support (detecting a main-thread-only violation).
 """
 
-import os
-import time
 import lldb
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test.decorators import *
@@ -17,21 +15,18 @@ class MTCSimpleTestCase(TestBase):
     mydir = TestBase.compute_mydir(__file__)
 
     @skipUnlessDarwin
-    @skipIfDarwinEmbedded  # Test file depends on AppKit which is not present on iOS etc.
     def test(self):
         self.mtc_dylib_path = findMainThreadCheckerDylib()
         if self.mtc_dylib_path == "":
-            self.skipTest("This test requires libMainThreadChecker.dylib.")
+            self.skipTest("This test requires libMainThreadChecker.dylib")
 
         self.build()
         self.mtc_tests()
 
-    def setUp(self):
-        # Call super's setUp().
-        TestBase.setUp(self)
-
     @skipIf(archs=['i386'])
     def mtc_tests(self):
+        self.assertTrue(self.mtc_dylib_path != "")
+
         # Load the test
         exe = self.getBuildArtifact("a.out")
         self.expect("file " + exe, patterns=["Current executable set to .*a.out"])
@@ -43,7 +38,11 @@ class MTCSimpleTestCase(TestBase):
         thread = process.GetSelectedThread()
         frame = thread.GetSelectedFrame()
 
-        self.expect("thread info", substrs=['stop reason = -[NSView superview] must be used from main thread only'])
+        view = "NSView" if lldbplatformutil.getPlatform() == "macosx" else "UIView"
+
+        self.expect("thread info",
+                    substrs=['stop reason = -[' + view +
+                             ' superview] must be used from main thread only'])
 
         self.expect(
             "thread info -s",
@@ -53,7 +52,7 @@ class MTCSimpleTestCase(TestBase):
         json_line = '\n'.join(output_lines[2:])
         data = json.loads(json_line)
         self.assertEqual(data["instrumentation_class"], "MainThreadChecker")
-        self.assertEqual(data["api_name"], "-[NSView superview]")
-        self.assertEqual(data["class_name"], "NSView")
+        self.assertEqual(data["api_name"], "-[" + view + " superview]")
+        self.assertEqual(data["class_name"], view)
         self.assertEqual(data["selector"], "superview")
-        self.assertEqual(data["description"], "-[NSView superview] must be used from main thread only")
+        self.assertEqual(data["description"], "-[" + view + " superview] must be used from main thread only")

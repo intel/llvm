@@ -93,7 +93,7 @@ private:
       GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::None);
     }
     if (Alignment)
-      GV->setAlignment(Alignment);
+      GV->setAlignment(llvm::Align(Alignment));
 
     return llvm::ConstantExpr::getGetElementPtr(ConstStr.getElementType(),
                                                 ConstStr.getPointer(), Zeros);
@@ -132,6 +132,8 @@ public:
   llvm::Function *makeModuleCtorFunction() override;
   /// Creates module destructor function
   llvm::Function *makeModuleDtorFunction() override;
+  /// Construct and return the stub name of a kernel.
+  std::string getDeviceStubName(llvm::StringRef Name) const override;
 };
 
 }
@@ -217,14 +219,25 @@ std::string CGNVCUDARuntime::getDeviceSideName(const Decl *D) {
 
 void CGNVCUDARuntime::emitDeviceStub(CodeGenFunction &CGF,
                                      FunctionArgList &Args) {
-  assert(getDeviceSideName(CGF.CurFuncDecl) == CGF.CurFn->getName() ||
-         getDeviceSideName(CGF.CurFuncDecl) + ".stub" == CGF.CurFn->getName() ||
-         CGF.CGM.getContext().getTargetInfo().getCXXABI() !=
-             CGF.CGM.getContext().getAuxTargetInfo()->getCXXABI());
+  // Ensure either we have different ABIs between host and device compilations,
+  // says host compilation following MSVC ABI but device compilation follows
+  // Itanium C++ ABI or, if they follow the same ABI, kernel names after
+  // mangling should be the same after name stubbing. The later checking is
+  // very important as the device kernel name being mangled in host-compilation
+  // is used to resolve the device binaries to be executed. Inconsistent naming
+  // result in undefined behavior. Even though we cannot check that naming
+  // directly between host- and device-compilations, the host- and
+  // device-mangling in host compilation could help catching certain ones.
+  assert((CGF.CGM.getContext().getAuxTargetInfo() &&
+          (CGF.CGM.getContext().getAuxTargetInfo()->getCXXABI() !=
+           CGF.CGM.getContext().getTargetInfo().getCXXABI())) ||
+         getDeviceStubName(getDeviceSideName(CGF.CurFuncDecl)) ==
+             CGF.CurFn->getName());
 
   EmittedKernels.push_back({CGF.CurFn, CGF.CurFuncDecl});
   if (CudaFeatureEnabled(CGM.getTarget().getSDKVersion(),
-                         CudaFeature::CUDA_USES_NEW_LAUNCH))
+                         CudaFeature::CUDA_USES_NEW_LAUNCH) ||
+      CGF.getLangOpts().HIPUseNewLaunchAPI)
     emitDeviceStubBodyNew(CGF, Args);
   else
     emitDeviceStubBodyLegacy(CGF, Args);
@@ -252,14 +265,18 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
 
   llvm::BasicBlock *EndBlock = CGF.createBasicBlock("setup.end");
 
-  // Lookup cudaLaunchKernel function.
+  // Lookup cudaLaunchKernel/hipLaunchKernel function.
   // cudaError_t cudaLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim,
   //                              void **args, size_t sharedMem,
   //                              cudaStream_t stream);
+  // hipError_t hipLaunchKernel(const void *func, dim3 gridDim, dim3 blockDim,
+  //                            void **args, size_t sharedMem,
+  //                            hipStream_t stream);
   TranslationUnitDecl *TUDecl = CGM.getContext().getTranslationUnitDecl();
   DeclContext *DC = TranslationUnitDecl::castToDeclContext(TUDecl);
+  auto LaunchKernelName = addPrefixToName("LaunchKernel");
   IdentifierInfo &cudaLaunchKernelII =
-      CGM.getContext().Idents.get("cudaLaunchKernel");
+      CGM.getContext().Idents.get(LaunchKernelName);
   FunctionDecl *cudaLaunchKernelFD = nullptr;
   for (const auto &Result : DC->lookup(&cudaLaunchKernelII)) {
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(Result))
@@ -268,7 +285,7 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
 
   if (cudaLaunchKernelFD == nullptr) {
     CGM.Error(CGF.CurFuncDecl->getLocation(),
-              "Can't find declaration for cudaLaunchKernel()");
+              "Can't find declaration for " + LaunchKernelName);
     return;
   }
   // Create temporary dim3 grid_dim, block_dim.
@@ -289,7 +306,7 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
                                /*ShmemSize=*/ShmemSize.getType(),
                                /*Stream=*/Stream.getType()},
                               /*isVarArg=*/false),
-      "__cudaPopCallConfiguration");
+      addUnderscoredPrefixToName("PopCallConfiguration"));
 
   CGF.EmitRuntimeCallOrInvoke(cudaPopConfigFn,
                               {GridDim.getPointer(), BlockDim.getPointer(),
@@ -317,7 +334,7 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
   const CGFunctionInfo &FI =
       CGM.getTypes().arrangeFunctionDeclaration(cudaLaunchKernelFD);
   llvm::FunctionCallee cudaLaunchKernelFn =
-      CGM.CreateRuntimeFunction(FTy, "cudaLaunchKernel");
+      CGM.CreateRuntimeFunction(FTy, LaunchKernelName);
   CGF.EmitCall(FI, CGCallee::forDirect(cudaLaunchKernelFn), ReturnValueSlot(),
                LaunchKernelArgs);
   CGF.EmitBranch(EndBlock);
@@ -611,7 +628,7 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
         Linkage,
         /*Initializer=*/llvm::ConstantPointerNull::get(VoidPtrPtrTy),
         "__hip_gpubin_handle");
-    GpuBinaryHandle->setAlignment(CGM.getPointerAlign().getQuantity());
+    GpuBinaryHandle->setAlignment(CGM.getPointerAlign().getAsAlign());
     // Prevent the weak symbol in different shared libraries being merged.
     if (Linkage != llvm::GlobalValue::InternalLinkage)
       GpuBinaryHandle->setVisibility(llvm::GlobalValue::HiddenVisibility);
@@ -652,7 +669,7 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
     GpuBinaryHandle = new llvm::GlobalVariable(
         TheModule, VoidPtrPtrTy, false, llvm::GlobalValue::InternalLinkage,
         llvm::ConstantPointerNull::get(VoidPtrPtrTy), "__cuda_gpubin_handle");
-    GpuBinaryHandle->setAlignment(CGM.getPointerAlign().getQuantity());
+    GpuBinaryHandle->setAlignment(CGM.getPointerAlign().getAsAlign());
     CtorBuilder.CreateAlignedStore(RegisterFatbinCall, GpuBinaryHandle,
                                    CGM.getPointerAlign());
 
@@ -778,6 +795,12 @@ llvm::Function *CGNVCUDARuntime::makeModuleDtorFunction() {
   }
   DtorBuilder.CreateRetVoid();
   return ModuleDtorFunc;
+}
+
+std::string CGNVCUDARuntime::getDeviceStubName(llvm::StringRef Name) const {
+  if (!CGM.getLangOpts().HIP)
+    return Name;
+  return (Name + ".stub").str();
 }
 
 CGCUDARuntime *CodeGen::CreateNVCUDARuntime(CodeGenModule &CGM) {

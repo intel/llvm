@@ -311,11 +311,9 @@ namespace clang {
 // Common Diagnostic implementation
 //===----------------------------------------------------------------------===//
 
-DiagnosticIDs::DiagnosticIDs() { CustomDiagInfo = nullptr; }
+DiagnosticIDs::DiagnosticIDs() {}
 
-DiagnosticIDs::~DiagnosticIDs() {
-  delete CustomDiagInfo;
-}
+DiagnosticIDs::~DiagnosticIDs() {}
 
 /// getCustomDiagID - Return an ID for a diagnostic with the specified message
 /// and level.  If this is the first request for this diagnostic, it is
@@ -325,7 +323,7 @@ DiagnosticIDs::~DiagnosticIDs() {
 /// mapped to a unique DiagID.
 unsigned DiagnosticIDs::getCustomDiagID(Level L, StringRef FormatString) {
   if (!CustomDiagInfo)
-    CustomDiagInfo = new diag::CustomDiagInfo();
+    CustomDiagInfo.reset(new diag::CustomDiagInfo());
   return CustomDiagInfo->getOrCreateDiagID(L, FormatString, *this);
 }
 
@@ -580,11 +578,8 @@ static bool getDiagnosticsInGroup(diag::Flavor Flavor,
 bool
 DiagnosticIDs::getDiagnosticsInGroup(diag::Flavor Flavor, StringRef Group,
                                      SmallVectorImpl<diag::kind> &Diags) const {
-  auto Found = std::lower_bound(std::begin(OptionTable), std::end(OptionTable),
-                                Group,
-                                [](const WarningOption &LHS, StringRef RHS) {
-                                  return LHS.getName() < RHS;
-                                });
+  auto Found = llvm::partition_point(
+      OptionTable, [=](const WarningOption &O) { return O.getName() < Group; });
   if (Found == std::end(OptionTable) || Found->getName() != Group)
     return true; // Option not found.
 

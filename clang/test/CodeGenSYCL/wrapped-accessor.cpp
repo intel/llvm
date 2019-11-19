@@ -27,8 +27,6 @@
 // CHECK-NEXT:  0 // _ZTSZ4mainE14wrapped_access
 // CHECK-NEXT: };
 
-// CHECK: template <class KernelNameType> struct KernelInfo;
-
 // CHECK: template <> struct KernelInfo<class wrapped_access> {
 
 #include <sycl.hpp>

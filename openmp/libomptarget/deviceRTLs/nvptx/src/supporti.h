@@ -14,6 +14,8 @@
 // Execution Parameters
 ////////////////////////////////////////////////////////////////////////////////
 
+#include "target_impl.h"
+
 INLINE void setExecutionParameters(ExecutionMode EMode, RuntimeMode RMode) {
   execution_param = EMode;
   execution_param |= RMode;
@@ -201,26 +203,28 @@ INLINE int IsTeamMaster(int ompThreadId) { return (ompThreadId == 0); }
 ////////////////////////////////////////////////////////////////////////////////
 // Parallel level
 
-INLINE void IncParallelLevel(bool ActiveParallel) {
-  unsigned tnum = __ACTIVEMASK();
-  int leader = __ffs(tnum) - 1;
-  __SHFL_SYNC(tnum, leader, leader);
-  if (GetLaneId() == leader) {
+INLINE void IncParallelLevel(bool ActiveParallel, __kmpc_impl_lanemask_t Mask) {
+  __kmpc_impl_syncwarp(Mask);
+  __kmpc_impl_lanemask_t LaneMaskLt = __kmpc_impl_lanemask_lt();
+  unsigned Rank = __kmpc_impl_popc(Mask & LaneMaskLt);
+  if (Rank == 0) {
     parallelLevel[GetWarpId()] +=
         (1 + (ActiveParallel ? OMP_ACTIVE_PARALLEL_LEVEL : 0));
+    __threadfence();
   }
-  __SHFL_SYNC(tnum, leader, leader);
+  __kmpc_impl_syncwarp(Mask);
 }
 
-INLINE void DecParallelLevel(bool ActiveParallel) {
-  unsigned tnum = __ACTIVEMASK();
-  int leader = __ffs(tnum) - 1;
-  __SHFL_SYNC(tnum, leader, leader);
-  if (GetLaneId() == leader) {
+INLINE void DecParallelLevel(bool ActiveParallel, __kmpc_impl_lanemask_t Mask) {
+  __kmpc_impl_syncwarp(Mask);
+  __kmpc_impl_lanemask_t LaneMaskLt = __kmpc_impl_lanemask_lt();
+  unsigned Rank = __kmpc_impl_popc(Mask & LaneMaskLt);
+  if (Rank == 0) {
     parallelLevel[GetWarpId()] -=
         (1 + (ActiveParallel ? OMP_ACTIVE_PARALLEL_LEVEL : 0));
+    __threadfence();
   }
-  __SHFL_SYNC(tnum, leader, leader);
+  __kmpc_impl_syncwarp(Mask);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,17 +266,6 @@ INLINE void *SafeFree(void *ptr, const char *msg) {
   PRINT(LD_MEM, "free data ptr 0x%llx for %s\n", (unsigned long long)ptr, msg);
   free(ptr);
   return NULL;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Named Barrier Routines
-////////////////////////////////////////////////////////////////////////////////
-
-INLINE void named_sync(const int barrier, const int num_threads) {
-  asm volatile("bar.sync %0, %1;"
-               :
-               : "r"(barrier), "r"(num_threads)
-               : "memory");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,9 +19,10 @@
 #include "llvm/ADT/StringRef.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Expression/LLVMUserExpression.h"
-#include "lldb/Target/CPPLanguageRuntime.h"
 #include "lldb/Target/LanguageRuntime.h"
 #include "lldb/lldb-private.h"
+
+#include "Plugins/LanguageRuntime/CPlusPlus/CPPLanguageRuntime.h"
 
 namespace lldb_private {
 namespace lldb_renderscript {
@@ -66,8 +67,8 @@ public:
   void Dump(Stream *s) const override {}
 
   Searcher::CallbackReturn SearchCallback(SearchFilter &filter,
-                                          SymbolContext &context, Address *addr,
-                                          bool containing) override;
+                                          SymbolContext &context,
+                                          Address *addr) override;
 
   lldb::SearchDepth GetDepth() override { return lldb::eSearchDepthModule; }
 
@@ -116,8 +117,8 @@ public:
   void Dump(Stream *s) const override {}
 
   Searcher::CallbackReturn SearchCallback(SearchFilter &filter,
-                                          SymbolContext &context, Address *addr,
-                                          bool containing) override;
+                                          SymbolContext &context,
+                                          Address *addr) override;
 
   lldb::SearchDepth GetDepth() override { return lldb::eSearchDepthModule; }
 
@@ -261,8 +262,8 @@ public:
   void Dump(Stream *s) const override {}
 
   Searcher::CallbackReturn SearchCallback(SearchFilter &filter,
-                                          SymbolContext &context, Address *addr,
-                                          bool containing) override;
+                                          SymbolContext &context,
+                                          Address *addr) override;
 
   lldb::SearchDepth GetDepth() override { return lldb::eSearchDepthModule; }
 
@@ -314,14 +315,22 @@ public:
 
   static lldb_private::ConstString GetPluginNameStatic();
 
+  static char ID;
+
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || CPPLanguageRuntime::isA(ClassID);
+  }
+
+  static bool classof(const LanguageRuntime *runtime) {
+    return runtime->isA(&ID);
+  }
+
   static bool IsRenderScriptModule(const lldb::ModuleSP &module_sp);
 
   static ModuleKind GetModuleKind(const lldb::ModuleSP &module_sp);
 
   static void ModulesDidLoad(const lldb::ProcessSP &process_sp,
                              const ModuleList &module_list);
-
-  bool IsVTableName(const char *name) override;
 
   bool GetDynamicTypeAndAddress(ValueObject &in_value,
                                 lldb::DynamicValueType use_dynamic,

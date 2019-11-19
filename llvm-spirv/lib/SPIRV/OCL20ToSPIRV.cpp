@@ -832,9 +832,10 @@ void OCL20ToSPIRV::transAtomicBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
             return map<Scope>(static_cast<OCLScopeKind>(I));
           });
         } else {
-          // SPIR-V 1.3 r6 s2.16.2: All <id> used for Scope and Memory
-          // Semantics must be of an OpConstant.
-          Ctx->emitError(CI, "memory_scope argument needs to be constant");
+          Args[ScopeIdx] =
+              getOrCreateSwitchFunc(kSPIRVName::TranslateOCLMemScope,
+                                    Args[ScopeIdx], OCLMemScopeMap::getMap(),
+                                    false /*IsReverse*/, OCLMS_device, CI, M);
         }
         for (size_t I = 0; I < NumOrder; ++I) {
           if (auto OrderInt =
@@ -844,9 +845,10 @@ void OCL20ToSPIRV::transAtomicBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
                   0, static_cast<OCLMemOrderKind>(Ord));
             });
           } else {
-            // SPIR-V 1.3 r6 s2.16.2: All <id> used for Scope and Memory
-            // Semantics must be of an OpConstant.
-            Ctx->emitError(CI, "memory_order argument needs to be constant");
+            Args[OrderIdx + I] = getOrCreateSwitchFunc(
+                kSPIRVName::TranslateOCLMemOrder, Args[OrderIdx + I],
+                OCLMemOrderMap::getMap(), false /*IsReverse*/, OCLMO_seq_cst,
+                CI, M);
           }
         }
         // Order of args in SPIR-V:

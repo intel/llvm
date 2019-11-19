@@ -5,9 +5,6 @@ Test SBType and SBTypeList API.
 from __future__ import print_function
 
 
-import os
-import re
-import time
 
 import lldb
 from lldbsuite.test.decorators import *
@@ -76,13 +73,17 @@ class TypeAndTypeListTestCase(TestBase):
                         self.assertTrue(enum_member)
                         self.DebugSBType(enum_member.type)
                 elif field.name == "my_type_is_nameless":
-                    self.assertTrue(
+                    self.assertFalse(
                         field.type.IsAnonymousType(),
-                        "my_type_is_nameless has an anonymous type")
+                        "my_type_is_nameless is not an anonymous type")
                 elif field.name == "my_type_is_named":
                     self.assertFalse(
                         field.type.IsAnonymousType(),
                         "my_type_is_named has a named type")
+                elif field.name == None:
+                    self.assertTrue(
+                        field.type.IsAnonymousType(),
+                        "Nameless type is not anonymous")
 
         # Pass an empty string.  LLDB should not crash. :-)
         fuzz_types = target.FindTypes(None)

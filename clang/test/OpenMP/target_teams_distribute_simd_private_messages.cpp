@@ -1,6 +1,9 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify=expected,le45 -fopenmp %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,le45 -fopenmp-version=40 -fopenmp %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,le45 -fopenmp-version=45 -fopenmp %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected -fopenmp-version=50 -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify=expected,le45 -fopenmp-simd %s -Wuninitialized
 
 typedef void **omp_allocator_handle_t;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
@@ -59,7 +62,7 @@ int main(int argc, char **argv) {
   const int da[5] = { 0 }; // expected-note {{'da' defined here}}
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, k;
   int &j = i;
 
 #pragma omp target teams distribute simd private // expected-error {{expected '(' after 'private'}}
@@ -89,7 +92,7 @@ int main(int argc, char **argv) {
 #pragma omp target teams distribute simd private (a, b, c, d, f) // expected-error {{private variable with incomplete type 'S1'}} expected-error 1 {{const-qualified variable without mutable fields cannot be private}} expected-error 2 {{const-qualified variable cannot be private}}
   for (int k = 0; k < argc; ++k) ++k;
 
-#pragma omp target teams distribute simd private (argv[1]) // expected-error {{expected variable name}}
+#pragma omp target teams distribute simd private (k, argv[1]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k) ++k;
 
 #pragma omp target teams distribute simd private(ba) allocate(omp_thread_mem_alloc: ba) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target teams distribute simd' directive}}
@@ -132,7 +135,7 @@ int main(int argc, char **argv) {
   for (int k = 0; k < 10; ++k) {
   }
 
-#pragma omp target teams distribute simd private(j) map(j) // expected-error {{private variable cannot be in a map clause in '#pragma omp target teams distribute simd' directive}} expected-note {{defined as private}}
+#pragma omp target teams distribute simd private(j) map(j) // le45-error {{private variable cannot be in a map clause in '#pragma omp target teams distribute simd' directive}} le45-note {{defined as private}}
   for (int k = 0; k < argc; ++k) ++k;
 
   return 0;

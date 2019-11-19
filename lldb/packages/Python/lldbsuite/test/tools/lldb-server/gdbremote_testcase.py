@@ -8,11 +8,9 @@ from __future__ import division, print_function
 import errno
 import os
 import os.path
-import platform
 import random
 import re
 import select
-import signal
 import socket
 import subprocess
 import sys
@@ -33,7 +31,10 @@ class GdbRemoteTestCaseBase(TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
 
-    _TIMEOUT_SECONDS = 120
+    _TIMEOUT_SECONDS = 120 * (10 if ('ASAN_OPTIONS' in os.environ) else 1)
+    _DEFAULT_TIMEOUT =  10 * (10 if ('ASAN_OPTIONS' in os.environ) else 1)
+    _READ_TIMEOUT    =   5 * (10 if ('ASAN_OPTIONS' in os.environ) else 1)
+    _WAIT_TIMEOUT    =   5 * (10 if ('ASAN_OPTIONS' in os.environ) else 1)
 
     _GDBREMOTE_KILL_PACKET = "$k#6b"
 
@@ -203,7 +204,7 @@ class GdbRemoteTestCaseBase(TestBase):
 
         return (named_pipe_path, named_pipe, named_pipe_fd)
 
-    def get_stub_port_from_named_socket(self, read_timeout_seconds=5):
+    def get_stub_port_from_named_socket(self, read_timeout_seconds):
         # Wait for something to read with a max timeout.
         (ready_readers, _, _) = select.select(
             [self.named_pipe_fd], [], [], read_timeout_seconds)
@@ -235,6 +236,10 @@ class GdbRemoteTestCaseBase(TestBase):
             # Remote platforms don't support named pipe based port negotiation
             use_named_pipe = False
 
+            triple = self.dbg.GetSelectedPlatform().GetTriple()
+            if re.match(".*-.*-windows", triple):
+                self.skipTest("Remotely testing is not supported on Windows yet.")
+
             # Grab the ppid from /proc/[shell pid]/stat
             err, retcode, shell_stat = self.run_platform_command(
                 "cat /proc/$$/stat")
@@ -260,6 +265,10 @@ class GdbRemoteTestCaseBase(TestBase):
             # Remove if it's there.
             self.debug_monitor_exe = re.sub(r' \(deleted\)$', '', exe)
         else:
+            # Need to figure out how to create a named pipe on Windows.
+            if platform.system() == 'Windows':
+                use_named_pipe = False
+
             self.debug_monitor_exe = get_lldb_server_exe()
             if not self.debug_monitor_exe:
                 self.skipTest("lldb-server exe not found")
@@ -399,7 +408,7 @@ class GdbRemoteTestCaseBase(TestBase):
         # If we're receiving the stub's listening port from the named pipe, do
         # that here.
         if self.named_pipe:
-            self.port = self.get_stub_port_from_named_socket()
+            self.port = self.get_stub_port_from_named_socket(self._READ_TIMEOUT)
 
         return server
 
@@ -513,7 +522,8 @@ class GdbRemoteTestCaseBase(TestBase):
             self,
             inferior_args=None,
             inferior_sleep_seconds=3,
-            inferior_exe_path=None):
+            inferior_exe_path=None,
+            inferior_env=None):
         """Prep the debug monitor, the inferior, and the expected packet stream.
 
         Handle the separate cases of using the debug monitor in attach-to-inferior mode
@@ -576,6 +586,9 @@ class GdbRemoteTestCaseBase(TestBase):
 
         # Build the expected protocol stream
         self.add_no_ack_remote_stream()
+        if inferior_env:
+            for name, value in inferior_env.items():
+                self.add_set_environment_packets(name, value)
         if self._inferior_startup == self._STARTUP_LAUNCH:
             self.add_verified_launch_packets(launch_args)
 
@@ -611,7 +624,10 @@ class GdbRemoteTestCaseBase(TestBase):
                     written_byte_count:]
         self.assertEqual(len(request_bytes_remaining), 0)
 
-    def do_handshake(self, stub_socket, timeout_seconds=5):
+    def do_handshake(self, stub_socket, timeout_seconds=None):
+        if not timeout_seconds:
+            timeout_seconds = self._WAIT_TIMEOUT
+
         # Write the ack.
         self.expect_socket_send(stub_socket, "+", timeout_seconds)
 
@@ -655,6 +671,12 @@ class GdbRemoteTestCaseBase(TestBase):
             ["read packet: $qProcessInfo#dc",
              {"direction": "send", "regex": r"^\$(.+)#[0-9a-fA-F]{2}$", "capture": {1: "process_info_raw"}}],
             True)
+
+    def add_set_environment_packets(self, name, value):
+        self.test_sequence.add_log_lines(
+            ["read packet: $QEnvironment:" + name + "=" + value + "#00",
+             "send packet: $OK#00",
+             ], True)
 
     _KNOWN_PROCESS_INFO_KEYS = [
         "pid",
@@ -816,6 +838,7 @@ class GdbRemoteTestCaseBase(TestBase):
                     "error"])
             self.assertIsNotNone(val)
 
+        mem_region_dict["name"] = seven.unhexlify(mem_region_dict.get("name", ""))
         # Return the dictionary of key-value pairs for the memory region.
         return mem_region_dict
 
@@ -862,7 +885,9 @@ class GdbRemoteTestCaseBase(TestBase):
             thread_ids.extend(new_thread_infos)
         return thread_ids
 
-    def wait_for_thread_count(self, thread_count, timeout_seconds=3):
+    def wait_for_thread_count(self, thread_count, timeout_seconds=None):
+        if not timeout_seconds:
+            timeout_seconds = self._WAIT_TIMEOUT
         start_time = time.time()
         timeout_time = start_time + timeout_seconds
 
@@ -999,6 +1024,22 @@ class GdbRemoteTestCaseBase(TestBase):
         self.assertIsNotNone(context.get("stop_result"))
 
         return context
+
+    def continue_process_and_wait_for_stop(self):
+        self.test_sequence.add_log_lines(
+            [
+                "read packet: $vCont;c#a8",
+                {
+                    "direction": "send",
+                    "regex": r"^\$T([0-9a-fA-F]{2})(.*)#[0-9a-fA-F]{2}$",
+                    "capture": {1: "stop_signo", 2: "stop_key_val_text"},
+                },
+            ],
+            True,
+        )
+        context = self.expect_gdbremote_sequence()
+        self.assertIsNotNone(context)
+        return self.parse_interrupt_packets(context)
 
     def select_modifiable_register(self, reg_infos):
         """Find a register that can be read/written freely."""

@@ -36,8 +36,8 @@ loop_exit:
 
 ; CHECK-LABEL: test1:
 ; CHECK-NOT: mtctr
-; CHECK: bl fminf
-; CHECK-NOT: bl fminf
+; CHECK: xsmindp
+; CHECK-NOT: xsmindp
 ; CHECK-NOT: mtctr
 ; CHECK: blr
 
@@ -58,14 +58,10 @@ loop_exit:
 }
 
 ; CHECK-LABEL: test1v:
-; CHECK: bl fminf
-; CHECK-NOT: mtctr
-; CHECK: bl fminf
-; CHECK-NOT: mtctr
-; CHECK: bl fminf
-; CHECK-NOT: mtctr
-; CHECK: bl fminf
-; CHECK-NOT: bl fminf
+; CHECK: xvminsp
+; CHECK-NOT: xsmindp
+; CHECK: mtctr
+; CHECK-NOT: xsmindp
 ; CHECK: blr
 
 ; QPX-LABEL: test1v:
@@ -91,8 +87,8 @@ loop_exit:
 
 ; CHECK-LABEL: test1a:
 ; CHECK-NOT: mtctr
-; CHECK: bl fminf
-; CHECK-NOT: bl fminf
+; CHECK: xsmindp
+; CHECK-NOT: xsmindp
 ; CHECK-NOT: mtctr
 ; CHECK: blr
 
@@ -114,8 +110,8 @@ loop_exit:
 
 ; CHECK-LABEL: test2:
 ; CHECK-NOT: mtctr
-; CHECK: bl fmaxf
-; CHECK-NOT: bl fmaxf
+; CHECK: xsmaxdp
+; CHECK-NOT: xsmaxdp
 ; CHECK-NOT: mtctr
 ; CHECK: blr
 
@@ -136,14 +132,11 @@ loop_exit:
 }
 
 ; CHECK-LABEL: test2v:
-; CHECK: bl fmax
-; CHECK-NOT: mtctr
-; CHECK: bl fmax
-; CHECK-NOT: mtctr
-; CHECK: bl fmax
-; CHECK-NOT: mtctr
-; CHECK: bl fmax
-; CHECK-NOT: bl fmax
+; CHECK: xvmaxdp
+; CHECK: xvmaxdp
+; CHECK-NOT: xsmaxdp
+; CHECK: mtctr
+; CHECK-NOT: xsmaxdp
 ; CHECK: blr
 
 ; QPX-LABEL: test2v:
@@ -169,8 +162,8 @@ loop_exit:
 
 ; CHECK-LABEL: test2a:
 ; CHECK-NOT: mtctr
-; CHECK: bl fmaxf
-; CHECK-NOT: bl fmaxf
+; CHECK: xsmaxdp
+; CHECK-NOT: xsmaxdp
 ; CHECK-NOT: mtctr
 ; CHECK: blr
 
@@ -192,8 +185,8 @@ loop_exit:
 
 ; CHECK-LABEL: test3:
 ; CHECK-NOT: mtctr
-; CHECK: bl fmin
-; CHECK-NOT: bl fmin
+; CHECK: xsmindp
+; CHECK-NOT: xsmindp
 ; CHECK-NOT: mtctr
 ; CHECK: blr
 
@@ -215,8 +208,8 @@ loop_exit:
 
 ; CHECK-LABEL: test3a:
 ; CHECK-NOT: mtctr
-; CHECK: bl fmin
-; CHECK-NOT: bl fmin
+; CHECK: xsmindp
+; CHECK-NOT: xsmindp
 ; CHECK-NOT: mtctr
 ; CHECK: blr
 
@@ -238,8 +231,8 @@ loop_exit:
 
 ; CHECK-LABEL: test4:
 ; CHECK-NOT: mtctr
-; CHECK: bl fmax
-; CHECK-NOT: bl fmax
+; CHECK: xsmaxdp
+; CHECK-NOT: xsmaxdp
 ; CHECK-NOT: mtctr
 ; CHECK: blr
 
@@ -261,8 +254,8 @@ loop_exit:
 
 ; CHECK-LABEL: test4a:
 ; CHECK-NOT: mtctr
-; CHECK: bl fmax
-; CHECK-NOT: bl fmax
+; CHECK: xsmaxdp
+; CHECK-NOT: xsmaxdp
 ; CHECK-NOT: mtctr
 ; CHECK: blr
 

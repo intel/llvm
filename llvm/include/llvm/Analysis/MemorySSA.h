@@ -793,6 +793,7 @@ protected:
   friend class MemorySSAPrinterLegacyPass;
   friend class MemorySSAUpdater;
 
+  void verifyPrevDefInPhis(Function &F) const;
   void verifyDefUses(Function &F) const;
   void verifyDomination(Function &F) const;
   void verifyOrdering(Function &F) const;
@@ -830,7 +831,8 @@ protected:
   void insertIntoListsBefore(MemoryAccess *, const BasicBlock *,
                              AccessList::iterator);
   MemoryUseOrDef *createDefinedAccess(Instruction *, MemoryAccess *,
-                                      const MemoryUseOrDef *Template = nullptr);
+                                      const MemoryUseOrDef *Template = nullptr,
+                                      bool CreationMustSucceed = true);
 
 private:
   template <class AliasAnalysisType> class ClobberWalkerBase;
@@ -1106,15 +1108,15 @@ public:
     assert(Access && "Tried to access past the end of our iterator");
     // Go to the first argument for phis, and the defining access for everything
     // else.
-    if (MemoryPhi *MP = dyn_cast<MemoryPhi>(Access))
+    if (const MemoryPhi *MP = dyn_cast<MemoryPhi>(Access))
       return MP->getIncomingValue(ArgNo);
     return cast<MemoryUseOrDef>(Access)->getDefiningAccess();
   }
 
   using BaseT::operator++;
-  memoryaccess_def_iterator &operator++() {
+  memoryaccess_def_iterator_base &operator++() {
     assert(Access && "Hit end of iterator");
-    if (MemoryPhi *MP = dyn_cast<MemoryPhi>(Access)) {
+    if (const MemoryPhi *MP = dyn_cast<MemoryPhi>(Access)) {
       if (++ArgNo >= MP->getNumIncomingValues()) {
         ArgNo = 0;
         Access = nullptr;

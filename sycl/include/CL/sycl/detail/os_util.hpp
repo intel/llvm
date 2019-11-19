@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <stdlib.h>
 
 #ifdef _WIN32
@@ -23,6 +24,11 @@
 #elif __linux__
 // Linux platform
 #define SYCL_RT_OS_LINUX
+#define SYCL_RT_OS_POSIX_SUPPORT
+#elif defined(__APPLE__) && defined(__MACH__)
+// Apple OSX
+#define SYCL_RT_OS_DARWIN
+#define SYCL_RT_OS_POSIX_SUPPORT
 #else
 #error "Unsupported compiler or OS"
 #endif // _WIN32
@@ -40,7 +46,7 @@
 #define __SYCL_EXPORTED __declspec(dllimport)
 #endif
 
-#elif defined(SYCL_RT_OS_LINUX)
+#elif defined(SYCL_RT_OS_POSIX_SUPPORT)
 
 #define DLL_LOCAL __attribute__((visibility("hidden")))
 #define __SYCL_EXPORTED
@@ -53,7 +59,7 @@ namespace detail {
 
 /// Uniquely identifies an operating system module (executable or a dynamic
 /// library)
-using OSModuleHandle = void *;
+using OSModuleHandle = intptr_t;
 
 /// Groups the OS-dependent services.
 class OSUtil {
@@ -63,7 +69,7 @@ public:
 
   /// Module handle for the executable module - it is assumed there is always
   /// single one at most.
-  static const OSModuleHandle ExeModuleHandle;
+  static constexpr OSModuleHandle ExeModuleHandle = -1;
 
   /// Returns the amount of RAM available for the operating system.
   static size_t getOSMemSize();

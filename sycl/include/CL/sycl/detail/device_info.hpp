@@ -48,19 +48,18 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 template <typename T, info::device param> struct get_device_info {
   static T _(RT::PiDevice dev) {
     typename sycl_to_pi<T>::type result;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(param), sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev, pi::cast<RT::PiDeviceInfo>(param),
+            sizeof(result), &result, nullptr);
     return T(result);
   }
 };
 
 // Specialization for platform
-template <info::device param>
-struct get_device_info<platform, param> {
+template <info::device param> struct get_device_info<platform, param> {
   static platform _(RT::PiDevice dev) {
     typename sycl_to_pi<platform>::type result;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(param), sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev, pi::cast<RT::PiDeviceInfo>(param),
+            sizeof(result), &result, nullptr);
     return createSyclObjFromImpl<platform>(
         std::make_shared<platform_impl_pi>(result));
   }
@@ -70,23 +69,21 @@ struct get_device_info<platform, param> {
 template <info::device param> struct get_device_info<string_class, param> {
   static string_class _(RT::PiDevice dev) {
     size_t resultSize;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(param), 0, NULL, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo, dev, pi::cast<RT::PiDeviceInfo>(param), 0, nullptr,
+            &resultSize);
     if (resultSize == 0) {
       return string_class();
     }
     unique_ptr_class<char[]> result(new char[resultSize]);
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(param),
-      resultSize, result.get(), NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev, pi::cast<RT::PiDeviceInfo>(param), resultSize,
+            result.get(), nullptr);
 
     return string_class(result.get());
   }
 };
 
 // Specialization for parent device
-template <typename T>
-struct get_device_info<T, info::device::parent_device> {
+template <typename T> struct get_device_info<T, info::device::parent_device> {
   static T _(RT::PiDevice dev);
 };
 
@@ -94,8 +91,8 @@ struct get_device_info<T, info::device::parent_device> {
 template <info::device param> struct get_device_info<id<3>, param> {
   static id<3> _(RT::PiDevice dev) {
     size_t result[3];
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(param), sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev, pi::cast<RT::PiDeviceInfo>(param),
+            sizeof(result), &result, nullptr);
     return id<3>(result[0], result[1], result[2]);
   }
 };
@@ -112,8 +109,8 @@ struct get_device_info<vector_class<info::fp_config>, param> {
       return {};
     }
     cl_device_fp_config result;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(param), sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev, pi::cast<RT::PiDeviceInfo>(param),
+            sizeof(result), &result, nullptr);
     return read_fp_bitfield(result);
   }
 };
@@ -121,12 +118,12 @@ struct get_device_info<vector_class<info::fp_config>, param> {
 // Specialization for single_fp_config, no type support check required
 template <>
 struct get_device_info<vector_class<info::fp_config>,
-                          info::device::single_fp_config> {
+                       info::device::single_fp_config> {
   static vector_class<info::fp_config> _(RT::PiDevice dev) {
     cl_device_fp_config result;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::single_fp_config),
-      sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev,
+            pi::cast<RT::PiDeviceInfo>(info::device::single_fp_config),
+            sizeof(result), &result, nullptr);
     return read_fp_bitfield(result);
   }
 };
@@ -135,9 +132,9 @@ struct get_device_info<vector_class<info::fp_config>,
 template <> struct get_device_info<bool, info::device::queue_profiling> {
   static bool _(RT::PiDevice dev) {
     cl_command_queue_properties result;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::queue_profiling),
-      sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev,
+            pi::cast<RT::PiDeviceInfo>(info::device::queue_profiling),
+            sizeof(result), &result, nullptr);
     return (result & CL_QUEUE_PROFILING_ENABLE);
   }
 };
@@ -148,9 +145,9 @@ struct get_device_info<vector_class<info::execution_capability>,
                        info::device::execution_capabilities> {
   static vector_class<info::execution_capability> _(RT::PiDevice dev) {
     cl_device_exec_capabilities result;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::execution_capabilities),
-      sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev,
+            pi::cast<RT::PiDeviceInfo>(info::device::execution_capabilities),
+            sizeof(result), &result, nullptr);
     return read_execution_bitfield(result);
   }
 };
@@ -168,8 +165,7 @@ struct get_device_info<vector_class<string_class>,
 
 // Specialization for extensions, splits the string returned by OpenCL
 template <>
-struct get_device_info<vector_class<string_class>,
-                       info::device::extensions> {
+struct get_device_info<vector_class<string_class>, info::device::extensions> {
   static vector_class<string_class> _(RT::PiDevice dev) {
     string_class result =
         get_device_info<string_class, info::device::extensions>::_(dev);
@@ -183,10 +179,10 @@ struct get_device_info<vector_class<info::partition_property>,
                        info::device::partition_properties> {
   static vector_class<info::partition_property> _(RT::PiDevice dev) {
     auto info_partition =
-      pi::pi_cast<RT::PiDeviceInfo>(info::device::partition_properties);
+        pi::cast<RT::PiDeviceInfo>(info::device::partition_properties);
 
     size_t resultSize;
-    PI_CALL(RT::piDeviceGetInfo(dev, info_partition, 0, NULL, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo, dev, info_partition, 0, nullptr, &resultSize);
 
     size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
     if (arrayLength == 0) {
@@ -194,8 +190,8 @@ struct get_device_info<vector_class<info::partition_property>,
     }
     unique_ptr_class<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, info_partition, resultSize, arrayResult.get(), NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev, info_partition, resultSize, arrayResult.get(),
+            nullptr);
 
     vector_class<info::partition_property> result;
     for (size_t i = 0; i < arrayLength - 1; ++i) {
@@ -211,9 +207,10 @@ struct get_device_info<vector_class<info::partition_affinity_domain>,
                        info::device::partition_affinity_domains> {
   static vector_class<info::partition_affinity_domain> _(RT::PiDevice dev) {
     cl_device_affinity_domain result;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::partition_affinity_domains),
-      sizeof(result), &result, NULL));
+    PI_CALL(
+        RT::piDeviceGetInfo, dev,
+        pi::cast<RT::PiDeviceInfo>(info::device::partition_affinity_domains),
+        sizeof(result), &result, nullptr);
     return read_domain_bitfield(result);
   }
 };
@@ -225,18 +222,18 @@ struct get_device_info<info::partition_affinity_domain,
                        info::device::partition_type_affinity_domain> {
   static info::partition_affinity_domain _(RT::PiDevice dev) {
     size_t resultSize;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(
-             info::device::partition_type_affinity_domain),
-      0, NULL, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo, dev,
+            pi::cast<RT::PiDeviceInfo>(
+                info::device::partition_type_affinity_domain),
+            0, nullptr, &resultSize);
     if (resultSize != 1) {
       return info::partition_affinity_domain::not_applicable;
     }
     cl_device_partition_property result;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(
-             info::device::partition_type_affinity_domain),
-      sizeof(result), &result, NULL));
+    PI_CALL(RT::piDeviceGetInfo, dev,
+            pi::cast<RT::PiDeviceInfo>(
+                info::device::partition_type_affinity_domain),
+            sizeof(result), &result, nullptr);
     if (result == CL_DEVICE_AFFINITY_DOMAIN_NUMA ||
         result == CL_DEVICE_AFFINITY_DOMAIN_L4_CACHE ||
         result == CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE ||
@@ -255,8 +252,8 @@ struct get_device_info<info::partition_property,
                        info::device::partition_type_property> {
   static info::partition_property _(RT::PiDevice dev) {
     size_t resultSize;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, PI_DEVICE_INFO_PARTITION_TYPE, 0, NULL, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo, dev, PI_DEVICE_INFO_PARTITION_TYPE, 0, nullptr,
+            &resultSize);
     if (!resultSize)
       return info::partition_property::no_partition;
 
@@ -264,8 +261,8 @@ struct get_device_info<info::partition_property,
 
     unique_ptr_class<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, PI_DEVICE_INFO_PARTITION_TYPE, resultSize, arrayResult.get(), 0));
+    PI_CALL(RT::piDeviceGetInfo, dev, PI_DEVICE_INFO_PARTITION_TYPE, resultSize,
+            arrayResult.get(), nullptr);
     if (!arrayResult[0])
       return info::partition_property::no_partition;
     return info::partition_property(arrayResult[0]);
@@ -273,22 +270,42 @@ struct get_device_info<info::partition_property,
 };
 // Specialization for supported subgroup sizes
 template <>
-struct get_device_info<vector_class<size_t>,
-                       info::device::sub_group_sizes> {
+struct get_device_info<vector_class<size_t>, info::device::sub_group_sizes> {
   static vector_class<size_t> _(RT::PiDevice dev) {
     size_t resultSize = 0;
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::sub_group_sizes),
-      0, nullptr, &resultSize));
+    PI_CALL(RT::piDeviceGetInfo, dev,
+            pi::cast<RT::PiDeviceInfo>(info::device::sub_group_sizes), 0,
+            nullptr, &resultSize);
 
-    vector_class<size_t> result(resultSize);
-    PI_CALL(RT::piDeviceGetInfo(
-      dev, pi::pi_cast<RT::PiDeviceInfo>(info::device::sub_group_sizes),
-      resultSize, result.data(), nullptr));
+    vector_class<size_t> result(resultSize / sizeof(size_t));
+    PI_CALL(RT::piDeviceGetInfo, dev,
+            pi::cast<RT::PiDeviceInfo>(info::device::sub_group_sizes),
+            resultSize, result.data(), nullptr);
     return result;
   }
 };
 
+// Specialization for kernel to kernel pipes.
+// Here we step away from OpenCL, since there is no appropriate cl_device_info
+// enum for global pipes feature.
+template <>
+struct get_device_info<bool, info::device::kernel_kernel_pipe_support> {
+  static bool _(RT::PiDevice dev) {
+    // We claim, that all Intel FPGA devices support kernel to kernel pipe
+    // feature (at least at the scope of SYCL_INTEL_data_flow_pipes extension).
+    platform plt = get_device_info<platform, info::device::platform>::_(dev);
+    string_class platform_name = plt.get_info<info::platform::name>();
+    if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
+        platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")
+      return true;
+
+    // TODO: a better way is to query for supported SPIR-V capabilities when
+    // it's started to be possible. Also, if a device's backend supports
+    // SPIR-V 1.1 (where Pipe Storage feature was defined), than it supports
+    // the feature as well.
+    return false;
+  }
+};
 
 // SYCL host device information
 
@@ -298,210 +315,14 @@ template <info::device param>
 typename info::param_traits<info::device, param>::return_type
 get_device_info_host() = delete;
 
-template <> info::device_type get_device_info_host<info::device::device_type>();
+#define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
+      template <> ret_type get_device_info_host<info::param_type::param>();
 
-template <> cl_uint get_device_info_host<info::device::vendor_id>();
+#include <CL/sycl/info/device_traits.def>
 
-template <> cl_uint get_device_info_host<info::device::max_compute_units>();
-
-template <>
-cl_uint get_device_info_host<info::device::max_work_item_dimensions>();
-
-template <> id<3> get_device_info_host<info::device::max_work_item_sizes>();
-
-template <> size_t get_device_info_host<info::device::max_work_group_size>();
-
-template <>
-cl_uint get_device_info_host<info::device::preferred_vector_width_char>();
-
-template <>
-cl_uint get_device_info_host<info::device::preferred_vector_width_short>();
-
-template <>
-cl_uint get_device_info_host<info::device::preferred_vector_width_int>();
-
-template <>
-cl_uint get_device_info_host<info::device::preferred_vector_width_long>();
-
-template <>
-cl_uint get_device_info_host<info::device::preferred_vector_width_float>();
-
-template <>
-cl_uint get_device_info_host<info::device::preferred_vector_width_double>();
-
-template <>
-cl_uint get_device_info_host<info::device::preferred_vector_width_half>();
+#undef PARAM_TRAITS_SPEC
 
 cl_uint get_native_vector_width(size_t idx);
-
-template <>
-cl_uint get_device_info_host<info::device::preferred_vector_width_half>();
-
-template <>
-cl_uint get_device_info_host<info::device::native_vector_width_char>();
-
-template <>
-cl_uint get_device_info_host<info::device::native_vector_width_short>();
-
-template <>
-cl_uint get_device_info_host<info::device::native_vector_width_int>();
-
-template <>
-cl_uint get_device_info_host<info::device::native_vector_width_long>();
-
-template <>
-cl_uint get_device_info_host<info::device::native_vector_width_float>();
-
-template <>
-cl_uint get_device_info_host<info::device::native_vector_width_double>();
-
-template <>
-cl_uint get_device_info_host<info::device::native_vector_width_half>();
-
-template <> cl_uint get_device_info_host<info::device::max_clock_frequency>();
-
-template <> cl_uint get_device_info_host<info::device::address_bits>();
-
-template <> cl_ulong get_device_info_host<info::device::global_mem_size>();
-
-template <> cl_ulong get_device_info_host<info::device::max_mem_alloc_size>();
-
-template <> bool get_device_info_host<info::device::image_support>();
-
-template <> cl_uint get_device_info_host<info::device::max_read_image_args>();
-
-template <> cl_uint get_device_info_host<info::device::max_write_image_args>();
-
-template <> size_t get_device_info_host<info::device::image2d_max_width>();
-
-template <> size_t get_device_info_host<info::device::image2d_max_height>();
-
-template <> size_t get_device_info_host<info::device::image3d_max_width>();
-
-template <> size_t get_device_info_host<info::device::image3d_max_height>();
-
-template <> size_t get_device_info_host<info::device::image3d_max_depth>();
-
-template <> size_t get_device_info_host<info::device::image_max_buffer_size>();
-
-template <> size_t get_device_info_host<info::device::image_max_array_size>();
-
-template <> cl_uint get_device_info_host<info::device::max_samplers>();
-
-template <> size_t get_device_info_host<info::device::max_parameter_size>();
-
-template <> cl_uint get_device_info_host<info::device::mem_base_addr_align>();
-
-template <>
-vector_class<info::fp_config>
-get_device_info_host<info::device::half_fp_config>();
-
-template <>
-vector_class<info::fp_config>
-get_device_info_host<info::device::single_fp_config>();
-
-template <>
-vector_class<info::fp_config>
-get_device_info_host<info::device::double_fp_config>();
-
-template <>
-info::global_mem_cache_type
-get_device_info_host<info::device::global_mem_cache_type>();
-
-template <>
-cl_uint get_device_info_host<info::device::global_mem_cache_line_size>();
-
-template <>
-cl_ulong get_device_info_host<info::device::global_mem_cache_size>();
-
-template <>
-cl_ulong get_device_info_host<info::device::max_constant_buffer_size>();
-
-template <> cl_uint get_device_info_host<info::device::max_constant_args>();
-
-template <>
-info::local_mem_type get_device_info_host<info::device::local_mem_type>();
-
-template <> cl_ulong get_device_info_host<info::device::local_mem_size>();
-
-template <> bool get_device_info_host<info::device::error_correction_support>();
-
-template <> bool get_device_info_host<info::device::host_unified_memory>();
-
-template <>
-size_t get_device_info_host<info::device::profiling_timer_resolution>();
-
-template <> bool get_device_info_host<info::device::is_endian_little>();
-
-template <> bool get_device_info_host<info::device::is_available>();
-
-template <> bool get_device_info_host<info::device::is_compiler_available>();
-
-template <> bool get_device_info_host<info::device::is_linker_available>();
-
-template <>
-vector_class<info::execution_capability>
-get_device_info_host<info::device::execution_capabilities>();
-
-template <> bool get_device_info_host<info::device::queue_profiling>();
-
-template <>
-vector_class<string_class>
-get_device_info_host<info::device::built_in_kernels>();
-
-template <> platform get_device_info_host<info::device::platform>();
-
-template <> string_class get_device_info_host<info::device::name>();
-
-template <> string_class get_device_info_host<info::device::vendor>();
-
-template <> string_class get_device_info_host<info::device::driver_version>();
-
-template <> string_class get_device_info_host<info::device::profile>();
-
-template <> string_class get_device_info_host<info::device::version>();
-
-template <> string_class get_device_info_host<info::device::opencl_c_version>();
-
-template <>
-vector_class<string_class> get_device_info_host<info::device::extensions>();
-
-template <> size_t get_device_info_host<info::device::printf_buffer_size>();
-
-template <>
-bool get_device_info_host<info::device::preferred_interop_user_sync>();
-
-template <> device get_device_info_host<info::device::parent_device>();
-
-template <>
-cl_uint get_device_info_host<info::device::partition_max_sub_devices>();
-
-template <>
-vector_class<info::partition_property>
-get_device_info_host<info::device::partition_properties>();
-
-template <>
-vector_class<info::partition_affinity_domain>
-get_device_info_host<info::device::partition_affinity_domains>();
-
-template <>
-info::partition_property
-get_device_info_host<info::device::partition_type_property>();
-
-template <>
-info::partition_affinity_domain
-get_device_info_host<info::device::partition_type_affinity_domain>();
-
-template <> cl_uint get_device_info_host<info::device::reference_count>();
-
-template <> cl_uint get_device_info_host<info::device::max_num_sub_groups>();
-
-template <>
-vector_class<size_t> get_device_info_host<info::device::sub_group_sizes>();
-
-template <>
-bool get_device_info_host<
-    info::device::sub_group_independent_forward_progress>();
 
 } // namespace detail
 } // namespace sycl

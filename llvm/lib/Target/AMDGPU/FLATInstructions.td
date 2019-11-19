@@ -135,17 +135,15 @@ class GlobalSaddrTable <bit is_saddr, string Name = ""> {
 // saddr is 32-bit (which isn't handled here yet).
 class FLAT_Load_Pseudo <string opName, RegisterClass regClass,
   bit HasTiedOutput = 0,
-  bit HasSignedOffset = 0, bit HasSaddr = 0, bit EnableSaddr = 0> : FLAT_Pseudo<
+  bit HasSaddr = 0, bit EnableSaddr = 0> : FLAT_Pseudo<
   opName,
   (outs regClass:$vdst),
   !con(
     !con(
-      !con(
-        !con((ins VReg_64:$vaddr),
-          !if(EnableSaddr, (ins SReg_64:$saddr), (ins))),
-            (ins !if(HasSignedOffset,offset_s13,offset_u12):$offset)),
-            (ins GLC:$glc, SLC:$slc, DLC:$dlc)),
-            !if(HasTiedOutput, (ins regClass:$vdst_in), (ins))),
+      !con((ins VReg_64:$vaddr),
+        !if(EnableSaddr, (ins SReg_64:$saddr), (ins))),
+          (ins flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
+          !if(HasTiedOutput, (ins regClass:$vdst_in), (ins))),
   " $vdst, $vaddr"#!if(HasSaddr, !if(EnableSaddr, ", $saddr", ", off"), "")#"$offset$glc$slc$dlc"> {
   let has_data = 0;
   let mayLoad = 1;
@@ -159,15 +157,13 @@ class FLAT_Load_Pseudo <string opName, RegisterClass regClass,
 }
 
 class FLAT_Store_Pseudo <string opName, RegisterClass vdataClass,
-  bit HasSignedOffset = 0, bit HasSaddr = 0, bit EnableSaddr = 0> : FLAT_Pseudo<
+  bit HasSaddr = 0, bit EnableSaddr = 0> : FLAT_Pseudo<
   opName,
   (outs),
   !con(
-    !con(
-      !con((ins VReg_64:$vaddr, vdataClass:$vdata),
-        !if(EnableSaddr, (ins SReg_64:$saddr), (ins))),
-          (ins !if(HasSignedOffset,offset_s13,offset_u12):$offset)),
-          (ins GLC:$glc, SLC:$slc, DLC:$dlc)),
+    !con((ins VReg_64:$vaddr, vdataClass:$vdata),
+      !if(EnableSaddr, (ins SReg_64:$saddr), (ins))),
+        (ins flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
   " $vaddr, $vdata"#!if(HasSaddr, !if(EnableSaddr, ", $saddr", ", off"), "")#"$offset$glc$slc$dlc"> {
   let mayLoad  = 0;
   let mayStore = 1;
@@ -180,18 +176,18 @@ class FLAT_Store_Pseudo <string opName, RegisterClass vdataClass,
 
 multiclass FLAT_Global_Load_Pseudo<string opName, RegisterClass regClass, bit HasTiedInput = 0> {
   let is_flat_global = 1 in {
-    def "" : FLAT_Load_Pseudo<opName, regClass, HasTiedInput, 1, 1>,
+    def "" : FLAT_Load_Pseudo<opName, regClass, HasTiedInput, 1>,
       GlobalSaddrTable<0, opName>;
-    def _SADDR : FLAT_Load_Pseudo<opName, regClass, HasTiedInput, 1, 1, 1>,
+    def _SADDR : FLAT_Load_Pseudo<opName, regClass, HasTiedInput, 1, 1>,
       GlobalSaddrTable<1, opName>;
   }
 }
 
 multiclass FLAT_Global_Store_Pseudo<string opName, RegisterClass regClass> {
   let is_flat_global = 1 in {
-    def "" : FLAT_Store_Pseudo<opName, regClass, 1, 1>,
+    def "" : FLAT_Store_Pseudo<opName, regClass, 1>,
       GlobalSaddrTable<0, opName>;
-    def _SADDR : FLAT_Store_Pseudo<opName, regClass, 1, 1, 1>,
+    def _SADDR : FLAT_Store_Pseudo<opName, regClass, 1, 1>,
       GlobalSaddrTable<1, opName>;
   }
 }
@@ -201,8 +197,8 @@ class FLAT_Scratch_Load_Pseudo <string opName, RegisterClass regClass,
   opName,
   (outs regClass:$vdst),
   !if(EnableSaddr,
-      (ins SReg_32_XEXEC_HI:$saddr, offset_s13:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
-      (ins VGPR_32:$vaddr, offset_s13:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
+      (ins SReg_32_XEXEC_HI:$saddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
+      (ins VGPR_32:$vaddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
   " $vdst, "#!if(EnableSaddr, "off", "$vaddr")#!if(EnableSaddr, ", $saddr", ", off")#"$offset$glc$slc$dlc"> {
   let has_data = 0;
   let mayLoad = 1;
@@ -217,8 +213,8 @@ class FLAT_Scratch_Store_Pseudo <string opName, RegisterClass vdataClass, bit En
   opName,
   (outs),
   !if(EnableSaddr,
-    (ins vdataClass:$vdata, SReg_32_XEXEC_HI:$saddr, offset_s13:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
-    (ins vdataClass:$vdata, VGPR_32:$vaddr, offset_s13:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
+    (ins vdataClass:$vdata, SReg_32_XEXEC_HI:$saddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
+    (ins vdataClass:$vdata, VGPR_32:$vaddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
   " "#!if(EnableSaddr, "off", "$vaddr")#", $vdata, "#!if(EnableSaddr, "$saddr", "off")#"$offset$glc$slc$dlc"> {
   let mayLoad  = 0;
   let mayStore = 1;
@@ -273,24 +269,28 @@ multiclass FLAT_Atomic_Pseudo<
   ValueType vt,
   SDPatternOperator atomic = null_frag,
   ValueType data_vt = vt,
-  RegisterClass data_rc = vdst_rc> {
+  RegisterClass data_rc = vdst_rc,
+  bit isFP = isFloatType<data_vt>.ret> {
   def "" : FLAT_AtomicNoRet_Pseudo <opName,
     (outs),
-    (ins VReg_64:$vaddr, data_rc:$vdata, offset_u12:$offset, SLC:$slc),
+    (ins VReg_64:$vaddr, data_rc:$vdata, flat_offset:$offset, SLC:$slc),
     " $vaddr, $vdata$offset$slc">,
     GlobalSaddrTable<0, opName>,
     AtomicNoRet <opName, 0> {
     let PseudoInstr = NAME;
+    let FPAtomic = isFP;
   }
 
   def _RTN : FLAT_AtomicRet_Pseudo <opName,
     (outs vdst_rc:$vdst),
-    (ins VReg_64:$vaddr, data_rc:$vdata, offset_u12:$offset, SLC:$slc),
+    (ins VReg_64:$vaddr, data_rc:$vdata, flat_offset:$offset, SLC:$slc),
     " $vdst, $vaddr, $vdata$offset glc$slc",
     [(set vt:$vdst,
       (atomic (FLATAtomic i64:$vaddr, i16:$offset, i1:$slc), data_vt:$vdata))]>,
        GlobalSaddrTable<0, opName#"_rtn">,
-       AtomicNoRet <opName, 1>;
+       AtomicNoRet <opName, 1>{
+    let FPAtomic = isFP;
+  }
 }
 
 multiclass FLAT_Global_Atomic_Pseudo_NO_RTN<
@@ -299,27 +299,30 @@ multiclass FLAT_Global_Atomic_Pseudo_NO_RTN<
   ValueType vt,
   SDPatternOperator atomic = null_frag,
   ValueType data_vt = vt,
-  RegisterClass data_rc = vdst_rc> {
+  RegisterClass data_rc = vdst_rc,
+  bit isFP = isFloatType<data_vt>.ret> {
 
   def "" : FLAT_AtomicNoRet_Pseudo <opName,
     (outs),
-    (ins VReg_64:$vaddr, data_rc:$vdata, offset_s13:$offset, SLC:$slc),
+    (ins VReg_64:$vaddr, data_rc:$vdata, flat_offset:$offset, SLC:$slc),
     " $vaddr, $vdata, off$offset$slc">,
     GlobalSaddrTable<0, opName>,
     AtomicNoRet <opName, 0> {
     let has_saddr = 1;
     let PseudoInstr = NAME;
+    let FPAtomic = isFP;
   }
 
   def _SADDR : FLAT_AtomicNoRet_Pseudo <opName,
     (outs),
-    (ins VReg_64:$vaddr, data_rc:$vdata, SReg_64:$saddr, offset_s13:$offset, SLC:$slc),
+    (ins VReg_64:$vaddr, data_rc:$vdata, SReg_64:$saddr, flat_offset:$offset, SLC:$slc),
     " $vaddr, $vdata, $saddr$offset$slc">,
     GlobalSaddrTable<1, opName>,
     AtomicNoRet <opName#"_saddr", 0> {
     let has_saddr = 1;
     let enabled_saddr = 1;
     let PseudoInstr = NAME#"_SADDR";
+    let FPAtomic = isFP;
   }
 }
 
@@ -329,28 +332,31 @@ multiclass FLAT_Global_Atomic_Pseudo_RTN<
   ValueType vt,
   SDPatternOperator atomic = null_frag,
   ValueType data_vt = vt,
-  RegisterClass data_rc = vdst_rc> {
+  RegisterClass data_rc = vdst_rc,
+  bit isFP = isFloatType<data_vt>.ret> {
 
   def _RTN : FLAT_AtomicRet_Pseudo <opName,
     (outs vdst_rc:$vdst),
-      (ins VReg_64:$vaddr, data_rc:$vdata, offset_s13:$offset, SLC:$slc),
+      (ins VReg_64:$vaddr, data_rc:$vdata, flat_offset:$offset, SLC:$slc),
     " $vdst, $vaddr, $vdata, off$offset glc$slc",
     [(set vt:$vdst,
       (atomic (FLATSignedAtomic i64:$vaddr, i16:$offset, i1:$slc), data_vt:$vdata))]>,
       GlobalSaddrTable<0, opName#"_rtn">,
       AtomicNoRet <opName, 1> {
     let has_saddr = 1;
+    let FPAtomic = isFP;
   }
 
   def _SADDR_RTN : FLAT_AtomicRet_Pseudo <opName,
     (outs vdst_rc:$vdst),
-      (ins VReg_64:$vaddr, data_rc:$vdata, SReg_64:$saddr, offset_s13:$offset, SLC:$slc),
+      (ins VReg_64:$vaddr, data_rc:$vdata, SReg_64:$saddr, flat_offset:$offset, SLC:$slc),
     " $vdst, $vaddr, $vdata, $saddr$offset glc$slc">,
     GlobalSaddrTable<1, opName#"_rtn">,
     AtomicNoRet <opName#"_saddr", 1> {
      let has_saddr = 1;
      let enabled_saddr = 1;
      let PseudoInstr = NAME#"_SADDR_RTN";
+     let FPAtomic = isFP;
   }
 }
 
@@ -358,32 +364,12 @@ multiclass FLAT_Global_Atomic_Pseudo<
   string opName,
   RegisterClass vdst_rc,
   ValueType vt,
-  SDPatternOperator atomic = null_frag,
+  SDPatternOperator atomic_rtn = null_frag,
+  SDPatternOperator atomic_no_rtn = null_frag,
   ValueType data_vt = vt,
   RegisterClass data_rc = vdst_rc> :
-    FLAT_Global_Atomic_Pseudo_NO_RTN<opName, vdst_rc, vt, atomic, data_vt, data_rc>,
-    FLAT_Global_Atomic_Pseudo_RTN<opName, vdst_rc, vt, atomic, data_vt, data_rc>;
-
-class flat_binary_atomic_op<SDNode atomic_op> : PatFrag<
-  (ops node:$ptr, node:$value),
-  (atomic_op node:$ptr, node:$value),
-  [{return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::FLAT_ADDRESS;}]
->;
-
-def atomic_cmp_swap_flat : flat_binary_atomic_op<AMDGPUatomic_cmp_swap>;
-def atomic_swap_flat     : flat_binary_atomic_op<atomic_swap>;
-def atomic_add_flat      : flat_binary_atomic_op<atomic_load_add>;
-def atomic_and_flat      : flat_binary_atomic_op<atomic_load_and>;
-def atomic_max_flat      : flat_binary_atomic_op<atomic_load_max>;
-def atomic_min_flat      : flat_binary_atomic_op<atomic_load_min>;
-def atomic_or_flat       : flat_binary_atomic_op<atomic_load_or>;
-def atomic_sub_flat      : flat_binary_atomic_op<atomic_load_sub>;
-def atomic_umax_flat     : flat_binary_atomic_op<atomic_load_umax>;
-def atomic_umin_flat     : flat_binary_atomic_op<atomic_load_umin>;
-def atomic_xor_flat      : flat_binary_atomic_op<atomic_load_xor>;
-def atomic_inc_flat      : flat_binary_atomic_op<SIatomic_inc>;
-def atomic_dec_flat      : flat_binary_atomic_op<SIatomic_dec>;
-
+    FLAT_Global_Atomic_Pseudo_NO_RTN<opName, vdst_rc, vt, atomic_no_rtn, data_vt, data_rc>,
+    FLAT_Global_Atomic_Pseudo_RTN<opName, vdst_rc, vt, atomic_rtn, data_vt, data_rc>;
 
 
 //===----------------------------------------------------------------------===//
@@ -419,84 +405,84 @@ def FLAT_STORE_SHORT_D16_HI : FLAT_Store_Pseudo <"flat_store_short_d16_hi", VGPR
 }
 
 defm FLAT_ATOMIC_CMPSWAP    : FLAT_Atomic_Pseudo <"flat_atomic_cmpswap",
-                                VGPR_32, i32, atomic_cmp_swap_flat,
+                                VGPR_32, i32, AMDGPUatomic_cmp_swap_flat_32,
                                 v2i32, VReg_64>;
 
 defm FLAT_ATOMIC_CMPSWAP_X2 : FLAT_Atomic_Pseudo <"flat_atomic_cmpswap_x2",
-                                VReg_64, i64, atomic_cmp_swap_flat,
+                                VReg_64, i64, AMDGPUatomic_cmp_swap_flat_64,
                                 v2i64, VReg_128>;
 
 defm FLAT_ATOMIC_SWAP       : FLAT_Atomic_Pseudo <"flat_atomic_swap",
-                                VGPR_32, i32, atomic_swap_flat>;
+                                VGPR_32, i32, atomic_swap_flat_32>;
 
 defm FLAT_ATOMIC_SWAP_X2    : FLAT_Atomic_Pseudo <"flat_atomic_swap_x2",
-                                VReg_64, i64, atomic_swap_flat>;
+                                VReg_64, i64, atomic_swap_flat_64>;
 
 defm FLAT_ATOMIC_ADD        : FLAT_Atomic_Pseudo <"flat_atomic_add",
-                                VGPR_32, i32, atomic_add_flat>;
+                                VGPR_32, i32, atomic_load_add_flat_32>;
 
 defm FLAT_ATOMIC_SUB        : FLAT_Atomic_Pseudo <"flat_atomic_sub",
-                                VGPR_32, i32, atomic_sub_flat>;
+                                VGPR_32, i32, atomic_load_sub_flat_32>;
 
 defm FLAT_ATOMIC_SMIN       : FLAT_Atomic_Pseudo <"flat_atomic_smin",
-                                VGPR_32, i32, atomic_min_flat>;
+                                VGPR_32, i32, atomic_load_min_flat_32>;
 
 defm FLAT_ATOMIC_UMIN       : FLAT_Atomic_Pseudo <"flat_atomic_umin",
-                                VGPR_32, i32, atomic_umin_flat>;
+                                VGPR_32, i32, atomic_load_umin_flat_32>;
 
 defm FLAT_ATOMIC_SMAX       : FLAT_Atomic_Pseudo <"flat_atomic_smax",
-                                VGPR_32, i32, atomic_max_flat>;
+                                VGPR_32, i32, atomic_load_max_flat_32>;
 
 defm FLAT_ATOMIC_UMAX       : FLAT_Atomic_Pseudo <"flat_atomic_umax",
-                                VGPR_32, i32, atomic_umax_flat>;
+                                VGPR_32, i32, atomic_load_umax_flat_32>;
 
 defm FLAT_ATOMIC_AND        : FLAT_Atomic_Pseudo <"flat_atomic_and",
-                                VGPR_32, i32, atomic_and_flat>;
+                                VGPR_32, i32, atomic_load_and_flat_32>;
 
 defm FLAT_ATOMIC_OR         : FLAT_Atomic_Pseudo <"flat_atomic_or",
-                                VGPR_32, i32, atomic_or_flat>;
+                                VGPR_32, i32, atomic_load_or_flat_32>;
 
 defm FLAT_ATOMIC_XOR        : FLAT_Atomic_Pseudo <"flat_atomic_xor",
-                                VGPR_32, i32, atomic_xor_flat>;
+                                VGPR_32, i32, atomic_load_xor_flat_32>;
 
 defm FLAT_ATOMIC_INC        : FLAT_Atomic_Pseudo <"flat_atomic_inc",
-                                VGPR_32, i32, atomic_inc_flat>;
+                                VGPR_32, i32, atomic_inc_flat_32>;
 
 defm FLAT_ATOMIC_DEC        : FLAT_Atomic_Pseudo <"flat_atomic_dec",
-                                VGPR_32, i32, atomic_dec_flat>;
+                                VGPR_32, i32, atomic_dec_flat_32>;
 
 defm FLAT_ATOMIC_ADD_X2     : FLAT_Atomic_Pseudo <"flat_atomic_add_x2",
-                                VReg_64, i64, atomic_add_flat>;
+                                VReg_64, i64, atomic_load_add_flat_64>;
 
 defm FLAT_ATOMIC_SUB_X2     : FLAT_Atomic_Pseudo <"flat_atomic_sub_x2",
-                                VReg_64, i64, atomic_sub_flat>;
+                                VReg_64, i64, atomic_load_sub_flat_64>;
 
 defm FLAT_ATOMIC_SMIN_X2    : FLAT_Atomic_Pseudo <"flat_atomic_smin_x2",
-                                VReg_64, i64, atomic_min_flat>;
+                                VReg_64, i64, atomic_load_min_flat_64>;
 
 defm FLAT_ATOMIC_UMIN_X2    : FLAT_Atomic_Pseudo <"flat_atomic_umin_x2",
-                                VReg_64, i64, atomic_umin_flat>;
+                                VReg_64, i64, atomic_load_umin_flat_64>;
 
 defm FLAT_ATOMIC_SMAX_X2    : FLAT_Atomic_Pseudo <"flat_atomic_smax_x2",
-                                VReg_64, i64, atomic_max_flat>;
+                                VReg_64, i64, atomic_load_max_flat_64>;
 
 defm FLAT_ATOMIC_UMAX_X2    : FLAT_Atomic_Pseudo <"flat_atomic_umax_x2",
-                                VReg_64, i64, atomic_umax_flat>;
+                                VReg_64, i64, atomic_load_umax_flat_64>;
 
 defm FLAT_ATOMIC_AND_X2     : FLAT_Atomic_Pseudo <"flat_atomic_and_x2",
-                                VReg_64, i64, atomic_and_flat>;
+                                VReg_64, i64, atomic_load_and_flat_64>;
 
 defm FLAT_ATOMIC_OR_X2      : FLAT_Atomic_Pseudo <"flat_atomic_or_x2",
-                                VReg_64, i64, atomic_or_flat>;
+                                VReg_64, i64, atomic_load_or_flat_64>;
 
 defm FLAT_ATOMIC_XOR_X2     : FLAT_Atomic_Pseudo <"flat_atomic_xor_x2",
-                                VReg_64, i64, atomic_xor_flat>;
+                                VReg_64, i64, atomic_load_xor_flat_64>;
 
 defm FLAT_ATOMIC_INC_X2     : FLAT_Atomic_Pseudo <"flat_atomic_inc_x2",
-                                VReg_64, i64, atomic_inc_flat>;
+                                VReg_64, i64, atomic_inc_flat_64>;
 
 defm FLAT_ATOMIC_DEC_X2     : FLAT_Atomic_Pseudo <"flat_atomic_dec_x2",
-                                VReg_64, i64, atomic_dec_flat>;
+                                VReg_64, i64, atomic_dec_flat_64>;
 
 // GFX7-, GFX10-only flat instructions.
 let SubtargetPredicate = isGFX7GFX10 in {
@@ -550,84 +536,85 @@ defm GLOBAL_STORE_SHORT_D16_HI : FLAT_Global_Store_Pseudo <"global_store_short_d
 
 let is_flat_global = 1 in {
 defm GLOBAL_ATOMIC_CMPSWAP : FLAT_Global_Atomic_Pseudo <"global_atomic_cmpswap",
-                               VGPR_32, i32, AMDGPUatomic_cmp_swap_global,
+                               VGPR_32, i32, AMDGPUatomic_cmp_swap_global_32, null_frag,
                                v2i32, VReg_64>;
 
 defm GLOBAL_ATOMIC_CMPSWAP_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_cmpswap_x2",
-                                  VReg_64, i64, AMDGPUatomic_cmp_swap_global,
+                                  VReg_64, i64, AMDGPUatomic_cmp_swap_global_64,
+                                  null_frag,
                                   v2i64, VReg_128>;
 
 defm GLOBAL_ATOMIC_SWAP : FLAT_Global_Atomic_Pseudo <"global_atomic_swap",
-                             VGPR_32, i32, atomic_swap_global>;
+                             VGPR_32, i32, atomic_swap_global_32>;
 
 defm GLOBAL_ATOMIC_SWAP_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_swap_x2",
-                                VReg_64, i64, atomic_swap_global>;
+                                VReg_64, i64, atomic_swap_global_64>;
 
 defm GLOBAL_ATOMIC_ADD : FLAT_Global_Atomic_Pseudo <"global_atomic_add",
-                           VGPR_32, i32, atomic_add_global>;
+                           VGPR_32, i32, atomic_load_add_global_32>;
 
 defm GLOBAL_ATOMIC_SUB : FLAT_Global_Atomic_Pseudo <"global_atomic_sub",
-                           VGPR_32, i32, atomic_sub_global>;
+                           VGPR_32, i32, atomic_load_sub_global_32>;
 
 defm GLOBAL_ATOMIC_SMIN : FLAT_Global_Atomic_Pseudo <"global_atomic_smin",
-                            VGPR_32, i32, atomic_min_global>;
+                            VGPR_32, i32, atomic_load_min_global_32>;
 
 defm GLOBAL_ATOMIC_UMIN : FLAT_Global_Atomic_Pseudo <"global_atomic_umin",
-                            VGPR_32, i32, atomic_umin_global>;
+                            VGPR_32, i32, atomic_load_umin_global_32>;
 
 defm GLOBAL_ATOMIC_SMAX : FLAT_Global_Atomic_Pseudo <"global_atomic_smax",
-                            VGPR_32, i32, atomic_max_global>;
+                            VGPR_32, i32, atomic_load_max_global_32>;
 
 defm GLOBAL_ATOMIC_UMAX : FLAT_Global_Atomic_Pseudo <"global_atomic_umax",
-                            VGPR_32, i32, atomic_umax_global>;
+                            VGPR_32, i32, atomic_load_umax_global_32>;
 
 defm GLOBAL_ATOMIC_AND : FLAT_Global_Atomic_Pseudo <"global_atomic_and",
-                           VGPR_32, i32, atomic_and_global>;
+                           VGPR_32, i32, atomic_load_and_global_32>;
 
 defm GLOBAL_ATOMIC_OR : FLAT_Global_Atomic_Pseudo <"global_atomic_or",
-                          VGPR_32, i32, atomic_or_global>;
+                          VGPR_32, i32, atomic_load_or_global_32>;
 
 defm GLOBAL_ATOMIC_XOR : FLAT_Global_Atomic_Pseudo <"global_atomic_xor",
-                           VGPR_32, i32, atomic_xor_global>;
+                           VGPR_32, i32, atomic_load_xor_global_32>;
 
 defm GLOBAL_ATOMIC_INC : FLAT_Global_Atomic_Pseudo <"global_atomic_inc",
-                           VGPR_32, i32, atomic_inc_global>;
+                           VGPR_32, i32, atomic_inc_global_32>;
 
 defm GLOBAL_ATOMIC_DEC : FLAT_Global_Atomic_Pseudo <"global_atomic_dec",
-                           VGPR_32, i32, atomic_dec_global>;
+                           VGPR_32, i32, atomic_dec_global_32>;
 
 defm GLOBAL_ATOMIC_ADD_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_add_x2",
-                              VReg_64, i64, atomic_add_global>;
+                              VReg_64, i64, atomic_load_add_global_64>;
 
 defm GLOBAL_ATOMIC_SUB_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_sub_x2",
-                              VReg_64, i64, atomic_sub_global>;
+                              VReg_64, i64, atomic_load_sub_global_64>;
 
 defm GLOBAL_ATOMIC_SMIN_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_smin_x2",
-                               VReg_64, i64, atomic_min_global>;
+                               VReg_64, i64, atomic_load_min_global_64>;
 
 defm GLOBAL_ATOMIC_UMIN_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_umin_x2",
-                               VReg_64, i64, atomic_umin_global>;
+                               VReg_64, i64, atomic_load_umin_global_64>;
 
 defm GLOBAL_ATOMIC_SMAX_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_smax_x2",
-                               VReg_64, i64, atomic_max_global>;
+                               VReg_64, i64, atomic_load_max_global_64>;
 
 defm GLOBAL_ATOMIC_UMAX_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_umax_x2",
-                               VReg_64, i64, atomic_umax_global>;
+                               VReg_64, i64, atomic_load_umax_global_64>;
 
 defm GLOBAL_ATOMIC_AND_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_and_x2",
-                              VReg_64, i64, atomic_and_global>;
+                              VReg_64, i64, atomic_load_and_global_64>;
 
 defm GLOBAL_ATOMIC_OR_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_or_x2",
-                             VReg_64, i64, atomic_or_global>;
+                             VReg_64, i64, atomic_load_or_global_64>;
 
 defm GLOBAL_ATOMIC_XOR_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_xor_x2",
-                              VReg_64, i64, atomic_xor_global>;
+                              VReg_64, i64, atomic_load_xor_global_64>;
 
 defm GLOBAL_ATOMIC_INC_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_inc_x2",
-                              VReg_64, i64, atomic_inc_global>;
+                              VReg_64, i64, atomic_inc_global_64>;
 
 defm GLOBAL_ATOMIC_DEC_X2 : FLAT_Global_Atomic_Pseudo <"global_atomic_dec_x2",
-                              VReg_64, i64, atomic_dec_global>;
+                              VReg_64, i64, atomic_dec_global_64>;
 } // End is_flat_global = 1
 
 } // End SubtargetPredicate = HasFlatGlobalInsts
@@ -677,6 +664,16 @@ let SubtargetPredicate = isGFX10Plus, is_flat_global = 1 in {
     FLAT_Global_Atomic_Pseudo<"global_atomic_fmax_x2", VReg_64, f64>;
 } // End SubtargetPredicate = isGFX10Plus, is_flat_global = 1
 
+let SubtargetPredicate = HasAtomicFaddInsts, is_flat_global = 1 in {
+
+defm GLOBAL_ATOMIC_ADD_F32 : FLAT_Global_Atomic_Pseudo_NO_RTN <
+  "global_atomic_add_f32", VGPR_32, f32, atomic_fadd_global_noret
+>;
+defm GLOBAL_ATOMIC_PK_ADD_F16 : FLAT_Global_Atomic_Pseudo_NO_RTN <
+  "global_atomic_pk_add_f16", VGPR_32, v2f16, atomic_pk_fadd_global_noret
+>;
+
+} // End SubtargetPredicate = HasAtomicFaddInsts
 
 //===----------------------------------------------------------------------===//
 // Flat Patterns
@@ -689,52 +686,57 @@ class FlatLoadPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCN
 >;
 
 class FlatLoadPat_D16 <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <
-  (node (FLATOffset i64:$vaddr, i16:$offset, i1:$slc), vt:$in),
+  (node (FLATOffset (i64 VReg_64:$vaddr), i16:$offset, i1:$slc), vt:$in),
   (inst $vaddr, $offset, 0, 0, $slc, $in)
 >;
 
 class FlatSignedLoadPat_D16 <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <
-  (node (FLATOffsetSigned i64:$vaddr, i16:$offset, i1:$slc), vt:$in),
+  (node (FLATOffsetSigned (i64 VReg_64:$vaddr), i16:$offset, i1:$slc), vt:$in),
   (inst $vaddr, $offset, 0, 0, $slc, $in)
 >;
 
 class FlatLoadAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <
-  (vt (node (FLATAtomic i64:$vaddr, i16:$offset, i1:$slc))),
+  (vt (node (FLATAtomic (i64 VReg_64:$vaddr), i16:$offset, i1:$slc))),
   (inst $vaddr, $offset, 0, 0, $slc)
 >;
 
 class FlatLoadSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <
-  (vt (node (FLATOffsetSigned i64:$vaddr, i16:$offset, i1:$slc))),
+  (vt (node (FLATOffsetSigned (i64 VReg_64:$vaddr), i16:$offset, i1:$slc))),
   (inst $vaddr, $offset, 0, 0, $slc)
 >;
 
-class FlatStorePat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <
+class FlatStorePat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VGPR_32> : GCNPat <
   (node vt:$data, (FLATOffset i64:$vaddr, i16:$offset, i1:$slc)),
-  (inst $vaddr, $data, $offset, 0, 0, $slc)
+  (inst $vaddr, rc:$data, $offset, 0, 0, $slc)
 >;
 
-class FlatStoreSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <
+class FlatStoreSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VGPR_32> : GCNPat <
   (node vt:$data, (FLATOffsetSigned i64:$vaddr, i16:$offset, i1:$slc)),
-  (inst $vaddr, $data, $offset, 0, 0, $slc)
+  (inst $vaddr, rc:$data, $offset, 0, 0, $slc)
 >;
 
-class FlatStoreAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <
+class FlatStoreAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VGPR_32> : GCNPat <
   // atomic store follows atomic binop convention so the address comes
   // first.
   (node (FLATAtomic i64:$vaddr, i16:$offset, i1:$slc), vt:$data),
-  (inst $vaddr, $data, $offset, 0, 0, $slc)
+  (inst $vaddr, rc:$data, $offset, 0, 0, $slc)
 >;
 
-class FlatStoreSignedAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <
+class FlatStoreSignedAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VGPR_32> : GCNPat <
   // atomic store follows atomic binop convention so the address comes
   // first.
   (node (FLATSignedAtomic i64:$vaddr, i16:$offset, i1:$slc), vt:$data),
-  (inst $vaddr, $data, $offset, 0, 0, $slc)
+  (inst $vaddr, rc:$data, $offset, 0, 0, $slc)
 >;
 
 class FlatAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt,
                      ValueType data_vt = vt> : GCNPat <
   (vt (node (FLATAtomic i64:$vaddr, i16:$offset, i1:$slc), data_vt:$data)),
+  (inst $vaddr, $data, $offset, $slc)
+>;
+
+class FlatAtomicPatNoRtn <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : GCNPat <
+  (node (FLATAtomic i64:$vaddr, i16:$offset, i1:$slc), vt:$data),
   (inst $vaddr, $data, $offset, $slc)
 >;
 
@@ -746,58 +748,68 @@ class FlatSignedAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType v
 
 let OtherPredicates = [HasFlatAddressSpace] in {
 
-def : FlatLoadPat <FLAT_LOAD_UBYTE, az_extloadi8_flat, i32>;
+def : FlatLoadPat <FLAT_LOAD_UBYTE, extloadi8_flat, i32>;
+def : FlatLoadPat <FLAT_LOAD_UBYTE, zextloadi8_flat, i32>;
 def : FlatLoadPat <FLAT_LOAD_SBYTE, sextloadi8_flat, i32>;
-def : FlatLoadPat <FLAT_LOAD_UBYTE, az_extloadi8_flat, i16>;
+def : FlatLoadPat <FLAT_LOAD_UBYTE, extloadi8_flat, i16>;
+def : FlatLoadPat <FLAT_LOAD_UBYTE, zextloadi8_flat, i16>;
 def : FlatLoadPat <FLAT_LOAD_SBYTE, sextloadi8_flat, i16>;
-def : FlatLoadPat <FLAT_LOAD_USHORT, az_extloadi16_flat, i32>;
+def : FlatLoadPat <FLAT_LOAD_USHORT, extloadi16_flat, i32>;
+def : FlatLoadPat <FLAT_LOAD_USHORT, zextloadi16_flat, i32>;
 def : FlatLoadPat <FLAT_LOAD_USHORT, load_flat, i16>;
 def : FlatLoadPat <FLAT_LOAD_SSHORT, sextloadi16_flat, i32>;
-def : FlatLoadPat <FLAT_LOAD_DWORD, load_flat, i32>;
-def : FlatLoadPat <FLAT_LOAD_DWORDX2, load_flat, v2i32>;
 def : FlatLoadPat <FLAT_LOAD_DWORDX3, load_flat, v3i32>;
 def : FlatLoadPat <FLAT_LOAD_DWORDX4, load_flat, v4i32>;
 
-def : FlatLoadAtomicPat <FLAT_LOAD_DWORD, atomic_load_flat, i32>;
-def : FlatLoadAtomicPat <FLAT_LOAD_DWORDX2, atomic_load_flat, i64>;
+def : FlatLoadAtomicPat <FLAT_LOAD_DWORD, atomic_load_32_flat, i32>;
+def : FlatLoadAtomicPat <FLAT_LOAD_DWORDX2, atomic_load_64_flat, i64>;
 
 def : FlatStorePat <FLAT_STORE_BYTE, truncstorei8_flat, i32>;
 def : FlatStorePat <FLAT_STORE_SHORT, truncstorei16_flat, i32>;
-def : FlatStorePat <FLAT_STORE_DWORD, store_flat, i32>;
-def : FlatStorePat <FLAT_STORE_DWORDX2, store_flat, v2i32>;
-def : FlatStorePat <FLAT_STORE_DWORDX3, store_flat, v3i32>;
-def : FlatStorePat <FLAT_STORE_DWORDX4, store_flat, v4i32>;
 
-def : FlatStoreAtomicPat <FLAT_STORE_DWORD, atomic_store_flat, i32>;
-def : FlatStoreAtomicPat <FLAT_STORE_DWORDX2, atomic_store_flat, i64>;
+foreach vt = Reg32Types.types in {
+def : FlatLoadPat <FLAT_LOAD_DWORD, load_flat, vt>;
+def : FlatStorePat <FLAT_STORE_DWORD, store_flat, vt>;
+}
 
-def : FlatAtomicPat <FLAT_ATOMIC_ADD_RTN, atomic_add_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_SUB_RTN, atomic_sub_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_INC_RTN, atomic_inc_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_DEC_RTN, atomic_dec_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_AND_RTN, atomic_and_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_SMAX_RTN, atomic_max_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_UMAX_RTN, atomic_umax_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_SMIN_RTN, atomic_min_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_UMIN_RTN, atomic_umin_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_OR_RTN, atomic_or_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_SWAP_RTN, atomic_swap_global, i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_CMPSWAP_RTN, AMDGPUatomic_cmp_swap_global, i32, v2i32>;
-def : FlatAtomicPat <FLAT_ATOMIC_XOR_RTN, atomic_xor_global, i32>;
+foreach vt = VReg_64.RegTypes in {
+def : FlatStorePat <FLAT_STORE_DWORDX2, store_flat, vt, VReg_64>;
+def : FlatLoadPat <FLAT_LOAD_DWORDX2, load_flat, vt>;
+}
 
-def : FlatAtomicPat <FLAT_ATOMIC_ADD_X2_RTN, atomic_add_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_SUB_X2_RTN, atomic_sub_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_INC_X2_RTN, atomic_inc_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_DEC_X2_RTN, atomic_dec_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_AND_X2_RTN, atomic_and_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_SMAX_X2_RTN, atomic_max_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_UMAX_X2_RTN, atomic_umax_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_SMIN_X2_RTN, atomic_min_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_UMIN_X2_RTN, atomic_umin_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_OR_X2_RTN, atomic_or_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_SWAP_X2_RTN, atomic_swap_global, i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_CMPSWAP_X2_RTN, AMDGPUatomic_cmp_swap_global, i64, v2i64>;
-def : FlatAtomicPat <FLAT_ATOMIC_XOR_X2_RTN, atomic_xor_global, i64>;
+def : FlatStorePat <FLAT_STORE_DWORDX3, store_flat, v3i32, VReg_96>;
+def : FlatStorePat <FLAT_STORE_DWORDX4, store_flat, v4i32, VReg_128>;
+
+def : FlatStoreAtomicPat <FLAT_STORE_DWORD, atomic_store_flat_32, i32>;
+def : FlatStoreAtomicPat <FLAT_STORE_DWORDX2, atomic_store_flat_64, i64, VReg_64>;
+
+def : FlatAtomicPat <FLAT_ATOMIC_ADD_RTN, atomic_load_add_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_SUB_RTN, atomic_load_sub_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_INC_RTN, atomic_inc_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_DEC_RTN, atomic_dec_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_AND_RTN, atomic_load_and_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_SMAX_RTN, atomic_load_max_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_UMAX_RTN, atomic_load_umax_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_SMIN_RTN, atomic_load_min_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_UMIN_RTN, atomic_load_umin_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_OR_RTN, atomic_load_or_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_SWAP_RTN, atomic_swap_global_32, i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_CMPSWAP_RTN, AMDGPUatomic_cmp_swap_global_32, i32, v2i32>;
+def : FlatAtomicPat <FLAT_ATOMIC_XOR_RTN, atomic_load_xor_global_32, i32>;
+
+def : FlatAtomicPat <FLAT_ATOMIC_ADD_X2_RTN, atomic_load_add_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_SUB_X2_RTN, atomic_load_sub_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_INC_X2_RTN, atomic_inc_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_DEC_X2_RTN, atomic_dec_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_AND_X2_RTN, atomic_load_and_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_SMAX_X2_RTN, atomic_load_max_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_UMAX_X2_RTN, atomic_load_umax_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_SMIN_X2_RTN, atomic_load_min_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_UMIN_X2_RTN, atomic_load_umin_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_OR_X2_RTN, atomic_load_or_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_SWAP_X2_RTN, atomic_swap_global_64, i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_CMPSWAP_X2_RTN, AMDGPUatomic_cmp_swap_global_64, i64, v2i64>;
+def : FlatAtomicPat <FLAT_ATOMIC_XOR_X2_RTN, atomic_load_xor_global_64, i64>;
 
 def : FlatStorePat <FLAT_STORE_BYTE, truncstorei8_flat, i16>;
 def : FlatStorePat <FLAT_STORE_SHORT, store_flat, i16>;
@@ -825,30 +837,39 @@ def : FlatLoadPat_D16 <FLAT_LOAD_SHORT_D16, load_d16_lo_flat, v2f16>;
 
 let OtherPredicates = [HasFlatGlobalInsts], AddedComplexity = 10 in {
 
-def : FlatLoadSignedPat <GLOBAL_LOAD_UBYTE, az_extloadi8_global, i32>;
+def : FlatLoadSignedPat <GLOBAL_LOAD_UBYTE, extloadi8_global, i32>;
+def : FlatLoadSignedPat <GLOBAL_LOAD_UBYTE, zextloadi8_global, i32>;
 def : FlatLoadSignedPat <GLOBAL_LOAD_SBYTE, sextloadi8_global, i32>;
-def : FlatLoadSignedPat <GLOBAL_LOAD_UBYTE, az_extloadi8_global, i16>;
+def : FlatLoadSignedPat <GLOBAL_LOAD_UBYTE, extloadi8_global, i16>;
+def : FlatLoadSignedPat <GLOBAL_LOAD_UBYTE, zextloadi8_global, i16>;
 def : FlatLoadSignedPat <GLOBAL_LOAD_SBYTE, sextloadi8_global, i16>;
-def : FlatLoadSignedPat <GLOBAL_LOAD_USHORT, az_extloadi16_global, i32>;
+def : FlatLoadSignedPat <GLOBAL_LOAD_USHORT, extloadi16_global, i32>;
+def : FlatLoadSignedPat <GLOBAL_LOAD_USHORT, zextloadi16_global, i32>;
 def : FlatLoadSignedPat <GLOBAL_LOAD_SSHORT, sextloadi16_global, i32>;
 def : FlatLoadSignedPat <GLOBAL_LOAD_USHORT, load_global, i16>;
 
-def : FlatLoadSignedPat <GLOBAL_LOAD_DWORD, load_global, i32>;
-def : FlatLoadSignedPat <GLOBAL_LOAD_DWORDX2, load_global, v2i32>;
+foreach vt = Reg32Types.types in {
+def : FlatLoadSignedPat <GLOBAL_LOAD_DWORD, load_global, vt>;
+def : FlatStoreSignedPat <GLOBAL_STORE_DWORD, store_global, vt, VGPR_32>;
+}
+
+foreach vt = VReg_64.RegTypes in {
+def : FlatLoadSignedPat <GLOBAL_LOAD_DWORDX2, load_global, vt>;
+def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX2, store_global, vt, VReg_64>;
+}
+
 def : FlatLoadSignedPat <GLOBAL_LOAD_DWORDX3, load_global, v3i32>;
 def : FlatLoadSignedPat <GLOBAL_LOAD_DWORDX4, load_global, v4i32>;
 
-def : FlatLoadAtomicPat <GLOBAL_LOAD_DWORD, atomic_load_global, i32>;
-def : FlatLoadAtomicPat <GLOBAL_LOAD_DWORDX2, atomic_load_global, i64>;
+def : FlatLoadAtomicPat <GLOBAL_LOAD_DWORD, atomic_load_32_global, i32>;
+def : FlatLoadAtomicPat <GLOBAL_LOAD_DWORDX2, atomic_load_64_global, i64>;
 
-def : FlatStoreSignedPat <GLOBAL_STORE_BYTE, truncstorei8_global, i32>;
-def : FlatStoreSignedPat <GLOBAL_STORE_BYTE, truncstorei8_global, i16>;
-def : FlatStoreSignedPat <GLOBAL_STORE_SHORT, truncstorei16_global, i32>;
-def : FlatStoreSignedPat <GLOBAL_STORE_SHORT, store_global, i16>;
-def : FlatStoreSignedPat <GLOBAL_STORE_DWORD, store_global, i32>;
-def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX2, store_global, v2i32>;
-def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX3, store_global, v3i32>;
-def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX4, store_global, v4i32>;
+def : FlatStoreSignedPat <GLOBAL_STORE_BYTE, truncstorei8_global, i32, VGPR_32>;
+def : FlatStoreSignedPat <GLOBAL_STORE_BYTE, truncstorei8_global, i16, VGPR_32>;
+def : FlatStoreSignedPat <GLOBAL_STORE_SHORT, truncstorei16_global, i32, VGPR_32>;
+def : FlatStoreSignedPat <GLOBAL_STORE_SHORT, store_global, i16, VGPR_32>;
+def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX3, store_global, v3i32, VReg_96>;
+def : FlatStoreSignedPat <GLOBAL_STORE_DWORDX4, store_global, v4i32, VReg_128>;
 
 let OtherPredicates = [D16PreservesUnusedBits] in {
 def : FlatStoreSignedPat <GLOBAL_STORE_SHORT_D16_HI, truncstorei16_hi16_global, i32>;
@@ -870,35 +891,38 @@ def : FlatSignedLoadPat_D16 <GLOBAL_LOAD_SHORT_D16, load_d16_lo_global, v2f16>;
 }
 
 def : FlatStoreSignedAtomicPat <GLOBAL_STORE_DWORD, store_atomic_global, i32>;
-def : FlatStoreSignedAtomicPat <GLOBAL_STORE_DWORDX2, store_atomic_global, i64>;
+def : FlatStoreSignedAtomicPat <GLOBAL_STORE_DWORDX2, store_atomic_global, i64, VReg_64>;
 
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_ADD_RTN, atomic_add_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SUB_RTN, atomic_sub_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_INC_RTN, atomic_inc_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_DEC_RTN, atomic_dec_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_AND_RTN, atomic_and_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SMAX_RTN, atomic_max_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_UMAX_RTN, atomic_umax_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SMIN_RTN, atomic_min_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_UMIN_RTN, atomic_umin_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_OR_RTN, atomic_or_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SWAP_RTN, atomic_swap_global, i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_CMPSWAP_RTN, AMDGPUatomic_cmp_swap_global, i32, v2i32>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_XOR_RTN, atomic_xor_global, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_ADD_RTN, atomic_load_add_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SUB_RTN, atomic_load_sub_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_INC_RTN, atomic_inc_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_DEC_RTN, atomic_dec_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_AND_RTN, atomic_load_and_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SMAX_RTN, atomic_load_max_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_UMAX_RTN, atomic_load_umax_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SMIN_RTN, atomic_load_min_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_UMIN_RTN, atomic_load_umin_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_OR_RTN, atomic_load_or_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SWAP_RTN, atomic_swap_global_32, i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_CMPSWAP_RTN, AMDGPUatomic_cmp_swap_global_32, i32, v2i32>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_XOR_RTN, atomic_load_xor_global_32, i32>;
 
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_ADD_X2_RTN, atomic_add_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SUB_X2_RTN, atomic_sub_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_INC_X2_RTN, atomic_inc_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_DEC_X2_RTN, atomic_dec_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_AND_X2_RTN, atomic_and_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SMAX_X2_RTN, atomic_max_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_UMAX_X2_RTN, atomic_umax_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SMIN_X2_RTN, atomic_min_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_UMIN_X2_RTN, atomic_umin_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_OR_X2_RTN, atomic_or_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SWAP_X2_RTN, atomic_swap_global, i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_CMPSWAP_X2_RTN, AMDGPUatomic_cmp_swap_global, i64, v2i64>;
-def : FlatSignedAtomicPat <GLOBAL_ATOMIC_XOR_X2_RTN, atomic_xor_global, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_ADD_X2_RTN, atomic_load_add_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SUB_X2_RTN, atomic_load_sub_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_INC_X2_RTN, atomic_inc_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_DEC_X2_RTN, atomic_dec_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_AND_X2_RTN, atomic_load_and_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SMAX_X2_RTN, atomic_load_max_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_UMAX_X2_RTN, atomic_load_umax_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SMIN_X2_RTN, atomic_load_min_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_UMIN_X2_RTN, atomic_load_umin_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_OR_X2_RTN, atomic_load_or_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_SWAP_X2_RTN, atomic_swap_global_64, i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_CMPSWAP_X2_RTN, AMDGPUatomic_cmp_swap_global_64, i64, v2i64>;
+def : FlatSignedAtomicPat <GLOBAL_ATOMIC_XOR_X2_RTN, atomic_load_xor_global_64, i64>;
+
+def : FlatAtomicPatNoRtn <GLOBAL_ATOMIC_ADD_F32,    atomic_fadd_global_noret, f32>;
+def : FlatAtomicPatNoRtn <GLOBAL_ATOMIC_PK_ADD_F16, atomic_pk_fadd_global_noret, v2f16>;
 
 } // End OtherPredicates = [HasFlatGlobalInsts], AddedComplexity = 10
 
@@ -1141,7 +1165,7 @@ class FLAT_Real_gfx10<bits<7> op, FLAT_Pseudo ps> :
   let AssemblerPredicate = isGFX10Plus;
   let DecoderNamespace = "GFX10";
 
-  let Inst{11-0}  = {offset{12}, offset{10-0}};
+  let Inst{11-0}  = offset{11-0};
   let Inst{12}    = !if(ps.has_dlc, dlc, ps.dlcValue);
   let Inst{54-48} = !if(ps.has_saddr, !if(ps.enabled_saddr, saddr, 0x7d), 0x7d);
   let Inst{55}    = 0;
@@ -1320,3 +1344,10 @@ defm SCRATCH_LOAD_SBYTE_D16     : FLAT_Real_AllAddr_gfx10<0x022>;
 defm SCRATCH_LOAD_SBYTE_D16_HI  : FLAT_Real_AllAddr_gfx10<0x023>;
 defm SCRATCH_LOAD_SHORT_D16     : FLAT_Real_AllAddr_gfx10<0x024>;
 defm SCRATCH_LOAD_SHORT_D16_HI  : FLAT_Real_AllAddr_gfx10<0x025>;
+
+let SubtargetPredicate = HasAtomicFaddInsts in {
+
+defm GLOBAL_ATOMIC_ADD_F32    : FLAT_Real_AllAddr_vi <0x04d>;
+defm GLOBAL_ATOMIC_PK_ADD_F16 : FLAT_Real_AllAddr_vi <0x04e>;
+
+} // End SubtargetPredicate = HasAtomicFaddInsts

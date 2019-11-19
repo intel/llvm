@@ -875,7 +875,7 @@ void RetainCountChecker::processNonLeakError(ProgramStateRef St,
   if (!N)
     return;
 
-  auto report = llvm::make_unique<RefCountReport>(
+  auto report = std::make_unique<RefCountReport>(
       errorKindToBugKind(ErrorKind, Sym),
       C.getASTContext().getLangOpts(), N, Sym);
   report->addRange(ErrorRange);
@@ -886,14 +886,19 @@ void RetainCountChecker::processNonLeakError(ProgramStateRef St,
 // Handle the return values of retain-count-related functions.
 //===----------------------------------------------------------------------===//
 
-bool RetainCountChecker::evalCall(const CallExpr *CE, CheckerContext &C) const {
+bool RetainCountChecker::evalCall(const CallEvent &Call,
+                                  CheckerContext &C) const {
   ProgramStateRef state = C.getState();
-  const FunctionDecl *FD = C.getCalleeDecl(CE);
+  const auto *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
   if (!FD)
     return false;
 
+  const auto *CE = dyn_cast_or_null<CallExpr>(Call.getOriginExpr());
+  if (!CE)
+    return false;
+
   RetainSummaryManager &SmrMgr = getSummaryManager(C);
-  QualType ResultTy = CE->getCallReturnType(C.getASTContext());
+  QualType ResultTy = Call.getResultType();
 
   // See if the function has 'rc_ownership_trusted_implementation'
   // annotate attribute. If it does, we will not inline it.
@@ -946,7 +951,7 @@ bool RetainCountChecker::evalCall(const CallExpr *CE, CheckerContext &C) const {
       // And on the original branch assume that both input and
       // output are non-zero.
       if (auto L = RetVal.getAs<DefinedOrUnknownSVal>())
-        state = state->assume(*L, /*Assumption=*/true);
+        state = state->assume(*L, /*assumption=*/true);
 
     }
   }
@@ -1090,7 +1095,7 @@ ExplodedNode * RetainCountChecker::checkReturnWithRetEffect(const ReturnStmt *S,
         if (N) {
           const LangOptions &LOpts = C.getASTContext().getLangOpts();
           auto R =
-              llvm::make_unique<RefLeakReport>(leakAtReturn, LOpts, N, Sym, C);
+              std::make_unique<RefLeakReport>(leakAtReturn, LOpts, N, Sym, C);
           C.emitReport(std::move(R));
         }
         return N;
@@ -1114,7 +1119,7 @@ ExplodedNode * RetainCountChecker::checkReturnWithRetEffect(const ReturnStmt *S,
 
         ExplodedNode *N = C.addTransition(state, Pred, &ReturnNotOwnedTag);
         if (N) {
-          auto R = llvm::make_unique<RefCountReport>(
+          auto R = std::make_unique<RefCountReport>(
               returnNotOwnedForOwned, C.getASTContext().getLangOpts(), N, Sym);
           C.emitReport(std::move(R));
         }
@@ -1268,7 +1273,7 @@ RetainCountChecker::handleAutoreleaseCounts(ProgramStateRef state,
     os << "has a +" << V.getCount() << " retain count";
 
     const LangOptions &LOpts = Ctx.getASTContext().getLangOpts();
-    auto R = llvm::make_unique<RefCountReport>(overAutorelease, LOpts, N, Sym,
+    auto R = std::make_unique<RefCountReport>(overAutorelease, LOpts, N, Sym,
                                                os.str());
     Ctx.emitReport(std::move(R));
   }
@@ -1316,7 +1321,7 @@ RetainCountChecker::processLeaks(ProgramStateRef state,
   if (N) {
     for (SymbolRef L : Leaked) {
       const RefCountBug &BT = Pred ? leakWithinFunction : leakAtReturn;
-      Ctx.emitReport(llvm::make_unique<RefLeakReport>(BT, LOpts, N, L, Ctx));
+      Ctx.emitReport(std::make_unique<RefLeakReport>(BT, LOpts, N, L, Ctx));
     }
   }
 

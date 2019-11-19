@@ -45,7 +45,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM-DAG: %opencl.pipe_ro_t = type opaque
 ; CHECK-LLVM-DAG: %opencl.pipe_wo_t = type opaque
 ; CHECK-LLVM-DAG: %opencl.image3d_ro_t = type opaque
-; CHECK-LLVM_DAG: %opencl.image2d_depth_ro_t = type opaque
+; CHECK-LLVM-DAG: %opencl.image2d_depth_ro_t = type opaque
 ; CHECK-LLVM-DAG: %opencl.image2d_array_ro_t = type opaque
 ; CHECK-LLVM-DAG: %opencl.image1d_buffer_ro_t = type opaque
 ; CHECK-LLVM-DAG: %opencl.image1d_ro_t = type opaque
@@ -144,8 +144,8 @@ define spir_func void @bar(
 
 ; CHECK-LLVM: define spir_func void @test_sampler(
 ; CHECK-LLVM:  %opencl.image2d_depth_ro_t addrspace(1)* %srcimg.coerce,
-; CHECK-LLVM:  %opencl.sampler_t* %s.coerce)
-; CHECK-LLVM:  call spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv4_if(%opencl.image2d_depth_ro_t addrspace(1)* %srcimg.coerce, %opencl.sampler_t* %s.coerce, <4 x i32> zeroinitializer, float 1.000000e+00)
+; CHECK-LLVM:  %opencl.sampler_t addrspace(2)* %s.coerce)
+; CHECK-LLVM:  call spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv4_if(%opencl.image2d_depth_ro_t addrspace(1)* %srcimg.coerce, %opencl.sampler_t addrspace(2)* %s.coerce, <4 x i32> zeroinitializer, float 1.000000e+00)
 
 define spir_func void @test_sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)* %srcimg.coerce,
                                     %spirv.Sampler addrspace(1)* %s.coerce) {

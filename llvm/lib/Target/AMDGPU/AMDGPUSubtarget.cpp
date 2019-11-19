@@ -40,6 +40,11 @@ using namespace llvm;
 #undef AMDGPUSubtarget
 #include "R600GenSubtargetInfo.inc"
 
+static cl::opt<bool> DisablePowerSched(
+  "amdgpu-disable-power-sched",
+  cl::desc("Disable scheduling to minimize mAI power bursts"),
+  cl::init(false));
+
 GCNSubtarget::~GCNSubtarget() = default;
 
 R600Subtarget &
@@ -93,6 +98,16 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   }
 
   FullFS += "+enable-prt-strict-null,"; // This is overridden by a disable in FS
+
+  // Disable mutually exclusive bits.
+  if (FS.find_lower("+wavefrontsize") != StringRef::npos) {
+    if (FS.find_lower("wavefrontsize16") == StringRef::npos)
+      FullFS += "-wavefrontsize16,";
+    if (FS.find_lower("wavefrontsize32") == StringRef::npos)
+      FullFS += "-wavefrontsize32,";
+    if (FS.find_lower("wavefrontsize64") == StringRef::npos)
+      FullFS += "-wavefrontsize64,";
+  }
 
   FullFS += FS;
 
@@ -160,6 +175,7 @@ AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT) :
   HasFminFmaxLegacy(true),
   EnablePromoteAlloca(false),
   HasTrigReducedRange(false),
+  MaxWavesPerEU(10),
   LocalMemorySize(0),
   WavefrontSize(0)
   { }
@@ -218,11 +234,19 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasSDWAMac(false),
     HasSDWAOutModsVOPC(false),
     HasDPP(false),
+    HasDPP8(false),
     HasR128A16(false),
     HasNSAEncoding(false),
     HasDLInsts(false),
     HasDot1Insts(false),
     HasDot2Insts(false),
+    HasDot3Insts(false),
+    HasDot4Insts(false),
+    HasDot5Insts(false),
+    HasDot6Insts(false),
+    HasMAIInsts(false),
+    HasPkFmacF16Inst(false),
+    HasAtomicFaddInsts(false),
     EnableSRAMECC(false),
     DoesNotSupportSRAMECC(false),
     HasNoSdstCMPX(false),
@@ -238,6 +262,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     AddNoCarryInsts(false),
     HasUnpackedD16VMem(false),
     LDSMisalignedBug(false),
+    HasMFMAInlineLiteralBug(false),
 
     ScalarizeGlobal(false),
 
@@ -248,15 +273,17 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasVcmpxExecWARHazard(false),
     HasLdsBranchVmemWARHazard(false),
     HasNSAtoVMEMBug(false),
+    HasOffset3fBug(false),
     HasFlatSegmentOffsetBug(false),
 
     FeatureDisable(false),
     InstrInfo(initializeSubtargetDependencies(TT, GPU, FS)),
     TLInfo(TM, *this),
     FrameLowering(TargetFrameLowering::StackGrowsUp, getStackAlignment(), 0) {
+  MaxWavesPerEU = AMDGPU::IsaInfo::getMaxWavesPerEU(this);
   CallLoweringInfo.reset(new AMDGPUCallLowering(*getTargetLowering()));
   Legalizer.reset(new AMDGPULegalizerInfo(*this, TM));
-  RegBankInfo.reset(new AMDGPURegisterBankInfo(*getRegisterInfo()));
+  RegBankInfo.reset(new AMDGPURegisterBankInfo(*this));
   InstSelector.reset(new AMDGPUInstructionSelector(
   *this, *static_cast<AMDGPURegisterBankInfo *>(RegBankInfo.get()), TM));
 }
@@ -465,28 +492,28 @@ bool AMDGPUSubtarget::makeLIDRangeMetadata(Instruction *I) const {
 }
 
 uint64_t AMDGPUSubtarget::getExplicitKernArgSize(const Function &F,
-                                                 unsigned &MaxAlign) const {
+                                                 Align &MaxAlign) const {
   assert(F.getCallingConv() == CallingConv::AMDGPU_KERNEL ||
          F.getCallingConv() == CallingConv::SPIR_KERNEL);
 
   const DataLayout &DL = F.getParent()->getDataLayout();
   uint64_t ExplicitArgBytes = 0;
-  MaxAlign = 1;
+  MaxAlign = Align::None();
 
   for (const Argument &Arg : F.args()) {
     Type *ArgTy = Arg.getType();
 
-    unsigned Align = DL.getABITypeAlignment(ArgTy);
+    const Align Alignment(DL.getABITypeAlignment(ArgTy));
     uint64_t AllocSize = DL.getTypeAllocSize(ArgTy);
-    ExplicitArgBytes = alignTo(ExplicitArgBytes, Align) + AllocSize;
-    MaxAlign = std::max(MaxAlign, Align);
+    ExplicitArgBytes = alignTo(ExplicitArgBytes, Alignment) + AllocSize;
+    MaxAlign = std::max(MaxAlign, Alignment);
   }
 
   return ExplicitArgBytes;
 }
 
 unsigned AMDGPUSubtarget::getKernArgSegmentSize(const Function &F,
-                                                unsigned &MaxAlign) const {
+                                                Align &MaxAlign) const {
   uint64_t ExplicitArgBytes = getExplicitKernArgSize(F, MaxAlign);
 
   unsigned ExplicitOffset = getExplicitKernelArgOffset(F);
@@ -494,7 +521,7 @@ unsigned AMDGPUSubtarget::getKernArgSegmentSize(const Function &F,
   uint64_t TotalSize = ExplicitOffset + ExplicitArgBytes;
   unsigned ImplicitBytes = getImplicitArgNumBytes(F);
   if (ImplicitBytes != 0) {
-    unsigned Alignment = getAlignmentForImplicitArgPtr();
+    const Align Alignment = getAlignmentForImplicitArgPtr();
     TotalSize = alignTo(ExplicitArgBytes, Alignment) + ImplicitBytes;
   }
 
@@ -542,7 +569,7 @@ bool GCNSubtarget::hasMadF16() const {
 
 unsigned GCNSubtarget::getOccupancyWithNumSGPRs(unsigned SGPRs) const {
   if (getGeneration() >= AMDGPUSubtarget::GFX10)
-    return 10;
+    return getMaxWavesPerEU();
 
   if (getGeneration() >= AMDGPUSubtarget::VOLCANIC_ISLANDS) {
     if (SGPRs <= 80)
@@ -567,25 +594,12 @@ unsigned GCNSubtarget::getOccupancyWithNumSGPRs(unsigned SGPRs) const {
 }
 
 unsigned GCNSubtarget::getOccupancyWithNumVGPRs(unsigned VGPRs) const {
-  if (VGPRs <= 24)
-    return 10;
-  if (VGPRs <= 28)
-    return 9;
-  if (VGPRs <= 32)
-    return 8;
-  if (VGPRs <= 36)
-    return 7;
-  if (VGPRs <= 40)
-    return 6;
-  if (VGPRs <= 48)
-    return 5;
-  if (VGPRs <= 64)
-    return 4;
-  if (VGPRs <= 84)
-    return 3;
-  if (VGPRs <= 128)
-    return 2;
-  return 1;
+  unsigned MaxWaves = getMaxWavesPerEU();
+  unsigned Granule = getVGPRAllocGranule();
+  if (VGPRs < Granule)
+    return MaxWaves;
+  unsigned RoundedRegs = ((VGPRs + Granule - 1) / Granule) * Granule;
+  return std::min(std::max(getTotalNumVGPRs() / RoundedRegs, 1u), MaxWaves);
 }
 
 unsigned GCNSubtarget::getReservedNumSGPRs(const MachineFunction &MF) const {
@@ -603,6 +617,20 @@ unsigned GCNSubtarget::getReservedNumSGPRs(const MachineFunction &MF) const {
   if (isXNACKEnabled())
     return 4; // XNACK, VCC (in that order).
   return 2; // VCC.
+}
+
+unsigned GCNSubtarget::computeOccupancy(const MachineFunction &MF,
+                                        unsigned LDSSize,
+                                        unsigned NumSGPRs,
+                                        unsigned NumVGPRs) const {
+  unsigned Occupancy =
+    std::min(getMaxWavesPerEU(),
+             getOccupancyWithLocalMemSize(LDSSize, MF.getFunction()));
+  if (NumSGPRs)
+    Occupancy = std::min(Occupancy, getOccupancyWithNumSGPRs(NumSGPRs));
+  if (NumVGPRs)
+    Occupancy = std::min(Occupancy, getOccupancyWithNumVGPRs(NumVGPRs));
+  return Occupancy;
 }
 
 unsigned GCNSubtarget::getMaxNumSGPRs(const MachineFunction &MF) const {
@@ -732,11 +760,135 @@ struct MemOpClusterMutation : ScheduleDAGMutation {
     }
   }
 };
+
+struct FillMFMAShadowMutation : ScheduleDAGMutation {
+  const SIInstrInfo *TII;
+
+  ScheduleDAGMI *DAG;
+
+  FillMFMAShadowMutation(const SIInstrInfo *tii) : TII(tii) {}
+
+  bool isSALU(const SUnit *SU) const {
+    const MachineInstr *MI = SU->getInstr();
+    return MI && TII->isSALU(*MI) && !MI->isTerminator();
+  }
+
+  bool isVALU(const SUnit *SU) const {
+    const MachineInstr *MI = SU->getInstr();
+    return MI && TII->isVALU(*MI);
+  }
+
+  bool canAddEdge(const SUnit *Succ, const SUnit *Pred) const {
+    if (Pred->NodeNum < Succ->NodeNum)
+      return true;
+
+    SmallVector<const SUnit*, 64> Succs({Succ}), Preds({Pred});
+
+    for (unsigned I = 0; I < Succs.size(); ++I) {
+      for (const SDep &SI : Succs[I]->Succs) {
+        const SUnit *SU = SI.getSUnit();
+        if (SU != Succs[I] && llvm::find(Succs, SU) == Succs.end())
+          Succs.push_back(SU);
+      }
+    }
+
+    SmallPtrSet<const SUnit*, 32> Visited;
+    while (!Preds.empty()) {
+      const SUnit *SU = Preds.pop_back_val();
+      if (llvm::find(Succs, SU) != Succs.end())
+        return false;
+      Visited.insert(SU);
+      for (const SDep &SI : SU->Preds)
+        if (SI.getSUnit() != SU && !Visited.count(SI.getSUnit()))
+          Preds.push_back(SI.getSUnit());
+    }
+
+    return true;
+  }
+
+  // Link as much SALU intructions in chain as possible. Return the size
+  // of the chain. Links up to MaxChain instructions.
+  unsigned linkSALUChain(SUnit *From, SUnit *To, unsigned MaxChain,
+                         SmallPtrSetImpl<SUnit *> &Visited) const {
+    SmallVector<SUnit *, 8> Worklist({To});
+    unsigned Linked = 0;
+
+    while (!Worklist.empty() && MaxChain-- > 0) {
+      SUnit *SU = Worklist.pop_back_val();
+      if (!Visited.insert(SU).second)
+        continue;
+
+      LLVM_DEBUG(dbgs() << "Inserting edge from\n" ; DAG->dumpNode(*From);
+                 dbgs() << "to\n"; DAG->dumpNode(*SU); dbgs() << '\n');
+
+      if (SU->addPred(SDep(From, SDep::Artificial), false))
+        ++Linked;
+
+      for (SDep &SI : From->Succs) {
+        SUnit *SUv = SI.getSUnit();
+        if (SUv != From && isVALU(SUv) && canAddEdge(SUv, SU))
+          SUv->addPred(SDep(SU, SDep::Artificial), false);
+      }
+
+      for (SDep &SI : SU->Succs) {
+        SUnit *Succ = SI.getSUnit();
+        if (Succ != SU && isSALU(Succ) && canAddEdge(From, Succ))
+          Worklist.push_back(Succ);
+      }
+    }
+
+    return Linked;
+  }
+
+  void apply(ScheduleDAGInstrs *DAGInstrs) override {
+    const GCNSubtarget &ST = DAGInstrs->MF.getSubtarget<GCNSubtarget>();
+    if (!ST.hasMAIInsts() || DisablePowerSched)
+      return;
+    DAG = static_cast<ScheduleDAGMI*>(DAGInstrs);
+    const TargetSchedModel *TSchedModel = DAGInstrs->getSchedModel();
+    if (!TSchedModel || DAG->SUnits.empty())
+      return;
+
+    // Scan for MFMA long latency instructions and try to add a dependency
+    // of available SALU instructions to give them a chance to fill MFMA
+    // shadow. That is desirable to fill MFMA shadow with SALU instructions
+    // rather than VALU to prevent power consumption bursts and throttle.
+    auto LastSALU = DAG->SUnits.begin();
+    auto E = DAG->SUnits.end();
+    SmallPtrSet<SUnit*, 32> Visited;
+    for (SUnit &SU : DAG->SUnits) {
+      MachineInstr &MAI = *SU.getInstr();
+      if (!TII->isMAI(MAI) ||
+           MAI.getOpcode() == AMDGPU::V_ACCVGPR_WRITE_B32 ||
+           MAI.getOpcode() == AMDGPU::V_ACCVGPR_READ_B32)
+        continue;
+
+      unsigned Lat = TSchedModel->computeInstrLatency(&MAI) - 1;
+
+      LLVM_DEBUG(dbgs() << "Found MFMA: "; DAG->dumpNode(SU);
+                 dbgs() << "Need " << Lat
+                        << " instructions to cover latency.\n");
+
+      // Find up to Lat independent scalar instructions as early as
+      // possible such that they can be scheduled after this MFMA.
+      for ( ; Lat && LastSALU != E; ++LastSALU) {
+        if (Visited.count(&*LastSALU))
+          continue;
+
+        if (!isSALU(&*LastSALU) || !canAddEdge(&*LastSALU, &SU))
+          continue;
+
+        Lat -= linkSALUChain(&SU, &*LastSALU, Lat, Visited);
+      }
+    }
+  }
+};
 } // namespace
 
 void GCNSubtarget::getPostRAMutations(
     std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations) const {
-  Mutations.push_back(llvm::make_unique<MemOpClusterMutation>(&InstrInfo));
+  Mutations.push_back(std::make_unique<MemOpClusterMutation>(&InstrInfo));
+  Mutations.push_back(std::make_unique<FillMFMAShadowMutation>(&InstrInfo));
 }
 
 const AMDGPUSubtarget &AMDGPUSubtarget::get(const MachineFunction &MF) {

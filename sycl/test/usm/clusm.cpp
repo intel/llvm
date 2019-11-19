@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t1.out -lstdc++ -lOpenCL -lsycl 
+// RUN: %clangxx -fsycl %s -o %t1.out -lOpenCL
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out -cpu
 //==------------------- clusm.cpp - CLUSM API test --------==//
 //
@@ -9,6 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/clusm.hpp>
+
+#include "findplatforms.hpp"
+
 #include <cstring>
 #include <iostream>
 
@@ -32,7 +35,7 @@ int main(int argc, char** argv) {
     preferCPU = false;
   }
   
-  CLUSM* clusm = GetCLUSM();
+  CLUSM* clusm = new CLUSM();
 
   cl_device_type  deviceType =
     (preferCPU)
@@ -40,20 +43,12 @@ int main(int argc, char** argv) {
     : CL_DEVICE_TYPE_GPU;
 
   cl_int errorCode;
-  
   cl_platform_id platform;
-  errorCode = clGetPlatformIDs(1, &platform, nullptr);
-
-  if (errorCode != CL_SUCCESS) return 2;
-
   cl_device_id device;
-  errorCode = clGetDeviceIDs(platform,
-                             deviceType,
-                             1,
-                             &device,
-                             nullptr);
 
-  if (errorCode != CL_SUCCESS) return 3;
+  if (!findPlatformAndDevice(deviceType, platform, device)) {
+    return 2;
+  }
 
   cl_context_properties ctxtProps[] =
   {

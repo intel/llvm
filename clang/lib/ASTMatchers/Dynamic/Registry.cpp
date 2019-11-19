@@ -71,7 +71,7 @@ void RegistryMaps::registerMatcher(
 
 #define REGISTER_MATCHER_OVERLOAD(name)                                        \
   registerMatcher(#name,                                                       \
-      llvm::make_unique<internal::OverloadedMatcherDescriptor>(name##Callbacks))
+      std::make_unique<internal::OverloadedMatcherDescriptor>(name##Callbacks))
 
 #define SPECIFIC_MATCHER_OVERLOAD(name, Id)                                    \
   static_cast<::clang::ast_matchers::name##_Type##Id>(                         \
@@ -108,6 +108,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_OVERLOADED_2(hasType);
   REGISTER_OVERLOADED_2(ignoringParens);
   REGISTER_OVERLOADED_2(isDerivedFrom);
+  REGISTER_OVERLOADED_2(isDirectlyDerivedFrom);
   REGISTER_OVERLOADED_2(isSameOrDerivedFrom);
   REGISTER_OVERLOADED_2(loc);
   REGISTER_OVERLOADED_2(pointsTo);
@@ -169,6 +170,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(cxxConstructorDecl);
   REGISTER_MATCHER(cxxConversionDecl);
   REGISTER_MATCHER(cxxCtorInitializer);
+  REGISTER_MATCHER(cxxDeductionGuideDecl);
   REGISTER_MATCHER(cxxDefaultArgExpr);
   REGISTER_MATCHER(cxxDeleteExpr);
   REGISTER_MATCHER(cxxDependentScopeMemberExpr);
@@ -267,6 +269,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(hasEitherOperand);
   REGISTER_MATCHER(hasElementType);
   REGISTER_MATCHER(hasElse);
+  REGISTER_MATCHER(hasExplicitSpecifier);
   REGISTER_MATCHER(hasExternalFormalLinkage);
   REGISTER_MATCHER(hasFalseExpression);
   REGISTER_MATCHER(hasGlobalStorage);
@@ -320,6 +323,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(hasUnqualifiedDesugaredType);
   REGISTER_MATCHER(hasValueType);
   REGISTER_MATCHER(ifStmt);
+  REGISTER_MATCHER(ignoringElidableConstructorCall);
   REGISTER_MATCHER(ignoringImpCasts);
   REGISTER_MATCHER(ignoringImplicit);
   REGISTER_MATCHER(ignoringParenCasts);

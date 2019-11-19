@@ -41,8 +41,6 @@ private:
   void printU4ImmDecOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
   void printU8ImmDecOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
   void printU16ImmDecOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
-  void printS13ImmDecOperand(const MCInst *MI, unsigned OpNo,
-                             const MCSubtargetInfo &STI, raw_ostream &O);
   void printU32ImmOperand(const MCInst *MI, unsigned OpNo,
                           const MCSubtargetInfo &STI, raw_ostream &O);
   void printNamedBit(const MCInst *MI, unsigned OpNo, raw_ostream &O,
@@ -53,8 +51,8 @@ private:
   void printMBUFOffset(const MCInst *MI, unsigned OpNo, raw_ostream &O);
   void printOffset(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                    raw_ostream &O);
-  void printOffsetS13(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
-                      raw_ostream &O);
+  void printFlatOffset(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                       raw_ostream &O);
 
   void printOffset0(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                     raw_ostream &O);
@@ -73,6 +71,8 @@ private:
   void printGLC(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                 raw_ostream &O);
   void printSLC(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                raw_ostream &O);
+  void printSWZ(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                 raw_ostream &O);
   void printTFE(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                 raw_ostream &O);
@@ -116,6 +116,8 @@ private:
                                   const MCSubtargetInfo &STI, raw_ostream &O);
   void printOperandAndIntInputMods(const MCInst *MI, unsigned OpNo,
                                    const MCSubtargetInfo &STI, raw_ostream &O);
+  void printDPP8(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                 raw_ostream &O);
   void printDPPCtrl(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                     raw_ostream &O);
   void printRowMask(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
@@ -124,6 +126,8 @@ private:
                      const MCSubtargetInfo &STI, raw_ostream &O);
   void printBoundCtrl(const MCInst *MI, unsigned OpNo,
                       const MCSubtargetInfo &STI, raw_ostream &O);
+  void printFI(const MCInst *MI, unsigned OpNo,
+               const MCSubtargetInfo &STI, raw_ostream &O);
   void printSDWASel(const MCInst *MI, unsigned OpNo, raw_ostream &O);
   void printSDWADstSel(const MCInst *MI, unsigned OpNo,
                        const MCSubtargetInfo &STI, raw_ostream &O);
@@ -154,6 +158,12 @@ private:
                           const MCSubtargetInfo &STI, raw_ostream &O);
   void printMemOperand(const MCInst *MI, unsigned OpNo,
                        const MCSubtargetInfo &STI, raw_ostream &O);
+  void printBLGP(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                 raw_ostream &O);
+  void printCBSZ(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                 raw_ostream &O);
+  void printABID(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                 raw_ostream &O);
   void printDefaultVccOperand(unsigned OpNo, const MCSubtargetInfo &STI,
                               raw_ostream &O);
 

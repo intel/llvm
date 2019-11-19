@@ -162,7 +162,7 @@ BCEAtom visitICmpLoadOperand(Value *const Val, BaseIdentifier &BaseId) {
     return {};
   }
   const auto &DL = GEP->getModule()->getDataLayout();
-  if (!isDereferenceablePointer(GEP, DL)) {
+  if (!isDereferenceablePointer(GEP, LoadI->getType(), DL)) {
     LLVM_DEBUG(dbgs() << "not dereferenceable\n");
     // We need to make sure that we can do comparison in any order, so we
     // require memory to be unconditionnally dereferencable.
@@ -866,7 +866,7 @@ static bool runImpl(Function &F, const TargetLibraryInfo &TLI,
 
   // We only try merging comparisons if the target wants to expand memcmp later.
   // The rationale is to avoid turning small chains into memcmp calls.
-  if (!TTI.enableMemCmpExpansion(true))
+  if (!TTI.enableMemCmpExpansion(F.hasOptSize(), true))
     return false;
 
   // If we don't have memcmp avaiable we can't emit calls to it.
@@ -897,7 +897,7 @@ public:
 
   bool runOnFunction(Function &F) override {
     if (skipFunction(F)) return false;
-    const auto &TLI = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+    const auto &TLI = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
     const auto &TTI = getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
     // MergeICmps does not need the DominatorTree, but we update it if it's
     // already available.

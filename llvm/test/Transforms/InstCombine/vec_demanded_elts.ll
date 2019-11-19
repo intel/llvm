@@ -569,7 +569,7 @@ define i32* @gep_cvbase_w_s_idx(<2 x i32*> %base, i64 %raw_addr) {
 
 define i32* @gep_cvbase_w_cv_idx(<2 x i32*> %base, i64 %raw_addr) {
 ; CHECK-LABEL: @gep_cvbase_w_cv_idx(
-; CHECK-NEXT:    ret i32* extractelement (<2 x i32*> getelementptr (i32, <2 x i32*> <i32* @GLOBAL, i32* @GLOBAL>, <2 x i64> <i64 0, i64 1>), i32 1)
+; CHECK-NEXT:    ret i32* getelementptr inbounds (i32, i32* @GLOBAL, i64 1)
 ;
   %gep = getelementptr i32, <2 x i32*> <i32* @GLOBAL, i32* @GLOBAL>, <2 x i64> <i64 0, i64 1>
   %ee = extractelement <2 x i32*> %gep, i32 1
@@ -650,4 +650,21 @@ define i32* @PR41624(<2 x { i32, i32 }*> %a) {
   %w = getelementptr { i32, i32 }, <2 x { i32, i32 }*> %a, <2 x i64> <i64 5, i64 5>, <2 x i32> zeroinitializer
   %r = extractelement <2 x i32*> %w, i32 0
   ret i32* %r
+}
+
+@global = external global [0 x i32], align 4
+
+; Make sure we don't get stuck in a loop turning the zeroinitializer into
+; <0, undef, undef, undef> and then changing it back.
+define i32* @zero_sized_type_extract(<4 x i64> %arg, i64 %arg1) {
+; CHECK-LABEL: @zero_sized_type_extract(
+; CHECK-NEXT:  bb:
+; CHECK-NEXT:    [[TMP:%.*]] = getelementptr inbounds [0 x i32], <4 x [0 x i32]*> <[0 x i32]* @global, [0 x i32]* undef, [0 x i32]* undef, [0 x i32]* undef>, <4 x i64> <i64 0, i64 undef, i64 undef, i64 undef>, <4 x i64> [[ARG:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = extractelement <4 x i32*> [[TMP]], i64 0
+; CHECK-NEXT:    ret i32* [[TMP2]]
+;
+bb:
+  %tmp = getelementptr inbounds [0 x i32], <4 x [0 x i32]*> <[0 x i32]* @global, [0 x i32]* @global, [0 x i32]* @global, [0 x i32]* @global>, <4 x i64> zeroinitializer, <4 x i64> %arg
+  %tmp2 = extractelement <4 x i32*> %tmp, i64 0
+  ret i32* %tmp2
 }

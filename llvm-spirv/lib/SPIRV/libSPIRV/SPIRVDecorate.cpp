@@ -82,6 +82,10 @@ SPIRVWord SPIRVDecorateGeneric::getLiteral(size_t I) const {
   return Literals[I];
 }
 
+std::vector<SPIRVWord> SPIRVDecorateGeneric::getVecLiteral() const {
+  return Literals;
+}
+
 size_t SPIRVDecorateGeneric::getLiteralCount() const { return Literals.size(); }
 
 void SPIRVDecorate::encode(spv_ostream &O) const {
@@ -93,6 +97,9 @@ void SPIRVDecorate::encode(spv_ostream &O) const {
     break;
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::encodeLiterals(Encoder, Literals);
+    break;
+  case DecorationMergeINTEL:
+    SPIRVDecorateMergeINTELAttr::encodeLiterals(Encoder, Literals);
     break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
@@ -117,6 +124,9 @@ void SPIRVDecorate::decode(std::istream &I) {
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::decodeLiterals(Decoder, Literals);
     break;
+  case DecorationMergeINTEL:
+    SPIRVDecorateMergeINTELAttr::decodeLiterals(Decoder, Literals);
+    break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);
     break;
@@ -132,6 +142,9 @@ void SPIRVMemberDecorate::encode(spv_ostream &O) const {
   switch (Dec) {
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::encodeLiterals(Encoder, Literals);
+    break;
+  case DecorationMergeINTEL:
+    SPIRVDecorateMergeINTELAttr::encodeLiterals(Encoder, Literals);
     break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
@@ -152,6 +165,9 @@ void SPIRVMemberDecorate::decode(std::istream &I) {
   switch (Dec) {
   case DecorationMemoryINTEL:
     SPIRVDecorateMemoryINTELAttr::decodeLiterals(Decoder, Literals);
+    break;
+  case DecorationMergeINTEL:
+    SPIRVDecorateMergeINTELAttr::decodeLiterals(Decoder, Literals);
     break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);

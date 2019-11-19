@@ -343,6 +343,18 @@ inline std::string getString(const std::vector<uint32_t> &V) {
   return getString(V.cbegin(), V.cend());
 }
 
+// if vector of Literals is expected to contain more than one Literal String
+inline std::vector<std::string> getVecString(const std::vector<uint32_t> &V) {
+  std::vector<std::string> Result;
+  std::string Str;
+  for (auto It = V.cbegin(); It < V.cend(); It += getSizeInWords(Str)) {
+    Str.clear();
+    Str = getString(It, V.cend());
+    Result.push_back(Str);
+  }
+  return Result;
+}
+
 inline std::vector<uint32_t> getVec(const std::string &Str) {
   std::vector<uint32_t> V;
   auto StrSize = Str.size();

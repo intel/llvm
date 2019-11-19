@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "target_impl.h"
 ////////////////////////////////////////////////////////////////////////////////
 // Execution Parameters
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,8 +66,8 @@ INLINE int GetNumberOfProcsInDevice(bool isSPMDExecutionMode);
 INLINE int IsTeamMaster(int ompThreadId);
 
 // Parallel level
-INLINE void IncParallelLevel(bool ActiveParallel);
-INLINE void DecParallelLevel(bool ActiveParallel);
+INLINE void IncParallelLevel(bool ActiveParallel, __kmpc_impl_lanemask_t Mask);
+INLINE void DecParallelLevel(bool ActiveParallel, __kmpc_impl_lanemask_t Mask);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Memory
@@ -81,11 +82,6 @@ INLINE unsigned long PadBytes(unsigned long size, unsigned long alignment);
   ((void *)((char *)((void *)(_addr)) + (_bytes)))
 #define SUB_BYTES(_addr, _bytes)                                               \
   ((void *)((char *)((void *)(_addr)) - (_bytes)))
-
-////////////////////////////////////////////////////////////////////////////////
-// Named Barrier Routines
-////////////////////////////////////////////////////////////////////////////////
-INLINE void named_sync(const int barrier, const int num_threads);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Teams Reduction Scratchpad Helpers

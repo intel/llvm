@@ -1,11 +1,11 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=core -verify %s
+// RUN: %clang_analyze_cc1 -std=c++14 -analyzer-checker=core -verify %s
 //
-// RUN: %clang_analyze_cc1 -analyzer-checker=core %s  \
+// RUN: %clang_analyze_cc1 -std=c++14 -analyzer-checker=core %s  \
 // RUN:   -analyzer-output=plist -o %t.plist \
 // RUN:   -analyzer-config expand-macros=true
 //
 // Check the actual plist output.
-//   RUN: cat %t.plist | %diff_plist \
+//   RUN: %normalize_plist <%t.plist | diff -ub \
 //   RUN:   %S/Inputs/expected-plists/plist-macros-with-expansion.cpp.plist -
 //
 // Check the macro expansions from the plist output here, to make the test more

@@ -55,9 +55,8 @@ define i32 @test2() nounwind {
 ; GENERIC-NEXT:    callq _return_false
 ; GENERIC-NEXT:    xorl %ecx, %ecx
 ; GENERIC-NEXT:    testb $1, %al
-; GENERIC-NEXT:    movl $-480, %eax ## imm = 0xFE20
+; GENERIC-NEXT:    movl $-3840, %eax ## imm = 0xF100
 ; GENERIC-NEXT:    cmovnel %ecx, %eax
-; GENERIC-NEXT:    shll $3, %eax
 ; GENERIC-NEXT:    cmpl $32768, %eax ## imm = 0x8000
 ; GENERIC-NEXT:    jge LBB1_1
 ; GENERIC-NEXT:  ## %bb.2: ## %bb91
@@ -72,10 +71,9 @@ define i32 @test2() nounwind {
 ; ATOM-NEXT:    pushq %rax
 ; ATOM-NEXT:    callq _return_false
 ; ATOM-NEXT:    xorl %ecx, %ecx
-; ATOM-NEXT:    movl $-480, %edx ## imm = 0xFE20
+; ATOM-NEXT:    movl $-3840, %edx ## imm = 0xF100
 ; ATOM-NEXT:    testb $1, %al
 ; ATOM-NEXT:    cmovnel %ecx, %edx
-; ATOM-NEXT:    shll $3, %edx
 ; ATOM-NEXT:    cmpl $32768, %edx ## imm = 0x8000
 ; ATOM-NEXT:    jge LBB1_1
 ; ATOM-NEXT:  ## %bb.2: ## %bb91
@@ -91,9 +89,8 @@ define i32 @test2() nounwind {
 ; ATHLON-NEXT:    calll _return_false
 ; ATHLON-NEXT:    xorl %ecx, %ecx
 ; ATHLON-NEXT:    testb $1, %al
-; ATHLON-NEXT:    movl $-480, %eax ## imm = 0xFE20
+; ATHLON-NEXT:    movl $-3840, %eax ## imm = 0xF100
 ; ATHLON-NEXT:    cmovnel %ecx, %eax
-; ATHLON-NEXT:    shll $3, %eax
 ; ATHLON-NEXT:    cmpl $32768, %eax ## imm = 0x8000
 ; ATHLON-NEXT:    jge LBB1_1
 ; ATHLON-NEXT:  ## %bb.2: ## %bb91
@@ -110,9 +107,8 @@ define i32 @test2() nounwind {
 ; MCU-NEXT:    testb $1, %al
 ; MCU-NEXT:    jne .LBB1_2
 ; MCU-NEXT:  # %bb.1: # %entry
-; MCU-NEXT:    movl $-480, %ecx # imm = 0xFE20
+; MCU-NEXT:    movl $-3840, %ecx # imm = 0xF100
 ; MCU-NEXT:  .LBB1_2: # %entry
-; MCU-NEXT:    shll $3, %ecx
 ; MCU-NEXT:    cmpl $32768, %ecx # imm = 0x8000
 ; MCU-NEXT:    jge .LBB1_3
 ; MCU-NEXT:  # %bb.4: # %bb91
@@ -219,17 +215,27 @@ entry:
 }
 
 define void @test5(i1 %c, <2 x i16> %a, <2 x i16> %b, <2 x i16>* %p) nounwind {
-; CHECK-LABEL: test5:
-; CHECK:       ## %bb.0:
-; CHECK-NEXT:    testb $1, %dil
-; CHECK-NEXT:    jne LBB4_2
-; CHECK-NEXT:  ## %bb.1:
-; CHECK-NEXT:    movdqa %xmm1, %xmm0
-; CHECK-NEXT:  LBB4_2:
-; CHECK-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,2,2,3]
-; CHECK-NEXT:    pshuflw {{.*#+}} xmm0 = xmm0[0,2,2,3,4,5,6,7]
-; CHECK-NEXT:    movd %xmm0, (%rsi)
-; CHECK-NEXT:    retq
+; GENERIC-LABEL: test5:
+; GENERIC:       ## %bb.0:
+; GENERIC-NEXT:    testb $1, %dil
+; GENERIC-NEXT:    jne LBB4_2
+; GENERIC-NEXT:  ## %bb.1:
+; GENERIC-NEXT:    movaps %xmm1, %xmm0
+; GENERIC-NEXT:  LBB4_2:
+; GENERIC-NEXT:    movss %xmm0, (%rsi)
+; GENERIC-NEXT:    retq
+;
+; ATOM-LABEL: test5:
+; ATOM:       ## %bb.0:
+; ATOM-NEXT:    testb $1, %dil
+; ATOM-NEXT:    jne LBB4_2
+; ATOM-NEXT:  ## %bb.1:
+; ATOM-NEXT:    movaps %xmm1, %xmm0
+; ATOM-NEXT:  LBB4_2:
+; ATOM-NEXT:    movss %xmm0, (%rsi)
+; ATOM-NEXT:    nop
+; ATOM-NEXT:    nop
+; ATOM-NEXT:    retq
 ;
 ; ATHLON-LABEL: test5:
 ; ATHLON:       ## %bb.0:

@@ -1,12 +1,8 @@
-LEVEL = ../../../make
-
 OBJC_SOURCES := main.m
+CFLAGS_EXTRAS := -w
+LD_EXTRAS := -framework Foundation
 
-CFLAGS_EXTRAS += -w
-
-include $(LEVEL)/Makefile.rules
-
-LDFLAGS += -framework Foundation
+include Makefile.rules
 
 clean::
 	rm -rf $(wildcard *.o *.d *.dSYM *.log)

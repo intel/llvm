@@ -240,6 +240,7 @@ define void @f_f() nounwind {
 ; CHECK_O0-NEXT:  .LBB9_3: # %cif_mixed_test_all
 ; CHECK_O0-NEXT:    movl $-1, %eax
 ; CHECK_O0-NEXT:    vmovd %eax, %xmm0
+; CHECK_O0-NEXT:    vmovdqa %xmm0, %xmm0
 ; CHECK_O0-NEXT:    vmovaps %xmm0, %xmm1
 ; CHECK_O0-NEXT:    # implicit-def: $rcx
 ; CHECK_O0-NEXT:    # implicit-def: $ymm2
@@ -332,3 +333,26 @@ define void @add4i64a16(<4 x i64>* %ret, <4 x i64>* %bp) nounwind {
   ret void
 }
 
+; This used to crash.
+; v2i128 may not be a "simple" (MVT) type, but we can split that.
+; This example gets split further in legalization.
+
+define void @PR43916(<2 x i128> %y, <2 x i128>* %z) {
+; CHECK-LABEL: PR43916:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movq %rcx, 24(%r8)
+; CHECK-NEXT:    movq %rdx, 16(%r8)
+; CHECK-NEXT:    movq %rsi, 8(%r8)
+; CHECK-NEXT:    movq %rdi, (%r8)
+; CHECK-NEXT:    retq
+;
+; CHECK_O0-LABEL: PR43916:
+; CHECK_O0:       # %bb.0:
+; CHECK_O0-NEXT:    movq %rdi, (%r8)
+; CHECK_O0-NEXT:    movq %rsi, 8(%r8)
+; CHECK_O0-NEXT:    movq %rdx, 16(%r8)
+; CHECK_O0-NEXT:    movq %rcx, 24(%r8)
+; CHECK_O0-NEXT:    retq
+  store <2 x i128> %y, <2 x i128>* %z, align 16
+  ret void
+}

@@ -142,22 +142,31 @@ named_data:
 named_data_alt_entry:
         .quad   0
 
-# Check X86_64_RELOC_UNSIGNED / extern handling by putting the address of a
-# local named function in a pointer variable.
+# Check X86_64_RELOC_UNSIGNED / quad / extern handling by putting the address of
+# a local named function into a quad symbol.
 #
-# jitlink-check: *{8}named_func_addr = named_func
-        .globl  named_func_addr
+# jitlink-check: *{8}named_func_addr_quad = named_func
+        .globl  named_func_addr_quad
         .p2align  3
-named_func_addr:
+named_func_addr_quad:
         .quad   named_func
 
-# Check X86_64_RELOC_UNSIGNED / non-extern handling by putting the address of a
-# local anonymous function in a pointer variable.
+# Check X86_64_RELOC_UNSIGNED / long / extern handling by putting the address of
+# an external function (defined to reside in the low 4Gb) into a long symbol.
 #
-# jitlink-check: *{8}anon_func_addr = section_addr(macho_reloc.o, __text)
-        .globl  anon_func_addr
+# jitlink-check: *{4}named_func_addr_long = external_func
+        .globl  named_func_addr_long
+        .p2align  2
+named_func_addr_long:
+        .long   external_func
+
+# Check X86_64_RELOC_UNSIGNED / quad / non-extern handling by putting the
+# address of a local anonymous function into a quad symbol.
+#
+# jitlink-check: *{8}anon_func_addr_quad = section_addr(macho_reloc.o, __text)
+        .globl  anon_func_addr_quad
         .p2align  3
-anon_func_addr:
+anon_func_addr_quad:
         .quad   Lanon_func
 
 # X86_64_RELOC_SUBTRACTOR Quad/Long in named storage with anonymous minuend
@@ -262,6 +271,18 @@ subtractor_with_alt_entry_subtrahend_quad:
         .alt_entry subtractor_with_alt_entry_subtrahend_quad_B
 subtractor_with_alt_entry_subtrahend_quad_B:
         .quad 0
+
+# Check X86_64_RELOC_GOT handling.
+# X86_64_RELOC_GOT is the data-section counterpart to X86_64_RELOC_GOTLD. It is
+# handled exactly the same way, including having an implicit PC-rel offset of -4
+# (despite this not making sense in a data section, and requiring an explicit
+# +4 addend to cancel it out and get the correct result).
+#
+# jitlink-check: *{4}test_got = (got_addr(macho_reloc.o, external_data) - test_got)[31:0]
+        .globl test_got
+        .p2align  2
+test_got:
+        .long   external_data@GOTPCREL + 4
 
 # Check that unreferenced atoms in no-dead-strip sections are not dead stripped.
 # We need to use a local symbol for this as any named symbol will end up in the

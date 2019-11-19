@@ -327,30 +327,30 @@ void ExprEngine::processCallExit(ExplodedNode *CEBNode) {
       ExplodedNodeSet DstPostPostCallCallback;
       getCheckerManager().runCheckersForPostCall(DstPostPostCallCallback,
                                                  CEENode, *UpdatedCall, *this,
-                                                 /*WasInlined=*/true);
+                                                 /*wasInlined=*/true);
       for (auto I : DstPostPostCallCallback) {
         getCheckerManager().runCheckersForNewAllocator(
             CNE,
             *getObjectUnderConstruction(I->getState(), CNE,
                                         calleeCtx->getParent()),
             DstPostCall, I, *this,
-            /*WasInlined=*/true);
+            /*wasInlined=*/true);
       }
     } else {
       getCheckerManager().runCheckersForPostCall(DstPostCall, CEENode,
                                                  *UpdatedCall, *this,
-                                                 /*WasInlined=*/true);
+                                                 /*wasInlined=*/true);
     }
     ExplodedNodeSet Dst;
     if (const ObjCMethodCall *Msg = dyn_cast<ObjCMethodCall>(Call)) {
       getCheckerManager().runCheckersForPostObjCMessage(Dst, DstPostCall, *Msg,
                                                         *this,
-                                                        /*WasInlined=*/true);
+                                                        /*wasInlined=*/true);
     } else if (CE &&
                !(isa<CXXNewExpr>(CE) && // Called when visiting CXXNewExpr.
                  AMgr.getAnalyzerOptions().MayInlineCXXAllocator)) {
       getCheckerManager().runCheckersForPostStmt(Dst, DstPostCall, CE,
-                                                 *this, /*WasInlined=*/true);
+                                                 *this, /*wasInlined=*/true);
     } else {
       Dst.insert(DstPostCall);
     }
@@ -451,9 +451,8 @@ bool ExprEngine::inlineCall(const CallEvent &Call, const Decl *D,
   // Construct a new stack frame for the callee.
   AnalysisDeclContext *CalleeADC = AMgr.getAnalysisDeclContext(D);
   const StackFrameContext *CalleeSFC =
-    CalleeADC->getStackFrame(ParentOfCallee, CallE,
-                             currBldrCtx->getBlock(),
-                             currStmtIdx);
+      CalleeADC->getStackFrame(ParentOfCallee, CallE, currBldrCtx->getBlock(),
+                               currBldrCtx->blockCount(), currStmtIdx);
 
   CallEnter Loc(CallE, CalleeSFC, CurLC);
 
@@ -634,12 +633,19 @@ ProgramStateRef ExprEngine::bindReturnValue(const CallEvent &Call,
     std::tie(State, Target) =
         prepareForObjectConstruction(Call.getOriginExpr(), State, LCtx,
                                      RTC->getConstructionContext(), CallOpts);
-    assert(Target.getAsRegion());
-    // Invalidate the region so that it didn't look uninitialized. Don't notify
-    // the checkers.
-    State = State->invalidateRegions(Target.getAsRegion(), E, Count, LCtx,
-                                     /* CausedByPointerEscape=*/false, nullptr,
-                                     &Call, nullptr);
+    const MemRegion *TargetR = Target.getAsRegion();
+    assert(TargetR);
+    // Invalidate the region so that it didn't look uninitialized. If this is
+    // a field or element constructor, we do not want to invalidate
+    // the whole structure. Pointer escape is meaningless because
+    // the structure is a product of conservative evaluation
+    // and therefore contains nothing interesting at this point.
+    RegionAndSymbolInvalidationTraits ITraits;
+    ITraits.setTrait(TargetR,
+        RegionAndSymbolInvalidationTraits::TK_DoNotInvalidateSuperRegion);
+    State = State->invalidateRegions(TargetR, E, Count, LCtx,
+                                     /* CausesPointerEscape=*/false, nullptr,
+                                     &Call, &ITraits);
 
     R = State->getSVal(Target.castAs<Loc>(), E->getType());
   } else {

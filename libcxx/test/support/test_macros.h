@@ -125,6 +125,11 @@
 # else
 #   define TEST_THROW_SPEC(...) throw(__VA_ARGS__)
 # endif
+# if TEST_STD_VER > 17
+#   define TEST_CONSTEXPR_CXX20 constexpr
+# else
+#   define TEST_CONSTEXPR_CXX20
+# endif
 #else
 #if defined(TEST_COMPILER_CLANG)
 # define TEST_ALIGNOF(...) _Alignof(__VA_ARGS__)
@@ -134,13 +139,14 @@
 #define TEST_ALIGNAS(...) __attribute__((__aligned__(__VA_ARGS__)))
 #define TEST_CONSTEXPR
 #define TEST_CONSTEXPR_CXX14
+#define TEST_CONSTEXPR_CXX20
 #define TEST_NOEXCEPT throw()
 #define TEST_NOEXCEPT_FALSE
 #define TEST_NOEXCEPT_COND(...)
 #define TEST_THROW_SPEC(...) throw(__VA_ARGS__)
 #endif
 
-// Sniff out to see if the underling C library has C11 features
+// Sniff out to see if the underlying C library has C11 features
 // Note that at this time (July 2018), MacOS X and iOS do NOT.
 // This is cribbed from __config; but lives here as well because we can't assume libc++
 #if __ISO_C_VISIBLE >= 2011 || TEST_STD_VER >= 11
@@ -223,9 +229,8 @@
 #define TEST_SAFE_STATIC
 #endif
 
-// FIXME: Fix this feature check when either (A) a compiler provides a complete
-// implementation, or (b) a feature check macro is specified
-#if !defined(_MSC_VER) || defined(__clang__) || _MSC_VER < 1920 || _MSVC_LANG <= 201703L
+#if !defined(__cpp_impl_three_way_comparison) \
+    && (!defined(_MSC_VER) || defined(__clang__) || _MSC_VER < 1920 || _MSVC_LANG <= 201703L)
 #define TEST_HAS_NO_SPACESHIP_OPERATOR
 #endif
 

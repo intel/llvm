@@ -61,7 +61,8 @@ SPIRVModule::~SPIRVModule() {}
 class SPIRVModuleImpl : public SPIRVModule {
 public:
   SPIRVModuleImpl()
-      : SPIRVModule(), NextId(1), SPIRVVersion(SPIRV_1_0),
+      : SPIRVModule(), NextId(1),
+        SPIRVVersion(static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0)),
         GeneratorId(SPIRVGEN_KhronosLLVMSPIRVTranslator), GeneratorVer(0),
         InstSchema(SPIRVISCH_Default), SrcLang(SourceLanguageOpenCL_C),
         SrcLangVer(102000) {
@@ -70,6 +71,11 @@ public:
     // OpenCL memory model requires Kernel capability
     setMemoryModel(MemoryModelOpenCL);
   }
+
+  SPIRVModuleImpl(const SPIRV::TranslatorOpts &Opts) : SPIRVModuleImpl() {
+    TranslationOpts = Opts;
+  }
+
   ~SPIRVModuleImpl() override;
 
   // Object query functions
@@ -86,6 +92,13 @@ public:
   SPIRVErrorLog &getErrorLog() override { return ErrLog; }
   SPIRVErrorCode getError(std::string &ErrMsg) override {
     return ErrLog.getError(ErrMsg);
+  }
+  bool checkExtension(ExtensionID Ext, SPIRVErrorCode ErrCode,
+                      const std::string &Msg) override {
+    if (ErrLog.checkError(isAllowedToUseExtension(Ext), ErrCode, Msg))
+      return true;
+    setInvalid();
+    return false;
   }
 
   // Module query functions
@@ -164,7 +177,10 @@ public:
   void setGeneratorVer(unsigned short Ver) override { GeneratorVer = Ver; }
   void resolveUnknownStructFields() override;
 
-  void setSPIRVVersion(SPIRVWord Ver) override { SPIRVVersion = Ver; }
+  void setSPIRVVersion(SPIRVWord Ver) override {
+    assert(this->isAllowedToUseVersion(static_cast<VersionNumber>(Ver)));
+    SPIRVVersion = Ver;
+  }
 
   // Object creation functions
   template <class T> void addTo(std::vector<T *> &V, SPIRVEntry *E);
@@ -181,7 +197,7 @@ public:
   void setCurrentLine(const std::shared_ptr<const SPIRVLine> &Line) override;
   void addCapability(SPIRVCapabilityKind) override;
   void addCapabilityInternal(SPIRVCapabilityKind) override;
-  void addExtension(SPIRVExtensionKind) override;
+  void addExtension(ExtensionID) override;
   const SPIRVDecorateGeneric *addDecorate(SPIRVDecorateGeneric *) override;
   SPIRVDecorationGroup *addDecorationGroup() override;
   SPIRVDecorationGroup *
@@ -275,6 +291,11 @@ public:
                                   SPIRVBasicBlock *) override;
   SPIRVInstruction *addCallInst(SPIRVFunction *, const std::vector<SPIRVWord> &,
                                 SPIRVBasicBlock *) override;
+  SPIRVInstruction *addIndirectCallInst(SPIRVValue *, SPIRVType *,
+                                        const std::vector<SPIRVWord> &,
+                                        SPIRVBasicBlock *) override;
+  SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *, SPIRVFunction *,
+                                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addCmpInst(Op, SPIRVType *, SPIRVValue *, SPIRVValue *,
                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addLoadInst(SPIRVValue *, const std::vector<SPIRVWord> &,
@@ -331,6 +352,10 @@ public:
                    SPIRVWord LoopControl,
                    std::vector<SPIRVWord> LoopControlParameters,
                    SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *
+  addLoopControlINTELInst(SPIRVWord LoopControl,
+                          std::vector<SPIRVWord> LoopControlParameters,
+                          SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addSelectionMergeInst(SPIRVId MergeBlock,
                                           SPIRVWord SelectionControl,
                                           SPIRVBasicBlock *BB) override;
@@ -348,6 +373,21 @@ public:
                                              SPIRVId TheVector,
                                              SPIRVId TheScalar,
                                              SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addVectorTimesMatrixInst(SPIRVType *TheType,
+                                             SPIRVId TheVector,
+                                             SPIRVId TheScalar,
+                                             SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addMatrixTimesScalarInst(SPIRVType *TheType,
+                                             SPIRVId TheMatrix,
+                                             SPIRVId TheScalar,
+                                             SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addMatrixTimesVectorInst(SPIRVType *TheType,
+                                             SPIRVId TheMatrix,
+                                             SPIRVId TheVector,
+                                             SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addMatrixTimesMatrixInst(SPIRVType *TheType, SPIRVId M1,
+                                             SPIRVId M2,
+                                             SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
                                  SPIRVBasicBlock *) override;
   SPIRVInstruction *addVariable(SPIRVType *, bool, SPIRVLinkageTypeKind,
@@ -363,6 +403,10 @@ public:
   SPIRVInstruction *addVectorInsertDynamicInst(SPIRVValue *, SPIRVValue *,
                                                SPIRVValue *,
                                                SPIRVBasicBlock *) override;
+  SPIRVInstruction *addFPGARegINTELInst(SPIRVType *, SPIRVValue *,
+                                        SPIRVBasicBlock *) override;
+  SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *, SPIRVValue *,
+                                        SPIRVBasicBlock *) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -524,9 +568,10 @@ SPIRVValue *SPIRVModuleImpl::addPipeStorageConstant(SPIRVType *TheType,
       this, TheType, getId(), PacketSize, PacketAlign, Capacity));
 }
 
-void SPIRVModuleImpl::addExtension(SPIRVExtensionKind Ext) {
+void SPIRVModuleImpl::addExtension(ExtensionID Ext) {
   std::string ExtName;
-  SPIRVMap<SPIRVExtensionKind, std::string>::find(Ext, &ExtName);
+  SPIRVMap<ExtensionID, std::string>::find(Ext, &ExtName);
+  assert(isAllowedToUseExtension(Ext));
   SPIRVExt.insert(ExtName);
 }
 
@@ -1034,6 +1079,37 @@ SPIRVModuleImpl::addVectorTimesScalarInst(SPIRVType *TheType, SPIRVId TheVector,
 }
 
 SPIRVInstruction *
+SPIRVModuleImpl::addVectorTimesMatrixInst(SPIRVType *TheType, SPIRVId TheVector,
+                                          SPIRVId TheMatrix,
+                                          SPIRVBasicBlock *BB) {
+  return BB->addInstruction(
+      new SPIRVVectorTimesMatrix(TheType, getId(), TheVector, TheMatrix, BB));
+}
+
+SPIRVInstruction *
+SPIRVModuleImpl::addMatrixTimesScalarInst(SPIRVType *TheType, SPIRVId TheMatrix,
+                                          SPIRVId TheScalar,
+                                          SPIRVBasicBlock *BB) {
+  return BB->addInstruction(
+      new SPIRVMatrixTimesScalar(TheType, getId(), TheMatrix, TheScalar, BB));
+}
+
+SPIRVInstruction *
+SPIRVModuleImpl::addMatrixTimesVectorInst(SPIRVType *TheType, SPIRVId TheMatrix,
+                                          SPIRVId TheVector,
+                                          SPIRVBasicBlock *BB) {
+  return BB->addInstruction(
+      new SPIRVMatrixTimesVector(TheType, getId(), TheMatrix, TheVector, BB));
+}
+
+SPIRVInstruction *
+SPIRVModuleImpl::addMatrixTimesMatrixInst(SPIRVType *TheType, SPIRVId M1,
+                                          SPIRVId M2, SPIRVBasicBlock *BB) {
+  return BB->addInstruction(
+      new SPIRVMatrixTimesMatrix(TheType, getId(), M1, M2, BB));
+}
+
+SPIRVInstruction *
 SPIRVModuleImpl::addGroupInst(Op OpCode, SPIRVType *Type, Scope Scope,
                               const std::vector<SPIRVValue *> &Ops,
                               SPIRVBasicBlock *BB) {
@@ -1099,6 +1175,21 @@ SPIRVModuleImpl::addCallInst(SPIRVFunction *TheFunction,
                              SPIRVBasicBlock *BB) {
   return addInstruction(
       new SPIRVFunctionCall(getId(), TheFunction, TheArguments, BB), BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addIndirectCallInst(
+    SPIRVValue *TheCalledValue, SPIRVType *TheReturnType,
+    const std::vector<SPIRVWord> &TheArguments, SPIRVBasicBlock *BB) {
+  return addInstruction(
+      new SPIRVFunctionPointerCallINTEL(getId(), TheCalledValue, TheReturnType,
+                                        TheArguments, BB),
+      BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addFunctionPointerINTELInst(
+    SPIRVType *TheType, SPIRVFunction *TheFunction, SPIRVBasicBlock *BB) {
+  return addInstruction(
+      new SPIRVFunctionPointerINTEL(getId(), TheType, TheFunction, BB), BB);
 }
 
 SPIRVInstruction *SPIRVModuleImpl::addBinaryInst(Op TheOpCode, SPIRVType *Type,
@@ -1228,6 +1319,16 @@ SPIRVInstruction *SPIRVModuleImpl::addLoopMergeInst(
       BB, const_cast<SPIRVInstruction *>(BB->getTerminateInstr()));
 }
 
+SPIRVInstruction *SPIRVModuleImpl::addLoopControlINTELInst(
+    SPIRVWord LoopControl, std::vector<SPIRVWord> LoopControlParameters,
+    SPIRVBasicBlock *BB) {
+  addCapability(CapabilityUnstructuredLoopControlsINTEL);
+  addExtension(ExtensionID::SPV_INTEL_unstructured_loop_controls);
+  return addInstruction(
+      new SPIRVLoopControlINTEL(LoopControl, LoopControlParameters, BB), BB,
+      const_cast<SPIRVInstruction *>(BB->getTerminateInstr()));
+}
+
 SPIRVInstruction *
 SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type, SPIRVValue *Base,
                                        std::vector<SPIRVValue *> Indices,
@@ -1287,6 +1388,25 @@ SPIRVInstruction *SPIRVModuleImpl::addCopyMemorySizedInst(
     const std::vector<SPIRVWord> &TheMemoryAccess, SPIRVBasicBlock *BB) {
   return addInstruction(new SPIRVCopyMemorySized(TheTarget, TheSource, TheSize,
                                                  TheMemoryAccess, BB),
+                        BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addFPGARegINTELInst(SPIRVType *Type,
+                                                       SPIRVValue *V,
+                                                       SPIRVBasicBlock *BB) {
+  return addInstruction(
+      SPIRVInstTemplateBase::create(OpFPGARegINTEL, Type, getId(),
+                                    getVec(V->getId()), BB, this),
+      BB);
+}
+
+SPIRVInstruction *SPIRVModuleImpl::addSampledImageInst(SPIRVType *ResultTy,
+                                                       SPIRVValue *Image,
+                                                       SPIRVValue *Sampler,
+                                                       SPIRVBasicBlock *BB) {
+  return addInstruction(SPIRVInstTemplateBase::create(
+                            OpSampledImage, ResultTy, getId(),
+                            getVec(Image->getId(), Sampler->getId()), BB, this),
                         BB);
 }
 
@@ -1536,6 +1656,27 @@ void SPIRVModuleImpl::addUnknownStructField(SPIRVTypeStruct *Struct, unsigned I,
   UnknownStructFieldMap[Struct].push_back(std::make_pair(I, ID));
 }
 
+static std::string to_string(uint32_t Version) {
+  std::string Res;
+  switch (Version) {
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_0):
+    Res = "1.0";
+    break;
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_1):
+    Res = "1.1";
+    break;
+  default:
+    Res = "unknown";
+  }
+
+  Res += " (" + std::to_string(Version) + ")";
+  return Res;
+}
+
+static std::string to_string(VersionNumber Version) {
+  return to_string(static_cast<uint32_t>(Version));
+}
+
 std::istream &operator>>(std::istream &I, SPIRVModule &M) {
   SPIRVDecoder Decoder(I, M);
   SPIRVModuleImpl &MI = *static_cast<SPIRVModuleImpl *>(&M);
@@ -1552,9 +1693,26 @@ std::istream &operator>>(std::istream &I, SPIRVModule &M) {
   }
 
   Decoder >> MI.SPIRVVersion;
-  if (!M.getErrorLog().checkError(MI.SPIRVVersion <= SPV_VERSION,
-                                  SPIRVEC_InvalidModule,
-                                  "unsupported SPIR-V version number")) {
+  bool SPIRVVersionIsKnown =
+      static_cast<uint32_t>(VersionNumber::MinimumVersion) <= MI.SPIRVVersion &&
+      MI.SPIRVVersion <= static_cast<uint32_t>(VersionNumber::MaximumVersion);
+  if (!M.getErrorLog().checkError(
+          SPIRVVersionIsKnown, SPIRVEC_InvalidModule,
+          "unsupported SPIR-V version number '" + to_string(MI.SPIRVVersion) +
+              "'. Range of supported/known SPIR-V "
+              "versions is " +
+              to_string(VersionNumber::MinimumVersion) + " - " +
+              to_string(VersionNumber::MaximumVersion))) {
+    M.setInvalid();
+    return I;
+  }
+
+  bool SPIRVVersionIsAllowed = M.isAllowedToUseVersion(MI.SPIRVVersion);
+  if (!M.getErrorLog().checkError(
+          SPIRVVersionIsAllowed, SPIRVEC_InvalidModule,
+          "incorrect SPIR-V version number " + to_string(MI.SPIRVVersion) +
+              " - it conflicts with --spirv-max-version which is set to " +
+              to_string(M.getMaximumAllowedSPIRVVersion()))) {
     M.setInvalid();
     return I;
   }
@@ -1575,7 +1733,7 @@ std::istream &operator>>(std::istream &I, SPIRVModule &M) {
     return I;
   }
 
-  while (Decoder.getWordCountAndOpCode()) {
+  while (Decoder.getWordCountAndOpCode() && M.isModuleValid()) {
     SPIRVEntry *Entry = Decoder.getEntry();
     if (Entry != nullptr)
       M.add(Entry);
@@ -1587,7 +1745,11 @@ std::istream &operator>>(std::istream &I, SPIRVModule &M) {
   return I;
 }
 
-SPIRVModule *SPIRVModule::createSPIRVModule() { return new SPIRVModuleImpl; }
+SPIRVModule *SPIRVModule::createSPIRVModule() { return new SPIRVModuleImpl(); }
+
+SPIRVModule *SPIRVModule::createSPIRVModule(const SPIRV::TranslatorOpts &Opts) {
+  return new SPIRVModuleImpl(Opts);
+}
 
 SPIRVValue *SPIRVModuleImpl::getValue(SPIRVId TheId) const {
   return get<SPIRVValue>(TheId);
@@ -1668,7 +1830,14 @@ bool convertSpirv(std::istream &IS, std::ostream &OS, std::string &ErrMsg,
                   bool FromText, bool ToText) {
   auto SaveOpt = SPIRVUseTextFormat;
   SPIRVUseTextFormat = FromText;
-  SPIRVModuleImpl M;
+  // Conversion from/to SPIR-V text representation is a side feature of the
+  // translator which is mostly intended for debug usage. So, this step cannot
+  // be customized to enable/disable particular extensions or restrict/allow
+  // particular SPIR-V versions: all known SPIR-V versions are allowed, all
+  // known SPIR-V extensions are enabled during this conversion
+  SPIRV::TranslatorOpts DefaultOpts;
+  DefaultOpts.enableAllExtensions();
+  SPIRVModuleImpl M(DefaultOpts);
   IS >> M;
   if (M.getError(ErrMsg) != SPIRVEC_Success) {
     SPIRVUseTextFormat = SaveOpt;

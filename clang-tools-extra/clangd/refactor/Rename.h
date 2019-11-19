@@ -6,19 +6,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangdUnit.h"
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_REFACTOR_RENAME_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_REFACTOR_RENAME_H
+
+#include "Protocol.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/Support/Error.h"
 
 namespace clang {
 namespace clangd {
+class ParsedAST;
+class SymbolIndex;
 
 /// Renames all occurrences of the symbol at \p Pos to \p NewName.
 /// Occurrences outside the current file are not modified.
-llvm::Expected<tooling::Replacements> renameWithinFile(ParsedAST &AST,
-                                                       llvm::StringRef File,
-                                                       Position Pos,
-                                                       llvm::StringRef NewName);
+/// Returns an error if rename a symbol that's used in another file (per the
+/// index).
+llvm::Expected<tooling::Replacements>
+renameWithinFile(ParsedAST &AST, llvm::StringRef File, Position Pos,
+                 llvm::StringRef NewName, const SymbolIndex *Index = nullptr);
 
 } // namespace clangd
 } // namespace clang
+
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_REFACTOR_RENAME_H

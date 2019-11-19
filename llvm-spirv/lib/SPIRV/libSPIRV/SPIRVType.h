@@ -75,6 +75,9 @@ public:
   SPIRVWord getStructMemberCount() const;
   SPIRVWord getVectorComponentCount() const;
   SPIRVType *getVectorComponentType() const;
+  SPIRVWord getMatrixColumnCount() const;
+  SPIRVType *getMatrixColumnType() const;
+  SPIRVType *getScalarType() const;
 
   bool isTypeVoid() const;
   bool isTypeArray() const;
@@ -308,6 +311,48 @@ protected:
 private:
   SPIRVType *CompType; // Component Type
   SPIRVWord CompCount; // Component Count
+};
+
+class SPIRVTypeMatrix : public SPIRVType {
+public:
+  // Complete constructor
+  SPIRVTypeMatrix(SPIRVModule *M, SPIRVId TheId, SPIRVType *TheColType,
+                  SPIRVWord TheColCount)
+      : SPIRVType(M, 4, OpTypeMatrix, TheId), ColType(TheColType),
+        ColCount(TheColCount) {
+    validate();
+  }
+  // Incomplete constructor
+  SPIRVTypeMatrix() : SPIRVType(OpTypeMatrix), ColType(nullptr), ColCount(0) {}
+
+  SPIRVType *getColumnType() const { return ColType; }
+  SPIRVWord getColumnCount() const { return ColCount; }
+
+  bool isValidIndex(SPIRVWord Index) const { return Index < ColCount; }
+
+  SPIRVCapVec getRequiredCapability() const override {
+    SPIRVCapVec V(getColumnType()->getRequiredCapability());
+    if (ColCount >= 8)
+      V.push_back(CapabilityVector16);
+    return V;
+  }
+
+  virtual std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
+    return std::vector<SPIRVEntry *>(1, ColType);
+  }
+
+  void validate() const override {
+    SPIRVEntry::validate();
+    ColType->validate();
+    assert(ColCount >= 2);
+  }
+
+protected:
+  _SPIRV_DEF_ENCDEC3(Id, ColType, ColCount)
+
+private:
+  SPIRVType *ColType; // Column Type
+  SPIRVWord ColCount; // Column Count
 };
 
 class SPIRVConstant;
@@ -780,7 +825,7 @@ public:
   }
 
   SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(SPV_INTEL_device_side_avc_motion_estimation);
+    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
   }
 
 protected:
@@ -835,7 +880,7 @@ public:
   }
 
   SPIRVExtSet getRequiredExtensions() const override {
-    return getSet(SPV_INTEL_device_side_avc_motion_estimation);
+    return getSet(ExtensionID::SPV_INTEL_device_side_avc_motion_estimation);
   }
 
   SPIRVValue *getOperand() { return getValue(Opn); }

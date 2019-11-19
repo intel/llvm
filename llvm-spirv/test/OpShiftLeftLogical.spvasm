@@ -1,0 +1,36 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+               OpCapability Addresses
+               OpCapability Kernel
+               OpExtension "SPV_KHR_no_integer_wrap_decoration"
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "testShiftLeftLogical"
+               OpName %a "a"
+               OpName %r1 "r1"
+               OpName %r2 "r2"
+               OpName %r3 "r3"
+               OpName %r4 "r4"
+               OpDecorate %r2 NoSignedWrap
+               OpDecorate %r3 NoUnsignedWrap
+               OpDecorate %r4 NoSignedWrap
+               OpDecorate %r4 NoUnsignedWrap
+       %void = OpTypeVoid
+       %uint = OpTypeInt 32 0
+     %uint_1 = OpConstant %uint 1
+          %5 = OpTypeFunction %void %uint
+          %1 = OpFunction %void None %5
+          %a = OpFunctionParameter %uint
+          %6 = OpLabel
+         %r1 = OpShiftLeftLogical %uint %a %uint_1
+         %r2 = OpShiftLeftLogical %uint %a %uint_1
+         %r3 = OpShiftLeftLogical %uint %a %uint_1
+         %r4 = OpShiftLeftLogical %uint %a %uint_1
+               OpReturn
+               OpFunctionEnd
+
+; CHECK: %r1 = shl i32 %a, 1
+; CHECK: %r2 = shl nsw i32 %a, 1
+; CHECK: %r3 = shl nuw i32 %a, 1
+; CHECK: %r4 = shl nuw nsw i32 %a, 1

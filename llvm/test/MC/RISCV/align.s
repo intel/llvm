@@ -2,28 +2,28 @@
 
 # Relaxation enabled:
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+relax < %s \
-# RUN:     | llvm-objdump -d -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d -M no-aliases - \
 # RUN:     | FileCheck -check-prefix=RELAX-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+relax < %s \
 # RUN:     | llvm-readobj -r | FileCheck -check-prefix=RELAX-RELOC %s
 
 # Relaxation disabled:
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=-relax < %s \
-# RUN:     | llvm-objdump -d -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d -M no-aliases - \
 # RUN:     | FileCheck -check-prefix=NORELAX-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=-relax < %s \
 # RUN:     | llvm-readobj -r | FileCheck -check-prefix=NORELAX-RELOC %s
 
 # Relaxation enabled with C extension:
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+c,+relax < %s \
-# RUN:     | llvm-objdump -d -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d -M no-aliases - \
 # RUN:     | FileCheck -check-prefix=C-EXT-RELAX-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+c,+relax < %s \
 # RUN:     | llvm-readobj -r | FileCheck -check-prefix=C-EXT-RELAX-RELOC %s
 
 # Relaxation disabled with C extension:
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+c,-relax < %s \
-# RUN:     | llvm-objdump -d -riscv-no-aliases - \
+# RUN:     | llvm-objdump -d -M no-aliases - \
 # RUN:     | FileCheck -check-prefix=C-EXT-NORELAX-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 -mattr=+c,-relax < %s \
 # RUN:     | llvm-readobj -r | FileCheck -check-prefix=C-EXT-NORELAX-RELOC %s
@@ -90,6 +90,13 @@ test:
 	ret
 # NORELAX-RELOC-NOT: R_RISCV
 # C-EXT-NORELAX-RELOC-NOT: R_RISCV
+# Code alignment of a byte size less than the size of a nop must be treated
+# as no alignment. This used to trigger a fatal error with relaxation enabled
+# as the calculation to emit the worst-case sequence of nops would overflow.
+	.p2align        1
+	add	a0, a0, a1
+	.p2align        0
+	add	a0, a0, a1
 # We only need to insert R_RISCV_ALIGN for code section
 # when the linker relaxation enabled.
         .data

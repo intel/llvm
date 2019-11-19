@@ -9,6 +9,7 @@
 #include "lldb/Symbol/LocateSymbolFile.h"
 
 #include <dirent.h>
+#include <dlfcn.h>
 #include <pwd.h>
 
 #include <CoreFoundation/CoreFoundation.h>
@@ -22,7 +23,6 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/ArchSpec.h"
-#include "lldb/Utility/CleanUp.h"
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Endian.h"
@@ -32,26 +32,20 @@
 #include "lldb/Utility/UUID.h"
 #include "mach/machine.h"
 
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/FileSystem.h"
 
 using namespace lldb;
 using namespace lldb_private;
 
-#if !defined(__arm__) && !defined(__arm64__) &&                                \
-    !defined(__aarch64__) // No DebugSymbols on the iOS devices
-extern "C" {
-
-CFURLRef DBGCopyFullDSYMURLForUUID(CFUUIDRef uuid, CFURLRef exec_url);
-CFDictionaryRef DBGCopyDSYMPropertyLists(CFURLRef dsym_url);
-}
-#endif
+static CFURLRef (*g_dlsym_DBGCopyFullDSYMURLForUUID)(CFUUIDRef uuid, CFURLRef exec_url) = nullptr;
+static CFDictionaryRef (*g_dlsym_DBGCopyDSYMPropertyLists)(CFURLRef dsym_url) = nullptr;
 
 int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
                                        ModuleSpec &return_module_spec) {
   Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_HOST);
   if (!ModuleList::GetGlobalModuleListProperties().GetEnableExternalLookup()) {
-    if (log)
-      log->Printf("Spotlight lookup for .dSYM bundles is disabled.");
+    LLDB_LOGF(log, "Spotlight lookup for .dSYM bundles is disabled.");
     return 0;
   }
 
@@ -61,8 +55,19 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
 
   int items_found = 0;
 
-#if !defined(__arm__) && !defined(__arm64__) &&                                \
-    !defined(__aarch64__) // No DebugSymbols on the iOS devices
+  if (g_dlsym_DBGCopyFullDSYMURLForUUID == nullptr ||
+      g_dlsym_DBGCopyDSYMPropertyLists == nullptr) {
+    void *handle = dlopen ("/System/Library/PrivateFrameworks/DebugSymbols.framework/DebugSymbols", RTLD_LAZY | RTLD_LOCAL);
+    if (handle) {
+      g_dlsym_DBGCopyFullDSYMURLForUUID = (CFURLRef (*)(CFUUIDRef, CFURLRef)) dlsym (handle, "DBGCopyFullDSYMURLForUUID");
+      g_dlsym_DBGCopyDSYMPropertyLists = (CFDictionaryRef (*)(CFURLRef)) dlsym (handle, "DBGCopyDSYMPropertyLists");
+    }
+  }
+
+  if (g_dlsym_DBGCopyFullDSYMURLForUUID == nullptr ||
+      g_dlsym_DBGCopyDSYMPropertyLists == nullptr) {
+    return items_found;
+  }
 
   const UUID *uuid = module_spec.GetUUIDPtr();
   const ArchSpec *arch = module_spec.GetArchitecturePtr();
@@ -89,16 +94,17 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
         }
 
         CFCReleaser<CFURLRef> dsym_url(
-            ::DBGCopyFullDSYMURLForUUID(module_uuid_ref.get(), exec_url.get()));
+            g_dlsym_DBGCopyFullDSYMURLForUUID(module_uuid_ref.get(), exec_url.get()));
         char path[PATH_MAX];
 
         if (dsym_url.get()) {
           if (::CFURLGetFileSystemRepresentation(
                   dsym_url.get(), true, (UInt8 *)path, sizeof(path) - 1)) {
             if (log) {
-              log->Printf("DebugSymbols framework returned dSYM path of %s for "
-                          "UUID %s -- looking for the dSYM",
-                          path, uuid->GetAsString().c_str());
+              LLDB_LOGF(log,
+                        "DebugSymbols framework returned dSYM path of %s for "
+                        "UUID %s -- looking for the dSYM",
+                        path, uuid->GetAsString().c_str());
             }
             FileSpec dsym_filespec(path);
             if (path[0] == '~')
@@ -118,14 +124,15 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
           if (log) {
             if (::CFURLGetFileSystemRepresentation(
                     dsym_url.get(), true, (UInt8 *)path, sizeof(path) - 1)) {
-              log->Printf("DebugSymbols framework returned dSYM path of %s for "
-                          "UUID %s -- looking for an exec file",
-                          path, uuid->GetAsString().c_str());
+              LLDB_LOGF(log,
+                        "DebugSymbols framework returned dSYM path of %s for "
+                        "UUID %s -- looking for an exec file",
+                        path, uuid->GetAsString().c_str());
             }
           }
 
           CFCReleaser<CFDictionaryRef> dict(
-              ::DBGCopyDSYMPropertyLists(dsym_url.get()));
+              g_dlsym_DBGCopyDSYMPropertyLists(dsym_url.get()));
           CFDictionaryRef uuid_dict = NULL;
           if (dict.get()) {
             CFCString uuid_cfstr(uuid->GetAsString().c_str());
@@ -139,8 +146,8 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
             if (exec_cf_path && ::CFStringGetFileSystemRepresentation(
                                     exec_cf_path, path, sizeof(path))) {
               if (log) {
-                log->Printf("plist bundle has exec path of %s for UUID %s",
-                            path, uuid->GetAsString().c_str());
+                LLDB_LOGF(log, "plist bundle has exec path of %s for UUID %s",
+                          path, uuid->GetAsString().c_str());
               }
               ++items_found;
               FileSpec exec_filespec(path);
@@ -162,9 +169,10 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
               if (dsym_extension_pos) {
                 *dsym_extension_pos = '\0';
                 if (log) {
-                  log->Printf("Looking for executable binary next to dSYM "
-                              "bundle with name with name %s",
-                              path);
+                  LLDB_LOGF(log,
+                            "Looking for executable binary next to dSYM "
+                            "bundle with name with name %s",
+                            path);
                 }
                 FileSpec file_spec(path);
                 FileSystem::Instance().Resolve(file_spec);
@@ -193,9 +201,10 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
                         ++items_found;
                         return_module_spec.GetFileSpec() = bundle_exe_file_spec;
                         if (log) {
-                          log->Printf("Executable binary %s next to dSYM is "
-                                      "compatible; using",
-                                      path);
+                          LLDB_LOGF(log,
+                                    "Executable binary %s next to dSYM is "
+                                    "compatible; using",
+                                    path);
                         }
                       }
                     }
@@ -222,9 +231,10 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
                     ++items_found;
                     return_module_spec.GetFileSpec() = file_spec;
                     if (log) {
-                      log->Printf("Executable binary %s next to dSYM is "
-                                  "compatible; using",
-                                  path);
+                      LLDB_LOGF(log,
+                                "Executable binary %s next to dSYM is "
+                                "compatible; using",
+                                path);
                     }
                   }
                   break;
@@ -236,8 +246,6 @@ int LocateMacOSXFilesUsingDebugSymbols(const ModuleSpec &module_spec,
       }
     }
   }
-#endif // #if !defined (__arm__) && !defined (__arm64__) && !defined
-       // (__aarch64__)
 
   return items_found;
 }
@@ -256,7 +264,7 @@ FileSpec Symbols::FindSymbolFileInBundle(const FileSpec &dsym_bundle_fspec,
     return {};
 
   // Make sure we close the directory before exiting this scope.
-  CleanUp cleanup_dir(closedir, dirp);
+  auto cleanup_dir = llvm::make_scope_exit([&]() { closedir(dirp); });
 
   FileSpec dsym_fspec;
   dsym_fspec.GetDirectory().SetCString(path);
@@ -311,9 +319,9 @@ static bool GetModuleSpecInfoFromUUIDDictionary(CFDictionaryRef uuid_dict,
         module_spec.GetFileSpec().SetFile(str.c_str(), FileSpec::Style::native);
         FileSystem::Instance().Resolve(module_spec.GetFileSpec());
         if (log) {
-          log->Printf(
-              "From dsymForUUID plist: Symbol rich executable is at '%s'",
-              str.c_str());
+          LLDB_LOGF(log,
+                    "From dsymForUUID plist: Symbol rich executable is at '%s'",
+                    str.c_str());
         }
       }
     }
@@ -327,7 +335,8 @@ static bool GetModuleSpecInfoFromUUIDDictionary(CFDictionaryRef uuid_dict,
         FileSystem::Instance().Resolve(module_spec.GetFileSpec());
         success = true;
         if (log) {
-          log->Printf("From dsymForUUID plist: dSYM is at '%s'", str.c_str());
+          LLDB_LOGF(log, "From dsymForUUID plist: dSYM is at '%s'",
+                    str.c_str());
         }
       }
     }
@@ -578,11 +587,11 @@ bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
         std::string command_output;
         if (log) {
           if (!uuid_str.empty())
-            log->Printf("Calling %s with UUID %s to find dSYM",
-                        g_dsym_for_uuid_exe_path, uuid_str.c_str());
+            LLDB_LOGF(log, "Calling %s with UUID %s to find dSYM",
+                      g_dsym_for_uuid_exe_path, uuid_str.c_str());
           else if (file_path[0] != '\0')
-            log->Printf("Calling %s with file %s to find dSYM",
-                        g_dsym_for_uuid_exe_path, file_path);
+            LLDB_LOGF(log, "Calling %s with file %s to find dSYM",
+                      g_dsym_for_uuid_exe_path, file_path);
         }
         Status error = Host::RunShellCommand(
             command.GetData(),
@@ -639,11 +648,11 @@ bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
         } else {
           if (log) {
             if (!uuid_str.empty())
-              log->Printf("Called %s on %s, no matches",
-                          g_dsym_for_uuid_exe_path, uuid_str.c_str());
+              LLDB_LOGF(log, "Called %s on %s, no matches",
+                        g_dsym_for_uuid_exe_path, uuid_str.c_str());
             else if (file_path[0] != '\0')
-              log->Printf("Called %s on %s, no matches",
-                          g_dsym_for_uuid_exe_path, file_path);
+              LLDB_LOGF(log, "Called %s on %s, no matches",
+                        g_dsym_for_uuid_exe_path, file_path);
           }
         }
       }

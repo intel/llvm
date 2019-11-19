@@ -82,9 +82,11 @@ static void ReplaceFrameIndex(MachineBasicBlock::iterator II,
   switch (MI.getOpcode()) {
   case ARC::LD_rs9:
     assert((Offset % 4 == 0) && "LD needs 4 byte alignment.");
+    LLVM_FALLTHROUGH;
   case ARC::LDH_rs9:
   case ARC::LDH_X_rs9:
     assert((Offset % 2 == 0) && "LDH needs 2 byte alignment.");
+    LLVM_FALLTHROUGH;
   case ARC::LDB_rs9:
   case ARC::LDB_X_rs9:
     LLVM_DEBUG(dbgs() << "Building LDFI\n");
@@ -95,8 +97,10 @@ static void ReplaceFrameIndex(MachineBasicBlock::iterator II,
     break;
   case ARC::ST_rs9:
     assert((Offset % 4 == 0) && "ST needs 4 byte alignment.");
+    LLVM_FALLTHROUGH;
   case ARC::STH_rs9:
     assert((Offset % 2 == 0) && "STH needs 2 byte alignment.");
+    LLVM_FALLTHROUGH;
   case ARC::STB_rs9:
     LLVM_DEBUG(dbgs() << "Building STFI\n");
     BuildMI(MBB, II, dl, TII.get(MI.getOpcode()))
@@ -124,7 +128,7 @@ static void ReplaceFrameIndex(MachineBasicBlock::iterator II,
 ARCRegisterInfo::ARCRegisterInfo() : ARCGenRegisterInfo(ARC::BLINK) {}
 
 bool ARCRegisterInfo::needsFrameMoves(const MachineFunction &MF) {
-  return MF.getMMI().hasDebugInfo() || MF.getFunction().needsUnwindTableEntry();
+  return MF.needsFrameMoves();
 }
 
 const MCPhysReg *
@@ -186,7 +190,7 @@ void ARCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   // Special handling of DBG_VALUE instructions.
   if (MI.isDebugValue()) {
-    unsigned FrameReg = getFrameRegister(MF);
+    Register FrameReg = getFrameRegister(MF);
     MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false /*isDef*/);
     MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
     return;
@@ -202,7 +206,7 @@ void ARCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   LLVM_DEBUG(dbgs() << "Offset             : " << Offset << "\n"
                     << "<--------->\n");
 
-  unsigned Reg = MI.getOperand(0).getReg();
+  Register Reg = MI.getOperand(0).getReg();
   assert(ARC::GPR32RegClass.contains(Reg) && "Unexpected register operand");
 
   if (!TFI->hasFP(MF)) {
@@ -219,7 +223,7 @@ void ARCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                     ObjSize, RS, SPAdj);
 }
 
-unsigned ARCRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+Register ARCRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const ARCFrameLowering *TFI = getFrameLowering(MF);
   return TFI->hasFP(MF) ? ARC::FP : ARC::SP;
 }

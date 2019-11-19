@@ -4,29 +4,34 @@
 
 # RUN: llvm-mc -filetype=obj -triple=mips-unknown-linux -o %t.o %s
 # RUN: ld.lld -r -o %t %t.o %t.o
-# RUN: llvm-objdump -d -r %t | FileCheck -check-prefix=OBJ %s
+# RUN: llvm-objdump -d -r --no-show-raw-insn %t | FileCheck -check-prefix=OBJ %s
 # RUN: ld.lld -shared -o %t.so %t
-# RUN: llvm-objdump -d %t.so | FileCheck -check-prefix=SO %s
+# RUN: llvm-objdump -d -t --print-imm-hex --no-show-raw-insn %t.so \
+# RUN:   | FileCheck -check-prefix=SO %s
 
 # OBJ:      Disassembly of section .text:
 # OBJ-EMPTY:
 # OBJ-NEXT: .text:
-# OBJ-NEXT:        0:       8f 99 00 00     lw      $25, 0($gp)
-# OBJ-NEXT:                         00000000:  R_MIPS_GOT16 .data
-# OBJ-NEXT:        4:       27 24 00 00     addiu   $4, $25, 0
-# OBJ-NEXT:                         00000004:  R_MIPS_LO16  .data
-# OBJ:            10:       8f 99 00 00     lw      $25, 0($gp)
-# OBJ-NEXT:                         00000010:  R_MIPS_GOT16 .data
-# OBJ-NEXT:       14:       27 24 00 10     addiu   $4, $25, 16
-# OBJ-NEXT:                         00000014:  R_MIPS_LO16  .data
+# OBJ-NEXT:   lw      $25, 0($gp)
+# OBJ-NEXT:           00000000:  R_MIPS_GOT16 .data
+# OBJ-NEXT:   addiu   $4, $25, 0
+# OBJ-NEXT:           00000004:  R_MIPS_LO16  .data
+# OBJ:        lw      $25, 0($gp)
+# OBJ-NEXT:           00000010:  R_MIPS_GOT16 .data
+# OBJ-NEXT:   addiu   $4, $25, 16
+# OBJ-NEXT:           00000014:  R_MIPS_LO16  .data
+
+# SO: SYMBOL TABLE
+# SO: {{0*}}[[D1:[0-9a-f]{1,4}]] .data {{0+}} data
+# SO: {{0*}}[[D2:[0-9a-f]{1,4}]] .data {{0+}} data
 
 # SO:      Disassembly of section .text:
 # SO-EMPTY:
 # SO-NEXT: .text:
-# SO-NEXT:    10000:       8f 99 80 18     lw      $25, -32744($gp)
-# SO-NEXT:    10004:       27 24 00 00     addiu   $4, $25, 0
-# SO:         10010:       8f 99 80 18     lw      $25, -32744($gp)
-# SO-NEXT:    10014:       27 24 00 10     addiu   $4, $25, 16
+# SO-NEXT:    lw      $25, -0x7fe8($gp)
+# SO-NEXT:    addiu   $4, $25, 0x[[D1]]
+# SO:         lw      $25, -0x7fe8($gp)
+# SO-NEXT:    addiu   $4, $25, 0x[[D2]]
 
   .text
   lw     $t9, %got(.data)($gp)

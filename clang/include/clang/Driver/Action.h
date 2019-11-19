@@ -65,14 +65,16 @@ public:
     BackendJobClass,
     AssembleJobClass,
     LinkJobClass,
+    IfsMergeJobClass,
     LipoJobClass,
     DsymutilJobClass,
     VerifyDebugInfoJobClass,
     VerifyPCHJobClass,
     OffloadBundlingJobClass,
     OffloadUnbundlingJobClass,
-    OffloadWrappingJobClass,
+    OffloadWrapperJobClass,
     SPIRVTranslatorJobClass,
+    SPIRCheckJobClass,
     BackendCompileJobClass,
 
     JobClassFirst = PreprocessJobClass,
@@ -489,6 +491,17 @@ public:
   }
 };
 
+class IfsMergeJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  IfsMergeJobAction(ActionList &Inputs, types::ID Type);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == IfsMergeJobClass;
+  }
+};
+
 class LinkJobAction : public JobAction {
   void anchor() override;
 
@@ -617,14 +630,15 @@ public:
   }
 };
 
-class OffloadWrappingJobAction : public JobAction {
+class OffloadWrapperJobAction : public JobAction {
   void anchor() override;
 
 public:
-  OffloadWrappingJobAction(Action *Input, types::ID OutputType);
+  OffloadWrapperJobAction(ActionList &Inputs, types::ID Type);
+  OffloadWrapperJobAction(Action *Input, types::ID OutputType);
 
   static bool classof(const Action *A) {
-    return A->getKind() == OffloadWrappingJobClass;
+    return A->getKind() == OffloadWrapperJobClass;
   }
 };
 
@@ -636,6 +650,20 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == SPIRVTranslatorJobClass;
+  }
+};
+
+// Provides a check of the given input file for the existence of SPIR kernel
+// code.  This is currently only used for FPGA specific tool chains and can
+// be expanded to perform other SPIR checks if needed.
+class SPIRCheckJobAction : public JobAction {
+  void anchor() override;
+
+public:
+  SPIRCheckJobAction(Action *Input, types::ID OutputType);
+
+  static bool classof(const Action *A) {
+    return A->getKind() == SPIRCheckJobClass;
   }
 };
 

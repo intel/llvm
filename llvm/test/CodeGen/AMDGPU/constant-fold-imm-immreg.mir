@@ -5,7 +5,7 @@
 # GCN: %10:vgpr_32 = V_MOV_B32_e32 1543, implicit $exec
 # GCN: BUFFER_STORE_DWORD_OFFSET killed %10,
 name:            s_fold_and_imm_regimm_32
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -18,7 +18,7 @@ registers:
   - { id: 3, class: sreg_32_xm0 }
   - { id: 4, class: sreg_32_xm0 }
   - { id: 5, class: sreg_32_xm0 }
-  - { id: 6, class: sreg_128 }
+  - { id: 6, class: sgpr_128 }
   - { id: 7, class: sreg_32_xm0 }
   - { id: 8, class: sreg_32_xm0 }
   - { id: 9, class: sreg_32_xm0 }
@@ -54,7 +54,7 @@ body:             |
     %8 = S_MOV_B32 9999
     %9 = S_AND_B32 killed %7, killed %8, implicit-def dead $scc
     %10 = COPY %9
-    BUFFER_STORE_DWORD_OFFSET killed %10, killed %6, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFSET killed %10, killed %6, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -78,7 +78,7 @@ body:             |
 # GCN: FLAT_STORE_DWORD %19, %13,
 
 name:            v_fold_and_imm_regimm_32
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -168,7 +168,7 @@ body:             |
 # GCN: BUFFER_STORE_DWORD_OFFSET killed %13,
 
 name:            s_fold_shl_imm_regimm_32
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -185,7 +185,7 @@ registers:
   - { id: 7, class: sreg_32_xm0 }
   - { id: 8, class: sreg_32_xm0 }
   - { id: 9, class: sreg_32_xm0 }
-  - { id: 10, class: sreg_128 }
+  - { id: 10, class: sgpr_128 }
   - { id: 11, class: sreg_32_xm0 }
   - { id: 12, class: sreg_32_xm0 }
   - { id: 13, class: vgpr_32 }
@@ -219,7 +219,7 @@ body:             |
     %10 = REG_SEQUENCE killed %7, 1, killed %6, 2, killed %9, 3, killed %8, 4
     %12 = S_LSHL_B32 killed %5, 12, implicit-def dead $scc
     %13 = COPY %12
-    BUFFER_STORE_DWORD_OFFSET killed %13, killed %10, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFSET killed %13, killed %10, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -257,7 +257,7 @@ body:             |
 # GCN: FLAT_STORE_DWORD %20, %28,
 
 name:            v_fold_shl_imm_regimm_32
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -370,7 +370,7 @@ body:             |
 # GCN: %11:vgpr_32 = V_MOV_B32_e32 243, implicit $exec
 # GCN: BUFFER_STORE_DWORD_OFFSET killed %11, killed %8,
 name:            s_fold_ashr_imm_regimm_32
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -385,7 +385,7 @@ registers:
   - { id: 7, class: sreg_32_xm0 }
   - { id: 8, class: sreg_32_xm0 }
   - { id: 9, class: sreg_32_xm0 }
-  - { id: 10, class: sreg_128 }
+  - { id: 10, class: sgpr_128 }
   - { id: 11, class: sreg_32_xm0 }
   - { id: 12, class: sreg_32_xm0 }
   - { id: 13, class: vgpr_32 }
@@ -419,7 +419,7 @@ body:             |
     %10 = REG_SEQUENCE killed %7, 1, killed %6, 2, killed %9, 3, killed %8, 4
     %12 = S_ASHR_I32 killed %5, 12, implicit-def dead $scc
     %13 = COPY %12
-    BUFFER_STORE_DWORD_OFFSET killed %13, killed %10, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFSET killed %13, killed %10, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -456,7 +456,7 @@ body:             |
 # GCN: FLAT_STORE_DWORD %20, %28,
 
 name:            v_fold_ashr_imm_regimm_32
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -578,7 +578,7 @@ body:             |
 # GCN: %11:vgpr_32 = V_MOV_B32_e32 1048332, implicit $exec
 # GCN: BUFFER_STORE_DWORD_OFFSET killed %11, killed %8,
 name:            s_fold_lshr_imm_regimm_32
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -593,7 +593,7 @@ registers:
   - { id: 7, class: sreg_32_xm0 }
   - { id: 8, class: sreg_32_xm0 }
   - { id: 9, class: sreg_32_xm0 }
-  - { id: 10, class: sreg_128 }
+  - { id: 10, class: sgpr_128 }
   - { id: 11, class: sreg_32_xm0 }
   - { id: 12, class: sreg_32_xm0 }
   - { id: 13, class: vgpr_32 }
@@ -627,7 +627,7 @@ body:             |
     %10 = REG_SEQUENCE killed %7, 1, killed %6, 2, killed %9, 3, killed %8, 4
     %12 = S_LSHR_B32 killed %5, 12, implicit-def dead $scc
     %13 = COPY %12
-    BUFFER_STORE_DWORD_OFFSET killed %13, killed %10, 0, 0, 0, 0, 0, 0, implicit $exec
+    BUFFER_STORE_DWORD_OFFSET killed %13, killed %10, 0, 0, 0, 0, 0, 0, 0, implicit $exec
     S_ENDPGM 0
 
 ...
@@ -665,7 +665,7 @@ body:             |
 # GCN: FLAT_STORE_DWORD %20, %28,
 
 name:            v_fold_lshr_imm_regimm_32
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -837,7 +837,7 @@ body:             |
 # GCN-NEXT: S_ENDPGM 0, implicit %2
 
 name: constant_fold_lshl_or_reg0_immreg_reg
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -862,7 +862,7 @@ body:             |
 # GCN-NEXT: S_ENDPGM 0, implicit %2
 
 name: constant_fold_lshl_or_reg0_immreg_imm
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -882,11 +882,11 @@ body:             |
 ---
 
 # GCN-LABEL: name: constant_fold_lshl_or_reg0_immreg_immreg{{$}}
-# GCN: %3:vgpr_32 = V_MOV_B32_e32 12345, implicit $exec, implicit $exec
+# GCN: %3:vgpr_32 = V_MOV_B32_e32 12345, implicit $exec
 # GCN-NEXT: S_ENDPGM 0, implicit %3
 
 name: constant_fold_lshl_or_reg0_immreg_immreg
-alignment:       0
+alignment:       1
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false

@@ -401,3 +401,20 @@ define i1 @nabs_no_intersection(i32 %a) {
   ret i1 %r
 }
 
+; We can't fold this to false unless both subs have nsw.
+define i1 @abs_sub_sub_missing_nsw(i32 %x, i32 %y) {
+; CHECK-LABEL: @abs_sub_sub_missing_nsw(
+; CHECK-NEXT:    [[A:%.*]] = sub i32 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[B:%.*]] = sub nsw i32 [[Y]], [[X]]
+; CHECK-NEXT:    [[C:%.*]] = icmp sgt i32 [[A]], -1
+; CHECK-NEXT:    [[D:%.*]] = select i1 [[C]], i32 [[A]], i32 [[B]]
+; CHECK-NEXT:    [[E:%.*]] = icmp slt i32 [[D]], 0
+; CHECK-NEXT:    ret i1 [[E]]
+;
+  %a = sub i32 %x, %y
+  %b = sub nsw i32 %y, %x
+  %c = icmp sgt i32 %a, -1
+  %d = select i1 %c, i32 %a, i32 %b
+  %e = icmp slt i32 %d, 0
+  ret i1 %e
+}

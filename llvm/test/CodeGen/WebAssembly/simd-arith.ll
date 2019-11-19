@@ -223,6 +223,23 @@ define <16 x i8> @not_v16i8(<16 x i8> %x) {
   ret <16 x i8> %a
 }
 
+; CHECK-LABEL: andnot_v16i8:
+; NO-SIMD128-NOT: v128
+; SIMD128-VM-NOT: v128.andnot
+; SIMD128-NEXT: .functype andnot_v16i8 (v128, v128) -> (v128){{$}}
+; SIMD128-SLOW-NEXT: v128.andnot $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-SLOW-NEXT: return $pop[[R]]{{$}}
+; SIMD128-FAST-NEXT: v128.not
+; SIMD128-FAST-NEXT: v128.and
+; SIMD128-FAST-NEXT: return
+define <16 x i8> @andnot_v16i8(<16 x i8> %x, <16 x i8> %y) {
+ %inv_y = xor <16 x i8> %y,
+   <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1,
+    i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
+ %a = and <16 x i8> %x, %inv_y
+ ret <16 x i8> %a
+}
+
 ; CHECK-LABEL: bitselect_v16i8:
 ; NO-SIMD128-NOT: v128
 ; SIMD128-NEXT: .functype bitselect_v16i8 (v128, v128, v128) -> (v128){{$}}
@@ -445,6 +462,22 @@ define <8 x i16> @not_v8i16(<8 x i16> %x) {
   ret <8 x i16> %a
 }
 
+; CHECK-LABEL: andnot_v8i16:
+; SIMD128-VM-NOT: v128.andnot
+; NO-SIMD128-NOT: v128
+; SIMD128-NEXT: .functype andnot_v8i16 (v128, v128) -> (v128){{$}}
+; SIMD128-SLOW-NEXT: v128.andnot $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-SLOW-NEXT: return $pop[[R]]{{$}}
+; SIMD128-FAST-NEXT: v128.not
+; SIMD128-FAST-NEXT: v128.and
+; SIMD128-FAST-NEXT: return
+define <8 x i16> @andnot_v8i16(<8 x i16> %x, <8 x i16> %y) {
+ %inv_y = xor <8 x i16> %y,
+   <i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1>
+ %a = and <8 x i16> %x, %inv_y
+ ret <8 x i16> %a
+}
+
 ; CHECK-LABEL: bitselect_v8i16:
 ; NO-SIMD128-NOT: v128
 ; SIMD128-NEXT: .functype bitselect_v8i16 (v128, v128, v128) -> (v128){{$}}
@@ -652,6 +685,21 @@ define <4 x i32> @not_v4i32(<4 x i32> %x) {
   ret <4 x i32> %a
 }
 
+; CHECK-LABEL: andnot_v4i32:
+; SIMD128-VM-NOT: v128.andnot
+; NO-SIMD128-NOT: v128
+; SIMD128-NEXT: .functype andnot_v4i32 (v128, v128) -> (v128){{$}}
+; SIMD128-SLOW-NEXT: v128.andnot $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-SLOW-NEXT: return $pop[[R]]{{$}}
+; SIMD128-FAST-NEXT: v128.not
+; SIMD128-FAST-NEXT: v128.and
+; SIMD128-FAST-NEXT: return
+define <4 x i32> @andnot_v4i32(<4 x i32> %x, <4 x i32> %y) {
+ %inv_y = xor <4 x i32> %y, <i32 -1, i32 -1, i32 -1, i32 -1>
+ %a = and <4 x i32> %x, %inv_y
+ ret <4 x i32> %a
+}
+
 ; CHECK-LABEL: bitselect_v4i32:
 ; NO-SIMD128-NOT: v128
 ; SIMD128-NEXT: .functype bitselect_v4i32 (v128, v128, v128) -> (v128){{$}}
@@ -730,13 +778,26 @@ define <2 x i64> @shl_v2i64(<2 x i64> %v, i32 %x) {
   ret <2 x i64> %a
 }
 
-; CHECK-LABEL: shl_nozext_v2i64:
+; CHECK-LABEL: shl_sext_v2i64:
 ; NO-SIMD128-NOT: i64x2
-; SIMD128-NEXT: .functype shl_nozext_v2i64 (v128, i64) -> (v128){{$}}
+; SIMD128-NEXT: .functype shl_sext_v2i64 (v128, i32) -> (v128){{$}}
+; SIMD128-NEXT: i64x2.shl $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+define <2 x i64> @shl_sext_v2i64(<2 x i64> %v, i32 %x) {
+  %x2 = sext i32 %x to i64
+  %t = insertelement <2 x i64> undef, i64 %x2, i32 0
+  %s = shufflevector <2 x i64> %t, <2 x i64> undef, <2 x i32> <i32 0, i32 0>
+  %a = shl <2 x i64> %v, %s
+  ret <2 x i64> %a
+}
+
+; CHECK-LABEL: shl_noext_v2i64:
+; NO-SIMD128-NOT: i64x2
+; SIMD128-NEXT: .functype shl_noext_v2i64 (v128, i64) -> (v128){{$}}
 ; SIMD128-NEXT: i32.wrap_i64 $push[[L0:[0-9]+]]=, $1{{$}}
 ; SIMD128-NEXT: i64x2.shl $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
-define <2 x i64> @shl_nozext_v2i64(<2 x i64> %v, i64 %x) {
+define <2 x i64> @shl_noext_v2i64(<2 x i64> %v, i64 %x) {
   %t = insertelement <2 x i64> undef, i64 %x, i32 0
   %s = shufflevector <2 x i64> %t, <2 x i64> undef, <2 x i32> <i32 0, i32 0>
   %a = shl <2 x i64> %v, %s
@@ -784,13 +845,26 @@ define <2 x i64> @shr_s_v2i64(<2 x i64> %v, i32 %x) {
   ret <2 x i64> %a
 }
 
-; CHECK-LABEL: shr_s_nozext_v2i64:
+; CHECK-LABEL: shr_s_sext_v2i64:
 ; NO-SIMD128-NOT: i64x2
-; SIMD128-NEXT: .functype shr_s_nozext_v2i64 (v128, i64) -> (v128){{$}}
+; SIMD128-NEXT: .functype shr_s_sext_v2i64 (v128, i32) -> (v128){{$}}
+; SIMD128-NEXT: i64x2.shr_s $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+define <2 x i64> @shr_s_sext_v2i64(<2 x i64> %v, i32 %x) {
+  %x2 = sext i32 %x to i64
+  %t = insertelement <2 x i64> undef, i64 %x2, i32 0
+  %s = shufflevector <2 x i64> %t, <2 x i64> undef, <2 x i32> <i32 0, i32 0>
+  %a = ashr <2 x i64> %v, %s
+  ret <2 x i64> %a
+}
+
+; CHECK-LABEL: shr_s_noext_v2i64:
+; NO-SIMD128-NOT: i64x2
+; SIMD128-NEXT: .functype shr_s_noext_v2i64 (v128, i64) -> (v128){{$}}
 ; SIMD128-NEXT: i32.wrap_i64 $push[[L0:[0-9]+]]=, $1{{$}}
 ; SIMD128-NEXT: i64x2.shr_s $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
-define <2 x i64> @shr_s_nozext_v2i64(<2 x i64> %v, i64 %x) {
+define <2 x i64> @shr_s_noext_v2i64(<2 x i64> %v, i64 %x) {
   %t = insertelement <2 x i64> undef, i64 %x, i32 0
   %s = shufflevector <2 x i64> %t, <2 x i64> undef, <2 x i32> <i32 0, i32 0>
   %a = ashr <2 x i64> %v, %s
@@ -838,13 +912,26 @@ define <2 x i64> @shr_u_v2i64(<2 x i64> %v, i32 %x) {
   ret <2 x i64> %a
 }
 
-; CHECK-LABEL: shr_u_nozext_v2i64:
+; CHECK-LABEL: shr_u_sext_v2i64:
 ; NO-SIMD128-NOT: i64x2
-; SIMD128-NEXT: .functype shr_u_nozext_v2i64 (v128, i64) -> (v128){{$}}
+; SIMD128-NEXT: .functype shr_u_sext_v2i64 (v128, i32) -> (v128){{$}}
+; SIMD128-NEXT: i64x2.shr_u $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+define <2 x i64> @shr_u_sext_v2i64(<2 x i64> %v, i32 %x) {
+  %x2 = sext i32 %x to i64
+  %t = insertelement <2 x i64> undef, i64 %x2, i32 0
+  %s = shufflevector <2 x i64> %t, <2 x i64> undef, <2 x i32> <i32 0, i32 0>
+  %a = lshr <2 x i64> %v, %s
+  ret <2 x i64> %a
+}
+
+; CHECK-LABEL: shr_u_noext_v2i64:
+; NO-SIMD128-NOT: i64x2
+; SIMD128-NEXT: .functype shr_u_noext_v2i64 (v128, i64) -> (v128){{$}}
 ; SIMD128-NEXT: i32.wrap_i64 $push[[L0:[0-9]+]]=, $1{{$}}
 ; SIMD128-NEXT: i64x2.shr_u $push[[R:[0-9]+]]=, $0, $pop[[L0]]{{$}}
 ; SIMD128-NEXT: return $pop[[R]]{{$}}
-define <2 x i64> @shr_u_nozext_v2i64(<2 x i64> %v, i64 %x) {
+define <2 x i64> @shr_u_noext_v2i64(<2 x i64> %v, i64 %x) {
   %t = insertelement <2 x i64> undef, i64 %x, i32 0
   %s = shufflevector <2 x i64> %t, <2 x i64> undef, <2 x i32> <i32 0, i32 0>
   %a = lshr <2 x i64> %v, %s
@@ -921,6 +1008,21 @@ define <2 x i64> @xor_v2i64(<2 x i64> %x, <2 x i64> %y) {
 define <2 x i64> @not_v2i64(<2 x i64> %x) {
   %a = xor <2 x i64> %x, <i64 -1, i64 -1>
   ret <2 x i64> %a
+}
+
+; CHECK-LABEL: andnot_v2i64:
+; SIMD128-VM-NOT: v128.andnot
+; NO-SIMD128-NOT: v128
+; SIMD128-NEXT: .functype andnot_v2i64 (v128, v128) -> (v128){{$}}
+; SIMD128-SLOW-NEXT: v128.andnot $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-SLOW-NEXT: return $pop[[R]]{{$}}
+; SIMD128-FAST-NEXT: v128.not
+; SIMD128-FAST-NEXT: v128.and
+; SIMD128-FAST-NEXT: return
+define <2 x i64> @andnot_v2i64(<2 x i64> %x, <2 x i64> %y) {
+ %inv_y = xor <2 x i64> %y, <i64 -1, i64 -1>
+ %a = and <2 x i64> %x, %inv_y
+ ret <2 x i64> %a
 }
 
 ; CHECK-LABEL: bitselect_v2i64:
@@ -1034,6 +1136,17 @@ define <4 x float> @min_intrinsic_v4f32(<4 x float> %x, <4 x float> %y) {
   ret <4 x float> %a
 }
 
+; CHECK-LABEL: minnum_intrinsic_v4f32:
+; NO-SIMD128-NOT: f32x4
+; SIMD128-NEXT: .functype minnum_intrinsic_v4f32 (v128, v128) -> (v128){{$}}
+; SIMD128-NEXT: f32x4.min $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <4 x float> @llvm.minnum.v4f32(<4 x float>, <4 x float>)
+define <4 x float> @minnum_intrinsic_v4f32(<4 x float> %x, <4 x float> %y) {
+  %a = call nnan <4 x float> @llvm.minnum.v4f32(<4 x float> %x, <4 x float> %y)
+  ret <4 x float> %a
+}
+
 ; CHECK-LABEL: max_intrinsic_v4f32:
 ; NO-SIMD128-NOT: f32x4
 ; SIMD128-NEXT: .functype max_intrinsic_v4f32 (v128, v128) -> (v128){{$}}
@@ -1042,6 +1155,17 @@ define <4 x float> @min_intrinsic_v4f32(<4 x float> %x, <4 x float> %y) {
 declare <4 x float> @llvm.maximum.v4f32(<4 x float>, <4 x float>)
 define <4 x float> @max_intrinsic_v4f32(<4 x float> %x, <4 x float> %y) {
   %a = call <4 x float> @llvm.maximum.v4f32(<4 x float> %x, <4 x float> %y)
+  ret <4 x float> %a
+}
+
+; CHECK-LABEL: maxnum_intrinsic_v4f32:
+; NO-SIMD128-NOT: f32x4
+; SIMD128-NEXT: .functype maxnum_intrinsic_v4f32 (v128, v128) -> (v128){{$}}
+; SIMD128-NEXT: f32x4.max $push[[R:[0-9]+]]=, $0, $1{{$}}
+; SIMD128-NEXT: return $pop[[R]]{{$}}
+declare <4 x float> @llvm.maxnum.v4f32(<4 x float>, <4 x float>)
+define <4 x float> @maxnum_intrinsic_v4f32(<4 x float> %x, <4 x float> %y) {
+  %a = call nnan <4 x float> @llvm.maxnum.v4f32(<4 x float> %x, <4 x float> %y)
   ret <4 x float> %a
 }
 

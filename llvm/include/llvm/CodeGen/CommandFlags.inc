@@ -271,6 +271,16 @@ static cl::opt<bool>
     EnableAddrsig("addrsig", cl::desc("Emit an address-significance table"),
                   cl::init(false));
 
+static cl::opt<bool>
+    EnableDebugEntryValues("debug-entry-values",
+                           cl::desc("Emit debug info about parameter's entry values"),
+                           cl::init(false));
+
+static cl::opt<bool>
+    ForceDwarfFrameSection("force-dwarf-frame-section",
+                           cl::desc("Always emit a debug frame section."),
+                           cl::init(false));
+
 // Common utility function tightly tied to the options listed here. Initializes
 // a TargetOptions object with CodeGen flags and returns it.
 static TargetOptions InitTargetOptionsFromCodeGenFlags() {
@@ -300,6 +310,8 @@ static TargetOptions InitTargetOptionsFromCodeGenFlags() {
   Options.ExceptionModel = ExceptionModel;
   Options.EmitStackSizeSection = EnableStackSizeSection;
   Options.EmitAddrsig = EnableAddrsig;
+  Options.EnableDebugEntryValues = EnableDebugEntryValues;
+  Options.ForceDwarfFrameSection = ForceDwarfFrameSection;
 
   Options.MCOptions = InitMCTargetOptionsFromFlags();
 

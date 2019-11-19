@@ -189,6 +189,10 @@ namespace llvm {
         return start == Other.start && end == Other.end;
       }
 
+      bool operator!=(const Segment &Other) const {
+        return !(*this == Other);
+      }
+
       void dump() const;
     };
 
@@ -224,7 +228,7 @@ namespace llvm {
 
     /// Constructs a new LiveRange object.
     LiveRange(bool UseSegmentSet = false)
-        : segmentSet(UseSegmentSet ? llvm::make_unique<SegmentSet>()
+        : segmentSet(UseSegmentSet ? std::make_unique<SegmentSet>()
                                    : nullptr) {}
 
     /// Constructs a new LiveRange object by copying segments and valnos from
@@ -604,6 +608,44 @@ namespace llvm {
     /// has been created, if use of the segment set was
     /// activated in the constructor of the live range.
     void flushSegmentSet();
+
+    /// Stores indexes from the input index sequence R at which this LiveRange
+    /// is live to the output O iterator.
+    /// R is a range of _ascending sorted_ _random_ access iterators
+    /// to the input indexes. Indexes stored at O are ascending sorted so it
+    /// can be used directly in the subsequent search (for example for
+    /// subranges). Returns true if found at least one index.
+    template <typename Range, typename OutputIt>
+    bool findIndexesLiveAt(Range &&R, OutputIt O) const {
+      assert(std::is_sorted(R.begin(), R.end()));
+      auto Idx = R.begin(), EndIdx = R.end();
+      auto Seg = segments.begin(), EndSeg = segments.end();
+      bool Found = false;
+      while (Idx != EndIdx && Seg != EndSeg) {
+        // if the Seg is lower find first segment that is above Idx using binary
+        // search
+        if (Seg->end <= *Idx) {
+          Seg = std::upper_bound(++Seg, EndSeg, *Idx,
+            [=](typename std::remove_reference<decltype(*Idx)>::type V,
+                const typename std::remove_reference<decltype(*Seg)>::type &S) {
+              return V < S.end;
+            });
+          if (Seg == EndSeg)
+            break;
+        }
+        auto NotLessStart = std::lower_bound(Idx, EndIdx, Seg->start);
+        if (NotLessStart == EndIdx)
+          break;
+        auto NotLessEnd = std::lower_bound(NotLessStart, EndIdx, Seg->end);
+        if (NotLessEnd != NotLessStart) {
+          Found = true;
+          O = std::copy(NotLessStart, NotLessEnd, O);
+        }
+        Idx = NotLessEnd;
+        ++Seg;
+      }
+      return Found;
+    }
 
     void print(raw_ostream &OS) const;
     void dump() const;

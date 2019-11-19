@@ -14,16 +14,16 @@
 // path proximate(const path& p, const path& base = current_path())
 // path proximate(const path& p, const path& base, error_code& ec);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <string>
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
 #include "test_iterators.h"
-#include "count_new.hpp"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "count_new.h"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 
 
 TEST_SUITE(filesystem_proximate_path_test_suite)
@@ -66,7 +66,7 @@ TEST_CASE(test_signature_5) {
 
 TEST_CASE(test_signature_6) {
   // FIXME? If the trailing separator occurs in a part of the path that exists,
-  // it is ommitted. Otherwise it is added to the end of the result.
+  // it is omitted. Otherwise it is added to the end of the result.
   fs::path p(StaticEnv::SymlinkToDir / "dir2/./");
   const fs::path output = fs::weakly_canonical(p);
   TEST_CHECK(output == std::string(StaticEnv::Dir / "dir2"));

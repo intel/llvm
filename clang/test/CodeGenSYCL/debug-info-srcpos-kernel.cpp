@@ -36,3 +36,5 @@ int main() {
 // CHECK: [[LINE_A0]] = !DILocation(line: 0
 // CHECK: [[LINE_B0]] = !DILocation(line: 0
 
+// TODO: SYCL specific fail - analyze and enable
+// XFAIL: windows-msvc

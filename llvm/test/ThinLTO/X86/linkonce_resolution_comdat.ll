@@ -10,8 +10,8 @@
 ; Copy from first module is prevailing and converted to weak_odr, copy
 ; from second module is preempted and converted to available_externally and
 ; removed from comdat.
-; IMPORT1: define weak_odr i32 @f(i8*) unnamed_addr comdat($c1) {
-; IMPORT2: define available_externally i32 @f(i8*) unnamed_addr {
+; IMPORT1: define weak_odr i32 @f(i8* %0) unnamed_addr comdat($c1) {
+; IMPORT2: define available_externally i32 @f(i8* %0) unnamed_addr {
 
 ; RUN: llvm-nm -o - < %t1.bc.thinlto.o | FileCheck %s --check-prefix=NM1
 ; NM1: W f
@@ -21,7 +21,7 @@
 ; and inlined into g()
 ; NM2-NOT: f
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 $c1 = comdat any

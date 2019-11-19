@@ -1,19 +1,15 @@
-LEVEL := ../../../make
-
-LD_EXTRAS := -L. -l$(LIB_PREFIX)a -l$(LIB_PREFIX)b
+LD_EXTRAS := -L. -la -lb
 CXX_SOURCES := main.cpp
 
-include $(LEVEL)/Makefile.rules
+a.out: liba libb
 
-.PHONY:
-a.out: lib_a lib_b
+include Makefile.rules
 
-lib_%:
-	$(MAKE) VPATH=$(VPATH) -f $(SRCDIR)/$*.mk
+liba:
+	$(MAKE) -f $(MAKEFILE_RULES) \
+		DYLIB_ONLY=YES DYLIB_NAME=a DYLIB_CXX_SOURCES=a.cpp
 
-hidden_lib_d:
-	$(MAKE) -C hidden
+libb:
+	$(MAKE) -f $(MAKEFILE_RULES) \
+		DYLIB_ONLY=YES DYLIB_NAME=b DYLIB_CXX_SOURCES=b.cpp
 
-clean::
-	$(MAKE) -f $(SRCDIR)/a.mk clean
-	$(MAKE) -f $(SRCDIR)/b.mk clean

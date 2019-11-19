@@ -1,6 +1,7 @@
-; RUN: opt -S -basicaa -licm %s | FileCheck -check-prefixes=CHECK,AST %s
+; RUN: opt -S -basicaa -licm -enable-mssa-loop-dependency=false %s | FileCheck -check-prefixes=CHECK,AST %s
 ; RUN: opt -S -basicaa -licm -enable-mssa-loop-dependency=true %s | FileCheck  -check-prefixes=CHECK,MSSA %s
 ; RUN: opt -aa-pipeline=basic-aa -passes='require<aa>,require<targetir>,require<scalar-evolution>,require<opt-remark-emit>,loop(licm)' < %s -S | FileCheck -check-prefixes=CHECK,AST %s
+; RUN: opt -aa-pipeline=basic-aa -passes='require<aa>,require<targetir>,require<scalar-evolution>,require<opt-remark-emit>,loop-mssa(licm)' < %s -S | FileCheck -check-prefixes=CHECK,MSSA %s
 
 define void @test(i32* %loc) {
 ; CHECK-LABEL: @test
@@ -348,8 +349,11 @@ exit:
 ; the load must observe.
 define i32 @test_dominated_read(i32* %loc) {
 ; CHECK-LABEL: @test_dominated_read
-; CHECK-LABEL: exit:
-; CHECK: store i32 0, i32* %loc
+; MSSA-LABEL: entry:
+; MSSA: store i32 0, i32* %loc
+; MSSA-LABEL: loop:
+; AST-LABEL: exit:
+; AST:  store i32 0, i32* %loc
 entry:
   br label %loop
 

@@ -16,6 +16,7 @@
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Reproducer.h"
 #include "lldb/Utility/Timer.h"
+#include "lldb/lldb-private.h"
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
@@ -24,6 +25,7 @@
 #if defined(_WIN32)
 #include "Plugins/Process/Windows/Common/ProcessWindowsLog.h"
 #include "lldb/Host/windows/windows.h"
+#include <crtdbg.h>
 #endif
 
 #include "llvm/Support/TargetSelect.h"
@@ -67,17 +69,29 @@ llvm::Error SystemInitializerCommon::Initialize() {
       return e;
   }
 
-  // Initialize the file system.
   auto &r = repro::Reproducer::Instance();
   if (repro::Loader *loader = r.GetLoader()) {
-    FileSpec vfs_mapping = loader->GetFile<FileInfo>();
+    FileSpec vfs_mapping = loader->GetFile<FileProvider::Info>();
     if (vfs_mapping) {
       if (llvm::Error e = FileSystem::Initialize(vfs_mapping))
         return e;
     } else {
       FileSystem::Initialize();
     }
+    if (llvm::Expected<std::string> cwd =
+            loader->LoadBuffer<WorkingDirectoryProvider>()) {
+      llvm::StringRef working_dir = llvm::StringRef(*cwd).rtrim();
+      if (std::error_code ec = FileSystem::Instance()
+                                   .GetVirtualFileSystem()
+                                   ->setCurrentWorkingDirectory(working_dir)) {
+        return llvm::errorCodeToError(ec);
+      }
+    } else {
+      return cwd.takeError();
+    }
   } else if (repro::Generator *g = r.GetGenerator()) {
+    repro::VersionProvider &vp = g->GetOrCreate<repro::VersionProvider>();
+    vp.SetVersion(lldb_private::GetVersion());
     repro::FileProvider &fp = g->GetOrCreate<repro::FileProvider>();
     FileSystem::Initialize(fp.GetFileCollector());
   } else {

@@ -15,6 +15,7 @@
 
 #include "AMDGPU.h"
 #include "AMDGPULibFunc.h"
+#include "AMDGPUSubtarget.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/Loads.h"
 #include "llvm/ADT/StringSet.h"
@@ -22,13 +23,16 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include <vector>
 #include <cmath>
@@ -45,18 +49,10 @@ static cl::list<std::string> UseNative("amdgpu-use-native",
   cl::CommaSeparated, cl::ValueOptional,
   cl::Hidden);
 
-#define MATH_PI     3.14159265358979323846264338327950288419716939937511
-#define MATH_E      2.71828182845904523536028747135266249775724709369996
-#define MATH_SQRT2  1.41421356237309504880168872420969807856967187537695
-
-#define MATH_LOG2E     1.4426950408889634073599246810018921374266459541529859
-#define MATH_LOG10E    0.4342944819032518276511289189166050822943970058036665
-// Value of log2(10)
-#define MATH_LOG2_10   3.3219280948873623478703194294893901758648313930245806
-// Value of 1 / log2(10)
-#define MATH_RLOG2_10  0.3010299956639811952137388947244930267681898814621085
-// Value of 1 / M_LOG2E_F = 1 / log2(e)
-#define MATH_RLOG2_E   0.6931471805599453094172321214581765680755001343602552
+#define MATH_PI      numbers::pi
+#define MATH_E       numbers::e
+#define MATH_SQRT2   numbers::sqrt2
+#define MATH_SQRT1_2 numbers::inv_sqrt2
 
 namespace llvm {
 
@@ -64,6 +60,8 @@ class AMDGPULibCalls {
 private:
 
   typedef llvm::AMDGPULibFunc FuncInfo;
+
+  const TargetMachine *TM;
 
   // -fuse-native.
   bool AllNative = false;
@@ -134,6 +132,9 @@ private:
   // __read_pipe/__write_pipe
   bool fold_read_write_pipe(CallInst *CI, IRBuilder<> &B, FuncInfo &FInfo);
 
+  // llvm.amdgcn.wavefrontsize
+  bool fold_wavefrontsize(CallInst *CI, IRBuilder<> &B);
+
   // Get insertion point at entry.
   BasicBlock::iterator getEntryIns(CallInst * UI);
   // Insert an Alloc instruction.
@@ -152,6 +153,8 @@ protected:
   }
 
 public:
+  AMDGPULibCalls(const TargetMachine *TM_ = nullptr) : TM(TM_) {}
+
   bool fold(CallInst *CI, AliasAnalysis *AA = nullptr);
 
   void initNativeFuncs();
@@ -166,15 +169,16 @@ namespace {
 
   class AMDGPUSimplifyLibCalls : public FunctionPass {
 
-  AMDGPULibCalls Simplifier;
-
   const TargetOptions Options;
+
+  AMDGPULibCalls Simplifier;
 
   public:
     static char ID; // Pass identification
 
-    AMDGPUSimplifyLibCalls(const TargetOptions &Opt = TargetOptions())
-      : FunctionPass(ID), Options(Opt) {
+    AMDGPUSimplifyLibCalls(const TargetOptions &Opt = TargetOptions(),
+                           const TargetMachine *TM = nullptr)
+      : FunctionPass(ID), Options(Opt), Simplifier(TM) {
       initializeAMDGPUSimplifyLibCallsPass(*PassRegistry::getPassRegistry());
     }
 
@@ -243,8 +247,8 @@ struct TableEntry {
 
 /* a list of {result, input} */
 static const TableEntry tbl_acos[] = {
-  {MATH_PI/2.0, 0.0},
-  {MATH_PI/2.0, -0.0},
+  {MATH_PI / 2.0, 0.0},
+  {MATH_PI / 2.0, -0.0},
   {0.0, 1.0},
   {MATH_PI, -1.0}
 };
@@ -260,8 +264,8 @@ static const TableEntry tbl_acospi[] = {
 static const TableEntry tbl_asin[] = {
   {0.0, 0.0},
   {-0.0, -0.0},
-  {MATH_PI/2.0, 1.0},
-  {-MATH_PI/2.0, -1.0}
+  {MATH_PI / 2.0, 1.0},
+  {-MATH_PI / 2.0, -1.0}
 };
 static const TableEntry tbl_asinh[] = {
   {0.0, 0.0},
@@ -276,8 +280,8 @@ static const TableEntry tbl_asinpi[] = {
 static const TableEntry tbl_atan[] = {
   {0.0, 0.0},
   {-0.0, -0.0},
-  {MATH_PI/4.0, 1.0},
-  {-MATH_PI/4.0, -1.0}
+  {MATH_PI / 4.0, 1.0},
+  {-MATH_PI / 4.0, -1.0}
 };
 static const TableEntry tbl_atanh[] = {
   {0.0, 0.0},
@@ -348,7 +352,7 @@ static const TableEntry tbl_log10[] = {
 };
 static const TableEntry tbl_rsqrt[] = {
   {1.0, 1.0},
-  {1.0/MATH_SQRT2, 2.0}
+  {MATH_SQRT1_2, 2.0}
 };
 static const TableEntry tbl_sin[] = {
   {0.0, 0.0},
@@ -639,14 +643,6 @@ bool AMDGPULibCalls::fold(CallInst *CI, AliasAnalysis *AA) {
   // Ignore indirect calls.
   if (Callee == 0) return false;
 
-  FuncInfo FInfo;
-  if (!parseFunctionName(Callee->getName(), &FInfo))
-    return false;
-
-  // Further check the number of arguments to see if they match.
-  if (CI->getNumArgOperands() != FInfo.getNumArgs())
-    return false;
-
   BasicBlock *BB = CI->getParent();
   LLVMContext &Context = CI->getParent()->getContext();
   IRBuilder<> B(Context);
@@ -657,6 +653,21 @@ bool AMDGPULibCalls::fold(CallInst *CI, AliasAnalysis *AA) {
   // Copy fast flags from the original call.
   if (const FPMathOperator *FPOp = dyn_cast<const FPMathOperator>(CI))
     B.setFastMathFlags(FPOp->getFastMathFlags());
+
+  switch (Callee->getIntrinsicID()) {
+  default:
+    break;
+  case Intrinsic::amdgcn_wavefrontsize:
+    return !EnablePreLink && fold_wavefrontsize(CI, B);
+  }
+
+  FuncInfo FInfo;
+  if (!parseFunctionName(Callee->getName(), &FInfo))
+    return false;
+
+  // Further check the number of arguments to see if they match.
+  if (CI->getNumArgOperands() != FInfo.getNumArgs())
+    return false;
 
   if (TDOFold(CI, FInfo))
     return true;
@@ -847,10 +858,10 @@ bool AMDGPULibCalls::fold_divide(CallInst *CI, IRBuilder<> &B,
 
 namespace llvm {
 static double log2(double V) {
-#if _XOPEN_SOURCE >= 600 || _ISOC99_SOURCE || _POSIX_C_SOURCE >= 200112L
+#if _XOPEN_SOURCE >= 600 || defined(_ISOC99_SOURCE) || _POSIX_C_SOURCE >= 200112L
   return ::log2(V);
 #else
-  return log(V) / 0.693147180559945309417;
+  return log(V) / numbers::ln2;
 #endif
 }
 }
@@ -1156,8 +1167,6 @@ bool AMDGPULibCalls::fold_rootn(CallInst *CI, IRBuilder<> &B,
     return true;
   }
   if (ci_opr1 == 2) {  // rootn(x, 2) = sqrt(x)
-    std::vector<const Type*> ParamsTys;
-    ParamsTys.push_back(opr0->getType());
     Module *M = CI->getModule();
     if (FunctionCallee FPExpr =
             getFunction(M, AMDGPULibFunc(AMDGPULibFunc::EI_SQRT, FInfo))) {
@@ -1183,8 +1192,6 @@ bool AMDGPULibCalls::fold_rootn(CallInst *CI, IRBuilder<> &B,
     replaceCall(nval);
     return true;
   } else if (ci_opr1 == -2) {  // rootn(x, -2) = rsqrt(x)
-    std::vector<const Type*> ParamsTys;
-    ParamsTys.push_back(opr0->getType());
     Module *M = CI->getModule();
     if (FunctionCallee FPExpr =
             getFunction(M, AMDGPULibFunc(AMDGPULibFunc::EI_RSQRT, FInfo))) {
@@ -1371,6 +1378,29 @@ bool AMDGPULibCalls::fold_sincos(CallInst *CI, IRBuilder<> &B,
   return true;
 }
 
+bool AMDGPULibCalls::fold_wavefrontsize(CallInst *CI, IRBuilder<> &B) {
+  if (!TM)
+    return false;
+
+  StringRef CPU = TM->getTargetCPU();
+  StringRef Features = TM->getTargetFeatureString();
+  if ((CPU.empty() || CPU.equals_lower("generic")) &&
+      (Features.empty() ||
+       Features.find_lower("wavefrontsize") == StringRef::npos))
+    return false;
+
+  Function *F = CI->getParent()->getParent();
+  const GCNSubtarget &ST = TM->getSubtarget<GCNSubtarget>(*F);
+  unsigned N = ST.getWavefrontSize();
+
+  LLVM_DEBUG(errs() << "AMDIC: fold_wavefrontsize (" << *CI << ") with "
+               << N << "\n");
+
+  CI->replaceAllUsesWith(ConstantInt::get(B.getInt32Ty(), N));
+  CI->eraseFromParent();
+  return true;
+}
+
 // Get insertion point at entry.
 BasicBlock::iterator AMDGPULibCalls::getEntryIns(CallInst * UI) {
   Function * Func = UI->getParent()->getParent();
@@ -1389,8 +1419,8 @@ AllocaInst* AMDGPULibCalls::insertAlloca(CallInst *UI, IRBuilder<> &B,
   B.SetInsertPoint(&*ItNew);
   AllocaInst *Alloc = B.CreateAlloca(RetType, 0,
     std::string(prefix) + UI->getName());
-  Alloc->setAlignment(UCallee->getParent()->getDataLayout()
-                       .getTypeAllocSize(RetType));
+  Alloc->setAlignment(MaybeAlign(
+      UCallee->getParent()->getDataLayout().getTypeAllocSize(RetType)));
   return Alloc;
 }
 
@@ -1680,8 +1710,9 @@ bool AMDGPULibCalls::evaluateCall(CallInst *aCI, FuncInfo &FInfo) {
 }
 
 // Public interface to the Simplify LibCalls pass.
-FunctionPass *llvm::createAMDGPUSimplifyLibCallsPass(const TargetOptions &Opt) {
-  return new AMDGPUSimplifyLibCalls(Opt);
+FunctionPass *llvm::createAMDGPUSimplifyLibCallsPass(const TargetOptions &Opt,
+                                                     const TargetMachine *TM) {
+  return new AMDGPUSimplifyLibCalls(Opt, TM);
 }
 
 FunctionPass *llvm::createAMDGPUUseNativeCallsPass() {

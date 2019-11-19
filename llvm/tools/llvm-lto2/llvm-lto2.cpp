@@ -91,20 +91,26 @@ static cl::opt<std::string> DefaultTriple(
     cl::desc(
         "Replace unspecified target triples in input files with this triple"));
 
-static cl::opt<std::string>
-    OptRemarksOutput("pass-remarks-output",
-                     cl::desc("YAML output file for optimization remarks"));
-
-static cl::opt<bool> OptRemarksWithHotness(
+static cl::opt<bool> RemarksWithHotness(
     "pass-remarks-with-hotness",
-    cl::desc("Whether to include hotness informations in the remarks.\n"
-             "Has effect only if -pass-remarks-output is specified."));
+    cl::desc("With PGO, include profile count in optimization remarks"),
+    cl::Hidden);
 
 static cl::opt<std::string>
-    OptRemarksPasses("pass-remarks-filter",
-                     cl::desc("Only record optimization remarks from passes "
-                              "whose names match the given regular expression"),
-                     cl::value_desc("regex"));
+    RemarksFilename("pass-remarks-output",
+                    cl::desc("Output filename for pass remarks"),
+                    cl::value_desc("filename"));
+
+static cl::opt<std::string>
+    RemarksPasses("pass-remarks-filter",
+                  cl::desc("Only record optimization remarks from passes whose "
+                           "names match the given regular expression"),
+                  cl::value_desc("regex"));
+
+static cl::opt<std::string> RemarksFormat(
+    "pass-remarks-format",
+    cl::desc("The format used for serializing remarks (default: YAML)"),
+    cl::value_desc("format"), cl::init("yaml"));
 
 static cl::opt<std::string>
     SamplePGOFile("lto-sample-profile-file",
@@ -225,9 +231,10 @@ static int run(int argc, char **argv) {
           "Config::addSaveTemps failed");
 
   // Optimization remarks.
-  Conf.RemarksFilename = OptRemarksOutput;
-  Conf.RemarksPasses = OptRemarksPasses;
-  Conf.RemarksWithHotness = OptRemarksWithHotness;
+  Conf.RemarksFilename = RemarksFilename;
+  Conf.RemarksPasses = RemarksPasses;
+  Conf.RemarksWithHotness = RemarksWithHotness;
+  Conf.RemarksFormat = RemarksFormat;
 
   Conf.SampleProfile = SamplePGOFile;
   Conf.CSIRProfile = CSPGOFile;
@@ -284,6 +291,14 @@ static int run(int argc, char **argv) {
     std::vector<SymbolResolution> Res;
     for (const InputFile::Symbol &Sym : Input->symbols()) {
       auto I = CommandLineResolutions.find({F, Sym.getName()});
+      // If it isn't found, look for "$", which would have been added
+      // (followed by a hash) when the symbol was promoted during module
+      // splitting if it was defined in one part and used in the other.
+      // Try looking up the symbol name before the "$".
+      if (I == CommandLineResolutions.end()) {
+        auto SplitName = Sym.getName().rsplit("$");
+        I = CommandLineResolutions.find({F, SplitName.first});
+      }
       if (I == CommandLineResolutions.end()) {
         llvm::errs() << argv[0] << ": missing symbol resolution for " << F
                      << ',' << Sym.getName() << '\n';
@@ -318,9 +333,9 @@ static int run(int argc, char **argv) {
     std::string Path = OutputFilename + "." + utostr(Task);
 
     std::error_code EC;
-    auto S = llvm::make_unique<raw_fd_ostream>(Path, EC, sys::fs::F_None);
+    auto S = std::make_unique<raw_fd_ostream>(Path, EC, sys::fs::OF_None);
     check(EC, Path);
-    return llvm::make_unique<lto::NativeObjectStream>(std::move(S));
+    return std::make_unique<lto::NativeObjectStream>(std::move(S));
   };
 
   auto AddBuffer = [&](size_t Task, std::unique_ptr<MemoryBuffer> MB) {

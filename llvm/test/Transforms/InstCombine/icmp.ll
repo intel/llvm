@@ -508,6 +508,21 @@ define i1 @test24(i64 %i) {
   ret i1 %cmp
 }
 
+; Note: offs can be negative, LLVM used to make an incorrect assumption that
+; unsigned overflow does not happen during offset computation
+define i1 @test24_neg_offs(i32* %p, i64 %offs) {
+; CHECK-LABEL: @test24_neg_offs(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i64 [[OFFS:%.*]], -2
+; CHECK-NEXT:    ret i1 [[CMP]]
+;
+  %p1 = getelementptr inbounds i32, i32* %p, i64 %offs
+  %conv1 = ptrtoint i32* %p to i64
+  %conv2 = ptrtoint i32* %p1 to i64
+  %delta = sub i64 %conv1, %conv2
+  %cmp = icmp eq i64 %delta, 8
+  ret i1 %cmp
+}
+
 @X_as1 = addrspace(1) global [1000 x i32] zeroinitializer
 
 define i1 @test24_as1(i64 %i) {
@@ -521,29 +536,6 @@ define i1 @test24_as1(i64 %i) {
   ret i1 %cmp
 }
 
-define i1 @test25(i32 %x, i32 %y, i32 %z) {
-; CHECK-LABEL: @test25(
-; CHECK-NEXT:    [[C:%.*]] = icmp sgt i32 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    ret i1 [[C]]
-;
-  %lhs = add nsw i32 %x, %z
-  %rhs = add nsw i32 %y, %z
-  %c = icmp sgt i32 %lhs, %rhs
-  ret i1 %c
-}
-
-; X + Z > Y + Z -> X > Y if there is no overflow.
-define i1 @test26(i32 %x, i32 %y, i32 %z) {
-; CHECK-LABEL: @test26(
-; CHECK-NEXT:    [[C:%.*]] = icmp ugt i32 [[X:%.*]], [[Y:%.*]]
-; CHECK-NEXT:    ret i1 [[C]]
-;
-  %lhs = add nuw i32 %x, %z
-  %rhs = add nuw i32 %y, %z
-  %c = icmp ugt i32 %lhs, %rhs
-  ret i1 %c
-}
-
 ; X - Z > Y - Z -> X > Y if there is no overflow.
 define i1 @test27(i32 %x, i32 %y, i32 %z) {
 ; CHECK-LABEL: @test27(
@@ -552,6 +544,23 @@ define i1 @test27(i32 %x, i32 %y, i32 %z) {
 ;
   %lhs = sub nsw i32 %x, %z
   %rhs = sub nsw i32 %y, %z
+  %c = icmp sgt i32 %lhs, %rhs
+  ret i1 %c
+}
+
+define i1 @test27_extra_uses(i32 %x, i32 %y, i32 %z) {
+; CHECK-LABEL: @test27_extra_uses(
+; CHECK-NEXT:    [[LHS:%.*]] = sub nsw i32 [[X:%.*]], [[Z:%.*]]
+; CHECK-NEXT:    call void @foo(i32 [[LHS]])
+; CHECK-NEXT:    [[RHS:%.*]] = sub nsw i32 [[Y:%.*]], [[Z]]
+; CHECK-NEXT:    call void @foo(i32 [[RHS]])
+; CHECK-NEXT:    [[C:%.*]] = icmp sgt i32 [[X]], [[Y]]
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %lhs = sub nsw i32 %x, %z
+  call void @foo(i32 %lhs)
+  %rhs = sub nsw i32 %y, %z
+  call void @foo(i32 %rhs)
   %c = icmp sgt i32 %lhs, %rhs
   ret i1 %c
 }
@@ -568,47 +577,49 @@ define i1 @test28(i32 %x, i32 %y, i32 %z) {
   ret i1 %c
 }
 
-; X + Y > X -> Y > 0 if there is no overflow.
-define i1 @test29(i32 %x, i32 %y) {
-; CHECK-LABEL: @test29(
-; CHECK-NEXT:    [[C:%.*]] = icmp sgt i32 [[Y:%.*]], 0
+define i1 @test28_extra_uses(i32 %x, i32 %y, i32 %z) {
+; CHECK-LABEL: @test28_extra_uses(
+; CHECK-NEXT:    [[LHS:%.*]] = sub nuw i32 [[X:%.*]], [[Z:%.*]]
+; CHECK-NEXT:    call void @foo(i32 [[LHS]])
+; CHECK-NEXT:    [[RHS:%.*]] = sub nuw i32 [[Y:%.*]], [[Z]]
+; CHECK-NEXT:    call void @foo(i32 [[RHS]])
+; CHECK-NEXT:    [[C:%.*]] = icmp ugt i32 [[X]], [[Y]]
 ; CHECK-NEXT:    ret i1 [[C]]
 ;
-  %lhs = add nsw i32 %x, %y
-  %c = icmp sgt i32 %lhs, %x
+  %lhs = sub nuw i32 %x, %z
+  call void @foo(i32 %lhs)
+  %rhs = sub nuw i32 %y, %z
+  call void @foo(i32 %rhs)
+  %c = icmp ugt i32 %lhs, %rhs
   ret i1 %c
 }
 
-; X + Y > X -> Y > 0 if there is no overflow.
-define i1 @test30(i32 %x, i32 %y) {
-; CHECK-LABEL: @test30(
-; CHECK-NEXT:    [[C:%.*]] = icmp ne i32 [[Y:%.*]], 0
-; CHECK-NEXT:    ret i1 [[C]]
+; PR36969 - https://bugs.llvm.org/show_bug.cgi?id=36969
+
+define i1 @ugt_sub(i32 %xsrc, i32 %y) {
+; CHECK-LABEL: @ugt_sub(
+; CHECK-NEXT:    [[X:%.*]] = udiv i32 [[XSRC:%.*]], 42
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[X]], [[Y:%.*]]
+; CHECK-NEXT:    ret i1 [[CMP]]
 ;
-  %lhs = add nuw i32 %x, %y
-  %c = icmp ugt i32 %lhs, %x
-  ret i1 %c
+  %x = udiv i32 %xsrc, 42 ; thwart complexity-based canonicalization
+  %sub = sub i32 %x, %y
+  %cmp = icmp ugt i32 %sub, %x
+  ret i1 %cmp
 }
 
-; X > X + Y -> 0 > Y if there is no overflow.
-define i1 @test31(i32 %x, i32 %y) {
-; CHECK-LABEL: @test31(
-; CHECK-NEXT:    [[C:%.*]] = icmp slt i32 [[Y:%.*]], 0
-; CHECK-NEXT:    ret i1 [[C]]
-;
-  %rhs = add nsw i32 %x, %y
-  %c = icmp sgt i32 %x, %rhs
-  ret i1 %c
-}
+; Swap operands and predicate. Try a vector type to verify that works too.
 
-; X > X + Y -> 0 > Y if there is no overflow.
-define i1 @test32(i32 %x, i32 %y) {
-; CHECK-LABEL: @test32(
-; CHECK-NEXT:    ret i1 false
+define <2 x i1> @ult_sub(<2 x i8> %xsrc, <2 x i8> %y) {
+; CHECK-LABEL: @ult_sub(
+; CHECK-NEXT:    [[X:%.*]] = udiv <2 x i8> [[XSRC:%.*]], <i8 42, i8 -42>
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ult <2 x i8> [[X]], [[Y:%.*]]
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
 ;
-  %rhs = add nuw i32 %x, %y
-  %c = icmp ugt i32 %x, %rhs
-  ret i1 %c
+  %x = udiv <2 x i8> %xsrc, <i8 42, i8 -42> ; thwart complexity-based canonicalization
+  %sub = sub <2 x i8> %x, %y
+  %cmp = icmp ult <2 x i8> %x, %sub
+  ret <2 x i1> %cmp
 }
 
 ; X - Y > X -> 0 > Y if there is no overflow.
@@ -654,34 +665,6 @@ define i1 @test36(i32 %x, i32 %y) {
   ret i1 %c
 }
 
-; PR36969 - https://bugs.llvm.org/show_bug.cgi?id=36969
-
-define i1 @ugt_sub(i32 %xsrc, i32 %y) {
-; CHECK-LABEL: @ugt_sub(
-; CHECK-NEXT:    [[X:%.*]] = udiv i32 [[XSRC:%.*]], 42
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[X]], [[Y:%.*]]
-; CHECK-NEXT:    ret i1 [[CMP]]
-;
-  %x = udiv i32 %xsrc, 42 ; thwart complexity-based canonicalization
-  %sub = sub i32 %x, %y
-  %cmp = icmp ugt i32 %sub, %x
-  ret i1 %cmp
-}
-
-; Swap operands and predicate. Try a vector type to verify that works too.
-
-define <2 x i1> @ult_sub(<2 x i8> %xsrc, <2 x i8> %y) {
-; CHECK-LABEL: @ult_sub(
-; CHECK-NEXT:    [[X:%.*]] = udiv <2 x i8> [[XSRC:%.*]], <i8 42, i8 -42>
-; CHECK-NEXT:    [[CMP:%.*]] = icmp ult <2 x i8> [[X]], [[Y:%.*]]
-; CHECK-NEXT:    ret <2 x i1> [[CMP]]
-;
-  %x = udiv <2 x i8> %xsrc, <i8 42, i8 -42> ; thwart complexity-based canonicalization
-  %sub = sub <2 x i8> %x, %y
-  %cmp = icmp ult <2 x i8> %x, %sub
-  ret <2 x i1> %cmp
-}
-
 ; X - Y > X - Z -> Z > Y if there is no overflow.
 define i1 @test37(i32 %x, i32 %y, i32 %z) {
 ; CHECK-LABEL: @test37(
@@ -694,6 +677,53 @@ define i1 @test37(i32 %x, i32 %y, i32 %z) {
   ret i1 %c
 }
 
+define i1 @test37_extra_uses(i32 %x, i32 %y, i32 %z) {
+; CHECK-LABEL: @test37_extra_uses(
+; CHECK-NEXT:    [[LHS:%.*]] = sub nsw i32 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @foo(i32 [[LHS]])
+; CHECK-NEXT:    [[RHS:%.*]] = sub nsw i32 [[X]], [[Z:%.*]]
+; CHECK-NEXT:    call void @foo(i32 [[RHS]])
+; CHECK-NEXT:    [[C:%.*]] = icmp sgt i32 [[Z]], [[Y]]
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %lhs = sub nsw i32 %x, %y
+  call void @foo(i32 %lhs)
+  %rhs = sub nsw i32 %x, %z
+  call void @foo(i32 %rhs)
+  %c = icmp sgt i32 %lhs, %rhs
+  ret i1 %c
+}
+
+; TODO: Min/max pattern should not prevent the fold.
+
+define i32 @neg_max_s32(i32 %x, i32 %y) {
+; CHECK-LABEL: @neg_max_s32(
+; CHECK-NEXT:    [[C:%.*]] = icmp slt i32 [[Y:%.*]], [[X:%.*]]
+; CHECK-NEXT:    [[S_V:%.*]] = select i1 [[C]], i32 [[Y]], i32 [[X]]
+; CHECK-NEXT:    ret i32 [[S_V]]
+;
+  %nx = sub nsw i32 0, %x
+  %ny = sub nsw i32 0, %y
+  %c = icmp slt i32 %nx, %ny
+  %s = select i1 %c, i32 %ny, i32 %nx
+  %r = sub nsw i32 0, %s
+  ret i32 %r
+}
+
+define <4 x i32> @neg_max_v4s32(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @neg_max_v4s32(
+; CHECK-NEXT:    [[C:%.*]] = icmp sgt <4 x i32> [[Y:%.*]], [[X:%.*]]
+; CHECK-NEXT:    [[S_V:%.*]] = select <4 x i1> [[C]], <4 x i32> [[X]], <4 x i32> [[Y]]
+; CHECK-NEXT:    ret <4 x i32> [[S_V]]
+;
+  %nx = sub nsw <4 x i32> zeroinitializer, %x
+  %ny = sub nsw <4 x i32> zeroinitializer, %y
+  %c = icmp sgt <4 x i32> %nx, %ny
+  %s = select <4 x i1> %c, <4 x i32> %nx, <4 x i32> %ny
+  %r = sub <4 x i32> zeroinitializer, %s
+  ret <4 x i32> %r
+}
+
 ; X - Y > X - Z -> Z > Y if there is no overflow.
 define i1 @test38(i32 %x, i32 %y, i32 %z) {
 ; CHECK-LABEL: @test38(
@@ -702,6 +732,23 @@ define i1 @test38(i32 %x, i32 %y, i32 %z) {
 ;
   %lhs = sub nuw i32 %x, %y
   %rhs = sub nuw i32 %x, %z
+  %c = icmp ugt i32 %lhs, %rhs
+  ret i1 %c
+}
+
+define i1 @test38_extra_uses(i32 %x, i32 %y, i32 %z) {
+; CHECK-LABEL: @test38_extra_uses(
+; CHECK-NEXT:    [[LHS:%.*]] = sub nuw i32 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    call void @foo(i32 [[LHS]])
+; CHECK-NEXT:    [[RHS:%.*]] = sub nuw i32 [[X]], [[Z:%.*]]
+; CHECK-NEXT:    call void @foo(i32 [[RHS]])
+; CHECK-NEXT:    [[C:%.*]] = icmp ugt i32 [[Z]], [[Y]]
+; CHECK-NEXT:    ret i1 [[C]]
+;
+  %lhs = sub nuw i32 %x, %y
+  call void @foo(i32 %lhs)
+  %rhs = sub nuw i32 %x, %z
+  call void @foo(i32 %rhs)
   %c = icmp ugt i32 %lhs, %rhs
   ret i1 %c
 }
@@ -1090,7 +1137,7 @@ define i1 @test59_as1(i8 addrspace(1)* %foo) {
 
 define i1 @test60(i8* %foo, i64 %i, i64 %j) {
 ; CHECK-LABEL: @test60(
-; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nuw i64 [[I:%.*]], 2
+; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nsw i64 [[I:%.*]], 2
 ; CHECK-NEXT:    [[TMP1:%.*]] = icmp slt i64 [[GEP1_IDX]], [[J:%.*]]
 ; CHECK-NEXT:    ret i1 [[TMP1]]
 ;
@@ -1106,7 +1153,7 @@ define i1 @test60_as1(i8 addrspace(1)* %foo, i64 %i, i64 %j) {
 ; CHECK-LABEL: @test60_as1(
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i64 [[I:%.*]] to i16
 ; CHECK-NEXT:    [[TMP2:%.*]] = trunc i64 [[J:%.*]] to i16
-; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nuw i16 [[TMP1]], 2
+; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nsw i16 [[TMP1]], 2
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp slt i16 [[GEP1_IDX]], [[TMP2]]
 ; CHECK-NEXT:    ret i1 [[TMP3]]
 ;
@@ -1122,7 +1169,7 @@ define i1 @test60_as1(i8 addrspace(1)* %foo, i64 %i, i64 %j) {
 ; bitcast. This uses the same sized addrspace.
 define i1 @test60_addrspacecast(i8* %foo, i64 %i, i64 %j) {
 ; CHECK-LABEL: @test60_addrspacecast(
-; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nuw i64 [[I:%.*]], 2
+; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nsw i64 [[I:%.*]], 2
 ; CHECK-NEXT:    [[TMP1:%.*]] = icmp slt i64 [[GEP1_IDX]], [[J:%.*]]
 ; CHECK-NEXT:    ret i1 [[TMP1]]
 ;
@@ -1136,7 +1183,7 @@ define i1 @test60_addrspacecast(i8* %foo, i64 %i, i64 %j) {
 
 define i1 @test60_addrspacecast_smaller(i8* %foo, i16 %i, i64 %j) {
 ; CHECK-LABEL: @test60_addrspacecast_smaller(
-; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nuw i16 [[I:%.*]], 2
+; CHECK-NEXT:    [[GEP1_IDX:%.*]] = shl nsw i16 [[I:%.*]], 2
 ; CHECK-NEXT:    [[TMP1:%.*]] = trunc i64 [[J:%.*]] to i16
 ; CHECK-NEXT:    [[TMP2:%.*]] = icmp slt i16 [[GEP1_IDX]], [[TMP1]]
 ; CHECK-NEXT:    ret i1 [[TMP2]]

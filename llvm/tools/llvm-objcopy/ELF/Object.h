@@ -57,8 +57,8 @@ public:
       : Sections(Secs) {}
   SectionTableRef(const SectionTableRef &) = default;
 
-  iterator begin() { return iterator(Sections.data()); }
-  iterator end() { return iterator(Sections.data() + Sections.size()); }
+  iterator begin() const { return iterator(Sections.data()); }
+  iterator end() const { return iterator(Sections.data() + Sections.size()); }
   size_t size() const { return Sections.size(); }
 
   SectionBase *getSection(uint32_t Index, Twine ErrMsg);
@@ -216,6 +216,10 @@ struct IHexRecord {
   static IHexLineData getLine(uint8_t Type, uint16_t Addr,
                               ArrayRef<uint8_t> Data);
 
+  // Parses the line and returns record if possible.
+  // Line should be trimmed from whitespace characters.
+  static Expected<IHexRecord> parse(StringRef Line);
+
   // Calculates checksum of stringified record representation
   // S must NOT contain leading ':' and trailing whitespace
   // characters
@@ -338,9 +342,13 @@ public:
   virtual ~ELFWriter() {}
   bool WriteSectionHeaders;
 
+  // For --only-keep-debug, select an alternative section/segment layout
+  // algorithm.
+  bool OnlyKeepDebug;
+
   Error finalize() override;
   Error write() override;
-  ELFWriter(Object &Obj, Buffer &Buf, bool WSH);
+  ELFWriter(Object &Obj, Buffer &Buf, bool WSH, bool OnlyKeepDebug);
 };
 
 class BinaryWriter : public Writer {
@@ -380,9 +388,12 @@ public:
   std::string Name;
   Segment *ParentSegment = nullptr;
   uint64_t HeaderOffset;
-  uint64_t OriginalOffset = std::numeric_limits<uint64_t>::max();
   uint32_t Index;
   bool HasSymbol = false;
+
+  uint64_t OriginalFlags = 0;
+  uint64_t OriginalType = ELF::SHT_NULL;
+  uint64_t OriginalOffset = std::numeric_limits<uint64_t>::max();
 
   uint64_t Addr = 0;
   uint64_t Align = 1;
@@ -428,8 +439,6 @@ private:
     }
   };
 
-  std::set<const SectionBase *, SectionCompare> Sections;
-
 public:
   uint32_t Type;
   uint32_t Flags;
@@ -444,6 +453,7 @@ public:
   uint64_t OriginalOffset;
   Segment *ParentSegment = nullptr;
   ArrayRef<uint8_t> Contents;
+  std::set<const SectionBase *, SectionCompare> Sections;
 
   explicit Segment(ArrayRef<uint8_t> Data) : Contents(Data) {}
   Segment() {}
@@ -486,7 +496,7 @@ public:
   OwnedDataSection(StringRef SecName, ArrayRef<uint8_t> Data)
       : Data(std::begin(Data), std::end(Data)) {
     Name = SecName.str();
-    Type = ELF::SHT_PROGBITS;
+    Type = OriginalType = ELF::SHT_PROGBITS;
     Size = Data.size();
     OriginalOffset = std::numeric_limits<uint64_t>::max();
   }
@@ -494,9 +504,9 @@ public:
   OwnedDataSection(const Twine &SecName, uint64_t SecAddr, uint64_t SecFlags,
                    uint64_t SecOff) {
     Name = SecName.str();
-    Type = ELF::SHT_PROGBITS;
+    Type = OriginalType = ELF::SHT_PROGBITS;
     Addr = SecAddr;
-    Flags = SecFlags;
+    Flags = OriginalFlags = SecFlags;
     OriginalOffset = SecOff;
   }
 
@@ -526,7 +536,7 @@ public:
   void accept(MutableSectionVisitor &Visitor) override;
 
   static bool classof(const SectionBase *S) {
-    return (S->Flags & ELF::SHF_COMPRESSED) ||
+    return (S->OriginalFlags & ELF::SHF_COMPRESSED) ||
            (StringRef(S->Name).startswith(".zdebug"));
   }
 };
@@ -539,7 +549,7 @@ public:
       : SectionBase(Sec) {
     Size = Sec.getDecompressedSize();
     Align = Sec.getDecompressedAlign();
-    Flags = (Flags & ~ELF::SHF_COMPRESSED);
+    Flags = OriginalFlags = (Flags & ~ELF::SHF_COMPRESSED);
     if (StringRef(Name).startswith(".zdebug"))
       Name = "." + Name.substr(2);
   }
@@ -563,7 +573,7 @@ class StringTableSection : public SectionBase {
 
 public:
   StringTableSection() : StrTabBuilder(StringTableBuilder::ELF) {
-    Type = ELF::SHT_STRTAB;
+    Type = OriginalType = ELF::SHT_STRTAB;
   }
 
   void addString(StringRef Name);
@@ -573,9 +583,9 @@ public:
   void accept(MutableSectionVisitor &Visitor) override;
 
   static bool classof(const SectionBase *S) {
-    if (S->Flags & ELF::SHF_ALLOC)
+    if (S->OriginalFlags & ELF::SHF_ALLOC)
       return false;
-    return S->Type == ELF::SHT_STRTAB;
+    return S->OriginalType == ELF::SHT_STRTAB;
   }
 };
 
@@ -587,10 +597,15 @@ enum SymbolShndxType {
   SYMBOL_SIMPLE_INDEX = 0,
   SYMBOL_ABS = ELF::SHN_ABS,
   SYMBOL_COMMON = ELF::SHN_COMMON,
+  SYMBOL_LOPROC = ELF::SHN_LOPROC,
+  SYMBOL_AMDGPU_LDS = ELF::SHN_AMDGPU_LDS,
   SYMBOL_HEXAGON_SCOMMON = ELF::SHN_HEXAGON_SCOMMON,
   SYMBOL_HEXAGON_SCOMMON_2 = ELF::SHN_HEXAGON_SCOMMON_2,
   SYMBOL_HEXAGON_SCOMMON_4 = ELF::SHN_HEXAGON_SCOMMON_4,
   SYMBOL_HEXAGON_SCOMMON_8 = ELF::SHN_HEXAGON_SCOMMON_8,
+  SYMBOL_HIPROC = ELF::SHN_HIPROC,
+  SYMBOL_LOOS = ELF::SHN_LOOS,
+  SYMBOL_HIOS = ELF::SHN_HIOS,
   SYMBOL_XINDEX = ELF::SHN_XINDEX,
 };
 
@@ -639,7 +654,7 @@ public:
     Name = ".symtab_shndx";
     Align = 4;
     EntrySize = 4;
-    Type = ELF::SHT_SYMTAB_SHNDX;
+    Type = OriginalType = ELF::SHT_SYMTAB_SHNDX;
   }
 };
 
@@ -657,7 +672,7 @@ protected:
   using SymPtr = std::unique_ptr<Symbol>;
 
 public:
-  SymbolTableSection() { Type = ELF::SHT_SYMTAB; }
+  SymbolTableSection() { Type = OriginalType = ELF::SHT_SYMTAB; }
 
   void addSymbol(Twine Name, uint8_t Bind, uint8_t Type, SectionBase *DefinedIn,
                  uint64_t Value, uint8_t Visibility, uint16_t Shndx,
@@ -686,7 +701,7 @@ public:
       const DenseMap<SectionBase *, SectionBase *> &FromTo) override;
 
   static bool classof(const SectionBase *S) {
-    return S->Type == ELF::SHT_SYMTAB;
+    return S->OriginalType == ELF::SHT_SYMTAB;
   }
 };
 
@@ -715,7 +730,7 @@ public:
   void setSection(SectionBase *Sec) { SecToApplyRel = Sec; }
 
   static bool classof(const SectionBase *S) {
-    return S->Type == ELF::SHT_REL || S->Type == ELF::SHT_RELA;
+    return S->OriginalType == ELF::SHT_REL || S->OriginalType == ELF::SHT_RELA;
   }
 };
 
@@ -753,9 +768,9 @@ public:
       const DenseMap<SectionBase *, SectionBase *> &FromTo) override;
 
   static bool classof(const SectionBase *S) {
-    if (S->Flags & ELF::SHF_ALLOC)
+    if (S->OriginalFlags & ELF::SHF_ALLOC)
       return false;
-    return S->Type == ELF::SHT_REL || S->Type == ELF::SHT_RELA;
+    return S->OriginalType == ELF::SHT_REL || S->OriginalType == ELF::SHT_RELA;
   }
 };
 
@@ -790,7 +805,7 @@ public:
       const DenseMap<SectionBase *, SectionBase *> &FromTo) override;
 
   static bool classof(const SectionBase *S) {
-    return S->Type == ELF::SHT_GROUP;
+    return S->OriginalType == ELF::SHT_GROUP;
   }
 };
 
@@ -799,7 +814,7 @@ public:
   explicit DynamicSymbolTableSection(ArrayRef<uint8_t> Data) : Section(Data) {}
 
   static bool classof(const SectionBase *S) {
-    return S->Type == ELF::SHT_DYNSYM;
+    return S->OriginalType == ELF::SHT_DYNSYM;
   }
 };
 
@@ -808,7 +823,7 @@ public:
   explicit DynamicSection(ArrayRef<uint8_t> Data) : Section(Data) {}
 
   static bool classof(const SectionBase *S) {
-    return S->Type == ELF::SHT_DYNAMIC;
+    return S->OriginalType == ELF::SHT_DYNAMIC;
   }
 };
 
@@ -829,9 +844,9 @@ public:
       function_ref<bool(const SectionBase *)> ToRemove) override;
 
   static bool classof(const SectionBase *S) {
-    if (!(S->Flags & ELF::SHF_ALLOC))
+    if (!(S->OriginalFlags & ELF::SHF_ALLOC))
       return false;
-    return S->Type == ELF::SHT_REL || S->Type == ELF::SHT_RELA;
+    return S->OriginalType == ELF::SHT_REL || S->OriginalType == ELF::SHT_RELA;
   }
 };
 
@@ -854,7 +869,7 @@ public:
 class Reader {
 public:
   virtual ~Reader();
-  virtual std::unique_ptr<Object> create() const = 0;
+  virtual std::unique_ptr<Object> create(bool EnsureSymtab) const = 0;
 };
 
 using object::Binary;
@@ -862,21 +877,41 @@ using object::ELFFile;
 using object::ELFObjectFile;
 using object::OwningBinary;
 
-class BinaryELFBuilder {
-  uint16_t EMachine;
-  MemoryBuffer *MemBuf;
+class BasicELFBuilder {
+protected:
   std::unique_ptr<Object> Obj;
 
   void initFileHeader();
   void initHeaderSegment();
   StringTableSection *addStrTab();
   SymbolTableSection *addSymTab(StringTableSection *StrTab);
-  void addData(SymbolTableSection *SymTab);
   void initSections();
 
 public:
-  BinaryELFBuilder(uint16_t EM, MemoryBuffer *MB)
-      : EMachine(EM), MemBuf(MB), Obj(llvm::make_unique<Object>()) {}
+  BasicELFBuilder() : Obj(std::make_unique<Object>()) {}
+};
+
+class BinaryELFBuilder : public BasicELFBuilder {
+  MemoryBuffer *MemBuf;
+  uint8_t NewSymbolVisibility;
+  void addData(SymbolTableSection *SymTab);
+
+public:
+  BinaryELFBuilder(MemoryBuffer *MB, uint8_t NewSymbolVisibility)
+      : BasicELFBuilder(), MemBuf(MB),
+        NewSymbolVisibility(NewSymbolVisibility) {}
+
+  std::unique_ptr<Object> build();
+};
+
+class IHexELFBuilder : public BasicELFBuilder {
+  const std::vector<IHexRecord> &Records;
+
+  void addDataSections();
+
+public:
+  IHexELFBuilder(const std::vector<IHexRecord> &Records)
+      : BasicELFBuilder(), Records(Records) {}
 
   std::unique_ptr<Object> build();
 };
@@ -889,37 +924,67 @@ private:
 
   const ELFFile<ELFT> &ElfFile;
   Object &Obj;
+  size_t EhdrOffset = 0;
+  Optional<StringRef> ExtractPartition;
 
   void setParentSegment(Segment &Child);
-  void readProgramHeaders();
+  void readProgramHeaders(const ELFFile<ELFT> &HeadersFile);
   void initGroupSection(GroupSection *GroupSec);
   void initSymbolTable(SymbolTableSection *SymTab);
   void readSectionHeaders();
+  void readSections(bool EnsureSymtab);
+  void findEhdrOffset();
   SectionBase &makeSection(const Elf_Shdr &Shdr);
 
 public:
-  ELFBuilder(const ELFObjectFile<ELFT> &ElfObj, Object &Obj)
-      : ElfFile(*ElfObj.getELFFile()), Obj(Obj) {}
+  ELFBuilder(const ELFObjectFile<ELFT> &ElfObj, Object &Obj,
+             Optional<StringRef> ExtractPartition)
+      : ElfFile(*ElfObj.getELFFile()), Obj(Obj),
+        ExtractPartition(ExtractPartition) {}
 
-  void build();
+  void build(bool EnsureSymtab);
 };
 
 class BinaryReader : public Reader {
-  const MachineInfo &MInfo;
   MemoryBuffer *MemBuf;
+  uint8_t NewSymbolVisibility;
 
 public:
-  BinaryReader(const MachineInfo &MI, MemoryBuffer *MB)
-      : MInfo(MI), MemBuf(MB) {}
-  std::unique_ptr<Object> create() const override;
+  BinaryReader(MemoryBuffer *MB, const uint8_t NewSymbolVisibility)
+      : MemBuf(MB), NewSymbolVisibility(NewSymbolVisibility) {}
+  std::unique_ptr<Object> create(bool EnsureSymtab) const override;
+};
+
+class IHexReader : public Reader {
+  MemoryBuffer *MemBuf;
+
+  Expected<std::vector<IHexRecord>> parse() const;
+  Error parseError(size_t LineNo, Error E) const {
+    return LineNo == -1U
+               ? createFileError(MemBuf->getBufferIdentifier(), std::move(E))
+               : createFileError(MemBuf->getBufferIdentifier(), LineNo,
+                                 std::move(E));
+  }
+  template <typename... Ts>
+  Error parseError(size_t LineNo, char const *Fmt, const Ts &... Vals) const {
+    Error E = createStringError(errc::invalid_argument, Fmt, Vals...);
+    return parseError(LineNo, std::move(E));
+  }
+
+public:
+  IHexReader(MemoryBuffer *MB) : MemBuf(MB) {}
+
+  std::unique_ptr<Object> create(bool EnsureSymtab) const override;
 };
 
 class ELFReader : public Reader {
   Binary *Bin;
+  Optional<StringRef> ExtractPartition;
 
 public:
-  std::unique_ptr<Object> create() const override;
-  explicit ELFReader(Binary *B) : Bin(B) {}
+  std::unique_ptr<Object> create(bool EnsureSymtab) const override;
+  explicit ELFReader(Binary *B, Optional<StringRef> ExtractPartition)
+      : Bin(B), ExtractPartition(ExtractPartition) {}
 };
 
 class Object {
@@ -930,6 +995,10 @@ private:
   std::vector<SecPtr> Sections;
   std::vector<SegPtr> Segments;
   std::vector<SecPtr> RemovedSections;
+
+  static bool sectionIsAlloc(const SectionBase &Sec) {
+    return Sec.Flags & ELF::SHF_ALLOC;
+  };
 
 public:
   template <class T>
@@ -952,13 +1021,14 @@ public:
   uint8_t OSABI;
   uint8_t ABIVersion;
   uint64_t Entry;
-  uint64_t SHOffset;
+  uint64_t SHOff;
   uint32_t Type;
   uint32_t Machine;
   uint32_t Version;
   uint32_t Flags;
 
   bool HadShdrs = true;
+  bool MustBeRelocatable = false;
   StringTableSection *SectionNames = nullptr;
   SymbolTableSection *SymbolTable = nullptr;
   SectionIndexSection *SectionIndexTable = nullptr;
@@ -968,6 +1038,13 @@ public:
   ConstRange<SectionBase> sections() const {
     return make_pointee_range(Sections);
   }
+  iterator_range<
+      filter_iterator<pointee_iterator<std::vector<SecPtr>::const_iterator>,
+                      decltype(&sectionIsAlloc)>>
+  allocSections() const {
+    return make_filter_range(make_pointee_range(Sections), sectionIsAlloc);
+  }
+
   SectionBase *findSection(StringRef Name) {
     auto SecIt =
         find_if(Sections, [&](const SecPtr &Sec) { return Sec->Name == Name; });
@@ -982,15 +1059,19 @@ public:
                        std::function<bool(const SectionBase &)> ToRemove);
   Error removeSymbols(function_ref<bool(const Symbol &)> ToRemove);
   template <class T, class... Ts> T &addSection(Ts &&... Args) {
-    auto Sec = llvm::make_unique<T>(std::forward<Ts>(Args)...);
+    auto Sec = std::make_unique<T>(std::forward<Ts>(Args)...);
     auto Ptr = Sec.get();
+    MustBeRelocatable |= isa<RelocationSection>(*Ptr);
     Sections.emplace_back(std::move(Sec));
     Ptr->Index = Sections.size();
     return *Ptr;
   }
   Segment &addSegment(ArrayRef<uint8_t> Data) {
-    Segments.emplace_back(llvm::make_unique<Segment>(Data));
+    Segments.emplace_back(std::make_unique<Segment>(Data));
     return *Segments.back();
+  }
+  bool isRelocatable() const {
+    return (Type != ELF::ET_DYN && Type != ELF::ET_EXEC) || MustBeRelocatable;
   }
 };
 

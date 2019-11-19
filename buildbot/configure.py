@@ -2,6 +2,7 @@ import argparse
 import os
 import subprocess
 import sys
+import platform
 
 def do_configure(args):
     ret = False
@@ -10,17 +11,29 @@ def do_configure(args):
     sycl_dir = os.path.join(args.src_dir, "sycl")
     spirv_dir = os.path.join(args.src_dir, "llvm-spirv")
     ocl_header_dir = os.path.join(args.obj_dir, "OpenCL-Headers")
-    icd_loader_lib = os.path.join(args.obj_dir, "OpenCL-ICD-Loader", "build", "libOpenCL.so")
+    icd_loader_lib = ''
+
+    if platform.system() == 'Linux':
+      icd_loader_lib = os.path.join(args.obj_dir, "OpenCL-ICD-Loader", "build", "libOpenCL.so")
+    else:
+      icd_loader_lib = os.path.join(args.obj_dir, "OpenCL-ICD-Loader", "build", "OpenCL.lib")
+
+    install_dir = os.path.join(args.obj_dir, "install")
 
     cmake_cmd = ["cmake",
+                 "-G", "Ninja",
                  "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
                  "-DLLVM_EXTERNAL_PROJECTS=sycl;llvm-spirv",
                  "-DLLVM_EXTERNAL_SYCL_SOURCE_DIR={}".format(sycl_dir),
                  "-DLLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR={}".format(spirv_dir),
-                 "-DLLVM_ENABLE_PROJECTS=clang;llvm-spirv;sycl",
+                 "-DLLVM_ENABLE_PROJECTS=clang;sycl;llvm-spirv",
                  "-DOpenCL_INCLUDE_DIR={}".format(ocl_header_dir),
                  "-DOpenCL_LIBRARY={}".format(icd_loader_lib),
-                 "-DLLVM_BUILD_TOOLS=OFF",
+                 "-DLLVM_BUILD_TOOLS=ON",
+                 "-DSYCL_ENABLE_WERROR=ON",
+                 "-DLLVM_ENABLE_ASSERTIONS=ON",
+                 "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
+                 "-DSYCL_INCLUDE_TESTS=ON", # Explicitly include all kinds of SYCL tests.
                  llvm_dir]
 
     print(cmake_cmd)

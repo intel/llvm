@@ -823,6 +823,30 @@ void StmtPrinter::VisitOMPTaskLoopSimdDirective(
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPMasterTaskLoopDirective(
+    OMPMasterTaskLoopDirective *Node) {
+  Indent() << "#pragma omp master taskloop";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPMasterTaskLoopSimdDirective(
+    OMPMasterTaskLoopSimdDirective *Node) {
+  Indent() << "#pragma omp master taskloop simd";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPParallelMasterTaskLoopDirective(
+    OMPParallelMasterTaskLoopDirective *Node) {
+  Indent() << "#pragma omp parallel master taskloop";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPParallelMasterTaskLoopSimdDirective(
+    OMPParallelMasterTaskLoopSimdDirective *Node) {
+  Indent() << "#pragma omp parallel master taskloop simd";
+  PrintOMPExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitOMPDistributeDirective(OMPDistributeDirective *Node) {
   Indent() << "#pragma omp distribute";
   PrintOMPExecutableDirective(Node);
@@ -1102,7 +1126,7 @@ void StmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
   OS << Node->getValue().toString(10, isSigned);
 
   // Emit suffixes.  Integer literals are always a builtin integer type.
-  switch (Node->getType()->getAs<BuiltinType>()->getKind()) {
+  switch (Node->getType()->castAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("Unexpected type for integer literal!");
   case BuiltinType::Char_S:
   case BuiltinType::Char_U:    OS << "i8"; break;
@@ -1123,7 +1147,7 @@ void StmtPrinter::VisitFixedPointLiteral(FixedPointLiteral *Node) {
     return;
   OS << Node->getValueAsString(/*Radix=*/10);
 
-  switch (Node->getType()->getAs<BuiltinType>()->getKind()) {
+  switch (Node->getType()->castAs<BuiltinType>()->getKind()) {
     default: llvm_unreachable("Unexpected type for fixed point literal!");
     case BuiltinType::ShortFract:   OS << "hr"; break;
     case BuiltinType::ShortAccum:   OS << "hk"; break;
@@ -1152,7 +1176,7 @@ static void PrintFloatingLiteral(raw_ostream &OS, FloatingLiteral *Node,
     return;
 
   // Emit suffixes.  Float literals are always a builtin float type.
-  switch (Node->getType()->getAs<BuiltinType>()->getKind()) {
+  switch (Node->getType()->castAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("Unexpected type for float literal!");
   case BuiltinType::Half:       break; // FIXME: suffix?
   case BuiltinType::Double:     break; // no suffix.
@@ -1622,21 +1646,14 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
 
 // C++
 void StmtPrinter::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *Node) {
-  const char *OpStrings[NUM_OVERLOADED_OPERATORS] = {
-    "",
-#define OVERLOADED_OPERATOR(Name,Spelling,Token,Unary,Binary,MemberOnly) \
-    Spelling,
-#include "clang/Basic/OperatorKinds.def"
-  };
-
   OverloadedOperatorKind Kind = Node->getOperator();
   if (Kind == OO_PlusPlus || Kind == OO_MinusMinus) {
     if (Node->getNumArgs() == 1) {
-      OS << OpStrings[Kind] << ' ';
+      OS << getOperatorSpelling(Kind) << ' ';
       PrintExpr(Node->getArg(0));
     } else {
       PrintExpr(Node->getArg(0));
-      OS << ' ' << OpStrings[Kind];
+      OS << ' ' << getOperatorSpelling(Kind);
     }
   } else if (Kind == OO_Arrow) {
     PrintExpr(Node->getArg(0));
@@ -1656,11 +1673,11 @@ void StmtPrinter::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *Node) {
     PrintExpr(Node->getArg(1));
     OS << ']';
   } else if (Node->getNumArgs() == 1) {
-    OS << OpStrings[Kind] << ' ';
+    OS << getOperatorSpelling(Kind) << ' ';
     PrintExpr(Node->getArg(0));
   } else if (Node->getNumArgs() == 2) {
     PrintExpr(Node->getArg(0));
-    OS << ' ' << OpStrings[Kind] << ' ';
+    OS << ' ' << getOperatorSpelling(Kind) << ' ';
     PrintExpr(Node->getArg(1));
   } else {
     llvm_unreachable("unknown overloaded operator");
@@ -1686,6 +1703,15 @@ void StmtPrinter::VisitCUDAKernelCallExpr(CUDAKernelCallExpr *Node) {
   OS << ")";
 }
 
+void StmtPrinter::VisitCXXRewrittenBinaryOperator(
+    CXXRewrittenBinaryOperator *Node) {
+  CXXRewrittenBinaryOperator::DecomposedForm Decomposed =
+      Node->getDecomposedForm();
+  PrintExpr(const_cast<Expr*>(Decomposed.LHS));
+  OS << ' ' << BinaryOperator::getOpcodeStr(Decomposed.Opcode) << ' ';
+  PrintExpr(const_cast<Expr*>(Decomposed.RHS));
+}
+
 void StmtPrinter::VisitCXXNamedCastExpr(CXXNamedCastExpr *Node) {
   OS << Node->getCastName() << '<';
   Node->getTypeAsWritten().print(OS, Policy);
@@ -1708,6 +1734,14 @@ void StmtPrinter::VisitCXXReinterpretCastExpr(CXXReinterpretCastExpr *Node) {
 
 void StmtPrinter::VisitCXXConstCastExpr(CXXConstCastExpr *Node) {
   VisitCXXNamedCastExpr(Node);
+}
+
+void StmtPrinter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *Node) {
+  OS << "__builtin_bit_cast(";
+  Node->getTypeInfoAsWritten()->getType().print(OS, Policy);
+  OS << ", ";
+  PrintExpr(Node->getSubExpr());
+  OS << ")";
 }
 
 void StmtPrinter::VisitCXXTypeidExpr(CXXTypeidExpr *Node) {
@@ -1951,7 +1985,7 @@ void StmtPrinter::VisitLambdaExpr(LambdaExpr *Node) {
     if (Node->isMutable())
       OS << " mutable";
 
-    auto *Proto = Method->getType()->getAs<FunctionProtoType>();
+    auto *Proto = Method->getType()->castAs<FunctionProtoType>();
     Proto->printExceptionSpecification(OS, Policy);
 
     // FIXME: Attributes
@@ -2216,6 +2250,17 @@ void StmtPrinter::VisitCXXFoldExpr(CXXFoldExpr *E) {
     PrintExpr(E->getRHS());
   }
   OS << ")";
+}
+
+void StmtPrinter::VisitConceptSpecializationExpr(ConceptSpecializationExpr *E) {
+  NestedNameSpecifierLoc NNS = E->getNestedNameSpecifierLoc();
+  if (NNS)
+    NNS.getNestedNameSpecifier()->print(OS, Policy);
+  if (E->getTemplateKWLoc().isValid())
+    OS << "template ";
+  OS << E->getFoundDecl()->getName();
+  printTemplateArgumentList(OS, E->getTemplateArgsAsWritten()->arguments(),
+                            Policy);
 }
 
 // C++ Coroutines TS

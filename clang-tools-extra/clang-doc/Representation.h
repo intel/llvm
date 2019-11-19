@@ -32,6 +32,7 @@ using SymbolID = std::array<uint8_t, 20>;
 struct Info;
 struct FunctionInfo;
 struct EnumInfo;
+struct BaseRecordInfo;
 
 enum class InfoType {
   IT_default,
@@ -46,6 +47,46 @@ struct CommentInfo {
   CommentInfo() = default;
   CommentInfo(CommentInfo &Other) = delete;
   CommentInfo(CommentInfo &&Other) = default;
+  CommentInfo &operator=(CommentInfo &&Other) = default;
+
+  bool operator==(const CommentInfo &Other) const {
+    auto FirstCI = std::tie(Kind, Text, Name, Direction, ParamName, CloseName,
+                            SelfClosing, Explicit, AttrKeys, AttrValues, Args);
+    auto SecondCI =
+        std::tie(Other.Kind, Other.Text, Other.Name, Other.Direction,
+                 Other.ParamName, Other.CloseName, Other.SelfClosing,
+                 Other.Explicit, Other.AttrKeys, Other.AttrValues, Other.Args);
+
+    if (FirstCI != SecondCI || Children.size() != Other.Children.size())
+      return false;
+
+    return std::equal(Children.begin(), Children.end(), Other.Children.begin(),
+                      llvm::deref<std::equal_to<>>{});
+  }
+
+  // This operator is used to sort a vector of CommentInfos.
+  // No specific order (attributes more important than others) is required. Any
+  // sort is enough, the order is only needed to call std::unique after sorting
+  // the vector.
+  bool operator<(const CommentInfo &Other) const {
+    auto FirstCI = std::tie(Kind, Text, Name, Direction, ParamName, CloseName,
+                            SelfClosing, Explicit, AttrKeys, AttrValues, Args);
+    auto SecondCI =
+        std::tie(Other.Kind, Other.Text, Other.Name, Other.Direction,
+                 Other.ParamName, Other.CloseName, Other.SelfClosing,
+                 Other.Explicit, Other.AttrKeys, Other.AttrValues, Other.Args);
+
+    if (FirstCI < SecondCI)
+      return true;
+
+    if (FirstCI == SecondCI) {
+      return std::lexicographical_compare(
+          Children.begin(), Children.end(), Other.Children.begin(),
+          Other.Children.end(), llvm::deref<std::less<>>());
+    }
+
+    return false;
+  }
 
   SmallString<16>
       Kind; // Kind of comment (FullComment, ParagraphComment, TextComment,
@@ -74,19 +115,37 @@ struct CommentInfo {
 struct Reference {
   Reference() = default;
   Reference(llvm::StringRef Name) : Name(Name) {}
+  // An empty path means the info is in the global namespace because the path is
+  // a composite of the parent namespaces.
+  Reference(llvm::StringRef Name, StringRef Path)
+      : Name(Name), Path(Path), IsInGlobalNamespace(Path.empty()) {}
   Reference(SymbolID USR, StringRef Name, InfoType IT)
       : USR(USR), Name(Name), RefType(IT) {}
+  // An empty path means the info is in the global namespace because the path is
+  // a composite of the parent namespaces.
+  Reference(SymbolID USR, StringRef Name, InfoType IT, StringRef Path)
+      : USR(USR), Name(Name), RefType(IT), Path(Path),
+        IsInGlobalNamespace(Path.empty()) {}
 
   bool operator==(const Reference &Other) const {
     return std::tie(USR, Name, RefType) ==
            std::tie(Other.USR, Other.Name, Other.RefType);
   }
 
+  bool mergeable(const Reference &Other);
+  void merge(Reference &&I);
+
   SymbolID USR = SymbolID(); // Unique identifer for referenced decl
   SmallString<16> Name;      // Name of type (possibly unresolved).
   InfoType RefType = InfoType::IT_default; // Indicates the type of this
                                            // Reference (namespace, record,
                                            // function, enum, default).
+  // Path of directory where the clang-doc generated file will be saved
+  // (possibly unresolved)
+  llvm::SmallString<128> Path;
+  // Indicates if the info's parent is the global namespace, or if the info is
+  // the global namespace
+  bool IsInGlobalNamespace = false;
 };
 
 // A base struct for TypeInfos
@@ -94,7 +153,10 @@ struct TypeInfo {
   TypeInfo() = default;
   TypeInfo(SymbolID Type, StringRef Field, InfoType IT)
       : Type(Type, Field, IT) {}
+  TypeInfo(SymbolID Type, StringRef Field, InfoType IT, StringRef Path)
+      : Type(Type, Field, IT, Path) {}
   TypeInfo(llvm::StringRef RefName) : Type(RefName) {}
+  TypeInfo(llvm::StringRef RefName, StringRef Path) : Type(RefName, Path) {}
 
   bool operator==(const TypeInfo &Other) const { return Type == Other.Type; }
 
@@ -104,11 +166,13 @@ struct TypeInfo {
 // Info for field types.
 struct FieldTypeInfo : public TypeInfo {
   FieldTypeInfo() = default;
-  FieldTypeInfo(SymbolID Type, StringRef Field, InfoType IT,
+  FieldTypeInfo(SymbolID Type, StringRef Field, InfoType IT, StringRef Path,
                 llvm::StringRef Name)
-      : TypeInfo(Type, Field, IT), Name(Name) {}
+      : TypeInfo(Type, Field, IT, Path), Name(Name) {}
   FieldTypeInfo(llvm::StringRef RefName, llvm::StringRef Name)
       : TypeInfo(RefName), Name(Name) {}
+  FieldTypeInfo(llvm::StringRef RefName, StringRef Path, llvm::StringRef Name)
+      : TypeInfo(RefName, Path), Name(Name) {}
 
   bool operator==(const FieldTypeInfo &Other) const {
     return std::tie(Type, Name) == std::tie(Other.Type, Other.Name);
@@ -120,36 +184,53 @@ struct FieldTypeInfo : public TypeInfo {
 // Info for member types.
 struct MemberTypeInfo : public FieldTypeInfo {
   MemberTypeInfo() = default;
-  MemberTypeInfo(SymbolID Type, StringRef Field, InfoType IT,
+  MemberTypeInfo(SymbolID Type, StringRef Field, InfoType IT, StringRef Path,
                  llvm::StringRef Name, AccessSpecifier Access)
-      : FieldTypeInfo(Type, Field, IT, Name), Access(Access) {}
+      : FieldTypeInfo(Type, Field, IT, Path, Name), Access(Access) {}
   MemberTypeInfo(llvm::StringRef RefName, llvm::StringRef Name,
                  AccessSpecifier Access)
       : FieldTypeInfo(RefName, Name), Access(Access) {}
+  MemberTypeInfo(llvm::StringRef RefName, StringRef Path, llvm::StringRef Name,
+                 AccessSpecifier Access)
+      : FieldTypeInfo(RefName, Path, Name), Access(Access) {}
 
   bool operator==(const MemberTypeInfo &Other) const {
     return std::tie(Type, Name, Access) ==
            std::tie(Other.Type, Other.Name, Other.Access);
   }
 
-  AccessSpecifier Access = AccessSpecifier::AS_none; // Access level associated
-                                                     // with this info (public,
-                                                     // protected, private,
-                                                     // none).
+  // Access level associated with this info (public, protected, private, none).
+  // AS_public is set as default because the bitcode writer requires the enum
+  // with value 0 to be used as the default.
+  // (AS_public = 0, AS_protected = 1, AS_private = 2, AS_none = 3)
+  AccessSpecifier Access = AccessSpecifier::AS_public;
 };
 
 struct Location {
   Location() = default;
   Location(int LineNumber, SmallString<16> Filename)
       : LineNumber(LineNumber), Filename(std::move(Filename)) {}
+  Location(int LineNumber, SmallString<16> Filename, bool IsFileInRootDir)
+      : LineNumber(LineNumber), Filename(std::move(Filename)),
+        IsFileInRootDir(IsFileInRootDir) {}
 
   bool operator==(const Location &Other) const {
     return std::tie(LineNumber, Filename) ==
            std::tie(Other.LineNumber, Other.Filename);
   }
 
-  int LineNumber;           // Line number of this Location.
-  SmallString<32> Filename; // File for this Location.
+  // This operator is used to sort a vector of Locations.
+  // No specific order (attributes more important than others) is required. Any
+  // sort is enough, the order is only needed to call std::unique after sorting
+  // the vector.
+  bool operator<(const Location &Other) const {
+    return std::tie(LineNumber, Filename) <
+           std::tie(Other.LineNumber, Other.Filename);
+  }
+
+  int LineNumber;               // Line number of this Location.
+  SmallString<32> Filename;     // File for this Location.
+  bool IsFileInRootDir = false; // Indicates if file is inside root directory
 };
 
 /// A base struct for Infos.
@@ -159,6 +240,8 @@ struct Info {
   Info(InfoType IT, SymbolID USR) : USR(USR), IT(IT) {}
   Info(InfoType IT, SymbolID USR, StringRef Name)
       : USR(USR), IT(IT), Name(Name) {}
+  Info(InfoType IT, SymbolID USR, StringRef Name, StringRef Path)
+      : USR(USR), IT(IT), Name(Name), Path(Path) {}
   Info(const Info &Other) = delete;
   Info(Info &&Other) = default;
 
@@ -171,9 +254,13 @@ struct Info {
   llvm::SmallVector<Reference, 4>
       Namespace; // List of parent namespaces for this decl.
   std::vector<CommentInfo> Description; // Comment description of this decl.
+  llvm::SmallString<128> Path;          // Path of directory where the clang-doc
+                                        // generated file will be saved
 
   void mergeBase(Info &&I);
   bool mergeable(const Info &Other);
+
+  llvm::SmallString<16> extractName() const;
 
   // Returns a reference to the parent scope (that is, the immediate parent
   // namespace or class in which this decl resides).
@@ -186,6 +273,8 @@ struct NamespaceInfo : public Info {
   NamespaceInfo(SymbolID USR) : Info(InfoType::IT_namespace, USR) {}
   NamespaceInfo(SymbolID USR, StringRef Name)
       : Info(InfoType::IT_namespace, USR, Name) {}
+  NamespaceInfo(SymbolID USR, StringRef Name, StringRef Path)
+      : Info(InfoType::IT_namespace, USR, Name, Path) {}
 
   void merge(NamespaceInfo &&I);
 
@@ -204,6 +293,8 @@ struct SymbolInfo : public Info {
   SymbolInfo(InfoType IT) : Info(IT) {}
   SymbolInfo(InfoType IT, SymbolID USR) : Info(IT, USR) {}
   SymbolInfo(InfoType IT, SymbolID USR, StringRef Name) : Info(IT, USR, Name) {}
+  SymbolInfo(InfoType IT, SymbolID USR, StringRef Name, StringRef Path)
+      : Info(IT, USR, Name, Path) {}
 
   void merge(SymbolInfo &&I);
 
@@ -224,7 +315,10 @@ struct FunctionInfo : public SymbolInfo {
   TypeInfo ReturnType;   // Info about the return type of this function.
   llvm::SmallVector<FieldTypeInfo, 4> Params; // List of parameters.
   // Access level for this method (public, private, protected, none).
-  AccessSpecifier Access = AccessSpecifier::AS_none;
+  // AS_public is set as default because the bitcode writer requires the enum
+  // with value 0 to be used as the default.
+  // (AS_public = 0, AS_protected = 1, AS_private = 2, AS_none = 3)
+  AccessSpecifier Access = AccessSpecifier::AS_public;
 };
 
 // TODO: Expand to allow for documenting templating, inheritance access,
@@ -235,12 +329,15 @@ struct RecordInfo : public SymbolInfo {
   RecordInfo(SymbolID USR) : SymbolInfo(InfoType::IT_record, USR) {}
   RecordInfo(SymbolID USR, StringRef Name)
       : SymbolInfo(InfoType::IT_record, USR, Name) {}
+  RecordInfo(SymbolID USR, StringRef Name, StringRef Path)
+      : SymbolInfo(InfoType::IT_record, USR, Name, Path) {}
 
   void merge(RecordInfo &&I);
 
   TagTypeKind TagType = TagTypeKind::TTK_Struct; // Type of this record
                                                  // (struct, class, union,
                                                  // interface).
+  bool IsTypeDef = false; // Indicates if record was declared using typedef
   llvm::SmallVector<MemberTypeInfo, 4>
       Members;                             // List of info about record members.
   llvm::SmallVector<Reference, 4> Parents; // List of base/parent records
@@ -249,13 +346,31 @@ struct RecordInfo : public SymbolInfo {
   llvm::SmallVector<Reference, 4>
       VirtualParents; // List of virtual base/parent records.
 
-  // Records are references because they will be properly
-  // documented in their own info, while the entirety of Functions and Enums are
-  // included here because they should not have separate documentation from
-  // their scope.
+  std::vector<BaseRecordInfo>
+      Bases; // List of base/parent records; this includes inherited methods and
+             // attributes
+
+  // Records are references because they will be properly documented in their
+  // own info, while the entirety of Functions and Enums are included here
+  // because they should not have separate documentation from their scope.
   std::vector<Reference> ChildRecords;
   std::vector<FunctionInfo> ChildFunctions;
   std::vector<EnumInfo> ChildEnums;
+};
+
+struct BaseRecordInfo : public RecordInfo {
+  BaseRecordInfo() : RecordInfo() {}
+  BaseRecordInfo(SymbolID USR, StringRef Name, StringRef Path, bool IsVirtual,
+                 AccessSpecifier Access, bool IsParent)
+      : RecordInfo(USR, Name, Path), IsVirtual(IsVirtual), Access(Access),
+        IsParent(IsParent) {}
+
+  // Indicates if base corresponds to a virtual inheritance
+  bool IsVirtual = false;
+  // Access level associated with this inherited info (public, protected,
+  // private).
+  AccessSpecifier Access = AccessSpecifier::AS_public;
+  bool IsParent = false; // Indicates if this base is a direct parent
 };
 
 // TODO: Expand to allow for documenting templating.
@@ -271,6 +386,23 @@ struct EnumInfo : public SymbolInfo {
   llvm::SmallVector<SmallString<16>, 4> Members; // List of enum members.
 };
 
+struct Index : public Reference {
+  Index() = default;
+  Index(StringRef Name) : Reference(Name) {}
+  Index(StringRef Name, StringRef JumpToSection)
+      : Reference(Name), JumpToSection(JumpToSection) {}
+  Index(SymbolID USR, StringRef Name, InfoType IT, StringRef Path)
+      : Reference(USR, Name, IT, Path) {}
+  // This is used to look for a USR in a vector of Indexes using std::find
+  bool operator==(const SymbolID &Other) const { return USR == Other; }
+  bool operator<(const Index &Other) const;
+
+  llvm::Optional<SmallString<16>> JumpToSection;
+  std::vector<Index> Children;
+
+  void sort();
+};
+
 // TODO: Add functionality to include separate markdown pages.
 
 // A standalone function to call to merge a vector of infos into one.
@@ -280,8 +412,29 @@ llvm::Expected<std::unique_ptr<Info>>
 mergeInfos(std::vector<std::unique_ptr<Info>> &Values);
 
 struct ClangDocContext {
+  ClangDocContext() = default;
+  ClangDocContext(tooling::ExecutionContext *ECtx, StringRef ProjectName,
+                  bool PublicOnly, StringRef OutDirectory, StringRef SourceRoot,
+                  StringRef RepositoryUrl,
+                  std::vector<std::string> UserStylesheets,
+                  std::vector<std::string> JsScripts);
   tooling::ExecutionContext *ECtx;
-  bool PublicOnly;
+  std::string ProjectName; // Name of project clang-doc is documenting.
+  bool PublicOnly; // Indicates if only public declarations are documented.
+  std::string OutDirectory; // Directory for outputting generated files.
+  std::string SourceRoot;   // Directory where processed files are stored. Links
+                            // to definition locations will only be generated if
+                            // the file is in this dir.
+  // URL of repository that hosts code used for links to definition locations.
+  llvm::Optional<std::string> RepositoryUrl;
+  // Path of CSS stylesheets that will be copied to OutDirectory and used to
+  // style all HTML files.
+  std::vector<std::string> UserStylesheets;
+  // JavaScript files that will be imported in allHTML file.
+  std::vector<std::string> JsScripts;
+  // Other files that should be copied to OutDirectory, besides UserStylesheets.
+  std::vector<std::string> FilesToCopy;
+  Index Idx;
 };
 
 } // namespace doc

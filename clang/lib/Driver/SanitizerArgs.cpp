@@ -27,11 +27,12 @@ using namespace llvm::opt;
 static const SanitizerMask NeedsUbsanRt =
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
-    SanitizerKind::CFI;
+    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero;
 static const SanitizerMask NeedsUbsanCxxRt =
     SanitizerKind::Vptr | SanitizerKind::CFI;
 static const SanitizerMask NotAllowedWithTrap = SanitizerKind::Vptr;
-static const SanitizerMask NotAllowedWithMinimalRuntime = SanitizerKind::Vptr;
+static const SanitizerMask NotAllowedWithMinimalRuntime =
+    SanitizerKind::Function | SanitizerKind::Vptr;
 static const SanitizerMask RequiresPIE =
     SanitizerKind::DataFlow | SanitizerKind::HWAddress | SanitizerKind::Scudo;
 static const SanitizerMask NeedsUnwindTables =
@@ -40,14 +41,17 @@ static const SanitizerMask NeedsUnwindTables =
 static const SanitizerMask SupportsCoverage =
     SanitizerKind::Address | SanitizerKind::HWAddress |
     SanitizerKind::KernelAddress | SanitizerKind::KernelHWAddress |
-    SanitizerKind::Memory | SanitizerKind::KernelMemory | SanitizerKind::Leak |
+    SanitizerKind::MemTag | SanitizerKind::Memory |
+    SanitizerKind::KernelMemory | SanitizerKind::Leak |
     SanitizerKind::Undefined | SanitizerKind::Integer |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
     SanitizerKind::DataFlow | SanitizerKind::Fuzzer |
-    SanitizerKind::FuzzerNoLink;
+    SanitizerKind::FuzzerNoLink | SanitizerKind::FloatDivideByZero |
+    SanitizerKind::SafeStack | SanitizerKind::ShadowCallStack;
 static const SanitizerMask RecoverableByDefault =
     SanitizerKind::Undefined | SanitizerKind::Integer |
-    SanitizerKind::ImplicitConversion | SanitizerKind::Nullability;
+    SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
+    SanitizerKind::FloatDivideByZero;
 static const SanitizerMask Unrecoverable =
     SanitizerKind::Unreachable | SanitizerKind::Return;
 static const SanitizerMask AlwaysRecoverable =
@@ -59,7 +63,7 @@ static const SanitizerMask TrappingSupported =
     (SanitizerKind::Undefined & ~SanitizerKind::Vptr) |
     SanitizerKind::UnsignedIntegerOverflow | SanitizerKind::ImplicitConversion |
     SanitizerKind::Nullability | SanitizerKind::LocalBounds |
-    SanitizerKind::CFI;
+    SanitizerKind::CFI | SanitizerKind::FloatDivideByZero;
 static const SanitizerMask TrappingDefault = SanitizerKind::CFI;
 static const SanitizerMask CFIClasses =
     SanitizerKind::CFIVCall | SanitizerKind::CFINVCall |
@@ -121,13 +125,15 @@ static void addDefaultBlacklists(const Driver &D, SanitizerMask Kinds,
     SanitizerMask Mask;
   } Blacklists[] = {{"asan_blacklist.txt", SanitizerKind::Address},
                     {"hwasan_blacklist.txt", SanitizerKind::HWAddress},
+                    {"memtag_blacklist.txt", SanitizerKind::MemTag},
                     {"msan_blacklist.txt", SanitizerKind::Memory},
                     {"tsan_blacklist.txt", SanitizerKind::Thread},
                     {"dfsan_abilist.txt", SanitizerKind::DataFlow},
                     {"cfi_blacklist.txt", SanitizerKind::CFI},
-                    {"ubsan_blacklist.txt", SanitizerKind::Undefined |
-                                                SanitizerKind::Integer |
-                                                SanitizerKind::Nullability}};
+                    {"ubsan_blacklist.txt",
+                     SanitizerKind::Undefined | SanitizerKind::Integer |
+                         SanitizerKind::Nullability |
+                         SanitizerKind::FloatDivideByZero}};
 
   for (auto BL : Blacklists) {
     if (!(Kinds & BL.Mask))
@@ -418,7 +424,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
                      SanitizerKind::Address | SanitizerKind::HWAddress |
                          SanitizerKind::Leak | SanitizerKind::Thread |
                          SanitizerKind::Memory | SanitizerKind::KernelAddress |
-                         SanitizerKind::Scudo | SanitizerKind::SafeStack)};
+                         SanitizerKind::Scudo | SanitizerKind::SafeStack),
+      std::make_pair(SanitizerKind::MemTag,
+                     SanitizerKind::Address | SanitizerKind::KernelAddress |
+                         SanitizerKind::HWAddress |
+                         SanitizerKind::KernelHWAddress)};
   // Enable toolchain specific default sanitizers if not explicitly disabled.
   SanitizerMask Default = TC.getDefaultSanitizers() & ~AllRemove;
 
@@ -547,29 +557,35 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
 
   // Setup blacklist files.
   // Add default blacklist from resource directory.
-  addDefaultBlacklists(D, Kinds, BlacklistFiles);
+  addDefaultBlacklists(D, Kinds, SystemBlacklistFiles);
   // Parse -f(no-)sanitize-blacklist options.
   for (const auto *Arg : Args) {
     if (Arg->getOption().matches(options::OPT_fsanitize_blacklist)) {
       Arg->claim();
       std::string BLPath = Arg->getValue();
       if (llvm::sys::fs::exists(BLPath)) {
-        BlacklistFiles.push_back(BLPath);
-        ExtraDeps.push_back(BLPath);
+        UserBlacklistFiles.push_back(BLPath);
       } else {
         D.Diag(clang::diag::err_drv_no_such_file) << BLPath;
       }
     } else if (Arg->getOption().matches(options::OPT_fno_sanitize_blacklist)) {
       Arg->claim();
-      BlacklistFiles.clear();
-      ExtraDeps.clear();
+      UserBlacklistFiles.clear();
+      SystemBlacklistFiles.clear();
     }
   }
   // Validate blacklists format.
   {
     std::string BLError;
     std::unique_ptr<llvm::SpecialCaseList> SCL(
-        llvm::SpecialCaseList::create(BlacklistFiles, BLError));
+        llvm::SpecialCaseList::create(UserBlacklistFiles, BLError));
+    if (!SCL.get())
+      D.Diag(clang::diag::err_drv_malformed_sanitizer_blacklist) << BLError;
+  }
+  {
+    std::string BLError;
+    std::unique_ptr<llvm::SpecialCaseList> SCL(
+        llvm::SpecialCaseList::create(SystemBlacklistFiles, BLError));
     if (!SCL.get())
       D.Diag(clang::diag::err_drv_malformed_sanitizer_blacklist) << BLError;
   }
@@ -626,6 +642,10 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       D.Diag(diag::err_drv_argument_not_allowed_with)
           << "-fsanitize-cfi-cross-dso"
           << "-fsanitize-cfi-icall-generalize-pointers";
+
+    CfiCanonicalJumpTables =
+        Args.hasFlag(options::OPT_fsanitize_cfi_canonical_jump_tables,
+                     options::OPT_fno_sanitize_cfi_canonical_jump_tables, true);
   }
 
   Stats = Args.hasFlag(options::OPT_fsanitize_stats,
@@ -815,9 +835,15 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
     SafeStackRuntime = !TC.getTriple().isOSFuchsia();
   }
 
+  LinkRuntimes =
+      Args.hasFlag(options::OPT_fsanitize_link_runtime,
+                   options::OPT_fno_sanitize_link_runtime, LinkRuntimes);
+
   // Parse -link-cxx-sanitizer flag.
-  LinkCXXRuntimes =
-      Args.hasArg(options::OPT_fsanitize_link_cxx_runtime) || D.CCCIsCXX();
+  LinkCXXRuntimes = Args.hasArg(options::OPT_fsanitize_link_cxx_runtime,
+                                options::OPT_fno_sanitize_link_cxx_runtime,
+                                LinkCXXRuntimes) ||
+                    D.CCCIsCXX();
 
   // Finally, initialize the set of available and recoverable sanitizers.
   Sanitizers.Mask |= Kinds;
@@ -851,6 +877,18 @@ static void addIncludeLinkerOption(const ToolChain &TC,
   }
   LinkerOptionFlag += SymbolName;
   CmdArgs.push_back(Args.MakeArgString(LinkerOptionFlag));
+}
+
+static bool hasTargetFeatureMTE(const llvm::opt::ArgStringList &CmdArgs) {
+  for (auto Start = CmdArgs.begin(), End = CmdArgs.end(); Start != End; ++Start) {
+    auto It = std::find(Start, End, StringRef("+mte"));
+    if (It == End)
+      break;
+    if (It > Start && *std::prev(It) == StringRef("-target-feature"))
+      return true;
+    Start = It;
+  }
+  return false;
 }
 
 void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
@@ -920,15 +958,15 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
     CmdArgs.push_back(
         Args.MakeArgString("-fsanitize-trap=" + toString(TrapSanitizers)));
 
-  for (const auto &BLPath : BlacklistFiles) {
+  for (const auto &BLPath : UserBlacklistFiles) {
     SmallString<64> BlacklistOpt("-fsanitize-blacklist=");
     BlacklistOpt += BLPath;
     CmdArgs.push_back(Args.MakeArgString(BlacklistOpt));
   }
-  for (const auto &Dep : ExtraDeps) {
-    SmallString<64> ExtraDepOpt("-fdepfile-entry=");
-    ExtraDepOpt += Dep;
-    CmdArgs.push_back(Args.MakeArgString(ExtraDepOpt));
+  for (const auto &BLPath : SystemBlacklistFiles) {
+    SmallString<64> BlacklistOpt("-fsanitize-system-blacklist=");
+    BlacklistOpt += BLPath;
+    CmdArgs.push_back(Args.MakeArgString(BlacklistOpt));
   }
 
   if (MsanTrackOrigins)
@@ -959,6 +997,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
   if (CfiICallGeneralizePointers)
     CmdArgs.push_back("-fsanitize-cfi-icall-generalize-pointers");
+
+  if (CfiCanonicalJumpTables)
+    CmdArgs.push_back("-fsanitize-cfi-canonical-jump-tables");
 
   if (Stats)
     CmdArgs.push_back("-fsanitize-stats");
@@ -997,6 +1038,11 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
     CmdArgs.push_back(Args.MakeArgString("hwasan-abi=" + HwasanAbi));
   }
 
+  if (Sanitizers.has(SanitizerKind::HWAddress)) {
+    CmdArgs.push_back("-target-feature");
+    CmdArgs.push_back("+tagged-globals");
+  }
+
   // MSan: Workaround for PR16386.
   // ASan: This is mainly to help LSan with cases such as
   // https://github.com/google/sanitizers/issues/373
@@ -1015,6 +1061,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
                                Sanitizers.Mask & CFIClasses)
         << "-fvisibility=";
   }
+
+  if (Sanitizers.has(SanitizerKind::MemTag) && !hasTargetFeatureMTE(CmdArgs))
+    TC.getDriver().Diag(diag::err_stack_tagging_requires_hardware_feature);
 }
 
 SanitizerMask parseArgValues(const Driver &D, const llvm::opt::Arg *A,

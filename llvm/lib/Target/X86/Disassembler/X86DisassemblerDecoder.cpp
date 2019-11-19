@@ -12,12 +12,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "X86DisassemblerDecoder.h"
+#include "llvm/ADT/StringRef.h"
+
 #include <cstdarg> /* for va_*()       */
 #include <cstdio>  /* for vsnprintf()  */
 #include <cstdlib> /* for exit()       */
 #include <cstring> /* for memset()     */
-
-#include "X86DisassemblerDecoder.h"
 
 using namespace llvm::X86Disassembler;
 
@@ -882,7 +883,7 @@ static int getID(struct InternalInstruction* insn, const void *miiArg) {
       if (aaaFromEVEX4of4(insn->vectorExtensionPrefix[3]))
         attrMask |= ATTR_EVEXK;
       if (lFromEVEX4of4(insn->vectorExtensionPrefix[3]))
-        attrMask |= ATTR_EVEXL;
+        attrMask |= ATTR_VEXL;
       if (l2FromEVEX4of4(insn->vectorExtensionPrefix[3]))
         attrMask |= ATTR_EVEXL2;
     } else if (insn->vectorExtensionType == TYPE_VEX_3B) {

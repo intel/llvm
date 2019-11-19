@@ -24,7 +24,7 @@ class FlagHandlerBase {
   virtual bool Parse(const char *value) { return false; }
 
  protected:
-  ~FlagHandlerBase() {};
+  ~FlagHandlerBase() {}
 };
 
 template <typename T>
@@ -124,7 +124,8 @@ class FlagParser {
   FlagParser();
   void RegisterHandler(const char *name, FlagHandlerBase *handler,
                        const char *desc);
-  void ParseString(const char *s);
+  void ParseString(const char *s, const char *env_name = 0);
+  void ParseStringFromEnv(const char *env_name);
   bool ParseFile(const char *path, bool ignore_missing);
   void PrintFlagDescriptions();
 
@@ -134,8 +135,8 @@ class FlagParser {
   void fatal_error(const char *err);
   bool is_space(char c);
   void skip_whitespace();
-  void parse_flags();
-  void parse_flag();
+  void parse_flags(const char *env_option_name);
+  void parse_flag(const char *env_option_name);
   bool run_handler(const char *name, const char *value);
   char *ll_strndup(const char *s, uptr n);
 };
@@ -143,7 +144,7 @@ class FlagParser {
 template <typename T>
 static void RegisterFlag(FlagParser *parser, const char *name, const char *desc,
                          T *var) {
-  FlagHandler<T> *fh = new (FlagParser::Alloc) FlagHandler<T>(var);  // NOLINT
+  FlagHandler<T> *fh = new (FlagParser::Alloc) FlagHandler<T>(var);
   parser->RegisterHandler(name, fh, desc);
 }
 

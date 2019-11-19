@@ -47,20 +47,26 @@
 47 ERR8: line-count.txt:[[#@LINE-1]]:12: error: invalid pseudo numeric variable '@LIN'
 48
 49 BAD9: [[@LINE*2]]
-50 ERR9: line-count.txt:[[#@LINE-1]]:17: error: unsupported numeric operation '*'
+50 ERR9: line-count.txt:[[#@LINE-1]]:17: error: unsupported operation '*'
 51
 52 BAD10: [[@LINE-x]]
-53 ERR10: line-count.txt:[[#@LINE-1]]:19: error: invalid offset in numeric expression 'x'
+53 ERR10: line-count.txt:[[#@LINE-1]]:19: error: invalid operand format 'x'
 54
 55 BAD11: [[@LINE-1x]]
-56 ERR11: line-count.txt:[[#@LINE-1]]:20: error: unexpected characters at end of numeric expression 'x'
+56 ERR11: line-count.txt:[[#@LINE-1]]:20: error: unexpected characters at end of expression 'x'
 57
-58 CHECK: [[#@LINE]] CHECK
-59 CHECK: [[# @LINE]] CHECK
-60 CHECK: [[# @LINE ]] CHECK
-61
-62 CHECK: [[#@LINE-1]]
-63 CHECK: [[# @LINE-1]] CHECK
-64 CHECK: [[# @LINE -1]] CHECK
-65 CHECK: [[# @LINE - 1]] CHECK
-66 CHECK: [[# @LINE - 1 ]] CHECK
+; RUN: not FileCheck -check-prefix BAD12 -input-file %s %s 2>&1 \
+; RUN:   | FileCheck -check-prefix ERR12 %s
+60
+61 BAD12: [[#@LINE-1]] NOT HERE
+62 ERR12: note: with "@LINE-1" equal to "60"
+63
+64 CHECK: [[#@LINE]] CHECK
+65 CHECK: [[# @LINE]] CHECK
+66 CHECK: [[# @LINE ]] CHECK
+67
+68 CHECK: [[#@LINE-1]]
+69 CHECK: [[# @LINE-1]] CHECK
+70 CHECK: [[# @LINE -1]] CHECK
+71 CHECK: [[# @LINE - 1]] CHECK
+72 CHECK: [[# @LINE - 1 ]] CHECK

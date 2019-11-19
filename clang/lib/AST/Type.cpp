@@ -50,6 +50,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <type_traits>
 
 using namespace clang;
 
@@ -74,11 +75,11 @@ const IdentifierInfo* QualType::getBaseTypeIdentifier() const {
   if (ty->isPointerType() || ty->isReferenceType())
     return ty->getPointeeType().getBaseTypeIdentifier();
   else if (ty->isRecordType())
-    ND = ty->getAs<RecordType>()->getDecl();
+    ND = ty->castAs<RecordType>()->getDecl();
   else if (ty->isEnumeralType())
-    ND = ty->getAs<EnumType>()->getDecl();
+    ND = ty->castAs<EnumType>()->getDecl();
   else if (ty->getTypeClass() == Type::Typedef)
-    ND = ty->getAs<TypedefType>()->getDecl();
+    ND = ty->castAs<TypedefType>()->getDecl();
   else if (ty->isArrayType())
     return ty->castAsArrayTypeUnsafe()->
         getElementType().getBaseTypeIdentifier();
@@ -106,6 +107,33 @@ bool QualType::isConstant(QualType T, const ASTContext &Ctx) {
     return AT->getElementType().isConstant(Ctx);
 
   return T.getAddressSpace() == LangAS::opencl_constant;
+}
+
+// C++ [temp.dep.type]p1:
+//   A type is dependent if it is...
+//     - an array type constructed from any dependent type or whose
+//       size is specified by a constant expression that is
+//       value-dependent,
+ArrayType::ArrayType(TypeClass tc, QualType et, QualType can,
+                     ArraySizeModifier sm, unsigned tq, const Expr *sz)
+    // Note, we need to check for DependentSizedArrayType explicitly here
+    // because we use a DependentSizedArrayType with no size expression as the
+    // type of a dependent array of unknown bound with a dependent braced
+    // initializer:
+    //
+    //   template<int ...N> int arr[] = {N...};
+    : Type(tc, can,
+           et->isDependentType() || (sz && sz->isValueDependent()) ||
+               tc == DependentSizedArray,
+           et->isInstantiationDependentType() ||
+               (sz && sz->isInstantiationDependent()) ||
+               tc == DependentSizedArray,
+           (tc == VariableArray || et->isVariablyModifiedType()),
+           et->containsUnexpandedParameterPack() ||
+               (sz && sz->containsUnexpandedParameterPack())),
+      ElementType(et) {
+  ArrayTypeBits.IndexTypeQuals = tq;
+  ArrayTypeBits.SizeModifier = sm;
 }
 
 unsigned ConstantArrayType::getNumAddressingBits(const ASTContext &Context,
@@ -155,14 +183,26 @@ unsigned ConstantArrayType::getMaxSizeBits(const ASTContext &Context) {
   return Bits;
 }
 
+void ConstantArrayType::Profile(llvm::FoldingSetNodeID &ID,
+                                const ASTContext &Context, QualType ET,
+                                const llvm::APInt &ArraySize,
+                                const Expr *SizeExpr, ArraySizeModifier SizeMod,
+                                unsigned TypeQuals) {
+  ID.AddPointer(ET.getAsOpaquePtr());
+  ID.AddInteger(ArraySize.getZExtValue());
+  ID.AddInteger(SizeMod);
+  ID.AddInteger(TypeQuals);
+  ID.AddBoolean(SizeExpr != 0);
+  if (SizeExpr)
+    SizeExpr->Profile(ID, Context, true);
+}
+
 DependentSizedArrayType::DependentSizedArrayType(const ASTContext &Context,
                                                  QualType et, QualType can,
                                                  Expr *e, ArraySizeModifier sm,
                                                  unsigned tq,
                                                  SourceRange brackets)
-    : ArrayType(DependentSizedArray, et, can, sm, tq,
-                (et->containsUnexpandedParameterPack() ||
-                 (e && e->containsUnexpandedParameterPack()))),
+    : ArrayType(DependentSizedArray, et, can, sm, tq, e),
       Context(Context), SizeExpr((Stmt*) e), Brackets(brackets) {}
 
 void DependentSizedArrayType::Profile(llvm::FoldingSetNodeID &ID,
@@ -297,7 +337,19 @@ QualType QualType::getSingleStepDesugaredTypeImpl(QualType type,
 #define TYPE(CLASS, BASE) \
   static_assert(!std::is_polymorphic<CLASS##Type>::value, \
                 #CLASS "Type should not be polymorphic!");
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
+
+// Check that no type class has a non-trival destructor. Types are
+// allocated with the BumpPtrAllocator from ASTContext and therefore
+// their destructor is not executed.
+//
+// FIXME: ConstantArrayType is not trivially destructible because of its
+// APInt member. It should be replaced in favor of ASTContext allocation.
+#define TYPE(CLASS, BASE)                                                      \
+  static_assert(std::is_trivially_destructible<CLASS##Type>::value ||          \
+                    std::is_same<CLASS##Type, ConstantArrayType>::value,       \
+                #CLASS "Type should be trivially destructible!");
+#include "clang/AST/TypeNodes.inc"
 
 QualType Type::getLocallyUnqualifiedSingleStepDesugaredType() const {
   switch (getTypeClass()) {
@@ -308,7 +360,7 @@ QualType Type::getLocallyUnqualifiedSingleStepDesugaredType() const {
     if (!ty->isSugared()) return QualType(ty, 0); \
     return ty->desugar(); \
   }
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
   }
   llvm_unreachable("bad type kind!");
 }
@@ -329,7 +381,7 @@ SplitQualType QualType::getSplitDesugaredType(QualType T) {
       Cur = Ty->desugar(); \
       break; \
     }
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     }
   }
 }
@@ -357,7 +409,7 @@ SplitQualType QualType::getSplitUnqualifiedTypeImpl(QualType type) {
       next = ty->desugar(); \
       break; \
     }
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     }
 
     // Otherwise, split the underlying type.  If that yields qualifiers,
@@ -396,7 +448,7 @@ template<typename T> static const T *getAsSugar(const Type *Cur) {
       Cur = Ty->desugar().getTypePtr(); \
       break; \
     }
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     }
   }
 }
@@ -429,7 +481,7 @@ const Type *Type::getUnqualifiedDesugaredType() const {
       Cur = Ty->desugar().getTypePtr(); \
       break; \
     }
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     }
   }
 }
@@ -753,7 +805,7 @@ public:
 #define TYPE(Class, Base)
 #define DEPENDENT_TYPE(Class, Base) \
   QualType Visit##Class##Type(const Class##Type *T) { return QualType(T, 0); }
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
 
 #define TRIVIAL_TYPE_CLASS(Class) \
   QualType Visit##Class##Type(const Class##Type *T) { return QualType(T, 0); }
@@ -847,7 +899,7 @@ public:
     if (elementType.getAsOpaquePtr() == T->getElementType().getAsOpaquePtr())
       return QualType(T, 0);
 
-    return Ctx.getConstantArrayType(elementType, T->getSize(),
+    return Ctx.getConstantArrayType(elementType, T->getSize(), T->getSizeExpr(),
                                     T->getSizeModifier(),
                                     T->getIndexTypeCVRQualifiers());
   }
@@ -2276,60 +2328,16 @@ bool QualType::isNonWeakInMRRWithObjCWeak(const ASTContext &Context) const {
          getObjCLifetime() != Qualifiers::OCL_Weak;
 }
 
-namespace {
-// Helper class that determines whether this is a type that is non-trivial to
-// primitive copy or move, or is a struct type that has a field of such type.
-template <bool IsMove>
-struct IsNonTrivialCopyMoveVisitor
-    : CopiedTypeVisitor<IsNonTrivialCopyMoveVisitor<IsMove>, IsMove, bool> {
-  using Super =
-      CopiedTypeVisitor<IsNonTrivialCopyMoveVisitor<IsMove>, IsMove, bool>;
-  IsNonTrivialCopyMoveVisitor(const ASTContext &C) : Ctx(C) {}
-  void preVisit(QualType::PrimitiveCopyKind PCK, QualType QT) {}
+bool QualType::hasNonTrivialToPrimitiveDefaultInitializeCUnion(const RecordDecl *RD) {
+  return RD->hasNonTrivialToPrimitiveDefaultInitializeCUnion();
+}
 
-  bool visitWithKind(QualType::PrimitiveCopyKind PCK, QualType QT) {
-    if (const auto *AT = this->Ctx.getAsArrayType(QT))
-      return this->asDerived().visit(Ctx.getBaseElementType(AT));
-    return Super::visitWithKind(PCK, QT);
-  }
+bool QualType::hasNonTrivialToPrimitiveDestructCUnion(const RecordDecl *RD) {
+  return RD->hasNonTrivialToPrimitiveDestructCUnion();
+}
 
-  bool visitARCStrong(QualType QT) { return true; }
-  bool visitARCWeak(QualType QT) { return true; }
-  bool visitTrivial(QualType QT) { return false; }
-  // Volatile fields are considered trivial.
-  bool visitVolatileTrivial(QualType QT) { return false; }
-
-  bool visitStruct(QualType QT) {
-    const RecordDecl *RD = QT->castAs<RecordType>()->getDecl();
-    // We don't want to apply the C restriction in C++ because C++
-    // (1) can apply the restriction at a finer grain by banning copying or
-    //     destroying the union, and
-    // (2) allows users to override these restrictions by declaring explicit
-    //     constructors/etc, which we're not proposing to add to C.
-    if (isa<CXXRecordDecl>(RD))
-      return false;
-    for (const FieldDecl *FD : RD->fields())
-      if (this->asDerived().visit(FD->getType()))
-        return true;
-    return false;
-  }
-
-  const ASTContext &Ctx;
-};
-
-} // namespace
-
-bool QualType::isNonTrivialPrimitiveCType(const ASTContext &Ctx) const {
-  if (isNonTrivialToPrimitiveDefaultInitialize())
-    return true;
-  DestructionKind DK = isDestructedType();
-  if (DK != DK_none && DK != DK_cxx_destructor)
-    return true;
-  if (IsNonTrivialCopyMoveVisitor<false>(Ctx).visit(*this))
-    return true;
-  if (IsNonTrivialCopyMoveVisitor<true>(Ctx).visit(*this))
-    return true;
-  return false;
+bool QualType::hasNonTrivialToPrimitiveCopyCUnion(const RecordDecl *RD) {
+  return RD->hasNonTrivialToPrimitiveCopyCUnion();
 }
 
 QualType::PrimitiveDefaultInitializeKind
@@ -2518,6 +2526,15 @@ bool QualType::isCXX11PODType(const ASTContext &Context) const {
   }
 
   // No other types can match.
+  return false;
+}
+
+bool Type::isNothrowT() const {
+  if (const auto *RD = getAsCXXRecordDecl()) {
+    IdentifierInfo *II = RD->getIdentifier();
+    if (II && II->isStr("nothrow_t") && RD->isInStdNamespace())
+      return true;
+  }
   return false;
 }
 
@@ -2734,7 +2751,7 @@ const char *Type::getTypeClassName() const {
   switch (TypeBits.TC) {
 #define ABSTRACT_TYPE(Derived, Base)
 #define TYPE(Derived, Base) case Derived: return #Derived;
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
   }
 
   llvm_unreachable("Invalid type class.");
@@ -2885,6 +2902,10 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case Id: \
     return #ExtType;
 #include "clang/Basic/OpenCLExtensionTypes.def"
+#define SVE_TYPE(Name, Id, SingletonId) \
+  case Id: \
+    return Name;
+#include "clang/Basic/AArch64SVEACLETypes.def"
   }
 
   llvm_unreachable("Invalid builtin type.");
@@ -3600,14 +3621,15 @@ static CachedProperties computeCachedProperties(const Type *T) {
   switch (T->getTypeClass()) {
 #define TYPE(Class,Base)
 #define NON_CANONICAL_TYPE(Class,Base) case Type::Class:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     llvm_unreachable("didn't expect a non-canonical type here");
 
 #define TYPE(Class,Base)
 #define DEPENDENT_TYPE(Class,Base) case Type::Class:
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(Class,Base) case Type::Class:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     // Treat instantiation-dependent types as external.
+    if (!T->isInstantiationDependentType()) T->dump();
     assert(T->isInstantiationDependentType());
     return CachedProperties(ExternalLinkage, false);
 
@@ -3703,13 +3725,13 @@ LinkageInfo LinkageComputer::computeTypeLinkageInfo(const Type *T) {
   switch (T->getTypeClass()) {
 #define TYPE(Class,Base)
 #define NON_CANONICAL_TYPE(Class,Base) case Type::Class:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     llvm_unreachable("didn't expect a non-canonical type here");
 
 #define TYPE(Class,Base)
 #define DEPENDENT_TYPE(Class,Base) case Type::Class:
 #define NON_CANONICAL_UNLESS_DEPENDENT_TYPE(Class,Base) case Type::Class:
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
     // Treat instantiation-dependent types as external.
     assert(T->isInstantiationDependentType());
     return LinkageInfo::external();
@@ -3818,7 +3840,7 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   case Type::Class:                             \
     llvm_unreachable("non-canonical type");
 #define TYPE(Class, Parent)
-#include "clang/AST/TypeNodes.def"
+#include "clang/AST/TypeNodes.inc"
 
   // Pointer types.
   case Type::Pointer:
@@ -3886,6 +3908,9 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
     case BuiltinType::OCLClkEvent:
     case BuiltinType::OCLQueue:
     case BuiltinType::OCLReserveID:
+#define SVE_TYPE(Name, Id, SingletonId) \
+    case BuiltinType::Id:
+#include "clang/Basic/AArch64SVEACLETypes.def"
     case BuiltinType::BuiltinFn:
     case BuiltinType::NullPtr:
     case BuiltinType::OMPArraySection:
@@ -4124,7 +4149,7 @@ CXXRecordDecl *MemberPointerType::getMostRecentCXXRecordDecl() const {
 void clang::FixedPointValueToString(SmallVectorImpl<char> &Str,
                                     llvm::APSInt Val, unsigned Scale) {
   FixedPointSemantics FXSema(Val.getBitWidth(), Scale, Val.isSigned(),
-                             /*isSaturated=*/false,
-                             /*hasUnsignedPadding=*/false);
+                             /*IsSaturated=*/false,
+                             /*HasUnsignedPadding=*/false);
   APFixedPoint(Val, FXSema).toString(Str);
 }

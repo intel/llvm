@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++98, c++03, c++11, c++14
+
 // Tests for uninitialized_default_construct, uninitialized_default_construct_n,
 //           uninitialized_value_construct,   uninitialized_value_construct_n
 
@@ -102,7 +104,7 @@ test_uninit_construct_by_type()
     }
 }
 
-int32_t
+int
 main()
 {
 

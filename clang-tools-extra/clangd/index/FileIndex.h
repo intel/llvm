@@ -15,10 +15,10 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_FILEINDEX_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_FILEINDEX_H
 
-#include "ClangdUnit.h"
 #include "Index.h"
 #include "MemIndex.h"
 #include "Merge.h"
+#include "Path.h"
 #include "index/CanonicalIncludes.h"
 #include "index/Symbol.h"
 #include "clang/Lex/Preprocessor.h"
@@ -26,6 +26,7 @@
 
 namespace clang {
 namespace clangd {
+class ParsedAST;
 
 /// Select between in-memory index implementations, which have tradeoffs.
 enum class IndexType {
@@ -63,7 +64,8 @@ public:
   /// If CountReferences is true, \p Refs will be used for counting References
   /// during merging.
   void update(PathRef Path, std::unique_ptr<SymbolSlab> Slab,
-              std::unique_ptr<RefSlab> Refs, bool CountReferences);
+              std::unique_ptr<RefSlab> Refs,
+              std::unique_ptr<RelationSlab> Relations, bool CountReferences);
 
   /// The index keeps the symbols alive.
   /// Will count Symbol::References based on number of references in the main
@@ -83,6 +85,8 @@ private:
   llvm::StringMap<std::shared_ptr<SymbolSlab>> FileToSymbols;
   /// Stores the latest ref snapshots for all active files.
   llvm::StringMap<RefSlabAndCountReferences> FileToRefs;
+  /// Stores the latest relation snapshots for all active files.
+  llvm::StringMap<std::shared_ptr<RelationSlab>> FileToRelations;
 };
 
 /// This manages symbols from files and an in-memory index on all symbols.
@@ -128,15 +132,17 @@ private:
   SwapIndex MainFileIndex;
 };
 
+using SlabTuple = std::tuple<SymbolSlab, RefSlab, RelationSlab>;
+
 /// Retrieves symbols and refs of local top level decls in \p AST (i.e.
 /// `AST.getLocalTopLevelDecls()`).
 /// Exposed to assist in unit tests.
-std::pair<SymbolSlab, RefSlab> indexMainDecls(ParsedAST &AST);
+SlabTuple indexMainDecls(ParsedAST &AST);
 
 /// Idex declarations from \p AST and macros from \p PP that are declared in
 /// included headers.
-SymbolSlab indexHeaderSymbols(ASTContext &AST, std::shared_ptr<Preprocessor> PP,
-                              const CanonicalIncludes &Includes);
+SlabTuple indexHeaderSymbols(ASTContext &AST, std::shared_ptr<Preprocessor> PP,
+                             const CanonicalIncludes &Includes);
 
 } // namespace clangd
 } // namespace clang

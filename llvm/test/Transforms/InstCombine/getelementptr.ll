@@ -175,14 +175,42 @@ define i1 @test13(i64 %X, %S* %P) {
 ; CHECK:    %C = icmp eq i64 %X, -1
 }
 
-; This is a test of icmp + shl nuw in disguise - 4611... is 0x3fff...
 define <2 x i1> @test13_vector(<2 x i64> %X, <2 x %S*> %P) nounwind {
 ; CHECK-LABEL: @test13_vector(
-; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i64> %X, <i64 4611686018427387903, i64 4611686018427387903>
+; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i64> %X, <i64 -1, i64 -1>
 ; CHECK-NEXT:    ret <2 x i1> [[C]]
 ;
   %A = getelementptr inbounds %S, <2 x %S*> %P, <2 x i64> zeroinitializer, <2 x i32> <i32 1, i32 1>, <2 x i64> %X
   %B = getelementptr inbounds %S, <2 x %S*> %P, <2 x i64> <i64 0, i64 0>, <2 x i32> <i32 0, i32 0>
+  %C = icmp eq <2 x i32*> %A, %B
+  ret <2 x i1> %C
+}
+
+define <2 x i1> @test13_vector2(i64 %X, <2 x %S*> %P) nounwind {
+; CHECK-LABEL: @test13_vector2(
+; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <2 x i64> undef, i64 [[X:%.*]], i32 0
+; CHECK-NEXT:    [[TMP1:%.*]] = shl <2 x i64> [[DOTSPLATINSERT]], <i64 2, i64 undef>
+; CHECK-NEXT:    [[A_IDX:%.*]] = shufflevector <2 x i64> [[TMP1]], <2 x i64> undef, <2 x i32> zeroinitializer
+; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i64> [[A_IDX]], <i64 -4, i64 -4>
+; CHECK-NEXT:    ret <2 x i1> [[C]]
+;
+  %A = getelementptr inbounds %S, <2 x %S*> %P, <2 x i64> zeroinitializer, <2 x i32> <i32 1, i32 1>, i64 %X
+  %B = getelementptr inbounds %S, <2 x %S*> %P, <2 x i64> <i64 0, i64 0>, <2 x i32> <i32 0, i32 0>
+  %C = icmp eq <2 x i32*> %A, %B
+  ret <2 x i1> %C
+}
+
+; This is a test of icmp + shl nuw in disguise - 4611... is 0x3fff...
+define <2 x i1> @test13_vector3(i64 %X, <2 x %S*> %P) nounwind {
+; CHECK-LABEL: @test13_vector3(
+; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <2 x i64> undef, i64 [[X:%.*]], i32 0
+; CHECK-NEXT:    [[TMP1:%.*]] = shl <2 x i64> [[DOTSPLATINSERT]], <i64 2, i64 undef>
+; CHECK-NEXT:    [[A_IDX:%.*]] = shufflevector <2 x i64> [[TMP1]], <2 x i64> undef, <2 x i32> zeroinitializer
+; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i64> [[A_IDX]], <i64 4, i64 4>
+; CHECK-NEXT:    ret <2 x i1> [[C]]
+;
+  %A = getelementptr inbounds %S, <2 x %S*> %P, <2 x i64> zeroinitializer, <2 x i32> <i32 1, i32 1>, i64 %X
+  %B = getelementptr inbounds %S, <2 x %S*> %P, <2 x i64> <i64 0, i64 0>, <2 x i32> <i32 1, i32 1>, i64 1
   %C = icmp eq <2 x i32*> %A, %B
   ret <2 x i1> %C
 }
@@ -197,10 +225,9 @@ define i1 @test13_as1(i16 %X, %S addrspace(1)* %P) {
   ret i1 %C
 }
 
-; This is a test of icmp + shl nuw in disguise - 16383 is 0x3fff.
 define <2 x i1> @test13_vector_as1(<2 x i16> %X, <2 x %S addrspace(1)*> %P) {
 ; CHECK-LABEL: @test13_vector_as1(
-; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i16> %X, <i16 16383, i16 16383>
+; CHECK-NEXT:    [[C:%.*]] = icmp eq <2 x i16> %X, <i16 -1, i16 -1>
 ; CHECK-NEXT:    ret <2 x i1> [[C]]
 ;
   %A = getelementptr inbounds %S, <2 x %S addrspace(1)*> %P, <2 x i16> <i16 0, i16 0>, <2 x i32> <i32 1, i32 1>, <2 x i16> %X
@@ -461,7 +488,7 @@ bb10:
 	%tmp.0.reg2mem.0.rec = mul i32 %indvar, -1
 	%tmp12.rec = add i32 %tmp.0.reg2mem.0.rec, -1
 	%tmp12 = getelementptr inbounds %struct.x, %struct.x* %tmp45, i32 %tmp12.rec
-	%tmp16 = call i32 (i8*, ...) @printf( i8* getelementptr ([12 x i8], [12 x i8]* @.str1, i32 0, i32 0), %struct.x* %tmp12 ) nounwind
+	%tmp16 = call i32 (i8*, ...) @printf( i8* nonnull dereferenceable(1) getelementptr ([12 x i8], [12 x i8]* @.str1, i32 0, i32 0), %struct.x* %tmp12 ) nounwind
 	%tmp84 = icmp eq %struct.x* %tmp12, %orientations62
 	%indvar.next = add i32 %indvar, 1
 	br i1 %tmp84, label %bb17, label %bb10
@@ -622,7 +649,7 @@ define i32 @test35() nounwind {
              i8* getelementptr (%t1, %t1* bitcast (%t0* @s to %t1*), i32 0, i32 1, i32 0)) nounwind
   ret i32 0
 ; CHECK-LABEL: @test35(
-; CHECK: call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([17 x i8], [17 x i8]* @"\01LC8", i64 0, i64 0), i8* getelementptr inbounds (%t0, %t0* @s, i64 0, i32 1, i64 0)) [[$NUW:#[0-9]+]]
+; CHECK: call i32 (i8*, ...) @printf(i8*  nonnull dereferenceable(1) getelementptr inbounds ([17 x i8], [17 x i8]* @"\01LC8", i64 0, i64 0), i8* getelementptr inbounds (%t0, %t0* @s, i64 0, i32 1, i64 0)) [[$NUW:#[0-9]+]]
 }
 
 ; Don't treat signed offsets as unsigned.

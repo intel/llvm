@@ -77,39 +77,33 @@ DynamicSymbols:
     Binding:         STB_GLOBAL
 ...
 
-# LLVM:      Version symbols {
-# LLVM-NEXT:   Section Name: .gnu.version
-# LLVM-NEXT:   Address: 0x0
-# LLVM-NEXT:   Offset: 0x280
-# LLVM-NEXT:   Link: 7
-# LLVM-NEXT:   Symbols [
-# LLVM-NEXT:     Symbol {
-# LLVM-NEXT:       Version: 0
-# LLVM-NEXT:       Name:
-# LLVM-NEXT:     }
-# LLVM-NEXT:     Symbol {
-# LLVM-NEXT:       Version: 2
-# LLVM-NEXT:       Name: sym1@@VERSION1
-# LLVM-NEXT:     }
-# LLVM-NEXT:     Symbol {
-# LLVM-NEXT:       Version: 3
-# LLVM-NEXT:       Name: sym2@@VERSION2
-# LLVM-NEXT:     }
-# LLVM-NEXT:     Symbol {
-# LLVM-NEXT:       Version: 4
-# LLVM-NEXT:       Name: sym3@v1
-# LLVM-NEXT:     }
-# LLVM-NEXT:     Symbol {
-# LLVM-NEXT:       Version: 5
-# LLVM-NEXT:       Name: sym4@v2
-# LLVM-NEXT:     }
-# LLVM-NEXT:     Symbol {
-# LLVM-NEXT:       Version: 6
-# LLVM-NEXT:       Name: sym5@v3
-# LLVM-NEXT:     }
-# LLVM-NEXT:   ]
-# LLVM-NEXT: }
-# LLVM-NEXT: SHT_GNU_verdef {
+# LLVM:      VersionSymbols [
+# LLVM-NEXT:   Symbol {
+# LLVM-NEXT:     Version: 0
+# LLVM-NEXT:     Name:
+# LLVM-NEXT:   }
+# LLVM-NEXT:   Symbol {
+# LLVM-NEXT:     Version: 2
+# LLVM-NEXT:     Name: sym1@@VERSION1
+# LLVM-NEXT:   }
+# LLVM-NEXT:   Symbol {
+# LLVM-NEXT:     Version: 3
+# LLVM-NEXT:     Name: sym2@@VERSION2
+# LLVM-NEXT:   }
+# LLVM-NEXT:   Symbol {
+# LLVM-NEXT:     Version: 4
+# LLVM-NEXT:     Name: sym3@v1
+# LLVM-NEXT:   }
+# LLVM-NEXT:   Symbol {
+# LLVM-NEXT:     Version: 5
+# LLVM-NEXT:     Name: sym4@v2
+# LLVM-NEXT:   }
+# LLVM-NEXT:   Symbol {
+# LLVM-NEXT:     Version: 6
+# LLVM-NEXT:     Name: sym5@v3
+# LLVM-NEXT:   }
+# LLVM-NEXT: ]
+# LLVM-NEXT: VersionDefinitions [
 # LLVM-NEXT:   Definition {
 # LLVM-NEXT:     Version: 1
 # LLVM-NEXT:     Flags: 0x0
@@ -133,8 +127,8 @@ DynamicSymbols:
 # LLVM-NEXT:     Name: VERSION2
 # LLVM-NEXT:     Predecessor: VERSION1
 # LLVM-NEXT:   }
-# LLVM-NEXT: }
-# LLVM-NEXT: SHT_GNU_verneed {
+# LLVM-NEXT: ]
+# LLVM-NEXT: VersionRequirements [
 # LLVM-NEXT:   Dependency {
 # LLVM-NEXT:     Version: 1
 # LLVM-NEXT:     Count: 2
@@ -167,15 +161,15 @@ DynamicSymbols:
 # LLVM-NEXT:       }
 # LLVM-NEXT:     ]
 # LLVM-NEXT:   }
-# LLVM-NEXT: }
+# LLVM-NEXT: ]
 
 # GNU:      Version symbols section '.gnu.version' contains 6 entries:
-# GNU-NEXT:  Addr: 0000000000000000  Offset: 0x000280  Link: 7 (.dynsym)
+# GNU-NEXT:  Addr: 0000000000000000  Offset: 0x000040  Link: 6 (.dynsym)
 # GNU-NEXT:   000:   0 (*local*) 2 (VERSION1) 3 (VERSION2) 4 (v1)
 # GNU-NEXT:   004:   5 (v2)      6 (v3)
 # GNU-EMPTY:
 # GNU-NEXT: Version definition section '.gnu.version_d' contains 3 entries:
-# GNU-NEXT:  Addr: 0000000000000000  Offset: 0x00028c  Link: 8 (.dynstr)
+# GNU-NEXT:  Addr: 0000000000000000  Offset: 0x00004c  Link: 7 (.dynstr)
 # GNU-NEXT:   0x0000: Rev: 1  Flags: none  Index: 2  Cnt: 1  Name: VERSION1
 # GNU-NEXT:   0x001c: Rev: 1  Flags: none  Index: 3  Cnt: 2  Name: VERSION2
 # GNU-NEXT:   0x0038: Parent 1: VERSION1
@@ -183,7 +177,7 @@ DynamicSymbols:
 # GNU-NEXT:   0x0038: Parent 1: VERSION1
 # GNU-EMPTY:
 # GNU-NEXT: Version needs section '.gnu.version_r' contains 2 entries:
-# GNU-NEXT:  Addr: 0000000000000000  Offset: 0x0002cc  Link: 8 (.dynstr)
+# GNU-NEXT:  Addr: 0000000000000000  Offset: 0x00008c  Link: 7 (.dynstr)
 # GNU-NEXT:   0x0000: Version: 1  File: verneed1.so.0  Cnt: 2
 # GNU-NEXT:   0x0010:   Name: v1  Flags: none  Version: 4
 # GNU-NEXT:   0x0020:   Name: v2  Flags: none  Version: 5

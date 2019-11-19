@@ -10,11 +10,11 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/scheduler/scheduler.hpp>
@@ -28,6 +28,7 @@
 
 #include <CL/sycl/stl.hpp>
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <type_traits>
@@ -73,6 +74,9 @@ class auto_name {};
 
 class queue_impl;
 class stream_impl;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class image_accessor;
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
@@ -156,11 +160,13 @@ class handler {
   // Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   // Type of the command group, e.g. kernel, fill.
-  detail::CG::CGTYPE MCGType;
+  detail::CG::CGTYPE MCGType = detail::CG::NONE;
   // Pointer to the source host memory or accessor(depending on command type).
   void *MSrcPtr = nullptr;
   // Pointer to the dest host memory or accessor(depends on command type).
   void *MDstPtr = nullptr;
+  // Length to copy or fill (for USM operations).
+  size_t MLength = 0;
   // Pattern that is used to fill memory object in case command type is fill.
   std::vector<char> MPattern;
   // Storage for a lambda or function object.
@@ -201,8 +207,10 @@ private:
         // The first 11 bits of Size encodes the accessor target.
         const access::target AccTarget =
             static_cast<access::target>(Size & 0x7ff);
-        if (AccTarget == access::target::global_buffer ||
-            AccTarget == access::target::constant_buffer) {
+        if ((AccTarget == access::target::global_buffer ||
+             AccTarget == access::target::constant_buffer) ||
+            (AccTarget == access::target::image ||
+             AccTarget == access::target::image_array)) {
           detail::AccessorBaseHost *AccBase =
               static_cast<detail::AccessorBaseHost *>(Ptr);
           Ptr = detail::getSyclObjImpl(*AccBase).get();
@@ -279,6 +287,15 @@ private:
       case access::target::local: {
         detail::LocalAccessorBaseHost *LAcc =
             static_cast<detail::LocalAccessorBaseHost *>(Ptr);
+        // Stream implementation creates local accessor with size per work item
+        // in work group. Number of work items is not available during stream
+        // construction, that is why size of the accessor is updated here using
+        // information about number of work items in the work group.
+        if (detail::getSyclObjImpl(*LAcc)->PerWI) {
+          auto LocalAccImpl = detail::getSyclObjImpl(*LAcc);
+          LocalAccImpl->resize(MNDRDesc.LocalSize.size(),
+                               MNDRDesc.GlobalSize.size());
+        }
         range<3> &Size = LAcc->getSize();
         const int Dims = LAcc->getNumOfDims();
         int SizeInBytes = LAcc->getElementSize();
@@ -301,9 +318,17 @@ private:
         break;
       }
       case access::target::image:
-      case access::target::host_buffer:
-      case access::target::host_image:
       case access::target::image_array: {
+        detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
+        MArgs.emplace_back(Kind, AccImpl, Size, Index + IndexShift);
+        if (!IsKernelCreatedFromSource) {
+          // TODO Handle additional kernel arguments for image class
+          // if the compiler front-end adds them.
+        }
+        break;
+      }
+      case access::target::host_image:
+      case access::target::host_buffer: {
         throw cl::sycl::invalid_parameter_error(
             "Unsupported accessor target case.");
         break;
@@ -341,12 +366,13 @@ private:
     std::unique_ptr<detail::CG> CommandGroup;
     switch (MCGType) {
     case detail::CG::KERNEL:
+    case detail::CG::RUN_ON_HOST_INTEL:
       CommandGroup.reset(new detail::CGExecKernel(
           std::move(MNDRDesc), std::move(MHostKernel), std::move(MSyclKernel),
           std::move(MArgsStorage), std::move(MAccStorage),
           std::move(MSharedPtrStorage), std::move(MRequirements),
           std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-          std::move(MOSModuleHandle), std::move(MStreamStorage)));
+          std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType));
       break;
     case detail::CG::COPY_ACC_TO_PTR:
     case detail::CG::COPY_PTR_TO_ACC:
@@ -368,6 +394,27 @@ private:
           std::move(MSharedPtrStorage), std::move(MRequirements),
           std::move(MEvents)));
       break;
+    case detail::CG::COPY_USM:
+      CommandGroup.reset(new detail::CGCopyUSM(
+          MSrcPtr, MDstPtr, MLength, std::move(MArgsStorage),
+          std::move(MAccStorage), std::move(MSharedPtrStorage),
+          std::move(MRequirements), std::move(MEvents)));
+      break;
+    case detail::CG::FILL_USM:
+      CommandGroup.reset(new detail::CGFillUSM(
+          std::move(MPattern), MDstPtr, MLength, std::move(MArgsStorage),
+          std::move(MAccStorage), std::move(MSharedPtrStorage),
+          std::move(MRequirements), std::move(MEvents)));
+      break;
+    case detail::CG::PREFETCH_USM:
+      CommandGroup.reset(new detail::CGPrefetchUSM(
+          MDstPtr, MLength, std::move(MArgsStorage),
+          std::move(MAccStorage), std::move(MSharedPtrStorage),
+          std::move(MRequirements), std::move(MEvents)));
+      break;
+    case detail::CG::NONE:
+      throw runtime_error("Command group submitted without a kernel or a "
+                          "explicit memory operation.");
     default:
       throw runtime_error("Unhandled type of command group");
     }
@@ -376,19 +423,6 @@ private:
         std::move(CommandGroup), std::move(MQueue));
 
     EventRet = detail::createSyclObjFromImpl<event>(Event);
-
-    // Waiting for copy command to complete here as SYCL specification says that
-    // the SYCL runtime must ensure that data is copied to the destination once
-    // the command group has completed execution.
-    switch (MCGType) {
-    case detail::CG::COPY_ACC_TO_PTR:
-    case detail::CG::COPY_PTR_TO_ACC:
-    case detail::CG::COPY_ACC_TO_ACC:
-      EventRet.wait();
-    default:
-      break;
-    }
-
     return EventRet;
   }
 
@@ -464,8 +498,14 @@ private:
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = (void *)storePlainArg(Arg);
-    MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout, StoredArg,
-                       sizeof(T), ArgIndex);
+
+    if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
+      MArgs.emplace_back(detail::kernel_param_kind_t::kind_pointer, StoredArg,
+                         sizeof(T), ArgIndex);
+    } else {
+      MArgs.emplace_back(detail::kernel_param_kind_t::kind_std_layout,
+                         StoredArg, sizeof(T), ArgIndex);
+    }
   }
 
   void setArgHelper(int ArgIndex, sampler &&Arg) {
@@ -490,8 +530,13 @@ private:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   friend class accessor;
+
+  template <typename DataT, int Dimensions, access::mode AccessMode,
+            access::target AccessTarget, access::placeholder IsPlaceholder>
+  friend class detail::image_accessor;
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
+  friend class detail::stream_impl;
 
 public:
   handler(const handler &) = delete;
@@ -543,73 +588,64 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
+
+  template <typename KernelT, typename IndexerT>
+  using EnableIfIndexer = detail::enable_if_t<
+      std::is_same<detail::lambda_arg_type<KernelT>, IndexerT>::value>;
+
+  template <typename KernelT, int Dims>
+  using EnableIfId = EnableIfIndexer<KernelT, id<Dims>>;
+
+  template <typename KernelT, int Dims>
+  using EnableIfItemWithOffset = EnableIfIndexer<KernelT, item<Dims, true>>;
+
+  template <typename KernelT, int Dims>
+  using EnableIfItemWithoutOffset = EnableIfIndexer<KernelT, item<Dims, false>>;
+
+  template <typename KernelT, int Dims>
+  using EnableIfNDItem = EnableIfIndexer<KernelT, nd_item<Dims>>;
+
+  // NOTE: the name of this function - "kernel_single_task" - is used by the
+  // Front End to determine kernel invocation kind.
   template <typename KernelName, typename KernelType>
   __attribute__((sycl_kernel)) void kernel_single_task(KernelType KernelFunc) {
     KernelFunc();
   }
 
-  template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
-      typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
-                                           id<dimensions>>::value &&
-                                  (dimensions > 0 && dimensions < 4),
-                              KernelType>::type KernelFunc) {
-    id<dimensions> global_id;
-
-    __spirv::initGlobalInvocationId<dimensions>(global_id);
-
-    KernelFunc(global_id);
+  // NOTE: the name of these functions - "kernel_parallel_for" - are used by the
+  // Front End to determine kernel invocation kind.
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) EnableIfId<KernelType, Dims>
+  kernel_parallel_for(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getId<Dims>());
   }
 
-  template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
-      typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
-                                           item<dimensions>>::value &&
-                                  (dimensions > 0 && dimensions < 4),
-                              KernelType>::type KernelFunc) {
-    id<dimensions> global_id;
-    range<dimensions> global_size;
-
-    __spirv::initGlobalInvocationId<dimensions>(global_id);
-    __spirv::initGlobalSize<dimensions>(global_size);
-
-    item<dimensions, false> Item =
-        detail::Builder::createItem<dimensions, false>(global_size, global_id);
-    KernelFunc(Item);
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) EnableIfItemWithoutOffset<KernelType, Dims>
+  kernel_parallel_for(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getItem<Dims, false>());
   }
 
-  template <typename KernelName, typename KernelType, int dimensions>
-  __attribute__((sycl_kernel)) void kernel_parallel_for(
-      typename std::enable_if<std::is_same<detail::lambda_arg_type<KernelType>,
-                                           nd_item<dimensions>>::value &&
-                                  (dimensions > 0 && dimensions < 4),
-                              KernelType>::type KernelFunc) {
-    range<dimensions> global_size;
-    range<dimensions> local_size;
-    id<dimensions> group_id;
-    id<dimensions> global_id;
-    id<dimensions> local_id;
-    id<dimensions> global_offset;
-
-    __spirv::initGlobalSize<dimensions>(global_size);
-    __spirv::initWorkgroupSize<dimensions>(local_size);
-    __spirv::initWorkgroupId<dimensions>(group_id);
-    __spirv::initGlobalInvocationId<dimensions>(global_id);
-    __spirv::initLocalInvocationId<dimensions>(local_id);
-    __spirv::initGlobalOffset<dimensions>(global_offset);
-
-    group<dimensions> Group = detail::Builder::createGroup<dimensions>(
-        global_size, local_size, group_id);
-    item<dimensions, true> globalItem =
-        detail::Builder::createItem<dimensions, true>(global_size, global_id,
-                                                      global_offset);
-    item<dimensions, false> localItem =
-        detail::Builder::createItem<dimensions, false>(local_size, local_id);
-    nd_item<dimensions> Nd_item =
-        detail::Builder::createNDItem<dimensions>(globalItem, localItem, Group);
-
-    KernelFunc(Nd_item);
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) EnableIfItemWithOffset<KernelType, Dims>
+  kernel_parallel_for(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getItem<Dims, true>());
   }
+
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) EnableIfNDItem<KernelType, Dims>
+  kernel_parallel_for(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getNDItem<Dims>());
+  }
+
+  // NOTE: the name of this function - "kernel_parallel_for_work_group" - is
+  // used by the Front End to determine kernel invocation kind.
+  template <typename KernelName, typename KernelType, int Dims>
+  __attribute__((sycl_kernel)) void
+  kernel_parallel_for_work_group(KernelType KernelFunc) {
+    KernelFunc(detail::Builder::getGroup<Dims>());
+  }
+
 #endif
 
   // The method stores lambda to the template-free object and initializes
@@ -666,6 +702,16 @@ public:
 #endif
   }
 
+  // Similar to single_task, but passed lambda will be executed on host.
+  template <typename FuncT> void run_on_host_intel(FuncT Func) {
+    MNDRDesc.set(range<1>{1});
+
+    MArgs = std::move(MAssociatedAccesors);
+    MHostKernel.reset(
+        new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
+    MCGType = detail::CG::RUN_ON_HOST_INTEL;
+  }
+
   // parallel_for version with a kernel represented as a lambda + range and
   // offset that specify global size and global offset correspondingly.
   template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
@@ -707,25 +753,6 @@ public:
     MCGType = detail::CG::KERNEL;
 #endif // __SYCL_DEVICE_ONLY__
   }
-
-#ifdef __SYCL_DEVICE_ONLY__
-  template <typename KernelName, typename KernelType, int Dims>
-  __attribute__((sycl_kernel)) void
-  kernel_parallel_for_work_group(KernelType KernelFunc) {
-
-    range<Dims> GlobalSize;
-    range<Dims> LocalSize;
-    id<Dims> GroupId;
-
-    __spirv::initGlobalSize<Dims>(GlobalSize);
-    __spirv::initWorkgroupSize<Dims>(LocalSize);
-    __spirv::initWorkgroupId<Dims>(GroupId);
-
-    group<Dims> G =
-        detail::Builder::createGroup<Dims>(GlobalSize, LocalSize, GroupId);
-    KernelFunc(G);
-  }
-#endif // __SYCL_DEVICE_ONLY__
 
   template <typename KernelName = csd::auto_name, typename KernelType, int Dims>
   void parallel_for_work_group(range<Dims> NumWorkGroups,
@@ -909,16 +936,29 @@ public:
   }
 
   // Explicit copy operations API
+  constexpr static bool isConstOrGlobal(access::target AccessTarget) {
+    return AccessTarget == access::target::global_buffer ||
+           AccessTarget == access::target::constant_buffer;
+  }
+
+  constexpr static bool isImageOrImageArray(access::target AccessTarget) {
+    return AccessTarget == access::target::image ||
+           AccessTarget == access::target::image_array;
+  }
+
+  constexpr static bool
+  isValidTargetForExplicitOp(access::target AccessTarget) {
+    return isConstOrGlobal(AccessTarget) || isImageOrImageArray(AccessTarget);
+  }
 
   // copy memory pointed by accessor to host memory pointed by shared_ptr
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
-  typename std::enable_if<(AccessTarget == access::target::global_buffer ||
-                           AccessTarget == access::target::constant_buffer),
-                          void>::type
-  copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
-       shared_ptr_class<T_Dst> Dst) {
+  void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
+            shared_ptr_class<T_Dst> Dst) {
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
+                  "Invalid accessor target for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Dst);
@@ -930,11 +970,11 @@ public:
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
-  typename std::enable_if<(AccessTarget == access::target::global_buffer ||
-                           AccessTarget == access::target::constant_buffer),
-                          void>::type
+  void
   copy(shared_ptr_class<T_Src> Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
+                  "Invalid accessor target for the copy method.");
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     MSharedPtrStorage.push_back(Src);
@@ -946,11 +986,10 @@ public:
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
-  typename std::enable_if<(AccessTarget == access::target::global_buffer ||
-                           AccessTarget == access::target::constant_buffer),
-                          void>::type
-  copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
-       T_Dst *Dst) {
+  void copy(accessor<T_Src, Dims, AccessMode, AccessTarget, IsPlaceholder> Src,
+            T_Dst *Dst) {
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
+                  "Invalid accessor target for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -985,12 +1024,11 @@ public:
   template <typename T_Src, typename T_Dst, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
-  typename std::enable_if<(AccessTarget == access::target::global_buffer ||
-                           AccessTarget == access::target::constant_buffer),
-                          void>::type
+  void
   copy(const T_Src *Src,
        accessor<T_Dst, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst) {
-
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
+                  "Invalid accessor target for the copy method.");
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -1021,45 +1059,81 @@ public:
     MAccStorage.push_back(std::move(AccImpl));
   }
 
-  template <access::target AccessTarget>
-  constexpr static bool isConstOrGlobal() {
-    return AccessTarget == access::target::global_buffer ||
-           AccessTarget == access::target::constant_buffer;
+  static id<1> getDelinearizedIndex(const range<1> Range, const size_t Index) {
+    return {Index};
   }
 
-  // copy memory pointed by accessor to the memory pointed by another accessor
+  static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
+    size_t x = Index / Range[1];
+    size_t y = Index % Range[1];
+    return {x, y};
+  }
+
+  static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
+    size_t x = Index / (Range[1] * Range[2]);
+    size_t y = (Index / Range[2]) % Range[1];
+    size_t z = Index % Range[2];
+    return {x, y, z};
+  }
+
+  // Checks whether it is possible to copy the source shape to the destination
+  // shape(the shapes are described by the accessor ranges) by using
+  // copying by regions of memory and not copying element by element
+  // Shapes can be 1, 2 or 3 dimensional rectangles.
+  template <int Dims_Src, int Dims_Dst>
+  static bool IsCopyingRectRegionAvailable(const range<Dims_Src> Src,
+                                         const range<Dims_Dst> Dst) {
+    if (Dims_Src > Dims_Dst)
+      return false;
+    for (size_t I = 0; I < Dims_Src; ++I)
+      if (Src[I] > Dst[I])
+        return false;
+    return true;
+  }
+
+// copy memory pointed by accessor to the memory pointed by another accessor
   template <
       typename T_Src, int Dims_Src, access::mode AccessMode_Src,
       access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
       access::mode AccessMode_Dst, access::target AccessTarget_Dst,
       access::placeholder IsPlaceholder_Src = access::placeholder::false_t,
       access::placeholder IsPlaceholder_Dst = access::placeholder::false_t>
-
-  typename std::enable_if<(isConstOrGlobal<AccessTarget_Src>() ||
-                           isConstOrGlobal<AccessTarget_Dst>()),
-                          void>::type
-  copy(accessor<T_Src, Dims_Src, AccessMode_Src, AccessTarget_Src,
-                IsPlaceholder_Src>
-           Src,
-       accessor<T_Dst, Dims_Dst, AccessMode_Dst, AccessTarget_Dst,
-                IsPlaceholder_Dst>
-           Dst) {
-
-#ifndef __SYCL_DEVICE_ONLY__
-    if (MIsHost) {
-      range<Dims_Src> Range = Dst.get_range();
+  void copy(accessor<T_Src, Dims_Src, AccessMode_Src, AccessTarget_Src,
+                     IsPlaceholder_Src>
+                Src,
+            accessor<T_Dst, Dims_Dst, AccessMode_Dst, AccessTarget_Dst,
+                     IsPlaceholder_Dst>
+                Dst) {
+    static_assert(isValidTargetForExplicitOp(AccessTarget_Src),
+                  "Invalid source accessor target for the copy method.");
+    static_assert(isValidTargetForExplicitOp(AccessTarget_Dst),
+                  "Invalid destination accessor target for the copy method.");
+    // TODO replace to get_size() when it will provide correct values.
+    assert(
+        (Dst.get_range().size() * sizeof(T_Dst) >=
+         Src.get_range().size() * sizeof(T_Src)) &&
+        "dest must have at least as many bytes as the range accessed by src.");
+    if (MIsHost ||
+        !IsCopyingRectRegionAvailable(Src.get_range(), Dst.get_range())) {
+      range<Dims_Src> CopyRange = Src.get_range();
+      size_t Range = 1;
+      for (size_t I = 0; I < Dims_Src; ++I)
+        Range *= CopyRange[I];
+      range<1> LinearizedRange(Range);
       parallel_for< class __copyAcc2Acc< T_Src, Dims_Src, AccessMode_Src,
                                          AccessTarget_Src, T_Dst, Dims_Dst,
                                          AccessMode_Dst, AccessTarget_Dst,
                                          IsPlaceholder_Src,
                                          IsPlaceholder_Dst>>
-                                         (Range, [=](id<Dims_Src> Index) {
-        Dst[Index] = Src[Index];
+                                         (LinearizedRange, [=](id<1> Id) {
+        size_t Index = Id[0];
+        id<Dims_Src> SrcIndex = getDelinearizedIndex(Src.get_range(), Index);
+        id<Dims_Dst> DstIndex = getDelinearizedIndex(Dst.get_range(), Index);
+        Dst[DstIndex] = Src[SrcIndex];
       });
 
       return;
     }
-#endif
     MCGType = detail::CG::COPY_ACC_TO_ACC;
 
     detail::AccessorBaseHost *AccBaseSrc = (detail::AccessorBaseHost *)&Src;
@@ -1081,10 +1155,10 @@ public:
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
-  typename std::enable_if<(AccessTarget == access::target::global_buffer ||
-                           AccessTarget == access::target::constant_buffer),
-                          void>::type
+  void
   update_host(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Acc) {
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
+                  "Invalid accessor target for the update_host method.");
     MCGType = detail::CG::UPDATE_HOST;
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
@@ -1102,13 +1176,13 @@ public:
   template <typename T, int Dims, access::mode AccessMode,
             access::target AccessTarget,
             access::placeholder IsPlaceholder = access::placeholder::false_t>
-  typename std::enable_if<(AccessTarget == access::target::global_buffer ||
-                           AccessTarget == access::target::constant_buffer),
-                          void>::type
-  fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst,
-       const T &Pattern) {
+  void fill(accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder> Dst,
+            const T &Pattern) {
     // TODO add check:T must be an integral scalar value or a SYCL vector type
-    if (!MIsHost && Dims == 1) {
+    static_assert(isValidTargetForExplicitOp(AccessTarget),
+                  "Invalid accessor target for the fill method.");
+    if (!MIsHost && (((Dims == 1) && isConstOrGlobal(AccessTarget)) ||
+                     isImageOrImageArray(AccessTarget))) {
       MCGType = detail::CG::FILL;
 
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
@@ -1131,6 +1205,29 @@ public:
         Dst[Index] = Pattern;
       });
     }
+  }
+
+  // Copy memory from the source to the destination.
+  void memcpy(void* Dest, const void* Src, size_t Count) {
+    MSrcPtr = const_cast<void *>(Src);
+    MDstPtr = Dest;
+    MLength = Count;
+    MCGType = detail::CG::COPY_USM;
+  }
+
+  // Fill the memory pointed to by the destination with the given bytes.
+  void memset(void *Dest, int Value, size_t Count) {
+    MDstPtr = Dest;
+    MPattern.push_back((char)Value);
+    MLength = Count;
+    MCGType = detail::CG::FILL_USM;
+  }
+
+  // Prefetch the memory pointed to by the pointer.
+  void prefetch(const void *Ptr, size_t Count) {
+    MDstPtr = const_cast<void *>(Ptr);
+    MLength = Count;
+    MCGType = detail::CG::PREFETCH_USM;
   }
 };
 } // namespace sycl

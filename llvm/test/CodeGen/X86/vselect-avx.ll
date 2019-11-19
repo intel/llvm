@@ -84,45 +84,35 @@ bb:
 define void @test3(<4 x i32> %induction30, <4 x i16>* %tmp16, <4 x i16>* %tmp17,  <4 x i16> %tmp3, <4 x i16> %tmp12) {
 ; AVX1-LABEL: test3:
 ; AVX1:       ## %bb.0:
-; AVX1-NEXT:    vpshufd {{.*#+}} xmm3 = xmm0[1,1,3,3]
-; AVX1-NEXT:    vmovdqa {{.*#+}} xmm4 = [1431655766,1431655766,1431655766,1431655766]
-; AVX1-NEXT:    vpmuldq %xmm4, %xmm3, %xmm3
-; AVX1-NEXT:    vpmuldq %xmm4, %xmm0, %xmm4
-; AVX1-NEXT:    vpshufd {{.*#+}} xmm4 = xmm4[1,1,3,3]
-; AVX1-NEXT:    vpblendw {{.*#+}} xmm3 = xmm4[0,1],xmm3[2,3],xmm4[4,5],xmm3[6,7]
-; AVX1-NEXT:    vpsrld $31, %xmm3, %xmm4
-; AVX1-NEXT:    vpaddd %xmm4, %xmm3, %xmm3
-; AVX1-NEXT:    vpmulld {{.*}}(%rip), %xmm3, %xmm3
-; AVX1-NEXT:    vpsubd %xmm3, %xmm0, %xmm0
-; AVX1-NEXT:    vpxor %xmm3, %xmm3, %xmm3
+; AVX1-NEXT:    vpmulld {{.*}}(%rip), %xmm0, %xmm0
+; AVX1-NEXT:    vpaddd {{.*}}(%rip), %xmm0, %xmm0
+; AVX1-NEXT:    vpminud {{.*}}(%rip), %xmm0, %xmm3
 ; AVX1-NEXT:    vpcmpeqd %xmm3, %xmm0, %xmm0
-; AVX1-NEXT:    vblendvps %xmm0, %xmm1, %xmm2, %xmm1
 ; AVX1-NEXT:    vpackssdw %xmm0, %xmm0, %xmm0
+; AVX1-NEXT:    vpblendvb %xmm0, %xmm1, %xmm2, %xmm1
+; AVX1-NEXT:    vpcmpeqd %xmm2, %xmm2, %xmm2
+; AVX1-NEXT:    vpxor %xmm3, %xmm3, %xmm3
+; AVX1-NEXT:    vpblendvb %xmm0, %xmm2, %xmm3, %xmm0
 ; AVX1-NEXT:    vmovq %xmm0, (%rdi)
-; AVX1-NEXT:    vpshufb {{.*#+}} xmm0 = xmm1[0,1,4,5,8,9,12,13,8,9,12,13,12,13,14,15]
-; AVX1-NEXT:    vmovq %xmm0, (%rsi)
+; AVX1-NEXT:    vmovq %xmm1, (%rsi)
 ; AVX1-NEXT:    retq
 ;
 ; AVX2-LABEL: test3:
 ; AVX2:       ## %bb.0:
-; AVX2-NEXT:    vpshufd {{.*#+}} xmm3 = xmm0[1,1,3,3]
-; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm4 = [1431655766,1431655766,1431655766,1431655766]
-; AVX2-NEXT:    vpmuldq %xmm4, %xmm3, %xmm3
-; AVX2-NEXT:    vpmuldq %xmm4, %xmm0, %xmm4
-; AVX2-NEXT:    vpshufd {{.*#+}} xmm4 = xmm4[1,1,3,3]
-; AVX2-NEXT:    vpblendd {{.*#+}} xmm3 = xmm4[0],xmm3[1],xmm4[2],xmm3[3]
-; AVX2-NEXT:    vpsrld $31, %xmm3, %xmm4
-; AVX2-NEXT:    vpaddd %xmm4, %xmm3, %xmm3
-; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm4 = [3,3,3,3]
-; AVX2-NEXT:    vpmulld %xmm4, %xmm3, %xmm3
-; AVX2-NEXT:    vpsubd %xmm3, %xmm0, %xmm0
-; AVX2-NEXT:    vpxor %xmm3, %xmm3, %xmm3
+; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm3 = [2863311531,2863311531,2863311531,2863311531]
+; AVX2-NEXT:    vpmulld %xmm3, %xmm0, %xmm0
+; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm3 = [715827882,715827882,715827882,715827882]
+; AVX2-NEXT:    vpaddd %xmm3, %xmm0, %xmm0
+; AVX2-NEXT:    vpbroadcastd {{.*#+}} xmm3 = [1431655764,1431655764,1431655764,1431655764]
+; AVX2-NEXT:    vpminud %xmm3, %xmm0, %xmm3
 ; AVX2-NEXT:    vpcmpeqd %xmm3, %xmm0, %xmm0
-; AVX2-NEXT:    vblendvps %xmm0, %xmm1, %xmm2, %xmm1
 ; AVX2-NEXT:    vpackssdw %xmm0, %xmm0, %xmm0
+; AVX2-NEXT:    vpblendvb %xmm0, %xmm1, %xmm2, %xmm1
+; AVX2-NEXT:    vpcmpeqd %xmm2, %xmm2, %xmm2
+; AVX2-NEXT:    vpxor %xmm3, %xmm3, %xmm3
+; AVX2-NEXT:    vpblendvb %xmm0, %xmm2, %xmm3, %xmm0
 ; AVX2-NEXT:    vmovq %xmm0, (%rdi)
-; AVX2-NEXT:    vpshufb {{.*#+}} xmm0 = xmm1[0,1,4,5,8,9,12,13,8,9,12,13,12,13,14,15]
-; AVX2-NEXT:    vmovq %xmm0, (%rsi)
+; AVX2-NEXT:    vmovq %xmm1, (%rsi)
 ; AVX2-NEXT:    retq
   %tmp6 = srem <4 x i32> %induction30, <i32 3, i32 3, i32 3, i32 3>
   %tmp7 = icmp eq <4 x i32> %tmp6, zeroinitializer
@@ -165,4 +155,45 @@ define <32 x i8> @PR22706(<32 x i1> %x) {
 ; AVX2-NEXT:    retq
   %tmp = select <32 x i1> %x, <32 x i8> <i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1, i8 1>, <32 x i8> <i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2, i8 2>
   ret <32 x i8> %tmp
+}
+
+; Split a 256-bit select into two 128-bit selects when the operands are concatenated.
+
+define void @blendv_split(<8 x i32>* %p, <8 x i32> %cond, <8 x i32> %a, <8 x i32> %x, <8 x i32> %y, <8 x i32> %z, <8 x i32> %w) {
+; AVX1-LABEL: blendv_split:
+; AVX1:       ## %bb.0:
+; AVX1-NEXT:    vpmovzxdq {{.*#+}} xmm2 = xmm2[0],zero,xmm2[1],zero
+; AVX1-NEXT:    vpmovzxdq {{.*#+}} xmm3 = xmm3[0],zero,xmm3[1],zero
+; AVX1-NEXT:    vextractf128 $1, %ymm1, %xmm4
+; AVX1-NEXT:    vpslld %xmm2, %xmm4, %xmm5
+; AVX1-NEXT:    vpslld %xmm2, %xmm1, %xmm2
+; AVX1-NEXT:    vpslld %xmm3, %xmm4, %xmm4
+; AVX1-NEXT:    vpslld %xmm3, %xmm1, %xmm1
+; AVX1-NEXT:    vblendvps %xmm0, %xmm2, %xmm1, %xmm1
+; AVX1-NEXT:    vextractf128 $1, %ymm0, %xmm0
+; AVX1-NEXT:    vblendvps %xmm0, %xmm5, %xmm4, %xmm0
+; AVX1-NEXT:    vmovups %xmm0, 16(%rdi)
+; AVX1-NEXT:    vmovups %xmm1, (%rdi)
+; AVX1-NEXT:    vzeroupper
+; AVX1-NEXT:    retq
+;
+; AVX2-LABEL: blendv_split:
+; AVX2:       ## %bb.0:
+; AVX2-NEXT:    vpmovzxdq {{.*#+}} xmm2 = xmm2[0],zero,xmm2[1],zero
+; AVX2-NEXT:    vpmovzxdq {{.*#+}} xmm3 = xmm3[0],zero,xmm3[1],zero
+; AVX2-NEXT:    vpslld %xmm2, %ymm1, %ymm2
+; AVX2-NEXT:    vpslld %xmm3, %ymm1, %ymm1
+; AVX2-NEXT:    vblendvps %ymm0, %ymm2, %ymm1, %ymm0
+; AVX2-NEXT:    vmovups %ymm0, (%rdi)
+; AVX2-NEXT:    vzeroupper
+; AVX2-NEXT:    retq
+  %signbits = ashr <8 x i32> %cond, <i32 31, i32 31, i32 31, i32 31, i32 31, i32 31, i32 31, i32 31>
+  %bool = trunc <8 x i32> %signbits to <8 x i1>
+  %shamt1 = shufflevector <8 x i32> %x, <8 x i32> undef, <8 x i32> zeroinitializer
+  %shamt2 = shufflevector <8 x i32> %y, <8 x i32> undef, <8 x i32> zeroinitializer
+  %sh1 = shl <8 x i32> %a, %shamt1
+  %sh2 = shl <8 x i32> %a, %shamt2
+  %sel = select <8 x i1> %bool, <8 x i32> %sh1, <8 x i32> %sh2
+  store <8 x i32> %sel, <8 x i32>* %p, align 4
+  ret void
 }

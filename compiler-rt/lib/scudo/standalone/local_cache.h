@@ -10,6 +10,7 @@
 #define SCUDO_LOCAL_CACHE_H_
 
 #include "internal_defs.h"
+#include "report.h"
 #include "stats.h"
 
 namespace scudo {
@@ -21,9 +22,8 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
     static const u32 MaxNumCached = SizeClassMap::MaxNumCachedHint;
     void setFromArray(void **Array, u32 N) {
       DCHECK_LE(N, MaxNumCached);
-      for (u32 I = 0; I < N; I++)
-        Batch[I] = Array[I];
       Count = N;
+      memcpy(Batch, Array, sizeof(void *) * Count);
     }
     void clear() { Count = 0; }
     void add(void *P) {
@@ -31,15 +31,14 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
       Batch[Count++] = P;
     }
     void copyToArray(void **Array) const {
-      for (u32 I = 0; I < Count; I++)
-        Array[I] = Batch[I];
+      memcpy(Array, Batch, sizeof(void *) * Count);
     }
     u32 getCount() const { return Count; }
     void *get(u32 I) const {
       DCHECK_LE(I, Count);
       return Batch[I];
     }
-    static u32 MaxCached(uptr Size) {
+    static u32 getMaxCached(uptr Size) {
       return Min(MaxNumCached, SizeClassMap::getMaxCachedHint(Size));
     }
     TransferBatch *Next;
@@ -51,7 +50,7 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
 
   void initLinkerInitialized(GlobalStats *S, SizeClassAllocator *A) {
     Stats.initLinkerInitialized();
-    if (S)
+    if (LIKELY(S))
       S->link(&Stats);
     Allocator = A;
   }
@@ -63,12 +62,12 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
 
   void destroy(GlobalStats *S) {
     drain();
-    if (S)
+    if (LIKELY(S))
       S->unlink(&Stats);
   }
 
   void *allocate(uptr ClassId) {
-    CHECK_LT(ClassId, NumClasses);
+    DCHECK_LT(ClassId, NumClasses);
     PerClass *C = &PerClassArray[ClassId];
     if (C->Count == 0) {
       if (UNLIKELY(!refill(C, ClassId)))
@@ -84,6 +83,7 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
     // performance. It definitely decreases performance on Android though.
     // if (!SCUDO_ANDROID) PREFETCH(P);
     Stats.add(StatAllocated, ClassSize);
+    Stats.sub(StatFree, ClassSize);
     return P;
   }
 
@@ -99,6 +99,7 @@ template <class SizeClassAllocator> struct SizeClassAllocatorLocalCache {
     const uptr ClassSize = C->ClassSize;
     C->Chunks[C->Count++] = P;
     Stats.sub(StatAllocated, ClassSize);
+    Stats.add(StatFree, ClassSize);
   }
 
   void drain() {
@@ -140,7 +141,7 @@ private:
     for (uptr I = 0; I < NumClasses; I++) {
       PerClass *P = &PerClassArray[I];
       const uptr Size = SizeClassAllocator::getSizeByClassId(I);
-      P->MaxCount = 2 * TransferBatch::MaxCached(Size);
+      P->MaxCount = 2 * TransferBatch::getMaxCached(Size);
       P->ClassSize = Size;
     }
   }
@@ -156,8 +157,8 @@ private:
     if (UNLIKELY(!B))
       return false;
     DCHECK_GT(B->getCount(), 0);
-    B->copyToArray(C->Chunks);
     C->Count = B->getCount();
+    B->copyToArray(C->Chunks);
     destroyBatch(ClassId, B);
     return true;
   }
@@ -166,7 +167,9 @@ private:
     const u32 Count = Min(C->MaxCount / 2, C->Count);
     const uptr FirstIndexToDrain = C->Count - Count;
     TransferBatch *B = createBatch(ClassId, C->Chunks[FirstIndexToDrain]);
-    CHECK(B);
+    if (UNLIKELY(!B))
+      reportOutOfMemory(
+          SizeClassAllocator::getSizeByClassId(SizeClassMap::BatchClassId));
     B->setFromArray(&C->Chunks[FirstIndexToDrain], Count);
     C->Count -= Count;
     Allocator->pushBatch(ClassId, B);

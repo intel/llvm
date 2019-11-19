@@ -57,7 +57,7 @@ using namespace llvm;
 static cl::opt<unsigned> UnrollThresholdPrivate(
   "amdgpu-unroll-threshold-private",
   cl::desc("Unroll threshold for AMDGPU if private memory used in a loop"),
-  cl::init(2500), cl::Hidden);
+  cl::init(2000), cl::Hidden);
 
 static cl::opt<unsigned> UnrollThresholdLocal(
   "amdgpu-unroll-threshold-local",
@@ -117,8 +117,10 @@ void AMDGPUTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
       // Add a small bonus for each of such "if" statements.
       if (const BranchInst *Br = dyn_cast<BranchInst>(&I)) {
         if (UP.Threshold < MaxBoost && Br->isConditional()) {
-          if (L->isLoopExiting(Br->getSuccessor(0)) ||
-              L->isLoopExiting(Br->getSuccessor(1)))
+          BasicBlock *Succ0 = Br->getSuccessor(0);
+          BasicBlock *Succ1 = Br->getSuccessor(1);
+          if ((L->contains(Succ0) && L->isLoopExiting(Succ0)) ||
+              (L->contains(Succ1) && L->isLoopExiting(Succ1)))
             continue;
           if (dependsOnLocalPhi(L, Br->getCondition())) {
             UP.Threshold += UnrollThresholdIf;
@@ -140,7 +142,7 @@ void AMDGPUTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
       unsigned Threshold = 0;
       if (AS == AMDGPUAS::PRIVATE_ADDRESS)
         Threshold = ThresholdPrivate;
-      else if (AS == AMDGPUAS::LOCAL_ADDRESS)
+      else if (AS == AMDGPUAS::LOCAL_ADDRESS || AS == AMDGPUAS::REGION_ADDRESS)
         Threshold = ThresholdLocal;
       else
         continue;
@@ -158,7 +160,8 @@ void AMDGPUTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
         unsigned AllocaSize = Ty->isSized() ? DL.getTypeAllocSize(Ty) : 0;
         if (AllocaSize > MaxAlloca)
           continue;
-      } else if (AS == AMDGPUAS::LOCAL_ADDRESS) {
+      } else if (AS == AMDGPUAS::LOCAL_ADDRESS ||
+                 AS == AMDGPUAS::REGION_ADDRESS) {
         LocalGEPsSeen++;
         // Inhibit unroll for local memory if we have seen addressing not to
         // a variable, most likely we will be unable to combine it.
@@ -401,7 +404,7 @@ int GCNTTIImpl::getArithmeticInstrCost(
     if (SLT == MVT::f64) {
       int Cost = 4 * get64BitInstrCost() + 7 * getQuarterRateInstrCost();
       // Add cost of workaround.
-      if (ST->getGeneration() == AMDGPUSubtarget::SOUTHERN_ISLANDS)
+      if (!ST->hasUsableDivScaleConditionOutput())
         Cost += 3 * getFullRateInstrCost();
 
       return LT.first * Cost * NElts;
@@ -587,6 +590,61 @@ bool GCNTTIImpl::isAlwaysUniform(const Value *V) const {
   return false;
 }
 
+bool GCNTTIImpl::collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
+                                            Intrinsic::ID IID) const {
+  switch (IID) {
+  case Intrinsic::amdgcn_atomic_inc:
+  case Intrinsic::amdgcn_atomic_dec:
+  case Intrinsic::amdgcn_ds_fadd:
+  case Intrinsic::amdgcn_ds_fmin:
+  case Intrinsic::amdgcn_ds_fmax:
+  case Intrinsic::amdgcn_is_shared:
+  case Intrinsic::amdgcn_is_private:
+    OpIndexes.push_back(0);
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool GCNTTIImpl::rewriteIntrinsicWithAddressSpace(
+  IntrinsicInst *II, Value *OldV, Value *NewV) const {
+  auto IntrID = II->getIntrinsicID();
+  switch (IntrID) {
+  case Intrinsic::amdgcn_atomic_inc:
+  case Intrinsic::amdgcn_atomic_dec:
+  case Intrinsic::amdgcn_ds_fadd:
+  case Intrinsic::amdgcn_ds_fmin:
+  case Intrinsic::amdgcn_ds_fmax: {
+    const ConstantInt *IsVolatile = cast<ConstantInt>(II->getArgOperand(4));
+    if (!IsVolatile->isZero())
+      return false;
+    Module *M = II->getParent()->getParent()->getParent();
+    Type *DestTy = II->getType();
+    Type *SrcTy = NewV->getType();
+    Function *NewDecl =
+        Intrinsic::getDeclaration(M, II->getIntrinsicID(), {DestTy, SrcTy});
+    II->setArgOperand(0, NewV);
+    II->setCalledFunction(NewDecl);
+    return true;
+  }
+  case Intrinsic::amdgcn_is_shared:
+  case Intrinsic::amdgcn_is_private: {
+    unsigned TrueAS = IntrID == Intrinsic::amdgcn_is_shared ?
+      AMDGPUAS::LOCAL_ADDRESS : AMDGPUAS::PRIVATE_ADDRESS;
+    unsigned NewAS = NewV->getType()->getPointerAddressSpace();
+    LLVMContext &Ctx = NewV->getType()->getContext();
+    ConstantInt *NewVal = (TrueAS == NewAS) ?
+      ConstantInt::getTrue(Ctx) : ConstantInt::getFalse(Ctx);
+    II->replaceAllUsesWith(NewVal);
+    II->eraseFromParent();
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
 unsigned GCNTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
                                        Type *SubTp) {
   if (ST->hasVOP3PInsts()) {
@@ -633,6 +691,119 @@ bool GCNTTIImpl::areInlineCompatible(const Function *Caller,
 void GCNTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                          TTI::UnrollingPreferences &UP) {
   CommonTTI.getUnrollingPreferences(L, SE, UP);
+}
+
+unsigned GCNTTIImpl::getUserCost(const User *U,
+                                 ArrayRef<const Value *> Operands) {
+  const Instruction *I = dyn_cast<Instruction>(U);
+  if (!I)
+    return BaseT::getUserCost(U, Operands);
+
+  // Estimate different operations to be optimized out
+  switch (I->getOpcode()) {
+  case Instruction::ExtractElement: {
+    ConstantInt *CI = dyn_cast<ConstantInt>(I->getOperand(1));
+    unsigned Idx = -1;
+    if (CI)
+      Idx = CI->getZExtValue();
+    return getVectorInstrCost(I->getOpcode(), I->getOperand(0)->getType(), Idx);
+  }
+  case Instruction::InsertElement: {
+    ConstantInt *CI = dyn_cast<ConstantInt>(I->getOperand(2));
+    unsigned Idx = -1;
+    if (CI)
+      Idx = CI->getZExtValue();
+    return getVectorInstrCost(I->getOpcode(), I->getType(), Idx);
+  }
+  case Instruction::Call: {
+    if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(U)) {
+      SmallVector<Value *, 4> Args(II->arg_operands());
+      FastMathFlags FMF;
+      if (auto *FPMO = dyn_cast<FPMathOperator>(II))
+        FMF = FPMO->getFastMathFlags();
+      return getIntrinsicInstrCost(II->getIntrinsicID(), II->getType(), Args,
+                                   FMF);
+    } else {
+      return BaseT::getUserCost(U, Operands);
+    }
+  }
+  case Instruction::ShuffleVector: {
+    const ShuffleVectorInst *Shuffle = cast<ShuffleVectorInst>(I);
+    Type *Ty = Shuffle->getType();
+    Type *SrcTy = Shuffle->getOperand(0)->getType();
+
+    // TODO: Identify and add costs for insert subvector, etc.
+    int SubIndex;
+    if (Shuffle->isExtractSubvectorMask(SubIndex))
+      return getShuffleCost(TTI::SK_ExtractSubvector, SrcTy, SubIndex, Ty);
+
+    if (Shuffle->changesLength())
+      return BaseT::getUserCost(U, Operands);
+
+    if (Shuffle->isIdentity())
+      return 0;
+
+    if (Shuffle->isReverse())
+      return getShuffleCost(TTI::SK_Reverse, Ty, 0, nullptr);
+
+    if (Shuffle->isSelect())
+      return getShuffleCost(TTI::SK_Select, Ty, 0, nullptr);
+
+    if (Shuffle->isTranspose())
+      return getShuffleCost(TTI::SK_Transpose, Ty, 0, nullptr);
+
+    if (Shuffle->isZeroEltSplat())
+      return getShuffleCost(TTI::SK_Broadcast, Ty, 0, nullptr);
+
+    if (Shuffle->isSingleSource())
+      return getShuffleCost(TTI::SK_PermuteSingleSrc, Ty, 0, nullptr);
+
+    return getShuffleCost(TTI::SK_PermuteTwoSrc, Ty, 0, nullptr);
+  }
+  case Instruction::ZExt:
+  case Instruction::SExt:
+  case Instruction::FPToUI:
+  case Instruction::FPToSI:
+  case Instruction::FPExt:
+  case Instruction::PtrToInt:
+  case Instruction::IntToPtr:
+  case Instruction::SIToFP:
+  case Instruction::UIToFP:
+  case Instruction::Trunc:
+  case Instruction::FPTrunc:
+  case Instruction::BitCast:
+  case Instruction::AddrSpaceCast: {
+    return getCastInstrCost(I->getOpcode(), I->getType(),
+                            I->getOperand(0)->getType(), I);
+  }
+  case Instruction::Add:
+  case Instruction::FAdd:
+  case Instruction::Sub:
+  case Instruction::FSub:
+  case Instruction::Mul:
+  case Instruction::FMul:
+  case Instruction::UDiv:
+  case Instruction::SDiv:
+  case Instruction::FDiv:
+  case Instruction::URem:
+  case Instruction::SRem:
+  case Instruction::FRem:
+  case Instruction::Shl:
+  case Instruction::LShr:
+  case Instruction::AShr:
+  case Instruction::And:
+  case Instruction::Or:
+  case Instruction::Xor:
+  case Instruction::FNeg: {
+    return getArithmeticInstrCost(I->getOpcode(), I->getType(),
+                                  TTI::OK_AnyValue, TTI::OK_AnyValue,
+                                  TTI::OP_None, TTI::OP_None, Operands);
+  }
+  default:
+    break;
+  }
+
+  return BaseT::getUserCost(U, Operands);
 }
 
 unsigned R600TTIImpl::getHardwareNumberOfRegisters(bool Vec) const {

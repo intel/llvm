@@ -84,6 +84,9 @@ page.
     * The contents of the ``<experimental/...>`` headers and ``libc++experimental.a``
       library will not remain compatible between versions.
     * No guarantees of API or ABI stability are provided.
+    * When we implement the standardized version of an experimental feature,
+      the experimental feature is removed two releases after the non-experimental
+      version has shipped. The full policy is explained :ref:`here <experimental features>`.
 
 Using libc++ on Linux
 =====================
@@ -342,3 +345,4 @@ which no dialect declares as such (See the second form described above).
 * ``search``
 * ``unique``
 * ``upper_bound``
+* ``lock_guard``'s constructors

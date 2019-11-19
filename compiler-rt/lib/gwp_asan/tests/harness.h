@@ -9,15 +9,23 @@
 #ifndef GWP_ASAN_TESTS_HARNESS_H_
 #define GWP_ASAN_TESTS_HARNESS_H_
 
+#include <stdarg.h>
+
 #include "gtest/gtest.h"
 
-// Include sanitizer_common first as gwp_asan/guarded_pool_allocator.h
-// transiently includes definitions.h, which overwrites some of the definitions
-// in sanitizer_common.
-#include "sanitizer_common/sanitizer_common.h"
-
 #include "gwp_asan/guarded_pool_allocator.h"
+#include "gwp_asan/optional/backtrace.h"
 #include "gwp_asan/options.h"
+
+namespace gwp_asan {
+namespace test {
+// This printf-function getter allows other platforms (e.g. Android) to define
+// their own signal-safe Printf function. In LLVM, we use
+// `optional/printf_sanitizer_common.cpp` which supplies the __sanitizer::Printf
+// for this purpose.
+options::Printf_t getPrintfFunction();
+}; // namespace test
+}; // namespace gwp_asan
 
 class DefaultGuardedPoolAllocator : public ::testing::Test {
 public:
@@ -26,7 +34,7 @@ public:
     Opts.setDefaults();
     MaxSimultaneousAllocations = Opts.MaxSimultaneousAllocations;
 
-    Opts.Printf = __sanitizer::Printf;
+    Opts.Printf = gwp_asan::test::getPrintfFunction();
     GPA.init(Opts);
   }
 
@@ -47,7 +55,7 @@ public:
     Opts.MaxSimultaneousAllocations = MaxSimultaneousAllocationsArg;
     MaxSimultaneousAllocations = MaxSimultaneousAllocationsArg;
 
-    Opts.Printf = __sanitizer::Printf;
+    Opts.Printf = gwp_asan::test::getPrintfFunction();
     GPA.init(Opts);
   }
 
@@ -55,6 +63,22 @@ protected:
   gwp_asan::GuardedPoolAllocator GPA;
   decltype(gwp_asan::options::Options::MaxSimultaneousAllocations)
       MaxSimultaneousAllocations;
+};
+
+class BacktraceGuardedPoolAllocator : public ::testing::Test {
+public:
+  BacktraceGuardedPoolAllocator() {
+    gwp_asan::options::Options Opts;
+    Opts.setDefaults();
+
+    Opts.Printf = gwp_asan::test::getPrintfFunction();
+    Opts.Backtrace = gwp_asan::options::getBacktraceFunction();
+    Opts.PrintBacktrace = gwp_asan::options::getPrintBacktraceFunction();
+    GPA.init(Opts);
+  }
+
+protected:
+  gwp_asan::GuardedPoolAllocator GPA;
 };
 
 #endif // GWP_ASAN_TESTS_HARNESS_H_

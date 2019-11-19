@@ -20,9 +20,9 @@ class GCNSubtarget;
 
 class SIFrameLowering final : public AMDGPUFrameLowering {
 public:
-  SIFrameLowering(StackDirection D, unsigned StackAl, int LAO,
-                  unsigned TransAl = 1) :
-    AMDGPUFrameLowering(D, StackAl, LAO, TransAl) {}
+  SIFrameLowering(StackDirection D, Align StackAl, int LAO,
+                  Align TransAl = Align::None())
+      : AMDGPUFrameLowering(D, StackAl, LAO, TransAl) {}
   ~SIFrameLowering() override = default;
 
   void emitEntryFunctionPrologue(MachineFunction &MF,
@@ -36,6 +36,14 @@ public:
 
   void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                             RegScavenger *RS = nullptr) const override;
+  void determineCalleeSavesSGPR(MachineFunction &MF, BitVector &SavedRegs,
+                                RegScavenger *RS = nullptr) const;
+  bool
+  assignCalleeSavedSpillSlots(MachineFunction &MF,
+                              const TargetRegisterInfo *TRI,
+                              std::vector<CalleeSavedInfo> &CSI) const override;
+
+  bool isSupportedStackID(TargetStackID::Value ID) const override;
 
   void processFunctionBeforeFrameFinalized(
     MachineFunction &MF,
@@ -58,7 +66,7 @@ private:
     SIMachineFunctionInfo *MFI,
     MachineFunction &MF) const;
 
-  unsigned getReservedPrivateSegmentWaveByteOffsetReg(
+  std::pair<unsigned, bool> getReservedPrivateSegmentWaveByteOffsetReg(
       const GCNSubtarget &ST, const SIInstrInfo *TII, const SIRegisterInfo *TRI,
       SIMachineFunctionInfo *MFI, MachineFunction &MF) const;
 

@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++98, c++03, c++11, c++14
+
 #include "support/pstl_test_config.h"
 
 #include <iostream>
@@ -66,7 +68,7 @@ is_equal(const T& x, const T& y)
 
 struct test_one_policy
 {
-#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                            \
+#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                             \
     _PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN // dummy specialization by policy type, in case of broken configuration
     template <typename Iterator1, typename Size, typename Generator1, typename Generator2, typename Compare>
     typename std::enable_if<is_same_iterator_category<Iterator1, std::random_access_iterator_tag>::value, void>::type
@@ -111,8 +113,7 @@ struct test_one_policy
     template <typename Policy, typename Iterator1, typename Size, typename Generator1, typename Generator2,
               typename Compare>
     typename std::enable_if<!is_same_iterator_category<Iterator1, std::random_access_iterator_tag>::value, void>::type
-    operator()(Policy&& exec, Iterator1 first1, Iterator1 last1, Iterator1 first2, Iterator1 last2, Size n, Size m,
-               Generator1 generator1, Generator2 generator2, Compare comp)
+    operator()(Policy&&, Iterator1, Iterator1, Iterator1, Iterator1, Size, Size, Generator1, Generator2, Compare)
     {
     }
 };
@@ -154,7 +155,7 @@ struct test_non_const
     }
 };
 
-int32_t
+int
 main()
 {
     test_by_type<int32_t>([](int32_t i) { return 10 * i; }, [](int32_t i) { return i + 1; }, std::less<int32_t>());

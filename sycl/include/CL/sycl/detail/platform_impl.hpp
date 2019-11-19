@@ -8,10 +8,10 @@
 
 #pragma once
 #include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/force_device.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/platform_info.hpp>
+#include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 
 // 4.6.2 Platform class
@@ -70,7 +70,7 @@ public:
     return (all_extension_names.find(extension_name) != std::string::npos);
   }
 
-  cl_platform_id get() const override { return pi::pi_cast<cl_platform_id>(m_platform); }
+  cl_platform_id get() const override { return pi::cast<cl_platform_id>(m_platform); }
 
   const RT::PiPlatform &getHandleRef() const override { return m_platform; }
 

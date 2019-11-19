@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out -lOpenCL
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
@@ -21,8 +21,7 @@ int main() {
     constexpr size_t Size = 32;
     int Init[Size] = {5};
     cl_int Error = CL_SUCCESS;
-    cl::sycl::range<1> InteropRange;
-    InteropRange[0] = Size;
+    cl::sycl::range<1> InteropRange{Size};
     size_t InteropSize = Size * sizeof(int);
 
     queue MyQueue;
@@ -55,7 +54,7 @@ int main() {
     int Data[Size] = {10};
     std::vector<int> Result(Size, 0);
     {
-      buffer<int, 1> BufferData{Data, range<1>(Size),
+      buffer<int, 1> BufferData{Data, range<1>{Size},
                                 {property::buffer::use_host_ptr()}};
       BufferData.set_final_data(Result.begin());
       MyQueue.submit([&](handler &CGH) {

@@ -119,6 +119,19 @@ protected:
   bool hasASTFileSupport() const override { return false; }
 };
 
+class GenerateInterfaceStubAction : public ASTFrontendAction {
+protected:
+  TranslationUnitKind getTranslationUnitKind() override { return TU_Module; }
+
+  bool hasASTFileSupport() const override { return false; }
+};
+
+class GenerateInterfaceIfsExpV1Action : public GenerateInterfaceStubAction {
+protected:
+  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
+                                                 StringRef InFile) override;
+};
+
 class GenerateModuleFromModuleMapAction : public GenerateModuleAction {
 private:
   bool BeginSourceFileAction(CompilerInstance &CI) override;

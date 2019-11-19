@@ -11,10 +11,11 @@ endif()
 set(LLVM_ENABLE_LTO ON CACHE BOOL "")
 set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR ON CACHE BOOL "")
 set(LLVM_ENABLE_TERMINFO OFF CACHE BOOL "")
+set(LLVM_ENABLE_UNWIND_TABLES OFF CACHE BOOL "")
 set(LLVM_ENABLE_ZLIB ON CACHE BOOL "")
-set(LLVM_EXTERNALIZE_DEBUGINFO ON CACHE BOOL "")
-set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "")
 set(LLVM_INCLUDE_DOCS OFF CACHE BOOL "")
+set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "")
+set(LLVM_INCLUDE_GO_TESTS OFF CACHE BOOL "")
 set(LLVM_USE_RELATIVE_PATHS_IN_DEBUG_INFO ON CACHE BOOL "")
 
 set(CLANG_DEFAULT_CXX_STDLIB libc++ CACHE STRING "")
@@ -23,14 +24,18 @@ if(NOT APPLE)
   set(CLANG_DEFAULT_OBJCOPY llvm-objcopy CACHE STRING "")
 endif()
 set(CLANG_DEFAULT_RTLIB compiler-rt CACHE STRING "")
+set(CLANG_ENABLE_ARCMT OFF CACHE BOOL "")
+set(CLANG_ENABLE_STATIC_ANALYZER OFF CACHE BOOL "")
 set(CLANG_PLUGIN_SUPPORT OFF CACHE BOOL "")
 
+set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER ON CACHE BOOL "")
 set(ENABLE_LINKER_BUILD_ID ON CACHE BOOL "")
 set(ENABLE_X86_RELAX_RELOCATIONS ON CACHE BOOL "")
 
-set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -gline-tables-only" CACHE STRING "")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -gline-tables-only" CACHE STRING "")
+set(CMAKE_BUILD_TYPE Release CACHE STRING "")
+if (APPLE)
+  set(MACOSX_DEPLOYMENT_TARGET 10.7 CACHE STRING "")
+endif()
 
 if(APPLE)
   list(APPEND BUILTIN_TARGETS "default")
@@ -51,6 +56,10 @@ if(APPLE)
   set(LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
   set(LIBCXX_ENABLE_STATIC_ABI_LIBRARY ON CACHE BOOL "")
   set(LIBCXX_ABI_VERSION 2 CACHE STRING "")
+  set(DARWIN_ios_ARCHS armv7;armv7s;arm64 CACHE STRING "")
+  set(DARWIN_iossim_ARCHS i386;x86_64 CACHE STRING "")
+  set(DARWIN_osx_ARCHS x86_64 CACHE STRING "")
+  set(SANITIZER_MIN_OSX_VERSION 10.7 CACHE STRING "")
 endif()
 
 foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unknown-linux-gnu;x86_64-unknown-linux-gnu)
@@ -58,7 +67,7 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     # Set the per-target builtins options.
     list(APPEND BUILTIN_TARGETS "${target}")
     set(BUILTINS_${target}_CMAKE_SYSTEM_NAME Linux CACHE STRING "")
-    set(BUILTINS_${target}_CMAKE_BUILD_TYPE Release CACHE STRING "")
+    set(BUILTINS_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_SYSROOT ${LINUX_${target}_SYSROOT} CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_SHARED_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_MODULE_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
@@ -67,7 +76,7 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     # Set the per-target runtimes options.
     list(APPEND RUNTIME_TARGETS "${target}")
     set(RUNTIMES_${target}_CMAKE_SYSTEM_NAME Linux CACHE STRING "")
-    set(RUNTIMES_${target}_CMAKE_BUILD_TYPE Release CACHE STRING "")
+    set(RUNTIMES_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_SYSROOT ${LINUX_${target}_SYSROOT} CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_SHARED_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
     set(RUNTIMES_${target}_CMAKE_MODULE_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
@@ -107,7 +116,7 @@ if(FUCHSIA_SDK)
     # Set the per-target builtins options.
     list(APPEND BUILTIN_TARGETS "${target}-unknown-fuchsia")
     set(BUILTINS_${target}-unknown-fuchsia_CMAKE_SYSTEM_NAME Fuchsia CACHE STRING "")
-    set(BUILTINS_${target}-unknown-fuchsia_CMAKE_BUILD_TYPE Release CACHE STRING "")
+    set(BUILTINS_${target}-unknown-fuchsia_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
     set(BUILTINS_${target}-unknown-fuchsia_CMAKE_ASM_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(BUILTINS_${target}-unknown-fuchsia_CMAKE_C_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(BUILTINS_${target}-unknown-fuchsia_CMAKE_CXX_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
@@ -119,7 +128,7 @@ if(FUCHSIA_SDK)
     # Set the per-target runtimes options.
     list(APPEND RUNTIME_TARGETS "${target}-unknown-fuchsia")
     set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_SYSTEM_NAME Fuchsia CACHE STRING "")
-    set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_BUILD_TYPE Release CACHE STRING "")
+    set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
     set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_BUILD_WITH_INSTALL_RPATH ON CACHE BOOL "")
     set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_ASM_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
     set(RUNTIMES_${target}-unknown-fuchsia_CMAKE_C_FLAGS ${FUCHSIA_${target}_COMPILER_FLAGS} CACHE STRING "")
@@ -153,13 +162,21 @@ if(FUCHSIA_SDK)
     set(RUNTIMES_${target}-unknown-fuchsia+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
     set(RUNTIMES_${target}-unknown-fuchsia+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
 
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LLVM_USE_SANITIZER "Address" CACHE STRING "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
+    set(RUNTIMES_${target}-unknown-fuchsia+asan+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
+
     # Use .build-id link.
     list(APPEND RUNTIME_BUILD_ID_LINK "${target}-unknown-fuchsia")
   endforeach()
 
-  set(LLVM_RUNTIME_MULTILIBS "asan;noexcept" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIBS "asan;noexcept;asan+noexcept" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_asan_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIB_asan+noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
 endif()
 
 set(LLVM_BUILTIN_TARGETS "${BUILTIN_TARGETS}" CACHE STRING "")
@@ -170,7 +187,6 @@ set(LLVM_RUNTIME_BUILD_ID_LINK_TARGETS "${RUNTIME_BUILD_ID_LINK}" CACHE STRING "
 set(LLVM_INSTALL_TOOLCHAIN_ONLY ON CACHE BOOL "")
 set(LLVM_TOOLCHAIN_TOOLS
   dsymutil
-  llc
   llvm-ar
   llvm-cov
   llvm-cxxfilt
@@ -188,7 +204,6 @@ set(LLVM_TOOLCHAIN_TOOLS
   llvm-strip
   llvm-symbolizer
   llvm-xray
-  opt
   sancov
   CACHE STRING "")
 

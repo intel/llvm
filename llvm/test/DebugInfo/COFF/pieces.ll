@@ -40,9 +40,9 @@
 ; ASM: # %bb.2:                                 # %for.body.preheader
 ; ASM:         xorl    %edi, %edi
 ; ASM:         xorl    %esi, %esi
+; ASM: [[oy_ox_start:\.Ltmp[0-9]+]]:
 ; ASM:         .p2align        4, 0x90
 ; ASM: .LBB0_3:                                # %for.body
-; ASM: [[oy_ox_start:\.Ltmp[0-9]+]]:
 ; ASM:        #DEBUG_VALUE: loop_csr:o <- [DW_OP_LLVM_fragment 0 32] $edi
 ; ASM:        #DEBUG_VALUE: loop_csr:o <- [DW_OP_LLVM_fragment 32 32] $esi
 ; ASM:        .cv_loc 0 1 13 11               # t.c:13:11
@@ -59,13 +59,21 @@
 ; ASM:         #DEBUG_VALUE: loop_csr:o <- [DW_OP_LLVM_fragment 32 32] $esi
 ; ASM:         cmpl    n(%rip), %eax
 ; ASM:         jl      .LBB0_3
+; ASM: [[loopskip_start:\.Ltmp[0-9]+]]:
+; ASM:         #DEBUG_VALUE: loop_csr:o <- [DW_OP_LLVM_fragment 0 32] 0
+; ASM:         xorl    %esi, %esi
+; ASM:         xorl    %edi, %edi
 ; ASM: [[oy_end:\.Ltmp[0-9]+]]:
 ; ASM:         addl    %edi, %esi
 ; ASM:         movl    %esi, %eax
 
+; XXX FIXME: the debug value line after loopskip_start should be repeated
+; because both fields of 'o' are zero flowing into this block. However, it
+; appears livedebugvalues doesn't account for fragments.
 
 ; ASM-LABEL: pad_right: # @pad_right
 ; ASM:         movq    %rcx, %rax
+; ASM: [[pad_right_tmp:\.Ltmp[0-9]+]]:
 ; ASM:         #DEBUG_VALUE: pad_right:o <- [DW_OP_LLVM_fragment 32 32] $eax
 ; ASM:         retq
 
@@ -73,12 +81,13 @@
 ; ASM-LABEL: pad_left: # @pad_left
 ; ASM:         .cv_loc 2 1 24 3                # t.c:24:3
 ; ASM:         movq    %rcx, %rax
+; ASM: [[pad_left_tmp:\.Ltmp[0-9]+]]:
 ; ASM:         #DEBUG_VALUE: pad_left:o <- [DW_OP_LLVM_fragment 0 32] $eax
 ; ASM:         retq
 
 
 ; ASM-LABEL: nested: # @nested
-; ASM:         #DEBUG_VALUE: nested:o <- [DW_OP_deref] [$rcx+0]
+; ASM:         #DEBUG_VALUE: nested:o <- [DW_OP_deref] $rcx
 ; ASM:         movl    12(%rcx), %eax
 ; ASM: [[p_start:\.Ltmp[0-9]+]]:
 ; ASM:         #DEBUG_VALUE: nested:p <- [DW_OP_LLVM_fragment 32 32] $eax
@@ -94,18 +103,19 @@
 ; ASM:         #APP
 ; ASM:         #NO_APP
 ; ASM:         movl    [[offset_o_x]](%rsp), %eax          # 4-byte Reload
-; ASM: [[spill_o_x_end:\.Ltmp[0-9]+]]:
 ; ASM:         retq
+; ASM-NEXT: [[spill_o_x_end:\.Ltmp[0-9]+]]:
+; ASM-NEXT: .Lfunc_end4:
 
 
 ; ASM-LABEL:  .short  4423                    # Record kind: S_GPROC32_ID
 ; ASM:        .asciz  "loop_csr"              # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    [[oy_ox_start]] [[ox_start]], "C\021\030\000\000\000\000\000\000\000"
-; ASM:        .cv_def_range    [[oy_ox_start]] [[oy_start]], "C\021\027\000\000\000\004\000\000\000"
-; ASM:        .cv_def_range    [[ox_start]] [[oy_end]], "C\021\030\000\000\000\000\000\000\000"
-; ASM:        .cv_def_range    [[oy_start]] [[oy_end]], "C\021\027\000\000\000\004\000\000\000"
+; ASM:        .cv_def_range    [[oy_ox_start]] [[ox_start]], subfield_reg, 24, 0
+; ASM:        .cv_def_range    [[oy_ox_start]] [[oy_start]], subfield_reg, 23, 4
+; ASM:        .cv_def_range    [[ox_start]] [[loopskip_start]], subfield_reg, 24, 0
+; ASM:        .cv_def_range    [[oy_start]] [[loopskip_start]], subfield_reg, 23, 4
 
 
 ; OBJ-LABEL: GlobalProcIdSym {
@@ -136,7 +146,7 @@
 ; ASM:        .asciz  "pad_right"             # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    .Ltmp8 .Ltmp8, "C\021\021\000\000\000\004\000\000\000"
+; ASM:        .cv_def_range    [[pad_right_tmp]] [[pad_right_tmp]], subfield_reg, 17, 4
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
@@ -159,7 +169,7 @@
 ; ASM:        .asciz  "pad_left"              # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    .Ltmp10 .Ltmp10, "C\021\021\000\000\000\000\000\000\000"
+; ASM:        .cv_def_range    [[pad_left_tmp]] [[pad_left_tmp]], subfield_reg, 17, 0
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
@@ -182,17 +192,17 @@
 ; ASM:        .asciz  "nested"                # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    .Lfunc_begin3 .Lfunc_end3, "E\021J\001\000\000\000\000\000\000"
+; ASM:        .cv_def_range    .Lfunc_begin3 .Lfunc_end3, reg_rel, 330, 0, 0
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "p"
-; ASM:        .cv_def_range    [[p_start]] .Lfunc_end3, "C\021\021\000\000\000\004\000\000\000"
+; ASM:        .cv_def_range    [[p_start]] .Lfunc_end3, subfield_reg, 17, 4
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
 ; OBJ:         DisplayName: nested
 ; OBJ:       }
 ; OBJ:       LocalSym {
-; OBJ:         Type: Nested&
+; OBJ:         Type: Nested
 ; OBJ:         VarName: o
 ; OBJ:       }
 ; OBJ:       DefRangeRegisterRelSym {
@@ -221,7 +231,7 @@
 ; ASM:        .asciz  "bitpiece_spill"        # Function name
 ; ASM:        .short  4414                    # Record kind: S_LOCAL
 ; ASM:        .asciz  "o"
-; ASM:        .cv_def_range    [[spill_o_x_start]] [[spill_o_x_end]], "E\021O\001A\000$\000\000\000"
+; ASM:        .cv_def_range    [[spill_o_x_start]] .Lfunc_end4, reg_rel, 335, 65, 36
 
 ; OBJ-LABEL: GlobalProcIdSym {
 ; OBJ:         Kind: S_GPROC32_ID (0x1147)
@@ -425,7 +435,7 @@ attributes #5 = { nounwind }
 !70 = !{!71, !72}
 !71 = !DILocalVariable(name: "o", arg: 1, scope: !61, file: !1, line: 27, type: !64)
 !72 = !DILocalVariable(name: "p", scope: !61, file: !1, line: 28, type: !53)
-!73 = !DIExpression(DW_OP_deref)
+!73 = !DIExpression()
 !74 = !DILocation(line: 27, column: 26, scope: !61)
 !75 = !DILocation(line: 28, column: 18, scope: !61)
 !76 = !DILocation(line: 28, column: 22, scope: !61)

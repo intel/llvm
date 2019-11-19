@@ -42,7 +42,7 @@
 # RUN: yaml2obj -docnum 1 %s \
 # RUN:   | llvm-readelf -relocations -raw-relr - \
 # RUN:   | FileCheck --check-prefix=RAW-GNU1 %s
-# RAW-GNU1:      Relocation section '.relr.dyn' at offset 0x180 contains 5 entries:
+# RAW-GNU1:      Relocation section '.relr.dyn' at offset 0x40 contains 5 entries:
 # RAW-GNU1:      0000000000010d60
 # RAW-GNU1-NEXT: 0000000000000103
 # RAW-GNU1-NEXT: 0000000000020000
@@ -52,7 +52,7 @@
 # RUN: yaml2obj -docnum 1 %s \
 # RUN:   | llvm-readelf -relocations - \
 # RUN:   | FileCheck --check-prefix=GNU1 %s
-# GNU1:      Relocation section '.relr.dyn' at offset 0x180 contains 21 entries:
+# GNU1:      Relocation section '.relr.dyn' at offset 0x40 contains 21 entries:
 # GNU1:      0000000000010d60  0000000000000008 R_X86_64_RELATIVE
 # GNU1-NEXT: 0000000000010d68  0000000000000008 R_X86_64_RELATIVE
 # GNU1-NEXT: 0000000000010da0  0000000000000008 R_X86_64_RELATIVE
@@ -91,6 +91,7 @@ Sections:
     Link:            .symtab
     AddressAlign:    0x0000000000000001
     Content:         600D0100000000000301000000000000000002000000000001050F00000000000900405005700A00
+Symbols: []
 ...
 
 # RUN: yaml2obj -docnum 2 %s \
@@ -127,7 +128,7 @@ Sections:
 # RUN: yaml2obj -docnum 2 %s \
 # RUN:   | llvm-readelf -relocations -raw-relr - \
 # RUN:   | FileCheck --check-prefix=RAW-GNU2 %s
-# RAW-GNU2:      Relocation section '.relr.dyn' at offset 0xfc contains 5 entries:
+# RAW-GNU2:      Relocation section '.relr.dyn' at offset 0x34 contains 5 entries:
 # RAW-GNU2:      00010d60
 # RAW-GNU2-NEXT: 00000103
 # RAW-GNU2-NEXT: 00020000
@@ -137,7 +138,7 @@ Sections:
 # RUN: yaml2obj -docnum 2 %s \
 # RUN:   | llvm-readelf -relocations - \
 # RUN:   | FileCheck --check-prefix=GNU2 %s
-# GNU2:      Relocation section '.relr.dyn' at offset 0xfc contains 14 entries:
+# GNU2:      Relocation section '.relr.dyn' at offset 0x34 contains 14 entries:
 # GNU2:      00010d60  00000008 R_386_RELATIVE
 # GNU2-NEXT: 00010d64  00000008 R_386_RELATIVE
 # GNU2-NEXT: 00010d80  00000008 R_386_RELATIVE
@@ -169,4 +170,5 @@ Sections:
     Link:            .symtab
     AddressAlign:    0x00000001
     Content:         600D0100030100000000020001050F0009004050
+Symbols: []
 ...

@@ -8,10 +8,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -24,10 +21,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -40,24 +34,21 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-        
-    %pythoncode %{ 
+
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 
@@ -71,10 +62,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -88,26 +76,23 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
 
 %extend lldb::SBBroadcaster {
-    %pythoncode %{ 
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -121,13 +106,10 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-        
+
         /* the write() and flush() calls are not part of the SB API proper, and are solely for Python usage
         they are meant to make an SBCommandReturnObject into a file-like object so that instructions of the sort
         print >>sb_command_return_object, "something"
@@ -150,23 +132,20 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-    %pythoncode %{ 
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -179,10 +158,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -195,10 +171,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -211,24 +184,21 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-        
-    %pythoncode %{ 
+
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 
@@ -242,10 +212,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -258,10 +225,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -274,10 +238,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -290,24 +251,21 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-        
-    %pythoncode %{ 
+
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 
@@ -321,10 +279,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -337,10 +292,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -353,24 +305,21 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-        
-    %pythoncode %{ 
+
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -384,10 +333,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -401,24 +347,21 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-        
-    %pythoncode %{ 
+
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -432,10 +375,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -449,10 +389,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -466,10 +403,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -482,24 +416,21 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-        
-    %pythoncode %{ 
+
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -526,23 +457,20 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
     %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -555,10 +483,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -571,10 +496,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -588,24 +510,21 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 
-    %pythoncode %{ 
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -619,10 +538,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -635,10 +551,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -651,23 +564,20 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-    %pythoncode %{ 
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -680,10 +590,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -696,10 +603,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -712,10 +616,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -728,10 +629,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -744,23 +642,20 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-    %pythoncode %{ 
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -773,23 +668,20 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-    %pythoncode %{ 
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -802,23 +694,20 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-    %pythoncode %{ 
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -831,23 +720,20 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
-    %pythoncode %{ 
+    %pythoncode %{
         def __eq__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return False 
-            
+            if not isinstance(rhs, type(self)):
+                return False
+
             return getattr(_lldb,self.__class__.__name__+"___eq__")(self, rhs)
-            
+
         def __ne__(self, rhs):
-            if not isinstance(rhs, type(self)): 
-                return True 
-            
+            if not isinstance(rhs, type(self)):
+                return True
+
             return getattr(_lldb,self.__class__.__name__+"___ne__")(self, rhs)
     %}
 }
@@ -860,10 +746,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -885,10 +768,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -901,10 +781,7 @@
                 size_t desc_len = description.GetSize();
                 if (desc_len > 0 && (desc[desc_len-1] == '\n' || desc[desc_len-1] == '\r'))
                     --desc_len;
-                if (desc_len > 0)
-                    return lldb_private::PythonString(llvm::StringRef(desc, desc_len)).release();
-                else
-                    return lldb_private::PythonString("").release();
+                return PythonString(llvm::StringRef(desc, desc_len)).release();
         }
         %clearnothreadallow;
 }
@@ -945,14 +822,17 @@ class declaration(object):
 class value_iter(object):
     def __iter__(self):
         return self
-    
-    def next(self):
+
+    def __next__(self):
         if self.index >= self.length:
             raise StopIteration()
         child_sbvalue = self.sbvalue.GetChildAtIndex(self.index)
         self.index += 1
         return value(child_sbvalue)
-        
+
+    def next(self):
+        return self.__next__()
+
     def __init__(self,value):
         self.index = 0
         self.sbvalue = value
@@ -965,7 +845,7 @@ class value(object):
     can be used as a variable would be in code. So if you have a Point structure
     variable in your code in the current frame named "pt", you can initialize an instance
     of this class with it:
-    
+
     pt = lldb.value(lldb.frame.FindVariable("pt"))
     print pt
     print pt.x
@@ -979,6 +859,9 @@ class value(object):
 
     def __nonzero__(self):
         return self.sbvalue.__nonzero__()
+
+    def __bool__(self):
+        return self.sbvalue.__bool__()
 
     def __str__(self):
         return self.sbvalue.__str__()
@@ -1005,131 +888,131 @@ class value(object):
 
     def __add__(self, other):
         return int(self) + int(other)
-        
+
     def __sub__(self, other):
         return int(self) - int(other)
-        
+
     def __mul__(self, other):
         return int(self) * int(other)
-        
+
     def __floordiv__(self, other):
         return int(self) // int(other)
-        
+
     def __mod__(self, other):
         return int(self) % int(other)
-        
+
     def __divmod__(self, other):
         return int(self) % int(other)
-        
+
     def __pow__(self, other):
         return int(self) ** int(other)
-        
+
     def __lshift__(self, other):
         return int(self) << int(other)
-        
+
     def __rshift__(self, other):
         return int(self) >> int(other)
-        
+
     def __and__(self, other):
         return int(self) & int(other)
-        
+
     def __xor__(self, other):
         return int(self) ^ int(other)
-        
+
     def __or__(self, other):
         return int(self) | int(other)
-        
+
     def __div__(self, other):
         return int(self) / int(other)
-        
+
     def __truediv__(self, other):
         return int(self) / int(other)
-        
+
     def __iadd__(self, other):
         result = self.__add__(other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __isub__(self, other):
         result = self.__sub__(other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __imul__(self, other):
         result = self.__mul__(other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __idiv__(self, other):
         result = self.__div__(other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __itruediv__(self, other):
         result = self.__truediv__(other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __ifloordiv__(self, other):
         result =  self.__floordiv__(self, other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __imod__(self, other):
         result =  self.__and__(self, other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __ipow__(self, other):
         result = self.__pow__(self, other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __ipow__(self, other, modulo):
         result = self.__pow__(self, other, modulo)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __ilshift__(self, other):
         result = self.__lshift__(other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __irshift__(self, other):
         result =  self.__rshift__(other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __iand__(self, other):
         result =  self.__and__(self, other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __ixor__(self, other):
         result =  self.__xor__(self, other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __ior__(self, other):
         result =  self.__ior__(self, other)
         self.sbvalue.SetValueFromCString (str(result))
         return result
-        
+
     def __neg__(self):
         return -int(self)
-        
+
     def __pos__(self):
         return +int(self)
-        
+
     def __abs__(self):
         return abs(int(self))
-        
+
     def __invert__(self):
         return ~int(self)
-        
+
     def __complex__(self):
         return complex (int(self))
-        
+
     def __int__(self):
         is_num,is_sign = is_numeric_type(self.sbvalue.GetType().GetCanonicalType().GetBasicType())
         if is_num and not is_sign: return self.sbvalue.GetValueAsUnsigned()
@@ -1140,10 +1023,10 @@ class value(object):
 
     def __float__(self):
         return float (self.sbvalue.GetValueAsSigned())
-        
+
     def __oct__(self):
         return '0%o' % self.sbvalue.GetValueAsUnsigned()
-        
+
     def __hex__(self):
         return '0x%x' % self.sbvalue.GetValueAsUnsigned()
 

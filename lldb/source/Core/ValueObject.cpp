@@ -35,7 +35,6 @@
 #include "lldb/Target/ExecutionContext.h"
 #include "lldb/Target/Language.h"
 #include "lldb/Target/LanguageRuntime.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
@@ -74,7 +73,6 @@ class SymbolContextScope;
 
 using namespace lldb;
 using namespace lldb_private;
-using namespace lldb_utility;
 
 static user_id_t g_value_obj_uid = 0;
 
@@ -102,6 +100,8 @@ ValueObject::ValueObject(ValueObject &parent)
       m_did_calculate_complete_objc_class_type(false),
       m_is_synthetic_children_generated(
           parent.m_is_synthetic_children_generated) {
+  m_data.SetByteOrder(parent.GetDataExtractor().GetByteOrder());
+  m_data.SetAddressByteSize(parent.GetDataExtractor().GetAddressByteSize());
   m_manager->ManageObject(this);
 }
 
@@ -128,12 +128,72 @@ ValueObject::ValueObject(ExecutionContextScope *exe_scope,
       m_is_getting_summary(false),
       m_did_calculate_complete_objc_class_type(false),
       m_is_synthetic_children_generated(false) {
+  if (exe_scope) {
+    TargetSP target_sp(exe_scope->CalculateTarget());
+    if (target_sp) {
+      const ArchSpec &arch = target_sp->GetArchitecture();
+      m_data.SetByteOrder(arch.GetByteOrder());
+      m_data.SetAddressByteSize(arch.GetAddressByteSize());
+    }
+  }
   m_manager = new ValueObjectManager();
   m_manager->ManageObject(this);
 }
 
 // Destructor
 ValueObject::~ValueObject() {}
+
+void ValueObject::UpdateChildrenAddressType() {
+  Value::ValueType value_type = m_value.GetValueType();
+  ExecutionContext exe_ctx(GetExecutionContextRef());
+  Process *process = exe_ctx.GetProcessPtr();
+  const bool process_is_alive = process && process->IsAlive();
+  const uint32_t type_info = GetCompilerType().GetTypeInfo();
+  const bool is_pointer_or_ref =
+      (type_info & (lldb::eTypeIsPointer | lldb::eTypeIsReference)) != 0;
+
+  switch (value_type) {
+  case Value::eValueTypeFileAddress:
+    // If this type is a pointer, then its children will be considered load
+    // addresses if the pointer or reference is dereferenced, but only if
+    // the process is alive.
+    //
+    // There could be global variables like in the following code:
+    // struct LinkedListNode { Foo* foo; LinkedListNode* next; };
+    // Foo g_foo1;
+    // Foo g_foo2;
+    // LinkedListNode g_second_node = { &g_foo2, NULL };
+    // LinkedListNode g_first_node = { &g_foo1, &g_second_node };
+    //
+    // When we aren't running, we should be able to look at these variables
+    // using the "target variable" command. Children of the "g_first_node"
+    // always will be of the same address type as the parent. But children
+    // of the "next" member of LinkedListNode will become load addresses if
+    // we have a live process, or remain a file address if it was a file
+    // address.
+    if (process_is_alive && is_pointer_or_ref)
+      SetAddressTypeOfChildren(eAddressTypeLoad);
+    else
+      SetAddressTypeOfChildren(eAddressTypeFile);
+    break;
+  case Value::eValueTypeHostAddress:
+    // Same as above for load addresses, except children of pointer or refs
+    // are always load addresses. Host addresses are used to store freeze
+    // dried variables. If this type is a struct, the entire struct
+    // contents will be copied into the heap of the
+    // LLDB process, but we do not currently follow any pointers.
+    if (is_pointer_or_ref)
+      SetAddressTypeOfChildren(eAddressTypeLoad);
+    else
+      SetAddressTypeOfChildren(eAddressTypeHost);
+    break;
+  case Value::eValueTypeLoadAddress:
+  case Value::eValueTypeScalar:
+  case Value::eValueTypeVector:
+    SetAddressTypeOfChildren(eAddressTypeLoad);
+    break;
+  }
+}
 
 bool ValueObject::UpdateValueIfNeeded(bool update_format) {
 
@@ -197,6 +257,7 @@ bool ValueObject::UpdateValueIfNeeded(bool update_format) {
       SetValueIsValid(success);
 
       if (success) {
+        UpdateChildrenAddressType();
         const uint64_t max_checksum_size = 128;
         m_data.Checksum(m_value_checksum, max_checksum_size);
       } else {
@@ -227,12 +288,12 @@ bool ValueObject::UpdateValueIfNeeded(bool update_format) {
 
 bool ValueObject::UpdateFormatsIfNeeded() {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DATAFORMATTERS));
-  if (log)
-    log->Printf("[%s %p] checking for FormatManager revisions. ValueObject "
-                "rev: %d - Global rev: %d",
-                GetName().GetCString(), static_cast<void *>(this),
-                m_last_format_mgr_revision,
-                DataVisualization::GetCurrentRevision());
+  LLDB_LOGF(log,
+            "[%s %p] checking for FormatManager revisions. ValueObject "
+            "rev: %d - Global rev: %d",
+            GetName().GetCString(), static_cast<void *>(this),
+            m_last_format_mgr_revision,
+            DataVisualization::GetCurrentRevision());
 
   bool any_change = false;
 
@@ -280,51 +341,21 @@ CompilerType ValueObject::MaybeCalculateCompleteType() {
       return compiler_type;
   }
 
-  CompilerType class_type;
-  bool is_pointer_type = false;
-
-  if (ClangASTContext::IsObjCObjectPointerType(compiler_type, &class_type)) {
-    is_pointer_type = true;
-  } else if (ClangASTContext::IsObjCObjectOrInterfaceType(compiler_type)) {
-    class_type = compiler_type;
-  } else {
-    return compiler_type;
-  }
-
   m_did_calculate_complete_objc_class_type = true;
 
-  if (class_type) {
-    ConstString class_name(class_type.GetConstTypeName());
+  ProcessSP process_sp(
+      GetUpdatePoint().GetExecutionContextRef().GetProcessSP());
 
-    if (class_name) {
-      ProcessSP process_sp(
-          GetUpdatePoint().GetExecutionContextRef().GetProcessSP());
+  if (!process_sp)
+    return compiler_type;
 
-      if (process_sp) {
-        ObjCLanguageRuntime *objc_language_runtime(
-            process_sp->GetObjCLanguageRuntime());
-
-        if (objc_language_runtime) {
-          TypeSP complete_objc_class_type_sp =
-              objc_language_runtime->LookupInCompleteClassCache(class_name);
-
-          if (complete_objc_class_type_sp) {
-            CompilerType complete_class(
-                complete_objc_class_type_sp->GetFullCompilerType());
-
-            if (complete_class.GetCompleteType()) {
-              if (is_pointer_type) {
-                m_override_type = complete_class.GetPointerType();
-              } else {
-                m_override_type = complete_class;
-              }
-
-              if (m_override_type.IsValid())
-                return m_override_type;
-            }
-          }
-        }
-      }
+  if (auto *runtime =
+          process_sp->GetLanguageRuntime(GetObjectRuntimeLanguage())) {
+    if (llvm::Optional<CompilerType> complete_type =
+            runtime->GetRuntimeType(compiler_type)) {
+      m_override_type = complete_type.getValue();
+      if (m_override_type.IsValid())
+        return m_override_type;
     }
   }
   return compiler_type;
@@ -558,6 +589,10 @@ ValueObjectSP ValueObject::GetChildMemberWithName(ConstString name,
 
   std::vector<uint32_t> child_indexes;
   bool omit_empty_base_classes = true;
+
+  if (!GetCompilerType().IsValid())
+    return ValueObjectSP();
+
   const size_t num_child_indexes =
       GetCompilerType().GetIndexOfChildMemberWithName(
           name.GetCString(), omit_empty_base_classes, child_indexes);
@@ -842,7 +877,7 @@ size_t ValueObject::GetPointeeData(DataExtractor &data, uint32_t item_idx,
 uint64_t ValueObject::GetData(DataExtractor &data, Status &error) {
   UpdateValueIfNeeded(false);
   ExecutionContext exe_ctx(GetExecutionContextRef());
-  error = m_value.GetValueAsData(&exe_ctx, data, 0, GetModule().get());
+  error = m_value.GetValueAsData(&exe_ctx, data, GetModule().get());
   if (error.Fail()) {
     if (m_data.GetByteSize()) {
       data = m_data;
@@ -1695,18 +1730,19 @@ bool ValueObject::IsPossibleDynamicType() {
 
 bool ValueObject::IsRuntimeSupportValue() {
   Process *process(GetProcessSP().get());
-  if (process) {
-    LanguageRuntime *runtime =
-        process->GetLanguageRuntime(GetObjectRuntimeLanguage());
-    if (!runtime)
-      runtime = process->GetObjCLanguageRuntime();
-    if (runtime)
-      return runtime->IsRuntimeSupportValue(*this);
-    // If there is no language runtime, trust the compiler to mark all
-    // runtime support variables as artificial.
-    return GetVariable() && GetVariable()->IsArtificial();
-  }
-  return false;
+  if (!process)
+    return false;
+
+  // We trust the the compiler did the right thing and marked runtime support
+  // values as artificial.
+  if (!GetVariable() || !GetVariable()->IsArtificial())
+    return false;
+
+  if (auto *runtime = process->GetLanguageRuntime(GetVariable()->GetLanguage()))
+    if (runtime->IsWhitelistedRuntimeValue(GetName()))
+      return false;
+
+  return true;
 }
 
 bool ValueObject::IsNilReference() {
@@ -2001,15 +2037,14 @@ bool ValueObject::GetBaseClassPath(Stream &s) {
     bool parent_had_base_class =
         GetParent() && GetParent()->GetBaseClassPath(s);
     CompilerType compiler_type = GetCompilerType();
-    std::string cxx_class_name;
-    bool this_had_base_class =
-        ClangASTContext::GetCXXClassName(compiler_type, cxx_class_name);
-    if (this_had_base_class) {
+    llvm::Optional<std::string> cxx_class_name =
+        ClangASTContext::GetCXXClassName(compiler_type);
+    if (cxx_class_name) {
       if (parent_had_base_class)
         s.PutCString("::");
-      s.PutCString(cxx_class_name);
+      s.PutCString(cxx_class_name.getValue());
     }
-    return parent_had_base_class || this_had_base_class;
+    return parent_had_base_class || cxx_class_name;
   }
   return false;
 }
@@ -2747,9 +2782,9 @@ ValueObjectSP ValueObject::CreateConstantValue(ConstString name) {
 
     if (IsBitfield()) {
       Value v(Scalar(GetValueAsUnsigned(UINT64_MAX)));
-      m_error = v.GetValueAsData(&exe_ctx, data, 0, GetModule().get());
+      m_error = v.GetValueAsData(&exe_ctx, data, GetModule().get());
     } else
-      m_error = m_value.GetValueAsData(&exe_ctx, data, 0, GetModule().get());
+      m_error = m_value.GetValueAsData(&exe_ctx, data, GetModule().get());
 
     valobj_sp = ValueObjectConstResult::Create(
         exe_ctx.GetBestExecutionContextScope(), GetCompilerType(), name, data,
@@ -3331,32 +3366,32 @@ lldb::ValueObjectSP ValueObjectManager::GetSP() {
   lldb::ProcessSP process_sp = GetProcessSP();
   if (!process_sp)
     return lldb::ValueObjectSP();
-  
+
   const uint32_t current_stop_id = process_sp->GetLastNaturalStopID();
   if (current_stop_id == m_stop_id)
     return m_user_valobj_sp;
-  
+
   m_stop_id = current_stop_id;
-  
+
   if (!m_root_valobj_sp) {
     m_user_valobj_sp.reset();
     return m_root_valobj_sp;
   }
-  
+
   m_user_valobj_sp = m_root_valobj_sp;
-  
+
   if (m_use_dynamic != lldb::eNoDynamicValues) {
     lldb::ValueObjectSP dynamic_sp = m_user_valobj_sp->GetDynamicValue(m_use_dynamic);
     if (dynamic_sp)
       m_user_valobj_sp = dynamic_sp;
   }
-  
+
   if (m_use_synthetic) {
     lldb::ValueObjectSP synthetic_sp = m_user_valobj_sp->GetSyntheticValue(m_use_synthetic);
     if (synthetic_sp)
       m_user_valobj_sp = synthetic_sp;
   }
-  
+
   return m_user_valobj_sp;
 }
 
@@ -3399,4 +3434,3 @@ lldb::StackFrameSP ValueObjectManager::GetFrameSP() const {
     return m_root_valobj_sp->GetFrameSP();
   return lldb::StackFrameSP();
 }
-

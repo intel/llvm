@@ -14,8 +14,8 @@
 #include <CL/sycl/range.hpp>
 
 #include <algorithm>
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -32,6 +32,11 @@ public:
 
 public:
   template <typename U> struct rebind { typedef aligned_allocator<U> other; };
+
+  aligned_allocator() = default;
+  ~aligned_allocator() = default;
+
+  explicit aligned_allocator(size_t Alignment) : MAlignment(Alignment) {}
 
   // Construct an object
   void construct(pointer Ptr, const_reference Val) {

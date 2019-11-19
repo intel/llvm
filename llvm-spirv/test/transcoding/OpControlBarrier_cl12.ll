@@ -11,7 +11,7 @@
 ; CHECK-LLVM-NEXT: call spir_func void @_Z7barrierj(i32 3) [[attr]]
 ; CHECK-LLVM-NEXT: call spir_func void @_Z7barrierj(i32 5) [[attr]]
 ; CHECK-LLVM-NEXT: call spir_func void @_Z7barrierj(i32 7) [[attr]]
-; CHECK-LLVM: attributes [[attr]] = { noduplicate nounwind }
+; CHECK-LLVM: attributes [[attr]] = { convergent nounwind }
 
 ; CHECK-SPIRV-DAG: 4 Constant {{[0-9]+}} [[MemSema1:[0-9]+]] 528
 ; CHECK-SPIRV-DAG: 4 Constant {{[0-9]+}} [[MemSema2:[0-9]+]] 272

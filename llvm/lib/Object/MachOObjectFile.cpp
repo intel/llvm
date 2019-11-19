@@ -1945,6 +1945,11 @@ uint64_t MachOObjectFile::getSectionSize(DataRefImpl Sec) const {
   return SectSize;
 }
 
+ArrayRef<uint8_t> MachOObjectFile::getSectionContents(uint32_t Offset,
+                                                      uint64_t Size) const {
+  return arrayRefFromStringRef(getData().substr(Offset, Size));
+}
+
 Expected<ArrayRef<uint8_t>>
 MachOObjectFile::getSectionContents(DataRefImpl Sec) const {
   uint32_t Offset;
@@ -1960,7 +1965,7 @@ MachOObjectFile::getSectionContents(DataRefImpl Sec) const {
     Size = Sect.size;
   }
 
-  return arrayRefFromStringRef(getData().substr(Offset, Size));
+  return getSectionContents(Offset, Size);
 }
 
 uint64_t MachOObjectFile::getSectionAlignment(DataRefImpl Sec) const {
@@ -1986,13 +1991,12 @@ Expected<SectionRef> MachOObjectFile::getSection(unsigned SectionIndex) const {
 }
 
 Expected<SectionRef> MachOObjectFile::getSection(StringRef SectionName) const {
-  StringRef SecName;
   for (const SectionRef &Section : sections()) {
-    if (std::error_code E = Section.getName(SecName))
-      return errorCodeToError(E);
-    if (SecName == SectionName) {
+    auto NameOrErr = Section.getName();
+    if (!NameOrErr)
+      return NameOrErr.takeError();
+    if (*NameOrErr == SectionName)
       return Section;
-    }
   }
   return errorCodeToError(object_error::parse_failed);
 }
@@ -2718,25 +2722,18 @@ Triple MachOObjectFile::getHostArch() {
 }
 
 bool MachOObjectFile::isValidArch(StringRef ArchFlag) {
-  return StringSwitch<bool>(ArchFlag)
-      .Case("i386", true)
-      .Case("x86_64", true)
-      .Case("x86_64h", true)
-      .Case("armv4t", true)
-      .Case("arm", true)
-      .Case("armv5e", true)
-      .Case("armv6", true)
-      .Case("armv6m", true)
-      .Case("armv7", true)
-      .Case("armv7em", true)
-      .Case("armv7k", true)
-      .Case("armv7m", true)
-      .Case("armv7s", true)
-      .Case("arm64", true)
-      .Case("arm64_32", true)
-      .Case("ppc", true)
-      .Case("ppc64", true)
-      .Default(false);
+  auto validArchs = getValidArchs();
+  return llvm::find(validArchs, ArchFlag) != validArchs.end();
+}
+
+ArrayRef<StringRef> MachOObjectFile::getValidArchs() {
+  static const std::array<StringRef, 17> validArchs = {{
+      "i386",   "x86_64", "x86_64h",  "armv4t",  "arm",    "armv5e",
+      "armv6",  "armv6m", "armv7",    "armv7em", "armv7k", "armv7m",
+      "armv7s", "arm64",  "arm64_32", "ppc",     "ppc64",
+  }};
+
+  return validArchs;
 }
 
 Triple::ArchType MachOObjectFile::getArch() const {
@@ -3436,7 +3433,7 @@ iterator_range<rebase_iterator>
 MachOObjectFile::rebaseTable(Error &Err, MachOObjectFile *O,
                              ArrayRef<uint8_t> Opcodes, bool is64) {
   if (O->BindRebaseSectionTable == nullptr)
-    O->BindRebaseSectionTable = llvm::make_unique<BindRebaseSegInfo>(O);
+    O->BindRebaseSectionTable = std::make_unique<BindRebaseSegInfo>(O);
   MachORebaseEntry Start(&Err, O, Opcodes, is64);
   Start.moveToFirst();
 
@@ -4002,7 +3999,11 @@ BindRebaseSegInfo::BindRebaseSegInfo(const object::MachOObjectFile *Obj) {
   uint64_t CurSegAddress;
   for (const SectionRef &Section : Obj->sections()) {
     SectionInfo Info;
-    Section.getName(Info.SectionName);
+    Expected<StringRef> NameOrErr = Section.getName();
+    if (!NameOrErr)
+      consumeError(NameOrErr.takeError());
+    else
+      Info.SectionName = *NameOrErr;
     Info.Address = Section.getAddress();
     Info.Size = Section.getSize();
     Info.SegmentName =
@@ -4103,7 +4104,7 @@ MachOObjectFile::bindTable(Error &Err, MachOObjectFile *O,
                            ArrayRef<uint8_t> Opcodes, bool is64,
                            MachOBindEntry::Kind BKind) {
   if (O->BindRebaseSectionTable == nullptr)
-    O->BindRebaseSectionTable = llvm::make_unique<BindRebaseSegInfo>(O);
+    O->BindRebaseSectionTable = std::make_unique<BindRebaseSegInfo>(O);
   MachOBindEntry Start(&Err, O, Opcodes, is64, BKind);
   Start.moveToFirst();
 
@@ -4619,7 +4620,7 @@ void MachOObjectFile::ReadULEB128s(uint64_t Index,
                                    SmallVectorImpl<uint64_t> &Out) const {
   DataExtractor extractor(ObjectFile::getData(), true, 0);
 
-  uint32_t offset = Index;
+  uint64_t offset = Index;
   uint64_t data = 0;
   while (uint64_t delta = extractor.getULEB128(&offset)) {
     data += delta;

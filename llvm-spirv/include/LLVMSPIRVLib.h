@@ -41,6 +41,8 @@
 #ifndef SPIRV_H
 #define SPIRV_H
 
+#include "LLVMSPIRVOpts.h"
+
 #include <iostream>
 #include <string>
 
@@ -49,7 +51,6 @@ namespace llvm {
 // PassSupport.h.
 class PassRegistry;
 void initializeLLVMToSPIRVPass(PassRegistry &);
-void initializeOCL20To12Pass(PassRegistry &);
 void initializeOCL20ToSPIRVPass(PassRegistry &);
 void initializeOCL21ToSPIRVPass(PassRegistry &);
 void initializeOCLTypeToSPIRVPass(PassRegistry &);
@@ -59,13 +60,17 @@ void initializeSPIRVLowerSPIRBlocksPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksPass(PassRegistry &);
 void initializeSPIRVLowerMemmovePass(PassRegistry &);
 void initializeSPIRVRegularizeLLVMPass(PassRegistry &);
+void initializeSPIRVToOCL12Pass(PassRegistry &);
 void initializeSPIRVToOCL20Pass(PassRegistry &);
 void initializePreprocessMetadataPass(PassRegistry &);
+
+class ModulePass;
 } // namespace llvm
 
 #include "llvm/IR/Module.h"
 
 namespace SPIRV {
+
 class SPIRVModule;
 
 /// \brief Check if a string contains SPIR-V binary.
@@ -94,6 +99,12 @@ bool isSpirvText(std::string &Img);
 std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
                                              std::string &ErrMsg);
 
+/// \brief Load SPIR-V from istream as a SPIRVModule.
+/// \returns null on failure.
+std::unique_ptr<SPIRVModule> readSpirvModule(std::istream &IS,
+                                             const SPIRV::TranslatorOpts &Opts,
+                                             std::string &ErrMsg);
+
 } // End namespace SPIRV
 
 namespace llvm {
@@ -106,6 +117,16 @@ bool writeSpirv(Module *M, std::ostream &OS, std::string &ErrMsg);
 /// \returns true if succeeds.
 bool readSpirv(LLVMContext &C, std::istream &IS, Module *&M,
                std::string &ErrMsg);
+
+/// \brief Translate LLVM module to SPIR-V and write to ostream.
+/// \returns true if succeeds.
+bool writeSpirv(Module *M, const SPIRV::TranslatorOpts &Opts, std::ostream &OS,
+                std::string &ErrMsg);
+
+/// \brief Load SPIR-V from istream and translate to LLVM module.
+/// \returns true if succeeds.
+bool readSpirv(LLVMContext &C, const SPIRV::TranslatorOpts &Opts,
+               std::istream &IS, Module *&M, std::string &ErrMsg);
 
 /// \brief Convert a SPIRVModule into LLVM IR.
 /// \returns null on failure.
@@ -122,10 +143,6 @@ void mangleOpenClBuiltin(const std::string &UnmangledName,
 
 /// Create a pass for translating LLVM to SPIR-V.
 ModulePass *createLLVMToSPIRV(SPIRV::SPIRVModule *);
-
-/// Create a pass for translating OCL 2.0 builtin functions to equivalent
-/// OCL 1.2 builtin functions.
-ModulePass *createOCL20To12();
 
 /// Create a pass for translating OCL 2.0 builtin functions to SPIR-V builtin
 /// functions.
@@ -156,6 +173,14 @@ ModulePass *createSPIRVLowerMemmove();
 
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
 ModulePass *createSPIRVRegularizeLLVM();
+
+/// Create a pass for translating SPIR-V builtin functions to OCL builtin
+/// functions.
+ModulePass *createSPIRVToOCL(Module &M);
+
+/// Create a pass for translating SPIR-V builtin functions to OCL 1.2 builtin
+/// functions.
+ModulePass *createSPIRVToOCL12();
 
 /// Create a pass for translating SPIR-V builtin functions to OCL 2.0 builtin
 /// functions.

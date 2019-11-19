@@ -23,6 +23,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "TableGenBackends.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
@@ -139,7 +140,15 @@ class Type {
 private:
   TypeSpec TS;
 
-  bool Float, Signed, Immediate, Void, Poly, Constant, Pointer;
+  enum TypeKind {
+    Void,
+    Float,
+    SInt,
+    UInt,
+    Poly,
+  };
+  TypeKind Kind;
+  bool Immediate, Constant, Pointer;
   // ScalarForMangling and NoManglingQ are really not suited to live here as
   // they are not related to the type. But they live in the TypeSpec (not the
   // prototype), so this is really the only place to store them.
@@ -148,15 +157,14 @@ private:
 
 public:
   Type()
-      : Float(false), Signed(false), Immediate(false), Void(true), Poly(false),
-        Constant(false), Pointer(false), ScalarForMangling(false),
-        NoManglingQ(false), Bitwidth(0), ElementBitwidth(0), NumVectors(0) {}
+      : Kind(Void), Immediate(false), Constant(false),
+        Pointer(false), ScalarForMangling(false), NoManglingQ(false),
+        Bitwidth(0), ElementBitwidth(0), NumVectors(0) {}
 
   Type(TypeSpec TS, char CharMod)
-      : TS(std::move(TS)), Float(false), Signed(false), Immediate(false),
-        Void(false), Poly(false), Constant(false), Pointer(false),
-        ScalarForMangling(false), NoManglingQ(false), Bitwidth(0),
-        ElementBitwidth(0), NumVectors(0) {
+      : TS(std::move(TS)), Kind(Void), Immediate(false),
+        Constant(false), Pointer(false), ScalarForMangling(false),
+        NoManglingQ(false), Bitwidth(0), ElementBitwidth(0), NumVectors(0) {
     applyModifier(CharMod);
   }
 
@@ -173,21 +181,21 @@ public:
   bool noManglingQ() const { return NoManglingQ; }
 
   bool isPointer() const { return Pointer; }
-  bool isFloating() const { return Float; }
-  bool isInteger() const { return !Float && !Poly; }
-  bool isSigned() const { return Signed; }
+  bool isFloating() const { return Kind == Float; }
+  bool isInteger() const { return Kind == SInt || Kind == UInt; }
+  bool isPoly() const { return Kind == Poly; }
+  bool isSigned() const { return Kind == SInt; }
   bool isImmediate() const { return Immediate; }
   bool isScalar() const { return NumVectors == 0; }
   bool isVector() const { return NumVectors > 0; }
-  bool isFloat() const { return Float && ElementBitwidth == 32; }
-  bool isDouble() const { return Float && ElementBitwidth == 64; }
-  bool isHalf() const { return Float && ElementBitwidth == 16; }
-  bool isPoly() const { return Poly; }
+  bool isFloat() const { return isFloating() && ElementBitwidth == 32; }
+  bool isDouble() const { return isFloating() && ElementBitwidth == 64; }
+  bool isHalf() const { return isFloating() && ElementBitwidth == 16; }
   bool isChar() const { return ElementBitwidth == 8; }
-  bool isShort() const { return !Float && ElementBitwidth == 16; }
-  bool isInt() const { return !Float && ElementBitwidth == 32; }
-  bool isLong() const { return !Float && ElementBitwidth == 64; }
-  bool isVoid() const { return Void; }
+  bool isShort() const { return isInteger() && ElementBitwidth == 16; }
+  bool isInt() const { return isInteger() && ElementBitwidth == 32; }
+  bool isLong() const { return isInteger() && ElementBitwidth == 64; }
+  bool isVoid() const { return Kind == Void; }
   unsigned getNumElements() const { return Bitwidth / ElementBitwidth; }
   unsigned getSizeInBits() const { return Bitwidth; }
   unsigned getElementSizeInBits() const { return ElementBitwidth; }
@@ -196,21 +204,24 @@ public:
   //
   // Mutator functions
   //
-  void makeUnsigned() { Signed = false; }
-  void makeSigned() { Signed = true; }
+  void makeUnsigned() {
+    assert(isInteger() && "not a potentially signed type");
+    Kind = UInt;
+  }
+  void makeSigned() {
+    assert(isInteger() && "not a potentially signed type");
+    Kind = SInt;
+  }
 
   void makeInteger(unsigned ElemWidth, bool Sign) {
-    Float = false;
-    Poly = false;
-    Signed = Sign;
+    assert(!isVoid() && "converting void to int probably not useful");
+    Kind = Sign ? SInt : UInt;
     Immediate = false;
     ElementBitwidth = ElemWidth;
   }
 
   void makeImmediate(unsigned ElemWidth) {
-    Float = false;
-    Poly = false;
-    Signed = true;
+    Kind = SInt;
     Immediate = true;
     ElementBitwidth = ElemWidth;
   }
@@ -256,7 +267,7 @@ private:
   /// seen. This is needed by applyModifier as some modifiers
   /// only take effect if the type size was changed by "Q" or "H".
   void applyTypespec(bool &Quad);
-  /// Applies a prototype modifier to the type.
+  /// Applies a prototype modifiers to the type.
   void applyModifier(char Mod);
 };
 
@@ -332,6 +343,17 @@ class Intrinsic {
   NeonEmitter &Emitter;
   std::stringstream OS;
 
+  bool isBigEndianSafe() const {
+    if (BigEndianSafe)
+      return true;
+
+    for (const auto &T : Types){
+      if (T.isVector() && T.getNumElements() > 1)
+        return false;
+    }
+    return true;
+  }
+
 public:
   Intrinsic(Record *R, StringRef Name, StringRef Proto, TypeSpec OutTS,
             TypeSpec InTS, ClassKind CK, ListInit *Body, NeonEmitter &Emitter,
@@ -390,17 +412,6 @@ public:
     return Idx - 1;
   }
 
-  /// Return true if the intrinsic takes an splat operand.
-  bool hasSplat() const { return Proto.find('a') != std::string::npos; }
-
-  /// Return the parameter index of the splat operand.
-  unsigned getSplatIdx() const {
-    assert(hasSplat());
-    unsigned Idx = Proto.find('a');
-    assert(Idx > 0 && "Can't return a splat!");
-    return Idx - 1;
-  }
-
   unsigned getNumParams() const { return Proto.size() - 1; }
   Type getReturnType() const { return Types[0]; }
   Type getParamType(unsigned I) const { return Types[I + 1]; }
@@ -409,7 +420,6 @@ public:
   std::string getProto() const { return Proto; }
 
   /// Return true if the prototype has a scalar argument.
-  /// This does not return true for the "splat" code ('a').
   bool protoHasScalar() const;
 
   /// Return the index that parameter PIndex will sit at
@@ -570,16 +580,16 @@ public:
 //===----------------------------------------------------------------------===//
 
 std::string Type::str() const {
-  if (Void)
+  if (isVoid())
     return "void";
   std::string S;
 
-  if (!Signed && isInteger())
+  if (isInteger() && !isSigned())
     S += "u";
 
-  if (Poly)
+  if (isPoly())
     S += "poly";
-  else if (Float)
+  else if (isFloating())
     S += "float";
   else
     S += "int";
@@ -624,10 +634,10 @@ std::string Type::builtin_str() const {
     default: llvm_unreachable("Unhandled case!");
     }
 
-  if (isChar() && !Pointer)
+  if (isChar() && !isPointer() && isSigned())
     // Make chars explicitly signed.
     S = "S" + S;
-  else if (isInteger() && !Pointer && !Signed)
+  else if (!isPointer() && isInteger() && !isSigned())
     S = "U" + S;
 
   // Constant indices are "int", but have the "constant expression" modifier.
@@ -661,20 +671,20 @@ unsigned Type::getNeonEnum() const {
   }
 
   unsigned Base = (unsigned)NeonTypeFlags::Int8 + Addend;
-  if (Poly) {
+  if (isPoly()) {
     // Adjustment needed because Poly32 doesn't exist.
     if (Addend >= 2)
       --Addend;
     Base = (unsigned)NeonTypeFlags::Poly8 + Addend;
   }
-  if (Float) {
+  if (isFloating()) {
     assert(Addend != 0 && "Float8 doesn't exist!");
     Base = (unsigned)NeonTypeFlags::Float16 + (Addend - 1);
   }
 
   if (Bitwidth == 128)
     Base |= (unsigned)NeonTypeFlags::QuadFlag;
-  if (isInteger() && !Signed)
+  if (isInteger() && !isSigned())
     Base |= (unsigned)NeonTypeFlags::UnsignedFlag;
 
   return Base;
@@ -682,22 +692,18 @@ unsigned Type::getNeonEnum() const {
 
 Type Type::fromTypedefName(StringRef Name) {
   Type T;
-  T.Void = false;
-  T.Float = false;
-  T.Poly = false;
+  T.Kind = SInt;
 
   if (Name.front() == 'u') {
-    T.Signed = false;
+    T.Kind = UInt;
     Name = Name.drop_front();
-  } else {
-    T.Signed = true;
   }
 
   if (Name.startswith("float")) {
-    T.Float = true;
+    T.Kind = Float;
     Name = Name.drop_front(5);
   } else if (Name.startswith("poly")) {
-    T.Poly = true;
+    T.Kind = Poly;
     Name = Name.drop_front(4);
   } else {
     assert(Name.startswith("int"));
@@ -748,10 +754,8 @@ Type Type::fromTypedefName(StringRef Name) {
 void Type::applyTypespec(bool &Quad) {
   std::string S = TS;
   ScalarForMangling = false;
-  Void = false;
-  Poly = Float = false;
+  Kind = SInt;
   ElementBitwidth = ~0U;
-  Signed = true;
   NumVectors = 1;
 
   for (char I : S) {
@@ -767,28 +771,28 @@ void Type::applyTypespec(bool &Quad) {
       Quad = true;
       break;
     case 'P':
-      Poly = true;
+      Kind = Poly;
       break;
     case 'U':
-      Signed = false;
+      Kind = UInt;
       break;
     case 'c':
       ElementBitwidth = 8;
       break;
     case 'h':
-      Float = true;
+      Kind = Float;
       LLVM_FALLTHROUGH;
     case 's':
       ElementBitwidth = 16;
       break;
     case 'f':
-      Float = true;
+      Kind = Float;
       LLVM_FALLTHROUGH;
     case 'i':
       ElementBitwidth = 32;
       break;
     case 'd':
-      Float = true;
+      Kind = Float;
       LLVM_FALLTHROUGH;
     case 'l':
       ElementBitwidth = 64;
@@ -796,7 +800,7 @@ void Type::applyTypespec(bool &Quad) {
     case 'k':
       ElementBitwidth = 128;
       // Poly doesn't have a 128x1 type.
-      if (Poly)
+      if (isPoly())
         NumVectors = 0;
       break;
     default:
@@ -814,97 +818,84 @@ void Type::applyModifier(char Mod) {
 
   switch (Mod) {
   case 'v':
-    Void = true;
+    Kind = Void;
     break;
   case 't':
-    if (Poly) {
-      Poly = false;
-      Signed = false;
-    }
+    if (isPoly())
+      Kind = UInt;
     break;
   case 'b':
-    Signed = false;
-    Float = false;
-    Poly = false;
+    Kind = UInt;
     NumVectors = 0;
     Bitwidth = ElementBitwidth;
     break;
   case '$':
-    Signed = true;
-    Float = false;
-    Poly = false;
+    Kind = SInt;
     NumVectors = 0;
     Bitwidth = ElementBitwidth;
     break;
   case 'u':
-    Signed = false;
-    Poly = false;
-    Float = false;
+    Kind = UInt;
     break;
   case 'x':
-    Signed = true;
-    assert(!Poly && "'u' can't be used with poly types!");
-    Float = false;
+    assert(!isPoly() && "'u' can't be used with poly types!");
+    Kind = SInt;
     break;
   case 'o':
     Bitwidth = ElementBitwidth = 64;
     NumVectors = 0;
-    Float = true;
+    Kind = Float;
     break;
   case 'y':
     Bitwidth = ElementBitwidth = 32;
     NumVectors = 0;
-    Float = true;
+    Kind = Float;
     break;
   case 'Y':
     Bitwidth = ElementBitwidth = 16;
     NumVectors = 0;
-    Float = true;
+    Kind = Float;
     break;
   case 'I':
     Bitwidth = ElementBitwidth = 32;
     NumVectors = 0;
-    Float = false;
-    Signed = true;
+    Kind = SInt;
     break;
   case 'L':
     Bitwidth = ElementBitwidth = 64;
     NumVectors = 0;
-    Float = false;
-    Signed = true;
+    Kind = SInt;
     break;
   case 'U':
     Bitwidth = ElementBitwidth = 32;
     NumVectors = 0;
-    Float = false;
-    Signed = false;
+    Kind = UInt;
     break;
   case 'O':
     Bitwidth = ElementBitwidth = 64;
     NumVectors = 0;
-    Float = false;
-    Signed = false;
+    Kind = UInt;
     break;
   case 'f':
-    Float = true;
+    Kind = Float;
     ElementBitwidth = 32;
     break;
   case 'F':
-    Float = true;
+    Kind = Float;
     ElementBitwidth = 64;
     break;
   case 'H':
-    Float = true;
+    Kind = Float;
     ElementBitwidth = 16;
     break;
   case '0':
-    Float = true;
+    Kind = Float;
     if (AppliedQuad)
       Bitwidth /= 2;
     ElementBitwidth = 16;
     break;
   case '1':
-    Float = true;
+    Kind = Float;
     if (!AppliedQuad)
       Bitwidth *= 2;
     ElementBitwidth = 16;
@@ -925,19 +916,15 @@ void Type::applyModifier(char Mod) {
     ElementBitwidth *= 2;
     break;
   case 'i':
-    Float = false;
-    Poly = false;
+    Kind = SInt;
     ElementBitwidth = Bitwidth = 32;
     NumVectors = 0;
-    Signed = true;
     Immediate = true;
     break;
   case 'l':
-    Float = false;
-    Poly = false;
+    Kind = UInt;
     ElementBitwidth = Bitwidth = 64;
     NumVectors = 0;
-    Signed = false;
     Immediate = true;
     break;
   case 'z':
@@ -951,7 +938,6 @@ void Type::applyModifier(char Mod) {
     NumVectors = 0;
     break;
   case 's':
-  case 'a':
     Bitwidth = ElementBitwidth;
     NumVectors = 0;
     break;
@@ -975,7 +961,7 @@ void Type::applyModifier(char Mod) {
     break;
   case 'e':
     ElementBitwidth /= 2;
-    Signed = false;
+    Kind = UInt;
     break;
   case 'm':
     ElementBitwidth /= 2;
@@ -1077,7 +1063,7 @@ std::string Intrinsic::getBuiltinTypeStr() {
 
   Type RetT = getReturnType();
   if ((LocalCK == ClassI || LocalCK == ClassW) && RetT.isScalar() &&
-      !RetT.isFloating())
+      !RetT.isFloating() && !RetT.isVoid())
     RetT.makeInteger(RetT.getElementSizeInBits(), false);
 
   // Since the return value must be one type, return a vector type of the
@@ -1089,11 +1075,12 @@ std::string Intrinsic::getBuiltinTypeStr() {
   } else {
     if (RetT.isPoly())
       RetT.makeInteger(RetT.getElementSizeInBits(), false);
-    if (!RetT.isScalar() && !RetT.isSigned())
+    if (!RetT.isScalar() && RetT.isInteger() && !RetT.isSigned())
       RetT.makeSigned();
 
     bool ForcedVectorFloatingType = isFloatingPointProtoModifier(Proto[0]);
-    if (LocalCK == ClassB && !RetT.isScalar() && !ForcedVectorFloatingType)
+    if (LocalCK == ClassB && !RetT.isVoid() && !RetT.isScalar() &&
+        !ForcedVectorFloatingType)
       // Cast to vector of 8-bit elements.
       RetT.makeInteger(8, true);
 
@@ -1112,7 +1099,7 @@ std::string Intrinsic::getBuiltinTypeStr() {
     if (T.isHalf() && T.isVector() && !T.isScalarForMangling())
       T.makeInteger(8, true);
 
-    if (LocalCK == ClassI)
+    if (LocalCK == ClassI && T.isInteger())
       T.makeSigned();
 
     if (hasImmediate() && getImmediateIdx() == I)
@@ -1293,7 +1280,7 @@ void Intrinsic::emitReverseVariable(Variable &Dest, Variable &Src) {
 }
 
 void Intrinsic::emitArgumentReversal() {
-  if (BigEndianSafe)
+  if (isBigEndianSafe())
     return;
 
   // Reverse all vector arguments.
@@ -1314,7 +1301,7 @@ void Intrinsic::emitArgumentReversal() {
 }
 
 void Intrinsic::emitReturnReversal() {
-  if (BigEndianSafe)
+  if (isBigEndianSafe())
     return;
   if (!getReturnType().isVector() || getReturnType().isVoid() ||
       getReturnType().getNumElements() == 1)
@@ -1354,8 +1341,6 @@ void Intrinsic::emitShadowedArgs() {
   }
 }
 
-// We don't check 'a' in this function, because for builtin function the
-// argument matching to 'a' uses a vector type splatted from a scalar type.
 bool Intrinsic::protoHasScalar() const {
   return (Proto.find('s') != std::string::npos ||
           Proto.find('z') != std::string::npos ||
@@ -1374,12 +1359,6 @@ void Intrinsic::emitBodyAsBuiltinCall() {
   bool SRet = getReturnType().getNumVectors() >= 2;
 
   StringRef N = Name;
-  if (hasSplat()) {
-    // Call the non-splat builtin: chop off the "_n" suffix from the name.
-    assert(N.endswith("_n"));
-    N = N.drop_back(2);
-  }
-
   ClassKind LocalCK = CK;
   if (!protoHasScalar())
     LocalCK = ClassB;
@@ -1401,7 +1380,7 @@ void Intrinsic::emitBodyAsBuiltinCall() {
     if (T.getNumVectors() > 1) {
       // Check if an explicit cast is needed.
       std::string Cast;
-      if (T.isChar() || T.isPoly() || !T.isSigned()) {
+      if (LocalCK == ClassB) {
         Type T2 = T;
         T2.makeOneVector();
         T2.makeInteger(8, /*Signed=*/true);
@@ -1413,25 +1392,17 @@ void Intrinsic::emitBodyAsBuiltinCall() {
       continue;
     }
 
-    std::string Arg;
+    std::string Arg = V.getName();
     Type CastToType = T;
-    if (hasSplat() && I == getSplatIdx()) {
-      Arg = "(" + BaseType.str() + ") {";
-      for (unsigned J = 0; J < BaseType.getNumElements(); ++J) {
-        if (J != 0)
-          Arg += ", ";
-        Arg += V.getName();
-      }
-      Arg += "}";
-
-      CastToType = BaseType;
-    } else {
-      Arg = V.getName();
-    }
 
     // Check if an explicit cast is needed.
-    if (CastToType.isVector()) {
+    if (CastToType.isVector() &&
+        (LocalCK == ClassB || (T.isHalf() && !T.isScalarForMangling()))) {
       CastToType.makeInteger(8, true);
+      Arg = "(" + CastToType.str() + ")" + Arg;
+    } else if (CastToType.isVector() && LocalCK == ClassI) {
+      if (CastToType.isInteger())
+        CastToType.makeSigned();
       Arg = "(" + CastToType.str() + ")" + Arg;
     }
 
@@ -1578,7 +1549,10 @@ std::pair<Type, std::string> Intrinsic::DagEmitter::emitDagCall(DagInit *DI) {
   Intr.Dependencies.insert(&Callee);
 
   // Now create the call itself.
-  std::string S = CallPrefix.str() + Callee.getMangledName(true) + "(";
+  std::string S = "";
+  if (!Callee.isBigEndianSafe())
+    S += CallPrefix.str();
+  S += Callee.getMangledName(true) + "(";
   for (unsigned I = 0; I < DI->getNumArgs() - 1; ++I) {
     if (I != 0)
       S += ", ";
@@ -1732,12 +1706,12 @@ std::pair<Type, std::string> Intrinsic::DagEmitter::emitDagShuffle(DagInit *DI){
 
   SetTheory ST;
   SetTheory::RecSet Elts;
-  ST.addOperator("lowhalf", llvm::make_unique<LowHalf>());
-  ST.addOperator("highhalf", llvm::make_unique<HighHalf>());
+  ST.addOperator("lowhalf", std::make_unique<LowHalf>());
+  ST.addOperator("highhalf", std::make_unique<HighHalf>());
   ST.addOperator("rev",
-                 llvm::make_unique<Rev>(Arg1.first.getElementSizeInBits()));
+                 std::make_unique<Rev>(Arg1.first.getElementSizeInBits()));
   ST.addExpander("MaskExpand",
-                 llvm::make_unique<MaskExpander>(Arg1.first.getNumElements()));
+                 std::make_unique<MaskExpander>(Arg1.first.getNumElements()));
   ST.evaluate(DI->getArg(2), Elts, None);
 
   std::string S = "__builtin_shufflevector(" + Arg1.second + ", " + Arg2.second;
@@ -1889,6 +1863,11 @@ Intrinsic::DagEmitter::emitDagArg(Init *Arg, std::string ArgName) {
 }
 
 std::string Intrinsic::generate() {
+  // Avoid duplicated code for big and little endian
+  if (isBigEndianSafe()) {
+    generateImpl(false, "", "");
+    return OS.str();
+  }
   // Little endian intrinsics are simple and don't require any argument
   // swapping.
   OS << "#ifdef __LITTLE_ENDIAN__\n";
@@ -2083,10 +2062,6 @@ void NeonEmitter::genBuiltinsDef(raw_ostream &OS,
   for (auto *Def : Defs) {
     if (Def->hasBody())
       continue;
-    // Functions with 'a' (the splat code) in the type prototype should not get
-    // their own builtin as they use the non-splat variant.
-    if (Def->hasSplat())
-      continue;
 
     std::string S = "BUILTIN(__builtin_neon_" + Def->getMangledName() + ", \"";
 
@@ -2122,10 +2097,6 @@ void NeonEmitter::genOverloadTypeCheckCode(raw_ostream &OS,
     // If the def has a body (that is, it has Operation DAGs), it won't call
     // __builtin_neon_* so we don't need to generate a definition for it.
     if (Def->hasBody())
-      continue;
-    // Functions with 'a' (the splat code) in the type prototype should not get
-    // their own builtin as they use the non-splat variant.
-    if (Def->hasSplat())
       continue;
     // Functions which have a scalar argument cannot be overloaded, no need to
     // check them if we are emitting the type checking code.
@@ -2206,10 +2177,6 @@ void NeonEmitter::genIntrinsicRangeCheckCode(raw_ostream &OS,
 
   for (auto *Def : Defs) {
     if (Def->hasBody())
-      continue;
-    // Functions with 'a' (the splat code) in the type prototype should not get
-    // their own builtin as they use the non-splat variant.
-    if (Def->hasSplat())
       continue;
     // Functions which do not have an immediate do not need to have range
     // checking code emitted.
@@ -2386,7 +2353,7 @@ void NeonEmitter::run(raw_ostream &OS) {
   for (auto &TS : TDTypeVec) {
     bool IsA64 = false;
     Type T(TS, 'd');
-    if (T.isDouble() || (T.isPoly() && T.isLong()))
+    if (T.isDouble() || (T.isPoly() && T.getElementSizeInBits() == 64))
       IsA64 = true;
 
     if (InIfdef && !IsA64) {
@@ -2419,7 +2386,7 @@ void NeonEmitter::run(raw_ostream &OS) {
     for (auto &TS : TDTypeVec) {
       bool IsA64 = false;
       Type T(TS, 'd');
-      if (T.isDouble() || (T.isPoly() && T.isLong()))
+      if (T.isDouble() || (T.isPoly() && T.getElementSizeInBits() == 64))
         IsA64 = true;
 
       if (InIfdef && !IsA64) {
@@ -2456,7 +2423,7 @@ void NeonEmitter::run(raw_ostream &OS) {
   for (auto *I : Defs)
     I->indexBody();
 
-  llvm::stable_sort(Defs, llvm::less_ptr<Intrinsic>());
+  llvm::stable_sort(Defs, llvm::deref<std::less<>>());
 
   // Only emit a def when its requirements have been met.
   // FIXME: This loop could be made faster, but it's fast enough for now.
@@ -2563,7 +2530,7 @@ void NeonEmitter::runFP16(raw_ostream &OS) {
   for (auto *I : Defs)
     I->indexBody();
 
-  llvm::stable_sort(Defs, llvm::less_ptr<Intrinsic>());
+  llvm::stable_sort(Defs, llvm::deref<std::less<>>());
 
   // Only emit a def when its requirements have been met.
   // FIXME: This loop could be made faster, but it's fast enough for now.
@@ -2610,22 +2577,18 @@ void NeonEmitter::runFP16(raw_ostream &OS) {
   OS << "#endif /* __ARM_FP16_H */\n";
 }
 
-namespace clang {
-
-void EmitNeon(RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitNeon(RecordKeeper &Records, raw_ostream &OS) {
   NeonEmitter(Records).run(OS);
 }
 
-void EmitFP16(RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitFP16(RecordKeeper &Records, raw_ostream &OS) {
   NeonEmitter(Records).runFP16(OS);
 }
 
-void EmitNeonSema(RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitNeonSema(RecordKeeper &Records, raw_ostream &OS) {
   NeonEmitter(Records).runHeader(OS);
 }
 
-void EmitNeonTest(RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitNeonTest(RecordKeeper &Records, raw_ostream &OS) {
   llvm_unreachable("Neon test generation no longer implemented!");
 }
-
-} // end namespace clang

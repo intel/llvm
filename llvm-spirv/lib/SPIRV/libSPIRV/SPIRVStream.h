@@ -44,6 +44,7 @@
 #include "SPIRVExtInst.h"
 #include "SPIRVModule.h"
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <iostream>
 #include <iterator>
@@ -103,12 +104,38 @@ const SPIRVDecoder &decodeBinary(const SPIRVDecoder &I, T &V) {
   return I;
 }
 
+#ifdef _SPIRV_SUPPORT_TEXT_FMT
+/// Skip comment and whitespace. Comment starts with ';', ends with '\n'.
+inline std::istream &skipcomment(std::istream &IS) {
+  if (IS.eof() || IS.bad())
+    return IS;
+
+  char C = IS.peek();
+
+  while (std::char_traits<char>::not_eof(C) && std::isspace(C)) {
+    IS.get();
+    C = IS.peek();
+  }
+
+  while (std::char_traits<char>::not_eof(C) && C == ';') {
+    IS.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    C = IS.peek();
+    while (std::char_traits<char>::not_eof(C) && std::isspace(C)) {
+      IS.get();
+      C = IS.peek();
+    }
+  }
+
+  return IS;
+}
+#endif
+
 template <typename T>
 const SPIRVDecoder &operator>>(const SPIRVDecoder &I, T &V) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (SPIRVUseTextFormat) {
     uint32_t W;
-    I.IS >> W;
+    I.IS >> skipcomment >> W;
     V = static_cast<T>(W);
     SPIRVDBG(spvdbgs() << "Read word: W = " << W << " V = " << V << '\n');
     return I;

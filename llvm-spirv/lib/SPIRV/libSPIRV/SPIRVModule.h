@@ -40,6 +40,7 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVMODULE_H
 #define SPIRV_LIBSPIRV_SPIRVMODULE_H
 
+#include "LLVMSPIRVOpts.h"
 #include "SPIRVEntry.h"
 
 #include <iostream>
@@ -92,6 +93,7 @@ public:
   typedef std::map<SPIRVCapabilityKind, SPIRVCapability *> SPIRVCapMap;
 
   static SPIRVModule *createSPIRVModule();
+  static SPIRVModule *createSPIRVModule(const SPIRV::TranslatorOpts &);
   SPIRVModule();
   virtual ~SPIRVModule();
 
@@ -107,6 +109,10 @@ public:
   // Error handling functions
   virtual SPIRVErrorLog &getErrorLog() = 0;
   virtual SPIRVErrorCode getError(std::string &) = 0;
+  // Check if extension is allowed, and set ErrCode and DetailedMsg if not.
+  // Returns true if no error.
+  virtual bool checkExtension(ExtensionID, SPIRVErrorCode,
+                              const std::string &) = 0;
   void setInvalid() { IsValid = false; }
   bool isModuleValid() { return IsValid; }
 
@@ -281,13 +287,19 @@ public:
     for (auto I : Caps)
       addCapability(I);
   }
-  virtual void addExtension(SPIRVExtensionKind) = 0;
+  virtual void addExtension(ExtensionID) = 0;
   /// Used by SPIRV entries to add required capability internally.
   /// Should not be used by users directly.
   virtual void addCapabilityInternal(SPIRVCapabilityKind) = 0;
   virtual SPIRVInstruction *addCallInst(SPIRVFunction *,
                                         const std::vector<SPIRVWord> &,
                                         SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *addIndirectCallInst(SPIRVValue *, SPIRVType *,
+                                                const std::vector<SPIRVWord> &,
+                                                SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *,
+                                                        SPIRVFunction *,
+                                                        SPIRVBasicBlock *) = 0;
   virtual SPIRVInstruction *
   addCompositeConstructInst(SPIRVType *, const std::vector<SPIRVId> &,
                             SPIRVBasicBlock *) = 0;
@@ -344,6 +356,10 @@ public:
   virtual SPIRVInstruction *addLoopMergeInst(
       SPIRVId MergeBlock, SPIRVId ContinueTarget, SPIRVWord LoopControl,
       std::vector<SPIRVWord> LoopControlParameters, SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *
+  addLoopControlINTELInst(SPIRVWord LoopControl,
+                          std::vector<SPIRVWord> LoopControlParameters,
+                          SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addStoreInst(SPIRVValue *, SPIRVValue *,
                                          const std::vector<SPIRVWord> &,
                                          SPIRVBasicBlock *) = 0;
@@ -357,6 +373,21 @@ public:
   virtual SPIRVInstruction *addVectorTimesScalarInst(SPIRVType *TheType,
                                                      SPIRVId TheVector,
                                                      SPIRVId TheScalar,
+                                                     SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addVectorTimesMatrixInst(SPIRVType *TheType,
+                                                     SPIRVId TheVector,
+                                                     SPIRVId TheMatrix,
+                                                     SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addMatrixTimesScalarInst(SPIRVType *TheType,
+                                                     SPIRVId TheMatrix,
+                                                     SPIRVId TheScalar,
+                                                     SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addMatrixTimesVectorInst(SPIRVType *TheType,
+                                                     SPIRVId TheMatrix,
+                                                     SPIRVId TheVector,
+                                                     SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addMatrixTimesMatrixInst(SPIRVType *TheType,
+                                                     SPIRVId M1, SPIRVId M2,
                                                      SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
                                          SPIRVBasicBlock *) = 0;
@@ -375,7 +406,45 @@ public:
                                                        SPIRVValue *,
                                                        SPIRVValue *,
                                                        SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *addFPGARegINTELInst(SPIRVType *, SPIRVValue *,
+                                                SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *,
+                                                SPIRVValue *,
+                                                SPIRVBasicBlock *) = 0;
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
+
+  virtual bool
+  isAllowedToUseVersion(SPIRV::VersionNumber RequestedVersion) const final {
+    return TranslationOpts.isAllowedToUseVersion(RequestedVersion);
+  }
+
+  virtual bool isAllowedToUseVersion(SPIRVWord RequestedVersion) const final {
+    return TranslationOpts.isAllowedToUseVersion(
+        static_cast<SPIRV::VersionNumber>(RequestedVersion));
+  }
+
+  virtual SPIRV::VersionNumber getMaximumAllowedSPIRVVersion() const final {
+    return TranslationOpts.getMaxVersion();
+  }
+
+  virtual bool
+  isAllowedToUseExtension(ExtensionID RequestedExtension) const final {
+    return TranslationOpts.isAllowedToUseExtension(RequestedExtension);
+  }
+
+  virtual bool
+  isAllowedToUseExtensions(const SPIRVExtSet &RequestedExtensions) const final {
+    for (const auto &Ext : RequestedExtensions) {
+      if (!TranslationOpts.isAllowedToUseExtension(Ext))
+        return false;
+    }
+
+    return true;
+  }
+
+  virtual bool isGenArgNameMDEnabled() const final {
+    return TranslationOpts.isGenArgNameMDEnabled();
+  }
 
   // I/O functions
   friend spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M);
@@ -385,6 +454,7 @@ protected:
   bool AutoAddCapability;
   bool ValidateCapability;
   bool AutoAddExtensions = true;
+  SPIRV::TranslatorOpts TranslationOpts;
 
 private:
   bool IsValid;

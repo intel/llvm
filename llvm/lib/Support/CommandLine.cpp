@@ -88,21 +88,26 @@ void parser<char>::anchor() {}
 
 //===----------------------------------------------------------------------===//
 
-static StringRef ArgPrefix = "  -";
-static StringRef ArgPrefixLong = "  --";
+const static size_t DefaultPad = 2;
+
+static StringRef ArgPrefix = "-";
+static StringRef ArgPrefixLong = "--";
 static StringRef ArgHelpPrefix = " - ";
 
-static size_t argPlusPrefixesSize(StringRef ArgName) {
+static size_t argPlusPrefixesSize(StringRef ArgName, size_t Pad = DefaultPad) {
   size_t Len = ArgName.size();
   if (Len == 1)
-    return Len + ArgPrefix.size() + ArgHelpPrefix.size();
-  return Len + ArgPrefixLong.size() + ArgHelpPrefix.size();
+    return Len + Pad + ArgPrefix.size() + ArgHelpPrefix.size();
+  return Len + Pad + ArgPrefixLong.size() + ArgHelpPrefix.size();
 }
 
-static StringRef argPrefix(StringRef ArgName) {
-  if (ArgName.size() == 1)
-    return ArgPrefix;
-  return ArgPrefixLong;
+static SmallString<8> argPrefix(StringRef ArgName, size_t Pad = DefaultPad) {
+  SmallString<8> Prefix;
+  for (size_t I = 0; I < Pad; ++I) {
+    Prefix.push_back(' ');
+  }
+  Prefix.append(ArgName.size() > 1 ? ArgPrefixLong : ArgPrefix);
+  return Prefix;
 }
 
 // Option predicates...
@@ -119,13 +124,14 @@ namespace {
 
 class PrintArg {
   StringRef ArgName;
+  size_t Pad;
 public:
-  PrintArg(StringRef ArgName) : ArgName(ArgName) {}
-  friend raw_ostream &operator<<(raw_ostream &OS, const PrintArg&);
+  PrintArg(StringRef ArgName, size_t Pad = DefaultPad) : ArgName(ArgName), Pad(Pad) {}
+  friend raw_ostream &operator<<(raw_ostream &OS, const PrintArg &);
 };
 
 raw_ostream &operator<<(raw_ostream &OS, const PrintArg& Arg) {
-  OS << argPrefix(Arg.ArgName) << Arg.ArgName;
+  OS << argPrefix(Arg.ArgName, Arg.Pad) << Arg.ArgName;
   return OS;
 }
 
@@ -692,7 +698,7 @@ static inline bool ProvideOption(Option *Handler, StringRef ArgName,
   return false;
 }
 
-static bool ProvidePositionalOption(Option *Handler, StringRef Arg, int i) {
+bool llvm::cl::ProvidePositionalOption(Option *Handler, StringRef Arg, int i) {
   int Dummy = i;
   return ProvideOption(Handler, Handler->ArgStr, Arg, 0, nullptr, Dummy);
 }
@@ -1097,43 +1103,84 @@ static bool ExpandResponseFile(StringRef FName, StringSaver &Saver,
 bool cl::ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
                              SmallVectorImpl<const char *> &Argv,
                              bool MarkEOLs, bool RelativeNames) {
-  unsigned ExpandedRspFiles = 0;
   bool AllExpanded = true;
+  struct ResponseFileRecord {
+    const char *File;
+    size_t End;
+  };
+
+  // To detect recursive response files, we maintain a stack of files and the
+  // position of the last argument in the file. This position is updated
+  // dynamically as we recursively expand files.
+  SmallVector<ResponseFileRecord, 3> FileStack;
+
+  // Push a dummy entry that represents the initial command line, removing
+  // the need to check for an empty list.
+  FileStack.push_back({"", Argv.size()});
 
   // Don't cache Argv.size() because it can change.
   for (unsigned I = 0; I != Argv.size();) {
+    while (I == FileStack.back().End) {
+      // Passing the end of a file's argument list, so we can remove it from the
+      // stack.
+      FileStack.pop_back();
+    }
+
     const char *Arg = Argv[I];
     // Check if it is an EOL marker
     if (Arg == nullptr) {
       ++I;
       continue;
     }
+
     if (Arg[0] != '@') {
       ++I;
       continue;
     }
 
-    // If we have too many response files, leave some unexpanded.  This avoids
-    // crashing on self-referential response files.
-    if (ExpandedRspFiles > 20)
-      return false;
+    const char *FName = Arg + 1;
+    auto IsEquivalent = [FName](const ResponseFileRecord &RFile) {
+      return sys::fs::equivalent(RFile.File, FName);
+    };
+
+    // Check for recursive response files.
+    if (std::any_of(FileStack.begin() + 1, FileStack.end(), IsEquivalent)) {
+      // This file is recursive, so we leave it in the argument stream and
+      // move on.
+      AllExpanded = false;
+      ++I;
+      continue;
+    }
 
     // Replace this response file argument with the tokenization of its
     // contents.  Nested response files are expanded in subsequent iterations.
     SmallVector<const char *, 0> ExpandedArgv;
-    if (ExpandResponseFile(Arg + 1, Saver, Tokenizer, ExpandedArgv, MarkEOLs,
-                           RelativeNames)) {
-      ++ExpandedRspFiles;
-    } else {
+    if (!ExpandResponseFile(FName, Saver, Tokenizer, ExpandedArgv, MarkEOLs,
+                            RelativeNames)) {
       // We couldn't read this file, so we leave it in the argument stream and
       // move on.
       AllExpanded = false;
       ++I;
       continue;
     }
+
+    for (ResponseFileRecord &Record : FileStack) {
+      // Increase the end of all active records by the number of newly expanded
+      // arguments, minus the response file itself.
+      Record.End += ExpandedArgv.size() - 1;
+    }
+
+    FileStack.push_back({FName, I + ExpandedArgv.size()});
     Argv.erase(Argv.begin() + I);
     Argv.insert(Argv.begin() + I, ExpandedArgv.begin(), ExpandedArgv.end());
   }
+
+  // If successful, the top of the file stack will mark the end of the Argv
+  // stream. A failure here indicates a bug in the stack popping logic above.
+  // Note that FileStack may have more than one element at this point because we
+  // don't have a chance to pop the stack when encountering recursive files at
+  // the end of the stream, so seeing that doesn't indicate a bug.
+  assert(FileStack.size() > 0 && Argv.size() == FileStack.back().End);
   return AllExpanded;
 }
 
@@ -1406,7 +1453,7 @@ bool CommandLineParser::ParseCommandLineOptions(int argc,
         if (NearestHandler) {
           // If we know a near match, report it as well.
           *Errs << ProgramName << ": Did you mean '"
-                << PrintArg(NearestHandlerString) << "'?\n";
+                << PrintArg(NearestHandlerString, 0) << "'?\n";
         }
 
         ErrorParsing = true;
@@ -1560,7 +1607,7 @@ bool Option::error(const Twine &Message, StringRef ArgName, raw_ostream &Errs) {
   if (ArgName.empty())
     Errs << HelpStr; // Be nice for positional arguments
   else
-    Errs << GlobalParser->ProgramName << ": for the " << PrintArg(ArgName);
+    Errs << GlobalParser->ProgramName << ": for the " << PrintArg(ArgName, 0);
 
   Errs << " option: " << Message << "\n";
   return true;

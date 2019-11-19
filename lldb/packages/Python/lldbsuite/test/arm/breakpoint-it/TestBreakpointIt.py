@@ -6,8 +6,6 @@ from __future__ import print_function
 
 
 import lldb
-import os
-import time
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbutil
@@ -19,7 +17,7 @@ class TestBreakpointIt(TestBase):
     NO_DEBUG_INFO_TESTCASE = True
 
     @skipIf(archs=no_match(["arm"]))
-    @skipIf(archs=["arm64", "arm64e"])
+    @skipIf(archs=["arm64", "arm64e", "arm64_32"])
     def test_false(self):
         self.build()
         exe = self.getBuildArtifact("a.out")
@@ -33,7 +31,7 @@ class TestBreakpointIt(TestBase):
                 "Breakpoint does not get hit")
 
     @skipIf(archs=no_match(["arm"]))
-    @skipIf(archs=["arm64", "arm64e"])
+    @skipIf(archs=["arm64", "arm64e", "arm64_32"])
     def test_true(self):
         self.build()
         exe = self.getBuildArtifact("a.out")

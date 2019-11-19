@@ -1,6 +1,6 @@
-// RUN: %clang -std=c++11 %s -o %t1.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx %s -o %t1.out -lsycl
 // RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
-// RUN: %clang -std=c++11 -fsycl %s -o %t2.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t2.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t2.out
 // RUN: %CPU_RUN_PLACEHOLDER %t2.out
 // RUN: %GPU_RUN_PLACEHOLDER %t2.out
@@ -64,19 +64,16 @@ int main() {
     }
     {
       buffer<int, 1> b(ptr1, range<1>(bufsSize));
-      buffer<int, 1> c(ptr1, range<1>(bufsSize));
       buffer<int, 1> d((range<1>(bufsSize)));
       buffer<int, 1> e(res.data(), range<1>(bufsSize));
       queue myQueue;
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::read_write>(cgh);
-        auto C = c.get_access<access::mode::read_write>(cgh);
         auto D = d.get_access<access::mode::write>(cgh);
         auto E = e.get_access<access::mode::write>(cgh);
         cgh.parallel_for<class init_c>(range<1>{bufsSize}, [=](id<1> index) {
           B[index]++;
-          C[index]++;
-          D[index] = C[index] + B[index] + 1;
+          D[index] = B[index] + B[index] + 1;
           E[index] = D[index] * (B[index] + 1) - 1;
         });
       });
@@ -460,28 +457,6 @@ int main() {
       assert(data1[i] == -1);
   }
 
-  // Try use_host_pointer for the buffer created from
-  {
-    std::vector<int> data1(10, -1);
-    {
-      buffer<int, 1> b(data1.begin() + 2, data1.begin() + 5,
-                       {property::buffer::use_host_ptr()});
-      b.set_final_data(data1.begin() + 2);
-      queue myQueue;
-      myQueue.submit([&](handler &cgh) {
-        auto B = b.get_access<access::mode::read_write>(cgh);
-        cgh.parallel_for<class iter_constuctor_use_host_ptr>(
-            range<1>{3}, [=](id<1> index) { B[index] = 20; });
-      });
-    }
-    for (int i = 0; i < 2; i++)
-      assert(data1[i] == -1);
-    for (int i = 2; i < 5; i++)
-      assert(data1[i] == 20);
-    for (int i = 5; i < 10; i++)
-      assert(data1[i] == -1);
-  }
-
   // Check that data is copied back when using set_final_data for the buffer
   // created from pair of iterators
   {
@@ -581,7 +556,7 @@ int main() {
       std::vector<int> data2(10, -2);
       {
         buffer<int, 1> a(data1.data(), range<1>(10));
-        buffer<int, 1> b(data2.data(), range<1>(10));
+        buffer<int, 1> b(data2);
 
         program prog(myQueue.get_context());
         prog.build_with_source("kernel void override_source(global int* Acc) "
@@ -606,7 +581,7 @@ int main() {
     std::vector<int> data2(10, -2);
     {
       buffer<int, 1> a(data1.data(), range<1>(10));
-      buffer<int, 1> b(data2.data(), range<1>(10));
+      buffer<int, 1> b(data2);
       accessor<int, 1, access::mode::read_write, access::target::global_buffer,
                access::placeholder::true_t>
           A(a);
@@ -634,7 +609,7 @@ int main() {
       std::vector<int> data2(10, -2);
       {
         buffer<int, 1> a(data1.data(), range<1>(10));
-        buffer<int, 1> b(data2.data(), range<1>(10));
+        buffer<int, 1> b(data2);
         accessor<int, 1, access::mode::read_write,
                  access::target::global_buffer, access::placeholder::true_t>
             A(a);
@@ -659,6 +634,57 @@ int main() {
       for (int i = 0; i < 10; i++)
         assert(data1[i] == 0);
     }
+  }
+
+  {
+    int data[10];
+    void *voidPtr = (void *)data;
+    buffer<int, 1> b(range<1>(10));
+    b.set_final_data(voidPtr);
+  }
+
+  {
+    std::allocator<float8> buf_alloc;
+    cl::sycl::shared_ptr_class<float8> data(new float8[8]);
+    cl::sycl::buffer<float8, 1, std::allocator<float8>>
+        b(data, cl::sycl::range<1>(8), buf_alloc);
+  }
+
+  {
+    constexpr int Size = 6;
+    cl::sycl::buffer<char, 1> Buf_1(Size);
+    cl::sycl::buffer<char, 1> Buf_2(Size / 2);
+
+    {
+      auto AccA =
+          Buf_1.get_access<cl::sycl::access::mode::read_write>(Size / 2);
+      auto AccB =
+          Buf_2.get_access<cl::sycl::access::mode::read_write>(Size / 2);
+      assert(AccA.get_size() == AccB.get_size());
+      assert(AccA.get_range() == AccB.get_range());
+      assert(AccA.get_count() == AccB.get_count());
+    }
+
+    auto AH0 = accessor<char, 0, access::mode::read_write,
+                        access::target::host_buffer>(Buf_1);
+    auto BH0 = accessor<char, 0, access::mode::read_write,
+                        access::target::host_buffer>(Buf_2);
+    assert(AH0.get_size() == sizeof(char));
+    assert(BH0.get_size() == sizeof(char));
+    assert(AH0.get_count() == 1);
+    assert(BH0.get_count() == 1);
+
+    queue Queue;
+    Queue.submit([&](handler &CGH) {
+      auto AK0 = accessor<char, 0, access::mode::read_write,
+                          access::target::global_buffer>(Buf_1, CGH);
+      auto BK0 = accessor<char, 0, access::mode::read_write,
+                          access::target::global_buffer>(Buf_2, CGH);
+      assert(AK0.get_size() == sizeof(char));
+      assert(BK0.get_size() == sizeof(char));
+      assert(AK0.get_count() == 1);
+      assert(BK0.get_count() == 1);
+    });
   }
 
   // TODO tests with mutex property

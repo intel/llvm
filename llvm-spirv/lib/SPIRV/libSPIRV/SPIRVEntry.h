@@ -40,6 +40,7 @@
 #ifndef SPIRV_LIBSPIRV_SPIRVENTRY_H
 #define SPIRV_LIBSPIRV_SPIRVENTRY_H
 
+#include "LLVMSPIRVOpts.h"
 #include "SPIRVEnum.h"
 #include "SPIRVError.h"
 #include "SPIRVIsValidEnum.h"
@@ -295,9 +296,10 @@ public:
   bool hasMemberDecorate(Decoration Kind, size_t Index = 0,
                          SPIRVWord MemberNumber = 0,
                          SPIRVWord *Result = 0) const;
-  std::string getDecorationStringLiteral(Decoration Kind) const;
-  std::string getMemberDecorationStringLiteral(Decoration Kind,
-                                               SPIRVWord MemberNumber) const;
+  std::vector<std::string> getDecorationStringLiteral(Decoration Kind) const;
+  std::vector<std::string>
+  getMemberDecorationStringLiteral(Decoration Kind,
+                                   SPIRVWord MemberNumber) const;
   std::set<SPIRVWord> getDecorate(Decoration Kind, size_t Index = 0) const;
   bool hasId() const { return !(Attrib & SPIRVEA_NOID); }
   bool hasLine() const { return Line != nullptr; }
@@ -322,6 +324,7 @@ public:
     assert(0 && "not implemented");
     return false;
   }
+  virtual bool isImplemented() const { return true; }
 
   void addDecorate(SPIRVDecorate *);
   void addDecorate(Decoration Kind);
@@ -381,7 +384,9 @@ public:
   void validateBuiltin(SPIRVWord, SPIRVWord) const;
 
   // By default assume SPIRV 1.0 as required version
-  virtual SPIRVWord getRequiredSPIRVVersion() const { return SPIRV_1_0; }
+  virtual SPIRVWord getRequiredSPIRVVersion() const {
+    return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+  }
 
   virtual std::vector<SPIRVEntry *> getNonLiteralOperands() const {
     return std::vector<SPIRVEntry *>();
@@ -442,6 +447,20 @@ public:
     SPIRVEntry::WordCount = 1;
     validate();
   }
+
+protected:
+  _SPIRV_DEF_ENCDEC0
+  void validate() const override { assert(isValidId(SPIRVEntry::OpCode)); }
+};
+
+template <Op TheOpCode>
+class SPIRVEntryUnimplemented : public SPIRVEntryNoId<TheOpCode> {
+public:
+  SPIRVEntryUnimplemented() {
+    SPIRVEntry::WordCount = 1;
+    validate();
+  }
+  bool isImplemented() const override { return false; }
 
 protected:
   _SPIRV_DEF_ENCDEC0
@@ -629,10 +648,10 @@ public:
     case ExecutionModeInitializer:
     case ExecutionModeSubgroupSize:
     case ExecutionModeSubgroupsPerWorkgroup:
-      return SPIRV_1_1;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
 
     default:
-      return SPIRV_1_0;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
     }
   }
 
@@ -705,6 +724,9 @@ class SPIRVExtension : public SPIRVEntryNoId<OpExtension> {
 public:
   SPIRVExtension(SPIRVModule *M, const std::string &SS);
   SPIRVExtension() {}
+
+  std::string getExtensionName() const { return S; }
+
   _SPIRV_DCL_ENCDEC
 private:
   std::string S;
@@ -721,10 +743,10 @@ public:
     case CapabilityNamedBarrier:
     case CapabilitySubgroupDispatch:
     case CapabilityPipeStorage:
-      return SPIRV_1_1;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
 
     default:
-      return SPIRV_1_0;
+      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
     }
   }
 
@@ -742,10 +764,9 @@ template <spv::Op OC> bool isa(SPIRVEntry *E) {
 // to be implemented.
 // Each time a new class is implemented, remove the corresponding typedef.
 // This is also an indication of how much work is left.
-#define _SPIRV_OP(x) typedef SPIRVEntryOpCodeOnly<Op##x> SPIRV##x;
+#define _SPIRV_OP(x) typedef SPIRVEntryUnimplemented<Op##x> SPIRV##x;
 _SPIRV_OP(Nop)
 _SPIRV_OP(SourceContinued)
-_SPIRV_OP(TypeMatrix)
 _SPIRV_OP(TypeRuntimeArray)
 _SPIRV_OP(SpecConstantTrue)
 _SPIRV_OP(SpecConstantFalse)
@@ -765,11 +786,6 @@ _SPIRV_OP(ImageDrefGather)
 _SPIRV_OP(QuantizeToF16)
 _SPIRV_OP(Transpose)
 _SPIRV_OP(ArrayLength)
-_SPIRV_OP(SMod)
-_SPIRV_OP(MatrixTimesScalar)
-_SPIRV_OP(VectorTimesMatrix)
-_SPIRV_OP(MatrixTimesVector)
-_SPIRV_OP(MatrixTimesMatrix)
 _SPIRV_OP(OuterProduct)
 _SPIRV_OP(IAddCarry)
 _SPIRV_OP(ISubBorrow)
@@ -778,8 +794,6 @@ _SPIRV_OP(UMulExtended)
 _SPIRV_OP(BitFieldInsert)
 _SPIRV_OP(BitFieldSExtract)
 _SPIRV_OP(BitFieldUExtract)
-_SPIRV_OP(BitReverse)
-_SPIRV_OP(BitCount)
 _SPIRV_OP(DPdx)
 _SPIRV_OP(DPdy)
 _SPIRV_OP(Fwidth)

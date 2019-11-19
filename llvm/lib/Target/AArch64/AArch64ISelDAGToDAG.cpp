@@ -140,6 +140,27 @@ public:
     return SelectAddrModeXRO(N, Width / 8, Base, Offset, SignExtend, DoShift);
   }
 
+  bool SelectDupZeroOrUndef(SDValue N) {
+    switch(N->getOpcode()) {
+    case ISD::UNDEF:
+      return true;
+    case AArch64ISD::DUP:
+    case ISD::SPLAT_VECTOR: {
+      auto Opnd0 = N->getOperand(0);
+      if (auto CN = dyn_cast<ConstantSDNode>(Opnd0))
+        if (CN->isNullValue())
+          return true;
+      if (auto CN = dyn_cast<ConstantFPSDNode>(Opnd0))
+        if (CN->isZero())
+          return true;
+      break;
+    }
+    default:
+      break;
+    }
+
+    return false;
+  }
 
   /// Form sequences of consecutive 64/128-bit registers for use in NEON
   /// instructions making use of a vector-list (e.g. ldN, tbl). Vecs must have
@@ -156,6 +177,9 @@ public:
   void SelectTable(SDNode *N, unsigned NumVecs, unsigned Opc, bool isExt);
 
   bool tryIndexedLoad(SDNode *N);
+
+  bool trySelectStackSlotTagP(SDNode *N);
+  void SelectTagP(SDNode *N);
 
   void SelectLoad(SDNode *N, unsigned NumVecs, unsigned Opc,
                      unsigned SubRegIdx);
@@ -703,7 +727,7 @@ bool AArch64DAGToDAGISel::SelectAddrModeIndexedBitWidth(SDValue N, bool IsSigned
     return true;
   }
 
-  // As opposed to the (12-bit) Indexed addressing mode below, the 7-bit signed
+  // As opposed to the (12-bit) Indexed addressing mode below, the 7/9-bit signed
   // selected here doesn't support labels/immediates, only base+offset.
   if (CurDAG->isBaseWithConstantOffset(N)) {
     if (ConstantSDNode *RHS = dyn_cast<ConstantSDNode>(N.getOperand(1))) {
@@ -2050,7 +2074,7 @@ static void getUsefulBitsForUse(SDNode *UserNode, APInt &UsefulBits,
 }
 
 static void getUsefulBits(SDValue Op, APInt &UsefulBits, unsigned Depth) {
-  if (Depth >= 6)
+  if (Depth >= SelectionDAG::MaxRecursionDepth)
     return;
   // Initialize UsefulBits
   if (!Depth) {
@@ -2678,6 +2702,14 @@ bool AArch64DAGToDAGISel::tryReadRegister(SDNode *N) {
     return true;
   }
 
+  if (RegString->getString() == "pc") {
+    ReplaceNode(N, CurDAG->getMachineNode(
+                       AArch64::ADR, DL, N->getSimpleValueType(0), MVT::Other,
+                       CurDAG->getTargetConstant(0, DL, MVT::i32),
+                       N->getOperand(0)));
+    return true;
+  }
+
   return false;
 }
 
@@ -2782,6 +2814,58 @@ bool AArch64DAGToDAGISel::SelectCMP_SWAP(SDNode *N) {
   return true;
 }
 
+bool AArch64DAGToDAGISel::trySelectStackSlotTagP(SDNode *N) {
+  // tagp(FrameIndex, IRGstack, tag_offset):
+  // since the offset between FrameIndex and IRGstack is a compile-time
+  // constant, this can be lowered to a single ADDG instruction.
+  if (!(isa<FrameIndexSDNode>(N->getOperand(1)))) {
+    return false;
+  }
+
+  SDValue IRG_SP = N->getOperand(2);
+  if (IRG_SP->getOpcode() != ISD::INTRINSIC_W_CHAIN ||
+      cast<ConstantSDNode>(IRG_SP->getOperand(1))->getZExtValue() !=
+          Intrinsic::aarch64_irg_sp) {
+    return false;
+  }
+
+  const TargetLowering *TLI = getTargetLowering();
+  SDLoc DL(N);
+  int FI = cast<FrameIndexSDNode>(N->getOperand(1))->getIndex();
+  SDValue FiOp = CurDAG->getTargetFrameIndex(
+      FI, TLI->getPointerTy(CurDAG->getDataLayout()));
+  int TagOffset = cast<ConstantSDNode>(N->getOperand(3))->getZExtValue();
+
+  SDNode *Out = CurDAG->getMachineNode(
+      AArch64::TAGPstack, DL, MVT::i64,
+      {FiOp, CurDAG->getTargetConstant(0, DL, MVT::i64), N->getOperand(2),
+       CurDAG->getTargetConstant(TagOffset, DL, MVT::i64)});
+  ReplaceNode(N, Out);
+  return true;
+}
+
+void AArch64DAGToDAGISel::SelectTagP(SDNode *N) {
+  assert(isa<ConstantSDNode>(N->getOperand(3)) &&
+         "llvm.aarch64.tagp third argument must be an immediate");
+  if (trySelectStackSlotTagP(N))
+    return;
+  // FIXME: above applies in any case when offset between Op1 and Op2 is a
+  // compile-time constant, not just for stack allocations.
+
+  // General case for unrelated pointers in Op1 and Op2.
+  SDLoc DL(N);
+  int TagOffset = cast<ConstantSDNode>(N->getOperand(3))->getZExtValue();
+  SDNode *N1 = CurDAG->getMachineNode(AArch64::SUBP, DL, MVT::i64,
+                                      {N->getOperand(1), N->getOperand(2)});
+  SDNode *N2 = CurDAG->getMachineNode(AArch64::ADDXrr, DL, MVT::i64,
+                                      {SDValue(N1, 0), N->getOperand(2)});
+  SDNode *N3 = CurDAG->getMachineNode(
+      AArch64::ADDG, DL, MVT::i64,
+      {SDValue(N2, 0), CurDAG->getTargetConstant(0, DL, MVT::i64),
+       CurDAG->getTargetConstant(TagOffset, DL, MVT::i64)});
+  ReplaceNode(N, N3);
+}
+
 void AArch64DAGToDAGISel::Select(SDNode *Node) {
   // If we have a custom node, we already have selected!
   if (Node->isMachineOpcode()) {
@@ -2850,49 +2934,6 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
       return;
     break;
 
-  case ISD::EXTRACT_VECTOR_ELT: {
-    // Extracting lane zero is a special case where we can just use a plain
-    // EXTRACT_SUBREG instruction, which will become FMOV. This is easier for
-    // the rest of the compiler, especially the register allocator and copyi
-    // propagation, to reason about, so is preferred when it's possible to
-    // use it.
-    ConstantSDNode *LaneNode = cast<ConstantSDNode>(Node->getOperand(1));
-    // Bail and use the default Select() for non-zero lanes.
-    if (LaneNode->getZExtValue() != 0)
-      break;
-    // If the element type is not the same as the result type, likewise
-    // bail and use the default Select(), as there's more to do than just
-    // a cross-class COPY. This catches extracts of i8 and i16 elements
-    // since they will need an explicit zext.
-    if (VT != Node->getOperand(0).getValueType().getVectorElementType())
-      break;
-    unsigned SubReg;
-    switch (Node->getOperand(0)
-                .getValueType()
-                .getVectorElementType()
-                .getSizeInBits()) {
-    default:
-      llvm_unreachable("Unexpected vector element type!");
-    case 64:
-      SubReg = AArch64::dsub;
-      break;
-    case 32:
-      SubReg = AArch64::ssub;
-      break;
-    case 16:
-      SubReg = AArch64::hsub;
-      break;
-    case 8:
-      llvm_unreachable("unexpected zext-requiring extract element!");
-    }
-    SDValue Extract = CurDAG->getTargetExtractSubreg(SubReg, SDLoc(Node), VT,
-                                                     Node->getOperand(0));
-    LLVM_DEBUG(dbgs() << "ISEL: Custom selection!\n=> ");
-    LLVM_DEBUG(Extract->dumpr(CurDAG));
-    LLVM_DEBUG(dbgs() << "\n");
-    ReplaceNode(Node, Extract.getNode());
-    return;
-  }
   case ISD::Constant: {
     // Materialize zero constants as copies from WZR/XZR.  This allows
     // the coalescer to propagate these into other instructions.
@@ -3275,6 +3316,9 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     switch (IntNo) {
     default:
       break;
+    case Intrinsic::aarch64_tagp:
+      SelectTagP(Node);
+      return;
     case Intrinsic::aarch64_neon_tbl2:
       SelectTable(Node, 2,
                   VT == MVT::v8i8 ? AArch64::TBLv8i8Two : AArch64::TBLv16i8Two,

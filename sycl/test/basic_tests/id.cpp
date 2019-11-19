@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 
 //==--------------- id.cpp - SYCL id test ----------------------------------==//

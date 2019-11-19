@@ -451,6 +451,7 @@ public:
   bool parseBlockAddressOperand(MachineOperand &Dest);
   bool parseIntrinsicOperand(MachineOperand &Dest);
   bool parsePredicateOperand(MachineOperand &Dest);
+  bool parseShuffleMaskOperand(MachineOperand &Dest);
   bool parseTargetIndexOperand(MachineOperand &Dest);
   bool parseCustomRegisterMaskOperand(MachineOperand &Dest);
   bool parseLiveoutRegisterMaskOperand(MachineOperand &Dest);
@@ -470,6 +471,7 @@ public:
   bool parseOptionalAtomicOrdering(AtomicOrdering &Order);
   bool parseMachineMemoryOperand(MachineMemOperand *&Dest);
   bool parsePreOrPostInstrSymbol(MCSymbol *&Symbol);
+  bool parseHeapAllocMarker(MDNode *&Node);
 
 private:
   /// Convert the integer literal in the current token into an unsigned integer.
@@ -640,7 +642,7 @@ bool MIParser::parseBasicBlockDefinition(
     return error(Loc, Twine("redefinition of machine basic block with id #") +
                           Twine(ID));
   if (Alignment)
-    MBB->setAlignment(Alignment);
+    MBB->setAlignment(Align(Alignment));
   if (HasAddressTaken)
     MBB->setHasAddressTaken();
   MBB->setIsEHPad(IsLandingPad);
@@ -905,6 +907,7 @@ bool MIParser::parse(MachineInstr *&MI) {
   // Parse the remaining machine operands.
   while (!Token.isNewlineOrEOF() && Token.isNot(MIToken::kw_pre_instr_symbol) &&
          Token.isNot(MIToken::kw_post_instr_symbol) &&
+         Token.isNot(MIToken::kw_heap_alloc_marker) &&
          Token.isNot(MIToken::kw_debug_location) &&
          Token.isNot(MIToken::coloncolon) && Token.isNot(MIToken::lbrace)) {
     auto Loc = Token.location();
@@ -930,6 +933,10 @@ bool MIParser::parse(MachineInstr *&MI) {
   MCSymbol *PostInstrSymbol = nullptr;
   if (Token.is(MIToken::kw_post_instr_symbol))
     if (parsePreOrPostInstrSymbol(PostInstrSymbol))
+      return true;
+  MDNode *HeapAllocMarker = nullptr;
+  if (Token.is(MIToken::kw_heap_alloc_marker))
+    if (parseHeapAllocMarker(HeapAllocMarker))
       return true;
 
   DebugLoc DebugLocation;
@@ -984,6 +991,8 @@ bool MIParser::parse(MachineInstr *&MI) {
     MI->setPreInstrSymbol(MF, PreInstrSymbol);
   if (PostInstrSymbol)
     MI->setPostInstrSymbol(MF, PostInstrSymbol);
+  if (HeapAllocMarker)
+    MI->setHeapAllocMarker(MF, HeapAllocMarker);
   if (!MemOperands.empty())
     MI->setMemRefs(MF, MemOperands);
   return false;
@@ -1078,7 +1087,7 @@ static const char *printImplicitRegisterFlag(const MachineOperand &MO) {
 
 static std::string getRegisterName(const TargetRegisterInfo *TRI,
                                    unsigned Reg) {
-  assert(TargetRegisterInfo::isPhysicalRegister(Reg) && "expected phys reg");
+  assert(Register::isPhysicalRegister(Reg) && "expected phys reg");
   return StringRef(TRI->getName(Reg)).lower();
 }
 
@@ -1136,7 +1145,8 @@ bool MIParser::parseInstruction(unsigned &OpCode, unsigned &Flags) {
          Token.is(MIToken::kw_reassoc) ||
          Token.is(MIToken::kw_nuw) ||
          Token.is(MIToken::kw_nsw) ||
-         Token.is(MIToken::kw_exact)) {
+         Token.is(MIToken::kw_exact) ||
+         Token.is(MIToken::kw_fpexcept)) {
     // Mine frame and fast math flags
     if (Token.is(MIToken::kw_frame_setup))
       Flags |= MachineInstr::FrameSetup;
@@ -1162,6 +1172,8 @@ bool MIParser::parseInstruction(unsigned &OpCode, unsigned &Flags) {
       Flags |= MachineInstr::NoSWrap;
     if (Token.is(MIToken::kw_exact))
       Flags |= MachineInstr::IsExact;
+    if (Token.is(MIToken::kw_fpexcept))
+      Flags |= MachineInstr::FPExcept;
 
     lex();
   }
@@ -1405,11 +1417,11 @@ bool MIParser::parseRegisterOperand(MachineOperand &Dest,
   if (Token.is(MIToken::dot)) {
     if (parseSubRegisterIndex(SubReg))
       return true;
-    if (!TargetRegisterInfo::isVirtualRegister(Reg))
+    if (!Register::isVirtualRegister(Reg))
       return error("subregister index expects a virtual register");
   }
   if (Token.is(MIToken::colon)) {
-    if (!TargetRegisterInfo::isVirtualRegister(Reg))
+    if (!Register::isVirtualRegister(Reg))
       return error("register class specification expects a virtual register");
     lex();
     if (parseRegisterClassOrBank(*RegInfo))
@@ -1433,12 +1445,13 @@ bool MIParser::parseRegisterOperand(MachineOperand &Dest,
         if (MRI.getType(Reg).isValid() && MRI.getType(Reg) != Ty)
           return error("inconsistent type for generic virtual register");
 
+        MRI.setRegClassOrRegBank(Reg, static_cast<RegisterBank *>(nullptr));
         MRI.setType(Reg, Ty);
       }
     }
   } else if (consumeIfPresent(MIToken::lparen)) {
     // Virtual registers may have a tpe with GlobalISel.
-    if (!TargetRegisterInfo::isVirtualRegister(Reg))
+    if (!Register::isVirtualRegister(Reg))
       return error("unexpected type on physical register");
 
     LLT Ty;
@@ -1451,8 +1464,9 @@ bool MIParser::parseRegisterOperand(MachineOperand &Dest,
     if (MRI.getType(Reg).isValid() && MRI.getType(Reg) != Ty)
       return error("inconsistent type for generic virtual register");
 
+    MRI.setRegClassOrRegBank(Reg, static_cast<RegisterBank *>(nullptr));
     MRI.setType(Reg, Ty);
-  } else if (TargetRegisterInfo::isVirtualRegister(Reg)) {
+  } else if (Register::isVirtualRegister(Reg)) {
     // Generic virtual registers must have a type.
     // If we end up here this means the type hasn't been specified and
     // this is bad!
@@ -2282,6 +2296,49 @@ bool MIParser::parsePredicateOperand(MachineOperand &Dest) {
   return false;
 }
 
+bool MIParser::parseShuffleMaskOperand(MachineOperand &Dest) {
+  assert(Token.is(MIToken::kw_shufflemask));
+
+  lex();
+  if (expectAndConsume(MIToken::lparen))
+    return error("expected syntax shufflemask(<integer or undef>, ...)");
+
+  SmallVector<Constant *, 32> ShufMask;
+  LLVMContext &Ctx = MF.getFunction().getContext();
+  Type *I32Ty = Type::getInt32Ty(Ctx);
+
+  bool AllZero = true;
+  bool AllUndef = true;
+
+  do {
+    if (Token.is(MIToken::kw_undef)) {
+      ShufMask.push_back(UndefValue::get(I32Ty));
+      AllZero = false;
+    } else if (Token.is(MIToken::IntegerLiteral)) {
+      AllUndef = false;
+      const APSInt &Int = Token.integerValue();
+      if (!Int.isNullValue())
+        AllZero = false;
+      ShufMask.push_back(ConstantInt::get(I32Ty, Int.getExtValue()));
+    } else
+      return error("expected integer constant");
+
+    lex();
+  } while (consumeIfPresent(MIToken::comma));
+
+  if (expectAndConsume(MIToken::rparen))
+    return error("shufflemask should be terminated by ')'.");
+
+  if (AllZero || AllUndef) {
+    VectorType *VT = VectorType::get(I32Ty, ShufMask.size());
+    Constant *C = AllZero ? Constant::getNullValue(VT) : UndefValue::get(VT);
+    Dest = MachineOperand::CreateShuffleMask(C);
+  } else
+    Dest = MachineOperand::CreateShuffleMask(ConstantVector::get(ShufMask));
+
+  return false;
+}
+
 bool MIParser::parseTargetIndexOperand(MachineOperand &Dest) {
   assert(Token.is(MIToken::kw_target_index));
   lex();
@@ -2429,6 +2486,8 @@ bool MIParser::parseMachineOperand(MachineOperand &Dest,
   case MIToken::kw_floatpred:
   case MIToken::kw_intpred:
     return parsePredicateOperand(Dest);
+  case MIToken::kw_shufflemask:
+    return parseShuffleMaskOperand(Dest);
   case MIToken::Error:
     return true;
   case MIToken::Identifier:
@@ -2896,6 +2955,22 @@ bool MIParser::parsePreOrPostInstrSymbol(MCSymbol *&Symbol) {
     return error("expected a symbol after 'pre-instr-symbol'");
   Symbol = getOrCreateMCSymbol(Token.stringValue());
   lex();
+  if (Token.isNewlineOrEOF() || Token.is(MIToken::coloncolon) ||
+      Token.is(MIToken::lbrace))
+    return false;
+  if (Token.isNot(MIToken::comma))
+    return error("expected ',' before the next machine operand");
+  lex();
+  return false;
+}
+
+bool MIParser::parseHeapAllocMarker(MDNode *&Node) {
+  assert(Token.is(MIToken::kw_heap_alloc_marker) &&
+         "Invalid token for a heap alloc marker!");
+  lex();
+  parseMDNode(Node);
+  if (!Node)
+    return error("expected a MDNode after 'heap-alloc-marker'");
   if (Token.isNewlineOrEOF() || Token.is(MIToken::coloncolon) ||
       Token.is(MIToken::lbrace))
     return false;

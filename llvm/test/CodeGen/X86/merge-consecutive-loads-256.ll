@@ -235,36 +235,20 @@ define <4 x i64> @merge_4i64_i64_23zz(i64* %ptr) nounwind uwtable noinline ssp {
 }
 
 define <8 x float> @merge_8f32_2f32_23z5(<2 x float>* %ptr) nounwind uwtable noinline ssp {
-; AVX1-LABEL: merge_8f32_2f32_23z5:
-; AVX1:       # %bb.0:
-; AVX1-NEXT:    vmovups 16(%rdi), %xmm0
-; AVX1-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
-; AVX1-NEXT:    vmovhpd {{.*#+}} xmm1 = xmm1[0],mem[0]
-; AVX1-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
-; AVX1-NEXT:    retq
-;
-; AVX2-LABEL: merge_8f32_2f32_23z5:
-; AVX2:       # %bb.0:
-; AVX2-NEXT:    vmovupd 16(%rdi), %xmm0
-; AVX2-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
-; AVX2-NEXT:    vmovhpd {{.*#+}} xmm1 = xmm1[0],mem[0]
-; AVX2-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
-; AVX2-NEXT:    retq
-;
-; AVX512F-LABEL: merge_8f32_2f32_23z5:
-; AVX512F:       # %bb.0:
-; AVX512F-NEXT:    vmovupd 16(%rdi), %xmm0
-; AVX512F-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
-; AVX512F-NEXT:    vmovhpd {{.*#+}} xmm1 = xmm1[0],mem[0]
-; AVX512F-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
-; AVX512F-NEXT:    retq
+; AVX-LABEL: merge_8f32_2f32_23z5:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vmovups 16(%rdi), %xmm0
+; AVX-NEXT:    vxorps %xmm1, %xmm1, %xmm1
+; AVX-NEXT:    vmovhps {{.*#+}} xmm1 = xmm1[0,1],mem[0,1]
+; AVX-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
+; AVX-NEXT:    retq
 ;
 ; X32-AVX-LABEL: merge_8f32_2f32_23z5:
 ; X32-AVX:       # %bb.0:
 ; X32-AVX-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X32-AVX-NEXT:    vmovups 16(%eax), %xmm0
-; X32-AVX-NEXT:    vxorpd %xmm1, %xmm1, %xmm1
-; X32-AVX-NEXT:    vmovhpd {{.*#+}} xmm1 = xmm1[0],mem[0]
+; X32-AVX-NEXT:    vxorps %xmm1, %xmm1, %xmm1
+; X32-AVX-NEXT:    vmovhps {{.*#+}} xmm1 = xmm1[0,1],mem[0,1]
 ; X32-AVX-NEXT:    vinsertf128 $1, %xmm1, %ymm0, %ymm0
 ; X32-AVX-NEXT:    retl
   %ptr0 = getelementptr inbounds <2 x float>, <2 x float>* %ptr, i64 2
@@ -598,14 +582,14 @@ define <4 x double> @merge_4f64_f64_34uz_volatile(double* %ptr) nounwind uwtable
 ; AVX-LABEL: merge_4f64_f64_34uz_volatile:
 ; AVX:       # %bb.0:
 ; AVX-NEXT:    vmovsd {{.*#+}} xmm0 = mem[0],zero
-; AVX-NEXT:    vmovhpd {{.*#+}} xmm0 = xmm0[0],mem[0]
+; AVX-NEXT:    vmovhps {{.*#+}} xmm0 = xmm0[0,1],mem[0,1]
 ; AVX-NEXT:    retq
 ;
 ; X32-AVX-LABEL: merge_4f64_f64_34uz_volatile:
 ; X32-AVX:       # %bb.0:
 ; X32-AVX-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X32-AVX-NEXT:    vmovsd {{.*#+}} xmm0 = mem[0],zero
-; X32-AVX-NEXT:    vmovhpd {{.*#+}} xmm0 = xmm0[0],mem[0]
+; X32-AVX-NEXT:    vmovhps {{.*#+}} xmm0 = xmm0[0,1],mem[0,1]
 ; X32-AVX-NEXT:    retl
   %ptr0 = getelementptr inbounds double, double* %ptr, i64 3
   %ptr1 = getelementptr inbounds double, double* %ptr, i64 4
@@ -681,4 +665,33 @@ define <16 x i16> @merge_16i16_i16_0uu3zzuuuuuzCuEF_volatile(i16* %ptr) nounwind
   %resE = insertelement <16 x i16> %resD, i16 %valE, i16 14
   %resF = insertelement <16 x i16> %resE, i16 %valF, i16 15
   ret <16 x i16> %resF
+}
+
+;
+; Volatile tests.
+;
+
+@l = external global <32 x i8>, align 32
+
+define <2 x i8> @PR42846(<2 x i8>* %j, <2 x i8> %k) {
+; AVX-LABEL: PR42846:
+; AVX:       # %bb.0:
+; AVX-NEXT:    vmovdqa {{.*}}(%rip), %ymm0
+; AVX-NEXT:    vpextrw $0, %xmm0, (%rdi)
+; AVX-NEXT:    # kill: def $xmm0 killed $xmm0 killed $ymm0
+; AVX-NEXT:    vzeroupper
+; AVX-NEXT:    retq
+;
+; X32-AVX-LABEL: PR42846:
+; X32-AVX:       # %bb.0:
+; X32-AVX-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X32-AVX-NEXT:    vmovdqa l, %ymm0
+; X32-AVX-NEXT:    vpextrw $0, %xmm0, (%eax)
+; X32-AVX-NEXT:    # kill: def $xmm0 killed $xmm0 killed $ymm0
+; X32-AVX-NEXT:    vzeroupper
+; X32-AVX-NEXT:    retl
+  %t0 = load volatile <32 x i8>, <32 x i8>* @l, align 32
+  %shuffle = shufflevector <32 x i8> %t0, <32 x i8> undef, <2 x i32> <i32 0, i32 1>
+  store <2 x i8> %shuffle, <2 x i8>* %j, align 2
+  ret <2 x i8> %shuffle
 }

@@ -75,6 +75,7 @@ def getMake(test_subdir, test_name):
             "VPATH="+src_dir,
             "-C", build_dir,
             "-I", src_dir,
+            "-I", os.path.join(lldb_test, "make"),
             "-f", makefile]
 
 
@@ -103,6 +104,33 @@ def getCCSpec(compiler):
     else:
         return ""
 
+def getDsymutilSpec():
+    """
+    Helper function to return the key-value string to specify the dsymutil
+    used for the make system.
+    """
+    if "DSYMUTIL" in os.environ:
+        return "DSYMUTIL={}".format(os.environ["DSYMUTIL"])
+    return "";
+
+def getSDKRootSpec():
+    """
+    Helper function to return the key-value string to specify the SDK root
+    used for the make system.
+    """
+    if "SDKROOT" in os.environ:
+        return "SDKROOT={}".format(os.environ["SDKROOT"])
+    return "";
+
+def getModuleCacheSpec():
+    """
+    Helper function to return the key-value string to specify the clang
+    module cache used for the make system.
+    """
+    if "CLANG_MODULE_CACHE_DIR" in os.environ:
+        return "CLANG_MODULE_CACHE_DIR={}".format(
+            os.environ["CLANG_MODULE_CACHE_DIR"])
+    return "";
 
 def getCmdLine(d):
     """
@@ -116,7 +144,7 @@ def getCmdLine(d):
     pattern = '%s="%s"' if "win32" in sys.platform else "%s='%s'"
 
     def setOrAppendVariable(k, v):
-        append_vars = ["CFLAGS_EXTRAS", "LD_EXTRAS"]
+        append_vars = ["CFLAGS", "CFLAGS_EXTRAS", "LD_EXTRAS"]
         if k in append_vars and k in os.environ:
             v = os.environ[k] + " " + v
         return pattern % (k, v)
@@ -144,8 +172,14 @@ def buildDefault(
         testname=None):
     """Build the binaries the default way."""
     commands = []
-    commands.append(getMake(testdir, testname) + ["all", getArchSpec(architecture),
-                     getCCSpec(compiler), getCmdLine(dictionary)])
+    commands.append(getMake(testdir, testname) +
+                    ["all",
+                     getArchSpec(architecture),
+                     getCCSpec(compiler),
+                     getDsymutilSpec(),
+                     getSDKRootSpec(),
+                     getModuleCacheSpec(),
+                     getCmdLine(dictionary)])
 
     runBuildCommands(commands, sender=sender)
 
@@ -163,8 +197,13 @@ def buildDwarf(
     """Build the binaries with dwarf debug info."""
     commands = []
     commands.append(getMake(testdir, testname) +
-                    ["MAKE_DSYM=NO", getArchSpec(architecture),
-                     getCCSpec(compiler), getCmdLine(dictionary)])
+                    ["MAKE_DSYM=NO",
+                     getArchSpec(architecture),
+                     getCCSpec(compiler),
+                     getDsymutilSpec(),
+                     getSDKRootSpec(),
+                     getModuleCacheSpec(),
+                     getCmdLine(dictionary)])
 
     runBuildCommands(commands, sender=sender)
     # True signifies that we can handle building dwarf.
@@ -181,9 +220,13 @@ def buildDwo(
     """Build the binaries with dwarf debug info."""
     commands = []
     commands.append(getMake(testdir, testname) +
-                    ["MAKE_DSYM=NO", "MAKE_DWO=YES",
+                    ["MAKE_DSYM=NO",
+                     "MAKE_DWO=YES",
                      getArchSpec(architecture),
                      getCCSpec(compiler),
+                     getDsymutilSpec(),
+                     getSDKRootSpec(),
+                     getModuleCacheSpec(),
                      getCmdLine(dictionary)])
 
     runBuildCommands(commands, sender=sender)
@@ -205,6 +248,9 @@ def buildGModules(
                      "MAKE_GMODULES=YES",
                      getArchSpec(architecture),
                      getCCSpec(compiler),
+                     getDsymutilSpec(),
+                     getSDKRootSpec(),
+                     getModuleCacheSpec(),
                      getCmdLine(dictionary)])
 
     lldbtest.system(commands, sender=sender)

@@ -204,6 +204,10 @@ static cl::opt<bool> ListSymbolsOnly(
     "list-symbols-only", cl::init(false),
     cl::desc("Instead of running LTO, list the symbols in each IR file"));
 
+static cl::opt<bool> ListDependentLibrariesOnly(
+    "list-dependent-libraries-only", cl::init(false),
+    cl::desc("Instead of running LTO, list the dependent libraries in each IR file"));
+
 static cl::opt<bool> SetMergedModule(
     "set-merged-module", cl::init(false),
     cl::desc("Use the first input module as the merged module"));
@@ -311,8 +315,8 @@ getLocalLTOModule(StringRef Path, std::unique_ptr<MemoryBuffer> &Buffer,
   error(BufferOrErr, "error loading file '" + Path + "'");
   Buffer = std::move(BufferOrErr.get());
   CurrentActivity = ("loading file '" + Path + "'").str();
-  std::unique_ptr<LLVMContext> Context = llvm::make_unique<LLVMContext>();
-  Context->setDiagnosticHandler(llvm::make_unique<LLVMLTODiagnosticHandler>(),
+  std::unique_ptr<LLVMContext> Context = std::make_unique<LLVMContext>();
+  Context->setDiagnosticHandler(std::make_unique<LLVMLTODiagnosticHandler>(),
                                 true);
   ErrorOr<std::unique_ptr<LTOModule>> Ret = LTOModule::createInLocalContext(
       std::move(Context), Buffer->getBufferStart(), Buffer->getBufferSize(),
@@ -372,6 +376,34 @@ static void listSymbols(const TargetOptions &Options) {
   }
 }
 
+static std::unique_ptr<MemoryBuffer> loadFile(StringRef Filename) {
+    ExitOnError ExitOnErr("llvm-lto: error loading file '" + Filename.str() +
+        "': ");
+    return ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(Filename)));
+}
+
+static void listDependentLibraries() {
+  for (auto &Filename : InputFilenames) {
+    auto Buffer = loadFile(Filename);
+    std::string E;
+    std::unique_ptr<lto::InputFile> Input(LTOModule::createInputFile(
+        Buffer->getBufferStart(), Buffer->getBufferSize(), Filename.c_str(),
+        E));
+    if (!Input)
+      error(E);
+
+    // List the dependent libraries.
+    outs() << Filename << ":\n";
+    for (size_t I = 0, C = LTOModule::getDependentLibraryCount(Input.get());
+         I != C; ++I) {
+      size_t L = 0;
+      const char *S = LTOModule::getDependentLibrary(Input.get(), I, &L);
+      assert(S);
+      outs() << StringRef(S, L) << "\n";
+    }
+  }
+}
+
 /// Create a combined index file from the input IR files and write it.
 ///
 /// This is meant to enable testing of ThinLTO combined index generation,
@@ -388,7 +420,7 @@ static void createCombinedModuleSummaryIndex() {
   std::error_code EC;
   assert(!OutputFilename.empty());
   raw_fd_ostream OS(OutputFilename + ".thinlto.bc", EC,
-                    sys::fs::OpenFlags::F_None);
+                    sys::fs::OpenFlags::OF_None);
   error(EC, "error opening the file '" + OutputFilename + ".thinlto.bc'");
   WriteIndexToFile(CombinedIndex, OS);
   OS.close();
@@ -449,12 +481,6 @@ std::unique_ptr<ModuleSummaryIndex> loadCombinedIndex() {
   return ExitOnErr(getModuleSummaryIndexForFile(ThinLTOIndex));
 }
 
-static std::unique_ptr<MemoryBuffer> loadFile(StringRef Filename) {
-  ExitOnError ExitOnErr("llvm-lto: error loading file '" + Filename.str() +
-                        "': ");
-  return ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(Filename)));
-}
-
 static std::unique_ptr<lto::InputFile> loadInputFile(MemoryBufferRef Buffer) {
   ExitOnError ExitOnErr("llvm-lto: error loading input '" +
                         Buffer.getBufferIdentifier().str() + "': ");
@@ -484,7 +510,7 @@ static std::unique_ptr<Module> loadModuleFromInput(lto::InputFile &File,
 
 static void writeModuleToFile(Module &TheModule, StringRef Filename) {
   std::error_code EC;
-  raw_fd_ostream OS(Filename, EC, sys::fs::OpenFlags::F_None);
+  raw_fd_ostream OS(Filename, EC, sys::fs::OpenFlags::OF_None);
   error(EC, "error opening the file '" + Filename + "'");
   maybeVerifyModule(TheModule);
   WriteBitcodeToFile(TheModule, OS, /* ShouldPreserveUseListOrder */ true);
@@ -555,7 +581,7 @@ private:
     if (!CombinedIndex)
       report_fatal_error("ThinLink didn't create an index");
     std::error_code EC;
-    raw_fd_ostream OS(OutputFilename, EC, sys::fs::OpenFlags::F_None);
+    raw_fd_ostream OS(OutputFilename, EC, sys::fs::OpenFlags::OF_None);
     error(EC, "error opening the file '" + OutputFilename + "'");
     WriteIndexToFile(*CombinedIndex, OS);
   }
@@ -593,7 +619,7 @@ private:
       }
       OutputName = getThinLTOOutputFile(OutputName, OldPrefix, NewPrefix);
       std::error_code EC;
-      raw_fd_ostream OS(OutputName, EC, sys::fs::OpenFlags::F_None);
+      raw_fd_ostream OS(OutputName, EC, sys::fs::OpenFlags::OF_None);
       error(EC, "error opening the file '" + OutputName + "'");
       WriteIndexToFile(*Index, OS, &ModuleToSummariesForIndex);
     }
@@ -776,7 +802,7 @@ private:
       }
 
       std::error_code EC;
-      raw_fd_ostream OS(OutputName, EC, sys::fs::OpenFlags::F_None);
+      raw_fd_ostream OS(OutputName, EC, sys::fs::OpenFlags::OF_None);
       error(EC, "error opening the file '" + OutputName + "'");
       OS << std::get<0>(BinName)->getBuffer();
     }
@@ -822,7 +848,7 @@ private:
     for (unsigned BufID = 0; BufID < Binaries.size(); ++BufID) {
       auto OutputName = InputFilenames[BufID] + ".thinlto.o";
       std::error_code EC;
-      raw_fd_ostream OS(OutputName, EC, sys::fs::OpenFlags::F_None);
+      raw_fd_ostream OS(OutputName, EC, sys::fs::OpenFlags::OF_None);
       error(EC, "error opening the file '" + OutputName + "'");
       OS << Binaries[BufID]->getBuffer();
     }
@@ -851,6 +877,11 @@ int main(int argc, char **argv) {
 
   if (ListSymbolsOnly) {
     listSymbols(Options);
+    return 0;
+  }
+
+  if (ListDependentLibrariesOnly) {
+    listDependentLibraries();
     return 0;
   }
 
@@ -890,7 +921,7 @@ int main(int argc, char **argv) {
   unsigned BaseArg = 0;
 
   LLVMContext Context;
-  Context.setDiagnosticHandler(llvm::make_unique<LLVMLTODiagnosticHandler>(),
+  Context.setDiagnosticHandler(std::make_unique<LLVMLTODiagnosticHandler>(),
                                true);
 
   LTOCodeGenerator CodeGen(Context);
@@ -989,7 +1020,7 @@ int main(int argc, char **argv) {
       if (Parallelism != 1)
         PartFilename += "." + utostr(I);
       std::error_code EC;
-      OSs.emplace_back(PartFilename, EC, sys::fs::F_None);
+      OSs.emplace_back(PartFilename, EC, sys::fs::OF_None);
       if (EC)
         error("error opening the file '" + PartFilename + "': " + EC.message());
       OSPtrs.push_back(&OSs.back().os());

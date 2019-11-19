@@ -12,10 +12,13 @@ def do_check(args):
     if cpu_count is None:
         cpu_count = DEFAULT_CPU_COUNT
 
-    make_cmd = ["make", args.test_suite, "VERBOSE=1", "-j", str(cpu_count), "LIT_ARGS=\"-v\""]
+    env_tmp=os.environ
+    env_tmp["LIT_ARGS"]="\"{}\"".format("-v")
+
+    make_cmd = ["ninja", args.test_suite, "-j", str(cpu_count)]
     print(make_cmd)
 
-    subprocess.check_call(make_cmd, cwd=args.obj_dir)
+    subprocess.check_call(make_cmd, cwd=args.obj_dir, env=env_tmp)
 
     ret = True
     return ret

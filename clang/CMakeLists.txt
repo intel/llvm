@@ -114,6 +114,7 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   include(TableGen)
   include(HandleLLVMOptions)
   include(VersionFromVCS)
+  include(LLVMDistributionSupport)
 
   set(PACKAGE_VERSION "${LLVM_PACKAGE_VERSION}")
 
@@ -129,7 +130,6 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
 
   if(LLVM_INCLUDE_TESTS)
-    set(Python_ADDITIONAL_VERSIONS 2.7)
     include(FindPythonInterp)
     if(NOT PYTHONINTERP_FOUND)
       message(FATAL_ERROR
@@ -323,6 +323,14 @@ set(CLANG_VENDOR_UTI "org.llvm.clang" CACHE STRING
 set(CLANG_PYTHON_BINDINGS_VERSIONS "" CACHE STRING
     "Python versions to install libclang python bindings for")
 
+set(CLANG_LINK_CLANG_DYLIB ${LLVM_LINK_LLVM_DYLIB} CACHE BOOL
+    "Link tools against libclang-cpp.so")
+
+if (NOT LLVM_LINK_LLVM_DYLIB AND CLANG_LINK_CLANG_DYLIB)
+  message(FATAL_ERROR "Cannot set CLANG_LINK_CLANG_DYLIB=ON when "
+                      "LLVM_LINK_LLVM_DYLIB=OFF")
+endif()
+
 # The libdir suffix must exactly match whatever LLVM's configuration used.
 set(CLANG_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}")
 
@@ -437,9 +445,15 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
                              COMPONENT clang-headers)
   endif()
 
+  add_custom_target(bash-autocomplete DEPENDS utils/bash-autocomplete.sh)
   install(PROGRAMS utils/bash-autocomplete.sh
-    DESTINATION share/clang
-    )
+          DESTINATION share/clang
+          COMPONENT bash-autocomplete)
+  if(NOT LLVM_ENABLE_IDE)
+    add_llvm_install_targets(install-bash-autocomplete
+                             DEPENDS bash-autocomplete
+                             COMPONENT bash-autocomplete)
+  endif()
 endif()
 
 add_definitions( -D_GNU_SOURCE )
@@ -847,6 +861,10 @@ if (LLVM_ADD_NATIVE_VISUALIZERS_TO_SOLUTION)
   add_subdirectory(utils/ClangVisualizers)
 endif()
 add_subdirectory(utils/hmaptool)
+
+if(CLANG_BUILT_STANDALONE)
+  llvm_distribution_add_targets()
+endif()
 
 configure_file(
   ${CLANG_SOURCE_DIR}/include/clang/Config/config.h.cmake

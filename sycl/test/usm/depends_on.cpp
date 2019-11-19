@@ -1,5 +1,8 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t1.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t1.out
+// RUN: env SYCL_DEVICE_TYPE=HOST %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
+// RUN: %GPU_RUN_PLACEHOLDER %t1.out
+
 //==----------------- depends_on.cpp - depends_on test ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -39,7 +42,9 @@ int main() {
     return -1;
   }
 
+  event e;
   auto eInit = q.submit([&](handler &cgh) {
+    cgh.depends_on(e);
     cgh.single_task<class init>([=]() {
       for (int i = 0; i < N; i++) {
         sarray[i] = MAGIC_NUM - 1;

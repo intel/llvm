@@ -9,6 +9,7 @@
 #include "Quality.h"
 #include "AST.h"
 #include "FileDistance.h"
+#include "SourceCode.h"
 #include "URI.h"
 #include "index/Symbol.h"
 #include "clang/AST/ASTContext.h"
@@ -42,8 +43,7 @@ static bool isReserved(llvm::StringRef Name) {
 static bool hasDeclInMainFile(const Decl &D) {
   auto &SourceMgr = D.getASTContext().getSourceManager();
   for (auto *Redecl : D.redecls()) {
-    auto Loc = SourceMgr.getSpellingLoc(Redecl->getLocation());
-    if (SourceMgr.isWrittenInMainFile(Loc))
+    if (isInsideMainFile(Redecl->getLocation(), SourceMgr))
       return true;
   }
   return false;
@@ -53,8 +53,7 @@ static bool hasUsingDeclInMainFile(const CodeCompletionResult &R) {
   const auto &Context = R.Declaration->getASTContext();
   const auto &SourceMgr = Context.getSourceManager();
   if (R.ShadowDecl) {
-    const auto Loc = SourceMgr.getExpansionLoc(R.ShadowDecl->getLocation());
-    if (SourceMgr.isWrittenInMainFile(Loc))
+    if (isInsideMainFile(R.ShadowDecl->getLocation(), SourceMgr))
       return true;
   }
   return false;
@@ -497,8 +496,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   OS << llvm::formatv("\tNumber of parameters: {0}\n", S.NumberOfParameters);
   OS << llvm::formatv("\tNumber of optional parameters: {0}\n",
                       S.NumberOfOptionalParameters);
-  OS << llvm::formatv("\tContains active parameter: {0}\n",
-                      S.ContainsActiveParameter);
   OS << llvm::formatv("\tKind: {0}\n", S.Kind);
   return OS;
 }

@@ -5,9 +5,6 @@ Test getting return-values correctly when stepping out
 from __future__ import print_function
 
 
-import os
-import time
-import re
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -221,6 +218,7 @@ class ReturnValueTestCase(TestBase):
         self.return_and_test_struct_value("return_base_class")
         self.return_and_test_struct_value("return_derived_class")
 
+    @skipIf(compiler="clang", compiler_version=['<', '7.0'])
     def return_and_test_struct_value(self, func_name):
         """Pass in the name of the function to return from - takes in value, returns value."""
 

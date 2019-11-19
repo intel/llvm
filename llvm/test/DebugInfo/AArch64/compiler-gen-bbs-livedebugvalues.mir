@@ -54,7 +54,7 @@
 ---
 # CHECK-LABEL: name: f1
 name:            f1
-alignment:       2
+alignment:       4
 legalized:       true
 regBankSelected: true
 selected:        true
@@ -66,10 +66,10 @@ frameInfo:
   hasCalls:        true
   maxCallFrameSize: 0
 stack:           
-  - { id: 0, type: spill-slot, offset: -20, size: 4, alignment: 4, stack-id: 0 }
-  - { id: 1, type: spill-slot, offset: -8, size: 8, alignment: 8, stack-id: 0, 
+  - { id: 0, type: spill-slot, offset: -20, size: 4, alignment: 4, stack-id: default }
+  - { id: 1, type: spill-slot, offset: -8, size: 8, alignment: 8, stack-id: default,
       callee-saved-register: '$lr' }
-  - { id: 2, type: spill-slot, offset: -16, size: 8, alignment: 8, stack-id: 0, 
+  - { id: 2, type: spill-slot, offset: -16, size: 8, alignment: 8, stack-id: default,
       callee-saved-register: '$fp' }
 body:             |
   ; CHECK-LABEL: bb.0.entry:
@@ -88,6 +88,7 @@ body:             |
 
     ; CHECK: DBG_VALUE renamable $w0, $noreg, !9, !DIExpression(), debug-location !12
     ; CHECK-NEXT: STRWui killed $w0, $sp, 3 :: (store 4 into %stack.0)
+    ; CHECK-NEXT: DBG_VALUE $sp, 0, !9, !DIExpression(DW_OP_plus_uconst, 12)
     ; CHECK-NEXT: DBG_VALUE $sp, 0, !9, !DIExpression(DW_OP_plus_uconst, 12)
   
   bb.1.artificial-bb-1:

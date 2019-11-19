@@ -17,7 +17,7 @@
 ///
 /// The binary layout for .BTF.ext section:
 ///   struct ExtHeader
-///   FuncInfo and LineInfo subsections
+///   FuncInfo, LineInfo, FieldReloc and ExternReloc subsections
 /// The FuncInfo subsection is defined as below:
 ///   BTFFuncInfo Size
 ///   struct SecFuncInfo for ELF section #1
@@ -31,6 +31,13 @@
 ///   A number of struct BPFLineInfo for ELF section #1
 ///   struct SecLineInfo for ELF section #2
 ///   A number of struct BPFLineInfo for ELF section #2
+///   ...
+/// The FieldReloc subsection is defined as below:
+///   BPFFieldReloc Size
+///   struct SecFieldReloc for ELF section #1
+///   A number of struct BPFFieldReloc for ELF section #1
+///   struct SecFieldReloc for ELF section #2
+///   A number of struct BPFFieldReloc for ELF section #2
 ///   ...
 ///
 /// The section formats are also defined at
@@ -49,7 +56,7 @@ enum : uint32_t { MAGIC = 0xeB9F, VERSION = 1 };
 /// Sizes in bytes of various things in the BTF format.
 enum {
   HeaderSize = 24,
-  ExtHeaderSize = 24,
+  ExtHeaderSize = 32,
   CommonTypeSize = 12,
   BTFArraySize = 12,
   BTFEnumSize = 8,
@@ -58,8 +65,10 @@ enum {
   BTFDataSecVarSize = 12,
   SecFuncInfoSize = 8,
   SecLineInfoSize = 8,
+  SecFieldRelocSize = 8,
   BPFFuncInfoSize = 8,
-  BPFLineInfoSize = 16
+  BPFLineInfoSize = 16,
+  BPFFieldRelocSize = 16,
 };
 
 /// The .BTF section header definition.
@@ -191,10 +200,12 @@ struct ExtHeader {
   uint8_t Flags;
   uint32_t HdrLen;
 
-  uint32_t FuncInfoOff; ///< Offset of func info section
-  uint32_t FuncInfoLen; ///< Length of func info section
-  uint32_t LineInfoOff; ///< Offset of line info section
-  uint32_t LineInfoLen; ///< Length of line info section
+  uint32_t FuncInfoOff;    ///< Offset of func info section
+  uint32_t FuncInfoLen;    ///< Length of func info section
+  uint32_t LineInfoOff;    ///< Offset of line info section
+  uint32_t LineInfoLen;    ///< Length of line info section
+  uint32_t FieldRelocOff; ///< Offset of offset reloc section
+  uint32_t FieldRelocLen; ///< Length of offset reloc section
 };
 
 /// Specifying one function info.
@@ -220,8 +231,22 @@ struct BPFLineInfo {
 
 /// Specifying line info's in one section.
 struct SecLineInfo {
-  uint32_t SecNameOff;  ///< Section name index in the .BTF string tble
+  uint32_t SecNameOff;  ///< Section name index in the .BTF string table
   uint32_t NumLineInfo; ///< Number of line info's in this section
+};
+
+/// Specifying one offset relocation.
+struct BPFFieldReloc {
+  uint32_t InsnOffset;    ///< Byte offset in this section
+  uint32_t TypeID;        ///< TypeID for the relocation
+  uint32_t OffsetNameOff; ///< The string to traverse types
+  uint32_t RelocKind;     ///< What to patch the instruction
+};
+
+/// Specifying offset relocation's in one section.
+struct SecFieldReloc {
+  uint32_t SecNameOff;     ///< Section name index in the .BTF string table
+  uint32_t NumFieldReloc; ///< Number of offset reloc's in this section
 };
 
 } // End namespace BTF.

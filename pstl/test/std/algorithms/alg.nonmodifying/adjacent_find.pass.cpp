@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++98, c++03, c++11, c++14
+
 #include "support/pstl_test_config.h"
 
 #include <execution>
@@ -45,7 +47,7 @@ test_adjacent_find_by_type()
         for (size_t e = 0; e < (counts[c] >= 64 ? 64 : (counts[c] == 2 ? 1 : 2)); ++e)
         {
             Sequence<T> in(counts[c], [](size_t v) -> T { return T(v); }); //fill 0...n
-            in[e] = in[e + 1] = -1;                                         //make an adjacent pair
+            in[e] = in[e + 1] = -1;                                        //make an adjacent pair
 
             auto i = std::adjacent_find(in.cbegin(), in.cend(), std::equal_to<T>());
             EXPECT_TRUE(i == in.cbegin() + e, "std::adjacent_find returned wrong result");
@@ -98,7 +100,7 @@ struct test_non_const
     }
 };
 
-int32_t
+int
 main()
 {
 

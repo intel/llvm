@@ -1,9 +1,7 @@
-LEVEL = ../../../make
-
 C_SOURCES := myModule.c
 
 OBJC_SOURCES := main.m
 
-include $(LEVEL)/Makefile.rules
+CFLAGS_EXTRAS = $(MANDATORY_MODULE_BUILD_CFLAGS) -I$(BUILDDIR)
 
-CFLAGS += $(MANDATORY_MODULE_BUILD_CFLAGS) -I$(PWD)
+include Makefile.rules

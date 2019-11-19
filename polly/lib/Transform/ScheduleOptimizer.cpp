@@ -276,9 +276,9 @@ STATISTIC(NumBoxedLoopsOptimized, "Number of boxed loops optimized");
 
 #define THREE_STATISTICS(VARNAME, DESC)                                        \
   static Statistic VARNAME[3] = {                                              \
-      {DEBUG_TYPE, #VARNAME "0", DESC " (original)", {0}, {false}},            \
-      {DEBUG_TYPE, #VARNAME "1", DESC " (after scheduler)", {0}, {false}},     \
-      {DEBUG_TYPE, #VARNAME "2", DESC " (after optimizer)", {0}, {false}}}
+      {DEBUG_TYPE, #VARNAME "0", DESC " (original)"},                          \
+      {DEBUG_TYPE, #VARNAME "1", DESC " (after scheduler)"},                   \
+      {DEBUG_TYPE, #VARNAME "2", DESC " (after optimizer)"}}
 
 THREE_STATISTICS(NumBands, "Number of bands");
 THREE_STATISTICS(NumBandMembers, "Number of band members");
@@ -910,9 +910,10 @@ getMicroKernelParams(const TargetTransformInfo *TTI, MatMulInfoTy MMI) {
   auto Nvec = RegisterBitwidth / ElementSize;
   if (Nvec == 0)
     Nvec = 2;
-  int Nr =
-      ceil(sqrt(Nvec * LatencyVectorFma * ThroughputVectorFma) / Nvec) * Nvec;
-  int Mr = ceil(Nvec * LatencyVectorFma * ThroughputVectorFma / Nr);
+  int Nr = ceil(sqrt((double)(Nvec * LatencyVectorFma * ThroughputVectorFma)) /
+                Nvec) *
+           Nvec;
+  int Mr = ceil((double)(Nvec * LatencyVectorFma * ThroughputVectorFma / Nr));
   return {Mr, Nr};
 }
 

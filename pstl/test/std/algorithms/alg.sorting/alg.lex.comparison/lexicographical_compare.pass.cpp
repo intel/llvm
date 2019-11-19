@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++98, c++03, c++11, c++14
+
 #include "support/pstl_test_config.h"
 
 #include <iostream>
@@ -154,7 +156,7 @@ struct test_non_const
     }
 };
 
-int32_t
+int
 main()
 {
     test<uint16_t, float64_t>(std::less<float64_t>());

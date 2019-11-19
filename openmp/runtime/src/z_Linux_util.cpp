@@ -50,8 +50,11 @@
 #include <mach/mach.h>
 #include <sys/sysctl.h>
 #elif KMP_OS_DRAGONFLY || KMP_OS_FREEBSD
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <sys/user.h>
 #include <pthread_np.h>
-#elif KMP_OS_NETBSD
+#elif KMP_OS_NETBSD || KMP_OS_OPENBSD
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #endif
@@ -97,7 +100,7 @@ static void __kmp_print_cond(char *buffer, kmp_cond_align_t *cond) {
 }
 #endif
 
-#if (KMP_OS_LINUX && KMP_AFFINITY_SUPPORTED)
+#if ((KMP_OS_LINUX || KMP_OS_FREEBSD) && KMP_AFFINITY_SUPPORTED)
 
 /* Affinity support */
 
@@ -119,16 +122,21 @@ void __kmp_affinity_bind_thread(int which) {
 void __kmp_affinity_determine_capable(const char *env_var) {
 // Check and see if the OS supports thread affinity.
 
+#if KMP_OS_LINUX
 #define KMP_CPU_SET_SIZE_LIMIT (1024 * 1024)
+#elif KMP_OS_FREEBSD
+#define KMP_CPU_SET_SIZE_LIMIT (sizeof(cpuset_t))
+#endif
 
+
+#if KMP_OS_LINUX
+  // If Linux* OS:
+  // If the syscall fails or returns a suggestion for the size,
+  // then we don't have to search for an appropriate size.
   int gCode;
   int sCode;
   unsigned char *buf;
   buf = (unsigned char *)KMP_INTERNAL_MALLOC(KMP_CPU_SET_SIZE_LIMIT);
-
-  // If Linux* OS:
-  // If the syscall fails or returns a suggestion for the size,
-  // then we don't have to search for an appropriate size.
   gCode = syscall(__NR_sched_getaffinity, 0, KMP_CPU_SET_SIZE_LIMIT, buf);
   KA_TRACE(30, ("__kmp_affinity_determine_capable: "
                 "initial getaffinity call returned %d errno = %d\n",
@@ -267,6 +275,23 @@ void __kmp_affinity_determine_capable(const char *env_var) {
       }
     }
   }
+#elif KMP_OS_FREEBSD
+  int gCode;
+  unsigned char *buf;
+  buf = (unsigned char *)KMP_INTERNAL_MALLOC(KMP_CPU_SET_SIZE_LIMIT);
+  gCode = pthread_getaffinity_np(pthread_self(), KMP_CPU_SET_SIZE_LIMIT, reinterpret_cast<cpuset_t *>(buf));
+  KA_TRACE(30, ("__kmp_affinity_determine_capable: "
+                "initial getaffinity call returned %d errno = %d\n",
+                gCode, errno));
+  if (gCode == 0) {
+    KMP_AFFINITY_ENABLE(KMP_CPU_SET_SIZE_LIMIT);
+    KA_TRACE(10, ("__kmp_affinity_determine_capable: "
+                  "affinity supported (mask size %d)\n"<
+		  (int)__kmp_affin_mask_size));
+    KMP_INTERNAL_FREE(buf);
+    return;
+  }
+#endif
   // save uncaught error code
   // int error = errno;
   KMP_INTERNAL_FREE(buf);
@@ -802,6 +827,13 @@ void __kmp_create_worker(int gtid, kmp_info_t *th, size_t stack_size) {
      and also gives the user the stack space they requested for all threads */
   stack_size += gtid * __kmp_stkoffset * 2;
 
+#if defined(__ANDROID__) && __ANDROID_API__ < 19
+    // Round the stack size to a multiple of the page size. Older versions of
+    // Android (until KitKat) would fail pthread_attr_setstacksize with EINVAL
+    // if the stack size was not a multiple of the page size.
+    stack_size = (stack_size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+#endif
+
   KA_TRACE(10, ("__kmp_create_worker: T#%d, default stacksize = %lu bytes, "
                 "__kmp_stksize = %lu bytes, final stacksize = %lu bytes\n",
                 gtid, KMP_DEFAULT_STKSIZE, __kmp_stksize, stack_size));
@@ -1255,7 +1287,7 @@ static void __kmp_atfork_child(void) {
   ++__kmp_fork_count;
 
 #if KMP_AFFINITY_SUPPORTED
-#if KMP_OS_LINUX
+#if KMP_OS_LINUX || KMP_OS_FREEBSD
   // reset the affinity in the child to the initial thread
   // affinity in the parent
   kmp_set_thread_affinity_mask_initial();
@@ -1264,11 +1296,9 @@ static void __kmp_atfork_child(void) {
   // over-subscription after the fork and this can improve things for
   // scripting languages that use OpenMP inside process-parallel code).
   __kmp_affinity_type = affinity_none;
-#if OMP_40_ENABLED
   if (__kmp_nested_proc_bind.bind_types != NULL) {
     __kmp_nested_proc_bind.bind_types[0] = proc_bind_false;
   }
-#endif // OMP_40_ENABLED
 #endif // KMP_AFFINITY_SUPPORTED
 
   __kmp_init_runtime = FALSE;
@@ -1438,7 +1468,6 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
   /* TODO: shouldn't this use release semantics to ensure that
      __kmp_suspend_initialize_thread gets called first? */
   old_spin = flag->set_sleeping();
-#if OMP_50_ENABLED
   if (__kmp_dflt_blocktime == KMP_MAX_BLOCKTIME &&
       __kmp_pause_status != kmp_soft_paused) {
     flag->unset_sleeping();
@@ -1446,7 +1475,6 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
     KMP_CHECK_SYSFAIL("pthread_mutex_unlock", status);
     return;
   }
-#endif
   KF_TRACE(5, ("__kmp_suspend_template: T#%d set sleep bit for spin(%p)==%x,"
                " was %x\n",
                th_gtid, flag->get(), flag->load(), old_spin));
@@ -1976,7 +2004,7 @@ int __kmp_is_address_mapped(void *addr) {
   int found = 0;
   int rc;
 
-#if KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_HURD
+#if KMP_OS_LINUX || KMP_OS_HURD
 
   /* On GNUish OSes, read the /proc/<pid>/maps pseudo-file to get all the address
      ranges mapped into the address space. */
@@ -2014,6 +2042,44 @@ int __kmp_is_address_mapped(void *addr) {
   // Free resources.
   fclose(file);
   KMP_INTERNAL_FREE(name);
+#elif KMP_OS_FREEBSD
+  char *buf;
+  size_t lstsz;
+  int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_VMMAP, getpid()};
+  rc = sysctl(mib, 4, NULL, &lstsz, NULL, 0);
+  if (rc < 0)
+     return 0;
+  // We pass from number of vm entry's semantic
+  // to size of whole entry map list.
+  lstsz = lstsz * 4 / 3;
+  buf = reinterpret_cast<char *>(kmpc_malloc(lstsz));
+  rc = sysctl(mib, 4, buf, &lstsz, NULL, 0);
+  if (rc < 0) {
+     kmpc_free(buf);
+     return 0;
+  }
+
+  char *lw = buf;
+  char *up = buf + lstsz;
+
+  while (lw < up) {
+      struct kinfo_vmentry *cur = reinterpret_cast<struct kinfo_vmentry *>(lw);
+      size_t cursz = cur->kve_structsize;
+      if (cursz == 0)
+          break;
+      void *start = reinterpret_cast<void *>(cur->kve_start);
+      void *end = reinterpret_cast<void *>(cur->kve_end);
+      // Readable/Writable addresses within current map entry
+      if ((addr >= start) && (addr < end)) {
+          if ((cur->kve_protection & KVME_PROT_READ) != 0 &&
+              (cur->kve_protection & KVME_PROT_WRITE) != 0) {
+              found = 1;
+              break;
+          }
+      }
+      lw += cursz;
+  }
+  kmpc_free(buf);
 
 #elif KMP_OS_DARWIN
 
@@ -2064,9 +2130,36 @@ int __kmp_is_address_mapped(void *addr) {
     }
   }
   KMP_INTERNAL_FREE(kiv);
-#elif KMP_OS_DRAGONFLY || KMP_OS_OPENBSD
+#elif KMP_OS_OPENBSD
 
-  // FIXME(DragonFly, OpenBSD): Implement this
+  int mib[3];
+  mib[0] = CTL_KERN;
+  mib[1] = KERN_PROC_VMMAP;
+  mib[2] = getpid();
+
+  size_t size;
+  uint64_t end;
+  rc = sysctl(mib, 3, NULL, &size, NULL, 0);
+  KMP_ASSERT(!rc);
+  KMP_ASSERT(size);
+  end = size;
+
+  struct kinfo_vmentry kiv = {.kve_start = 0};
+
+  while ((rc = sysctl(mib, 3, &kiv, &size, NULL, 0)) == 0) {
+    KMP_ASSERT(size);
+    if (kiv.kve_end == end)
+      break;
+
+    if (kiv.kve_start >= (uint64_t)addr && kiv.kve_end <= (uint64_t)addr) {
+      found = 1;
+      break;
+    }
+    kiv.kve_start += 1;
+  }
+#elif KMP_OS_DRAGONFLY
+
+  // FIXME(DragonFly): Implement this
   found = 1;
 
 #else
@@ -2335,7 +2428,8 @@ finish: // Clean up and exit.
 #endif // USE_LOAD_BALANCE
 
 #if !(KMP_ARCH_X86 || KMP_ARCH_X86_64 || KMP_MIC ||                            \
-      ((KMP_OS_LINUX || KMP_OS_DARWIN) && KMP_ARCH_AARCH64) || KMP_ARCH_PPC64)
+      ((KMP_OS_LINUX || KMP_OS_DARWIN) && KMP_ARCH_AARCH64) ||                 \
+      KMP_ARCH_PPC64 || KMP_ARCH_RISCV64)
 
 // we really only need the case with 1 argument, because CLANG always build
 // a struct of pointers to shared variables referenced in the outlined function
@@ -2418,10 +2512,6 @@ int __kmp_invoke_microtask(microtask_t pkfn, int gtid, int tid, int argc,
             p_argv[11], p_argv[12], p_argv[13], p_argv[14]);
     break;
   }
-
-#if OMPT_SUPPORT
-  *exit_frame_ptr = 0;
-#endif
 
   return 1;
 }

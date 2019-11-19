@@ -67,7 +67,7 @@ const MCPhysReg *R600RegisterInfo::getCalleeSavedRegs(
   return &CalleeSavedReg;
 }
 
-unsigned R600RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+Register R600RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   return R600::NoRegister;
 }
 
@@ -93,7 +93,7 @@ const RegClassWeight &R600RegisterInfo::getRegClassWeight(
 }
 
 bool R600RegisterInfo::isPhysRegLiveAcrossClauses(unsigned Reg) const {
-  assert(!TargetRegisterInfo::isVirtualRegister(Reg));
+  assert(!Register::isVirtualRegister(Reg));
 
   switch (Reg) {
   case R600::OQAP:

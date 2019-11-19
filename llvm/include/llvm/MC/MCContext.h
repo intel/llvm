@@ -18,9 +18,11 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/Dwarf.h"
+#include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/MC/MCAsmMacro.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/SectionKind.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Compiler.h"
@@ -49,6 +51,7 @@ namespace llvm {
   class MCSectionELF;
   class MCSectionMachO;
   class MCSectionWasm;
+  class MCSectionXCOFF;
   class MCStreamer;
   class MCSymbol;
   class MCSymbolELF;
@@ -91,6 +94,7 @@ namespace llvm {
     SpecificBumpPtrAllocator<MCSectionELF> ELFAllocator;
     SpecificBumpPtrAllocator<MCSectionMachO> MachOAllocator;
     SpecificBumpPtrAllocator<MCSectionWasm> WasmAllocator;
+    SpecificBumpPtrAllocator<MCSectionXCOFF> XCOFFAllocator;
 
     /// Bindings of names to symbols.
     SymbolTable Symbols;
@@ -108,6 +112,9 @@ namespace llvm {
     /// non-section symbol (there can be at most one of those, plus an unlimited
     /// number of section symbols with the same name).
     StringMap<bool, BumpPtrAllocator &> UsedNames;
+
+    /// Keeps track of labels that are used in inline assembly.
+    SymbolTable InlineAsmUsedLabelNames;
 
     /// The next ID to dole out to an unnamed assembler temporary symbol with
     /// a given prefix.
@@ -246,16 +253,33 @@ namespace llvm {
       }
     };
 
+    struct XCOFFSectionKey {
+      std::string SectionName;
+      XCOFF::StorageMappingClass MappingClass;
+
+      XCOFFSectionKey(StringRef SectionName,
+                      XCOFF::StorageMappingClass MappingClass)
+          : SectionName(SectionName), MappingClass(MappingClass) {}
+
+      bool operator<(const XCOFFSectionKey &Other) const {
+        return std::tie(SectionName, MappingClass) <
+               std::tie(Other.SectionName, Other.MappingClass);
+      }
+    };
+
     StringMap<MCSectionMachO *> MachOUniquingMap;
     std::map<ELFSectionKey, MCSectionELF *> ELFUniquingMap;
     std::map<COFFSectionKey, MCSectionCOFF *> COFFUniquingMap;
     std::map<WasmSectionKey, MCSectionWasm *> WasmUniquingMap;
+    std::map<XCOFFSectionKey, MCSectionXCOFF *> XCOFFUniquingMap;
     StringMap<bool> RelSecNames;
 
     SpecificBumpPtrAllocator<MCSubtargetInfo> MCSubtargetAllocator;
 
     /// Do automatic reset in destructor
     bool AutoReset;
+
+    MCTargetOptions const *TargetOptions;
 
     bool HadError = false;
 
@@ -280,7 +304,9 @@ namespace llvm {
   public:
     explicit MCContext(const MCAsmInfo *MAI, const MCRegisterInfo *MRI,
                        const MCObjectFileInfo *MOFI,
-                       const SourceMgr *Mgr = nullptr, bool DoAutoReset = true);
+                       const SourceMgr *Mgr = nullptr,
+                       MCTargetOptions const *TargetOpts = nullptr,
+                       bool DoAutoReset = true);
     MCContext(const MCContext &) = delete;
     MCContext &operator=(const MCContext &) = delete;
     ~MCContext();
@@ -358,6 +384,16 @@ namespace llvm {
     /// still want any modifications to the table itself to use the MCContext
     /// APIs.
     const SymbolTable &getSymbols() const { return Symbols; }
+
+    /// isInlineAsmLabel - Return true if the name is a label referenced in
+    /// inline assembly.
+    MCSymbol *getInlineAsmLabel(StringRef Name) const {
+      return InlineAsmUsedLabelNames.lookup(Name);
+    }
+
+    /// registerInlineAsmLabel - Records that the name is a label referenced in
+    /// inline assembly.
+    void registerInlineAsmLabel(MCSymbol *Sym);
 
     /// @}
 
@@ -440,8 +476,6 @@ namespace llvm {
                                   SectionKind Kind,
                                   const char *BeginSymName = nullptr);
 
-    MCSectionCOFF *getCOFFSection(StringRef Section);
-
     /// Gets or creates a section equivalent to Sec that is associated with the
     /// section containing KeySym. For example, to create a debug info section
     /// associated with an inline function, pass the normal debug info section
@@ -472,6 +506,13 @@ namespace llvm {
                                   const MCSymbolWasm *Group, unsigned UniqueID,
                                   const char *BeginSymName);
 
+    MCSectionXCOFF *getXCOFFSection(StringRef Section,
+                                    XCOFF::StorageMappingClass MappingClass,
+                                    XCOFF::SymbolType CSectType,
+                                    XCOFF::StorageClass StorageClass,
+                                    SectionKind K,
+                                    const char *BeginSymName = nullptr);
+
     // Create and save a copy of STI and return a reference to the copy.
     MCSubtargetInfo &getSubtargetCopy(const MCSubtargetInfo &STI);
 
@@ -487,12 +528,6 @@ namespace llvm {
 
     /// Set the compilation directory for DW_AT_comp_dir
     void setCompilationDir(StringRef S) { CompilationDir = S.str(); }
-
-    /// Get the debug prefix map.
-    const std::map<const std::string, const std::string> &
-    getDebugPrefixMap() const {
-      return DebugPrefixMap;
-    }
 
     /// Add an entry to the debug prefix map.
     void addDebugPrefixMapEntry(const std::string &From, const std::string &To);
@@ -536,13 +571,6 @@ namespace llvm {
 
     const SmallVectorImpl<std::string> &getMCDwarfDirs(unsigned CUID = 0) {
       return getMCDwarfLineTable(CUID).getMCDwarfDirs();
-    }
-
-    bool hasMCLineSections() const {
-      for (const auto &Table : MCDwarfLineTablesCUMap)
-        if (!Table.second.getMCDwarfFiles().empty() || Table.second.getLabel())
-          return true;
-      return false;
     }
 
     unsigned getDwarfCompileUnitID() { return DwarfCompileUnitID; }
@@ -651,6 +679,7 @@ namespace llvm {
 
     bool hadError() { return HadError; }
     void reportError(SMLoc L, const Twine &Msg);
+    void reportWarning(SMLoc L, const Twine &Msg);
     // Unrecoverable error has occurred. Display the best diagnostic we can
     // and bail via exit(1). For now, most MC backend errors are unrecoverable.
     // FIXME: We should really do something about that.

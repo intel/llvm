@@ -792,44 +792,6 @@ TEST(InstructionsTest, SwitchInstProfUpdateWrapper) {
     EXPECT_EQ(*SIW.getSuccessorWeight(1), 11u);
     EXPECT_EQ(*SIW.getSuccessorWeight(2), 22u);
   }
-
-  // Make prof data invalid by adding one extra weight.
-  SI->setMetadata(LLVMContext::MD_prof, MDBuilder(C).createBranchWeights(
-                                            { 99, 11, 22, 33 })); // extra
-  { // Invalid prof data makes wrapper act as if there were no prof data.
-    SwitchInstProfUpdateWrapper SIW(*SI);
-    ASSERT_FALSE(SIW.getSuccessorWeight(0).hasValue());
-    ASSERT_FALSE(SIW.getSuccessorWeight(1).hasValue());
-    ASSERT_FALSE(SIW.getSuccessorWeight(2).hasValue());
-    SIW.addCase(ConstantInt::get(Int32Ty, 3), BB3.get(), 39);
-    ASSERT_FALSE(SIW.getSuccessorWeight(3).hasValue()); // did not add weight 39
-  }
-
-  { // With added 3rd case the prof data become consistent with num of cases.
-    SwitchInstProfUpdateWrapper SIW(*SI);
-    EXPECT_EQ(*SIW.getSuccessorWeight(0), 99u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(1), 11u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(2), 22u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(3), 33u);
-  }
-
-  // Make prof data invalid by removing one extra weight.
-  SI->setMetadata(LLVMContext::MD_prof,
-                  MDBuilder(C).createBranchWeights({ 99, 11, 22 })); // shorter
-  { // Invalid prof data makes wrapper act as if there were no prof data.
-    SwitchInstProfUpdateWrapper SIW(*SI);
-    ASSERT_FALSE(SIW.getSuccessorWeight(0).hasValue());
-    ASSERT_FALSE(SIW.getSuccessorWeight(1).hasValue());
-    ASSERT_FALSE(SIW.getSuccessorWeight(2).hasValue());
-    SIW.removeCase(SwitchInst::CaseIt(SI, 2));
-  }
-
-  { // With removed 3rd case the prof data become consistent with num of cases.
-    SwitchInstProfUpdateWrapper SIW(*SI);
-    EXPECT_EQ(*SIW.getSuccessorWeight(0), 99u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(1), 11u);
-    EXPECT_EQ(*SIW.getSuccessorWeight(2), 22u);
-  }
 }
 
 TEST(InstructionsTest, CommuteShuffleMask) {
@@ -1072,12 +1034,154 @@ TEST(InstructionsTest, SkipDebug) {
   EXPECT_EQ(nullptr, Term->getNextNonDebugInstruction());
 }
 
-TEST(InstructionsTest, PhiIsNotFPMathOperator) {
+TEST(InstructionsTest, PhiMightNotBeFPMathOperator) {
   LLVMContext Context;
   IRBuilder<> Builder(Context);
   MDBuilder MDHelper(Context);
-  Instruction *I = Builder.CreatePHI(Builder.getDoubleTy(), 0);
+  Instruction *I = Builder.CreatePHI(Builder.getInt32Ty(), 0);
   EXPECT_FALSE(isa<FPMathOperator>(I));
+  I->deleteValue();
+  Instruction *FP = Builder.CreatePHI(Builder.getDoubleTy(), 0);
+  EXPECT_TRUE(isa<FPMathOperator>(FP));
+  FP->deleteValue();
+}
+
+TEST(InstructionsTest, FPCallIsFPMathOperator) {
+  LLVMContext C;
+
+  Type *ITy = Type::getInt32Ty(C);
+  FunctionType *IFnTy = FunctionType::get(ITy, {});
+  Value *ICallee = Constant::getNullValue(IFnTy->getPointerTo());
+  std::unique_ptr<CallInst> ICall(CallInst::Create(IFnTy, ICallee, {}, ""));
+  EXPECT_FALSE(isa<FPMathOperator>(ICall));
+
+  Type *VITy = VectorType::get(ITy, 2);
+  FunctionType *VIFnTy = FunctionType::get(VITy, {});
+  Value *VICallee = Constant::getNullValue(VIFnTy->getPointerTo());
+  std::unique_ptr<CallInst> VICall(CallInst::Create(VIFnTy, VICallee, {}, ""));
+  EXPECT_FALSE(isa<FPMathOperator>(VICall));
+
+  Type *AITy = ArrayType::get(ITy, 2);
+  FunctionType *AIFnTy = FunctionType::get(AITy, {});
+  Value *AICallee = Constant::getNullValue(AIFnTy->getPointerTo());
+  std::unique_ptr<CallInst> AICall(CallInst::Create(AIFnTy, AICallee, {}, ""));
+  EXPECT_FALSE(isa<FPMathOperator>(AICall));
+
+  Type *FTy = Type::getFloatTy(C);
+  FunctionType *FFnTy = FunctionType::get(FTy, {});
+  Value *FCallee = Constant::getNullValue(FFnTy->getPointerTo());
+  std::unique_ptr<CallInst> FCall(CallInst::Create(FFnTy, FCallee, {}, ""));
+  EXPECT_TRUE(isa<FPMathOperator>(FCall));
+
+  Type *VFTy = VectorType::get(FTy, 2);
+  FunctionType *VFFnTy = FunctionType::get(VFTy, {});
+  Value *VFCallee = Constant::getNullValue(VFFnTy->getPointerTo());
+  std::unique_ptr<CallInst> VFCall(CallInst::Create(VFFnTy, VFCallee, {}, ""));
+  EXPECT_TRUE(isa<FPMathOperator>(VFCall));
+
+  Type *AFTy = ArrayType::get(FTy, 2);
+  FunctionType *AFFnTy = FunctionType::get(AFTy, {});
+  Value *AFCallee = Constant::getNullValue(AFFnTy->getPointerTo());
+  std::unique_ptr<CallInst> AFCall(CallInst::Create(AFFnTy, AFCallee, {}, ""));
+  EXPECT_TRUE(isa<FPMathOperator>(AFCall));
+
+  Type *AVFTy = ArrayType::get(VFTy, 2);
+  FunctionType *AVFFnTy = FunctionType::get(AVFTy, {});
+  Value *AVFCallee = Constant::getNullValue(AVFFnTy->getPointerTo());
+  std::unique_ptr<CallInst> AVFCall(
+      CallInst::Create(AVFFnTy, AVFCallee, {}, ""));
+  EXPECT_TRUE(isa<FPMathOperator>(AVFCall));
+
+  Type *AAVFTy = ArrayType::get(AVFTy, 2);
+  FunctionType *AAVFFnTy = FunctionType::get(AAVFTy, {});
+  Value *AAVFCallee = Constant::getNullValue(AAVFFnTy->getPointerTo());
+  std::unique_ptr<CallInst> AAVFCall(
+      CallInst::Create(AAVFFnTy, AAVFCallee, {}, ""));
+  EXPECT_TRUE(isa<FPMathOperator>(AAVFCall));
+}
+
+TEST(InstructionsTest, FNegInstruction) {
+  LLVMContext Context;
+  Type *FltTy = Type::getFloatTy(Context);
+  Constant *One = ConstantFP::get(FltTy, 1.0);
+  BinaryOperator *FAdd = BinaryOperator::CreateFAdd(One, One);
+  FAdd->setHasNoNaNs(true);
+  UnaryOperator *FNeg = UnaryOperator::CreateFNegFMF(One, FAdd);
+  EXPECT_TRUE(FNeg->hasNoNaNs());
+  EXPECT_FALSE(FNeg->hasNoInfs());
+  EXPECT_FALSE(FNeg->hasNoSignedZeros());
+  EXPECT_FALSE(FNeg->hasAllowReciprocal());
+  EXPECT_FALSE(FNeg->hasAllowContract());
+  EXPECT_FALSE(FNeg->hasAllowReassoc());
+  EXPECT_FALSE(FNeg->hasApproxFunc());
+  FAdd->deleteValue();
+  FNeg->deleteValue();
+}
+
+TEST(InstructionsTest, CallBrInstruction) {
+  LLVMContext Context;
+  std::unique_ptr<Module> M = parseIR(Context, R"(
+define void @foo() {
+entry:
+  callbr void asm sideeffect "// XXX: ${0:l}", "X"(i8* blockaddress(@foo, %branch_test.exit))
+          to label %land.rhs.i [label %branch_test.exit]
+
+land.rhs.i:
+  br label %branch_test.exit
+
+branch_test.exit:
+  %0 = phi i1 [ true, %entry ], [ false, %land.rhs.i ]
+  br i1 %0, label %if.end, label %if.then
+
+if.then:
+  ret void
+
+if.end:
+  ret void
+}
+)");
+  Function *Foo = M->getFunction("foo");
+  auto BBs = Foo->getBasicBlockList().begin();
+  CallBrInst &CBI = cast<CallBrInst>(BBs->front());
+  ++BBs;
+  ++BBs;
+  BasicBlock &BranchTestExit = *BBs;
+  ++BBs;
+  BasicBlock &IfThen = *BBs;
+
+  // Test that setting the first indirect destination of callbr updates the dest
+  EXPECT_EQ(&BranchTestExit, CBI.getIndirectDest(0));
+  CBI.setIndirectDest(0, &IfThen);
+  EXPECT_EQ(&IfThen, CBI.getIndirectDest(0));
+
+  // Further, test that changing the indirect destination updates the arg
+  // operand to use the block address of the new indirect destination basic
+  // block. This is a critical invariant of CallBrInst.
+  BlockAddress *IndirectBA = BlockAddress::get(CBI.getIndirectDest(0));
+  BlockAddress *ArgBA = cast<BlockAddress>(CBI.getArgOperand(0));
+  EXPECT_EQ(IndirectBA, ArgBA)
+      << "After setting the indirect destination, callbr had an indirect "
+         "destination of '"
+      << CBI.getIndirectDest(0)->getName() << "', but a argument of '"
+      << ArgBA->getBasicBlock()->getName() << "'. These should always match:\n"
+      << CBI;
+  EXPECT_EQ(IndirectBA->getBasicBlock(), &IfThen);
+  EXPECT_EQ(ArgBA->getBasicBlock(), &IfThen);
+}
+
+TEST(InstructionsTest, UnaryOperator) {
+  LLVMContext Context;
+  IRBuilder<> Builder(Context);
+  Instruction *I = Builder.CreatePHI(Builder.getDoubleTy(), 0);
+  Value *F = Builder.CreateFNeg(I);
+
+  EXPECT_TRUE(isa<Value>(F));
+  EXPECT_TRUE(isa<Instruction>(F));
+  EXPECT_TRUE(isa<UnaryInstruction>(F));
+  EXPECT_TRUE(isa<UnaryOperator>(F));
+  EXPECT_FALSE(isa<BinaryOperator>(F));
+
+  F->deleteValue();
   I->deleteValue();
 }
 

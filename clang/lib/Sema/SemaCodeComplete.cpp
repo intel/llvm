@@ -16,7 +16,9 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/QualTypeNames.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/Preprocessor.h"
@@ -82,6 +84,15 @@ private:
 
   public:
     ShadowMapEntry() : DeclOrVector(), SingleDeclIndex(0) {}
+    ShadowMapEntry(const ShadowMapEntry &) = delete;
+    ShadowMapEntry(ShadowMapEntry &&Move) { *this = std::move(Move); }
+    ShadowMapEntry &operator=(const ShadowMapEntry &) = delete;
+    ShadowMapEntry &operator=(ShadowMapEntry &&Move) {
+      SingleDeclIndex = Move.SingleDeclIndex;
+      DeclOrVector = Move.DeclOrVector;
+      Move.DeclOrVector = nullptr;
+      return *this;
+    }
 
     void Add(const NamedDecl *ND, unsigned Index) {
       if (DeclOrVector.isNull()) {
@@ -105,7 +116,7 @@ private:
           DeclIndexPair(ND, Index));
     }
 
-    void Destroy() {
+    ~ShadowMapEntry() {
       if (DeclIndexPairVector *Vec =
               DeclOrVector.dyn_cast<DeclIndexPairVector *>()) {
         delete Vec;
@@ -152,9 +163,16 @@ private:
   /// different levels of, e.g., the inheritance hierarchy.
   std::list<ShadowMap> ShadowMaps;
 
+  /// Overloaded C++ member functions found by SemaLookup.
+  /// Used to determine when one overload is dominated by another.
+  llvm::DenseMap<std::pair<DeclContext *, /*Name*/uintptr_t>, ShadowMapEntry>
+      OverloadMap;
+
   /// If we're potentially referring to a C++ member function, the set
   /// of qualifiers applied to the object type.
   Qualifiers ObjectTypeQualifiers;
+  /// The kind of the object expression, for rvalue/lvalue overloads.
+  ExprValueKind ObjectKind;
 
   /// Whether the \p ObjectTypeQualifiers field is active.
   bool HasObjectTypeQualifiers;
@@ -230,8 +248,9 @@ public:
   /// out member functions that aren't available (because there will be a
   /// cv-qualifier mismatch) or prefer functions with an exact qualifier
   /// match.
-  void setObjectTypeQualifiers(Qualifiers Quals) {
+  void setObjectTypeQualifiers(Qualifiers Quals, ExprValueKind Kind) {
     ObjectTypeQualifiers = Quals;
+    ObjectKind = Kind;
     HasObjectTypeQualifiers = true;
   }
 
@@ -1157,6 +1176,56 @@ static void setInBaseClass(ResultBuilder::Result &R) {
   R.InBaseClass = true;
 }
 
+enum class OverloadCompare { BothViable, Dominates, Dominated };
+// Will Candidate ever be called on the object, when overloaded with Incumbent?
+// Returns Dominates if Candidate is always called, Dominated if Incumbent is
+// always called, BothViable if either may be called dependending on arguments.
+// Precondition: must actually be overloads!
+static OverloadCompare compareOverloads(const CXXMethodDecl &Candidate,
+                                        const CXXMethodDecl &Incumbent,
+                                        const Qualifiers &ObjectQuals,
+                                        ExprValueKind ObjectKind) {
+  // Base/derived shadowing is handled elsewhere.
+  if (Candidate.getDeclContext() != Incumbent.getDeclContext())
+    return OverloadCompare::BothViable;
+  if (Candidate.isVariadic() != Incumbent.isVariadic() ||
+      Candidate.getNumParams() != Incumbent.getNumParams() ||
+      Candidate.getMinRequiredArguments() !=
+          Incumbent.getMinRequiredArguments())
+    return OverloadCompare::BothViable;
+  for (unsigned I = 0, E = Candidate.getNumParams(); I != E; ++I)
+    if (Candidate.parameters()[I]->getType().getCanonicalType() !=
+        Incumbent.parameters()[I]->getType().getCanonicalType())
+      return OverloadCompare::BothViable;
+  if (!llvm::empty(Candidate.specific_attrs<EnableIfAttr>()) ||
+      !llvm::empty(Incumbent.specific_attrs<EnableIfAttr>()))
+    return OverloadCompare::BothViable;
+  // At this point, we know calls can't pick one or the other based on
+  // arguments, so one of the two must win. (Or both fail, handled elsewhere).
+  RefQualifierKind CandidateRef = Candidate.getRefQualifier();
+  RefQualifierKind IncumbentRef = Incumbent.getRefQualifier();
+  if (CandidateRef != IncumbentRef) {
+    // If the object kind is LValue/RValue, there's one acceptable ref-qualifier
+    // and it can't be mixed with ref-unqualified overloads (in valid code).
+
+    // For xvalue objects, we prefer the rvalue overload even if we have to
+    // add qualifiers (which is rare, because const&& is rare).
+    if (ObjectKind == clang::VK_XValue)
+      return CandidateRef == RQ_RValue ? OverloadCompare::Dominates
+                                       : OverloadCompare::Dominated;
+  }
+  // Now the ref qualifiers are the same (or we're in some invalid state).
+  // So make some decision based on the qualifiers.
+  Qualifiers CandidateQual = Candidate.getMethodQualifiers();
+  Qualifiers IncumbentQual = Incumbent.getMethodQualifiers();
+  bool CandidateSuperset = CandidateQual.compatiblyIncludes(IncumbentQual);
+  bool IncumbentSuperset = IncumbentQual.compatiblyIncludes(CandidateQual);
+  if (CandidateSuperset == IncumbentSuperset)
+    return OverloadCompare::BothViable;
+  return IncumbentSuperset ? OverloadCompare::Dominates
+                           : OverloadCompare::Dominated;
+}
+
 void ResultBuilder::AddResult(Result R, DeclContext *CurContext,
                               NamedDecl *Hiding, bool InBaseClass = false) {
   if (R.Kind != Result::RK_Declaration) {
@@ -1233,6 +1302,44 @@ void ResultBuilder::AddResult(Result R, DeclContext *CurContext,
           // qualifiers.
           return;
         }
+        // Detect cases where a ref-qualified method cannot be invoked.
+        switch (Method->getRefQualifier()) {
+          case RQ_LValue:
+            if (ObjectKind != VK_LValue && !MethodQuals.hasConst())
+              return;
+            break;
+          case RQ_RValue:
+            if (ObjectKind == VK_LValue)
+              return;
+            break;
+          case RQ_None:
+            break;
+        }
+
+        /// Check whether this dominates another overloaded method, which should
+        /// be suppressed (or vice versa).
+        /// Motivating case is const_iterator begin() const vs iterator begin().
+        auto &OverloadSet = OverloadMap[std::make_pair(
+            CurContext, Method->getDeclName().getAsOpaqueInteger())];
+        for (const DeclIndexPair& Entry : OverloadSet) {
+          Result &Incumbent = Results[Entry.second];
+          switch (compareOverloads(*Method,
+                                   *cast<CXXMethodDecl>(Incumbent.Declaration),
+                                   ObjectTypeQualifiers, ObjectKind)) {
+          case OverloadCompare::Dominates:
+            // Replace the dominated overload with this one.
+            // FIXME: if the overload dominates multiple incumbents then we
+            // should remove all. But two overloads is by far the common case.
+            Incumbent = std::move(R);
+            return;
+          case OverloadCompare::Dominated:
+            // This overload can't be called, drop it.
+            return;
+          case OverloadCompare::BothViable:
+            break;
+          }
+        }
+        OverloadSet.Add(Method, Results.size());
       }
 
   // Insert this result into the set of results.
@@ -1253,11 +1360,6 @@ void ResultBuilder::EnterNewScope() { ShadowMaps.emplace_back(); }
 
 /// Exit from the current scope.
 void ResultBuilder::ExitScope() {
-  for (ShadowMap::iterator E = ShadowMaps.back().begin(),
-                           EEnd = ShadowMaps.back().end();
-       E != EEnd; ++E)
-    E->second.Destroy();
-
   ShadowMaps.pop_back();
 }
 
@@ -3997,7 +4099,8 @@ void Sema::CodeCompleteOrdinaryName(Scope *S,
   // the member function to filter/prioritize the results list.
   auto ThisType = getCurrentThisType();
   if (!ThisType.isNull())
-    Results.setObjectTypeQualifiers(ThisType->getPointeeType().getQualifiers());
+    Results.setObjectTypeQualifiers(ThisType->getPointeeType().getQualifiers(),
+                                    VK_LValue);
 
   CodeCompletionDeclConsumer Consumer(Results, CurContext);
   LookupVisibleDecls(S, LookupOrdinaryName, Consumer,
@@ -4551,13 +4654,12 @@ AddObjCProperties(const CodeCompletionContext &CCContext,
   }
 }
 
-static void
-AddRecordMembersCompletionResults(Sema &SemaRef, ResultBuilder &Results,
-                                  Scope *S, QualType BaseType, RecordDecl *RD,
-                                  Optional<FixItHint> AccessOpFixIt) {
+static void AddRecordMembersCompletionResults(
+    Sema &SemaRef, ResultBuilder &Results, Scope *S, QualType BaseType,
+    ExprValueKind BaseKind, RecordDecl *RD, Optional<FixItHint> AccessOpFixIt) {
   // Indicate that we are performing a member access, and the cv-qualifiers
   // for the base object type.
-  Results.setObjectTypeQualifiers(BaseType.getQualifiers());
+  Results.setObjectTypeQualifiers(BaseType.getQualifiers(), BaseKind);
 
   // Access to a C/C++ class, struct, or union.
   Results.allowNestedNameSpecifiers();
@@ -4638,18 +4740,20 @@ void Sema::CodeCompleteMemberReferenceExpr(Scope *S, Expr *Base,
     Base = ConvertedBase.get();
 
     QualType BaseType = Base->getType();
+    ExprValueKind BaseKind = Base->getValueKind();
 
     if (IsArrow) {
-      if (const PointerType *Ptr = BaseType->getAs<PointerType>())
+      if (const PointerType *Ptr = BaseType->getAs<PointerType>()) {
         BaseType = Ptr->getPointeeType();
-      else if (BaseType->isObjCObjectPointerType())
+        BaseKind = VK_LValue;
+      } else if (BaseType->isObjCObjectPointerType())
         /*Do nothing*/;
       else
         return false;
     }
 
     if (const RecordType *Record = BaseType->getAs<RecordType>()) {
-      AddRecordMembersCompletionResults(*this, Results, S, BaseType,
+      AddRecordMembersCompletionResults(*this, Results, S, BaseType, BaseKind,
                                         Record->getDecl(),
                                         std::move(AccessOpFixIt));
     } else if (const auto *TST =
@@ -4658,13 +4762,13 @@ void Sema::CodeCompleteMemberReferenceExpr(Scope *S, Expr *Base,
       if (const auto *TD =
               dyn_cast_or_null<ClassTemplateDecl>(TN.getAsTemplateDecl())) {
         CXXRecordDecl *RD = TD->getTemplatedDecl();
-        AddRecordMembersCompletionResults(*this, Results, S, BaseType, RD,
-                                          std::move(AccessOpFixIt));
+        AddRecordMembersCompletionResults(*this, Results, S, BaseType, BaseKind,
+                                          RD, std::move(AccessOpFixIt));
       }
     } else if (const auto *ICNT = BaseType->getAs<InjectedClassNameType>()) {
       if (auto *RD = ICNT->getDecl())
-        AddRecordMembersCompletionResults(*this, Results, S, BaseType, RD,
-                                          std::move(AccessOpFixIt));
+        AddRecordMembersCompletionResults(*this, Results, S, BaseType, BaseKind,
+                                          RD, std::move(AccessOpFixIt));
     } else if (!IsArrow && BaseType->isObjCObjectPointerType()) {
       // Objective-C property reference.
       AddedPropertiesSet AddedProperties;
@@ -5035,7 +5139,7 @@ QualType Sema::ProduceCallSignatureHelp(Scope *S, Expr *Fn,
     Decls.append(UME->decls_begin(), UME->decls_end());
     const bool FirstArgumentIsBase = !UME->isImplicitAccess() && UME->getBase();
     AddFunctionCandidates(Decls, ArgExprs, CandidateSet, TemplateArgs,
-                          /*SuppressUsedConversions=*/false,
+                          /*SuppressUserConversions=*/false,
                           /*PartialOverloading=*/true, FirstArgumentIsBase);
   } else {
     FunctionDecl *FD = nullptr;
@@ -5050,7 +5154,7 @@ QualType Sema::ProduceCallSignatureHelp(Scope *S, Expr *Fn,
       else
         AddOverloadCandidate(FD, DeclAccessPair::make(FD, FD->getAccess()),
                              Args, CandidateSet,
-                             /*SuppressUsedConversions=*/false,
+                             /*SuppressUserConversions=*/false,
                              /*PartialOverloading=*/true);
 
     } else if (auto DC = NakedFn->getType()->getAsCXXRecordDecl()) {
@@ -5067,7 +5171,7 @@ QualType Sema::ProduceCallSignatureHelp(Scope *S, Expr *Fn,
         ArgExprs.append(Args.begin(), Args.end());
         AddFunctionCandidates(R.asUnresolvedSet(), ArgExprs, CandidateSet,
                               /*ExplicitArgs=*/nullptr,
-                              /*SuppressUsedConversions=*/false,
+                              /*SuppressUserConversions=*/false,
                               /*PartialOverloading=*/true);
       }
     } else {
@@ -5115,14 +5219,14 @@ QualType Sema::ProduceConstructorSignatureHelp(Scope *S, QualType Type,
     if (auto *FD = dyn_cast<FunctionDecl>(C)) {
       AddOverloadCandidate(FD, DeclAccessPair::make(FD, C->getAccess()), Args,
                            CandidateSet,
-                           /*SuppressUsedConversions=*/false,
+                           /*SuppressUserConversions=*/false,
                            /*PartialOverloading=*/true,
                            /*AllowExplicit*/ true);
     } else if (auto *FTD = dyn_cast<FunctionTemplateDecl>(C)) {
       AddTemplateOverloadCandidate(
           FTD, DeclAccessPair::make(FTD, C->getAccess()),
           /*ExplicitTemplateArgs=*/nullptr, Args, CandidateSet,
-          /*SuppressUsedConversions=*/false,
+          /*SuppressUserConversions=*/false,
           /*PartialOverloading=*/true);
     }
   }
@@ -5226,18 +5330,21 @@ void Sema::CodeCompleteAfterIf(Scope *S) {
 }
 
 void Sema::CodeCompleteQualifiedId(Scope *S, CXXScopeSpec &SS,
-                                   bool EnteringContext, QualType BaseType,
+                                   bool EnteringContext,
+                                   bool IsUsingDeclaration, QualType BaseType,
                                    QualType PreferredType) {
   if (SS.isEmpty() || !CodeCompleter)
     return;
+
+  CodeCompletionContext CC(CodeCompletionContext::CCC_Symbol, PreferredType);
+  CC.setIsUsingDeclaration(IsUsingDeclaration);
+  CC.setCXXScopeSpecifier(SS);
 
   // We want to keep the scope specifier even if it's invalid (e.g. the scope
   // "a::b::" is not corresponding to any context/namespace in the AST), since
   // it can be useful for global code completion which have information about
   // contexts/symbols that are not in the AST.
   if (SS.isInvalid()) {
-    CodeCompletionContext CC(CodeCompletionContext::CCC_Symbol, PreferredType);
-    CC.setCXXScopeSpecifier(SS);
     // As SS is invalid, we try to collect accessible contexts from the current
     // scope with a dummy lookup so that the completion consumer can try to
     // guess what the specified scope is.
@@ -5267,10 +5374,8 @@ void Sema::CodeCompleteQualifiedId(Scope *S, CXXScopeSpec &SS,
   if (!isDependentScopeSpecifier(SS) && RequireCompleteDeclContext(SS, Ctx))
     return;
 
-  ResultBuilder Results(
-      *this, CodeCompleter->getAllocator(),
-      CodeCompleter->getCodeCompletionTUInfo(),
-      CodeCompletionContext(CodeCompletionContext::CCC_Symbol, PreferredType));
+  ResultBuilder Results(*this, CodeCompleter->getAllocator(),
+                        CodeCompleter->getCodeCompletionTUInfo(), CC);
   if (!PreferredType.isNull())
     Results.setPreferredType(PreferredType);
   Results.EnterNewScope();
@@ -5299,23 +5404,21 @@ void Sema::CodeCompleteQualifiedId(Scope *S, CXXScopeSpec &SS,
                        CodeCompleter->loadExternal());
   }
 
-  auto CC = Results.getCompletionContext();
-  CC.setCXXScopeSpecifier(SS);
-
-  HandleCodeCompleteResults(this, CodeCompleter, CC, Results.data(),
-                            Results.size());
+  HandleCodeCompleteResults(this, CodeCompleter, Results.getCompletionContext(),
+                            Results.data(), Results.size());
 }
 
 void Sema::CodeCompleteUsing(Scope *S) {
   if (!CodeCompleter)
     return;
 
+  // This can be both a using alias or using declaration, in the former we
+  // expect a new name and a symbol in the latter case.
+  CodeCompletionContext Context(CodeCompletionContext::CCC_SymbolOrNewName);
+  Context.setIsUsingDeclaration(true);
+
   ResultBuilder Results(*this, CodeCompleter->getAllocator(),
-                        CodeCompleter->getCodeCompletionTUInfo(),
-                        // This can be both a using alias or using
-                        // declaration, in the former we expect a new name and a
-                        // symbol in the latter case.
-                        CodeCompletionContext::CCC_SymbolOrNewName,
+                        CodeCompleter->getCodeCompletionTUInfo(), Context,
                         &ResultBuilder::IsNestedNameSpecifier);
   Results.EnterNewScope();
 
@@ -5431,9 +5534,10 @@ void Sema::CodeCompleteOperatorName(Scope *S) {
                         &ResultBuilder::IsType);
   Results.EnterNewScope();
 
-  // Add the names of overloadable operators.
+  // Add the names of overloadable operators. Note that OO_Conditional is not
+  // actually overloadable.
 #define OVERLOADED_OPERATOR(Name, Spelling, Token, Unary, Binary, MemberOnly)  \
-  if (std::strcmp(Spelling, "?"))                                              \
+  if (OO_##Name != OO_Conditional)                                             \
     Results.AddResult(Result(Spelling));
 #include "clang/Basic/OperatorKinds.def"
 
@@ -8501,8 +8605,7 @@ void Sema::CodeCompletePreprocessorExpression() {
 
   if (!CodeCompleter || CodeCompleter->includeMacros())
     AddMacroResults(PP, Results,
-                    CodeCompleter ? CodeCompleter->loadExternal() : false,
-                    true);
+                    !CodeCompleter || CodeCompleter->loadExternal(), true);
 
   // defined (<macro>)
   Results.EnterNewScope();
@@ -8699,8 +8802,7 @@ void Sema::GatherGlobalCodeCompletions(
 
   if (!CodeCompleter || CodeCompleter->includeMacros())
     AddMacroResults(PP, Builder,
-                    CodeCompleter ? CodeCompleter->loadExternal() : false,
-                    true);
+                    !CodeCompleter || CodeCompleter->loadExternal(), true);
 
   Results.clear();
   Results.insert(Results.end(), Builder.data(),

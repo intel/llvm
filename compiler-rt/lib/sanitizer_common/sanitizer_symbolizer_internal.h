@@ -15,6 +15,7 @@
 
 #include "sanitizer_symbolizer.h"
 #include "sanitizer_file.h"
+#include "sanitizer_vector.h"
 
 namespace __sanitizer {
 
@@ -58,6 +59,10 @@ class SymbolizerTool {
     UNIMPLEMENTED();
   }
 
+  virtual bool SymbolizeFrame(uptr addr, FrameInfo *info) {
+    return false;
+  }
+
   virtual void Flush() {}
 
   // Return nullptr to fallback to the default platform-specific demangler.
@@ -71,16 +76,21 @@ class SymbolizerTool {
 // SymbolizerProcess may not be used from two threads simultaneously.
 class SymbolizerProcess {
  public:
-  explicit SymbolizerProcess(const char *path, bool use_forkpty = false);
+  explicit SymbolizerProcess(const char *path, bool use_posix_spawn = false);
   const char *SendCommand(const char *command);
 
  protected:
+  /// The maximum number of arguments required to invoke a tool process.
+  static const unsigned kArgVMax = 6;
+
+  // Customizable by subclasses.
+  virtual bool StartSymbolizerSubprocess();
+  virtual bool ReadFromSymbolizer(char *buffer, uptr max_length);
+
+ private:
   virtual bool ReachedEndOfOutput(const char *buffer, uptr length) const {
     UNIMPLEMENTED();
   }
-
-  /// The maximum number of arguments required to invoke a tool process.
-  enum { kArgVMax = 6 };
 
   /// Fill in an argv array to invoke the child process.
   virtual void GetArgV(const char *path_to_binary,
@@ -88,13 +98,9 @@ class SymbolizerProcess {
     UNIMPLEMENTED();
   }
 
-  virtual bool ReadFromSymbolizer(char *buffer, uptr max_length);
-
- private:
   bool Restart();
   const char *SendCommandImpl(const char *command);
   bool WriteToSymbolizer(const char *buffer, uptr length);
-  bool StartSymbolizerSubprocess();
 
   const char *path_;
   fd_t input_fd_;
@@ -108,7 +114,7 @@ class SymbolizerProcess {
   uptr times_restarted_;
   bool failed_to_start_;
   bool reported_invalid_path_;
-  bool use_forkpty_;
+  bool use_posix_spawn_;
 };
 
 class LLVMSymbolizerProcess;
@@ -120,12 +126,13 @@ class LLVMSymbolizer : public SymbolizerTool {
   explicit LLVMSymbolizer(const char *path, LowLevelAllocator *allocator);
 
   bool SymbolizePC(uptr addr, SymbolizedStack *stack) override;
-
   bool SymbolizeData(uptr addr, DataInfo *info) override;
+  bool SymbolizeFrame(uptr addr, FrameInfo *info) override;
 
  private:
-  const char *FormatAndSendCommand(bool is_data, const char *module_name,
-                                   uptr module_offset, ModuleArch arch);
+  const char *FormatAndSendCommand(const char *command_prefix,
+                                   const char *module_name, uptr module_offset,
+                                   ModuleArch arch);
 
   LLVMSymbolizerProcess *symbolizer_process_;
   static const uptr kBufferSize = 16 * 1024;

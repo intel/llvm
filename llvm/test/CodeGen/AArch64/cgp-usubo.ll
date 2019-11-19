@@ -21,11 +21,9 @@ define i1 @usubo_ult_i64(i64 %x, i64 %y, i64* %p) nounwind {
 define i1 @usubo_ugt_i32(i32 %x, i32 %y, i32* %p) nounwind {
 ; CHECK-LABEL: usubo_ugt_i32:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    cmp w1, w0
-; CHECK-NEXT:    cset w8, hi
-; CHECK-NEXT:    sub w9, w0, w1
-; CHECK-NEXT:    mov w0, w8
-; CHECK-NEXT:    str w9, [x2]
+; CHECK-NEXT:    subs w8, w0, w1
+; CHECK-NEXT:    cset w0, lo
+; CHECK-NEXT:    str w8, [x2]
 ; CHECK-NEXT:    ret
   %ov = icmp ugt i32 %y, %x
   %s = sub i32 %x, %y
@@ -153,10 +151,10 @@ end:
 define i1 @usubo_ult_cmp_dominates_i64(i64 %x, i64 %y, i64* %p, i1 %cond) nounwind {
 ; CHECK-LABEL: usubo_ult_cmp_dominates_i64:
 ; CHECK:       // %bb.0: // %entry
-; CHECK-NEXT:    str x22, [sp, #-48]! // 8-byte Folded Spill
-; CHECK-NEXT:    stp x21, x20, [sp, #16] // 16-byte Folded Spill
+; CHECK-NEXT:    str x30, [sp, #-48]! // 8-byte Folded Spill
+; CHECK-NEXT:    stp x20, x19, [sp, #32] // 16-byte Folded Spill
 ; CHECK-NEXT:    mov w20, w3
-; CHECK-NEXT:    stp x19, x30, [sp, #32] // 16-byte Folded Spill
+; CHECK-NEXT:    stp x22, x21, [sp, #16] // 16-byte Folded Spill
 ; CHECK-NEXT:    tbz w3, #0, .LBB8_3
 ; CHECK-NEXT:  // %bb.1: // %t
 ; CHECK-NEXT:    cmp x0, x1
@@ -174,9 +172,9 @@ define i1 @usubo_ult_cmp_dominates_i64(i64 %x, i64 %y, i64* %p, i1 %cond) nounwi
 ; CHECK-NEXT:  .LBB8_3: // %f
 ; CHECK-NEXT:    and w0, w20, #0x1
 ; CHECK-NEXT:  .LBB8_4: // %f
-; CHECK-NEXT:    ldp x19, x30, [sp, #32] // 16-byte Folded Reload
-; CHECK-NEXT:    ldp x21, x20, [sp, #16] // 16-byte Folded Reload
-; CHECK-NEXT:    ldr x22, [sp], #48 // 8-byte Folded Reload
+; CHECK-NEXT:    ldp x20, x19, [sp, #32] // 16-byte Folded Reload
+; CHECK-NEXT:    ldp x22, x21, [sp, #16] // 16-byte Folded Reload
+; CHECK-NEXT:    ldr x30, [sp], #48 // 8-byte Folded Reload
 ; CHECK-NEXT:    ret
 entry:
   br i1 %cond, label %t, label %f

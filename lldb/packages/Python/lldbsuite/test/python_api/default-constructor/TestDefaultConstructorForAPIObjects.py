@@ -14,9 +14,6 @@ after default construction.
 from __future__ import print_function
 
 
-import os
-import time
-import re
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -194,6 +191,20 @@ class APIDefaultConstructorTestCase(TestBase):
         # Do fuzz testing on the invalid obj, it should not crash lldb.
         import sb_function
         sb_function.fuzz_obj(obj)
+
+    @add_test_categories(['pyapi'])
+    @no_debug_info_test
+    def test_SBFile(self):
+        sbf = lldb.SBFile()
+        self.assertFalse(sbf.IsValid())
+        self.assertFalse(bool(sbf))
+        e, n = sbf.Write(b'foo')
+        self.assertTrue(e.Fail())
+        self.assertEqual(n, 0)
+        buffer = bytearray(100)
+        e, n = sbf.Read(buffer)
+        self.assertEqual(n, 0)
+        self.assertTrue(e.Fail())
 
     @add_test_categories(['pyapi'])
     @no_debug_info_test

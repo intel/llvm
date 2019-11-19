@@ -109,6 +109,14 @@ STATISTIC(BanerjeeSuccesses, "Banerjee successes");
 static cl::opt<bool>
     Delinearize("da-delinearize", cl::init(true), cl::Hidden, cl::ZeroOrMore,
                 cl::desc("Try to delinearize array references."));
+static cl::opt<bool> DisableDelinearizationChecks(
+    "da-disable-delinearization-checks", cl::init(false), cl::Hidden,
+    cl::ZeroOrMore,
+    cl::desc(
+        "Disable checks that try to statically verify validity of "
+        "delinearized subscripts. Enabling this option may result in incorrect "
+        "dependence vectors for languages that allow the subscript of one "
+        "dimension to underflow or overflow into another dimension."));
 
 //===----------------------------------------------------------------------===//
 // basics
@@ -246,7 +254,7 @@ FullDependence::FullDependence(Instruction *Source, Instruction *Destination,
       LoopIndependent(PossiblyLoopIndependent) {
   Consistent = true;
   if (CommonLevels)
-    DV = make_unique<DVEntry[]>(CommonLevels);
+    DV = std::make_unique<DVEntry[]>(CommonLevels);
 }
 
 // The rest are simple getters that hide the implementation.
@@ -3316,19 +3324,20 @@ bool DependenceInfo::tryDelinearize(Instruction *Src, Instruction *Dst,
   // and dst.
   // FIXME: It may be better to record these sizes and add them as constraints
   // to the dependency checks.
-  for (int i = 1; i < size; ++i) {
-    if (!isKnownNonNegative(SrcSubscripts[i], SrcPtr))
-      return false;
+  if (!DisableDelinearizationChecks)
+    for (int i = 1; i < size; ++i) {
+      if (!isKnownNonNegative(SrcSubscripts[i], SrcPtr))
+        return false;
 
-    if (!isKnownLessThan(SrcSubscripts[i], Sizes[i - 1]))
-      return false;
+      if (!isKnownLessThan(SrcSubscripts[i], Sizes[i - 1]))
+        return false;
 
-    if (!isKnownNonNegative(DstSubscripts[i], DstPtr))
-      return false;
+      if (!isKnownNonNegative(DstSubscripts[i], DstPtr))
+        return false;
 
-    if (!isKnownLessThan(DstSubscripts[i], Sizes[i - 1]))
-      return false;
-  }
+      if (!isKnownLessThan(DstSubscripts[i], Sizes[i - 1]))
+        return false;
+    }
 
   LLVM_DEBUG({
     dbgs() << "\nSrcSubscripts: ";
@@ -3406,7 +3415,7 @@ DependenceInfo::depends(Instruction *Src, Instruction *Dst,
   if (!isLoadOrStore(Src) || !isLoadOrStore(Dst)) {
     // can only analyze simple loads and stores, i.e., no calls, invokes, etc.
     LLVM_DEBUG(dbgs() << "can only handle simple loads and stores\n");
-    return make_unique<Dependence>(Src, Dst);
+    return std::make_unique<Dependence>(Src, Dst);
   }
 
   assert(isLoadOrStore(Src) && "instruction is not load or store");
@@ -3421,7 +3430,7 @@ DependenceInfo::depends(Instruction *Src, Instruction *Dst,
   case PartialAlias:
     // cannot analyse objects if we don't understand their aliasing.
     LLVM_DEBUG(dbgs() << "can't analyze may or partial alias\n");
-    return make_unique<Dependence>(Src, Dst);
+    return std::make_unique<Dependence>(Src, Dst);
   case NoAlias:
     // If the objects noalias, they are distinct, accesses are independent.
     LLVM_DEBUG(dbgs() << "no alias\n");
@@ -3768,7 +3777,7 @@ DependenceInfo::depends(Instruction *Src, Instruction *Dst,
       return nullptr;
   }
 
-  return make_unique<FullDependence>(std::move(Result));
+  return std::make_unique<FullDependence>(std::move(Result));
 }
 
 

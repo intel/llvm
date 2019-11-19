@@ -13,7 +13,7 @@
 #ifndef LLVM_TOOLS_LLI_REMOTEJITUTILS_H
 #define LLVM_TOOLS_LLI_REMOTEJITUTILS_H
 
-#include "llvm/ExecutionEngine/Orc/RawByteChannel.h"
+#include "llvm/ExecutionEngine/Orc/RPC/RawByteChannel.h"
 #include "llvm/ExecutionEngine/RTDyldMemoryManager.h"
 #include <mutex>
 
@@ -75,7 +75,7 @@ std::unique_ptr<FDRawChannel> launchRemote();
 
 namespace llvm {
 
-// ForwardingMM - Adapter to connect MCJIT to Orc's Remote8
+// ForwardingMM - Adapter to connect MCJIT to Orc's Remote
 // memory manager.
 class ForwardingMemoryManager : public llvm::RTDyldMemoryManager {
 public:

@@ -485,12 +485,8 @@ ThreadSP SystemRuntimeMacOSX::GetExtendedBacktraceThread(ThreadSP real_thread,
                                   m_process->GetByteOrder(),
                                   m_process->GetAddressByteSize());
           ItemInfo item = ExtractItemInfoFromBuffer(extractor);
-          bool stop_id_is_valid = true;
-          if (item.stop_id == 0)
-            stop_id_is_valid = false;
           originating_thread_sp = std::make_shared<HistoryThread>(
-              *m_process, item.enqueuing_thread_id, item.enqueuing_callstack,
-              item.stop_id, stop_id_is_valid);
+              *m_process, item.enqueuing_thread_id, item.enqueuing_callstack);
           originating_thread_sp->SetExtendedBacktraceToken(
               item.item_that_enqueued_this);
           originating_thread_sp->SetQueueName(
@@ -530,12 +526,8 @@ SystemRuntimeMacOSX::GetExtendedBacktraceFromItemRef(lldb::addr_t item_ref) {
                               m_process->GetByteOrder(),
                               m_process->GetAddressByteSize());
       ItemInfo item = ExtractItemInfoFromBuffer(extractor);
-      bool stop_id_is_valid = true;
-      if (item.stop_id == 0)
-        stop_id_is_valid = false;
       return_thread_sp = std::make_shared<HistoryThread>(
-          *m_process, item.enqueuing_thread_id, item.enqueuing_callstack,
-          item.stop_id, stop_id_is_valid);
+          *m_process, item.enqueuing_thread_id, item.enqueuing_callstack);
       return_thread_sp->SetExtendedBacktraceToken(item.item_that_enqueued_this);
       return_thread_sp->SetQueueName(item.enqueuing_queue_label.c_str());
       return_thread_sp->SetQueueID(item.enqueuing_queue_serialnum);
@@ -556,14 +548,9 @@ SystemRuntimeMacOSX::GetExtendedBacktraceForQueueItem(QueueItemSP queue_item_sp,
   if (type != "libdispatch")
     return extended_thread_sp;
 
-  bool stop_id_is_valid = true;
-  if (queue_item_sp->GetStopID() == 0)
-    stop_id_is_valid = false;
-
   extended_thread_sp = std::make_shared<HistoryThread>(
       *m_process, queue_item_sp->GetEnqueueingThreadID(),
-      queue_item_sp->GetEnqueueingBacktrace(), queue_item_sp->GetStopID(),
-      stop_id_is_valid);
+      queue_item_sp->GetEnqueueingBacktrace());
   extended_thread_sp->SetExtendedBacktraceToken(
       queue_item_sp->GetItemThatEnqueuedThis());
   extended_thread_sp->SetQueueName(queue_item_sp->GetQueueLabel().c_str());
@@ -592,9 +579,9 @@ bool SystemRuntimeMacOSX::BacktraceRecordingHeadersInitialized() {
   static ConstString introspection_dispatch_queue_info_version(
       "__introspection_dispatch_queue_info_version");
   SymbolContextList sc_list;
-  if (m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
-          introspection_dispatch_queue_info_version, eSymbolTypeData, sc_list) >
-      0) {
+  m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
+      introspection_dispatch_queue_info_version, eSymbolTypeData, sc_list);
+  if (!sc_list.IsEmpty()) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(0, sc);
     AddressRange addr_range;
@@ -606,9 +593,9 @@ bool SystemRuntimeMacOSX::BacktraceRecordingHeadersInitialized() {
 
   static ConstString introspection_dispatch_queue_info_data_offset(
       "__introspection_dispatch_queue_info_data_offset");
-  if (m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
-          introspection_dispatch_queue_info_data_offset, eSymbolTypeData,
-          sc_list) > 0) {
+  m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
+      introspection_dispatch_queue_info_data_offset, eSymbolTypeData, sc_list);
+  if (!sc_list.IsEmpty()) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(0, sc);
     AddressRange addr_range;
@@ -620,9 +607,9 @@ bool SystemRuntimeMacOSX::BacktraceRecordingHeadersInitialized() {
 
   static ConstString introspection_dispatch_item_info_version(
       "__introspection_dispatch_item_info_version");
-  if (m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
-          introspection_dispatch_item_info_version, eSymbolTypeData, sc_list) >
-      0) {
+  m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
+      introspection_dispatch_item_info_version, eSymbolTypeData, sc_list);
+  if (!sc_list.IsEmpty()) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(0, sc);
     AddressRange addr_range;
@@ -634,9 +621,9 @@ bool SystemRuntimeMacOSX::BacktraceRecordingHeadersInitialized() {
 
   static ConstString introspection_dispatch_item_info_data_offset(
       "__introspection_dispatch_item_info_data_offset");
-  if (m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
-          introspection_dispatch_item_info_data_offset, eSymbolTypeData,
-          sc_list) > 0) {
+  m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
+      introspection_dispatch_item_info_data_offset, eSymbolTypeData, sc_list);
+  if (!sc_list.IsEmpty()) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(0, sc);
     AddressRange addr_range;
@@ -940,13 +927,13 @@ void SystemRuntimeMacOSX::PopulateQueuesUsingLibBTR(
       offset_t start_of_next_item = start_of_this_item + offset_to_next;
       offset = start_of_next_item;
 
-      if (log)
-        log->Printf("SystemRuntimeMacOSX::PopulateQueuesUsingLibBTR added "
-                    "queue with dispatch_queue_t 0x%" PRIx64
-                    ", serial number 0x%" PRIx64
-                    ", running items %d, pending items %d, name '%s'",
-                    queue, serialnum, running_work_items_count,
-                    pending_work_items_count, queue_label);
+      LLDB_LOGF(log,
+                "SystemRuntimeMacOSX::PopulateQueuesUsingLibBTR added "
+                "queue with dispatch_queue_t 0x%" PRIx64
+                ", serial number 0x%" PRIx64
+                ", running items %d, pending items %d, name '%s'",
+                queue, serialnum, running_work_items_count,
+                pending_work_items_count, queue_label);
 
       QueueSP queue_sp(
           new Queue(m_process->shared_from_this(), serialnum, queue_label));

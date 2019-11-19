@@ -19,7 +19,6 @@
 
 #include "CodeComplete.h"
 #include "AST.h"
-#include "ClangdUnit.h"
 #include "CodeCompletionStrings.h"
 #include "Compiler.h"
 #include "Diagnostics.h"
@@ -28,10 +27,12 @@
 #include "FuzzyMatch.h"
 #include "Headers.h"
 #include "Logger.h"
+#include "Preamble.h"
 #include "Protocol.h"
 #include "Quality.h"
 #include "SourceCode.h"
 #include "TUScheduler.h"
+#include "Threading.h"
 #include "Trace.h"
 #include "URI.h"
 #include "index/Index.h"
@@ -169,7 +170,7 @@ struct CompletionCandidate {
   // Returns a token identifying the overload set this is part of.
   // 0 indicates it's not part of any overload set.
   size_t overloadSet(const CodeCompleteOptions &Opts) const {
-    if (!Opts.BundleOverloads)
+    if (!Opts.BundleOverloads.getValueOr(false))
       return 0;
     llvm::SmallString<256> Scratch;
     if (IndexResult) {
@@ -252,9 +253,10 @@ struct CodeCompletionBuilder {
                         const IncludeInserter &Includes,
                         llvm::StringRef FileName,
                         CodeCompletionContext::Kind ContextKind,
-                        const CodeCompleteOptions &Opts)
+                        const CodeCompleteOptions &Opts, bool GenerateSnippets)
       : ASTCtx(ASTCtx), ExtractDocumentation(Opts.IncludeComments),
-        EnableFunctionArgSnippets(Opts.EnableFunctionArgSnippets) {
+        EnableFunctionArgSnippets(Opts.EnableFunctionArgSnippets),
+        GenerateSnippets(GenerateSnippets) {
     add(C, SemaCCS);
     if (C.SemaResult) {
       assert(ASTCtx);
@@ -317,18 +319,19 @@ struct CodeCompletionBuilder {
     // Turn absolute path into a literal string that can be #included.
     auto Inserted = [&](llvm::StringRef Header)
         -> llvm::Expected<std::pair<std::string, bool>> {
-      auto DeclaringURI =
-          URI::parse(C.IndexResult->CanonicalDeclaration.FileURI);
-      if (!DeclaringURI)
-        return DeclaringURI.takeError();
-      auto ResolvedDeclaring = URI::resolve(*DeclaringURI, FileName);
+      auto ResolvedDeclaring =
+          URI::resolve(C.IndexResult->CanonicalDeclaration.FileURI, FileName);
       if (!ResolvedDeclaring)
         return ResolvedDeclaring.takeError();
       auto ResolvedInserted = toHeaderFile(Header, FileName);
       if (!ResolvedInserted)
         return ResolvedInserted.takeError();
+      auto Spelled = Includes.calculateIncludePath(*ResolvedInserted, FileName);
+      if (!Spelled)
+        return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                       "Header not on include path");
       return std::make_pair(
-          Includes.calculateIncludePath(*ResolvedInserted),
+          std::move(*Spelled),
           Includes.shouldInsertInclude(*ResolvedDeclaring, *ResolvedInserted));
     };
     bool ShouldInsert = C.headerToInsertIfAllowed(Opts).hasValue();
@@ -342,8 +345,9 @@ struct CodeCompletionBuilder {
         Completion.Includes.push_back(std::move(Include));
       } else
         log("Failed to generate include insertion edits for adding header "
-            "(FileURI='{0}', IncludeHeader='{1}') into {2}",
-            C.IndexResult->CanonicalDeclaration.FileURI, Inc, FileName);
+            "(FileURI='{0}', IncludeHeader='{1}') into {2}: {3}",
+            C.IndexResult->CanonicalDeclaration.FileURI, Inc, FileName,
+            ToInclude.takeError());
     }
     // Prefer includes that do not need edits (i.e. already exist).
     std::stable_partition(Completion.Includes.begin(),
@@ -416,6 +420,8 @@ private:
   }
 
   std::string summarizeSnippet() const {
+    if (!GenerateSnippets)
+      return "";
     auto *Snippet = onlyValue<&BundledEntry::SnippetSuffix>();
     if (!Snippet)
       // All bundles are function calls.
@@ -473,6 +479,8 @@ private:
   llvm::SmallVector<BundledEntry, 1> Bundled;
   bool ExtractDocumentation;
   bool EnableFunctionArgSnippets;
+  /// When false, no snippets are generated argument lists.
+  bool GenerateSnippets;
 };
 
 // Determine the symbol ID for a Sema code completion result, if possible.
@@ -906,8 +914,7 @@ public:
 
 private:
   void processParameterChunk(llvm::StringRef ChunkText,
-                             SignatureInformation &Signature,
-                             SignatureQualitySignals Signal) const {
+                             SignatureInformation &Signature) const {
     // (!) this is O(n), should still be fast compared to building ASTs.
     unsigned ParamStartOffset = lspLength(Signature.label);
     unsigned ParamEndOffset = ParamStartOffset + lspLength(ChunkText);
@@ -921,8 +928,6 @@ private:
     Info.labelString = ChunkText;
 
     Signature.parameters.push_back(std::move(Info));
-    // FIXME: this should only be set on CK_CurrentParameter.
-    Signal.ContainsActiveParameter = true;
   }
 
   void processOptionalChunk(const CodeCompletionString &CCS,
@@ -939,7 +944,7 @@ private:
         break;
       case CodeCompletionString::CK_CurrentParameter:
       case CodeCompletionString::CK_Placeholder:
-        processParameterChunk(Chunk.Text, Signature, Signal);
+        processParameterChunk(Chunk.Text, Signature);
         Signal.NumberOfOptionalParameters++;
         break;
       default:
@@ -971,7 +976,7 @@ private:
         break;
       case CodeCompletionString::CK_CurrentParameter:
       case CodeCompletionString::CK_Placeholder:
-        processParameterChunk(Chunk.Text, Signature, Signal);
+        processParameterChunk(Chunk.Text, Signature);
         Signal.NumberOfParameters++;
         break;
       case CodeCompletionString::CK_Optional: {
@@ -1030,8 +1035,8 @@ void loadMainFilePreambleMacros(const Preprocessor &PP,
       PP.getIdentifierTable().getExternalIdentifierLookup();
   if (!PreambleIdentifiers || !PreambleMacros)
     return;
-  for (const auto &MacroName : Preamble.MainFileMacros)
-    if (auto *II = PreambleIdentifiers->get(MacroName))
+  for (const auto &MacroName : Preamble.Macros.Names)
+    if (auto *II = PreambleIdentifiers->get(MacroName.getKey()))
       if (II->isOutOfDate())
         PreambleMacros->updateOutOfDateIdentifier(*II);
 }
@@ -1051,7 +1056,9 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   ParseInput.FS = VFS;
   ParseInput.Contents = Input.Contents;
   ParseInput.Opts = ParseOptions();
-  auto CI = buildCompilerInvocation(ParseInput);
+
+  IgnoreDiagnostics IgnoreDiags;
+  auto CI = buildCompilerInvocation(ParseInput, IgnoreDiags);
   if (!CI) {
     elog("Couldn't create CompilerInvocation");
     return false;
@@ -1082,12 +1089,11 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   bool CompletingInPreamble = PreambleRegion.Size > Input.Offset;
   // NOTE: we must call BeginSourceFile after prepareCompilerInstance. Otherwise
   // the remapped buffers do not get freed.
-  IgnoreDiagnostics DummyDiagsConsumer;
   auto Clang = prepareCompilerInstance(
       std::move(CI),
       (Input.Preamble && !CompletingInPreamble) ? &Input.Preamble->Preamble
                                                 : nullptr,
-      std::move(ContentsBuffer), std::move(VFS), DummyDiagsConsumer);
+      std::move(ContentsBuffer), std::move(VFS), IgnoreDiags);
   Clang->getPreprocessorOpts().SingleFileParseMode = CompletingInPreamble;
   Clang->setCodeCompletionConsumer(Consumer.release());
 
@@ -1108,8 +1114,9 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   if (Includes)
     Clang->getPreprocessor().addPPCallbacks(
         collectIncludeStructureCallback(Clang->getSourceManager(), Includes));
-  if (!Action.Execute()) {
-    log("Execute() failed when running codeComplete for {0}", Input.FileName);
+  if (llvm::Error Err = Action.Execute()) {
+    log("Execute() failed when running codeComplete for {0}: {1}",
+        Input.FileName, toString(std::move(Err)));
     return false;
   }
   Action.EndSourceFile();
@@ -1202,6 +1209,7 @@ class CodeCompleteFlow {
   // Sema takes ownership of Recorder. Recorder is valid until Sema cleanup.
   CompletionRecorder *Recorder = nullptr;
   CodeCompletionContext::Kind CCContextKind = CodeCompletionContext::CCC_Other;
+  bool IsUsingDeclaration = false;
   // Counters for logging.
   int NSema = 0, NIndex = 0, NSemaAndIndex = 0, NIdent = 0;
   bool Incomplete = false; // Would more be available with a higher limit?
@@ -1249,9 +1257,10 @@ public:
     //   - completion results based on the AST.
     //   - partial identifier and context. We need these for the index query.
     CodeCompleteResult Output;
-    auto RecorderOwner = llvm::make_unique<CompletionRecorder>(Opts, [&]() {
+    auto RecorderOwner = std::make_unique<CompletionRecorder>(Opts, [&]() {
       assert(Recorder && "Recorder is not set");
       CCContextKind = Recorder->CCContext.getKind();
+      IsUsingDeclaration = Recorder->CCContext.isUsingDeclaration();
       auto Style = getFormatStyleForFile(
           SemaCCInput.FileName, SemaCCInput.Contents, SemaCCInput.VFS.get());
       // If preprocessor was run, inclusions from preprocessor callback should
@@ -1287,11 +1296,12 @@ public:
       SPAN_ATTACH(Tracer, "sema_completion_kind",
                   getCompletionKindString(CCContextKind));
       log("Code complete: sema context {0}, query scopes [{1}] (AnyScope={2}), "
-          "expected type {3}",
+          "expected type {3}{4}",
           getCompletionKindString(CCContextKind),
           llvm::join(QueryScopes.begin(), QueryScopes.end(), ","), AllScopes,
           PreferredType ? Recorder->CCContext.getPreferredType().getAsString()
-                        : "<none>");
+                        : "<none>",
+          IsUsingDeclaration ? ", inside using declaration" : "");
     });
 
     Recorder = RecorderOwner.get();
@@ -1326,6 +1336,7 @@ public:
     HeuristicPrefix = guessCompletionPrefix(Content, Offset);
     populateContextWords(Content);
     CCContextKind = CodeCompletionContext::CCC_Recovery;
+    IsUsingDeclaration = false;
     Filter = FuzzyMatcher(HeuristicPrefix.Name);
     auto Pos = offsetToPosition(Content, Offset);
     ReplacedRange.start = ReplacedRange.end = Pos;
@@ -1388,12 +1399,12 @@ private:
     unsigned RangeEnd = HeuristicPrefix.Qualifier.begin() - Content.data(),
              RangeBegin = RangeEnd;
     for (size_t I = 0; I < 3 && RangeBegin > 0; ++I) {
-      auto PrevNL = Content.rfind('\n', RangeBegin - 1);
+      auto PrevNL = Content.rfind('\n', RangeBegin);
       if (PrevNL == StringRef::npos) {
         RangeBegin = 0;
         break;
       }
-      RangeBegin = PrevNL + 1;
+      RangeBegin = PrevNL;
     }
 
     ContextWords = collectWords(Content.slice(RangeBegin, RangeEnd));
@@ -1663,20 +1674,14 @@ private:
       if (!Builder)
         Builder.emplace(Recorder ? &Recorder->CCSema->getASTContext() : nullptr,
                         Item, SemaCCS, QueryScopes, *Inserter, FileName,
-                        CCContextKind, Opts);
+                        CCContextKind, Opts,
+                        /*GenerateSnippets=*/!IsUsingDeclaration);
       else
         Builder->add(Item, SemaCCS);
     }
     return Builder->build();
   }
 };
-
-template <class T> bool isExplicitTemplateSpecialization(const NamedDecl &ND) {
-  if (const auto *TD = dyn_cast<T>(&ND))
-    if (TD->getTemplateSpecializationKind() == TSK_ExplicitSpecialization)
-      return true;
-  return false;
-}
 
 } // namespace
 
@@ -1760,7 +1765,7 @@ SignatureHelp signatureHelp(PathRef FileName,
   Options.IncludeBriefComments = false;
   IncludeStructure PreambleInclusions; // Unused for signatureHelp
   semaCodeComplete(
-      llvm::make_unique<SignatureHelpCollector>(Options, Index, Result),
+      std::make_unique<SignatureHelpCollector>(Options, Index, Result),
       Options,
       {FileName, Command, Preamble, Contents, *Offset, std::move(VFS)});
   return Result;
@@ -1780,9 +1785,7 @@ bool isIndexedForCodeCompletion(const NamedDecl &ND, ASTContext &ASTCtx) {
   };
   // We only complete symbol's name, which is the same as the name of the
   // *primary* template in case of template specializations.
-  if (isExplicitTemplateSpecialization<FunctionDecl>(ND) ||
-      isExplicitTemplateSpecialization<CXXRecordDecl>(ND) ||
-      isExplicitTemplateSpecialization<VarDecl>(ND))
+  if (isExplicitTemplateSpecialization(&ND))
     return false;
 
   if (InTopLevelScope(ND))

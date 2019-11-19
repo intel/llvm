@@ -821,7 +821,7 @@ T value:
 
 Like the ExitOnError utility, cantFail simplifies control flow. Their treatment
 of error cases is very different however: Where ExitOnError is guaranteed to
-terminate the program on an error input, cantFile simply asserts that the result
+terminate the program on an error input, cantFail simply asserts that the result
 is success. In debug builds this will result in an assertion failure if an error
 is encountered. In release builds the behavior of cantFail for failure values is
 undefined. As such, care must be taken in the use of cantFail: clients must be
@@ -3387,8 +3387,8 @@ compatible LLVM libraries built without it defined.  By default,
 turning on assertions also turns on `LLVM_ENABLE_ABI_BREAKING_CHECKS`
 so a default +Asserts build is not ABI compatible with a
 default -Asserts build.  Clients that want ABI compatibility
-between +Asserts and -Asserts builds should use the CMake or autoconf
-build systems to set `LLVM_ENABLE_ABI_BREAKING_CHECKS` independently
+between +Asserts and -Asserts builds should use the CMake build system
+to set `LLVM_ENABLE_ABI_BREAKING_CHECKS` independently
 of `LLVM_ENABLE_ASSERTIONS`.
 
 .. _coreclasses:

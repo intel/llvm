@@ -91,9 +91,8 @@ bool ConnectionGenericFile::IsConnected() const {
 lldb::ConnectionStatus ConnectionGenericFile::Connect(llvm::StringRef path,
                                                       Status *error_ptr) {
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_CONNECTION));
-  if (log)
-    log->Printf("%p ConnectionGenericFile::Connect (url = '%s')",
-                static_cast<void *>(this), path.str().c_str());
+  LLDB_LOGF(log, "%p ConnectionGenericFile::Connect (url = '%s')",
+            static_cast<void *>(this), path.str().c_str());
 
   if (!path.consume_front("file://")) {
     if (error_ptr)
@@ -134,9 +133,8 @@ lldb::ConnectionStatus ConnectionGenericFile::Connect(llvm::StringRef path,
 
 lldb::ConnectionStatus ConnectionGenericFile::Disconnect(Status *error_ptr) {
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_CONNECTION));
-  if (log)
-    log->Printf("%p ConnectionGenericFile::Disconnect ()",
-                static_cast<void *>(this));
+  LLDB_LOGF(log, "%p ConnectionGenericFile::Disconnect ()",
+            static_cast<void *>(this));
 
   if (!IsConnected())
     return eConnectionStatusSuccess;
@@ -247,12 +245,11 @@ finish:
 
   IncrementFilePointer(return_info.GetBytes());
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_CONNECTION));
-  if (log) {
-    log->Printf("%p ConnectionGenericFile::Read()  handle = %p, dst = %p, "
-                "dst_len = %zu) => %zu, error = %s",
-                this, m_file, dst, dst_len, return_info.GetBytes(),
-                return_info.GetError().AsCString());
-  }
+  LLDB_LOGF(log,
+            "%p ConnectionGenericFile::Read()  handle = %p, dst = %p, "
+            "dst_len = %zu) => %zu, error = %s",
+            static_cast<void *>(this), m_file, dst, dst_len,
+            return_info.GetBytes(), return_info.GetError().AsCString());
 
   return return_info.GetBytes();
 }
@@ -297,12 +294,11 @@ finish:
 
   IncrementFilePointer(return_info.GetBytes());
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_CONNECTION));
-  if (log) {
-    log->Printf("%p ConnectionGenericFile::Write()  handle = %p, src = %p, "
-                "src_len = %zu) => %zu, error = %s",
-                this, m_file, src, src_len, return_info.GetBytes(),
-                return_info.GetError().AsCString());
-  }
+  LLDB_LOGF(log,
+            "%p ConnectionGenericFile::Write()  handle = %p, src = %p, "
+            "src_len = %zu) => %zu, error = %s",
+            static_cast<void *>(this), m_file, src, src_len,
+            return_info.GetBytes(), return_info.GetError().AsCString());
   return return_info.GetBytes();
 }
 

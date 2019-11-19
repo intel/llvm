@@ -28,11 +28,11 @@ namespace clang {
     // Size of each of the diagnostic categories.
     enum {
       DIAG_SIZE_COMMON        =  300,
-      DIAG_SIZE_DRIVER        =  200,
+      DIAG_SIZE_DRIVER        =  250, // 200 -> 250 for SYCL related diagnostics
       DIAG_SIZE_FRONTEND      =  150,
       DIAG_SIZE_SERIALIZATION =  120,
       DIAG_SIZE_LEX           =  400,
-      DIAG_SIZE_PARSE         =  500,
+      DIAG_SIZE_PARSE         =  600,
       DIAG_SIZE_AST           =  200,
       DIAG_SIZE_COMMENT       =  100,
       DIAG_SIZE_CROSSTU       =  100,
@@ -169,7 +169,7 @@ public:
 
 private:
   /// Information for uniquing and looking up custom diags.
-  diag::CustomDiagInfo *CustomDiagInfo;
+  std::unique_ptr<diag::CustomDiagInfo> CustomDiagInfo;
 
 public:
   DiagnosticIDs();

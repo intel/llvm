@@ -21,6 +21,11 @@
 ; RUN: --plugin-opt=thinlto-object-suffix-replace=".thinlink.bc;.o" \
 ; RUN: -shared %t1.thinlink.bc -o %t3
 ; RUN: diff %t1.o.thinlto.bc.orig %t1.o.thinlto.bc
+; Also check that this works without the --plugin-opt= prefix.
+; RUN: ld.lld -thinlto-index-only \
+; RUN: -thinlto-object-suffix-replace=".thinlink.bc;.o" \
+; RUN: -shared %t1.thinlink.bc -o %t3
+; RUN: diff %t1.o.thinlto.bc.orig %t1.o.thinlto.bc
 
 ; Ensure lld generates error if object suffix replace option does not have 'old;new' format
 ; RUN: rm -f %t1.o.thinlto.bc
@@ -36,7 +41,7 @@
 ; RUN: --plugin-opt=thinlto-object-suffix-replace=".abc;.o" -shared %t1.thinlink.bc -o /dev/null
 ; RUN: ls %t1.thinlink.bc.thinlto.bc
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 define void @f() {

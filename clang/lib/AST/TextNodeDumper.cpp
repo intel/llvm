@@ -255,9 +255,12 @@ void TextNodeDumper::Visit(const Decl *D) {
 
   if (D->isInvalidDecl())
     OS << " invalid";
-  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
-    if (FD->isConstexpr())
+  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    if (FD->isConstexprSpecified())
       OS << " constexpr";
+    if (FD->isConsteval())
+      OS << " consteval";
+  }
 
   if (!isa<FunctionDecl>(*D)) {
     const auto *MD = dyn_cast<ObjCMethodDecl>(D);
@@ -442,12 +445,6 @@ void TextNodeDumper::dumpAccessSpecifier(AccessSpecifier AS) {
     OS << "private";
     break;
   }
-}
-
-void TextNodeDumper::dumpCXXTemporary(const CXXTemporary *Temporary) {
-  OS << "(CXXTemporary";
-  dumpPointer(Temporary);
-  OS << ")";
 }
 
 void TextNodeDumper::dumpDeclRef(const Decl *D, StringRef Label) {
@@ -639,8 +636,8 @@ static void dumpBasePath(raw_ostream &OS, const CastExpr *Node) {
     if (!First)
       OS << " -> ";
 
-    const CXXRecordDecl *RD =
-        cast<CXXRecordDecl>(Base->getType()->getAs<RecordType>()->getDecl());
+    const auto *RD =
+        cast<CXXRecordDecl>(Base->getType()->castAs<RecordType>()->getDecl());
 
     if (Base->isVirtual())
       OS << "virtual ";
@@ -686,6 +683,14 @@ void TextNodeDumper::VisitCaseStmt(const CaseStmt *Node) {
     OS << " gnu_range";
 }
 
+void TextNodeDumper::VisitConstantExpr(const ConstantExpr *Node) {
+  if (Node->getResultAPValueKind() != APValue::None) {
+    ColorScope Color(OS, ShowColors, ValueColor);
+    OS << " ";
+    Node->getAPValueResult().dump(OS);
+  }
+}
+
 void TextNodeDumper::VisitCallExpr(const CallExpr *Node) {
   if (Node->usesADL())
     OS << " adl";
@@ -714,6 +719,12 @@ void TextNodeDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
     OS << " (";
     dumpBareDeclRef(Node->getFoundDecl());
     OS << ")";
+  }
+  switch (Node->isNonOdrUse()) {
+  case NOUR_None: break;
+  case NOUR_Unevaluated: OS << " non_odr_use_unevaluated"; break;
+  case NOUR_Constant: OS << " non_odr_use_constant"; break;
+  case NOUR_Discarded: OS << " non_odr_use_discarded"; break;
   }
 }
 
@@ -819,6 +830,12 @@ void TextNodeDumper::VisitUnaryExprOrTypeTraitExpr(
 void TextNodeDumper::VisitMemberExpr(const MemberExpr *Node) {
   OS << " " << (Node->isArrow() ? "->" : ".") << *Node->getMemberDecl();
   dumpPointer(Node->getMemberDecl());
+  switch (Node->isNonOdrUse()) {
+  case NOUR_None: break;
+  case NOUR_Unevaluated: OS << " non_odr_use_unevaluated"; break;
+  case NOUR_Constant: OS << " non_odr_use_constant"; break;
+  case NOUR_Discarded: OS << " non_odr_use_discarded"; break;
+  }
 }
 
 void TextNodeDumper::VisitExtVectorElementExpr(
@@ -890,8 +907,9 @@ void TextNodeDumper::VisitCXXConstructExpr(const CXXConstructExpr *Node) {
 
 void TextNodeDumper::VisitCXXBindTemporaryExpr(
     const CXXBindTemporaryExpr *Node) {
-  OS << " ";
-  dumpCXXTemporary(Node->getTemporary());
+  OS << " (CXXTemporary";
+  dumpPointer(Node);
+  OS << ")";
 }
 
 void TextNodeDumper::VisitCXXNewExpr(const CXXNewExpr *Node) {
@@ -1366,6 +1384,8 @@ void TextNodeDumper::VisitVarDecl(const VarDecl *D) {
       break;
     }
   }
+  if (D->needsDestruction(D->getASTContext()))
+    OS << " destroyed";
   if (D->isParameterPack())
     OS << " pack";
 }
@@ -1518,6 +1538,7 @@ void TextNodeDumper::VisitCXXRecordDecl(const CXXRecordDecl *D) {
     FLAG(isGenericLambda, generic);
     FLAG(isLambda, lambda);
 
+    FLAG(isAnonymousStructOrUnion, is_anonymous);
     FLAG(canPassInRegisters, pass_in_registers);
     FLAG(isEmpty, empty);
     FLAG(isAggregate, aggregate);
@@ -1622,6 +1643,7 @@ void TextNodeDumper::VisitCXXRecordDecl(const CXXRecordDecl *D) {
       FLAG(hasTrivialDestructor, trivial);
       FLAG(hasNonTrivialDestructor, non_trivial);
       FLAG(hasUserDeclaredDestructor, user_declared);
+      FLAG(hasConstexprDestructor, constexpr);
       FLAG(needsImplicitDestructor, needs_implicit);
       FLAG(needsOverloadResolutionForDestructor, needs_overload_resolution);
       if (!D->needsOverloadResolutionForDestructor())
@@ -1746,6 +1768,12 @@ void TextNodeDumper::VisitLinkageSpecDecl(const LinkageSpecDecl *D) {
     break;
   case LinkageSpecDecl::lang_cxx:
     OS << " C++";
+    break;
+  case LinkageSpecDecl::lang_cxx_11:
+    OS << " C++11";
+    break;
+  case LinkageSpecDecl::lang_cxx_14:
+    OS << " C++14";
     break;
   }
 }
@@ -1916,4 +1944,8 @@ void TextNodeDumper::VisitBlockDecl(const BlockDecl *D) {
 
   if (D->capturesCXXThis())
     OS << " captures_this";
+}
+
+void TextNodeDumper::VisitConceptDecl(const ConceptDecl *D) {
+  dumpName(D);
 }

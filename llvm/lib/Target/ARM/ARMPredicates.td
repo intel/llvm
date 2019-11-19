@@ -71,7 +71,7 @@ def HasV8_5a         : Predicate<"Subtarget->hasV8_5aOps()">,
                                  AssemblerPredicate<"HasV8_5aOps", "armv8.5a">;
 def NoVFP            : Predicate<"!Subtarget->hasVFP2Base()">;
 def HasVFP2          : Predicate<"Subtarget->hasVFP2Base()">,
-                                 AssemblerPredicate<"FeatureVFP2_D16_SP", "VFP2">;
+                                 AssemblerPredicate<"FeatureVFP2_SP", "VFP2">;
 def HasVFP3          : Predicate<"Subtarget->hasVFP3Base()">,
                                  AssemblerPredicate<"FeatureVFP3_D16_SP", "VFP3">;
 def HasVFP4          : Predicate<"Subtarget->hasVFP4Base()">,
@@ -95,6 +95,8 @@ def HasCRC           : Predicate<"Subtarget->hasCRC()">,
                                  AssemblerPredicate<"FeatureCRC", "crc">;
 def HasRAS           : Predicate<"Subtarget->hasRAS()">,
                                  AssemblerPredicate<"FeatureRAS", "ras">;
+def HasLOB           : Predicate<"Subtarget->hasLOB()">,
+                                 AssemblerPredicate<"FeatureLOB", "lob">;
 def HasFP16          : Predicate<"Subtarget->hasFP16()">,
                                  AssemblerPredicate<"FeatureFP16","half-float conversions">;
 def HasFullFP16      : Predicate<"Subtarget->hasFullFP16()">,

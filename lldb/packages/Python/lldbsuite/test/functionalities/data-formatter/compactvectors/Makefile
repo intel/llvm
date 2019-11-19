@@ -1,7 +1,4 @@
-LEVEL = ../../../make
-
 CXX_SOURCES := main.cpp
+LD_EXTRAS := -framework Accelerate
+include Makefile.rules
 
-include $(LEVEL)/Makefile.rules
-
-LDFLAGS += -framework Accelerate

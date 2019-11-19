@@ -5,6 +5,7 @@
 #include "llvm/Support/Path.h"
 
 #include "Plugins/ObjectFile/ELF/ObjectFileELF.h"
+#include "Plugins/SymbolFile/Symtab/SymbolFileSymtab.h"
 #include "TestingSupport/TestUtilities.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
@@ -69,12 +70,14 @@ void ModuleCacheTest::SetUpTestCase() {
   FileSystem::Initialize();
   HostInfo::Initialize();
   ObjectFileELF::Initialize();
+  SymbolFileSymtab::Initialize();
 
   s_cache_dir = HostInfo::GetProcessTempDir();
   s_test_executable = GetInputFilePath(module_name);
 }
 
 void ModuleCacheTest::TearDownTestCase() {
+  SymbolFileSymtab::Terminate();
   ObjectFileELF::Terminate();
   HostInfo::Terminate();
   FileSystem::Terminate();
@@ -126,8 +129,9 @@ void ModuleCacheTest::TryGetAndPut(const FileSpec &cache_dir,
   ASSERT_TRUE(bool(module_sp));
 
   SymbolContextList sc_list;
-  EXPECT_EQ(1u, module_sp->FindFunctionSymbols(ConstString("boom"),
-                                               eFunctionNameTypeFull, sc_list));
+  module_sp->FindFunctionSymbols(ConstString("boom"), eFunctionNameTypeFull,
+                                 sc_list);
+  EXPECT_EQ(1u, sc_list.GetSize());
   EXPECT_STREQ(GetDummyRemotePath().GetCString(),
                module_sp->GetPlatformFileSpec().GetCString());
   EXPECT_STREQ(module_uuid, module_sp->GetUUID().GetAsString().c_str());

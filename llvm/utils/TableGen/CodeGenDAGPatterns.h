@@ -593,6 +593,9 @@ public:
   /// ValueType record for the memory VT.
   Record *getScalarMemoryVT() const;
 
+  ListInit *getAddressSpaces() const;
+  int64_t getMinAlignment() const;
+
   // If true, indicates that GlobalISel-based C++ code was supplied.
   bool hasGISelPredicateCode() const;
   std::string getGISelPredicateCode() const;
@@ -1073,8 +1076,11 @@ public:
     std::string C = IsHwMode
         ? std::string("MF->getSubtarget().checkFeatures(\"" + Features + "\")")
         : std::string(Def->getValueAsString("CondString"));
+    if (C.empty())
+      return "";
     return IfCond ? C : "!("+C+')';
   }
+
   bool operator==(const Predicate &P) const {
     return IfCond == P.IfCond && IsHwMode == P.IsHwMode && Def == P.Def;
   }
@@ -1281,6 +1287,11 @@ public:
   bool hasTargetIntrinsics() { return !TgtIntrinsics.empty(); }
 
   unsigned allocateScope() { return ++NumScopes; }
+
+  bool operandHasDefault(Record *Op) const {
+    return Op->isSubClassOf("OperandWithDefaultOps") &&
+      !getDefaultOperand(Op).DefaultOps.empty();
+  }
 
 private:
   void ParseNodeInfo();

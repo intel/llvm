@@ -120,7 +120,7 @@ static void convertImplicitDefToConstZero(MachineInstr *MI,
         Type::getDoubleTy(MF.getFunction().getContext())));
     MI->addOperand(MachineOperand::CreateFPImm(Val));
   } else if (RegClass == &WebAssembly::V128RegClass) {
-    unsigned TempReg = MRI.createVirtualRegister(&WebAssembly::I32RegClass);
+    Register TempReg = MRI.createVirtualRegister(&WebAssembly::I32RegClass);
     MI->setDesc(TII->get(WebAssembly::SPLAT_v4i32));
     MI->addOperand(MachineOperand::CreateReg(TempReg, false));
     MachineInstr *Const = BuildMI(*MI->getParent(), MI, MI->getDebugLoc(),
@@ -252,7 +252,7 @@ static void query(const MachineInstr &MI, AliasAnalysis &AA, bool &Read,
 
   // Analyze calls.
   if (MI.isCall()) {
-    unsigned CalleeOpNo = WebAssembly::getCalleeOpNo(MI);
+    unsigned CalleeOpNo = WebAssembly::getCalleeOpNo(MI.getOpcode());
     queryCallee(MI, CalleeOpNo, Read, Write, Effects, StackPointer);
   }
 }
@@ -334,14 +334,14 @@ static bool isSafeToMove(const MachineInstr *Def, const MachineInstr *Insert,
   for (const MachineOperand &MO : Def->operands()) {
     if (!MO.isReg() || MO.isUndef())
       continue;
-    unsigned Reg = MO.getReg();
+    Register Reg = MO.getReg();
 
     // If the register is dead here and at Insert, ignore it.
     if (MO.isDead() && Insert->definesRegister(Reg) &&
         !Insert->readsRegister(Reg))
       continue;
 
-    if (TargetRegisterInfo::isPhysicalRegister(Reg)) {
+    if (Register::isPhysicalRegister(Reg)) {
       // Ignore ARGUMENTS; it's just used to keep the ARGUMENT_* instructions
       // from moving down, and we've already checked for that.
       if (Reg == WebAssembly::ARGUMENTS)
@@ -436,8 +436,8 @@ static bool oneUseDominatesOtherUses(unsigned Reg, const MachineOperand &OneUse,
         const MachineOperand &MO = UseInst->getOperand(0);
         if (!MO.isReg())
           return false;
-        unsigned DefReg = MO.getReg();
-        if (!TargetRegisterInfo::isVirtualRegister(DefReg) ||
+        Register DefReg = MO.getReg();
+        if (!Register::isVirtualRegister(DefReg) ||
             !MFI.isVRegStackified(DefReg))
           return false;
         assert(MRI.hasOneNonDBGUse(DefReg));
@@ -499,7 +499,7 @@ static MachineInstr *moveForSingleUse(unsigned Reg, MachineOperand &Op,
   } else {
     // The register may have unrelated uses or defs; create a new register for
     // just our one def and use so that we can stackify it.
-    unsigned NewReg = MRI.createVirtualRegister(MRI.getRegClass(Reg));
+    Register NewReg = MRI.createVirtualRegister(MRI.getRegClass(Reg));
     Def->getOperand(0).setReg(NewReg);
     Op.setReg(NewReg);
 
@@ -535,7 +535,7 @@ static MachineInstr *rematerializeCheapDef(
 
   WebAssemblyDebugValueManager DefDIs(&Def);
 
-  unsigned NewReg = MRI.createVirtualRegister(MRI.getRegClass(Reg));
+  Register NewReg = MRI.createVirtualRegister(MRI.getRegClass(Reg));
   TII->reMaterialize(MBB, Insert, NewReg, 0, Def, *TRI);
   Op.setReg(NewReg);
   MachineInstr *Clone = &*std::prev(Insert);
@@ -607,8 +607,8 @@ static MachineInstr *moveAndTeeForMultiUse(
 
   // Create the Tee and attach the registers.
   const auto *RegClass = MRI.getRegClass(Reg);
-  unsigned TeeReg = MRI.createVirtualRegister(RegClass);
-  unsigned DefReg = MRI.createVirtualRegister(RegClass);
+  Register TeeReg = MRI.createVirtualRegister(RegClass);
+  Register DefReg = MRI.createVirtualRegister(RegClass);
   MachineOperand &DefMO = Def->getOperand(0);
   MachineInstr *Tee = BuildMI(MBB, Insert, Insert->getDebugLoc(),
                               TII->get(getTeeOpcode(RegClass)), TeeReg)
@@ -807,11 +807,11 @@ bool WebAssemblyRegStackify::runOnMachineFunction(MachineFunction &MF) {
         if (!Op.isReg())
           continue;
 
-        unsigned Reg = Op.getReg();
+        Register Reg = Op.getReg();
         assert(Op.isUse() && "explicit_uses() should only iterate over uses");
         assert(!Op.isImplicit() &&
                "explicit_uses() should only iterate over explicit operands");
-        if (TargetRegisterInfo::isPhysicalRegister(Reg))
+        if (Register::isPhysicalRegister(Reg))
           continue;
 
         // Identify the definition for this register at this point.
@@ -826,7 +826,7 @@ bool WebAssemblyRegStackify::runOnMachineFunction(MachineFunction &MF) {
 
         // Argument instructions represent live-in registers and not real
         // instructions.
-        if (WebAssembly::isArgument(*Def))
+        if (WebAssembly::isArgument(Def->getOpcode()))
           continue;
 
         // Currently catch's return value register cannot be stackified, because
@@ -834,9 +834,9 @@ bool WebAssemblyRegStackify::runOnMachineFunction(MachineFunction &MF) {
         // entering blocks, which is a part of multi-value proposal.
         //
         // Once we support live-in values of wasm blocks, this can be:
-        // catch                           ; push except_ref value onto stack
-        // block except_ref -> i32
-        // br_on_exn $__cpp_exception      ; pop the except_ref value
+        // catch                           ; push exnref value onto stack
+        // block exnref -> i32
+        // br_on_exn $__cpp_exception      ; pop the exnref value
         // end_block
         //
         // But because we don't support it yet, the catch instruction's dst
@@ -915,7 +915,7 @@ bool WebAssemblyRegStackify::runOnMachineFunction(MachineFunction &MF) {
       for (MachineOperand &MO : reverse(MI.explicit_operands())) {
         if (!MO.isReg())
           continue;
-        unsigned Reg = MO.getReg();
+        Register Reg = MO.getReg();
 
         if (MFI.isVRegStackified(Reg)) {
           if (MO.isDef())

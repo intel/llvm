@@ -11,7 +11,7 @@
 %struct.With9fp128params = type { fp128, fp128, fp128, fp128, fp128, fp128,
                                   fp128, fp128, fp128 }
 
-@a1 = common local_unnamed_addr global [3 x fp128] zeroinitializer, align 16
+@a1 = local_unnamed_addr global [3 x fp128] zeroinitializer, align 16
 
 ; Function Attrs: norecurse nounwind readonly
 define fp128 @testArray_01(fp128* nocapture readonly %sa) {
@@ -82,6 +82,7 @@ define fp128 @testStruct_03(%struct.With9fp128params* byval nocapture readonly
                             align 16 %a) {
 ; CHECK-LABEL: testStruct_03:
 ; CHECK:       # %bb.0: # %entry
+; CHECK:        lxv v2, 128(r1)
 ; CHECK-DAG:    std r10, 88(r1)
 ; CHECK-DAG:    std r9, 80(r1)
 ; CHECK-DAG:    std r8, 72(r1)
@@ -90,11 +91,11 @@ define fp128 @testStruct_03(%struct.With9fp128params* byval nocapture readonly
 ; CHECK-DAG:    std r5, 48(r1)
 ; CHECK-DAG:    std r4, 40(r1)
 ; CHECK-DAG:    std r3, 32(r1)
-; CHECK-NEXT:    lxv v2, 128(r1)
 ; CHECK-NEXT:    blr
 
 ; CHECK-BE-LABEL: testStruct_03:
 ; CHECK-BE:       # %bb.0: # %entry
+; CHECK-BE:        lxv v2, 144(r1)
 ; CHECK-BE-DAG:    std r10, 104(r1)
 ; CHECK-BE-DAG:    std r9, 96(r1)
 ; CHECK-BE-DAG:    std r8, 88(r1)
@@ -103,7 +104,6 @@ define fp128 @testStruct_03(%struct.With9fp128params* byval nocapture readonly
 ; CHECK-BE-DAG:    std r5, 64(r1)
 ; CHECK-BE-DAG:    std r4, 56(r1)
 ; CHECK-BE-DAG:    std r3, 48(r1)
-; CHECK-BE-NEXT:    lxv v2, 144(r1)
 ; CHECK-BE-NEXT:    blr
 entry:
   %a7 = getelementptr inbounds %struct.With9fp128params,
@@ -256,28 +256,28 @@ entry:
 define fp128 @testNestedAggregate(%struct.MixedC* byval nocapture readonly align 16 %a) {
 ; CHECK-LABEL: testNestedAggregate:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-DAG:     std r10, 88(r1)
-; CHECK-DAG:     std r9, 80(r1)
 ; CHECK-DAG:     std r8, 72(r1)
 ; CHECK-DAG:     std r7, 64(r1)
+; CHECK:         lxv v2, 64(r1)
+; CHECK-DAG:     std r10, 88(r1)
+; CHECK-DAG:     std r9, 80(r1)
 ; CHECK-DAG:     std r6, 56(r1)
 ; CHECK-DAG:     std r5, 48(r1)
 ; CHECK-DAG:     std r4, 40(r1)
 ; CHECK-DAG:     std r3, 32(r1)
-; CHECK-NEXT:    lxv v2, 64(r1)
 ; CHECK-NEXT:    blr
 
 ; CHECK-BE-LABEL: testNestedAggregate:
 ; CHECK-BE:       # %bb.0: # %entry
 ; CHECK-BE-DAG:     std r8, 88(r1)
 ; CHECK-BE-DAG:     std r7, 80(r1)
+; CHECK-BE-NEXT:    lxv v2, 80(r1)
 ; CHECK-BE-DAG:     std r10, 104(r1)
 ; CHECK-BE-DAG:     std r9, 96(r1)
 ; CHECK-BE-DAG:     std r6, 72(r1)
 ; CHECK-BE-DAG:     std r5, 64(r1)
 ; CHECK-BE-DAG:     std r4, 56(r1)
 ; CHECK-BE-DAG:     std r3, 48(r1)
-; CHECK-BE-NEXT:    lxv v2, 80(r1)
 ; CHECK-BE-NEXT:    blr
 entry:
   %c = getelementptr inbounds %struct.MixedC, %struct.MixedC* %a, i64 0, i32 1, i32 1
@@ -353,10 +353,10 @@ define fp128 @sum_float128(i32 signext %count, ...) {
 ; CHECK-NEXT:    addi r3, r1, 40
 ; CHECK-NEXT:    lxvx v3, 0, r3
 ; CHECK-NEXT:    xsaddqp v2, v3, v2
-; CHECK-NEXT:    addi [[REG2:r[0-9]+]], r1, 72
-; CHECK-NEXT:    std [[REG2]], -8(r1)
 ; CHECK-NEXT:    lxv v3, 16(r3)
 ; CHECK-NEXT:    xsaddqp v2, v2, v3
+; CHECK-NEXT:    addi [[REG2:r[0-9]+]], r1, 72
+; CHECK-NEXT:    std [[REG2]], -8(r1)
 ; CHECK-NEXT:    blr
 entry:
   %ap = alloca i8*, align 8

@@ -68,12 +68,15 @@ def do_dependency(args):
     if os.path.isdir(icd_build_dir):
         shutil.rmtree(icd_build_dir)
     os.makedirs(icd_build_dir)
-
-    cmake_cmd = ["cmake", ".."]
+    install_dir = os.path.join(args.obj_dir, "install")
+    cmake_cmd = ["cmake", "-G", "Ninja",
+                 "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
+                 ".." ]
     subprocess.check_call(cmake_cmd, cwd=icd_build_dir)
 
-    make_cmd = ["make", "C_INCLUDE_PATH={}".format(ocl_header_dir)]
-    subprocess.check_call(make_cmd, cwd=icd_build_dir)
+    env_tmp=os.environ
+    env_tmp["C_INCLUDE_PATH"] = "{}".format(ocl_header_dir)
+    subprocess.check_call(["ninja", "install"], env=env_tmp, cwd=icd_build_dir)
 
     ret = True
     return ret

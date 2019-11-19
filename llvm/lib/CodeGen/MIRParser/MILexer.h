@@ -73,6 +73,7 @@ struct MIToken {
     kw_nuw,
     kw_nsw,
     kw_exact,
+    kw_fpexcept,
     kw_debug_location,
     kw_cfi_same_value,
     kw_cfi_offset,
@@ -116,8 +117,10 @@ struct MIToken {
     kw_successors,
     kw_floatpred,
     kw_intpred,
+    kw_shufflemask,
     kw_pre_instr_symbol,
     kw_post_instr_symbol,
+    kw_heap_alloc_marker,
     kw_unknown_size,
 
     // Named metadata keywords
@@ -145,6 +148,7 @@ struct MIToken {
     IntegerLiteral,
     FloatingPointLiteral,
     HexLiteral,
+    VectorLiteral,
     VirtualRegister,
     ConstantPoolItem,
     JumpTableIndex,

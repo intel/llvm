@@ -5,9 +5,6 @@ Test hardware breakpoints for multiple threads.
 from __future__ import print_function
 
 
-import os
-import time
-import re
 import lldb
 from lldbsuite.test.decorators import *
 from lldbsuite.test.lldbtest import *
@@ -22,7 +19,6 @@ class HardwareBreakpointMultiThreadTestCase(TestBase):
 
     # LLDB supports hardware breakpoints for arm and aarch64 architectures.
     @skipIf(archs=no_match(['arm', 'aarch64']))
-    @expectedFailureAndroid
     def test_hw_break_set_delete_multi_thread(self):
         self.build()
         self.setTearDownCleanup()
@@ -30,7 +26,6 @@ class HardwareBreakpointMultiThreadTestCase(TestBase):
 
     # LLDB supports hardware breakpoints for arm and aarch64 architectures.
     @skipIf(archs=no_match(['arm', 'aarch64']))
-    @expectedFailureAndroid
     def test_hw_break_set_disable_multi_thread(self):
         self.build()
         self.setTearDownCleanup()

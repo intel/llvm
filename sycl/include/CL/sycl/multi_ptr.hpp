@@ -70,21 +70,9 @@ public:
     return *this;
   }
 
-#ifdef __SYCL_ENABLE_INFER_AS__
-  using ReturnPtr =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                pointer_t, ElementType *>::type;
-  using ReturnRef =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                reference_t, ElementType &>::type;
-  using ReturnConstRef =
-      typename std::conditional<Space == access::address_space::constant_space,
-                                const_reference_t, const ElementType &>::type;
-#else
   using ReturnPtr = ElementType *;
   using ReturnRef = ElementType &;
   using ReturnConstRef = const ElementType &;
-#endif
 
   ReturnRef operator*() const {
     return *reinterpret_cast<ReturnPtr>(m_Pointer);
@@ -514,6 +502,23 @@ public:
 private:
   pointer_t m_Pointer;
 };
+
+#ifdef __cpp_deduction_guides
+template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+          class T>
+multi_ptr(
+    accessor<T, dimensions, Mode, access::target::global_buffer, isPlaceholder>)
+    ->multi_ptr<T, access::address_space::global_space>;
+template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+          class T>
+multi_ptr(accessor<T, dimensions, Mode, access::target::constant_buffer,
+                   isPlaceholder>)
+    ->multi_ptr<T, access::address_space::constant_space>;
+template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+          class T>
+multi_ptr(accessor<T, dimensions, Mode, access::target::local, isPlaceholder>)
+    ->multi_ptr<T, access::address_space::local_space>;
+#endif
 
 template <typename ElementType, access::address_space Space>
 multi_ptr<ElementType, Space>

@@ -702,18 +702,20 @@ enum : unsigned {
   EF_AMDGPU_MACH_AMDGCN_GFX902 = 0x02d,
   EF_AMDGPU_MACH_AMDGCN_GFX904 = 0x02e,
   EF_AMDGPU_MACH_AMDGCN_GFX906 = 0x02f,
+  EF_AMDGPU_MACH_AMDGCN_GFX908 = 0x030,
   EF_AMDGPU_MACH_AMDGCN_GFX909 = 0x031,
   // AMDGCN GFX10.
   EF_AMDGPU_MACH_AMDGCN_GFX1010 = 0x033,
+  EF_AMDGPU_MACH_AMDGCN_GFX1011 = 0x034,
+  EF_AMDGPU_MACH_AMDGCN_GFX1012 = 0x035,
 
   // Reserved for AMDGCN-based processors.
   EF_AMDGPU_MACH_AMDGCN_RESERVED0 = 0x027,
-  EF_AMDGPU_MACH_AMDGCN_RESERVED1 = 0x030,
-  EF_AMDGPU_MACH_AMDGCN_RESERVED2 = 0x032,
+  EF_AMDGPU_MACH_AMDGCN_RESERVED1 = 0x032,
 
   // First/last AMDGCN-based processors.
   EF_AMDGPU_MACH_AMDGCN_FIRST = EF_AMDGPU_MACH_AMDGCN_GFX600,
-  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_GFX1010,
+  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_GFX1012,
 
   // Indicates if the "xnack" target feature is enabled for all code contained
   // in the object.
@@ -843,6 +845,8 @@ enum : unsigned {
                                         // for safe ICF.
   SHT_LLVM_DEPENDENT_LIBRARIES = 0x6fff4c04, // LLVM Dependent Library Specifiers.
   SHT_LLVM_SYMPART = 0x6fff4c05,        // Symbol partition specification.
+  SHT_LLVM_PART_EHDR = 0x6fff4c06,      // ELF header for loadable partition.
+  SHT_LLVM_PART_PHDR = 0x6fff4c07,      // Phdrs for loadable partition.
   // Android's experimental support for SHT_RELR sections.
   // https://android.googlesource.com/platform/bionic/+/b7feec74547f84559a1467aca02708ff61346d2a/libc/include/elf.h#512
   SHT_ANDROID_RELR = 0x6fffff00,        // Relocation entries; only offsets.
@@ -1352,6 +1356,72 @@ enum : unsigned {
   NT_GNU_BUILD_ATTRIBUTE_FUNC = 0x101,
 };
 
+// Core note types
+enum : unsigned {
+  NT_PRSTATUS = 1,
+  NT_FPREGSET = 2,
+  NT_PRPSINFO = 3,
+  NT_TASKSTRUCT = 4,
+  NT_AUXV = 6,
+  NT_PSTATUS = 10,
+  NT_FPREGS = 12,
+  NT_PSINFO = 13,
+  NT_LWPSTATUS = 16,
+  NT_LWPSINFO = 17,
+  NT_WIN32PSTATUS = 18,
+
+  NT_PPC_VMX = 0x100,
+  NT_PPC_VSX = 0x102,
+  NT_PPC_TAR = 0x103,
+  NT_PPC_PPR = 0x104,
+  NT_PPC_DSCR = 0x105,
+  NT_PPC_EBB = 0x106,
+  NT_PPC_PMU = 0x107,
+  NT_PPC_TM_CGPR = 0x108,
+  NT_PPC_TM_CFPR = 0x109,
+  NT_PPC_TM_CVMX = 0x10a,
+  NT_PPC_TM_CVSX = 0x10b,
+  NT_PPC_TM_SPR = 0x10c,
+  NT_PPC_TM_CTAR = 0x10d,
+  NT_PPC_TM_CPPR = 0x10e,
+  NT_PPC_TM_CDSCR = 0x10f,
+
+  NT_386_TLS = 0x200,
+  NT_386_IOPERM = 0x201,
+  NT_X86_XSTATE = 0x202,
+
+  NT_S390_HIGH_GPRS = 0x300,
+  NT_S390_TIMER = 0x301,
+  NT_S390_TODCMP = 0x302,
+  NT_S390_TODPREG = 0x303,
+  NT_S390_CTRS = 0x304,
+  NT_S390_PREFIX = 0x305,
+  NT_S390_LAST_BREAK = 0x306,
+  NT_S390_SYSTEM_CALL = 0x307,
+  NT_S390_TDB = 0x308,
+  NT_S390_VXRS_LOW = 0x309,
+  NT_S390_VXRS_HIGH = 0x30a,
+  NT_S390_GS_CB = 0x30b,
+  NT_S390_GS_BC = 0x30c,
+
+  NT_ARM_VFP = 0x400,
+  NT_ARM_TLS = 0x401,
+  NT_ARM_HW_BREAK = 0x402,
+  NT_ARM_HW_WATCH = 0x403,
+  NT_ARM_SVE = 0x405,
+  NT_ARM_PAC_MASK = 0x406,
+
+  NT_FILE = 0x46494c45,
+  NT_PRXFPREG = 0x46e62b7f,
+  NT_SIGINFO = 0x53494749,
+};
+
+// LLVM-specific notes.
+enum {
+  NT_LLVM_HWASAN_GLOBALS = 3,
+};
+
+// GNU note types
 enum {
   NT_GNU_ABI_TAG = 1,
   NT_GNU_HWCAP = 2,
@@ -1418,6 +1488,11 @@ enum : unsigned {
   GNU_PROPERTY_X86_FEATURE_2_XSAVE = 1 << 7,
   GNU_PROPERTY_X86_FEATURE_2_XSAVEOPT = 1 << 8,
   GNU_PROPERTY_X86_FEATURE_2_XSAVEC = 1 << 9,
+};
+
+// AMDGPU-specific section indices.
+enum {
+  SHN_AMDGPU_LDS = 0xff00, // Variable in LDS; symbol encoded like SHN_COMMON
 };
 
 // AMD specific notes. (Code Object V2)

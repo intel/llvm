@@ -41,16 +41,22 @@ clang_tablegen(AttrHasAttributeImpl.inc -gen-clang-attr-has-attribute-impl
   TARGET ClangAttrHasAttributeImpl
   )
 
-clang_tablegen(OpenCLBuiltins.inc
-  -I ${CMAKE_CURRENT_SOURCE_DIR}/../../ -gen-clang-opencl-builtins
-  SOURCE OpenCLBuiltins.td
-  TARGET ClangOpenCLBuiltinsImpl
-  )
-
-# ARM NEON
+# ARM NEON and MVE
 clang_tablegen(arm_neon.inc -gen-arm-neon-sema
   SOURCE arm_neon.td
   TARGET ClangARMNeon)
 clang_tablegen(arm_fp16.inc -gen-arm-neon-sema
   SOURCE arm_fp16.td
   TARGET ClangARMFP16)
+clang_tablegen(arm_mve_builtins.inc -gen-arm-mve-builtin-def
+  SOURCE arm_mve.td
+  TARGET ClangARMMveBuiltinsDef)
+clang_tablegen(arm_mve_builtin_cg.inc -gen-arm-mve-builtin-codegen
+  SOURCE arm_mve.td
+  TARGET ClangARMMveBuiltinCG)
+clang_tablegen(arm_mve_builtin_sema.inc -gen-arm-mve-builtin-sema
+  SOURCE arm_mve.td
+  TARGET ClangARMMveBuiltinSema)
+clang_tablegen(arm_mve_builtin_aliases.inc -gen-arm-mve-builtin-aliases
+  SOURCE arm_mve.td
+  TARGET ClangARMMveBuiltinAliases)

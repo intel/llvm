@@ -9,14 +9,17 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/builtins.hpp>
 #include <CL/sycl/detail/array.hpp>
 #include <CL/sycl/device_selector.hpp>
+#include <CL/sycl/ordered_queue.hpp>
 #include <CL/sycl/queue.hpp>
 
 namespace cl {
 namespace sycl {
 
 namespace detail {
+
 using FmtFlags = unsigned int;
 
 // Mapping from stream_manipulator to FmtFlags. Each manipulator corresponds
@@ -76,28 +79,46 @@ using EnableIfSwizzleVec =
 
 class stream_impl {
 public:
-  using AccessorType = accessor<char, 1, cl::sycl::access::mode::read_write,
-                                cl::sycl::access::target::global_buffer,
-                                cl::sycl::access::placeholder::false_t>;
+  using GlobalBufAccessorT =
+      accessor<char, 1, cl::sycl::access::mode::read_write,
+               cl::sycl::access::target::global_buffer,
+               cl::sycl::access::placeholder::false_t>;
 
-  using OffsetAccessorType =
+  using GlobalOffsetAccessorT =
       accessor<unsigned, 1, cl::sycl::access::mode::atomic,
                cl::sycl::access::target::global_buffer,
                cl::sycl::access::placeholder::false_t>;
 
+  using FlushBufAccessorT =
+      accessor<char, 1, cl::sycl::access::mode::read_write,
+               cl::sycl::access::target::local,
+               cl::sycl::access::placeholder::false_t>;
+
+  using LocalOffsetAccessorT =
+      accessor<unsigned, 1, cl::sycl::access::mode::atomic,
+               cl::sycl::access::target::local,
+               cl::sycl::access::placeholder::false_t>;
+
   stream_impl(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 
-  // Method to provide an access to the stream buffer
-  AccessorType getAccessor(handler &CGH) {
+  // Method to provide an access to the global stream buffer
+  GlobalBufAccessorT accessGlobalBuf(handler &CGH) {
     return Buf.get_access<cl::sycl::access::mode::read_write>(
         CGH, range<1>(BufferSize_), id<1>(OffsetSize));
   }
 
-  // Method to provide an atomic access to the offset in the stream buffer
-  OffsetAccessorType getOffsetAccessor(handler &CGH) {
+  // Method to provide an atomic access to the offset in the global stream
+  // buffer
+  GlobalOffsetAccessorT accessGlobalOffset(handler &CGH) {
     auto OffsetSubBuf = buffer<char, 1>(Buf, id<1>(0), range<1>(OffsetSize));
     auto ReinterpretedBuf = OffsetSubBuf.reinterpret<unsigned, 1>(range<1>(1));
     return ReinterpretedBuf.get_access<cl::sycl::access::mode::atomic>(
+        CGH, range<1>(1), id<1>(0));
+  }
+
+  // Method to provide an atomic access to the flush buffer size
+  GlobalOffsetAccessorT accessFlushBufferSize(handler &CGH) {
+    return FlushBufferSize.get_access<cl::sycl::access::mode::atomic>(
         CGH, range<1>(1), id<1>(0));
   }
 
@@ -114,7 +135,7 @@ private:
 
   // Maximum number of symbols which could be streamed from the beginning of a
   // statement till the semicolon
-  size_t MaxStatementSize_;
+  unsigned MaxStatementSize_;
 
   // Size of the variable which is used as an offset in the stream buffer.
   // Additinonal memory is allocated in the beginning of the stream buffer for
@@ -126,6 +147,9 @@ private:
 
   // Stream buffer
   buffer<char, 1> Buf;
+
+  //  Buffer for flush buffer size
+  buffer<unsigned, 1> FlushBufferSize;
 };
 
 template <typename T>
@@ -266,38 +290,55 @@ EnableIfFP<T, unsigned> floatingPointToDecStr(T AbsVal, char *Digits,
   return Offset;
 }
 
-// Helper method to update offset atomically according to the provided
-// operand size of the output operator. Return true if offset is updated and
-// false in case of overflow.
-inline bool updateOffset(stream_impl::OffsetAccessorType &OffsetAcc,
-                         stream_impl::AccessorType &Acc, unsigned Size,
-                         unsigned &Cur) {
+// Helper method to update offset in the global buffer atomically according to
+// the provided size of the data in the flush buffer. Return true if offset is
+// updated and false in case of overflow.
+inline bool updateOffset(stream_impl::GlobalOffsetAccessorT &GlobalOffset,
+                         stream_impl::GlobalBufAccessorT &GlobalBuf,
+                         unsigned Size, unsigned &Cur) {
   unsigned New;
+  Cur = GlobalOffset[0].load();
   do {
-    Cur = OffsetAcc[0].load();
-    if (Acc.get_count() - Cur < Size)
+    if (GlobalBuf.get_range().size() - Cur < Size)
       // Overflow
       return false;
     New = Cur + Size;
-  } while (!OffsetAcc[0].compare_exchange_strong(Cur, New));
+  } while (!GlobalOffset[0].compare_exchange_strong(Cur, New));
   return true;
 }
 
-inline void write(stream_impl::OffsetAccessorType &OffsetAcc,
-                  stream_impl::AccessorType &Acc, unsigned Len, const char *Buf,
-                  unsigned Padding = 0) {
+inline void flushBuffer(stream_impl::GlobalOffsetAccessorT &GlobalOffset,
+                        stream_impl::GlobalBufAccessorT &GlobalBuf,
+                        stream_impl::FlushBufAccessorT &FlushBufs,
+                        unsigned &WIOffset, unsigned &Offset) {
+  // Copy data from flush buffer (local memory) to global buffer (global
+  // memory)
   unsigned Cur = 0;
-  if (!updateOffset(OffsetAcc, Acc, Len + Padding, Cur))
+  if (!updateOffset(GlobalOffset, GlobalBuf, Offset, Cur))
     return;
 
-  size_t I = 0;
+  for (unsigned I = WIOffset; I < WIOffset + Offset; I++) {
+    GlobalBuf[Cur++] = FlushBufs[I];
+  }
+  // Reset the offset in the flush buffer
+  Offset = 0;
+}
+
+inline void write(stream_impl::FlushBufAccessorT &FlushBufs,
+                  size_t FlushBufferSize, unsigned WIOffset, unsigned &Offset,
+                  const char *Str, unsigned Len, unsigned Padding = 0) {
+  if ((FlushBufferSize - Offset < Len + Padding) ||
+      (WIOffset + Offset + Len + Padding > FlushBufs.get_count()))
+    // TODO: flush here
+    return;
 
   // Write padding
-  for (; I < Padding; ++I)
-    Acc[I + Cur] = ' ';
+  for (size_t I = 0; I < Padding; ++I, ++Offset)
+    FlushBufs[WIOffset + Offset] = ' ';
 
-  for (; I < Len; I++)
-    Acc[I + Cur] = Buf[I];
+  for (size_t I = 0; I < Len; ++I, ++Offset) {
+    FlushBufs[WIOffset + Offset] = Str[I];
+  }
 }
 
 inline void reverseBuf(char *Buf, unsigned Len) {
@@ -322,15 +363,51 @@ inline unsigned append(char *Dst, const char *Src) {
   return Len;
 }
 
+template <typename T>
+inline typename std::enable_if<std::is_same<T, half>::value, unsigned>::type
+checkForInfNan(char *Buf, T Val) {
+  if (Val != Val)
+    return append(Buf, "nan");
+
+  // Extract the sign from the bits
+  const uint16_t Sign = reinterpret_cast<uint16_t &>(Val) & 0x8000;
+  // Extract the exponent from the bits
+  const uint16_t Exp16 = (reinterpret_cast<uint16_t &>(Val) & 0x7c00) >> 10;
+
+  if (Exp16 == 0x1f) {
+    if (Sign)
+      return append(Buf, "-inf");
+    return append(Buf, "inf");
+  }
+  return 0;
+}
+
+template <typename T>
+inline typename std::enable_if<std::is_same<T, float>::value ||
+                                   std::is_same<T, double>::value,
+                               unsigned>::type
+checkForInfNan(char *Buf, T Val) {
+  if (isnan(Val))
+    return append(Buf, "nan");
+  if (isinf(Val)) {
+    if (signbit(Val))
+      return append(Buf, "-inf");
+    return append(Buf, "inf");
+  }
+  return 0;
+}
+
 // Returns number of symbols written to the buffer
 template <typename T>
 inline EnableIfFP<T, unsigned> ScalarToStr(const T &Val, char *Buf,
                                            unsigned Flags, int Width,
                                            int Precision = -1) {
+  unsigned Offset = checkForInfNan(Buf, Val);
+  if (Offset)
+    return Offset;
+
   T Neg = -Val;
   auto AbsVal = Val < 0 ? Neg : Val;
-
-  unsigned Offset = 0;
 
   if (Val < 0) {
     Buf[Offset++] = '-';
@@ -399,12 +476,12 @@ ScalarToStr(const T &Val, char *Buf, unsigned Flags, int Width,
 
 template <typename T>
 inline typename std::enable_if<std::is_integral<T>::value>::type
-writeIntegral(stream_impl::OffsetAccessorType &OffsetAcc,
-              stream_impl::AccessorType &Acc, unsigned Flags, int Width,
+writeIntegral(stream_impl::FlushBufAccessorT &FlushBufs, size_t FlushBufferSize,
+              unsigned WIOffset, unsigned &Offset, unsigned Flags, int Width,
               const T &Val) {
   char Digits[MAX_INTEGRAL_DIGITS] = {0};
   unsigned Len = ScalarToStr(Val, Digits, Flags, Width);
-  write(OffsetAcc, Acc, Len, Digits,
+  write(FlushBufs, FlushBufferSize, WIOffset, Offset, Digits, Len,
         (Width > 0 && static_cast<unsigned>(Width) > Len)
             ? static_cast<unsigned>(Width) - Len
             : 0);
@@ -412,12 +489,12 @@ writeIntegral(stream_impl::OffsetAccessorType &OffsetAcc,
 
 template <typename T>
 inline EnableIfFP<T>
-writeFloatingPoint(stream_impl::OffsetAccessorType &OffsetAcc,
-                   stream_impl::AccessorType &Acc, unsigned Flags, int Width,
-                   int Precision, const T &Val) {
+writeFloatingPoint(stream_impl::FlushBufAccessorT &FlushBufs,
+                   size_t FlushBufferSize, unsigned WIOffset, unsigned &Offset,
+                   unsigned Flags, int Width, int Precision, const T &Val) {
   char Digits[MAX_FLOATING_POINT_DIGITS] = {0};
   unsigned Len = ScalarToStr(Val, Digits, Flags, Width, Precision);
-  write(OffsetAcc, Acc, Len, Digits,
+  write(FlushBufs, FlushBufferSize, WIOffset, Offset, Digits, Len,
         (Width > 0 && static_cast<unsigned>(Width) > Len)
             ? static_cast<unsigned>(Width) - Len
             : 0);
@@ -455,15 +532,16 @@ VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
 }
 
 template <typename T, int VecLength>
-inline void writeVec(stream_impl::OffsetAccessorType &OffsetAcc,
-                     stream_impl::AccessorType &Acc, unsigned Flags, int Width,
-                     int Precision, const vec<T, VecLength> &Vec) {
+inline void writeVec(stream_impl::FlushBufAccessorT &FlushBufs,
+                     size_t FlushBufferSize, unsigned WIOffset,
+                     unsigned &Offset, unsigned Flags, int Width, int Precision,
+                     const vec<T, VecLength> &Vec) {
   // Reserve space for vector elements and delimiters
   constexpr size_t MAX_VEC_SIZE =
       MAX_FLOATING_POINT_DIGITS * VecLength + (VecLength - 1) * 2;
   char VecStr[MAX_VEC_SIZE] = {0};
   unsigned Len = VecToStr<T, VecLength>(Vec, VecStr, Flags, Width, Precision);
-  write(OffsetAcc, Acc, Len, VecStr,
+  write(FlushBufs, FlushBufferSize, WIOffset, Offset, VecStr, Len,
         (Width > 0 && Width > Len) ? Width - Len : 0);
 }
 
@@ -484,21 +562,21 @@ inline unsigned ArrayToStr(char *Buf, const array<ArrayLength> &Arr) {
 }
 
 template <int ArrayLength>
-inline void writeArray(stream_impl::OffsetAccessorType &OffsetAcc,
-                       stream_impl::AccessorType &Acc,
-                       const array<ArrayLength> &Arr) {
-  char Buf[MAX_ARRAY_SIZE] = {0};
+inline void writeArray(stream_impl::FlushBufAccessorT &FlushBufs,
+                       size_t FlushBufferSize, unsigned WIOffset,
+                       unsigned &Offset, const array<ArrayLength> &Arr) {
+  char Buf[MAX_ARRAY_SIZE];
   unsigned Len = ArrayToStr(Buf, Arr);
-  write(OffsetAcc, Acc, Len, Buf);
+  write(FlushBufs, FlushBufferSize, WIOffset, Offset, Buf, Len);
 }
 
 template <int Dimensions>
-inline void writeItem(stream_impl::OffsetAccessorType &OffsetAcc,
-                      stream_impl::AccessorType &Acc,
-                      const item<Dimensions> &Item) {
+inline void writeItem(stream_impl::FlushBufAccessorT &FlushBufs,
+                      size_t FlushBufferSize, unsigned WIOffset,
+                      unsigned &Offset, const item<Dimensions> &Item) {
   // Reserve space for 3 arrays and additional place (40 symbols) for printing
   // the text
-  char Buf[3 * MAX_ARRAY_SIZE + 40] = {0};
+  char Buf[3 * MAX_ARRAY_SIZE + 40];
   unsigned Len = 0;
   Len += append(Buf, "item(");
   Len += append(Buf + Len, "range: ");
@@ -508,16 +586,17 @@ inline void writeItem(stream_impl::OffsetAccessorType &OffsetAcc,
   Len += append(Buf + Len, ", offset: ");
   Len += ArrayToStr(Buf + Len, Item.get_offset());
   Buf[Len++] = ')';
-  write(OffsetAcc, Acc, Len, Buf);
+  write(FlushBufs, FlushBufferSize, WIOffset, Offset, Buf, Len);
 }
 
 template <int Dimensions>
-inline void writeNDRange(stream_impl::OffsetAccessorType &OffsetAcc,
-                         stream_impl::AccessorType &Acc,
+inline void writeNDRange(stream_impl::FlushBufAccessorT &FlushBufs,
+                         size_t FlushBufferSize, unsigned WIOffset,
+                         unsigned &Offset,
                          const nd_range<Dimensions> &ND_Range) {
   // Reserve space for 3 arrays and additional place (50 symbols) for printing
   // the text
-  char Buf[3 * MAX_ARRAY_SIZE + 50] = {0};
+  char Buf[3 * MAX_ARRAY_SIZE + 50];
   unsigned Len = 0;
   Len += append(Buf, "nd_range(");
   Len += append(Buf + Len, "global_range: ");
@@ -527,16 +606,16 @@ inline void writeNDRange(stream_impl::OffsetAccessorType &OffsetAcc,
   Len += append(Buf + Len, ", offset: ");
   Len += ArrayToStr(Buf + Len, ND_Range.get_offset());
   Buf[Len++] = ')';
-  write(OffsetAcc, Acc, Len, Buf);
+  write(FlushBufs, FlushBufferSize, WIOffset, Offset, Buf, Len);
 }
 
 template <int Dimensions>
-inline void writeNDItem(stream_impl::OffsetAccessorType &OffsetAcc,
-                        stream_impl::AccessorType &Acc,
-                        const nd_item<Dimensions> &ND_Item) {
+inline void writeNDItem(stream_impl::FlushBufAccessorT &FlushBufs,
+                        size_t FlushBufferSize, unsigned WIOffset,
+                        unsigned &Offset, const nd_item<Dimensions> &ND_Item) {
   // Reserve space for 2 arrays and additional place (40 symbols) for printing
   // the text
-  char Buf[2 * MAX_ARRAY_SIZE + 40] = {0};
+  char Buf[2 * MAX_ARRAY_SIZE + 40];
   unsigned Len = 0;
   Len += append(Buf, "nd_item(");
   Len += append(Buf + Len, "global_id: ");
@@ -544,16 +623,16 @@ inline void writeNDItem(stream_impl::OffsetAccessorType &OffsetAcc,
   Len += append(Buf + Len, ", local_id: ");
   Len += ArrayToStr(Buf + Len, ND_Item.get_local_id());
   Buf[Len++] = ')';
-  write(OffsetAcc, Acc, Len, Buf);
+  write(FlushBufs, FlushBufferSize, WIOffset, Offset, Buf, Len);
 }
 
 template <int Dimensions>
-inline void writeGroup(stream_impl::OffsetAccessorType &OffsetAcc,
-                       stream_impl::AccessorType &Acc,
-                       const group<Dimensions> &Group) {
+inline void writeGroup(stream_impl::FlushBufAccessorT &FlushBufs,
+                       size_t FlushBufferSize, unsigned WIOffset,
+                       unsigned &Offset, const group<Dimensions> &Group) {
   // Reserve space for 4 arrays and additional place (60 symbols) for printing
   // the text
-  char Buf[4 * MAX_ARRAY_SIZE + 60] = {0};
+  char Buf[4 * MAX_ARRAY_SIZE + 60];
   unsigned Len = 0;
   Len += append(Buf, "group(");
   Len += append(Buf + Len, "id: ");
@@ -565,7 +644,7 @@ inline void writeGroup(stream_impl::OffsetAccessorType &OffsetAcc,
   Len += append(Buf + Len, ", group_range: ");
   Len += ArrayToStr(Buf + Len, Group.get_group_range());
   Buf[Len++] = ')';
-  write(OffsetAcc, Acc, Len, Buf);
+  write(FlushBufs, FlushBufferSize, WIOffset, Offset, Buf, Len);
 }
 
 // Space for 2 arrays and additional place (20 symbols) for printing
@@ -576,34 +655,35 @@ template <int Dimensions>
 inline unsigned ItemToStr(char *Buf, const item<Dimensions, false> &Item) {
   unsigned Len = 0;
   Len += append(Buf, "item(");
-  Len += append(Buf + Len, "range: ");
-  Len += ArrayToStr(Buf + Len, Item.get_range());
-  Len += append(Buf + Len, ", id: ");
-  Len += ArrayToStr(Buf + Len, Item.get_id());
+  for (int I = 0; I < 2; ++I) {
+    Len += append(Buf + Len, I == 0 ? "range: " : ", id: ");
+    Len += ArrayToStr(Buf + Len, I == 0 ? Item.get_range() : Item.get_id());
+  }
   Buf[Len++] = ')';
   return Len;
 }
 
 template <int Dimensions>
-inline void writeHItem(stream_impl::OffsetAccessorType &OffsetAcc,
-                       stream_impl::AccessorType &Acc,
-                       const h_item<Dimensions> &HItem) {
+inline void writeHItem(stream_impl::FlushBufAccessorT &FlushBufs,
+                       size_t FlushBufferSize, unsigned WIOffset,
+                       unsigned &Offset, const h_item<Dimensions> &HItem) {
   // Reserve space for 3 items and additional place (60 symbols) for printing
   // the text
-  char Buf[3 * MAX_ITEM_SIZE + 60] = {0};
+  char Buf[3 * MAX_ITEM_SIZE + 60];
   unsigned Len = 0;
   Len += append(Buf, "h_item(");
-  Len += append(Buf + Len, "\n  global ");
-  Len += ItemToStr(Buf + Len, HItem.get_global());
-  Len += append(Buf + Len, "\n  logical local ");
-  Len += ItemToStr(Buf + Len, HItem.get_logical_local());
-  Len += append(Buf + Len, "\n  physical local ");
-  Len += ItemToStr(Buf + Len, HItem.get_physical_local());
+  for (int I = 0; I < 3; ++I) {
+    Len += append(Buf + Len, I == 0 ? "\n  global "
+                                    : I == 1 ? "\n  logical local "
+                                             : "\n  physical local ");
+    Len += ItemToStr(Buf + Len, I == 0 ? HItem.get_global()
+                                       : I == 1 ? HItem.get_logical_local()
+                                                : HItem.get_physical_local());
+  }
   Len += append(Buf + Len, "\n)");
-  write(OffsetAcc, Acc, Len, Buf);
+  write(FlushBufs, FlushBufferSize, WIOffset, Offset, Buf, Len);
 }
 
 } // namespace detail
 } // namespace sycl
 } // namespace cl
-

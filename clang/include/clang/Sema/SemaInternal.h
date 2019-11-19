@@ -38,15 +38,6 @@ FTIHasNonVoidParameters(const DeclaratorChunk::FunctionTypeInfo &FTI) {
   return FTI.NumParams && !FTIHasSingleVoidParameter(FTI);
 }
 
-// This requires the variable to be non-dependent and the initializer
-// to not be value dependent.
-inline bool IsVariableAConstantExpression(VarDecl *Var, ASTContext &Context) {
-  const VarDecl *DefVD = nullptr;
-  return !isa<ParmVarDecl>(Var) &&
-    Var->isUsableInConstantExpressions(Context) &&
-    Var->getAnyInitializer(DefVD) && DefVD->checkInitIsICE();
-}
-
 // Helper function to check whether D's attributes match current CUDA mode.
 // Decls with mismatched attributes and related diagnostics may have to be
 // ignored during this CUDA compilation pass.
@@ -106,7 +97,7 @@ public:
                          bool EnteringContext)
       : Typo(TypoName.getName().getAsIdentifierInfo()), CurrentTCIndex(0),
         SavedTCIndex(0), SemaRef(SemaRef), S(S),
-        SS(SS ? llvm::make_unique<CXXScopeSpec>(*SS) : nullptr),
+        SS(SS ? std::make_unique<CXXScopeSpec>(*SS) : nullptr),
         CorrectionValidator(std::move(CCC)), MemberContext(MemberContext),
         Result(SemaRef, TypoName, LookupKind),
         Namespaces(SemaRef.Context, SemaRef.CurContext, SS),

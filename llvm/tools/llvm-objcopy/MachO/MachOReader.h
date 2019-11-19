@@ -30,12 +30,15 @@ class MachOReader : public Reader {
   void readHeader(Object &O) const;
   void readLoadCommands(Object &O) const;
   void readSymbolTable(Object &O) const;
-  void readStringTable(Object &O) const;
+  void setSymbolInRelocationInfo(Object &O) const;
   void readRebaseInfo(Object &O) const;
   void readBindInfo(Object &O) const;
   void readWeakBindInfo(Object &O) const;
   void readLazyBindInfo(Object &O) const;
   void readExportInfo(Object &O) const;
+  void readDataInCodeData(Object &O) const;
+  void readFunctionStartsData(Object &O) const;
+  void readIndirectSymbolTable(Object &O) const;
 
 public:
   explicit MachOReader(const object::MachOObjectFile &Obj) : MachOObj(Obj) {}

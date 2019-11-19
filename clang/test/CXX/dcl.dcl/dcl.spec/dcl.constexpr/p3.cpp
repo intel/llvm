@@ -57,7 +57,10 @@ struct T : SS, NonLiteral {
 #ifndef CXX1Y
   // expected-error@-2 {{constexpr function's return type 'void' is not a literal type}}
 #endif
-  constexpr ~T(); // expected-error {{destructor cannot be marked constexpr}}
+  constexpr ~T();
+#ifndef CXX2A
+  // expected-error@-2 {{destructor cannot be declared constexpr}}
+#endif
   typedef NonLiteral F() const;
   constexpr F NonLiteralReturn2; // ok until definition
 
@@ -136,9 +139,13 @@ constexpr int AllowedStmtsCXX11() {
 }
 
 //  or a compound-statement that does not contain [CXX1Y]
-constexpr int DisallowedStmtsCXX1Y_1() {
+constexpr int DisallowedStmtsCXX1Y_1(bool b) {
   //  - an asm-definition
-  asm("int3"); // expected-error {{statement not allowed in constexpr function}}
+  if (b)
+    asm("int3");
+#if !defined(CXX2A)
+  // expected-error@-2 {{use of this statement in a constexpr function is a C++2a extension}}
+#endif
   return 0;
 }
 constexpr int DisallowedStmtsCXX1Y_2() {
@@ -157,11 +164,8 @@ constexpr int DisallowedStmtsCXX1Y_2_1() {
 constexpr int DisallowedStmtsCXX1Y_3() {
   //  - a try-block,
   try {} catch (...) {}
-#ifndef CXX2A
+#if !defined(CXX2A)
   // expected-error@-2 {{use of this statement in a constexpr function is a C++2a extension}}
-#ifndef CXX1Y
-  // expected-error@-4 {{use of this statement in a constexpr function is a C++14 extension}}
-#endif
 #endif
   return 0;
 }
@@ -182,7 +186,10 @@ constexpr int DisallowedStmtsCXX1Y_6() {
 }
 constexpr int DisallowedStmtsCXX1Y_7() {
   //  - a definition of a variable for which no initialization is performed
-  int n; // expected-error {{variables defined in a constexpr function must be initialized}}
+  int n;
+#ifndef CXX2A
+  // expected-error@-2 {{uninitialized variable in a constexpr function}}
+#endif
   return 0;
 }
 
@@ -314,7 +321,10 @@ namespace std_example {
     return value;
   }
   constexpr int uninit() {
-    int a; // expected-error {{must be initialized}}
+    int a;
+#ifndef CXX2A
+    // expected-error@-2 {{uninitialized}}
+#endif
     return a;
   }
   constexpr int prev(int x) {

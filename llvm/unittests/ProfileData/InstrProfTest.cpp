@@ -889,7 +889,7 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_bogus_symtab_empty_func_name) {
 // Testing symtab creator interface used by value profile transformer.
 TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_module_test) {
   LLVMContext Ctx;
-  std::unique_ptr<Module> M = llvm::make_unique<Module>("MyModule.cpp", Ctx);
+  std::unique_ptr<Module> M = std::make_unique<Module>("MyModule.cpp", Ctx);
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(Ctx),
                                         /*isVarArg=*/false);
   Function::Create(FTy, Function::ExternalLinkage, "Gfoo", M.get());
@@ -1043,5 +1043,26 @@ TEST_F(SparseInstrProfTest, preserve_no_records) {
 
 INSTANTIATE_TEST_CASE_P(MaybeSparse, MaybeSparseInstrProfTest,
                         ::testing::Bool(),);
+
+#if defined(_LP64) && defined(EXPENSIVE_CHECKS)
+TEST(ProfileReaderTest, ReadsLargeFiles) {
+  const size_t LargeSize = 1ULL << 32; // 4GB
+
+  auto RawProfile = WritableMemoryBuffer::getNewUninitMemBuffer(LargeSize);
+  if (!RawProfile)
+    return;
+  auto RawProfileReaderOrErr = InstrProfReader::create(std::move(RawProfile));
+  ASSERT_TRUE(InstrProfError::take(RawProfileReaderOrErr.takeError()) ==
+              instrprof_error::unrecognized_format);
+
+  auto IndexedProfile = WritableMemoryBuffer::getNewUninitMemBuffer(LargeSize);
+  if (!IndexedProfile)
+    return;
+  auto IndexedReaderOrErr =
+      IndexedInstrProfReader::create(std::move(IndexedProfile), nullptr);
+  ASSERT_TRUE(InstrProfError::take(IndexedReaderOrErr.takeError()) ==
+              instrprof_error::bad_magic);
+}
+#endif
 
 } // end anonymous namespace

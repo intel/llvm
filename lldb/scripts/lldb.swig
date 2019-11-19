@@ -123,6 +123,7 @@ def lldb_iter(obj, getsize, getelem):
 #include "lldb/API/SBExecutionContext.h"
 #include "lldb/API/SBExpressionOptions.h"
 #include "lldb/API/SBFileSpec.h"
+#include "lldb/API/SBFile.h"
 #include "lldb/API/SBFileSpecList.h"
 #include "lldb/API/SBFrame.h"
 #include "lldb/API/SBFunction.h"
@@ -173,6 +174,11 @@ def lldb_iter(obj, getsize, getelem):
 #include "../source/Plugins/ScriptInterpreter/Python/PythonDataObjects.h"
 
 #include "../scripts/Python/python-swigsafecast.swig"
+
+using namespace lldb_private;
+using namespace lldb_private::python;
+using namespace lldb;
+
 %}
 
 /* Various liblldb typedefs that SWIG needs to know about.  */
@@ -210,6 +216,7 @@ def lldb_iter(obj, getsize, getelem):
 %include "./interface/SBExecutionContext.i"
 %include "./interface/SBExpressionOptions.i"
 %include "./interface/SBFileSpec.i"
+%include "./interface/SBFile.i"
 %include "./interface/SBFileSpecList.i"
 %include "./interface/SBFrame.i"
 %include "./interface/SBFunction.i"
@@ -265,8 +272,8 @@ def lldb_iter(obj, getsize, getelem):
 debugger_unique_id = 0
 SBDebugger.Initialize()
 debugger = None
-target = SBTarget()
-process = SBProcess()
-thread = SBThread()
-frame = SBFrame()
+target = None
+process = None
+thread = None
+frame = None
 %}

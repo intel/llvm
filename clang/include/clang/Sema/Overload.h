@@ -68,7 +68,34 @@ class Sema;
     OCD_AllCandidates,
 
     /// Requests that only viable candidates be shown.
-    OCD_ViableCandidates
+    OCD_ViableCandidates,
+
+    /// Requests that only tied-for-best candidates be shown.
+    OCD_AmbiguousCandidates
+  };
+
+  /// The parameter ordering that will be used for the candidate. This is
+  /// used to represent C++20 binary operator rewrites that reverse the order
+  /// of the arguments. If the parameter ordering is Reversed, the Args list is
+  /// reversed (but obviously the ParamDecls for the function are not).
+  ///
+  /// After forming an OverloadCandidate with reversed parameters, the list
+  /// of conversions will (as always) be indexed by argument, so will be
+  /// in reverse parameter order.
+  enum class OverloadCandidateParamOrder : char { Normal, Reversed };
+
+  /// The kinds of rewrite we perform on overload candidates. Note that the
+  /// values here are chosen to serve as both bitflags and as a rank (lower
+  /// values are preferred by overload resolution).
+  enum OverloadCandidateRewriteKind : unsigned {
+    /// Candidate is not a rewritten candidate.
+    CRK_None = 0x0,
+
+    /// Candidate is a rewritten candidate with a different operator name.
+    CRK_DifferentOperator = 0x1,
+
+    /// Candidate is a rewritten candidate with a reversed order of parameters.
+    CRK_Reversed = 0x2,
   };
 
   /// ImplicitConversionKind - The kind of implicit conversion used to
@@ -723,6 +750,11 @@ class Sema;
     /// This candidate was not viable because it is a non-default multiversioned
     /// function.
     ovl_non_default_multiversion_function,
+
+    /// This constructor/conversion candidate fail due to an address space
+    /// mismatch between the object being constructed and the overload
+    /// candidate.
+    ovl_fail_object_addrspace_mismatch
   };
 
   /// A list of implicit conversion sequences for the arguments of an
@@ -752,7 +784,8 @@ class Sema;
     CXXConversionDecl *Surrogate;
 
     /// The conversion sequences used to convert the function arguments
-    /// to the function parameters.
+    /// to the function parameters. Note that these are indexed by argument,
+    /// so may not match the parameter order of Function.
     ConversionSequenceList Conversions;
 
     /// The FixIt hints which can be used to fix the Bad candidate.
@@ -760,6 +793,15 @@ class Sema;
 
     /// Viable - True to indicate that this overload candidate is viable.
     bool Viable : 1;
+
+    /// Whether this candidate is the best viable function, or tied for being
+    /// the best viable function.
+    ///
+    /// For an ambiguous overload resolution, indicates whether this candidate
+    /// was part of the ambiguity kernel: the minimal non-empty set of viable
+    /// candidates such that all elements of the ambiguity kernel are better
+    /// than all viable candidates not in the ambiguity kernel.
+    bool Best : 1;
 
     /// IsSurrogate - True to indicate that this candidate is a
     /// surrogate for a conversion to a function pointer or reference
@@ -778,6 +820,9 @@ class Sema;
     /// True if the candidate was found using ADL.
     CallExpr::ADLCallKind IsADLCandidate : 1;
 
+    /// Whether this is a rewritten candidate, and if so, of what kind?
+    unsigned RewriteKind : 2;
+
     /// FailureKind - The reason why this candidate is not viable.
     /// Actually an OverloadFailureKind.
     unsigned char FailureKind;
@@ -795,6 +840,12 @@ class Sema;
       /// of calling the conversion function to the required type.
       StandardConversionSequence FinalConversion;
     };
+
+    /// Get RewriteKind value in OverloadCandidateRewriteKind type (This
+    /// function is to workaround the spurious GCC bitfield enum warning)
+    OverloadCandidateRewriteKind getRewriteKind() const {
+      return static_cast<OverloadCandidateRewriteKind>(RewriteKind);
+    }
 
     /// hasAmbiguousConversion - Returns whether this overload
     /// candidate requires an ambiguous conversion or not.
@@ -821,10 +872,10 @@ class Sema;
 
     unsigned getNumParams() const {
       if (IsSurrogate) {
-        auto STy = Surrogate->getConversionType();
+        QualType STy = Surrogate->getConversionType();
         while (STy->isPointerType() || STy->isReferenceType())
           STy = STy->getPointeeType();
-        return STy->getAs<FunctionProtoType>()->getNumParams();
+        return STy->castAs<FunctionProtoType>()->getNumParams();
       }
       if (Function)
         return Function->getNumParams();
@@ -833,7 +884,8 @@ class Sema;
 
   private:
     friend class OverloadCandidateSet;
-    OverloadCandidate() : IsADLCandidate(CallExpr::NotADL) {}
+    OverloadCandidate()
+        : IsADLCandidate(CallExpr::NotADL), RewriteKind(CRK_None) {}
   };
 
   /// OverloadCandidateSet - A set of overload candidates, used in C++
@@ -862,9 +914,54 @@ class Sema;
       CSK_InitByConstructor,
     };
 
+    /// Information about operator rewrites to consider when adding operator
+    /// functions to a candidate set.
+    struct OperatorRewriteInfo {
+      OperatorRewriteInfo()
+          : OriginalOperator(OO_None), AllowRewrittenCandidates(false) {}
+      OperatorRewriteInfo(OverloadedOperatorKind Op, bool AllowRewritten)
+          : OriginalOperator(Op), AllowRewrittenCandidates(AllowRewritten) {}
+
+      /// The original operator as written in the source.
+      OverloadedOperatorKind OriginalOperator;
+      /// Whether we should include rewritten candidates in the overload set.
+      bool AllowRewrittenCandidates;
+
+      /// Would use of this function result in a rewrite using a different
+      /// operator?
+      bool isRewrittenOperator(const FunctionDecl *FD) {
+        return OriginalOperator &&
+               FD->getDeclName().getCXXOverloadedOperator() != OriginalOperator;
+      }
+
+      bool isAcceptableCandidate(const FunctionDecl *FD) {
+        return AllowRewrittenCandidates || !isRewrittenOperator(FD);
+      }
+
+      /// Determine the kind of rewrite that should be performed for this
+      /// candidate.
+      OverloadCandidateRewriteKind
+      getRewriteKind(const FunctionDecl *FD, OverloadCandidateParamOrder PO) {
+        OverloadCandidateRewriteKind CRK = CRK_None;
+        if (isRewrittenOperator(FD))
+          CRK = OverloadCandidateRewriteKind(CRK | CRK_DifferentOperator);
+        if (PO == OverloadCandidateParamOrder::Reversed)
+          CRK = OverloadCandidateRewriteKind(CRK | CRK_Reversed);
+        return CRK;
+      }
+
+      /// Determine whether we should consider looking for and adding reversed
+      /// candidates for operator Op.
+      bool shouldAddReversed(OverloadedOperatorKind Op);
+
+      /// Determine whether we should add a rewritten candidate for \p FD with
+      /// reversed parameter order.
+      bool shouldAddReversed(ASTContext &Ctx, const FunctionDecl *FD);
+    };
+
   private:
     SmallVector<OverloadCandidate, 16> Candidates;
-    llvm::SmallPtrSet<Decl *, 16> Functions;
+    llvm::SmallPtrSet<uintptr_t, 16> Functions;
 
     // Allocator for ConversionSequenceLists. We store the first few of these
     // inline to avoid allocation for small sets.
@@ -872,11 +969,15 @@ class Sema;
 
     SourceLocation Loc;
     CandidateSetKind Kind;
+    OperatorRewriteInfo RewriteInfo;
 
     constexpr static unsigned NumInlineBytes =
         24 * sizeof(ImplicitConversionSequence);
     unsigned NumInlineBytesUsed = 0;
-    llvm::AlignedCharArray<alignof(void *), NumInlineBytes> InlineSpace;
+    alignas(void *) char InlineSpace[NumInlineBytes];
+
+    // Address space of the object being constructed.
+    LangAS DestAS = LangAS::Default;
 
     /// If we have space, allocates from inline storage. Otherwise, allocates
     /// from the slab allocator.
@@ -896,7 +997,7 @@ class Sema;
       unsigned NBytes = sizeof(T) * N;
       if (NBytes > NumInlineBytes - NumInlineBytesUsed)
         return SlabAllocator.Allocate<T>(N);
-      char *FreeSpaceStart = InlineSpace.buffer + NumInlineBytesUsed;
+      char *FreeSpaceStart = InlineSpace + NumInlineBytesUsed;
       assert(uintptr_t(FreeSpaceStart) % alignof(void *) == 0 &&
              "Misaligned storage!");
 
@@ -907,19 +1008,24 @@ class Sema;
     void destroyCandidates();
 
   public:
-    OverloadCandidateSet(SourceLocation Loc, CandidateSetKind CSK)
-        : Loc(Loc), Kind(CSK) {}
+    OverloadCandidateSet(SourceLocation Loc, CandidateSetKind CSK,
+                         OperatorRewriteInfo RewriteInfo = {})
+        : Loc(Loc), Kind(CSK), RewriteInfo(RewriteInfo) {}
     OverloadCandidateSet(const OverloadCandidateSet &) = delete;
     OverloadCandidateSet &operator=(const OverloadCandidateSet &) = delete;
     ~OverloadCandidateSet() { destroyCandidates(); }
 
     SourceLocation getLocation() const { return Loc; }
     CandidateSetKind getKind() const { return Kind; }
+    OperatorRewriteInfo getRewriteInfo() const { return RewriteInfo; }
 
     /// Determine when this overload candidate will be new to the
     /// overload set.
-    bool isNewCandidate(Decl *F) {
-      return Functions.insert(F->getCanonicalDecl()).second;
+    bool isNewCandidate(Decl *F, OverloadCandidateParamOrder PO =
+                                     OverloadCandidateParamOrder::Normal) {
+      uintptr_t Key = reinterpret_cast<uintptr_t>(F->getCanonicalDecl());
+      Key |= static_cast<uintptr_t>(PO);
+      return Functions.insert(Key).second;
     }
 
     /// Clear out all of the candidates.
@@ -983,6 +1089,17 @@ class Sema;
                         ArrayRef<OverloadCandidate *> Cands,
                         StringRef Opc = "",
                         SourceLocation OpLoc = SourceLocation());
+
+    LangAS getDestAS() { return DestAS; }
+
+    void setDestAS(LangAS AS) {
+      assert((Kind == CSK_InitByConstructor ||
+              Kind == CSK_InitByUserDefinedConversion) &&
+             "can't set the destination address space when not constructing an "
+             "object");
+      DestAS = AS;
+    }
+
   };
 
   bool isBetterOverloadCandidate(Sema &S,

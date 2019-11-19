@@ -24,6 +24,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <string>
@@ -65,7 +66,7 @@ cl::opt<bool>
 cl::opt<bool>
     ELFCommons("common",
                cl::desc("Print common symbols in the ELF file.  When using "
-                        "Berkely format, this is added to bss."),
+                        "Berkeley format, this is added to bss."),
                cl::init(false), cl::cat(SizeCat));
 
 static cl::list<std::string>
@@ -99,26 +100,16 @@ static cl::alias TotalSizesShort("t", cl::desc("Short for --totals"),
 static cl::list<std::string>
     InputFilenames(cl::Positional, cl::desc("<input files>"), cl::ZeroOrMore);
 
+static cl::extrahelp
+    HelpResponse("\nPass @FILE as argument to read options from FILE.\n");
+
 static bool HadError = false;
 
 static std::string ToolName;
 
-/// If ec is not success, print the error and return true.
-static bool error(std::error_code ec) {
-  if (!ec)
-    return false;
-
+static void error(const Twine &Message, StringRef File) {
   HadError = true;
-  errs() << ToolName << ": error reading file: " << ec.message() << ".\n";
-  errs().flush();
-  return true;
-}
-
-static bool error(Twine Message) {
-  HadError = true;
-  errs() << ToolName << ": " << Message << ".\n";
-  errs().flush();
-  return true;
+  WithColor::error(errs(), ToolName) << "'" << File << "': " << Message << "\n";
 }
 
 // This version of error() prints the archive name and member name, for example:
@@ -127,7 +118,7 @@ static bool error(Twine Message) {
 static void error(llvm::Error E, StringRef FileName, const Archive::Child &C,
                   StringRef ArchitectureName = StringRef()) {
   HadError = true;
-  errs() << ToolName << ": " << FileName;
+  WithColor::error(errs(), ToolName) << "'" << FileName << "'";
 
   Expected<StringRef> NameOrErr = C.getName();
   // TODO: if we have a error getting the name then it would be nice to print
@@ -146,7 +137,7 @@ static void error(llvm::Error E, StringRef FileName, const Archive::Child &C,
   raw_string_ostream OS(Buf);
   logAllUnhandledErrors(std::move(E), OS);
   OS.flush();
-  errs() << " " << Buf << "\n";
+  errs() << ": " << Buf << "\n";
 }
 
 // This version of error() prints the file name and which architecture slice it // is from, for example: "foo.o (for architecture i386)" after the ToolName
@@ -155,7 +146,7 @@ static void error(llvm::Error E, StringRef FileName, const Archive::Child &C,
 static void error(llvm::Error E, StringRef FileName,
                   StringRef ArchitectureName = StringRef()) {
   HadError = true;
-  errs() << ToolName << ": " << FileName;
+  WithColor::error(errs(), ToolName) << "'" << FileName << "'";
 
   if (!ArchitectureName.empty())
     errs() << " (for architecture " << ArchitectureName << ") ";
@@ -164,7 +155,7 @@ static void error(llvm::Error E, StringRef FileName,
   raw_string_ostream OS(Buf);
   logAllUnhandledErrors(std::move(E), OS);
   OS.flush();
-  errs() << " " << Buf << "\n";
+  errs() << ": " << Buf << "\n";
 }
 
 /// Get the length of the string that represents @p num in Radix including the
@@ -394,11 +385,14 @@ static void printObjectSectionSizes(ObjectFile *Obj) {
       uint64_t size = Section.getSize();
       total += size;
 
-      StringRef name;
-      if (error(Section.getName(name)))
+      Expected<StringRef> name_or_err = Section.getName();
+      if (!name_or_err) {
+        error(name_or_err.takeError(), Obj->getFileName());
         return;
+      }
+
       uint64_t addr = Section.getAddress();
-      max_name_len = std::max(max_name_len, name.size());
+      max_name_len = std::max(max_name_len, name_or_err->size());
       max_size_len = std::max(max_size_len, getNumLengthAsString(size));
       max_addr_len = std::max(max_addr_len, getNumLengthAsString(addr));
     }
@@ -428,14 +422,16 @@ static void printObjectSectionSizes(ObjectFile *Obj) {
     for (const SectionRef &Section : Obj->sections()) {
       if (!considerForSize(Obj, Section))
         continue;
-      StringRef name;
-      if (error(Section.getName(name)))
+
+      Expected<StringRef> name_or_err = Section.getName();
+      if (!name_or_err) {
+        error(name_or_err.takeError(), Obj->getFileName());
         return;
+      }
+
       uint64_t size = Section.getSize();
       uint64_t addr = Section.getAddress();
-      std::string namestr = name;
-
-      outs() << format(fmt.str().c_str(), namestr.c_str(), size, addr);
+      outs() << format(fmt.str().c_str(), name_or_err->str().c_str(), size, addr);
     }
 
     if (ELFCommons) {
@@ -532,7 +528,7 @@ static bool checkMachOAndArchFlags(ObjectFile *O, StringRef Filename) {
   if (none_of(ArchFlags, [&](const std::string &Name) {
         return Name == T.getArchName();
       })) {
-    error(Filename + ": No architecture specified");
+    error("no architecture specified", Filename);
     return false;
   }
   return true;
@@ -661,15 +657,15 @@ static void printFileSectionSizes(StringRef file) {
                 error(std::move(Err), UA->getFileName());
             } else {
               consumeError(AOrErr.takeError());
-              error("Mach-O universal file: " + file + " for architecture " +
-                    StringRef(I->getArchFlagName()) +
-                    " is not a Mach-O file or an archive file");
+              error("mach-o universal file for architecture " +
+                        StringRef(I->getArchFlagName()) +
+                        " is not a mach-o file or an archive file",
+                    file);
             }
           }
         }
         if (!ArchFound) {
-          errs() << ToolName << ": file: " << file
-                 << " does not contain architecture" << ArchFlags[i] << ".\n";
+          error("file does not contain architecture " + ArchFlags[i], file);
           return;
         }
       }
@@ -743,9 +739,10 @@ static void printFileSectionSizes(StringRef file) {
               error(std::move(Err), UA->getFileName());
           } else {
             consumeError(AOrErr.takeError());
-            error("Mach-O universal file: " + file + " for architecture " +
-                   StringRef(I->getArchFlagName()) +
-                   " is not a Mach-O file or an archive file");
+            error("mach-o universal file for architecture " +
+                      StringRef(I->getArchFlagName()) +
+                      " is not a mach-o file or an archive file",
+                  file);
           }
           return;
         }
@@ -819,9 +816,10 @@ static void printFileSectionSizes(StringRef file) {
           error(std::move(Err), UA->getFileName());
       } else {
         consumeError(AOrErr.takeError());
-        error("Mach-O universal file: " + file + " for architecture " +
-               StringRef(I->getArchFlagName()) +
-               " is not a Mach-O file or an archive file");
+        error("mach-o universal file for architecture " +
+                  StringRef(I->getArchFlagName()) +
+                  " is not a mach-o file or an archive file",
+              file);
       }
     }
   } else if (ObjectFile *o = dyn_cast<ObjectFile>(&Bin)) {
@@ -839,15 +837,14 @@ static void printFileSectionSizes(StringRef file) {
       outs() << "\n";
     }
   } else {
-    errs() << ToolName << ": " << file << ": "
-           << "Unrecognized file type.\n";
+    error("unsupported file type", file);
   }
   // System V adds an extra newline at the end of each file.
   if (OutputFormat == sysv)
     outs() << "\n";
 }
 
-static void printBerkelyTotals() {
+static void printBerkeleyTotals() {
   std::string fmtbuf;
   raw_string_ostream fmt(fmtbuf);
   const char *radix_fmt = getRadixFmt();
@@ -892,7 +889,7 @@ int main(int argc, char **argv) {
   MoreThanOneFile = InputFilenames.size() > 1;
   llvm::for_each(InputFilenames, printFileSectionSizes);
   if (OutputFormat == berkeley && TotalSizes)
-    printBerkelyTotals();
+    printBerkeleyTotals();
 
   if (HadError)
     return 1;

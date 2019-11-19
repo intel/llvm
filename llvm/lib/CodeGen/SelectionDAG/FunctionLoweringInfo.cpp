@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
+#include "llvm/Analysis/LegacyDivergenceAnalysis.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -151,7 +152,7 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
           auto Iter = CatchObjects.find(AI);
           if (Iter != CatchObjects.end() && TLI->needsFixedCatchObjects()) {
             FrameIndex = MF->getFrameInfo().CreateFixedObject(
-                TySize, 0, /*Immutable=*/false, /*isAliased=*/true);
+                TySize, 0, /*IsImmutable=*/false, /*isAliased=*/true);
             MF->getFrameInfo().setObjectAlignment(FrameIndex, Align);
           } else {
             FrameIndex =
@@ -424,7 +425,7 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
   unsigned BitWidth = IntVT.getSizeInBits();
 
   unsigned DestReg = ValueMap[PN];
-  if (!TargetRegisterInfo::isVirtualRegister(DestReg))
+  if (!Register::isVirtualRegister(DestReg))
     return;
   LiveOutRegInfo.grow(DestReg);
   LiveOutInfo &DestLOI = LiveOutRegInfo[DestReg];
@@ -445,7 +446,7 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
     assert(ValueMap.count(V) && "V should have been placed in ValueMap when its"
                                 "CopyToReg node was created.");
     unsigned SrcReg = ValueMap[V];
-    if (!TargetRegisterInfo::isVirtualRegister(SrcReg)) {
+    if (!Register::isVirtualRegister(SrcReg)) {
       DestLOI.IsValid = false;
       return;
     }
@@ -480,7 +481,7 @@ void FunctionLoweringInfo::ComputePHILiveOutRegInfo(const PHINode *PN) {
     assert(ValueMap.count(V) && "V should have been placed in ValueMap when "
                                 "its CopyToReg node was created.");
     unsigned SrcReg = ValueMap[V];
-    if (!TargetRegisterInfo::isVirtualRegister(SrcReg)) {
+    if (!Register::isVirtualRegister(SrcReg)) {
       DestLOI.IsValid = false;
       return;
     }

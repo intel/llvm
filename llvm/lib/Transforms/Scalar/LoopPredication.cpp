@@ -543,7 +543,7 @@ bool LoopPredication::isLoopInvariantValue(const SCEV* S) {
     if (const auto *LI = dyn_cast<LoadInst>(U->getValue()))
       if (LI->isUnordered() && L->hasLoopInvariantOperands(LI))
         if (AA->pointsToConstantMemory(LI->getOperand(0)) ||
-            LI->getMetadata(LLVMContext::MD_invariant_load) != nullptr)
+            LI->hasMetadata(LLVMContext::MD_invariant_load))
           return true;
   return false;
 }
@@ -647,12 +647,13 @@ Optional<Value *> LoopPredication::widenICmpRangeCheckDecrementingLoop(
 
 static void normalizePredicate(ScalarEvolution *SE, Loop *L,
                                LoopICmp& RC) {
-  // LFTR canonicalizes checks to the ICMP_NE form instead of an ULT/SLT form.
-  // Normalize back to the ULT/SLT form for ease of handling.
-  if (RC.Pred == ICmpInst::ICMP_NE &&
+  // LFTR canonicalizes checks to the ICMP_NE/EQ form; normalize back to the
+  // ULT/UGE form for ease of handling by our caller. 
+  if (ICmpInst::isEquality(RC.Pred) &&
       RC.IV->getStepRecurrence(*SE)->isOne() &&
       SE->isKnownPredicate(ICmpInst::ICMP_ULE, RC.IV->getStart(), RC.Limit))
-    RC.Pred = ICmpInst::ICMP_ULT;
+    RC.Pred = RC.Pred == ICmpInst::ICMP_NE ?
+      ICmpInst::ICMP_ULT : ICmpInst::ICMP_UGE;
 }
 
 
@@ -793,14 +794,9 @@ bool LoopPredication::widenGuardConditions(IntrinsicInst *Guard,
 
   // Emit the new guard condition
   IRBuilder<> Builder(findInsertPt(Guard, Checks));
-  Value *LastCheck = nullptr;
-  for (auto *Check : Checks)
-    if (!LastCheck)
-      LastCheck = Check;
-    else
-      LastCheck = Builder.CreateAnd(LastCheck, Check);
+  Value *AllChecks = Builder.CreateAnd(Checks);
   auto *OldCond = Guard->getOperand(0);
-  Guard->setOperand(0, LastCheck);
+  Guard->setOperand(0, AllChecks);
   RecursivelyDeleteTriviallyDeadInstructions(OldCond);
 
   LLVM_DEBUG(dbgs() << "Widened checks = " << NumWidened << "\n");
@@ -824,17 +820,12 @@ bool LoopPredication::widenWidenableBranchGuardConditions(
 
   // Emit the new guard condition
   IRBuilder<> Builder(findInsertPt(BI, Checks));
-  Value *LastCheck = nullptr;
-  for (auto *Check : Checks)
-    if (!LastCheck)
-      LastCheck = Check;
-    else
-      LastCheck = Builder.CreateAnd(LastCheck, Check);
+  Value *AllChecks = Builder.CreateAnd(Checks);
   auto *OldCond = BI->getCondition();
-  BI->setCondition(LastCheck);
+  BI->setCondition(AllChecks);
+  RecursivelyDeleteTriviallyDeadInstructions(OldCond);
   assert(isGuardAsWidenableBranch(BI) &&
          "Stopped being a guard after transform?");
-  RecursivelyDeleteTriviallyDeadInstructions(OldCond);
 
   LLVM_DEBUG(dbgs() << "Widened checks = " << NumWidened << "\n");
   return true;
@@ -850,7 +841,7 @@ Optional<LoopICmp> LoopPredication::parseLoopLatchICmp() {
   }
 
   auto *BI = dyn_cast<BranchInst>(LoopLatch->getTerminator());
-  if (!BI) {
+  if (!BI || !BI->isConditional()) {
     LLVM_DEBUG(dbgs() << "Failed to match the latch terminator!\n");
     return None;
   }
@@ -860,7 +851,7 @@ Optional<LoopICmp> LoopPredication::parseLoopLatchICmp() {
       "One of the latch's destinations must be the header");
 
   auto *ICI = dyn_cast<ICmpInst>(BI->getCondition());
-  if (!ICI || !BI->isConditional()) {
+  if (!ICI) {
     LLVM_DEBUG(dbgs() << "Failed to match the latch condition!\n");
     return None;
   }
@@ -912,7 +903,7 @@ bool LoopPredication::isLoopProfitableToPredicate() {
   if (SkipProfitabilityChecks || !BPI)
     return true;
 
-  SmallVector<std::pair<const BasicBlock *, const BasicBlock *>, 8> ExitEdges;
+  SmallVector<std::pair<BasicBlock *, BasicBlock *>, 8> ExitEdges;
   L->getExitEdges(ExitEdges);
   // If there is only one exiting edge in the loop, it is always profitable to
   // predicate the loop.

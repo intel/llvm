@@ -45,13 +45,14 @@ def invoke_tool(exe, cmd_args, ir):
 
 ##### LLVM IR parser
 
-RUN_LINE_RE = re.compile('^\s*[;#]\s*RUN:\s*(.*)$')
-CHECK_PREFIX_RE = re.compile('--?check-prefix(?:es)?[= ](\S+)')
-CHECK_RE = re.compile(r'^\s*[;#]\s*([^:]+?)(?:-NEXT|-NOT|-DAG|-LABEL)?:')
+RUN_LINE_RE = re.compile(r'^\s*[;#]\s*RUN:\s*(.*)$')
+CHECK_PREFIX_RE = re.compile(r'--?check-prefix(?:es)?[= ](\S+)')
+PREFIX_RE = re.compile('^[a-zA-Z0-9_-]+$')
+CHECK_RE = re.compile(r'^\s*[;#]\s*([^:]+?)(?:-NEXT|-NOT|-DAG|-LABEL|-SAME)?:')
 
 OPT_FUNCTION_RE = re.compile(
-    r'^\s*define\s+(?:internal\s+)?[^@]*@(?P<func>[\w-]+?)\s*\('
-    r'(\s+)?[^)]*[^{]*\{\n(?P<body>.*?)^\}$',
+    r'^\s*define\s+(?:internal\s+)?[^@]*@(?P<func>[\w-]+?)\s*'
+    r'(?P<args_and_sig>\((\)|(.*?[\w\.\-]+?)\))[^{]*)\{\n(?P<body>.*?)^\}$',
     flags=(re.M | re.S))
 
 ANALYZE_FUNCTION_RE = re.compile(
@@ -59,7 +60,7 @@ ANALYZE_FUNCTION_RE = re.compile(
     r'\s*\n(?P<body>.*)$',
     flags=(re.X | re.S))
 
-IR_FUNCTION_RE = re.compile('^\s*define\s+(?:internal\s+)?[^@]*@(\w+)\s*\(')
+IR_FUNCTION_RE = re.compile(r'^\s*define\s+(?:internal\s+)?[^@]*@(\w+)\s*\(')
 TRIPLE_IR_RE = re.compile(r'^\s*target\s+triple\s*=\s*"([^"]+)"$')
 TRIPLE_ARG_RE = re.compile(r'-mtriple[= ]([^ ]+)')
 MARCH_ARG_RE = re.compile(r'-march[= ]([^ ]+)')
@@ -70,6 +71,17 @@ SCRUB_TRAILING_WHITESPACE_RE = re.compile(r'[ \t]+$', flags=re.M)
 SCRUB_KILL_COMMENT_RE = re.compile(r'^ *#+ +kill:.*\n')
 SCRUB_LOOP_COMMENT_RE = re.compile(
     r'# =>This Inner Loop Header:.*|# in Loop:.*', flags=re.M)
+
+
+def error(msg, test_file=None):
+  if test_file:
+    msg = '{}: {}'.format(msg, test_file)
+  print('ERROR: {}'.format(msg), file=sys.stderr)
+
+def warn(msg, test_file=None):
+  if test_file:
+    msg = '{}: {}'.format(msg, test_file)
+  print('WARNING: {}'.format(msg), file=sys.stderr)
 
 def scrub_body(body):
   # Scrub runs of whitespace out of the assembly, but leave the leading
@@ -90,24 +102,51 @@ def do_scrub(body, scrubber, scrubber_args, extra):
 
 # Build up a dictionary of all the function bodies.
 class function_body(object):
-  def __init__(self, string, extra):
+  def __init__(self, string, extra, args_and_sig):
     self.scrub = string
     self.extrascrub = extra
+    self.args_and_sig = args_and_sig
+  def is_same_except_arg_names(self, extrascrub, args_and_sig):
+    arg_names = set()
+    def drop_arg_names(match):
+        arg_names.add(match.group(2))
+        return match.group(1) + match.group(3)
+    def repl_arg_names(match):
+        if match.group(2) in arg_names:
+            return match.group(1) + match.group(3)
+        return match.group(1) + match.group(2) + match.group(3)
+    ans0 = IR_VALUE_RE.sub(drop_arg_names, self.args_and_sig)
+    ans1 = IR_VALUE_RE.sub(drop_arg_names, args_and_sig)
+    if ans0 != ans1:
+        return False
+    es0 = IR_VALUE_RE.sub(repl_arg_names, self.extrascrub)
+    es1 = IR_VALUE_RE.sub(repl_arg_names, extrascrub)
+    es0 = SCRUB_IR_COMMENT_RE.sub(r'', es0)
+    es1 = SCRUB_IR_COMMENT_RE.sub(r'', es1)
+    return es0 == es1
+
   def __str__(self):
     return self.scrub
 
-def build_function_body_dictionary(function_re, scrubber, scrubber_args, raw_tool_output, prefixes, func_dict, verbose):
+def build_function_body_dictionary(function_re, scrubber, scrubber_args, raw_tool_output, prefixes, func_dict, verbose, record_args):
   for m in function_re.finditer(raw_tool_output):
     if not m:
       continue
     func = m.group('func')
     body = m.group('body')
+    # Determine if we print arguments, the opening brace, or nothing after the function name
+    if record_args and 'args_and_sig' in m.groupdict():
+        args_and_sig = scrub_body(m.group('args_and_sig').strip())
+    elif 'args_and_sig' in m.groupdict():
+        args_and_sig = '('
+    else:
+        args_and_sig = ''
     scrubbed_body = do_scrub(body, scrubber, scrubber_args, extra = False)
     scrubbed_extra = do_scrub(body, scrubber, scrubber_args, extra = True)
     if 'analysis' in m.groupdict():
       analysis = m.group('analysis')
       if analysis.lower() != 'cost model analysis':
-        print('WARNING: Unsupported analysis mode: %r!' % (analysis,), file=sys.stderr)
+        warn('Unsupported analysis mode: %r!' % (analysis,))
     if func.startswith('stress'):
       # We only use the last line of the function body for stress tests.
       scrubbed_body = '\n'.join(scrubbed_body.splitlines()[-1:])
@@ -116,19 +155,19 @@ def build_function_body_dictionary(function_re, scrubber, scrubber_args, raw_too
       for l in scrubbed_body.splitlines():
         print('  ' + l, file=sys.stderr)
     for prefix in prefixes:
-      if func in func_dict[prefix] and str(func_dict[prefix][func]) != scrubbed_body:
-        if func_dict[prefix][func] and func_dict[prefix][func].extrascrub == scrubbed_extra:
+      if func in func_dict[prefix] and (str(func_dict[prefix][func]) != scrubbed_body or (func_dict[prefix][func] and func_dict[prefix][func].args_and_sig != args_and_sig)):
+        if func_dict[prefix][func] and func_dict[prefix][func].is_same_except_arg_names(scrubbed_extra, args_and_sig):
           func_dict[prefix][func].scrub = scrubbed_extra
+          func_dict[prefix][func].args_and_sig = args_and_sig
           continue
         else:
           if prefix == prefixes[-1]:
-            print('WARNING: Found conflicting asm under the '
-                                 'same prefix: %r!' % (prefix,), file=sys.stderr)
+            warn('Found conflicting asm under the same prefix: %r!' % (prefix,))
           else:
             func_dict[prefix][func] = None
             continue
 
-      func_dict[prefix][func] = function_body(scrubbed_body, scrubbed_extra)
+      func_dict[prefix][func] = function_body(scrubbed_body, scrubbed_extra, args_and_sig)
 
 ##### Generator of LLVM IR CHECK lines
 
@@ -182,10 +221,10 @@ def genericize_check_lines(lines, is_analyze):
     line = line.replace('%.', '%dot')
     # Ignore any comments, since the check lines will too.
     scrubbed_line = SCRUB_IR_COMMENT_RE.sub(r'', line)
-    if is_analyze == False:
-      lines[i] =  IR_VALUE_RE.sub(transform_line_vars, scrubbed_line)
+    if is_analyze:
+      lines[i] = scrubbed_line
     else:
-      lines[i] =  scrubbed_line
+      lines[i] = IR_VALUE_RE.sub(transform_line_vars, scrubbed_line)
   return lines
 
 
@@ -203,19 +242,28 @@ def add_checks(output_lines, comment_marker, prefix_list, func_dict, func_name, 
 
       # Add some space between different check prefixes, but not after the last
       # check line (before the test code).
-      if is_asm == True:
+      if is_asm:
         if len(printed_prefixes) != 0:
           output_lines.append(comment_marker)
 
       printed_prefixes.append(checkprefix)
-      output_lines.append(check_label_format % (checkprefix, func_name))
+      args_and_sig = str(func_dict[checkprefix][func_name].args_and_sig)
+      args_and_sig = genericize_check_lines([args_and_sig], is_analyze)[0]
+      if '[[' in args_and_sig:
+        output_lines.append(check_label_format % (checkprefix, func_name, ''))
+        output_lines.append('%s %s-SAME: %s' % (comment_marker, checkprefix, args_and_sig))
+      else:
+        output_lines.append(check_label_format % (checkprefix, func_name, args_and_sig))
       func_body = str(func_dict[checkprefix][func_name]).splitlines()
 
       # For ASM output, just emit the check lines.
-      if is_asm == True:
+      if is_asm:
         output_lines.append('%s %s:       %s' % (comment_marker, checkprefix, func_body[0]))
         for func_line in func_body[1:]:
-          output_lines.append('%s %s-NEXT:  %s' % (comment_marker, checkprefix, func_line))
+          if func_line.strip() == '':
+            output_lines.append('%s %s-EMPTY:' % (comment_marker, checkprefix))
+          else:
+            output_lines.append('%s %s-NEXT:  %s' % (comment_marker, checkprefix, func_line))
         break
 
       # For IR output, change all defs to FileCheck variables, so we're immune
@@ -243,7 +291,7 @@ def add_checks(output_lines, comment_marker, prefix_list, func_dict, func_name, 
         func_line = SCRUB_IR_COMMENT_RE.sub(r'', func_line)
 
         # Skip blank lines instead of checking them.
-        if is_blank_line == True:
+        if is_blank_line:
           output_lines.append('{} {}:       {}'.format(
               comment_marker, checkprefix, func_line))
         else:
@@ -256,11 +304,37 @@ def add_checks(output_lines, comment_marker, prefix_list, func_dict, func_name, 
       output_lines.append(comment_marker)
       break
 
-def add_ir_checks(output_lines, comment_marker, prefix_list, func_dict, func_name):
+def add_ir_checks(output_lines, comment_marker, prefix_list, func_dict,
+                  func_name, preserve_names, function_sig):
   # Label format is based on IR string.
-  check_label_format = '{} %s-LABEL: @%s('.format(comment_marker)
-  add_checks(output_lines, comment_marker, prefix_list, func_dict, func_name, check_label_format, False, False)
+  function_def_regex = 'define {{[^@]+}}' if function_sig else ''
+  check_label_format = '{} %s-LABEL: {}@%s%s'.format(comment_marker, function_def_regex)
+  add_checks(output_lines, comment_marker, prefix_list, func_dict, func_name,
+             check_label_format, False, preserve_names)
 
 def add_analyze_checks(output_lines, comment_marker, prefix_list, func_dict, func_name):
-  check_label_format = '{} %s-LABEL: \'%s\''.format(comment_marker)
+  check_label_format = '{} %s-LABEL: \'%s%s\''.format(comment_marker)
   add_checks(output_lines, comment_marker, prefix_list, func_dict, func_name, check_label_format, False, True)
+
+
+def check_prefix(prefix):
+  if not PREFIX_RE.match(prefix):
+        hint = ""
+        if ',' in prefix:
+          hint = " Did you mean '--check-prefixes=" + prefix + "'?"
+        warn(("Supplied prefix '%s' is invalid. Prefix must contain only alphanumeric characters, hyphens and underscores." + hint) %
+             (prefix))
+
+
+def verify_filecheck_prefixes(fc_cmd):
+  fc_cmd_parts = fc_cmd.split()
+  for part in fc_cmd_parts:
+    if "check-prefix=" in part:
+      prefix = part.split('=', 1)[1]
+      check_prefix(prefix)
+    elif "check-prefixes=" in part:
+      prefixes = part.split('=', 1)[1].split(',')
+      for prefix in prefixes:
+        check_prefix(prefix)
+        if prefixes.count(prefix) > 1:
+          warn("Supplied prefix '%s' is not unique in the prefix list." % (prefix,))

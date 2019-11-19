@@ -57,7 +57,7 @@
 ...
 ---
 name:            '$S4main1fyyF'
-alignment:       4
+alignment:       16
 exposesReturnsTwice: false
 legalized:       false
 regBankSelected: false
@@ -89,7 +89,7 @@ frameInfo:
 fixedStack:      []
 stack:
   - { id: 0, name: s1.addr, type: default, offset: 0, size: 8, alignment: 8,
-      stack-id: 0, callee-saved-register: '', callee-saved-restored: true,
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true,
       debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
 constants:       []
 body:             |

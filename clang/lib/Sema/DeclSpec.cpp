@@ -564,6 +564,16 @@ const char *DeclSpec::getSpecifierName(DeclSpec::TST T,
   llvm_unreachable("Unknown typespec!");
 }
 
+const char *DeclSpec::getSpecifierName(ConstexprSpecKind C) {
+  switch (C) {
+  case CSK_unspecified: return "unspecified";
+  case CSK_constexpr:   return "constexpr";
+  case CSK_consteval:   return "consteval";
+  case CSK_constinit:   return "constinit";
+  }
+  llvm_unreachable("Unknown ConstexprSpecKind");
+}
+
 const char *DeclSpec::getSpecifierName(TQ T) {
   switch (T) {
   case DeclSpec::TQ_unspecified: return "unspecified";
@@ -587,7 +597,6 @@ bool DeclSpec::SetStorageClassSpec(Sema &S, SCS SC, SourceLocation Loc,
   // these storage-class specifiers.
   // OpenCL v1.2 s6.8 changes this to "The auto and register storage-class
   // specifiers are not supported."
-  // OpenCL C++ v1.0 s2.9 restricts register.
   if (S.getLangOpts().OpenCL &&
       !S.getOpenCLOptions().isEnabled("cl_clang_storage_class_specifiers")) {
     switch (SC) {
@@ -1025,16 +1034,13 @@ bool DeclSpec::setModulePrivateSpec(SourceLocation Loc, const char *&PrevSpec,
   return false;
 }
 
-bool DeclSpec::SetConstexprSpec(SourceLocation Loc, const char *&PrevSpec,
+bool DeclSpec::SetConstexprSpec(ConstexprSpecKind ConstexprKind,
+                                SourceLocation Loc, const char *&PrevSpec,
                                 unsigned &DiagID) {
-  // 'constexpr constexpr' is ok, but warn as this is likely not what the user
-  // intended.
-  if (Constexpr_specified) {
-    DiagID = diag::warn_duplicate_declspec;
-    PrevSpec = "constexpr";
-    return true;
-  }
-  Constexpr_specified = true;
+  if (getConstexprSpecifier() != CSK_unspecified)
+    return BadSpecifier(ConstexprKind, getConstexprSpecifier(), PrevSpec,
+                        DiagID);
+  ConstexprSpecifier = ConstexprKind;
   ConstexprLoc = Loc;
   return false;
 }
@@ -1280,9 +1286,12 @@ void DeclSpec::Finish(Sema &S, const PrintingPolicy &Policy) {
   else if (TypeSpecType == TST_char16 || TypeSpecType == TST_char32)
     S.Diag(TSTLoc, diag::warn_cxx98_compat_unicode_type)
       << (TypeSpecType == TST_char16 ? "char16_t" : "char32_t");
-  if (Constexpr_specified)
+  if (getConstexprSpecifier() == CSK_constexpr)
     S.Diag(ConstexprLoc, diag::warn_cxx98_compat_constexpr);
-
+  else if (getConstexprSpecifier() == CSK_consteval)
+    S.Diag(ConstexprLoc, diag::warn_cxx20_compat_consteval);
+  else if (getConstexprSpecifier() == CSK_constinit)
+    S.Diag(ConstexprLoc, diag::warn_cxx20_compat_constinit);
   // C++ [class.friend]p6:
   //   No storage-class-specifier shall appear in the decl-specifier-seq
   //   of a friend declaration.

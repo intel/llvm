@@ -40,8 +40,12 @@ public:
   uint32_t AddSymbol(const Symbol &symbol);
   size_t GetNumSymbols() const;
   void SectionFileAddressesChanged();
-  void Dump(Stream *s, Target *target, SortOrder sort_type);
-  void Dump(Stream *s, Target *target, std::vector<uint32_t> &indexes) const;
+  void
+  Dump(Stream *s, Target *target, SortOrder sort_type,
+       Mangled::NamePreference name_preference = Mangled::ePreferDemangled);
+  void Dump(Stream *s, Target *target, std::vector<uint32_t> &indexes,
+            Mangled::NamePreference name_preference =
+                Mangled::ePreferDemangled) const;
   uint32_t GetIndexForSymbol(const Symbol *symbol) const;
   std::recursive_mutex &GetMutex() { return m_mutex; }
   Symbol *FindSymbolByID(lldb::user_id_t uid) const;
@@ -92,15 +96,15 @@ public:
       const RegularExpression &regex, lldb::SymbolType symbol_type,
       Debug symbol_debug_type, Visibility symbol_visibility,
       std::vector<uint32_t> &indexes);
-  size_t FindAllSymbolsWithNameAndType(ConstString name,
-                                       lldb::SymbolType symbol_type,
-                                       std::vector<uint32_t> &symbol_indexes);
-  size_t FindAllSymbolsWithNameAndType(ConstString name,
-                                       lldb::SymbolType symbol_type,
-                                       Debug symbol_debug_type,
-                                       Visibility symbol_visibility,
-                                       std::vector<uint32_t> &symbol_indexes);
-  size_t FindAllSymbolsMatchingRexExAndType(
+  void FindAllSymbolsWithNameAndType(ConstString name,
+                                     lldb::SymbolType symbol_type,
+                                     std::vector<uint32_t> &symbol_indexes);
+  void FindAllSymbolsWithNameAndType(ConstString name,
+                                     lldb::SymbolType symbol_type,
+                                     Debug symbol_debug_type,
+                                     Visibility symbol_visibility,
+                                     std::vector<uint32_t> &symbol_indexes);
+  void FindAllSymbolsMatchingRexExAndType(
       const RegularExpression &regex, lldb::SymbolType symbol_type,
       Debug symbol_debug_type, Visibility symbol_visibility,
       std::vector<uint32_t> &symbol_indexes);
@@ -112,8 +116,8 @@ public:
   Symbol *FindSymbolContainingFileAddress(lldb::addr_t file_addr);
   void ForEachSymbolContainingFileAddress(
       lldb::addr_t file_addr, std::function<bool(Symbol *)> const &callback);
-  size_t FindFunctionSymbols(ConstString name, uint32_t name_type_mask,
-                             SymbolContextList &sc_list);
+  void FindFunctionSymbols(ConstString name, uint32_t name_type_mask,
+                           SymbolContextList &sc_list);
   void CalculateSymbolSizes();
 
   void SortSymbolIndexesByValue(std::vector<uint32_t> &indexes,
@@ -190,7 +194,7 @@ private:
                                         SymbolContextList &sc_list);
 
   void RegisterMangledNameEntry(
-      NameToIndexMap::Entry &entry, std::set<const char *> &class_contexts,
+      uint32_t value, std::set<const char *> &class_contexts,
       std::vector<std::pair<NameToIndexMap::Entry, const char *>> &backlog,
       RichManglingContext &rmc);
 

@@ -633,10 +633,8 @@ public:
                               Top->ExtraData.TerminalDurations.end(), 0uLL);
           {
             auto E = std::make_pair(Top, TopSum);
-            TopStacksBySum.insert(std::lower_bound(TopStacksBySum.begin(),
-                                                   TopStacksBySum.end(), E,
-                                                   greater_second),
-                                  E);
+            TopStacksBySum.insert(
+                llvm::lower_bound(TopStacksBySum, E, greater_second), E);
             if (TopStacksBySum.size() == 11)
               TopStacksBySum.pop_back();
           }
@@ -720,9 +718,7 @@ static CommandRegistration Unused(&Stack, []() -> Error {
               "-all-stacks."),
         std::make_error_code(std::errc::invalid_argument));
 
-  symbolize::LLVMSymbolizer::Options Opts(
-      symbolize::FunctionNameKind::LinkageName, true, true, false, "");
-  symbolize::LLVMSymbolizer Symbolizer(Opts);
+  symbolize::LLVMSymbolizer Symbolizer;
   FuncIdConversionHelper FuncIdHelper(StacksInstrMap, Symbolizer,
                                       Map.getFunctionAddresses());
   // TODO: Someday, support output to files instead of just directly to

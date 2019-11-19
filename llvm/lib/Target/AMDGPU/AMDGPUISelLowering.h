@@ -38,6 +38,7 @@ private:
 public:
   static unsigned numBitsUnsigned(SDValue Op, SelectionDAG &DAG);
   static unsigned numBitsSigned(SDValue Op, SelectionDAG &DAG);
+  static bool hasDefinedInitializer(const GlobalValue *GV);
 
 protected:
   SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
@@ -78,6 +79,7 @@ protected:
   SDValue performLoadCombine(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue performStoreCombine(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue performAssertSZExtCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performIntrinsicWOChainCombine(SDNode *N, DAGCombinerInfo &DCI) const;
 
   SDValue splitBinaryBitConstantOpImpl(DAGCombinerInfo &DCI, const SDLoc &SL,
                                        unsigned Opc, SDValue LHS,
@@ -182,7 +184,8 @@ public:
                              ISD::LoadExtType ExtType,
                              EVT ExtVT) const override;
 
-  bool isLoadBitCastBeneficial(EVT, EVT) const final;
+  bool isLoadBitCastBeneficial(EVT, EVT, const SelectionDAG &DAG,
+                               const MachineMemOperand &MMO) const final;
 
   bool storeOfVectorConstantIsCheap(EVT MemVT,
                                     unsigned NumElem,
@@ -323,10 +326,6 @@ public:
   }
 
   AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *) const override;
-
-  bool SelectFlatOffset(bool IsSigned, SelectionDAG &DAG, SDNode *N,
-                        SDValue Addr, SDValue &VAddr, SDValue &Offset,
-                        SDValue &SLC) const;
 };
 
 namespace AMDGPUISD {
@@ -368,6 +367,9 @@ enum NodeType : unsigned {
   // result bit per item in the wavefront.
   SETCC,
   SETREG,
+
+  DENORM_MODE,
+
   // FP ops with input and output chain.
   FMA_W_CHAIN,
   FMUL_W_CHAIN,
@@ -474,17 +476,11 @@ enum NodeType : unsigned {
   BUILD_VERTICAL_VECTOR,
   /// Pointer to the start of the shader's constant data.
   CONST_DATA_PTR,
-  INIT_EXEC,
-  INIT_EXEC_FROM_INPUT,
-  SENDMSG,
-  SENDMSGHALT,
-  INTERP_MOV,
-  INTERP_P1,
-  INTERP_P2,
   INTERP_P1LL_F16,
   INTERP_P1LV_F16,
   INTERP_P2_F16,
   PC_ADD_REL_OFFSET,
+  LDS,
   KILL,
   DUMMY_CHAIN,
   FIRST_MEM_OPCODE_NUMBER = ISD::FIRST_TARGET_MEMORY_OPCODE,
@@ -530,7 +526,12 @@ enum NodeType : unsigned {
   BUFFER_ATOMIC_AND,
   BUFFER_ATOMIC_OR,
   BUFFER_ATOMIC_XOR,
+  BUFFER_ATOMIC_INC,
+  BUFFER_ATOMIC_DEC,
   BUFFER_ATOMIC_CMPSWAP,
+  BUFFER_ATOMIC_FADD,
+  BUFFER_ATOMIC_PK_FADD,
+  ATOMIC_PK_FADD,
 
   LAST_AMDGPU_ISD_NUMBER
 };

@@ -16,6 +16,7 @@
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCWasmObjectWriter.h"
 #include "llvm/MC/MCWinCOFFObjectWriter.h"
+#include "llvm/MC/MCXCOFFObjectWriter.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -43,6 +44,9 @@ MCAsmBackend::createObjectWriter(raw_pwrite_stream &OS) const {
   case Triple::Wasm:
     return createWasmObjectWriter(cast<MCWasmObjectTargetWriter>(std::move(TW)),
                                   OS);
+  case Triple::XCOFF:
+    return createXCOFFObjectWriter(
+        cast<MCXCOFFObjectTargetWriter>(std::move(TW)), OS);
   default:
     llvm_unreachable("unexpected object format");
   }
@@ -69,6 +73,7 @@ const MCFixupKindInfo &MCAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"FK_Data_2", 0, 16, 0},
       {"FK_Data_4", 0, 32, 0},
       {"FK_Data_8", 0, 64, 0},
+      {"FK_Data_6b", 0, 6, 0},
       {"FK_PCRel_1", 0, 8, MCFixupKindInfo::FKF_IsPCRel},
       {"FK_PCRel_2", 0, 16, MCFixupKindInfo::FKF_IsPCRel},
       {"FK_PCRel_4", 0, 32, MCFixupKindInfo::FKF_IsPCRel},
@@ -89,10 +94,12 @@ const MCFixupKindInfo &MCAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"FK_Data_Add_2", 0, 16, 0},
       {"FK_Data_Add_4", 0, 32, 0},
       {"FK_Data_Add_8", 0, 64, 0},
+      {"FK_Data_Add_6b", 0, 6, 0},
       {"FK_Data_Sub_1", 0, 8, 0},
       {"FK_Data_Sub_2", 0, 16, 0},
       {"FK_Data_Sub_4", 0, 32, 0},
-      {"FK_Data_Sub_8", 0, 64, 0}};
+      {"FK_Data_Sub_8", 0, 64, 0},
+      {"FK_Data_Sub_6b", 0, 6, 0}};
 
   assert((size_t)Kind <= array_lengthof(Builtins) && "Unknown fixup kind");
   return Builtins[Kind];

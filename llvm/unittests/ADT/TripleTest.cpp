@@ -330,6 +330,12 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::FreeBSD, T.getOS());
   EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
 
+  T = Triple("riscv64-suse-linux");
+  EXPECT_EQ(Triple::riscv64, T.getArch());
+  EXPECT_EQ(Triple::SUSE, T.getVendor());
+  EXPECT_EQ(Triple::Linux, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
   T = Triple("armv7hl-suse-linux-gnueabi");
   EXPECT_EQ(Triple::arm, T.getArch());
   EXPECT_EQ(Triple::SUSE, T.getVendor());
@@ -876,11 +882,13 @@ TEST(TripleTest, BitWidthPredicates) {
   EXPECT_FALSE(T.isArch16Bit());
   EXPECT_TRUE(T.isArch32Bit());
   EXPECT_FALSE(T.isArch64Bit());
+  EXPECT_TRUE(T.isRISCV());
 
   T.setArch(Triple::riscv64);
   EXPECT_FALSE(T.isArch16Bit());
   EXPECT_FALSE(T.isArch32Bit());
   EXPECT_TRUE(T.isArch64Bit());
+  EXPECT_TRUE(T.isRISCV());
 }
 
 TEST(TripleTest, BitWidthArchVariants) {
@@ -1237,6 +1245,17 @@ TEST(TripleTest, getOSVersion) {
   EXPECT_EQ((unsigned)3, Minor);
   EXPECT_EQ((unsigned)0, Micro);
   EXPECT_TRUE(T.isSimulatorEnvironment());
+  EXPECT_FALSE(T.isMacCatalystEnvironment());
+
+  T = Triple("x86_64-apple-ios13.0-macabi");
+  EXPECT_TRUE(T.isiOS());
+  T.getiOSVersion(Major, Minor, Micro);
+  EXPECT_EQ((unsigned)13, Major);
+  EXPECT_EQ((unsigned)0, Minor);
+  EXPECT_EQ((unsigned)0, Micro);
+  EXPECT_TRUE(T.getEnvironment() == Triple::MacABI);
+  EXPECT_TRUE(T.isMacCatalystEnvironment());
+  EXPECT_FALSE(T.isSimulatorEnvironment());
 }
 
 TEST(TripleTest, FileFormat) {
@@ -1345,6 +1364,8 @@ TEST(TripleTest, NormalizeWindows) {
 
   EXPECT_EQ("i686-pc-windows-elf",
             Triple::normalize("i686-pc-windows-elf-elf"));
+
+  EXPECT_TRUE(Triple("x86_64-pc-win32").isWindowsMSVCEnvironment());
 }
 
 TEST(TripleTest, getARMCPUForArch) {

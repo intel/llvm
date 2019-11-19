@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -Wno-return-type -verify -fsyntax-only -x c++ -emit-llvm-only -std=c++17 %s
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -fno-sycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -x c++ -emit-llvm-only -std=c++17 %s
-// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -x c++ -emit-llvm-only -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -Wno-return-type -verify -fsyntax-only -x c++ -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -fno-sycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -x c++ -std=c++17 %s
+// RUN: %clang_cc1 -fcxx-exceptions -fsycl-is-device -DALLOW_FP=1 -fsycl-allow-func-ptr -Wno-return-type -verify -fsyntax-only -x c++ -std=c++17 %s
 
 
 namespace std {
@@ -10,6 +10,8 @@ namespace std {
 namespace Check_User_Operators {
 class Fraction
 {
+    // expected-error@+2 {{SYCL kernel cannot call a recursive function}}
+    // expected-note@+1 {{function implemented using recursion declared here}}
     int gcd(int a, int b) { return b == 0 ? a : gcd(b, a % b); }
     int n, d;
 public:

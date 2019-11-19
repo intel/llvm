@@ -1,4 +1,4 @@
-// RUN: %clang -std=c++11 -fsycl %s -o %t.out -lstdc++ -lOpenCL -lsycl
+// RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -115,7 +115,7 @@ void testMultPtrArrowOperator() {
       accessor<point<T>, 1, access::mode::read, access::target::global_buffer,
                access::placeholder::false_t>
           accessorData_1(bufferData_1, cgh);
-      accessor<point<T>, 1, access::mode::read_write, access::target::constant_buffer,
+      accessor<point<T>, 1, access::mode::read, access::target::constant_buffer,
                access::placeholder::false_t>
           accessorData_2(bufferData_2, cgh);
       accessor<point<T>, 1, access::mode::read_write, access::target::local,

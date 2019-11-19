@@ -8,7 +8,7 @@
 // CHECK-SPIRV: Label
 // CHECK-SPIRV: ExtInst {{.*}} DebugScope
 // CHECK-SPIRV: ExtInst {{.*}} sin
-// CHECK-LLVM: call spir_func float @_Z3sinf(float %x) {{.*}} !dbg ![[loc:[0-9]+]]
+// CHECK-LLVM: call spir_func float @_Z3sinf(float %{{.*}}) {{.*}} !dbg ![[loc:[0-9]+]]
 // CHECK-LLVM: ![[loc]] = !DILocation(line: 14, column: 10, scope: !{{.*}})
 float f(float x) {
   return sin(x);

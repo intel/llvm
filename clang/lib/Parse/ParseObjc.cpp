@@ -710,7 +710,6 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
     case tok::objc_required:
     case tok::objc_optional:
       // This is only valid on protocols.
-      // FIXME: Should this check for ObjC2 being enabled?
       if (contextKey != tok::objc_protocol)
         Diag(AtLoc, diag::err_objc_directive_only_in_protocol);
       else
@@ -718,9 +717,6 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
       break;
 
     case tok::objc_property:
-      if (!getLangOpts().ObjC)
-        Diag(AtLoc, diag::err_objc_properties_require_objc2);
-
       ObjCDeclSpec OCDS;
       SourceLocation LParenLoc;
       // Parse property attribute list, if any.
@@ -1247,11 +1243,11 @@ ParsedType Parser::ParseObjCTypeName(ObjCDeclSpec &DS,
   BalancedDelimiterTracker T(*this, tok::l_paren);
   T.consumeOpen();
 
-  SourceLocation TypeStartLoc = Tok.getLocation();
   ObjCDeclContextSwitch ObjCDC(*this);
 
   // Parse type qualifiers, in, inout, etc.
   ParseObjCTypeQualifierList(DS, context);
+  SourceLocation TypeStartLoc = Tok.getLocation();
 
   ParsedType Ty;
   if (isTypeSpecifierQualifier() || isObjCInstancetype()) {
@@ -3194,15 +3190,15 @@ Parser::ParseObjCMessageExpressionBody(SourceLocation LBracLoc,
         if (SuperLoc.isValid())
           Actions.CodeCompleteObjCSuperMessage(getCurScope(), SuperLoc,
                                                KeyIdents,
-                                               /*AtArgumentEpression=*/true);
+                                               /*AtArgumentExpression=*/true);
         else if (ReceiverType)
           Actions.CodeCompleteObjCClassMessage(getCurScope(), ReceiverType,
                                                KeyIdents,
-                                               /*AtArgumentEpression=*/true);
+                                               /*AtArgumentExpression=*/true);
         else
           Actions.CodeCompleteObjCInstanceMessage(getCurScope(), ReceiverExpr,
                                                   KeyIdents,
-                                                  /*AtArgumentEpression=*/true);
+                                                  /*AtArgumentExpression=*/true);
 
         cutOffParsing();
         return ExprError();
@@ -3232,15 +3228,15 @@ Parser::ParseObjCMessageExpressionBody(SourceLocation LBracLoc,
         if (SuperLoc.isValid())
           Actions.CodeCompleteObjCSuperMessage(getCurScope(), SuperLoc,
                                                KeyIdents,
-                                               /*AtArgumentEpression=*/false);
+                                               /*AtArgumentExpression=*/false);
         else if (ReceiverType)
           Actions.CodeCompleteObjCClassMessage(getCurScope(), ReceiverType,
                                                KeyIdents,
-                                               /*AtArgumentEpression=*/false);
+                                               /*AtArgumentExpression=*/false);
         else
           Actions.CodeCompleteObjCInstanceMessage(getCurScope(), ReceiverExpr,
                                                   KeyIdents,
-                                                /*AtArgumentEpression=*/false);
+                                                /*AtArgumentExpression=*/false);
         cutOffParsing();
         return ExprError();
       }

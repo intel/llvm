@@ -97,8 +97,10 @@ static DescVector getDescriptions() {
   Descriptions[DW_OP_addrx] = Desc(Op::Dwarf4, Op::SizeLEB);
   Descriptions[DW_OP_GNU_addr_index] = Desc(Op::Dwarf4, Op::SizeLEB);
   Descriptions[DW_OP_GNU_const_index] = Desc(Op::Dwarf4, Op::SizeLEB);
+  Descriptions[DW_OP_GNU_entry_value] = Desc(Op::Dwarf4, Op::SizeLEB);
 
   Descriptions[DW_OP_convert] = Desc(Op::Dwarf5, Op::BaseTypeRef);
+  Descriptions[DW_OP_entry_value] = Desc(Op::Dwarf5, Op::SizeLEB);
 
   return Descriptions;
 }
@@ -117,7 +119,7 @@ static uint8_t getRefAddrSize(uint8_t AddrSize, uint16_t Version) {
 }
 
 bool DWARFExpression::Operation::extract(DataExtractor Data, uint16_t Version,
-                                         uint8_t AddressSize, uint32_t Offset) {
+                                         uint8_t AddressSize, uint64_t Offset) {
   Opcode = Data.getU8(&Offset);
 
   Desc = getOpDesc(Opcode);
@@ -216,9 +218,8 @@ static bool prettyPrintRegisterOp(raw_ostream &OS, uint8_t Opcode,
   else
     DwarfRegNum = Opcode - DW_OP_reg0;
 
-  int LLVMRegNum = MRI->getLLVMRegNum(DwarfRegNum, isEH);
-  if (LLVMRegNum >= 0) {
-    if (const char *RegName = MRI->getName(LLVMRegNum)) {
+  if (Optional<unsigned> LLVMRegNum = MRI->getLLVMRegNum(DwarfRegNum, isEH)) {
+    if (const char *RegName = MRI->getName(*LLVMRegNum)) {
       if ((Opcode >= DW_OP_breg0 && Opcode <= DW_OP_breg31) ||
           Opcode == DW_OP_bregx)
         OS << format(" %s%+" PRId64, RegName, Operands[OpNum]);
@@ -261,7 +262,7 @@ bool DWARFExpression::Operation::print(raw_ostream &OS,
     if (Size == Operation::BaseTypeRef && U) {
       auto Die = U->getDIEForOffset(U->getOffset() + Operands[Operand]);
       if (Die && Die.getTag() == dwarf::DW_TAG_base_type) {
-        OS << format(" (0x%08x)", U->getOffset() + Operands[Operand]);
+        OS << format(" (0x%08" PRIx64 ")", U->getOffset() + Operands[Operand]);
         if (auto Name = Die.find(dwarf::DW_AT_name))
           OS << " \"" << Name->getAsCString() << "\"";
       } else {
@@ -269,13 +270,14 @@ bool DWARFExpression::Operation::print(raw_ostream &OS,
                      Operands[Operand]);
       }
     } else if (Size == Operation::SizeBlock) {
-      uint32_t Offset = Operands[Operand];
+      uint64_t Offset = Operands[Operand];
       for (unsigned i = 0; i < Operands[Operand - 1]; ++i)
         OS << format(" 0x%02x", Expr->Data.getU8(&Offset));
     } else {
       if (Signed)
         OS << format(" %+" PRId64, (int64_t)Operands[Operand]);
-      else
+      else if (Opcode != DW_OP_entry_value &&
+               Opcode != DW_OP_GNU_entry_value)
         OS << format(" 0x%" PRIx64, Operands[Operand]);
     }
   }
@@ -284,13 +286,28 @@ bool DWARFExpression::Operation::print(raw_ostream &OS,
 
 void DWARFExpression::print(raw_ostream &OS, const MCRegisterInfo *RegInfo,
                             DWARFUnit *U, bool IsEH) const {
+  uint32_t EntryValExprSize = 0;
   for (auto &Op : *this) {
     if (!Op.print(OS, this, RegInfo, U, IsEH)) {
-      uint32_t FailOffset = Op.getEndOffset();
+      uint64_t FailOffset = Op.getEndOffset();
       while (FailOffset < Data.getData().size())
         OS << format(" %02x", Data.getU8(&FailOffset));
       return;
     }
+
+    if (Op.getCode() == DW_OP_entry_value ||
+        Op.getCode() == DW_OP_GNU_entry_value) {
+      OS << "(";
+      EntryValExprSize = Op.getRawOperand(0);
+      continue;
+    }
+
+    if (EntryValExprSize) {
+      EntryValExprSize--;
+      if (EntryValExprSize == 0)
+        OS << ")";
+    }
+
     if (Op.getEndOffset() < Data.getData().size())
       OS << ", ";
   }

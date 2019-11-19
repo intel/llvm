@@ -90,7 +90,7 @@ ParsedType Sema::getConstructorName(IdentifierInfo &II,
   // When naming a constructor as a member of a dependent context (eg, in a
   // friend declaration or an inherited constructor declaration), form an
   // unresolved "typename" type.
-  if (CurClass->isDependentContext() && !EnteringContext) {
+  if (CurClass->isDependentContext() && !EnteringContext && SS.getScopeRep()) {
     QualType T = Context.getDependentNameType(ETK_None, SS.getScopeRep(), &II);
     return ParsedType::make(T);
   }
@@ -453,6 +453,9 @@ ExprResult Sema::BuildCXXTypeId(QualType TypeInfoType,
   if (T->isVariablyModifiedType())
     return ExprError(Diag(TypeidLoc, diag::err_variably_modified_typeid) << T);
 
+  if (CheckQualifiedFunctionForTypeId(T, TypeidLoc))
+    return ExprError();
+
   return new (Context) CXXTypeidExpr(TypeInfoType.withConst(), Operand,
                                      SourceRange(TypeidLoc, RParenLoc));
 }
@@ -496,6 +499,11 @@ ExprResult Sema::BuildCXXTypeId(QualType TypeInfoType,
       }
     }
 
+    ExprResult Result = CheckUnevaluatedOperand(E);
+    if (Result.isInvalid())
+      return ExprError();
+    E = Result.get();
+
     // C++ [expr.typeid]p4:
     //   [...] If the type of the type-id is a reference to a possibly
     //   cv-qualified type, the result of the typeid expression refers to a
@@ -529,7 +537,7 @@ ExprResult Sema::BuildCXXTypeId(QualType TypeInfoType,
 ExprResult
 Sema::ActOnCXXTypeid(SourceLocation OpLoc, SourceLocation LParenLoc,
                      bool isType, void *TyOrExpr, SourceLocation RParenLoc) {
-  // OpenCL C++ 1.0 s2.9: typeid is not supported.
+  // typeid is not supported in OpenCL.
   if (getLangOpts().OpenCLCPlusPlus) {
     return ExprError(Diag(OpLoc, diag::err_openclcxx_not_supported)
                      << "typeid");
@@ -918,7 +926,7 @@ bool Sema::CheckCXXThrowOperand(SourceLocation ThrowLoc,
       // cannot be a simple walk of the class's decls.  Instead, we must perform
       // lookup and overload resolution.
       CXXConstructorDecl *CD = LookupCopyingConstructor(Subobject, 0);
-      if (!CD)
+      if (!CD || CD->isDeleted())
         continue;
 
       // Mark the constructor referenced as it is used by this throw expression.
@@ -1259,7 +1267,7 @@ ExprResult Sema::ActOnCXXThis(SourceLocation Loc) {
   QualType ThisTy = getCurrentThisType();
   if (ThisTy.isNull())
     return Diag(Loc, diag::err_invalid_this_use);
-  return BuildCXXThisExpr(Loc, ThisTy, /*isImplicit=*/false);
+  return BuildCXXThisExpr(Loc, ThisTy, /*IsImplicit=*/false);
 }
 
 Expr *Sema::BuildCXXThisExpr(SourceLocation Loc, QualType Type,
@@ -2113,9 +2121,10 @@ Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
     QualType InitType;
     if (KnownArraySize)
       InitType = Context.getConstantArrayType(
-          AllocType, llvm::APInt(Context.getTypeSize(Context.getSizeType()),
-                                 *KnownArraySize),
-          ArrayType::Normal, 0);
+          AllocType,
+          llvm::APInt(Context.getTypeSize(Context.getSizeType()),
+                      *KnownArraySize),
+          *ArraySize, ArrayType::Normal, 0);
     else if (ArraySize)
       InitType =
           Context.getIncompleteArrayType(AllocType, ArrayType::Normal, 0);
@@ -2324,7 +2333,7 @@ static bool resolveAllocationOverload(
           PartialDiagnosticAt(R.getNameLoc(),
                               S.PDiag(diag::err_ovl_ambiguous_call)
                                   << R.getLookupName() << Range),
-          S, OCD_ViableCandidates, Args);
+          S, OCD_AmbiguousCandidates, Args);
     }
     return true;
 
@@ -2423,7 +2432,11 @@ bool Sema::FindAllocationFunctions(SourceLocation StartLoc, SourceRange Range,
     }
 
     if (getLangOpts().OpenCLCPlusPlus && R.empty()) {
-      Diag(StartLoc, diag::err_openclcxx_not_supported) << "default new";
+      if (PlaceArgs.empty()) {
+        Diag(StartLoc, diag::err_openclcxx_not_supported) << "default new";
+      } else {
+        Diag(StartLoc, diag::err_openclcxx_placement_new);
+      }
       return true;
     }
 
@@ -2463,8 +2476,8 @@ bool Sema::FindAllocationFunctions(SourceLocation StartLoc, SourceRange Range,
   //   deallocation function's name is looked up in the global scope.
   LookupResult FoundDelete(*this, DeleteName, StartLoc, LookupOrdinaryName);
   if (AllocElemType->isRecordType() && DeleteScope != AFS_Global) {
-    CXXRecordDecl *RD
-      = cast<CXXRecordDecl>(AllocElemType->getAs<RecordType>()->getDecl());
+    auto *RD =
+        cast<CXXRecordDecl>(AllocElemType->castAs<RecordType>()->getDecl());
     LookupQualifiedName(FoundDelete, RD);
   }
   if (FoundDelete.isAmbiguous())
@@ -2662,8 +2675,8 @@ void Sema::DeclareGlobalNewDelete() {
   if (GlobalNewDeleteDeclared)
     return;
 
-  // OpenCL C++ 1.0 s2.9: the implicitly declared new and delete operators
-  // are not supported.
+  // The implicitly declared new and delete operators
+  // are not supported in OpenCL.
   if (getLangOpts().OpenCLCPlusPlus)
     return;
 
@@ -3299,7 +3312,7 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
       //        itself in this case.
       return ExprError();
 
-    QualType Pointee = Type->getAs<PointerType>()->getPointeeType();
+    QualType Pointee = Type->castAs<PointerType>()->getPointeeType();
     QualType PointeeElem = Context.getBaseElementType(Pointee);
 
     if (Pointee.getAddressSpace() != LangAS::Default &&
@@ -3510,7 +3523,7 @@ static bool resolveBuiltinNewDeleteOverload(Sema &S, CallExpr *TheCall,
         PartialDiagnosticAt(R.getNameLoc(),
                             S.PDiag(diag::err_ovl_ambiguous_call)
                                 << R.getLookupName() << Range),
-        S, OCD_ViableCandidates, Args);
+        S, OCD_AmbiguousCandidates, Args);
     return true;
 
   case OR_Deleted: {
@@ -4031,8 +4044,8 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
 
   case ICK_Complex_Promotion:
   case ICK_Complex_Conversion: {
-    QualType FromEl = From->getType()->getAs<ComplexType>()->getElementType();
-    QualType ToEl = ToType->getAs<ComplexType>()->getElementType();
+    QualType FromEl = From->getType()->castAs<ComplexType>()->getElementType();
+    QualType ToEl = ToType->castAs<ComplexType>()->getElementType();
     CastKind CK;
     if (FromEl->isRealFloatingType()) {
       if (ToEl->isRealFloatingType())
@@ -4222,7 +4235,15 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
     break;
 
   case ICK_Block_Pointer_Conversion: {
-    From = ImpCastExprToType(From, ToType.getUnqualifiedType(), CK_BitCast,
+    LangAS AddrSpaceL =
+        ToType->castAs<BlockPointerType>()->getPointeeType().getAddressSpace();
+    LangAS AddrSpaceR =
+        FromType->castAs<BlockPointerType>()->getPointeeType().getAddressSpace();
+    assert(Qualifiers::isAddressSpaceSupersetOf(AddrSpaceL, AddrSpaceR) &&
+           "Invalid cast");
+    CastKind Kind =
+        AddrSpaceL != AddrSpaceR ? CK_AddressSpaceConversion : CK_BitCast;
+    From = ImpCastExprToType(From, ToType.getUnqualifiedType(), Kind,
                              VK_RValue, /*BasePath=*/nullptr, CCK).get();
     break;
   }
@@ -4603,7 +4624,9 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
       return RD->hasAttr<FinalAttr>();
     return false;
   case UTT_IsSigned:
-    return T->isSignedIntegerType();
+    // Enum types should always return false.
+    // Floating points should always return true.
+    return !T->isEnumeralType() && (T->isFloatingType() || T->isSignedIntegerType());
   case UTT_IsUnsigned:
     return T->isUnsignedIntegerType();
 
@@ -5230,7 +5253,13 @@ static bool EvaluateBinaryTypeTrait(Sema &Self, TypeTrait BTT, QualType LhsT,
     Sema::ContextRAII TUContext(Self, Self.Context.getTranslationUnitDecl());
     ExprResult Result = Self.BuildBinOp(/*S=*/nullptr, KeyLoc, BO_Assign, &Lhs,
                                         &Rhs);
-    if (Result.isInvalid() || SFINAE.hasErrorOccurred())
+    if (Result.isInvalid())
+      return false;
+
+    // Treat the assignment as unused for the purpose of -Wdeprecated-volatile.
+    Self.CheckUnusedVolatileAssignment(Result.get());
+
+    if (SFINAE.hasErrorOccurred())
       return false;
 
     if (BTT == BTT_IsAssignable)
@@ -5833,20 +5862,21 @@ QualType Sema::CXXCheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
       LVK == RVK && LVK != VK_RValue) {
     // DerivedToBase was already handled by the class-specific case above.
     // FIXME: Should we allow ObjC conversions here?
-    bool DerivedToBase, ObjCConversion, ObjCLifetimeConversion;
-    if (CompareReferenceRelationship(
-            QuestionLoc, LTy, RTy, DerivedToBase,
-            ObjCConversion, ObjCLifetimeConversion) == Ref_Compatible &&
+    bool DerivedToBase, ObjCConversion, ObjCLifetimeConversion,
+        FunctionConversion;
+    if (CompareReferenceRelationship(QuestionLoc, LTy, RTy, DerivedToBase,
+                                     ObjCConversion, ObjCLifetimeConversion,
+                                     FunctionConversion) == Ref_Compatible &&
         !DerivedToBase && !ObjCConversion && !ObjCLifetimeConversion &&
         // [...] subject to the constraint that the reference must bind
         // directly [...]
-        !RHS.get()->refersToBitField() &&
-        !RHS.get()->refersToVectorElement()) {
+        !RHS.get()->refersToBitField() && !RHS.get()->refersToVectorElement()) {
       RHS = ImpCastExprToType(RHS.get(), LTy, CK_NoOp, RVK);
       RTy = RHS.get()->getType();
     } else if (CompareReferenceRelationship(
-                   QuestionLoc, RTy, LTy, DerivedToBase,
-                   ObjCConversion, ObjCLifetimeConversion) == Ref_Compatible &&
+                   QuestionLoc, RTy, LTy, DerivedToBase, ObjCConversion,
+                   ObjCLifetimeConversion,
+                   FunctionConversion) == Ref_Compatible &&
                !DerivedToBase && !ObjCConversion && !ObjCLifetimeConversion &&
                !LHS.get()->refersToBitField() &&
                !LHS.get()->refersToVectorElement()) {
@@ -6601,6 +6631,11 @@ ExprResult Sema::ActOnDecltypeExpression(Expr *E) {
   ExprEvalContexts.back().ExprContext =
       ExpressionEvaluationContextRecord::EK_Other;
 
+  Result = CheckUnevaluatedOperand(E);
+  if (Result.isInvalid())
+    return ExprError();
+  E = Result.get();
+
   // In MS mode, don't perform any extra checking of call return types within a
   // decltype expression.
   if (getLangOpts().MSVCCompat)
@@ -6792,12 +6827,8 @@ ExprResult Sema::ActOnStartCXXMemberReference(Scope *S, Expr *Base,
   // it's legal for the type to be incomplete if this is a pseudo-destructor
   // call.  We'll do more incomplete-type checks later in the lookup process,
   // so just skip this check for ObjC types.
-  if (BaseType->isObjCObjectOrInterfaceType()) {
+  if (!BaseType->isRecordType()) {
     ObjectType = ParsedType::make(BaseType);
-    MayBePseudoDestructor = true;
-    return Base;
-  } else if (!BaseType->isRecordType()) {
-    ObjectType = nullptr;
     MayBePseudoDestructor = true;
     return Base;
   }
@@ -7171,7 +7202,7 @@ ExprResult Sema::BuildCXXMemberCallExpr(Expr *E, NamedDecl *FoundDecl,
 
   if (Method->getParent()->isLambda() &&
       Method->getConversionType()->isBlockPointerType()) {
-    // This is a lambda coversion to block pointer; check if the argument
+    // This is a lambda conversion to block pointer; check if the argument
     // was a LambdaExpr.
     Expr *SubE = E;
     CastExpr *CE = dyn_cast<CastExpr>(SubE);
@@ -7199,12 +7230,12 @@ ExprResult Sema::BuildCXXMemberCallExpr(Expr *E, NamedDecl *FoundDecl,
     }
   }
 
-  MemberExpr *ME = new (Context) MemberExpr(
-      Exp.get(), /*IsArrow=*/false, SourceLocation(), Method, SourceLocation(),
-      Context.BoundMemberTy, VK_RValue, OK_Ordinary);
-  if (HadMultipleCandidates)
-    ME->setHadMultipleCandidates(true);
-  MarkMemberReferenced(ME);
+  MemberExpr *ME =
+      BuildMemberExpr(Exp.get(), /*IsArrow=*/false, SourceLocation(),
+                      NestedNameSpecifierLoc(), SourceLocation(), Method,
+                      DeclAccessPair::make(FoundDecl, FoundDecl->getAccess()),
+                      HadMultipleCandidates, DeclarationNameInfo(),
+                      Context.BoundMemberTy, VK_RValue, OK_Ordinary);
 
   QualType ResultType = Method->getReturnType();
   ExprValueKind VK = Expr::getValueKindForType(ResultType);
@@ -7229,7 +7260,10 @@ ExprResult Sema::BuildCXXNoexceptExpr(SourceLocation KeyLoc, Expr *Operand,
   if (R.isInvalid())
     return R;
 
-  // The operand may have been modified when checking the placeholder type.
+  R = CheckUnevaluatedOperand(R.get());
+  if (R.isInvalid())
+    return ExprError();
+
   Operand = R.get();
 
   if (!inTemplateInstantiation() && Operand->HasSideEffects(Context, false)) {
@@ -7333,12 +7367,17 @@ ExprResult Sema::IgnoredValueConversions(Expr *E) {
     // volatile lvalue with a special form, we perform an lvalue-to-rvalue
     // conversion.
     if (getLangOpts().CPlusPlus11 && E->isGLValue() &&
-        E->getType().isVolatileQualified() &&
-        IsSpecialDiscardedValue(E)) {
-      ExprResult Res = DefaultLvalueConversion(E);
-      if (Res.isInvalid())
-        return E;
-      E = Res.get();
+        E->getType().isVolatileQualified()) {
+       if (IsSpecialDiscardedValue(E)) {
+        ExprResult Res = DefaultLvalueConversion(E);
+        if (Res.isInvalid())
+          return E;
+        E = Res.get();
+      } else {
+        // Per C++2a [expr.ass]p5, a volatile assignment is not deprecated if
+        // it occurs as a discarded-value expression.
+        CheckUnusedVolatileAssignment(E);
+      }
     }
 
     // C++1z:
@@ -7370,6 +7409,14 @@ ExprResult Sema::IgnoredValueConversions(Expr *E) {
   if (!E->getType()->isVoidType())
     RequireCompleteType(E->getExprLoc(), E->getType(),
                         diag::err_incomplete_type);
+  return E;
+}
+
+ExprResult Sema::CheckUnevaluatedOperand(Expr *E) {
+  // Per C++2a [expr.ass]p5, a volatile assignment is not deprecated if
+  // it occurs as an unevaluated operand.
+  CheckUnusedVolatileAssignment(E);
+
   return E;
 }
 
@@ -7405,7 +7452,7 @@ static inline bool VariableCanNeverBeAConstantExpression(VarDecl *Var,
     return false;
   }
 
-  return !IsVariableAConstantExpression(Var, Context);
+  return !Var->isUsableInConstantExpressions(Context);
 }
 
 /// Check if the current lambda has any potential captures
@@ -7582,15 +7629,22 @@ class TransformTypos : public TreeTransform<TransformTypos> {
   llvm::SmallDenseMap<OverloadExpr *, Expr *, 4> OverloadResolution;
 
   /// Emit diagnostics for all of the TypoExprs encountered.
+  ///
   /// If the TypoExprs were successfully corrected, then the diagnostics should
   /// suggest the corrections. Otherwise the diagnostics will not suggest
   /// anything (having been passed an empty TypoCorrection).
-  void EmitAllDiagnostics() {
+  ///
+  /// If we've failed to correct due to ambiguous corrections, we need to
+  /// be sure to pass empty corrections and replacements. Otherwise it's
+  /// possible that the Consumer has a TypoCorrection that failed to ambiguity
+  /// and we don't want to report those diagnostics.
+  void EmitAllDiagnostics(bool IsAmbiguous) {
     for (TypoExpr *TE : TypoExprs) {
       auto &State = SemaRef.getTypoExprState(TE);
       if (State.DiagHandler) {
-        TypoCorrection TC = State.Consumer->getCurrentCorrection();
-        ExprResult Replacement = TransformCache[TE];
+        TypoCorrection TC = IsAmbiguous
+            ? TypoCorrection() : State.Consumer->getCurrentCorrection();
+        ExprResult Replacement = IsAmbiguous ? ExprError() : TransformCache[TE];
 
         // Extract the NamedDecl from the transformed TypoExpr and add it to the
         // TypoCorrection, replacing the existing decls. This ensures the right
@@ -7652,6 +7706,150 @@ class TransformTypos : public TreeTransform<TransformTypos> {
     return ExprFilter(Res.get());
   }
 
+  // Since correcting typos may intoduce new TypoExprs, this function
+  // checks for new TypoExprs and recurses if it finds any. Note that it will
+  // only succeed if it is able to correct all typos in the given expression.
+  ExprResult CheckForRecursiveTypos(ExprResult Res, bool &IsAmbiguous) {
+    if (Res.isInvalid()) {
+      return Res;
+    }
+    // Check to see if any new TypoExprs were created. If so, we need to recurse
+    // to check their validity.
+    Expr *FixedExpr = Res.get();
+
+    auto SavedTypoExprs = std::move(TypoExprs);
+    auto SavedAmbiguousTypoExprs = std::move(AmbiguousTypoExprs);
+    TypoExprs.clear();
+    AmbiguousTypoExprs.clear();
+
+    FindTypoExprs(TypoExprs).TraverseStmt(FixedExpr);
+    if (!TypoExprs.empty()) {
+      // Recurse to handle newly created TypoExprs. If we're not able to
+      // handle them, discard these TypoExprs.
+      ExprResult RecurResult =
+          RecursiveTransformLoop(FixedExpr, IsAmbiguous);
+      if (RecurResult.isInvalid()) {
+        Res = ExprError();
+        // Recursive corrections didn't work, wipe them away and don't add
+        // them to the TypoExprs set. Remove them from Sema's TypoExpr list
+        // since we don't want to clear them twice. Note: it's possible the
+        // TypoExprs were created recursively and thus won't be in our
+        // Sema's TypoExprs - they were created in our `RecursiveTransformLoop`.
+        auto &SemaTypoExprs = SemaRef.TypoExprs;
+        for (auto TE : TypoExprs) {
+          TransformCache.erase(TE);
+          SemaRef.clearDelayedTypo(TE);
+
+          auto SI = find(SemaTypoExprs, TE);
+          if (SI != SemaTypoExprs.end()) {
+            SemaTypoExprs.erase(SI);
+          }
+        }
+      } else {
+        // TypoExpr is valid: add newly created TypoExprs since we were
+        // able to correct them.
+        Res = RecurResult;
+        SavedTypoExprs.set_union(TypoExprs);
+      }
+    }
+
+    TypoExprs = std::move(SavedTypoExprs);
+    AmbiguousTypoExprs = std::move(SavedAmbiguousTypoExprs);
+
+    return Res;
+  }
+
+  // Try to transform the given expression, looping through the correction
+  // candidates with `CheckAndAdvanceTypoExprCorrectionStreams`.
+  //
+  // If valid ambiguous typo corrections are seen, `IsAmbiguous` is set to
+  // true and this method immediately will return an `ExprError`.
+  ExprResult RecursiveTransformLoop(Expr *E, bool &IsAmbiguous) {
+    ExprResult Res;
+    auto SavedTypoExprs = std::move(SemaRef.TypoExprs);
+    SemaRef.TypoExprs.clear();
+
+    while (true) {
+      Res = CheckForRecursiveTypos(TryTransform(E), IsAmbiguous);
+
+      // Recursion encountered an ambiguous correction. This means that our
+      // correction itself is ambiguous, so stop now.
+      if (IsAmbiguous)
+        break;
+
+      // If the transform is still valid after checking for any new typos,
+      // it's good to go.
+      if (!Res.isInvalid())
+        break;
+
+      // The transform was invalid, see if we have any TypoExprs with untried
+      // correction candidates.
+      if (!CheckAndAdvanceTypoExprCorrectionStreams())
+        break;
+    }
+
+    // If we found a valid result, double check to make sure it's not ambiguous.
+    if (!IsAmbiguous && !Res.isInvalid() && !AmbiguousTypoExprs.empty()) {
+      auto SavedTransformCache =
+          llvm::SmallDenseMap<TypoExpr *, ExprResult, 2>(TransformCache);
+
+      // Ensure none of the TypoExprs have multiple typo correction candidates
+      // with the same edit length that pass all the checks and filters.
+      while (!AmbiguousTypoExprs.empty()) {
+        auto TE  = AmbiguousTypoExprs.back();
+
+        // TryTransform itself can create new Typos, adding them to the TypoExpr map
+        // and invalidating our TypoExprState, so always fetch it instead of storing.
+        SemaRef.getTypoExprState(TE).Consumer->saveCurrentPosition();
+
+        TypoCorrection TC = SemaRef.getTypoExprState(TE).Consumer->peekNextCorrection();
+        TypoCorrection Next;
+        do {
+          // Fetch the next correction by erasing the typo from the cache and calling
+          // `TryTransform` which will iterate through corrections in
+          // `TransformTypoExpr`.
+          TransformCache.erase(TE);
+          ExprResult AmbigRes = CheckForRecursiveTypos(TryTransform(E), IsAmbiguous);
+
+          if (!AmbigRes.isInvalid() || IsAmbiguous) {
+            SemaRef.getTypoExprState(TE).Consumer->resetCorrectionStream();
+            SavedTransformCache.erase(TE);
+            Res = ExprError();
+            IsAmbiguous = true;
+            break;
+          }
+        } while ((Next = SemaRef.getTypoExprState(TE).Consumer->peekNextCorrection()) &&
+                 Next.getEditDistance(false) == TC.getEditDistance(false));
+
+        if (IsAmbiguous)
+          break;
+
+        AmbiguousTypoExprs.remove(TE);
+        SemaRef.getTypoExprState(TE).Consumer->restoreSavedPosition();
+      }
+      TransformCache = std::move(SavedTransformCache);
+    }
+
+    // Wipe away any newly created TypoExprs that we don't know about. Since we
+    // clear any invalid TypoExprs in `CheckForRecursiveTypos`, this is only
+    // possible if a `TypoExpr` is created during a transformation but then
+    // fails before we can discover it.
+    auto &SemaTypoExprs = SemaRef.TypoExprs;
+    for (auto Iterator = SemaTypoExprs.begin(); Iterator != SemaTypoExprs.end();) {
+      auto TE = *Iterator;
+      auto FI = find(TypoExprs, TE);
+      if (FI != TypoExprs.end()) {
+        Iterator++;
+        continue;
+      }
+      SemaRef.clearDelayedTypo(TE);
+      Iterator = SemaTypoExprs.erase(Iterator);
+    }
+    SemaRef.TypoExprs = std::move(SavedTypoExprs);
+
+    return Res;
+  }
+
 public:
   TransformTypos(Sema &SemaRef, VarDecl *InitDecl, llvm::function_ref<ExprResult(Expr *)> Filter)
       : BaseTransform(SemaRef), InitDecl(InitDecl), ExprFilter(Filter) {}
@@ -7679,49 +7877,13 @@ public:
   ExprResult TransformBlockExpr(BlockExpr *E) { return Owned(E); }
 
   ExprResult Transform(Expr *E) {
-    ExprResult Res;
-    while (true) {
-      Res = TryTransform(E);
+    bool IsAmbiguous = false;
+    ExprResult Res = RecursiveTransformLoop(E, IsAmbiguous);
 
-      // Exit if either the transform was valid or if there were no TypoExprs
-      // to transform that still have any untried correction candidates..
-      if (!Res.isInvalid() ||
-          !CheckAndAdvanceTypoExprCorrectionStreams())
-        break;
-    }
-
-    // Ensure none of the TypoExprs have multiple typo correction candidates
-    // with the same edit length that pass all the checks and filters.
-    // TODO: Properly handle various permutations of possible corrections when
-    // there is more than one potentially ambiguous typo correction.
-    // Also, disable typo correction while attempting the transform when
-    // handling potentially ambiguous typo corrections as any new TypoExprs will
-    // have been introduced by the application of one of the correction
-    // candidates and add little to no value if corrected.
-    SemaRef.DisableTypoCorrection = true;
-    while (!AmbiguousTypoExprs.empty()) {
-      auto TE  = AmbiguousTypoExprs.back();
-      auto Cached = TransformCache[TE];
-      auto &State = SemaRef.getTypoExprState(TE);
-      State.Consumer->saveCurrentPosition();
-      TransformCache.erase(TE);
-      if (!TryTransform(E).isInvalid()) {
-        State.Consumer->resetCorrectionStream();
-        TransformCache.erase(TE);
-        Res = ExprError();
-        break;
-      }
-      AmbiguousTypoExprs.remove(TE);
-      State.Consumer->restoreSavedPosition();
-      TransformCache[TE] = Cached;
-    }
-    SemaRef.DisableTypoCorrection = false;
-
-    // Ensure that all of the TypoExprs within the current Expr have been found.
     if (!Res.isUsable())
       FindTypoExprs(TypoExprs).TraverseStmt(E);
 
-    EmitAllDiagnostics();
+    EmitAllDiagnostics(IsAmbiguous);
 
     return Res;
   }

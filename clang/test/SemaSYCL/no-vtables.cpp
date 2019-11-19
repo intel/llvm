@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -x c++ -emit-llvm-only %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -verify -fsyntax-only -x c++ -emit-llvm-only %s
 // expected-no-diagnostics
 // Should never fail, since the type is never used in kernel code.
 

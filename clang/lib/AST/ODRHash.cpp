@@ -71,8 +71,13 @@ void ODRHash::AddDeclarationNameImpl(DeclarationName Name) {
     AddBoolean(S.isKeywordSelector());
     AddBoolean(S.isUnarySelector());
     unsigned NumArgs = S.getNumArgs();
+    ID.AddInteger(NumArgs);
     for (unsigned i = 0; i < NumArgs; ++i) {
-      AddIdentifierInfo(S.getIdentifierInfoForSlot(i));
+      const IdentifierInfo *II = S.getIdentifierInfoForSlot(i);
+      AddBoolean(II);
+      if (II) {
+        AddIdentifierInfo(II);
+      }
     }
     break;
   }
@@ -696,7 +701,52 @@ public:
     ID.AddInteger(Quals.getAsOpaqueValue());
   }
 
+  // Return the RecordType if the typedef only strips away a keyword.
+  // Otherwise, return the original type.
+  static const Type *RemoveTypedef(const Type *T) {
+    const auto *TypedefT = dyn_cast<TypedefType>(T);
+    if (!TypedefT) {
+      return T;
+    }
+
+    const TypedefNameDecl *D = TypedefT->getDecl();
+    QualType UnderlyingType = D->getUnderlyingType();
+
+    if (UnderlyingType.hasLocalQualifiers()) {
+      return T;
+    }
+
+    const auto *ElaboratedT = dyn_cast<ElaboratedType>(UnderlyingType);
+    if (!ElaboratedT) {
+      return T;
+    }
+
+    if (ElaboratedT->getQualifier() != nullptr) {
+      return T;
+    }
+
+    QualType NamedType = ElaboratedT->getNamedType();
+    if (NamedType.hasLocalQualifiers()) {
+      return T;
+    }
+
+    const auto *RecordT = dyn_cast<RecordType>(NamedType);
+    if (!RecordT) {
+      return T;
+    }
+
+    const IdentifierInfo *TypedefII = TypedefT->getDecl()->getIdentifier();
+    const IdentifierInfo *RecordII = RecordT->getDecl()->getIdentifier();
+    if (!TypedefII || !RecordII ||
+        TypedefII->getName() != RecordII->getName()) {
+      return T;
+    }
+
+    return RecordT;
+  }
+
   void Visit(const Type *T) {
+    T = RemoveTypedef(T);
     ID.AddInteger(T->getTypeClass());
     Inherited::Visit(T);
   }

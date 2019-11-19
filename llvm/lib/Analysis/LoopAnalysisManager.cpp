@@ -46,7 +46,7 @@ bool LoopAnalysisManagerFunctionProxy::Result::invalidate(
   // invalidation logic below to act on that.
   auto PAC = PA.getChecker<LoopAnalysisManagerFunctionProxy>();
   bool invalidateMemorySSAAnalysis = false;
-  if (EnableMSSALoopDependency)
+  if (MSSAUsed)
     invalidateMemorySSAAnalysis = Inv.invalidate<MemorySSAAnalysis>(F, PA);
   if (!(PAC.preserved() || PAC.preservedSet<AllAnalysesOn<Function>>()) ||
       Inv.invalidate<AAManager>(F, PA) ||
@@ -141,8 +141,6 @@ PreservedAnalyses llvm::getLoopPassPreservedAnalyses() {
   PA.preserve<LoopAnalysis>();
   PA.preserve<LoopAnalysisManagerFunctionProxy>();
   PA.preserve<ScalarEvolutionAnalysis>();
-  if (EnableMSSALoopDependency)
-    PA.preserve<MemorySSAAnalysis>();
   // FIXME: What we really want to do here is preserve an AA category, but that
   // concept doesn't exist yet.
   PA.preserve<AAManager>();

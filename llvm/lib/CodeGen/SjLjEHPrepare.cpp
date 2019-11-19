@@ -175,9 +175,9 @@ Value *SjLjEHPrepare::setupFunctionContext(Function &F,
   // that needs to be restored on all exits from the function. This is an alloca
   // because the value needs to be added to the global context list.
   auto &DL = F.getParent()->getDataLayout();
-  unsigned Align = DL.getPrefTypeAlignment(FunctionContextTy);
-  FuncCtx = new AllocaInst(FunctionContextTy, DL.getAllocaAddrSpace(),
-                           nullptr, Align, "fn_context", &EntryBB->front());
+  const Align Alignment(DL.getPrefTypeAlignment(FunctionContextTy));
+  FuncCtx = new AllocaInst(FunctionContextTy, DL.getAllocaAddrSpace(), nullptr,
+                           Alignment, "fn_context", &EntryBB->front());
 
   // Fill in the function context structure.
   for (LandingPadInst *LPI : LPads) {
@@ -477,7 +477,10 @@ bool SjLjEHPrepare::runOnFunction(Function &F) {
   UnregisterFn = M.getOrInsertFunction(
       "_Unwind_SjLj_Unregister", Type::getVoidTy(M.getContext()),
       PointerType::getUnqual(FunctionContextTy));
-  FrameAddrFn = Intrinsic::getDeclaration(&M, Intrinsic::frameaddress);
+  FrameAddrFn = Intrinsic::getDeclaration(
+      &M, Intrinsic::frameaddress,
+      {Type::getInt8PtrTy(M.getContext(),
+                          M.getDataLayout().getAllocaAddrSpace())});
   StackAddrFn = Intrinsic::getDeclaration(&M, Intrinsic::stacksave);
   StackRestoreFn = Intrinsic::getDeclaration(&M, Intrinsic::stackrestore);
   BuiltinSetupDispatchFn =

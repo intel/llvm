@@ -123,22 +123,22 @@ define void @exp_compr_invalid_inputs(i32 %tgt, i32 %en, i1 %bool) {
   ret void
 }
 
-declare i64 @llvm.amdgcn.icmp.i32(i32, i32, i32)
+declare i64 @llvm.amdgcn.icmp.i64.i32(i32, i32, i32)
 
 define i64 @invalid_nonconstant_icmp_code(i32 %a, i32 %b, i32 %c) {
   ; CHECK: immarg operand has non-immediate parameter
   ; CHECK-NEXT: i32 %c
-  ; CHECK-NEXT: %result = call i64 @llvm.amdgcn.icmp.i32(i32 %a, i32 %b, i32 %c)
-  %result = call i64 @llvm.amdgcn.icmp.i32(i32 %a, i32 %b, i32 %c)
+  ; CHECK-NEXT: %result = call i64 @llvm.amdgcn.icmp.i64.i32(i32 %a, i32 %b, i32 %c)
+  %result = call i64 @llvm.amdgcn.icmp.i64.i32(i32 %a, i32 %b, i32 %c)
   ret i64 %result
 }
 
-declare i64 @llvm.amdgcn.fcmp.f32(float, float, i32)
+declare i64 @llvm.amdgcn.fcmp.i64.f32(float, float, i32)
 define i64 @invalid_nonconstant_fcmp_code(float %a, float %b, i32 %c) {
   ; CHECK: immarg operand has non-immediate parameter
   ; CHECK-NEXT: i32 %c
-  ; CHECK-NEXT: %result = call i64 @llvm.amdgcn.fcmp.f32(float %a, float %b, i32 %c)
-  %result = call i64 @llvm.amdgcn.fcmp.f32(float %a, float %b, i32 %c)
+  ; CHECK-NEXT: %result = call i64 @llvm.amdgcn.fcmp.i64.f32(float %a, float %b, i32 %c)
+  %result = call i64 @llvm.amdgcn.fcmp.i64.f32(float %a, float %b, i32 %c)
   ret i64 %result
 }
 
@@ -549,4 +549,151 @@ define i32 @test_udot4(i32 %arg0, i32 %arg1, i32 %arg2, i1 %arg3) {
   ; CHECK-NEXT: %val = call i32 @llvm.amdgcn.udot4(i32 %arg0, i32 %arg1, i32 %arg2, i1 %arg3)
   %val = call i32 @llvm.amdgcn.udot4(i32 %arg0, i32 %arg1, i32 %arg2, i1 %arg3)
   ret i32 %val
+}
+
+declare i32 @llvm.amdgcn.permlane16(i32, i32, i32, i32, i1, i1)
+define i32 @test_permlane16(i32 addrspace(1)* %out, i32 %arg0, i32 %arg1, i32 %arg2, i1 %arg3, i1 %arg4) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i1 %arg3
+  ; CHECK-NEXT: %v1 = call i32 @llvm.amdgcn.permlane16(i32 %arg0, i32 %arg0, i32 %arg1, i32 %arg2, i1 %arg3, i1 false)
+  %v1 = call i32 @llvm.amdgcn.permlane16(i32 %arg0, i32 %arg0, i32 %arg1, i32 %arg2, i1 %arg3, i1 false)
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i1 %arg4
+  ; CHECK-NEXT: call i32 @llvm.amdgcn.permlane16(i32 %v2, i32 %arg0, i32 %arg1, i32 %arg2, i1 false, i1 %arg4)
+  %v2 = call i32 @llvm.amdgcn.permlane16(i32 %v2, i32 %arg0, i32 %arg1, i32 %arg2, i1 false, i1 %arg4)
+  ret i32 %v2
+}
+
+declare i32 @llvm.amdgcn.permlanex16(i32, i32, i32, i32, i1, i1)
+define i32 @test_permlanex16(i32 addrspace(1)* %out, i32 %arg0, i32 %arg1, i32 %arg2, i1 %arg3, i1 %arg4) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i1 %arg3
+  ; CHECK-NEXT: %v1 = call i32 @llvm.amdgcn.permlanex16(i32 %arg0, i32 %arg0, i32 %arg1, i32 %arg2, i1 %arg3, i1 false)
+  %v1 = call i32 @llvm.amdgcn.permlanex16(i32 %arg0, i32 %arg0, i32 %arg1, i32 %arg2, i1 %arg3, i1 false)
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i1 %arg4
+  ; CHECK-NEXT: call i32 @llvm.amdgcn.permlanex16(i32 %v2, i32 %arg0, i32 %arg1, i32 %arg2, i1 false, i1 %arg4)
+  %v2 = call i32 @llvm.amdgcn.permlanex16(i32 %v2, i32 %arg0, i32 %arg1, i32 %arg2, i1 false, i1 %arg4)
+  ret i32 %v2
+}
+
+declare float @llvm.amdgcn.interp.p1(float, i32, i32, i32)
+define void @test_interp_p1(float %arg0, i32 %arg1, i32 %arg2, i32 %arg3) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg1
+  ; CHECK-NEXT: %val0 = call float @llvm.amdgcn.interp.p1(float %arg0, i32 %arg1, i32 0, i32 0)
+  %val0 = call float @llvm.amdgcn.interp.p1(float %arg0, i32 %arg1, i32 0, i32 0)
+  store volatile float %val0, float addrspace(1)* undef
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg2
+  ; CHECK-NEXT: %val1 = call float @llvm.amdgcn.interp.p1(float %arg0, i32 0, i32 %arg2, i32 0)
+  %val1 = call float @llvm.amdgcn.interp.p1(float %arg0, i32 0, i32 %arg2, i32 0)
+  store volatile float %val1, float addrspace(1)* undef
+  ret void
+}
+
+declare float @llvm.amdgcn.interp.p2(float, float, i32, i32, i32)
+define void @test_interp_p2(float %arg0, float %arg1, i32 %arg2, i32 %arg3, i32 %arg4) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg2
+  ; CHECK-NEXT: %val0 = call float @llvm.amdgcn.interp.p2(float %arg0, float %arg1, i32 %arg2, i32 0, i32 0)
+
+  %val0 = call float @llvm.amdgcn.interp.p2(float %arg0, float %arg1, i32 %arg2, i32 0, i32 0)
+  store volatile float %val0, float addrspace(1)* undef
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg3
+  ; CHECK-NEXT: %val1 = call float @llvm.amdgcn.interp.p2(float %arg0, float %arg1, i32 0, i32 %arg3, i32 0)
+  %val1 = call float @llvm.amdgcn.interp.p2(float %arg0, float %arg1, i32 0, i32 %arg3, i32 0)
+  store volatile float %val1, float addrspace(1)* undef
+  ret void
+}
+
+declare float @llvm.amdgcn.interp.mov(i32, i32, i32, i32)
+define void @test_interp_mov(i32 %arg0, i32 %arg1, i32 %arg2, i32 %arg3) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg1
+  ; CHECK-NEXT: %val0 = call float @llvm.amdgcn.interp.mov(i32 %arg0, i32 %arg1, i32 0, i32 0)
+  %val0 = call float @llvm.amdgcn.interp.mov(i32 %arg0, i32 %arg1, i32 0, i32 0)
+  store volatile float %val0, float addrspace(1)* undef
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg2
+  ; CHECK-NEXT: %val1 = call float @llvm.amdgcn.interp.mov(i32 %arg0, i32 0, i32 %arg2, i32 0)
+  %val1 = call float @llvm.amdgcn.interp.mov(i32 %arg0, i32 0, i32 %arg2, i32 0)
+  store volatile float %val1, float addrspace(1)* undef
+
+  ret void
+}
+
+declare float @llvm.amdgcn.interp.p1.f16(float, i32, i32, i1, i32)
+define void @test_interp_p1_f16(float %arg0, i32 %arg1, i32 %arg2, i1 %arg3, i32 %arg4) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg1
+  ; CHECK-NEXT:%val0 = call float @llvm.amdgcn.interp.p1.f16(float %arg0, i32 %arg1, i32 2, i1 false, i32 %arg4)
+  %val0 = call float @llvm.amdgcn.interp.p1.f16(float %arg0, i32 %arg1, i32 2, i1 0, i32 %arg4)
+  store volatile float %val0, float addrspace(1)* undef
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT:i32 %arg2
+  ; CHECK-NEXT:  %val1 = call float @llvm.amdgcn.interp.p1.f16(float %arg0, i32 0, i32 %arg2, i1 false, i32 %arg4)
+  %val1 = call float @llvm.amdgcn.interp.p1.f16(float %arg0, i32 0, i32 %arg2, i1 0, i32 %arg4)
+  store volatile float %val1, float addrspace(1)* undef
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT:i1 %arg3
+  ; CHECK-NEXT:  %val2 = call float @llvm.amdgcn.interp.p1.f16(float %arg0, i32 0, i32 0, i1 %arg3, i32 %arg4)
+  %val2 = call float @llvm.amdgcn.interp.p1.f16(float %arg0, i32 0, i32 0, i1 %arg3, i32 %arg4)
+  store volatile float %val2, float addrspace(1)* undef
+
+  ret void
+}
+
+declare half @llvm.amdgcn.interp.p2.f16(float, float, i32, i32, i1, i32)
+define void @test_interp_p2_f16(float %arg0, float %arg1, i32 %arg2, i32 %arg3, i1 %arg4, i32 %arg5) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg2
+  ; CHECK-NEXT: %val0 = call half @llvm.amdgcn.interp.p2.f16(float %arg0, float %arg1, i32 %arg2, i32 2, i1 false, i32 %arg5)
+  %val0 = call half @llvm.amdgcn.interp.p2.f16(float %arg0, float %arg1, i32 %arg2, i32 2, i1 false, i32 %arg5)
+  store volatile half %val0, half addrspace(1)* undef
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg3
+  ; CHECK-NEXT: %val1 = call half @llvm.amdgcn.interp.p2.f16(float %arg0, float %arg1, i32 0, i32 %arg3, i1 false, i32 %arg5)
+  %val1 = call half @llvm.amdgcn.interp.p2.f16(float %arg0, float %arg1, i32 0, i32 %arg3, i1 false, i32 %arg5)
+  store volatile half %val1, half addrspace(1)* undef
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i1 %arg4
+  ; CHECK-NEXT: %val2 = call half @llvm.amdgcn.interp.p2.f16(float %arg0, float %arg1, i32 0, i32 0, i1 %arg4, i32 %arg5)
+  %val2 = call half @llvm.amdgcn.interp.p2.f16(float %arg0, float %arg1, i32 0, i32 0, i1 %arg4, i32 %arg5)
+  store volatile half %val2, half addrspace(1)* undef
+
+  ret void
+}
+
+declare <32 x i32> @llvm.amdgcn.mfma.f32.32x32x1f32(float, float, <32 x i32>, i32, i32, i32)
+define void @test_mfma_f32_32x32x1f32(float %arg0, float %arg1, <32 x i32> %arg2, i32 %arg3, i32 %arg4, i32 %arg5) {
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg3
+  ; CHECK-NEXT: %val0 = call <32 x i32> @llvm.amdgcn.mfma.f32.32x32x1f32(float %arg0, float %arg1, <32 x i32> %arg2, i32 %arg3, i32 2, i32 3)
+  %val0 = call <32 x i32> @llvm.amdgcn.mfma.f32.32x32x1f32(float %arg0, float %arg1, <32 x i32> %arg2, i32 %arg3, i32 2, i32 3)
+  store volatile <32 x i32> %val0, <32 x i32> addrspace(1)* undef
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg4
+  ; CHECK-NEXT: %val1 = call <32 x i32> @llvm.amdgcn.mfma.f32.32x32x1f32(float %arg0, float %arg1, <32 x i32> %arg2, i32 1, i32 %arg4, i32 3)
+  %val1 = call <32 x i32> @llvm.amdgcn.mfma.f32.32x32x1f32(float %arg0, float %arg1, <32 x i32> %arg2, i32 1, i32 %arg4, i32 3)
+  store volatile <32 x i32> %val1, <32 x i32> addrspace(1)* undef
+
+  ; CHECK: immarg operand has non-immediate parameter
+  ; CHECK-NEXT: i32 %arg5
+  ; CHECK-NEXT: %val2 = call <32 x i32> @llvm.amdgcn.mfma.f32.32x32x1f32(float %arg0, float %arg1, <32 x i32> %arg2, i32 1, i32 2, i32 %arg5)
+  %val2 = call <32 x i32> @llvm.amdgcn.mfma.f32.32x32x1f32(float %arg0, float %arg1, <32 x i32> %arg2, i32 1, i32 2, i32 %arg5)
+  store volatile <32 x i32> %val2, <32 x i32> addrspace(1)* undef
+
+  ret void
 }

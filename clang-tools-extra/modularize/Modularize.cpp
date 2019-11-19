@@ -233,6 +233,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Driver/Options.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/FrontendAction.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/CompilationDatabase.h"
@@ -336,14 +337,13 @@ std::string CommandLine;
 
 // Helper function for finding the input file in an arguments list.
 static std::string findInputFile(const CommandLineArguments &CLArgs) {
-  std::unique_ptr<OptTable> Opts(createDriverOptTable());
   const unsigned IncludedFlagsBitmask = options::CC1Option;
   unsigned MissingArgIndex, MissingArgCount;
   SmallVector<const char *, 256> Argv;
   for (auto I = CLArgs.begin(), E = CLArgs.end(); I != E; ++I)
     Argv.push_back(I->c_str());
-  InputArgList Args = Opts->ParseArgs(Argv, MissingArgIndex, MissingArgCount,
-                                      IncludedFlagsBitmask);
+  InputArgList Args = getDriverOptTable().ParseArgs(
+      Argv, MissingArgIndex, MissingArgCount, IncludedFlagsBitmask);
   std::vector<std::string> Inputs = Args.getAllArgValues(OPT_INPUT);
   return ModularizeUtilities::getCanonicalPath(Inputs.back());
 }
@@ -369,7 +369,7 @@ getModularizeArgumentsAdjuster(DependencyMap &Dependencies) {
     // Ignore warnings.  (Insert after "clang_tool" at beginning.)
     NewArgs.insert(NewArgs.begin() + 1, "-w");
     // Since we are compiling .h files, assume C++ unless given a -x option.
-    if (std::find(NewArgs.begin(), NewArgs.end(), "-x") == NewArgs.end()) {
+    if (!llvm::is_contained(NewArgs, "-x")) {
       NewArgs.insert(NewArgs.begin() + 2, "-x");
       NewArgs.insert(NewArgs.begin() + 3, "c++");
     }
@@ -585,6 +585,8 @@ public:
       LinkageLabel = "extern \"C\" {}";
       break;
     case LinkageSpecDecl::lang_cxx:
+    case LinkageSpecDecl::lang_cxx_11:
+    case LinkageSpecDecl::lang_cxx_14:
       LinkageLabel = "extern \"C++\" {}";
       break;
     }
@@ -703,7 +705,7 @@ public:
 protected:
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
-    return llvm::make_unique<CollectEntitiesConsumer>(
+    return std::make_unique<CollectEntitiesConsumer>(
         Entities, PPTracker, CI.getPreprocessor(), InFile, HadErrors);
   }
 
@@ -721,8 +723,9 @@ public:
       : Entities(Entities), PPTracker(preprocessorTracker),
         HadErrors(HadErrors) {}
 
-  CollectEntitiesAction *create() override {
-    return new CollectEntitiesAction(Entities, PPTracker, HadErrors);
+  std::unique_ptr<FrontendAction> create() override {
+    return std::make_unique<CollectEntitiesAction>(Entities, PPTracker,
+                                                   HadErrors);
   }
 
 private:
@@ -793,7 +796,7 @@ public:
 protected:
   std::unique_ptr<clang::ASTConsumer>
     CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
-    return llvm::make_unique<CompileCheckConsumer>();
+    return std::make_unique<CompileCheckConsumer>();
   }
 };
 
@@ -801,8 +804,8 @@ class CompileCheckFrontendActionFactory : public FrontendActionFactory {
 public:
   CompileCheckFrontendActionFactory() {}
 
-  CompileCheckAction *create() override {
-    return new CompileCheckAction();
+  std::unique_ptr<FrontendAction> create() override {
+    return std::make_unique<CompileCheckAction>();
   }
 };
 
@@ -886,6 +889,7 @@ int main(int Argc, const char **Argv) {
       CompileCheckTool.appendArgumentsAdjuster(
         getModularizeArgumentsAdjuster(ModUtil->Dependencies));
       int CompileCheckFileErrors = 0;
+      // FIXME: use newFrontendActionFactory.
       CompileCheckFrontendActionFactory CompileCheckFactory;
       CompileCheckFileErrors |= CompileCheckTool.run(&CompileCheckFactory);
       if (CompileCheckFileErrors != 0) {
