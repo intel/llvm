@@ -1,4 +1,4 @@
-# Intel Project for LLVM* technology
+## Intel Project for LLVM* technology
 
 ## Introduction
 
