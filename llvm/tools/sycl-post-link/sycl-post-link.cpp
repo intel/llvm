@@ -50,14 +50,14 @@ static cl::opt<std::string> BaseOutputFilename{
 // with prodced IR modules files names.
 static cl::opt<std::string> OutputIRFilesList{
     "ir-files-list", cl::desc("Specify output filename for IR files list"),
-    cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat)};
+    cl::value_desc("filename"), cl::init(""), cl::cat(ExtractCat)};
 
 // Module splitter produces multiple TXT files. These files contain kernel names
 // list presented in a produced module. TXT files list is a file list
 // with produced TXT files names.
 static cl::opt<std::string> OutputTxtFilesList{
     "txt-files-list", cl::desc("Specify output filename for txt files list"),
-    cl::value_desc("filename"), cl::init("-"), cl::cat(ExtractCat)};
+    cl::value_desc("filename"), cl::init(""), cl::cat(ExtractCat)};
 
 static cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
                            cl::cat(ExtractCat)};
@@ -103,30 +103,41 @@ static void collectKernelsSet(
   }
 }
 
+// Input parameter KernelsSet is a map containing groups of kernels with same
+// values in the sycl-module-id attribute.
+// ResSymbolsLists vector is output parameter.
+// Collects set of kernel names for each group of kernels.
+static void collectSymbolsLists(
+    std::map<std::string, std::vector<Function *>> &KernelsSet,
+    std::vector<std::string> &ResSymbolsLists) {
+  for (auto &It : KernelsSet) {
+    std::string SymbolsList;
+    for (auto &F : It.second) {
+      SymbolsList =
+          (Twine(SymbolsList) + Twine(F->getName()) + Twine("\n")).str();
+    }
+    ResSymbolsLists.push_back(std::move(SymbolsList));
+  }
+}
+
 // Splits input LLVM IR module M into smaller ones.
 // Input parameter KernelsSet is a map containing groups of kernels with same
 // values in the sycl-module-id attribute. For each group of kernels a separate
 // IR module will be produced.
-// ResModules and ResSymbolsLists are output parameters.
-// Result modules are stored into
-// ResModules vector. For each result module set of kernel names is collected.
-// Sets of kernel names are stored into ResSymbolsLists.
+// ResModules is output parameter.
+// Result modules are stored into ResModules vector.
 static void
 splitModule(Module &M,
             std::map<std::string, std::vector<Function *>> &KernelsSet,
-            std::vector<std::unique_ptr<Module>> &ResModules,
-            std::vector<std::string> &ResSymbolsLists) {
+            std::vector<std::unique_ptr<Module>> &ResModules) {
   for (auto &It : KernelsSet) {
     // For each group of kernels collect all dependencies.
     SetVector<GlobalValue *> GVs;
     std::vector<llvm::Function *> Workqueue;
-    std::string SymbolsList;
 
     for (auto &F : It.second) {
       GVs.insert(F);
       Workqueue.push_back(F);
-      SymbolsList =
-          (Twine(SymbolsList) + Twine(F->getName()) + Twine("\n")).str();
     }
 
     while (!Workqueue.empty()) {
@@ -184,22 +195,17 @@ splitModule(Module &M,
 
     // Save results.
     ResModules.push_back(std::move(MClone));
-    ResSymbolsLists.push_back(std::move(SymbolsList));
   }
 }
 
-// Saves specified collections of llvm IR modules and corresponding lists of
-// kernel names to files. Saves IR files list and TXT files list if user
-// specified corresponding filenames.
-static void saveResults(std::vector<std::unique_ptr<Module>> &ResModules,
-                        std::vector<std::string> &ResSymbolsLists) {
-  int NumOfFile = 0;
+// Saves specified collection of llvm IR modules.
+// Saves file list if user specified corresponding filename.
+static void saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules) {
   std::string IRFilesList;
-  std::string TxtFilesList;
   for (size_t I = 0; I < ResModules.size(); ++I) {
     std::error_code EC;
     std::string CurOutFileName = BaseOutputFilename + "_" +
-                                 std::to_string(NumOfFile) +
+                                 std::to_string(I) +
                                  ((OutputAssembly) ? ".ll" : ".bc");
 
     raw_fd_ostream Out{CurOutFileName, EC, sys::fs::OF_None};
@@ -214,33 +220,37 @@ static void saveResults(std::vector<std::unique_ptr<Module>> &ResModules,
       PrintModule.add(createBitcodeWriterPass(Out));
     PrintModule.run(*ResModules[I].get());
 
-    IRFilesList =
-        (Twine(IRFilesList) + Twine(CurOutFileName) + Twine("\n")).str();
-
-    CurOutFileName =
-        BaseOutputFilename + "_" + std::to_string(NumOfFile) + ".txt";
-    writeToFile(CurOutFileName, ResSymbolsLists[I]);
-
-    TxtFilesList =
-        (Twine(TxtFilesList) + Twine(CurOutFileName) + Twine("\n")).str();
-
-    ++NumOfFile;
+    if (!OutputIRFilesList.empty())
+      IRFilesList =
+          (Twine(IRFilesList) + Twine(CurOutFileName) + Twine("\n")).str();
   }
 
-  if (OutputIRFilesList != "-") {
-    // TODO: Figure out what can be added to the output list if there are no
-    // kernels in the input module.
+  if (!OutputIRFilesList.empty()) {
     // Just pass input module to next tools if there was nothing to split.
     if (IRFilesList.empty())
       IRFilesList =
           (Twine(InputFilename) + Twine("\n")).str();
     writeToFile(OutputIRFilesList, IRFilesList);
   }
-  if (OutputTxtFilesList != "-") {
-    // TODO: Figure out what can be added to output list if there are no kernels
-    // in the input module.
+}
+
+// Saves specified collection of symbols lists.
+// Saves file list if user specified corresponding filename.
+static void saveResultSymbolsLists(std::vector<std::string> &ResSymbolsLists) {
+  std::string TxtFilesList;
+  for (size_t I = 0; I < ResSymbolsLists.size(); ++I) {
+    std::string CurOutFileName =
+        BaseOutputFilename + "_" + std::to_string(I) + ".txt";
+    writeToFile(CurOutFileName, ResSymbolsLists[I]);
+
+    if (!OutputTxtFilesList.empty())
+      TxtFilesList =
+          (Twine(TxtFilesList) + Twine(CurOutFileName) + Twine("\n")).str();
+  }
+
+  if (!OutputTxtFilesList.empty()) {
     if (TxtFilesList.empty()) {
-      // Just create an empty temporary file if there was nothing to split
+      // Just create an empty temporary file if there was nothing to split.
       std::string TempFileNameBase = sys::path::stem(BaseOutputFilename);
       SmallString<128> Path;
       std::error_code EC =
@@ -295,12 +305,22 @@ int main(int argc, char **argv) {
   std::vector<std::unique_ptr<Module>> ResultModules;
   std::vector<std::string> ResultSymbolsLists;
 
-  splitModule(*M.get(), GlobalsSet, ResultModules, ResultSymbolsLists);
+  bool NoLists = OutputIRFilesList.empty() && OutputTxtFilesList.empty();
+  bool PerformSplit = !OutputIRFilesList.empty() || NoLists;
+  bool CollectSymbols = !OutputTxtFilesList.empty() || NoLists;
 
   if (BaseOutputFilename == "-")
     BaseOutputFilename = "a.out";
 
-  saveResults(ResultModules, ResultSymbolsLists);
+  if (PerformSplit) {
+    splitModule(*M.get(), GlobalsSet, ResultModules);
+    saveResultModules(ResultModules);
+  }
+
+  if (CollectSymbols) {
+    collectSymbolsLists(GlobalsSet, ResultSymbolsLists);
+    saveResultSymbolsLists(ResultSymbolsLists);
+  }
 
   return 0;
 }
