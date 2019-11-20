@@ -35,7 +35,7 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
 }
 
 static bool sameCtx(const ContextImplPtr &LHS, const ContextImplPtr &RHS) {
-  // Consider two different host context to be the same to avoid additional
+  // Consider two different host contexts to be the same to avoid additional
   // allocation on the host
   return LHS == RHS || (LHS->is_host() && RHS->is_host());
 }
@@ -180,26 +180,30 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
 
 // Takes linked alloca commands. Makes AllocaCmdDst command active using map
 // or unmap operation.
-Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
-                                     AllocaCommandBase *AllocaCmdDst) {
-  assert(AllocaCmdSrc->MLinkedAllocaCmd == AllocaCmdDst);
+static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
+                                            AllocaCommandBase *AllocaCmdDst) {
+  assert(AllocaCmdSrc->MLinkedAllocaCmd == AllocaCmdDst &&
+         "Expected linked alloca commands");
+  assert(AllocaCmdSrc->MIsActive &&
+         "Expected source alloca command to be active");
+
   if (AllocaCmdSrc->getQueue()->is_host()) {
-    std::unique_ptr<UnMapMemObject> UnMapCmdUPtr(new UnMapMemObject(
+    UnMapMemObject *UnMapCmd = new UnMapMemObject(
         AllocaCmdDst, *AllocaCmdDst->getRequirement(),
-        &AllocaCmdSrc->MMemAllocation, AllocaCmdDst->getQueue()));
+        &AllocaCmdSrc->MMemAllocation, AllocaCmdDst->getQueue());
 
     std::swap(AllocaCmdSrc->MIsActive, AllocaCmdDst->MIsActive);
 
-    return UnMapCmdUPtr.release();
+    return UnMapCmd;
   }
 
-  std::unique_ptr<MapMemObject> MapCmdUPtr(new MapMemObject(
-      AllocaCmdSrc, *AllocaCmdSrc->getRequirement(),
-      &AllocaCmdDst->MMemAllocation, AllocaCmdSrc->getQueue()));
+  MapMemObject *MapCmd =
+      new MapMemObject(AllocaCmdSrc, *AllocaCmdSrc->getRequirement(),
+                       &AllocaCmdDst->MMemAllocation, AllocaCmdSrc->getQueue());
 
   std::swap(AllocaCmdSrc->MIsActive, AllocaCmdDst->MIsActive);
 
-  return MapCmdUPtr.release();
+  return MapCmd;
 }
 
 Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,

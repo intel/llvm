@@ -194,7 +194,7 @@ cl_int AllocaCommand::enqueueImp() {
   if (!MIsLeaderAlloca) {
 
     if (MQueue->is_host()) {
-      // Do not need make allocation if we have linked device allocation
+      // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue, RawEvents, Event);
       return CL_SUCCESS;
     }
@@ -277,7 +277,7 @@ cl_int ReleaseCommand::enqueueImp() {
   bool NeedUnmap = false;
   if (MAllocaCmd->MLinkedAllocaCmd) {
 
-    // When releasing one of the "linked" allocation special rules take place:
+    // When releasing one of the "linked" allocations special rules take place:
     // 1. Device allocation should always be released.
     // 2. Host allocation should be released if host allocation is "leader".
     // 3. Device alloca in the pair should be in active state in order to be
@@ -295,7 +295,7 @@ cl_int ReleaseCommand::enqueueImp() {
     const QueueImplPtr &Queue = CurAllocaIsHost
                                     ? MAllocaCmd->MLinkedAllocaCmd->getQueue()
                                     : MAllocaCmd->getQueue();
-    RT::PiEvent MapEvent = nullptr;
+    RT::PiEvent UnmapEvent = nullptr;
 
     void *Src = CurAllocaIsHost
                     ? MAllocaCmd->getMemAllocation()
@@ -307,10 +307,10 @@ cl_int ReleaseCommand::enqueueImp() {
 
     MemoryManager::unmap(MAllocaCmd->getSYCLMemObj(), Dst, Queue, Src,
                          std::move(RawEvents), /*MUseExclusiveQueue*/ false,
-                         MapEvent);
+                         UnmapEvent);
 
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
-    RawEvents.push_back(MapEvent);
+    RawEvents.push_back(UnmapEvent);
   }
 
   RT::PiEvent &Event = MEvent->getHandleRef();

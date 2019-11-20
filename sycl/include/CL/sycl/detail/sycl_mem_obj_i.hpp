@@ -39,7 +39,7 @@ public:
   // InitFromUserData indicates that the returned memory should be intialized
   // with the data provided by user(if any). Usually it should happen on the
   // first allocation of memory for the memory object.
-  // Non null HostPtr requires allocation to be made USE_HOST_PTR property.
+  // Non null HostPtr requires allocation to be made with USE_HOST_PTR property.
   // Method returns a pointer to host allocation if Context is host one and
   // cl_mem obect if not.
   virtual void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
