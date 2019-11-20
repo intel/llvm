@@ -30,11 +30,20 @@ class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a PiKernel
   ///
+  /// This constructor is used for OpenCL interoperability. It always marks
+  /// kernel as being created from source and creates a new program_impl
+  /// instance.
+  ///
   /// @param Kernel is a valid PiKernel instance
   /// @param SyclContext is a valid SYCL context
   kernel_impl(RT::PiKernel Kernel, const context &SyclContext);
 
-  /// Constructs a SYCL kernel instance from a SYCL program
+  /// Constructs a SYCL kernel instance from a SYCL program and a PiKernel
+  ///
+  /// This constructor creates a new instance from PiKernel and associates it
+  /// with the provided SYCL program. If context of PiKernel differs from
+  /// context of the SYCL program, an invalid_parameter_error exception is
+  /// thrown.
   ///
   /// @param Kernel is a valid PiKernel instance
   /// @param SyclContext is a valid SYCL context
@@ -54,7 +63,7 @@ public:
 
   ~kernel_impl();
 
-  /// Gets a valid OpenCL interoperability kernel
+  /// Gets a valid OpenCL kernel handle
   ///
   /// The requirements for this method are described in section 4.3.1
   /// of the SYCL specification.
@@ -68,53 +77,42 @@ public:
     return pi::cast<cl_kernel>(MKernel);
   }
 
-  /// Check if this kernel is a SYCL host device kernel
+  /// Check if the associated SYCL context is a SYCL host context.
   ///
-  /// @return true if a kernel is a valid SYCL host device kernel
+  /// @return true if this SYCL kernel is a host kernel.
   bool is_host() const { return MContext.is_host(); }
-
-  /// Get the context that this kernel is defined for.
-  ///
-  /// The value returned must be equal to that returned by
-  /// get_info<info::kernel::context>().
-  ///
-  /// @return a valid SYCL context
-  context get_context() const { return MContext; }
-
-  /// Get the program that this kernel is defined for.
-  ///
-  /// The value returned must be equal to that returned by
-  /// get_info<info::kernel::program>().
-  ///
-  /// @return a valid SYCL program
-  program get_program() const;
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
   ///
-  /// Valid template parameters are described in Table 4.84 of the SYCL
-  /// specification.
+  /// @return depends on information being queried.
   template <info::kernel param>
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
 
-  /// Query information from the work-group from a kernel using the
+  /// Query work-group information from a kernel using the
   /// info::kernel_work_group descriptor for a specific device.
   ///
-  /// Valid template parameters are described in Table 4.85 of the SYCL
-  /// specification.
+  /// @param Deivce is a valid SYCL device.
+  /// @return depends on information being queried.
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
   get_work_group_info(const device &Device) const;
 
-  /// Query information from the sub-group from a kernel using the
+  /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device.
+  ///
+  /// @param Deivce is a valid SYCL device
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
 
-  /// Query information from the sub-group from a kernel using the
-  /// info::kernel_sub_group descriptor for a specific device.
+  /// Query sub-group information from a kernel using the
+  /// info::kernel_sub_group descriptor for a specific device and value.
+  ///
+  /// @param Deivce is a valid SYCL device.
+  /// @param Value depends on information being queried.
+  /// @return depends on information being queried.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(

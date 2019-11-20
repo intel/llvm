@@ -46,7 +46,7 @@ public:
 
   bool operator!=(const kernel &RHS) const { return !operator==(RHS); }
 
-  /// Get a valid OpenCL interoperability kernel
+  /// Get a valid OpenCL kernel handle
   ///
   /// The requirements for this method are described in section 4.3.1
   /// of the SYCL specification.
@@ -54,9 +54,9 @@ public:
   /// @return a valid cl_kernel instance
   cl_kernel get() const;
 
-  /// Check if this kernel is a SYCL host device kernel
+  /// Check if the associated SYCL context is a SYCL host context.
   ///
-  /// @return true if a kernel is a valid SYCL host device kernel
+  /// @return true if this SYCL kernel is a host kernel.
   bool is_host() const;
 
   /// Get the context that this kernel is defined for.
@@ -78,29 +78,35 @@ public:
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.
   ///
-  /// Valid template parameters are described in Table 4.84 of the SYCL
-  /// specification.
+  /// @return depends on information being queried.
   template <info::kernel param>
   typename info::param_traits<info::kernel, param>::return_type
   get_info() const;
 
-  /// Query information from the work-group from a kernel using the
+  /// Query work-group information from a kernel using the
   /// info::kernel_work_group descriptor for a specific device.
   ///
-  /// Valid template parameters are described in Table 4.85 of the SYCL
-  /// specification.
+  /// @param Deivce is a valid SYCL device.
+  /// @return depends on information being queried.
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
   get_work_group_info(const device &Device) const;
 
-  /// Query information from the sub-group from a kernel using the
+  /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device.
+  ///
+  /// @param Deivce is a valid SYCL device.
+  /// @return depends on information being queried.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
 
-  /// Query information from the sub-group from a kernel using the
-  /// info::kernel_sub_group descriptor for a specific device.
+  /// Query sub-group information from a kernel using the
+  /// info::kernel_sub_group descriptor for a specific device and value.
+  ///
+  /// @param Deivce is a valid SYCL device.
+  /// @param Value depends on information being queried.
+  /// @return depends on information being queried.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(

@@ -21,7 +21,13 @@ cl_kernel kernel::get() const { return impl->get(); }
 
 bool kernel::is_host() const { return impl->is_host(); }
 
-context kernel::get_context() const { return impl->get_context(); }
+context kernel::get_context() const {
+  return impl->get_info<info::kernel::context>();
+}
+
+program kernel::get_program() const {
+  return impl->get_info<info::kernel::program>();
+}
 
 template <info::kernel param>
 typename info::param_traits<info::kernel, param>::return_type
@@ -78,8 +84,6 @@ kernel::get_sub_group_info(
 #undef PARAM_TRAITS_SPEC_WITH_INPUT
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
-
-program kernel::get_program() const { return impl->get_program(); }
 
 } // namespace sycl
 } // namespace cl

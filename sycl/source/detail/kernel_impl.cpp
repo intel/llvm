@@ -51,10 +51,6 @@ kernel_impl::~kernel_impl() {
   }
 }
 
-program kernel_impl::get_program() const {
-  return createSyclObjFromImpl<program>(MProgramImpl);
-}
-
 template <info::kernel param>
 typename info::param_traits<info::kernel, param>::return_type
 kernel_impl::get_info() const {
@@ -68,11 +64,11 @@ kernel_impl::get_info() const {
 }
 
 template <> context kernel_impl::get_info<info::kernel::context>() const {
-  return get_context();
+  return MContext;
 }
 
 template <> program kernel_impl::get_info<info::kernel::program>() const {
-  return get_program();
+  return createSyclObjFromImpl<program>(MProgramImpl);
 }
 
 template <info::kernel_work_group param>
