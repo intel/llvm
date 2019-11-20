@@ -19,6 +19,7 @@ function(add_sycl_rt_library LIB_NAME)
 
   if (MSVC)
       target_compile_definitions(${LIB_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
+      target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
   endif()
   target_include_directories(${LIB_NAME} PRIVATE "${sycl_inc_dir}")
   target_link_libraries(${LIB_NAME}

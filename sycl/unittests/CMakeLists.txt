@@ -27,3 +27,4 @@ function(add_sycl_unittest test_dirname)
 endfunction()
 
 add_subdirectory(pi)
+add_subdirectory(misc)
