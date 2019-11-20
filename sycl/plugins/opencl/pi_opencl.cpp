@@ -460,14 +460,14 @@ pi_result OCL(piEnqueueMemBufferMap)(
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
-  strcpy(PluginInit->PluginVersion, SupportedVersion);
   int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
   if (CompareVersions < 0) {
     // PI interface supports lower version of PI.
-    assert(false && "incompatible versions.!!\n");
+    // TODO: Take appropriate actions.
     return PI_INVALID_OPERATION;
   } else {
     // PI interface supports higher version or the same version.
+    strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
 
 #define _PI_CL(pi_api, ocl_api)                                                \
   (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&ocl_api);

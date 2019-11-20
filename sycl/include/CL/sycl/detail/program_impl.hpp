@@ -87,12 +87,10 @@ public:
         NonInterOpToLink |= !Prg->IsLinkable;
         Programs.push_back(Prg->Program);
       }
-      RT::PiResult Err = PI_SUCCESS;
-      Err = PI_CALL_NOCHECK(piProgramLink)(
+      PI_CALL_THROW(piProgramLink, compile_program_error)(
           detail::getSyclObjImpl(Context)->getHandleRef(), Devices.size(),
           Devices.data(), LinkOptions.c_str(), Programs.size(), Programs.data(),
           nullptr, nullptr, &Program);
-      RT::piCheckThrow<compile_program_error>(Err);
     }
   }
 
@@ -245,11 +243,10 @@ public:
       check_device_feature_support<
           info::device::is_linker_available>(Devices);
       vector_class<RT::PiDevice> Devices(get_pi_devices());
-      RT::PiResult Err = PI_CALL_RESULT(piProgramLink)(
+      PI_CALL_THROW(piProgramLink, compile_program_error)(
           detail::getSyclObjImpl(Context)->getHandleRef(), Devices.size(),
           Devices.data(), LinkOptions.c_str(), 1, &Program, nullptr, nullptr,
           &Program);
-      RT::piCheckThrow<compile_program_error>(Err);
       this->LinkOptions = LinkOptions;
       BuildOptions = LinkOptions;
     }
