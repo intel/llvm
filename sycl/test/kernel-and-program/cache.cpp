@@ -63,7 +63,34 @@ struct TestContext {
 namespace pi = cl::sycl::detail::pi;
 namespace RT = cl::sycl::RT;
 
-static void testPositive() {
+static void testProgramCachePositive() {
+  TestContext TestCtx;
+
+  auto Prog = TestCtx.getProgram();
+
+  auto *CLProg = cl::sycl::detail::getSyclObjImpl(Prog)->getHandleRef();
+
+  auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+  assert(Ctx->getCachedPrograms().size() == 1 &&
+         "Expecting only a single element in program cache");
+  assert(Ctx->getCachedPrograms().begin()->second ==
+             pi::cast<pi_program>(CLProg) &&
+         "Invalid data in programs cache");
+}
+
+static void testProgramCacheNegativeCustomBuildOptions() {
+  TestContext TestCtx;
+
+  auto Prog = TestCtx.getProgram("-g");
+
+  auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+  assert(Ctx->getCachedPrograms().size() == 0 &&
+         "Expecting empty program cache");
+}
+
+static void testKernelCachePositive() {
   TestContext TestCtx;
 
   auto Prog = TestCtx.getProgram();
@@ -75,11 +102,6 @@ static void testPositive() {
 
     auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
 
-    assert(Ctx->getCachedPrograms().size() == 1 &&
-           "Expecting only a single element in program cache");
-    assert(Ctx->getCachedPrograms().begin()->second ==
-               pi::cast<pi_program>(CLProg) &&
-           "Invalid data in programs cache");
     assert(Ctx->getCachedKernels().size() == 1 &&
            "Expecting only a single element in kernels cache");
     assert(Ctx->getCachedKernels().begin()->first ==
@@ -93,7 +115,7 @@ static void testPositive() {
   }
 }
 
-void testNegativeLinkedProgram() {
+void testKernelCacheNegativeLinkedProgram() {
   TestContext TestCtx;
 
   auto Prog1 = TestCtx.getCompiledProgram();
@@ -111,7 +133,7 @@ void testNegativeLinkedProgram() {
   }
 }
 
-void testNegativeOCLProgram() {
+void testKernelCacheNegativeOCLProgram() {
   TestContext TestCtx;
 
   auto SyclProg = TestCtx.getProgram();
@@ -128,7 +150,7 @@ void testNegativeOCLProgram() {
   }
 }
 
-void testNegativeCustomBuildOptions() {
+void testKernelCacheNegativeCustomBuildOptions() {
   TestContext TestCtx;
 
   auto Prog = TestCtx.getProgram("-g");
@@ -136,18 +158,19 @@ void testNegativeCustomBuildOptions() {
 
   if (!TestCtx.Queue.is_host()) {
     auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
-    assert(Ctx->getCachedPrograms().size() == 0 &&
-           "Unexpected data in programs cache");
     assert(Ctx->getCachedKernels().size() == 0 &&
            "Unexpected data in kernels cache");
   }
 }
 
 int main() {
-  testPositive();
-  testNegativeLinkedProgram();
-  testNegativeOCLProgram();
-  testNegativeCustomBuildOptions();
+  testProgramCachePositive();
+  testProgramCacheNegativeCustomBuildOptions();
+
+  testKernelCachePositive();
+  testKernelCacheNegativeLinkedProgram();
+  testKernelCacheNegativeOCLProgram();
+  testKernelCacheNegativeCustomBuildOptions();
 
   return 0;
 }
