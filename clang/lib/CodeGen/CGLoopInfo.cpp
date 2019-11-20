@@ -895,27 +895,23 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     }
 
     if (IntelFPGAII) {
-      unsigned ValueInt = 0;
-      if (auto *E = IntelFPGAII->getIntervalExpr()) {
-        llvm::APSInt ArgVal(32);
-        if (E->isIntegerConstantExpr(ArgVal, Ctx)) {
-          ValueInt = ArgVal.getSExtValue();
-          if (ValueInt > 0)
-            setSYCLIInterval(ValueInt);
-        }
-      }
+      llvm::APSInt ArgVal(32);
+      bool IsValid =
+          IntelFPGAII->getIntervalExpr()->isIntegerConstantExpr(ArgVal, Ctx);
+      assert(IsValid && "Not an integer constant expression");
+      (void)IsValid;
+      setSYCLIInterval(ArgVal.getSExtValue());
     }
 
     if (IntelFPGAMaxConcurrency) {
-      unsigned ValueInt = 0;
-      if (auto *E = IntelFPGAMaxConcurrency->getNThreadsExpr()) {
-        llvm::APSInt ArgVal(32);
-        if (E->isIntegerConstantExpr(ArgVal, Ctx)) {
-          ValueInt = ArgVal.getSExtValue();
-          setSYCLMaxConcurrencyEnable();
-          setSYCLMaxConcurrencyNThreads(ValueInt);
-        }
-      }
+      llvm::APSInt ArgVal(32);
+      bool IsValid =
+          IntelFPGAMaxConcurrency->getNThreadsExpr()->isIntegerConstantExpr(
+              ArgVal, Ctx);
+      assert(IsValid && "Not an integer constant expression");
+      (void)IsValid;
+      setSYCLMaxConcurrencyEnable();
+      setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
     }
   }
 
