@@ -24,7 +24,7 @@ int main() {
   using globlMPtr = sycl::multi_ptr<int, address_space::global_space>;
   using constMPtr = sycl::multi_ptr<int, address_space::constant_space>;
   using localMPtr = sycl::multi_ptr<int, address_space::local_space>;
-  static_assert(std::is_same_v<globlCTAD, globlMPtr>);
-  static_assert(std::is_same_v<constCTAD, constMPtr>);
-  static_assert(std::is_same_v<localCTAD, localMPtr>);
+  static_assert(std::is_same<globlCTAD, globlMPtr>::value);
+  static_assert(std::is_same<constCTAD, constMPtr>::value);
+  static_assert(std::is_same<localCTAD, localMPtr>::value);
 }
