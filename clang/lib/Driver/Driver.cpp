@@ -783,7 +783,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (SYCLTargetsValues->getNumValues()) {
         for (const char *Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(Val);
-          if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR()) {
+          // Check for invalid triple values.  For AOT, these evaluate to
+          // regular SPIR target, so catch these early.
+          StringRef A(TT.getArchName());
+          if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR() ||
+              (TT.getSubArch() == llvm::Triple::NoSubArch &&
+               ((TT.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
+                (TT.getArch() == llvm::Triple::spir64 &&
+                 !A.equals("spir64"))))) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
           }
@@ -821,7 +828,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           std::pair<StringRef, StringRef> I = Val.split(':');
           if (!I.first.empty() && !I.second.empty()) {
             llvm::Triple TT(I.first);
-            if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR()) {
+            // Check for invalid triple values.
+            StringRef A(TT.getArchName());
+            if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR() ||
+                (TT.getSubArch() == llvm::Triple::NoSubArch &&
+                 ((TT.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
+                  (TT.getArch() == llvm::Triple::spir64 &&
+                   !A.equals("spir64"))))) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << I.first;
               continue;
             }
