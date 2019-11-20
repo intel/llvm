@@ -177,12 +177,10 @@ Sema::BuildSYCLIntelFPGAIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
 template <typename FPGALoopAttrT>
 FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
                                                 Expr *E) {
+  if (!E)
+    return nullptr;
 
-  unsigned SafeInterval = 0;
-  Expr *SafeExpr = nullptr;
-  if (E->isInstantiationDependent()) {
-    SafeExpr = E;
-  } else {
+  if (!E->isInstantiationDependent()) {
     llvm::APSInt ArgVal(32);
 
     if (!E->isIntegerConstantExpr(ArgVal, getASTContext())) {
@@ -208,12 +206,11 @@ FPGALoopAttrT *Sema::BuildSYCLIntelFPGALoopAttr(const AttributeCommonInfo &A,
         return nullptr;
       }
     } else {
-      llvm_unreachable("wrong sycl fpga loop attr");
+      llvm_unreachable("unknown sycl fpga loop attr");
     }
-    SafeInterval = Val;
   }
 
-  return new (Context) FPGALoopAttrT(Context, A, SafeExpr, SafeInterval);
+  return new (Context) FPGALoopAttrT(Context, A, E);
 }
 // Filters out any attributes from the list that are either not the specified
 // type, or whose function isDependent returns true.

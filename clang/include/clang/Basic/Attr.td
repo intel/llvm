@@ -1550,7 +1550,7 @@ def SYCLIntelFPGAIVDep : Attr {
 
 def SYCLIntelFPGAII : Attr {
   let Spellings = [CXX11<"intelfpga","ii">];
-  let Args = [ExprArgument<"IntervalExpr">, UnsignedArgument<"IntervalValue">];
+  let Args = [ExprArgument<"IntervalExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
   let AdditionalMembers = [{
@@ -1563,7 +1563,7 @@ def SYCLIntelFPGAII : Attr {
 
 def SYCLIntelFPGAMaxConcurrency : Attr {
   let Spellings = [CXX11<"intelfpga","max_concurrency">];
-  let Args = [ExprArgument<"NThreadsExpr">, UnsignedArgument<"NThreadsValue">];
+  let Args = [ExprArgument<"NThreadsExpr">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let HasCustomTypeTransform = 1;
   let AdditionalMembers = [{
