@@ -80,17 +80,12 @@ bool bindPlugin(void *Library) {
   decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
       &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
   int err = PluginInitializeFunction(&PluginInformation);
-  int CompareVersions =
-      strcmp(PluginInformation.PiVersion, PluginInformation.PluginVersion);
 
-  // CompareVersions >= 0, Plugin Interface supports same/higher PI version as
-  // the Plugin.
-  // TODO: When Plugin supports lower version of PI, check for backward
-  // compatibility.
-  assert((CompareVersions >= 0) && "Plugin Interface supports lower PI version "
-                                   "than Plugin. Update library.");
-  // Reaching here means CompareVersions>=0, make sure err is PI_SUCCESS.
+  // TODO: Compare Supported versions and check for backward compatibility.
+  // Make sure err is PI_SUCCESS.
   assert((err == PI_SUCCESS) && "Unexpected error when binding to Plugin.");
+  
+  // TODO: Return a more meaningful value/enum.
   return true;
 }
 
@@ -150,7 +145,7 @@ void assertion(bool Condition, const char *Message) {
 #define _PI_API(api)                                                           \
   template <>                                                                  \
   Trace<decltype(&::api),                                                      \
-        (offsetof(_pi_plugin::FunctionPointers, api))>::Trace() {              \
+        (offsetof(pi_plugin::FunctionPointers, api))>::Trace() {              \
     initialize();                                                              \
     m_FnPtr = (RT::PluginInformation.PiFunctionTable.api);                     \
     m_FnName = #api;                                                           \

@@ -86,13 +86,13 @@ public:
 
     RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
     RT::PiContext Context = nullptr;
-    RT::piCheckResult(PI_CALL_NOCHECK(piMemGetInfo)(
-        Mem, CL_MEM_CONTEXT, sizeof(Context), &Context, nullptr));
+    PI_CALL(piMemGetInfo)(
+        Mem, CL_MEM_CONTEXT, sizeof(Context), &Context, nullptr);
 
     if (MInteropContext->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(
           "Input context must be the same as the context of cl_mem");
-    RT::piCheckResult(PI_CALL_NOCHECK(piMemRetain)(Mem));
+    PI_CALL(piMemRetain)(Mem);
   }
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,

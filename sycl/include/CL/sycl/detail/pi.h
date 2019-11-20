@@ -917,13 +917,18 @@ pi_result piEnqueueMemUnmap(
 #define STRING_HELPER(a) #a
 #define STRINGIZE(a,b) STRING_HELPER(a.b)
 
-struct pi_plugin {
+struct _pi_plugin{
   // PI version supported by host passed to the plugin. The Plugin
   // checks and writes the appropriate Function Pointers in
-  // PIFunctionTable.
+  // PiFunctionTable.
+  // TODO: Work on version fields and their handshaking mechanism.
+  // Some choices are: 
+  // - Use of integers to keep major and minor version.
+  // - Keeping char* Versions.
   const char PiVersion[4] = STRINGIZE(_PI_H_VERSION_MAJOR,_PI_H_VERSION_MINOR);
+  // Plugin edits this.
   char PluginVersion[4] =
-      STRINGIZE(_PI_H_VERSION_MAJOR,_PI_H_VERSION_MINOR); // Plugin edits this.
+      STRINGIZE(_PI_H_VERSION_MAJOR,_PI_H_VERSION_MINOR);
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;
