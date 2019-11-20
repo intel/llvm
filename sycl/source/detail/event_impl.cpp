@@ -83,7 +83,7 @@ event_impl::event_impl(cl_event CLEvent, const context &SyclContext)
   PI_CALL(RT::piEventRetain, m_Event);
 }
 
-event_impl::event_impl(std::shared_ptr<cl::sycl::detail::queue_impl> Queue) {
+event_impl::event_impl(QueueImplPtr Queue) : m_Queue(Queue) {
   if (Queue->is_host() &&
       Queue->has_property<property::queue::enable_profiling>()) {
     m_HostProfilingInfo.reset(new HostProfilingInfo());
@@ -112,6 +112,8 @@ void event_impl::wait_and_throw(
     if (Cmd)
       Cmd->getQueue()->throw_asynchronous();
   }
+  if (m_Queue)
+    m_Queue->throw_asynchronous();
 }
 
 template <>
