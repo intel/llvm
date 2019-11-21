@@ -25,10 +25,10 @@ class A {
   int func3() {}
 };
 
-__attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a function with a raw pointer return type}}
+__attribute__((sycl_device)) // expected-warning {{SYCL 1.2.1 specification does not allow 'sycl_device' attribute applied to a function with a raw pointer return type}}
 int* func3() { return nullptr; }
 
-__attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a function with a raw pointer parameter type}}
+__attribute__((sycl_device)) // expected-warning {{SYCL 1.2.1 specification does not allow 'sycl_device' attribute applied to a function with a raw pointer parameter type}}
 void func3(int *) {}
 
 #else
