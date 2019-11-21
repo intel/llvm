@@ -242,25 +242,11 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(MemObjRecord *Record,
           !"Inappropriate alloca command. AllocaSubBufCommand was expected.");
   }
 
-  const QueueImplPtr &SrcQueue = AllocaCmdSrc->getQueue();
   Command *NewCmd = nullptr;
 
   if (AllocaCmdSrc->MLinkedAllocaCmd == AllocaCmdDst) {
     NewCmd = insertMapUnmapForLinkedCmds(AllocaCmdSrc, AllocaCmdDst);
   } else {
-
-    if (AllocaCmdDst->MLinkedAllocaCmd && !AllocaCmdDst->MIsActive) {
-      NewCmd = insertMapUnmapForLinkedCmds(AllocaCmdSrc, AllocaCmdDst);
-      const Requirement *NewReq = NewCmd->getRequirement();
-      for (Command *Dep : Deps) {
-        NewCmd->addDep(DepDesc{Dep, NewReq, AllocaCmdDst});
-        Dep->addUser(NewCmd);
-      }
-      UpdateLeafs(Deps, Record, access::mode::read_write);
-      AddNodeToLeafs(Record, NewCmd, access::mode::read_write);
-      Deps.clear();
-      Deps.insert(NewCmd);
-    }
 
     // Full copy of buffer is needed to avoid loss of data that may be caused
     // by copying specific range from host to device and backwards.
