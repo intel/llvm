@@ -88,7 +88,7 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
 }
 
 bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
-  uintptr_t Start, End;
+  uintptr_t Start = 0, End = 0;
   Stream >> Start;
   assert(!Stream.fail() && Stream.peek() == '-' &&
          "Couldn't read /proc/self/maps correctly");
@@ -104,8 +104,8 @@ bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
 
 /// Returns an absolute path to a directory where the object was found.
 std::string OSUtil::getCurrentDSODir() {
-  // Examine /proc/self/maps and find where ^~~this function comes from - this
-  // is supposed to be an absolute path to libsycl.so.
+  // Examine /proc/self/maps and find where this function (getCurrendDSODir)
+  // comes from - this is supposed to be an absolute path to libsycl.so.
   //
   // File structure is the following:
   //   address           perms offset  dev   inode       pathname
@@ -142,21 +142,17 @@ std::string OSUtil::getCurrentDSODir() {
     Stream.ignore(1);
 
     // Read and ignore the following:
-    uintptr_t Offset, DevMajor, DevMinor, Inode;
-    Stream >> Offset;
-    assert(Stream.peek() == ' ');
+    // offset
+    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ' ');
     Stream.ignore(1);
-
-    Stream >> DevMajor;
-    assert(Stream.peek() == ':' &&
-           "Couldn't read dev field in /proc/self/maps");
+    // dev major
+    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ':');
     Stream.ignore(1);
-    Stream >> DevMinor;
-    assert(Stream.peek() == ' ');
+    // dev minor
+    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ' ');
     Stream.ignore(1);
-
-    Stream >> Inode;
-    assert(Stream.peek() == ' ');
+    // inode
+    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ' ');
     Stream.ignore(1);
 
     // Now read the path: it is padded with whitespaces, so we skip them
@@ -175,9 +171,11 @@ std::string OSUtil::getCurrentDSODir() {
 
 std::string OSUtil::getDirName(const char* Path) {
   std::string Tmp(Path);
-  // dirname(3) needs a writable C string
-  return std::string(
-      dirname(const_cast<char*>(Tmp.c_str())));
+  // dirname(3) needs a writable C string: a null-terminator is written where a
+  // path should split.
+  size_t TruncatedSize = strlen(dirname(const_cast<char*>(Tmp.c_str())));
+  Tmp.resize(TruncatedSize);
+  return Tmp;
 }
 
 #elif defined(SYCL_RT_OS_WINDOWS)
