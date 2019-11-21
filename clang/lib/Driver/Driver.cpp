@@ -608,6 +608,20 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
   return RT;
 }
 
+static bool isValidSYCLTriple(llvm::Triple T) {
+  // Check for invalid SYCL device triple values.
+  StringRef A(T.getArchName());
+  // Non-SPIR arch.
+  if (T.getArch() == llvm::Triple::UnknownArch || !T.isSPIR())
+    return false;
+  // SPIR arch, but has invalid SubArch for AOT.
+  if (T.getSubArch() == llvm::Triple::NoSubArch &&
+      ((T.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
+       (T.getArch() == llvm::Triple::spir64 && !A.equals("spir64"))))
+    return false;
+  return true;
+}
+
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -783,14 +797,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (SYCLTargetsValues->getNumValues()) {
         for (const char *Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(Val);
-          // Check for invalid triple values.  For AOT, these evaluate to
-          // regular SPIR target, so catch these early.
-          StringRef A(TT.getArchName());
-          if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR() ||
-              (TT.getSubArch() == llvm::Triple::NoSubArch &&
-               ((TT.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
-                (TT.getArch() == llvm::Triple::spir64 &&
-                 !A.equals("spir64"))))) {
+          if (!isValidSYCLTriple(TT)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
           }
@@ -828,13 +835,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           std::pair<StringRef, StringRef> I = Val.split(':');
           if (!I.first.empty() && !I.second.empty()) {
             llvm::Triple TT(I.first);
-            // Check for invalid triple values.
-            StringRef A(TT.getArchName());
-            if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR() ||
-                (TT.getSubArch() == llvm::Triple::NoSubArch &&
-                 ((TT.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
-                  (TT.getArch() == llvm::Triple::spir64 &&
-                   !A.equals("spir64"))))) {
+            if (!isValidSYCLTriple(TT)) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << I.first;
               continue;
             }
