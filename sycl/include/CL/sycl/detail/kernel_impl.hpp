@@ -30,7 +30,7 @@ class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a PiKernel
   ///
-  /// This constructor is used for OpenCL interoperability. It always marks
+  /// This constructor is used for plug-in interoperability. It always marks
   /// kernel as being created from source and creates a new program_impl
   /// instance.
   ///
@@ -40,8 +40,8 @@ public:
 
   /// Constructs a SYCL kernel instance from a SYCL program and a PiKernel
   ///
-  /// This constructor creates a new instance from PiKernel and associates it
-  /// with the provided SYCL program. If context of PiKernel differs from
+  /// This constructor creates a new instance from PiKernel and saves
+  /// the provided SYCL program. If context of PiKernel differs from
   /// context of the SYCL program, an invalid_parameter_error exception is
   /// thrown.
   ///
@@ -94,7 +94,7 @@ public:
   /// Query work-group information from a kernel using the
   /// info::kernel_work_group descriptor for a specific device.
   ///
-  /// @param Deivce is a valid SYCL device.
+  /// @param Device is a valid SYCL device.
   /// @return depends on information being queried.
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
@@ -103,7 +103,7 @@ public:
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device.
   ///
-  /// @param Deivce is a valid SYCL device
+  /// @param Device is a valid SYCL device
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(const device &Device) const;
@@ -111,7 +111,7 @@ public:
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device and value.
   ///
-  /// @param Deivce is a valid SYCL device.
+  /// @param Device is a valid SYCL device.
   /// @param Value depends on information being queried.
   /// @return depends on information being queried.
   template <info::kernel_sub_group param>

@@ -87,7 +87,7 @@ public:
   /// Query work-group information from a kernel using the
   /// info::kernel_work_group descriptor for a specific device.
   ///
-  /// @param Deivce is a valid SYCL device.
+  /// @param Device is a valid SYCL device.
   /// @return depends on information being queried.
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
@@ -96,7 +96,7 @@ public:
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device.
   ///
-  /// @param Deivce is a valid SYCL device.
+  /// @param Device is a valid SYCL device.
   /// @return depends on information being queried.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
@@ -105,7 +105,7 @@ public:
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device and value.
   ///
-  /// @param Deivce is a valid SYCL device.
+  /// @param Device is a valid SYCL device.
   /// @param Value depends on information being queried.
   /// @return depends on information being queried.
   template <info::kernel_sub_group param>
