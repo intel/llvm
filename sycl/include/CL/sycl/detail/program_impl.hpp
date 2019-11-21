@@ -42,10 +42,13 @@ public:
   program_impl(const context &Context, vector_class<device> DeviceList)
       : Context(Context), Devices(DeviceList) {}
 
+  // Don't allow kernels caching for linked programs due to only compiled
+  // state of each and every program in the list and thus unknown state of
+  // caching resolution
   program_impl(vector_class<std::shared_ptr<program_impl>> ProgramList,
                string_class LinkOptions = "")
       : State(program_state::linked), LinkOptions(LinkOptions),
-        BuildOptions(LinkOptions) {
+        BuildOptions(LinkOptions), AllowKernelsCaching(false) {
     // Verify arguments
     if (ProgramList.empty()) {
       throw runtime_error("Non-empty vector of programs expected");
@@ -93,8 +96,10 @@ public:
     }
   }
 
+  // Disallow kernels caching for programs created by interoperability c-tor
   program_impl(const context &Context, RT::PiProgram Program)
-      : Program(Program), Context(Context), IsLinkable(true) {
+      : Program(Program), Context(Context), IsLinkable(true),
+        AllowKernelsCaching(false) {
 
     // TODO handle the case when cl_program build is in progress
     cl_uint NumDevices;
@@ -203,10 +208,13 @@ public:
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
       // If there are no build options, program can be safely cached
-      if (BuildOptions.empty()) {
-        Program = ProgramManager::getInstance().getBuiltOpenCLProgram(M, Context);
+      if (is_cacheable_with_build_options(BuildOptions)) {
+        Program =
+            ProgramManager::getInstance().getBuiltOpenCLProgram(M, Context);
         PI_CALL(RT::piProgramRetain, Program);
       } else {
+        AllowKernelsCaching = false;
+
         create_cl_program_with_il(M);
         build(BuildOptions);
       }
@@ -217,6 +225,9 @@ public:
   void build_with_source(string_class KernelSource,
                          string_class BuildOptions = "") {
     throw_if_state_is_not(program_state::none);
+
+    AllowKernelsCaching = false;
+
     // TODO should it throw if it's host?
     if (!is_host()) {
       create_cl_program_with_source(KernelSource);
@@ -231,11 +242,10 @@ public:
       check_device_feature_support<
           info::device::is_linker_available>(Devices);
       vector_class<RT::PiDevice> Devices(get_pi_devices());
-      RT::PiResult Err;
-      Err = PI_CALL_RESULT(RT::piProgramLink,
-                           detail::getSyclObjImpl(Context)->getHandleRef(),
-                           Devices.size(), Devices.data(), LinkOptions.c_str(),
-                           1, &Program, nullptr, nullptr, &Program);
+      RT::PiResult Err = PI_CALL_RESULT(
+            RT::piProgramLink, detail::getSyclObjImpl(Context)->getHandleRef(),
+            Devices.size(), Devices.data(), LinkOptions.c_str(), 1, &Program,
+            nullptr, nullptr, &Program);
       RT::piCheckThrow<compile_program_error>(Err);
       this->LinkOptions = LinkOptions;
       BuildOptions = LinkOptions;
@@ -411,16 +421,33 @@ private:
     return false;
   }
 
+  bool is_cacheable() const {
+    return is_cacheable_with_build_options(BuildOptions) && AllowKernelsCaching;
+  }
+
+  static bool
+  is_cacheable_with_build_options(const string_class &BuildOptions) {
+    return BuildOptions.empty();
+  }
+
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const {
     RT::PiKernel Kernel;
-    RT::PiResult Err;
-    Err = PI_CALL_RESULT(RT::piKernelCreate, Program, KernelName.c_str(),
-                         &Kernel);
-    if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
-      throw invalid_object_error(
-          "This instance of program does not contain the kernel requested");
+
+    if (is_cacheable()) {
+      OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
+
+      Kernel = ProgramManager::getInstance().getOrCreateKernel(M, Context,
+                                                               KernelName);
+    } else {
+      RT::PiResult Err = PI_CALL_RESULT(RT::piKernelCreate, Program,
+                                        KernelName.c_str(), &Kernel);
+      if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
+        throw invalid_object_error(
+            "This instance of program does not contain the kernel requested");
+      }
+      RT::piCheckResult(Err);
     }
-    RT::piCheckResult(Err);
+
     return Kernel;
   }
 
@@ -454,6 +481,11 @@ private:
   string_class CompileOptions;
   string_class LinkOptions;
   string_class BuildOptions;
+
+  // Only allow kernel caching for programs constructed with context only (or
+  // device list and context) and built with build_with_kernel_type with
+  // default build options
+  bool AllowKernelsCaching = true;
 };
 
 template <>

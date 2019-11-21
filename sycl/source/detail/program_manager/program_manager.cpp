@@ -118,6 +118,8 @@ RT::PiKernel ProgramManager::getOrCreateKernel(OSModuleHandle M,
   RT::PiKernel &Kernel = KernelsCache[KernelName];
   if (!Kernel) {
     PI_CALL(RT::piKernelCreate, Program, KernelName.c_str(), &Kernel);
+    // TODO need some user-friendly error/exception
+    // instead of currently obscure one
   }
   return Kernel;
 }
