@@ -103,12 +103,12 @@ public:
 
     // TODO handle the case when cl_program build is in progress
     cl_uint NumDevices;
-    PI_CALL(piProgramGetInfo)
-    (Program, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint), &NumDevices, nullptr);
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint),
+                              &NumDevices, nullptr);
     vector_class<RT::PiDevice> PiDevices(NumDevices);
-    PI_CALL(piProgramGetInfo)
-    (Program, CL_PROGRAM_DEVICES, sizeof(RT::PiDevice) * NumDevices,
-     PiDevices.data(), nullptr);
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_DEVICES,
+                              sizeof(RT::PiDevice) * NumDevices,
+                              PiDevices.data(), nullptr);
     vector_class<device> SyclContextDevices = Context.get_devices();
 
     // Keep only the subset of the devices (associated with context) that
@@ -126,16 +126,15 @@ public:
     RT::PiDevice Device = getSyclObjImpl(Devices[0])->getHandleRef();
     // TODO check build for each device instead
     cl_program_binary_type BinaryType;
-    PI_CALL(piProgramGetBuildInfo)
-    (Program, Device, CL_PROGRAM_BINARY_TYPE, sizeof(cl_program_binary_type),
-     &BinaryType, nullptr);
+    PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BINARY_TYPE,
+                                   sizeof(cl_program_binary_type), &BinaryType,
+                                   nullptr);
     size_t Size = 0;
-    PI_CALL(piProgramGetBuildInfo)
-    (Program, Device, CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &Size);
+    PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_OPTIONS, 0,
+                                   nullptr, &Size);
     std::vector<char> OptionsVector(Size);
-    PI_CALL(piProgramGetBuildInfo)
-    (Program, Device, CL_PROGRAM_BUILD_OPTIONS, Size, OptionsVector.data(),
-     nullptr);
+    PI_CALL(piProgramGetBuildInfo)(Program, Device, CL_PROGRAM_BUILD_OPTIONS,
+                                   Size, OptionsVector.data(), nullptr);
     string_class Options(OptionsVector.begin(), OptionsVector.end());
     switch (BinaryType) {
     case CL_PROGRAM_BINARY_TYPE_NONE:
@@ -314,18 +313,18 @@ public:
     vector_class<vector_class<char>> Result;
     if (!is_host()) {
       vector_class<size_t> BinarySizes(Devices.size());
-      PI_CALL(piProgramGetInfo)
-      (Program, CL_PROGRAM_BINARY_SIZES, sizeof(size_t) * BinarySizes.size(),
-       BinarySizes.data(), nullptr);
+      PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_BINARY_SIZES,
+                                sizeof(size_t) * BinarySizes.size(),
+                                BinarySizes.data(), nullptr);
 
       vector_class<char *> Pointers;
       for (size_t I = 0; I < BinarySizes.size(); ++I) {
         Result.emplace_back(BinarySizes[I]);
         Pointers.push_back(Result[I].data());
       }
-      PI_CALL(piProgramGetInfo)
-      (Program, CL_PROGRAM_BINARIES, sizeof(char *) * Pointers.size(),
-       Pointers.data(), nullptr);
+      PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_BINARIES,
+                                sizeof(char *) * Pointers.size(),
+                                Pointers.data(), nullptr);
     }
     return Result;
   }
@@ -363,8 +362,9 @@ private:
     assert(!Program && "This program already has an encapsulated cl_program");
     const char *Src = Source.c_str();
     size_t Size = Source.size();
-    PI_CALL(piclProgramCreateWithSource)
-    (detail::getSyclObjImpl(Context)->getHandleRef(), 1, &Src, &Size, &Program);
+    PI_CALL(piclProgramCreateWithSource)(
+        detail::getSyclObjImpl(Context)->getHandleRef(), 1, &Src, &Size,
+        &Program);
   }
 
   void compile(const string_class &Options) {
@@ -408,11 +408,11 @@ private:
 
   bool has_cl_kernel(const string_class &KernelName) const {
     size_t Size;
-    PI_CALL(piProgramGetInfo)
-    (Program, CL_PROGRAM_KERNEL_NAMES, 0, nullptr, &Size);
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES, 0, nullptr,
+                              &Size);
     string_class ClResult(Size, ' ');
-    PI_CALL(piProgramGetInfo)
-    (Program, CL_PROGRAM_KERNEL_NAMES, ClResult.size(), &ClResult[0], nullptr);
+    PI_CALL(piProgramGetInfo)(Program, CL_PROGRAM_KERNEL_NAMES, ClResult.size(),
+                              &ClResult[0], nullptr);
     // Get rid of the null terminator
     ClResult.pop_back();
     vector_class<string_class> KernelNames(split_string(ClResult, ';'));

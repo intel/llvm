@@ -156,8 +156,7 @@ class TraceCheck : private Trace<FnType, FnOffset> {
 public:
   TraceCheck() : Trace<FnType, FnOffset>(){};
 
-  template <typename... Args>
-  void operator()(Args... args) {
+  template <typename... Args> void operator()(Args... args) {
     PiResult Err = (Trace<FnType, FnOffset>::operator()(args...));
     piCheckResult<Exception>(Err);
   }
@@ -183,8 +182,7 @@ namespace RT = cl::sycl::detail::pi;
 // runtime_error exception.
 // Usage: PI_CALL(pi)(Args);
 #define PI_CALL(pi)                                                            \
-  RT::TraceCheck<decltype(&::pi),                                              \
-                 (offsetof(pi_plugin::FunctionPointers, pi))>()
+  RT::TraceCheck<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi))>()
 
 // Use this macro to call the API, trace the call and return the result.
 // To check the result use piCheckResult.
@@ -199,8 +197,8 @@ namespace RT = cl::sycl::detail::pi;
 // Exception as given in the MACRO.
 // Usage: PI_CALL_THROW(pi, compile_program_error)(args);
 #define PI_CALL_THROW(pi, Exception)                                           \
-  RT::TraceCheck<decltype(&::pi),                                              \
-                 (offsetof(pi_plugin::FunctionPointers, pi)), Exception>()
+  RT::TraceCheck<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi)), \
+                 Exception>()
 
 // Want all the needed casts be explicit, do not define conversion
 // operators.

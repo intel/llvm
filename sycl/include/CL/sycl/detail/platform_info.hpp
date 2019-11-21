@@ -24,15 +24,15 @@ struct get_platform_info<string_class, param> {
   static string_class _(RT::PiPlatform plt) {
     size_t resultSize;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piPlatformGetInfo)
-    (plt, pi::cast<pi_platform_info>(param), 0, nullptr, &resultSize);
+    PI_CALL(piPlatformGetInfo)(plt, pi::cast<pi_platform_info>(param), 0,
+                               nullptr, &resultSize);
     if (resultSize == 0) {
       return "";
     }
     unique_ptr_class<char[]> result(new char[resultSize]);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piPlatformGetInfo)
-    (plt, pi::cast<pi_platform_info>(param), resultSize, result.get(), nullptr);
+    PI_CALL(piPlatformGetInfo)(plt, pi::cast<pi_platform_info>(param),
+                               resultSize, result.get(), nullptr);
     return result.get();
   }
 };

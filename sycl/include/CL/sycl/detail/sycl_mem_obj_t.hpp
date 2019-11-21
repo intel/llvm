@@ -86,8 +86,8 @@ public:
 
     RT::PiMem Mem = pi::cast<RT::PiMem>(MInteropMemObject);
     RT::PiContext Context = nullptr;
-    PI_CALL(piMemGetInfo)(
-        Mem, CL_MEM_CONTEXT, sizeof(Context), &Context, nullptr);
+    PI_CALL(piMemGetInfo)(Mem, CL_MEM_CONTEXT, sizeof(Context), &Context,
+                          nullptr);
 
     if (MInteropContext->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(
