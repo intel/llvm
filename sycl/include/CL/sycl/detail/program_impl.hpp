@@ -441,7 +441,7 @@ private:
                                                                KernelName);
     } else {
       RT::PiResult Err =
-          PI_CALL_RESULT(piKernelCreate)(Program, KernelName.c_str(), &Kernel);
+          PI_CALL_NOCHECK(piKernelCreate)(Program, KernelName.c_str(), &Kernel);
       if (Err == PI_RESULT_INVALID_KERNEL_NAME) {
         throw invalid_object_error(
             "This instance of program does not contain the kernel requested");
