@@ -1,4 +1,4 @@
-// RUN: %clang -I %S/Inputs --sycl -Xclang -fsycl-int-header=%t.h %s
+// RUN: %clang -I %S/Inputs -fsycl-device-only -Xclang -fsycl-int-header=%t.h %s
 // RUN: FileCheck -input-file=%t.h %s
 
 #include <sycl.hpp>

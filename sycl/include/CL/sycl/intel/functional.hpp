@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <functional>
 
 namespace cl {
 namespace sycl {
@@ -14,37 +15,43 @@ namespace intel {
 
 template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {
-    return (lhs <= rhs) ? lhs : rhs;
+    return std::less<T>()(lhs, rhs) ? lhs : rhs;
   }
 };
 
+#if __cplusplus >= 201402L
 template <> struct minimum<void> {
-  template <typename T> T operator()(const T &lhs, const T &rhs) const {
-    return (lhs <= rhs) ? lhs : rhs;
+  struct is_transparent {};
+  template <typename T, typename U>
+  auto operator()(T &&lhs, U &&rhs) const ->
+      typename std::common_type<T &&, U &&>::type {
+    return std::less<>()(std::forward<const T>(lhs), std::forward<const U>(rhs))
+               ? std::forward<T>(lhs)
+               : std::forward<U>(rhs);
   }
 };
+#endif
 
 template <typename T = void> struct maximum {
   T operator()(const T &lhs, const T &rhs) const {
-    return (lhs >= rhs) ? lhs : rhs;
+    return std::greater<T>()(lhs, rhs) ? lhs : rhs;
   }
 };
 
+#if __cplusplus >= 201402L
 template <> struct maximum<void> {
-  template <typename T> T operator()(const T &lhs, const T &rhs) const {
-    return (lhs >= rhs) ? lhs : rhs;
+  struct is_transparent {};
+  template <typename T, typename U>
+  auto operator()(T &&lhs, U &&rhs) const ->
+      typename std::common_type<T &&, U &&>::type {
+    return std::greater<>()(std::forward<const T>(lhs), std::forward<const U>(rhs))
+               ? std::forward<T>(lhs)
+               : std::forward<U>(rhs);
   }
 };
+#endif
 
-template <typename T = void> struct plus {
-  T operator()(const T &lhs, const T &rhs) const { return lhs + rhs; }
-};
-
-template <> struct plus<void> {
-  template <typename T> T operator()(const T &lhs, const T &rhs) const {
-    return lhs + rhs;
-  }
-};
+template <typename T = void> using plus = std::plus<T>;
 
 } // namespace intel
 } // namespace sycl

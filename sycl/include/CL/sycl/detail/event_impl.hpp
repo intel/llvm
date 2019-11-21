@@ -22,6 +22,7 @@ namespace detail {
 class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
+using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
 
 // Profiling info for the host execution.
 class HostProfilingInfo {
@@ -40,7 +41,7 @@ class event_impl {
 public:
   event_impl() = default;
   event_impl(cl_event CLEvent, const context &SyclContext);
-  event_impl(std::shared_ptr<cl::sycl::detail::queue_impl> Queue);
+  event_impl(QueueImplPtr Queue);
 
   // Threat all devices that don't support interoperability as host devices to
   // avoid attempts to call method get on such events.
@@ -87,6 +88,7 @@ public:
 private:
   RT::PiEvent m_Event = nullptr;
   ContextImplPtr m_Context;
+  QueueImplPtr m_Queue;
   bool m_OpenCLInterop = false;
   bool m_HostEvent = true;
   std::unique_ptr<HostProfilingInfo> m_HostProfilingInfo;

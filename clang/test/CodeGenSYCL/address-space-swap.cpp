@@ -1,4 +1,4 @@
-// RUN: %clang --sycl -S -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang -fsycl-device-only -S -emit-llvm -x c++ %s -o - | FileCheck %s
 #include <algorithm>
 
 

@@ -13,7 +13,7 @@ namespace sycl = cl::sycl;
 
 int main() {
   sycl::vec v1(1);
-  static_assert(std::is_same_v<decltype(v1), sycl::vec<int, 1>>);
+  static_assert(std::is_same<decltype(v1), sycl::vec<int, 1>>::value);
   sycl::vec v2(1, 2);
-  static_assert(std::is_same_v<decltype(v2), sycl::vec<int, 2>>);
+  static_assert(std::is_same<decltype(v2), sycl::vec<int, 2>>::value);
 }

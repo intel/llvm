@@ -97,8 +97,7 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
 }
 
 // Returns record for the memory objects passed, nullptr if doesn't exist.
-MemObjRecord *
-Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
+MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
   return MemObject->MRecord.get();
 }
 
@@ -157,10 +156,10 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
       findAllocaForReq(Record, Req, Queue->get_context_impl());
   assert(AllocaCmd && "There must be alloca for requirement!");
   UpdateHostRequirementCommand *UpdateCommand =
-      new UpdateHostRequirementCommand(Queue, AllocaCmd, Req, &Req->MData);
+      new UpdateHostRequirementCommand(Queue, *Req, AllocaCmd, &Req->MData);
   // Need copy of requirement because after host accessor destructor call
   // dependencies become invalid if requirement is stored by pointer.
-  Requirement *StoredReq = UpdateCommand->getStoredRequirement();
+  const Requirement *StoredReq = UpdateCommand->getRequirement();
 
   std::set<Command *> Deps = findDepsForReq(Record, Req, Queue);
   for (Command *Dep : Deps) {
@@ -210,12 +209,12 @@ Scheduler::GraphBuilder::insertMemCpyCmd(MemObjRecord *Record, Requirement *Req,
   // Full copy of buffer is needed to avoid loss of data that may be caused
   // by copying specific range form host to device and backwards.
   MemCpyCommand *MemCpyCmd = new MemCpyCommand(
-      *AllocaCmdSrc->getAllocationReq(), AllocaCmdSrc,
-      *AllocaCmdDst->getAllocationReq(), AllocaCmdDst, AllocaCmdSrc->getQueue(),
+      *AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
+      *AllocaCmdDst->getRequirement(), AllocaCmdDst, AllocaCmdSrc->getQueue(),
       AllocaCmdDst->getQueue(), UseExclusiveQueue);
 
   for (Command *Dep : Deps) {
-    MemCpyCmd->addDep(DepDesc{Dep, &MemCpyCmd->MDstReq, AllocaCmdDst});
+    MemCpyCmd->addDep(DepDesc{Dep, MemCpyCmd->getRequirement(), AllocaCmdDst});
     Dep->addUser(MemCpyCmd);
   }
   UpdateLeafs(Deps, Record, access::mode::read_write);
@@ -243,7 +242,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
       findAllocaForReq(Record, Req, Record->MCurContext);
 
   std::unique_ptr<MemCpyCommandHost> MemCpyCmdUniquePtr(new MemCpyCommandHost(
-      *SrcAllocaCmd->getAllocationReq(), SrcAllocaCmd, *Req, &Req->MData,
+      *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
       SrcAllocaCmd->getQueue(), std::move(HostQueue)));
 
   if (!MemCpyCmdUniquePtr)
@@ -251,7 +250,7 @@ Command *Scheduler::GraphBuilder::addCopyBack(Requirement *Req) {
 
   MemCpyCommandHost *MemCpyCmd = MemCpyCmdUniquePtr.release();
   for (Command *Dep : Deps) {
-    MemCpyCmd->addDep(DepDesc{Dep, &MemCpyCmd->MDstReq, SrcAllocaCmd});
+    MemCpyCmd->addDep(DepDesc{Dep, MemCpyCmd->getRequirement(), SrcAllocaCmd});
     Dep->addUser(MemCpyCmd);
   }
 
@@ -302,7 +301,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   Req->BlockingEvent.reset(new detail::event_impl());
   Req->BlockingEvent->setContextImpl(SrcContext);
   RT::PiEvent &Event = Req->BlockingEvent->getHandleRef();
-  PI_CALL(RT::piEventCreate,SrcContext->getHandleRef(), &Event);
+  PI_CALL(RT::piEventCreate, SrcContext->getHandleRef(), &Event);
 
   // In case of memory is 1 dimensional and located on OpenCL device we
   // can use map/unmap operation.
@@ -312,7 +311,7 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
       Req->MSYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::BUFFER) {
 
     std::unique_ptr<MapMemObject> MapCmdUniquePtr(
-        new MapMemObject(SrcAllocaCmd, Req, &Req->MData, SrcQueue));
+        new MapMemObject(SrcAllocaCmd, *Req, &Req->MData, SrcQueue));
 
     /*
     [SYCL] Use exclusive queues for blocked commands.
@@ -441,19 +440,19 @@ Command *Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     */
 
     std::unique_ptr<UnMapMemObject> UnMapCmdUniquePtr(new UnMapMemObject(
-        SrcAllocaCmd, Req, &Req->MData, SrcQueue, /*UseExclusiveQueue*/ true));
+        SrcAllocaCmd, *Req, &Req->MData, SrcQueue, /*UseExclusiveQueue*/ true));
 
     if (!MapCmdUniquePtr || !UnMapCmdUniquePtr)
       throw runtime_error("Out of host memory");
 
     MapMemObject *MapCmd = MapCmdUniquePtr.release();
     for (Command *Dep : Deps) {
-      MapCmd->addDep(DepDesc{Dep, &MapCmd->MReq, SrcAllocaCmd});
+      MapCmd->addDep(DepDesc{Dep, MapCmd->getRequirement(), SrcAllocaCmd});
       Dep->addUser(MapCmd);
     }
 
     Command *UnMapCmd = UnMapCmdUniquePtr.release();
-    UnMapCmd->addDep(DepDesc{MapCmd, &MapCmd->MReq, SrcAllocaCmd});
+    UnMapCmd->addDep(DepDesc{MapCmd, MapCmd->getRequirement(), SrcAllocaCmd});
     MapCmd->addUser(UnMapCmd);
 
     UpdateLeafs(Deps, Record, Req->MAccessMode);
@@ -524,16 +523,16 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record, Requirement *Req,
     std::vector<Command *> NewAnalyze;
 
     for (const DepDesc &Dep : DepCmd->MDeps) {
-      if (Dep.MReq->MSYCLMemObj != Req->MSYCLMemObj)
+      if (Dep.MDepRequirement->MSYCLMemObj != Req->MSYCLMemObj)
         continue;
 
       bool CanBypassDep = false;
       // If both only read
       CanBypassDep |=
-          Dep.MReq->MAccessMode == access::mode::read && ReadOnlyReq;
+          Dep.MDepRequirement->MAccessMode == access::mode::read && ReadOnlyReq;
 
       // If not overlap
-      CanBypassDep |= !doOverlap(Dep.MReq, Req);
+      CanBypassDep |= !doOverlap(Dep.MDepRequirement, Req);
 
       // Going through copying memory between contexts is not supported.
       if (Dep.MDepCommand)
@@ -562,7 +561,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
   auto IsSuitableAlloca = [&Context, Req](AllocaCommandBase *AllocaCmd) {
     bool Res = AllocaCmd->getQueue()->get_context_impl() == Context;
     if (IsSuitableSubReq(Req)) {
-      auto TmpReq = AllocaCmd->getAllocationReq();
+      auto TmpReq = AllocaCmd->getRequirement();
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
       Res &= TmpReq->MSYCLMemObj->getSize() == Req->MSYCLMemObj->getSize();
     }
@@ -610,8 +609,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
 }
 
 // The function sets MemModified flag in record if requirement has write access.
-void Scheduler::GraphBuilder::markModifiedIfWrite(
-    MemObjRecord *Record, Requirement *Req) {
+void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
+                                                  Requirement *Req) {
   switch (Req->MAccessMode) {
   case access::mode::write:
   case access::mode::read_write:
@@ -663,7 +662,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   // Set new command as user for dependencies and update leafs.
   for (DepDesc &Dep : NewCmd->MDeps) {
     Dep.MDepCommand->addUser(NewCmd.get());
-    Requirement *Req = Dep.MReq;
+    const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     UpdateLeafs({Dep.MDepCommand}, Record, Req->MAccessMode);
     AddNodeToLeafs(Record, NewCmd.get(), Req->MAccessMode);
@@ -698,10 +697,11 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
         for (Command *UserCmd : CandidateCommand->MUsers) {
           // As candidate command is about to be freed, we need
           // to remove it from dependency list of other commands.
-          auto NewEnd = std::remove_if(UserCmd->MDeps.begin(),
-                  UserCmd->MDeps.end(), [CandidateCommand] (const DepDesc &Dep) {
-                    return Dep.MDepCommand == CandidateCommand;
-                    });
+          auto NewEnd =
+              std::remove_if(UserCmd->MDeps.begin(), UserCmd->MDeps.end(),
+                             [CandidateCommand](const DepDesc &Dep) {
+                               return Dep.MDepCommand == CandidateCommand;
+                             });
           UserCmd->MDeps.erase(NewEnd, UserCmd->MDeps.end());
 
           // Commands that have no unsatisfied dependencies can be executed
@@ -721,10 +721,9 @@ void Scheduler::GraphBuilder::cleanupCommands(bool CleanupReleaseCommands) {
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
-  const auto It = std::find_if(MMemObjs.begin(), MMemObjs.end(),
-                                 [MemObject](const SYCLMemObjI *Obj) {
-                                   return Obj == MemObject;
-                                 });
+  const auto It = std::find_if(
+      MMemObjs.begin(), MMemObjs.end(),
+      [MemObject](const SYCLMemObjI *Obj) { return Obj == MemObject; });
   if (It != MMemObjs.end())
     MMemObjs.erase(It);
   MemObject->MRecord.reset(nullptr);
