@@ -96,8 +96,7 @@ public:
     }
   }
 
-  // Assume OpenCL program is built from C OpenCL source and thus
-  // disallow kernels caching
+  // Disallow kernels caching for programs created by interoperability c-tor
   program_impl(const context &Context, RT::PiProgram Program)
       : Program(Program), Context(Context), IsLinkable(true),
         AllowKernelsCaching(false) {
