@@ -38,8 +38,8 @@ public:
         IsCreatedFromSource(IsCreatedFromSource) {
 
     RT::PiContext Context = nullptr;
-    PI_CALL(piKernelGetInfo)
-    (Kernel, CL_KERNEL_CONTEXT, sizeof(Context), &Context, nullptr);
+    PI_CALL(piKernelGetInfo)(Kernel, CL_KERNEL_CONTEXT, sizeof(Context),
+                             &Context, nullptr);
     auto ContextImpl = detail::getSyclObjImpl(SyclContext);
     if (ContextImpl->getHandleRef() != Context)
       throw cl::sycl::invalid_parameter_error(

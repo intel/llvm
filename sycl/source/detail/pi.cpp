@@ -84,7 +84,7 @@ bool bindPlugin(void *Library) {
   // TODO: Compare Supported versions and check for backward compatibility.
   // Make sure err is PI_SUCCESS.
   assert((err == PI_SUCCESS) && "Unexpected error when binding to Plugin.");
-  
+
   // TODO: Return a more meaningful value/enum.
   return true;
 }
@@ -145,7 +145,7 @@ void assertion(bool Condition, const char *Message) {
 #define _PI_API(api)                                                           \
   template <>                                                                  \
   Trace<decltype(&::api),                                                      \
-        (offsetof(pi_plugin::FunctionPointers, api))>::Trace() {              \
+        (offsetof(pi_plugin::FunctionPointers, api))>::Trace() {               \
     initialize();                                                              \
     m_FnPtr = (RT::PluginInformation.PiFunctionTable.api);                     \
     m_FnName = #api;                                                           \

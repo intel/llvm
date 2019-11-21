@@ -54,8 +54,8 @@ public:
 
     RT::PiDevice Device = nullptr;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piQueueGetInfo)
-    (m_CommandQueue, PI_QUEUE_INFO_DEVICE, sizeof(Device), &Device, nullptr);
+    PI_CALL(piQueueGetInfo)(m_CommandQueue, PI_QUEUE_INFO_DEVICE,
+                            sizeof(Device), &Device, nullptr);
     m_Device =
         createSyclObjFromImpl<device>(std::make_shared<device_impl>(Device));
 

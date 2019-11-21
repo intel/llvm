@@ -107,9 +107,9 @@ std::vector<RT::PiEvent> Command::prepareEvents(ContextImplPtr Context) {
 
       RT::PiEvent &GlueEventHandle = GlueEvent->getHandleRef();
       PI_CALL(piEventCreate)(Context->getHandleRef(), &GlueEventHandle);
-      PI_CALL(piEventSetCallback)
-      (Event->getHandleRef(), CL_COMPLETE, EventCompletionClbk,
-       /*data=*/GlueEventHandle);
+      PI_CALL(piEventSetCallback)(Event->getHandleRef(), CL_COMPLETE,
+                                  EventCompletionClbk,
+                                  /*data=*/GlueEventHandle);
       GlueEvents.push_back(std::move(GlueEvent));
       Result.push_back(GlueEventHandle);
       continue;
@@ -127,8 +127,8 @@ void Command::waitForEvents(QueueImplPtr Queue,
     if (Queue->is_host()) {
       PI_CALL(piEventsWait)(RawEvents.size(), &RawEvents[0]);
     } else {
-      PI_CALL(piEnqueueEventsWait)
-      (Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
+      PI_CALL(piEnqueueEventsWait)(Queue->getHandleRef(), RawEvents.size(),
+                                   &RawEvents[0], &Event);
     }
   }
 }
@@ -843,8 +843,8 @@ cl_int ExecCGCommand::enqueueImp() {
         sampler *SamplerPtr = (sampler *)Arg.MPtr;
         RT::PiSampler Sampler =
             detail::getSyclObjImpl(*SamplerPtr)->getOrCreateSampler(Context);
-        PI_CALL(piKernelSetArg)
-        (Kernel, Arg.MIndex, sizeof(cl_sampler), &Sampler);
+        PI_CALL(piKernelSetArg)(Kernel, Arg.MIndex, sizeof(cl_sampler),
+                                &Sampler);
         break;
       }
       case kernel_param_kind_t::kind_pointer: {
@@ -876,10 +876,10 @@ cl_int ExecCGCommand::enqueueImp() {
 
     ReverseRangeDimensionsForKernel(NDRDesc);
 
-    PI_CALL(piEnqueueKernelLaunch)
-    (MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-     &NDRDesc.GlobalSize[0], HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr,
-     RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
+    PI_CALL(piEnqueueKernelLaunch)(
+        MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+        &NDRDesc.GlobalSize[0], HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr,
+        RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
 
     return PI_SUCCESS;
   }

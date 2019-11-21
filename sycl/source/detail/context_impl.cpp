@@ -35,8 +35,8 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  PI_CALL(piContextCreate)
-  (nullptr, DeviceIds.size(), DeviceIds.data(), nullptr, nullptr, &m_Context);
+  PI_CALL(piContextCreate)(nullptr, DeviceIds.size(), DeviceIds.data(), nullptr,
+                           nullptr, &m_Context);
 
   m_USMDispatch.reset(new usm::USMDispatcher(m_Platform.get(), DeviceIds));
 }
@@ -49,14 +49,13 @@ context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
   vector_class<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextGetInfo)
-  (m_Context, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
-   nullptr);
+  PI_CALL(piContextGetInfo)(m_Context, PI_CONTEXT_INFO_NUM_DEVICES,
+                            sizeof(DevicesNum), &DevicesNum, nullptr);
   DeviceIds.resize(DevicesNum);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piContextGetInfo)
-  (m_Context, PI_CONTEXT_INFO_DEVICES, sizeof(RT::PiDevice) * DevicesNum,
-   &DeviceIds[0], nullptr);
+  PI_CALL(piContextGetInfo)(m_Context, PI_CONTEXT_INFO_DEVICES,
+                            sizeof(RT::PiDevice) * DevicesNum, &DeviceIds[0],
+                            nullptr);
 
   for (auto Dev : DeviceIds) {
     m_Devices.emplace_back(
