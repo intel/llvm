@@ -13,8 +13,6 @@
 
 #ifdef SYCL_RT_OS_POSIX_SUPPORT
 #include <cstdlib>
-#include <cstring>
-#include <fstream>
 #endif
 
 #if defined(SYCL_RT_OS_LINUX)
@@ -24,12 +22,12 @@
 #endif // _GNU_SOURCE
 
 #include <cstdio>
+#include <cstring>
 #include <dlfcn.h>
+#include <fstream>
 #include <libgen.h> // for dirname
 #include <link.h>
-#include <link.h>
 #include <linux/limits.h> // for PATH_MAX
-#include <stdio.h>
 #include <sys/sysinfo.h>
 
 #elif defined(SYCL_RT_OS_WINDOWS)
