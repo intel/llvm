@@ -7149,16 +7149,16 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     TranslatorArgs.push_back("-spirv-ext=+all");
   }
   for (auto I : Inputs) {
+    std::string Filename(I.getFilename());
     if (I.getType() == types::TY_TempIRfilelist) {
-      std::string FileName(I.getFilename());
       ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--in-file-list=" + FileName));
+          C.getArgs().MakeArgString("--in-file-list=" + Filename));
       ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--in-replace=" + FileName));
+          C.getArgs().MakeArgString("--in-replace=" + Filename));
       ForeachArgs.push_back(
           C.getArgs().MakeArgString("--out-ext=spv"));
     }
-    TranslatorArgs.push_back(I.getFilename());
+    TranslatorArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
 
   auto Cmd = std::make_unique<Command>(JA, *this,

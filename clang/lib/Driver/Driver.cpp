@@ -3283,7 +3283,7 @@ class OffloadingActionBuilder final {
                 C.MakeAction<OffloadWrapperJobAction>(DeviceLinkAction,
                                                       types::TY_Object);
           } else {
-            auto Link = C.MakeAction<LinkJobAction>(SYCLLinkBinaryList,
+            auto *Link = C.MakeAction<LinkJobAction>(SYCLLinkBinaryList,
                                                          types::TY_Image);
             SYCLLinkBinary = C.MakeAction<SPIRVTranslatorJobAction>(
                 Link, types::TY_Image);
@@ -3482,6 +3482,7 @@ class OffloadingActionBuilder final {
             C.MakeAction<LinkJobAction>(LI, types::TY_LLVM_BC);
         ActionList WrapperInputs;
         Action *SPIRVInput = DeviceLinkAction;
+        types::ID OutType = types::TY_SPIRV;
         if (!NoDeviceCodeSplit) {
           auto *SplitAction = C.MakeAction<SYCLPostLinkJobAction>(
               DeviceLinkAction, types::TY_TempIRfilelist);
@@ -3489,10 +3490,10 @@ class OffloadingActionBuilder final {
               DeviceLinkAction, types::TY_TempEntriesfilelist);
           SPIRVInput = SplitAction;
           WrapperInputs.push_back(EntryGenAction);
+          OutType = types::TY_Tempfilelist;
         }
-        auto *SPIRVTranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
-            SPIRVInput,
-            (NoDeviceCodeSplit) ? types::TY_SPIRV : types::TY_Tempfilelist);
+        auto *SPIRVTranslateAction =
+            C.MakeAction<SPIRVTranslatorJobAction>(SPIRVInput, OutType);
 
         auto TT = SYCLTripleList[I];
         bool SYCLAOTCompile =
@@ -3503,13 +3504,12 @@ class OffloadingActionBuilder final {
 
         // After the Link, wrap the files before the final host link
         if (SYCLAOTCompile) {
-          types::ID OutType;
+          OutType = types::TY_Tempfilelist;
           if (NoDeviceCodeSplit) {
-            OutType = types::TY_Image;
-            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
-              OutType = FPGAOutType;
-          } else
-            OutType = types::TY_Tempfilelist;
+            OutType = (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+                          ? FPGAOutType
+                          : types::TY_Image;
+          }
           // Do the additional Ahead of Time compilation when the specific
           // triple calls for it (provided a valid subarch).
           auto *DeviceBECompileAction = C.MakeAction<BackendCompileJobAction>(

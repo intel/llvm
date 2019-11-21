@@ -301,14 +301,14 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
     }
 
   for (const auto &II : Inputs) {
+    std::string Filename(II.getFilename());
     if (II.getType() == types::TY_Tempfilelist) {
-      std::string FileName(II.getFilename());
       ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--in-file-list=" + FileName));
+          C.getArgs().MakeArgString("--in-file-list=" + Filename));
       ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--in-replace=" + FileName));
+          C.getArgs().MakeArgString("--in-replace=" + Filename));
     }
-    CmdArgs.push_back(II.getFilename());
+    CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
 
   InputInfoList FPGADepFiles;
@@ -400,14 +400,14 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   ArgStringList ForeachArgs;
   for (const auto &II : Inputs) {
     CmdArgs.push_back("-file");
+    std::string Filename(II.getFilename());
     if (II.getType() == types::TY_Tempfilelist) {
-      std::string FileName(II.getFilename());
       ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--in-file-list=" + FileName));
+          C.getArgs().MakeArgString("--in-file-list=" + Filename));
       ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--in-replace=" + FileName));
+          C.getArgs().MakeArgString("--in-replace=" + Filename));
     }
-    CmdArgs.push_back(II.getFilename());
+    CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
   }
   // The next line prevents ocloc from modifying the image name
   CmdArgs.push_back("-output_no_suffix");
@@ -433,14 +433,14 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(Compilation &C,
   CmdArgs.push_back("-device=cpu");
   ArgStringList ForeachArgs;
   for (const auto &II : Inputs) {
+    std::string Filename(II.getFilename());
     if (II.getType() == types::TY_Tempfilelist) {
-      std::string FileName(II.getFilename());
       ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--in-file-list=" + FileName));
+          C.getArgs().MakeArgString("--in-file-list=" + Filename));
       ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--in-replace=" + FileName));
+          C.getArgs().MakeArgString("--in-replace=" + Filename));
     }
-    CmdArgs.push_back(Args.MakeArgString(Twine("-binary=") + II.getFilename()));
+    CmdArgs.push_back(Args.MakeArgString(Twine("-binary=") + Filename));
   }
   TranslateSYCLTargetArgs(C, Args, getToolChain(), CmdArgs);
   SmallString<128> ExecPath(getToolChain().GetProgramPath("ioc64"));
