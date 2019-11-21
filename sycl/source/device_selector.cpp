@@ -27,7 +27,11 @@ device device_selector::select_device() const {
   if (res != nullptr)
     return *res;
 
-  throw cl::sycl::runtime_error("No device of requested type available.");
+#ifndef SYCL_ERR_MSG_DEVICE_IS_NOT_AVAILABLE
+#define SYCL_ERR_MSG_DEVICE_IS_NOT_AVAILABLE                                   \
+  "No device of the requested type available."
+#endif // SYCL_ERR_MSG_DEVICE_IS_NOT_AVAILABLE
+  throw cl::sycl::runtime_error(SYCL_ERR_MSG_DEVICE_IS_NOT_AVAILABLE);
 }
 
 int default_selector::operator()(const device &dev) const {
