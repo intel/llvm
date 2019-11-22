@@ -9,10 +9,16 @@ function(add_sycl_unittest test_dirname)
   # Enable exception handling for these unit tests
   set(LLVM_REQUIRES_EH 1)
 
+  if (MSVC AND CMAKE_BUILD_TYPE MATCHES "Debug")
+    set(sycl_lib "sycld")
+  else()
+    set(sycl_lib "sycl")
+  endif()
+
   add_unittest(SYCLUnitTests ${test_dirname} ${ARGN})
   target_link_libraries(${test_dirname}
     PRIVATE
-      sycl
+      ${sycl_lib}
       LLVMTestingSupport
       OpenCL-Headers
     )
