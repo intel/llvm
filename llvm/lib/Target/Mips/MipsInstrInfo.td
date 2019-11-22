@@ -959,8 +959,7 @@ foreach I = {16} in
 // Like uimm16_64 but coerces simm16 to uimm16.
 def uimm16_relaxed : Operand<i32> {
   let PrintMethod = "printUImm<16>";
-  let ParserMatchClass =
-      !cast<AsmOperandClass>("UImm16RelaxedAsmOperandClass");
+  let ParserMatchClass = UImm16RelaxedAsmOperandClass;
 }
 
 foreach I = {5} in
@@ -980,14 +979,12 @@ foreach I = {16} in
 // Like uimm16_64 but coerces simm16 to uimm16.
 def uimm16_64_relaxed : Operand<i64> {
   let PrintMethod = "printUImm<16>";
-  let ParserMatchClass =
-      !cast<AsmOperandClass>("UImm16RelaxedAsmOperandClass");
+  let ParserMatchClass = UImm16RelaxedAsmOperandClass;
 }
 
 def uimm16_altrelaxed : Operand<i32> {
   let PrintMethod = "printUImm<16>";
-  let ParserMatchClass =
-      !cast<AsmOperandClass>("UImm16AltRelaxedAsmOperandClass");
+  let ParserMatchClass = UImm16AltRelaxedAsmOperandClass;
 }
 // Like uimm5 but reports a less confusing error for 32-63 when
 // an instruction alias permits that.
@@ -1060,22 +1057,22 @@ foreach I = {16, 32} in
 // Like simm16 but coerces uimm16 to simm16.
 def simm16_relaxed : Operand<i32> {
   let DecoderMethod = "DecodeSImmWithOffsetAndScale<16>";
-  let ParserMatchClass = !cast<AsmOperandClass>("SImm16RelaxedAsmOperandClass");
+  let ParserMatchClass = SImm16RelaxedAsmOperandClass;
 }
 
 def simm16_64 : Operand<i64> {
   let DecoderMethod = "DecodeSImmWithOffsetAndScale<16>";
-  let ParserMatchClass = !cast<AsmOperandClass>("SImm16AsmOperandClass");
+  let ParserMatchClass = SImm16AsmOperandClass;
 }
 
 // like simm32 but coerces simm32 to uimm32.
 def uimm32_coerced : Operand<i32> {
-  let ParserMatchClass = !cast<AsmOperandClass>("UImm32CoercedAsmOperandClass");
+  let ParserMatchClass = UImm32CoercedAsmOperandClass;
 }
 // Like simm32 but coerces uimm32 to simm32.
 def simm32_relaxed : Operand<i32> {
   let DecoderMethod = "DecodeSImmWithOffsetAndScale<32>";
-  let ParserMatchClass = !cast<AsmOperandClass>("SImm32RelaxedAsmOperandClass");
+  let ParserMatchClass = SImm32RelaxedAsmOperandClass;
 }
 
 // This is almost the same as a uimm7 but 0x7f is interpreted as -1.
@@ -1272,6 +1269,7 @@ def immSExt8  : PatLeaf<(imm), [{ return isInt<8>(N->getSExtValue()); }]>;
 // Node immediate fits as 16-bit sign extended on target immediate.
 // e.g. addi, andi
 def immSExt16  : PatLeaf<(imm), [{ return isInt<16>(N->getSExtValue()); }]>;
+def imm32SExt16  : IntImmLeaf<i32, [{ return isInt<16>(Imm.getSExtValue()); }]>;
 
 // Node immediate fits as 7-bit zero extended on target immediate.
 def immZExt7 : PatLeaf<(imm), [{ return isUInt<7>(N->getZExtValue()); }]>;
@@ -1287,6 +1285,9 @@ def immZExt16  : PatLeaf<(imm), [{
   else
     return (uint64_t)N->getZExtValue() == (unsigned short)N->getZExtValue();
 }], LO16>;
+def imm32ZExt16  : IntImmLeaf<i32, [{
+  return (uint32_t)Imm.getZExtValue() == (unsigned short)Imm.getZExtValue();
+}]>;
 
 // Immediate can be loaded with LUi (32-bit int with lower 16-bit cleared).
 def immSExt32Low16Zero : PatLeaf<(imm), [{
@@ -2058,17 +2059,17 @@ def LONG_BRANCH_ADDiu2Op : PseudoSE<(outs GPR32Opnd:$dst),
 /// Arithmetic Instructions (ALU Immediate)
 let AdditionalPredicates = [NotInMicroMips] in {
   def ADDiu : MMRel, StdMMR6Rel, ArithLogicI<"addiu", simm16_relaxed, GPR32Opnd,
-                                             II_ADDIU, immSExt16, add>,
+                                             II_ADDIU, imm32SExt16, add>,
               ADDI_FM<0x9>, IsAsCheapAsAMove, ISA_MIPS1;
 
   def ANDi : MMRel, StdMMR6Rel,
-             ArithLogicI<"andi", uimm16, GPR32Opnd, II_ANDI, immZExt16, and>,
+             ArithLogicI<"andi", uimm16, GPR32Opnd, II_ANDI, imm32ZExt16, and>,
              ADDI_FM<0xc>, ISA_MIPS1;
   def ORi  : MMRel, StdMMR6Rel,
-             ArithLogicI<"ori", uimm16, GPR32Opnd, II_ORI, immZExt16, or>,
+             ArithLogicI<"ori", uimm16, GPR32Opnd, II_ORI, imm32ZExt16, or>,
              ADDI_FM<0xd>, ISA_MIPS1;
   def XORi : MMRel, StdMMR6Rel,
-             ArithLogicI<"xori", uimm16, GPR32Opnd, II_XORI, immZExt16, xor>,
+             ArithLogicI<"xori", uimm16, GPR32Opnd, II_XORI, imm32ZExt16, xor>,
              ADDI_FM<0xe>, ISA_MIPS1;
   def ADDi  : MMRel, ArithLogicI<"addi", simm16_relaxed, GPR32Opnd, II_ADDI>,
               ADDI_FM<0x8>, ISA_MIPS1_NOT_32R6_64R6;

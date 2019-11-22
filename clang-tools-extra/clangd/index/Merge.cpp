@@ -89,9 +89,10 @@ void MergedIndex::lookup(
       Callback(*Sym);
 }
 
-void MergedIndex::refs(const RefsRequest &Req,
+bool MergedIndex::refs(const RefsRequest &Req,
                        llvm::function_ref<void(const Ref &)> Callback) const {
   trace::Span Tracer("MergedIndex refs");
+  bool More = false;
   uint32_t Remaining =
       Req.Limit.getValueOr(std::numeric_limits<uint32_t>::max());
   // We don't want duplicated refs from the static/dynamic indexes,
@@ -103,21 +104,27 @@ void MergedIndex::refs(const RefsRequest &Req,
   // refs were removed (we will report stale ones from the static index).
   // Ultimately we should explicit check which index has the file instead.
   llvm::StringSet<> DynamicIndexFileURIs;
-  Dynamic->refs(Req, [&](const Ref &O) {
+  More |= Dynamic->refs(Req, [&](const Ref &O) {
     DynamicIndexFileURIs.insert(O.Location.FileURI);
     Callback(O);
+    assert(Remaining != 0);
     --Remaining;
   });
-  if (Remaining == 0)
-    return;
+  if (Remaining == 0 && More)
+    return More;
   // We return less than Req.Limit if static index returns more refs for dirty
   // files.
-  Static->refs(Req, [&](const Ref &O) {
-    if (Remaining > 0 && !DynamicIndexFileURIs.count(O.Location.FileURI)) {
-      --Remaining;
-      Callback(O);
+  bool StaticHadMore =  Static->refs(Req, [&](const Ref &O) {
+    if (DynamicIndexFileURIs.count(O.Location.FileURI))
+      return; // ignore refs that have been seen from dynamic index.
+    if (Remaining == 0) {
+      More = true;
+      return;
     }
+    --Remaining;
+    Callback(O);
   });
+  return More || StaticHadMore;
 }
 
 void MergedIndex::relations(
@@ -186,11 +193,17 @@ Symbol mergeSymbol(const Symbol &L, const Symbol &R) {
     S.Signature = O.Signature;
   if (S.CompletionSnippetSuffix == "")
     S.CompletionSnippetSuffix = O.CompletionSnippetSuffix;
-  // Don't accept documentation from bare forward declarations, if there is a
-  // definition and it didn't provide one. S is often an undocumented class,
-  // and O is a non-canonical forward decl preceded by an irrelevant comment.
-  if (S.Documentation == "" && !S.Definition)
-    S.Documentation = O.Documentation;
+  if (S.Documentation == "") {
+    // Don't accept documentation from bare forward class declarations, if there
+    // is a definition and it didn't provide one. S is often an undocumented
+    // class, and O is a non-canonical forward decl preceded by an irrelevant
+    // comment.
+    bool IsClass = S.SymInfo.Kind == index::SymbolKind::Class ||
+                   S.SymInfo.Kind == index::SymbolKind::Struct ||
+                   S.SymInfo.Kind == index::SymbolKind::Union;
+    if (!IsClass || !S.Definition)
+      S.Documentation = O.Documentation;
+  }
   if (S.ReturnType == "")
     S.ReturnType = O.ReturnType;
   if (S.Type == "")

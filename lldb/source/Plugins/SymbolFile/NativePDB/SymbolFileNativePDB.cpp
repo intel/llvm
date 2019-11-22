@@ -67,6 +67,8 @@ using namespace npdb;
 using namespace llvm::codeview;
 using namespace llvm::pdb;
 
+char SymbolFileNativePDB::ID;
+
 static lldb::LanguageType TranslateLanguage(PDB_Lang lang) {
   switch (lang) {
   case PDB_Lang::Cpp:
@@ -1259,8 +1261,9 @@ void SymbolFileNativePDB::FindTypes(
   FindTypesByName(name.GetStringRef(), max_matches, types);
 }
 
-void SymbolFileNativePDB::FindTypes(llvm::ArrayRef<CompilerContext> pattern,
-                                    LanguageSet languages, TypeMap &types) {}
+void SymbolFileNativePDB::FindTypes(
+    llvm::ArrayRef<CompilerContext> pattern, LanguageSet languages,
+    llvm::DenseSet<SymbolFile *> &searched_symbol_files, TypeMap &types) {}
 
 void SymbolFileNativePDB::FindTypesByName(llvm::StringRef name,
                                           uint32_t max_matches,

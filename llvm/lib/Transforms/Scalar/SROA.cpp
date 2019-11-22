@@ -41,7 +41,6 @@
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/PtrUseVisitor.h"
-#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
@@ -71,6 +70,7 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -80,6 +80,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <algorithm>
 #include <cassert>
@@ -361,7 +362,7 @@ private:
 
   /// The beginning and ending offsets of the alloca for this
   /// partition.
-  uint64_t BeginOffset, EndOffset;
+  uint64_t BeginOffset = 0, EndOffset = 0;
 
   /// The start and end iterators of this partition.
   iterator SI, SJ;
@@ -1682,7 +1683,7 @@ static Value *getAdjustedPtr(IRBuilderTy &IRB, const DataLayout &DL, Value *Ptr,
 /// Compute the adjusted alignment for a load or store from an offset.
 static unsigned getAdjustedAlignment(Instruction *I, uint64_t Offset,
                                      const DataLayout &DL) {
-  unsigned Alignment;
+  unsigned Alignment = 0;
   Type *Ty;
   if (auto *LI = dyn_cast<LoadInst>(I)) {
     Alignment = LI->getAlignment();
@@ -2300,9 +2301,9 @@ class llvm::sroa::AllocaSliceRewriter
 
   // The new offsets of the slice currently being rewritten relative to the
   // original alloca.
-  uint64_t NewBeginOffset, NewEndOffset;
+  uint64_t NewBeginOffset = 0, NewEndOffset = 0;
 
-  uint64_t SliceSize;
+  uint64_t SliceSize = 0;
   bool IsSplittable = false;
   bool IsSplit = false;
   Use *OldUse = nullptr;
@@ -3222,7 +3223,7 @@ class AggLoadStoreRewriter : public InstVisitor<AggLoadStoreRewriter, bool> {
 
   /// The current pointer use being rewritten. This is used to dig up the used
   /// value (as opposed to the user).
-  Use *U;
+  Use *U = nullptr;
 
   /// Used to calculate offsets, and hence alignment, of subobjects.
   const DataLayout &DL;

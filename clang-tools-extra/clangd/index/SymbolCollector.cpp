@@ -304,7 +304,8 @@ bool SymbolCollector::handleDeclOccurence(
   // it's main-file only.
   bool IsMainFileOnly =
       SM.isWrittenInMainFile(SM.getExpansionLoc(ND->getBeginLoc())) &&
-      !ASTCtx->getLangOpts().IsHeaderFile;
+      !isHeaderFile(SM.getFileEntryForID(SM.getMainFileID())->getName(),
+                    ASTCtx->getLangOpts());
   // In C, printf is a redecl of an implicit builtin! So check OrigD instead.
   if (ASTNode.OrigD->isImplicit() ||
       !shouldCollectSymbol(*ND, *ASTCtx, Opts, IsMainFileOnly))
@@ -377,7 +378,7 @@ bool SymbolCollector::handleMacroOccurence(const IdentifierInfo *Name,
         Roles & static_cast<unsigned>(index::SymbolRole::Definition)))
     return true;
 
-  auto ID = getSymbolID(*Name, MI, SM);
+  auto ID = getSymbolID(Name->getName(), MI, SM);
   if (!ID)
     return true;
 
@@ -473,14 +474,14 @@ void SymbolCollector::finish() {
     // First, drop header guards. We can't identify these until EOF.
     for (const IdentifierInfo *II : IndexedMacros) {
       if (const auto *MI = PP->getMacroDefinition(II).getMacroInfo())
-        if (auto ID = getSymbolID(*II, MI, PP->getSourceManager()))
+        if (auto ID = getSymbolID(II->getName(), MI, PP->getSourceManager()))
           if (MI->isUsedForHeaderGuard())
             Symbols.erase(*ID);
     }
     // Now increment refcounts.
     for (const IdentifierInfo *II : ReferencedMacros) {
       if (const auto *MI = PP->getMacroDefinition(II).getMacroInfo())
-        if (auto ID = getSymbolID(*II, MI, PP->getSourceManager()))
+        if (auto ID = getSymbolID(II->getName(), MI, PP->getSourceManager()))
           IncRef(*ID);
     }
   }

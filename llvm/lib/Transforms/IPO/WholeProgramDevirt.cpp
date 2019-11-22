@@ -80,10 +80,12 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSummaryIndexYAML.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/PassRegistry.h"
 #include "llvm/PassSupport.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MathExtras.h"
@@ -615,8 +617,8 @@ struct WholeProgramDevirt : public ModulePass {
 
   bool UseCommandLine = false;
 
-  ModuleSummaryIndex *ExportSummary;
-  const ModuleSummaryIndex *ImportSummary;
+  ModuleSummaryIndex *ExportSummary = nullptr;
+  const ModuleSummaryIndex *ImportSummary = nullptr;
 
   WholeProgramDevirt() : ModulePass(ID), UseCommandLine(true) {
     initializeWholeProgramDevirtPass(*PassRegistry::getPassRegistry());
@@ -709,7 +711,7 @@ void runWholeProgramDevirtOnIndex(
 
 void updateIndexWPDForExports(
     ModuleSummaryIndex &Summary,
-    function_ref<bool(StringRef, GlobalValue::GUID)> isExported,
+    function_ref<bool(StringRef, ValueInfo)> isExported,
     std::map<ValueInfo, std::vector<VTableSlotSummary>> &LocalWPDTargetsMap) {
   for (auto &T : LocalWPDTargetsMap) {
     auto &VI = T.first;
@@ -717,7 +719,7 @@ void updateIndexWPDForExports(
     assert(VI.getSummaryList().size() == 1 &&
            "Devirt of local target has more than one copy");
     auto &S = VI.getSummaryList()[0];
-    if (!isExported(S->modulePath(), VI.getGUID()))
+    if (!isExported(S->modulePath(), VI))
       continue;
 
     // It's been exported by a cross module import.

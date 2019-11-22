@@ -79,7 +79,7 @@ namespace {
 class PPCAsmPrinter : public AsmPrinter {
 protected:
   MapVector<const MCSymbol *, MCSymbol *> TOC;
-  const PPCSubtarget *Subtarget;
+  const PPCSubtarget *Subtarget = nullptr;
   StackMaps SM;
 
 public:
@@ -1747,7 +1747,9 @@ void PPCAIXAsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
     report_fatal_error("COMDAT not yet supported by AIX.");
 
   SectionKind GVKind = getObjFileLowering().getKindForGlobal(GV, TM);
-  if (!GVKind.isCommon() && !GVKind.isBSSLocal() && !GVKind.isData())
+  if ((!GVKind.isCommon() && !GVKind.isBSS() && !GVKind.isData() &&
+       !GVKind.isReadOnly()) ||
+      GVKind.isMergeableCString() || GVKind.isMergeableConst())
     report_fatal_error("Encountered a global variable kind that is "
                        "not supported yet.");
 

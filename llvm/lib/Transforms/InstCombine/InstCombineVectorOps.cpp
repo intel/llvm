@@ -435,6 +435,13 @@ Instruction *InstCombiner::visitExtractElementInst(ExtractElementInst &EI) {
         Worklist.AddValue(EE);
         return CastInst::Create(CI->getOpcode(), EE, EI.getType());
       }
+
+      // If the input is a bitcast from x86_mmx, turn into a single bitcast from
+      // the mmx type to the scalar type.
+      if (CI->getOpcode() == Instruction::BitCast &&
+          EI.getVectorOperandType()->getNumElements() == 1 &&
+          CI->getOperand(0)->getType()->isX86_MMXTy())
+        return new BitCastInst(CI->getOperand(0), EI.getType());
     }
   }
   return nullptr;
@@ -2234,13 +2241,6 @@ Instruction *InstCombiner::visitShuffleVectorInst(ShuffleVectorInst &SVI) {
       newRHS = UndefValue::get(newLHS->getType());
     return new ShuffleVectorInst(newLHS, newRHS, ConstantVector::get(Elts));
   }
-
-  // If the result mask is an identity, replace uses of this instruction with
-  // corresponding argument.
-  bool isLHSID, isRHSID;
-  recognizeIdentityMask(newMask, isLHSID, isRHSID);
-  if (isLHSID && VWidth == LHSOp0Width) return replaceInstUsesWith(SVI, newLHS);
-  if (isRHSID && VWidth == RHSOp0Width) return replaceInstUsesWith(SVI, newRHS);
 
   return MadeChange ? &SVI : nullptr;
 }

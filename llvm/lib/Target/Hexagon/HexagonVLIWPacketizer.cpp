@@ -40,6 +40,7 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -111,9 +112,9 @@ namespace {
     }
 
   private:
-    const HexagonInstrInfo *HII;
-    const HexagonRegisterInfo *HRI;
-    const bool Minimal;
+    const HexagonInstrInfo *HII = nullptr;
+    const HexagonRegisterInfo *HRI = nullptr;
+    const bool Minimal = false;
   };
 
 } // end anonymous namespace

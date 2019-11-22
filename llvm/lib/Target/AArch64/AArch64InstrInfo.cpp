@@ -2409,8 +2409,8 @@ static bool forwardCopyWillClobberTuple(unsigned DestReg, unsigned SrcReg,
 
 void AArch64InstrInfo::copyPhysRegTuple(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator I,
-                                        const DebugLoc &DL, unsigned DestReg,
-                                        unsigned SrcReg, bool KillSrc,
+                                        const DebugLoc &DL, MCRegister DestReg,
+                                        MCRegister SrcReg, bool KillSrc,
                                         unsigned Opcode,
                                         ArrayRef<unsigned> Indices) const {
   assert(Subtarget.hasNEON() && "Unexpected register copy without NEON");
@@ -2461,8 +2461,8 @@ void AArch64InstrInfo::copyGPRRegTuple(MachineBasicBlock &MBB,
 
 void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator I,
-                                   const DebugLoc &DL, unsigned DestReg,
-                                   unsigned SrcReg, bool KillSrc) const {
+                                   const DebugLoc &DL, MCRegister DestReg,
+                                   MCRegister SrcReg, bool KillSrc) const {
   if (AArch64::GPR32spRegClass.contains(DestReg) &&
       (AArch64::GPR32spRegClass.contains(SrcReg) || SrcReg == AArch64::WZR)) {
     const TargetRegisterInfo *TRI = &getRegisterInfo();
@@ -2471,10 +2471,10 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
       // If either operand is WSP, expand to ADD #0.
       if (Subtarget.hasZeroCycleRegMove()) {
         // Cyclone recognizes "ADD Xd, Xn, #0" as a zero-cycle register move.
-        unsigned DestRegX = TRI->getMatchingSuperReg(DestReg, AArch64::sub_32,
-                                                     &AArch64::GPR64spRegClass);
-        unsigned SrcRegX = TRI->getMatchingSuperReg(SrcReg, AArch64::sub_32,
-                                                    &AArch64::GPR64spRegClass);
+        MCRegister DestRegX = TRI->getMatchingSuperReg(
+            DestReg, AArch64::sub_32, &AArch64::GPR64spRegClass);
+        MCRegister SrcRegX = TRI->getMatchingSuperReg(
+            SrcReg, AArch64::sub_32, &AArch64::GPR64spRegClass);
         // This instruction is reading and writing X registers.  This may upset
         // the register scavenger and machine verifier, so we need to indicate
         // that we are reading an undefined value from SrcRegX, but a proper
@@ -2497,10 +2497,10 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     } else {
       if (Subtarget.hasZeroCycleRegMove()) {
         // Cyclone recognizes "ORR Xd, XZR, Xm" as a zero-cycle register move.
-        unsigned DestRegX = TRI->getMatchingSuperReg(DestReg, AArch64::sub_32,
-                                                     &AArch64::GPR64spRegClass);
-        unsigned SrcRegX = TRI->getMatchingSuperReg(SrcReg, AArch64::sub_32,
-                                                    &AArch64::GPR64spRegClass);
+        MCRegister DestRegX = TRI->getMatchingSuperReg(
+            DestReg, AArch64::sub_32, &AArch64::GPR64spRegClass);
+        MCRegister SrcRegX = TRI->getMatchingSuperReg(
+            SrcReg, AArch64::sub_32, &AArch64::GPR64spRegClass);
         // This instruction is reading and writing X registers.  This may upset
         // the register scavenger and machine verifier, so we need to indicate
         // that we are reading an undefined value from SrcRegX, but a proper
@@ -2897,7 +2897,18 @@ void AArch64InstrInfo::storeRegToStackSlot(
     }
     break;
   }
+  unsigned StackID = TargetStackID::Default;
+  if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
+    assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
+    Opc = AArch64::STR_PXI;
+    StackID = TargetStackID::SVEVector;
+  } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
+    assert(Subtarget.hasSVE() && "Unexpected register store without SVE");
+    Opc = AArch64::STR_ZXI;
+    StackID = TargetStackID::SVEVector;
+  }
   assert(Opc && "Unknown register class");
+  MFI.setStackID(FI, StackID);
 
   const MachineInstrBuilder MI = BuildMI(MBB, MBBI, DebugLoc(), get(Opc))
                                      .addReg(SrcReg, getKillRegState(isKill))
@@ -3028,7 +3039,19 @@ void AArch64InstrInfo::loadRegFromStackSlot(
     }
     break;
   }
+
+  unsigned StackID = TargetStackID::Default;
+  if (AArch64::PPRRegClass.hasSubClassEq(RC)) {
+    assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
+    Opc = AArch64::LDR_PXI;
+    StackID = TargetStackID::SVEVector;
+  } else if (AArch64::ZPRRegClass.hasSubClassEq(RC)) {
+    assert(Subtarget.hasSVE() && "Unexpected register load without SVE");
+    Opc = AArch64::LDR_ZXI;
+    StackID = TargetStackID::SVEVector;
+  }
   assert(Opc && "Unknown register class");
+  MFI.setStackID(FI, StackID);
 
   const MachineInstrBuilder MI = BuildMI(MBB, MBBI, DebugLoc(), get(Opc))
                                      .addReg(DestReg, getDefRegState(true))
@@ -5759,7 +5782,7 @@ AArch64InstrInfo::describeLoadedValue(const MachineInstr &MI) const {
   case AArch64::MOVZXi:
     if (!MI.getOperand(1).isImm())
       return None;
-    int Immediate = MI.getOperand(1).getImm();
+    int64_t Immediate = MI.getOperand(1).getImm();
     int Shift = MI.getOperand(2).getImm();
     return ParamLoadedValue(MachineOperand::CreateImm(Immediate << Shift),
                             nullptr);

@@ -86,6 +86,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 
 #ifndef NDEBUG
 #include "llvm/IR/CFG.h"

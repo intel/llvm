@@ -147,3 +147,64 @@ entry:
   %cond = select i1 %cmp, i16 32, i16 0
   ret i16 %cond
 }
+
+; Check the following conversion in TargetLowering::SimplifySetCC
+; (X & 8) != 0  -->  (X & 8) >> 3
+define i16 @testSimplifySetCC_0_sh8(i16 %x) {
+; CHECK-LABEL: testSimplifySetCC_0_sh8:
+; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    and #256, r12
+; CHECK-NEXT:    swpb r12
+; CHECK-NEXT:    ret
+entry:
+  %and = and i16 %x, 256
+  %cmp = icmp ne i16 %and, 0
+  %conv = zext i1 %cmp to i16
+  ret i16 %conv
+}
+
+; Check the following conversion in TargetLowering::SimplifySetCC
+; (X & 8) == 8  -->  (X & 8) >> 3
+define i16 @testSimplifySetCC_1_sh8(i16 %x) {
+; CHECK-LABEL: testSimplifySetCC_1_sh8:
+; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    and #256, r12
+; CHECK-NEXT:    swpb r12
+; CHECK-NEXT:    ret
+entry:
+  %and = and i16 %x, 256
+  %cmp = icmp eq i16 %and, 256
+  %conv = zext i1 %cmp to i16
+  ret i16 %conv
+}
+
+; Check the following conversion in DAGCombiner::foldSelectCCToShiftAnd
+; select_cc setlt X, 0, A, 0 -> "and (srl X, C2), A" iff A is a single-bit
+define i16 @testShiftAnd_1_sh8(i16 %x) {
+; CHECK-LABEL: testShiftAnd_1_sh8:
+; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    swpb r12
+; CHECK-NEXT:    and #128, r12
+; CHECK-NEXT:    ret
+entry:
+  %cmp = icmp slt i16 %x, 0
+  %cond = select i1 %cmp, i16 128, i16 0
+  ret i16 %cond
+}
+
+; Check the following conversion in DAGCombiner::foldSelectCCToShiftAnd
+; select_cc setlt X, 0, A, 0 -> "and (srl X, C2), A" iff A is a single-bit
+define i16 @testShiftAnd_1_sh9(i16 %x) {
+; CHECK-LABEL: testShiftAnd_1_sh9:
+; CHECK:       ; %bb.0: ; %entry
+; CHECK-NEXT:    swpb r12
+; CHECK-NEXT:    mov.b r12, r12
+; CHECK-NEXT:    clrc
+; CHECK-NEXT:    rrc r12
+; CHECK-NEXT:    and #64, r12
+; CHECK-NEXT:    ret
+entry:
+  %cmp = icmp slt i16 %x, 0
+  %cond = select i1 %cmp, i16 64, i16 0
+  ret i16 %cond
+}

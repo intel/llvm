@@ -615,7 +615,7 @@ static void collectCallSiteParameters(const MachineInstr *CallMI,
     ++NumCSParams;
   };
 
-  // Search for a loading value in forwaring registers.
+  // Search for a loading value in forwarding registers.
   for (; I != MBB->rend(); ++I) {
     // If the next instruction is a call we can not interpret parameter's
     // forwarding registers or we finished the interpretation of all parameters.
@@ -2323,8 +2323,11 @@ static MCSymbol *emitLoclistsTableHeader(AsmPrinter *Asm,
   // FIXME: Generate the offsets table and use DW_FORM_loclistx with the
   // DW_AT_loclists_base attribute. Until then set the number of offsets to 0.
   Asm->OutStreamer->AddComment("Offset entry count");
-  Asm->emitInt32(0);
+  Asm->emitInt32(DebugLocs.getLists().size());
   Asm->OutStreamer->EmitLabel(DebugLocs.getSym());
+
+  for (const auto &List : DebugLocs.getLists())
+    Asm->EmitLabelDifference(List.Label, DebugLocs.getSym(), 4);
 
   return TableEnd;
 }

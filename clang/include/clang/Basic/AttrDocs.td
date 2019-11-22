@@ -1634,6 +1634,17 @@ The semantics are as follows:
   }];
 }
 
+def BPFPreserveAccessIndexDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Clang supports the ``__attribute__((preserve_access_index))``
+attribute for the BPF target. This attribute may be attached to a
+struct or union declaration, where if -g is specified, it enables
+preserving struct or union member access debuginfo indicies of this
+struct or union, similar to clang ``__builtin_preserve_acceess_index()``.
+  }];
+}
+
 def MipsInterruptDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "interrupt (MIPS)";
@@ -2021,6 +2032,10 @@ The current set of options correspond to the existing "subtarget features" for
 the target with or without a "-mno-" in front corresponding to the absence
 of the feature, as well as ``arch="CPU"`` which will change the default "CPU"
 for the function.
+
+For AArch64, the attribute also allows the "branch-protection=<args>" option,
+where the permissible arguments and their effect on code generation are the same
+as for the command-line option ``-mbranch-protection``.
 
 Example "subtarget features" from the x86 backend include: "mmx", "sse", "sse4.2",
 "avx", "xop" and largely correspond to the machine specific options handled by

@@ -897,6 +897,32 @@ void foo())cpp";
          HI.Definition = "int test";
          HI.Type = "int";
        }},
+      // Partially-specialized class template. (formerly type-parameter-0-0)
+      {R"cpp(
+        template <typename T> class X;
+        template <typename T> class [[^X]]<T*> {};
+        )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "X<T *>";
+         HI.NamespaceScope = "";
+         HI.Kind = SymbolKind::Class;
+         HI.Definition = "template <typename T> class X<T *> {}";
+       }},
+      // Constructor of partially-specialized class template
+      {R"cpp(
+          template<typename> struct X;
+          template<typename T> struct X<T*>{ [[^X]](); };
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.Name = "X";
+         HI.LocalScope = "X::";        // FIXME: Should be X<T *>::
+         HI.Kind = SymbolKind::Constructor;
+         HI.Type = "void ()";          // FIXME: Should be None
+         HI.ReturnType = "void";       // FIXME: Should be None or X<T*>
+         HI.Definition = "X()";
+         HI.Parameters.emplace();
+       }},
 
       // auto on lambda
       {R"cpp(
@@ -980,6 +1006,19 @@ void foo())cpp";
          HI.Type = "int";
          HI.NamespaceScope = "";
          HI.Value = "3";
+       }},
+      {R"cpp(
+        enum Color { RED, GREEN, };
+        Color x = [[GR^EEN]];
+       )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "GREEN";
+         HI.NamespaceScope = "";
+         HI.LocalScope = "Color::";
+         HI.Definition = "GREEN";
+         HI.Kind = SymbolKind::EnumMember;
+         HI.Type = "enum Color";
+         HI.Value = "1";
        }},
       // FIXME: We should use the Decl referenced, even if it comes from an
       // implicit instantiation.
@@ -2161,9 +2200,10 @@ TEST(FindReferences, NeedsIndex) {
 TEST(FindReferences, NoQueryForLocalSymbols) {
   struct RecordingIndex : public MemIndex {
     mutable Optional<llvm::DenseSet<SymbolID>> RefIDs;
-    void refs(const RefsRequest &Req,
+    bool refs(const RefsRequest &Req,
               llvm::function_ref<void(const Ref &)>) const override {
       RefIDs = Req.IDs;
+      return false;
     }
   };
 

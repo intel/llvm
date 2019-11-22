@@ -160,6 +160,13 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
 
   computeRegisterProperties(Subtarget->getRegisterInfo());
 
+  // The boolean content concept here is too inflexible. Compares only ever
+  // really produce a 1-bit result. Any copy/extend from these will turn into a
+  // select, and zext/1 or sext/-1 are equally cheap. Arbitrarily choose 0/1, as
+  // it's what most targets use.
+  setBooleanContents(ZeroOrOneBooleanContent);
+  setBooleanVectorContents(ZeroOrOneBooleanContent);
+
   // We need to custom lower vector stores from local memory
   setOperationAction(ISD::LOAD, MVT::v2i32, Custom);
   setOperationAction(ISD::LOAD, MVT::v3i32, Custom);
@@ -5652,11 +5659,16 @@ SDValue SITargetLowering::lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc,
                                        SDValue Offset, SDValue GLC, SDValue DLC,
                                        SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
+
+  const DataLayout &DataLayout = DAG.getDataLayout();
+  unsigned Align =
+      DataLayout.getABITypeAlignment(VT.getTypeForEVT(*DAG.getContext()));
+
   MachineMemOperand *MMO = MF.getMachineMemOperand(
       MachinePointerInfo(),
       MachineMemOperand::MOLoad | MachineMemOperand::MODereferenceable |
           MachineMemOperand::MOInvariant,
-      VT.getStoreSize(), VT.getStoreSize());
+      VT.getStoreSize(), Align);
 
   if (!Offset->isDivergent()) {
     SDValue Ops[] = {
@@ -5665,6 +5677,20 @@ SDValue SITargetLowering::lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc,
         GLC,
         DLC,
     };
+
+    // Widen vec3 load to vec4.
+    if (VT.isVector() && VT.getVectorNumElements() == 3) {
+      EVT WidenedVT =
+          EVT::getVectorVT(*DAG.getContext(), VT.getVectorElementType(), 4);
+      auto WidenedOp = DAG.getMemIntrinsicNode(
+          AMDGPUISD::SBUFFER_LOAD, DL, DAG.getVTList(WidenedVT), Ops, WidenedVT,
+          MF.getMachineMemOperand(MMO, 0, WidenedVT.getStoreSize()));
+      auto Subvector = DAG.getNode(
+          ISD::EXTRACT_SUBVECTOR, DL, VT, WidenedOp,
+          DAG.getConstant(0, DL, getVectorIdxTy(DAG.getDataLayout())));
+      return Subvector;
+    }
+
     return DAG.getMemIntrinsicNode(AMDGPUISD::SBUFFER_LOAD, DL,
                                    DAG.getVTList(VT), Ops, VT, MMO);
   }
@@ -5676,11 +5702,10 @@ SDValue SITargetLowering::lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc,
   MVT LoadVT = VT.getSimpleVT();
   unsigned NumElts = LoadVT.isVector() ? LoadVT.getVectorNumElements() : 1;
   assert((LoadVT.getScalarType() == MVT::i32 ||
-          LoadVT.getScalarType() == MVT::f32) &&
-         isPowerOf2_32(NumElts));
+          LoadVT.getScalarType() == MVT::f32));
 
   if (NumElts == 8 || NumElts == 16) {
-    NumLoads = NumElts == 16 ? 4 : 2;
+    NumLoads = NumElts / 4;
     LoadVT = MVT::v4i32;
   }
 
@@ -5704,8 +5729,8 @@ SDValue SITargetLowering::lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc,
   uint64_t InstOffset = cast<ConstantSDNode>(Ops[5])->getZExtValue();
   for (unsigned i = 0; i < NumLoads; ++i) {
     Ops[5] = DAG.getTargetConstant(InstOffset + 16 * i, DL, MVT::i32);
-    Loads.push_back(DAG.getMemIntrinsicNode(AMDGPUISD::BUFFER_LOAD, DL, VTList,
-                                            Ops, LoadVT, MMO));
+    Loads.push_back(getMemIntrinsicNode(AMDGPUISD::BUFFER_LOAD, DL, VTList, Ops,
+                                        LoadVT, MMO, DAG));
   }
 
   if (VT == MVT::v8i32 || VT == MVT::v16i32)
@@ -9552,6 +9577,8 @@ SDValue SITargetLowering::performAddCombine(SDNode *N,
   case ISD::SIGN_EXTEND:
   case ISD::ANY_EXTEND: {
     auto Cond = RHS.getOperand(0);
+    // If this won't be a real VOPC output, we would still need to insert an
+    // extra instruction anyway.
     if (!isBoolSGPR(Cond))
       break;
     SDVTList VTList = DAG.getVTList(MVT::i32, MVT::i1);
@@ -9581,6 +9608,49 @@ SDValue SITargetLowering::performSubCombine(SDNode *N,
   SDLoc SL(N);
   SDValue LHS = N->getOperand(0);
   SDValue RHS = N->getOperand(1);
+
+  // sub x, zext (setcc) => subcarry x, 0, setcc
+  // sub x, sext (setcc) => addcarry x, 0, setcc
+
+  bool Commuted = false;
+  unsigned Opc = LHS.getOpcode();
+  if (Opc == ISD::ZERO_EXTEND || Opc == ISD::SIGN_EXTEND ||
+      Opc == ISD::ANY_EXTEND) {
+    std::swap(RHS, LHS);
+    Commuted = true;
+  }
+
+  Opc = RHS.getOpcode();
+  switch (Opc) {
+  default: break;
+  case ISD::ZERO_EXTEND:
+  case ISD::SIGN_EXTEND:
+  case ISD::ANY_EXTEND: {
+    auto Cond = RHS.getOperand(0);
+    // If this won't be a real VOPC output, we would still need to insert an
+    // extra instruction anyway.
+    if (!isBoolSGPR(Cond))
+      break;
+    SDVTList VTList = DAG.getVTList(MVT::i32, MVT::i1);
+    SDValue Zero = DAG.getConstant(0, SL, MVT::i32);
+    SDValue Args[3];
+    Args[2] = Cond;
+
+    if (Commuted) {
+      // sub zext (setcc), x => addcarry 0, x, setcc
+      // sub sext (setcc), x => subcarry 0, x, setcc
+      Args[0] = Zero;
+      Args[1] = LHS;
+      Opc = (Opc == ISD::SIGN_EXTEND) ? ISD::SUBCARRY : ISD::ADDCARRY;
+    } else {
+      Args[0] = LHS;
+      Args[1] = Zero;
+      Opc = (Opc == ISD::SIGN_EXTEND) ? ISD::ADDCARRY : ISD::SUBCARRY;
+    }
+
+    return DAG.getNode(Opc, SL, VTList, Args);
+  }
+  }
 
   if (LHS.getOpcode() == ISD::SUBCARRY) {
     // sub (subcarry x, 0, cc), y => subcarry x, y, cc

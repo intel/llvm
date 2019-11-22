@@ -593,21 +593,22 @@ def err_thread_non_global : Error<
 def err_thread_unsupported : Error<
   "thread-local storage is not supported for the current target">;
 
+// FIXME: Combine fallout warnings to just one warning.
 def warn_maybe_falloff_nonvoid_function : Warning<
-  "control may reach end of non-void function">,
+  "non-void function does not return a value in all control paths">,
   InGroup<ReturnType>;
 def warn_falloff_nonvoid_function : Warning<
-  "control reaches end of non-void function">,
+  "non-void function does not return a value">,
   InGroup<ReturnType>;
 def err_maybe_falloff_nonvoid_block : Error<
-  "control may reach end of non-void block">;
+  "non-void block does not return a value in all control paths">;
 def err_falloff_nonvoid_block : Error<
-  "control reaches end of non-void block">;
+  "non-void block does not return a value">;
 def warn_maybe_falloff_nonvoid_coroutine : Warning<
-  "control may reach end of coroutine; which is undefined behavior because the promise type %0 does not declare 'return_void()'">,
+  "non-void coroutine does not return a value in all control paths">,
   InGroup<ReturnType>;
 def warn_falloff_nonvoid_coroutine : Warning<
-  "control reaches end of coroutine; which is undefined behavior because the promise type %0 does not declare 'return_void()'">,
+  "non-void coroutine does not return a value">,
   InGroup<ReturnType>;
 def warn_suggest_noreturn_function : Warning<
   "%select{function|method}0 %1 could be declared with attribute 'noreturn'">,
@@ -2622,6 +2623,8 @@ def warn_attribute_requires_positive_integer : Warning<
  InGroup<IgnoredAttributes>;
 def err_attribute_requires_opencl_version : Error<
   "%0 attribute requires OpenCL version %1%select{| or above}2">;
+def err_invalid_branch_protection_spec : Error<
+  "invalid or misplaced branch protection specification '%0'">;
 def warn_unsupported_target_attribute
     : Warning<"%select{unsupported|duplicate}0%select{| architecture}1 '%2' in"
               " the 'target' attribute string; 'target' attribute ignored">,
@@ -6886,10 +6889,10 @@ let CategoryName = "Lambda Issue" in {
   def err_noreturn_lambda_has_return_expr : Error<
     "lambda declared 'noreturn' should not return">;
   def warn_maybe_falloff_nonvoid_lambda : Warning<
-    "control may reach end of non-void lambda">,
+    "non-void lambda does not return a value in all control paths">,
     InGroup<ReturnType>;
   def warn_falloff_nonvoid_lambda : Warning<
-    "control reaches end of non-void lambda">,
+    "non-void lambda does not return a value">,
     InGroup<ReturnType>;
   def err_access_lambda_capture : Error<
     // The ERRORs represent other special members that aren't constructors, in
@@ -7741,6 +7744,8 @@ let CategoryName = "Inline Assembly Issue" in {
   def err_asm_unknown_register_name : Error<"unknown register name '%0' in asm">;
   def err_asm_invalid_global_var_reg : Error<"register '%0' unsuitable for "
     "global register variables on this target">;
+  def err_asm_missing_fixed_reg_opt : Error<"-ffixed-%0 is required for "
+    "global named register variable declaration">;
   def err_asm_register_size_mismatch : Error<"size of register '%0' does not "
     "match variable size">;
   def err_asm_bad_register_type : Error<"bad type for named register variable">;
@@ -9194,8 +9199,12 @@ def err_omp_threadprivate_incomplete_type : Error<
   "threadprivate variable with incomplete type %0">;
 def err_omp_no_dsa_for_variable : Error<
   "variable %0 must have explicitly specified data sharing attributes">;
+def err_omp_defaultmap_no_attr_for_variable : Error<
+  "variable %0 must have explicitly specified data sharing attributes, data mapping attributes, or in an is_device_ptr clause">;
 def note_omp_default_dsa_none : Note<
   "explicit data sharing attribute requested here">;
+def note_omp_defaultmap_attr_none : Note<
+  "explicit data sharing attribute, data mapping attribute, or is_device_ptr clause requested here">;
 def err_omp_wrong_dsa : Error<
   "%0 variable cannot be %1">;
 def err_omp_variably_modified_type_not_supported : Error<
@@ -9339,7 +9348,7 @@ def err_omp_prohibited_region : Error<
   "; perhaps you forget to enclose 'omp %3' directive into a target region?|"
   "; perhaps you forget to enclose 'omp %3' directive into a teams region?}2">;
 def err_omp_prohibited_region_simd : Error<
-  "OpenMP constructs may not be nested inside a simd region">;
+  "OpenMP constructs may not be nested inside a simd region%select{| except for ordered simd, simd or atomic directive}0">;
 def err_omp_prohibited_region_atomic : Error<
   "OpenMP constructs may not be nested inside an atomic region">;
 def err_omp_prohibited_region_critical_same_name : Error<
@@ -9624,6 +9633,8 @@ def warn_omp_declare_variant_marked_as_declare_variant : Warning<
   "variant function in '#pragma omp declare variant' is itself marked as '#pragma omp declare variant'"
   >, InGroup<SourceUsesOpenMP>;
 def note_omp_marked_declare_variant_here : Note<"marked as 'declare variant' here">;
+def err_omp_one_defaultmap_each_category: Error<
+  "at most one defaultmap clause for each variable-category can appear on the directive">;
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {

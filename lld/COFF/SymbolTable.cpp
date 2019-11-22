@@ -17,6 +17,7 @@
 #include "lld/Common/Timer.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/LTO/LTO.h"
 #include "llvm/Object/WindowsMachineFlag.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -226,8 +227,6 @@ void SymbolTable::loadMinGWAutomaticImports() {
     Symbol *sym = i.second;
     auto *undef = dyn_cast<Undefined>(sym);
     if (!undef)
-      continue;
-    if (!sym->isUsedInRegularObj)
       continue;
     if (undef->getWeakAlias())
       continue;

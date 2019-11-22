@@ -223,6 +223,15 @@ ABI Changes in Clang
   element. Clang now matches the gcc behavior on Linux and NetBSD. You can
   switch back to old API behavior with flag: -fclang-abi-compat=9.0.
 
+- RISC-V now chooses a default ``-march=`` and ``-mabi=`` to match (in almost
+  all cases) the GCC defaults. On baremetal targets, where neither ``-march=``
+  nor ``-mabi=`` are specified, Clang now differs from GCC by defaulting to
+  ``-march=rv32imac -mabi=ilp32`` or ``-march=rv64imac -mabi=lp64`` depending on
+  the architecture in the target triple. These do not always match the defaults
+  in Clang 9. We strongly suggest that you explicitly pass `-march=` and
+  `-mabi=` when compiling for RISC-V, due to how extensible this architecture
+  is.
+
 OpenMP Support in Clang
 -----------------------
 
@@ -291,6 +300,24 @@ clang-format
 
 - clang-format gets a new option called ``--dry-run`` or ``-n`` to emit a
   warning.
+
+- Option *IncludeIsMainSourceRegex* added to allow for additional
+  suffixes and file extensions to be considered as a source file
+  for execution of logic that looks for "main *include* file" to put
+  it on top.
+
+  By default, clang-format considers *source* files as "main" only when
+  they end with: ``.c``, ``.cc``, ``.cpp``, ``.c++``, ``.cxx``,
+  ``.m`` or ``.mm`` extensions. This config option allows to
+  extend this set of source files considered as "main".
+            
+  For example, if this option is configured to ``(Impl\.hpp)$``,
+  then a file ``ClassImpl.hpp`` is considered "main" (in addition to
+  ``Class.c``, ``Class.cc``, ``Class.cpp`` and so on) and "main
+  include file" logic will be executed (with *IncludeIsMainRegex* setting
+  also being respected in later phase). Without this option set,
+  ``ClassImpl.hpp`` would not have the main include file put on top
+  before any other include.
 
 libclang
 --------

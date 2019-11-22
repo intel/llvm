@@ -31,6 +31,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
@@ -275,18 +276,35 @@ void VPRegionBlock::execute(VPTransformState *State) {
 }
 
 void VPRecipeBase::insertBefore(VPRecipeBase *InsertPos) {
+  assert(!Parent && "Recipe already in some VPBasicBlock");
+  assert(InsertPos->getParent() &&
+         "Insertion position not in any VPBasicBlock");
   Parent = InsertPos->getParent();
   Parent->getRecipeList().insert(InsertPos->getIterator(), this);
 }
 
+void VPRecipeBase::insertAfter(VPRecipeBase *InsertPos) {
+  assert(!Parent && "Recipe already in some VPBasicBlock");
+  assert(InsertPos->getParent() &&
+         "Insertion position not in any VPBasicBlock");
+  Parent = InsertPos->getParent();
+  Parent->getRecipeList().insertAfter(InsertPos->getIterator(), this);
+}
+
+void VPRecipeBase::removeFromParent() {
+  assert(getParent() && "Recipe not in any VPBasicBlock");
+  getParent()->getRecipeList().remove(getIterator());
+  Parent = nullptr;
+}
+
 iplist<VPRecipeBase>::iterator VPRecipeBase::eraseFromParent() {
+  assert(getParent() && "Recipe not in any VPBasicBlock");
   return getParent()->getRecipeList().erase(getIterator());
 }
 
 void VPRecipeBase::moveAfter(VPRecipeBase *InsertPos) {
-  InsertPos->getParent()->getRecipeList().splice(
-      std::next(InsertPos->getIterator()), getParent()->getRecipeList(),
-      getIterator());
+  removeFromParent();
+  insertAfter(InsertPos);
 }
 
 void VPInstruction::generateInstruction(VPTransformState &State,

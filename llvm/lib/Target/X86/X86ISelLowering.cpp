@@ -223,69 +223,43 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
       setOperationAction(ShiftOp           , MVT::i64  , Custom);
   }
 
-  // Promote all UINT_TO_FP to larger SINT_TO_FP's, as X86 doesn't have this
-  // operation.
-  setOperationAction(ISD::UINT_TO_FP       , MVT::i1   , Promote);
-  setOperationAction(ISD::UINT_TO_FP       , MVT::i8   , Promote);
-  setOperationAction(ISD::UINT_TO_FP       , MVT::i16  , Promote);
-
   if (!Subtarget.useSoftFloat()) {
-    // We have an algorithm for SSE2->double, and we turn this into a
-    // 64-bit FILD followed by conditional FADD for other targets.
-    setOperationAction(ISD::UINT_TO_FP     , MVT::i64  , Custom);
+    // Promote all UINT_TO_FP to larger SINT_TO_FP's, as X86 doesn't have this
+    // operation.
+    setOperationAction(ISD::UINT_TO_FP, MVT::i8,  Promote);
+    setOperationAction(ISD::UINT_TO_FP, MVT::i16, Promote);
     // We have an algorithm for SSE2, and we turn this into a 64-bit
     // FILD or VCVTUSI2SS/SD for other targets.
-    setOperationAction(ISD::UINT_TO_FP     , MVT::i32  , Custom);
-  } else {
-    setOperationAction(ISD::UINT_TO_FP     , MVT::i32  , Expand);
-  }
+    setOperationAction(ISD::UINT_TO_FP, MVT::i32, Custom);
+    // We have an algorithm for SSE2->double, and we turn this into a
+    // 64-bit FILD followed by conditional FADD for other targets.
+    setOperationAction(ISD::UINT_TO_FP, MVT::i64, Custom);
 
-  // Promote i1/i8 SINT_TO_FP to larger SINT_TO_FP's, as X86 doesn't have
-  // this operation.
-  setOperationAction(ISD::SINT_TO_FP       , MVT::i1   , Promote);
-  setOperationAction(ISD::SINT_TO_FP       , MVT::i8   , Promote);
-
-  if (!Subtarget.useSoftFloat()) {
-    // SSE has no i16 to fp conversion, only i32.
-    if (X86ScalarSSEf32) {
-      setOperationAction(ISD::SINT_TO_FP     , MVT::i16  , Promote);
-      // f32 and f64 cases are Legal, f80 case is not
-      setOperationAction(ISD::SINT_TO_FP     , MVT::i32  , Custom);
-    } else {
-      setOperationAction(ISD::SINT_TO_FP     , MVT::i16  , Custom);
-      setOperationAction(ISD::SINT_TO_FP     , MVT::i32  , Custom);
-    }
-  } else {
-    setOperationAction(ISD::SINT_TO_FP     , MVT::i16  , Promote);
-    setOperationAction(ISD::SINT_TO_FP     , MVT::i32  , Expand);
-  }
-
-  // Promote i1/i8 FP_TO_SINT to larger FP_TO_SINTS's, as X86 doesn't have
-  // this operation.
-  setOperationAction(ISD::FP_TO_SINT       , MVT::i1   , Promote);
-  setOperationAction(ISD::FP_TO_SINT       , MVT::i8   , Promote);
-
-  if (!Subtarget.useSoftFloat()) {
+    // Promote i8 SINT_TO_FP to larger SINT_TO_FP's, as X86 doesn't have
+    // this operation.
+    setOperationAction(ISD::SINT_TO_FP, MVT::i8,  Promote);
+    // SSE has no i16 to fp conversion, only i32. We promote in the handler
+    // to allow f80 to use i16 and f64 to use i16 with sse1 only
+    setOperationAction(ISD::SINT_TO_FP, MVT::i16, Custom);
+    // f32 and f64 cases are Legal with SSE1/SSE2, f80 case is not
+    setOperationAction(ISD::SINT_TO_FP, MVT::i32, Custom);
     // In 32-bit mode these are custom lowered.  In 64-bit mode F32 and F64
     // are Legal, f80 is custom lowered.
-    setOperationAction(ISD::FP_TO_SINT     , MVT::i64  , Custom);
-    setOperationAction(ISD::SINT_TO_FP     , MVT::i64  , Custom);
+    setOperationAction(ISD::SINT_TO_FP, MVT::i64, Custom);
 
-    setOperationAction(ISD::FP_TO_SINT     , MVT::i16  , Custom);
-    setOperationAction(ISD::FP_TO_SINT     , MVT::i32  , Custom);
-  } else {
-    setOperationAction(ISD::FP_TO_SINT     , MVT::i16  , Promote);
-    setOperationAction(ISD::FP_TO_SINT     , MVT::i32  , Expand);
-    setOperationAction(ISD::FP_TO_SINT     , MVT::i64  , Expand);
-  }
+    // Promote i8 FP_TO_SINT to larger FP_TO_SINTS's, as X86 doesn't have
+    // this operation.
+    setOperationAction(ISD::FP_TO_SINT, MVT::i8,  Promote);
+    setOperationAction(ISD::FP_TO_SINT, MVT::i16, Custom);
+    setOperationAction(ISD::FP_TO_SINT, MVT::i32, Custom);
+    // In 32-bit mode these are custom lowered.  In 64-bit mode F32 and F64
+    // are Legal, f80 is custom lowered.
+    setOperationAction(ISD::FP_TO_SINT, MVT::i64, Custom);
 
-  // Handle FP_TO_UINT by promoting the destination to a larger signed
-  // conversion.
-  setOperationAction(ISD::FP_TO_UINT       , MVT::i1   , Promote);
-  setOperationAction(ISD::FP_TO_UINT       , MVT::i8   , Promote);
-  setOperationAction(ISD::FP_TO_UINT       , MVT::i16  , Promote);
-
-  if (!Subtarget.useSoftFloat()) {
+    // Handle FP_TO_UINT by promoting the destination to a larger signed
+    // conversion.
+    setOperationAction(ISD::FP_TO_UINT, MVT::i8,  Promote);
+    setOperationAction(ISD::FP_TO_UINT, MVT::i16, Promote);
     setOperationAction(ISD::FP_TO_UINT, MVT::i32, Custom);
     setOperationAction(ISD::FP_TO_UINT, MVT::i64, Custom);
   }
@@ -415,8 +389,6 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
   if (!Subtarget.hasMOVBE())
     setOperationAction(ISD::BSWAP          , MVT::i16  , Expand);
 
-  // These should be promoted to a larger select which is supported.
-  setOperationAction(ISD::SELECT          , MVT::i1   , Promote);
   // X86 wants to expand cmov itself.
   for (auto VT : { MVT::f32, MVT::f64, MVT::f80, MVT::f128 }) {
     setOperationAction(ISD::SELECT, VT, Custom);
@@ -951,14 +923,6 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     setOperationAction(ISD::FP_TO_UINT,         MVT::v8i8,  Custom);
     setOperationAction(ISD::FP_TO_UINT,         MVT::v2i16, Custom);
     setOperationAction(ISD::FP_TO_UINT,         MVT::v4i16, Custom);
-
-    // By marking FP_TO_SINT v8i16 as Custom, will trick type legalization into
-    // promoting v8i8 FP_TO_UINT into FP_TO_SINT. When the v8i16 FP_TO_SINT is
-    // split again based on the input type, this will cause an AssertSExt i16 to
-    // be emitted instead of an AssertZExt. This will allow packssdw followed by
-    // packuswb to be used to truncate to v8i8. This is necessary since packusdw
-    // isn't available until sse4.1.
-    setOperationAction(ISD::FP_TO_SINT,         MVT::v8i16, Custom);
 
     setOperationAction(ISD::SINT_TO_FP,         MVT::v4i32, Legal);
     setOperationAction(ISD::SINT_TO_FP,         MVT::v2i32, Custom);
@@ -1590,38 +1554,32 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     }
   }
 
-  // This block control legalization of v32i1/v64i1 which are available with
+  // This block control legalization of v32i1 which is available with
   // AVX512BW. 512-bit v32i16 and v64i8 vector legalization is controlled with
-  // useBWIRegs.
+  // useBWIRegs. v64i1 is also controled with useBWIRegs.
   if (!Subtarget.useSoftFloat() && Subtarget.hasBWI()) {
     addRegisterClass(MVT::v32i1,  &X86::VK32RegClass);
-    addRegisterClass(MVT::v64i1,  &X86::VK64RegClass);
 
-    for (auto VT : { MVT::v32i1, MVT::v64i1 }) {
-      setOperationAction(ISD::ADD,                VT, Custom);
-      setOperationAction(ISD::SUB,                VT, Custom);
-      setOperationAction(ISD::MUL,                VT, Custom);
-      setOperationAction(ISD::VSELECT,            VT, Expand);
-      setOperationAction(ISD::UADDSAT,            VT, Custom);
-      setOperationAction(ISD::SADDSAT,            VT, Custom);
-      setOperationAction(ISD::USUBSAT,            VT, Custom);
-      setOperationAction(ISD::SSUBSAT,            VT, Custom);
+    setOperationAction(ISD::ADD,                MVT::v32i1, Custom);
+    setOperationAction(ISD::SUB,                MVT::v32i1, Custom);
+    setOperationAction(ISD::MUL,                MVT::v32i1, Custom);
+    setOperationAction(ISD::VSELECT,            MVT::v32i1, Expand);
+    setOperationAction(ISD::UADDSAT,            MVT::v32i1, Custom);
+    setOperationAction(ISD::SADDSAT,            MVT::v32i1, Custom);
+    setOperationAction(ISD::USUBSAT,            MVT::v32i1, Custom);
+    setOperationAction(ISD::SSUBSAT,            MVT::v32i1, Custom);
 
-      setOperationAction(ISD::TRUNCATE,           VT, Custom);
-      setOperationAction(ISD::SETCC,              VT, Custom);
-      setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Custom);
-      setOperationAction(ISD::INSERT_VECTOR_ELT,  VT, Custom);
-      setOperationAction(ISD::SELECT,             VT, Custom);
-      setOperationAction(ISD::BUILD_VECTOR,       VT, Custom);
-      setOperationAction(ISD::VECTOR_SHUFFLE,     VT, Custom);
-    }
+    setOperationAction(ISD::TRUNCATE,           MVT::v32i1, Custom);
+    setOperationAction(ISD::SETCC,              MVT::v32i1, Custom);
+    setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v32i1, Custom);
+    setOperationAction(ISD::INSERT_VECTOR_ELT,  MVT::v32i1, Custom);
+    setOperationAction(ISD::SELECT,             MVT::v32i1, Custom);
+    setOperationAction(ISD::BUILD_VECTOR,       MVT::v32i1, Custom);
+    setOperationAction(ISD::VECTOR_SHUFFLE,     MVT::v32i1, Custom);
 
     setOperationAction(ISD::CONCAT_VECTORS,     MVT::v32i1, Custom);
-    setOperationAction(ISD::CONCAT_VECTORS,     MVT::v64i1, Custom);
     setOperationAction(ISD::INSERT_SUBVECTOR,   MVT::v32i1, Custom);
-    setOperationAction(ISD::INSERT_SUBVECTOR,   MVT::v64i1, Custom);
-    for (auto VT : { MVT::v16i1, MVT::v32i1 })
-      setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Custom);
+    setOperationAction(ISD::EXTRACT_SUBVECTOR,  MVT::v16i1, Custom);
 
     // Extends from v32i1 masks to 256-bit vectors.
     setOperationAction(ISD::SIGN_EXTEND,        MVT::v32i8, Custom);
@@ -1711,6 +1669,34 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
       setOperationAction(ISD::FSHL, MVT::v32i16, Custom);
       setOperationAction(ISD::FSHR, MVT::v32i16, Custom);
     }
+
+    // Only support v64i1 if we support v64i8. Without 64i8 we won't have any
+    // operations that can produce these values other than concatenating
+    // v32i1 vectors together. And we don't have any masked operations that
+    // need a v64i1. By making it legal we avoid needing to lower arbitrary
+    // shuffles of v64i1 which need v64i8 to be legal.
+    addRegisterClass(MVT::v64i1,  &X86::VK64RegClass);
+
+    setOperationAction(ISD::ADD,                MVT::v64i1, Custom);
+    setOperationAction(ISD::SUB,                MVT::v64i1, Custom);
+    setOperationAction(ISD::MUL,                MVT::v64i1, Custom);
+    setOperationAction(ISD::VSELECT,            MVT::v64i1, Expand);
+    setOperationAction(ISD::UADDSAT,            MVT::v64i1, Custom);
+    setOperationAction(ISD::SADDSAT,            MVT::v64i1, Custom);
+    setOperationAction(ISD::USUBSAT,            MVT::v64i1, Custom);
+    setOperationAction(ISD::SSUBSAT,            MVT::v64i1, Custom);
+
+    setOperationAction(ISD::TRUNCATE,           MVT::v64i1, Custom);
+    setOperationAction(ISD::SETCC,              MVT::v64i1, Custom);
+    setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v64i1, Custom);
+    setOperationAction(ISD::INSERT_VECTOR_ELT,  MVT::v64i1, Custom);
+    setOperationAction(ISD::SELECT,             MVT::v64i1, Custom);
+    setOperationAction(ISD::BUILD_VECTOR,       MVT::v64i1, Custom);
+    setOperationAction(ISD::VECTOR_SHUFFLE,     MVT::v64i1, Custom);
+
+    setOperationAction(ISD::CONCAT_VECTORS,     MVT::v64i1, Custom);
+    setOperationAction(ISD::INSERT_SUBVECTOR,   MVT::v64i1, Custom);
+    setOperationAction(ISD::EXTRACT_SUBVECTOR,  MVT::v32i1, Custom);
   }
 
   if (!Subtarget.useSoftFloat() && Subtarget.hasBWI()) {
@@ -1953,8 +1939,8 @@ MVT X86TargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context,
        (VT.getVectorNumElements() > 64 && Subtarget.hasBWI())))
     return MVT::i8;
   // FIXME: Should we just make these types legal and custom split operations?
-  if ((VT == MVT::v32i16 || VT == MVT::v64i8) &&
-      Subtarget.hasAVX512() && !Subtarget.hasBWI() && !EnableOldKNLABI)
+  if ((VT == MVT::v32i16 || VT == MVT::v64i8) && !EnableOldKNLABI &&
+      Subtarget.useAVX512Regs() && !Subtarget.hasBWI())
     return MVT::v16i32;
   return TargetLowering::getRegisterTypeForCallingConv(Context, CC, VT);
 }
@@ -1973,8 +1959,8 @@ unsigned X86TargetLowering::getNumRegistersForCallingConv(LLVMContext &Context,
        (VT.getVectorNumElements() > 64 && Subtarget.hasBWI())))
     return VT.getVectorNumElements();
   // FIXME: Should we just make these types legal and custom split operations?
-  if ((VT == MVT::v32i16 || VT == MVT::v64i8) &&
-      Subtarget.hasAVX512() && !Subtarget.hasBWI() && !EnableOldKNLABI)
+  if ((VT == MVT::v32i16 || VT == MVT::v64i8) && !EnableOldKNLABI &&
+      Subtarget.useAVX512Regs() && !Subtarget.hasBWI())
     return 1;
   return TargetLowering::getNumRegistersForCallingConv(Context, CC, VT);
 }
@@ -18455,6 +18441,12 @@ SDValue X86TargetLowering::LowerSINT_TO_FP(SDValue Op,
   if (SDValue V = LowerI64IntToFP_AVX512DQ(Op, DAG, Subtarget))
     return V;
 
+  // SSE doesn't have an i16 conversion so we need to promote.
+  if (SrcVT == MVT::i16 && isScalarFPTypeInSSEReg(VT)) {
+    SDValue Ext = DAG.getNode(ISD::SIGN_EXTEND, dl, MVT::i32, Src);
+    return DAG.getNode(ISD::SINT_TO_FP, dl, VT, Ext);
+  }
+
   SDValue ValueToStore = Op.getOperand(0);
   if (SrcVT == MVT::i64 && isScalarFPTypeInSSEReg(VT) &&
       !Subtarget.is64Bit())
@@ -19598,7 +19590,7 @@ SDValue X86TargetLowering::LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const {
     return DAG.getNode(ISD::TRUNCATE, dl, VT, Res);
   }
 
-  // If this is a SINT_TO_FP using SSEReg we're done.
+  // If this is a FP_TO_SINT using SSEReg we're done.
   if (UseSSEReg && IsSigned)
     return Op;
 

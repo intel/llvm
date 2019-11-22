@@ -72,6 +72,124 @@ def vcvt#half#q_m_f16: Intrinsic<
 
 } // loop over half = "b", "t"
 
+multiclass contiguous_load<string mnemonic, PrimitiveType memtype,
+                           list<Type> same_size, list<Type> wider> {
+  // Intrinsics named with explicit memory and element sizes that match:
+  // vldrbq_?8, vldrhq_?16, vldrwq_?32.
+  let params = same_size, pnt = PNT_None in {
+    def: Intrinsic<Vector, (args CPtr<CopyKind<same_size[0], Scalar>>:$addr),
+                   (load (address (CPtr<Vector> $addr), !srl(memtype.size,3)))>,
+         NameOverride<mnemonic>;
+    def: Intrinsic<Vector, (args CPtr<CopyKind<same_size[0], Scalar>>:$addr,
+                                 Predicate:$pred),
+                   (IRIntBase<"masked_load", [Vector, CPtr<Vector>]>
+                        (CPtr<Vector> $addr), !srl(memtype.size,3),
+                        $pred, (zeroinit Vector))>,
+         NameOverride<mnemonic # "_z">;
+  }
+
+  // Synonyms for the above, with the generic name vld1q that just means
+  // 'memory and element sizes match', and allows convenient polymorphism with
+  // the memory and element types covariant.
+  let params = same_size in {
+    def: Intrinsic<Vector, (args CPtr<CopyKind<same_size[0], Scalar>>:$addr),
+                   (load (address (CPtr<Vector> $addr), !srl(memtype.size,3)))>,
+         NameOverride<"vld1q">;
+    def: Intrinsic<Vector, (args CPtr<CopyKind<same_size[0], Scalar>>:$addr,
+                                 Predicate:$pred),
+                   (IRIntBase<"masked_load", [Vector, CPtr<Vector>]>
+                        (CPtr<Vector> $addr), !srl(memtype.size,3),
+                        $pred, (zeroinit Vector))>,
+         NameOverride<"vld1q_z">;
+  }
+
+  // Intrinsics with the memory size narrower than the vector element, so that
+  // they load less than 128 bits of memory and sign/zero extend each loaded
+  // value into a wider vector lane.
+  let params = wider, pnt = PNT_None in {
+    def: Intrinsic<Vector, (args CPtr<CopyKind<same_size[0], Scalar>>:$addr),
+                   (extend (load (address (CPtr<NarrowedVecOf<memtype,Vector>>
+                                           $addr), !srl(memtype.size,3))),
+                           Vector, (unsignedflag Scalar))>,
+         NameOverride<mnemonic>;
+    def: Intrinsic<Vector, (args CPtr<CopyKind<same_size[0], Scalar>>:$addr,
+                                 Predicate:$pred),
+                   (extend (IRIntBase<"masked_load",
+                                      [NarrowedVecOf<memtype,Vector>,
+                                      CPtr<NarrowedVecOf<memtype,Vector>>]>
+                                (CPtr<NarrowedVecOf<memtype,Vector>> $addr),
+                                !srl(memtype.size,3), $pred,
+                                (zeroinit NarrowedVecOf<memtype,Vector>)),
+                           Vector, (unsignedflag Scalar))>,
+         NameOverride<mnemonic # "_z">;
+  }
+}
+
+defm: contiguous_load<"vldrbq", u8, T.All8, !listconcat(T.Int16, T.Int32)>;
+defm: contiguous_load<"vldrhq", u16, T.All16, T.Int32>;
+defm: contiguous_load<"vldrwq", u32, T.All32, []>;
+
+multiclass contiguous_store<string mnemonic, PrimitiveType memtype,
+                           list<Type> same_size, list<Type> wider> {
+  // Intrinsics named with explicit memory and element sizes that match:
+  // vstrbq_?8, vstrhq_?16, vstrwq_?32.
+  let params = same_size in {
+    def: Intrinsic<Void, (args Ptr<CopyKind<same_size[0], Scalar>>:$addr,
+                               Vector:$value),
+                   (store $value,
+                          (address (Ptr<Vector> $addr), !srl(memtype.size,3)))>,
+         NameOverride<mnemonic>;
+    def: Intrinsic<Void, (args Ptr<CopyKind<same_size[0], Scalar>>:$addr,
+                               Vector:$value, Predicate:$pred),
+                   (IRIntBase<"masked_store", [Vector, Ptr<Vector>]>
+                        $value, (Ptr<Vector> $addr),
+                        !srl(memtype.size,3), $pred)>,
+         NameOverride<mnemonic # "_p">;
+  }
+
+  // Synonyms for the above, with the generic name vst1q that just means
+  // 'memory and element sizes match', and allows convenient polymorphism with
+  // the memory and element types covariant.
+  let params = same_size in {
+    def: Intrinsic<Void, (args Ptr<CopyKind<same_size[0], Scalar>>:$addr,
+                               Vector:$value),
+                   (store $value,
+                          (address (Ptr<Vector> $addr), !srl(memtype.size,3)))>,
+         NameOverride<"vst1q">;
+    def: Intrinsic<Void, (args Ptr<CopyKind<same_size[0], Scalar>>:$addr,
+                               Vector:$value, Predicate:$pred),
+                   (IRIntBase<"masked_store", [Vector, Ptr<Vector>]>
+                        $value, (Ptr<Vector> $addr),
+                        !srl(memtype.size,3), $pred)>,
+         NameOverride<"vst1q_p">;
+  }
+
+  // Intrinsics with the memory size narrower than the vector element, so that
+  // they store less than 128 bits of memory, truncating each vector lane into
+  // a narrower value to store.
+  let params = wider in {
+    def: Intrinsic<Void, (args Ptr<CopyKind<same_size[0], Scalar>>:$addr,
+                               Vector:$value),
+                   (store (trunc $value, NarrowedVecOf<memtype,Vector>),
+                          (address (Ptr<NarrowedVecOf<memtype,Vector>> $addr),
+                                   !srl(memtype.size,3)))>,
+         NameOverride<mnemonic>;
+    def: Intrinsic<Void, (args Ptr<CopyKind<same_size[0], Scalar>>:$addr,
+                               Vector:$value, Predicate:$pred),
+                   (IRIntBase<"masked_store",
+                              [NarrowedVecOf<memtype,Vector>,
+                               Ptr<NarrowedVecOf<memtype,Vector>>]>
+                        (trunc $value, NarrowedVecOf<memtype,Vector>),
+                        (Ptr<NarrowedVecOf<memtype,Vector>> $addr),
+                        !srl(memtype.size,3), $pred)>,
+         NameOverride<mnemonic # "_p">;
+  }
+}
+
+defm: contiguous_store<"vstrbq", u8, T.All8, !listconcat(T.Int16, T.Int32)>;
+defm: contiguous_store<"vstrhq", u16, T.All16, T.Int32>;
+defm: contiguous_store<"vstrwq", u32, T.All32, []>;
+
 multiclass gather_base<list<Type> types, int size> {
   let params = types, pnt = PNT_None in {
     def _gather_base: Intrinsic<
@@ -254,4 +372,50 @@ def vadciq_m: Intrinsic<Vector, (args Vector:$inactive, Vector:$a, Vector:$b,
              0, $pred):$pair,
          (store (and 1, (lshr (xval $pair, 1), 29)), $carry),
          (xval $pair, 0))>;
+}
+
+foreach desttype = T.All in {
+  // We want a vreinterpretq between every pair of supported vector types
+  // _except_ that there shouldn't be one from a type to itself.
+  //
+  // So this foldl expression implements what you'd write in Python as
+  // [srctype for srctype in T.All if srctype != desttype]
+  let params = !foldl([]<Type>, T.All, tlist, srctype, !listconcat(tlist,
+      !if(!eq(!cast<string>(desttype),!cast<string>(srctype)),[],[srctype])))
+  in {
+    def "vreinterpretq_" # desttype: Intrinsic<
+        VecOf<desttype>, (args Vector:$x), (bitcast $x, VecOf<desttype>)>;
+  }
+}
+
+let params = T.All in {
+  let pnt = PNT_None in {
+    def vcreateq: Intrinsic<Vector, (args u64:$a, u64:$b),
+        (bitcast (ielt_const (ielt_const (undef VecOf<u64>), $a, 0),
+                             $b, 1), Vector)>;
+    def vuninitializedq: Intrinsic<Vector, (args), (undef Vector)>;
+  }
+
+  // This is the polymorphic form of vuninitializedq, which takes no type
+  // suffix, but takes an _unevaluated_ vector parameter and returns an
+  // uninitialized vector of the same vector type.
+  //
+  // This intrinsic has no _non_-polymorphic form exposed to the user. But each
+  // separately typed version of it still has to have its own clang builtin id,
+  // which can't be called vuninitializedq_u32 or similar because that would
+  // collide with the explicit nullary versions above. So I'm calling them
+  // vuninitializedq_polymorphic_u32 (and so on) for builtin id purposes; that
+  // full name never appears in the header file due to the polymorphicOnly
+  // flag, and the _polymorphic suffix is omitted from the shortened name by
+  // the custom PolymorphicNameType here.
+  let polymorphicOnly = 1, nonEvaluating = 1,
+      pnt = PolymorphicNameType<1, "polymorphic"> in {
+    def vuninitializedq_polymorphic: Intrinsic<
+        Vector, (args Vector), (undef Vector)>;
+  }
+
+  def vgetq_lane: Intrinsic<Scalar, (args Vector:$v, imm_lane:$lane),
+                            (xelt_var $v, $lane)>;
+  def vsetq_lane: Intrinsic<Vector, (args unpromoted<Scalar>:$e, Vector:$v, imm_lane:$lane),
+                            (ielt_var $v, $e, $lane)>;
 }

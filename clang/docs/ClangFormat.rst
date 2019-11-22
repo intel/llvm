@@ -31,9 +31,9 @@ to format C/C++/Java/JavaScript/Objective-C/Protobuf/C# code.
   Clang-format options:
 
     --Werror                   - If set, changes formatting warnings to errors
-    --assume-filename=<string> - When reading from stdin, clang-format assumes this
-                                 filename to look for a style config file (with
-                                 -style=file) and to determine the language.
+    --assume-filename=<string> - Override filename used to determine the language.
+                                 When reading from stdin, clang-format assumes this
+                                 filename to determine the language.
     --cursor=<uint>            - The position of the cursor when invoking
                                  clang-format from an editor integration
     --dry-run                  - If set, do not actually make the formatting changes
@@ -83,7 +83,7 @@ to format C/C++/Java/JavaScript/Objective-C/Protobuf/C# code.
   Generic Options:
 
     --help                     - Display available options (--help-hidden for more)
-    --help-list                - Display list of available options (--help-list-hidden for moOAre)
+    --help-list                - Display list of available options (--help-list-hidden for more)
     --version                  - Display the version of this program
 
 

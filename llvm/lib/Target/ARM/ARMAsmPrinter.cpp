@@ -54,8 +54,8 @@ using namespace llvm;
 
 ARMAsmPrinter::ARMAsmPrinter(TargetMachine &TM,
                              std::unique_ptr<MCStreamer> Streamer)
-    : AsmPrinter(TM, std::move(Streamer)), AFI(nullptr), MCP(nullptr),
-      InConstantPool(false), OptimizationGoals(-1) {}
+    : AsmPrinter(TM, std::move(Streamer)), Subtarget(nullptr), AFI(nullptr),
+      MCP(nullptr), InConstantPool(false), OptimizationGoals(-1) {}
 
 void ARMAsmPrinter::EmitFunctionBodyEnd() {
   // Make sure to terminate any constant pools that were at the end
@@ -752,7 +752,7 @@ void ARMAsmPrinter::emitAttributes() {
   if (STI.isRWPI())
     ATS.emitAttribute(ARMBuildAttrs::ABI_PCS_R9_use,
                       ARMBuildAttrs::R9IsSB);
-  else if (STI.isR9Reserved())
+  else if (STI.isGPRegisterReserved(9))
     ATS.emitAttribute(ARMBuildAttrs::ABI_PCS_R9_use,
                       ARMBuildAttrs::R9Reserved);
   else

@@ -40,6 +40,7 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/LaneBitmask.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCRegisterInfo.h"
@@ -121,13 +122,13 @@ namespace {
 
   class RegisterCoalescer : public MachineFunctionPass,
                             private LiveRangeEdit::Delegate {
-    MachineFunction* MF;
-    MachineRegisterInfo* MRI;
-    const TargetRegisterInfo* TRI;
-    const TargetInstrInfo* TII;
-    LiveIntervals *LIS;
-    const MachineLoopInfo* Loops;
-    AliasAnalysis *AA;
+    MachineFunction* MF = nullptr;
+    MachineRegisterInfo* MRI = nullptr;
+    const TargetRegisterInfo* TRI = nullptr;
+    const TargetInstrInfo* TII = nullptr;
+    LiveIntervals *LIS = nullptr;
+    const MachineLoopInfo* Loops = nullptr;
+    AliasAnalysis *AA = nullptr;
     RegisterClassInfo RegClassInfo;
 
     /// A LaneMask to remember on which subregister live ranges we need to call
@@ -136,15 +137,15 @@ namespace {
 
     /// True if the main range of the currently coalesced intervals should be
     /// checked for smaller live intervals.
-    bool ShrinkMainRange;
+    bool ShrinkMainRange = false;
 
     /// True if the coalescer should aggressively coalesce global copies
     /// in favor of keeping local copies.
-    bool JoinGlobalCopies;
+    bool JoinGlobalCopies = false;
 
     /// True if the coalescer should aggressively coalesce fall-thru
     /// blocks exclusively containing copies.
-    bool JoinSplitEdges;
+    bool JoinSplitEdges = false;
 
     /// Copy instructions yet to be coalesced.
     SmallVector<MachineInstr*, 8> WorkList;
@@ -225,7 +226,8 @@ namespace {
     /// @p ToMerge will occupy in the coalescer register. @p LI has its subrange
     /// lanemasks already adjusted to the coalesced register.
     void mergeSubRangeInto(LiveInterval &LI, const LiveRange &ToMerge,
-                           LaneBitmask LaneMask, CoalescerPair &CP);
+                           LaneBitmask LaneMask, CoalescerPair &CP,
+                           unsigned DstIdx);
 
     /// Join the liveranges of two subregisters. Joins @p RRange into
     /// @p LRange, @p RRange may be invalid afterwards.
@@ -3115,7 +3117,8 @@ void JoinVals::eraseInstrs(SmallPtrSetImpl<MachineInstr*> &ErasedInstrs,
                            LiveInterval *LI) {
   for (unsigned i = 0, e = LR.getNumValNums(); i != e; ++i) {
     // Get the def location before markUnused() below invalidates it.
-    SlotIndex Def = LR.getValNumInfo(i)->def;
+    VNInfo *VNI = LR.getValNumInfo(i);
+    SlotIndex Def = VNI->def;
     switch (Vals[i].Resolution) {
     case CR_Keep: {
       // If an IMPLICIT_DEF value is pruned, it doesn't serve a purpose any
@@ -3131,8 +3134,6 @@ void JoinVals::eraseInstrs(SmallPtrSetImpl<MachineInstr*> &ErasedInstrs,
       // In such cases, removing this def from the main range must be
       // complemented by extending the main range to account for the liveness
       // of the other subrange.
-      VNInfo *VNI = LR.getValNumInfo(i);
-      SlotIndex Def = VNI->def;
       // The new end point of the main range segment to be extended.
       SlotIndex NewEnd;
       if (LI != nullptr) {
@@ -3272,7 +3273,8 @@ void RegisterCoalescer::joinSubRegRanges(LiveRange &LRange, LiveRange &RRange,
 void RegisterCoalescer::mergeSubRangeInto(LiveInterval &LI,
                                           const LiveRange &ToMerge,
                                           LaneBitmask LaneMask,
-                                          CoalescerPair &CP) {
+                                          CoalescerPair &CP,
+                                          unsigned ComposeSubRegIdx) {
   BumpPtrAllocator &Allocator = LIS->getVNInfoAllocator();
   LI.refineSubRanges(
       Allocator, LaneMask,
@@ -3285,7 +3287,7 @@ void RegisterCoalescer::mergeSubRangeInto(LiveInterval &LI,
           joinSubRegRanges(SR, RangeCopy, SR.LaneMask, CP);
         }
       },
-      *LIS->getSlotIndexes(), *TRI);
+      *LIS->getSlotIndexes(), *TRI, ComposeSubRegIdx);
 }
 
 bool RegisterCoalescer::isHighCostLiveInterval(LiveInterval &LI) {
@@ -3351,12 +3353,12 @@ bool RegisterCoalescer::joinVirtRegs(CoalescerPair &CP) {
     if (!RHS.hasSubRanges()) {
       LaneBitmask Mask = SrcIdx == 0 ? CP.getNewRC()->getLaneMask()
                                      : TRI->getSubRegIndexLaneMask(SrcIdx);
-      mergeSubRangeInto(LHS, RHS, Mask, CP);
+      mergeSubRangeInto(LHS, RHS, Mask, CP, DstIdx);
     } else {
       // Pair up subranges and merge.
       for (LiveInterval::SubRange &R : RHS.subranges()) {
         LaneBitmask Mask = TRI->composeSubRegIndexLaneMask(SrcIdx, R.LaneMask);
-        mergeSubRangeInto(LHS, R, Mask, CP);
+        mergeSubRangeInto(LHS, R, Mask, CP, DstIdx);
       }
     }
     LLVM_DEBUG(dbgs() << "\tJoined SubRanges " << LHS << "\n");

@@ -19,6 +19,7 @@
 #include "lldb/lldb-enumerations.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 
 namespace lldb_private {
 /// \class CompileUnit CompileUnit.h "lldb/Symbol/CompileUnit.h"
@@ -44,7 +45,7 @@ public:
   /// convert into a FileSpec, the SymbolFile plug-in supplied \a uid, and the
   /// source language type.
   ///
-  /// \param[in] module
+  /// \param[in] module_sp
   ///     The parent module that owns this compile unit. This value
   ///     must be a valid pointer value.
   ///
@@ -82,7 +83,7 @@ public:
   /// convert into a FileSpec, the SymbolFile plug-in supplied \a uid, and the
   /// source language type.
   ///
-  /// \param[in] module
+  /// \param[in] module_sp
   ///     The parent module that owns this compile unit. This value
   ///     must be a valid pointer value.
   ///
@@ -163,6 +164,18 @@ public:
   void ForeachFunction(
       llvm::function_ref<bool(const lldb::FunctionSP &)> lambda) const;
 
+  /// Find a function in the compile unit based on the predicate matching_lambda
+  ///
+  /// \param[in] matching_lambda
+  ///     A predicate that will be used within FindFunction to evaluate each
+  ///     FunctionSP in m_functions_by_uid. When the predicate returns true
+  ///     FindFunction will return the corresponding FunctionSP.
+  ///
+  /// \return
+  ///   The first FunctionSP that the matching_lambda prediate returns true for.
+  lldb::FunctionSP FindFunction(
+      llvm::function_ref<bool(const lldb::FunctionSP &)> matching_lambda);
+
   /// Dump the compile unit contents to the stream \a s.
   ///
   /// \param[in] s
@@ -229,9 +242,20 @@ public:
   /// compilation unit. Recursively also descends into the referenced external
   /// modules of any encountered compilation unit.
   ///
+  /// \param visited_symbol_files
+  ///     A set of SymbolFiles that were already visited to avoid
+  ///     visiting one file more than once.
+  ///
   /// \param[in] lambda
-  ///     The lambda that should be applied to every module.
-  void ForEachExternalModule(llvm::function_ref<void(lldb::ModuleSP)> f);
+  ///     The lambda that should be applied to every function. The lambda can
+  ///     return true if the iteration should be aborted earlier.
+  ///
+  /// \return
+  ///     If the lambda early-exited, this function returns true to
+  ///     propagate the early exit.
+  virtual bool ForEachExternalModule(
+      llvm::DenseSet<lldb_private::SymbolFile *> &visited_symbol_files,
+      llvm::function_ref<bool(Module &)> lambda);
 
   /// Get the compile unit's support file list.
   ///

@@ -72,6 +72,9 @@ static cl::opt<bool>
 ForceFastISel("arm-force-fast-isel",
                cl::init(false), cl::Hidden);
 
+static cl::opt<bool> EnableSubRegLiveness("arm-enable-subreg-liveness",
+                                          cl::init(false), cl::Hidden);
+
 /// initializeSubtargetDependencies - Initializes using a CPU and feature string
 /// so that we can use initializer lists for subtarget initialization.
 ARMSubtarget &ARMSubtarget::initializeSubtargetDependencies(StringRef CPU,
@@ -95,8 +98,9 @@ ARMSubtarget::ARMSubtarget(const Triple &TT, const std::string &CPU,
                            const ARMBaseTargetMachine &TM, bool IsLittle,
                            bool MinSize)
     : ARMGenSubtargetInfo(TT, CPU, FS), UseMulOps(UseFusedMulOps),
-      CPUString(CPU), OptMinSize(MinSize), IsLittle(IsLittle),
-      TargetTriple(TT), Options(TM.Options), TM(TM),
+      ReservedGPRegisters(ARM::GPRRegClass.getNumRegs()), CPUString(CPU),
+      OptMinSize(MinSize), IsLittle(IsLittle), TargetTriple(TT),
+      Options(TM.Options), TM(TM),
       FrameLowering(initializeFrameLowering(CPU, FS)),
       // At this point initializeSubtargetDependencies has been called so
       // we can query directly.
@@ -250,8 +254,18 @@ void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
       (Options.UnsafeFPMath || isTargetDarwin()))
     UseNEONForSinglePrecisionFP = true;
 
-  if (isRWPI())
-    ReserveR9 = true;
+  if (isRWPI() || (isTargetMachO() && !HasV6Ops))
+    ReservedGPRegisters.set(9);
+
+  // Throw an error when trying to reserve a target's FP register. It may
+  // be used by the compiler even when frame pointer elimination is enabled.
+  // FIXME: Throw this error if -frame-pointer=none is not set; otherwise
+  //        only emit a warning.
+  const int restFP = (useR7AsFramePointer()) ? 7 : 11;
+  if (isGPRegisterReserved(restFP))
+    report_fatal_error(
+        "Register r" + std::to_string(restFP) +
+        " has been specified but is used as the frame pointer for this target.");
 
   // If MVEVectorCostFactor is still 0 (has not been set to anything else), default it to 2
   if (MVEVectorCostFactor == 0)
@@ -378,6 +392,8 @@ bool ARMSubtarget::enableMachineScheduler() const {
   // with the use-misched feature.
   return useMachineScheduler();
 }
+
+bool ARMSubtarget::enableSubRegLiveness() const { return EnableSubRegLiveness; }
 
 // This overrides the PostRAScheduler bit in the SchedModel for any CPU.
 bool ARMSubtarget::enablePostRAScheduler() const {

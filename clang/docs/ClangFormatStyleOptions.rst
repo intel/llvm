@@ -1432,6 +1432,10 @@ the configuration (without a prefix: ``Auto``).
      f(MyMap[{composite, key}]);            f(MyMap[{ composite, key }]);
      new int[3]{1, 2, 3};                   new int[3]{ 1, 2, 3 };
 
+**DeriveLineEnding** (``bool``)
+  Analyze the formatted file for the most used line ending (``\r\n``
+  or ``\n``). ``UseCRLF`` is only used as a fallback if none can be derived.
+
 **DerivePointerAlignment** (``bool``)
   If ``true``, analyze the formatted file for the most common
   alignment of ``&`` and ``*``.
@@ -1580,6 +1584,26 @@ the configuration (without a prefix: ``Auto``).
 
   For example, if configured to "(_test)?$", then a header a.h would be seen
   as the "main" include in both a.cc and a_test.cc.
+
+**IncludeIsMainSourceRegex** (``std::string``)
+  Specify a regular expression for files being formatted
+  that are allowed to be considered "main" in the
+  file-to-main-include mapping.
+
+  By default, clang-format considers files as "main" only when they end
+  with: ``.c``, ``.cc``, ``.cpp``, ``.c++``, ``.cxx``, ``.m`` or ``.mm``
+  extensions.
+  For these files a guessing of "main" include takes place
+  (to assign category 0, see above). This config option allows for
+  additional suffixes and extensions for files to be considered as "main".
+
+  For example, if this option is configured to ``(Impl\.hpp)$``,
+  then a file ``ClassImpl.hpp`` is considered "main" (in addition to
+  ``Class.c``, ``Class.cc``, ``Class.cpp`` and so on) and "main
+  include file" logic will be executed (with *IncludeIsMainRegex* setting
+  also being respected in later phase). Without this option set,
+  ``ClassImpl.hpp`` would not have the main include file put on top
+  before any other include.
 
 **IndentCaseLabels** (``bool``)
   Indent case labels one level from the switch statement.
@@ -2237,6 +2261,16 @@ the configuration (without a prefix: ``Auto``).
      true:                                  false:
      for (auto v : values) {}       vs.     for(auto v: values) {}
 
+**SpaceBeforeSquareBrackets** (``bool``)
+  If ``true``, spaces will be before  ``[``.
+  Lambdas will not be affected. Only the first ``[`` will get a space added.
+
+  .. code-block:: c++
+
+     true:                                  false:
+     int a [5];                    vs.      int a[5];
+     int a [5][5];                 vs.      int a[5][5];
+
 **SpaceInEmptyBlock** (``bool``)
   If ``true``, spaces will be inserted into ``{}``.
 
@@ -2388,6 +2422,10 @@ the configuration (without a prefix: ``Auto``).
     TypenameMacros: ['STACK_OF', 'LIST']
 
   For example: OpenSSL STACK_OF, BSD LIST_ENTRY.
+
+**UseCRLF** (``bool``)
+  Use ``\r\n`` instead of ``\n`` for line breaks.
+  Also used as fallback if ``DeriveLineEnding`` is true.
 
 **UseTab** (``UseTabStyle``)
   The way to use tab characters in the resulting file.

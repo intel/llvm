@@ -96,6 +96,7 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Casting.h"
@@ -3144,9 +3145,6 @@ void Verifier::visitUnaryOperator(UnaryOperator &U) {
   case Instruction::FNeg:
     Assert(U.getType()->isFPOrFPVectorTy(),
            "FNeg operator only works with float types!", &U);
-    break;
-  case Instruction::Freeze:
-    // Freeze can take all kinds of types.
     break;
   default:
     llvm_unreachable("Unknown UnaryOperator opcode!");

@@ -75,6 +75,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Pass.h"
@@ -305,23 +306,18 @@ void TargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
 // SelectionDAGISel code
 //===----------------------------------------------------------------------===//
 
-SelectionDAGISel::SelectionDAGISel(TargetMachine &tm,
-                                   CodeGenOpt::Level OL) :
-  MachineFunctionPass(ID), TM(tm),
-  FuncInfo(new FunctionLoweringInfo()),
-  SwiftError(new SwiftErrorValueTracking()),
-  CurDAG(new SelectionDAG(tm, OL)),
-  SDB(new SelectionDAGBuilder(*CurDAG, *FuncInfo, *SwiftError, OL)),
-  AA(), GFI(),
-  OptLevel(OL),
-  DAGSize(0) {
-    initializeGCModuleInfoPass(*PassRegistry::getPassRegistry());
-    initializeBranchProbabilityInfoWrapperPassPass(
-        *PassRegistry::getPassRegistry());
-    initializeAAResultsWrapperPassPass(*PassRegistry::getPassRegistry());
-    initializeTargetLibraryInfoWrapperPassPass(
-        *PassRegistry::getPassRegistry());
-  }
+SelectionDAGISel::SelectionDAGISel(TargetMachine &tm, CodeGenOpt::Level OL)
+    : MachineFunctionPass(ID), TM(tm), FuncInfo(new FunctionLoweringInfo()),
+      SwiftError(new SwiftErrorValueTracking()),
+      CurDAG(new SelectionDAG(tm, OL)),
+      SDB(new SelectionDAGBuilder(*CurDAG, *FuncInfo, *SwiftError, OL)), AA(),
+      GFI(), OptLevel(OL), DAGSize(0) {
+  initializeGCModuleInfoPass(*PassRegistry::getPassRegistry());
+  initializeBranchProbabilityInfoWrapperPassPass(
+      *PassRegistry::getPassRegistry());
+  initializeAAResultsWrapperPassPass(*PassRegistry::getPassRegistry());
+  initializeTargetLibraryInfoWrapperPassPass(*PassRegistry::getPassRegistry());
+}
 
 SelectionDAGISel::~SelectionDAGISel() {
   delete SDB;

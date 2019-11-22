@@ -11,15 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/DIBuilder.h"
-#include "llvm/IR/IRBuilder.h"
 #include "LLVMContextImpl.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
@@ -305,9 +306,11 @@ DIDerivedType *DIBuilder::createReferenceType(
 
 DIDerivedType *DIBuilder::createTypedef(DIType *Ty, StringRef Name,
                                         DIFile *File, unsigned LineNo,
-                                        DIScope *Context) {
+                                        DIScope *Context,
+                                        Optional<unsigned> AlignInBits) {
   return DIDerivedType::get(VMContext, dwarf::DW_TAG_typedef, Name, File,
-                            LineNo, getNonCompileUnitScope(Context), Ty, 0, 0,
+                            LineNo, getNonCompileUnitScope(Context), Ty, 0,
+                            AlignInBits.hasValue() ? AlignInBits.getValue() : 0,
                             0, None, DINode::FlagZero);
 }
 

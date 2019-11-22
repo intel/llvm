@@ -4991,7 +4991,7 @@ private:
   ABIKind getABIKind() const { return Kind; }
   bool isDarwinPCS() const { return Kind == DarwinPCS; }
 
-  ABIArgInfo classifyReturnType(QualType RetTy) const;
+  ABIArgInfo classifyReturnType(QualType RetTy, bool IsVariadic) const;
   ABIArgInfo classifyArgumentType(QualType RetTy) const;
   bool isHomogeneousAggregateBaseType(QualType Ty) const override;
   bool isHomogeneousAggregateSmallEnough(const Type *Ty,
@@ -5001,7 +5001,8 @@ private:
 
   void computeInfo(CGFunctionInfo &FI) const override {
     if (!::classifyReturnType(getCXXABI(), FI, *this))
-      FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
+      FI.getReturnInfo() =
+          classifyReturnType(FI.getReturnType(), FI.isVariadic());
 
     for (auto &it : FI.arguments())
       it.info = classifyArgumentType(it.type);
@@ -5055,23 +5056,38 @@ public:
     const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
     if (!FD)
       return;
-    llvm::Function *Fn = cast<llvm::Function>(GV);
 
-    auto Kind = CGM.getCodeGenOpts().getSignReturnAddress();
-    if (Kind != CodeGenOptions::SignReturnAddressScope::None) {
+    CodeGenOptions::SignReturnAddressScope Scope = CGM.getCodeGenOpts().getSignReturnAddress();
+    CodeGenOptions::SignReturnAddressKeyValue Key = CGM.getCodeGenOpts().getSignReturnAddressKey();
+    bool BranchTargetEnforcement = CGM.getCodeGenOpts().BranchTargetEnforcement;
+    if (const auto *TA = FD->getAttr<TargetAttr>()) {
+      TargetAttr::ParsedTargetAttr Attr = TA->parse();
+      if (!Attr.BranchProtection.empty()) {
+        TargetInfo::BranchProtectionInfo BPI;
+        StringRef Error;
+        (void)CGM.getTarget().validateBranchProtection(Attr.BranchProtection,
+                                                       BPI, Error);
+        assert(Error.empty());
+        Scope = BPI.SignReturnAddr;
+        Key = BPI.SignKey;
+        BranchTargetEnforcement = BPI.BranchTargetEnforcement;
+      }
+    }
+
+    auto *Fn = cast<llvm::Function>(GV);
+    if (Scope != CodeGenOptions::SignReturnAddressScope::None) {
       Fn->addFnAttr("sign-return-address",
-                    Kind == CodeGenOptions::SignReturnAddressScope::All
+                    Scope == CodeGenOptions::SignReturnAddressScope::All
                         ? "all"
                         : "non-leaf");
 
-      auto Key = CGM.getCodeGenOpts().getSignReturnAddressKey();
       Fn->addFnAttr("sign-return-address-key",
                     Key == CodeGenOptions::SignReturnAddressKeyValue::AKey
                         ? "a_key"
                         : "b_key");
     }
 
-    if (CGM.getCodeGenOpts().BranchTargetEnforcement)
+    if (BranchTargetEnforcement)
       Fn->addFnAttr("branch-target-enforcement");
   }
 };
@@ -5184,23 +5200,24 @@ ABIArgInfo AArch64ABIInfo::classifyArgumentType(QualType Ty) const {
       Alignment = getContext().getTypeUnadjustedAlign(Ty);
       Alignment = Alignment < 128 ? 64 : 128;
     } else {
-      Alignment = getContext().getTypeAlign(Ty);
+      Alignment = std::max(getContext().getTypeAlign(Ty),
+                           (unsigned)getTarget().getPointerWidth(0));
     }
-    Size = llvm::alignTo(Size, 64); // round up to multiple of 8 bytes
+    Size = llvm::alignTo(Size, Alignment);
 
     // We use a pair of i64 for 16-byte aggregate with 8-byte alignment.
     // For aggregates with 16-byte alignment, we use i128.
-    if (Alignment < 128 && Size == 128) {
-      llvm::Type *BaseTy = llvm::Type::getInt64Ty(getVMContext());
-      return ABIArgInfo::getDirect(llvm::ArrayType::get(BaseTy, Size / 64));
-    }
-    return ABIArgInfo::getDirect(llvm::IntegerType::get(getVMContext(), Size));
+    llvm::Type *BaseTy = llvm::Type::getIntNTy(getVMContext(), Alignment);
+    return ABIArgInfo::getDirect(
+        Size == Alignment ? BaseTy
+                          : llvm::ArrayType::get(BaseTy, Size / Alignment));
   }
 
   return getNaturalAlignIndirect(Ty, /*ByVal=*/false);
 }
 
-ABIArgInfo AArch64ABIInfo::classifyReturnType(QualType RetTy) const {
+ABIArgInfo AArch64ABIInfo::classifyReturnType(QualType RetTy,
+                                              bool IsVariadic) const {
   if (RetTy->isVoidType())
     return ABIArgInfo::getIgnore();
 
@@ -5224,7 +5241,9 @@ ABIArgInfo AArch64ABIInfo::classifyReturnType(QualType RetTy) const {
 
   const Type *Base = nullptr;
   uint64_t Members = 0;
-  if (isHomogeneousAggregate(RetTy, Base, Members))
+  if (isHomogeneousAggregate(RetTy, Base, Members) &&
+      !(getTarget().getTriple().getArch() == llvm::Triple::aarch64_32 &&
+        IsVariadic))
     // Homogeneous Floating-point Aggregates (HFAs) are returned directly.
     return ABIArgInfo::getDirect();
 
@@ -5259,6 +5278,14 @@ bool AArch64ABIInfo::isIllegalVectorType(QualType Ty) const {
     // NumElements should be power of 2.
     if (!llvm::isPowerOf2_32(NumElements))
       return true;
+
+    // arm64_32 has to be compatible with the ARM logic here, which allows huge
+    // vectors for some reason.
+    llvm::Triple Triple = getTarget().getTriple();
+    if (Triple.getArch() == llvm::Triple::aarch64_32 &&
+        Triple.isOSBinFormatMachO())
+      return Size <= 32;
+
     return Size != 64 && (Size != 128 || NumElements == 1);
   }
   return false;
@@ -5550,7 +5577,8 @@ Address AArch64ABIInfo::EmitDarwinVAArg(Address VAListAddr, QualType Ty,
   if (!isAggregateTypeForABI(Ty) && !isIllegalVectorType(Ty))
     return EmitVAArgInstr(CGF, VAListAddr, Ty, ABIArgInfo::getDirect());
 
-  CharUnits SlotSize = CharUnits::fromQuantity(8);
+  uint64_t PointerSize = getTarget().getPointerWidth(0) / 8;
+  CharUnits SlotSize = CharUnits::fromQuantity(PointerSize);
 
   // Empty records are ignored for parameter passing purposes.
   if (isEmptyRecord(getContext(), Ty, true)) {
@@ -9773,6 +9801,7 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
     return SetCGInfo(new AVRTargetCodeGenInfo(Types));
 
   case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64_32:
   case llvm::Triple::aarch64_be: {
     AArch64ABIInfo::ABIKind Kind = AArch64ABIInfo::AAPCS;
     if (getTarget().getABI() == "darwinpcs")

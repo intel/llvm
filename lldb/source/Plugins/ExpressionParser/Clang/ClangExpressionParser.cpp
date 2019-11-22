@@ -10,6 +10,7 @@
 #include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/ExternalASTSource.h"
 #include "clang/AST/PrettyPrinter.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/DiagnosticIDs.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
@@ -696,10 +697,7 @@ class CodeComplete : public CodeCompleteConsumer {
 
 public:
   /// Constructs a CodeComplete consumer that can be attached to a Sema.
-  /// \param[out] matches
-  ///    The list of matches that the lldb completion API expects as a result.
-  ///    This may already contain matches, so it's only allowed to append
-  ///    to this variable.
+  ///
   /// \param[out] expr
   ///    The whole expression string that we are currently parsing. This
   ///    string needs to be equal to the input the user typed, and NOT the

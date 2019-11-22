@@ -43,6 +43,7 @@
 
 #include "SPIRVToOCL.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/CommandLine.h"
 
 namespace SPIRV {
 

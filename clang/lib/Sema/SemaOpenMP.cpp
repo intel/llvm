@@ -48,12 +48,6 @@ enum DefaultDataSharingAttributes {
   DSA_shared = 1 << 1, /// Default data sharing attribute 'shared'.
 };
 
-/// Attributes of the defaultmap clause.
-enum DefaultMapAttributes {
-  DMA_unspecified,   /// Default mapping is not specified.
-  DMA_tofrom_scalar, /// Default mapping is 'tofrom:scalar'.
-};
-
 /// Stack for tracking declarations used in OpenMP directives and
 /// clauses and their data-sharing attributes.
 class DSAStackTy {
@@ -115,6 +109,14 @@ private:
   };
   using DeclReductionMapTy =
       llvm::SmallDenseMap<const ValueDecl *, ReductionData, 4>;
+  struct DefaultmapInfo {
+    OpenMPDefaultmapClauseModifier ImplicitBehavior =
+        OMPC_DEFAULTMAP_MODIFIER_unknown;
+    SourceLocation SLoc;
+    DefaultmapInfo() = default;
+    DefaultmapInfo(OpenMPDefaultmapClauseModifier M, SourceLocation Loc)
+        : ImplicitBehavior(M), SLoc(Loc) {}
+  };
 
   struct SharingMapTy {
     DeclSAMapTy SharingMap;
@@ -124,8 +126,7 @@ private:
     LoopControlVariablesMapTy LCVMap;
     DefaultDataSharingAttributes DefaultAttr = DSA_unspecified;
     SourceLocation DefaultAttrLoc;
-    DefaultMapAttributes DefaultMapAttr = DMA_unspecified;
-    SourceLocation DefaultMapAttrLoc;
+    DefaultmapInfo DefaultmapMap[OMPC_DEFAULTMAP_unknown];
     OpenMPDirectiveKind Directive = OMPD_unknown;
     DeclarationNameInfo DirectiveName;
     Scope *CurScope = nullptr;
@@ -592,10 +593,18 @@ public:
     getTopOfStack().DefaultAttr = DSA_shared;
     getTopOfStack().DefaultAttrLoc = Loc;
   }
-  /// Set default data mapping attribute to 'tofrom:scalar'.
-  void setDefaultDMAToFromScalar(SourceLocation Loc) {
-    getTopOfStack().DefaultMapAttr = DMA_tofrom_scalar;
-    getTopOfStack().DefaultMapAttrLoc = Loc;
+  /// Set default data mapping attribute to Modifier:Kind
+  void setDefaultDMAAttr(OpenMPDefaultmapClauseModifier M,
+                         OpenMPDefaultmapClauseKind Kind,
+                         SourceLocation Loc) {
+    DefaultmapInfo &DMI = getTopOfStack().DefaultmapMap[Kind];
+    DMI.ImplicitBehavior = M;
+    DMI.SLoc = Loc;
+  }
+  /// Check whether the implicit-behavior has been set in defaultmap
+  bool checkDefaultmapCategory(OpenMPDefaultmapClauseKind VariableCategory) {
+    return getTopOfStack().DefaultmapMap[VariableCategory].ImplicitBehavior !=
+           OMPC_DEFAULTMAP_MODIFIER_unknown;
   }
 
   DefaultDataSharingAttributes getDefaultDSA() const {
@@ -606,16 +615,52 @@ public:
     return isStackEmpty() ? SourceLocation()
                           : getTopOfStack().DefaultAttrLoc;
   }
-  DefaultMapAttributes getDefaultDMA() const {
-    return isStackEmpty() ? DMA_unspecified
-                          : getTopOfStack().DefaultMapAttr;
+  OpenMPDefaultmapClauseModifier
+  getDefaultmapModifier(OpenMPDefaultmapClauseKind Kind) const {
+    return isStackEmpty()
+               ? OMPC_DEFAULTMAP_MODIFIER_unknown
+               : getTopOfStack().DefaultmapMap[Kind].ImplicitBehavior;
   }
-  DefaultMapAttributes getDefaultDMAAtLevel(unsigned Level) const {
-    return getStackElemAtLevel(Level).DefaultMapAttr;
+  OpenMPDefaultmapClauseModifier
+  getDefaultmapModifierAtLevel(unsigned Level,
+                               OpenMPDefaultmapClauseKind Kind) const {
+    return getStackElemAtLevel(Level).DefaultmapMap[Kind].ImplicitBehavior;
   }
-  SourceLocation getDefaultDMALocation() const {
-    return isStackEmpty() ? SourceLocation()
-                          : getTopOfStack().DefaultMapAttrLoc;
+  bool isDefaultmapCapturedByRef(unsigned Level,
+                                 OpenMPDefaultmapClauseKind Kind) const {
+    OpenMPDefaultmapClauseModifier M =
+        getDefaultmapModifierAtLevel(Level, Kind);
+    if (Kind == OMPC_DEFAULTMAP_scalar || Kind == OMPC_DEFAULTMAP_pointer) {
+      return (M == OMPC_DEFAULTMAP_MODIFIER_alloc) ||
+             (M == OMPC_DEFAULTMAP_MODIFIER_to) ||
+             (M == OMPC_DEFAULTMAP_MODIFIER_from) ||
+             (M == OMPC_DEFAULTMAP_MODIFIER_tofrom);
+    }
+    return true;
+  }
+  static bool mustBeFirstprivateBase(OpenMPDefaultmapClauseModifier M,
+                                     OpenMPDefaultmapClauseKind Kind) {
+    switch (Kind) {
+    case OMPC_DEFAULTMAP_scalar:
+    case OMPC_DEFAULTMAP_pointer:
+      return (M == OMPC_DEFAULTMAP_MODIFIER_unknown) ||
+             (M == OMPC_DEFAULTMAP_MODIFIER_firstprivate) ||
+             (M == OMPC_DEFAULTMAP_MODIFIER_default);
+    case OMPC_DEFAULTMAP_aggregate:
+      return M == OMPC_DEFAULTMAP_MODIFIER_firstprivate;
+    case OMPC_DEFAULTMAP_unknown:
+      llvm_unreachable("Unexpected variable category");
+    }
+  }
+  bool mustBeFirstprivateAtLevel(unsigned Level,
+                                 OpenMPDefaultmapClauseKind Kind) const {
+    OpenMPDefaultmapClauseModifier M =
+        getDefaultmapModifierAtLevel(Level, Kind);
+    return mustBeFirstprivateBase(M, Kind);
+  }
+  bool mustBeFirstprivate(OpenMPDefaultmapClauseKind Kind) const {
+    OpenMPDefaultmapClauseModifier M = getDefaultmapModifier(Kind);
+    return mustBeFirstprivateBase(M, Kind);
   }
 
   /// Checks if the specified variable is a threadprivate.
@@ -1716,6 +1761,15 @@ void Sema::checkOpenMPDeviceExpr(const Expr *E) {
         << Context.getTargetInfo().getTriple().str() << E->getSourceRange();
 }
 
+static OpenMPDefaultmapClauseKind
+getVariableCategoryFromDecl(const ValueDecl *VD) {
+  if (VD->getType().getNonReferenceType()->isAnyPointerType())
+    return OMPC_DEFAULTMAP_pointer;
+  if (VD->getType().getNonReferenceType()->isScalarType())
+    return OMPC_DEFAULTMAP_scalar;
+  return OMPC_DEFAULTMAP_aggregate;
+}
+
 bool Sema::isOpenMPCapturedByRef(const ValueDecl *D, unsigned Level,
                                  unsigned OpenMPCaptureLevel) const {
   assert(LangOpts.OpenMP && "OpenMP is not allowed");
@@ -1834,11 +1888,13 @@ bool Sema::isOpenMPCapturedByRef(const ValueDecl *D, unsigned Level,
     } else {
       // By default, all the data that has a scalar type is mapped by copy
       // (except for reduction variables).
+      // Defaultmap scalar is mutual exclusive to defaultmap pointer
       IsByRef =
           (DSAStack->isForceCaptureByReferenceInTargetExecutable() &&
            !Ty->isAnyPointerType()) ||
           !Ty->isScalarType() ||
-          DSAStack->getDefaultDMAAtLevel(Level) == DMA_tofrom_scalar ||
+          DSAStack->isDefaultmapCapturedByRef(Level,
+                                              getVariableCategoryFromDecl(D)) ||
           DSAStack->hasExplicitDSA(
               D, [](OpenMPClauseKind K) { return K == OMPC_reduction; }, Level);
     }
@@ -2055,9 +2111,8 @@ void Sema::setOpenMPCaptureKind(FieldDecl *FD, const ValueDecl *D,
     if (DSAStack->hasExplicitDirective(isOpenMPTargetExecutionDirective,
                                        NewLevel)) {
       OMPC = OMPC_map;
-      if (D->getType()->isScalarType() &&
-          DSAStack->getDefaultDMAAtLevel(NewLevel) !=
-              DefaultMapAttributes::DMA_tofrom_scalar)
+      if (DSAStack->mustBeFirstprivateAtLevel(NewLevel,
+                                              getVariableCategoryFromDecl(D)))
         OMPC = OMPC_firstprivate;
       break;
     }
@@ -2763,6 +2818,42 @@ static void reportOriginalDsa(Sema &SemaRef, const DSAStackTy *Stack,
   }
 }
 
+static OpenMPMapClauseKind
+getMapClauseKindFromModifier(OpenMPDefaultmapClauseModifier M,
+                             bool IsAggregateOrDeclareTarget) {
+  OpenMPMapClauseKind Kind = OMPC_MAP_unknown;
+  switch (M) {
+  case OMPC_DEFAULTMAP_MODIFIER_alloc:
+    Kind = OMPC_MAP_alloc;
+    break;
+  case OMPC_DEFAULTMAP_MODIFIER_to:
+    Kind = OMPC_MAP_to;
+    break;
+  case OMPC_DEFAULTMAP_MODIFIER_from:
+    Kind = OMPC_MAP_from;
+    break;
+  case OMPC_DEFAULTMAP_MODIFIER_tofrom:
+    Kind = OMPC_MAP_tofrom;
+    break;
+  case OMPC_DEFAULTMAP_MODIFIER_firstprivate:
+  case OMPC_DEFAULTMAP_MODIFIER_last:
+    llvm_unreachable("Unexpected defaultmap implicit behavior");
+  case OMPC_DEFAULTMAP_MODIFIER_none:
+  case OMPC_DEFAULTMAP_MODIFIER_default:
+  case OMPC_DEFAULTMAP_MODIFIER_unknown:
+    // IsAggregateOrDeclareTarget could be true if:
+    // 1. the implicit behavior for aggregate is tofrom
+    // 2. it's a declare target link
+    if (IsAggregateOrDeclareTarget) {
+      Kind = OMPC_MAP_tofrom;
+      break;
+    }
+    llvm_unreachable("Unexpected defaultmap implicit behavior");
+  }
+  assert(Kind != OMPC_MAP_unknown && "Expect map kind to be known");
+  return Kind;
+}
+
 namespace {
 class DSAAttrChecker final : public StmtVisitor<DSAAttrChecker, void> {
   DSAStackTy *Stack;
@@ -2771,7 +2862,7 @@ class DSAAttrChecker final : public StmtVisitor<DSAAttrChecker, void> {
   bool TryCaptureCXXThisMembers = false;
   CapturedStmt *CS = nullptr;
   llvm::SmallVector<Expr *, 4> ImplicitFirstprivate;
-  llvm::SmallVector<Expr *, 4> ImplicitMap;
+  llvm::SmallVector<Expr *, 4> ImplicitMap[OMPC_MAP_delete];
   Sema::VarsWithInheritedDSAType VarsWithInheritedDSA;
   llvm::SmallDenseSet<const ValueDecl *, 4> ImplicitDeclarations;
 
@@ -2844,6 +2935,38 @@ public:
         return;
       }
 
+      // OpenMP 5.0 [2.19.7.2, defaultmap clause, Description]
+      // If implicit-behavior is none, each variable referenced in the
+      // construct that does not have a predetermined data-sharing attribute
+      // and does not appear in a to or link clause on a declare target
+      // directive must be listed in a data-mapping attribute clause, a
+      // data-haring attribute clause (including a data-sharing attribute
+      // clause on a combined construct where target. is one of the
+      // constituent constructs), or an is_device_ptr clause.
+      OpenMPDefaultmapClauseKind ClauseKind = getVariableCategoryFromDecl(VD);
+      if (SemaRef.getLangOpts().OpenMP >= 50) {
+        bool IsModifierNone = Stack->getDefaultmapModifier(ClauseKind) ==
+                              OMPC_DEFAULTMAP_MODIFIER_none;
+        if (DVar.CKind == OMPC_unknown && IsModifierNone &&
+            VarsWithInheritedDSA.count(VD) == 0 && !Res) {
+          // Only check for data-mapping attribute and is_device_ptr here
+          // since we have already make sure that the declaration does not
+          // have a data-sharing attribute above
+          if (!Stack->checkMappableExprComponentListsForDecl(
+                  VD, /*CurrentRegionOnly=*/true,
+                  [VD](OMPClauseMappableExprCommon::MappableExprComponentListRef
+                           MapExprComponents,
+                       OpenMPClauseKind) {
+                    auto MI = MapExprComponents.rbegin();
+                    auto ME = MapExprComponents.rend();
+                    return MI != ME && MI->getAssociatedDeclaration() == VD;
+                  })) {
+            VarsWithInheritedDSA[VD] = E;
+            return;
+          }
+        }
+      }
+
       if (isOpenMPTargetExecutionDirective(DKind) &&
           !Stack->isLoopControlVariable(VD).first) {
         if (!Stack->checkMappableExprComponentListsForDecl(
@@ -2873,13 +2996,16 @@ public:
                   VD->getType().getNonReferenceType()->getAsCXXRecordDecl())
             IsFirstprivate = RD->isLambda();
           IsFirstprivate =
-              IsFirstprivate ||
-              (VD->getType().getNonReferenceType()->isScalarType() &&
-               Stack->getDefaultDMA() != DMA_tofrom_scalar && !Res);
-          if (IsFirstprivate)
+              IsFirstprivate || (Stack->mustBeFirstprivate(ClauseKind) && !Res);
+          if (IsFirstprivate) {
             ImplicitFirstprivate.emplace_back(E);
-          else
-            ImplicitMap.emplace_back(E);
+          } else {
+            OpenMPDefaultmapClauseModifier M =
+                Stack->getDefaultmapModifier(ClauseKind);
+            OpenMPMapClauseKind Kind = getMapClauseKindFromModifier(
+                M, ClauseKind == OMPC_DEFAULTMAP_aggregate || Res);
+            ImplicitMap[Kind].emplace_back(E);
+          }
           return;
         }
       }
@@ -2958,7 +3084,11 @@ public:
         if (Stack->isClassPreviouslyMapped(TE->getType()))
           return;
 
-        ImplicitMap.emplace_back(E);
+        OpenMPDefaultmapClauseModifier Modifier =
+            Stack->getDefaultmapModifier(OMPC_DEFAULTMAP_aggregate);
+        OpenMPMapClauseKind Kind = getMapClauseKindFromModifier(
+            Modifier, /*IsAggregateOrDeclareTarget*/ true);
+        ImplicitMap[Kind].emplace_back(E);
         return;
       }
 
@@ -3087,7 +3217,9 @@ public:
   ArrayRef<Expr *> getImplicitFirstprivate() const {
     return ImplicitFirstprivate;
   }
-  ArrayRef<Expr *> getImplicitMap() const { return ImplicitMap; }
+  ArrayRef<Expr *> getImplicitMap(OpenMPDefaultmapClauseKind Kind) const {
+    return ImplicitMap[Kind];
+  }
   const Sema::VarsWithInheritedDSAType &getVarsWithInheritedDSA() const {
     return VarsWithInheritedDSA;
   }
@@ -3799,7 +3931,10 @@ static bool checkNestingOfRegions(Sema &SemaRef, const DSAStackTy *Stack,
       ShouldBeInTargetRegion,
       ShouldBeInTeamsRegion
     } Recommend = NoRecommend;
-    if (isOpenMPSimdDirective(ParentRegion) && CurrentRegion != OMPD_ordered) {
+    if (isOpenMPSimdDirective(ParentRegion) &&
+        ((SemaRef.LangOpts.OpenMP <= 45 && CurrentRegion != OMPD_ordered) ||
+         (SemaRef.LangOpts.OpenMP >= 50 && CurrentRegion != OMPD_ordered &&
+          CurrentRegion != OMPD_simd && CurrentRegion != OMPD_atomic))) {
       // OpenMP [2.16, Nesting of Regions]
       // OpenMP constructs may not be nested inside a simd region.
       // OpenMP [2.8.1,simd Construct, Restrictions]
@@ -3808,9 +3943,14 @@ static bool checkNestingOfRegions(Sema &SemaRef, const DSAStackTy *Stack,
       // Allowing a SIMD construct nested in another SIMD construct is an
       // extension. The OpenMP 4.5 spec does not allow it. Issue a warning
       // message.
+      // OpenMP 5.0 [2.9.3.1, simd Construct, Restrictions]
+      // The only OpenMP constructs that can be encountered during execution of
+      // a simd region are the atomic construct, the loop construct, the simd
+      // construct and the ordered construct with the simd clause.
       SemaRef.Diag(StartLoc, (CurrentRegion != OMPD_simd)
                                  ? diag::err_omp_prohibited_region_simd
-                                 : diag::warn_omp_nesting_simd);
+                                 : diag::warn_omp_nesting_simd)
+          << (SemaRef.LangOpts.OpenMP >= 50 ? 1 : 0);
       return CurrentRegion != OMPD_simd;
     }
     if (ParentRegion == OMPD_atomic) {
@@ -4291,8 +4431,12 @@ StmtResult Sema::ActOnOpenMPExecutableDirective(
     SmallVector<Expr *, 4> ImplicitFirstprivates(
         DSAChecker.getImplicitFirstprivate().begin(),
         DSAChecker.getImplicitFirstprivate().end());
-    SmallVector<Expr *, 4> ImplicitMaps(DSAChecker.getImplicitMap().begin(),
-                                        DSAChecker.getImplicitMap().end());
+    SmallVector<Expr *, 4> ImplicitMaps[OMPC_MAP_delete];
+    for (unsigned I = 0; I < OMPC_MAP_delete; ++I) {
+      ArrayRef<Expr *> ImplicitMap =
+          DSAChecker.getImplicitMap(static_cast<OpenMPDefaultmapClauseKind>(I));
+      ImplicitMaps[I].append(ImplicitMap.begin(), ImplicitMap.end());
+    }
     // Mark taskgroup task_reduction descriptors as implicitly firstprivate.
     for (OMPClause *C : Clauses) {
       if (auto *IRC = dyn_cast<OMPInReductionClause>(C)) {
@@ -4312,16 +4456,21 @@ StmtResult Sema::ActOnOpenMPExecutableDirective(
         ErrorFound = true;
       }
     }
-    if (!ImplicitMaps.empty()) {
+    int ClauseKindCnt = -1;
+    for (ArrayRef<Expr *> ImplicitMap : ImplicitMaps) {
+      ++ClauseKindCnt;
+      if (ImplicitMap.empty())
+        continue;
       CXXScopeSpec MapperIdScopeSpec;
       DeclarationNameInfo MapperId;
+      auto Kind = static_cast<OpenMPMapClauseKind>(ClauseKindCnt);
       if (OMPClause *Implicit = ActOnOpenMPMapClause(
-              llvm::None, llvm::None, MapperIdScopeSpec, MapperId,
-              OMPC_MAP_tofrom, /*IsMapTypeImplicit=*/true, SourceLocation(),
-              SourceLocation(), ImplicitMaps, OMPVarListLocTy())) {
+              llvm::None, llvm::None, MapperIdScopeSpec, MapperId, Kind,
+              /*IsMapTypeImplicit=*/true, SourceLocation(), SourceLocation(),
+              ImplicitMap, OMPVarListLocTy())) {
         ClausesWithImplicit.emplace_back(Implicit);
         ErrorFound |=
-            cast<OMPMapClause>(Implicit)->varlist_size() != ImplicitMaps.size();
+            cast<OMPMapClause>(Implicit)->varlist_size() != ImplicitMap.size();
       } else {
         ErrorFound = true;
       }
@@ -4697,9 +4846,17 @@ StmtResult Sema::ActOnOpenMPExecutableDirective(
     if (P.getFirst()->isImplicit() || isa<OMPCapturedExprDecl>(P.getFirst()))
       continue;
     ErrorFound = true;
-    Diag(P.second->getExprLoc(), diag::err_omp_no_dsa_for_variable)
-        << P.first << P.second->getSourceRange();
-    Diag(DSAStack->getDefaultDSALocation(), diag::note_omp_default_dsa_none);
+    if (DSAStack->getDefaultDSA() == DSA_none) {
+      Diag(P.second->getExprLoc(), diag::err_omp_no_dsa_for_variable)
+          << P.first << P.second->getSourceRange();
+      Diag(DSAStack->getDefaultDSALocation(), diag::note_omp_default_dsa_none);
+    } else if (getLangOpts().OpenMP >= 50) {
+      Diag(P.second->getExprLoc(),
+           diag::err_omp_defaultmap_no_attr_for_variable)
+          << P.first << P.second->getSourceRange();
+      Diag(DSAStack->getDefaultDSALocation(),
+           diag::note_omp_defaultmap_attr_none);
+    }
   }
 
   if (!AllowedNameModifiers.empty())
@@ -5192,28 +5349,59 @@ Sema::checkOpenMPDeclareVariantFunction(Sema::DeclGroupPtrTy DG,
 
 void Sema::ActOnOpenMPDeclareVariantDirective(
     FunctionDecl *FD, Expr *VariantRef, SourceRange SR,
-    const Sema::OpenMPDeclareVariantCtsSelectorData &Data) {
-  if (Data.CtxSet == OMPDeclareVariantAttr::CtxSetUnknown ||
-      Data.Ctx == OMPDeclareVariantAttr::CtxUnknown)
+    ArrayRef<OMPCtxSelectorData> Data) {
+  if (Data.empty())
     return;
-  Expr *Score = nullptr;
-  if (Data.CtxScore.isUsable()) {
-    Score = Data.CtxScore.get();
-    if (!Score->isTypeDependent() && !Score->isValueDependent() &&
-        !Score->isInstantiationDependent() &&
-        !Score->containsUnexpandedParameterPack()) {
-      llvm::APSInt Result;
-      ExprResult ICE = VerifyIntegerConstantExpression(Score, &Result);
-      if (ICE.isInvalid())
-        return;
+  SmallVector<Expr *, 4> CtxScores;
+  SmallVector<unsigned, 4> CtxSets;
+  SmallVector<unsigned, 4> Ctxs;
+  SmallVector<StringRef, 4> ImplVendors;
+  bool IsError = false;
+  for (const OMPCtxSelectorData &D : Data) {
+    OpenMPContextSelectorSetKind CtxSet = D.CtxSet;
+    OpenMPContextSelectorKind Ctx = D.Ctx;
+    if (CtxSet == OMP_CTX_SET_unknown || Ctx == OMP_CTX_unknown)
+      return;
+    Expr *Score = nullptr;
+    if (D.Score.isUsable()) {
+      Score = D.Score.get();
+      if (!Score->isTypeDependent() && !Score->isValueDependent() &&
+          !Score->isInstantiationDependent() &&
+          !Score->containsUnexpandedParameterPack()) {
+        Score =
+            PerformOpenMPImplicitIntegerConversion(Score->getExprLoc(), Score)
+                .get();
+        if (Score)
+          Score = VerifyIntegerConstantExpression(Score).get();
+      }
+    } else {
+      Score = ActOnIntegerConstant(SourceLocation(), 0).get();
     }
-  } else {
-    Score = ActOnIntegerConstant(SourceLocation(), 0).get();
+    switch (CtxSet) {
+    case OMP_CTX_SET_implementation:
+      switch (Ctx) {
+      case OMP_CTX_vendor:
+        ImplVendors.append(D.Names.begin(), D.Names.end());
+        break;
+      case OMP_CTX_unknown:
+        llvm_unreachable("Unexpected context selector kind.");
+      }
+      break;
+    case OMP_CTX_SET_unknown:
+      llvm_unreachable("Unexpected context selector set kind.");
+    }
+    IsError = IsError || !Score;
+    CtxSets.push_back(CtxSet);
+    Ctxs.push_back(Ctx);
+    CtxScores.push_back(Score);
   }
-  auto *NewAttr = OMPDeclareVariantAttr::CreateImplicit(
-      Context, VariantRef, Score, Data.CtxSet, Data.Ctx,
-      Data.ImplVendors.begin(), Data.ImplVendors.size(), SR);
-  FD->addAttr(NewAttr);
+  if (!IsError) {
+    auto *NewAttr = OMPDeclareVariantAttr::CreateImplicit(
+        Context, VariantRef, CtxScores.begin(), CtxScores.size(),
+        CtxSets.begin(), CtxSets.size(), Ctxs.begin(), Ctxs.size(),
+        ImplVendors.begin(), ImplVendors.size(), SR);
+    FD->addAttr(NewAttr);
+  }
 }
 
 void Sema::markOpenMPDeclareVariantFuncsReferenced(SourceLocation Loc,
@@ -8165,7 +8353,8 @@ StmtResult Sema::ActOnOpenMPOrderedDirective(ArrayRef<OMPClause *> Clauses,
     // OpenMP [2.8.1,simd Construct, Restrictions]
     // An ordered construct with the simd clause is the only OpenMP construct
     // that can appear in the simd region.
-    Diag(StartLoc, diag::err_omp_prohibited_region_simd);
+    Diag(StartLoc, diag::err_omp_prohibited_region_simd)
+        << (LangOpts.OpenMP >= 50 ? 1 : 0);
     ErrorFound = true;
   } else if (DependFound && (TC || SC)) {
     Diag(DependFound->getBeginLoc(), diag::err_omp_depend_clause_thread_simd)
@@ -16224,26 +16413,57 @@ OMPClause *Sema::ActOnOpenMPDefaultmapClause(
     OpenMPDefaultmapClauseModifier M, OpenMPDefaultmapClauseKind Kind,
     SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation MLoc,
     SourceLocation KindLoc, SourceLocation EndLoc) {
-  // OpenMP 4.5 only supports 'defaultmap(tofrom: scalar)'
-  if (M != OMPC_DEFAULTMAP_MODIFIER_tofrom || Kind != OMPC_DEFAULTMAP_scalar) {
-    std::string Value;
-    SourceLocation Loc;
-    Value += "'";
-    if (M != OMPC_DEFAULTMAP_MODIFIER_tofrom) {
-      Value += getOpenMPSimpleClauseTypeName(OMPC_defaultmap,
-                                             OMPC_DEFAULTMAP_MODIFIER_tofrom);
-      Loc = MLoc;
-    } else {
-      Value += getOpenMPSimpleClauseTypeName(OMPC_defaultmap,
-                                             OMPC_DEFAULTMAP_scalar);
-      Loc = KindLoc;
+  if (getLangOpts().OpenMP < 50) {
+    if (M != OMPC_DEFAULTMAP_MODIFIER_tofrom ||
+        Kind != OMPC_DEFAULTMAP_scalar) {
+      std::string Value;
+      SourceLocation Loc;
+      Value += "'";
+      if (M != OMPC_DEFAULTMAP_MODIFIER_tofrom) {
+        Value += getOpenMPSimpleClauseTypeName(OMPC_defaultmap,
+                                               OMPC_DEFAULTMAP_MODIFIER_tofrom);
+        Loc = MLoc;
+      } else {
+        Value += getOpenMPSimpleClauseTypeName(OMPC_defaultmap,
+                                               OMPC_DEFAULTMAP_scalar);
+        Loc = KindLoc;
+      }
+      Value += "'";
+      Diag(Loc, diag::err_omp_unexpected_clause_value)
+          << Value << getOpenMPClauseName(OMPC_defaultmap);
+      return nullptr;
     }
-    Value += "'";
-    Diag(Loc, diag::err_omp_unexpected_clause_value)
-        << Value << getOpenMPClauseName(OMPC_defaultmap);
-    return nullptr;
+  } else {
+    bool isDefaultmapModifier = (M != OMPC_DEFAULTMAP_MODIFIER_unknown);
+    bool isDefaultmapKind = (Kind != OMPC_DEFAULTMAP_unknown);
+    if (!isDefaultmapKind || !isDefaultmapModifier) {
+      std::string ModifierValue = "'alloc', 'from', 'to', 'tofrom', "
+                                  "'firstprivate', 'none', 'default'";
+      std::string KindValue = "'scalar', 'aggregate', 'pointer'";
+      if (!isDefaultmapKind && isDefaultmapModifier) {
+        Diag(KindLoc, diag::err_omp_unexpected_clause_value)
+            << KindValue << getOpenMPClauseName(OMPC_defaultmap);
+      } else if (isDefaultmapKind && !isDefaultmapModifier) {
+        Diag(MLoc, diag::err_omp_unexpected_clause_value)
+            << ModifierValue << getOpenMPClauseName(OMPC_defaultmap);
+      } else {
+        Diag(MLoc, diag::err_omp_unexpected_clause_value)
+            << ModifierValue << getOpenMPClauseName(OMPC_defaultmap);
+        Diag(KindLoc, diag::err_omp_unexpected_clause_value)
+            << KindValue << getOpenMPClauseName(OMPC_defaultmap);
+      }
+      return nullptr;
+    }
+
+    // OpenMP [5.0, 2.12.5, Restrictions, p. 174]
+    //  At most one defaultmap clause for each category can appear on the
+    //  directive.
+    if (DSAStack->checkDefaultmapCategory(Kind)) {
+      Diag(StartLoc, diag::err_omp_one_defaultmap_each_category);
+      return nullptr;
+    }
   }
-  DSAStack->setDefaultDMAToFromScalar(StartLoc);
+  DSAStack->setDefaultDMAAttr(M, Kind, StartLoc);
 
   return new (Context)
       OMPDefaultmapClause(StartLoc, LParenLoc, MLoc, KindLoc, EndLoc, Kind, M);

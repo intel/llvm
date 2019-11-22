@@ -334,6 +334,7 @@ class TargetArch<list<string> arches> : TargetSpec {
 }
 def TargetARM : TargetArch<["arm", "thumb", "armeb", "thumbeb"]>;
 def TargetAVR : TargetArch<["avr"]>;
+def TargetBPF : TargetArch<["bpfel", "bpfeb"]>;
 def TargetMips32 : TargetArch<["mips", "mipsel"]>;
 def TargetAnyMips : TargetArch<["mips", "mipsel", "mips64", "mips64el"]>;
 def TargetMSP430 : TargetArch<["msp430"]>;
@@ -1887,6 +1888,14 @@ def AMDGPUNumVGPR : InheritableAttr {
   let Subjects = SubjectList<[Function], ErrorDiag, "kernel functions">;
 }
 
+def BPFPreserveAccessIndex : InheritableAttr,
+                             TargetSpecificAttr<TargetBPF>  {
+  let Spellings = [Clang<"preserve_access_index">];
+  let Subjects = SubjectList<[Record], ErrorDiag>;
+  let Documentation = [BPFPreserveAccessIndexDocs];
+  let LangOpts = [COnly];
+}
+
 def WebAssemblyImportModule : InheritableAttr,
                               TargetSpecificAttr<TargetWebAssembly> {
   let Spellings = [Clang<"import_module">];
@@ -2438,6 +2447,7 @@ def Target : InheritableAttr {
     struct ParsedTargetAttr {
       std::vector<std::string> Features;
       StringRef Architecture;
+      StringRef BranchProtection;
       bool DuplicateArchitecture = false;
       bool operator ==(const ParsedTargetAttr &Other) const {
         return DuplicateArchitecture == Other.DuplicateArchitecture &&
@@ -2509,6 +2519,11 @@ def Target : InheritableAttr {
         // attributes on the function.
         if (Feature.startswith("fpmath=") || Feature.startswith("tune="))
           continue;
+
+        if (Feature.startswith("branch-protection=")) {
+          Ret.BranchProtection = Feature.split('=').second.trim();
+          continue;
+        }
 
         // While we're here iterating check for a different target cpu.
         if (Feature.startswith("arch=")) {
@@ -3614,24 +3629,14 @@ def OMPDeclareVariant : InheritableAttr {
   let Documentation = [OMPDeclareVariantDocs];
   let Args = [
     ExprArgument<"VariantFuncRef">,
-    ExprArgument<"Score">,
-    EnumArgument<"CtxSelectorSet", "CtxSelectorSetType",
-                 [ "", "implementation"
-                 ],
-                 [
-                   "CtxSetUnknown", "CtxSetImplementation"
-                 ]>,
-    EnumArgument<"CtxSelector", "CtxSelectorType",
-                 [ "", "vendor"
-                 ],
-                 [
-                   "CtxUnknown", "CtxVendor"
-                 ]>,
+    VariadicExprArgument<"Scores">,
+    VariadicUnsignedArgument<"CtxSelectorSets">,
+    VariadicUnsignedArgument<"CtxSelectors">,
     VariadicStringArgument<"ImplVendors">
   ];
   let AdditionalMembers = [{
-    void printScore(raw_ostream & OS, const PrintingPolicy &Policy) const {
-      if (const Expr *E = getScore()) {
+    void printScore(raw_ostream & OS, const PrintingPolicy &Policy, unsigned I) const {
+      if (const Expr *E = *std::next(scores_begin(), I)) {
         OS << "score(";
         E->printPretty(OS, nullptr, Policy);
         OS << "):";
@@ -3639,8 +3644,6 @@ def OMPDeclareVariant : InheritableAttr {
     }
     void printPrettyPragma(raw_ostream & OS, const PrintingPolicy &Policy)
         const {
-      assert(getCtxSelectorSet() != CtxSetUnknown &&
-             getCtxSelector() != CtxUnknown && "Unknown context selector.");
       if (const Expr *E = getVariantFuncRef()) {
         OS << "(";
         E->printPretty(OS, nullptr, Policy);
@@ -3648,27 +3651,35 @@ def OMPDeclareVariant : InheritableAttr {
       }
       // TODO: add printing of real context selectors.
       OS << " match(";
-      switch (getCtxSelectorSet()) {
-      case CtxSetImplementation:
-        OS << "implementation={";
-        switch (getCtxSelector()) {
-        case CtxVendor:
-          OS << "vendor(";
-          printScore(OS, Policy);
-          if (implVendors_size() > 0) {
-            OS << *implVendors(). begin();
-            for (StringRef VendorName : llvm::drop_begin(implVendors(), 1))
-              OS << ", " << VendorName;
+      for (unsigned I = 0, E = ctxSelectorSets_size(); I < E; ++I) {
+        auto CtxSet = static_cast<OpenMPContextSelectorSetKind>(
+            *std::next(ctxSelectorSets_begin(), I));
+        auto Ctx = static_cast<OpenMPContextSelectorKind>(
+            *std::next(ctxSelectors_begin(), I));
+        assert(CtxSet != OMP_CTX_SET_unknown && Ctx != OMP_CTX_unknown &&
+               "Unknown context selector.");
+        switch (CtxSet) {
+        case OMP_CTX_SET_implementation:
+          OS << "implementation={";
+          switch (Ctx) {
+          case OMP_CTX_vendor:
+            OS << "vendor(";
+            printScore(OS, Policy, I);
+            if (implVendors_size() > 0) {
+              OS << *implVendors(). begin();
+              for (StringRef VendorName : llvm::drop_begin(implVendors(), 1))
+                OS << ", " << VendorName;
+            }
+            OS << ")";
+            break;
+          case OMP_CTX_unknown:
+            llvm_unreachable("Unknown context selector.");
           }
-          OS << ")";
+          OS << "}";
           break;
-        case CtxUnknown:
-          llvm_unreachable("Unknown context selector.");
+        case OMP_CTX_SET_unknown:
+          llvm_unreachable("Unknown context selector set.");
         }
-        OS << "}";
-        break;
-      case CtxSetUnknown:
-        llvm_unreachable("Unknown context selector set.");
       }
       OS << ")";
     }
