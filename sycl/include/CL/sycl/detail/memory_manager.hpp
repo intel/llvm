@@ -42,7 +42,8 @@ public:
   // The following method allocates memory allocation of memory object.
   // Depending on the context it allocates memory on host or on device.
   static void *allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
-                        bool InitFromUserData, std::vector<RT::PiEvent> DepEvents,
+                        bool InitFromUserData, void *HostPtr,
+                        std::vector<RT::PiEvent> DepEvents,
                         RT::PiEvent &OutEvent);
 
   // The following method creates OpenCL sub buffer for specified

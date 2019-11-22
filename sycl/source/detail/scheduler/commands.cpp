@@ -20,6 +20,7 @@
 #include <CL/sycl/detail/stream_impl.hpp>
 #include <CL/sycl/sampler.hpp>
 
+#include <string>
 #include <vector>
 
 #ifdef __GNUG__
@@ -153,6 +154,13 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
       EnqueueResult = EnqueueResultT(EnqueueResultT::BLOCKED, this);
       return false;
     }
+    static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
+    if (ThrowOnBlock)
+      throw sycl::runtime_error(
+          std::string("Waiting for blocked command. Block reason: ") +
+              std::string(MBlockReason),
+          PI_INVALID_OPERATION);
+
     // Wait if blocking
     while (!MCanEnqueue)
       ;
@@ -181,9 +189,21 @@ cl_int AllocaCommand::enqueueImp() {
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
   RT::PiEvent &Event = MEvent->getHandleRef();
+
+  void *HostPtr = nullptr;
+  if (!MIsLeaderAlloca) {
+
+    if (MQueue->is_host()) {
+      // Do not need to make allocation if we have a linked device allocation
+      Command::waitForEvents(MQueue, RawEvents, Event);
+      return CL_SUCCESS;
+    }
+    HostPtr = MLinkedAllocaCmd->getMemAllocation();
+  }
+
   MMemAllocation = MemoryManager::allocate(
       detail::getSyclObjImpl(MQueue->get_context()), getSYCLMemObj(),
-      MInitFromUserData, std::move(RawEvents), Event);
+      MInitFromUserData, HostPtr, std::move(RawEvents), Event);
   return CL_SUCCESS;
 }
 
@@ -193,7 +213,9 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
   Stream << "ID = " << this << "\\n";
   Stream << "ALLOCA ON " << deviceToString(MQueue->get_device()) << "\\n";
   Stream << " MemObj : " << this->MRequirement.MSYCLMemObj << "\\n";
+  Stream << " Link : " << this->MLinkedAllocaCmd << "\\n";
   Stream << "\"];" << std::endl;
+
 
   for (const auto &Dep : MDeps) {
     if (Dep.MDepCommand == nullptr)
@@ -245,17 +267,60 @@ cl_int ReleaseCommand::enqueueImp() {
   std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
 
-  RT::PiEvent &Event = MEvent->getHandleRef();
+  bool SkipRelease = false;
 
   // On host side we only allocate memory for full buffers.
   // Thus, deallocating sub buffers leads to double memory freeing.
-  if (!(MQueue->is_host() && MAllocaCmd->getType() == ALLOCA_SUB_BUF))
+  SkipRelease |= MQueue->is_host() && MAllocaCmd->getType() == ALLOCA_SUB_BUF;
+
+  const bool CurAllocaIsHost = MAllocaCmd->getQueue()->is_host();
+  bool NeedUnmap = false;
+  if (MAllocaCmd->MLinkedAllocaCmd) {
+
+    // When releasing one of the "linked" allocations special rules take place:
+    // 1. Device allocation should always be released.
+    // 2. Host allocation should be released if host allocation is "leader".
+    // 3. Device alloca in the pair should be in active state in order to be
+    //    correctly released.
+
+
+    // There is no actual memory allocation if a host alloca command is created
+    // being linked to a device allocation.
+    SkipRelease |= CurAllocaIsHost && !MAllocaCmd->MIsLeaderAlloca;
+
+    NeedUnmap |= CurAllocaIsHost == MAllocaCmd->MIsActive;
+  }
+
+  if (NeedUnmap) {
+    const QueueImplPtr &Queue = CurAllocaIsHost
+                                    ? MAllocaCmd->MLinkedAllocaCmd->getQueue()
+                                    : MAllocaCmd->getQueue();
+    RT::PiEvent UnmapEvent = nullptr;
+
+    void *Src = CurAllocaIsHost
+                    ? MAllocaCmd->getMemAllocation()
+                    : MAllocaCmd->MLinkedAllocaCmd->getMemAllocation();
+
+    void *Dst = !CurAllocaIsHost
+                    ? MAllocaCmd->getMemAllocation()
+                    : MAllocaCmd->MLinkedAllocaCmd->getMemAllocation();
+
+    MemoryManager::unmap(MAllocaCmd->getSYCLMemObj(), Dst, Queue, Src,
+                         std::move(RawEvents), /*MUseExclusiveQueue*/ false,
+                         UnmapEvent);
+
+    std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
+    RawEvents.push_back(UnmapEvent);
+  }
+
+  RT::PiEvent &Event = MEvent->getHandleRef();
+  if (SkipRelease)
+    Command::waitForEvents(MQueue, RawEvents, Event);
+  else
     MemoryManager::release(detail::getSyclObjImpl(MQueue->get_context()),
                            MAllocaCmd->getSYCLMemObj(),
                            MAllocaCmd->getMemAllocation(), std::move(RawEvents),
                            Event);
-  else
-    Command::waitForEvents(MQueue, RawEvents, Event);
 
   return CL_SUCCESS;
 }
@@ -286,15 +351,13 @@ MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
 cl_int MapMemObject::enqueueImp() {
   std::vector<RT::PiEvent> RawEvents =
       Command::prepareEvents(detail::getSyclObjImpl(MQueue->get_context()));
-  assert(MSrcReq.MDims == 1);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
-  void *MappedPtr = MemoryManager::map(
+  *MDstPtr = MemoryManager::map(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
       MSrcReq.MAccessMode, MSrcReq.MDims, MSrcReq.MMemoryRange,
       MSrcReq.MAccessRange, MSrcReq.MOffset, MSrcReq.MElemSize,
       std::move(RawEvents), Event);
-  *MDstPtr = MappedPtr;
   return CL_SUCCESS;
 }
 
@@ -349,13 +412,16 @@ void UnMapMemObject::printDot(std::ostream &Stream) const {
   }
 }
 
-MemCpyCommand::MemCpyCommand(Requirement SrcReq, AllocaCommandBase *SrcAlloca,
-                             Requirement DstReq, AllocaCommandBase *DstAlloca,
+MemCpyCommand::MemCpyCommand(Requirement SrcReq,
+                             AllocaCommandBase *SrcAllocaCmd,
+                             Requirement DstReq,
+                             AllocaCommandBase *DstAllocaCmd,
                              QueueImplPtr SrcQueue, QueueImplPtr DstQueue,
                              bool UseExclusiveQueue)
     : Command(CommandType::COPY_MEMORY, std::move(DstQueue), UseExclusiveQueue),
-      MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)), MSrcAllocaCmd(SrcAlloca),
-      MDstReq(std::move(DstReq)), MDstAllocaCmd(DstAlloca) {
+      MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
+      MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)),
+      MDstAllocaCmd(DstAllocaCmd) {
   if (!MSrcQueue->is_host())
     MEvent->setContextImpl(detail::getSyclObjImpl(MSrcQueue->get_context()));
 }
@@ -385,8 +451,6 @@ cl_int MemCpyCommand::enqueueImp() {
         MUseExclusiveQueue, Event);
   }
 
-  if (MAccToUpdate)
-    MAccToUpdate->MData = MDstAllocaCmd->getMemAllocation();
   return CL_SUCCESS;
 }
 

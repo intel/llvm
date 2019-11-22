@@ -54,7 +54,7 @@ void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
 }
 
 void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
-                              bool InitFromUserData,
+                              bool InitFromUserData, void *HostPtr,
                               std::vector<RT::PiEvent> DepEvents,
                               RT::PiEvent &OutEvent) {
   // There is no async API for memory allocation. Explicitly wait for all
@@ -62,7 +62,8 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   waitForEvents(DepEvents);
   OutEvent = nullptr;
 
-  return MemObj->allocateMem(TargetContext, InitFromUserData, OutEvent);
+  return MemObj->allocateMem(TargetContext, InitFromUserData, HostPtr,
+                             OutEvent);
 }
 
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
@@ -420,7 +421,7 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          sycl::id<3> AccessOffset, unsigned int ElementSize,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
-  if (Queue->is_host() || Dim != 1) {
+  if (Queue->is_host()) {
     assert(!"Not supported configuration of map requested");
     throw runtime_error("Not supported configuration of map requested");
   }
@@ -447,10 +448,15 @@ void *MemoryManager::map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   AccessOffset[0] *= ElementSize;
   AccessRange[0] *= ElementSize;
 
-  void *MappedPtr;
+  // TODO: Handle offset
+  assert(AccessOffset[0] == 0 && "Handle offset");
+
+  void *MappedPtr = nullptr;
+  const size_t BytesToMap = AccessRange[0] * AccessRange[1] * AccessRange[2];
+
   PI_CALL(RT::piEnqueueMemBufferMap, Queue->getHandleRef(),
           pi::cast<RT::PiMem>(Mem), CL_FALSE, Flags, AccessOffset[0],
-          AccessRange[0], DepEvents.size(),
+          BytesToMap, DepEvents.size(),
           DepEvents.empty() ? nullptr : &DepEvents[0], &OutEvent, &MappedPtr);
   return MappedPtr;
 }
