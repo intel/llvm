@@ -170,7 +170,7 @@ public:
       m_SupportOOO = false;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
-      RT::piCheckResult(Error);
+      RT::checkPiResult(Error);
     }
 
     return Queue;

@@ -120,29 +120,39 @@ void printArgs(Arg0 arg0, Args... args) {
 // Utility function to check return from pi calls.
 // Throws if pi_result is not a PI_SUCCESS.
 template <typename Exception = cl::sycl::runtime_error>
-inline void piCheckResult(PiResult pi_result) {
+inline void checkPiResult(PiResult pi_result) {
   CHECK_OCL_CODE_THROW(pi_result, Exception);
 }
 
-#define PI_TRACE_ENABLED (std::getenv("SYCL_PI_TRACE") != nullptr)
-
-template <typename FnType, size_t FnOffset> class Trace {
+// Class to call PI API, trace and get the result.
+// To Trace : Set SYCL_PI_TRACE environment variable.
+// Template Arguments:
+//    FnType  - Type of Function pointer to the PI API.
+//    FnOffset- Offset to the Function Pointer in the piPlugin::FunctionPointers
+//    structure.Used to differentiate between APIs with same pointer type, Eg:
+//    piDeviceRelease and piDeviceRetain. Differentiation needed to avoid
+//    duplicate instantiation of class in pi.cpp.
+// Members: Initialiaed in default constructor in Class Template Specialization.
+// Usage:
+// Operator() - Call, Trace and Get result
+// Use Macro PI_CALL_NOCHECK call the constructor directly.
+template <typename FnType, size_t FnOffset> class CallPi {
 private:
-  FnType m_FnPtr;
-  std::string m_FnName;
+  FnType MFnPtr;
+  std::string MFnName;
+  static bool MEnableTrace;
 
 public:
-  Trace();
+  CallPi();
   template <typename... Args> PiResult operator()(Args... args) {
-    bool enableTrace = PI_TRACE_ENABLED;
-    if (enableTrace) {
-      std::cout << "---> " << m_FnName << "(";
+    if (MEnableTrace) {
+      std::cout << "---> " << MFnName << "(";
       printArgs(args...);
     }
 
-    PiResult r = m_FnPtr(args...);
+    PiResult r = MFnPtr(args...);
 
-    if (enableTrace) {
+    if (MEnableTrace) {
       std::cout << ") ---> ";
       std::cout << (print(r), "") << std::endl;
     }
@@ -150,15 +160,28 @@ public:
   }
 };
 
+template <typename FnType, size_t FnOffset>
+bool CallPi<FnType, FnOffset>::MEnableTrace = (std::getenv("SYCL_PI_TRACE") !=
+                                               nullptr);
+
+// Class to call PI API, trace, check the return result and throw Exception.
+// To Trace : Set SYCL_PI_TRACE environment variable.
+// Template Arguments:
+//    FnType, FnOffset - for CallPi Class.
+//    Exception - The type of exception to throw if PiResult of a call is not
+//    PI_SUCCESS. default is cl::sycl::runtime_error.
+// Usage:
+// Operator() - Call, Trace, check Result and Throw Exception.
+// Use Macro PI_CALL and PI_CALL_THROW to call the constructor directly.
 template <typename FnType, size_t FnOffset,
           typename Exception = cl::sycl::runtime_error>
-class TraceCheck : private Trace<FnType, FnOffset> {
+class CallPiAndCheck : private CallPi<FnType, FnOffset> {
 public:
-  TraceCheck() : Trace<FnType, FnOffset>(){};
+  CallPiAndCheck() : CallPi<FnType, FnOffset>(){};
 
   template <typename... Args> void operator()(Args... args) {
-    PiResult Err = (Trace<FnType, FnOffset>::operator()(args...));
-    piCheckResult<Exception>(Err);
+    PiResult Err = (CallPi<FnType, FnOffset>::operator()(args...));
+    checkPiResult<Exception>(Err);
   }
 };
 
@@ -167,8 +190,8 @@ public:
 // api.
 #define _PI_API(api)                                                           \
   template <>                                                                  \
-  Trace<decltype(&::api),                                                      \
-        (offsetof(pi_plugin::FunctionPointers, api))>::Trace();
+  CallPi<decltype(&::api),                                                     \
+         (offsetof(pi_plugin::FunctionPointers, api))>::CallPi();
 
 #include <CL/sycl/detail/pi.def>
 
@@ -176,29 +199,29 @@ public:
 
 namespace RT = cl::sycl::detail::pi;
 
-#define PI_ASSERT(cond, msg) RT::assertion((cond), "assert: " msg);
-
 // Use this macro to call the API, trace the call, check the return and throw a
 // runtime_error exception.
 // Usage: PI_CALL(pi)(Args);
 #define PI_CALL(pi)                                                            \
-  RT::TraceCheck<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi))>()
+  RT::CallPiAndCheck<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi))>()
 
 // Use this macro to call the API, trace the call and return the result.
-// To check the result use piCheckResult.
+// To check the result use checkPiResult.
 // Usage:
 // PiResult Err = PI_CALL_NOCHECK(pi)(args);
-// RT::piCheckResult(Err); <- Checks Result and throws a runtime error
+// RT::checkPiResult(Err); <- Checks Result and throws a runtime error
 // exception.
 #define PI_CALL_NOCHECK(pi)                                                    \
-  RT::Trace<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi))>()
+  RT::CallPi<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi))>()
 
 // Use this macro to call the API, trace the call, check the return and throw a
 // Exception as given in the MACRO.
 // Usage: PI_CALL_THROW(pi, compile_program_error)(args);
 #define PI_CALL_THROW(pi, Exception)                                           \
-  RT::TraceCheck<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi)), \
+  RT::CallPiAndCheck<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi)), \
                  Exception>()
+
+#define PI_ASSERT(cond, msg) RT::assertion((cond), "assert: " msg);
 
 // Want all the needed casts be explicit, do not define conversion
 // operators.

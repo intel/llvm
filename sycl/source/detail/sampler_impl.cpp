@@ -62,7 +62,7 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
   if (errcode_ret == PI_INVALID_OPERATION)
     throw feature_not_supported("Images are not supported by this device.");
 
-  RT::piCheckResult(errcode_ret);
+  RT::checkPiResult(errcode_ret);
   m_contextToSampler[Context] = resultSampler;
 
   return m_contextToSampler[Context];

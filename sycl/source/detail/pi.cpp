@@ -138,17 +138,14 @@ void assertion(bool Condition, const char *Message) {
 // TODO: Pass platform object to constructor which will contain the
 // PluginInformation class. Platform class with Plugin information is not
 // implemented yet.
-// Note: offsetof is used to differentiate between apis that have the same
-// signature. Eg: piDeviceRelease and piDeviceRetain.
-// offsetof(pi_plugin.PiFunctionTable,api)>
 
 #define _PI_API(api)                                                           \
   template <>                                                                  \
-  Trace<decltype(&::api),                                                      \
-        (offsetof(pi_plugin::FunctionPointers, api))>::Trace() {               \
+  CallPi<decltype(&::api),                                                      \
+        (offsetof(pi_plugin::FunctionPointers, api))>::CallPi() {               \
     initialize();                                                              \
-    m_FnPtr = (RT::PluginInformation.PiFunctionTable.api);                     \
-    m_FnName = #api;                                                           \
+    MFnPtr = (RT::PluginInformation.PiFunctionTable.api);                     \
+    MFnName = #api;                                                           \
   }
 #include <CL/sycl/detail/pi.def>
 

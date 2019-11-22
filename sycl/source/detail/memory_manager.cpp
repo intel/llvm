@@ -489,7 +489,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 
     std::shared_ptr<usm::USMDispatcher> USMDispatch =
         getSyclObjImpl(Context)->getUSMDispatch();
-    RT::piCheckResult(USMDispatch->enqueueMemcpy(Queue,
+    RT::checkPiResult(USMDispatch->enqueueMemcpy(Queue,
                                                  /* blocking */ false, DstMem,
                                                  SrcMem, Len, DepEvents.size(),
                                                  &DepEvents[0], &OutEvent));
@@ -506,7 +506,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   } else {
     std::shared_ptr<usm::USMDispatcher> USMDispatch =
         getSyclObjImpl(Context)->getUSMDispatch();
-    RT::piCheckResult(
+    RT::checkPiResult(
         USMDispatch->enqueueMemset(Queue->getHandleRef(), Mem, Pattern, Length,
                                    DepEvents.size(), &DepEvents[0], &OutEvent));
   }
@@ -522,7 +522,7 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   } else {
     std::shared_ptr<usm::USMDispatcher> USMDispatch =
         getSyclObjImpl(Context)->getUSMDispatch();
-    RT::piCheckResult(USMDispatch->enqueuePrefetch(Queue->getHandleRef(), Mem,
+    RT::checkPiResult(USMDispatch->enqueuePrefetch(Queue->getHandleRef(), Mem,
                                                    Length, DepEvents.size(),
                                                    &DepEvents[0], &OutEvent));
   }

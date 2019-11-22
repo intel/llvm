@@ -23,6 +23,10 @@
 #define _PI_H_VERSION_MAJOR 1
 #define _PI_H_VERSION_MINOR 1
 
+#define _PI_STRING_HELPER(a) #a
+#define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
+#define _PI_H_VERSION_STRING                                                   \
+  _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
@@ -914,9 +918,6 @@ pi_result piEnqueueMemUnmap(
   pi_event *       event);
 
 
-#define STRING_HELPER(a) #a
-#define STRINGIZE(a,b) STRING_HELPER(a.b)
-
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
   // checks and writes the appropriate Function Pointers in
@@ -925,18 +926,15 @@ struct _pi_plugin {
   // Some choices are:
   // - Use of integers to keep major and minor version.
   // - Keeping char* Versions.
-  const char PiVersion[4] = STRINGIZE(_PI_H_VERSION_MAJOR,_PI_H_VERSION_MINOR);
+  const char PiVersion[4] = _PI_H_VERSION_STRING; 
   // Plugin edits this.
-  char PluginVersion[4] = STRINGIZE(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR);
+  char PluginVersion[4] = _PI_H_VERSION_STRING;
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;
 #include <CL/sycl/detail/pi.def>
   } PiFunctionTable;
 };
-
-#undef STRING_HELPER
-#undef STRINGIZE
 
 #ifdef __cplusplus
 } // extern "C"

@@ -448,7 +448,7 @@ private:
         throw invalid_object_error(
             "This instance of program does not contain the kernel requested");
       }
-      RT::piCheckResult(Err);
+      RT::checkPiResult(Err);
     }
 
     return Kernel;
