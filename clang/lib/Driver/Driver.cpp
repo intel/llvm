@@ -611,7 +611,7 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
 static bool isValidSYCLTriple(llvm::Triple T) {
   // Check for invalid SYCL device triple values.
   // Non-SPIR arch.
-  if (T.getArch() == llvm::Triple::UnknownArch || !T.isSPIR())
+  if (!T.isSPIR())
     return false;
   // SPIR arch, but has invalid SubArch for AOT.
   StringRef A(T.getArchName());
