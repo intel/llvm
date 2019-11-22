@@ -87,7 +87,7 @@ set(SYCL_SOURCES
     "stream.cpp"
     "spirv_ops.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
-    "$<$<PLATFORM_ID:Linux>:detail/linux_pi.cpp>"
+    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
 )
 
 add_sycl_rt_library(sycl ${SYCL_SOURCES})
