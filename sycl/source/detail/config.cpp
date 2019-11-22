@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/config.hpp>
+#include <detail/config.hpp>
 
 #include <cstring>
 #include <fstream>
@@ -20,9 +20,9 @@ namespace cl {
 namespace sycl {
 namespace detail {
 
-#ifndef SYCL_CONFIG_NAME
-#define SYCL_CONFIG_NAME sycl.cfg
-#endif // SYCL_CONFIG_NAME
+#ifndef SYCL_CONFIG_FILE_NAME
+#define SYCL_CONFIG_FILE_NAME "sycl.cfg"
+#endif // SYCL_CONFIG_FILE_NAME
 
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   const char *SYCLConfigBase<Name>::MValueFromFile = nullptr;                  \
@@ -30,7 +30,7 @@ namespace detail {
   const char *const SYCLConfigBase<Name>::MCompileTimeDef =                    \
       getStrOrNullptr(STRINGIFY_LINE(CompileTimeDef));                         \
   const char *const SYCLConfigBase<Name>::MConfigName = STRINGIFY_LINE(Name);
-#include <CL/sycl/detail/config.def>
+#include <detail/config.def>
 #undef CONFIG
 
 #define MAX_CONFIG_NAME 256
@@ -42,7 +42,7 @@ static void initValue(const char *Key, const char *Value) {
     SYCLConfigBase<Name>::MValueFromFile = SYCLConfigBase<Name>::MStorage;     \
     return;                                                                    \
   }
-#include <CL/sycl/detail/config.def>
+#include <detail/config.def>
 #undef CONFIG
 }
 
@@ -52,9 +52,8 @@ void readConfig() {
     return;
   std::fstream File;
   // TODO: Find libsycl.so location.
-  static const char *ConfigFile = getenv("SYCL_CONFIG_FILE");
-  const char *FileToLoad =
-      ConfigFile ? ConfigFile : STRINGIFY_LINE(SYCL_CONFIG_NAME);
+  static const char *ConfigFile = getenv("SYCL_CONFIG_FILE_NAME");
+  const char *FileToLoad = ConfigFile ? ConfigFile : SYCL_CONFIG_FILE_NAME;
   File.open(FileToLoad, std::ios::in);
   if (File.is_open()) {
     // TODO: Use max size from macro instead of 256
@@ -93,7 +92,7 @@ void dumpConfig() {
   const char *Val = SYCLConfig<Name>::get();                                   \
   std::cerr << SYCLConfigBase<Name>::MConfigName << " : "                      \
             << (Val ? Val : "unset") << std::endl;
-#include <CL/sycl/detail/config.def>
+#include <detail/config.def>
 #undef CONFIG
 }
 

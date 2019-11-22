@@ -5,32 +5,22 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %clangxx -g -O0 -fsycl %s -o %t1.out
-// RUN: %clangxx -g -O0 -fsycl %s -o %t2.out
-// RUN: echo "SYCL_PRINT_EXECUTION_GRAPH=ValueFromConfigFile" > %t3.cfg
-// RUN: env SYCL_CONFIG_FILE=%t3.cfg env SYCL_PRINT_EXECUTION_GRAPH=VlaueFromEnvVar %t1.out
-// RUN: env SYCL_CONFIG_FILE=%t3.cfg %t1.out
-// RUN: %t2.out
+// RUN: %clangxx -g -O0 -fsycl %s -o %t.out
+// RUN: echo "SYCL_PRINT_EXECUTION_GRAPH=always" > %t.cfg
+// RUN: env SYCL_CONFIG_FILE_NAME=%t.cfg %t.out
+// RUN: ls | grep dot
+// RUN: rm *.dot
+// RUN: env SYCL_PRINT_EXECUTION_GRAPH=always %t.out
+// RUN: ls | grep dot
+// RUN: rm *.dot
+// RUN: %t.out
+// RUN: ls | not grep dot
 
-#include <CL/sycl/detail/config.hpp>
+#include <CL/sycl.hpp>
 
-#include <cstring>
+using namespace cl;
 
 int main() {
-  const char *Val = cl::sycl::detail::SYCLConfig<
-      cl::sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get();
-
-  if (getenv("SYCL_PRINT_EXECUTION_GRAPH")) {
-    if (!Val)
-      return 1;
-    return strcmp(Val, "VlaueFromEnvVar");
-  }
-
-  if (getenv("SYCL_CONFIG_FILE")) {
-    if(!Val)
-      return 1;
-    return strcmp(Val, "ValueFromConfigFile");
-  }
-
-  return nullptr != Val;
+  sycl::buffer<int, 1> Buf(sycl::range<1>{1});
+  auto Acc = Buf.get_access<sycl::access::mode::read>();
 }
