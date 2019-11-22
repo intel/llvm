@@ -821,7 +821,7 @@ cl_int ExecCGCommand::enqueueImp() {
     RT::PiKernel Kernel = nullptr;
 
     if (nullptr != ExecKernel->MSyclKernel) {
-      assert(ExecKernel->MSyclKernel->get_context() == Context);
+      assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() == Context);
       Kernel = ExecKernel->MSyclKernel->getHandleRef();
     } else
       Kernel = detail::ProgramManager::getInstance().getOrCreateKernel(
