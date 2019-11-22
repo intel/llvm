@@ -36,6 +36,11 @@
 #include <CL/sycl/platform.hpp>
 #include <CL/sycl/pointers.hpp>
 #include <CL/sycl/program.hpp>
+#include <CL/sycl/property/accessor_properties.hpp>
+#include <CL/sycl/property/buffer_properties.hpp>
+#include <CL/sycl/property/image_properties.hpp>
+#include <CL/sycl/property/queue_properties.hpp>
+#include <CL/sycl/property_list.hpp>
 #include <CL/sycl/queue.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/sampler.hpp>

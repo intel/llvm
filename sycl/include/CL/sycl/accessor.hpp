@@ -22,6 +22,7 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/image.hpp>
 #include <CL/sycl/pointers.hpp>
+#include <CL/sycl/property/accessor_properties.hpp>
 #include <CL/sycl/sampler.hpp>
 
 /// \file accessor.hpp
@@ -772,7 +773,7 @@ protected:
   static access::mode getAdjustedMode(const property_list &PropertyList) {
     access::mode AdjustedMode = AccessMode;
 
-    if (PropertyList.has_property<property::noinit>()) {
+    if (PropertyList.has_property<property::accessor::noinit>()) {
       if (AdjustedMode == access::mode::write) {
         AdjustedMode = access::mode::discard_write;
       } else if (AdjustedMode == access::mode::read_write) {

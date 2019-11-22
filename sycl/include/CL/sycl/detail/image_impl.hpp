@@ -15,6 +15,7 @@
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
+#include <CL/sycl/property/queue_properties.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>

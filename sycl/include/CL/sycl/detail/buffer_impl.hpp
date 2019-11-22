@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
+#include <CL/sycl/property/buffer_properties.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>

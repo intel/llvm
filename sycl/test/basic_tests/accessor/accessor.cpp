@@ -226,7 +226,7 @@ int main() {
 #ifndef simplification_test
         auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
 #else
-        sycl::accessor dev_acc(buf, cgh, sycl::noinit);
+        sycl::accessor dev_acc(buf, cgh, sycl::property::accessor::noinit());
 #endif
 
         cgh.parallel_for<class test_discard_write>(
@@ -270,7 +270,7 @@ int main() {
       auto host_acc =
         buf.get_access<sycl::access::mode::discard_read_write>();
 #else
-      sycl::host_accessor host_acc(buf, sycl::noinit);
+      sycl::host_accessor host_acc(buf, sycl::property::accessor::noinit());
 #endif
     } catch (cl::sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
