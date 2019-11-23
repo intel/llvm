@@ -129,9 +129,9 @@ inline void checkPiResult(PiResult pi_result) {
 // Template Arguments:
 //    FnType  - Type of Function pointer to the PI API.
 //    FnOffset- Offset to the Function Pointer in the piPlugin::FunctionPointers
-//    structure.Used to differentiate between APIs with same pointer type, Eg:
+//    structure. Used to differentiate between APIs with same pointer type, Eg:
 //    piDeviceRelease and piDeviceRetain. Differentiation needed to avoid
-//    duplicate instantiation of class in pi.cpp.
+//    redefinition error during explicit specialization of class in pi.cpp.
 // Members: Initialiaed in default constructor in Class Template Specialization.
 // Usage:
 // Operator() - Call, Trace and Get result
@@ -203,7 +203,8 @@ namespace RT = cl::sycl::detail::pi;
 // runtime_error exception.
 // Usage: PI_CALL(pi)(Args);
 #define PI_CALL(pi)                                                            \
-  RT::CallPiAndCheck<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi))>()
+  RT::CallPiAndCheck<decltype(&::pi),                                          \
+                     (offsetof(pi_plugin::FunctionPointers, pi))>()
 
 // Use this macro to call the API, trace the call and return the result.
 // To check the result use checkPiResult.
@@ -218,8 +219,8 @@ namespace RT = cl::sycl::detail::pi;
 // Exception as given in the MACRO.
 // Usage: PI_CALL_THROW(pi, compile_program_error)(args);
 #define PI_CALL_THROW(pi, Exception)                                           \
-  RT::CallPiAndCheck<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi)), \
-                 Exception>()
+  RT::CallPiAndCheck<decltype(&::pi),                                          \
+                     (offsetof(pi_plugin::FunctionPointers, pi)), Exception>()
 
 #define PI_ASSERT(cond, msg) RT::assertion((cond), "assert: " msg);
 

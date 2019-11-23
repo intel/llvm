@@ -69,9 +69,10 @@ TEST_F(PlatformTest, piPlatformGetInfo) {
 
     // Create a larger result string to catch overwrites.
     std::vector<char> param_value(reported_string_length * 2u, '\0');
-    EXPECT_EQ((PI_CALL_NOCHECK(piPlatformGetInfo)(
-                  platform, info, param_value.size(), param_value.data(), nullptr)),
-              PI_SUCCESS)
+    EXPECT_EQ(
+        (PI_CALL_NOCHECK(piPlatformGetInfo)(platform, info, param_value.size(),
+                                            param_value.data(), nullptr)),
+        PI_SUCCESS)
         << "piPlatformGetInfo for " << RT::platformInfoToString(info)
         << " failed.\n";
 
