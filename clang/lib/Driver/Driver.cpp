@@ -608,6 +608,20 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
   return RT;
 }
 
+static bool isValidSYCLTriple(llvm::Triple T) {
+  // Check for invalid SYCL device triple values.
+  // Non-SPIR arch.
+  if (!T.isSPIR())
+    return false;
+  // SPIR arch, but has invalid SubArch for AOT.
+  StringRef A(T.getArchName());
+  if (T.getSubArch() == llvm::Triple::NoSubArch &&
+      ((T.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
+       (T.getArch() == llvm::Triple::spir64 && !A.equals("spir64"))))
+    return false;
+  return true;
+}
+
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -781,7 +795,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (SYCLTargetsValues->getNumValues()) {
         for (const char *Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(Val);
-          if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR()) {
+          if (!isValidSYCLTriple(TT)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
           }
@@ -819,7 +833,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           std::pair<StringRef, StringRef> I = Val.split(':');
           if (!I.first.empty() && !I.second.empty()) {
             llvm::Triple TT(I.first);
-            if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR()) {
+            if (!isValidSYCLTriple(TT)) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << I.first;
               continue;
             }
