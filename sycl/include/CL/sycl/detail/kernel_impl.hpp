@@ -11,7 +11,6 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/device_impl.hpp>
-#include <CL/sycl/detail/kernel_info.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -29,117 +28,121 @@ class program_impl;
 
 class kernel_impl {
 public:
+  /// Constructs a SYCL kernel instance from a PiKernel
+  ///
+  /// This constructor is used for plug-in interoperability. It always marks
+  /// kernel as being created from source and creates a new program_impl
+  /// instance.
+  ///
+  /// @param Kernel is a valid PiKernel instance
+  /// @param SyclContext is a valid SYCL context
   kernel_impl(RT::PiKernel Kernel, const context &SyclContext);
 
+  /// Constructs a SYCL kernel instance from a SYCL program and a PiKernel
+  ///
+  /// This constructor creates a new instance from PiKernel and saves
+  /// the provided SYCL program. If context of PiKernel differs from
+  /// context of the SYCL program, an invalid_parameter_error exception is
+  /// thrown.
+  ///
+  /// @param Kernel is a valid PiKernel instance
+  /// @param SyclContext is a valid SYCL context
+  /// @param ProgramImpl is a valid instance of program_impl
+  /// @param IsCreatedFromSource is a flag that indicates whether program
+  /// is created from source code
   kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
               std::shared_ptr<program_impl> ProgramImpl,
-              bool IsCreatedFromSource)
-      : Kernel(Kernel), Context(SyclContext), ProgramImpl(ProgramImpl),
-        IsCreatedFromSource(IsCreatedFromSource) {
+              bool IsCreatedFromSource);
 
-    RT::PiContext Context = nullptr;
-    PI_CALL(RT::piKernelGetInfo, Kernel, CL_KERNEL_CONTEXT, sizeof(Context),
-            &Context, nullptr);
-    auto ContextImpl = detail::getSyclObjImpl(SyclContext);
-    if (ContextImpl->getHandleRef() != Context)
-      throw cl::sycl::invalid_parameter_error(
-          "Input context must be the same as the context of cl_kernel");
-    PI_CALL(RT::piKernelRetain, Kernel);
-  }
-
-  // Host kernel constructor
+  /// Constructs a SYCL kernel for host device
+  ///
+  /// @param SyclContext is a valid SYCL context
+  /// @param ProgramImpl is a valid instance of program_impl
   kernel_impl(const context &SyclContext,
-              std::shared_ptr<program_impl> ProgramImpl)
-      : Context(SyclContext), ProgramImpl(ProgramImpl) {}
+              std::shared_ptr<program_impl> ProgramImpl);
 
-  ~kernel_impl() {
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    if (!is_host()) {
-      PI_CALL(RT::piKernelRelease, Kernel);
-    }
-  }
+  ~kernel_impl();
 
+  /// Gets a valid OpenCL kernel handle
+  ///
+  /// If this kernel encapsulates an instance of OpenCL kernel, a valid
+  /// cl_kernel will be returned. If this kernel is a host kernel,
+  /// an invalid_object_error exception will be thrown.
+  ///
+  /// @return a valid cl_kernel instance
   cl_kernel get() const {
-    if (is_host()) {
+    if (is_host())
       throw invalid_object_error("This instance of kernel is a host instance");
-    }
-    PI_CALL(RT::piKernelRetain, Kernel);
-    return pi::cast<cl_kernel>(Kernel);
+
+    PI_CALL(RT::piKernelRetain, MKernel);
+    return pi::cast<cl_kernel>(MKernel);
   }
 
-  bool is_host() const { return Context.is_host(); }
+  /// Check if the associated SYCL context is a SYCL host context.
+  ///
+  /// @return true if this SYCL kernel is a host kernel.
+  bool is_host() const { return MContext.is_host(); }
 
-  context get_context() const { return Context; }
-
-  program get_program() const;
-
+  /// Query information from the kernel object using the info::kernel_info
+  /// descriptor.
+  ///
+  /// @return depends on information being queried.
   template <info::kernel param>
   typename info::param_traits<info::kernel, param>::return_type
-  get_info() const {
-    if (is_host()) {
-      // TODO implement
-      assert(0 && "Not implemented");
-    }
-    return get_kernel_info<
-        typename info::param_traits<info::kernel, param>::return_type,
-        param>::_(this->getHandleRef());
-  }
+  get_info() const;
 
+  /// Query work-group information from a kernel using the
+  /// info::kernel_work_group descriptor for a specific device.
+  ///
+  /// @param Device is a valid SYCL device.
+  /// @return depends on information being queried.
   template <info::kernel_work_group param>
   typename info::param_traits<info::kernel_work_group, param>::return_type
-  get_work_group_info(const device &Device) const {
-    if (is_host()) {
-      return get_kernel_work_group_info_host<param>(Device);
-    }
-    return get_kernel_work_group_info<
-        typename info::param_traits<info::kernel_work_group,
-                                    param>::return_type,
-        param>::_(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef());
-  }
+  get_work_group_info(const device &Device) const;
 
+  /// Query sub-group information from a kernel using the
+  /// info::kernel_sub_group descriptor for a specific device.
+  ///
+  /// @param Device is a valid SYCL device
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
-  get_sub_group_info(const device &Device) const {
-    if (is_host()) {
-      throw runtime_error("Sub-group feature is not supported on HOST device.");
-    }
-    return get_kernel_sub_group_info<
-        typename info::param_traits<info::kernel_sub_group, param>::return_type,
-        param>::_(this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef());
-  }
+  get_sub_group_info(const device &Device) const;
 
+  /// Query sub-group information from a kernel using the
+  /// info::kernel_sub_group descriptor for a specific device and value.
+  ///
+  /// @param Device is a valid SYCL device.
+  /// @param Value depends on information being queried.
+  /// @return depends on information being queried.
   template <info::kernel_sub_group param>
   typename info::param_traits<info::kernel_sub_group, param>::return_type
   get_sub_group_info(
       const device &Device,
       typename info::param_traits<info::kernel_sub_group, param>::input_type
-          Value) const {
-    if (is_host()) {
-      throw runtime_error("Sub-group feature is not supported on HOST device.");
-    }
-    return get_kernel_sub_group_info_with_input<
-        typename info::param_traits<info::kernel_sub_group, param>::return_type,
-        param,
-        typename info::param_traits<info::kernel_sub_group, param>::
-            input_type>::_(this->getHandleRef(),
-                           getSyclObjImpl(Device)->getHandleRef(), Value);
-  }
+          Value) const;
 
-  RT::PiKernel &getHandleRef() { return Kernel; }
-  const RT::PiKernel &getHandleRef() const { return Kernel; }
+  /// Get a reference to a raw kernel object.
+  ///
+  /// @return a reference to a valid PiKernel instance with raw kernel object.
+  RT::PiKernel &getHandleRef() { return MKernel; }
+  /// Get a constant reference to a raw kernel object.
+  ///
+  /// @return a constant reference to a valid PiKernel instance with raw kernel
+  /// object.
+  const RT::PiKernel &getHandleRef() const { return MKernel; }
 
+  /// Check if kernel was created from a program that had been created from
+  /// source.
+  ///
+  /// @return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
 private:
-  RT::PiKernel Kernel;
-  context Context;
-  std::shared_ptr<program_impl> ProgramImpl;
-  bool IsCreatedFromSource = true;
+  RT::PiKernel MKernel;
+  context MContext;
+  std::shared_ptr<program_impl> MProgramImpl;
+  bool MCreatedFromSource = true;
 };
-
-template <> context kernel_impl::get_info<info::kernel::context>() const;
-
-template <> program kernel_impl::get_info<info::kernel::program>() const;
 
 } // namespace detail
 } // namespace sycl
