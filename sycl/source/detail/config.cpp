@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/config.hpp>
+#include "detail/config.hpp"
 
 #include <cstring>
 #include <fstream>
@@ -30,7 +30,7 @@ namespace detail {
   const char *const SYCLConfigBase<Name>::MCompileTimeDef =                    \
       getStrOrNullptr(STRINGIFY_LINE(CompileTimeDef));                         \
   const char *const SYCLConfigBase<Name>::MConfigName = STRINGIFY_LINE(Name);
-#include <detail/config.def>
+#include "detail/config.def"
 #undef CONFIG
 
 #define MAX_CONFIG_NAME 256
@@ -42,7 +42,7 @@ static void initValue(const char *Key, const char *Value) {
     SYCLConfigBase<Name>::MValueFromFile = SYCLConfigBase<Name>::MStorage;     \
     return;                                                                    \
   }
-#include <detail/config.def>
+#include "detail/config.def"
 #undef CONFIG
 }
 
@@ -92,7 +92,7 @@ void dumpConfig() {
   const char *Val = SYCLConfig<Name>::get();                                   \
   std::cerr << SYCLConfigBase<Name>::MConfigName << " : "                      \
             << (Val ? Val : "unset") << std::endl;
-#include <detail/config.def>
+#include "detail/config.def"
 #undef CONFIG
 }
 
