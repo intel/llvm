@@ -140,7 +140,9 @@ void assertion(bool Condition, const char *Message) {
 // implemented yet.
 
 #define _PI_API(api)                                                           \
-  template <> CallPi<decltype(&::api)>::CallPi() {                             \
+  template <>                                                                  \
+  CallPi<decltype(&::api),                                                     \
+         (offsetof(pi_plugin::FunctionPointers, api))>::CallPi() {             \
     initialize();                                                              \
     MFnPtr = (RT::PluginInformation.PiFunctionTable.api);                      \
     MFnName = #api;                                                            \

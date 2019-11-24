@@ -31,13 +31,13 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, const context &SyclContext,
       MCreatedFromSource(IsCreatedFromSource) {
 
   RT::PiContext Context = nullptr;
-  PI_CALL(RT::piKernelGetInfo, MKernel, CL_KERNEL_CONTEXT, sizeof(Context),
-          &Context, nullptr);
+  PI_CALL(piKernelGetInfo)(MKernel, CL_KERNEL_CONTEXT, sizeof(Context),
+                           &Context, nullptr);
   auto ContextImpl = detail::getSyclObjImpl(SyclContext);
   if (ContextImpl->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel");
-  PI_CALL(RT::piKernelRetain, MKernel);
+  PI_CALL(piKernelRetain)(MKernel);
 }
 
 kernel_impl::kernel_impl(const context &SyclContext,
@@ -47,7 +47,7 @@ kernel_impl::kernel_impl(const context &SyclContext,
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host()) {
-    PI_CALL(RT::piKernelRelease, MKernel);
+    PI_CALL(piKernelRelease)(MKernel);
   }
 }
 
