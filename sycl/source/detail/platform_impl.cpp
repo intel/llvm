@@ -11,6 +11,8 @@
 #include <CL/sycl/device.hpp>
 
 #include <algorithm>
+#include <cstring>
+#include <regex>
 
 namespace cl {
 namespace sycl {
@@ -49,6 +51,117 @@ platform_impl_host::get_devices(info::device_type dev_type) const {
   return res;
 }
 
+struct DevDescT {
+  const char *devName = nullptr;
+  int devNameSize = 0;
+
+  const char *devDriverVer = nullptr;
+  int devDriverVerSize = 0;
+};
+
+static std::vector<DevDescT> getWhiteListDesc() {
+  // TODO: Replace with const char *str =
+  // SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get();
+  const char *str = getenv("SYCL_DEVICE_WHITE_LIST");
+  if (!str)
+    return {};
+
+  std::vector<DevDescT> decDescs;
+  const char devNameStr[] = "DeviceName";
+  const char driverVerStr[] = "DriverVersion";
+  decDescs.emplace_back();
+  while ('\0' != *str) {
+    const char **dstPtr = nullptr;
+    int *size = nullptr;
+
+    // TODO: Handle string less than devNameStr
+
+    // -1 to avoid comparing null terminator
+    if (0 == strncmp(devNameStr, str, sizeof(devNameStr) - 1)) {
+      dstPtr = &decDescs.back().devName;
+      size = &decDescs.back().devNameSize;
+      str += sizeof(devNameStr) - 1;
+    } else if (0 == strncmp(driverVerStr, str, sizeof(driverVerStr) - 1)) {
+      dstPtr = &decDescs.back().devDriverVer;
+      size = &decDescs.back().devDriverVerSize;
+      str += sizeof(driverVerStr) - 1;
+    }
+
+    if (':' != *str)
+      throw sycl::runtime_error("Malformed device white list");
+
+    // Skip ':'
+    str += 1;
+
+    if ('{' != *str || '{' != *(str + 1))
+      throw sycl::runtime_error("Malformed device white list");
+
+    // Skip opening sequence "{{"
+    str += 2;
+
+    *dstPtr = str;
+
+    // Increment until closing sequence is encountered
+    while (('\0' != *str) && ('}' != *str || '}' != *(str + 1)))
+      ++str;
+
+    if ('\0' == *str)
+      throw sycl::runtime_error("Malformed device white list");
+
+    *size = str - *dstPtr;
+
+    // Skip closing sequence "}}"
+    str += 2;
+
+    if ('\0' == *str)
+      break;
+
+    // '|' means that the is another filter
+    if ('|' == *str)
+      decDescs.emplace_back();
+    else if (',' != *str)
+      throw sycl::runtime_error("Malformed device white list");
+
+    ++str;
+  }
+
+  return decDescs;
+}
+
+static void filterWhiteList(vector_class<RT::PiDevice> &pi_devices) {
+  const std::vector<DevDescT> whiteList(getWhiteListDesc());
+  if (whiteList.empty())
+    return;
+
+  int insertIDx = 0;
+  for (RT::PiDevice dev : pi_devices) {
+    const string_class devName =
+        sycl::detail::get_device_info<string_class, info::device::name>::_(dev);
+
+    const string_class devDriverVer =
+        sycl::detail::get_device_info<string_class,
+                                      info::device::driver_version>::_(dev);
+
+    for (const DevDescT &desc : whiteList) {
+      // At least device name is required field to consider the filter so far
+      if (nullptr == desc.devName ||
+          !std::regex_match(
+              devName, std::regex(std::string(desc.devName, desc.devNameSize))))
+        continue;
+
+      if (nullptr != desc.devDriverVer &&
+          !std::regex_match(devDriverVer,
+                            std::regex(std::string(desc.devDriverVer,
+                                                   desc.devDriverVerSize))))
+        continue;
+
+      pi_devices[insertIDx++] = dev;
+      break;
+    }
+  }
+  pi_devices.resize(insertIDx);
+}
+
 vector_class<device>
 platform_impl_pi::get_devices(info::device_type deviceType) const {
   vector_class<device> res;
@@ -66,6 +179,9 @@ platform_impl_pi::get_devices(info::device_type deviceType) const {
   // TODO catch an exception and put it to list of asynchronous exceptions
   PI_CALL(piDevicesGet)(m_platform, pi::cast<RT::PiDeviceType>(deviceType),
                         num_devices, pi_devices.data(), nullptr);
+
+  // Filter out devices that are not present in the white list
+  filterWhiteList(pi_devices);
 
   std::for_each(pi_devices.begin(), pi_devices.end(),
                 [&res](const RT::PiDevice &a_pi_device) {
