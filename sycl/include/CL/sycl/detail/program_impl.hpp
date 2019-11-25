@@ -210,7 +210,7 @@ public:
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
       // If there are no build options, program can be safely cached
       if (is_cacheable_with_options(BuildOptions)) {
-        AllowKernelsCaching = true;
+        IsProgramAndKernelCachingAllowed = true;
         Program =
             ProgramManager::getInstance().getBuiltOpenCLProgram(M, Context);
         PI_CALL(piProgramRetain)(Program);
@@ -420,9 +420,7 @@ private:
   }
 
   bool is_cacheable() const {
-    return is_cacheable_with_options(BuildOptions) &&
-           is_cacheable_with_options(CompileOptions) &&
-           is_cacheable_with_options(LinkOptions) && AllowKernelsCaching;
+    return IsProgramAndKernelCachingAllowed;
   }
 
   static bool
@@ -485,7 +483,7 @@ private:
   // Only allow kernel caching for programs constructed with context only (or
   // device list and context) and built with build_with_kernel_type with
   // default build options
-  bool AllowKernelsCaching = false;
+  bool IsProgramAndKernelCachingAllowed = false;
 };
 
 template <>
