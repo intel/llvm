@@ -46,6 +46,7 @@ set(SYCL_SOURCES
     "detail/context_impl.cpp"
     "detail/device_impl.cpp"
     "detail/device_info.cpp"
+    "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
     "detail/force_device.cpp"
     "detail/helpers.cpp"
