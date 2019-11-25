@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "detail/config.hpp"
+#include <CL/sycl/detail/os_util.hpp>
+#include <detail/config.hpp>
 
 #include <cstring>
 #include <fstream>
@@ -21,7 +22,7 @@ namespace sycl {
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME
-#define SYCL_CONFIG_FILE_NAME "sycl.cfg"
+#define SYCL_CONFIG_FILE_NAME "sycl.conf"
 #endif // SYCL_CONFIG_FILE_NAME
 
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
@@ -50,17 +51,22 @@ void readConfig() {
   static bool Initialized = false;
   if (Initialized)
     return;
+
   std::fstream File;
-  // TODO: Find libsycl.so location.
-  static const char *ConfigFile = getenv("SYCL_CONFIG_FILE_NAME");
-  const char *FileToLoad = ConfigFile ? ConfigFile : SYCL_CONFIG_FILE_NAME;
-  File.open(FileToLoad, std::ios::in);
+  if (const char *ConfigFile = getenv("SYCL_CONFIG_FILE_NAME"))
+    File.open(ConfigFile, std::ios::in);
+  else {
+    const std::string LibSYCLDir = sycl::detail::OSUtil::getCurrentDSODir();
+    File.open(LibSYCLDir + sycl::detail::OSUtil::DirSep + SYCL_CONFIG_FILE_NAME,
+              std::ios::in);
+  }
+
   if (File.is_open()) {
     // TODO: Use max size from macro instead of 256
     char Key[MAX_CONFIG_NAME] = {0}, Value[256] = {0};
     while (!File.eof()) {
       // Expected fromat:
-      // ConfigName=Value
+      // ConfigName=Value\r
       // ConfigName=Value
       // TODO: Skip spaces before and after '='
       File.getline(Key, sizeof(Key), '=');
@@ -72,6 +78,7 @@ void readConfig() {
         continue;
       }
       File.getline(Value, sizeof(Value), '\n');
+
       if (File.fail()) {
         // Fail to process the value while config name is OK. It's likely that
         // value is too long. Currently just deal what we have got and ignore
@@ -80,6 +87,12 @@ void readConfig() {
         File.clear(File.rdstate() & ~std::ios_base::failbit);
         File.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
       }
+
+      // Handle '\r' by nullifying it
+      const std::streamsize ReadSybmols = File.gcount();
+      if (ReadSybmols > 1 && '\r' == Value[ReadSybmols - 2])
+        Value[ReadSybmols - 2] = '\0';
+
       initValue(Key, Value);
     }
   }
