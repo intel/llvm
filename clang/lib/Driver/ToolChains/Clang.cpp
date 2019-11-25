@@ -7150,7 +7150,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   }
   for (auto I : Inputs) {
     std::string Filename(I.getFilename());
-    if (I.getType() == types::TY_TempIRfilelist) {
+    if (I.getType() == types::TY_Tempfilelist) {
       ForeachArgs.push_back(
           C.getArgs().MakeArgString("--in-file-list=" + Filename));
       ForeachArgs.push_back(
@@ -7235,7 +7235,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   CmdArgs.push_back(InputFileName);
   std::string OutputFileName(Output.getFilename());
-  if (Output.getType() == types::TY_TempIRfilelist)
+  if (Output.getType() == types::TY_Tempfilelist)
     CmdArgs.push_back(TCArgs.MakeArgString("-ir-files-list=" + OutputFileName));
   else if (Output.getType() == types::TY_TempEntriesfilelist)
     CmdArgs.push_back(

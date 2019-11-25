@@ -129,7 +129,7 @@
 // CHK-FPGA-LINK-SRC: 12: assembler, {11}, object, (device-sycl)
 // CHK-FPGA-LINK-SRC: 13: linker, {12}, ir, (device-sycl)
 // CHK-FPGA-LINK-SRC: 14: sycl-post-link, {13}, tempentriesfilelist, (device-sycl)
-// CHK-FPGA-LINK-SRC: 15: sycl-post-link, {13}, tempirfilelist, (device-sycl)
+// CHK-FPGA-LINK-SRC: 15: sycl-post-link, {13}, tempfilelist, (device-sycl)
 // CHK-FPGA-LINK-SRC: 16: llvm-spirv, {15}, tempfilelist, (device-sycl)
 // CHK-FPGA-LINK-SRC: 17: backend-compiler, {16}, tempfilelist, (device-sycl)
 // CHK-FPGA-LINK-SRC: 18: clang-offload-wrapper, {14, 17}, object, (device-sycl)

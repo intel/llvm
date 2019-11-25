@@ -3486,7 +3486,7 @@ class OffloadingActionBuilder final {
         types::ID OutType = types::TY_SPIRV;
         if (!NoDeviceCodeSplit) {
           auto *SplitAction = C.MakeAction<SYCLPostLinkJobAction>(
-              DeviceLinkAction, types::TY_TempIRfilelist);
+              DeviceLinkAction, types::TY_Tempfilelist);
           auto *EntryGenAction = C.MakeAction<SYCLPostLinkJobAction>(
               DeviceLinkAction, types::TY_TempEntriesfilelist);
           SPIRVInput = SplitAction;
