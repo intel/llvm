@@ -460,96 +460,97 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
     // PI interface supports lower version of PI.
     // TODO: Take appropriate actions.
     return PI_INVALID_OPERATION;
-  } else {
-    // PI interface supports higher version or the same version.
-    strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
+  }
+
+  // PI interface supports higher version or the same version.
+  strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
 
 #define _PI_CL(pi_api, ocl_api)                                                \
   (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&ocl_api);
 
-    // Platform
-    _PI_CL(piPlatformsGet, OCL(piPlatformsGet))
-    _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
-    // Device
-    _PI_CL(piDevicesGet, OCL(piDevicesGet))
-    _PI_CL(piDeviceGetInfo, clGetDeviceInfo)
-    _PI_CL(piDevicePartition, clCreateSubDevices)
-    _PI_CL(piDeviceRetain, clRetainDevice)
-    _PI_CL(piDeviceRelease, clReleaseDevice)
-    _PI_CL(piextDeviceSelectBinary, OCL(piextDeviceSelectBinary))
-    _PI_CL(piextGetDeviceFunctionPointer, OCL(piextGetDeviceFunctionPointer))
-    // Context
-    _PI_CL(piContextCreate, OCL(piContextCreate))
-    _PI_CL(piContextGetInfo, clGetContextInfo)
-    _PI_CL(piContextRetain, clRetainContext)
-    _PI_CL(piContextRelease, clReleaseContext)
-    // Queue
-    _PI_CL(piQueueCreate, OCL(piQueueCreate))
-    _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
-    _PI_CL(piQueueFinish, clFinish)
-    _PI_CL(piQueueRetain, clRetainCommandQueue)
-    _PI_CL(piQueueRelease, clReleaseCommandQueue)
-    // Memory
-    _PI_CL(piMemBufferCreate, OCL(piMemBufferCreate))
-    _PI_CL(piMemImageCreate, OCL(piMemImageCreate))
-    _PI_CL(piMemGetInfo, clGetMemObjectInfo)
-    _PI_CL(piMemImageGetInfo, clGetImageInfo)
-    _PI_CL(piMemRetain, clRetainMemObject)
-    _PI_CL(piMemRelease, clReleaseMemObject)
-    _PI_CL(piMemBufferPartition, OCL(piMemBufferPartition))
-    // Program
-    _PI_CL(piProgramCreate, OCL(piProgramCreate))
-    _PI_CL(piclProgramCreateWithSource, OCL(piclProgramCreateWithSource))
-    _PI_CL(piclProgramCreateWithBinary, OCL(piclProgramCreateWithBinary))
-    _PI_CL(piProgramGetInfo, clGetProgramInfo)
-    _PI_CL(piProgramCompile, clCompileProgram)
-    _PI_CL(piProgramBuild, clBuildProgram)
-    _PI_CL(piProgramLink, OCL(piProgramLink))
-    _PI_CL(piProgramGetBuildInfo, clGetProgramBuildInfo)
-    _PI_CL(piProgramRetain, clRetainProgram)
-    _PI_CL(piProgramRelease, clReleaseProgram)
-    // Kernel
-    _PI_CL(piKernelCreate, OCL(piKernelCreate))
-    _PI_CL(piKernelSetArg, clSetKernelArg)
-    _PI_CL(piKernelGetInfo, clGetKernelInfo)
-    _PI_CL(piKernelGetGroupInfo, clGetKernelWorkGroupInfo)
-    _PI_CL(piKernelGetSubGroupInfo, clGetKernelSubGroupInfo)
-    _PI_CL(piKernelRetain, clRetainKernel)
-    _PI_CL(piKernelRelease, clReleaseKernel)
-    // Event
-    _PI_CL(piEventCreate, OCL(piEventCreate))
-    _PI_CL(piEventGetInfo, clGetEventInfo)
-    _PI_CL(piEventGetProfilingInfo, clGetEventProfilingInfo)
-    _PI_CL(piEventsWait, clWaitForEvents)
-    _PI_CL(piEventSetCallback, clSetEventCallback)
-    _PI_CL(piEventSetStatus, clSetUserEventStatus)
-    _PI_CL(piEventRetain, clRetainEvent)
-    _PI_CL(piEventRelease, clReleaseEvent)
-    // Sampler
-    _PI_CL(piSamplerCreate, OCL(piSamplerCreate))
-    _PI_CL(piSamplerGetInfo, clGetSamplerInfo)
-    _PI_CL(piSamplerRetain, clRetainSampler)
-    _PI_CL(piSamplerRelease, clReleaseSampler)
-    // Queue commands
-    _PI_CL(piEnqueueKernelLaunch, clEnqueueNDRangeKernel)
-    _PI_CL(piEnqueueNativeKernel, clEnqueueNativeKernel)
-    _PI_CL(piEnqueueEventsWait, clEnqueueMarkerWithWaitList)
-    _PI_CL(piEnqueueMemBufferRead, clEnqueueReadBuffer)
-    _PI_CL(piEnqueueMemBufferReadRect, clEnqueueReadBufferRect)
-    _PI_CL(piEnqueueMemBufferWrite, clEnqueueWriteBuffer)
-    _PI_CL(piEnqueueMemBufferWriteRect, clEnqueueWriteBufferRect)
-    _PI_CL(piEnqueueMemBufferCopy, clEnqueueCopyBuffer)
-    _PI_CL(piEnqueueMemBufferCopyRect, clEnqueueCopyBufferRect)
-    _PI_CL(piEnqueueMemBufferFill, clEnqueueFillBuffer)
-    _PI_CL(piEnqueueMemImageRead, clEnqueueReadImage)
-    _PI_CL(piEnqueueMemImageWrite, clEnqueueWriteImage)
-    _PI_CL(piEnqueueMemImageCopy, clEnqueueCopyImage)
-    _PI_CL(piEnqueueMemImageFill, clEnqueueFillImage)
-    _PI_CL(piEnqueueMemBufferMap, OCL(piEnqueueMemBufferMap))
-    _PI_CL(piEnqueueMemUnmap, clEnqueueUnmapMemObject)
+  // Platform
+  _PI_CL(piPlatformsGet, OCL(piPlatformsGet))
+  _PI_CL(piPlatformGetInfo, clGetPlatformInfo)
+  // Device
+  _PI_CL(piDevicesGet, OCL(piDevicesGet))
+  _PI_CL(piDeviceGetInfo, clGetDeviceInfo)
+  _PI_CL(piDevicePartition, clCreateSubDevices)
+  _PI_CL(piDeviceRetain, clRetainDevice)
+  _PI_CL(piDeviceRelease, clReleaseDevice)
+  _PI_CL(piextDeviceSelectBinary, OCL(piextDeviceSelectBinary))
+  _PI_CL(piextGetDeviceFunctionPointer, OCL(piextGetDeviceFunctionPointer))
+  // Context
+  _PI_CL(piContextCreate, OCL(piContextCreate))
+  _PI_CL(piContextGetInfo, clGetContextInfo)
+  _PI_CL(piContextRetain, clRetainContext)
+  _PI_CL(piContextRelease, clReleaseContext)
+  // Queue
+  _PI_CL(piQueueCreate, OCL(piQueueCreate))
+  _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
+  _PI_CL(piQueueFinish, clFinish)
+  _PI_CL(piQueueRetain, clRetainCommandQueue)
+  _PI_CL(piQueueRelease, clReleaseCommandQueue)
+  // Memory
+  _PI_CL(piMemBufferCreate, OCL(piMemBufferCreate))
+  _PI_CL(piMemImageCreate, OCL(piMemImageCreate))
+  _PI_CL(piMemGetInfo, clGetMemObjectInfo)
+  _PI_CL(piMemImageGetInfo, clGetImageInfo)
+  _PI_CL(piMemRetain, clRetainMemObject)
+  _PI_CL(piMemRelease, clReleaseMemObject)
+  _PI_CL(piMemBufferPartition, OCL(piMemBufferPartition))
+  // Program
+  _PI_CL(piProgramCreate, OCL(piProgramCreate))
+  _PI_CL(piclProgramCreateWithSource, OCL(piclProgramCreateWithSource))
+  _PI_CL(piclProgramCreateWithBinary, OCL(piclProgramCreateWithBinary))
+  _PI_CL(piProgramGetInfo, clGetProgramInfo)
+  _PI_CL(piProgramCompile, clCompileProgram)
+  _PI_CL(piProgramBuild, clBuildProgram)
+  _PI_CL(piProgramLink, OCL(piProgramLink))
+  _PI_CL(piProgramGetBuildInfo, clGetProgramBuildInfo)
+  _PI_CL(piProgramRetain, clRetainProgram)
+  _PI_CL(piProgramRelease, clReleaseProgram)
+  // Kernel
+  _PI_CL(piKernelCreate, OCL(piKernelCreate))
+  _PI_CL(piKernelSetArg, clSetKernelArg)
+  _PI_CL(piKernelGetInfo, clGetKernelInfo)
+  _PI_CL(piKernelGetGroupInfo, clGetKernelWorkGroupInfo)
+  _PI_CL(piKernelGetSubGroupInfo, clGetKernelSubGroupInfo)
+  _PI_CL(piKernelRetain, clRetainKernel)
+  _PI_CL(piKernelRelease, clReleaseKernel)
+  // Event
+  _PI_CL(piEventCreate, OCL(piEventCreate))
+  _PI_CL(piEventGetInfo, clGetEventInfo)
+  _PI_CL(piEventGetProfilingInfo, clGetEventProfilingInfo)
+  _PI_CL(piEventsWait, clWaitForEvents)
+  _PI_CL(piEventSetCallback, clSetEventCallback)
+  _PI_CL(piEventSetStatus, clSetUserEventStatus)
+  _PI_CL(piEventRetain, clRetainEvent)
+  _PI_CL(piEventRelease, clReleaseEvent)
+  // Sampler
+  _PI_CL(piSamplerCreate, OCL(piSamplerCreate))
+  _PI_CL(piSamplerGetInfo, clGetSamplerInfo)
+  _PI_CL(piSamplerRetain, clRetainSampler)
+  _PI_CL(piSamplerRelease, clReleaseSampler)
+  // Queue commands
+  _PI_CL(piEnqueueKernelLaunch, clEnqueueNDRangeKernel)
+  _PI_CL(piEnqueueNativeKernel, clEnqueueNativeKernel)
+  _PI_CL(piEnqueueEventsWait, clEnqueueMarkerWithWaitList)
+  _PI_CL(piEnqueueMemBufferRead, clEnqueueReadBuffer)
+  _PI_CL(piEnqueueMemBufferReadRect, clEnqueueReadBufferRect)
+  _PI_CL(piEnqueueMemBufferWrite, clEnqueueWriteBuffer)
+  _PI_CL(piEnqueueMemBufferWriteRect, clEnqueueWriteBufferRect)
+  _PI_CL(piEnqueueMemBufferCopy, clEnqueueCopyBuffer)
+  _PI_CL(piEnqueueMemBufferCopyRect, clEnqueueCopyBufferRect)
+  _PI_CL(piEnqueueMemBufferFill, clEnqueueFillBuffer)
+  _PI_CL(piEnqueueMemImageRead, clEnqueueReadImage)
+  _PI_CL(piEnqueueMemImageWrite, clEnqueueWriteImage)
+  _PI_CL(piEnqueueMemImageCopy, clEnqueueCopyImage)
+  _PI_CL(piEnqueueMemImageFill, clEnqueueFillImage)
+  _PI_CL(piEnqueueMemBufferMap, OCL(piEnqueueMemBufferMap))
+  _PI_CL(piEnqueueMemUnmap, clEnqueueUnmapMemObject)
 
 #undef _PI_CL
-  }
+
   return PI_SUCCESS;
 }
 

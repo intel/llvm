@@ -129,10 +129,10 @@ inline void checkPiResult(PiResult pi_result) {
 // Template Arguments:
 //    FnType  - Type of Function pointer to the PI API.
 //    FnOffset- Offset to the Function Pointer in the piPlugin::FunctionPointers
-//    structure. Used to differentiate between APIs with same pointer type, Eg:
-//    piDeviceRelease and piDeviceRetain. Differentiation needed to avoid
+//    structure. Used to differentiate between APIs with same pointer type,
+//    E.g.: piDeviceRelease and piDeviceRetain. Differentiation needed to avoid
 //    redefinition error during explicit specialization of class in pi.cpp.
-// Members: Initialiaed in default constructor in Class Template Specialization.
+// Members: Initialized in default constructor in Class Template Specialization.
 // Usage:
 // Operator() - Call, Trace and Get result
 // Use Macro PI_CALL_NOCHECK call the constructor directly.
@@ -169,7 +169,7 @@ bool CallPi<FnType, FnOffset>::MEnableTrace = (std::getenv("SYCL_PI_TRACE") !=
 // Template Arguments:
 //    FnType, FnOffset - for CallPi Class.
 //    Exception - The type of exception to throw if PiResult of a call is not
-//    PI_SUCCESS. default is cl::sycl::runtime_error.
+//    PI_SUCCESS. Default value is cl::sycl::runtime_error.
 // Usage:
 // Operator() - Call, Trace, check Result and Throw Exception.
 // Use Macro PI_CALL and PI_CALL_THROW to call the constructor directly.
@@ -210,12 +210,12 @@ namespace RT = cl::sycl::detail::pi;
 // To check the result use checkPiResult.
 // Usage:
 // PiResult Err = PI_CALL_NOCHECK(pi)(args);
-// RT::checkPiResult(Err); <- Checks Result and throws a runtime error
+// RT::checkPiResult(Err); <- Checks Result and throws a runtime_error
 // exception.
 #define PI_CALL_NOCHECK(pi)                                                    \
   RT::CallPi<decltype(&::pi), (offsetof(pi_plugin::FunctionPointers, pi))>()
 
-// Use this macro to call the API, trace the call, check the return and throw a
+// Use this macro to call the API, trace the call, check the return and throw an
 // Exception as given in the MACRO.
 // Usage: PI_CALL_THROW(pi, compile_program_error)(args);
 #define PI_CALL_THROW(pi, Exception)                                           \
