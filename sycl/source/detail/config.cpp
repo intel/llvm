@@ -39,7 +39,7 @@ namespace detail {
 static void initValue(const char *Key, const char *Value) {
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   if (0 == strncmp(Key, SYCLConfigBase<Name>::MConfigName, MAX_CONFIG_NAME)) { \
-    strcpy(SYCLConfigBase<Name>::MStorage, Value);                             \
+    strncpy(SYCLConfigBase<Name>::MStorage, Value, MaxSize);                   \
     SYCLConfigBase<Name>::MValueFromFile = SYCLConfigBase<Name>::MStorage;     \
     return;                                                                    \
   }
