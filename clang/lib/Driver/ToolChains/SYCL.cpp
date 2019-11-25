@@ -312,7 +312,6 @@ void SYCL::fpga::BackendCompiler::ConstructJob(Compilation &C,
       ForeachExt = "aocr";
     }
 
-
   for (const auto &II : Inputs) {
     std::string Filename(II.getFilename());
     if (II.getType() == types::TY_Tempfilelist)
