@@ -44,13 +44,13 @@ public:
   program_impl(const context &Context, vector_class<device> DeviceList)
       : Context(Context), Devices(DeviceList) {}
 
-  // Don't allow kernels caching for linked programs due to only compiled
+  // Kernels caching for linked programs won't be allowed due to only compiled
   // state of each and every program in the list and thus unknown state of
   // caching resolution
   program_impl(vector_class<std::shared_ptr<program_impl>> ProgramList,
                string_class LinkOptions = "")
       : State(program_state::linked), LinkOptions(LinkOptions),
-        BuildOptions(LinkOptions), AllowKernelsCaching(false) {
+        BuildOptions(LinkOptions) {
     // Verify arguments
     if (ProgramList.empty()) {
       throw runtime_error("Non-empty vector of programs expected");
@@ -96,10 +96,9 @@ public:
     }
   }
 
-  // Disallow kernels caching for programs created by interoperability c-tor
+  // Kernel caching for programs created by interoperability c-tor isn't allowed
   program_impl(const context &Context, RT::PiProgram Program)
-      : Program(Program), Context(Context), IsLinkable(true),
-        AllowKernelsCaching(false) {
+      : Program(Program), Context(Context), IsLinkable(true) {
 
     // TODO handle the case when cl_program build is in progress
     cl_uint NumDevices;
@@ -210,13 +209,12 @@ public:
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
       // If there are no build options, program can be safely cached
-      if (is_cacheable_with_build_options(BuildOptions)) {
+      if (is_cacheable_with_options(BuildOptions)) {
+        IsProgramAndKernelCachingAllowed = true;
         Program =
             ProgramManager::getInstance().getBuiltOpenCLProgram(M, Context);
         PI_CALL(piProgramRetain)(Program);
       } else {
-        AllowKernelsCaching = false;
-
         create_cl_program_with_il(M);
         build(BuildOptions);
       }
@@ -227,9 +225,6 @@ public:
   void build_with_source(string_class KernelSource,
                          string_class BuildOptions = "") {
     throw_if_state_is_not(program_state::none);
-
-    AllowKernelsCaching = false;
-
     // TODO should it throw if it's host?
     if (!is_host()) {
       create_cl_program_with_source(KernelSource);
@@ -425,12 +420,12 @@ private:
   }
 
   bool is_cacheable() const {
-    return is_cacheable_with_build_options(BuildOptions) && AllowKernelsCaching;
+    return IsProgramAndKernelCachingAllowed;
   }
 
   static bool
-  is_cacheable_with_build_options(const string_class &BuildOptions) {
-    return BuildOptions.empty();
+  is_cacheable_with_options(const string_class &Options) {
+    return Options.empty();
   }
 
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const {
@@ -488,7 +483,7 @@ private:
   // Only allow kernel caching for programs constructed with context only (or
   // device list and context) and built with build_with_kernel_type with
   // default build options
-  bool AllowKernelsCaching = true;
+  bool IsProgramAndKernelCachingAllowed = false;
 };
 
 template <>

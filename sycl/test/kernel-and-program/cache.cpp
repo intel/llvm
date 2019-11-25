@@ -10,6 +10,13 @@
 
 #include <CL/sycl.hpp>
 
+namespace pi = cl::sycl::detail::pi;
+namespace RT = cl::sycl::RT;
+
+#define KERNEL_NAME_SRC "kernel_source"
+#define TEST_SOURCE "kernel void " KERNEL_NAME_SRC "(global int* a) " \
+  "{ a[get_global_id(0)] += 1; }\n"
+
 class Functor {
 public:
   void operator()(cl::sycl::item<1> Item) { (void)Item; }
@@ -37,6 +44,21 @@ struct TestContext {
     return std::move(Prog);
   }
 
+  cl::sycl::program
+  getProgramWSource(const cl::sycl::string_class &BuildOptions = "") {
+    cl::sycl::program Prog(Queue.get_context());
+
+    Prog.build_with_source(TEST_SOURCE, BuildOptions);
+
+    assert(Prog.get_state() == cl::sycl::program_state::linked &&
+           "Linked state was expected");
+
+    assert(Prog.has_kernel<class SingleTask>() &&
+           "Expecting SingleTask kernel exists");
+
+    return std::move(Prog);
+  }
+
   cl::sycl::program getCompiledProgram() {
     cl::sycl::program Prog(Queue.get_context());
 
@@ -44,6 +66,43 @@ struct TestContext {
 
     assert(Prog.get_state() == cl::sycl::program_state::compiled &&
            "Compiled state was expected");
+
+    return std::move(Prog);
+  }
+
+  cl::sycl::program
+  getCompiledAndLinkedProgram(const cl::sycl::string_class &CompileOptions = "",
+                              const cl::sycl::string_class &LinkOptions = "") {
+    cl::sycl::program Prog(Queue.get_context());
+
+    Prog.compile_with_kernel_type<class SingleTask>(CompileOptions);
+
+    assert(Prog.get_state() == cl::sycl::program_state::compiled &&
+           "Compiled state was expected");
+
+    Prog.link(LinkOptions);
+
+    assert(Prog.get_state() == cl::sycl::program_state::linked &&
+           "Linked state was expected");
+
+    return std::move(Prog);
+  }
+
+  cl::sycl::program
+  getCompiledAndLinkedProgramWSource(
+      const cl::sycl::string_class &CompileOptions = "",
+      const cl::sycl::string_class &LinkOptions = "") {
+    cl::sycl::program Prog(Queue.get_context());
+
+    Prog.compile_with_source(TEST_SOURCE, CompileOptions);
+
+    assert(Prog.get_state() == cl::sycl::program_state::compiled &&
+           "Compiled state was expected");
+
+    Prog.link(LinkOptions);
+
+    assert(Prog.get_state() == cl::sycl::program_state::linked &&
+           "Linked state was expected");
 
     return std::move(Prog);
   }
@@ -58,10 +117,13 @@ struct TestContext {
 
     return std::move(Kernel);
   }
-};
 
-namespace pi = cl::sycl::detail::pi;
-namespace RT = cl::sycl::RT;
+  cl::sycl::kernel getKernelWSource(cl::sycl::program &Prog) {
+    auto Kernel = Prog.get_kernel(KERNEL_NAME_SRC);
+
+    return std::move(Kernel);
+  }
+};
 
 static void testProgramCachePositive() {
   TestContext TestCtx;
@@ -88,6 +150,86 @@ static void testProgramCacheNegativeCustomBuildOptions() {
 
   assert(Ctx->getCachedPrograms().size() == 0 &&
          "Expecting empty program cache");
+}
+
+static void testProgramCacheNegativeCompileLinkCustomOpts() {
+  TestContext TestCtx;
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgram();
+
+    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+    assert(Ctx->getCachedPrograms().size() == 0 &&
+           "Expecting empty program cache");
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgram("-g", "-cl-no-signed-zeroes");
+
+    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+    assert(Ctx->getCachedPrograms().size() == 0 &&
+           "Expecting empty program cache");
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgram("", "-cl-no-signed-zeroes");
+
+    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+    assert(Ctx->getCachedPrograms().size() == 0 &&
+           "Expecting empty program cache");
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgram("-g", "");
+
+    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+    assert(Ctx->getCachedPrograms().size() == 0 &&
+           "Expecting empty program cache");
+  }
+}
+
+static void testProgramCacheNegativeCompileLinkSource() {
+  TestContext TestCtx;
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource();
+
+    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+    assert(Ctx->getCachedPrograms().size() == 0 &&
+           "Expecting empty program cache");
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("-g", "-cl-no-signed-zeroes");
+
+    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+    assert(Ctx->getCachedPrograms().size() == 0 &&
+           "Expecting empty program cache");
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("", "-cl-no-signed-zeroes");
+
+    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+    assert(Ctx->getCachedPrograms().size() == 0 &&
+           "Expecting empty program cache");
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("-g", "");
+
+    auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+
+    assert(Ctx->getCachedPrograms().size() == 0 &&
+           "Expecting empty program cache");
+  }
 }
 
 static void testKernelCachePositive() {
@@ -163,14 +305,115 @@ void testKernelCacheNegativeCustomBuildOptions() {
   }
 }
 
+void testKernelCacheNegativeCompileLink() {
+  TestContext TestCtx;
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgram();
+    auto Kernel = TestCtx.getKernel(Prog);
+
+    if (!TestCtx.Queue.is_host()) {
+      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+      assert(Ctx->getCachedKernels().size() == 0 &&
+             "Unexpected data in kernels cache");
+    }
+  }
+
+  {
+    TestContext TestCtx1;
+    auto Prog = TestCtx1.getCompiledAndLinkedProgram("-g", "-cl-no-signed-zeroes");
+    auto Kernel = TestCtx1.getKernel(Prog);
+
+    if (!TestCtx1.Queue.is_host()) {
+      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+      assert(Ctx->getCachedKernels().size() == 0 &&
+             "Unexpected data in kernels cache");
+    }
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgram("-g", "");
+    auto Kernel = TestCtx.getKernel(Prog);
+
+    if (!TestCtx.Queue.is_host()) {
+      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+      assert(Ctx->getCachedKernels().size() == 0 &&
+             "Unexpected data in kernels cache");
+    }
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgram("", "-cl-no-signed-zeroes");
+    auto Kernel = TestCtx.getKernel(Prog);
+
+    if (!TestCtx.Queue.is_host()) {
+      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+      assert(Ctx->getCachedKernels().size() == 0 &&
+             "Unexpected data in kernels cache");
+    }
+  }
+}
+
+void testKernelCacheNegativeCompileLinkSource() {
+  TestContext TestCtx;
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource();
+    auto Kernel = TestCtx.getKernelWSource(Prog);
+
+    if (!TestCtx.Queue.is_host()) {
+      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+      assert(Ctx->getCachedKernels().size() == 0 &&
+             "Unexpected data in kernels cache");
+    }
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("-g", "-cl-no-signed-zeroes");
+    auto Kernel = TestCtx.getKernelWSource(Prog);
+
+    if (!TestCtx.Queue.is_host()) {
+      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+      assert(Ctx->getCachedKernels().size() == 0 &&
+             "Unexpected data in kernels cache");
+    }
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("-g", "");
+    auto Kernel = TestCtx.getKernelWSource(Prog);
+
+    if (!TestCtx.Queue.is_host()) {
+      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+      assert(Ctx->getCachedKernels().size() == 0 &&
+             "Unexpected data in kernels cache");
+    }
+  }
+
+  {
+    auto Prog = TestCtx.getCompiledAndLinkedProgramWSource("", "-cl-no-signed-zeroes");
+    auto Kernel = TestCtx.getKernelWSource(Prog);
+
+    if (!TestCtx.Queue.is_host()) {
+      auto *Ctx = cl::sycl::detail::getRawSyclObjImpl(Prog.get_context());
+      assert(Ctx->getCachedKernels().size() == 0 &&
+             "Unexpected data in kernels cache");
+    }
+  }
+}
+
 int main() {
   testProgramCachePositive();
   testProgramCacheNegativeCustomBuildOptions();
+  testProgramCacheNegativeCompileLinkCustomOpts();
+  testProgramCacheNegativeCompileLinkSource();
 
   testKernelCachePositive();
   testKernelCacheNegativeLinkedProgram();
   testKernelCacheNegativeOCLProgram();
   testKernelCacheNegativeCustomBuildOptions();
+  testKernelCacheNegativeCompileLink();
+  testKernelCacheNegativeCompileLinkSource();
 
   return 0;
 }
