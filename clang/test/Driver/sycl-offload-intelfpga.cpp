@@ -27,8 +27,8 @@
 // CHK-FPGA-LINK: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
 // CHK-FPGA-LINK: sycl-post-link{{.*}} "[[OUTPUT2]]" "-ir-files-list=[[OUTPUT3:.*]]" "-o"
 // CHK-FPGA-LINK: llvm-foreach{{.*}} "--" "{{.*}}llvm-spirv{{.*}} "-o" "[[OUTPUT4:.+]]" "-spirv-max-version=1.1" "-spirv-ext=+all" "[[OUTPUT3]]"
-// CHK-FPGA-EARLY: llvm-foreach{{.*}} "--" "{{.*}}aoc{{.*}} "-o" "[[OUTPUT5:.+]]" "-sycl" "-rtl" "[[OUTPUT4]]"
-// CHK-FPGA-IMAGE: llvm-foreach{{.*}} "--" "{{.*}}aoc{{.*}} "-o" "[[OUTPUT5:.+]]" "-sycl" "[[OUTPUT4]]"
+// CHK-FPGA-EARLY: llvm-foreach{{.*}} "--" "{{.*}}aoc{{.*}} "-o" {{.*}} "-sycl" "-rtl" "[[OUTPUT4]]"
+// CHK-FPGA-IMAGE: llvm-foreach{{.*}} "--" "{{.*}}aoc{{.*}} "-o" {{.*}} "-sycl" "[[OUTPUT4]]"
 // CHK-FPGA-LINK: {{lib|llvm-ar}}{{.*}} "[[INPUT]]"
 
 /// -fintelfpga -fsycl-link clang-cl specific

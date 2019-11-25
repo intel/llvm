@@ -3464,9 +3464,10 @@ class OffloadingActionBuilder final {
             }
           }
           if (!DeviceObjects.empty()) {
-            // link and wrap the device binary, but do not perform the
-            // backend compile.
-            // TODO: perform split here?
+            // When aocx or aocr is seen, there is an expectation that none of
+            // the other objects processed have any kernel. So, there
+            // is no need in device code split and backend compile here. Just
+            // link and wrap the device binary.
             auto *DeviceLinkAction =
                 C.MakeAction<LinkJobAction>(DeviceObjects, types::TY_LLVM_BC);
             auto *SPIRVTranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
