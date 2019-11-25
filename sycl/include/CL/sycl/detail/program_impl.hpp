@@ -209,7 +209,7 @@ public:
     if (!is_host()) {
       OSModuleHandle M = OSUtil::getOSModuleHandle(AddressInThisModule);
       // If there are no build options, program can be safely cached
-      if (is_cacheable_with_build_options(BuildOptions)) {
+      if (is_cacheable_with_options(BuildOptions)) {
         AllowKernelsCaching = true;
         Program =
             ProgramManager::getInstance().getBuiltOpenCLProgram(M, Context);
@@ -420,14 +420,14 @@ private:
   }
 
   bool is_cacheable() const {
-    return is_cacheable_with_build_options(BuildOptions) &&
-           is_cacheable_with_build_options(CompileOptions) &&
-           is_cacheable_with_build_options(LinkOptions) && AllowKernelsCaching;
+    return is_cacheable_with_options(BuildOptions) &&
+           is_cacheable_with_options(CompileOptions) &&
+           is_cacheable_with_options(LinkOptions) && AllowKernelsCaching;
   }
 
   static bool
-  is_cacheable_with_build_options(const string_class &BuildOptions) {
-    return BuildOptions.empty();
+  is_cacheable_with_options(const string_class &Options) {
+    return Options.empty();
   }
 
   RT::PiKernel get_pi_kernel(const string_class &KernelName) const {
