@@ -44,7 +44,7 @@ public:
   program_impl(const context &Context, vector_class<device> DeviceList)
       : Context(Context), Devices(DeviceList) {}
 
-  // Don't allow kernels caching for linked programs due to only compiled
+  // Kernels caching for linked programs won't be allowed due to only compiled
   // state of each and every program in the list and thus unknown state of
   // caching resolution
   program_impl(vector_class<std::shared_ptr<program_impl>> ProgramList,
@@ -96,7 +96,7 @@ public:
     }
   }
 
-  // Disallow kernels caching for programs created by interoperability c-tor
+  // Kernel caching for programs created by interoperability c-tor isn't allowed
   program_impl(const context &Context, RT::PiProgram Program)
       : Program(Program), Context(Context), IsLinkable(true) {
 
