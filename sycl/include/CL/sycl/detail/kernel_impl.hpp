@@ -73,8 +73,7 @@ public:
   cl_kernel get() const {
     if (is_host())
       throw invalid_object_error("This instance of kernel is a host instance");
-
-    PI_CALL(RT::piKernelRetain, MKernel);
+    PI_CALL(piKernelRetain)(MKernel);
     return pi::cast<cl_kernel>(MKernel);
   }
 
