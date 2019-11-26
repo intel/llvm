@@ -19,7 +19,6 @@
 
 #include <map>
 #include <memory>
-// 4.6.2 Context class
 
 namespace cl {
 namespace sycl {
@@ -28,40 +27,99 @@ class device;
 namespace detail {
 class context_impl {
 public:
+  /// Constructs a context_impl using a single SYCL devices.
+  ///
+  /// The constructed context_impl will use the AsyncHandler parameter to handle
+  /// exceptions.
+  ///
+  /// @param Device is an instance of SYCL device.
+  /// @param AsyncHandler is an instance of async_handler.
   context_impl(const device &Device, async_handler AsyncHandler);
 
+  /// Constructs a context_impl using a list of SYCL devices.
+  ///
+  /// Newly created instance will save each SYCL device in the list. This
+  /// requres that all devices in the list are associated with the same
+  /// SYCL platform.
+  /// The constructed context_impl will use the AsyncHandler parameter to handle
+  /// exceptions.
+  ///
+  /// @param DeviceList is a list of SYCL device instances.
+  /// @param AsyncHandler is an instance of async_handler.
   context_impl(const vector_class<cl::sycl::device> Devices,
                async_handler AsyncHandler);
 
+  /// Construct a context_impl using plug-in interoperability handle.
+  ///
+  /// The constructed context_impl will use the AsyncHandler parameter to handle
+  /// exceptions.
+  ///
+  /// @param PiContext is an instance of a valid plug-in context handle.
+  /// @param AsyncHandler is an instance of async_handler.
   context_impl(RT::PiContext PiContext, async_handler AsyncHandler);
 
   ~context_impl();
 
+  /// Gets OpenCL interoperability context handle.
+  ///
+  /// @return an instance of OpenCL cl_context.
   cl_context get() const;
 
+  /// Checks if this context is a host context.
+  ///
+  /// @return true if this context is a host context.
   bool is_host() const;
 
+  /// Gets asynchronous exception handler.
+  ///
+  /// @return an instance of SYCL async_handler.
   const async_handler &get_async_handler() const;
 
+  /// Queries this context for information.
+  ///
+  /// The return type depends on information being queried.
   template <info::context param>
   typename info::param_traits<info::context, param>::return_type
   get_info() const;
 
-  // Returns underlying native context object (if any) w/o reference count
-  // modification. Caller must ensure the returned object lives on stack only.
-  // It can also be safely passed to the underlying native runtime API.
-  // Warning. Returned reference will be invalid if context_impl was destroyed.
+  /// Gets the underlying context object (if any) without reference count
+  /// modification.
+  ///
+  /// Caller must ensure the returned object lives on stack only. It can also
+  /// be safely passed to the underlying native runtime API. Warning. Returned
+  /// reference will be invalid if context_impl was destroyed.
+  ///
+  /// @return an instance of raw plug-in context handle.
   RT::PiContext &getHandleRef();
+
+  /// Gets the underlying context object (if any) without reference count
+  /// modification.
+  ///
+  /// Caller must ensure the returned object lives on stack only. It can also
+  /// be safely passed to the underlying native runtime API. Warning. Returned
+  /// reference will be invalid if context_impl was destroyed.
+  ///
+  /// @return an instance of raw plug-in context handle.
   const RT::PiContext &getHandleRef() const;
 
+  /// Gets cached programs.
+  ///
+  /// @return a map of cached programs.
   std::map<OSModuleHandle, RT::PiProgram> &getCachedPrograms() {
     return MCachedPrograms;
   }
+
+  /// Gets cached kernels.
+  ///
+  /// @return a map of cached kernels.
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &
   getCachedKernels() {
     return MCachedKernels;
   }
 
+  /// Gets USM dispatch.
+  ///
+  /// @return a pointer to USM dispatch.
   std::shared_ptr<usm::USMDispatcher> getUSMDispatch() const;
 private:
   async_handler MAsyncHandler;
