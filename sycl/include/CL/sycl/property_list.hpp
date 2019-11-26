@@ -8,14 +8,13 @@
 
 #pragma once
 
+#include <CL/sycl/context.hpp>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 namespace cl {
 namespace sycl {
-// Forward declaration
-class context;
 
 // HOW TO ADD NEW PROPERTY INSTRUCTION:
 // 1. Add forward declaration of property class.

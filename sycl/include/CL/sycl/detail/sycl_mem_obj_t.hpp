@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
@@ -26,7 +25,6 @@ namespace sycl {
 namespace detail {
 
 // Forward declarations
-class context_impl;
 class event_impl;
 
 using ContextImplPtr = shared_ptr_class<context_impl>;

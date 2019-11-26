@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/sampler_impl.hpp>
 
