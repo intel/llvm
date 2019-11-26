@@ -133,11 +133,11 @@ static void filterWhiteList(vector_class<RT::PiDevice> &pi_devices) {
   int insertIDx = 0;
   for (RT::PiDevice dev : pi_devices) {
     const string_class devName =
-        sycl::detail::get_device_info<string_class, info::device::name>::_(dev);
+        sycl::detail::get_device_info<string_class, info::device::name>::get(dev);
 
     const string_class devDriverVer =
         sycl::detail::get_device_info<string_class,
-                                      info::device::driver_version>::_(dev);
+                                      info::device::driver_version>::get(dev);
 
     for (const DevDescT &desc : whiteList) {
       // At least device name is required field to consider the filter so far

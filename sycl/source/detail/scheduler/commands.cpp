@@ -680,16 +680,17 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_work_group_info<
       range<3>,
-      cl::sycl::info::kernel_work_group::compile_work_group_size>::_(Kernel,
-                                                                     Device);
+      cl::sycl::info::kernel_work_group::compile_work_group_size>::get(Kernel,
+                                                                       Device);
 
   if (WGSize[0] == 0) {
     // kernel does not request specific workgroup shape - set one
     // TODO maximum work group size as the local size might not be the best
     //      choice for CPU or FPGA devices
     size_t WGSize1D = get_kernel_work_group_info<
-        size_t, cl::sycl::info::kernel_work_group::work_group_size>::_(Kernel,
-                                                                       Device);
+        size_t,
+        cl::sycl::info::kernel_work_group::work_group_size>::get(Kernel,
+                                                                 Device);
     assert(WGSize1D != 0);
     // TODO implement better default for 2D/3D case:
     WGSize = {WGSize1D, 1, 1};

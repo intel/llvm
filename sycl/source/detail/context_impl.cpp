@@ -105,7 +105,7 @@ cl_uint context_impl::get_info<info::context::reference_count>() const {
   if (is_host()) {
     return 0;
   }
-  return get_context_info<info::context::reference_count>::_(
+  return get_context_info<info::context::reference_count>::get(
       this->getHandleRef());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {

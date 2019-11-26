@@ -43,7 +43,7 @@ public:
     }
     return get_platform_info<
         typename info::param_traits<info::platform, param>::return_type,
-        param>::_(this->getHandleRef());
+        param>::get(this->getHandleRef());
   }
 
   virtual bool is_host() const = 0;
@@ -66,7 +66,8 @@ public:
 
   bool has_extension(const string_class &extension_name) const override {
     string_class all_extension_names =
-        get_platform_info<string_class, info::platform::extensions>::_(m_platform);
+        get_platform_info<string_class, info::platform::extensions>::get(
+            m_platform);
     return (all_extension_names.find(extension_name) != std::string::npos);
   }
 

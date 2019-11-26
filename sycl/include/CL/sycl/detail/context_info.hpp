@@ -19,7 +19,7 @@ template <info::context param> struct get_context_info {
   using RetType =
       typename info::param_traits<info::context, param>::return_type;
 
-  static RetType _(RT::PiContext ctx) {
+  static RetType get(RT::PiContext ctx) {
     RetType Result = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
     PI_CALL(piContextGetInfo)(ctx, pi::cast<pi_context_info>(param),
