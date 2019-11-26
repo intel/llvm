@@ -37,12 +37,11 @@ context::context(const vector_class<device> &DeviceList,
   if (DeviceList.empty()) {
     throw invalid_parameter_error("First argument deviceList is empty.");
   }
-  if (DeviceList[0].is_host()) {
+  if (DeviceList[0].is_host())
     impl = std::make_shared<detail::context_impl>(DeviceList[0], AsyncHandler);
-  } else {
+  else
     // TODO also check that devices belongs to the same platform
     impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler);
-  }
 }
 
 context::context(cl_context ClContext, async_handler AsyncHandler) {
