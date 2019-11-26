@@ -1,4 +1,4 @@
-// Singnature:
+// Syntax:
 // CONFIG(CONFIG_NAME, VALUE_MAX_SIZE_IN_BYTES, COMPILE_TIME_CONFIG_NAME)
 //
 // CONFIG_NAME is used as a specifier to access specific config using
