@@ -17,16 +17,24 @@ namespace sycl {
 
 platform::platform() : impl(std::make_shared<detail::platform_impl_host>()) {}
 
-platform::platform(cl_platform_id platform_id)
+platform::platform(cl_platform_id PlatformId)
     : impl(std::make_shared<detail::platform_impl_pi>(
-             detail::pi::cast<detail::RT::PiPlatform>(platform_id))) {}
+             detail::pi::cast<detail::RT::PiPlatform>(PlatformId))) {}
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
 }
 
-vector_class<device> platform::get_devices(info::device_type dev_type) const {
-  return impl->get_devices(dev_type);
+cl_platform_id platform::get() const { return impl->get(); }
+
+bool platform::has_extension(const string_class &ExtensionName) const {
+  return impl->has_extension(ExtensionName);
+}
+
+bool platform::is_host() const { return impl->is_host(); }
+
+vector_class<device> platform::get_devices(info::device_type DeviceType) const {
+  return impl->get_devices(DeviceType);
 }
 
 vector_class<platform> platform::get_platforms() {

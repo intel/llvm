@@ -12,7 +12,6 @@
 #include <CL/sycl/detail/platform_info.hpp>
 #include <CL/sycl/stl.hpp>
 // 4.6.2 Platform class
-#include <memory>
 #include <utility>
 namespace cl {
 namespace sycl {
@@ -26,9 +25,9 @@ class platform {
 public:
   platform();
 
-  explicit platform(cl_platform_id platform_id);
+  explicit platform(cl_platform_id PlatformId);
 
-  explicit platform(const device_selector &);
+  explicit platform(const device_selector &DeviceSelector);
 
   template <info::platform param>
   typename info::param_traits<info::platform, param>::return_type
@@ -48,22 +47,20 @@ public:
 
   bool operator!=(const platform &rhs) const { return !(*this == rhs); }
 
-  cl_platform_id get() const { return impl->get(); }
+  cl_platform_id get() const;
 
-  bool has_extension(const string_class &extension_name) const {
-    return impl->has_extension(extension_name);
-  }
+  bool has_extension(const string_class &ExtensionName) const;
 
-  bool is_host() const { return impl->is_host(); }
+  bool is_host() const;
 
   vector_class<device>
-  get_devices(info::device_type dev_type = info::device_type::all) const;
+  get_devices(info::device_type DeviceType = info::device_type::all) const;
 
   static vector_class<platform> get_platforms();
 
 private:
-  std::shared_ptr<detail::platform_impl> impl;
-  platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
+  shared_ptr_class<detail::platform_impl> impl;
+  platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -77,7 +74,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::platform> {
   size_t operator()(const cl::sycl::platform &p) const {
-    return hash<std::shared_ptr<cl::sycl::detail::platform_impl>>()(
+    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::platform_impl>>()(
         cl::sycl::detail::getSyclObjImpl(p));
   }
 };
