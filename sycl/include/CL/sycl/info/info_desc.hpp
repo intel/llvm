@@ -267,31 +267,9 @@ PARAM_TRAITS_SPEC(event_profiling, command_submit, cl_ulong)
 PARAM_TRAITS_SPEC(event_profiling, command_start, cl_ulong)
 PARAM_TRAITS_SPEC(event_profiling, command_end, cl_ulong)
 
-PARAM_TRAITS_SPEC(kernel, function_name, string_class)
-PARAM_TRAITS_SPEC(kernel, num_args, cl_uint)
-PARAM_TRAITS_SPEC(kernel, reference_count, cl_uint)
-PARAM_TRAITS_SPEC(kernel, attributes, string_class)
-// Shilei: The following two traits are not covered in the current version of
-// CTS (SYCL-1.2.1/master)
-PARAM_TRAITS_SPEC(kernel, context, cl::sycl::context)
-PARAM_TRAITS_SPEC(kernel, program, cl::sycl::program)
-
-PARAM_TRAITS_SPEC(kernel_work_group, compile_work_group_size,
-                  cl::sycl::range<3>)
-PARAM_TRAITS_SPEC(kernel_work_group, global_work_size, cl::sycl::range<3>)
-PARAM_TRAITS_SPEC(kernel_work_group, preferred_work_group_size_multiple, size_t)
-PARAM_TRAITS_SPEC(kernel_work_group, private_mem_size, cl_ulong)
-PARAM_TRAITS_SPEC(kernel_work_group, work_group_size, size_t)
-
-PARAM_TRAITS_SPEC_WITH_INPUT(kernel_sub_group, max_sub_group_size_for_ndrange,
-                             size_t, cl::sycl::range<3>)
-PARAM_TRAITS_SPEC_WITH_INPUT(kernel_sub_group, sub_group_count_for_ndrange,
-                             size_t, cl::sycl::range<3>)
-PARAM_TRAITS_SPEC_WITH_INPUT(kernel_sub_group, local_size_for_sub_group_count,
-                             cl::sycl::range<3>, size_t)
-PARAM_TRAITS_SPEC(kernel_sub_group, max_num_sub_groups, size_t)
-PARAM_TRAITS_SPEC(kernel_sub_group, compile_num_sub_groups, size_t)
-PARAM_TRAITS_SPEC(kernel_sub_group, compile_sub_group_size, size_t)
+#include <CL/sycl/info/kernel_sub_group_traits.def>
+#include <CL/sycl/info/kernel_traits.def>
+#include <CL/sycl/info/kernel_work_group_traits.def>
 
 PARAM_TRAITS_SPEC(platform, profile, string_class)
 PARAM_TRAITS_SPEC(platform, version, string_class)
@@ -308,6 +286,7 @@ PARAM_TRAITS_SPEC(queue, context, cl::sycl::context)
 PARAM_TRAITS_SPEC(queue, device, cl::sycl::device)
 
 #undef PARAM_TRAITS_SPEC
+#undef PARAM_TRAITS_SPEC_WITH_INPUT
 
 } // namespace info
 } // namespace sycl

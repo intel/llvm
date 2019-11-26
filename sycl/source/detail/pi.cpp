@@ -7,9 +7,12 @@
 //===----------------------------------------------------------------------===//
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
+
 #include <cstdarg>
+#include <cstring>
 #include <iostream>
 #include <map>
+#include <stddef.h>
 #include <string>
 
 namespace cl {
@@ -46,10 +49,9 @@ bool useBackend(Backend TheBackend) {
   return TheBackend == Use;
 }
 
-// Definitions of the PI dispatch entries, they will be initialized
-// at their first use with piInitialize.
-#define _PI_API(api) decltype(::api) *api = nullptr;
-#include <CL/sycl/detail/pi.def>
+// TODO: Move this global structure into sycl::platform object,
+// associate each plugin with a platform.
+pi_plugin PluginInformation;
 
 // Find the plugin at the appropriate location and return the location.
 // TODO: Change the function appropriately when there are multiple plugins.
@@ -74,18 +76,16 @@ void *loadPlugin(const std::string &PluginPath) {
 // needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
 // Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library) {
-#define STRINGIZE(x) #x
 
-#define _PI_API(api)                                                           \
-  decltype(&api) api##_ptr = ((decltype(&api))(                                \
-      getOsLibraryFuncAddress(Library, STRINGIZE(api##OclPtr))));              \
-  if (!api##_ptr)                                                              \
-    return false;                                                              \
-  api = *api##_ptr;
-#include <CL/sycl/detail/pi.def>
+  decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
+      &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
+  int err = PluginInitializeFunction(&PluginInformation);
 
-#undef STRINGIZE
-#undef _PI_API
+  // TODO: Compare Supported versions and check for backward compatibility.
+  // Make sure err is PI_SUCCESS.
+  assert((err == PI_SUCCESS) && "Unexpected error when binding to Plugin.");
+
+  // TODO: Return a more meaningful value/enum.
   return true;
 }
 
@@ -134,6 +134,20 @@ void assertion(bool Condition, const char *Message) {
   if (!Condition)
     die(Message);
 }
+
+// TODO: Pass platform object to constructor which will contain the
+// PluginInformation class. Platform class with Plugin information is not
+// implemented yet.
+
+#define _PI_API(api)                                                           \
+  template <>                                                                  \
+  CallPi<decltype(&::api),                                                     \
+         (offsetof(pi_plugin::FunctionPointers, api))>::CallPi() {             \
+    initialize();                                                              \
+    MFnPtr = (RT::PluginInformation.PiFunctionTable.api);                      \
+    MFnName = #api;                                                            \
+  }
+#include <CL/sycl/detail/pi.def>
 
 } // namespace pi
 } // namespace detail

@@ -895,14 +895,23 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     }
 
     if (IntelFPGAII) {
-      unsigned ValueInt = IntelFPGAII->getInterval();
-      if (ValueInt > 0)
-        setSYCLIInterval(ValueInt);
+      llvm::APSInt ArgVal(32);
+      bool IsValid =
+          IntelFPGAII->getIntervalExpr()->isIntegerConstantExpr(ArgVal, Ctx);
+      assert(IsValid && "Not an integer constant expression");
+      (void)IsValid;
+      setSYCLIInterval(ArgVal.getSExtValue());
     }
 
     if (IntelFPGAMaxConcurrency) {
+      llvm::APSInt ArgVal(32);
+      bool IsValid =
+          IntelFPGAMaxConcurrency->getNThreadsExpr()->isIntegerConstantExpr(
+              ArgVal, Ctx);
+      assert(IsValid && "Not an integer constant expression");
+      (void)IsValid;
       setSYCLMaxConcurrencyEnable();
-      setSYCLMaxConcurrencyNThreads(IntelFPGAMaxConcurrency->getNThreads());
+      setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
     }
   }
 

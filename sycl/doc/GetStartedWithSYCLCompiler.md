@@ -138,6 +138,14 @@ which should be downloaded from [Threading Building Blocks (TBB)
  GitHub repository](https://github.com/intel/tbb) and installed following
 procedure below.
 
+Intel `CPU` runtime for OpenCL devices can be switched into Intel FPGA
+Emulation device for OpenCL. The following parameter should be set in `cl.cfg`
+file (available in directory containing CPU runtime for OpenCL) to switch
+OpenCL device mode:
+```
+CL_CONFIG_DEVICES = fpga-emu
+```
+
 **Linux**
 
 1) Extract the archive. For example, for the archive

@@ -128,8 +128,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   std::lock_guard<std::mutex> lock(MGraphLock);
 
-  EventImplPtr RetEvent;
-  Command *NewCmd = MGraphBuilder.addHostAccessor(Req, RetEvent);
+  Command *NewCmd = MGraphBuilder.addHostAccessor(Req);
 
   if (!NewCmd)
     return nullptr;
@@ -137,7 +136,11 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
   bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
   if (!Enqueued && EnqueueResultT::FAILED == Res.MResult)
     throw runtime_error("Enqueue process failed.");
-  return RetEvent;
+  return NewCmd->getEvent();
+}
+
+void Scheduler::releaseHostAccessor(Requirement *Req) {
+  Req->MBlockedCmd->MCanEnqueue = true;
 }
 
 Scheduler::Scheduler() {

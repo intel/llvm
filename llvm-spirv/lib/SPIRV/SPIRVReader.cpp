@@ -1762,6 +1762,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     unsigned R2 = V2Ty->getVectorNumElements();
     auto ETy = V1Ty->getElementType();
 
+    (void)C1;
     assert(C1 == R2 && "Unmatched matrix");
 
     auto VTy = VectorType::get(ETy, R1);

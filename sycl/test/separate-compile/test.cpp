@@ -1,12 +1,12 @@
 // >> ---- compile src1
 // >> device compilation...
-// RUN: %clangxx --sycl -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc
+// RUN: %clangxx -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc
 // >> host compilation...
 // RUN: %clangxx -include sycl_ihdr_a.h -g -c %s -o a.o
 //
 // >> ---- compile src2
 // >> device compilation...
-// RUN: %clangxx -DB_CPP=1 --sycl -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -c -o b_kernel.bc
+// RUN: %clangxx -DB_CPP=1 -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -c -o b_kernel.bc
 // >> host compilation...
 // RUN: %clangxx -DB_CPP=1 -include sycl_ihdr_b.h -g -c %s -o b.o
 //

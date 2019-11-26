@@ -299,7 +299,7 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
 
   // -S only runs up to the backend.
   } else if ((PhaseArg = DAL.getLastArg(options::OPT_S)) ||
-             (PhaseArg = DAL.getLastArg(options::OPT_sycl_device_only))) {
+             (PhaseArg = DAL.getLastArg(options::OPT_fsycl_device_only))) {
     FinalPhase = phases::Backend;
 
   // -c compilation only runs up to the assembler.
@@ -608,6 +608,20 @@ Driver::OpenMPRuntimeKind Driver::getOpenMPRuntime(const ArgList &Args) const {
   return RT;
 }
 
+static bool isValidSYCLTriple(llvm::Triple T) {
+  // Check for invalid SYCL device triple values.
+  // Non-SPIR arch.
+  if (!T.isSPIR())
+    return false;
+  // SPIR arch, but has invalid SubArch for AOT.
+  StringRef A(T.getArchName());
+  if (T.getSubArch() == llvm::Triple::NoSubArch &&
+      ((T.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
+       (T.getArch() == llvm::Triple::spir64 && !A.equals("spir64"))))
+    return false;
+  return true;
+}
+
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -730,7 +744,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Use of -fsycl-device-only overrides -fsycl.
   bool HasValidSYCLRuntime = (C.getInputArgs().hasFlag(options::OPT_fsycl,
       options::OPT_fno_sycl, false) &&
-      !C.getInputArgs().hasArg(options::OPT_sycl_device_only));
+      !C.getInputArgs().hasArg(options::OPT_fsycl_device_only));
 
   // A mechanism for retrieving SYCL-specific options, erroring out
   // if SYCL offloading wasn't enabled prior to that
@@ -755,22 +769,20 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
   // -fsycl-targets cannot be used with -fsycl-link-targets
   if (SYCLTargets && SYCLLinkTargets)
-    Diag(clang::diag::err_drv_option_conflict) << SYCLTargets->getSpelling()
-      << SYCLLinkTargets->getSpelling();
+    Diag(clang::diag::err_drv_option_conflict)
+        << SYCLTargets->getSpelling() << SYCLLinkTargets->getSpelling();
   // -fsycl-link-targets and -fsycl-add-targets cannot be used together
   if (SYCLLinkTargets && SYCLAddTargets)
-    Diag(clang::diag::err_drv_option_conflict) << SYCLLinkTargets->getSpelling()
-      << SYCLAddTargets->getSpelling();
+    Diag(clang::diag::err_drv_option_conflict)
+        << SYCLLinkTargets->getSpelling() << SYCLAddTargets->getSpelling();
   // -fsycl-link-targets is not allowed with -fsycl-link
   if (SYCLLinkTargets && SYCLLink)
     Diag(clang::diag::err_drv_option_conflict)
-      << C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)->getSpelling()
-      << SYCLLinkTargets->getSpelling();
+        << SYCLLink->getSpelling() << SYCLLinkTargets->getSpelling();
   // -fsycl-targets cannot be used with -fintelfpga
   if (SYCLTargets && SYCLfpga)
     Diag(clang::diag::err_drv_option_conflict)
-      << SYCLTargets->getSpelling()
-      << C.getInputArgs().getLastArg(options::OPT_fintelfpga)->getSpelling();
+        << SYCLTargets->getSpelling() << SYCLfpga->getSpelling();
 
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
@@ -783,7 +795,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       if (SYCLTargetsValues->getNumValues()) {
         for (const char *Val : SYCLTargetsValues->getValues()) {
           llvm::Triple TT(Val);
-          if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR()) {
+          if (!isValidSYCLTriple(TT)) {
             Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
             continue;
           }
@@ -821,7 +833,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           std::pair<StringRef, StringRef> I = Val.split(':');
           if (!I.first.empty() && !I.second.empty()) {
             llvm::Triple TT(I.first);
-            if (TT.getArch() == llvm::Triple::UnknownArch || !TT.isSPIR()) {
+            if (!isValidSYCLTriple(TT)) {
               Diag(clang::diag::err_drv_invalid_sycl_target) << I.first;
               continue;
             }
@@ -1203,8 +1215,8 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     T.setObjectFormat(llvm::Triple::COFF);
     TargetTriple = T.str();
   }
-  if (Args.hasArg(options::OPT_sycl_device_only)) {
-    // --sycl implies spir arch and SYCL Device
+  if (Args.hasArg(options::OPT_fsycl_device_only)) {
+    // -fsycl-device-only implies spir arch and SYCL Device
     llvm::Triple T(TargetTriple);
     // FIXME: defaults to spir64, should probably have a way to set spir
     // possibly new -sycl-target option
@@ -4488,12 +4500,12 @@ Action *Driver::ConstructPhaseAction(
           Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
-    if (Args.hasArg(options::OPT_sycl_device_only)) {
+    if (Args.hasArg(options::OPT_fsycl_device_only)) {
       if (Args.hasFlag(options::OPT_fsycl_use_bitcode,
                        options::OPT_fno_sycl_use_bitcode, true))
         return C.MakeAction<BackendJobAction>(Input, types::TY_LLVM_BC);
-      // Use of --sycl creates a bitcode file, we need to translate that to
-      // a SPIR-V file with -fno-sycl-use-bitcode
+      // Use of -fsycl-device-only creates a bitcode file, we need to translate
+      // that to a SPIR-V file with -fno-sycl-use-bitcode
       auto *BackendAction =
           C.MakeAction<BackendJobAction>(Input, types::TY_LLVM_BC);
       return C.MakeAction<SPIRVTranslatorJobAction>(BackendAction,

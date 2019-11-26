@@ -65,11 +65,11 @@ void goo() {
   [[intelfpga::ivdep(0)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-warning@+1 {{'ii' attribute requires a positive integral compile time constant expression - attribute ignored}}
+  // expected-error@+1 {{'ii' attribute requires a positive integral compile time constant expression}}
   [[intelfpga::ii(0)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-warning@+1 {{'max_concurrency' attribute requires a non-negative integral compile time constant expression - attribute ignored}}
+  // expected-error@+1 {{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
   [[intelfpga::max_concurrency(-1)]]
   for (int i = 0; i != 10; ++i)
     a[i] = 0;
@@ -229,6 +229,36 @@ void ivdep_dependent() {
   };
 }
 
+template <int A, int B, int C>
+void ii_dependent() {
+  int a[10];
+  // expected-error@+1 {{'ii' attribute requires a positive integral compile time constant expression}}
+  [[intelfpga::ii(C)]]
+  for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // expected-error@+1 {{duplicate Intel FPGA loop attribute 'ii'}}
+  [[intelfpga::ii(A)]]
+  [[intelfpga::ii(B)]]
+  for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+}
+
+template <int A, int B, int C>
+void max_concurrency_dependent() {
+  int a[10];
+  // expected-error@+1 {{'max_concurrency' attribute requires a non-negative integral compile time constant expression}}
+  [[intelfpga::max_concurrency(C)]]
+  for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // expected-error@+1 {{duplicate Intel FPGA loop attribute 'max_concurrency'}}
+  [[intelfpga::max_concurrency(A)]]
+  [[intelfpga::max_concurrency(B)]]
+  for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+}
+
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(Func kernelFunc) {
   kernelFunc();
@@ -243,6 +273,10 @@ int main() {
     ivdep_dependent<4, 2, 1>();
     //expected-note@-1 +{{in instantiation of function template specialization}}
     ivdep_dependent<2, 4, -1>();
+    //expected-note@-1 +{{in instantiation of function template specialization}}
+    ii_dependent<2, 4, -1>();
+    //expected-note@-1 +{{in instantiation of function template specialization}}
+    max_concurrency_dependent<1, 4, -2>();
     //expected-note@-1 +{{in instantiation of function template specialization}}
   });
   return 0;

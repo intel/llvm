@@ -183,6 +183,16 @@ extern dataT __spirv_SubgroupShuffleXorINTEL(dataT Data,
 
 template <typename dataT>
 extern dataT
+__spirv_SubgroupBlockReadINTEL(const __attribute__((ocl_global))
+                               uint8_t *Ptr) noexcept;
+
+template <typename dataT>
+extern void __spirv_SubgroupBlockWriteINTEL(__attribute__((ocl_global))
+                                            uint8_t *Ptr,
+                                            dataT Data) noexcept;
+
+template <typename dataT>
+extern dataT
 __spirv_SubgroupBlockReadINTEL(const __attribute__((ocl_global)) uint16_t *Ptr) noexcept;
 
 template <typename dataT>

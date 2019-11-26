@@ -87,6 +87,50 @@
 
 /// ###########################################################################
 
+/// Check error for -fsycl-targets with bad triple
+// RUN:   %clang -### -fsycl-targets=spir64_bad-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-TRIPLE %s
+// RUN:   %clang_cl -### -fsycl-targets=spir64_bad-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-TRIPLE %s
+// CHK-SYCL-FPGA-BAD-TRIPLE: error: SYCL target is invalid: 'spir64_bad-unknown-unknown-sycldevice'
+
+/// Check no error for -fsycl-targets with good triple
+// RUN:   %clang -### -fsycl-targets=spir-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
+// RUN:   %clang -### -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
+// RUN:   %clang -### -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
+// RUN:   %clang -### -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
+// RUN:   %clang_cl -### -fsycl-targets=spir-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-TRIPLE %s
+// CHK-SYCL-FPGA-TRIPLE-NOT: error: SYCL target is invalid
+
+/// Check error for -fsycl-[add|link]-targets with bad triple
+// RUN:   %clang -### -fsycl-add-targets=spir64_bad-unknown-unknown-sycldevice:dummy.spv -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE %s
+// RUN:   %clang_cl -### -fsycl-add-targets=spir64_bad-unknown-unknown-sycldevice:dummy.spv -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE %s
+// RUN:   %clang -### -fsycl-link-targets=spir64_bad-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE %s
+// RUN:   %clang_cl -### -fsycl-link-targets=spir64_bad-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE %s
+// CHK-SYCL-FPGA-BAD-ADDLINK-TRIPLE: error: SYCL target is invalid: 'spir64_bad-unknown-unknown-sycldevice'
+
+/// Check no error for -fsycl-[add|link]-targets with good triple
+// RUN:   %clang -### -fsycl-add-targets=spir64-unknown-unknown-sycldevice:dummy.spv -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-ADDLINK-TRIPLE %s
+// RUN:   %clang_cl -### -fsycl-add-targets=spir64-unknown-unknown-sycldevice:dummy.spv -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-ADDLINK-TRIPLE %s
+// RUN:   %clang -### -fsycl-link-targets=spir64-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-ADDLINK-TRIPLE %s
+// RUN:   %clang_cl -### -fsycl-link-targets=spir64-unknown-unknown-sycldevice -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-ADDLINK-TRIPLE %s
+// CHK-SYCL-FPGA-ADDLINK-TRIPLE-NOT: error: SYCL target is invalid
+
+/// ###########################################################################
+
 /// Check warning for duplicate offloading targets.
 // RUN:   %clang -### -ccc-print-phases -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,spir64-unknown-unknown-sycldevice  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES %s

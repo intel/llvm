@@ -63,6 +63,7 @@ int main() {
         err = clEnqueueWriteBuffer(clQ, clBuffer, CL_TRUE, 0, sizeof(int),
                                    &data, 0, NULL, NULL);
         assert(err == CL_SUCCESS);
+        clFinish(clQ);
         cl::sycl::program prog(ctx);
         prog.build_with_source(
             "kernel void SingleTask(global int* a) {*a+=1; }\n");

@@ -23,6 +23,10 @@
 #define _PI_H_VERSION_MAJOR 1
 #define _PI_H_VERSION_MINOR 1
 
+#define _PI_STRING_HELPER(a) #a
+#define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
+#define _PI_H_VERSION_STRING                                                   \
+  _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
 // TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
 // elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
 // done here, for efficiency and simplicity.
@@ -58,7 +62,8 @@ typedef enum {
   PI_INVALID_DEVICE = CL_INVALID_DEVICE,
   PI_INVALID_BINARY = CL_INVALID_BINARY,
   PI_MISALIGNED_SUB_BUFFER_OFFSET = CL_MISALIGNED_SUB_BUFFER_OFFSET,
-  PI_OUT_OF_HOST_MEMORY = CL_OUT_OF_HOST_MEMORY
+  PI_OUT_OF_HOST_MEMORY = CL_OUT_OF_HOST_MEMORY,
+  PI_INVALID_WORK_GROUP_SIZE = CL_INVALID_WORK_GROUP_SIZE
 } _pi_result;
 
 typedef enum {
@@ -84,7 +89,9 @@ typedef enum {
   PI_DEVICE_INFO_PARENT         = CL_DEVICE_PARENT_DEVICE,
   PI_DEVICE_INFO_PLATFORM       = CL_DEVICE_PLATFORM,
   PI_DEVICE_INFO_PARTITION_TYPE = CL_DEVICE_PARTITION_TYPE,
-  PI_DEVICE_INFO_NAME           = CL_DEVICE_NAME
+  PI_DEVICE_INFO_NAME           = CL_DEVICE_NAME,
+  PI_DEVICE_VERSION             = CL_DEVICE_VERSION,
+  PI_DEVICE_MAX_WORK_GROUP_SIZE = CL_DEVICE_MAX_WORK_GROUP_SIZE
 } _pi_device_info;
 
 // TODO: populate
@@ -344,21 +351,21 @@ typedef _pi_event *       pi_event;
 typedef _pi_sampler *     pi_sampler;
 
 typedef struct {
-          pi_image_channel_order image_channel_order;
-          pi_image_channel_type  image_channel_data_type;
+  pi_image_channel_order image_channel_order;
+  pi_image_channel_type image_channel_data_type;
 } _pi_image_format;
 
 typedef struct {
-          pi_mem_type image_type;
-          size_t image_width;
-          size_t image_height;
-          size_t image_depth;
-          size_t image_array_size;
-          size_t image_row_pitch;
-          size_t image_slice_pitch;
-          pi_uint32 num_mip_levels;
-          pi_uint32 num_samples;
-          pi_mem buffer;
+  pi_mem_type image_type;
+  size_t image_width;
+  size_t image_height;
+  size_t image_depth;
+  size_t image_array_size;
+  size_t image_row_pitch;
+  size_t image_slice_pitch;
+  pi_uint32 num_mip_levels;
+  pi_uint32 num_samples;
+  pi_mem buffer;
 } _pi_image_desc;
 
 typedef _pi_image_format   pi_image_format;
@@ -376,6 +383,16 @@ typedef _pi_image_desc     pi_image_desc;
 //
 // TODO: describe interfaces in Doxygen format
 //
+
+struct _pi_plugin;
+typedef _pi_plugin pi_plugin;
+
+// PI Plugin Initialise.
+// Plugin will check the PI version of Plugin Interface,
+// populate the PI Version it supports, update targets field and populate
+// PiFunctionTable with Supported APIs. The pointers are in a predetermined
+// order in pi.def file.
+pi_result piPluginInit(pi_plugin *plugin_info);
 
 //
 // Platform
@@ -902,6 +919,25 @@ pi_result piEnqueueMemUnmap(
   pi_uint32        num_events_in_wait_list,
   const pi_event * event_wait_list,
   pi_event *       event);
+
+
+struct _pi_plugin {
+  // PI version supported by host passed to the plugin. The Plugin
+  // checks and writes the appropriate Function Pointers in
+  // PiFunctionTable.
+  // TODO: Work on version fields and their handshaking mechanism.
+  // Some choices are:
+  // - Use of integers to keep major and minor version.
+  // - Keeping char* Versions.
+  const char PiVersion[4] = _PI_H_VERSION_STRING;
+  // Plugin edits this.
+  char PluginVersion[4] = _PI_H_VERSION_STRING;
+  char *Targets;
+  struct FunctionPointers {
+#define _PI_API(api) decltype(::api) *api;
+#include <CL/sycl/detail/pi.def>
+  } PiFunctionTable;
+};
 
 #ifdef __cplusplus
 } // extern "C"

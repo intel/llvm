@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <stdlib.h>
+#include <string>
 
 #ifdef _WIN32
 #define SYCL_RT_OS_WINDOWS
@@ -67,9 +68,21 @@ public:
   /// Returns a module enclosing given address or nullptr.
   static OSModuleHandle getOSModuleHandle(const void *VirtAddr);
 
+  /// Returns an absolute path to a directory where the object was found.
+  static std::string getCurrentDSODir();
+
+  /// Returns a directory component of a path.
+  static std::string getDirName(const char* Path);
+
   /// Module handle for the executable module - it is assumed there is always
   /// single one at most.
   static constexpr OSModuleHandle ExeModuleHandle = -1;
+
+#ifdef SYCL_RT_OS_WINDOWS
+  static constexpr const char* DirSep = "\\";
+#else
+  static constexpr const char* DirSep = "/";
+#endif
 
   /// Returns the amount of RAM available for the operating system.
   static size_t getOSMemSize();
