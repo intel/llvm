@@ -102,16 +102,18 @@ pointers to the device memory. As there is no way in OpenCL to pass structures
 with pointers inside as kernel arguments all memory objects shared between host
 and device must be passed to the kernel as raw pointers.
 SYCL also has a special mechanism for passing kernel arguments from host to
-the device. In OpenCL you need to call `clSetKernelArg`, in SYCL all the
-kernel arguments are captures/fields of lambda/functor SYCL functions for
-invoking kernels (such as `parallel_for`). For example, in the previous code
-snippet above `accessor` `A` is one such captured kernel argument.
+the device. In OpenCL kernel arguments are set by calling `clSetKernelArg` function
+for each kernel argument, meanwhile in SYCL all the kernel arguments are fields of
+"SYCL kernel function" which can be defined as a lambda function or a named function
+object and passed as an argument to SYCL function for invoking kernels (such as
+`parallel_for` or `single_task`). For example, in the previous code snippet above
+`accessor` `A` is one such captured kernel argument.
 
-To facilitate the mapping of the captures/fields of lambdas/functors to OpenCL
-kernel and overcome OpenCL limitations we added the generation of an OpenCL
+To facilitate the mapping of the fields of SYCL kernel functions to OpenCL
+kernel arguments and overcome OpenCL limitations we added the generation of an OpenCL
 kernel function inside the compiler. An OpenCL kernel function contains the
-body of the SYCL kernel function, receives OpenCL like parameters and
-additionally does some manipulation to initialize captured lambda/functor fields
+body of the SYCL kernel function, receives OpenCL-like parameters and
+additionally does some manipulation to initialize SYCL kernel function fields
 with these parameters. In some pseudo code the OpenCL kernel function for the
 previous code snippet above looks like this:
 
