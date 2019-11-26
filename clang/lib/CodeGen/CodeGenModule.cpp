@@ -484,9 +484,7 @@ void CodeGenModule::Release() {
                               CodeGenOpts.NumRegisterParameters);
 
   if (CodeGenOpts.DwarfVersion) {
-    // We actually want the latest version when there are conflicts.
-    // We can change from Warning to Latest if such mode is supported.
-    getModule().addModuleFlag(llvm::Module::Warning, "Dwarf Version",
+    getModule().addModuleFlag(llvm::Module::Max, "Dwarf Version",
                               CodeGenOpts.DwarfVersion);
   }
   if (CodeGenOpts.EmitCodeView) {
@@ -850,7 +848,7 @@ static bool shouldAssumeDSOLocal(const CodeGenModule &CGM,
   const auto &CGOpts = CGM.getCodeGenOpts();
   llvm::Reloc::Model RM = CGOpts.RelocationModel;
   const auto &LOpts = CGM.getLangOpts();
-  if (RM != llvm::Reloc::Static && !LOpts.PIE && !LOpts.OpenMPIsDevice)
+  if (RM != llvm::Reloc::Static && !LOpts.PIE)
     return false;
 
   // A definition cannot be preempted from an executable.
@@ -5174,7 +5172,7 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
   // If we're not materializing a subobject of the temporary, keep the
   // cv-qualifiers from the type of the MaterializeTemporaryExpr.
   QualType MaterializedType = Init->getType();
-  if (Init == E->GetTemporaryExpr())
+  if (Init == E->getSubExpr())
     MaterializedType = E->getType();
 
   CharUnits Align = getContext().getTypeAlignInChars(MaterializedType);
@@ -5197,7 +5195,7 @@ ConstantAddress CodeGenModule::GetAddrOfGlobalTemporary(
     // temporary. Note that this might have a different value from the value
     // computed by evaluating the initializer if the surrounding constant
     // expression modifies the temporary.
-    Value = getContext().getMaterializedTemporaryValue(E, false);
+    Value = E->getOrCreateValue(false);
   }
 
   // Try evaluating it now, it might have a constant initializer.
@@ -5355,9 +5353,7 @@ void CodeGenModule::EmitObjCIvarInitializations(ObjCImplementationDecl *D) {
 // EmitLinkageSpec - Emit all declarations in a linkage spec.
 void CodeGenModule::EmitLinkageSpec(const LinkageSpecDecl *LSD) {
   if (LSD->getLanguage() != LinkageSpecDecl::lang_c &&
-      LSD->getLanguage() != LinkageSpecDecl::lang_cxx &&
-      LSD->getLanguage() != LinkageSpecDecl::lang_cxx_11 &&
-      LSD->getLanguage() != LinkageSpecDecl::lang_cxx_14) {
+      LSD->getLanguage() != LinkageSpecDecl::lang_cxx) {
     ErrorUnsupported(LSD, "linkage spec");
     return;
   }

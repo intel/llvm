@@ -12,6 +12,7 @@
 
 #include "TableGenBackends.h" // Declares all backends.
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
@@ -45,6 +46,7 @@ enum ActionType {
   PrintEnums,
   PrintSets,
   GenOptParserDefs,
+  GenOptRST,
   GenCTags,
   GenAttributes,
   GenSearchableTables,
@@ -110,6 +112,7 @@ cl::opt<ActionType> Action(
                    "Print expanded sets for testing DAG exprs"),
         clEnumValN(GenOptParserDefs, "gen-opt-parser-defs",
                    "Generate option definitions"),
+        clEnumValN(GenOptRST, "gen-opt-rst", "Generate option RST"),
         clEnumValN(GenCTags, "gen-ctags", "Generate ctags-compatible index"),
         clEnumValN(GenAttributes, "gen-attrs", "Generate attributes"),
         clEnumValN(GenSearchableTables, "gen-searchable-tables",
@@ -126,8 +129,7 @@ cl::opt<ActionType> Action(
                    "Generate registers bank descriptions"),
         clEnumValN(GenExegesis, "gen-exegesis",
                    "Generate llvm-exegesis tables"),
-        clEnumValN(GenAutomata, "gen-automata",
-                   "Generate generic automata")));
+        clEnumValN(GenAutomata, "gen-automata", "Generate generic automata")));
 
 cl::OptionCategory PrintEnumsCat("Options for -print-enums");
 cl::opt<std::string> Class("class", cl::desc("Print Enum list for this class"),
@@ -204,6 +206,9 @@ bool LLVMTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
   case GenOptParserDefs:
     EmitOptParser(Records, OS);
     break;
+  case GenOptRST:
+    EmitOptRST(Records, OS);
+    break;
   case PrintEnums:
   {
     for (Record *Rec : Records.getAllDerivedDefinitions(Class))
@@ -262,8 +267,7 @@ bool LLVMTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
 }
 
 int main(int argc, char **argv) {
-  sys::PrintStackTraceOnErrorSignal(argv[0]);
-  PrettyStackTraceProgram X(argc, argv);
+  llvm::InitLLVM X(argc, argv);
   cl::ParseCommandLineOptions(argc, argv);
 
   llvm_shutdown_obj Y;

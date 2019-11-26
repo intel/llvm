@@ -88,6 +88,14 @@ static cl::opt<unsigned> OptsizeJumpTableDensity(
     cl::desc("Minimum density for building a jump table in "
              "an optsize function"));
 
+// FIXME: This option is only to test if the strict fp operation processed
+// correctly by preventing mutating strict fp operation to normal fp operation
+// during development. When the backend supports strict float operation, this
+// option will be meaningless.
+static cl::opt<bool> DisableStrictNodeMutation("disable-strictnode-mutation",
+       cl::desc("Don't mutate strict-float node to a legalize node"),
+       cl::init(false), cl::Hidden);
+
 static bool darwinHasSinCos(const Triple &TT) {
   assert(TT.isOSDarwin() && "should be called with darwin triple");
   // Don't bother with 32 bit x86.
@@ -585,6 +593,7 @@ TargetLoweringBase::TargetLoweringBase(const TargetMachine &tm) : TM(tm) {
   BooleanVectorContents = UndefinedBooleanContent;
   SchedPreferenceInfo = Sched::ILP;
   GatherAllAliasesMaxDepth = 18;
+  IsStrictFPEnabled = DisableStrictNodeMutation;
   // TODO: the default will be switched to 0 in the next commit, along
   // with the Target-specific changes necessary.
   MaxAtomicSizeInBitsSupported = 1024;
@@ -694,38 +703,9 @@ void TargetLoweringBase::initActions() {
     }
 
     // Constrained floating-point operations default to expand.
-    setOperationAction(ISD::STRICT_FADD, VT, Expand);
-    setOperationAction(ISD::STRICT_FSUB, VT, Expand);
-    setOperationAction(ISD::STRICT_FMUL, VT, Expand);
-    setOperationAction(ISD::STRICT_FDIV, VT, Expand);
-    setOperationAction(ISD::STRICT_FREM, VT, Expand);
-    setOperationAction(ISD::STRICT_FMA, VT, Expand);
-    setOperationAction(ISD::STRICT_FSQRT, VT, Expand);
-    setOperationAction(ISD::STRICT_FPOW, VT, Expand);
-    setOperationAction(ISD::STRICT_FPOWI, VT, Expand);
-    setOperationAction(ISD::STRICT_FSIN, VT, Expand);
-    setOperationAction(ISD::STRICT_FCOS, VT, Expand);
-    setOperationAction(ISD::STRICT_FEXP, VT, Expand);
-    setOperationAction(ISD::STRICT_FEXP2, VT, Expand);
-    setOperationAction(ISD::STRICT_FLOG, VT, Expand);
-    setOperationAction(ISD::STRICT_FLOG10, VT, Expand);
-    setOperationAction(ISD::STRICT_FLOG2, VT, Expand);
-    setOperationAction(ISD::STRICT_LRINT, VT, Expand);
-    setOperationAction(ISD::STRICT_LLRINT, VT, Expand);
-    setOperationAction(ISD::STRICT_FRINT, VT, Expand);
-    setOperationAction(ISD::STRICT_FNEARBYINT, VT, Expand);
-    setOperationAction(ISD::STRICT_FCEIL, VT, Expand);
-    setOperationAction(ISD::STRICT_FFLOOR, VT, Expand);
-    setOperationAction(ISD::STRICT_LROUND, VT, Expand);
-    setOperationAction(ISD::STRICT_LLROUND, VT, Expand);
-    setOperationAction(ISD::STRICT_FROUND, VT, Expand);
-    setOperationAction(ISD::STRICT_FTRUNC, VT, Expand);
-    setOperationAction(ISD::STRICT_FMAXNUM, VT, Expand);
-    setOperationAction(ISD::STRICT_FMINNUM, VT, Expand);
-    setOperationAction(ISD::STRICT_FP_ROUND, VT, Expand);
-    setOperationAction(ISD::STRICT_FP_EXTEND, VT, Expand);
-    setOperationAction(ISD::STRICT_FP_TO_SINT, VT, Expand);
-    setOperationAction(ISD::STRICT_FP_TO_UINT, VT, Expand);
+#define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)                   \
+    setOperationAction(ISD::STRICT_##DAGN, VT, Expand);
+#include "llvm/IR/ConstrainedOps.def"
 
     // For most targets @llvm.get.dynamic.area.offset just returns 0.
     setOperationAction(ISD::GET_DYNAMIC_AREA_OFFSET, VT, Expand);

@@ -1006,6 +1006,22 @@ def warn_objc_boxing_invalid_utf8_string : Warning<
   "string is ill-formed as UTF-8 and will become a null %0 when boxed">,
   InGroup<ObjCBoxing>;
 
+def err_objc_direct_on_protocol : Error<
+  "'objc_direct' attribute cannot be applied to %select{methods|properties}0 "
+  "declared in an Objective-C protocol">;
+def err_objc_direct_missing_on_decl : Error<
+  "direct method implementation was previously declared not direct">;
+def err_objc_direct_on_override : Error<
+  "methods that %select{override superclass methods|implement protocol requirements}0 cannot be direct">;
+def err_objc_override_direct_method : Error<
+  "cannot override a method that is declared direct by a superclass">;
+def warn_objc_direct_ignored : Warning<
+  "%0 attribute isn't implemented by this Objective-C runtime">,
+  InGroup<IgnoredAttributes>;
+def warn_objc_direct_property_ignored : Warning<
+  "direct attribute on property %0 ignored (not implemented by this Objective-C runtime)">,
+  InGroup<IgnoredAttributes>;
+
 def warn_conflicting_overriding_ret_types : Warning<
   "conflicting return type in "
   "declaration of %0%diff{: $ vs $|}1,2">,
@@ -1091,6 +1107,7 @@ def warn_accessor_property_type_mismatch : Warning<
   "type of property %0 does not match type of accessor %1">;
 def note_conv_function_declared_at : Note<"type conversion function declared here">;
 def note_method_declared_at : Note<"method %0 declared here">;
+def note_direct_method_declared_at : Note<"direct method %0 declared here">;
 def note_property_attribute : Note<"property %0 is declared "
   "%select{deprecated|unavailable|partial}1 here">;
 def err_setter_type_void : Error<"type of setter must be void">;
@@ -1326,6 +1343,8 @@ def warn_multiple_selectors: Warning<
   "several methods with selector %0 of mismatched types are found "
   "for the @selector expression">,
   InGroup<SelectorTypeMismatch>, DefaultIgnore;
+def err_direct_selector_expression: Error<
+  "@selector expression formed with direct selector %0">;
 
 def err_objc_kindof_nonobject : Error<
   "'__kindof' specifier cannot be applied to non-object type %0">;
@@ -1339,6 +1358,12 @@ def err_objc_method_unsupported_param_ret_type : Error<
 def warn_messaging_unqualified_id : Warning<
   "messaging unqualified id">, DefaultIgnore,
   InGroup<DiagGroup<"objc-messaging-id">>;
+def err_messaging_unqualified_id_with_direct_method : Error<
+  "messaging unqualified id with a method that is possibly direct">;
+def err_messaging_super_with_direct_method : Error<
+  "messaging super with a direct method">;
+def err_messaging_class_with_direct_method : Error<
+  "messaging a Class with a method that is possibly direct">;
 
 // C++ declarations
 def err_static_assert_expression_is_not_constant : Error<
@@ -7433,10 +7458,8 @@ def err_atomic_op_needs_trivial_copy : Error<
 def err_atomic_op_needs_atomic_int_or_ptr : Error<
   "address argument to atomic operation must be a pointer to %select{|atomic }0"
   "integer or pointer (%1 invalid)">;
-def err_atomic_op_needs_int32_or_ptr : Error<
-  "address argument to atomic operation must be a pointer to signed or unsigned 32-bit integer">;
-def err_atomic_op_bitwise_needs_atomic_int : Error<
-  "address argument to bitwise atomic operation must be a pointer to "
+def err_atomic_op_needs_atomic_int : Error<
+  "address argument to atomic operation must be a pointer to "
   "%select{|atomic }0integer (%1 invalid)">;
 def warn_atomic_op_has_invalid_memory_order : Warning<
   "memory order argument to atomic operation is invalid">,
@@ -8429,7 +8452,7 @@ def warn_tautological_overlap_comparison : Warning<
 
 def warn_stringcompare : Warning<
   "result of comparison against %select{a string literal|@encode}0 is "
-  "unspecified (use strncmp instead)">,
+  "unspecified (use an explicit string comparison function instead)">,
   InGroup<StringCompare>;
 
 def warn_identity_field_assign : Warning<

@@ -24,6 +24,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/BlockFrequencyInfo.h"
+#include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -63,6 +65,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/Transforms/Utils/SizeOpts.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -1005,7 +1008,9 @@ SelectionDAG::SelectionDAG(const TargetMachine &tm, CodeGenOpt::Level OL)
 void SelectionDAG::init(MachineFunction &NewMF,
                         OptimizationRemarkEmitter &NewORE,
                         Pass *PassPtr, const TargetLibraryInfo *LibraryInfo,
-                        LegacyDivergenceAnalysis * Divergence) {
+                        LegacyDivergenceAnalysis * Divergence,
+                        ProfileSummaryInfo *PSIin,
+                        BlockFrequencyInfo *BFIin) {
   MF = &NewMF;
   SDAGISelPass = PassPtr;
   ORE = &NewORE;
@@ -1014,6 +1019,8 @@ void SelectionDAG::init(MachineFunction &NewMF,
   LibInfo = LibraryInfo;
   Context = &MF->getFunction().getContext();
   DA = Divergence;
+  PSI = PSIin;
+  BFI = BFIin;
 }
 
 SelectionDAG::~SelectionDAG() {
@@ -1021,6 +1028,11 @@ SelectionDAG::~SelectionDAG() {
   allnodes_clear();
   OperandRecycler.clear(OperandAllocator);
   delete DbgInfo;
+}
+
+bool SelectionDAG::shouldOptForSize() const {
+  return MF->getFunction().hasOptSize() ||
+      llvm::shouldOptimizeForSize(FLI->MBB->getBasicBlock(), PSI, BFI);
 }
 
 void SelectionDAG::allnodes_clear() {
@@ -1427,7 +1439,7 @@ SDValue SelectionDAG::getConstantPool(const Constant *C, EVT VT,
   assert((TargetFlags == 0 || isTarget) &&
          "Cannot set target flags on target-independent globals");
   if (Alignment == 0)
-    Alignment = MF->getFunction().hasOptSize()
+    Alignment = shouldOptForSize()
                     ? getDataLayout().getABITypeAlignment(C->getType())
                     : getDataLayout().getPrefTypeAlignment(C->getType());
   unsigned Opc = isTarget ? ISD::TargetConstantPool : ISD::ConstantPool;
@@ -5733,12 +5745,13 @@ static bool isMemSrcFromConstant(SDValue Src, ConstantDataArraySlice &Slice) {
                                   SrcDelta + G->getOffset());
 }
 
-static bool shouldLowerMemFuncForSize(const MachineFunction &MF) {
+static bool shouldLowerMemFuncForSize(const MachineFunction &MF,
+                                      SelectionDAG &DAG) {
   // On Darwin, -Os means optimize for size without hurting performance, so
   // only really optimize for size when -Oz (MinSize) is used.
   if (MF.getTarget().getTargetTriple().isOSDarwin())
     return MF.getFunction().hasMinSize();
-  return MF.getFunction().hasOptSize();
+  return DAG.shouldOptForSize();
 }
 
 static void chainLoadsAndStoresForMemcpy(SelectionDAG &DAG, const SDLoc &dl,
@@ -5788,7 +5801,7 @@ static SDValue getMemcpyLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
   bool DstAlignCanChange = false;
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  bool OptSize = shouldLowerMemFuncForSize(MF);
+  bool OptSize = shouldLowerMemFuncForSize(MF, DAG);
   FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Dst);
   if (FI && !MFI.isFixedObjectIndex(FI->getIndex()))
     DstAlignCanChange = true;
@@ -5971,7 +5984,7 @@ static SDValue getMemmoveLoadsAndStores(SelectionDAG &DAG, const SDLoc &dl,
   bool DstAlignCanChange = false;
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  bool OptSize = shouldLowerMemFuncForSize(MF);
+  bool OptSize = shouldLowerMemFuncForSize(MF, DAG);
   FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Dst);
   if (FI && !MFI.isFixedObjectIndex(FI->getIndex()))
     DstAlignCanChange = true;
@@ -6077,7 +6090,7 @@ static SDValue getMemsetStores(SelectionDAG &DAG, const SDLoc &dl,
   bool DstAlignCanChange = false;
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  bool OptSize = shouldLowerMemFuncForSize(MF);
+  bool OptSize = shouldLowerMemFuncForSize(MF, DAG);
   FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Dst);
   if (FI && !MFI.isFixedObjectIndex(FI->getIndex()))
     DstAlignCanChange = true;
@@ -7751,38 +7764,9 @@ SDNode* SelectionDAG::mutateStrictFPToFP(SDNode *Node) {
   switch (OrigOpc) {
   default:
     llvm_unreachable("mutateStrictFPToFP called with unexpected opcode!");
-  case ISD::STRICT_FADD:       NewOpc = ISD::FADD;       break;
-  case ISD::STRICT_FSUB:       NewOpc = ISD::FSUB;       break;
-  case ISD::STRICT_FMUL:       NewOpc = ISD::FMUL;       break;
-  case ISD::STRICT_FDIV:       NewOpc = ISD::FDIV;       break;
-  case ISD::STRICT_FREM:       NewOpc = ISD::FREM;       break;
-  case ISD::STRICT_FMA:        NewOpc = ISD::FMA;        break;
-  case ISD::STRICT_FSQRT:      NewOpc = ISD::FSQRT;      break;
-  case ISD::STRICT_FPOW:       NewOpc = ISD::FPOW;       break;
-  case ISD::STRICT_FPOWI:      NewOpc = ISD::FPOWI;      break;
-  case ISD::STRICT_FSIN:       NewOpc = ISD::FSIN;       break;
-  case ISD::STRICT_FCOS:       NewOpc = ISD::FCOS;       break;
-  case ISD::STRICT_FEXP:       NewOpc = ISD::FEXP;       break;
-  case ISD::STRICT_FEXP2:      NewOpc = ISD::FEXP2;      break;
-  case ISD::STRICT_FLOG:       NewOpc = ISD::FLOG;       break;
-  case ISD::STRICT_FLOG10:     NewOpc = ISD::FLOG10;     break;
-  case ISD::STRICT_FLOG2:      NewOpc = ISD::FLOG2;      break;
-  case ISD::STRICT_LRINT:      NewOpc = ISD::LRINT;      break;
-  case ISD::STRICT_LLRINT:     NewOpc = ISD::LLRINT;     break;
-  case ISD::STRICT_FRINT:      NewOpc = ISD::FRINT;      break;
-  case ISD::STRICT_FNEARBYINT: NewOpc = ISD::FNEARBYINT; break;
-  case ISD::STRICT_FMAXNUM:    NewOpc = ISD::FMAXNUM;    break;
-  case ISD::STRICT_FMINNUM:    NewOpc = ISD::FMINNUM;    break;
-  case ISD::STRICT_FCEIL:      NewOpc = ISD::FCEIL;      break;
-  case ISD::STRICT_FFLOOR:     NewOpc = ISD::FFLOOR;     break;
-  case ISD::STRICT_LROUND:     NewOpc = ISD::LROUND;     break;
-  case ISD::STRICT_LLROUND:    NewOpc = ISD::LLROUND;    break;
-  case ISD::STRICT_FROUND:     NewOpc = ISD::FROUND;     break;
-  case ISD::STRICT_FTRUNC:     NewOpc = ISD::FTRUNC;     break;
-  case ISD::STRICT_FP_ROUND:   NewOpc = ISD::FP_ROUND;   break;
-  case ISD::STRICT_FP_EXTEND:  NewOpc = ISD::FP_EXTEND;  break;
-  case ISD::STRICT_FP_TO_SINT: NewOpc = ISD::FP_TO_SINT; break;
-  case ISD::STRICT_FP_TO_UINT: NewOpc = ISD::FP_TO_UINT; break;
+#define INSTRUCTION(NAME, NARG, ROUND_MODE, INTRINSIC, DAGN)                   \
+  case ISD::STRICT_##DAGN: NewOpc = ISD::DAGN; break;
+#include "llvm/IR/ConstrainedOps.def"
   }
 
   assert(Node->getNumValues() == 2 && "Unexpected number of results!");
@@ -8842,7 +8826,9 @@ MemSDNode::MemSDNode(unsigned Opc, unsigned Order, const DebugLoc &dl,
   // We check here that the size of the memory operand fits within the size of
   // the MMO. This is because the MMO might indicate only a possible address
   // range instead of specifying the affected memory addresses precisely.
-  assert(memvt.getStoreSize() <= MMO->getSize() && "Size mismatch!");
+  // TODO: Make MachineMemOperands aware of scalable vectors.
+  assert(memvt.getStoreSize().getKnownMinSize() <= MMO->getSize() &&
+         "Size mismatch!");
 }
 
 /// Profile - Gather unique data for the node.

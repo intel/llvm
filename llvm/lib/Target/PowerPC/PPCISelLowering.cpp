@@ -926,6 +926,14 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
     if (Subtarget.hasP9Altivec()) {
       setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v8i16, Custom);
       setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v16i8, Custom);
+
+      setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v4i8,  Legal);
+      setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v4i16, Legal);
+      setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v4i32, Legal);
+      setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v2i8,  Legal);
+      setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v2i16, Legal);
+      setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v2i32, Legal);
+      setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::v2i64, Legal);
     }
   }
 
@@ -1193,7 +1201,7 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
   if (Subtarget.isDarwin())
     setPrefFunctionAlignment(Align(16));
 
-  switch (Subtarget.getDarwinDirective()) {
+  switch (Subtarget.getCPUDirective()) {
   default: break;
   case PPC::DIR_970:
   case PPC::DIR_A2:
@@ -1222,15 +1230,15 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
 
   // The Freescale cores do better with aggressive inlining of memcpy and
   // friends. GCC uses same threshold of 128 bytes (= 32 word stores).
-  if (Subtarget.getDarwinDirective() == PPC::DIR_E500mc ||
-      Subtarget.getDarwinDirective() == PPC::DIR_E5500) {
+  if (Subtarget.getCPUDirective() == PPC::DIR_E500mc ||
+      Subtarget.getCPUDirective() == PPC::DIR_E5500) {
     MaxStoresPerMemset = 32;
     MaxStoresPerMemsetOptSize = 16;
     MaxStoresPerMemcpy = 32;
     MaxStoresPerMemcpyOptSize = 8;
     MaxStoresPerMemmove = 32;
     MaxStoresPerMemmoveOptSize = 8;
-  } else if (Subtarget.getDarwinDirective() == PPC::DIR_A2) {
+  } else if (Subtarget.getCPUDirective() == PPC::DIR_A2) {
     // The A2 also benefits from (very) aggressive inlining of memcpy and
     // friends. The overhead of a the function call, even when warm, can be
     // over one hundred cycles.
@@ -2749,14 +2757,14 @@ unsigned PPCTargetLowering::getJumpTableEncoding() const {
 bool PPCTargetLowering::isJumpTableRelative() const {
   if (UseAbsoluteJumpTables)
     return false;
-  if (Subtarget.isPPC64())
+  if (Subtarget.isPPC64() || Subtarget.isAIXABI())
     return true;
   return TargetLowering::isJumpTableRelative();
 }
 
 SDValue PPCTargetLowering::getPICJumpTableRelocBase(SDValue Table,
                                                     SelectionDAG &DAG) const {
-  if (!Subtarget.isPPC64())
+  if (!Subtarget.isPPC64() || Subtarget.isAIXABI())
     return TargetLowering::getPICJumpTableRelocBase(Table, DAG);
 
   switch (getTargetMachine().getCodeModel()) {
@@ -2773,7 +2781,7 @@ const MCExpr *
 PPCTargetLowering::getPICJumpTableRelocBaseExpr(const MachineFunction *MF,
                                                 unsigned JTI,
                                                 MCContext &Ctx) const {
-  if (!Subtarget.isPPC64())
+  if (!Subtarget.isPPC64() || Subtarget.isAIXABI())
     return TargetLowering::getPICJumpTableRelocBaseExpr(MF, JTI, Ctx);
 
   switch (getTargetMachine().getCodeModel()) {
@@ -5317,8 +5325,20 @@ SDValue PPCTargetLowering::FinishCall(
     // C-linkage name.
     GlobalAddressSDNode *G = cast<GlobalAddressSDNode>(Callee);
     auto &Context = DAG.getMachineFunction().getMMI().getContext();
-    MCSymbol *S = Context.getOrCreateSymbol(Twine(".") +
-                                            Twine(G->getGlobal()->getName()));
+
+    MCSymbolXCOFF *S = cast<MCSymbolXCOFF>(Context.getOrCreateSymbol(
+        Twine(".") + Twine(G->getGlobal()->getName())));
+
+    const GlobalValue *GV = G->getGlobal();
+    if (GV && GV->isDeclaration() && !S->hasContainingCsect()) {
+      // On AIX, undefined symbol need to associate with a MCSectionXCOFF to
+      // get the correct storage mapping class. In this case, XCOFF::XMC_PR.
+      MCSectionXCOFF *Sec =
+          Context.getXCOFFSection(S->getName(), XCOFF::XMC_PR, XCOFF::XTY_ER,
+                                  XCOFF::C_EXT, SectionKind::getMetadata());
+      S->setContainingCsect(Sec);
+    }
+
     Callee = DAG.getMCSymbol(S, PtrVT);
     // Replace the GlobalAddressSDNode Callee with the MCSymbolSDNode.
     Ops[1] = Callee;
@@ -11697,7 +11717,7 @@ unsigned PPCTargetLowering::combineRepeatedFPDivisors() const {
   // Combine multiple FDIVs with the same divisor into multiple FMULs by the
   // reciprocal if there are two or more FDIVs (for embedded cores with only
   // one FP pipeline) for three or more FDIVs (for generic OOO cores).
-  switch (Subtarget.getDarwinDirective()) {
+  switch (Subtarget.getCPUDirective()) {
   default:
     return 3;
   case PPC::DIR_440:
@@ -14170,7 +14190,7 @@ void PPCTargetLowering::computeKnownBitsForTargetNode(const SDValue Op,
 }
 
 Align PPCTargetLowering::getPrefLoopAlignment(MachineLoop *ML) const {
-  switch (Subtarget.getDarwinDirective()) {
+  switch (Subtarget.getCPUDirective()) {
   default: break;
   case PPC::DIR_970:
   case PPC::DIR_PWR4:
@@ -14368,6 +14388,17 @@ PPCTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
       return std::make_pair(0U, &PPC::VSFRCRegClass);
   }
 
+  // If we name a VSX register, we can't defer to the base class because it
+  // will not recognize the correct register (their names will be VSL{0-31}
+  // and V{0-31} so they won't match). So we match them here.
+  if (Constraint.size() > 3 && Constraint[1] == 'v' && Constraint[2] == 's') {
+    int VSNum = atoi(Constraint.data() + 3);
+    assert(VSNum >= 0 && VSNum <= 63 &&
+           "Attempted to access a vsr out of range");
+    if (VSNum < 32)
+      return std::make_pair(PPC::VSL0 + VSNum, &PPC::VSRCRegClass);
+    return std::make_pair(PPC::V0 + VSNum - 32, &PPC::VSRCRegClass);
+  }
   std::pair<unsigned, const TargetRegisterClass *> R =
       TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 
@@ -14948,7 +14979,8 @@ bool PPCTargetLowering::allowsMisalignedMemoryAccesses(EVT VT,
   return true;
 }
 
-bool PPCTargetLowering::isFMAFasterThanFMulAndFAdd(EVT VT) const {
+bool PPCTargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
+                                                   EVT VT) const {
   VT = VT.getScalarType();
 
   if (!VT.isSimple())
@@ -15337,7 +15369,7 @@ SDValue PPCTargetLowering::combineMUL(SDNode *N, DAGCombinerInfo &DCI) const {
     return SDValue();
 
   auto IsProfitable = [this](bool IsNeg, bool IsAddOne, EVT VT) -> bool {
-    switch (this->Subtarget.getDarwinDirective()) {
+    switch (this->Subtarget.getCPUDirective()) {
     default:
       // TODO: enhance the condition for subtarget before pwr8
       return false;
