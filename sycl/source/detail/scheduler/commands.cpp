@@ -11,6 +11,7 @@
 #include "CL/sycl/access/access.hpp"
 #include <CL/cl.h>
 #include <CL/sycl/detail/clusm.hpp>
+#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/kernel_info.hpp>

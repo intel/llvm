@@ -10,7 +10,6 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/detail/context_impl.hpp>
 #include <CL/sycl/stl.hpp>
 #include <type_traits>
 // 4.6.2 Context class
@@ -20,6 +19,9 @@ namespace sycl {
 // Forward declarations
 class device;
 class platform;
+namespace detail {
+class context_impl;
+}
 
 class context {
 public:
