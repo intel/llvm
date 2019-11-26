@@ -109,11 +109,11 @@ object and passed as an argument to SYCL function for invoking kernels (such as
 `parallel_for` or `single_task`). For example, in the previous code snippet above
 `accessor` `A` is one such captured kernel argument.
 
-To facilitate the mapping of the fields of SYCL kernel functions to OpenCL
+To facilitate the mapping of SYCL kernel data members to OpenCL
 kernel arguments and overcome OpenCL limitations we added the generation of an OpenCL
 kernel function inside the compiler. An OpenCL kernel function contains the
 body of the SYCL kernel function, receives OpenCL-like parameters and
-additionally does some manipulation to initialize SYCL kernel function fields
+additionally does some manipulation to initialize SYCL kernel data members
 with these parameters. In some pseudo code the OpenCL kernel function for the
 previous code snippet above looks like this:
 
