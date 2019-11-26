@@ -102,9 +102,11 @@ void readConfig() {
 // Prints configs name with their value
 void dumpConfig() {
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
-  const char *Val = SYCLConfig<Name>::get();                                   \
-  std::cerr << SYCLConfigBase<Name>::MConfigName << " : "                      \
-            << (Val ? Val : "unset") << std::endl;
+  {                                                                            \
+    const char *Val = SYCLConfig<Name>::get();                                 \
+    std::cerr << SYCLConfigBase<Name>::MConfigName << " : "                    \
+              << (Val ? Val : "unset") << std::endl;                           \
+  }
 #include "detail/config.def"
 #undef CONFIG
 }
