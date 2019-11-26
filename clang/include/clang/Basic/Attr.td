@@ -1744,6 +1744,24 @@ def SYCLFPGAPipe : TypeAttr {
   let Documentation = [SYCLFPGAPipeDocs];
 }
 
+// Variadic integral arguments.
+def IntelFPGABankBits : Attr {
+  let Spellings = [CXX11<"intelfpga", "bank_bits">];
+  let Args = [VariadicExprArgument<"Args">];
+  let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticSlaveMemVar,
+                              Field], ErrorDiag>;
+  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let Documentation = [IntelFPGABankBitsDocs];
+  let AdditionalMembers = [{
+    static unsigned getMinValue() {
+      return 0;
+    }
+    static unsigned getMaxValue() {
+      return 1024*1024;
+    }
+  }];
+}
+
 def Naked : InheritableAttr {
   let Spellings = [GCC<"naked">, Declspec<"naked">];
   let Subjects = SubjectList<[Function]>;

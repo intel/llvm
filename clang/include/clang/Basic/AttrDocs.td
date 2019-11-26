@@ -1848,6 +1848,17 @@ loads).
   }];
 }
 
+def IntelFPGABankBitsDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "bank_bits (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+instructs the backend to implement the variable or struct member in a banked
+memory with 2^(N+1) banks, where the (b0, ..., bn) bits specified determine the
+pointer address bits to bank on.
+  }];
+}
+
 def SYCLIntelKernelArgsRestrictDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "kernel_args_restrict";

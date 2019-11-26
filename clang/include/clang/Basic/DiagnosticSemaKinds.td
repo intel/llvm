@@ -139,6 +139,10 @@ def err_loop_unroll_compatibility : Error<
   "incompatible loop unroll instructions: '%0' and '%1'">;
 def err_pipe_attribute_arg_not_allowed : Error<
   "'%0' mode for pipe attribute is not supported. Allowed modes: 'read_only', 'write_only'">;
+def err_bankbits_numbanks_conflicting : Error<
+  "the number of bank_bits must be equal to ceil(log2(numbanks))">;
+def err_bankbits_non_consecutive : Error<
+  "bank_bits must be consecutive">;
 
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
