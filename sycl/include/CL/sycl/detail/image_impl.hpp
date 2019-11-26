@@ -353,7 +353,7 @@ private:
 
   template <info::device Param>
   bool checkImageValueRange(const ContextImplPtr Context, const size_t Value) {
-    const auto &Devices = Context->get_devices();
+    const auto &Devices = Context->get_info<info::context::devices>();
     return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
                                      [Value](const device &Dev) {
                                        return Value <= Dev.get_info<Param>();

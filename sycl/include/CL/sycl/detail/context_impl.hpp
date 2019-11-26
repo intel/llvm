@@ -41,10 +41,6 @@ public:
 
   bool is_host() const;
 
-  platform get_platform() const;
-
-  vector_class<device> get_devices() const;
-
   const async_handler &get_async_handler() const;
 
   template <info::context param>
@@ -59,24 +55,24 @@ public:
   const RT::PiContext &getHandleRef() const;
 
   std::map<OSModuleHandle, RT::PiProgram> &getCachedPrograms() {
-    return m_CachedPrograms;
+    return MCachedPrograms;
   }
   std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> &
   getCachedKernels() {
-    return m_CachedKernels;
+    return MCachedKernels;
   }
 
   std::shared_ptr<usm::USMDispatcher> getUSMDispatch() const;
 private:
-  async_handler m_AsyncHandler;
-  vector_class<device> m_Devices;
-  RT::PiContext m_Context;
-  platform m_Platform;
-  bool m_OpenCLInterop;
-  bool m_HostContext;
-  std::map<OSModuleHandle, RT::PiProgram> m_CachedPrograms;
-  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> m_CachedKernels;
-  std::shared_ptr<usm::USMDispatcher> m_USMDispatch;
+  async_handler MAsyncHandler;
+  vector_class<device> MDevices;
+  RT::PiContext MContext;
+  platform MPlatform;
+  bool MPluginInterop;
+  bool MHostContext;
+  std::map<OSModuleHandle, RT::PiProgram> MCachedPrograms;
+  std::map<RT::PiProgram, std::map<string_class, RT::PiKernel>> MCachedKernels;
+  std::shared_ptr<usm::USMDispatcher> MUSMDispatch;
 };
 
 } // namespace detail
