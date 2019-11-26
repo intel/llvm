@@ -41,11 +41,10 @@ context_impl::context_impl(const vector_class<cl::sycl::device> Devices,
   MUSMDispatch.reset(new usm::USMDispatcher(MPlatform.get(), DeviceIds));
 }
 
-context_impl::context_impl(cl_context ClContext, async_handler AsyncHandler)
-    : MAsyncHandler(AsyncHandler), MDevices(), MPlatform(),
+context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler)
+    : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
       MPluginInterop(true), MHostContext(false) {
 
-  MContext = pi::cast<RT::PiContext>(ClContext);
   vector_class<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions

@@ -33,7 +33,7 @@ public:
   context_impl(const vector_class<cl::sycl::device> Devices,
                async_handler AsyncHandler);
 
-  context_impl(cl_context ClContext, async_handler AsyncHandler);
+  context_impl(RT::PiContext PiContext, async_handler AsyncHandler);
 
   ~context_impl();
 
