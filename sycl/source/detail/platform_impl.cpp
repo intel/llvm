@@ -60,9 +60,7 @@ struct DevDescT {
 };
 
 static std::vector<DevDescT> getWhiteListDesc() {
-  // TODO: Replace with const char *str =
-  // SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get();
-  const char *str = getenv("SYCL_DEVICE_WHITE_LIST");
+  const char *str = SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get();
   if (!str)
     return {};
 
@@ -71,18 +69,16 @@ static std::vector<DevDescT> getWhiteListDesc() {
   const char driverVerStr[] = "DriverVersion";
   decDescs.emplace_back();
   while ('\0' != *str) {
-    const char **dstPtr = nullptr;
+    const char **valuePtr = nullptr;
     int *size = nullptr;
-
-    // TODO: Handle string less than devNameStr
 
     // -1 to avoid comparing null terminator
     if (0 == strncmp(devNameStr, str, sizeof(devNameStr) - 1)) {
-      dstPtr = &decDescs.back().devName;
+      valuePtr = &decDescs.back().devName;
       size = &decDescs.back().devNameSize;
       str += sizeof(devNameStr) - 1;
     } else if (0 == strncmp(driverVerStr, str, sizeof(driverVerStr) - 1)) {
-      dstPtr = &decDescs.back().devDriverVer;
+      valuePtr = &decDescs.back().devDriverVer;
       size = &decDescs.back().devDriverVerSize;
       str += sizeof(driverVerStr) - 1;
     }
@@ -99,7 +95,7 @@ static std::vector<DevDescT> getWhiteListDesc() {
     // Skip opening sequence "{{"
     str += 2;
 
-    *dstPtr = str;
+    *valuePtr = str;
 
     // Increment until closing sequence is encountered
     while (('\0' != *str) && ('}' != *str || '}' != *(str + 1)))
@@ -108,7 +104,7 @@ static std::vector<DevDescT> getWhiteListDesc() {
     if ('\0' == *str)
       throw sycl::runtime_error("Malformed device white list");
 
-    *size = str - *dstPtr;
+    *size = str - *valuePtr;
 
     // Skip closing sequence "}}"
     str += 2;
@@ -181,7 +177,8 @@ platform_impl_pi::get_devices(info::device_type deviceType) const {
                         num_devices, pi_devices.data(), nullptr);
 
   // Filter out devices that are not present in the white list
-  filterWhiteList(pi_devices);
+  if (SYCLConfig<SYCL_DEVICE_WHITE_LIST>::get())
+    filterWhiteList(pi_devices);
 
   std::for_each(pi_devices.begin(), pi_devices.end(),
                 [&res](const RT::PiDevice &a_pi_device) {
