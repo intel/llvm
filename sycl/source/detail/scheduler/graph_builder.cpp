@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/access/access.hpp>
+#include "detail/config.hpp"
 #include <CL/sycl/detail/event_impl.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/detail/queue_impl.hpp>
@@ -46,7 +47,7 @@ static bool IsSuitableSubReq(const Requirement *Req) {
 }
 
 Scheduler::GraphBuilder::GraphBuilder() {
-  if (const char *EnvVarCStr = std::getenv("SYCL_PRINT_EXECUTION_GRAPH")) {
+  if (const char *EnvVarCStr = SYCLConfig<SYCL_PRINT_EXECUTION_GRAPH>::get()) {
     std::string GraphPrintOpts(EnvVarCStr);
     bool EnableAlways = GraphPrintOpts.find("always") != std::string::npos;
 

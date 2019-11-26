@@ -29,6 +29,7 @@ configure_lit_site_cfg(
 list(APPEND SYCL_TEST_DEPS
   sycl-toolchain
   FileCheck
+  not
   get_device_count_by_type
   llvm-config
   )
